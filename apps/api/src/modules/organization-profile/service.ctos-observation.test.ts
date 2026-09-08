@@ -45,6 +45,7 @@ import {
   adoptObservedParty,
   assertIssuerProfileCompleteForSubmit,
   createUserAddedParty,
+  inactivateMasterParty,
   observeExternalCtosParties,
   patchPartyProfile,
   resolvePartyMismatch,
@@ -388,12 +389,32 @@ describe("CTOS master party observation", () => {
     expect(updated.mismatches.find((m) => m.field === "shareholdingPercentage")).toBeUndefined();
   });
 
-  it("rejects a user PATCH that overwrites a filled shareholding percentage", async () => {
+  it("allows an issuer user to update a filled shareholding percentage that still meets 5%", async () => {
     parties.push(
       row({
         id: "p-a",
         party_key: "800101011234",
+        is_shareholder: true,
         shareholding_percentage: new Prisma.Decimal("36"),
+      })
+    );
+    const updated = await patchPartyProfile({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-a",
+      source: "USER",
+      fillEmptyOnly: true,
+      patch: { shareholdingPercentage: "50" },
+    });
+    expect(updated.shareholdingPercentage).toBe("50");
+  });
+
+  it("rejects a user PATCH that changes a filled identity number", async () => {
+    parties.push(
+      row({
+        id: "p-a",
+        party_key: "800101011234",
+        identity_number: "800101011234",
       })
     );
     await expect(
@@ -403,7 +424,7 @@ describe("CTOS master party observation", () => {
         partyId: "p-a",
         source: "USER",
         fillEmptyOnly: true,
-        patch: { shareholdingPercentage: "50" },
+        patch: { identityNumber: "800101011999" },
       })
     ).rejects.toMatchObject({ statusCode: 403, code: "FIELD_NOT_EDITABLE" });
   });
@@ -739,6 +760,11 @@ describe("user-added master parties", () => {
         }),
       })
     );
+    const createdJson = (prisma.ctosPartySupplement.create as jest.Mock).mock.calls[0]?.[0]?.data
+      ?.onboarding_json as Record<string, unknown>;
+    expect(createdJson.status).toBe("");
+    expect(String(createdJson.requestId ?? "")).not.toMatch(/^draft-/i);
+    expect(createdJson.email).toBe("sarah@example.com");
   });
 
   it("creates a corporate shareholder as MASTER_ACTIVE USER_ADDED", async () => {
@@ -765,6 +791,98 @@ describe("user-added master parties", () => {
     expect(created.isDirector).toBe(false);
     expect(created.gender).toBe("NOT_APPLICABLE");
     expect(created.partyKey).toBe("1234567A");
+  });
+
+  it("accepts a company issuer shareholder at 5% and 5.0%", async () => {
+    const atFive = await createUserAddedParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      source: "USER",
+      patch: {
+        entityType: "CORPORATE",
+        name: "Five Pct Sdn Bhd",
+        identityNumber: "1111111-A",
+        identityPrefix: "ROC",
+        isShareholder: true,
+        shareholdingPercentage: "5",
+        shareType: "ORDINARY",
+      },
+    });
+    expect(atFive.shareholdingPercentage).toBe("5");
+    const atFivePoint = await createUserAddedParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      source: "USER",
+      patch: {
+        entityType: "CORPORATE",
+        name: "Five Point Sdn Bhd",
+        identityNumber: "2222222-A",
+        identityPrefix: "ROC",
+        isShareholder: true,
+        shareholdingPercentage: "5.0",
+        shareType: "ORDINARY",
+      },
+    });
+    expect(Number(atFivePoint.shareholdingPercentage)).toBe(5);
+  });
+
+  it("rejects a blank issuer shareholder percentage", async () => {
+    await expect(
+      createUserAddedParty({
+        portal: "issuer",
+        organizationId: "org-1",
+        source: "USER",
+        patch: {
+          name: "John Lee",
+          identityNumber: "880101011111",
+          identityPrefix: "NRIC",
+          isShareholder: true,
+          shareholdingPercentage: "",
+          shareType: "ORDINARY",
+        },
+      })
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(parties).toHaveLength(0);
+  });
+
+  it("does not auto-adopt a CTOS-observed person when the same identity is added manually", async () => {
+    parties.push(
+      row({
+        id: "p-obs",
+        party_key: "900101101234",
+        identity_number: "900101101234",
+        name: "Sarah Tan",
+        origin: OrganizationPartyOrigin.CTOS_PARTY,
+        membership_status: OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED,
+        is_director: true,
+        is_shareholder: false,
+        shareholding_percentage: null,
+      })
+    );
+    await expect(
+      createUserAddedParty({
+        portal: "issuer",
+        organizationId: "org-1",
+        source: "USER",
+        patch: {
+          name: "Sarah Tan",
+          identityNumber: "900101-10-1234",
+          identityPrefix: "NRIC",
+          isDirector: true,
+          isShareholder: true,
+          shareholdingPercentage: "10",
+          shareType: "ORDINARY",
+        },
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      code: "INVALID_PARTY_STATUS",
+      message: "Add this CTOS person to the current profile before editing.",
+    });
+    expect(parties.filter((p) => canonicalKey(p.party_key) === "900101101234")).toHaveLength(1);
+    expect(parties.find((p) => p.id === "p-obs")?.membership_status).toBe(
+      OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED
+    );
   });
 
   it("persists salutation, share type other, and resignation date on a user-added person", async () => {
@@ -797,22 +915,25 @@ describe("user-added master parties", () => {
     expect(created.shareholdingAmount).toBe("2500");
   });
 
-  it("B: manual shareholder under 5% is still on the regulatory master", async () => {
-    const created = await createUserAddedParty({
-      portal: "issuer",
-      organizationId: "org-1",
-      source: "USER",
-      patch: {
-        name: "John Lee",
-        identityNumber: "880101011111",
-        isShareholder: true,
-        shareholdingPercentage: "2",
-        shareType: "ORDINARY",
-      },
+  it("rejects a manual issuer shareholder under 5%", async () => {
+    await expect(
+      createUserAddedParty({
+        portal: "issuer",
+        organizationId: "org-1",
+        source: "USER",
+        patch: {
+          name: "John Lee",
+          identityNumber: "880101011111",
+          isShareholder: true,
+          shareholdingPercentage: "2",
+          shareType: "ORDINARY",
+        },
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: "Shareholding Percentage must be at least 5%.",
     });
-    expect(created.membershipStatus).toBe("MASTER_ACTIVE");
-    expect(created.isShareholder).toBe(true);
-    expect(created.shareholdingPercentage).toBe("2");
+    expect(parties).toHaveLength(0);
   });
 
   it("C: director + shareholder is one row", async () => {
@@ -922,6 +1043,585 @@ describe("user-added master parties", () => {
       input: { action: "USE_EXTERNAL", field: "shareholdingPercentage" },
     });
     expect(Number(updated.shareholdingPercentage)).toBe(25);
+  });
+
+  it("rejects a company issuer shareholder at 4.99%", async () => {
+    await expect(
+      createUserAddedParty({
+        portal: "issuer",
+        organizationId: "org-1",
+        source: "USER",
+        patch: {
+          entityType: "CORPORATE",
+          name: "ABC Sdn Bhd",
+          identityNumber: "1234567-B",
+          identityPrefix: "ROC",
+          isShareholder: true,
+          shareholdingPercentage: "4.99",
+          shareType: "ORDINARY",
+        },
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: "Shareholding Percentage must be at least 5%.",
+    });
+  });
+
+  it("rejects editing an issuer shareholder from 10% to 3%", async () => {
+    parties.push(
+      row({
+        id: "p-edit",
+        party_key: "770101011111",
+        identity_number: "770101011111",
+        is_shareholder: true,
+        shareholding_percentage: new Prisma.Decimal("10"),
+      })
+    );
+    await expect(
+      patchPartyProfile({
+        portal: "issuer",
+        organizationId: "org-1",
+        partyId: "p-edit",
+        source: "ADMIN",
+        patch: { shareholdingPercentage: "3" },
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: "Shareholding Percentage must be at least 5%.",
+    });
+    expect(Number(parties.find((p) => p.id === "p-edit")?.shareholding_percentage)).toBe(10);
+  });
+
+  it("rejects adopting a <5% issuer shareholder-only external party", async () => {
+    parties.push(
+      row({
+        id: "p-small",
+        party_key: "660101011111",
+        identity_number: "660101011111",
+        membership_status: OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED,
+        is_shareholder: true,
+        is_director: false,
+        shareholding_percentage: new Prisma.Decimal("3"),
+      })
+    );
+    await expect(
+      adoptObservedParty({
+        portal: "issuer",
+        organizationId: "org-1",
+        partyId: "p-small",
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: "Shareholding Percentage must be at least 5%.",
+    });
+    expect(parties.find((p) => p.id === "p-small")?.membership_status).toBe(
+      OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED
+    );
+  });
+
+  it("empty latest CTOS people arrays keep current master people", async () => {
+    parties.push(
+      row({
+        id: "p-keep",
+        party_key: "800101011234",
+        name: "Charlie",
+        is_director: true,
+        is_shareholder: false,
+      })
+    );
+    await observeExternalCtosParties("issuer", "org-1", { directors: [], shareholders: [] });
+    const kept = parties.find((p) => p.id === "p-keep");
+    expect(kept?.membership_status).toBe("MASTER_ACTIVE");
+    expect(kept?.name).toBe("Charlie");
+    expect(kept?.absent_from_latest_external).toBe(true);
+  });
+
+  it("rejects an investor shareholder below 5%", async () => {
+    (prisma.investorOrganization.findUnique as jest.Mock).mockResolvedValue({ id: "inv-1" });
+    await expect(
+      createUserAddedParty({
+        portal: "investor",
+        organizationId: "inv-1",
+        source: "USER",
+        patch: {
+          name: "Retail Holder",
+          identityNumber: "550101011111",
+          identityPrefix: "NRIC",
+          isShareholder: true,
+          shareholdingPercentage: "2",
+          shareType: "ORDINARY",
+        },
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: "Shareholding Percentage must be at least 5%.",
+    });
+    expect(parties).toHaveLength(0);
+  });
+
+  it("accepts an investor shareholder at 5% and a company at 10%", async () => {
+    (prisma.investorOrganization.findUnique as jest.Mock).mockResolvedValue({ id: "inv-1" });
+    const individual = await createUserAddedParty({
+      portal: "investor",
+      organizationId: "inv-1",
+      source: "USER",
+      patch: {
+        name: "Retail Holder",
+        identityNumber: "550101011111",
+        identityPrefix: "NRIC",
+        isShareholder: true,
+        shareholdingPercentage: "5",
+        shareType: "ORDINARY",
+      },
+    });
+    expect(individual.isShareholder).toBe(true);
+    expect(individual.shareholdingPercentage).toBe("5");
+    const company = await createUserAddedParty({
+      portal: "investor",
+      organizationId: "inv-1",
+      source: "USER",
+      patch: {
+        entityType: "CORPORATE",
+        name: "HoldCo Sdn Bhd",
+        identityNumber: "1234567-C",
+        identityPrefix: "ROC",
+        isShareholder: true,
+        shareholdingPercentage: "10",
+        shareType: "ORDINARY",
+      },
+    });
+    expect(company.isShareholder).toBe(true);
+    expect(company.entityType).toBe("CORPORATE");
+  });
+
+  it("rejects an investor company shareholder at 4.99%", async () => {
+    (prisma.investorOrganization.findUnique as jest.Mock).mockResolvedValue({ id: "inv-1" });
+    await expect(
+      createUserAddedParty({
+        portal: "investor",
+        organizationId: "inv-1",
+        source: "USER",
+        patch: {
+          entityType: "CORPORATE",
+          name: "ABC Sdn Bhd",
+          identityNumber: "1234567-D",
+          identityPrefix: "ROC",
+          isShareholder: true,
+          shareholdingPercentage: "4.99",
+          shareType: "ORDINARY",
+        },
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: "Shareholding Percentage must be at least 5%.",
+    });
+  });
+
+  it("rejects adopting a <5% investor shareholder-only external party", async () => {
+    (prisma.investorOrganization.findUnique as jest.Mock).mockResolvedValue({ id: "inv-1" });
+    parties.push(
+      row({
+        id: "p-inv-small",
+        party_key: "660101011222",
+        identity_number: "660101011222",
+        membership_status: OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED,
+        is_shareholder: true,
+        is_director: false,
+        shareholding_percentage: new Prisma.Decimal("3"),
+        issuer_organization_id: null,
+        investor_organization_id: "inv-1",
+      })
+    );
+    await expect(
+      adoptObservedParty({
+        portal: "investor",
+        organizationId: "inv-1",
+        partyId: "p-inv-small",
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: "Shareholding Percentage must be at least 5%.",
+    });
+  });
+
+  it("adopts a director with 3% shares without activating the shareholder role", async () => {
+    parties.push(
+      row({
+        id: "p-dir-small",
+        party_key: "660101011333",
+        identity_number: "660101011333",
+        membership_status: OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED,
+        is_shareholder: true,
+        is_director: true,
+        is_board: true,
+        shareholding_percentage: new Prisma.Decimal("3"),
+      })
+    );
+    const adopted = await adoptObservedParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-dir-small",
+    });
+    expect(adopted.membershipStatus).toBe("MASTER_ACTIVE");
+    expect(adopted.isDirector).toBe(true);
+    expect(adopted.isBoard).toBe(true);
+    expect(adopted.isShareholder).toBe(false);
+    expect(adopted.shareholdingPercentage).toBeNull();
+  });
+
+  it("rejects editing a CTOS-observed person until Admin adds them to the current profile", async () => {
+    parties.push(
+      row({
+        id: "p-obs",
+        party_key: "900101101234",
+        membership_status: OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED,
+        is_director: true,
+      })
+    );
+    await expect(
+      patchPartyProfile({
+        portal: "issuer",
+        organizationId: "org-1",
+        partyId: "p-obs",
+        source: "USER",
+        fillEmptyOnly: true,
+        patch: { nationality: "MALAYSIA" },
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: "Add this CTOS person to the current profile before editing.",
+    });
+  });
+
+  it("does not reactivate an inactive person when the same identity is added or edited", async () => {
+    parties.push(
+      row({
+        id: "p-john",
+        party_key: "880101011111",
+        identity_number: "880101011111",
+        name: "John",
+        is_director: true,
+        is_shareholder: true,
+        is_board: true,
+        shareholding_percentage: new Prisma.Decimal("20"),
+        membership_status: OrganizationPartyMembershipStatus.MASTER_INACTIVE,
+      })
+    );
+    await expect(
+      createUserAddedParty({
+        portal: "issuer",
+        organizationId: "org-1",
+        source: "USER",
+        patch: {
+          name: "John",
+          identityNumber: "880101-01-1111",
+          isDirector: true,
+        },
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: "This person is no longer active on the current profile.",
+    });
+    await expect(
+      patchPartyProfile({
+        portal: "issuer",
+        organizationId: "org-1",
+        partyId: "p-john",
+        source: "USER",
+        fillEmptyOnly: true,
+        patch: { nationality: "MALAYSIA" },
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: "This person is no longer active on the current profile.",
+    });
+    expect(parties.find((p) => p.id === "p-john")?.membership_status).toBe(
+      OrganizationPartyMembershipStatus.MASTER_INACTIVE
+    );
+    expect(parties.filter((p) => canonicalKey(p.party_key) === "880101011111")).toHaveLength(1);
+  });
+
+  it("inactivate only marks membership inactive and keeps identity, roles, and observation", async () => {
+    parties.push(
+      row({
+        id: "p-john",
+        party_key: "880101011111",
+        name: "John",
+        is_director: true,
+        is_shareholder: true,
+        is_board: true,
+        shareholding_percentage: new Prisma.Decimal("20"),
+        external_observation: { name: "JOHN" },
+      })
+    );
+    const updated = await inactivateMasterParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-john",
+    });
+    expect(updated.membershipStatus).toBe("MASTER_INACTIVE");
+    const stored = parties.find((p) => p.id === "p-john");
+    expect(stored?.name).toBe("John");
+    expect(stored?.is_director).toBe(true);
+    expect(stored?.is_shareholder).toBe(true);
+    expect(stored?.is_board).toBe(true);
+    expect(Number(stored?.shareholding_percentage)).toBe(20);
+    expect(stored?.external_observation).toEqual({ name: "JOHN" });
+    expect(parties.filter((p) => p.id === "p-john")).toHaveLength(1);
+  });
+
+  it("CTOS listing an inactive person again does not reactivate them", async () => {
+    parties.push(
+      row({
+        id: "p-john",
+        party_key: "880101011111",
+        name: "John",
+        is_director: true,
+        membership_status: OrganizationPartyMembershipStatus.MASTER_INACTIVE,
+        absent_from_latest_external: true,
+      })
+    );
+    await observeExternalCtosParties("issuer", "org-1", {
+      directors: [{ party_type: "I", nic_brno: "880101011111", name: "John", position: "DO" }],
+    });
+    const john = parties.find((p) => p.id === "p-john");
+    expect(john?.membership_status).toBe("MASTER_INACTIVE");
+    expect(john?.absent_from_latest_external).toBe(false);
+    expect(parties.filter((p) => canonicalKey(p.party_key) === "880101011111")).toHaveLength(1);
+  });
+
+  it("investor edit updates the same master person and keeps unrelated roles", async () => {
+    (prisma.investorOrganization.findUnique as jest.Mock).mockResolvedValue({ id: "inv-1" });
+    parties.push(
+      row({
+        id: "p-inv",
+        party_key: "550101011111",
+        identity_number: "550101011111",
+        issuer_organization_id: null,
+        investor_organization_id: "inv-1",
+        is_director: true,
+        is_shareholder: true,
+        is_board: true,
+        is_management: false,
+        shareholding_percentage: new Prisma.Decimal("10"),
+      })
+    );
+    const updated = await patchPartyProfile({
+      portal: "investor",
+      organizationId: "inv-1",
+      partyId: "p-inv",
+      source: "USER",
+      fillEmptyOnly: true,
+      patch: { shareholdingPercentage: "15" },
+    });
+    expect(updated.id).toBe("p-inv");
+    expect(updated.isDirector).toBe(true);
+    expect(updated.isBoard).toBe(true);
+    expect(updated.isShareholder).toBe(true);
+    expect(updated.isManagement).toBe(false);
+    expect(updated.shareholdingPercentage).toBe("15");
+    expect(parties.filter((p) => p.id === "p-inv")).toHaveLength(1);
+  });
+
+  it("after establishment, adds a missing RegTank corporate shareholder and clears auto Board on a director", async () => {
+    issuerOrg.regulatory_structure_established_at = new Date("2026-01-01T00:00:00.000Z");
+    issuerOrg.corporate_entities = {
+      directors: [
+        {
+          personalInfo: {
+            fullName: "Nur Aina Farisha Binti Salleh",
+            governmentIdNumber: "950829083430",
+          },
+        },
+      ],
+      shareholders: [
+        {
+          personalInfo: {
+            fullName: "Nur Aina Farisha Binti Salleh",
+            governmentIdNumber: "950829083430",
+          },
+          sharePercentage: 6,
+        },
+      ],
+      corporateShareholders: [
+        {
+          businessName: "ApexStar Holdings Sdn. Bhd.",
+          ssmRegistrationNumber: "202001234567",
+          sharePercentage: 10,
+        },
+      ],
+    };
+    parties.push(
+      row({
+        id: "p-aina",
+        party_key: "950829083430",
+        identity_number: "950829083430",
+        name: "Nur Aina Farisha Binti Salleh",
+        origin: OrganizationPartyOrigin.CTOS_PARTY,
+        is_director: true,
+        is_shareholder: false,
+        is_board: true,
+      })
+    );
+    mockCtosFindFirst.mockResolvedValue({
+      company_json: {
+        directors: [
+          {
+            party_type: "I",
+            nic_brno: "950829083430",
+            name: "Nur Aina Farisha Binti Salleh",
+            position: "DO",
+          },
+        ],
+        shareholders: [],
+      },
+    });
+    await seedMasterPartiesIfEmpty("issuer", "org-1");
+    const aina = parties.find((p) => p.id === "p-aina");
+    expect(aina?.is_director).toBe(true);
+    expect(aina?.is_shareholder).toBe(true);
+    expect(aina?.is_board).toBe(false);
+    const apex = parties.find((p) => String(p.name).includes("ApexStar"));
+    expect(apex?.entity_type).toBe("CORPORATE");
+    expect(apex?.is_shareholder).toBe(true);
+    expect(apex?.membership_status).toBe(OrganizationPartyMembershipStatus.MASTER_ACTIVE);
+  });
+
+  it("promotes a CTOS-only ApexStar onto the live list at RegTank 10% and keeps the 50% observation", async () => {
+    issuerOrg.regulatory_structure_established_at = new Date("2026-01-01T00:00:00.000Z");
+    issuerOrg.corporate_entities = {
+      directors: [],
+      shareholders: [],
+      corporateShareholders: [
+        {
+          formContent: {
+            displayAreas: [
+              {
+                displayArea: "Basic Information Setting",
+                content: [
+                  { fieldName: "Business Name", fieldValue: "ApexStar Holdings Sdn. Bhd." },
+                  { fieldName: "Business Number", fieldValue: "7321984G" },
+                  { fieldName: "% of Shares", fieldValue: "10" },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+    };
+    parties.push(
+      row({
+        id: "p-apex",
+        party_key: "7321984G",
+        identity_number: "7321984G",
+        identity_prefix: "ROC",
+        entity_type: "CORPORATE",
+        name: "ApexStar Holdings Sdn. Bhd.",
+        origin: OrganizationPartyOrigin.CTOS_PARTY,
+        membership_status: OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED,
+        is_director: false,
+        is_shareholder: true,
+        shareholding_percentage: new Prisma.Decimal("50"),
+        field_sources: {
+          shareholdingPercentage: { source: "CTOS", updatedAt: "2026-01-01T00:00:00.000Z" },
+        },
+        external_observation: {
+          name: "ApexStar Holdings Sdn. Bhd.",
+          identityNumber: "7321984G",
+          entityType: "CORPORATE",
+          isDirector: false,
+          isShareholder: true,
+          shareholdingPercentage: 50,
+        },
+      })
+    );
+    await seedMasterPartiesIfEmpty("issuer", "org-1");
+    const apex = parties.find((p) => p.id === "p-apex");
+    expect(apex?.membership_status).toBe(OrganizationPartyMembershipStatus.MASTER_ACTIVE);
+    expect(Number(apex?.shareholding_percentage)).toBe(10);
+    expect(parties.filter((p) => p.party_key === "7321984G")).toHaveLength(1);
+    const dto = serializeParty(apex as never);
+    expect(dto.mismatches.find((m) => m.field === "shareholdingPercentage")?.externalValue).toBe(50);
+    expect(dto.fieldSources.shareholdingPercentage?.source).toBe("REGTANK");
+  });
+
+  it("overwrites CTOS-stamped Nur Aina share % with RegTank form 6%", async () => {
+    issuerOrg.regulatory_structure_established_at = new Date("2026-01-01T00:00:00.000Z");
+    issuerOrg.corporate_entities = {
+      directors: [
+        {
+          personalInfo: {
+            fullName: "Nur Aina Farisha Binti Salleh",
+            governmentIdNumber: "950829083430",
+          },
+        },
+      ],
+      shareholders: [
+        {
+          personalInfo: {
+            fullName: "Nur Aina Farisha Binti Salleh",
+            governmentIdNumber: "950829083430",
+            formContent: {
+              content: [{ fieldName: "% of Shares", fieldValue: "6" }],
+            },
+          },
+        },
+      ],
+      corporateShareholders: [],
+    };
+    parties.push(
+      row({
+        id: "p-aina",
+        party_key: "950829083430",
+        identity_number: "950829083430",
+        name: "Nur Aina Farisha Binti Salleh",
+        origin: OrganizationPartyOrigin.CTOS_PARTY,
+        is_director: true,
+        is_shareholder: true,
+        shareholding_percentage: new Prisma.Decimal("5"),
+        field_sources: {
+          shareholdingPercentage: { source: "CTOS", updatedAt: "2026-01-01T00:00:00.000Z" },
+        },
+      })
+    );
+    await seedMasterPartiesIfEmpty("issuer", "org-1");
+    expect(Number(parties.find((p) => p.id === "p-aina")?.shareholding_percentage)).toBe(6);
+  });
+
+  it("does not overwrite a user-entered Nur Aina share % with the RegTank form figure", async () => {
+    issuerOrg.regulatory_structure_established_at = new Date("2026-01-01T00:00:00.000Z");
+    issuerOrg.corporate_entities = {
+      directors: [],
+      shareholders: [
+        {
+          personalInfo: {
+            fullName: "Nur Aina Farisha Binti Salleh",
+            governmentIdNumber: "950829083430",
+            formContent: {
+              content: [{ fieldName: "% of Shares", fieldValue: "6" }],
+            },
+          },
+        },
+      ],
+      corporateShareholders: [],
+    };
+    parties.push(
+      row({
+        id: "p-aina",
+        party_key: "950829083430",
+        identity_number: "950829083430",
+        name: "Nur Aina Farisha Binti Salleh",
+        origin: OrganizationPartyOrigin.USER_ADDED,
+        is_director: true,
+        is_shareholder: true,
+        shareholding_percentage: new Prisma.Decimal("5"),
+        field_sources: {
+          shareholdingPercentage: { source: "USER", updatedAt: "2026-01-01T00:00:00.000Z" },
+        },
+      })
+    );
+    await seedMasterPartiesIfEmpty("issuer", "org-1");
+    expect(Number(parties.find((p) => p.id === "p-aina")?.shareholding_percentage)).toBe(5);
   });
 });
 

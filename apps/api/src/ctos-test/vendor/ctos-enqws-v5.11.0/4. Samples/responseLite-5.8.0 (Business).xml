@@ -1,0 +1,92 @@
+<report version="5.8.0" xmlns="http://ws.cmctos.com.my/ctosnet/response">
+	<enq_report id="BB-3460-20210208122642" report_type="CTOS" title="CTOS ENQUIRY">
+		<header>
+			<user id="test452_xml">Test User</user>
+			<company id="TEST452">Test Version 4.5.2</company>
+			<account>TEST452</account>
+			<tel/>
+			<fax/>
+			<enq_date>2021-02-08</enq_date>
+			<enq_time>12:26:42</enq_time>
+			<enq_status code="1">SUCCESS</enq_status>
+		</header>
+		<summary>
+			<enq_sum ptype="B" pcode="" seq="1">
+				<name>sdsdsd</name>
+				<ic_lcno/>
+				<nic_brno>BP0555875C</nic_brno>
+				<stat>600</stat>
+				<dd_index/>
+				<mphone_nos/>
+				<ref_no/>
+				<dist_code>testing_Dist_Code</dist_code>
+				<purpose code="200">Credit evaluation/account opening on subject/directors/shareholder with consent /due diligence on AMLA compliance</purpose>
+				<state code=""/>
+				<country code=""/>
+				<include_consent>0</include_consent>
+				<include_ctos>1</include_ctos>
+				<include_trex>1</include_trex>
+				<include_ccris sum="1">1</include_ccris>
+				<include_dcheq>0</include_dcheq>
+				<include_ccris_supp>1</include_ccris_supp>
+				<include_sfi>0</include_sfi>
+				<include_ssm>0</include_ssm>
+				<include_ssm_retention>0</include_ssm_retention>
+				<mdi_status code="2">- Further due diligence with consent is recommended</mdi_status>
+				<enq_status code="1">SUCCESS</enq_status>
+				<enq_code code="2">CTOS Lite Report</enq_code>
+			</enq_sum>
+		</summary>
+		<enquiry seq="1">
+			<section_a data="true" title="SECTION A - BUSINESS/PARTNERSHIP INFORMATION">
+				<record rpttype="CJ" seq="1">
+					<name match="0">INTERSTEL CORPORATION</name>
+					<additional_registration_no>201904091445</additional_registration_no>
+					<addr date="02-08-2013">PT 11033,JLN PINTASAN KUANTAN KG PANDAN,2,26070 KUANTAN,PAHANG</addr>
+					<addr_breakdown>
+						<addr1>PT 11033,JLN PINTASAN KUANTAN KG PANDAN,</addr1>
+						<addr2>2,</addr2>
+						<addr3/>
+						<addr4/>
+						<city>KUANTAN</city>
+						<state>PAHANG</state>
+						<postcode>26070</postcode>
+						<country/>
+						<last_updated_date>02-08-2013</last_updated_date>
+					</addr_breakdown>
+					<ccris_addresses/>
+					<source>SSM</source>
+					<register_no>BP0555875C</register_no>
+					<reg_date>11-01-2017</reg_date>
+					<business_nature>TEST DATA</business_nature>
+					<business_commenced>11-01-2017</business_commenced>
+					<business_type>SP</business_type>
+					<last_change_date/>
+					<previous_cpo_date/>
+					<cpo_date>15-01-2021</cpo_date>
+					<expiry_date>11-01-2037</expiry_date>
+					<status>ACTIVE</status>
+					<remark>INTERSTEL CORPORATION(CIMB)</remark>
+					<partners>
+						<partner seq="1">
+							<name>SANTHOSH RANA A/L KESAVAN</name>
+							<alias/>
+							<ic/>
+							<nic>700503215600</nic>
+							<address>D-23-01, APEX TOWER, CYBERSQUARE, 63000, CYBERJAYA</address>
+							<position>SP</position>
+							<appoint_date>10-01-2017</appoint_date>
+							<remark>DIRECTOR</remark>
+						</partner>
+					</partners>
+					<msic_ssms>
+						<msic_ssm code="47413" priority="1">RETAIL SALE OF TELECOMMUNICATION EQUIPMENT</msic_ssm>
+						<msic_ssm code="61903" priority="1">TELECOMMUNICATIONS RESELLERS</msic_ssm>
+					</msic_ssms>
+				</record>
+			</section_a>
+			<section_b title="SECTION B - INTERNAL LIST" data="false"/>
+			<section_c title="SECTION C - DIRECTORSHIPS AND BUSINESS INTERESTS" data="false"/>
+		</enquiry>
+	</enq_report>
+</report>

@@ -89,6 +89,7 @@ async function listOrganizations(
             issuerDirectorAmlStatus: (org as { director_aml_status?: unknown }).director_aml_status ?? null,
             ctosPartySupplements: extras.ctosPartySupplements,
             corporateEntities: (org as { corporate_entities?: unknown }).corporate_entities ?? null,
+            parentCorporateRequestId: org.regtank_onboarding?.request_id ?? null,
           });
           companyPartyById.set(org.id, {
             people: partyBuild.people,
@@ -350,6 +351,7 @@ async function getOrganization(
             issuerDirectorAmlStatus: org.director_aml_status ?? null,
             ctosPartySupplements: issuerPartyExtras.ctosPartySupplements,
             corporateEntities: org.corporate_entities ?? null,
+            parentCorporateRequestId: organization.regtank_onboarding?.request_id ?? null,
           })
         : null;
     const issuerDsPending =
@@ -371,6 +373,7 @@ async function getOrganization(
                 ? (issuerPartyExtras?.ctosPartySupplements ?? null)
                 : (investorPartyExtras?.ctosPartySupplements ?? null),
             corporateEntities: org.corporate_entities ?? null,
+            parentCorporateRequestId: organization.regtank_onboarding?.request_id ?? null,
           })
         : null;
 
@@ -427,7 +430,7 @@ async function getOrganization(
         ...(portalType === "investor" && {
           depositReceived: org.deposit_received ?? false,
           ssmApproved: org.ssm_approved ?? false,
-          isSophisticatedInvestor: org.is_sophisticated_investor ?? false,
+          isSophisticatedInvestor: org.is_sophisticated_investor ?? null,
           ...(investorPartyExtras && {
             latestOrganizationCtosCompanyJson: investorPartyExtras.latestOrganizationCtosCompanyJson,
             latestOrganizationCtosFinancialsJson: investorPartyExtras.latestOrganizationCtosFinancialsJson,
@@ -1078,7 +1081,7 @@ async function sendDirectorOnboarding(
     const userId = getUserId(req);
     const { id } = organizationIdParamSchema.parse(req.params);
     const body = sendDirectorOnboardingSchema.parse(req.body);
-    const data = await organizationService.sendDirectorCtosPartyOnboarding(userId, id, portalType, body);
+    const data = await organizationService.sendPartyKycAmlOnboarding(userId, id, portalType, body);
     res.json({
       success: true,
       data,

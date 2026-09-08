@@ -6,8 +6,8 @@
  * WHERE USED: Admin/Issuer/Investor director-shareholder rendering
  */
 
-import { buildUnifiedPeople, buildDirectorShareholderPeopleList } from "./build-people-list";
-import { CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING } from "@cashsouk/types";
+import { buildUnifiedPeople, buildDirectorShareholderPeopleList, mergeMasterPartiesIntoPeopleList } from "./build-people-list";
+import { CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING, getFinalStatusLabel } from "@cashsouk/types";
 
 describe("buildUnifiedPeople", () => {
   it("merges director + shareholder into one person row", () => {
@@ -381,6 +381,8 @@ describe("buildUnifiedPeople", () => {
     expect(rows[0]?.matchKey).toBe("900101101111");
     expect(rows[0]?.roles).toEqual(expect.arrayContaining(["DIRECTOR", "SHAREHOLDER"]));
     expect(rows[0]?.sharePercentage).toBe(60);
+    expect(rows[0]?.directorEodRequestId).toBe("EOD04651");
+    expect(rows[0]?.shareholderEodRequestId).toBe("EOD04650");
   });
 
   it("buildDirectorShareholderPeopleList: COD05079 same-email people stay separate; EXPIRED without KYC still listed", () => {
@@ -972,7 +974,7 @@ describe("buildUnifiedPeople", () => {
     expect(result.people.find((p) => p.matchKey === "880101011111")).toBeUndefined();
   });
 
-  it("G: CTOS-discovered EXTERNAL_OBSERVED director stays one people[] row", () => {
+  it("does not put EXTERNAL_OBSERVED CTOS people onto the operational KYC list", () => {
     const result = buildDirectorShareholderPeopleList({
       ctos: {
         directors: [
@@ -998,8 +1000,41 @@ describe("buildUnifiedPeople", () => {
       ],
     });
     const rows = result.people.filter((p) => p.matchKey === "990101011111");
-    expect(rows).toHaveLength(1);
-    expect(rows[0]?.roles).toContain("DIRECTOR");
+    expect(rows).toHaveLength(0);
+  });
+
+  it("does not put MASTER_INACTIVE people onto the operational KYC list", () => {
+    const result = buildDirectorShareholderPeopleList({
+      ctos: null,
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      ctosPartySupplements: [
+        {
+          partyKey: "880101011111",
+          onboardingJson: {
+            email: "john@example.com",
+            status: "APPROVED",
+            requestId: "EOD-JOHN",
+            verifyLink: "",
+            screening: { status: "APPROVED" },
+          },
+        },
+      ],
+      corporateEntities: { directors: [], shareholders: [], corporateShareholders: [] },
+      masterParties: [
+        {
+          partyKey: "880101011111",
+          membershipStatus: "MASTER_INACTIVE",
+          entityType: "INDIVIDUAL",
+          name: "John",
+          identityNumber: "880101011111",
+          isDirector: true,
+          isShareholder: false,
+          shareholdingPercentage: null,
+        },
+      ],
+    });
+    expect(result.people.find((p) => p.matchKey === "880101011111")).toBeUndefined();
   });
 
   it("L: KYC supplement status attaches to a user-added master director", () => {
@@ -1077,5 +1112,319 @@ describe("buildUnifiedPeople", () => {
     });
     expect(result.listSource).toBe("ONBOARDING");
     expect(result.people).toEqual([]);
+  });
+
+  it("does not inject a company shareholder below 5% into operational people[]", () => {
+    const result = buildDirectorShareholderPeopleList({
+      ctos: null,
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      ctosPartySupplements: null,
+      corporateEntities: { directors: [], shareholders: [], corporateShareholders: [] },
+      masterParties: [
+        {
+          partyKey: "1234567A",
+          membershipStatus: "MASTER_ACTIVE",
+          entityType: "CORPORATE",
+          name: "ABC Sdn Bhd",
+          identityNumber: "1234567A",
+          isDirector: false,
+          isShareholder: true,
+          shareholdingPercentage: "3",
+        },
+      ],
+    });
+    expect(result.people.find((p) => p.matchKey === "1234567A")).toBeUndefined();
+  });
+
+  it("injects a company shareholder at 5% into operational people[]", () => {
+    const result = buildDirectorShareholderPeopleList({
+      ctos: null,
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      ctosPartySupplements: null,
+      corporateEntities: { directors: [], shareholders: [], corporateShareholders: [] },
+      masterParties: [
+        {
+          partyKey: "1234567A",
+          membershipStatus: "MASTER_ACTIVE",
+          entityType: "CORPORATE",
+          name: "ABC Sdn Bhd",
+          identityNumber: "1234567A",
+          isDirector: false,
+          isShareholder: true,
+          shareholdingPercentage: "5",
+        },
+      ],
+    });
+    expect(result.people.find((p) => p.matchKey === "1234567A")?.roles).toEqual(["SHAREHOLDER"]);
+  });
+
+  it("keeps director role and omits shareholder when master party is director with 3% shares", () => {
+    const result = buildDirectorShareholderPeopleList({
+      ctos: null,
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      ctosPartySupplements: null,
+      corporateEntities: { directors: [], shareholders: [], corporateShareholders: [] },
+      masterParties: [
+        {
+          partyKey: "880202102222",
+          membershipStatus: "MASTER_ACTIVE",
+          entityType: "INDIVIDUAL",
+          name: "John",
+          identityNumber: "880202102222",
+          isDirector: true,
+          isShareholder: true,
+          shareholdingPercentage: "3",
+        },
+      ],
+    });
+    const john = result.people.find((p) => p.matchKey === "880202102222");
+    expect(john?.roles).toEqual(["DIRECTOR"]);
+  });
+
+  it("keeps director EOD separate from KYC screening id and stamps parent COD", () => {
+    const rows = buildUnifiedPeople({
+      parentCorporateRequestId: "COD05463",
+      ctos: null,
+      issuerDirectorKycStatus: {
+        directors: [
+          {
+            governmentIdNumber: "050616101789",
+            kycStatus: "APPROVED",
+            kycId: "KYC00006",
+            eodRequestId: "EOD06803",
+            email: "max@example.com",
+          },
+        ],
+      },
+      issuerDirectorAmlStatus: { directors: [], individualShareholders: [], businessShareholders: [] },
+      ctosPartySupplements: null,
+      corporateEntities: {
+        directors: [
+          {
+            eodRequestId: "EOD06803",
+            personalInfo: {
+              fullName: "max chng",
+              email: "max@example.com",
+              formContent: {
+                content: [{ fieldName: "Government ID Number", fieldValue: "050616-10-1789" }],
+              },
+            },
+          },
+        ],
+        shareholders: [],
+        corporateShareholders: [],
+      },
+    });
+
+    const person = rows.find((r) => r.entityType === "INDIVIDUAL");
+    expect(person?.parentCorporateRequestId).toBe("COD05463");
+    expect(person?.directorEodRequestId).toBe("EOD06803");
+    expect(person?.shareholderEodRequestId).toBeNull();
+    expect(person?.screeningRequestId).toBe("KYC00006");
+    expect(person?.requestId).toBe("KYC00006");
+  });
+
+  it("does not clear KYC or AML when the matching master person is marked inactive", () => {
+    const people = mergeMasterPartiesIntoPeopleList({
+      people: [
+        {
+          matchKey: "880101011111",
+          name: "John",
+          entityType: "INDIVIDUAL",
+          roles: ["DIRECTOR"],
+          sharePercentage: null,
+          status: "APPROVED",
+          action: null,
+          screening: { status: "APPROVED" },
+          onboarding: { status: "APPROVED", id: "kyc-1" },
+          requestId: "KYC-1",
+          requestIdType: null,
+          icFrontUrl: null,
+          icBackUrl: null,
+          email: "john@example.com",
+        },
+      ],
+      masterParties: [
+        {
+          partyKey: "880101011111",
+          membershipStatus: "MASTER_INACTIVE",
+          entityType: "INDIVIDUAL",
+          name: "John",
+          identityNumber: "880101011111",
+          isDirector: true,
+          isShareholder: false,
+          shareholdingPercentage: null,
+        },
+      ],
+    });
+    expect(people).toHaveLength(1);
+    expect(people[0]?.onboarding.status).toBe("APPROVED");
+    expect(people[0]?.screening?.status).toBe("APPROVED");
+  });
+
+  it("manual person before Send onboarding keeps KYC Not Started even with an email-only supplement", () => {
+    const result = buildDirectorShareholderPeopleList({
+      ctos: null,
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      ctosPartySupplements: [
+        {
+          partyKey: "900101101234",
+          onboardingJson: {
+            email: "sarah@example.com",
+            status: "NOT_STARTED",
+            requestId: "draft-123",
+            screening: null,
+          },
+        },
+      ],
+      corporateEntities: null,
+      masterParties: [
+        {
+          partyKey: "900101101234",
+          membershipStatus: "MASTER_ACTIVE",
+          entityType: "INDIVIDUAL",
+          name: "Sarah Tan",
+          identityNumber: "900101101234",
+          isDirector: true,
+          isShareholder: false,
+          shareholdingPercentage: null,
+        },
+      ],
+    });
+    const person = result.people.find((p) => p.matchKey === "900101101234");
+    expect(person?.onboarding?.status ?? null).toBeNull();
+    expect(person?.screening?.status ?? null).toBeNull();
+    expect(getFinalStatusLabel(person!, { displayMode: "kyc_only" }).label).toBe("Not Started");
+    expect(getFinalStatusLabel({ screening: person?.screening }).label).toBe("Not Started");
+  });
+
+  it("CTOS-adopted person before Send onboarding keeps KYC Not Started for placeholder PENDING KYC", () => {
+    const rows = buildUnifiedPeople({
+      ctos: {
+        directors: [
+          {
+            party_type: "I",
+            nic_brno: "660404-10-4444",
+            name: "Adopted Person",
+            position: "Director",
+          },
+        ],
+        shareholders: [],
+      },
+      issuerDirectorKycStatus: {
+        directors: [{ governmentIdNumber: "660404104444", kycStatus: "PENDING" }],
+      },
+      issuerDirectorAmlStatus: null,
+      ctosPartySupplements: null,
+      corporateEntities: null,
+    });
+    expect(rows[0]?.onboarding?.status ?? null).toBeNull();
+    expect(getFinalStatusLabel(rows[0]!, { displayMode: "kyc_only" }).label).toBe("Not Started");
+  });
+
+  it("sets KYC In Progress after a successful Send onboarding supplement write", () => {
+    const rows = buildUnifiedPeople({
+      ctos: {
+        directors: [
+          {
+            party_type: "I",
+            nic_brno: "660404-10-4444",
+            name: "Sent Person",
+            position: "Director",
+          },
+        ],
+        shareholders: [],
+      },
+      issuerDirectorKycStatus: {
+        directors: [{ governmentIdNumber: "660404104444", kycStatus: "PENDING" }],
+      },
+      issuerDirectorAmlStatus: null,
+      ctosPartySupplements: [
+        {
+          party_key: "660404104444",
+          onboarding_json: {
+            requestId: "LD80084",
+            status: "IN_PROGRESS",
+            email: "sent@example.com",
+            sentAt: "2026-09-08T00:00:00.000Z",
+            screening: null,
+          },
+        },
+      ],
+      corporateEntities: null,
+    });
+    expect(rows[0]?.onboarding?.status).toBe("IN_PROGRESS");
+    expect(getFinalStatusLabel(rows[0]!, { displayMode: "kyc_only" }).label).toBe("In Progress");
+  });
+
+  it("failed Send onboarding (email saved, no request) remains KYC Not Started", () => {
+    const rows = buildUnifiedPeople({
+      ctos: {
+        directors: [
+          {
+            party_type: "I",
+            nic_brno: "660404-10-4444",
+            name: "Failed Send",
+            position: "Director",
+          },
+        ],
+        shareholders: [],
+      },
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      ctosPartySupplements: [
+        {
+          party_key: "660404104444",
+          onboarding_json: {
+            email: "fail@example.com",
+            status: "",
+            requestId: "",
+            screening: null,
+          },
+        },
+      ],
+      corporateEntities: null,
+    });
+    expect(rows[0]?.onboarding?.status ?? null).toBeNull();
+    expect(getFinalStatusLabel(rows[0]!, { displayMode: "kyc_only" }).label).toBe("Not Started");
+  });
+
+  it("completed KYC shows the approved onboarding status", () => {
+    const rows = buildUnifiedPeople({
+      ctos: {
+        directors: [
+          {
+            party_type: "I",
+            nic_brno: "660404-10-4444",
+            name: "Approved Person",
+            position: "Director",
+          },
+        ],
+        shareholders: [],
+      },
+      issuerDirectorKycStatus: {
+        directors: [{ governmentIdNumber: "660404104444", kycStatus: "APPROVED", kycId: "KY1" }],
+      },
+      issuerDirectorAmlStatus: null,
+      ctosPartySupplements: [
+        {
+          party_key: "660404104444",
+          onboarding_json: {
+            requestId: "LD80084",
+            status: "APPROVED",
+            email: "ok@example.com",
+            sentAt: "2026-09-01T00:00:00.000Z",
+            screening: null,
+          },
+        },
+      ],
+      corporateEntities: null,
+    });
+    expect(rows[0]?.onboarding?.status).toBe("APPROVED");
+    expect(getFinalStatusLabel(rows[0]!, { displayMode: "kyc_only" }).label).toBe("Verified");
   });
 });

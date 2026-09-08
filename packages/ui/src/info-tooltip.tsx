@@ -16,9 +16,15 @@ export function InfoTooltip({ content, className, iconClassName }: InfoTooltipPr
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <InformationCircleIcon
-            className={cn("h-4 w-4 text-muted-foreground cursor-help", iconClassName)}
-          />
+          <button
+            type="button"
+            className="inline-flex shrink-0 rounded-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label="Field information"
+          >
+            <InformationCircleIcon
+              className={cn("h-4 w-4 cursor-help", iconClassName)}
+            />
+          </button>
         </TooltipTrigger>
         <TooltipContent
           className={cn(
@@ -26,7 +32,11 @@ export function InfoTooltip({ content, className, iconClassName }: InfoTooltipPr
             className
           )}
         >
-          {typeof content === "string" ? <p className="text-ui">{content}</p> : content}
+          {typeof content === "string" ? (
+            <p className="whitespace-pre-line text-ui">{content}</p>
+          ) : (
+            content
+          )}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

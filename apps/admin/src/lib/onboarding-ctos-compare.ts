@@ -9,6 +9,7 @@
 import {
   extractGovernmentId,
   getDisplayRoleLabel,
+  issuerShareholdingMeetsMinimum,
   mergeCtosDirectorsForVerification,
   type DirectorKycStatus,
   type OnboardingApplicationResponse,
@@ -527,7 +528,7 @@ function qualifiesCtosShareholderListed(r: CtosOrgDirectorParsed): boolean {
   if (!qualifiesCtosShareholder(r)) return false;
   const pct = ctosResolvedSharePctPercent(r);
   if (pct === null) return true;
-  return pct >= 5;
+  return issuerShareholdingMeetsMinimum(pct);
 }
 
 /**

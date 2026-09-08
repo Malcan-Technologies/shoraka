@@ -51,7 +51,7 @@ export function OrganizationProfileOverviewCard({
       <AdminDetailCardHeader
         icon={ClipboardDocumentCheckIcon}
         title="Profile completeness"
-        description="CashSouk master record for this organization"
+        description="How complete this organisation’s profile is"
       />
       <CardContent className="space-y-4">
         <ProfileCompletenessSummary
@@ -64,11 +64,11 @@ export function OrganizationProfileOverviewCard({
           }}
         />
         <div className="space-y-1">
-          <p className="text-meta text-muted-foreground">External review</p>
+          <p className="text-meta text-muted-foreground">CTOS review</p>
           {review.total === 0 ? (
             <div className="flex items-center gap-2 text-ui text-muted-foreground">
               <CheckCircleIcon className="h-4 w-4" />
-              No CTOS differences
+              The latest CTOS information matches this profile.
             </div>
           ) : (
             <div className="space-y-1">
@@ -78,13 +78,13 @@ export function OrganizationProfileOverviewCard({
               <p className="text-meta text-muted-foreground">
                 {[
                   review.mismatchCount
-                    ? `${review.mismatchCount} CTOS ${review.mismatchCount === 1 ? "difference" : "differences"}`
+                    ? `${review.mismatchCount} ${review.mismatchCount === 1 ? "CTOS difference" : "CTOS differences"}`
                     : null,
                   review.newPartyCount
-                    ? `${review.newPartyCount} new ${review.newPartyCount === 1 ? "external party" : "external parties"}`
+                    ? `${review.newPartyCount} new ${review.newPartyCount === 1 ? "person" : "people"} from CTOS`
                     : null,
                   review.absentCount
-                    ? `${review.absentCount} ${review.absentCount === 1 ? "person" : "people"} missing from latest CTOS`
+                    ? `${review.absentCount} ${review.absentCount === 1 ? "person" : "people"} not found in the latest CTOS information`
                     : null,
                 ]
                   .filter(Boolean)
@@ -103,7 +103,7 @@ export function OrganizationProfileOverviewCard({
             {review.total > 0 && onReviewChanges ? (
               <Button type="button" variant="outline" className="h-10 gap-1.5" onClick={onReviewChanges}>
                 <ExclamationTriangleIcon className="h-4 w-4" />
-                Review external changes
+                Review CTOS changes
               </Button>
             ) : null}
           </div>

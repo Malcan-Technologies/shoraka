@@ -7,6 +7,7 @@
  */
 
 import {
+  OrganizationType,
   Prisma,
   ReviewStepStatus,
   type CtosReport,
@@ -21,6 +22,11 @@ import { callCtosSoap } from "./client";
 import { buildCtosEnquiryXml, buildCtosSubjectEnquiryXml } from "./enquiry-builder";
 import { parseCtosReportXml } from "./parser";
 import { renderCtosReportHtml } from "./render-html";
+import {
+  classifyCtosCaughtError,
+  missingCompanyRegistrationError,
+  missingIndividualIdentifierError,
+} from "./ctos-errors";
 import {
   normalizeCtosSubjectRefKey,
   resolveCtosSubjectFromOrgJson,
@@ -144,6 +150,80 @@ function fallbackRegistrationNumberFromCorporateOnboardingData(raw: unknown): st
     (typeof ssmRegisterNumber === "string" ? ssmRegisterNumber : "");
   const trimmed = candidate.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+async function organizationHasCorporateRegTankOnboarding(organizationId: string): Promise<boolean> {
+  const row = await prisma.regTankOnboarding.findFirst({
+    where: {
+      onboarding_type: "CORPORATE",
+      OR: [
+        { issuer_organization_id: organizationId },
+        { investor_organization_id: organizationId },
+      ],
+    },
+    select: { id: true },
+  });
+  return Boolean(row);
+}
+
+function resolvedCompanyRegistrationNumber(org: {
+  registration_number?: string | null;
+  corporate_onboarding_data?: unknown;
+}): string {
+  return (
+    (org.registration_number ?? "").trim() ||
+    fallbackRegistrationNumberFromCorporateOnboardingData(org.corporate_onboarding_data ?? null) ||
+    ""
+  );
+}
+
+async function assertOrgCtosSubjectIdentifiers(
+  org: {
+    type: OrganizationType;
+    registration_number?: string | null;
+    document_number?: string | null;
+    corporate_onboarding_data?: unknown;
+  },
+  organizationId: string
+): Promise<string> {
+  if (org.type === OrganizationType.PERSONAL) {
+    const nic = (org.document_number ?? "").trim();
+    if (!nic) throw missingIndividualIdentifierError();
+    return nic;
+  }
+  const registrationNumber = resolvedCompanyRegistrationNumber(org);
+  if (!registrationNumber) {
+    throw missingCompanyRegistrationError(
+      await organizationHasCorporateRegTankOnboarding(organizationId)
+    );
+  }
+  return registrationNumber;
+}
+
+async function fetchCtosXmlAndParse(
+  cfg: Parameters<typeof callCtosSoap>[0],
+  innerXml: string,
+  logContext: Record<string, unknown>
+): Promise<{ rawXml: string; parsed: Awaited<ReturnType<typeof parseCtosReportXml>> }> {
+  let rawXml: string;
+  try {
+    rawXml = await callCtosSoap(cfg, innerXml);
+  } catch (e) {
+    logger.error(
+      { ...logContext, err: e instanceof Error ? e.message : String(e) },
+      "CTOS SOAP fetch failed"
+    );
+    throw classifyCtosCaughtError(e);
+  }
+  try {
+    return { rawXml, parsed: await parseCtosReportXml(rawXml) };
+  } catch (e) {
+    logger.error(
+      { ...logContext, err: e instanceof Error ? e.message : String(e) },
+      "CTOS parse failed"
+    );
+    throw classifyCtosCaughtError(e);
+  }
 }
 
 const listSelect = {
@@ -307,27 +387,17 @@ export async function fetchAndInsertCtosReport(
     throw new AppError(404, "NOT_FOUND", "Issuer organization not found");
   }
 
-  const regNoFallback = fallbackRegistrationNumberFromCorporateOnboardingData(
-    (org as { corporate_onboarding_data?: unknown }).corporate_onboarding_data ?? null
-  );
+  const registrationNumber = await assertOrgCtosSubjectIdentifiers(org, issuerOrganizationId);
   const enquiryOrg = {
     ...org,
-    registration_number: (org.registration_number ?? "").trim() || regNoFallback,
+    registration_number: registrationNumber,
   };
 
   const innerXml = buildCtosEnquiryXml(cfg, enquiryOrg);
-  let rawXml: string;
-  try {
-    rawXml = await callCtosSoap(cfg, innerXml);
-  } catch (e) {
-    logger.error(
-      { correlationId, issuerOrganizationId, err: e instanceof Error ? e.message : String(e) },
-      "CTOS SOAP fetch failed"
-    );
-    throw new AppError(502, "CTOS_FETCH_FAILED", "Failed to retrieve CTOS report");
-  }
-
-  const parsed = await parseCtosReportXml(rawXml);
+  const { rawXml, parsed } = await fetchCtosXmlAndParse(cfg, innerXml, {
+    correlationId,
+    issuerOrganizationId,
+  });
   let reportHtml: string | null = null;
   try {
     reportHtml = renderCtosReportHtml(rawXml);
@@ -452,31 +522,17 @@ export async function fetchAndInsertCtosReportForAdminOrg(
   }
 
   const { enquiryOrg } = await loadOrgForAdminCtos(portal, organizationId);
-  const regNoFallback = fallbackRegistrationNumberFromCorporateOnboardingData(
-    (enquiryOrg as { corporate_onboarding_data?: unknown }).corporate_onboarding_data ?? null
-  );
+  const registrationNumber = await assertOrgCtosSubjectIdentifiers(enquiryOrg, organizationId);
   const enquiryOrgWithFallback = {
     ...enquiryOrg,
-    registration_number: (enquiryOrg.registration_number ?? "").trim() || regNoFallback,
+    registration_number: registrationNumber,
   };
   const innerXml = buildCtosEnquiryXml(cfg, enquiryOrgWithFallback);
-  let rawXml: string;
-  try {
-    rawXml = await callCtosSoap(cfg, innerXml);
-  } catch (e) {
-    logger.error(
-      {
-        correlationId,
-        portal,
-        organizationId,
-        err: e instanceof Error ? e.message : String(e),
-      },
-      "CTOS SOAP fetch failed"
-    );
-    throw new AppError(502, "CTOS_FETCH_FAILED", "Failed to retrieve CTOS report");
-  }
-
-  const parsed = await parseCtosReportXml(rawXml);
+  const { rawXml, parsed } = await fetchCtosXmlAndParse(cfg, innerXml, {
+    correlationId,
+    portal,
+    organizationId,
+  });
   let reportHtml: string | null = null;
   try {
     reportHtml = renderCtosReportHtml(rawXml);
@@ -677,29 +733,23 @@ export async function fetchAndInsertCtosSubjectReport(
     resolved = r;
   }
 
+  if (!resolved.idNumber.trim()) {
+    throw input.subjectKind === "INDIVIDUAL"
+      ? missingIndividualIdentifierError()
+      : missingCompanyRegistrationError(false);
+  }
+
   const innerXml = buildCtosSubjectEnquiryXml(cfg, {
     kind: input.subjectKind,
     displayName: resolved.displayName,
     idNumber: resolved.idNumber,
   });
 
-  let rawXml: string;
-  try {
-    rawXml = await callCtosSoap(cfg, innerXml);
-  } catch (e) {
-    logger.error(
-      {
-        correlationId,
-        issuerOrganizationId,
-        subjectRef: input.subjectRef,
-        err: e instanceof Error ? e.message : String(e),
-      },
-      "CTOS SOAP fetch failed (subject)"
-    );
-    throw new AppError(502, "CTOS_FETCH_FAILED", "Failed to retrieve CTOS report");
-  }
-
-  const parsed = await parseCtosReportXml(rawXml);
+  const { rawXml, parsed } = await fetchCtosXmlAndParse(cfg, innerXml, {
+    correlationId,
+    issuerOrganizationId,
+    subjectRef: input.subjectRef,
+  });
   let reportHtml: string | null = null;
   try {
     reportHtml = renderCtosReportHtml(rawXml);
@@ -790,30 +840,24 @@ export async function fetchAndInsertCtosSubjectReportForAdminOrg(
     resolved = r;
   }
 
+  if (!resolved.idNumber.trim()) {
+    throw input.subjectKind === "INDIVIDUAL"
+      ? missingIndividualIdentifierError()
+      : missingCompanyRegistrationError(false);
+  }
+
   const innerXml = buildCtosSubjectEnquiryXml(cfg, {
     kind: input.subjectKind,
     displayName: resolved.displayName,
     idNumber: resolved.idNumber,
   });
 
-  let rawXml: string;
-  try {
-    rawXml = await callCtosSoap(cfg, innerXml);
-  } catch (e) {
-    logger.error(
-      {
-        correlationId,
-        portal,
-        organizationId,
-        subjectRef: input.subjectRef,
-        err: e instanceof Error ? e.message : String(e),
-      },
-      "CTOS SOAP fetch failed (subject)"
-    );
-    throw new AppError(502, "CTOS_FETCH_FAILED", "Failed to retrieve CTOS report");
-  }
-
-  const parsed = await parseCtosReportXml(rawXml);
+  const { rawXml, parsed } = await fetchCtosXmlAndParse(cfg, innerXml, {
+    correlationId,
+    portal,
+    organizationId,
+    subjectRef: input.subjectRef,
+  });
   let reportHtml: string | null = null;
   try {
     reportHtml = renderCtosReportHtml(rawXml);

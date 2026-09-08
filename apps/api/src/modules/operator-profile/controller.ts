@@ -8,6 +8,7 @@ import {
   operatorProfilePatchSchema,
   operatorShareCapitalPatchSchema,
   operatorShareholderSchema,
+  parseOperatorBody,
 } from "../organization-profile/schemas";
 import * as operatorProfile from "./service";
 
@@ -26,7 +27,7 @@ export function createOperatorProfileRouter() {
 
   router.patch("/", requirePermission("platform_settings.manage"), async (req, res, next) => {
     try {
-      const input = operatorProfilePatchSchema.parse(req.body);
+      const input = parseOperatorBody(operatorProfilePatchSchema, req.body);
       const data = await operatorProfile.patchOperatorProfile(input);
       res.json({ success: true, data, correlationId: res.locals.correlationId });
     } catch (error) {
@@ -39,7 +40,7 @@ export function createOperatorProfileRouter() {
     requirePermission("platform_settings.manage"),
     async (req, res, next) => {
       try {
-        const input = operatorShareCapitalPatchSchema.parse(req.body);
+        const input = parseOperatorBody(operatorShareCapitalPatchSchema, req.body);
         const data = await operatorProfile.upsertShareCapital(input);
         res.json({ success: true, data, correlationId: res.locals.correlationId });
       } catch (error) {
@@ -53,7 +54,7 @@ export function createOperatorProfileRouter() {
     requirePermission("platform_settings.manage"),
     async (req, res, next) => {
       try {
-        const input = operatorShareholderSchema.parse(req.body);
+        const input = parseOperatorBody(operatorShareholderSchema, req.body);
         const data = await operatorProfile.createShareholder(input);
         res.json({ success: true, data, correlationId: res.locals.correlationId });
       } catch (error) {
@@ -66,7 +67,7 @@ export function createOperatorProfileRouter() {
     requirePermission("platform_settings.manage"),
     async (req, res, next) => {
       try {
-        const input = operatorShareholderSchema.parse(req.body);
+        const input = parseOperatorBody(operatorShareholderSchema, req.body);
         const data = await operatorProfile.updateShareholder(req.params.id, input);
         res.json({ success: true, data, correlationId: res.locals.correlationId });
       } catch (error) {
@@ -89,7 +90,7 @@ export function createOperatorProfileRouter() {
 
   router.post("/officers", requirePermission("platform_settings.manage"), async (req, res, next) => {
     try {
-      const input = operatorOfficerSchema.parse(req.body);
+      const input = parseOperatorBody(operatorOfficerSchema, req.body);
       const data = await operatorProfile.createOfficer(input);
       res.json({ success: true, data, correlationId: res.locals.correlationId });
     } catch (error) {
@@ -101,7 +102,7 @@ export function createOperatorProfileRouter() {
     requirePermission("platform_settings.manage"),
     async (req, res, next) => {
       try {
-        const input = operatorOfficerSchema.parse(req.body);
+        const input = parseOperatorBody(operatorOfficerSchema, req.body);
         const data = await operatorProfile.updateOfficer(req.params.id, input);
         res.json({ success: true, data, correlationId: res.locals.correlationId });
       } catch (error) {
@@ -124,7 +125,7 @@ export function createOperatorProfileRouter() {
 
   router.post("/advisors", requirePermission("platform_settings.manage"), async (req, res, next) => {
     try {
-      const input = operatorAdvisorSchema.parse(req.body);
+      const input = parseOperatorBody(operatorAdvisorSchema, req.body);
       const data = await operatorProfile.createAdvisor(input);
       res.json({ success: true, data, correlationId: res.locals.correlationId });
     } catch (error) {
@@ -136,7 +137,7 @@ export function createOperatorProfileRouter() {
     requirePermission("platform_settings.manage"),
     async (req, res, next) => {
       try {
-        const input = operatorAdvisorSchema.parse(req.body);
+        const input = parseOperatorBody(operatorAdvisorSchema, req.body);
         const data = await operatorProfile.updateAdvisor(req.params.id, input);
         res.json({ success: true, data, correlationId: res.locals.correlationId });
       } catch (error) {
@@ -159,7 +160,7 @@ export function createOperatorProfileRouter() {
 
   router.post("/interests", requirePermission("platform_settings.manage"), async (req, res, next) => {
     try {
-      const input = operatorInterestSchema.parse(req.body);
+      const input = parseOperatorBody(operatorInterestSchema, req.body);
       const data = await operatorProfile.createInterest(input);
       res.json({ success: true, data, correlationId: res.locals.correlationId });
     } catch (error) {
@@ -171,7 +172,7 @@ export function createOperatorProfileRouter() {
     requirePermission("platform_settings.manage"),
     async (req, res, next) => {
       try {
-        const input = operatorInterestSchema.parse(req.body);
+        const input = parseOperatorBody(operatorInterestSchema, req.body);
         const data = await operatorProfile.updateInterest(req.params.id, input);
         res.json({ success: true, data, correlationId: res.locals.correlationId });
       } catch (error) {
@@ -197,7 +198,7 @@ export function createOperatorProfileRouter() {
     requirePermission("platform_settings.manage"),
     async (req, res, next) => {
       try {
-        const input = operatorFinancialStatementSchema.parse(req.body);
+        const input = parseOperatorBody(operatorFinancialStatementSchema, req.body);
         const data = await operatorProfile.createFinancialStatement(input);
         res.json({ success: true, data, correlationId: res.locals.correlationId });
       } catch (error) {
@@ -210,7 +211,7 @@ export function createOperatorProfileRouter() {
     requirePermission("platform_settings.manage"),
     async (req, res, next) => {
       try {
-        const input = operatorFinancialStatementSchema.parse(req.body);
+        const input = parseOperatorBody(operatorFinancialStatementSchema, req.body);
         const data = await operatorProfile.updateFinancialStatement(req.params.id, input);
         res.json({ success: true, data, correlationId: res.locals.correlationId });
       } catch (error) {

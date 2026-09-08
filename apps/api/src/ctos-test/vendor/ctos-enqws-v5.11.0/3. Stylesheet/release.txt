@@ -1,0 +1,419 @@
+--------------------------------------------------------
+xslt-v1.18.4 - Release Notes (29 April 2022)
+--------------------------------------------------------
+section_b_subreport.xsl
+1. JIRA ES-21
+2. Update of SHARE CAPITAL format
+3. Remove Authorised Capital, Nominal Value.
+4. Add Total Issued (RM), Ordinary A, Ordinary B, Preference A, Preference B, Others A, Others B
+--------------------------------------------------------
+xslt-v1.18.3 - Release Notes (05 October 2021)
+--------------------------------------------------------
+section_c_subreport.xsl
+1. Update label "Income Estimator" to "Affordability Insight"
+2. Update label "Range (RM)" to "(RM)"
+3. Update value/format for "Affordability Insight"
+--------------------------------------------------------
+xslt-v1.18.2 - Release Notes (30 September 2021)
+--------------------------------------------------------
+section_b_sme_subreport.xsl
+section_b_subreport.xsl
+1.Add missing secretary information.
+--------------------------------------------------------
+xslt-v1.18.1 - Release Notes (08 September 2021)
+--------------------------------------------------------
+section_c_subreport.xsl
+1. Section C1: BANKING PAYMENT RECORDS (SOURCE: CCRIS, BANK NEGARA MALAYSIA) > CCRIS SUMMARY
+Fix for diff CTOS sme score same day
+--------------------------------------------------------
+xslt-v1.18.0 - Release Notes (26 August 2021)
+--------------------------------------------------------
+section_b_sme_subreport.xsl
+section_b_subreport.xsl
+1. Section B: Related Companies/ Subsidiaries
+--------------------------------------------------------
+xslt-v1.17.6.13 - Release Notes (24 Jun 2021)
+--------------------------------------------------------
+section_e_subreport.xsl
+1. 2 decimal places and thousand separators
+--------------------------------------------------------
+xslt-v1.17.6.12 - Release Notes (11 May 2021)
+--------------------------------------------------------
+section_c_subreport.xsl
+1. Enhance summary of CCRIS Derivatives
+--------------------------------------------------------
+xslt-v1.17.6.11 - Release Notes (10 November 2020)
+--------------------------------------------------------
+section_a_subreport.xsl
+1. Added new ETR PLUS table
+
+section_e_subreport.xsl
+1. Added new ETR PLUS table
+--------------------------------------------------------
+xslt-v1.17.6.10 - Release Notes (25 April 2019)
+--------------------------------------------------------
+report.properties
+1. Add new.experience.sme.report to show sme report radio button.
+
+section_a_sme_subreport.xsl
+1. Create new xsl file named section_a_sme_subreport.xsl that specialized only for sme score report.
+2. Add validation on section_a_id_verification_template to differentiate between different pType.
+3. Add parameter [@seq = $seq] to display the record based on xml sequel at several templates.
+4. Add section_a_fico_score_template in section_a_template to display Ctos score in Company report template.
+5. Display score graph image for Business Owner in Business report template 
+
+section_b_sme_subreport.xsl
+1. Add parameter [@seq = $seq] to display the record based on xml sequence at several templates.
+
+--------------------------------------------------------
+xslt-v1.17.6.9 - Release Notes (26 February 2019)
+--------------------------------------------------------
+base_subreport.xsl
+1. Added table class called table-sme specialize for ctos sme score table.
+2. Created new template called sme_range_business to differentiate the score range.
+3. Added new images related with sme score.
+
+header_subreport.xsl
+1. Added new method to differentiate ctos report and ctos sme report.
+
+section_a_subreport.xsl
+1. Added new template for sme score template named section_a_sme_score_template.
+
+--------------------------------------------------------
+xslt-v1.17.6.18 - Release Notes (23 July 2018)
+--------------------------------------------------------
+base_subreport.xsl & section_d_subreport.xsl
+1. To add in Section D4.
+
+--------------------------------------------------------
+xslt-v1.17.6.17 - Release Notes (13 July 2018)
+--------------------------------------------------------
+section_a_subreport.xsl
+1. To add in "Exempt Private Company" information in Section A - Financials and Shareholders.
+
+--------------------------------------------------------
+xslt-v1.17.6.16 - Release Notes (27 June 2018)
+--------------------------------------------------------
+section_b_subreport.xsl
+1. Removing hide Related Companies/Subsidiaries with display logic in the section B.
+2. Adding "No Information Available" line in bottom of Related Companies/Subsidiaries in section B when a holding company or parent company has no operation of its own a controlling share of stock and holds assets of other companies (the subsidiary companies).
+
+--------------------------------------------------------
+xslt-v1.17.6.15 - Release Notes (08 June 2018)
+--------------------------------------------------------
+section_c_subreport.xsl
+1. To change title from â€œC1: BANKING PAYMENT HISTORYâ€? to â€œC1: BANKING PAYMENT RECORDS (SOURCE: CCRIS, BANK NEGARA MALAYSIA)â€? in section C1.
+2. Content on no subject profile found from Bank Negara Malaysia is to be change from â€œNo Banking Payment History Record Detectedâ€? to â€œA check with Bank Negara Malaysia returned no result on Subjectâ€? in section C1.
+
+--------------------------------------------------------
+xslt-v1.17.6.14 - Release Notes (22 March 2018)
+--------------------------------------------------------
+base_subreport.xsl & section_a_subreport.xsl
+1. Add Score table in CTOS Score section of CTOS Score Report.
+
+section_c_subreport.xsl
+1. Highlight non-payment in Angkasa Payment History table.
+2. Highlight non-repayment in CCRIS Details table.
+
+--------------------------------------------------------
+xslt-v1.17.6.13 - Release Notes (23 February 2018)
+--------------------------------------------------------
+section_a_subreport.xsl & section_b_subreport.xsl
+1. Added Business Status field.
+
+--------------------------------------------------------
+xslt-v1.17.6.12 - Release Notes (21 February 2018)
+--------------------------------------------------------
+section_c_subreport.xsl & base_subreport.xsl
+1. Fixed issue of over-sized Angkasa Payment History layout:
+    a. Resized font size into 6pt.
+    b. Resized left, right, top and bottom paddings.
+
+--------------------------------------------------------
+xslt-v1.17.6.11 - Release Notes (29 December 2017)
+--------------------------------------------------------
+section_b_subreport.xsl
+1. Changed Financial Highlights Balance Sheet labels:
+    a. Renamed "Share Premium" with "Share Premium & Reserve".
+    b. Renamed "Reserves" with "Retained Earning".
+
+ctos_report.xsl & fico_report.xsl & lite_report.xsl & section_e_subreport.xsl
+1. Trade Reference Report detail to be include in Section E, thus Trade Reference Report in the end of the report no longer applicable.
+
+--------------------------------------------------------
+xslt-v1.17.6.10 - Release Notes (14 December 2017)
+--------------------------------------------------------
+ctos_report.xsl & fico_report.xsl & lite_report.xsl
+1. Included Section C4 Angkasa.
+
+section_c_subreport.xsl
+1. Added Section C4 Angkasa.
+
+--------------------------------------------------------
+xslt-v1.17.6.9 - Release Notes (13 December 2017)
+--------------------------------------------------------
+trade_reference_report.xsl & section_e_subreport.xsl
+1. Added CRA & Subject's comments.
+
+base_subreport.xsl
+1. Added new method to convert boolean to "Y" or "N".
+
+section_c_subreport.xsl
+1. CCRIS Detail total outstanding balance & total limit removed calculation and direct retrieve from XML.
+
+--------------------------------------------------------
+xslt-v1.17.6.8 - Release Notes (17 November 2017)
+--------------------------------------------------------
+internal_list_report.xsl
+1. Internal list report type included "Cb" and "Ib". 
+
+--------------------------------------------------------
+xslt-v1.17.6.7 - Release Notes (19 September 2017)
+--------------------------------------------------------
+base_subreport.xsl
+1. Converted all image to based64 string. 
+
+--------------------------------------------------------
+xslt-v1.17.6.6 - Release Notes (22 August 2017)
+--------------------------------------------------------
+section_c_subreport.xsl
+1. Amended the error message from "DCHEQS Service is unavailable" to "DCHEQS Services Currently Unavailable".
+
+--------------------------------------------------------
+xslt-v1.17.6.5 - Release Notes (7 August 2017)
+--------------------------------------------------------
+1. Updated root element syntax from "/" to "ancestor" for all stylesheets.
+2. Updated parent dot syntax from "../" to "//" for all stylesheets.
+
+--------------------------------------------------------
+xslt-v1.17.6.4 - Release Notes (4 August 2017)
+--------------------------------------------------------
+section_a_subreport.xsl & section_b_subreport.xsl
+1. Included checking the ptype='L' in order to cater for Limited Liability Partnership (LLP).
+2. Included checking if the legal blank then display 'NO'.
+
+--------------------------------------------------------
+xslt-v1.17.6.3 - Release Notes (4 July 2017)
+--------------------------------------------------------
+base_subreport.xsl
+1. Amended the port number from 8803 to 80.
+
+--------------------------------------------------------
+xslt-v1.17.6.2 - Release Notes (31 May 2017)
+--------------------------------------------------------
+section_c_subreport.xsl
+1. Added the new fields in sub account - Rescheduled Date, Restructured Date and Installment Amount.
+2. Added table header for R&R and Installment Amount.
+3. Added Installment Amount formatting.
+
+section_a_subreport.xsl
+1. Fixed the dcheqs in section summary xpath.
+
+--------------------------------------------------------
+xslt-v1.17.6.1 - Release Notes (17 May 2017)
+--------------------------------------------------------
+section_a_subreport.xsl
+1. Fixed the display of SME Financial Health Indicator due to syntax error.
+
+--------------------------------------------------------
+xslt-v1.17.6.0 - Release Notes (27 April 2017)
+--------------------------------------------------------
+section_a_subreport.xsl
+1. Fixed CTOS LitE Report ID Verification "LitE Status" displayed "-" issue.
+
+section_a_subreport.xsl & section_b_subreport.xsl
+2. Added SME Financial Health Indicator in Section A and Section B.
+
+--------------------------------------------------------
+xslt-v1.17.5.6 - Release Notes (03 April 2017)
+--------------------------------------------------------
+base_subreport.xsl
+1. Added .table-ccris td.title, .table-ccris td.header {text-align: left;} in the css_template.
+
+ctos_report.xsl & fico_report.xsl
+2. Uncommented the section_c3_template.
+
+section_a_subreport.xsl
+3. Fixed Section Summary BPH selection and available includes include_ccris_supp checking.
+
+section_c_subreport.xsl
+4. Removed â€œWill be coming soonâ€? in the section_c3_template.
+5. Added select="r:section_ccris_supp template.
+
+--------------------------------------------------------
+xslt-v1.17.5.5 - Release Notes (16 March 2017)
+--------------------------------------------------------
+A: CREDIT INFO AT A GLANCE
+1. Fixed the Address 2 by removing the Source when there is no Address 2.
+
+TRADE REFERENCE
+2. Fixed the Nature of Business display.
+
+--------------------------------------------------------
+xslt-v1.17.5.4 - Release Notes (16 March 2017)
+--------------------------------------------------------
+TRADE REFERENCE
+1. Removed the name attribute in the xsl:value-of
+
+--------------------------------------------------------
+xslt-v1.17.5.3 - Release Notes (9 March 2017)
+--------------------------------------------------------
+C1: CCRIS SUMMARY
+1. Enhanced XML validation on FEC limit.
+
+C1: CCRIS DETAILS
+2. Enhanced XML validation on collateral type and credit application.
+3. Enhanced the display of remark legend on loan information status and legal status.
+
+C1: CCRIS DERIVATIVES
+4. Enhanced XML validation on unsecured of facilities and total outstanding balance (RM).
+
+D1: LEGAL CASES (SUBJECT AS DEFENDANT)
+5. Enhanced XML validation on collateral type and credit application.
+6. Enhanced the display of remark legend on loan information status and legal status.
+
+TRADE REFERENCE
+7. Fixed the display of multiple enquiry account 
+
+--------------------------------------------------------
+xslt-v1.17.5.2 - Release Notes (9 March 2017)
+--------------------------------------------------------
+A: CREDIT INFO AT A GLANCE
+1. Enhanced XML validation on legal personal capacity
+
+B2B XML does not have the following tags:
+<legal_personal_capacity total="0" value="0"/>
+<legal_non_personal_capacity total="0" value="0"/>
+
+Personal capacity:
+<legal total="2" value="409">
+<source code="N/S/G" name="Newspaper/CTOS Subscriber/Gazette"/>
+</legal>
+
+Non-personal capacity:
+default to N/A since the value is not available in XML
+
+D1: LEGAL CASES (SUBJECT AS DEFENDANT)
+2. Moved out X4 record from the summary listing and displayed at the bottom of summary listing.
+3. Relocated the field of Old ID.
+4. Moved out the field of Court and displayed next to the field of Case No
+5. Relocated the field of Hearing Date and displayed next to the field of Amount.
+6. Fixed the display of the CCM dated field.
+7. Added the field of Gazette.
+
+--------------------------------------------------------
+xslt-v1.17.5.1 - Release Notes (28 February 2017)
+--------------------------------------------------------
+B: COMPANY PROFILE
+1. SME financial health indicator as follows:
+a. Added template
+- section b SME financial health indicator template
+
+b. Added image files:
+- sme_financial_score_a.png
+- sme_financial_score_b.png
+- sme_financial_score_c.png
+- sme_financial_score_d.png
+- sme_financial_score_e.png
+- sme_financial_score_f.png
+- sme_financial_score_na.png
+- sme_financial_score_mue.png
+
+c. Added css styles:
+- table-no-border class
+- border class
+
+B: PREVIOUS NAME CHANGE
+2. Added an empty space at the bottom of the previous name template.
+
+--------------------------------------------------------
+xslt-v1.17.5 - Release Notes (13 February 2017)
+--------------------------------------------------------
+A: SNAPSHOT
+1. Renamed the caption from "Active legal records in past 24 months (personal capacity)" to "Legal records in past 24 months (personal capacity)".
+2. Renamed the caption from "Active legal records in past 24 months (non-personal capacity)" to "Legal records in past 24 months (non-personal capacity)".
+
+TRADE REFERENCE REPORT
+3. Added new field of remark under contact.
+
+--------------------------------------------------------
+xslt-v1.17.4.4 - Release Notes (21 December 2016)
+--------------------------------------------------------
+A: SNAPSHOT
+1. Enhanced data validation to the 2 fields of Address 1 and Address 2.
+
+D3: AMLA (ANTI MONEY LAUNDERING ACT) 
+2. Fixed the displayed of ID field.
+
+--------------------------------------------------------
+xslt-v1.17.4.3 - Release Notes (20 December 2016)
+--------------------------------------------------------
+A: SNAPSHOT
+1. Added "Id" report type to section a business id verification sub template.
+
+--------------------------------------------------------
+xslt-v1.17.4.2 - Release Notes (7 December 2016)
+--------------------------------------------------------
+C1: BANKING PAYMENT HISTORY
+1. Fixed the common template - sumNodes for the infinite loop when the count of nodes is 0.
+
+--------------------------------------------------------
+xslt-v1.17.4.1 - Release Notes (4 December 2016)
+--------------------------------------------------------
+B1: DIRECTORSHIPS AND BUSINESS INTERESTS
+1. Enhanced XML validation on business registration no. due to missing <locala> tag.
+
+B2: ADDRESS RECORDS
+2. Enhanced XML validation on CCRIS addresses due to incorrect <ccris_addresses> tag.
+
+--------------------------------------------------------
+xslt-v1.17.4 - Release Notes (14 November 2016)
+--------------------------------------------------------
+B1: DIRECTORSHIPS AND BUSINESS INTERESTS 
+1. Fixed unable to display Old ID
+
+--------------------------------------------------------
+xslt-v1.17.3 - Release Notes (14 October 2016)
+--------------------------------------------------------
+B: COMPANY PROFILE
+1. Removed the % at line 1190
+
+B2: ADDRESS RECORDS
+2. Fixed address logic from AND to OR
+
+C1: BANKING PAYMENT HISTORY
+3. Move the <xsl:key> element out from the <xsl:template>
+
+--------------------------------------------------------
+xslt-v1.17.2 - Release Notes (7 October 2016)
+--------------------------------------------------------
+A: SNAPSHOT - ID Verification
+1. Fixed the format pattern of the "New ID / Old ID (Your Input)" field.
+2. Fixed the source displayed of the "Nationality", "Address 1" and "Address 2" fields.
+       
+A: SNAPSHOT - Credit Info at A Glance
+3. Removed the row of "Availability of Trade Referee Listing".
+
+C1: BANKING PAYMENT HISTORY
+4. Added data validation to the field of "Subject Status".
+
+C1: CCRIS DETAILS - Loan Information
+5. Added data validation to the column of "Total Outstanding Balance (RM)" and "Collateral Type".
+
+C1: CCRIS DETAILS - Special Attention Account & Credit Application
+6. Added an additional blank row if there are no data available.
+
+--------------------------------------------------------
+xslt-v1.17.1 - Release Notes (24 August 2016)
+--------------------------------------------------------
+B: COMPANY PROFILE
+1. Fixed Section B PREVIOUS NAME CHANGE cannot be display.
+2. Fixed Section B PREVIOUS NAME CHANGE and ADDRESS RECORDS no break page in between.
+
+C1: BANKING PAYMENT HISTORY
+3. Fixed Section C1 CCRIS Detail cannot show amount which contain "-".
+4. Fixed Section C1 CCRIS Detail amount no currency format issue.
+
+D2: LEGAL CASES (SUBJECT AS PLAINTIFF)
+5. Fixed Section D2 display incorrect data issue.
+6. Fixed Trade Reference Report account no missing.

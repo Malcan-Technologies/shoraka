@@ -6,6 +6,7 @@
  * WHERE USED: Admin table, issuer profile, investor cards, onboarding review dialog
  */
 
+import { isKycOnboardingNotStartedToken } from "./kyc-onboarding-lifecycle";
 import { normalizeRawStatus } from "./status-normalization";
 
 export type DirectorShareholderFinalStatusTone =
@@ -63,9 +64,12 @@ export function getDirectorShareholderEffectiveStatus(
   person: DirectorShareholderStatusPerson
 ): { source: DirectorShareholderEffectiveStatusSource; value: string } {
   const aml = normalizeRawStatus(person.screening?.status);
-  if (aml) return { source: "AML", value: aml };
+  if (aml && !isKycOnboardingNotStartedToken(aml)) return { source: "AML", value: aml };
   const onboarding = normalizeRawStatus(person.onboarding?.status);
-  return { source: "ONBOARDING", value: onboarding };
+  return {
+    source: "ONBOARDING",
+    value: isKycOnboardingNotStartedToken(onboarding) ? "" : onboarding,
+  };
 }
 
 function labelFromEffective(effective: {
@@ -74,7 +78,7 @@ function labelFromEffective(effective: {
 }): { label: string; tone: DirectorShareholderFinalStatusTone } {
   const { source, value } = effective;
 
-  if (!value) {
+  if (!value || isKycOnboardingNotStartedToken(value)) {
     return { label: "Not Started", tone: "neutral" };
   }
 
@@ -118,7 +122,12 @@ export function getFinalStatusLabel(
 ): { label: string; tone: DirectorShareholderFinalStatusTone } {
   const effective =
     options?.displayMode === "kyc_only"
-      ? { source: "ONBOARDING" as const, value: normalizeRawStatus(person.onboarding?.status) }
+      ? {
+          source: "ONBOARDING" as const,
+          value: isKycOnboardingNotStartedToken(person.onboarding?.status)
+            ? ""
+            : normalizeRawStatus(person.onboarding?.status),
+        }
       : getDirectorShareholderEffectiveStatus(person);
   return labelFromEffective(effective);
 }

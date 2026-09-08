@@ -43,6 +43,7 @@ describe("admin activity timeline signing-package copy", () => {
     expect(source).toMatch(/PAYMASTER_LINKED_TO_ISSUER:\s*"Paymaster Linked to Issuer"/);
     expect(source).toMatch(/PAYMASTER_IDENTITY_UPDATED:\s*"Paymaster Identity Updated"/);
     expect(source).toMatch(/PAYMASTER_VERIFIED:\s*"Paymaster Identity Verified"/);
+    expect(source).toMatch(/PAYMASTER_IDENTITY_SYNCED:\s*"Paymaster Identity Synced"/);
     expect(source).toMatch(/PAYMASTER_IDENTITY_RESOLVED:\s*"Paymaster Identity Resolved"/);
     expect(source).not.toMatch(/PAYMASTER_VERIFIED:\s*"Paymaster Verified"/);
     expect(source).not.toMatch(/PAYMASTER_MISMATCH/);

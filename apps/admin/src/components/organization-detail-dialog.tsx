@@ -36,7 +36,7 @@ import {
   useOrganizationDetail,
   useUpdateSophisticatedStatus,
 } from "@/hooks/use-organization-detail";
-import { formatOrganizationReference, toTitleCase, type PortalType } from "@cashsouk/types";
+import { formatOrganizationReference, getRegtankCorporateOnboardingUrl, toTitleCase, type PortalType } from "@cashsouk/types";
 import { format } from "date-fns";
 import {
   UserIcon,
@@ -730,14 +730,18 @@ export function OrganizationDetailDialog({
             </DialogTitle>
             <DialogDescription className="flex items-center justify-between">
               <span>{org ? `Reference: ${formatOrganizationReference({ displayReference: org.displayReference, id: org.id })}` : "Loading organization details..."}</span>
-              {org?.regtankPortalUrl && (
+              {(() => {
+                const url = org?.regtankPortalUrl?.trim() || getRegtankCorporateOnboardingUrl(org?.codRequestId);
+                if (!url) return null;
+                return (
                 <Button variant="outline" size="sm" asChild className="gap-1.5">
-                  <a href={org.regtankPortalUrl} target="_blank" rel="noopener noreferrer">
+                  <a href={url} target="_blank" rel="noopener noreferrer">
                     <ArrowTopRightOnSquareIcon className="h-4 w-4" />
                     Open in RegTank
                   </a>
                 </Button>
-              )}
+                );
+              })()}
             </DialogDescription>
           </DialogHeader>
 
@@ -791,14 +795,16 @@ export function OrganizationDetailDialog({
                         </div>
                         <div className="flex items-center gap-3">
                           <Switch
-                            checked={org.isSophisticatedInvestor}
+                            checked={org.isSophisticatedInvestor === true}
                             onCheckedChange={handleSophisticatedToggle}
                             disabled={updateSophisticatedMutation.isPending}
                           />
-                          {org.isSophisticatedInvestor ? (
+                          {org.isSophisticatedInvestor === true ? (
                             <StatusBadge label="Yes" status="success" />
-                          ) : (
+                          ) : org.isSophisticatedInvestor === false ? (
                             <StatusBadge label="No" status="neutral" />
+                          ) : (
+                            <StatusBadge label="Not set" status="action" />
                           )}
                         </div>
                         {org.sophisticatedInvestorReason && (
@@ -988,7 +994,8 @@ export function OrganizationDetailDialog({
               )}
 
               {/* Personal Details (from RegTank) */}
-              {(org.firstName || org.lastName || org.nationality || org.dateOfBirth) && (
+              {(org.type !== "COMPANY" &&
+                (org.firstName || org.lastName || org.nationality || org.dateOfBirth)) && (
                 <Card>
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -1013,24 +1020,32 @@ export function OrganizationDetailDialog({
                 </Card>
               )}
 
-              {/* Contact Info */}
-              {(org.phoneNumber || org.address || org.owner.email) && (
+              {/* Account owner / contact */}
+              {(org.phoneNumber || (org.type !== "COMPANY" && org.address) || org.owner.email) && (
                 <Card>
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm font-medium flex items-center gap-2">
                       <PhoneIcon className="h-4 w-4" />
-                      Contact Details
+                      {org.type === "COMPANY" ? "Account owner" : "Contact Details"}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-2 gap-4">
                       {org.phoneNumber && (
-                        <CopyableField label="Phone Number" value={org.phoneNumber} icon={PhoneIcon} />
+                        <CopyableField
+                          label={org.type === "COMPANY" ? "Company phone number" : "Phone Number"}
+                          value={org.phoneNumber}
+                          icon={PhoneIcon}
+                        />
                       )}
                       {org.owner.email && (
-                        <CopyableField label="Email" value={org.owner.email} icon={EnvelopeIcon} />
+                        <CopyableField
+                          label={org.type === "COMPANY" ? "Account owner email" : "Email"}
+                          value={org.owner.email}
+                          icon={EnvelopeIcon}
+                        />
                       )}
-                      {org.address && (
+                      {org.type !== "COMPANY" && org.address && (
                         <div className="col-span-2">
                           <CopyableField label="Address" value={org.address} />
                         </div>

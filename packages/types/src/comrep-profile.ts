@@ -1,7 +1,13 @@
+import { normalizeProfilePhone } from "./profile-phone";
+
 /**
  * SC ComRep enumerations and CashSouk master-profile completeness.
  * Annual RMO Information Report tables are [01000]–[11000]; issuer/investor
  * profile completeness uses monthly P2P [02000], [05000], [06000], [07000], [09000], [09100].
+ *
+ * Issuer [02000] "Issuer ID (if any)" and [02000] Company Activities are not
+ * completeness blockers: the former is explicitly "if any"; the latter's
+ * fundraising-purpose wording is not equated with the profile business narrative.
  */
 
 export const SC_COMPANY_CATEGORIES = ["TECHNOLOGY", "NON_TECHNOLOGY"] as const;
@@ -330,9 +336,70 @@ export const SC_COMPANY_TYPE_LABELS: Record<ScCompanyType, string> = {
   FOREIGN: "Foreign",
 };
 
+/** Map RegTank COD "Type of Entity" text onto the SC Type of Company enum. */
+export function mapRegTankEntityTypeToScCompanyType(raw: unknown): ScCompanyType | null {
+  if (typeof raw !== "string") return null;
+  const n = raw.trim().toLowerCase();
+  if (!n) return null;
+  if (n.includes("limited liability partnership") || n === "llp") return "LLP";
+  if (n.includes("sole proprietor")) return "SOLE_PROPRIETORSHIP";
+  if (n.includes("private limited") || n.includes("sdn bhd") || n.includes("sdn. bhd")) {
+    return "PRIVATE_LIMITED";
+  }
+  if (n.includes("public limited") || (/\bbhd\b/.test(n) && !n.includes("sdn"))) return "PUBLIC_LIMITED";
+  if (n.includes("partnership")) return "PARTNERSHIP";
+  if (n.includes("foreign")) return "FOREIGN";
+  return null;
+}
+
+export const PROFILE_LOCKED_VERIFIED_DURING_ONBOARDING =
+  "This field is locked because it was verified during onboarding.";
+export const PROFILE_LOCKED_ROLES_CANNOT_CHANGE = "Roles cannot be changed here.";
+
+/** Individual KYC fields on the organisation itself belong to personal investors only. */
+export function shouldShowOrganizationPersonalKycCard(organizationType: "PERSONAL" | "COMPANY"): boolean {
+  return organizationType !== "COMPANY";
+}
+
+/** Board/Management officer fields. Director is a separate role and is not Board. */
+export function isIssuerOfficerRole(roles: { isBoard?: boolean; isManagement?: boolean }): boolean {
+  return Boolean(roles.isBoard || roles.isManagement);
+}
+
+export const SELECT_AT_LEAST_ONE_ROLE_MESSAGE = "Select at least one role.";
+
+/** True when at least one People role is selected. Roles are independent. */
+export function hasOrganizationPartyRole(roles: {
+  isDirector?: boolean;
+  isShareholder?: boolean;
+  isBoard?: boolean;
+  isManagement?: boolean;
+}): boolean {
+  return Boolean(roles.isDirector || roles.isShareholder || roles.isBoard || roles.isManagement);
+}
+
+export function displayScCompanyTypeLabel(
+  scCompanyType: string | null | undefined,
+  regTankEntityType?: string | null
+): string | null {
+  const stored =
+    scCompanyType && scCompanyType in SC_COMPANY_TYPE_LABELS
+      ? (scCompanyType as ScCompanyType)
+      : null;
+  const mapped = stored ?? mapRegTankEntityTypeToScCompanyType(regTankEntityType);
+  return mapped ? SC_COMPANY_TYPE_LABELS[mapped] : null;
+}
+
 export const SC_SHARE_TYPE_LABELS: Record<ScShareType, string> = {
   ORDINARY: "Ordinary shares",
   PREFERENCE: "Preference shares",
+  OTHERS: "Others",
+};
+
+/** Annual RMO [10000] Interest in Other Company uses Ordinary / Preference / Others. */
+export const SC_INTEREST_SHARE_TYPE_LABELS: Record<ScShareType, string> = {
+  ORDINARY: "Ordinary",
+  PREFERENCE: "Preference",
   OTHERS: "Others",
 };
 
@@ -349,8 +416,8 @@ export const SC_GENDER_LABELS: Record<ScGender, string> = {
 };
 
 export const SC_PERSON_KIND_LABELS: Record<ScPersonKind, string> = {
-  BOARD: "Board of Director",
-  MANAGEMENT: "Management Team",
+  BOARD: "Board of director",
+  MANAGEMENT: "Management team",
 };
 
 export const SC_DESIGNATION_LABELS: Record<ScDesignation, string> = {
@@ -374,55 +441,143 @@ export const SC_DESIGNATION_LABELS: Record<ScDesignation, string> = {
 export const SC_INVESTOR_CATEGORY_LABELS: Record<ScInvestorCategory, string> = {
   ANGEL: "Angel",
   RETAIL: "Retail",
-  SOPHISTICATED_HIGH_NET_WORTH_INDIVIDUAL: "Sophisticated – High Net Worth Individual",
+  SOPHISTICATED_HIGH_NET_WORTH_INDIVIDUAL: "Sophisticated – High net worth individual",
   SOPHISTICATED_ACCREDITED: "Sophisticated – Accredited",
-  SOPHISTICATED_HIGH_NET_WORTH_ENTITY: "Sophisticated – High Net Worth Entity",
-  NON_SOPHISTICATED_ENTITY: "Non-Sophisticated Entity",
+  SOPHISTICATED_HIGH_NET_WORTH_ENTITY: "Sophisticated – High net worth entity",
+  NON_SOPHISTICATED_ENTITY: "Non-sophisticated entity",
 };
 
-export const SC_INVESTOR_CATEGORIES_PERSONAL = [
+export const SC_INVESTOR_CATEGORY_DEFINITIONS: Record<ScInvestorCategory, string> = {
+  ANGEL:
+    "An individual who meets the SC angel investor requirements, including the relevant Malaysian tax residence and asset or income conditions.",
+  RETAIL: "An individual who is neither an Angel investor nor a Sophisticated Investor.",
+  SOPHISTICATED_HIGH_NET_WORTH_INDIVIDUAL:
+    "An individual who meets the SC high-net-worth investor requirements.",
+  SOPHISTICATED_ACCREDITED: "An investor who qualifies under the SC accredited-investor categories.",
+  SOPHISTICATED_HIGH_NET_WORTH_ENTITY:
+    "A company or entity that meets the SC high-net-worth entity requirements.",
+  NON_SOPHISTICATED_ENTITY:
+    "A company or entity that does not meet the sophisticated-investor requirements.",
+};
+
+export const SC_INVESTOR_CATEGORIES_PERSONAL_NON_SOPHISTICATED = [
   "ANGEL",
   "RETAIL",
+] as const satisfies readonly ScInvestorCategory[];
+
+export const SC_INVESTOR_CATEGORIES_PERSONAL_SOPHISTICATED = [
   "SOPHISTICATED_HIGH_NET_WORTH_INDIVIDUAL",
   "SOPHISTICATED_ACCREDITED",
 ] as const satisfies readonly ScInvestorCategory[];
 
-export const SC_INVESTOR_CATEGORIES_CORPORATE = [
+export const SC_INVESTOR_CATEGORIES_PERSONAL = [
+  ...SC_INVESTOR_CATEGORIES_PERSONAL_NON_SOPHISTICATED,
+  ...SC_INVESTOR_CATEGORIES_PERSONAL_SOPHISTICATED,
+] as const satisfies readonly ScInvestorCategory[];
+
+export const SC_INVESTOR_CATEGORIES_CORPORATE_SOPHISTICATED = [
   "SOPHISTICATED_HIGH_NET_WORTH_ENTITY",
+  "SOPHISTICATED_ACCREDITED",
+] as const satisfies readonly ScInvestorCategory[];
+
+export const SC_INVESTOR_CATEGORIES_CORPORATE_NON_SOPHISTICATED = [
   "NON_SOPHISTICATED_ENTITY",
 ] as const satisfies readonly ScInvestorCategory[];
+
+export const SC_INVESTOR_CATEGORIES_CORPORATE = [
+  ...SC_INVESTOR_CATEGORIES_CORPORATE_SOPHISTICATED,
+  ...SC_INVESTOR_CATEGORIES_CORPORATE_NON_SOPHISTICATED,
+] as const satisfies readonly ScInvestorCategory[];
+
+export const SELECT_SOPHISTICATED_INVESTOR_FIRST_MESSAGE =
+  "Select Sophisticated Investor first.";
+
+export type ScInvestorCategoryScope = {
+  organizationType: "PERSONAL" | "COMPANY";
+  isSophisticatedInvestor?: boolean | null;
+};
 
 export function isScInvestorCategory(value: unknown): value is ScInvestorCategory {
   return typeof value === "string" && (SC_INVESTOR_CATEGORIES as readonly string[]).includes(value);
 }
 
-export function allowedScInvestorCategories(input: {
-  organizationType: "PERSONAL" | "COMPANY";
-}): ScInvestorCategory[] {
-  if (input.organizationType === "COMPANY") {
-    return [...SC_INVESTOR_CATEGORIES_CORPORATE];
+export function isSophisticatedInvestorSelected(
+  value: unknown
+): value is boolean {
+  return value === true || value === false;
+}
+
+/** RegTank answers set Sophisticated Yes/No for personal investors only. */
+export function appliesRegTankSophisticatedStatus(
+  organizationType: "PERSONAL" | "COMPANY" | string
+): boolean {
+  return organizationType === "PERSONAL";
+}
+
+export function allowedScInvestorCategories(input: ScInvestorCategoryScope): ScInvestorCategory[] {
+  if (!isSophisticatedInvestorSelected(input.isSophisticatedInvestor)) {
+    return [];
   }
-  return [...SC_INVESTOR_CATEGORIES_PERSONAL];
+  if (input.organizationType === "COMPANY") {
+    return input.isSophisticatedInvestor
+      ? [...SC_INVESTOR_CATEGORIES_CORPORATE_SOPHISTICATED]
+      : [...SC_INVESTOR_CATEGORIES_CORPORATE_NON_SOPHISTICATED];
+  }
+  return input.isSophisticatedInvestor
+    ? [...SC_INVESTOR_CATEGORIES_PERSONAL_SOPHISTICATED]
+    : [...SC_INVESTOR_CATEGORIES_PERSONAL_NON_SOPHISTICATED];
 }
 
 export function isAllowedScInvestorCategory(
   category: unknown,
-  input: { organizationType: "PERSONAL" | "COMPANY" }
+  input: ScInvestorCategoryScope
 ): category is ScInvestorCategory {
   return (
     isScInvestorCategory(category) && allowedScInvestorCategories(input).includes(category)
   );
 }
 
+export function scInvestorCategoryAfterSophisticatedChange(
+  current: unknown,
+  input: ScInvestorCategoryScope
+): ScInvestorCategory | null {
+  return isAllowedScInvestorCategory(current, input) ? current : null;
+}
+
+export function scInvestorCategoryHelp(
+  categories: readonly ScInvestorCategory[]
+): string {
+  return categories
+    .map((category) => `${SC_INVESTOR_CATEGORY_LABELS[category]}\n${SC_INVESTOR_CATEGORY_DEFINITIONS[category]}`)
+    .join("\n\n");
+}
+
+export function typeOfInvestorValidationMessage(
+  category: unknown,
+  input: ScInvestorCategoryScope
+): string | null {
+  if (!isSophisticatedInvestorSelected(input.isSophisticatedInvestor)) {
+    return SELECT_SOPHISTICATED_INVESTOR_FIRST_MESSAGE;
+  }
+  if (category == null || (typeof category === "string" && category.trim() === "")) {
+    return "Type of Investor is required.";
+  }
+  if (!isAllowedScInvestorCategory(category, input)) {
+    return "This Type of Investor is not valid for this organisation.";
+  }
+  return null;
+}
+
 export const OPERATOR_ADVISOR_TYPE_LABELS: Record<OperatorAdvisorType, string> = {
-  ACCOUNTING: "Accounting",
-  AUDITOR: "Auditor",
-  BANKER: "Banker",
-  COMPLIANCE_AND_RISK: "Compliance & Risk",
-  CREDIT_RATING: "Credit Rating",
-  LEGAL: "Legal",
-  TAXATION: "Taxation",
-  TRUSTEE_ESCROW: "Trustee/Escrow Account",
+  ACCOUNTING: "Accounting – Accountant appointed by RMO.",
+  AUDITOR: "Auditor – Auditor which RMO currently engages.",
+  BANKER: "Banker – Bank which RMO currently engages for deposits and withdrawal of trust monies.",
+  COMPLIANCE_AND_RISK: "Compliance & Risk – Advisor appointed to provide compliance and risk services.",
+  CREDIT_RATING: "Credit Rating – Credit Rating/Scoring Agency the RMOs engages for services.",
+  LEGAL: "Legal – Legal advisor appointed by the RMOs",
+  TAXATION: "Taxation – Tax advisor appointed by the RMOs.",
+  TRUSTEE_ESCROW:
+    "Trustee/Escrow Account – Trustee which RMO currently engages to manage deposits and withdrawal of trust monies.",
 };
 
 export const OPERATOR_HOLDER_TYPE_LABELS: Record<OperatorHolderType, string> = {
@@ -486,7 +641,7 @@ export type IssuerProfileStepId = (typeof ISSUER_PROFILE_STEP_IDS)[number];
 export const INVESTOR_PROFILE_STEP_IDS = ["identity", "review"] as const;
 export type InvestorProfileStepId = (typeof INVESTOR_PROFILE_STEP_IDS)[number];
 /** Identity required fields: all USER-editable on the normal Investor Profile, including `scInvestorCategory`. */
-export const INVESTOR_IDENTITY_REQUIRED_COUNT = 9;
+export const INVESTOR_IDENTITY_REQUIRED_COUNT = 10;
 export const INVESTOR_ADMIN_IDENTITY_REQUIRED_COUNT = 0;
 
 export type ComrepProfileStepId = IssuerProfileStepId | InvestorProfileStepId;
@@ -563,7 +718,7 @@ export const ISSUER_PROFILE_UI_SECTIONS: Array<{
   { id: "company", label: "Company Details", href: "#profile-company" },
   { id: "about", label: "About your business", href: "#profile-about" },
   { id: "addresses", label: "Addresses", href: "#profile-addresses" },
-  { id: "contact", label: "Contact details", href: "#profile-contact" },
+  { id: "contact", label: "Person in Charge", href: "#profile-contact" },
   { id: "people", label: "People", href: "#profile-people" },
   { id: "financials", label: "Financials", href: "#profile-financials" },
 ];
@@ -611,7 +766,8 @@ export const INVESTOR_COMPANY_UI_SECTIONS: Array<{
 }> = [
   { id: "company", label: "Company Details", href: "#profile-company" },
   { id: "addresses", label: "Business Address", href: "#profile-addresses" },
-  { id: "contact", label: "Contact details", href: "#profile-contact" },
+  { id: "contact", label: "Account owner", href: "#profile-contact" },
+  { id: "people", label: "People", href: "#profile-people" },
   { id: "classification", label: "Investor classification", href: "#profile-classification" },
 ];
 
@@ -619,9 +775,12 @@ export function investorUiSectionForMissing(
   item: ProfileMissingItem,
   organizationType: "PERSONAL" | "COMPANY"
 ): ProfileUiSectionId {
+  if (item.step === "shareholders" || item.step === "board") return "people";
   if (item.field === "state" || item.field === "postalCode") return "addresses";
   if (item.field === "businessState" || item.field === "businessPostalCode") return "addresses";
-  if (item.field === "scInvestorCategory") return "classification";
+  if (item.field === "scInvestorCategory" || item.field === "isSophisticatedInvestor") {
+    return "classification";
+  }
   if (
     organizationType === "COMPANY" &&
     (item.field === "name" ||
@@ -776,6 +935,34 @@ export interface BoardCompletenessInput {
   designation: ScDesignation | null | undefined;
   designationOther: string | null | undefined;
   appointmentDate: string | Date | null | undefined;
+  /** Designation / appointment are Board and Management only, not Director. */
+  requireOfficerFields?: boolean;
+}
+
+export interface IssuerPersonCompletenessInput {
+  partyKey: string;
+  name: string | null | undefined;
+  entityType: OrganizationPartyEntityType;
+  isDirector: boolean;
+  isShareholder: boolean;
+  isBoard: boolean;
+  isManagement: boolean;
+  identityPrefix: ScIdentityPrefix | null | undefined;
+  identityNumber: string | null | undefined;
+  dateOfBirth: string | Date | null | undefined;
+  dateOfIncorporation: string | Date | null | undefined;
+  gender: ScGender | null | undefined;
+  nationality: string | null | undefined;
+  countryOfIncorporation: string | null | undefined;
+  address: PartyAddressCompletenessInput | null | undefined;
+  shareType: ScShareType | null | undefined;
+  shareTypeOther: string | null | undefined;
+  shareholdingUnits: number | string | null | undefined;
+  shareholdingAmount: number | string | null | undefined;
+  shareholdingPercentage: number | string | null | undefined;
+  designation: ScDesignation | null | undefined;
+  designationOther: string | null | undefined;
+  appointmentDate: string | Date | null | undefined;
 }
 
 export interface IssuerFinancialCompletenessInput {
@@ -794,6 +981,7 @@ export interface IssuerFinancialCompletenessInput {
   otherCost: number | string | null | undefined;
   profitBeforeTax: number | string | null | undefined;
   profitAfterTax: number | string | null | undefined;
+  minorityInterest: number | string | null | undefined;
   netDividend: number | string | null | undefined;
 }
 
@@ -807,6 +995,7 @@ export interface InvestorPersonalCompletenessInput {
   postalCode: string | null | undefined;
   nationality: string | null | undefined;
   scInvestorCategory: ScInvestorCategory | null | undefined;
+  isSophisticatedInvestor?: boolean | null;
 }
 
 export interface InvestorCorporateCompletenessInput {
@@ -819,6 +1008,7 @@ export interface InvestorCorporateCompletenessInput {
   businessState: string | null | undefined;
   businessPostalCode: string | null | undefined;
   scInvestorCategory: ScInvestorCategory | null | undefined;
+  isSophisticatedInvestor?: boolean | null;
 }
 
 export const ISSUER_FINANCIAL_COMREP_KEYS = [
@@ -839,23 +1029,31 @@ export const ISSUER_FINANCIAL_COMREP_KEYS = [
 export type IssuerFinancialComrepKey = (typeof ISSUER_FINANCIAL_COMREP_KEYS)[number];
 
 export const ISSUER_FINANCIAL_COMREP_LABELS: Record<IssuerFinancialComrepKey, string> = {
-  curlib_borrowing: "Current liabilities — borrowing",
-  curlib_non_borrowing: "Current liabilities — non-borrowing",
-  ncl_loan: "Non-current liabilities — loan",
-  ncl_non_loan: "Non-current liabilities — non-loan",
-  equity_share_application: "Share application account",
-  equity_share_premium: "Share premium & other reserves",
-  equity_accumulated_profit: "Accumulated profit carried forward",
-  equity_minority: "Equity minority interest",
-  operating_cost: "Operating cost",
-  admin_cost: "Administrative cost",
-  interest_cost: "Interest cost",
-  other_cost: "Other cost",
-  pl_minority: "Profit and loss minority interest",
+  curlib_borrowing: "Liabilities|Current - Borrowing (RM)",
+  curlib_non_borrowing: "Liabilities|Current - Non Borrowing (RM)",
+  ncl_loan: "Liabilities|Non Current - Loan (RM)",
+  ncl_non_loan: "Liabilities|Non Current - Non Loan (RM)",
+  equity_share_application: "Equity|Share Application Account (if applicable) (RM)",
+  equity_share_premium: "Equity|Share Premium & Other Reserves (if applicable) (RM)",
+  equity_accumulated_profit: "Equity|Accumulated Profit Carried Forward (RM)",
+  equity_minority: "Equity|Minority Interest (if applicable) (RM)",
+  operating_cost: "Operating Cost (RM)",
+  admin_cost: "Administrative Cost (RM)",
+  interest_cost: "Interest Cost (RM)",
+  other_cost: "Other Cost (RM)",
+  pl_minority: "Minority Interest (RM)",
 };
 
 function hasText(value: unknown): boolean {
   return typeof value === "string" && value.trim().length > 0;
+}
+
+function hasValidEmailValue(value: unknown): boolean {
+  return hasText(value) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value).trim());
+}
+
+function hasValidPhoneValue(value: unknown): boolean {
+  return hasText(value) && normalizeProfilePhone(String(value)) != null;
 }
 
 function hasDate(value: unknown): boolean {
@@ -876,6 +1074,20 @@ function hasNumber(value: unknown): boolean {
   return false;
 }
 
+function hasRequiredPostcodeValue(
+  postalCode: string | null | undefined,
+  state: string | null | undefined
+): boolean {
+  if (typeof state === "string" && state.trim() === "Outside Malaysia") return true;
+  return hasText(postalCode);
+}
+
+function hasRequiredPostcode(
+  address: PartyAddressCompletenessInput | null | undefined
+): boolean {
+  return hasRequiredPostcodeValue(address?.postalCode, address?.state);
+}
+
 function hasAddressLineAndLocation(address: PartyAddressCompletenessInput | null | undefined): {
   line1: boolean;
   state: boolean;
@@ -884,7 +1096,7 @@ function hasAddressLineAndLocation(address: PartyAddressCompletenessInput | null
   return {
     line1: hasText(address?.line1),
     state: hasText(address?.state),
-    postalCode: hasText(address?.postalCode),
+    postalCode: hasRequiredPostcode(address),
   };
 }
 
@@ -909,11 +1121,20 @@ function pushMissing(
 function pushMissingInvestorCategory(
   missing: ProfileMissingItem[],
   step: ComrepProfileStepId,
-  organizationType: "PERSONAL" | "COMPANY",
+  scope: ScInvestorCategoryScope,
   existing: ScInvestorCategory | null | undefined
 ): void {
-  if (isAllowedScInvestorCategory(existing, { organizationType })) return;
-  pushMissing(missing, step, "scInvestorCategory", "SC ComRep investor type", undefined, "USER");
+  if (isAllowedScInvestorCategory(existing, scope)) return;
+  pushMissing(missing, step, "scInvestorCategory", "Type of Investor", undefined, "USER");
+}
+
+function pushMissingSophisticatedInvestor(
+  missing: ProfileMissingItem[],
+  step: ComrepProfileStepId,
+  existing: boolean | null | undefined
+): void {
+  if (isSophisticatedInvestorSelected(existing)) return;
+  pushMissing(missing, step, "isSophisticatedInvestor", "Sophisticated Investor", undefined, "USER");
 }
 
 function withUserFacingCompleteness(
@@ -928,8 +1149,10 @@ function withUserFacingCompleteness(
       userMissing,
     };
   }
-  const identityRequired = completeness.steps.find((step) => step.id === "identity")?.requiredCount ?? 9;
-  const userRequiredCount = Math.max(0, identityRequired - INVESTOR_ADMIN_IDENTITY_REQUIRED_COUNT);
+  const identityRequired = completeness.steps.find((step) => step.id === "identity")?.requiredCount ?? 10;
+  const peopleRequired = completeness.steps.find((step) => step.id === "shareholders")?.requiredCount ?? 0;
+  const userRequiredCount =
+    Math.max(0, identityRequired - INVESTOR_ADMIN_IDENTITY_REQUIRED_COUNT) + peopleRequired;
   const userFilledCount = Math.max(0, userRequiredCount - userMissing.length);
   const userPercent =
     userRequiredCount === 0 ? 100 : Math.round((userFilledCount / userRequiredCount) * 100);
@@ -941,49 +1164,48 @@ function withUserFacingCompleteness(
   };
 }
 
+/** Platform completeness for issuer company master data. Issuer ID (if any) and Company Activities are not counted. */
+export const ISSUER_COMPANY_COMPLETENESS_FIELD_COUNT = 14;
+
 export function computeIssuerCompanyCompleteness(
   input: IssuerCompanyCompletenessInput
 ): ProfileMissingItem[] {
   const missing: ProfileMissingItem[] = [];
   const step: ComrepProfileStepId = "company";
-  if (!hasText(input.name)) pushMissing(missing, step, "name", "Name of issuer");
+  if (!hasText(input.name)) pushMissing(missing, step, "name", "Name of Issuer");
   if (!hasText(input.registrationNumber)) pushMissing(missing, step, "registrationNumber", "Issuer ROC");
-  if (!hasText(input.organizationId)) pushMissing(missing, step, "organizationId", "Issuer ID");
   if (!hasDate(input.dateOfIncorporation)) {
-    pushMissing(missing, step, "dateOfIncorporation", "Date of incorporation");
+    pushMissing(missing, step, "dateOfIncorporation", "Date of Incorporation (dd/mm/yyyy)");
   }
   if (!hasDate(input.dateOfCommencement)) {
-    pushMissing(missing, step, "dateOfCommencement", "Date of commencement");
+    pushMissing(missing, step, "dateOfCommencement", "Date of Commencement (dd/mm/yyyy)");
   }
   if (!hasText(input.countryOfIncorporation)) {
-    pushMissing(missing, step, "countryOfIncorporation", "Country of incorporation");
+    pushMissing(missing, step, "countryOfIncorporation", "Country of Incorporation");
   }
   if (!hasText(input.scCompanyType)) {
-    pushMissing(missing, step, "scCompanyType", "Type of company");
+    pushMissing(missing, step, "scCompanyType", "Type of Company");
   }
   if (!hasText(input.registeredAddress?.line1)) {
-    pushMissing(missing, step, "registeredAddress.line1", "Registered address");
+    pushMissing(missing, step, "registeredAddress.line1", "Registered Address");
   }
   if (!hasText(input.registeredAddress?.state)) {
-    pushMissing(missing, step, "registeredAddress.state", "Registered address — state");
+    pushMissing(missing, step, "registeredAddress.state", "Registered Address - State");
   }
-  if (!hasText(input.registeredAddress?.postalCode)) {
-    pushMissing(missing, step, "registeredAddress.postalCode", "Registered address — postcode");
+  if (!hasRequiredPostcodeValue(input.registeredAddress?.postalCode, input.registeredAddress?.state)) {
+    pushMissing(missing, step, "registeredAddress.postalCode", "Registered Address - Postcode");
   }
   if (!hasText(input.businessAddress?.line1)) {
-    pushMissing(missing, step, "businessAddress.line1", "Business address");
+    pushMissing(missing, step, "businessAddress.line1", "Business Address");
   }
   if (!hasText(input.businessAddress?.state)) {
-    pushMissing(missing, step, "businessAddress.state", "Business address — state");
+    pushMissing(missing, step, "businessAddress.state", "Business Address - State");
   }
-  if (!hasText(input.businessAddress?.postalCode)) {
-    pushMissing(missing, step, "businessAddress.postalCode", "Business address — postcode");
+  if (!hasRequiredPostcodeValue(input.businessAddress?.postalCode, input.businessAddress?.state)) {
+    pushMissing(missing, step, "businessAddress.postalCode", "Business Address - Postcode");
   }
-  if (!hasText(input.phoneNumber)) pushMissing(missing, step, "phoneNumber", "Phone number");
-  if (!hasText(input.companyEmail)) pushMissing(missing, step, "companyEmail", "E-mail address");
-  if (!hasText(input.companyActivities)) {
-    pushMissing(missing, step, "companyActivities", "Company activities");
-  }
+  if (!hasValidPhoneValue(input.phoneNumber)) pushMissing(missing, step, "phoneNumber", "Phone Number");
+  if (!hasValidEmailValue(input.companyEmail)) pushMissing(missing, step, "companyEmail", "E-mail Address");
   return missing;
 }
 
@@ -994,54 +1216,66 @@ export function computeShareholderCompleteness(
   const step: ComrepProfileStepId = "shareholders";
   const who = { partyKey: party.partyKey, partyName: party.name ?? null };
   if (!hasText(party.entityType)) {
-    pushMissing(missing, step, "entityType", "Shareholder type", who);
+    pushMissing(missing, step, "entityType", "Shareholder Type", who);
   }
-  if (!hasText(party.name)) pushMissing(missing, step, "name", "Shareholder name", who);
-  if (!hasText(party.identityPrefix)) {
-    pushMissing(missing, step, "identityPrefix", "Identity prefix", who);
+  if (!hasText(party.name)) pushMissing(missing, step, "name", "Shareholder Name", who);
+  if (party.entityType === "CORPORATE") {
+    if (party.identityPrefix !== "ROC") {
+      pushMissing(missing, step, "identityPrefix", "Identity Prefix", who);
+    }
+  } else if (!hasText(party.identityPrefix) || party.identityPrefix === "ROC") {
+    pushMissing(missing, step, "identityPrefix", "Identity Prefix", who);
   }
   if (!hasText(party.identityNumber)) {
-    pushMissing(missing, step, "identityNumber", "Shareholder identity", who);
+    pushMissing(
+      missing,
+      step,
+      "identityNumber",
+      "Shareholder Identity (NRIC/Passport/Company Registration No.)",
+      who
+    );
   }
   if (party.entityType === "INDIVIDUAL") {
-    if (!hasDate(party.dateOfBirth)) pushMissing(missing, step, "dateOfBirth", "Date of birth", who);
+    if (!hasDate(party.dateOfBirth)) {
+      pushMissing(missing, step, "dateOfBirth", "Date of Birth (dd/mm/yyyy)", who);
+    }
     if (!hasText(party.gender) || party.gender === "NOT_APPLICABLE") {
       pushMissing(missing, step, "gender", "Gender", who);
     }
-    if (!hasText(party.nationality)) pushMissing(missing, step, "nationality", "Nationality", who);
+    if (!hasText(party.nationality)) pushMissing(missing, step, "nationality", "Nationality/Country", who);
   } else {
     if (!hasDate(party.dateOfIncorporation)) {
-      pushMissing(missing, step, "dateOfIncorporation", "Date of incorporation", who);
+      pushMissing(missing, step, "dateOfIncorporation", "Date of Birth (dd/mm/yyyy)", who);
     }
     if (party.gender !== "NOT_APPLICABLE") {
-      pushMissing(missing, step, "gender", "Gender (Not Applicable for companies)", who);
+      pushMissing(missing, step, "gender", "Gender", who);
     }
     if (!hasText(party.countryOfIncorporation)) {
-      pushMissing(missing, step, "countryOfIncorporation", "Country of incorporation", who);
+      pushMissing(missing, step, "countryOfIncorporation", "Nationality/Country", who);
     }
   }
   const addr = hasAddressLineAndLocation(party.address);
   if (!addr.line1) {
-    pushMissing(missing, step, "address.line1", "Business/residential address", who);
+    pushMissing(missing, step, "address.line1", "Business/Residential Address", who);
   }
   if (!addr.state) {
-    pushMissing(missing, step, "address.state", "Address — state", who);
+    pushMissing(missing, step, "address.state", "Business/Residential Address - State", who);
   }
   if (!addr.postalCode) {
-    pushMissing(missing, step, "address.postalCode", "Address — postcode", who);
+    pushMissing(missing, step, "address.postalCode", "Business/Residential Address - Postcode", who);
   }
-  if (!hasText(party.shareType)) pushMissing(missing, step, "shareType", "Type of shares", who);
+  if (!hasText(party.shareType)) pushMissing(missing, step, "shareType", "Type of Shares", who);
   if (party.shareType === "OTHERS" && !hasText(party.shareTypeOther)) {
-    pushMissing(missing, step, "shareTypeOther", "Type of shares — others", who);
+    pushMissing(missing, step, "shareTypeOther", "Type of Shares - Others (please specify)", who);
   }
   if (!hasNumber(party.shareholdingUnits)) {
-    pushMissing(missing, step, "shareholdingUnits", "Shareholding units", who);
+    pushMissing(missing, step, "shareholdingUnits", "Shareholding Units (unit)", who);
   }
   if (!hasNumber(party.shareholdingAmount)) {
-    pushMissing(missing, step, "shareholdingAmount", "Shareholding amount", who);
+    pushMissing(missing, step, "shareholdingAmount", "Shareholding Amount (RM)", who);
   }
   if (!hasNumber(party.shareholdingPercentage)) {
-    pushMissing(missing, step, "shareholdingPercentage", "Shareholding percentage", who);
+    pushMissing(missing, step, "shareholdingPercentage", "Shareholding Percentage (%)", who);
   }
   return missing;
 }
@@ -1050,63 +1284,303 @@ export function computeBoardCompleteness(party: BoardCompletenessInput): Profile
   const missing: ProfileMissingItem[] = [];
   const step: ComrepProfileStepId = "board";
   const who = { partyKey: party.partyKey, partyName: party.name ?? null };
-  if (!hasText(party.personKind)) {
-    pushMissing(missing, step, "personKind", "Board of Director / Management Team", who);
-  }
+  const requireOfficerFields = party.requireOfficerFields !== false;
   if (!hasText(party.name)) pushMissing(missing, step, "name", "Name", who);
-  if (!hasText(party.identityPrefix)) {
-    pushMissing(missing, step, "identityPrefix", "Identity prefix", who);
+  if (!hasText(party.identityPrefix) || party.identityPrefix === "ROC") {
+    pushMissing(missing, step, "identityPrefix", "Identity Prefix", who);
   }
   if (!hasText(party.identityNumber)) {
-    pushMissing(missing, step, "identityNumber", "Identity number", who);
+    pushMissing(missing, step, "identityNumber", "Identity Number (NRIC/Passport No.)", who);
   }
   if (!hasText(party.gender) || party.gender === "NOT_APPLICABLE") {
     pushMissing(missing, step, "gender", "Gender", who);
   }
-  if (!hasDate(party.dateOfBirth)) pushMissing(missing, step, "dateOfBirth", "Date of birth", who);
+  if (!hasDate(party.dateOfBirth)) {
+    pushMissing(missing, step, "dateOfBirth", "Date of Birth (dd/mm/yyyy)", who);
+  }
   if (!hasText(party.nationality)) pushMissing(missing, step, "nationality", "Nationality", who);
   const addr = hasAddressLineAndLocation(party.address);
-  if (!addr.line1) pushMissing(missing, step, "address.line1", "Residential address", who);
-  if (!addr.state) pushMissing(missing, step, "address.state", "Residential address — state", who);
+  if (!addr.line1) pushMissing(missing, step, "address.line1", "Residential Address", who);
+  if (!addr.state) pushMissing(missing, step, "address.state", "Residential Address - State", who);
   if (!addr.postalCode) {
-    pushMissing(missing, step, "address.postalCode", "Residential address — postcode", who);
+    pushMissing(missing, step, "address.postalCode", "Residential Address - Postcode", who);
   }
-  if (!hasText(party.designation)) pushMissing(missing, step, "designation", "Designation", who);
-  if (party.designation === "OTHERS" && !hasText(party.designationOther)) {
-    pushMissing(missing, step, "designationOther", "Designation — others", who);
-  }
-  if (!hasDate(party.appointmentDate)) {
-    pushMissing(missing, step, "appointmentDate", "Appointment date", who);
+  if (requireOfficerFields) {
+    if (!hasText(party.designation)) pushMissing(missing, step, "designation", "Designation", who);
+    if (party.designation === "OTHERS" && !hasText(party.designationOther)) {
+      pushMissing(missing, step, "designationOther", "Designation - Others (please specify)", who);
+    }
+    if (!hasDate(party.appointmentDate)) {
+      pushMissing(missing, step, "appointmentDate", "Appointment Date (dd/mm/yyyy)", who);
+    }
   }
   return missing;
 }
 
+type IssuerPersonRequiredField = {
+  step: ComrepProfileStepId;
+  field: string;
+  label: string;
+  filled: boolean;
+};
+
+function issuerPersonRequiredFields(party: IssuerPersonCompletenessInput): IssuerPersonRequiredField[] {
+  const active =
+    party.isDirector || party.isShareholder || party.isBoard || party.isManagement;
+  if (!active) return [];
+  const fields: IssuerPersonRequiredField[] = [];
+  const corporate = party.entityType === "CORPORATE";
+  const identityStep: ComrepProfileStepId = party.isShareholder ? "shareholders" : "board";
+  const push = (
+    step: ComrepProfileStepId,
+    field: string,
+    label: string,
+    filled: boolean
+  ) => {
+    fields.push({ step, field, label, filled });
+  };
+
+  if (party.isShareholder) {
+    push("shareholders", "entityType", "Shareholder Type", hasText(party.entityType));
+  }
+  push(
+    identityStep,
+    "name",
+    party.isShareholder ? "Shareholder Name" : "Name",
+    hasText(party.name)
+  );
+  if (corporate) {
+    push(identityStep, "identityPrefix", "Identity Prefix", party.identityPrefix === "ROC");
+  } else {
+    push(
+      identityStep,
+      "identityPrefix",
+      "Identity Prefix",
+      hasText(party.identityPrefix) && party.identityPrefix !== "ROC"
+    );
+  }
+  push(
+    identityStep,
+    "identityNumber",
+    party.isShareholder
+      ? "Shareholder Identity (NRIC/Passport/Company Registration No.)"
+      : "Identity Number (NRIC/Passport No.)",
+    hasText(party.identityNumber)
+  );
+  if (corporate) {
+    push(
+      identityStep,
+      "dateOfIncorporation",
+      "Date of Incorporation (dd/mm/yyyy)",
+      hasDate(party.dateOfIncorporation)
+    );
+    push(
+      identityStep,
+      "countryOfIncorporation",
+      "Nationality/Country",
+      hasText(party.countryOfIncorporation)
+    );
+  } else {
+    push(identityStep, "dateOfBirth", "Date of Birth (dd/mm/yyyy)", hasDate(party.dateOfBirth));
+    push(
+      identityStep,
+      "gender",
+      "Gender",
+      hasText(party.gender) && party.gender !== "NOT_APPLICABLE"
+    );
+    push(
+      identityStep,
+      "nationality",
+      party.isShareholder ? "Nationality/Country" : "Nationality",
+      hasText(party.nationality)
+    );
+  }
+  const addr = hasAddressLineAndLocation(party.address);
+  const addressLabel = party.isShareholder ? "Business/Residential Address" : "Residential Address";
+  push(identityStep, "address.line1", addressLabel, addr.line1);
+  push(identityStep, "address.state", `${addressLabel} - State`, addr.state);
+  push(identityStep, "address.postalCode", `${addressLabel} - Postcode`, addr.postalCode);
+
+  if (party.isShareholder) {
+    push("shareholders", "shareType", "Type of Shares", hasText(party.shareType));
+    if (party.shareType === "OTHERS") {
+      push(
+        "shareholders",
+        "shareTypeOther",
+        "Type of Shares - Others (please specify)",
+        hasText(party.shareTypeOther)
+      );
+    }
+    push(
+      "shareholders",
+      "shareholdingUnits",
+      "Shareholding Units (unit)",
+      hasNumber(party.shareholdingUnits)
+    );
+    push(
+      "shareholders",
+      "shareholdingAmount",
+      "Shareholding Amount (RM)",
+      hasNumber(party.shareholdingAmount)
+    );
+    push(
+      "shareholders",
+      "shareholdingPercentage",
+      "Shareholding Percentage (%)",
+      hasNumber(party.shareholdingPercentage)
+    );
+  }
+
+  if (!corporate && isIssuerOfficerRole(party)) {
+    push("board", "designation", "Designation", hasText(party.designation));
+    if (party.designation === "OTHERS") {
+      push(
+        "board",
+        "designationOther",
+        "Designation - Others (please specify)",
+        hasText(party.designationOther)
+      );
+    }
+    push(
+      "board",
+      "appointmentDate",
+      "Appointment Date (dd/mm/yyyy)",
+      hasDate(party.appointmentDate)
+    );
+  }
+
+  return fields;
+}
+
+export function issuerPersonCompletenessInputFromParty(party: {
+  partyKey: string;
+  name: string | null | undefined;
+  entityType: OrganizationPartyEntityType;
+  isDirector: boolean;
+  isShareholder: boolean;
+  isBoard: boolean;
+  isManagement: boolean;
+  identityPrefix: ScIdentityPrefix | null | undefined;
+  identityNumber: string | null | undefined;
+  dateOfBirth: string | Date | null | undefined;
+  dateOfIncorporation: string | Date | null | undefined;
+  gender: ScGender | null | undefined;
+  nationality: string | null | undefined;
+  countryOfIncorporation: string | null | undefined;
+  address: PartyAddressCompletenessInput | null | undefined;
+  shareType: ScShareType | null | undefined;
+  shareTypeOther: string | null | undefined;
+  shareholdingUnits: number | string | null | undefined;
+  shareholdingAmount: number | string | null | undefined;
+  shareholdingPercentage: number | string | null | undefined;
+  designation: ScDesignation | null | undefined;
+  designationOther: string | null | undefined;
+  appointmentDate: string | Date | null | undefined;
+}): IssuerPersonCompletenessInput {
+  return {
+    partyKey: party.partyKey,
+    name: party.name,
+    entityType: party.entityType,
+    isDirector: party.isDirector,
+    isShareholder: party.isShareholder,
+    isBoard: party.isBoard,
+    isManagement: party.isManagement,
+    identityPrefix: party.identityPrefix,
+    identityNumber: party.identityNumber,
+    dateOfBirth: party.dateOfBirth,
+    dateOfIncorporation: party.dateOfIncorporation,
+    gender: party.gender,
+    nationality: party.nationality,
+    countryOfIncorporation: party.countryOfIncorporation,
+    address: party.address,
+    shareType: party.shareType,
+    shareTypeOther: party.shareTypeOther,
+    shareholdingUnits: party.shareholdingUnits,
+    shareholdingAmount: party.shareholdingAmount,
+    shareholdingPercentage: party.shareholdingPercentage,
+    designation: party.designation,
+    designationOther: party.designationOther,
+    appointmentDate: party.appointmentDate,
+  };
+}
+
+export function countIssuerPersonRequiredFields(party: IssuerPersonCompletenessInput): number {
+  return issuerPersonRequiredFields(party).length;
+}
+
+export function computeIssuerPersonCompleteness(
+  party: IssuerPersonCompletenessInput
+): ProfileMissingItem[] {
+  const who = { partyKey: party.partyKey, partyName: party.name ?? null };
+  return issuerPersonRequiredFields(party)
+    .filter((field) => !field.filled)
+    .map((field) => ({
+      step: field.step,
+      field: field.field,
+      label: field.label,
+      owner: "USER" as const,
+      ...who,
+    }));
+}
+
+export function dedupeProfileMissingByPartyField(items: ProfileMissingItem[]): ProfileMissingItem[] {
+  const seen = new Set<string>();
+  const out: ProfileMissingItem[] = [];
+  for (const item of items) {
+    const key = item.partyKey ? `${item.partyKey}::${item.field}` : `${item.step}::${item.field}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(item);
+  }
+  return out;
+}
+
+export const ISSUER_FINANCIAL_REQUIRED_FIELD_COUNT = 17;
+
+const EMPTY_ISSUER_FINANCIALS: IssuerFinancialCompletenessInput = {
+  currentAssets: null,
+  nonCurrentAssets: null,
+  currentBorrowing: null,
+  currentNonBorrowing: null,
+  nonCurrentLoan: null,
+  nonCurrentNonLoan: null,
+  equityCapital: null,
+  accumulatedProfit: null,
+  revenue: null,
+  operatingCost: null,
+  adminCost: null,
+  interestCost: null,
+  otherCost: null,
+  profitBeforeTax: null,
+  profitAfterTax: null,
+  minorityInterest: null,
+  netDividend: null,
+};
+
 export function computeIssuerFinancialCompleteness(
   input: IssuerFinancialCompletenessInput | null | undefined
 ): ProfileMissingItem[] {
+  const source = input ?? EMPTY_ISSUER_FINANCIALS;
   const missing: ProfileMissingItem[] = [];
   const step: ComrepProfileStepId = "financials";
-  if (!input) {
-    pushMissing(missing, step, "financials", "Latest financial statements");
-    return missing;
-  }
   const checks: Array<[unknown, string, string]> = [
-    [input.currentAssets, "currentAssets", "Current assets"],
-    [input.nonCurrentAssets, "nonCurrentAssets", "Non-current assets"],
-    [input.currentBorrowing, "currentBorrowing", "Current liabilities — borrowing"],
-    [input.currentNonBorrowing, "currentNonBorrowing", "Current liabilities — non-borrowing"],
-    [input.nonCurrentLoan, "nonCurrentLoan", "Non-current liabilities — loan"],
-    [input.nonCurrentNonLoan, "nonCurrentNonLoan", "Non-current liabilities — non-loan"],
-    [input.equityCapital, "equityCapital", "Equity capital"],
-    [input.accumulatedProfit, "accumulatedProfit", "Accumulated profit carried forward"],
-    [input.revenue, "revenue", "Total revenue and income"],
-    [input.operatingCost, "operatingCost", "Operating cost"],
-    [input.adminCost, "adminCost", "Administrative cost"],
-    [input.interestCost, "interestCost", "Interest cost"],
-    [input.otherCost, "otherCost", "Other cost"],
-    [input.profitBeforeTax, "profitBeforeTax", "Profit/loss before tax"],
-    [input.profitAfterTax, "profitAfterTax", "Profit/loss after tax"],
-    [input.netDividend, "netDividend", "Net dividend"],
+    [source.currentAssets, "currentAssets", "Assets|Current (RM)"],
+    [source.nonCurrentAssets, "nonCurrentAssets", "Assets|Non Current (RM)"],
+    [source.currentBorrowing, "currentBorrowing", "Liabilities|Current - Borrowing (RM)"],
+    [source.currentNonBorrowing, "currentNonBorrowing", "Liabilities|Current - Non Borrowing (RM)"],
+    [source.nonCurrentLoan, "nonCurrentLoan", "Liabilities|Non Current - Loan (RM)"],
+    [source.nonCurrentNonLoan, "nonCurrentNonLoan", "Liabilities|Non Current - Non Loan (RM)"],
+    [source.equityCapital, "equityCapital", "Equity|Capital (RM)"],
+    [source.accumulatedProfit, "accumulatedProfit", "Equity|Accumulated Profit Carried Forward (RM)"],
+    [source.revenue, "revenue", "Total Revenue and Income (RM)"],
+    [source.operatingCost, "operatingCost", "Operating Cost (RM)"],
+    [source.adminCost, "adminCost", "Administrative Cost (RM)"],
+    [source.interestCost, "interestCost", "Interest Cost (RM)"],
+    [source.otherCost, "otherCost", "Other Cost (RM)"],
+    [source.profitBeforeTax, "profitBeforeTax", "Profit/Loss Before Tax (RM)"],
+    [source.profitAfterTax, "profitAfterTax", "Profit/Loss After Tax (RM)"],
+    [source.minorityInterest, "minorityInterest", "Minority Interest (RM)"],
+    [source.netDividend, "netDividend", "Net Dividend (RM)"],
   ];
   for (const [value, field, label] of checks) {
     if (!hasNumber(value)) pushMissing(missing, step, field, label);
@@ -1119,23 +1593,41 @@ export function computeInvestorPersonalCompleteness(
 ): ProfileMissingItem[] {
   const missing: ProfileMissingItem[] = [];
   const step: ComrepProfileStepId = "identity";
-  if (!hasText(input.name)) pushMissing(missing, step, "name", "Investor name");
+  if (!hasText(input.name)) pushMissing(missing, step, "name", "Investor Name");
   if (!hasText(input.identityPrefix)) {
-    pushMissing(missing, step, "identityPrefix", "Identity prefix");
+    pushMissing(missing, step, "identityPrefix", "Identity Prefix");
   }
   if (!hasText(input.identityNumber)) {
-    pushMissing(missing, step, "identityNumber", "Investor identification");
+    pushMissing(
+      missing,
+      step,
+      "identityNumber",
+      "Investor Identification (NRIC / Passport / Company Registration No.)"
+    );
   }
   if (!hasDate(input.dateOfBirth)) {
-    pushMissing(missing, step, "dateOfBirth", "Date of birth");
+    pushMissing(missing, step, "dateOfBirth", "Date of Birth/Incorporation (dd/mm/yyyy)");
   }
   if (!hasText(input.gender) || input.gender === "NOT_APPLICABLE") {
     pushMissing(missing, step, "gender", "Gender");
   }
-  if (!hasText(input.state)) pushMissing(missing, step, "state", "Address — state");
-  if (!hasText(input.postalCode)) pushMissing(missing, step, "postalCode", "Address — postcode");
-  if (!hasText(input.nationality)) pushMissing(missing, step, "nationality", "Nationality");
-  pushMissingInvestorCategory(missing, step, "PERSONAL", input.scInvestorCategory);
+  if (!hasText(input.state)) {
+    pushMissing(missing, step, "state", "Business/Residential Address - State");
+  }
+  if (!hasRequiredPostcodeValue(input.postalCode, input.state)) {
+    pushMissing(missing, step, "postalCode", "Business/Residential Address - Postcode");
+  }
+  if (!hasText(input.nationality)) pushMissing(missing, step, "nationality", "Nationality/Country");
+  pushMissingSophisticatedInvestor(missing, step, input.isSophisticatedInvestor);
+  pushMissingInvestorCategory(
+    missing,
+    step,
+    {
+      organizationType: "PERSONAL",
+      isSophisticatedInvestor: input.isSophisticatedInvestor,
+    },
+    input.scInvestorCategory
+  );
   return missing;
 }
 
@@ -1144,29 +1636,43 @@ export function computeInvestorCorporateCompleteness(
 ): ProfileMissingItem[] {
   const missing: ProfileMissingItem[] = [];
   const step: ComrepProfileStepId = "identity";
-  if (!hasText(input.name)) pushMissing(missing, step, "name", "Investor name");
+  if (!hasText(input.name)) pushMissing(missing, step, "name", "Investor Name");
   if (!hasText(input.registrationNumber)) {
-    pushMissing(missing, step, "registrationNumber", "Company registration number");
+    pushMissing(
+      missing,
+      step,
+      "registrationNumber",
+      "Investor Identification (NRIC / Passport / Company Registration No.)"
+    );
   }
   if (input.identityPrefix !== "ROC") {
-    pushMissing(missing, step, "identityPrefix", "Identity prefix (ROC)");
+    pushMissing(missing, step, "identityPrefix", "Identity Prefix");
   }
   if (!hasDate(input.dateOfIncorporation)) {
-    pushMissing(missing, step, "dateOfIncorporation", "Date of incorporation");
+    pushMissing(missing, step, "dateOfIncorporation", "Date of Birth/Incorporation (dd/mm/yyyy)");
   }
   if (!hasText(input.countryOfIncorporation)) {
-    pushMissing(missing, step, "countryOfIncorporation", "Country of incorporation");
+    pushMissing(missing, step, "countryOfIncorporation", "Nationality/Country");
   }
   if (input.gender !== "NOT_APPLICABLE") {
-    pushMissing(missing, step, "gender", "Gender (Not Applicable for companies)");
+    pushMissing(missing, step, "gender", "Gender");
   }
   if (!hasText(input.businessState)) {
-    pushMissing(missing, step, "businessState", "Business address — state");
+    pushMissing(missing, step, "businessState", "Business/Residential Address - State");
   }
-  if (!hasText(input.businessPostalCode)) {
-    pushMissing(missing, step, "businessPostalCode", "Business address — postcode");
+  if (!hasRequiredPostcodeValue(input.businessPostalCode, input.businessState)) {
+    pushMissing(missing, step, "businessPostalCode", "Business/Residential Address - Postcode");
   }
-  pushMissingInvestorCategory(missing, step, "COMPANY", input.scInvestorCategory);
+  pushMissingSophisticatedInvestor(missing, step, input.isSophisticatedInvestor);
+  pushMissingInvestorCategory(
+    missing,
+    step,
+    {
+      organizationType: "COMPANY",
+      isSophisticatedInvestor: input.isSophisticatedInvestor,
+    },
+    input.scInvestorCategory
+  );
   return missing;
 }
 
@@ -1191,28 +1697,50 @@ export function buildIssuerProfileCompleteness(input: {
   company: IssuerCompanyCompletenessInput;
   shareholders: ShareholderCompletenessInput[];
   board: BoardCompletenessInput[];
+  people?: IssuerPersonCompletenessInput[];
   financials: IssuerFinancialCompletenessInput | null | undefined;
 }): ComrepProfileCompleteness {
   const companyMissing = computeIssuerCompanyCompleteness(input.company);
-  const companyRequired = 16;
-  const shareholderMissing = input.shareholders.flatMap(computeShareholderCompleteness);
-  const shareholderFieldCount = input.shareholders.length === 0 ? 1 : input.shareholders.length * 14;
-  const boardMissing = input.board.flatMap(computeBoardCompleteness);
-  const boardFieldCount = input.board.length === 0 ? 0 : input.board.length * 12;
+  const companyRequired = ISSUER_COMPANY_COMPLETENESS_FIELD_COUNT;
+  const peopleMissing = input.people
+    ? input.people.flatMap(computeIssuerPersonCompleteness)
+    : dedupeProfileMissingByPartyField([
+        ...input.shareholders.flatMap(computeShareholderCompleteness),
+        ...input.board.flatMap(computeBoardCompleteness),
+      ]);
+  const hasShareholder =
+    input.people != null
+      ? input.people.some((party) => party.isShareholder)
+      : input.shareholders.length > 0;
+  const shareholderMissing = peopleMissing.filter((item) => item.step === "shareholders");
+  const boardMissing = peopleMissing.filter((item) => item.step === "board");
+  const peopleRequired = input.people
+    ? input.people.reduce((total, party) => total + countIssuerPersonRequiredFields(party), 0)
+    : null;
+  const shareholderStepMissing = hasShareholder
+    ? peopleRequired != null
+      ? peopleMissing
+      : shareholderMissing
+    : [
+        {
+          step: "shareholders" as const,
+          field: "shareholders",
+          label: "At least one shareholder",
+          owner: "USER" as const,
+        },
+      ];
+  const shareholderFieldCount = hasShareholder
+    ? peopleRequired ?? input.shareholders.length * 14
+    : 1;
+  const boardFieldCount =
+    peopleRequired != null
+      ? 0
+      : input.board.length === 0
+        ? 0
+        : input.board.length * 12;
+  const boardStepMissing = peopleRequired != null ? [] : boardMissing;
   const financialMissing = computeIssuerFinancialCompleteness(input.financials);
-  const financialRequired = 16;
-
-  const shareholderStepMissing =
-    input.shareholders.length === 0
-      ? [
-          {
-            step: "shareholders" as const,
-            field: "shareholders",
-            label: "At least one shareholder",
-            owner: "USER" as const,
-          },
-        ]
-      : shareholderMissing;
+  const financialRequired = ISSUER_FINANCIAL_REQUIRED_FIELD_COUNT;
 
   const steps: ComrepProfileStepCompleteness[] = [
     stepFromMissing("company", ISSUER_PROFILE_STEP_LABELS.company, companyMissing, companyRequired),
@@ -1227,10 +1755,10 @@ export function buildIssuerProfileCompleteness(input: {
     {
       id: "board",
       label: ISSUER_PROFILE_STEP_LABELS.board,
-      complete: boardMissing.length === 0,
+      complete: boardStepMissing.length === 0,
       requiredCount: boardFieldCount,
-      filledCount: Math.max(0, boardFieldCount - boardMissing.length),
-      missing: boardMissing,
+      filledCount: Math.max(0, boardFieldCount - boardStepMissing.length),
+      missing: boardStepMissing,
     },
     stepFromMissing(
       "financials",
@@ -1269,14 +1797,25 @@ export function buildInvestorProfileCompleteness(input: {
   organizationType: "PERSONAL" | "COMPANY";
   personal?: InvestorPersonalCompletenessInput;
   corporate?: InvestorCorporateCompletenessInput;
+  people?: IssuerPersonCompletenessInput[];
 }): ComrepProfileCompleteness {
-  const missing =
+  const identityMissing =
     input.organizationType === "COMPANY"
       ? computeInvestorCorporateCompleteness(input.corporate ?? ({} as InvestorCorporateCompletenessInput))
       : computeInvestorPersonalCompleteness(input.personal ?? ({} as InvestorPersonalCompletenessInput));
-  const requiredCount = INVESTOR_IDENTITY_REQUIRED_COUNT;
-  const filledCount = Math.max(0, requiredCount - missing.length);
-  const percent = Math.round((filledCount / requiredCount) * 100);
+  const people = input.organizationType === "COMPANY" ? input.people ?? [] : [];
+  const peopleMissing = people.flatMap(computeIssuerPersonCompleteness);
+  const peopleRequired = people.reduce(
+    (total, party) => total + countIssuerPersonRequiredFields(party),
+    0
+  );
+  const identityRequired = INVESTOR_IDENTITY_REQUIRED_COUNT;
+  const identityFilled = Math.max(0, identityRequired - identityMissing.length);
+  const peopleFilled = Math.max(0, peopleRequired - peopleMissing.length);
+  const missing = [...identityMissing, ...peopleMissing];
+  const requiredCount = identityRequired + peopleRequired;
+  const filledCount = identityFilled + peopleFilled;
+  const percent = requiredCount === 0 ? 0 : Math.round((filledCount / requiredCount) * 100);
   return withUserFacingCompleteness({
     portal: "investor",
     organizationType: input.organizationType,
@@ -1286,11 +1825,23 @@ export function buildInvestorProfileCompleteness(input: {
       {
         id: "identity",
         label: INVESTOR_PROFILE_STEP_LABELS.identity,
-        complete: missing.length === 0,
-        requiredCount,
-        filledCount,
-        missing,
+        complete: identityMissing.length === 0,
+        requiredCount: identityRequired,
+        filledCount: identityFilled,
+        missing: identityMissing,
       },
+      ...(peopleRequired > 0 || peopleMissing.length > 0
+        ? [
+            {
+              id: "shareholders" as const,
+              label: ISSUER_PROFILE_STEP_LABELS.shareholders,
+              complete: peopleMissing.length === 0,
+              requiredCount: peopleRequired,
+              filledCount: peopleFilled,
+              missing: peopleMissing,
+            },
+          ]
+        : []),
       {
         id: "review",
         label: INVESTOR_PROFILE_STEP_LABELS.review,
@@ -1330,6 +1881,7 @@ export function issuerFinancialsFromYearBlock(
     otherCost: num("other_cost"),
     profitBeforeTax: num("plnpbt"),
     profitAfterTax: num("plnpat"),
+    minorityInterest: num("pl_minority"),
     netDividend: num("plnetdiv"),
   };
 }

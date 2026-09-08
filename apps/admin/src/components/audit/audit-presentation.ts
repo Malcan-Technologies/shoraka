@@ -68,6 +68,7 @@ const APPLICATION_AUDIT_EVENT_LABELS: Record<string, string> = {
   PAYMASTER_LINKED_TO_ISSUER: "Paymaster Linked to Issuer",
   PAYMASTER_IDENTITY_UPDATED: "Paymaster Identity Updated",
   PAYMASTER_VERIFIED: "Paymaster Identity Verified",
+  PAYMASTER_IDENTITY_SYNCED: "Paymaster Identity Synced",
   PAYMASTER_IDENTITY_RESOLVED: "Paymaster Identity Resolved",
   GATEWAY_PAYMENT_COMPLETED: "Payment Received Successfully",
 };
@@ -226,12 +227,14 @@ export function extractPreviousNext(metadata: Record<string, unknown> | null | u
     previous:
       metadata.previousValues ??
       metadata.previous_values ??
+      metadata.previous ??
       metadata.beforeJson ??
       metadata.before ??
       metadata.beforeState,
     next:
       metadata.nextValues ??
       metadata.next_values ??
+      metadata.new ??
       metadata.afterJson ??
       metadata.after ??
       metadata.afterState,

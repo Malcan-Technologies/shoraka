@@ -75,6 +75,18 @@ export {
 export { Input } from "./components/input";
 export { Label } from "./components/label";
 export {
+  Dialog,
+  DialogPortal,
+  DialogOverlay,
+  DialogTrigger,
+  DialogClose,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+} from "./components/dialog";
+export {
   Field,
   FieldGroup,
   FieldLabel,
@@ -120,6 +132,7 @@ export {
 } from "./field-tooltip-styles";
 export { NotFound } from "./components/not-found";
 export { InfoTooltip } from "./info-tooltip";
+export { ComRepFieldLabel } from "./comrep-field-label";
 export { CopyableField } from "./copyable-field";
 export { MoneyInput } from "./components/money-input";
 export { formatMoney, parseMoney, formatMoneyDisplay } from "./lib/money";
@@ -320,8 +333,19 @@ export { KeyValueGrid } from "./components/key-value-grid";
 export type { KeyValueGridProps, KeyValueItem } from "./components/key-value-grid";
 export { ProfileReadField, ProfileFieldGrid } from "./components/profile-read-field";
 export type { ProfileReadFieldProps } from "./components/profile-read-field";
+export { ProfilePhoneInput } from "./profile-phone-input";
+export {
+  PartyProfileDetailFields,
+  PartyRoleBadges,
+  buildPartyProfileDetailItems,
+} from "./party-profile-detail-fields";
+export type { PartyProfileDetailItem } from "./party-profile-detail-fields";
 export { ProfileCompletenessSummary } from "./components/profile-completeness-summary";
 export type { ProfileCompletenessSectionRow } from "./components/profile-completeness-summary";
+export { PortalPeopleSection } from "./portal-people-section";
+export type { PortalPeoplePortal } from "./portal-people-section";
+export { AddPersonForm, PartyFillEmptyForm } from "./portal-person-forms";
+export type { AddPersonInitial } from "./portal-person-forms";
 export { ProductNameWithIcon } from "./components/product-name-with-icon";
 export { ProductCatalogName } from "./components/product-catalog-name";
 export { ProductCatalogImage } from "./components/product-catalog-image";

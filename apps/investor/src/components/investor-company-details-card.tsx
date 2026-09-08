@@ -4,10 +4,17 @@ import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import { ProfileFieldGrid, ProfileReadField } from "@cashsouk/ui";
+import { firstIssueMessage, humanizeApiValidationMessage, isProfileValidationError, issuesByField, profileValidationErrorFromApi, SC_MONTHLY_INVESTOR, scAppendixASelectValues, validateInvestorCorporateForm } from "@cashsouk/types";
+import { ComRepFieldLabel, ProfileFieldGrid, ProfileReadField } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { PencilIcon, XMarkIcon } from "@heroicons/react/24/outline";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -54,6 +61,7 @@ export function InvestorCompanyDetailsCard({
   const [isEditing, setIsEditing] = React.useState(false);
   const [dateValue, setDateValue] = React.useState(toDateInput(dateOfIncorporation));
   const [country, setCountry] = React.useState(countryOfIncorporation ?? "");
+  const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
 
   React.useEffect(() => {
     if (isEditing) return;
@@ -63,12 +71,21 @@ export function InvestorCompanyDetailsCard({
 
   const save = useMutation({
     mutationFn: async () => {
+      const issues = validateInvestorCorporateForm({
+        dateOfIncorporation: dateOfIncorporation ?? dateValue,
+        countryOfIncorporation: countryOfIncorporation ?? country,
+      });
+      if (issues.length > 0) {
+        setFieldErrors(issuesByField(issues));
+        throw new Error(firstIssueMessage(issues) ?? "Please check the highlighted fields.");
+      }
+      setFieldErrors({});
       const master: Record<string, unknown> = {};
-      if (!dateOfIncorporation && dateValue) master.dateOfIncorporation = dateValue;
-      if (!countryOfIncorporation && country.trim()) master.countryOfIncorporation = country.trim();
+      if (!dateOfIncorporation) master.dateOfIncorporation = dateValue.trim();
+      if (!countryOfIncorporation) master.countryOfIncorporation = country.trim();
       if (Object.keys(master).length === 0) return;
       const res = await api.patchMasterProfile("investor", organizationId, master);
-      if (!res.success) throw new Error(res.error.message);
+      if (!res.success) throw profileValidationErrorFromApi(res.error);
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["organization-detail", organizationId] });
@@ -76,7 +93,10 @@ export function InvestorCompanyDetailsCard({
       toast.success("Company details updated");
       setIsEditing(false);
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => {
+      if (isProfileValidationError(err)) setFieldErrors(err.fieldErrors);
+      toast.error(humanizeApiValidationMessage(err.message));
+    },
   });
 
   return (
@@ -102,50 +122,88 @@ export function InvestorCompanyDetailsCard({
       <div className="space-y-4 p-6">
         <ProfileFieldGrid>
           <ProfileReadField
-            label="Company name"
+            label={SC_MONTHLY_INVESTOR.investorName.label}
             value={name || "—"}
             locked
             missing={missing.has("name")}
+            required
+            help={SC_MONTHLY_INVESTOR.investorName.help}
           />
           <ProfileReadField
-            label="ROC"
+            label={SC_MONTHLY_INVESTOR.investorIdentification.label}
             value={registrationNumber || "—"}
             locked
             missing={missing.has("registrationNumber")}
+            required
+            help={SC_MONTHLY_INVESTOR.investorIdentification.help}
           />
           {isEditing && !dateOfIncorporation ? (
             <div className="space-y-2">
-              <Label className="text-ui font-medium">Incorporation date</Label>
+              <ComRepFieldLabel
+                label={SC_MONTHLY_INVESTOR.dateOfBirthIncorporation.label}
+                required
+                help={SC_MONTHLY_INVESTOR.dateOfBirthIncorporation.help}
+              />
               <Input
                 className="h-11 text-ui"
                 type="date"
                 value={dateValue}
-                onChange={(event) => setDateValue(event.target.value)}
+                onChange={(event) => {
+                  setDateValue(event.target.value);
+                  setFieldErrors((current) => ({ ...current, dateOfIncorporation: "" }));
+                }}
               />
+              {fieldErrors.dateOfIncorporation ? (
+                <p className="text-meta text-destructive">{fieldErrors.dateOfIncorporation}</p>
+              ) : null}
             </div>
           ) : (
             <ProfileReadField
-              label="Incorporation date"
+              label={SC_MONTHLY_INVESTOR.dateOfBirthIncorporation.label}
               value={formatDate(dateOfIncorporation)}
               locked={Boolean(dateOfIncorporation)}
               missing={missing.has("dateOfIncorporation")}
+              required
+              help={SC_MONTHLY_INVESTOR.dateOfBirthIncorporation.help}
             />
           )}
           {isEditing && !countryOfIncorporation ? (
             <div className="space-y-2">
-              <Label className="text-ui font-medium">Country</Label>
-              <Input
-                className="h-11 text-ui"
-                value={country}
-                onChange={(event) => setCountry(event.target.value)}
+              <ComRepFieldLabel
+                label={SC_MONTHLY_INVESTOR.nationalityCountry.label}
+                required
+                help={SC_MONTHLY_INVESTOR.nationalityCountry.help}
               />
+              <Select
+                value={country || undefined}
+                onValueChange={(value) => {
+                  setCountry(value);
+                  setFieldErrors((current) => ({ ...current, countryOfIncorporation: "" }));
+                }}
+              >
+                <SelectTrigger className="h-11 text-ui">
+                  <SelectValue placeholder="Select" />
+                </SelectTrigger>
+                <SelectContent className="max-h-72">
+                  {scAppendixASelectValues(country).map((name) => (
+                    <SelectItem key={name} value={name}>
+                      {name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {fieldErrors.countryOfIncorporation ? (
+                <p className="text-meta text-destructive">{fieldErrors.countryOfIncorporation}</p>
+              ) : null}
             </div>
           ) : (
             <ProfileReadField
-              label="Country"
+              label={SC_MONTHLY_INVESTOR.nationalityCountry.label}
               value={countryOfIncorporation || "—"}
               locked={Boolean(countryOfIncorporation)}
               missing={missing.has("countryOfIncorporation")}
+              required
+              help={SC_MONTHLY_INVESTOR.nationalityCountry.help}
             />
           )}
         </ProfileFieldGrid>

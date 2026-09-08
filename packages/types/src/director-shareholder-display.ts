@@ -7,6 +7,7 @@
  */
 
 import { parseCtosPartySupplement, serializeCtosPartySupplement } from "./ctos-party-supplement-json";
+import { issuerShareholdingMeetsMinimum } from "./issuer-shareholder-threshold";
 import { effectiveCtosRegtankStatusFromOnboardingJson } from "./regtank-onboarding-status";
 import { normalizeRawStatus } from "./status-normalization";
 
@@ -68,7 +69,7 @@ export function getDisplayRoleLabel(row: {
   const shareholderLabel =
     !row.isShareholder
       ? ""
-      : Number.isFinite(share) && share >= 5
+      : issuerShareholdingMeetsMinimum(share)
         ? `Shareholder (${share}%)`
         : "Shareholder";
 
@@ -95,7 +96,7 @@ export function deriveDirectorShareholderRoles(input: {
   const isDirector =
     typeof input.designation === "string" && input.designation.toLowerCase() === "director";
   const share = Number(input.sharePercentage ?? 0);
-  const isShareholder = Number.isFinite(share) && share >= 5;
+  const isShareholder = issuerShareholdingMeetsMinimum(share);
   if (isDirector) roles.push("DIRECTOR");
   if (isShareholder) roles.push("SHAREHOLDER");
   return {
@@ -109,8 +110,7 @@ export function deriveDirectorShareholderRoles(input: {
 /**
  * Canonical person inclusion rule:
  * - Directors always included
- * - Individual shareholders included only when >= 5%
- * - Corporate shareholders always included
+ * - Shareholders (individual and company) included only when >= 5%
  */
 export function shouldIncludePerson(input: {
   type: DirectorShareholderPartyType;
@@ -118,9 +118,10 @@ export function shouldIncludePerson(input: {
   isShareholder?: boolean;
   sharePercentage?: number | null;
 }): boolean {
-  if (input.type === "COMPANY") return true;
   if (input.isDirector) return true;
-  if (input.isShareholder) return Number(input.sharePercentage ?? 0) >= 5;
+  if (input.type === "COMPANY" || input.isShareholder) {
+    return issuerShareholdingMeetsMinimum(input.sharePercentage);
+  }
   return false;
 }
 
@@ -548,7 +549,8 @@ function ctosDisplayMergeFlagsFromPositionCode(code: string | null): { isDirecto
 /**
  * CTOS company_json director row: include in unified profile lists.
  * Rows without explicit party_type I/C are excluded from CTOS display/listing.
- * Corporate parties are always listed; individuals use director OR ≥5% shareholder rule.
+ * Corporate parties stay listed as raw CTOS evidence; individuals use director OR ≥5% shareholder.
+ * Shareholder-role activation still uses the 5% floor in people[] / onboarding.
  */
 export function shouldIncludeCtosCompanyJsonDirectorEntry(
   subjectKind: "INDIVIDUAL" | "CORPORATE" | null,
@@ -560,7 +562,7 @@ export function shouldIncludeCtosCompanyJsonDirectorEntry(
   if (!code) return true;
   const { isDirector, isShareholder } = ctosDirectorShareholderFlagsFromCanonicalCode(code);
   const share = equitySharePercentageFromCtosRow(r);
-  return isDirector || (isShareholder && share >= 5);
+  return isDirector || (isShareholder && issuerShareholdingMeetsMinimum(share));
 }
 
 export interface CtosUnifiedDirectorShareholderParty {
@@ -788,7 +790,7 @@ export function extractGovernmentId(formContent: unknown): string | null {
 
 export const UNRESOLVED_IDENTITY_ADMIN_TITLE = "Records requiring review";
 export const UNRESOLVED_IDENTITY_ADMIN_COPY =
-  "Some identity information is missing from RegTank. Review these records before approving the application.";
+  "Some identity information is missing. Review these records before approving the application.";
 
 export const UNRESOLVED_IDENTITY_RECOVERY_TITLE = "Missing government ID";
 export const UNRESOLVED_IDENTITY_RECOVERY_COPY =
@@ -1084,28 +1086,50 @@ function resolveCompanyStatus(
  * OUTPUT: trimmed non-empty string or null (whitespace-only and missing treated as null)
  * WHERE USED: corporate shareholder matchKey in people pipeline; Type A party lookup
  */
-export function extractBusinessNumber(formContent: unknown): string | null {
+function regTankFormFieldValue(formContent: unknown, fieldName: string): string | null {
   if (!formContent || typeof formContent !== "object" || Array.isArray(formContent)) return null;
+  const want = fieldName.trim().toLowerCase();
   const fc = formContent as Record<string, unknown>;
-  const areas = Array.isArray(fc.displayAreas) ? fc.displayAreas : [];
-  for (const area of areas) {
-    if (!area || typeof area !== "object" || Array.isArray(area)) continue;
-    const fields = Array.isArray((area as Record<string, unknown>).content)
-      ? ((area as Record<string, unknown>).content as unknown[])
-      : [];
+  const bags: unknown[][] = [];
+  if (Array.isArray(fc.content)) bags.push(fc.content);
+  if (Array.isArray(fc.displayAreas)) {
+    for (const area of fc.displayAreas) {
+      if (!area || typeof area !== "object" || Array.isArray(area)) continue;
+      const fields = (area as Record<string, unknown>).content;
+      if (Array.isArray(fields)) bags.push(fields);
+    }
+  }
+  for (const fields of bags) {
     for (const f of fields) {
       if (!f || typeof f !== "object" || Array.isArray(f)) continue;
       const rec = f as Record<string, unknown>;
       const name = String(rec.fieldName ?? "")
         .trim()
         .toLowerCase();
-      if (name === "business number") {
-        const val = String(rec.fieldValue ?? "").trim();
-        if (val) return val;
-      }
+      if (name !== want) continue;
+      const val = String(rec.fieldValue ?? "").trim();
+      if (val) return val;
     }
   }
   return null;
+}
+
+export function extractBusinessNumber(formContent: unknown): string | null {
+  return regTankFormFieldValue(formContent, "Business Number");
+}
+
+/** `% of Shares` from RegTank individual (`content`) or company KYB (`displayAreas`). */
+export function extractPercentOfSharesFromRegTankForm(formContent: unknown): number | null {
+  const raw = regTankFormFieldValue(formContent, "% of Shares");
+  if (!raw) return null;
+  const n = Number.parseFloat(raw.replace(/[%\s,]/g, ""));
+  if (!Number.isFinite(n)) return null;
+  if (n > 0 && n <= 1) return n * 100;
+  return n;
+}
+
+export function extractBusinessNameFromRegTankForm(formContent: unknown): string | null {
+  return regTankFormFieldValue(formContent, "Business Name");
 }
 
 function getCorpBusinessNumber(corp: Record<string, unknown>): string | null {
@@ -1267,7 +1291,7 @@ function buildOnboardingDisplayRows(
   for (const p of shareholders) {
     const pr = p as Record<string, unknown>;
     const share = percentOfSharesFromOnboardingCePerson(pr);
-    if (share < 5) continue;
+    if (!issuerShareholdingMeetsMinimum(share)) continue;
 
     const icRaw = issuerIcFromCePersonFormOnly(p);
     const icKey = normalizeDirectorShareholderIdKey(icRaw);
@@ -1400,6 +1424,7 @@ function buildOnboardingDisplayRows(
     if (!regKey) continue;
 
     const share = percentOfSharesFromCorpShareholder(c);
+    if (!issuerShareholdingMeetsMinimum(share)) continue;
     const corpRole = deriveDirectorShareholderRoles({ sharePercentage: share });
     const isSh = corpRole.isShareholder;
     const roleLabel =
@@ -1648,7 +1673,7 @@ function buildCtosBackedDisplayRows(
           });
     const ctosIndividualKycEligible =
       b.type === "INDIVIDUAL" &&
-      (b.ctosIsDirector || (b.ctosIsShareholder && b.ctosSharePct >= 5));
+      (b.ctosIsDirector || (b.ctosIsShareholder && issuerShareholdingMeetsMinimum(b.ctosSharePct)));
 
     rows.push({
       id: stableId,

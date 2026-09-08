@@ -1,6 +1,5 @@
 "use client";
 
-import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -9,7 +8,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { OperatorProfileDto } from "@cashsouk/types";
+import { ComRepFieldLabel, ProfilePhoneInput } from "@cashsouk/ui";
+import { scAppendixASelectValues, type OperatorProfileDto } from "@cashsouk/types";
 
 export function toDateInput(value: string | null | undefined): string {
   if (!value) return "";
@@ -50,42 +50,73 @@ export function emptyCapital(): NonNullable<OperatorProfileDto["shareCapital"]> 
   };
 }
 
-export function hasLlpCapital(cap: OperatorProfileDto["shareCapital"]): boolean {
-  if (!cap) return false;
-  return Boolean(
-    cap.llpMembersCapitalUnits ||
-      cap.llpMembersCapitalAmount ||
-      cap.llpMembersReservesUnits ||
-      cap.llpMembersReservesAmount ||
-      cap.llpSubordinatedLoansUnits ||
-      cap.llpSubordinatedLoansAmount ||
-      cap.totalLlp
-  );
-}
-
 export function ShorakaField({
   label,
   value,
   onChange,
   disabled,
   type = "text",
+  help,
+  required = false,
+  integer = false,
+  error,
+  maxLength,
+  inputMode,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   disabled?: boolean;
   type?: string;
+  help?: string;
+  required?: boolean;
+  integer?: boolean;
+  error?: string;
+  maxLength?: number;
+  inputMode?: "numeric" | "decimal" | "tel" | "email" | "text";
 }) {
   return (
     <div className="space-y-2">
-      <Label className="text-ui font-medium">{label}</Label>
+      <ComRepFieldLabel label={label} required={required} help={help} />
       <Input
         className="h-11 text-ui"
         type={type}
+        inputMode={inputMode ?? (integer ? "numeric" : undefined)}
+        maxLength={maxLength ?? (type === "date" ? undefined : 500)}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) =>
+          onChange(integer ? e.target.value.replace(/[^\d]/g, "") : e.target.value)
+        }
         disabled={disabled}
+        aria-invalid={Boolean(error)}
       />
+      {error ? <p className="text-meta text-destructive">{error}</p> : null}
+    </div>
+  );
+}
+
+export function ShorakaPhoneField({
+  label,
+  value,
+  onChange,
+  disabled,
+  help,
+  required = false,
+  error,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+  help?: string;
+  required?: boolean;
+  error?: string;
+}) {
+  return (
+    <div className="space-y-2">
+      <ComRepFieldLabel label={label} required={required} help={help} />
+      <ProfilePhoneInput value={value} onChange={onChange} disabled={disabled} error={Boolean(error)} />
+      {error ? <p className="text-meta text-destructive">{error}</p> : null}
     </div>
   );
 }
@@ -97,6 +128,9 @@ export function ShorakaEnumSelect<T extends string>({
   labels,
   onChange,
   disabled,
+  help,
+  required = false,
+  error,
 }: {
   label: string;
   value: T | "";
@@ -104,10 +138,13 @@ export function ShorakaEnumSelect<T extends string>({
   labels: Record<T, string>;
   onChange: (v: T) => void;
   disabled?: boolean;
+  help?: string;
+  required?: boolean;
+  error?: string;
 }) {
   return (
     <div className="space-y-2">
-      <Label className="text-ui font-medium">{label}</Label>
+      <ComRepFieldLabel label={label} required={required} help={help} />
       <Select value={value || undefined} onValueChange={(v) => onChange(v as T)} disabled={disabled}>
         <SelectTrigger className="h-11 text-ui">
           <SelectValue placeholder="Select" />
@@ -120,6 +157,48 @@ export function ShorakaEnumSelect<T extends string>({
           ))}
         </SelectContent>
       </Select>
+      {error ? <p className="text-meta text-destructive">{error}</p> : null}
+    </div>
+  );
+}
+
+export function ShorakaCountrySelect({
+  label,
+  value,
+  onChange,
+  disabled,
+  help,
+  required = false,
+  error,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+  help?: string;
+  required?: boolean;
+  error?: string;
+}) {
+  return (
+    <div className="space-y-2">
+      <ComRepFieldLabel label={label} required={required} help={help} />
+      <Select
+        value={value || undefined}
+        onValueChange={onChange}
+        disabled={disabled}
+      >
+        <SelectTrigger className="h-11 text-ui">
+          <SelectValue placeholder="Select" />
+        </SelectTrigger>
+        <SelectContent className="max-h-72">
+          {scAppendixASelectValues(value).map((country) => (
+            <SelectItem key={country} value={country}>
+              {country}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {error ? <p className="text-meta text-destructive">{error}</p> : null}
     </div>
   );
 }
@@ -129,15 +208,21 @@ export function ShorakaYesNo({
   value,
   onChange,
   disabled,
+  help,
+  required = false,
+  error,
 }: {
   label: string;
   value: boolean | null;
   onChange: (v: boolean) => void;
   disabled?: boolean;
+  help?: string;
+  required?: boolean;
+  error?: string;
 }) {
   return (
     <div className="space-y-2">
-      <Label className="text-ui font-medium">{label}</Label>
+      <ComRepFieldLabel label={label} required={required} help={help} />
       <Select
         value={value == null ? undefined : value ? "YES" : "NO"}
         onValueChange={(v) => onChange(v === "YES")}
@@ -151,6 +236,7 @@ export function ShorakaYesNo({
           <SelectItem value="NO">No</SelectItem>
         </SelectContent>
       </Select>
+      {error ? <p className="text-meta text-destructive">{error}</p> : null}
     </div>
   );
 }

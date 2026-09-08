@@ -6,6 +6,7 @@
  * WHERE USED: Issuer director/shareholders section, admin onboarding people cards
  */
 
+import { isKycOnboardingNotStartedToken } from "./kyc-onboarding-lifecycle";
 import { normalizeRawStatus } from "./status-normalization";
 import { regtankDisplayStatusBadgeClass } from "./regtank-onboarding-status";
 import { toTitleCase } from "./title-case";
@@ -72,7 +73,7 @@ function inList(s: string, list: readonly string[]): boolean {
 /** Maps normalized AML pipeline / ACURIS screening token to a coarse UI group. */
 export function getAmlGroup(statusRaw: string): AmlStatusGroup {
   const s = normalizeRawStatus(statusRaw);
-  if (!s) return "NOT_STARTED";
+  if (!s || isKycOnboardingNotStartedToken(s)) return "NOT_STARTED";
   if (inList(s, AML_APPROVED)) return "APPROVED";
   if (inList(s, AML_REJECTED)) return "REJECTED";
   if (inList(s, AML_UNDER_REVIEW)) return "UNDER_REVIEW";
@@ -83,7 +84,7 @@ export function getAmlGroup(statusRaw: string): AmlStatusGroup {
 /** Maps normalized RegTank / supplement onboarding token to a coarse UI group. */
 export function getKycGroup(statusRaw: string): KycStatusGroup {
   const s = normalizeRawStatus(statusRaw);
-  if (!s) return "NOT_STARTED";
+  if (!s || isKycOnboardingNotStartedToken(s)) return "NOT_STARTED";
   if (inList(s, KYC_APPROVED)) return "APPROVED";
   if (inList(s, KYC_REJECTED)) return "REJECTED";
   if (inList(s, KYC_EXPIRED)) return "EXPIRED";

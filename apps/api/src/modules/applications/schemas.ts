@@ -87,7 +87,12 @@ export const whyRaisingFundsSchema = z
         message: "Describe the other purpose of fund raising",
       });
     }
-  });
+  })
+  .transform((value) => ({
+    ...value,
+    sc_purpose_other:
+      value.sc_purpose_of_fund_raising === "OTHERS" ? value.sc_purpose_other : "",
+  }));
 
 const guarantorAgreementSchema = z
   .object({

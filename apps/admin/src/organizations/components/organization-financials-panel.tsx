@@ -5,14 +5,18 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import {
-  FINANCIAL_FIELD_LABELS,
   ISSUER_PROFILE_BALANCE_SHEET_KEYS,
   ISSUER_PROFILE_PNL_KEYS,
+  firstIssueMessage,
+  isIssuerFinancialFieldRequired,
+  SC_MONTHLY_ISSUER_FINANCIAL_HELP,
+  SC_MONTHLY_ISSUER_FINANCIAL_LABELS,
+  validateIssuerFinancialFields,
   type IssuerOrgFinancialSummary,
   type OrganizationDetailResponse,
 } from "@cashsouk/types";
 import { BanknotesIcon } from "@heroicons/react/24/outline";
-import { StatusBadge } from "@cashsouk/ui";
+import { ComRepFieldLabel, StatusBadge } from "@cashsouk/ui";
 import { AdminDetailCardHeader } from "@/components/admin-detail";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -25,7 +29,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { usePermissions } from "@/hooks/use-permissions";
 import { ReadField } from "@/organizations/components/organization-profile-helpers";
 import { missingFieldKeys } from "@/organizations/utils/organization-profile-overview";
@@ -35,7 +38,15 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 const EDITABLE_KEYS = [...ISSUER_PROFILE_BALANCE_SHEET_KEYS, ...ISSUER_PROFILE_PNL_KEYS] as const;
 
 function fieldLabel(key: string): string {
-  return FINANCIAL_FIELD_LABELS[key] ?? key;
+  return SC_MONTHLY_ISSUER_FINANCIAL_LABELS[key] ?? key;
+}
+
+function fieldHelp(key: string): string | undefined {
+  return SC_MONTHLY_ISSUER_FINANCIAL_HELP[key];
+}
+
+function fieldRequired(key: string): boolean {
+  return isIssuerFinancialFieldRequired(key);
 }
 
 function displayAmount(value: unknown): string {
@@ -77,6 +88,10 @@ export function OrganizationFinancialsPanel({
       for (const [key, value] of Object.entries(draft)) {
         fields[key] = value.trim() === "" ? null : value.trim();
       }
+      const issues = validateIssuerFinancialFields(fields);
+      if (issues.length > 0) {
+        throw new Error(firstIssueMessage(issues) ?? "Complete the required financial fields.");
+      }
       const res = await api.patchAdminIssuerFinancials(organizationId, year, fields);
       if (!res.success) throw new Error(res.error.message);
       return res.data;
@@ -92,7 +107,7 @@ export function OrganizationFinancialsPanel({
   });
 
   const latestYear = financials?.latestYear;
-  const complete = financials?.complete ?? missing.size === 0;
+  const complete = missing.size === 0;
   const status: IssuerOrgFinancialSummary | null = financials;
 
   return (
@@ -100,11 +115,11 @@ export function OrganizationFinancialsPanel({
       <AdminDetailCardHeader
         icon={BanknotesIcon}
         title="Financials"
-        description="Latest issuer financial statements on the CashSouk master record"
+        description="Latest financial statements for this company"
         actions={
           canManage ? (
             <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)}>
-              {status?.fields ? "Edit" : "Add"}
+              Edit financials
             </Button>
           ) : null
         }
@@ -121,8 +136,8 @@ export function OrganizationFinancialsPanel({
                 <StatusBadge
                   status="action"
                   label={
-                    status?.missingCount
-                      ? `${status.missingCount} required ${status.missingCount === 1 ? "field" : "fields"} missing`
+                    missing.size
+                      ? `${missing.size} required ${missing.size === 1 ? "field" : "fields"} missing`
                       : "Required fields missing"
                   }
                 />
@@ -141,7 +156,7 @@ export function OrganizationFinancialsPanel({
             ))}
           </div>
         ) : (
-          <p className="text-ui text-muted-foreground">No financial statements stored yet.</p>
+          <p className="text-ui text-muted-foreground">No financial statements have been added yet.</p>
         )}
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="outline" className="h-10" onClick={() => setOpen(true)}>
@@ -149,7 +164,7 @@ export function OrganizationFinancialsPanel({
           </Button>
           {canManage ? (
             <Button type="button" className="h-10" onClick={() => setOpen(true)}>
-              Edit
+              Edit financials
             </Button>
           ) : null}
         </div>
@@ -161,7 +176,7 @@ export function OrganizationFinancialsPanel({
             <DialogTitle>Financial statements</DialogTitle>
             <DialogDescription>
               {latestYear
-                ? `FY${latestYear} on the CashSouk master record.`
+                ? `Enter the financial statement details for FY${latestYear}.`
                 : "Enter figures for the latest financial year."}
             </DialogDescription>
           </DialogHeader>
@@ -171,7 +186,11 @@ export function OrganizationFinancialsPanel({
               <div className="grid gap-4 sm:grid-cols-2">
                 {ISSUER_PROFILE_BALANCE_SHEET_KEYS.map((key) => (
                   <div key={key} className="space-y-1.5">
-                    <Label className="text-ui">{fieldLabel(key)}</Label>
+                    <ComRepFieldLabel
+                      label={fieldLabel(key)}
+                      help={fieldHelp(key)}
+                      required={fieldRequired(key)}
+                    />
                     <Input
                       className="h-10 text-ui"
                       value={draft[key] ?? ""}
@@ -189,7 +208,7 @@ export function OrganizationFinancialsPanel({
               <div className="grid gap-4 sm:grid-cols-2">
                 {ISSUER_PROFILE_PNL_KEYS.map((key) => (
                   <div key={key} className="space-y-1.5">
-                    <Label className="text-ui">{fieldLabel(key)}</Label>
+                    <ComRepFieldLabel label={fieldLabel(key)} help={fieldHelp(key)} required={fieldRequired(key)} />
                     <Input
                       className="h-10 text-ui"
                       value={draft[key] ?? ""}

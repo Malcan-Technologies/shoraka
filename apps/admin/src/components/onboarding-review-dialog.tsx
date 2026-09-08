@@ -194,7 +194,7 @@ function resolveDirectorShareholderEmptyMessage(
   if (peopleRowCount > 0) {
     return "No directors or shareholders at 5% ownership or above are displayed here.";
   }
-  return "No director or shareholder data is available yet. Use Refresh after RegTank updates COD/EOD records.";
+  return "No directors or shareholders have been added yet. Refresh after the latest external information is available.";
 }
 
 function OnboardingDirectorShareholderSection({
@@ -467,7 +467,7 @@ export function OnboardingReviewDialog({
     if (!application || isTerminalOnboarding) return;
     try {
       const result = await refreshStatusMutation.mutateAsync(onboardingId);
-      if (result.partialFailures.length > 0) {
+      if (result.refreshOutcome === "PARTIAL" || result.partialFailures.length > 0) {
         toast.warning("RegTank status was partially refreshed. Some related-party records could not be updated.", {
           description: result.warnings[0],
         });
@@ -475,9 +475,18 @@ export function OnboardingReviewDialog({
         toast.success(result.message);
       }
     } catch (err) {
-      toast.error("Unable to retrieve the latest status from RegTank.", {
-        description: err instanceof Error ? err.message : String(err),
-      });
+      const code = err instanceof Error ? (err as Error & { code?: string }).code : undefined;
+      if (code === "REFRESH_IN_PROGRESS") {
+        toast.warning("Refresh already in progress.");
+      } else if (code === "REGTANK_RATE_LIMITED") {
+        toast.error(
+          "RegTank is temporarily limiting status requests. Existing onboarding data has been preserved. Please try again later."
+        );
+      } else {
+        toast.error("Unable to retrieve the latest status from RegTank.", {
+          description: err instanceof Error ? err.message : String(err),
+        });
+      }
     }
     void queryClient.invalidateQueries({ queryKey: ["admin", "onboarding-applications"] });
     void refetch();

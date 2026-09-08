@@ -328,7 +328,7 @@ model InvestorOrganization {
   compliance_declaration        Json?
   document_info                 Json?
   liveness_check_info           Json?
-  is_sophisticated_investor     Boolean                          @default(false)
+  is_sophisticated_investor     Boolean?
   onboarding_approved           Boolean                          @default(false)
   aml_approved                  Boolean                          @default(false)
   tnc_accepted                  Boolean                          @default(false)
@@ -503,6 +503,7 @@ model OperatorProfile {
   name                        String?
   registration_number         String?
   trustee_registration_number String?
+  sc_company_type             ScCompanyType?
   responsible_person_name     String?
   responsible_person_phone    String?
   created_at                  DateTime                     @default(now())

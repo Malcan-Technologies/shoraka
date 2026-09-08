@@ -43,6 +43,21 @@ describe("organization party key matching", () => {
     );
   });
 
+  it("does not match an individual NRIC to a company with the same digits", () => {
+    const rows = [
+      {
+        party_key: "1234567A",
+        identity_number: "1234567A",
+        entity_type: "CORPORATE",
+        name: "HoldCo",
+      },
+    ];
+    expect(findExistingPartyForIdentityKey(rows, "1234567A", { entityType: "INDIVIDUAL" })).toBeUndefined();
+    expect(findExistingPartyForIdentityKey(rows, "1234567A", { entityType: "CORPORATE" })?.name).toBe(
+      "HoldCo"
+    );
+  });
+
   it("treats an identity-keyed row as seen when CTOS returns the normalized NRIC", () => {
     const seen = new Set(["900101101234"]);
     expect(

@@ -19,15 +19,40 @@ import {
   OPERATOR_ADVISOR_TYPES,
   OPERATOR_HOLDER_TYPE_LABELS,
   OPERATOR_HOLDER_TYPES,
+  operatorShareCapitalKind,
   ORGANIZATION_PARTY_ENTITY_TYPES,
+  SC_ANNUAL_ADVISOR,
+  SC_ANNUAL_FINANCIAL,
+  SC_ANNUAL_GENERAL,
+  SC_ANNUAL_INTEREST,
+  SC_ANNUAL_OFFICER,
+  SC_ANNUAL_PERSON_KIND_LABELS,
+  SC_ANNUAL_SHARE_CAPITAL,
+  SC_ANNUAL_SHAREHOLDER,
+  SC_COMPANY_TYPE_LABELS,
+  SC_COMPANY_TYPES,
   SC_DESIGNATION_LABELS,
   SC_DESIGNATIONS,
-  SC_PERSON_KIND_LABELS,
+  SC_INTEREST_SHARE_TYPE_LABELS,
   SC_PERSON_KINDS,
   SC_SHARE_TYPE_LABELS,
   SC_SHARE_TYPES,
+  firstIssueMessage,
+  issuesByField,
+  isMalaysiaCountryName,
+  isProfileValidationError,
+  profileValidationErrorFromApi,
+  restrictScIdentityInput,
+  validateOperatorAdvisor,
+  validateOperatorFinancialStatement,
+  validateOperatorGeneral,
+  validateOperatorInterest,
+  validateOperatorOfficer,
+  validateOperatorShareCapital,
+  validateOperatorShareholder,
   type OperatorHolderType,
   type OperatorProfileDto,
+  type ScCompanyType,
 } from "@cashsouk/types";
 import {
   ProfileCompletenessSummary,
@@ -50,12 +75,21 @@ import {
   emptyCapital,
   financialYearLabel,
   formatProfileDate,
-  hasLlpCapital,
+  ShorakaCountrySelect,
   ShorakaEnumSelect,
   ShorakaField,
+  ShorakaPhoneField,
   ShorakaYesNo,
   toDateInput,
 } from "./shoraka-profile-fields";
+import {
+  shorakaAdvisorPayload,
+  shorakaFinancialPayload,
+  shorakaInterestPayload,
+  shorakaOfficerPayload,
+  shorakaShareCapitalPayload,
+  shorakaShareholderPayload,
+} from "./shoraka-profile-payload";
 import { ShorakaRecordSection } from "./shoraka-record-section";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -106,7 +140,7 @@ export default function RmoProfilePage() {
     queryKey: ["admin", "operator-profile"],
     queryFn: async () => {
       const res = await api.getOperatorProfile();
-      if (!res.success) throw new Error(res.error.message);
+      if (!res.success) throw profileValidationErrorFromApi(res.error);
       return res.data;
     },
   });
@@ -117,23 +151,29 @@ export default function RmoProfilePage() {
         name: next.name,
         registrationNumber: next.registrationNumber,
         trusteeRegistrationNumber: next.trusteeRegistrationNumber,
+        scCompanyType: next.scCompanyType,
         responsiblePersonName: next.responsiblePersonName,
         responsiblePersonPhone: next.responsiblePersonPhone,
       });
-      if (!res.success) throw new Error(res.error.message);
+      if (!res.success) throw profileValidationErrorFromApi(res.error);
       return res.data;
     },
     onSuccess: (data) => {
       queryClient.setQueryData(["admin", "operator-profile"], data);
       toast.success("Shoraka profile saved");
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => {
+      if (isProfileValidationError(err) && Object.keys(err.fieldErrors).length > 0) {
+        setSectionErrors(err.fieldErrors);
+      }
+      toast.error(err.message);
+    },
   });
 
   const capitalMutation = useMutation({
     mutationFn: async (body: Record<string, unknown>) => {
       const res = await api.patchOperatorShareCapital(body);
-      if (!res.success) throw new Error(res.error.message);
+      if (!res.success) throw profileValidationErrorFromApi(res.error);
       return res.data;
     },
     onSuccess: (data) => {
@@ -145,6 +185,7 @@ export default function RmoProfilePage() {
 
   const [draft, setDraft] = React.useState<OperatorProfileDto | null>(null);
   const [editingSection, setEditingSection] = React.useState<"general" | "capital" | null>(null);
+  const [sectionErrors, setSectionErrors] = React.useState<Record<string, string>>({});
   React.useEffect(() => {
     if (query.data) setDraft(query.data);
   }, [query.data]);
@@ -159,13 +200,18 @@ export default function RmoProfilePage() {
   if (!draft || !completeness) {
     return (
       <RequirePermission permission="platform_settings.view">
-        <AdminPageHeader title="Shoraka Profile" />
-        <p className="text-ui text-muted-foreground">Loading…</p>
+        <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+          <div className="w-full space-y-6 px-2 py-8 md:px-4">
+            <AdminPageHeader title="Shoraka Profile" />
+            <p className="text-ui text-muted-foreground">Loading…</p>
+          </div>
+        </div>
       </RequirePermission>
     );
   }
 
   const cap = draft.shareCapital;
+  const capitalKind = operatorShareCapitalKind(draft.scCompanyType);
   const generalMissing = new Set(
     completeness.missing.filter((item) => item.section === "general").map((item) => item.field)
   );
@@ -173,7 +219,10 @@ export default function RmoProfilePage() {
     completeness.missing.filter((item) => item.section === "shareCapital").map((item) => item.field)
   );
   const sectionById = new Map(completeness.sections.map((section) => [section.id, section]));
-  const completenessRows = COMPLETENESS_ROWS.map((row) => {
+  const completenessRows = COMPLETENESS_ROWS.filter((row) => {
+    if (row.id === "shareCapital" && !capitalKind) return false;
+    return true;
+  }).map((row) => {
     const section = sectionById.get(row.id);
     const missingCount = section?.missing.length ?? 0;
     return {
@@ -181,7 +230,7 @@ export default function RmoProfilePage() {
       label: row.label,
       href: `#shoraka-${row.tab}`,
       missingCount,
-      complete: missingCount === 0,
+      complete: section?.complete ?? missingCount === 0,
     };
   });
   const tabStatus = (tab: ShorakaTab) => {
@@ -206,17 +255,18 @@ export default function RmoProfilePage() {
 
   return (
     <RequirePermission permission="platform_settings.view">
-      <div className="space-y-6">
+      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+      <div className="w-full space-y-6 px-2 py-8 md:px-4">
         <AdminPageHeader
           title="Shoraka Profile"
-          description="CashSouk/Shoraka operator master profile used for regulatory reporting."
+          description="Shoraka company details used across the platform."
         />
 
         <Card className="rounded-2xl">
           <AdminDetailCardHeader
             icon={ClipboardDocumentCheckIcon}
             title="Profile completeness"
-            description="Core operator identity for the Shoraka master record. Optional ComRep columns such as salutation, resignation, disposal, and unused P&L components do not block this score. Filing export is separate."
+            description="Complete the core profile fields first. Extra fields that depend on a condition are checked when you enter them."
           />
           <CardContent>
             <ProfileCompletenessSummary
@@ -250,19 +300,37 @@ export default function RmoProfilePage() {
               <AdminDetailCardHeader
                 icon={BuildingOffice2Icon}
                 title="General Information"
-                description="RMO / operator identity used on the master record"
+                description="Company identity and contact details"
                 actions={
                   <AdminCardEditActions
                     canEdit={canManage}
                     isEditing={editingSection === "general"}
                     canSave
                     isSaving={saveMutation.isPending}
-                    onEdit={() => setEditingSection("general")}
+                    onEdit={() => {
+                      setSectionErrors({});
+                      setEditingSection("general");
+                    }}
                     onCancel={() => {
                       if (query.data) setDraft(query.data);
+                      setSectionErrors({});
                       setEditingSection(null);
                     }}
                     onSave={() => {
+                      const issues = validateOperatorGeneral({
+                        name: draft.name,
+                        registrationNumber: draft.registrationNumber,
+                        trusteeRegistrationNumber: draft.trusteeRegistrationNumber,
+                        scCompanyType: draft.scCompanyType,
+                        responsiblePersonName: draft.responsiblePersonName,
+                        responsiblePersonPhone: draft.responsiblePersonPhone,
+                      });
+                      if (issues.length > 0) {
+                        setSectionErrors(issuesByField(issues));
+                        toast.error(firstIssueMessage(issues));
+                        return;
+                      }
+                      setSectionErrors({});
                       saveMutation.mutate(draft, { onSuccess: () => setEditingSection(null) });
                     }}
                   />
@@ -272,56 +340,107 @@ export default function RmoProfilePage() {
                 {editingSection === "general" ? (
                   <div className="grid gap-4 sm:grid-cols-2">
                     <ShorakaField
-                      label="RMO / Operator Name"
+                      label={SC_ANNUAL_GENERAL.nameOfRmo.label}
                       value={draft.name ?? ""}
                       onChange={(v) => setDraft({ ...draft, name: v })}
+                      help={SC_ANNUAL_GENERAL.nameOfRmo.help}
+                      required
+                      error={sectionErrors.name}
                     />
                     <ShorakaField
-                      label="Company Registration Number"
+                      label={SC_ANNUAL_GENERAL.companyRegistrationNumber.label}
                       value={draft.registrationNumber ?? ""}
-                      onChange={(v) => setDraft({ ...draft, registrationNumber: v })}
+                      onChange={(v) =>
+                        setDraft({ ...draft, registrationNumber: restrictScIdentityInput("ROC", v) })
+                      }
+                      help={SC_ANNUAL_GENERAL.companyRegistrationNumber.help}
+                      required
+                      error={sectionErrors.registrationNumber}
+                    />
+                    <ShorakaEnumSelect
+                      label={SC_ANNUAL_GENERAL.typeOfCompany.label}
+                      value={draft.scCompanyType ?? ""}
+                      options={SC_COMPANY_TYPES}
+                      labels={SC_COMPANY_TYPE_LABELS}
+                      onChange={(v: ScCompanyType) => setDraft({ ...draft, scCompanyType: v })}
+                      help={SC_ANNUAL_GENERAL.typeOfCompany.help}
+                      required
+                      error={sectionErrors.scCompanyType}
                     />
                     <ShorakaField
-                      label="Trustee Company Registration Number"
+                      label={SC_ANNUAL_GENERAL.trusteeCompanyRegistrationNumber.label}
                       value={draft.trusteeRegistrationNumber ?? ""}
-                      onChange={(v) => setDraft({ ...draft, trusteeRegistrationNumber: v })}
+                      onChange={(v) =>
+                        setDraft({
+                          ...draft,
+                          trusteeRegistrationNumber: restrictScIdentityInput("ROC", v),
+                        })
+                      }
+                      help={SC_ANNUAL_GENERAL.trusteeCompanyRegistrationNumber.help}
+                      error={sectionErrors.trusteeRegistrationNumber}
                     />
                     <ShorakaField
-                      label="Responsible Person"
+                      label={SC_ANNUAL_GENERAL.nameOfResponsiblePerson.label}
                       value={draft.responsiblePersonName ?? ""}
                       onChange={(v) => setDraft({ ...draft, responsiblePersonName: v })}
+                      help={SC_ANNUAL_GENERAL.nameOfResponsiblePerson.help}
+                      required
+                      error={sectionErrors.responsiblePersonName}
                     />
-                    <ShorakaField
-                      label="Responsible Person Contact"
+                    <ShorakaPhoneField
+                      label={SC_ANNUAL_GENERAL.contactNumber.label}
                       value={draft.responsiblePersonPhone ?? ""}
                       onChange={(v) => setDraft({ ...draft, responsiblePersonPhone: v })}
+                      help={SC_ANNUAL_GENERAL.contactNumber.help}
+                      required
+                      error={sectionErrors.responsiblePersonPhone}
                     />
                   </div>
                 ) : (
                   <ProfileFieldGrid>
                     <ProfileReadField
-                      label="RMO / Operator Name"
+                      label={SC_ANNUAL_GENERAL.nameOfRmo.label}
                       value={draft.name}
                       missing={generalMissing.has("name")}
+                      required
+                      help={SC_ANNUAL_GENERAL.nameOfRmo.help}
                     />
                     <ProfileReadField
-                      label="Company Registration Number"
+                      label={SC_ANNUAL_GENERAL.companyRegistrationNumber.label}
                       value={draft.registrationNumber}
                       missing={generalMissing.has("registrationNumber")}
+                      required
+                      help={SC_ANNUAL_GENERAL.companyRegistrationNumber.help}
                     />
                     <ProfileReadField
-                      label="Trustee Company Registration Number"
+                      label={SC_ANNUAL_GENERAL.typeOfCompany.label}
+                      value={
+                        draft.scCompanyType
+                          ? SC_COMPANY_TYPE_LABELS[draft.scCompanyType]
+                          : draft.scCompanyType
+                      }
+                      missing={generalMissing.has("scCompanyType")}
+                      required
+                      help={SC_ANNUAL_GENERAL.typeOfCompany.help}
+                    />
+                    <ProfileReadField
+                      label={SC_ANNUAL_GENERAL.trusteeCompanyRegistrationNumber.label}
                       value={draft.trusteeRegistrationNumber}
+                      help={SC_ANNUAL_GENERAL.trusteeCompanyRegistrationNumber.help}
                     />
                     <ProfileReadField
-                      label="Responsible Person"
+                      label={SC_ANNUAL_GENERAL.nameOfResponsiblePerson.label}
                       value={draft.responsiblePersonName}
                       missing={generalMissing.has("responsiblePersonName")}
+                      required
+                      help={SC_ANNUAL_GENERAL.nameOfResponsiblePerson.help}
                     />
                     <ProfileReadField
-                      label="Responsible Person Contact"
+                      label={SC_ANNUAL_GENERAL.contactNumber.label}
                       value={draft.responsiblePersonPhone}
                       missing={generalMissing.has("responsiblePersonPhone")}
+                      required
+                      help={SC_ANNUAL_GENERAL.contactNumber.help}
                     />
                   </ProfileFieldGrid>
                 )}
@@ -334,171 +453,264 @@ export default function RmoProfilePage() {
               <AdminDetailCardHeader
                 icon={BanknotesIcon}
                 title="Share Capital"
-                description="Ordinary, preference, other, and LLP capital"
+                description="Share capital for this company type"
                 actions={
                   <AdminCardEditActions
-                    canEdit={canManage}
+                    canEdit={canManage && Boolean(capitalKind)}
                     isEditing={editingSection === "capital"}
                     canSave
                     isSaving={capitalMutation.isPending}
-                    onEdit={() => setEditingSection("capital")}
+                    onEdit={() => {
+                      setSectionErrors({});
+                      setEditingSection("capital");
+                    }}
                     onCancel={() => {
                       if (query.data) setDraft(query.data);
+                      setSectionErrors({});
                       setEditingSection(null);
                     }}
                     onSave={() => {
-                      capitalMutation.mutate(
-                        { ...(draft.shareCapital ?? {}) },
-                        { onSuccess: () => setEditingSection(null) }
+                      if (!capitalKind) return;
+                      const payload = shorakaShareCapitalPayload(
+                        (draft.shareCapital ?? emptyCapital()) as unknown as Record<string, unknown>,
+                        capitalKind
                       );
+                      const issues = validateOperatorShareCapital(payload, capitalKind);
+                      if (issues.length > 0) {
+                        setSectionErrors(issuesByField(issues));
+                        toast.error(firstIssueMessage(issues));
+                        return;
+                      }
+                      setSectionErrors({});
+                      capitalMutation.mutate(payload, { onSuccess: () => setEditingSection(null) });
                     }}
                   />
                 }
               />
               <CardContent className="space-y-6">
-                {editingSection === "capital" ? (
-                  <>
-                    <ShareGroup title="Ordinary Shares">
+                {!capitalKind ? (
+                  <p className="text-ui text-muted-foreground">
+                    {draft.scCompanyType
+                      ? "This Type of Company does not use Share Capital fields. Share Capital is shown for a Sdn Bhd or a Limited Liability Partnership."
+                      : "Select the Type of Company in the General tab first. The Share Capital fields will then appear based on the company type."}
+                  </p>
+                ) : null}
+                {capitalKind === "SDN_BHD" ? (
+                  editingSection === "capital" ? (
+                    <>
+                      <ShareGroup title={SC_ANNUAL_SHARE_CAPITAL.ordinaryForSdnBhd.label}>
+                        <ShorakaField
+                          label={SC_ANNUAL_SHARE_CAPITAL.noOfShares.label}
+                          value={cap?.ordinaryUnits ?? ""}
+                          integer
+                          onChange={(v) =>
+                            setDraft({
+                              ...draft,
+                              shareCapital: { ...(cap ?? emptyCapital()), ordinaryUnits: v },
+                            })
+                          }
+                          help={SC_ANNUAL_SHARE_CAPITAL.noOfShares.help}
+                          required
+                          error={sectionErrors.ordinaryUnits}
+                        />
+                        <ShorakaField
+                          label={SC_ANNUAL_SHARE_CAPITAL.nominalValueRm.label}
+                          value={cap?.ordinaryAmount ?? ""}
+                          onChange={(v) =>
+                            setDraft({
+                              ...draft,
+                              shareCapital: { ...(cap ?? emptyCapital()), ordinaryAmount: v },
+                            })
+                          }
+                          required
+                          error={sectionErrors.ordinaryAmount}
+                        />
+                      </ShareGroup>
+                      <ShareGroup title={SC_ANNUAL_SHARE_CAPITAL.preferenceForSdnBhd.label}>
+                        <ShorakaField
+                          label={SC_ANNUAL_SHARE_CAPITAL.noOfShares.label}
+                          value={cap?.preferenceUnits ?? ""}
+                          integer
+                          onChange={(v) =>
+                            setDraft({
+                              ...draft,
+                              shareCapital: { ...(cap ?? emptyCapital()), preferenceUnits: v },
+                            })
+                          }
+                          help={SC_ANNUAL_SHARE_CAPITAL.noOfShares.help}
+                          required
+                          error={sectionErrors.preferenceUnits}
+                        />
+                        <ShorakaField
+                          label={SC_ANNUAL_SHARE_CAPITAL.nominalValueRm.label}
+                          value={cap?.preferenceAmount ?? ""}
+                          onChange={(v) =>
+                            setDraft({
+                              ...draft,
+                              shareCapital: { ...(cap ?? emptyCapital()), preferenceAmount: v },
+                            })
+                          }
+                          required
+                          error={sectionErrors.preferenceAmount}
+                        />
+                      </ShareGroup>
+                      <ShareGroup title={SC_ANNUAL_SHARE_CAPITAL.othersForSdnBhd.label}>
+                        <ShorakaField
+                          label={SC_ANNUAL_SHARE_CAPITAL.noOfShares.label}
+                          value={cap?.othersUnits ?? ""}
+                          integer
+                          onChange={(v) =>
+                            setDraft({
+                              ...draft,
+                              shareCapital: { ...(cap ?? emptyCapital()), othersUnits: v },
+                            })
+                          }
+                          help={SC_ANNUAL_SHARE_CAPITAL.noOfShares.help}
+                          required
+                          error={sectionErrors.othersUnits}
+                        />
+                        <ShorakaField
+                          label={SC_ANNUAL_SHARE_CAPITAL.nominalValueRm.label}
+                          value={cap?.othersAmount ?? ""}
+                          onChange={(v) =>
+                            setDraft({
+                              ...draft,
+                              shareCapital: { ...(cap ?? emptyCapital()), othersAmount: v },
+                            })
+                          }
+                          required
+                          error={sectionErrors.othersAmount}
+                        />
+                      </ShareGroup>
+                      <ProfileFieldGrid>
+                        <ShorakaField
+                          label={SC_ANNUAL_SHARE_CAPITAL.totalPaidUpCapitalForSdnBhd.label}
+                          value={cap?.totalPaidUpCapital ?? ""}
+                          integer
+                          onChange={(v) =>
+                            setDraft({
+                              ...draft,
+                              shareCapital: { ...(cap ?? emptyCapital()), totalPaidUpCapital: v },
+                            })
+                          }
+                          help={SC_ANNUAL_SHARE_CAPITAL.totalPaidUpCapitalForSdnBhd.help}
+                          required
+                          error={sectionErrors.totalPaidUpCapital}
+                        />
+                      </ProfileFieldGrid>
+                    </>
+                  ) : (
+                    <>
+                      <ShareGroup title={SC_ANNUAL_SHARE_CAPITAL.ordinaryForSdnBhd.label}>
+                        <ProfileReadField label={SC_ANNUAL_SHARE_CAPITAL.noOfShares.label} value={cap?.ordinaryUnits} />
+                        <ProfileReadField label={SC_ANNUAL_SHARE_CAPITAL.nominalValueRm.label} value={cap?.ordinaryAmount} />
+                      </ShareGroup>
+                      <ShareGroup title={SC_ANNUAL_SHARE_CAPITAL.preferenceForSdnBhd.label}>
+                        <ProfileReadField label={SC_ANNUAL_SHARE_CAPITAL.noOfShares.label} value={cap?.preferenceUnits} />
+                        <ProfileReadField label={SC_ANNUAL_SHARE_CAPITAL.nominalValueRm.label} value={cap?.preferenceAmount} />
+                      </ShareGroup>
+                      <ShareGroup title={SC_ANNUAL_SHARE_CAPITAL.othersForSdnBhd.label}>
+                        <ProfileReadField label={SC_ANNUAL_SHARE_CAPITAL.noOfShares.label} value={cap?.othersUnits} />
+                        <ProfileReadField label={SC_ANNUAL_SHARE_CAPITAL.nominalValueRm.label} value={cap?.othersAmount} />
+                      </ShareGroup>
+                      <ProfileFieldGrid>
+                        <ProfileReadField
+                          label={SC_ANNUAL_SHARE_CAPITAL.totalPaidUpCapitalForSdnBhd.label}
+                          value={cap?.totalPaidUpCapital}
+                          missing={capitalMissing.has("totalPaidUpCapital")}
+                          required
+                          help={SC_ANNUAL_SHARE_CAPITAL.totalPaidUpCapitalForSdnBhd.help}
+                        />
+                      </ProfileFieldGrid>
+                    </>
+                  )
+                ) : null}
+                {capitalKind === "LLP" ? (
+                  editingSection === "capital" ? (
+                    <div className="space-y-6">
+                      <p className="text-ui font-medium">{SC_ANNUAL_SHARE_CAPITAL.limitedLiabilityPartnership.label}</p>
+                      <ShareGroup title={SC_ANNUAL_SHARE_CAPITAL.membersCapital.label}>
+                        <ShorakaField
+                          label={SC_ANNUAL_SHARE_CAPITAL.noOfShares.label}
+                          value={cap?.llpMembersCapitalUnits ?? ""}
+                          integer
+                          onChange={(v) =>
+                            setDraft({
+                              ...draft,
+                              shareCapital: { ...(cap ?? emptyCapital()), llpMembersCapitalUnits: v },
+                            })
+                          }
+                          help={SC_ANNUAL_SHARE_CAPITAL.membersCapital.help}
+                          required
+                          error={sectionErrors.llpMembersCapitalUnits}
+                        />
+                        <ShorakaField
+                          label={SC_ANNUAL_SHARE_CAPITAL.nominalValueRm.label}
+                          value={cap?.llpMembersCapitalAmount ?? ""}
+                          onChange={(v) =>
+                            setDraft({
+                              ...draft,
+                              shareCapital: { ...(cap ?? emptyCapital()), llpMembersCapitalAmount: v },
+                            })
+                          }
+                          required
+                          error={sectionErrors.llpMembersCapitalAmount}
+                        />
+                      </ShareGroup>
+                      <ShareGroup title={SC_ANNUAL_SHARE_CAPITAL.membersReserves.label}>
+                        <ShorakaField
+                          label={SC_ANNUAL_SHARE_CAPITAL.noOfShares.label}
+                          value={cap?.llpMembersReservesUnits ?? ""}
+                          integer
+                          onChange={(v) =>
+                            setDraft({
+                              ...draft,
+                              shareCapital: { ...(cap ?? emptyCapital()), llpMembersReservesUnits: v },
+                            })
+                          }
+                          help={SC_ANNUAL_SHARE_CAPITAL.membersReserves.help}
+                        />
+                        <ShorakaField
+                          label={SC_ANNUAL_SHARE_CAPITAL.nominalValueRm.label}
+                          value={cap?.llpMembersReservesAmount ?? ""}
+                          onChange={(v) =>
+                            setDraft({
+                              ...draft,
+                              shareCapital: { ...(cap ?? emptyCapital()), llpMembersReservesAmount: v },
+                            })
+                          }
+                        />
+                      </ShareGroup>
+                      <ShareGroup title={SC_ANNUAL_SHARE_CAPITAL.subordinatedLoans.label}>
+                        <ShorakaField
+                          label={SC_ANNUAL_SHARE_CAPITAL.noOfShares.label}
+                          value={cap?.llpSubordinatedLoansUnits ?? ""}
+                          integer
+                          onChange={(v) =>
+                            setDraft({
+                              ...draft,
+                              shareCapital: { ...(cap ?? emptyCapital()), llpSubordinatedLoansUnits: v },
+                            })
+                          }
+                          help={SC_ANNUAL_SHARE_CAPITAL.subordinatedLoans.help}
+                          required
+                          error={sectionErrors.llpSubordinatedLoansUnits}
+                        />
+                        <ShorakaField
+                          label={SC_ANNUAL_SHARE_CAPITAL.nominalValueRm.label}
+                          value={cap?.llpSubordinatedLoansAmount ?? ""}
+                          onChange={(v) =>
+                            setDraft({
+                              ...draft,
+                              shareCapital: { ...(cap ?? emptyCapital()), llpSubordinatedLoansAmount: v },
+                            })
+                          }
+                          required
+                          error={sectionErrors.llpSubordinatedLoansAmount}
+                        />
+                      </ShareGroup>
                       <ShorakaField
-                        label="Units"
-                        value={cap?.ordinaryUnits ?? ""}
-                        onChange={(v) =>
-                          setDraft({
-                            ...draft,
-                            shareCapital: { ...(cap ?? emptyCapital()), ordinaryUnits: v },
-                          })
-                        }
-                      />
-                      <ShorakaField
-                        label="Amount (RM)"
-                        value={cap?.ordinaryAmount ?? ""}
-                        onChange={(v) =>
-                          setDraft({
-                            ...draft,
-                            shareCapital: { ...(cap ?? emptyCapital()), ordinaryAmount: v },
-                          })
-                        }
-                      />
-                    </ShareGroup>
-                    <ShareGroup title="Preference Shares">
-                      <ShorakaField
-                        label="Units"
-                        value={cap?.preferenceUnits ?? ""}
-                        onChange={(v) =>
-                          setDraft({
-                            ...draft,
-                            shareCapital: { ...(cap ?? emptyCapital()), preferenceUnits: v },
-                          })
-                        }
-                      />
-                      <ShorakaField
-                        label="Amount (RM)"
-                        value={cap?.preferenceAmount ?? ""}
-                        onChange={(v) =>
-                          setDraft({
-                            ...draft,
-                            shareCapital: { ...(cap ?? emptyCapital()), preferenceAmount: v },
-                          })
-                        }
-                      />
-                    </ShareGroup>
-                    <ShareGroup title="Other Shares">
-                      <ShorakaField
-                        label="Units"
-                        value={cap?.othersUnits ?? ""}
-                        onChange={(v) =>
-                          setDraft({
-                            ...draft,
-                            shareCapital: { ...(cap ?? emptyCapital()), othersUnits: v },
-                          })
-                        }
-                      />
-                      <ShorakaField
-                        label="Amount (RM)"
-                        value={cap?.othersAmount ?? ""}
-                        onChange={(v) =>
-                          setDraft({
-                            ...draft,
-                            shareCapital: { ...(cap ?? emptyCapital()), othersAmount: v },
-                          })
-                        }
-                      />
-                    </ShareGroup>
-                    <ProfileFieldGrid>
-                      <ShorakaField
-                        label="Total Paid-up Capital (RM)"
-                        value={cap?.totalPaidUpCapital ?? ""}
-                        onChange={(v) =>
-                          setDraft({
-                            ...draft,
-                            shareCapital: { ...(cap ?? emptyCapital()), totalPaidUpCapital: v },
-                          })
-                        }
-                      />
-                    </ProfileFieldGrid>
-                    <ShareGroup title="LLP (if applicable)">
-                      <ShorakaField
-                        label="Members' capital — units"
-                        value={cap?.llpMembersCapitalUnits ?? ""}
-                        onChange={(v) =>
-                          setDraft({
-                            ...draft,
-                            shareCapital: { ...(cap ?? emptyCapital()), llpMembersCapitalUnits: v },
-                          })
-                        }
-                      />
-                      <ShorakaField
-                        label="Members' capital — RM"
-                        value={cap?.llpMembersCapitalAmount ?? ""}
-                        onChange={(v) =>
-                          setDraft({
-                            ...draft,
-                            shareCapital: { ...(cap ?? emptyCapital()), llpMembersCapitalAmount: v },
-                          })
-                        }
-                      />
-                      <ShorakaField
-                        label="Members' reserves — units"
-                        value={cap?.llpMembersReservesUnits ?? ""}
-                        onChange={(v) =>
-                          setDraft({
-                            ...draft,
-                            shareCapital: { ...(cap ?? emptyCapital()), llpMembersReservesUnits: v },
-                          })
-                        }
-                      />
-                      <ShorakaField
-                        label="Members' reserves — RM"
-                        value={cap?.llpMembersReservesAmount ?? ""}
-                        onChange={(v) =>
-                          setDraft({
-                            ...draft,
-                            shareCapital: { ...(cap ?? emptyCapital()), llpMembersReservesAmount: v },
-                          })
-                        }
-                      />
-                      <ShorakaField
-                        label="Subordinated loans — units"
-                        value={cap?.llpSubordinatedLoansUnits ?? ""}
-                        onChange={(v) =>
-                          setDraft({
-                            ...draft,
-                            shareCapital: { ...(cap ?? emptyCapital()), llpSubordinatedLoansUnits: v },
-                          })
-                        }
-                      />
-                      <ShorakaField
-                        label="Subordinated loans — RM"
-                        value={cap?.llpSubordinatedLoansAmount ?? ""}
-                        onChange={(v) =>
-                          setDraft({
-                            ...draft,
-                            shareCapital: { ...(cap ?? emptyCapital()), llpSubordinatedLoansAmount: v },
-                          })
-                        }
-                      />
-                      <ShorakaField
-                        label="Total LLP (RM)"
+                        label={SC_ANNUAL_SHARE_CAPITAL.totalLimitedLiabilityPartnership.label}
                         value={cap?.totalLlp ?? ""}
                         onChange={(v) =>
                           setDraft({
@@ -506,49 +718,59 @@ export default function RmoProfilePage() {
                             shareCapital: { ...(cap ?? emptyCapital()), totalLlp: v },
                           })
                         }
+                        help={SC_ANNUAL_SHARE_CAPITAL.totalLimitedLiabilityPartnership.help}
+                        required
+                        error={sectionErrors.totalLlp}
                       />
-                    </ShareGroup>
-                  </>
-                ) : (
-                  <>
-                    <ShareGroup title="Ordinary Shares">
-                      <ProfileReadField label="Units" value={cap?.ordinaryUnits} />
-                      <ProfileReadField label="Amount (RM)" value={cap?.ordinaryAmount} />
-                    </ShareGroup>
-                    <ShareGroup title="Preference Shares">
-                      <ProfileReadField label="Units" value={cap?.preferenceUnits} />
-                      <ProfileReadField label="Amount (RM)" value={cap?.preferenceAmount} />
-                    </ShareGroup>
-                    <ShareGroup title="Other Shares">
-                      <ProfileReadField label="Units" value={cap?.othersUnits} />
-                      <ProfileReadField label="Amount (RM)" value={cap?.othersAmount} />
-                    </ShareGroup>
-                    <ProfileFieldGrid>
-                      <ProfileReadField
-                        label="Total Paid-up Capital"
-                        value={cap?.totalPaidUpCapital}
-                        missing={capitalMissing.has("totalPaidUpCapital")}
-                      />
-                    </ProfileFieldGrid>
-                    {hasLlpCapital(cap) ? (
-                      <ShareGroup title="LLP">
-                        <ProfileReadField label="Members' capital — units" value={cap?.llpMembersCapitalUnits} />
-                        <ProfileReadField label="Members' capital — RM" value={cap?.llpMembersCapitalAmount} />
-                        <ProfileReadField label="Members' reserves — units" value={cap?.llpMembersReservesUnits} />
-                        <ProfileReadField label="Members' reserves — RM" value={cap?.llpMembersReservesAmount} />
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      <p className="text-ui font-medium">{SC_ANNUAL_SHARE_CAPITAL.limitedLiabilityPartnership.label}</p>
+                      <ShareGroup title={SC_ANNUAL_SHARE_CAPITAL.membersCapital.label}>
                         <ProfileReadField
-                          label="Subordinated loans — units"
-                          value={cap?.llpSubordinatedLoansUnits}
+                          label={SC_ANNUAL_SHARE_CAPITAL.noOfShares.label}
+                          value={cap?.llpMembersCapitalUnits}
+                          help={SC_ANNUAL_SHARE_CAPITAL.membersCapital.help}
                         />
                         <ProfileReadField
-                          label="Subordinated loans — RM"
+                          label={SC_ANNUAL_SHARE_CAPITAL.nominalValueRm.label}
+                          value={cap?.llpMembersCapitalAmount}
+                        />
+                      </ShareGroup>
+                      <ShareGroup title={SC_ANNUAL_SHARE_CAPITAL.membersReserves.label}>
+                        <ProfileReadField
+                          label={SC_ANNUAL_SHARE_CAPITAL.noOfShares.label}
+                          value={cap?.llpMembersReservesUnits}
+                          help={SC_ANNUAL_SHARE_CAPITAL.membersReserves.help}
+                        />
+                        <ProfileReadField
+                          label={SC_ANNUAL_SHARE_CAPITAL.nominalValueRm.label}
+                          value={cap?.llpMembersReservesAmount}
+                        />
+                      </ShareGroup>
+                      <ShareGroup title={SC_ANNUAL_SHARE_CAPITAL.subordinatedLoans.label}>
+                        <ProfileReadField
+                          label={SC_ANNUAL_SHARE_CAPITAL.noOfShares.label}
+                          value={cap?.llpSubordinatedLoansUnits}
+                          help={SC_ANNUAL_SHARE_CAPITAL.subordinatedLoans.help}
+                        />
+                        <ProfileReadField
+                          label={SC_ANNUAL_SHARE_CAPITAL.nominalValueRm.label}
                           value={cap?.llpSubordinatedLoansAmount}
                         />
-                        <ProfileReadField label="Total LLP" value={cap?.totalLlp} />
                       </ShareGroup>
-                    ) : null}
-                  </>
-                )}
+                      <ProfileFieldGrid>
+                        <ProfileReadField
+                          label={SC_ANNUAL_SHARE_CAPITAL.totalLimitedLiabilityPartnership.label}
+                          value={cap?.totalLlp}
+                          missing={capitalMissing.has("totalLlp")}
+                          required
+                          help={SC_ANNUAL_SHARE_CAPITAL.totalLimitedLiabilityPartnership.help}
+                        />
+                      </ProfileFieldGrid>
+                    </div>
+                  )
+                ) : null}
               </CardContent>
             </Card>
           </AdminDetailTabPanel>
@@ -557,11 +779,11 @@ export default function RmoProfilePage() {
             <div id="shoraka-holders" className="scroll-mt-24">
               <ShorakaRecordSection
                 title="Ownership"
-                description="Shareholders, members, and beneficial owners on the operator profile"
+                description="Shareholders, members, and beneficial owners"
                 icon={UserGroupIcon}
                 addLabel="Add owner"
-                emptyTitle="No ownership records yet"
-                emptyMessage="Add Shoraka shareholders, members or beneficial owners used for the operator profile and regulatory reporting."
+                emptyTitle="No shareholders have been added yet"
+                emptyMessage="Add shareholders, members, or beneficial owners."
                 rows={filteredHolders}
                 canManage={canManage}
                 filters={[...HOLDER_FILTERS]}
@@ -589,21 +811,40 @@ export default function RmoProfilePage() {
                   mode === "add" ? "Add owner" : mode === "view" ? "Owner details" : "Edit owner"
                 }
                 onCreate={async (body) => {
-                  const res = await api.createOperatorShareholder(body);
-                  if (!res.success) throw new Error(res.error.message);
+                  const res = await api.createOperatorShareholder(shorakaShareholderPayload(body));
+                  if (!res.success) throw profileValidationErrorFromApi(res.error);
                   queryClient.setQueryData(["admin", "operator-profile"], res.data);
                 }}
                 onUpdate={async (id, body) => {
-                  const res = await api.updateOperatorShareholder(id, body);
-                  if (!res.success) throw new Error(res.error.message);
+                  const res = await api.updateOperatorShareholder(id, shorakaShareholderPayload(body));
+                  if (!res.success) throw profileValidationErrorFromApi(res.error);
                   queryClient.setQueryData(["admin", "operator-profile"], res.data);
                 }}
                 onDelete={async (id) => {
                   const res = await api.deleteOperatorShareholder(id);
-                  if (!res.success) throw new Error(res.error.message);
+                  if (!res.success) throw profileValidationErrorFromApi(res.error);
                   queryClient.setQueryData(["admin", "operator-profile"], res.data);
                 }}
-                fields={(row, set, disabled) => (
+                validate={(row) =>
+                  validateOperatorShareholder({
+                    entityType: row.entityType,
+                    holderType: row.holderType,
+                    name: row.name,
+                    salutation: row.salutation,
+                    identityNumber: row.identityNumber,
+                    dateOfBirth: row.dateOfBirth,
+                    dateOfIncorporation: row.dateOfIncorporation,
+                    nationality: row.nationality,
+                    address: row.address,
+                    dateAcquired: row.dateAcquired,
+                    shareType: row.shareType,
+                    shareTypeOther: row.shareTypeOther,
+                    shareholdingUnits: row.shareholdingUnits,
+                    shareholdingAmount: row.shareholdingAmount,
+                    shareholdingPercentage: row.shareholdingPercentage,
+                  })
+                }
+                fields={(row, set, disabled, errors) => (
                   <>
                     <ShorakaEnumSelect
                       label="Holder type"
@@ -618,6 +859,9 @@ export default function RmoProfilePage() {
                         })
                       }
                       disabled={disabled}
+                      required
+                      help="Choose whether this person is a shareholder, member, or beneficial owner."
+                      error={errors.holderType}
                     />
                     <ShorakaEnumSelect
                       label="Entity type"
@@ -626,21 +870,154 @@ export default function RmoProfilePage() {
                       labels={{ INDIVIDUAL: "Individual", CORPORATE: "Company" }}
                       onChange={(v) => set({ ...row, entityType: v })}
                       disabled={disabled || row.holderType === "BENEFICIAL_OWNER"}
+                      required
+                      help="Select Individual or Company. This chooses which identity and date fields to enter."
+                      error={errors.entityType}
                     />
-                    <ShorakaField label="Name" value={row.name ?? ""} onChange={(v) => set({ ...row, name: v })} disabled={disabled} />
-                    <ShorakaField label="Salutation" value={row.salutation ?? ""} onChange={(v) => set({ ...row, salutation: v })} disabled={disabled} />
-                    <ShorakaField label="IC / passport / ROC" value={row.identityNumber ?? ""} onChange={(v) => set({ ...row, identityNumber: v })} disabled={disabled} />
-                    <ShorakaField label="Date of birth" type="date" value={toDateInput(row.dateOfBirth)} onChange={(v) => set({ ...row, dateOfBirth: v })} disabled={disabled} />
-                    <ShorakaField label="Date of incorporation" type="date" value={toDateInput(row.dateOfIncorporation)} onChange={(v) => set({ ...row, dateOfIncorporation: v })} disabled={disabled} />
-                    <ShorakaField label="Nationality / country" value={row.nationality ?? ""} onChange={(v) => set({ ...row, nationality: v })} disabled={disabled} />
-                    <ShorakaField label="Address" value={row.address ?? ""} onChange={(v) => set({ ...row, address: v })} disabled={disabled} />
-                    <ShorakaField label="Date acquired" type="date" value={toDateInput(row.dateAcquired)} onChange={(v) => set({ ...row, dateAcquired: v })} disabled={disabled} />
-                    <ShorakaField label="Date disposal" type="date" value={toDateInput(row.dateDisposal)} onChange={(v) => set({ ...row, dateDisposal: v })} disabled={disabled} />
-                    <ShorakaEnumSelect label="Type of shares" value={row.shareType ?? ""} options={SC_SHARE_TYPES} labels={SC_SHARE_TYPE_LABELS} onChange={(v) => set({ ...row, shareType: v })} disabled={disabled} />
-                    <ShorakaField label="Type of shares — others" value={row.shareTypeOther ?? ""} onChange={(v) => set({ ...row, shareTypeOther: v })} disabled={disabled} />
-                    <ShorakaField label="Shareholding units" value={row.shareholdingUnits ?? ""} onChange={(v) => set({ ...row, shareholdingUnits: v })} disabled={disabled} />
-                    <ShorakaField label="Shareholding amount (RM)" value={row.shareholdingAmount ?? ""} onChange={(v) => set({ ...row, shareholdingAmount: v })} disabled={disabled} />
-                    <ShorakaField label="Shareholding percentage" value={row.shareholdingPercentage ?? ""} onChange={(v) => set({ ...row, shareholdingPercentage: v })} disabled={disabled} />
+                    <ShorakaField
+                      label={SC_ANNUAL_SHAREHOLDER.name.label}
+                      value={row.name ?? ""}
+                      onChange={(v) => set({ ...row, name: v })}
+                      disabled={disabled}
+                      required
+                      help={SC_ANNUAL_SHAREHOLDER.name.help}
+                      error={errors.name}
+                    />
+                    {row.entityType === "INDIVIDUAL" || row.holderType === "BENEFICIAL_OWNER" ? (
+                      <ShorakaField
+                        label={SC_ANNUAL_SHAREHOLDER.salutation.label}
+                        value={row.salutation ?? ""}
+                        onChange={(v) => set({ ...row, salutation: v })}
+                        disabled={disabled}
+                      help={SC_ANNUAL_SHAREHOLDER.salutation.help}
+                      required
+                      error={errors.salutation}
+                    />
+                    ) : null}
+                    <ShorakaField
+                      label={SC_ANNUAL_SHAREHOLDER.icPassportNumber.label}
+                      value={row.identityNumber ?? ""}
+                      onChange={(v) =>
+                        set({
+                          ...row,
+                          identityNumber: restrictScIdentityInput(
+                            row.entityType === "CORPORATE"
+                              ? "ROC"
+                              : isMalaysiaCountryName(row.nationality)
+                                ? "NRIC"
+                                : "PASSPORT",
+                            v
+                          ),
+                        })
+                      }
+                      disabled={disabled}
+                      required
+                      help={SC_ANNUAL_SHAREHOLDER.icPassportNumber.help}
+                      error={errors.identityNumber}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_SHAREHOLDER.dateOfBirth.label}
+                      type="date"
+                      value={toDateInput(
+                        row.entityType === "CORPORATE" ? row.dateOfIncorporation : row.dateOfBirth
+                      )}
+                      onChange={(v) =>
+                        set(
+                          row.entityType === "CORPORATE"
+                            ? { ...row, dateOfIncorporation: v, dateOfBirth: null }
+                            : { ...row, dateOfBirth: v, dateOfIncorporation: null }
+                        )
+                      }
+                      disabled={disabled}
+                      help={SC_ANNUAL_SHAREHOLDER.dateOfBirth.help}
+                      required
+                      error={errors.dateOfBirth || errors.dateOfIncorporation}
+                    />
+                    <ShorakaCountrySelect
+                      label={SC_ANNUAL_SHAREHOLDER.nationality.label}
+                      value={row.nationality ?? ""}
+                      onChange={(v) => set({ ...row, nationality: v })}
+                      disabled={disabled}
+                      help={SC_ANNUAL_SHAREHOLDER.nationality.help}
+                      required
+                      error={errors.nationality}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_SHAREHOLDER.address.label}
+                      value={row.address ?? ""}
+                      onChange={(v) => set({ ...row, address: v })}
+                      disabled={disabled}
+                      help={SC_ANNUAL_SHAREHOLDER.address.help}
+                      required
+                      error={errors.address}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_SHAREHOLDER.dateAcquired.label}
+                      type="date"
+                      value={toDateInput(row.dateAcquired)}
+                      onChange={(v) => set({ ...row, dateAcquired: v })}
+                      disabled={disabled}
+                      help={SC_ANNUAL_SHAREHOLDER.dateAcquired.help}
+                      required
+                      error={errors.dateAcquired}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_SHAREHOLDER.dateDisposal.label}
+                      type="date"
+                      value={toDateInput(row.dateDisposal)}
+                      onChange={(v) => set({ ...row, dateDisposal: v })}
+                      disabled={disabled}
+                      help={SC_ANNUAL_SHAREHOLDER.dateDisposal.help}
+                    />
+                    <ShorakaEnumSelect
+                      label={SC_ANNUAL_SHAREHOLDER.typeOfShares.label}
+                      value={row.shareType ?? ""}
+                      options={SC_SHARE_TYPES}
+                      labels={SC_SHARE_TYPE_LABELS}
+                      onChange={(v) => set({ ...row, shareType: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.shareType}
+                    />
+                    {row.shareType === "OTHERS" ? (
+                      <ShorakaField
+                        label={SC_ANNUAL_SHAREHOLDER.typeOfSharesOthers.label}
+                        value={row.shareTypeOther ?? ""}
+                        onChange={(v) => set({ ...row, shareTypeOther: v })}
+                        disabled={disabled}
+                        required
+                        help={SC_ANNUAL_SHAREHOLDER.typeOfSharesOthers.help}
+                      error={errors.shareTypeOther}
+                    />
+                    ) : null}
+                    <ShorakaField
+                      label={SC_ANNUAL_SHAREHOLDER.shareholdingUnits.label}
+                      value={row.shareholdingUnits ?? ""}
+                      onChange={(v) => set({ ...row, shareholdingUnits: v })}
+                      disabled={disabled}
+                      required
+                      integer
+                      error={errors.shareholdingUnits}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_SHAREHOLDER.shareholdingAmount.label}
+                      value={row.shareholdingAmount ?? ""}
+                      onChange={(v) => set({ ...row, shareholdingAmount: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.shareholdingAmount}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_SHAREHOLDER.shareholdingPercentage.label}
+                      value={row.shareholdingPercentage ?? ""}
+                      onChange={(v) =>
+                        set({ ...row, shareholdingPercentage: v.replace(/[^\d.]/g, "") })
+                      }
+                      disabled={disabled}
+                      required
+                      inputMode="decimal"
+                      error={errors.shareholdingPercentage}
+                    />
                   </>
                 )}
               />
@@ -651,21 +1028,21 @@ export default function RmoProfilePage() {
             <div id="shoraka-officers" className="scroll-mt-24">
               <ShorakaRecordSection
                 title="Board & Management"
-                description="Directors, controllers, and authorised personnel for the operator"
+                description="Directors and management for Shoraka"
                 icon={UsersIcon}
                 addLabel="Add person"
-                emptyTitle="No board or management records yet"
-                emptyMessage="Add Shoraka board or management people used for the operator profile and regulatory reporting."
+                emptyTitle="No board or management people have been added yet"
+                emptyMessage="Add board or management people."
                 rows={draft.officers}
                 canManage={canManage}
                 renderCard={(row) => ({
                   title: row.name?.trim() || "Unnamed",
                   subtitle: [
-                    SC_PERSON_KIND_LABELS[row.personKind],
+                    SC_ANNUAL_PERSON_KIND_LABELS[row.personKind],
                     row.designation
                       ? SC_DESIGNATION_LABELS[row.designation] ?? row.designationOther
                       : row.designationOther,
-                    row.isResponsiblePerson ? "Responsible person" : null,
+                    row.isResponsiblePerson ? SC_ANNUAL_OFFICER.responsiblePerson.label : null,
                     formatProfileDate(row.appointmentDate)
                       ? `Appointed ${formatProfileDate(row.appointmentDate)}`
                       : null,
@@ -678,34 +1055,154 @@ export default function RmoProfilePage() {
                   mode === "add" ? "Add person" : mode === "view" ? "Person details" : "Edit person"
                 }
                 onCreate={async (body) => {
-                  const res = await api.createOperatorOfficer(body);
-                  if (!res.success) throw new Error(res.error.message);
+                  const res = await api.createOperatorOfficer(shorakaOfficerPayload(body));
+                  if (!res.success) throw profileValidationErrorFromApi(res.error);
                   queryClient.setQueryData(["admin", "operator-profile"], res.data);
                 }}
                 onUpdate={async (id, body) => {
-                  const res = await api.updateOperatorOfficer(id, body);
-                  if (!res.success) throw new Error(res.error.message);
+                  const res = await api.updateOperatorOfficer(id, shorakaOfficerPayload(body));
+                  if (!res.success) throw profileValidationErrorFromApi(res.error);
                   queryClient.setQueryData(["admin", "operator-profile"], res.data);
                 }}
                 onDelete={async (id) => {
                   const res = await api.deleteOperatorOfficer(id);
-                  if (!res.success) throw new Error(res.error.message);
+                  if (!res.success) throw profileValidationErrorFromApi(res.error);
                   queryClient.setQueryData(["admin", "operator-profile"], res.data);
                 }}
-                fields={(row, set, disabled) => (
+                validate={(row) =>
+                  validateOperatorOfficer({
+                    personKind: row.personKind,
+                    name: row.name,
+                    identityNumber: row.identityNumber,
+                    dateOfBirth: row.dateOfBirth,
+                    nationality: row.nationality,
+                    address: row.address,
+                    designation: row.designation,
+                    designationOther: row.designationOther,
+                    appointmentDate: row.appointmentDate,
+                  })
+                }
+                fields={(row, set, disabled, errors) => (
                   <>
-                    <ShorakaEnumSelect label="Board / management" value={row.personKind} options={SC_PERSON_KINDS} labels={SC_PERSON_KIND_LABELS} onChange={(v) => set({ ...row, personKind: v })} disabled={disabled} />
-                    <ShorakaField label="Name" value={row.name ?? ""} onChange={(v) => set({ ...row, name: v })} disabled={disabled} />
-                    <ShorakaField label="Salutation" value={row.salutation ?? ""} onChange={(v) => set({ ...row, salutation: v })} disabled={disabled} />
-                    <ShorakaYesNo label="Responsible person" value={row.isResponsiblePerson} onChange={(v) => set({ ...row, isResponsiblePerson: v })} disabled={disabled} />
-                    <ShorakaField label="Identity number" value={row.identityNumber ?? ""} onChange={(v) => set({ ...row, identityNumber: v })} disabled={disabled} />
-                    <ShorakaField label="Date of birth" type="date" value={toDateInput(row.dateOfBirth)} onChange={(v) => set({ ...row, dateOfBirth: v })} disabled={disabled} />
-                    <ShorakaField label="Nationality" value={row.nationality ?? ""} onChange={(v) => set({ ...row, nationality: v })} disabled={disabled} />
-                    <ShorakaField label="Address" value={row.address ?? ""} onChange={(v) => set({ ...row, address: v })} disabled={disabled} />
-                    <ShorakaEnumSelect label="Designation" value={row.designation ?? ""} options={SC_DESIGNATIONS} labels={SC_DESIGNATION_LABELS} onChange={(v) => set({ ...row, designation: v })} disabled={disabled} />
-                    <ShorakaField label="Designation — others" value={row.designationOther ?? ""} onChange={(v) => set({ ...row, designationOther: v })} disabled={disabled} />
-                    <ShorakaField label="Appointment date" type="date" value={toDateInput(row.appointmentDate)} onChange={(v) => set({ ...row, appointmentDate: v })} disabled={disabled} />
-                    <ShorakaField label="Resignation date" type="date" value={toDateInput(row.resignationDate)} onChange={(v) => set({ ...row, resignationDate: v })} disabled={disabled} />
+                    <ShorakaEnumSelect
+                      label={SC_ANNUAL_OFFICER.boardOfDirectorManagementTeam.label}
+                      value={row.personKind}
+                      options={SC_PERSON_KINDS}
+                      labels={SC_ANNUAL_PERSON_KIND_LABELS}
+                      onChange={(v) => set({ ...row, personKind: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.personKind}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_OFFICER.name.label}
+                      value={row.name ?? ""}
+                      onChange={(v) => set({ ...row, name: v })}
+                      disabled={disabled}
+                      required
+                      help={SC_ANNUAL_OFFICER.name.help}
+                      error={errors.name}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_OFFICER.salutation.label}
+                      value={row.salutation ?? ""}
+                      onChange={(v) => set({ ...row, salutation: v })}
+                      disabled={disabled}
+                      help={SC_ANNUAL_OFFICER.salutation.help}
+                      error={errors.salutation}
+                    />
+                    <ShorakaYesNo
+                      label={SC_ANNUAL_OFFICER.responsiblePerson.label}
+                      value={row.isResponsiblePerson}
+                      onChange={(v) => set({ ...row, isResponsiblePerson: v })}
+                      disabled={disabled}
+                      required
+                      help={SC_ANNUAL_OFFICER.responsiblePerson.help}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_OFFICER.identityNumber.label}
+                      value={row.identityNumber ?? ""}
+                      onChange={(v) =>
+                        set({
+                          ...row,
+                          identityNumber: restrictScIdentityInput(
+                            isMalaysiaCountryName(row.nationality) ? "NRIC" : "PASSPORT",
+                            v
+                          ),
+                        })
+                      }
+                      disabled={disabled}
+                      required
+                      help={SC_ANNUAL_OFFICER.identityNumber.help}
+                      error={errors.identityNumber}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_OFFICER.dateOfBirth.label}
+                      type="date"
+                      value={toDateInput(row.dateOfBirth)}
+                      onChange={(v) => set({ ...row, dateOfBirth: v })}
+                      disabled={disabled}
+                      help={SC_ANNUAL_OFFICER.dateOfBirth.help}
+                      required
+                      error={errors.dateOfBirth || errors.dateOfIncorporation}
+                    />
+                    <ShorakaCountrySelect
+                      label={SC_ANNUAL_OFFICER.nationality.label}
+                      value={row.nationality ?? ""}
+                      onChange={(v) => set({ ...row, nationality: v })}
+                      disabled={disabled}
+                      help={SC_ANNUAL_OFFICER.nationality.help}
+                      required
+                      error={errors.nationality}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_OFFICER.address.label}
+                      value={row.address ?? ""}
+                      onChange={(v) => set({ ...row, address: v })}
+                      disabled={disabled}
+                      help={SC_ANNUAL_OFFICER.address.help}
+                      required
+                      error={errors.address}
+                    />
+                    <ShorakaEnumSelect
+                      label={SC_ANNUAL_OFFICER.designation.label}
+                      value={row.designation ?? ""}
+                      options={SC_DESIGNATIONS}
+                      labels={SC_DESIGNATION_LABELS}
+                      onChange={(v) => set({ ...row, designation: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.designation}
+                    />
+                    {row.designation === "OTHERS" ? (
+                      <ShorakaField
+                        label={SC_ANNUAL_OFFICER.designationOthers.label}
+                        value={row.designationOther ?? ""}
+                        onChange={(v) => set({ ...row, designationOther: v })}
+                        disabled={disabled}
+                        required
+                        help={SC_ANNUAL_OFFICER.designationOthers.help}
+                      error={errors.designationOther}
+                    />
+                    ) : null}
+                    <ShorakaField
+                      label={SC_ANNUAL_OFFICER.appointmentDate.label}
+                      type="date"
+                      value={toDateInput(row.appointmentDate)}
+                      onChange={(v) => set({ ...row, appointmentDate: v })}
+                      disabled={disabled}
+                      help={SC_ANNUAL_OFFICER.appointmentDate.help}
+                      required
+                      error={errors.appointmentDate}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_OFFICER.resignationDate.label}
+                      type="date"
+                      value={toDateInput(row.resignationDate)}
+                      onChange={(v) => set({ ...row, resignationDate: v })}
+                      disabled={disabled}
+                      help={SC_ANNUAL_OFFICER.resignationDate.help}
+                    />
                   </>
                 )}
               />
@@ -716,11 +1213,11 @@ export default function RmoProfilePage() {
             <div id="shoraka-advisors" className="scroll-mt-24">
               <ShorakaRecordSection
                 title="Advisers"
-                description="Trustees, legal, audit, and other advisers on the operator profile"
+                description="Add the company’s appointed advisers. Enter each adviser separately."
                 icon={BriefcaseIcon}
                 addLabel="Add adviser"
-                emptyTitle="No advisers yet"
-                emptyMessage="Add Shoraka advisers used for the operator profile and regulatory reporting."
+                emptyTitle="No advisers have been added yet"
+                emptyMessage="Add the company’s appointed advisers."
                 rows={draft.advisors}
                 canManage={canManage}
                 renderCard={(row) => ({
@@ -739,34 +1236,103 @@ export default function RmoProfilePage() {
                     />
                   ),
                 })}
-                blank={() => ({ advisorType: "TRUSTEE_ESCROW" as const, name: "" })}
+                blank={() => ({ advisorType: "ACCOUNTING" as const, name: "" })}
                 dialogTitle={(mode) =>
                   mode === "add" ? "Add adviser" : mode === "view" ? "Adviser details" : "Edit adviser"
                 }
                 onCreate={async (body) => {
-                  const res = await api.createOperatorAdvisor(body);
-                  if (!res.success) throw new Error(res.error.message);
+                  const res = await api.createOperatorAdvisor(shorakaAdvisorPayload(body));
+                  if (!res.success) throw profileValidationErrorFromApi(res.error);
                   queryClient.setQueryData(["admin", "operator-profile"], res.data);
                 }}
                 onUpdate={async (id, body) => {
-                  const res = await api.updateOperatorAdvisor(id, body);
-                  if (!res.success) throw new Error(res.error.message);
+                  const res = await api.updateOperatorAdvisor(id, shorakaAdvisorPayload(body));
+                  if (!res.success) throw profileValidationErrorFromApi(res.error);
                   queryClient.setQueryData(["admin", "operator-profile"], res.data);
                 }}
                 onDelete={async (id) => {
                   const res = await api.deleteOperatorAdvisor(id);
-                  if (!res.success) throw new Error(res.error.message);
+                  if (!res.success) throw profileValidationErrorFromApi(res.error);
                   queryClient.setQueryData(["admin", "operator-profile"], res.data);
                 }}
-                fields={(row, set, disabled) => (
+                validate={(row) =>
+                  validateOperatorAdvisor({
+                    advisorType: row.advisorType,
+                    name: row.name,
+                    registrationNumber: row.registrationNumber,
+                    country: row.country,
+                    address: row.address,
+                    appointmentDate: row.appointmentDate,
+                  })
+                }
+                fields={(row, set, disabled, errors) => (
                   <>
-                    <ShorakaEnumSelect label="Type of advisor" value={row.advisorType} options={OPERATOR_ADVISOR_TYPES} labels={OPERATOR_ADVISOR_TYPE_LABELS} onChange={(v) => set({ ...row, advisorType: v })} disabled={disabled} />
-                    <ShorakaField label="Name" value={row.name ?? ""} onChange={(v) => set({ ...row, name: v })} disabled={disabled} />
-                    <ShorakaField label="Company registration no." value={row.registrationNumber ?? ""} onChange={(v) => set({ ...row, registrationNumber: v })} disabled={disabled} />
-                    <ShorakaField label="Country" value={row.country ?? ""} onChange={(v) => set({ ...row, country: v })} disabled={disabled} />
-                    <ShorakaField label="Address" value={row.address ?? ""} onChange={(v) => set({ ...row, address: v })} disabled={disabled} />
-                    <ShorakaField label="Appointment date" type="date" value={toDateInput(row.appointmentDate)} onChange={(v) => set({ ...row, appointmentDate: v })} disabled={disabled} />
-                    <ShorakaField label="Cessation date" type="date" value={toDateInput(row.cessationDate)} onChange={(v) => set({ ...row, cessationDate: v })} disabled={disabled} />
+                    <ShorakaEnumSelect
+                      label={SC_ANNUAL_ADVISOR.typeOfAdvisor.label}
+                      value={row.advisorType}
+                      options={OPERATOR_ADVISOR_TYPES}
+                      labels={OPERATOR_ADVISOR_TYPE_LABELS}
+                      onChange={(v) => set({ ...row, advisorType: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.advisorType}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_ADVISOR.name.label}
+                      value={row.name ?? ""}
+                      onChange={(v) => set({ ...row, name: v })}
+                      disabled={disabled}
+                      required
+                      help={SC_ANNUAL_ADVISOR.name.help}
+                      error={errors.name}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_ADVISOR.companyRegistrationNo.label}
+                      value={row.registrationNumber ?? ""}
+                      onChange={(v) =>
+                        set({ ...row, registrationNumber: restrictScIdentityInput("ROC", v) })
+                      }
+                      disabled={disabled}
+                      help={SC_ANNUAL_ADVISOR.companyRegistrationNo.help}
+                      required
+                      error={errors.registrationNumber}
+                    />
+                    <ShorakaCountrySelect
+                      label={SC_ANNUAL_ADVISOR.country.label}
+                      value={row.country ?? ""}
+                      onChange={(v) => set({ ...row, country: v })}
+                      disabled={disabled}
+                      help={SC_ANNUAL_ADVISOR.country.help}
+                      required
+                      error={errors.country}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_ADVISOR.address.label}
+                      value={row.address ?? ""}
+                      onChange={(v) => set({ ...row, address: v })}
+                      disabled={disabled}
+                      help={SC_ANNUAL_ADVISOR.address.help}
+                      required
+                      error={errors.address}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_ADVISOR.appointmentDate.label}
+                      type="date"
+                      value={toDateInput(row.appointmentDate)}
+                      onChange={(v) => set({ ...row, appointmentDate: v })}
+                      disabled={disabled}
+                      help={SC_ANNUAL_ADVISOR.appointmentDate.help}
+                      required
+                      error={errors.appointmentDate}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_ADVISOR.cessationDate.label}
+                      type="date"
+                      value={toDateInput(row.cessationDate)}
+                      onChange={(v) => set({ ...row, cessationDate: v })}
+                      disabled={disabled}
+                      help={SC_ANNUAL_ADVISOR.cessationDate.help}
+                    />
                   </>
                 )}
               />
@@ -776,12 +1342,12 @@ export default function RmoProfilePage() {
           <AdminDetailTabPanel value="interests">
             <div id="shoraka-interests" className="scroll-mt-24">
               <ShorakaRecordSection
-                title="Interests in Other Companies"
-                description="Shareholdings held by the operator in other companies"
+                title="Interest in Other Company"
+                description="Add other companies where Shoraka has an interest or shareholding."
                 icon={BuildingOffice2Icon}
                 addLabel="Add company"
-                emptyTitle="No other company interests yet"
-                emptyMessage="Add companies Shoraka has an interest in for the operator profile and regulatory reporting."
+                emptyTitle="No other company interests have been added yet"
+                emptyMessage="Add other companies where Shoraka has an interest or shareholding."
                 rows={draft.interests}
                 canManage={canManage}
                 renderCard={(row) => ({
@@ -789,7 +1355,7 @@ export default function RmoProfilePage() {
                   subtitle: [
                     row.registrationNumber,
                     row.country,
-                    row.shareType ? SC_SHARE_TYPE_LABELS[row.shareType] : null,
+                    row.shareType ? SC_INTEREST_SHARE_TYPE_LABELS[row.shareType] : null,
                     row.shareholdingUnits,
                     row.shareholdingPercentage ? `${row.shareholdingPercentage}%` : null,
                   ]
@@ -801,32 +1367,133 @@ export default function RmoProfilePage() {
                   mode === "add" ? "Add company" : mode === "view" ? "Company details" : "Edit company"
                 }
                 onCreate={async (body) => {
-                  const res = await api.createOperatorInterest(body);
-                  if (!res.success) throw new Error(res.error.message);
+                  const res = await api.createOperatorInterest(shorakaInterestPayload(body));
+                  if (!res.success) throw profileValidationErrorFromApi(res.error);
                   queryClient.setQueryData(["admin", "operator-profile"], res.data);
                 }}
                 onUpdate={async (id, body) => {
-                  const res = await api.updateOperatorInterest(id, body);
-                  if (!res.success) throw new Error(res.error.message);
+                  const res = await api.updateOperatorInterest(id, shorakaInterestPayload(body));
+                  if (!res.success) throw profileValidationErrorFromApi(res.error);
                   queryClient.setQueryData(["admin", "operator-profile"], res.data);
                 }}
                 onDelete={async (id) => {
                   const res = await api.deleteOperatorInterest(id);
-                  if (!res.success) throw new Error(res.error.message);
+                  if (!res.success) throw profileValidationErrorFromApi(res.error);
                   queryClient.setQueryData(["admin", "operator-profile"], res.data);
                 }}
-                fields={(row, set, disabled) => (
+                validate={(row) =>
+                  validateOperatorInterest({
+                    name: row.name,
+                    registrationNumber: row.registrationNumber,
+                    country: row.country,
+                    address: row.address,
+                    acquisitionDate: row.acquisitionDate,
+                    shareType: row.shareType,
+                    shareTypeOther: row.shareTypeOther,
+                    shareholdingUnits: row.shareholdingUnits,
+                    shareholdingPercentage: row.shareholdingPercentage,
+                  })
+                }
+                fields={(row, set, disabled, errors) => (
                   <>
-                    <ShorakaField label="Company" value={row.name ?? ""} onChange={(v) => set({ ...row, name: v })} disabled={disabled} />
-                    <ShorakaField label="ROC" value={row.registrationNumber ?? ""} onChange={(v) => set({ ...row, registrationNumber: v })} disabled={disabled} />
-                    <ShorakaField label="Country" value={row.country ?? ""} onChange={(v) => set({ ...row, country: v })} disabled={disabled} />
-                    <ShorakaField label="Address" value={row.address ?? ""} onChange={(v) => set({ ...row, address: v })} disabled={disabled} />
-                    <ShorakaField label="Acquisition date" type="date" value={toDateInput(row.acquisitionDate)} onChange={(v) => set({ ...row, acquisitionDate: v })} disabled={disabled} />
-                    <ShorakaField label="Disposal date" type="date" value={toDateInput(row.disposalDate)} onChange={(v) => set({ ...row, disposalDate: v })} disabled={disabled} />
-                    <ShorakaEnumSelect label="Type of shares" value={row.shareType ?? ""} options={SC_SHARE_TYPES} labels={SC_SHARE_TYPE_LABELS} onChange={(v) => set({ ...row, shareType: v })} disabled={disabled} />
-                    <ShorakaField label="Type of shares — others" value={row.shareTypeOther ?? ""} onChange={(v) => set({ ...row, shareTypeOther: v })} disabled={disabled} />
-                    <ShorakaField label="Shareholding units" value={row.shareholdingUnits ?? ""} onChange={(v) => set({ ...row, shareholdingUnits: v })} disabled={disabled} />
-                    <ShorakaField label="Shareholding percentage" value={row.shareholdingPercentage ?? ""} onChange={(v) => set({ ...row, shareholdingPercentage: v })} disabled={disabled} />
+                    <ShorakaField
+                      label={SC_ANNUAL_INTEREST.name.label}
+                      value={row.name ?? ""}
+                      onChange={(v) => set({ ...row, name: v })}
+                      disabled={disabled}
+                      required
+                      help={SC_ANNUAL_INTEREST.name.help}
+                      error={errors.name}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_INTEREST.roc.label}
+                      value={row.registrationNumber ?? ""}
+                      onChange={(v) =>
+                        set({ ...row, registrationNumber: restrictScIdentityInput("ROC", v) })
+                      }
+                      disabled={disabled}
+                      help={SC_ANNUAL_INTEREST.roc.help}
+                      required
+                      error={errors.registrationNumber}
+                    />
+                    <ShorakaCountrySelect
+                      label={SC_ANNUAL_INTEREST.country.label}
+                      value={row.country ?? ""}
+                      onChange={(v) => set({ ...row, country: v })}
+                      disabled={disabled}
+                      help={SC_ANNUAL_INTEREST.country.help}
+                      required
+                      error={errors.country}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_INTEREST.address.label}
+                      value={row.address ?? ""}
+                      onChange={(v) => set({ ...row, address: v })}
+                      disabled={disabled}
+                      help={SC_ANNUAL_INTEREST.address.help}
+                      required
+                      error={errors.address}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_INTEREST.acquisitionDate.label}
+                      type="date"
+                      value={toDateInput(row.acquisitionDate)}
+                      onChange={(v) => set({ ...row, acquisitionDate: v })}
+                      disabled={disabled}
+                      help={SC_ANNUAL_INTEREST.acquisitionDate.help}
+                      required
+                      error={errors.acquisitionDate}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_INTEREST.disposalDate.label}
+                      type="date"
+                      value={toDateInput(row.disposalDate)}
+                      onChange={(v) => set({ ...row, disposalDate: v })}
+                      disabled={disabled}
+                      help={SC_ANNUAL_INTEREST.disposalDate.help}
+                      error={errors.disposalDate}
+                    />
+                    <ShorakaEnumSelect
+                      label={SC_ANNUAL_INTEREST.typeOfShares.label}
+                      value={row.shareType ?? ""}
+                      options={SC_SHARE_TYPES}
+                      labels={SC_INTEREST_SHARE_TYPE_LABELS}
+                      onChange={(v) => set({ ...row, shareType: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.shareType}
+                    />
+                    {row.shareType === "OTHERS" ? (
+                      <ShorakaField
+                        label={SC_ANNUAL_INTEREST.typeOfSharesOthers.label}
+                        value={row.shareTypeOther ?? ""}
+                        onChange={(v) => set({ ...row, shareTypeOther: v })}
+                        disabled={disabled}
+                        required
+                        help={SC_ANNUAL_INTEREST.typeOfSharesOthers.help}
+                      error={errors.shareTypeOther}
+                    />
+                    ) : null}
+                    <ShorakaField
+                      label={SC_ANNUAL_INTEREST.shareholdingUnits.label}
+                      value={row.shareholdingUnits ?? ""}
+                      onChange={(v) => set({ ...row, shareholdingUnits: v })}
+                      disabled={disabled}
+                      required
+                      integer
+                      error={errors.shareholdingUnits}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_INTEREST.shareholdingPercentage.label}
+                      value={row.shareholdingPercentage ?? ""}
+                      onChange={(v) =>
+                        set({ ...row, shareholdingPercentage: v.replace(/[^\d.]/g, "") })
+                      }
+                      disabled={disabled}
+                      required
+                      inputMode="decimal"
+                      error={errors.shareholdingPercentage}
+                    />
                   </>
                 )}
               />
@@ -837,11 +1504,11 @@ export default function RmoProfilePage() {
             <div id="shoraka-financials" className="scroll-mt-24">
               <ShorakaRecordSection
                 title="Financial Statements"
-                description="Operator financial statements used on the Shoraka master record"
+                description="Enter the financial statement details for each financial year."
                 icon={DocumentTextIcon}
                 addLabel="Add financial statement"
-                emptyTitle="No financial statements yet"
-                emptyMessage="Add at least one Shoraka financial statement to complete the operator profile."
+                emptyTitle="No financial statements have been added yet"
+                emptyMessage="Add at least one financial statement."
                 rows={draft.financialStatements}
                 canManage={canManage}
                 renderCard={(row) => {
@@ -862,7 +1529,7 @@ export default function RmoProfilePage() {
                     ),
                   };
                 }}
-                blank={() => ({ currency: "MYR", auditorName: "" })}
+                blank={() => ({ auditorName: "" })}
                 dialogTitle={(mode) =>
                   mode === "add"
                     ? "Add financial statement"
@@ -871,66 +1538,343 @@ export default function RmoProfilePage() {
                       : "Edit financial statement"
                 }
                 onCreate={async (body) => {
-                  const res = await api.createOperatorFinancialStatement(body);
-                  if (!res.success) throw new Error(res.error.message);
+                  const res = await api.createOperatorFinancialStatement(shorakaFinancialPayload(body));
+                  if (!res.success) throw profileValidationErrorFromApi(res.error);
                   queryClient.setQueryData(["admin", "operator-profile"], res.data);
                 }}
                 onUpdate={async (id, body) => {
-                  const res = await api.updateOperatorFinancialStatement(id, body);
-                  if (!res.success) throw new Error(res.error.message);
+                  const res = await api.updateOperatorFinancialStatement(id, shorakaFinancialPayload(body));
+                  if (!res.success) throw profileValidationErrorFromApi(res.error);
                   queryClient.setQueryData(["admin", "operator-profile"], res.data);
                 }}
                 onDelete={async (id) => {
                   const res = await api.deleteOperatorFinancialStatement(id);
-                  if (!res.success) throw new Error(res.error.message);
+                  if (!res.success) throw profileValidationErrorFromApi(res.error);
                   queryClient.setQueryData(["admin", "operator-profile"], res.data);
                 }}
-                fields={(row, set, disabled) => (
+                validate={(row) =>
+                  validateOperatorFinancialStatement(row as unknown as Record<string, unknown>)
+                }
+                fields={(row, set, disabled, errors) => (
                   <>
-                    <ShorakaYesNo label="Consolidated accounts" value={row.consolidatedAccounts} onChange={(v) => set({ ...row, consolidatedAccounts: v })} disabled={disabled} />
-                    <ShorakaField label="Financial year end" type="date" value={toDateInput(row.financialYearEnd)} onChange={(v) => set({ ...row, financialYearEnd: v })} disabled={disabled} />
-                    <ShorakaField label="Auditor's name" value={row.auditorName ?? ""} onChange={(v) => set({ ...row, auditorName: v })} disabled={disabled} />
-                    <ShorakaYesNo label="Unmodified reports" value={row.unmodifiedReports} onChange={(v) => set({ ...row, unmodifiedReports: v })} disabled={disabled} />
-                    <ShorakaField label="Currency" value={row.currency ?? ""} onChange={(v) => set({ ...row, currency: v })} disabled={disabled} />
-                    <ShorakaField label="Number of shares" value={row.numberOfShares ?? ""} onChange={(v) => set({ ...row, numberOfShares: v })} disabled={disabled} />
-                    <ShorakaField label="Date of tabling to board" type="date" value={toDateInput(row.dateTabledToBoard)} onChange={(v) => set({ ...row, dateTabledToBoard: v })} disabled={disabled} />
-                    <ShorakaField label="Total assets" value={row.totalAssets ?? ""} onChange={(v) => set({ ...row, totalAssets: v })} disabled={disabled} />
-                    <ShorakaField label="Non-current assets" value={row.nonCurrentAssets ?? ""} onChange={(v) => set({ ...row, nonCurrentAssets: v })} disabled={disabled} />
-                    <ShorakaField label="Current assets" value={row.currentAssets ?? ""} onChange={(v) => set({ ...row, currentAssets: v })} disabled={disabled} />
-                    <ShorakaField label="Total equity" value={row.totalEquity ?? ""} onChange={(v) => set({ ...row, totalEquity: v })} disabled={disabled} />
-                    <ShorakaField label="Paid-up capital" value={row.paidUpCapital ?? ""} onChange={(v) => set({ ...row, paidUpCapital: v })} disabled={disabled} />
-                    <ShorakaField label="Share application account" value={row.shareApplicationAccount ?? ""} onChange={(v) => set({ ...row, shareApplicationAccount: v })} disabled={disabled} />
-                    <ShorakaField label="Share premium & other reserves" value={row.sharePremiumAndReserves ?? ""} onChange={(v) => set({ ...row, sharePremiumAndReserves: v })} disabled={disabled} />
-                    <ShorakaField label="Accumulated profit carried forward" value={row.accumulatedProfitCarriedForward ?? ""} onChange={(v) => set({ ...row, accumulatedProfitCarriedForward: v })} disabled={disabled} />
-                    <ShorakaField label="Minority interest (equity)" value={row.equityMinorityInterest ?? ""} onChange={(v) => set({ ...row, equityMinorityInterest: v })} disabled={disabled} />
-                    <ShorakaField label="Total liabilities" value={row.totalLiabilities ?? ""} onChange={(v) => set({ ...row, totalLiabilities: v })} disabled={disabled} />
-                    <ShorakaField label="Non-current liabilities" value={row.nonCurrentLiabilities ?? ""} onChange={(v) => set({ ...row, nonCurrentLiabilities: v })} disabled={disabled} />
-                    <ShorakaField label="Current liabilities" value={row.currentLiabilities ?? ""} onChange={(v) => set({ ...row, currentLiabilities: v })} disabled={disabled} />
-                    <ShorakaField label="Total revenue" value={row.totalRevenue ?? ""} onChange={(v) => set({ ...row, totalRevenue: v })} disabled={disabled} />
-                    <ShorakaField label="Donation based" value={row.revenueDonation ?? ""} onChange={(v) => set({ ...row, revenueDonation: v })} disabled={disabled} />
-                    <ShorakaField label="Reward based" value={row.revenueReward ?? ""} onChange={(v) => set({ ...row, revenueReward: v })} disabled={disabled} />
-                    <ShorakaField label="Lending based" value={row.revenueLending ?? ""} onChange={(v) => set({ ...row, revenueLending: v })} disabled={disabled} />
-                    <ShorakaField label="Equity based" value={row.revenueEquity ?? ""} onChange={(v) => set({ ...row, revenueEquity: v })} disabled={disabled} />
-                    <ShorakaField label="Fees charges" value={row.revenueFees ?? ""} onChange={(v) => set({ ...row, revenueFees: v })} disabled={disabled} />
-                    <ShorakaField label="Other revenue" value={row.revenueOther ?? ""} onChange={(v) => set({ ...row, revenueOther: v })} disabled={disabled} />
-                    <ShorakaField label="Interest from deposit placement" value={row.incomeDepositInterest ?? ""} onChange={(v) => set({ ...row, incomeDepositInterest: v })} disabled={disabled} />
-                    <ShorakaField label="Other income" value={row.incomeOther ?? ""} onChange={(v) => set({ ...row, incomeOther: v })} disabled={disabled} />
-                    <ShorakaField label="Total cost" value={row.totalCost ?? ""} onChange={(v) => set({ ...row, totalCost: v })} disabled={disabled} />
-                    <ShorakaField label="Staff cost" value={row.costStaff ?? ""} onChange={(v) => set({ ...row, costStaff: v })} disabled={disabled} />
-                    <ShorakaField label="System cost" value={row.costSystem ?? ""} onChange={(v) => set({ ...row, costSystem: v })} disabled={disabled} />
-                    <ShorakaField label="Promotion activities" value={row.costPromotion ?? ""} onChange={(v) => set({ ...row, costPromotion: v })} disabled={disabled} />
-                    <ShorakaField label="Other cost" value={row.costOther ?? ""} onChange={(v) => set({ ...row, costOther: v })} disabled={disabled} />
-                    <ShorakaField label="Profit/(loss) before tax" value={row.profitBeforeTax ?? ""} onChange={(v) => set({ ...row, profitBeforeTax: v })} disabled={disabled} />
-                    <ShorakaField label="Taxation" value={row.taxation ?? ""} onChange={(v) => set({ ...row, taxation: v })} disabled={disabled} />
-                    <ShorakaField label="Profit/(loss) after tax" value={row.profitAfterTax ?? ""} onChange={(v) => set({ ...row, profitAfterTax: v })} disabled={disabled} />
-                    <ShorakaField label="Minority interest (P&L)" value={row.pnlMinorityInterest ?? ""} onChange={(v) => set({ ...row, pnlMinorityInterest: v })} disabled={disabled} />
-                    <ShorakaField label="Net dividend" value={row.netDividend ?? ""} onChange={(v) => set({ ...row, netDividend: v })} disabled={disabled} />
+                    <ShorakaYesNo
+                      label={SC_ANNUAL_FINANCIAL.consolidatedAccounts.label}
+                      value={row.consolidatedAccounts}
+                      onChange={(v) => set({ ...row, consolidatedAccounts: v })}
+                      disabled={disabled}
+                      help={SC_ANNUAL_FINANCIAL.consolidatedAccounts.help}
+                      required
+                      error={errors.consolidatedAccounts}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_FINANCIAL.financialYearEnd.label}
+                      type="date"
+                      value={toDateInput(row.financialYearEnd)}
+                      onChange={(v) => set({ ...row, financialYearEnd: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.financialYearEnd}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_FINANCIAL.auditorsName.label}
+                      value={row.auditorName ?? ""}
+                      onChange={(v) => set({ ...row, auditorName: v })}
+                      disabled={disabled}
+                      help={SC_ANNUAL_FINANCIAL.auditorsName.help}
+                      required
+                      error={errors.auditorName}
+                    />
+                    <ShorakaYesNo
+                      label={SC_ANNUAL_FINANCIAL.unmodifiedReports.label}
+                      value={row.unmodifiedReports}
+                      onChange={(v) => set({ ...row, unmodifiedReports: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.unmodifiedReports}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_FINANCIAL.currency.label}
+                      value={row.currency ?? ""}
+                      onChange={(v) => set({ ...row, currency: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.currency}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_FINANCIAL.numberOfShares.label}
+                      value={row.numberOfShares ?? ""}
+                      onChange={(v) => set({ ...row, numberOfShares: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.numberOfShares}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_FINANCIAL.dateOfTablingToBoard.label}
+                      type="date"
+                      value={toDateInput(row.dateTabledToBoard)}
+                      onChange={(v) => set({ ...row, dateTabledToBoard: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.dateTabledToBoard}
+                    />
+                    <p className="text-ui font-medium sm:col-span-2">Balance Sheet</p>
+                    <ShorakaField
+                      label={SC_ANNUAL_FINANCIAL.totalAssets.label}
+                      value={row.totalAssets ?? ""}
+                      onChange={(v) => set({ ...row, totalAssets: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.totalAssets}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_FINANCIAL.nonCurrentAssets.label}
+                      value={row.nonCurrentAssets ?? ""}
+                      onChange={(v) => set({ ...row, nonCurrentAssets: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.nonCurrentAssets}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_FINANCIAL.currentAssets.label}
+                      value={row.currentAssets ?? ""}
+                      onChange={(v) => set({ ...row, currentAssets: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.currentAssets}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_FINANCIAL.totalEquity.label}
+                      value={row.totalEquity ?? ""}
+                      onChange={(v) => set({ ...row, totalEquity: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.totalEquity}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_FINANCIAL.paidUpCapital.label}
+                      value={row.paidUpCapital ?? ""}
+                      onChange={(v) => set({ ...row, paidUpCapital: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.paidUpCapital}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_FINANCIAL.shareApplicationAccount.label}
+                      value={row.shareApplicationAccount ?? ""}
+                      onChange={(v) => set({ ...row, shareApplicationAccount: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.shareApplicationAccount}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_FINANCIAL.sharePremiumAndOtherReserves.label}
+                      value={row.sharePremiumAndReserves ?? ""}
+                      onChange={(v) => set({ ...row, sharePremiumAndReserves: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.sharePremiumAndReserves}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_FINANCIAL.accumulatedProfitCarriedForward.label}
+                      value={row.accumulatedProfitCarriedForward ?? ""}
+                      onChange={(v) => set({ ...row, accumulatedProfitCarriedForward: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.accumulatedProfitCarriedForward}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_FINANCIAL.minorityInterest.label}
+                      value={row.equityMinorityInterest ?? ""}
+                      onChange={(v) => set({ ...row, equityMinorityInterest: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.equityMinorityInterest}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_FINANCIAL.totalLiabilities.label}
+                      value={row.totalLiabilities ?? ""}
+                      onChange={(v) => set({ ...row, totalLiabilities: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.totalLiabilities}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_FINANCIAL.nonCurrentLiabilities.label}
+                      value={row.nonCurrentLiabilities ?? ""}
+                      onChange={(v) => set({ ...row, nonCurrentLiabilities: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.nonCurrentLiabilities}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_FINANCIAL.currentLiabilities.label}
+                      value={row.currentLiabilities ?? ""}
+                      onChange={(v) => set({ ...row, currentLiabilities: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.currentLiabilities}
+                    />
+                    <p className="text-ui font-medium sm:col-span-2">Profit and Loss Account</p>
+                    <ShorakaField
+                      label={SC_ANNUAL_FINANCIAL.totalRevenue.label}
+                      value={row.totalRevenue ?? ""}
+                      onChange={(v) => set({ ...row, totalRevenue: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.totalRevenue}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_FINANCIAL.donationBased.label}
+                      value={row.revenueDonation ?? ""}
+                      onChange={(v) => set({ ...row, revenueDonation: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.revenueDonation}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_FINANCIAL.rewardBased.label}
+                      value={row.revenueReward ?? ""}
+                      onChange={(v) => set({ ...row, revenueReward: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.revenueReward}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_FINANCIAL.lendingBased.label}
+                      value={row.revenueLending ?? ""}
+                      onChange={(v) => set({ ...row, revenueLending: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.revenueLending}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_FINANCIAL.equityBased.label}
+                      value={row.revenueEquity ?? ""}
+                      onChange={(v) => set({ ...row, revenueEquity: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.revenueEquity}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_FINANCIAL.feesCharges.label}
+                      value={row.revenueFees ?? ""}
+                      onChange={(v) => set({ ...row, revenueFees: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.revenueFees}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_FINANCIAL.otherRevenue.label}
+                      value={row.revenueOther ?? ""}
+                      onChange={(v) => set({ ...row, revenueOther: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.revenueOther}
+                    />
+                    <p className="text-ui font-medium sm:col-span-2">{SC_ANNUAL_FINANCIAL.otherIncome.label}</p>
+                    <ShorakaField
+                      label={SC_ANNUAL_FINANCIAL.interestFromDepositPlacement.label}
+                      value={row.incomeDepositInterest ?? ""}
+                      onChange={(v) => set({ ...row, incomeDepositInterest: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.incomeDepositInterest}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_FINANCIAL.otherIncomeLine.label}
+                      value={row.incomeOther ?? ""}
+                      onChange={(v) => set({ ...row, incomeOther: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.incomeOther}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_FINANCIAL.totalCost.label}
+                      value={row.totalCost ?? ""}
+                      onChange={(v) => set({ ...row, totalCost: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.totalCost}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_FINANCIAL.staffCost.label}
+                      value={row.costStaff ?? ""}
+                      onChange={(v) => set({ ...row, costStaff: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.costStaff}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_FINANCIAL.systemCost.label}
+                      value={row.costSystem ?? ""}
+                      onChange={(v) => set({ ...row, costSystem: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.costSystem}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_FINANCIAL.promotionActivities.label}
+                      value={row.costPromotion ?? ""}
+                      onChange={(v) => set({ ...row, costPromotion: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.costPromotion}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_FINANCIAL.otherCost.label}
+                      value={row.costOther ?? ""}
+                      onChange={(v) => set({ ...row, costOther: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.costOther}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_FINANCIAL.profitLossBeforeTax.label}
+                      value={row.profitBeforeTax ?? ""}
+                      onChange={(v) => set({ ...row, profitBeforeTax: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.profitBeforeTax}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_FINANCIAL.taxation.label}
+                      value={row.taxation ?? ""}
+                      onChange={(v) => set({ ...row, taxation: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.taxation}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_FINANCIAL.profitLossAfterTax.label}
+                      value={row.profitAfterTax ?? ""}
+                      onChange={(v) => set({ ...row, profitAfterTax: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.profitAfterTax}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_FINANCIAL.minorityInterest.label}
+                      value={row.pnlMinorityInterest ?? ""}
+                      onChange={(v) => set({ ...row, pnlMinorityInterest: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.pnlMinorityInterest}
+                    />
+                    <ShorakaField
+                      label={SC_ANNUAL_FINANCIAL.netDividend.label}
+                      value={row.netDividend ?? ""}
+                      onChange={(v) => set({ ...row, netDividend: v })}
+                      disabled={disabled}
+                      required
+                      error={errors.netDividend}
+                    />
                   </>
                 )}
               />
             </div>
           </AdminDetailTabPanel>
         </AdminDetailTabs>
+      </div>
       </div>
     </RequirePermission>
   );

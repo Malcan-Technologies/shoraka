@@ -190,7 +190,7 @@ export function OnboardingStatusCard({
             unresolvedCorporatePeople.length === 0 &&
             resolvedCtosEmptyWarning ? (
               <p className="text-sm text-muted-foreground">
-                No directors or shareholders are available from CTOS.
+                No directors or shareholders were found in the latest CTOS information.
               </p>
             ) : null}
           </CardContent>

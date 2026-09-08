@@ -2,18 +2,33 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import type { OrganizationPartyProfileDto } from "@cashsouk/types";
+import type { ApplicationPersonRow, OrganizationPartyProfileDto } from "@cashsouk/types";
 import {
+  firstIssueMessage,
+  isIssuerOfficerRole,
+  isProfileValidationError,
+  issuerShareholdingThresholdIssue,
+  issuesByField,
+  monthlyIssuerPersonCopy,
+  restrictScIdentityInput,
+  restrictScPostcodeInput,
+  SELECT_AT_LEAST_ONE_ROLE_MESSAGE,
   SC_DESIGNATION_LABELS,
   SC_DESIGNATIONS,
   SC_GENDER_LABELS,
-  SC_GENDERS,
-  SC_IDENTITY_PREFIX_LABELS,
+  SC_INDIVIDUAL_GENDERS,
   SC_IDENTITY_PREFIXES,
   SC_MALAYSIAN_STATES,
+  SC_MONTHLY_BOARD,
+  SC_MONTHLY_ISSUER,
+  SC_MONTHLY_PERSON_KIND_LABELS,
+  SC_MONTHLY_SHAREHOLDER,
   SC_SHARE_TYPE_LABELS,
   SC_SHARE_TYPES,
+  scAppendixASelectValues,
+  validateIssuerPersonForm,
 } from "@cashsouk/types";
+import { ComRepFieldLabel } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -24,7 +39,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -63,6 +77,36 @@ export type PartyEditorValues = {
   resignationDate: string;
 };
 
+const emptyValues: PartyEditorValues = {
+  name: "",
+  salutation: "",
+  identityPrefix: "NRIC",
+  identityNumber: "",
+  entityType: "INDIVIDUAL",
+  isDirector: false,
+  isShareholder: false,
+  isBoard: false,
+  isManagement: false,
+  gender: "",
+  nationality: "",
+  countryOfIncorporation: "",
+  dateOfBirth: "",
+  dateOfIncorporation: "",
+  line1: "",
+  line2: "",
+  state: "",
+  postalCode: "",
+  shareholdingPercentage: "",
+  shareType: "ORDINARY",
+  shareTypeOther: "",
+  shareholdingUnits: "",
+  shareholdingAmount: "",
+  designation: "",
+  designationOther: "",
+  appointmentDate: "",
+  resignationDate: "",
+};
+
 export function partyToEditorValues(party: OrganizationPartyProfileDto): PartyEditorValues {
   return {
     name: party.name ?? "",
@@ -95,35 +139,23 @@ export function partyToEditorValues(party: OrganizationPartyProfileDto): PartyEd
   };
 }
 
-const emptyValues: PartyEditorValues = {
-  name: "",
-  salutation: "",
-  identityPrefix: "NRIC",
-  identityNumber: "",
-  entityType: "INDIVIDUAL",
-  isDirector: false,
-  isShareholder: false,
-  isBoard: false,
-  isManagement: false,
-  gender: "",
-  nationality: "",
-  countryOfIncorporation: "",
-  dateOfBirth: "",
-  dateOfIncorporation: "",
-  line1: "",
-  line2: "",
-  state: "",
-  postalCode: "",
-  shareholdingPercentage: "",
-  shareType: "ORDINARY",
-  shareTypeOther: "",
-  shareholdingUnits: "",
-  shareholdingAmount: "",
-  designation: "",
-  designationOther: "",
-  appointmentDate: "",
-  resignationDate: "",
-};
+export function personToEditorValues(person: ApplicationPersonRow): PartyEditorValues {
+  const roles = (person.roles ?? []).map((role) => role.toUpperCase());
+  const corporate = person.entityType === "CORPORATE";
+  return {
+    ...emptyValues,
+    name: person.name ?? "",
+    identityNumber: person.matchKey ?? "",
+    identityPrefix: corporate ? "ROC" : "NRIC",
+    entityType: person.entityType,
+    isDirector: roles.includes("DIRECTOR"),
+    isShareholder: roles.includes("SHAREHOLDER"),
+    isBoard: roles.includes("BOARD"),
+    isManagement: roles.includes("MANAGEMENT"),
+    shareholdingPercentage: person.sharePercentage != null ? String(person.sharePercentage) : "",
+    shareType: roles.includes("SHAREHOLDER") ? "ORDINARY" : "",
+  };
+}
 
 export function OrganizationPersonEditorDialog({
   open,
@@ -133,6 +165,7 @@ export function OrganizationPersonEditorDialog({
   initial,
   isSaving,
   onSave,
+  enforceIssuerShareholderMinimum = true,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -141,11 +174,16 @@ export function OrganizationPersonEditorDialog({
   initial?: PartyEditorValues | null;
   isSaving: boolean;
   onSave: (values: PartyEditorValues) => Promise<void>;
+  enforceIssuerShareholderMinimum?: boolean;
 }) {
   const [values, setValues] = React.useState<PartyEditorValues>(initial ?? emptyValues);
+  const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
 
   React.useEffect(() => {
-    if (open) setValues(initial ?? emptyValues);
+    if (open) {
+      setValues(initial ?? emptyValues);
+      setFieldErrors({});
+    }
   }, [open, initial]);
 
   const set = <K extends keyof PartyEditorValues>(key: K, value: PartyEditorValues[K]) => {
@@ -153,7 +191,9 @@ export function OrganizationPersonEditorDialog({
   };
   const corporate = values.entityType === "CORPORATE";
   const showShare = corporate || values.isShareholder;
-  const showOfficer = !corporate && (values.isDirector || values.isBoard || values.isManagement);
+  const showOfficer = !corporate && isIssuerOfficerRole(values);
+  const copy = monthlyIssuerPersonCopy({ shareholder: showShare, officer: showOfficer });
+  const prefixOptions = SC_IDENTITY_PREFIXES.filter((key) => copy.includeRocPrefix || key !== "ROC");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -163,10 +203,27 @@ export function OrganizationPersonEditorDialog({
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Name" value={values.name} onChange={(name) => set("name", name)} />
-          <Field label="Salutation" value={values.salutation} onChange={(salutation) => set("salutation", salutation)} />
+          <Field
+            label={copy.name.label}
+            value={values.name}
+            onChange={(name) => set("name", name)}
+            required
+            help={copy.name.help}
+            error={fieldErrors.name}
+            maxLength={500}
+          />
+          {!corporate ? (
+            <Field
+              label={copy.salutation.label}
+              value={values.salutation}
+              onChange={(salutation) => set("salutation", salutation)}
+              help={copy.salutation.help}
+            />
+          ) : null}
           <div className="space-y-1.5">
-            <Label className="text-ui">Entity</Label>
+            <ComRepFieldLabel
+              label={showShare ? SC_MONTHLY_SHAREHOLDER.shareholderType.label : "Person / entity type"}
+            />
             <Select
               value={values.entityType}
               onValueChange={(entityType: "INDIVIDUAL" | "CORPORATE") => {
@@ -175,6 +232,7 @@ export function OrganizationPersonEditorDialog({
                     ...current,
                     entityType,
                     identityPrefix: "ROC",
+                    identityNumber: restrictScIdentityInput("ROC", current.identityNumber),
                     isDirector: false,
                     isBoard: false,
                     isManagement: false,
@@ -183,7 +241,14 @@ export function OrganizationPersonEditorDialog({
                   }));
                   return;
                 }
-                set("entityType", entityType);
+                setValues((current) => ({
+                    ...current,
+                    entityType,
+                    identityPrefix: "NRIC",
+                    identityNumber: restrictScIdentityInput("NRIC", current.identityNumber),
+                    gender: current.gender === "NOT_APPLICABLE" ? "" : current.gender,
+                    salutation: current.salutation,
+                  }));
               }}
             >
               <SelectTrigger className="h-10 text-ui">
@@ -195,36 +260,59 @@ export function OrganizationPersonEditorDialog({
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-ui">Identity type</Label>
-            <Select
-              value={values.identityPrefix || undefined}
-              onValueChange={(identityPrefix) => set("identityPrefix", identityPrefix)}
-            >
-              <SelectTrigger className="h-10 text-ui">
-                <SelectValue placeholder="Select" />
-              </SelectTrigger>
-              <SelectContent>
-                {SC_IDENTITY_PREFIXES.map((prefix) => (
-                  <SelectItem key={prefix} value={prefix}>
-                    {SC_IDENTITY_PREFIX_LABELS[prefix]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {!corporate ? (
+            <div className="space-y-1.5">
+              <ComRepFieldLabel label={copy.identityPrefix.label} />
+              <Select
+                value={values.identityPrefix || undefined}
+                onValueChange={(identityPrefix) => {
+                  set("identityPrefix", identityPrefix);
+                  set(
+                    "identityNumber",
+                    restrictScIdentityInput(
+                      identityPrefix === "PASSPORT" ? "PASSPORT" : "NRIC",
+                      values.identityNumber
+                    )
+                  );
+                }}
+              >
+                <SelectTrigger className="h-10 text-ui">
+                  <SelectValue placeholder="Select" />
+                </SelectTrigger>
+                <SelectContent>
+                  {prefixOptions.map((prefix) => (
+                    <SelectItem key={prefix} value={prefix}>
+                      {copy.identityPrefixLabels[prefix as keyof typeof copy.identityPrefixLabels] ?? prefix}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
           <Field
-            label="Identity number"
+            label={copy.identity.label}
             value={values.identityNumber}
-            onChange={(identityNumber) => set("identityNumber", identityNumber)}
+            onChange={(identityNumber) =>
+              set(
+                "identityNumber",
+                restrictScIdentityInput(
+                  corporate ? "ROC" : values.identityPrefix === "PASSPORT" ? "PASSPORT" : "NRIC",
+                  identityNumber
+                )
+              )
+            }
+            required
+            help={copy.identity.help}
+            error={fieldErrors.identityNumber}
+            maxLength={500}
           />
           <fieldset className="space-y-2 sm:col-span-2">
             <legend className="text-ui">Roles</legend>
             {(
               [
                 ["isDirector", "Director"],
-                ["isBoard", "Board"],
-                ["isManagement", "Management"],
+                ["isBoard", SC_MONTHLY_PERSON_KIND_LABELS.BOARD],
+                ["isManagement", SC_MONTHLY_PERSON_KIND_LABELS.MANAGEMENT],
                 ["isShareholder", "Shareholder"],
               ] as const
             ).map(([key, label]) => (
@@ -244,26 +332,40 @@ export function OrganizationPersonEditorDialog({
             <>
               <Field
                 type="date"
-                label="Date of incorporation"
+                label={SC_MONTHLY_ISSUER.dateOfIncorporation.label}
                 value={values.dateOfIncorporation}
                 onChange={(dateOfIncorporation) => set("dateOfIncorporation", dateOfIncorporation)}
+                required
               />
-              <Field
-                label="Country of incorporation"
-                value={values.countryOfIncorporation}
-                onChange={(countryOfIncorporation) => set("countryOfIncorporation", countryOfIncorporation)}
-              />
+              <div className="space-y-1.5">
+                <ComRepFieldLabel label={copy.nationality.label} help={copy.nationality.help} required />
+                <Select
+                  value={values.countryOfIncorporation || undefined}
+                  onValueChange={(countryOfIncorporation) => set("countryOfIncorporation", countryOfIncorporation)}
+                >
+                  <SelectTrigger className="h-10 text-ui">
+                    <SelectValue placeholder="Select" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72">
+                    {scAppendixASelectValues(values.countryOfIncorporation).map((country) => (
+                      <SelectItem key={country} value={country}>
+                        {country}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </>
           ) : (
             <>
               <div className="space-y-1.5">
-                <Label className="text-ui">Gender</Label>
+                <ComRepFieldLabel label={copy.gender.label} help={copy.gender.help} required />
                 <Select value={values.gender || undefined} onValueChange={(gender) => set("gender", gender)}>
                   <SelectTrigger className="h-10 text-ui">
                     <SelectValue placeholder="Select" />
                   </SelectTrigger>
                   <SelectContent>
-                    {SC_GENDERS.map((gender) => (
+                    {SC_INDIVIDUAL_GENDERS.map((gender) => (
                       <SelectItem key={gender} value={gender}>
                         {SC_GENDER_LABELS[gender]}
                       </SelectItem>
@@ -273,21 +375,48 @@ export function OrganizationPersonEditorDialog({
               </div>
               <Field
                 type="date"
-                label="Date of birth"
+                label={copy.dateOfBirth.label}
                 value={values.dateOfBirth}
                 onChange={(dateOfBirth) => set("dateOfBirth", dateOfBirth)}
+                help={copy.dateOfBirth.help}
+                required
               />
-              <Field
-                label="Nationality"
-                value={values.nationality}
-                onChange={(nationality) => set("nationality", nationality)}
-              />
+              <div className="space-y-1.5">
+                <ComRepFieldLabel label={copy.nationality.label} help={copy.nationality.help} required />
+                <Select
+                  value={values.nationality || undefined}
+                  onValueChange={(nationality) => set("nationality", nationality)}
+                >
+                  <SelectTrigger className="h-10 text-ui">
+                    <SelectValue placeholder="Select" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72">
+                    {scAppendixASelectValues(values.nationality).map((country) => (
+                      <SelectItem key={country} value={country}>
+                        {country}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </>
           )}
-          <Field label="Address" value={values.line1} onChange={(line1) => set("line1", line1)} />
-          <Field label="Address line 2" value={values.line2} onChange={(line2) => set("line2", line2)} />
+          <Field
+            label={copy.address.label}
+            value={values.line1}
+            onChange={(line1) => set("line1", line1)}
+            required
+            error={fieldErrors["address.line1"]}
+            maxLength={500}
+          />
+          <Field
+            label="Address line 2"
+            value={values.line2}
+            onChange={(line2) => set("line2", line2)}
+            maxLength={500}
+          />
           <div className="space-y-1.5">
-            <Label className="text-ui">State</Label>
+            <ComRepFieldLabel label={copy.addressState.label} help={copy.addressState.help} required />
             <Select value={values.state || undefined} onValueChange={(state) => set("state", state)}>
               <SelectTrigger className="h-10 text-ui">
                 <SelectValue placeholder="Select" />
@@ -301,11 +430,22 @@ export function OrganizationPersonEditorDialog({
               </SelectContent>
             </Select>
           </div>
-          <Field label="Postcode" value={values.postalCode} onChange={(postalCode) => set("postalCode", postalCode)} />
+          <Field
+            label={copy.addressPostcode.label}
+            value={values.postalCode}
+            onChange={(postalCode) =>
+              set("postalCode", restrictScPostcodeInput(values.state, postalCode))
+            }
+            help={copy.addressPostcode.help}
+            required={values.state !== "Outside Malaysia"}
+            error={fieldErrors["address.postalCode"]}
+            inputMode={values.state === "Outside Malaysia" ? undefined : "numeric"}
+            maxLength={values.state === "Outside Malaysia" ? 500 : 32}
+          />
           {showShare ? (
             <>
               <div className="space-y-1.5">
-                <Label className="text-ui">Share type</Label>
+                <ComRepFieldLabel label={SC_MONTHLY_SHAREHOLDER.typeOfShares.label} required />
                 <Select value={values.shareType || undefined} onValueChange={(shareType) => set("shareType", shareType)}>
                   <SelectTrigger className="h-10 text-ui">
                     <SelectValue placeholder="Select" />
@@ -321,32 +461,48 @@ export function OrganizationPersonEditorDialog({
               </div>
               {values.shareType === "OTHERS" ? (
                 <Field
-                  label="Other share type"
+                  label={SC_MONTHLY_SHAREHOLDER.typeOfSharesOthers.label}
                   value={values.shareTypeOther}
                   onChange={(shareTypeOther) => set("shareTypeOther", shareTypeOther)}
+                  required
                 />
               ) : null}
               <Field
-                label="Shareholding units"
+                label={SC_MONTHLY_SHAREHOLDER.shareholdingUnits.label}
                 value={values.shareholdingUnits}
-                onChange={(shareholdingUnits) => set("shareholdingUnits", shareholdingUnits)}
+                onChange={(shareholdingUnits) =>
+                  set("shareholdingUnits", shareholdingUnits.replace(/[^\d.]/g, ""))
+                }
+                required
+                error={fieldErrors.shareholdingUnits}
+                inputMode="decimal"
               />
               <Field
-                label="Shareholding amount"
+                label={SC_MONTHLY_SHAREHOLDER.shareholdingAmount.label}
                 value={values.shareholdingAmount}
-                onChange={(shareholdingAmount) => set("shareholdingAmount", shareholdingAmount)}
+                onChange={(shareholdingAmount) =>
+                  set("shareholdingAmount", shareholdingAmount.replace(/[^\d.]/g, ""))
+                }
+                required
+                error={fieldErrors.shareholdingAmount}
+                inputMode="decimal"
               />
               <Field
-                label="Shareholding %"
+                label={SC_MONTHLY_SHAREHOLDER.shareholdingPercentage.label}
                 value={values.shareholdingPercentage}
-                onChange={(shareholdingPercentage) => set("shareholdingPercentage", shareholdingPercentage)}
+                onChange={(shareholdingPercentage) =>
+                  set("shareholdingPercentage", shareholdingPercentage.replace(/[^\d.]/g, ""))
+                }
+                required
+                error={fieldErrors.shareholdingPercentage}
+                inputMode="decimal"
               />
             </>
           ) : null}
           {showOfficer ? (
             <>
               <div className="space-y-1.5">
-                <Label className="text-ui">Designation</Label>
+                <ComRepFieldLabel label={SC_MONTHLY_BOARD.designation.label} required />
                 <Select
                   value={values.designation || undefined}
                   onValueChange={(designation) => set("designation", designation)}
@@ -365,22 +521,26 @@ export function OrganizationPersonEditorDialog({
               </div>
               {values.designation === "OTHERS" ? (
                 <Field
-                  label="Other designation"
+                  label={SC_MONTHLY_BOARD.designationOthers.label}
                   value={values.designationOther}
                   onChange={(designationOther) => set("designationOther", designationOther)}
+                  required
+                  help={SC_MONTHLY_BOARD.designationOthers.help}
                 />
               ) : null}
               <Field
                 type="date"
-                label="Appointment date"
+                label={SC_MONTHLY_BOARD.appointmentDate.label}
                 value={values.appointmentDate}
                 onChange={(appointmentDate) => set("appointmentDate", appointmentDate)}
+                required
               />
               <Field
                 type="date"
-                label="Resignation date"
+                label={SC_MONTHLY_BOARD.resignationDate.label}
                 value={values.resignationDate}
                 onChange={(resignationDate) => set("resignationDate", resignationDate)}
+                help={SC_MONTHLY_BOARD.resignationDate.help}
               />
             </>
           ) : null}
@@ -393,16 +553,56 @@ export function OrganizationPersonEditorDialog({
             type="button"
             className="h-10"
             disabled={isSaving}
-            onClick={() => {
-              if (!values.name.trim()) {
-                toast.error("Name is required");
-                return;
-              }
+            onClick={async () => {
               if (!values.isDirector && !values.isShareholder && !values.isBoard && !values.isManagement) {
-                toast.error("Select at least one role");
+                toast.error(SELECT_AT_LEAST_ONE_ROLE_MESSAGE);
                 return;
               }
-              void onSave(values);
+              const officer = isIssuerOfficerRole(values);
+              const issues = validateIssuerPersonForm({
+                entityType: values.entityType,
+                name: values.name,
+                identityPrefix: values.identityPrefix,
+                identityNumber: values.identityNumber,
+                dateOfBirth: values.dateOfBirth,
+                dateOfIncorporation: values.dateOfIncorporation,
+                gender: values.gender,
+                nationality: values.nationality,
+                countryOfIncorporation: values.countryOfIncorporation,
+                line1: values.line1,
+                state: values.state,
+                postalCode: values.postalCode,
+                isShareholder: values.isShareholder || values.entityType === "CORPORATE",
+                isOfficer: officer && values.entityType !== "CORPORATE",
+                shareType: values.shareType,
+                shareTypeOther: values.shareTypeOther,
+                shareholdingUnits: values.shareholdingUnits,
+                shareholdingAmount: values.shareholdingAmount,
+                shareholdingPercentage: values.shareholdingPercentage,
+                designation: values.designation,
+                designationOther: values.designationOther,
+                appointmentDate: values.appointmentDate,
+              });
+              if (
+                enforceIssuerShareholderMinimum &&
+                (values.isShareholder || values.entityType === "CORPORATE")
+              ) {
+                const shareIssue = issuerShareholdingThresholdIssue(values.shareholdingPercentage, {
+                  required: true,
+                });
+                if (shareIssue) issues.push(shareIssue);
+              }
+              if (issues.length > 0) {
+                setFieldErrors(issuesByField(issues));
+                toast.error(firstIssueMessage(issues));
+                return;
+              }
+              setFieldErrors({});
+              try {
+                await onSave(values);
+              } catch (err) {
+                if (isProfileValidationError(err)) setFieldErrors(err.fieldErrors);
+              }
             }}
           >
             {isSaving ? "Saving..." : "Save"}
@@ -418,21 +618,35 @@ function Field({
   value,
   onChange,
   type = "text",
+  help,
+  required = false,
+  error,
+  maxLength,
+  inputMode,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   type?: "text" | "date";
+  help?: string;
+  required?: boolean;
+  error?: string;
+  maxLength?: number;
+  inputMode?: "numeric" | "decimal" | "email" | "tel" | "text";
 }) {
   return (
     <div className="space-y-1.5">
-      <Label className="text-ui">{label}</Label>
+      <ComRepFieldLabel label={label} required={required} help={help} />
       <Input
         className="h-10 text-ui"
         type={type}
         value={value}
+        maxLength={maxLength}
+        inputMode={inputMode}
         onChange={(event) => onChange(event.target.value)}
+        aria-invalid={Boolean(error)}
       />
+      {error ? <p className="text-meta text-destructive">{error}</p> : null}
     </div>
   );
 }

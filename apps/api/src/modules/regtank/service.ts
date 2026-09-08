@@ -15,12 +15,13 @@ import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { OrganizationRepository } from "../organization/repository";
 import { getRegTankConfig } from "../../config/regtank";
 import { advanceOnboardingStatusFromFlags } from "../onboarding/utils/advance-onboarding-status";
-import { normalizeRawStatus } from "@cashsouk/types";
+import { appliesRegTankSophisticatedStatus, normalizeRawStatus } from "@cashsouk/types";
 import {
   decideIndividualApprovedOutcome,
   getIndividualWaitForApprovalUpdate,
 } from "./helpers/individual-onboarding-transition";
 import { assertIssuerOnboardingFeePaid } from "../payment/onboarding-fee-service";
+import { preserveFilledOrgIdentityFields } from "../organization-profile/serialize";
 import {
   auditContextFromRequest,
   createOnboardingLogRow,
@@ -1895,11 +1896,11 @@ export class RegTankService {
   }
 
   /**
-   * Determine if an investor qualifies as a sophisticated investor based on RegTank form data.
+   * Determine if a personal investor qualifies as a sophisticated investor based on RegTank form data.
    *
-   * Criteria (any one = true):
-   * - COMPANY type: Always qualifies as sophisticated investor
-   * - PERSONAL type (any one qualifies):
+   * Company sophistication is not inferred here. A company Yes/No is an explicit profile choice.
+   *
+   * Personal criteria (any one = true):
    *   1. Net Assets >= RM 3,000,000 (from compliance_declaration)
    *   2. Annual Income >= RM 300,000 (from compliance_declaration)
    *   3. Investment Portfolio >= RM 1,000,000 (from compliance_declaration)
@@ -1909,15 +1910,8 @@ export class RegTankService {
    * @returns { isSophisticated: boolean; reason: string | null }
    */
   private determineSophisticatedInvestorStatus(
-    complianceDeclaration: unknown,
-    organizationType: OrganizationType
+    complianceDeclaration: unknown
   ): { isSophisticated: boolean; reason: string | null } {
-    // For COMPANY type, always return true
-    if (organizationType === "COMPANY") {
-      logger.info("COMPANY type organization, automatically qualifies as sophisticated investor");
-      return { isSophisticated: true, reason: "Company organization" };
-    }
-
     const reasons: string[] = [];
 
     // Check compliance declaration for all qualifying criteria
@@ -2295,6 +2289,19 @@ export class RegTankService {
             owner_user_id: true,
             is_sophisticated_investor: true,
             sophisticated_investor_reason: true,
+            first_name: true,
+            last_name: true,
+            middle_name: true,
+            nationality: true,
+            country: true,
+            id_issuing_country: true,
+            gender: true,
+            address: true,
+            date_of_birth: true,
+            document_type: true,
+            document_number: true,
+            phone_number: true,
+            legal_name_on_id: true,
           },
         });
 
@@ -2302,54 +2309,58 @@ export class RegTankService {
           throw new Error(`Investor organization ${organizationId} not found`);
         }
 
-        // Determine sophisticated investor status for investor organizations
-        const sophisticatedResult = this.determineSophisticatedInvestorStatus(
-          complianceDeclaration,
-          org.type
+        const identityUpdate = preserveFilledOrgIdentityFields(
+          org as unknown as Record<string, unknown>,
+          updateData as unknown as Record<string, unknown>
         );
+        const investorUpdate: Record<string, unknown> = { ...identityUpdate };
 
-        logger.info(
-          {
-            organizationId,
-            organizationType: org.type,
-            isSophisticatedInvestor: sophisticatedResult.isSophisticated,
-            sophisticatedInvestorReason: sophisticatedResult.reason,
-          },
-          "Determined sophisticated investor status"
-        );
+        if (appliesRegTankSophisticatedStatus(org.type)) {
+          const sophisticatedResult = this.determineSophisticatedInvestorStatus(
+            complianceDeclaration
+          );
+          logger.info(
+            {
+              organizationId,
+              organizationType: org.type,
+              isSophisticatedInvestor: sophisticatedResult.isSophisticated,
+              sophisticatedInvestorReason: sophisticatedResult.reason,
+            },
+            "Determined sophisticated investor status"
+          );
+          investorUpdate.is_sophisticated_investor = sophisticatedResult.isSophisticated;
+          investorUpdate.sophisticated_investor_reason = sophisticatedResult.reason;
+        }
 
         await persistOrganizationUpdateAndOnboardingLogs({
           portalType: "investor",
           organizationId,
-          data: {
-            ...updateData,
-            is_sophisticated_investor: sophisticatedResult.isSophisticated,
-            sophisticated_investor_reason: sophisticatedResult.reason,
-          },
-          logs: sophisticatedResult.isSophisticated
-            ? [
-                {
-                  userId: org.owner_user_id,
-                  role: UserRole.INVESTOR,
-                  eventType: "SOPHISTICATED_STATUS_UPDATED",
-                  portal: "investor",
-                  organizationName: org.name,
-                  investorOrganizationId: organizationId,
-                  issuerOrganizationId: null,
-                  metadata: {
-                    organizationId,
-                    previousStatus: org.is_sophisticated_investor,
-                    previousReason: org.sophisticated_investor_reason,
-                    newStatus: sophisticatedResult.isSophisticated,
-                    newReason: sophisticatedResult.reason,
-                    updatedBy: "system",
-                    action: "auto_granted",
-                    source: "regtank_onboarding",
+          data: investorUpdate as Prisma.InvestorOrganizationUpdateInput,
+          logs:
+            appliesRegTankSophisticatedStatus(org.type) && investorUpdate.is_sophisticated_investor
+              ? [
+                  {
+                    userId: org.owner_user_id,
+                    role: UserRole.INVESTOR,
+                    eventType: "SOPHISTICATED_STATUS_UPDATED",
+                    portal: "investor",
+                    organizationName: org.name,
+                    investorOrganizationId: organizationId,
+                    issuerOrganizationId: null,
+                    metadata: {
+                      organizationId,
+                      previousStatus: org.is_sophisticated_investor,
+                      previousReason: org.sophisticated_investor_reason,
+                      newStatus: investorUpdate.is_sophisticated_investor,
+                      newReason: investorUpdate.sophisticated_investor_reason,
+                      updatedBy: "system",
+                      action: "auto_granted",
+                      source: "regtank_onboarding",
+                    },
+                    context: webhookAuditContext(),
                   },
-                  context: webhookAuditContext(),
-                },
-              ]
-            : [],
+                ]
+              : [],
         });
 
         logger.info(
@@ -2368,7 +2379,21 @@ export class RegTankService {
         // Verify organization exists before updating
         const orgExists = await prisma.issuerOrganization.findUnique({
           where: { id: organizationId },
-          select: { id: true },
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            middle_name: true,
+            nationality: true,
+            country: true,
+            id_issuing_country: true,
+            gender: true,
+            address: true,
+            date_of_birth: true,
+            document_type: true,
+            document_number: true,
+            phone_number: true,
+          },
         });
 
         if (!orgExists) {
@@ -2377,7 +2402,10 @@ export class RegTankService {
 
         const updated = await prisma.issuerOrganization.update({
           where: { id: organizationId },
-          data: updateData,
+          data: preserveFilledOrgIdentityFields(
+            orgExists as unknown as Record<string, unknown>,
+            updateData as unknown as Record<string, unknown>
+          ) as typeof updateData,
         });
 
         logger.info(

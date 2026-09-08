@@ -7,6 +7,11 @@ import type {
   OperatorProfileDto,
   OperatorShareCapitalDto,
   OperatorShareholderDto,
+  ScCompanyType,
+} from "@cashsouk/types";
+import {
+  normalizeScIdentityNumber,
+  normalizeScRegistrationNumber,
 } from "@cashsouk/types";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
@@ -22,9 +27,33 @@ import type {
 
 const SINGLETON = "cashsouk";
 
+function holderIdentityNumber(
+  entityType: OperatorShareholderInput["entityType"],
+  value: string | null | undefined,
+  nationality?: string | null
+): string | null {
+  return normalizeScIdentityNumber({
+    value,
+    entityType,
+    nationality,
+  });
+}
+
 function dec(value: string | number | null | undefined): Prisma.Decimal | null {
   if (value === null || value === undefined || value === "") return null;
   return new Prisma.Decimal(value);
+}
+
+function optionalDec(value: string | number | null | undefined): Prisma.Decimal | null | undefined {
+  if (value === undefined) return undefined;
+  return dec(value);
+}
+
+function decimalToScIntegerString(value: Prisma.Decimal | null): string | null {
+  const raw = decimalToString(value);
+  if (!raw) return null;
+  if (/^\d+\.0+$/.test(raw)) return raw.replace(/\.0+$/, "");
+  return raw;
 }
 
 function serializeShareCapital(row: {
@@ -46,18 +75,18 @@ function serializeShareCapital(row: {
 }): OperatorShareCapitalDto {
   return {
     id: row.id,
-    ordinaryUnits: decimalToString(row.ordinary_units),
+    ordinaryUnits: decimalToScIntegerString(row.ordinary_units),
     ordinaryAmount: decimalToString(row.ordinary_amount),
-    preferenceUnits: decimalToString(row.preference_units),
+    preferenceUnits: decimalToScIntegerString(row.preference_units),
     preferenceAmount: decimalToString(row.preference_amount),
-    othersUnits: decimalToString(row.others_units),
+    othersUnits: decimalToScIntegerString(row.others_units),
     othersAmount: decimalToString(row.others_amount),
-    totalPaidUpCapital: decimalToString(row.total_paid_up_capital),
-    llpMembersCapitalUnits: decimalToString(row.llp_members_capital_units),
+    totalPaidUpCapital: decimalToScIntegerString(row.total_paid_up_capital),
+    llpMembersCapitalUnits: decimalToScIntegerString(row.llp_members_capital_units),
     llpMembersCapitalAmount: decimalToString(row.llp_members_capital_amount),
-    llpMembersReservesUnits: decimalToString(row.llp_members_reserves_units),
+    llpMembersReservesUnits: decimalToScIntegerString(row.llp_members_reserves_units),
     llpMembersReservesAmount: decimalToString(row.llp_members_reserves_amount),
-    llpSubordinatedLoansUnits: decimalToString(row.llp_subordinated_loans_units),
+    llpSubordinatedLoansUnits: decimalToScIntegerString(row.llp_subordinated_loans_units),
     llpSubordinatedLoansAmount: decimalToString(row.llp_subordinated_loans_amount),
     totalLlp: decimalToString(row.total_llp),
   };
@@ -300,6 +329,7 @@ export async function getOrCreateOperatorProfile(): Promise<OperatorProfileDto> 
     name: row.name,
     registrationNumber: row.registration_number,
     trusteeRegistrationNumber: row.trustee_registration_number,
+    scCompanyType: row.sc_company_type,
     responsiblePersonName: row.responsible_person_name,
     responsiblePersonPhone: row.responsible_person_phone,
     shareCapital: row.share_capital ? serializeShareCapital(row.share_capital) : null,
@@ -316,6 +346,7 @@ export async function patchOperatorProfile(input: {
   name?: string | null;
   registrationNumber?: string | null;
   trusteeRegistrationNumber?: string | null;
+  scCompanyType?: ScCompanyType | null;
   responsiblePersonName?: string | null;
   responsiblePersonPhone?: string | null;
 }): Promise<OperatorProfileDto> {
@@ -324,9 +355,15 @@ export async function patchOperatorProfile(input: {
     where: { id: current.id },
     data: {
       name: input.name === undefined ? undefined : input.name,
-      registration_number: input.registrationNumber === undefined ? undefined : input.registrationNumber,
+      registration_number:
+        input.registrationNumber === undefined
+          ? undefined
+          : normalizeScRegistrationNumber(input.registrationNumber),
       trustee_registration_number:
-        input.trusteeRegistrationNumber === undefined ? undefined : input.trusteeRegistrationNumber,
+        input.trusteeRegistrationNumber === undefined
+          ? undefined
+          : normalizeScRegistrationNumber(input.trusteeRegistrationNumber),
+      sc_company_type: input.scCompanyType === undefined ? undefined : input.scCompanyType,
       responsible_person_name:
         input.responsiblePersonName === undefined ? undefined : input.responsiblePersonName,
       responsible_person_phone:
@@ -341,20 +378,20 @@ export async function upsertShareCapital(
 ): Promise<OperatorProfileDto> {
   const current = await getOrCreateOperatorProfile();
   const data = {
-    ordinary_units: dec(input.ordinaryUnits),
-    ordinary_amount: dec(input.ordinaryAmount),
-    preference_units: dec(input.preferenceUnits),
-    preference_amount: dec(input.preferenceAmount),
-    others_units: dec(input.othersUnits),
-    others_amount: dec(input.othersAmount),
-    total_paid_up_capital: dec(input.totalPaidUpCapital),
-    llp_members_capital_units: dec(input.llpMembersCapitalUnits),
-    llp_members_capital_amount: dec(input.llpMembersCapitalAmount),
-    llp_members_reserves_units: dec(input.llpMembersReservesUnits),
-    llp_members_reserves_amount: dec(input.llpMembersReservesAmount),
-    llp_subordinated_loans_units: dec(input.llpSubordinatedLoansUnits),
-    llp_subordinated_loans_amount: dec(input.llpSubordinatedLoansAmount),
-    total_llp: dec(input.totalLlp),
+    ordinary_units: optionalDec(input.ordinaryUnits),
+    ordinary_amount: optionalDec(input.ordinaryAmount),
+    preference_units: optionalDec(input.preferenceUnits),
+    preference_amount: optionalDec(input.preferenceAmount),
+    others_units: optionalDec(input.othersUnits),
+    others_amount: optionalDec(input.othersAmount),
+    total_paid_up_capital: optionalDec(input.totalPaidUpCapital),
+    llp_members_capital_units: optionalDec(input.llpMembersCapitalUnits),
+    llp_members_capital_amount: optionalDec(input.llpMembersCapitalAmount),
+    llp_members_reserves_units: optionalDec(input.llpMembersReservesUnits),
+    llp_members_reserves_amount: optionalDec(input.llpMembersReservesAmount),
+    llp_subordinated_loans_units: optionalDec(input.llpSubordinatedLoansUnits),
+    llp_subordinated_loans_amount: optionalDec(input.llpSubordinatedLoansAmount),
+    total_llp: optionalDec(input.totalLlp),
   };
   await prisma.operatorShareCapital.upsert({
     where: { operator_profile_id: current.id },
@@ -373,7 +410,7 @@ export async function createShareholder(input: OperatorShareholderInput): Promis
       entity_type: input.entityType,
       name: input.name ?? null,
       salutation: input.salutation ?? null,
-      identity_number: input.identityNumber ?? null,
+      identity_number: holderIdentityNumber(input.entityType, input.identityNumber, input.nationality),
       date_of_birth: parseDateInput(input.dateOfBirth),
       date_of_incorporation: parseDateInput(input.dateOfIncorporation),
       nationality: input.nationality ?? null,
@@ -403,7 +440,7 @@ export async function updateShareholder(
       entity_type: input.entityType,
       name: input.name ?? null,
       salutation: input.salutation ?? null,
-      identity_number: input.identityNumber ?? null,
+      identity_number: holderIdentityNumber(input.entityType, input.identityNumber, input.nationality),
       date_of_birth: parseDateInput(input.dateOfBirth),
       date_of_incorporation: parseDateInput(input.dateOfIncorporation),
       nationality: input.nationality ?? null,
@@ -436,7 +473,11 @@ export async function createOfficer(input: OperatorOfficerInput): Promise<Operat
       name: input.name ?? null,
       salutation: input.salutation ?? null,
       is_responsible_person: input.isResponsiblePerson ?? false,
-      identity_number: input.identityNumber ?? null,
+      identity_number: normalizeScIdentityNumber({
+        value: input.identityNumber,
+        entityType: "INDIVIDUAL",
+        nationality: input.nationality,
+      }),
       date_of_birth: parseDateInput(input.dateOfBirth),
       nationality: input.nationality ?? null,
       address: input.address ?? null,
@@ -462,7 +503,11 @@ export async function updateOfficer(
       name: input.name ?? null,
       salutation: input.salutation ?? null,
       is_responsible_person: input.isResponsiblePerson ?? false,
-      identity_number: input.identityNumber ?? null,
+      identity_number: normalizeScIdentityNumber({
+        value: input.identityNumber,
+        entityType: "INDIVIDUAL",
+        nationality: input.nationality,
+      }),
       date_of_birth: parseDateInput(input.dateOfBirth),
       nationality: input.nationality ?? null,
       address: input.address ?? null,
@@ -489,7 +534,7 @@ export async function createAdvisor(input: OperatorAdvisorInput): Promise<Operat
       operator_profile_id: current.id,
       advisor_type: input.advisorType,
       name: input.name ?? null,
-      registration_number: input.registrationNumber ?? null,
+      registration_number: normalizeScRegistrationNumber(input.registrationNumber),
       country: input.country ?? null,
       address: input.address ?? null,
       appointment_date: parseDateInput(input.appointmentDate),
@@ -510,7 +555,7 @@ export async function updateAdvisor(
     data: {
       advisor_type: input.advisorType,
       name: input.name ?? null,
-      registration_number: input.registrationNumber ?? null,
+      registration_number: normalizeScRegistrationNumber(input.registrationNumber),
       country: input.country ?? null,
       address: input.address ?? null,
       appointment_date: parseDateInput(input.appointmentDate),
@@ -533,7 +578,7 @@ export async function createInterest(input: OperatorInterestInput): Promise<Oper
     data: {
       operator_profile_id: current.id,
       name: input.name ?? null,
-      registration_number: input.registrationNumber ?? null,
+      registration_number: normalizeScRegistrationNumber(input.registrationNumber),
       country: input.country ?? null,
       address: input.address ?? null,
       acquisition_date: parseDateInput(input.acquisitionDate),
@@ -557,7 +602,7 @@ export async function updateInterest(
     where: { id },
     data: {
       name: input.name ?? null,
-      registration_number: input.registrationNumber ?? null,
+      registration_number: normalizeScRegistrationNumber(input.registrationNumber),
       country: input.country ?? null,
       address: input.address ?? null,
       acquisition_date: parseDateInput(input.acquisitionDate),

@@ -10,6 +10,8 @@ import {
   corporatePersonIdentitiesMatch,
   resolveCorporatePersonMergeKey,
 } from "./helpers/corporate-person-merge-key";
+import { isRegTankRateLimited } from "./helpers/regtank-rate-limit";
+import { RegTankRefreshSession } from "./helpers/regtank-refresh-session";
 
 interface DirectorAMLStatus {
   kycId: string;
@@ -75,9 +77,11 @@ export class AMLFetcherService {
    * Helper function to retry querying KYB status with exponential backoff
    * RegTank may need time to process KYB requests, especially for business shareholders
    * When first entering AML stage, status is often "No Match" or "Unresolved"
+   * HTTP 429 is not a "not ready" signal — do not retry it.
    */
   private async queryKYBStatusWithRetry(
     kybId: string,
+    session: RegTankRefreshSession,
     maxRetries: number = 3,
     initialDelayMs: number = 3000
   ): Promise<any> {
@@ -95,7 +99,9 @@ export class AMLFetcherService {
           await new Promise(resolve => setTimeout(resolve, delayMs));
         }
 
-        const response = await this.apiClient.queryKYBStatus(kybId);
+        const response = (await session.queryKYBStatus(kybId, {
+          forceRefresh: attempt > 0,
+        })) as { status?: unknown; messageStatus?: unknown };
         
         // Check if response has valid status (not empty or undefined)
         if (response && (response.status || response.messageStatus)) {
@@ -118,6 +124,9 @@ export class AMLFetcherService {
         
         return response;
       } catch (error) {
+        if (isRegTankRateLimited(error)) {
+          throw error;
+        }
         lastError = error instanceof Error ? error : new Error(String(error));
         logger.warn(
           { kybId, attempt: attempt + 1, error: lastError.message },
@@ -140,8 +149,10 @@ export class AMLFetcherService {
   async fetchIndividualDirectorAMLStatuses(
     codRequestId: string,
     organizationId: string,
-    portalType: PortalType
+    portalType: PortalType,
+    sessionArg?: RegTankRefreshSession
   ): Promise<DirectorAMLStatus[]> {
+    const session = sessionArg ?? new RegTankRefreshSession(this.apiClient);
     logger.info(
       { codRequestId, organizationId, portalType },
       "[AML Fetcher] Fetching individual director AML statuses"
@@ -151,7 +162,7 @@ export class AMLFetcherService {
 
     try {
       // Step 1: Get COD details
-      const codDetails = await this.apiClient.getCorporateOnboardingDetails(codRequestId);
+      const codDetails = (await session.getCorporateOnboardingDetails(codRequestId)) as any;
       
       if (!codDetails?.corpIndvDirectors || !Array.isArray(codDetails.corpIndvDirectors)) {
         logger.debug(
@@ -208,7 +219,7 @@ export class AMLFetcherService {
 
         try {
           // Step 4: Get EOD details to extract kycRequestInfo
-          const eodDetails = await this.apiClient.getEntityOnboardingDetails(eodRequestId);
+          const eodDetails = (await session.getEntityOnboardingDetails(eodRequestId)) as any;
           
           // Extract kycRequestInfo from EOD details
           const kycRequestInfo = eodDetails.kycRequestInfo || null;
@@ -261,7 +272,7 @@ export class AMLFetcherService {
           }
 
           // Step 6: Fetch AML status from KYC API
-          const kycStatusResponse = await this.apiClient.queryKYCStatus(kycId);
+          const kycStatusResponse = await session.queryKYCStatus(kycId);
           const kycStatusData = Array.isArray(kycStatusResponse) ? kycStatusResponse[0] : kycStatusResponse;
 
           const amlStatus = mapRegTankKycScreeningStatusToAmlStatus(
@@ -291,6 +302,9 @@ export class AMLFetcherService {
             "[AML Fetcher] ✓ Fetched director AML status"
           );
         } catch (error) {
+          if (isRegTankRateLimited(error)) {
+            throw error;
+          }
           logger.warn(
             {
               error: error instanceof Error ? error.message : String(error),
@@ -325,6 +339,9 @@ export class AMLFetcherService {
         "[AML Fetcher] ✓ Completed fetching individual director AML statuses"
       );
     } catch (error) {
+      if (isRegTankRateLimited(error)) {
+        throw error;
+      }
       logger.error(
         {
           error: error instanceof Error ? error.message : String(error),
@@ -345,8 +362,10 @@ export class AMLFetcherService {
   async fetchIndividualShareholderAMLStatuses(
     codRequestId: string,
     organizationId: string,
-    portalType: PortalType
+    portalType: PortalType,
+    sessionArg?: RegTankRefreshSession
   ): Promise<DirectorAMLStatus[]> {
+    const session = sessionArg ?? new RegTankRefreshSession(this.apiClient);
     logger.info(
       { codRequestId, organizationId, portalType },
       "[AML Fetcher] Fetching individual shareholder AML statuses"
@@ -356,7 +375,7 @@ export class AMLFetcherService {
 
     try {
       // Step 1: Get COD details
-      const codDetails = await this.apiClient.getCorporateOnboardingDetails(codRequestId);
+      const codDetails = (await session.getCorporateOnboardingDetails(codRequestId)) as any;
       
       if (!codDetails?.corpIndvShareholders || !Array.isArray(codDetails.corpIndvShareholders)) {
         logger.debug(
@@ -414,7 +433,7 @@ export class AMLFetcherService {
 
         try {
           // Step 4: Get EOD details to extract kycRequestInfo
-          const eodDetails = await this.apiClient.getEntityOnboardingDetails(eodRequestId);
+          const eodDetails = (await session.getEntityOnboardingDetails(eodRequestId)) as any;
           
           // Extract kycRequestInfo from EOD details
           const kycRequestInfo = eodDetails.kycRequestInfo || null;
@@ -478,7 +497,7 @@ export class AMLFetcherService {
           }
 
           // Step 6: Fetch AML status from KYC API
-          const kycStatusResponse = await this.apiClient.queryKYCStatus(kycId);
+          const kycStatusResponse = await session.queryKYCStatus(kycId);
           const kycStatusData = Array.isArray(kycStatusResponse) ? kycStatusResponse[0] : kycStatusResponse;
 
           const amlStatus = mapRegTankKycScreeningStatusToAmlStatus(
@@ -533,6 +552,9 @@ export class AMLFetcherService {
             "[AML Fetcher] ✓ Fetched shareholder AML status"
           );
         } catch (error) {
+          if (isRegTankRateLimited(error)) {
+            throw error;
+          }
           logger.warn(
             {
               error: error instanceof Error ? error.message : String(error),
@@ -567,6 +589,9 @@ export class AMLFetcherService {
         "[AML Fetcher] ✓ Completed fetching individual shareholder AML statuses"
       );
     } catch (error) {
+      if (isRegTankRateLimited(error)) {
+        throw error;
+      }
       logger.error(
         {
           error: error instanceof Error ? error.message : String(error),
@@ -587,8 +612,10 @@ export class AMLFetcherService {
   async fetchBusinessShareholderAMLStatuses(
     codRequestId: string,
     organizationId: string,
-    portalType: PortalType
+    portalType: PortalType,
+    sessionArg?: RegTankRefreshSession
   ): Promise<BusinessShareholderAMLStatus[]> {
+    const session = sessionArg ?? new RegTankRefreshSession(this.apiClient);
     logger.info(
       { codRequestId, organizationId, portalType },
       "[AML Fetcher] Fetching business shareholder AML statuses"
@@ -598,7 +625,7 @@ export class AMLFetcherService {
 
     try {
       // Step 1: Get COD details for main company
-      const codDetails = await this.apiClient.getCorporateOnboardingDetails(codRequestId);
+      const codDetails = (await session.getCorporateOnboardingDetails(codRequestId)) as any;
       
       if (!codDetails?.corpBizShareholders || !Array.isArray(codDetails.corpBizShareholders)) {
         logger.debug(
@@ -676,7 +703,9 @@ export class AMLFetcherService {
           // If we don't have kybId, get COD details and extract it
           if (!extractedKybId) {
             // Step 4: Get COD details for this business shareholder
-            const shareholderCodDetails = await this.apiClient.getCorporateOnboardingDetails(shareholderCodRequestId);
+            const shareholderCodDetails = await session.getCorporateOnboardingDetails(
+              shareholderCodRequestId
+            );
             
             // Step 5: Extract kybId from kybRequestDto
             if (shareholderCodDetails && typeof shareholderCodDetails === "object" && !Array.isArray(shareholderCodDetails)) {
@@ -714,7 +743,7 @@ export class AMLFetcherService {
 
           // Step 7: Always fetch fresh AML status from KYB API with retry logic
           // RegTank may need time to process KYB requests, especially when first entering AML stage
-          const kybStatusResponse = await this.queryKYBStatusWithRetry(extractedKybId);
+          const kybStatusResponse = await this.queryKYBStatusWithRetry(extractedKybId, session);
 
           const kybStatusRaw =
             typeof kybStatusResponse?.status === "string" ? kybStatusResponse.status.trim() : "";
@@ -815,6 +844,9 @@ export class AMLFetcherService {
             "[AML Fetcher] ✓ Fetched/refreshed business shareholder KYB AML status"
           );
         } catch (error) {
+          if (isRegTankRateLimited(error)) {
+            throw error;
+          }
           logger.warn(
             {
               error: error instanceof Error ? error.message : String(error),
@@ -870,6 +902,9 @@ export class AMLFetcherService {
         "[AML Fetcher] ✓ Completed fetching business shareholder AML statuses"
       );
     } catch (error) {
+      if (isRegTankRateLimited(error)) {
+        throw error;
+      }
       logger.error(
         {
           error: error instanceof Error ? error.message : String(error),
@@ -890,19 +925,22 @@ export class AMLFetcherService {
   async fetchAllAMLStatuses(
     codRequestId: string,
     organizationId: string,
-    portalType: PortalType
+    portalType: PortalType,
+    session?: RegTankRefreshSession
   ): Promise<void> {
     logger.info(
       { codRequestId, organizationId, portalType },
       "[AML Fetcher] Starting to fetch all AML statuses"
     );
 
+    const refresh = session ?? new RegTankRefreshSession(this.apiClient);
+
     try {
-      // Fetch all AML statuses in parallel
+      // Fetch all AML statuses in parallel (shared session: unique COD/EOD/KYC/KYB)
       const [directorAmlStatuses, shareholderAmlStatuses, businessAmlStatuses] = await Promise.all([
-        this.fetchIndividualDirectorAMLStatuses(codRequestId, organizationId, portalType),
-        this.fetchIndividualShareholderAMLStatuses(codRequestId, organizationId, portalType),
-        this.fetchBusinessShareholderAMLStatuses(codRequestId, organizationId, portalType),
+        this.fetchIndividualDirectorAMLStatuses(codRequestId, organizationId, portalType, refresh),
+        this.fetchIndividualShareholderAMLStatuses(codRequestId, organizationId, portalType, refresh),
+        this.fetchBusinessShareholderAMLStatuses(codRequestId, organizationId, portalType, refresh),
       ]);
 
       // Merge director and shareholder AML statuses (they go into the same director_aml_status array)

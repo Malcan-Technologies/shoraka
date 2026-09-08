@@ -23,6 +23,7 @@ import {
   type DirectorShareholderListSource,
 } from "@cashsouk/types";
 import { toast } from "sonner";
+import { PartyProfileDetailFields } from "./party-profile-detail-fields";
 import { DirectorShareholderCtosEmptyAlert } from "./director-shareholder-ctos-empty-alert";
 import { DirectorShareholderUnresolvedIdentitySection } from "./director-shareholder-unresolved-identity-card";
 import { Input } from "./components/input";
@@ -101,6 +102,7 @@ export function DirectorShareholdersUnifiedSection({
   const apiClient = React.useMemo(() => createApiClient(API_URL, getAccessToken), [getAccessToken]);
   const [draftEmails, setDraftEmails] = React.useState<Record<string, string>>({});
   const [confirmRow, setConfirmRow] = React.useState<AugmentedRow | null>(null);
+  const [viewingRow, setViewingRow] = React.useState<AugmentedRow | null>(null);
   const [savePending, setSavePending] = React.useState(false);
   const [recoverPendingKey, setRecoverPendingKey] = React.useState<string | null>(null);
 
@@ -245,8 +247,9 @@ export function DirectorShareholdersUnifiedSection({
         key={row.id}
         data-person-key={normalizeDirectorShareholderIdKey(row.__person.matchKey) ?? undefined}
         data-action-required={showActionCue ? "true" : undefined}
-        className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 p-4 sm:flex-row sm:items-start sm:justify-between"
+        className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 p-4"
       >
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1 space-y-1">
           <p className="truncate text-ui font-medium text-foreground">{row.name}</p>
           {identityLine ? (
@@ -262,8 +265,12 @@ export function DirectorShareholdersUnifiedSection({
             />
           </div>
         </div>
-        {showSend ? (
-          <div className="flex w-full shrink-0 flex-col gap-2 sm:w-56 sm:min-w-[14rem]">
+        <div className="flex w-full shrink-0 flex-col gap-2 sm:w-56 sm:min-w-[14rem]">
+          <Button type="button" variant="outline" className="w-full" onClick={() => setViewingRow(row)}>
+            View details
+          </Button>
+          {showSend ? (
+            <>
             <Input
               type="email"
               data-profile-director-email
@@ -281,8 +288,10 @@ export function DirectorShareholdersUnifiedSection({
             >
               Confirm & Send
             </Button>
-          </div>
-        ) : null}
+            </>
+          ) : null}
+        </div>
+        </div>
       </div>
     );
   };
@@ -301,9 +310,7 @@ export function DirectorShareholdersUnifiedSection({
         ) : null}
         {emptyAll ? (
           <p className="text-ui text-muted-foreground text-center py-8">
-            {resolvedCtosEmptyWarning
-              ? "No directors or shareholders are available from CTOS."
-              : "No directors or shareholders listed."}
+            No people have been added yet.
           </p>
         ) : grouped ? (
           <>
@@ -383,6 +390,19 @@ export function DirectorShareholdersUnifiedSection({
               />
             ) : null}
       </div>
+
+      <AlertDialog open={viewingRow != null} onOpenChange={(open) => !open && setViewingRow(null)}>
+        <AlertDialogContent className="max-h-[90vh] overflow-y-auto rounded-xl sm:max-w-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{viewingRow?.name || "Person"}</AlertDialogTitle>
+            <AlertDialogDescription>Read-only details for this person.</AlertDialogDescription>
+          </AlertDialogHeader>
+          {viewingRow ? <PartyProfileDetailFields person={viewingRow.__person} /> : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-lg">Close</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={confirmRow != null} onOpenChange={(open) => !open && setConfirmRow(null)}>
         <AlertDialogContent className="rounded-xl">

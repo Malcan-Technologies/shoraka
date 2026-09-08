@@ -6,7 +6,6 @@ import { useAuthToken } from "@cashsouk/config";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@cashsouk/ui";
 import { getDirectorFinalStatusToken, adminActionRowClass } from "@/lib/admin-status-token";
-// import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,18 +31,17 @@ import {
   formatPeopleRolesLineWithoutShare,
   isMissingGovernmentIdPerson,
   getFinalStatusLabel,
-  getRegtankLink,
   normalizeDirectorShareholderIdKey,
   resolveDirectorShareholderCtosEmptyWarning,
   type ApplicationPersonRow,
   type DirectorShareholderListSource,
 } from "@cashsouk/types";
-import { ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
 import {
   DirectorShareholderCtosEmptyAlert,
   DirectorShareholderUnresolvedIdentitySection,
 } from "@cashsouk/ui";
 import { toast } from "sonner";
+import { RegtankRecordsControl } from "./regtank-records-control";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -155,8 +153,8 @@ export function DirectorShareholderTable({
         ) : null}
         <p className="text-sm text-muted-foreground py-4 text-center">
           {resolvedCtosEmptyWarning
-            ? "No director or shareholder data is available from CTOS."
-            : "No director or shareholder data."}
+            ? "No directors or shareholders were found in the latest CTOS information."
+            : "No directors or shareholders have been added yet."}
         </p>
       </div>
     );
@@ -165,16 +163,19 @@ export function DirectorShareholderTable({
   return (
     <>
       {verifiedRows.length > 0 ? (
-      <div className="overflow-x-auto">
+      <div className="overflow-hidden rounded-xl border">
+      <div className="min-w-0 overflow-x-auto">
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Roles</TableHead>
-              <TableHead>Share %</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>RegTank</TableHead>
-              <TableHead title="Fetch or view the CTOS report for this person.">CTOS</TableHead>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="min-w-[11.5rem] w-[13rem]">Name</TableHead>
+              <TableHead className="min-w-[11.5rem] w-[13rem]">Roles</TableHead>
+              <TableHead className="w-[5.5rem] whitespace-nowrap">Share %</TableHead>
+              <TableHead className="w-[10.5rem] whitespace-nowrap">Status</TableHead>
+              <TableHead className="w-[11rem] whitespace-nowrap">RegTank</TableHead>
+              <TableHead className="w-[15rem] whitespace-nowrap" title="Fetch or view the CTOS report for this person.">
+                CTOS
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -197,48 +198,30 @@ export function DirectorShareholderTable({
                   key={p.matchKey}
                   className={adminActionRowClass(getDirectorFinalStatusToken(finalStatus.tone))}
                 >
-                  <TableCell className="font-medium">
-                    <div>{p.name ?? "—"}</div>
-                    <div className="font-mono text-xs text-muted-foreground mt-0.5">{p.matchKey}</div>
+                  <TableCell className="align-top min-w-[11.5rem] w-[13rem] max-w-[14rem]">
+                    <div className="font-medium">{p.name ?? "—"}</div>
+                    <div className="mt-0.5 whitespace-nowrap font-mono text-meta text-muted-foreground">{p.matchKey}</div>
                   </TableCell>
-                  <TableCell>{formatRoleTitleCaseWithoutShare(p)}</TableCell>
-                  <TableCell>{shareDisplay}</TableCell>
-                  <TableCell>
+                  <TableCell className="align-top min-w-[11.5rem] w-[13rem] max-w-[14rem]">
+                    {formatRoleTitleCaseWithoutShare(p)}
+                  </TableCell>
+                  <TableCell className="align-top w-[5.5rem] whitespace-nowrap tabular-nums">{shareDisplay}</TableCell>
+                  <TableCell className="align-top w-[10.5rem] whitespace-nowrap">
                     <StatusBadge
                       label={finalStatus.label}
                       status={getDirectorFinalStatusToken(finalStatus.tone)}
                     />
                   </TableCell>
-                  <TableCell>
-                    {(() => {
-                      const rid = String(p.requestId ?? "").trim();
-                      const link = getRegtankLink(p);
-                      if (link) {
-                        return (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-8 gap-1.5 rounded-full border-border bg-background px-3 text-sm font-medium text-foreground shadow-sm hover:bg-muted/60 hover:text-foreground [&_svg]:text-foreground shrink-0"
-                            title={rid ? `RegTank: ${rid}` : undefined}
-                            onClick={() => window.open(link, "_blank", "noopener,noreferrer")}
-                          >
-                            <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                            View
-                          </Button>
-                        );
-                      }
-                      return <span className="text-sm text-muted-foreground">—</span>;
-                    })()}
+                  <TableCell className="align-top w-[11rem] whitespace-nowrap">
+                    <RegtankRecordsControl person={p} />
                   </TableCell>
-                  <TableCell>
-                    <div className="space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
+                  <TableCell className="align-top w-[15rem] whitespace-nowrap">
+                    <div className="flex flex-col gap-0.5">
+                      <div className="flex items-center gap-1.5">
                       <Button
                         type="button"
                         variant="secondary"
                         size="sm"
-                        className="h-9"
                         onClick={() => {
                           const idKey = normalizeDirectorShareholderIdKey(p.matchKey);
                           if (!idKey) {
@@ -277,7 +260,6 @@ export function DirectorShareholderTable({
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="h-9"
                         disabled={!latestReport}
                         title={
                           latestReport
@@ -292,7 +274,7 @@ export function DirectorShareholderTable({
                         View report
                       </Button>
                     </div>
-                      <div className="text-xs text-muted-foreground whitespace-nowrap">
+                      <div className="text-meta text-muted-foreground">
                         {latestReport?.fetched_at
                           ? `Last fetched: ${
                               (() => {
@@ -312,6 +294,7 @@ export function DirectorShareholderTable({
             })}
           </TableBody>
         </Table>
+      </div>
       </div>
       ) : null}
       {unresolvedRows.length > 0 ? (
@@ -394,6 +377,11 @@ function mergePeopleRowsByMatchKey(rows: ApplicationPersonRow[]): ApplicationPer
       onboarding: prev.onboarding ?? row.onboarding ?? null,
       screening: prev.screening ?? row.screening ?? null,
       requestId: prev.requestId ?? row.requestId ?? null,
+      directorEodRequestId: prev.directorEodRequestId || row.directorEodRequestId || null,
+      shareholderEodRequestId: prev.shareholderEodRequestId || row.shareholderEodRequestId || null,
+      partyCorporateRequestId: prev.partyCorporateRequestId || row.partyCorporateRequestId || null,
+      parentCorporateRequestId: prev.parentCorporateRequestId || row.parentCorporateRequestId || null,
+      screeningRequestId: prev.screeningRequestId || row.screeningRequestId || null,
       icFrontUrl: prev.icFrontUrl ?? row.icFrontUrl ?? null,
       icBackUrl: prev.icBackUrl ?? row.icBackUrl ?? null,
       email: prev.email ?? row.email ?? "",

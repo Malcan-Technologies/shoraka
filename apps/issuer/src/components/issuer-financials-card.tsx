@@ -5,17 +5,21 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import {
-  FINANCIAL_FIELD_LABELS,
   ISSUER_PROFILE_BALANCE_SHEET_KEYS,
   ISSUER_PROFILE_PNL_KEYS,
+  firstIssueMessage,
+  isIssuerFinancialFieldRequired,
+  issuesByField,
   latestUnauditedYearBlock,
   latestUnauditedYearKey,
+  SC_MONTHLY_ISSUER_FINANCIAL_HELP,
+  SC_MONTHLY_ISSUER_FINANCIAL_LABELS,
+  validateIssuerFinancialFields,
   type ComrepProfileCompleteness,
 } from "@cashsouk/types";
-import { ProfileFieldGrid, ProfileReadField, StatusBadge } from "@cashsouk/ui";
+import { ComRepFieldLabel, ProfileFieldGrid, ProfileReadField, StatusBadge } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -30,27 +34,16 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 const EDITABLE_KEYS = [...ISSUER_PROFILE_BALANCE_SHEET_KEYS, ...ISSUER_PROFILE_PNL_KEYS] as const;
 
-const MISSING_TO_KEY: Record<string, string> = {
-  currentAssets: "bscatot",
-  nonCurrentAssets: "bsclbank",
-  currentBorrowing: "curlib_borrowing",
-  currentNonBorrowing: "curlib_non_borrowing",
-  nonCurrentLoan: "ncl_loan",
-  nonCurrentNonLoan: "ncl_non_loan",
-  equityCapital: "bsqpuc",
-  accumulatedProfit: "equity_accumulated_profit",
-  revenue: "turnover",
-  operatingCost: "operating_cost",
-  adminCost: "admin_cost",
-  interestCost: "interest_cost",
-  otherCost: "other_cost",
-  profitBeforeTax: "plnpbt",
-  profitAfterTax: "plnpat",
-  netDividend: "plnetdiv",
-};
-
 function fieldLabel(key: string): string {
-  return FINANCIAL_FIELD_LABELS[key] ?? key;
+  return SC_MONTHLY_ISSUER_FINANCIAL_LABELS[key] ?? key;
+}
+
+function fieldHelp(key: string): string | undefined {
+  return SC_MONTHLY_ISSUER_FINANCIAL_HELP[key];
+}
+
+function fieldRequired(key: string): boolean {
+  return isIssuerFinancialFieldRequired(key);
 }
 
 export function IssuerFinancialsCard({ organizationId }: { organizationId: string }) {
@@ -59,6 +52,7 @@ export function IssuerFinancialsCard({ organizationId }: { organizationId: strin
   const queryClient = useQueryClient();
   const [open, setOpen] = React.useState(false);
   const [draft, setDraft] = React.useState<Record<string, string>>({});
+  const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
   const query = useQuery({
     queryKey: ["issuer", "latest-financials", organizationId],
     queryFn: async () => {
@@ -77,17 +71,13 @@ export function IssuerFinancialsCard({ organizationId }: { organizationId: strin
   });
 
   const statements = query.data?.financial_statements;
-  const year = latestUnauditedYearKey(statements) ?? String(new Date().getFullYear() - 1);
+  const year = latestUnauditedYearKey(statements);
   const yearBlock = latestUnauditedYearBlock(statements);
+  const editorYear = year ?? String(new Date().getFullYear() - 1);
   const completeness: ComrepProfileCompleteness | undefined = completenessQuery.data;
   const financialStep = completeness?.steps.find((step) => step.id === "financials");
   const complete = financialStep?.complete ?? false;
   const missingCount = financialStep?.missing.length ?? 0;
-  const missingKeys = new Set(
-    (financialStep?.missing ?? []).map((item) =>
-      item.field === "financials" ? item.field : MISSING_TO_KEY[item.field] ?? item.field
-    )
-  );
 
   React.useEffect(() => {
     if (!open) return;
@@ -97,6 +87,7 @@ export function IssuerFinancialsCard({ organizationId }: { organizationId: strin
       next[key] = current == null ? "" : String(current);
     }
     setDraft(next);
+    setFieldErrors({});
   }, [open, yearBlock]);
 
   const save = useMutation({
@@ -105,7 +96,13 @@ export function IssuerFinancialsCard({ organizationId }: { organizationId: strin
       for (const [key, value] of Object.entries(draft)) {
         fields[key] = value.trim() === "" ? null : value.trim();
       }
-      const res = await api.patchIssuerOrgFinancials(organizationId, year, fields);
+      const issues = validateIssuerFinancialFields(fields);
+      if (issues.length > 0) {
+        setFieldErrors(issuesByField(issues));
+        throw new Error(firstIssueMessage(issues) ?? "Complete the required financial fields.");
+      }
+      setFieldErrors({});
+      const res = await api.patchIssuerOrgFinancials(organizationId, editorYear, fields);
       if (!res.success) throw new Error(res.error.message);
       return res.data;
     },
@@ -122,15 +119,15 @@ export function IssuerFinancialsCard({ organizationId }: { organizationId: strin
     <ProfileCard
       id="profile-financials"
       title="Financials"
-      description="Latest issuer financial statements"
+      description="Latest financial statements for this company"
       action={
         <Button type="button" variant="outline" size="sm" className="rounded-xl" onClick={() => setOpen(true)}>
-          {complete ? "View / Edit financials" : "Complete"}
+          Edit financials
         </Button>
       }
     >
       <ProfileFieldGrid>
-        <ProfileReadField label="Latest Financial Year" value={year ? `FY${year}` : "—"} />
+        <ProfileReadField label="Latest Financial Year" value={yearBlock && year ? `FY${year}` : "—"} />
         <ProfileReadField
           label="Status"
           value={
@@ -151,7 +148,7 @@ export function IssuerFinancialsCard({ organizationId }: { organizationId: strin
       </ProfileFieldGrid>
       <div className="mt-4">
         <Button type="button" className="h-10 rounded-xl" onClick={() => setOpen(true)}>
-          {complete ? "View / Edit financials" : "Complete financials"}
+          Edit financials
         </Button>
       </div>
 
@@ -160,7 +157,7 @@ export function IssuerFinancialsCard({ organizationId }: { organizationId: strin
           <DialogHeader>
             <DialogTitle>Financial statements</DialogTitle>
             <DialogDescription>
-              {year ? `FY${year} on your company profile.` : "Enter figures for the latest financial year."}
+              {year ? `FY${year} on your company profile.` : `Enter figures for FY${editorYear}.`}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-6">
@@ -168,21 +165,24 @@ export function IssuerFinancialsCard({ organizationId }: { organizationId: strin
               <h3 className="text-card-title">Balance sheet</h3>
               <div className="grid gap-4 sm:grid-cols-2">
                 {ISSUER_PROFILE_BALANCE_SHEET_KEYS.map((key) => {
-                  const required = missingKeys.has(key) || missingKeys.has("financials");
-                  const empty = !(draft[key] ?? "").trim();
+                  const required = fieldRequired(key);
+                  const error = fieldErrors[key];
                   return (
                     <div key={key} className="space-y-2">
-                      <Label className="text-ui font-medium">{fieldLabel(key)}</Label>
+                      <ComRepFieldLabel
+                        label={fieldLabel(key)}
+                        required={required}
+                        help={fieldHelp(key)}
+                      />
                       <Input
                         className="h-11 text-ui"
                         value={draft[key] ?? ""}
-                        onChange={(event) =>
-                          setDraft((current) => ({ ...current, [key]: event.target.value }))
-                        }
+                        onChange={(event) => {
+                          setDraft((current) => ({ ...current, [key]: event.target.value }));
+                          setFieldErrors((current) => ({ ...current, [key]: "" }));
+                        }}
                       />
-                      {required && empty ? (
-                        <p className="text-meta text-status-action-text">Required</p>
-                      ) : null}
+                      {error ? <p className="text-meta text-destructive">{error}</p> : null}
                     </div>
                   );
                 })}
@@ -192,21 +192,24 @@ export function IssuerFinancialsCard({ organizationId }: { organizationId: strin
               <h3 className="text-card-title">Profit and loss</h3>
               <div className="grid gap-4 sm:grid-cols-2">
                 {ISSUER_PROFILE_PNL_KEYS.map((key) => {
-                  const required = missingKeys.has(key) || missingKeys.has("financials");
-                  const empty = !(draft[key] ?? "").trim();
+                  const required = fieldRequired(key);
+                  const error = fieldErrors[key];
                   return (
                     <div key={key} className="space-y-2">
-                      <Label className="text-ui font-medium">{fieldLabel(key)}</Label>
+                      <ComRepFieldLabel
+                        label={fieldLabel(key)}
+                        required={required}
+                        help={fieldHelp(key)}
+                      />
                       <Input
                         className="h-11 text-ui"
                         value={draft[key] ?? ""}
-                        onChange={(event) =>
-                          setDraft((current) => ({ ...current, [key]: event.target.value }))
-                        }
+                        onChange={(event) => {
+                          setDraft((current) => ({ ...current, [key]: event.target.value }));
+                          setFieldErrors((current) => ({ ...current, [key]: "" }));
+                        }}
                       />
-                      {required && empty ? (
-                        <p className="text-meta text-status-action-text">Required</p>
-                      ) : null}
+                      {error ? <p className="text-meta text-destructive">{error}</p> : null}
                     </div>
                   );
                 })}

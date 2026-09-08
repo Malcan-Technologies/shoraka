@@ -39,6 +39,7 @@ import {
   SC_CAMPAIGN_SECTOR_LABELS,
   SC_COMPANY_CATEGORIES,
   SC_COMPANY_CATEGORY_LABELS,
+  SC_MONTHLY_CAMPAIGN,
   SC_SUSTAINABILITY_CATEGORIES,
   SC_SUSTAINABILITY_CATEGORY_LABELS,
   type InvoiceProductRules,
@@ -534,15 +535,15 @@ export function InvoiceOfferPanel({
       return;
     }
     if (!invoiceOfferConfirm.company_category) {
-      alert("Please select Technology or Non-Technology for this invoice.");
+      alert("Select Technology or Non-Technology for this invoice.");
       return;
     }
     if (!invoiceOfferConfirm.campaign_sector) {
-      alert("Please select the SC Campaign Sector for this invoice.");
+      alert("Select a Campaign Sector.");
       return;
     }
     if (!invoiceOfferConfirm.sustainability_category) {
-      alert("Please select a sustainability category for this invoice.");
+      alert("Select a sustainability category for this invoice.");
       return;
     }
     if (offerDisable.disabled || invoiceOfferConfirmBlocked || !applicationId) {
@@ -678,7 +679,7 @@ export function InvoiceOfferPanel({
           </Select>
         )}
 
-        <Label className={reviewLabelClass}>Campaign sector</Label>
+        <Label className={reviewLabelClass}>{SC_MONTHLY_CAMPAIGN.campaignSector.label}</Label>
         {isOfferSent ? (
           <div className={reviewValueClass}>
             {(() => {
@@ -694,8 +695,8 @@ export function InvoiceOfferPanel({
             }}
             disabled={controlsDisabled}
           >
-            <SelectTrigger aria-label="Campaign sector" className="h-9 w-full max-w-[22rem] rounded-xl border-border bg-background text-ui">
-              <SelectValue placeholder="Select SC sector" />
+            <SelectTrigger aria-label={SC_MONTHLY_CAMPAIGN.campaignSector.label} className="h-9 w-full max-w-[22rem] rounded-xl border-border bg-background text-ui">
+              <SelectValue placeholder="Select" />
             </SelectTrigger>
             <SelectContent className="max-h-[280px]">
               {SC_CAMPAIGN_SECTORS.map((value) => (
@@ -707,7 +708,7 @@ export function InvoiceOfferPanel({
           </Select>
         )}
 
-        <Label className={reviewLabelClass}>Sustainability category</Label>
+        <Label className={reviewLabelClass}>{SC_MONTHLY_CAMPAIGN.sustainabilityCategory.label}</Label>
         {isOfferSent ? (
           <div className={reviewValueClass}>
             {(() => {
@@ -723,7 +724,7 @@ export function InvoiceOfferPanel({
             }}
             disabled={controlsDisabled}
           >
-            <SelectTrigger aria-label="Sustainability category" className="h-9 w-full max-w-[22rem] rounded-xl border-border bg-background text-ui">
+            <SelectTrigger aria-label={SC_MONTHLY_CAMPAIGN.sustainabilityCategory.label} className="h-9 w-full max-w-[22rem] rounded-xl border-border bg-background text-ui">
               <SelectValue placeholder="Select" />
             </SelectTrigger>
             <SelectContent className="max-h-[280px]">
@@ -1025,15 +1026,15 @@ export function InvoiceOfferPanel({
                 return;
               }
               if (!companyCategory) {
-                alert("Please select Technology or Non-Technology for this invoice.");
+                alert("Select Technology or Non-Technology for this invoice.");
                 return;
               }
               if (!campaignSector) {
-                alert("Please select the SC Campaign Sector for this invoice.");
+                alert("Select a Campaign Sector.");
                 return;
               }
               if (!sustainabilityCategory) {
-                alert("Please select a sustainability category for this invoice.");
+                alert("Select a sustainability category for this invoice.");
                 return;
               }
               const platformFeeRatePercent = resolveDrawdownFeeRateForSend({
@@ -1194,7 +1195,7 @@ export function InvoiceOfferPanel({
                   </span>
                 </div>
                 <div className="flex justify-between items-baseline">
-                  <span className="text-sm font-medium text-muted-foreground">Campaign sector</span>
+                  <span className="text-sm font-medium text-muted-foreground">{SC_MONTHLY_CAMPAIGN.campaignSector.label}</span>
                   <span className="text-ui font-medium">
                     {SC_CAMPAIGN_SECTOR_LABELS[invoiceOfferConfirm.campaign_sector]}
                   </span>

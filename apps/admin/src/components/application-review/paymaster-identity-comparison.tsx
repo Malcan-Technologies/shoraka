@@ -52,7 +52,7 @@ export function SubmittedVerifiedPaymasterIdentity({
       <div className="space-y-2">
         <div className={comparisonSplitRowGridClass}>
           <p className={`${reviewLabelClass} ${comparisonSplitBeforeColClass}`}>
-            Originally submitted by issuer
+            Current Paymaster Details
           </p>
           <p className={`${reviewLabelClass} ${comparisonSplitAfterColClass}`}>
             Official Paymaster Identity

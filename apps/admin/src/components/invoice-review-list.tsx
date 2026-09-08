@@ -493,11 +493,11 @@ export function InvoiceList({
       return;
     }
     if (!invoiceOfferConfirm.company_category) {
-      alert("Please select Technology or Non-Technology for this invoice.");
+      alert("Select Technology or Non-Technology for this invoice.");
       return;
     }
     if (!invoiceOfferConfirm.campaign_sector) {
-      alert("Please select the SC Campaign Sector for this invoice.");
+      alert("Select a Campaign Sector.");
       return;
     }
     if (
@@ -938,7 +938,7 @@ export function InvoiceList({
                                     )}
                                   </div>
                                   <div className={applicationTableExpandableFieldBlockClass}>
-                                    <p className={applicationTableExpandableLabelClass}>Campaign sector</p>
+                                    <p className={applicationTableExpandableLabelClass}>Campaign Sector</p>
                                     {isOfferSent ? (
                                       <p className={applicationTableExpandableValueClass}>
                                         {(() => {
@@ -962,10 +962,10 @@ export function InvoiceList({
                                         disabled={isRowGreyedOut || isAdminRejected}
                                       >
                                         <SelectTrigger
-                                          aria-label="Campaign sector"
+                                          aria-label="Campaign Sector"
                                           className="h-9 w-full min-w-[8rem] max-w-[18rem] rounded-xl border-border bg-background text-ui"
                                         >
-                                          <SelectValue placeholder="Select SC sector" />
+                                          <SelectValue placeholder="Select" />
                                         </SelectTrigger>
                                         <SelectContent className="max-h-[280px]">
                                           {SC_CAMPAIGN_SECTORS.map((value) => (
@@ -979,7 +979,7 @@ export function InvoiceList({
                                   </div>
                                   <div className={applicationTableExpandableFieldBlockClass}>
                                     <p className={applicationTableExpandableLabelClass}>
-                                      Sustainability category
+                                      Sustainability Category of the Campaign
                                     </p>
                                     {isOfferSent ? (
                                       <p className={applicationTableExpandableValueClass}>
@@ -1006,7 +1006,7 @@ export function InvoiceList({
                                         disabled={isRowGreyedOut || isAdminRejected}
                                       >
                                         <SelectTrigger
-                                          aria-label="Sustainability category"
+                                          aria-label="Sustainability Category of the Campaign"
                                           className="h-9 w-full min-w-[8rem] max-w-[18rem] rounded-xl border-border bg-background text-ui"
                                         >
                                           <SelectValue placeholder="Select" />
@@ -1337,12 +1337,12 @@ export function InvoiceList({
                                         }
                                         const companyCat = companyCategoryByInvoiceId[inv.id];
                                         if (!companyCat) {
-                                          alert("Please select Technology or Non-Technology for this invoice.");
+                                          alert("Select Technology or Non-Technology for this invoice.");
                                           return;
                                         }
                                         const campaignSector = campaignSectorByInvoiceId[inv.id];
                                         if (!campaignSector) {
-                                          alert("Please select the SC Campaign Sector for this invoice.");
+                                          alert("Select a Campaign Sector.");
                                           return;
                                         }
                                         const sustainabilityCat =
@@ -1509,7 +1509,7 @@ export function InvoiceList({
                   </span>
                 </div>
                 <div className="flex justify-between items-baseline">
-                  <span className="text-sm font-medium text-muted-foreground">Campaign sector</span>
+                  <span className="text-sm font-medium text-muted-foreground">Campaign Sector</span>
                   <span className="text-ui font-medium">
                     {SC_CAMPAIGN_SECTOR_LABELS[invoiceOfferConfirm.campaign_sector]}
                   </span>

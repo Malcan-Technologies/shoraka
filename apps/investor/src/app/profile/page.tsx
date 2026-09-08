@@ -27,7 +27,7 @@ import {
   MALAYSIAN_BANKS,
 } from "@cashsouk/config";
 import type { ApplicationPersonRow } from "@cashsouk/types";
-import { filterVisiblePeopleRows, SC_GENDER_LABELS, SC_GENDERS, SC_MALAYSIAN_STATES, userFacingCompleteness, type ScGender } from "@cashsouk/types";
+import { filterVisiblePeopleRows, SC_GENDER_LABELS, SC_INDIVIDUAL_GENDERS, SC_MALAYSIAN_STATES, SC_MONTHLY_INVESTOR, firstIssueMessage, humanizeApiValidationMessage, isValidProfilePhone, restrictScPostcodeInput, scAppendixASelectValues, storedProfilePhone, userFacingCompleteness, validateInvestorPersonalForm, type ScGender } from "@cashsouk/types";
 import { useAuth } from "../../lib/auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccountDocuments } from "../../hooks/use-account-documents";
@@ -40,15 +40,16 @@ import { InviteMemberDialog } from "../../components/invite-member-dialog";
 import { ConfirmDialog } from "../../components/confirm-dialog";
 import { TransferOwnershipDialog } from "../../components/transfer-ownership-dialog";
 import { toast } from "sonner";
-import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
+import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
 import {
   useHeader,
   DirectorShareholderAlertCard,
   INVESTOR_DIRECTOR_SHAREHOLDER_ALERT_COPY,
-  DirectorShareholdersUnifiedSection,
+  PortalPeopleSection,
   ProfileFieldGrid,
   ProfileReadField,
+  ComRepFieldLabel,
   portalContentMaxWidthClassName,
   StatusBadge,
   VerifiedBadge,
@@ -528,7 +529,7 @@ export default function ProfilePage() {
         bankAccountDetails: BankAccountDetails | null;
         onboardingStatus: string;
         onboardedAt: string | null;
-        isSophisticatedInvestor: boolean;
+        isSophisticatedInvestor: boolean | null;
         corporateOnboardingData?: {
           basicInfo?: {
             tinNumber?: string;
@@ -710,7 +711,9 @@ export default function ProfilePage() {
       setIsEditingBanking(false);
     },
     onError: (error: Error) => {
-      toast.error("Failed to update profile", { description: error.message });
+      toast.error("Failed to update profile", {
+        description: humanizeApiValidationMessage(error.message),
+      });
     },
   });
 
@@ -723,18 +726,28 @@ export default function ProfilePage() {
 
   const handleSaveProfile = async () => {
     if (!activeOrganization) return;
-    if (phoneNumber && !isValidPhoneNumber(phoneNumber)) {
-      toast.error("Invalid phone number format");
+    if (phoneNumber && !isValidProfilePhone(phoneNumber)) {
+      toast.error("Enter a valid phone number.");
       return;
     }
 
     if (activeOrganization.type === "PERSONAL") {
+      const issues = validateInvestorPersonalForm({
+        gender,
+        nationality,
+        state: residentialState,
+        postalCode: residentialPostalCode,
+      });
+      if (issues.length > 0) {
+        toast.error(firstIssueMessage(issues));
+        return;
+      }
       const master: Record<string, unknown> = {
-        gender: gender || null,
-        nationality: nationality.trim() || null,
+        gender,
+        nationality: nationality.trim(),
         residentialAddress: {
-          state: residentialState || null,
-          postalCode: residentialPostalCode.trim() || null,
+          state: residentialState,
+          postalCode: residentialState === "Outside Malaysia" ? residentialPostalCode.trim() || null : residentialPostalCode.trim(),
         },
       };
       const masterRes = await apiClient.patchMasterProfile(
@@ -743,13 +756,15 @@ export default function ProfilePage() {
         master
       );
       if (!masterRes.success) {
-        toast.error("Failed to update profile", { description: masterRes.error.message });
+        toast.error("Failed to update profile", {
+          description: humanizeApiValidationMessage(masterRes.error.message),
+        });
         return;
       }
     }
 
     updateProfileMutation.mutate({
-      phoneNumber: phoneNumber || null,
+      phoneNumber: storedProfilePhone(phoneNumber) || null,
       address: address.trim() || null,
     });
   };
@@ -826,7 +841,9 @@ export default function ProfilePage() {
       setIsEditingAddresses(false);
     },
     onError: (error: Error) => {
-      toast.error("Failed to update addresses", { description: error.message });
+      toast.error("Failed to update addresses", {
+        description: humanizeApiValidationMessage(error.message),
+      });
     },
   });
 
@@ -986,22 +1003,40 @@ export default function ProfilePage() {
                   </div>
                   <div className="p-6">
                     <ProfileFieldGrid>
-                      <ProfileReadField label="Name" value={displayName} locked />
                       <ProfileReadField
-                        label="Identity"
+                        label={SC_MONTHLY_INVESTOR.investorName.label}
+                        value={displayName}
+                        locked
+                        required
+                        help={SC_MONTHLY_INVESTOR.investorName.help}
+                      />
+                      <ProfileReadField
+                        label={SC_MONTHLY_INVESTOR.investorIdentification.label}
                         value={`${formatDocumentType(orgData?.documentType)} ${orgData?.documentNumber || ""}`.trim()}
                         locked
+                        required
+                        help={SC_MONTHLY_INVESTOR.investorIdentification.help}
                       />
-                      <ProfileReadField label="Date of birth" value={formatProfileDate(orgData?.dateOfBirth)} locked />
+                      <ProfileReadField
+                        label={SC_MONTHLY_INVESTOR.dateOfBirthIncorporation.label}
+                        value={formatProfileDate(orgData?.dateOfBirth)}
+                        locked
+                        required
+                        help={SC_MONTHLY_INVESTOR.dateOfBirthIncorporation.help}
+                      />
                       {isEditingProfile ? (
                         <div className="space-y-2">
-                          <Label className="text-ui font-medium">Gender</Label>
+                          <ComRepFieldLabel
+                            label={SC_MONTHLY_INVESTOR.gender.label}
+                            help={SC_MONTHLY_INVESTOR.gender.help}
+                            required
+                          />
                           <Select value={gender || undefined} onValueChange={setGender}>
                             <SelectTrigger className="h-11 text-ui">
                               <SelectValue placeholder="Select" />
                             </SelectTrigger>
                             <SelectContent>
-                              {SC_GENDERS.filter((key) => key !== "NOT_APPLICABLE").map((key) => (
+                              {SC_INDIVIDUAL_GENDERS.map((key) => (
                                 <SelectItem key={key} value={key}>
                                   {SC_GENDER_LABELS[key]}
                                 </SelectItem>
@@ -1011,25 +1046,40 @@ export default function ProfilePage() {
                         </div>
                       ) : (
                         <ProfileReadField
-                          label="Gender"
+                          label={SC_MONTHLY_INVESTOR.gender.label}
                           value={formatGender(orgData?.gender)}
                           missing={missingFieldKeys.has("gender")}
+                          required
+                          help={SC_MONTHLY_INVESTOR.gender.help}
                         />
                       )}
                       {isEditingProfile ? (
                         <div className="space-y-2">
-                          <Label className="text-ui font-medium">Nationality</Label>
-                          <Input
-                            className="h-11 text-ui"
-                            value={nationality}
-                            onChange={(event) => setNationality(event.target.value)}
+                          <ComRepFieldLabel
+                            label={SC_MONTHLY_INVESTOR.nationalityCountry.label}
+                            help={SC_MONTHLY_INVESTOR.nationalityCountry.help}
+                            required
                           />
+                          <Select value={nationality || undefined} onValueChange={setNationality}>
+                            <SelectTrigger className="h-11 text-ui">
+                              <SelectValue placeholder="Select" />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-72">
+                              {scAppendixASelectValues(nationality).map((country) => (
+                                <SelectItem key={country} value={country}>
+                                  {country}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
                       ) : (
                         <ProfileReadField
-                          label="Nationality"
+                          label={SC_MONTHLY_INVESTOR.nationalityCountry.label}
                           value={orgData?.nationality}
                           missing={missingFieldKeys.has("nationality")}
+                          required
+                          help={SC_MONTHLY_INVESTOR.nationalityCountry.help}
                         />
                       )}
                     </ProfileFieldGrid>
@@ -1085,14 +1135,16 @@ export default function ProfilePage() {
                           value={address.trim() || null}
                         />
                         <ProfileReadField
-                          label="State"
+                          label={SC_MONTHLY_INVESTOR.businessResidentialAddressState.label}
                           value={orgData?.residentialAddress?.state}
                           missing={missingFieldKeys.has("state")}
+                          required
                         />
                         <ProfileReadField
-                          label="Postcode"
+                          label={SC_MONTHLY_INVESTOR.businessResidentialAddressPostcode.label}
                           value={orgData?.residentialAddress?.postalCode}
                           missing={missingFieldKeys.has("postalCode")}
+                          required
                         />
                       </ProfileFieldGrid>
                     ) : (
@@ -1113,7 +1165,10 @@ export default function ProfilePage() {
                         <p className="text-xs text-muted-foreground">Maximum 500 characters</p>
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-ui font-medium">State</Label>
+                        <ComRepFieldLabel
+                          label={SC_MONTHLY_INVESTOR.businessResidentialAddressState.label}
+                          required
+                        />
                         <Select value={residentialState || undefined} onValueChange={setResidentialState}>
                           <SelectTrigger className="h-11 text-ui">
                             <SelectValue placeholder="Select" />
@@ -1128,11 +1183,18 @@ export default function ProfilePage() {
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-ui font-medium">Postcode</Label>
+                        <ComRepFieldLabel
+                          label={SC_MONTHLY_INVESTOR.businessResidentialAddressPostcode.label}
+                          required
+                        />
                         <Input
                           className="h-11 text-ui"
                           value={residentialPostalCode}
-                          onChange={(event) => setResidentialPostalCode(event.target.value)}
+                          onChange={(event) =>
+                            setResidentialPostalCode(
+                              restrictScPostcodeInput(residentialState, event.target.value)
+                            )
+                          }
                         />
                       </div>
                     </div>
@@ -1164,7 +1226,7 @@ export default function ProfilePage() {
                   <InvestorClassificationCard
                     organizationId={activeOrganization.id}
                     organizationType="PERSONAL"
-                    isSophisticatedInvestor={Boolean(orgData?.isSophisticatedInvestor)}
+                    isSophisticatedInvestor={orgData?.isSophisticatedInvestor ?? null}
                     scInvestorCategory={orgData?.scInvestorCategory}
                   />
 
@@ -1325,7 +1387,7 @@ export default function ProfilePage() {
                             missing={missingFieldKeys.has("businessAddress.line1")}
                           />
                           <ProfileReadField
-                            label="State"
+                            label={SC_MONTHLY_INVESTOR.businessResidentialAddressState.label}
                             value={orgData?.corporateOnboardingData?.addresses?.business?.state}
                             missing={
                               missingFieldKeys.has("businessState") ||
@@ -1333,7 +1395,7 @@ export default function ProfilePage() {
                             }
                           />
                           <ProfileReadField
-                            label="Postcode"
+                            label={SC_MONTHLY_INVESTOR.businessResidentialAddressPostcode.label}
                             value={orgData?.corporateOnboardingData?.addresses?.business?.postalCode}
                             missing={
                               missingFieldKeys.has("businessPostalCode") ||
@@ -1371,7 +1433,7 @@ export default function ProfilePage() {
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label>Postal Code</Label>
+                            <Label>{SC_MONTHLY_INVESTOR.businessResidentialAddressPostcode.label}</Label>
                             <Input
                               value={businessPostalCode}
                               onChange={(e) => setBusinessPostalCode(e.target.value)}
@@ -1380,7 +1442,7 @@ export default function ProfilePage() {
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label>State</Label>
+                            <Label>{SC_MONTHLY_INVESTOR.businessResidentialAddressState.label}</Label>
                             <Input
                               value={businessState}
                               onChange={(e) => setBusinessState(e.target.value)}
@@ -1446,7 +1508,7 @@ export default function ProfilePage() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label>Postal Code</Label>
+                              <Label>{SC_MONTHLY_INVESTOR.businessResidentialAddressPostcode.label}</Label>
                               <Input
                                 value={registeredPostalCode}
                                 onChange={(e) => setRegisteredPostalCode(e.target.value)}
@@ -1455,7 +1517,7 @@ export default function ProfilePage() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label>State</Label>
+                              <Label>{SC_MONTHLY_INVESTOR.businessResidentialAddressState.label}</Label>
                               <Input
                                 value={registeredState}
                                 onChange={(e) => setRegisteredState(e.target.value)}
@@ -1506,7 +1568,7 @@ export default function ProfilePage() {
                   <InvestorClassificationCard
                     organizationId={activeOrganization.id}
                     organizationType="COMPANY"
-                    isSophisticatedInvestor={Boolean(orgData?.isSophisticatedInvestor)}
+                    isSophisticatedInvestor={orgData?.isSophisticatedInvestor ?? null}
                     scInvestorCategory={orgData?.scInvestorCategory}
                   />
                   <div className="rounded-xl border bg-card">
@@ -1549,9 +1611,9 @@ export default function ProfilePage() {
                 <div id="profile-contact" className="scroll-mt-24 rounded-xl border bg-card">
                   <div className="flex items-center justify-between p-6 border-b">
                     <div>
-                      <h2 className="text-lg font-semibold">Contact details</h2>
+                      <h2 className="text-lg font-semibold">Account owner</h2>
                       <p className="text-sm text-muted-foreground">
-                        Manage your phone number and email address
+                        Login email for the organisation owner. This is not the company e-mail.
                       </p>
                     </div>
                     {!isEditingProfile && (
@@ -1571,7 +1633,7 @@ export default function ProfilePage() {
                       <div className="space-y-2">
                         <Label className="flex items-center gap-2">
                           <PhoneIcon className="h-4 w-4" />
-                          Phone number
+                          Company phone number
                         </Label>
                         {isEditingProfile ? (
                           <PhoneInput
@@ -1592,7 +1654,7 @@ export default function ProfilePage() {
                       <div className="space-y-2">
                         <Label className="flex items-center gap-2">
                           <EnvelopeIcon className="h-4 w-4" />
-                          Email
+                          Account owner email
                         </Label>
                         <Input
                           value={
@@ -1628,23 +1690,48 @@ export default function ProfilePage() {
                 </div>
               )}
 
+              {!isPersonal && orgData?.corporateOnboardingData?.personInCharge ? (
+                <div id="profile-person-in-charge" className="scroll-mt-24 rounded-xl border bg-card">
+                  <div className="p-6 border-b">
+                    <h2 className="text-lg font-semibold">Person in Charge</h2>
+                    <p className="text-sm text-muted-foreground">Main contact person for this company.</p>
+                  </div>
+                  <div className="p-6">
+                    <ProfileFieldGrid>
+                      <ProfileReadField
+                        label="Name"
+                        value={orgData.corporateOnboardingData.personInCharge.name || "—"}
+                      />
+                      <ProfileReadField
+                        label="Position"
+                        value={orgData.corporateOnboardingData.personInCharge.position || "—"}
+                      />
+                      <ProfileReadField
+                        label="Email"
+                        value={orgData.corporateOnboardingData.personInCharge.email || "—"}
+                      />
+                      <ProfileReadField
+                        label="Contact Number"
+                        value={orgData.corporateOnboardingData.personInCharge.contactNumber || "—"}
+                      />
+                    </ProfileFieldGrid>
+                  </div>
+                </div>
+              ) : null}
+
               {/* 4. Directors/Shareholders Section - Only for COMPANY accounts */}
               {!isPersonal && activeOrganization?.id && orgData?.type === "COMPANY" && (
                 <div ref={directorsSectionRef} className="scroll-mt-24">
-                  <DirectorShareholdersUnifiedSection
+                  <PortalPeopleSection
                     portal="investor"
                     organizationId={activeOrganization.id}
                     organizationOnboardingStatus={orgData.onboardingStatus}
                     people={orgData.people ?? []}
                     directorShareholderListSource={orgData.directorShareholderListSource ?? null}
                     ctosDirectorShareholderWarning={orgData.ctosDirectorShareholderWarning ?? null}
-                    highlightActionRequiredRows
-                    autoFocusFirstEmptyEmail={focusDirectors}
                     focusedMatchKey={focusedPersonKey}
-                    onPartyOnboardingSent={handlePartyOnboardingSent}
-                    title="People"
-                    description="Directors and shareholders for this company"
-                    grouped={false}
+                    canEdit={isCurrentUserAdmin}
+                    onChanged={handlePartyOnboardingSent}
                   />
                 </div>
               )}

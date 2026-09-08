@@ -1,3 +1,4 @@
+import { issuerShareholdingMeetsMinimum } from "@cashsouk/types";
 import { ctosPositionDirectorShareholderFlags } from "./ctos-position-roles";
 
 /**
@@ -172,7 +173,7 @@ export function extractCtosIndividuals(ctos: unknown): CtosIndividual[] {
     if (isDirector) {
       pushIndividual(d, displayName, displayEmail, "DIRECTOR", null);
     }
-    if (isShareholder && pct !== null && pct >= 5) {
+    if (isShareholder && issuerShareholdingMeetsMinimum(pct)) {
       pushIndividual(d, displayName, displayEmail, "SHAREHOLDER", pct);
     }
   }
@@ -183,7 +184,7 @@ export function extractCtosIndividuals(ctos: unknown): CtosIndividual[] {
     const shareholderKey = getCtosId(s);
     if (!shareholderKey) continue;
     const pct = parseCtosEquityPercentage(s.equity_percentage);
-    if (pct === null || pct < 5) continue;
+    if (!issuerShareholdingMeetsMinimum(pct)) continue;
     pushIndividual(
       s,
       s.name ?? s.fullName ?? s.businessName ?? s.companyName,

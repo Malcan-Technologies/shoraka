@@ -85,7 +85,9 @@ describe("Admin Paymaster UI copy after mismatch removal", () => {
     expect(activity).toContain("events.map");
     expect(activity).toContain("orgHref");
     expect(activity).toContain("applicationHref");
-    expect(activity).toMatch(/created, linked, identity-updated, and identity-verified/);
+    expect(activity).toMatch(
+      /created, linked, identity-updated, identity-verified, and identity-synced/
+    );
     expect(activity).not.toMatch(/PAYMASTER_NOTICE|acknowledgement|Notice of Assignment/i);
     expect(activity).not.toMatch(/sendTyped|NotificationService/);
   });
@@ -99,6 +101,7 @@ describe("Admin Paymaster UI copy after mismatch removal", () => {
     expect(timeline).toMatch(/PAYMASTER_LINKED_TO_ISSUER:\s*"Paymaster Linked to Issuer"/);
     expect(timeline).toMatch(/PAYMASTER_IDENTITY_UPDATED:\s*"Paymaster Identity Updated"/);
     expect(timeline).toMatch(/PAYMASTER_VERIFIED:\s*"Paymaster Identity Verified"/);
+    expect(timeline).toMatch(/PAYMASTER_IDENTITY_SYNCED:\s*"Paymaster Identity Synced"/);
     expect(timeline).toMatch(/PAYMASTER_IDENTITY_RESOLVED:\s*"Paymaster Identity Resolved"/);
   });
 
@@ -123,8 +126,9 @@ describe("Admin Paymaster UI copy after mismatch removal", () => {
     expect(contract).toContain("Paymaster Verification");
     expect(customer).toContain("SubmittedVerifiedPaymasterIdentity");
     expect(contract).toContain("SubmittedVerifiedPaymasterIdentity");
-    expect(comparison).toContain("Originally submitted by issuer");
+    expect(comparison).toContain("Current Paymaster Details");
     expect(comparison).toContain("Official Paymaster Identity");
+    expect(comparison).not.toContain("Originally submitted by issuer");
     expect(comparison).toContain("Request Amendment");
     expect(comparison).not.toContain("Use Verified Paymaster Details");
     expect(comparison).not.toContain("useVerifiedDisabled");
@@ -161,6 +165,13 @@ describe("Admin Paymaster UI copy after mismatch removal", () => {
     expect(fields).toMatch(/id="paymaster-official-ssm"[\s\S]*disabled[\s\S]*readOnly/);
     expect(dialog).toContain("SSM cannot be changed");
     expect(dialog).not.toMatch(/registrationNumber:\s*value\.registrationNumber/);
+    const countryOptions = readFileSync(
+      join(__dirname, "../utils/paymaster-country-options.ts"),
+      "utf8"
+    );
+    expect(countryOptions).not.toMatch(/supportedValuesOf\(\s*["']region["']\s*\)/);
+    expect(fields).toContain("value.country || undefined");
+    expect(fields).toContain("value.entityType || undefined");
   });
 
   it("Paymaster Detail Identity tab shows submitted application identities as Admin reference only", () => {

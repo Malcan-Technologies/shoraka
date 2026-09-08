@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { toast } from "sonner";
+import { ComRepFieldLabel, ProfilePhoneInput } from "@cashsouk/ui";
 import {
   ArrowTopRightOnSquareIcon,
   ClipboardDocumentCheckIcon,
@@ -10,7 +11,6 @@ import {
 } from "@heroicons/react/24/outline";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -21,6 +21,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import type { AdminOrganizationAddressInput } from "@cashsouk/types";
+import { PROFILE_LOCKED_VERIFIED_DURING_ONBOARDING, restrictScPostcodeInput } from "@cashsouk/types";
 
 export function DetailRow({
   label,
@@ -130,21 +131,27 @@ export function ReadField({
   missing = false,
   hint,
   locked = false,
+  lockReason,
   multiline = false,
   className,
+  help,
+  required = false,
 }: {
   label: string;
   value: React.ReactNode;
   missing?: boolean;
   hint?: React.ReactNode;
   locked?: boolean;
+  lockReason?: string;
   multiline?: boolean;
   className?: string;
+  help?: string;
+  required?: boolean;
 }) {
   const empty = value === null || value === undefined || value === "";
   return (
     <div className={cn("space-y-2", className)}>
-      <p className="text-ui font-medium leading-none text-foreground">{label}</p>
+      <ComRepFieldLabel label={label} required={required} help={help} />
       <div
         className={cn(
           "w-full rounded-md border px-3 text-ui",
@@ -155,12 +162,14 @@ export function ReadField({
         )}
       >
         <span className={cn("min-w-0 break-words", empty && "text-muted-foreground")}>
-          {empty ? "—" : value}
+          {empty ? null : value}
         </span>
       </div>
       {missing ? <p className="text-meta text-status-action-text">Required</p> : null}
       {locked && !missing ? (
-        <p className="text-meta text-muted-foreground">This field cannot be edited</p>
+        <p className="text-meta text-muted-foreground">
+          {lockReason ?? PROFILE_LOCKED_VERIFIED_DURING_ONBOARDING}
+        </p>
       ) : null}
       {hint ? <div className="text-meta text-muted-foreground">{hint}</div> : null}
     </div>
@@ -175,6 +184,10 @@ export function EditableField({
   id,
   maxLength,
   inputClassName,
+  help,
+  required = false,
+  error,
+  inputMode,
 }: {
   label: string;
   value: string;
@@ -183,13 +196,15 @@ export function EditableField({
   id?: string;
   maxLength?: number;
   inputClassName?: string;
+  help?: string;
+  required?: boolean;
+  error?: string;
+  inputMode?: "numeric" | "decimal" | "email" | "tel" | "text";
 }) {
   const fieldId = id ?? label.toLowerCase().replace(/\s+/g, "-");
   return (
     <div className="space-y-2">
-      <Label htmlFor={fieldId} className="text-ui font-medium">
-        {label}
-      </Label>
+      <ComRepFieldLabel htmlFor={fieldId} label={label} required={required} help={help} />
       {multiline ? (
         <Textarea
           id={fieldId}
@@ -198,6 +213,7 @@ export function EditableField({
           maxLength={maxLength}
           onChange={(event) => onChange(event.target.value)}
           rows={5}
+          aria-invalid={Boolean(error)}
         />
       ) : (
         <Input
@@ -205,9 +221,39 @@ export function EditableField({
           className={cn("h-11 text-ui", inputClassName)}
           value={value}
           maxLength={maxLength}
+          inputMode={inputMode}
           onChange={(event) => onChange(event.target.value)}
+          aria-invalid={Boolean(error)}
         />
       )}
+      {error ? <p className="text-meta text-destructive">{error}</p> : null}
+    </div>
+  );
+}
+
+export function EditablePhoneField({
+  label,
+  value,
+  onChange,
+  id,
+  help,
+  required = false,
+  error,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  id?: string;
+  help?: string;
+  required?: boolean;
+  error?: string;
+}) {
+  const fieldId = id ?? label.toLowerCase().replace(/\s+/g, "-");
+  return (
+    <div className="space-y-2">
+      <ComRepFieldLabel htmlFor={fieldId} label={label} required={required} help={help} />
+      <ProfilePhoneInput id={fieldId} value={value} onChange={onChange} error={Boolean(error)} />
+      {error ? <p className="text-meta text-destructive">{error}</p> : null}
     </div>
   );
 }
@@ -217,18 +263,20 @@ export function EditableDateField({
   value,
   onChange,
   id,
+  help,
+  required = false,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   id?: string;
+  help?: string;
+  required?: boolean;
 }) {
   const fieldId = id ?? label.toLowerCase().replace(/\s+/g, "-");
   return (
     <div className="space-y-2">
-      <Label htmlFor={fieldId} className="text-ui font-medium">
-        {label}
-      </Label>
+      <ComRepFieldLabel htmlFor={fieldId} label={label} required={required} help={help} />
       <Input
         id={fieldId}
         className="h-11 text-ui"
@@ -246,23 +294,29 @@ export function EditableSelect({
   onChange,
   options,
   placeholder = "Select",
+  help,
+  required = false,
+  disabled = false,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
-  options: Array<{ value: string; label: string }>;
+  options: Array<{ value: string; label: string; title?: string }>;
   placeholder?: string;
+  help?: string;
+  required?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <div className="space-y-2">
-      <Label className="text-ui font-medium">{label}</Label>
-      <Select value={value || undefined} onValueChange={onChange}>
+      <ComRepFieldLabel label={label} required={required} help={help} />
+      <Select value={value || undefined} onValueChange={onChange} disabled={disabled}>
         <SelectTrigger className="h-11 text-ui">
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
         <SelectContent>
           {options.map((opt) => (
-            <SelectItem key={opt.value} value={opt.value}>
+            <SelectItem key={opt.value} value={opt.value} title={opt.title}>
               {opt.label}
             </SelectItem>
           ))}
@@ -285,15 +339,17 @@ export function EditableYesNo({
   value,
   onChange,
   name,
+  required = false,
 }: {
   label: string;
   value: boolean | null;
   onChange: (value: boolean) => void;
   name: string;
+  required?: boolean;
 }) {
   return (
     <div className="space-y-2">
-      <div className="text-ui font-medium">{label}</div>
+      <ComRepFieldLabel label={label} required={required} />
       <div className="flex min-h-11 items-center gap-6">
         {(
           [
@@ -697,10 +753,18 @@ export function EditableAddressFields({
   label,
   value,
   onChange,
+  lineLabel = "Address Line 1",
+  stateLabel = "State",
+  postcodeLabel = "Postal Code",
+  errors,
 }: {
   label: string;
   value: AddressDraft;
   onChange: (next: AddressDraft) => void;
+  lineLabel?: string;
+  stateLabel?: string;
+  postcodeLabel?: string;
+  errors?: { line1?: string; state?: string; postalCode?: string };
 }) {
   const prefix = label.toLowerCase().replace(/\s+/g, "-");
   return (
@@ -710,9 +774,11 @@ export function EditableAddressFields({
         <div className="sm:col-span-2">
           <EditableField
             id={`${prefix}-line1`}
-            label="Address Line 1"
+            label={lineLabel}
             value={value.line1}
             onChange={(line1) => onChange({ ...value, line1 })}
+            maxLength={500}
+            error={errors?.line1}
           />
         </div>
         <div className="sm:col-span-2">
@@ -721,6 +787,7 @@ export function EditableAddressFields({
             label="Address Line 2"
             value={value.line2}
             onChange={(line2) => onChange({ ...value, line2 })}
+            maxLength={500}
           />
         </div>
         <EditableField
@@ -731,15 +798,20 @@ export function EditableAddressFields({
         />
         <EditableField
           id={`${prefix}-postal`}
-          label="Postal Code"
+          label={postcodeLabel}
           value={value.postalCode}
-          onChange={(postalCode) => onChange({ ...value, postalCode })}
+          onChange={(postalCode) =>
+            onChange({ ...value, postalCode: restrictScPostcodeInput(value.state, postalCode) })
+          }
+          inputMode={value.state === "Outside Malaysia" ? "text" : "numeric"}
+          error={errors?.postalCode}
         />
         <EditableField
           id={`${prefix}-state`}
-          label="State"
+          label={stateLabel}
           value={value.state}
           onChange={(state) => onChange({ ...value, state })}
+          error={errors?.state}
         />
         <EditableField
           id={`${prefix}-country`}

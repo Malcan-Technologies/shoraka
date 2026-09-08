@@ -56,16 +56,19 @@ describe("visibility matrix", () => {
     expect(EVENT_CATALOGUE.PAYMASTER_LINKED_TO_ISSUER.userVisible).toBe(false);
     expect(EVENT_CATALOGUE.PAYMASTER_IDENTITY_UPDATED.userVisible).toBe(false);
     expect(EVENT_CATALOGUE.PAYMASTER_VERIFIED.userVisible).toBe(false);
+    expect(EVENT_CATALOGUE.PAYMASTER_IDENTITY_SYNCED.userVisible).toBe(false);
     expect(EVENT_CATALOGUE.PAYMASTER_IDENTITY_RESOLVED.userVisible).toBe(false);
     expect(EVENT_CATALOGUE.PAYMASTER_IDENTITY_RESOLVED.lifecycle).toBe(
       EVENT_LIFECYCLE.HISTORICAL_READER
     );
+    expect(liveWriterEventTypes()).toContain("PAYMASTER_IDENTITY_SYNCED");
     expect(liveWriterEventTypes()).not.toContain("PAYMASTER_IDENTITY_RESOLVED");
     expect(historicalReaderEventTypes()).toContain("PAYMASTER_IDENTITY_RESOLVED");
     expect(userVisibleApplicationEventTypes()).not.toContain("PAYMASTER_CREATED");
     expect(userVisibleApplicationEventTypes()).not.toContain("PAYMASTER_LINKED_TO_ISSUER");
     expect(userVisibleApplicationEventTypes()).not.toContain("PAYMASTER_IDENTITY_UPDATED");
     expect(userVisibleApplicationEventTypes()).not.toContain("PAYMASTER_VERIFIED");
+    expect(userVisibleApplicationEventTypes()).not.toContain("PAYMASTER_IDENTITY_SYNCED");
     expect(userVisibleApplicationEventTypes()).not.toContain("PAYMASTER_IDENTITY_RESOLVED");
   });
 

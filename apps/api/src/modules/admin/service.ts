@@ -149,6 +149,7 @@ import {
   FACILITY_LOCKED_SUPPORTING_DOCUMENTS_MESSAGE,
   getFacilityLockedCategoriesFromWorkflow,
   isFacilityLockedSupportingDocumentItem,
+  scInvestorCategoryAfterSophisticatedChange,
 } from "@cashsouk/types";
 import { OrganizationService } from "../organization/service";
 import {
@@ -164,6 +165,16 @@ import {
 } from "../regtank/webhooks/org-aml-milestone";
 import { shouldApplyCodApprovedOnboardingFlag } from "../regtank/helpers/cod-amendment-transition";
 import { getIndividualWaitForApprovalUpdate } from "../regtank/helpers/individual-onboarding-transition";
+import {
+  isRegTankRateLimited,
+  REGTANK_RATE_LIMITED_MESSAGE,
+} from "../regtank/helpers/regtank-rate-limit";
+import {
+  REFRESH_IN_PROGRESS_CODE,
+  REFRESH_IN_PROGRESS_MESSAGE,
+  runExclusiveOnboardingRefresh,
+} from "../regtank/helpers/regtank-refresh-lock";
+import { RegTankRefreshSession } from "../regtank/helpers/regtank-refresh-session";
 import { RegTankService } from "../regtank/service";
 import { normalizeRawStatus } from "@cashsouk/types";
 import type { PortalType } from "../regtank/types";
@@ -177,6 +188,43 @@ import { logApplicationActivity } from "../applications/logs/service";
 import { createApplicationReviewEventRow } from "../applications/logs/review-events";
 import { ActivityPortal, ApplicationLogEventType } from "../applications/logs/types";
 import { resolveAcceptanceReviewApprovalGate } from "../applications/acceptance-document-review-sync";
+
+type OnboardingRefreshOutcome = "COMPLETED" | "PARTIAL" | "SKIPPED_TERMINAL";
+
+function storedDirectorKycLastSyncedAt(org: { director_kyc_status?: unknown } | null | undefined): string | null {
+  const raw = org?.director_kyc_status;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const value = (raw as { lastSyncedAt?: unknown }).lastSyncedAt;
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+function rethrowRefreshControlError(
+  error: unknown,
+  context?: { organizationId?: string; requestId?: string }
+): void {
+  if (
+    error instanceof AppError &&
+    (isRegTankRateLimited(error) || error.code === REFRESH_IN_PROGRESS_CODE)
+  ) {
+    if (isRegTankRateLimited(error) && context) {
+      const details =
+        error.details && typeof error.details === "object"
+          ? (error.details as Record<string, unknown>)
+          : {};
+      logger.error(
+        {
+          organizationId: context.organizationId,
+          requestId: context.requestId,
+          httpStatus: error.statusCode,
+          retryAfterSeconds: details.retryAfterSeconds ?? null,
+          endpoint: details.endpoint ?? null,
+        },
+        REGTANK_RATE_LIMITED_MESSAGE
+      );
+    }
+    throw error;
+  }
+}
 
 export interface AdminLogContext {
   ipAddress?: string | null;
@@ -1243,7 +1291,7 @@ export class AdminService {
         onboarded_at: Date | null;
         created_at: Date;
         updated_at: Date;
-        is_sophisticated_investor?: boolean;
+        is_sophisticated_investor?: boolean | null;
         members: { role: string }[];
         _count: { members: number };
       },
@@ -2835,7 +2883,7 @@ export class AdminService {
       role: string;
       createdAt: string;
     }[];
-    isSophisticatedInvestor: boolean;
+    isSophisticatedInvestor: boolean | null;
     sophisticatedInvestorReason: string | null;
     walletBalance: number | null;
     investedAmount: number | null;
@@ -3197,6 +3245,7 @@ export class AdminService {
                   ? (ctosPartySupplements ?? null)
                   : (investorCtosPartySupplements ?? null),
               corporateEntities: org.corporate_entities ?? null,
+              parentCorporateRequestId: codRequestId,
             });
             return {
               people: partyBuild.people,
@@ -3225,7 +3274,7 @@ export class AdminService {
       residentialAddress:
         (org.residential_address as import("@cashsouk/types").ProfileAddress | null) ?? null,
       isSophisticatedInvestor:
-        portal === "investor" ? (org.is_sophisticated_investor ?? false) : false,
+        portal === "investor" ? (org.is_sophisticated_investor ?? null) : false,
       sophisticatedInvestorReason:
         portal === "investor" ? (org.sophisticated_investor_reason ?? null) : null,
       walletBalance:
@@ -3304,7 +3353,7 @@ export class AdminService {
       throw new AppError(404, "NOT_FOUND", "Organization not found");
     }
 
-    const people = buildAdminPeopleList({
+    const partyBuild = await buildDirectorShareholderPeopleListWithMaster("issuer", issuerOrganizationId, {
       ctos: extras.latestOrganizationCtosCompanyJson ?? null,
       issuerDirectorKycStatus: fullOrg.director_kyc_status ?? null,
       issuerDirectorAmlStatus: fullOrg.director_aml_status ?? null,
@@ -3314,7 +3363,7 @@ export class AdminService {
       })),
       corporateEntities: fullOrg.corporate_entities ?? null,
     });
-    const visible = filterVisiblePeopleRows(people);
+    const visible = filterVisiblePeopleRows(partyBuild.people);
     const want = normalizeDirectorShareholderIdKey(input.partyKey);
     if (!want) {
       throw new AppError(400, "VALIDATION_ERROR", "Invalid party key");
@@ -3396,9 +3445,11 @@ export class AdminService {
       select: {
         id: true,
         name: true,
+        type: true,
         owner_user_id: true,
         is_sophisticated_investor: true,
         sophisticated_investor_reason: true,
+        sc_investor_category: true,
       },
     });
 
@@ -3406,12 +3457,21 @@ export class AdminService {
       throw new AppError(404, "NOT_FOUND", "Investor organization not found");
     }
 
+    const organizationType = org.type === "COMPANY" ? "COMPANY" : "PERSONAL";
+    const nextCategory = scInvestorCategoryAfterSophisticatedChange(org.sc_investor_category, {
+      organizationType,
+      isSophisticatedInvestor,
+    });
+
     await persistOrganizationUpdateAndOnboardingLogs({
       portalType: "investor",
       organizationId,
       data: {
         is_sophisticated_investor: isSophisticatedInvestor,
         sophisticated_investor_reason: reason,
+        ...(nextCategory !== org.sc_investor_category
+          ? { sc_investor_category: nextCategory }
+          : {}),
       },
       logs: [
         {
@@ -3594,6 +3654,7 @@ export class AdminService {
             issuerDirectorAmlStatus: organizationForPeople?.director_aml_status ?? null,
             ctosPartySupplements: organizationForPeople?.ctos_party_supplements ?? null,
             corporateEntities: existingResponse.corporateEntities ?? null,
+            parentCorporateRequestId: refreshed.request_id,
           }
         )
       : buildDirectorShareholderPeopleList({
@@ -3602,6 +3663,7 @@ export class AdminService {
           issuerDirectorAmlStatus: organizationForPeople?.director_aml_status ?? null,
           ctosPartySupplements: organizationForPeople?.ctos_party_supplements ?? null,
           corporateEntities: existingResponse.corporateEntities ?? null,
+          parentCorporateRequestId: refreshed.request_id,
         });
 
     return {
@@ -3782,7 +3844,7 @@ export class AdminService {
 
     // Sophisticated investor status (only for investor portal)
     const isSophisticatedInvestor = isInvestorOrg
-      ? (investorOrg?.is_sophisticated_investor ?? false)
+      ? (investorOrg?.is_sophisticated_investor ?? null)
       : undefined;
     const sophisticatedInvestorReason = isInvestorOrg
       ? (investorOrg?.sophisticated_investor_reason ?? null)
@@ -4033,6 +4095,8 @@ export class AdminService {
                   )
                 : null,
             corporateEntities: corporateEntitiesRaw ?? null,
+            parentCorporateRequestId:
+              record.onboarding_type === "CORPORATE" ? record.request_id : null,
           })
         : [];
     const directorShareholderAmlPending =
@@ -4179,7 +4243,9 @@ export class AdminService {
           where: { id: onboarding.investor_organization_id },
           data: {
             onboarding_status: "PENDING",
-            is_sophisticated_investor: false,
+            ...(onboarding.organization_type === OrganizationType.PERSONAL
+              ? { is_sophisticated_investor: false }
+              : {}),
             onboarding_approved: false,
             aml_approved: false,
             tnc_accepted: false,
@@ -5040,7 +5106,8 @@ export class AdminService {
   async refreshCorporateOnboardingStatus(
     _req: Request,
     onboardingId: string,
-    adminUserId: string
+    adminUserId: string,
+    options?: { session?: RegTankRefreshSession; skipAmlFetch?: boolean }
   ): Promise<{
     success: true;
     message: string;
@@ -5088,6 +5155,7 @@ export class AdminService {
     }
 
     const codRequestId = onboarding.request_id;
+    const session = options?.session ?? new RegTankRefreshSession(this.regTankApiClient);
 
     try {
       // Fetch COD details from RegTank API
@@ -5096,7 +5164,10 @@ export class AdminService {
         "Fetching COD details to refresh director KYC statuses"
       );
 
-      const codDetails = await this.regTankApiClient.getCorporateOnboardingDetails(codRequestId);
+      const codDetails = (await session.getCorporateOnboardingDetails(codRequestId)) as Record<
+        string,
+        any
+      >;
 
       // Resolve the org-level onboarding-approval milestone from the live COD status.
       // Only an exact "APPROVED" COD result may set onboarding_approved — mirrors the
@@ -5269,8 +5340,10 @@ export class AdminService {
 
           if (eodRequestId) {
             try {
-              const eodDetails =
-                await this.regTankApiClient.getEntityOnboardingDetails(eodRequestId);
+              const eodDetails = (await session.getEntityOnboardingDetails(eodRequestId)) as {
+                corporateIndividualRequest?: { status?: string };
+                kycRequestInfo?: { kycId?: string };
+              };
               const eodStatus = eodDetails.corporateIndividualRequest?.status?.toUpperCase() || "";
 
               kycStatus = mapEodStatusToKycStatus(eodStatus, kycStatus);
@@ -5280,6 +5353,7 @@ export class AdminService {
                 kycId = eodDetails.kycRequestInfo.kycId;
               }
             } catch (eodError) {
+              rethrowRefreshControlError(eodError);
               logger.warn(
                 {
                   error: eodError instanceof Error ? eodError.message : String(eodError),
@@ -5343,8 +5417,12 @@ export class AdminService {
 
           if (shareholderEodRequestId) {
             try {
-              const eodDetails =
-                await this.regTankApiClient.getEntityOnboardingDetails(shareholderEodRequestId);
+              const eodDetails = (await session.getEntityOnboardingDetails(
+                shareholderEodRequestId
+              )) as {
+                corporateIndividualRequest?: { status?: string };
+                kycRequestInfo?: { kycId?: string };
+              };
               const eodStatus = eodDetails.corporateIndividualRequest?.status?.toUpperCase() || "";
 
               kycStatus = mapEodStatusToKycStatus(eodStatus, kycStatus);
@@ -5353,6 +5431,7 @@ export class AdminService {
                 kycId = eodDetails.kycRequestInfo.kycId;
               }
             } catch (eodError) {
+              rethrowRefreshControlError(eodError);
               logger.warn(
                 {
                   error: eodError instanceof Error ? eodError.message : String(eodError),
@@ -5369,57 +5448,12 @@ export class AdminService {
             existingDirector.role = mergeRoleLabels(existingDirector.role, shareholderRole);
             existingDirector.shareholderEodRequestId = shareholderEodRequestId;
 
-            // Fetch both EOD details to check which one has kycId
-            let directorKycId: string | undefined;
-            let shareholderKycId: string | undefined;
-
-            // Fetch director EOD details
-            if (existingDirector.eodRequestId) {
-              try {
-                const directorEodDetails = await this.regTankApiClient.getEntityOnboardingDetails(
-                  existingDirector.eodRequestId
-                );
-                directorKycId = directorEodDetails.kycRequestInfo?.kycId;
-              } catch (eodError) {
-                logger.warn(
-                  {
-                    error: eodError instanceof Error ? eodError.message : String(eodError),
-                    eodRequestId: existingDirector.eodRequestId,
-                    codRequestId,
-                  },
-                  "Failed to fetch director EOD details for kycId check (non-blocking)"
-                );
-              }
-            }
-
-            // Fetch shareholder EOD details
-            if (shareholderEodRequestId) {
-              try {
-                const shareholderEodDetails =
-                  await this.regTankApiClient.getEntityOnboardingDetails(shareholderEodRequestId);
-                shareholderKycId = shareholderEodDetails.kycRequestInfo?.kycId;
-              } catch (eodError) {
-                logger.warn(
-                  {
-                    error: eodError instanceof Error ? eodError.message : String(eodError),
-                    eodRequestId: shareholderEodRequestId,
-                    codRequestId,
-                  },
-                  "Failed to fetch shareholder EOD details for kycId check (non-blocking)"
-                );
-              }
-            }
-
-            // Use kycId from whichever EOD record has it (prioritize director if both have it)
+            const directorKycId = existingDirector.kycId;
+            const shareholderKycId = kycId;
             if (directorKycId) {
               existingDirector.kycId = directorKycId;
             } else if (shareholderKycId) {
               existingDirector.kycId = shareholderKycId;
-            } else {
-              // Fallback to COD response if EOD details don't have it
-              if (kycId && !existingDirector.kycId) {
-                existingDirector.kycId = kycId;
-              }
             }
 
             // Update KYC status if shareholder has a more recent or different status
@@ -5614,7 +5648,7 @@ export class AdminService {
         }
 
         // If organization is in PENDING_AML stage, fetch/refresh all AML statuses using AMLFetcherService
-        if (org.onboarding_status === "PENDING_AML") {
+        if (!options?.skipAmlFetch && org.onboarding_status === "PENDING_AML") {
           try {
             logger.info(
               { codRequestId, organizationId: org.id },
@@ -5625,7 +5659,8 @@ export class AdminService {
             await amlFetcher.fetchAllAMLStatuses(
               codRequestId,
               org.id,
-              onboarding.portal_type as PortalType
+              onboarding.portal_type as PortalType,
+              session
             );
 
             logger.info(
@@ -5633,6 +5668,7 @@ export class AdminService {
               "[Admin Refresh] ✓ Completed fetching all AML statuses"
             );
           } catch (amlError) {
+            rethrowRefreshControlError(amlError);
             logger.warn(
               {
                 error: amlError instanceof Error ? amlError.message : String(amlError),
@@ -5693,6 +5729,10 @@ export class AdminService {
         advanced: onboardingAdvanced,
       };
     } catch (error) {
+      rethrowRefreshControlError(error, {
+        organizationId: org.id,
+        requestId: codRequestId,
+      });
       logger.error(
         {
           error: error instanceof Error ? error.message : String(error),
@@ -5718,7 +5758,8 @@ export class AdminService {
   async refreshCorporateAmlStatus(
     _req: Request,
     onboardingId: string,
-    adminUserId: string
+    adminUserId: string,
+    options?: { session?: RegTankRefreshSession }
   ): Promise<{
     success: true;
     message: string;
@@ -5766,6 +5807,7 @@ export class AdminService {
 
     const codRequestId = onboarding.request_id;
     const portalType = onboarding.portal_type as PortalType;
+    const session = options?.session ?? new RegTankRefreshSession(this.regTankApiClient);
 
     try {
       logger.info(
@@ -5775,7 +5817,7 @@ export class AdminService {
 
       // Use AMLFetcherService to fetch all AML statuses (per-director/shareholder display data)
       const amlFetcher = new AMLFetcherService();
-      await amlFetcher.fetchAllAMLStatuses(codRequestId, org.id, portalType);
+      await amlFetcher.fetchAllAMLStatuses(codRequestId, org.id, portalType, session);
 
       // Get updated director_aml_status to count directors
       const updatedOrg = isInvestor
@@ -5804,6 +5846,7 @@ export class AdminService {
         organizationName: org.name,
         codRequestId,
         trigger: "ADMIN_MANUAL_AML_REFRESH",
+        session,
       });
 
       logger.info(
@@ -5829,6 +5872,10 @@ export class AdminService {
         advanced: milestone.advanced,
       };
     } catch (error) {
+      rethrowRefreshControlError(error, {
+        organizationId: org.id,
+        requestId: codRequestId,
+      });
       logger.error(
         {
           error: error instanceof Error ? error.message : String(error),
@@ -5874,6 +5921,7 @@ export class AdminService {
     refreshedSources: string[];
     warnings: string[];
     partialFailures: string[];
+    refreshOutcome: OnboardingRefreshOutcome;
   }> {
     const onboarding = await prisma.regTankOnboarding.findUnique({
       where: { id: onboardingId },
@@ -5892,6 +5940,56 @@ export class AdminService {
       throw new AppError(404, "NOT_FOUND", "Organization not found");
     }
 
+    const exclusive = await runExclusiveOnboardingRefresh(org.id, () =>
+      this.executeOnboardingRefresh(req, onboarding, org, isInvestor, adminUserId)
+    );
+    if (exclusive === "IN_PROGRESS") {
+      throw new AppError(409, REFRESH_IN_PROGRESS_CODE, REFRESH_IN_PROGRESS_MESSAGE);
+    }
+    return exclusive;
+  }
+
+  private async executeOnboardingRefresh(
+    req: Request,
+    onboarding: {
+      id: string;
+      request_id: string;
+      reference_id: string;
+      portal_type: string;
+      user_id: string;
+      onboarding_type: string;
+      status: string;
+    },
+    org: {
+      id: string;
+      name: string | null;
+      onboarding_status: OnboardingStatus;
+      onboarding_approved: boolean;
+      aml_approved: boolean;
+      kyc_id?: string | null;
+      director_kyc_status?: unknown;
+    },
+    isInvestor: boolean,
+    adminUserId: string
+  ): Promise<{
+    success: true;
+    message: string;
+    organizationId: string;
+    onboardingStatus: OnboardingStatus;
+    onboardingApproved: boolean;
+    ssmApproved: boolean;
+    amlApproved: boolean;
+    advanced: boolean;
+    onboardingProviderStatus: string | null;
+    amlProviderStatus: string | null;
+    lastSyncedAt: string | null;
+    directorsUpdated: number;
+    refreshedSources: string[];
+    warnings: string[];
+    partialFailures: string[];
+    refreshOutcome: OnboardingRefreshOutcome;
+  }> {
+    const onboardingId = onboarding.id;
     const readSsmApproved = async (): Promise<boolean> => {
       if (isInvestor) {
         const row = await prisma.investorOrganization.findUnique({
@@ -5924,13 +6022,16 @@ export class AdminService {
         advanced: false,
         onboardingProviderStatus: onboarding.status,
         amlProviderStatus: null,
-        lastSyncedAt: new Date().toISOString(),
+        lastSyncedAt: storedDirectorKycLastSyncedAt(org),
         directorsUpdated: 0,
         refreshedSources: [],
         warnings: [],
         partialFailures: [],
+        refreshOutcome: "SKIPPED_TERMINAL",
       };
     }
+
+    const session = new RegTankRefreshSession(this.regTankApiClient);
 
     if (onboarding.onboarding_type === "CORPORATE") {
       const warnings: string[] = [];
@@ -5948,9 +6049,11 @@ export class AdminService {
         onboardingResult = await this.refreshCorporateOnboardingStatus(
           req,
           onboardingId,
-          adminUserId
+          adminUserId,
+          { session, skipAmlFetch: true }
         );
       } catch (error) {
+        rethrowRefreshControlError(error);
         partialFailures.push("COD");
         warnings.push(
           `Failed to refresh RegTank corporate onboarding data: ${error instanceof Error ? error.message : String(error)}`
@@ -5980,9 +6083,10 @@ export class AdminService {
         directorsUpdated: number;
       } | null = null;
       try {
-        amlResult = await this.refreshCorporateAmlStatus(req, onboardingId, adminUserId);
+        amlResult = await this.refreshCorporateAmlStatus(req, onboardingId, adminUserId, { session });
         refreshedSources.push("KYB", "RELATED_PARTY_AML");
       } catch (error) {
+        rethrowRefreshControlError(error);
         partialFailures.push("KYB");
         warnings.push(
           `Failed to refresh RegTank AML/KYB screening data: ${error instanceof Error ? error.message : String(error)}`
@@ -5992,6 +6096,8 @@ export class AdminService {
       const finalStatus = amlResult?.onboardingStatus ?? onboardingResult.onboardingStatus;
       const advanced = onboardingResult.advanced || Boolean(amlResult?.advanced);
       const ssmApproved = await readSsmApproved();
+      const refreshOutcome: OnboardingRefreshOutcome =
+        partialFailures.length > 0 ? "PARTIAL" : "COMPLETED";
 
       let message: string;
       if (advanced) {
@@ -6023,7 +6129,7 @@ export class AdminService {
         advanced,
         onboardingProviderStatus: onboardingResult.onboardingProviderStatus,
         amlProviderStatus: null,
-        lastSyncedAt: new Date().toISOString(),
+        lastSyncedAt: refreshOutcome === "COMPLETED" ? new Date().toISOString() : null,
         directorsUpdated: Math.max(
           onboardingResult.directorsUpdated,
           amlResult?.directorsUpdated ?? 0
@@ -6031,11 +6137,19 @@ export class AdminService {
         refreshedSources,
         warnings,
         partialFailures,
+        refreshOutcome,
       };
     }
 
     // PERSONAL / INDIVIDUAL onboarding.
-    return this.refreshPersonalOnboardingStatus(req, onboarding, org, isInvestor, adminUserId);
+    return this.refreshPersonalOnboardingStatus(
+      req,
+      onboarding,
+      org,
+      isInvestor,
+      adminUserId,
+      session
+    );
   }
 
   /**
@@ -6056,7 +6170,8 @@ export class AdminService {
       kyc_id?: string | null;
     },
     isInvestor: boolean,
-    adminUserId: string
+    adminUserId: string,
+    session: RegTankRefreshSession
   ): Promise<{
     success: true;
     message: string;
@@ -6073,6 +6188,7 @@ export class AdminService {
     refreshedSources: string[];
     warnings: string[];
     partialFailures: string[];
+    refreshOutcome: OnboardingRefreshOutcome;
   }> {
     const warnings: string[] = [];
     const partialFailures: string[] = [];
@@ -6081,11 +6197,15 @@ export class AdminService {
 
     let regtankDetails: Record<string, unknown> | null = null;
     try {
-      regtankDetails = (await this.regTankApiClient.queryOnboardingDetails(
+      regtankDetails = (await session.queryOnboardingDetails(
         onboarding.request_id
       )) as Record<string, unknown>;
       refreshedSources.push("INDIVIDUAL_ONBOARDING");
     } catch (error) {
+      rethrowRefreshControlError(error, {
+        organizationId: org.id,
+        requestId: onboarding.request_id,
+      });
       partialFailures.push("INDIVIDUAL_ONBOARDING");
       warnings.push(
         `Failed to query RegTank individual onboarding status: ${error instanceof Error ? error.message : String(error)}`
@@ -6244,6 +6364,7 @@ export class AdminService {
           trigger: "ADMIN_MANUAL_ONBOARDING_REFRESH_PERSONAL",
           actorUserId: adminUserId,
           context: adminAuditContextFromRequest(req, adminUserId),
+          session,
         });
         refreshedSources.push("KYC");
         amlProviderStatus = milestone.rawStatus;
@@ -6251,6 +6372,10 @@ export class AdminService {
         advanced = milestone.advanced;
         onboardingStatusResult = milestone.onboardingStatus ?? onboardingStatusResult;
       } catch (error) {
+        rethrowRefreshControlError(error, {
+          organizationId: org.id,
+          requestId: onboarding.request_id,
+        });
         partialFailures.push("KYC");
         warnings.push(
           `Failed to query RegTank individual KYC status: ${error instanceof Error ? error.message : String(error)}`
@@ -6273,6 +6398,9 @@ export class AdminService {
       message = "RegTank status refreshed.";
     }
 
+    const refreshOutcome: OnboardingRefreshOutcome =
+      partialFailures.length > 0 ? "PARTIAL" : "COMPLETED";
+
     return {
       success: true,
       message,
@@ -6284,11 +6412,12 @@ export class AdminService {
       advanced,
       onboardingProviderStatus: rawStatus,
       amlProviderStatus,
-      lastSyncedAt: new Date().toISOString(),
+      lastSyncedAt: refreshOutcome === "COMPLETED" ? new Date().toISOString() : null,
       directorsUpdated: 0,
       refreshedSources,
       warnings,
       partialFailures,
+      refreshOutcome,
     };
   }
 
@@ -6344,14 +6473,14 @@ export class AdminService {
           return;
         }
         const extras = await orgService.getIssuerPartyListExtras(oid);
-        const people = buildAdminPeopleList({
+        const partyBuild = await buildDirectorShareholderPeopleListWithMaster("issuer", oid, {
           ctos: extras.latestOrganizationCtosCompanyJson ?? null,
           issuerDirectorKycStatus: org.director_kyc_status ?? null,
           issuerDirectorAmlStatus: org.director_aml_status ?? null,
           ctosPartySupplements: extras.ctosPartySupplements,
           corporateEntities: org.corporate_entities ?? null,
         });
-        const pending = computeHasPendingDirectorShareholder(people);
+        const pending = computeHasPendingDirectorShareholder(partyBuild.people);
         pendingByOrg.set(oid, pending);
       })
     );
@@ -6898,6 +7027,9 @@ export class AdminService {
     )
       ? (applicationWithIssuerExtras.issuer_organization as Record<string, unknown>)
       : null;
+    const parentCorporateRequestId = issuerOrgId
+      ? ((await this.regTankRepository.findByOrganizationId(issuerOrgId, "issuer"))?.request_id ?? null)
+      : null;
     const partyBuild = issuerOrgId
       ? await buildDirectorShareholderPeopleListWithMaster("issuer", issuerOrgId, {
           ctos: issuerOrgForPeople?.latest_organization_ctos_company_json ?? null,
@@ -6907,6 +7039,7 @@ export class AdminService {
             ? issuerOrgForPeople.ctos_party_supplements
             : null,
           corporateEntities: issuerOrgForPeople?.corporate_entities ?? null,
+          parentCorporateRequestId,
         })
       : buildDirectorShareholderPeopleList({
           ctos: issuerOrgForPeople?.latest_organization_ctos_company_json ?? null,
@@ -6916,6 +7049,7 @@ export class AdminService {
             ? issuerOrgForPeople.ctos_party_supplements
             : null,
           corporateEntities: issuerOrgForPeople?.corporate_entities ?? null,
+          parentCorporateRequestId,
         });
 
     let inheritedAcceptance: Awaited<
@@ -7424,7 +7558,8 @@ export class AdminService {
     }
   }
 
-  private assertFinancialReviewDirectorShareholderAmlApproved(application: {
+  private async assertFinancialReviewDirectorShareholderAmlApproved(application: {
+    issuer_organization_id?: string;
     issuer_organization?: {
       corporate_entities?: unknown;
       director_kyc_status?: unknown;
@@ -7432,14 +7567,15 @@ export class AdminService {
       latest_organization_ctos_company_json?: unknown;
       ctos_party_supplements?: { party_key: string; onboarding_json?: unknown }[];
     } | null;
-  }): void {
+  }): Promise<void> {
     const issuerOrg = application.issuer_organization;
-    if (!issuerOrg) return;
+    const orgId = application.issuer_organization_id;
+    if (!issuerOrg || !orgId) return;
 
     const supplements = Array.isArray(issuerOrg.ctos_party_supplements)
       ? issuerOrg.ctos_party_supplements
       : [];
-    const people = buildAdminPeopleList({
+    const partyBuild = await buildDirectorShareholderPeopleListWithMaster("issuer", orgId, {
       ctos: issuerOrg.latest_organization_ctos_company_json ?? null,
       issuerDirectorKycStatus: issuerOrg.director_kyc_status ?? null,
       issuerDirectorAmlStatus: issuerOrg.director_aml_status ?? null,
@@ -7449,7 +7585,7 @@ export class AdminService {
       })),
       corporateEntities: issuerOrg.corporate_entities ?? null,
     });
-    if (computeHasPendingDirectorShareholder(people)) {
+    if (computeHasPendingDirectorShareholder(partyBuild.people)) {
       throw new AppError(
         400,
         "DIRECTOR_SHAREHOLDER_NOT_READY",
@@ -9852,7 +9988,7 @@ export class AdminService {
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     if (section === "financial") {
-      this.assertFinancialReviewDirectorShareholderAmlApproved(application);
+      await this.assertFinancialReviewDirectorShareholderAmlApproved(application);
       const issuerOrganizationId =
         typeof (application as { issuer_organization_id?: unknown }).issuer_organization_id ===
         "string"

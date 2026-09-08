@@ -7,12 +7,20 @@ import { createApiClient, useAuthToken } from "@cashsouk/config";
 import {
   SC_COMPANY_TYPE_LABELS,
   SC_COMPANY_TYPES,
-  type ScCompanyType,
+  SC_MONTHLY_ISSUER,
+  displayScCompanyTypeLabel,
+  firstIssueMessage,
+  humanizeApiValidationMessage,
+  isProfileValidationError,
+  issuesByField,
+  profileValidationErrorFromApi,
+  scAppendixASelectValues,
+  storedProfilePhone,
+  validateIssuerCompanyForm,
 } from "@cashsouk/types";
-import { ProfileFieldGrid, ProfileReadField } from "@cashsouk/ui";
+import { ComRepFieldLabel, ProfileFieldGrid, ProfilePhoneInput, ProfileReadField } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -101,6 +109,8 @@ export function IssuerCompanyDetailsCard({
   const [companyEmail, setCompanyEmail] = React.useState(org.companyEmail ?? "");
   const [phoneNumber, setPhoneNumber] = React.useState(org.phoneNumber ?? "");
   const [website, setWebsite] = React.useState(basic?.website ?? "");
+  const [annualRevenue, setAnnualRevenue] = React.useState(basic?.annualRevenue ?? "");
+  const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
 
   React.useEffect(() => {
     if (isEditing) return;
@@ -113,42 +123,59 @@ export function IssuerCompanyDetailsCard({
     setCompanyEmail(org.companyEmail ?? "");
     setPhoneNumber(org.phoneNumber ?? "");
     setWebsite(basic?.website ?? "");
+    setAnnualRevenue(basic?.annualRevenue ?? "");
   }, [basic, isEditing, org]);
 
-  const companyTypeLabel =
-    org.scCompanyType && org.scCompanyType in SC_COMPANY_TYPE_LABELS
-      ? SC_COMPANY_TYPE_LABELS[org.scCompanyType as ScCompanyType]
-      : basic?.entityType ?? null;
+  const companyTypeLabel = displayScCompanyTypeLabel(org.scCompanyType, basic?.entityType);
   const ssm = org.registrationNumber || basic?.ssmRegisterNumber;
   const businessName = org.name || basic?.businessName;
 
   const save = useMutation({
     mutationFn: async () => {
-      const master: Record<string, unknown> = {};
-      if (!org.dateOfIncorporation && dateOfIncorporation) master.dateOfIncorporation = dateOfIncorporation;
-      if (!org.dateOfCommencement && dateOfCommencement) master.dateOfCommencement = dateOfCommencement;
-      if (!org.countryOfIncorporation && countryOfIncorporation.trim()) {
-        master.countryOfIncorporation = countryOfIncorporation.trim();
+      const issues = validateIssuerCompanyForm({
+        name: businessName,
+        includeName: false,
+        scCompanyType: org.scCompanyType ?? scCompanyType,
+        dateOfIncorporation: org.dateOfIncorporation ?? dateOfIncorporation,
+        dateOfCommencement: org.dateOfCommencement ?? dateOfCommencement,
+        countryOfIncorporation: org.countryOfIncorporation ?? countryOfIncorporation,
+        companyEmail,
+        phoneNumber,
+      });
+      if (issues.length > 0) {
+        setFieldErrors(issuesByField(issues));
+        const first = issues[0];
+        const el = document.getElementById(`field-${first.field}`);
+        el?.scrollIntoView({ block: "center", behavior: "smooth" });
+        if (el instanceof HTMLElement) el.focus();
+        throw new Error(firstIssueMessage(issues) ?? "Complete the required fields.");
       }
-      if (!org.scCompanyType && scCompanyType) master.scCompanyType = scCompanyType;
-      if (!org.companyEmail && companyEmail.trim()) master.companyEmail = companyEmail.trim();
-      if (!org.phoneNumber && phoneNumber.trim()) master.phoneNumber = phoneNumber.trim();
+      setFieldErrors({});
 
-      if (Object.keys(master).length > 0) {
-        const res = await api.patchMasterProfile("issuer", organizationId, master);
-        if (!res.success) throw new Error(res.error.message);
-      }
+      const master: Record<string, unknown> = {
+        companyEmail: companyEmail.trim(),
+        phoneNumber: storedProfilePhone(phoneNumber.trim()) ?? phoneNumber.trim(),
+      };
+      if (!org.dateOfIncorporation) master.dateOfIncorporation = dateOfIncorporation.trim();
+      if (!org.dateOfCommencement) master.dateOfCommencement = dateOfCommencement.trim();
+      if (!org.countryOfIncorporation) master.countryOfIncorporation = countryOfIncorporation.trim();
+      if (!org.scCompanyType) master.scCompanyType = scCompanyType;
+
+      const res = await api.patchMasterProfile("issuer", organizationId, master);
+      if (!res.success) throw profileValidationErrorFromApi(res.error);
 
       const nextEmployees = employees.trim() === "" ? null : Number(employees);
       if (employees.trim() !== "" && !Number.isInteger(nextEmployees)) {
-        throw new Error("Number of employees must be a whole number");
+        setFieldErrors((current) => ({ ...current, numberOfEmployees: "Enter a whole number." }));
+        throw new Error("Enter a whole number.");
       }
       const corp = await api.patch(`/v1/organizations/issuer/${organizationId}/corporate-info`, {
         industry: industry.trim() || null,
         numberOfEmployees: nextEmployees,
         website: website.trim() || null,
+        annualRevenue: annualRevenue.trim() || null,
       });
-      if (!corp.success) throw new Error(corp.error.message);
+      if (!corp.success) throw profileValidationErrorFromApi(corp.error);
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["corporate-info", organizationId] });
@@ -157,7 +184,12 @@ export function IssuerCompanyDetailsCard({
       toast.success("Company details updated");
       setIsEditing(false);
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => {
+      if (isProfileValidationError(err) && Object.keys(err.fieldErrors).length > 0) {
+        setFieldErrors(err.fieldErrors);
+      }
+      toast.error(humanizeApiValidationMessage(err.message));
+    },
   });
 
   return (
@@ -169,71 +201,118 @@ export function IssuerCompanyDetailsCard({
         <ProfileEditToggle
           canEdit={canEdit}
           isEditing={isEditing}
-          onEdit={() => setIsEditing(true)}
-          onCancel={() => setIsEditing(false)}
+          onEdit={() => {
+            setFieldErrors({});
+            setIsEditing(true);
+          }}
+          onCancel={() => {
+            setFieldErrors({});
+            setIsEditing(false);
+          }}
         />
       }
     >
       <div className="space-y-4">
         <ProfileFieldGrid>
-          <ProfileReadField label="Business Name" value={displayProfileValue(businessName)} locked missing={missing.has("name")} />
-          <ProfileReadField label="SSM / ROC" value={displayProfileValue(ssm)} locked missing={missing.has("registrationNumber")} />
+          <ProfileReadField
+            label={SC_MONTHLY_ISSUER.nameOfIssuer.label}
+            value={displayProfileValue(businessName)}
+            locked
+            missing={missing.has("name")}
+            required
+          />
+          <ProfileReadField
+            label={SC_MONTHLY_ISSUER.issuerRoc.label}
+            value={displayProfileValue(ssm)}
+            locked
+            missing={missing.has("registrationNumber")}
+            required
+            help={SC_MONTHLY_ISSUER.issuerRoc.help}
+          />
           {isEditing && !org.scCompanyType ? (
             <SelectRow
-              label="Company Type"
+              label={SC_MONTHLY_ISSUER.typeOfCompany.label}
               value={scCompanyType}
-              onChange={setScCompanyType}
+              onChange={(value) => {
+                setScCompanyType(value);
+                setFieldErrors((current) => ({ ...current, scCompanyType: "" }));
+              }}
+              required
+              error={fieldErrors.scCompanyType}
             />
           ) : (
             <ProfileReadField
-              label="Company Type"
+              label={SC_MONTHLY_ISSUER.typeOfCompany.label}
               value={displayProfileValue(companyTypeLabel)}
               locked={Boolean(org.scCompanyType)}
               missing={missing.has("scCompanyType")}
+              required
             />
           )}
           {isEditing && !org.dateOfIncorporation ? (
             <InputRow
-              label="Date of Incorporation"
+              id="field-dateOfIncorporation"
+              label={SC_MONTHLY_ISSUER.dateOfIncorporation.label}
               type="date"
               value={dateOfIncorporation}
-              onChange={setDateOfIncorporation}
+              onChange={(value) => {
+                setDateOfIncorporation(value);
+                setFieldErrors((current) => ({ ...current, dateOfIncorporation: "" }));
+              }}
+              required
+              error={fieldErrors.dateOfIncorporation}
             />
           ) : (
             <ProfileReadField
-              label="Date of Incorporation"
+              label={SC_MONTHLY_ISSUER.dateOfIncorporation.label}
               value={displayProfileValue(formatDate(org.dateOfIncorporation))}
               locked={Boolean(org.dateOfIncorporation)}
               missing={missing.has("dateOfIncorporation")}
+              required
             />
           )}
           {isEditing && !org.dateOfCommencement ? (
             <InputRow
-              label="Date of Commencement"
+              id="field-dateOfCommencement"
+              label={SC_MONTHLY_ISSUER.dateOfCommencement.label}
               type="date"
               value={dateOfCommencement}
-              onChange={setDateOfCommencement}
+              onChange={(value) => {
+                setDateOfCommencement(value);
+                setFieldErrors((current) => ({ ...current, dateOfCommencement: "" }));
+              }}
+              required
+              error={fieldErrors.dateOfCommencement}
             />
           ) : (
             <ProfileReadField
-              label="Date of Commencement"
+              label={SC_MONTHLY_ISSUER.dateOfCommencement.label}
               value={displayProfileValue(formatDate(org.dateOfCommencement))}
               locked={Boolean(org.dateOfCommencement)}
               missing={missing.has("dateOfCommencement")}
+              required
             />
           )}
           {isEditing && !org.countryOfIncorporation ? (
-            <InputRow
-              label="Country of Incorporation"
+            <CountrySelectRow
+              label={SC_MONTHLY_ISSUER.countryOfIncorporation.label}
               value={countryOfIncorporation}
-              onChange={setCountryOfIncorporation}
+              onChange={(value) => {
+                setCountryOfIncorporation(value);
+                setFieldErrors((current) => ({ ...current, countryOfIncorporation: "" }));
+              }}
+              help={SC_MONTHLY_ISSUER.countryOfIncorporation.help}
+              required
+              error={fieldErrors.countryOfIncorporation}
             />
           ) : (
             <ProfileReadField
-              label="Country of Incorporation"
+              label={SC_MONTHLY_ISSUER.countryOfIncorporation.label}
               value={displayProfileValue(org.countryOfIncorporation)}
               locked={Boolean(org.countryOfIncorporation)}
               missing={missing.has("countryOfIncorporation")}
+              required
+              help={SC_MONTHLY_ISSUER.countryOfIncorporation.help}
             />
           )}
           <ProfileReadField label="TIN" value={displayProfileValue(basic?.tinNumber)} locked />
@@ -243,7 +322,13 @@ export function IssuerCompanyDetailsCard({
             <ProfileReadField label="Industry" value={displayProfileValue(basic?.industry)} />
           )}
           {isEditing ? (
-            <InputRow label="Number of Employees" value={employees} onChange={setEmployees} />
+            <InputRow
+              label="Number of Employees"
+              value={employees}
+              onChange={(value) => setEmployees(value.replace(/\D/g, ""))}
+              inputMode="numeric"
+              error={fieldErrors.numberOfEmployees}
+            />
           ) : (
             <ProfileReadField
               label="Number of Employees"
@@ -252,30 +337,76 @@ export function IssuerCompanyDetailsCard({
               )}
             />
           )}
-          <ProfileReadField label="Annual Revenue" value={displayProfileValue(basic?.annualRevenue)} locked />
           {isEditing ? (
-            <InputRow label="Website" value={website} onChange={setWebsite} />
+            <InputRow label="Annual Revenue" value={annualRevenue} onChange={setAnnualRevenue} />
           ) : (
-            <ProfileReadField label="Website" value={displayProfileValue(basic?.website)} />
+            <ProfileReadField label="Annual Revenue" value={displayProfileValue(basic?.annualRevenue)} />
           )}
-          {isEditing && !org.companyEmail ? (
-            <InputRow label="Company Email" value={companyEmail} onChange={setCompanyEmail} />
+          {isEditing ? (
+            <InputRow
+              label={SC_MONTHLY_ISSUER.website.label}
+              value={website}
+              onChange={setWebsite}
+              help={SC_MONTHLY_ISSUER.website.help}
+            />
           ) : (
             <ProfileReadField
-              label="Company Email"
-              value={displayProfileValue(org.companyEmail)}
-              locked={Boolean(org.companyEmail)}
-              missing={missing.has("companyEmail")}
+              label={SC_MONTHLY_ISSUER.website.label}
+              value={displayProfileValue(basic?.website)}
+              help={SC_MONTHLY_ISSUER.website.help}
             />
           )}
-          {isEditing && !org.phoneNumber ? (
-            <InputRow label="Phone" value={phoneNumber} onChange={setPhoneNumber} />
+          {isEditing ? (
+            <InputRow
+              id="field-companyEmail"
+              label={SC_MONTHLY_ISSUER.emailAddress.label}
+              value={companyEmail}
+              onChange={(value) => {
+                setCompanyEmail(value);
+                setFieldErrors((current) => ({ ...current, companyEmail: "" }));
+              }}
+              help={SC_MONTHLY_ISSUER.emailAddress.help}
+              required
+              maxLength={255}
+              type="email"
+              error={fieldErrors.companyEmail}
+            />
           ) : (
             <ProfileReadField
-              label="Phone"
+              label={SC_MONTHLY_ISSUER.emailAddress.label}
+              value={displayProfileValue(org.companyEmail)}
+              missing={missing.has("companyEmail")}
+              required
+              help={SC_MONTHLY_ISSUER.emailAddress.help}
+            />
+          )}
+          {isEditing ? (
+            <div className="space-y-2">
+              <ComRepFieldLabel
+                label={SC_MONTHLY_ISSUER.phoneNumber.label}
+                required
+                help={SC_MONTHLY_ISSUER.phoneNumber.help}
+              />
+              <ProfilePhoneInput
+                id="field-phoneNumber"
+                value={phoneNumber}
+                onChange={(value) => {
+                  setPhoneNumber(value);
+                  setFieldErrors((current) => ({ ...current, phoneNumber: "" }));
+                }}
+                error={Boolean(fieldErrors.phoneNumber)}
+              />
+              {fieldErrors.phoneNumber ? (
+                <p className="text-meta text-destructive">{fieldErrors.phoneNumber}</p>
+              ) : null}
+            </div>
+          ) : (
+            <ProfileReadField
+              label={SC_MONTHLY_ISSUER.phoneNumber.label}
               value={displayProfileValue(org.phoneNumber)}
-              locked={Boolean(org.phoneNumber)}
               missing={missing.has("phoneNumber")}
+              required
+              help={SC_MONTHLY_ISSUER.phoneNumber.help}
             />
           )}
         </ProfileFieldGrid>
@@ -296,20 +427,77 @@ export function IssuerCompanyDetailsCard({
 }
 
 function InputRow({
+  id,
   label,
   value,
   onChange,
   type = "text",
+  help,
+  required = false,
+  error,
+  maxLength,
+  inputMode,
 }: {
+  id?: string;
   label: string;
   value: string;
   onChange: (value: string) => void;
   type?: string;
+  help?: string;
+  required?: boolean;
+  error?: string;
+  maxLength?: number;
+  inputMode?: "numeric" | "decimal" | "email" | "tel" | "text";
 }) {
   return (
     <div className="space-y-2">
-      <Label className="text-ui font-medium">{label}</Label>
-      <Input className="h-11 text-ui" type={type} value={value} onChange={(e) => onChange(e.target.value)} />
+      <ComRepFieldLabel label={label} required={required} help={help} />
+      <Input
+        id={id}
+        className="h-11 text-ui"
+        type={type}
+        value={value}
+        maxLength={maxLength}
+        inputMode={inputMode}
+        onChange={(e) => onChange(e.target.value)}
+        aria-invalid={Boolean(error)}
+      />
+      {error ? <p className="text-meta text-destructive">{error}</p> : null}
+    </div>
+  );
+}
+
+function CountrySelectRow({
+  label,
+  value,
+  onChange,
+  help,
+  required = false,
+  error,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  help?: string;
+  required?: boolean;
+  error?: string;
+}) {
+  return (
+    <div className="space-y-2">
+      <ComRepFieldLabel label={label} required={required} help={help} />
+      <Select value={value || undefined} onValueChange={onChange}>
+        <SelectTrigger id="field-countryOfIncorporation" className="h-11 text-ui">
+          <SelectValue placeholder="Select" />
+        </SelectTrigger>
+        <SelectContent className="max-h-72">
+          {scAppendixASelectValues(value).map((country) => (
+            <SelectItem key={country} value={country}>
+              {country}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {error ? <p className="text-meta text-destructive">{error}</p> : null}
     </div>
   );
 }
@@ -318,16 +506,20 @@ function SelectRow({
   label,
   value,
   onChange,
+  required = false,
+  error,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  required?: boolean;
+  error?: string;
 }) {
   return (
     <div className="space-y-2">
-      <Label className="text-ui font-medium">{label}</Label>
+      <ComRepFieldLabel label={label} required={required} />
       <Select value={value || undefined} onValueChange={onChange}>
-        <SelectTrigger className="h-11 text-ui">
+        <SelectTrigger id="field-scCompanyType" className="h-11 text-ui">
           <SelectValue placeholder="Select" />
         </SelectTrigger>
         <SelectContent>
@@ -338,6 +530,7 @@ function SelectRow({
           ))}
         </SelectContent>
       </Select>
+      {error ? <p className="text-meta text-destructive">{error}</p> : null}
     </div>
   );
 }

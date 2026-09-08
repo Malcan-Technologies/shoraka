@@ -129,7 +129,9 @@ export async function callCtosSoap(cfg: CtosConfig, innerBatchXml: string): Prom
       console.error("CTOS ERROR MESSAGE:", "CTOS SOAP request failed");
       console.error("CTOS ERROR RESPONSE:", text);
       console.error("CTOS ERROR STATUS:", res.status);
-      throw new Error("CTOS SOAP request failed");
+      const soapError = new Error("CTOS SOAP request failed") as Error & { httpStatus?: number };
+      soapError.httpStatus = res.status;
+      throw soapError;
     }
 
     const match = text.match(/<return>([\s\S]*?)<\/return>/);

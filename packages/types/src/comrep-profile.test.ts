@@ -4,6 +4,11 @@ import {
   buildIssuerProfileCompleteness,
   computeIssuerCompanyCompleteness,
   computeIssuerFinancialCompleteness,
+  computeIssuerPersonCompleteness,
+  computeShareholderCompleteness,
+  displayScCompanyTypeLabel,
+  ISSUER_COMPANY_COMPLETENESS_FIELD_COUNT,
+  ISSUER_FINANCIAL_REQUIRED_FIELD_COUNT,
   groupInvestorMissingByProfileSection,
   groupIssuerMissingByProfileSection,
   groupPeopleMissingByParty,
@@ -11,13 +16,22 @@ import {
   issuerFlowStepComplete,
   isMasterFieldEmpty,
   latestUnauditedYearKey,
+  mapRegTankEntityTypeToScCompanyType,
   missingItemsForIssuerFlowStep,
   OPERATOR_HOLDER_TYPES,
   ORGANIZATION_PARTY_ENTITY_TYPES,
   parseInvoiceOfferCampaignSector,
   formatScPurposeOfFundRaisingDisplay,
   resolveApplicationPurposeOfFundRaising,
+  SC_INVESTOR_CATEGORIES,
+  SC_INVESTOR_CATEGORY_DEFINITIONS,
+  SC_INVESTOR_CATEGORY_LABELS,
   SC_SUSTAINABILITY_CATEGORIES,
+  scInvestorCategoryHelp,
+  scInvestorCategoryAfterSophisticatedChange,
+  appliesRegTankSophisticatedStatus,
+  shouldShowOrganizationPersonalKycCard,
+  typeOfInvestorValidationMessage,
   valuesEqualForMismatch,
 } from "./comrep-profile";
 import {
@@ -44,7 +58,47 @@ describe("issuer company completeness [02000]", () => {
     expect(missing.map((m) => m.field)).toContain("businessAddress.line1");
   });
 
-  it("does not require website, city, or TIN", () => {
+  it("does not require website, city, TIN, Issuer ID, or company activities", () => {
+    const missing = computeIssuerCompanyCompleteness({
+      name: "Acme Sdn Bhd",
+      registrationNumber: "1234567A",
+      organizationId: null,
+      dateOfIncorporation: "2020-01-01",
+      dateOfCommencement: "2020-02-01",
+      countryOfIncorporation: "Malaysia",
+      scCompanyType: "PRIVATE_LIMITED",
+      registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
+      businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
+      phoneNumber: "+60123456789",
+      companyEmail: "ops@acme.test",
+      companyActivities: null,
+    });
+    expect(missing.map((m) => m.field)).not.toContain("website");
+    expect(missing.map((m) => m.field)).not.toContain("companyCategory");
+    expect(missing.map((m) => m.field)).not.toContain("organizationId");
+    expect(missing.map((m) => m.field)).not.toContain("companyActivities");
+    expect(missing).toHaveLength(0);
+  });
+
+  it("counts 14 company completeness fields when empty", () => {
+    const missing = computeIssuerCompanyCompleteness({
+      name: null,
+      registrationNumber: null,
+      organizationId: null,
+      dateOfIncorporation: null,
+      dateOfCommencement: null,
+      countryOfIncorporation: null,
+      scCompanyType: null,
+      registeredAddress: null,
+      businessAddress: null,
+      phoneNumber: null,
+      companyEmail: null,
+      companyActivities: null,
+    });
+    expect(missing).toHaveLength(ISSUER_COMPANY_COMPLETENESS_FIELD_COUNT);
+  });
+
+  it("treats blank E-mail Address as a company completeness blocker", () => {
     const missing = computeIssuerCompanyCompleteness({
       name: "Acme Sdn Bhd",
       registrationNumber: "1234567A",
@@ -56,11 +110,80 @@ describe("issuer company completeness [02000]", () => {
       registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
       businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
       phoneNumber: "+60123456789",
-      companyEmail: "ops@acme.test",
-      companyActivities: "Construction",
+      companyEmail: "   ",
+      companyActivities: null,
     });
-    expect(missing.map((m) => m.field)).not.toContain("website");
-    expect(missing.map((m) => m.field)).not.toContain("companyCategory");
+    expect(missing.map((m) => m.field)).toEqual(["companyEmail"]);
+  });
+
+  it("CASE F: invalid e-mail is missing; a valid e-mail is not", () => {
+    const invalid = computeIssuerCompanyCompleteness({
+      name: "Acme Sdn Bhd",
+      registrationNumber: "1234567A",
+      organizationId: "org_1",
+      dateOfIncorporation: "2020-01-01",
+      dateOfCommencement: "2020-02-01",
+      countryOfIncorporation: "Malaysia",
+      scCompanyType: "PRIVATE_LIMITED",
+      registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
+      businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
+      phoneNumber: "+60123456789",
+      companyEmail: "not-an-email",
+      companyActivities: null,
+    });
+    expect(invalid.map((m) => m.field)).toEqual(["companyEmail"]);
+    const valid = computeIssuerCompanyCompleteness({
+      name: "Acme Sdn Bhd",
+      registrationNumber: "1234567A",
+      organizationId: "org_1",
+      dateOfIncorporation: "2020-01-01",
+      dateOfCommencement: "2020-02-01",
+      countryOfIncorporation: "Malaysia",
+      scCompanyType: "PRIVATE_LIMITED",
+      registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
+      businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
+      phoneNumber: "+60123456789",
+      companyEmail: "ops@acme.test",
+      companyActivities: null,
+    });
+    expect(valid.map((m) => m.field)).not.toContain("companyEmail");
+  });
+
+  it("CASE D: a local Malaysian phone is complete", () => {
+    const missing = computeIssuerCompanyCompleteness({
+      name: "Acme Sdn Bhd",
+      registrationNumber: "1234567A",
+      organizationId: "org_1",
+      dateOfIncorporation: "2020-01-01",
+      dateOfCommencement: "2020-02-01",
+      countryOfIncorporation: "Malaysia",
+      scCompanyType: "PRIVATE_LIMITED",
+      registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
+      businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
+      phoneNumber: "0182316817",
+      companyEmail: "ops@acme.test",
+      companyActivities: null,
+    });
+    expect(missing.map((m) => m.field)).not.toContain("phoneNumber");
+  });
+
+  it("does not require postcode when State is Outside Malaysia", () => {
+    const missing = computeIssuerCompanyCompleteness({
+      name: "Acme Sdn Bhd",
+      registrationNumber: "1234567A",
+      organizationId: "org_1",
+      dateOfIncorporation: "2020-01-01",
+      dateOfCommencement: "2020-02-01",
+      countryOfIncorporation: "SINGAPORE",
+      scCompanyType: "FOREIGN",
+      registeredAddress: { line1: "1 Overseas Rd", state: "Outside Malaysia", postalCode: "" },
+      businessAddress: { line1: "2 Overseas Rd", state: "Outside Malaysia", postalCode: null },
+      phoneNumber: "+60123456789",
+      companyEmail: "ops@acme.test",
+      companyActivities: null,
+    });
+    expect(missing.map((m) => m.field)).not.toContain("registeredAddress.postalCode");
+    expect(missing.map((m) => m.field)).not.toContain("businessAddress.postalCode");
     expect(missing).toHaveLength(0);
   });
 });
@@ -160,6 +283,7 @@ describe("issuer profile completeness", () => {
         other_cost: 0,
         plnpbt: 1,
         plnpat: 1,
+        pl_minority: 0,
         plnetdiv: 0,
       }),
     });
@@ -184,6 +308,7 @@ describe("investor personal completeness [07000]", () => {
         postalCode: "47300",
         nationality: "Malaysia",
         scInvestorCategory: "RETAIL",
+        isSophisticatedInvestor: false,
       },
     });
     expect(result.complete).toBe(true);
@@ -244,6 +369,50 @@ describe("issuer profile flow grouping", () => {
   });
 });
 
+describe("shareholder identity prefix vs entity type", () => {
+  it("does not accept ROC on an individual or NRIC on a company", () => {
+    const individual = computeShareholderCompleteness({
+      partyKey: "1",
+      name: "Ali",
+      entityType: "INDIVIDUAL",
+      identityPrefix: "ROC",
+      identityNumber: "800101011234",
+      dateOfBirth: "1980-01-01",
+      dateOfIncorporation: null,
+      gender: "MALE",
+      nationality: "MALAYSIA",
+      countryOfIncorporation: null,
+      address: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
+      shareType: "ORDINARY",
+      shareTypeOther: null,
+      shareholdingUnits: 10,
+      shareholdingAmount: 10,
+      shareholdingPercentage: 10,
+    });
+    expect(individual.map((item) => item.field)).toContain("identityPrefix");
+
+    const company = computeShareholderCompleteness({
+      partyKey: "2",
+      name: "HoldCo",
+      entityType: "CORPORATE",
+      identityPrefix: "NRIC",
+      identityNumber: "1234567A",
+      dateOfBirth: null,
+      dateOfIncorporation: "2010-01-01",
+      gender: "NOT_APPLICABLE",
+      nationality: null,
+      countryOfIncorporation: "MALAYSIA",
+      address: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
+      shareType: "ORDINARY",
+      shareTypeOther: null,
+      shareholdingUnits: 10,
+      shareholdingAmount: 10,
+      shareholdingPercentage: 10,
+    });
+    expect(company.map((item) => item.field)).toContain("identityPrefix");
+  });
+});
+
 describe("campaign sustainability category [03000]", () => {
   it("includes None and G1–G17", () => {
     expect(SC_SUSTAINABILITY_CATEGORIES[0]).toBe("NONE");
@@ -253,17 +422,138 @@ describe("campaign sustainability category [03000]", () => {
 });
 
 describe("SC ComRep investor category", () => {
-  it("lists personal and corporate options separately and does not use the product flag", () => {
-    expect(allowedScInvestorCategories({ organizationType: "PERSONAL" })).toEqual([
-      "ANGEL",
-      "RETAIL",
-      "SOPHISTICATED_HIGH_NET_WORTH_INDIVIDUAL",
-      "SOPHISTICATED_ACCREDITED",
-    ]);
-    expect(allowedScInvestorCategories({ organizationType: "COMPANY" })).toEqual([
-      "SOPHISTICATED_HIGH_NET_WORTH_ENTITY",
-      "NON_SOPHISTICATED_ENTITY",
-    ]);
+  it("shows only HNWI and Accredited for a personal sophisticated investor", () => {
+    expect(
+      allowedScInvestorCategories({
+        organizationType: "PERSONAL",
+        isSophisticatedInvestor: true,
+      })
+    ).toEqual(["SOPHISTICATED_HIGH_NET_WORTH_INDIVIDUAL", "SOPHISTICATED_ACCREDITED"]);
+  });
+
+  it("shows only Angel and Retail for a personal non-sophisticated investor", () => {
+    expect(
+      allowedScInvestorCategories({
+        organizationType: "PERSONAL",
+        isSophisticatedInvestor: false,
+      })
+    ).toEqual(["ANGEL", "RETAIL"]);
+  });
+
+  it("shows only HNWE and Accredited for a company sophisticated investor", () => {
+    expect(
+      allowedScInvestorCategories({
+        organizationType: "COMPANY",
+        isSophisticatedInvestor: true,
+      })
+    ).toEqual(["SOPHISTICATED_HIGH_NET_WORTH_ENTITY", "SOPHISTICATED_ACCREDITED"]);
+  });
+
+  it("shows only Non-sophisticated entity for a company non-sophisticated investor", () => {
+    expect(
+      allowedScInvestorCategories({
+        organizationType: "COMPANY",
+        isSophisticatedInvestor: false,
+      })
+    ).toEqual(["NON_SOPHISTICATED_ENTITY"]);
+  });
+
+  it("does not auto-select Type of Investor even when only one option is valid", () => {
+    expect(
+      scInvestorCategoryAfterSophisticatedChange(null, {
+        organizationType: "COMPANY",
+        isSophisticatedInvestor: false,
+      })
+    ).toBeNull();
+  });
+
+  it("hides Type of Investor options until Sophisticated Investor is chosen", () => {
+    expect(
+      allowedScInvestorCategories({
+        organizationType: "PERSONAL",
+        isSophisticatedInvestor: null,
+      })
+    ).toEqual([]);
+    expect(
+      allowedScInvestorCategories({
+        organizationType: "COMPANY",
+        isSophisticatedInvestor: undefined,
+      })
+    ).toEqual([]);
+  });
+
+  it("does not apply RegTank auto-sophisticated status to companies", () => {
+    expect(appliesRegTankSophisticatedStatus("COMPANY")).toBe(false);
+    expect(appliesRegTankSophisticatedStatus("PERSONAL")).toBe(true);
+  });
+
+  it("clears Type of Investor when Sophisticated status makes it invalid", () => {
+    expect(
+      scInvestorCategoryAfterSophisticatedChange("SOPHISTICATED_HIGH_NET_WORTH_INDIVIDUAL", {
+        organizationType: "PERSONAL",
+        isSophisticatedInvestor: false,
+      })
+    ).toBeNull();
+    expect(
+      scInvestorCategoryAfterSophisticatedChange("SOPHISTICATED_HIGH_NET_WORTH_ENTITY", {
+        organizationType: "COMPANY",
+        isSophisticatedInvestor: false,
+      })
+    ).toBeNull();
+    expect(
+      scInvestorCategoryAfterSophisticatedChange("ANGEL", {
+        organizationType: "PERSONAL",
+        isSophisticatedInvestor: false,
+      })
+    ).toBe("ANGEL");
+  });
+
+  it("rejects invalid personal combinations", () => {
+    expect(
+      typeOfInvestorValidationMessage("RETAIL", {
+        organizationType: "PERSONAL",
+        isSophisticatedInvestor: true,
+      })
+    ).toBe("This Type of Investor is not valid for this organisation.");
+    expect(
+      typeOfInvestorValidationMessage("SOPHISTICATED_HIGH_NET_WORTH_INDIVIDUAL", {
+        organizationType: "PERSONAL",
+        isSophisticatedInvestor: false,
+      })
+    ).toBe("This Type of Investor is not valid for this organisation.");
+    expect(
+      typeOfInvestorValidationMessage("SOPHISTICATED_ACCREDITED", {
+        organizationType: "PERSONAL",
+        isSophisticatedInvestor: false,
+      })
+    ).toBe("This Type of Investor is not valid for this organisation.");
+  });
+
+  it("rejects invalid company combinations", () => {
+    expect(
+      typeOfInvestorValidationMessage("RETAIL", {
+        organizationType: "COMPANY",
+        isSophisticatedInvestor: true,
+      })
+    ).toBe("This Type of Investor is not valid for this organisation.");
+    expect(
+      typeOfInvestorValidationMessage("ANGEL", {
+        organizationType: "COMPANY",
+        isSophisticatedInvestor: true,
+      })
+    ).toBe("This Type of Investor is not valid for this organisation.");
+    expect(
+      typeOfInvestorValidationMessage("SOPHISTICATED_HIGH_NET_WORTH_ENTITY", {
+        organizationType: "COMPANY",
+        isSophisticatedInvestor: false,
+      })
+    ).toBe("This Type of Investor is not valid for this organisation.");
+    expect(
+      typeOfInvestorValidationMessage("SOPHISTICATED_ACCREDITED", {
+        organizationType: "COMPANY",
+        isSophisticatedInvestor: false,
+      })
+    ).toBe("This Type of Investor is not valid for this organisation.");
   });
 
   it("requires an explicit SC category for user completeness now that investors can set it", () => {
@@ -279,6 +569,7 @@ describe("SC ComRep investor category", () => {
         postalCode: "47300",
         nationality: "Malaysia",
         scInvestorCategory: null,
+        isSophisticatedInvestor: false,
       },
     });
     expect(personal.complete).toBe(false);
@@ -299,6 +590,7 @@ describe("SC ComRep investor category", () => {
         businessState: "Selangor",
         businessPostalCode: "47300",
         scInvestorCategory: null,
+        isSophisticatedInvestor: false,
       },
     });
     expect(corporate.complete).toBe(false);
@@ -306,6 +598,48 @@ describe("SC ComRep investor category", () => {
     expect(corporate.userMissing.map((item) => item.field)).toEqual(["scInvestorCategory"]);
     expect(corporate.missing.map((item) => item.field)).toContain("scInvestorCategory");
     expect(corporate.missing.find((item) => item.field === "scInvestorCategory")?.owner).toBe("USER");
+  });
+
+  it("counts blank Sophisticated Investor and Type of Investor as missing", () => {
+    const personal = buildInvestorProfileCompleteness({
+      organizationType: "PERSONAL",
+      personal: {
+        name: "Ali Bin Abu",
+        identityPrefix: "NRIC",
+        identityNumber: "800101011234",
+        dateOfBirth: "1980-01-01",
+        gender: "MALE",
+        state: "Selangor",
+        postalCode: "47300",
+        nationality: "Malaysia",
+        scInvestorCategory: null,
+        isSophisticatedInvestor: null,
+      },
+    });
+    expect(personal.userMissing.map((item) => item.field)).toEqual([
+      "isSophisticatedInvestor",
+      "scInvestorCategory",
+    ]);
+
+    const corporate = buildInvestorProfileCompleteness({
+      organizationType: "COMPANY",
+      corporate: {
+        name: "Acme Capital Sdn Bhd",
+        registrationNumber: "202401000001",
+        identityPrefix: "ROC",
+        dateOfIncorporation: "2020-01-01",
+        countryOfIncorporation: "Malaysia",
+        gender: "NOT_APPLICABLE",
+        businessState: "Selangor",
+        businessPostalCode: "47300",
+        scInvestorCategory: null,
+        isSophisticatedInvestor: null,
+      },
+    });
+    expect(corporate.userMissing.map((item) => item.field)).toEqual([
+      "isSophisticatedInvestor",
+      "scInvestorCategory",
+    ]);
   });
 
   it("keeps user completeness incomplete when an investor-editable field is missing", () => {
@@ -321,6 +655,7 @@ describe("SC ComRep investor category", () => {
         postalCode: "47300",
         nationality: "Malaysia",
         scInvestorCategory: "RETAIL",
+        isSophisticatedInvestor: false,
       },
     });
     expect(personal.complete).toBe(false);
@@ -329,7 +664,26 @@ describe("SC ComRep investor category", () => {
     expect(personal.userMissing[0]?.owner ?? "USER").toBe("USER");
   });
 
-  it("accepts an SC category that differs from the CashSouk product flag", () => {
+  it("counts an invalid personal Type of Investor as missing", () => {
+    const personal = buildInvestorProfileCompleteness({
+      organizationType: "PERSONAL",
+      personal: {
+        name: "Ali Bin Abu",
+        identityPrefix: "NRIC",
+        identityNumber: "800101011234",
+        dateOfBirth: "1980-01-01",
+        gender: "MALE",
+        state: "Selangor",
+        postalCode: "47300",
+        nationality: "Malaysia",
+        scInvestorCategory: "RETAIL",
+        isSophisticatedInvestor: true,
+      },
+    });
+    expect(personal.userMissing.map((item) => item.field)).toEqual(["scInvestorCategory"]);
+  });
+
+  it("keeps an existing valid Type of Investor complete", () => {
     const personal = buildInvestorProfileCompleteness({
       organizationType: "PERSONAL",
       personal: {
@@ -342,10 +696,28 @@ describe("SC ComRep investor category", () => {
         postalCode: "47300",
         nationality: "Malaysia",
         scInvestorCategory: "ANGEL",
+        isSophisticatedInvestor: false,
       },
     });
     expect(personal.complete).toBe(true);
     expect(personal.userComplete).toBe(true);
+
+    const sophisticatedPersonal = buildInvestorProfileCompleteness({
+      organizationType: "PERSONAL",
+      personal: {
+        name: "Ali Bin Abu",
+        identityPrefix: "NRIC",
+        identityNumber: "800101011234",
+        dateOfBirth: "1980-01-01",
+        gender: "MALE",
+        state: "Selangor",
+        postalCode: "47300",
+        nationality: "Malaysia",
+        scInvestorCategory: "SOPHISTICATED_HIGH_NET_WORTH_INDIVIDUAL",
+        isSophisticatedInvestor: true,
+      },
+    });
+    expect(sophisticatedPersonal.complete).toBe(true);
 
     const corporate = buildInvestorProfileCompleteness({
       organizationType: "COMPANY",
@@ -359,10 +731,32 @@ describe("SC ComRep investor category", () => {
         businessState: "Selangor",
         businessPostalCode: "47300",
         scInvestorCategory: "NON_SOPHISTICATED_ENTITY",
+        isSophisticatedInvestor: false,
       },
     });
     expect(corporate.complete).toBe(true);
     expect(corporate.userComplete).toBe(true);
+  });
+
+  it("exposes tooltip definitions for every displayed Type of Investor option", () => {
+    for (const category of SC_INVESTOR_CATEGORIES) {
+      expect(SC_INVESTOR_CATEGORY_DEFINITIONS[category].length).toBeGreaterThan(0);
+    }
+
+    const scopes = [
+      { organizationType: "PERSONAL" as const, isSophisticatedInvestor: true },
+      { organizationType: "PERSONAL" as const, isSophisticatedInvestor: false },
+      { organizationType: "COMPANY" as const, isSophisticatedInvestor: true },
+      { organizationType: "COMPANY" as const, isSophisticatedInvestor: false },
+    ];
+    for (const scope of scopes) {
+      const options = allowedScInvestorCategories(scope);
+      const help = scInvestorCategoryHelp(options);
+      for (const option of options) {
+        expect(help).toContain(SC_INVESTOR_CATEGORY_LABELS[option]);
+        expect(help).toContain(SC_INVESTOR_CATEGORY_DEFINITIONS[option]);
+      }
+    }
   });
 });
 
@@ -443,9 +837,250 @@ describe("issuer profile financial editor keys", () => {
       other_cost: 1,
       plnpbt: 1,
       plnpat: 1,
+      pl_minority: 0,
       plnetdiv: 1,
     });
     expect(computeIssuerFinancialCompleteness(filled).map((item) => item.field)).toEqual([]);
+  });
+
+  it("counts every required financial field when no year block exists (scenario F)", () => {
+    expect(computeIssuerFinancialCompleteness(null)).toHaveLength(ISSUER_FINANCIAL_REQUIRED_FIELD_COUNT);
+    const result = buildIssuerProfileCompleteness({
+      company: {
+        name: "Acme Sdn Bhd",
+        registrationNumber: "1234567A",
+        organizationId: "org_1",
+        dateOfIncorporation: "2020-01-01",
+        dateOfCommencement: "2020-02-01",
+        countryOfIncorporation: "Malaysia",
+        scCompanyType: "PRIVATE_LIMITED",
+        registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
+        businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
+        phoneNumber: "+60123456789",
+        companyEmail: "ops@acme.test",
+        companyActivities: null,
+      },
+      shareholders: [
+        {
+          partyKey: "800101011234",
+          name: "Ali",
+          entityType: "INDIVIDUAL",
+          identityPrefix: "NRIC",
+          identityNumber: "800101011234",
+          dateOfBirth: "1980-01-01",
+          dateOfIncorporation: null,
+          gender: "MALE",
+          nationality: "Malaysia",
+          countryOfIncorporation: null,
+          address: { line1: "10 Jalan C", state: "Selangor", postalCode: "47300" },
+          shareType: "ORDINARY",
+          shareTypeOther: null,
+          shareholdingUnits: 100,
+          shareholdingAmount: 100,
+          shareholdingPercentage: 50,
+        },
+      ],
+      board: [],
+      people: [
+        {
+          partyKey: "800101011234",
+          name: "Ali",
+          entityType: "INDIVIDUAL",
+          isDirector: false,
+          isShareholder: true,
+          isBoard: false,
+          isManagement: false,
+          identityPrefix: "NRIC",
+          identityNumber: "800101011234",
+          dateOfBirth: "1980-01-01",
+          dateOfIncorporation: null,
+          gender: "MALE",
+          nationality: "Malaysia",
+          countryOfIncorporation: null,
+          address: { line1: "10 Jalan C", state: "Selangor", postalCode: "47300" },
+          shareType: "ORDINARY",
+          shareTypeOther: null,
+          shareholdingUnits: 100,
+          shareholdingAmount: 100,
+          shareholdingPercentage: 50,
+          designation: null,
+          designationOther: null,
+          appointmentDate: null,
+        },
+      ],
+      financials: null,
+    });
+    expect(result.missing.filter((item) => item.step === "financials")).toHaveLength(
+      ISSUER_FINANCIAL_REQUIRED_FIELD_COUNT
+    );
+  });
+});
+
+describe("company type mapping and personal KYC visibility", () => {
+  it("maps Limited Liability Partnerships to LLP and does not display the raw RegTank label", () => {
+    expect(mapRegTankEntityTypeToScCompanyType("Limited Liability Partnerships")).toBe("LLP");
+    expect(displayScCompanyTypeLabel(null, "Limited Liability Partnerships")).toBe(
+      "Limited Liability Partnership"
+    );
+    expect(displayScCompanyTypeLabel(null, "Something unknown")).toBeNull();
+  });
+
+  it("hides organisation Personal Details (KYC) for company organisations (scenario G)", () => {
+    expect(shouldShowOrganizationPersonalKycCard("COMPANY")).toBe(false);
+    expect(shouldShowOrganizationPersonalKycCard("PERSONAL")).toBe(true);
+  });
+});
+
+describe("people completeness by actual role", () => {
+  it("counts Gender, Nationality, and Date of Birth once for a director (scenario E)", () => {
+    const person = {
+      partyKey: "950829083430",
+      name: "Nur Aina Farisha Binti Salleh",
+      entityType: "INDIVIDUAL" as const,
+      isDirector: true,
+      isShareholder: false,
+      isBoard: false,
+      isManagement: false,
+      identityPrefix: "NRIC" as const,
+      identityNumber: "950829083430",
+      dateOfBirth: null,
+      dateOfIncorporation: null,
+      gender: null,
+      nationality: null,
+      countryOfIncorporation: null,
+      address: { line1: "1 Jalan A", state: "Selangor", postalCode: "47800" },
+      shareType: null,
+      shareTypeOther: null,
+      shareholdingUnits: null,
+      shareholdingAmount: null,
+      shareholdingPercentage: null,
+      designation: null,
+      designationOther: null,
+      appointmentDate: null,
+    };
+    const missing = computeIssuerPersonCompleteness(person);
+    expect(missing.map((item) => item.field).sort()).toEqual([
+      "dateOfBirth",
+      "gender",
+      "nationality",
+    ]);
+    expect(missing).toHaveLength(3);
+    expect(missing.some((item) => item.field === "designation")).toBe(false);
+  });
+
+  it("does not treat a director as Board and does not double-count shared identity fields", () => {
+    const person = {
+      partyKey: "950829083430",
+      name: "Nur Aina Farisha Binti Salleh",
+      entityType: "INDIVIDUAL" as const,
+      isDirector: true,
+      isShareholder: true,
+      isBoard: false,
+      isManagement: false,
+      identityPrefix: "NRIC" as const,
+      identityNumber: "950829083430",
+      dateOfBirth: null,
+      dateOfIncorporation: null,
+      gender: null,
+      nationality: null,
+      countryOfIncorporation: null,
+      address: { line1: "1 Jalan A", state: "Selangor", postalCode: "47800" },
+      shareType: "ORDINARY" as const,
+      shareTypeOther: null,
+      shareholdingUnits: 6,
+      shareholdingAmount: 6,
+      shareholdingPercentage: 6,
+      designation: null,
+      designationOther: null,
+      appointmentDate: null,
+    };
+    const missing = computeIssuerPersonCompleteness(person);
+    expect(missing.filter((item) => item.field === "dateOfBirth")).toHaveLength(1);
+    expect(missing.filter((item) => item.field === "gender")).toHaveLength(1);
+    expect(missing.some((item) => item.field === "designation")).toBe(false);
+    expect(missing.map((item) => item.field).sort()).toEqual([
+      "dateOfBirth",
+      "gender",
+      "nationality",
+    ]);
+  });
+
+  it("does not count individual DOB or Gender for a corporate shareholder", () => {
+    const missing = computeIssuerPersonCompleteness({
+      partyKey: "202001234567",
+      name: "ApexStar Holdings Sdn. Bhd.",
+      entityType: "CORPORATE",
+      isDirector: false,
+      isShareholder: true,
+      isBoard: false,
+      isManagement: false,
+      identityPrefix: "ROC",
+      identityNumber: "202001234567",
+      dateOfBirth: null,
+      dateOfIncorporation: "2020-01-01",
+      gender: "NOT_APPLICABLE",
+      nationality: null,
+      countryOfIncorporation: "Malaysia",
+      address: { line1: "10 Jalan Apex", state: "Selangor", postalCode: "47800" },
+      shareType: "ORDINARY",
+      shareTypeOther: null,
+      shareholdingUnits: 10,
+      shareholdingAmount: 10,
+      shareholdingPercentage: 10,
+      designation: null,
+      designationOther: null,
+      appointmentDate: null,
+    });
+    expect(missing.map((item) => item.field)).not.toContain("dateOfBirth");
+    expect(missing.map((item) => item.field)).not.toContain("gender");
+    expect(missing.map((item) => item.field)).not.toContain("nationality");
+  });
+
+  it("does not count hidden Gender when a company shareholder has no gender stored", () => {
+    const missing = computeIssuerPersonCompleteness({
+      partyKey: "202001234567",
+      name: "ApexStar Holdings Sdn. Bhd.",
+      entityType: "CORPORATE",
+      isDirector: false,
+      isShareholder: true,
+      isBoard: false,
+      isManagement: false,
+      identityPrefix: "ROC",
+      identityNumber: "202001234567",
+      dateOfBirth: null,
+      dateOfIncorporation: "2020-01-01",
+      gender: null,
+      nationality: null,
+      countryOfIncorporation: "Malaysia",
+      address: { line1: "10 Jalan Apex", state: "Selangor", postalCode: "47800" },
+      shareType: "ORDINARY",
+      shareTypeOther: null,
+      shareholdingUnits: 10,
+      shareholdingAmount: 10,
+      shareholdingPercentage: 10,
+      designation: null,
+      designationOther: null,
+      appointmentDate: null,
+    });
+    expect(missing.map((item) => item.field)).not.toContain("gender");
+  });
+
+  it("counts populated company email as filled (scenario B)", () => {
+    const missing = computeIssuerCompanyCompleteness({
+      name: "Acme Sdn Bhd",
+      registrationNumber: "1234567A",
+      organizationId: "org_1",
+      dateOfIncorporation: "2020-01-01",
+      dateOfCommencement: "2020-02-01",
+      countryOfIncorporation: "Malaysia",
+      scCompanyType: "LLP",
+      registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
+      businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
+      phoneNumber: "+60123456789",
+      companyEmail: "ops@acme.test",
+      companyActivities: null,
+    });
+    expect(missing.map((item) => item.field)).not.toContain("companyEmail");
   });
 });
 

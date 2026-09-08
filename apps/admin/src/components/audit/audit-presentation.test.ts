@@ -137,6 +137,15 @@ describe("audit presentation", () => {
         nextValues: { enabled: false },
       })
     ).toEqual({ previous: { enabled: true }, next: { enabled: false } });
+    expect(
+      extractPreviousNext({
+        previous: { name: "ABC Trading" },
+        new: { name: "ABC Trading Sdn Bhd" },
+      })
+    ).toEqual({
+      previous: { name: "ABC Trading" },
+      next: { name: "ABC Trading Sdn Bhd" },
+    });
     expect(extractPreviousNext({ remark: "none" })).toEqual({
       previous: undefined,
       next: undefined,

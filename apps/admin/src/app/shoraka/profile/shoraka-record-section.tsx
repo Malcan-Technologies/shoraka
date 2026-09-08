@@ -2,6 +2,14 @@
 
 import * as React from "react";
 import { toast } from "sonner";
+import {
+  firstIssueMessage,
+  humanizeApiValidationMessage,
+  isProfileValidationError,
+  issuesByField,
+  omitRecordId,
+  type ComrepFieldIssue,
+} from "@cashsouk/types";
 import { PlusIcon } from "@heroicons/react/24/outline";
 import { EmptyState, Tabs, TabsList, TabsTrigger } from "@cashsouk/ui";
 import { AdminDetailCardHeader } from "@/components/admin-detail";
@@ -36,6 +44,7 @@ export function ShorakaRecordSection<T extends { id?: string }>({
   onCreate,
   onUpdate,
   onDelete,
+  validate,
 }: {
   title: string;
   description: string;
@@ -50,19 +59,22 @@ export function ShorakaRecordSection<T extends { id?: string }>({
   onFilterChange?: (value: string) => void;
   renderCard: (row: T) => { title: string; subtitle?: string; meta?: React.ReactNode };
   blank: () => Partial<T>;
-  fields: (row: T, set: (next: T) => void, disabled: boolean) => React.ReactNode;
+  fields: (row: T, set: (next: T) => void, disabled: boolean, errors: Record<string, string>) => React.ReactNode;
   dialogTitle: (mode: "add" | "view" | "edit") => string;
   onCreate: (body: Record<string, unknown>) => Promise<void>;
   onUpdate: (id: string, body: Record<string, unknown>) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  validate?: (row: T) => ComrepFieldIssue[];
 }) {
   const [editing, setEditing] = React.useState<T | null>(null);
   const [mode, setMode] = React.useState<"add" | "view" | "edit">("add");
   const [saving, setSaving] = React.useState(false);
+  const [errors, setErrors] = React.useState<Record<string, string>>({});
   const readOnly = mode === "view";
 
   const openAdd = () => {
     setMode("add");
+    setErrors({});
     setEditing({ ...(blank() as T) });
   };
 
@@ -128,6 +140,7 @@ export function ShorakaRecordSection<T extends { id?: string }>({
                         size="sm"
                         onClick={() => {
                           setMode("view");
+                          setErrors({});
                           setEditing(row);
                         }}
                       >
@@ -141,6 +154,7 @@ export function ShorakaRecordSection<T extends { id?: string }>({
                             size="sm"
                             onClick={() => {
                               setMode("edit");
+                              setErrors({});
                               setEditing(row);
                             }}
                           >
@@ -156,7 +170,11 @@ export function ShorakaRecordSection<T extends { id?: string }>({
                                 await onDelete(row.id);
                                 toast.success("Removed");
                               } catch (err) {
-                                toast.error(err instanceof Error ? err.message : "Failed");
+                                toast.error(
+                                  err instanceof Error
+                                    ? humanizeApiValidationMessage(err.message)
+                                    : "Failed"
+                                );
                               }
                             }}
                           >
@@ -179,7 +197,7 @@ export function ShorakaRecordSection<T extends { id?: string }>({
             <DialogHeader>
               <DialogTitle>{dialogTitle(mode)}</DialogTitle>
             </DialogHeader>
-            <div className="grid gap-4 sm:grid-cols-2">{fields(editing, setEditing, readOnly)}</div>
+            <div className="grid gap-4 sm:grid-cols-2">{fields(editing, setEditing, readOnly, errors)}</div>
             <DialogFooter>
               {readOnly ? (
                 <Button className="h-10" variant="outline" onClick={() => setEditing(null)}>
@@ -195,15 +213,30 @@ export function ShorakaRecordSection<T extends { id?: string }>({
                     disabled={saving}
                     onClick={async () => {
                       try {
+                        if (validate && editing) {
+                          const issues = validate(editing);
+                          if (issues.length > 0) {
+                            setErrors(issuesByField(issues));
+                            toast.error(firstIssueMessage(issues));
+                            return;
+                          }
+                        }
+                        setErrors({});
                         setSaving(true);
-                        const body = { ...editing } as Record<string, unknown>;
-                        delete body.id;
+                        const body = omitRecordId({ ...editing } as Record<string, unknown>);
                         if (mode === "add" || !editing.id) await onCreate(body);
                         else await onUpdate(editing.id, body);
                         setEditing(null);
                         toast.success("Saved");
                       } catch (err) {
-                        toast.error(err instanceof Error ? err.message : "Failed");
+                        if (isProfileValidationError(err) && Object.keys(err.fieldErrors).length > 0) {
+                          setErrors(err.fieldErrors);
+                        }
+                        toast.error(
+                          err instanceof Error
+                            ? humanizeApiValidationMessage(err.message)
+                            : "Failed"
+                        );
                       } finally {
                         setSaving(false);
                       }

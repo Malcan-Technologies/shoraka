@@ -5,9 +5,9 @@ import {
   getCtosPartySupplementPipelineStatus,
   getCtosPartySupplementRequestId,
   hasCorporateShareholderEntity,
+  isKycOnboardingNotStartedToken,
   isPartyTypeA,
   isReadyOnboardingStatus as isReadyOnboardingStatusShared,
-  normalizeRawStatus,
   normalizeDirectorShareholderIdKey,
   type ApplicationPersonRow,
   type CorporateEntitiesShape,
@@ -47,7 +47,7 @@ export function isRegTankSubmitReadyStatus(statusRaw: string): boolean {
 }
 
 export function hasStartedOnboarding(p: Pick<ApplicationPersonRow, "onboarding">): boolean {
-  return Boolean(normalizeRawStatus(p.onboarding?.status));
+  return !isKycOnboardingNotStartedToken(p.onboarding?.status);
 }
 
 export function getSupplementOnboardingJson(

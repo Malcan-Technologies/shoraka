@@ -36,16 +36,13 @@ export function parseDateInput(value: unknown): Date | null {
 export function asAddress(value: unknown): ProfileAddress | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const rec = value as Record<string, unknown>;
+  const postalRaw = rec.postalCode ?? rec.postcode;
   return {
     line1: typeof rec.line1 === "string" ? rec.line1 : rec.line1 == null ? null : String(rec.line1),
     line2: typeof rec.line2 === "string" ? rec.line2 : rec.line2 == null ? null : String(rec.line2),
     city: typeof rec.city === "string" ? rec.city : rec.city == null ? null : String(rec.city),
     postalCode:
-      typeof rec.postalCode === "string"
-        ? rec.postalCode
-        : rec.postalCode == null
-          ? null
-          : String(rec.postalCode),
+      typeof postalRaw === "string" ? postalRaw : postalRaw == null ? null : String(postalRaw),
     state: typeof rec.state === "string" ? rec.state : rec.state == null ? null : String(rec.state),
     country: typeof rec.country === "string" ? rec.country : rec.country == null ? null : String(rec.country),
   };
@@ -205,6 +202,38 @@ export function mergeObservationResolutions(
 function asRecord(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   return value as Record<string, unknown>;
+}
+
+const ORG_IDENTITY_MASTER_KEYS = [
+  "first_name",
+  "last_name",
+  "middle_name",
+  "nationality",
+  "country",
+  "id_issuing_country",
+  "gender",
+  "address",
+  "date_of_birth",
+  "document_type",
+  "document_number",
+  "phone_number",
+  "legal_name_on_id",
+] as const;
+
+/** Later RegTank extracts must not overwrite filled CashSouk identity/contact master fields. */
+export function preserveFilledOrgIdentityFields<T extends Record<string, unknown>>(
+  existing: T | null | undefined,
+  incoming: T
+): T {
+  if (!existing) return incoming;
+  const out = { ...incoming };
+  for (const key of ORG_IDENTITY_MASTER_KEYS) {
+    if (!(key in incoming)) continue;
+    if (!isMasterFieldEmpty(existing[key])) {
+      (out as Record<string, unknown>)[key] = existing[key];
+    }
+  }
+  return out;
 }
 
 /**

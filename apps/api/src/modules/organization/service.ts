@@ -1887,15 +1887,8 @@ export class OrganizationService {
     const previousEmail = (prevSup.email ?? "").trim();
     const emailChanged = previousEmail.toLowerCase() !== email.toLowerCase();
     const mergedDoc = mergeCtosPartySupplementDocument(prevRoot, {
-      onboarding: emailChanged
-        ? {
-            email,
-            status: "NOT_STARTED",
-            requestId: `draft-${Date.now()}`,
-            verifyLink: "",
-          }
-        : { email },
-      ...(emailChanged ? { screeningReset: true } : {}),
+      onboarding: { email },
+      ...(emailChanged ? { screeningReset: true, pipelineReset: true } : {}),
     });
     await upsertCtosPartySupplementOnboardingJson(
       portalType,
@@ -1991,8 +1984,21 @@ export class OrganizationService {
   }
 
   /**
-   * Trigger RegTank individual onboarding (2.1) for a CTOS director/shareholder party.
+   * Shared KYC/AML onboarding for a master party (manually added or CTOS-adopted).
    * Reuses RegTankAPIClient.createIndividualOnboarding; persists sent state on ctos_party_supplements.onboarding_json.
+   */
+  async sendPartyKycAmlOnboarding(
+    userId: string,
+    organizationId: string,
+    portalType: PortalType,
+    input: SendDirectorOnboardingInput
+  ): Promise<{ requestId: string }> {
+    return this.sendDirectorCtosPartyOnboarding(userId, organizationId, portalType, input);
+  }
+
+  /**
+   * Trigger RegTank individual onboarding (2.1) for a director/shareholder party.
+   * Alias of {@link sendPartyKycAmlOnboarding}.
    */
   async sendDirectorCtosPartyOnboarding(
     userId: string,
@@ -2020,23 +2026,32 @@ export class OrganizationService {
     const entities = await this.getCorporateEntities(userId, organizationId, portalType);
     const peopleRows = filterVisiblePeopleRows(entities.people ?? []);
     const personRow = peopleRows.find((p) => normalizeDirectorShareholderIdKey(p.matchKey) === pk);
-    if (!personRow || !canManageDirectorShareholder(personRow)) {
+    if (!personRow) {
       throw new AppError(
         400,
         "NOT_ALLOWED",
         "Resend is only allowed for actionable individual rows"
       );
     }
-    if (isLegacyCtosPartyKycApproved(pk, entities.directorKycStatus)) {
+    const supplement = await findCtosPartySupplementForOrg(portalType, organizationId, pk);
+    const prevRoot = supplement?.onboarding_json;
+    if (
+      isLegacyCtosPartyKycApproved(pk, entities.directorKycStatus) ||
+      isCtosPartySupplementApprovalLocked(prevRoot)
+    ) {
       throw new AppError(
         400,
         "NOT_REQUIRED",
         "This person already completed KYC on the company record."
       );
     }
-
-    const supplement = await findCtosPartySupplementForOrg(portalType, organizationId, pk);
-    const prevRoot = supplement?.onboarding_json;
+    if (!canManageDirectorShareholder(personRow)) {
+      throw new AppError(
+        400,
+        "NOT_ALLOWED",
+        "Resend is only allowed for actionable individual rows"
+      );
+    }
     assertOnboardingEmailMutable(prevRoot);
     const supOb = parseCtosPartySupplement(prevRoot);
     const supplementEmail = (supOb.email ?? "").trim();
@@ -2408,20 +2423,21 @@ export class OrganizationService {
   }
 
   /**
-   * Latest reusable issuer organization-level financial statements (for future prefill).
+   * Latest reusable issuer organization-level financial statements (for future prefill),
+   * plus latest org CTOS `financials_json` (read-only evidence; not written back to master).
    *
    * Access is restricted to the organization owner / members.
-   * Returns null when no reusable data exists.
    */
   async getIssuerOrganizationLatestFinancialStatements(
     userId: string,
     organizationId: string
   ): Promise<{
-    financial_statements: unknown;
+    financial_statements: unknown | null;
+    ctos_financials: unknown | null;
     source_application_id: string | null;
     source_application_revision_id: string | null;
-    updated_at: Date;
-  } | null> {
+    updated_at: Date | null;
+  }> {
     // Verify access (owner or member).
     const issuerOrg = await prisma.issuerOrganization.findUnique({
       where: { id: organizationId },
@@ -2442,18 +2458,30 @@ export class OrganizationService {
       }
     }
 
-    const latest = await prisma.issuerOrganizationFinancialStatement.findUnique({
-      where: { issuer_organization_id: organizationId },
-      select: {
-        financial_statements: true,
-        source_application_id: true,
-        source_application_revision_id: true,
-        updated_at: true,
-      },
-    });
+    const [latest, ctos] = await Promise.all([
+      prisma.issuerOrganizationFinancialStatement.findUnique({
+        where: { issuer_organization_id: organizationId },
+        select: {
+          financial_statements: true,
+          source_application_id: true,
+          source_application_revision_id: true,
+          updated_at: true,
+        },
+      }),
+      prisma.ctosReport.findFirst({
+        where: { issuer_organization_id: organizationId, subject_ref: null },
+        orderBy: { fetched_at: "desc" },
+        select: { financials_json: true },
+      }),
+    ]);
 
-    if (!latest) return null;
-    return latest as any;
+    return {
+      financial_statements: latest?.financial_statements ?? null,
+      ctos_financials: ctos?.financials_json ?? null,
+      source_application_id: latest?.source_application_id ?? null,
+      source_application_revision_id: latest?.source_application_revision_id ?? null,
+      updated_at: latest?.updated_at ?? null,
+    };
   }
 
   /**

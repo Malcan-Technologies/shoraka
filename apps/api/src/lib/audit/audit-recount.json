@@ -1,9 +1,9 @@
 {
-  "liveEvents": 158,
+  "liveEvents": 159,
   "historicalReaders": 12,
   "devOnly": 7,
-  "catalogueSize": 177,
-  "writerHits": 118,
+  "catalogueSize": 178,
+  "writerHits": 119,
   "unknown": 7,
   "unknownEvents": [
     "MASTER_FINANCIALS_UPDATED",
@@ -15,13 +15,13 @@
     "MASTER_PROFILE_UPDATED"
   ],
   "byLifecycle": {
-    "LIVE": 158,
+    "LIVE": 159,
     "HISTORICAL_READER": 12,
     "DEV_ONLY": 7
   },
   "byLayer": {
     "APPLICATION_TIMELINE": 33,
-    "ADMIN_ACTIVITY": 74,
+    "ADMIN_ACTIVITY": 75,
     "ORG_ACTIVITY": 16,
     "FORENSIC_ONLY": 9,
     "NOTE_TIMELINE": 13,
@@ -30,7 +30,7 @@
     "LEGAL_ONLY": 10
   },
   "byTable": {
-    "application_logs": 55,
+    "application_logs": 56,
     "onboarding_logs": 35,
     "note_events": 50,
     "product_logs": 5,
