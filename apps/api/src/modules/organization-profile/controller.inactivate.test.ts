@@ -161,4 +161,14 @@ describe("issuer and admin party inactivation routes", () => {
       partyId: "party-a",
     });
   });
+
+  it("blocks admin inactivation without organizations.manage", async () => {
+    mockAuthState.user = { user_id: "admin-staff" };
+    mockAuthState.adminPermissions = ["organizations.view"];
+    const response = await request(app).post(
+      "/v1/admin/organizations/issuer/org-a/party-profiles/party-a/inactivate"
+    );
+    expect(response.status).toBe(403);
+    expect(mockInactivateMasterParty).not.toHaveBeenCalled();
+  });
 });

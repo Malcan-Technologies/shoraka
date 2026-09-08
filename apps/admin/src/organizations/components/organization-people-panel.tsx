@@ -279,6 +279,9 @@ export function OrganizationPeoplePanel({
                         peopleMutations.resolve.mutate({ partyId: item.party!.id, action: "USE_EXTERNAL", field })
                     : undefined
                 }
+                // Intentionally allow Admin to mark any MASTER_ACTIVE party inactive.
+                // Previous behavior limited this action to CTOS-absent parties.
+                // Reapply the CTOS-absence check here if that business rule is restored.
                 onInactivate={item.party ? () => peopleMutations.inactivate.mutate(item.party!.id) : undefined}
                 onKeepAbsent={() => toast.success("Kept on the current profile")}
               />

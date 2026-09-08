@@ -16,7 +16,7 @@ import { RegtankRecordsControl } from "@/components/admin/regtank-records-contro
 import { ADMIN_ACTION_SURFACE_CLASS } from "@/lib/admin-status-token";
 import { cn } from "@/lib/utils";
 import { MismatchBlock } from "./organization-external-review-sheet";
-import { latestCtosLabel, type UnifiedOrgPerson } from "@/organizations/utils/organization-profile-overview";
+import { latestCtosLabel, type UnifiedOrgPerson, adminMayInactivateMasterParty } from "@/organizations/utils/organization-profile-overview";
 
 export function OrganizationPersonCard({
   item,
@@ -121,6 +121,14 @@ export function OrganizationPersonCard({
               Edit
             </Button>
           ) : null}
+          {canManage && onInactivate && adminMayInactivateMasterParty(party) ? (
+            // Intentionally allow Admin to mark any MASTER_ACTIVE party inactive.
+            // Previous behavior limited this action to CTOS-absent parties.
+            // Reapply the CTOS-absence check here if that business rule is restored.
+            <Button type="button" variant="outline" size="sm" onClick={onInactivate}>
+              Mark inactive
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -159,18 +167,11 @@ export function OrganizationPersonCard({
             <ExclamationTriangleIcon className="h-4 w-4" />
             This person was not found in the latest CTOS information.
           </p>
-          {canManage ? (
+          {canManage && onKeepAbsent ? (
             <div className="flex flex-wrap gap-2">
-              {onKeepAbsent ? (
-                <Button className="h-10" variant="outline" onClick={onKeepAbsent}>
-                  Keep current
-                </Button>
-              ) : null}
-              {onInactivate ? (
-                <Button className="h-10" variant="outline" onClick={onInactivate}>
-                  Mark inactive
-                </Button>
-              ) : null}
+              <Button className="h-10" variant="outline" onClick={onKeepAbsent}>
+                Keep current
+              </Button>
             </div>
           ) : null}
         </div>

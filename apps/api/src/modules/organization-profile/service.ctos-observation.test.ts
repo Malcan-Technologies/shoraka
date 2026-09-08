@@ -1371,7 +1371,7 @@ describe("user-added master parties", () => {
     expect(parties.filter((p) => canonicalKey(p.party_key) === "880101011111")).toHaveLength(1);
   });
 
-  it("inactivate only marks membership inactive and keeps identity, roles, and observation", async () => {
+  it("inactivates a CTOS-present MASTER_ACTIVE party and only changes membership_status", async () => {
     parties.push(
       row({
         id: "p-john",
@@ -1382,6 +1382,7 @@ describe("user-added master parties", () => {
         is_board: true,
         shareholding_percentage: new Prisma.Decimal("20"),
         external_observation: { name: "JOHN" },
+        absent_from_latest_external: false,
       })
     );
     const before = parties.find((p) => p.id === "p-john");
@@ -1413,6 +1414,62 @@ describe("user-added master parties", () => {
     delete beforeRest.membership_status;
     delete beforeRest.updated_at;
     expect(rest).toEqual(beforeRest);
+  });
+
+  it("inactivates a CTOS-absent MASTER_ACTIVE party without clearing identity or roles", async () => {
+    parties.push(
+      row({
+        id: "p-absent",
+        party_key: "770101011111",
+        name: "Absent",
+        is_director: true,
+        absent_from_latest_external: true,
+        external_observation: { name: "ABSENT" },
+      })
+    );
+    const updated = await inactivateMasterParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-absent",
+    });
+    expect(updated.membershipStatus).toBe("MASTER_INACTIVE");
+    expect(mockPartyUpdate).toHaveBeenCalledWith({
+      where: { id: "p-absent" },
+      data: { membership_status: OrganizationPartyMembershipStatus.MASTER_INACTIVE },
+    });
+    const stored = parties.find((p) => p.id === "p-absent");
+    expect(stored?.name).toBe("Absent");
+    expect(stored?.is_director).toBe(true);
+    expect(stored?.identity_number).toBe("770101011111");
+    expect(stored?.absent_from_latest_external).toBe(true);
+    expect(stored?.external_observation).toEqual({ name: "ABSENT" });
+  });
+
+  it("inactivates a USER_ADDED MASTER_ACTIVE party without deleting the row", async () => {
+    parties.push(
+      row({
+        id: "p-manual",
+        party_key: "660101011111",
+        name: "Manual",
+        origin: OrganizationPartyOrigin.USER_ADDED,
+        is_management: true,
+        is_shareholder: false,
+        shareholding_percentage: null,
+      })
+    );
+    const updated = await inactivateMasterParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-manual",
+    });
+    expect(updated.membershipStatus).toBe("MASTER_INACTIVE");
+    expect(mockPartyUpdate).toHaveBeenCalledWith({
+      where: { id: "p-manual" },
+      data: { membership_status: OrganizationPartyMembershipStatus.MASTER_INACTIVE },
+    });
+    expect(parties.filter((p) => p.id === "p-manual")).toHaveLength(1);
+    expect(parties.find((p) => p.id === "p-manual")?.origin).toBe(OrganizationPartyOrigin.USER_ADDED);
+    expect(parties.find((p) => p.id === "p-manual")?.is_management).toBe(true);
   });
 
   it("does not inactivate a party that belongs to another organization", async () => {
