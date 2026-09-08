@@ -138,7 +138,7 @@ Defaults when admin sends offer: `offer_acceptance.status = "PENDING_ISSUER"` an
 
 ## Acceptance documents (product config)
 
-Configured on the financing-type step **Acceptance** tab in product builder (`acceptance_documents` flat list). Each row: name, required, allow_multiple, allowed_types, optional template PDF.
+Configured on the financing-type step **Acceptance** tab in product builder (`acceptance_documents` flat list). Each row: name, required, allow_multiple, allowed_types, optional template (PDF, Word, or Excel).
 
 **Re-send policy:** Once `offer_acceptance` is past `PENDING_ISSUER`, or `submitted_at` exists, admin cannot re-send over the same offer — retract first, then send revised terms. Step 1 submit also freezes `acknowledged_terms` (facility/amount, rates, expiry, offer/product version) under `offer_acceptance` for audit.
 
