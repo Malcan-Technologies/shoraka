@@ -227,7 +227,8 @@ function extractMainCompanyKybIdFromWebhookPayloads(webhookPayloads: unknown): s
         const id = (dto as Record<string, unknown>).kybId;
         if (typeof id === "string" && id) return id;
       }
-      if (typeof obj.requestId === "string" && obj.requestId.startsWith("KYB")) return obj.requestId;
+      // Do not use KYB webhook `requestId` here: nested shareholder KYB payloads are
+      // often appended onto the parent COD row and would be mistaken for main-company KYB.
     }
   }
   return null;
