@@ -25,6 +25,7 @@ export function useOrganizationInvitations(
           token: string;
           expiresAt: string;
           createdAt: string;
+          partyProfileId?: string | null;
           invitedBy: {
             firstName: string;
             lastName: string;
@@ -44,22 +45,29 @@ export function useOrganizationInvitations(
     mutationFn: async ({
       email,
       role,
+      partyProfileId,
     }: {
       email?: string;
       role: "ORGANIZATION_ADMIN" | "ORGANIZATION_MEMBER";
-    }): Promise<{ success: boolean; invitationId: string; emailSent: boolean; invitationUrl?: string; emailError?: string }> => {
+      partyProfileId?: string;
+    }): Promise<{ success: boolean; invitationId: string; emailSent: boolean; invitationUrl?: string; emailError?: string; linkedExistingMember?: boolean }> => {
       if (!organizationId) throw new Error("No organization selected");
-      const result = await apiClient.post<{ success: boolean; invitationId: string; emailSent: boolean; invitationUrl?: string; emailError?: string }>(
+      const result = await apiClient.post<{ success: boolean; invitationId: string; emailSent: boolean; invitationUrl?: string; emailError?: string; linkedExistingMember?: boolean }>(
         `/v1/organizations/issuer/${organizationId}/members/invite`,
-        { email, role }
+        { email, role, partyProfileId }
       );
       if (!result.success) {
         throw new Error(result.error.message);
       }
       return result.data;
     },
-    onSuccess: (data: { success: boolean; invitationId: string; emailSent: boolean; invitationUrl?: string; emailError?: string }) => {
+    onSuccess: (data: { success: boolean; invitationId: string; emailSent: boolean; invitationUrl?: string; emailError?: string; linkedExistingMember?: boolean }) => {
       queryClient.invalidateQueries({ queryKey: ["organization-invitations", organizationId] });
+      queryClient.invalidateQueries({ queryKey: ["party-profiles"] });
+      if (data.linkedExistingMember) {
+        toast.success("Platform access linked to this person");
+        return;
+      }
       if (data.emailSent) {
         toast.success("Invitation sent successfully");
       } else {
@@ -121,14 +129,16 @@ export function useOrganizationInvitations(
     mutationFn: async ({
       email,
       role,
+      partyProfileId,
     }: {
       email?: string;
       role: "ORGANIZATION_ADMIN" | "ORGANIZATION_MEMBER";
+      partyProfileId?: string;
     }): Promise<{ invitationUrl: string }> => {
       if (!organizationId) throw new Error("No organization selected");
       const result = await apiClient.post<{ invitationUrl: string; token: string }>(
         `/v1/organizations/issuer/${organizationId}/members/generate-link`,
-        { email, role }
+        { email, role, partyProfileId }
       );
       if (!result.success) {
         throw new Error(result.error.message);

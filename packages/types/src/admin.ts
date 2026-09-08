@@ -537,6 +537,7 @@ export interface OrganizationInvitation {
   token: string;
   expiresAt: string;
   createdAt: string;
+  partyProfileId?: string | null;
   invitedBy: {
     firstName: string;
     lastName: string;

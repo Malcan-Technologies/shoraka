@@ -10,13 +10,13 @@ import {
   issuerPersonCompletenessInputFromParty,
   type OrganizationPartyProfileDto,
 } from "@cashsouk/types";
-import { PartyRoleBadges, StatusBadge } from "@cashsouk/ui";
+import { PartyRoleBadges, PartyCtosIndicator, StatusBadge } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { RegtankRecordsControl } from "@/components/admin/regtank-records-control";
 import { ADMIN_ACTION_SURFACE_CLASS } from "@/lib/admin-status-token";
 import { cn } from "@/lib/utils";
 import { MismatchBlock } from "./organization-external-review-sheet";
-import { latestCtosLabel, type UnifiedOrgPerson, adminMayInactivateMasterParty } from "@/organizations/utils/organization-profile-overview";
+import { type UnifiedOrgPerson, adminMayInactivateMasterParty } from "@/organizations/utils/organization-profile-overview";
 
 export function OrganizationPersonCard({
   item,
@@ -73,7 +73,10 @@ export function OrganizationPersonCard({
     <div className={cn("space-y-3 rounded-xl border p-4", highlight && ADMIN_ACTION_SURFACE_CLASS)}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
-          <p className="text-ui font-medium">{name}</p>
+          <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+            <p className="text-ui font-medium">{name}</p>
+            {party ? <PartyCtosIndicator party={party} /> : null}
+          </div>
           <PartyRoleBadges party={party} person={person} />
           {missingCount > 0 && item.kind !== "inactive" ? (
             <p className="text-meta text-status-action-text">
@@ -88,27 +91,18 @@ export function OrganizationPersonCard({
             <div className="flex flex-wrap gap-2 pt-1">
               <StatusBadge status={getFinalStatusToken(kyc.tone)} label={`KYC: ${kyc.label}`} />
               <StatusBadge status={getFinalStatusToken(aml.tone)} label={`AML: ${aml.label}`} />
-              {party ? (
-                <StatusBadge
-                  status={
-                    party.absentFromLatestExternal || item.kind === "external" ? "action" : "success"
-                  }
-                  label={`Latest CTOS: ${latestCtosLabel(party)}`}
-                />
-              ) : null}
               {item.kind === "inactive" ? <StatusBadge status="neutral" label="Inactive" /> : null}
             </div>
           )}
-          {corporate && party ? (
+          {corporate && item.kind === "inactive" ? (
             <div className="flex flex-wrap gap-2 pt-1">
-              <StatusBadge
-                status={
-                  party.absentFromLatestExternal || item.kind === "external" ? "action" : "success"
-                }
-                label={`Latest CTOS: ${latestCtosLabel(party)}`}
-              />
-              {item.kind === "inactive" ? <StatusBadge status="neutral" label="Inactive" /> : null}
+              <StatusBadge status="neutral" label="Inactive" />
             </div>
+          ) : null}
+          {party?.platformAccess && party.entityType !== "CORPORATE" ? (
+            <p className="text-meta text-muted-foreground">
+              Platform access: <span className="text-foreground">{party.platformAccess.label}</span>
+            </p>
           ) : null}
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">

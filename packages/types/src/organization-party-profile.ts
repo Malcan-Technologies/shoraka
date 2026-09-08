@@ -46,6 +46,20 @@ export interface OrganizationPartyProfileDto {
   mismatches: OrganizationPartyFieldMismatch[];
   createdAt: string;
   updatedAt: string;
+  /**
+   * OPTIONAL platform User for this company/regulatory person.
+   * Never infer from email; only set via an explicit Person-scoped invitation.
+   */
+  userId: string | null;
+  linkedUser: OrganizationPartyLinkedUser | null;
+  platformAccess: import("./person-platform-access").PersonPlatformAccess;
+}
+
+export interface OrganizationPartyLinkedUser {
+  userId: string;
+  email: string;
+  firstName: string;
+  lastName: string;
 }
 
 export interface OrganizationPartyFieldMismatch {
@@ -73,6 +87,23 @@ export interface OrganizationMasterProfileDto {
   scInvestorCategory: import("./comrep-profile").ScInvestorCategory | null;
   residentialAddress: ProfileAddress | null;
   fieldSources: ProfileFieldSources;
+}
+
+export function emptyPartyPlatformFields(): Pick<
+  OrganizationPartyProfileDto,
+  "userId" | "linkedUser" | "platformAccess"
+> {
+  return {
+    userId: null,
+    linkedUser: null,
+    platformAccess: {
+      status: "NOT_INVITED",
+      label: "Not invited",
+      memberRole: null,
+      invitationId: null,
+      invitationExpiresAt: null,
+    },
+  };
 }
 
 export function formatPartySharePercent(value: string | number | null | undefined): string | null {

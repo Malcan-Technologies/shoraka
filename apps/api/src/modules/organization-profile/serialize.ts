@@ -376,6 +376,13 @@ export function serializeParty(
     external_observation: Prisma.JsonValue | null;
     created_at: Date;
     updated_at: Date;
+    user_id?: string | null;
+    user?: {
+      user_id: string;
+      email: string;
+      first_name: string;
+      last_name: string;
+    } | null;
   }
 ): OrganizationPartyProfileDto {
   const fieldSources = parseFieldSources(row.field_sources);
@@ -431,5 +438,22 @@ export function serializeParty(
     }),
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
+    // OPTIONAL Person ↔ User. Never infer from email; listPartyProfiles fills platformAccess.
+    userId: row.user_id ?? row.user?.user_id ?? null,
+    linkedUser: row.user
+      ? {
+          userId: row.user.user_id,
+          email: row.user.email,
+          firstName: row.user.first_name,
+          lastName: row.user.last_name,
+        }
+      : null,
+    platformAccess: {
+      status: "NOT_INVITED",
+      label: "Not invited",
+      memberRole: null,
+      invitationId: null,
+      invitationExpiresAt: null,
+    },
   };
 }

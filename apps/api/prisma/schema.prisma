@@ -45,6 +45,7 @@ model User {
   sessions                         UserSession[]
   authored_review_remarks          ApplicationReviewRemark[]
   signingcloud_ekyc                SigningCloudEkyc[]
+  organization_party_profiles      OrganizationPartyProfile[]
 
   @@index([cognito_sub])
   @@map("users")
@@ -487,13 +488,22 @@ model OrganizationPartyProfile {
   external_observation        Json?
   created_at                  DateTime                          @default(now())
   updated_at                  DateTime                          @updatedAt
+  /// OPTIONAL platform User for this company/regulatory person.
+  /// OrganizationPartyProfile is company identity (NRIC/passport/ROC).
+  /// OrganizationMember is platform access. The link is optional: a director
+  /// does not need a CashSouk account. Never infer this from email alone.
+  user_id                     String?                           @db.VarChar(5)
   issuer_organization         IssuerOrganization?               @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
   investor_organization       InvestorOrganization?             @relation(fields: [investor_organization_id], references: [id], onDelete: Cascade)
+  user                        User?                             @relation(fields: [user_id], references: [user_id], onDelete: SetNull)
+  issuer_invitations          IssuerOrganizationInvitation[]
+  investor_invitations        InvestorOrganizationInvitation[]
 
   @@index([issuer_organization_id])
   @@index([investor_organization_id])
   @@index([issuer_organization_id, membership_status])
   @@index([investor_organization_id, membership_status])
+  @@index([user_id])
   @@map("organization_party_profiles")
 }
 
@@ -2037,44 +2047,54 @@ model OrganizationMember {
 }
 
 model InvestorOrganizationInvitation {
-  id                       String                 @id @default(cuid())
-  email                    String
-  role                     OrganizationMemberRole
-  investor_organization_id String
-  token                    String                 @unique
-  expires_at               DateTime
-  accepted                 Boolean                @default(false)
-  accepted_at              DateTime?
-  invited_by_user_id       String
-  created_at               DateTime               @default(now())
-  investor_organization    InvestorOrganization   @relation(fields: [investor_organization_id], references: [id], onDelete: Cascade)
-  invited_by               User                   @relation("SentInvestorOrgInvitations", fields: [invited_by_user_id], references: [user_id], onDelete: Cascade)
+  id                            String                    @id @default(cuid())
+  email                         String
+  role                          OrganizationMemberRole
+  investor_organization_id      String
+  token                         String                    @unique
+  expires_at                    DateTime
+  accepted                      Boolean                   @default(false)
+  accepted_at                   DateTime?
+  invited_by_user_id            String
+  created_at                    DateTime                  @default(now())
+  /// Optional origin person. Email on this row is invitation delivery only,
+  /// not Person identity. Null means a Members-flow invite with no Person.
+  organization_party_profile_id String?
+  investor_organization         InvestorOrganization      @relation(fields: [investor_organization_id], references: [id], onDelete: Cascade)
+  invited_by                    User                      @relation("SentInvestorOrgInvitations", fields: [invited_by_user_id], references: [user_id], onDelete: Cascade)
+  organization_party_profile    OrganizationPartyProfile? @relation(fields: [organization_party_profile_id], references: [id], onDelete: SetNull)
 
   @@index([email])
   @@index([token])
   @@index([expires_at])
   @@index([investor_organization_id])
+  @@index([organization_party_profile_id])
   @@map("investor_organization_invitation")
 }
 
 model IssuerOrganizationInvitation {
-  id                     String                 @id @default(cuid())
-  email                  String
-  role                   OrganizationMemberRole
-  issuer_organization_id String
-  token                  String                 @unique
-  expires_at             DateTime
-  accepted               Boolean                @default(false)
-  accepted_at            DateTime?
-  invited_by_user_id     String
-  created_at             DateTime               @default(now())
-  invited_by             User                   @relation("SentIssuerOrgInvitations", fields: [invited_by_user_id], references: [user_id], onDelete: Cascade)
-  issuer_organization    IssuerOrganization     @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
+  id                            String                    @id @default(cuid())
+  email                         String
+  role                          OrganizationMemberRole
+  issuer_organization_id        String
+  token                         String                    @unique
+  expires_at                    DateTime
+  accepted                      Boolean                   @default(false)
+  accepted_at                   DateTime?
+  invited_by_user_id            String
+  created_at                    DateTime                  @default(now())
+  /// Optional origin person. Email on this row is invitation delivery only,
+  /// not Person identity. Null means a Members-flow invite with no Person.
+  organization_party_profile_id String?
+  invited_by                    User                      @relation("SentIssuerOrgInvitations", fields: [invited_by_user_id], references: [user_id], onDelete: Cascade)
+  issuer_organization           IssuerOrganization        @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
+  organization_party_profile    OrganizationPartyProfile? @relation(fields: [organization_party_profile_id], references: [id], onDelete: SetNull)
 
   @@index([email])
   @@index([token])
   @@index([expires_at])
   @@index([issuer_organization_id])
+  @@index([organization_party_profile_id])
   @@map("issuer_organization_invitation")
 }
 

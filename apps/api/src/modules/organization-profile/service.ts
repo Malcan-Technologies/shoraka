@@ -43,6 +43,7 @@ import {
   isIssuerOfficerRole,
   hasOrganizationPartyRole,
   SELECT_AT_LEAST_ONE_ROLE_MESSAGE,
+  resolvePersonPlatformAccess,
 } from "@cashsouk/types";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
@@ -678,9 +679,67 @@ export async function listPartyProfiles(
   await seedMasterPartiesIfEmpty(portal, organizationId);
   const rows = await prisma.organizationPartyProfile.findMany({
     where: orgWhere(portal, organizationId),
+    include: {
+      user: {
+        select: { user_id: true, email: true, first_name: true, last_name: true },
+      },
+    },
     orderBy: [{ membership_status: "asc" }, { name: "asc" }],
   });
-  return rows.map(serializeParty);
+  const memberWhere =
+    portal === "issuer"
+      ? { issuer_organization_id: organizationId }
+      : { investor_organization_id: organizationId };
+  const [members, issuerInvites, investorInvites] = await Promise.all([
+    prisma.organizationMember.findMany({
+      where: memberWhere,
+      select: { user_id: true, role: true },
+    }),
+    portal === "issuer"
+      ? prisma.issuerOrganizationInvitation.findMany({
+          where: { issuer_organization_id: organizationId, accepted: false },
+          select: {
+            id: true,
+            organization_party_profile_id: true,
+            accepted: true,
+            expires_at: true,
+          },
+        })
+      : Promise.resolve([]),
+    portal === "investor"
+      ? prisma.investorOrganizationInvitation.findMany({
+          where: { investor_organization_id: organizationId, accepted: false },
+          select: {
+            id: true,
+            organization_party_profile_id: true,
+            accepted: true,
+            expires_at: true,
+          },
+        })
+      : Promise.resolve([]),
+  ]);
+  const invitations = [...issuerInvites, ...investorInvites].map((row) => ({
+    id: row.id,
+    partyProfileId: row.organization_party_profile_id,
+    accepted: row.accepted,
+    expiresAt: row.expires_at,
+  }));
+  const accessMembers = members.map((member) => ({
+    userId: member.user_id,
+    role: member.role,
+  }));
+  return rows.map((row) => {
+    const dto = serializeParty(row);
+    return {
+      ...dto,
+      platformAccess: resolvePersonPlatformAccess({
+        linkedUserId: dto.userId,
+        members: accessMembers,
+        invitations,
+        partyId: dto.id,
+      }),
+    };
+  });
 }
 
 function addressFromCod(raw: unknown): ProfileAddress | null {
@@ -1880,6 +1939,8 @@ export async function inactivateMasterParty(params: {
       "Only an active person on the current profile can be marked inactive."
     );
   }
+  // Marking a person inactive does not remove OrganizationMember and does not
+  // clear user_id. Company identity and platform access stay independent.
   const updated = await prisma.organizationPartyProfile.update({
     where: { id: row.id },
     data: { membership_status: OrganizationPartyMembershipStatus.MASTER_INACTIVE },

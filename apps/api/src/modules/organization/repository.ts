@@ -562,6 +562,7 @@ export class OrganizationRepository {
       token: string;
       expiresAt: Date;
       invitedByUserId: string;
+      partyProfileId?: string;
     },
     db: OrganizationDbClient = prisma
   ) {
@@ -573,6 +574,7 @@ export class OrganizationRepository {
         token: data.token,
         expires_at: data.expiresAt,
         invited_by_user_id: data.invitedByUserId,
+        organization_party_profile_id: data.partyProfileId,
       },
     });
   }
@@ -588,6 +590,7 @@ export class OrganizationRepository {
       token: string;
       expiresAt: Date;
       invitedByUserId: string;
+      partyProfileId?: string;
     },
     db: OrganizationDbClient = prisma
   ) {
@@ -599,6 +602,7 @@ export class OrganizationRepository {
         token: data.token,
         expires_at: data.expiresAt,
         invited_by_user_id: data.invitedByUserId,
+        organization_party_profile_id: data.partyProfileId,
       },
     });
   }
@@ -612,6 +616,7 @@ export class OrganizationRepository {
     role: OrganizationMemberRole;
     investor_organization_id: string | null;
     issuer_organization_id: string | null;
+    organization_party_profile_id: string | null;
     expires_at: Date;
     accepted: boolean;
   } | null> {
@@ -622,6 +627,7 @@ export class OrganizationRepository {
         email: true,
         role: true,
         investor_organization_id: true,
+        organization_party_profile_id: true,
         expires_at: true,
         accepted: true,
       },
@@ -641,6 +647,7 @@ export class OrganizationRepository {
         email: true,
         role: true,
         issuer_organization_id: true,
+        organization_party_profile_id: true,
         expires_at: true,
         accepted: true,
       },

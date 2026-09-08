@@ -87,7 +87,8 @@ export function buildPartyProfileDetailItems(params: {
     .filter(Boolean)
     .join("; ");
   const identity = party?.identityNumber || person?.matchKey || "";
-  const email = person?.email || "";
+  const onboardingEmail = person?.email || "";
+  const loginEmail = party?.linkedUser?.email || "";
   const name = party?.name || person?.name || "";
   const roles = party
     ? formatPartyRoleLine(party)
@@ -108,7 +109,20 @@ export function buildPartyProfileDetailItems(params: {
   if (isPresent(identity)) {
     items.push({ label: copy.identity.label, value: identity, help: copy.identity.help });
   }
-  if (isPresent(email)) items.push({ label: "E-mail", value: email });
+  if (isPresent(onboardingEmail)) {
+    items.push({
+      label: "Onboarding email",
+      value: onboardingEmail,
+      help: "Used to send KYC/AML onboarding. This is not the platform login email.",
+    });
+  }
+  if (isPresent(loginEmail)) {
+    items.push({
+      label: "Platform login email",
+      value: loginEmail,
+      help: "Login email for the linked CashSouk account. Changing the onboarding email does not change this.",
+    });
+  }
   if (party) {
     if (!corporate && isPresent(gender)) {
       items.push({ label: copy.gender.label, value: gender, help: copy.gender.help });

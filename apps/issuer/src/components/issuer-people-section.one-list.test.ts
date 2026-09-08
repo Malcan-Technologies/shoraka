@@ -16,7 +16,11 @@ describe("issuer People section", () => {
   });
 
   it("offers View details and Edit on master and people-only cards", () => {
-    expect(portalPeople).toContain("View details");
+    const identityCard = readFileSync(
+      join(__dirname, "../../../../packages/ui/src/person-identity-card.tsx"),
+      "utf8"
+    );
+    expect(identityCard).toContain("View details");
     expect(portalPeople).toContain("onEdit={canEdit ? () => setEditPartyId(item.party.id) : undefined}");
     expect(portalPeople).toContain("onView={() => setViewPeopleOnlyKey(person.matchKey)}");
     expect(portalPeople).toContain("setAddInitial");

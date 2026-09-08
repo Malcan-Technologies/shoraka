@@ -40,6 +40,15 @@ function party(partial: Partial<OrganizationPartyProfileDto>): OrganizationParty
     mismatches: [],
     createdAt: "2020-01-01T00:00:00.000Z",
     updatedAt: "2020-01-01T00:00:00.000Z",
+    userId: null,
+    linkedUser: null,
+    platformAccess: {
+      status: "NOT_INVITED",
+      label: "Not invited",
+      memberRole: null,
+      invitationId: null,
+      invitationExpiresAt: null,
+    },
     ...partial,
   };
 }
@@ -100,9 +109,44 @@ describe("buildPartyProfileDetailItems", () => {
     });
     const labels = items.map((item) => item.label);
     expect(labels).toContain("Name");
-    expect(labels).toContain("E-mail");
+    expect(labels).toContain("Onboarding email");
     expect(labels).not.toContain("Residential Address");
     expect(labels).not.toContain("Designation");
+  });
+
+  it("keeps onboarding email separate from platform login email", () => {
+    const items = buildPartyProfileDetailItems({
+      party: party({
+        linkedUser: {
+          userId: "AAAAA",
+          email: "login@example.com",
+          firstName: "Ivan",
+          lastName: "Chew",
+        },
+      }),
+      person: {
+        matchKey: "900101101234",
+        name: "Ivan Chew Ken Yoong",
+        entityType: "INDIVIDUAL",
+        roles: ["DIRECTOR"],
+        sharePercentage: 20,
+        status: "",
+        action: null,
+        screening: null,
+        onboarding: null,
+        requestId: null,
+        requestIdType: null,
+        icFrontUrl: null,
+        icBackUrl: null,
+        email: "onboarding@example.com",
+      },
+    });
+    expect(items.find((item) => item.label === "Onboarding email")?.value).toBe(
+      "onboarding@example.com"
+    );
+    expect(items.find((item) => item.label === "Platform login email")?.value).toBe(
+      "login@example.com"
+    );
   });
 
   it("says CTOS when the person is missing from or differs from the latest CTOS information", () => {

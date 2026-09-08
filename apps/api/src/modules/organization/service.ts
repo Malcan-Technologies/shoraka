@@ -40,6 +40,7 @@ import { organizationInvitationTemplate } from "../../lib/email/templates";
 import { auditContextFromRequest, persistOrganizationUpdateAndOnboardingLogs } from "../../lib/audit";
 import { buildOrganizationProfileAuditEvidence } from "../admin/organization-profile-audit";
 import { logOrganizationMembershipEvent } from "./membership-audit";
+import { assertPartyBelongsToOrganization, linkPartyProfileToUser } from "./party-platform-link";
 import { randomBytes } from "crypto";
 import { assertIssuerOnboardingFeePaid } from "../payment/onboarding-fee-service";
 import {
@@ -712,6 +713,9 @@ export class OrganizationService {
       }
     }
 
+    // Removing OrganizationMember does not inactivate the Person and does not
+    // clear OrganizationPartyProfile.user_id. Company identity and platform access stay independent.
+
     logger.info({ organizationId, targetUserId }, "Removing member from organization");
 
     await prisma.$transaction(async (tx) => {
@@ -954,7 +958,14 @@ export class OrganizationService {
     organizationId: string,
     portalType: PortalType,
     input: InviteMemberInput
-  ): Promise<{ success: boolean; invitationId: string; emailSent: boolean; invitationUrl?: string; emailError?: string }> {
+  ): Promise<{
+    success: boolean;
+    invitationId: string;
+    emailSent: boolean;
+    invitationUrl?: string;
+    emailError?: string;
+    linkedExistingMember?: boolean;
+  }> {
     // Verify access
     const organization = await this.getOrganization(userId, organizationId, portalType);
 
@@ -970,17 +981,92 @@ export class OrganizationService {
       throw new AppError(403, "FORBIDDEN", "You do not have permission to invite members");
     }
 
+    let partyProfileId: string | undefined;
+    if (input.partyProfileId) {
+      const party = await assertPartyBelongsToOrganization({
+        partyId: input.partyProfileId,
+        organizationId,
+        portalType,
+      });
+      if (party.user_id) {
+        const alreadyMember =
+          portalType === "investor"
+            ? await this.repository.isInvestorOrganizationMember(organizationId, party.user_id)
+            : await this.repository.isIssuerOrganizationMember(organizationId, party.user_id);
+        if (alreadyMember) {
+          throw new AppError(400, "ALREADY_MEMBER", "This person already has platform access");
+        }
+        const restoredRole =
+          input.role === "ORGANIZATION_ADMIN"
+            ? OrganizationMemberRole.ORGANIZATION_ADMIN
+            : OrganizationMemberRole.ORGANIZATION_MEMBER;
+        await prisma.$transaction(async (tx) => {
+          if (portalType === "investor") {
+            await this.repository.addOrganizationMember(
+              {
+                userId: party.user_id!,
+                investorOrganizationId: organizationId,
+                role: restoredRole,
+              },
+              tx
+            );
+          } else {
+            await this.repository.addOrganizationMember(
+              {
+                userId: party.user_id!,
+                issuerOrganizationId: organizationId,
+                role: restoredRole,
+              },
+              tx
+            );
+          }
+          await logOrganizationMembershipEvent({
+            eventType: "MEMBER_ADDED",
+            actorUserId: userId,
+            ownerUserId: organization.owner_user_id,
+            organizationId,
+            portalType,
+            organizationName: organization.name,
+            organizationReference: organization.display_reference,
+            memberUserId: party.user_id,
+            newRole: restoredRole,
+            db: tx,
+          });
+        });
+        return {
+          success: true,
+          invitationId: "",
+          emailSent: false,
+          linkedExistingMember: true,
+        };
+      }
+      partyProfileId = party.id;
+    }
+
     // Check if user already exists (only if email is provided)
     if (input.email) {
       const targetUser = await this.repository.findUserByEmail(input.email);
       if (targetUser) {
-        // Check if already a member
         const isMember =
           portalType === "investor"
             ? await this.repository.isInvestorOrganizationMember(organizationId, targetUser.user_id)
             : await this.repository.isIssuerOrganizationMember(organizationId, targetUser.user_id);
 
         if (isMember) {
+          if (partyProfileId) {
+            await linkPartyProfileToUser({
+              partyId: partyProfileId,
+              userId: targetUser.user_id,
+              organizationId,
+              portalType,
+            });
+            return {
+              success: true,
+              invitationId: "",
+              emailSent: false,
+              linkedExistingMember: true,
+            };
+          }
           throw new AppError(400, "ALREADY_MEMBER", "User is already a member of this organization");
         }
       }
@@ -1008,6 +1094,7 @@ export class OrganizationService {
                 token,
                 expiresAt,
                 invitedByUserId: userId,
+                partyProfileId,
               },
               tx
             )
@@ -1022,6 +1109,7 @@ export class OrganizationService {
                 token,
                 expiresAt,
                 invitedByUserId: userId,
+                partyProfileId,
               },
               tx
             );
@@ -1118,7 +1206,7 @@ export class OrganizationService {
     userId: string,
     organizationId: string,
     portalType: PortalType,
-    input: { email?: string; role: "ORGANIZATION_ADMIN" | "ORGANIZATION_MEMBER" }
+    input: { email?: string; role: "ORGANIZATION_ADMIN" | "ORGANIZATION_MEMBER"; partyProfileId?: string }
   ): Promise<{ invitationUrl: string; token: string }> {
     // Verify access
     const organization = await this.getOrganization(userId, organizationId, portalType);
@@ -1135,18 +1223,31 @@ export class OrganizationService {
       throw new AppError(403, "FORBIDDEN", "You do not have permission to generate invitation links");
     }
 
+    let partyProfileId: string | undefined;
+    if (input.partyProfileId) {
+      const party = await assertPartyBelongsToOrganization({
+        partyId: input.partyProfileId,
+        organizationId,
+        portalType,
+      });
+      partyProfileId = party.id;
+    }
+
     // Use placeholder email if not provided (for link-based invitations)
     const email = input.email?.toLowerCase() || `invitation-${Date.now()}@cashsouk.com`;
 
-    // Check if invitation already exists for this email and role
+    const generateRole =
+      input.role === "ORGANIZATION_ADMIN"
+        ? OrganizationMemberRole.ORGANIZATION_ADMIN
+        : OrganizationMemberRole.ORGANIZATION_MEMBER;
     const existingInvitation =
       portalType === "investor"
         ? await prisma.investorOrganizationInvitation.findFirst({
           where: {
-            email,
-            role: input.role === "ORGANIZATION_ADMIN"
-              ? OrganizationMemberRole.ORGANIZATION_ADMIN
-              : OrganizationMemberRole.ORGANIZATION_MEMBER,
+            ...(partyProfileId
+              ? { organization_party_profile_id: partyProfileId }
+              : { email }),
+            role: generateRole,
             accepted: false,
             expires_at: { gt: new Date() },
             investor_organization_id: organizationId,
@@ -1155,10 +1256,10 @@ export class OrganizationService {
         })
         : await prisma.issuerOrganizationInvitation.findFirst({
           where: {
-            email,
-            role: input.role === "ORGANIZATION_ADMIN"
-              ? OrganizationMemberRole.ORGANIZATION_ADMIN
-              : OrganizationMemberRole.ORGANIZATION_MEMBER,
+            ...(partyProfileId
+              ? { organization_party_profile_id: partyProfileId }
+              : { email }),
+            role: generateRole,
             accepted: false,
             expires_at: { gt: new Date() },
             issuer_organization_id: organizationId,
@@ -1187,6 +1288,7 @@ export class OrganizationService {
           token,
           expiresAt,
           invitedByUserId: userId,
+          partyProfileId,
         });
       } else {
         await this.repository.createIssuerOrganizationInvitation({
@@ -1198,6 +1300,7 @@ export class OrganizationService {
           token,
           expiresAt,
           invitedByUserId: userId,
+          partyProfileId,
         });
       }
     }
@@ -1273,23 +1376,41 @@ export class OrganizationService {
       }
     }
 
-    // Check if already a member
-    if (invitation.investor_organization_id) {
-      const isMember = await this.repository.isInvestorOrganizationMember(
-        invitation.investor_organization_id,
-        userId
-      );
-      if (isMember) {
-        throw new AppError(400, "ALREADY_MEMBER", "You are already a member of this organization");
+    const organizationId = invitation.investor_organization_id || invitation.issuer_organization_id!;
+    const portalType: PortalType = invitation.investor_organization_id ? "investor" : "issuer";
+
+    if (invitation.organization_party_profile_id) {
+      const party = await assertPartyBelongsToOrganization({
+        partyId: invitation.organization_party_profile_id,
+        organizationId,
+        portalType,
+      });
+      if (party.user_id && party.user_id !== userId) {
+        throw new AppError(
+          409,
+          "PERSON_ALREADY_LINKED",
+          "This person is already linked to a different platform account"
+        );
       }
-    } else if (invitation.issuer_organization_id) {
-      const isMember = await this.repository.isIssuerOrganizationMember(
-        invitation.issuer_organization_id!,
-        userId
-      );
-      if (isMember) {
-        throw new AppError(400, "ALREADY_MEMBER", "You are already a member of this organization");
+    }
+
+    const isMember =
+      portalType === "investor"
+        ? await this.repository.isInvestorOrganizationMember(organizationId, userId)
+        : await this.repository.isIssuerOrganizationMember(organizationId, userId);
+
+    if (isMember) {
+      if (invitation.organization_party_profile_id) {
+        await this.repository.acceptInvitation(input.token);
+        await linkPartyProfileToUser({
+          partyId: invitation.organization_party_profile_id,
+          userId,
+          organizationId,
+          portalType,
+        });
+        return { success: true, organizationId, portalType };
       }
+      throw new AppError(400, "ALREADY_MEMBER", "You are already a member of this organization");
     }
 
     // Add member to organization
@@ -1309,6 +1430,15 @@ export class OrganizationService {
 
     // Mark invitation as accepted
     await this.repository.acceptInvitation(input.token);
+
+    if (invitation.organization_party_profile_id) {
+      await linkPartyProfileToUser({
+        partyId: invitation.organization_party_profile_id,
+        userId,
+        organizationId,
+        portalType,
+      });
+    }
 
     logger.info(
       {
@@ -1339,6 +1469,7 @@ export class OrganizationService {
     role: OrganizationMemberRole;
     expiresAt: Date;
     createdAt: Date;
+    partyProfileId: string | null;
     invitedBy: {
       firstName: string;
       lastName: string;
@@ -1374,6 +1505,7 @@ export class OrganizationService {
       token: inv.token,
       expiresAt: inv.expires_at,
       createdAt: inv.created_at,
+      partyProfileId: inv.organization_party_profile_id,
       invitedBy: {
         firstName: inv.invited_by.first_name,
         lastName: inv.invited_by.last_name,

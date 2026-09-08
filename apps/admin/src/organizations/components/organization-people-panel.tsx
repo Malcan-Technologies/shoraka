@@ -7,7 +7,9 @@ import { PlusIcon, UserIcon, UsersIcon } from "@heroicons/react/24/outline";
 import type { OrganizationDetailResponse, PortalType } from "@cashsouk/types";
 import {
   humanizeApiValidationMessage,
+  isMemberWithoutCompanyRole,
   isProfileValidationError,
+  linkedPartyUserIds,
   optionalEmailIssue,
   phoneFormatIssue,
 } from "@cashsouk/types";
@@ -98,6 +100,10 @@ export function OrganizationPeoplePanel({
   const showPic = canManage || Boolean(org.corporateOnboardingData?.personInCharge);
   const picHasChanges = Object.keys(buildSectionPayload(org, draft, "pic")).length > 0;
   const unified = unifyOrganizationPeople(org.partyProfiles, org.people);
+  const linkedUserIds = linkedPartyUserIds(org.partyProfiles ?? []);
+  const membersWithoutCompanyRole = org.members.filter((member) =>
+    isMemberWithoutCompanyRole(member.userId, linkedUserIds)
+  );
   const editingParty = org.partyProfiles?.find((party) => party.id === editingPartyId) ?? null;
   const viewingParty = org.partyProfiles?.find((party) => party.id === viewingPartyId) ?? null;
   const viewingPerson =
@@ -325,11 +331,14 @@ export function OrganizationPeoplePanel({
       </Card>
 
       <Card className="rounded-2xl">
-        <AdminDetailCardHeader icon={UsersIcon} title={`Members (${org.members.length})`} />
+        <AdminDetailCardHeader
+          icon={UsersIcon}
+          title={`Platform members without a company role (${membersWithoutCompanyRole.length})`}
+        />
         <CardContent>
-          {org.members.length > 0 ? (
+          {membersWithoutCompanyRole.length > 0 ? (
             <div className="space-y-3">
-              {org.members.map((member) => (
+              {membersWithoutCompanyRole.map((member) => (
                 <div
                   key={member.id}
                   className="flex items-center justify-between gap-3 rounded-lg bg-muted/50 p-3"
@@ -376,7 +385,9 @@ export function OrganizationPeoplePanel({
               ))}
             </div>
           ) : (
-            <p className="text-ui text-muted-foreground">No members found</p>
+            <p className="text-ui text-muted-foreground">
+              No platform members without a company role. Linked directors and shareholders are listed under People.
+            </p>
           )}
         </CardContent>
       </Card>

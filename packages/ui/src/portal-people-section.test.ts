@@ -2,10 +2,12 @@ import { readFileSync } from "fs";
 import { join } from "path";
 
 const source = readFileSync(join(__dirname, "portal-people-section.tsx"), "utf8");
+const card = readFileSync(join(__dirname, "person-identity-card.tsx"), "utf8");
+const ctos = readFileSync(join(__dirname, "party-ctos-indicator.tsx"), "utf8");
 
 describe("PortalPeopleSection", () => {
   it("shows View details and Edit for current-profile people when permitted", () => {
-    expect(source).toContain("View details");
+    expect(card).toContain("View details");
     expect(source).toContain("onEdit={canEdit ? () => setEditPartyId(item.party.id) : undefined}");
     expect(source).toContain("api.patchPartyProfile(portal, organizationId, editing.id, data)");
     expect(source).toContain("api.createManagementParty(portal, organizationId, data)");
@@ -16,11 +18,11 @@ describe("PortalPeopleSection", () => {
     expect(source).toContain('party.membershipStatus === "MASTER_INACTIVE"');
     expect(source).not.toContain('res.data.filter((party) => party.membershipStatus === "MASTER_ACTIVE")');
     expect(source).toContain('<h3 className="text-card-title">Inactive</h3>');
-    expect(source).toContain('label="Inactive"');
+    expect(card).toContain('label="Inactive"');
   });
 
   it("lets permitted users mark an active person inactive without delete or reactivate", () => {
-    expect(source).toContain("Mark inactive");
+    expect(card).toContain("Mark inactive");
     expect(source).toContain(
       "Mark this person as inactive? Their existing KYC, AML and onboarding history will be kept."
     );
@@ -36,8 +38,34 @@ describe("PortalPeopleSection", () => {
   });
 
   it("shows how many profile fields are missing and hides KYC/AML for company shareholders", () => {
-    expect(source).toContain('} missing');
-    expect(source).toContain("Company shareholder. Individual KYC/AML is not required.");
-    expect(source).toContain("canSend && !corporate");
+    expect(card).toContain("} missing");
+    expect(card).toContain("Company shareholder. Individual KYC/AML is not required.");
+    expect(source).toContain("canSendOnboarding={Boolean(");
+  });
+
+  it("keeps platform invite separate from RegTank onboarding", () => {
+    expect(card).toContain("Invite to platform");
+    expect(card).toContain("Send onboarding");
+    expect(source).toContain("KYC/AML onboarding is separate from platform access");
+    expect(source).toContain("/members/invite");
+    expect(source).toContain("send-director-onboarding");
+  });
+
+  it("gates invite and manage access on canEdit (owner/admin)", () => {
+    expect(source).toContain("canManagePlatform={canEdit}");
+    expect(card).toContain("canManagePlatform");
+  });
+});
+
+describe("Person identity card CTOS indicator", () => {
+  it("explains that CTOS matched is latest comparison, not origin", () => {
+    expect(ctos).toContain("It does NOT merely mean the record originally came from CTOS");
+    expect(ctos).toContain("aria-label={comparison.tooltip}");
+    expect(card).toContain("PartyCtosIndicator");
+  });
+
+  it("does not infer Person ↔ User from email", () => {
+    expect(card).toContain("Do not infer this link from email alone");
+    expect(source).toContain("Onboarding email is for delivery only");
   });
 });

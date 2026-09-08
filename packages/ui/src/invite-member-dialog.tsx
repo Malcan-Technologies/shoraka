@@ -5,14 +5,23 @@ import { ClipboardIcon, CheckIcon } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 
 export interface InviteMemberDialogHooks {
-  invite: (data: { email?: string; role: "ORGANIZATION_ADMIN" | "ORGANIZATION_MEMBER" }) => Promise<{
+  invite: (data: {
+    email?: string;
+    role: "ORGANIZATION_ADMIN" | "ORGANIZATION_MEMBER";
+    partyProfileId?: string;
+  }) => Promise<{
     success: boolean;
     invitationId: string;
     emailSent: boolean;
     invitationUrl?: string;
     emailError?: string;
+    linkedExistingMember?: boolean;
   }>;
-  generateLink?: (data: { email?: string; role: "ORGANIZATION_ADMIN" | "ORGANIZATION_MEMBER" }) => Promise<{
+  generateLink?: (data: {
+    email?: string;
+    role: "ORGANIZATION_ADMIN" | "ORGANIZATION_MEMBER";
+    partyProfileId?: string;
+  }) => Promise<{
     invitationUrl: string;
   }>;
   isInviting: boolean;
@@ -60,6 +69,11 @@ export interface InviteMemberDialogProps {
   SelectValue: React.ComponentType<{ placeholder?: string }>;
   SelectContent: React.ComponentType<{ children: React.ReactNode }>;
   SelectItem: React.ComponentType<{ value: string; children: React.ReactNode }>;
+  personContext?: {
+    partyProfileId: string;
+    personName: string;
+    defaultEmail?: string;
+  };
 }
 
 export function InviteMemberDialog({
@@ -81,6 +95,7 @@ export function InviteMemberDialog({
   SelectValue,
   SelectContent,
   SelectItem,
+  personContext,
 }: InviteMemberDialogProps) {
   const [email, setEmail] = React.useState("");
   const [role, setRole] = React.useState<"ORGANIZATION_ADMIN" | "ORGANIZATION_MEMBER">(
@@ -95,8 +110,10 @@ export function InviteMemberDialog({
       setRole("ORGANIZATION_MEMBER");
       setInvitationUrl(null);
       setCopied(false);
+      return;
     }
-  }, [open]);
+    setEmail(personContext?.defaultEmail ?? "");
+  }, [open, personContext?.defaultEmail]);
 
   const handleCopy = async () => {
     if (invitationUrl) {
@@ -122,6 +139,7 @@ export function InviteMemberDialog({
       const result = await hooks.generateLink({
         email: email || undefined,
         role,
+        partyProfileId: personContext?.partyProfileId,
       });
 
       setInvitationUrl(result.invitationUrl);
@@ -141,7 +159,17 @@ export function InviteMemberDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const result = await hooks.invite({ email: email || undefined, role });
+      const result = await hooks.invite({
+        email: email || undefined,
+        role,
+        partyProfileId: personContext?.partyProfileId,
+      });
+      if (result?.linkedExistingMember) {
+        setEmail("");
+        setRole("ORGANIZATION_MEMBER");
+        onOpenChange(false);
+        return;
+      }
       // Always show the invitation URL so user can copy it, especially if email fails
       if (result?.invitationUrl) {
         setInvitationUrl(result.invitationUrl);
@@ -168,16 +196,20 @@ export function InviteMemberDialog({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Invite Member</DialogTitle>
+          <DialogTitle>{personContext ? "Invite to platform" : "Invite Member"}</DialogTitle>
           <DialogDescription>
-            Send an invitation to join this organization. You can send via email or generate a shareable link.
+            {personContext
+              ? `Invite ${personContext.personName} to this organization. Invitation email is for delivery only and is not this person’s identity.`
+              : "Send an invitation to join this organization. You can send via email or generate a shareable link."}
           </DialogDescription>
         </DialogHeader>
         {!invitationUrl ? (
           <form onSubmit={handleSubmit}>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email (Optional)</Label>
+                <Label htmlFor="email">
+                  {personContext ? "Invitation email (delivery only)" : "Email (Optional)"}
+                </Label>
                 <Input
                   id="email"
                   type="email"
@@ -186,7 +218,9 @@ export function InviteMemberDialog({
                   placeholder="member@example.com"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Leave empty to generate a shareable link that works for anyone
+                  {personContext
+                    ? "This email is used to send the invitation. It does not identify the person and is not synchronized with onboarding email or login email."
+                    : "Leave empty to generate a shareable link that works for anyone"}
                 </p>
               </div>
               <div className="space-y-2">
