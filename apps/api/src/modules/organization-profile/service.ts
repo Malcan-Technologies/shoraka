@@ -1873,6 +1873,13 @@ export async function inactivateMasterParty(params: {
     where: { id: params.partyId, ...orgWhere(params.portal, params.organizationId) },
   });
   if (!row) throw new AppError(404, "NOT_FOUND", "Party profile not found");
+  if (row.membership_status !== OrganizationPartyMembershipStatus.MASTER_ACTIVE) {
+    throw new AppError(
+      400,
+      "INVALID_PARTY_STATUS",
+      "Only an active person on the current profile can be marked inactive."
+    );
+  }
   const updated = await prisma.organizationPartyProfile.update({
     where: { id: row.id },
     data: { membership_status: OrganizationPartyMembershipStatus.MASTER_INACTIVE },

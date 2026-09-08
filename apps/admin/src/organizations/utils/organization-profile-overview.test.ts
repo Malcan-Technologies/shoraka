@@ -113,6 +113,30 @@ describe("unifyOrganizationPeople", () => {
     expect(unified.peopleOnly).toHaveLength(0);
     expect(unified.external).toHaveLength(0);
   });
+
+  it("moves MASTER_INACTIVE people out of the active list and into Inactive", () => {
+    const people: ApplicationPersonRow[] = [
+      {
+        matchKey: "900101-14-5678",
+        name: "Sarah Tan",
+        entityType: "INDIVIDUAL",
+        roles: ["DIRECTOR"],
+        sharePercentage: 20,
+        status: "APPROVED",
+        onboarding: { status: "APPROVED", id: "kyc-1" },
+        screening: { status: "APPROVED" },
+      },
+    ];
+    const unified = unifyOrganizationPeople(
+      [party({ id: "p1", partyKey: "900101145678", membershipStatus: "MASTER_INACTIVE" })],
+      people
+    );
+    expect(unified.master).toHaveLength(0);
+    expect(unified.inactive).toHaveLength(1);
+    expect(unified.inactive[0]?.person?.onboarding?.id).toBe("kyc-1");
+    expect(unified.inactive[0]?.person?.screening?.status).toBe("APPROVED");
+    expect(unified.peopleOnly).toHaveLength(0);
+  });
 });
 
 describe("firstIncompleteProfileAnchor", () => {

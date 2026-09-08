@@ -1,7 +1,5 @@
 "use client";
 
-"use client";
-
 import { PortalPeopleSection } from "@cashsouk/ui";
 import type { ApplicationPersonRow, DirectorShareholderListSource } from "@cashsouk/types";
 
@@ -34,6 +32,7 @@ export function IssuerPeopleSection({
       ctosDirectorShareholderWarning={ctosDirectorShareholderWarning}
       focusedMatchKey={focusedMatchKey}
       canEdit={canEdit}
+      canInactivate={canEdit}
       onChanged={onChanged}
     />
   );

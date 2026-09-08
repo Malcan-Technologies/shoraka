@@ -39,6 +39,7 @@ import {
   DialogTitle,
 } from "./components/dialog";
 import { Tabs, TabsList, TabsTrigger } from "./components/tabs";
+import { ConfirmDialog } from "./components/confirm-dialog";
 import { AddPersonForm, PartyFillEmptyForm, type AddPersonInitial } from "./portal-person-forms";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -96,6 +97,7 @@ export function PortalPeopleSection({
   ctosDirectorShareholderWarning,
   focusedMatchKey,
   canEdit,
+  canInactivate = false,
   onChanged,
 }: {
   portal: PortalPeoplePortal;
@@ -106,6 +108,7 @@ export function PortalPeopleSection({
   ctosDirectorShareholderWarning?: string | null;
   focusedMatchKey?: string | null;
   canEdit: boolean;
+  canInactivate?: boolean;
   onChanged?: () => void | Promise<void>;
 }) {
   const { getAccessToken } = useAuthToken();
@@ -120,11 +123,18 @@ export function PortalPeopleSection({
   const [sendPending, setSendPending] = React.useState(false);
   const [parties, setParties] = React.useState<OrganizationPartyProfileDto[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [inactivatePartyId, setInactivatePartyId] = React.useState<string | null>(null);
+  const [inactivatePending, setInactivatePending] = React.useState(false);
 
   const loadParties = React.useCallback(async () => {
     const res = await api.getPartyProfiles(portal, organizationId);
     if (!res.success) throw profileValidationErrorFromApi(res.error);
-    setParties(res.data.filter((party) => party.membershipStatus === "MASTER_ACTIVE"));
+    setParties(
+      res.data.filter(
+        (party) =>
+          party.membershipStatus === "MASTER_ACTIVE" || party.membershipStatus === "MASTER_INACTIVE"
+      )
+    );
   }, [api, organizationId, portal]);
 
   React.useEffect(() => {
@@ -143,14 +153,22 @@ export function PortalPeopleSection({
   }, [loadParties]);
   const visiblePeople = filterVisiblePeopleRows(people);
   const matchedKeys = new Set<string>();
-  const masterCards = parties.filter((party) => matchesFilter(party, filter)).map((party) => {
+  const activeParties = parties.filter((party) => party.membershipStatus === "MASTER_ACTIVE");
+  const inactiveParties = parties.filter((party) => party.membershipStatus === "MASTER_INACTIVE");
+  const personForParty = (party: OrganizationPartyProfileDto): ApplicationPersonRow | null => {
     const person = visiblePeople.find((row) => {
       if (!row.matchKey) return false;
       const hit = matchPersonToParty(row, [party]);
       if (hit && row.matchKey) matchedKeys.add(row.matchKey);
       return Boolean(hit);
     });
-    return { key: party.id, party, person: person ?? null };
+    return person ?? null;
+  };
+  const masterCards = activeParties.filter((party) => matchesFilter(party, filter)).map((party) => {
+    return { key: party.id, party, person: personForParty(party) };
+  });
+  const inactiveCards = inactiveParties.filter((party) => matchesFilter(party, filter)).map((party) => {
+    return { key: party.id, party, person: personForParty(party) };
   });
   const peopleOnly = visiblePeople.filter(
     (person) =>
@@ -165,12 +183,17 @@ export function PortalPeopleSection({
     directorShareholderListSource,
     ctosDirectorShareholderWarning,
   });
+  const inactivating = parties.find((party) => party.id === inactivatePartyId) ?? null;
   const viewing = parties.find((party) => party.id === viewPartyId) ?? null;
   const viewingPerson =
     masterCards.find((item) => item.party.id === viewPartyId)?.person ??
+    inactiveCards.find((item) => item.party.id === viewPartyId)?.person ??
     peopleOnly.find((person) => person.matchKey === viewPeopleOnlyKey) ??
     null;
-  const editing = parties.find((party) => party.id === editPartyId) ?? null;
+  const editing =
+    parties.find(
+      (party) => party.id === editPartyId && party.membershipStatus === "MASTER_ACTIVE"
+    ) ?? null;
   const blockOnboarding = organizationOnboardingStatus !== "COMPLETED";
 
   React.useEffect(() => {
@@ -260,7 +283,8 @@ export function PortalPeopleSection({
         {!loading &&
         masterCards.length === 0 &&
         peopleOnly.length === 0 &&
-        unresolvedPeople.length === 0 ? (
+        unresolvedPeople.length === 0 &&
+        inactiveCards.length === 0 ? (
           <p className="text-ui text-muted-foreground">No people have been added yet.</p>
         ) : null}
 
@@ -279,6 +303,7 @@ export function PortalPeopleSection({
             onSend={() => item.person && sendOnboarding(item.person, draftEmails[item.key] ?? item.person.email ?? "")}
             onView={() => setViewPartyId(item.party.id)}
             onEdit={canEdit ? () => setEditPartyId(item.party.id) : undefined}
+            onInactivate={canInactivate ? () => setInactivatePartyId(item.party.id) : undefined}
           />
         ))}
 
@@ -352,6 +377,31 @@ export function PortalPeopleSection({
             }))}
           />
         ) : null}
+
+        {inactiveCards.length > 0 ? (
+          <div className="space-y-3">
+            <h3 className="text-card-title">Inactive</h3>
+            <p className="text-meta text-muted-foreground">
+              This person is no longer active on the current profile.
+            </p>
+            {inactiveCards.map((item) => (
+              <PersonRow
+                key={item.key}
+                name={item.party.name || item.party.partyKey}
+                party={item.party}
+                person={item.person}
+                identityKey={item.party.identityNumber}
+                draftEmail=""
+                onDraftEmail={() => undefined}
+                canSend={false}
+                sendPending={false}
+                onSend={() => undefined}
+                onView={() => setViewPartyId(item.party.id)}
+                inactive
+              />
+            ))}
+          </div>
+        ) : null}
       </div>
 
       <Dialog
@@ -406,7 +456,7 @@ export function PortalPeopleSection({
           {viewing || viewingPerson ? (
             <PartyProfileDetailFields party={viewing} person={viewingPerson} />
           ) : null}
-          {canEdit && viewing ? (
+          {canEdit && viewing?.membershipStatus === "MASTER_ACTIVE" ? (
             <Button
               className="h-10"
               onClick={() => {
@@ -441,6 +491,32 @@ export function PortalPeopleSection({
           ) : null}
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={Boolean(inactivating)}
+        onOpenChange={(open) => {
+          if (!open && !inactivatePending) setInactivatePartyId(null);
+        }}
+        title="Mark inactive"
+        description="Mark this person as inactive? Their existing KYC, AML and onboarding history will be kept."
+        confirmText="Mark inactive"
+        isLoading={inactivatePending}
+        onConfirm={async () => {
+          if (!inactivating) return;
+          setInactivatePending(true);
+          try {
+            const res = await api.inactivatePartyProfile(portal, organizationId, inactivating.id);
+            if (!res.success) throw profileValidationErrorFromApi(res.error);
+            toast.success("Person marked inactive");
+            setInactivatePartyId(null);
+            await invalidate();
+          } catch (err) {
+            toast.error(err instanceof Error ? err.message : "Could not mark this person inactive");
+          } finally {
+            setInactivatePending(false);
+          }
+        }}
+      />
     </div>
   );
 }
@@ -457,7 +533,9 @@ function PersonRow({
   onSend,
   onView,
   onEdit,
+  onInactivate,
   missingCount = 0,
+  inactive = false,
 }: {
   name: string;
   party?: OrganizationPartyProfileDto | null;
@@ -470,7 +548,9 @@ function PersonRow({
   onSend: () => void;
   onView?: () => void;
   onEdit?: () => void;
+  onInactivate?: () => void;
   missingCount?: number;
+  inactive?: boolean;
 }) {
   const corporate = party?.entityType === "CORPORATE";
   const kyc = person
@@ -501,8 +581,14 @@ function PersonRow({
             <div className="flex flex-wrap gap-2 pt-1">
               <StatusBadge status={getFinalStatusToken(kyc.tone)} label={`KYC: ${kyc.label}`} />
               <StatusBadge status={getFinalStatusToken(aml.tone)} label={`AML: ${aml.label}`} />
+              {inactive ? <StatusBadge status="neutral" label="Inactive" /> : null}
             </div>
           )}
+          {corporate && inactive ? (
+            <div className="flex flex-wrap gap-2 pt-1">
+              <StatusBadge status="neutral" label="Inactive" />
+            </div>
+          ) : null}
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
           {onView ? (
@@ -513,6 +599,11 @@ function PersonRow({
           {onEdit ? (
             <Button type="button" variant="outline" size="sm" onClick={onEdit}>
               Edit
+            </Button>
+          ) : null}
+          {onInactivate ? (
+            <Button type="button" variant="outline" size="sm" onClick={onInactivate}>
+              Mark inactive
             </Button>
           ) : null}
         </div>

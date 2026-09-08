@@ -11,8 +11,23 @@ describe("PortalPeopleSection", () => {
     expect(source).toContain("api.createManagementParty(portal, organizationId, data)");
   });
 
-  it("filters to MASTER_ACTIVE so CTOS-observed people are not edited until adopted", () => {
-    expect(source).toContain('res.data.filter((party) => party.membershipStatus === "MASTER_ACTIVE")');
+  it("keeps MASTER_ACTIVE in the People list and MASTER_INACTIVE in the Inactive section", () => {
+    expect(source).toContain('party.membershipStatus === "MASTER_ACTIVE"');
+    expect(source).toContain('party.membershipStatus === "MASTER_INACTIVE"');
+    expect(source).not.toContain('res.data.filter((party) => party.membershipStatus === "MASTER_ACTIVE")');
+    expect(source).toContain('<h3 className="text-card-title">Inactive</h3>');
+    expect(source).toContain('label="Inactive"');
+  });
+
+  it("lets permitted users mark an active person inactive without delete or reactivate", () => {
+    expect(source).toContain("Mark inactive");
+    expect(source).toContain(
+      "Mark this person as inactive? Their existing KYC, AML and onboarding history will be kept."
+    );
+    expect(source).toContain("api.inactivatePartyProfile(portal, organizationId, inactivating.id)");
+    expect(source).toContain("onInactivate={canInactivate ? () => setInactivatePartyId(item.party.id) : undefined}");
+    expect(source).not.toContain("deleteManagementParty");
+    expect(source).not.toContain("Reactivate");
   });
 
   it("people-only rows reuse add/merge instead of creating a second editor", () => {

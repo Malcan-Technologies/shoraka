@@ -676,6 +676,17 @@ export class ApiClient {
     );
   }
 
+  async inactivatePartyProfile(
+    portal: "investor" | "issuer",
+    organizationId: string,
+    partyId: string
+  ): Promise<ApiResponse<OrganizationPartyProfileDto> | ApiError> {
+    return this.post<OrganizationPartyProfileDto>(
+      `/v1/organizations/${portal}/${organizationId}/party-profiles/${partyId}/inactivate`,
+      {}
+    );
+  }
+
   async getIssuerLatestFinancialStatements(
     organizationId: string
   ): Promise<

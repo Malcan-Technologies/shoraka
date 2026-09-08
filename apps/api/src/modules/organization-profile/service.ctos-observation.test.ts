@@ -184,8 +184,23 @@ describe("CTOS master party observation", () => {
       parties.filter((p) => p.membership_status === "MASTER_ACTIVE").length
     );
     mockPartyFindMany.mockImplementation(async () => [...parties]);
-    mockPartyFindFirst.mockImplementation(async ({ where }: { where: { id?: string } }) =>
-      parties.find((p) => p.id === where.id) ?? null
+    mockPartyFindFirst.mockImplementation(async ({ where }: { where: Record<string, unknown> }) =>
+      parties.find((p) => {
+        if (where.id != null && p.id !== where.id) return false;
+        if (
+          where.issuer_organization_id != null &&
+          p.issuer_organization_id !== where.issuer_organization_id
+        ) {
+          return false;
+        }
+        if (
+          Object.prototype.hasOwnProperty.call(where, "investor_organization_id") &&
+          p.investor_organization_id !== where.investor_organization_id
+        ) {
+          return false;
+        }
+        return true;
+      }) ?? null
     );
     mockPartyCreate.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => {
       const created = row({
@@ -704,8 +719,23 @@ describe("user-added master parties", () => {
       parties.filter((p) => p.membership_status === "MASTER_ACTIVE").length
     );
     mockPartyFindMany.mockImplementation(async () => [...parties]);
-    mockPartyFindFirst.mockImplementation(async ({ where }: { where: { id?: string } }) =>
-      parties.find((p) => p.id === where.id) ?? null
+    mockPartyFindFirst.mockImplementation(async ({ where }: { where: Record<string, unknown> }) =>
+      parties.find((p) => {
+        if (where.id != null && p.id !== where.id) return false;
+        if (
+          where.issuer_organization_id != null &&
+          p.issuer_organization_id !== where.issuer_organization_id
+        ) {
+          return false;
+        }
+        if (
+          Object.prototype.hasOwnProperty.call(where, "investor_organization_id") &&
+          p.investor_organization_id !== where.investor_organization_id
+        ) {
+          return false;
+        }
+        return true;
+      }) ?? null
     );
     mockPartyCreate.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => {
       const created = row({
@@ -1354,12 +1384,18 @@ describe("user-added master parties", () => {
         external_observation: { name: "JOHN" },
       })
     );
+    const before = parties.find((p) => p.id === "p-john");
+    const beforeSnapshot = { ...before };
     const updated = await inactivateMasterParty({
       portal: "issuer",
       organizationId: "org-1",
       partyId: "p-john",
     });
     expect(updated.membershipStatus).toBe("MASTER_INACTIVE");
+    expect(mockPartyUpdate).toHaveBeenCalledWith({
+      where: { id: "p-john" },
+      data: { membership_status: OrganizationPartyMembershipStatus.MASTER_INACTIVE },
+    });
     const stored = parties.find((p) => p.id === "p-john");
     expect(stored?.name).toBe("John");
     expect(stored?.is_director).toBe(true);
@@ -1367,7 +1403,63 @@ describe("user-added master parties", () => {
     expect(stored?.is_board).toBe(true);
     expect(Number(stored?.shareholding_percentage)).toBe(20);
     expect(stored?.external_observation).toEqual({ name: "JOHN" });
+    expect(stored?.identity_number).toBe(beforeSnapshot.identity_number);
+    expect(stored?.field_sources).toEqual(beforeSnapshot.field_sources);
     expect(parties.filter((p) => p.id === "p-john")).toHaveLength(1);
+    const rest = { ...stored } as Record<string, unknown>;
+    const beforeRest = { ...beforeSnapshot } as Record<string, unknown>;
+    delete rest.membership_status;
+    delete rest.updated_at;
+    delete beforeRest.membership_status;
+    delete beforeRest.updated_at;
+    expect(rest).toEqual(beforeRest);
+  });
+
+  it("does not inactivate a party that belongs to another organization", async () => {
+    parties.push(
+      row({
+        id: "p-other",
+        issuer_organization_id: "org-2",
+        party_key: "990101011234",
+        name: "Other Org Person",
+      })
+    );
+    await expect(
+      inactivateMasterParty({
+        portal: "issuer",
+        organizationId: "org-1",
+        partyId: "p-other",
+      })
+    ).rejects.toMatchObject({
+      statusCode: 404,
+      message: "Party profile not found",
+    });
+    expect(mockPartyUpdate).not.toHaveBeenCalled();
+    expect(parties.find((p) => p.id === "p-other")?.membership_status).toBe(
+      OrganizationPartyMembershipStatus.MASTER_ACTIVE
+    );
+  });
+
+  it("does not inactivate a person who is already inactive", async () => {
+    parties.push(
+      row({
+        id: "p-john",
+        party_key: "880101011111",
+        name: "John",
+        membership_status: OrganizationPartyMembershipStatus.MASTER_INACTIVE,
+      })
+    );
+    await expect(
+      inactivateMasterParty({
+        portal: "issuer",
+        organizationId: "org-1",
+        partyId: "p-john",
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      code: "INVALID_PARTY_STATUS",
+    });
+    expect(mockPartyUpdate).not.toHaveBeenCalled();
   });
 
   it("CTOS listing an inactive person again does not reactivate them", async () => {

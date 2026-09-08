@@ -21,4 +21,10 @@ describe("issuer People section", () => {
     expect(portalPeople).toContain("onView={() => setViewPeopleOnlyKey(person.matchKey)}");
     expect(portalPeople).toContain("setAddInitial");
   });
+
+  it("lets issuer owners and org admins mark people inactive", () => {
+    expect(issuerWrapper).toContain("canInactivate={canEdit}");
+    expect(portalPeople).toContain("Mark inactive");
+    expect(portalPeople).toContain('<h3 className="text-card-title">Inactive</h3>');
+  });
 });
