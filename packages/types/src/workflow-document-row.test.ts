@@ -9,6 +9,9 @@ import {
   type GeneratedDocumentTypeKey,
 } from "./generated-documents";
 import {
+  contentTypeForWorkflowDocumentTemplate,
+  isWorkflowDocumentTemplateContentType,
+  isWorkflowDocumentTemplateFileName,
   parseWorkflowDocumentRow,
   serializeWorkflowDocumentRow,
   type WorkflowDocumentRow,
@@ -253,5 +256,38 @@ describe("guarantor agreement row round-trip", () => {
     });
     const parsed = parseGuarantorAgreementRow(serialized);
     expect(parsed.generated_document_type).toBe(JSG_KEY);
+  });
+});
+
+describe("workflow document template file types", () => {
+  it("accepts PDF, Word, and Excel file names", () => {
+    expect(isWorkflowDocumentTemplateFileName("board.pdf")).toBe(true);
+    expect(isWorkflowDocumentTemplateFileName("board.doc")).toBe(true);
+    expect(isWorkflowDocumentTemplateFileName("board.DOCX")).toBe(true);
+    expect(isWorkflowDocumentTemplateFileName("schedule.xlsx")).toBe(true);
+    expect(isWorkflowDocumentTemplateFileName("schedule.xls")).toBe(true);
+  });
+
+  it("rejects non-document templates", () => {
+    expect(isWorkflowDocumentTemplateFileName("note.txt")).toBe(false);
+    expect(isWorkflowDocumentTemplateFileName("archive.zip")).toBe(false);
+    expect(isWorkflowDocumentTemplateFileName("payload.exe")).toBe(false);
+  });
+
+  it("maps Word MIME from extension when the browser omits type", () => {
+    expect(contentTypeForWorkflowDocumentTemplate("board.docx", "")).toBe(
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    );
+    expect(contentTypeForWorkflowDocumentTemplate("board.doc")).toBe("application/msword");
+  });
+
+  it("keeps a known declared MIME type", () => {
+    expect(
+      contentTypeForWorkflowDocumentTemplate(
+        "board.docx",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      )
+    ).toBe("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+    expect(isWorkflowDocumentTemplateContentType("image/png")).toBe(false);
   });
 });

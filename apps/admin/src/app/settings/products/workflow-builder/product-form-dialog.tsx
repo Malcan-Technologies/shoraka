@@ -46,7 +46,6 @@ import {
 import { uploadFileToS3 } from "@/lib/upload-file-to-s3";
 import { stepDisplayName, getDefaultWorkflowSteps, getRequiredFirstAndLastSteps, type WorkflowStepShape } from "../product-utils";
 import { getStepKeyFromStepId, STEP_KEY_DISPLAY, STEPS_WITHOUT_CONFIG } from "./workflow-registry";
-import { enforceDeclarationsLastAndDropReview } from "@cashsouk/types";
 import {
   getStepId,
   buildPayloadFromSteps,
@@ -69,6 +68,8 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
   FACILITY_FEE_RATE_MAX_PERCENT,
+  contentTypeForWorkflowDocumentTemplate,
+  enforceDeclarationsLastAndDropReview,
   isSigningTemplateDocumentCategoryKey,
   parseSigningPackagesConfig,
   writeSigningPackagesConfig,
@@ -81,23 +82,9 @@ export interface ProductFormDialogProps {
   productId: string | null;
 }
 
-/** Presigned URL must use a whitelisted MIME type; browsers sometimes omit or misreport type for Excel. */
+/** Presigned URL must use a whitelisted MIME type; browsers sometimes omit or misreport Office types. */
 function contentTypeForProductTemplateUpload(file: File): string {
-  const t = file.type?.trim();
-  if (
-    t === "application/pdf" ||
-    t === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
-    t === "application/vnd.ms-excel"
-  ) {
-    return t;
-  }
-  const lower = file.name.toLowerCase();
-  const dot = lower.lastIndexOf(".");
-  const ext = dot >= 0 ? lower.slice(dot + 1) : "";
-  if (ext === "pdf") return "application/pdf";
-  if (ext === "xlsx") return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-  if (ext === "xls") return "application/vnd.ms-excel";
-  return "application/pdf";
+  return contentTypeForWorkflowDocumentTemplate(file.name, file.type);
 }
 
 /** Create or edit product in a dialog: drag-and-drop workflow steps only. Version is auto-managed (1 on create, auto-increment on every update). No name field; each step has its own config. */
