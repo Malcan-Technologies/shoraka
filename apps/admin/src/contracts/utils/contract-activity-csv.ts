@@ -43,6 +43,7 @@ const EVENT_LABELS: Record<string, string> = {
   PAYMASTER_LINKED_TO_ISSUER: "Paymaster Linked to Issuer",
   PAYMASTER_IDENTITY_UPDATED: "Paymaster Identity Updated",
   PAYMASTER_VERIFIED: "Paymaster Identity Verified",
+  PAYMASTER_IDENTITY_SYNCED: "Paymaster Identity Synced",
   PAYMASTER_IDENTITY_RESOLVED: "Paymaster Identity Resolved",
   SIGNING_PACKAGE_CREATED: "Signing Package Created",
   SIGNING_PACKAGE_SENT: "Signing Package Sent",

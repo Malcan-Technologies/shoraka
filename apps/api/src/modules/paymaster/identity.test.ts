@@ -10,6 +10,7 @@ import {
   parseSubmittedIdentity,
   submittedIdentityConflictsWithMaster,
   submittedIdentitySnapshot,
+  workingIdentityChangeMetadata,
 } from "./identity";
 
 describe("Paymaster identity helpers", () => {
@@ -90,6 +91,21 @@ describe("Paymaster identity helpers", () => {
         registrationCountry: "MY",
       }).changedFields
     ).toEqual(["legalName"]);
+    expect(
+      workingIdentityChangeMetadata(
+        { name: "ABC Trading", entity_type: "Partnership", ssm_number: "202134567890", country: "MY" },
+        {
+          name: "ABC Trading Sdn Bhd",
+          entity_type: "Partnership",
+          ssm_number: "202134567890",
+          country: "MY",
+        }
+      )
+    ).toEqual({
+      previous: { name: "ABC Trading" },
+      next: { name: "ABC Trading Sdn Bhd" },
+      changedFields: ["name"],
+    });
   });
 
   it("snapshots submitted vs master identity for verification audit", () => {
@@ -151,6 +167,13 @@ describe("Paymaster identity audit remarks", () => {
         registrationNumber: "202134567890",
       })
     ).toBe("ABC Trading Sdn Bhd (202134567890) identity reviewed internally. Unverified → Verified.");
+    expect(
+      buildPaymasterIdentityRemark({
+        eventType: ApplicationLogEventType.PAYMASTER_IDENTITY_SYNCED,
+        legalName: "ABC Trading Sdn Bhd",
+        registrationNumber: "202134567890",
+      })
+    ).toBe("Official Paymaster identity updated");
     expect(
       buildPaymasterIdentityRemark({
         eventType: ApplicationLogEventType.PAYMASTER_IDENTITY_RESOLVED,

@@ -8,7 +8,7 @@ tags:
   - audit
   - notifications
 order: 29
-updated: 2026-09-06
+updated: 2026-09-08
 ---
 
 This guide lists the Activity records, Admin logs, notifications, and direct emails available in the current platform.
@@ -310,11 +310,12 @@ Payment Amount Mismatch may appear as Payment Currency Mismatch when the currenc
 | Paymaster Linked to Issuer | Application → Activity Timeline; Paymaster → Activity | Not customer visible | None | None |
 | Paymaster Identity Updated | Paymaster → Activity; Application → Activity Timeline only when the edit came from Application Review | Not customer visible | None | None |
 | Paymaster Identity Verified | Application → Activity Timeline when application context exists; Paymaster → Activity | Not customer visible | None | None |
+| Paymaster Identity Synced | Application → Activity Timeline; Paymaster → Activity | Not customer visible | None | None |
 | Paymaster Identity Resolved | Application → Activity Timeline; Paymaster → Activity | Not customer visible | None | None |
 | Tawarruq Order Submitted | Note → Activity | Not customer visible | None | None |
 | Tawarruq Certificate Retrieved | Note → Activity | Not customer visible | None | None |
 
-Paymaster identity create, link, Admin edit, and verify are Admin/internal. They do not send typed notifications. After verification or a later Verified-master edit, eligible working applications use the official identity automatically; that overlay does not write a per-application Activity event. Historical **Paymaster Identity Resolved** rows still render. **Paymaster Identity Updated** appears on Paymaster Activity, and on Application Activity only when the edit came from Application Review.
+Paymaster identity create, link, Admin edit, and verify are Admin/internal. They do not send typed notifications. **Paymaster Identity Updated** means the official master changed. **Paymaster Identity Synced** means this unfinished application's current Paymaster working details were automatically updated from the official master. Synced is written only when that application's stored working identity actually changed. Frozen or completed applications are not updated and get no sync event. Historical **Paymaster Identity Resolved** rows still render. **Paymaster Identity Updated** appears on Paymaster Activity, and on Application Activity only when the edit came from Application Review. Sync events appear on Application Activity for the changed application, and also on Paymaster Activity. No inbox message, email, or SES.
 
 ### Legal
 

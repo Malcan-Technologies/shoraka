@@ -225,6 +225,7 @@ describe("listAdminPaymasterActivity", () => {
               "PAYMASTER_LINKED_TO_ISSUER",
               "PAYMASTER_IDENTITY_UPDATED",
               "PAYMASTER_VERIFIED",
+              "PAYMASTER_IDENTITY_SYNCED",
               "PAYMASTER_IDENTITY_RESOLVED",
             ],
           },

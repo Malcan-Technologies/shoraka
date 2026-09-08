@@ -65,6 +65,7 @@ import {
   parseRegistrationLookup,
   parseRelatedPartyFlag,
   parseSubmittedIdentity,
+  workingIdentityChangeMetadata,
   type PaymasterOfficialIdentity,
   type PaymasterSubmittedIdentity,
 } from "./identity";
@@ -74,8 +75,10 @@ import {
   selectSubmittedApplicationIdentities,
 } from "./submitted-application-identities";
 import {
+  PAYMASTER_IDENTITY_SYNC_SOURCE,
   buildPaymasterIdentityAuditMetadata,
   writePaymasterIdentityApplicationLog,
+  type PaymasterIdentitySyncTrigger,
 } from "./identity-audit";
 import { buildSubmittedCustomerDetails, snapshotAsJson } from "./snapshot";
 
@@ -359,6 +362,9 @@ async function syncOfficialIdentityToEligibleApplications(
       registration_number: string;
       registration_country: string;
     };
+    actorUserId: string;
+    trigger: PaymasterIdentitySyncTrigger;
+    context?: AuditRequestContext | null;
   },
   db: Prisma.TransactionClient | typeof prisma
 ): Promise<void> {
@@ -426,14 +432,53 @@ async function syncOfficialIdentityToEligibleApplications(
     ) {
       continue;
     }
+    const nextDetails = overlayOfficialIdentityOnCustomerDetails(existing, params.paymaster);
+    const diff = workingIdentityChangeMetadata(existing, nextDetails);
+    if (diff.changedFields.length === 0) continue;
+
+    const eligibleApplications = (contract.applications ?? []).filter((application) =>
+      isPaymasterWorkingIdentityEligible({
+        applicationStatus: application.status,
+        financingStructure: application.financing_structure,
+        contractStatus: contract.status,
+        hasNote: notedApplicationIds.has(application.id),
+      })
+    );
+    if (eligibleApplications.length === 0) continue;
     await db.contract.update({
       where: { id: contract.id },
       data: {
-        customer_details: snapshotAsJson(
-          overlayOfficialIdentityOnCustomerDetails(existing, params.paymaster)
-        ),
+        customer_details: snapshotAsJson(nextDetails),
       },
     });
+    for (const application of eligibleApplications) {
+      await writePaymasterIdentityApplicationLog(
+        {
+          eventType: ApplicationLogEventType.PAYMASTER_IDENTITY_SYNCED,
+          actorUserId: params.actorUserId,
+          applicationId: application.id,
+          portal: ActivityPortal.ADMIN,
+          paymasterId: params.paymaster.id,
+          metadata: {
+            ...buildPaymasterIdentityAuditMetadata({
+              paymasterId: params.paymaster.id,
+              registrationNumber: params.paymaster.registration_number,
+              legalName: nextDetails.name,
+              verificationStatus: "VERIFIED",
+              applicationId: application.id,
+              contractId: contract.id,
+              source: PAYMASTER_IDENTITY_SYNC_SOURCE,
+            }),
+            previous: diff.previous,
+            new: diff.next,
+            changed_fields: diff.changedFields,
+            trigger: params.trigger,
+          },
+          context: params.context,
+        },
+        db
+      );
+    }
   }
 }
 
@@ -976,6 +1021,9 @@ export async function updatePaymasterIdentity(params: {
             registration_number: current.registration_number,
             registration_country: next.registrationCountry,
           },
+          actorUserId: params.actorUserId,
+          trigger: "verified_master_edit",
+          context: params.auditContext,
         },
         tx
       );
@@ -1091,6 +1139,9 @@ export async function verifyPaymaster(params: {
           registration_number: current.registration_number,
           registration_country: next.registrationCountry,
         },
+        actorUserId: params.actorUserId,
+        trigger: "verification",
+        context: params.auditContext,
       },
       tx
     );

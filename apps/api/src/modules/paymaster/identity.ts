@@ -167,3 +167,56 @@ export function masterIdentitySnapshot(row: {
     country: row.registration_country,
   };
 }
+
+function workingIdentityField(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+/** Changed application working identity fields only (customer_details). */
+export function workingIdentityChangeMetadata(
+  previous: Record<string, unknown>,
+  next: {
+    name: string;
+    entity_type: string;
+    ssm_number: string;
+    country: string;
+  }
+): { previous: Record<string, string>; next: Record<string, string>; changedFields: string[] } {
+  const previousOut: Record<string, string> = {};
+  const nextOut: Record<string, string> = {};
+  const changedFields: string[] = [];
+  const fields: Array<{ key: string; from: string; to: string; same: boolean }> = [
+    {
+      key: "name",
+      from: workingIdentityField(previous.name),
+      to: next.name.trim(),
+      same: workingIdentityField(previous.name) === next.name.trim(),
+    },
+    {
+      key: "country",
+      from: workingIdentityField(previous.country),
+      to: next.country.trim(),
+      same:
+        workingIdentityField(previous.country).toUpperCase() === next.country.trim().toUpperCase(),
+    },
+    {
+      key: "entity_type",
+      from: workingIdentityField(previous.entity_type),
+      to: next.entity_type.trim(),
+      same: workingIdentityField(previous.entity_type) === next.entity_type.trim(),
+    },
+    {
+      key: "ssm_number",
+      from: workingIdentityField(previous.ssm_number),
+      to: next.ssm_number.trim(),
+      same: workingIdentityField(previous.ssm_number) === next.ssm_number.trim(),
+    },
+  ];
+  for (const field of fields) {
+    if (field.same) continue;
+    previousOut[field.key] = field.from;
+    nextOut[field.key] = field.to;
+    changedFields.push(field.key);
+  }
+  return { previous: previousOut, next: nextOut, changedFields };
+}

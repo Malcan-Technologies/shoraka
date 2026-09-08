@@ -118,6 +118,10 @@ export const EVENT_CATALOGUE: Record<string, EventCatalogueEntry> = {
   PAYMASTER_VERIFIED: entry(EVENT_LAYER.ADMIN_ACTIVITY, "application_logs", {
     notes: "Admin identity review UNVERIFIED → VERIFIED. Display as Paymaster Identity Verified. Not application approval.",
   }),
+  PAYMASTER_IDENTITY_SYNCED: entry(EVENT_LAYER.ADMIN_ACTIVITY, "application_logs", {
+    notes:
+      "Eligible unfinished application working customer_details was auto-updated from the official Paymaster. Not customer visible. No notification.",
+  }),
   PAYMASTER_IDENTITY_RESOLVED: entry(EVENT_LAYER.ADMIN_ACTIVITY, "application_logs", {
     lifecycle: EVENT_LIFECYCLE.HISTORICAL_READER,
     notes:
