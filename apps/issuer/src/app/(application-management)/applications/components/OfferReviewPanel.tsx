@@ -1172,7 +1172,7 @@ export function OfferReviewPanel({
     }
   };
 
-  const handleRemindRecipient = async (recipientId: string) => {
+  const handleRemindRecipient = async (recipientId: string, documentId: string) => {
     if (isPhaseDeadlinePast) {
       toast.error("This offer has expired.");
       return;
@@ -1182,7 +1182,8 @@ export function OfferReviewPanel({
     try {
       const response = await apiClient.remindIssuerSigningRecipient(
         activeSigningEnvelope.id,
-        recipientId
+        recipientId,
+        documentId
       );
       if (!response.success) {
         const err = getApiErrorDetails(response, "Failed to send reminder");

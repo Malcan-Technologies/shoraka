@@ -1,5 +1,7 @@
 import {
   isPrimarySignedOfferDocument,
+  isSignedContractOfferLetterAvailable,
+  isSignedInvoiceOfferLetterAvailable,
   isSigningPackagePreviewDocument,
   listGeneratedDocumentTypesForContext,
   parseGeneratedDocumentTypeKey,
@@ -93,6 +95,49 @@ describe("generated document catalog", () => {
         has_signed_pdf: true,
       })
     ).toBe(true);
+
+    expect(
+      isSignedContractOfferLetterAvailable({
+        contractId: "c1",
+        envelopes: [
+          {
+            status: "COMPLETED",
+            contract_id: "c1",
+            documents: [
+              {
+                source: "TEMPLATE",
+                template_ref: "facility_agreement",
+                has_signed_pdf: true,
+              },
+            ],
+          },
+        ],
+      })
+    ).toBe(true);
+    expect(
+      isSignedContractOfferLetterAvailable({
+        contractId: "c1",
+        envelopes: [
+          {
+            status: "COMPLETED",
+            contract_id: "c1",
+            documents: [{ source: "TEMPLATE", template_ref: "facility_agreement" }],
+          },
+        ],
+      })
+    ).toBe(false);
+    expect(
+      isSignedInvoiceOfferLetterAvailable({
+        invoiceId: "i1",
+        envelopes: [
+          {
+            status: "SENT",
+            invoice_id: "i1",
+            documents: [{ source: "GENERATED_OFFER_LETTER", has_signed_pdf: true }],
+          },
+        ],
+      })
+    ).toBe(false);
 
     const picked = pickPrimarySignedOfferDocument([
       {

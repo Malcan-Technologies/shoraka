@@ -132,9 +132,9 @@ export interface NormalizedInvoice {
   canReviewOffer: boolean;
   /** Raw offer details from API for modal display. */
   offer_details?: Record<string, unknown> | null;
-  /** True when invoice offer was accepted after signing envelope completion. */
+  /** True when a completed envelope has a signed Facility Agreement or legacy Offer Letter. */
   signedOfferLetterAvailable: boolean;
-  /** S3 key for invoice signed offer letter when available. */
+  /** Unused by download; signed letters are fetched via the signed-letter API. */
   signedOfferLetterS3Key: string | null;
   /** When status is WITHDRAWN: distinguishes user decline vs withdraw vs expiry (issuer UI). */
   withdrawReason?: WithdrawReason;
@@ -213,9 +213,9 @@ export interface NormalizedApplication {
   withdrawReason?: WithdrawReason;
   /** Offer expiry (contract or invoice). ISO string. Used for expiry indicator and filter. */
   expiresAt?: string | null;
-  /** True when contract offer was accepted after signing envelope completion. */
+  /** True when a completed envelope has a signed Facility Agreement or legacy Offer Letter. */
   signedContractOfferLetterAvailable: boolean;
-  /** S3 key for contract signed offer letter when available. */
+  /** Unused by download; signed letters are fetched via the signed-letter API. */
   signedContractOfferLetterS3Key: string | null;
   /** Active accept/signing deadline for the primary OFFER_SENT offer, if stamped. */
   offerPhaseDeadline?: import("@/lib/offer-utils").OfferPhaseDeadlineDisplay | null;

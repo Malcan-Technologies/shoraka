@@ -228,9 +228,9 @@ export function SigningEnvelopePanel({
     }
   };
 
-  const handleRemind = async (envelopeId: string, recipientId: string) => {
+  const handleRemind = async (envelopeId: string, recipientId: string, documentId?: string) => {
     try {
-      await remindMutation.mutateAsync({ envelopeId, recipientId });
+      await remindMutation.mutateAsync({ envelopeId, recipientId, documentId });
       toast.success("Reminder sent");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to remind");
@@ -441,7 +441,7 @@ export function SigningEnvelopePanel({
           remindDisabled={remindMutation.isPending}
           voidDisabled={voidMutation.isPending}
           onVoid={() => handleVoid(primary.id)}
-          onRemind={(recipientId) => handleRemind(primary.id, recipientId)}
+          onRemind={(recipientId, documentId) => handleRemind(primary.id, recipientId, documentId)}
           onResendReminders={canRemindPrimary ? handleResendReminders : undefined}
           onSendDraft={
             canManage &&
@@ -641,7 +641,7 @@ function ActiveEnvelopeCard({
   remindDisabled: boolean;
   voidDisabled: boolean;
   onVoid: () => void;
-  onRemind: (recipientId: string) => void;
+  onRemind: (recipientId: string, documentId: string) => void;
   onResendReminders?: () => void;
   onSendDraft?: () => void;
   sendPending?: boolean;

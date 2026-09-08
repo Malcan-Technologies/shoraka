@@ -13,7 +13,7 @@ export function ApplicationAttentionCarousel({
   isCancelApplicationPending,
 }: {
   applications: NormalizedApplication[];
-  onViewSignedContractOffer?: (signedOfferLetterS3Key: string) => Promise<void>;
+  onViewSignedContractOffer?: (applicationId: string) => Promise<void>;
   onCancelApplication?: (applicationId: string) => void;
   onDeleteDraft?: (applicationId: string) => void;
   isCancelApplicationPending?: boolean;

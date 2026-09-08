@@ -23,6 +23,14 @@ describe("buildDocumentProviderSigners", () => {
         { email: "signer@example.com ", signset: [fieldB] },
       ])
     ).toEqual([{ email: "Signer@Example.com", signset: [fieldA, fieldB] }]);
+    expect(fieldA).toEqual({
+      fieldtype: "sign",
+      top: 459,
+      left: 140,
+      width: 100,
+      height: 30,
+      pageindex: 1,
+    });
   });
 
   it("leaves signset undefined when no assignment carries fields", () => {

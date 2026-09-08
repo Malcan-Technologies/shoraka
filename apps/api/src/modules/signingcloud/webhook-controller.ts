@@ -91,15 +91,7 @@ function extractContractnumDeep(value: unknown, depth = 0): string | null {
   return null;
 }
 
-function extractContractnumFromRequest(body: unknown, query: Request["query"]): string | null {
-  const decrypted = decryptWebhookBody(body);
-  if (decrypted.kind === "reject") {
-    throw new AppError(400, "BAD_REQUEST", "Invalid webhook payload");
-  }
-
-  const fromBody = extractContractnumDeep(decrypted.value);
-  if (fromBody) return fromBody;
-
+function extractContractnumFromQuery(query: Request["query"]): string | null {
   const q = query ?? {};
   const qNum =
     (typeof q.contractnum === "string" && q.contractnum.trim()) ||
@@ -109,13 +101,10 @@ function extractContractnumFromRequest(body: unknown, query: Request["query"]): 
   return qNum || null;
 }
 
-function verifyWebhookSecret(req: Request): void {
+function verifyPlaintextWebhookSecret(req: Request): void {
   const secret = process.env.SC_WEBHOOK_SECRET?.trim();
   if (!secret) {
-    if (process.env.NODE_ENV === "production") {
-      throw new AppError(500, "INTERNAL_ERROR", "Webhook secret is not configured");
-    }
-    return;
+    throw new AppError(401, "UNAUTHORIZED", "Invalid webhook secret");
   }
 
   const hdr = req.headers["x-signingcloud-secret"];
@@ -133,9 +122,16 @@ function verifyWebhookSecret(req: Request): void {
 
 async function webhookHandler(req: Request, res: Response, next: NextFunction) {
   try {
-    verifyWebhookSecret(req);
+    const decrypted = decryptWebhookBody(req.body);
+    if (decrypted.kind === "reject") {
+      throw new AppError(400, "BAD_REQUEST", "Invalid webhook payload");
+    }
+    if (decrypted.kind === "plaintext") {
+      verifyPlaintextWebhookSecret(req);
+    }
 
-    const contractnum = extractContractnumFromRequest(req.body, req.query);
+    const contractnum =
+      extractContractnumDeep(decrypted.value) || extractContractnumFromQuery(req.query);
 
     if (!contractnum) {
       logger.warn(

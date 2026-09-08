@@ -4,7 +4,7 @@ What [`buildDeedOfAssignmentMergeData`](../../apps/api/src/modules/applications/
 
 Requires `contract_offer_sent`. Generated at facility-offer time.
 
-SigningCloud recipients are the configured **issuer_director** assignor signatories only. SSP, witnesses, stamps, and wet-ink execution lines stay untagged in Word. CA signature boxes sit on each assignor signature line in the ASSIGNOR execution block.
+SigningCloud recipients are the configured **issuer_director** assignor signatories only. SSP, witnesses, stamps, and wet-ink execution lines stay untagged in Word. CA signature boxes sit on each assignor signature line in the ASSIGNOR execution block. Current fixture PDFs place two assignor CA boxes on page 10 (SSP, witness, and stamp lines are not selected).
 
 ## Filled from platform data
 

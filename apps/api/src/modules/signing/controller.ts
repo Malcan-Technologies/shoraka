@@ -18,6 +18,7 @@ import {
   confirmExternalSignedSchema,
   verifyExternalAccessCodeSchema,
   recipientEkycSessionSchema,
+  remindRecipientSchema,
 } from "./schemas";
 
 const signedDocumentParamsSchema = z.object({
@@ -77,7 +78,8 @@ async function voidEnvelope(req: Request, res: Response, next: NextFunction) {
 
 async function remindRecipient(req: Request, res: Response, next: NextFunction) {
   try {
-    await signingService.remindRecipient(req.params.id, req.params.recipientId);
+    const body = remindRecipientSchema.parse(req.body ?? {});
+    await signingService.remindRecipient(req.params.id, req.params.recipientId, body.documentId);
     ok(res, { ok: true });
   } catch (e) {
     next(e);
@@ -86,10 +88,12 @@ async function remindRecipient(req: Request, res: Response, next: NextFunction) 
 
 async function remindRecipientForIssuer(req: Request, res: Response, next: NextFunction) {
   try {
+    const body = remindRecipientSchema.parse(req.body ?? {});
     await signingService.remindRecipientForIssuer(
       req.params.id,
       req.params.recipientId,
-      getUserId(req)
+      getUserId(req),
+      body.documentId
     );
     ok(res, { ok: true });
   } catch (e) {

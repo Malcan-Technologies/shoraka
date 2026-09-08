@@ -165,5 +165,8 @@ describe("buildDoaSigningCloudSignsetsFromPdf", () => {
     expect(oneSignsets).toHaveLength(1);
     expect(oneSignsets[0]?.[0]?.pageindex).toBeGreaterThan(0);
     expect(oneSignsets[0]?.[0]?.left).toBeLessThan(200);
+    expect((oneSignsets[0]?.[0]?.left ?? 0) + (oneSignsets[0]?.[0]?.width ?? 0)).toBeLessThanOrEqual(595);
+    expect(twoSignsets[0]?.[0]?.left).toBe(twoSignsets[1]?.[0]?.left);
+    expect(twoSignsets[0]?.[0]?.top).not.toBe(twoSignsets[1]?.[0]?.top);
   }, 120_000);
 });

@@ -103,15 +103,31 @@ Issuer director CTOS RegTank onboarding: after a successful RegTank create call,
 
 ### SigningCloud
 
-Server-only. All SigningCloud settings use the `SC_*` prefix. Webhook auth uses `SC_WEBHOOK_SECRET` (`x-signingcloud-secret` header on `POST /v1/webhooks/signingcloud/callback`). Required in production (`assertSigningProductionConfig`).
+Server-only. All SigningCloud settings use the `SC_*` prefix. Encrypted callbacks authenticate with the provider MAC (`data` + `mac`); plaintext callbacks require the `x-signingcloud-secret` header (`SC_WEBHOOK_SECRET`). Production startup (`assertSigningProductionConfig`) also requires `API_PUBLIC_URL` (webhook/`callUrl`) and `ISSUER_URL` (hosted return/`backUrl`).
 
 | Variable | Description | Example (Dev) | Example (Prod) |
 |---|---|---|---|
 | `SC_BASE_URL` | SigningCloud API base URL | From tenant dashboard | Secrets Manager (`BACKEND_ENV`) |
 | `SC_API_KEY` | SigningCloud API key | From tenant dashboard | Secrets Manager (`BACKEND_ENV`) |
 | `SC_API_SECRET` | SigningCloud API secret | From tenant dashboard | Secrets Manager (`BACKEND_ENV`) |
-| `SC_WEBHOOK_SECRET` | Shared secret for webhook callback | Local shared value | Secrets Manager (`BACKEND_ENV`) |
-| `API_PUBLIC_URL` | Public API URL (webhook/callUrl) | `http://localhost:4000` | Secrets Manager (`BACKEND_ENV`) |
+| `SC_WEBHOOK_SECRET` | Shared secret for plaintext webhook callbacks | Local shared value | Secrets Manager (`BACKEND_ENV`) |
+| `API_PUBLIC_URL` | Public API URL (webhook/`callUrl`) | `http://localhost:4000` | Secrets Manager (`BACKEND_ENV`) |
+| `ISSUER_URL` | Issuer origin for signing emails and `backUrl` | `http://localhost:3001` | Secrets Manager (`BACKEND_ENV`) |
+| `SC_ACCESS_TOKEN_TTL_MS` | In-memory access-token cache TTL (minimum 60000) | `1500000` (default 25m) | Optional override |
+
+Disposable FA/JSG/DOA sandbox smoke (one verified sandbox email reused for every field):
+
+`SIGNINGCLOUD_SMOKE_SIGNER_EMAIL=… pnpm --filter @cashsouk/api signingcloud:generated-docs-smoke`
+
+| Variable | Description |
+|---|---|
+| `SIGNINGCLOUD_SMOKE_LAYOUT_ONLY=1` | Render fixture PDFs and overlay PNGs only (no upload) |
+| `SIGNINGCLOUD_SMOKE_SKIP_SIGN=1` | Upload disposable contracts, write gitignored session URLs, then exit |
+| `SIGNINGCLOUD_SMOKE_INSPECT_HOSTED=1` | Screenshot hosted cover + execution pages after upload |
+| `SIGNINGCLOUD_SMOKE_INSPECT_ONLY=1` | Re-screenshot saved gitignored sessions |
+| `SIGNINGCLOUD_SMOKE_VERIFY_REFS=fa:<ref>,jsg:<ref>,doa:<ref>` | Poll provider status and hash signed `%PDF` bytes after CA signing |
+
+Do not commit session URLs, access codes, or overlay captures.
 
 ECS injects these from `BACKEND_ENV` via `infra/ecs-task-definition-api.json`. Add the JSON key in Secrets Manager before deploying a revision that references it.
 

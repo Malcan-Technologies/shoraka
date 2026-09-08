@@ -308,7 +308,7 @@ function formatDate(date: string | Date | null | undefined): string {
 export type ScrollableInvoiceTableProps = {
   application: NormalizedApplication;
   onDocumentDownload: (s3Key: string) => Promise<void>;
-  onViewSignedInvoiceOffer?: (signedOfferLetterS3Key: string) => Promise<void>;
+  onViewSignedInvoiceOffer?: (invoiceId: string) => Promise<void>;
   onWithdrawInvoice?: (invoiceId: string, applicationId: string, organizationId?: string) => void;
   isWithdrawInvoicePending?: boolean;
 };
@@ -732,7 +732,7 @@ export function ScrollableInvoiceTable({
                         <DropdownMenuContent align="end" className="rounded-xl">
                           {(() => {
                             const showViewSignedInvoice =
-                              inv.signedOfferLetterAvailable && !!inv.signedOfferLetterS3Key && onViewSignedInvoiceOffer;
+                              inv.signedOfferLetterAvailable && onViewSignedInvoiceOffer;
                             const showViewReasonRemarks = issuerInvoiceCanViewReasonRemarks(inv);
                             const withdrawInvoiceDisabled =
                               !canWithdrawInvoice ||
@@ -746,7 +746,7 @@ export function ScrollableInvoiceTable({
                                       className="cursor-pointer"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        void onViewSignedInvoiceOffer!(inv.signedOfferLetterS3Key!);
+                                        void onViewSignedInvoiceOffer!(inv.id);
                                       }}
                                     >
                                       View Signed Offer

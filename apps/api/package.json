@@ -91,6 +91,7 @@
     "retag-jsg-template": "tsx scripts/retag-jsg-template.ts",
     "retag-doa-template": "tsx scripts/retag-doa-template.ts",
     "retag-fa-template": "tsx scripts/retag-fa-template.ts",
+    "signingcloud:generated-docs-smoke": "tsx scripts/signingcloud-generated-docs-smoke.ts",
     "migrate-signing-offer-letter-to-fa": "tsx scripts/migrate-signing-offer-letter-to-fa.ts",
     "tag-investment-note-certificate-template": "tsx scripts/tag-investment-note-certificate-template.ts",
     "preview:investment-note-certificate": "tsx scripts/preview-investment-note-certificate.ts",

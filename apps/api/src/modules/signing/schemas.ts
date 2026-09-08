@@ -53,4 +53,8 @@ export const recipientEkycSessionSchema = z.object({
   force: z.boolean().optional(),
 });
 
+export const remindRecipientSchema = z.object({
+  documentId: z.string().min(1).optional(),
+});
+
 export type SendAdminSigningPackageBody = z.infer<typeof sendAdminSigningPackageSchema>;

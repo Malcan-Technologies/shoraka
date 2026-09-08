@@ -61,24 +61,24 @@ export function collectApplicationDocuments(
   const out: ApplicationDocumentItem[] = [];
   const seen = new Set<string>();
 
-  if (application.signedContractOfferLetterS3Key) {
+  if (application.signedContractOfferLetterAvailable) {
     pushDoc(
       out,
       seen,
       "Signed facility offer letter",
-      application.signedContractOfferLetterS3Key,
+      `signed-letter:contract:${application.id}`,
       "Signed offer"
     );
   }
 
   for (const inv of application.invoices) {
     pushDoc(out, seen, inv.document || `Invoice ${inv.number}`, inv.documentS3Key, "Invoice");
-    if (inv.signedOfferLetterS3Key) {
+    if (inv.signedOfferLetterAvailable) {
       pushDoc(
         out,
         seen,
         `Signed offer — invoice ${inv.number}`,
-        inv.signedOfferLetterS3Key,
+        `signed-letter:invoice:${inv.id}`,
         "Signed offer"
       );
     }

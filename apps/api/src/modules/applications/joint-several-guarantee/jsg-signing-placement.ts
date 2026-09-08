@@ -1,6 +1,10 @@
 import path from "path";
 import { createRequire } from "module";
 import type { SigningCloudSignField } from "./jsg-signing-signsets";
+import {
+  matchSignersToNamedSlots,
+  signatureFieldFromLine,
+} from "../../signing/signature-field-geometry";
 
 const requireFromPlacement = createRequire(__filename);
 
@@ -86,10 +90,6 @@ function configurePdfjsWorker(pdfjs: PdfjsModule): void {
 function pdfjsAssetUrl(folder: "standard_fonts" | "cmaps"): string {
   const root = path.dirname(requireFromPlacement.resolve("pdfjs-dist/package.json"));
   return `${path.join(root, folder)}/`;
-}
-
-function normalizeJsgSignerName(value: string): string {
-  return value.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
 function compactLineText(text: string): string {
@@ -233,15 +233,13 @@ function fieldFromSignatureLine(line: JsgPdfLine): Pick<
   JsgSignatureSlot,
   "pageindex" | "top" | "left" | "height" | "width"
 > {
-  // Blank rows above the dotted line give ~36pt of room; sit the box on the stroke.
-  const height = 36;
-  const width = Math.max(120, Math.min(240, Math.round(line.width) || 120));
+  const field = signatureFieldFromLine(line);
   return {
-    pageindex: line.pageindex,
-    top: Math.max(24, Math.round(line.yTop - height + 6)),
-    left: Math.max(20, Math.round(line.x)),
-    height,
-    width,
+    pageindex: field.pageindex,
+    top: field.top,
+    left: field.left,
+    height: field.height,
+    width: field.width,
   };
 }
 
@@ -313,37 +311,19 @@ export function matchJsgSignersToSlots(
   signerNames: string[],
   slots: JsgSignatureSlot[]
 ): SigningCloudSignField[][] {
-  const unused = slots.map((slot) => ({ ...slot, used: false }));
-  const signsets: SigningCloudSignField[][] = [];
-
-  for (const signerName of signerNames) {
-    const needle = normalizeJsgSignerName(signerName);
-    if (!needle) {
-      throw new JsgSigningLayoutError("JSG signer is missing a name.");
-    }
-    const slot = unused.find(
-      (entry) => !entry.used && normalizeJsgSignerName(entry.name) === needle
-    );
-    if (!slot) {
-      const available = slots.map((entry) => entry.name).filter(Boolean).join(", ") || "(none)";
-      throw new JsgSigningLayoutError(
-        `Could not place JSG signature for "${signerName}" on an execution line. Found: ${available}.`
-      );
-    }
-    slot.used = true;
-    signsets.push([
-      {
-        fieldtype: "sign",
-        top: slot.top,
-        left: slot.left,
-        height: slot.height,
-        width: slot.width,
-        pageindex: slot.pageindex,
-      },
-    ]);
+  if (slots.length === 0) {
+    throw new JsgSigningLayoutError("JSG PDF is missing signature lines.");
   }
-
-  return signsets;
+  return matchSignersToNamedSlots(
+    signerNames,
+    slots.map((slot) => ({ ...slot, fieldtype: "sign" as const })),
+    {
+      documentLabel: "JSG",
+      allowUnnamedFallback: false,
+      requireAllSlotsUsed: true,
+      createError: (message) => new JsgSigningLayoutError(message),
+    }
+  );
 }
 
 export async function extractPdfTextItems(buffer: Buffer): Promise<JsgPdfTextItem[]> {

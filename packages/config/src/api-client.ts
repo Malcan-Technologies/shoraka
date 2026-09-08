@@ -3160,11 +3160,12 @@ export class ApiClient {
   /** Admin: nudge a recipient who has not signed yet. */
   async remindSigningRecipient(
     envelopeId: string,
-    recipientId: string
+    recipientId: string,
+    documentId?: string
   ): Promise<ApiResponse<{ ok: boolean }> | ApiError> {
     return this.post<{ ok: boolean }>(
       `/v1/admin/signing/envelopes/${envelopeId}/recipients/${recipientId}/remind`,
-      {}
+      documentId ? { documentId } : {}
     );
   }
 
@@ -3263,11 +3264,12 @@ export class ApiClient {
   /** Issuer: nudge a recipient who has not signed yet. */
   async remindIssuerSigningRecipient(
     envelopeId: string,
-    recipientId: string
+    recipientId: string,
+    documentId?: string
   ): Promise<ApiResponse<{ ok: boolean }> | ApiError> {
     return this.post<{ ok: boolean }>(
       `/v1/signing/envelopes/${envelopeId}/recipients/${recipientId}/remind`,
-      {}
+      documentId ? { documentId } : {}
     );
   }
 

@@ -126,6 +126,57 @@ export function isPrimarySignedOfferDocument(input: {
   return input.template_ref === FACILITY_AGREEMENT_SIGNING_DOCUMENT_KEY;
 }
 
+/** Envelope fields needed to decide if a signed offer PDF can be fetched. */
+export type SignedOfferEnvelopeLike = {
+  status: string;
+  contract_id?: string | null;
+  invoice_id?: string | null;
+  documents: Array<{
+    source: string;
+    template_ref?: string | null;
+    has_signed_pdf?: boolean;
+    signed_s3_key?: string | null;
+  }>;
+};
+
+function envelopeHasSignedOfferLetter(envelope: SignedOfferEnvelopeLike): boolean {
+  if (envelope.status !== "COMPLETED") return false;
+  return envelope.documents.some((document) => {
+    const hasPdf =
+      document.has_signed_pdf === true ||
+      (typeof document.signed_s3_key === "string" && document.signed_s3_key.trim().length > 0);
+    if (!hasPdf) return false;
+    return isPrimarySignedOfferDocument({ ...document, has_signed_pdf: true });
+  });
+}
+
+/**
+ * Same rule as admin/issuer signed-letter blob endpoints:
+ * COMPLETED envelope with a Facility Agreement or legacy Offer Letter that has a stored signed PDF.
+ * Offer status APPROVED alone is not enough (e.g. contract-linked invoices skip envelopes).
+ */
+export function isSignedContractOfferLetterAvailable(input: {
+  contractId?: string | null;
+  envelopes: readonly SignedOfferEnvelopeLike[];
+}): boolean {
+  const contractId = input.contractId?.trim();
+  if (!contractId) return false;
+  return input.envelopes.some(
+    (envelope) => envelope.contract_id === contractId && envelopeHasSignedOfferLetter(envelope)
+  );
+}
+
+export function isSignedInvoiceOfferLetterAvailable(input: {
+  invoiceId?: string | null;
+  envelopes: readonly SignedOfferEnvelopeLike[];
+}): boolean {
+  const invoiceId = input.invoiceId?.trim();
+  if (!invoiceId) return false;
+  return input.envelopes.some(
+    (envelope) => envelope.invoice_id === invoiceId && envelopeHasSignedOfferLetter(envelope)
+  );
+}
+
 type SignedOfferDocumentLike = {
   source: string;
   template_ref?: string | null;

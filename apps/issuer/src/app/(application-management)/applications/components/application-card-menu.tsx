@@ -23,7 +23,7 @@ export function ApplicationCardMenu({
   compact = false,
 }: {
   application: NormalizedApplication;
-  onViewSignedContractOffer?: (signedOfferLetterS3Key: string) => Promise<void>;
+  onViewSignedContractOffer?: (applicationId: string) => Promise<void>;
   onCancelApplication?: (applicationId: string) => void;
   onDeleteDraft?: (applicationId: string) => void;
   isCancelApplicationPending?: boolean;
@@ -33,7 +33,6 @@ export function ApplicationCardMenu({
   const hasContract = application.type === "Facility financing";
   const showViewSignedContract =
     application.signedContractOfferLetterAvailable &&
-    !!application.signedContractOfferLetterS3Key &&
     hasContract &&
     onViewSignedContractOffer;
   const withdrawDisabled = !!isCancelApplicationPending || !application.canWithdraw;
@@ -83,7 +82,7 @@ export function ApplicationCardMenu({
                 <DropdownMenuItem
                   className="cursor-pointer"
                   onClick={() => {
-                    void onViewSignedContractOffer!(application.signedContractOfferLetterS3Key!);
+                    void onViewSignedContractOffer!(application.id);
                   }}
                 >
                   View signed offer

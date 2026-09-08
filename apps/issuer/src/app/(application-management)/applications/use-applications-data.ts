@@ -31,8 +31,11 @@ import {
   type OfferAcceptanceStatus,
   isCompletedWithNoApprovedInvoices,
   isInvoiceOnlyFinancingStructure,
+  isSignedContractOfferLetterAvailable,
+  isSignedInvoiceOfferLetterAvailable,
   resolveFacilityFeeUpfront,
   resolveFinancingTenureDays,
+  type SignedOfferEnvelopeLike,
 } from "@cashsouk/types";
 import { useOrganizationApplications } from "@/hooks/use-applications";
 import { getOfferStatus, getOfferPhaseDeadlineDisplay } from "@/lib/offer-utils";
@@ -59,6 +62,7 @@ interface ApiContract {
   offer_details?: { expires_at?: string | null; offered_facility?: number } | null;
   contract_details?: Record<string, unknown> | null;
   customer_details?: Record<string, unknown> | null;
+  /** Legacy field; signed-letter availability uses signing_envelopes. */
   offer_signing?: unknown;
   facilityFeeUpfrontAmount?: number;
   facilityFeeUpfrontOutstanding?: number;
@@ -74,6 +78,7 @@ interface ApiInvoice {
   offer_details?: { expires_at?: string | null } | Record<string, unknown> | null;
   details?: Record<string, unknown>;
   document?: Record<string, unknown> | null;
+  /** Legacy field; signed-letter availability uses signing_envelopes. */
   offer_signing?: unknown;
 }
 
@@ -103,22 +108,7 @@ export interface ApiApplication {
   contract?: ApiContract | null;
   invoices?: ApiInvoice[];
   application_review_remarks?: ApiReviewRemark[];
-}
-
-function isSignedOfferLetterAvailable(offerSigning: unknown): boolean {
-  if (!offerSigning || typeof offerSigning !== "object") return false;
-  const o = offerSigning as Record<string, unknown>;
-  return (
-    o.status === "signed" &&
-    typeof o.signed_offer_letter_s3_key === "string" &&
-    o.signed_offer_letter_s3_key.length > 0
-  );
-}
-
-function getSignedOfferLetterS3Key(offerSigning: unknown): string | null {
-  if (!offerSigning || typeof offerSigning !== "object") return null;
-  const s3Key = (offerSigning as Record<string, unknown>).signed_offer_letter_s3_key;
-  return typeof s3Key === "string" && s3Key.length > 0 ? s3Key : null;
+  signing_envelopes?: SignedOfferEnvelopeLike[];
 }
 
 function parseInvoiceWithdrawReason(raw: string | null | undefined): WithdrawReason | undefined {
@@ -208,7 +198,8 @@ function prepareInvoice(
   contractStatus: string | null,
   structureType: string | undefined,
   invoiceIndex: number,
-  reviewRemarks: ApiReviewRemark[] | undefined
+  reviewRemarks: ApiReviewRemark[] | undefined,
+  envelopes: readonly SignedOfferEnvelopeLike[]
 ): NormalizedInvoice {
   const details = (api.details ?? {}) as Record<string, unknown>;
   const topLevelDoc = (api.document ?? null) as { s3_key?: string; file_name?: string } | null;
@@ -216,8 +207,10 @@ function prepareInvoice(
   const doc = topLevelDoc ?? detailsDoc;
   const documentS3Key = doc?.s3_key ? String(doc.s3_key) : null;
   const documentName = String(doc?.file_name ?? details.document_name ?? details.document ?? "—");
-  const signedOfferLetterAvailable = isSignedOfferLetterAvailable(api.offer_signing);
-  const signedOfferLetterS3Key = getSignedOfferLetterS3Key(api.offer_signing);
+  const signedOfferLetterAvailable = isSignedInvoiceOfferLetterAvailable({
+    invoiceId: api.id,
+    envelopes,
+  });
   const offerStatus = getOfferStatus({
     status: api.status,
     offer_details: api.offer_details,
@@ -273,7 +266,7 @@ function prepareInvoice(
     details,
     invoiceSnapshot: api,
     signedOfferLetterAvailable,
-    signedOfferLetterS3Key,
+    signedOfferLetterS3Key: null,
     withdrawReason: parseInvoiceWithdrawReason(api.withdraw_reason),
     reasonOrRemarks: buildInvoiceReasonOrRemarks(api, invoiceIndex, reviewRemarks),
   };
@@ -449,12 +442,10 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
       ? String((api.financing_type as Record<string, unknown>).product_id ?? "") || null
       : null;
 
-  const signedContractOfferLetterAvailable = isSignedOfferLetterAvailable(
-    (contract as ApiContract | null)?.offer_signing
-  );
-  const signedContractOfferLetterS3Key = getSignedOfferLetterS3Key(
-    (contract as ApiContract | null)?.offer_signing
-  );
+  const signedContractOfferLetterAvailable = isSignedContractOfferLetterAvailable({
+    contractId,
+    envelopes: api.signing_envelopes ?? [],
+  });
 
   let expiresAt: string | null | undefined;
   const co = contract?.offer_details as { expires_at?: string | null } | undefined;
@@ -549,7 +540,14 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
     facilityDisabledReason: isInvoiceOnly ? null : facilityGate.disabledReason,
     updatedAt: updated.toISOString(),
     invoices: invoices.map((inv, idx) =>
-      prepareInvoice(inv, contractStatus, structureType, idx, reviewRemarks)
+      prepareInvoice(
+        inv,
+        contractStatus,
+        structureType,
+        idx,
+        reviewRemarks,
+        api.signing_envelopes ?? []
+      )
     ),
     contractStatus,
     issuerOrganizationId,
@@ -558,7 +556,7 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
     withdrawReason,
     expiresAt,
     signedContractOfferLetterAvailable: isInvoiceOnly ? false : signedContractOfferLetterAvailable,
-    signedContractOfferLetterS3Key: isInvoiceOnly ? null : signedContractOfferLetterS3Key,
+    signedContractOfferLetterS3Key: null,
     offerPhaseDeadline,
     offerAcceptanceStatus: primaryOfferAcceptanceStatus,
     applicationStatus: String(api.status ?? "DRAFT").toUpperCase(),

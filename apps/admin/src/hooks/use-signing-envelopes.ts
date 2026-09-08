@@ -101,8 +101,16 @@ export function useRemindSigningRecipient(applicationId: string) {
   const apiClient = createApiClient(API_URL, getAccessToken);
 
   return useMutation({
-    mutationFn: async (vars: { envelopeId: string; recipientId: string }): Promise<void> => {
-      const response = await apiClient.remindSigningRecipient(vars.envelopeId, vars.recipientId);
+    mutationFn: async (vars: {
+      envelopeId: string;
+      recipientId: string;
+      documentId?: string;
+    }): Promise<void> => {
+      const response = await apiClient.remindSigningRecipient(
+        vars.envelopeId,
+        vars.recipientId,
+        vars.documentId
+      );
       if (!response.success) throw new Error(response.error.message);
     },
     onSuccess: () => {
