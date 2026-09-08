@@ -10,7 +10,16 @@ import { prisma } from "../../../lib/prisma";
 import type { PortalType } from "../types";
 import { syncApplicationGuarantorsFromRegTankAmlWebhook } from "../../admin/guarantor-aml-webhook-sync";
 import { maybeAdvanceOrgAfterAmlScreeningCleared } from "./org-aml-milestone";
-import { syncCorporateShareholderStatusInOrganization } from "../helpers/corporate-shareholder-status-sync";
+import {
+  getCorporateShareholderCodId,
+  syncCorporateShareholderStatusInOrganization,
+} from "../helpers/corporate-shareholder-status-sync";
+import {
+  extractBusinessNameFromCorpShareholderRow,
+  extractBusinessNumberFromCorpShareholderRow,
+  getCorporateShareholderKybId,
+  matchBusinessShareholderForKybWebhook,
+} from "../helpers/business-shareholder-kyb-match";
 import {
   isCancelledOnboardingRow,
   logCancelledOnboardingSkip,
@@ -329,63 +338,36 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
       }
     }
 
-    // Handle business shareholder KYB webhooks
-    // Only process if onboardingId is a COD that's NOT the main company's COD
-    // If onboardingId is not found in regTankOnboarding, it might be a business shareholder COD
-    if (onboardingId && onboardingId.startsWith("COD")) {
-      if (isMainCompanyCod) {
-        logger.debug(
-          {
-            kybRequestId: requestId,
-            onboardingRequestId: onboarding?.request_id,
-            note: "onboardingId is the main company COD, skipping business shareholder search"
-          },
-          "[KYB Webhook] Skipping business shareholder processing - this is main company KYB"
-        );
-      } else {
-        // onboardingId is a COD but not the main company - process as business shareholder
-        // This handles both cases:
-        // 1. onboardingId found but doesn't match main company (shouldn't happen, but safe)
-        // 2. onboardingId not found in regTankOnboarding (business shareholder COD)
-        logger.info(
-          {
-            onboardingId,
-            kybRequestId: requestId,
-            isMainCompanyCod: false,
-            onboardingFound: !!onboarding,
-            note: onboarding ? "onboardingId is a business shareholder COD, processing as business shareholder" : "No onboarding record found, but onboardingId is COD - attempting business shareholder processing"
-          },
-          "[KYB Webhook] Processing as business shareholder KYB"
-        );
-        await this.handleBusinessShareholderKYB(payload);
-      }
-    } else if (!onboarding && !onboardingId && requestId) {
-      // No onboardingId but we have kybId - try to find by kybId in corporate_entities
-      logger.debug(
+    // Nested corporate-shareholder KYB: RegTank often sends the *parent* COD as onboardingId.
+    // Always try to match by kybId (and nested COD) so we do not skip Apex-style rows when
+    // the webhook also matches the main-company onboarding record.
+    if ((onboardingId && onboardingId.startsWith("COD")) || (!onboarding && requestId)) {
+      logger.info(
         {
+          onboardingId,
           kybRequestId: requestId,
-          note: "No onboardingId provided, attempting to find business shareholder by kybId"
+          isMainCompanyCod: Boolean(isMainCompanyCod),
+          onboardingFound: !!onboarding,
         },
-        "[KYB Webhook] Attempting to find business shareholder by kybId"
+        "[KYB Webhook] Checking business shareholder KYB match"
       );
-      await this.handleBusinessShareholderKYB(payload);
+      await this.handleBusinessShareholderKYB(payload, { warnIfMissing: !isMainCompanyCod });
     }
   }
 
   /**
-   * Handle KYB webhook for business shareholders
-   * Search all organizations for matching COD requestId in corporate_entities
-   * This handles cases where:
-   * 1. onboardingId is a business shareholder COD (not in regTankOnboarding table)
-   * 2. kybId (requestId) matches a stored business shareholder kybId
+   * Handle KYB webhook for nested corporate (business) shareholders.
+   * Match by stored kybId first (CE or director_aml_status), then by the shareholder COD.
+   * Never write the parent company COD/name onto the nested AML row.
    */
-  private async handleBusinessShareholderKYB(payload: RegTankKYBWebhook): Promise<void> {
+  private async handleBusinessShareholderKYB(
+    payload: RegTankKYBWebhook,
+    options: { warnIfMissing: boolean } = { warnIfMissing: true }
+  ): Promise<void> {
     const { requestId: kybId, onboardingId, status, riskScore, riskLevel, messageStatus } = payload;
     const statusRaw = typeof status === "string" ? status : "";
     const statusUpper = statusRaw.toUpperCase();
 
-    // If onboardingId is provided, it must be a COD for business shareholders
-    // If not provided, we'll search by kybId
     if (onboardingId && !onboardingId.startsWith("COD")) {
       logger.debug(
         { onboardingId, kybId },
@@ -399,8 +381,6 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
       "[KYB Webhook] Processing business shareholder KYB webhook"
     );
 
-    // Search all organizations for this COD requestId
-    // Note: Prisma doesn't support nested JSON queries directly, so we'll search all orgs and filter in code
     const [investorOrgs, issuerOrgs] = await Promise.all([
       prisma.investorOrganization.findMany({
         select: { id: true, corporate_entities: true, director_aml_status: true },
@@ -410,121 +390,128 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
       }),
     ]);
 
-    // Filter organizations that have this COD requestId in their corporateShareholders
-    // OR have this kybId stored in their corporateShareholders
-    // Only include orgs that have corporate_entities with corporateShareholders
-    const matchingInvestorOrgs = investorOrgs.filter(org => {
-      if (!org.corporate_entities) return false;
-      const corporateEntities = org.corporate_entities as any;
-      const corporateShareholders = corporateEntities?.corporateShareholders || [];
-
-      // Match by COD requestId (onboardingId) OR by kybId
-      return corporateShareholders.some((s: any) => {
-        const codRequestId = s.corporateOnboardingRequest?.requestId || s.requestId;
-        const storedKybId = s.kybId;
-        return (onboardingId && codRequestId === onboardingId) || (kybId && storedKybId === kybId);
-      });
-    });
-
-    const matchingIssuerOrgs = issuerOrgs.filter(org => {
-      if (!org.corporate_entities) return false;
-      const corporateEntities = org.corporate_entities as any;
-      const corporateShareholders = corporateEntities?.corporateShareholders || [];
-
-      // Match by COD requestId (onboardingId) OR by kybId
-      return corporateShareholders.some((s: any) => {
-        const codRequestId = s.corporateOnboardingRequest?.requestId || s.requestId;
-        const storedKybId = s.kybId;
-        return (onboardingId && codRequestId === onboardingId) || (kybId && storedKybId === kybId);
-      });
-    });
+    const matchIds = { kybId, onboardingId };
+    const matchingInvestorOrgs = investorOrgs.filter(
+      (org) => matchBusinessShareholderForKybWebhook(org, matchIds) != null
+    );
+    const matchingIssuerOrgs = issuerOrgs.filter(
+      (org) => matchBusinessShareholderForKybWebhook(org, matchIds) != null
+    );
 
     const allOrgs = [
-      ...matchingInvestorOrgs.map(org => ({ ...org, portalType: "investor" as const })),
-      ...matchingIssuerOrgs.map(org => ({ ...org, portalType: "issuer" as const })),
+      ...matchingInvestorOrgs.map((org) => ({ ...org, portalType: "investor" as const })),
+      ...matchingIssuerOrgs.map((org) => ({ ...org, portalType: "issuer" as const })),
     ];
 
     if (allOrgs.length === 0) {
-      logger.warn(
-        {
-          kybId,
-          onboardingId,
-          note: "No organization found with matching business shareholder COD or kybId. This may be a main company KYB or the business shareholder data hasn't been stored yet."
-        },
-        "[KYB Webhook] No organization found with matching business shareholder COD or kybId"
-      );
+      const logPayload = {
+        kybId,
+        onboardingId,
+        note: "No organization found with matching business shareholder COD or kybId. This may be a main company KYB or the business shareholder data hasn't been stored yet.",
+      };
+      if (options.warnIfMissing) {
+        logger.warn(logPayload, "[KYB Webhook] No organization found with matching business shareholder COD or kybId");
+      } else {
+        logger.debug(logPayload, "[KYB Webhook] No nested business shareholder match for this KYB (main-company path)");
+      }
       return;
     }
 
-    // Update each organization
     for (const org of allOrgs) {
       try {
-        // Fetch updated COD details (only if onboardingId is provided)
-        let businessName = "Unknown";
-        let sharePercentage: string | null = null;
+        const match = matchBusinessShareholderForKybWebhook(org, matchIds);
+        if (!match) continue;
 
-        if (onboardingId) {
-          const codDetails = await this.apiClient.getCorporateOnboardingDetails(onboardingId);
+        const shareholderCodRequestId = match.shareholderCodRequestId;
+        const existingAml = match.amlEntry ?? {};
+        let businessName =
+          extractBusinessNameFromCorpShareholderRow(match.corporateShareholder ?? {}) ||
+          (typeof existingAml.businessName === "string" ? existingAml.businessName : null) ||
+          "Unknown";
+        let sharePercentage: string | number | null =
+          (match.corporateShareholder as { sharePercentage?: string | number } | null)?.sharePercentage ??
+          (typeof existingAml.sharePercentage === "number" || typeof existingAml.sharePercentage === "string"
+            ? (existingAml.sharePercentage as string | number)
+            : null);
+        let businessNumber =
+          (match.corporateShareholder
+            ? extractBusinessNumberFromCorpShareholderRow(match.corporateShareholder)
+            : null) ||
+          (typeof existingAml.businessNumber === "string" ? existingAml.businessNumber : null);
 
-          // Extract business info
-          const formContent = codDetails.formContent?.displayAreas?.find(
-            (area: any) => area.displayArea === "Basic Information Setting"
-          )?.content || [];
-
-          businessName = formContent.find((f: any) => f.fieldName === "Business Name")?.fieldValue || "Unknown";
-          sharePercentage = formContent.find((f: any) => f.fieldName === "% of Shares")?.fieldValue || null;
-        } else {
-          // If no onboardingId, try to extract from existing corporate_entities
-          const corporateEntities = org.corporate_entities as any;
-          const corporateShareholders = corporateEntities?.corporateShareholders || [];
-          const shareholder = corporateShareholders.find((s: any) => {
-            const storedKybId = s.kybId;
-            return kybId && storedKybId === kybId;
-          });
-
-          if (shareholder) {
-            businessName = (shareholder as any).businessName || (shareholder as any).name || "Unknown";
-            sharePercentage = (shareholder as any).sharePercentage || (shareholder as any).share_percentage || null;
+        if (shareholderCodRequestId) {
+          try {
+            const codDetails = await this.apiClient.getCorporateOnboardingDetails(shareholderCodRequestId);
+            const formContent =
+              (codDetails as { formContent?: { displayAreas?: Array<{ displayArea?: string; content?: unknown[] }> } })
+                ?.formContent?.displayAreas?.find((area) => area.displayArea === "Basic Information Setting")
+                ?.content || [];
+            const nameFromCod = (formContent as Array<{ fieldName?: string; fieldValue?: string }>).find(
+              (f) => f.fieldName === "Business Name"
+            )?.fieldValue;
+            const sharesFromCod = (formContent as Array<{ fieldName?: string; fieldValue?: string }>).find(
+              (f) => f.fieldName === "% of Shares"
+            )?.fieldValue;
+            const brnFromCod = (formContent as Array<{ fieldName?: string; fieldValue?: string }>).find(
+              (f) => f.fieldName === "Business Number"
+            )?.fieldValue;
+            if (nameFromCod) businessName = nameFromCod;
+            if (sharesFromCod) sharePercentage = sharesFromCod;
+            if (brnFromCod) businessNumber = brnFromCod;
+          } catch (codFetchError) {
+            logger.warn(
+              {
+                error: codFetchError instanceof Error ? codFetchError.message : String(codFetchError),
+                kybId,
+                shareholderCodRequestId,
+              },
+              "[KYB Webhook] Failed to fetch nested shareholder COD details (using stored name)"
+            );
           }
         }
 
-        // Map status
         let amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending" = "Pending";
         if (statusUpper === "RISK ASSESSED" || statusUpper === "APPROVED") {
           amlStatus = "Approved";
         } else if (statusUpper === "REJECTED") {
           amlStatus = "Rejected";
         } else if (statusUpper === "UNRESOLVED" || statusUpper === "NO_MATCH") {
-          // "No Match" means screening is complete but no match found - treat similar to "Unresolved"
-          // Both require admin review/action
           amlStatus = "Unresolved";
         }
 
-        // Update director_aml_status.businessShareholders
-        // Preserve existing directors array when updating businessShareholders
-        const directorAmlStatus = (org.director_aml_status as any) || {
+        const directorAmlStatus = (org.director_aml_status as Record<string, unknown> | null) || {
           directors: [],
           businessShareholders: [],
-          lastSyncedAt: new Date().toISOString()
+          lastSyncedAt: new Date().toISOString(),
         };
-        // Ensure directors array exists (preserve existing data)
-        if (!directorAmlStatus.directors || !Array.isArray(directorAmlStatus.directors)) {
+        if (!Array.isArray(directorAmlStatus.directors)) {
           directorAmlStatus.directors = [];
         }
-        // Ensure businessShareholders array exists
-        if (!directorAmlStatus.businessShareholders || !Array.isArray(directorAmlStatus.businessShareholders)) {
+        if (!Array.isArray(directorAmlStatus.businessShareholders)) {
           directorAmlStatus.businessShareholders = [];
         }
 
-        const existingIndex = directorAmlStatus.businessShareholders.findIndex(
-          (bs: any) => bs.codRequestId === onboardingId || bs.kybId === kybId
+        const businessShareholders = directorAmlStatus.businessShareholders as Record<string, unknown>[];
+        const existingIndex = businessShareholders.findIndex(
+          (bs) =>
+            (kybId && bs.kybId === kybId) ||
+            (shareholderCodRequestId && bs.codRequestId === shareholderCodRequestId)
         );
 
+        const parsedShare =
+          sharePercentage == null || sharePercentage === ""
+            ? typeof existingAml.sharePercentage === "number"
+              ? existingAml.sharePercentage
+              : null
+            : parseFloat(String(sharePercentage));
+
         const updatedShareholder = {
-          codRequestId: onboardingId,
+          ...existingAml,
+          codRequestId: shareholderCodRequestId || existingAml.codRequestId || null,
           kybId,
           businessName,
-          sharePercentage: sharePercentage ? parseFloat(sharePercentage) : null,
+          ...(businessNumber ? { businessNumber } : {}),
+          sharePercentage: Number.isFinite(parsedShare as number) ? parsedShare : null,
           amlStatus,
           rawStatus: statusRaw,
           amlMessageStatus: messageStatus || "PENDING",
@@ -534,27 +521,57 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
         };
 
         if (existingIndex !== -1) {
-          directorAmlStatus.businessShareholders[existingIndex] = updatedShareholder;
+          businessShareholders[existingIndex] = updatedShareholder;
         } else {
-          directorAmlStatus.businessShareholders.push(updatedShareholder);
+          businessShareholders.push(updatedShareholder);
         }
 
+        directorAmlStatus.businessShareholders = businessShareholders;
         directorAmlStatus.lastSyncedAt = new Date().toISOString();
 
-        // Determine portal type from organization
         const portalType = org.portalType;
         const organizationId = org.id;
 
-        // Update database
+        const updateData: {
+          director_aml_status: Prisma.InputJsonValue;
+          corporate_entities?: Prisma.InputJsonValue;
+        } = {
+          director_aml_status: directorAmlStatus as Prisma.InputJsonValue,
+        };
+
+        if (match.corporateShareholder && kybId) {
+          const corporateEntities = {
+            ...((org.corporate_entities as Record<string, unknown> | null) ?? {}),
+          };
+          const ceList = Array.isArray(corporateEntities.corporateShareholders)
+            ? [...(corporateEntities.corporateShareholders as unknown[])]
+            : [];
+          const ceIndex = ceList.findIndex((row) => {
+            if (row == null || typeof row !== "object" || Array.isArray(row)) return false;
+            const rec = row as Record<string, unknown>;
+            const rowCod = getCorporateShareholderCodId(rec);
+            const rowKyb = getCorporateShareholderKybId(rec);
+            return (
+              (shareholderCodRequestId && rowCod === shareholderCodRequestId) ||
+              (Boolean(kybId) && rowKyb === kybId)
+            );
+          });
+          if (ceIndex >= 0 && ceList[ceIndex] && typeof ceList[ceIndex] === "object" && !Array.isArray(ceList[ceIndex])) {
+            ceList[ceIndex] = { ...(ceList[ceIndex] as Record<string, unknown>), kybId };
+            corporateEntities.corporateShareholders = ceList;
+            updateData.corporate_entities = corporateEntities as Prisma.InputJsonValue;
+          }
+        }
+
         if (portalType === "investor") {
           await prisma.investorOrganization.update({
             where: { id: organizationId },
-            data: { director_aml_status: directorAmlStatus as Prisma.InputJsonValue },
+            data: updateData,
           });
         } else {
           await prisma.issuerOrganization.update({
             where: { id: organizationId },
-            data: { director_aml_status: directorAmlStatus as Prisma.InputJsonValue },
+            data: updateData,
           });
         }
 
@@ -562,7 +579,7 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
           await syncCorporateShareholderStatusInOrganization({
             organizationId,
             portalType,
-            incomingCodRequestId: onboardingId && onboardingId.startsWith("COD") ? onboardingId : "",
+            incomingCodRequestId: shareholderCodRequestId,
             newStatus: statusRaw,
             source: "KYB",
             codDetailsForBrnFallback: null,
@@ -575,27 +592,28 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
               error: corpEntitySyncError instanceof Error ? corpEntitySyncError.message : String(corpEntitySyncError),
               kybId,
               onboardingId,
+              shareholderCodRequestId,
               organizationId,
             },
             "[KYB Webhook] Failed to sync corporate_entities corporateShareholder status (non-blocking)"
           );
         }
 
-        // Update AML identity mapping
         try {
           await this.amlIdentityRepository.upsertMapping({
             organization_id: organizationId,
             organization_type: portalType,
             entity_type: "business_shareholder",
             business_name: businessName,
-            cod_request_id: onboardingId || null,
+            cod_request_id: shareholderCodRequestId || null,
             kyb_id: kybId,
           });
 
           logger.info(
             {
               kybId,
-              codRequestId: onboardingId,
+              webhookOnboardingId: onboardingId,
+              shareholderCodRequestId,
               businessName,
               organizationId,
             },
@@ -606,7 +624,7 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
             {
               error: mappingError instanceof Error ? mappingError.message : String(mappingError),
               kybId,
-              codRequestId: onboardingId,
+              shareholderCodRequestId,
               organizationId,
             },
             "[KYB Webhook] Failed to update AML identity mapping for business shareholder (non-blocking)"
@@ -614,7 +632,13 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
         }
 
         logger.info(
-          { kybId, onboardingId, organizationId, amlStatus },
+          {
+            kybId,
+            webhookOnboardingId: onboardingId,
+            shareholderCodRequestId,
+            organizationId,
+            amlStatus,
+          },
           "[KYB Webhook] ✓ Updated business shareholder AML status"
         );
       } catch (error) {
