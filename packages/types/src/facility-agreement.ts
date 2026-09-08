@@ -9,6 +9,9 @@ import type {
   ContractFacilityLoIndividualGuarantor,
 } from "./contract-facility-lo";
 
+/** Schedule 2 Drawdown Fee. Quantum lives in the Letter of Offer, not the FA. */
+export const FA_DRAWDOWN_FEE_AS_PRESCRIBED = "As prescribed in the Letter of Offer";
+
 export type FacilityAgreementIssuerSignatory = {
   name: string;
   designation: string;
@@ -29,7 +32,7 @@ export type FacilityAgreementMergeData = {
   drawdown_fee: string;
   trustee_disclosure_email: string;
   issuer_bank_name: string;
-  issuer_bank_branch: string;
+  issuer_bank_account_number: string;
   issuer_bank_account_name: string;
   issuer_bank_swift: string;
   guarantors_individual: ContractFacilityLoIndividualGuarantor[];
@@ -53,7 +56,7 @@ export const FACILITY_AGREEMENT_MERGE_KEYS = [
   "drawdown_fee",
   "trustee_disclosure_email",
   "issuer_bank_name",
-  "issuer_bank_branch",
+  "issuer_bank_account_number",
   "issuer_bank_account_name",
   "issuer_bank_swift",
 ] as const satisfies ReadonlyArray<keyof FacilityAgreementMergeData>;

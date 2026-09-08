@@ -192,6 +192,11 @@ import {
   resolveApplicationOriginationPhase,
 } from "./origination-guards";
 import {
+  SIGNING_ENVELOPE_OFFER_SUMMARY_SELECT,
+  groupSigningEnvelopeOfferSummariesByApplication,
+  toSigningEnvelopeOfferSummaries,
+} from "./signed-offer-envelope-summary";
+import {
   overlayReadCapacityOnApplicationContract,
   overlayReadCapacityOnApplications,
 } from "../../lib/refresh-contract-facility";
@@ -957,7 +962,7 @@ export class ApplicationService {
     // ARCHIVED apps remain readable on the detail page; edit/mutations enforce status separately.
     const envelopes = await prisma.signingEnvelope.findMany({
       where: { application_id: id },
-      select: { status: true },
+      select: SIGNING_ENVELOPE_OFFER_SUMMARY_SELECT,
     });
     return overlayReadCapacityOnApplicationContract(
       prisma,
@@ -969,7 +974,7 @@ export class ApplicationService {
             application as Parameters<typeof enrichApplicationOriginationFields>[0] & {
               display_reference?: string | null;
             },
-            envelopes
+            toSigningEnvelopeOfferSummaries(envelopes)
           )
         )
       )
@@ -1021,14 +1026,9 @@ export class ApplicationService {
         ? []
         : await prisma.signingEnvelope.findMany({
             where: { application_id: { in: appIds } },
-            select: { application_id: true, status: true },
+            select: SIGNING_ENVELOPE_OFFER_SUMMARY_SELECT,
           });
-    const envelopesByApplication = new Map<string, Array<{ status: string }>>();
-    for (const envelope of envelopes) {
-      const list = envelopesByApplication.get(envelope.application_id) ?? [];
-      list.push({ status: envelope.status });
-      envelopesByApplication.set(envelope.application_id, list);
-    }
+    const envelopesByApplication = groupSigningEnvelopeOfferSummariesByApplication(envelopes);
 
     const org = await prisma.issuerOrganization.findUnique({
       where: { id: organizationId },

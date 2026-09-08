@@ -371,6 +371,7 @@ export class GeneratedDocumentsService {
     phone_number?: string | null;
     bank_account_details?: unknown;
     corporate_onboarding_data?: unknown;
+    display_reference?: string | null;
   } {
     const issuerOrganization = (
       application as {
@@ -382,6 +383,7 @@ export class GeneratedDocumentsService {
           phone_number?: string | null;
           bank_account_details?: unknown;
           corporate_onboarding_data?: unknown;
+          display_reference?: string | null;
         };
       }
     ).issuer_organization;
@@ -447,6 +449,8 @@ export class GeneratedDocumentsService {
     const mergeData = buildFacilityLoMergeData({
       contract: {
         id: String(contract.id),
+        display_reference:
+          typeof contract.display_reference === "string" ? contract.display_reference : null,
         issuer_organization_id: String(contract.issuer_organization_id),
         contract_details: contract.contract_details,
         offer_details: contract.offer_details,
@@ -454,6 +458,7 @@ export class GeneratedDocumentsService {
       },
       issuerOrganization: {
         id: issuerOrganization.id,
+        display_reference: issuerOrganization.display_reference,
         name: issuerOrganization.name,
         registration_number: issuerOrganization.registration_number,
         address: issuerOrganization.address,
@@ -508,6 +513,8 @@ export class GeneratedDocumentsService {
     const mergeData = buildJsgMergeData({
       contract: {
         id: String(contract.id),
+        display_reference:
+          typeof contract.display_reference === "string" ? contract.display_reference : null,
         issuer_organization_id: String(contract.issuer_organization_id),
         contract_details: contract.contract_details,
         offer_details: contract.offer_details,
@@ -576,7 +583,6 @@ export class GeneratedDocumentsService {
         issuer_organization_id: String(contract.issuer_organization_id),
         contract_details: contract.contract_details,
         offer_details: contract.offer_details,
-        customer_details: contract.customer_details,
       },
       issuerOrganization: {
         id: issuerOrganization.id,
@@ -589,7 +595,6 @@ export class GeneratedDocumentsService {
       application: {
         id: application!.id,
         company_details: application!.company_details,
-        invoices: (application as { invoices?: unknown }).invoices,
       },
       ledgerBucketAccountsConfig,
     });
@@ -727,6 +732,8 @@ export class GeneratedDocumentsService {
       offerKind: target.offerKind,
       contract: {
         id: String(contract.id),
+        display_reference:
+          typeof contract.display_reference === "string" ? contract.display_reference : null,
         issuer_organization_id: String(contract.issuer_organization_id),
         contract_details: contract.contract_details,
         offer_details: contract.offer_details,

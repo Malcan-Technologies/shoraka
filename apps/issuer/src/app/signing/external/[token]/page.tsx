@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import { createApiClient } from "@cashsouk/config";
 import {
+  EXTERNAL_SIGNING_DOCUMENT_QUERY,
   findUnsignedSigningAssignmentForRecipient,
   type ExternalSigningSessionDto,
 } from "@cashsouk/types";
@@ -74,7 +75,9 @@ function isClosedPackageResponse(response: unknown): boolean {
 
 export default function ExternalSigningPage() {
   const params = useParams<{ token: string }>();
+  const searchParams = useSearchParams();
   const token = params.token;
+  const preferredDocumentId = searchParams.get(EXTERNAL_SIGNING_DOCUMENT_QUERY)?.trim() || null;
   const apiClient = React.useMemo(() => createApiClient(API_URL), []);
   const [session, setSession] = React.useState<ExternalSigningSessionDto | null>(null);
   const [step, setStep] = React.useState<Step>("access-code");
@@ -126,7 +129,11 @@ export default function ExternalSigningPage() {
         return;
       }
 
-      const pending = findUnsignedSigningAssignmentForRecipient(data.envelope, data.recipient_id);
+      const pending = findUnsignedSigningAssignmentForRecipient(
+        data.envelope,
+        data.recipient_id,
+        preferredDocumentId
+      );
       if (opts?.preferDone || !pending) {
         if (opts?.signedDoc) setJustSigned(opts.signedDoc);
         setStep("done");
@@ -136,7 +143,7 @@ export default function ExternalSigningPage() {
       setJustSigned(null);
       setStep("sign");
     },
-    []
+    [preferredDocumentId]
   );
 
   const fetchSession = React.useCallback(async (): Promise<ExternalSigningSessionDto | null> => {
@@ -203,7 +210,11 @@ export default function ExternalSigningPage() {
 
   const pendingAssignment =
     session && session.recipient_id
-      ? findUnsignedSigningAssignmentForRecipient(session.envelope, session.recipient_id)
+      ? findUnsignedSigningAssignmentForRecipient(
+          session.envelope,
+          session.recipient_id,
+          preferredDocumentId
+        )
       : null;
 
   // While webhook lags, the doc we just signed still looks unsigned — ignore it for Continue.

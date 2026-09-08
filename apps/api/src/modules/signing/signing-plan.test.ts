@@ -827,4 +827,69 @@ describe("findUnsignedSigningAssignmentForRecipient", () => {
   it("returns null when the recipient has no pending assignments", () => {
     expect(findUnsignedSigningAssignmentForRecipient(envelope, "missing")).toBeNull();
   });
+
+  it("prefers the requested unsigned document when one recipient signs several", () => {
+    const multiDoc: Pick<SigningEnvelopeDto, "documents" | "recipients" | "assignments"> = {
+      documents: [
+        {
+          id: "doa",
+          name: "Deed of Assignment",
+          description: null,
+          source: "TEMPLATE",
+          template_ref: "deed_of_assignment",
+          order: 1,
+          required: true,
+          status: "PENDING",
+          has_signed_pdf: false,
+        },
+        {
+          id: "fa",
+          name: "Facility Agreement",
+          description: null,
+          source: "TEMPLATE",
+          template_ref: "facility_agreement",
+          order: 2,
+          required: true,
+          status: "PENDING",
+          has_signed_pdf: false,
+        },
+      ],
+      recipients: [envelope.recipients[0]!],
+      assignments: [
+        {
+          id: "a-doa",
+          document_id: "doa",
+          recipient_id: "r1",
+          required: true,
+          action: "SIGN",
+          status: "PENDING",
+          signed_at: null,
+        },
+        {
+          id: "a-fa",
+          document_id: "fa",
+          recipient_id: "r1",
+          required: true,
+          action: "SIGN",
+          status: "PENDING",
+          signed_at: null,
+        },
+      ],
+    };
+
+    expect(findUnsignedSigningAssignmentForRecipient(multiDoc, "r1")?.document.id).toBe("doa");
+    expect(findUnsignedSigningAssignmentForRecipient(multiDoc, "r1", "fa")?.document.id).toBe("fa");
+    expect(
+      findUnsignedSigningAssignmentForRecipient(
+        {
+          ...multiDoc,
+          assignments: multiDoc.assignments.map((assignment) =>
+            assignment.document_id === "fa" ? { ...assignment, status: "SIGNED" } : assignment
+          ),
+        },
+        "r1",
+        "fa"
+      )?.document.id
+    ).toBe("doa");
+  });
 });

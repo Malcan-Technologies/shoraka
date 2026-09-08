@@ -199,3 +199,93 @@ describe("prepareApplication invoice_only holder", () => {
     expect(app.approvedFacilityAmount).toBe(400_000);
   });
 });
+
+describe("prepareApplication signed offer availability", () => {
+  it("ignores stale offer_signing keys and uses completed envelope documents", () => {
+    const withoutEnvelope = prepareApplication({
+      id: "app_facility",
+      status: "COMPLETED",
+      financing_structure: { structure_type: "new_contract" },
+      created_at: "2026-08-01T00:00:00.000Z",
+      updated_at: "2026-08-02T00:00:00.000Z",
+      contract_id: "ctr_real",
+      contract: {
+        id: "ctr_real",
+        status: "APPROVED",
+        offer_signing: {
+          status: "signed",
+          signed_offer_letter_s3_key: "secret/legacy.pdf",
+        },
+        contract_details: { title: "Supply agreement" },
+        customer_details: { customer_name: "Acme Sdn Bhd" },
+      },
+      invoices: [
+        {
+          id: "inv_1",
+          status: "APPROVED",
+          offer_signing: {
+            status: "signed",
+            signed_offer_letter_s3_key: "secret/invoice.pdf",
+          },
+          details: { invoice_number: "INV-1" },
+        },
+      ],
+    });
+
+    expect(withoutEnvelope.signedContractOfferLetterAvailable).toBe(false);
+    expect(withoutEnvelope.signedContractOfferLetterS3Key).toBeNull();
+    expect(withoutEnvelope.invoices[0]?.signedOfferLetterAvailable).toBe(false);
+    expect(withoutEnvelope.invoices[0]?.signedOfferLetterS3Key).toBeNull();
+
+    const withEnvelope = prepareApplication({
+      id: "app_facility",
+      status: "COMPLETED",
+      financing_structure: { structure_type: "new_contract" },
+      created_at: "2026-08-01T00:00:00.000Z",
+      updated_at: "2026-08-02T00:00:00.000Z",
+      contract_id: "ctr_real",
+      contract: {
+        id: "ctr_real",
+        status: "APPROVED",
+        contract_details: { title: "Supply agreement" },
+        customer_details: { customer_name: "Acme Sdn Bhd" },
+      },
+      invoices: [
+        {
+          id: "inv_1",
+          status: "APPROVED",
+          details: { invoice_number: "INV-1" },
+        },
+      ],
+      signing_envelopes: [
+        {
+          status: "COMPLETED",
+          contract_id: "ctr_real",
+          invoice_id: null,
+          documents: [
+            {
+              source: "TEMPLATE",
+              template_ref: "facility_agreement",
+              has_signed_pdf: true,
+            },
+          ],
+        },
+        {
+          status: "COMPLETED",
+          contract_id: "ctr_real",
+          invoice_id: "inv_1",
+          documents: [
+            {
+              source: "TEMPLATE",
+              template_ref: "facility_agreement",
+              has_signed_pdf: true,
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(withEnvelope.signedContractOfferLetterAvailable).toBe(true);
+    expect(withEnvelope.invoices[0]?.signedOfferLetterAvailable).toBe(true);
+  });
+});

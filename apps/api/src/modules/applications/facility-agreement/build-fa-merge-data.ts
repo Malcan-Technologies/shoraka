@@ -11,9 +11,12 @@ import {
 } from "../letter-of-offer/build-facility-lo-merge-data";
 import {
   authorizedRepresentativeCapacityLabel,
+  documentCanonicalReference,
+  FA_DRAWDOWN_FEE_AS_PRESCRIBED,
   getIssuerAuthorizedParty,
   getLoAuthorizedPartiesFromAcceptance,
   getOfferAcceptanceFromOfferDetails,
+  malaysianBankSwift,
   readInvoiceSubLimitPerInvoiceRmFromWorkflow,
 } from "@cashsouk/types";
 
@@ -64,13 +67,13 @@ function readIssuerBank(org: {
   bank_account_details?: unknown;
 }): {
   issuer_bank_name: string;
-  issuer_bank_branch: string;
+  issuer_bank_account_number: string;
   issuer_bank_account_name: string;
   issuer_bank_swift: string;
 } {
   const empty = {
     issuer_bank_name: "",
-    issuer_bank_branch: "",
+    issuer_bank_account_number: "",
     issuer_bank_account_name: "",
     issuer_bank_swift: "",
   };
@@ -81,10 +84,11 @@ function readIssuerBank(org: {
     const bankName = asString(details.bank_name);
     return {
       issuer_bank_name: bankName,
-      issuer_bank_branch: asString(details.branch),
+      issuer_bank_account_number: asString(details.account_number),
       issuer_bank_account_name:
         asString(details.account_holder) || (bankName ? asString(org.name) : ""),
-      issuer_bank_swift: asString(details.swift_code) || asString(details.swift),
+      issuer_bank_swift:
+        asString(details.swift_code) || asString(details.swift) || malaysianBankSwift(bankName),
     };
   }
 
@@ -92,12 +96,17 @@ function readIssuerBank(org: {
   const bankName = readBankField(content, "Bank") || readBankField(content, "bankName");
   return {
     issuer_bank_name: bankName,
-    issuer_bank_branch: readBankField(content, "Branch") || readBankField(content, "Bank branch"),
+    issuer_bank_account_number:
+      readBankField(content, "Bank account number") || readBankField(content, "Account number"),
     issuer_bank_account_name:
       readBankField(content, "Account name") ||
       readBankField(content, "Account holder") ||
       (bankName ? asString(org.name) : ""),
-    issuer_bank_swift: readBankField(content, "SWIFT Code") || readBankField(content, "SWIFT"),
+    issuer_bank_swift:
+      readBankField(content, "SWIFT Code") ||
+      readBankField(content, "SWIFT") ||
+      readBankField(content, "swiftCode") ||
+      malaysianBankSwift(bankName),
   };
 }
 
@@ -107,6 +116,7 @@ export type BuildFacilityAgreementMergeInput = {
   offerKind: FacilityAgreementOfferKind;
   contract: {
     id: string;
+    display_reference?: string | null;
     contract_details?: unknown;
     offer_details?: unknown;
     issuer_organization_id: string;
@@ -131,6 +141,8 @@ export type BuildFacilityAgreementMergeInput = {
   } | null;
   productWorkflow?: unknown;
   trusteeDisclosureEmail?: string | null;
+  /** When the Facility Agreement is generated. Defaults to now (Asia/Kuala_Lumpur). */
+  generatedAt?: string | Date | null;
 };
 
 export function buildFacilityAgreementMergeData(
@@ -149,10 +161,9 @@ export function buildFacilityAgreementMergeData(
     financing_limit_rm: "",
     sub_limit_per_invoice_rm: "",
     facility_fee_rate_percent: "",
-    drawdown_fee: "",
     trustee_disclosure_email: "",
     issuer_bank_name: "",
-    issuer_bank_branch: "",
+    issuer_bank_account_number: "",
     issuer_bank_account_name: "",
     issuer_bank_swift: "",
     guarantors_individual: [],
@@ -186,8 +197,6 @@ export function buildFacilityAgreementMergeData(
     input.offerKind === "contract"
       ? asNumber(offer?.facility_fee_rate_percent) ?? asNumber(contractDetails?.facility_fee_rate_percent)
       : null;
-  const drawdownFeeRate =
-    input.offerKind === "invoice" ? asNumber(offer?.platform_fee_rate_percent) : null;
 
   const acceptance = getOfferAcceptanceFromOfferDetails(offerDetails);
   const authorizedParties = getLoAuthorizedPartiesFromAcceptance(acceptance);
@@ -198,11 +207,18 @@ export function buildFacilityAgreementMergeData(
   return {
     ...base,
     ...emptyMissing,
+    facility_agreement_date: formatLetterDate(input.generatedAt ?? new Date()),
     letter_date: letterDate,
     our_reference:
       input.offerKind === "invoice"
-        ? asString(input.invoice?.display_reference) || asString(input.invoice?.id)
-        : input.contract.id,
+        ? documentCanonicalReference({
+            displayReference: asString(input.invoice?.display_reference),
+            id: asString(input.invoice?.id),
+          })
+        : documentCanonicalReference({
+            displayReference: input.contract.display_reference,
+            id: input.contract.id,
+          }),
     issuer_name: asString(input.issuerOrganization.name),
     issuer_registration_number: resolveIssuerRegistrationNumber(input.issuerOrganization),
     issuer_address: resolveRegisteredAddress(input.issuerOrganization),
@@ -211,7 +227,7 @@ export function buildFacilityAgreementMergeData(
     financing_limit_rm: amountRm,
     sub_limit_per_invoice_rm: subLimitFormatted,
     facility_fee_rate_percent: formatPercent(facilityFeeRate),
-    drawdown_fee: formatPercent(drawdownFeeRate),
+    drawdown_fee: FA_DRAWDOWN_FEE_AS_PRESCRIBED,
     trustee_disclosure_email: asString(input.trusteeDisclosureEmail),
     ...bank,
     guarantors_individual: mapIndividualGuarantors(liveGuarantors),

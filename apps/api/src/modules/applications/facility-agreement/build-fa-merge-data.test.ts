@@ -53,11 +53,13 @@ const PRODUCT_WORKFLOW = [
 ];
 
 describe("buildFacilityAgreementMergeData", () => {
-  it("fills contract-facility terms and leaves unsourced FA date and bank SWIFT visible as empty", () => {
+  it("fills contract-facility terms, agreement date, and issuer account number", () => {
     const data = buildFacilityAgreementMergeData({
       offerKind: "contract",
+      generatedAt: "2026-09-04T02:00:00.000Z",
       contract: {
         id: "ctr_abc",
+        display_reference: "CON-ARF-202608-K71",
         issuer_organization_id: "org_1",
         contract_details: { approved_facility: 1_000_000, facility_fee_rate_percent: 1 },
         offer_details: {
@@ -88,18 +90,18 @@ describe("buildFacilityAgreementMergeData", () => {
     });
 
     expect(data.letter_date).toBe("19 August 2026");
-    expect(data.our_reference).toBe("ctr_abc");
+    expect(data.our_reference).toBe("CON-ARF-202608-K71");
     expect(data.issuer_name).toBe("Issuer Co");
     expect(data.issuer_registration_number).toBe("123456-A");
     expect(data.financing_limit_rm).toBe("RM 1,000,000.00");
     expect(data.sub_limit_per_invoice_rm).toBe("RM 250,000.00");
     expect(data.facility_fee_rate_percent).toBe("1%");
-    expect(data.drawdown_fee).toBe("");
-    expect(data.facility_agreement_date).toBe("");
+    expect(data.drawdown_fee).toBe("As prescribed in the Letter of Offer");
+    expect(data.facility_agreement_date).toBe("4 September 2026");
     expect(data.issuer_bank_name).toBe("Maybank");
     expect(data.issuer_bank_account_name).toBe("Issuer Co");
-    expect(data.issuer_bank_branch).toBe("");
-    expect(data.issuer_bank_swift).toBe("");
+    expect(data.issuer_bank_account_number).toBe("1234567890");
+    expect(data.issuer_bank_swift).toBe("MBBEMYKL");
     expect(data.trustee_disclosure_email).toBe("trustee@example.com");
     expect(data.issuer_signatories.map((row) => row.name)).toEqual([
       "Ali Bin Abu",
@@ -108,16 +110,17 @@ describe("buildFacilityAgreementMergeData", () => {
     expect(data.guarantors_individual[0]?.name).toBe("Ali Bin Abu");
   });
 
-  it("uses invoice offered amount and platform fee as the invoice-offer terms", () => {
+  it("uses invoice offered amount and points drawdown fee at the Letter of Offer", () => {
     const data = buildFacilityAgreementMergeData({
       offerKind: "invoice",
+      generatedAt: "2026-09-04T02:00:00.000Z",
       contract: {
         id: "holder_ctr",
         issuer_organization_id: "org_1",
       },
       invoice: {
         id: "inv_1",
-        display_reference: "INV-REF-1",
+        display_reference: "INV-ARF-202608-0N5",
         offer_details: {
           offered_amount: 180000,
           platform_fee_rate_percent: 1.5,
@@ -135,12 +138,118 @@ describe("buildFacilityAgreementMergeData", () => {
       },
     });
 
-    expect(data.our_reference).toBe("INV-REF-1");
+    expect(data.our_reference).toBe("INV-ARF-202608-0N5");
     expect(data.letter_date).toBe("20 August 2026");
     expect(data.financing_limit_rm).toBe("RM 180,000.00");
     expect(data.sub_limit_per_invoice_rm).toBe("RM 180,000.00");
-    expect(data.drawdown_fee).toBe("1.5%");
+    expect(data.drawdown_fee).toBe("As prescribed in the Letter of Offer");
     expect(data.facility_fee_rate_percent).toBe("");
-    expect(data.facility_agreement_date).toBe("");
+    expect(data.facility_agreement_date).toBe("4 September 2026");
+    expect(data.issuer_bank_account_number).toBe("1234567890");
+    expect(data.issuer_bank_swift).toBe("MBBEMYKL");
+  });
+
+  it("prefers a stored SWIFT code over the picklist lookup", () => {
+    const data = buildFacilityAgreementMergeData({
+      offerKind: "contract",
+      generatedAt: "2026-09-04T02:00:00.000Z",
+      contract: {
+        id: "ctr_abc",
+        issuer_organization_id: "org_1",
+        contract_details: { approved_facility: 1_000_000, facility_fee_rate_percent: 1 },
+        offer_details: {
+          offered_facility: 1_000_000,
+          facility_fee_rate_percent: 1,
+          sent_at: "2026-08-19T02:00:00.000Z",
+          offer_acceptance: {
+            status: "PENDING_ISSUER",
+            authorized_parties_draft: ISSUER_SNAPSHOT,
+          },
+        },
+      },
+      issuerOrganization: {
+        ...BASE_ORG,
+        bank_account_details: {
+          bank_name: "CIMB Bank Berhad",
+          account_holder: "Issuer Co",
+          account_number: "1234567890",
+          swift_code: "CTBBMYKL",
+        },
+      },
+      application: {
+        id: "app_1",
+        company_details: { contact_person: { email: "ops@issuer.my" } },
+      },
+    });
+
+    expect(data.issuer_bank_name).toBe("CIMB Bank Berhad");
+    expect(data.issuer_bank_swift).toBe("CTBBMYKL");
+  });
+
+  it("leaves SWIFT as an empty tag when the bank is not on the picklist", () => {
+    const data = buildFacilityAgreementMergeData({
+      offerKind: "contract",
+      generatedAt: "2026-09-04T02:00:00.000Z",
+      contract: {
+        id: "ctr_abc",
+        issuer_organization_id: "org_1",
+        contract_details: { approved_facility: 1_000_000, facility_fee_rate_percent: 1 },
+        offer_details: {
+          offered_facility: 1_000_000,
+          facility_fee_rate_percent: 1,
+          sent_at: "2026-08-19T02:00:00.000Z",
+          offer_acceptance: {
+            status: "PENDING_ISSUER",
+            authorized_parties_draft: ISSUER_SNAPSHOT,
+          },
+        },
+      },
+      issuerOrganization: {
+        ...BASE_ORG,
+        bank_account_details: {
+          bank_name: "Unknown Credit Union",
+          account_number: "111",
+        },
+      },
+      application: {
+        id: "app_1",
+        company_details: { contact_person: { email: "ops@issuer.my" } },
+      },
+    });
+
+    expect(data.issuer_bank_swift).toBe("");
+  });
+
+  it("leaves our_reference empty instead of printing a CUID", () => {
+    const data = buildFacilityAgreementMergeData({
+      offerKind: "contract",
+      generatedAt: "2026-09-04T02:00:00.000Z",
+      contract: {
+        id: "ctr_abc",
+        issuer_organization_id: "org_1",
+        contract_details: { approved_facility: 1_000_000 },
+        offer_details: {
+          offered_facility: 1_000_000,
+          sent_at: "2026-08-19T02:00:00.000Z",
+        },
+      },
+      issuerOrganization: BASE_ORG,
+    });
+    expect(data.our_reference).toBe("");
+
+    const invoiceData = buildFacilityAgreementMergeData({
+      offerKind: "invoice",
+      generatedAt: "2026-09-04T02:00:00.000Z",
+      contract: { id: "holder_ctr", issuer_organization_id: "org_1" },
+      invoice: {
+        id: "inv_1",
+        offer_details: {
+          offered_amount: 180000,
+          sent_at: "2026-08-20T02:00:00.000Z",
+        },
+      },
+      issuerOrganization: BASE_ORG,
+    });
+    expect(invoiceData.our_reference).toBe("");
   });
 });

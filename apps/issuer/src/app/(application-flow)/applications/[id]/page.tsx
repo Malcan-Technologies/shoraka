@@ -22,6 +22,7 @@ import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
 import { createApiClient, formatCurrency, useAuthToken, useOrganization } from "@cashsouk/config";
 import { filterVisiblePeopleRows } from "@cashsouk/types";
 import { toast } from "sonner";
+import { openPdfBlob } from "@/lib/open-pdf-blob";
 import { Button } from "@/components/ui/button";
 import { ApplicationSummaryDownloadButton } from "@/components/application-summary-download-button";
 import { Badge } from "@/components/ui/badge";
@@ -254,6 +255,17 @@ function ApplicationDetailPageBody() {
   const handleDocumentDownload = React.useCallback(
     async (s3Key: string) => {
       try {
+        if (s3Key.startsWith("signed-letter:contract:")) {
+          const blob = await apiClient.getSignedContractOfferLetterBlob(applicationId);
+          openPdfBlob(blob);
+          return;
+        }
+        if (s3Key.startsWith("signed-letter:invoice:")) {
+          const invoiceId = s3Key.slice("signed-letter:invoice:".length);
+          const blob = await apiClient.getSignedInvoiceOfferLetterBlob(applicationId, invoiceId);
+          openPdfBlob(blob);
+          return;
+        }
         const resp = await apiClient.getS3DownloadUrl(s3Key);
         if (!resp.success || !resp.data?.downloadUrl) {
           toast.error("Could not get download link");
@@ -264,7 +276,19 @@ function ApplicationDetailPageBody() {
         toast.error("Could not get download link");
       }
     },
-    [apiClient]
+    [apiClient, applicationId]
+  );
+
+  const handleViewSignedInvoiceOffer = React.useCallback(
+    async (invoiceId: string) => {
+      try {
+        const blob = await apiClient.getSignedInvoiceOfferLetterBlob(applicationId, invoiceId);
+        openPdfBlob(blob);
+      } catch {
+        toast.error("Could not open signed offer letter");
+      }
+    },
+    [apiClient, applicationId]
   );
 
   const { activeOrganization } = useOrganization();
@@ -329,9 +353,7 @@ function ApplicationDetailPageBody() {
       );
 
   const showViewSignedContract =
-    isFacilityFinancing &&
-    application.signedContractOfferLetterAvailable &&
-    !!application.signedContractOfferLetterS3Key;
+    isFacilityFinancing && application.signedContractOfferLetterAvailable;
   const withdrawDisabled = cancelApplication.isPending || !application.canWithdraw;
   const withdrawBlockedReason = issuerWithdrawBlockedReason({
     canWithdraw: application.canWithdraw,
@@ -578,7 +600,7 @@ function ApplicationDetailPageBody() {
                   <DropdownMenuItem
                     className="cursor-pointer"
                     onClick={() =>
-                      void handleDocumentDownload(application.signedContractOfferLetterS3Key!)
+                      void handleDocumentDownload(`signed-letter:contract:${application.id}`)
                     }
                   >
                     View signed offer
@@ -942,7 +964,7 @@ function ApplicationDetailPageBody() {
                 <ScrollableInvoiceTable
                   application={application}
                   onDocumentDownload={handleDocumentDownload}
-                  onViewSignedInvoiceOffer={handleDocumentDownload}
+                  onViewSignedInvoiceOffer={handleViewSignedInvoiceOffer}
                   onWithdrawInvoice={(invoiceId, appId, organizationId) => {
                     setWithdrawInvoicePayload({ invoiceId, applicationId: appId, organizationId });
                   }}

@@ -102,6 +102,7 @@ router.get("/prefill", async (req: Request, res: Response, next: NextFunction) =
     const data = buildFacilityLoMergeData({
       contract: {
         id: contract.id,
+        display_reference: contract.display_reference,
         issuer_organization_id: contract.issuer_organization_id,
         contract_details: contract.contract_details,
         offer_details: contract.offer_details,
@@ -109,6 +110,7 @@ router.get("/prefill", async (req: Request, res: Response, next: NextFunction) =
       },
       issuerOrganization: {
         id: contract.issuer_organization.id,
+        display_reference: contract.issuer_organization.display_reference,
         name: contract.issuer_organization.name,
         registration_number: contract.issuer_organization.registration_number,
         address: contract.issuer_organization.address,

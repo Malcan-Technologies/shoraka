@@ -19,6 +19,7 @@ import { filterVisiblePeopleRows } from "@cashsouk/types";
 import { useIssuerProducts } from "@/hooks/use-products";
 import { buildProductDisplayMap } from "@/lib/product-display";
 import { toast } from "sonner";
+import { openPdfBlob } from "@/lib/open-pdf-blob";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ApplyForFinancingButton } from "@/components/apply-for-financing-button";
@@ -339,17 +340,13 @@ export default function ApplicationsPage() {
     [getAccessToken]
   );
 
-  const handleDocumentDownload = React.useCallback(
-    async (s3Key: string) => {
+  const handleViewSignedContractOffer = React.useCallback(
+    async (applicationId: string) => {
       try {
-        const resp = await apiClient.getS3DownloadUrl(s3Key);
-        if (!resp.success || !resp.data?.downloadUrl) {
-          toast.error("Could not get download link");
-          return;
-        }
-        window.open(resp.data.downloadUrl, "_blank");
+        const blob = await apiClient.getSignedContractOfferLetterBlob(applicationId);
+        openPdfBlob(blob);
       } catch {
-        toast.error("Could not get download link");
+        toast.error("Could not open signed offer letter");
       }
     },
     [apiClient]
@@ -466,7 +463,7 @@ export default function ApplicationsPage() {
                     </div>
                     <ApplicationAttentionCarousel
                       applications={needsAttention}
-                      onViewSignedContractOffer={handleDocumentDownload}
+                      onViewSignedContractOffer={handleViewSignedContractOffer}
                       onCancelApplication={handleWithdrawApplicationClick}
                       onDeleteDraft={handleDeleteDraftClick}
                       isCancelApplicationPending={cancelApplication.isPending}
@@ -670,7 +667,7 @@ export default function ApplicationsPage() {
                               productImageS3Key={
                                 productDisplayMap.get(app.productId ?? "")?.imageS3Key ?? null
                               }
-                              onViewSignedContractOffer={handleDocumentDownload}
+                              onViewSignedContractOffer={handleViewSignedContractOffer}
                               onCancelApplication={handleWithdrawApplicationClick}
                               onDeleteDraft={handleDeleteDraftClick}
                               isCancelApplicationPending={cancelApplication.isPending}

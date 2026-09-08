@@ -1,16 +1,16 @@
 # ARF Deed of Assignment — data sources
 
-What [`buildDeedOfAssignmentMergeData`](../../apps/api/src/modules/applications/deed-of-assignment/build-doa-merge-data.ts) does for production generate (`arf_deed_of_assignment` **v1**).
+What [`buildDeedOfAssignmentMergeData`](../../apps/api/src/modules/applications/deed-of-assignment/build-doa-merge-data.ts) does for production generate (`arf_deed_of_assignment` **v2**).
 
 Requires `contract_offer_sent`. Generated at facility-offer time.
 
-SigningCloud recipients are the configured **issuer_director** assignor signatories only. SSP, witnesses, stamps, and wet-ink execution lines stay untagged in Word. CA signature boxes sit on each assignor signature line in the ASSIGNOR execution block.
+SigningCloud recipients are the configured **issuer_director** assignor signatories only. SSP, witnesses, stamps, and wet-ink execution lines stay untagged in Word. CA signature boxes sit on each assignor signature line in the ASSIGNOR execution block. Current fixture PDFs place two assignor CA boxes on page 10 (SSP, witness, and stamp lines are not selected).
 
 ## Filled from platform data
 
 | Field | Source |
 |-------|--------|
-| `assignment_date` | `offer_details.sent_at` via `formatLetterDate` (also used in Schedule 2’s “effective from” sentence) |
+| `assignment_date` | `offer_details.sent_at` via `formatLetterDate` |
 | `assignor_company_name` | `issuer_organization.name` |
 | `assignor_registration_number` | Org `registration_number`, then COD `basicInfo` SSM aliases (same as LO) |
 | `assignor_registered_address` | COD `addresses.registered`, else `org.address` |
@@ -18,17 +18,12 @@ SigningCloud recipients are the configured **issuer_director** assignor signator
 | `assignor_email` | `application.company_details.contact_person.email` |
 | `assignor_contact_number` | `contact_person.contact`, else org `phone_number` |
 | `assignor_signatories[]` | All issuer authorised representatives (`Director` / `Authorised Signatory`). One execution block per person. |
-| `trust_bank_name`, `trust_account_name`, `trust_account_number` | `PlatformFinanceSetting.ledger_bucket_accounts_config.REPAYMENT_POOL` (`bankName`, `accountName`/`displayName`, `accountNumber`) |
-| `debtor_company_name`, `debtor_registration_number` | `contract.customer_details.name` and `ssm_number` (application working copy; later Admin Paymaster edits do not rewrite this) |
-| `transaction_documents[]` | Application invoices (`invoice_number` / `number` / `display_reference`, issued date, value, due/maturity). Debtor name is reused on each row. |
+| `trust_bank_name`, `trust_account_name`, `trust_account_number`, `trust_swift_code` | `PlatformFinanceSetting.ledger_bucket_accounts_config.REPAYMENT_POOL` (`bankName`, `accountName`/`displayName`, `accountNumber`, `swiftCode`) |
 
-## Visible tags (not collected at facility time)
+## Schedules (not merged)
 
-These print as `{tag}` until a later data source exists. Generate does **not** fail closed on them:
-
-`trust_swift_code`, `debtor_address`, `debtor_attention`, `notice_date`, `notice_signatory_name`, `notice_signatory_designation`, `outstanding_amount`, `balance_as_of_date`, `debtor_signatory_name`, `debtor_signatory_designation`, `acknowledgement_date`.
-
-If the application has no invoices, Schedule 3 still renders **one placeholder row** with visible item tags so the schedule is never silently blank.
+- **Schedule 2** stays the prescribed Form of Notice of Assignment. Original legal placeholders (`[insert date]`, `[Name & Address of Debtor]`, `[Insert]`, `[Debtor]`) are left as in counsel’s copy. A standalone copy lives at [`arf-notice-of-assignment-template.docx`](../../apps/api/src/modules/applications/templates/arf-notice-of-assignment-template.docx) (static artefact; no generate path).
+- **Schedule 3** keeps its heading and table. At execution it records: *Nil as at the date of execution; to be supplemented from time to time in accordance with Clause 4.4.* Invoices are not written into the Deed.
 
 ## Preserved legal-copy inconsistencies
 

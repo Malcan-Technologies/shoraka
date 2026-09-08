@@ -925,10 +925,14 @@ export function normalizeSigningEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
+/** Query param on `/signing/external/:token` to open a specific unsigned document. */
+export const EXTERNAL_SIGNING_DOCUMENT_QUERY = "document";
+
 /** Next unsigned assignment for a recipient (document order, not routing order). */
 export function findUnsignedSigningAssignmentForRecipient(
   envelope: Pick<SigningEnvelopeDto, "documents" | "recipients" | "assignments">,
-  recipientId: string
+  recipientId: string,
+  preferredDocumentId?: string | null
 ): { document: SigningDocumentDto; recipient: SigningRecipientDto } | null {
   const recipient = envelope.recipients.find((item) => item.id === recipientId);
   if (!recipient) return null;
@@ -946,7 +950,11 @@ export function findUnsignedSigningAssignmentForRecipient(
       return leftOrder - rightOrder;
     });
 
-  const assignment = pendingAssignments[0];
+  const preferredId = preferredDocumentId?.trim() || null;
+  const assignment =
+    (preferredId
+      ? pendingAssignments.find((item) => item.document_id === preferredId)
+      : undefined) ?? pendingAssignments[0];
   if (!assignment) return null;
 
   const document = documentById.get(assignment.document_id);

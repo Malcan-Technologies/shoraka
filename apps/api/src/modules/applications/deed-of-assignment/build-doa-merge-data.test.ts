@@ -52,7 +52,7 @@ const BASE_ORG = {
 };
 
 describe("buildDeedOfAssignmentMergeData", () => {
-  it("fills assignor identity, trust account, debtor, and invoice rows", () => {
+  it("fills assignor identity and trust account from platform data", () => {
     const data = buildDeedOfAssignmentMergeData({
       contract: {
         id: "ctr_abc",
@@ -65,7 +65,6 @@ describe("buildDeedOfAssignmentMergeData", () => {
             authorized_parties_draft: ISSUER_SNAPSHOT,
           },
         },
-        customer_details: { name: "Buyer Co", ssm_number: "202134567890" },
       },
       issuerOrganization: BASE_ORG,
       application: {
@@ -73,23 +72,13 @@ describe("buildDeedOfAssignmentMergeData", () => {
         company_details: {
           contact_person: { email: "ops@issuer.my", contact: "+60 3-9999 0000" },
         },
-        invoices: [
-          {
-            display_reference: "INV-REF-1",
-            details: {
-              invoice_number: "INV-001",
-              issued_date: "2026-07-01",
-              value: 50000,
-              due_date: "2026-08-30",
-            },
-          },
-        ],
       },
       ledgerBucketAccountsConfig: {
         REPAYMENT_POOL: {
           bankName: "Demo Trustee Bank",
           accountName: "CashSouk Repayment Pool",
           accountNumber: "1234567890",
+          swiftCode: "RHBBMYKL",
         },
       },
     });
@@ -116,33 +105,26 @@ describe("buildDeedOfAssignmentMergeData", () => {
     expect(data.trust_bank_name).toBe("Demo Trustee Bank");
     expect(data.trust_account_name).toBe("CashSouk Repayment Pool");
     expect(data.trust_account_number).toBe("1234567890");
-    expect(data.trust_swift_code).toBe("");
-    expect(data.debtor_company_name).toBe("Buyer Co");
-    expect(data.debtor_registration_number).toBe("202134567890");
-    expect(data.debtor_address).toBe("");
-    expect(data.notice_date).toBe("");
-    expect(data.transaction_documents).toEqual([
-      {
-        transaction_document_name_number: "INV-001",
-        transaction_document_date: "1 July 2026",
-        debtor_name: "Buyer Co",
-        transaction_document_value: "RM 50,000.00",
-        due_date: "30 August 2026",
-      },
-    ]);
+    expect(data.trust_swift_code).toBe("RHBBMYKL");
+    expect(data).not.toHaveProperty("transaction_documents");
+    expect(data).not.toHaveProperty("debtor_company_name");
+    expect(data).not.toHaveProperty("notice_date");
   });
 
-  it("leaves Schedule 3 empty when the application has no invoices", () => {
+  it("does not read invoices into the Deed payload", () => {
     const data = buildDeedOfAssignmentMergeData({
       contract: {
         id: "ctr_abc",
         issuer_organization_id: "org_1",
         offer_details: { sent_at: "2026-07-16T02:00:00.000Z" },
-        customer_details: { name: "Buyer Co" },
       },
-      issuerOrganization: { id: "org_1", name: "Issuer Co", registration_number: "123456-A" },
+      issuerOrganization: BASE_ORG,
+      application: {
+        id: "app_1",
+        company_details: {},
+      },
     });
-    expect(data.transaction_documents).toEqual([]);
+    expect(data).not.toHaveProperty("transaction_documents");
   });
 
   it("maps every issuer authorised representative, not only the first two", () => {
@@ -233,20 +215,15 @@ describe("buildDeedOfAssignmentMergeData", () => {
     expect(data.assignor_email).toBe("ops@issuer.my");
   });
 
-  it("does not invent SWIFT, debtor address, or notice particulars", () => {
+  it("does not invent SWIFT when the repayment pool has none", () => {
     const data = buildDeedOfAssignmentMergeData({
       contract: {
         id: "ctr_abc",
         issuer_organization_id: "org_1",
         offer_details: { sent_at: "2026-07-16T02:00:00.000Z" },
-        customer_details: { name: "Buyer Co" },
       },
       issuerOrganization: BASE_ORG,
     });
     expect(data.trust_swift_code).toBe("");
-    expect(data.debtor_address).toBe("");
-    expect(data.debtor_attention).toBe("");
-    expect(data.notice_date).toBe("");
-    expect(data.outstanding_amount).toBe("");
   });
 });

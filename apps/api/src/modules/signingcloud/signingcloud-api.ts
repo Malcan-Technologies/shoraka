@@ -13,6 +13,7 @@ import {
 } from "../../lib/signingcloud/crypto";
 import { logger } from "../../lib/logger";
 import { validateSigningRedirectUrl } from "../../lib/signing/redirect-url";
+import { SIGNING_CLOUD_STACKED_SIGN_FIELD } from "../signing/signature-field-geometry";
 
 const SIGNINGCLOUD_HTTP_TIMEOUT_MS = 25_000;
 
@@ -62,14 +63,7 @@ async function readSigningCloudEncryptedResponse(
 const PDF_PAGE_HEIGHT_PT = 841.89;
 
 /** Signature rectangle — aligned with offer-letter-pdf authorisation block (contract + invoice). */
-const SIGNATURE_FIELD = {
-  fieldtype: "sign",
-  top: 549,
-  left: 140,
-  height: 30,
-  width: 100,
-  pageindex: 1,
-} as const;
+const SIGNATURE_FIELD = SIGNING_CLOUD_STACKED_SIGN_FIELD;
 
 export interface SigningCloudEnvConfig {
   baseUrl: string;
@@ -89,7 +83,7 @@ export function readSigningCloudConfigFromEnv(): SigningCloudEnvConfig | null {
 }
 
 function buildSignsetJsonString(): string {
-  return JSON.stringify([SIGNATURE_FIELD]);
+  return JSON.stringify([{ ...SIGNATURE_FIELD, pageindex: 1 }]);
 }
 
 /**
@@ -102,6 +96,7 @@ function defaultSignsetForSignerIndex(index: number): string {
   return JSON.stringify([
     {
       ...SIGNATURE_FIELD,
+      pageindex: 1,
       top: SIGNATURE_FIELD.top - index * verticalGap,
     },
   ]);
@@ -184,8 +179,15 @@ export function sanitizeSigningCloudBackUrl(url: string | null | undefined): str
   return validateSigningRedirectUrl(url);
 }
 
-/** Default 25m — SigningCloud tokens are ~30m; refresh before expiry. Override with SIGNINGCLOUD_ACCESS_TOKEN_TTL_MS. */
+/** Default 25m — SigningCloud tokens are ~30m; refresh before expiry. Override with SC_ACCESS_TOKEN_TTL_MS. */
 const DEFAULT_SIGNINGCLOUD_ACCESS_TOKEN_TTL_MS = 25 * 60 * 1000;
+
+export function signingCloudAccessTokenTtlMs(): number {
+  const raw = process.env.SC_ACCESS_TOKEN_TTL_MS?.trim();
+  const parsed = raw ? Number(raw) : NaN;
+  if (Number.isFinite(parsed) && parsed >= 60_000) return Math.floor(parsed);
+  return DEFAULT_SIGNINGCLOUD_ACCESS_TOKEN_TTL_MS;
+}
 
 function signingCloudAccessTokenCacheKey(cfg: SigningCloudEnvConfig): string {
   const base = cfg.baseUrl.trim().replace(/\/$/, "");
@@ -232,7 +234,7 @@ export async function getSigningCloudAccessToken(cfg: SigningCloudEnvConfig): Pr
       const token = await fetchSigningCloudAccessTokenFromApi(cfg);
       signingCloudAccessTokenCache.set(key, {
         token,
-        expiresAt: Date.now() + DEFAULT_SIGNINGCLOUD_ACCESS_TOKEN_TTL_MS,
+        expiresAt: Date.now() + signingCloudAccessTokenTtlMs(),
       });
       return token;
     } finally {
@@ -319,7 +321,7 @@ export async function startManualSigning(params: {
   if (redirectUrl?.trim() && !backUrl) {
     logger.warn(
       { redirectUrl: redirectUrl.trim() },
-      "SigningCloud backUrl omitted (invalid for provider). Use an https URL (e.g. ngrok) or set SIGNINGCLOUD_ISSUER_RETURN_URL / ISSUER_URL to https; optional SIGNINGCLOUD_ALLOW_HTTP_BACK_URL=true if your tenant allows http."
+      "SigningCloud backUrl omitted (invalid for provider). Use an https ISSUER_URL (e.g. ngrok); optional SIGNINGCLOUD_ALLOW_HTTP_BACK_URL=true if your tenant allows http."
     );
   }
   if (backUrl) {

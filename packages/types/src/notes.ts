@@ -824,6 +824,8 @@ export interface TrusteeAccountDetails {
   accountName: string;
   accountNumber: string;
   remarks: string;
+  /** Optional BIC; used by the Deed of Assignment `trust_swift_code` tag (Repayment Pool). */
+  swiftCode?: string;
 }
 
 export interface TrusteeLetterConfig {

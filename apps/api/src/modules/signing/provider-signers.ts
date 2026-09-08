@@ -31,7 +31,7 @@ export function buildDocumentProviderSigners(
       signer.fields.push(...readSignFields(row.signset));
       continue;
     }
-    byEmail.set(key, { email: row.email, fields: readSignFields(row.signset) });
+    byEmail.set(key, { email: row.email, fields: [...readSignFields(row.signset)] });
   }
   return [...byEmail.values()].map(({ email, fields }) => ({
     email,

@@ -24,6 +24,7 @@ import type {
 } from "./adapter";
 import { normalizeSigningEmail } from "@cashsouk/types";
 import { logger } from "../../../lib/logger";
+import { extractSignedPdfBufferFromFileResponse } from "../../signingcloud/signed-file";
 
 function requireConfig(): SigningCloudEnvConfig {
   const cfg = readSigningCloudConfigFromEnv();
@@ -31,30 +32,6 @@ function requireConfig(): SigningCloudEnvConfig {
     throw new Error("SigningCloud is not configured (SC_BASE_URL, SC_API_KEY, SC_API_SECRET)");
   }
   return cfg;
-}
-
-/** SigningCloud returns signed PDF bytes as a hex string under `pdfdata`. */
-function bufferFromHexPdfData(raw: Record<string, unknown>): Buffer {
-  const hex =
-    typeof raw.pdfdata === "string"
-      ? raw.pdfdata
-      : typeof (raw.data as { pdfdata?: string })?.pdfdata === "string"
-        ? (raw.data as { pdfdata: string }).pdfdata
-        : "";
-  if (!hex) {
-    throw new Error("SigningCloud file response missing pdfdata");
-  }
-  if (hex.length % 2 !== 0) {
-    throw new Error("SigningCloud pdfdata hex length is not even");
-  }
-  const buffer = Buffer.from(hex, "hex");
-  if (buffer.length !== hex.length / 2) {
-    throw new Error("SigningCloud pdfdata contains invalid hex characters");
-  }
-  if (buffer.length < 4 || buffer.subarray(0, 4).toString("ascii") !== "%PDF") {
-    throw new Error("SigningCloud pdfdata is not a valid PDF");
-  }
-  return buffer;
 }
 
 /** SigningCloud signstate: 0 pending, 1 signed, 2 rejected (also accepts string labels). */
@@ -232,7 +209,10 @@ export class SigningCloudProvider implements SigningProvider {
     const cfg = requireConfig();
     const accessToken = await getSigningCloudAccessToken(cfg);
     const raw = await getContractFileData({ cfg, accessToken, contractnum: input.providerRef });
-    const pdfBuffer = bufferFromHexPdfData(raw);
+    const pdfBuffer = extractSignedPdfBufferFromFileResponse(raw);
+    if (!pdfBuffer) {
+      throw new Error("SigningCloud file response missing pdfdata");
+    }
     const sha256 = crypto.createHash("sha256").update(pdfBuffer).digest("hex");
     return { pdfBuffer, sha256 };
   }

@@ -1,6 +1,6 @@
 # ARF contract facility LO — data sources (working index)
 
-What [`buildFacilityLoMergeData`](../../apps/api/src/modules/applications/letter-of-offer/build-facility-lo-merge-data.ts) does for production generate (`arf_contract_facility_lo` **v12**, per-guarantor acknowledgement pages).
+What [`buildFacilityLoMergeData`](../../apps/api/src/modules/applications/letter-of-offer/build-facility-lo-merge-data.ts) does for production generate (`arf_contract_facility_lo` **v13**, per-guarantor acknowledgement pages).
 
 **Full verification table:** [lo-19-aug-2026-field-map.md](./lo-19-aug-2026-field-map.md)
 
@@ -10,6 +10,7 @@ Older editable discussion table: [arf-letter-of-offer-placeholder-map.md](../app
 
 | Area | Source | Notes |
 |------|--------|--------|
+| Header Issuer ID / Our Reference | `issuer_organization.display_reference` (`ISS-…`); `contract.display_reference` (`CON-…`) | Never CUIDs. Empty when a historical row has no allocated ref. |
 | Issuer identity | `issuer_organization.registration_number`, then COD `basicInfo.ssmRegistrationNumber` / `ssmRegisterNumber` | Name, SSM, registered address |
 | Letter date | `offer_details.sent_at` | Required — generation fails if missing |
 | Attention | `application.company_details.contact_person` | Name, position |

@@ -1,20 +1,12 @@
-export type SigningCloudSignField = {
-  fieldtype: "sign";
-  top: number;
-  left: number;
-  height: number;
-  width: number;
-  pageindex: number;
-};
+export type {
+  SigningCloudSignField,
+} from "../../signing/signature-field-geometry";
+export { SIGNING_CLOUD_STACKED_SIGN_FIELD } from "../../signing/signature-field-geometry";
 
-/** Same rectangle as SigningCloud stacked defaults / PDFKit offer-letter blocks. */
-export const SIGNING_CLOUD_STACKED_SIGN_FIELD = {
-  fieldtype: "sign" as const,
-  top: 549,
-  left: 140,
-  height: 30,
-  width: 100,
-};
+import {
+  SIGNING_CLOUD_STACKED_SIGN_FIELD,
+  type SigningCloudSignField,
+} from "../../signing/signature-field-geometry";
 
 const SIGN_FIELD = SIGNING_CLOUD_STACKED_SIGN_FIELD;
 

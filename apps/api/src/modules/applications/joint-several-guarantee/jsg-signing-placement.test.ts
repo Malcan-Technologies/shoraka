@@ -152,6 +152,13 @@ describe("matchJsgSignersToSlots", () => {
       /Could not place JSG signature/
     );
   });
+
+  it("fails when execution lines remain unused", () => {
+    const slots = collectJsgSignatureSlots(packedExecutionItems());
+    expect(() => matchJsgSignersToSlots(["Ali Bin Abu"], slots)).toThrow(
+      /do not match signer count/
+    );
+  });
 });
 
 describe("buildJsgSigningCloudSignsetsFromPdf", () => {
@@ -196,6 +203,14 @@ describe("buildJsgSigningCloudSignsetsFromPdf", () => {
     const signsets = await buildJsgSigningCloudSignsetsFromPdf(pdf, names);
     expect(signsets).toHaveLength(4);
     const pageCount = countPdfPages(pdf);
-    expect(signsets.every((fields) => (fields[0]?.pageindex ?? 0) < pageCount)).toBe(true);
+    expect(signsets.every((fields) => (fields[0]?.pageindex ?? 0) <= pageCount)).toBe(true);
+    for (const fields of signsets) {
+      const field = fields[0];
+      expect(field?.pageindex).toBeGreaterThan(0);
+      expect((field?.left ?? 0) + (field?.width ?? 0)).toBeLessThanOrEqual(595);
+      expect((field?.top ?? 0) + (field?.height ?? 0)).toBeLessThanOrEqual(842);
+    }
+    const tops = signsets.map((fields) => fields[0]?.top ?? 0);
+    expect(new Set(tops).size).toBe(4);
   }, 120_000);
 });

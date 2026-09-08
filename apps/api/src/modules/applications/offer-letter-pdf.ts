@@ -30,6 +30,10 @@ import {
   type AdditionalFeeLine,
 } from "@cashsouk/types";
 import { resolveOfferedPlatformFeeRatePercent } from "../../lib/invoice-offer";
+import {
+  SIGNING_CLOUD_STACKED_SIGN_FIELD,
+  type SigningCloudSignField,
+} from "../signing/signature-field-geometry";
 
 type PDFDoc = InstanceType<typeof PDFDocument>;
 
@@ -39,11 +43,11 @@ const HEADING_SIZE = 11;
 const TITLE_SIZE = 16;
 const PAGE_HEIGHT_PT = 841.89;
 
-/** Signature rectangle — aligned with SigningCloud offer-letter upload defaults. */
+/** Signature rectangle — aligned with SigningCloud stacked defaults. */
 export const OFFER_LETTER_SIGN_FIELD = {
-  left: 140,
-  width: 100,
-  height: 30,
+  left: SIGNING_CLOUD_STACKED_SIGN_FIELD.left,
+  width: SIGNING_CLOUD_STACKED_SIGN_FIELD.width,
+  height: SIGNING_CLOUD_STACKED_SIGN_FIELD.height,
 } as const;
 
 const SIGNATORY_BLOCK_HEIGHT_PT = 78;
@@ -62,14 +66,7 @@ export type OfferLetterSignatory = {
   email?: string;
 };
 
-export type SigningCloudSignField = {
-  fieldtype: "sign";
-  top: number;
-  left: number;
-  height: number;
-  width: number;
-  pageindex: number;
-};
+export type { SigningCloudSignField };
 
 export type GeneratedOfferLetterResult = {
   pdfBuffer: Buffer;

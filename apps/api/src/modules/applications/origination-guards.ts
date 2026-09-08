@@ -48,6 +48,7 @@ export function enrichApplicationOriginationFields<
   };
   return overlayStoredCapacityOnApplicationContract({
     ...application,
+    signing_envelopes: envelopes,
     canWithdraw: canWithdrawApplicationRecord(context),
     archivedAt: application.archived_at ?? null,
   });

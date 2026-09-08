@@ -49,7 +49,7 @@ const SIGNED_DOC_ACTION_BTN_CLASS =
 
 type SigningProgressMatrixProps = {
   envelope: SigningEnvelopeDto;
-  onRemind?: (recipientId: string) => void;
+  onRemind?: (recipientId: string, documentId: string) => void;
   remindDisabled?: boolean;
   showRemindActions?: boolean;
   /** Collapse fully-signed document groups by default. */
@@ -266,7 +266,7 @@ export function SigningProgressMatrix({
                             variant="ghost"
                             size="sm"
                             disabled={remindDisabled}
-                            onClick={() => onRemind(recipient.id)}
+                            onClick={() => onRemind(recipient.id, document.id)}
                           >
                             Remind
                           </Button>

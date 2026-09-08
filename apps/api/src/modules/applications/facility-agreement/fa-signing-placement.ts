@@ -5,6 +5,10 @@ import {
   type JsgPdfTextItem,
 } from "../joint-several-guarantee/jsg-signing-placement";
 import type { SigningCloudSignField } from "../joint-several-guarantee/jsg-signing-signsets";
+import {
+  matchSignersToNamedSlots,
+  signatureFieldFromLine,
+} from "../../signing/signature-field-geometry";
 
 export class FaSigningLayoutError extends Error {
   readonly code = "FA_SIGNING_LAYOUT";
@@ -29,10 +33,6 @@ const LINE_SEARCH_BELOW = 55;
 
 function compactLineText(text: string): string {
   return text.replace(/\s+/g, " ").trim();
-}
-
-function normalizeFaSignerName(value: string): string {
-  return value.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
 function isUnderscoreLine(text: string): boolean {
@@ -107,14 +107,13 @@ function fieldFromSignatureLine(line: JsgPdfLine): Pick<
   FaSignatureSlot,
   "pageindex" | "top" | "left" | "height" | "width"
 > {
-  const height = 36;
-  const width = Math.max(120, Math.min(240, Math.round(line.width) || 120));
+  const field = signatureFieldFromLine(line);
   return {
-    pageindex: line.pageindex,
-    top: Math.max(24, Math.round(line.yTop - height + 6)),
-    left: Math.max(20, Math.round(line.x)),
-    height,
-    width,
+    pageindex: field.pageindex,
+    top: field.top,
+    left: field.left,
+    height: field.height,
+    width: field.width,
   };
 }
 
@@ -153,46 +152,16 @@ export function matchFaSignersToSlots(
   if (slots.length === 0) {
     throw new FaSigningLayoutError("Facility Agreement PDF is missing issuer signature lines.");
   }
-
-  const unused = slots.map((slot) => ({ ...slot, used: false }));
-  const signsets: SigningCloudSignField[][] = [];
-
-  for (const signerName of signerNames) {
-    const needle = normalizeFaSignerName(signerName);
-    if (!needle) {
-      throw new FaSigningLayoutError("Facility Agreement signer is missing a name.");
+  return matchSignersToNamedSlots(
+    signerNames,
+    slots.map((slot) => ({ ...slot, fieldtype: "sign" as const })),
+    {
+      documentLabel: "Facility Agreement",
+      allowUnnamedFallback: true,
+      requireAllSlotsUsed: true,
+      createError: (message) => new FaSigningLayoutError(message),
     }
-    const named = unused.find(
-      (entry) => !entry.used && normalizeFaSignerName(entry.name) === needle
-    );
-    const unnamed = unused.find((entry) => !entry.used && !normalizeFaSignerName(entry.name));
-    const slot = named ?? unnamed;
-    if (!slot) {
-      const available = slots.map((entry) => entry.name).filter(Boolean).join(", ") || "(none)";
-      throw new FaSigningLayoutError(
-        `Could not place Facility Agreement signature for "${signerName}" on an issuer line. Found: ${available}.`
-      );
-    }
-    slot.used = true;
-    signsets.push([
-      {
-        fieldtype: "sign",
-        top: slot.top,
-        left: slot.left,
-        height: slot.height,
-        width: slot.width,
-        pageindex: slot.pageindex,
-      },
-    ]);
-  }
-
-  if (unused.some((entry) => !entry.used)) {
-    throw new FaSigningLayoutError(
-      `Facility Agreement issuer signature lines (${slots.length}) do not match signer count (${signerNames.length}).`
-    );
-  }
-
-  return signsets;
+  );
 }
 
 export async function buildFaSigningCloudSignsetsFromPdf(

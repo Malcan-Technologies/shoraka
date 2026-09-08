@@ -322,6 +322,7 @@ describe("buildFacilityLoMergeData", () => {
     const data = buildFacilityLoMergeData({
       contract: {
         id: "ctr_abc",
+        display_reference: "CON-ARF-202608-K71",
         issuer_organization_id: "org_1",
         offer_details: {
           offered_facility: 500000,
@@ -336,6 +337,7 @@ describe("buildFacilityLoMergeData", () => {
       },
       issuerOrganization: {
         id: "org_1",
+        display_reference: "ISS-202608-DK3",
         name: "Issuer Co",
         registration_number: "123456-A",
         address: "Legacy address",
@@ -376,8 +378,8 @@ describe("buildFacilityLoMergeData", () => {
       gracePeriodDaysDefault: 7,
     });
 
-    expect(data.issuer_id).toBe("org_1");
-    expect(data.our_reference).toBe("ctr_abc");
+    expect(data.issuer_id).toBe("ISS-202608-DK3");
+    expect(data.our_reference).toBe("CON-ARF-202608-K71");
     expect(data.issuer_name).toBe("Issuer Co");
     expect(data.issuer_registration_number).toBe("123456-A");
     expect(data.issuer_address).toContain("1 Jalan Test");
@@ -407,6 +409,21 @@ describe("buildFacilityLoMergeData", () => {
       { line: "Ali (NRIC No. 900101145678)", representatives: [] },
       { line: "HoldCo (Registration No. 999999-X)", representatives: [] },
     ]);
+  });
+
+  it("leaves issuer_id and our_reference empty instead of printing CUIDs", () => {
+    const data = buildFacilityLoMergeData({
+      contract: {
+        id: "ctr_abc",
+        issuer_organization_id: "org_1",
+        offer_details: { offered_facility: 1, sent_at: "2026-07-16T02:00:00.000Z" },
+        contract_details: {},
+        customer_details: {},
+      },
+      issuerOrganization: { id: "org_1", name: "Issuer Co", registration_number: "123456-A" },
+    });
+    expect(data.issuer_id).toBe("");
+    expect(data.our_reference).toBe("");
   });
 
   it("fills authorised signatory names from every declared person on the snapshot", () => {
