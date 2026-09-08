@@ -101,6 +101,7 @@ describe("matchDoaSignersToSlots", () => {
       top: slots[0]?.top,
       left: slots[0]?.left,
     });
+    expect(signsets[0]).toHaveLength(1);
   });
 
   it("places two signers and keeps preview coordinates identical to send signsets", () => {
@@ -108,6 +109,7 @@ describe("matchDoaSignersToSlots", () => {
     const names = ["Ali Bin Abu", "Siti Binti Ahmad"];
     const signsets = matchDoaSignersToSlots(names, slots);
     expect(signsets).toHaveLength(2);
+    expect(signsets.every((fields) => fields.length === 1 && fields[0]?.fieldtype === "sign")).toBe(true);
     const preview = previewFieldsFromSignsets(names, signsets);
     expect(preview.map((field) => [field.pageindex, field.top, field.left, field.width, field.height])).toEqual(
       signsets.map((fields) => {
@@ -150,6 +152,8 @@ describe("buildDoaSigningCloudSignsetsFromPdf", () => {
     const twoNames = ["Ali Bin Abu", "Siti Binti Ahmad"];
     const twoSignsets = await buildDoaSigningCloudSignsetsFromPdf(twoSignerPdf, twoNames);
     expect(twoSignsets).toHaveLength(2);
+    expect(twoSignsets.flat().every((field) => field.fieldtype === "sign")).toBe(true);
+    expect(twoSignsets.flat().some((field) => field.fieldtype === "signdate")).toBe(false);
     const twoPreview = previewFieldsFromSignsets(twoNames, twoSignsets);
     expect(
       twoPreview.map((field) => [field.pageindex, field.top, field.left, field.width, field.height])

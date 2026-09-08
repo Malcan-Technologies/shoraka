@@ -6,6 +6,9 @@ import {
 } from "../joint-several-guarantee/jsg-signing-placement";
 import type { SigningCloudSignField } from "../joint-several-guarantee/jsg-signing-signsets";
 import {
+  dateFieldFromLine,
+  findSignerDateLabel,
+  fitDateFieldBetweenSignatures,
   matchSignersToNamedSlots,
   signatureFieldFromLine,
 } from "../../signing/signature-field-geometry";
@@ -26,10 +29,12 @@ export type FaSignatureSlot = {
   left: number;
   height: number;
   width: number;
+  extraFields?: SigningCloudSignField[];
 };
 
 const SAME_COLUMN_X = 50;
 const LINE_SEARCH_BELOW = 55;
+const DATE_SEARCH_BELOW = 130;
 
 function compactLineText(text: string): string {
   return text.replace(/\s+/g, " ").trim();
@@ -130,19 +135,72 @@ export function collectFaIssuerSignatureSlots(items: JsgPdfTextItem[]): FaSignat
   if (executionLines.length === 0) {
     throw new FaSigningLayoutError("Facility Agreement PDF is missing the ISSUER execution block.");
   }
-  const slots: FaSignatureSlot[] = [];
+  const located: Array<FaSignatureSlot & { strokeX: number; strokeYTop: number }> = [];
 
   for (const line of executionLines) {
     if (!isUnderscoreLine(line.text)) continue;
     const below = lineBelow(line, executionLines);
     if (!below || !isIssuerNameLabel(below.text)) continue;
-    slots.push({
+    located.push({
       name: nameFromIssuerLabel(below, executionLines),
       ...fieldFromSignatureLine(line),
+      strokeX: line.x,
+      strokeYTop: line.yTop,
     });
   }
 
-  return slots.sort((a, b) => a.pageindex - b.pageindex || a.top - b.top || a.left - b.left);
+  located.sort((a, b) => a.pageindex - b.pageindex || a.strokeYTop - b.strokeYTop || a.left - b.left);
+
+  const slots: FaSignatureSlot[] = [];
+  for (let index = 0; index < located.length; index += 1) {
+    const current = located[index];
+    if (!current) continue;
+    const next = located[index + 1];
+    const dateLine = findSignerDateLabel(
+      { pageindex: current.pageindex, x: current.strokeX, yTop: current.strokeYTop },
+      executionLines,
+      {
+        sameColumnDelta: SAME_COLUMN_X,
+        maxBelow: DATE_SEARCH_BELOW,
+        beforeYTop:
+          next && next.pageindex === current.pageindex ? next.strokeYTop : undefined,
+      }
+    );
+    if (!dateLine) {
+      throw new FaSigningLayoutError(
+        `Facility Agreement PDF is missing a Date line for "${current.name || "an issuer signatory"}".`
+      );
+    }
+    const signField = {
+      fieldtype: "sign" as const,
+      pageindex: current.pageindex,
+      top: current.top,
+      left: current.left,
+      height: current.height,
+      width: current.width,
+    };
+    const nextSign = next
+      ? {
+          fieldtype: "sign" as const,
+          pageindex: next.pageindex,
+          top: next.top,
+          left: next.left,
+          height: next.height,
+          width: next.width,
+        }
+      : undefined;
+    slots.push({
+      name: current.name,
+      pageindex: current.pageindex,
+      top: current.top,
+      left: current.left,
+      height: current.height,
+      width: current.width,
+      extraFields: [fitDateFieldBetweenSignatures(dateFieldFromLine(dateLine), signField, nextSign)],
+    });
+  }
+
+  return slots;
 }
 
 export function matchFaSignersToSlots(

@@ -46,12 +46,14 @@ function issuerExecutionItems(signerCount: 1 | 2): JsgPdfTextItem[] {
     item(10, 173, 94, "______________________________", 140),
     item(10, 189, 94, "Name : Ali Bin Abu"),
     item(10, 205, 94, "Designation : Director"),
+    item(10, 221, 94, "Date :", 40),
   ];
   if (signerCount === 2) {
     items.push(
       item(10, 251, 94, "______________________________", 140),
       item(10, 266, 94, "Name : Siti Binti Ahmad"),
-      item(10, 282, 94, "Designation : Authorised Signatory")
+      item(10, 282, 94, "Designation : Authorised Signatory"),
+      item(10, 298, 94, "Date :", 40)
     );
   }
   items.push(
@@ -94,13 +96,20 @@ describe("collectFaIssuerSignatureSlots", () => {
       item(10, 80, 268, "ISSUER"),
       item(10, 173, 94, "______________________________", 140),
       item(10, 189, 94, "Name : Ali Bin Abu"),
+      item(10, 205, 94, "Designation : Director"),
+      item(10, 221, 94, "Date :", 40),
       item(10, 173, 360, "______________________________", 140),
       item(10, 189, 360, "Name of Witness:"),
       item(10, 205, 360, "NRIC:"),
+      item(10, 221, 360, "Date :", 40),
       item(10, 251, 94, "______________________________", 140),
       item(10, 266, 94, "Name : Siti Binti Ahmad"),
+      item(10, 282, 94, "Designation : Authorised Signatory"),
+      item(10, 298, 94, "Date :", 40),
       item(10, 251, 360, "______________________________", 140),
       item(10, 266, 360, "Name of Witness:"),
+      item(10, 282, 360, "NRIC:"),
+      item(10, 298, 360, "Date :", 40),
       item(11, 80, 268, "SCHEDULE 1"),
     ];
     const slots = collectFaIssuerSignatureSlots(items);
@@ -108,6 +117,11 @@ describe("collectFaIssuerSignatureSlots", () => {
     expect(slots[0]?.left).toBe(94);
     expect(slots[1]?.left).toBe(94);
     expect(slots[0]?.top).toBeLessThan(slots[1]?.top ?? 0);
+  });
+
+  it("fails when an issuer block has no Date line", () => {
+    const items = issuerExecutionItems(1).filter((entry) => !/^Date\s*:/i.test(entry.text));
+    expect(() => collectFaIssuerSignatureSlots(items)).toThrow(/missing a Date line/);
   });
 });
 
@@ -122,6 +136,11 @@ describe("matchFaSignersToSlots", () => {
       top: slots[0]?.top,
       left: slots[0]?.left,
     });
+    expect(signsets[0]?.[1]).toMatchObject({
+      fieldtype: "signdate",
+      pageindex: slots[0]?.pageindex,
+    });
+    expect(signsets[0]?.[1]?.width).toBe((signsets[0]?.[1]?.height ?? 0) * 5);
   });
 
   it("places two signers and keeps preview coordinates identical to send signsets", () => {
@@ -129,6 +148,9 @@ describe("matchFaSignersToSlots", () => {
     const names = ["Ali Bin Abu", "Siti Binti Ahmad"];
     const signsets = matchFaSignersToSlots(names, slots);
     expect(signsets).toHaveLength(2);
+    expect(signsets.every((fields) => fields.map((field) => field.fieldtype).join(",") === "sign,signdate")).toBe(
+      true
+    );
     const preview = previewFieldsFromSignsets(names, signsets);
     expect(preview.map((field) => [field.pageindex, field.top, field.left, field.width, field.height])).toEqual(
       signsets.map((fields) => {
@@ -171,6 +193,8 @@ describe("buildFaSigningCloudSignsetsFromPdf", () => {
     const twoNames = ["Ali Bin Abu", "Siti Binti Ahmad"];
     const twoSignsets = await buildFaSigningCloudSignsetsFromPdf(twoSignerPdf, twoNames);
     expect(twoSignsets).toHaveLength(2);
+    expect(twoSignsets.every((fields) => fields.length === 2)).toBe(true);
+    expect(twoSignsets.flat().filter((field) => field.fieldtype === "signdate")).toHaveLength(2);
     const twoPreview = previewFieldsFromSignsets(twoNames, twoSignsets);
     expect(
       twoPreview.map((field) => [field.pageindex, field.top, field.left, field.width, field.height])

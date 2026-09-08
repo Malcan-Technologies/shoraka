@@ -19,7 +19,9 @@ Requires `contract_offer_sent`. Recital A needs the Letter of Offer date and con
 | Corporate signatories | `offer_acceptance` authorised-parties snapshot, matched by `client_guarantor_id` / `application_guarantor_id` |
 | Schedule 1 list | Same ordered live rows (`schedule_guarantors` / nested `rep_line`) |
 
-Guarantor address and witnesses are not collected. Word signature lines stay as underscores or dots; CA signature boxes are placed on the **EXECUTION PAGE** (not Schedule 1) when the signing package is sent. Current fixture PDFs place four guarantor CA boxes on execution page 12.
+Guarantor address and witnesses are not collected. Word signature lines stay as underscores or dots; CA signature boxes and a SigningCloud `signdate` box sit on each guarantor’s left-column execution block (not Schedule 1, Operator, or the witness column). Full name and NRIC are merged before upload. There is no guarantor designation blank. Current fixture PDFs place four guarantor CA boxes on execution page 12.
+
+SigningCloud must enable `signdate` on the CashSouk tenant before production send (`seal`, `textfield`, and `signdate` require sales/support activation).
 
 ## Production
 

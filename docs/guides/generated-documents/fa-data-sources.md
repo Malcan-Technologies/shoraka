@@ -4,7 +4,9 @@ What [`buildFacilityAgreementMergeData`](../../apps/api/src/modules/applications
 
 Requires `offer_sent` (contract facility offer **or** standalone invoice offer). Generated when admin previews or sends the signing package if the frozen product includes **Facility Agreement**. Replaces the e-sign Offer Letter; the Step 1 `arf_contract_facility_lo` download/upload is unchanged.
 
-SigningCloud recipients are the configured **issuer authorised signatories** only. Investor, Agent, witness, and Schedule 4–9 utilisation lines stay unsigned so platform signatures can be added later. Each ISSUER signatory is paired with one wet-ink witness in a two-column table (signatory left, witness right). CA boxes sit on the left-column underscores. ISSUER execution starts on its own page, before Schedule 1. Current fixture PDFs place both issuer CA boxes on page 44 (Investor, Agent, witness, and schedule lines are not selected).
+SigningCloud recipients are the configured **issuer authorised signatories** only. Investor, Agent, witness, and Schedule 4–9 utilisation lines stay unsigned so platform signatures can be added later. Each ISSUER signatory is paired with one wet-ink witness in a two-column table (signatory left, witness right). CA boxes sit on the left-column underscores; a SigningCloud `signdate` box sits on that signatory’s blank `Date :` line. Name and designation are merged before upload. Witness dates, company stamps, and schedule lines are not tagged. ISSUER execution starts on its own page, before Schedule 1. Current fixture PDFs place both issuer CA boxes on page 44 (Investor, Agent, witness, and schedule lines are not selected).
+
+SigningCloud must enable `signdate` on the CashSouk tenant before production send (`seal`, `textfield`, and `signdate` require sales/support activation).
 
 ## Filled from platform data
 
