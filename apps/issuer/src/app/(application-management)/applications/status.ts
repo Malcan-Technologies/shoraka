@@ -227,6 +227,8 @@ export interface NormalizedApplication {
   canWithdraw: boolean;
   /** COMPLETED with invoices but none approved. */
   facilityInForceNoInvoices: boolean;
+  /** new_contract, existing_contract, or invoice_only when stamped on the application. */
+  structureType?: string | null;
 }
 
 /* =============================================================================

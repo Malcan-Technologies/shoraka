@@ -65,6 +65,26 @@ describe("deriveNoteStatus", () => {
     expect(derived.tone).toBe("progress");
     expect(noteToneToStatusToken(derived.tone)).toBe("submitted");
   });
+
+  it("paints OVERDUE yellow and LATE as existing distressed warning", () => {
+    const overdue = deriveNoteStatus({
+      ...baseInput,
+      status: "ACTIVE",
+      servicingStatus: "OVERDUE",
+    });
+    expect(overdue.label).toBe("Overdue");
+    expect(overdue.tone).toBe("warning");
+    expect(noteToneToStatusToken(overdue.tone)).toBe("action");
+
+    const late = deriveNoteStatus({
+      ...baseInput,
+      status: "ACTIVE",
+      servicingStatus: "LATE",
+    });
+    expect(late.label).toBe("Active · late");
+    expect(late.tone).toBe("warning");
+    expect(noteToneToStatusToken(late.tone)).toBe("action");
+  });
 });
 
 describe("presentNoteStatusForViewer", () => {

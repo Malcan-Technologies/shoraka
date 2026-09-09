@@ -2,11 +2,10 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle, Skeleton } from "@cashsouk/ui";
+import { Card, CardContent, Skeleton } from "@cashsouk/ui";
 import { usePermissions } from "@/hooks/use-permissions";
 import type { AdminPermission } from "@cashsouk/types";
 import {
-  ArrowRightIcon,
   BanknotesIcon,
   ClipboardDocumentListIcon,
   DocumentCheckIcon,
@@ -20,6 +19,7 @@ import type {
   NoteDashboardMetrics,
   OnboardingOperationsMetrics,
 } from "@cashsouk/types";
+import { DashboardSectionHeader } from "@/components/dashboard/dashboard-section-header";
 
 const EMPTY_APPLICATION_METRICS: ApplicationDashboardMetrics = {
   total: 0,
@@ -45,10 +45,11 @@ const EMPTY_NOTE_METRICS: NoteDashboardMetrics = {
   live: 0,
   repaid: 0,
   distressed: 0,
+  arrears: 0,
+  defaulted: 0,
   cancelledOrFailedFunding: 0,
 };
 
-/** Pipeline buckets mapped to status badge tokens (BRANDING.md §3 / packages/config status-badges). */
 type StatusBucketTone = "in-progress" | "success" | "rejected" | "neutral";
 
 const STATUS_BUCKET_FILL: Record<StatusBucketTone, string> = {
@@ -73,8 +74,8 @@ interface StageMetric {
   inFlightLabel: string;
   doneLabel: string;
   lostLabel: string;
-  /** Terminal/exit bucket tone — rejected for declines, neutral for closed/archived. */
   lostTone: "rejected" | "neutral";
+  actionLabel: string;
 }
 
 interface OperationsSectionProps {
@@ -85,7 +86,7 @@ interface OperationsSectionProps {
   notes?: NoteDashboardMetrics;
 }
 
-function StageCard({ stage, canNavigate }: { stage: StageMetric; canNavigate: boolean }) {
+function StageRow({ stage, canNavigate }: { stage: StageMetric; canNavigate: boolean }) {
   const Icon = stage.icon;
   const known = stage.inFlight + stage.done + stage.lost;
   const segments: { key: BucketKey; label: string; n: number; tone: StatusBucketTone }[] = [
@@ -93,110 +94,103 @@ function StageCard({ stage, canNavigate }: { stage: StageMetric; canNavigate: bo
     { key: "done", label: stage.doneLabel, n: stage.done, tone: "success" },
     { key: "lost", label: stage.lostLabel, n: stage.lost, tone: stage.lostTone },
   ];
-
-  const baseClassName =
-    "group flex h-full min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
-  const navClassName = canNavigate
-    ? `${baseClassName} hover:border-primary/40 hover:bg-muted/30`
-    : `${baseClassName} cursor-default`;
+  const distressedAction = stage.key === "notes" && stage.actionRequired > 0;
 
   const inner = (
-    <>
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
-          <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-          <span className="truncate">{stage.label}</span>
+    <div className="grid grid-cols-1 gap-4 py-4 md:grid-cols-[minmax(11.5rem,1fr)_minmax(0,3fr)_10.5rem] md:items-center md:gap-5">
+      <div className="flex min-w-0 items-center gap-2.5">
+        <Icon className="h-[18px] w-[18px] shrink-0 text-muted-foreground" aria-hidden />
+        <div className="min-w-0">
+          <div className="text-ui font-medium text-foreground">{stage.label}</div>
+          <div className="text-meta text-muted-foreground">{stage.total} total</div>
         </div>
         {stage.actionRequired > 0 ? (
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-status-action-bg px-2 py-0.5 text-[11px] font-normal text-status-action-text">
-            <ExclamationTriangleIcon className="h-3 w-3" aria-hidden />
-            {stage.actionRequired}
+          <span
+            className={cn(
+              "ml-auto inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-meta",
+              distressedAction
+                ? "bg-status-rejected-bg text-status-rejected-text"
+                : "bg-status-action-bg text-status-action-text"
+            )}
+          >
+            {stage.actionRequired} {stage.actionLabel}
           </span>
+        ) : null}
+      </div>
+
+      <div className="min-w-0">
+        {known === 0 ? (
+          <div className="h-3.5 w-full rounded-full border border-dashed border-border bg-muted/40" />
         ) : (
-          <span className="shrink-0 text-[11px] font-medium text-muted-foreground">All clear</span>
-        )}
-      </div>
-
-      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-        <span className="text-3xl font-bold tabular-nums tracking-tight text-foreground">
-          {stage.inFlight}
-        </span>
-        <span className="text-xs text-muted-foreground">
-          in flight · {stage.total} total
-        </span>
-      </div>
-
-      {known === 0 ? (
-        <div className="h-1.5 w-full rounded-full border border-dashed border-border bg-muted/40" />
-      ) : (
-        <div
-          className="flex h-1.5 w-full gap-px overflow-hidden rounded-full bg-border p-px"
-          role="img"
-          aria-label={`Mix: ${segments.map((s) => `${s.label} ${s.n}`).join(", ")}`}
-        >
-          {segments.map((seg) => {
-            if (seg.n === 0) return null;
-            const pct = (seg.n / known) * 100;
-            return (
-              <div
-                key={seg.key}
-                className={cn(
-                  "min-w-1 rounded-sm first:rounded-l-[calc(var(--radius)-2px)] last:rounded-r-[calc(var(--radius)-2px)]",
-                  STATUS_BUCKET_FILL[seg.tone]
-                )}
-                style={{ width: `${pct}%` }}
-                title={`${seg.label}: ${seg.n} (${Math.round(pct)}%)`}
-              />
-            );
-          })}
-        </div>
-      )}
-
-      <dl className="space-y-1.5 text-[11px]">
-        {segments.map((seg) => (
-          <div key={seg.key} className="flex items-center justify-between gap-3">
-            <dt className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
-              <span
-                className={cn("h-1.5 w-1.5 shrink-0 rounded-full", STATUS_BUCKET_FILL[seg.tone])}
-                aria-hidden
-              />
-              <span className="truncate" title={seg.label}>
-                {seg.label}
-              </span>
-            </dt>
-            <dd className="shrink-0 font-semibold tabular-nums text-foreground">{seg.n}</dd>
+          <div
+            className="flex h-3.5 w-full gap-0.5 overflow-hidden rounded-full"
+            role="img"
+            aria-label={`Mix: ${segments.map((s) => `${s.label} ${s.n}`).join(", ")}`}
+          >
+            {segments.map((seg) => {
+              if (seg.n === 0) return null;
+              const pct = (seg.n / known) * 100;
+              return (
+                <div
+                  key={seg.key}
+                  className={STATUS_BUCKET_FILL[seg.tone]}
+                  style={{ width: `${pct}%` }}
+                  title={`${seg.label}: ${seg.n} (${Math.round(pct)}%)`}
+                />
+              );
+            })}
           </div>
-        ))}
-      </dl>
-    </>
+        )}
+        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-meta text-muted-foreground">
+          {segments.map((seg) => (
+            <span key={seg.key} className="inline-flex items-center gap-1.5">
+              <span className={cn("h-2 w-2 shrink-0 rounded-[2px]", STATUS_BUCKET_FILL[seg.tone])} aria-hidden />
+              {seg.label} {seg.n}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div className="text-left md:text-right">
+        <div className="text-3xl font-bold tabular-nums tracking-tight leading-none text-foreground">
+          {stage.inFlight}
+        </div>
+        <div className="mt-1 text-meta text-muted-foreground">in flight</div>
+      </div>
+    </div>
+  );
+
+  const className = cn(
+    "block min-w-0 border-b border-border last:border-b-0",
+    canNavigate && "rounded-lg transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
   );
 
   if (canNavigate) {
     return (
-      <Link href={stage.href} className={navClassName}>
+      <Link href={stage.href} className={className}>
         {inner}
       </Link>
     );
   }
 
-  return <div className={navClassName}>{inner}</div>;
+  return <div className={className}>{inner}</div>;
 }
 
 function PipelineSkeleton() {
   return (
-    <Card className="rounded-2xl shadow-sm">
-      <CardHeader>
-        <Skeleton className="h-5 w-48" />
-        <Skeleton className="mt-2 h-4 w-72 max-w-full" />
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-4">
+    <section>
+      <DashboardSectionHeader
+        title="Lifecycle pipeline"
+        subtitle="Onboarding → Applications → Facilities → Notes"
+      />
+      <Card className="rounded-2xl shadow-sm">
+        <CardContent className="space-y-4 px-6 py-5">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-48 rounded-xl" />
+            <Skeleton key={i} className="h-16 w-full rounded-xl" />
           ))}
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </section>
   );
 }
 
@@ -236,8 +230,9 @@ export function OperationsSection({
       actionRequired: pending,
       inFlightLabel: "In progress",
       doneLabel: "Approved",
-      lostLabel: "Rejected/expired",
+      lostLabel: "Rejected / expired",
       lostTone: "rejected",
+      actionLabel: "to act",
     },
     {
       key: "applications",
@@ -253,6 +248,7 @@ export function OperationsSection({
       doneLabel: "Approved",
       lostLabel: "Closed",
       lostTone: "neutral",
+      actionLabel: "to act",
     },
     {
       key: "contracts",
@@ -268,6 +264,7 @@ export function OperationsSection({
       doneLabel: "Approved",
       lostLabel: "Closed",
       lostTone: "rejected",
+      actionLabel: "to act",
     },
     {
       key: "notes",
@@ -281,8 +278,9 @@ export function OperationsSection({
       actionRequired: nts.distressed,
       inFlightLabel: "Live",
       doneLabel: "Repaid",
-      lostLabel: "Distressed/closed",
+      lostLabel: "Distressed / closed",
       lostTone: "rejected",
+      actionLabel: "distressed",
     },
   ];
 
@@ -296,21 +294,14 @@ export function OperationsSection({
   const totalActionRequired = stages.reduce((sum, s) => sum + s.actionRequired, 0);
 
   return (
-    <Card className="rounded-2xl shadow-sm">
-      <CardHeader className="pb-2">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <CardTitle className="text-base font-medium">Lifecycle pipeline</CardTitle>
-            <p className="mt-1 text-sm text-muted-foreground">
-              <span className="sm:hidden">Pipeline stages from onboarding to notes</span>
-              <span className="hidden sm:inline">
-                Onboarding → Applications → Facilities → Notes
-              </span>
-            </p>
-          </div>
+    <section>
+      <DashboardSectionHeader
+        title="Lifecycle pipeline"
+        subtitle="Onboarding → Applications → Facilities → Notes"
+        action={
           <span
             className={cn(
-              "inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-normal",
+              "inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-ui",
               totalActionRequired > 0
                 ? "bg-status-action-bg text-status-action-text"
                 : "bg-status-neutral-bg text-status-neutral-text"
@@ -319,28 +310,19 @@ export function OperationsSection({
             <ExclamationTriangleIcon className="h-3.5 w-3.5" aria-hidden />
             {totalActionRequired} action{totalActionRequired === 1 ? "" : "s"} required
           </span>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto_minmax(0,1fr)_auto_minmax(0,1fr)] 2xl:items-stretch">
-          {stages.map((stage, i) => (
-            <React.Fragment key={stage.key}>
-              <StageCard
-                stage={stage}
-                canNavigate={can(stageNavPermissions[stage.key])}
-              />
-              {i < stages.length - 1 ? (
-                <div
-                  className="hidden items-center justify-center text-muted-foreground 2xl:flex"
-                  aria-hidden
-                >
-                  <ArrowRightIcon className="h-5 w-5" />
-                </div>
-              ) : null}
-            </React.Fragment>
+        }
+      />
+      <Card className="rounded-2xl shadow-sm">
+        <CardContent className="px-6 py-1 md:px-6">
+          {stages.map((stage) => (
+            <StageRow
+              key={stage.key}
+              stage={stage}
+              canNavigate={can(stageNavPermissions[stage.key])}
+            />
           ))}
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </section>
   );
 }

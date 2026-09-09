@@ -45,6 +45,17 @@ export function formatQueueCount(count: number): string {
   return count > 99 ? "99+" : String(count);
 }
 
+export function queueProgressPercent(count: number, maxCount: number): number {
+  if (maxCount <= 0) return 0;
+  return Math.min(100, (count / maxCount) * 100);
+}
+
+export function queueCardTone(queue: Pick<QuickActionQueue, "id" | "variant">): "rejected" | "action" {
+  if (queue.id === "default-eligible") return "rejected";
+  if (queue.variant === "urgent") return "rejected";
+  return "action";
+}
+
 export function dashboardQueueDescription(input: {
   ready: boolean;
   queueCount: number;

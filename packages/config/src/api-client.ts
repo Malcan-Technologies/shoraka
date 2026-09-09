@@ -105,6 +105,13 @@ import type {
   AdminInvestmentSettlementConfirmationsPayload,
   NoteSettlementPreviewResult,
   NoteActionRequiredCountResponse,
+  NoteDefaultEligibleCountResponse,
+  NoteServicingLetter,
+  WaiveLateChargeInput,
+  ReportCatalogResponse,
+  ReportKey,
+  ReportQuery,
+  ReportResult,
   GetAdminInvestmentsParams,
   GetAdminInvestmentsResponse,
   PendingIssuerPayoutsResponse,
@@ -1522,6 +1529,12 @@ export class ApiClient {
     return this.get<NoteActionRequiredCountResponse>("/v1/admin/notes/action-count");
   }
 
+  async getAdminNoteDefaultEligibleCount(): Promise<
+    ApiResponse<NoteDefaultEligibleCountResponse> | ApiError
+  > {
+    return this.get<NoteDefaultEligibleCountResponse>("/v1/admin/notes/default-eligible-count");
+  }
+
   async getAdminPendingRepayments(): Promise<ApiResponse<PendingRepaymentsResponse> | ApiError> {
     return this.get<PendingRepaymentsResponse>("/v1/admin/notes/pending-repayments");
   }
@@ -1632,6 +1645,38 @@ export class ApiClient {
     data: Record<string, unknown>
   ): Promise<ApiResponse<Record<string, unknown>> | ApiError> {
     return this.post<Record<string, unknown>>(`/v1/admin/notes/${id}/late-charge/approve`, data);
+  }
+
+  async waiveAdminNoteLateCharge(
+    id: string,
+    data: WaiveLateChargeInput
+  ): Promise<ApiResponse<NoteDetail> | ApiError> {
+    return this.post<NoteDetail>(`/v1/admin/notes/${id}/late-charge/waive`, data);
+  }
+
+  async getAdminNoteServicingLetters(
+    id: string
+  ): Promise<ApiResponse<NoteServicingLetter[]> | ApiError> {
+    return this.get<NoteServicingLetter[]>(`/v1/admin/notes/${id}/servicing-letters`);
+  }
+
+  async getAdminNoteServicingLetterViewUrl(
+    id: string,
+    letterId: string
+  ): Promise<ApiResponse<{ viewUrl: string; expiresIn: number }> | ApiError> {
+    return this.get<{ viewUrl: string; expiresIn: number }>(
+      `/v1/admin/notes/${id}/servicing-letters/${letterId}/view`
+    );
+  }
+
+  async resendAdminNoteServicingLetter(
+    id: string,
+    letterId: string
+  ): Promise<ApiResponse<{ s3Key: string; sentTo: string[] }> | ApiError> {
+    return this.post<{ s3Key: string; sentTo: string[] }>(
+      `/v1/admin/notes/${id}/servicing-letters/${letterId}/resend`,
+      {}
+    );
   }
 
   async generateAdminNoteArrearsLetter(
@@ -2618,6 +2663,44 @@ export class ApiClient {
   // Admin - Dashboard Statistics
   async getDashboardStats(): Promise<ApiResponse<DashboardStatsResponse> | ApiError> {
     return this.get<DashboardStatsResponse>(`/v1/admin/dashboard/stats`);
+  }
+
+  async getAdminReportCatalog(): Promise<ApiResponse<ReportCatalogResponse> | ApiError> {
+    return this.get<ReportCatalogResponse>("/v1/admin/reports");
+  }
+
+  async getAdminReport(
+    key: ReportKey,
+    params: ReportQuery = {}
+  ): Promise<ApiResponse<ReportResult> | ApiError> {
+    const search = new URLSearchParams();
+    if (params.asOf) search.set("asOf", params.asOf);
+    if (params.from) search.set("from", params.from);
+    if (params.to) search.set("to", params.to);
+    if (params.groupBy) search.set("groupBy", params.groupBy);
+    search.set("format", "json");
+    return this.get<ReportResult>(`/v1/admin/reports/${key}?${search.toString()}`);
+  }
+
+  async downloadAdminReport(
+    key: ReportKey,
+    params: ReportQuery & { format: "csv" | "xlsx" }
+  ): Promise<Blob> {
+    const search = new URLSearchParams();
+    if (params.asOf) search.set("asOf", params.asOf);
+    if (params.from) search.set("from", params.from);
+    if (params.to) search.set("to", params.to);
+    if (params.groupBy) search.set("groupBy", params.groupBy);
+    search.set("format", params.format);
+    const url = `${this.baseUrl}/v1/admin/reports/${key}?${search.toString()}`;
+    const authToken = await this.getAuthToken();
+    const headers: HeadersInit = {};
+    if (authToken) headers.Authorization = `Bearer ${authToken}`;
+    const response = await fetch(url, { method: "GET", credentials: "include", headers });
+    if (!response.ok) {
+      throw new Error(`Report download failed (${response.status})`);
+    }
+    return response.blob();
   }
 
   // Admin - Access Logs
@@ -4095,6 +4178,15 @@ export class ApiClient {
 
   async getIssuerNote(id: string): Promise<ApiResponse<NoteDetail> | ApiError> {
     return this.get<NoteDetail>(`/v1/issuer/notes/${id}`);
+  }
+
+  async getIssuerServicingLetterViewUrl(
+    noteId: string,
+    letterId: string
+  ): Promise<ApiResponse<{ viewUrl: string; expiresIn: number }> | ApiError> {
+    return this.get<{ viewUrl: string; expiresIn: number }>(
+      `/v1/issuer/notes/${noteId}/servicing-letters/${letterId}/view`
+    );
   }
 
   async getIssuerNotePaymentInstructions(

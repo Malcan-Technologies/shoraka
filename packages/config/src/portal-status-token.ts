@@ -57,6 +57,8 @@ const YOUR_ACTION_STATUSES = new Set([
   "SENT",
   "IN_PROGRESS",
   "SIGNING_IN_PROGRESS",
+  "OVERDUE",
+  "LATE",
 ]);
 
 /** Blue — waiting on CashSouk, trustee, or another party. Inverse of admin-must-act. */

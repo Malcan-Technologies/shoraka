@@ -61,7 +61,7 @@ export function useNoteSourceInvoices() {
   });
 }
 
-export function useNoteBucketBalances() {
+export function useNoteBucketBalances({ enabled = true }: { enabled?: boolean } = {}) {
   const apiClient = useNotesApiClient();
   return useQuery({
     queryKey: [...notesKeys.all, "bucket-balances"],
@@ -70,6 +70,7 @@ export function useNoteBucketBalances() {
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },
+    enabled,
   });
 }
 
@@ -93,6 +94,21 @@ export function useNoteActionRequiredCount({ enabled = true }: { enabled?: boole
     queryKey: [...notesKeys.all, "action-count"],
     queryFn: async () => {
       const response = await apiClient.getAdminNoteActionRequiredCount();
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+    staleTime: 30000,
+    refetchInterval: 60000,
+    enabled,
+  });
+}
+
+export function useDefaultEligibleCount({ enabled = true }: { enabled?: boolean } = {}) {
+  const apiClient = useNotesApiClient();
+  return useQuery({
+    queryKey: [...notesKeys.all, "default-eligible-count"],
+    queryFn: async () => {
+      const response = await apiClient.getAdminNoteDefaultEligibleCount();
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },
@@ -592,6 +608,66 @@ export function useGenerateDefaultLetter() {
       const response = await apiClient.generateAdminNoteDefaultLetter(id);
       if (!response.success) throw new Error(response.error.message);
       return { ...response.data, noteId: id };
+    },
+    onSuccess: ({ noteId }) => {
+      invalidateAdminRegistries(queryClient);
+      queryClient.invalidateQueries({ queryKey: notesKeys.detail(noteId) });
+    },
+  });
+}
+
+export function useWaiveNoteLateCharge() {
+  const apiClient = useNotesApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      tawidhAmount,
+      gharamahAmount,
+      reason,
+      settlementId,
+    }: {
+      id: string;
+      tawidhAmount?: number;
+      gharamahAmount?: number;
+      reason: string;
+      settlementId?: string;
+    }) => {
+      const response = await apiClient.waiveAdminNoteLateCharge(id, {
+        tawidhAmount,
+        gharamahAmount,
+        reason,
+        settlementId,
+      });
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+    onSuccess: (note) => {
+      invalidateAdminRegistries(queryClient);
+      queryClient.invalidateQueries({ queryKey: notesKeys.detail(note.id) });
+    },
+  });
+}
+
+export function useAdminNoteServicingLetterViewUrl() {
+  const apiClient = useNotesApiClient();
+  return useMutation({
+    mutationFn: async ({ noteId, letterId }: { noteId: string; letterId: string }) => {
+      const response = await apiClient.getAdminNoteServicingLetterViewUrl(noteId, letterId);
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+  });
+}
+
+export function useResendNoteServicingLetter() {
+  const apiClient = useNotesApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ noteId, letterId }: { noteId: string; letterId: string }) => {
+      const response = await apiClient.resendAdminNoteServicingLetter(noteId, letterId);
+      if (!response.success) throw new Error(response.error.message);
+      return { ...response.data, noteId };
     },
     onSuccess: ({ noteId }) => {
       invalidateAdminRegistries(queryClient);

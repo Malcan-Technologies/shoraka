@@ -12,6 +12,7 @@ import { runGatewayReceiptRetryJob } from "./gateway-receipt-retry";
 import { runInvestmentNoteCertificateRetryJob } from "./investment-note-certificate-retry";
 import { runSettlementHibahReceiptRetryJob } from "./settlement-hibah-receipt-retry";
 import { runInvestmentSettlementConfirmationRetryJob } from "./investment-settlement-confirmation-retry";
+import { runNoteServicingStatusJob } from "./note-servicing-status";
 import { JOB_LOCK_KEYS, withAdvisoryLock } from "./with-advisory-lock";
 
 const notificationService = new NotificationService();
@@ -165,6 +166,23 @@ export function initJobs() {
       }
     });
   });
+
+  // Daily note servicing status, DPD, indicative fees, and position snapshots at 00:30 MYT.
+  cron.schedule(
+    "30 0 * * *",
+    async () => {
+      await withAdvisoryLock(JOB_LOCK_KEYS.NOTE_SERVICING_STATUS, async () => {
+        logger.info("Starting note servicing status job...");
+        try {
+          const result = await runNoteServicingStatusJob();
+          logger.info(result, "Note servicing status job completed");
+        } catch (error) {
+          logger.error({ error }, "Failed to run note servicing status job");
+        }
+      });
+    },
+    { timezone: "Asia/Kuala_Lumpur" }
+  );
 
   // Daily Curlec settlement recon at 02:00 MYT (18:00 UTC).
   cron.schedule("0 18 * * *", async () => {

@@ -17,6 +17,8 @@ describe("getUserPortalStatusToken", () => {
     expect(getUserPortalStatusToken("OFFER_SENT")).toBe("action");
     expect(getUserPortalStatusToken("AMENDMENT_REQUESTED")).toBe("action");
     expect(getUserPortalStatusToken("CONTRACT_SENT")).toBe("action");
+    expect(getUserPortalStatusToken("OVERDUE")).toBe("action");
+    expect(getUserPortalStatusToken("LATE")).toBe("action");
   });
 
   it("maps waiting-on-CashSouk statuses to blue", () => {

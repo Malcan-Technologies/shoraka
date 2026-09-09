@@ -197,6 +197,7 @@ export function resolveIssuerInvoiceDashboardBadge(
     ns === "FAILED_FUNDING" ||
     ns === "CANCELLED" ||
     ns === "DEFAULTED" ||
+    ss === "DEFAULTED" ||
     ns === "FAILED" ||
     ns === "WITHDRAWN" ||
     fs === "FAILED"
@@ -208,14 +209,11 @@ export function resolveIssuerInvoiceDashboardBadge(
     return "completed";
   }
 
-  if (
-    ns === "ARREARS" ||
-    ss === "ARREARS"
-  ) {
+  if (ns === "ARREARS" || ss === "ARREARS") {
     return "arrears";
   }
 
-  if (ss === "LATE") {
+  if (ss === "OVERDUE" || ss === "LATE") {
     return "action_required";
   }
 

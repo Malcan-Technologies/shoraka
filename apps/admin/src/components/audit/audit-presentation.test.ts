@@ -23,7 +23,10 @@ describe("audit presentation", () => {
     expect(formatAuditEventLabel("APPLICATION_RESUBMITTED")).toBe("Application Resubmitted");
     expect(formatAuditEventLabel("AMENDMENTS_SUBMITTED")).toBe("Amendment Request Sent");
     expect(formatAuditEventLabel("AMENDMENTS_SUBMITTED")).not.toBe("Amendments Submitted");
-    expect(formatAuditEventLabel("NOTE_ARREARS")).toBe("Note Arrears");
+    expect(formatAuditEventLabel("NOTE_ARREARS")).toBe("Note Entered Arrears");
+    expect(formatAuditEventLabel("NOTE_OVERDUE")).toBe("Note Overdue");
+    expect(formatAuditEventLabel("NOTE_LETTER_SENT")).toBe("Servicing Letter Sent");
+    expect(formatAuditEventLabel("LATE_CHARGE_WAIVED")).toBe("Late Charge Waived");
     expect(formatAuditEventLabel("PROFILE_UPDATED", { PROFILE_UPDATED: "User Profile Updated" })).toBe(
       "User Profile Updated"
     );
@@ -33,7 +36,7 @@ describe("audit presentation", () => {
     expect(formatAuditEventLabel("MEMBER_INVITED")).toBe("Member Invited");
     expect(formatAuditEventLabel("MEMBER_REMOVED")).toBe("Member Removed");
     expect(formatAuditEventLabel("MEMBER_ROLE_CHANGED")).toBe("Member Role Changed");
-    expect(formatAuditEventLabel("OVERDUE_LATE_CHARGE_CHECKED")).toBe("Note Entered Arrears");
+    expect(formatAuditEventLabel("OVERDUE_LATE_CHARGE_CHECKED")).toBe("Overdue Check Completed");
     expect(formatAuditEventLabel("ONBOARDING_APPROVED")).toBe("Onboarding Submission Approved");
     expect(formatAuditEventLabel("EOD_APPROVED")).toBe("Entity Onboarding Data Approved");
     expect(formatAuditEventLabel("EOD_REJECTED")).toBe("Entity Onboarding Data Rejected");

@@ -9,6 +9,7 @@ import {
   ClipboardDocumentCheckIcon,
   DocumentCheckIcon,
   DocumentTextIcon,
+  ExclamationTriangleIcon,
 } from "@heroicons/react/24/outline";
 import {
   activeProductPendingActionTotal,
@@ -25,6 +26,7 @@ import { useApplicationNavCounts } from "@/hooks/use-application-nav-counts";
 import { usePendingApprovalCount } from "@/hooks/use-pending-approval-count";
 import { useProducts } from "@/hooks/use-products";
 import {
+  useDefaultEligibleCount,
   useNoteActionRequiredCount,
   usePendingInvestorWithdrawals,
   usePendingIssuerPayouts,
@@ -40,6 +42,7 @@ export function useQuickActionQueues({ loading = false }: { loading?: boolean } 
   const canOnboarding = can("onboarding.view");
   const canApplications = can("applications.view");
   const canNotes = can("notes.view");
+  const canDefaultEligible = can("notes.view") || can("notes.default.manage");
   const canRepayments = can("repayments.view");
   const canSettlements = can("settlements.view");
   const canDisbursements = can("disbursements.view");
@@ -53,6 +56,10 @@ export function useQuickActionQueues({ loading = false }: { loading?: boolean } 
   const { data: noteActionCountData, isLoading: isNoteActionCountLoading } =
     useNoteActionRequiredCount({
       enabled: canNotes,
+    });
+  const { data: defaultEligibleData, isLoading: isDefaultEligibleLoading } =
+    useDefaultEligibleCount({
+      enabled: canDefaultEligible,
     });
   const { data: pendingRepaymentsData, isLoading: isPendingRepaymentsLoading } =
     usePendingRepayments({
@@ -86,6 +93,7 @@ export function useQuickActionQueues({ loading = false }: { loading?: boolean } 
   );
   const applicationActionCount = activeProductPendingActionTotal(applicationNavGroups);
   const noteActionCount = noteActionCountData?.count ?? 0;
+  const defaultEligibleCount = defaultEligibleData?.count ?? 0;
   const pendingRepaymentsCount = pendingRepaymentsData?.count ?? 0;
   const pendingIssuerPayoutsCount = pendingIssuerPayoutsData?.count ?? 0;
   const pendingInvestorWithdrawalsCount = pendingInvestorWithdrawalsData?.count ?? 0;
@@ -144,6 +152,20 @@ export function useQuickActionQueues({ loading = false }: { loading?: boolean } 
         icon: DocumentTextIcon,
         variant: urgencyVariant(noteActionCount, 5, 0),
         isLoading: loading || isNoteActionCountLoading,
+      });
+    }
+    if (canDefaultEligible) {
+      list.push({
+        id: "default-eligible",
+        title: "Default eligible",
+        shortTitle: "Default",
+        description: "Arrears notes that can be marked as default",
+        count: defaultEligibleCount,
+        countLabel: "notes",
+        href: "/notes?servicingStatus=ARREARS",
+        icon: ExclamationTriangleIcon,
+        variant: urgencyVariant(defaultEligibleCount, 3, 0),
+        isLoading: loading || isDefaultEligibleLoading,
       });
     }
     if (canRepayments) {
@@ -236,6 +258,7 @@ export function useQuickActionQueues({ loading = false }: { loading?: boolean } 
     applicationActionCount,
     applicationActionHref,
     canApplications,
+    canDefaultEligible,
     canDisbursements,
     canNotes,
     canOnboarding,
@@ -248,6 +271,8 @@ export function useQuickActionQueues({ loading = false }: { loading?: boolean } 
     gatewayReconExceptionsCount,
     isNavCountsLoading,
     isGatewayPaymentExceptionsLoading,
+    defaultEligibleCount,
+    isDefaultEligibleLoading,
     isGatewayReconExceptionsLoading,
     isNoteActionCountLoading,
     isPendingCountLoading,

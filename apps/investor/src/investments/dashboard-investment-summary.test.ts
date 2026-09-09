@@ -146,4 +146,22 @@ describe("buildDashboardInvestmentSummary", () => {
 
     expect(buildDashboardInvestmentSummary([smaller, larger]).realizedPerformance).toBe(13);
   });
+
+  it("counts OVERDUE with late and arrears as under-performing", () => {
+    const overdue = note({
+      id: "overdue",
+      servicingStatus: "OVERDUE" as NoteListItem["servicingStatus"],
+      daysPastDue: 5,
+    });
+    const late = note({
+      id: "late",
+      servicingStatus: "LATE" as NoteListItem["servicingStatus"],
+    });
+    const current = note({ id: "current" });
+
+    const summary = buildDashboardInvestmentSummary([overdue, late, current]);
+    expect(summary.activeInvestments).toBe(1);
+    expect(summary.underPerformingInvestments).toBe(2);
+    expect(summary.defaultedInvestments).toBe(0);
+  });
 });

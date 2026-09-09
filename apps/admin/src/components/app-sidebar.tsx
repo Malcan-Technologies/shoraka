@@ -27,6 +27,7 @@ import {
   BuildingLibraryIcon,
   BellIcon,
   ShieldCheckIcon,
+  ChartBarSquareIcon,
 } from "@heroicons/react/24/outline";
 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -391,6 +392,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
   const { can } = usePermissions();
   const canViewDashboard = can("dashboard.view");
+  const canViewReports = can("reports.view");
   const canViewOnboarding = can("onboarding.view");
   const canViewApplications = can("applications.view");
   const canViewContracts = can("contracts.view");
@@ -563,6 +565,20 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     <Link href="/">
                       <HomeIcon className="h-4 w-4" />
                       <span>Dashboard</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ) : null}
+              {canViewReports ? (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname === "/reports" || pathname.startsWith("/reports/")}
+                    tooltip="Reports"
+                  >
+                    <Link href="/reports">
+                      <ChartBarSquareIcon className="h-4 w-4" />
+                      <span>Reports</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

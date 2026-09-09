@@ -225,6 +225,7 @@ export function latePaymentPhaseTone(
     | "not-available"
     | "not-needed"
     | "in-grace"
+    | "late"
     | "arrears"
     | "default-eligible"
     | "defaulted"
@@ -232,6 +233,7 @@ export function latePaymentPhaseTone(
   if (phase === "not-needed") return "success";
   if (phase === "not-available") return "neutral";
   if (phase === "in-grace") return "warning";
+  if (phase === "late") return "active";
   if (phase === "arrears" || phase === "default-eligible" || phase === "defaulted") {
     return "danger";
   }

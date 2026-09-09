@@ -50,7 +50,12 @@ export function isIssuerNoteActionable(note: NoteListItem, now: Date = new Date(
   if (isNoteFullySettled(note)) return false;
   const status = String(note.status ?? "").toUpperCase();
   const servicing = String(note.servicingStatus ?? "").toUpperCase();
-  if (isIssuerNoteInArrears(note) || servicing === "LATE") {
+  if (
+    isIssuerNoteInArrears(note) ||
+    servicing === "OVERDUE" ||
+    servicing === "LATE" ||
+    servicing === "DEFAULTED"
+  ) {
     return true;
   }
   if (!note.maturityDate) return false;

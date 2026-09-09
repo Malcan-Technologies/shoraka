@@ -379,6 +379,116 @@ export async function notifyNoteSettlementPosted(args: {
   }
 }
 
+async function notifyIssuerNoteEvent(args: {
+  notificationService: NotificationService;
+  typeId:
+    | typeof NotificationTypeIds.NOTE_REPAYMENT_DUE_SOON
+    | typeof NotificationTypeIds.NOTE_OVERDUE
+    | typeof NotificationTypeIds.NOTE_LATE
+    | typeof NotificationTypeIds.NOTE_ARREARS;
+  noteId: string;
+  issuerOrganizationId: string;
+  payload: NotificationPayloads[typeof args.typeId];
+  eventKey: string;
+  stage: string;
+}): Promise<void> {
+  try {
+    const results = await sendToIssuerOrg(
+      args.notificationService,
+      args.issuerOrganizationId,
+      args.typeId,
+      args.payload,
+      args.eventKey
+    );
+    await args.notificationService.logTypedSystemBatch(args.typeId, args.payload, results, {
+      idempotencyKey: systemNotificationLogKey(args.typeId, args.eventKey),
+    });
+  } catch (err) {
+    logLifecycleError(args.stage, args.noteId, err);
+  }
+}
+
+export async function notifyNoteRepaymentDueSoon(args: {
+  notificationService: NotificationService;
+  noteId: string;
+  issuerOrganizationId: string;
+  noteTitle: string;
+  daysUntilDue: number;
+}): Promise<void> {
+  const kind = args.daysUntilDue <= 1 ? "t1" : "t7";
+  await notifyIssuerNoteEvent({
+    notificationService: args.notificationService,
+    typeId: NotificationTypeIds.NOTE_REPAYMENT_DUE_SOON,
+    noteId: args.noteId,
+    issuerOrganizationId: args.issuerOrganizationId,
+    payload: {
+      noteId: args.noteId,
+      noteTitle: args.noteTitle,
+      daysUntilDue: args.daysUntilDue,
+    },
+    eventKey: `note:servicing:${args.noteId}:due_soon:${kind}`,
+    stage: `due_soon_${kind}`,
+  });
+}
+
+export async function notifyNoteOverdue(args: {
+  notificationService: NotificationService;
+  noteId: string;
+  issuerOrganizationId: string;
+  noteTitle: string;
+}): Promise<void> {
+  await notifyIssuerNoteEvent({
+    notificationService: args.notificationService,
+    typeId: NotificationTypeIds.NOTE_OVERDUE,
+    noteId: args.noteId,
+    issuerOrganizationId: args.issuerOrganizationId,
+    payload: { noteId: args.noteId, noteTitle: args.noteTitle },
+    eventKey: `note:servicing:${args.noteId}:overdue`,
+    stage: "overdue_issuer",
+  });
+}
+
+export async function notifyNoteLate(args: {
+  notificationService: NotificationService;
+  noteId: string;
+  issuerOrganizationId: string;
+  noteTitle: string;
+}): Promise<void> {
+  const payload = { noteId: args.noteId, noteTitle: args.noteTitle };
+  await notifyIssuerNoteEvent({
+    notificationService: args.notificationService,
+    typeId: NotificationTypeIds.NOTE_LATE,
+    noteId: args.noteId,
+    issuerOrganizationId: args.issuerOrganizationId,
+    payload,
+    eventKey: `note:servicing:${args.noteId}:late`,
+    stage: "late_issuer",
+  });
+  try {
+    const results = await sendToInvestorsOnNote(
+      args.notificationService,
+      args.noteId,
+      [NoteInvestmentStatus.CONFIRMED],
+      NotificationTypeIds.NOTE_LATE_INVESTOR,
+      payload,
+      `note:servicing:${args.noteId}:late:investor`
+    );
+    await args.notificationService.logTypedSystemBatch(
+      NotificationTypeIds.NOTE_LATE_INVESTOR,
+      payload,
+      results,
+      {
+        idempotencyKey: systemNotificationLogKey(
+          NotificationTypeIds.NOTE_LATE_INVESTOR,
+          `note:servicing:${args.noteId}:late:investor`
+        ),
+      }
+    );
+  } catch (err) {
+    logLifecycleError("late_investor", args.noteId, err);
+  }
+}
+
 export async function notifyNoteArrears(args: {
   notificationService: NotificationService;
   noteId: string;

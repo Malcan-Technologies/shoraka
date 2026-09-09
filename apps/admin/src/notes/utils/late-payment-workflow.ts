@@ -8,6 +8,7 @@ export type LatePaymentWorkflowPhase =
   | "not-available"
   | "not-needed"
   | "in-grace"
+  | "late"
   | "arrears"
   | "default-eligible"
   | "defaulted";
@@ -46,7 +47,8 @@ export const LATE_PAYMENT_WORKFLOW_BADGE: Record<
 > = {
   "not-available": latePaymentWorkflowBadge("not-available", "Not available"),
   "not-needed": latePaymentWorkflowBadge("not-needed", "Not needed"),
-  "in-grace": latePaymentWorkflowBadge("in-grace", "In grace"),
+  "in-grace": latePaymentWorkflowBadge("in-grace", "Overdue"),
+  late: latePaymentWorkflowBadge("late", "Late"),
   arrears: latePaymentWorkflowBadge("arrears", "Arrears"),
   "default-eligible": latePaymentWorkflowBadge("default-eligible", "Default eligible"),
   defaulted: latePaymentWorkflowBadge("defaulted", "Defaulted"),
@@ -88,7 +90,7 @@ function formatOverdueByLabel(daysPastMaturity: number) {
 function buildInGraceLabels(daysPastMaturity: number) {
   const timing = formatOverdueByLabel(daysPastMaturity);
   return {
-    workflowLabel: "In grace",
+    workflowLabel: "Overdue",
     servicingTimingLabel: timing,
     latePaymentTimingLabel: timing,
     latePaymentTimingDetail: null,
@@ -97,10 +99,14 @@ function buildInGraceLabels(daysPastMaturity: number) {
   };
 }
 
-function buildPastGraceLabels(daysPastMaturity: number, phase: "arrears" | "default-eligible") {
+function buildPastGraceLabels(
+  daysPastMaturity: number,
+  phase: "late" | "arrears" | "default-eligible"
+) {
   const timing = formatOverdueByLabel(daysPastMaturity);
   return {
-    workflowLabel: phase === "default-eligible" ? "Default eligible" : "Arrears",
+    workflowLabel:
+      phase === "default-eligible" ? "Default eligible" : phase === "late" ? "Late" : "Arrears",
     servicingTimingLabel: timing,
     latePaymentTimingLabel: timing,
     latePaymentTimingDetail: null,
@@ -216,6 +222,48 @@ export function resolveLatePaymentTimeline(note: NoteDetail): LatePaymentTimelin
   const graceDaysLeft = Math.max(0, note.gracePeriodDays - daysPastMaturity);
   const daysAfterGrace = daysOverdue;
 
+  const persistedDpd = Number(note.daysPastDue ?? daysPastMaturity);
+  const timingDays = persistedDpd > 0 ? persistedDpd : daysPastMaturity;
+
+  if (note.servicingStatus === "ARREARS") {
+    return {
+      phase: "default-eligible",
+      dueDate,
+      daysUntilDue: 0,
+      daysPastMaturity: timingDays,
+      daysOverdue,
+      graceDaysLeft,
+      daysAfterGrace,
+      ...buildPastGraceLabels(timingDays, "default-eligible"),
+    };
+  }
+
+  if (note.servicingStatus === "LATE") {
+    return {
+      phase: "late",
+      dueDate,
+      daysUntilDue: 0,
+      daysPastMaturity: timingDays,
+      daysOverdue,
+      graceDaysLeft,
+      daysAfterGrace,
+      ...buildPastGraceLabels(timingDays, "late"),
+    };
+  }
+
+  if (note.servicingStatus === "OVERDUE") {
+    return {
+      phase: "in-grace",
+      dueDate,
+      daysUntilDue: 0,
+      daysPastMaturity: timingDays,
+      daysOverdue,
+      graceDaysLeft,
+      daysAfterGrace,
+      ...buildInGraceLabels(timingDays),
+    };
+  }
+
   if (daysPastMaturity <= 0) {
     const dueLabel = formatDueInLabel(daysUntilDue);
     return {
@@ -250,9 +298,9 @@ export function resolveLatePaymentTimeline(note: NoteDetail): LatePaymentTimelin
   }
 
   if (daysAfterGrace < note.arrearsThresholdDays) {
-    const pastGrace = buildPastGraceLabels(daysPastMaturity, "arrears");
+    const pastGrace = buildPastGraceLabels(daysPastMaturity, "late");
     return {
-      phase: "arrears",
+      phase: "late",
       dueDate,
       daysUntilDue: 0,
       daysPastMaturity,
@@ -263,16 +311,16 @@ export function resolveLatePaymentTimeline(note: NoteDetail): LatePaymentTimelin
     };
   }
 
-  const defaultEligible = buildPastGraceLabels(daysPastMaturity, "default-eligible");
+  const late = buildPastGraceLabels(daysPastMaturity, "late");
   return {
-    phase: "default-eligible",
+    phase: "late",
     dueDate,
     daysUntilDue: 0,
     daysPastMaturity,
     daysOverdue,
     graceDaysLeft,
     daysAfterGrace,
-    ...defaultEligible,
+    ...late,
   };
 }
 
@@ -352,7 +400,7 @@ export function resolveLatePaymentActionGates(input: {
     };
   }
 
-  if (timeline.phase === "arrears") {
+  if (timeline.phase === "late" || timeline.phase === "arrears") {
     return {
       canGenerateArrearsLetter: true,
       canGenerateDefaultLetter: false,
@@ -367,7 +415,7 @@ export function resolveLatePaymentActionGates(input: {
   return {
     canGenerateArrearsLetter: true,
     canGenerateDefaultLetter: true,
-    canMarkDefault: servicingStatusArrears && reasonFilled,
+    canMarkDefault: servicingStatusArrears,
     arrearsHelperText: null,
     defaultHelperText: null,
     defaultReasonHelperText: reasonFilled

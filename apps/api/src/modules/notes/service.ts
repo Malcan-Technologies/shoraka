@@ -1,6 +1,6 @@
-import PDFDocument from "pdfkit";
 import {
   ApplicationStatus,
+  DpdBucket,
   GatewayPaymentPurpose,
   GatewayPaymentStatus,
   InvestorBalanceTransactionSource,
@@ -67,6 +67,8 @@ import {
   computeNetExpectedReturnRatePercent,
   deriveGrossProfitAndServiceFeeFromNet,
   INVESTOR_RETURN_RATE_DISPLAY_DECIMALS,
+  mytCalendarParts,
+  mytStartOfDayUtc,
   resolveNotePublishAcceptanceReview,
   resolveProductImageS3KeyFromWorkflow,
   isMarketplaceCatalogNote,
@@ -132,6 +134,8 @@ import {
   notifyNoteActivated,
   notifyNoteArrears,
   notifyNoteDefaulted,
+  notifyNoteLate,
+  notifyNoteOverdue,
   notifyNoteFundingFailed,
   notifyNoteFundingSucceeded,
   notifyNoteIssuerRepaid,
@@ -184,6 +188,31 @@ import {
   resolveActualReturnProfitDays,
 } from "./calculators";
 import {
+  calendarDateInTimeZone,
+  classifyServicing,
+  noteOutstandingAmounts,
+  resolveServicingDueDate,
+  shouldAdvanceServicing,
+  tenureDaysForNote,
+} from "./servicing-classifier";
+import {
+  averageNetAnnualReturnPercent,
+  computeAtRisk,
+  computeCashflowNext90Days,
+  idleDaysSince,
+  portfolioTotalBefore,
+  principalEventsFromConfirmationsAndReturns,
+  reconstructPrincipalOnDates,
+  returnsSinceDate,
+  snapshotName,
+  sumReturnsEarned,
+  ytdChangePercent,
+} from "./investor-dashboard-metrics";
+import {
+  generateAndSendServicingLetter,
+  resendServicingLetter as resendServicingLetterRecord,
+} from "./servicing-letters/service";
+import {
   assertTenureInvestorObligationCovered,
   assertTenurePartialReceiptAllowed,
   buildTenureSettlementWaterfall,
@@ -207,6 +236,7 @@ import type {
   investorPortfolioHistoryQuerySchema,
   investorPortfolioQuerySchema,
   lateChargeSchema,
+  lateChargeWaiverSchema,
   overdueLateChargeSchema,
   paymentReviewSchema,
   approvePaymentSchema,
@@ -442,6 +472,37 @@ function toNumber(value: unknown): number {
   return 0;
 }
 
+function letterOutstandingTotal(note: {
+  funded_amount: Prisma.Decimal | number | string | null;
+  profit_rate_percent: Prisma.Decimal | number | string | null;
+  tenure_days?: number | null;
+  disbursement_value_date?: Date | null;
+  activated_at?: Date | null;
+  maturity_date?: Date | null;
+  settlements?: Array<{
+    status: NoteSettlementStatus;
+    investor_principal: Prisma.Decimal | number | string | null;
+    investor_profit_gross: Prisma.Decimal | number | string | null;
+  }>;
+}) {
+  const posted = (note.settlements ?? []).filter(
+    (settlement) => settlement.status === NoteSettlementStatus.POSTED
+  );
+  return noteOutstandingAmounts({
+    fundedAmount: toNumber(note.funded_amount),
+    recoveredPrincipal: posted.reduce(
+      (sum, settlement) => sum + toNumber(settlement.investor_principal),
+      0
+    ),
+    recoveredProfit: posted.reduce(
+      (sum, settlement) => sum + toNumber(settlement.investor_profit_gross),
+      0
+    ),
+    profitRatePercent: toNumber(note.profit_rate_percent),
+    tenureDays: tenureDaysForNote(note),
+  }).outstandingTotal;
+}
+
 function signatureImageExtensionForContentType(contentType: string): string {
   const normalized = contentType.trim().toLowerCase();
   if (normalized === "image/png") return "png";
@@ -637,6 +698,7 @@ type InvestorPortfolioHistoryPoint = {
   date: string;
   availableBalance: number;
   portfolioTotal: number;
+  principal: number;
 };
 
 type InvestorPortfolioHistoryTransaction = {
@@ -999,7 +1061,8 @@ const DEFAULT_LISTING_DURATION_DAYS = 14;
 function toReconciledPortfolioHistoryPoint(
   availableBalance: number,
   portfolioTotal: number,
-  date: string
+  date: string,
+  principal?: number
 ): InvestorPortfolioHistoryPoint {
   const committed = portfolioTotal - availableBalance;
   const totals = buildInvestorPortfolioTotals(availableBalance, committed);
@@ -1007,7 +1070,39 @@ function toReconciledPortfolioHistoryPoint(
     date,
     availableBalance: totals.availableBalance,
     portfolioTotal: totals.portfolioTotal,
+    principal: roundNoteMoney(principal ?? 0, 2),
   };
+}
+
+function settlementPrincipalReturned(tx: InvestorPortfolioHistoryTransaction): number {
+  if (tx.source !== InvestorBalanceTransactionSource.NOTE_INVESTMENT_RELEASE) return 0;
+  const metadata = asRecord(tx.metadata);
+  if (metadata?.releaseReason !== "SETTLEMENT_PAYOUT") return 0;
+  return toNumber(metadata?.principal);
+}
+
+function withLiveHistoryPrincipal(
+  points: InvestorPortfolioHistoryPoint[],
+  events: { dateKey: string; delta: number }[],
+  live: { availableBalance: number; portfolioTotal: number; confirmed: number }
+): InvestorPortfolioHistoryPoint[] {
+  if (points.length === 0) return points;
+  const principals = reconstructPrincipalOnDates(
+    events,
+    points.map((point) => point.date),
+    live.confirmed
+  );
+  return points.map((point, index) => {
+    if (index === points.length - 1) {
+      return toReconciledPortfolioHistoryPoint(
+        live.availableBalance,
+        live.portfolioTotal,
+        point.date,
+        live.confirmed
+      );
+    }
+    return { ...point, principal: principals[index] ?? 0 };
+  });
 }
 
 function resolveNoteSettlementAmount(note: {
@@ -1448,27 +1543,6 @@ function mergeAllocationsIntoPreviewSnapshot(
       ? { ...(snapshot as Record<string, unknown>) }
       : {};
   return { ...base, allocations };
-}
-
-async function renderPdfBuffer(title: string, rows: Array<[string, string]>): Promise<Buffer> {
-  const doc = new PDFDocument({ margin: 48 });
-  const chunks: Buffer[] = [];
-  doc.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
-  const done = new Promise<Buffer>((resolve) => {
-    doc.on("end", () => resolve(Buffer.concat(chunks)));
-  });
-  doc.fontSize(18).text(title, { underline: true });
-  doc.moveDown();
-  for (const [label, value] of rows) {
-    doc.fontSize(10).fillColor("#666").text(label);
-    doc
-      .fontSize(12)
-      .fillColor("#111")
-      .text(value || "-");
-    doc.moveDown(0.5);
-  }
-  doc.end();
-  return done;
 }
 
 export class NoteService {
@@ -4051,12 +4125,79 @@ export class NoteService {
     query: z.infer<typeof investorPortfolioQuerySchema> = {}
   ) {
     const orgIds = await this.resolveInvestorOrgIds(userId, query.investorOrganizationId);
-    const investments = await prisma.noteInvestment.findMany({
-      where: {
-        investor_organization_id: { in: orgIds },
-        status: { in: [NoteInvestmentStatus.COMMITTED, NoteInvestmentStatus.CONFIRMED] },
+    const orgIdSet = new Set(orgIds);
+    const now = new Date();
+    const holdingNoteSelect = {
+      id: true,
+      note_reference: true,
+      status: true,
+      servicing_status: true,
+      days_past_due: true,
+      funded_amount: true,
+      profit_rate_percent: true,
+      service_fee_rate_percent: true,
+      tenure_days: true,
+      disbursement_value_date: true,
+      activated_at: true,
+      maturity_date: true,
+      issuer_snapshot: true,
+      payment_schedules: { select: { due_date: true, sequence: true } },
+      settlements: {
+        where: { status: NoteSettlementStatus.POSTED },
+        select: {
+          investor_principal: true,
+          investor_profit_gross: true,
+          preview_snapshot: true,
+          posted_at: true,
+          profit_days: true,
+          profit_start_date: true,
+          actual_settlement_date: true,
+        },
       },
-    });
+    } as const;
+
+    const [investments, balanceRows, lastMovement, holdingRows, transactionRows] = await Promise.all([
+      prisma.noteInvestment.findMany({
+        where: {
+          investor_organization_id: { in: orgIds },
+          status: {
+            in: [
+              NoteInvestmentStatus.COMMITTED,
+              NoteInvestmentStatus.CONFIRMED,
+              NoteInvestmentStatus.SETTLED,
+            ],
+          },
+        },
+      }),
+      prisma.investorBalance.findMany({
+        where: { investor_organization_id: { in: orgIds } },
+        select: { available_amount: true },
+      }),
+      prisma.investorBalanceTransaction.findFirst({
+        where: { investor_organization_id: { in: orgIds } },
+        orderBy: { posted_at: "desc" },
+        select: { posted_at: true },
+      }),
+      prisma.noteInvestment.findMany({
+        where: {
+          investor_organization_id: { in: orgIds },
+          status: { in: [NoteInvestmentStatus.CONFIRMED, NoteInvestmentStatus.SETTLED] },
+        },
+        select: {
+          id: true,
+          amount: true,
+          status: true,
+          confirmed_at: true,
+          investor_organization_id: true,
+          note: { select: holdingNoteSelect },
+        },
+      }),
+      prisma.investorBalanceTransaction.findMany({
+        where: { investor_organization_id: { in: orgIds } },
+        orderBy: { posted_at: "asc" },
+        select: { posted_at: true, direction: true, amount: true, source: true, metadata: true },
+      }),
+    ]);
     const reserved = investments
       .filter((investment) => investment.status === NoteInvestmentStatus.COMMITTED)
       .reduce((sum, investment) => sum + toNumber(investment.amount), 0);
@@ -4064,10 +4205,6 @@ export class NoteService {
       .filter((investment) => investment.status === NoteInvestmentStatus.CONFIRMED)
       .reduce((sum, investment) => sum + toNumber(investment.amount), 0);
     const committed = reserved + confirmed;
-    const balanceRows = await prisma.investorBalance.findMany({
-      where: { investor_organization_id: { in: orgIds } },
-      select: { available_amount: true },
-    });
     const availableBalance = balanceRows.reduce(
       (sum, row) => sum + toNumber(row.available_amount),
       0
@@ -4076,9 +4213,95 @@ export class NoteService {
       reserved,
       confirmed,
     });
+
+    const holdings = holdingRows
+      .filter((row) => row.status === NoteInvestmentStatus.CONFIRMED)
+      .map((row) => {
+        const posted = row.note.settlements;
+        return {
+          noteId: row.note.id,
+          noteReference: row.note.note_reference,
+          issuerName: snapshotName(row.note.issuer_snapshot, ["name", "companyName", "legal_name"]),
+          noteStatus: row.note.status,
+          servicingStatus: row.note.servicing_status,
+          daysPastDue: row.note.days_past_due ?? 0,
+          confirmedAmount: toNumber(row.amount),
+          fundedAmount: toNumber(row.note.funded_amount),
+          recoveredPrincipal: posted.reduce((sum, settlement) => sum + toNumber(settlement.investor_principal), 0),
+          recoveredProfit: posted.reduce((sum, settlement) => sum + toNumber(settlement.investor_profit_gross), 0),
+          profitRatePercent: toNumber(row.note.profit_rate_percent),
+          serviceFeeRatePercent: toNumber(row.note.service_fee_rate_percent),
+          tenureDays: row.note.tenure_days ?? null,
+          disbursementValueDate: row.note.disbursement_value_date,
+          activatedAt: row.note.activated_at,
+          maturityDate: row.note.maturity_date,
+          paymentSchedules: row.note.payment_schedules,
+        };
+      });
+
+    const allocations = holdingRows.flatMap((row) =>
+      row.note.settlements.flatMap((settlement) => resolveSettlementAllocations(settlement.preview_snapshot))
+    );
+    const firstConfirmedAt = holdingRows
+      .map((row) => row.confirmed_at)
+      .filter((value): value is Date => value instanceof Date)
+      .sort((left, right) => left.getTime() - right.getTime())[0] ?? null;
+
+    const settledReturns = holdingRows
+      .filter((row) => row.status === NoteInvestmentStatus.SETTLED)
+      .map((row) => {
+        const posted = row.note.settlements[0] ?? null;
+        const mine = row.note.settlements
+          .flatMap((settlement) => resolveSettlementAllocations(settlement.preview_snapshot))
+          .filter(
+            (allocation) =>
+              allocation.investorOrganizationId === row.investor_organization_id &&
+              allocation.investmentId === row.id
+          );
+        const matched =
+          mine.length > 0
+            ? mine
+            : row.note.settlements
+                .flatMap((settlement) => resolveSettlementAllocations(settlement.preview_snapshot))
+                .filter((allocation) => orgIdSet.has(allocation.investorOrganizationId));
+        return {
+          investedPrincipal: toNumber(row.amount),
+          receivedProfitNetAmount: matched.reduce((sum, allocation) => sum + allocation.profitNet, 0),
+          receivedTawidhCompensationAmount: matched.reduce(
+            (sum, allocation) => sum + allocation.tawidhInvestorShare,
+            0
+          ),
+          profitDays: resolvePostedSettlementProfitDays(posted, posted ? asRecord(posted.preview_snapshot) : null, posted?.profit_start_date ?? row.note.activated_at),
+        };
+      });
+
+    const ytdTransactions = transactionRows.map((tx) => ({
+      posted_at: tx.posted_at,
+      direction: tx.direction as "IN" | "OUT",
+      amount: toNumber(tx.amount),
+      source: tx.source,
+      metadata: tx.metadata,
+    }));
+    const portfolioNetDelta = ytdTransactions.reduce((sum, tx) => sum + resolvePortfolioDelta(tx), 0);
+    const openingPortfolioTotal = portfolioTotals.portfolioTotal - portfolioNetDelta;
+    const mytYear = mytCalendarParts(now).year;
+    const yearStart = mytStartOfDayUtc({ year: mytYear, month: 1, day: 1 });
+    const startOfYearTotal = portfolioTotalBefore(
+      openingPortfolioTotal,
+      ytdTransactions.map((tx) => ({ at: tx.posted_at, delta: resolvePortfolioDelta(tx) })),
+      yearStart
+    );
+
     return {
       ...portfolioTotals,
       investmentCount: investments.length,
+      ytdChangePercent: ytdChangePercent(portfolioTotals.portfolioTotal, startOfYearTotal),
+      returnsEarned: sumReturnsEarned(allocations, orgIdSet),
+      netAnnualReturnPercent: averageNetAnnualReturnPercent(settledReturns),
+      returnsSince: returnsSinceDate(firstConfirmedAt),
+      idleDays: idleDaysSince(lastMovement?.posted_at ?? null, now),
+      atRisk: computeAtRisk(holdings, portfolioTotals.portfolioTotal),
+      cashflowNext90Days: computeCashflowNext90Days(holdings, now),
     };
   }
 
@@ -4522,9 +4745,15 @@ export class NoteService {
       prisma.noteInvestment.findMany({
         where: {
           investor_organization_id: { in: orgIds },
-          status: { in: [NoteInvestmentStatus.COMMITTED, NoteInvestmentStatus.CONFIRMED] },
+          status: {
+            in: [
+              NoteInvestmentStatus.COMMITTED,
+              NoteInvestmentStatus.CONFIRMED,
+              NoteInvestmentStatus.SETTLED,
+            ],
+          },
         },
-        select: { amount: true },
+        select: { amount: true, status: true, confirmed_at: true },
       }),
     ]);
 
@@ -4539,20 +4768,52 @@ export class NoteService {
       (sum, row) => sum + toNumber(row.available_amount),
       0
     );
-    const committed = investments.reduce((sum, investment) => sum + toNumber(investment.amount), 0);
+    const reserved = investments
+      .filter((investment) => investment.status === NoteInvestmentStatus.COMMITTED)
+      .reduce((sum, investment) => sum + toNumber(investment.amount), 0);
+    const liveConfirmed = investments
+      .filter((investment) => investment.status === NoteInvestmentStatus.CONFIRMED)
+      .reduce((sum, investment) => sum + toNumber(investment.amount), 0);
+    const committed = reserved + liveConfirmed;
     const currentPortfolioTotal = availableBalance + committed;
+    const principalEvents = principalEventsFromConfirmationsAndReturns({
+      confirmations: investments
+        .filter(
+          (investment) =>
+            investment.status === NoteInvestmentStatus.CONFIRMED ||
+            investment.status === NoteInvestmentStatus.SETTLED
+        )
+        .map((investment) => ({
+          confirmedAt: investment.confirmed_at,
+          amount: toNumber(investment.amount),
+        })),
+      principalReturns: transactions.map((tx) => ({
+        postedAt: tx.posted_at,
+        principal: settlementPrincipalReturned(tx),
+      })),
+    });
+    const liveHistory = {
+      availableBalance,
+      portfolioTotal: currentPortfolioTotal,
+      confirmed: liveConfirmed,
+    };
     if (transactions.length === 0) {
       const points: InvestorPortfolioHistoryPoint[] = [
         toReconciledPortfolioHistoryPoint(
           availableBalance,
           currentPortfolioTotal,
-          toDateKey(new Date())
+          toDateKey(new Date()),
+          liveConfirmed
         ),
       ];
       return {
         range: query.range,
         granularity,
-        points: finalizeHistoryPoints(points, granularity),
+        points: withLiveHistoryPrincipal(
+          finalizeHistoryPoints(points, granularity),
+          principalEvents,
+          liveHistory
+        ),
         generatedAt: new Date().toISOString(),
       };
     }
@@ -4611,7 +4872,11 @@ export class NoteService {
     return {
       range: query.range,
       granularity,
-      points: finalizeHistoryPoints(points, granularity),
+      points: withLiveHistoryPrincipal(
+        finalizeHistoryPoints(points, granularity),
+        principalEvents,
+        liveHistory
+      ),
       generatedAt: new Date().toISOString(),
     };
   }
@@ -5212,6 +5477,20 @@ export class NoteService {
       tawidhInvestorAmount: waterfall.tawidhInvestorAmount,
     });
 
+    const paymentClassification = classifyServicing(
+      {
+        servicing_status: note.servicing_status,
+        status: note.status,
+        grace_period_days: note.grace_period_days,
+        arrears_threshold_days: note.arrears_threshold_days,
+        tawidh_rate_cap_percent: toNumber(note.tawidh_rate_cap_percent),
+        gharamah_rate_cap_percent: toNumber(note.gharamah_rate_cap_percent),
+        due_date: resolveServicingDueDate(note),
+        receipt_amount: resolveNoteSettlementAmount(note),
+      },
+      tenureResult?.actualSettlementDate ??
+        (input.receiptDate ? new Date(input.receiptDate) : new Date())
+    );
     const snapshot = {
       ...waterfall,
       profitStartDate: waterfall.profitStartDate.toISOString(),
@@ -5266,11 +5545,15 @@ export class NoteService {
           excess_gharamah_amount: money(tenureResult?.unpaidGharamahAmount ?? 0),
           actual_settlement_date: tenureResult?.actualSettlementDate ?? null,
           settlement_type:
-            waterfall.tawidhAmount > 0 ||
-            waterfall.gharamahAmount > 0 ||
-            (tenureResult?.excessLateChargeAmount ?? 0) > 0.005
-              ? NoteSettlementType.LATE
-              : NoteSettlementType.STANDARD,
+            note.servicing_status === NoteServicingStatus.DEFAULTED
+              ? NoteSettlementType.DEFAULT_RECOVERY
+              : waterfall.tawidhAmount > 0 ||
+                  waterfall.gharamahAmount > 0 ||
+                  (tenureResult?.excessLateChargeAmount ?? 0) > 0.005
+                ? NoteSettlementType.LATE
+                : NoteSettlementType.STANDARD,
+          days_past_due_at_payment: paymentClassification.daysPastDue,
+          dpd_bucket_at_payment: paymentClassification.dpdBucket,
           preview_snapshot: snapshot,
         },
       });
@@ -5523,6 +5806,10 @@ export class NoteService {
           where: { id },
           data: {
             servicing_status: NoteServicingStatus.CURRENT,
+            days_past_due: 0,
+            indicative_tawidh_amount: 0,
+            indicative_gharamah_amount: 0,
+            indicative_as_of: postedAt,
           },
         });
       } else {
@@ -5532,6 +5819,10 @@ export class NoteService {
             status: NoteStatus.REPAID,
             servicing_status: NoteServicingStatus.SETTLED,
             repaid_at: postedAt,
+            days_past_due: 0,
+            indicative_tawidh_amount: 0,
+            indicative_gharamah_amount: 0,
+            indicative_as_of: postedAt,
           },
         });
       }
@@ -5543,6 +5834,11 @@ export class NoteService {
         residualWithdrawalCreated: false,
       });
       if (!needsTrusteeInstruction) {
+        await this.upsertSettledPositionSnapshot(tx, {
+          noteId: id,
+          at: postedAt,
+          settlement,
+        });
         await refreshContractFacilityForNote(
           settlement.note,
           tx,
@@ -5616,7 +5912,7 @@ export class NoteService {
         })
       : input.receiptDate
         ? new Date(input.receiptDate)
-        : new Date();
+        : calendarDateInTimeZone(new Date());
     const invoiceSettlementAmount = resolveNoteSettlementAmount(note);
     const receiptAmount = input.receiptAmount ?? invoiceSettlementAmount;
 
@@ -5663,8 +5959,22 @@ export class NoteService {
       (sum, settlement) => sum + toNumber(settlement.gharamah_amount),
       0
     );
-    const remainingTawidhAmount = Math.max(0, total.tawidhCap - appliedTawidhAmount);
-    const remainingGharamahAmount = Math.max(0, total.gharamahCap - appliedGharamahAmount);
+    const waivedTawidhAmount = (note.late_charge_waivers ?? []).reduce(
+      (sum, waiver) => sum + toNumber(waiver.tawidh_waived_amount),
+      0
+    );
+    const waivedGharamahAmount = (note.late_charge_waivers ?? []).reduce(
+      (sum, waiver) => sum + toNumber(waiver.gharamah_waived_amount),
+      0
+    );
+    const remainingTawidhAmount = roundNoteMoney(
+      Math.max(0, total.tawidhCap - appliedTawidhAmount - waivedTawidhAmount),
+      2
+    );
+    const remainingGharamahAmount = roundNoteMoney(
+      Math.max(0, total.gharamahCap - appliedGharamahAmount - waivedGharamahAmount),
+      2
+    );
     const overdue = total.daysLate > 0;
     const availableLateFeeHeadroomAmount = resolveAvailableLateFeeHeadroomForNote(
       note,
@@ -5720,42 +6030,126 @@ export class NoteService {
     actor: ActorContext
   ) {
     const result = await this.checkOverdueLateCharge(id, input);
-    let enteredArrears = false;
-    let servicingChanged = false;
-    if (result.overdue && result.dueDate) {
-      const note = await noteRepository.findById(id);
-      if (note) {
-        const dueDate = new Date(result.dueDate);
-        const checkDate = new Date(result.checkDate);
-        const daysPastDue = Math.max(0, calculateCalendarDayCount(dueDate, checkDate));
-        const daysAfterGrace = Math.max(0, daysPastDue - note.grace_period_days);
-        const isArrears = daysAfterGrace >= note.arrears_threshold_days;
-        const nextServicingStatus = isArrears
-          ? NoteServicingStatus.ARREARS
-          : NoteServicingStatus.LATE;
-        if (note.servicing_status !== nextServicingStatus) {
-          await noteRepository.updateState(id, {
-            status: isArrears ? NoteStatus.ARREARS : note.status,
-            servicing_status: nextServicingStatus,
-            arrears_started_at: isArrears && !note.arrears_started_at ? new Date() : undefined,
-          });
-          enteredArrears = isArrears;
-          servicingChanged = true;
-        }
-      }
+    const note = await noteRepository.findById(id);
+    if (!note) return result;
+
+    const waived = note.late_charge_waivers ?? [];
+    const waivedTawidh = waived.reduce((sum, row) => sum + toNumber(row.tawidh_waived_amount), 0);
+    const waivedGharamah = waived.reduce((sum, row) => sum + toNumber(row.gharamah_waived_amount), 0);
+    const classification = classifyServicing(
+      {
+        servicing_status: note.servicing_status,
+        status: note.status,
+        grace_period_days: note.grace_period_days,
+        arrears_threshold_days: note.arrears_threshold_days,
+        tawidh_rate_cap_percent: toNumber(note.tawidh_rate_cap_percent),
+        gharamah_rate_cap_percent: toNumber(note.gharamah_rate_cap_percent),
+        due_date: resolveServicingDueDate(note),
+        receipt_amount: resolveNoteSettlementAmount(note),
+        applied_tawidh_amount: result.appliedTawidhAmount,
+        applied_gharamah_amount: result.appliedGharamahAmount,
+        waived_tawidh_amount: waivedTawidh,
+        waived_gharamah_amount: waivedGharamah,
+      },
+      new Date(result.checkDate)
+    );
+
+    const servicingChanged = shouldAdvanceServicing(
+      note.servicing_status,
+      classification.servicingStatus
+    );
+    const now = new Date();
+    if (result.overdue || servicingChanged) {
+      await noteRepository.updateState(id, {
+        days_past_due: classification.daysPastDue,
+        indicative_tawidh_amount: classification.indicativeTawidhAmount,
+        indicative_gharamah_amount: classification.indicativeGharamahAmount,
+        indicative_as_of: now,
+        ...(servicingChanged
+          ? {
+              status: classification.noteStatus ?? note.status,
+              servicing_status: classification.servicingStatus,
+              overdue_started_at:
+                !note.overdue_started_at &&
+                (classification.servicingStatus === NoteServicingStatus.OVERDUE ||
+                  classification.servicingStatus === NoteServicingStatus.LATE ||
+                  classification.servicingStatus === NoteServicingStatus.ARREARS)
+                  ? now
+                  : undefined,
+              late_started_at:
+                !note.late_started_at &&
+                (classification.servicingStatus === NoteServicingStatus.LATE ||
+                  classification.servicingStatus === NoteServicingStatus.ARREARS)
+                  ? now
+                  : undefined,
+              arrears_started_at:
+                !note.arrears_started_at &&
+                classification.servicingStatus === NoteServicingStatus.ARREARS
+                  ? now
+                  : undefined,
+            }
+          : {}),
+      });
     }
+
     if (servicingChanged) {
       await this.logEvent(prisma, id, "OVERDUE_LATE_CHARGE_CHECKED", actor, result);
-    }
-    if (enteredArrears) {
+      const transitionEvent =
+        classification.servicingStatus === NoteServicingStatus.OVERDUE
+          ? "NOTE_OVERDUE"
+          : classification.servicingStatus === NoteServicingStatus.LATE
+            ? "NOTE_LATE"
+            : classification.servicingStatus === NoteServicingStatus.ARREARS
+              ? "NOTE_ARREARS"
+              : null;
+      if (transitionEvent) {
+        await this.logEvent(prisma, id, transitionEvent, actor, {
+          daysPastDue: classification.daysPastDue,
+          daysAfterGrace: classification.daysAfterGrace,
+          servicingStatus: classification.servicingStatus,
+        });
+      }
       const refreshed = await noteRepository.findById(id);
       if (refreshed) {
-        await notifyNoteArrears({
-          notificationService: this.notificationService,
-          noteId: id,
-          issuerOrganizationId: refreshed.issuer_organization_id,
-          noteTitle: resolveNoteNotificationTitle(refreshed),
-        });
+        const title = resolveNoteNotificationTitle(refreshed);
+        if (classification.servicingStatus === NoteServicingStatus.OVERDUE) {
+          await notifyNoteOverdue({
+            notificationService: this.notificationService,
+            noteId: id,
+            issuerOrganizationId: refreshed.issuer_organization_id,
+            noteTitle: title,
+          });
+        } else if (classification.servicingStatus === NoteServicingStatus.LATE) {
+          await notifyNoteLate({
+            notificationService: this.notificationService,
+            noteId: id,
+            issuerOrganizationId: refreshed.issuer_organization_id,
+            noteTitle: title,
+          });
+        } else if (classification.servicingStatus === NoteServicingStatus.ARREARS) {
+          await notifyNoteArrears({
+            notificationService: this.notificationService,
+            noteId: id,
+            issuerOrganizationId: refreshed.issuer_organization_id,
+            noteTitle: title,
+          });
+          await generateAndSendServicingLetter({
+            noteId: id,
+            kind: "ARREARS",
+            triggeredBy: "SYSTEM",
+            actor,
+            issuerName: mapNoteListItem(refreshed).issuerName ?? "Issuer",
+            noteReference: refreshed.note_reference,
+            issuerOrganizationId: refreshed.issuer_organization_id,
+            dueDate: classification.dueDate,
+            daysPastDue: classification.daysPastDue,
+            outstandingTotal: letterOutstandingTotal(refreshed),
+            indicativeTawidhAmount: classification.indicativeTawidhAmount,
+            indicativeGharamahAmount: classification.indicativeGharamahAmount,
+            gracePeriodDays: refreshed.grace_period_days,
+            arrearsThresholdDays: refreshed.arrears_threshold_days,
+          });
+        }
       }
     }
     return result;
@@ -5778,20 +6172,260 @@ export class NoteService {
   async generateNoteLetter(id: string, type: "arrears" | "default", actor: ActorContext) {
     const note = await noteRepository.findById(id);
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
-    const title = type === "arrears" ? "Arrears Warning Letter" : "Default Notice Letter";
-    const buffer = await renderPdfBuffer(title, [
-      ["Note reference", note.note_reference],
-      ["Issuer", mapNoteListItem(note).issuerName ?? "-"],
-      ["Paymaster", mapNoteListItem(note).paymasterName ?? "-"],
-      ["Outstanding funded amount", toNumber(note.funded_amount).toFixed(2)],
-      ["Generated at", new Date().toISOString()],
-    ]);
-    const key = `note-letters/${id}/${type}-${Date.now()}.pdf`;
-    await putS3ObjectBuffer({ key, body: buffer, contentType: "application/pdf" });
-    await this.logEvent(prisma, id, `${type.toUpperCase()}_LETTER_GENERATED`, actor, {
-      s3Key: key,
+    if (type === "default" && note.servicing_status !== NoteServicingStatus.ARREARS) {
+      throw new AppError(
+        409,
+        "NOTE_NOT_IN_ARREARS",
+        "Default notices can only be generated while the note is in arrears"
+      );
+    }
+    if (
+      type === "arrears" &&
+      note.servicing_status !== NoteServicingStatus.LATE &&
+      note.servicing_status !== NoteServicingStatus.ARREARS
+    ) {
+      throw new AppError(
+        409,
+        "NOTE_NOT_LATE",
+        "Arrears notices can only be generated after the grace period"
+      );
+    }
+    const mapped = mapNoteListItem(note);
+    const letter = await generateAndSendServicingLetter({
+      noteId: id,
+      kind: type === "default" ? "DEFAULT" : "ARREARS",
+      triggeredBy: "ADMIN",
+      actor,
+      issuerName: mapped.issuerName ?? "Issuer",
+      noteReference: note.note_reference,
+      issuerOrganizationId: note.issuer_organization_id,
+      dueDate: resolveServicingDueDate(note),
+      daysPastDue: note.days_past_due,
+      outstandingTotal: letterOutstandingTotal(note),
+      indicativeTawidhAmount: toNumber(note.indicative_tawidh_amount),
+      indicativeGharamahAmount: toNumber(note.indicative_gharamah_amount),
+      gracePeriodDays: note.grace_period_days,
+      arrearsThresholdDays: note.arrears_threshold_days,
+      defaultDate: note.default_marked_at,
+      defaultReason: note.default_reason,
     });
-    return { s3Key: key };
+    await createNoteAdminActionRow(prisma, {
+      noteId: id,
+      actionType: "NOTE_LETTER_SENT",
+      actorUserId: actor.userId,
+      afterState: letter as Prisma.InputJsonValue,
+      ipAddress: actor.ipAddress,
+      userAgent: actor.userAgent,
+      correlationId: actor.correlationId,
+      portal: actor.portal,
+      context: actor.auditContext,
+    });
+    return { s3Key: letter.s3Key, sentTo: letter.sentTo };
+  }
+
+  async listServicingLetters(id: string) {
+    const note = await noteRepository.findById(id);
+    if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+    return (note.servicing_letters ?? []).map((letter) => ({
+      id: letter.id,
+      noteId: letter.note_id,
+      type: letter.type,
+      generatedAt: letter.generated_at.toISOString(),
+      sentAt: letter.sent_at?.toISOString() ?? null,
+      triggeredBy: letter.triggered_by,
+    }));
+  }
+
+  async getServicingLetterViewUrl(id: string, letterId: string) {
+    const letter = await prisma.noteServicingLetter.findFirst({
+      where: { id: letterId, note_id: id },
+    });
+    if (!letter) throw new AppError(404, "LETTER_NOT_FOUND", "Servicing letter not found");
+    return generatePresignedViewUrl({ key: letter.s3_key });
+  }
+
+  async getIssuerServicingLetterViewUrl(id: string, letterId: string, userId: string) {
+    await this.getIssuerNote(id, userId);
+    return this.getServicingLetterViewUrl(id, letterId);
+  }
+
+  async resendServicingLetter(id: string, letterId: string, actor: ActorContext) {
+    const note = await noteRepository.findById(id);
+    if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+    try {
+      const result = await resendServicingLetterRecord({
+        letterId,
+        noteId: id,
+        actor,
+      });
+      await createNoteAdminActionRow(prisma, {
+        noteId: id,
+        actionType: "NOTE_LETTER_SENT",
+        actorUserId: actor.userId,
+        afterState: result as Prisma.InputJsonValue,
+        ipAddress: actor.ipAddress,
+        userAgent: actor.userAgent,
+        correlationId: actor.correlationId,
+        portal: actor.portal,
+        context: actor.auditContext,
+        metadata: { resent: true, letterId },
+      });
+      return result;
+    } catch (error) {
+      if (error instanceof Error && error.message === "LETTER_NOT_FOUND") {
+        throw new AppError(404, "LETTER_NOT_FOUND", "Servicing letter not found");
+      }
+      throw error;
+    }
+  }
+
+  async getDefaultEligibleCount() {
+    const count = await prisma.note.count({
+      where: {
+        servicing_status: NoteServicingStatus.ARREARS,
+        default_marked_at: null,
+        funding_status: NoteFundingStatus.FUNDED,
+      },
+    });
+    return { count };
+  }
+
+  async waiveLateCharge(
+    id: string,
+    input: z.infer<typeof lateChargeWaiverSchema>,
+    actor: ActorContext
+  ) {
+    const note = await noteRepository.findById(id);
+    if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+    const posted = note.settlements.find(
+      (settlement) => settlement.status === NoteSettlementStatus.POSTED
+    );
+    if (!posted) {
+      assertNoteReadyForServicing(note);
+    } else if (note.funding_status !== NoteFundingStatus.FUNDED) {
+      throw new AppError(
+        409,
+        "NOTE_SERVICING_NOT_OPEN",
+        "Payment and settlement are available only after the note is funded and activated"
+      );
+    }
+    const tawidhAmount = input.tawidhAmount ?? 0;
+    const gharamahAmount = input.gharamahAmount ?? 0;
+    if (tawidhAmount + gharamahAmount <= 0.005) {
+      throw new AppError(422, "WAIVER_AMOUNT_REQUIRED", "Enter a Ta'widh or Gharamah waiver amount");
+    }
+    let remainingTawidhAmount = 0;
+    let remainingGharamahAmount = 0;
+    if (posted) {
+      const priorTawidhWaived = (note.late_charge_waivers ?? [])
+        .filter((waiver) => waiver.settlement_id === posted.id)
+        .reduce((sum, waiver) => sum + toNumber(waiver.tawidh_waived_amount), 0);
+      const priorGharamahWaived = (note.late_charge_waivers ?? [])
+        .filter((waiver) => waiver.settlement_id === posted.id)
+        .reduce((sum, waiver) => sum + toNumber(waiver.gharamah_waived_amount), 0);
+      const remainingExcess = Math.max(
+        0,
+        Math.max(
+          toNumber(posted.excess_tawidh_amount) + toNumber(posted.excess_gharamah_amount),
+          toNumber(posted.excess_late_charge_amount)
+        ) -
+          toNumber(posted.excess_late_charge_paid_amount) -
+          toNumber(posted.excess_late_charge_waived_amount)
+      );
+      remainingTawidhAmount = Math.max(
+        0,
+        Math.min(toNumber(posted.excess_tawidh_amount) - priorTawidhWaived, remainingExcess)
+      );
+      remainingGharamahAmount = Math.max(
+        0,
+        Math.min(toNumber(posted.excess_gharamah_amount) - priorGharamahWaived, remainingExcess)
+      );
+      if (tawidhAmount + gharamahAmount - remainingExcess > 0.005) {
+        throw new AppError(
+          422,
+          "WAIVER_EXCEEDS_REMAINING_EXCESS",
+          "Waiver exceeds leftover late charges after settlement"
+        );
+      }
+    } else {
+      const remaining = await this.checkOverdueLateCharge(id, {});
+      remainingTawidhAmount = remaining.remainingTawidhAmount;
+      remainingGharamahAmount = remaining.remainingGharamahAmount;
+    }
+    if (tawidhAmount - remainingTawidhAmount > 0.005) {
+      throw new AppError(
+        422,
+        "WAIVER_EXCEEDS_REMAINING_TAWIDH",
+        "Ta'widh waiver exceeds the remaining allowable amount"
+      );
+    }
+    if (gharamahAmount - remainingGharamahAmount > 0.005) {
+      throw new AppError(
+        422,
+        "WAIVER_EXCEEDS_REMAINING_GHARAMAH",
+        "Gharamah waiver exceeds the remaining allowable amount"
+      );
+    }
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.noteLateChargeWaiver.create({
+        data: {
+          note_id: id,
+          settlement_id: posted?.id ?? input.settlementId ?? null,
+          tawidh_waived_amount: money(tawidhAmount),
+          gharamah_waived_amount: money(gharamahAmount),
+          reason: input.reason.trim(),
+          waived_by_admin_user_id: actor.userId,
+        },
+      });
+      if (posted) {
+        await tx.noteSettlement.update({
+          where: { id: posted.id },
+          data: {
+            excess_late_charge_waived_amount: money(
+              toNumber(posted.excess_late_charge_waived_amount) + tawidhAmount + gharamahAmount
+            ),
+          },
+        });
+      } else {
+        await tx.note.update({
+          where: { id },
+          data: {
+            indicative_tawidh_amount: money(
+              Math.max(0, toNumber(note.indicative_tawidh_amount) - tawidhAmount)
+            ),
+            indicative_gharamah_amount: money(
+              Math.max(0, toNumber(note.indicative_gharamah_amount) - gharamahAmount)
+            ),
+            indicative_as_of: new Date(),
+          },
+        });
+      }
+      const result = await tx.note.findUniqueOrThrow({ where: { id }, include: noteInclude });
+      await this.logAdminAction(
+        tx,
+        id,
+        "LATE_CHARGE_WAIVED",
+        actor,
+        {
+          remainingTawidhAmount,
+          remainingGharamahAmount,
+        },
+        {
+          tawidhAmount,
+          gharamahAmount,
+          remainingTawidhAmount: Math.max(0, remainingTawidhAmount - tawidhAmount),
+          remainingGharamahAmount: Math.max(0, remainingGharamahAmount - gharamahAmount),
+        },
+        { reason: input.reason.trim() }
+      );
+      await this.logEvent(tx, id, "LATE_CHARGE_WAIVED", actor, {
+        tawidhAmount,
+        gharamahAmount,
+        reason: input.reason.trim(),
+      });
+      return result;
+    });
+    return mapNoteDetail(updated);
   }
 
   async generateSettlementTrusteeLetter(
@@ -6271,6 +6905,13 @@ export class NoteService {
         },
       });
       noteMarkedRepaid = noteUpdate.count > 0;
+      if (noteMarkedRepaid) {
+        await this.upsertSettledPositionSnapshot(tx, {
+          noteId,
+          at: completedAt,
+          settlement,
+        });
+      }
       const settlementReference = snapshotBusinessReference(
         settlement.display_reference,
         settlement.id
@@ -6343,6 +6984,24 @@ export class NoteService {
       noteId: id,
       issuerOrganizationId: updated.issuer_organization_id,
       noteTitle: resolveNoteNotificationTitle(updated),
+    });
+    await generateAndSendServicingLetter({
+      noteId: id,
+      kind: "DEFAULT",
+      triggeredBy: "ADMIN",
+      actor,
+      issuerName: mapNoteListItem(updated).issuerName ?? "Issuer",
+      noteReference: updated.note_reference,
+      issuerOrganizationId: updated.issuer_organization_id,
+      dueDate: resolveServicingDueDate(updated),
+      daysPastDue: updated.days_past_due,
+      outstandingTotal: letterOutstandingTotal(updated),
+      indicativeTawidhAmount: toNumber(updated.indicative_tawidh_amount),
+      indicativeGharamahAmount: toNumber(updated.indicative_gharamah_amount),
+      gracePeriodDays: updated.grace_period_days,
+      arrearsThresholdDays: updated.arrears_threshold_days,
+      defaultDate: updated.default_marked_at,
+      defaultReason: reason,
     });
     return await mapNoteDetail(updated);
   }
@@ -7679,6 +8338,70 @@ export class NoteService {
       select: { platform_fee_rate_cap_percent: true },
     });
     return toNumber(settings.platform_fee_rate_cap_percent);
+  }
+
+  private async upsertSettledPositionSnapshot(
+    tx: Prisma.TransactionClient,
+    input: {
+      noteId: string;
+      at: Date;
+      settlement: {
+        investor_principal: Prisma.Decimal;
+        investor_profit_gross: Prisma.Decimal;
+        tawidh_amount: Prisma.Decimal;
+        gharamah_amount: Prisma.Decimal;
+      };
+    }
+  ) {
+    const snapshotDate = calendarDateInTimeZone(input.at);
+    const recoveredPrincipal = toNumber(input.settlement.investor_principal);
+    const recoveredProfit = toNumber(input.settlement.investor_profit_gross);
+    const appliedTawidh = toNumber(input.settlement.tawidh_amount);
+    const appliedGharamah = toNumber(input.settlement.gharamah_amount);
+    await tx.notePositionSnapshot.upsert({
+      where: {
+        note_id_snapshot_date: {
+          note_id: input.noteId,
+          snapshot_date: snapshotDate,
+        },
+      },
+      create: {
+        note_id: input.noteId,
+        snapshot_date: snapshotDate,
+        days_past_due: 0,
+        dpd_bucket: DpdBucket.CURRENT,
+        note_status: NoteStatus.REPAID,
+        servicing_status: NoteServicingStatus.SETTLED,
+        outstanding_principal: 0,
+        outstanding_profit: 0,
+        outstanding_total: 0,
+        recovered_principal: recoveredPrincipal,
+        recovered_profit: recoveredProfit,
+        applied_tawidh: appliedTawidh,
+        applied_gharamah: appliedGharamah,
+        indicative_tawidh: 0,
+        indicative_gharamah: 0,
+        waived_tawidh: 0,
+        waived_gharamah: 0,
+        is_sc_default: false,
+      },
+      update: {
+        days_past_due: 0,
+        dpd_bucket: DpdBucket.CURRENT,
+        note_status: NoteStatus.REPAID,
+        servicing_status: NoteServicingStatus.SETTLED,
+        outstanding_principal: 0,
+        outstanding_profit: 0,
+        outstanding_total: 0,
+        recovered_principal: recoveredPrincipal,
+        recovered_profit: recoveredProfit,
+        applied_tawidh: appliedTawidh,
+        applied_gharamah: appliedGharamah,
+        indicative_tawidh: 0,
+        indicative_gharamah: 0,
+        is_sc_default: false,
+      },
+    });
   }
 
   private async logEvent(

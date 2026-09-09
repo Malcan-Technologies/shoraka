@@ -14,13 +14,18 @@ import {
   OnboardingStatus,
   ApplicationStatus,
   NoteStatus,
+  NoteServicingStatus,
   ReviewSection,
   ReviewStepStatus,
 } from "@prisma/client";
 import {
+  addMytCalendarDays,
+  mytCalendarParts,
+  mytStartOfDayUtc,
   readFinancingStructureType,
   resolveAdminContractApplicationKind,
   resolveFacilityFeeUpfront,
+  roundNoteMoney,
   type AdminRoleKey,
 } from "@cashsouk/types";
 import type {
@@ -2136,20 +2141,27 @@ export class AdminRepository {
     live: number;
     repaid: number;
     distressed: number;
+    arrears: number;
+    defaulted: number;
     cancelledOrFailedFunding: number;
   }> {
     const LIVE: NoteStatus[] = [NoteStatus.PUBLISHED, NoteStatus.FUNDING, NoteStatus.ACTIVE];
     const DISTRESSED: NoteStatus[] = [NoteStatus.ARREARS, NoteStatus.DEFAULTED];
     const CLOSED_OTHER: NoteStatus[] = [NoteStatus.CANCELLED, NoteStatus.FAILED_FUNDING];
 
-    const [total, draft, live, repaid, distressed, cancelledOrFailedFunding] = await Promise.all([
-      prisma.note.count(),
-      prisma.note.count({ where: { status: NoteStatus.DRAFT } }),
-      prisma.note.count({ where: { status: { in: LIVE } } }),
-      prisma.note.count({ where: { status: NoteStatus.REPAID } }),
-      prisma.note.count({ where: { status: { in: DISTRESSED } } }),
-      prisma.note.count({ where: { status: { in: CLOSED_OTHER } } }),
-    ]);
+    const [total, draft, live, repaid, distressed, arrears, defaulted, cancelledOrFailedFunding] =
+      await Promise.all([
+        prisma.note.count(),
+        prisma.note.count({ where: { status: NoteStatus.DRAFT } }),
+        prisma.note.count({ where: { status: { in: LIVE } } }),
+        prisma.note.count({ where: { status: NoteStatus.REPAID } }),
+        prisma.note.count({ where: { status: { in: DISTRESSED } } }),
+        prisma.note.count({
+          where: { servicing_status: NoteServicingStatus.ARREARS, default_marked_at: null },
+        }),
+        prisma.note.count({ where: { servicing_status: NoteServicingStatus.DEFAULTED } }),
+        prisma.note.count({ where: { status: { in: CLOSED_OTHER } } }),
+      ]);
 
     return {
       total,
@@ -2157,6 +2169,8 @@ export class AdminRepository {
       live,
       repaid,
       distressed,
+      arrears,
+      defaulted,
       cancelledOrFailedFunding,
     };
   }
@@ -2168,17 +2182,18 @@ export class AdminRepository {
     outstanding: { amount: number; count: number };
     inFunding: { amount: number; count: number };
     distressed: { amount: number; count: number };
+    arrears: { amount: number; count: number };
+    defaulted: { amount: number; count: number };
     dueSoon: { amount: number; count: number };
   }> {
-    const dueSoonStart = new Date();
-    dueSoonStart.setHours(0, 0, 0, 0);
-    const dueSoonEnd = new Date(dueSoonStart);
-    dueSoonEnd.setDate(dueSoonEnd.getDate() + 7);
+    const today = mytCalendarParts(new Date());
+    const dueSoonStart = mytStartOfDayUtc(today);
+    const dueSoonEnd = mytStartOfDayUtc(addMytCalendarDays(today, 7));
 
     const IN_FUNDING: NoteStatus[] = [NoteStatus.PUBLISHED, NoteStatus.FUNDING];
     const DISTRESSED: NoteStatus[] = [NoteStatus.ARREARS, NoteStatus.DEFAULTED];
 
-    const [outstanding, inFunding, distressed, dueSoon] = await Promise.all([
+    const [outstanding, inFunding, distressed, arrears, defaulted, dueSoon] = await Promise.all([
       prisma.note.aggregate({
         where: { status: NoteStatus.ACTIVE },
         _sum: { funded_amount: true },
@@ -2191,6 +2206,16 @@ export class AdminRepository {
       }),
       prisma.note.aggregate({
         where: { status: { in: DISTRESSED } },
+        _sum: { funded_amount: true },
+        _count: true,
+      }),
+      prisma.note.aggregate({
+        where: { servicing_status: NoteServicingStatus.ARREARS, default_marked_at: null },
+        _sum: { funded_amount: true },
+        _count: true,
+      }),
+      prisma.note.aggregate({
+        where: { servicing_status: NoteServicingStatus.DEFAULTED },
         _sum: { funded_amount: true },
         _count: true,
       }),
@@ -2216,8 +2241,68 @@ export class AdminRepository {
       outstanding: toMetric(outstanding),
       inFunding: toMetric(inFunding),
       distressed: toMetric(distressed),
+      arrears: toMetric(arrears),
+      defaulted: toMetric(defaulted),
       dueSoon: toMetric(dueSoon),
     };
+  }
+
+  async upsertBookMetricsDailySnapshot(
+    date: Date,
+    metrics: {
+      outstanding: { amount: number; count: number };
+      inFunding: { amount: number; count: number };
+      arrears: { amount: number; count: number };
+      defaulted: { amount: number; count: number };
+      dueSoon: { amount: number; count: number };
+    }
+  ): Promise<void> {
+    const values = {
+      outstanding_amount: roundNoteMoney(metrics.outstanding.amount),
+      outstanding_count: metrics.outstanding.count,
+      in_funding_amount: roundNoteMoney(metrics.inFunding.amount),
+      in_funding_count: metrics.inFunding.count,
+      arrears_amount: roundNoteMoney(metrics.arrears.amount),
+      arrears_count: metrics.arrears.count,
+      defaulted_amount: roundNoteMoney(metrics.defaulted.amount),
+      defaulted_count: metrics.defaulted.count,
+      due_soon_amount: roundNoteMoney(metrics.dueSoon.amount),
+      due_soon_count: metrics.dueSoon.count,
+    };
+
+    await prisma.bookMetricsDailySnapshot.upsert({
+      where: { snapshot_date: date },
+      create: { snapshot_date: date, ...values },
+      update: values,
+    });
+  }
+
+  async listBookMetricsDailySnapshots(
+    fromDate: Date,
+    toDate: Date
+  ): Promise<
+    Array<{
+      snapshotDate: Date;
+      outstanding: { amount: number; count: number };
+      inFunding: { amount: number; count: number };
+      arrears: { amount: number; count: number };
+      defaulted: { amount: number; count: number };
+      dueSoon: { amount: number; count: number };
+    }>
+  > {
+    const rows = await prisma.bookMetricsDailySnapshot.findMany({
+      where: { snapshot_date: { gte: fromDate, lte: toDate } },
+      orderBy: { snapshot_date: "asc" },
+    });
+
+    return rows.map((row) => ({
+      snapshotDate: row.snapshot_date,
+      outstanding: { amount: row.outstanding_amount.toNumber(), count: row.outstanding_count },
+      inFunding: { amount: row.in_funding_amount.toNumber(), count: row.in_funding_count },
+      arrears: { amount: row.arrears_amount.toNumber(), count: row.arrears_count },
+      defaulted: { amount: row.defaulted_amount.toNumber(), count: row.defaulted_count },
+      dueSoon: { amount: row.due_soon_amount.toNumber(), count: row.due_soon_count },
+    }));
   }
 
   /**

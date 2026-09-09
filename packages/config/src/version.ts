@@ -2,7 +2,7 @@
  * Application version
  * Update this constant when releasing new versions
  */
-export const APP_VERSION = "RC 1";
+export const APP_VERSION = "RC 2";
 
 /**
  * Get formatted version stringgi

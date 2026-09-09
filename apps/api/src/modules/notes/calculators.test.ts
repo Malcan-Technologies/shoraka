@@ -214,8 +214,8 @@ describe("note lifecycle calculators", () => {
     });
 
     expect(result.daysLate).toBe(10);
-    expect(result.tawidhAmount).toBeCloseTo(27.39726027, 6);
-    expect(result.gharamahAmount).toBeCloseTo(246.57534247, 6);
+    expect(result.tawidhAmount).toBe(27.4);
+    expect(result.gharamahAmount).toBe(246.58);
   });
 
   it("builds cent-safe investor allocations for partial principal receipts", () => {

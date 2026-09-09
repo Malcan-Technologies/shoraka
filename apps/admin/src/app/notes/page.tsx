@@ -2,9 +2,9 @@
 
 import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import type { GetAdminNotesParams, NoteListItem, NoteStatus } from "@cashsouk/types";
+import { NoteServicingStatus, type GetAdminNotesParams, type NoteListItem, type NoteStatus } from "@cashsouk/types";
 import { AdminPageHeader } from "@/components/admin-page-header";
 import { NotesTable } from "@/notes/components/notes-table";
 import {
@@ -20,9 +20,17 @@ export default function NotesPage() {
   const { can } = usePermissions();
   const canCreate = can("notes.create");
   const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
+  const servicingFromUrl = searchParams.get("servicingStatus");
   const [searchQuery, setSearchQuery] = React.useState("");
   const [status, setStatus] = React.useState<string>(NOTE_STATUS_FILTER_ACTIVE_LOANS);
+  const [servicingStatus, setServicingStatus] = React.useState<string>(
+    servicingFromUrl &&
+      Object.values(NoteServicingStatus).includes(servicingFromUrl as NoteServicingStatus)
+      ? servicingFromUrl
+      : "ALL"
+  );
   const [featuredOnly, setFeaturedOnly] = React.useState(false);
   const [currentPage, setCurrentPage] = React.useState(1);
   const pageSize = 20;
@@ -36,8 +44,9 @@ export default function NotesPage() {
       next.status = status as NoteStatus;
     }
     if (featuredOnly) next.featuredOnly = true;
+    if (servicingStatus !== "ALL") next.servicingStatus = servicingStatus as NoteServicingStatus;
     return next;
-  }, [currentPage, featuredOnly, pageSize, searchQuery, status]);
+  }, [currentPage, featuredOnly, pageSize, searchQuery, servicingStatus, status]);
 
   const { data, isLoading, error } = useNotes(params);
   const { data: sourceInvoicesData, isLoading: sourceInvoicesLoading } = useNoteSourceInvoices();
@@ -45,13 +54,37 @@ export default function NotesPage() {
 
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [featuredOnly, searchQuery, status]);
+  }, [featuredOnly, searchQuery, servicingStatus, status]);
+
+  React.useEffect(() => {
+    if (
+      servicingFromUrl &&
+      Object.values(NoteServicingStatus).includes(servicingFromUrl as NoteServicingStatus)
+    ) {
+      setServicingStatus(servicingFromUrl);
+      return;
+    }
+    if (!servicingFromUrl) {
+      setServicingStatus("ALL");
+    }
+  }, [servicingFromUrl]);
+
+  const handleServicingStatusChange = (value: string) => {
+    setServicingStatus(value);
+    const next = new URLSearchParams(searchParams.toString());
+    if (value === "ALL") next.delete("servicingStatus");
+    else next.set("servicingStatus", value);
+    const query = next.toString();
+    router.replace(query ? `/notes?${query}` : "/notes");
+  };
 
   const handleClearFilters = () => {
     setSearchQuery("");
     setStatus("ALL");
+    setServicingStatus("ALL");
     setFeaturedOnly(false);
     setCurrentPage(1);
+    router.replace("/notes");
   };
 
   const handleStatusChange = (value: string) => {
@@ -135,6 +168,8 @@ export default function NotesPage() {
               isLoading={isLoading}
               featuredOnly={featuredOnly}
               onFeaturedOnlyChange={handleFeaturedOnlyChange}
+              servicingStatus={servicingStatus}
+              onServicingStatusChange={handleServicingStatusChange}
             />
 
             <NotesTable

@@ -46,8 +46,13 @@ const ADMIN_NOTE_EVENT_LIFECYCLE_PRIORITY: Record<string, number> = Object.freez
       "INVESTMENT_SETTLEMENT_CONFIRMATION_REISSUED",
       "INVESTMENT_SETTLEMENT_CONFIRMATION_PUBLISHED",
       // Residual/refund letters reuse the normal WITHDRAWAL_* events above.
+      "NOTE_OVERDUE",
+      "NOTE_LATE",
+      "NOTE_ARREARS",
       "ARREARS_LETTER_GENERATED",
       "DEFAULT_LETTER_GENERATED",
+      "NOTE_LETTER_SENT",
+      "LATE_CHARGE_WAIVED",
       "NOTE_DEFAULT_MARKED",
     ].reduce<Record<string, number>>((priority, eventType, index) => {
       priority[eventType] = index;

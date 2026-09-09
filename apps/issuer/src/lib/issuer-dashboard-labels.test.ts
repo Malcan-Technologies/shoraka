@@ -60,6 +60,9 @@ describe("resolveIssuerInvoiceDashboardBadge arrears/late", () => {
     expect(resolveIssuerInvoiceDashboardBadge(note({ servicingStatus: "LATE" }), "APPROVED")).toBe(
       "action_required"
     );
+    expect(resolveIssuerInvoiceDashboardBadge(note({ servicingStatus: "OVERDUE" }), "APPROVED")).toBe(
+      "action_required"
+    );
     expect(resolveIssuerInvoiceDashboardBadge(note({ servicingStatus: "CURRENT" }), "APPROVED")).toBe(
       "active"
     );

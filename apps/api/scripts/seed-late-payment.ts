@@ -146,6 +146,13 @@ function resolveServicingFromOverdue(daysPastDue: number): {
       arrearsStartedAt: null,
     };
   }
+  if (daysPastDue > 0) {
+    return {
+      noteStatus: NoteStatus.ACTIVE,
+      servicingStatus: NoteServicingStatus.OVERDUE,
+      arrearsStartedAt: null,
+    };
+  }
   return {
     noteStatus: NoteStatus.ACTIVE,
     servicingStatus: NoteServicingStatus.CURRENT,
@@ -182,7 +189,7 @@ function buildScenarios(now: Date, runSuffix: string | null): ScenarioConfig[] {
       label: "Overdue inside grace period",
       daysUntilDue: -3,
       noteStatus: NoteStatus.ACTIVE,
-      servicingStatus: NoteServicingStatus.CURRENT,
+      servicingStatus: NoteServicingStatus.OVERDUE,
       arrearsStartedAt: null,
       defaultReason: null,
       defaultMarkedAt: null,
@@ -436,11 +443,15 @@ async function main() {
   const template = await prisma.note.findFirst({
     where: {
       funding_status: NoteFundingStatus.FUNDED,
-      investments: { some: { status: NoteInvestmentStatus.CONFIRMED } },
+      investments: {
+        some: { status: { in: [NoteInvestmentStatus.CONFIRMED, NoteInvestmentStatus.SETTLED] } },
+      },
       payment_schedules: { some: {} },
     },
     include: {
-      investments: { where: { status: NoteInvestmentStatus.CONFIRMED } },
+      investments: {
+        where: { status: { in: [NoteInvestmentStatus.CONFIRMED, NoteInvestmentStatus.SETTLED] } },
+      },
       listing: true,
       payment_schedules: { orderBy: { sequence: "asc" } },
     },
@@ -539,6 +550,19 @@ async function main() {
         default_marked_by_admin_user_id: scenario.defaultMarkedAt ? adminUser.user_id : null,
         default_reason: scenario.defaultReason,
         repaid_at: scenario.repaidAt,
+        tenure_days: 120,
+        disbursement_value_date: activatedAt,
+        days_past_due:
+          scenario.servicingStatus === NoteServicingStatus.SETTLED
+            ? 0
+            : Math.max(0, -scenario.daysUntilDue),
+        indicative_tawidh_amount: money(
+          scenario.servicingStatus === NoteServicingStatus.SETTLED ? 0 : tawidhAmount
+        ),
+        indicative_gharamah_amount: money(
+          scenario.servicingStatus === NoteServicingStatus.SETTLED ? 0 : gharamahAmount
+        ),
+        indicative_as_of: now,
       };
 
       let noteId: string;
@@ -579,13 +603,17 @@ async function main() {
             expected_total: scheduleTemplate.expected_total,
           },
         });
+        const investmentStatus =
+          scenario.servicingStatus === NoteServicingStatus.SETTLED
+            ? NoteInvestmentStatus.SETTLED
+            : NoteInvestmentStatus.CONFIRMED;
         for (const investment of template.investments) {
           await tx.noteInvestment.create({
             data: {
               note_id: noteId,
               investor_organization_id: investment.investor_organization_id,
               investor_user_id: investment.investor_user_id,
-              status: investment.status,
+              status: investmentStatus,
               amount: investment.amount,
               allocation_percent: investment.allocation_percent,
               committed_at: investment.committed_at,

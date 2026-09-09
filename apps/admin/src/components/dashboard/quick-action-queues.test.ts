@@ -1,6 +1,8 @@
 import {
   dashboardQueueDescription,
   formatQueueCount,
+  queueCardTone,
+  queueProgressPercent,
   queuesNeedingAttention,
   sortQueuesByPriority,
   urgencyVariant,
@@ -62,6 +64,22 @@ describe("formatQueueCount", () => {
   it("caps large counts", () => {
     expect(formatQueueCount(12)).toBe("12");
     expect(formatQueueCount(100)).toBe("99+");
+  });
+});
+
+describe("queueProgressPercent", () => {
+  it("scales a queue against the busiest open queue", () => {
+    expect(queueProgressPercent(11, 11)).toBe(100);
+    expect(queueProgressPercent(4, 11)).toBeCloseTo(36.36, 1);
+    expect(queueProgressPercent(3, 0)).toBe(0);
+  });
+});
+
+describe("queueCardTone", () => {
+  it("uses rejected for distressed or urgent queues and action otherwise", () => {
+    expect(queueCardTone({ id: "default-eligible", variant: "warning" })).toBe("rejected");
+    expect(queueCardTone({ id: "applications", variant: "urgent" })).toBe("rejected");
+    expect(queueCardTone({ id: "issuer-payouts", variant: "warning" })).toBe("action");
   });
 });
 

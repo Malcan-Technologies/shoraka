@@ -1186,7 +1186,13 @@ model Note {
   funding_closed_at               DateTime?
   activated_at                    DateTime?
   repaid_at                       DateTime?
+  overdue_started_at              DateTime?
+  late_started_at                 DateTime?
   arrears_started_at              DateTime?
+  days_past_due                   Int                         @default(0)
+  indicative_tawidh_amount        Decimal                     @default(0) @db.Decimal(18, 6)
+  indicative_gharamah_amount      Decimal                     @default(0) @db.Decimal(18, 6)
+  indicative_as_of                DateTime?
   default_marked_at               DateTime?
   default_marked_by_admin_user_id String?
   default_reason                  String?
@@ -1209,6 +1215,9 @@ model Note {
   investment_certificates               NoteInvestmentCertificate[]
   settlement_hibah_receipts             SettlementHibahReceipt[]
   investment_settlement_confirmations   InvestmentSettlementConfirmation[]
+  late_charge_waivers                   NoteLateChargeWaiver[]
+  servicing_letters                     NoteServicingLetter[]
+  position_snapshots                    NotePositionSnapshot[]
 
   @@index([source_application_id])
   @@index([source_contract_id])
@@ -1545,6 +1554,9 @@ model NoteSettlement {
   unapplied_amount                        Decimal                             @default(0) @db.Decimal(18, 6)
   excess_late_charge_amount               Decimal                             @default(0) @db.Decimal(18, 6)
   excess_late_charge_paid_amount          Decimal                             @default(0) @db.Decimal(18, 6)
+  excess_late_charge_waived_amount        Decimal                             @default(0) @db.Decimal(18, 6)
+  days_past_due_at_payment                Int?
+  dpd_bucket_at_payment                   DpdBucket?
   excess_tawidh_amount                    Decimal                             @default(0) @db.Decimal(18, 6)
   excess_gharamah_amount                  Decimal                             @default(0) @db.Decimal(18, 6)
   actual_settlement_date                  DateTime?
@@ -1649,6 +1661,87 @@ model NoteEvent {
   @@index([target_type, target_id, created_at])
   @@index([correlation_id])
   @@map("note_events")
+}
+
+model NoteLateChargeWaiver {
+  id                      String   @id @default(cuid())
+  note_id                 String
+  settlement_id           String?
+  tawidh_waived_amount    Decimal  @db.Decimal(18, 6)
+  gharamah_waived_amount  Decimal  @db.Decimal(18, 6)
+  reason                  String
+  waived_by_admin_user_id String
+  created_at              DateTime @default(now())
+  note                    Note     @relation(fields: [note_id], references: [id], onDelete: Cascade)
+
+  @@index([note_id])
+  @@index([settlement_id])
+  @@map("note_late_charge_waivers")
+}
+
+model NoteServicingLetter {
+  id            String                      @id @default(cuid())
+  note_id       String
+  type          NoteServicingLetterType
+  s3_key        String
+  generated_at  DateTime                    @default(now())
+  sent_at       DateTime?
+  sent_to       Json?
+  triggered_by  NoteServicingLetterTrigger
+  note          Note                        @relation(fields: [note_id], references: [id], onDelete: Cascade)
+
+  @@index([note_id])
+  @@index([type])
+  @@map("note_servicing_letters")
+}
+
+model NotePositionSnapshot {
+  id                       String              @id @default(cuid())
+  note_id                  String
+  snapshot_date            DateTime            @db.Date
+  days_past_due            Int                 @default(0)
+  dpd_bucket               DpdBucket
+  note_status              NoteStatus
+  servicing_status         NoteServicingStatus
+  outstanding_principal    Decimal             @db.Decimal(18, 6)
+  outstanding_profit       Decimal             @db.Decimal(18, 6)
+  outstanding_total        Decimal             @db.Decimal(18, 6)
+  recovered_principal      Decimal             @default(0) @db.Decimal(18, 6)
+  recovered_profit         Decimal             @default(0) @db.Decimal(18, 6)
+  applied_tawidh           Decimal             @default(0) @db.Decimal(18, 6)
+  applied_gharamah         Decimal             @default(0) @db.Decimal(18, 6)
+  indicative_tawidh        Decimal             @default(0) @db.Decimal(18, 6)
+  indicative_gharamah      Decimal             @default(0) @db.Decimal(18, 6)
+  waived_tawidh            Decimal             @default(0) @db.Decimal(18, 6)
+  waived_gharamah          Decimal             @default(0) @db.Decimal(18, 6)
+  is_sc_default            Boolean             @default(false)
+  created_at               DateTime            @default(now())
+  note                     Note                @relation(fields: [note_id], references: [id], onDelete: Cascade)
+
+  @@unique([note_id, snapshot_date])
+  @@index([snapshot_date])
+  @@index([note_id, snapshot_date])
+  @@map("note_position_snapshots")
+}
+
+model BookMetricsDailySnapshot {
+  id                 String   @id @default(cuid())
+  snapshot_date      DateTime @db.Date
+  outstanding_amount Decimal  @db.Decimal(18, 6)
+  outstanding_count  Int
+  in_funding_amount  Decimal  @db.Decimal(18, 6)
+  in_funding_count   Int
+  arrears_amount     Decimal  @db.Decimal(18, 6)
+  arrears_count      Int
+  defaulted_amount   Decimal  @db.Decimal(18, 6)
+  defaulted_count    Int
+  due_soon_amount    Decimal  @db.Decimal(18, 6)
+  due_soon_count     Int
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+
+  @@unique([snapshot_date])
+  @@map("book_metrics_daily_snapshots")
 }
 
 /// Admin note action with first-class before/after state. Every row is also mirrored into
@@ -2688,10 +2781,29 @@ enum NoteServicingStatus {
   CURRENT
   PARTIAL
   ADVANCE_PAID
+  OVERDUE
   LATE
   ARREARS
   DEFAULTED
   SETTLED
+}
+
+enum DpdBucket {
+  CURRENT
+  DPD_1_30
+  DPD_31_60
+  DPD_61_90
+  DPD_90_PLUS
+}
+
+enum NoteServicingLetterType {
+  ARREARS
+  DEFAULT
+}
+
+enum NoteServicingLetterTrigger {
+  SYSTEM
+  ADMIN
 }
 
 enum NoteInvestmentStatus {

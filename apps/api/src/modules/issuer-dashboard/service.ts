@@ -7,8 +7,12 @@ import {
   NotePaymentStatus,
   ApplicationStatus,
   WithdrawalType,
+  WithdrawalStatus,
+  NoteSettlementStatus,
+  GatewayPaymentPurpose,
+  GatewayPaymentStatus,
 } from "@prisma/client";
-import { countNoteInvestors, resolveFacilityFeeBalance } from "@cashsouk/types";
+import { countNoteInvestors, resolveFacilityFeeBalance, type IssuerDashboardBook } from "@cashsouk/types";
 import { facilityFeeUpfrontDto } from "../../lib/facility-fee-upfront-guard";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
@@ -18,6 +22,12 @@ import {
   mapIssuerDisbursementBreakdown,
   type IssuerDashboardDisbursementBreakdown,
 } from "./disbursement-breakdown";
+import {
+  computeFacilityLimitSummary,
+  buildIssuerDashboardBook,
+  isInstantInMytYear,
+  type IssuerBookNoteInput,
+} from "./dashboard-metrics";
 import {
   computeOnTimePaymentRate,
   decimalToNumber,
@@ -159,6 +169,7 @@ export type IssuerDashboardPayload = {
   contracts: IssuerDashboardContractDto[];
   /** All invoices for the org (with or without contract_id), for dashboard financing lists. */
   invoices: IssuerDashboardInvoiceDto[];
+  book: IssuerDashboardBook;
 };
 
 const organizationRepository = new OrganizationRepository();
@@ -266,19 +277,61 @@ export class IssuerDashboardService {
         ? `${user?.first_name ?? ""} ${user?.last_name ?? ""}`.trim()
         : null;
 
-    const applications = await prisma.application.findMany({
-      where: { issuer_organization_id: organizationId },
-      orderBy: { created_at: "desc" },
-      include: {
-        contract: true,
-        invoices: { orderBy: { created_at: "asc" } },
-      },
-    });
-
-    const notes = await prisma.note.findMany({
-      where: { issuer_organization_id: organizationId },
-      include: { listing: true },
-    });
+    const now = new Date();
+    const [applications, notes, disbursementWithdrawals, snapshots, facilityFeePayments] = await Promise.all([
+      prisma.application.findMany({
+        where: { issuer_organization_id: organizationId },
+        orderBy: { created_at: "desc" },
+        include: {
+          contract: true,
+          invoices: { orderBy: { created_at: "asc" } },
+        },
+      }),
+      prisma.note.findMany({
+        where: { issuer_organization_id: organizationId },
+        include: {
+          listing: true,
+          payment_schedules: { select: { due_date: true, sequence: true } },
+          settlements: {
+            where: { status: NoteSettlementStatus.POSTED },
+            select: {
+              posted_at: true,
+              investor_principal: true,
+              investor_profit_gross: true,
+              tawidh_amount: true,
+            },
+          },
+        },
+      }),
+      prisma.withdrawalInstruction.findMany({
+        where: {
+          issuer_organization_id: organizationId,
+          withdrawal_type: WithdrawalType.ISSUER_DISBURSEMENT,
+          note_id: { not: null },
+        },
+        orderBy: { created_at: "desc" },
+        select: {
+          note_id: true,
+          metadata: true,
+          status: true,
+          amount: true,
+          completed_at: true,
+          created_at: true,
+        },
+      }),
+      prisma.notePositionSnapshot.findMany({
+        where: { note: { issuer_organization_id: organizationId } },
+        select: { note_id: true, snapshot_date: true, outstanding_total: true },
+      }),
+      prisma.gatewayPayment.findMany({
+        where: {
+          issuer_organization_id: organizationId,
+          purpose: GatewayPaymentPurpose.FACILITY_FEE,
+          status: GatewayPaymentStatus.COMPLETED,
+        },
+        select: { amount: true, settled_at: true, updated_at: true },
+      }),
+    ]);
 
     const noteInvestments =
       notes.length === 0
@@ -310,16 +363,6 @@ export class IssuerDashboardService {
         countNoteInvestors(investmentsByNoteId.get(note.id) ?? [])
       );
     }
-
-    const disbursementWithdrawals = await prisma.withdrawalInstruction.findMany({
-      where: {
-        issuer_organization_id: organizationId,
-        withdrawal_type: WithdrawalType.ISSUER_DISBURSEMENT,
-        note_id: { not: null },
-      },
-      orderBy: { created_at: "desc" },
-      select: { note_id: true, metadata: true },
-    });
 
     type NoteWithListing = (typeof notes)[number];
 
@@ -370,6 +413,9 @@ export class IssuerDashboardService {
 
     const contractsOut: IssuerDashboardContractDto[] = [];
     const invoicesOut: IssuerDashboardInvoiceDto[] = [];
+    const approvedLimits: number[] = [];
+    const availableLimits: number[] = [];
+    const drawnAmounts: number[] = [];
 
     /**
      * Multiple applications may reference the same Contract.id (existing contract flow).
@@ -422,6 +468,11 @@ export class IssuerDashboardService {
 
       const approvedNum = occupancy.approvedFacility > 0 ? occupancy.approvedFacility : null;
       const utilizedFacilityAmount = occupancy.approvedFacility > 0 ? occupancy.utilizedFacility : null;
+      if (approvedNum !== null) {
+        approvedLimits.push(approvedNum);
+        availableLimits.push(occupancy.availableFacility);
+        drawnAmounts.push(occupancy.utilizedFacility);
+      }
       const availableFacilityAmount =
         occupancy.approvedFacility > 0 ? occupancy.availableFacility.toFixed(2) : null;
       const pendingFacilityAmount =
@@ -604,7 +655,6 @@ export class IssuerDashboardService {
     }
 
     // Repayment Performance: shared schedule-level on-time helper (also used by prospectus Stage 7).
-    const now = new Date();
     const sixMonthsAgo = sixMonthsAgoFrom(now);
 
     const schedulesInWindow = await prisma.notePaymentSchedule.findMany({
@@ -640,6 +690,91 @@ export class IssuerDashboardService {
     const pastDueCount = onTimeResult.pastDueCount;
     const lateRepaymentsLastSixMonthsCount = onTimeResult.lateRepaymentsCount;
 
+    const bookNotes: IssuerBookNoteInput[] = notes.map((note) => {
+      const posted = note.settlements;
+      return {
+        id: note.id,
+        noteReference: note.note_reference,
+        status: note.status,
+        listingStatus: note.listing_status,
+        fundingStatus: note.funding_status,
+        servicingStatus: note.servicing_status,
+        fundedAmount: decimalToNumber(note.funded_amount),
+        targetAmount: decimalToNumber(note.target_amount),
+        recoveredPrincipal: posted.reduce(
+          (sum, settlement) => sum + decimalToNumber(settlement.investor_principal),
+          0
+        ),
+        recoveredProfit: posted.reduce(
+          (sum, settlement) => sum + decimalToNumber(settlement.investor_profit_gross),
+          0
+        ),
+        profitRatePercent: decimalToNumber(note.profit_rate_percent),
+        tenureDays: note.tenure_days ?? null,
+        disbursementValueDate: note.disbursement_value_date,
+        activatedAt: note.activated_at,
+        maturityDate: note.maturity_date,
+        paymentSchedules: note.payment_schedules,
+        listingClosesAt: note.listing?.closes_at ?? null,
+        paymasterSnapshot: note.paymaster_snapshot,
+        invoiceSnapshot: note.invoice_snapshot,
+      };
+    });
+
+    let profitOnNotes = 0;
+    let tawidh = 0;
+    for (const note of notes) {
+      for (const settlement of note.settlements) {
+        if (!settlement.posted_at || !isInstantInMytYear(settlement.posted_at, now)) continue;
+        profitOnNotes += decimalToNumber(settlement.investor_profit_gross);
+        tawidh += decimalToNumber(settlement.tawidh_amount);
+      }
+    }
+
+    let drawdownFees = 0;
+    let facilityFeesFromDrawdown = 0;
+    let amountDrawnThisYear = 0;
+    for (const withdrawal of disbursementWithdrawals) {
+      if (withdrawal.status !== WithdrawalStatus.COMPLETED) continue;
+      const at = withdrawal.completed_at ?? withdrawal.created_at;
+      if (!isInstantInMytYear(at, now)) continue;
+      const breakdown = mapIssuerDisbursementBreakdown(asRecord(withdrawal.metadata));
+      drawdownFees += decimalToNumber(breakdown.platformFeeAmount);
+      facilityFeesFromDrawdown += decimalToNumber(breakdown.facilityFeeCharged);
+      const gross = decimalToNumber(breakdown.grossFundedAmount);
+      amountDrawnThisYear += gross > 0 ? gross : decimalToNumber(withdrawal.amount);
+    }
+
+    let facilityFeesGateway = 0;
+    for (const payment of facilityFeePayments) {
+      const at = payment.settled_at ?? payment.updated_at;
+      if (!isInstantInMytYear(at, now)) continue;
+      facilityFeesGateway += decimalToNumber(payment.amount);
+    }
+
+    const book = buildIssuerDashboardBook({
+      now,
+      notes: bookNotes,
+      snapshots: snapshots.map((row) => ({
+        noteId: row.note_id,
+        snapshotDate: row.snapshot_date,
+        outstandingTotal: decimalToNumber(row.outstanding_total),
+      })),
+      facility: computeFacilityLimitSummary({
+        approved: approvedLimits,
+        available: availableLimits,
+        drawn: drawnAmounts,
+      }),
+      cost: {
+        now,
+        profitOnNotes,
+        drawdownFees,
+        facilityFees: facilityFeesFromDrawdown + facilityFeesGateway,
+        tawidh,
+        amountDrawnThisYear,
+      },
+    });
+
     return {
       user: { displayName },
       overview: {
@@ -656,6 +791,7 @@ export class IssuerDashboardService {
       },
       contracts: contractsOut,
       invoices: invoicesOut,
+      book,
     };
   }
 

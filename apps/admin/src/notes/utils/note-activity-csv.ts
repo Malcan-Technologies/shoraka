@@ -39,7 +39,12 @@ const EVENT_LABELS: Record<string, string> = {
   SETTLEMENT_APPROVED: "Settlement Approved",
   SETTLEMENT_POSTED: "Settlement Posted",
   LATE_CHARGE_APPROVED: "Late Charge Approved",
-  OVERDUE_LATE_CHARGE_CHECKED: "Note Entered Arrears",
+  OVERDUE_LATE_CHARGE_CHECKED: "Overdue Check Completed",
+  NOTE_OVERDUE: "Note Overdue",
+  NOTE_LATE: "Note Late",
+  NOTE_ARREARS: "Note Entered Arrears",
+  LATE_CHARGE_WAIVED: "Late Charge Waived",
+  NOTE_LETTER_SENT: "Servicing Letter Sent",
   ARREARS_LETTER_GENERATED: "Arrears Letter Generated",
   DEFAULT_LETTER_GENERATED: "Default Letter Generated",
   SETTLEMENT_TRUSTEE_LETTER_GENERATED: "Settlement Trustee Letter Generated",
@@ -90,11 +95,13 @@ export function formatNoteActivityEventLabel(
   ) {
     label = RESIDUAL_RETURN_EVENT_LABELS[eventType];
   }
-  if (metadata?.resend === true) {
+  if (metadata?.resend === true || metadata?.resent === true) {
     if (eventType === "WITHDRAWAL_TRUSTEE_EMAIL_SENT") {
       label = "Withdrawal Trustee Email Redelivered";
     } else if (eventType === "SETTLEMENT_TRUSTEE_EMAIL_SENT") {
       label = "Settlement Trustee Email Redelivered";
+    } else if (eventType === "NOTE_LETTER_SENT") {
+      label = "Servicing Letter Resent";
     }
   }
   label = label.replace(/\bShoraka\s+Stp\b/g, "Tawarruq Transaction");

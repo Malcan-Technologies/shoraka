@@ -9,6 +9,7 @@ jest.mock("../../lib/prisma", () => ({
 }));
 
 import { NoteStatus } from "@prisma/client";
+import { addMytCalendarDays, mytCalendarParts, mytStartOfDayUtc } from "@cashsouk/types";
 import { AdminRepository } from "./repository";
 
 function aggregateRow(amount: number, count: number) {
@@ -25,6 +26,8 @@ describe("AdminRepository.getBookMetrics", () => {
       .mockResolvedValueOnce(aggregateRow(1_250_000, 4))
       .mockResolvedValueOnce(aggregateRow(80_000, 2))
       .mockResolvedValueOnce(aggregateRow(15_000, 1))
+      .mockResolvedValueOnce(aggregateRow(10_000, 1))
+      .mockResolvedValueOnce(aggregateRow(5_000, 1))
       .mockResolvedValueOnce(aggregateRow(40_000, 1));
   });
 
@@ -35,6 +38,8 @@ describe("AdminRepository.getBookMetrics", () => {
       outstanding: { amount: 1_250_000, count: 4 },
       inFunding: { amount: 80_000, count: 2 },
       distressed: { amount: 15_000, count: 1 },
+      arrears: { amount: 10_000, count: 1 },
+      defaulted: { amount: 5_000, count: 1 },
       dueSoon: { amount: 40_000, count: 1 },
     });
 
@@ -54,17 +59,15 @@ describe("AdminRepository.getBookMetrics", () => {
       _count: true,
     });
 
-    const dueSoonCall = mockNoteAggregate.mock.calls[3]?.[0] as {
+    const dueSoonCall = mockNoteAggregate.mock.calls[5]?.[0] as {
       where: { status: NoteStatus; maturity_date: { gte: Date; lt: Date } };
     };
     expect(dueSoonCall.where.status).toBe(NoteStatus.ACTIVE);
     const start = dueSoonCall.where.maturity_date.gte;
     const end = dueSoonCall.where.maturity_date.lt;
-    expect(start.getHours()).toBe(0);
-    expect(start.getMinutes()).toBe(0);
-    const startDay = Date.UTC(start.getFullYear(), start.getMonth(), start.getDate());
-    const endDay = Date.UTC(end.getFullYear(), end.getMonth(), end.getDate());
-    expect(Math.round((endDay - startDay) / 86_400_000)).toBe(7);
+    const today = mytCalendarParts(new Date());
+    expect(start.toISOString()).toBe(mytStartOfDayUtc(today).toISOString());
+    expect(end.toISOString()).toBe(mytStartOfDayUtc(addMytCalendarDays(today, 7)).toISOString());
   });
 
   it("treats a missing funded sum as zero", async () => {

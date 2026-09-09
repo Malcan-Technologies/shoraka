@@ -22,7 +22,14 @@ type NoteActivityRecord = Prisma.NoteEventGetPayload<{
 
 type SupportedPortal = "investor" | "issuer";
 
-const SHARED_EVENT_TYPES = ["FAIL_FUNDING", "ACTIVATE", "WITHDRAWAL_COMPLETED", "NOTE_DEFAULT_MARKED"] as const;
+const SHARED_EVENT_TYPES = [
+  "FAIL_FUNDING",
+  "ACTIVATE",
+  "WITHDRAWAL_COMPLETED",
+  "NOTE_DEFAULT_MARKED",
+  "NOTE_LATE",
+  "NOTE_ARREARS",
+] as const;
 const ISSUER_ONLY_EVENT_TYPES = [
   "NOTE_CREATED_FROM_INVOICE",
   "PUBLISH",
@@ -30,6 +37,9 @@ const ISSUER_ONLY_EVENT_TYPES = [
   "RESUME_LISTING",
   "CLOSE_FUNDING",
   "ISSUER_PAYMENT_SUBMITTED",
+  "NOTE_OVERDUE",
+  "LATE_CHARGE_WAIVED",
+  "NOTE_LETTER_SENT",
 ] as const;
 const INVESTOR_ONLY_EVENT_TYPES = ["INVESTMENT_COMMITTED", "SETTLEMENT_POSTED"] as const;
 
@@ -193,6 +203,44 @@ export class NoteLogAdapter implements AuditLogAdapter<NoteActivityRecord> {
             ? `${this.capitalize(noteLabel)} was marked in default and requires attention.`
             : "The note was marked in default and requires attention.",
         };
+      case "NOTE_OVERDUE":
+        return {
+          title: "Your Note Is Overdue",
+          description: noteLabel
+            ? `${this.capitalize(noteLabel)} is past due and still inside the grace period.`
+            : "The note is past due and still inside the grace period.",
+        };
+      case "NOTE_LATE":
+        return {
+          title: metadata?.portalType === "investor" ? "An Investment Is Late" : "Your Note Is Late",
+          description: noteLabel
+            ? `${this.capitalize(noteLabel)} is past the grace period.`
+            : "The note is past the grace period.",
+        };
+      case "NOTE_ARREARS":
+        return {
+          title: metadata?.portalType === "investor" ? "An Investment Is in Arrears" : "Your Note Is in Arrears",
+          description: noteLabel
+            ? `${this.capitalize(noteLabel)} has passed the arrears threshold.`
+            : "The note has passed the arrears threshold.",
+        };
+      case "LATE_CHARGE_WAIVED":
+        return {
+          title: "Late Charge Waived",
+          description: noteLabel
+            ? `A late charge on ${noteLabel} was waived.`
+            : "A late charge was waived.",
+        };
+      case "NOTE_LETTER_SENT": {
+        const kind = metadata?.kind === "DEFAULT" ? "Default" : "Arrears";
+        const resent = metadata?.resent === true;
+        return {
+          title: resent ? `${kind} Notice Resent` : `${kind} Notice Sent`,
+          description: noteLabel
+            ? `A ${kind.toLowerCase()} notice for ${noteLabel} was emailed to your organisation.`
+            : `A ${kind.toLowerCase()} notice was emailed to your organisation.`,
+        };
+      }
       default:
         return {
           title: "Note Update",

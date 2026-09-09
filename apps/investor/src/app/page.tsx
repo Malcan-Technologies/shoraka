@@ -5,20 +5,22 @@ import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../lib/auth";
 import {
+  formatCurrency,
   useOrganization,
   getOnboardingStep,
   getOnboardingStepRoute,
 } from "@cashsouk/config";
-import { filterVisiblePeopleRows } from "@cashsouk/types";
+import {
+  filterVisiblePeopleRows,
+  FINANCING_TENURE_MAX_DAYS,
+  FINANCING_TENURE_MIN_DAYS,
+  MARKETPLACE_MIN_COMMIT_MYR,
+} from "@cashsouk/types";
 import { checkAndRedirectForPendingInvitation } from "../lib/invitation-redirect";
-import { Button } from "../components/ui/button";
-import { PlusIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
-import { OnboardingStatusCard, getOnboardingSteps } from "../components/onboarding-status-card";
-import { DepositCard } from "../components/deposit-card";
+import { ExclamationTriangleIcon, PlusIcon } from "@heroicons/react/24/outline";
+import { getOnboardingSteps } from "../components/onboarding-status-card";
 import { InvestorProfileCompletenessBanner } from "../components/profile-completeness-banner";
-import { AccountOverviewCard } from "../components/account-overview-card";
-import { PortfolioOverviewCard } from "../components/portfolio-overview-card";
-import { DashboardInvestmentsSection } from "../components/dashboard-investments-section";
+import { DepositDialog } from "@/app/transactions/components/deposit-dialog";
 import {
   DirectorShareholderAlertCard,
   INVESTOR_DIRECTOR_SHAREHOLDER_ALERT_COPY,
@@ -26,13 +28,31 @@ import {
   useHeader,
   welcomeBackTitle,
 } from "@cashsouk/ui";
+import { Button } from "@/components/ui/button";
 import { InvestNowButton } from "../components/invest-now-button";
+import {
+  useInvestorInvestments,
+  useInvestorPortfolio,
+  useInvestorPortfolioHistory,
+  useMarketplaceNotes,
+} from "../investments/hooks/use-marketplace-notes";
+import {
+  investorDashboardWelcomeSubhead,
+  resolveInvestorDashboardState,
+} from "../investments/dashboard-state";
+import { marketplaceOpenTotals } from "../investments/dashboard-presentation";
+import { toMarketplaceNote } from "../marketplace/marketplace-note-model";
+import { InvestorDashboardOnboarding } from "../components/dashboard/investor-dashboard-onboarding";
+import { InvestorDashboardApproval } from "../components/dashboard/investor-dashboard-approval";
+import { InvestorDashboardNew } from "../components/dashboard/investor-dashboard-new";
+import { InvestorDashboardActive } from "../components/dashboard/investor-dashboard-active";
+
+const TENOR_RANGE_LABEL = `${FINANCING_TENURE_MIN_DAYS}–${FINANCING_TENURE_MAX_DAYS}`;
 
 function InvestorDashboardContent() {
   const { setTitle } = useHeader();
 
   useEffect(() => {
-    // PageShell owns the title.
     setTitle("");
     return () => setTitle("");
   }, [setTitle]);
@@ -48,6 +68,9 @@ function InvestorDashboardContent() {
   } = useOrganization();
   const [checkingOnboarding, setCheckingOnboarding] = useState(true);
   const hasRedirected = useRef(false);
+  const [depositOpen, setDepositOpen] = useState(false);
+  const [depositAmount, setDepositAmount] = useState("");
+  const [depositError, setDepositError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isAuthenticated && !isOrgLoading) {
@@ -112,10 +135,47 @@ function InvestorDashboardContent() {
     router,
   ]);
 
+  const orgId = activeOrganization?.id;
+  const flowStep = activeOrganization
+    ? getOnboardingStep(activeOrganization, "investor")
+    : null;
+  const completedOrgId = flowStep === "completed" ? orgId : undefined;
+  const portfolioQuery = useInvestorPortfolio(orgId);
+  const historyQuery = useInvestorPortfolioHistory("ALL", completedOrgId);
+  const marketplaceQuery = useMarketplaceNotes({ pageSize: 50 });
+  const holdingsQuery = useInvestorInvestments(completedOrgId);
+
   const visiblePeopleForDsAlert = useMemo(
     () => filterVisiblePeopleRows(activeOrganization?.people ?? []),
     [activeOrganization?.people]
   );
+
+  const steps = activeOrganization ? getOnboardingSteps(activeOrganization) : [];
+  const remainingStepCount = steps.filter((step) => !step.isCompleted).length;
+  const bookReady = flowStep !== "completed" || portfolioQuery.isFetched;
+  const dashboardState =
+    flowStep && bookReady
+      ? resolveInvestorDashboardState({
+          step: flowStep,
+          investmentCount: portfolioQuery.data?.investmentCount ?? 0,
+        })
+      : null;
+
+  const marketplaceNotes = marketplaceQuery.data?.notes ?? [];
+  const openTotals = marketplaceOpenTotals(
+    marketplaceNotes.map(toMarketplaceNote),
+    marketplaceQuery.data?.pagination.totalCount ?? marketplaceNotes.length
+  );
+
+  const cashflowTotal = portfolioQuery.data?.cashflowNext90Days?.totalAmount ?? 0;
+  const subhead = dashboardState
+    ? investorDashboardWelcomeSubhead({
+        state: dashboardState,
+        remainingStepCount,
+        next90DayCashflowLabel:
+          dashboardState === "active" && cashflowTotal > 0 ? formatCurrency(cashflowTotal) : null,
+      })
+    : "Loading your portfolio.";
 
   if (isAuthenticated === null || checkingOnboarding || isOrgLoading) {
     return (
@@ -132,48 +192,37 @@ function InvestorDashboardContent() {
     return null;
   }
 
-  const getDisplayName = () => {
+  const getGreetingName = () => {
     if (!activeOrganization) return "";
-
+    if (activeOrganization.firstName?.trim()) return activeOrganization.firstName.trim();
     if (activeOrganization.firstName && activeOrganization.lastName) {
       return `${activeOrganization.firstName} ${activeOrganization.lastName}`;
     }
-
     if (activeOrganization.type === "COMPANY" && activeOrganization.name) {
       return activeOrganization.name;
     }
-
     return activeOrganization.type === "PERSONAL" ? "Personal Account" : "Company Account";
   };
 
-  const displayName = getDisplayName();
-
-  const steps = activeOrganization ? getOnboardingSteps(activeOrganization) : [];
-  const allStepsComplete = activeOrganization ? steps.every((step) => step.isCompleted) : false;
-  const currentStep = steps.find((step) => step.isCurrent);
-
-  const needsDeposit = currentStep?.id === "deposit";
-  const isAwaitingApproval = currentStep?.id === "approval";
-  const isRejected = activeOrganization?.onboardingStatus === "REJECTED";
-  const isAccountEnabled = activeOrganization?.onboardingStatus === "COMPLETED";
+  const displayName = getGreetingName();
+  const isRejected = dashboardState === "rejected";
+  const showCompleteness = dashboardState === "new" || dashboardState === "active";
 
   return (
     <>
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0 relative">
         {isRejected && (
-          <div className="absolute inset-0 bg-black/50 z-50 flex items-center justify-center rounded-lg">
-            <div className="bg-card rounded-xl border border-destructive/50 p-8 max-w-md mx-4">
+          <div className="absolute inset-0 z-50 flex items-center justify-center rounded-lg bg-foreground/50">
+            <div className="mx-4 max-w-md rounded-xl border border-status-rejected-text/40 bg-card p-8">
               <div className="flex items-start gap-4">
-                <div className="flex-shrink-0">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-destructive/10">
-                    <ExclamationTriangleIcon className="h-5 w-5 text-destructive" />
-                  </div>
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-status-rejected-bg">
+                  <ExclamationTriangleIcon className="h-5 w-5 text-status-rejected-text" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-destructive mb-2">
+                  <h3 className="mb-2 text-section-title text-status-rejected-text">
                     Account has been rejected
                   </h3>
-                  <p className="text-muted-foreground">
+                  <p className="text-body text-muted-foreground">
                     Your onboarding application has been rejected. If you believe this was a mistake,
                     please contact our support team.
                   </p>
@@ -184,67 +233,101 @@ function InvestorDashboardContent() {
         )}
         <div className="p-2 md:p-4">
           <PageShell
+            className="[&_h1]:text-primary"
             title={welcomeBackTitle(displayName)}
-            description={
-              allStepsComplete
-                ? "Browse and invest in verified financing opportunities from your dashboard."
-                : "Complete onboarding to start investing."
-            }
+            description={subhead}
             action={
-              allStepsComplete ? (
-                <InvestNowButton className="h-11 shrink-0 gap-2 rounded-xl font-semibold" />
-              ) : (
-                <Button disabled className="h-11 shrink-0 gap-2 rounded-xl font-semibold opacity-50">
-                  <PlusIcon className="h-4 w-4" />
-                  Invest now
-                </Button>
-              )
+              dashboardState === "active" ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-11 shrink-0 gap-2 rounded-xl border-primary text-primary hover:bg-primary/5"
+                    onClick={() => setDepositOpen(true)}
+                  >
+                    <PlusIcon className="h-4 w-4" />
+                    Deposit
+                  </Button>
+                  <InvestNowButton className="h-11 shrink-0 gap-2 rounded-xl font-semibold" />
+                </>
+              ) : undefined
             }
           >
-            <div className="space-y-8">
+            <div className="flex flex-col gap-6">
+              {flowStep === "completed" && !bookReady ? (
+                <p className="text-ui text-muted-foreground">Loading your portfolio.</p>
+              ) : null}
+
               {activeOrganization?.type === "COMPANY" ? (
                 <DirectorShareholderAlertCard
                   visiblePeople={visiblePeopleForDsAlert}
-                  enabled={activeOrganization.onboardingStatus === "COMPLETED"}
+                  enabled={dashboardState === "active"}
                   copy={INVESTOR_DIRECTOR_SHAREHOLDER_ALERT_COPY}
                 />
               ) : null}
 
-              <InvestorProfileCompletenessBanner
-                organizationId={activeOrganization?.id}
-                onboarded={isAccountEnabled}
-              />
-
-              {activeOrganization && !allStepsComplete ? (
-                <section className="space-y-6">
-                  <OnboardingStatusCard organization={activeOrganization} />
-
-                  {needsDeposit && <DepositCard organizationId={activeOrganization.id} />}
-
-                  {isAwaitingApproval && (
-                    <div className="rounded-xl border bg-card p-6">
-                      <h3 className="mb-2 text-lg font-semibold">Awaiting Approval</h3>
-                      <p className="text-muted-foreground">
-                        Your account is currently under review. You will be notified once the
-                        approval process is complete.
-                      </p>
-                    </div>
-                  )}
-                </section>
+              {dashboardState === "onboarding" && activeOrganization ? (
+                <InvestorDashboardOnboarding
+                  steps={steps}
+                  organizationId={activeOrganization.id}
+                  tenorLabel={`${TENOR_RANGE_LABEL} day`}
+                />
               ) : null}
 
-              <AccountOverviewCard isDisabled={!isAccountEnabled} />
+              {dashboardState === "approval" && activeOrganization ? (
+                <InvestorDashboardApproval
+                  onboardingStatus={activeOrganization.onboardingStatus}
+                  amlApproved={activeOrganization.amlApproved}
+                />
+              ) : null}
 
-              {isAccountEnabled ? (
-                <>
-                  <PortfolioOverviewCard />
-                  <DashboardInvestmentsSection />
-                </>
+              {dashboardState === "new" ? (
+                <InvestorDashboardNew
+                  availableBalance={
+                    portfolioQuery.isFetched ? Number(portfolioQuery.data?.availableBalance ?? 0) : null
+                  }
+                  openNoteCount={
+                    marketplaceQuery.isFetched ? openTotals.count : null
+                  }
+                  seekingFunding={openTotals.seekingFunding}
+                  tenorLabel={TENOR_RANGE_LABEL}
+                  minCommitMyr={MARKETPLACE_MIN_COMMIT_MYR}
+                  onDeposit={() => setDepositOpen(true)}
+                />
+              ) : null}
+
+              {dashboardState === "active" && portfolioQuery.data ? (
+                <InvestorDashboardActive
+                  portfolio={portfolioQuery.data}
+                  historyPoints={historyQuery.data?.points ?? []}
+                  marketplaceNotes={marketplaceNotes}
+                  marketplaceTotalCount={openTotals.count}
+                  seekingFunding={openTotals.seekingFunding}
+                  holdings={holdingsQuery.data?.notes ?? []}
+                  onDeposit={() => setDepositOpen(true)}
+                />
+              ) : null}
+
+              {showCompleteness ? (
+                <InvestorProfileCompletenessBanner
+                  organizationId={activeOrganization?.id}
+                  onboarded
+                />
               ) : null}
             </div>
           </PageShell>
         </div>
       </div>
+      <DepositDialog
+        open={depositOpen}
+        onOpenChange={setDepositOpen}
+        investorOrganizationId={orgId}
+        amount={depositAmount}
+        onAmountChange={setDepositAmount}
+        validationError={depositError}
+        onValidationErrorChange={setDepositError}
+        returnTo="/"
+      />
     </>
   );
 }

@@ -110,6 +110,9 @@ export function deriveNoteStatus(input: NoteStatusInput): DerivedNoteStatus {
   if (input.status === "ARREARS" || input.servicingStatus === "ARREARS") {
     return { label: "Arrears", tone: "destructive", icon: ExclamationTriangleIcon };
   }
+  if (input.servicingStatus === "OVERDUE") {
+    return { label: "Overdue", tone: "warning", icon: ExclamationTriangleIcon };
+  }
   if (input.status === "ACTIVE") {
     if (input.hasPostedSettlement && input.pendingResidual) {
       return awaitingResidualRefundStatus();
@@ -124,6 +127,9 @@ export function deriveNoteStatus(input: NoteStatusInput): DerivedNoteStatus {
       return { label: "Active · advance paid", tone: "active", icon: CheckCircleIcon };
     }
     return { label: "Active · servicing", tone: "active", icon: CheckCircleIcon };
+  }
+  if (input.servicingStatus === "LATE") {
+    return { label: "Late", tone: "warning", icon: ExclamationTriangleIcon };
   }
   if (input.status === "FUNDING" || input.fundingStatus === "FUNDED") {
     return {

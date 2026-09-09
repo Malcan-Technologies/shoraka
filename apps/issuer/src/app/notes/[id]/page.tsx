@@ -51,6 +51,7 @@ import {
 } from "@/notes/hooks/use-issuer-notes";
 import { LedgerPanel } from "@/notes/components/ledger-panel";
 import { IssuerInvestmentNoteCertificateCard } from "@/notes/components/issuer-investment-note-certificate-card";
+import { IssuerNoteServicingPanel } from "@/notes/components/issuer-note-servicing-panel";
 import { ExcessLateChargePaymentCard } from "@/components/financing/excess-late-charge-payment-card";
 import { ExcessLateChargeReturnListener } from "@/components/excess-late-charge-return-listener";
 import {
@@ -818,6 +819,10 @@ export default function IssuerNoteDetailPage() {
             noteStatus={note.status}
             servicingStatus={note.servicingStatus}
           />
+        ) : null}
+
+        {note.fundingStatus === "FUNDED" || (note.servicingLetters?.length ?? 0) > 0 ? (
+          <IssuerNoteServicingPanel note={note} />
         ) : null}
 
         {note.feeSchedule || note.facilityFeeCollectionWaiver?.facilityFeeCollectionWaived ? (

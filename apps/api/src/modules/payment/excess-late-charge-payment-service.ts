@@ -31,8 +31,8 @@ import {
   frozenExcessLateChargeTotal,
 } from "./excess-late-charge-allocation";
 
-function decimalToNumber(value: Prisma.Decimal): number {
-  return value.toNumber();
+function decimalToNumber(value: Prisma.Decimal | null | undefined): number {
+  return value == null ? 0 : value.toNumber();
 }
 
 async function assertNoteAccess(db: PrismaClient, actor: ActorContext, noteId: string) {
@@ -83,13 +83,18 @@ async function lockSettlementRow(tx: Prisma.TransactionClient, settlementId: str
 function resolveSettlementTotals(settlement: {
   excess_late_charge_amount: Prisma.Decimal;
   excess_late_charge_paid_amount: Prisma.Decimal;
+  excess_late_charge_waived_amount?: Prisma.Decimal | null;
   excess_tawidh_amount: Prisma.Decimal;
   excess_gharamah_amount: Prisma.Decimal;
 }) {
   const excessTawidhAmount = decimalToNumber(settlement.excess_tawidh_amount);
   const excessGharamahAmount = decimalToNumber(settlement.excess_gharamah_amount);
   const splitTotal = frozenExcessLateChargeTotal(excessTawidhAmount, excessGharamahAmount);
-  const owedAmount = Math.max(splitTotal, decimalToNumber(settlement.excess_late_charge_amount));
+  const waivedAmount = decimalToNumber(settlement.excess_late_charge_waived_amount);
+  const owedAmount = Math.max(
+    0,
+    Math.max(splitTotal, decimalToNumber(settlement.excess_late_charge_amount)) - waivedAmount
+  );
   const paidAmount = decimalToNumber(settlement.excess_late_charge_paid_amount);
   return {
     excessTawidhAmount,
