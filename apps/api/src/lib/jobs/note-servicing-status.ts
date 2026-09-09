@@ -34,6 +34,7 @@ import { resolveNoteEventTarget } from "../../modules/notes/audit-fields";
 import { writeTodayBookMetricsSnapshot } from "../../modules/admin/book-metrics-snapshot";
 import {
   closedDaySnapshotStatuses,
+  fundedAsOfCutoff,
   mytSnapshotCutoff,
   occurredBeforeCutoff,
   settlementsAsOfCutoff,
@@ -475,6 +476,10 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
         classification: closedClassification,
         liveNoteStatus: note.status,
       });
+
+      if (!fundedAsOfCutoff(note.funding_closed_at, cutoff)) {
+        continue;
+      }
 
       await prisma.notePositionSnapshot.upsert({
         where: {

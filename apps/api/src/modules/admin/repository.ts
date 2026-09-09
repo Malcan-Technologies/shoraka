@@ -19,16 +19,13 @@ import {
   ReviewStepStatus,
 } from "@prisma/client";
 import {
-  addMytCalendarDays,
-  mytCalendarParts,
-  mytStartOfDayUtc,
   readFinancingStructureType,
   resolveAdminContractApplicationKind,
   resolveFacilityFeeUpfront,
   roundNoteMoney,
   type AdminRoleKey,
 } from "@cashsouk/types";
-import { bookMetricsAsOfFilters } from "./book-metrics-as-of";
+import { bookMetricsAsOfFilters, bookMetricsDueSoonWindow } from "./book-metrics-as-of";
 import type {
   GetUsersQuery,
   GetAccessLogsQuery,
@@ -2187,9 +2184,7 @@ export class AdminRepository {
     defaulted: { amount: number; count: number };
     dueSoon: { amount: number; count: number };
   }> {
-    const today = mytCalendarParts(new Date());
-    const dueSoonStart = mytStartOfDayUtc(today);
-    const dueSoonEnd = mytStartOfDayUtc(addMytCalendarDays(today, 7));
+    const { start: dueSoonStart, end: dueSoonEnd } = bookMetricsDueSoonWindow(new Date(), asOfCutoff);
     const filters = bookMetricsAsOfFilters(asOfCutoff);
 
     const IN_FUNDING: NoteStatus[] = [NoteStatus.PUBLISHED, NoteStatus.FUNDING];

@@ -10,6 +10,11 @@ export function occurredBeforeCutoff(at: Date | null | undefined, cutoff: Date):
   return at != null && at.getTime() < cutoff.getTime();
 }
 
+/** Legacy funded notes with no close timestamp stay on the closed-day book. */
+export function fundedAsOfCutoff(fundingClosedAt: Date | null | undefined, cutoff: Date): boolean {
+  return fundingClosedAt == null || occurredBeforeCutoff(fundingClosedAt, cutoff);
+}
+
 export type SnapshotSettlement = {
   status: NoteSettlementStatus;
   posted_at: Date | null;

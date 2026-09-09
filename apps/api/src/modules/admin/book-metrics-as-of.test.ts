@@ -1,5 +1,5 @@
 import { NoteStatus } from "@prisma/client";
-import { bookMetricsAsOfFilters } from "./book-metrics-as-of";
+import { bookMetricsAsOfFilters, bookMetricsDueSoonWindow } from "./book-metrics-as-of";
 
 const cutoff = new Date("2026-01-01T16:00:00.000Z");
 
@@ -21,5 +21,23 @@ describe("bookMetricsAsOfFilters", () => {
         ]),
       })
     );
+  });
+
+  it("keeps same-morning arrears on the outstanding book instead of yesterday's arrears", () => {
+    const filters = bookMetricsAsOfFilters(cutoff);
+    expect(JSON.stringify(filters.arrears)).toContain("\"lt\":");
+    expect(JSON.stringify(filters.outstanding)).toContain("\"gte\":");
+    expect(JSON.stringify(filters.outstanding)).toContain("ARREARS");
+  });
+});
+
+describe("bookMetricsDueSoonWindow", () => {
+  it("anchors the closed-day window on the labeled Malaysia date", () => {
+    const window = bookMetricsDueSoonWindow(
+      new Date("2026-01-01T16:30:00.000Z"),
+      new Date("2026-01-01T16:00:00.000Z")
+    );
+    expect(window.start.toISOString()).toBe("2025-12-31T16:00:00.000Z");
+    expect(window.end.toISOString()).toBe("2026-01-07T16:00:00.000Z");
   });
 });

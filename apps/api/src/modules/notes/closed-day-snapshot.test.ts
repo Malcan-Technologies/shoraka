@@ -1,6 +1,7 @@
 import { DpdBucket, NoteServicingStatus, NoteSettlementStatus, NoteStatus } from "@prisma/client";
 import {
   closedDaySnapshotStatuses,
+  fundedAsOfCutoff,
   mytSnapshotCutoff,
   occurredBeforeCutoff,
   settlementsAsOfCutoff,
@@ -105,5 +106,16 @@ describe("closedDaySnapshotStatuses", () => {
         liveNoteStatus: NoteStatus.DEFAULTED,
       }).servicingStatus
     ).toBe(NoteServicingStatus.ARREARS);
+  });
+});
+
+describe("fundedAsOfCutoff", () => {
+  it("keeps legacy funded notes with no close timestamp", () => {
+    expect(fundedAsOfCutoff(null, cutoff)).toBe(true);
+  });
+
+  it("excludes notes whose funding closed after Malaysia midnight", () => {
+    expect(fundedAsOfCutoff(new Date("2026-01-01T16:10:00.000Z"), cutoff)).toBe(false);
+    expect(fundedAsOfCutoff(new Date("2026-01-01T15:50:00.000Z"), cutoff)).toBe(true);
   });
 });

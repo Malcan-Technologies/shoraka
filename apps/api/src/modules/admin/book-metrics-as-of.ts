@@ -1,4 +1,15 @@
 import { NoteServicingStatus, NoteStatus } from "@prisma/client";
+import { addMytCalendarDays, mytCalendarParts, mytStartOfDayUtc } from "@cashsouk/types";
+
+export function bookMetricsDueSoonWindow(now: Date, asOfCutoff?: Date) {
+  const day = asOfCutoff
+    ? mytCalendarParts(new Date(asOfCutoff.getTime() - 1))
+    : mytCalendarParts(now);
+  return {
+    start: mytStartOfDayUtc(day),
+    end: mytStartOfDayUtc(addMytCalendarDays(day, 7)),
+  };
+}
 
 export function bookMetricsAsOfFilters(asOfCutoff?: Date) {
   if (!asOfCutoff) {
@@ -14,6 +25,11 @@ export function bookMetricsAsOfFilters(asOfCutoff?: Date) {
       OR: [
         { status: NoteStatus.ACTIVE },
         {
+          servicing_status: NoteServicingStatus.ARREARS,
+          default_marked_at: null,
+          arrears_started_at: { gte: asOfCutoff },
+        },
+        {
           status: NoteStatus.REPAID,
           repaid_at: { gte: asOfCutoff },
           arrears_started_at: null,
@@ -23,7 +39,8 @@ export function bookMetricsAsOfFilters(asOfCutoff?: Date) {
     },
     distressed: {
       OR: [
-        { status: { in: [NoteStatus.ARREARS, NoteStatus.DEFAULTED] } },
+        { status: NoteStatus.ARREARS, arrears_started_at: { lt: asOfCutoff } },
+        { status: NoteStatus.DEFAULTED, default_marked_at: { lt: asOfCutoff } },
         {
           status: NoteStatus.REPAID,
           repaid_at: { gte: asOfCutoff },
@@ -36,8 +53,16 @@ export function bookMetricsAsOfFilters(asOfCutoff?: Date) {
     },
     arrears: {
       OR: [
-        { servicing_status: NoteServicingStatus.ARREARS, default_marked_at: null },
-        { servicing_status: NoteServicingStatus.DEFAULTED, default_marked_at: { gte: asOfCutoff } },
+        {
+          servicing_status: NoteServicingStatus.ARREARS,
+          default_marked_at: null,
+          arrears_started_at: { lt: asOfCutoff },
+        },
+        {
+          servicing_status: NoteServicingStatus.DEFAULTED,
+          default_marked_at: { gte: asOfCutoff },
+          arrears_started_at: { lt: asOfCutoff },
+        },
         {
           status: NoteStatus.REPAID,
           repaid_at: { gte: asOfCutoff },
