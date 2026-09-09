@@ -9,6 +9,7 @@ import {
   Prisma,
 } from "@prisma/client";
 import { normalizeDirectorShareholderPartyEmail } from "@cashsouk/types";
+import { AppError } from "../../lib/http/error-handler";
 
 type OrganizationDbClient = typeof prisma | Prisma.TransactionClient;
 
@@ -810,10 +811,45 @@ export class OrganizationRepository {
     return result.count;
   }
 
+  /**
+   * Person-scoped invitation creation is serialized per organization party.
+   *
+   * The lock prevents two concurrent API requests from both observing
+   * "no active invitation" and inserting duplicate active invitations.
+   *
+   * This must remain database-backed because the API may run on multiple
+   * processes/containers.
+   */
+  async lockOrganizationPartyProfileForUpdate(
+    organizationId: string,
+    portalType: "investor" | "issuer",
+    partyProfileId: string,
+    db: OrganizationDbClient
+  ): Promise<void> {
+    const rows =
+      portalType === "investor"
+        ? await db.$queryRaw<{ id: string }[]>`
+            SELECT id FROM organization_party_profiles
+            WHERE id = ${partyProfileId}
+              AND investor_organization_id = ${organizationId}
+            FOR UPDATE
+          `
+        : await db.$queryRaw<{ id: string }[]>`
+            SELECT id FROM organization_party_profiles
+            WHERE id = ${partyProfileId}
+              AND issuer_organization_id = ${organizationId}
+            FOR UPDATE
+          `;
+    if (rows.length === 0) {
+      throw new AppError(404, "NOT_FOUND", "Person not found in this organization");
+    }
+  }
+
   async listActivePersonScopedInvitations(
     organizationId: string,
     portalType: "investor" | "issuer",
-    partyProfileId: string
+    partyProfileId: string,
+    db: OrganizationDbClient = prisma
   ): Promise<Array<{ id: string; token: string; email: string; role: OrganizationMemberRole }>> {
     const where = {
       organization_party_profile_id: partyProfileId,
@@ -821,13 +857,13 @@ export class OrganizationRepository {
       expires_at: { gt: new Date() },
     };
     if (portalType === "investor") {
-      return prisma.investorOrganizationInvitation.findMany({
+      return db.investorOrganizationInvitation.findMany({
         where: { ...where, investor_organization_id: organizationId },
         select: { id: true, token: true, email: true, role: true },
         orderBy: { created_at: "desc" },
       });
     }
-    return prisma.issuerOrganizationInvitation.findMany({
+    return db.issuerOrganizationInvitation.findMany({
       where: { ...where, issuer_organization_id: organizationId },
       select: { id: true, token: true, email: true, role: true },
       orderBy: { created_at: "desc" },

@@ -65,6 +65,35 @@ export function findReusablePersonScopedInvitation<T extends PersonScopedInvitat
 }
 
 /**
+ * Person-scoped invitation creation is serialized per organization party.
+ *
+ * The lock prevents two concurrent API requests from both observing
+ * "no active invitation" and inserting duplicate active invitations.
+ *
+ * This must remain database-backed because the API may run on multiple
+ * processes/containers.
+ */
+export async function runPersonScopedInvitationIssue<T extends PersonScopedInvitationMatch>(params: {
+  lockParty: () => Promise<void>;
+  listActive: () => Promise<T[]>;
+  supersede: (exceptId?: string) => Promise<void>;
+  create: () => Promise<T>;
+  email: string;
+  role: string;
+}): Promise<{ invitation: T; reused: boolean }> {
+  await params.lockParty();
+  const active = await params.listActive();
+  const reusable = findReusablePersonScopedInvitation(active, params.email, params.role);
+  if (reusable) {
+    await params.supersede(reusable.id);
+    return { invitation: reusable, reused: true };
+  }
+  await params.supersede();
+  const created = await params.create();
+  return { invitation: created, reused: false };
+}
+
+/**
  * Generic organization invite links may be claimable by an authenticated user,
  * but a Person-scoped invite assigns a regulatory/company identity.
  * An unlinked Person must therefore not be claimable through an unrestricted

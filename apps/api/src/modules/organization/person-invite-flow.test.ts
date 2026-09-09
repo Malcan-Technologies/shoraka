@@ -146,13 +146,28 @@ describe("Person-scoped invitation reuse and supersession", () => {
     expect(link).toContain("findReusablePersonScopedInvitation");
     expect(link).toContain("invitationEmailsMatch(row.email, email) && row.role === role");
     expect(generateLink).toContain("issuePersonScopedInvitation");
+    expect(issuePerson).toContain("runPersonScopedInvitationIssue");
     expect(issuePerson).toContain("listActivePersonScopedInvitations");
-    expect(issuePerson).toContain("findReusablePersonScopedInvitation");
+    expect(issuePerson).toContain("lockOrganizationPartyProfileForUpdate");
+  });
+
+  it("serializes Person-scoped invite creation under a party row lock in one transaction", () => {
+    expect(issuePerson.indexOf("prisma.$transaction")).toBeLessThan(
+      issuePerson.indexOf("runPersonScopedInvitationIssue")
+    );
+    expect(issuePerson.indexOf("lockOrganizationPartyProfileForUpdate")).toBeLessThan(
+      issuePerson.indexOf("listActivePersonScopedInvitations")
+    );
+    expect(repository).toContain("FOR UPDATE");
+    expect(repository).toContain("async lockOrganizationPartyProfileForUpdate");
+    expect(link).toContain("Person-scoped invitation creation is serialized per organization party.");
+    expect(link).toContain("This must remain database-backed because the API may run on multiple");
   });
 
   it("supersedes other active Person-scoped invites so an old token cannot be accepted", () => {
     expect(issuePerson).toContain("supersedeActivePersonScopedInvitations");
-    expect(issuePerson).toContain("exceptId: reusable.id");
+    expect(issuePerson).toContain("exceptId, db: tx");
+    expect(link).toContain("params.supersede(reusable.id)");
     expect(repository).toContain("async supersedeActivePersonScopedInvitations");
     expect(repository).toContain("deleteMany");
     expect(repository).toContain("accepted: false");
