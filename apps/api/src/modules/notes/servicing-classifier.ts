@@ -166,6 +166,14 @@ export function calendarDateInTimeZone(
   return new Date(`${parts}T00:00:00.000Z`);
 }
 
+/** UTC-midnight key for the MYT calendar day that has already closed. */
+export function previousMytCalendarDate(now: Date): Date {
+  const today = calendarDateInTimeZone(now);
+  const previous = new Date(today);
+  previous.setUTCDate(previous.getUTCDate() - 1);
+  return previous;
+}
+
 export function calendarDaysBetween(
   start: Date,
   end: Date,

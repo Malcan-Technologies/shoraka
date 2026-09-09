@@ -21,11 +21,15 @@ import {
   classifyServicing,
   dpdBucketFromDays,
   noteOutstandingAmounts,
+  previousMytCalendarDate,
   resolveServicingDueDate,
   shouldAdvanceServicing,
   tenureDaysForNote,
 } from "../../modules/notes/servicing-classifier";
-import { generateAndSendServicingLetter } from "../../modules/notes/servicing-letters/service";
+import {
+  generateAndSendServicingLetter,
+  resendServicingLetter,
+} from "../../modules/notes/servicing-letters/service";
 import { resolveNoteEventTarget } from "../../modules/notes/audit-fields";
 import { writeTodayBookMetricsSnapshot } from "../../modules/admin/book-metrics-snapshot";
 
@@ -118,8 +122,17 @@ function resolveSettlementAmount(note: {
   );
 }
 
+export function shouldSendArrearsLetter(
+  existing: { sent_at: Date | null } | null
+): "generate" | "retry" | "skip" {
+  if (!existing) return "generate";
+  if (!existing.sent_at) return "retry";
+  return "skip";
+}
+
 export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteServicingStatusJobResult> {
   const today = calendarDateInTimeZone(now);
+  const snapshotDate = previousMytCalendarDate(now);
   const result: NoteServicingStatusJobResult = {
     notesProcessed: 0,
     transitions: 0,
@@ -173,23 +186,22 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
         (sum, row) => sum + toNumber(row.gharamah_waived_amount),
         0
       );
-      const classification = classifyServicing(
-        {
-          servicing_status: note.servicing_status,
-          status: note.status,
-          grace_period_days: note.grace_period_days,
-          arrears_threshold_days: note.arrears_threshold_days,
-          tawidh_rate_cap_percent: toNumber(note.tawidh_rate_cap_percent),
-          gharamah_rate_cap_percent: toNumber(note.gharamah_rate_cap_percent),
-          due_date: resolveServicingDueDate(note),
-          receipt_amount: resolveSettlementAmount(note),
-          applied_tawidh_amount: appliedTawidh,
-          applied_gharamah_amount: appliedGharamah,
-          waived_tawidh_amount: waivedTawidh,
-          waived_gharamah_amount: waivedGharamah,
-        },
-        today
-      );
+      const servicingInput = {
+        servicing_status: note.servicing_status,
+        status: note.status,
+        grace_period_days: note.grace_period_days,
+        arrears_threshold_days: note.arrears_threshold_days,
+        tawidh_rate_cap_percent: toNumber(note.tawidh_rate_cap_percent),
+        gharamah_rate_cap_percent: toNumber(note.gharamah_rate_cap_percent),
+        due_date: resolveServicingDueDate(note),
+        receipt_amount: resolveSettlementAmount(note),
+        applied_tawidh_amount: appliedTawidh,
+        applied_gharamah_amount: appliedGharamah,
+        waived_tawidh_amount: waivedTawidh,
+        waived_gharamah_amount: waivedGharamah,
+      };
+      const classification = classifyServicing(servicingInput, today);
+      const closedClassification = classifyServicing(servicingInput, snapshotDate);
 
       const hasPostedSettlement = posted.length > 0;
       const canTransition =
@@ -311,27 +323,37 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
       if (!hasPostedSettlement && arrearsNow) {
         const existingArrearsLetter = await prisma.noteServicingLetter.findFirst({
           where: { note_id: note.id, type: NoteServicingLetterType.ARREARS },
-          select: { id: true },
+          select: { id: true, sent_at: true },
         });
-        if (!existingArrearsLetter) {
+        const letterAction = shouldSendArrearsLetter(existingArrearsLetter);
+        if (letterAction !== "skip") {
           try {
-            await generateAndSendServicingLetter({
-              noteId: note.id,
-              kind: "ARREARS",
-              triggeredBy: "SYSTEM",
-              actor: systemActor(),
-              issuerName: resolveIssuerName(note.issuer_snapshot),
-              noteReference: note.note_reference,
-              issuerOrganizationId: note.issuer_organization_id,
-              dueDate: classification.dueDate,
-              daysPastDue: classification.daysPastDue,
-              outstandingTotal: outstanding.outstandingTotal,
-              indicativeTawidhAmount: classification.indicativeTawidhAmount,
-              indicativeGharamahAmount: classification.indicativeGharamahAmount,
-              gracePeriodDays: note.grace_period_days,
-              arrearsThresholdDays: note.arrears_threshold_days,
-            });
-            result.lettersSent += 1;
+            if (letterAction === "retry" && existingArrearsLetter) {
+              const resent = await resendServicingLetter({
+                letterId: existingArrearsLetter.id,
+                noteId: note.id,
+                actor: systemActor(),
+              });
+              if (resent.sentTo.length > 0) result.lettersSent += 1;
+            } else {
+              const created = await generateAndSendServicingLetter({
+                noteId: note.id,
+                kind: "ARREARS",
+                triggeredBy: "SYSTEM",
+                actor: systemActor(),
+                issuerName: resolveIssuerName(note.issuer_snapshot),
+                noteReference: note.note_reference,
+                issuerOrganizationId: note.issuer_organization_id,
+                dueDate: classification.dueDate,
+                daysPastDue: classification.daysPastDue,
+                outstandingTotal: outstanding.outstandingTotal,
+                indicativeTawidhAmount: classification.indicativeTawidhAmount,
+                indicativeGharamahAmount: classification.indicativeGharamahAmount,
+                gracePeriodDays: note.grace_period_days,
+                arrearsThresholdDays: note.arrears_threshold_days,
+              });
+              if (created.sentTo.length > 0) result.lettersSent += 1;
+            }
           } catch (error) {
             result.errors += 1;
             logger.error(
@@ -342,26 +364,28 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
         }
       }
 
-      const snapshotDpd = hasPostedSettlement ? 0 : classification.daysPastDue;
-      const persistedStatus = canTransition ? classification.servicingStatus : note.servicing_status;
-      const persistedNoteStatus = canTransition
-        ? (classification.noteStatus ?? note.status)
-        : note.status;
+      const snapshotDpd = hasPostedSettlement ? 0 : closedClassification.daysPastDue;
+      const snapshotStatus = hasPostedSettlement
+        ? note.servicing_status
+        : closedClassification.servicingStatus;
+      const snapshotNoteStatus = hasPostedSettlement
+        ? note.status
+        : (closedClassification.noteStatus ?? note.status);
 
       await prisma.notePositionSnapshot.upsert({
         where: {
           note_id_snapshot_date: {
             note_id: note.id,
-            snapshot_date: today,
+            snapshot_date: snapshotDate,
           },
         },
         create: {
           note_id: note.id,
-          snapshot_date: today,
+          snapshot_date: snapshotDate,
           days_past_due: snapshotDpd,
           dpd_bucket: dpdBucketFromDays(snapshotDpd),
-          note_status: persistedNoteStatus,
-          servicing_status: persistedStatus,
+          note_status: snapshotNoteStatus,
+          servicing_status: snapshotStatus,
           outstanding_principal: outstanding.outstandingPrincipal,
           outstanding_profit: outstanding.outstandingProfit,
           outstanding_total: outstanding.outstandingTotal,
@@ -369,17 +393,17 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
           recovered_profit: recoveredProfit,
           applied_tawidh: appliedTawidh,
           applied_gharamah: appliedGharamah,
-          indicative_tawidh: hasPostedSettlement ? 0 : classification.indicativeTawidhAmount,
-          indicative_gharamah: hasPostedSettlement ? 0 : classification.indicativeGharamahAmount,
+          indicative_tawidh: hasPostedSettlement ? 0 : closedClassification.indicativeTawidhAmount,
+          indicative_gharamah: hasPostedSettlement ? 0 : closedClassification.indicativeGharamahAmount,
           waived_tawidh: waivedTawidh,
           waived_gharamah: waivedGharamah,
-          is_sc_default: !hasPostedSettlement && classification.isScDefault,
+          is_sc_default: !hasPostedSettlement && closedClassification.isScDefault,
         },
         update: {
           days_past_due: snapshotDpd,
           dpd_bucket: dpdBucketFromDays(snapshotDpd),
-          note_status: persistedNoteStatus,
-          servicing_status: persistedStatus,
+          note_status: snapshotNoteStatus,
+          servicing_status: snapshotStatus,
           outstanding_principal: outstanding.outstandingPrincipal,
           outstanding_profit: outstanding.outstandingProfit,
           outstanding_total: outstanding.outstandingTotal,
@@ -387,11 +411,11 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
           recovered_profit: recoveredProfit,
           applied_tawidh: appliedTawidh,
           applied_gharamah: appliedGharamah,
-          indicative_tawidh: hasPostedSettlement ? 0 : classification.indicativeTawidhAmount,
-          indicative_gharamah: hasPostedSettlement ? 0 : classification.indicativeGharamahAmount,
+          indicative_tawidh: hasPostedSettlement ? 0 : closedClassification.indicativeTawidhAmount,
+          indicative_gharamah: hasPostedSettlement ? 0 : closedClassification.indicativeGharamahAmount,
           waived_tawidh: waivedTawidh,
           waived_gharamah: waivedGharamah,
-          is_sc_default: !hasPostedSettlement && classification.isScDefault,
+          is_sc_default: !hasPostedSettlement && closedClassification.isScDefault,
         },
       });
       result.snapshotsWritten += 1;
@@ -405,7 +429,7 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
   }
 
   try {
-    await writeTodayBookMetricsSnapshot(today);
+    await writeTodayBookMetricsSnapshot(snapshotDate);
     result.bookMetricsSnapshotWritten = true;
   } catch (error) {
     result.errors += 1;

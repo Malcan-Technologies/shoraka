@@ -27,6 +27,18 @@ export function frozenExcessLateChargeTotal(tawidhAmount: number, gharamahAmount
   return money(money(tawidhAmount) + money(gharamahAmount));
 }
 
+export function remainingFrozenSplitAfterWaivers(input: {
+  excessTawidhAmount: number;
+  excessGharamahAmount: number;
+  waivedTawidhAmount: number;
+  waivedGharamahAmount: number;
+}) {
+  return {
+    excessTawidhAmount: money(input.excessTawidhAmount - input.waivedTawidhAmount),
+    excessGharamahAmount: money(input.excessGharamahAmount - input.waivedGharamahAmount),
+  };
+}
+
 export function remainingExcessLateChargeSplit(
   frozen: Pick<ExcessLateChargeFrozenSplit, "excessTawidhAmount" | "excessGharamahAmount">,
   priorPaidAmount: number

@@ -167,7 +167,7 @@ export function initJobs() {
     });
   });
 
-  // Daily note servicing status, DPD, indicative fees, and position snapshots at 00:30 MYT.
+  // Daily note servicing at 00:30 MYT: live DPD for the new calendar day, snapshots labeled as the day that just closed.
   cron.schedule(
     "30 0 * * *",
     async () => {

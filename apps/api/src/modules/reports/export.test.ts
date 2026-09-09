@@ -1,5 +1,5 @@
 import type { ReportResult } from "@cashsouk/types";
-import { buildReportCsv, buildReportXlsx } from "./export";
+import { buildReportCsv, buildReportXlsx, neutralizeSpreadsheetFormula } from "./export";
 
 const sample: ReportResult = {
   key: "ageing",
@@ -50,5 +50,19 @@ describe("report export", () => {
     });
     expect(csv).toContain("PAR30 (DPD > 30)");
     expect(csv).toContain("Past due (DPD > 0)");
+  });
+
+  it("prefixes formula-like cells so spreadsheets do not execute them", () => {
+    expect(neutralizeSpreadsheetFormula("=HYPERLINK(\"http://evil\")")).toBe("'=HYPERLINK(\"http://evil\")");
+    expect(neutralizeSpreadsheetFormula("+cmd")).toBe("'+cmd");
+    expect(neutralizeSpreadsheetFormula("-1+1")).toBe("'-1+1");
+    expect(neutralizeSpreadsheetFormula("@SUM(A1)")).toBe("'@SUM(A1)");
+    expect(neutralizeSpreadsheetFormula("-12.50")).toBe("-12.50");
+    const csv = buildReportCsv({
+      ...sample,
+      rows: [{ noteReference: "=2+2", daysPastDue: 12 }],
+    });
+    expect(csv).toContain("'=2+2");
+    expect(csv).not.toMatch(/(^|,)=2\+2(,|$)/);
   });
 });

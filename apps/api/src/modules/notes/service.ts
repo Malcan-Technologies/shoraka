@@ -206,6 +206,7 @@ import {
   returnsSinceDate,
   snapshotName,
   sumReturnsEarned,
+  uniqueSettlementsById,
   ytdChangePercent,
 } from "./investor-dashboard-metrics";
 import {
@@ -4145,6 +4146,7 @@ export class NoteService {
       settlements: {
         where: { status: NoteSettlementStatus.POSTED },
         select: {
+          id: true,
           investor_principal: true,
           investor_profit_gross: true,
           preview_snapshot: true,
@@ -4239,8 +4241,8 @@ export class NoteService {
         };
       });
 
-    const allocations = holdingRows.flatMap((row) =>
-      row.note.settlements.flatMap((settlement) => resolveSettlementAllocations(settlement.preview_snapshot))
+    const allocations = uniqueSettlementsById(holdingRows).flatMap((settlement) =>
+      resolveSettlementAllocations(settlement.preview_snapshot)
     );
     const firstConfirmedAt = holdingRows
       .map((row) => row.confirmed_at)

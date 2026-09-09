@@ -192,13 +192,12 @@ export async function resendServicingLetter(input: {
       ],
     });
   }
-  await prisma.noteServicingLetter.update({
-    where: { id: letter.id },
-    data:
-      sentTo.length > 0
-        ? { sent_at: new Date(), sent_to: sentTo }
-        : { sent_at: letter.sent_at ?? new Date() },
-  });
+  if (sentTo.length > 0) {
+    await prisma.noteServicingLetter.update({
+      where: { id: letter.id },
+      data: { sent_at: new Date(), sent_to: sentTo },
+    });
+  }
   const metadata: Prisma.InputJsonValue = {
     letterId: letter.id,
     s3Key: letter.s3_key,

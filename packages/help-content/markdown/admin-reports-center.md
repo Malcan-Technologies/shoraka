@@ -14,7 +14,7 @@ updated: 2026-09-09
 
 **Reports** is the admin extract library. It is grouped into four tabs: credit quality, origination, investors & treasury, and regulatory. The page is gated by `reports.view`.
 
-Every available report uses inclusive **Malaysia calendar days**. Range reports default to this month; as-of reports default to today (live book). Historical as-of dates before snapshots exist show “No snapshot for this date”. Custom dates apply only after you press Apply.
+Every available report uses inclusive **Malaysia calendar days**. Range reports default to this month; as-of reports default to today (live book). Historical as-of dates use the snapshot written after that Malaysia day closed (the 00:30 MYT job). Dates before snapshots exist show “No snapshot for this date”. Custom dates apply only after you press Apply.
 
 ComRep is listed under Regulatory as a placeholder and is not available yet.
 

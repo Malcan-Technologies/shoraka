@@ -130,6 +130,18 @@ export function sumReturnsEarned(
   return roundNoteMoney(total, 2);
 }
 
+export function uniqueSettlementsById<T extends { id: string }>(
+  holdings: readonly { note: { settlements: readonly T[] } }[]
+): T[] {
+  const unique = new Map<string, T>();
+  for (const holding of holdings) {
+    for (const settlement of holding.note.settlements) {
+      unique.set(settlement.id, settlement);
+    }
+  }
+  return [...unique.values()];
+}
+
 export type SettledReturnInput = {
   investedPrincipal: number;
   receivedProfitNetAmount: number;

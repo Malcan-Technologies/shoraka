@@ -280,7 +280,7 @@ Late charges are handled manually when repayment funds are received.
 
 Before applying late charges, use **Apply suggested fees** or **Custom amounts** on the Late Payment tab. Suggested amounts respect Syariah caps and **settlement headroom**.
 
-- A daily job updates servicing status and days past due using the **Malaysia calendar** (`Asia/Kuala_Lumpur`). It stores **indicative** Ta'widh and Gharamah only, rounded to two decimals. It does not post late charges.
+- A daily job at **00:30 Malaysia time** updates servicing status and days past due using the **Malaysia calendar** (`Asia/Kuala_Lumpur`). Live DPD is for the new calendar day. Position snapshots are stored as the day that just closed, so as-of reports include that full day. It stores **indicative** Ta'widh and Gharamah only, rounded to two decimals. It does not post late charges.
 - **CURRENT** — not yet due. **OVERDUE** — past due, still inside grace. **LATE** — grace has ended. **ARREARS** — past the arrears threshold (default-eligible). **DEFAULTED** — admin marked default.
 - **Grace period** default is 7 days after the due date. No Ta'widh or Gharamah during grace.
 - Indicative amounts on the Late Payment tab are estimates. Apply or waive the actual fee at settlement.
@@ -300,7 +300,7 @@ On older notes that still use listing-to-maturity terms, follow the contractual 
 
 **Tab:** **Late Payment** → **Arrears and Default Documents**.
 
-Arrears and default notices use the platform letterhead. The system emails the arrears letter when a note enters arrears, and the default notice when you confirm Mark Default. You can view, download, or resend from the Late Payment tab. Each send is written to the note timeline.
+Arrears and default notices use the platform letterhead. The system emails the arrears letter when a note enters arrears, and retries on later runs if the letter was generated but not emailed (for example when the issuer had no email yet). The default notice is emailed when you confirm Mark Default. You can view, download, or resend from the Late Payment tab. Each send is written to the note timeline.
 
 ## Withdrawals
 

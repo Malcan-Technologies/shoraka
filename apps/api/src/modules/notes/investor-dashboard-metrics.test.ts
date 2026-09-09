@@ -9,6 +9,7 @@ import {
   reconstructPrincipalOnDates,
   returnsSinceDate,
   sumReturnsEarned,
+  uniqueSettlementsById,
   ytdChangePercent,
   portfolioTotalBefore,
   type HoldingForDashboard,
@@ -106,6 +107,18 @@ describe("sumReturnsEarned", () => {
         new Set(["a"])
       )
     ).toBe(20);
+  });
+});
+
+describe("uniqueSettlementsById", () => {
+  it("keeps one settlement when several holdings share the same note", () => {
+    const settlement = { id: "set-1", preview_snapshot: { allocations: [] } };
+    const unique = uniqueSettlementsById([
+      { note: { settlements: [settlement] } },
+      { note: { settlements: [settlement] } },
+    ]);
+    expect(unique).toHaveLength(1);
+    expect(unique[0]?.id).toBe("set-1");
   });
 });
 

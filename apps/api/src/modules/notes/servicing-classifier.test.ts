@@ -4,6 +4,7 @@ import {
   calendarDaysBetween,
   classifyServicing,
   dpdBucketFromDays,
+  previousMytCalendarDate,
   shouldAdvanceServicing,
 } from "./servicing-classifier";
 
@@ -158,6 +159,14 @@ describe("calendarDateInTimeZone", () => {
     expect(calendarDateInTimeZone(justAfterMidnightMyt).toISOString()).toBe(
       "2026-01-02T00:00:00.000Z"
     );
+  });
+});
+
+describe("previousMytCalendarDate", () => {
+  it("labels the Malaysia day that has already closed at 00:30 MYT", () => {
+    const jobRun = new Date("2026-01-01T16:30:00.000Z");
+    expect(calendarDateInTimeZone(jobRun).toISOString()).toBe("2026-01-02T00:00:00.000Z");
+    expect(previousMytCalendarDate(jobRun).toISOString()).toBe("2026-01-01T00:00:00.000Z");
   });
 });
 

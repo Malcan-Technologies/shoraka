@@ -8,6 +8,13 @@ function cellValue(value: string | number | boolean | null): string {
   return String(value);
 }
 
+export function neutralizeSpreadsheetFormula(value: string): string {
+  if (value === "") return value;
+  if (/^-?\d+(\.\d+)?$/.test(value)) return value;
+  if (/^[=+\-@\t\r]/.test(value)) return `'${value}`;
+  return value;
+}
+
 export function buildReportCsv(result: ReportResult): string {
   const headers = [...result.columns.map((column) => column.label)];
   const lines = [headers.map(csvEscape).join(",")];
@@ -36,8 +43,9 @@ export function buildReportCsv(result: ReportResult): string {
 }
 
 function csvEscape(value: string): string {
-  if (/[",\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
-  return value;
+  const safe = neutralizeSpreadsheetFormula(value);
+  if (/[",\n]/.test(safe)) return `"${safe.replace(/"/g, '""')}"`;
+  return safe;
 }
 
 export async function buildReportXlsx(result: ReportResult): Promise<Buffer> {
@@ -45,7 +53,12 @@ export async function buildReportXlsx(result: ReportResult): Promise<Buffer> {
   const sheet = workbook.addWorksheet(result.title.slice(0, 31));
   sheet.addRow(result.columns.map((column) => column.label));
   for (const row of result.rows) {
-    sheet.addRow(result.columns.map((column) => row[column.key] ?? null));
+    sheet.addRow(
+      result.columns.map((column) => {
+        const value = row[column.key] ?? null;
+        return typeof value === "string" ? neutralizeSpreadsheetFormula(value) : value;
+      })
+    );
   }
   const extra = result.portfolioAtRisk
     ? portfolioAtRiskSummaryRows(result.portfolioAtRisk)

@@ -3,6 +3,7 @@ import {
   allocateRoundedShares,
   frozenExcessLateChargeTotal,
   remainingExcessLateChargeSplit,
+  remainingFrozenSplitAfterWaivers,
 } from "./excess-late-charge-allocation";
 
 describe("excess late charge allocation", () => {
@@ -57,6 +58,28 @@ describe("excess late charge allocation", () => {
     expect(allocation.allocatedTotal).toBe(3);
     expect(allocation.tawidhAmount).toBe(0);
     expect(allocation.gharamahAmount).toBe(3);
+  });
+
+  it("reduces the frozen split by component waivers so leftover still allocates", () => {
+    const posted = { excessTawidhAmount: 80, excessGharamahAmount: 20 };
+    const net = remainingFrozenSplitAfterWaivers({
+      ...posted,
+      waivedTawidhAmount: 10,
+      waivedGharamahAmount: 0,
+    });
+    const splitTotal = frozenExcessLateChargeTotal(net.excessTawidhAmount, net.excessGharamahAmount);
+    const owedAmount = frozenExcessLateChargeTotal(posted.excessTawidhAmount, posted.excessGharamahAmount) - 10;
+    expect(splitTotal).toBe(owedAmount);
+
+    const allocation = allocateExcessLateChargePayment({
+      ...net,
+      tawidhInvestorSharePercent: 0,
+      priorPaidAmount: 0,
+      paymentAmount: owedAmount,
+    });
+    expect(allocation.allocatedTotal).toBe(90);
+    expect(allocation.tawidhAmount).toBe(70);
+    expect(allocation.gharamahAmount).toBe(20);
   });
 
   it("assigns 2dp residual to the last positive investor weight", () => {
