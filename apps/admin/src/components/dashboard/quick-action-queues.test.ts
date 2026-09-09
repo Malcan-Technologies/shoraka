@@ -1,4 +1,5 @@
 import {
+  canSeeDefaultEligibleQueue,
   dashboardQueueDescription,
   formatQueueCount,
   queueCardTone,
@@ -23,6 +24,20 @@ function queue(partial: Partial<QuickActionQueue> & Pick<QuickActionQueue, "id">
     ...partial,
   };
 }
+
+describe("canSeeDefaultEligibleQueue", () => {
+  it("requires both notes.view and notes.default.manage", () => {
+    expect(canSeeDefaultEligibleQueue((permission) => permission === "notes.view")).toBe(false);
+    expect(canSeeDefaultEligibleQueue((permission) => permission === "notes.default.manage")).toBe(
+      false
+    );
+    expect(
+      canSeeDefaultEligibleQueue(
+        (permission) => permission === "notes.view" || permission === "notes.default.manage"
+      )
+    ).toBe(true);
+  });
+});
 
 describe("urgencyVariant", () => {
   it("escalates from default to warning to urgent", () => {

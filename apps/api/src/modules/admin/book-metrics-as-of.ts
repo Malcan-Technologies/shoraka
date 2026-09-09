@@ -12,9 +12,16 @@ export function bookMetricsDueSoonWindow(now: Date, asOfCutoff?: Date) {
 }
 
 export function bookMetricsAsOfFilters(asOfCutoff?: Date) {
+  const inFunding = asOfCutoff
+    ? {
+        published_at: { not: null, lt: asOfCutoff },
+        OR: [{ funding_closed_at: null }, { funding_closed_at: { gte: asOfCutoff } }],
+      }
+    : { status: { in: [NoteStatus.PUBLISHED, NoteStatus.FUNDING] } };
   if (!asOfCutoff) {
     return {
       outstanding: { status: NoteStatus.ACTIVE },
+      inFunding,
       distressed: { status: { in: [NoteStatus.ARREARS, NoteStatus.DEFAULTED] } },
       arrears: { servicing_status: NoteServicingStatus.ARREARS, default_marked_at: null },
       defaulted: { servicing_status: NoteServicingStatus.DEFAULTED },
@@ -37,6 +44,7 @@ export function bookMetricsAsOfFilters(asOfCutoff?: Date) {
         },
       ],
     },
+    inFunding,
     distressed: {
       OR: [
         { status: NoteStatus.ARREARS, arrears_started_at: { lt: asOfCutoff } },

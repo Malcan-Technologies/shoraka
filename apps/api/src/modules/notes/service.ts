@@ -213,6 +213,7 @@ import {
   generateAndSendServicingLetter,
   resendServicingLetter as resendServicingLetterRecord,
 } from "./servicing-letters/service";
+import { remainingWaivableExcessLateChargeSplit } from "../payment/excess-late-charge-allocation";
 import {
   assertTenureInvestorObligationCovered,
   assertTenurePartialReceiptAllowed,
@@ -6353,13 +6354,20 @@ export class NoteService {
           toNumber(posted.excess_late_charge_paid_amount) -
           toNumber(posted.excess_late_charge_waived_amount)
       );
+      const remainingSplit = remainingWaivableExcessLateChargeSplit({
+        excessTawidhAmount: toNumber(posted.excess_tawidh_amount),
+        excessGharamahAmount: toNumber(posted.excess_gharamah_amount),
+        waivedTawidhAmount: priorTawidhWaived,
+        waivedGharamahAmount: priorGharamahWaived,
+        paidAmount: toNumber(posted.excess_late_charge_paid_amount),
+      });
       remainingTawidhAmount = Math.max(
         0,
-        Math.min(toNumber(posted.excess_tawidh_amount) - priorTawidhWaived, remainingExcess)
+        Math.min(remainingSplit.remainingTawidh, remainingExcess)
       );
       remainingGharamahAmount = Math.max(
         0,
-        Math.min(toNumber(posted.excess_gharamah_amount) - priorGharamahWaived, remainingExcess)
+        Math.min(remainingSplit.remainingGharamah, remainingExcess)
       );
       if (tawidhAmount + gharamahAmount - remainingExcess > 0.005) {
         throw new AppError(

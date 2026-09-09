@@ -80,4 +80,21 @@ describe("AdminRepository.getBookMetrics", () => {
     expect(metrics.distressed).toEqual({ amount: 0, count: 0 });
     expect(metrics.dueSoon).toEqual({ amount: 0, count: 0 });
   });
+
+  it("reconstructs in-funding as of the Malaysia midnight cutoff", async () => {
+    mockNoteAggregate.mockReset();
+    mockNoteAggregate.mockResolvedValue({ _sum: { funded_amount: null }, _count: 0 });
+    const cutoff = new Date("2026-01-01T16:00:00.000Z");
+
+    await new AdminRepository().getBookMetrics(cutoff);
+
+    expect(mockNoteAggregate).toHaveBeenNthCalledWith(2, {
+      where: {
+        published_at: { not: null, lt: cutoff },
+        OR: [{ funding_closed_at: null }, { funding_closed_at: { gte: cutoff } }],
+      },
+      _sum: { funded_amount: true },
+      _count: true,
+    });
+  });
 });

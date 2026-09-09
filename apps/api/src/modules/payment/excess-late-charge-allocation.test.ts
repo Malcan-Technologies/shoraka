@@ -4,6 +4,7 @@ import {
   frozenExcessLateChargeTotal,
   remainingExcessLateChargeSplit,
   remainingFrozenSplitAfterWaivers,
+  remainingWaivableExcessLateChargeSplit,
 } from "./excess-late-charge-allocation";
 
 describe("excess late charge allocation", () => {
@@ -80,6 +81,18 @@ describe("excess late charge allocation", () => {
     expect(allocation.allocatedTotal).toBe(90);
     expect(allocation.tawidhAmount).toBe(70);
     expect(allocation.gharamahAmount).toBe(20);
+  });
+
+  it("subtracts ordered Ta'widh-then-Gharamah payments from waivable components", () => {
+    expect(
+      remainingWaivableExcessLateChargeSplit({
+        excessTawidhAmount: 100,
+        excessGharamahAmount: 100,
+        waivedTawidhAmount: 0,
+        waivedGharamahAmount: 0,
+        paidAmount: 100,
+      })
+    ).toEqual({ remainingTawidh: 0, remainingGharamah: 100 });
   });
 
   it("assigns 2dp residual to the last positive investor weight", () => {

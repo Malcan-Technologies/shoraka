@@ -20,6 +20,7 @@ import {
   dashboardQueueDescription,
   queuesNeedingAttention,
   urgencyVariant,
+  canSeeDefaultEligibleQueue,
   type QuickActionQueue,
 } from "@/components/dashboard/quick-action-queues";
 import { useApplicationNavCounts } from "@/hooks/use-application-nav-counts";
@@ -42,7 +43,7 @@ export function useQuickActionQueues({ loading = false }: { loading?: boolean } 
   const canOnboarding = can("onboarding.view");
   const canApplications = can("applications.view");
   const canNotes = can("notes.view");
-  const canDefaultEligible = can("notes.view") || can("notes.default.manage");
+  const canDefaultEligible = canSeeDefaultEligibleQueue(can);
   const canRepayments = can("repayments.view");
   const canSettlements = can("settlements.view");
   const canDisbursements = can("disbursements.view");

@@ -1,11 +1,13 @@
-import { REPORT_BREAKDOWNS, REPORT_KEYS } from "@cashsouk/types";
+import { REPORT_BREAKDOWNS, REPORT_KEYS, parseMytYmd } from "@cashsouk/types";
 import { z } from "zod";
 
 export const reportKeyParamSchema = z.object({
   key: z.enum(REPORT_KEYS),
 });
 
-const ymd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const ymd = z.string().refine((value) => parseMytYmd(value) != null, {
+  message: "Enter a valid calendar date (YYYY-MM-DD).",
+});
 
 export const reportQuerySchema = z
   .object({

@@ -15,7 +15,8 @@ jest.mock("../../modules/admin/book-metrics-snapshot", () => ({
   writeTodayBookMetricsSnapshot: jest.fn(),
 }));
 
-import { shouldSendArrearsLetter, shouldSendServicingLetter } from "./note-servicing-status";
+import { shouldSendArrearsLetter, shouldRetryServicingTransitionSideEffects, shouldSendServicingLetter } from "./note-servicing-status";
+import { NoteServicingStatus } from "@prisma/client";
 
 describe("shouldSendArrearsLetter", () => {
   it("generates when no letter exists", () => {
@@ -34,5 +35,29 @@ describe("shouldSendArrearsLetter", () => {
 describe("shouldSendServicingLetter", () => {
   it("retries unsent default notices the same way as arrears notices", () => {
     expect(shouldSendServicingLetter({ sent_at: null })).toBe("retry");
+  });
+});
+
+describe("shouldRetryServicingTransitionSideEffects", () => {
+  it("retries overdue, late, and arrears events after the status already advanced", () => {
+    expect(
+      shouldRetryServicingTransitionSideEffects({
+        hasPostedSettlement: false,
+        canTransition: false,
+        currentStatus: NoteServicingStatus.LATE,
+        classifiedStatus: NoteServicingStatus.LATE,
+      })
+    ).toBe(true);
+  });
+
+  it("does not retry when the job is still advancing status on this run", () => {
+    expect(
+      shouldRetryServicingTransitionSideEffects({
+        hasPostedSettlement: false,
+        canTransition: true,
+        currentStatus: NoteServicingStatus.OVERDUE,
+        classifiedStatus: NoteServicingStatus.LATE,
+      })
+    ).toBe(false);
   });
 });

@@ -6,6 +6,9 @@ const cutoff = new Date("2026-01-01T16:00:00.000Z");
 describe("bookMetricsAsOfFilters", () => {
   it("keeps live outstanding as ACTIVE notes only", () => {
     expect(bookMetricsAsOfFilters().outstanding).toEqual({ status: NoteStatus.ACTIVE });
+    expect(bookMetricsAsOfFilters().inFunding).toEqual({
+      status: { in: [NoteStatus.PUBLISHED, NoteStatus.FUNDING] },
+    });
   });
 
   it("includes notes repaid after Malaysia midnight in the closed-day outstanding book", () => {
@@ -28,6 +31,13 @@ describe("bookMetricsAsOfFilters", () => {
     expect(JSON.stringify(filters.arrears)).toContain("\"lt\":");
     expect(JSON.stringify(filters.outstanding)).toContain("\"gte\":");
     expect(JSON.stringify(filters.outstanding)).toContain("ARREARS");
+  });
+
+  it("reconstructs in-funding from publication and funding-close timestamps", () => {
+    expect(bookMetricsAsOfFilters(cutoff).inFunding).toEqual({
+      published_at: { not: null, lt: cutoff },
+      OR: [{ funding_closed_at: null }, { funding_closed_at: { gte: cutoff } }],
+    });
   });
 });
 

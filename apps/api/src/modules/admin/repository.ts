@@ -2187,8 +2187,6 @@ export class AdminRepository {
     const { start: dueSoonStart, end: dueSoonEnd } = bookMetricsDueSoonWindow(new Date(), asOfCutoff);
     const filters = bookMetricsAsOfFilters(asOfCutoff);
 
-    const IN_FUNDING: NoteStatus[] = [NoteStatus.PUBLISHED, NoteStatus.FUNDING];
-
     const [outstanding, inFunding, distressed, arrears, defaulted, dueSoon] = await Promise.all([
       prisma.note.aggregate({
         where: filters.outstanding,
@@ -2196,7 +2194,7 @@ export class AdminRepository {
         _count: true,
       }),
       prisma.note.aggregate({
-        where: { status: { in: IN_FUNDING } },
+        where: filters.inFunding,
         _sum: { funded_amount: true },
         _count: true,
       }),

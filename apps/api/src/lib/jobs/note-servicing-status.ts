@@ -77,10 +77,11 @@ function systemActor() {
 async function logSystemNoteEvent(
   noteId: string,
   eventType: string,
-  metadata: Prisma.InputJsonValue
+  metadata: Prisma.InputJsonValue,
+  db: Prisma.TransactionClient | typeof prisma = prisma
 ) {
   const target = resolveNoteEventTarget(eventType, metadata);
-  await createNoteEventRow(prisma, {
+  await createNoteEventRow(db, {
     noteId,
     eventType,
     actorUserId: SYSTEM_USER_ID,
@@ -94,6 +95,58 @@ async function logSystemNoteEvent(
     targetType: target.targetType,
     targetId: target.targetId ?? noteId,
   });
+}
+
+export function servicingTransitionEventType(status: NoteServicingStatus) {
+  if (status === NoteServicingStatus.OVERDUE) return "NOTE_OVERDUE";
+  if (status === NoteServicingStatus.LATE) return "NOTE_LATE";
+  if (status === NoteServicingStatus.ARREARS) return "NOTE_ARREARS";
+  return null;
+}
+
+export function shouldRetryServicingTransitionSideEffects(input: {
+  hasPostedSettlement: boolean;
+  canTransition: boolean;
+  currentStatus: NoteServicingStatus;
+  classifiedStatus: NoteServicingStatus;
+}) {
+  if (input.hasPostedSettlement || input.canTransition) return false;
+  if (input.currentStatus !== input.classifiedStatus) return false;
+  return servicingTransitionEventType(input.classifiedStatus) != null;
+}
+
+async function notifyServicingTransition(input: {
+  status: NoteServicingStatus;
+  noteId: string;
+  issuerOrganizationId: string;
+  noteTitle: string;
+}) {
+  if (input.status === NoteServicingStatus.OVERDUE) {
+    await notifyNoteOverdue({
+      notificationService,
+      noteId: input.noteId,
+      issuerOrganizationId: input.issuerOrganizationId,
+      noteTitle: input.noteTitle,
+    });
+    return;
+  }
+  if (input.status === NoteServicingStatus.LATE) {
+    await notifyNoteLate({
+      notificationService,
+      noteId: input.noteId,
+      issuerOrganizationId: input.issuerOrganizationId,
+      noteTitle: input.noteTitle,
+    });
+    return;
+  }
+  if (input.status === NoteServicingStatus.ARREARS) {
+    await notifyNoteArrears({
+      notificationService,
+      noteId: input.noteId,
+      issuerOrganizationId: input.issuerOrganizationId,
+      noteTitle: input.noteTitle,
+    });
+  }
 }
 
 function resolveIssuerName(issuerSnapshot: Prisma.JsonValue | null): string {
@@ -266,47 +319,65 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
         tenureDays: tenureDaysForNote(note),
       });
 
+      const transitionEventType = servicingTransitionEventType(classification.servicingStatus);
+      const transitionMetadata = {
+        daysPastDue: classification.daysPastDue,
+        daysAfterGrace: classification.daysAfterGrace,
+        servicingStatus: classification.servicingStatus,
+      };
+      const liveUpdate = hasPostedSettlement
+        ? {
+            days_past_due: 0,
+            indicative_tawidh_amount: 0,
+            indicative_gharamah_amount: 0,
+            indicative_as_of: today,
+          }
+        : {
+            days_past_due: classification.daysPastDue,
+            indicative_tawidh_amount: classification.indicativeTawidhAmount,
+            indicative_gharamah_amount: classification.indicativeGharamahAmount,
+            indicative_as_of: today,
+            ...(canTransition
+              ? {
+                  servicing_status: classification.servicingStatus,
+                  status: classification.noteStatus ?? note.status,
+                  overdue_started_at:
+                    !note.overdue_started_at &&
+                    (classification.servicingStatus === NoteServicingStatus.OVERDUE ||
+                      classification.servicingStatus === NoteServicingStatus.LATE ||
+                      classification.servicingStatus === NoteServicingStatus.ARREARS)
+                      ? today
+                      : undefined,
+                  late_started_at:
+                    !note.late_started_at &&
+                    (classification.servicingStatus === NoteServicingStatus.LATE ||
+                      classification.servicingStatus === NoteServicingStatus.ARREARS)
+                      ? today
+                      : undefined,
+                  arrears_started_at:
+                    !note.arrears_started_at &&
+                    classification.servicingStatus === NoteServicingStatus.ARREARS
+                      ? today
+                      : undefined,
+                }
+              : {}),
+          };
+
       if (note.servicing_status !== NoteServicingStatus.SETTLED) {
-      await prisma.note.update({
-        where: { id: note.id },
-        data: hasPostedSettlement
-          ? {
-              days_past_due: 0,
-              indicative_tawidh_amount: 0,
-              indicative_gharamah_amount: 0,
-              indicative_as_of: today,
-            }
-          : {
-              days_past_due: classification.daysPastDue,
-              indicative_tawidh_amount: classification.indicativeTawidhAmount,
-              indicative_gharamah_amount: classification.indicativeGharamahAmount,
-              indicative_as_of: today,
-              ...(canTransition
-                ? {
-                    servicing_status: classification.servicingStatus,
-                    status: classification.noteStatus ?? note.status,
-                    overdue_started_at:
-                      !note.overdue_started_at &&
-                      (classification.servicingStatus === NoteServicingStatus.OVERDUE ||
-                        classification.servicingStatus === NoteServicingStatus.LATE ||
-                        classification.servicingStatus === NoteServicingStatus.ARREARS)
-                        ? today
-                        : undefined,
-                    late_started_at:
-                      !note.late_started_at &&
-                      (classification.servicingStatus === NoteServicingStatus.LATE ||
-                        classification.servicingStatus === NoteServicingStatus.ARREARS)
-                        ? today
-                        : undefined,
-                    arrears_started_at:
-                      !note.arrears_started_at &&
-                      classification.servicingStatus === NoteServicingStatus.ARREARS
-                        ? today
-                        : undefined,
-                  }
-                : {}),
-            },
-      });
+        if (canTransition && transitionEventType) {
+          await prisma.$transaction(async (tx) => {
+            await tx.note.update({
+              where: { id: note.id },
+              data: liveUpdate,
+            });
+            await logSystemNoteEvent(note.id, transitionEventType, transitionMetadata, tx);
+          });
+        } else {
+          await prisma.note.update({
+            where: { id: note.id },
+            data: liveUpdate,
+          });
+        }
       }
 
       const title = resolveNoteNotificationTitle(note);
@@ -324,41 +395,36 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
         result.remindersSent += 1;
       }
 
-      if (canTransition) {
+      if (canTransition && transitionEventType) {
         result.transitions += 1;
-        const eventType =
-          classification.servicingStatus === NoteServicingStatus.OVERDUE
-            ? "NOTE_OVERDUE"
-            : classification.servicingStatus === NoteServicingStatus.LATE
-              ? "NOTE_LATE"
-              : "NOTE_ARREARS";
-        await logSystemNoteEvent(note.id, eventType, {
-          daysPastDue: classification.daysPastDue,
-          daysAfterGrace: classification.daysAfterGrace,
-          servicingStatus: classification.servicingStatus,
+        await notifyServicingTransition({
+          status: classification.servicingStatus,
+          noteId: note.id,
+          issuerOrganizationId: note.issuer_organization_id,
+          noteTitle: title,
         });
-
-        if (classification.servicingStatus === NoteServicingStatus.OVERDUE) {
-          await notifyNoteOverdue({
-            notificationService,
+      } else if (
+        shouldRetryServicingTransitionSideEffects({
+          hasPostedSettlement,
+          canTransition,
+          currentStatus: note.servicing_status,
+          classifiedStatus: classification.servicingStatus,
+        }) &&
+        transitionEventType
+      ) {
+        const existingEvent = await prisma.noteEvent.findFirst({
+          where: { note_id: note.id, event_type: transitionEventType },
+          select: { id: true },
+        });
+        if (!existingEvent) {
+          await logSystemNoteEvent(note.id, transitionEventType, transitionMetadata);
+          await notifyServicingTransition({
+            status: classification.servicingStatus,
             noteId: note.id,
             issuerOrganizationId: note.issuer_organization_id,
             noteTitle: title,
           });
-        } else if (classification.servicingStatus === NoteServicingStatus.LATE) {
-          await notifyNoteLate({
-            notificationService,
-            noteId: note.id,
-            issuerOrganizationId: note.issuer_organization_id,
-            noteTitle: title,
-          });
-        } else if (classification.servicingStatus === NoteServicingStatus.ARREARS) {
-          await notifyNoteArrears({
-            notificationService,
-            noteId: note.id,
-            issuerOrganizationId: note.issuer_organization_id,
-            noteTitle: title,
-          });
+          result.transitions += 1;
         }
       }
 

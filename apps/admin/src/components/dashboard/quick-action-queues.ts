@@ -21,6 +21,10 @@ const VARIANT_RANK: Record<QueueUrgency, number> = {
   default: 2,
 };
 
+export function canSeeDefaultEligibleQueue(can: (permission: string) => boolean) {
+  return can("notes.view") && can("notes.default.manage");
+}
+
 export function urgencyVariant(count: number, urgentAt: number, warnAt: number): QueueUrgency {
   if (count > urgentAt) return "urgent";
   if (count > warnAt) return "warning";

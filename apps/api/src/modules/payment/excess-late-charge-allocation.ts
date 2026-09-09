@@ -53,6 +53,19 @@ export function remainingExcessLateChargeSplit(
   };
 }
 
+export function remainingWaivableExcessLateChargeSplit(input: {
+  excessTawidhAmount: number;
+  excessGharamahAmount: number;
+  waivedTawidhAmount: number;
+  waivedGharamahAmount: number;
+  paidAmount: number;
+}) {
+  return remainingExcessLateChargeSplit(
+    remainingFrozenSplitAfterWaivers(input),
+    input.paidAmount
+  );
+}
+
 /**
  * Ordered fill: remaining Ta'widh first, then remaining Gharamah.
  * Uses prior paid so multi-payments never double-allocate. 2dp residual goes

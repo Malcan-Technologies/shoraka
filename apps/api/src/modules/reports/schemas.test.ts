@@ -8,6 +8,8 @@ describe("report query schema", () => {
     expect(reportQuerySchema.safeParse({ from: "2026-09-01" }).success).toBe(false);
     expect(reportQuerySchema.safeParse({ from: "2026-09-09", to: "2026-09-01" }).success).toBe(false);
     expect(reportQuerySchema.safeParse({ from: "2026-09-01", to: "2026-09-09" }).success).toBe(true);
+    expect(reportQuerySchema.safeParse({ from: "2026-02-30", to: "2026-02-30" }).success).toBe(false);
+    expect(reportQuerySchema.safeParse({ asOf: "2026-99-01" }).success).toBe(false);
   });
 
   it("accepts only the four composition breakdowns", () => {
