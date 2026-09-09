@@ -17,7 +17,6 @@ import {
   canonicalPartyIdentityKey,
   findExistingPartyForIdentityKey,
   isCtosComparableParty,
-  mergeCtosPartySupplementDocument,
   partySeenInExternalKeys,
   USER_GENERATED_PARTY_KEY_PREFIX,
   type ComrepProfileCompleteness,
@@ -39,7 +38,8 @@ import {
   issuerShareholdingThresholdIssue,
   isIssuerShareholderOnlyBelowMinimum,
   issuerActiveShareholderFlags,
-  mapRegTankEntityTypeToScCompanyType,
+    asIssuerContactPerson,
+    asIssuerPersonInCharge,
   isIssuerOfficerRole,
   hasOrganizationPartyRole,
   SELECT_AT_LEAST_ONE_ROLE_MESSAGE,
@@ -55,6 +55,7 @@ import {
   type RegulatoryPartyCandidate,
 } from "./extract-regulatory-parties";
 import type { CreatePartyInput, OrgMasterPatchInput, PartyPatchInput } from "./schemas";
+import { writeOrganizationPartyEmail } from "./person-email";
 import {
   asAddress,
   asJson,
@@ -77,7 +78,6 @@ const USER_LOCKED_ORG_FIELDS = new Set(["name"]);
 const USER_OVERWRITE_ORG_FIELDS = new Set([
   "scInvestorCategory",
   "isSophisticatedInvestor",
-  "companyEmail",
   "phoneNumber",
 ]);
 /** Verified identity fields stay locked once filled. ComRep collection fields may be corrected. */
@@ -792,6 +792,8 @@ export async function computeOrgProfileCompleteness(
       };
       aboutYourBusiness?: { whatDoesCompanyDo?: string };
       addresses?: { registered?: unknown; business?: unknown };
+      contactPerson?: unknown;
+      personInCharge?: unknown;
     } | null;
     const name = org.name || cod?.basicInfo?.businessName || null;
     const roc = org.registration_number || cod?.basicInfo?.ssmRegisterNumber || cod?.basicInfo?.ssmRegistrationNumber || null;
@@ -858,12 +860,11 @@ export async function computeOrgProfileCompleteness(
         dateOfIncorporation: org.date_of_incorporation,
         dateOfCommencement: org.date_of_commencement,
         countryOfIncorporation: org.country_of_incorporation,
-        scCompanyType:
-          org.sc_company_type ?? mapRegTankEntityTypeToScCompanyType(cod?.basicInfo?.entityType),
+        scCompanyType: org.sc_company_type,
         registeredAddress: pickCodAddress(org.corporate_onboarding_data, "registered"),
         businessAddress: pickCodAddress(org.corporate_onboarding_data, "business"),
-        phoneNumber: org.phone_number,
-        companyEmail: org.company_email,
+        contactPerson: asIssuerContactPerson(cod?.contactPerson),
+        personInCharge: asIssuerPersonInCharge(cod?.personInCharge),
         companyActivities: cod?.aboutYourBusiness?.whatDoesCompanyDo ?? null,
       },
       shareholders,
@@ -1068,13 +1069,6 @@ export async function patchOrgMasterProfile(params: {
         "companyCategory",
         issuer.company_category as ScCompanyCategory | null,
         patch.companyCategory
-      );
-    }
-    if (patch.companyEmail !== undefined) {
-      data.company_email = applyScalar(
-        "companyEmail",
-        issuer.company_email as string | null,
-        patch.companyEmail
       );
     }
     if (patch.phoneNumber !== undefined) {
@@ -1515,7 +1509,19 @@ export async function patchPartyProfile(params: {
     where: { id: row.id },
     data,
   });
-  return serializeParty(updated);
+  let email = updated.email;
+  if (p.email !== undefined) {
+    email = (
+      await writeOrganizationPartyEmail({
+        portal: params.portal,
+        organizationId: params.organizationId,
+        partyKey: updated.party_key,
+        email: p.email,
+        fillEmptyOnly: params.fillEmptyOnly,
+      })
+    ).email;
+  }
+  return serializeParty({ ...updated, email });
 }
 
 function resolveCreatePartyRoles(patch: CreatePartyInput): {
@@ -1558,38 +1564,25 @@ function stampProvidedPartyFields(
   mark("dateOfIncorporation", Boolean(patch.dateOfIncorporation));
   mark("countryOfIncorporation", Boolean(patch.countryOfIncorporation?.trim()));
   mark("address", Boolean(patch.address));
+  mark("email", Boolean(String(patch.email ?? "").trim()));
   return sources;
 }
 
-async function upsertPartyEmailSupplement(params: {
+async function applyPartyEmailIfPresent(params: {
   portal: Portal;
   organizationId: string;
   partyKey: string;
-  email: string;
-}): Promise<void> {
-  const where =
-    params.portal === "issuer"
-      ? { issuer_organization_id: params.organizationId, party_key: params.partyKey }
-      : { investor_organization_id: params.organizationId, party_key: params.partyKey };
-  const existing = await prisma.ctosPartySupplement.findFirst({ where });
-  const merged = mergeCtosPartySupplementDocument(existing?.onboarding_json, {
-    onboarding: { email: params.email },
-  });
-  if (existing) {
-    await prisma.ctosPartySupplement.update({
-      where: { id: existing.id },
-      data: { onboarding_json: asJson(merged) },
-    });
-    return;
-  }
-  await prisma.ctosPartySupplement.create({
-    data: {
-      issuer_organization_id: params.portal === "issuer" ? params.organizationId : null,
-      investor_organization_id: params.portal === "investor" ? params.organizationId : null,
-      party_key: params.partyKey,
-      onboarding_json: asJson(merged),
-    },
-  });
+  email: unknown;
+}): Promise<string | null | undefined> {
+  if (params.email === undefined) return undefined;
+  return (
+    await writeOrganizationPartyEmail({
+      portal: params.portal,
+      organizationId: params.organizationId,
+      partyKey: params.partyKey,
+      email: params.email,
+    })
+  ).email;
 }
 
 export async function createUserAddedParty(params: {
@@ -1659,7 +1652,6 @@ export async function createUserAddedParty(params: {
     : undefined;
   const partyKey = identityKey ?? `${USER_GENERATED_PARTY_KEY_PREFIX}${crypto.randomUUID()}`;
   const fieldSources = stampProvidedPartyFields(params.patch, params.source);
-  const email = (params.patch.email ?? "").trim();
 
   if (existing) {
     if (existing.membership_status === OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED) {
@@ -1743,15 +1735,16 @@ export async function createUserAddedParty(params: {
           : {}),
       },
     });
-    if (email) {
-      await upsertPartyEmailSupplement({
-        portal: params.portal,
-        organizationId: params.organizationId,
-        partyKey: updated.party_key,
-        email,
-      });
-    }
-    return serializeParty(updated);
+    const writtenEmail = await applyPartyEmailIfPresent({
+      portal: params.portal,
+      organizationId: params.organizationId,
+      partyKey: updated.party_key,
+      email: params.patch.email,
+    });
+    return serializeParty({
+      ...updated,
+      email: writtenEmail !== undefined ? writtenEmail : updated.email,
+    });
   }
 
   const created = await prisma.organizationPartyProfile.create({
@@ -1787,15 +1780,16 @@ export async function createUserAddedParty(params: {
       field_sources: asJson(fieldSources),
     },
   });
-  if (email) {
-    await upsertPartyEmailSupplement({
-      portal: params.portal,
-      organizationId: params.organizationId,
-      partyKey: created.party_key,
-      email,
-    });
-  }
-  return serializeParty(created);
+  const writtenEmail = await applyPartyEmailIfPresent({
+    portal: params.portal,
+    organizationId: params.organizationId,
+    partyKey: created.party_key,
+    email: params.patch.email,
+  });
+  return serializeParty({
+    ...created,
+    email: writtenEmail !== undefined ? writtenEmail : created.email,
+  });
 }
 
 export async function createManagementParty(params: {

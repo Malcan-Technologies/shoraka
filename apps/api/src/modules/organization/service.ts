@@ -65,8 +65,10 @@ import {
   normalizeDirectorShareholderIdKey,
   parseCtosPartySupplement,
   attachGovernmentIdToUnresolvedCorporateEntities,
+  normalizePersonEmail,
 } from "@cashsouk/types";
 import { buildDirectorShareholderPeopleListWithMaster } from "../organization-profile/load-master-parties-for-people";
+import { writeOrganizationPartyEmail } from "../organization-profile/person-email";
 import { RegTankAPIClient } from "../regtank/api-client";
 import { ensureRegTankFormId } from "../regtank/form-id";
 import type { RegTankIndividualOnboardingRequest } from "../regtank/types";
@@ -2280,24 +2282,12 @@ export class OrganizationService {
     if (isLegacyCtosPartyKycApproved(partyKey, entitiesForParty.directorKycStatus)) {
       return { success: true };
     }
-    const email = input.email.trim();
-    const existing = await findCtosPartySupplementForOrg(portalType, organizationId, partyKey);
-    const prevRoot = existing?.onboarding_json;
-    assertOnboardingEmailMutable(prevRoot);
-    const prevSup = parseCtosPartySupplement(prevRoot);
-    const previousEmail = (prevSup.email ?? "").trim();
-    const emailChanged = previousEmail.toLowerCase() !== email.toLowerCase();
-    const mergedDoc = mergeCtosPartySupplementDocument(prevRoot, {
-      onboarding: { email },
-      ...(emailChanged ? { screeningReset: true, pipelineReset: true } : {}),
-    });
-    await upsertCtosPartySupplementOnboardingJson(
-      portalType,
+    await writeOrganizationPartyEmail({
+      portal: portalType,
       organizationId,
       partyKey,
-      mergedDoc as Prisma.InputJsonValue,
-      entitiesForParty.directorKycStatus
-    );
+      email: input.email,
+    });
     logger.info({ organizationId, partyKey, userId, portalType }, "CTOS party supplement email upserted");
     return { success: true };
   }
@@ -2454,9 +2444,16 @@ export class OrganizationService {
       );
     }
     assertOnboardingEmailMutable(prevRoot);
-    const supOb = parseCtosPartySupplement(prevRoot);
-    const supplementEmail = (supOb.email ?? "").trim();
-    if (!supplementEmail) {
+    const partyMaster = await prisma.organizationPartyProfile.findFirst({
+      where:
+        portalType === "issuer"
+          ? { issuer_organization_id: organizationId, party_key: pk }
+          : { investor_organization_id: organizationId, party_key: pk },
+      select: { email: true },
+    });
+    const masterEmail =
+      normalizePersonEmail(partyMaster?.email) ?? normalizePersonEmail(parseCtosPartySupplement(prevRoot).email);
+    if (!masterEmail) {
       throw new AppError(
         400,
         "EMAIL_REQUIRED",
@@ -2498,7 +2495,7 @@ export class OrganizationService {
     const formId = ensureRegTankFormId(process.env.REGTANK_ISSUER_PERSONAL_FORM_ID, 1015495);
     const referenceId = buildSafeReferenceId(organizationId, pk);
     const onboardingRequest: RegTankIndividualOnboardingRequest = {
-      email: supplementEmail,
+      email: masterEmail,
       surname,
       forename,
       referenceId,
@@ -2567,7 +2564,7 @@ export class OrganizationService {
       console.log("[Director CTOS] STAGE 1 raw regTankResponse:", JSON.stringify(regTankResponse, null, 2));
       console.log("[Director CTOS] STAGE 1 requestId:", requestId);
       console.log("[Director CTOS] STAGE 1 verifyLink:", verifyLink);
-      console.log("[Director CTOS] STAGE 1 will email later to:", supplementEmail);
+      console.log("[Director CTOS] STAGE 1 will email later to:", masterEmail);
       console.log(
         "========== [Director CTOS] end STAGE 1 ==========\n"
       );
@@ -2592,7 +2589,7 @@ export class OrganizationService {
 
     const mergedSend = mergeCtosPartySupplementDocument(prevRoot, {
       onboarding: {
-        email: supplementEmail,
+        email: masterEmail,
         status: "IN_PROGRESS",
         requestId,
         referenceId,
@@ -2616,9 +2613,9 @@ export class OrganizationService {
           "\n========== [Director CTOS] STAGE 2: DB updated — about to call SES (same verifyLink as STAGE 1) =========="
         );
         console.log("[Director CTOS] STAGE 2 verifyLink:", verifyLink);
-        console.log("[Director CTOS] STAGE 2 SES to:", supplementEmail);
+        console.log("[Director CTOS] STAGE 2 SES to:", masterEmail);
         console.log("========== [Director CTOS] end STAGE 2 — calling sendOnboardingEmail now ==========\n");
-        await sendOnboardingEmail({ to: supplementEmail, verifyLink });
+        await sendOnboardingEmail({ to: masterEmail, verifyLink });
         logger.info(
           { organizationId, partyKey: pk, userId, requestId, portalType },
           "Director CTOS onboarding verify link sent via SES"
@@ -2628,7 +2625,7 @@ export class OrganizationService {
         );
       } catch (sesErr) {
         console.log("[Director CTOS onboarding] SES error (remove after debug)", {
-          to: supplementEmail,
+          to: masterEmail,
           error: sesErr instanceof Error ? sesErr.message : String(sesErr),
         });
         logger.error(

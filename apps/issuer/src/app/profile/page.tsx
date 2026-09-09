@@ -31,7 +31,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccountDocuments } from "../../hooks/use-account-documents";
 import { useOrganizationMembers } from "../../hooks/use-organization-members";
 import { useOrganizationInvitations } from "../../hooks/use-organization-invitations";
-import { filterVisiblePeopleRows, firstIssueMessage, humanizeApiValidationMessage, isMemberWithoutCompanyRole, isValidProfilePhone, linkedPartyUserIds, restrictScPostcodeInput, SC_MALAYSIAN_STATES, SC_MONTHLY_ISSUER, storedProfilePhone, validateIssuerAddressForm } from "@cashsouk/types";
+import { filterVisiblePeopleRows, firstIssueMessage, humanizeApiValidationMessage, isMemberWithoutCompanyRole, isValidProfilePhone, linkedPartyUserIds, restrictScPostcodeInput, SC_MALAYSIAN_STATES, SC_MONTHLY_ISSUER, storedProfilePhone, validateIssuerAddressForm, validateIssuerContactPersonForm } from "@cashsouk/types";
 import { DirectorShareholderAlertCard } from "../../components/director-shareholder-alert-card";
 import { IssuerProfileCompletenessBanner } from "../../components/profile-completeness-banner";
 import { AboutYourBusinessCard } from "../../components/about-your-business-card";
@@ -518,7 +518,6 @@ export default function ProfilePage() {
         countryOfIncorporation?: string | null;
         scCompanyType?: string | null;
         companyCategory?: string | null;
-        companyEmail?: string | null;
         corporateOnboardingData?: {
           basicInfo?: {
             tinNumber?: string;
@@ -719,6 +718,7 @@ export default function ProfilePage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["organization-detail", activeOrganization?.id] });
+      queryClient.invalidateQueries({ queryKey: ["issuer", "profile-completeness", activeOrganization?.id] });
       toast.success("Profile updated successfully");
       setIsEditingProfile(false);
       setIsEditingBanking(false);
@@ -751,16 +751,16 @@ export default function ProfilePage() {
       return;
     }
 
-    if (!contactName.trim() || !contactEmail.trim() || !contactPosition.trim() || !contactPhone) {
+    if (!contactName.trim() || !contactPosition.trim()) {
       toast.error("Enter all contact details");
       return;
     }
-    if (!isValidProfilePhone(contactPhone)) {
-      toast.error("Enter a valid contact number.");
-      return;
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail.trim())) {
-      toast.error("Enter a valid e-mail address.");
+    const issues = validateIssuerContactPersonForm({
+      email: contactEmail,
+      contact: contactPhone,
+    });
+    if (issues.length > 0) {
+      toast.error(firstIssueMessage(issues) ?? "Enter the Person in Charge contact details.");
       return;
     }
 
@@ -1072,7 +1072,6 @@ export default function ProfilePage() {
                     countryOfIncorporation:
                       orgData?.countryOfIncorporation ?? activeOrganization.countryOfIncorporation,
                     scCompanyType: orgData?.scCompanyType ?? activeOrganization.scCompanyType,
-                    companyEmail: orgData?.companyEmail ?? activeOrganization.companyEmail,
                     corporateOnboardingData: orgData?.corporateOnboardingData ?? null,
                   }}
                 />
@@ -1518,7 +1517,7 @@ export default function ProfilePage() {
                       <div className="space-y-2">
                         <Label className="flex items-center gap-2">
                           <EnvelopeIcon className="h-4 w-4" />
-                          Email
+                          {SC_MONTHLY_ISSUER.emailAddress.label}
                         </Label>
                         <Input
                           type="email"
@@ -1530,7 +1529,7 @@ export default function ProfilePage() {
                       <div className="space-y-2">
                         <Label className="flex items-center gap-2">
                           <PhoneIcon className="h-4 w-4" />
-                          Contact number
+                          {SC_MONTHLY_ISSUER.phoneNumber.label}
                         </Label>
                           <PhoneInput
                             international
@@ -1549,8 +1548,20 @@ export default function ProfilePage() {
                     <ProfileFieldGrid>
                       <ProfileReadField label="Name" value={contactName || "—"} />
                       <ProfileReadField label="Position" value={contactPosition || "—"} />
-                      <ProfileReadField label="Email" value={contactEmail || "—"} />
-                      <ProfileReadField label="Contact Number" value={contactPhone || "—"} />
+                      <ProfileReadField
+                        label={SC_MONTHLY_ISSUER.emailAddress.label}
+                        value={contactEmail || "—"}
+                        missing={missingFieldKeys.has("contactPersonEmail")}
+                        required
+                        help={SC_MONTHLY_ISSUER.emailAddress.help}
+                      />
+                      <ProfileReadField
+                        label={SC_MONTHLY_ISSUER.phoneNumber.label}
+                        value={contactPhone || "—"}
+                        missing={missingFieldKeys.has("contactPersonPhone")}
+                        required
+                        help={SC_MONTHLY_ISSUER.phoneNumber.help}
+                      />
                     </ProfileFieldGrid>
                   )}
 

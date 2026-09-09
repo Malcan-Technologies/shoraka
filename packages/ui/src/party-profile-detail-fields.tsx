@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  PERSON_EMAIL_HELP,
   SC_DESIGNATION_LABELS,
   SC_GENDER_LABELS,
   SC_MONTHLY_BOARD,
@@ -87,7 +88,7 @@ export function buildPartyProfileDetailItems(params: {
     .filter(Boolean)
     .join("; ");
   const identity = party?.identityNumber || person?.matchKey || "";
-  const onboardingEmail = person?.email || "";
+  const personEmail = party?.email || person?.email || "";
   const loginEmail = party?.linkedUser?.email || "";
   const name = party?.name || person?.name || "";
   const roles = party
@@ -109,18 +110,18 @@ export function buildPartyProfileDetailItems(params: {
   if (isPresent(identity)) {
     items.push({ label: copy.identity.label, value: identity, help: copy.identity.help });
   }
-  if (isPresent(onboardingEmail)) {
+  if (isPresent(personEmail)) {
     items.push({
-      label: "Onboarding email",
-      value: onboardingEmail,
-      help: "Used to send KYC/AML onboarding. This is not the platform login email.",
+      label: "Email",
+      value: personEmail,
+      help: PERSON_EMAIL_HELP,
     });
   }
   if (isPresent(loginEmail)) {
     items.push({
       label: "Platform login email",
       value: loginEmail,
-      help: "Login email for the linked CashSouk account. Changing the onboarding email does not change this.",
+      help: "Login email for the linked CashSouk account. Changing Person Email does not change this.",
     });
   }
   if (party) {

@@ -6,12 +6,15 @@ import { toast } from "sonner";
 import { PlusIcon, UserIcon, UsersIcon } from "@heroicons/react/24/outline";
 import type { OrganizationDetailResponse, PortalType } from "@cashsouk/types";
 import {
+  firstIssueMessage,
   humanizeApiValidationMessage,
   isMemberWithoutCompanyRole,
   isProfileValidationError,
   linkedPartyUserIds,
   optionalEmailIssue,
   phoneFormatIssue,
+  SC_MONTHLY_ISSUER,
+  validateIssuerContactPersonForm,
 } from "@cashsouk/types";
 import { AdminDetailCardHeader } from "@/components/admin-detail";
 import { Badge } from "@/components/ui/badge";
@@ -97,7 +100,21 @@ export function OrganizationPeoplePanel({
   }, [highlightedPartyId]);
 
   const editingMember = org.members.find((member) => member.id === editingMemberId) ?? null;
-  const showPic = canManage || Boolean(org.corporateOnboardingData?.personInCharge);
+  const contact = org.corporateOnboardingData?.contactPerson;
+  const picEvidence = org.corporateOnboardingData?.personInCharge;
+  const showPic =
+    canManage ||
+    Boolean(
+      contact?.name ||
+        contact?.email ||
+        contact?.contact ||
+        picEvidence?.name ||
+        picEvidence?.email ||
+        picEvidence?.contactNumber
+    );
+  const issuerContact = portal === "issuer";
+  const picEmailLabel = issuerContact ? SC_MONTHLY_ISSUER.emailAddress.label : "Email";
+  const picPhoneLabel = issuerContact ? SC_MONTHLY_ISSUER.phoneNumber.label : "Contact Number";
   const picHasChanges = Object.keys(buildSectionPayload(org, draft, "pic")).length > 0;
   const unified = unifyOrganizationPeople(org.partyProfiles, org.people);
   const linkedUserIds = linkedPartyUserIds(org.partyProfiles ?? []);
@@ -127,13 +144,18 @@ export function OrganizationPeoplePanel({
   };
 
   const handleSavePic = () => {
-    const issues = [
-      optionalEmailIssue(draft.picEmail, "picEmail", "Email"),
-      phoneFormatIssue(draft.picContactNumber, "picContactNumber", "Contact Number"),
-    ].filter((issue): issue is NonNullable<typeof issue> => Boolean(issue));
+    const issues = issuerContact
+      ? validateIssuerContactPersonForm({
+          email: draft.picEmail,
+          contact: draft.picContactNumber,
+        })
+      : [
+          optionalEmailIssue(draft.picEmail, "picEmail", "Email"),
+          phoneFormatIssue(draft.picContactNumber, "picContactNumber", "Contact Number"),
+        ].filter((issue): issue is NonNullable<typeof issue> => Boolean(issue));
     if (issues.length > 0) {
       setPicFieldErrors(Object.fromEntries(issues.map((issue) => [issue.field, issue.message])));
-      toast.error(issues[0]?.message);
+      toast.error(firstIssueMessage(issues) ?? issues[0]?.message);
       return;
     }
     setPicFieldErrors({});
@@ -159,11 +181,17 @@ export function OrganizationPeoplePanel({
     } catch (error) {
       if (isProfileValidationError(error) && Object.keys(error.fieldErrors).length > 0) {
         const next = { ...error.fieldErrors };
-        if (error.fieldErrors["corporateOnboardingData.personInCharge.contactNumber"]) {
-          next.picContactNumber = error.fieldErrors["corporateOnboardingData.personInCharge.contactNumber"];
+        if (error.fieldErrors["corporateOnboardingData.contactPerson.contact"]) {
+          next.picContactNumber = error.fieldErrors["corporateOnboardingData.contactPerson.contact"];
         }
-        if (error.fieldErrors["corporateOnboardingData.personInCharge.email"]) {
-          next.picEmail = error.fieldErrors["corporateOnboardingData.personInCharge.email"];
+        if (error.fieldErrors["corporateOnboardingData.contactPerson.email"]) {
+          next.picEmail = error.fieldErrors["corporateOnboardingData.contactPerson.email"];
+        }
+        if (error.fieldErrors["contactPersonEmail"]) {
+          next.picEmail = error.fieldErrors["contactPersonEmail"];
+        }
+        if (error.fieldErrors["contactPersonPhone"]) {
+          next.picContactNumber = error.fieldErrors["contactPersonPhone"];
         }
         setPicFieldErrors(next);
         setShowConfirm(false);
@@ -208,6 +236,7 @@ export function OrganizationPeoplePanel({
       designationOther: values.designation === "OTHERS" ? values.designationOther.trim() || null : null,
       appointmentDate: values.appointmentDate || null,
       resignationDate: values.resignationDate || null,
+      email: values.email.trim() || null,
     };
     if (partyId) {
       await peopleMutations.patchParty.mutateAsync({ partyId, data: payload });
@@ -425,39 +454,50 @@ export function OrganizationPeoplePanel({
                     onChange={(picPosition) => setDraft((current) => ({ ...current, picPosition }))}
                   />
                   <EditableField
-                    label="Email"
+                    label={picEmailLabel}
                     value={draft.picEmail}
                     onChange={(picEmail) => setDraft((current) => ({ ...current, picEmail }))}
                     maxLength={255}
-                    error={picFieldErrors.picEmail}
+                    error={picFieldErrors.picEmail || picFieldErrors.contactPersonEmail}
                   />
                   <EditablePhoneField
-                    label="Contact Number"
+                    label={picPhoneLabel}
                     value={draft.picContactNumber}
                     onChange={(picContactNumber) =>
                       setDraft((current) => ({ ...current, picContactNumber }))
                     }
-                    error={picFieldErrors.picContactNumber}
+                    error={picFieldErrors.picContactNumber || picFieldErrors.contactPersonPhone}
                   />
                 </>
               ) : (
                 <>
-                  <ReadField label="Name" value={org.corporateOnboardingData?.personInCharge?.name} />
+                  <ReadField label="Name" value={contact?.name || picEvidence?.name} />
                   <ReadField
                     label="Position"
-                    value={org.corporateOnboardingData?.personInCharge?.position}
+                    value={contact?.position || picEvidence?.position}
                   />
                   <ReadField
-                    label="Email"
-                    value={org.corporateOnboardingData?.personInCharge?.email}
+                    label={picEmailLabel}
+                    value={contact?.email || picEvidence?.email}
                   />
                   <ReadField
-                    label="Contact Number"
-                    value={org.corporateOnboardingData?.personInCharge?.contactNumber}
+                    label={picPhoneLabel}
+                    value={contact?.contact || picEvidence?.contactNumber}
                   />
                 </>
               )}
             </div>
+            {picEvidence?.name || picEvidence?.email || picEvidence?.contactNumber ? (
+              <div className="mt-6 space-y-3 border-t border-border pt-4">
+                <p className="text-ui text-muted-foreground">RegTank person in charge (read-only evidence)</p>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <ReadField label="Name" value={picEvidence?.name} />
+                  <ReadField label="Position" value={picEvidence?.position} />
+                  <ReadField label="Email" value={picEvidence?.email} />
+                  <ReadField label="Contact Number" value={picEvidence?.contactNumber} />
+                </div>
+              </div>
+            ) : null}
           </CardContent>
         </Card>
       ) : null}

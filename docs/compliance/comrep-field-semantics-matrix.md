@@ -429,8 +429,8 @@ Report campaigns whose hosting ended in the period.
 | Registered Address - Postcode | Postcode; international if outside MY | | postalCode | checked | checked | missing | PARTIAL |
 | Business Address | Business address; if subsidiary, subsidiary info | | COD business | checked | checked | missing | PARTIAL |
 | Business Address - State / Postcode | Same as registered | Must align | | checked | checked | missing | PARTIAL |
-| Phone Number | Issuer contact; for SP/partnership, liaison person | | `phone_number` | checked | checked | missing | PARTIAL |
-| E-mail Address | Same liaison rule | | `company_email` | checked | checked | missing | PARTIAL |
+| Phone Number | Current Contact Person phone; PIC fallback if empty. Operational `phone_number` is not this field. | | `contactPerson.contact` | checked | checked | missing | PARTIAL |
+| E-mail Address | Current Contact Person email; PIC fallback if empty. Not `User.email` or Person Email. | | `contactPerson.email` | checked | checked | missing | PARTIAL |
 | Website | URL where applicable | Blank OK | COD website | checked | checked | missing | PARTIAL |
 | Company Activities | Activity **based on the purpose of the issuer’s fundraising** | Not silently the profile “what does your company do?” | Profile narrative exists; mapping unconfirmed | checked label | stored separate | missing | NEEDS BUSINESS CONFIRMATION |
 

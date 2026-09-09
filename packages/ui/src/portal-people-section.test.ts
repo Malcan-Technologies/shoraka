@@ -80,6 +80,6 @@ describe("Person identity card CTOS indicator", () => {
 
   it("does not infer Person ↔ User from email", () => {
     expect(card).toContain("Do not infer this link from email alone");
-    expect(source).toContain("Onboarding email is for delivery only");
+    expect(source).toContain("Person Email is not the platform login email");
   });
 });

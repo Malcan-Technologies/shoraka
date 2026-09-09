@@ -13,6 +13,7 @@ function party(partial: Partial<OrganizationPartyProfileDto>): OrganizationParty
     entityType: "INDIVIDUAL",
     absentFromLatestExternal: false,
     name: "Ivan Chew Ken Yoong",
+    email: null,
     salutation: null,
     identityPrefix: "NRIC",
     identityNumber: "900101101234",
@@ -109,7 +110,7 @@ describe("buildPartyProfileDetailItems", () => {
     });
     const labels = items.map((item) => item.label);
     expect(labels).toContain("Name");
-    expect(labels).toContain("Onboarding email");
+    expect(labels).toContain("Email");
     expect(labels).not.toContain("Residential Address");
     expect(labels).not.toContain("Designation");
   });
@@ -141,7 +142,7 @@ describe("buildPartyProfileDetailItems", () => {
         email: "onboarding@example.com",
       },
     });
-    expect(items.find((item) => item.label === "Onboarding email")?.value).toBe(
+    expect(items.find((item) => item.label === "Email")?.value).toBe(
       "onboarding@example.com"
     );
     expect(items.find((item) => item.label === "Platform login email")?.value).toBe(

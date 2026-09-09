@@ -19,6 +19,8 @@ export interface OrganizationPartyProfileDto {
   entityType: OrganizationPartyEntityType;
   absentFromLatestExternal: boolean;
   name: string | null;
+  /** Person Email master. Not User.email and not an identity key. */
+  email: string | null;
   salutation: string | null;
   identityPrefix: ScIdentityPrefix | null;
   identityNumber: string | null;
@@ -83,7 +85,6 @@ export interface OrganizationMasterProfileDto {
   countryOfIncorporation: string | null;
   scCompanyType: import("./comrep-profile").ScCompanyType | null;
   companyCategory: import("./comrep-profile").ScCompanyCategory | null;
-  companyEmail: string | null;
   scInvestorCategory: import("./comrep-profile").ScInvestorCategory | null;
   residentialAddress: ProfileAddress | null;
   fieldSources: ProfileFieldSources;

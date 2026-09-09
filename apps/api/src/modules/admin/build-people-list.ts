@@ -823,6 +823,7 @@ export type MasterPartyPeopleSeed = {
   isDirector: boolean;
   isShareholder: boolean;
   shareholdingPercentage: string | number | null;
+  email?: string | null;
 };
 
 function sharePercentFromMaster(value: string | number | null): number | null {
@@ -850,6 +851,25 @@ function operationalMatchKeyForMasterParty(party: MasterPartyPeopleSeed): string
     canonicalPartyIdentityKey(stripGeneratedPartyKeyPrefix(party.partyKey)) ??
     canonicalPartyIdentityKey(party.partyKey)
   );
+}
+
+function applyMasterPersonEmail(
+  people: ApplicationPersonRow[],
+  masterParties?: MasterPartyPeopleSeed[] | null
+): ApplicationPersonRow[] {
+  if (!masterParties?.length) return people;
+  const byKey = new Map<string, string>();
+  for (const party of masterParties) {
+    const key = operationalMatchKeyForMasterParty(party);
+    const email = String(party.email ?? "").trim();
+    if (key && email) byKey.set(key, email);
+  }
+  if (byKey.size === 0) return people;
+  return people.map((row) => {
+    const key = normalizeDirectorShareholderIdKey(row.matchKey);
+    const master = key ? byKey.get(key) : undefined;
+    return master ? { ...row, email: master } : row;
+  });
 }
 
 /**
@@ -1241,11 +1261,14 @@ export function buildDirectorShareholderPeopleList(
   return {
     ...result,
     people: stampParentCorporateRequestId(
-      mergeMasterPartiesIntoPeopleList({
-        people,
-        masterParties: params.masterParties,
-        ctosPartySupplements: params.ctosPartySupplements ?? null,
-      }),
+      applyMasterPersonEmail(
+        mergeMasterPartiesIntoPeopleList({
+          people,
+          masterParties: params.masterParties,
+          ctosPartySupplements: params.ctosPartySupplements ?? null,
+        }),
+        params.masterParties
+      ),
       params.parentCorporateRequestId
     ),
   };

@@ -1302,6 +1302,66 @@ describe("buildUnifiedPeople", () => {
     expect(getFinalStatusLabel({ screening: person?.screening }).label).toBe("Not Started");
   });
 
+  it("uses OrganizationPartyProfile.email as people[].email when the master is filled", () => {
+    const result = buildDirectorShareholderPeopleList({
+      ctos: null,
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      ctosPartySupplements: [
+        {
+          partyKey: "900101101234",
+          onboardingJson: { email: "old-supplement@example.com" },
+        },
+      ],
+      corporateEntities: null,
+      masterParties: [
+        {
+          partyKey: "900101101234",
+          membershipStatus: "MASTER_ACTIVE",
+          entityType: "INDIVIDUAL",
+          name: "Sarah Tan",
+          identityNumber: "900101101234",
+          isDirector: true,
+          isShareholder: false,
+          shareholdingPercentage: null,
+          email: "master@acme.test",
+        },
+      ],
+    });
+    expect(result.people.find((p) => p.matchKey === "900101101234")?.email).toBe("master@acme.test");
+  });
+
+  it("keeps the existing people[].email fallback when OrganizationPartyProfile.email is empty", () => {
+    const result = buildDirectorShareholderPeopleList({
+      ctos: null,
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      ctosPartySupplements: [
+        {
+          partyKey: "900101101234",
+          onboardingJson: { email: "supplement@example.com" },
+        },
+      ],
+      corporateEntities: null,
+      masterParties: [
+        {
+          partyKey: "900101101234",
+          membershipStatus: "MASTER_ACTIVE",
+          entityType: "INDIVIDUAL",
+          name: "Sarah Tan",
+          identityNumber: "900101101234",
+          isDirector: true,
+          isShareholder: false,
+          shareholdingPercentage: null,
+          email: null,
+        },
+      ],
+    });
+    expect(result.people.find((p) => p.matchKey === "900101101234")?.email).toBe(
+      "supplement@example.com"
+    );
+  });
+
   it("CTOS-adopted person before Send onboarding keeps KYC Not Started for placeholder PENDING KYC", () => {
     const rows = buildUnifiedPeople({
       ctos: {

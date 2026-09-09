@@ -17,6 +17,7 @@ function party(
     entityType: "INDIVIDUAL",
     absentFromLatestExternal: false,
     name: "Sarah Tan",
+    email: null,
     salutation: null,
     identityPrefix: "NRIC",
     identityNumber: "900101145678",

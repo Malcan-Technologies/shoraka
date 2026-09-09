@@ -9,6 +9,7 @@ import type {
 import {
   comrepCalendarDateKey,
   isMasterFieldEmpty,
+  mergeCodContactPersonMaster,
   normalizeDirectorShareholderIdKey,
   parseComrepCalendarDate,
   valuesEqualForMismatch,
@@ -239,6 +240,8 @@ export function preserveFilledOrgIdentityFields<T extends Record<string, unknown
 /**
  * COD webhooks replace corporate_onboarding_data. Address/activity facts filled
  * during secondary onboarding live in that JSON — keep filled subfields.
+ * personInCharge is RegTank evidence (always take incoming). contactPerson is
+ * CashSouk master: seed from PIC when empty, never silently overwrite when filled.
  * Directors/entities in the incoming payload still replace (KYC/AML).
  */
 export function preserveFilledCodMasterFacts(existing: unknown, incoming: unknown): unknown {
@@ -274,6 +277,15 @@ export function preserveFilledCodMasterFacts(existing: unknown, incoming: unknow
     source: "REGTANK",
   }).value;
   next.aboutYourBusiness = nextAbout;
+
+  if ("personInCharge" in next || prev.personInCharge != null) {
+    next.personInCharge = next.personInCharge ?? prev.personInCharge ?? null;
+  }
+  next.contactPerson = mergeCodContactPersonMaster({
+    existingContact: prev.contactPerson,
+    incomingPic: next.personInCharge,
+    incomingContact: next.contactPerson,
+  });
   return next;
 }
 
@@ -350,6 +362,7 @@ export function serializeParty(
     entity_type: OrganizationPartyProfileDto["entityType"];
     absent_from_latest_external: boolean;
     name: string | null;
+    email?: string | null;
     salutation: string | null;
     identity_prefix: OrganizationPartyProfileDto["identityPrefix"];
     identity_number: string | null;
@@ -398,6 +411,7 @@ export function serializeParty(
     entityType: row.entity_type,
     absentFromLatestExternal: row.absent_from_latest_external,
     name: row.name,
+    email: row.email ?? null,
     salutation: row.salutation,
     identityPrefix: row.identity_prefix,
     identityNumber: row.identity_number,

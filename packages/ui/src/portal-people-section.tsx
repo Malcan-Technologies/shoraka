@@ -15,6 +15,7 @@ import {
   isMissingGovernmentIdPerson,
   normalizeDirectorShareholderIdKey,
   normalizeDirectorShareholderPartyEmail,
+  PERSON_EMAIL_HELP,
   resolveDirectorShareholderCtosEmptyWarning,
   UNRESOLVED_IDENTITY_RECOVERY_COPY,
   UNRESOLVED_IDENTITY_RECOVERY_TITLE,
@@ -500,17 +501,17 @@ export function PortalPeopleSection({
           viewing.entityType !== "CORPORATE" &&
           viewing.membershipStatus === "MASTER_ACTIVE" ? (
             <div className="space-y-2">
-              <Label htmlFor="onboarding-email">Onboarding email</Label>
+              <Label htmlFor="onboarding-email">Email</Label>
               <Input
                 id="onboarding-email"
                 type="email"
-                value={draftEmails[viewing.id] ?? viewingPerson?.email ?? ""}
+                value={draftEmails[viewing.id] ?? viewing.email ?? viewingPerson?.email ?? ""}
                 onChange={(event) =>
                   setDraftEmails((current) => ({ ...current, [viewing.id]: event.target.value }))
                 }
               />
               <p className="text-meta text-muted-foreground">
-                Used for KYC/AML onboarding delivery. This does not change the platform login email.
+                {PERSON_EMAIL_HELP}
               </p>
               {viewing.linkedUser?.email ? (
                 <p className="text-meta text-muted-foreground">
@@ -522,7 +523,7 @@ export function PortalPeopleSection({
                 variant="outline"
                 className="h-10"
                 onClick={async () => {
-                  const email = draftEmails[viewing.id] ?? viewingPerson?.email ?? "";
+                  const email = draftEmails[viewing.id] ?? viewing.email ?? viewingPerson?.email ?? "";
                   const saveRes = await api.patch(`${orgBase}/ctos-party-email`, {
                     partyKey: viewing.partyKey,
                     email,
@@ -531,11 +532,11 @@ export function PortalPeopleSection({
                     toast.error(saveRes.error.message);
                     return;
                   }
-                  toast.success("Onboarding email saved");
+                  toast.success("Email saved");
                   await invalidate();
                 }}
               >
-                Save onboarding email
+                Save email
               </Button>
             </div>
           ) : null}
@@ -659,12 +660,12 @@ export function PortalPeopleSection({
           <DialogHeader>
             <DialogTitle>Send onboarding</DialogTitle>
             <DialogDescription>
-              KYC/AML onboarding is separate from platform access. Onboarding email is for delivery only.
+              KYC/AML onboarding is separate from platform access. Person Email is not the platform login email.
             </DialogDescription>
           </DialogHeader>
           {onboardPerson ? (
             <div className="space-y-2">
-              <Label htmlFor="send-onboarding-email">Onboarding email</Label>
+              <Label htmlFor="send-onboarding-email">Email</Label>
               <Input
                 id="send-onboarding-email"
                 type="email"

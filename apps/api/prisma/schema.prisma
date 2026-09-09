@@ -420,7 +420,6 @@ model IssuerOrganization {
   country_of_incorporation     String?
   sc_company_type              ScCompanyType?
   company_category             ScCompanyCategory?
-  company_email                String?
   profile_field_sources        Json                           @default("{}")
   /// Set when the first CTOS or RegTank director/shareholder snapshot has been applied.
   /// User-added people alone do not set this.
@@ -462,6 +461,8 @@ model OrganizationPartyProfile {
   entity_type                 OrganizationPartyEntityType
   absent_from_latest_external Boolean                           @default(false)
   name                        String?
+  /// Person Email master (trim + lowercase). Not User.email. Not an identity key.
+  email                       String?
   salutation                  String?
   identity_prefix             ScIdentityPrefix?
   identity_number             String?

@@ -84,7 +84,6 @@ export interface Organization {
   countryOfIncorporation?: string | null;
   scCompanyType?: string | null;
   companyCategory?: string | null;
-  companyEmail?: string | null;
   scInvestorCategory?: string | null;
   residentialAddress?: import("@cashsouk/types").ProfileAddress | null;
   /** CTOS-backed party rows with AML screening (issuer company orgs). */

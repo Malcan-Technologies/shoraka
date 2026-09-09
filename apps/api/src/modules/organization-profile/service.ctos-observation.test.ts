@@ -64,6 +64,7 @@ function row(partial: Record<string, unknown>) {
     entity_type: "INDIVIDUAL",
     absent_from_latest_external: false,
     name: "A",
+    email: null,
     salutation: null,
     identity_prefix: "NRIC",
     identity_number: partyKey,
@@ -113,7 +114,6 @@ function wireIssuerOrg() {
     country_of_incorporation: null,
     sc_company_type: null,
     phone_number: null,
-    company_email: null,
   };
   mockIssuerFindUnique.mockImplementation(async () => issuerOrg);
   mockIssuerUpdateMany.mockImplementation(
@@ -186,6 +186,7 @@ describe("CTOS master party observation", () => {
     mockPartyFindMany.mockImplementation(async () => [...parties]);
     mockPartyFindFirst.mockImplementation(async ({ where }: { where: Record<string, unknown> }) =>
       parties.find((p) => {
+        if (where.party_key != null && p.party_key !== where.party_key) return false;
         if (where.id != null && p.id !== where.id) return false;
         if (
           where.issuer_organization_id != null &&
@@ -721,6 +722,7 @@ describe("user-added master parties", () => {
     mockPartyFindMany.mockImplementation(async () => [...parties]);
     mockPartyFindFirst.mockImplementation(async ({ where }: { where: Record<string, unknown> }) =>
       parties.find((p) => {
+        if (where.party_key != null && p.party_key !== where.party_key) return false;
         if (where.id != null && p.id !== where.id) return false;
         if (
           where.issuer_organization_id != null &&

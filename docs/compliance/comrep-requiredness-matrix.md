@@ -113,24 +113,20 @@ Integer without decimal points (UI + API): Ordinary/Preference/Others **No. of S
 | Issuer / Admin company | [02000] | Type of Company | yes | REQUIRED | yes | yes | yes | Default policy | CONSISTENT |
 | Issuer / Admin addresses | [02000] | Registered Address / State / Postcode | yes | REQUIRED / CONDITIONAL postcode | yes | yes | yes | Postcode waived if Outside Malaysia | CONSISTENT |
 | Issuer / Admin addresses | [02000] | Business Address / State / Postcode | yes | REQUIRED / CONDITIONAL postcode | yes | yes | yes | Same | CONSISTENT |
-| Issuer / Admin company | [02000] | Phone Number | yes | REQUIRED | yes | yes | yes | Default policy | CONSISTENT |
-| Issuer / Admin company | [02000] | E-mail Address | yes | REQUIRED | yes | yes | yes | Was visual-only `*`; now blocked | CONSISTENT |
+| Issuer / Admin Person in Charge | [02000] | Phone Number | yes | REQUIRED | yes | yes | yes | Source is `contactPerson.contact` with PIC fallback | CONSISTENT |
+| Issuer / Admin Person in Charge | [02000] | E-mail Address | yes | REQUIRED | yes | yes | yes | Source is `contactPerson.email` with PIC fallback | CONSISTENT |
 | Issuer / Admin company | [02000] | Website | no | NOT REQUIRED | no | no | no | SC “where applicable” | CONSISTENT |
 | Issuer / Admin | [02000] | Company Activities | no | NEEDS BUSINESS CONFIRMATION | no | no | no | Mapping unresolved | CONSISTENT |
 | Campaign | [02000] | Company category | campaign | NOT REQUIRED (profile) | campaign | campaign | no | Not issuer profile completeness | CONSISTENT |
 | Issuer / Admin company | CashSouk | TIN, Industry, Number of Employees, Annual Revenue | no | NOT REQUIRED | no | no | no | Not ComRep [02000] | CONSISTENT |
 
-**E-mail Address * (issuer company)**
+**E-mail Address * (issuer Person in Charge)**
 
 | Check | Before | After |
 |---|---|---|
-| `*` shown | yes | yes |
-| Blank Save | succeeded | blocked |
-| Whitespace Save | succeeded | blocked |
-| Invalid email Save | succeeded | blocked |
-| Valid email Save | succeeded | succeeds |
-| API blank/invalid | accepted | rejected |
-| Completeness | counted | counted |
+| `*` shown | company email | Person in Charge |
+| Blank Save | company email | blocked on Contact Person |
+| Completeness | `company_email` | `contactPerson.email` with PIC fallback |
 
 ---
 

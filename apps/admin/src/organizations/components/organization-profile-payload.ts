@@ -128,7 +128,6 @@ export type OrgProfileDraft = {
   countryOfIncorporation: string;
   scCompanyType: string;
   companyCategory: string;
-  companyEmail: string;
   scInvestorCategory: string;
   isSophisticatedInvestor: boolean | null;
   gender: string;
@@ -171,9 +170,26 @@ function asScGender(value: string | null | undefined): string {
   return SC_GENDERS.includes(raw as ScGender) ? raw : "";
 }
 
+function currentContactDraft(org: OrganizationDetailResponse): {
+  name: string;
+  position: string;
+  email: string;
+  contact: string;
+} {
+  const contact = org.corporateOnboardingData?.contactPerson;
+  const pic = org.corporateOnboardingData?.personInCharge;
+  return {
+    name: contact?.name || pic?.name || "",
+    position: contact?.position || pic?.position || "",
+    email: contact?.email || pic?.email || "",
+    contact: contact?.contact || pic?.contactNumber || "",
+  };
+}
+
 export function buildDraft(org: OrganizationDetailResponse): OrgProfileDraft {
   const bank = asBankAccountDetails(org.bankAccountDetails);
   const about = parseAboutYourBusiness(org.corporateOnboardingData?.aboutYourBusiness);
+  const contact = currentContactDraft(org);
   return {
     name: org.name ?? "",
     phoneNumber: org.phoneNumber ?? "",
@@ -196,10 +212,10 @@ export function buildDraft(org: OrganizationDetailResponse): OrgProfileDraft {
     businessName: org.corporateOnboardingData?.basicInfo?.businessName ?? "",
     businessAddress: addressToDraft(org.corporateOnboardingData?.addresses?.business),
     registeredAddress: addressToDraft(org.corporateOnboardingData?.addresses?.registered),
-    picName: org.corporateOnboardingData?.personInCharge?.name ?? "",
-    picPosition: org.corporateOnboardingData?.personInCharge?.position ?? "",
-    picEmail: org.corporateOnboardingData?.personInCharge?.email ?? "",
-    picContactNumber: org.corporateOnboardingData?.personInCharge?.contactNumber ?? "",
+    picName: contact.name,
+    picPosition: contact.position,
+    picEmail: contact.email,
+    picContactNumber: contact.contact,
     whatDoesCompanyDo: about.whatDoesCompanyDo,
     mainCustomers: about.mainCustomers,
     singleCustomerOver50Revenue: about.singleCustomerOver50Revenue,
@@ -209,7 +225,6 @@ export function buildDraft(org: OrganizationDetailResponse): OrgProfileDraft {
     countryOfIncorporation: org.countryOfIncorporation ?? "",
     scCompanyType: org.scCompanyType ?? "",
     companyCategory: org.companyCategory ?? "",
-    companyEmail: org.companyEmail ?? "",
     scInvestorCategory: org.scInvestorCategory ?? "",
     isSophisticatedInvestor:
       org.isSophisticatedInvestor === true || org.isSophisticatedInvestor === false
@@ -301,9 +316,6 @@ export function buildSectionPayload(
       if (emptyToNull(draft.companyCategory) !== emptyToNull(original.companyCategory)) {
         payload.companyCategory = (emptyToNull(draft.companyCategory) as ScCompanyCategory | null) ?? null;
       }
-      if (emptyToNull(draft.companyEmail) !== emptyToNull(original.companyEmail)) {
-        payload.companyEmail = emptyToNull(draft.companyEmail);
-      }
     }
     return payload;
   }
@@ -370,11 +382,11 @@ export function buildSectionPayload(
         emptyToNull(draft.picContactNumber) !== emptyToNull(original.picContactNumber))
     ) {
       payload.corporateOnboardingData = {
-        personInCharge: {
+        contactPerson: {
           name: emptyToNull(draft.picName),
           position: emptyToNull(draft.picPosition),
           email: emptyToNull(draft.picEmail),
-          contactNumber: emptyToNull(draft.picContactNumber),
+          contact: emptyToNull(draft.picContactNumber),
         },
       };
     }

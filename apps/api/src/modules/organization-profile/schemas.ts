@@ -103,7 +103,6 @@ export const orgMasterPatchSchema = z
     countryOfIncorporation: optionalText,
     scCompanyType: z.enum(SC_COMPANY_TYPES).optional().nullable(),
     companyCategory: z.enum(SC_COMPANY_CATEGORIES).optional().nullable(),
-    companyEmail: z.string().max(255).optional().nullable(),
     scInvestorCategory: z.enum(SC_INVESTOR_CATEGORIES).optional().nullable(),
     isSophisticatedInvestor: z.boolean().optional(),
     residentialAddress: addressPatchSchema.optional().nullable(),
@@ -124,7 +123,6 @@ export const orgMasterPatchSchema = z
         return true;
       }
       return (
-        issue.field === "companyEmail" ||
         issue.field === "phoneNumber" ||
         issue.field === "dateOfIncorporation" ||
         issue.field === "dateOfCommencement" ||
@@ -171,6 +169,11 @@ export const partyPatchObjectSchema = z
     designationOther: optionalText,
     appointmentDate: optionalDate,
     resignationDate: optionalDate,
+    email: z.union([
+      z.string().email({ message: "Enter a valid e-mail address." }).max(255),
+      z.literal(""),
+      z.null(),
+    ]).optional(),
   })
   .strict();
 
@@ -402,11 +405,6 @@ export const operatorFinancialStatementSchema = z
 export const createPartySchema = partyPatchObjectSchema
   .extend({
     entityType: z.enum(ORGANIZATION_PARTY_ENTITY_TYPES).optional(),
-    email: z.union([
-      z.string().email({ message: "Enter a valid e-mail address." }).max(255),
-      z.literal(""),
-      z.null(),
-    ]).optional(),
   })
   .refine(
     (value) =>

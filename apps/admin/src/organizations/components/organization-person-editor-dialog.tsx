@@ -75,6 +75,7 @@ export type PartyEditorValues = {
   designationOther: string;
   appointmentDate: string;
   resignationDate: string;
+  email: string;
 };
 
 const emptyValues: PartyEditorValues = {
@@ -105,6 +106,7 @@ const emptyValues: PartyEditorValues = {
   designationOther: "",
   appointmentDate: "",
   resignationDate: "",
+  email: "",
 };
 
 export function partyToEditorValues(party: OrganizationPartyProfileDto): PartyEditorValues {
@@ -136,6 +138,7 @@ export function partyToEditorValues(party: OrganizationPartyProfileDto): PartyEd
     designationOther: party.designationOther ?? "",
     appointmentDate: party.appointmentDate?.slice(0, 10) ?? "",
     resignationDate: party.resignationDate?.slice(0, 10) ?? "",
+    email: party.email ?? "",
   };
 }
 
@@ -154,6 +157,7 @@ export function personToEditorValues(person: ApplicationPersonRow): PartyEditorV
     isManagement: roles.includes("MANAGEMENT"),
     shareholdingPercentage: person.sharePercentage != null ? String(person.sharePercentage) : "",
     shareType: roles.includes("SHAREHOLDER") ? "ORDINARY" : "",
+    email: person.email ?? "",
   };
 }
 
@@ -305,6 +309,15 @@ export function OrganizationPersonEditorDialog({
             help={copy.identity.help}
             error={fieldErrors.identityNumber}
             maxLength={500}
+          />
+          <Field
+            label="Email"
+            value={values.email}
+            onChange={(email) => set("email", email)}
+            help="Used for onboarding, signing, and platform invitations for this person."
+            error={fieldErrors.email}
+            maxLength={255}
+            inputMode="email"
           />
           <fieldset className="space-y-2 sm:col-span-2">
             <legend className="text-ui">Roles</legend>
@@ -564,6 +577,7 @@ export function OrganizationPersonEditorDialog({
                 name: values.name,
                 identityPrefix: values.identityPrefix,
                 identityNumber: values.identityNumber,
+                email: values.email,
                 dateOfBirth: values.dateOfBirth,
                 dateOfIncorporation: values.dateOfIncorporation,
                 gender: values.gender,

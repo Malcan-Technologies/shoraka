@@ -12,6 +12,7 @@ import {
   isIssuerOfficerRole,
   monthlyIssuerPersonCopy,
   PROFILE_LOCKED_ROLES_CANNOT_CHANGE,
+  PERSON_EMAIL_HELP,
   restrictScIdentityInput,
   restrictScPostcodeInput,
   SELECT_AT_LEAST_ONE_ROLE_MESSAGE,
@@ -338,6 +339,7 @@ export function AddPersonForm({
             label="Email"
             value={form.email}
             onChange={(value) => setForm({ ...form, email: value })}
+            help={PERSON_EMAIL_HELP}
             error={fieldErrors.email}
             maxLength={255}
             inputMode="email"

@@ -154,7 +154,7 @@ The remaining annual gaps are `[06000]`–`[09000]` (registered users / national
 | Date of Commencement | 29 | Stored | `IssuerOrganization.date_of_commencement` | Same. |
 | Country of Incorporation | 29 | Stored | `IssuerOrganization.country_of_incorporation` | Explicit field. Not copied from registered-address country. |
 | Type of Company (6-value SC enum) | 29 | Stored | `IssuerOrganization.sc_company_type` | Same. |
-| E-mail Address (company-level) | 29 | Stored | `IssuerOrganization.company_email` | Same. |
+| E-mail Address (company contact) | 29 | Stored | `corporate_onboarding_data.contactPerson.email` with PIC fallback | Person in Charge on issuer profile. Not `User.email` or Person Email. |
 | Company Activities | 30 | Needs confirmation | Profile still stores `aboutYourBusiness.whatDoesCompanyDo` as the business narrative. SC wording is activity based on the purpose of the issuer’s fundraising. That is not silently mapped to the profile narrative or to campaign Purpose of Fund Raising. | Export mapping needs compliance confirmation. |
 
 ### [03000] Financing Details 1 — pp. 30–33

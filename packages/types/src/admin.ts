@@ -717,7 +717,7 @@ export interface OrganizationDetailResponse {
       email?: string | null;
       contactNumber?: string | null;
     };
-    /** Editable org contact for applications; seeded from personInCharge at COD */
+    /** Editable org contact; Person in Charge UI. Distinct from RegTank personInCharge evidence. */
     contactPerson?: {
       name?: string | null;
       position?: string | null;
@@ -767,7 +767,6 @@ export interface OrganizationDetailResponse {
   countryOfIncorporation?: string | null;
   scCompanyType?: string | null;
   companyCategory?: string | null;
-  companyEmail?: string | null;
   scInvestorCategory?: string | null;
   residentialAddress?: import("./comrep-profile").ProfileAddress | null;
 
@@ -835,6 +834,12 @@ export interface UpdateAdminOrganizationCorporateOnboardingInput {
     email?: string | null;
     contactNumber?: string | null;
   };
+  contactPerson?: {
+    name?: string | null;
+    position?: string | null;
+    email?: string | null;
+    contact?: string | null;
+  };
   aboutYourBusiness?: {
     whatDoesCompanyDo?: string | null;
     mainCustomers?: string | null;
@@ -865,7 +870,6 @@ export interface UpdateAdminOrganizationProfileInput {
   countryOfIncorporation?: string | null;
   scCompanyType?: import("./comrep-profile").ScCompanyType | null;
   companyCategory?: import("./comrep-profile").ScCompanyCategory | null;
-  companyEmail?: string | null;
   scInvestorCategory?: import("./comrep-profile").ScInvestorCategory | null;
   isSophisticatedInvestor?: boolean;
   residentialAddress?: AdminOrganizationAddressInput | null;

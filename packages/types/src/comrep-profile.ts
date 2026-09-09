@@ -336,20 +336,146 @@ export const SC_COMPANY_TYPE_LABELS: Record<ScCompanyType, string> = {
   FOREIGN: "Foreign",
 };
 
-/** Map RegTank COD "Type of Entity" text onto the SC Type of Company enum. */
+/**
+ * Confirmed RegTank COD "Type of Entity" → SC Type of Company.
+ * Unlisted Public Company and Foreign have no confirmed mapping — leave incomplete.
+ */
+const REGTANK_ENTITY_TYPE_TO_SC_COMPANY_TYPE: Record<string, ScCompanyType> = {
+  "private limited company (sdn bhd)": "PRIVATE_LIMITED",
+  "limited liability partnerships": "LLP",
+};
+
+/** Map only confirmed exact RegTank Type of Entity strings (trimmed, case-insensitive). */
 export function mapRegTankEntityTypeToScCompanyType(raw: unknown): ScCompanyType | null {
   if (typeof raw !== "string") return null;
   const n = raw.trim().toLowerCase();
   if (!n) return null;
-  if (n.includes("limited liability partnership") || n === "llp") return "LLP";
-  if (n.includes("sole proprietor")) return "SOLE_PROPRIETORSHIP";
-  if (n.includes("private limited") || n.includes("sdn bhd") || n.includes("sdn. bhd")) {
-    return "PRIVATE_LIMITED";
-  }
-  if (n.includes("public limited") || (/\bbhd\b/.test(n) && !n.includes("sdn"))) return "PUBLIC_LIMITED";
-  if (n.includes("partnership")) return "PARTNERSHIP";
-  if (n.includes("foreign")) return "FOREIGN";
-  return null;
+  return REGTANK_ENTITY_TYPE_TO_SC_COMPANY_TYPE[n] ?? null;
+}
+
+/** Current CashSouk issuer operational contact. Distinct from RegTank personInCharge evidence. */
+export type IssuerContactPerson = {
+  name?: string | null;
+  position?: string | null;
+  email?: string | null;
+  contact?: string | null;
+};
+
+/** RegTank onboarding PIC snapshot. Not the current ComRep contact once contactPerson is filled. */
+export type IssuerPersonInChargeEvidence = {
+  name?: string | null;
+  position?: string | null;
+  email?: string | null;
+  contactNumber?: string | null;
+};
+
+function trimContactText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+export function isIssuerContactPersonFilled(
+  contact: IssuerContactPerson | null | undefined
+): boolean {
+  if (!contact) return false;
+  return Boolean(
+    trimContactText(contact.name) ||
+      trimContactText(contact.position) ||
+      trimContactText(contact.email) ||
+      trimContactText(contact.contact)
+  );
+}
+
+export function seedIssuerContactPersonFromPic(
+  pic: IssuerPersonInChargeEvidence | null | undefined
+): IssuerContactPerson {
+  return {
+    name: pic?.name ?? null,
+    position: pic?.position ?? null,
+    email: pic?.email ?? null,
+    contact: pic?.contactNumber ?? null,
+  };
+}
+
+export function asIssuerContactPerson(value: unknown): IssuerContactPerson | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const rec = value as Record<string, unknown>;
+  return {
+    name: typeof rec.name === "string" ? rec.name : rec.name == null ? null : String(rec.name),
+    position:
+      typeof rec.position === "string" ? rec.position : rec.position == null ? null : String(rec.position),
+    email: typeof rec.email === "string" ? rec.email : rec.email == null ? null : String(rec.email),
+    contact:
+      typeof rec.contact === "string"
+        ? rec.contact
+        : rec.contact == null
+          ? typeof rec.contactNumber === "string"
+            ? rec.contactNumber
+            : rec.contactNumber == null
+              ? null
+              : String(rec.contactNumber)
+          : String(rec.contact),
+  };
+}
+
+export function asIssuerPersonInCharge(value: unknown): IssuerPersonInChargeEvidence | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const rec = value as Record<string, unknown>;
+  return {
+    name: typeof rec.name === "string" ? rec.name : rec.name == null ? null : String(rec.name),
+    position:
+      typeof rec.position === "string" ? rec.position : rec.position == null ? null : String(rec.position),
+    email: typeof rec.email === "string" ? rec.email : rec.email == null ? null : String(rec.email),
+    contactNumber:
+      typeof rec.contactNumber === "string"
+        ? rec.contactNumber
+        : rec.contactNumber == null
+          ? typeof rec.contact === "string"
+            ? rec.contact
+            : rec.contact == null
+              ? null
+              : String(rec.contact)
+          : String(rec.contactNumber),
+  };
+}
+
+/**
+ * Keep filled CashSouk contactPerson; seed from RegTank PIC only when master is empty.
+ * Incoming PIC missing must not delete a filled master.
+ */
+export function mergeCodContactPersonMaster(params: {
+  existingContact: unknown;
+  incomingPic: unknown;
+  incomingContact: unknown;
+}): IssuerContactPerson | null {
+  const existing = asIssuerContactPerson(params.existingContact);
+  if (isIssuerContactPersonFilled(existing)) return existing;
+  const incomingContact = asIssuerContactPerson(params.incomingContact);
+  if (isIssuerContactPersonFilled(incomingContact)) return incomingContact;
+  const pic = asIssuerPersonInCharge(params.incomingPic);
+  const seeded = seedIssuerContactPersonFromPic(pic);
+  return isIssuerContactPersonFilled(seeded) ? seeded : existing;
+}
+
+/** ComRep [02000] E-mail Address: current Contact Person, then RegTank PIC evidence. */
+export function resolveIssuerComrepEmail(
+  contactPerson: IssuerContactPerson | null | undefined,
+  personInCharge: IssuerPersonInChargeEvidence | null | undefined
+): string | null {
+  const fromContact = trimContactText(contactPerson?.email);
+  if (fromContact) return fromContact;
+  const fromPic = trimContactText(personInCharge?.email);
+  return fromPic || null;
+}
+
+/** ComRep [02000] Phone Number: current Contact Person, then RegTank PIC evidence. */
+export function resolveIssuerComrepPhone(
+  contactPerson: IssuerContactPerson | null | undefined,
+  personInCharge: IssuerPersonInChargeEvidence | null | undefined
+): string | null {
+  const fromContact = trimContactText(contactPerson?.contact);
+  if (fromContact) return fromContact;
+  const fromPic = trimContactText(personInCharge?.contactNumber);
+  return fromPic || null;
 }
 
 export const PROFILE_LOCKED_VERIFIED_DURING_ONBOARDING =
@@ -378,16 +504,16 @@ export function hasOrganizationPartyRole(roles: {
   return Boolean(roles.isDirector || roles.isShareholder || roles.isBoard || roles.isManagement);
 }
 
+/** Display the stored CashSouk Type of Company only. Confirmed RegTank maps prefill the master; they are not a live completeness substitute. */
 export function displayScCompanyTypeLabel(
   scCompanyType: string | null | undefined,
-  regTankEntityType?: string | null
+  _regTankEntityType?: string | null
 ): string | null {
   const stored =
     scCompanyType && scCompanyType in SC_COMPANY_TYPE_LABELS
       ? (scCompanyType as ScCompanyType)
       : null;
-  const mapped = stored ?? mapRegTankEntityTypeToScCompanyType(regTankEntityType);
-  return mapped ? SC_COMPANY_TYPE_LABELS[mapped] : null;
+  return stored ? SC_COMPANY_TYPE_LABELS[stored] : null;
 }
 
 export const SC_SHARE_TYPE_LABELS: Record<ScShareType, string> = {
@@ -730,7 +856,9 @@ export function issuerUiSectionForMissing(item: ProfileMissingItem): ProfileUiSe
   if (item.field.startsWith("registeredAddress") || item.field.startsWith("businessAddress")) {
     return "addresses";
   }
-  if (item.field === "phoneNumber" || item.field === "companyEmail") return "company";
+  if (item.field === "contactPersonEmail" || item.field === "contactPersonPhone") {
+    return "contact";
+  }
   return "company";
 }
 
@@ -892,8 +1020,8 @@ export interface IssuerCompanyCompletenessInput {
   scCompanyType: ScCompanyType | null | undefined;
   registeredAddress: ProfileAddress | null | undefined;
   businessAddress: ProfileAddress | null | undefined;
-  phoneNumber: string | null | undefined;
-  companyEmail: string | null | undefined;
+  contactPerson?: IssuerContactPerson | null;
+  personInCharge?: IssuerPersonInChargeEvidence | null;
   companyActivities: string | null | undefined;
 }
 
@@ -1204,8 +1332,14 @@ export function computeIssuerCompanyCompleteness(
   if (!hasRequiredPostcodeValue(input.businessAddress?.postalCode, input.businessAddress?.state)) {
     pushMissing(missing, step, "businessAddress.postalCode", "Business Address - Postcode");
   }
-  if (!hasValidPhoneValue(input.phoneNumber)) pushMissing(missing, step, "phoneNumber", "Phone Number");
-  if (!hasValidEmailValue(input.companyEmail)) pushMissing(missing, step, "companyEmail", "E-mail Address");
+  const contactEmail = resolveIssuerComrepEmail(input.contactPerson, input.personInCharge);
+  const contactPhone = resolveIssuerComrepPhone(input.contactPerson, input.personInCharge);
+  if (!hasValidPhoneValue(contactPhone)) {
+    pushMissing(missing, step, "contactPersonPhone", "Phone Number");
+  }
+  if (!hasValidEmailValue(contactEmail)) {
+    pushMissing(missing, step, "contactPersonEmail", "E-mail Address");
+  }
   return missing;
 }
 
