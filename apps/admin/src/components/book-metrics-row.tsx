@@ -43,7 +43,7 @@ const CARDS: {
     title: "Arrears",
     countLabel: "notes",
     href: "/notes?servicingStatus=ARREARS",
-    chip: "late",
+    chip: "arrears",
     chipStatus: "rejected",
     amountTone: "distressed",
     strokeClass: "stroke-status-rejected-text",

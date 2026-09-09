@@ -263,7 +263,7 @@ function investorShareOf(holding: HoldingForDashboard, noteAmount: number): numb
 function holdingExpectedPayout(holding: HoldingForDashboard): { amount: number; profit: number } {
   const outstanding = holdingOutstanding(holding);
   if (outstanding.outstandingTotal <= 0 || holding.fundedAmount <= 0) {
-    return { amount: roundNoteMoney(holding.confirmedAmount, 2), profit: 0 };
+    return { amount: 0, profit: 0 };
   }
   const principal = investorShareOf(holding, outstanding.outstandingPrincipal);
   const grossProfit = investorShareOf(holding, outstanding.outstandingProfit);
@@ -280,14 +280,7 @@ export function computeAtRisk(
     (holding) => !isClosedHolding(holding) && holding.confirmedAmount > 0 && isAtRiskHolding(holding)
   );
   const amount = roundNoteMoney(
-    atRisk.reduce((sum, holding) => {
-      const outstanding = holdingOutstanding(holding);
-      const remaining =
-        outstanding.outstandingTotal > 0 && holding.fundedAmount > 0
-          ? investorShareOf(holding, outstanding.outstandingTotal)
-          : roundNoteMoney(holding.confirmedAmount, 2);
-      return sum + remaining;
-    }, 0),
+    atRisk.reduce((sum, holding) => sum + holdingExpectedPayout(holding).amount, 0),
     2
   );
   let maxDaysPastDue: number | null = null;

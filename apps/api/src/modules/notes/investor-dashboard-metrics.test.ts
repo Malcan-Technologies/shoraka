@@ -214,7 +214,7 @@ describe("computeAtRisk", () => {
     expect(result.maxDaysPastDue).toBe(9);
   });
 
-  it("falls back to confirmed amount when remaining outstanding is 0", () => {
+  it("treats fully recovered holdings as zero remaining at-risk", () => {
     const result = computeAtRisk(
       [
         holding({
@@ -228,8 +228,26 @@ describe("computeAtRisk", () => {
       ],
       10_000
     );
-    expect(result.amount).toBe(10_000);
+    expect(result.amount).toBe(0);
     expect(result.maxDaysPastDue).toBe(120);
+  });
+
+  it("nets the service fee on remaining at-risk profit", () => {
+    const result = computeAtRisk(
+      [
+        holding({
+          servicingStatus: "LATE",
+          daysPastDue: 9,
+          confirmedAmount: 100_000,
+          fundedAmount: 100_000,
+          profitRatePercent: 10,
+          serviceFeeRatePercent: 20,
+          tenureDays: 365,
+        }),
+      ],
+      100_000
+    );
+    expect(result.amount).toBe(108_000);
   });
 
   it("returns zeros when nothing is at risk", () => {

@@ -98,4 +98,26 @@ describe("presentNoteStatusForViewer", () => {
     expect(presentNoteStatusForViewer(derived, "issuer").tone).toBe("warning");
     expect(presentNoteStatusForViewer(derived, "investor").tone).toBe("info");
   });
+
+  it("paints investor Overdue and Late as waiting, not issuer action", () => {
+    const overdue = deriveNoteStatus({
+      ...baseInput,
+      status: "ACTIVE",
+      servicingStatus: "OVERDUE",
+    });
+    expect(presentNoteStatusForViewer(overdue, "investor").tone).toBe("info");
+    expect(presentNoteStatusForViewer(overdue, "issuer").tone).toBe("warning");
+  });
+
+  it("treats a posted settlement as wrapping or settled before arrears/default badges", () => {
+    const posted = deriveNoteStatus({
+      ...baseInput,
+      status: "DEFAULTED",
+      servicingStatus: "CURRENT",
+      hasPostedSettlement: true,
+      settlementTrusteePending: true,
+    });
+    expect(posted.label).toBe("Active · servicing");
+    expect(posted.tone).toBe("active");
+  });
 });

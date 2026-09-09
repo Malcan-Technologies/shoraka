@@ -2214,10 +2214,14 @@ export class AdminRepository {
         _count: true,
       }),
       prisma.note.aggregate({
-        where: {
-          status: NoteStatus.ACTIVE,
-          maturity_date: { gte: dueSoonStart, lt: dueSoonEnd },
-        },
+        where: asOfCutoff
+          ? {
+              AND: [filters.outstanding, { maturity_date: { gte: dueSoonStart, lt: dueSoonEnd } }],
+            }
+          : {
+              status: NoteStatus.ACTIVE,
+              maturity_date: { gte: dueSoonStart, lt: dueSoonEnd },
+            },
         _sum: { funded_amount: true },
         _count: true,
       }),

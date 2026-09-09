@@ -28,6 +28,7 @@ describe("financingKindToStatusToken", () => {
     expect(financingKindToStatusToken("active")).toBe("active");
     expect(financingKindToStatusToken("completed")).toBe("success");
     expect(financingKindToStatusToken("arrears")).toBe("rejected");
+    expect(financingKindToStatusToken("defaulted")).toBe("rejected");
     expect(financingKindToStatusToken("unsuccessful")).toBe("rejected");
   });
 });
@@ -66,6 +67,25 @@ describe("resolveIssuerInvoiceDashboardBadge arrears/late", () => {
     expect(resolveIssuerInvoiceDashboardBadge(note({ servicingStatus: "CURRENT" }), "APPROVED")).toBe(
       "active"
     );
+  });
+
+  it("labels defaulted notes as Defaulted, not Unsuccessful", () => {
+    expect(
+      resolveIssuerInvoiceDashboardBadge(note({ noteStatus: "DEFAULTED", servicingStatus: "DEFAULTED" }), "APPROVED")
+    ).toBe("defaulted");
+  });
+
+  it("keeps leftover late charges as action required after settlement", () => {
+    expect(
+      resolveIssuerInvoiceDashboardBadge(
+        note({
+          noteStatus: "REPAID",
+          servicingStatus: "SETTLED",
+          excessLateChargesOutstanding: 80,
+        }),
+        "APPROVED"
+      )
+    ).toBe("action_required");
   });
 });
 

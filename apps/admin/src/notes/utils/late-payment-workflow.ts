@@ -299,16 +299,16 @@ export function resolveLatePaymentTimeline(note: NoteDetail): LatePaymentTimelin
     };
   }
 
-  const late = buildPastGraceLabels(daysPastMaturity, "late");
+  const defaultEligible = buildPastGraceLabels(daysPastMaturity, "default-eligible");
   return {
-    phase: "late",
+    phase: "default-eligible",
     dueDate,
     daysUntilDue: 0,
     daysPastMaturity,
     daysOverdue,
     graceDaysLeft,
     daysAfterGrace,
-    ...late,
+    ...defaultEligible,
   };
 }
 

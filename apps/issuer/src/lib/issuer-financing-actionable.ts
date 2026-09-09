@@ -41,7 +41,7 @@ export function isIssuerNoteInArrears(note: NoteListItem): boolean {
   if (isNoteFullySettled(note) && outstandingExcessLateCharges(note) <= 0) return false;
   const status = String(note.status ?? "").toUpperCase();
   const servicing = String(note.servicingStatus ?? "").toUpperCase();
-  return status === "ARREARS" || servicing === "ARREARS";
+  return status === "ARREARS" || servicing === "ARREARS" || status === "DEFAULTED" || servicing === "DEFAULTED";
 }
 
 /** Notes where the issuer should act (late charges / arrears / past due repayment). */

@@ -107,6 +107,24 @@ describe("closedDaySnapshotStatuses", () => {
       }).servicingStatus
     ).toBe(NoteServicingStatus.ARREARS);
   });
+
+  it("keeps a late closed day as ACTIVE when default is marked after cutoff", () => {
+    expect(
+      closedDaySnapshotStatuses({
+        postedAsOfCutoff: false,
+        defaultedAsOfCutoff: false,
+        classification: {
+          ...classification,
+          servicingStatus: NoteServicingStatus.LATE,
+          noteStatus: null,
+        },
+        liveNoteStatus: NoteStatus.DEFAULTED,
+      })
+    ).toMatchObject({
+      servicingStatus: NoteServicingStatus.LATE,
+      noteStatus: NoteStatus.ACTIVE,
+    });
+  });
 });
 
 describe("fundedAsOfCutoff", () => {

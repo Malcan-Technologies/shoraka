@@ -47,5 +47,19 @@ describe("excess late charges DTO", () => {
         noteReference: "NOTE-1",
       })
     ).toBeNull();
+    expect(
+      mapExcessLateChargesDto({
+        status: "POSTED",
+        excessLateChargeAmount: 100,
+        excessLateChargePaidAmount: 0,
+        excessLateChargeWaivedAmount: 40,
+        noteReference: "NOTE-1",
+      })
+    ).toEqual({
+      owed: 60,
+      paid: 0,
+      outstanding: 60,
+      noteReference: "NOTE-1",
+    });
   });
 });

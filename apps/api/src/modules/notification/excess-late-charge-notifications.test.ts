@@ -4,6 +4,7 @@ import {
   excessLateChargesPaidIdempotencyKey,
   notifyExcessLateChargesDue,
   shouldNotifyExcessLateChargesDue,
+  shouldNotifyExcessLateChargesCleared,
 } from "./excess-late-charge-notifications";
 
 const sendTyped = jest.fn().mockResolvedValue({ id: "n1" });
@@ -34,6 +35,12 @@ describe("excess late charge notifications", () => {
   it("only notifies due when outstanding is positive", () => {
     expect(shouldNotifyExcessLateChargesDue(80)).toBe(true);
     expect(shouldNotifyExcessLateChargesDue(0)).toBe(false);
+  });
+
+  it("treats leftover as cleared when paid plus waived covers the frozen amount", () => {
+    expect(shouldNotifyExcessLateChargesCleared({ owed: 100, paid: 60, waived: 40 })).toBe(true);
+    expect(shouldNotifyExcessLateChargesCleared({ owed: 100, paid: 0, waived: 100 })).toBe(true);
+    expect(shouldNotifyExcessLateChargesCleared({ owed: 100, paid: 40, waived: 0 })).toBe(false);
   });
 
   it("renders issuer copy that names the note and amount", () => {

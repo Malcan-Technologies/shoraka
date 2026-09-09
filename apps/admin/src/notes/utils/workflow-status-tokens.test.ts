@@ -118,7 +118,7 @@ describe("settlement and receipt tones", () => {
 
 describe("latePaymentPhaseTone", () => {
   it("keeps default-eligible yellow so admin action is visible, and defaulted red", () => {
-    expect(latePaymentPhaseTone("in-grace")).toBe("warning");
+    expect(latePaymentPhaseTone("in-grace")).toBe("active");
     expect(latePaymentPhaseTone("late")).toBe("active");
     expect(latePaymentPhaseTone("arrears")).toBe("active");
     expect(latePaymentPhaseTone("default-eligible")).toBe("active");

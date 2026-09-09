@@ -24,8 +24,8 @@ export function mapExcessLateChargesDto(input: {
   noteReference?: string | null;
 }): ExcessLateChargesDto | null {
   if (input.status !== "POSTED") return null;
-  const owed = roundNoteMoney(Math.max(0, input.excessLateChargeAmount ?? 0), NOTE_MONEY_DECIMALS);
-  if (owed <= 0) return null;
+  const gross = roundNoteMoney(Math.max(0, input.excessLateChargeAmount ?? 0), NOTE_MONEY_DECIMALS);
+  if (gross <= 0) return null;
   const paid = roundNoteMoney(
     Math.max(0, input.excessLateChargePaidAmount ?? 0),
     NOTE_MONEY_DECIMALS
@@ -34,7 +34,9 @@ export function mapExcessLateChargesDto(input: {
     Math.max(0, input.excessLateChargeWaivedAmount ?? 0),
     NOTE_MONEY_DECIMALS
   );
-  const outstanding = resolveExcessLateChargeOutstanding(owed, paid, waived);
+  const owed = roundNoteMoney(Math.max(0, gross - waived), NOTE_MONEY_DECIMALS);
+  if (owed <= 0) return null;
+  const outstanding = resolveExcessLateChargeOutstanding(owed, paid, 0);
   if (outstanding <= 0) return null;
   return {
     owed,

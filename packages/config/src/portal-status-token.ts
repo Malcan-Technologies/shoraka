@@ -29,7 +29,7 @@ const SUCCESS_STATUSES = new Set([
   "REPAID",
 ]);
 
-const ACTIVE_STATUSES = new Set(["ACTIVE", "CONFIRMED"]);
+const ACTIVE_STATUSES = new Set(["ACTIVE", "CONFIRMED", "CURRENT", "ADVANCE_PAID"]);
 
 const REJECTED_STATUSES = new Set([
   "REJECTED",

@@ -96,5 +96,13 @@ describe("AdminRepository.getBookMetrics", () => {
       _sum: { funded_amount: true },
       _count: true,
     });
+
+    const dueSoonCall = mockNoteAggregate.mock.calls[5]?.[0] as {
+      where: { AND: Array<Record<string, unknown>> };
+    };
+    expect(dueSoonCall.where.AND).toHaveLength(2);
+    expect(dueSoonCall.where.AND[1]).toMatchObject({
+      maturity_date: expect.any(Object),
+    });
   });
 });

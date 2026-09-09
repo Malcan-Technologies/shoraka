@@ -17,6 +17,7 @@ export type IssuerDashboardNote = {
   tenureDays?: number | null;
   marketplaceStatusLabel: string | null;
   investorCount: number;
+  excessLateChargesOutstanding?: number | null;
   disbursementBreakdown: {
     grossFundedAmount: string | null;
     platformFeeAmount: string | null;

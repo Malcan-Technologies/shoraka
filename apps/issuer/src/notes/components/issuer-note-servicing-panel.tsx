@@ -33,13 +33,14 @@ function latestWaiver(waivers: NoteLateChargeWaiver[] | undefined): NoteLateChar
   return [...waivers].sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] ?? null;
 }
 
-function waiverCopy(waiver: NoteLateChargeWaiver): string {
+function waiverCopy(waiver: NoteLateChargeWaiver, leftoverFrozen: boolean): string {
+  const prefix = leftoverFrozen ? "" : "indicative ";
   const parts: string[] = [];
   if (waiver.tawidhWaivedAmount > 0.005) {
-    parts.push(`indicative Ta'widh ${formatCurrency(waiver.tawidhWaivedAmount)}`);
+    parts.push(`${prefix}Ta'widh ${formatCurrency(waiver.tawidhWaivedAmount)}`);
   }
   if (waiver.gharamahWaivedAmount > 0.005) {
-    parts.push(`indicative Gharamah ${formatCurrency(waiver.gharamahWaivedAmount)}`);
+    parts.push(`${prefix}Gharamah ${formatCurrency(waiver.gharamahWaivedAmount)}`);
   }
   const amounts = parts.length > 0 ? ` ${parts.join(" and ")}` : "";
   return `Admin waived${amounts}. ${waiver.reason}`;
@@ -53,6 +54,7 @@ export function IssuerNoteServicingPanel({ note }: { note: NoteDetail }) {
   const asOf = formatNoteDateEnMy(note.indicativeAsOf);
   const waiver = latestWaiver(note.lateChargeWaivers);
   const letters = note.servicingLetters ?? [];
+  const leftoverFrozen = note.settlementSummary?.status === "POSTED";
   const showIndicative = tawidh > 0.005 || gharamah > 0.005 || dpd > 0;
 
   const openLetter = async (letterId: string) => {
@@ -111,7 +113,7 @@ export function IssuerNoteServicingPanel({ note }: { note: NoteDetail }) {
           ) : null}
           {waiver ? (
             <p className="text-ui leading-6 text-muted-foreground" role="status">
-              {waiverCopy(waiver)}
+              {waiverCopy(waiver, leftoverFrozen)}
             </p>
           ) : null}
         </CardContent>

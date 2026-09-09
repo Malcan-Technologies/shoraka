@@ -190,7 +190,7 @@ adminNotesRouter.get(
 
 adminNotesRouter.get(
   "/default-eligible-count",
-  requirePermission("notes.view"),
+  requirePermission("notes.view", "notes.default.manage"),
   async (_req: Request, res: Response, next: NextFunction) => {
     try {
       send(res, await noteService.getDefaultEligibleCount());

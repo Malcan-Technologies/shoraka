@@ -77,6 +77,24 @@ describe("resolveLatePaymentTimeline", () => {
       jest.useRealTimers();
     }
   });
+
+  it("maps calendar days past the arrears threshold to default-eligible when the job has not run", () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date("2026-01-10T16:00:00.000Z"));
+    try {
+      const timeline = resolveLatePaymentTimeline(
+        note({
+          servicingStatus: NoteServicingStatus.CURRENT,
+          daysPastDue: 0,
+          gracePeriodDays: 5,
+          arrearsThresholdDays: 3,
+        })
+      );
+      expect(timeline.phase).toBe("default-eligible");
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 });
 
 describe("resolveLatePaymentActionGates", () => {

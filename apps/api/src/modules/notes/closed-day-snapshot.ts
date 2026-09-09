@@ -83,6 +83,8 @@ export function closedDaySnapshotStatuses(input: {
   return {
     daysPastDue: input.classification.daysPastDue,
     servicingStatus: input.classification.servicingStatus,
-    noteStatus: input.classification.noteStatus ?? (liveIsTerminal ? NoteStatus.ARREARS : input.liveNoteStatus),
+    noteStatus:
+      input.classification.noteStatus ??
+      (liveIsTerminal ? NoteStatus.ACTIVE : input.liveNoteStatus),
   };
 }
