@@ -82,8 +82,10 @@ export function assembleBookMetricHistory(input: {
 
 export async function writeTodayBookMetricsSnapshot(
   snapshotDate: Date,
-  repository: Pick<AdminRepository, "getBookMetrics" | "upsertBookMetricsDailySnapshot"> = new AdminRepository()
+  repository?: Pick<AdminRepository, "getBookMetrics" | "upsertBookMetricsDailySnapshot">,
+  asOfCutoff?: Date
 ): Promise<void> {
-  const metrics = await repository.getBookMetrics();
-  await repository.upsertBookMetricsDailySnapshot(snapshotDate, metrics);
+  const store = repository ?? new AdminRepository();
+  const metrics = await store.getBookMetrics(asOfCutoff);
+  await store.upsertBookMetricsDailySnapshot(snapshotDate, metrics);
 }

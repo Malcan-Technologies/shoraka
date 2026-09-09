@@ -7,6 +7,13 @@ import {
   requireRole,
   userHasPermission,
 } from "../../lib/auth/middleware";
+import {
+  AUDIT_ACTOR_TYPE,
+  AUDIT_PORTAL,
+  AUDIT_SOURCE,
+  auditContextFromRequest,
+  auditPortalFromString,
+} from "../../lib/audit";
 import { AppError } from "../../lib/http/error-handler";
 import { prisma } from "../../lib/prisma";
 import { noteService } from "./service";
@@ -61,6 +68,7 @@ function getActor(req: Request, res: Response, portal: string) {
   const userAgent = Array.isArray(req.headers["user-agent"])
     ? req.headers["user-agent"][0]
     : req.headers["user-agent"];
+  const auditPortal = auditPortalFromString(portal);
   return {
     userId: req.user.user_id,
     role: req.activeRole,
@@ -68,6 +76,14 @@ function getActor(req: Request, res: Response, portal: string) {
     ipAddress: req.ip,
     userAgent,
     correlationId: res.locals.correlationId,
+    auditContext: auditContextFromRequest(req, {
+      res,
+      actorUserId: req.user.user_id,
+      portal: auditPortal,
+      actorType:
+        auditPortal === AUDIT_PORTAL.ADMIN ? AUDIT_ACTOR_TYPE.ADMIN : AUDIT_ACTOR_TYPE.USER,
+      source: AUDIT_SOURCE.API,
+    }),
   };
 }
 

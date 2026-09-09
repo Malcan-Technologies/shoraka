@@ -28,6 +28,7 @@ import {
   roundNoteMoney,
   type AdminRoleKey,
 } from "@cashsouk/types";
+import { bookMetricsAsOfFilters } from "./book-metrics-as-of";
 import type {
   GetUsersQuery,
   GetAccessLogsQuery,
@@ -2178,7 +2179,7 @@ export class AdminRepository {
   /**
    * Platform book snapshot: outstanding, in funding, distressed, and notes due in 7 days.
    */
-  async getBookMetrics(): Promise<{
+  async getBookMetrics(asOfCutoff?: Date): Promise<{
     outstanding: { amount: number; count: number };
     inFunding: { amount: number; count: number };
     distressed: { amount: number; count: number };
@@ -2189,13 +2190,13 @@ export class AdminRepository {
     const today = mytCalendarParts(new Date());
     const dueSoonStart = mytStartOfDayUtc(today);
     const dueSoonEnd = mytStartOfDayUtc(addMytCalendarDays(today, 7));
+    const filters = bookMetricsAsOfFilters(asOfCutoff);
 
     const IN_FUNDING: NoteStatus[] = [NoteStatus.PUBLISHED, NoteStatus.FUNDING];
-    const DISTRESSED: NoteStatus[] = [NoteStatus.ARREARS, NoteStatus.DEFAULTED];
 
     const [outstanding, inFunding, distressed, arrears, defaulted, dueSoon] = await Promise.all([
       prisma.note.aggregate({
-        where: { status: NoteStatus.ACTIVE },
+        where: filters.outstanding,
         _sum: { funded_amount: true },
         _count: true,
       }),
@@ -2205,17 +2206,17 @@ export class AdminRepository {
         _count: true,
       }),
       prisma.note.aggregate({
-        where: { status: { in: DISTRESSED } },
+        where: filters.distressed,
         _sum: { funded_amount: true },
         _count: true,
       }),
       prisma.note.aggregate({
-        where: { servicing_status: NoteServicingStatus.ARREARS, default_marked_at: null },
+        where: filters.arrears,
         _sum: { funded_amount: true },
         _count: true,
       }),
       prisma.note.aggregate({
-        where: { servicing_status: NoteServicingStatus.DEFAULTED },
+        where: filters.defaulted,
         _sum: { funded_amount: true },
         _count: true,
       }),

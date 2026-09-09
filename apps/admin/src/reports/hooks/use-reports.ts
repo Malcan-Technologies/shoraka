@@ -29,7 +29,12 @@ export function useAdminReportCatalog() {
   });
 }
 
-export function useAdminReport(key: ReportKey, params: ReportQuery, enabled = true) {
+export function useAdminReport(
+  key: ReportKey,
+  params: ReportQuery,
+  enabled = true,
+  options?: { refetchInterval?: number; staleTime?: number }
+) {
   const apiClient = useReportsApiClient();
   return useQuery({
     queryKey: reportsKeys.report(key, params),
@@ -39,6 +44,8 @@ export function useAdminReport(key: ReportKey, params: ReportQuery, enabled = tr
       return response.data;
     },
     enabled,
+    refetchInterval: options?.refetchInterval,
+    staleTime: options?.staleTime,
   });
 }
 

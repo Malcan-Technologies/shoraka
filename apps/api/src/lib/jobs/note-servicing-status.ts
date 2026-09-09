@@ -32,6 +32,13 @@ import {
 } from "../../modules/notes/servicing-letters/service";
 import { resolveNoteEventTarget } from "../../modules/notes/audit-fields";
 import { writeTodayBookMetricsSnapshot } from "../../modules/admin/book-metrics-snapshot";
+import {
+  closedDaySnapshotStatuses,
+  mytSnapshotCutoff,
+  occurredBeforeCutoff,
+  settlementsAsOfCutoff,
+  waiversAsOfCutoff,
+} from "../../modules/notes/closed-day-snapshot";
 
 const CRON_CORRELATION_ID = "cron:note-servicing-status";
 const SYSTEM_USER_ID = "SYS";
@@ -122,7 +129,7 @@ function resolveSettlementAmount(note: {
   );
 }
 
-export function shouldSendArrearsLetter(
+export function shouldSendServicingLetter(
   existing: { sent_at: Date | null } | null
 ): "generate" | "retry" | "skip" {
   if (!existing) return "generate";
@@ -130,9 +137,12 @@ export function shouldSendArrearsLetter(
   return "skip";
 }
 
+export const shouldSendArrearsLetter = shouldSendServicingLetter;
+
 export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteServicingStatusJobResult> {
   const today = calendarDateInTimeZone(now);
   const snapshotDate = previousMytCalendarDate(now);
+  const cutoff = mytSnapshotCutoff(now);
   const result: NoteServicingStatusJobResult = {
     notesProcessed: 0,
     transitions: 0,
@@ -146,13 +156,18 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
   const notes = await prisma.note.findMany({
     where: {
       funding_status: NoteFundingStatus.FUNDED,
-      servicing_status: { not: NoteServicingStatus.SETTLED },
+      OR: [
+        { servicing_status: { not: NoteServicingStatus.SETTLED } },
+        { repaid_at: { gte: cutoff } },
+      ],
     },
     include: {
       payment_schedules: { select: { due_date: true, sequence: true } },
       settlements: {
         select: {
           status: true,
+          posted_at: true,
+          approved_at: true,
           tawidh_amount: true,
           gharamah_amount: true,
           investor_principal: true,
@@ -160,7 +175,7 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
         },
       },
       late_charge_waivers: {
-        select: { tawidh_waived_amount: true, gharamah_waived_amount: true },
+        select: { created_at: true, tawidh_waived_amount: true, gharamah_waived_amount: true },
       },
     },
   });
@@ -168,21 +183,39 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
   for (const note of notes) {
     result.notesProcessed += 1;
     try {
-      const applied = note.settlements.filter(
+      const liveApplied = note.settlements.filter(
         (settlement) =>
           settlement.status === NoteSettlementStatus.APPROVED ||
           settlement.status === NoteSettlementStatus.POSTED
       );
-      const posted = note.settlements.filter(
+      const livePosted = note.settlements.filter(
         (settlement) => settlement.status === NoteSettlementStatus.POSTED
       );
-      const appliedTawidh = applied.reduce((sum, row) => sum + toNumber(row.tawidh_amount), 0);
-      const appliedGharamah = applied.reduce((sum, row) => sum + toNumber(row.gharamah_amount), 0);
+      const asOfSettlements = settlementsAsOfCutoff(note.settlements, cutoff);
+      const asOfWaivers = waiversAsOfCutoff(note.late_charge_waivers, cutoff);
+      const appliedTawidh = liveApplied.reduce((sum, row) => sum + toNumber(row.tawidh_amount), 0);
+      const appliedGharamah = liveApplied.reduce((sum, row) => sum + toNumber(row.gharamah_amount), 0);
       const waivedTawidh = note.late_charge_waivers.reduce(
         (sum, row) => sum + toNumber(row.tawidh_waived_amount),
         0
       );
       const waivedGharamah = note.late_charge_waivers.reduce(
+        (sum, row) => sum + toNumber(row.gharamah_waived_amount),
+        0
+      );
+      const snapshotAppliedTawidh = asOfSettlements.applied.reduce(
+        (sum, row) => sum + toNumber(row.tawidh_amount),
+        0
+      );
+      const snapshotAppliedGharamah = asOfSettlements.applied.reduce(
+        (sum, row) => sum + toNumber(row.gharamah_amount),
+        0
+      );
+      const snapshotWaivedTawidh = asOfWaivers.reduce(
+        (sum, row) => sum + toNumber(row.tawidh_waived_amount),
+        0
+      );
+      const snapshotWaivedGharamah = asOfWaivers.reduce(
         (sum, row) => sum + toNumber(row.gharamah_waived_amount),
         0
       );
@@ -201,17 +234,26 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
         waived_gharamah_amount: waivedGharamah,
       };
       const classification = classifyServicing(servicingInput, today);
-      const closedClassification = classifyServicing(servicingInput, snapshotDate);
+      const closedClassification = classifyServicing(
+        {
+          ...servicingInput,
+          applied_tawidh_amount: snapshotAppliedTawidh,
+          applied_gharamah_amount: snapshotAppliedGharamah,
+          waived_tawidh_amount: snapshotWaivedTawidh,
+          waived_gharamah_amount: snapshotWaivedGharamah,
+        },
+        snapshotDate
+      );
 
-      const hasPostedSettlement = posted.length > 0;
+      const hasPostedSettlement = livePosted.length > 0;
       const canTransition =
         !hasPostedSettlement &&
         shouldAdvanceServicing(note.servicing_status, classification.servicingStatus);
-      const recoveredPrincipal = posted.reduce(
+      const recoveredPrincipal = livePosted.reduce(
         (sum, row) => sum + toNumber(row.investor_principal),
         0
       );
-      const recoveredProfit = posted.reduce(
+      const recoveredProfit = livePosted.reduce(
         (sum, row) => sum + toNumber(row.investor_profit_gross),
         0
       );
@@ -223,6 +265,7 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
         tenureDays: tenureDaysForNote(note),
       });
 
+      if (note.servicing_status !== NoteServicingStatus.SETTLED) {
       await prisma.note.update({
         where: { id: note.id },
         data: hasPostedSettlement
@@ -263,6 +306,7 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
                 : {}),
             },
       });
+      }
 
       const title = resolveNoteNotificationTitle(note);
       if (
@@ -333,6 +377,7 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
                 letterId: existingArrearsLetter.id,
                 noteId: note.id,
                 actor: systemActor(),
+                triggeredBy: "SYSTEM",
               });
               if (resent.sentTo.length > 0) result.lettersSent += 1;
             } else {
@@ -364,13 +409,72 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
         }
       }
 
-      const snapshotDpd = hasPostedSettlement ? 0 : closedClassification.daysPastDue;
-      const snapshotStatus = hasPostedSettlement
-        ? note.servicing_status
-        : closedClassification.servicingStatus;
-      const snapshotNoteStatus = hasPostedSettlement
-        ? note.status
-        : (closedClassification.noteStatus ?? note.status);
+      const defaultedNow = note.servicing_status === NoteServicingStatus.DEFAULTED;
+      if (!hasPostedSettlement && defaultedNow) {
+        const existingDefaultLetter = await prisma.noteServicingLetter.findFirst({
+          where: { note_id: note.id, type: NoteServicingLetterType.DEFAULT },
+          select: { id: true, sent_at: true },
+        });
+        const letterAction = shouldSendServicingLetter(existingDefaultLetter);
+        if (letterAction !== "skip") {
+          try {
+            if (letterAction === "retry" && existingDefaultLetter) {
+              const resent = await resendServicingLetter({
+                letterId: existingDefaultLetter.id,
+                noteId: note.id,
+                actor: systemActor(),
+                triggeredBy: "SYSTEM",
+              });
+              if (resent.sentTo.length > 0) result.lettersSent += 1;
+            } else {
+              const created = await generateAndSendServicingLetter({
+                noteId: note.id,
+                kind: "DEFAULT",
+                triggeredBy: "SYSTEM",
+                actor: systemActor(),
+                issuerName: resolveIssuerName(note.issuer_snapshot),
+                noteReference: note.note_reference,
+                issuerOrganizationId: note.issuer_organization_id,
+                dueDate: classification.dueDate,
+                daysPastDue: classification.daysPastDue,
+                outstandingTotal: outstanding.outstandingTotal,
+                indicativeTawidhAmount: classification.indicativeTawidhAmount,
+                indicativeGharamahAmount: classification.indicativeGharamahAmount,
+                gracePeriodDays: note.grace_period_days,
+                arrearsThresholdDays: note.arrears_threshold_days,
+                defaultDate: note.default_marked_at,
+                defaultReason: note.default_reason,
+              });
+              if (created.sentTo.length > 0) result.lettersSent += 1;
+            }
+          } catch (error) {
+            result.errors += 1;
+            logger.error({ error, noteId: note.id }, "Failed to send default servicing letter");
+          }
+        }
+      }
+
+      const snapshotRecoveredPrincipal = asOfSettlements.posted.reduce(
+        (sum, row) => sum + toNumber(row.investor_principal),
+        0
+      );
+      const snapshotRecoveredProfit = asOfSettlements.posted.reduce(
+        (sum, row) => sum + toNumber(row.investor_profit_gross),
+        0
+      );
+      const snapshotOutstanding = noteOutstandingAmounts({
+        fundedAmount: toNumber(note.funded_amount),
+        recoveredPrincipal: snapshotRecoveredPrincipal,
+        recoveredProfit: snapshotRecoveredProfit,
+        profitRatePercent: toNumber(note.profit_rate_percent),
+        tenureDays: tenureDaysForNote(note),
+      });
+      const snapshotStatuses = closedDaySnapshotStatuses({
+        postedAsOfCutoff: asOfSettlements.posted.length > 0,
+        defaultedAsOfCutoff: occurredBeforeCutoff(note.default_marked_at, cutoff),
+        classification: closedClassification,
+        liveNoteStatus: note.status,
+      });
 
       await prisma.notePositionSnapshot.upsert({
         where: {
@@ -382,40 +486,56 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
         create: {
           note_id: note.id,
           snapshot_date: snapshotDate,
-          days_past_due: snapshotDpd,
-          dpd_bucket: dpdBucketFromDays(snapshotDpd),
-          note_status: snapshotNoteStatus,
-          servicing_status: snapshotStatus,
-          outstanding_principal: outstanding.outstandingPrincipal,
-          outstanding_profit: outstanding.outstandingProfit,
-          outstanding_total: outstanding.outstandingTotal,
-          recovered_principal: recoveredPrincipal,
-          recovered_profit: recoveredProfit,
-          applied_tawidh: appliedTawidh,
-          applied_gharamah: appliedGharamah,
-          indicative_tawidh: hasPostedSettlement ? 0 : closedClassification.indicativeTawidhAmount,
-          indicative_gharamah: hasPostedSettlement ? 0 : closedClassification.indicativeGharamahAmount,
-          waived_tawidh: waivedTawidh,
-          waived_gharamah: waivedGharamah,
-          is_sc_default: !hasPostedSettlement && closedClassification.isScDefault,
+          days_past_due: snapshotStatuses.daysPastDue,
+          dpd_bucket: dpdBucketFromDays(snapshotStatuses.daysPastDue),
+          note_status: snapshotStatuses.noteStatus,
+          servicing_status: snapshotStatuses.servicingStatus,
+          outstanding_principal: snapshotOutstanding.outstandingPrincipal,
+          outstanding_profit: snapshotOutstanding.outstandingProfit,
+          outstanding_total: snapshotOutstanding.outstandingTotal,
+          recovered_principal: snapshotRecoveredPrincipal,
+          recovered_profit: snapshotRecoveredProfit,
+          applied_tawidh: snapshotAppliedTawidh,
+          applied_gharamah: snapshotAppliedGharamah,
+          indicative_tawidh:
+            snapshotStatuses.servicingStatus === NoteServicingStatus.SETTLED
+              ? 0
+              : closedClassification.indicativeTawidhAmount,
+          indicative_gharamah:
+            snapshotStatuses.servicingStatus === NoteServicingStatus.SETTLED
+              ? 0
+              : closedClassification.indicativeGharamahAmount,
+          waived_tawidh: snapshotWaivedTawidh,
+          waived_gharamah: snapshotWaivedGharamah,
+          is_sc_default:
+            snapshotStatuses.servicingStatus !== NoteServicingStatus.SETTLED &&
+            closedClassification.isScDefault,
         },
         update: {
-          days_past_due: snapshotDpd,
-          dpd_bucket: dpdBucketFromDays(snapshotDpd),
-          note_status: snapshotNoteStatus,
-          servicing_status: snapshotStatus,
-          outstanding_principal: outstanding.outstandingPrincipal,
-          outstanding_profit: outstanding.outstandingProfit,
-          outstanding_total: outstanding.outstandingTotal,
-          recovered_principal: recoveredPrincipal,
-          recovered_profit: recoveredProfit,
-          applied_tawidh: appliedTawidh,
-          applied_gharamah: appliedGharamah,
-          indicative_tawidh: hasPostedSettlement ? 0 : closedClassification.indicativeTawidhAmount,
-          indicative_gharamah: hasPostedSettlement ? 0 : closedClassification.indicativeGharamahAmount,
-          waived_tawidh: waivedTawidh,
-          waived_gharamah: waivedGharamah,
-          is_sc_default: !hasPostedSettlement && closedClassification.isScDefault,
+          days_past_due: snapshotStatuses.daysPastDue,
+          dpd_bucket: dpdBucketFromDays(snapshotStatuses.daysPastDue),
+          note_status: snapshotStatuses.noteStatus,
+          servicing_status: snapshotStatuses.servicingStatus,
+          outstanding_principal: snapshotOutstanding.outstandingPrincipal,
+          outstanding_profit: snapshotOutstanding.outstandingProfit,
+          outstanding_total: snapshotOutstanding.outstandingTotal,
+          recovered_principal: snapshotRecoveredPrincipal,
+          recovered_profit: snapshotRecoveredProfit,
+          applied_tawidh: snapshotAppliedTawidh,
+          applied_gharamah: snapshotAppliedGharamah,
+          indicative_tawidh:
+            snapshotStatuses.servicingStatus === NoteServicingStatus.SETTLED
+              ? 0
+              : closedClassification.indicativeTawidhAmount,
+          indicative_gharamah:
+            snapshotStatuses.servicingStatus === NoteServicingStatus.SETTLED
+              ? 0
+              : closedClassification.indicativeGharamahAmount,
+          waived_tawidh: snapshotWaivedTawidh,
+          waived_gharamah: snapshotWaivedGharamah,
+          is_sc_default:
+            snapshotStatuses.servicingStatus !== NoteServicingStatus.SETTLED &&
+            closedClassification.isScDefault,
         },
       });
       result.snapshotsWritten += 1;
@@ -429,7 +549,7 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
   }
 
   try {
-    await writeTodayBookMetricsSnapshot(snapshotDate);
+    await writeTodayBookMetricsSnapshot(snapshotDate, undefined, cutoff);
     result.bookMetricsSnapshotWritten = true;
   } catch (error) {
     result.errors += 1;

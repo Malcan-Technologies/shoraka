@@ -39,6 +39,7 @@ import {
 import { prisma } from "../src/lib/prisma";
 import { runReport } from "../src/modules/reports/service";
 import { summarizePortfolioAtRisk } from "../src/modules/reports/par-summary";
+import { mytYearMonthsThrough } from "../src/modules/notes/investor-dashboard-metrics";
 
 const MONEY_EPS = 0.02;
 
@@ -281,9 +282,9 @@ async function main() {
   expectEqual("Finance defaulted count", book.defaulted.count, defaulted._count);
   expectEqual("Finance defaulted amount", book.defaulted.amount, n(defaulted._sum.funded_amount), "money");
 
-  const today = mytCalendarParts(new Date());
-  const dueSoonStart = mytStartOfDayUtc(today);
-  const dueSoonEnd = mytStartOfDayUtc(addMytCalendarDays(today, 7));
+  const todayParts = mytCalendarParts(new Date());
+  const dueSoonStart = mytStartOfDayUtc(todayParts);
+  const dueSoonEnd = mytStartOfDayUtc(addMytCalendarDays(todayParts, 7));
   const dueSoonLocal = dueSoonActive.filter((note) => {
     const maturity = note.maturity_date;
     return maturity != null && maturity >= dueSoonStart && maturity < dueSoonEnd;
@@ -615,10 +616,15 @@ async function main() {
         portfolio.atRisk.count <= portfolio.investmentCount,
         `atRisk ${portfolio.atRisk.count} of ${portfolio.investmentCount}`
       );
+      const now = new Date();
+      const expectedCashflowMonths = mytYearMonthsThrough(
+        now,
+        mytStartOfDayUtc(addMytCalendarDays(mytCalendarParts(now), 90))
+      ).length;
       expectEqual(
         "Investor cashflow months length",
         portfolio.cashflowNext90Days.months.length,
-        3
+        expectedCashflowMonths
       );
       check(
         "Investor idleDays is null or >= 0",

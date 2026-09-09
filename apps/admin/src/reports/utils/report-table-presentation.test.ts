@@ -1,4 +1,4 @@
-import { presentReportCell, formatReportEnumLabel } from "./report-table-presentation";
+import { presentReportCell, formatReportEnumLabel, formatReportTableDate } from "./report-table-presentation";
 
 describe("report table presentation", () => {
   it("humanizes seed note references and servicing tokens", () => {
@@ -64,5 +64,10 @@ describe("report table presentation", () => {
     expect(
       presentReportCell({ key: "outcome", label: "Outcome", kind: "text" }, { outcome: "Failed" })
     ).toEqual({ kind: "badge", label: "Failed", token: "rejected" });
+  });
+
+  it("formats report dates in Malaysia time", () => {
+    expect(formatReportTableDate("2026-09-08T16:30:00.000Z")).toMatch(/^09 Sep/);
+    expect(formatReportTableDate("2026-09-08T16:30:00.000Z")).toContain("2026");
   });
 });

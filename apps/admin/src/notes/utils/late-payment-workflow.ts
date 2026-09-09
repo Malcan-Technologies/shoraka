@@ -347,10 +347,13 @@ export function resolveLatePaymentActionGates(input: {
   if (timeline.phase === "defaulted") {
     return {
       canGenerateArrearsLetter: false,
-      canGenerateDefaultLetter: false,
+      canGenerateDefaultLetter: canDefaultPermission && servicingOpen,
       canMarkDefault: false,
       arrearsHelperText: null,
-      defaultHelperText: null,
+      defaultHelperText:
+        canDefaultPermission && servicingOpen
+          ? "Generate the default notice if it was not emailed when default was marked."
+          : null,
       defaultReasonHelperText: null,
     };
   }

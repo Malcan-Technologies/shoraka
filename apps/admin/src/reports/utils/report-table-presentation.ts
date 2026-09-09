@@ -107,6 +107,18 @@ function noteHref(row: Record<string, string | number | boolean | null>): string
   return typeof noteId === "string" && noteId.trim() ? `/notes/${noteId}` : undefined;
 }
 
+export function formatReportTableDate(value: string | number | boolean | null): string {
+  if (value == null || value === "") return "—";
+  const parsed = typeof value === "string" || typeof value === "number" ? new Date(value) : null;
+  if (!parsed || Number.isNaN(parsed.getTime())) return String(value);
+  return parsed.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "Asia/Kuala_Lumpur",
+  });
+}
+
 export function presentReportCell(
   column: ReportColumn,
   row: Record<string, string | number | boolean | null>

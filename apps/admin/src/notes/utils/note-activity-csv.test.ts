@@ -94,6 +94,13 @@ describe("formatNoteActivityEventLabel", () => {
     expect(
       formatNoteActivityEventLabel("SETTLEMENT_TRUSTEE_EMAIL_SENT", { resend: true })
     ).toBe("Settlement Trustee Email Redelivered");
+    expect(formatNoteActivityEventLabel("NOTE_LETTER_SENT")).toBe("Servicing Letter Sent");
+    expect(
+      formatNoteActivityEventLabel("NOTE_LETTER_SENT", { delivered: false })
+    ).toBe("Servicing Letter Generated");
+    expect(
+      formatNoteActivityEventLabel("NOTE_LETTER_SENT", { resent: true })
+    ).toBe("Servicing Letter Resent");
   });
 });
 

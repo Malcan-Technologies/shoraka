@@ -25,6 +25,7 @@ describe("admin report detail", () => {
     expect(detail).toContain("Export CSV");
     expect(detail).toContain("Export XLSX");
     expect(detail).toContain("portfolioAtRisk");
+    expect(detail).toContain("formatReportTableDate");
     expect(detail).not.toContain('type="date"');
   });
 

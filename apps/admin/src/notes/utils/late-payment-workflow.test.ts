@@ -74,4 +74,18 @@ describe("resolveLatePaymentActionGates", () => {
     });
     expect(arrearsGates.canMarkDefault).toBe(true);
   });
+
+  it("allows generating a default letter after the note is already defaulted", () => {
+    const gates = resolveLatePaymentActionGates({
+      timeline: resolveLatePaymentTimeline(
+        note({ servicingStatus: NoteServicingStatus.DEFAULTED, status: NoteStatus.DEFAULTED })
+      ),
+      servicingOpen: true,
+      canDefaultPermission: true,
+      servicingStatusArrears: false,
+      defaultReason: "",
+    });
+    expect(gates.canGenerateDefaultLetter).toBe(true);
+    expect(gates.canMarkDefault).toBe(false);
+  });
 });

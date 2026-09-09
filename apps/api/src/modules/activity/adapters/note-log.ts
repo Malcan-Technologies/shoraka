@@ -233,12 +233,18 @@ export class NoteLogAdapter implements AuditLogAdapter<NoteActivityRecord> {
         };
       case "NOTE_LETTER_SENT": {
         const kind = metadata?.kind === "DEFAULT" ? "Default" : "Arrears";
+        const article = kind === "Arrears" ? "An" : "A";
         const resent = metadata?.resent === true;
+        const delivered = metadata?.delivered !== false;
         return {
-          title: resent ? `${kind} Notice Resent` : `${kind} Notice Sent`,
+          title: resent ? `${kind} Notice Resent` : delivered ? `${kind} Notice Sent` : `${kind} Notice Generated`,
           description: noteLabel
-            ? `A ${kind.toLowerCase()} notice for ${noteLabel} was emailed to your organisation.`
-            : `A ${kind.toLowerCase()} notice was emailed to your organisation.`,
+            ? delivered
+              ? `${article} ${kind.toLowerCase()} notice for ${noteLabel} was emailed to your organisation.`
+              : `${article} ${kind.toLowerCase()} notice for ${noteLabel} was generated.`
+            : delivered
+              ? `${article} ${kind.toLowerCase()} notice was emailed to your organisation.`
+              : `${article} ${kind.toLowerCase()} notice was generated.`,
         };
       }
       default:

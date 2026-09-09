@@ -32,6 +32,8 @@ describe("admin dashboard layout", () => {
     expect(pageSource).not.toContain("QuickActionsSection");
     expect(pageSource).not.toContain("Refresh dashboard");
     expect(pageSource).toContain("dashboard.finance.view");
+    expect(pageSource).toContain("useAdminReport(\"ageing\"");
+    expect(pageSource).toContain("refetchInterval: 60_000");
     expect(pageSource).toContain("reports.view");
     expect(pageSource).toContain("dashboard.operations.view");
     expect(pageSource).toContain("dashboard.platform.view");

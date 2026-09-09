@@ -95,7 +95,9 @@ export function formatNoteActivityEventLabel(
   ) {
     label = RESIDUAL_RETURN_EVENT_LABELS[eventType];
   }
-  if (metadata?.resend === true || metadata?.resent === true) {
+  if (eventType === "NOTE_LETTER_SENT" && metadata?.delivered === false) {
+    label = "Servicing Letter Generated";
+  } else if (metadata?.resend === true || metadata?.resent === true) {
     if (eventType === "WITHDRAWAL_TRUSTEE_EMAIL_SENT") {
       label = "Withdrawal Trustee Email Redelivered";
     } else if (eventType === "SETTLEMENT_TRUSTEE_EMAIL_SENT") {

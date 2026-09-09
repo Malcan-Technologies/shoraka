@@ -240,6 +240,16 @@ describe("NoteLogAdapter", () => {
       title: "Default Notice Resent",
       description: "A default notice for note NOTE-001 was emailed to your organisation.",
     });
+    expect(
+      adapter.buildPresentation("NOTE_LETTER_SENT", {
+        noteReference: "NOTE-001",
+        kind: "ARREARS",
+        delivered: false,
+      })
+    ).toEqual({
+      title: "Arrears Notice Generated",
+      description: "An arrears notice for note NOTE-001 was generated.",
+    });
   });
 
   it("keeps overdue notices and letters off the investor activity feed", async () => {

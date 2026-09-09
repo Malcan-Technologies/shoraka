@@ -108,7 +108,20 @@ describe("writeTodayBookMetricsSnapshot", () => {
 
     await writeTodayBookMetricsSnapshot(today, repository);
 
-    expect(repository.getBookMetrics).toHaveBeenCalledTimes(1);
+    expect(repository.getBookMetrics).toHaveBeenCalledWith(undefined);
     expect(repository.upsertBookMetricsDailySnapshot).toHaveBeenCalledWith(today, live);
+  });
+
+  it("forwards the Malaysia midnight cutoff when labeling the closed day", async () => {
+    const live = liveMetrics();
+    const repository = {
+      getBookMetrics: jest.fn().mockResolvedValue(live),
+      upsertBookMetricsDailySnapshot: jest.fn().mockResolvedValue(undefined),
+    };
+    const cutoff = new Date("2026-09-08T16:00:00.000Z");
+
+    await writeTodayBookMetricsSnapshot(today, repository, cutoff);
+
+    expect(repository.getBookMetrics).toHaveBeenCalledWith(cutoff);
   });
 });

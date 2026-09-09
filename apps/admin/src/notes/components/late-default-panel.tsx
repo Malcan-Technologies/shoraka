@@ -111,7 +111,11 @@ export function LateDefaultPanel({ note }: { note: NoteDetail }) {
           <Button
             variant="outline"
             onClick={() => handleLetter("default")}
-            disabled={defaultLetter.isPending || !canManage || note.servicingStatus !== "ARREARS"}
+            disabled={
+              defaultLetter.isPending ||
+              !canManage ||
+              (note.servicingStatus !== "ARREARS" && note.servicingStatus !== "DEFAULTED")
+            }
             title={!canManage ? "You do not have permission to perform this action." : undefined}
           >
             Generate Default Letter

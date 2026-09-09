@@ -23,7 +23,7 @@ import {
 import { ReportPeriodFilters } from "@/reports/components/report-period-filters";
 import { useAdminReport, useDownloadAdminReport } from "@/reports/hooks/use-reports";
 import { presentReportSummary } from "@/reports/utils/report-summary-presentation";
-import { presentReportCell } from "@/reports/utils/report-table-presentation";
+import { formatReportTableDate, presentReportCell } from "@/reports/utils/report-table-presentation";
 import { defaultReportQuery, reportsCatalogHref } from "@/reports/utils/report-period-filters";
 
 function isReportKey(value: string): value is ReportKey {
@@ -60,13 +60,7 @@ function formatCell(
     return String(amount);
   }
   if (kind === "date") {
-    const parsed = typeof value === "string" || typeof value === "number" ? new Date(value) : null;
-    if (!parsed || Number.isNaN(parsed.getTime())) return String(value);
-    return parsed.toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
+    return formatReportTableDate(value);
   }
   return String(value);
 }

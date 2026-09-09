@@ -6174,11 +6174,15 @@ export class NoteService {
   async generateNoteLetter(id: string, type: "arrears" | "default", actor: ActorContext) {
     const note = await noteRepository.findById(id);
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
-    if (type === "default" && note.servicing_status !== NoteServicingStatus.ARREARS) {
+    if (
+      type === "default" &&
+      note.servicing_status !== NoteServicingStatus.ARREARS &&
+      note.servicing_status !== NoteServicingStatus.DEFAULTED
+    ) {
       throw new AppError(
         409,
         "NOTE_NOT_IN_ARREARS",
-        "Default notices can only be generated while the note is in arrears"
+        "Default notices can only be generated for notes in arrears or already defaulted"
       );
     }
     if (
@@ -6259,7 +6263,15 @@ export class NoteService {
         letterId,
         noteId: id,
         actor,
+        triggeredBy: "ADMIN",
       });
+      if (result.sentTo.length === 0) {
+        throw new AppError(
+          409,
+          "LETTER_RECIPIENTS_MISSING",
+          "No issuer email recipients are available to send this notice."
+        );
+      }
       await createNoteAdminActionRow(prisma, {
         noteId: id,
         actionType: "NOTE_LETTER_SENT",
@@ -6270,12 +6282,19 @@ export class NoteService {
         correlationId: actor.correlationId,
         portal: actor.portal,
         context: actor.auditContext,
-        metadata: { resent: true, letterId },
+        metadata: { resent: true, letterId, delivered: true, recipientCount: result.sentTo.length },
       });
       return result;
     } catch (error) {
       if (error instanceof Error && error.message === "LETTER_NOT_FOUND") {
         throw new AppError(404, "LETTER_NOT_FOUND", "Servicing letter not found");
+      }
+      if (error instanceof Error && error.message === "LETTER_RECIPIENTS_MISSING") {
+        throw new AppError(
+          409,
+          "LETTER_RECIPIENTS_MISSING",
+          "No issuer email recipients are available to send this notice."
+        );
       }
       throw error;
     }
@@ -6980,31 +6999,50 @@ export class NoteService {
       default_marked_by_admin_user_id: actor.userId,
       default_reason: reason,
     });
-    await this.logEvent(prisma, id, "NOTE_DEFAULT_MARKED", actor, { reason });
+    await this.logAdminAction(
+      prisma,
+      id,
+      "NOTE_DEFAULT_MARKED",
+      actor,
+      { servicingStatus: note.servicing_status, status: note.status },
+      {
+        servicingStatus: NoteServicingStatus.DEFAULTED,
+        status: NoteStatus.DEFAULTED,
+        reason,
+      },
+      { reason }
+    );
     await notifyNoteDefaulted({
       notificationService: this.notificationService,
       noteId: id,
       issuerOrganizationId: updated.issuer_organization_id,
       noteTitle: resolveNoteNotificationTitle(updated),
     });
-    await generateAndSendServicingLetter({
-      noteId: id,
-      kind: "DEFAULT",
-      triggeredBy: "ADMIN",
-      actor,
-      issuerName: mapNoteListItem(updated).issuerName ?? "Issuer",
-      noteReference: updated.note_reference,
-      issuerOrganizationId: updated.issuer_organization_id,
-      dueDate: resolveServicingDueDate(updated),
-      daysPastDue: updated.days_past_due,
-      outstandingTotal: letterOutstandingTotal(updated),
-      indicativeTawidhAmount: toNumber(updated.indicative_tawidh_amount),
-      indicativeGharamahAmount: toNumber(updated.indicative_gharamah_amount),
-      gracePeriodDays: updated.grace_period_days,
-      arrearsThresholdDays: updated.arrears_threshold_days,
-      defaultDate: updated.default_marked_at,
-      defaultReason: reason,
-    });
+    try {
+      await generateAndSendServicingLetter({
+        noteId: id,
+        kind: "DEFAULT",
+        triggeredBy: "ADMIN",
+        actor,
+        issuerName: mapNoteListItem(updated).issuerName ?? "Issuer",
+        noteReference: updated.note_reference,
+        issuerOrganizationId: updated.issuer_organization_id,
+        dueDate: resolveServicingDueDate(updated),
+        daysPastDue: updated.days_past_due,
+        outstandingTotal: letterOutstandingTotal(updated),
+        indicativeTawidhAmount: toNumber(updated.indicative_tawidh_amount),
+        indicativeGharamahAmount: toNumber(updated.indicative_gharamah_amount),
+        gracePeriodDays: updated.grace_period_days,
+        arrearsThresholdDays: updated.arrears_threshold_days,
+        defaultDate: updated.default_marked_at,
+        defaultReason: reason,
+      });
+    } catch (error) {
+      logger.error(
+        { error, noteId: id },
+        "Failed to generate default servicing letter after mark default"
+      );
+    }
     return await mapNoteDetail(updated);
   }
 
@@ -8431,7 +8469,7 @@ export class NoteService {
   }
 
   private async logAdminAction(
-    tx: Prisma.TransactionClient,
+    tx: Prisma.TransactionClient | typeof prisma,
     noteId: string,
     actionType: string,
     actor: ActorContext,
@@ -8443,6 +8481,7 @@ export class NoteService {
       noteId,
       actionType,
       actorUserId: actor.userId,
+      reason: typeof extraMetadata?.reason === "string" ? extraMetadata.reason : undefined,
       beforeState: beforeState as Prisma.InputJsonValue | undefined,
       afterState: afterState as Prisma.InputJsonValue | undefined,
       ipAddress: actor.ipAddress,

@@ -26,8 +26,11 @@ export default function AdminHomePage() {
   const canReports = can("reports.view");
   const canLedgerPulse = canFinance || can("bucket_balances.view");
   const { data: stats, isLoading, error, dataUpdatedAt } = useDashboardStats();
-  const ageing = useAdminReport("ageing", {}, canReports);
-  const buckets = useNoteBucketBalances({ enabled: canLedgerPulse });
+  const ageing = useAdminReport("ageing", {}, canReports, {
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+  const buckets = useNoteBucketBalances({ enabled: canLedgerPulse, refetchInterval: 60_000 });
   const { data: currentUser } = useCurrentUser();
   const { queues, needsAttention, ready, totalOpenItems, description } = useQuickActionQueues({
     loading: isLoading,

@@ -300,7 +300,7 @@ On older notes that still use listing-to-maturity terms, follow the contractual 
 
 **Tab:** **Late Payment** → **Arrears and Default Documents**.
 
-Arrears and default notices use the platform letterhead. The system emails the arrears letter when a note enters arrears, and retries on later runs if the letter was generated but not emailed (for example when the issuer had no email yet). The default notice is emailed when you confirm Mark Default. You can view, download, or resend from the Late Payment tab. Each send is written to the note timeline.
+Arrears and default notices use the platform letterhead. The system emails the arrears letter when a note enters arrears, and retries on later runs if the letter was generated but not emailed (for example when the issuer had no email yet). The default notice is emailed when you confirm Mark Default; if that send fails, generate it again from Late Payment or wait for the daily job to retry. Generate, send, and resend are written to the note timeline (`NOTE_LETTER_SENT`). Mark Default is also written to the admin action log. You can view, download, or resend from the Late Payment tab.
 
 ## Withdrawals
 

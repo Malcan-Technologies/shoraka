@@ -64,6 +64,46 @@ function letterType(kind: ServicingLetterKind): NoteServicingLetterType {
   return kind === "DEFAULT" ? NoteServicingLetterType.DEFAULT : NoteServicingLetterType.ARREARS;
 }
 
+function isSystemLetterActor(actor: ServicingLetterActor): boolean {
+  return actor.role === "SYSTEM" || actor.userId === "SYS";
+}
+
+function letterAuditContext(actor: ServicingLetterActor) {
+  if (actor.auditContext) return actor.auditContext;
+  if (isSystemLetterActor(actor)) {
+    return systemAuditContext({
+      actorUserId: actor.userId,
+      correlationId: actor.correlationId,
+    });
+  }
+  return undefined;
+}
+
+async function writeServicingLetterAudit(input: {
+  noteId: string;
+  actor: ServicingLetterActor;
+  metadata: Record<string, unknown>;
+}) {
+  const metadata = input.metadata as Prisma.InputJsonValue;
+  const target = resolveNoteEventTarget("NOTE_LETTER_SENT", metadata);
+  const context = letterAuditContext(input.actor);
+  await createNoteEventRow(prisma, {
+    noteId: input.noteId,
+    eventType: "NOTE_LETTER_SENT",
+    actorUserId: input.actor.userId,
+    actorRole: input.actor.role,
+    portal: input.actor.portal,
+    ipAddress: input.actor.ipAddress,
+    userAgent: input.actor.userAgent,
+    correlationId: input.actor.correlationId,
+    source: context?.source,
+    context,
+    metadata,
+    targetType: target.targetType,
+    targetId: target.targetId ?? input.noteId,
+  });
+}
+
 async function issuerEmails(issuerOrganizationId: string): Promise<string[]> {
   const userIds = await listIssuerOrgMemberUserIds(issuerOrganizationId);
   if (userIds.length === 0) return [];
@@ -130,32 +170,18 @@ export async function generateAndSendServicingLetter(
     },
   });
 
-  const metadata: Prisma.InputJsonValue = {
-    letterId: letter.id,
-    s3Key,
-    kind: input.kind,
-    sentTo,
-    triggeredBy: input.triggeredBy,
-  };
-  const target = resolveNoteEventTarget("NOTE_LETTER_SENT", metadata);
-  await createNoteEventRow(prisma, {
+  await writeServicingLetterAudit({
     noteId: input.noteId,
-    eventType: "NOTE_LETTER_SENT",
-    actorUserId: input.actor.userId,
-    actorRole: input.actor.role,
-    portal: input.actor.portal,
-    ipAddress: input.actor.ipAddress,
-    userAgent: input.actor.userAgent,
-    correlationId: input.actor.correlationId,
-    context:
-      input.actor.auditContext ??
-      systemAuditContext({
-        actorUserId: input.actor.userId,
-        correlationId: input.actor.correlationId,
-      }),
-    metadata,
-    targetType: target.targetType,
-    targetId: target.targetId ?? input.noteId,
+    actor: input.actor,
+    metadata: {
+      letterId: letter.id,
+      s3Key,
+      kind: input.kind,
+      sentTo,
+      triggeredBy: input.triggeredBy,
+      delivered: sentTo.length > 0,
+      recipientCount: sentTo.length,
+    },
   });
 
   return { id: letter.id, s3Key, sentTo };
@@ -165,6 +191,7 @@ export async function resendServicingLetter(input: {
   letterId: string;
   noteId: string;
   actor: ServicingLetterActor;
+  triggeredBy?: "SYSTEM" | "ADMIN";
 }): Promise<{ s3Key: string; sentTo: string[] }> {
   const letter = await prisma.noteServicingLetter.findFirst({
     where: { id: input.letterId, note_id: input.noteId },
@@ -177,49 +204,42 @@ export async function resendServicingLetter(input: {
   const sentTo = await issuerEmails(letter.note.issuer_organization_id);
   const kind = letter.type === NoteServicingLetterType.DEFAULT ? "DEFAULT" : "ARREARS";
   const title = servicingLetterTitle(kind);
-  if (sentTo.length > 0) {
-    await sendEmailWithAttachments({
-      to: sentTo,
-      subject: `${title} — ${letter.note.note_reference}`,
-      html: `<p>Please find attached the ${title.toLowerCase()} for note ${letter.note.note_reference}.</p>`,
-      text: `Please find attached the ${title.toLowerCase()} for note ${letter.note.note_reference}.`,
-      attachments: [
-        {
-          filename: `${kind.toLowerCase()}-notice-${letter.note.note_reference}.pdf`,
-          content: pdf,
-          contentType: "application/pdf",
-        },
-      ],
-    });
+  if (sentTo.length === 0) {
+    if ((input.triggeredBy ?? "ADMIN") === "ADMIN") {
+      throw new Error("LETTER_RECIPIENTS_MISSING");
+    }
+    return { s3Key: letter.s3_key, sentTo };
   }
-  if (sentTo.length > 0) {
-    await prisma.noteServicingLetter.update({
-      where: { id: letter.id },
-      data: { sent_at: new Date(), sent_to: sentTo },
-    });
-  }
-  const metadata: Prisma.InputJsonValue = {
-    letterId: letter.id,
-    s3Key: letter.s3_key,
-    kind,
-    sentTo,
-    triggeredBy: "ADMIN",
-    resent: true,
-  };
-  const target = resolveNoteEventTarget("NOTE_LETTER_SENT", metadata);
-  await createNoteEventRow(prisma, {
+  await sendEmailWithAttachments({
+    to: sentTo,
+    subject: `${title} — ${letter.note.note_reference}`,
+    html: `<p>Please find attached the ${title.toLowerCase()} for note ${letter.note.note_reference}.</p>`,
+    text: `Please find attached the ${title.toLowerCase()} for note ${letter.note.note_reference}.`,
+    attachments: [
+      {
+        filename: `${kind.toLowerCase()}-notice-${letter.note.note_reference}.pdf`,
+        content: pdf,
+        contentType: "application/pdf",
+      },
+    ],
+  });
+  await prisma.noteServicingLetter.update({
+    where: { id: letter.id },
+    data: { sent_at: new Date(), sent_to: sentTo },
+  });
+  await writeServicingLetterAudit({
     noteId: input.noteId,
-    eventType: "NOTE_LETTER_SENT",
-    actorUserId: input.actor.userId,
-    actorRole: input.actor.role,
-    portal: input.actor.portal,
-    ipAddress: input.actor.ipAddress,
-    userAgent: input.actor.userAgent,
-    correlationId: input.actor.correlationId,
-    context: input.actor.auditContext,
-    metadata,
-    targetType: target.targetType,
-    targetId: target.targetId ?? input.noteId,
+    actor: input.actor,
+    metadata: {
+      letterId: letter.id,
+      s3Key: letter.s3_key,
+      kind,
+      sentTo,
+      triggeredBy: input.triggeredBy ?? "ADMIN",
+      resent: true,
+      delivered: true,
+      recipientCount: sentTo.length,
+    },
   });
   return { s3Key: letter.s3_key, sentTo };
 }

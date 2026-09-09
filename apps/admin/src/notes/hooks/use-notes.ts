@@ -61,7 +61,13 @@ export function useNoteSourceInvoices() {
   });
 }
 
-export function useNoteBucketBalances({ enabled = true }: { enabled?: boolean } = {}) {
+export function useNoteBucketBalances({
+  enabled = true,
+  refetchInterval,
+}: {
+  enabled?: boolean;
+  refetchInterval?: number;
+} = {}) {
   const apiClient = useNotesApiClient();
   return useQuery({
     queryKey: [...notesKeys.all, "bucket-balances"],
@@ -71,6 +77,7 @@ export function useNoteBucketBalances({ enabled = true }: { enabled?: boolean } 
       return response.data;
     },
     enabled,
+    refetchInterval,
   });
 }
 
