@@ -10,6 +10,7 @@ export type PersonPlatformAccessStatus =
   | "NOT_INVITED"
   | "INVITATION_PENDING"
   | "INVITATION_EXPIRED"
+  | "NO_PLATFORM_ACCESS"
   | "ORGANIZATION_MEMBER"
   | "ORGANIZATION_ADMIN";
 
@@ -37,6 +38,7 @@ const ACCESS_LABEL: Record<PersonPlatformAccessStatus, string> = {
   NOT_INVITED: "Not invited",
   INVITATION_PENDING: "Invitation pending",
   INVITATION_EXPIRED: "Invitation expired",
+  NO_PLATFORM_ACCESS: "No platform access",
   ORGANIZATION_MEMBER: "Organization Member",
   ORGANIZATION_ADMIN: "Organization Admin",
 };
@@ -79,6 +81,7 @@ export function resolvePersonPlatformAccess(input: {
         invitationExpiresAt: null,
       };
     }
+    return emptyAccess("NO_PLATFORM_ACCESS");
   }
 
   const now = input.now ?? new Date();

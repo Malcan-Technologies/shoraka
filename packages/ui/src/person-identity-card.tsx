@@ -76,6 +76,8 @@ export function PersonIdentityCard({
     !corporate &&
     Boolean(party) &&
     (inviteStatus === "NOT_INVITED" || inviteStatus === "INVITATION_EXPIRED");
+  const showRestore =
+    canManagePlatform && !inactive && !corporate && inviteStatus === "NO_PLATFORM_ACCESS";
   const showResend =
     canManagePlatform && !inactive && !corporate && inviteStatus === "INVITATION_PENDING";
   const showManage =
@@ -142,6 +144,11 @@ export function PersonIdentityCard({
           {showInvite && onInviteToPlatform ? (
             <Button type="button" variant="outline" size="sm" onClick={onInviteToPlatform}>
               Invite to platform
+            </Button>
+          ) : null}
+          {showRestore && onInviteToPlatform ? (
+            <Button type="button" variant="outline" size="sm" onClick={onInviteToPlatform}>
+              Restore access
             </Button>
           ) : null}
           {showResend && onResendInvitation ? (

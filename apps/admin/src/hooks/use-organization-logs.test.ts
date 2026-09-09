@@ -62,6 +62,12 @@ describe("ORGANIZATION_ACTIVITY_EVENT_TYPES — dead filter cleanup", () => {
     );
   });
 
+  it("includes PERSON_PLATFORM_* so Person link/restore activity is not excluded by the Admin allowlist", () => {
+    expect(ORGANIZATION_ACTIVITY_EVENT_TYPES).toEqual(
+      expect.arrayContaining(["PERSON_PLATFORM_USER_LINKED", "PERSON_PLATFORM_ACCESS_RESTORED"])
+    );
+  });
+
   it("includes MARC_ASSESSMENT_SAVED so issuer MARC saves appear on Admin Organization Activity", () => {
     expect(ORGANIZATION_ACTIVITY_EVENT_TYPES).toContain("MARC_ASSESSMENT_SAVED");
   });

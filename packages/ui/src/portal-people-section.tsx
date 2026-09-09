@@ -590,6 +590,8 @@ export function PortalPeopleSection({
                   masterCards.find((item) => item.party.id === inviteParty.id)?.person?.email ||
                   inviteParty.linkedUser?.email ||
                   "",
+                linkedLoginEmail: inviteParty.linkedUser?.email || "",
+                restoreExistingLink: inviteParty.platformAccess.status === "NO_PLATFORM_ACCESS",
               }
             : undefined
         }
@@ -607,7 +609,11 @@ export function PortalPeopleSection({
               }>(`${orgBase}/members/invite`, data);
               if (!res.success) throw new Error(res.error.message);
               if (res.data.linkedExistingMember) {
-                toast.success("Platform access linked to this person");
+                toast.success(
+                  inviteParty?.platformAccess.status === "NO_PLATFORM_ACCESS"
+                    ? "Platform access restored for the linked account"
+                    : "Platform access linked to this person"
+                );
               }
               await invalidate();
               return res.data;

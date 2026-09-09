@@ -124,6 +124,24 @@ describe("resolvePersonPlatformAccess", () => {
     ).toBe("ORGANIZATION_ADMIN");
   });
 
+  it("is No platform access when a User is linked but has no membership", () => {
+    const access = resolvePersonPlatformAccess({
+      linkedUserId: "AAAAA",
+      members: [],
+      invitations: [
+        {
+          id: "inv-exp",
+          partyProfileId: partyId,
+          accepted: false,
+          expiresAt: new Date(Date.now() - 1000).toISOString(),
+        },
+      ],
+      partyId,
+    });
+    expect(access.status).toBe("NO_PLATFORM_ACCESS");
+    expect(access.label).toBe("No platform access");
+  });
+
   it("does not treat an unscoped Members invitation as this person's invite", () => {
     const access = resolvePersonPlatformAccess({
       linkedUserId: null,

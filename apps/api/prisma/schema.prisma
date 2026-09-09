@@ -488,10 +488,23 @@ model OrganizationPartyProfile {
   external_observation        Json?
   created_at                  DateTime                          @default(now())
   updated_at                  DateTime                          @updatedAt
-  /// OPTIONAL platform User for this company/regulatory person.
+  /// OPTIONAL durable identity link to a CashSouk User — not an access grant.
   /// OrganizationPartyProfile is company identity (NRIC/passport/ROC).
-  /// OrganizationMember is platform access. The link is optional: a director
-  /// does not need a CashSouk account. Never infer this from email alone.
+  /// OrganizationMember controls current portal access. The link is optional:
+  /// a director does not need a CashSouk account. Never infer this from email.
+  ///
+  /// Removing OrganizationMember must not clear this field.
+  /// Never overwrite an existing different user_id during invitation acceptance.
+  /// Person-scoped acceptance must be transactional.
+  ///
+  /// Same User may be linked in different organizations.
+  /// Uniqueness is only within one organization.
+  /// Prisma cannot represent the required partial unique indexes; they are
+  /// maintained by SQL migration:
+  ///   organization_party_profiles_issuer_org_user_id_key
+  ///   organization_party_profiles_investor_org_user_id_key
+  /// Do not remove them during db push/schema maintenance, and do not replace
+  /// them with a global unique(user_id).
   user_id                     String?                           @db.VarChar(5)
   issuer_organization         IssuerOrganization?               @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
   investor_organization       InvestorOrganization?             @relation(fields: [investor_organization_id], references: [id], onDelete: Cascade)

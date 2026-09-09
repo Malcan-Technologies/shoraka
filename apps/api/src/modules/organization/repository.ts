@@ -416,8 +416,12 @@ export class OrganizationRepository {
   /**
    * Check if user is already a member of an investor organization
    */
-  async isInvestorOrganizationMember(organizationId: string, userId: string): Promise<boolean> {
-    const count = await prisma.organizationMember.count({
+  async isInvestorOrganizationMember(
+    organizationId: string,
+    userId: string,
+    db: OrganizationDbClient = prisma
+  ): Promise<boolean> {
+    const count = await db.organizationMember.count({
       where: {
         investor_organization_id: organizationId,
         user_id: userId,
@@ -429,8 +433,12 @@ export class OrganizationRepository {
   /**
    * Check if user is already a member of an issuer organization
    */
-  async isIssuerOrganizationMember(organizationId: string, userId: string): Promise<boolean> {
-    const count = await prisma.organizationMember.count({
+  async isIssuerOrganizationMember(
+    organizationId: string,
+    userId: string,
+    db: OrganizationDbClient = prisma
+  ): Promise<boolean> {
+    const count = await db.organizationMember.count({
       where: {
         issuer_organization_id: organizationId,
         user_id: userId,
@@ -666,25 +674,25 @@ export class OrganizationRepository {
   /**
    * Mark invitation as accepted
    */
-  async acceptInvitation(token: string): Promise<void> {
-    const investorInv = await prisma.investorOrganizationInvitation.findUnique({
+  async acceptInvitation(token: string, db: OrganizationDbClient = prisma): Promise<void> {
+    const investorInv = await db.investorOrganizationInvitation.findUnique({
       where: { token },
     });
 
     if (investorInv) {
-      await prisma.investorOrganizationInvitation.update({
+      await db.investorOrganizationInvitation.update({
         where: { token },
         data: { accepted: true, accepted_at: new Date() },
       });
       return;
     }
 
-    const issuerInv = await prisma.issuerOrganizationInvitation.findUnique({
+    const issuerInv = await db.issuerOrganizationInvitation.findUnique({
       where: { token },
     });
 
     if (issuerInv) {
-      await prisma.issuerOrganizationInvitation.update({
+      await db.issuerOrganizationInvitation.update({
         where: { token },
         data: { accepted: true, accepted_at: new Date() },
       });
@@ -742,16 +750,59 @@ export class OrganizationRepository {
   /**
    * Revoke invitation
    */
-  async revokeInvitation(invitationId: string, portalType: "investor" | "issuer"): Promise<void> {
+  async revokeInvitation(
+    invitationId: string,
+    portalType: "investor" | "issuer",
+    organizationId: string
+  ): Promise<number> {
     if (portalType === "investor") {
-      await prisma.investorOrganizationInvitation.delete({
-        where: { id: invitationId },
+      const result = await prisma.investorOrganizationInvitation.deleteMany({
+        where: { id: invitationId, investor_organization_id: organizationId },
       });
-    } else {
-      await prisma.issuerOrganizationInvitation.delete({
-        where: { id: invitationId },
-      });
+      return result.count;
     }
+    const result = await prisma.issuerOrganizationInvitation.deleteMany({
+      where: { id: invitationId, issuer_organization_id: organizationId },
+    });
+    return result.count;
+  }
+
+  async rotateInvitation(
+    invitationId: string,
+    portalType: "investor" | "issuer",
+    organizationId: string,
+    data: { token: string; expiresAt: Date }
+  ): Promise<number> {
+    if (portalType === "investor") {
+      const result = await prisma.investorOrganizationInvitation.updateMany({
+        where: {
+          id: invitationId,
+          investor_organization_id: organizationId,
+          accepted: false,
+        },
+        data: {
+          token: data.token,
+          expires_at: data.expiresAt,
+          accepted: false,
+          accepted_at: null,
+        },
+      });
+      return result.count;
+    }
+    const result = await prisma.issuerOrganizationInvitation.updateMany({
+      where: {
+        id: invitationId,
+        issuer_organization_id: organizationId,
+        accepted: false,
+      },
+      data: {
+        token: data.token,
+        expires_at: data.expiresAt,
+        accepted: false,
+        accepted_at: null,
+      },
+    });
+    return result.count;
   }
 
   /**

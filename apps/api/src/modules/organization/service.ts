@@ -40,7 +40,14 @@ import { organizationInvitationTemplate } from "../../lib/email/templates";
 import { auditContextFromRequest, persistOrganizationUpdateAndOnboardingLogs } from "../../lib/audit";
 import { buildOrganizationProfileAuditEvidence } from "../admin/organization-profile-audit";
 import { logOrganizationMembershipEvent } from "./membership-audit";
-import { assertPartyBelongsToOrganization, linkPartyProfileToUser } from "./party-platform-link";
+import {
+  applyPersonScopedInvitationAcceptance,
+  assertPartyActiveForPlatformInvite,
+  assertPartyBelongsToOrganization,
+  assertPersonScopedPlaceholderAllowed,
+  isPlaceholderInvitationEmail,
+  linkPartyProfileToUser,
+} from "./party-platform-link";
 import { randomBytes } from "crypto";
 import { assertIssuerOnboardingFeePaid } from "../payment/onboarding-fee-service";
 import {
@@ -213,11 +220,93 @@ async function upsertCtosPartySupplementOnboardingJson(
   });
 }
 
+const ORGANIZATION_INVITATION_TTL_DAYS = 7;
+
+function organizationInvitationExpiresAt(from = new Date()): Date {
+  const expiresAt = new Date(from.getTime());
+  expiresAt.setDate(expiresAt.getDate() + ORGANIZATION_INVITATION_TTL_DAYS);
+  return expiresAt;
+}
+
+function requireOrganizationOwnerOrAdmin(
+  organization: OrganizationWithMembers,
+  userId: string,
+  message: string
+): void {
+  const userMember = organization.members.find(
+    (m: { user_id: string; role: string }) => m.user_id === userId
+  );
+  const canManage =
+    organization.owner_user_id === userId ||
+    userMember?.role === OrganizationMemberRole.ORGANIZATION_ADMIN;
+  if (!canManage) {
+    throw new AppError(403, "FORBIDDEN", message);
+  }
+}
+
 export class OrganizationService {
   private repository: OrganizationRepository;
 
   constructor() {
     this.repository = new OrganizationRepository();
+  }
+
+  private async restoreLinkedPersonPlatformAccess(params: {
+    actorUserId: string;
+    organization: OrganizationWithMembers;
+    organizationId: string;
+    portalType: PortalType;
+    partyId: string;
+    linkedUserId: string;
+    role: OrganizationMemberRole;
+  }): Promise<void> {
+    await prisma.$transaction(async (tx) => {
+      if (params.portalType === "investor") {
+        await this.repository.addOrganizationMember(
+          {
+            userId: params.linkedUserId,
+            investorOrganizationId: params.organizationId,
+            role: params.role,
+          },
+          tx
+        );
+      } else {
+        await this.repository.addOrganizationMember(
+          {
+            userId: params.linkedUserId,
+            issuerOrganizationId: params.organizationId,
+            role: params.role,
+          },
+          tx
+        );
+      }
+      await logOrganizationMembershipEvent({
+        eventType: "MEMBER_ADDED",
+        actorUserId: params.actorUserId,
+        ownerUserId: params.organization.owner_user_id,
+        organizationId: params.organizationId,
+        portalType: params.portalType,
+        organizationName: params.organization.name,
+        organizationReference: params.organization.display_reference,
+        memberUserId: params.linkedUserId,
+        newRole: params.role,
+        partyProfileId: params.partyId,
+        db: tx,
+      });
+      await logOrganizationMembershipEvent({
+        eventType: "PERSON_PLATFORM_ACCESS_RESTORED",
+        actorUserId: params.actorUserId,
+        ownerUserId: params.organization.owner_user_id,
+        organizationId: params.organizationId,
+        portalType: params.portalType,
+        organizationName: params.organization.name,
+        organizationReference: params.organization.display_reference,
+        memberUserId: params.linkedUserId,
+        newRole: params.role,
+        partyProfileId: params.partyId,
+        db: tx,
+      });
+    });
   }
 
   /**
@@ -966,20 +1055,17 @@ export class OrganizationService {
     emailError?: string;
     linkedExistingMember?: boolean;
   }> {
-    // Verify access
     const organization = await this.getOrganization(userId, organizationId, portalType);
-
-    // Only admins can invite members
-    const userMember = organization.members.find(
-      (m: { user_id: string; role: string }) => m.user_id === userId
+    requireOrganizationOwnerOrAdmin(
+      organization,
+      userId,
+      "You do not have permission to invite members"
     );
-    const canManage =
-      organization.owner_user_id === userId ||
-      userMember?.role === OrganizationMemberRole.ORGANIZATION_ADMIN;
 
-    if (!canManage) {
-      throw new AppError(403, "FORBIDDEN", "You do not have permission to invite members");
-    }
+    const inviteRole =
+      input.role === "ORGANIZATION_ADMIN"
+        ? OrganizationMemberRole.ORGANIZATION_ADMIN
+        : OrganizationMemberRole.ORGANIZATION_MEMBER;
 
     let partyProfileId: string | undefined;
     if (input.partyProfileId) {
@@ -988,6 +1074,7 @@ export class OrganizationService {
         organizationId,
         portalType,
       });
+      assertPartyActiveForPlatformInvite(party);
       if (party.user_id) {
         const alreadyMember =
           portalType === "investor"
@@ -996,42 +1083,14 @@ export class OrganizationService {
         if (alreadyMember) {
           throw new AppError(400, "ALREADY_MEMBER", "This person already has platform access");
         }
-        const restoredRole =
-          input.role === "ORGANIZATION_ADMIN"
-            ? OrganizationMemberRole.ORGANIZATION_ADMIN
-            : OrganizationMemberRole.ORGANIZATION_MEMBER;
-        await prisma.$transaction(async (tx) => {
-          if (portalType === "investor") {
-            await this.repository.addOrganizationMember(
-              {
-                userId: party.user_id!,
-                investorOrganizationId: organizationId,
-                role: restoredRole,
-              },
-              tx
-            );
-          } else {
-            await this.repository.addOrganizationMember(
-              {
-                userId: party.user_id!,
-                issuerOrganizationId: organizationId,
-                role: restoredRole,
-              },
-              tx
-            );
-          }
-          await logOrganizationMembershipEvent({
-            eventType: "MEMBER_ADDED",
-            actorUserId: userId,
-            ownerUserId: organization.owner_user_id,
-            organizationId,
-            portalType,
-            organizationName: organization.name,
-            organizationReference: organization.display_reference,
-            memberUserId: party.user_id,
-            newRole: restoredRole,
-            db: tx,
-          });
+        await this.restoreLinkedPersonPlatformAccess({
+          actorUserId: userId,
+          organization,
+          organizationId,
+          portalType,
+          partyId: party.id,
+          linkedUserId: party.user_id,
+          role: inviteRole,
         });
         return {
           success: true,
@@ -1039,6 +1098,13 @@ export class OrganizationService {
           emailSent: false,
           linkedExistingMember: true,
         };
+      }
+      if (!input.email) {
+        throw new AppError(
+          400,
+          "PERSON_INVITE_REQUIRES_EMAIL",
+          "An invitation email is required before inviting this person to the platform"
+        );
       }
       partyProfileId = party.id;
     }
@@ -1054,11 +1120,26 @@ export class OrganizationService {
 
         if (isMember) {
           if (partyProfileId) {
-            await linkPartyProfileToUser({
-              partyId: partyProfileId,
-              userId: targetUser.user_id,
-              organizationId,
-              portalType,
+            await prisma.$transaction(async (tx) => {
+              await linkPartyProfileToUser({
+                partyId: partyProfileId,
+                userId: targetUser.user_id,
+                organizationId,
+                portalType,
+                db: tx,
+              });
+              await logOrganizationMembershipEvent({
+                eventType: "PERSON_PLATFORM_USER_LINKED",
+                actorUserId: userId,
+                ownerUserId: organization.owner_user_id,
+                organizationId,
+                portalType,
+                organizationName: organization.name,
+                organizationReference: organization.display_reference,
+                memberUserId: targetUser.user_id,
+                partyProfileId,
+                db: tx,
+              });
             });
             return {
               success: true,
@@ -1072,13 +1153,13 @@ export class OrganizationService {
       }
     }
 
-    // Use placeholder email if not provided (for link-based invitations)
+    // Generic Members invites may use a placeholder email for shareable links.
+    // Person-scoped invites require an addressed email (checked above).
     const email = input.email?.toLowerCase() || `invitation-${Date.now()}@cashsouk.com`;
 
     // Generate invitation token
     const token = randomBytes(32).toString("hex");
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
+    const expiresAt = organizationInvitationExpiresAt();
 
     const invitation = await prisma.$transaction(async (tx) => {
       const created =
@@ -1128,6 +1209,7 @@ export class OrganizationService {
             ? OrganizationMemberRole.ORGANIZATION_ADMIN
             : OrganizationMemberRole.ORGANIZATION_MEMBER,
         invitationId: created.id,
+        partyProfileId,
         db: tx,
       });
 
@@ -1207,21 +1289,18 @@ export class OrganizationService {
     organizationId: string,
     portalType: PortalType,
     input: { email?: string; role: "ORGANIZATION_ADMIN" | "ORGANIZATION_MEMBER"; partyProfileId?: string }
-  ): Promise<{ invitationUrl: string; token: string }> {
-    // Verify access
+  ): Promise<{ invitationUrl: string; token: string; linkedExistingMember?: boolean }> {
     const organization = await this.getOrganization(userId, organizationId, portalType);
-
-    // Only admins can generate invites
-    const userMember = organization.members.find(
-      (m: { user_id: string; role: string }) => m.user_id === userId
+    requireOrganizationOwnerOrAdmin(
+      organization,
+      userId,
+      "You do not have permission to generate invitation links"
     );
-    const canManage =
-      organization.owner_user_id === userId ||
-      userMember?.role === OrganizationMemberRole.ORGANIZATION_ADMIN;
 
-    if (!canManage) {
-      throw new AppError(403, "FORBIDDEN", "You do not have permission to generate invitation links");
-    }
+    const generateRole =
+      input.role === "ORGANIZATION_ADMIN"
+        ? OrganizationMemberRole.ORGANIZATION_ADMIN
+        : OrganizationMemberRole.ORGANIZATION_MEMBER;
 
     let partyProfileId: string | undefined;
     if (input.partyProfileId) {
@@ -1230,16 +1309,37 @@ export class OrganizationService {
         organizationId,
         portalType,
       });
+      assertPartyActiveForPlatformInvite(party);
+      if (party.user_id) {
+        const alreadyMember =
+          portalType === "investor"
+            ? await this.repository.isInvestorOrganizationMember(organizationId, party.user_id)
+            : await this.repository.isIssuerOrganizationMember(organizationId, party.user_id);
+        if (alreadyMember) {
+          throw new AppError(400, "ALREADY_MEMBER", "This person already has platform access");
+        }
+        await this.restoreLinkedPersonPlatformAccess({
+          actorUserId: userId,
+          organization,
+          organizationId,
+          portalType,
+          partyId: party.id,
+          linkedUserId: party.user_id,
+          role: generateRole,
+        });
+        return { invitationUrl: "", token: "", linkedExistingMember: true };
+      }
+      if (!input.email) {
+        throw new AppError(
+          400,
+          "PERSON_INVITE_REQUIRES_EMAIL",
+          "An invitation email is required before inviting this person to the platform"
+        );
+      }
       partyProfileId = party.id;
     }
 
-    // Use placeholder email if not provided (for link-based invitations)
     const email = input.email?.toLowerCase() || `invitation-${Date.now()}@cashsouk.com`;
-
-    const generateRole =
-      input.role === "ORGANIZATION_ADMIN"
-        ? OrganizationMemberRole.ORGANIZATION_ADMIN
-        : OrganizationMemberRole.ORGANIZATION_MEMBER;
     const existingInvitation =
       portalType === "investor"
         ? await prisma.investorOrganizationInvitation.findFirst({
@@ -1269,21 +1369,15 @@ export class OrganizationService {
 
     let token: string;
     if (existingInvitation) {
-      // Reuse existing invitation token
       token = existingInvitation.token;
     } else {
-      // Generate secure token
       token = randomBytes(32).toString("hex");
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
+      const expiresAt = organizationInvitationExpiresAt();
 
-      // Create invitation record
       if (portalType === "investor") {
         await this.repository.createInvestorOrganizationInvitation({
           email,
-          role: input.role === "ORGANIZATION_ADMIN"
-            ? OrganizationMemberRole.ORGANIZATION_ADMIN
-            : OrganizationMemberRole.ORGANIZATION_MEMBER,
+          role: generateRole,
           investorOrganizationId: organizationId,
           token,
           expiresAt,
@@ -1293,9 +1387,7 @@ export class OrganizationService {
       } else {
         await this.repository.createIssuerOrganizationInvitation({
           email,
-          role: input.role === "ORGANIZATION_ADMIN"
-            ? OrganizationMemberRole.ORGANIZATION_ADMIN
-            : OrganizationMemberRole.ORGANIZATION_MEMBER,
+          role: generateRole,
           issuerOrganizationId: organizationId,
           token,
           expiresAt,
@@ -1305,7 +1397,6 @@ export class OrganizationService {
       }
     }
 
-    // Generate invitation URL
     const portalUrl =
       portalType === "investor"
         ? process.env.INVESTOR_URL || "http://localhost:3002"
@@ -1323,7 +1414,6 @@ export class OrganizationService {
     userId: string,
     input: AcceptOrganizationInvitationInput
   ): Promise<{ success: boolean; organizationId: string; portalType: PortalType }> {
-    // Find invitation by token
     const invitation = await this.repository.findInvitationByToken(input.token);
 
     if (!invitation) {
@@ -1338,7 +1428,6 @@ export class OrganizationService {
       throw new AppError(400, "EXPIRED", "This invitation has expired");
     }
 
-    // Verify email matches
     const user = await prisma.user.findUnique({
       where: { user_id: userId },
       select: { email: true },
@@ -1348,32 +1437,13 @@ export class OrganizationService {
       throw new AppError(404, "USER_NOT_FOUND", "User not found");
     }
 
-    // Check if this is a placeholder email (link-based invitation)
-    const isPlaceholderEmail = invitation.email.startsWith('invitation-') &&
-                              invitation.email.includes('@cashsouk.com');
-
-    // For non-placeholder invitations, verify email matches
-    if (!isPlaceholderEmail && user.email !== invitation.email) {
+    const placeholderInvite = isPlaceholderInvitationEmail(invitation.email);
+    if (!placeholderInvite && user.email !== invitation.email) {
       throw new AppError(
         403,
         "EMAIL_MISMATCH",
         "This invitation was sent to a different email address"
       );
-    }
-
-    // If it's a placeholder email, update it to the real user's email
-    if (isPlaceholderEmail) {
-      if (invitation.investor_organization_id) {
-        await prisma.investorOrganizationInvitation.update({
-          where: { id: invitation.id },
-          data: { email: user.email },
-        });
-      } else if (invitation.issuer_organization_id) {
-        await prisma.issuerOrganizationInvitation.update({
-          where: { id: invitation.id },
-          data: { email: user.email },
-        });
-      }
     }
 
     const organizationId = invitation.investor_organization_id || invitation.issuer_organization_id!;
@@ -1385,6 +1455,12 @@ export class OrganizationService {
         organizationId,
         portalType,
       });
+      assertPartyActiveForPlatformInvite(party);
+      assertPersonScopedPlaceholderAllowed({
+        invitationEmail: invitation.email,
+        partyUserId: party.user_id,
+        acceptingUserId: userId,
+      });
       if (party.user_id && party.user_id !== userId) {
         throw new AppError(
           409,
@@ -1392,6 +1468,59 @@ export class OrganizationService {
           "This person is already linked to a different platform account"
         );
       }
+
+      const organization =
+        portalType === "investor"
+          ? await this.repository.findInvestorOrganizationById(organizationId)
+          : await this.repository.findIssuerOrganizationById(organizationId);
+
+      await prisma.$transaction(async (tx) => {
+        const result = await applyPersonScopedInvitationAcceptance({
+          db: tx,
+          partyId: invitation.organization_party_profile_id!,
+          organizationId,
+          portalType,
+          acceptingUserId: userId,
+          invitationId: invitation.id,
+          invitationRole: invitation.role,
+          placeholderEmailUpdate: placeholderInvite ? user.email : undefined,
+        });
+        if (result.link === "created") {
+          await logOrganizationMembershipEvent({
+            eventType: "PERSON_PLATFORM_USER_LINKED",
+            actorUserId: userId,
+            ownerUserId: organization?.owner_user_id || userId,
+            organizationId,
+            portalType,
+            organizationName: organization?.name,
+            organizationReference: organization?.display_reference,
+            memberUserId: userId,
+            invitationId: invitation.id,
+            partyProfileId: invitation.organization_party_profile_id,
+            db: tx,
+          });
+        } else if (result.membershipCreated) {
+          await logOrganizationMembershipEvent({
+            eventType: "PERSON_PLATFORM_ACCESS_RESTORED",
+            actorUserId: userId,
+            ownerUserId: organization?.owner_user_id || userId,
+            organizationId,
+            portalType,
+            organizationName: organization?.name,
+            organizationReference: organization?.display_reference,
+            memberUserId: userId,
+            invitationId: invitation.id,
+            partyProfileId: invitation.organization_party_profile_id,
+            db: tx,
+          });
+        }
+      });
+
+      logger.info(
+        { userId, invitationId: invitation.id, organizationId, portalType },
+        "Person-scoped invitation accepted"
+      );
+      return { success: true, organizationId, portalType };
     }
 
     const isMember =
@@ -1400,60 +1529,55 @@ export class OrganizationService {
         : await this.repository.isIssuerOrganizationMember(organizationId, userId);
 
     if (isMember) {
-      if (invitation.organization_party_profile_id) {
-        await this.repository.acceptInvitation(input.token);
-        await linkPartyProfileToUser({
-          partyId: invitation.organization_party_profile_id,
-          userId,
-          organizationId,
-          portalType,
-        });
-        return { success: true, organizationId, portalType };
-      }
       throw new AppError(400, "ALREADY_MEMBER", "You are already a member of this organization");
     }
 
-    // Add member to organization
-    if (invitation.investor_organization_id) {
-      await this.repository.addOrganizationMember({
-        userId,
-        investorOrganizationId: invitation.investor_organization_id,
-        role: invitation.role,
-      });
-    } else {
-      await this.repository.addOrganizationMember({
-        userId,
-        issuerOrganizationId: invitation.issuer_organization_id!,
-        role: invitation.role,
-      });
-    }
-
-    // Mark invitation as accepted
-    await this.repository.acceptInvitation(input.token);
-
-    if (invitation.organization_party_profile_id) {
-      await linkPartyProfileToUser({
-        partyId: invitation.organization_party_profile_id,
-        userId,
-        organizationId,
-        portalType,
-      });
-    }
+    await prisma.$transaction(async (tx) => {
+      if (placeholderInvite) {
+        if (invitation.investor_organization_id) {
+          await tx.investorOrganizationInvitation.update({
+            where: { id: invitation.id },
+            data: { email: user.email },
+          });
+        } else {
+          await tx.issuerOrganizationInvitation.update({
+            where: { id: invitation.id },
+            data: { email: user.email },
+          });
+        }
+      }
+      if (invitation.investor_organization_id) {
+        await this.repository.addOrganizationMember(
+          {
+            userId,
+            investorOrganizationId: invitation.investor_organization_id,
+            role: invitation.role,
+          },
+          tx
+        );
+      } else {
+        await this.repository.addOrganizationMember(
+          {
+            userId,
+            issuerOrganizationId: invitation.issuer_organization_id!,
+            role: invitation.role,
+          },
+          tx
+        );
+      }
+      await this.repository.acceptInvitation(input.token, tx);
+    });
 
     logger.info(
       {
         userId,
         invitationId: invitation.id,
-        organizationId: invitation.investor_organization_id || invitation.issuer_organization_id,
+        organizationId,
       },
       "Invitation accepted"
     );
 
-    return {
-      success: true,
-      organizationId: invitation.investor_organization_id || invitation.issuer_organization_id!,
-      portalType: invitation.investor_organization_id ? "investor" : "issuer",
-    };
+    return { success: true, organizationId, portalType };
   }
 
   /**
@@ -1523,10 +1647,13 @@ export class OrganizationService {
     portalType: PortalType,
     invitationId: string
   ): Promise<{ success: boolean; emailSent: boolean; emailError?: string; invitationUrl?: string }> {
-    // Verify access
-    await this.getOrganization(userId, organizationId, portalType);
+    const organization = await this.getOrganization(userId, organizationId, portalType);
+    requireOrganizationOwnerOrAdmin(
+      organization,
+      userId,
+      "You do not have permission to manage invitations"
+    );
 
-    // Find invitation
     let invitation;
     if (portalType === "investor") {
       invitation = await prisma.investorOrganizationInvitation.findUnique({
@@ -1558,11 +1685,30 @@ export class OrganizationService {
       throw new AppError(404, "NOT_FOUND", "Invitation not found");
     }
 
+    const invitationOrgId =
+      portalType === "investor"
+        ? (invitation as { investor_organization_id?: string }).investor_organization_id
+        : (invitation as { issuer_organization_id?: string }).issuer_organization_id;
+    if (invitationOrgId !== organizationId) {
+      throw new AppError(404, "NOT_FOUND", "Invitation not found");
+    }
+
     if (invitation.accepted) {
       throw new AppError(400, "ALREADY_ACCEPTED", "This invitation has already been accepted");
     }
 
-    // Send email
+    let token = invitation.token;
+    if (invitation.expires_at <= new Date()) {
+      token = randomBytes(32).toString("hex");
+      const rotated = await this.repository.rotateInvitation(invitationId, portalType, organizationId, {
+        token,
+        expiresAt: organizationInvitationExpiresAt(),
+      });
+      if (rotated !== 1) {
+        throw new AppError(404, "NOT_FOUND", "Invitation not found");
+      }
+    }
+
     const inviterName = invitation.invited_by
       ? `${invitation.invited_by.first_name} ${invitation.invited_by.last_name}`
       : undefined;
@@ -1572,7 +1718,7 @@ export class OrganizationService {
         ? process.env.INVESTOR_URL || "http://localhost:3002"
         : process.env.ISSUER_URL || "http://localhost:3001";
 
-    const inviteLink = `${portalUrl}/accept-invitation?token=${invitation.token}`;
+    const inviteLink = `${portalUrl}/accept-invitation?token=${token}`;
     const orgName =
       (invitation as any).investor_organization?.name ||
       (invitation as any).issuer_organization?.name ||
@@ -1615,10 +1761,17 @@ export class OrganizationService {
     portalType: PortalType,
     invitationId: string
   ): Promise<{ success: boolean }> {
-    // Verify access
-    await this.getOrganization(userId, organizationId, portalType);
+    const organization = await this.getOrganization(userId, organizationId, portalType);
+    requireOrganizationOwnerOrAdmin(
+      organization,
+      userId,
+      "You do not have permission to manage invitations"
+    );
 
-    await this.repository.revokeInvitation(invitationId, portalType);
+    const deleted = await this.repository.revokeInvitation(invitationId, portalType, organizationId);
+    if (deleted !== 1) {
+      throw new AppError(404, "NOT_FOUND", "Invitation not found");
+    }
 
     logger.info({ invitationId, organizationId }, "Invitation revoked");
 

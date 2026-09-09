@@ -45,15 +45,29 @@ describe("PortalPeopleSection", () => {
 
   it("keeps platform invite separate from RegTank onboarding", () => {
     expect(card).toContain("Invite to platform");
+    expect(card).toContain("Restore access");
+    expect(card).toContain("NO_PLATFORM_ACCESS");
     expect(card).toContain("Send onboarding");
     expect(source).toContain("KYC/AML onboarding is separate from platform access");
     expect(source).toContain("/members/invite");
     expect(source).toContain("send-director-onboarding");
+    expect(source).toContain("restoreExistingLink");
   });
 
   it("gates invite and manage access on canEdit (owner/admin)", () => {
     expect(source).toContain("canManagePlatform={canEdit}");
     expect(card).toContain("canManagePlatform");
+  });
+});
+
+describe("Person-scoped invite dialog", () => {
+  it("requires an addressed email for Copy Link and uses Restore access for linked users without membership", () => {
+    const dialog = readFileSync(join(__dirname, "invite-member-dialog.tsx"), "utf8");
+    expect(dialog).toContain("restoreExistingLink");
+    expect(dialog).toContain("Platform login email");
+    expect(dialog).toContain("Enter an invitation email before copying a person-scoped link");
+    expect(dialog).toContain("personContext && !email.trim()");
+    expect(dialog).toContain('? "Restore access"');
   });
 });
 

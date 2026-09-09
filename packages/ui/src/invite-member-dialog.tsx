@@ -73,6 +73,8 @@ export interface InviteMemberDialogProps {
     partyProfileId: string;
     personName: string;
     defaultEmail?: string;
+    linkedLoginEmail?: string;
+    restoreExistingLink?: boolean;
   };
 }
 
@@ -112,8 +114,12 @@ export function InviteMemberDialog({
       setCopied(false);
       return;
     }
-    setEmail(personContext?.defaultEmail ?? "");
-  }, [open, personContext?.defaultEmail]);
+    setEmail(
+      personContext?.restoreExistingLink
+        ? (personContext.linkedLoginEmail ?? personContext.defaultEmail ?? "")
+        : (personContext?.defaultEmail ?? "")
+    );
+  }, [open, personContext?.defaultEmail, personContext?.linkedLoginEmail, personContext?.restoreExistingLink]);
 
   const handleCopy = async () => {
     if (invitationUrl) {
@@ -130,8 +136,8 @@ export function InviteMemberDialog({
       return;
     }
 
-    if (!role) {
-      toast.error("Please select a role");
+    if (personContext && !email.trim()) {
+      toast.error("Enter an invitation email before copying a person-scoped link");
       return;
     }
 
@@ -196,11 +202,19 @@ export function InviteMemberDialog({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>{personContext ? "Invite to platform" : "Invite Member"}</DialogTitle>
+          <DialogTitle>
+            {personContext?.restoreExistingLink
+              ? "Restore access"
+              : personContext
+                ? "Invite to platform"
+                : "Invite Member"}
+          </DialogTitle>
           <DialogDescription>
-            {personContext
-              ? `Invite ${personContext.personName} to this organization. Invitation email is for delivery only and is not this person’s identity.`
-              : "Send an invitation to join this organization. You can send via email or generate a shareable link."}
+            {personContext?.restoreExistingLink
+              ? `Restore platform access for ${personContext.personName} using the already-linked CashSouk account. This does not change the Person identity link.`
+              : personContext
+                ? `Invite ${personContext.personName} to this organization. Invitation email is for delivery only and is not this person’s identity.`
+                : "Send an invitation to join this organization. You can send via email or generate a shareable link."}
           </DialogDescription>
         </DialogHeader>
         {!invitationUrl ? (
@@ -208,7 +222,11 @@ export function InviteMemberDialog({
             <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <Label htmlFor="email">
-                  {personContext ? "Invitation email (delivery only)" : "Email (Optional)"}
+                  {personContext?.restoreExistingLink
+                    ? "Platform login email"
+                    : personContext
+                      ? "Invitation email (delivery only)"
+                      : "Email (Optional)"}
                 </Label>
                 <Input
                   id="email"
@@ -216,11 +234,15 @@ export function InviteMemberDialog({
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="member@example.com"
+                  required={Boolean(personContext) && !personContext?.restoreExistingLink}
+                  readOnly={Boolean(personContext?.restoreExistingLink)}
                 />
                 <p className="text-xs text-muted-foreground">
-                  {personContext
-                    ? "This email is used to send the invitation. It does not identify the person and is not synchronized with onboarding email or login email."
-                    : "Leave empty to generate a shareable link that works for anyone"}
+                  {personContext?.restoreExistingLink
+                    ? "This person is already linked to this CashSouk account. Restoring access does not ask for a different email."
+                    : personContext
+                      ? "This email is used to send the invitation. It does not identify the person and is not synchronized with onboarding email or login email. Copy Link requires this addressed email."
+                      : "Leave empty to generate a shareable link that works for anyone"}
                 </p>
               </div>
               <div className="space-y-2">
@@ -241,22 +263,28 @@ export function InviteMemberDialog({
                 <Button type="button" variant="outline" onClick={handleClose} className="flex-1 sm:flex-none">
                   Cancel
                 </Button>
-                {email && (
+                {(personContext?.restoreExistingLink || email) && (
                   <Button
                     type="submit"
                     disabled={hooks.isInviting || !role}
                     className="flex-1 sm:flex-none"
                   >
-                    {hooks.isInviting ? "Sending..." : "Send Invitation"}
+                    {hooks.isInviting
+                      ? personContext?.restoreExistingLink
+                        ? "Restoring..."
+                        : "Sending..."
+                      : personContext?.restoreExistingLink
+                        ? "Restore access"
+                        : "Send Invitation"}
                   </Button>
                 )}
               </div>
-              {hooks.generateLink && (
+              {hooks.generateLink && !personContext?.restoreExistingLink && (
                 <Button
                   type="button"
                   variant="outline"
                   onClick={handleGenerateAndCopyLink}
-                  disabled={!role || hooks.isGeneratingLink}
+                  disabled={!role || hooks.isGeneratingLink || Boolean(personContext && !email.trim())}
                   className="w-full sm:w-auto order-1 sm:order-2 flex items-center gap-2"
                 >
                   {copied ? (
