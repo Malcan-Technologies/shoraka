@@ -44,10 +44,7 @@ import {
   overlayReadCapacityOnContracts,
   overlayStoredCapacityOnApplicationContract,
 } from "../../lib/refresh-contract-facility";
-import {
-  mapAdminContractCapacityDto,
-  readInvoiceFaceAmount,
-} from "./contract-capacity-dto";
+import { mapAdminContractCapacityDto, readInvoiceFaceAmount } from "./contract-capacity-dto";
 import { ensureAdminRoleCatalog } from "../../lib/auth/rbac";
 import {
   isStandaloneHolderContract,
@@ -1181,7 +1178,17 @@ export class AdminRepository {
     })[];
     total: number;
   }> {
-    const { page, pageSize, search, eventType, eventTypes, role, dateRange, userId, organizationId } = params;
+    const {
+      page,
+      pageSize,
+      search,
+      eventType,
+      eventTypes,
+      role,
+      dateRange,
+      userId,
+      organizationId,
+    } = params;
     const skip = (page - 1) * pageSize;
 
     const where: Prisma.OnboardingLogWhereInput = {};
@@ -1503,24 +1510,6 @@ export class AdminRepository {
     portal?: "investor" | "issuer";
     type?: "PERSONAL" | "COMPANY";
     onboardingStatus?:
-    | "PENDING"
-    | "IN_PROGRESS"
-    | "PENDING_APPROVAL"
-    | "PENDING_AMENDMENT"
-    | "PENDING_AML"
-    | "PENDING_SSM_REVIEW"
-    | "PENDING_FINAL_APPROVAL"
-    | "COMPLETED"
-    | "REJECTED";
-  }): Promise<{
-    organizations: {
-      id: string;
-      displayReference: string | null;
-      portal: "investor" | "issuer";
-      type: "PERSONAL" | "COMPANY";
-      name: string | null;
-      registrationNumber: string | null;
-      onboardingStatus:
       | "PENDING"
       | "IN_PROGRESS"
       | "PENDING_APPROVAL"
@@ -1530,6 +1519,24 @@ export class AdminRepository {
       | "PENDING_FINAL_APPROVAL"
       | "COMPLETED"
       | "REJECTED";
+  }): Promise<{
+    organizations: {
+      id: string;
+      displayReference: string | null;
+      portal: "investor" | "issuer";
+      type: "PERSONAL" | "COMPANY";
+      name: string | null;
+      registrationNumber: string | null;
+      onboardingStatus:
+        | "PENDING"
+        | "IN_PROGRESS"
+        | "PENDING_APPROVAL"
+        | "PENDING_AMENDMENT"
+        | "PENDING_AML"
+        | "PENDING_SSM_REVIEW"
+        | "PENDING_FINAL_APPROVAL"
+        | "COMPLETED"
+        | "REJECTED";
       onboardedAt: Date | null;
       owner: {
         userId: string;
@@ -1706,13 +1713,16 @@ export class AdminRepository {
     };
 
     // Derive registration number from top-level column or corporate_onboarding_data.basicInfo
-    const getRegistrationNumber = (
-      org: { registration_number: string | null; corporate_onboarding_data?: unknown }
-    ): string | null => {
+    const getRegistrationNumber = (org: {
+      registration_number: string | null;
+      corporate_onboarding_data?: unknown;
+    }): string | null => {
       if (org.registration_number) return org.registration_number;
-      const data = org.corporate_onboarding_data as {
-        basicInfo?: { ssmRegistrationNumber?: string; ssmRegisterNumber?: string };
-      } | undefined;
+      const data = org.corporate_onboarding_data as
+        | {
+            basicInfo?: { ssmRegistrationNumber?: string; ssmRegisterNumber?: string };
+          }
+        | undefined;
       const basic = data?.basicInfo;
       return basic?.ssmRegistrationNumber ?? basic?.ssmRegisterNumber ?? null;
     };
@@ -1898,18 +1908,18 @@ export class AdminRepository {
           last_name: true,
         },
       },
-    members: {
-      include: {
-        user: {
-          select: {
-            first_name: true,
-            last_name: true,
-            email: true,
-            phone: true,
+      members: {
+        include: {
+          user: {
+            select: {
+              first_name: true,
+              last_name: true,
+              email: true,
+              phone: true,
+            },
           },
         },
       },
-    },
       regtank_onboarding: {
         select: {
           request_id: true,
@@ -2184,7 +2194,10 @@ export class AdminRepository {
     defaulted: { amount: number; count: number };
     dueSoon: { amount: number; count: number };
   }> {
-    const { start: dueSoonStart, end: dueSoonEnd } = bookMetricsDueSoonWindow(new Date(), asOfCutoff);
+    const { start: dueSoonStart, end: dueSoonEnd } = bookMetricsDueSoonWindow(
+      new Date(),
+      asOfCutoff
+    );
     const filters = bookMetricsAsOfFilters(asOfCutoff);
 
     const [outstanding, inFunding, distressed, arrears, defaulted, dueSoon] = await Promise.all([
@@ -2227,10 +2240,7 @@ export class AdminRepository {
       }),
     ]);
 
-    const toMetric = (row: {
-      _sum: { funded_amount: Prisma.Decimal | null };
-      _count: number;
-    }) => ({
+    const toMetric = (row: { _sum: { funded_amount: Prisma.Decimal | null }; _count: number }) => ({
       amount: row._sum.funded_amount?.toNumber() ?? 0,
       count: row._count,
     });
@@ -2470,7 +2480,8 @@ export class AdminRepository {
 
       const financingType = app.financing_type as Record<string, unknown> | null;
       const productLabel =
-        typeof financingType?.product_name === "string" && financingType.product_name.trim().length > 0
+        typeof financingType?.product_name === "string" &&
+        financingType.product_name.trim().length > 0
           ? financingType.product_name
           : "Financing Product";
 
@@ -2507,7 +2518,9 @@ export class AdminRepository {
     });
 
     const productIdList = [
-      ...new Set(transformedApplications.map((a) => a.productId).filter((x): x is string => Boolean(x))),
+      ...new Set(
+        transformedApplications.map((a) => a.productId).filter((x): x is string => Boolean(x))
+      ),
     ];
     const productRows =
       productIdList.length > 0
@@ -2522,7 +2535,7 @@ export class AdminRepository {
 
     const applications = transformedApplications.map((row) => ({
       ...row,
-      baseProductId: row.productId ? productIdToBase.get(row.productId) ?? row.productId : null,
+      baseProductId: row.productId ? (productIdToBase.get(row.productId) ?? row.productId) : null,
     }));
 
     return { applications, total };
@@ -2579,7 +2592,9 @@ export class AdminRepository {
         { issuer_organization: { name: { contains: search, mode: "insensitive" } } },
         { issuer_organization: { display_reference: { contains: search, mode: "insensitive" } } },
         { applications: { some: { id: { contains: search, mode: "insensitive" } } } },
-        { applications: { some: { display_reference: { contains: search, mode: "insensitive" } } } },
+        {
+          applications: { some: { display_reference: { contains: search, mode: "insensitive" } } },
+        },
       ];
     }
 
@@ -2749,15 +2764,18 @@ export class AdminRepository {
     const offerDetails = (contract.offer_details ?? {}) as Record<string, unknown>;
     const customerDetails = (contract.customer_details ?? {}) as Record<string, unknown>;
     const sentByUserId =
-      typeof offerDetails.sent_by_user_id === "string" && offerDetails.sent_by_user_id.trim().length > 0
+      typeof offerDetails.sent_by_user_id === "string" &&
+      offerDetails.sent_by_user_id.trim().length > 0
         ? (offerDetails.sent_by_user_id as string)
         : null;
     const respondedByUserId =
-      typeof offerDetails.responded_by_user_id === "string" && offerDetails.responded_by_user_id.trim().length > 0
+      typeof offerDetails.responded_by_user_id === "string" &&
+      offerDetails.responded_by_user_id.trim().length > 0
         ? (offerDetails.responded_by_user_id as string)
         : null;
     const requestedFacility =
-      typeof offerDetails.requested_facility === "number" && Number.isFinite(offerDetails.requested_facility)
+      typeof offerDetails.requested_facility === "number" &&
+      Number.isFinite(offerDetails.requested_facility)
         ? offerDetails.requested_facility
         : resolveRequestedFacility(contractDetails);
     const facilityFeeUpfront = resolveFacilityFeeUpfront(contractDetails);
@@ -2790,7 +2808,8 @@ export class AdminRepository {
         id: application.id,
         displayReference: application.display_reference ?? null,
         productId:
-          typeof (application.financing_type as Record<string, unknown> | null)?.product_id === "string"
+          typeof (application.financing_type as Record<string, unknown> | null)?.product_id ===
+          "string"
             ? ((application.financing_type as Record<string, unknown>).product_id as string)
             : null,
         status: application.status,
@@ -2892,7 +2911,8 @@ export class AdminRepository {
           ? contractDetails.number
           : null,
       title: typeof contractDetails.title === "string" ? contractDetails.title : null,
-      description: typeof contractDetails.description === "string" ? contractDetails.description : null,
+      description:
+        typeof contractDetails.description === "string" ? contractDetails.description : null,
       issuerOrganizationId: contract.issuer_organization_id,
       issuerOrganizationName: contract.issuer_organization?.name ?? null,
       issuerOrganizationDisplayReference: contract.issuer_organization?.display_reference ?? null,
@@ -2914,9 +2934,9 @@ export class AdminRepository {
       updatedAt: contract.updated_at,
       contractDetails: contract.contract_details ? contractDetails : null,
       offerDetails: contract.offer_details ? offerDetails : null,
-      offerSentByUserName: sentByUserId ? userNameById.get(sentByUserId) ?? null : null,
+      offerSentByUserName: sentByUserId ? (userNameById.get(sentByUserId) ?? null) : null,
       offerRespondedByUserName: respondedByUserId
-        ? userNameById.get(respondedByUserId) ?? null
+        ? (userNameById.get(respondedByUserId) ?? null)
         : null,
       customerDetails: contract.customer_details ? customerDetails : null,
       applications,
@@ -2938,7 +2958,7 @@ export class AdminRepository {
       })),
       activity: activityLogs.map((log) => {
         const metadata = (log.metadata as Record<string, unknown> | null) ?? {};
-        const actorName = log.user_id ? userNameById.get(log.user_id) ?? null : null;
+        const actorName = log.user_id ? (userNameById.get(log.user_id) ?? null) : null;
         return {
           id: log.id,
           eventType: log.event_type,
@@ -3059,11 +3079,7 @@ export class AdminRepository {
   /**
    * Reset item review status to PENDING (clears reviewer and reviewed_at)
    */
-  async resetItemReviewToPending(
-    applicationId: string,
-    itemType: string,
-    itemId: string
-  ) {
+  async resetItemReviewToPending(applicationId: string, itemType: string, itemId: string) {
     return prisma.applicationReviewItem.upsert({
       where: {
         application_id_item_type_item_id: {
