@@ -232,10 +232,10 @@ export function latePaymentPhaseTone(
 ): WorkflowStatusTone {
   if (phase === "not-needed") return "success";
   if (phase === "not-available") return "neutral";
+  if (phase === "defaulted") return "danger";
   if (phase === "in-grace") return "warning";
-  if (phase === "late") return "active";
-  if (phase === "arrears" || phase === "default-eligible" || phase === "defaulted") {
-    return "danger";
+  if (phase === "late" || phase === "arrears" || phase === "default-eligible") {
+    return "active";
   }
   return "neutral";
 }

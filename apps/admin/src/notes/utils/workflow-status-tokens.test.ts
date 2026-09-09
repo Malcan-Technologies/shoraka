@@ -1,6 +1,7 @@
 import { ADMIN_ACTION_SURFACE_CLASS, ADMIN_WAITING_SURFACE_CLASS } from "@/lib/admin-status-token";
 import {
   disbursementLifecycleStripTone,
+  latePaymentPhaseTone,
   paymentReceiptStatusLabel,
   paymentReceiptTone,
   settlementLifecycleStripTone,
@@ -112,5 +113,15 @@ describe("settlement and receipt tones", () => {
     expect(disbursementLifecycleStripTone("DRAFT")).toBe("active");
     expect(disbursementLifecycleStripTone("SUBMITTED_TO_TRUSTEE")).toBe("warning");
     expect(disbursementLifecycleStripTone("COMPLETED")).toBe("success");
+  });
+});
+
+describe("latePaymentPhaseTone", () => {
+  it("keeps default-eligible yellow so admin action is visible, and defaulted red", () => {
+    expect(latePaymentPhaseTone("in-grace")).toBe("warning");
+    expect(latePaymentPhaseTone("late")).toBe("active");
+    expect(latePaymentPhaseTone("arrears")).toBe("active");
+    expect(latePaymentPhaseTone("default-eligible")).toBe("active");
+    expect(latePaymentPhaseTone("defaulted")).toBe("danger");
   });
 });

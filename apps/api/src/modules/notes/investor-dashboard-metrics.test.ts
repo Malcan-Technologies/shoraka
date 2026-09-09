@@ -240,6 +240,32 @@ describe("computeAtRisk", () => {
       maxDaysPastDue: null,
     });
   });
+
+  it("counts unique notes when one overdue note has multiple holdings", () => {
+    const result = computeAtRisk(
+      [
+        holding({
+          investmentId: "inv-a",
+          servicingStatus: "ARREARS",
+          daysPastDue: 40,
+          confirmedAmount: 40_000,
+          fundedAmount: 100_000,
+          profitRatePercent: 0,
+        }),
+        holding({
+          investmentId: "inv-b",
+          servicingStatus: "ARREARS",
+          daysPastDue: 40,
+          confirmedAmount: 60_000,
+          fundedAmount: 100_000,
+          profitRatePercent: 0,
+        }),
+      ],
+      100_000
+    );
+    expect(result.count).toBe(1);
+    expect(result.amount).toBe(100_000);
+  });
 });
 
 describe("computeCashflowNext90Days", () => {

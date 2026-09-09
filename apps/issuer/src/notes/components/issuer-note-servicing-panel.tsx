@@ -75,7 +75,7 @@ export function IssuerNoteServicingPanel({ note }: { note: NoteDetail }) {
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div>
-              <div className="text-xs text-muted-foreground">Servicing status</div>
+              <div className="text-meta text-muted-foreground">Servicing status</div>
               <div className="mt-2">
                 <StatusBadge
                   label={formatServicingStatusLabel(note.servicingStatus)}
@@ -84,7 +84,7 @@ export function IssuerNoteServicingPanel({ note }: { note: NoteDetail }) {
               </div>
             </div>
             <div>
-              <div className="text-xs text-muted-foreground">Days past due</div>
+              <div className="text-meta text-muted-foreground">Days past due</div>
               <div className="mt-1 text-ui font-medium tabular-nums text-foreground">
                 {dpd > 0 ? dpd : "—"}
               </div>
@@ -92,13 +92,13 @@ export function IssuerNoteServicingPanel({ note }: { note: NoteDetail }) {
             {showIndicative ? (
               <>
                 <div>
-                  <div className="text-xs text-muted-foreground">Indicative Ta&apos;widh</div>
+                  <div className="text-meta text-muted-foreground">Indicative Ta&apos;widh</div>
                   <div className="mt-1 text-ui font-medium tabular-nums text-foreground">
                     {formatCurrency(tawidh)}
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs text-muted-foreground">Indicative Gharamah</div>
+                  <div className="text-meta text-muted-foreground">Indicative Gharamah</div>
                   <div className="mt-1 text-ui font-medium tabular-nums text-foreground">
                     {formatCurrency(gharamah)}
                   </div>

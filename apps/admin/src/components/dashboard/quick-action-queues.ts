@@ -1,4 +1,5 @@
 import type { ComponentType } from "react";
+import type { AdminPermission } from "@cashsouk/types";
 
 export type QueueUrgency = "default" | "warning" | "urgent";
 
@@ -21,7 +22,7 @@ const VARIANT_RANK: Record<QueueUrgency, number> = {
   default: 2,
 };
 
-export function canSeeDefaultEligibleQueue(can: (permission: string) => boolean) {
+export function canSeeDefaultEligibleQueue(can: (permission: AdminPermission) => boolean) {
   return can("notes.view") && can("notes.default.manage");
 }
 

@@ -1,4 +1,4 @@
-import type { NoteDetail } from "@cashsouk/types";
+import { malaysiaCalendarDaysRemaining, type NoteDetail } from "@cashsouk/types";
 import {
   latePaymentPhaseTone,
   WORKFLOW_STATUS_BADGE,
@@ -61,18 +61,6 @@ function resolvePaymentDueDate(note: NoteDetail): string | null {
 
 export function getNotePaymentDueDate(note: NoteDetail): string | null {
   return resolvePaymentDueDate(note);
-}
-
-function utcStartOfDayMs(date: Date) {
-  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
-}
-
-function calculateCalendarDayCount(startDate: Date, endDate: Date) {
-  if (!Number.isFinite(startDate.getTime()) || !Number.isFinite(endDate.getTime())) return 0;
-  return Math.max(
-    0,
-    Math.floor((utcStartOfDayMs(endDate) - utcStartOfDayMs(startDate)) / 86_400_000)
-  );
 }
 
 function dayCountLabel(count: number, unit: string) {
@@ -139,14 +127,15 @@ export function resolveLatePaymentTimeline(note: NoteDetail): LatePaymentTimelin
     note.servicingStatus === "DEFAULTED" || note.status === "DEFAULTED";
 
   if (isDefaulted) {
+    const persistedDpd = Math.max(0, Number(note.daysPastDue ?? 0));
     return {
       phase: "defaulted",
       dueDate,
       daysUntilDue: 0,
-      daysPastMaturity: 0,
-      daysOverdue: 0,
+      daysPastMaturity: persistedDpd,
+      daysOverdue: persistedDpd,
       graceDaysLeft: 0,
-      daysAfterGrace: 0,
+      daysAfterGrace: persistedDpd,
       ...buildTimelineLabels({
         workflowLabel: "Defaulted",
         servicingTimingLabel: "Defaulted",
@@ -214,10 +203,9 @@ export function resolveLatePaymentTimeline(note: NoteDetail): LatePaymentTimelin
     };
   }
 
-  const dueDateValue = new Date(dueDate);
-  const today = new Date();
-  const daysPastMaturity = calculateCalendarDayCount(dueDateValue, today);
-  const daysUntilDue = calculateCalendarDayCount(today, dueDateValue);
+  const signedDaysRemaining = malaysiaCalendarDaysRemaining(new Date(), dueDate) ?? 0;
+  const daysUntilDue = Math.max(0, signedDaysRemaining);
+  const daysPastMaturity = Math.max(0, -signedDaysRemaining);
   const daysOverdue = Math.max(0, daysPastMaturity - note.gracePeriodDays);
   const graceDaysLeft = Math.max(0, note.gracePeriodDays - daysPastMaturity);
   const daysAfterGrace = daysOverdue;

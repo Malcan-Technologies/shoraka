@@ -12,7 +12,7 @@ export function idleDaysCopy(idleDays: number | null | undefined): string | null
 }
 
 export function atRiskNoteCountCopy(count: number): string {
-  return count === 1 ? "1 note late" : `${count} notes late`;
+  return count === 1 ? "1 note at risk" : `${count} notes at risk`;
 }
 
 export function dualSeriesChartPaths(

@@ -1,6 +1,5 @@
-import { format } from "date-fns";
 import { formatCurrency } from "@cashsouk/config";
-import type { NoteDetail } from "@cashsouk/types";
+import { formatNoteDateEnMy, type NoteDetail } from "@cashsouk/types";
 import { StatusBadge } from "@cashsouk/ui";
 import { LATE_PAYMENT_WORKFLOW_BADGE, type LatePaymentTimeline } from "@/notes/utils/late-payment-workflow";
 import { latePaymentPhaseTone, workflowToneToStatusToken } from "@/notes/utils/workflow-status-tokens";
@@ -35,7 +34,7 @@ export function NoteServicingStatusSummary({
         </p>
         {note.indicativeAsOf ? (
           <p className="text-meta text-muted-foreground">
-            as of {format(new Date(note.indicativeAsOf), "dd MMM yyyy")}
+            as of {formatNoteDateEnMy(note.indicativeAsOf) ?? note.indicativeAsOf}
           </p>
         ) : null}
       </div>

@@ -299,7 +299,7 @@ export function computeAtRisk(
   return {
     amount,
     percent: portfolioTotal > 0 ? roundNoteMoney((amount / portfolioTotal) * 100, 2) : 0,
-    count: atRisk.length,
+    count: new Set(atRisk.map((holding) => holding.noteId)).size,
     maxDaysPastDue,
   };
 }

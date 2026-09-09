@@ -1,5 +1,6 @@
 import type { NoteListItem } from "@cashsouk/types";
 import {
+  atRiskNoteCountCopy,
   cashflowBarPercent,
   dualSeriesChartPaths,
   HOLDINGS_PREVIEW_LIMIT,
@@ -72,6 +73,11 @@ describe("dashboard presentation", () => {
     expect(idleDaysCopy(null)).toBeNull();
     expect(idleDaysCopy(6)).toBe("idle 6 days");
     expect(idleDaysCopy(1)).toBe("idle 1 day");
+  });
+
+  it("labels at-risk holdings as notes at risk", () => {
+    expect(atRiskNoteCountCopy(1)).toBe("1 note at risk");
+    expect(atRiskNoteCountCopy(2)).toBe("2 notes at risk");
   });
 
   it("hides the value-over-time series when history is shorter than 2 points", () => {

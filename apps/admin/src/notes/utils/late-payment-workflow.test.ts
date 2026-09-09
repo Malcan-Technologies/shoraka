@@ -48,6 +48,35 @@ describe("resolveLatePaymentTimeline", () => {
     );
     expect(timeline.phase).toBe("defaulted");
   });
+
+  it("keeps persisted days past due after default", () => {
+    const timeline = resolveLatePaymentTimeline(
+      note({
+        servicingStatus: NoteServicingStatus.DEFAULTED,
+        status: NoteStatus.DEFAULTED,
+        daysPastDue: 41,
+      })
+    );
+    expect(timeline.daysPastMaturity).toBe(41);
+  });
+
+  it("counts fallback overdue days on the Malaysia calendar", () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date("2026-01-10T16:00:00.000Z"));
+    try {
+      const timeline = resolveLatePaymentTimeline(
+        note({
+          servicingStatus: NoteServicingStatus.CURRENT,
+          daysPastDue: 0,
+          gracePeriodDays: 5,
+        })
+      );
+      expect(timeline.daysPastMaturity).toBe(10);
+      expect(timeline.phase).toBe("late");
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 });
 
 describe("resolveLatePaymentActionGates", () => {
