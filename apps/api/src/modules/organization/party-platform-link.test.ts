@@ -31,8 +31,11 @@ import {
   assertPartyBelongsToOrganization,
   assertPersonScopedPlaceholderAllowed,
   claimPartyProfileUserLink,
+  findReusablePersonScopedInvitation,
+  invitationEmailsMatch,
   isPlaceholderInvitationEmail,
   linkPartyProfileToUser,
+  normalizeInvitationEmail,
 } from "./party-platform-link";
 
 const findFirst = prisma.organizationPartyProfile.findFirst as jest.Mock;
@@ -348,5 +351,38 @@ describe("applyPersonScopedInvitationAcceptance", () => {
       })
     ).rejects.toMatchObject({ code: "ALREADY_ACCEPTED" });
     expect(memberCreate).toHaveBeenCalled();
+  });
+});
+
+describe("invitation email normalization and Person-scoped reuse", () => {
+  it("treats case and surrounding whitespace as the same email", () => {
+    expect(normalizeInvitationEmail("  Darren@Example.com ")).toBe("darren@example.com");
+    expect(invitationEmailsMatch("Darren@Example.com", "darren@example.com")).toBe(true);
+    expect(invitationEmailsMatch("darren@example.com", "darren.new@example.com")).toBe(false);
+  });
+
+  it("reuses a Person-scoped invite only for the same normalized email and role", () => {
+    const active = [
+      {
+        id: "inv-old",
+        token: "token-old",
+        email: "darren.old@example.com",
+        role: "ORGANIZATION_MEMBER",
+      },
+    ];
+    expect(
+      findReusablePersonScopedInvitation(active, "darren.new@example.com", "ORGANIZATION_MEMBER")
+    ).toBeUndefined();
+    expect(
+      findReusablePersonScopedInvitation(active, "  Darren.Old@Example.com ", "ORGANIZATION_MEMBER")
+    ).toEqual(active[0]);
+    expect(
+      findReusablePersonScopedInvitation(active, "darren.old@example.com", "ORGANIZATION_ADMIN")
+    ).toBeUndefined();
+  });
+
+  it("does not implement provider-specific email rewriting", () => {
+    expect(invitationEmailsMatch("darren@gmail.com", "d.arren@gmail.com")).toBe(false);
+    expect(invitationEmailsMatch("darren+tag@example.com", "darren@example.com")).toBe(false);
   });
 });

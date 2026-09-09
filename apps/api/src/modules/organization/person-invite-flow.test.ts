@@ -15,7 +15,8 @@ function sliceFn(source: string, start: string, end: string): string {
 describe("Person-scoped invitation reuses the existing Members invite flow", () => {
   it("stores partyProfileId on inviteMember and generate-link", () => {
     expect(service).toContain("input.partyProfileId");
-    expect(service).toContain("invitedByUserId: userId,\n                partyProfileId,");
+    expect(service).toContain("issuePersonScopedInvitation");
+    expect(service).toContain("partyProfileId: params.partyProfileId");
   });
 
   it("links Person to the accepting User on accept, not by email match", () => {
@@ -85,6 +86,8 @@ describe("Person-scoped invitation lifecycle safety", () => {
     const accept = sliceFn(service, "async acceptInvitation", "async getPendingInvitations");
     expect(accept).toContain("EMAIL_MISMATCH");
     expect(accept).toContain("placeholderInvite");
+    expect(accept).toContain("invitationEmailsMatch(user.email, invitation.email)");
+    expect(accept).not.toContain("user.email !== invitation.email");
   });
 
   it("requires owner/admin and matching organization for resend and revoke", () => {
@@ -121,5 +124,75 @@ describe("Inactive person vs platform membership stay independent", () => {
     expect(fn).not.toContain("user_id:");
     expect(fn).not.toContain("organizationMember");
     expect(fn).toContain("does not remove OrganizationMember");
+  });
+});
+
+const repository = readFileSync(join(__dirname, "repository.ts"), "utf8");
+const schema = readFileSync(join(__dirname, "../../../prisma/schema.prisma"), "utf8");
+const generateLink = sliceFn(
+  service,
+  "async generateMemberInvitationUrl",
+  "async acceptInvitation"
+);
+const issuePerson = sliceFn(
+  service,
+  "private async issuePersonScopedInvitation",
+  "async createOrganization"
+);
+
+describe("Person-scoped invitation reuse and supersession", () => {
+  it("reuses an active Person-scoped invite only when org, party, role, and normalized email match", () => {
+    expect(link).toContain("Person-scoped invitations must not be reused across different addressed");
+    expect(link).toContain("findReusablePersonScopedInvitation");
+    expect(link).toContain("invitationEmailsMatch(row.email, email) && row.role === role");
+    expect(generateLink).toContain("issuePersonScopedInvitation");
+    expect(issuePerson).toContain("listActivePersonScopedInvitations");
+    expect(issuePerson).toContain("findReusablePersonScopedInvitation");
+  });
+
+  it("supersedes other active Person-scoped invites so an old token cannot be accepted", () => {
+    expect(issuePerson).toContain("supersedeActivePersonScopedInvitations");
+    expect(issuePerson).toContain("exceptId: reusable.id");
+    expect(repository).toContain("async supersedeActivePersonScopedInvitations");
+    expect(repository).toContain("deleteMany");
+    expect(repository).toContain("accepted: false");
+    expect(repository).toContain("expires_at: { gt: new Date() }");
+    expect(repository).toContain("organization_party_profile_id: partyProfileId");
+  });
+
+  it("keeps generic Members generate-link reuse on email + role without Person supersede", () => {
+    expect(generateLink).toContain("if (partyProfileId)");
+    expect(generateLink.indexOf("issuePersonScopedInvitation")).toBeLessThan(
+      generateLink.indexOf("existingInvitation")
+    );
+    expect(generateLink).toContain("email,\n              role: generateRole");
+    expect(generateLink).not.toContain("organization_party_profile_id: partyProfileId");
+  });
+});
+
+describe("Invitation email normalization", () => {
+  it("normalizes invitation creation, reuse, acceptance, and existing-user lookup", () => {
+    expect(service).toContain("normalizeInvitationEmail");
+    expect(service).toContain("invitationEmailsMatch");
+    expect(link).toContain("normalizeDirectorShareholderPartyEmail");
+    expect(repository).toContain("normalizeDirectorShareholderPartyEmail");
+    expect(repository).toContain('mode: "insensitive"');
+    expect(service).not.toContain("input.email?.toLowerCase()");
+    expect(service).not.toContain("input.email?.toLowerCase() || undefined");
+  });
+});
+
+describe("Person ↔ User uniqueness comments", () => {
+  it("keeps per-organization SQL partial unique indexes and rejects reassignment", () => {
+    expect(schema).toContain("Same User may be linked in different organizations.");
+    expect(schema).toContain("Uniqueness is only within one organization.");
+    expect(schema).toContain("Prisma 5 cannot represent these partial unique indexes.");
+    expect(schema).toContain("organization_party_profiles_issuer_org_user_id_key");
+    expect(schema).toContain("organization_party_profiles_investor_org_user_id_key");
+    expect(schema).toContain("user_id                     String?                           @db.VarChar(5)");
+    expect(schema).not.toContain("@@unique([user_id])");
+    expect(schema).not.toContain("@@unique([issuer_organization_id, user_id])");
+    expect(link).toContain("Person ↔ User reassignment is intentionally unsupported.");
+    expect(link).toContain("Do not overwrite an existing different user_id without an explicit");
   });
 });

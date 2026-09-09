@@ -4,6 +4,7 @@ import {
   OrganizationPartyMembershipStatus,
   Prisma,
 } from "@prisma/client";
+import { normalizeDirectorShareholderPartyEmail } from "@cashsouk/types";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
 
@@ -20,6 +21,10 @@ type PartyDb = typeof prisma | Prisma.TransactionClient;
  * Never overwrite an existing different user_id during invitation
  * acceptance. Person-scoped acceptance must be transactional.
  *
+ * Person ↔ User reassignment is intentionally unsupported.
+ * Do not overwrite an existing different user_id without an explicit
+ * business-approved reassignment workflow.
+ *
  * OrganizationPartyProfile represents company/regulatory identity.
  * OrganizationMember represents platform access.
  *
@@ -29,6 +34,34 @@ type PartyDb = typeof prisma | Prisma.TransactionClient;
  */
 export function isPlaceholderInvitationEmail(email: string): boolean {
   return email.startsWith("invitation-") && email.includes("@cashsouk.com");
+}
+
+export function normalizeInvitationEmail(email: string): string {
+  return normalizeDirectorShareholderPartyEmail(email);
+}
+
+export function invitationEmailsMatch(left: string, right: string): boolean {
+  return normalizeInvitationEmail(left) === normalizeInvitationEmail(right);
+}
+
+export type PersonScopedInvitationMatch = {
+  id: string;
+  token: string;
+  email: string;
+  role: string;
+};
+
+// Person-scoped invitations must not be reused across different addressed
+// emails. The party identity is explicit, but delivery/acceptance is still
+// bound to the addressed platform account email.
+export function findReusablePersonScopedInvitation<T extends PersonScopedInvitationMatch>(
+  active: T[],
+  email: string,
+  role: string
+): T | undefined {
+  return active.find(
+    (row) => invitationEmailsMatch(row.email, email) && row.role === role
+  );
 }
 
 /**
@@ -109,6 +142,10 @@ function isUniqueConstraintError(error: unknown): boolean {
 /**
  * Atomically set Person.user_id only when it is null or already the accepting User.
  * Never overwrites P1.user_id = U1 with U2.
+ *
+ * Person ↔ User reassignment is intentionally unsupported.
+ * Do not overwrite an existing different user_id without an explicit
+ * business-approved reassignment workflow.
  */
 export async function claimPartyProfileUserLink(params: {
   partyId: string;

@@ -220,7 +220,7 @@ export function createOrganizationProfileRouter() {
       try {
         const portal = portalFromParams(req);
         const { id, partyId } = req.params;
-        await assertOrgAccess(req, portal, id);
+        await assertOrgOwnerOrAdmin(req, portal, id);
         await deleteManagementParty({ portal, organizationId: id, partyId });
         res.json({ success: true, data: { success: true }, correlationId: res.locals.correlationId });
       } catch (error) {

@@ -45,8 +45,11 @@ import {
   assertPartyActiveForPlatformInvite,
   assertPartyBelongsToOrganization,
   assertPersonScopedPlaceholderAllowed,
+  findReusablePersonScopedInvitation,
+  invitationEmailsMatch,
   isPlaceholderInvitationEmail,
   linkPartyProfileToUser,
+  normalizeInvitationEmail,
 } from "./party-platform-link";
 import { randomBytes } from "crypto";
 import { assertIssuerOnboardingFeePaid } from "../payment/onboarding-fee-service";
@@ -307,6 +310,92 @@ export class OrganizationService {
         db: tx,
       });
     });
+  }
+
+  /**
+   * At most one active unexpired Person-scoped invitation per Person.
+   * Reuse only when org + party + role + normalized addressed email all match.
+   */
+  private async issuePersonScopedInvitation(params: {
+    actorUserId: string;
+    organization: OrganizationWithMembers;
+    organizationId: string;
+    portalType: PortalType;
+    partyProfileId: string;
+    email: string;
+    role: OrganizationMemberRole;
+    logInvite: boolean;
+  }): Promise<{ id: string; token: string; reused: boolean }> {
+    const active = await this.repository.listActivePersonScopedInvitations(
+      params.organizationId,
+      params.portalType,
+      params.partyProfileId
+    );
+    const reusable = findReusablePersonScopedInvitation(active, params.email, params.role);
+    if (reusable) {
+      await this.repository.supersedeActivePersonScopedInvitations(
+        params.organizationId,
+        params.portalType,
+        params.partyProfileId,
+        { exceptId: reusable.id }
+      );
+      return { id: reusable.id, token: reusable.token, reused: true };
+    }
+
+    const token = randomBytes(32).toString("hex");
+    const expiresAt = organizationInvitationExpiresAt();
+    const created = await prisma.$transaction(async (tx) => {
+      await this.repository.supersedeActivePersonScopedInvitations(
+        params.organizationId,
+        params.portalType,
+        params.partyProfileId,
+        { db: tx }
+      );
+      const invitation =
+        params.portalType === "investor"
+          ? await this.repository.createInvestorOrganizationInvitation(
+              {
+                email: params.email,
+                role: params.role,
+                investorOrganizationId: params.organizationId,
+                token,
+                expiresAt,
+                invitedByUserId: params.actorUserId,
+                partyProfileId: params.partyProfileId,
+              },
+              tx
+            )
+          : await this.repository.createIssuerOrganizationInvitation(
+              {
+                email: params.email,
+                role: params.role,
+                issuerOrganizationId: params.organizationId,
+                token,
+                expiresAt,
+                invitedByUserId: params.actorUserId,
+                partyProfileId: params.partyProfileId,
+              },
+              tx
+            );
+      if (params.logInvite) {
+        await logOrganizationMembershipEvent({
+          eventType: "MEMBER_INVITED",
+          actorUserId: params.actorUserId,
+          ownerUserId: params.organization.owner_user_id,
+          organizationId: params.organizationId,
+          portalType: params.portalType,
+          organizationName: params.organization.name,
+          organizationReference: params.organization.display_reference,
+          memberEmail: params.email,
+          newRole: params.role,
+          invitationId: invitation.id,
+          partyProfileId: params.partyProfileId,
+          db: tx,
+        });
+      }
+      return invitation;
+    });
+    return { id: created.id, token: created.token, reused: false };
   }
 
   /**
@@ -1155,66 +1244,71 @@ export class OrganizationService {
 
     // Generic Members invites may use a placeholder email for shareable links.
     // Person-scoped invites require an addressed email (checked above).
-    const email = input.email?.toLowerCase() || `invitation-${Date.now()}@cashsouk.com`;
+    const email =
+      (input.email && normalizeInvitationEmail(input.email)) ||
+      `invitation-${Date.now()}@cashsouk.com`;
 
-    // Generate invitation token
-    const token = randomBytes(32).toString("hex");
-    const expiresAt = organizationInvitationExpiresAt();
-
-    const invitation = await prisma.$transaction(async (tx) => {
-      const created =
-        portalType === "investor"
-          ? await this.repository.createInvestorOrganizationInvitation(
-              {
-                email,
-                role:
-                  input.role === "ORGANIZATION_ADMIN"
-                    ? OrganizationMemberRole.ORGANIZATION_ADMIN
-                    : OrganizationMemberRole.ORGANIZATION_MEMBER,
-                investorOrganizationId: organizationId,
-                token,
-                expiresAt,
-                invitedByUserId: userId,
-                partyProfileId,
-              },
-              tx
-            )
-          : await this.repository.createIssuerOrganizationInvitation(
-              {
-                email,
-                role:
-                  input.role === "ORGANIZATION_ADMIN"
-                    ? OrganizationMemberRole.ORGANIZATION_ADMIN
-                    : OrganizationMemberRole.ORGANIZATION_MEMBER,
-                issuerOrganizationId: organizationId,
-                token,
-                expiresAt,
-                invitedByUserId: userId,
-                partyProfileId,
-              },
-              tx
-            );
-
-      await logOrganizationMembershipEvent({
-        eventType: "MEMBER_INVITED",
+    let invitation: { id: string; token: string };
+    if (partyProfileId) {
+      invitation = await this.issuePersonScopedInvitation({
         actorUserId: userId,
-        ownerUserId: organization.owner_user_id,
+        organization,
         organizationId,
         portalType,
-        organizationName: organization.name,
-        organizationReference: organization.display_reference,
-        memberEmail: input.email?.toLowerCase() || undefined,
-        newRole:
-          input.role === "ORGANIZATION_ADMIN"
-            ? OrganizationMemberRole.ORGANIZATION_ADMIN
-            : OrganizationMemberRole.ORGANIZATION_MEMBER,
-        invitationId: created.id,
         partyProfileId,
-        db: tx,
+        email,
+        role: inviteRole,
+        logInvite: true,
       });
+    } else {
+      const token = randomBytes(32).toString("hex");
+      const expiresAt = organizationInvitationExpiresAt();
+      invitation = await prisma.$transaction(async (tx) => {
+        const created =
+          portalType === "investor"
+            ? await this.repository.createInvestorOrganizationInvitation(
+                {
+                  email,
+                  role: inviteRole,
+                  investorOrganizationId: organizationId,
+                  token,
+                  expiresAt,
+                  invitedByUserId: userId,
+                  partyProfileId,
+                },
+                tx
+              )
+            : await this.repository.createIssuerOrganizationInvitation(
+                {
+                  email,
+                  role: inviteRole,
+                  issuerOrganizationId: organizationId,
+                  token,
+                  expiresAt,
+                  invitedByUserId: userId,
+                  partyProfileId,
+                },
+                tx
+              );
 
-      return created;
-    });
+        await logOrganizationMembershipEvent({
+          eventType: "MEMBER_INVITED",
+          actorUserId: userId,
+          ownerUserId: organization.owner_user_id,
+          organizationId,
+          portalType,
+          organizationName: organization.name,
+          organizationReference: organization.display_reference,
+          memberEmail: input.email ? email : undefined,
+          newRole: inviteRole,
+          invitationId: created.id,
+          partyProfileId,
+          db: tx,
+        });
+
+        return created;
+      });
+    }
 
     // Send invitation email
     const inviter = await prisma.user.findUnique({
@@ -1230,7 +1324,7 @@ export class OrganizationService {
         ? process.env.INVESTOR_URL || "http://localhost:3002"
         : process.env.ISSUER_URL || "http://localhost:3001";
 
-    const inviteLink = `${portalUrl}/accept-invitation?token=${token}`;
+    const inviteLink = `${portalUrl}/accept-invitation?token=${invitation.token}`;
     const orgName = organization.name || "the organization";
 
     let emailSent = false;
@@ -1339,61 +1433,75 @@ export class OrganizationService {
       partyProfileId = party.id;
     }
 
-    const email = input.email?.toLowerCase() || `invitation-${Date.now()}@cashsouk.com`;
-    const existingInvitation =
-      portalType === "investor"
-        ? await prisma.investorOrganizationInvitation.findFirst({
-          where: {
-            ...(partyProfileId
-              ? { organization_party_profile_id: partyProfileId }
-              : { email }),
-            role: generateRole,
-            accepted: false,
-            expires_at: { gt: new Date() },
-            investor_organization_id: organizationId,
-          },
-          orderBy: { created_at: "desc" },
-        })
-        : await prisma.issuerOrganizationInvitation.findFirst({
-          where: {
-            ...(partyProfileId
-              ? { organization_party_profile_id: partyProfileId }
-              : { email }),
-            role: generateRole,
-            accepted: false,
-            expires_at: { gt: new Date() },
-            issuer_organization_id: organizationId,
-          },
-          orderBy: { created_at: "desc" },
-        });
+    const email =
+      (input.email && normalizeInvitationEmail(input.email)) ||
+      `invitation-${Date.now()}@cashsouk.com`;
 
     let token: string;
-    if (existingInvitation) {
-      token = existingInvitation.token;
+    if (partyProfileId) {
+      // Person-scoped invitations must not be reused across different addressed
+      // emails. The party identity is explicit, but delivery/acceptance is still
+      // bound to the addressed platform account email.
+      const invitation = await this.issuePersonScopedInvitation({
+        actorUserId: userId,
+        organization,
+        organizationId,
+        portalType,
+        partyProfileId,
+        email,
+        role: generateRole,
+        logInvite: false,
+      });
+      token = invitation.token;
     } else {
-      token = randomBytes(32).toString("hex");
-      const expiresAt = organizationInvitationExpiresAt();
+      const existingInvitation =
+        portalType === "investor"
+          ? await prisma.investorOrganizationInvitation.findFirst({
+            where: {
+              email,
+              role: generateRole,
+              accepted: false,
+              expires_at: { gt: new Date() },
+              investor_organization_id: organizationId,
+            },
+            orderBy: { created_at: "desc" },
+          })
+          : await prisma.issuerOrganizationInvitation.findFirst({
+            where: {
+              email,
+              role: generateRole,
+              accepted: false,
+              expires_at: { gt: new Date() },
+              issuer_organization_id: organizationId,
+            },
+            orderBy: { created_at: "desc" },
+          });
 
-      if (portalType === "investor") {
-        await this.repository.createInvestorOrganizationInvitation({
-          email,
-          role: generateRole,
-          investorOrganizationId: organizationId,
-          token,
-          expiresAt,
-          invitedByUserId: userId,
-          partyProfileId,
-        });
+      if (existingInvitation) {
+        token = existingInvitation.token;
       } else {
-        await this.repository.createIssuerOrganizationInvitation({
-          email,
-          role: generateRole,
-          issuerOrganizationId: organizationId,
-          token,
-          expiresAt,
-          invitedByUserId: userId,
-          partyProfileId,
-        });
+        token = randomBytes(32).toString("hex");
+        const expiresAt = organizationInvitationExpiresAt();
+
+        if (portalType === "investor") {
+          await this.repository.createInvestorOrganizationInvitation({
+            email,
+            role: generateRole,
+            investorOrganizationId: organizationId,
+            token,
+            expiresAt,
+            invitedByUserId: userId,
+          });
+        } else {
+          await this.repository.createIssuerOrganizationInvitation({
+            email,
+            role: generateRole,
+            issuerOrganizationId: organizationId,
+            token,
+            expiresAt,
+            invitedByUserId: userId,
+          });
+        }
       }
     }
 
@@ -1438,7 +1546,7 @@ export class OrganizationService {
     }
 
     const placeholderInvite = isPlaceholderInvitationEmail(invitation.email);
-    if (!placeholderInvite && user.email !== invitation.email) {
+    if (!placeholderInvite && !invitationEmailsMatch(user.email, invitation.email)) {
       throw new AppError(
         403,
         "EMAIL_MISMATCH",

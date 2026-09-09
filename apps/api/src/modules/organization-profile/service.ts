@@ -1812,6 +1812,8 @@ export async function deleteManagementParty(params: {
   organizationId: string;
   partyId: string;
 }): Promise<void> {
+  // Physical delete is limited to eligible USER_ADDED management/board people.
+  // Authorization (owner or ORGANIZATION_ADMIN) is enforced at the route.
   const row = await prisma.organizationPartyProfile.findFirst({
     where: { id: params.partyId, ...orgWhere(params.portal, params.organizationId) },
   });

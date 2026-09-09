@@ -496,11 +496,12 @@ model OrganizationPartyProfile {
   /// Removing OrganizationMember must not clear this field.
   /// Never overwrite an existing different user_id during invitation acceptance.
   /// Person-scoped acceptance must be transactional.
+  /// Person ↔ User reassignment is intentionally unsupported.
   ///
   /// Same User may be linked in different organizations.
   /// Uniqueness is only within one organization.
-  /// Prisma cannot represent the required partial unique indexes; they are
-  /// maintained by SQL migration:
+  /// Prisma 5 cannot represent these partial unique indexes.
+  /// They are enforced by migration SQL:
   ///   organization_party_profiles_issuer_org_user_id_key
   ///   organization_party_profiles_investor_org_user_id_key
   /// Do not remove them during db push/schema maintenance, and do not replace

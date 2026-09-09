@@ -59,6 +59,7 @@ import {
   createAdminOrganizationProfileRouter,
   createOrganizationProfileRouter,
 } from "./controller";
+import { deleteManagementParty } from "./service";
 
 const orgA = {
   owner_user_id: "owner-1",
@@ -170,5 +171,70 @@ describe("issuer and admin party inactivation routes", () => {
     );
     expect(response.status).toBe(403);
     expect(mockInactivateMasterParty).not.toHaveBeenCalled();
+  });
+});
+
+describe("issuer management-party delete permissions", () => {
+  let app: express.Application;
+
+  beforeEach(() => {
+    app = express();
+    app.use(express.json());
+    app.use("/v1/organizations", createOrganizationProfileRouter());
+    app.use((err: Error & { statusCode?: number; code?: string }, _req: Request, res: Response, _next: NextFunction) => {
+      res.status(err.statusCode || 500).json({
+        success: false,
+        error: { code: err.code, message: err.message },
+      });
+    });
+    jest.clearAllMocks();
+    mockAuthState.user = { user_id: "owner-1" };
+    mockGetOrganization.mockImplementation(async (userId: string, organizationId: string) => {
+      if (organizationId !== "org-a") {
+        throw new AppError(403, "FORBIDDEN", "You do not have access to this organization");
+      }
+      const isMember =
+        orgA.owner_user_id === userId || orgA.members.some((member) => member.user_id === userId);
+      if (!isMember) {
+        throw new AppError(403, "FORBIDDEN", "You do not have access to this organization");
+      }
+      return orgA;
+    });
+    (deleteManagementParty as jest.Mock).mockResolvedValue(undefined);
+  });
+
+  it("lets an issuer owner delete an eligible management-only USER_ADDED party", async () => {
+    mockAuthState.user = { user_id: "owner-1" };
+    const response = await request(app).delete(
+      "/v1/organizations/issuer/org-a/party-profiles/party-a"
+    );
+    expect(response.status).toBe(200);
+    expect(deleteManagementParty).toHaveBeenCalledWith({
+      portal: "issuer",
+      organizationId: "org-a",
+      partyId: "party-a",
+    });
+  });
+
+  it("lets an issuer organization admin delete an eligible management-only USER_ADDED party", async () => {
+    mockAuthState.user = { user_id: "admin-1" };
+    const response = await request(app).delete(
+      "/v1/organizations/issuer/org-a/party-profiles/party-a"
+    );
+    expect(response.status).toBe(200);
+    expect(deleteManagementParty).toHaveBeenCalledWith({
+      portal: "issuer",
+      organizationId: "org-a",
+      partyId: "party-a",
+    });
+  });
+
+  it("blocks an ordinary issuer member from deleting a management party", async () => {
+    mockAuthState.user = { user_id: "member-1" };
+    const response = await request(app).delete(
+      "/v1/organizations/issuer/org-a/party-profiles/party-a"
+    );
+    expect(response.status).toBe(403);
+    expect(deleteManagementParty).not.toHaveBeenCalled();
   });
 });

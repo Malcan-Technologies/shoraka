@@ -8,6 +8,7 @@ import {
   OrganizationMemberRole,
   Prisma,
 } from "@prisma/client";
+import { normalizeDirectorShareholderPartyEmail } from "@cashsouk/types";
 
 type OrganizationDbClient = typeof prisma | Prisma.TransactionClient;
 
@@ -402,8 +403,12 @@ export class OrganizationRepository {
    * Find user by email
    */
   async findUserByEmail(email: string) {
-    return prisma.user.findUnique({
-      where: { email },
+    const normalized = normalizeDirectorShareholderPartyEmail(email);
+    if (!normalized) {
+      return null;
+    }
+    return prisma.user.findFirst({
+      where: { email: { equals: normalized, mode: "insensitive" } },
       select: {
         user_id: true,
         email: true,
@@ -801,6 +806,55 @@ export class OrganizationRepository {
         accepted: false,
         accepted_at: null,
       },
+    });
+    return result.count;
+  }
+
+  async listActivePersonScopedInvitations(
+    organizationId: string,
+    portalType: "investor" | "issuer",
+    partyProfileId: string
+  ): Promise<Array<{ id: string; token: string; email: string; role: OrganizationMemberRole }>> {
+    const where = {
+      organization_party_profile_id: partyProfileId,
+      accepted: false,
+      expires_at: { gt: new Date() },
+    };
+    if (portalType === "investor") {
+      return prisma.investorOrganizationInvitation.findMany({
+        where: { ...where, investor_organization_id: organizationId },
+        select: { id: true, token: true, email: true, role: true },
+        orderBy: { created_at: "desc" },
+      });
+    }
+    return prisma.issuerOrganizationInvitation.findMany({
+      where: { ...where, issuer_organization_id: organizationId },
+      select: { id: true, token: true, email: true, role: true },
+      orderBy: { created_at: "desc" },
+    });
+  }
+
+  async supersedeActivePersonScopedInvitations(
+    organizationId: string,
+    portalType: "investor" | "issuer",
+    partyProfileId: string,
+    options: { exceptId?: string; db?: OrganizationDbClient } = {}
+  ): Promise<number> {
+    const db = options.db ?? prisma;
+    const where = {
+      organization_party_profile_id: partyProfileId,
+      accepted: false,
+      expires_at: { gt: new Date() },
+      ...(options.exceptId ? { NOT: { id: options.exceptId } } : {}),
+    };
+    if (portalType === "investor") {
+      const result = await db.investorOrganizationInvitation.deleteMany({
+        where: { ...where, investor_organization_id: organizationId },
+      });
+      return result.count;
+    }
+    const result = await db.issuerOrganizationInvitation.deleteMany({
+      where: { ...where, issuer_organization_id: organizationId },
     });
     return result.count;
   }
