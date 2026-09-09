@@ -208,6 +208,7 @@ export function principalEventsFromConfirmationsAndReturns(input: {
 }
 
 export type HoldingForDashboard = {
+  investmentId: string;
   noteId: string;
   noteReference: string;
   issuerName: string | null;
@@ -341,6 +342,7 @@ export function computeCashflowNext90Days(
       month.count += 1;
     }
     upcomingRows.push({
+      investmentId: holding.investmentId,
       noteId: holding.noteId,
       noteReference: holding.noteReference,
       issuerName: holding.issuerName,
@@ -353,7 +355,11 @@ export function computeCashflowNext90Days(
 
   upcomingRows.sort((left, right) => {
     if (left.dueDate !== right.dueDate) return left.dueDate.localeCompare(right.dueDate);
-    return left.noteReference.localeCompare(right.noteReference);
+    if (left.noteReference !== right.noteReference) {
+      return left.noteReference.localeCompare(right.noteReference);
+    }
+    if (left.amount !== right.amount) return left.amount - right.amount;
+    return left.investmentId.localeCompare(right.investmentId);
   });
 
   return {

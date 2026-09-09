@@ -28,6 +28,16 @@ describe("investor dashboard page", () => {
     expect(pageSource).toMatch(/variant="outline"[\s\S]*Deposit[\s\S]*<InvestNowButton/);
   });
 
+  it("sizes cashflow month bars to the live MYT window instead of a 3-column grid", () => {
+    const chartsSource = readFileSync(
+      join(__dirname, "../components/dashboard/investor-dashboard-charts.tsx"),
+      "utf8"
+    );
+    expect(chartsSource).toContain("repeat(${Math.max(1, cashflow.months.length)}");
+    expect(chartsSource).toContain("row.investmentId");
+    expect(chartsSource).not.toContain("grid-cols-3");
+  });
+
   it("omits fake ONB references, SLA dates, and the mock RM 1,000 minimum", () => {
     expect(pageSource).not.toContain("ONB-");
     expect(pageSource).not.toContain("Expected decision");

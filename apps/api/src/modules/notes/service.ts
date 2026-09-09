@@ -213,7 +213,7 @@ import {
   generateAndSendServicingLetter,
   resendServicingLetter as resendServicingLetterRecord,
 } from "./servicing-letters/service";
-import { remainingWaivableExcessLateChargeSplit } from "../payment/excess-late-charge-allocation";
+import { postedSettlementWaiverLimits } from "../payment/excess-late-charge-allocation";
 import {
   assertTenureInvestorObligationCovered,
   assertTenurePartialReceiptAllowed,
@@ -4222,6 +4222,7 @@ export class NoteService {
       .map((row) => {
         const posted = row.note.settlements;
         return {
+          investmentId: row.id,
           noteId: row.note.id,
           noteReference: row.note.note_reference,
           issuerName: snapshotName(row.note.issuer_snapshot, ["name", "companyName", "legal_name"]),
@@ -6317,85 +6318,81 @@ export class NoteService {
     input: z.infer<typeof lateChargeWaiverSchema>,
     actor: ActorContext
   ) {
-    const note = await noteRepository.findById(id);
-    if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
-    const posted = note.settlements.find(
-      (settlement) => settlement.status === NoteSettlementStatus.POSTED
-    );
-    if (!posted) {
-      assertNoteReadyForServicing(note);
-    } else if (note.funding_status !== NoteFundingStatus.FUNDED) {
-      throw new AppError(
-        409,
-        "NOTE_SERVICING_NOT_OPEN",
-        "Payment and settlement are available only after the note is funded and activated"
-      );
-    }
     const tawidhAmount = input.tawidhAmount ?? 0;
     const gharamahAmount = input.gharamahAmount ?? 0;
     if (tawidhAmount + gharamahAmount <= 0.005) {
       throw new AppError(422, "WAIVER_AMOUNT_REQUIRED", "Enter a Ta'widh or Gharamah waiver amount");
     }
-    let remainingTawidhAmount = 0;
-    let remainingGharamahAmount = 0;
-    if (posted) {
-      const priorTawidhWaived = (note.late_charge_waivers ?? [])
-        .filter((waiver) => waiver.settlement_id === posted.id)
-        .reduce((sum, waiver) => sum + toNumber(waiver.tawidh_waived_amount), 0);
-      const priorGharamahWaived = (note.late_charge_waivers ?? [])
-        .filter((waiver) => waiver.settlement_id === posted.id)
-        .reduce((sum, waiver) => sum + toNumber(waiver.gharamah_waived_amount), 0);
-      const remainingExcess = Math.max(
-        0,
-        Math.max(
-          toNumber(posted.excess_tawidh_amount) + toNumber(posted.excess_gharamah_amount),
-          toNumber(posted.excess_late_charge_amount)
-        ) -
-          toNumber(posted.excess_late_charge_paid_amount) -
-          toNumber(posted.excess_late_charge_waived_amount)
+    const updated = await prisma.$transaction(async (tx) => {
+      const note = await tx.note.findUnique({ where: { id }, include: noteInclude });
+      if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+      const posted = note.settlements.find(
+        (settlement) => settlement.status === NoteSettlementStatus.POSTED
       );
-      const remainingSplit = remainingWaivableExcessLateChargeSplit({
-        excessTawidhAmount: toNumber(posted.excess_tawidh_amount),
-        excessGharamahAmount: toNumber(posted.excess_gharamah_amount),
-        waivedTawidhAmount: priorTawidhWaived,
-        waivedGharamahAmount: priorGharamahWaived,
-        paidAmount: toNumber(posted.excess_late_charge_paid_amount),
-      });
-      remainingTawidhAmount = Math.max(
-        0,
-        Math.min(remainingSplit.remainingTawidh, remainingExcess)
-      );
-      remainingGharamahAmount = Math.max(
-        0,
-        Math.min(remainingSplit.remainingGharamah, remainingExcess)
-      );
-      if (tawidhAmount + gharamahAmount - remainingExcess > 0.005) {
+      if (!posted) {
+        assertNoteReadyForServicing(note);
+      } else if (note.funding_status !== NoteFundingStatus.FUNDED) {
         throw new AppError(
-          422,
-          "WAIVER_EXCEEDS_REMAINING_EXCESS",
-          "Waiver exceeds leftover late charges after settlement"
+          409,
+          "NOTE_SERVICING_NOT_OPEN",
+          "Payment and settlement are available only after the note is funded and activated"
         );
       }
-    } else {
-      const remaining = await this.checkOverdueLateCharge(id, {});
-      remainingTawidhAmount = remaining.remainingTawidhAmount;
-      remainingGharamahAmount = remaining.remainingGharamahAmount;
-    }
-    if (tawidhAmount - remainingTawidhAmount > 0.005) {
-      throw new AppError(
-        422,
-        "WAIVER_EXCEEDS_REMAINING_TAWIDH",
-        "Ta'widh waiver exceeds the remaining allowable amount"
-      );
-    }
-    if (gharamahAmount - remainingGharamahAmount > 0.005) {
-      throw new AppError(
-        422,
-        "WAIVER_EXCEEDS_REMAINING_GHARAMAH",
-        "Gharamah waiver exceeds the remaining allowable amount"
-      );
-    }
-    const updated = await prisma.$transaction(async (tx) => {
+      let remainingTawidhAmount = 0;
+      let remainingGharamahAmount = 0;
+      let lockedWaivedAmount = 0;
+      if (posted) {
+        await tx.$queryRaw`SELECT id FROM note_settlements WHERE id = ${posted.id} FOR UPDATE`;
+        const locked = await tx.noteSettlement.findUniqueOrThrow({ where: { id: posted.id } });
+        const waivers = await tx.noteLateChargeWaiver.findMany({
+          where: { settlement_id: posted.id },
+          select: { tawidh_waived_amount: true, gharamah_waived_amount: true },
+        });
+        const limits = postedSettlementWaiverLimits({
+          excessTawidhAmount: toNumber(locked.excess_tawidh_amount),
+          excessGharamahAmount: toNumber(locked.excess_gharamah_amount),
+          excessLateChargeAmount: toNumber(locked.excess_late_charge_amount),
+          paidAmount: toNumber(locked.excess_late_charge_paid_amount),
+          waivedAmount: toNumber(locked.excess_late_charge_waived_amount),
+          waivedTawidhAmount: waivers.reduce(
+            (sum, waiver) => sum + toNumber(waiver.tawidh_waived_amount),
+            0
+          ),
+          waivedGharamahAmount: waivers.reduce(
+            (sum, waiver) => sum + toNumber(waiver.gharamah_waived_amount),
+            0
+          ),
+        });
+        remainingTawidhAmount = limits.remainingTawidhAmount;
+        remainingGharamahAmount = limits.remainingGharamahAmount;
+        lockedWaivedAmount = toNumber(locked.excess_late_charge_waived_amount);
+        if (tawidhAmount + gharamahAmount - limits.remainingExcess > 0.005) {
+          throw new AppError(
+            422,
+            "WAIVER_EXCEEDS_REMAINING_EXCESS",
+            "Waiver exceeds leftover late charges after settlement"
+          );
+        }
+      } else {
+        await tx.$queryRaw`SELECT id FROM notes WHERE id = ${id} FOR UPDATE`;
+        const remaining = await this.checkOverdueLateCharge(id, {});
+        remainingTawidhAmount = remaining.remainingTawidhAmount;
+        remainingGharamahAmount = remaining.remainingGharamahAmount;
+      }
+      if (tawidhAmount - remainingTawidhAmount > 0.005) {
+        throw new AppError(
+          422,
+          "WAIVER_EXCEEDS_REMAINING_TAWIDH",
+          "Ta'widh waiver exceeds the remaining allowable amount"
+        );
+      }
+      if (gharamahAmount - remainingGharamahAmount > 0.005) {
+        throw new AppError(
+          422,
+          "WAIVER_EXCEEDS_REMAINING_GHARAMAH",
+          "Gharamah waiver exceeds the remaining allowable amount"
+        );
+      }
       await tx.noteLateChargeWaiver.create({
         data: {
           note_id: id,
@@ -6411,19 +6408,23 @@ export class NoteService {
           where: { id: posted.id },
           data: {
             excess_late_charge_waived_amount: money(
-              toNumber(posted.excess_late_charge_waived_amount) + tawidhAmount + gharamahAmount
+              lockedWaivedAmount + tawidhAmount + gharamahAmount
             ),
           },
         });
       } else {
+        const lockedNote = await tx.note.findUniqueOrThrow({
+          where: { id },
+          select: { indicative_tawidh_amount: true, indicative_gharamah_amount: true },
+        });
         await tx.note.update({
           where: { id },
           data: {
             indicative_tawidh_amount: money(
-              Math.max(0, toNumber(note.indicative_tawidh_amount) - tawidhAmount)
+              Math.max(0, toNumber(lockedNote.indicative_tawidh_amount) - tawidhAmount)
             ),
             indicative_gharamah_amount: money(
-              Math.max(0, toNumber(note.indicative_gharamah_amount) - gharamahAmount)
+              Math.max(0, toNumber(lockedNote.indicative_gharamah_amount) - gharamahAmount)
             ),
             indicative_as_of: new Date(),
           },

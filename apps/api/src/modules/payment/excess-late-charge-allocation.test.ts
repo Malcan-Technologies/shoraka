@@ -5,6 +5,7 @@ import {
   remainingExcessLateChargeSplit,
   remainingFrozenSplitAfterWaivers,
   remainingWaivableExcessLateChargeSplit,
+  postedSettlementWaiverLimits,
 } from "./excess-late-charge-allocation";
 
 describe("excess late charge allocation", () => {
@@ -93,6 +94,30 @@ describe("excess late charge allocation", () => {
         paidAmount: 100,
       })
     ).toEqual({ remainingTawidh: 0, remainingGharamah: 100 });
+  });
+
+  it("uses the locked settlement aggregate so a second waiver cannot overwrite the first", () => {
+    const first = postedSettlementWaiverLimits({
+      excessTawidhAmount: 100,
+      excessGharamahAmount: 100,
+      excessLateChargeAmount: 200,
+      paidAmount: 0,
+      waivedAmount: 0,
+      waivedTawidhAmount: 0,
+      waivedGharamahAmount: 0,
+    });
+    expect(first.remainingExcess).toBe(200);
+    const afterFirst = postedSettlementWaiverLimits({
+      excessTawidhAmount: 100,
+      excessGharamahAmount: 100,
+      excessLateChargeAmount: 200,
+      paidAmount: 0,
+      waivedAmount: 80,
+      waivedTawidhAmount: 80,
+      waivedGharamahAmount: 0,
+    });
+    expect(afterFirst.remainingExcess).toBe(120);
+    expect(afterFirst.remainingTawidhAmount).toBe(20);
   });
 
   it("assigns 2dp residual to the last positive investor weight", () => {

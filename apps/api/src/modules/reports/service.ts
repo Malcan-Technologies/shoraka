@@ -24,7 +24,7 @@ import { runInvestorBook } from "./investor-book";
 import { runOrigination } from "./origination";
 import { summarizePortfolioAtRisk } from "./par-summary";
 import { runPortfolioComposition } from "./portfolio-composition";
-import { assertReportQuery, postedAtRange } from "./report-shared";
+import { assertReportQuery, openBookSnapshots, postedAtRange } from "./report-shared";
 import { runTrustRevenue } from "./trust-revenue";
 
 function toNumber(value: Prisma.Decimal | number | string | null | undefined): number {
@@ -177,7 +177,7 @@ async function runAgeing(query: ReportQuery): Promise<ReportResult> {
         emptyReason: "No snapshot for this date",
       };
     }
-    const rows = snapshots.map((snapshot) => ({
+    const rows = openBookSnapshots(snapshots).map((snapshot) => ({
       noteId: snapshot.note.id,
       noteReference: snapshot.note.note_reference,
       issuerName: issuerName(snapshot.note.issuer_snapshot),

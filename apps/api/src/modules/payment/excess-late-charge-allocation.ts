@@ -66,6 +66,37 @@ export function remainingWaivableExcessLateChargeSplit(input: {
   );
 }
 
+export function postedSettlementWaiverLimits(input: {
+  excessTawidhAmount: number;
+  excessGharamahAmount: number;
+  excessLateChargeAmount: number;
+  paidAmount: number;
+  waivedAmount: number;
+  waivedTawidhAmount: number;
+  waivedGharamahAmount: number;
+}) {
+  const remainingExcess = money(
+    Math.max(
+      0,
+      Math.max(input.excessTawidhAmount + input.excessGharamahAmount, input.excessLateChargeAmount) -
+        input.paidAmount -
+        input.waivedAmount
+    )
+  );
+  const remainingSplit = remainingWaivableExcessLateChargeSplit({
+    excessTawidhAmount: input.excessTawidhAmount,
+    excessGharamahAmount: input.excessGharamahAmount,
+    waivedTawidhAmount: input.waivedTawidhAmount,
+    waivedGharamahAmount: input.waivedGharamahAmount,
+    paidAmount: input.paidAmount,
+  });
+  return {
+    remainingExcess,
+    remainingTawidhAmount: money(Math.max(0, Math.min(remainingSplit.remainingTawidh, remainingExcess))),
+    remainingGharamahAmount: money(Math.max(0, Math.min(remainingSplit.remainingGharamah, remainingExcess))),
+  };
+}
+
 /**
  * Ordered fill: remaining Ta'widh first, then remaining Gharamah.
  * Uses prior paid so multi-payments never double-allocate. 2dp residual goes

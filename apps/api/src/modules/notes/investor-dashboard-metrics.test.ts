@@ -17,6 +17,7 @@ import {
 
 function holding(overrides: Partial<HoldingForDashboard> = {}): HoldingForDashboard {
   return {
+    investmentId: overrides.investmentId ?? overrides.noteId ?? "inv-1",
     noteId: "note-1",
     noteReference: "NOTE-1",
     issuerName: "Issuer Co",
@@ -310,6 +311,32 @@ describe("computeCashflowNext90Days", () => {
       "NOTE-DEC",
     ]);
     expect(result.upcoming[0].profit).toBe(0);
+  });
+
+  it("keeps separate upcoming rows when two holdings share a note and due date", () => {
+    const now = new Date("2026-09-09T02:00:00.000Z");
+    const result = computeCashflowNext90Days(
+      [
+        holding({
+          investmentId: "inv-a",
+          maturityDate: new Date("2026-09-20T00:00:00.000Z"),
+          confirmedAmount: 50_000,
+          fundedAmount: 55_000,
+          profitRatePercent: 0,
+        }),
+        holding({
+          investmentId: "inv-b",
+          maturityDate: new Date("2026-09-20T00:00:00.000Z"),
+          confirmedAmount: 5_000,
+          fundedAmount: 55_000,
+          profitRatePercent: 0,
+        }),
+      ],
+      now
+    );
+    expect(result.upcoming.map((row) => row.investmentId)).toEqual(["inv-b", "inv-a"]);
+    expect(result.upcoming.map((row) => row.amount)).toEqual([5_000, 50_000]);
+    expect(result.noteCount).toBe(2);
   });
 
   it("nets remaining profit at the note service-fee rate", () => {

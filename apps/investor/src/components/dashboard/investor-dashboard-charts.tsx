@@ -128,11 +128,14 @@ export function InvestorDashboardCashflow({ cashflow }: { cashflow: InvestorCash
           </div>
         </div>
 
-        <div className="mt-5 grid h-28 grid-cols-3 items-end gap-3.5">
+        <div
+          className="mt-5 grid h-28 items-end gap-3.5"
+          style={{ gridTemplateColumns: `repeat(${Math.max(1, cashflow.months.length)}, minmax(0, 1fr))` }}
+        >
           {cashflow.months.map((month, index) => {
             const height = cashflowBarPercent(month.amount, maxAmount);
             const opacityClass =
-              index === 0 ? "bg-primary/90" : index === 1 ? "bg-primary/55" : "bg-secondary/65";
+              index === 0 ? "bg-primary/90" : index === cashflow.months.length - 1 ? "bg-secondary/65" : "bg-primary/55";
             return (
               <div key={month.yearMonth} className="flex h-full flex-col justify-end gap-2">
                 <p className="text-center text-ui font-semibold tabular-nums">
@@ -146,7 +149,10 @@ export function InvestorDashboardCashflow({ cashflow }: { cashflow: InvestorCash
             );
           })}
         </div>
-        <div className="mt-2 grid grid-cols-3 gap-3.5 border-t border-border pt-2">
+        <div
+          className="mt-2 grid gap-3.5 border-t border-border pt-2"
+          style={{ gridTemplateColumns: `repeat(${Math.max(1, cashflow.months.length)}, minmax(0, 1fr))` }}
+        >
           {cashflow.months.map((month) => (
             <div key={`${month.yearMonth}-label`} className="text-center">
               <p className="text-ui text-foreground">{monthBucketLabel(month.label)}</p>
@@ -162,7 +168,7 @@ export function InvestorDashboardCashflow({ cashflow }: { cashflow: InvestorCash
             {upcoming.map((row) => {
               const chip = dueDateChipParts(row.dueDate);
               return (
-                <div key={`${row.noteId}-${row.dueDate}`} className="flex items-center gap-3">
+                <div key={row.investmentId} className="flex items-center gap-3">
                   {chip ? (
                     <span className="w-11 shrink-0 rounded-lg bg-primary/10 py-1 text-center">
                       <span className="block text-meta text-muted-foreground">{chip.month}</span>

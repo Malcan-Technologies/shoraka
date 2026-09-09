@@ -44,7 +44,7 @@ export function buildReportCsv(result: ReportResult): string {
 
 function csvEscape(value: string): string {
   const safe = neutralizeSpreadsheetFormula(value);
-  if (/[",\n]/.test(safe)) return `"${safe.replace(/"/g, '""')}"`;
+  if (/[",\n\r]/.test(safe)) return `"${safe.replace(/"/g, '""')}"`;
   return safe;
 }
 

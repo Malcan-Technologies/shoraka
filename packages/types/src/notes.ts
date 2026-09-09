@@ -1162,6 +1162,7 @@ export interface InvestorCashflowMonth {
 }
 
 export interface InvestorCashflowUpcoming {
+  investmentId: string;
   noteId: string;
   noteReference: string;
   issuerName: string | null;

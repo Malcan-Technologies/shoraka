@@ -18,6 +18,7 @@ import {
   isToday,
   issuerName,
   jsonRecord,
+  openBookSnapshots,
   parseAsOf,
   percentOf,
   reportDefinition,
@@ -177,7 +178,7 @@ export async function runPortfolioComposition(query: ReportQuery): Promise<Repor
         emptyReason: "No snapshot for this date",
       };
     }
-    const notes = snapshots.map((snapshot) => ({
+    const notes = openBookSnapshots(snapshots).map((snapshot) => ({
       fundedPrincipal: toNumber(snapshot.note.funded_amount),
       outstandingTotal: toNumber(snapshot.outstanding_total),
       daysPastDue: snapshot.days_past_due,

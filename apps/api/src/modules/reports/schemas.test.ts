@@ -1,7 +1,7 @@
 import { AppError } from "../../lib/http/error-handler";
 import { inclusiveRangePostedAtFilter } from "@cashsouk/types";
 import { reportQuerySchema } from "./schemas";
-import { assertReportQuery } from "./report-shared";
+import { assertReportQuery, openBookSnapshots } from "./report-shared";
 
 describe("report query schema", () => {
   it("requires from and to together and rejects inverted ranges", () => {
@@ -22,6 +22,21 @@ describe("assertReportQuery", () => {
   it("rejects groupBy on reports other than portfolio composition", () => {
     expect(() => assertReportQuery("ageing", { groupBy: "issuer" })).toThrow(AppError);
     expect(() => assertReportQuery("portfolio_composition", { groupBy: "issuer" })).not.toThrow();
+  });
+});
+
+describe("openBookSnapshots", () => {
+  it("drops SETTLED snapshots so historical ageing and composition match live open-book queries", () => {
+    expect(
+      openBookSnapshots([
+        { servicing_status: "CURRENT", outstanding: 100 },
+        { servicing_status: "SETTLED", outstanding: 0 },
+        { servicing_status: "ARREARS", outstanding: 40 },
+      ])
+    ).toEqual([
+      { servicing_status: "CURRENT", outstanding: 100 },
+      { servicing_status: "ARREARS", outstanding: 40 },
+    ]);
   });
 });
 

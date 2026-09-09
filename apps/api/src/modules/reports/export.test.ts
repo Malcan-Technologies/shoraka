@@ -65,4 +65,13 @@ describe("report export", () => {
     expect(csv).toContain("'=2+2");
     expect(csv).not.toMatch(/(^|,)=2\+2(,|$)/);
   });
+
+  it("quotes cells that contain a carriage return so a suffix cannot become a new formula row", () => {
+    const csv = buildReportCsv({
+      ...sample,
+      rows: [{ noteReference: "Acme\r=HYPERLINK(\"http://evil\")", daysPastDue: 12 }],
+    });
+    expect(csv).toContain("\"Acme\r=HYPERLINK(\"\"http://evil\"\")\"");
+    expect(csv.split("\n").some((line) => line.startsWith("="))).toBe(false);
+  });
 });

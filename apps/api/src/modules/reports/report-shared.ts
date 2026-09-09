@@ -59,6 +59,10 @@ export function percentOf(part: number, whole: number): number {
   return whole > 0 ? (part / whole) * 100 : 0;
 }
 
+export function openBookSnapshots<T extends { servicing_status: string }>(snapshots: T[]): T[] {
+  return snapshots.filter((snapshot) => snapshot.servicing_status !== "SETTLED");
+}
+
 export function jsonRecord(value: Prisma.JsonValue | null | undefined): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   return value as Record<string, unknown>;
