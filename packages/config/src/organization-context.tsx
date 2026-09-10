@@ -46,6 +46,7 @@ export interface Organization {
   registrationNumber: string | null;
   onboardingStatus: OnboardingStatus;
   onboardedAt: string | null;
+  submittedAt?: string | null;
   isOwner: boolean;
   ownerId: string;
   members: OrganizationMember[];

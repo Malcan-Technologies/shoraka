@@ -114,6 +114,7 @@ async function listOrganizations(
           registrationNumber: org.registration_number,
           onboardingStatus: org.onboarding_status,
           onboardedAt: org.onboarded_at,
+          submittedAt: org.regtank_onboarding?.submitted_at?.toISOString() ?? null,
           isOwner: org.owner_user_id === userId,
           ownerId: org.owner_user_id,
           members: org.members.map(
@@ -391,6 +392,7 @@ async function getOrganization(
         registrationNumber: organization.registration_number,
         onboardingStatus: organization.onboarding_status,
         onboardedAt: organization.onboarded_at,
+        submittedAt: organization.regtank_onboarding?.submitted_at?.toISOString() ?? null,
         isOwner: organization.owner_user_id === userId,
         ownerId: organization.owner_user_id,
         members: organization.members.map(

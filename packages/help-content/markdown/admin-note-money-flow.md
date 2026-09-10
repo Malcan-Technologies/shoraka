@@ -7,7 +7,7 @@ tags:
   - notes
   - finance
 order: 20
-updated: 2026-08-24
+updated: 2026-09-09
 ---
 
 ## Overview
@@ -22,7 +22,7 @@ A note is created from one approved invoice. If a facility has multiple approved
 - On **Note Detail**, use the tab bar for workflow work:
   - **Disbursement** — issuer disbursement (Tawarruq, certificate, trustee payout) before servicing begins.
   - **Servicing & Settlement** — repayment receipts, settlement preview/approve/post, settlement waterfall, and **settlement trustee instruction** (including issuer refund allocation when applicable).
-  - **Late Payment** — Ta'widh/Gharamah fees, arrears/default letters, and mark default.
+  - **Late Payment** — servicing status and DPD, indicative Ta'widh/Gharamah, waivers, arrears/default letters, and mark default.
   - **Ledger** and **Investors** — read-only reference.
 - The right sidebar shows **Workflow Status** (tab dots), **Source Application**, and **Activity Timeline**.
 - Use **Investments** to browse the investments registry — every investor commitment across all notes with its status, amount, and allocation %.
@@ -30,7 +30,8 @@ A note is created from one approved invoice. If a facility has multiple approved
 - Use **Finance → Issuer Payouts** to see issuer disbursement withdrawals still in flight (legacy residual withdrawal rows may still appear for older notes).
 - Use **Finance → Settlements** to see notes whose **settlement trustee instruction** still needs a PDF, trustee submission, or **instruction completed** after settlement is posted.
 - Use **Finance → Buckets** to view the six platform money buckets and inspect activity logs for each bucket.
-- Use the **Dashboard** next-to-do queues and Bucket Balances overview cards for an at-a-glance snapshot of what needs attention.
+- Use the **Dashboard** for platform pulse, **Up next** queues (including **Default eligible**), **The book**, **Money on the platform** (ledger donut and six buckets), and **Credit quality** (PAR90 vs the 5% SC limit plus exclusive DPD). Bucket details remain under **Finance → Buckets**.
+- Use **Reports** for portfolio ageing, NPL, late fees, and default & recovery extracts. Dashboard **Credit quality** uses the same ageing PAR figures when you have `reports.view`.
 - Use **Platform Finance Settings** to manage the default grace period, arrears threshold, Ta'widh cap, Gharamah cap, default listing duration, and letter templates.
 
 ### Workflow progress and counters
@@ -279,10 +280,13 @@ Late charges are handled manually when repayment funds are received.
 
 Before applying late charges, use **Apply suggested fees** or **Custom amounts** on the Late Payment tab. Suggested amounts respect Syariah caps and **settlement headroom**.
 
-- **Grace period** default is 7 days after maturity. No Ta'widh or Gharamah during grace. Profit has already stopped at maturity if funds clear in this window.
-- **Ta'widh** and **Gharamah** are queued, then saved when you **Preview settlement** on the Servicing & Settlement tab.
-- **Arrears** starts after grace plus the arrears threshold (default 21 days after missed maturity with standard settings).
-- **Default** is never automatic. Admin can mark default only after the note is in arrears.
+- A daily job at **00:30 Malaysia time** updates servicing status and days past due using the **Malaysia calendar** (`Asia/Kuala_Lumpur`). Live DPD is for the new calendar day. Position snapshots are stored as the day that just closed, so as-of reports include that full day. It stores **indicative** Ta'widh and Gharamah only, rounded to two decimals. It does not post late charges.
+- **CURRENT** — not yet due. **OVERDUE** — past due, still inside grace. **LATE** — grace has ended. **ARREARS** — past the arrears threshold (default-eligible). **DEFAULTED** — admin marked default.
+- **Grace period** default is 7 days after the due date. No Ta'widh or Gharamah during grace.
+- Indicative amounts on the Late Payment tab are estimates. Apply or waive the actual fee at settlement.
+- **Ta'widh** and **Gharamah** are queued, then saved when you **Preview settlement** on the Servicing & Settlement tab. Remaining cap is cap minus applied minus waived.
+- **Arrears** starts after grace plus the arrears threshold (default 21 days after the missed due date with standard settings). The dashboard **Default eligible** queue lists these notes.
+- **Default** is never automatic. Confirm with a reason. The note timeline records the mark, and a default notice is emailed to the issuer.
 
 ### Late charges that do not fit the residual
 
@@ -296,7 +300,7 @@ On older notes that still use listing-to-maturity terms, follow the contractual 
 
 **Tab:** **Late Payment** → **Arrears and Default Documents**.
 
-Generate arrears or default PDF letters, review before external use, and attach to the note timeline. If marking default, record admin, timestamp, and reason.
+Arrears and default notices use the platform letterhead. The system emails the arrears letter when a note enters arrears, and retries on later runs if the letter was generated but not emailed (for example when the issuer had no email yet). The default notice is emailed when you confirm Mark Default; if that send fails, generate it again from Late Payment or wait for the daily job to retry. Generate, send, and resend are written to the note timeline (`NOTE_LETTER_SENT`). Mark Default is also written to the admin action log. You can view, download, or resend from the Late Payment tab.
 
 ## Withdrawals
 

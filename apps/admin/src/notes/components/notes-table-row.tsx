@@ -273,6 +273,9 @@ function NoteRow({ note, onViewDetails }: NoteRowProps) {
       <TableCell className="min-w-0 overflow-hidden">
         <NoteStatusBadge note={note} marker="dot" />
       </TableCell>
+      <TableCell className="min-w-0 overflow-hidden tabular-nums">
+        {note.daysPastDue && note.daysPastDue > 0 ? note.daysPastDue : "—"}
+      </TableCell>
       <TableCell className="min-w-0 overflow-hidden">
         <SettlementRegistryCell note={note} />
       </TableCell>
@@ -342,6 +345,9 @@ function ReadyInvoiceRow({
       </TableCell>
       <TableCell className="min-w-0 overflow-hidden">
         <StatusBadge label="Ready" status="action" className="max-w-full truncate" />
+      </TableCell>
+      <TableCell className="min-w-0 overflow-hidden">
+        <span className="text-muted-foreground">—</span>
       </TableCell>
       <TableCell className="min-w-0 overflow-hidden">
         <span className="text-muted-foreground">-</span>

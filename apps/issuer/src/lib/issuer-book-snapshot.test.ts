@@ -295,6 +295,26 @@ describe("classifyLiveInvoice", () => {
       )
     ).toBe("approvedNotListed");
     expect(classifyLiveInvoice(makeInvoice({ invoiceStatus: "SUBMITTED" }), null)).toBe("inReview");
+    expect(
+      classifyLiveInvoice(
+        makeInvoice(),
+        makeDashboardNote({
+          noteStatus: "ACTIVE",
+          fundingStatus: "FUNDED",
+          servicingStatus: "LATE",
+        })
+      )
+    ).toBe("servicing");
+    expect(
+      classifyLiveInvoice(
+        makeInvoice(),
+        makeDashboardNote({
+          noteStatus: "DEFAULTED",
+          fundingStatus: "FUNDED",
+          servicingStatus: "DEFAULTED",
+        })
+      )
+    ).toBe("servicing");
   });
 });
 

@@ -1,5 +1,11 @@
 import { AdminRepository } from "./repository";
 import {
+  assembleBookMetricHistory,
+  bookMetricsHistoryQueryWindow,
+  roundBookMetrics,
+} from "./book-metrics-snapshot";
+import { calendarDateInTimeZone } from "../notes/servicing-classifier";
+import {
   User,
   AccessLog,
   UserRole,
@@ -1789,16 +1795,30 @@ export class AdminService {
       live: number;
       repaid: number;
       distressed: number;
+      arrears: number;
+      defaulted: number;
       cancelledOrFailedFunding: number;
     };
     bookMetrics: {
       outstanding: { amount: number; count: number };
       inFunding: { amount: number; count: number };
       distressed: { amount: number; count: number };
+      arrears: { amount: number; count: number };
+      defaulted: { amount: number; count: number };
       dueSoon: { amount: number; count: number };
     };
+    bookMetricHistory: Array<{
+      date: string;
+      outstanding: { amount: number; count: number };
+      inFunding: { amount: number; count: number };
+      arrears: { amount: number; count: number };
+      defaulted: { amount: number; count: number };
+      dueSoon: { amount: number; count: number };
+    }>;
   }> {
     const TREND_PERIOD_DAYS = 30;
+    const today = calendarDateInTimeZone(new Date());
+    const historyWindow = bookMetricsHistoryQueryWindow(today);
 
     // Get all stats in parallel
     const [
@@ -1812,7 +1832,8 @@ export class AdminService {
       applicationMetrics,
       contractMetrics,
       noteMetrics,
-      bookMetrics,
+      liveBookMetrics,
+      bookMetricSnapshots,
     ] = await Promise.all([
       this.repository.getUserStats(),
       this.repository.getCurrentPeriodStats(TREND_PERIOD_DAYS),
@@ -1825,7 +1846,15 @@ export class AdminService {
       this.repository.getContractDashboardMetrics(),
       this.repository.getNoteDashboardMetrics(),
       this.repository.getBookMetrics(),
+      this.repository.listBookMetricsDailySnapshots(historyWindow.fromDate, historyWindow.toDate),
     ]);
+
+    const bookMetrics = roundBookMetrics(liveBookMetrics);
+    const bookMetricHistory = assembleBookMetricHistory({
+      snapshots: bookMetricSnapshots,
+      live: bookMetrics,
+      today,
+    });
 
     // Calculate percentage changes
     const calculatePercentageChange = (current: number, previous: number): number => {
@@ -1891,6 +1920,7 @@ export class AdminService {
       contractMetrics,
       noteMetrics,
       bookMetrics,
+      bookMetricHistory,
     };
   }
 

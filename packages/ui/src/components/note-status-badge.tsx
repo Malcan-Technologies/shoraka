@@ -95,6 +95,12 @@ export function deriveNoteStatus(input: NoteStatusInput): DerivedNoteStatus {
   if (input.hasPostedSettlement && input.pendingResidual) {
     return awaitingResidualRefundStatus();
   }
+  if (input.hasPostedSettlement) {
+    if (input.settlementTrusteePending) {
+      return { label: "Active · servicing", tone: "active", icon: CheckCircleIcon };
+    }
+    return { label: "Settled", tone: "success", icon: CheckBadgeIcon };
+  }
   if (input.status === "DEFAULTED" || input.servicingStatus === "DEFAULTED") {
     return { label: "Defaulted", tone: "destructive", icon: XCircleIcon };
   }
@@ -110,6 +116,9 @@ export function deriveNoteStatus(input: NoteStatusInput): DerivedNoteStatus {
   if (input.status === "ARREARS" || input.servicingStatus === "ARREARS") {
     return { label: "Arrears", tone: "destructive", icon: ExclamationTriangleIcon };
   }
+  if (input.servicingStatus === "OVERDUE") {
+    return { label: "Overdue", tone: "warning", icon: ExclamationTriangleIcon };
+  }
   if (input.status === "ACTIVE") {
     if (input.hasPostedSettlement && input.pendingResidual) {
       return awaitingResidualRefundStatus();
@@ -124,6 +133,9 @@ export function deriveNoteStatus(input: NoteStatusInput): DerivedNoteStatus {
       return { label: "Active · advance paid", tone: "active", icon: CheckCircleIcon };
     }
     return { label: "Active · servicing", tone: "active", icon: CheckCircleIcon };
+  }
+  if (input.servicingStatus === "LATE") {
+    return { label: "Late", tone: "warning", icon: ExclamationTriangleIcon };
   }
   if (input.status === "FUNDING" || input.fundingStatus === "FUNDED") {
     return {
@@ -175,6 +187,12 @@ export function presentNoteStatusForViewer(
   }
   if (viewer === "issuer" && derived.label === "Active · partial") {
     return { ...derived, tone: "warning" };
+  }
+  if (
+    viewer === "investor" &&
+    (derived.label === "Overdue" || derived.label === "Active · late" || derived.label === "Late")
+  ) {
+    return { ...derived, tone: "info" };
   }
   return derived;
 }

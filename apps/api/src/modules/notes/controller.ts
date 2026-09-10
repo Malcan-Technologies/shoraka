@@ -7,6 +7,13 @@ import {
   requireRole,
   userHasPermission,
 } from "../../lib/auth/middleware";
+import {
+  AUDIT_ACTOR_TYPE,
+  AUDIT_PORTAL,
+  AUDIT_SOURCE,
+  auditContextFromRequest,
+  auditPortalFromString,
+} from "../../lib/audit";
 import { AppError } from "../../lib/http/error-handler";
 import { prisma } from "../../lib/prisma";
 import { noteService } from "./service";
@@ -27,6 +34,8 @@ import {
   noteSettlementParamsSchema,
   invoiceIdParamSchema,
   lateChargeSchema,
+  lateChargeWaiverSchema,
+  noteLetterParamsSchema,
   overdueLateChargeSchema,
   paymentReviewSchema,
   approvePaymentSchema,
@@ -60,6 +69,7 @@ function getActor(req: Request, res: Response, portal: string) {
   const userAgent = Array.isArray(req.headers["user-agent"])
     ? req.headers["user-agent"][0]
     : req.headers["user-agent"];
+  const auditPortal = auditPortalFromString(portal);
   return {
     userId: req.user.user_id,
     role: req.activeRole,
@@ -67,6 +77,14 @@ function getActor(req: Request, res: Response, portal: string) {
     ipAddress: req.ip,
     userAgent,
     correlationId: res.locals.correlationId,
+    auditContext: auditContextFromRequest(req, {
+      res,
+      actorUserId: req.user.user_id,
+      portal: auditPortal,
+      actorType:
+        auditPortal === AUDIT_PORTAL.ADMIN ? AUDIT_ACTOR_TYPE.ADMIN : AUDIT_ACTOR_TYPE.USER,
+      source: AUDIT_SOURCE.API,
+    }),
   };
 }
 
@@ -168,6 +186,18 @@ adminNotesRouter.get(
   } catch (error) {
     next(error);
   }
+  }
+);
+
+adminNotesRouter.get(
+  "/default-eligible-count",
+  requirePermission("notes.view", "notes.default.manage"),
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      send(res, await noteService.getDefaultEligibleCount());
+    } catch (error) {
+      next(error);
+    }
   }
 );
 
@@ -985,6 +1015,59 @@ adminNotesRouter.post(
 );
 
 adminNotesRouter.post(
+  "/:id/late-charge/waive",
+  requirePermission("notes.settlement.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const input = lateChargeWaiverSchema.parse(req.body);
+      send(res, await noteService.waiveLateCharge(id, input, getActor(req, res, "ADMIN")));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+adminNotesRouter.get(
+  "/:id/servicing-letters",
+  requirePermission("notes.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      send(res, await noteService.listServicingLetters(id));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+adminNotesRouter.get(
+  "/:id/servicing-letters/:letterId/view",
+  requirePermission("notes.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id, letterId } = noteLetterParamsSchema.parse(req.params);
+      send(res, await noteService.getServicingLetterViewUrl(id, letterId));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+adminNotesRouter.post(
+  "/:id/servicing-letters/:letterId/resend",
+  requirePermission("notes.default.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id, letterId } = noteLetterParamsSchema.parse(req.params);
+      send(res, await noteService.resendServicingLetter(id, letterId, getActor(req, res, "ADMIN")));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+adminNotesRouter.post(
   "/:id/late-charge/approve",
   requirePermission("notes.default.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
@@ -1307,6 +1390,25 @@ issuerNotesRouter.get("/notes/:id", async (req: Request, res: Response, next: Ne
     next(error);
   }
 });
+
+issuerNotesRouter.get(
+  "/notes/:id/servicing-letters/:letterId/view",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id, letterId } = noteLetterParamsSchema.parse(req.params);
+      send(
+        res,
+        await noteService.getIssuerServicingLetterViewUrl(
+          id,
+          letterId,
+          getActor(req, res, "ISSUER").userId
+        )
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 issuerNotesRouter.get("/notes/:id/payment-instructions", async (req: Request, res: Response, next: NextFunction) => {
   try {

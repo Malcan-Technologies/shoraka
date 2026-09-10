@@ -65,6 +65,26 @@ describe("deriveNoteStatus", () => {
     expect(derived.tone).toBe("progress");
     expect(noteToneToStatusToken(derived.tone)).toBe("submitted");
   });
+
+  it("paints OVERDUE yellow and LATE as existing distressed warning", () => {
+    const overdue = deriveNoteStatus({
+      ...baseInput,
+      status: "ACTIVE",
+      servicingStatus: "OVERDUE",
+    });
+    expect(overdue.label).toBe("Overdue");
+    expect(overdue.tone).toBe("warning");
+    expect(noteToneToStatusToken(overdue.tone)).toBe("action");
+
+    const late = deriveNoteStatus({
+      ...baseInput,
+      status: "ACTIVE",
+      servicingStatus: "LATE",
+    });
+    expect(late.label).toBe("Active · late");
+    expect(late.tone).toBe("warning");
+    expect(noteToneToStatusToken(late.tone)).toBe("action");
+  });
 });
 
 describe("presentNoteStatusForViewer", () => {
@@ -77,5 +97,27 @@ describe("presentNoteStatusForViewer", () => {
     expect(derived.tone).toBe("info");
     expect(presentNoteStatusForViewer(derived, "issuer").tone).toBe("warning");
     expect(presentNoteStatusForViewer(derived, "investor").tone).toBe("info");
+  });
+
+  it("paints investor Overdue and Late as waiting, not issuer action", () => {
+    const overdue = deriveNoteStatus({
+      ...baseInput,
+      status: "ACTIVE",
+      servicingStatus: "OVERDUE",
+    });
+    expect(presentNoteStatusForViewer(overdue, "investor").tone).toBe("info");
+    expect(presentNoteStatusForViewer(overdue, "issuer").tone).toBe("warning");
+  });
+
+  it("treats a posted settlement as wrapping or settled before arrears/default badges", () => {
+    const posted = deriveNoteStatus({
+      ...baseInput,
+      status: "DEFAULTED",
+      servicingStatus: "CURRENT",
+      hasPostedSettlement: true,
+      settlementTrusteePending: true,
+    });
+    expect(posted.label).toBe("Active · servicing");
+    expect(posted.tone).toBe("active");
   });
 });

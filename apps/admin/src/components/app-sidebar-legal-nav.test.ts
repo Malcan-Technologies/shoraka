@@ -40,6 +40,12 @@ describe("admin platform sidebar navigation", () => {
     expect(source).toContain('item.access === "documents" && canViewDocuments');
   });
 
+  it("shows Company under Settings linking to /shoraka/profile", () => {
+    expect(source).toMatch(/title:\s*"Company"[\s\S]*?url:\s*"\/shoraka\/profile"/);
+    expect(source).not.toContain("<SidebarGroupLabel>Shoraka</SidebarGroupLabel>");
+    expect(source).not.toContain('tooltip="Profile"');
+  });
+
   it("does not keep a Notifications Logs tab in Settings", () => {
     const notifications = readFileSync(
       join(__dirname, "../app/settings/notifications/page.tsx"),
@@ -49,7 +55,8 @@ describe("admin platform sidebar navigation", () => {
     expect(notifications).not.toContain("Notification Logs");
   });
 
-  it("shows Audit when the admin can view documents or notification logs", () => {
+  it("shows Audit just below Reports, then Help", () => {
+    expect(source).toMatch(/tooltip="Reports"[\s\S]*?tooltip="Audit"[\s\S]*?tooltip="Help"/);
     expect(source).toContain("canViewDocuments ||");
     expect(source).toContain("canViewNotifications");
   });

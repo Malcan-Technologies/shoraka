@@ -513,9 +513,9 @@ Global settings:
 - Ta'widh and gharamah defaults should be configurable in the admin portal and suggested when payment is received.
 - Ta'widh should be manually set by admin at receipt time and capped at 1% per annum.
 - Gharamah should be manually set by admin at receipt time and capped at 9% per annum.
-- Late fees should be calculated and applied only when repayment funds are received. Do not accrue or post late fees through a daily cron job.
+- Late fees should be calculated and applied only when repayment funds are received. Do not accrue or post late fees through a daily cron job. The daily servicing job may update status, DPD, and **indicative** Ta'widh/Gharamah for display only.
 - Arrears threshold should be configurable in the admin portal, defaulting to 14 days after the grace period. With the default 7-day grace period, arrears starts 21 days after the missed payment date.
-- The manual overdue check should update servicing state to `LATE` after the grace period and `ARREARS` after the arrears threshold.
+- Servicing status advances automatically: `OVERDUE` on day 1 past due (inside grace), `LATE` after grace, `ARREARS` after the arrears threshold. The admin overdue check uses the same classifier. Default remains a confirmed admin action.
 - Default should not be automatic. Admin can manually mark the note as default only after it is already in arrears.
 - Every setting change should be audited with before/after values, actor, timestamp, IP address, user agent, and correlation ID.
 
@@ -995,7 +995,7 @@ Recommended model:
 - The default grace period should be 7 days.
 - Ta'widh should be manually set and capped at 1% per annum.
 - Gharamah should be manually set and capped at 9% per annum.
-- Late fees should not be accrued or posted through a daily cron job; calculation and posting happen when repayment funds are received and admin approves the allocation.
+- Late fees should not be accrued or posted through a daily cron job; calculation and posting happen when repayment funds are received and admin approves the allocation. Status and indicative amounts may update overnight.
 - Where possible, approved late charges should be deducted from the residual balance returned to the issuer before funds leave the Repayment Pool.
 
 Implementation should keep grace period, ta'widh/gharamah defaults, caps, rounding, arrears threshold, and manual default marking controls configurable as global platform settings. Product-specific overrides should only be added later if explicitly required.

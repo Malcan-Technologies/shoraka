@@ -42,7 +42,7 @@ export function PlatformStatCard({
   return (
     <Card className="rounded-2xl shadow-sm">
       <CardContent className="p-5">
-        <p className="text-sm font-medium text-muted-foreground">
+        <p className="text-ui font-medium text-muted-foreground">
           {title}
         </p>
         <div className="mt-2 flex items-baseline gap-2">
@@ -52,8 +52,8 @@ export function PlatformStatCard({
           {showTrend && (
             <span
               className={cn(
-                "inline-flex items-center gap-0.5 text-sm font-medium",
-                isPositive ? "text-green-600" : "text-primary"
+                "inline-flex items-center gap-0.5 text-ui font-medium",
+                isPositive ? "text-status-success-text" : "text-primary"
               )}
             >
               {isPositive ? (
@@ -66,7 +66,7 @@ export function PlatformStatCard({
           )}
         </div>
         {subtitle && (
-          <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
+          <p className="mt-1 text-meta text-muted-foreground">{subtitle}</p>
         )}
       </CardContent>
     </Card>

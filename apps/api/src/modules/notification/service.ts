@@ -5,6 +5,7 @@ import {
   Prisma,
   NotificationType,
   NotificationPortalTarget,
+  User,
 } from "@prisma/client";
 import { AppError } from "../../lib/http/error-handler";
 import { NotificationRepository } from "./repository";
@@ -74,6 +75,8 @@ export class NotificationService {
       const existing = await this.repository.findByIdempotencyKey(idempotencyKey);
       if (existing) {
         logger.info({ idempotencyKey, userId }, "Notification already exists (idempotency hit)");
+        const user = await prisma.user.findUnique({ where: { user_id: userId } });
+        if (user) await this.deliverNotificationEmail(existing, user);
         return { notification: existing, replayed: true };
       }
     }
@@ -153,25 +156,29 @@ export class NotificationService {
     });
 
     // 5. Immediate Email Delivery
-    if (shouldDeliverEmail) {
-      try {
-        const emailOptions = buildNotificationEmail(notification, user);
-        await sendEmail(emailOptions);
-
-        // Update email_sent_at
-        await prisma.notification.update({
-          where: { id: notification.id },
-          data: { email_sent_at: new Date() },
-        });
-      } catch (error) {
-        logger.error(
-          { error, notificationId: notification.id },
-          "Failed to send notification email"
-        );
-      }
-    }
+    await this.deliverNotificationEmail(notification, user);
 
     return { notification, replayed: false };
+  }
+
+  private async deliverNotificationEmail(
+    notification: Notification,
+    user: User
+  ): Promise<void> {
+    if (!notification.send_to_email || notification.email_sent_at) return;
+    try {
+      const emailOptions = buildNotificationEmail(notification, user);
+      await sendEmail(emailOptions);
+      await prisma.notification.update({
+        where: { id: notification.id },
+        data: { email_sent_at: new Date() },
+      });
+    } catch (error) {
+      logger.error(
+        { error, notificationId: notification.id },
+        "Failed to send notification email"
+      );
+    }
   }
 
   /**

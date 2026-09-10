@@ -1,4 +1,4 @@
-import { NoteStatus } from "@cashsouk/types";
+import { NoteServicingStatus, NoteStatus } from "@cashsouk/types";
 import { ListToolbar } from "@/shared/admin-list/components/list-toolbar";
 import { formatNoteStatus } from "@/notes/utils/format-note-status";
 
@@ -15,6 +15,8 @@ interface NotesTableToolbarProps {
   isLoading: boolean;
   featuredOnly: boolean;
   onFeaturedOnlyChange: (value: boolean) => void;
+  servicingStatus: string;
+  onServicingStatusChange: (value: string) => void;
 }
 
 export function NotesTableToolbar({
@@ -28,6 +30,8 @@ export function NotesTableToolbar({
   isLoading,
   featuredOnly,
   onFeaturedOnlyChange,
+  servicingStatus,
+  onServicingStatusChange,
 }: NotesTableToolbarProps) {
   const statusFilters = status === "ALL" ? [] : [status];
 
@@ -63,6 +67,13 @@ export function NotesTableToolbar({
       extraToggleLabel="Featured only"
       extraToggleChecked={featuredOnly}
       onExtraToggleChange={onFeaturedOnlyChange}
+      secondaryFilterLabel="Servicing"
+      secondaryFilters={servicingStatus === "ALL" ? [] : [servicingStatus]}
+      onSecondaryFiltersChange={(values) => onServicingStatusChange(values[0] ?? "ALL")}
+      secondaryOptions={Object.values(NoteServicingStatus).map((value) => ({
+        value,
+        label: formatNoteStatus(value),
+      }))}
     />
   );
 }

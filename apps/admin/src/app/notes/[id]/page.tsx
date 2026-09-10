@@ -135,6 +135,7 @@ function getNotePaymentDueSummary(note: NoteDetail) {
     (note.status === "ACTIVE" ||
       note.status === "ARREARS" ||
       note.status === "DEFAULTED" ||
+      note.servicingStatus === "OVERDUE" ||
       note.servicingStatus === "LATE" ||
       note.servicingStatus === "ARREARS");
 

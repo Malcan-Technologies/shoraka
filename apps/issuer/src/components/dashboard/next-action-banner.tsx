@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRightIcon } from "@heroicons/react/24/outline";
+import { CheckCircleIcon } from "@heroicons/react/24/outline";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -24,45 +24,53 @@ export function NextActionBanner({
   tone = "action",
   className,
 }: NextActionBannerProps) {
-  const cta = (
-    <>
+  const cta = href ? (
+    <Button asChild className="h-10 shrink-0 rounded-xl font-semibold">
+      <Link href={href}>{ctaLabel}</Link>
+    </Button>
+  ) : (
+    <Button type="button" className="h-10 shrink-0 rounded-xl font-semibold" onClick={onClick}>
       {ctaLabel}
-      <ArrowRightIcon className="h-4 w-4" />
-    </>
+    </Button>
   );
 
   return (
     <div
       className={cn(
-        "flex flex-col gap-4 rounded-xl border px-5 py-5 sm:flex-row sm:items-center sm:justify-between",
+        "flex flex-col gap-4 rounded-2xl border px-5 py-5 sm:flex-row sm:items-center",
         tone === "action" &&
-          "border-status-action-text/15 bg-[hsl(var(--status-action-bg)/0.45)] text-foreground",
+          "border-status-action-text/40 bg-status-action-bg text-foreground",
         tone === "neutral" && "border-border bg-card",
         className
       )}
       role="status"
     >
-      <div className="min-w-0 space-y-1">
-        <p className="text-ui font-semibold leading-7">{title}</p>
+      {tone === "action" ? (
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-status-action-text text-status-action-bg">
+          <CheckCircleIcon className="h-6 w-6" aria-hidden />
+        </span>
+      ) : null}
+      <div className="min-w-0 flex-1 space-y-1">
+        <p
+          className={cn(
+            "text-body font-semibold leading-7",
+            tone === "action" && "text-status-action-text"
+          )}
+        >
+          {title}
+        </p>
         {description ? (
-          <p className="text-ui leading-6 text-muted-foreground">{description}</p>
+          <p
+            className={cn(
+              "text-pretty text-ui leading-6",
+              tone === "action" ? "text-status-action-text/80" : "text-muted-foreground"
+            )}
+          >
+            {description}
+          </p>
         ) : null}
       </div>
-      {href ? (
-        <Button asChild className="h-11 shrink-0 gap-2 rounded-xl font-semibold">
-          <Link href={href}>
-            {cta}
-          </Link>
-        </Button>
-      ) : (
-        <Button
-          type="button"
-          className="h-11 shrink-0 gap-2 rounded-xl font-semibold"
-          onClick={onClick}
-        >
-          {cta}
-        </Button>
-      )}
+      <div className="shrink-0">{cta}</div>
     </div>
   );
 }

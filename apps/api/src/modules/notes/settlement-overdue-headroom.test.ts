@@ -97,4 +97,20 @@ describe("NoteService checkOverdueLateCharge headroom", () => {
     expect(result.receiptAmount).toBe(25000);
     expect(result.availableLateFeeHeadroomAmount).toBeCloseTo(34000, 2);
   });
+
+  it("counts late days by the MYT receipt date before UTC midnight", async () => {
+    (noteRepository.findById as jest.Mock).mockResolvedValue({
+      ...baseNote,
+      grace_period_days: 7,
+      maturity_date: new Date("2026-01-01T00:00:00.000Z"),
+      payment_schedules: [{ due_date: new Date("2026-01-01T00:00:00.000Z"), sequence: 1 }],
+    });
+
+    const result = await new NoteService().checkOverdueLateCharge("note-headroom", {
+      receiptDate: "2026-01-08T16:30:00.000Z",
+    });
+
+    expect(result.checkDate).toBe("2026-01-09T00:00:00.000Z");
+    expect(result.daysLate).toBe(1);
+  });
 });

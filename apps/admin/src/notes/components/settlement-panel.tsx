@@ -116,6 +116,10 @@ import {
 } from "@/notes/components/note-detail-ui-blocks";
 import { NoteWorkflowTabHeader } from "@/notes/components/note-workflow-tab-header";
 import { ExcessLateChargeAdminPanel } from "@/notes/components/excess-late-charge-admin-panel";
+import { NoteLateChargeWaiverPanel } from "@/notes/components/note-late-charge-waiver-panel";
+import { NoteServicingLettersList } from "@/notes/components/note-servicing-letters-list";
+import { NoteServicingStatusSummary } from "@/notes/components/note-servicing-status-summary";
+import { ReasonConfirmDialog } from "@/components/reason-confirm-dialog";
 import {
   resolveLatePaymentActionGates,
   resolveLatePaymentTimeline,
@@ -549,6 +553,7 @@ export function SettlementPanel({
     "regenerate" | "submit" | "resend" | "complete" | null
   >(null);
   const [defaultReason, setDefaultReason] = React.useState("");
+  const [markDefaultOpen, setMarkDefaultOpen] = React.useState(false);
   const [recordPaymentDialogOpen, setRecordPaymentDialogOpen] = React.useState(false);
   const [overdueFeeDialogOpen, setOverdueFeeDialogOpen] = React.useState(false);
   const [preview, setPreview] = React.useState<NoteSettlementPreviewResult | null>(null);
@@ -712,23 +717,6 @@ export function SettlementPanel({
         latestIncludedReceiptDate: latestEligibleReceiptDate,
       })
     : null;
-  const generatedLetters = React.useMemo(() => {
-    return note.events
-      .filter(
-        (event) =>
-          event.eventType === "ARREARS_LETTER_GENERATED" ||
-          event.eventType === "DEFAULT_LETTER_GENERATED"
-      )
-      .map((event) => {
-        const s3Key = event.metadata?.s3Key;
-        return {
-          id: event.id,
-          type: event.eventType === "ARREARS_LETTER_GENERATED" ? "Arrears" : "Default",
-          s3Key: typeof s3Key === "string" ? s3Key : null,
-          createdAt: event.createdAt,
-        };
-      });
-  }, [note.events]);
   const settlementTrusteeLetters = persistedPostedSettlementId
     ? note.events
         .filter(
@@ -1183,10 +1171,12 @@ export function SettlementPanel({
     canDefaultPermission: canDefault,
     servicingStatusArrears: canMarkDefault,
     defaultReason,
+    defaultMarkedAt: note.defaultMarkedAt,
   });
   const documentActionAvailable =
     servicingOpen &&
-    (latePaymentTimeline.phase === "arrears" ||
+    (latePaymentTimeline.phase === "late" ||
+      latePaymentTimeline.phase === "arrears" ||
       latePaymentTimeline.phase === "default-eligible");
 
   const handleUseSettlementAmount = () => {
@@ -1610,12 +1600,11 @@ export function SettlementPanel({
 
   const handleLetter = async (kind: "arrears" | "default") => {
     try {
-      const result =
-        kind === "arrears"
-          ? await arrearsLetter.mutateAsync(note.id)
-          : await defaultLetter.mutateAsync(note.id);
+      await (kind === "arrears"
+        ? arrearsLetter.mutateAsync(note.id)
+        : defaultLetter.mutateAsync(note.id));
       toast.success(
-        `${kind === "arrears" ? "Arrears" : "Default"} letter generated: ${result.s3Key}`
+        `${kind === "arrears" ? "Arrears" : "Default"} letter generated`
       );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to generate letter");
@@ -1647,6 +1636,7 @@ export function SettlementPanel({
     try {
       await markDefault.mutateAsync({ id: note.id, reason: defaultReason });
       setDefaultReason("");
+      setMarkDefaultOpen(false);
       toast.success("Note marked as default");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to mark default");
@@ -1805,6 +1795,24 @@ export function SettlementPanel({
       <CardContent className="space-y-6 pt-0">
         {servicingWorkflowAvailable ? (
           <>
+            {canMarkDefault ? (
+              <div className="rounded-xl border border-status-action-text/30 bg-status-action-bg/40 p-4">
+                <p className="text-sm font-medium">Eligible for default</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  This note is in arrears. Confirm default only after reviewing the file.
+                </p>
+                <Button
+                  className="mt-3"
+                  variant="destructive"
+                  disabled={!canDefault || markDefault.isPending}
+                  onClick={() => setMarkDefaultOpen(true)}
+                >
+                  Mark Default
+                </Button>
+              </div>
+            ) : null}
+            <NoteServicingStatusSummary note={note} timeline={latePaymentTimeline} />
+            <NoteLateChargeWaiverPanel note={note} canManage={canSettlement} />
             {showOverdueFeesSection ? (
               <div className={cn("rounded-lg border p-4", lateFeesSectionSurfaceClass)}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -2012,111 +2020,14 @@ export function SettlementPanel({
               ) : null}
 
               <div className="mt-4 rounded-xl border bg-muted/20 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-medium">Generated Letters</div>
-                    <div className="text-xs text-muted-foreground">
-                      Arrears and default PDFs generated for this note.
-                    </div>
+                <div className="mb-3">
+                  <div className="text-sm font-medium">Servicing letters</div>
+                  <div className="text-xs text-muted-foreground">
+                    Arrears and default PDFs generated for this note.
                   </div>
-                  {generatedLetters.length > 0 ? (
-                    <span className="text-xs text-muted-foreground">
-                      {generatedLetters.length} generated
-                    </span>
-                  ) : null}
                 </div>
-                {generatedLetters.length === 0 ? (
-                  <div className="mt-3 text-sm text-muted-foreground">No letters generated yet.</div>
-                ) : (
-                  <div className="mt-3 space-y-2">
-                    {generatedLetters.map((letter) => (
-                      <div key={letter.id} className="rounded-lg border bg-card p-3">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <DocumentTextIcon className="h-4 w-4 text-muted-foreground" />
-                              <span className="text-sm font-medium">{letter.type} letter</span>
-                            </div>
-                            <div className="mt-1 text-xs text-muted-foreground">
-                              {format(new Date(letter.createdAt), "dd MMM yyyy, h:mm a")}
-                            </div>
-                            {letter.s3Key ? (
-                              <div className="mt-1 break-all font-mono text-[11px] text-muted-foreground">
-                                {letter.s3Key}
-                              </div>
-                            ) : null}
-                          </div>
-                          {letter.s3Key ? (
-                            <div className="flex shrink-0 flex-wrap gap-2">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-8 gap-1.5"
-                                disabled={viewDocumentPending}
-                                onClick={() => handleViewDocument(letter.s3Key!)}
-                              >
-                                <DocumentTextIcon className="h-3.5 w-3.5" />
-                                View
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-8 gap-1.5"
-                                disabled={viewDocumentPending}
-                                onClick={() =>
-                                  handleDownloadDocument(
-                                    letter.s3Key!,
-                                    `${letter.type.toLowerCase()}-letter-${note.noteReference}.pdf`
-                                  )
-                                }
-                              >
-                                <ArrowDownTrayIcon className="h-3.5 w-3.5" />
-                                Download
-                              </Button>
-                            </div>
-                          ) : null}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <NoteServicingLettersList note={note} canManage={canDefault} />
               </div>
-
-              {latePaymentTimeline.phase !== "defaulted" ? (
-                <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
-                  <Input
-                    value={defaultReason}
-                    onChange={(event) => setDefaultReason(event.target.value)}
-                    placeholder="Default reason"
-                  />
-                  <Button
-                    variant="destructive"
-                    onClick={handleMarkDefault}
-                    disabled={
-                      markDefault.isPending ||
-                      !canDefault ||
-                      !latePaymentActionGates.canMarkDefault
-                    }
-                    title={
-                      !canDefault
-                        ? "You do not have permission to perform this action."
-                        : !latePaymentActionGates.canMarkDefault
-                          ? (latePaymentActionGates.defaultReasonHelperText ??
-                            latePaymentActionGates.defaultHelperText ??
-                            undefined)
-                          : undefined
-                    }
-                  >
-                    Mark Default
-                  </Button>
-                </div>
-              ) : null}
-              {latePaymentActionGates.defaultReasonHelperText &&
-              latePaymentTimeline.phase !== "defaulted" ? (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {latePaymentActionGates.defaultReasonHelperText}
-                </p>
-              ) : null}
             </div>
           </>
         ) : (
@@ -3462,6 +3373,21 @@ export function SettlementPanel({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <ReasonConfirmDialog
+        open={markDefaultOpen}
+        onOpenChange={(next) => {
+          if (!next && !markDefault.isPending) setMarkDefaultOpen(false);
+        }}
+        title="Mark this note as default?"
+        description="This records a default, emails the issuer a default notice, and cannot be undone from this screen."
+        confirmLabel="Mark Default"
+        destructive
+        pending={markDefault.isPending}
+        reason={defaultReason}
+        onReasonChange={setDefaultReason}
+        reasonId="note-mark-default-reason"
+        onConfirm={() => void handleMarkDefault()}
+      />
     </>
   );
 }

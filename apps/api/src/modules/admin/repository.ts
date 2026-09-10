@@ -14,6 +14,8 @@ import {
   OnboardingStatus,
   ApplicationStatus,
   NoteStatus,
+  NoteServicingStatus,
+  NoteSettlementStatus,
   ReviewSection,
   ReviewStepStatus,
 } from "@prisma/client";
@@ -21,8 +23,15 @@ import {
   readFinancingStructureType,
   resolveAdminContractApplicationKind,
   resolveFacilityFeeUpfront,
+  roundNoteMoney,
   type AdminRoleKey,
 } from "@cashsouk/types";
+import { bookMetricsAsOfFilters, bookMetricsDueSoonWindow } from "./book-metrics-as-of";
+import {
+  aggregateBookMetricNotes,
+  aggregateDueSoonBookMetric,
+  type BookMetricNote,
+} from "./book-metrics-calculation";
 import type {
   GetUsersQuery,
   GetAccessLogsQuery,
@@ -41,10 +50,7 @@ import {
   overlayReadCapacityOnContracts,
   overlayStoredCapacityOnApplicationContract,
 } from "../../lib/refresh-contract-facility";
-import {
-  mapAdminContractCapacityDto,
-  readInvoiceFaceAmount,
-} from "./contract-capacity-dto";
+import { mapAdminContractCapacityDto, readInvoiceFaceAmount } from "./contract-capacity-dto";
 import { ensureAdminRoleCatalog } from "../../lib/auth/rbac";
 import {
   isStandaloneHolderContract,
@@ -1178,7 +1184,17 @@ export class AdminRepository {
     })[];
     total: number;
   }> {
-    const { page, pageSize, search, eventType, eventTypes, role, dateRange, userId, organizationId } = params;
+    const {
+      page,
+      pageSize,
+      search,
+      eventType,
+      eventTypes,
+      role,
+      dateRange,
+      userId,
+      organizationId,
+    } = params;
     const skip = (page - 1) * pageSize;
 
     const where: Prisma.OnboardingLogWhereInput = {};
@@ -1500,24 +1516,6 @@ export class AdminRepository {
     portal?: "investor" | "issuer";
     type?: "PERSONAL" | "COMPANY";
     onboardingStatus?:
-    | "PENDING"
-    | "IN_PROGRESS"
-    | "PENDING_APPROVAL"
-    | "PENDING_AMENDMENT"
-    | "PENDING_AML"
-    | "PENDING_SSM_REVIEW"
-    | "PENDING_FINAL_APPROVAL"
-    | "COMPLETED"
-    | "REJECTED";
-  }): Promise<{
-    organizations: {
-      id: string;
-      displayReference: string | null;
-      portal: "investor" | "issuer";
-      type: "PERSONAL" | "COMPANY";
-      name: string | null;
-      registrationNumber: string | null;
-      onboardingStatus:
       | "PENDING"
       | "IN_PROGRESS"
       | "PENDING_APPROVAL"
@@ -1527,6 +1525,24 @@ export class AdminRepository {
       | "PENDING_FINAL_APPROVAL"
       | "COMPLETED"
       | "REJECTED";
+  }): Promise<{
+    organizations: {
+      id: string;
+      displayReference: string | null;
+      portal: "investor" | "issuer";
+      type: "PERSONAL" | "COMPANY";
+      name: string | null;
+      registrationNumber: string | null;
+      onboardingStatus:
+        | "PENDING"
+        | "IN_PROGRESS"
+        | "PENDING_APPROVAL"
+        | "PENDING_AMENDMENT"
+        | "PENDING_AML"
+        | "PENDING_SSM_REVIEW"
+        | "PENDING_FINAL_APPROVAL"
+        | "COMPLETED"
+        | "REJECTED";
       onboardedAt: Date | null;
       owner: {
         userId: string;
@@ -1703,13 +1719,16 @@ export class AdminRepository {
     };
 
     // Derive registration number from top-level column or corporate_onboarding_data.basicInfo
-    const getRegistrationNumber = (
-      org: { registration_number: string | null; corporate_onboarding_data?: unknown }
-    ): string | null => {
+    const getRegistrationNumber = (org: {
+      registration_number: string | null;
+      corporate_onboarding_data?: unknown;
+    }): string | null => {
       if (org.registration_number) return org.registration_number;
-      const data = org.corporate_onboarding_data as {
-        basicInfo?: { ssmRegistrationNumber?: string; ssmRegisterNumber?: string };
-      } | undefined;
+      const data = org.corporate_onboarding_data as
+        | {
+            basicInfo?: { ssmRegistrationNumber?: string; ssmRegisterNumber?: string };
+          }
+        | undefined;
       const basic = data?.basicInfo;
       return basic?.ssmRegistrationNumber ?? basic?.ssmRegisterNumber ?? null;
     };
@@ -1894,18 +1913,18 @@ export class AdminRepository {
           last_name: true,
         },
       },
-    members: {
-      include: {
-        user: {
-          select: {
-            first_name: true,
-            last_name: true,
-            email: true,
-            phone: true,
+      members: {
+        include: {
+          user: {
+            select: {
+              first_name: true,
+              last_name: true,
+              email: true,
+              phone: true,
+            },
           },
         },
       },
-    },
       regtank_onboarding: {
         select: {
           request_id: true,
@@ -2135,20 +2154,27 @@ export class AdminRepository {
     live: number;
     repaid: number;
     distressed: number;
+    arrears: number;
+    defaulted: number;
     cancelledOrFailedFunding: number;
   }> {
     const LIVE: NoteStatus[] = [NoteStatus.PUBLISHED, NoteStatus.FUNDING, NoteStatus.ACTIVE];
     const DISTRESSED: NoteStatus[] = [NoteStatus.ARREARS, NoteStatus.DEFAULTED];
     const CLOSED_OTHER: NoteStatus[] = [NoteStatus.CANCELLED, NoteStatus.FAILED_FUNDING];
 
-    const [total, draft, live, repaid, distressed, cancelledOrFailedFunding] = await Promise.all([
-      prisma.note.count(),
-      prisma.note.count({ where: { status: NoteStatus.DRAFT } }),
-      prisma.note.count({ where: { status: { in: LIVE } } }),
-      prisma.note.count({ where: { status: NoteStatus.REPAID } }),
-      prisma.note.count({ where: { status: { in: DISTRESSED } } }),
-      prisma.note.count({ where: { status: { in: CLOSED_OTHER } } }),
-    ]);
+    const [total, draft, live, repaid, distressed, arrears, defaulted, cancelledOrFailedFunding] =
+      await Promise.all([
+        prisma.note.count(),
+        prisma.note.count({ where: { status: NoteStatus.DRAFT } }),
+        prisma.note.count({ where: { status: { in: LIVE } } }),
+        prisma.note.count({ where: { status: NoteStatus.REPAID } }),
+        prisma.note.count({ where: { status: { in: DISTRESSED } } }),
+        prisma.note.count({
+          where: { servicing_status: NoteServicingStatus.ARREARS, default_marked_at: null },
+        }),
+        prisma.note.count({ where: { servicing_status: NoteServicingStatus.DEFAULTED } }),
+        prisma.note.count({ where: { status: { in: CLOSED_OTHER } } }),
+      ]);
 
     return {
       total,
@@ -2156,6 +2182,8 @@ export class AdminRepository {
       live,
       repaid,
       distressed,
+      arrears,
+      defaulted,
       cancelledOrFailedFunding,
     };
   }
@@ -2163,60 +2191,144 @@ export class AdminRepository {
   /**
    * Platform book snapshot: outstanding, in funding, distressed, and notes due in 7 days.
    */
-  async getBookMetrics(): Promise<{
+  async getBookMetrics(asOfCutoff?: Date): Promise<{
     outstanding: { amount: number; count: number };
     inFunding: { amount: number; count: number };
     distressed: { amount: number; count: number };
+    arrears: { amount: number; count: number };
+    defaulted: { amount: number; count: number };
     dueSoon: { amount: number; count: number };
   }> {
-    const dueSoonStart = new Date();
-    dueSoonStart.setHours(0, 0, 0, 0);
-    const dueSoonEnd = new Date(dueSoonStart);
-    dueSoonEnd.setDate(dueSoonEnd.getDate() + 7);
-
-    const IN_FUNDING: NoteStatus[] = [NoteStatus.PUBLISHED, NoteStatus.FUNDING];
-    const DISTRESSED: NoteStatus[] = [NoteStatus.ARREARS, NoteStatus.DEFAULTED];
-
-    const [outstanding, inFunding, distressed, dueSoon] = await Promise.all([
-      prisma.note.aggregate({
-        where: { status: NoteStatus.ACTIVE },
-        _sum: { funded_amount: true },
-        _count: true,
-      }),
-      prisma.note.aggregate({
-        where: { status: { in: IN_FUNDING } },
-        _sum: { funded_amount: true },
-        _count: true,
-      }),
-      prisma.note.aggregate({
-        where: { status: { in: DISTRESSED } },
-        _sum: { funded_amount: true },
-        _count: true,
-      }),
-      prisma.note.aggregate({
+    const { start: dueSoonStart, end: dueSoonEnd } = bookMetricsDueSoonWindow(
+      new Date(),
+      asOfCutoff
+    );
+    const filters = bookMetricsAsOfFilters(asOfCutoff);
+    const positionSelect = {
+      funded_amount: true,
+      profit_rate_percent: true,
+      tenure_days: true,
+      disbursement_value_date: true,
+      activated_at: true,
+      maturity_date: true,
+      payment_schedules: {
+        select: { due_date: true, sequence: true },
+        orderBy: { sequence: "asc" as const },
+      },
+      settlements: {
         where: {
-          status: NoteStatus.ACTIVE,
-          maturity_date: { gte: dueSoonStart, lt: dueSoonEnd },
+          status: NoteSettlementStatus.POSTED,
+          ...(asOfCutoff ? { posted_at: { lt: asOfCutoff } } : {}),
         },
-        _sum: { funded_amount: true },
-        _count: true,
-      }),
-    ]);
+        select: { investor_principal: true, investor_profit_gross: true },
+      },
+    } satisfies Prisma.NoteSelect;
 
-    const toMetric = (row: {
-      _sum: { funded_amount: Prisma.Decimal | null };
-      _count: number;
-    }) => ({
-      amount: row._sum.funded_amount?.toNumber() ?? 0,
-      count: row._count,
-    });
+    const [outstandingNotes, inFunding, distressedNotes, arrearsNotes, defaultedNotes] =
+      await Promise.all([
+        prisma.note.findMany({
+          where: filters.outstanding,
+          select: positionSelect,
+        }),
+        prisma.note.aggregate({
+          where: filters.inFunding,
+          _sum: { funded_amount: true },
+          _count: true,
+        }),
+        prisma.note.findMany({
+          where: filters.distressed,
+          select: positionSelect,
+        }),
+        prisma.note.findMany({
+          where: filters.arrears,
+          select: positionSelect,
+        }),
+        prisma.note.findMany({
+          where: filters.defaulted,
+          select: positionSelect,
+        }),
+      ]);
+
+    const inFundingMetric = {
+      amount: inFunding._sum.funded_amount?.toNumber() ?? 0,
+      count: inFunding._count,
+    };
+    const outstanding = aggregateBookMetricNotes(outstandingNotes as BookMetricNote[]);
+    const distressed = aggregateBookMetricNotes(distressedNotes as BookMetricNote[]);
+    const arrears = aggregateBookMetricNotes(arrearsNotes as BookMetricNote[]);
+    const defaulted = aggregateBookMetricNotes(defaultedNotes as BookMetricNote[]);
+    const dueSoon = aggregateDueSoonBookMetric(
+      outstandingNotes as BookMetricNote[],
+      dueSoonStart,
+      dueSoonEnd
+    );
 
     return {
-      outstanding: toMetric(outstanding),
-      inFunding: toMetric(inFunding),
-      distressed: toMetric(distressed),
-      dueSoon: toMetric(dueSoon),
+      outstanding,
+      inFunding: inFundingMetric,
+      distressed,
+      arrears,
+      defaulted,
+      dueSoon,
     };
+  }
+
+  async upsertBookMetricsDailySnapshot(
+    date: Date,
+    metrics: {
+      outstanding: { amount: number; count: number };
+      inFunding: { amount: number; count: number };
+      arrears: { amount: number; count: number };
+      defaulted: { amount: number; count: number };
+      dueSoon: { amount: number; count: number };
+    }
+  ): Promise<void> {
+    const values = {
+      outstanding_amount: roundNoteMoney(metrics.outstanding.amount),
+      outstanding_count: metrics.outstanding.count,
+      in_funding_amount: roundNoteMoney(metrics.inFunding.amount),
+      in_funding_count: metrics.inFunding.count,
+      arrears_amount: roundNoteMoney(metrics.arrears.amount),
+      arrears_count: metrics.arrears.count,
+      defaulted_amount: roundNoteMoney(metrics.defaulted.amount),
+      defaulted_count: metrics.defaulted.count,
+      due_soon_amount: roundNoteMoney(metrics.dueSoon.amount),
+      due_soon_count: metrics.dueSoon.count,
+    };
+
+    await prisma.bookMetricsDailySnapshot.upsert({
+      where: { snapshot_date: date },
+      create: { snapshot_date: date, ...values },
+      update: values,
+    });
+  }
+
+  async listBookMetricsDailySnapshots(
+    fromDate: Date,
+    toDate: Date
+  ): Promise<
+    Array<{
+      snapshotDate: Date;
+      outstanding: { amount: number; count: number };
+      inFunding: { amount: number; count: number };
+      arrears: { amount: number; count: number };
+      defaulted: { amount: number; count: number };
+      dueSoon: { amount: number; count: number };
+    }>
+  > {
+    const rows = await prisma.bookMetricsDailySnapshot.findMany({
+      where: { snapshot_date: { gte: fromDate, lte: toDate } },
+      orderBy: { snapshot_date: "asc" },
+    });
+
+    return rows.map((row) => ({
+      snapshotDate: row.snapshot_date,
+      outstanding: { amount: row.outstanding_amount.toNumber(), count: row.outstanding_count },
+      inFunding: { amount: row.in_funding_amount.toNumber(), count: row.in_funding_count },
+      arrears: { amount: row.arrears_amount.toNumber(), count: row.arrears_count },
+      defaulted: { amount: row.defaulted_amount.toNumber(), count: row.defaulted_count },
+      dueSoon: { amount: row.due_soon_amount.toNumber(), count: row.due_soon_count },
+    }));
   }
 
   /**
@@ -2386,7 +2498,8 @@ export class AdminRepository {
 
       const financingType = app.financing_type as Record<string, unknown> | null;
       const productLabel =
-        typeof financingType?.product_name === "string" && financingType.product_name.trim().length > 0
+        typeof financingType?.product_name === "string" &&
+        financingType.product_name.trim().length > 0
           ? financingType.product_name
           : "Financing Product";
 
@@ -2423,7 +2536,9 @@ export class AdminRepository {
     });
 
     const productIdList = [
-      ...new Set(transformedApplications.map((a) => a.productId).filter((x): x is string => Boolean(x))),
+      ...new Set(
+        transformedApplications.map((a) => a.productId).filter((x): x is string => Boolean(x))
+      ),
     ];
     const productRows =
       productIdList.length > 0
@@ -2438,7 +2553,7 @@ export class AdminRepository {
 
     const applications = transformedApplications.map((row) => ({
       ...row,
-      baseProductId: row.productId ? productIdToBase.get(row.productId) ?? row.productId : null,
+      baseProductId: row.productId ? (productIdToBase.get(row.productId) ?? row.productId) : null,
     }));
 
     return { applications, total };
@@ -2495,7 +2610,9 @@ export class AdminRepository {
         { issuer_organization: { name: { contains: search, mode: "insensitive" } } },
         { issuer_organization: { display_reference: { contains: search, mode: "insensitive" } } },
         { applications: { some: { id: { contains: search, mode: "insensitive" } } } },
-        { applications: { some: { display_reference: { contains: search, mode: "insensitive" } } } },
+        {
+          applications: { some: { display_reference: { contains: search, mode: "insensitive" } } },
+        },
       ];
     }
 
@@ -2665,15 +2782,18 @@ export class AdminRepository {
     const offerDetails = (contract.offer_details ?? {}) as Record<string, unknown>;
     const customerDetails = (contract.customer_details ?? {}) as Record<string, unknown>;
     const sentByUserId =
-      typeof offerDetails.sent_by_user_id === "string" && offerDetails.sent_by_user_id.trim().length > 0
+      typeof offerDetails.sent_by_user_id === "string" &&
+      offerDetails.sent_by_user_id.trim().length > 0
         ? (offerDetails.sent_by_user_id as string)
         : null;
     const respondedByUserId =
-      typeof offerDetails.responded_by_user_id === "string" && offerDetails.responded_by_user_id.trim().length > 0
+      typeof offerDetails.responded_by_user_id === "string" &&
+      offerDetails.responded_by_user_id.trim().length > 0
         ? (offerDetails.responded_by_user_id as string)
         : null;
     const requestedFacility =
-      typeof offerDetails.requested_facility === "number" && Number.isFinite(offerDetails.requested_facility)
+      typeof offerDetails.requested_facility === "number" &&
+      Number.isFinite(offerDetails.requested_facility)
         ? offerDetails.requested_facility
         : resolveRequestedFacility(contractDetails);
     const facilityFeeUpfront = resolveFacilityFeeUpfront(contractDetails);
@@ -2706,7 +2826,8 @@ export class AdminRepository {
         id: application.id,
         displayReference: application.display_reference ?? null,
         productId:
-          typeof (application.financing_type as Record<string, unknown> | null)?.product_id === "string"
+          typeof (application.financing_type as Record<string, unknown> | null)?.product_id ===
+          "string"
             ? ((application.financing_type as Record<string, unknown>).product_id as string)
             : null,
         status: application.status,
@@ -2808,7 +2929,8 @@ export class AdminRepository {
           ? contractDetails.number
           : null,
       title: typeof contractDetails.title === "string" ? contractDetails.title : null,
-      description: typeof contractDetails.description === "string" ? contractDetails.description : null,
+      description:
+        typeof contractDetails.description === "string" ? contractDetails.description : null,
       issuerOrganizationId: contract.issuer_organization_id,
       issuerOrganizationName: contract.issuer_organization?.name ?? null,
       issuerOrganizationDisplayReference: contract.issuer_organization?.display_reference ?? null,
@@ -2830,9 +2952,9 @@ export class AdminRepository {
       updatedAt: contract.updated_at,
       contractDetails: contract.contract_details ? contractDetails : null,
       offerDetails: contract.offer_details ? offerDetails : null,
-      offerSentByUserName: sentByUserId ? userNameById.get(sentByUserId) ?? null : null,
+      offerSentByUserName: sentByUserId ? (userNameById.get(sentByUserId) ?? null) : null,
       offerRespondedByUserName: respondedByUserId
-        ? userNameById.get(respondedByUserId) ?? null
+        ? (userNameById.get(respondedByUserId) ?? null)
         : null,
       customerDetails: contract.customer_details ? customerDetails : null,
       applications,
@@ -2854,7 +2976,7 @@ export class AdminRepository {
       })),
       activity: activityLogs.map((log) => {
         const metadata = (log.metadata as Record<string, unknown> | null) ?? {};
-        const actorName = log.user_id ? userNameById.get(log.user_id) ?? null : null;
+        const actorName = log.user_id ? (userNameById.get(log.user_id) ?? null) : null;
         return {
           id: log.id,
           eventType: log.event_type,
@@ -2975,11 +3097,7 @@ export class AdminRepository {
   /**
    * Reset item review status to PENDING (clears reviewer and reviewed_at)
    */
-  async resetItemReviewToPending(
-    applicationId: string,
-    itemType: string,
-    itemId: string
-  ) {
+  async resetItemReviewToPending(applicationId: string, itemType: string, itemId: string) {
     return prisma.applicationReviewItem.upsert({
       where: {
         application_id_item_type_item_id: {

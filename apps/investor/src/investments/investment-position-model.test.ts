@@ -227,21 +227,33 @@ describe("maturity display", () => {
     });
   });
 
-  it("labels tenure notes in grace instead of past due", () => {
+  it("uses DB servicing status and days past due instead of date-derived grace", () => {
     expect(
       getInvestmentMaturityDisplay(
-        note({ tenureDays: 90, maturityDate: "2026-08-16", gracePeriodDays: 7 }),
+        note({
+          tenureDays: 90,
+          maturityDate: "2026-08-16",
+          gracePeriodDays: 7,
+          servicingStatus: "OVERDUE" as NoteListItem["servicingStatus"],
+          daysPastDue: 3,
+        }),
         NOW
       )
     ).toMatchObject({
-      tone: "grace",
+      tone: "overdue",
       value: "3",
-      unit: "days in grace",
+      unit: "days past maturity",
       date: "16 Aug 2026",
     });
     expect(
       getInvestmentMaturityDisplay(
-        note({ tenureDays: 90, maturityDate: "2026-08-10", gracePeriodDays: 7 }),
+        note({
+          tenureDays: 90,
+          maturityDate: "2026-08-10",
+          gracePeriodDays: 7,
+          servicingStatus: "LATE" as NoteListItem["servicingStatus"],
+          daysPastDue: 9,
+        }),
         NOW
       )
     ).toMatchObject({

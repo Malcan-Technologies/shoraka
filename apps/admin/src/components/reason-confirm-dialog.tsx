@@ -24,6 +24,7 @@ export function ReasonConfirmDialog({
   reasonId,
   reasonRequired = true,
   error,
+  destructive = false,
   onConfirm,
 }: {
   open: boolean;
@@ -37,6 +38,7 @@ export function ReasonConfirmDialog({
   reasonId: string;
   reasonRequired?: boolean;
   error?: string | null;
+  destructive?: boolean;
   onConfirm: () => void;
 }) {
   const trimmed = reason.trim();
@@ -77,6 +79,7 @@ export function ReasonConfirmDialog({
           <Button
             type="button"
             className="rounded-xl"
+            variant={destructive ? "destructive" : "default"}
             disabled={confirmDisabled}
             onClick={onConfirm}
           >

@@ -206,7 +206,12 @@ export function classifyLiveInvoice(
   if (badge === "completed") return "repaid";
   if (badge === "unsuccessful" || badge === "draft") return null;
   if (note && isNoteRaisingNow(note)) return "raisingNow";
-  if (badge === "active" || badge === "arrears") return "servicing";
+  if (badge === "active" || badge === "arrears" || badge === "defaulted") return "servicing";
+  if (badge === "action_required") {
+    const servicing = String(note?.servicingStatus ?? "").toUpperCase();
+    if (servicing === "OVERDUE" || servicing === "LATE") return "servicing";
+    if (Number(note?.excessLateChargesOutstanding ?? 0) > 0.005) return "servicing";
+  }
   if (badge === "funded") return "funded";
   if (badge === "pending_listing") return "approvedNotListed";
   if (badge === "in_progress" && String(invoice.invoiceStatus).toUpperCase() === "APPROVED") {

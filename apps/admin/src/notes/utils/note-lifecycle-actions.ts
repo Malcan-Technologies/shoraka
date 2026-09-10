@@ -122,6 +122,7 @@ export function getNoteLifecycleStageIndex(note: NoteDetail): number {
     note.status === "ARREARS" ||
     note.status === "DEFAULTED" ||
     note.servicingStatus === "CURRENT" ||
+    note.servicingStatus === "OVERDUE" ||
     note.servicingStatus === "LATE" ||
     note.servicingStatus === "ARREARS" ||
     note.servicingStatus === "DEFAULTED";

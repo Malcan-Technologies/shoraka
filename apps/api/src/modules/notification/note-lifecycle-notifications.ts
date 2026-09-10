@@ -1,4 +1,10 @@
-import { NoteInvestmentStatus, WithdrawalType, type Notification } from "@prisma/client";
+import {
+  NoteInvestmentStatus,
+  NoteServicingStatus,
+  WithdrawalType,
+  type Notification,
+} from "@prisma/client";
+import { prisma } from "../../lib/prisma";
 import { logger } from "../../lib/logger";
 import { systemNotificationLogKey } from "./delivery-log";
 import { NotificationPayloads, NotificationTypeId, NotificationTypeIds } from "./registry";
@@ -76,6 +82,119 @@ async function sendToInvestorOrganizations<T extends NotificationTypeId>(
 
 function logLifecycleError(stage: string, noteId: string, err: unknown) {
   logger.error({ err, noteId, stage }, "Note lifecycle notification failed");
+}
+
+function issuerUserNotificationKey(prefix: string, userId: string): string {
+  return `${prefix}:user:${userId}`;
+}
+
+function investorUserNotificationKey(prefix: string, organizationId: string, userId: string): string {
+  return `${prefix}:investor-org:${organizationId}:user:${userId}`;
+}
+
+async function listIssuerNotificationKeys(issuerOrganizationId: string, prefix: string): Promise<string[]> {
+  const userIds = await listIssuerOrgMemberUserIds(issuerOrganizationId);
+  return userIds.map((userId) => issuerUserNotificationKey(prefix, userId));
+}
+
+async function listInvestorNoteNotificationKeys(
+  noteId: string,
+  prefix: string,
+  statuses: NoteInvestmentStatus[] = [NoteInvestmentStatus.CONFIRMED]
+): Promise<string[]> {
+  const orgIds = await listDistinctInvestorOrganizationIdsForNote(noteId, statuses);
+  const batches = await Promise.all(
+    orgIds.map(async (organizationId) => {
+      const userIds = await listInvestorOrgMemberUserIds(organizationId);
+      return userIds.map((userId) => investorUserNotificationKey(prefix, organizationId, userId));
+    })
+  );
+  return batches.flat();
+}
+
+async function mergePersistedNotificationKeys(prefixes: string[], liveKeys: string[]): Promise<string[]> {
+  if (prefixes.length === 0) return liveKeys;
+  const rows = await prisma.notification.findMany({
+    where: {
+      OR: prefixes.map((prefix) => ({ idempotency_key: { startsWith: prefix } })),
+    },
+    select: { idempotency_key: true },
+  });
+  const keys = new Set(liveKeys);
+  for (const row of rows) {
+    if (row.idempotency_key) keys.add(row.idempotency_key);
+  }
+  return [...keys];
+}
+
+export const SERVICING_LADDER_INVESTOR_STATUSES = [
+  NoteInvestmentStatus.CONFIRMED,
+  NoteInvestmentStatus.SETTLED,
+] as const;
+
+export async function expectedServicingTransitionNotificationKeys(input: {
+  status: NoteServicingStatus;
+  noteId: string;
+  issuerOrganizationId: string;
+}): Promise<string[]> {
+  if (input.status === NoteServicingStatus.OVERDUE) {
+    return listIssuerNotificationKeys(
+      input.issuerOrganizationId,
+      `note:servicing:${input.noteId}:overdue`
+    );
+  }
+  if (input.status === NoteServicingStatus.LATE) {
+    const [issuerKeys, investorKeys] = await Promise.all([
+      listIssuerNotificationKeys(input.issuerOrganizationId, `note:servicing:${input.noteId}:late`),
+      listInvestorNoteNotificationKeys(
+        input.noteId,
+        `note:servicing:${input.noteId}:late:investor`,
+        [...SERVICING_LADDER_INVESTOR_STATUSES]
+      ),
+    ]);
+    return [...issuerKeys, ...investorKeys];
+  }
+  if (input.status === NoteServicingStatus.ARREARS) {
+    const [issuerKeys, investorKeys] = await Promise.all([
+      listIssuerNotificationKeys(
+        input.issuerOrganizationId,
+        `note:lifecycle:${input.noteId}:arrears:issuer`
+      ),
+      listInvestorNoteNotificationKeys(
+        input.noteId,
+        `note:lifecycle:${input.noteId}:arrears:investor`,
+        [...SERVICING_LADDER_INVESTOR_STATUSES]
+      ),
+    ]);
+    return [...issuerKeys, ...investorKeys];
+  }
+  return [];
+}
+
+export async function expectedDefaultNotificationKeys(input: {
+  noteId: string;
+  issuerOrganizationId: string;
+}): Promise<string[]> {
+  const issuerPrefix = `note:lifecycle:${input.noteId}:defaulted:issuer`;
+  const investorPrefix = `note:lifecycle:${input.noteId}:defaulted:investor`;
+  const [issuerKeys, investorKeys] = await Promise.all([
+    listIssuerNotificationKeys(input.issuerOrganizationId, issuerPrefix),
+    listInvestorNoteNotificationKeys(input.noteId, investorPrefix, [
+      ...SERVICING_LADDER_INVESTOR_STATUSES,
+    ]),
+  ]);
+  return mergePersistedNotificationKeys([issuerPrefix, investorPrefix], [...issuerKeys, ...investorKeys]);
+}
+
+export async function expectedDueSoonNotificationKeys(input: {
+  noteId: string;
+  issuerOrganizationId: string;
+  kind: "t7" | "t1";
+}): Promise<string[]> {
+  return listIssuerNotificationKeys(
+    input.issuerOrganizationId,
+    `note:servicing:${input.noteId}:due_soon:${input.kind}`
+  );
 }
 
 /** After marketplace publish — issuer organisation only. */
@@ -379,6 +498,116 @@ export async function notifyNoteSettlementPosted(args: {
   }
 }
 
+async function notifyIssuerNoteEvent(args: {
+  notificationService: NotificationService;
+  typeId:
+    | typeof NotificationTypeIds.NOTE_REPAYMENT_DUE_SOON
+    | typeof NotificationTypeIds.NOTE_OVERDUE
+    | typeof NotificationTypeIds.NOTE_LATE
+    | typeof NotificationTypeIds.NOTE_ARREARS;
+  noteId: string;
+  issuerOrganizationId: string;
+  payload: NotificationPayloads[typeof args.typeId];
+  eventKey: string;
+  stage: string;
+}): Promise<void> {
+  try {
+    const results = await sendToIssuerOrg(
+      args.notificationService,
+      args.issuerOrganizationId,
+      args.typeId,
+      args.payload,
+      args.eventKey
+    );
+    await args.notificationService.logTypedSystemBatch(args.typeId, args.payload, results, {
+      idempotencyKey: systemNotificationLogKey(args.typeId, args.eventKey),
+    });
+  } catch (err) {
+    logLifecycleError(args.stage, args.noteId, err);
+  }
+}
+
+export async function notifyNoteRepaymentDueSoon(args: {
+  notificationService: NotificationService;
+  noteId: string;
+  issuerOrganizationId: string;
+  noteTitle: string;
+  daysUntilDue: number;
+}): Promise<void> {
+  const kind = args.daysUntilDue <= 1 ? "t1" : "t7";
+  await notifyIssuerNoteEvent({
+    notificationService: args.notificationService,
+    typeId: NotificationTypeIds.NOTE_REPAYMENT_DUE_SOON,
+    noteId: args.noteId,
+    issuerOrganizationId: args.issuerOrganizationId,
+    payload: {
+      noteId: args.noteId,
+      noteTitle: args.noteTitle,
+      daysUntilDue: args.daysUntilDue,
+    },
+    eventKey: `note:servicing:${args.noteId}:due_soon:${kind}`,
+    stage: `due_soon_${kind}`,
+  });
+}
+
+export async function notifyNoteOverdue(args: {
+  notificationService: NotificationService;
+  noteId: string;
+  issuerOrganizationId: string;
+  noteTitle: string;
+}): Promise<void> {
+  await notifyIssuerNoteEvent({
+    notificationService: args.notificationService,
+    typeId: NotificationTypeIds.NOTE_OVERDUE,
+    noteId: args.noteId,
+    issuerOrganizationId: args.issuerOrganizationId,
+    payload: { noteId: args.noteId, noteTitle: args.noteTitle },
+    eventKey: `note:servicing:${args.noteId}:overdue`,
+    stage: "overdue_issuer",
+  });
+}
+
+export async function notifyNoteLate(args: {
+  notificationService: NotificationService;
+  noteId: string;
+  issuerOrganizationId: string;
+  noteTitle: string;
+}): Promise<void> {
+  const payload = { noteId: args.noteId, noteTitle: args.noteTitle };
+  await notifyIssuerNoteEvent({
+    notificationService: args.notificationService,
+    typeId: NotificationTypeIds.NOTE_LATE,
+    noteId: args.noteId,
+    issuerOrganizationId: args.issuerOrganizationId,
+    payload,
+    eventKey: `note:servicing:${args.noteId}:late`,
+    stage: "late_issuer",
+  });
+  try {
+    const results = await sendToInvestorsOnNote(
+      args.notificationService,
+      args.noteId,
+      [...SERVICING_LADDER_INVESTOR_STATUSES],
+      NotificationTypeIds.NOTE_LATE_INVESTOR,
+      payload,
+      `note:servicing:${args.noteId}:late:investor`
+    );
+    await args.notificationService.logTypedSystemBatch(
+      NotificationTypeIds.NOTE_LATE_INVESTOR,
+      payload,
+      results,
+      {
+        idempotencyKey: systemNotificationLogKey(
+          NotificationTypeIds.NOTE_LATE_INVESTOR,
+          `note:servicing:${args.noteId}:late:investor`
+        ),
+      }
+    );
+  } catch (err) {
+    logLifecycleError("late_investor", args.noteId, err);
+  }
+}
+
 export async function notifyNoteArrears(args: {
   notificationService: NotificationService;
   noteId: string;
@@ -412,7 +641,7 @@ export async function notifyNoteArrears(args: {
     const results = await sendToInvestorsOnNote(
       args.notificationService,
       args.noteId,
-      [NoteInvestmentStatus.CONFIRMED],
+      [...SERVICING_LADDER_INVESTOR_STATUSES],
       NotificationTypeIds.NOTE_ARREARS_INVESTOR,
       payload,
       `note:lifecycle:${args.noteId}:arrears:investor`
@@ -466,7 +695,7 @@ export async function notifyNoteDefaulted(args: {
     const results = await sendToInvestorsOnNote(
       args.notificationService,
       args.noteId,
-      [NoteInvestmentStatus.CONFIRMED],
+      [...SERVICING_LADDER_INVESTOR_STATUSES],
       NotificationTypeIds.NOTE_DEFAULTED_INVESTOR,
       payload,
       `note:lifecycle:${args.noteId}:defaulted:investor`

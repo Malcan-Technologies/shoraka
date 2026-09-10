@@ -115,4 +115,15 @@ describe("getNoteAttentionAction", () => {
     expect(action.headline).toBe("Repayment is overdue");
     expect(action.label).toBe("View details");
   });
+
+  it("names OVERDUE servicing and includes days past due", () => {
+    const action = getNoteAttentionAction(
+      note({
+        servicingStatus: "OVERDUE" as NoteListItem["servicingStatus"],
+        daysPastDue: 4,
+      })
+    );
+    expect(action.headline).toBe("Repayment is overdue");
+    expect(action.hint).toBe("4 days past due.");
+  });
 });

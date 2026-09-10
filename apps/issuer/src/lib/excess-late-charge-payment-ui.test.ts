@@ -20,6 +20,17 @@ describe("excess late charge payment UI", () => {
     expect(model.ctaLabel).toBe("Pay with FPX");
   });
 
+  it("treats FPX receipts as paid and does not count waivers as payment", () => {
+    const model = deriveExcessLateChargePaymentCardModel({
+      owedAmount: 60,
+      paidAmount: 0,
+      outstanding: 60,
+      noteReference: "NOTE-1",
+    });
+    expect(model.creditedAmount).toBe(0);
+    expect(model.state).toBe("due");
+  });
+
   it("flags multi-transaction caps and held review", () => {
     expect(
       deriveExcessLateChargePaymentCardModel({

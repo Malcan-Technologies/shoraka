@@ -110,6 +110,7 @@ export function dashboardNoteFromListItem(note: NoteListItem): IssuerDashboardNo
     tenureDays: note.tenureDays ?? null,
     marketplaceStatusLabel: null,
     investorCount: note.investorCount ?? 0,
+    excessLateChargesOutstanding: note.excessLateCharges?.outstanding ?? 0,
     disbursementBreakdown: null,
   };
 }

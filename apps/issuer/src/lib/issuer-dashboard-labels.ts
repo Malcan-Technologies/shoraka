@@ -16,6 +16,7 @@ export type IssuerFinancingStatusKind =
   | "funded"
   | "active"
   | "arrears"
+  | "defaulted"
   | "completed"
   | "unsuccessful";
 
@@ -90,6 +91,12 @@ export function getIssuerFinancingStatusPresentation(kind: IssuerFinancingStatus
         className: "bg-status-rejected-bg text-status-rejected-text hover:bg-status-rejected-bg",
         variant: "default",
       };
+    case "defaulted":
+      return {
+        label: "Defaulted",
+        className: "bg-status-rejected-bg text-status-rejected-text hover:bg-status-rejected-bg",
+        variant: "default",
+      };
     case "unsuccessful":
       return {
         label: "Unsuccessful",
@@ -114,6 +121,7 @@ export function financingKindToStatusToken(kind: IssuerFinancingStatusKind): Use
       return "success";
     case "unsuccessful":
     case "arrears":
+    case "defaulted":
       return "rejected";
     case "draft":
     default:
@@ -162,6 +170,11 @@ function parseMoneyRm(value: string | undefined): string {
   return n.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function leftoverLateChargesOutstanding(note: IssuerDashboardNote): number {
+  const outstanding = Number(note.excessLateChargesOutstanding ?? 0);
+  return Number.isFinite(outstanding) ? Math.max(0, outstanding) : 0;
+}
+
 /**
  * Invoice card on issuer financing dashboard: no Note → `Invoice.status`; with Note → lifecycle fields on DTO.
  */
@@ -193,10 +206,13 @@ export function resolveIssuerInvoiceDashboardBadge(
   const ls = note.listingStatus == null ? "" : norm(note.listingStatus);
   const ss = norm(note.servicingStatus);
 
+  if (ns === "DEFAULTED" || ss === "DEFAULTED") {
+    return "defaulted";
+  }
+
   if (
     ns === "FAILED_FUNDING" ||
     ns === "CANCELLED" ||
-    ns === "DEFAULTED" ||
     ns === "FAILED" ||
     ns === "WITHDRAWN" ||
     fs === "FAILED"
@@ -204,18 +220,19 @@ export function resolveIssuerInvoiceDashboardBadge(
     return "unsuccessful";
   }
 
+  if (leftoverLateChargesOutstanding(note) > 0.005) {
+    return "action_required";
+  }
+
   if (ns === "REPAID" || ns === "SETTLED" || ns === "COMPLETED" || ss === "SETTLED") {
     return "completed";
   }
 
-  if (
-    ns === "ARREARS" ||
-    ss === "ARREARS"
-  ) {
+  if (ns === "ARREARS" || ss === "ARREARS") {
     return "arrears";
   }
 
-  if (ss === "LATE") {
+  if (ss === "OVERDUE" || ss === "LATE") {
     return "action_required";
   }
 

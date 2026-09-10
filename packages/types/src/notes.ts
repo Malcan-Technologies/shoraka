@@ -128,10 +128,29 @@ export enum NoteServicingStatus {
   CURRENT = "CURRENT",
   PARTIAL = "PARTIAL",
   ADVANCE_PAID = "ADVANCE_PAID",
+  OVERDUE = "OVERDUE",
   LATE = "LATE",
   ARREARS = "ARREARS",
   DEFAULTED = "DEFAULTED",
   SETTLED = "SETTLED",
+}
+
+export enum DpdBucket {
+  CURRENT = "CURRENT",
+  DPD_1_30 = "DPD_1_30",
+  DPD_31_60 = "DPD_31_60",
+  DPD_61_90 = "DPD_61_90",
+  DPD_90_PLUS = "DPD_90_PLUS",
+}
+
+export enum NoteServicingLetterType {
+  ARREARS = "ARREARS",
+  DEFAULT = "DEFAULT",
+}
+
+export enum NoteServicingLetterTrigger {
+  SYSTEM = "SYSTEM",
+  ADMIN = "ADMIN",
 }
 
 export enum NoteInvestmentStatus {
@@ -344,6 +363,7 @@ export interface NoteListItem extends NoteMoneySummary {
   listingStatus: NoteListingStatus;
   fundingStatus: NoteFundingStatus;
   servicingStatus: NoteServicingStatus;
+  daysPastDue?: number;
   isFeatured: boolean;
   featuredRank: number | null;
   featuredFrom: string | null;
@@ -404,6 +424,15 @@ export interface NoteDetail extends NoteListItem {
   gharamahRateCapPercent: number;
   defaultMarkedAt: string | null;
   defaultReason: string | null;
+  overdueStartedAt?: string | null;
+  lateStartedAt?: string | null;
+  arrearsStartedAt?: string | null;
+  daysPastDue?: number;
+  indicativeTawidhAmount?: number;
+  indicativeGharamahAmount?: number;
+  indicativeAsOf?: string | null;
+  servicingLetters?: NoteServicingLetter[];
+  lateChargeWaivers?: NoteLateChargeWaiver[];
   listing: NoteListing | null;
   investments: NoteInvestment[];
   paymentSchedules: NotePaymentSchedule[];
@@ -499,6 +528,26 @@ export interface PaymentEvidenceFile {
   uploadedAt: string;
 }
 
+export interface NoteServicingLetter {
+  id: string;
+  noteId: string;
+  type: NoteServicingLetterType;
+  generatedAt: string;
+  sentAt: string | null;
+  triggeredBy: NoteServicingLetterTrigger;
+}
+
+export interface NoteLateChargeWaiver {
+  id: string;
+  noteId: string;
+  settlementId: string | null;
+  tawidhWaivedAmount: number;
+  gharamahWaivedAmount: number;
+  reason: string;
+  waivedByAdminUserId: string;
+  createdAt: string;
+}
+
 export interface NoteSettlement {
   id: string;
   displayReference: string | null;
@@ -524,6 +573,9 @@ export interface NoteSettlement {
   unappliedAmount: number;
   excessLateChargeAmount?: number;
   excessLateChargePaidAmount?: number;
+  excessLateChargeWaivedAmount?: number;
+  daysPastDueAtPayment?: number | null;
+  dpdBucketAtPayment?: DpdBucket | null;
   excessTawidhAmount?: number;
   excessGharamahAmount?: number;
   actualSettlementDate?: string | null;
@@ -663,6 +715,17 @@ export interface NoteActionRequiredCountResponse {
     draftNotes: number;
     fundingReady: number;
   };
+}
+
+export interface NoteDefaultEligibleCountResponse {
+  count: number;
+}
+
+export interface WaiveLateChargeInput {
+  tawidhAmount?: number;
+  gharamahAmount?: number;
+  reason: string;
+  settlementId?: string;
 }
 
 export interface AdminInvestmentItem {
@@ -1085,6 +1148,38 @@ export interface NotesResponse {
   };
 }
 
+export interface InvestorPortfolioAtRisk {
+  amount: number;
+  percent: number;
+  count: number;
+  maxDaysPastDue: number | null;
+}
+
+export interface InvestorCashflowMonth {
+  yearMonth: string;
+  label: string;
+  amount: number;
+  count: number;
+}
+
+export interface InvestorCashflowUpcoming {
+  investmentId: string;
+  noteId: string;
+  noteReference: string;
+  issuerName: string | null;
+  dueDate: string;
+  amount: number;
+  profit: number;
+  tenureDays: number | null;
+}
+
+export interface InvestorCashflowNext90Days {
+  totalAmount: number;
+  noteCount: number;
+  months: InvestorCashflowMonth[];
+  upcoming: InvestorCashflowUpcoming[];
+}
+
 export interface InvestorPortfolioResponse {
   portfolioTotal: number;
   totalInvestment: number;
@@ -1094,6 +1189,18 @@ export interface InvestorPortfolioResponse {
   confirmedInvestment: number;
   availableBalance: number;
   investmentCount: number;
+  /** % change of portfolioTotal vs first history point of the current MYT year. */
+  ytdChangePercent: number | null;
+  /** Settled net profit received from posted settlements allocated to this investor. */
+  returnsEarned: number;
+  /** Weighted average realized annual return from settled investments. */
+  netAnnualReturnPercent: number | null;
+  /** MYT calendar date of the first CONFIRMED investment (YYYY-MM-DD). */
+  returnsSince: string | null;
+  /** MYT calendar days since the last investor balance movement. */
+  idleDays: number | null;
+  atRisk: InvestorPortfolioAtRisk;
+  cashflowNext90Days: InvestorCashflowNext90Days;
 }
 
 export type InvestorPortfolioHistoryRange = "1W" | "1M" | "3M" | "6M" | "YTD" | "ALL";
@@ -1103,6 +1210,8 @@ export interface InvestorPortfolioHistoryPoint {
   date: string;
   availableBalance: number;
   portfolioTotal: number;
+  /** Confirmed investment capital as of this point. */
+  principal: number;
 }
 
 export interface InvestorPortfolioHistoryResponse {

@@ -183,10 +183,19 @@ adminNotesRouter.post("/", requirePermission("notes.create"), handler);
 | | |
 |---|---|
 | View permission | `dashboard.view` |
-| Widget-level | `dashboard.finance.view`, `dashboard.operations.view`, `dashboard.platform.view` |
-| Backend | `GET /v1/admin/dashboard/stats` → `dashboard.view` |
+| Widget-level | `dashboard.finance.view`, `dashboard.operations.view`, `dashboard.platform.view`, `reports.view` |
+| Backend | `GET /v1/admin/dashboard/stats` → `dashboard.view`. Credit-quality PAR tiles use `GET /v1/admin/reports/ageing` → `reports.view` |
 | Frontend page | `apps/admin/src/app/page.tsx` (root `page.tsx`, not `app/dashboard/`) |
-| Notes | Widget visibility gated by widget-specific permissions on frontend only; single stats endpoint uses `dashboard.view` |
+| Notes | Finance / operations / platform widgets are gated on the frontend from the shared stats payload. Portfolio-at-risk is not on that payload — it is fetched only when the admin has `reports.view`. |
+
+### Reports
+
+| | |
+|---|---|
+| View | `reports.view` |
+| Backend | `GET /v1/admin/reports`, `GET /v1/admin/reports/:key`, CSV/XLSX download |
+| Frontend | Report Center (`/reports`), ageing/NPL/late-fee/default reports, dashboard **Credit quality** PAR tiles |
+| Notes | One permission covers extracts and the PAR widget. Do not put PAR on `GET /v1/admin/dashboard/stats`. |
 
 ### Notes
 
@@ -510,7 +519,7 @@ These permissions have been removed from the catalog because they have no active
 
 | Permission | Reason removed |
 |---|---|
-| `reports.view`, `reports.export` | No reports page exists |
+| `reports.export` | CSV/XLSX download uses `reports.view` on the same report routes |
 | `investments.manage` | Investment listing is read-only; no admin mutation routes |
 | `bucket_balances.manage` | View-only page; no correction/adjustment routes |
 | `repayments.manage` | Repayment actions inside Note Detail use `notes.repayment.manage` |
@@ -521,6 +530,7 @@ The following permissions are **not** in this list because they have active back
 
 | Permission | Active usage |
 |---|---|
+| `reports.view` | Report Center (`/reports`), dashboard Credit quality (PAR30/60/90), and `GET /v1/admin/reports` |
 | `contracts.manage` | `POST /contracts/:id/offers/resign` in `admin/controller.ts` |
 
 ---

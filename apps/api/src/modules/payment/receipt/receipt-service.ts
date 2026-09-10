@@ -429,7 +429,7 @@ async function generatePdfForExistingReceipt(
   try {
     // Prefer merchant snapshot already sealed on a prior successful attempt.
     // First successful generation seals merchant_snapshot permanently.
-    let merchant =
+    const merchant =
       receipt.merchant_snapshot &&
       typeof receipt.merchant_snapshot === "object" &&
       !Array.isArray(receipt.merchant_snapshot)
@@ -484,7 +484,7 @@ async function generatePdfForExistingReceipt(
     });
 
     const pdf = await renderReceiptHtmlToPdfBuffer(html);
-    const s3Key = buildS3Key(receipt.receipt_number);
+    const s3Key = buildS3Key(receipt.receipt_number, receipt.created_at);
 
     await putS3ObjectBuffer({
       key: s3Key,

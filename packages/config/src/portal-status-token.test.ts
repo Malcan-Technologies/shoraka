@@ -17,6 +17,8 @@ describe("getUserPortalStatusToken", () => {
     expect(getUserPortalStatusToken("OFFER_SENT")).toBe("action");
     expect(getUserPortalStatusToken("AMENDMENT_REQUESTED")).toBe("action");
     expect(getUserPortalStatusToken("CONTRACT_SENT")).toBe("action");
+    expect(getUserPortalStatusToken("OVERDUE")).toBe("action");
+    expect(getUserPortalStatusToken("LATE")).toBe("action");
   });
 
   it("maps waiting-on-CashSouk statuses to blue", () => {
@@ -33,6 +35,8 @@ describe("getUserPortalStatusToken", () => {
   it("maps live and terminal positives", () => {
     expect(getUserPortalStatusToken("ACTIVE")).toBe("active");
     expect(getUserPortalStatusToken("CONFIRMED")).toBe("active");
+    expect(getUserPortalStatusToken("CURRENT")).toBe("active");
+    expect(getUserPortalStatusToken("ADVANCE_PAID")).toBe("active");
     expect(getUserPortalStatusToken("COMPLETED")).toBe("success");
     expect(getUserPortalStatusToken("SETTLED")).toBe("success");
   });

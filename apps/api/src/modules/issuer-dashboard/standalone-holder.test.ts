@@ -6,6 +6,9 @@ const mockWithdrawalFindMany = jest.fn();
 const mockScheduleFindMany = jest.fn();
 const mockPaymentFindMany = jest.fn();
 const mockContractFindFirst = jest.fn();
+const mockNoteInvestmentFindMany = jest.fn();
+const mockSnapshotFindMany = jest.fn();
+const mockGatewayPaymentFindMany = jest.fn();
 
 jest.mock("../../lib/prisma", () => ({
   prisma: {
@@ -21,6 +24,9 @@ jest.mock("../../lib/prisma", () => ({
     note: {
       findMany: (...args: unknown[]) => mockNoteFindMany(...args),
     },
+    noteInvestment: {
+      findMany: (...args: unknown[]) => mockNoteInvestmentFindMany(...args),
+    },
     withdrawalInstruction: {
       findMany: (...args: unknown[]) => mockWithdrawalFindMany(...args),
     },
@@ -29,6 +35,12 @@ jest.mock("../../lib/prisma", () => ({
     },
     notePayment: {
       findMany: (...args: unknown[]) => mockPaymentFindMany(...args),
+    },
+    notePositionSnapshot: {
+      findMany: (...args: unknown[]) => mockSnapshotFindMany(...args),
+    },
+    gatewayPayment: {
+      findMany: (...args: unknown[]) => mockGatewayPaymentFindMany(...args),
     },
     contract: {
       findFirst: (...args: unknown[]) => mockContractFindFirst(...args),
@@ -88,6 +100,9 @@ describe("issuer dashboard standalone holder exclusion", () => {
     mockScheduleFindMany.mockResolvedValue([]);
     mockPaymentFindMany.mockResolvedValue([]);
     mockApplicationFindMany.mockResolvedValue([]);
+    mockNoteInvestmentFindMany.mockResolvedValue([]);
+    mockSnapshotFindMany.mockResolvedValue([]);
+    mockGatewayPaymentFindMany.mockResolvedValue([]);
   });
 
   it("omits holder contract buckets and keeps standalone invoice rows", async () => {
@@ -121,6 +136,7 @@ describe("issuer dashboard standalone holder exclusion", () => {
     const dashboard = await issuerDashboardService.getDashboard("org-1", "user-1");
     expect(dashboard.contracts.map((row) => row.id)).toEqual(["facility-1"]);
     expect(dashboard.invoices.map((row) => row.id)).toEqual(["inv-standalone"]);
+    expect(dashboard.book.liveNoteCount).toBe(0);
   });
 
   it("keeps a mixed-structure contract as a real facility", async () => {

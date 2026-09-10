@@ -29,10 +29,11 @@ import {
   allocateExcessLateChargePayment,
   allocateRoundedShares,
   frozenExcessLateChargeTotal,
+  remainingFrozenSplitAfterWaivers,
 } from "./excess-late-charge-allocation";
 
-function decimalToNumber(value: Prisma.Decimal): number {
-  return value.toNumber();
+function decimalToNumber(value: Prisma.Decimal | null | undefined): number {
+  return value == null ? 0 : value.toNumber();
 }
 
 async function assertNoteAccess(db: PrismaClient, actor: ActorContext, noteId: string) {
@@ -80,20 +81,65 @@ async function lockSettlementRow(tx: Prisma.TransactionClient, settlementId: str
   await tx.$queryRaw`SELECT id FROM note_settlements WHERE id = ${settlementId} FOR UPDATE`;
 }
 
-function resolveSettlementTotals(settlement: {
-  excess_late_charge_amount: Prisma.Decimal;
-  excess_late_charge_paid_amount: Prisma.Decimal;
-  excess_tawidh_amount: Prisma.Decimal;
-  excess_gharamah_amount: Prisma.Decimal;
-}) {
-  const excessTawidhAmount = decimalToNumber(settlement.excess_tawidh_amount);
-  const excessGharamahAmount = decimalToNumber(settlement.excess_gharamah_amount);
-  const splitTotal = frozenExcessLateChargeTotal(excessTawidhAmount, excessGharamahAmount);
-  const owedAmount = Math.max(splitTotal, decimalToNumber(settlement.excess_late_charge_amount));
+type WaiverSplit = { tawidh: number; gharamah: number };
+
+function emptyWaiverSplit(): WaiverSplit {
+  return { tawidh: 0, gharamah: 0 };
+}
+
+async function waivedSplitBySettlementIds(
+  db: PrismaClient | Prisma.TransactionClient,
+  settlementIds: string[]
+): Promise<Map<string, WaiverSplit>> {
+  const map = new Map<string, WaiverSplit>();
+  if (settlementIds.length === 0) return map;
+  const rows = await db.noteLateChargeWaiver.findMany({
+    where: { settlement_id: { in: settlementIds } },
+    select: {
+      settlement_id: true,
+      tawidh_waived_amount: true,
+      gharamah_waived_amount: true,
+    },
+  });
+  for (const row of rows) {
+    if (!row.settlement_id) continue;
+    const current = map.get(row.settlement_id) ?? emptyWaiverSplit();
+    current.tawidh += decimalToNumber(row.tawidh_waived_amount);
+    current.gharamah += decimalToNumber(row.gharamah_waived_amount);
+    map.set(row.settlement_id, current);
+  }
+  return map;
+}
+
+function resolveSettlementTotals(
+  settlement: {
+    excess_late_charge_amount: Prisma.Decimal;
+    excess_late_charge_paid_amount: Prisma.Decimal;
+    excess_late_charge_waived_amount?: Prisma.Decimal | null;
+    excess_tawidh_amount: Prisma.Decimal;
+    excess_gharamah_amount: Prisma.Decimal;
+  },
+  waived: WaiverSplit = emptyWaiverSplit()
+) {
+  const postedTawidh = decimalToNumber(settlement.excess_tawidh_amount);
+  const postedGharamah = decimalToNumber(settlement.excess_gharamah_amount);
+  const net = remainingFrozenSplitAfterWaivers({
+    excessTawidhAmount: postedTawidh,
+    excessGharamahAmount: postedGharamah,
+    waivedTawidhAmount: waived.tawidh,
+    waivedGharamahAmount: waived.gharamah,
+  });
+  const splitTotal = frozenExcessLateChargeTotal(net.excessTawidhAmount, net.excessGharamahAmount);
+  const waivedAmount = decimalToNumber(settlement.excess_late_charge_waived_amount);
+  const grossSplit = frozenExcessLateChargeTotal(postedTawidh, postedGharamah);
+  const owedAmount = Math.max(
+    0,
+    Math.max(grossSplit, decimalToNumber(settlement.excess_late_charge_amount)) - waivedAmount
+  );
   const paidAmount = decimalToNumber(settlement.excess_late_charge_paid_amount);
   return {
-    excessTawidhAmount,
-    excessGharamahAmount,
+    excessTawidhAmount: net.excessTawidhAmount,
+    excessGharamahAmount: net.excessGharamahAmount,
     owedAmount,
     paidAmount,
     outstanding: resolveExcessLateChargeOutstanding(owedAmount, paidAmount),
@@ -142,8 +188,15 @@ async function findPayablePostedSettlement(
     where: { note_id: noteId, status: NoteSettlementStatus.POSTED },
     orderBy: { posted_at: "desc" },
   });
+  const waivedById = await waivedSplitBySettlementIds(
+    db,
+    settlements.map((settlement) => settlement.id)
+  );
   return (
-    settlements.find((settlement) => resolveSettlementTotals(settlement).outstanding > 0) ??
+    settlements.find(
+      (settlement) =>
+        resolveSettlementTotals(settlement, waivedById.get(settlement.id)).outstanding > 0
+    ) ??
     settlements[0] ??
     null
   );
@@ -198,7 +251,8 @@ export async function createExcessLateChargePayment(
     }
     await lockSettlementRow(tx, payable.id);
     const locked = await tx.noteSettlement.findUniqueOrThrow({ where: { id: payable.id } });
-    const totals = resolveSettlementTotals(locked);
+    const waivedById = await waivedSplitBySettlementIds(tx, [locked.id]);
+    const totals = resolveSettlementTotals(locked, waivedById.get(locked.id));
     assertFrozenSplit(totals);
     const responseTotals = {
       ...totals,
@@ -301,7 +355,10 @@ export async function getExcessLateChargePayment(
     ? await db.noteSettlement.findUnique({ where: { id: payment.settlement_id } })
     : await findPayablePostedSettlement(db, noteId);
   const totals = settlement
-    ? resolveSettlementTotals(settlement)
+    ? resolveSettlementTotals(
+        settlement,
+        (await waivedSplitBySettlementIds(db, [settlement.id])).get(settlement.id)
+      )
     : { owedAmount: 0, paidAmount: 0, outstanding: 0 };
 
   return mapExcessLateChargePaymentResponse(synced, {
@@ -331,7 +388,8 @@ export async function completeExcessLateChargePayment(
 
   await lockSettlementRow(tx, payable.id);
   const settlement = await tx.noteSettlement.findUniqueOrThrow({ where: { id: payable.id } });
-  const totals = resolveSettlementTotals(settlement);
+  const waivedById = await waivedSplitBySettlementIds(tx, [settlement.id]);
+  const totals = resolveSettlementTotals(settlement, waivedById.get(settlement.id));
   assertFrozenSplit(totals);
   const nextPaid = roundNoteMoney(totals.paidAmount + captured);
   if (nextPaid - totals.owedAmount > NOTE_MONEY_TOLERANCE) {
@@ -498,6 +556,7 @@ export async function completeExcessLateChargePayment(
     data: {
       status: GatewayPaymentStatus.COMPLETED,
       settlement_id: settlement.id,
+      settled_at: gatewayPayment.settled_at ?? new Date(),
     },
   });
 

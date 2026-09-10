@@ -244,7 +244,7 @@ describe("resolveNoteDetailNextAction priority", () => {
 
     const action = resolveNoteDetailNextAction(note);
     expect(action.tabId).toBe("late-payment");
-    expect(action.title).toBe("Note is in arrears");
+    expect(action.title).toBe("Eligible for default");
   });
 
   it("3. flags default eligibility on Late Payment", () => {
@@ -255,7 +255,7 @@ describe("resolveNoteDetailNextAction priority", () => {
       })
     );
     expect(action.tabId).toBe("late-payment");
-    expect(action.title).toBe("Note is eligible for default");
+    expect(action.title).toBe("Eligible for default");
   });
 
   it("3. leaves a note inside its grace period out of Late Payment", () => {
@@ -364,6 +364,7 @@ describe("note detail tab identity and dots", () => {
     expect(noteLatePaymentTabStatusToken("not-available")).toBe("neutral");
     expect(noteLatePaymentTabStatusToken("not-needed")).toBe("success");
     expect(noteLatePaymentTabStatusToken("in-grace")).toBe("action");
+    expect(noteLatePaymentTabStatusToken("late")).toBe("action");
     expect(noteLatePaymentTabStatusToken("arrears")).toBe("action");
     expect(noteLatePaymentTabStatusToken("default-eligible")).toBe("action");
     expect(noteLatePaymentTabStatusToken("defaulted")).toBe("rejected");

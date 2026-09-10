@@ -73,6 +73,7 @@ function baseOnboardingRow(overrides: Record<string, unknown> = {}) {
     issuer_organization_id: null,
     portal_type: "investor",
     user_id: "user-1",
+    submitted_at: null,
     ...overrides,
   };
 }
@@ -108,7 +109,11 @@ describe("IndividualOnboardingWebhookHandler", () => {
       .mockResolvedValueOnce(baseOnboardingRow({ request_id: "LD001-R01", status: "PROCESSING" }));
     const handler = new IndividualOnboardingWebhookHandler();
 
-    await (handler as any).handle({ requestId: "LD001-R01", status: "WAIT_FOR_APPROVAL" });
+    await (handler as any).handle({
+      requestId: "LD001-R01",
+      status: "WAIT_FOR_APPROVAL",
+      timestamp: "2026-09-08T16:30:00.000Z",
+    });
 
     expect(mockFindByRequestId).toHaveBeenCalledTimes(2);
     expect(mockFindByRequestId).toHaveBeenNthCalledWith(1, "LD001-R01");
@@ -119,7 +124,30 @@ describe("IndividualOnboardingWebhookHandler", () => {
     );
     expect(mockUpdateStatus).toHaveBeenCalledWith(
       "LD001-R01",
-      expect.objectContaining({ status: "WAIT_FOR_APPROVAL" })
+      expect.objectContaining({
+        status: "WAIT_FOR_APPROVAL",
+        submittedAt: new Date("2026-09-08T16:30:00.000Z"),
+      })
+    );
+  });
+
+  it("preserves the first submitted timestamp on duplicate review webhooks", async () => {
+    const submittedAt = new Date("2026-09-08T16:30:00.000Z");
+    mockFindByRequestId.mockResolvedValue(
+      baseOnboardingRow({ status: "WAIT_FOR_APPROVAL", submitted_at: submittedAt })
+    );
+
+    const handler = new IndividualOnboardingWebhookHandler() as unknown as {
+      handle(payload: { requestId: string; status: string }): Promise<void>;
+    };
+    await handler.handle({
+      requestId: "LD001-R01",
+      status: "WAIT_FOR_APPROVAL",
+    });
+
+    expect(mockUpdateStatus).toHaveBeenCalledWith(
+      "LD001-R01",
+      expect.not.objectContaining({ submittedAt: expect.any(Date) })
     );
   });
 

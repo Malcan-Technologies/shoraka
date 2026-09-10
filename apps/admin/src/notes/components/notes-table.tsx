@@ -42,7 +42,7 @@ function TableSkeleton() {
     <>
       {Array.from({ length: 5 }).map((_, index) => (
         <TableRow key={index}>
-          {Array.from({ length: 12 }).map((__, cellIndex) => (
+          {Array.from({ length: 13 }).map((__, cellIndex) => (
             <TableCell key={cellIndex}>
               <Skeleton className="h-5 w-24" />
             </TableCell>
@@ -116,8 +116,9 @@ export function NotesTable({
             <col className="w-[8%]" />
             <col className="w-[8%]" />
             <col className="w-[9%]" />
+            <col className="w-[6%]" />
             <col className="w-[8%]" />
-            <col className="w-[11%]" />
+            <col className="w-[10%]" />
           </colgroup>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
@@ -142,6 +143,7 @@ export function NotesTable({
                 onSort={onSort}
               />
               <TableHead className="truncate">Status</TableHead>
+              <TableHead className="truncate">DPD</TableHead>
               <TableHead className="truncate">Settlement</TableHead>
               <TableHead className="truncate" title="Settlement trustee instruction after posting">
                 Trustee instruction
@@ -161,7 +163,7 @@ export function NotesTable({
               <TableSkeleton />
             ) : sortedRows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={12} className="py-10 text-center text-muted-foreground">
+                <TableCell colSpan={13} className="py-10 text-center text-muted-foreground">
                   No approved invoices or notes found
                 </TableCell>
               </TableRow>

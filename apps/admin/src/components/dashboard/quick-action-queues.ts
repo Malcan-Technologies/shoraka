@@ -1,4 +1,5 @@
 import type { ComponentType } from "react";
+import type { AdminPermission } from "@cashsouk/types";
 
 export type QueueUrgency = "default" | "warning" | "urgent";
 
@@ -20,6 +21,10 @@ const VARIANT_RANK: Record<QueueUrgency, number> = {
   warning: 1,
   default: 2,
 };
+
+export function canSeeDefaultEligibleQueue(can: (permission: AdminPermission) => boolean) {
+  return can("notes.view") && can("notes.default.manage");
+}
 
 export function urgencyVariant(count: number, urgentAt: number, warnAt: number): QueueUrgency {
   if (count > urgentAt) return "urgent";
@@ -43,6 +48,17 @@ export function queuesNeedingAttention(queues: QuickActionQueue[]): QuickActionQ
 
 export function formatQueueCount(count: number): string {
   return count > 99 ? "99+" : String(count);
+}
+
+export function queueProgressPercent(count: number, maxCount: number): number {
+  if (maxCount <= 0) return 0;
+  return Math.min(100, (count / maxCount) * 100);
+}
+
+export function queueCardTone(queue: Pick<QuickActionQueue, "id" | "variant">): "rejected" | "action" {
+  if (queue.id === "default-eligible") return "rejected";
+  if (queue.variant === "urgent") return "rejected";
+  return "action";
 }
 
 export function dashboardQueueDescription(input: {

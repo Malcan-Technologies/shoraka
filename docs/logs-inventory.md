@@ -243,10 +243,12 @@ Do not treat `apps/api/src/lib/audit/visibility-matrix.ts` or `docs/logging-even
 | Event ID | Event / Activity | System Event Code | Description | Trigger / Condition | Actor | Affected Record | Recorded Data | Record Source | Admin Location | Customer Visible | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | LOG-LTE-001 | Late Charge Approved | `LATE_CHARGE_APPROVED` | Admin approved a late charge | Admin approve charge | Admin | Note | Charge refs | `note_events` | Note record - Activity | No | — |
-| LOG-LTE-002 | Note Entered Arrears | `OVERDUE_LATE_CHARGE_CHECKED` | Servicing status changed (arrears path) | Servicing status change only | System | Note | Servicing status, due date | `note_events` | Note record - Late Payment. Note record - Activity | No | Written only when status actually changes |
+| LOG-LTE-001A | Note overdue | `NOTE_OVERDUE` | Servicing moved to OVERDUE | Daily job or admin check | System / Admin | Note | DPD | `note_events` | Note record - Activity | Yes | Issuer notified |
+| LOG-LTE-001B | Note late | `NOTE_LATE` | Servicing moved to LATE | Daily job or admin check | System / Admin | Note | DPD | `note_events` | Note record - Activity | Yes | Issuer and investor notified |
+| LOG-LTE-002 | Note Entered Arrears | `NOTE_ARREARS` | Servicing moved to ARREARS | Daily job or admin check | System / Admin | Note | DPD | `note_events` | Note record - Late Payment. Note record - Activity | Yes | Manual check still also writes `OVERDUE_LATE_CHARGE_CHECKED` |
+| LOG-LTE-002A | Late charge waived | `LATE_CHARGE_WAIVED` | Admin waived Ta'widh and/or Gharamah | Admin waive | Admin | Note | Before/after amounts, reason | `note_events` | Note record - Activity | Yes | Issuer-visible reason |
 | LOG-LTE-003 | Note Defaulted | `NOTE_DEFAULT_MARKED` | Note marked default | Admin mark default | Admin | Note | Reason | `note_events` | Note record - Activity | Yes | Issuer and investor |
-| LOG-LTE-004 | Arrears Letter Generated | `ARREARS_LETTER_GENERATED` | Arrears letter generated | Admin generate letter | Admin | Note / document | Hash | `note_events` | Note record - Activity | No | Also generated_document_evidence |
-| LOG-LTE-005 | Default Letter Generated | `DEFAULT_LETTER_GENERATED` | Default letter generated | Admin generate letter | Admin | Note / document | Hash | `note_events` | Note record - Activity | No | Also generated_document_evidence |
+| LOG-LTE-004 | Servicing letter sent | `NOTE_LETTER_SENT` | Arrears or default letter generated and emailed | Auto on transition or admin generate/resend | System / Admin | Note / document | letterId, s3Key, sentTo | `note_events` | Note record - Activity | Yes | Replaces ad-hoc `ARREARS_LETTER_GENERATED` / `DEFAULT_LETTER_GENERATED` |
 
 ### 13. Settlement
 
@@ -407,7 +409,12 @@ Display-only label updates made with this register (stored codes unchanged):
 | `SSM_APPROVED` | Company Registry Check Approved | SSM Approved |
 | `COD_REJECTED` | Corporate Onboarding Rejected | Onboarding Rejected (same Admin label as individual reject) |
 | `FORM_FILLED` | Identity Documents Submitted | Form Submitted |
-| `OVERDUE_LATE_CHARGE_CHECKED` | Overdue Late Charge Checked | Note Entered Arrears |
+| `OVERDUE_LATE_CHARGE_CHECKED` | Overdue Late Charge Checked | Overdue Check Completed |
+| `NOTE_OVERDUE` | Note Overdue | Note Overdue |
+| `NOTE_LATE` | Note Late | Note Late |
+| `NOTE_ARREARS` | Note Arrears | Note Entered Arrears |
+| `NOTE_LETTER_SENT` | Note Letter Sent | Servicing Letter Sent |
+| `LATE_CHARGE_WAIVED` | Late Charge Waived | Late Charge Waived |
 | `CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED` | Humanized token | Large Private Customer Flag Updated |
 | `PAYMASTER_CREATED` | Humanized token | Paymaster Created |
 | `PAYMASTER_LINKED_TO_ISSUER` | Humanized token | Paymaster Linked to Issuer |
