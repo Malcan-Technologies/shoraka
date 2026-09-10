@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 jest.mock("../prisma", () => ({
   prisma: {},
 }));
@@ -27,8 +30,9 @@ import {
   servicingTransitionNotificationKeyPrefixes,
   servicingTransitionNotificationsDelivered,
   dueSoonReminderKinds,
+  liveServicingWritePlan,
 } from "./note-servicing-status";
-import { NoteFundingStatus, NoteServicingStatus } from "@prisma/client";
+import { NoteFundingStatus, NoteServicingStatus, NoteStatus } from "@prisma/client";
 
 describe("servicingTransitionTimestampUpdate", () => {
   it("stores the actual UTC occurrence instant when an MYT calendar day has already advanced", () => {
@@ -128,7 +132,86 @@ describe("dueSoonReminderKinds", () => {
     expect(dueSoonReminderKinds(7)).toEqual(["t7"]);
     expect(dueSoonReminderKinds(3)).toEqual(["t7"]);
     expect(dueSoonReminderKinds(1)).toEqual(["t7", "t1"]);
-    expect(dueSoonReminderKinds(0)).toEqual(["t7", "t1"]);
+  });
+
+  it("does not send due-soon copy on the due date or after the note is overdue", () => {
+    expect(dueSoonReminderKinds(0)).toEqual([]);
+    expect(dueSoonReminderKinds(0, 5)).toEqual([]);
+    expect(dueSoonReminderKinds(1, 2)).toEqual([]);
+  });
+});
+
+describe("liveServicingWritePlan", () => {
+  const advancing = {
+    snapshotServicingStatus: NoteServicingStatus.OVERDUE,
+    canTransition: true,
+  };
+
+  it("does not overwrite a concurrent settlement or default", () => {
+    expect(
+      liveServicingWritePlan({
+        ...advancing,
+        lockedServicingStatus: NoteServicingStatus.SETTLED,
+        lockedNoteStatus: NoteStatus.REPAID,
+        lockedHasPostedSettlement: true,
+      })
+    ).toBe("skip");
+    expect(
+      liveServicingWritePlan({
+        ...advancing,
+        lockedServicingStatus: NoteServicingStatus.DEFAULTED,
+        lockedNoteStatus: NoteStatus.DEFAULTED,
+        lockedHasPostedSettlement: false,
+      })
+    ).toBe("skip");
+    expect(
+      liveServicingWritePlan({
+        ...advancing,
+        lockedServicingStatus: NoteServicingStatus.CURRENT,
+        lockedNoteStatus: NoteStatus.REPAID,
+        lockedHasPostedSettlement: false,
+      })
+    ).toBe("skip");
+  });
+
+  it("clears live DPD after a concurrent post that has not closed the note", () => {
+    expect(
+      liveServicingWritePlan({
+        ...advancing,
+        lockedServicingStatus: NoteServicingStatus.CURRENT,
+        lockedNoteStatus: NoteStatus.ACTIVE,
+        lockedHasPostedSettlement: true,
+      })
+    ).toBe("zeros");
+  });
+
+  it("skips a stale rung write when another run already advanced servicing", () => {
+    expect(
+      liveServicingWritePlan({
+        snapshotServicingStatus: NoteServicingStatus.OVERDUE,
+        canTransition: true,
+        lockedServicingStatus: NoteServicingStatus.LATE,
+        lockedNoteStatus: NoteStatus.ACTIVE,
+        lockedHasPostedSettlement: false,
+      })
+    ).toBe("skip");
+  });
+
+  it("locks the note and rereads posted/terminal state before writing", () => {
+    const source = readFileSync(join(__dirname, "./note-servicing-status.ts"), "utf8");
+    expect(source).toContain("SELECT id FROM notes WHERE id = ${input.noteId} FOR UPDATE");
+    expect(source).toContain("updated_at: true");
+  });
+
+  it("applies a live rung advance when the locked note is still open", () => {
+    expect(
+      liveServicingWritePlan({
+        ...advancing,
+        lockedServicingStatus: NoteServicingStatus.OVERDUE,
+        lockedNoteStatus: NoteStatus.ACTIVE,
+        lockedHasPostedSettlement: false,
+      })
+    ).toBe("apply");
   });
 });
 

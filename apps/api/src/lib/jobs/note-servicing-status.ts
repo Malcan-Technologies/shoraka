@@ -3,6 +3,7 @@ import {
   NoteServicingLetterType,
   NoteServicingStatus,
   NoteSettlementStatus,
+  NoteStatus,
   Prisma,
 } from "@prisma/client";
 import { createNoteEventRow, systemAuditContext } from "../audit";
@@ -128,6 +129,64 @@ async function logSystemNoteEvent(
   });
 }
 
+async function commitLiveServicingUpdate(input: {
+  noteId: string;
+  snapshotServicingStatus: NoteServicingStatus;
+  canTransition: boolean;
+  transitionEventType: string | null;
+  transitionMetadata: Prisma.InputJsonValue;
+  liveUpdate: Prisma.NoteUpdateInput;
+  now: Date;
+}): Promise<{ wrote: boolean; transitioned: boolean; allowDueSoon: boolean }> {
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM notes WHERE id = ${input.noteId} FOR UPDATE`;
+    const locked = await tx.note.findUnique({
+      where: { id: input.noteId },
+      select: {
+        servicing_status: true,
+        status: true,
+        settlements: {
+          where: { status: NoteSettlementStatus.POSTED },
+          select: { id: true },
+          take: 1,
+        },
+      },
+    });
+    if (!locked) return { wrote: false, transitioned: false, allowDueSoon: false };
+    const plan = liveServicingWritePlan({
+      lockedServicingStatus: locked.servicing_status,
+      lockedNoteStatus: locked.status,
+      lockedHasPostedSettlement: locked.settlements.length > 0,
+      snapshotServicingStatus: input.snapshotServicingStatus,
+      canTransition: input.canTransition,
+    });
+    if (plan === "skip") {
+      return { wrote: false, transitioned: false, allowDueSoon: false };
+    }
+    const data =
+      plan === "zeros"
+        ? {
+            days_past_due: 0,
+            indicative_tawidh_amount: 0,
+            indicative_gharamah_amount: 0,
+            indicative_as_of: input.now,
+          }
+        : input.liveUpdate;
+    await tx.note.update({ where: { id: input.noteId }, data });
+    const transitioned =
+      plan === "apply" && input.canTransition && input.transitionEventType != null;
+    if (transitioned && input.transitionEventType) {
+      await logSystemNoteEvent(
+        input.noteId,
+        input.transitionEventType,
+        input.transitionMetadata,
+        tx
+      );
+    }
+    return { wrote: true, transitioned, allowDueSoon: plan === "apply" };
+  });
+}
+
 export const SERVICING_TRANSITION_EVENT_TYPES = [
   "NOTE_OVERDUE",
   "NOTE_LATE",
@@ -244,12 +303,39 @@ async function retryNotificationsIfNeeded(input: {
   return true;
 }
 
-export function dueSoonReminderKinds(daysUntilDue: number | null): Array<"t7" | "t1"> {
-  if (daysUntilDue == null) return [];
+export function dueSoonReminderKinds(
+  daysUntilDue: number | null,
+  daysPastDue = 0
+): Array<"t7" | "t1"> {
+  if (daysUntilDue == null || daysPastDue > 0 || daysUntilDue <= 0) return [];
   const kinds: Array<"t7" | "t1"> = [];
   if (daysUntilDue <= 7) kinds.push("t7");
   if (daysUntilDue <= 1) kinds.push("t1");
   return kinds;
+}
+
+export type LiveServicingWritePlan = "skip" | "zeros" | "apply";
+
+export function liveServicingWritePlan(input: {
+  lockedServicingStatus: NoteServicingStatus;
+  lockedNoteStatus: NoteStatus;
+  lockedHasPostedSettlement: boolean;
+  snapshotServicingStatus: NoteServicingStatus;
+  canTransition: boolean;
+}): LiveServicingWritePlan {
+  if (
+    input.lockedServicingStatus === NoteServicingStatus.SETTLED ||
+    input.lockedServicingStatus === NoteServicingStatus.DEFAULTED ||
+    input.lockedNoteStatus === NoteStatus.REPAID ||
+    input.lockedNoteStatus === NoteStatus.DEFAULTED
+  ) {
+    return "skip";
+  }
+  if (input.lockedHasPostedSettlement) return "zeros";
+  if (input.canTransition && input.lockedServicingStatus !== input.snapshotServicingStatus) {
+    return "skip";
+  }
+  return "apply";
 }
 
 async function notifyServicingTransition(input: {
@@ -383,6 +469,7 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
           status: true,
           posted_at: true,
           approved_at: true,
+          updated_at: true,
           tawidh_amount: true,
           gharamah_amount: true,
           investor_principal: true,
@@ -516,27 +603,23 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
               : {}),
           };
 
-      if (note.servicing_status !== NoteServicingStatus.SETTLED) {
-        if (canTransition && transitionEventType) {
-          await prisma.$transaction(async (tx) => {
-            await tx.note.update({
-              where: { id: note.id },
-              data: liveUpdate,
-            });
-            await logSystemNoteEvent(note.id, transitionEventType, transitionMetadata, tx);
-          });
-        } else {
-          await prisma.note.update({
-            where: { id: note.id },
-            data: liveUpdate,
-          });
-        }
-      }
+      const liveCommit = await commitLiveServicingUpdate({
+        noteId: note.id,
+        snapshotServicingStatus: note.servicing_status,
+        canTransition,
+        transitionEventType,
+        transitionMetadata,
+        liveUpdate,
+        now,
+      });
 
       const title = resolveNoteNotificationTitle(note);
-      if (!hasPostedSettlement) {
+      if (!hasPostedSettlement && liveCommit.allowDueSoon) {
         let reminderAttempted = false;
-        for (const kind of dueSoonReminderKinds(classification.daysUntilDue)) {
+        for (const kind of dueSoonReminderKinds(
+          classification.daysUntilDue,
+          classification.daysPastDue
+        )) {
           const attempted = await retryNotificationsIfNeeded({
             expectedKeys: await expectedDueSoonNotificationKeys({
               noteId: note.id,
@@ -557,7 +640,7 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
         if (reminderAttempted) result.remindersSent += 1;
       }
 
-      if (canTransition && transitionEventType) {
+      if (liveCommit.transitioned) {
         result.transitions += 1;
       }
 
@@ -569,7 +652,7 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
         select: { event_type: true },
       });
       const statusesToNotify = new Set<NoteServicingStatus>();
-      if (canTransition && transitionEventType) {
+      if (liveCommit.transitioned) {
         statusesToNotify.add(classification.servicingStatus);
       }
       for (const row of loggedTransitionEvents) {
@@ -611,7 +694,7 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
       }
 
       const arrearsNow =
-        (canTransition ? classification.servicingStatus : note.servicing_status) ===
+        (liveCommit.transitioned ? classification.servicingStatus : note.servicing_status) ===
         NoteServicingStatus.ARREARS;
       const existingArrearsLetter = await prisma.noteServicingLetter.findFirst({
         where: { note_id: note.id, type: NoteServicingLetterType.ARREARS },

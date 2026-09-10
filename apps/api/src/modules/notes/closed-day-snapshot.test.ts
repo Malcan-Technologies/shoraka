@@ -14,12 +14,14 @@ const cutoff = new Date("2026-01-01T16:00:00.000Z");
 function settlement(
   status: NoteSettlementStatus,
   postedAt: string | null,
-  approvedAt?: string | null
+  approvedAt?: string | null,
+  updatedAt?: string | null
 ) {
   return {
     status,
     posted_at: postedAt ? new Date(postedAt) : null,
     approved_at: approvedAt ? new Date(approvedAt) : null,
+    updated_at: updatedAt ? new Date(updatedAt) : null,
     tawidh_amount: 1,
     gharamah_amount: 2,
     investor_principal: 100,
@@ -76,6 +78,52 @@ describe("settlementsAsOfCutoff", () => {
     );
     expect(posted).toHaveLength(0);
     expect(applied).toHaveLength(1);
+  });
+
+  it("keeps a pre-cutoff approval that is voided after Malaysia midnight", () => {
+    const { posted, applied } = settlementsAsOfCutoff(
+      [
+        settlement(
+          NoteSettlementStatus.VOID,
+          null,
+          "2026-01-01T15:50:00.000Z",
+          "2026-01-01T16:10:00.000Z"
+        ),
+      ],
+      cutoff
+    );
+    expect(posted).toHaveLength(0);
+    expect(applied).toHaveLength(1);
+  });
+
+  it("does not reconstruct a preview that was never approved", () => {
+    const { applied } = settlementsAsOfCutoff(
+      [
+        settlement(
+          NoteSettlementStatus.VOID,
+          null,
+          null,
+          "2026-01-01T16:10:00.000Z"
+        ),
+      ],
+      cutoff
+    );
+    expect(applied).toHaveLength(0);
+  });
+
+  it("excludes an approval that was already voided before the cutoff", () => {
+    const { applied } = settlementsAsOfCutoff(
+      [
+        settlement(
+          NoteSettlementStatus.VOID,
+          null,
+          "2026-01-01T15:50:00.000Z",
+          "2026-01-01T15:55:00.000Z"
+        ),
+      ],
+      cutoff
+    );
+    expect(applied).toHaveLength(0);
   });
 
   it("does not treat a same-morning approval as applied on the closed day", () => {

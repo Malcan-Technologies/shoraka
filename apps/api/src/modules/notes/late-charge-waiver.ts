@@ -26,6 +26,22 @@ export function preSettlementWaiverVoidWhere(settlementIds: string[]) {
   };
 }
 
+export function waiverLinkedSettlementId(input: {
+  postedSettlementId: string | null | undefined;
+  requestedSettlementId: string | null | undefined;
+  noteSettlements: readonly { id: string; status: NoteSettlementStatus }[];
+  voidedSettlementIds: readonly string[];
+}): string | null {
+  if (input.postedSettlementId) return input.postedSettlementId;
+  const requested = input.requestedSettlementId;
+  if (!requested) return null;
+  const match = input.noteSettlements.find((row) => row.id === requested);
+  if (!match) return null;
+  if (match.status === NoteSettlementStatus.VOID) return null;
+  if (input.voidedSettlementIds.includes(requested)) return null;
+  return requested;
+}
+
 export function remainingCapsIgnoringApprovedSettlements(
   remaining: { remainingTawidhAmount: number; remainingGharamahAmount: number },
   settlements: readonly {

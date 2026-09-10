@@ -24,6 +24,7 @@ export type SnapshotSettlement = {
   status: NoteSettlementStatus;
   posted_at: Date | null;
   approved_at?: Date | null;
+  updated_at?: Date | null;
   tawidh_amount: unknown;
   gharamah_amount: unknown;
   investor_principal: unknown;
@@ -44,14 +45,18 @@ export function settlementPostedAsOfCutoff(
 }
 
 export function settlementAppliedAsOfCutoff(
-  row: Pick<SnapshotSettlement, "status" | "posted_at" | "approved_at">,
+  row: Pick<SnapshotSettlement, "status" | "posted_at" | "approved_at" | "updated_at">,
   cutoff: Date
 ): boolean {
   if (settlementPostedAsOfCutoff(row, cutoff)) return true;
-  return (
-    (row.status === NoteSettlementStatus.APPROVED || row.status === NoteSettlementStatus.POSTED) &&
-    occurredBeforeCutoff(row.approved_at, cutoff)
-  );
+  if (!occurredBeforeCutoff(row.approved_at, cutoff)) return false;
+  if (row.status === NoteSettlementStatus.APPROVED || row.status === NoteSettlementStatus.POSTED) {
+    return true;
+  }
+  if (row.status === NoteSettlementStatus.VOID) {
+    return row.updated_at != null && !occurredBeforeCutoff(row.updated_at, cutoff);
+  }
+  return false;
 }
 
 export function settlementsAsOfCutoff<T extends SnapshotSettlement>(

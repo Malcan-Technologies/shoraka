@@ -223,6 +223,7 @@ import {
   remainingCapsIgnoringApprovedSettlements,
   preSettlementWaiverVoidWhere,
   settlementIdsToVoidForPreSettlementWaiver,
+  waiverLinkedSettlementId,
 } from "./late-charge-waiver";
 import {
   assertTenureInvestorObligationCovered,
@@ -6357,6 +6358,10 @@ export class NoteService {
       let remainingGharamahAmount = 0;
       let lockedWaivedAmount = 0;
       let voidedSettlementIds: string[] = [];
+      let noteSettlements = note.settlements.map((settlement) => ({
+        id: settlement.id,
+        status: settlement.status,
+      }));
       if (posted) {
         await tx.$queryRaw`SELECT id FROM note_settlements WHERE id = ${posted.id} FOR UPDATE`;
         const locked = await tx.noteSettlement.findUniqueOrThrow({ where: { id: posted.id } });
@@ -6413,6 +6418,10 @@ export class NoteService {
         );
         remainingTawidhAmount = remaining.remainingTawidhAmount;
         remainingGharamahAmount = remaining.remainingGharamahAmount;
+        noteSettlements = lockedSettlements.map((settlement) => ({
+          id: settlement.id,
+          status: settlement.status,
+        }));
         voidedSettlementIds = settlementIdsToVoidForPreSettlementWaiver(lockedSettlements);
         if (voidedSettlementIds.length > 0) {
           await tx.noteSettlement.updateMany({
@@ -6438,11 +6447,12 @@ export class NoteService {
       await tx.noteLateChargeWaiver.create({
         data: {
           note_id: id,
-          settlement_id:
-            posted?.id ??
-            (input.settlementId && !voidedSettlementIds.includes(input.settlementId)
-              ? input.settlementId
-              : null),
+          settlement_id: waiverLinkedSettlementId({
+            postedSettlementId: posted?.id,
+            requestedSettlementId: input.settlementId,
+            noteSettlements,
+            voidedSettlementIds,
+          }),
           tawidh_waived_amount: money(tawidhAmount),
           gharamah_waived_amount: money(gharamahAmount),
           reason: input.reason.trim(),

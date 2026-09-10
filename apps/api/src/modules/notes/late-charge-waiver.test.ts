@@ -5,6 +5,7 @@ import {
   remainingCapsIgnoringApprovedSettlements,
   preSettlementWaiverVoidWhere,
   settlementIdsToVoidForPreSettlementWaiver,
+  waiverLinkedSettlementId,
 } from "./late-charge-waiver";
 
 const notesService = readFileSync(join(__dirname, "./service.ts"), "utf8");
@@ -51,6 +52,55 @@ describe("settlement status changes share the note lock", () => {
     expect(notesService.slice(approveIdx, postIdx)).toContain(noteLockSql);
     expect(notesService.slice(postIdx, waiveIdx)).toContain(noteLockSql);
     expect(notesService.slice(waiveIdx, waiveIdx + 1500)).toContain(noteLockSql);
+    const nextMethodIdx = notesService.indexOf("\n  async ", waiveIdx + 1);
+    expect(notesService.slice(waiveIdx, nextMethodIdx === -1 ? undefined : nextMethodIdx)).toContain(
+      "waiverLinkedSettlementId"
+    );
+  });
+});
+
+describe("waiverLinkedSettlementId", () => {
+  const noteSettlements = [
+    { id: "preview-1", status: NoteSettlementStatus.PREVIEW },
+    { id: "void-1", status: NoteSettlementStatus.VOID },
+  ];
+
+  it("keeps the posted settlement on this note", () => {
+    expect(
+      waiverLinkedSettlementId({
+        postedSettlementId: "posted-1",
+        requestedSettlementId: "foreign-1",
+        noteSettlements: [{ id: "posted-1", status: NoteSettlementStatus.POSTED }],
+        voidedSettlementIds: [],
+      })
+    ).toBe("posted-1");
+  });
+
+  it("does not attach a foreign or already-void settlement", () => {
+    expect(
+      waiverLinkedSettlementId({
+        postedSettlementId: null,
+        requestedSettlementId: "foreign-1",
+        noteSettlements,
+        voidedSettlementIds: ["preview-1"],
+      })
+    ).toBeNull();
+    expect(
+      waiverLinkedSettlementId({
+        postedSettlementId: null,
+        requestedSettlementId: "void-1",
+        noteSettlements,
+        voidedSettlementIds: [],
+      })
+    ).toBeNull();
+    expect(
+      waiverLinkedSettlementId({
+        postedSettlementId: null,
+        requestedSettlementId: "preview-1",
+        noteSettlements,
+        voidedSettlementIds: ["preview-1"],
+      })
+    ).toBeNull();
   });
 });
 
