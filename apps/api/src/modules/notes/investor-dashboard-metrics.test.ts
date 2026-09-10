@@ -257,7 +257,7 @@ describe("computeAtRisk", () => {
     expect(result.maxDaysPastDue).toBe(120);
   });
 
-  it("nets the service fee on remaining at-risk profit", () => {
+  it("uses principal at risk so the percentage matches the principal-based portfolio total", () => {
     const result = computeAtRisk(
       [
         holding({
@@ -272,7 +272,8 @@ describe("computeAtRisk", () => {
       ],
       100_000
     );
-    expect(result.amount).toBe(108_000);
+    expect(result.amount).toBe(100_000);
+    expect(result.percent).toBe(100);
   });
 
   it("returns zeros when nothing is at risk", () => {
@@ -382,7 +383,7 @@ describe("computeCashflowNext90Days", () => {
     expect(result.upcoming[0].profit).toBe(0);
   });
 
-  it("keeps separate upcoming rows when two holdings share a note and due date", () => {
+  it("keeps holding rows but counts a shared note once", () => {
     const now = new Date("2026-09-09T02:00:00.000Z");
     const result = computeCashflowNext90Days(
       [
@@ -405,7 +406,9 @@ describe("computeCashflowNext90Days", () => {
     );
     expect(result.upcoming.map((row) => row.investmentId)).toEqual(["inv-b", "inv-a"]);
     expect(result.upcoming.map((row) => row.amount)).toEqual([5_000, 50_000]);
-    expect(result.noteCount).toBe(2);
+    expect(result.totalAmount).toBe(55_000);
+    expect(result.noteCount).toBe(1);
+    expect(result.months[0]).toMatchObject({ yearMonth: "2026-09", count: 1, amount: 55_000 });
   });
 
   it("nets remaining profit at the note service-fee rate", () => {

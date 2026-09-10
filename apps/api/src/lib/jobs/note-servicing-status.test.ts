@@ -16,6 +16,7 @@ jest.mock("../../modules/admin/book-metrics-snapshot", () => ({
 }));
 
 import {
+  servicingTransitionTimestampUpdate,
   shouldSendArrearsLetter,
   shouldRetryServicingTransitionSideEffects,
   shouldSendServicingLetter,
@@ -23,6 +24,48 @@ import {
   servicingTransitionNotificationsDelivered,
 } from "./note-servicing-status";
 import { NoteServicingStatus } from "@prisma/client";
+
+describe("servicingTransitionTimestampUpdate", () => {
+  it("stores the actual UTC occurrence instant when an MYT calendar day has already advanced", () => {
+    const now = new Date("2026-01-01T16:30:00.000Z");
+
+    expect(
+      servicingTransitionTimestampUpdate(
+        {
+          overdueStartedAt: null,
+          lateStartedAt: null,
+          arrearsStartedAt: null,
+        },
+        NoteServicingStatus.ARREARS,
+        now
+      )
+    ).toEqual({
+      overdue_started_at: now,
+      late_started_at: now,
+      arrears_started_at: now,
+    });
+  });
+
+  it("does not overwrite lifecycle timestamps recorded by earlier transitions", () => {
+    const overdueStartedAt = new Date("2026-01-01T01:00:00.000Z");
+
+    expect(
+      servicingTransitionTimestampUpdate(
+        {
+          overdueStartedAt,
+          lateStartedAt: null,
+          arrearsStartedAt: null,
+        },
+        NoteServicingStatus.LATE,
+        new Date("2026-01-08T01:00:00.000Z")
+      )
+    ).toEqual({
+      overdue_started_at: undefined,
+      late_started_at: new Date("2026-01-08T01:00:00.000Z"),
+      arrears_started_at: undefined,
+    });
+  });
+});
 
 describe("shouldSendArrearsLetter", () => {
   it("generates when no letter exists", () => {

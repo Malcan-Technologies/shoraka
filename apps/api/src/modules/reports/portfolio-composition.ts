@@ -38,11 +38,14 @@ export function compositionStartMonth(anchor: Date | null): string {
 
 export function compositionPaymasterName(
   paymaster: { legal_name: string } | null | undefined,
-  snapshot: Prisma.JsonValue | null
+  snapshot: Prisma.JsonValue | null,
+  preferSnapshot = false
 ): string {
+  const frozen = snapshotName(snapshot, ["name", "legal_name", "companyName"]);
+  if (preferSnapshot && frozen) return frozen;
   const live = paymaster?.legal_name?.trim();
   if (live) return live;
-  return snapshotName(snapshot, ["name", "legal_name", "companyName"]) ?? NOT_RECORDED;
+  return frozen ?? NOT_RECORDED;
 }
 
 export function compositionSector(invoiceSnapshot: Prisma.JsonValue | null): string {
@@ -60,6 +63,7 @@ export function compositionGroupLabel(
     issuerSnapshot: Prisma.JsonValue | null;
     paymaster: { legal_name: string } | null | undefined;
     paymasterSnapshot: Prisma.JsonValue | null;
+    preferPaymasterSnapshot?: boolean;
     invoiceSnapshot: Prisma.JsonValue | null;
   }
 ): string {
@@ -69,7 +73,11 @@ export function compositionGroupLabel(
     return name === "—" ? NOT_RECORDED : name;
   }
   if (breakdown === "paymaster") {
-    return compositionPaymasterName(input.paymaster, input.paymasterSnapshot);
+    return compositionPaymasterName(
+      input.paymaster,
+      input.paymasterSnapshot,
+      input.preferPaymasterSnapshot
+    );
   }
   return compositionSector(input.invoiceSnapshot);
 }
@@ -188,6 +196,7 @@ export async function runPortfolioComposition(query: ReportQuery): Promise<Repor
         issuerSnapshot: snapshot.note.issuer_snapshot,
         paymaster: snapshot.note.paymaster,
         paymasterSnapshot: snapshot.note.paymaster_snapshot,
+        preferPaymasterSnapshot: true,
         invoiceSnapshot: snapshot.note.invoice_snapshot,
       }),
     }));

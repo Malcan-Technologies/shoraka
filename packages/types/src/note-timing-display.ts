@@ -93,7 +93,21 @@ export function formatNoteDateEnMy(value: string | Date | null | undefined): str
     day: "numeric",
     month: "short",
     year: "numeric",
-    timeZone: "UTC",
+    timeZone: "Asia/Kuala_Lumpur",
+  });
+}
+
+export function formatMytDateTime(value: string | Date | null | undefined): string | null {
+  const date = parseNoteDisplayDate(value);
+  if (!date) return null;
+  return date.toLocaleString("en-MY", {
+    timeZone: "Asia/Kuala_Lumpur",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
   });
 }
 

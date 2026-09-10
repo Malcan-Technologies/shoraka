@@ -138,6 +138,20 @@ export async function generateAndSendServicingLetter(
 
   const sentTo = await issuerEmails(input.issuerOrganizationId);
   const title = servicingLetterTitle(input.kind);
+  const letter = await prisma.noteServicingLetter.create({
+    data: {
+      note_id: input.noteId,
+      type: letterType(input.kind),
+      s3_key: s3Key,
+      sent_at: null,
+      sent_to: [],
+      triggered_by:
+        input.triggeredBy === "ADMIN"
+          ? NoteServicingLetterTrigger.ADMIN
+          : NoteServicingLetterTrigger.SYSTEM,
+    },
+  });
+
   if (sentTo.length > 0) {
     await sendEmailWithAttachments({
       to: sentTo,
@@ -152,23 +166,13 @@ export async function generateAndSendServicingLetter(
         },
       ],
     });
+    await prisma.noteServicingLetter.update({
+      where: { id: letter.id },
+      data: { sent_at: new Date(), sent_to: sentTo },
+    });
   } else {
     logger.warn({ noteId: input.noteId }, "Servicing letter generated with no issuer email recipients");
   }
-
-  const letter = await prisma.noteServicingLetter.create({
-    data: {
-      note_id: input.noteId,
-      type: letterType(input.kind),
-      s3_key: s3Key,
-      sent_at: sentTo.length > 0 ? new Date() : null,
-      sent_to: sentTo,
-      triggered_by:
-        input.triggeredBy === "ADMIN"
-          ? NoteServicingLetterTrigger.ADMIN
-          : NoteServicingLetterTrigger.SYSTEM,
-    },
-  });
 
   await writeServicingLetterAudit({
     noteId: input.noteId,

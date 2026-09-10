@@ -24,6 +24,7 @@ export type OrganizationWithMembers = (InvestorOrganization | IssuerOrganization
     status: string;
     verify_link: string | null;
     request_id: string;
+    submitted_at: Date | null;
   } | null;
   // Approval workflow flags
   onboarding_approved: boolean;
@@ -174,6 +175,7 @@ export class OrganizationRepository {
             status: true,
             verify_link: true,
             request_id: true,
+            submitted_at: true,
           },
         },
       },
@@ -213,6 +215,7 @@ export class OrganizationRepository {
             status: true,
             verify_link: true,
             request_id: true,
+            submitted_at: true,
           },
         },
       },
@@ -254,6 +257,7 @@ export class OrganizationRepository {
             status: true,
             verify_link: true,
             request_id: true,
+            submitted_at: true,
           },
         },
       },
@@ -294,6 +298,7 @@ export class OrganizationRepository {
             status: true,
             verify_link: true,
             request_id: true,
+            submitted_at: true,
           },
         },
       },

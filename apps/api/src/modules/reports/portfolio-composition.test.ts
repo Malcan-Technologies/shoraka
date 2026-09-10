@@ -22,6 +22,19 @@ describe("portfolio composition grouping", () => {
     expect(compositionPaymasterName(null, null)).toBe(NOT_RECORDED);
   });
 
+  it("prefers the frozen paymaster identity for historical composition", () => {
+    expect(
+      compositionPaymasterName(
+        { legal_name: "Renamed Paymaster" },
+        { name: "Original Paymaster" },
+        true
+      )
+    ).toBe("Original Paymaster");
+    expect(compositionPaymasterName({ legal_name: "Live Fallback" }, {}, true)).toBe(
+      "Live Fallback"
+    );
+  });
+
   it("reads sector from offer details and falls back", () => {
     expect(
       compositionSector({

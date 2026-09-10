@@ -197,9 +197,11 @@ export function computeRepaymentSchedule(
   monthLimit = 4
 ): IssuerBookRepaymentMonth[] {
   const rows = liveNotesWithDue(notes);
+  const todayMonth = nextMytYearMonths(now, 1)[0];
   const byMonth = new Map<string, IssuerBookRepaymentMonth>();
   for (const row of rows) {
-    const yearMonth = row.dueKey.slice(0, 7);
+    const dueMonth = row.dueKey.slice(0, 7);
+    const yearMonth = dueMonth < todayMonth ? todayMonth : dueMonth;
     const current = byMonth.get(yearMonth) ?? {
       yearMonth,
       label: formatYearMonthLabel(yearMonth),
@@ -210,9 +212,7 @@ export function computeRepaymentSchedule(
     current.count += 1;
     byMonth.set(yearMonth, current);
   }
-  const todayMonth = nextMytYearMonths(now, 1)[0];
   return [...byMonth.values()]
-    .filter((month) => month.yearMonth >= todayMonth)
     .sort((left, right) => left.yearMonth.localeCompare(right.yearMonth))
     .slice(0, monthLimit);
 }

@@ -106,6 +106,33 @@ describe("computeRepaymentSchedule", () => {
     expect(schedule[0].count).toBe(1);
     expect(schedule[0].amount).toBe(100_000);
   });
+
+  it("includes earlier overdue balances in the current month due-now bucket", () => {
+    const schedule = computeRepaymentSchedule(
+      [
+        note({
+          maturityDate: new Date("2026-08-20T00:00:00.000Z"),
+          profitRatePercent: 0,
+          servicingStatus: "ARREARS",
+          status: "ARREARS",
+        }),
+        note({
+          id: "current-month",
+          noteReference: "NOTE-2",
+          maturityDate: new Date("2026-09-20T00:00:00.000Z"),
+          profitRatePercent: 0,
+        }),
+      ],
+      new Date("2026-09-09T02:00:00.000Z")
+    );
+
+    expect(schedule[0]).toEqual({
+      yearMonth: "2026-09",
+      label: "Sep 2026",
+      amount: 200_000,
+      count: 2,
+    });
+  });
 });
 
 describe("computeFundingProgress", () => {

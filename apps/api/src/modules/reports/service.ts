@@ -30,6 +30,7 @@ import {
   assertReportQuery,
   defaultedNoteWhere,
   exclusiveEndOfMytDateLabel,
+  mergeDefaultRecoverySnapshots,
   openBookSnapshots,
   postedAtRange,
 } from "./report-shared";
@@ -438,25 +439,36 @@ async function runDefaultRecovery(query: ReportQuery): Promise<ReportResult> {
   const asOfLabel = asOf.toISOString().slice(0, 10);
   const asOfExclusiveEnd = exclusiveEndOfMytDateLabel(asOfLabel);
   if (!isToday(query.asOf)) {
-    const snapshots = await prisma.notePositionSnapshot.findMany({
-      where: { snapshot_date: asOf, note: defaultedNoteWhere(asOfExclusiveEnd) },
-      include: {
-        note: {
-          select: {
-            id: true,
-            note_reference: true,
-            issuer_snapshot: true,
-            default_marked_at: true,
-            default_reason: true,
-            funded_amount: true,
-          },
+    const snapshotInclude = {
+      note: {
+        select: {
+          id: true,
+          note_reference: true,
+          issuer_snapshot: true,
+          default_marked_at: true,
+          default_reason: true,
+          funded_amount: true,
         },
       },
-    });
-    if (snapshots.length === 0) {
-      const snapshotCount = await prisma.notePositionSnapshot.count({
+    } satisfies Prisma.NotePositionSnapshotInclude;
+    const [exactDateSnapshots, settledSnapshots, snapshotCount] = await Promise.all([
+      prisma.notePositionSnapshot.findMany({
+        where: { snapshot_date: asOf, note: defaultedNoteWhere(asOfExclusiveEnd) },
+        include: snapshotInclude,
+      }),
+      prisma.notePositionSnapshot.findMany({
+        where: {
+          snapshot_date: { lte: asOf },
+          servicing_status: NoteServicingStatus.SETTLED,
+          note: defaultedNoteWhere(asOfExclusiveEnd),
+        },
+        include: snapshotInclude,
+      }),
+      prisma.notePositionSnapshot.count({
         where: { snapshot_date: asOf },
-      });
+      }),
+    ]);
+    if (snapshotCount === 0) {
       return {
         key: "default_recovery",
         title: report.title,
@@ -465,9 +477,10 @@ async function runDefaultRecovery(query: ReportQuery): Promise<ReportResult> {
         columns: report.columns,
         rows: [],
         summaries: [{ label: "Defaulted notes", count: 0, amount: 0 }],
-        emptyReason: snapshotCount === 0 ? "No snapshot for this date" : undefined,
+        emptyReason: "No snapshot for this date",
       };
     }
+    const snapshots = mergeDefaultRecoverySnapshots(exactDateSnapshots, settledSnapshots);
     const rows = snapshots.map((snapshot) => {
       const funded = toNumber(snapshot.note.funded_amount);
       const recoveredPrincipal = toNumber(snapshot.recovered_principal);

@@ -6451,12 +6451,6 @@ export class NoteService {
         },
         { reason: input.reason.trim(), voidedSettlementIds }
       );
-      await this.logEvent(tx, id, "LATE_CHARGE_WAIVED", actor, {
-        tawidhAmount,
-        gharamahAmount,
-        reason: input.reason.trim(),
-        voidedSettlementIds,
-      });
       return result;
     });
     return mapNoteDetail(updated);
@@ -6996,35 +6990,56 @@ export class NoteService {
   }
 
   async markDefault(id: string, reason: string, actor: ActorContext) {
-    const note = await noteRepository.findById(id);
-    if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
-    if (note.servicing_status !== NoteServicingStatus.ARREARS) {
-      throw new AppError(
-        409,
-        "NOTE_NOT_IN_ARREARS",
-        "Default can only be marked while note is in arrears"
+    const now = new Date();
+    const updated = await prisma.$transaction(async (tx) => {
+      const note = await tx.note.findUnique({ where: { id }, include: noteInclude });
+      if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+      if (note.servicing_status !== NoteServicingStatus.ARREARS) {
+        throw new AppError(
+          409,
+          "NOTE_NOT_IN_ARREARS",
+          "Default can only be marked while note is in arrears"
+        );
+      }
+
+      const transition = await tx.note.updateMany({
+        where: {
+          id,
+          servicing_status: NoteServicingStatus.ARREARS,
+          default_marked_at: null,
+        },
+        data: {
+          status: NoteStatus.DEFAULTED,
+          servicing_status: NoteServicingStatus.DEFAULTED,
+          default_marked_at: now,
+          default_marked_by_admin_user_id: actor.userId,
+          default_reason: reason,
+        },
+      });
+      if (transition.count !== 1) {
+        throw new AppError(
+          409,
+          "NOTE_DEFAULT_TRANSITION_CONFLICT",
+          "The note status changed before default could be marked"
+        );
+      }
+
+      const next = await tx.note.findUniqueOrThrow({ where: { id }, include: noteInclude });
+      await this.logAdminAction(
+        tx,
+        id,
+        "NOTE_DEFAULT_MARKED",
+        actor,
+        { servicingStatus: note.servicing_status, status: note.status },
+        {
+          servicingStatus: NoteServicingStatus.DEFAULTED,
+          status: NoteStatus.DEFAULTED,
+          reason,
+        },
+        { reason }
       );
-    }
-    const updated = await noteRepository.updateState(id, {
-      status: NoteStatus.DEFAULTED,
-      servicing_status: NoteServicingStatus.DEFAULTED,
-      default_marked_at: new Date(),
-      default_marked_by_admin_user_id: actor.userId,
-      default_reason: reason,
+      return next;
     });
-    await this.logAdminAction(
-      prisma,
-      id,
-      "NOTE_DEFAULT_MARKED",
-      actor,
-      { servicingStatus: note.servicing_status, status: note.status },
-      {
-        servicingStatus: NoteServicingStatus.DEFAULTED,
-        status: NoteStatus.DEFAULTED,
-        reason,
-      },
-      { reason }
-    );
     await notifyNoteDefaulted({
       notificationService: this.notificationService,
       noteId: id,

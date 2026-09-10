@@ -5,6 +5,7 @@ import { CheckCircleIcon } from "@heroicons/react/24/solid";
 import { ClockIcon } from "@heroicons/react/24/outline";
 import { Card, CardContent, StatusBadge } from "@cashsouk/ui";
 import { HELP_CENTER_URL } from "@cashsouk/config";
+import { formatMytDateTime } from "@cashsouk/types";
 import { cn } from "@/lib/utils";
 import {
   approvalPipelineStages,
@@ -20,11 +21,14 @@ function stageTone(status: ApprovalPipelineStageStatus) {
 export function InvestorDashboardApproval({
   onboardingStatus,
   amlApproved,
+  submittedAt,
 }: {
   onboardingStatus: string;
   amlApproved?: boolean | null;
+  submittedAt?: string | null;
 }) {
   const stages = approvalPipelineStages({ onboardingStatus, amlApproved });
+  const submittedLabel = formatMytDateTime(submittedAt);
 
   return (
     <div className="flex flex-col gap-6">
@@ -43,6 +47,12 @@ export function InvestorDashboardApproval({
                 Everything you needed to submit is in. We run AML screening and a final review
                 before your wallet is enabled.
               </p>
+              {submittedLabel ? (
+                <div className="mt-5">
+                  <p className="text-meta text-muted-foreground">Submitted</p>
+                  <p className="mt-0.5 text-ui font-medium">{submittedLabel}</p>
+                </div>
+              ) : null}
             </div>
           </div>
 

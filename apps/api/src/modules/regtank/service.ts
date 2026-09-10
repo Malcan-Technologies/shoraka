@@ -29,6 +29,7 @@ import {
   webhookAuditContext,
   type AuditRequestContext,
 } from "../../lib/audit";
+import { webhookOccurredAt } from "./webhook-occurred-at";
 
 type StartPersonalOnboardingResult = {
   verifyLink: string;
@@ -2515,6 +2516,7 @@ export class RegTankService {
     const updateData: {
       status: string;
       substatus?: string;
+      submittedAt?: Date;
       completedAt?: Date;
     } = {
       status: persistedRegtankStatus,
@@ -2524,6 +2526,9 @@ export class RegTankService {
       updateData.substatus = substatus;
     }
 
+    if (onboarding.submitted_at == null && isLivenessCompleted) {
+      updateData.submittedAt = webhookOccurredAt(payload.timestamp);
+    }
     if (statusUpper === "REJECTED") {
       updateData.completedAt = new Date();
     }
@@ -3194,6 +3199,7 @@ export class RegTankService {
       const updateData: {
         status: string;
         substatus?: string;
+        submittedAt?: Date;
         completedAt?: Date;
       } = {
         status: details.status.toUpperCase(),
@@ -3203,6 +3209,13 @@ export class RegTankService {
         updateData.substatus = details.substatus;
       }
 
+      if (
+        onboarding.submitted_at == null &&
+        (details.status.toUpperCase() === "LIVENESS_PASSED" ||
+          details.status.toUpperCase() === "WAIT_FOR_APPROVAL")
+      ) {
+        updateData.submittedAt = new Date();
+      }
       // Set completed_at if status is APPROVED or REJECTED
       if (
         details.status.toUpperCase() === "APPROVED" ||

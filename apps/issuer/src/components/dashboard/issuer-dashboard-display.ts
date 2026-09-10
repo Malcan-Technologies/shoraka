@@ -1,20 +1,6 @@
-const MYT = "Asia/Kuala_Lumpur";
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+export { formatMytDateTime } from "@cashsouk/types";
 
-export function formatMytDateTime(value: string | Date | null | undefined): string | null {
-  if (value == null) return null;
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toLocaleString("en-MY", {
-    timeZone: MYT,
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-}
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export function calendarMonthDay(dueDate: string): { month: string; day: string } | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(dueDate.trim());

@@ -319,7 +319,11 @@ export function computeAtRisk(
     (holding) => !isClosedHolding(holding) && holding.confirmedAmount > 0 && isAtRiskHolding(holding)
   );
   const amount = roundNoteMoney(
-    atRisk.reduce((sum, holding) => sum + holdingExpectedPayout(holding).amount, 0),
+    atRisk.reduce(
+      (sum, holding) =>
+        sum + investorShareOf(holding, holdingOutstanding(holding).outstandingPrincipal),
+      0
+    ),
     2
   );
   let maxDaysPastDue: number | null = null;
@@ -355,6 +359,8 @@ export function computeCashflowNext90Days(
     count: 0,
   }));
   const monthIndex = new Map(months.map((month, index) => [month.yearMonth, index]));
+  const noteIdsByMonth = new Map(months.map((month) => [month.yearMonth, new Set<string>()]));
+  const upcomingNoteIds = new Set<string>();
   const live = holdings.filter(
     (holding) => !isClosedHolding(holding) && holding.confirmedAmount > 0
   );
@@ -371,8 +377,9 @@ export function computeCashflowNext90Days(
     const month = monthIndex.has(yearMonth) ? months[monthIndex.get(yearMonth)!] : null;
     if (month) {
       month.amount = roundNoteMoney(month.amount + amount, 2);
-      month.count += 1;
+      noteIdsByMonth.get(yearMonth)?.add(holding.noteId);
     }
+    upcomingNoteIds.add(holding.noteId);
     upcomingRows.push({
       investmentId: holding.investmentId,
       noteId: holding.noteId,
@@ -394,12 +401,16 @@ export function computeCashflowNext90Days(
     return left.investmentId.localeCompare(right.investmentId);
   });
 
+  for (const month of months) {
+    month.count = noteIdsByMonth.get(month.yearMonth)?.size ?? 0;
+  }
+
   return {
     totalAmount: roundNoteMoney(
       months.reduce((sum, month) => sum + month.amount, 0),
       2
     ),
-    noteCount: upcomingRows.length,
+    noteCount: upcomingNoteIds.size,
     months,
     upcoming: upcomingRows.slice(0, 5),
   };

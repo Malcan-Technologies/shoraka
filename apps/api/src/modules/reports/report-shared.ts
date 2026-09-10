@@ -76,6 +76,23 @@ export function openBookSnapshots<T extends { servicing_status: string }>(snapsh
   return snapshots.filter((snapshot) => snapshot.servicing_status !== "SETTLED");
 }
 
+export function mergeDefaultRecoverySnapshots<T extends { note_id: string; snapshot_date: Date }>(
+  exactDateSnapshots: T[],
+  settledSnapshots: T[]
+): T[] {
+  const byNote = new Map<string, T>();
+  for (const snapshot of settledSnapshots) {
+    const existing = byNote.get(snapshot.note_id);
+    if (!existing || existing.snapshot_date < snapshot.snapshot_date) {
+      byNote.set(snapshot.note_id, snapshot);
+    }
+  }
+  for (const snapshot of exactDateSnapshots) {
+    byNote.set(snapshot.note_id, snapshot);
+  }
+  return [...byNote.values()];
+}
+
 export function jsonRecord(value: Prisma.JsonValue | null | undefined): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   return value as Record<string, unknown>;

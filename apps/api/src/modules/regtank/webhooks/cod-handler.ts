@@ -31,6 +31,7 @@ import {
 import { preserveFilledCodMasterFacts } from "../../organization-profile/serialize";
 import { parseRegTankCodAddresses } from "../helpers/cod-addresses";
 import { createOnboardingLogRow, persistOrganizationUpdateAndOnboardingLogs, webhookAuditContext } from "../../../lib/audit";
+import { webhookOccurredAt } from "../webhook-occurred-at";
 
 const COD_EXACT_LOOKUP_MAX_ATTEMPTS = 3;
 const COD_EXACT_LOOKUP_DELAY_MS = 75;
@@ -151,11 +152,15 @@ export class CODWebhookHandler extends BaseWebhookHandler {
     const updateData: {
       status: string;
       substatus?: string;
+      submittedAt?: Date;
       completedAt?: Date;
     } = {
       status: persistedRegtankStatus,
     };
 
+    if (onboarding.submitted_at == null && statusUpper === "WAIT_FOR_APPROVAL") {
+      updateData.submittedAt = webhookOccurredAt(payload.timestamp);
+    }
     if (statusUpper === "REJECTED") {
       updateData.completedAt = new Date();
     }

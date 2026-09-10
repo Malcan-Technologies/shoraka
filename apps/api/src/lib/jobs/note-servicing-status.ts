@@ -116,6 +116,31 @@ export function shouldRetryServicingTransitionSideEffects(input: {
   return servicingTransitionEventType(input.classifiedStatus) != null;
 }
 
+export function servicingTransitionTimestampUpdate(
+  current: {
+    overdueStartedAt: Date | null;
+    lateStartedAt: Date | null;
+    arrearsStartedAt: Date | null;
+  },
+  status: NoteServicingStatus,
+  occurredAt: Date
+) {
+  const isOverdue =
+    status === NoteServicingStatus.OVERDUE ||
+    status === NoteServicingStatus.LATE ||
+    status === NoteServicingStatus.ARREARS;
+  const isLate =
+    status === NoteServicingStatus.LATE || status === NoteServicingStatus.ARREARS;
+  return {
+    overdue_started_at: !current.overdueStartedAt && isOverdue ? occurredAt : undefined,
+    late_started_at: !current.lateStartedAt && isLate ? occurredAt : undefined,
+    arrears_started_at:
+      !current.arrearsStartedAt && status === NoteServicingStatus.ARREARS
+        ? occurredAt
+        : undefined,
+  };
+}
+
 /** Matches the per-user idempotency prefixes written by notifyNoteOverdue / Late / Arrears. */
 export function servicingTransitionNotificationKeyPrefixes(
   status: NoteServicingStatus,
@@ -367,35 +392,26 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
             days_past_due: 0,
             indicative_tawidh_amount: 0,
             indicative_gharamah_amount: 0,
-            indicative_as_of: today,
+            indicative_as_of: now,
           }
         : {
             days_past_due: classification.daysPastDue,
             indicative_tawidh_amount: classification.indicativeTawidhAmount,
             indicative_gharamah_amount: classification.indicativeGharamahAmount,
-            indicative_as_of: today,
+            indicative_as_of: now,
             ...(canTransition
               ? {
                   servicing_status: classification.servicingStatus,
                   status: classification.noteStatus ?? note.status,
-                  overdue_started_at:
-                    !note.overdue_started_at &&
-                    (classification.servicingStatus === NoteServicingStatus.OVERDUE ||
-                      classification.servicingStatus === NoteServicingStatus.LATE ||
-                      classification.servicingStatus === NoteServicingStatus.ARREARS)
-                      ? today
-                      : undefined,
-                  late_started_at:
-                    !note.late_started_at &&
-                    (classification.servicingStatus === NoteServicingStatus.LATE ||
-                      classification.servicingStatus === NoteServicingStatus.ARREARS)
-                      ? today
-                      : undefined,
-                  arrears_started_at:
-                    !note.arrears_started_at &&
-                    classification.servicingStatus === NoteServicingStatus.ARREARS
-                      ? today
-                      : undefined,
+                  ...servicingTransitionTimestampUpdate(
+                    {
+                      overdueStartedAt: note.overdue_started_at,
+                      lateStartedAt: note.late_started_at,
+                      arrearsStartedAt: note.arrears_started_at,
+                    },
+                    classification.servicingStatus,
+                    now
+                  ),
                 }
               : {}),
           };

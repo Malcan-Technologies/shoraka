@@ -21,6 +21,7 @@ import {
   isIndividualWebhookFamilyMatch,
   logWebhookFamilyTypeMismatch,
 } from "./onboarding-webhook-guards";
+import { webhookOccurredAt } from "../webhook-occurred-at";
 
 const PERSONAL_EXACT_LOOKUP_MAX_ATTEMPTS = 3;
 const PERSONAL_EXACT_LOOKUP_DELAY_MS = 75;
@@ -124,11 +125,18 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
     const updateData: {
       status: string;
       substatus?: string;
+      submittedAt?: Date;
       completedAt?: Date;
     } = {
       status: persistedRegtankStatus,
     };
 
+    if (
+      onboarding.submitted_at == null &&
+      (statusUpper === "LIVENESS_PASSED" || statusUpper === "WAIT_FOR_APPROVAL")
+    ) {
+      updateData.submittedAt = webhookOccurredAt(payload.timestamp);
+    }
     if (statusUpper === "REJECTED") {
       updateData.completedAt = new Date();
     }

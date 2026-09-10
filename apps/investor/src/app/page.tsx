@@ -278,6 +278,7 @@ function InvestorDashboardContent() {
                 <InvestorDashboardApproval
                   onboardingStatus={activeOrganization.onboardingStatus}
                   amlApproved={activeOrganization.amlApproved}
+                  submittedAt={activeOrganization.submittedAt}
                 />
               ) : null}
 

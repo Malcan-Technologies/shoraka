@@ -133,6 +133,24 @@ describe("servicing letter audit trail", () => {
     );
   });
 
+  it("persists the unsent letter before email so a failed send can be retried", async () => {
+    (listIssuerOrgMemberUserIds as jest.Mock).mockResolvedValue(["user-1"]);
+    (prisma.user.findMany as jest.Mock).mockResolvedValue([{ email: "issuer@example.com" }]);
+    (sendEmailWithAttachments as jest.Mock).mockRejectedValueOnce(new Error("SES unavailable"));
+
+    await expect(generateAndSendServicingLetter(letterInput)).rejects.toThrow("SES unavailable");
+
+    expect(prisma.noteServicingLetter.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        note_id: "note-1",
+        sent_at: null,
+        sent_to: [],
+      }),
+    });
+    expect(prisma.noteServicingLetter.update).not.toHaveBeenCalled();
+    expect(createNoteEventRow).not.toHaveBeenCalled();
+  });
+
   it("writes a resent NOTE_LETTER_SENT only after a successful email", async () => {
     (prisma.noteServicingLetter.findFirst as jest.Mock).mockResolvedValue({
       id: "letter-1",
