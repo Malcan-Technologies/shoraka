@@ -86,6 +86,8 @@ describe("admin official document cards", () => {
     const certificate = page.indexOf("<InvestmentNoteCertificateCard");
     expect(payout).toBeGreaterThan(-1);
     expect(certificate).toBeGreaterThan(payout);
+    expect(page).toContain("disbursementWithdrawal.status !== \"CANCELLED\"");
+    expect(page).not.toContain("investmentNoteCertificate.canGenerate ||");
   });
 });
 
