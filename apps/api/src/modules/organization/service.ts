@@ -282,6 +282,62 @@ export class OrganizationService {
     this.repository = new OrganizationRepository();
   }
 
+  /**
+   * Invitation acceptance previously created OrganizationMember only.
+   * Portal login still checks User.roles and issuer_account / investor_account,
+   * so invited users could appear as User/Admin in the org table but be sent
+   * through onboarding instead of the portal. Grant the same portal flags used
+   * when creating an organisation, using the real org id (not a temp placeholder).
+   */
+  private async ensurePortalAccessForOrganizationMember(
+    userId: string,
+    organizationId: string,
+    portalType: PortalType
+  ): Promise<void> {
+    const user = await prisma.user.findUnique({
+      where: { user_id: userId },
+    });
+    if (!user) return;
+
+    const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
+    const roleNeedsToBeAdded = !user.roles.includes(role);
+    const updatedRoles = roleNeedsToBeAdded ? [...user.roles, role] : user.roles;
+    const accountArrayField = portalType === "investor" ? "investor_account" : "issuer_account";
+    const currentArray = portalType === "investor" ? user.investor_account : user.issuer_account;
+    const nextArray = currentArray.includes(organizationId)
+      ? currentArray
+      : [...currentArray, organizationId];
+
+    if (!roleNeedsToBeAdded && nextArray.length === currentArray.length) {
+      return;
+    }
+
+    await prisma.user.update({
+      where: { user_id: userId },
+      data: {
+        roles: updatedRoles,
+        [accountArrayField]: { set: nextArray },
+      },
+    });
+
+    if (roleNeedsToBeAdded && user.cognito_sub && COGNITO_USER_POOL_ID) {
+      try {
+        const rolesString = formatRolesForCognito(updatedRoles);
+        const command = new AdminUpdateUserAttributesCommand({
+          UserPoolId: COGNITO_USER_POOL_ID,
+          Username: user.cognito_sub,
+          UserAttributes: [{ Name: "custom:roles", Value: rolesString }],
+        });
+        await cognitoClient.send(command);
+      } catch (error) {
+        logger.warn(
+          { error: error instanceof Error ? error.message : String(error), userId },
+          "Failed to update Cognito custom:roles after invitation acceptance"
+        );
+      }
+    }
+  }
+
   private async restoreLinkedPersonPlatformAccess(params: {
     actorUserId: string;
     organization: OrganizationWithMembers;
@@ -338,6 +394,11 @@ export class OrganizationService {
         db: tx,
       });
     });
+    await this.ensurePortalAccessForOrganizationMember(
+      params.linkedUserId,
+      params.organizationId,
+      params.portalType
+    );
   }
 
   /**
@@ -1684,6 +1745,7 @@ export class OrganizationService {
         { userId, invitationId: invitation.id, organizationId, portalType },
         "Person-scoped invitation accepted"
       );
+      await this.ensurePortalAccessForOrganizationMember(userId, organizationId, portalType);
       return { success: true, organizationId, portalType };
     }
 
@@ -1741,6 +1803,7 @@ export class OrganizationService {
       "Invitation accepted"
     );
 
+    await this.ensurePortalAccessForOrganizationMember(userId, organizationId, portalType);
     return { success: true, organizationId, portalType };
   }
 

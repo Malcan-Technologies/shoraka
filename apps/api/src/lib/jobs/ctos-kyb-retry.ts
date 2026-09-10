@@ -16,6 +16,26 @@ function asJsonRecord(v: unknown): Record<string, unknown> | null {
   return null;
 }
 
+/**
+ * Existing retry gate: KYC pipeline APPROVED and director/shareholder KYB flags incomplete.
+ * Extracted so seed/local tests can assert the same criteria without changing production rules.
+ */
+export function ctosPartySupplementNeedsKybRetry(onboardingJson: unknown): boolean {
+  const json = asJsonRecord(onboardingJson);
+  if (!json) return false;
+  if (getCtosPartySupplementPipelineStatus(json).toUpperCase() !== "APPROVED") return false;
+
+  const directorDone = json.kybDirectorLinked === true || json.kybLinked === true;
+  const shareholderDone = json.kybShareholderLinked === true || json.kybLinked === true;
+  if (directorDone && shareholderDone) return false;
+
+  const needsDirector = json.kybDirectorLinked !== true;
+  const needsShareholder = json.kybShareholderLinked !== true;
+  if (!needsDirector && !needsShareholder) return false;
+
+  return true;
+}
+
 function supplementPortal(
   row: { issuer_organization_id: string | null; investor_organization_id: string | null }
 ): { portalType: "issuer" | "investor"; organizationId: string } | null {
@@ -77,17 +97,7 @@ export async function runCtosKybRetryJob(): Promise<void> {
   for (const row of rows) {
     try {
       const json = asJsonRecord(row.onboarding_json);
-      if (!json) continue;
-
-      if (getCtosPartySupplementPipelineStatus(json).toUpperCase() !== "APPROVED") continue;
-
-      const directorDone = json.kybDirectorLinked === true || json.kybLinked === true;
-      const shareholderDone = json.kybShareholderLinked === true || json.kybLinked === true;
-      if (directorDone && shareholderDone) continue;
-
-      const needsDirector = json.kybDirectorLinked !== true;
-      const needsShareholder = json.kybShareholderLinked !== true;
-      if (!needsDirector && !needsShareholder) continue;
+      if (!json || !ctosPartySupplementNeedsKybRetry(json)) continue;
 
       const lastRaw = json.lastKybAttemptAt;
       if (typeof lastRaw === "string" && lastRaw.trim()) {

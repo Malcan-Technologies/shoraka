@@ -64,6 +64,10 @@ export function IssuerProfileCompletenessBanner({
             remaining={remaining}
             sections={sections}
             onSectionClick={(section) => {
+              if (section.id === "people") {
+                window.location.assign("/profile?tab=people");
+                return;
+              }
               if (section.href) scrollToProfileSection(section.href);
             }}
           />

@@ -13,6 +13,7 @@ import {
   kycAmlScreeningRiskToken,
   kycAmlScreeningStatusToken,
 } from "@/lib/kyc-aml-screening-badge-classes";
+import { organizationScreeningResultTitle } from "@/organizations/utils/admin-org-display";
 
 export type OrganizationKycResponseData = {
   tags?: string[];
@@ -32,18 +33,28 @@ export type OrganizationKycResponseData = {
 
 export function OrganizationKycResponseCard({
   data,
+  organizationType,
 }: {
   data: OrganizationKycResponseData | null;
+  organizationType?: string | null;
 }) {
   if (!data) return null;
+
+  const title = organizationScreeningResultTitle(organizationType);
+  const corporate = organizationType === "COMPANY";
 
   return (
     <Card className="rounded-2xl">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-card-title">
           <ShieldExclamationIcon className="h-4 w-4" />
-          KYC/AML Screening Result
+          {title}
         </CardTitle>
+        <p className="text-meta text-muted-foreground">
+          {corporate
+            ? "Organisation-level business screening. Person KYC and AML remain on People & Access."
+            : "Individual screening for this investor."}
+        </p>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-wrap gap-3">

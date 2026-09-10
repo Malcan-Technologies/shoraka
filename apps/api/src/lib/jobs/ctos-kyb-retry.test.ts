@@ -17,7 +17,12 @@ jest.mock("../../modules/organization/ctos-party-kyb-link", () => ({
   linkCtosPartyToKyb: (...args: unknown[]) => mockLinkCtosPartyToKyb(...args),
 }));
 
-import { runCtosKybRetryJob } from "./ctos-kyb-retry";
+import { runCtosKybRetryJob, ctosPartySupplementNeedsKybRetry } from "./ctos-kyb-retry";
+import {
+  ADMIN_PEOPLE_DEMO_ISSUER_ORG_ID,
+  ADMIN_PEOPLE_DEMO_INVESTOR_ORG_ID,
+  adminPeopleDemoSupplement,
+} from "../../modules/admin/admin-people-demo-data";
 
 describe("runCtosKybRetryJob", () => {
   beforeEach(() => {
@@ -87,5 +92,94 @@ describe("runCtosKybRetryJob", () => {
     await runCtosKybRetryJob();
 
     expect(mockLinkCtosPartyToKyb).not.toHaveBeenCalled();
+  });
+
+  it("does not retry Admin People demo issuer/investor supplements (KYB already marked linked)", async () => {
+    mockFindMany.mockResolvedValue([
+      {
+        issuer_organization_id: ADMIN_PEOPLE_DEMO_ISSUER_ORG_ID,
+        investor_organization_id: null,
+        party_key: "880101145001",
+        onboarding_json: adminPeopleDemoSupplement({
+          requestId: "EOD90001",
+          status: "APPROVED",
+          screeningStatus: "APPROVED",
+          screeningRequestId: "KYC90001",
+        }),
+      },
+      {
+        issuer_organization_id: null,
+        investor_organization_id: ADMIN_PEOPLE_DEMO_INVESTOR_ORG_ID,
+        party_key: "770101145021",
+        onboarding_json: adminPeopleDemoSupplement({
+          requestId: "EOD90021",
+          status: "APPROVED",
+          screeningStatus: "APPROVED",
+          screeningRequestId: "KYC90021",
+        }),
+      },
+    ]);
+
+    await runCtosKybRetryJob();
+
+    expect(mockLinkCtosPartyToKyb).not.toHaveBeenCalled();
+  });
+
+  it("still retries a normal organisation that is APPROVED without KYB link flags", async () => {
+    mockFindMany.mockResolvedValue([
+      {
+        issuer_organization_id: ADMIN_PEOPLE_DEMO_ISSUER_ORG_ID,
+        investor_organization_id: null,
+        party_key: "880101145001",
+        onboarding_json: adminPeopleDemoSupplement({
+          requestId: "EOD90001",
+          status: "APPROVED",
+          screeningStatus: "APPROVED",
+          screeningRequestId: "KYC90001",
+        }),
+      },
+      {
+        issuer_organization_id: "org-live-issuer",
+        investor_organization_id: null,
+        party_key: "900101101234",
+        onboarding_json: {
+          requestId: "LD-LIVE",
+          status: "APPROVED",
+          screening: { requestId: "KYC00199", status: "APPROVED" },
+        },
+      },
+    ]);
+
+    await runCtosKybRetryJob();
+
+    expect(mockLinkCtosPartyToKyb).toHaveBeenCalledTimes(1);
+    expect(mockLinkCtosPartyToKyb).toHaveBeenCalledWith({
+      organizationId: "org-live-issuer",
+      partyKey: "900101101234",
+      onboardingJson: expect.objectContaining({ status: "APPROVED", requestId: "LD-LIVE" }),
+      portalType: "issuer",
+    });
+  });
+});
+
+describe("ctosPartySupplementNeedsKybRetry", () => {
+  it("is false for demo seed supplements and true for a live APPROVED incomplete row", () => {
+    expect(
+      ctosPartySupplementNeedsKybRetry(
+        adminPeopleDemoSupplement({
+          requestId: "EOD90001",
+          status: "APPROVED",
+          screeningStatus: "APPROVED",
+          screeningRequestId: "KYC90001",
+        })
+      )
+    ).toBe(false);
+    expect(
+      ctosPartySupplementNeedsKybRetry({
+        requestId: "LD-LIVE",
+        status: "APPROVED",
+        screening: { requestId: "KYC00199", status: "APPROVED" },
+      })
+    ).toBe(true);
   });
 });

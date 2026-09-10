@@ -756,6 +756,7 @@ export function EditableAddressFields({
   lineLabel = "Address Line 1",
   stateLabel = "State",
   postcodeLabel = "Postal Code",
+  showHeading = true,
   errors,
 }: {
   label: string;
@@ -764,12 +765,13 @@ export function EditableAddressFields({
   lineLabel?: string;
   stateLabel?: string;
   postcodeLabel?: string;
+  showHeading?: boolean;
   errors?: { line1?: string; state?: string; postalCode?: string };
 }) {
   const prefix = label.toLowerCase().replace(/\s+/g, "-");
   return (
     <div className="space-y-2">
-      <p className="text-meta font-medium text-muted-foreground">{label}</p>
+      {showHeading ? <p className="text-meta font-medium text-muted-foreground">{label}</p> : null}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="sm:col-span-2">
           <EditableField
@@ -824,9 +826,12 @@ export function EditableAddressFields({
   );
 }
 
-export function hasJsonContent(data: Record<string, unknown> | null | undefined): boolean {
-  return Boolean(data && Object.keys(data).length > 0);
-}
+export {
+  ADMIN_ONBOARDING_EVIDENCE_LABELS,
+  adminOnboardingEvidenceCards,
+  hasJsonContent,
+} from "@/organizations/utils/admin-org-display";
+export type { AdminOnboardingEvidenceCard } from "@/organizations/utils/admin-org-display";
 
 export function fieldValueToString(value: FormField["fieldValue"]): string {
   if (value === null || value === undefined) return "";

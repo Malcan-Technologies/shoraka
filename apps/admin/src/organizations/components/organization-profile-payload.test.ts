@@ -110,6 +110,35 @@ describe("buildSectionPayload", () => {
     expect(payload.corporateOnboardingData).not.toHaveProperty("addresses");
   });
 
+  it("still submits company addresses as corporateOnboardingData.addresses", () => {
+    const org = companyOrg();
+    const draft = buildDraft(org);
+    draft.registeredAddress = { ...draft.registeredAddress, line1: "New registered line" };
+
+    expect(buildSectionPayload(org, draft, "addresses")).toEqual({
+      corporateOnboardingData: {
+        addresses: {
+          business: {
+            line1: "1 Business St",
+            line2: null,
+            city: "KL",
+            postalCode: null,
+            state: null,
+            country: "MY",
+          },
+          registered: {
+            line1: "New registered line",
+            line2: null,
+            city: "KL",
+            postalCode: null,
+            state: null,
+            country: "MY",
+          },
+        },
+      },
+    });
+  });
+
   it("saves company type and incorporation dates on the same company-details payload", () => {
     const org = companyOrg({
       dateOfIncorporation: "2020-03-12T00:00:00.000Z",

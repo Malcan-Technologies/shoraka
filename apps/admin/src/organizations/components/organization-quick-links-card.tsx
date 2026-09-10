@@ -81,20 +81,14 @@ export function OrganizationQuickLinksCard({
           href={ownerHref}
           display={ownerName ? `${ownerName} (${org.owner.userId})` : org.owner.userId}
         />
-        <QuickLink label="Organization reference" value={reference} />
-        <QuickLink label="Organization ID" value={org.id} />
+        <QuickLink label="Organisation reference" value={reference} />
+        <QuickLink label="Organisation ID" value={org.id} />
         {org.type === "COMPANY" && org.codRequestId ? (
           <QuickLink
             label="COD"
             value={org.codRequestId}
             href={getRegtankCorporateOnboardingUrl(org.codRequestId)}
           />
-        ) : null}
-        {org.type === "COMPANY" ? (
-          <div className="space-y-1">
-            <div className="text-meta text-muted-foreground">Members</div>
-            <div className="text-ui font-medium">{org.members.length}</div>
-          </div>
         ) : null}
         <QuickLink label="Created" value={format(new Date(org.createdAt), "dd MMM yyyy, p")} />
         <QuickLink label="Updated" value={format(new Date(org.updatedAt), "dd MMM yyyy, p")} />
