@@ -2,6 +2,7 @@ import { DpdBucket, NoteServicingStatus, NoteSettlementStatus, NoteStatus } from
 import {
   closedDaySnapshotStatuses,
   fundedAsOfCutoff,
+  activatedAsOfCutoff,
   mytSnapshotCutoff,
   occurredBeforeCutoff,
   settlementsAsOfCutoff,
@@ -135,5 +136,16 @@ describe("fundedAsOfCutoff", () => {
   it("excludes notes whose funding closed after Malaysia midnight", () => {
     expect(fundedAsOfCutoff(new Date("2026-01-01T16:10:00.000Z"), cutoff)).toBe(false);
     expect(fundedAsOfCutoff(new Date("2026-01-01T15:50:00.000Z"), cutoff)).toBe(true);
+  });
+});
+
+describe("activatedAsOfCutoff", () => {
+  it("keeps legacy notes with no activation timestamp", () => {
+    expect(activatedAsOfCutoff(null, cutoff)).toBe(true);
+  });
+
+  it("excludes notes activated after Malaysia midnight", () => {
+    expect(activatedAsOfCutoff(new Date("2026-01-01T16:10:00.000Z"), cutoff)).toBe(false);
+    expect(activatedAsOfCutoff(new Date("2026-01-01T15:50:00.000Z"), cutoff)).toBe(true);
   });
 });

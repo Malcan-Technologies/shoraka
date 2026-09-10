@@ -29,18 +29,25 @@ export function bookMetricsAsOfFilters(asOfCutoff?: Date) {
   }
   return {
     outstanding: {
-      OR: [
-        { status: NoteStatus.ACTIVE },
+      AND: [
         {
-          servicing_status: NoteServicingStatus.ARREARS,
-          default_marked_at: null,
-          arrears_started_at: { gte: asOfCutoff },
+          OR: [{ activated_at: null }, { activated_at: { lt: asOfCutoff } }],
         },
         {
-          status: NoteStatus.REPAID,
-          repaid_at: { gte: asOfCutoff },
-          arrears_started_at: null,
-          OR: [{ default_marked_at: null }, { default_marked_at: { gte: asOfCutoff } }],
+          OR: [
+            { status: NoteStatus.ACTIVE },
+            {
+              servicing_status: NoteServicingStatus.ARREARS,
+              default_marked_at: null,
+              arrears_started_at: { gte: asOfCutoff },
+            },
+            {
+              status: NoteStatus.REPAID,
+              repaid_at: { gte: asOfCutoff },
+              arrears_started_at: null,
+              OR: [{ default_marked_at: null }, { default_marked_at: { gte: asOfCutoff } }],
+            },
+          ],
         },
       ],
     },

@@ -15,11 +15,18 @@ describe("bookMetricsAsOfFilters", () => {
     const filters = bookMetricsAsOfFilters(cutoff);
     expect(filters.outstanding).toEqual(
       expect.objectContaining({
-        OR: expect.arrayContaining([
-          { status: NoteStatus.ACTIVE },
+        AND: expect.arrayContaining([
+          {
+            OR: [{ activated_at: null }, { activated_at: { lt: cutoff } }],
+          },
           expect.objectContaining({
-            status: NoteStatus.REPAID,
-            repaid_at: { gte: cutoff },
+            OR: expect.arrayContaining([
+              { status: NoteStatus.ACTIVE },
+              expect.objectContaining({
+                status: NoteStatus.REPAID,
+                repaid_at: { gte: cutoff },
+              }),
+            ]),
           }),
         ]),
       })

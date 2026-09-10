@@ -9,6 +9,7 @@ import {
   isCompletedRefund,
   isExternalCashAdded,
   isWithdrawalSource,
+  distinctActiveNoteCount,
   weightedExpectedNetRate,
 } from "./investor-book";
 import { parseSettlementAllocations } from "../notes/investment-settlement-confirmation/snapshot";
@@ -68,5 +69,15 @@ describe("investor book realised allocations", () => {
         { amount: 300, profitRatePercent: 20, serviceFeeRatePercent: 0 },
       ])
     ).toBe(17.5);
+  });
+
+  it("counts distinct notes when an organization has multiple investments in one note", () => {
+    expect(
+      distinctActiveNoteCount([
+        { noteId: "note-1" },
+        { noteId: "note-1" },
+        { noteId: "note-2" },
+      ])
+    ).toBe(2);
   });
 });

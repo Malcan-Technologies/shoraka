@@ -15,6 +15,11 @@ export function fundedAsOfCutoff(fundingClosedAt: Date | null | undefined, cutof
   return fundingClosedAt == null || occurredBeforeCutoff(fundingClosedAt, cutoff);
 }
 
+/** Legacy active notes with no activation timestamp stay on the closed-day book. */
+export function activatedAsOfCutoff(activatedAt: Date | null | undefined, cutoff: Date): boolean {
+  return activatedAt == null || occurredBeforeCutoff(activatedAt, cutoff);
+}
+
 export type SnapshotSettlement = {
   status: NoteSettlementStatus;
   posted_at: Date | null;

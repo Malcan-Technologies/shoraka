@@ -15,8 +15,16 @@ jest.mock("../../modules/admin/book-metrics-snapshot", () => ({
   writeTodayBookMetricsSnapshot: jest.fn(),
 }));
 
-import { shouldSendArrearsLetter, shouldRetryServicingTransitionSideEffects, shouldSendServicingLetter } from "./note-servicing-status";
+import {
+  shouldSendArrearsLetter,
+  shouldRetryServicingTransitionSideEffects,
+  shouldSendServicingLetter,
+  servicingTransitionDeliveryLogKeys,
+  servicingTransitionNotificationsDelivered,
+} from "./note-servicing-status";
 import { NoteServicingStatus } from "@prisma/client";
+import { systemNotificationLogKey } from "../../modules/notification/delivery-log";
+import { NotificationTypeIds } from "../../modules/notification/registry";
 
 describe("shouldSendArrearsLetter", () => {
   it("generates when no letter exists", () => {
@@ -59,5 +67,61 @@ describe("shouldRetryServicingTransitionSideEffects", () => {
         classifiedStatus: NoteServicingStatus.LATE,
       })
     ).toBe(false);
+  });
+});
+
+describe("servicingTransitionNotificationsDelivered", () => {
+  it("retries when the transition event exists but no delivery was recorded", () => {
+    const keys = servicingTransitionDeliveryLogKeys(NoteServicingStatus.LATE, "note-1");
+    expect(keys).toEqual([
+      systemNotificationLogKey(NotificationTypeIds.NOTE_LATE, "note:servicing:note-1:late"),
+      systemNotificationLogKey(
+        NotificationTypeIds.NOTE_LATE_INVESTOR,
+        "note:servicing:note-1:late:investor"
+      ),
+    ]);
+    expect(servicingTransitionNotificationsDelivered([], keys)).toBe(false);
+  });
+
+  it("does not treat a zero-delivery log as success", () => {
+    const keys = servicingTransitionDeliveryLogKeys(NoteServicingStatus.OVERDUE, "note-1");
+    expect(
+      servicingTransitionNotificationsDelivered(
+        [
+          {
+            idempotency_key: keys[0] ?? null,
+            delivered_platform_count: 0,
+            delivered_email_count: 0,
+          },
+        ],
+        keys
+      )
+    ).toBe(false);
+  });
+
+  it("requires every expected batch to have been delivered", () => {
+    const keys = servicingTransitionDeliveryLogKeys(NoteServicingStatus.ARREARS, "note-1");
+    expect(
+      servicingTransitionNotificationsDelivered(
+        [
+          {
+            idempotency_key: keys[0] ?? null,
+            delivered_platform_count: 1,
+            delivered_email_count: 0,
+          },
+        ],
+        keys
+      )
+    ).toBe(false);
+    expect(
+      servicingTransitionNotificationsDelivered(
+        keys.map((key) => ({
+          idempotency_key: key,
+          delivered_platform_count: 1,
+          delivered_email_count: 0,
+        })),
+        keys
+      )
+    ).toBe(true);
   });
 });

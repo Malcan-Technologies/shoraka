@@ -9,6 +9,8 @@ import { createNoteEventRow, systemAuditContext } from "../audit";
 import { logger } from "../logger";
 import { prisma } from "../prisma";
 import { NotificationService } from "../../modules/notification/service";
+import { systemNotificationLogKey } from "../../modules/notification/delivery-log";
+import { NotificationTypeIds } from "../../modules/notification/registry";
 import {
   notifyNoteArrears,
   notifyNoteLate,
@@ -33,6 +35,7 @@ import {
 import { resolveNoteEventTarget } from "../../modules/notes/audit-fields";
 import { writeTodayBookMetricsSnapshot } from "../../modules/admin/book-metrics-snapshot";
 import {
+  activatedAsOfCutoff,
   closedDaySnapshotStatuses,
   fundedAsOfCutoff,
   mytSnapshotCutoff,
@@ -113,6 +116,55 @@ export function shouldRetryServicingTransitionSideEffects(input: {
   if (input.hasPostedSettlement || input.canTransition) return false;
   if (input.currentStatus !== input.classifiedStatus) return false;
   return servicingTransitionEventType(input.classifiedStatus) != null;
+}
+
+/** Matches the SYSTEM log keys written by notifyNoteOverdue / Late / Arrears. */
+export function servicingTransitionDeliveryLogKeys(
+  status: NoteServicingStatus,
+  noteId: string
+): string[] {
+  if (status === NoteServicingStatus.OVERDUE) {
+    return [systemNotificationLogKey(NotificationTypeIds.NOTE_OVERDUE, `note:servicing:${noteId}:overdue`)];
+  }
+  if (status === NoteServicingStatus.LATE) {
+    return [
+      systemNotificationLogKey(NotificationTypeIds.NOTE_LATE, `note:servicing:${noteId}:late`),
+      systemNotificationLogKey(
+        NotificationTypeIds.NOTE_LATE_INVESTOR,
+        `note:servicing:${noteId}:late:investor`
+      ),
+    ];
+  }
+  if (status === NoteServicingStatus.ARREARS) {
+    return [
+      systemNotificationLogKey(
+        NotificationTypeIds.NOTE_ARREARS,
+        `note:lifecycle:${noteId}:arrears:issuer`
+      ),
+      systemNotificationLogKey(
+        NotificationTypeIds.NOTE_ARREARS_INVESTOR,
+        `note:lifecycle:${noteId}:arrears:investor`
+      ),
+    ];
+  }
+  return [];
+}
+
+export function servicingTransitionNotificationsDelivered(
+  logs: Array<{
+    idempotency_key: string | null;
+    delivered_platform_count: number;
+    delivered_email_count: number;
+  }>,
+  expectedKeys: string[]
+): boolean {
+  if (expectedKeys.length === 0) return true;
+  const delivered = new Set(
+    logs
+      .filter((log) => log.delivered_platform_count + log.delivered_email_count > 0)
+      .map((log) => log.idempotency_key)
+  );
+  return expectedKeys.every((key) => delivered.has(key));
 }
 
 async function notifyServicingTransition(input: {
@@ -418,13 +470,27 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
         });
         if (!existingEvent) {
           await logSystemNoteEvent(note.id, transitionEventType, transitionMetadata);
+          result.transitions += 1;
+        }
+        const expectedKeys = servicingTransitionDeliveryLogKeys(
+          classification.servicingStatus,
+          note.id
+        );
+        const deliveryLogs = await prisma.notificationLog.findMany({
+          where: { idempotency_key: { in: expectedKeys } },
+          select: {
+            idempotency_key: true,
+            delivered_platform_count: true,
+            delivered_email_count: true,
+          },
+        });
+        if (!servicingTransitionNotificationsDelivered(deliveryLogs, expectedKeys)) {
           await notifyServicingTransition({
             status: classification.servicingStatus,
             noteId: note.id,
             issuerOrganizationId: note.issuer_organization_id,
             noteTitle: title,
           });
-          result.transitions += 1;
         }
       }
 
@@ -543,7 +609,10 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
         liveNoteStatus: note.status,
       });
 
-      if (!fundedAsOfCutoff(note.funding_closed_at, cutoff)) {
+      if (
+        !fundedAsOfCutoff(note.funding_closed_at, cutoff) ||
+        !activatedAsOfCutoff(note.activated_at, cutoff)
+      ) {
         continue;
       }
 

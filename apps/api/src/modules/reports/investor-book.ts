@@ -40,6 +40,10 @@ export function isCompletedRefund(
   );
 }
 
+export function distinctActiveNoteCount(investments: Array<{ noteId: string }>): number {
+  return new Set(investments.map((item) => item.noteId)).size;
+}
+
 export function weightedExpectedNetRate(
   holdings: Array<{ amount: number; profitRatePercent: number | null; serviceFeeRatePercent: number }>
 ): number | null {
@@ -100,6 +104,7 @@ export async function runInvestorBook(query: ReportQuery): Promise<ReportResult>
         amount: true,
         note: {
           select: {
+            id: true,
             servicing_status: true,
             profit_rate_percent: true,
             service_fee_rate_percent: true,
@@ -197,7 +202,9 @@ export async function runInvestorBook(query: ReportQuery): Promise<ReportResult>
       availableCash: toNumber(org.investor_balance?.available_amount),
       reservedAmount: reserved,
       confirmedAmount,
-      activeNoteCount: activeConfirmed.length,
+      activeNoteCount: distinctActiveNoteCount(
+        activeConfirmed.map((item) => ({ noteId: item.note.id }))
+      ),
       expectedNetRatePercent: weightedExpectedNetRate(
         activeConfirmed.map((item) => ({
           amount: toNumber(item.amount),
