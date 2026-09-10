@@ -14,7 +14,6 @@ import type {
   AdminInvestmentSettlementConfirmationsPayload,
 } from "@cashsouk/types";
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,8 +26,15 @@ import {
 } from "@/components/ui/alert-dialog";
 import { StatusBadge } from "@cashsouk/ui";
 import { cn } from "@/lib/utils";
-import { ADMIN_ACTION_SURFACE_CLASS } from "@/lib/admin-status-token";
-import { workflowToneToStatusToken, type WorkflowStatusTone } from "@/notes/utils/workflow-status-tokens";
+import {
+  officialDocumentReviewLabel,
+  officialDocumentReviewTone,
+  officialDocumentWorkflowLabel,
+  officialDocumentWorkflowTone,
+  workflowTaskSurfaceClass,
+  workflowToneToStatusToken,
+  type WorkflowStatusTone,
+} from "@/notes/utils/workflow-status-tokens";
 import {
   useDownloadAdminInvestmentSettlementConfirmation,
   useGenerateAdminInvestmentSettlementConfirmation,
@@ -38,64 +44,73 @@ import {
   useReissueAdminInvestmentSettlementConfirmation,
   useRetryAdminInvestmentSettlementConfirmation,
 } from "@/notes/hooks/use-investment-settlement-confirmation";
+import { OfficialDocumentWorkflowPanel } from "@/notes/components/official-document-workflow-panel";
 
 function overallModel(payload: AdminInvestmentSettlementConfirmationsPayload): {
   label: string;
   tone: WorkflowStatusTone;
-  emphasize: boolean;
   description: string;
 } {
+  const reviewStatuses = payload.confirmations.map((row) => row.reviewVersion?.status ?? null);
   if (payload.expectedCount === 0 && payload.confirmations.length === 0) {
     return {
       label: "Not generated",
       tone: "neutral",
-      emphasize: false,
       description: "Issued to each investor after settlement is posted and wallets are credited.",
     };
   }
-  if (payload.failedCount > 0) {
+  if (payload.failedCount > 0 || reviewStatuses.includes("FAILED")) {
     return {
       label: "Failed",
-      tone: "active",
-      emphasize: true,
-      description: `${payload.failedCount} investor confirmation${payload.failedCount === 1 ? "" : "s"} failed. Settlement and wallet credits are unchanged. Retry uses the frozen snapshot.`,
+      tone: "danger",
+      description:
+        payload.failedCount > 0
+          ? `${payload.failedCount} investor confirmation${payload.failedCount === 1 ? "" : "s"} failed. Settlement and wallet credits are unchanged. Retry uses the frozen snapshot.`
+          : "A confirmation reissue failed. Settlement and wallet credits are unchanged. Retry uses the frozen snapshot.",
     };
   }
-  if (payload.pendingCount > 0) {
+  if (payload.pendingCount > 0 || reviewStatuses.includes("PENDING")) {
     return {
       label: "Generating",
-      tone: "warning",
-      emphasize: false,
+      tone: "active",
       description: "Investor confirmation PDFs are being generated. Settlement posting is unchanged.",
+    };
+  }
+  if (reviewStatuses.includes("READY")) {
+    return {
+      label: "Awaiting publish",
+      tone: "active",
+      description:
+        "A new confirmation version is generated. Investors continue to see the current published version until you publish.",
     };
   }
   if (payload.confirmations.some((row) => row.canGenerate || row.status === "NONE")) {
     return {
       label: "Not generated",
-      tone: "neutral",
-      emphasize: false,
+      tone: payload.canGenerateAll || payload.confirmations.some((row) => row.canGenerate)
+        ? "active"
+        : "neutral",
       description: "Generate a confirmation for each eligible investor after settlement is posted.",
     };
   }
   return {
-    label: "Ready",
+    label: "Generated",
     tone: "success",
-    emphasize: false,
-    description: `${payload.readyCount} investor confirmation${payload.readyCount === 1 ? "" : "s"} ready for this posted settlement.`,
+    description: `${payload.readyCount} investor confirmation${payload.readyCount === 1 ? "" : "s"} generated for this posted settlement.`,
   };
 }
 
 function rowStatusLabel(row: AdminInvestmentSettlementConfirmationItem): string {
-  if (row.status === "NONE") return "Not generated";
-  if (row.status === "PENDING") return "Generating";
-  if (row.status === "FAILED") return "Failed";
-  return row.isCurrent ? "Ready" : "Ready for review";
+  return officialDocumentWorkflowLabel({
+    status: row.status,
+    reviewStatus: row.isCurrent ? null : row.status === "READY" ? "READY" : null,
+  });
 }
 
 type ConfirmAction =
   | { type: "generate-all" }
   | { type: "generate"; investorOrganizationId: string }
-  | { type: "regenerate"; investorOrganizationId: string }
+  | { type: "reissue"; investorOrganizationId: string }
   | { type: "publish"; investorOrganizationId: string };
 
 type Props = {
@@ -120,6 +135,7 @@ export function InvestmentSettlementConfirmationCard({ noteId, payload, canManag
     retry.isPending ||
     reissue.isPending ||
     publish.isPending;
+  const showFooter = payload.canGenerateAll && canManage;
 
   const confirmCopy =
     confirmAction?.type === "generate-all"
@@ -136,39 +152,33 @@ export function InvestmentSettlementConfirmationCard({ noteId, payload, canManag
               "Create version V01 for this investor. This becomes the current confirmation when generation succeeds.",
             confirmLabel: "Generate",
           }
-        : confirmAction?.type === "regenerate"
+        : confirmAction?.type === "reissue"
           ? {
-              title: "Regenerate confirmation?",
+              title: "Reissue confirmation?",
               description:
                 "Create a new version from the frozen settlement facts. The investor continues to see the current version until you publish.",
-              confirmLabel: "Regenerate",
+              confirmLabel: "Reissue",
             }
           : {
               title: "Publish new version?",
               description:
-                "Make the regenerated version the current confirmation for this investor. The previous version is kept as history.",
+                "Make the reissued version the current confirmation for this investor. The previous version is kept as history.",
               confirmLabel: "Publish New Version",
             };
 
   return (
-    <Card
-      data-investment-settlement-confirmation-card
-      data-confirmation-ready={payload.readyCount}
-      data-confirmation-failed={payload.failedCount}
-      className={cn("rounded-2xl", model.emphasize && ADMIN_ACTION_SURFACE_CLASS)}
-    >
-      <CardHeader className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <DocumentTextIcon className="h-4 w-4" aria-hidden />
-            </span>
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <CardTitle>Investment Settlement Confirmations</CardTitle>
-              <StatusBadge label={model.label} status={workflowToneToStatusToken(model.tone)} />
-            </div>
-          </div>
-          {payload.canGenerateAll && canManage ? (
+    <>
+      <OfficialDocumentWorkflowPanel
+        data-investment-settlement-confirmation-card
+        data-confirmation-ready={payload.readyCount}
+        data-confirmation-failed={payload.failedCount}
+        title="Investment Settlement Confirmations"
+        completeLabel="Investment Settlement Confirmations generated"
+        description={model.description}
+        tone={model.tone}
+        badgeLabel={model.label}
+        actions={
+          showFooter ? (
             <Button
               type="button"
               size="sm"
@@ -179,160 +189,48 @@ export function InvestmentSettlementConfirmationCard({ noteId, payload, canManag
               <DocumentTextIcon className="h-4 w-4" aria-hidden />
               Generate All
             </Button>
-          ) : null}
-        </div>
-        <p className="text-meta text-muted-foreground">{model.description}</p>
+          ) : null
+        }
+      >
         {payload.confirmations.length > 0 ? (
-          <ul className="space-y-2">
-            {payload.confirmations.map((row) => (
-              <li
-                key={row.investorOrganizationId}
-                className="space-y-2 rounded-xl border border-border px-3 py-2"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-ui font-medium text-foreground">{row.investorReference}</p>
-                    <p className="text-meta text-muted-foreground">
-                      {rowStatusLabel(row)}
-                      {row.version && row.status !== "NONE" ? ` · Version ${row.version}` : ""}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {row.status === "READY" && (row.viewUrl || row.downloadUrl) ? (
-                      <>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="gap-1.5"
-                          onClick={() => {
-                            void openPdf
-                              .mutateAsync({
-                                investorOrganizationId: row.investorOrganizationId,
-                                target: "current",
-                              })
-                              .catch((err) => {
-                                toast.error(
-                                  err instanceof Error ? err.message : "Confirmation is not available"
-                                );
-                              });
-                          }}
-                          disabled={openPdf.isPending || downloadPdf.isPending}
-                        >
-                          <ArrowTopRightOnSquareIcon className="h-4 w-4" aria-hidden />
-                          View
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="gap-1.5"
-                          onClick={() => {
-                            void downloadPdf
-                              .mutateAsync({
-                                investorOrganizationId: row.investorOrganizationId,
-                                target: "current",
-                              })
-                              .catch((err) => {
-                                toast.error(
-                                  err instanceof Error ? err.message : "Confirmation is not available"
-                                );
-                              });
-                          }}
-                          disabled={openPdf.isPending || downloadPdf.isPending}
-                        >
-                          <ArrowDownTrayIcon className="h-4 w-4" aria-hidden />
-                          Download
-                        </Button>
-                      </>
-                    ) : null}
-                    {row.canGenerate && canManage ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="gap-1.5"
-                        onClick={() =>
-                          setConfirmAction({
-                            type: "generate",
-                            investorOrganizationId: row.investorOrganizationId,
-                          })
-                        }
-                        disabled={pendingAny}
-                      >
-                        <DocumentTextIcon className="h-4 w-4" aria-hidden />
-                        Generate
-                      </Button>
-                    ) : null}
-                    {row.canRetry && canManage ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="gap-1.5"
-                        onClick={() => {
-                          void retry.mutateAsync(row.investorOrganizationId).catch((err) => {
-                            toast.error(err instanceof Error ? err.message : "Retry failed");
-                          });
-                        }}
-                        disabled={pendingAny}
-                      >
-                        <ArrowPathIcon className="h-4 w-4" aria-hidden />
-                        Retry
-                      </Button>
-                    ) : null}
-                    {row.canRegenerate && canManage ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="gap-1.5"
-                        onClick={() =>
-                          setConfirmAction({
-                            type: "regenerate",
-                            investorOrganizationId: row.investorOrganizationId,
-                          })
-                        }
-                        disabled={pendingAny}
-                      >
-                        <ArrowPathIcon className="h-4 w-4" aria-hidden />
-                        Regenerate
-                      </Button>
-                    ) : null}
-                  </div>
-                </div>
-                {row.reviewVersion ? (
-                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/40 px-3 py-2">
-                    <div className="flex min-w-0 flex-wrap items-center gap-2">
-                      <p className="text-ui text-foreground">Version {row.reviewVersion.version}</p>
-                      <StatusBadge
-                        label={
-                          row.reviewVersion.status === "READY"
-                            ? "Ready for review"
-                            : row.reviewVersion.status === "FAILED"
-                              ? "Failed"
-                              : "Generating"
-                        }
-                        status={workflowToneToStatusToken(
-                          row.reviewVersion.status === "READY"
-                            ? "success"
-                            : row.reviewVersion.status === "FAILED"
-                              ? "active"
-                              : "warning"
-                        )}
-                      />
+          <ul className="mt-2 space-y-2">
+            {payload.confirmations.map((row) => {
+              const rowTone = officialDocumentWorkflowTone({
+                status: row.status,
+                canGenerate: row.canGenerate,
+                reviewStatus: row.reviewVersion?.status ?? null,
+              });
+              return (
+                <li
+                  key={row.investorOrganizationId}
+                  className={cn(
+                    "space-y-2 rounded-xl border px-3 py-2",
+                    rowTone === "success" || rowTone === "neutral"
+                      ? "border-border/60 bg-muted/30"
+                      : workflowTaskSurfaceClass(rowTone)
+                  )}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-ui font-medium text-foreground">{row.investorReference}</p>
+                      <p className="text-meta text-muted-foreground">
+                        {rowStatusLabel(row)}
+                        {row.version && row.status !== "NONE" ? ` · Version ${row.version}` : ""}
+                      </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      {row.reviewVersion.viewUrl || row.reviewVersion.downloadUrl ? (
+                      {row.status === "READY" && (row.viewUrl || row.downloadUrl) ? (
                         <>
                           <Button
                             type="button"
                             size="sm"
                             variant="outline"
-                            className="gap-1.5"
+                            className="h-8 gap-1.5"
                             onClick={() => {
                               void openPdf
                                 .mutateAsync({
                                   investorOrganizationId: row.investorOrganizationId,
-                                  target: "review",
+                                  target: "current",
                                 })
                                 .catch((err) => {
                                   toast.error(
@@ -342,18 +240,19 @@ export function InvestmentSettlementConfirmationCard({ noteId, payload, canManag
                             }}
                             disabled={openPdf.isPending || downloadPdf.isPending}
                           >
+                            <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" aria-hidden />
                             View
                           </Button>
                           <Button
                             type="button"
                             size="sm"
                             variant="outline"
-                            className="gap-1.5"
+                            className="h-8 gap-1.5"
                             onClick={() => {
                               void downloadPdf
                                 .mutateAsync({
                                   investorOrganizationId: row.investorOrganizationId,
-                                  target: "review",
+                                  target: "current",
                                 })
                                 .catch((err) => {
                                   toast.error(
@@ -363,11 +262,29 @@ export function InvestmentSettlementConfirmationCard({ noteId, payload, canManag
                             }}
                             disabled={openPdf.isPending || downloadPdf.isPending}
                           >
+                            <ArrowDownTrayIcon className="h-3.5 w-3.5" aria-hidden />
                             Download
                           </Button>
                         </>
                       ) : null}
-                      {row.reviewVersion.canRetry && canManage ? (
+                      {row.canGenerate && canManage ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="gap-1.5"
+                          onClick={() =>
+                            setConfirmAction({
+                              type: "generate",
+                              investorOrganizationId: row.investorOrganizationId,
+                            })
+                          }
+                          disabled={pendingAny}
+                        >
+                          <DocumentTextIcon className="h-4 w-4" aria-hidden />
+                          Generate
+                        </Button>
+                      ) : null}
+                      {row.canRetry && canManage ? (
                         <Button
                           type="button"
                           size="sm"
@@ -379,34 +296,140 @@ export function InvestmentSettlementConfirmationCard({ noteId, payload, canManag
                           }}
                           disabled={pendingAny}
                         >
+                          <ArrowPathIcon className="h-4 w-4" aria-hidden />
                           Retry
                         </Button>
                       ) : null}
-                      {row.reviewVersion.canPublish && canManage ? (
+                      {row.canRegenerate && canManage ? (
                         <Button
                           type="button"
                           size="sm"
-                          className="gap-1.5"
+                          variant="outline"
+                          className="h-8 gap-1.5"
                           onClick={() =>
                             setConfirmAction({
-                              type: "publish",
+                              type: "reissue",
                               investorOrganizationId: row.investorOrganizationId,
                             })
                           }
                           disabled={pendingAny}
                         >
-                          <CheckCircleIcon className="h-4 w-4" aria-hidden />
-                          Publish New Version
+                          <ArrowPathIcon className="h-4 w-4" aria-hidden />
+                          Reissue
                         </Button>
                       ) : null}
                     </div>
                   </div>
-                ) : null}
-              </li>
-            ))}
+                  {row.reviewVersion ? (
+                    <div
+                      className={cn(
+                        "flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2",
+                        workflowTaskSurfaceClass(
+                          officialDocumentReviewTone(row.reviewVersion.status)
+                        )
+                      )}
+                    >
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <p className="text-ui text-foreground">Version {row.reviewVersion.version}</p>
+                        <StatusBadge
+                          label={officialDocumentReviewLabel(row.reviewVersion.status)}
+                          status={workflowToneToStatusToken(
+                            officialDocumentReviewTone(row.reviewVersion.status)
+                          )}
+                        />
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {row.reviewVersion.viewUrl || row.reviewVersion.downloadUrl ? (
+                          <>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="h-8 gap-1.5"
+                              onClick={() => {
+                                void openPdf
+                                  .mutateAsync({
+                                    investorOrganizationId: row.investorOrganizationId,
+                                    target: "review",
+                                  })
+                                  .catch((err) => {
+                                    toast.error(
+                                      err instanceof Error
+                                        ? err.message
+                                        : "Confirmation is not available"
+                                    );
+                                  });
+                              }}
+                              disabled={openPdf.isPending || downloadPdf.isPending}
+                            >
+                              View
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="h-8 gap-1.5"
+                              onClick={() => {
+                                void downloadPdf
+                                  .mutateAsync({
+                                    investorOrganizationId: row.investorOrganizationId,
+                                    target: "review",
+                                  })
+                                  .catch((err) => {
+                                    toast.error(
+                                      err instanceof Error
+                                        ? err.message
+                                        : "Confirmation is not available"
+                                    );
+                                  });
+                              }}
+                              disabled={openPdf.isPending || downloadPdf.isPending}
+                            >
+                              Download
+                            </Button>
+                          </>
+                        ) : null}
+                        {row.reviewVersion.canRetry && canManage ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="gap-1.5"
+                            onClick={() => {
+                              void retry.mutateAsync(row.investorOrganizationId).catch((err) => {
+                                toast.error(err instanceof Error ? err.message : "Retry failed");
+                              });
+                            }}
+                            disabled={pendingAny}
+                          >
+                            Retry
+                          </Button>
+                        ) : null}
+                        {row.reviewVersion.canPublish && canManage ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="gap-1.5"
+                            onClick={() =>
+                              setConfirmAction({
+                                type: "publish",
+                                investorOrganizationId: row.investorOrganizationId,
+                              })
+                            }
+                            disabled={pendingAny}
+                          >
+                            <CheckCircleIcon className="h-4 w-4" aria-hidden />
+                            Publish New Version
+                          </Button>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+                </li>
+              );
+            })}
           </ul>
         ) : null}
-      </CardHeader>
+      </OfficialDocumentWorkflowPanel>
       <AlertDialog open={confirmAction !== null} onOpenChange={(open) => !open && setConfirmAction(null)}>
         <AlertDialogContent className="rounded-2xl">
           <AlertDialogHeader>
@@ -428,9 +451,9 @@ export function InvestmentSettlementConfirmationCard({ noteId, payload, canManag
                   void generate.mutateAsync(action.investorOrganizationId).catch((err) => {
                     toast.error(err instanceof Error ? err.message : "Generate failed");
                   });
-                } else if (action?.type === "regenerate") {
+                } else if (action?.type === "reissue") {
                   void reissue.mutateAsync(action.investorOrganizationId).catch((err) => {
-                    toast.error(err instanceof Error ? err.message : "Regenerate failed");
+                    toast.error(err instanceof Error ? err.message : "Reissue failed");
                   });
                 } else if (action?.type === "publish") {
                   void publish.mutateAsync(action.investorOrganizationId).catch((err) => {
@@ -444,6 +467,6 @@ export function InvestmentSettlementConfirmationCard({ noteId, payload, canManag
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Card>
+    </>
   );
 }

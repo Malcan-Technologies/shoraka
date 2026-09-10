@@ -1,9 +1,12 @@
 import {
   buildOperatorProfileCompleteness,
+  defaultDocumentSigningPersonId,
+  isAuthorisedSignatoryRole,
   isOperatorSigningRole,
   legacyAuthorisedSignatoryNameFromSigningPeople,
   OPERATOR_SIGNING_ROLE_LABELS,
   OPERATOR_SIGNING_ROLES,
+  shorakaSigningPersonSelectorLabel,
   signingRolesImpliedByOfficer,
   type OperatorProfileDto,
 } from "./operator-profile";
@@ -578,7 +581,44 @@ describe("Shoraka signing execution roles", () => {
     );
   });
 
-  it("can store multiple execution roles on one person", () => {
+  it("formats selector labels for Authorised Signatory and dual roles", () => {
+    expect(
+      shorakaSigningPersonSelectorLabel({
+        personName: "John Lee",
+        roles: ["AUTHORISED_SIGNATORY"],
+      })
+    ).toBe("John Lee — Authorised Signatory");
+    expect(
+      shorakaSigningPersonSelectorLabel({
+        personName: "John Lee",
+        roles: ["AUTHORISED_SIGNATORY", "WITNESS"],
+      })
+    ).toBe("John Lee — Authorised Signatory, Witness");
+    expect(isAuthorisedSignatoryRole(["WITNESS"])).toBe(false);
+    expect(isAuthorisedSignatoryRole(["AUTHORISED_SIGNATORY", "WITNESS"])).toBe(true);
+    expect(
+      defaultDocumentSigningPersonId([
+        {
+          id: "a",
+          personName: "John",
+          roles: ["AUTHORISED_SIGNATORY"],
+          label: "John — Authorised Signatory",
+          hasSignature: false,
+          signatureS3Key: null,
+        },
+        {
+          id: "b",
+          personName: "Sarah",
+          roles: ["AUTHORISED_SIGNATORY", "WITNESS"],
+          label: "Sarah — Authorised Signatory, Witness",
+          hasSignature: true,
+          signatureS3Key: "s.png",
+        },
+      ])
+    ).toBe("b");
+  });
+
+  it("can store multiple execution roles on one signing person", () => {
     const name = legacyAuthorisedSignatoryNameFromSigningPeople([
       {
         active: true,

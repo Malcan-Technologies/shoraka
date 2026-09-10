@@ -2791,34 +2791,6 @@ export function SettlementPanel({
             )}
           </div>
 
-          {postedSettlementId && investorConfirmations ? (
-            <InvestmentSettlementConfirmationCard
-              noteId={note.id}
-              payload={investorConfirmations}
-              canManage={canSettlement}
-            />
-          ) : null}
-
-          {postedSettlementId && hibahReceipt ? (
-            <SettlementHibahReceiptCard
-              noteId={note.id}
-              payload={{
-                ...hibahReceipt,
-                canGenerate: hibahReceipt.canGenerate && canSettlement,
-                canRetry: hibahReceipt.canRetry && canSettlement,
-                canRegenerate: hibahReceipt.canRegenerate && canSettlement,
-                canPublish: hibahReceipt.canPublish && canSettlement,
-                reviewVersion: hibahReceipt.reviewVersion
-                  ? {
-                      ...hibahReceipt.reviewVersion,
-                      canRetry: hibahReceipt.reviewVersion.canRetry && canSettlement,
-                      canPublish: hibahReceipt.reviewVersion.canPublish && canSettlement,
-                    }
-                  : null,
-              }}
-            />
-          ) : null}
-
           {showSettlementTrusteeWorkflow ? (
             persistedPostedSettlement ? (
               <div
@@ -3079,6 +3051,34 @@ export function SettlementPanel({
                 </p>
               </div>
             )
+          ) : null}
+
+          {postedSettlementId && investorConfirmations ? (
+            <InvestmentSettlementConfirmationCard
+              noteId={note.id}
+              payload={investorConfirmations}
+              canManage={canSettlement}
+            />
+          ) : null}
+
+          {postedSettlementId && hibahReceipt ? (
+            <SettlementHibahReceiptCard
+              noteId={note.id}
+              payload={{
+                ...hibahReceipt,
+                canGenerate: hibahReceipt.canGenerate && canSettlement,
+                canRetry: hibahReceipt.canRetry && canSettlement,
+                canRegenerate: hibahReceipt.canRegenerate && canSettlement,
+                canPublish: hibahReceipt.canPublish && canSettlement,
+                reviewVersion: hibahReceipt.reviewVersion
+                  ? {
+                      ...hibahReceipt.reviewVersion,
+                      canRetry: hibahReceipt.reviewVersion.canRetry && canSettlement,
+                      canPublish: hibahReceipt.reviewVersion.canPublish && canSettlement,
+                    }
+                  : null,
+              }}
+            />
           ) : null}
 
             </>

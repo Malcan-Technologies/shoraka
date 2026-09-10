@@ -72,18 +72,21 @@ import {
   formatNoteInvestorCount,
   formatTenureDaysSecondary,
   joinNoteTimingExtra,
-  formatProfitAccruedCopy,
   getNoteHeaderPurposeRows,
   isSoukscoreRiskRating,
   resolveNoteTimingDisplay,
   mapNoteSettlementToPoolSummary,
   NotePaymentSource,
   NotePaymentStatus,
-  WithdrawalStatus,
   WithdrawalType,
   type NoteDetail,
   type NoteSettlementPoolSummary,
 } from "@cashsouk/types";
+import {
+  ISSUER_SETTLEMENT_PAYOUT_INTRO,
+  issuerSettlementAllocationLines,
+  issuerSettlementProfitAccrualPeriod,
+} from "@/notes/lib/settlement-payout-summary-presenter";
 import { MarketplaceCampaignFacts } from "@/components/financing/marketplace-campaign-facts";
 import {
   buildIssuerMarketplaceCampaign,
@@ -251,55 +254,6 @@ function getPostedSettlementSummary(note: NoteDetail): NoteSettlementPoolSummary
   return settlement ? mapNoteSettlementToPoolSummary(settlement) : null;
 }
 
-/** Residual trustee payout row on the posted settlement (excludes cancelled withdrawals). */
-function getIssuerResidualDisbursementState(
-  note: NoteDetail,
-  settlementId: string,
-  residualAmount: number
-):
-  | { kind: "none" }
-  | { kind: "paid"; completedAt: string | null }
-  | { kind: "pending"; status: WithdrawalStatus }
-  | { kind: "awaiting" } {
-  if (residualAmount <= MONEY_TOLERANCE) {
-    return { kind: "none" };
-  }
-
-  const strictRows = note.withdrawals.filter(
-    (w) =>
-      w.withdrawalType === WithdrawalType.ISSUER_RESIDUAL_RETURN &&
-      w.settlementId === settlementId &&
-      w.status !== WithdrawalStatus.CANCELLED
-  );
-  const rows =
-    strictRows.length > 0
-      ? strictRows
-      : note.withdrawals.filter(
-          (w) =>
-            w.withdrawalType === WithdrawalType.ISSUER_RESIDUAL_RETURN &&
-            w.noteId === note.id &&
-            w.status !== WithdrawalStatus.CANCELLED
-        );
-
-  const completed = rows.filter((w) => w.status === WithdrawalStatus.COMPLETED);
-  const completedTotal = completed.reduce((sum, w) => sum + w.amount, 0);
-  if (completed.length > 0 && Math.abs(completedTotal - residualAmount) <= MONEY_TOLERANCE) {
-    const latest = completed.reduce<(typeof completed)[number] | null>((best, w) => {
-      if (!w.completedAt) return best ?? w;
-      if (!best?.completedAt) return w;
-      return new Date(w.completedAt) > new Date(best.completedAt) ? w : best;
-    }, null);
-    return { kind: "paid", completedAt: latest?.completedAt ?? null };
-  }
-
-  const inFlight = rows.find((w) => w.status !== WithdrawalStatus.COMPLETED);
-  if (inFlight) {
-    return { kind: "pending", status: inFlight.status };
-  }
-
-  return { kind: "awaiting" };
-}
-
 function BucketPayoutCard({
   label,
   value,
@@ -311,9 +265,9 @@ function BucketPayoutCard({
 }) {
   return (
     <div className="rounded-xl border bg-background p-4">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 text-sm font-semibold tabular-nums">{formatCurrency(value)}</div>
-      <div className="mt-1 text-xs text-muted-foreground">{description}</div>
+      <div className="text-meta text-muted-foreground">{label}</div>
+      <div className="mt-1 text-ui font-semibold tabular-nums">{formatCurrency(value)}</div>
+      <div className="mt-1 text-meta text-muted-foreground">{description}</div>
     </div>
   );
 }
@@ -506,12 +460,11 @@ export default function IssuerNoteDetailPage() {
       ) ?? null
     : maturityCountdown;
   const settlementSummary = getPostedSettlementSummary(note);
-  const issuerResidualDisbursement = settlementSummary
-    ? getIssuerResidualDisbursementState(
-        note,
-        settlementSummary.settlementId,
-        settlementSummary.issuerResidualAmount
-      )
+  const settlementAllocationLines = settlementSummary
+    ? issuerSettlementAllocationLines(settlementSummary)
+    : [];
+  const settlementProfitAccrual = settlementSummary
+    ? issuerSettlementProfitAccrualPeriod(settlementSummary)
     : null;
   const issuerDisbursementWithdrawal = note.withdrawals.find(
     (w) => w.withdrawalType === WithdrawalType.ISSUER_DISBURSEMENT
@@ -520,12 +473,6 @@ export default function IssuerNoteDetailPage() {
     issuerDisbursementWithdrawal?.grossFundedAmount != null &&
     issuerDisbursementWithdrawal?.platformFeeAmount != null &&
     issuerDisbursementWithdrawal?.netIssuerDisbursement != null;
-  const settlementPayoutSummaryBlurb =
-    issuerResidualDisbursement?.kind === "pending"
-      ? "Posted allocation below. Your residual is still being paid via the trustee; it is not complete until that payout is marked paid."
-      : issuerResidualDisbursement?.kind === "awaiting"
-        ? "Posted allocation below. Your residual has not been sent yet; admin will initiate the trustee withdrawal."
-        : "Posted settlement allocation below.";
   const riskRating = getRiskRating(note);
   const riskRatingForBadge = riskRating === "—" ? null : riskRating;
   const campaign = buildIssuerMarketplaceCampaign(note);
@@ -1114,83 +1061,29 @@ export default function IssuerNoteDetailPage() {
           <Card>
             <CardHeader>
               <CardTitle>Settlement Payout Summary</CardTitle>
-              <p className="mt-1 text-sm text-muted-foreground">{settlementPayoutSummaryBlurb}</p>
+              <p className="mt-1 text-ui text-muted-foreground">{ISSUER_SETTLEMENT_PAYOUT_INTRO}</p>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-                <BucketPayoutCard
-                  label="Total received"
-                  value={settlementSummary.grossReceiptAmount}
-                  description="Gross receipt recorded for this note."
-                />
-                <BucketPayoutCard
-                  label="Investors"
-                  value={settlementSummary.investorPoolAmount}
-                  description="Principal, net profit, and any investor Ta'widh compensation."
-                />
-                <BucketPayoutCard
-                  label="Service fee"
-                  value={settlementSummary.operatingAccountAmount}
-                  description="Service fee retained by the platform."
-                />
-                <BucketPayoutCard
-                  label="Ta'widh"
-                  value={settlementSummary.tawidhAccountAmount}
-                  description={`${formatCurrency(settlementSummary.totalTawidhAmount)} total Ta'widh; ${formatCurrency(settlementSummary.tawidhInvestorAmount)} allocated to investors.`}
-                />
-                <BucketPayoutCard
-                  label="Gharamah"
-                  value={settlementSummary.gharamahAccountAmount}
-                  description="Approved charity/penalty late-fee allocation."
-                />
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {settlementAllocationLines.map((line) => (
+                  <BucketPayoutCard
+                    key={line.key}
+                    label={line.label}
+                    value={line.value}
+                    description={line.description}
+                  />
+                ))}
               </div>
-              <div className="flex flex-col gap-3 rounded-xl border border-dashed p-4 sm:flex-row sm:items-start sm:justify-between">
-                <p className="text-sm text-muted-foreground">
-                  <span className="font-medium text-foreground">Issuer residual:</span>{" "}
-                  {formatCurrency(settlementSummary.issuerResidualAmount)} is the residual refund
-                  after investor allocation, service fee, full Ta&apos;widh, and Gharamah.{" "}
-                  {formatProfitAccruedCopy({
-                    startDate: settlementSummary.profitStartDate,
-                    endDate: settlementSummary.profitMaturityDate,
-                    profitDays: settlementSummary.profitDays,
-                  }) ??
-                    `Profit accrued for ${settlementSummary.profitDays} days at ${settlementSummary.annualProfitRatePercent}% p.a.`}
-                  {issuerResidualDisbursement?.kind === "paid" &&
-                  issuerResidualDisbursement.completedAt ? (
-                    <span className="mt-1 block text-xs text-muted-foreground">
-                      Paid out{" "}
-                      {new Date(issuerResidualDisbursement.completedAt).toLocaleString("en-MY", {
-                        dateStyle: "medium",
-                        timeStyle: "short",
-                      })}
-                      .
-                    </span>
-                  ) : null}
+              {settlementProfitAccrual ? (
+                <p className="text-ui text-muted-foreground">
+                  <span className="font-medium text-foreground">Profit accrual period:</span>{" "}
+                  {settlementProfitAccrual}
                 </p>
-                {issuerResidualDisbursement?.kind === "paid" ? (
-                  <StatusBadge label="Paid" status="success" className="w-fit shrink-0" />
-                ) : issuerResidualDisbursement?.kind === "pending" ? (
-                  <StatusBadge
-                    label={
-                      issuerResidualDisbursement.status === WithdrawalStatus.SUBMITTED_TO_TRUSTEE
-                        ? "Payout with trustee"
-                        : "Payout in progress"
-                    }
-                    status="submitted"
-                    className="w-fit shrink-0"
-                  />
-                ) : issuerResidualDisbursement?.kind === "awaiting" ? (
-                  <StatusBadge
-                    label="Awaiting disbursement"
-                    status="submitted"
-                    className="w-fit shrink-0"
-                  />
-                ) : null}
-              </div>
+              ) : null}
               {settlementHibahReceipt?.status === "READY" ? (
                 <div className="rounded-lg border bg-card p-4">
-                  <div className="text-sm font-medium">Settlement & Hibah Receipt</div>
-                  <div className="mt-1 text-xs text-muted-foreground">
+                  <div className="text-ui font-medium">Settlement & Hibah Receipt</div>
+                  <div className="mt-1 text-meta text-muted-foreground">
                     Issuer copy confirming this financing is fully settled.
                     {settlementHibahReceipt.version
                       ? ` Version ${settlementHibahReceipt.version}.`
@@ -1222,8 +1115,8 @@ export default function IssuerNoteDetailPage() {
               ) : settlementHibahReceipt?.status === "PENDING" ||
                 settlementHibahReceipt?.status === "FAILED" ? (
                 <div className="rounded-lg border bg-card p-4">
-                  <div className="text-sm font-medium">Settlement & Hibah Receipt</div>
-                  <div className="mt-1 text-xs text-muted-foreground">
+                  <div className="text-ui font-medium">Settlement & Hibah Receipt</div>
+                  <div className="mt-1 text-meta text-muted-foreground">
                     Your receipt is being prepared. Refresh this page shortly to download it.
                   </div>
                 </div>
@@ -1258,12 +1151,11 @@ export default function IssuerNoteDetailPage() {
                   </div>
                 </div>
               </div>
-              <p className="text-sm text-muted-foreground">
-                Late fees are borne by the issuer, but the issuer does not make a separate late-fee
-                payment here. Admin deducts approved {"Ta'widh"} and Gharamah from the repayment
-                pool before returning any residual balance to the issuer. If admin allocates part of
-                Ta&apos;widh to investors, the total Ta&apos;widh charge remains the same for
-                residual calculation.
+              <p className="text-ui text-muted-foreground">
+                Late fees are borne by the issuer, but you do not make a separate late-fee payment
+                here. Approved {"Ta'widh"} and Gharamah are deducted from the repayment before any
+                leftover is returned to you. If part of Ta&apos;widh is allocated to investors, the
+                total Ta&apos;widh charge stays the same.
               </p>
             </CardContent>
           </Card>

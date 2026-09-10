@@ -1,4 +1,8 @@
-import type { NoteSettlement, NoteSettlementPoolSummary } from "./notes";
+import type {
+  IssuerResidualPayoutListStatus,
+  NoteSettlement,
+  NoteSettlementPoolSummary,
+} from "./notes";
 
 const TRUSTEE_MOVEMENT_TOLERANCE = 0.005;
 
@@ -148,5 +152,34 @@ export function settlementTrusteeRegistryNeedsAdminAction(
 ): boolean {
   const state = resolveSettlementTrusteeRegistryState(summary);
   return state === "pending_letter" || state === "letter_generated";
+}
+
+/**
+ * Residual payout status from the posted settlement trustee workflow.
+ * POSTED alone is not paid; COMPLETED is paid. Does not inspect residual withdrawals.
+ */
+export function resolveIssuerResidualPayoutFromPoolSummary(summary: {
+  status: string;
+  issuerResidualAmount: number;
+  settlementTrusteeStatus: string | null;
+  investorPoolAmount: number;
+  operatingAccountAmount: number;
+  tawidhAccountAmount: number;
+  gharamahAccountAmount: number;
+}): IssuerResidualPayoutListStatus | undefined {
+  if (summary.status !== "POSTED") return undefined;
+  if (summary.issuerResidualAmount <= TRUSTEE_MOVEMENT_TOLERANCE) {
+    return { kind: "none" };
+  }
+  if (summary.settlementTrusteeStatus === "COMPLETED") {
+    return { kind: "paid" };
+  }
+  if (hasSettlementTrusteeMovementFromPoolSummary(summary)) {
+    return {
+      kind: "pending",
+      withTrustee: summary.settlementTrusteeStatus === "SUBMITTED_TO_TRUSTEE",
+    };
+  }
+  return { kind: "awaiting" };
 }
 

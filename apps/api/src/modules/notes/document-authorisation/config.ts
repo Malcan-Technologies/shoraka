@@ -93,7 +93,7 @@ export async function loadDocumentAuthorisationConfig(): Promise<DocumentAuthori
   return parseDocumentAuthorisationConfig(row?.document_authorisation_config);
 }
 
-async function freezeStamp(input: {
+export async function freezeStamp(input: {
   s3Key: string | null;
   fileName: string | null;
   contentType: string | null;

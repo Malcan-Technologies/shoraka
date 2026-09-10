@@ -24,13 +24,33 @@ jest.mock("../investment-note-certificate/snapshot", () => ({
   },
 }));
 
-const mockFreezeReceiptAuthorisation = jest.fn(async () => ({
+const mockFreezeShorakaSigningAuthorisation = jest.fn(async () => ({
+  signingPersonId: "sp-1",
+  signingPersonName: "Ahmad",
+  signingRoles: ["AUTHORISED_SIGNATORY"],
+  authorisedSignatoryName: "Ahmad",
+  signature: {
+    s3Key: "sigs/a.png",
+    sha256: "sig-a",
+    contentType: "image/png",
+    fileName: "a.png",
+  },
   stampSource: "SHARED_CERTIFICATE_STAMP",
   companyStamp: null,
 }));
 
-jest.mock("../document-authorisation/config", () => ({
-  freezeReceiptAuthorisation: (...args: unknown[]) => mockFreezeReceiptAuthorisation(...args),
+jest.mock("../document-authorisation/signing-person-freeze", () => ({
+  freezeShorakaSigningAuthorisation: (...args: unknown[]) =>
+    mockFreezeShorakaSigningAuthorisation(...args),
+  toReceiptAuthorisationSnapshot: (frozen: any) => ({
+    stampSource: frozen.stampSource,
+    companyStamp: frozen.companyStamp,
+    signingPersonId: frozen.signingPersonId,
+    signingPersonName: frozen.signingPersonName,
+    signingRoles: frozen.signingRoles,
+    signature: frozen.signature,
+    authorisedSignatoryName: frozen.authorisedSignatoryName,
+  }),
 }));
 
 import {
@@ -137,7 +157,17 @@ describe("buildSettlementHibahReceiptSnapshot", () => {
     });
     mockPrisma.contract.findUnique.mockResolvedValue({ display_reference: "FAC-1" });
     mockPrisma.noteInvestmentCertificate.findFirst.mockResolvedValue(null);
-    mockFreezeReceiptAuthorisation.mockResolvedValue({
+    mockFreezeShorakaSigningAuthorisation.mockResolvedValue({
+      signingPersonId: "sp-1",
+      signingPersonName: "Ahmad",
+      signingRoles: ["AUTHORISED_SIGNATORY"],
+      authorisedSignatoryName: "Ahmad",
+      signature: {
+        s3Key: "sigs/a.png",
+        sha256: "sig-a",
+        contentType: "image/png",
+        fileName: "a.png",
+      },
       stampSource: "SHARED_CERTIFICATE_STAMP",
       companyStamp: null,
     });
@@ -374,8 +404,18 @@ describe("buildSettlementHibahReceiptSnapshot", () => {
     ).rejects.toMatchObject({ code: "NOT_ELIGIBLE" });
   });
 
-  it("freezes the shared certificate stamp when that option is selected", async () => {
-    mockFreezeReceiptAuthorisation.mockResolvedValue({
+  it("freezes the Shoraka Profile company stamp and selected signing person", async () => {
+    mockFreezeShorakaSigningAuthorisation.mockResolvedValue({
+      signingPersonId: "sp-1",
+      signingPersonName: "Ahmad",
+      signingRoles: ["AUTHORISED_SIGNATORY"],
+      authorisedSignatoryName: "Ahmad",
+      signature: {
+        s3Key: "sigs/a.png",
+        sha256: "sig-a",
+        contentType: "image/png",
+        fileName: "a.png",
+      },
       stampSource: "SHARED_CERTIFICATE_STAMP",
       companyStamp: {
         s3Key: "stamps/cert.png",
@@ -384,33 +424,63 @@ describe("buildSettlementHibahReceiptSnapshot", () => {
         fileName: "cert.png",
       },
     });
-    const snapshot = await buildSettlementHibahReceiptSnapshot("note-1", "SETTLEMENT_COMPLETED");
+    const snapshot = await buildSettlementHibahReceiptSnapshot("note-1", "ADMIN_GENERATE", {
+      signingPersonId: "sp-1",
+    });
     expect(snapshot.authorisation.stampSource).toBe("SHARED_CERTIFICATE_STAMP");
     expect(snapshot.authorisation.companyStamp?.s3Key).toBe("stamps/cert.png");
+    expect(snapshot.authorisation.signingPersonName).toBe("Ahmad");
+    expect(snapshot.authorisation.signature?.s3Key).toBe("sigs/a.png");
   });
 
-  it("freezes the separate receipt stamp when that option is selected", async () => {
-    mockFreezeReceiptAuthorisation.mockResolvedValue({
-      stampSource: "SEPARATE_RECEIPT_STAMP",
-      companyStamp: {
-        s3Key: "stamps/receipt.png",
-        sha256: "receipt",
+  it("does not use a separate receipt stamp for new documents", async () => {
+    mockFreezeShorakaSigningAuthorisation.mockResolvedValue({
+      signingPersonId: "sp-1",
+      signingPersonName: "Ahmad",
+      signingRoles: ["AUTHORISED_SIGNATORY"],
+      authorisedSignatoryName: "Ahmad",
+      signature: {
+        s3Key: "sigs/a.png",
+        sha256: "sig-a",
         contentType: "image/png",
-        fileName: "receipt.png",
+        fileName: "a.png",
+      },
+      stampSource: "SHARED_CERTIFICATE_STAMP",
+      companyStamp: {
+        s3Key: "stamps/cert.png",
+        sha256: "cert",
+        contentType: "image/png",
+        fileName: "cert.png",
       },
     });
-    const snapshot = await buildSettlementHibahReceiptSnapshot("note-1", "SETTLEMENT_COMPLETED");
-    expect(snapshot.authorisation.stampSource).toBe("SEPARATE_RECEIPT_STAMP");
-    expect(snapshot.authorisation.companyStamp?.s3Key).toBe("stamps/receipt.png");
+    const snapshot = await buildSettlementHibahReceiptSnapshot("note-1", "ADMIN_GENERATE", {
+      signingPersonId: "sp-1",
+    });
+    expect(snapshot.authorisation.stampSource).toBe("SHARED_CERTIFICATE_STAMP");
+    expect(snapshot.authorisation.companyStamp?.s3Key).toBe("stamps/cert.png");
+    expect(snapshot.authorisation.companyStamp?.s3Key).not.toBe("stamps/receipt.png");
   });
 
-  it("does not block generation when the selected stamp is missing", async () => {
-    mockFreezeReceiptAuthorisation.mockResolvedValue({
+  it("does not block generation when the Shoraka company stamp is missing", async () => {
+    mockFreezeShorakaSigningAuthorisation.mockResolvedValue({
+      signingPersonId: "sp-1",
+      signingPersonName: "Ahmad",
+      signingRoles: ["AUTHORISED_SIGNATORY"],
+      authorisedSignatoryName: "Ahmad",
+      signature: {
+        s3Key: "sigs/a.png",
+        sha256: "sig-a",
+        contentType: "image/png",
+        fileName: "a.png",
+      },
       stampSource: "SHARED_CERTIFICATE_STAMP",
       companyStamp: null,
     });
-    const snapshot = await buildSettlementHibahReceiptSnapshot("note-1", "SETTLEMENT_COMPLETED");
+    const snapshot = await buildSettlementHibahReceiptSnapshot("note-1", "ADMIN_GENERATE", {
+      signingPersonId: "sp-1",
+    });
     expect(snapshot.authorisation.companyStamp).toBeNull();
+    expect(snapshot.authorisation.signature?.s3Key).toBe("sigs/a.png");
     expect(snapshot.grossReceiptAmount).toBe(105_000);
   });
 });
@@ -438,12 +508,19 @@ describe("reissueHibahReceiptSnapshotFromReady", () => {
     } as any;
     const next = reissueHibahReceiptSnapshotFromReady(previous, {
       version: "V02",
-      stampSource: "SEPARATE_RECEIPT_STAMP",
-      companyStamp: {
-        s3Key: "stamps/b.png",
-        sha256: "b",
-        contentType: "image/png",
-        fileName: "b.png",
+      authorisation: {
+        stampSource: "SHARED_CERTIFICATE_STAMP",
+        authorisedSignatoryName: "Sarah",
+        signingPersonId: "sp-2",
+        signingPersonName: "Sarah",
+        signingRoles: ["AUTHORISED_SIGNATORY"],
+        signature: { s3Key: "sigs/b.png", sha256: "b", contentType: "image/png", fileName: "b.png" },
+        companyStamp: {
+          s3Key: "stamps/b.png",
+          sha256: "b",
+          contentType: "image/png",
+          fileName: "b.png",
+        },
       },
       generatedAt: new Date("2026-09-03T00:00:00.000Z"),
     });
@@ -453,7 +530,9 @@ describe("reissueHibahReceiptSnapshotFromReady", () => {
     expect(next.grossReceiptAmount).toBe(105_000);
     expect(next.hibahAmount).toBe(1_750);
     expect(next.paymentReference).toBe("BANK-1");
-    expect(next.authorisation.stampSource).toBe("SEPARATE_RECEIPT_STAMP");
+    expect(next.authorisation.stampSource).toBe("SHARED_CERTIFICATE_STAMP");
+    expect(next.authorisation.signingPersonName).toBe("Sarah");
+    expect(next.authorisation.signature?.s3Key).toBe("sigs/b.png");
     expect(next.authorisation.companyStamp?.s3Key).toBe("stamps/b.png");
     expect(next.snapshotSha256).not.toBe(previous.snapshotSha256);
   });

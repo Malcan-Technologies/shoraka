@@ -1,4 +1,7 @@
-import type { InvestmentNoteCertificateAudience } from "@cashsouk/types";
+import type {
+  InvestmentNoteCertificateAudience,
+  OperatorSigningRole,
+} from "@cashsouk/types";
 import {
   INVESTMENT_NOTE_CERTIFICATE_TEMPLATE_ID,
   INVESTMENT_NOTE_CERTIFICATE_VERSION_V01,
@@ -42,6 +45,10 @@ export type FrozenCertificateCompanyStamp = {
 export type CertificateAuthorisationSnapshot = {
   authorisedSignatoryName: string;
   companyStamp: FrozenCertificateCompanyStamp | null;
+  signingPersonId?: string;
+  signingPersonName?: string;
+  signingRoles?: OperatorSigningRole[];
+  signature?: FrozenCertificateCompanyStamp | null;
 };
 
 export type InvestmentNoteCertificateSnapshot = {

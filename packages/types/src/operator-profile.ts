@@ -106,6 +106,47 @@ export function isOperatorSigningRole(value: unknown): value is OperatorSigningR
   return typeof value === "string" && (OPERATOR_SIGNING_ROLES as readonly string[]).includes(value);
 }
 
+export const SHORAKA_SIGNING_PERSON_NO_SIGNATURE_MESSAGE =
+  "This signing person does not have a signature configured. Add a signature under Shoraka Profile → Signing & Authorisation.";
+
+export const SHORAKA_SIGNING_PERSON_REQUIRED_MESSAGE = "Select a signing person.";
+
+export function shorakaSigningPersonSelectorLabel(person: {
+  personName: string | null | undefined;
+  roles: readonly OperatorSigningRole[];
+}): string {
+  const name = person.personName?.trim() || "Unnamed";
+  const roles = person.roles.map((role) => OPERATOR_SIGNING_ROLE_LABELS[role]).join(", ");
+  return roles ? `${name} — ${roles}` : name;
+}
+
+export type DocumentSigningPersonOption = {
+  id: string;
+  personName: string;
+  roles: OperatorSigningRole[];
+  label: string;
+  hasSignature: boolean;
+  signatureS3Key: string | null;
+};
+
+export type DocumentSigningOptions = {
+  people: DocumentSigningPersonOption[];
+  companyStampS3Key: string | null;
+};
+
+export function isAuthorisedSignatoryRole(
+  roles: readonly OperatorSigningRole[] | null | undefined
+): boolean {
+  return Boolean(roles?.includes("AUTHORISED_SIGNATORY"));
+}
+
+export function defaultDocumentSigningPersonId(
+  people: readonly DocumentSigningPersonOption[] | null | undefined
+): string {
+  const list = people ?? [];
+  return list.find((row) => row.hasSignature)?.id ?? list[0]?.id ?? "";
+}
+
 export interface OperatorCompanyStampFields {
   s3Key?: string;
   fileName?: string;

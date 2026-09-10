@@ -4,6 +4,7 @@ import {
 } from "../investment-note-certificate/certificate-identity";
 import type { SettlementHibahReceiptSnapshot } from "./types";
 import { formatReceiptAmount, formatReceiptCredit, formatReceiptRm } from "./receipt-format";
+import { printedSignatoryName, printedSignatoryNameAndDate } from "../document-authorisation/printed-signatory";
 
 function printedIssuerReference(value: string): string {
   if (looksLikeRawDatabaseId(value)) {
@@ -47,6 +48,9 @@ export type SettlementHibahReceiptDocxMergeData = {
   hibahToIssuer: string;
   totalAllocated: string;
   unallocatedBalance: string;
+  authorisedSignatoryName: string;
+  signatoryNameAndDate: string;
+  signatoryDate: string;
 };
 
 export function financingReferenceFromSnapshot(snapshot: SettlementHibahReceiptSnapshot): string {
@@ -97,5 +101,11 @@ export function buildSettlementHibahReceiptDocxMergeData(
     hibahToIssuer: formatReceiptRm(snapshot.hibahAmount),
     totalAllocated: formatReceiptRm(snapshot.totalAllocated),
     unallocatedBalance: formatReceiptRm(snapshot.unallocatedBalance),
+    authorisedSignatoryName: printedSignatoryName(snapshot.authorisation),
+    signatoryDate: snapshot.receiptDateDisplay,
+    signatoryNameAndDate: printedSignatoryNameAndDate(
+      snapshot.authorisation,
+      snapshot.receiptDateDisplay
+    ),
   };
 }

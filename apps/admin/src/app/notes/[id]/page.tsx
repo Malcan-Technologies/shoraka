@@ -603,8 +603,8 @@ export default function NoteDetailPage() {
                               </div>
                             )}
                             {investmentNoteCertificate &&
-                            (investmentNoteCertificate.canGenerate ||
-                              investmentNoteCertificate.status !== "NONE") ? (
+                            disbursementWithdrawal &&
+                            disbursementWithdrawal.status !== "CANCELLED" ? (
                               <InvestmentNoteCertificateCard
                                 noteId={note.id}
                                 payload={{
