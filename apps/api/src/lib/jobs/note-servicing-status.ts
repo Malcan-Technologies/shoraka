@@ -102,6 +102,12 @@ async function logSystemNoteEvent(
   });
 }
 
+export const SERVICING_TRANSITION_EVENT_TYPES = [
+  "NOTE_OVERDUE",
+  "NOTE_LATE",
+  "NOTE_ARREARS",
+] as const;
+
 export function servicingTransitionEventType(status: NoteServicingStatus) {
   if (status === NoteServicingStatus.OVERDUE) return "NOTE_OVERDUE";
   if (status === NoteServicingStatus.LATE) return "NOTE_LATE";
@@ -109,13 +115,21 @@ export function servicingTransitionEventType(status: NoteServicingStatus) {
   return null;
 }
 
+export function servicingStatusForTransitionEvent(
+  eventType: string
+): NoteServicingStatus | null {
+  if (eventType === "NOTE_OVERDUE") return NoteServicingStatus.OVERDUE;
+  if (eventType === "NOTE_LATE") return NoteServicingStatus.LATE;
+  if (eventType === "NOTE_ARREARS") return NoteServicingStatus.ARREARS;
+  return null;
+}
+
 export function shouldRetryServicingTransitionSideEffects(input: {
-  hasPostedSettlement: boolean;
   canTransition: boolean;
   currentStatus: NoteServicingStatus;
   classifiedStatus: NoteServicingStatus;
 }) {
-  if (input.hasPostedSettlement || input.canTransition) return false;
+  if (input.canTransition) return false;
   if (input.currentStatus !== input.classifiedStatus) return false;
   return servicingTransitionEventType(input.classifiedStatus) != null;
 }
@@ -290,6 +304,15 @@ export function shouldSendServicingLetter(
 
 export const shouldSendArrearsLetter = shouldSendServicingLetter;
 
+export function shouldAttemptArrearsLetter(input: {
+  arrearsNow: boolean;
+  arrearsStartedAt: Date | null;
+  existingLetter: { sent_at: Date | null } | null;
+}): boolean {
+  if (input.existingLetter) return shouldSendServicingLetter(input.existingLetter) !== "skip";
+  return input.arrearsNow || input.arrearsStartedAt != null;
+}
+
 export function shouldProcessServicingNote(status: NoteServicingStatus): boolean {
   return status !== NoteServicingStatus.NOT_STARTED;
 }
@@ -305,6 +328,8 @@ export function servicingJobNoteWhere(cutoff: Date): Prisma.NoteWhereInput {
       },
       { repaid_at: { gte: cutoff } },
       { default_marked_at: { not: null } },
+      { overdue_started_at: { not: null } },
+      { servicing_letters: { some: { sent_at: null } } },
     ],
   };
 }
@@ -508,38 +533,50 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
 
       if (canTransition && transitionEventType) {
         result.transitions += 1;
-        await notifyServicingTransition({
-          status: classification.servicingStatus,
-          noteId: note.id,
-          issuerOrganizationId: note.issuer_organization_id,
-          noteTitle: title,
-        });
-      } else if (
+      }
+
+      const loggedTransitionEvents = await prisma.noteEvent.findMany({
+        where: {
+          note_id: note.id,
+          event_type: { in: [...SERVICING_TRANSITION_EVENT_TYPES] },
+        },
+        select: { event_type: true },
+      });
+      const statusesToNotify = new Set<NoteServicingStatus>();
+      if (canTransition && transitionEventType) {
+        statusesToNotify.add(classification.servicingStatus);
+      }
+      for (const row of loggedTransitionEvents) {
+        const status = servicingStatusForTransitionEvent(row.event_type);
+        if (status) statusesToNotify.add(status);
+      }
+      if (
         shouldRetryServicingTransitionSideEffects({
-          hasPostedSettlement,
           canTransition,
           currentStatus: note.servicing_status,
           classifiedStatus: classification.servicingStatus,
-        }) &&
-        transitionEventType
+        })
       ) {
-        const existingEvent = await prisma.noteEvent.findFirst({
-          where: { note_id: note.id, event_type: transitionEventType },
-          select: { id: true },
-        });
-        if (!existingEvent) {
-          await logSystemNoteEvent(note.id, transitionEventType, transitionMetadata);
+        const retryEventType = servicingTransitionEventType(classification.servicingStatus);
+        if (
+          retryEventType &&
+          !loggedTransitionEvents.some((row) => row.event_type === retryEventType)
+        ) {
+          await logSystemNoteEvent(note.id, retryEventType, transitionMetadata);
           result.transitions += 1;
         }
+        statusesToNotify.add(classification.servicingStatus);
+      }
+      for (const status of statusesToNotify) {
         await retryNotificationsIfNeeded({
           expectedKeys: await expectedServicingTransitionNotificationKeys({
-            status: classification.servicingStatus,
+            status,
             noteId: note.id,
             issuerOrganizationId: note.issuer_organization_id,
           }),
           notify: () =>
             notifyServicingTransition({
-              status: classification.servicingStatus,
+              status,
               noteId: note.id,
               issuerOrganizationId: note.issuer_organization_id,
               noteTitle: title,
@@ -550,12 +587,18 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
       const arrearsNow =
         (canTransition ? classification.servicingStatus : note.servicing_status) ===
         NoteServicingStatus.ARREARS;
-      if (!hasPostedSettlement && arrearsNow) {
-        const existingArrearsLetter = await prisma.noteServicingLetter.findFirst({
-          where: { note_id: note.id, type: NoteServicingLetterType.ARREARS },
-          select: { id: true, sent_at: true },
-        });
-        const letterAction = shouldSendArrearsLetter(existingArrearsLetter);
+      const existingArrearsLetter = await prisma.noteServicingLetter.findFirst({
+        where: { note_id: note.id, type: NoteServicingLetterType.ARREARS },
+        select: { id: true, sent_at: true },
+      });
+      const letterAction = shouldSendArrearsLetter(existingArrearsLetter);
+      if (
+        shouldAttemptArrearsLetter({
+          arrearsNow,
+          arrearsStartedAt: note.arrears_started_at,
+          existingLetter: existingArrearsLetter,
+        })
+      ) {
         if (letterAction !== "skip") {
           try {
             if (letterAction === "retry" && existingArrearsLetter) {

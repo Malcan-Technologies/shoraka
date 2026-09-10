@@ -1,9 +1,18 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { NoteSettlementStatus } from "@prisma/client";
 import {
   remainingCapsIgnoringApprovedSettlements,
   preSettlementWaiverVoidWhere,
   settlementIdsToVoidForPreSettlementWaiver,
 } from "./late-charge-waiver";
+
+const notesService = readFileSync(join(__dirname, "./service.ts"), "utf8");
+const previewIdx = notesService.indexOf("async previewSettlement");
+const approveIdx = notesService.indexOf("async approveSettlement");
+const postIdx = notesService.indexOf("async postSettlement");
+const waiveIdx = notesService.indexOf("async waiveLateCharge");
+const noteLockSql = "SELECT id FROM notes WHERE id = ${id} FOR UPDATE";
 
 describe("settlementIdsToVoidForPreSettlementWaiver", () => {
   it("voids preview and approved settlements when nothing is posted", () => {
@@ -33,6 +42,15 @@ describe("preSettlementWaiverVoidWhere", () => {
       id: { in: ["approved-1"] },
       status: { in: [NoteSettlementStatus.PREVIEW, NoteSettlementStatus.APPROVED] },
     });
+  });
+});
+
+describe("settlement status changes share the note lock", () => {
+  it("locks the note before preview, approve, post, and waiver writes", () => {
+    expect(notesService.slice(previewIdx, approveIdx)).toContain(noteLockSql);
+    expect(notesService.slice(approveIdx, postIdx)).toContain(noteLockSql);
+    expect(notesService.slice(postIdx, waiveIdx)).toContain(noteLockSql);
+    expect(notesService.slice(waiveIdx, waiveIdx + 1500)).toContain(noteLockSql);
   });
 });
 

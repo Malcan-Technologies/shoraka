@@ -2,7 +2,6 @@ import {
   InvestorBalanceTransactionDirection,
   InvestorBalanceTransactionSource,
   NoteInvestmentStatus,
-  NoteServicingStatus,
   NoteSettlementStatus,
   Prisma,
   type InvestorOrganization,
@@ -23,6 +22,7 @@ import {
   reportDefinition,
   roundMoney,
   toNumber,
+  isLiveOpenBookNote,
 } from "./report-shared";
 
 export function isExternalCashAdded(source: InvestorBalanceTransactionSource): boolean {
@@ -112,6 +112,7 @@ export async function runInvestorBook(query: ReportQuery): Promise<ReportResult>
           select: {
             id: true,
             servicing_status: true,
+            activated_at: true,
             profit_rate_percent: true,
             service_fee_rate_percent: true,
           },
@@ -197,8 +198,7 @@ export async function runInvestorBook(query: ReportQuery): Promise<ReportResult>
     );
     const activeConfirmed = orgInvestments.filter(
       (item) =>
-        item.status === NoteInvestmentStatus.CONFIRMED &&
-        item.note.servicing_status !== NoteServicingStatus.SETTLED
+        item.status === NoteInvestmentStatus.CONFIRMED && isLiveOpenBookNote(item.note)
     );
     const confirmedAmount = roundMoney(
       activeConfirmed.reduce((sum, item) => sum + toNumber(item.amount), 0)

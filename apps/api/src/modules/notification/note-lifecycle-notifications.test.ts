@@ -484,6 +484,11 @@ describe("expected servicing and default notification keys", () => {
       noteId: "note-1",
       issuerOrganizationId: "iss-1",
     });
+    expect(prisma.noteInvestment.findMany).toHaveBeenCalledWith({
+      where: { note_id: "note-1", status: { in: ["CONFIRMED", "SETTLED"] } },
+      select: { investor_organization_id: true },
+      distinct: ["investor_organization_id"],
+    });
     expect(keys).toEqual([
       "note:servicing:note-1:late:user:UOWN",
       "note:servicing:note-1:late:user:UM1",

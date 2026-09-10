@@ -127,6 +127,11 @@ async function mergePersistedNotificationKeys(prefixes: string[], liveKeys: stri
   return [...keys];
 }
 
+export const SERVICING_LADDER_INVESTOR_STATUSES = [
+  NoteInvestmentStatus.CONFIRMED,
+  NoteInvestmentStatus.SETTLED,
+] as const;
+
 export async function expectedServicingTransitionNotificationKeys(input: {
   status: NoteServicingStatus;
   noteId: string;
@@ -141,7 +146,11 @@ export async function expectedServicingTransitionNotificationKeys(input: {
   if (input.status === NoteServicingStatus.LATE) {
     const [issuerKeys, investorKeys] = await Promise.all([
       listIssuerNotificationKeys(input.issuerOrganizationId, `note:servicing:${input.noteId}:late`),
-      listInvestorNoteNotificationKeys(input.noteId, `note:servicing:${input.noteId}:late:investor`),
+      listInvestorNoteNotificationKeys(
+        input.noteId,
+        `note:servicing:${input.noteId}:late:investor`,
+        [...SERVICING_LADDER_INVESTOR_STATUSES]
+      ),
     ]);
     return [...issuerKeys, ...investorKeys];
   }
@@ -153,7 +162,8 @@ export async function expectedServicingTransitionNotificationKeys(input: {
       ),
       listInvestorNoteNotificationKeys(
         input.noteId,
-        `note:lifecycle:${input.noteId}:arrears:investor`
+        `note:lifecycle:${input.noteId}:arrears:investor`,
+        [...SERVICING_LADDER_INVESTOR_STATUSES]
       ),
     ]);
     return [...issuerKeys, ...investorKeys];
@@ -170,8 +180,7 @@ export async function expectedDefaultNotificationKeys(input: {
   const [issuerKeys, investorKeys] = await Promise.all([
     listIssuerNotificationKeys(input.issuerOrganizationId, issuerPrefix),
     listInvestorNoteNotificationKeys(input.noteId, investorPrefix, [
-      NoteInvestmentStatus.CONFIRMED,
-      NoteInvestmentStatus.SETTLED,
+      ...SERVICING_LADDER_INVESTOR_STATUSES,
     ]),
   ]);
   return mergePersistedNotificationKeys([issuerPrefix, investorPrefix], [...issuerKeys, ...investorKeys]);
@@ -578,7 +587,7 @@ export async function notifyNoteLate(args: {
     const results = await sendToInvestorsOnNote(
       args.notificationService,
       args.noteId,
-      [NoteInvestmentStatus.CONFIRMED],
+      [...SERVICING_LADDER_INVESTOR_STATUSES],
       NotificationTypeIds.NOTE_LATE_INVESTOR,
       payload,
       `note:servicing:${args.noteId}:late:investor`
@@ -632,7 +641,7 @@ export async function notifyNoteArrears(args: {
     const results = await sendToInvestorsOnNote(
       args.notificationService,
       args.noteId,
-      [NoteInvestmentStatus.CONFIRMED],
+      [...SERVICING_LADDER_INVESTOR_STATUSES],
       NotificationTypeIds.NOTE_ARREARS_INVESTOR,
       payload,
       `note:lifecycle:${args.noteId}:arrears:investor`
@@ -686,7 +695,7 @@ export async function notifyNoteDefaulted(args: {
     const results = await sendToInvestorsOnNote(
       args.notificationService,
       args.noteId,
-      [NoteInvestmentStatus.CONFIRMED, NoteInvestmentStatus.SETTLED],
+      [...SERVICING_LADDER_INVESTOR_STATUSES],
       NotificationTypeIds.NOTE_DEFAULTED_INVESTOR,
       payload,
       `note:lifecycle:${args.noteId}:defaulted:investor`

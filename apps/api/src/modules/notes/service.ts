@@ -5489,6 +5489,21 @@ export class NoteService {
     };
 
     const settlement = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM notes WHERE id = ${id} FOR UPDATE`;
+      const lockedOpen = await tx.noteSettlement.findFirst({
+        where: {
+          note_id: id,
+          status: { in: [NoteSettlementStatus.APPROVED, NoteSettlementStatus.POSTED] },
+        },
+        select: { id: true },
+      });
+      if (lockedOpen) {
+        throw new AppError(
+          409,
+          "SETTLEMENT_LOCKED",
+          "Settlement has already been approved or posted and cannot be previewed again"
+        );
+      }
       await tx.noteSettlement.updateMany({
         where: { note_id: id, status: NoteSettlementStatus.PREVIEW },
         data: { status: NoteSettlementStatus.VOID },
@@ -5585,6 +5600,15 @@ export class NoteService {
     );
 
     await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM notes WHERE id = ${id} FOR UPDATE`;
+      await tx.$queryRaw`SELECT id FROM note_settlements WHERE id = ${settlementId} FOR UPDATE`;
+      const lockedSettlement = await tx.noteSettlement.findUniqueOrThrow({
+        where: { id: settlementId },
+        select: { status: true },
+      });
+      if (lockedSettlement.status !== NoteSettlementStatus.PREVIEW) {
+        throw new AppError(409, "SETTLEMENT_NOT_PREVIEW", "Only preview settlements can be approved");
+      }
       const approvedAt = new Date();
       const updateResult = await tx.noteSettlement.updateMany({
         where: { id: settlementId, note_id: id, status: NoteSettlementStatus.PREVIEW },
@@ -6317,6 +6341,7 @@ export class NoteService {
       throw new AppError(422, "WAIVER_AMOUNT_REQUIRED", "Enter a Ta'widh or Gharamah waiver amount");
     }
     const updated = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM notes WHERE id = ${id} FOR UPDATE`;
       const note = await tx.note.findUnique({ where: { id }, include: noteInclude });
       if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
       const posted = note.settlements.find(
@@ -6368,7 +6393,6 @@ export class NoteService {
           );
         }
       } else {
-        await tx.$queryRaw`SELECT id FROM notes WHERE id = ${id} FOR UPDATE`;
         const lockedSettlements = await tx.noteSettlement.findMany({
           where: { note_id: id },
           select: { id: true, status: true, tawidh_amount: true, gharamah_amount: true },

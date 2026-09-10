@@ -1,5 +1,6 @@
 import {
   assertReportQuery,
+  isLiveOpenBookNote,
   liveOpenBookNoteWhere,
   mergeDefaultRecoverySnapshots,
   roundMoney,
@@ -76,5 +77,26 @@ describe("liveOpenBookNoteWhere", () => {
       activated_at: { not: null },
       servicing_status: { not: NoteServicingStatus.SETTLED },
     });
+  });
+
+  it("treats unactivated confirmed holdings as off the live book", () => {
+    expect(
+      isLiveOpenBookNote({
+        activated_at: null,
+        servicing_status: NoteServicingStatus.NOT_STARTED,
+      })
+    ).toBe(false);
+    expect(
+      isLiveOpenBookNote({
+        activated_at: new Date("2026-09-01T00:00:00.000Z"),
+        servicing_status: NoteServicingStatus.CURRENT,
+      })
+    ).toBe(true);
+    expect(
+      isLiveOpenBookNote({
+        activated_at: new Date("2026-09-01T00:00:00.000Z"),
+        servicing_status: NoteServicingStatus.SETTLED,
+      })
+    ).toBe(false);
   });
 });

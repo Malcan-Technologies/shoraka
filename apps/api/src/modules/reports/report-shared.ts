@@ -81,6 +81,13 @@ export function liveOpenBookNoteWhere(): Prisma.NoteWhereInput {
   };
 }
 
+export function isLiveOpenBookNote(note: {
+  activated_at: Date | string | null;
+  servicing_status: string;
+}): boolean {
+  return note.activated_at != null && note.servicing_status !== NoteServicingStatus.SETTLED;
+}
+
 export function openBookSnapshots<T extends { servicing_status: string }>(snapshots: T[]): T[] {
   return snapshots.filter((snapshot) => snapshot.servicing_status !== "SETTLED");
 }

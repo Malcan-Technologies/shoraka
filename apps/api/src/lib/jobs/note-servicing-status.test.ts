@@ -20,6 +20,7 @@ import {
   shouldSendArrearsLetter,
   shouldRetryServicingTransitionSideEffects,
   shouldSendServicingLetter,
+  shouldAttemptArrearsLetter,
   shouldProcessServicingNote,
   servicingJobNoteWhere,
   servicingTransitionNotificationKeyPrefixes,
@@ -89,6 +90,8 @@ describe("shouldProcessServicingNote", () => {
         },
         { repaid_at: { gte: cutoff } },
         { default_marked_at: { not: null } },
+        { overdue_started_at: { not: null } },
+        { servicing_letters: { some: { sent_at: null } } },
       ],
     });
   });
@@ -128,11 +131,42 @@ describe("dueSoonReminderKinds", () => {
   });
 });
 
+describe("shouldAttemptArrearsLetter", () => {
+  it("retries an unsent arrears letter after the note has settled", () => {
+    expect(
+      shouldAttemptArrearsLetter({
+        arrearsNow: false,
+        arrearsStartedAt: new Date("2026-09-01T00:00:00.000Z"),
+        existingLetter: { sent_at: null },
+      })
+    ).toBe(true);
+  });
+
+  it("still generates when arrears started but no letter was stored before repayment", () => {
+    expect(
+      shouldAttemptArrearsLetter({
+        arrearsNow: false,
+        arrearsStartedAt: new Date("2026-09-01T00:00:00.000Z"),
+        existingLetter: null,
+      })
+    ).toBe(true);
+  });
+
+  it("skips notes that never entered arrears", () => {
+    expect(
+      shouldAttemptArrearsLetter({
+        arrearsNow: false,
+        arrearsStartedAt: null,
+        existingLetter: null,
+      })
+    ).toBe(false);
+  });
+});
+
 describe("shouldRetryServicingTransitionSideEffects", () => {
   it("retries overdue, late, and arrears events after the status already advanced", () => {
     expect(
       shouldRetryServicingTransitionSideEffects({
-        hasPostedSettlement: false,
         canTransition: false,
         currentStatus: NoteServicingStatus.LATE,
         classifiedStatus: NoteServicingStatus.LATE,
@@ -140,10 +174,19 @@ describe("shouldRetryServicingTransitionSideEffects", () => {
     ).toBe(true);
   });
 
+  it("retries the live rung after a posted settlement that has not moved servicing to SETTLED", () => {
+    expect(
+      shouldRetryServicingTransitionSideEffects({
+        canTransition: false,
+        currentStatus: NoteServicingStatus.ARREARS,
+        classifiedStatus: NoteServicingStatus.ARREARS,
+      })
+    ).toBe(true);
+  });
+
   it("does not retry when the job is still advancing status on this run", () => {
     expect(
       shouldRetryServicingTransitionSideEffects({
-        hasPostedSettlement: false,
         canTransition: true,
         currentStatus: NoteServicingStatus.OVERDUE,
         classifiedStatus: NoteServicingStatus.LATE,
