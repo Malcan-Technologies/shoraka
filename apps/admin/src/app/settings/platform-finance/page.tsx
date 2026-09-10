@@ -4,11 +4,15 @@ import * as React from "react";
 import { toast } from "sonner";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type {
-  LedgerBucketAccountsConfig,
-  PlatformAccountsConfig,
-  TrusteeAccountDetails,
-  TrusteeLetterConfig,
+import {
+  COMPANY_STAMP_ALLOWED_CONTENT_TYPES,
+  COMPANY_STAMP_FILE_ACCEPT,
+  COMPANY_STAMP_UNSUPPORTED_TYPE_MESSAGE,
+  type CompanyStampContentType,
+  type LedgerBucketAccountsConfig,
+  type PlatformAccountsConfig,
+  type TrusteeAccountDetails,
+  type TrusteeLetterConfig,
 } from "@cashsouk/types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
@@ -63,7 +67,7 @@ const DEFAULT_TRUSTEE_LETTER: TrusteeLetterConfig = {
   autoSendTrusteeEmail: false,
 };
 
-const ALLOWED_SIGNATURE_CONTENT_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
+const ALLOWED_SIGNATURE_CONTENT_TYPES: readonly string[] = COMPANY_STAMP_ALLOWED_CONTENT_TYPES;
 const MAX_SIGNATURE_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 
 const REMINDER_DELIVERY_HOUR_OPTIONS = Array.from({ length: 24 }, (_, hour) => hour);
@@ -369,7 +373,7 @@ export default function PlatformFinanceSettingsPage() {
     mutationFn: async (file: File) => {
       const response = await apiClient.requestPlatformFinanceTrusteeSignatureUploadUrl({
         fileName: file.name,
-        contentType: file.type as "image/png" | "image/jpeg" | "image/jpg" | "image/webp",
+        contentType: file.type as CompanyStampContentType,
         fileSize: file.size,
       });
       if (!response.success) throw new Error(response.error.message);
@@ -415,7 +419,7 @@ export default function PlatformFinanceSettingsPage() {
     event.target.value = "";
     if (!file) return;
     if (!ALLOWED_SIGNATURE_CONTENT_TYPES.includes(file.type.toLowerCase())) {
-      toast.error("Only PNG, JPG/JPEG, or WEBP images are allowed.");
+      toast.error(COMPANY_STAMP_UNSUPPORTED_TYPE_MESSAGE);
       return;
     }
     if (file.size > MAX_SIGNATURE_FILE_SIZE_BYTES) {
@@ -663,7 +667,7 @@ export default function PlatformFinanceSettingsPage() {
                     <input
                       ref={signatureInputRef}
                       type="file"
-                      accept="image/png,image/jpeg,image/jpg,image/webp"
+                      accept={COMPANY_STAMP_FILE_ACCEPT}
                       className="hidden"
                       onChange={(event) => void handleSignatureFileChange(event)}
                     />

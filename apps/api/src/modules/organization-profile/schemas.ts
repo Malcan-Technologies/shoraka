@@ -33,6 +33,7 @@ import {
   validatePartyPatch,
   COMPANY_STAMP_ALLOWED_CONTENT_TYPES,
   COMPANY_STAMP_MAX_FILE_SIZE_BYTES,
+  COMPANY_STAMP_UNSUPPORTED_TYPE_MESSAGE,
   OPERATOR_SIGNING_ROLES,
   type ComrepFieldIssue,
 } from "@cashsouk/types";
@@ -560,7 +561,7 @@ export const operatorCompanyStampPatchSchema = z
 export const requestOperatorSigningImageUploadUrlSchema = z.object({
   fileName: z.string().min(1),
   contentType: z.enum(COMPANY_STAMP_ALLOWED_CONTENT_TYPES, {
-    errorMap: () => ({ message: "Upload a PNG, JPG or WEBP image." }),
+    errorMap: () => ({ message: COMPANY_STAMP_UNSUPPORTED_TYPE_MESSAGE }),
   }),
   fileSize: z.number().int().positive().max(COMPANY_STAMP_MAX_FILE_SIZE_BYTES, {
     message: "Image must be 5 MB or smaller.",
