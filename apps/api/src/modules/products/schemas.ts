@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { FACILITY_FEE_RATE_MAX_PERCENT } from "@cashsouk/types";
+import {
+  FACILITY_FEE_RATE_MAX_PERCENT,
+  isWorkflowDocumentTemplateContentType,
+} from "@cashsouk/types";
 
 // Date range values (matches @cashsouk/config date-ranges.ts)
 export const dateRangeValues = ["24h", "7d", "30d", "all"] as const;
@@ -161,11 +164,6 @@ export const updateProductBodySchema = z.object({
 
 export type UpdateProductBody = z.infer<typeof updateProductBodySchema>;
 
-const ALLOWED_DOCUMENT_TEMPLATE_TYPES = [
-  "application/pdf",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "application/vnd.ms-excel",
-] as const;
 const MAX_TEMPLATE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
 const ALLOWED_IMAGE_TYPE = "image/png";
 const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
@@ -184,8 +182,8 @@ export const productUploadTemplateUrlBodySchema = z.object({
   categoryKey: z.string().min(1),
   templateIndex: z.number().int().min(0),
   fileName: z.string().min(1),
-  contentType: z.string().refine((v) => (ALLOWED_DOCUMENT_TEMPLATE_TYPES as readonly string[]).includes(v), {
-    message: "Document templates must be PDF or Excel (.pdf, .xlsx, .xls)",
+  contentType: z.string().refine((v) => isWorkflowDocumentTemplateContentType(v), {
+    message: "Document templates must be PDF, Word, or Excel (.pdf, .doc, .docx, .xlsx, .xls)",
   }),
   fileSize: z.number().max(MAX_TEMPLATE_SIZE_BYTES, "Template must be 5MB or less").optional(),
 });

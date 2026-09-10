@@ -44,6 +44,58 @@ export function resolveWorkflowDocumentAllowedTypes(row: { allowed_types?: unkno
   return filtered[0] === "excel" ? ["excel"] : ["pdf"];
 }
 
+/** Admin template blanks; independent of issuer `allowed_types`. */
+export const WORKFLOW_DOCUMENT_TEMPLATE_ACCEPT = ".pdf,.doc,.docx,.xlsx,.xls";
+
+export const WORKFLOW_DOCUMENT_TEMPLATE_CONTENT_TYPES = [
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+] as const;
+
+function workflowDocumentTemplateExtension(fileName: string): string {
+  const lower = fileName.toLowerCase();
+  const dot = lower.lastIndexOf(".");
+  return dot >= 0 ? lower.slice(dot + 1) : "";
+}
+
+function contentTypeFromTemplateExtension(ext: string): string | undefined {
+  switch (ext) {
+    case "pdf":
+      return "application/pdf";
+    case "doc":
+      return "application/msword";
+    case "docx":
+      return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    case "xls":
+      return "application/vnd.ms-excel";
+    case "xlsx":
+      return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    default:
+      return undefined;
+  }
+}
+
+export function isWorkflowDocumentTemplateFileName(fileName: string): boolean {
+  return contentTypeFromTemplateExtension(workflowDocumentTemplateExtension(fileName)) != null;
+}
+
+export function isWorkflowDocumentTemplateContentType(contentType: string): boolean {
+  return (WORKFLOW_DOCUMENT_TEMPLATE_CONTENT_TYPES as readonly string[]).includes(contentType);
+}
+
+/** Prefer a known browser MIME; otherwise map from the file extension. */
+export function contentTypeForWorkflowDocumentTemplate(
+  fileName: string,
+  declaredType?: string
+): string {
+  const t = declaredType?.trim() ?? "";
+  if (isWorkflowDocumentTemplateContentType(t)) return t;
+  return contentTypeFromTemplateExtension(workflowDocumentTemplateExtension(fileName)) ?? "application/pdf";
+}
+
 export function parseWorkflowDocumentRow(raw: unknown): WorkflowDocumentRow {
   const row = asRecord(raw) ?? {};
   const template = asRecord(row.template);

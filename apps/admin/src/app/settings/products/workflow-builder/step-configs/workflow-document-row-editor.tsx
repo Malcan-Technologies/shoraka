@@ -19,6 +19,8 @@ import {
   getGeneratedDocumentType,
   listGeneratedDocumentTypesForContext,
   parseWorkflowDocumentRow,
+  WORKFLOW_DOCUMENT_TEMPLATE_ACCEPT,
+  isWorkflowDocumentTemplateFileName,
   type GeneratedDocumentContext,
   type GeneratedDocumentTypeKey,
   type WorkflowDocumentRow,
@@ -30,9 +32,6 @@ export type WorkflowDocumentRowShape = WorkflowDocumentRow;
 export type WorkflowDocumentTemplateSource = "none" | "upload" | "generated";
 
 export const MAX_WORKFLOW_DOCUMENT_TEMPLATE_BYTES = 5 * 1024 * 1024;
-
-/** Issuer upload allows PDF or Excel per row; optional admin template always allows PDF and Excel. */
-export const ADMIN_OPTIONAL_TEMPLATE_ACCEPT = ".pdf,.xlsx,.xls";
 
 export function resolveWorkflowDocumentRowRequired(row: { required?: boolean }): boolean {
   return row.required !== false;
@@ -56,10 +55,7 @@ export function resolveWorkflowDocumentAllowedTypes(row: { allowed_types?: strin
 }
 
 export function adminOptionalTemplateMatches(file: File): boolean {
-  const lower = file.name.toLowerCase();
-  const dot = lower.lastIndexOf(".");
-  const ext = dot >= 0 ? lower.slice(dot + 1) : "";
-  return ext === "pdf" || ext === "xlsx" || ext === "xls";
+  return isWorkflowDocumentTemplateFileName(file.name);
 }
 
 export function parseWorkflowDocumentRowFromUnknown(raw: unknown): WorkflowDocumentRowShape {
@@ -338,7 +334,7 @@ export function WorkflowDocumentRowEditor({
               <Input
                 ref={fileInputRef}
                 type="file"
-                accept={ADMIN_OPTIONAL_TEMPLATE_ACCEPT}
+                accept={WORKFLOW_DOCUMENT_TEMPLATE_ACCEPT}
                 onChange={onTemplateSelect}
                 disabled={isUploadingTemplate}
                 className="sr-only"
@@ -443,7 +439,7 @@ export function WorkflowDocumentRowEditor({
 
 export function validateOptionalWorkflowDocumentTemplateFile(file: File): boolean {
   if (!adminOptionalTemplateMatches(file)) {
-    toast.error("Template must be a PDF or Excel file (.pdf, .xlsx, .xls)");
+    toast.error("Template must be a PDF, Word, or Excel file (.pdf, .doc, .docx, .xlsx, .xls)");
     return false;
   }
   if (file.size > MAX_WORKFLOW_DOCUMENT_TEMPLATE_BYTES) {
