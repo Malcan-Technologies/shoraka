@@ -37,6 +37,17 @@ describe("People & Access customer UI", () => {
     expect(section).toContain('!== "IN_PROGRESS"');
   });
 
+  it("shows a compact later-added party refresh control on non-final KYC and AML", () => {
+    expect(section).toContain("shouldShowPartyKycRefresh");
+    expect(section).toContain("shouldShowPartyAmlRefresh");
+    expect(section).toContain("PartyStatusRefreshControl");
+    expect(section).toContain("refreshPartyRegTankStatus");
+    expect(section).toContain("relatedPartyVerificationCaption");
+    expect(detail).toContain("refreshPartyRegTankStatus");
+    expect(detail).toContain("PartyStatusRefreshControl");
+    expect(detail).not.toContain("refresh-aml");
+  });
+
   it("treats Owner as platform ownership and User as ORGANIZATION_MEMBER", () => {
     expect(invite).toContain(">User<");
     expect(invite).toContain(">Admin<");

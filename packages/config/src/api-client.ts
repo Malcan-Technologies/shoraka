@@ -694,6 +694,17 @@ export class ApiClient {
     );
   }
 
+  async refreshPartyRegTankStatus(
+    portal: "investor" | "issuer",
+    organizationId: string,
+    partyId: string
+  ): Promise<ApiResponse<{ message: string; refreshedSources: string[] }> | ApiError> {
+    return this.post<{ message: string; refreshedSources: string[] }>(
+      `/v1/organizations/${portal}/${organizationId}/party-profiles/${partyId}/refresh-status`,
+      {}
+    );
+  }
+
   async getIssuerLatestFinancialStatements(
     organizationId: string
   ): Promise<

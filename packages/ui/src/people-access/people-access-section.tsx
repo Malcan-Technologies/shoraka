@@ -7,7 +7,7 @@ import {
   PlusIcon,
   UserPlusIcon,
 } from "@heroicons/react/24/outline";
-import { createApiClient, useAuthToken } from "@cashsouk/config";
+import { createApiClient, useAuthToken, PARTY_STATUS_REFRESHED_MESSAGE, PARTY_STATUS_REFRESH_FAILED_MESSAGE, PROVIDER_REFRESH_RECENTLY_MESSAGE } from "@cashsouk/config";
 import {
   buildPeopleAccessRows,
   canManageDirectorShareholder,
@@ -15,18 +15,25 @@ import {
   filterPeopleAccessRows,
   filterVisiblePeopleRows,
   formatPeopleRolesLine,
+  getFinalStatusLabel,
   getKycGroup,
+  getRelatedPartyStatusToken,
   isMissingGovernmentIdPerson,
   isPersonEmailLifecycleLocked,
   issuerPersonCompletenessInputFromParty,
   normalizeDirectorShareholderIdKey,
   normalizeDirectorShareholderPartyEmail,
-  peopleAccessAmlBadgeStatus,
-  peopleAccessKycBadgeStatus,
+  peopleAccessAmlLabel,
+  peopleAccessKycLabel,
   peopleAccessPlatformBadgeStatus,
+  peopleAccessShowsCorporateAmlChip,
+  peopleAccessShowsCorporateKycChip,
   PERSON_EMAIL_HELP,
   profileValidationErrorFromApi,
+  relatedPartyVerificationCaption,
   resolveDirectorShareholderCtosEmptyWarning,
+  shouldShowPartyAmlRefresh,
+  shouldShowPartyKycRefresh,
   UNRESOLVED_IDENTITY_RECOVERY_COPY,
   UNRESOLVED_IDENTITY_RECOVERY_TITLE,
   type ApplicationPersonRow,
@@ -38,6 +45,7 @@ import {
   type PeopleAccessRow,
 } from "@cashsouk/types";
 import { inviteableCompanyPeople, InviteUserDialog } from "./invite-user-dialog";
+import { PartyStatusRefreshControl } from "./party-status-refresh-control";
 import { DirectorShareholderCtosEmptyAlert } from "../director-shareholder-ctos-empty-alert";
 import { DirectorShareholderUnresolvedIdentitySection } from "../director-shareholder-unresolved-identity-card";
 import { PartyProfileDetailFields } from "../party-profile-detail-fields";
@@ -81,16 +89,88 @@ function AccessBadge({ label }: { label: PeopleAccessRow["platformAccess"] }) {
   return <StatusBadge status={status} label={label} />;
 }
 
-function KycBadge({ label }: { label: PeopleAccessRow["kyc"] }) {
-  const status = peopleAccessKycBadgeStatus(label);
-  if (!status) return <span className="text-ui text-muted-foreground">—</span>;
-  return <StatusBadge status={status} label={label} />;
+function toastPartyRefreshFailure(code?: string) {
+  if (code === "REGTANK_RATE_LIMITED" || code === "RATE_LIMITED" || code === "REFRESH_IN_PROGRESS") {
+    toast.error(PROVIDER_REFRESH_RECENTLY_MESSAGE);
+    return;
+  }
+  toast.error(PARTY_STATUS_REFRESH_FAILED_MESSAGE);
 }
 
-function AmlBadge({ label }: { label: PeopleAccessRow["aml"] }) {
-  const status = peopleAccessAmlBadgeStatus(label);
-  if (!status) return <span className="text-ui text-muted-foreground">—</span>;
-  return <StatusBadge status={status} label={label} />;
+function refreshParams(row: PeopleAccessRow) {
+  return {
+    person: row.person,
+    origin: row.party?.origin,
+    partyKey: row.party?.partyKey ?? row.partyKey,
+    kind: row.kind,
+  };
+}
+
+function PeopleAccessKycStatus({
+  row,
+  canEdit,
+  refreshing,
+  onRefresh,
+}: {
+  row: PeopleAccessRow;
+  canEdit: boolean;
+  refreshing: boolean;
+  onRefresh?: () => void;
+}) {
+  const person = row.person;
+  const showCorporate = peopleAccessShowsCorporateKycChip(person);
+  const showIndividual = peopleAccessKycLabel(person) !== "—";
+  if (!showCorporate && !showIndividual) {
+    return <span className="text-ui text-muted-foreground">—</span>;
+  }
+  if (!person) return <span className="text-ui text-muted-foreground">—</span>;
+  const presentation = getFinalStatusLabel(person, { displayMode: "kyc_only" });
+  const showRefresh = Boolean(canEdit && onRefresh && shouldShowPartyKycRefresh(refreshParams(row)));
+  return (
+    <div className="flex flex-col items-start gap-0.5">
+      <span className="text-meta text-muted-foreground">{relatedPartyVerificationCaption(person.entityType)}</span>
+      <div className="flex items-center gap-1">
+        <StatusBadge
+          size="sm"
+          label={presentation.label}
+          status={getRelatedPartyStatusToken(presentation, "user")}
+        />
+        {showRefresh ? <PartyStatusRefreshControl busy={refreshing} onRefresh={onRefresh!} /> : null}
+      </div>
+    </div>
+  );
+}
+
+function PeopleAccessAmlStatus({
+  row,
+  canEdit,
+  refreshing,
+  onRefresh,
+}: {
+  row: PeopleAccessRow;
+  canEdit: boolean;
+  refreshing: boolean;
+  onRefresh?: () => void;
+}) {
+  const person = row.person;
+  const showCorporate = peopleAccessShowsCorporateAmlChip(person);
+  const showIndividual = peopleAccessAmlLabel(person) !== "—";
+  if (!showCorporate && !showIndividual) {
+    return <span className="text-ui text-muted-foreground">—</span>;
+  }
+  if (!person) return <span className="text-ui text-muted-foreground">—</span>;
+  const presentation = getFinalStatusLabel({ screening: person.screening });
+  const showRefresh = Boolean(canEdit && onRefresh && shouldShowPartyAmlRefresh(refreshParams(row)));
+  return (
+    <div className="flex items-center gap-1">
+      <StatusBadge
+        size="sm"
+        label={presentation.label}
+        status={getRelatedPartyStatusToken(presentation, "user")}
+      />
+      {showRefresh ? <PartyStatusRefreshControl busy={refreshing} onRefresh={onRefresh!} /> : null}
+    </div>
+  );
 }
 
 export function PeopleAccessSection({
@@ -148,6 +228,8 @@ export function PeopleAccessSection({
   const [generateLinkPending, setGenerateLinkPending] = React.useState(false);
   const [platformRowKey, setPlatformRowKey] = React.useState<string | null>(null);
   const [managePending, setManagePending] = React.useState(false);
+  const [refreshingPartyId, setRefreshingPartyId] = React.useState<string | null>(null);
+  const refreshInFlight = React.useRef<string | null>(null);
   const [confirm, setConfirm] = React.useState<{
     type: "remove" | "leave" | "transfer" | "cancel-invite";
     userId?: string;
@@ -215,6 +297,24 @@ export function PeopleAccessSection({
   const invalidate = async () => {
     await loadParties();
     await onChanged?.();
+  };
+
+  const refreshPartyStatus = async (partyId: string) => {
+    if (!partyId || refreshInFlight.current === partyId) return;
+    refreshInFlight.current = partyId;
+    setRefreshingPartyId(partyId);
+    try {
+      const res = await api.refreshPartyRegTankStatus(portal, organizationId, partyId);
+      if (!res.success) {
+        toastPartyRefreshFailure(res.error.code);
+        return;
+      }
+      toast.success(PARTY_STATUS_REFRESHED_MESSAGE);
+      await invalidate();
+    } finally {
+      if (refreshInFlight.current === partyId) refreshInFlight.current = null;
+      setRefreshingPartyId((current) => (current === partyId ? null : current));
+    }
   };
 
   React.useEffect(() => {
@@ -386,6 +486,14 @@ export function PeopleAccessSection({
                     currentUserId={currentUserId}
                     isOwnerViewer={isOwnerViewer}
                     blockOnboarding={blockOnboarding}
+                    refreshing={Boolean(row.partyId && refreshingPartyId === row.partyId)}
+                    onRefreshStatus={
+                      canEdit && row.partyId
+                        ? () => {
+                            void refreshPartyStatus(row.partyId!);
+                          }
+                        : undefined
+                    }
                     onView={() => viewRow(row)}
                     onInvite={() => row.partyId && openInvite(row.partyId)}
                     onResend={
@@ -484,9 +592,30 @@ export function PeopleAccessSection({
                 <p className="text-meta text-muted-foreground">{row.companyRoleLine}</p>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <AccessBadge label={row.platformAccess} />
-                  <span className="text-meta text-muted-foreground">
-                    KYC {row.kyc} · AML {row.aml}
-                  </span>
+                  <PeopleAccessKycStatus
+                    row={row}
+                    canEdit={canEdit}
+                    refreshing={Boolean(row.partyId && refreshingPartyId === row.partyId)}
+                    onRefresh={
+                      canEdit && row.partyId
+                        ? () => {
+                            void refreshPartyStatus(row.partyId!);
+                          }
+                        : undefined
+                    }
+                  />
+                  <PeopleAccessAmlStatus
+                    row={row}
+                    canEdit={canEdit}
+                    refreshing={Boolean(row.partyId && refreshingPartyId === row.partyId)}
+                    onRefresh={
+                      canEdit && row.partyId
+                        ? () => {
+                            void refreshPartyStatus(row.partyId!);
+                          }
+                        : undefined
+                    }
+                  />
                 </div>
                 <Button type="button" variant="outline" size="sm" className="mt-3 h-8" onClick={() => viewRow(row)}>
                   View
@@ -958,6 +1087,8 @@ function PeopleAccessTableRow({
   onSendOnboarding,
   onCopyInvite,
   onAdoptPeopleOnly,
+  refreshing = false,
+  onRefreshStatus,
 }: {
   row: PeopleAccessRow;
   portal: PortalPeoplePortal;
@@ -978,6 +1109,8 @@ function PeopleAccessTableRow({
   onSendOnboarding: () => void;
   onCopyInvite?: () => void;
   onAdoptPeopleOnly?: () => void;
+  refreshing?: boolean;
+  onRefreshStatus?: () => void;
 }) {
   const isSelf = Boolean(currentUserId && row.userId === currentUserId);
   const isOwnerRow = row.platformAccess === "Owner";
@@ -1043,10 +1176,20 @@ function PeopleAccessTableRow({
         <AccessBadge label={row.platformAccess} />
       </td>
       <td className="px-4 py-3 align-middle">
-        <KycBadge label={row.kyc} />
+        <PeopleAccessKycStatus
+          row={row}
+          canEdit={canEdit}
+          refreshing={refreshing}
+          onRefresh={onRefreshStatus}
+        />
       </td>
       <td className="px-4 py-3 align-middle">
-        <AmlBadge label={row.aml} />
+        <PeopleAccessAmlStatus
+          row={row}
+          canEdit={canEdit}
+          refreshing={refreshing}
+          onRefresh={onRefreshStatus}
+        />
       </td>
       <td className="px-4 py-3 align-middle">
         <div className="flex justify-end gap-1">

@@ -511,7 +511,7 @@ export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
                   }
                 >
                   {org.kycResponse ? (
-                    <OrganizationKycResponseCard data={org.kycResponse} organizationType={org.type} />
+                    <OrganizationKycResponseCard data={org.kycResponse} />
                   ) : null}
                   <OrganizationIssuerCtosReportsCard
                     organizationId={organizationId}

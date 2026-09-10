@@ -12,6 +12,9 @@ export const PROVIDER_REFRESH_RECENTLY_MESSAGE =
   "Status was refreshed recently. Please wait a moment and try again.";
 export const PROVIDER_REFRESH_FAILED_MESSAGE =
   "Unable to refresh the status right now. Please try again.";
+export const PARTY_STATUS_REFRESHED_MESSAGE = "Status refreshed.";
+export const PARTY_STATUS_REFRESH_FAILED_MESSAGE =
+  "Unable to refresh this status right now. Please try again.";
 export const PROVIDER_REQUEST_NOT_FOUND_MESSAGE = "This onboarding request could not be found.";
 export const CTOS_FETCH_FAILED_SHOWING_ONBOARDING_MESSAGE =
   "Unable to fetch CTOS data. Showing the submitted onboarding data instead.";

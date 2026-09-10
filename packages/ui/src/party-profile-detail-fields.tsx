@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import {
   PERSON_EMAIL_HELP,
   SC_DESIGNATION_LABELS,
@@ -229,10 +230,14 @@ export function PartyProfileDetailFields({
   party,
   person,
   statusViewer = "user",
+  kycRefresh,
+  amlRefresh,
 }: {
   party?: OrganizationPartyProfileDto | null;
   person?: ApplicationPersonRow | null;
   statusViewer?: RelatedPartyStatusViewer;
+  kycRefresh?: ReactNode;
+  amlRefresh?: ReactNode;
 }) {
   const corporate = party?.entityType === "CORPORATE" || person?.entityType === "CORPORATE";
   const kyc = person
@@ -245,12 +250,14 @@ export function PartyProfileDetailFields({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <StatusBadge
           status={getRelatedPartyStatusToken(kyc, statusViewer)}
           label={`${corporate ? "KYB" : "KYC"}: ${kyc.label}`}
         />
+        {kycRefresh}
         <StatusBadge status={getRelatedPartyStatusToken(aml, statusViewer)} label={`AML: ${aml.label}`} />
+        {amlRefresh}
       </div>
       <PartyRoleBadges party={party} person={person} />
       <ProfileFieldGrid>

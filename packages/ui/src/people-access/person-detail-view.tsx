@@ -3,11 +3,12 @@
 import * as React from "react";
 import { toast } from "sonner";
 import { ArrowLeftIcon } from "@heroicons/react/24/outline";
-import { createApiClient, useAuthToken } from "@cashsouk/config";
+import { createApiClient, useAuthToken, PARTY_STATUS_REFRESHED_MESSAGE, PARTY_STATUS_REFRESH_FAILED_MESSAGE, PROVIDER_REFRESH_RECENTLY_MESSAGE } from "@cashsouk/config";
 import {
   buildPeopleAccessRows,
   canManageDirectorShareholder,
   formatPeopleAccessCompanyRoleLine,
+  getFinalStatusLabel,
   getKycGroup,
   isPersonEmailLifecycleLocked,
   matchPersonToParty,
@@ -17,6 +18,9 @@ import {
   peopleAccessCompanyRolesFromParty,
   PERSON_EMAIL_HELP,
   profileValidationErrorFromApi,
+  relatedPartyVerificationCaption,
+  shouldShowPartyAmlRefresh,
+  shouldShowPartyKycRefresh,
   type ApplicationPersonRow,
   type OrganizationPartyProfileDto,
   type PeopleAccessInvitation,
@@ -25,6 +29,7 @@ import {
 import { PartyProfileDetailFields } from "../party-profile-detail-fields";
 import { PartyFillEmptyForm } from "../portal-person-forms";
 import { InviteUserDialog, inviteableCompanyPeople } from "./invite-user-dialog";
+import { PartyStatusRefreshControl } from "./party-status-refresh-control";
 import { Button } from "../components/button";
 import { Input } from "../components/input";
 import { Label } from "../components/label";
@@ -76,6 +81,8 @@ export function PersonDetailView({
   const [editing, setEditing] = React.useState(false);
   const [emailDraft, setEmailDraft] = React.useState("");
   const [sendPending, setSendPending] = React.useState(false);
+  const [refreshing, setRefreshing] = React.useState(false);
+  const refreshInFlight = React.useRef(false);
   const [inviteOpen, setInviteOpen] = React.useState(false);
   const [pending, setPending] = React.useState(false);
   const [confirm, setConfirm] = React.useState<"remove" | "inactivate" | "cancel-invite" | "transfer" | null>(null);
@@ -133,6 +140,24 @@ export function PersonDetailView({
     onboardingStatus: joinedPerson?.onboarding?.status,
     screeningStatus: joinedPerson?.screening?.status,
   });
+  const showKycRefresh =
+    canEdit &&
+    !inactive &&
+    shouldShowPartyKycRefresh({
+      person: joinedPerson,
+      origin: party?.origin,
+      partyKey: party?.partyKey,
+      kind: "company_person",
+    });
+  const showAmlRefresh =
+    canEdit &&
+    !inactive &&
+    shouldShowPartyAmlRefresh({
+      person: joinedPerson,
+      origin: party?.origin,
+      partyKey: party?.partyKey,
+      kind: "company_person",
+    });
   const invitePeople = inviteableCompanyPeople(active);
   const isOwnerViewer = Boolean(currentUserId && ownerUserId && currentUserId === ownerUserId);
   const accessLabel = party
@@ -150,6 +175,32 @@ export function PersonDetailView({
   const invalidate = async () => {
     await loadParties();
     await onChanged?.();
+  };
+
+  const toastPartyRefreshFailure = (code?: string) => {
+    if (code === "REGTANK_RATE_LIMITED" || code === "RATE_LIMITED" || code === "REFRESH_IN_PROGRESS") {
+      toast.error(PROVIDER_REFRESH_RECENTLY_MESSAGE);
+      return;
+    }
+    toast.error(PARTY_STATUS_REFRESH_FAILED_MESSAGE);
+  };
+
+  const refreshPartyStatus = async () => {
+    if (!party?.id || refreshInFlight.current) return;
+    refreshInFlight.current = true;
+    setRefreshing(true);
+    try {
+      const res = await api.refreshPartyRegTankStatus(portal, organizationId, party.id);
+      if (!res.success) {
+        toastPartyRefreshFailure(res.error.code);
+        return;
+      }
+      toast.success(PARTY_STATUS_REFRESHED_MESSAGE);
+      await invalidate();
+    } finally {
+      refreshInFlight.current = false;
+      setRefreshing(false);
+    }
   };
 
   if (loading) {
@@ -202,7 +253,20 @@ export function PersonDetailView({
             />
           ) : (
             <>
-              <PartyProfileDetailFields party={party} person={joinedPerson} />
+              <PartyProfileDetailFields
+                party={party}
+                person={joinedPerson}
+                kycRefresh={
+                  showKycRefresh ? (
+                    <PartyStatusRefreshControl busy={refreshing} onRefresh={() => void refreshPartyStatus()} />
+                  ) : null
+                }
+                amlRefresh={
+                  showAmlRefresh ? (
+                    <PartyStatusRefreshControl busy={refreshing} onRefresh={() => void refreshPartyStatus()} />
+                  ) : null
+                }
+              />
               {canEdit && party.entityType !== "CORPORATE" && !inactive ? (
                 <div className="space-y-2 rounded-xl border bg-card p-4">
                   <Label htmlFor="person-email">Person Email</Label>
@@ -249,8 +313,23 @@ export function PersonDetailView({
 
         <TabsContent value="kyc" className="mt-6 space-y-4">
           <div className="rounded-xl border bg-card p-6">
+            <p className="mb-3 text-meta text-muted-foreground">
+              {relatedPartyVerificationCaption(joinedPerson?.entityType ?? party.entityType)}
+            </p>
             <ProfileFieldGrid>
-              <ProfileReadField label="KYC" value={peopleAccessKycLabel(joinedPerson)} />
+              <div className="flex items-center gap-2">
+                <ProfileReadField
+                  label={party.entityType === "CORPORATE" ? "KYB" : "KYC"}
+                  value={
+                    joinedPerson
+                      ? getFinalStatusLabel(joinedPerson, { displayMode: "kyc_only" }).label
+                      : peopleAccessKycLabel(joinedPerson)
+                  }
+                />
+                {showKycRefresh ? (
+                  <PartyStatusRefreshControl busy={refreshing} onRefresh={() => void refreshPartyStatus()} />
+                ) : null}
+              </div>
               <ProfileReadField label="Onboarding stage" value={joinedPerson?.onboarding?.status || "—"} />
               <ProfileReadField label="Request ID" value={joinedPerson?.requestId || onboardingId || "—"} />
               <ProfileReadField label="KYC ID" value={kycId || "—"} />
@@ -326,7 +405,19 @@ export function PersonDetailView({
         <TabsContent value="aml" className="mt-6">
           <div className="rounded-xl border bg-card p-6">
             <ProfileFieldGrid>
-              <ProfileReadField label="AML" value={peopleAccessAmlLabel(joinedPerson)} />
+              <div className="flex items-center gap-2">
+                <ProfileReadField
+                  label="AML"
+                  value={
+                    joinedPerson
+                      ? getFinalStatusLabel({ screening: joinedPerson.screening }).label
+                      : peopleAccessAmlLabel(joinedPerson)
+                  }
+                />
+                {showAmlRefresh ? (
+                  <PartyStatusRefreshControl busy={refreshing} onRefresh={() => void refreshPartyStatus()} />
+                ) : null}
+              </div>
               <ProfileReadField label="Screening status" value={joinedPerson?.screening?.status || "—"} />
               <ProfileReadField label="Screening ID" value={joinedPerson?.screening?.id || "—"} />
               <ProfileReadField

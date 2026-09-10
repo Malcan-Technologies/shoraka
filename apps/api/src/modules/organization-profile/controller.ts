@@ -18,6 +18,7 @@ import {
   resolvePartyMismatch,
   seedMasterPartiesIfEmpty,
 } from "./service";
+import { refreshPartyRegTankStatus } from "./refresh-party-regtank-status";
 import { resolvePersonIdentityConflict } from "./regtank-party-seed";
 import {
   financialYearPatchSchema,
@@ -258,6 +259,22 @@ export function createOrganizationProfileRouter() {
           portal: AUDIT_PORTAL.ISSUER,
           metadata: { portal, source: "USER", partyId },
         });
+        res.json({ success: true, data, correlationId: res.locals.correlationId });
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+
+  router.post(
+    "/:portal/:id/party-profiles/:partyId/refresh-status",
+    requireAuth,
+    async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const portal = portalFromParams(req);
+        const { id, partyId } = req.params;
+        const userId = await assertOrgOwnerOrAdmin(req, portal, id);
+        const data = await refreshPartyRegTankStatus(userId, portal, id, partyId);
         res.json({ success: true, data, correlationId: res.locals.correlationId });
       } catch (error) {
         next(error);

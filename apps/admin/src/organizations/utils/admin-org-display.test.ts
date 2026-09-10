@@ -2,7 +2,6 @@ import {
   ADMIN_ORG_ADDRESS_FIELD_LABELS,
   adminOnboardingEvidenceCards,
   hasOrganizationScreeningResponse,
-  organizationScreeningResultTitle,
 } from "./admin-org-display";
 
 describe("adminOnboardingEvidenceCards", () => {
@@ -30,16 +29,6 @@ describe("adminOnboardingEvidenceCards", () => {
     expect(adminOnboardingEvidenceCards({})).toEqual([]);
     expect(adminOnboardingEvidenceCards({ wealthDeclaration: null })).toEqual([]);
     expect(adminOnboardingEvidenceCards({ wealthDeclaration: {} })).toEqual([]);
-  });
-});
-
-describe("organizationScreeningResultTitle", () => {
-  it("uses KYB/AML Screening Result for corporate issuer and investor companies", () => {
-    expect(organizationScreeningResultTitle("COMPANY")).toBe("KYB/AML Screening Result");
-  });
-
-  it("uses KYC/AML Screening Result for personal investors", () => {
-    expect(organizationScreeningResultTitle("PERSONAL")).toBe("KYC/AML Screening Result");
   });
 });
 

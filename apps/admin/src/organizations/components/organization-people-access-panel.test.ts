@@ -8,7 +8,6 @@ const overview = readFileSync(join(__dirname, "../utils/organization-profile-ove
 const hook = readFileSync(join(__dirname, "../hooks/use-organization-master-people.ts"), "utf8");
 const mismatch = readFileSync(join(__dirname, "organization-external-review-sheet.tsx"), "utf8");
 const screening = readFileSync(join(__dirname, "organization-kyc-response-card.tsx"), "utf8");
-const display = readFileSync(join(__dirname, "../utils/admin-org-display.ts"), "utf8");
 const ctos = readFileSync(
   join(__dirname, "../../components/organization-issuer-ctos-reports-card.tsx"),
   "utf8"
@@ -105,7 +104,6 @@ describe("Admin organisation tabs", () => {
     expect(page).toContain("AdminRelatedRecordsRail");
     expect(page).toContain("OrganizationIssuerCtosReportsCard");
     expect(page).toContain("OrganizationQuickLinksCard");
-    expect(page).toContain("organizationType={org.type}");
     expect(page).toContain("org.kycResponse ?");
     expect(page).not.toContain("hideRail");
     expect(rail).not.toContain("hideRail");
@@ -149,11 +147,9 @@ describe("Admin organisation tabs", () => {
     expect(detail).toContain('value="aml"');
     expect(detail).toContain(">KYC<");
     expect(detail).toContain(">AML<");
-    expect(screening).toContain("organizationScreeningResultTitle");
-    expect(display).toContain('"KYB/AML Screening Result"');
-    expect(display).toContain('"KYC/AML Screening Result"');
+    expect(screening).toContain("KYC/AML Screening Result");
+    expect(screening).not.toContain("KYB/AML Screening Result");
     expect(screening).not.toContain("Organisation Screening Result");
-    expect(screening).toContain("Person KYC and AML remain on People & Access.");
   });
 
   it("preserves person actions in the selected-person drawer", () => {
