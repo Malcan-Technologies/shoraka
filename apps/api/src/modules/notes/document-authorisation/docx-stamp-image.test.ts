@@ -6,6 +6,8 @@ import {
   stampExtentEmu,
   stampExtentEmuFromPixels,
 } from "./docx-stamp-image";
+import { MAX_STAMP_HEIGHT_EMU, maxStampPixelBox, readPngSize } from "./stamp-image-contain";
+import { PNG } from "pngjs";
 
 const ONE_BY_ONE_PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFhAH+plp0OQAAAABJRU5ErkJggg==",
@@ -99,6 +101,25 @@ describe("applyCompanyStampToDocx", () => {
     const xml = drawingXml(rendered);
     expect(xml).toContain("________________________");
     expect(xml).not.toContain("<w:drawing>");
+  });
+
+  it("downsamples a large stamp so LibreOffice cannot overflow onto an extra page", () => {
+    const png = new PNG({ width: 800, height: 800 });
+    png.data.fill(200);
+    for (let i = 3; i < png.data.length; i += 4) png.data[i] = 255;
+    const rendered = renderInvestmentNoteCertificateDocx(
+      sampleInvestmentNoteCertificateSnapshot(),
+      { audience: "ADMIN" },
+      { bytes: PNG.sync.write(png), contentType: "image/png" }
+    );
+    const zip = new PizZip(rendered);
+    const embedded = zip.file("word/media/company-stamp.png")?.asNodeBuffer();
+    expect(embedded).toBeTruthy();
+    const size = readPngSize(embedded!);
+    const box = maxStampPixelBox();
+    expect(size).toEqual({ width: box.height, height: box.height });
+    const xml = drawingXml(rendered);
+    expect(xml).toContain(`<wp:extent cx="${MAX_STAMP_HEIGHT_EMU}" cy="${MAX_STAMP_HEIGHT_EMU}"/>`);
   });
 });
 
