@@ -10,6 +10,10 @@ import {
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 import type { SettlementHibahReceiptPdfPayload } from "@cashsouk/types";
+import {
+  SHORAKA_SIGNING_PERSON_NO_SIGNATURE_MESSAGE,
+  SHORAKA_SIGNING_PERSON_REQUIRED_MESSAGE,
+} from "@cashsouk/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -34,6 +38,10 @@ import {
   useReissueAdminSettlementHibahReceipt,
   useRetryAdminSettlementHibahReceipt,
 } from "@/notes/hooks/use-settlement-hibah-receipt";
+import {
+  DocumentSigningPersonFields,
+  useDocumentSigningPersonSelection,
+} from "@/notes/components/document-signing-person-fields";
 
 function statusModel(payload: SettlementHibahReceiptPdfPayload): {
   label: string;
@@ -74,7 +82,7 @@ function statusModel(payload: SettlementHibahReceiptPdfPayload): {
     tone: "neutral",
     emphasize: false,
     description: payload.canGenerate
-      ? "Eligible after the financing is fully settled. Generate V01 using the latest Document Authorisation settings."
+      ? "Eligible after the financing is fully settled. Generate V01 using the selected Shoraka signing person and company stamp."
       : "Issued when the financing is fully settled (repaid and servicing settled).",
   };
 }
@@ -95,6 +103,7 @@ export function SettlementHibahReceiptCard({ noteId, payload }: Props) {
   const reissue = useReissueAdminSettlementHibahReceipt(noteId);
   const publish = usePublishAdminSettlementHibahReceipt(noteId);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
+  const signing = useDocumentSigningPersonSelection(payload.signingOptions);
   const review = payload.reviewVersion;
   const showPdfActions = Boolean(payload.viewUrl || payload.downloadUrl);
   const pendingAny =
@@ -105,14 +114,14 @@ export function SettlementHibahReceiptCard({ noteId, payload }: Props) {
       ? {
           title: "Generate receipt?",
           description:
-            "Create version V01 using the latest Document Authorisation settings. This becomes the current issuer receipt when generation succeeds.",
+            "Create version V01 using the selected Shoraka signing person and company stamp. This becomes the current issuer receipt when generation succeeds.",
           confirmLabel: "Generate Receipt",
         }
       : confirmAction === "regenerate"
         ? {
             title: "Regenerate receipt?",
             description:
-              "Create a new version using the latest Document Authorisation settings. Financial facts stay frozen from the current version. The issuer continues to see the current version until you publish.",
+              "Create a new version using the selected Shoraka signing person and company stamp. Financial facts stay frozen from the current version. The issuer continues to see the current version until you publish.",
             confirmLabel: "Regenerate",
           }
         : {
@@ -185,7 +194,17 @@ export function SettlementHibahReceiptCard({ noteId, payload }: Props) {
                 type="button"
                 size="sm"
                 className="gap-1.5"
-                onClick={() => setConfirmAction("generate")}
+                onClick={() => {
+                  if (!signing.selectedId) {
+                    toast.error(SHORAKA_SIGNING_PERSON_REQUIRED_MESSAGE);
+                    return;
+                  }
+                  if (!signing.canSubmit) {
+                    toast.error(SHORAKA_SIGNING_PERSON_NO_SIGNATURE_MESSAGE);
+                    return;
+                  }
+                  setConfirmAction("generate");
+                }}
                 disabled={pendingAny}
               >
                 <DocumentTextIcon className="h-4 w-4" aria-hidden />
@@ -214,7 +233,17 @@ export function SettlementHibahReceiptCard({ noteId, payload }: Props) {
                 size="sm"
                 variant="outline"
                 className="gap-1.5"
-                onClick={() => setConfirmAction("regenerate")}
+                onClick={() => {
+                  if (!signing.selectedId) {
+                    toast.error(SHORAKA_SIGNING_PERSON_REQUIRED_MESSAGE);
+                    return;
+                  }
+                  if (!signing.canSubmit) {
+                    toast.error(SHORAKA_SIGNING_PERSON_NO_SIGNATURE_MESSAGE);
+                    return;
+                  }
+                  setConfirmAction("regenerate");
+                }}
                 disabled={pendingAny}
               >
                 <ArrowPathIcon className="h-4 w-4" aria-hidden />
@@ -224,6 +253,14 @@ export function SettlementHibahReceiptCard({ noteId, payload }: Props) {
           </div>
         </div>
         <p className="text-meta text-muted-foreground">{model.description}</p>
+        {payload.canGenerate || payload.canRegenerate ? (
+          <DocumentSigningPersonFields
+            options={payload.signingOptions}
+            selectedId={signing.selectedId}
+            onSelectedIdChange={signing.setSelectedId}
+            disabled={pendingAny}
+          />
+        ) : null}
         {review ? (
           <div
             data-receipt-review-version={review.version}
@@ -331,13 +368,17 @@ export function SettlementHibahReceiptCard({ noteId, payload }: Props) {
                 const action = confirmAction;
                 setConfirmAction(null);
                 if (action === "generate") {
-                  void generate.mutateAsync().catch((err) => {
-                    toast.error(err instanceof Error ? err.message : "Generate failed");
-                  });
+                  void generate
+                    .mutateAsync({ signingPersonId: signing.selectedId })
+                    .catch((err) => {
+                      toast.error(err instanceof Error ? err.message : "Generate failed");
+                    });
                 } else if (action === "regenerate") {
-                  void reissue.mutateAsync().catch((err) => {
-                    toast.error(err instanceof Error ? err.message : "Regenerate failed");
-                  });
+                  void reissue
+                    .mutateAsync({ signingPersonId: signing.selectedId })
+                    .catch((err) => {
+                      toast.error(err instanceof Error ? err.message : "Regenerate failed");
+                    });
                 } else if (action === "publish") {
                   void publish.mutateAsync().catch((err) => {
                     toast.error(err instanceof Error ? err.message : "Publish failed");

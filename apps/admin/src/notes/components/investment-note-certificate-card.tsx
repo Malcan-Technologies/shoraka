@@ -10,6 +10,10 @@ import {
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 import type { InvestmentNoteCertificatePdfPayload } from "@cashsouk/types";
+import {
+  SHORAKA_SIGNING_PERSON_NO_SIGNATURE_MESSAGE,
+  SHORAKA_SIGNING_PERSON_REQUIRED_MESSAGE,
+} from "@cashsouk/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -34,6 +38,10 @@ import {
   useReissueAdminInvestmentNoteCertificate,
   useRetryAdminInvestmentNoteCertificate,
 } from "@/notes/hooks/use-investment-note-certificate";
+import {
+  DocumentSigningPersonFields,
+  useDocumentSigningPersonSelection,
+} from "@/notes/components/document-signing-person-fields";
 
 function statusModel(payload: InvestmentNoteCertificatePdfPayload): {
   label: string;
@@ -74,7 +82,7 @@ function statusModel(payload: InvestmentNoteCertificatePdfPayload): {
     tone: "neutral",
     emphasize: false,
     description: payload.canGenerate
-      ? "Eligible after issuer disbursement completed on a funded note. Generate V01 using the latest Document Authorisation settings."
+      ? "Eligible after issuer disbursement completed on a funded note. Generate V01 using the selected Shoraka signing person and company stamp."
       : "Available after issuer disbursement is completed on a successfully funded note.",
   };
 }
@@ -95,6 +103,7 @@ export function InvestmentNoteCertificateCard({ noteId, payload }: Props) {
   const reissue = useReissueAdminInvestmentNoteCertificate(noteId);
   const publish = usePublishAdminInvestmentNoteCertificate(noteId);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
+  const signing = useDocumentSigningPersonSelection(payload.signingOptions);
   const review = payload.reviewVersion;
   const showPdfActions = Boolean(payload.viewUrl || payload.downloadUrl);
   const pendingAny =
@@ -105,14 +114,14 @@ export function InvestmentNoteCertificateCard({ noteId, payload }: Props) {
       ? {
           title: "Generate certificate?",
           description:
-            "Create version V01 using the latest Document Authorisation settings. This becomes the current certificate for issuers and investors when generation succeeds.",
+            "Create version V01 using the selected Shoraka signing person and company stamp. This becomes the current certificate for issuers and investors when generation succeeds.",
           confirmLabel: "Generate Certificate",
         }
       : confirmAction === "regenerate"
         ? {
             title: "Regenerate certificate?",
             description:
-              "Create a new version using the latest Document Authorisation settings. Financial facts stay frozen from the current version. Users continue to see the current version until you publish.",
+              "Create a new version using the selected Shoraka signing person and company stamp. Financial facts stay frozen from the current version. Users continue to see the current version until you publish.",
             confirmLabel: "Regenerate",
           }
         : {
@@ -185,7 +194,17 @@ export function InvestmentNoteCertificateCard({ noteId, payload }: Props) {
                 type="button"
                 size="sm"
                 className="gap-1.5"
-                onClick={() => setConfirmAction("generate")}
+                onClick={() => {
+                  if (!signing.selectedId) {
+                    toast.error(SHORAKA_SIGNING_PERSON_REQUIRED_MESSAGE);
+                    return;
+                  }
+                  if (!signing.canSubmit) {
+                    toast.error(SHORAKA_SIGNING_PERSON_NO_SIGNATURE_MESSAGE);
+                    return;
+                  }
+                  setConfirmAction("generate");
+                }}
                 disabled={pendingAny}
               >
                 <DocumentTextIcon className="h-4 w-4" aria-hidden />
@@ -214,7 +233,17 @@ export function InvestmentNoteCertificateCard({ noteId, payload }: Props) {
                 size="sm"
                 variant="outline"
                 className="gap-1.5"
-                onClick={() => setConfirmAction("regenerate")}
+                onClick={() => {
+                  if (!signing.selectedId) {
+                    toast.error(SHORAKA_SIGNING_PERSON_REQUIRED_MESSAGE);
+                    return;
+                  }
+                  if (!signing.canSubmit) {
+                    toast.error(SHORAKA_SIGNING_PERSON_NO_SIGNATURE_MESSAGE);
+                    return;
+                  }
+                  setConfirmAction("regenerate");
+                }}
                 disabled={pendingAny}
               >
                 <ArrowPathIcon className="h-4 w-4" aria-hidden />
@@ -224,6 +253,14 @@ export function InvestmentNoteCertificateCard({ noteId, payload }: Props) {
           </div>
         </div>
         <p className="text-meta text-muted-foreground">{model.description}</p>
+        {payload.canGenerate || payload.canRegenerate ? (
+          <DocumentSigningPersonFields
+            options={payload.signingOptions}
+            selectedId={signing.selectedId}
+            onSelectedIdChange={signing.setSelectedId}
+            disabled={pendingAny}
+          />
+        ) : null}
         {review ? (
           <div
             data-certificate-review-version={review.version}
@@ -335,13 +372,17 @@ export function InvestmentNoteCertificateCard({ noteId, payload }: Props) {
                 const action = confirmAction;
                 setConfirmAction(null);
                 if (action === "generate") {
-                  void generate.mutateAsync().catch((err) => {
-                    toast.error(err instanceof Error ? err.message : "Generate failed");
-                  });
+                  void generate
+                    .mutateAsync({ signingPersonId: signing.selectedId })
+                    .catch((err) => {
+                      toast.error(err instanceof Error ? err.message : "Generate failed");
+                    });
                 } else if (action === "regenerate") {
-                  void reissue.mutateAsync().catch((err) => {
-                    toast.error(err instanceof Error ? err.message : "Regenerate failed");
-                  });
+                  void reissue
+                    .mutateAsync({ signingPersonId: signing.selectedId })
+                    .catch((err) => {
+                      toast.error(err instanceof Error ? err.message : "Regenerate failed");
+                    });
                 } else if (action === "publish") {
                   void publish.mutateAsync().catch((err) => {
                     toast.error(err instanceof Error ? err.message : "Publish failed");

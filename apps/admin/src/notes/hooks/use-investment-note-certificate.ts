@@ -83,9 +83,9 @@ export function useGenerateAdminInvestmentNoteCertificate(noteId?: string) {
   const apiClient = createApiClient(API_URL, getAccessToken);
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async () => {
+    mutationFn: async (body: { signingPersonId: string }) => {
       if (!noteId) throw new Error("Note ID is required");
-      const res = await apiClient.generateAdminInvestmentNoteCertificate(noteId);
+      const res = await apiClient.generateAdminInvestmentNoteCertificate(noteId, body);
       if (!res.success) throw new Error(res.error.message);
       return res.data;
     },
@@ -117,9 +117,9 @@ export function useReissueAdminInvestmentNoteCertificate(noteId?: string) {
   const apiClient = createApiClient(API_URL, getAccessToken);
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async () => {
+    mutationFn: async (body: { signingPersonId: string }) => {
       if (!noteId) throw new Error("Note ID is required");
-      const res = await apiClient.reissueAdminInvestmentNoteCertificate(noteId);
+      const res = await apiClient.reissueAdminInvestmentNoteCertificate(noteId, body);
       if (!res.success) throw new Error(res.error.message);
       return res.data;
     },

@@ -20,6 +20,9 @@ describe("admin official document cards", () => {
     expect(card).toContain("useReissueAdminInvestmentNoteCertificate");
     expect(card).toContain("useGenerateAdminInvestmentNoteCertificate");
     expect(card).toContain("usePublishAdminInvestmentNoteCertificate");
+    expect(card).toContain("DocumentSigningPersonFields");
+    expect(card).toContain("Shoraka signing person");
+    expect(card).not.toContain("Document Authorisation");
     expect(card).not.toContain("Regenerate / Reissue");
   });
 
@@ -33,6 +36,9 @@ describe("admin official document cards", () => {
     expect(card).toContain("Publish New Version");
     expect(card).toContain("useReissueAdminSettlementHibahReceipt");
     expect(card).toContain("useGenerateAdminSettlementHibahReceipt");
+    expect(card).toContain("DocumentSigningPersonFields");
+    expect(card).toContain("Shoraka signing person");
+    expect(card).not.toContain("Document Authorisation");
     expect(card).not.toContain("Regenerate / Reissue");
   });
 
@@ -48,3 +54,20 @@ describe("admin official document cards", () => {
     expect(card).not.toContain("Regenerate / Reissue");
   });
 });
+
+describe("admin document signing person fields", () => {
+  it("selects a configured Shoraka person and shows read-only signature and stamp previews", () => {
+    const fields = source("./document-signing-person-fields.tsx");
+    expect(fields).toContain("Signing person *");
+    expect(fields).toContain("Select signing person");
+    expect(fields).toContain("person.label");
+    expect(fields).toContain("Signature");
+    expect(fields).toContain("Company Stamp");
+    expect(fields).toContain("Shoraka Profile → Signing & Authorisation");
+    expect(fields).toContain("SHORAKA_SIGNING_PERSON_NO_SIGNATURE_MESSAGE");
+    expect(fields).toContain("defaultDocumentSigningPersonId");
+    expect(fields).not.toContain("type=\"file\"");
+    expect(fields).not.toContain("authorisedSignatoryName");
+  });
+});
+
