@@ -72,16 +72,15 @@ describe("planPersonRegTankIndividualSend", () => {
     });
   });
 
-  it("renews when the current request exists but verifyLink is missing", () => {
+  it("restarts when the current request exists but verifyLink is missing", () => {
     expect(
       planPersonRegTankIndividualSend({
         now,
         supplementRoot: { requestId: "LD-CURRENT", status: "IN_PROGRESS" },
       })
     ).toEqual({
-      action: "renew",
+      action: "restart",
       requestId: "LD-CURRENT",
-      verifyLink: "",
     });
   });
 
@@ -139,6 +138,15 @@ describe("planPersonRegTankIndividualSend", () => {
           },
         }).action
       ).toBe("reject");
+      expect(
+        planPersonRegTankIndividualSend({
+          supplementRoot: { requestId: "LD-CURRENT", status },
+        })
+      ).toEqual({
+        action: "reject",
+        code: "NOT_ALLOWED",
+        message: "Resend is only allowed for actionable individual rows",
+      });
     }
   });
 });
@@ -185,5 +193,27 @@ describe("current Person onboarding requestId", () => {
     );
     expect(isCurrentCtosPartyOnboardingRequest(afterRenew, "LD-CURRENT")).toBe(true);
     expect(afterRenew.requestId).toBe("LD-CURRENT");
+  });
+
+  it("makes the pre-restart requestId stale after storing the restarted request", () => {
+    const afterRestart = mergeCtosPartySupplementDocument(
+      {
+        requestId: "LD-OLD",
+        status: "IN_PROGRESS",
+        referenceId: "org-1_user",
+        email: "ali@example.com",
+      },
+      {
+        onboarding: {
+          requestId: "LD-NEW",
+          verifyLink: "https://verify.example/?requestId=LD-NEW&token=NEW",
+          verifyLinkExpiresAt: "2026-09-11T12:00:00.000Z",
+          status: "IN_PROGRESS",
+        },
+      }
+    );
+    expect(isCurrentCtosPartyOnboardingRequest(afterRestart, "LD-NEW")).toBe(true);
+    expect(isCurrentCtosPartyOnboardingRequest(afterRestart, "LD-OLD")).toBe(false);
+    expect(afterRestart.referenceId).toBe("org-1_user");
   });
 });

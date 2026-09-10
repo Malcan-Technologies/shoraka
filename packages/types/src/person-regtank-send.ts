@@ -3,9 +3,10 @@
  *
  * CREATE = no current onboarding_json.requestId
  * RESEND = same requestId, stored verifyLink still usable (valid or expiry unknown)
- * RENEW TOKEN = same requestId, expired or missing verifyLink
+ * RENEW TOKEN = same requestId, stored verifyLink expired
+ * RESTART = current requestId exists but verifyLink is missing (new requestId; old request stale)
  * Replacement CREATE happens only after an IN_PROGRESS email correction already
- * cleared the local request. Restart is not used in this flow.
+ * cleared the local request.
  */
 
 import { getCtosPartyCurrentOnboardingRequestId, parseCtosPartySupplement } from "./ctos-party-supplement-json";
@@ -16,7 +17,8 @@ import { normalizeRawStatus } from "./status-normalization";
  * Same protected/review set as personal org auto-restart exclusion:
  * WAIT_FOR_APPROVAL, LIVENESS_PASSED, PENDING_APPROVAL, APPROVED, REJECTED, COMPLETED.
  * Email lock stays on isPersonEmailLifecycleLocked / canManageDirectorShareholder
- * (WAIT_FOR_APPROVAL + APPROVED + AML terminal). This list is Send-only.
+ * (WAIT_FOR_APPROVAL + APPROVED + AML terminal). This list is Send-only, including
+ * missing-link RESTART.
  */
 const PERSON_ONBOARDING_STATUSES_BLOCK_NORMAL_SEND = new Set([
   "WAIT_FOR_APPROVAL",
@@ -31,6 +33,7 @@ export type PersonRegTankIndividualSendPlan =
   | { action: "create" }
   | { action: "resend"; requestId: string; verifyLink: string }
   | { action: "renew"; requestId: string; verifyLink: string }
+  | { action: "restart"; requestId: string }
   | {
       action: "reject";
       code: "NOT_ALLOWED";
@@ -65,6 +68,10 @@ export function planPersonRegTankIndividualSend(params: {
     verifyLinkExpiresAt: parsed.verifyLinkExpiresAt,
     now: params.now,
   });
+
+  if (expiry === "missing") {
+    return { action: "restart", requestId };
+  }
 
   if (expiry === "valid" || expiry === "unknown") {
     return { action: "resend", requestId, verifyLink };

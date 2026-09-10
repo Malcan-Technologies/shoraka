@@ -74,6 +74,7 @@ import {
   planPersonRegTankIndividualSend,
   calculateRegTankVerifyLinkExpiresAt,
   resolvePersonRenewedVerifyLink,
+  getRegTankVerifyLinkRequestId,
 } from "@cashsouk/types";
 import { buildDirectorShareholderPeopleListWithMaster } from "../organization-profile/load-master-parties-for-people";
 import { writeOrganizationPartyEmail } from "../organization-profile/person-email";
@@ -2705,6 +2706,93 @@ export class OrganizationService {
           };
         }
 
+        if (sendPlan.action === "restart") {
+          let restartedRequestId = "";
+          let restartedVerifyLink = "";
+          let restartedExpiresAt: Date | undefined;
+          let restartedStatus = "IN_PROGRESS";
+          try {
+            const restarted = await regTankApi.restartOnboarding(sendPlan.requestId, {
+              email: lockedEmail,
+              language: "EN",
+              idType: "IDENTITY",
+              skipFormPage: false,
+            });
+            restartedRequestId =
+              typeof restarted.requestId === "string" ? restarted.requestId.trim() : "";
+            restartedVerifyLink =
+              typeof restarted.verifyLink === "string" ? restarted.verifyLink.trim() : "";
+            const linkRequestId = restartedVerifyLink
+              ? getRegTankVerifyLinkRequestId(restartedVerifyLink)
+              : "";
+            if (!restartedRequestId || !restartedVerifyLink || !linkRequestId) {
+              throw new AppError(
+                502,
+                "REGTANK_RESTART_FAILED",
+                "RegTank restart did not return a usable requestId and verifyLink"
+              );
+            }
+            if (linkRequestId !== restartedRequestId) {
+              throw new AppError(
+                502,
+                "REGTANK_RESTART_FAILED",
+                "RegTank restart verifyLink requestId did not match the restart response"
+              );
+            }
+            restartedExpiresAt = calculateRegTankVerifyLinkExpiresAt({
+              expiredIn: restarted.expiredIn,
+              timestamp: restarted.timestamp,
+              now,
+            });
+            const returnedStatus =
+              typeof restarted.status === "string" ? restarted.status.trim() : "";
+            if (returnedStatus) {
+              restartedStatus = returnedStatus;
+            }
+          } catch (e) {
+            logger.error(
+              { organizationId, partyKey: pk, error: e instanceof Error ? e.message : String(e) },
+              "RegTank director onboarding restart failed"
+            );
+            if (e instanceof AppError) throw e;
+            throw new AppError(
+              502,
+              "REGTANK_RESTART_FAILED",
+              e instanceof Error ? e.message : "RegTank restart request failed"
+            );
+          }
+
+          const keptReferenceId =
+            (parseCtosPartySupplement(lockedRoot).referenceId ?? "").trim() || referenceId;
+          const mergedRestart = mergeCtosPartySupplementDocument(lockedRoot, {
+            onboarding: {
+              email: lockedEmail,
+              status: restartedStatus,
+              requestId: restartedRequestId,
+              referenceId: keptReferenceId,
+              verifyLink: restartedVerifyLink,
+              verifyLinkExpiresAt: restartedExpiresAt ? restartedExpiresAt.toISOString() : "",
+              sentAt: nowIso,
+              lastSentAt: nowIso,
+              sendTimestamps: [...sendHistory, nowIso],
+            },
+          });
+          await upsertCtosPartySupplementOnboardingJson(
+            portalType,
+            organizationId,
+            pk,
+            mergedRestart as Prisma.InputJsonValue,
+            entities.directorKycStatus,
+            tx
+          );
+          return {
+            kind: "restart" as const,
+            requestId: restartedRequestId,
+            verifyLink: restartedVerifyLink,
+            email: lockedEmail,
+          };
+        }
+
         const onboardingRequest: RegTankIndividualOnboardingRequest = {
           email: lockedEmail,
           surname,
@@ -2803,7 +2891,13 @@ export class OrganizationService {
 
     const { requestId, verifyLink } = sendOutcome;
     const sesKindLabel =
-      sendOutcome.kind === "resend" ? "resent" : sendOutcome.kind === "renew" ? "renewed" : "sent";
+      sendOutcome.kind === "resend"
+        ? "resent"
+        : sendOutcome.kind === "renew"
+          ? "renewed"
+          : sendOutcome.kind === "restart"
+            ? "restarted"
+            : "sent";
     if (verifyLink) {
       try {
         console.log(
@@ -2859,7 +2953,9 @@ export class OrganizationService {
         ? "Director CTOS party RegTank onboarding resent"
         : sendOutcome.kind === "renew"
           ? "Director CTOS party RegTank onboarding token renewed"
-          : "Director CTOS party RegTank onboarding sent"
+          : sendOutcome.kind === "restart"
+            ? "Director CTOS party RegTank onboarding restarted"
+            : "Director CTOS party RegTank onboarding sent"
     );
     return { requestId };
   }

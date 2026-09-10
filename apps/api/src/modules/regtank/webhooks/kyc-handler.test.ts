@@ -406,4 +406,30 @@ describe("KYCWebhookHandler", () => {
       })
     );
   });
+
+  it("ignores a pre-restart KYC/AML webhook", async () => {
+    mockFindByRequestId.mockResolvedValue(null);
+    (findCtosPartySupplementByOnboardingJsonMatch as jest.Mock).mockResolvedValue({
+      id: "sup-restart",
+      party_key: "user:1",
+      issuer_organization_id: "org-iss",
+      investor_organization_id: null,
+      onboarding_json: {
+        requestId: "LD101",
+        status: "IN_PROGRESS",
+        screening: { requestId: "KYC-NEW", status: "PENDING" },
+      },
+    });
+    const handler = new KYCWebhookHandler("ACURIS");
+
+    await (handler as any).handle({
+      requestId: "KYC-OLD",
+      onboardingId: "LD100",
+      referenceId: "org-iss_user1",
+      status: "CLEAR",
+    });
+
+    expect(prisma.ctosPartySupplement.update).not.toHaveBeenCalled();
+    expect(linkCtosPartyToKyb).not.toHaveBeenCalled();
+  });
 });

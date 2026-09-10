@@ -3,6 +3,7 @@ import {
   calculateRegTankVerifyLinkExpiresAt,
   classifyPersonVerifyLinkExpiry,
   deriveRegTankIndividualOnboardingOrigin,
+  getRegTankVerifyLinkRequestId,
   parseRegTankTimestamp,
   replaceRegTankVerifyLinkToken,
   resolvePersonRenewedVerifyLink,
@@ -151,5 +152,10 @@ describe("RegTank verify-link URL handling", () => {
     });
     expect(new URL(patched).searchParams.get("token")).toBe("NEWTOKEN");
     expect(new URL(patched).searchParams.get("requestId")).toBe("LD00001");
+  });
+
+  it("reads requestId from a stored verifyLink", () => {
+    expect(getRegTankVerifyLinkRequestId(existing)).toBe("LD00001");
+    expect(getRegTankVerifyLinkRequestId("not-a-url")).toBe("");
   });
 });

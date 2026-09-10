@@ -2,10 +2,11 @@ import { OnboardingStatus, OrganizationMemberRole, OrganizationType } from "@pri
 import { readFileSync } from "fs";
 import { join } from "path";
 import type { ApplicationPersonRow } from "@cashsouk/types";
-import { mergeCtosPartySupplementDocument, planPersonEmailWrite } from "@cashsouk/types";
+import { mergeCtosPartySupplementDocument, planPersonEmailWrite, isCurrentCtosPartyOnboardingRequest } from "@cashsouk/types";
 
 const mockCreateIndividualOnboarding = jest.fn();
 const mockRenewIndividualOnboardingToken = jest.fn();
+const mockRestartOnboarding = jest.fn();
 const mockSendOnboardingEmail = jest.fn();
 const mockPartyFindFirst = jest.fn();
 const mockSupplementFindFirst = jest.fn();
@@ -101,6 +102,7 @@ jest.mock("../regtank/api-client", () => ({
   RegTankAPIClient: jest.fn().mockImplementation(() => ({
     createIndividualOnboarding: (...args: unknown[]) => mockCreateIndividualOnboarding(...args),
     renewIndividualOnboardingToken: (...args: unknown[]) => mockRenewIndividualOnboardingToken(...args),
+    restartOnboarding: (...args: unknown[]) => mockRestartOnboarding(...args),
   })),
 }));
 
@@ -117,6 +119,8 @@ import { OrganizationService } from "./service";
 const generatedKey = "user:550e8400-e29b-41d4-a716-446655440000";
 const CURRENT_LINK =
   "https://shoraka-onboarding.regtank.com?requestId=LD-CURRENT&formId=1015495&token=OLDTOKEN&language=EN&step=BaseInfo&skipFormPage=false";
+const RESTARTED_LINK =
+  "https://shoraka-onboarding.regtank.com?requestId=LD-RESTARTED&formId=1015495&token=RESTARTTOKEN&language=EN&step=BaseInfo&skipFormPage=false";
 const FUTURE_EXPIRY = new Date(Date.now() + 60 * 60 * 1000).toISOString();
 const PAST_EXPIRY = new Date(Date.now() - 60 * 1000).toISOString();
 
@@ -204,6 +208,12 @@ describe("Person RegTank send resend and replacement", () => {
       expiredIn: 86400,
       timestamp: "2026-09-10T12:00:00.000Z",
     });
+    mockRestartOnboarding.mockResolvedValue({
+      requestId: "LD-RESTARTED",
+      verifyLink: RESTARTED_LINK,
+      expiredIn: 86400,
+      timestamp: "2026-09-10T12:00:00.000Z",
+    });
     mockSendOnboardingEmail.mockResolvedValue(undefined);
     mockIssuerFindUnique.mockResolvedValue({ director_kyc_status: null });
     mockPartyFindFirst.mockResolvedValue(partyMaster());
@@ -219,6 +229,7 @@ describe("Person RegTank send resend and replacement", () => {
     expect(result.requestId).toBe("LD-NEW");
     expect(mockCreateIndividualOnboarding).toHaveBeenCalledTimes(1);
     expect(mockRenewIndividualOnboardingToken).not.toHaveBeenCalled();
+    expect(mockRestartOnboarding).not.toHaveBeenCalled();
     expect(mockSupplementCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -248,6 +259,7 @@ describe("Person RegTank send resend and replacement", () => {
     expect(result.requestId).toBe("LD-CURRENT");
     expect(mockCreateIndividualOnboarding).not.toHaveBeenCalled();
     expect(mockRenewIndividualOnboardingToken).not.toHaveBeenCalled();
+    expect(mockRestartOnboarding).not.toHaveBeenCalled();
     expect(mockSendOnboardingEmail).toHaveBeenCalledWith({
       to: "ali@example.com",
       verifyLink: CURRENT_LINK,
@@ -273,6 +285,7 @@ describe("Person RegTank send resend and replacement", () => {
     expect(result.requestId).toBe("LD-CURRENT");
     expect(mockCreateIndividualOnboarding).not.toHaveBeenCalled();
     expect(mockRenewIndividualOnboardingToken).not.toHaveBeenCalled();
+    expect(mockRestartOnboarding).not.toHaveBeenCalled();
     expect(mockSendOnboardingEmail).toHaveBeenCalledWith({
       to: "ali@example.com",
       verifyLink: CURRENT_LINK,
@@ -312,6 +325,7 @@ describe("Person RegTank send resend and replacement", () => {
     expect(result.requestId).toBe("LD-NEW");
     expect(mockCreateIndividualOnboarding).toHaveBeenCalledTimes(1);
     expect(mockRenewIndividualOnboardingToken).not.toHaveBeenCalled();
+    expect(mockRestartOnboarding).not.toHaveBeenCalled();
     expect(mockSupplementUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -368,6 +382,32 @@ describe("Person RegTank send resend and replacement", () => {
     expect(mockCreateIndividualOnboarding).not.toHaveBeenCalled();
   });
 
+  it("does not restart a missing verifyLink once the Person is WAIT_FOR_APPROVAL", async () => {
+    jest.spyOn(service, "getCorporateEntities").mockResolvedValue({
+      people: [personRow({ onboarding: { status: "WAIT_FOR_APPROVAL", id: "LD-CURRENT" } })],
+      directorKycStatus: null,
+      ctosPartySupplements: [],
+      directors: [],
+      shareholders: [],
+      corporateShareholders: [],
+    });
+    const json = { ...inProgressSupplement({ status: "WAIT_FOR_APPROVAL" }).onboarding_json };
+    delete (json as { verifyLink?: string }).verifyLink;
+    mockSupplementFindFirst.mockResolvedValue({
+      id: "sup-1",
+      party_key: generatedKey,
+      onboarding_json: json,
+    });
+    await expect(
+      service.sendDirectorCtosPartyOnboarding("user-1", "org-1", "issuer", {
+        partyKey: generatedKey,
+      })
+    ).rejects.toMatchObject({ statusCode: 400, code: "NOT_ALLOWED" });
+    expect(mockRestartOnboarding).not.toHaveBeenCalled();
+    expect(mockCreateIndividualOnboarding).not.toHaveBeenCalled();
+    expect(mockRenewIndividualOnboardingToken).not.toHaveBeenCalled();
+  });
+
   it("rejects WAIT_FOR_APPROVAL Person Email edits", () => {
     expect(
       planPersonEmailWrite({
@@ -388,6 +428,7 @@ describe("Person RegTank send resend and replacement", () => {
     expect(result.requestId).toBe("LD-CURRENT");
     expect(mockCreateIndividualOnboarding).not.toHaveBeenCalled();
     expect(mockRenewIndividualOnboardingToken).toHaveBeenCalledTimes(1);
+    expect(mockRestartOnboarding).not.toHaveBeenCalled();
     expect(mockRenewIndividualOnboardingToken).toHaveBeenCalledWith({
       requestId: "LD-CURRENT",
       email: "ali@example.com",
@@ -410,7 +451,7 @@ describe("Person RegTank send resend and replacement", () => {
     });
   });
 
-  it("renews when verifyLink is missing and reconstructs the URL from the current request", async () => {
+  it("restarts when verifyLink is missing, stores the new request, and emails the new link", async () => {
     const json = { ...inProgressSupplement().onboarding_json };
     delete (json as { verifyLink?: string }).verifyLink;
     mockSupplementFindFirst.mockResolvedValue({
@@ -421,24 +462,32 @@ describe("Person RegTank send resend and replacement", () => {
     const result = await service.sendDirectorCtosPartyOnboarding("user-1", "org-1", "issuer", {
       partyKey: generatedKey,
     });
-    expect(result.requestId).toBe("LD-CURRENT");
+    expect(result.requestId).toBe("LD-RESTARTED");
     expect(mockCreateIndividualOnboarding).not.toHaveBeenCalled();
-    expect(mockRenewIndividualOnboardingToken).toHaveBeenCalledTimes(1);
+    expect(mockRenewIndividualOnboardingToken).not.toHaveBeenCalled();
+    expect(mockRestartOnboarding).toHaveBeenCalledTimes(1);
+    expect(mockRestartOnboarding).toHaveBeenCalledWith("LD-CURRENT", {
+      email: "ali@example.com",
+      language: "EN",
+      idType: "IDENTITY",
+      skipFormPage: false,
+    });
     const updated = mockSupplementUpdate.mock.calls[0]?.[0].data.onboarding_json as {
       verifyLink: string;
       requestId: string;
+      verifyLinkExpiresAt: string;
+      status: string;
+      referenceId?: string;
     };
-    const url = new URL(updated.verifyLink);
-    expect(updated.requestId).toBe("LD-CURRENT");
-    expect(url.origin).toBe("https://shoraka-onboarding.regtank.com");
-    expect(url.searchParams.get("requestId")).toBe("LD-CURRENT");
-    expect(url.searchParams.get("token")).toBe("NEWTOKEN");
-    expect(url.searchParams.get("formId")).toBe("1015495");
-    expect(url.searchParams.get("step")).toBe("BaseInfo");
-    expect(url.searchParams.get("skipFormPage")).toBe("false");
+    expect(updated.requestId).toBe("LD-RESTARTED");
+    expect(updated.verifyLink).toBe(RESTARTED_LINK);
+    expect(updated.verifyLinkExpiresAt).toBe("2026-09-11T12:00:00.000Z");
+    expect(updated.status).toBe("IN_PROGRESS");
+    expect(isCurrentCtosPartyOnboardingRequest(updated, "LD-RESTARTED")).toBe(true);
+    expect(isCurrentCtosPartyOnboardingRequest(updated, "LD-CURRENT")).toBe(false);
     expect(mockSendOnboardingEmail).toHaveBeenCalledWith({
       to: "ali@example.com",
-      verifyLink: updated.verifyLink,
+      verifyLink: RESTARTED_LINK,
     });
   });
 
@@ -465,6 +514,7 @@ describe("Person RegTank send resend and replacement", () => {
       ).rejects.toMatchObject({ statusCode: 400, code: "NOT_ALLOWED" });
       expect(mockCreateIndividualOnboarding).not.toHaveBeenCalled();
       expect(mockRenewIndividualOnboardingToken).not.toHaveBeenCalled();
+      expect(mockRestartOnboarding).not.toHaveBeenCalled();
     }
   });
 
@@ -515,6 +565,7 @@ describe("Person RegTank send resend and replacement", () => {
     );
     expect(storedExpiry).toBeGreaterThan(Date.now());
     expect(mockRenewIndividualOnboardingToken).not.toHaveBeenCalled();
+    expect(mockRestartOnboarding).not.toHaveBeenCalled();
   });
 
   it("serializes concurrent expired-link sends into one renew", async () => {
@@ -555,27 +606,76 @@ describe("Person RegTank send resend and replacement", () => {
     ]);
     expect(mockRenewIndividualOnboardingToken).toHaveBeenCalledTimes(1);
     expect(mockCreateIndividualOnboarding).not.toHaveBeenCalled();
+    expect(mockRestartOnboarding).not.toHaveBeenCalled();
     expect(first.requestId).toBe("LD-CURRENT");
     expect(second.requestId).toBe("LD-CURRENT");
     expect(stored?.onboarding_json.requestId).toBe("LD-CURRENT");
     expect(new URL(String(stored?.onboarding_json.verifyLink)).searchParams.get("token")).toBe("NEWTOKEN");
   });
 
-  it("locks the Person row before creating or renewing a RegTank request", () => {
+  it("serializes concurrent missing-link sends into one restart, then resends the new link", async () => {
+    const json = { ...inProgressSupplement().onboarding_json };
+    delete (json as { verifyLink?: string }).verifyLink;
+    let stored: { id: string; party_key: string; onboarding_json: Record<string, unknown> } | null = {
+      id: "sup-1",
+      party_key: generatedKey,
+      onboarding_json: { ...json, requestId: "LD-CURRENT", status: "IN_PROGRESS" },
+    };
+    mockSupplementFindFirst.mockImplementation(async () => stored);
+    mockSupplementUpdate.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => {
+      stored = {
+        id: "sup-1",
+        party_key: generatedKey,
+        onboarding_json: data.onboarding_json as Record<string, unknown>,
+      };
+      return stored;
+    });
+    mockRestartOnboarding.mockImplementation(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 40));
+      return {
+        requestId: "LD-RESTARTED",
+        verifyLink: RESTARTED_LINK,
+        expiredIn: 86400,
+        timestamp: new Date().toISOString(),
+      };
+    });
+
+    const [first, second] = await Promise.all([
+      service.sendDirectorCtosPartyOnboarding("user-1", "org-1", "issuer", { partyKey: generatedKey }),
+      service.sendDirectorCtosPartyOnboarding("user-1", "org-1", "issuer", { partyKey: generatedKey }),
+    ]);
+    expect(mockRestartOnboarding).toHaveBeenCalledTimes(1);
+    expect(mockCreateIndividualOnboarding).not.toHaveBeenCalled();
+    expect(mockRenewIndividualOnboardingToken).not.toHaveBeenCalled();
+    expect(first.requestId).toBe("LD-RESTARTED");
+    expect(second.requestId).toBe("LD-RESTARTED");
+    expect(stored?.onboarding_json.requestId).toBe("LD-RESTARTED");
+    expect(stored?.onboarding_json.verifyLink).toBe(RESTARTED_LINK);
+    expect(mockSendOnboardingEmail).toHaveBeenCalledWith({
+      to: "ali@example.com",
+      verifyLink: RESTARTED_LINK,
+    });
+  });
+
+  it("locks the Person row before creating, renewing, or restarting a RegTank request", () => {
     const source = readFileSync(join(__dirname, "service.ts"), "utf8");
     const sendStart = source.indexOf("async sendDirectorCtosPartyOnboarding");
     const sendEnd = source.indexOf("async getCorporateEntitiesPrivileged");
     const sendFn = source.slice(sendStart, sendEnd);
     expect(sendFn).toContain("lockOrganizationPartyProfileForUpdate");
     expect(sendFn).toContain("lockCtosPartySupplementForUpdate");
-    expect(sendFn).not.toContain("restartOnboarding");
+    expect(sendFn).toContain("restartOnboarding");
     expect(sendFn.indexOf("lockOrganizationPartyProfileForUpdate")).toBeLessThan(
       sendFn.indexOf("createIndividualOnboarding")
     );
     expect(sendFn.indexOf("lockOrganizationPartyProfileForUpdate")).toBeLessThan(
       sendFn.indexOf("renewIndividualOnboardingToken")
     );
+    expect(sendFn.indexOf("lockOrganizationPartyProfileForUpdate")).toBeLessThan(
+      sendFn.indexOf("restartOnboarding")
+    );
     expect(sendFn.indexOf("$transaction")).toBeLessThan(sendFn.indexOf("createIndividualOnboarding"));
     expect(sendFn.indexOf("$transaction")).toBeLessThan(sendFn.indexOf("renewIndividualOnboardingToken"));
+    expect(sendFn.indexOf("$transaction")).toBeLessThan(sendFn.indexOf("restartOnboarding"));
   });
 });

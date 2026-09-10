@@ -91,6 +91,14 @@ export function replaceRegTankVerifyLinkToken(verifyLink: string, token: string)
   return url.toString();
 }
 
+export function getRegTankVerifyLinkRequestId(verifyLink: string): string {
+  try {
+    return new URL(verifyLink).searchParams.get("requestId")?.trim() ?? "";
+  } catch {
+    return "";
+  }
+}
+
 export function deriveRegTankIndividualOnboardingOrigin(apiBaseUrl: string): string {
   const base = apiBaseUrl.trim().replace(/\/+$/, "");
   if (base.includes("-server")) {
