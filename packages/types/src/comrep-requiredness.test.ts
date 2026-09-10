@@ -49,10 +49,43 @@ describe("ComRep requiredness", () => {
 
   it("blocks issuer contact Save when E-mail Address is blank", () => {
     const issues = validateIssuerContactPersonForm({
+      name: "Ops Contact",
+      position: "CFO",
       email: "",
       contact: "+60123456789",
     });
     expect(issues.map((issue) => issue.field)).toContain("contactPersonEmail");
+  });
+
+  it("blocks issuer contact Save when Full Name or Position is blank", () => {
+    const missingName = validateIssuerContactPersonForm({
+      name: "  ",
+      position: "CFO",
+      email: "ops@acme.test",
+      contact: "+60123456789",
+    });
+    expect(missingName.map((issue) => issue.field)).toEqual(["contactPersonName"]);
+    expect(missingName[0]?.message).toBe("Full Name is required.");
+
+    const missingPosition = validateIssuerContactPersonForm({
+      name: "Ops Contact",
+      position: "",
+      email: "ops@acme.test",
+      contact: "+60123456789",
+    });
+    expect(missingPosition.map((issue) => issue.field)).toEqual(["contactPersonPosition"]);
+    expect(missingPosition[0]?.message).toBe("Position is required.");
+  });
+
+  it("accepts a complete issuer Person in Charge form", () => {
+    expect(
+      validateIssuerContactPersonForm({
+        name: "Ops Contact",
+        position: "CFO",
+        email: "ops@acme.test",
+        contact: "+60123456789",
+      })
+    ).toEqual([]);
   });
 
   it("does not require company-level E-mail Address on Company Details", () => {

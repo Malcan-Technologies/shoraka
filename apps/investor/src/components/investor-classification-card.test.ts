@@ -19,7 +19,12 @@ describe("investor classification card", () => {
     expect(source).toContain('patchMasterProfile("investor"');
     expect(source).toContain("payload.scInvestorCategory");
     expect(source).toContain("Save changes");
+    expect(source).toContain("setIsEditing(true)");
+    expect(source).toContain("setIsEditing(false)");
+    expect(source).toContain("onClick={() => save.mutate()}");
+    expect(source.match(/save\.mutate/g)?.length).toBe(1);
     expect(source).not.toContain("saveSophisticated.mutate");
+    expect(source).not.toContain("sophisticated-reason");
   });
 
   it("does not auto-select Type of Investor", () => {

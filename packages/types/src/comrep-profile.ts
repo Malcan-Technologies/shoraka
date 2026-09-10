@@ -458,6 +458,22 @@ export function isIssuerContactPersonFilled(
   );
 }
 
+/** Current Profile contact, then RegTank PIC — same resolution the issuer application company-details step uses. */
+export function resolveIssuerProfileContactPerson(
+  contactPerson: IssuerContactPerson | null | undefined,
+  personInCharge: IssuerPersonInChargeEvidence | null | undefined
+): IssuerContactPerson {
+  if (isIssuerContactPersonFilled(contactPerson)) {
+    return {
+      name: trimContactText(contactPerson?.name) || null,
+      position: trimContactText(contactPerson?.position) || null,
+      email: trimContactText(contactPerson?.email) || null,
+      contact: trimContactText(contactPerson?.contact) || null,
+    };
+  }
+  return seedIssuerContactPersonFromPic(personInCharge);
+}
+
 export function seedIssuerContactPersonFromPic(
   pic: IssuerPersonInChargeEvidence | null | undefined
 ): IssuerContactPerson {
@@ -929,7 +945,12 @@ export function issuerUiSectionForMissing(item: ProfileMissingItem): ProfileUiSe
   if (item.field.startsWith("registeredAddress") || item.field.startsWith("businessAddress")) {
     return "addresses";
   }
-  if (item.field === "contactPersonEmail" || item.field === "contactPersonPhone") {
+  if (
+    item.field === "contactPersonEmail" ||
+    item.field === "contactPersonPhone" ||
+    item.field === "contactPersonName" ||
+    item.field === "contactPersonPosition"
+  ) {
     return "contact";
   }
   return "company";
@@ -1365,8 +1386,13 @@ function withUserFacingCompleteness(
   };
 }
 
-/** Platform completeness for issuer company master data. Issuer ID (if any) and Company Activities are not counted. */
-export const ISSUER_COMPANY_COMPLETENESS_FIELD_COUNT = 14;
+/**
+ * Platform completeness for issuer company master data.
+ * Includes Person in Charge Full Name and Position because the issuer application
+ * company-details step cannot continue without them on Profile.
+ * Issuer ID (if any) and Company Activities are not counted.
+ */
+export const ISSUER_COMPANY_COMPLETENESS_FIELD_COUNT = 16;
 
 export function computeIssuerCompanyCompleteness(
   input: IssuerCompanyCompletenessInput
@@ -1416,6 +1442,13 @@ export function computeIssuerCompanyCompleteness(
       "businessAddress.postalCode",
       profileAddressCompletenessLabel("business", "postcode")
     );
+  }
+  const profileContact = resolveIssuerProfileContactPerson(input.contactPerson, input.personInCharge);
+  if (!hasText(profileContact.name)) {
+    pushMissing(missing, step, "contactPersonName", PROFILE_LABEL.fullName);
+  }
+  if (!hasText(profileContact.position)) {
+    pushMissing(missing, step, "contactPersonPosition", PROFILE_LABEL.position);
   }
   const contactEmail = resolveIssuerComrepEmail(input.contactPerson, input.personInCharge);
   const contactPhone = resolveIssuerComrepPhone(input.contactPerson, input.personInCharge);

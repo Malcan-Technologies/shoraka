@@ -144,6 +144,8 @@ export function OrganizationPeoplePanel({
   const handleSavePic = () => {
     const issues = issuerContact
       ? validateIssuerContactPersonForm({
+          name: draft.picName,
+          position: draft.picPosition,
           email: draft.picEmail,
           contact: draft.picContactNumber,
         })
@@ -446,17 +448,22 @@ export function OrganizationPeoplePanel({
                     label="Name"
                     value={draft.picName}
                     onChange={(picName) => setDraft((current) => ({ ...current, picName }))}
+                    required={issuerContact}
+                    error={picFieldErrors.picName || picFieldErrors.contactPersonName}
                   />
                   <EditableField
                     label="Position"
                     value={draft.picPosition}
                     onChange={(picPosition) => setDraft((current) => ({ ...current, picPosition }))}
+                    required={issuerContact}
+                    error={picFieldErrors.picPosition || picFieldErrors.contactPersonPosition}
                   />
                   <EditableField
                     label={picEmailLabel}
                     value={draft.picEmail}
                     onChange={(picEmail) => setDraft((current) => ({ ...current, picEmail }))}
                     maxLength={255}
+                    required={issuerContact}
                     error={picFieldErrors.picEmail || picFieldErrors.contactPersonEmail}
                   />
                   <EditablePhoneField
@@ -465,6 +472,7 @@ export function OrganizationPeoplePanel({
                     onChange={(picContactNumber) =>
                       setDraft((current) => ({ ...current, picContactNumber }))
                     }
+                    required={issuerContact}
                     error={picFieldErrors.picContactNumber || picFieldErrors.contactPersonPhone}
                   />
                 </>

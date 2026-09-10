@@ -89,6 +89,8 @@ export function OrganizationPicCard({
   const handleSavePic = () => {
     const issues = issuerContact
       ? validateIssuerContactPersonForm({
+          name: draft.picName,
+          position: draft.picPosition,
           email: draft.picEmail,
           contact: draft.picContactNumber,
         })
@@ -129,6 +131,12 @@ export function OrganizationPicCard({
         }
         if (error.fieldErrors["corporateOnboardingData.contactPerson.email"]) {
           next.picEmail = error.fieldErrors["corporateOnboardingData.contactPerson.email"];
+        }
+        if (error.fieldErrors["contactPersonName"]) {
+          next.picName = error.fieldErrors["contactPersonName"];
+        }
+        if (error.fieldErrors["contactPersonPosition"]) {
+          next.picPosition = error.fieldErrors["contactPersonPosition"];
         }
         if (error.fieldErrors["contactPersonEmail"]) {
           next.picEmail = error.fieldErrors["contactPersonEmail"];
@@ -175,11 +183,15 @@ export function OrganizationPicCard({
                     label={PROFILE_LABEL.fullName}
                     value={draft.picName}
                     onChange={(picName) => setDraft((current) => ({ ...current, picName }))}
+                    required={issuerContact}
+                    error={picFieldErrors.picName || picFieldErrors.contactPersonName}
                   />
                   <EditableField
                     label={PROFILE_LABEL.position}
                     value={draft.picPosition}
                     onChange={(picPosition) => setDraft((current) => ({ ...current, picPosition }))}
+                    required={issuerContact}
+                    error={picFieldErrors.picPosition || picFieldErrors.contactPersonPosition}
                   />
                   <EditableField
                     label={picEmailLabel}

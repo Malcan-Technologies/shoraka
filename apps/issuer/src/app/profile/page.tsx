@@ -636,11 +636,9 @@ export default function ProfilePage() {
       return;
     }
 
-    if (!contactName.trim() || !contactPosition.trim()) {
-      toast.error("Enter all contact details");
-      return;
-    }
     const issues = validateIssuerContactPersonForm({
+      name: contactName,
+      position: contactPosition,
       email: contactEmail,
       contact: contactPhone,
     });
@@ -1428,8 +1426,16 @@ export default function ProfilePage() {
                     </div>
                   ) : (
                     <ProfileFieldGrid>
-                      <ProfileReadField label={PROFILE_LABEL.fullName} value={contactName || "—"} />
-                      <ProfileReadField label={PROFILE_LABEL.position} value={contactPosition || "—"} />
+                      <ProfileReadField
+                        label={PROFILE_LABEL.fullName}
+                        value={contactName || "—"}
+                        missing={missingFieldKeys.has("contactPersonName")}
+                      />
+                      <ProfileReadField
+                        label={PROFILE_LABEL.position}
+                        value={contactPosition || "—"}
+                        missing={missingFieldKeys.has("contactPersonPosition")}
+                      />
                       <ProfileReadField
                         label={PROFILE_LABEL.personEmail}
                         value={contactEmail || "—"}

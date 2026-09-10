@@ -413,12 +413,21 @@ export function validateIssuerCompanyForm(input: {
   return issues;
 }
 
-/** ComRep [02000] E-mail Address and Phone Number live on current Contact Person. */
+/**
+ * Issuer Person in Charge (current contact) form.
+ * Person Email and Phone are ComRep [02000] company contact fields.
+ * Full Name and Position are required because the issuer application company-details
+ * step snapshots them from Profile and cannot continue while they are blank.
+ */
 export function validateIssuerContactPersonForm(input: {
+  name?: unknown;
+  position?: unknown;
   email?: unknown;
   contact?: unknown;
 }): ComrepFieldIssue[] {
   const issues: ComrepFieldIssue[] = [];
+  push(issues, requiredTextIssue(input.name, "contactPersonName", PROFILE_LABEL.fullName));
+  push(issues, requiredTextIssue(input.position, "contactPersonPosition", PROFILE_LABEL.position));
   push(issues, requiredEmailIssue(input.email, "contactPersonEmail", PROFILE_LABEL.personEmail));
   push(issues, requiredPhoneIssue(input.contact, "contactPersonPhone", PROFILE_LABEL.phone));
   return issues;

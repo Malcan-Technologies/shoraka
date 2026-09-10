@@ -26,6 +26,13 @@ describe("Admin company organisation profile", () => {
     expect(panel).toContain("OrganizationPicCard");
   });
 
+  it("requires issuer PIC Full Name and Position on Save, matching application company-details", () => {
+    expect(pic).toContain("name: draft.picName");
+    expect(pic).toContain("position: draft.picPosition");
+    expect(pic).toContain("required={issuerContact}");
+    expect(pic).toContain("validateIssuerContactPersonForm");
+  });
+
   it("shows missing field counts and does not require individual KYC on company shareholders", () => {
     expect(detail).toContain("fields\"} remaining");
     expect(detail).toContain("Individual KYC is not required.");
