@@ -5,8 +5,11 @@ import {
   computeCashflowNext90Days,
   idleDaysSince,
   malaysiaDateKey,
+  malaysiaDateKeysInclusive,
+  malaysiaStartOfDay,
   principalEventsFromConfirmationsAndReturns,
   reconstructPrincipalOnDates,
+  resolvePortfolioHistoryStartDate,
   returnsSinceDate,
   sumReturnsEarned,
   uniqueSettlementsById,
@@ -40,6 +43,28 @@ describe("malaysiaDateKey", () => {
   it("uses the MYT calendar date when UTC is still the previous evening", () => {
     expect(malaysiaDateKey(new Date("2026-01-01T15:59:00.000Z"))).toBe("2026-01-01");
     expect(malaysiaDateKey(new Date("2026-01-01T16:00:00.000Z"))).toBe("2026-01-02");
+  });
+});
+
+describe("portfolio history date keys", () => {
+  it("aligns range start and daily keys to Malaysia midnight, not the server timezone", () => {
+    const latest = new Date("2026-09-09T16:30:00.000Z");
+    const start = resolvePortfolioHistoryStartDate("1W", malaysiaStartOfDay(latest), malaysiaStartOfDay(latest));
+    expect(malaysiaDateKey(start)).toBe("2026-09-04");
+    expect(
+      malaysiaDateKeysInclusive(
+        new Date("2026-09-08T16:00:00.000Z"),
+        new Date("2026-09-09T16:30:00.000Z")
+      )
+    ).toEqual(["2026-09-09", "2026-09-10"]);
+  });
+
+  it("starts YTD on Malaysia 1 January of the displayed year", () => {
+    const latest = malaysiaStartOfDay(new Date("2026-01-01T15:59:00.000Z"));
+    expect(malaysiaDateKey(latest)).toBe("2026-01-01");
+    expect(
+      malaysiaDateKey(resolvePortfolioHistoryStartDate("YTD", latest, latest))
+    ).toBe("2026-01-01");
   });
 });
 

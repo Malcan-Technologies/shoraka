@@ -33,6 +33,35 @@ describe("bookMetricsAsOfFilters", () => {
     );
   });
 
+  it("keeps notes that entered arrears after cutoff then repaid before the snapshot on outstanding", () => {
+    const filters = bookMetricsAsOfFilters(cutoff);
+    expect(filters.outstanding).toEqual(
+      expect.objectContaining({
+        AND: expect.arrayContaining([
+          expect.objectContaining({
+            OR: expect.arrayContaining([
+              expect.objectContaining({
+                status: NoteStatus.REPAID,
+                repaid_at: { gte: cutoff },
+                AND: [
+                  {
+                    OR: [
+                      { arrears_started_at: null },
+                      { arrears_started_at: { gte: cutoff } },
+                    ],
+                  },
+                  {
+                    OR: [{ default_marked_at: null }, { default_marked_at: { gte: cutoff } }],
+                  },
+                ],
+              }),
+            ]),
+          }),
+        ]),
+      })
+    );
+  });
+
   it("keeps same-morning arrears on the outstanding book instead of yesterday's arrears", () => {
     const filters = bookMetricsAsOfFilters(cutoff);
     expect(JSON.stringify(filters.arrears)).toContain("\"lt\":");

@@ -44,8 +44,17 @@ export function bookMetricsAsOfFilters(asOfCutoff?: Date) {
             {
               status: NoteStatus.REPAID,
               repaid_at: { gte: asOfCutoff },
-              arrears_started_at: null,
-              OR: [{ default_marked_at: null }, { default_marked_at: { gte: asOfCutoff } }],
+              AND: [
+                {
+                  OR: [
+                    { arrears_started_at: null },
+                    { arrears_started_at: { gte: asOfCutoff } },
+                  ],
+                },
+                {
+                  OR: [{ default_marked_at: null }, { default_marked_at: { gte: asOfCutoff } }],
+                },
+              ],
             },
           ],
         },

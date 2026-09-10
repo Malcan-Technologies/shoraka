@@ -39,6 +39,45 @@ export function malaysiaDateKey(value: Date, timeZone = "Asia/Kuala_Lumpur"): st
   return calendarDateInTimeZone(value, timeZone).toISOString().slice(0, 10);
 }
 
+export function malaysiaStartOfDay(value: Date): Date {
+  return mytStartOfDayUtc(mytCalendarParts(value));
+}
+
+export function resolvePortfolioHistoryStartDate(
+  range: "1W" | "1M" | "3M" | "6M" | "YTD" | "ALL",
+  latestDate: Date,
+  firstDate: Date
+): Date {
+  if (range === "ALL") return firstDate;
+  if (range === "YTD") {
+    return mytStartOfDayUtc({ year: mytCalendarParts(latestDate).year, month: 1, day: 1 });
+  }
+  const dayWindowMap: Record<Exclude<typeof range, "YTD" | "ALL">, number> = {
+    "1W": 7,
+    "1M": 30,
+    "3M": 90,
+    "6M": 180,
+  };
+  return mytStartOfDayUtc(
+    addMytCalendarDays(mytCalendarParts(latestDate), -(dayWindowMap[range] - 1))
+  );
+}
+
+export function malaysiaDateKeysInclusive(start: Date, end: Date): string[] {
+  const keys: string[] = [];
+  let parts = mytCalendarParts(start);
+  const endKey = malaysiaDateKey(end);
+  const startKey = `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
+  if (startKey > endKey) return keys;
+  for (let index = 0; index < 5000; index += 1) {
+    const key = `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
+    keys.push(key);
+    if (key >= endKey) break;
+    parts = addMytCalendarDays(parts, 1);
+  }
+  return keys;
+}
+
 export function formatYearMonthLabel(yearMonth: string): string {
   const [yearRaw, monthRaw] = yearMonth.split("-");
   const month = Number(monthRaw);

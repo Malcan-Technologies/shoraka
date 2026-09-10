@@ -200,9 +200,13 @@ import {
   computeAtRisk,
   computeCashflowNext90Days,
   idleDaysSince,
+  malaysiaDateKey,
+  malaysiaDateKeysInclusive,
+  malaysiaStartOfDay,
   portfolioTotalBefore,
   principalEventsFromConfirmationsAndReturns,
   reconstructPrincipalOnDates,
+  resolvePortfolioHistoryStartDate,
   returnsSinceDate,
   snapshotName,
   sumReturnsEarned,
@@ -214,6 +218,10 @@ import {
   resendServicingLetter as resendServicingLetterRecord,
 } from "./servicing-letters/service";
 import { postedSettlementWaiverLimits } from "../payment/excess-late-charge-allocation";
+import {
+  remainingCapsIgnoringApprovedSettlements,
+  settlementIdsToVoidForPreSettlementWaiver,
+} from "./late-charge-waiver";
 import {
   assertTenureInvestorObligationCovered,
   assertTenurePartialReceiptAllowed,
@@ -658,38 +666,6 @@ type NoteWithRelations = Prisma.NoteGetPayload<{ include: typeof noteInclude }>;
 
 function clampPercent(value: number) {
   return Math.max(0, Math.min(100, value));
-}
-
-function startOfDay(value: Date) {
-  return new Date(value.getFullYear(), value.getMonth(), value.getDate());
-}
-
-function toDateKey(value: Date) {
-  const year = value.getFullYear();
-  const month = String(value.getMonth() + 1).padStart(2, "0");
-  const day = String(value.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function resolveHistoryStartDate(
-  range: "1W" | "1M" | "3M" | "6M" | "YTD" | "ALL",
-  latestDate: Date,
-  firstDate: Date
-) {
-  if (range === "ALL") return firstDate;
-  if (range === "YTD") return new Date(latestDate.getFullYear(), 0, 1);
-
-  const dayWindowMap: Record<Exclude<typeof range, "YTD" | "ALL">, number> = {
-    "1W": 7,
-    "1M": 30,
-    "3M": 90,
-    "6M": 180,
-  };
-
-  const dayWindow = dayWindowMap[range];
-  const startDate = startOfDay(new Date(latestDate));
-  startDate.setDate(startDate.getDate() - (dayWindow - 1));
-  return startDate;
 }
 
 function resolveHistoryGranularity(range: "1W" | "1M" | "3M" | "6M" | "YTD" | "ALL") {
@@ -4806,7 +4782,7 @@ export class NoteService {
         toReconciledPortfolioHistoryPoint(
           availableBalance,
           currentPortfolioTotal,
-          toDateKey(new Date()),
+          malaysiaDateKey(new Date()),
           liveConfirmed
         ),
       ];
@@ -4833,7 +4809,7 @@ export class NoteService {
     const dailyBalanceNet = new Map<string, number>();
     const dailyPortfolioDelta = new Map<string, number>();
     for (let index = 0; index < transactions.length; index += 1) {
-      const key = toDateKey(startOfDay(transactions[index].posted_at));
+      const key = malaysiaDateKey(transactions[index].posted_at);
       dailyBalanceNet.set(key, (dailyBalanceNet.get(key) ?? 0) + signedTransactions[index]);
       dailyPortfolioDelta.set(
         key,
@@ -4841,27 +4817,22 @@ export class NoteService {
       );
     }
 
-    const firstDate = startOfDay(transactions[0].posted_at);
-    const latestDate = startOfDay(transactions[transactions.length - 1].posted_at);
-    const today = startOfDay(new Date());
+    const firstDate = malaysiaStartOfDay(transactions[0].posted_at);
+    const latestDate = malaysiaStartOfDay(transactions[transactions.length - 1].posted_at);
+    const today = malaysiaStartOfDay(new Date());
     const displayEndDate = latestDate.getTime() > today.getTime() ? latestDate : today;
-    const rangeStartDate = resolveHistoryStartDate(query.range, displayEndDate, firstDate);
+    const rangeStartDate = resolvePortfolioHistoryStartDate(query.range, displayEndDate, firstDate);
 
     let carryForwardBalance = openingBalance;
     let carryForwardPortfolioTotal = openingPortfolioTotal;
     for (const tx of transactions) {
-      if (startOfDay(tx.posted_at).getTime() >= rangeStartDate.getTime()) break;
+      if (malaysiaStartOfDay(tx.posted_at).getTime() >= rangeStartDate.getTime()) break;
       carryForwardBalance += resolveSignedBalanceDelta(tx);
       carryForwardPortfolioTotal += resolvePortfolioDelta(tx);
     }
 
     const points: InvestorPortfolioHistoryPoint[] = [];
-    for (
-      let cursor = startOfDay(rangeStartDate);
-      cursor.getTime() <= displayEndDate.getTime();
-      cursor.setDate(cursor.getDate() + 1)
-    ) {
-      const key = toDateKey(cursor);
+    for (const key of malaysiaDateKeysInclusive(rangeStartDate, displayEndDate)) {
       carryForwardBalance += dailyBalanceNet.get(key) ?? 0;
       carryForwardPortfolioTotal += dailyPortfolioDelta.get(key) ?? 0;
       points.push(
@@ -6341,6 +6312,7 @@ export class NoteService {
       let remainingTawidhAmount = 0;
       let remainingGharamahAmount = 0;
       let lockedWaivedAmount = 0;
+      let voidedSettlementIds: string[] = [];
       if (posted) {
         await tx.$queryRaw`SELECT id FROM note_settlements WHERE id = ${posted.id} FOR UPDATE`;
         const locked = await tx.noteSettlement.findUniqueOrThrow({ where: { id: posted.id } });
@@ -6375,9 +6347,36 @@ export class NoteService {
         }
       } else {
         await tx.$queryRaw`SELECT id FROM notes WHERE id = ${id} FOR UPDATE`;
-        const remaining = await this.checkOverdueLateCharge(id, {});
+        const lockedSettlements = await tx.noteSettlement.findMany({
+          where: { note_id: id },
+          select: { id: true, status: true, tawidh_amount: true, gharamah_amount: true },
+        });
+        if (
+          lockedSettlements.some((settlement) => settlement.status === NoteSettlementStatus.POSTED)
+        ) {
+          throw new AppError(
+            409,
+            "SETTLEMENT_ALREADY_POSTED",
+            "A settlement was posted; refresh and waive leftover charges from the posted settlement."
+          );
+        }
+        const remaining = remainingCapsIgnoringApprovedSettlements(
+          await this.checkOverdueLateCharge(id, {}),
+          lockedSettlements.map((settlement) => ({
+            status: settlement.status,
+            tawidhAmount: toNumber(settlement.tawidh_amount),
+            gharamahAmount: toNumber(settlement.gharamah_amount),
+          }))
+        );
         remainingTawidhAmount = remaining.remainingTawidhAmount;
         remainingGharamahAmount = remaining.remainingGharamahAmount;
+        voidedSettlementIds = settlementIdsToVoidForPreSettlementWaiver(lockedSettlements);
+        if (voidedSettlementIds.length > 0) {
+          await tx.noteSettlement.updateMany({
+            where: { id: { in: voidedSettlementIds } },
+            data: { status: NoteSettlementStatus.VOID },
+          });
+        }
       }
       if (tawidhAmount - remainingTawidhAmount > 0.005) {
         throw new AppError(
@@ -6396,7 +6395,11 @@ export class NoteService {
       await tx.noteLateChargeWaiver.create({
         data: {
           note_id: id,
-          settlement_id: posted?.id ?? input.settlementId ?? null,
+          settlement_id:
+            posted?.id ??
+            (input.settlementId && !voidedSettlementIds.includes(input.settlementId)
+              ? input.settlementId
+              : null),
           tawidh_waived_amount: money(tawidhAmount),
           gharamah_waived_amount: money(gharamahAmount),
           reason: input.reason.trim(),
@@ -6446,12 +6449,13 @@ export class NoteService {
           remainingTawidhAmount: Math.max(0, remainingTawidhAmount - tawidhAmount),
           remainingGharamahAmount: Math.max(0, remainingGharamahAmount - gharamahAmount),
         },
-        { reason: input.reason.trim() }
+        { reason: input.reason.trim(), voidedSettlementIds }
       );
       await this.logEvent(tx, id, "LATE_CHARGE_WAIVED", actor, {
         tawidhAmount,
         gharamahAmount,
         reason: input.reason.trim(),
+        voidedSettlementIds,
       });
       return result;
     });
