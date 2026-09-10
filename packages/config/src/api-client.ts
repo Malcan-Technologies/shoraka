@@ -800,17 +800,6 @@ export class ApiClient {
     );
   }
 
-  async createAdminPartyProfile(
-    portal: "investor" | "issuer",
-    organizationId: string,
-    data: Record<string, unknown>
-  ): Promise<ApiResponse<OrganizationPartyProfileDto> | ApiError> {
-    return this.post<OrganizationPartyProfileDto>(
-      `/v1/admin/organizations/${portal}/${organizationId}/party-profiles`,
-      data
-    );
-  }
-
   async patchAdminIssuerFinancials(
     organizationId: string,
     year: string,

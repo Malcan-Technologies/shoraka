@@ -3,13 +3,12 @@
 import * as React from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { PlusIcon, UserIcon, UsersIcon } from "@heroicons/react/24/outline";
+import { UserIcon, UsersIcon } from "@heroicons/react/24/outline";
 import type { OrganizationDetailResponse, PortalType } from "@cashsouk/types";
 import {
   firstIssueMessage,
   humanizeApiValidationMessage,
   isMemberWithoutCompanyRole,
-  isMinimalOnboardingPersonCreate,
   isProfileValidationError,
   linkedPartyUserIds,
   optionalEmailIssue,
@@ -50,7 +49,6 @@ import { OrganizationPersonCard } from "./organization-person-card";
 import {
   OrganizationPersonEditorDialog,
   partyToEditorValues,
-  personToEditorValues,
   type PartyEditorValues,
 } from "./organization-person-editor-dialog";
 import { EditableField, EditablePhoneField, ReadField } from "./organization-profile-helpers";
@@ -87,8 +85,6 @@ export function OrganizationPeoplePanel({
   const [showConfirm, setShowConfirm] = React.useState(false);
   const [picFieldErrors, setPicFieldErrors] = React.useState<Record<string, string>>({});
   const [editingMemberId, setEditingMemberId] = React.useState<string | null>(null);
-  const [addOpen, setAddOpen] = React.useState(false);
-  const [seedValues, setSeedValues] = React.useState<PartyEditorValues | null>(null);
   const [editingPartyId, setEditingPartyId] = React.useState<string | null>(null);
   const [viewingPartyId, setViewingPartyId] = React.useState<string | null>(null);
 
@@ -204,30 +200,8 @@ export function OrganizationPeoplePanel({
     }
   };
 
-  const saveParty = async (values: PartyEditorValues, partyId?: string) => {
-    const minimalCreate =
-      !partyId &&
-      isMinimalOnboardingPersonCreate({
-        entityType: values.entityType,
-        identityPrefix: values.identityPrefix,
-        identityNumber: values.identityNumber,
-        isDirector: values.isDirector,
-        isShareholder: values.isShareholder,
-        isBoard: values.isBoard,
-        isManagement: values.isManagement,
-      });
-    const payload: Record<string, unknown> = minimalCreate
-      ? {
-          name: values.name.trim(),
-          email: values.email.trim() || null,
-          entityType: "INDIVIDUAL",
-          isDirector: values.isDirector,
-          isShareholder: values.isShareholder,
-          isBoard: false,
-          isManagement: false,
-          shareholdingPercentage: values.isShareholder ? values.shareholdingPercentage.trim() || null : null,
-        }
-      : {
+  const saveParty = async (values: PartyEditorValues, partyId: string) => {
+    const payload: Record<string, unknown> = {
       name: values.name.trim(),
       identityPrefix: values.entityType === "CORPORATE" ? "ROC" : values.identityPrefix || null,
       identityNumber: values.identityNumber.trim() || null,
@@ -262,13 +236,8 @@ export function OrganizationPeoplePanel({
       resignationDate: values.resignationDate || null,
       email: values.email.trim() || null,
     };
-    if (partyId) {
-      await peopleMutations.patchParty.mutateAsync({ partyId, data: payload });
-      setEditingPartyId(null);
-      return;
-    }
-    await peopleMutations.createParty.mutateAsync(payload);
-    setAddOpen(false);
+    await peopleMutations.patchParty.mutateAsync({ partyId, data: payload });
+    setEditingPartyId(null);
   };
 
   if (org.type !== "COMPANY") return null;
@@ -280,22 +249,6 @@ export function OrganizationPeoplePanel({
           icon={UsersIcon}
           title="People"
           description="Directors, shareholders, board, and management. The same person can have more than one role."
-          actions={
-            canManage ? (
-              <Button
-                type="button"
-                size="sm"
-                className="gap-1.5"
-                onClick={() => {
-                  setSeedValues(null);
-                  setAddOpen(true);
-                }}
-              >
-                <PlusIcon className="h-4 w-4" />
-                Add person
-              </Button>
-            ) : null
-          }
         />
         <CardContent className="space-y-6">
           {unified.external.length > 0 ? (
@@ -382,14 +335,6 @@ export function OrganizationPeoplePanel({
               canManage={canManage}
               applyIssuerComrep={portal === "issuer"}
               onView={() => setViewingPartyId(item.key)}
-              onEdit={
-                item.person
-                  ? () => {
-                      setSeedValues(personToEditorValues(item.person!));
-                      setAddOpen(true);
-                    }
-                  : undefined
-              }
             />
           ))}
 
@@ -565,25 +510,6 @@ export function OrganizationPeoplePanel({
       />
 
       <OrganizationPersonEditorDialog
-        open={addOpen}
-        onOpenChange={(open) => {
-          setAddOpen(open);
-          if (!open) setSeedValues(null);
-        }}
-        title={seedValues ? "Edit person" : "Add person"}
-        description={
-          seedValues
-            ? "Add this person to the company profile. Existing details are kept if they are already filled."
-            : "Add this person to the company profile."
-        }
-        initial={seedValues}
-        isSaving={peopleMutations.createParty.isPending}
-        enforceIssuerShareholderMinimum
-        mode="create"
-        onSave={(values) => saveParty(values)}
-      />
-
-      <OrganizationPersonEditorDialog
         open={Boolean(editingParty)}
         onOpenChange={(open) => {
           if (!open) setEditingPartyId(null);
@@ -593,7 +519,10 @@ export function OrganizationPeoplePanel({
         initial={editingParty ? partyToEditorValues(editingParty) : null}
         isSaving={peopleMutations.patchParty.isPending}
         enforceIssuerShareholderMinimum
-        onSave={(values) => saveParty(values, editingParty?.id)}
+        onSave={async (values) => {
+          if (!editingParty) return;
+          await saveParty(values, editingParty.id);
+        }}
       />
 
       <Dialog

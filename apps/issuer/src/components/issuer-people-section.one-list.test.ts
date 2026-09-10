@@ -24,6 +24,7 @@ describe("issuer People section", () => {
     expect(portalPeople).toContain("onEdit={canEdit ? () => setEditPartyId(item.party.id) : undefined}");
     expect(portalPeople).toContain("onView={() => setViewPeopleOnlyKey(person.matchKey)}");
     expect(portalPeople).toContain("setAddInitial");
+    expect(portalPeople).toContain("Add person");
   });
 
   it("lets issuer owners and org admins mark people inactive", () => {

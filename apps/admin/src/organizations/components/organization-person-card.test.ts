@@ -32,16 +32,38 @@ describe("Admin People Mark inactive eligibility", () => {
   });
 });
 
-describe("Admin People P2 onboarding add and identity display", () => {
-  it("keeps a minimal individual add path and full corporate/board/management add", () => {
-    const editor = readFileSync(join(__dirname, "organization-person-editor-dialog.tsx"), "utf8");
-    expect(editor).toContain("minimalOnboardingAdd");
-    expect(editor).toContain("validateOnboardingPersonCreate");
-    expect(editor).toContain('label={minimalOnboardingAdd ? "Full Name" : copy.name.label}');
-    expect(panel).toContain('mode="create"');
-    expect(panel).toContain("isMinimalOnboardingPersonCreate");
+describe("Admin People cannot create a Person", () => {
+  it("does not show an Add Person button or create-person dialog", () => {
+    const hook = readFileSync(join(__dirname, "../hooks/use-organization-master-people.ts"), "utf8");
+    expect(panel).not.toContain("Add person");
+    expect(panel).not.toContain("Add Person");
+    expect(panel).not.toContain('mode="create"');
+    expect(panel).not.toContain("createParty");
+    expect(panel).not.toContain("isMinimalOnboardingPersonCreate");
+    expect(panel).not.toContain("createAdminPartyProfile");
+    expect(panel).not.toContain("setAddOpen");
+    expect(hook).not.toContain("createAdminPartyProfile");
+    expect(hook).not.toContain("createParty");
   });
 
+  it("still lists existing People and keeps view, edit, and inactivate", () => {
+    expect(panel).toContain("unifyOrganizationPeople(org.partyProfiles, org.people)");
+    expect(panel).toContain("unified.master.map");
+    expect(panel).toContain("onView={() => item.party && setViewingPartyId(item.party.id)}");
+    expect(panel).toContain("onEdit={item.party ? () => setEditingPartyId(item.party!.id) : undefined}");
+    expect(panel).toContain("onInactivate={item.party ? () => peopleMutations.inactivate.mutate(item.party!.id) : undefined}");
+    expect(panel).toContain("title={editingParty?.name || \"Person\"}");
+    expect(panel).toContain("Read-only details for this person.");
+  });
+
+  it("does not treat platform members as Add Person and leaves member edit in place", () => {
+    expect(panel).toContain("Platform members without a company role");
+    expect(panel).toContain("OrganizationMemberEditDialog");
+    expect(panel).not.toContain("Invite Member");
+  });
+});
+
+describe("Admin People P2 identity display", () => {
   it("does not show user:{uuid} as government ID and preserves P1 conflict copy", () => {
     expect(card).toContain("Identity:");
     expect(card).toContain("personIdentityDisplay");
