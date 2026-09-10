@@ -25,6 +25,12 @@ describe("summarizePortfolioAtRisk", () => {
       dpd61To90: { count: 1, amount: 20, percent: (20 / 230) * 100 },
       dpd90Plus: { count: 1, amount: 30, percent: (30 / 230) * 100 },
     });
+    expect(summary.par30).not.toEqual(summary.exclusive.dpd1To30);
+    expect(summary.par30.amount).toBe(
+      summary.exclusive.dpd31To60.amount +
+        summary.exclusive.dpd61To90.amount +
+        summary.exclusive.dpd90Plus.amount
+    );
   });
 
   it("places DPD band edges in exclusive buckets", () => {

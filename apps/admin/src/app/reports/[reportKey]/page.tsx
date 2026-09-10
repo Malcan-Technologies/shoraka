@@ -210,6 +210,10 @@ export default function ReportDetailPage() {
           {report.data?.portfolioAtRisk ? (
             <div className="space-y-2">
               <p className="text-sm font-medium text-foreground">Portfolio at risk</p>
+              <p className="text-meta text-muted-foreground">
+                PAR30, PAR60 and PAR90 are cumulative: each includes every note with DPD above that
+                threshold. Defaulted is the servicing mark, not a DPD band.
+              </p>
               <PortfolioAtRiskRow
                 summary={report.data.portfolioAtRisk}
                 loading={report.isLoading}
@@ -217,7 +221,7 @@ export default function ReportDetailPage() {
             </div>
           ) : null}
 
-          {report.data?.summaries?.length ? (
+          {definition.key !== "ageing" && report.data?.summaries?.length ? (
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {report.data.summaries.map((summary) => {
                 const presented = presentReportSummary(summary);

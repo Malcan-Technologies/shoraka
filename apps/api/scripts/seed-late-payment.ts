@@ -32,7 +32,9 @@ import { calculateSettlementWaterfall } from "../src/modules/notes/calculators";
 const prisma = new PrismaClient();
 
 const TEST_REFERENCE_PREFIX = "LATE_TEST_";
-const INVOICE_VALUE = 25_000;
+const INVOICE_VALUE = 100_000;
+const FINANCING_RATIO_PERCENT = 60;
+const NOTE_AMOUNT = INVOICE_VALUE * (FINANCING_RATIO_PERCENT / 100);
 const GRACE_DAYS = 7;
 const ARREARS_THRESHOLD_DAYS = 14;
 const TAWIDH_CAP_PERCENT = 1;
@@ -468,10 +470,16 @@ async function main() {
     throw new Error("Template note has no payment schedule.");
   }
 
-  const fundedAmount = template.funded_amount.toNumber();
+  const fundedAmount = NOTE_AMOUNT;
+  const targetAmount = NOTE_AMOUNT;
   const profitRatePercent = template.profit_rate_percent?.toNumber() ?? 10;
   const serviceFeeRatePercent = template.service_fee_rate_percent.toNumber();
-  const targetAmount = template.target_amount.toNumber();
+  const expectedProfit = Number((targetAmount * (profitRatePercent / 100)).toFixed(6));
+  const expectedTotal = Number((targetAmount + expectedProfit).toFixed(6));
+  const investmentTotal = template.investments.reduce(
+    (sum, investment) => sum + investment.amount.toNumber(),
+    0
+  );
   const now = utcStartOfDay(new Date());
   const runSuffix = fixedMode ? null : createRunSuffix(now);
   const scenarios = buildScenarios(now, runSuffix);
@@ -480,6 +488,9 @@ async function main() {
     fixedMode
       ? "Late payment seed (fixed references — idempotent reset on re-run)\n"
       : `Late payment seed (fresh run suffix: ${runSuffix})\n`
+  );
+  console.log(
+    `Invoice RM ${INVOICE_VALUE.toLocaleString()} · note RM ${NOTE_AMOUNT.toLocaleString()} (${FINANCING_RATIO_PERCENT}% financed, 100% funded)\n`
   );
 
   const created: Array<{
@@ -501,6 +512,8 @@ async function main() {
         ? { ...(invoiceSnapshot.details as Prisma.JsonObject) }
         : {};
     invoiceDetails.value = INVOICE_VALUE;
+    invoiceDetails.financing_ratio_percent = FINANCING_RATIO_PERCENT;
+    invoiceDetails.financing = NOTE_AMOUNT;
     invoiceDetails.due_date = formatDateOnly(dueDate);
     invoiceDetails.maturity_date = formatDateOnly(maturityDate);
 
@@ -529,8 +542,8 @@ async function main() {
         contract_snapshot: template.contract_snapshot ?? Prisma.JsonNull,
         invoice_snapshot: invoiceSnapshot
           ? { ...invoiceSnapshot, details: invoiceDetails }
-          : Prisma.JsonNull,
-        requested_amount: money(INVOICE_VALUE),
+          : { details: invoiceDetails },
+        requested_amount: money(NOTE_AMOUNT),
         target_amount: money(targetAmount),
         funded_amount: money(fundedAmount),
         minimum_funding_percent: template.minimum_funding_percent,
@@ -574,9 +587,9 @@ async function main() {
           where: { note_id: noteId },
           data: {
             due_date: dueDate,
-            expected_principal: scheduleTemplate.expected_principal,
-            expected_profit: scheduleTemplate.expected_profit,
-            expected_total: scheduleTemplate.expected_total,
+            expected_principal: money(targetAmount),
+            expected_profit: money(expectedProfit),
+            expected_total: money(expectedTotal),
           },
         });
       } else {
@@ -598,9 +611,9 @@ async function main() {
             status: scheduleTemplate.status,
             sequence: scheduleTemplate.sequence,
             due_date: dueDate,
-            expected_principal: scheduleTemplate.expected_principal,
-            expected_profit: scheduleTemplate.expected_profit,
-            expected_total: scheduleTemplate.expected_total,
+            expected_principal: money(targetAmount),
+            expected_profit: money(expectedProfit),
+            expected_total: money(expectedTotal),
           },
         });
         const investmentStatus =
@@ -608,14 +621,19 @@ async function main() {
             ? NoteInvestmentStatus.SETTLED
             : NoteInvestmentStatus.CONFIRMED;
         for (const investment of template.investments) {
+          const sourceAmount = investment.amount.toNumber();
+          const scaledAmount =
+            investmentTotal > 0 ? (sourceAmount / investmentTotal) * NOTE_AMOUNT : NOTE_AMOUNT;
           await tx.noteInvestment.create({
             data: {
               note_id: noteId,
               investor_organization_id: investment.investor_organization_id,
               investor_user_id: investment.investor_user_id,
               status: investmentStatus,
-              amount: investment.amount,
-              allocation_percent: investment.allocation_percent,
+              amount: money(scaledAmount),
+              allocation_percent: money(
+                investmentTotal > 0 ? (sourceAmount / investmentTotal) * 100 : 100
+              ),
               committed_at: investment.committed_at,
               confirmed_at: activatedAt,
             },

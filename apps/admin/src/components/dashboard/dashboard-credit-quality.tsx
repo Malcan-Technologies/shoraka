@@ -11,6 +11,7 @@ import {
 import { Card, CardContent, Skeleton } from "@cashsouk/ui";
 import { cn } from "@/lib/utils";
 import { DashboardSectionHeader } from "./dashboard-section-header";
+import { ladderBarWidth, par90LimitBarWidth } from "./dashboard-credit-quality-bars";
 
 const LADDER: {
   key: keyof Pick<PortfolioAtRiskSummary, "pastDue" | "par30" | "par60" | "par90" | "defaulted">;
@@ -35,18 +36,8 @@ const EXCLUSIVE: {
   { key: "dpd90Plus", label: ">90", tone: "distressed" },
 ];
 
-const LADDER_TRACK_PERCENT = 10;
-
 function noteCountLabel(count: number): string {
   return `${count} ${count === 1 ? "note" : "notes"}`;
-}
-
-function ladderBarWidth(percent: number): number {
-  return Math.min(100, (percent / LADDER_TRACK_PERCENT) * 100);
-}
-
-function par90LimitBarWidth(percent: number): number {
-  return Math.min(100, (percent / SC_PAR90_LIMIT_PERCENT) * 100);
 }
 
 function emptyMetric(): PortfolioAtRiskMetric {

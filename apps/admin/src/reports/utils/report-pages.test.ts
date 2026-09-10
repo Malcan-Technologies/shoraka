@@ -26,6 +26,7 @@ describe("admin report detail", () => {
     expect(detail).toContain("Export XLSX");
     expect(detail).toContain("portfolioAtRisk");
     expect(detail).toContain("formatReportTableDate");
+    expect(detail).toContain('definition.key !== "ageing"');
     expect(detail).not.toContain('type="date"');
   });
 

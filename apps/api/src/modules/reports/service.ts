@@ -92,30 +92,6 @@ function tenureDaysForProfit(note: {
   return tenureDaysForNote(note);
 }
 
-const DPD_BUCKET_SUMMARY_LABEL: Record<string, string> = {
-  CURRENT: "Current",
-  DPD_1_30: "1–30 days",
-  DPD_31_60: "31–60 days",
-  DPD_61_90: "61–90 days",
-  DPD_90_PLUS: "Over 90 days",
-};
-
-function bucketSummaries(
-  rows: Array<{ dpdBucket: string; outstandingPrincipal: number }>
-): ReportSummaryRow[] {
-  const buckets = ["CURRENT", "DPD_1_30", "DPD_31_60", "DPD_61_90", "DPD_90_PLUS"];
-  const total = rows.reduce((sum, row) => sum + row.outstandingPrincipal, 0);
-  return buckets.map((bucket) => {
-    const matched = rows.filter((row) => row.dpdBucket === bucket);
-    const amount = matched.reduce((sum, row) => sum + row.outstandingPrincipal, 0);
-    return {
-      label: DPD_BUCKET_SUMMARY_LABEL[bucket] ?? bucket,
-      count: matched.length,
-      amount,
-      percent: total > 0 ? (amount / total) * 100 : 0,
-    };
-  });
-}
 
 export function listReportCatalog() {
   return { reports: REPORT_REGISTRY };
@@ -213,7 +189,7 @@ async function runAgeing(query: ReportQuery): Promise<ReportResult> {
       generatedAt: new Date().toISOString(),
       columns: report.columns,
       rows,
-      summaries: bucketSummaries(rows),
+      summaries: [],
       portfolioAtRisk,
     };
   }
@@ -287,7 +263,7 @@ async function runAgeing(query: ReportQuery): Promise<ReportResult> {
     generatedAt: new Date().toISOString(),
     columns: report.columns,
     rows,
-    summaries: bucketSummaries(rows),
+    summaries: [],
     portfolioAtRisk,
   };
 }

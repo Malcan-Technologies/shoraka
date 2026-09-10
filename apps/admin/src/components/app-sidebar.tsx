@@ -39,6 +39,7 @@ import {
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarHeader,
+  SidebarSeparator,
   SidebarMenu,
   SidebarMenuBadge,
   SidebarMenuButton,
@@ -298,6 +299,7 @@ const navDirectory = [
 ] as const;
 
 const navSettings = [
+  { title: "Company", url: "/shoraka/profile", icon: BuildingLibraryIcon },
   { title: "Products", url: "/settings/products", icon: CubeIcon },
   { title: "Platform Finance", url: "/settings/platform-finance", icon: CalculatorIcon },
   { title: "Notifications", url: "/settings/notifications", icon: BellIcon },
@@ -525,6 +527,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     canViewUsers || canViewOrganizations || canViewPaymasters || canViewDocuments;
 
   const settingsItems = navSettings.filter((item) => {
+    if (item.url === "/shoraka/profile") return canViewPlatformFinance;
     if (item.url === "/settings/roles") return canViewRoles;
     if (item.url === "/settings/notifications") return canViewNotifications;
     if (item.url === "/settings/products") return canViewProducts;
@@ -533,8 +536,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   });
 
   const hasVisibleSettingsNav = settingsItems.length > 0;
-  const hasVisibleUtilityNav = true; // Help always visible
-  const showUtilityGroup = hasVisibleUtilityNav || canViewAnyAudit;
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -583,9 +584,36 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ) : null}
+              {canViewAnyAudit ? (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname === "/audit" || pathname.startsWith("/audit/")}
+                    tooltip="Audit"
+                  >
+                    <Link href="/audit">
+                      <ClipboardDocumentListIcon className="h-4 w-4" />
+                      <span>Audit</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ) : null}
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname === "/help" || pathname.startsWith("/help/")}
+                  tooltip="Help"
+                >
+                  <Link href="/help">
+                    <QuestionMarkCircleIcon className="h-4 w-4" />
+                    <span>Help</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        <SidebarSeparator />
 
         {hasVisibleLifecycleNav ? (
           <SidebarGroup>
@@ -805,28 +833,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarGroup>
         ) : null}
 
-        {canViewPlatformFinance ? (
-          <SidebarGroup>
-            <SidebarGroupLabel>Shoraka</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={pathname === "/shoraka/profile" || pathname.startsWith("/shoraka/")}
-                    tooltip="Profile"
-                  >
-                    <Link href="/shoraka/profile">
-                      <BuildingLibraryIcon className="h-4 w-4" />
-                      <span>Profile</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        ) : null}
-
         {hasVisibleSettingsNav ? (
           <SidebarGroup>
             <SidebarGroupLabel>Settings</SidebarGroupLabel>
@@ -849,41 +855,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     </SidebarMenuItem>
                   );
                 })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        ) : null}
-
-        {showUtilityGroup ? (
-          <SidebarGroup>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={pathname === "/help" || pathname.startsWith("/help/")}
-                    tooltip="Help"
-                  >
-                    <Link href="/help">
-                      <QuestionMarkCircleIcon className="h-4 w-4" />
-                      <span>Help</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                {canViewAnyAudit ? (
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={pathname === "/audit" || pathname.startsWith("/audit/")}
-                      tooltip="Audit"
-                    >
-                      <Link href="/audit">
-                        <ClipboardDocumentListIcon className="h-4 w-4" />
-                        <span>Audit</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ) : null}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
