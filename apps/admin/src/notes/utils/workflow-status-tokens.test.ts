@@ -2,6 +2,9 @@ import { ADMIN_ACTION_SURFACE_CLASS, ADMIN_WAITING_SURFACE_CLASS } from "@/lib/a
 import {
   disbursementLifecycleStripTone,
   latePaymentPhaseTone,
+  officialDocumentReviewTone,
+  officialDocumentWorkflowLabel,
+  officialDocumentWorkflowTone,
   paymentReceiptStatusLabel,
   paymentReceiptTone,
   settlementLifecycleStripTone,
@@ -106,6 +109,22 @@ describe("settlement and receipt tones", () => {
         trusteeSubmittedToTrustee: true,
       })
     ).toBe("success");
+  });
+
+  it("washes official documents green when generated, yellow while in progress, red when failed", () => {
+    expect(officialDocumentWorkflowTone({ status: "READY" })).toBe("success");
+    expect(officialDocumentWorkflowTone({ status: "NONE", canGenerate: true })).toBe("active");
+    expect(officialDocumentWorkflowTone({ status: "PENDING" })).toBe("active");
+    expect(officialDocumentWorkflowTone({ status: "FAILED" })).toBe("danger");
+    expect(officialDocumentWorkflowTone({ status: "READY", reviewStatus: "READY" })).toBe(
+      "active"
+    );
+    expect(officialDocumentWorkflowLabel({ status: "READY" })).toBe("Generated");
+    expect(officialDocumentWorkflowLabel({ status: "READY", reviewStatus: "READY" })).toBe(
+      "Awaiting publish"
+    );
+    expect(officialDocumentReviewTone("FAILED")).toBe("danger");
+    expect(officialDocumentReviewTone("READY")).toBe("active");
   });
 
   it("colours the disbursement strip yellow until waiting on trustee", () => {

@@ -72,6 +72,23 @@ describe("resolveIssuerResidualPayoutListStatus", () => {
     });
   });
 
+  it("derives pending with trustee after the instruction is submitted", () => {
+    const note = minimalNote([
+      {
+        ...settlementBase,
+        id: "set-1",
+        status: NoteSettlementStatus.POSTED,
+        posted_at: new Date(),
+        service_fee_amount: d("10"),
+        settlement_trustee_status: SettlementTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE,
+      },
+    ]);
+    expect(resolveIssuerResidualPayoutListStatus(note, [])).toEqual({
+      kind: "pending",
+      withTrustee: true,
+    });
+  });
+
   it("derives paid when settlement trustee instruction is completed (unified flow)", () => {
     const note = minimalNote([
       {

@@ -73,6 +73,50 @@ export function workflowTaskSurfaceClass(tone: WorkflowStatusTone) {
   return WORKFLOW_CARD.neutralSection;
 }
 
+export type OfficialDocumentArtefactStatus = "NONE" | "PENDING" | "READY" | "FAILED";
+
+/**
+ * Official PDF artefacts (certificate, hibah receipt, investor confirmations):
+ * green when generated, yellow while generating or when admin must generate/publish,
+ * red when generation failed.
+ */
+export function officialDocumentWorkflowTone(input: {
+  status: OfficialDocumentArtefactStatus;
+  canGenerate?: boolean;
+  reviewStatus?: "PENDING" | "READY" | "FAILED" | null;
+}): WorkflowStatusTone {
+  if (input.status === "FAILED" || input.reviewStatus === "FAILED") return "danger";
+  if (input.status === "PENDING" || input.reviewStatus === "PENDING") return "active";
+  if (input.reviewStatus === "READY") return "active";
+  if (input.status === "READY") return "success";
+  if (input.canGenerate) return "active";
+  return "neutral";
+}
+
+export function officialDocumentWorkflowLabel(input: {
+  status: OfficialDocumentArtefactStatus;
+  reviewStatus?: "PENDING" | "READY" | "FAILED" | null;
+}): string {
+  if (input.status === "FAILED" || input.reviewStatus === "FAILED") return "Failed";
+  if (input.status === "PENDING" || input.reviewStatus === "PENDING") return "Generating";
+  if (input.reviewStatus === "READY") return "Awaiting publish";
+  if (input.status === "READY") return "Generated";
+  return "Not generated";
+}
+
+export function officialDocumentReviewLabel(status: "PENDING" | "READY" | "FAILED"): string {
+  if (status === "READY") return "Awaiting publish";
+  if (status === "FAILED") return "Failed";
+  return "Generating";
+}
+
+export function officialDocumentReviewTone(
+  status: "PENDING" | "READY" | "FAILED"
+): WorkflowStatusTone {
+  if (status === "FAILED") return "danger";
+  return "active";
+}
+
 export const WORKFLOW_SUCCESS_COPY = {
   sectionHeader: "text-sm font-medium text-status-success-text",
   title: "text-status-success-text",

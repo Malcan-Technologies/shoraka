@@ -3,7 +3,7 @@ import {
   formatProspectusListBadge,
   getProspectusDisplayStatus,
   isNoteProspectusPublished,
-  hasSettlementTrusteeMovementFromPoolSummary,
+  resolveIssuerResidualPayoutFromPoolSummary,
   isMarcSmeGrade,
   parseAdditionalFeeCharges,
   parseFacilityFeeCollectionWaiver,
@@ -513,22 +513,13 @@ export function resolveIssuerResidualPayoutListStatus(
   if (!settlementSummary) return undefined;
   if (settlementSummary.status !== NoteSettlementStatus.POSTED) return undefined;
 
+  const fromTrustee = resolveIssuerResidualPayoutFromPoolSummary(settlementSummary);
+  if (!fromTrustee) return undefined;
+  if (fromTrustee.kind !== "awaiting") {
+    return fromTrustee;
+  }
+
   const { settlementId, issuerResidualAmount: residualAmount } = settlementSummary;
-  if (residualAmount <= ISSUER_RESIDUAL_AMOUNT_TOLERANCE) {
-    return { kind: "none" };
-  }
-
-  if (settlementSummary.settlementTrusteeStatus === "COMPLETED") {
-    return { kind: "paid" };
-  }
-
-  if (hasSettlementTrusteeMovementFromPoolSummary(settlementSummary)) {
-    return {
-      kind: "pending",
-      withTrustee: settlementSummary.settlementTrusteeStatus === "SUBMITTED_TO_TRUSTEE",
-    };
-  }
-
   const strictRows = withdrawals.filter(
     (w) =>
       w.withdrawal_type === WithdrawalType.ISSUER_RESIDUAL_RETURN &&

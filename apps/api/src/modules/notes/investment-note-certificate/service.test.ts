@@ -15,9 +15,35 @@ const mockStoreCertificatePdf = jest.fn();
 const mockGenerateCertificatePdfViewUrl = jest.fn();
 const mockCreateNoteEventRow = jest.fn();
 const mockBuildSnapshot = jest.fn();
-const mockFreezeCertificateAuthorisation = jest.fn();
+const mockFreezeShorakaSigningAuthorisation = jest.fn();
+const mockListShorakaDocumentSigningOptions = jest.fn();
 const mockLoadFrozenStampImage = jest.fn();
 const mockReissueCertificateSnapshot = jest.fn();
+
+const SIGNING = { signingPersonId: "sp-1" };
+
+function frozenSigning(overrides: Record<string, unknown> = {}) {
+  return {
+    signingPersonId: "sp-1",
+    signingPersonName: "Sarah",
+    signingRoles: ["AUTHORISED_SIGNATORY"],
+    authorisedSignatoryName: "Sarah",
+    signature: {
+      s3Key: "sigs/b.png",
+      sha256: "sig-b",
+      contentType: "image/png",
+      fileName: "b.png",
+    },
+    companyStamp: {
+      s3Key: "stamps/b.png",
+      sha256: "stamp-b",
+      contentType: "image/png",
+      fileName: "b.png",
+    },
+    stampSource: "SHARED_CERTIFICATE_STAMP" as const,
+    ...overrides,
+  };
+}
 
 const certificateStore: Record<string, any[]> = { rows: [] };
 const noteEvents: any[] = [];
@@ -141,9 +167,21 @@ jest.mock("./snapshot", () => ({
     mockReissueCertificateSnapshot(...args),
 }));
 jest.mock("../document-authorisation/config", () => ({
-  freezeCertificateAuthorisation: (...args: unknown[]) =>
-    mockFreezeCertificateAuthorisation(...args),
   loadFrozenStampImage: (...args: unknown[]) => mockLoadFrozenStampImage(...args),
+}));
+jest.mock("../document-authorisation/signing-person-freeze", () => ({
+  freezeShorakaSigningAuthorisation: (...args: unknown[]) =>
+    mockFreezeShorakaSigningAuthorisation(...args),
+  listShorakaDocumentSigningOptions: (...args: unknown[]) =>
+    mockListShorakaDocumentSigningOptions(...args),
+  toCertificateAuthorisationSnapshot: (frozen: any) => ({
+    authorisedSignatoryName: frozen.authorisedSignatoryName,
+    companyStamp: frozen.companyStamp,
+    signingPersonId: frozen.signingPersonId,
+    signingPersonName: frozen.signingPersonName,
+    signingRoles: frozen.signingRoles,
+    signature: frozen.signature,
+  }),
 }));
 jest.mock("../../../lib/audit", () => ({
   AUDIT_PORTAL: { ADMIN: "ADMIN" },
@@ -246,6 +284,15 @@ function sampleSnapshot(
     ],
     authorisation: {
       authorisedSignatoryName: "Ahmad",
+      signingPersonId: "sp-legacy",
+      signingPersonName: "Ahmad",
+      signingRoles: ["AUTHORISED_SIGNATORY"],
+      signature: {
+        s3Key: "sigs/a.png",
+        sha256: "sig-a",
+        contentType: "image/png",
+        fileName: "a.png",
+      },
       companyStamp: {
         s3Key: "stamps/a.png",
         sha256: "stamp-a",
@@ -287,24 +334,26 @@ describe("generateInvestmentNoteCertificates", () => {
     });
     mockBuildSnapshot.mockResolvedValue(sampleSnapshot());
     mockLoadFrozenStampImage.mockResolvedValue(null);
-    mockFreezeCertificateAuthorisation.mockResolvedValue({
-      authorisedSignatoryName: "Sarah",
-      companyStamp: {
-        s3Key: "stamps/b.png",
-        sha256: "stamp-b",
-        contentType: "image/png",
-        fileName: "b.png",
-      },
+    mockListShorakaDocumentSigningOptions.mockResolvedValue({
+      people: [
+        {
+          id: "sp-1",
+          personName: "Sarah",
+          roles: ["AUTHORISED_SIGNATORY"],
+          label: "Sarah — Authorised Signatory",
+          hasSignature: true,
+          signatureS3Key: "sigs/b.png",
+        },
+      ],
+      companyStampS3Key: "stamps/b.png",
     });
+    mockFreezeShorakaSigningAuthorisation.mockResolvedValue(frozenSigning());
     mockReissueCertificateSnapshot.mockImplementation((previous: any, input: any) => ({
       ...previous,
       snapshotGeneratedAt: "2026-09-03T00:00:00.000Z",
       snapshotSha256: `reissue-${input.version}`,
       certificate: { ...previous.certificate, version: input.version },
-      authorisation: {
-        authorisedSignatoryName: input.authorisedSignatoryName,
-        companyStamp: input.companyStamp,
-      },
+      authorisation: input.authorisation,
     }));
   });
 
@@ -475,16 +524,18 @@ describe("audience download authorization", () => {
     expect(payload.isCurrent).toBe(true);
     expect(payload.version).toBe("V01");
     expect(payload.reviewVersion).toBeNull();
+    expect(payload.signingOptions?.people[0]?.id).toBe("sp-1");
   });
 
   it("lets admin generate V01 when eligible and no document exists", async () => {
     const empty = await getAdminInvestmentNoteCertificate("note-1");
     expect(empty.status).toBe("NONE");
     expect(empty.canGenerate).toBe(true);
+    expect(empty.signingOptions?.people[0]?.label).toBe("Sarah — Authorised Signatory");
     const payload = await generateAdminInvestmentNoteCertificate("note-1", {
       userId: "admin-1",
       role: "ADMIN",
-    });
+    }, SIGNING);
     expect(payload.status).toBe("READY");
     expect(payload.version).toBe("V01");
     expect(payload.isCurrent).toBe(true);
@@ -503,7 +554,7 @@ describe("audience download authorization", () => {
     currentNote.status = NoteStatus.PUBLISHED;
     currentNote.disbursement_value_date = null;
     await expect(
-      generateAdminInvestmentNoteCertificate("note-1", { userId: "admin-1" })
+      generateAdminInvestmentNoteCertificate("note-1", { userId: "admin-1" }, SIGNING)
     ).rejects.toMatchObject({ code: "CERTIFICATE_GENERATE_NOT_ALLOWED" });
     expect(certificateStore.rows).toHaveLength(0);
   });
@@ -544,24 +595,26 @@ describe("certificate regenerate / reissue", () => {
     });
     mockBuildSnapshot.mockResolvedValue(sampleSnapshot());
     mockLoadFrozenStampImage.mockResolvedValue(null);
-    mockFreezeCertificateAuthorisation.mockResolvedValue({
-      authorisedSignatoryName: "Sarah",
-      companyStamp: {
-        s3Key: "stamps/b.png",
-        sha256: "stamp-b",
-        contentType: "image/png",
-        fileName: "b.png",
-      },
+    mockListShorakaDocumentSigningOptions.mockResolvedValue({
+      people: [
+        {
+          id: "sp-1",
+          personName: "Sarah",
+          roles: ["AUTHORISED_SIGNATORY"],
+          label: "Sarah — Authorised Signatory",
+          hasSignature: true,
+          signatureS3Key: "sigs/b.png",
+        },
+      ],
+      companyStampS3Key: "stamps/b.png",
     });
+    mockFreezeShorakaSigningAuthorisation.mockResolvedValue(frozenSigning());
     mockReissueCertificateSnapshot.mockImplementation((previous: any, input: any) => ({
       ...previous,
       snapshotGeneratedAt: "2026-09-03T00:00:00.000Z",
       snapshotSha256: `reissue-${input.version}`,
       certificate: { ...previous.certificate, version: input.version },
-      authorisation: {
-        authorisedSignatoryName: input.authorisedSignatoryName,
-        companyStamp: input.companyStamp,
-      },
+      authorisation: input.authorisation,
     }));
   });
 
@@ -587,16 +640,19 @@ describe("certificate regenerate / reissue", () => {
       source: "DISBURSEMENT_COMPLETED",
     });
     mockBuildSnapshot.mockClear();
-    mockFreezeCertificateAuthorisation.mockResolvedValue({
+    mockFreezeShorakaSigningAuthorisation.mockResolvedValue({
       authorisedSignatoryName: "Sarah",
       companyStamp: { s3Key: "stamps/b.png", sha256: "b", contentType: "image/png", fileName: "b.png" },
     });
     mockConvertDocxToPdf.mockResolvedValue(Buffer.from("%PDF-cert"));
     await retryAdminInvestmentNoteCertificate("note-1", { userId: "admin-1", role: "ADMIN" });
     expect(mockBuildSnapshot).not.toHaveBeenCalled();
-    expect(mockFreezeCertificateAuthorisation).not.toHaveBeenCalled();
+    expect(mockFreezeShorakaSigningAuthorisation).not.toHaveBeenCalled();
     expect(mockLoadFrozenStampImage).toHaveBeenCalledWith(
       expect.objectContaining({ s3Key: "stamps/a.png" })
+    );
+    expect(mockLoadFrozenStampImage).toHaveBeenCalledWith(
+      expect.objectContaining({ s3Key: "sigs/a.png" })
     );
     expect(certificateStore.rows.every((row) => row.version === "V01")).toBe(true);
     expect(
@@ -615,7 +671,7 @@ describe("certificate regenerate / reissue", () => {
     const payload = await reissueAdminInvestmentNoteCertificate("note-1", {
       userId: "admin-1",
       role: "ADMIN",
-    });
+    }, SIGNING);
     const v01 = certificateStore.rows.filter((row) => row.version === "V01");
     const v02 = certificateStore.rows.filter((row) => row.version === "V02");
     expect(v01).toHaveLength(4);
@@ -658,17 +714,19 @@ describe("certificate regenerate / reissue", () => {
       noteId: "note-1",
       source: "DISBURSEMENT_COMPLETED",
     });
-    await reissueAdminInvestmentNoteCertificate("note-1", { userId: "admin-1", role: "ADMIN" });
-    mockFreezeCertificateAuthorisation.mockResolvedValue({
-      authorisedSignatoryName: "Sarah",
-      companyStamp: { s3Key: "stamps/c.png", sha256: "c", contentType: "image/png", fileName: "c.png" },
-    });
-    await reissueAdminInvestmentNoteCertificate("note-1", { userId: "admin-1", role: "ADMIN" });
+    await reissueAdminInvestmentNoteCertificate("note-1", { userId: "admin-1", role: "ADMIN" }, SIGNING);
+    mockFreezeShorakaSigningAuthorisation.mockResolvedValue(
+      frozenSigning({
+        companyStamp: { s3Key: "stamps/c.png", sha256: "c", contentType: "image/png", fileName: "c.png" },
+      })
+    );
+    await reissueAdminInvestmentNoteCertificate("note-1", { userId: "admin-1", role: "ADMIN" }, SIGNING);
     expect(certificateStore.rows.some((row) => row.version === "V03")).toBe(true);
     const issuer = await getIssuerInvestmentNoteCertificate("note-1", "issuer-user");
     expect(issuer.version).toBe("V01");
     expect(issuer.canRegenerate).toBe(false);
     expect(issuer.canRetry).toBe(false);
+    expect(issuer.signingOptions).toBeUndefined();
   });
 
   it("publishes the regenerated version and keeps V01 as history", async () => {
@@ -681,7 +739,7 @@ describe("certificate regenerate / reissue", () => {
       noteId: "note-1",
       source: "DISBURSEMENT_COMPLETED",
     });
-    await reissueAdminInvestmentNoteCertificate("note-1", { userId: "admin-1", role: "ADMIN" });
+    await reissueAdminInvestmentNoteCertificate("note-1", { userId: "admin-1", role: "ADMIN" }, SIGNING);
     mockCreateNoteEventRow.mockClear();
     const published = await publishAdminInvestmentNoteCertificate("note-1", {
       userId: "admin-1",
@@ -720,7 +778,7 @@ describe("certificate regenerate / reissue", () => {
       source: "DISBURSEMENT_COMPLETED",
     });
     await expect(
-      reissueAdminInvestmentNoteCertificate("note-1", { userId: "admin-1" })
+      reissueAdminInvestmentNoteCertificate("note-1", { userId: "admin-1" }, SIGNING)
     ).rejects.toMatchObject({ code: "CERTIFICATE_REISSUE_NOT_ALLOWED" });
     expect(certificateStore.rows.every((row) => row.version === "V01")).toBe(true);
   });

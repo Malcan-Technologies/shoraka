@@ -87,7 +87,8 @@ describe("buildInvestmentSettlementConfirmationHtml", () => {
         walletTransactionIds: [walletCuid],
       })
     );
-    expect(html).toContain("Note ARF-202609-5O3");
+    expect(html).toContain("NOTE-ARF-202609-5O3");
+    expect(html).not.toContain("Note ARF-202609-5O3");
     expect(html).toContain("ISS-202608-DK3");
     expect(html).toContain("10,000.00");
     expect(html).toContain("10,637.50");

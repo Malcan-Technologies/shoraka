@@ -740,6 +740,7 @@ export interface AdminInvestmentItem {
   issuerOrganizationName: string | null;
   investorOrganizationId: string;
   investorOrganizationName: string | null;
+  investorOrganizationDisplayReference: string | null;
   investorUserId: string;
   investorUserName: string | null;
   investorUserEmail: string | null;

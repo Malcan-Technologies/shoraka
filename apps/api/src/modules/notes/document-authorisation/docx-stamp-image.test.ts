@@ -101,3 +101,25 @@ describe("applyCompanyStampToDocx", () => {
     expect(xml).not.toContain("<w:drawing>");
   });
 });
+
+describe("applySignatureImageToDocx", () => {
+  it("injects a signature image independently of the company stamp", () => {
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFhAH+plp0OQAAAABJRU5ErkJggg==",
+      "base64"
+    );
+    const rendered = renderInvestmentNoteCertificateDocx(
+      sampleInvestmentNoteCertificateSnapshot(),
+      { audience: "ADMIN" },
+      { bytes: TWO_BY_ONE_PNG, contentType: "image/png" },
+      { bytes: png, contentType: "image/png" }
+    );
+    const xml = drawingXml(rendered);
+    const zip = new PizZip(rendered);
+    expect(zip.file("word/media/company-stamp.png")).toBeTruthy();
+    expect(zip.file("word/media/signing-signature.png")).toBeTruthy();
+    expect(xml).toContain('<pic:cNvPr id="91001" name="company-stamp"/>');
+    expect(xml).toContain('<pic:cNvPr id="91002" name="signing-signature"/>');
+    expect(xml).not.toContain("§SIGNATURE_IMAGE§");
+  });
+});

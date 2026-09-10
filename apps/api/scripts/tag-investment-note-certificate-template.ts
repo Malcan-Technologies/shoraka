@@ -318,10 +318,9 @@ function tagAuthorisationTable(tableXml: string): string {
   if (cells.length !== 2) {
     throw new Error(`Certificate authorisation table expected 2 cells, found ${cells.length}`);
   }
-  const nameCell = cells[0]!.replace(
-    "Name / Date: __________________",
-    "Name / Date: {signatoryNameAndDate}"
-  );
+  const nameCell = cells[0]!
+    .replace("________________________", "§SIGNATURE_IMAGE§")
+    .replace("Name / Date: __________________", "Name / Date: {signatoryNameAndDate}");
   const stampCell = cells[1]!.replace(
     ">________________________<",
     ">§COMPANY_STAMP_IMAGE§<"

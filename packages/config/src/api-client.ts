@@ -1341,9 +1341,10 @@ export class ApiClient {
   }
 
   async generateAdminInvestmentNoteCertificate(
-    id: string
+    id: string,
+    body: { signingPersonId: string }
   ): Promise<ApiResponse<InvestmentNoteCertificatePdfPayload> | ApiError> {
-    return this.post(`/v1/admin/notes/${id}/investment-note-certificate/generate`, {});
+    return this.post(`/v1/admin/notes/${id}/investment-note-certificate/generate`, body);
   }
 
   async retryAdminInvestmentNoteCertificate(
@@ -1365,9 +1366,10 @@ export class ApiClient {
   }
 
   async generateAdminSettlementHibahReceipt(
-    id: string
+    id: string,
+    body: { signingPersonId: string }
   ): Promise<ApiResponse<SettlementHibahReceiptPdfPayload> | ApiError> {
-    return this.post(`/v1/admin/notes/${id}/settlement-hibah-receipt/generate`, {});
+    return this.post(`/v1/admin/notes/${id}/settlement-hibah-receipt/generate`, body);
   }
 
   async retryAdminSettlementHibahReceipt(
@@ -1827,15 +1829,17 @@ export class ApiClient {
   }
 
   async reissueAdminInvestmentNoteCertificate(
-    id: string
+    id: string,
+    body: { signingPersonId: string }
   ): Promise<ApiResponse<InvestmentNoteCertificatePdfPayload> | ApiError> {
-    return this.post(`/v1/admin/notes/${id}/investment-note-certificate/reissue`, {});
+    return this.post(`/v1/admin/notes/${id}/investment-note-certificate/reissue`, body);
   }
 
   async reissueAdminSettlementHibahReceipt(
-    id: string
+    id: string,
+    body: { signingPersonId: string }
   ): Promise<ApiResponse<SettlementHibahReceiptPdfPayload> | ApiError> {
-    return this.post(`/v1/admin/notes/${id}/settlement-hibah-receipt/reissue`, {});
+    return this.post(`/v1/admin/notes/${id}/settlement-hibah-receipt/reissue`, body);
   }
 
   async getAdminInvestorWithdrawals(params?: {

@@ -90,15 +90,15 @@ describe("Shoraka signing authorisation storage boundaries", () => {
     expect(service).toContain("if (!name) return;");
   });
 
-  it("does not change document freeze or generation read paths", () => {
+  it("does not change SigningCloud or invent a parallel freeze store", () => {
     expect(freezeConfig).toContain("document_authorisation_config");
     expect(freezeConfig).toContain("export async function freezeCertificateAuthorisation");
     expect(freezeConfig).toContain("export async function freezeReceiptAuthorisation");
     expect(freezeConfig).not.toContain("operatorSigningPerson");
     expect(freezeConfig).not.toContain("signingPeople");
-    expect(certificateService).toContain("freezeCertificateAuthorisation");
+    expect(certificateService).toContain("freezeShorakaSigningAuthorisation");
     expect(certificateService).not.toContain("createSigningPerson");
-    expect(receiptService).toContain("freezeReceiptAuthorisation");
+    expect(receiptService).toContain("freezeShorakaSigningAuthorisation");
     expect(receiptService).not.toContain("createSigningPerson");
   });
 

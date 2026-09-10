@@ -30,6 +30,7 @@ import {
   getAdminInvestmentsQuerySchema,
   getNotesQuerySchema,
   idParamSchema,
+  documentSigningPersonBodySchema,
   noteSettlementParamsSchema,
   invoiceIdParamSchema,
   lateChargeSchema,
@@ -392,10 +393,11 @@ adminNotesRouter.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = idParamSchema.parse(req.params);
+      const body = documentSigningPersonBodySchema.parse(req.body);
       const { generateAdminInvestmentNoteCertificate } = await import(
         "./investment-note-certificate/service"
       );
-      send(res, await generateAdminInvestmentNoteCertificate(id, getActor(req, res, "ADMIN")));
+      send(res, await generateAdminInvestmentNoteCertificate(id, getActor(req, res, "ADMIN"), body));
     } catch (error) {
       next(error);
     }
@@ -424,10 +426,11 @@ adminNotesRouter.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = idParamSchema.parse(req.params);
+      const body = documentSigningPersonBodySchema.parse(req.body);
       const { reissueAdminInvestmentNoteCertificate } = await import(
         "./investment-note-certificate/service"
       );
-      send(res, await reissueAdminInvestmentNoteCertificate(id, getActor(req, res, "ADMIN")));
+      send(res, await reissueAdminInvestmentNoteCertificate(id, getActor(req, res, "ADMIN"), body));
     } catch (error) {
       next(error);
     }
@@ -472,10 +475,11 @@ adminNotesRouter.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = idParamSchema.parse(req.params);
+      const body = documentSigningPersonBodySchema.parse(req.body);
       const { generateAdminSettlementHibahReceipt } = await import(
         "./settlement-hibah-receipt/service"
       );
-      send(res, await generateAdminSettlementHibahReceipt(id, getActor(req, res, "ADMIN")));
+      send(res, await generateAdminSettlementHibahReceipt(id, getActor(req, res, "ADMIN"), body));
     } catch (error) {
       next(error);
     }
@@ -504,10 +508,11 @@ adminNotesRouter.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = idParamSchema.parse(req.params);
+      const body = documentSigningPersonBodySchema.parse(req.body);
       const { reissueAdminSettlementHibahReceipt } = await import(
         "./settlement-hibah-receipt/service"
       );
-      send(res, await reissueAdminSettlementHibahReceipt(id, getActor(req, res, "ADMIN")));
+      send(res, await reissueAdminSettlementHibahReceipt(id, getActor(req, res, "ADMIN"), body));
     } catch (error) {
       next(error);
     }

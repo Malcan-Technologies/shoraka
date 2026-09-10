@@ -14,9 +14,35 @@ const mockStoreReceiptPdf = jest.fn();
 const mockGenerateReceiptPdfViewUrl = jest.fn();
 const mockCreateNoteEventRow = jest.fn();
 const mockBuildSnapshot = jest.fn();
-const mockFreezeReceiptAuthorisation = jest.fn();
+const mockFreezeShorakaSigningAuthorisation = jest.fn();
+const mockListShorakaDocumentSigningOptions = jest.fn();
 const mockLoadFrozenStampImage = jest.fn();
 const mockReissueReceiptSnapshot = jest.fn();
+
+const SIGNING = { signingPersonId: "sp-1" };
+
+function frozenSigning(overrides: Record<string, unknown> = {}) {
+  return {
+    signingPersonId: "sp-1",
+    signingPersonName: "Sarah",
+    signingRoles: ["AUTHORISED_SIGNATORY"],
+    authorisedSignatoryName: "Sarah",
+    signature: {
+      s3Key: "sigs/b.png",
+      sha256: "sig-b",
+      contentType: "image/png",
+      fileName: "b.png",
+    },
+    companyStamp: {
+      s3Key: "stamps/b.png",
+      sha256: "stamp-b",
+      contentType: "image/png",
+      fileName: "b.png",
+    },
+    stampSource: "SHARED_CERTIFICATE_STAMP" as const,
+    ...overrides,
+  };
+}
 
 const receiptStore: { rows: any[] } = { rows: [] };
 const noteEvents: any[] = [];
@@ -145,8 +171,22 @@ jest.mock("./snapshot", () => ({
     mockReissueReceiptSnapshot(...args),
 }));
 jest.mock("../document-authorisation/config", () => ({
-  freezeReceiptAuthorisation: (...args: unknown[]) => mockFreezeReceiptAuthorisation(...args),
   loadFrozenStampImage: (...args: unknown[]) => mockLoadFrozenStampImage(...args),
+}));
+jest.mock("../document-authorisation/signing-person-freeze", () => ({
+  freezeShorakaSigningAuthorisation: (...args: unknown[]) =>
+    mockFreezeShorakaSigningAuthorisation(...args),
+  listShorakaDocumentSigningOptions: (...args: unknown[]) =>
+    mockListShorakaDocumentSigningOptions(...args),
+  toReceiptAuthorisationSnapshot: (frozen: any) => ({
+    stampSource: frozen.stampSource,
+    companyStamp: frozen.companyStamp,
+    signingPersonId: frozen.signingPersonId,
+    signingPersonName: frozen.signingPersonName,
+    signingRoles: frozen.signingRoles,
+    signature: frozen.signature,
+    authorisedSignatoryName: frozen.authorisedSignatoryName,
+  }),
 }));
 jest.mock("../../../lib/audit", () => ({
   AUDIT_PORTAL: { ADMIN: "ADMIN" },
@@ -223,6 +263,16 @@ function sampleSnapshot(
     confirmationCopy: "Confirmation.",
     authorisation: {
       stampSource: "SHARED_CERTIFICATE_STAMP",
+      authorisedSignatoryName: "Ahmad",
+      signingPersonId: "sp-legacy",
+      signingPersonName: "Ahmad",
+      signingRoles: ["AUTHORISED_SIGNATORY"],
+      signature: {
+        s3Key: "sigs/a.png",
+        sha256: "sig-a",
+        contentType: "image/png",
+        fileName: "a.png",
+      },
       companyStamp: {
         s3Key: "stamps/a.png",
         sha256: "stamp-a",
@@ -267,25 +317,27 @@ describe("generateSettlementHibahReceipt", () => {
     });
     mockBuildSnapshot.mockResolvedValue(sampleSnapshot());
     mockLoadFrozenStampImage.mockResolvedValue(null);
-    mockFreezeReceiptAuthorisation.mockResolvedValue({
-      stampSource: "SEPARATE_RECEIPT_STAMP",
-      companyStamp: {
-        s3Key: "stamps/b.png",
-        sha256: "stamp-b",
-        contentType: "image/png",
-        fileName: "b.png",
-      },
+    mockListShorakaDocumentSigningOptions.mockResolvedValue({
+      people: [
+        {
+          id: "sp-1",
+          personName: "Sarah",
+          roles: ["AUTHORISED_SIGNATORY"],
+          label: "Sarah — Authorised Signatory",
+          hasSignature: true,
+          signatureS3Key: "sigs/b.png",
+        },
+      ],
+      companyStampS3Key: "stamps/b.png",
     });
+    mockFreezeShorakaSigningAuthorisation.mockResolvedValue(frozenSigning());
     mockReissueReceiptSnapshot.mockImplementation((previous: any, input: any) => ({
       ...previous,
       snapshotGeneratedAt: "2026-09-03T00:00:00.000Z",
       snapshotSha256: `reissue-${input.version}`,
       source: "ADMIN_REISSUE",
       version: input.version,
-      authorisation: {
-        stampSource: input.stampSource,
-        companyStamp: input.companyStamp,
-      },
+      authorisation: input.authorisation,
     }));
   });
 
@@ -463,6 +515,7 @@ describe("receipt visibility", () => {
     expect(payload.generationError).toBeNull();
     expect(payload.canRetry).toBe(false);
     expect(payload.canRegenerate).toBe(false);
+    expect(payload.signingOptions).toBeUndefined();
   });
 
   it("forbids another issuer", async () => {
@@ -505,25 +558,27 @@ describe("receipt regenerate / reissue", () => {
     });
     mockBuildSnapshot.mockResolvedValue(sampleSnapshot());
     mockLoadFrozenStampImage.mockResolvedValue(null);
-    mockFreezeReceiptAuthorisation.mockResolvedValue({
-      stampSource: "SEPARATE_RECEIPT_STAMP",
-      companyStamp: {
-        s3Key: "stamps/b.png",
-        sha256: "stamp-b",
-        contentType: "image/png",
-        fileName: "b.png",
-      },
+    mockListShorakaDocumentSigningOptions.mockResolvedValue({
+      people: [
+        {
+          id: "sp-1",
+          personName: "Sarah",
+          roles: ["AUTHORISED_SIGNATORY"],
+          label: "Sarah — Authorised Signatory",
+          hasSignature: true,
+          signatureS3Key: "sigs/b.png",
+        },
+      ],
+      companyStampS3Key: "stamps/b.png",
     });
+    mockFreezeShorakaSigningAuthorisation.mockResolvedValue(frozenSigning());
     mockReissueReceiptSnapshot.mockImplementation((previous: any, input: any) => ({
       ...previous,
       snapshotGeneratedAt: "2026-09-03T00:00:00.000Z",
       snapshotSha256: `reissue-${input.version}`,
       source: "ADMIN_REISSUE",
       version: input.version,
-      authorisation: {
-        stampSource: input.stampSource,
-        companyStamp: input.companyStamp,
-      },
+      authorisation: input.authorisation,
     }));
   });
 
@@ -534,6 +589,9 @@ describe("receipt regenerate / reissue", () => {
     });
     expect(mockLoadFrozenStampImage).toHaveBeenCalledWith(
       expect.objectContaining({ s3Key: "stamps/a.png" })
+    );
+    expect(mockLoadFrozenStampImage).toHaveBeenCalledWith(
+      expect.objectContaining({ s3Key: "sigs/a.png" })
     );
     expect(receiptStore.rows[0].snapshot.authorisation.stampSource).toBe(
       "SHARED_CERTIFICATE_STAMP"
@@ -558,13 +616,17 @@ describe("receipt regenerate / reissue", () => {
     mockBuildSnapshot.mockResolvedValue(sampleSnapshot({ hibahAmount: 99, snapshotSha256: "new" }));
     await retryAdminSettlementHibahReceipt("note-1", { userId: "admin-1", role: "ADMIN" });
     expect(mockBuildSnapshot).not.toHaveBeenCalled();
-    expect(mockFreezeReceiptAuthorisation).not.toHaveBeenCalled();
+    expect(mockFreezeShorakaSigningAuthorisation).not.toHaveBeenCalled();
     expect(mockLoadFrozenStampImage).toHaveBeenCalledWith(
       expect.objectContaining({ s3Key: "stamps/a.png" })
+    );
+    expect(mockLoadFrozenStampImage).toHaveBeenCalledWith(
+      expect.objectContaining({ s3Key: "sigs/a.png" })
     );
     expect(receiptStore.rows).toHaveLength(1);
     expect(receiptStore.rows[0].snapshot.hibahAmount).toBe(12.34);
     expect(receiptStore.rows[0].snapshot.authorisation.companyStamp?.s3Key).toBe("stamps/a.png");
+    expect(receiptStore.rows[0].snapshot.authorisation.signature?.s3Key).toBe("sigs/a.png");
   });
 
   it("creates V02 from READY V01 without overwriting V01 financial facts", async () => {
@@ -576,7 +638,7 @@ describe("receipt regenerate / reissue", () => {
     const payload = await reissueAdminSettlementHibahReceipt("note-1", {
       userId: "admin-1",
       role: "ADMIN",
-    });
+    }, SIGNING);
     expect(receiptStore.rows).toHaveLength(2);
     const v01 = receiptStore.rows.find((row) => row.version === "V01");
     const v02 = receiptStore.rows.find((row) => row.version === "V02");
@@ -584,7 +646,7 @@ describe("receipt regenerate / reissue", () => {
     expect(v01?.snapshot.authorisation.companyStamp?.s3Key).toBe("stamps/a.png");
     expect(v01?.snapshot.hibahAmount).toBe(2_000);
     expect(v02?.snapshot.authorisation.companyStamp?.s3Key).toBe("stamps/b.png");
-    expect(v02?.snapshot.authorisation.stampSource).toBe("SEPARATE_RECEIPT_STAMP");
+    expect(v02?.snapshot.authorisation.stampSource).toBe("SHARED_CERTIFICATE_STAMP");
     expect(v02?.snapshot.hibahAmount).toBe(2_000);
     expect(v02?.snapshot.grossReceiptAmount).toBe(100_000);
     expect(payload.version).toBe("V01");
@@ -612,12 +674,13 @@ describe("receipt regenerate / reissue", () => {
       noteId: "note-1",
       source: "SETTLEMENT_COMPLETED",
     });
-    await reissueAdminSettlementHibahReceipt("note-1", { userId: "admin-1", role: "ADMIN" });
-    await reissueAdminSettlementHibahReceipt("note-1", { userId: "admin-1", role: "ADMIN" });
+    await reissueAdminSettlementHibahReceipt("note-1", { userId: "admin-1", role: "ADMIN" }, SIGNING);
+    await reissueAdminSettlementHibahReceipt("note-1", { userId: "admin-1", role: "ADMIN" }, SIGNING);
     expect(receiptStore.rows.map((row) => row.version).sort()).toEqual(["V01", "V02", "V03"]);
     const issuer = await getIssuerSettlementHibahReceipt("note-1", "issuer-user");
     expect(issuer.version).toBe("V01");
     expect(issuer.canRegenerate).toBe(false);
+    expect(issuer.signingOptions).toBeUndefined();
   });
 
   it("publishes the regenerated receipt and keeps V01 as history", async () => {
@@ -625,7 +688,7 @@ describe("receipt regenerate / reissue", () => {
       noteId: "note-1",
       source: "SETTLEMENT_COMPLETED",
     });
-    await reissueAdminSettlementHibahReceipt("note-1", { userId: "admin-1", role: "ADMIN" });
+    await reissueAdminSettlementHibahReceipt("note-1", { userId: "admin-1", role: "ADMIN" }, SIGNING);
     mockCreateNoteEventRow.mockClear();
     const published = await publishAdminSettlementHibahReceipt("note-1", {
       userId: "admin-1",
@@ -653,10 +716,11 @@ describe("receipt regenerate / reissue", () => {
     const empty = await getAdminSettlementHibahReceipt("note-1");
     expect(empty.status).toBe("NONE");
     expect(empty.canGenerate).toBe(true);
+    expect(empty.signingOptions?.people[0]?.label).toBe("Sarah — Authorised Signatory");
     const payload = await generateAdminSettlementHibahReceipt("note-1", {
       userId: "admin-1",
       role: "ADMIN",
-    });
+    }, SIGNING);
     expect(payload.version).toBe("V01");
     expect(payload.isCurrent).toBe(true);
     expect(payload.canGenerate).toBe(false);

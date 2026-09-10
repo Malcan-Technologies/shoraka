@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { UsersIcon } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import type { AdminInvestmentItem, NoteDetail } from "@cashsouk/types";
+import { formatOrganizationReference } from "@cashsouk/types";
 import { Skeleton, StatusBadge } from "@cashsouk/ui";
 import { AdminDetailCardHeader } from "@/components/admin-detail";
 import { Card, CardContent } from "@/components/ui/card";
@@ -35,12 +36,13 @@ function formatDate(value: string | null): string {
 }
 
 function getInvestorName(item: AdminInvestmentItem): string {
-  return (
-    item.investorOrganizationName ??
-    item.investorUserName ??
-    item.investorUserEmail ??
-    item.investorUserId
-  );
+  return item.investorOrganizationName ?? item.investorUserName ?? item.investorUserEmail ?? "—";
+}
+
+function getInvestorDisplayId(item: AdminInvestmentItem): string {
+  return formatOrganizationReference({
+    displayReference: item.investorOrganizationDisplayReference,
+  });
 }
 
 interface NoteInvestorsPanelProps {
@@ -122,7 +124,11 @@ export function NoteInvestorsPanel({ note }: NoteInvestorsPanelProps) {
                           >
                             <TableCell>
                               <div className="font-medium">{getInvestorName(investment)}</div>
-                              {investment.investorUserName && investment.investorOrganizationName ? (
+                              {getInvestorDisplayId(investment) !== "—" ? (
+                                <div className="text-xs text-muted-foreground">
+                                  {getInvestorDisplayId(investment)}
+                                </div>
+                              ) : investment.investorUserName && investment.investorOrganizationName ? (
                                 <div className="text-xs text-muted-foreground">
                                   {investment.investorUserName}
                                 </div>
