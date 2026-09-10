@@ -13,6 +13,12 @@ describe("PortalPeopleSection", () => {
     expect(source).toContain("api.createManagementParty(portal, organizationId, data)");
   });
 
+  it("keeps Add person for issuer and investor company People", () => {
+    expect(source).toContain("Add person");
+    expect(source).toContain("api.createManagementParty(portal, organizationId, data)");
+    expect(source).toContain("AddPersonForm");
+  });
+
   it("keeps MASTER_ACTIVE in the People list and MASTER_INACTIVE in the Inactive section", () => {
     expect(source).toContain('party.membershipStatus === "MASTER_ACTIVE"');
     expect(source).toContain('party.membershipStatus === "MASTER_INACTIVE"');

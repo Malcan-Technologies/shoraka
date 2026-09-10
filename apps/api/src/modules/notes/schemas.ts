@@ -350,7 +350,9 @@ export const updatePlatformFinanceSettingsSchema = z.object({
 
 export const requestTrusteeSignatureUploadUrlSchema = z.object({
   fileName: z.string().min(1),
-  contentType: z.enum(["image/png", "image/jpeg", "image/jpg", "image/webp"]),
+  contentType: z.enum(COMPANY_STAMP_ALLOWED_CONTENT_TYPES, {
+    errorMap: () => ({ message: COMPANY_STAMP_UNSUPPORTED_TYPE_MESSAGE }),
+  }),
   fileSize: z.number().int().positive().max(5 * 1024 * 1024),
 });
 

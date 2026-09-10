@@ -12,6 +12,7 @@ import {
   companyStampDeclaredFileRejection,
   personSignatureDeclaredFileRejection,
   profileValidationErrorFromApi,
+  COMPANY_STAMP_FILE_ACCEPT,
   type OperatorProfileDto,
   type OperatorSigningPersonDto,
   type OperatorSigningRole,
@@ -230,13 +231,13 @@ export function ShorakaSigningAuthorisationSection({
         <section className="space-y-3">
           <h3 className="text-card-title">Company Stamp</h3>
           <p className="text-meta text-muted-foreground">
-            Upload a PNG, JPG, or WEBP company stamp image (maximum 5 MB). Replacing this keeps the
+            Upload a PNG or JPG company stamp image (maximum 5 MB). Replacing this keeps the
             previously stored file and updates the Shoraka stamp used by Admin.
           </p>
           <input
             ref={stampInputRef}
             type="file"
-            accept="image/png,image/jpeg,image/jpg,image/webp"
+            accept={COMPANY_STAMP_FILE_ACCEPT}
             className="hidden"
             onChange={(event) => {
               const file = event.target.files?.[0];
@@ -386,7 +387,7 @@ export function ShorakaSigningAuthorisationSection({
               <input
                 ref={signatureInputRef}
                 type="file"
-                accept="image/png,image/jpeg,image/jpg,image/webp"
+                accept={COMPANY_STAMP_FILE_ACCEPT}
                 className="hidden"
                 onChange={(event) => {
                   const file = event.target.files?.[0];

@@ -310,4 +310,33 @@ describe("issuer onboarding stepper DB-accurate steps", () => {
     expect(stepById(steps, "fee").isCurrent).toBe(true);
     expect(stepById(steps, "verify").isCurrent).toBe(false);
   });
+
+  it("routes a resumed incomplete investor company by organization flags, not name", () => {
+    const resumed = baseOrg({
+      id: "org-resume-1",
+      type: "COMPANY",
+      name: "ABC Sdn Bhd",
+      tncAccepted: true,
+      onboardingStatus: "PENDING",
+    });
+    expect(getOnboardingRouteForOrg(resumed, "investor")).toBe("/onboarding/verify");
+  });
+
+  it("routes a resumed incomplete issuer company to fee until paid, then verify", () => {
+    const unpaid = baseOrg({
+      id: "org-resume-iss",
+      type: "COMPANY",
+      name: "ABC Sdn Bhd",
+      tncAccepted: true,
+      onboardingFeePaidAt: null,
+      onboardingStatus: "PENDING",
+    });
+    expect(getOnboardingRouteForOrg(unpaid, "issuer")).toBe("/onboarding/fee");
+
+    const paid = {
+      ...unpaid,
+      onboardingFeePaidAt: new Date().toISOString(),
+    };
+    expect(getOnboardingRouteForOrg(paid, "issuer")).toBe("/onboarding/verify");
+  });
 });

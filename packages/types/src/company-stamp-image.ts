@@ -7,15 +7,16 @@ export const COMPANY_STAMP_ALLOWED_CONTENT_TYPES = [
   "image/png",
   "image/jpeg",
   "image/jpg",
-  "image/webp",
 ] as const;
 
 export type CompanyStampContentType = (typeof COMPANY_STAMP_ALLOWED_CONTENT_TYPES)[number];
 
+export const COMPANY_STAMP_FILE_ACCEPT = COMPANY_STAMP_ALLOWED_CONTENT_TYPES.join(",");
+
 /** Same cap as Trustee Signature (`requestTrusteeSignatureUploadUrlSchema`). */
 export const COMPANY_STAMP_MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 
-export const COMPANY_STAMP_UNSUPPORTED_TYPE_MESSAGE = "Upload a PNG, JPG or WEBP image.";
+export const COMPANY_STAMP_UNSUPPORTED_TYPE_MESSAGE = "Upload a PNG or JPG image.";
 export const COMPANY_STAMP_TOO_LARGE_MESSAGE = "Company stamp image must be 5 MB or smaller.";
 export const PERSON_SIGNATURE_TOO_LARGE_MESSAGE = "Signature image must be 5 MB or smaller.";
 

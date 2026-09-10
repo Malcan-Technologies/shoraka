@@ -931,7 +931,7 @@ export interface DocumentAuthorisationConfig {
 
 export interface TrusteeSignatureUploadUrlRequest {
   fileName: string;
-  contentType: "image/png" | "image/jpeg" | "image/jpg" | "image/webp";
+  contentType: "image/png" | "image/jpeg" | "image/jpg";
   fileSize: number;
 }
 

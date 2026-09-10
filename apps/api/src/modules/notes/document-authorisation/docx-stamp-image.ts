@@ -1,8 +1,14 @@
 import PizZip from "pizzip";
+import { fitStampImageForDocx, type StampExtentEmu } from "./stamp-image-contain";
 
 export const COMPANY_STAMP_IMAGE_PLACEHOLDER = "§COMPANY_STAMP_IMAGE§";
 export const SIGNATURE_IMAGE_PLACEHOLDER = "§SIGNATURE_IMAGE§";
 export const COMPANY_STAMP_UNDERSCORE_FALLBACK = "________________________";
+export {
+  stampExtentEmu,
+  stampExtentEmuFromPixels,
+  type StampExtentEmu,
+} from "./stamp-image-contain";
 
 const IMAGE_REL_TYPE =
   "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image";
@@ -15,22 +21,9 @@ const A14_NS = "http://schemas.microsoft.com/office/drawing/2010/main";
 const STAMP_DRAWING_ID = 91001;
 const SIGNATURE_DRAWING_ID = 91002;
 
-/**
- * Fit the stamp into the authorisation table cell (~3080 twips / 2.14in wide).
- * A square EMU box with noChangeAspect=1 on a wide screenshot makes LibreOffice
- * fail or hang during Gotenberg conversion.
- */
-const MAX_STAMP_WIDTH_EMU = 1_555_000;
-const MAX_STAMP_HEIGHT_EMU = 792_000;
-
 type StampImageInput = {
   bytes: Buffer;
   contentType?: string | null;
-};
-
-export type StampExtentEmu = {
-  cx: number;
-  cy: number;
 };
 
 function stampExtension(contentType: string | null | undefined): {
@@ -67,60 +60,6 @@ function ensureContentTypeDefault(contentTypesXml: string, ext: string, mime: st
     /<Types\b[^>]*>/,
     (open) => `${open}<Default Extension="${ext}" ContentType="${mime}"/>`
   );
-}
-
-function readPngSize(bytes: Buffer): { width: number; height: number } | null {
-  if (bytes.length < 24) return null;
-  if (bytes.subarray(0, 8).compare(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) !== 0) {
-    return null;
-  }
-  if (bytes.toString("ascii", 12, 16) !== "IHDR") return null;
-  const width = bytes.readUInt32BE(16);
-  const height = bytes.readUInt32BE(20);
-  if (width < 1 || height < 1) return null;
-  return { width, height };
-}
-
-function readJpegSize(bytes: Buffer): { width: number; height: number } | null {
-  if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) return null;
-  let offset = 2;
-  while (offset + 8 < bytes.length) {
-    if (bytes[offset] !== 0xff) return null;
-    const marker = bytes[offset + 1]!;
-    const size = bytes.readUInt16BE(offset + 2);
-    if (
-      (marker >= 0xc0 && marker <= 0xc3) ||
-      (marker >= 0xc5 && marker <= 0xc7) ||
-      (marker >= 0xc9 && marker <= 0xcb) ||
-      (marker >= 0xcd && marker <= 0xcf)
-    ) {
-      const height = bytes.readUInt16BE(offset + 5);
-      const width = bytes.readUInt16BE(offset + 7);
-      if (width < 1 || height < 1) return null;
-      return { width, height };
-    }
-    offset += 2 + size;
-  }
-  return null;
-}
-
-export function stampExtentEmuFromPixels(width: number, height: number): StampExtentEmu {
-  const w = width > 0 ? width : 1;
-  const h = height > 0 ? height : 1;
-  const heightIfFullWidth = Math.round((MAX_STAMP_WIDTH_EMU * h) / w);
-  if (heightIfFullWidth <= MAX_STAMP_HEIGHT_EMU) {
-    return { cx: MAX_STAMP_WIDTH_EMU, cy: Math.max(1, heightIfFullWidth) };
-  }
-  return {
-    cx: Math.max(1, Math.round((MAX_STAMP_HEIGHT_EMU * w) / h)),
-    cy: MAX_STAMP_HEIGHT_EMU,
-  };
-}
-
-export function stampExtentEmu(bytes: Buffer): StampExtentEmu {
-  const size = readPngSize(bytes) ?? readJpegSize(bytes);
-  if (!size) return { cx: MAX_STAMP_HEIGHT_EMU, cy: MAX_STAMP_HEIGHT_EMU };
-  return stampExtentEmuFromPixels(size.width, size.height);
 }
 
 function inlineStampDrawingXml(
@@ -224,9 +163,10 @@ function applyPlaceholderImageToDocx(
     return zip.generate({ type: "nodebuffer", compression: "DEFLATE" }) as Buffer;
   }
 
-  const { ext, mime } = stampExtension(input.image.contentType);
+  const fitted = fitStampImageForDocx(input.image.bytes, input.image.contentType);
+  const { ext, mime } = stampExtension(fitted.contentType);
   const mediaFile = `${input.mediaBaseName}.${ext}`;
-  zip.file(`word/media/${mediaFile}`, input.image.bytes);
+  zip.file(`word/media/${mediaFile}`, fitted.bytes);
 
   const relsPath = "word/_rels/document.xml.rels";
   const relsFile = zip.file(relsPath);
@@ -250,7 +190,7 @@ function applyPlaceholderImageToDocx(
   documentXml = replacePlaceholderRun(
     documentXml,
     input.placeholder,
-    inlineStampDrawingXml(relId, stampExtentEmu(input.image.bytes), input.drawing)
+    inlineStampDrawingXml(relId, fitted.extent, input.drawing)
   );
   zip.file("word/document.xml", documentXml);
   return zip.generate({ type: "nodebuffer", compression: "DEFLATE" }) as Buffer;

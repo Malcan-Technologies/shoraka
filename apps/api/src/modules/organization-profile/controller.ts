@@ -445,28 +445,6 @@ export function createAdminOrganizationProfileRouter() {
     }
   });
 
-  router.post("/:portal/:id/party-profiles", requirePermission("organizations.manage"), async (req, res, next) => {
-    try {
-      const portal = portalFromParams(req);
-      const patch = createPartySchema.parse(req.body);
-      const data = await createUserAddedParty({
-        portal,
-        organizationId: req.params.id,
-        patch,
-        source: "ADMIN",
-      });
-      await logMasterProfileAudit({
-        req,
-        organizationId: req.params.id,
-        eventType: "MASTER_PARTY_CREATED",
-        metadata: { portal, partyId: data.id, partyKey: data.partyKey },
-      });
-      res.json({ success: true, data, correlationId: res.locals.correlationId });
-    } catch (error) {
-      next(error);
-    }
-  });
-
   router.patch("/:portal/:id/financials", requirePermission("organizations.manage"), async (req, res, next) => {
     try {
       const portal = portalFromParams(req);

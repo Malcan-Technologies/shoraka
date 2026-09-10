@@ -256,6 +256,7 @@ export {
   OnboardingLayout,
   OnboardingStatusCard,
   getOnboardingSteps,
+  IncompleteCompanyOnboardingDialog,
 } from "./onboarding";
 export type {
   OnboardingStepperStep,
@@ -314,6 +315,7 @@ export { OnboardingOrgStatusBadge } from "./components/onboarding-org-status-bad
 export {
   OrganizationSwitcherAvatar,
   OrganizationSwitcherCaption,
+  organizationSwitcherSecondaryText,
   organizationTypeLabel,
 } from "./components/organization-switcher-identity";
 export { PortalBadge } from "./components/portal-badge";

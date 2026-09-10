@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { getOnboardingRouteForOrg, useOrganization } from "@cashsouk/config";
+import { useOrganization } from "@cashsouk/config";
 import { OnboardingLayout, LegalDocumentsReview } from "@cashsouk/ui";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -25,9 +25,7 @@ export default function OnboardingTermsPage() {
         portalType="issuer"
         apiUrl={API_URL}
         mode="onboarding"
-        onComplete={() =>
-          router.push(getOnboardingRouteForOrg(activeOrganization, "issuer"))
-        }
+        onComplete={() => router.push("/onboarding/fee")}
       />
     </OnboardingLayout>
   );

@@ -42,3 +42,8 @@ export { IdentityVerifyStep } from "./identity-verify-step";
 export { OnboardingLayout } from "./onboarding-layout";
 export { OnboardingStatusCard, getOnboardingSteps } from "./onboarding-status-card";
 export type { OnboardingStatusCardProps, OnboardingStep } from "./onboarding-status-card";
+export { IncompleteCompanyOnboardingDialog } from "./incomplete-company-onboarding-dialog";
+export {
+  incompleteCompanyOnboardingDescription,
+  incompleteCompanyOnboardingTitle,
+} from "./incomplete-company-onboarding-copy";

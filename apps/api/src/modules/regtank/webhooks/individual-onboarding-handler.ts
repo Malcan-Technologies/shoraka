@@ -14,6 +14,7 @@ import {
   normalizeRawStatus,
 } from "@cashsouk/types";
 import { findCtosPartySupplementByOnboardingJsonMatch } from "../../organization/ctos-party-supplement-webhook-lookup";
+import { shouldIgnoreStaleCtosPartyOnboardingWebhook } from "../../organization/ctos-party-onboarding-request-guard";
 import { enrichApprovedCtosPartySupplement } from "../../organization-profile/regtank-party-seed";
 import { getIndividualWaitForApprovalUpdate } from "../helpers/individual-onboarding-transition";
 import {
@@ -416,6 +417,16 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
 
     if (!supplement) {
       return false;
+    }
+
+    if (
+      shouldIgnoreStaleCtosPartyOnboardingWebhook({
+        supplement,
+        incomingOnboardingRequestId: requestId,
+        webhookType: "liveness",
+      })
+    ) {
+      return true;
     }
 
     const prevRoot = supplement.onboarding_json;

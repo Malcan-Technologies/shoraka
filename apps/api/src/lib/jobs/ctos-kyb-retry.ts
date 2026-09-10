@@ -16,9 +16,28 @@ function asJsonRecord(v: unknown): Record<string, unknown> | null {
   return null;
 }
 
-async function touchLastKybAttemptAt(organizationId: string, partyKey: string): Promise<void> {
+function supplementPortal(
+  row: { issuer_organization_id: string | null; investor_organization_id: string | null }
+): { portalType: "issuer" | "investor"; organizationId: string } | null {
+  if (row.issuer_organization_id) {
+    return { portalType: "issuer", organizationId: row.issuer_organization_id };
+  }
+  if (row.investor_organization_id) {
+    return { portalType: "investor", organizationId: row.investor_organization_id };
+  }
+  return null;
+}
+
+async function touchLastKybAttemptAt(
+  portalType: "issuer" | "investor",
+  organizationId: string,
+  partyKey: string
+): Promise<void> {
   const fresh = await prisma.ctosPartySupplement.findFirst({
-    where: { issuer_organization_id: organizationId, party_key: partyKey },
+    where:
+      portalType === "issuer"
+        ? { issuer_organization_id: organizationId, party_key: partyKey }
+        : { investor_organization_id: organizationId, party_key: partyKey },
     select: { id: true, onboarding_json: true },
   });
   if (!fresh) return;
@@ -37,16 +56,19 @@ async function touchLastKybAttemptAt(organizationId: string, partyKey: string): 
 }
 
 /**
- * Retries RegTank KYB attach (4.9 / 4.10) for CTOS parties that are KYC APPROVED but not fully linked.
+ * Retries RegTank KYB attach (4.9 / 4.10) for parties that are KYC APPROVED but not fully linked.
  * Uses {@link linkCtosPartyToKyb} only; no duplicated role or API logic.
  */
 export async function runCtosKybRetryJob(): Promise<void> {
   logger.info("Running CTOS KYB retry job");
 
   const rows = await prisma.ctosPartySupplement.findMany({
-    where: { issuer_organization_id: { not: null } },
+    where: {
+      OR: [{ issuer_organization_id: { not: null } }, { investor_organization_id: { not: null } }],
+    },
     select: {
       issuer_organization_id: true,
+      investor_organization_id: true,
       party_key: true,
       onboarding_json: true,
     },
@@ -73,38 +95,41 @@ export async function runCtosKybRetryJob(): Promise<void> {
         if (!Number.isNaN(t) && Date.now() - t < FIVE_MIN_MS) continue;
       }
 
-      const organizationId = row.issuer_organization_id;
-      if (!organizationId) continue;
+      const portal = supplementPortal(row);
+      if (!portal) continue;
 
       logger.info(
-        { partyKey: row.party_key, organizationId },
+        { partyKey: row.party_key, organizationId: portal.organizationId, portalType: portal.portalType },
         "Retrying CTOS KYB linking"
       );
 
       try {
         await linkCtosPartyToKyb({
-          organizationId,
+          organizationId: portal.organizationId,
           partyKey: row.party_key,
           onboardingJson: json,
+          portalType: portal.portalType,
         });
       } catch (e) {
         logger.error(
           {
             error: e instanceof Error ? e.message : String(e),
             partyKey: row.party_key,
-            organizationId,
+            organizationId: portal.organizationId,
+            portalType: portal.portalType,
           },
           "CTOS KYB retry linkCtosPartyToKyb threw (non-blocking)"
         );
       } finally {
         try {
-          await touchLastKybAttemptAt(organizationId, row.party_key);
+          await touchLastKybAttemptAt(portal.portalType, portal.organizationId, row.party_key);
         } catch (e) {
           logger.error(
             {
               error: e instanceof Error ? e.message : String(e),
               partyKey: row.party_key,
-              organizationId,
+              organizationId: portal.organizationId,
+              portalType: portal.portalType,
             },
             "CTOS KYB retry lastKybAttemptAt update failed (non-blocking)"
           );

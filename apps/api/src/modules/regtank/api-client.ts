@@ -4,6 +4,8 @@ import {
   RegTankIndividualOnboardingRequest,
   RegTankCorporateOnboardingRequest,
   RegTankOnboardingResponse,
+  RegTankRenewIndividualTokenRequest,
+  RegTankRenewIndividualTokenResponse,
   RegTankOnboardingDetails,
   RegTankKycScreeningInputRequest,
   RegTankKybScreeningInputRequest,
@@ -237,6 +239,24 @@ export class RegTankAPIClient {
       console.log("[RegTank] POST /v3/onboarding/indv/request — error (remove after debug)", err);
       throw err;
     }
+  }
+
+  /**
+   * Renew the verification token for an existing individual onboarding request.
+   * Same requestId; new token + expiredIn. Does not create a replacement request.
+   */
+  async renewIndividualOnboardingToken(
+    request: RegTankRenewIndividualTokenRequest
+  ): Promise<RegTankRenewIndividualTokenResponse> {
+    const endpoint = "/v3/onboarding/v2/indv/renew-token";
+    logger.info({ requestId: request.requestId }, "Renewing RegTank individual onboarding token");
+    return this.makeRequest<RegTankRenewIndividualTokenResponse>(endpoint, {
+      method: "POST",
+      body: JSON.stringify({
+        requestId: request.requestId,
+        email: request.email,
+      }),
+    });
   }
 
   /**

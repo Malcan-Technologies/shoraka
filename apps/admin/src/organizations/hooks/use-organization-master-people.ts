@@ -71,19 +71,6 @@ export function useOrganizationMasterPeople(portal: PortalType, organizationId: 
     onError: (err: Error) => toast.error(humanizeApiValidationMessage(err.message)),
   });
 
-  const createParty = useMutation({
-    mutationFn: async (data: Record<string, unknown>) => {
-      const res = await api.createAdminPartyProfile(portal, organizationId, data);
-      if (!res.success) throw profileValidationErrorFromApi(res.error);
-      return res.data;
-    },
-    onSuccess: async () => {
-      await invalidate();
-      toast.success("Person added");
-    },
-    onError: (err: Error) => toast.error(humanizeApiValidationMessage(err.message)),
-  });
-
   const patchParty = useMutation({
     mutationFn: async (input: { partyId: string; data: Record<string, unknown> }) => {
       const res = await api.patchAdminPartyProfile(portal, organizationId, input.partyId, input.data);
@@ -97,5 +84,5 @@ export function useOrganizationMasterPeople(portal: PortalType, organizationId: 
     onError: (err: Error) => toast.error(humanizeApiValidationMessage(err.message)),
   });
 
-  return { resolve, adopt, inactivate, resolveIdentityConflict, createParty, patchParty };
+  return { resolve, adopt, inactivate, resolveIdentityConflict, patchParty };
 }

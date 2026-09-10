@@ -116,7 +116,12 @@ export function OrganizationSwitcher() {
                   <div className="truncate text-sm font-medium text-foreground">
                     {getOrgDisplayName(org)}
                   </div>
-                  <OrganizationSwitcherCaption type={org.type} />
+                  <OrganizationSwitcherCaption
+                    type={org.type}
+                    displayReference={org.displayReference}
+                    status={org.onboardingStatus}
+                    regtankStatus={org.regtankOnboardingStatus}
+                  />
                   {isExpiredCompany(org) ? (
                     <p className="mt-1 text-meta font-medium text-status-rejected-text">
                       Start again to restart onboarding.
@@ -150,7 +155,12 @@ export function OrganizationSwitcher() {
                   <div className="truncate text-sm font-medium text-foreground">
                     {getOrgDisplayName(org)}
                   </div>
-                  <OrganizationSwitcherCaption type={org.type} />
+                  <OrganizationSwitcherCaption
+                    type={org.type}
+                    displayReference={org.displayReference}
+                    status={org.onboardingStatus}
+                    regtankStatus={org.regtankOnboardingStatus}
+                  />
                 </div>
                 {activeOrganization?.id === org.id && (
                   <Check className="size-4 shrink-0 text-primary" />
@@ -283,7 +293,12 @@ export function OrganizationSwitcher() {
       <div className="grid flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
         <span className="truncate text-sm font-semibold text-foreground">{activeName}</span>
         {activeOrganization ? (
-          <OrganizationSwitcherCaption type={activeOrganization.type} />
+          <OrganizationSwitcherCaption
+            type={activeOrganization.type}
+            displayReference={activeOrganization.displayReference}
+            status={activeOrganization.onboardingStatus}
+            regtankStatus={activeOrganization.regtankOnboardingStatus}
+          />
         ) : null}
       </div>
       <ChevronsUpDown className="ml-auto size-4 text-muted-foreground group-data-[collapsible=icon]:hidden" />
