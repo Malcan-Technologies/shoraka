@@ -51,6 +51,7 @@ Admin portal and activity timeline:
 
 - **[Activity Timeline](./guides/admin/activity-timeline.md)** - Application log creation, remark at top-level, event labels/icons
 - **[CTOS financial summary display](./guides/admin/ctos-financial-summary-display.md)** - CTOS-first cells and fallback formulas in application review
+- **[Admin People Test seed](./guides/admin/admin-people-test-seed.md)** - Local demo orgs for People & Access / CTOS / RegTank UI states
 
 ### 🏗️ Architecture
 
