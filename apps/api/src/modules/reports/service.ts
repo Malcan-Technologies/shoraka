@@ -11,7 +11,6 @@ import {
   type ReportKey,
   type ReportQuery,
   type ReportResult,
-  type ReportSummaryRow,
 } from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
 import { prisma } from "../../lib/prisma";
