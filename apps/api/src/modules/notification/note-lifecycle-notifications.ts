@@ -4,6 +4,7 @@ import {
   WithdrawalType,
   type Notification,
 } from "@prisma/client";
+import { prisma } from "../../lib/prisma";
 import { logger } from "../../lib/logger";
 import { systemNotificationLogKey } from "./delivery-log";
 import { NotificationPayloads, NotificationTypeId, NotificationTypeIds } from "./registry";
@@ -96,10 +97,12 @@ async function listIssuerNotificationKeys(issuerOrganizationId: string, prefix: 
   return userIds.map((userId) => issuerUserNotificationKey(prefix, userId));
 }
 
-async function listInvestorNoteNotificationKeys(noteId: string, prefix: string): Promise<string[]> {
-  const orgIds = await listDistinctInvestorOrganizationIdsForNote(noteId, [
-    NoteInvestmentStatus.CONFIRMED,
-  ]);
+async function listInvestorNoteNotificationKeys(
+  noteId: string,
+  prefix: string,
+  statuses: NoteInvestmentStatus[] = [NoteInvestmentStatus.CONFIRMED]
+): Promise<string[]> {
+  const orgIds = await listDistinctInvestorOrganizationIdsForNote(noteId, statuses);
   const batches = await Promise.all(
     orgIds.map(async (organizationId) => {
       const userIds = await listInvestorOrgMemberUserIds(organizationId);
@@ -107,6 +110,21 @@ async function listInvestorNoteNotificationKeys(noteId: string, prefix: string):
     })
   );
   return batches.flat();
+}
+
+async function mergePersistedNotificationKeys(prefixes: string[], liveKeys: string[]): Promise<string[]> {
+  if (prefixes.length === 0) return liveKeys;
+  const rows = await prisma.notification.findMany({
+    where: {
+      OR: prefixes.map((prefix) => ({ idempotency_key: { startsWith: prefix } })),
+    },
+    select: { idempotency_key: true },
+  });
+  const keys = new Set(liveKeys);
+  for (const row of rows) {
+    if (row.idempotency_key) keys.add(row.idempotency_key);
+  }
+  return [...keys];
 }
 
 export async function expectedServicingTransitionNotificationKeys(input: {
@@ -147,17 +165,27 @@ export async function expectedDefaultNotificationKeys(input: {
   noteId: string;
   issuerOrganizationId: string;
 }): Promise<string[]> {
+  const issuerPrefix = `note:lifecycle:${input.noteId}:defaulted:issuer`;
+  const investorPrefix = `note:lifecycle:${input.noteId}:defaulted:investor`;
   const [issuerKeys, investorKeys] = await Promise.all([
-    listIssuerNotificationKeys(
-      input.issuerOrganizationId,
-      `note:lifecycle:${input.noteId}:defaulted:issuer`
-    ),
-    listInvestorNoteNotificationKeys(
-      input.noteId,
-      `note:lifecycle:${input.noteId}:defaulted:investor`
-    ),
+    listIssuerNotificationKeys(input.issuerOrganizationId, issuerPrefix),
+    listInvestorNoteNotificationKeys(input.noteId, investorPrefix, [
+      NoteInvestmentStatus.CONFIRMED,
+      NoteInvestmentStatus.SETTLED,
+    ]),
   ]);
-  return [...issuerKeys, ...investorKeys];
+  return mergePersistedNotificationKeys([issuerPrefix, investorPrefix], [...issuerKeys, ...investorKeys]);
+}
+
+export async function expectedDueSoonNotificationKeys(input: {
+  noteId: string;
+  issuerOrganizationId: string;
+  kind: "t7" | "t1";
+}): Promise<string[]> {
+  return listIssuerNotificationKeys(
+    input.issuerOrganizationId,
+    `note:servicing:${input.noteId}:due_soon:${input.kind}`
+  );
 }
 
 /** After marketplace publish — issuer organisation only. */
@@ -658,7 +686,7 @@ export async function notifyNoteDefaulted(args: {
     const results = await sendToInvestorsOnNote(
       args.notificationService,
       args.noteId,
-      [NoteInvestmentStatus.CONFIRMED],
+      [NoteInvestmentStatus.CONFIRMED, NoteInvestmentStatus.SETTLED],
       NotificationTypeIds.NOTE_DEFAULTED_INVESTOR,
       payload,
       `note:lifecycle:${args.noteId}:defaulted:investor`

@@ -1,6 +1,7 @@
 import { NoteSettlementStatus } from "@prisma/client";
 import {
   remainingCapsIgnoringApprovedSettlements,
+  preSettlementWaiverVoidWhere,
   settlementIdsToVoidForPreSettlementWaiver,
 } from "./late-charge-waiver";
 
@@ -23,6 +24,15 @@ describe("settlementIdsToVoidForPreSettlementWaiver", () => {
         { id: "approved-1", status: NoteSettlementStatus.APPROVED },
       ])
     ).toEqual([]);
+  });
+});
+
+describe("preSettlementWaiverVoidWhere", () => {
+  it("refuses to void a settlement that was posted while the waiver held the note lock", () => {
+    expect(preSettlementWaiverVoidWhere(["approved-1"])).toEqual({
+      id: { in: ["approved-1"] },
+      status: { in: [NoteSettlementStatus.PREVIEW, NoteSettlementStatus.APPROVED] },
+    });
   });
 });
 

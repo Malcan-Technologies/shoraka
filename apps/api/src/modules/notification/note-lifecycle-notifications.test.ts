@@ -15,6 +15,9 @@ jest.mock("../../lib/prisma", () => ({
     noteInvestment: {
       findMany: jest.fn(),
     },
+    notification: {
+      findMany: jest.fn().mockResolvedValue([]),
+    },
   },
 }));
 import {
@@ -472,6 +475,7 @@ describe("expected servicing and default notification keys", () => {
     (prisma.noteInvestment.findMany as jest.Mock).mockResolvedValue([
       { investor_organization_id: "inv-org-1" },
     ]);
+    (prisma.notification.findMany as jest.Mock).mockResolvedValue([]);
   });
 
   it("lists distinct issuer and investor LATE keys so investor rows cannot cover issuer delivery", async () => {
@@ -493,11 +497,33 @@ describe("expected servicing and default notification keys", () => {
       noteId: "note-1",
       issuerOrganizationId: "iss-1",
     });
+    expect(prisma.noteInvestment.findMany).toHaveBeenCalledWith({
+      where: { note_id: "note-1", status: { in: ["CONFIRMED", "SETTLED"] } },
+      select: { investor_organization_id: true },
+      distinct: ["investor_organization_id"],
+    });
     expect(keys).toEqual([
       "note:lifecycle:note-1:defaulted:issuer:user:UOWN",
       "note:lifecycle:note-1:defaulted:issuer:user:UM1",
       "note:lifecycle:note-1:defaulted:investor:investor-org:inv-org-1:user:INVOWN",
       "note:lifecycle:note-1:defaulted:investor:investor-org:inv-org-1:user:IM1",
     ]);
+  });
+
+  it("keeps persisted default recipients after live investments have settled", async () => {
+    (prisma.notification.findMany as jest.Mock).mockResolvedValue([
+      {
+        idempotency_key:
+          "note:lifecycle:note-1:defaulted:investor:investor-org:old-org:user:OLD",
+      },
+    ]);
+    const keys = await expectedDefaultNotificationKeys({
+      noteId: "note-1",
+      issuerOrganizationId: "iss-1",
+    });
+    expect(keys).toContain(
+      "note:lifecycle:note-1:defaulted:investor:investor-org:old-org:user:OLD"
+    );
+    expect(keys).toContain("note:lifecycle:note-1:defaulted:issuer:user:UOWN");
   });
 });

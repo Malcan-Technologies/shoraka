@@ -220,6 +220,7 @@ import {
 import { postedSettlementWaiverLimits } from "../payment/excess-late-charge-allocation";
 import {
   remainingCapsIgnoringApprovedSettlements,
+  preSettlementWaiverVoidWhere,
   settlementIdsToVoidForPreSettlementWaiver,
 } from "./late-charge-waiver";
 import {
@@ -5704,6 +5705,19 @@ export class NoteService {
       if (settlement.note.source_contract_id) {
         await lockContractRow(tx, settlement.note.source_contract_id);
       }
+      await tx.$queryRaw`SELECT id FROM notes WHERE id = ${id} FOR UPDATE`;
+      await tx.$queryRaw`SELECT id FROM note_settlements WHERE id = ${settlementId} FOR UPDATE`;
+      const lockedSettlement = await tx.noteSettlement.findUniqueOrThrow({
+        where: { id: settlementId },
+        select: { status: true },
+      });
+      if (lockedSettlement.status !== NoteSettlementStatus.APPROVED) {
+        throw new AppError(
+          409,
+          "SETTLEMENT_NOT_APPROVED",
+          "Settlement must be approved before posting"
+        );
+      }
       const confirmedForPost = await tx.noteInvestment.findMany({
         where: { note_id: id, status: NoteInvestmentStatus.CONFIRMED },
         select: { id: true, investor_organization_id: true, amount: true },
@@ -5720,8 +5734,8 @@ export class NoteService {
 
       await this.postSettlementLedger(tx, settlement, actor);
       const postedAt = new Date();
-      await tx.noteSettlement.update({
-        where: { id: settlementId },
+      const posted = await tx.noteSettlement.updateMany({
+        where: { id: settlementId, status: NoteSettlementStatus.APPROVED },
         data: {
           status: NoteSettlementStatus.POSTED,
           posted_at: postedAt,
@@ -5735,6 +5749,13 @@ export class NoteService {
             : {}),
         },
       });
+      if (posted.count !== 1) {
+        throw new AppError(
+          409,
+          "SETTLEMENT_NOT_APPROVED",
+          "Settlement must be approved before posting"
+        );
+      }
       for (const allocation of settlementAllocations) {
         const releasedAmount =
           allocation.principal + allocation.profitNet + allocation.tawidhInvestorShare;
@@ -6150,7 +6171,8 @@ export class NoteService {
     if (
       type === "default" &&
       note.servicing_status !== NoteServicingStatus.ARREARS &&
-      note.servicing_status !== NoteServicingStatus.DEFAULTED
+      note.servicing_status !== NoteServicingStatus.DEFAULTED &&
+      note.default_marked_at == null
     ) {
       throw new AppError(
         409,
@@ -6373,7 +6395,7 @@ export class NoteService {
         voidedSettlementIds = settlementIdsToVoidForPreSettlementWaiver(lockedSettlements);
         if (voidedSettlementIds.length > 0) {
           await tx.noteSettlement.updateMany({
-            where: { id: { in: voidedSettlementIds } },
+            where: preSettlementWaiverVoidWhere(voidedSettlementIds),
             data: { status: NoteSettlementStatus.VOID },
           });
         }

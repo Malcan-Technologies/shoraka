@@ -11,6 +11,7 @@ import { prisma } from "../prisma";
 import { NotificationService } from "../../modules/notification/service";
 import {
   expectedDefaultNotificationKeys,
+  expectedDueSoonNotificationKeys,
   expectedServicingTransitionNotificationKeys,
   notifyNoteArrears,
   notifyNoteDefaulted,
@@ -186,8 +187,8 @@ export function servicingTransitionNotificationsDelivered(
 async function retryNotificationsIfNeeded(input: {
   expectedKeys: string[];
   notify: () => Promise<void>;
-}) {
-  if (input.expectedKeys.length === 0) return;
+}): Promise<boolean> {
+  if (input.expectedKeys.length === 0) return false;
   const deliveryRows = await prisma.notification.findMany({
     where: { idempotency_key: { in: input.expectedKeys } },
     select: {
@@ -196,9 +197,19 @@ async function retryNotificationsIfNeeded(input: {
       email_sent_at: true,
     },
   });
-  if (!servicingTransitionNotificationsDelivered(deliveryRows, input.expectedKeys)) {
-    await input.notify();
+  if (servicingTransitionNotificationsDelivered(deliveryRows, input.expectedKeys)) {
+    return false;
   }
+  await input.notify();
+  return true;
+}
+
+export function dueSoonReminderKinds(daysUntilDue: number | null): Array<"t7" | "t1"> {
+  if (daysUntilDue == null) return [];
+  const kinds: Array<"t7" | "t1"> = [];
+  if (daysUntilDue <= 7) kinds.push("t7");
+  if (daysUntilDue <= 1) kinds.push("t1");
+  return kinds;
 }
 
 async function notifyServicingTransition(input: {
@@ -293,6 +304,7 @@ export function servicingJobNoteWhere(cutoff: Date): Prisma.NoteWhereInput {
         },
       },
       { repaid_at: { gte: cutoff } },
+      { default_marked_at: { not: null } },
     ],
   };
 }
@@ -471,18 +483,27 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
       }
 
       const title = resolveNoteNotificationTitle(note);
-      if (
-        !hasPostedSettlement &&
-        (classification.daysUntilDue === 7 || classification.daysUntilDue === 1)
-      ) {
-        await notifyNoteRepaymentDueSoon({
-          notificationService,
-          noteId: note.id,
-          issuerOrganizationId: note.issuer_organization_id,
-          noteTitle: title,
-          daysUntilDue: classification.daysUntilDue,
-        });
-        result.remindersSent += 1;
+      if (!hasPostedSettlement) {
+        let reminderAttempted = false;
+        for (const kind of dueSoonReminderKinds(classification.daysUntilDue)) {
+          const attempted = await retryNotificationsIfNeeded({
+            expectedKeys: await expectedDueSoonNotificationKeys({
+              noteId: note.id,
+              issuerOrganizationId: note.issuer_organization_id,
+              kind,
+            }),
+            notify: () =>
+              notifyNoteRepaymentDueSoon({
+                notificationService,
+                noteId: note.id,
+                issuerOrganizationId: note.issuer_organization_id,
+                noteTitle: title,
+                daysUntilDue: kind === "t1" ? 1 : 7,
+              }),
+          });
+          if (attempted) reminderAttempted = true;
+        }
+        if (reminderAttempted) result.remindersSent += 1;
       }
 
       if (canTransition && transitionEventType) {
@@ -574,8 +595,8 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
         }
       }
 
-      const defaultedNow = note.servicing_status === NoteServicingStatus.DEFAULTED;
-      if (defaultedNow) {
+      const wasDefaulted = note.default_marked_at != null;
+      if (wasDefaulted) {
         await retryNotificationsIfNeeded({
           expectedKeys: await expectedDefaultNotificationKeys({
             noteId: note.id,
@@ -589,8 +610,6 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
               noteTitle: title,
             }),
         });
-      }
-      if (!hasPostedSettlement && defaultedNow) {
         const existingDefaultLetter = await prisma.noteServicingLetter.findFirst({
           where: { note_id: note.id, type: NoteServicingLetterType.DEFAULT },
           select: { id: true, sent_at: true },

@@ -19,6 +19,13 @@ export function settlementIdsToVoidForPreSettlementWaiver(
     .map((row) => row.id);
 }
 
+export function preSettlementWaiverVoidWhere(settlementIds: string[]) {
+  return {
+    id: { in: settlementIds },
+    status: { in: [...PRE_SETTLEMENT_WAIVER_VOID_STATUSES] },
+  };
+}
+
 export function remainingCapsIgnoringApprovedSettlements(
   remaining: { remainingTawidhAmount: number; remainingGharamahAmount: number },
   settlements: readonly {

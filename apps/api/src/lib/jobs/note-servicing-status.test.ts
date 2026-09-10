@@ -24,6 +24,7 @@ import {
   servicingJobNoteWhere,
   servicingTransitionNotificationKeyPrefixes,
   servicingTransitionNotificationsDelivered,
+  dueSoonReminderKinds,
 } from "./note-servicing-status";
 import { NoteFundingStatus, NoteServicingStatus } from "@prisma/client";
 
@@ -87,6 +88,7 @@ describe("shouldProcessServicingNote", () => {
           },
         },
         { repaid_at: { gte: cutoff } },
+        { default_marked_at: { not: null } },
       ],
     });
   });
@@ -109,6 +111,20 @@ describe("shouldSendArrearsLetter", () => {
 describe("shouldSendServicingLetter", () => {
   it("retries unsent default notices the same way as arrears notices", () => {
     expect(shouldSendServicingLetter({ sent_at: null })).toBe("retry");
+  });
+});
+
+describe("dueSoonReminderKinds", () => {
+  it("does not send reminders before the T-7 window", () => {
+    expect(dueSoonReminderKinds(8)).toEqual([]);
+    expect(dueSoonReminderKinds(null)).toEqual([]);
+  });
+
+  it("retries T-7 after the trigger day and T-1 once due is inside one day", () => {
+    expect(dueSoonReminderKinds(7)).toEqual(["t7"]);
+    expect(dueSoonReminderKinds(3)).toEqual(["t7"]);
+    expect(dueSoonReminderKinds(1)).toEqual(["t7", "t1"]);
+    expect(dueSoonReminderKinds(0)).toEqual(["t7", "t1"]);
   });
 });
 
