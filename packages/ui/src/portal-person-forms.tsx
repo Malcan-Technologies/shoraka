@@ -22,10 +22,9 @@ import {
   SC_INDIVIDUAL_GENDERS,
   SC_IDENTITY_PREFIXES,
   SC_MALAYSIAN_STATES,
-  SC_MONTHLY_BOARD,
-  SC_MONTHLY_ISSUER,
+  PROFILE_HELP,
+  PROFILE_LABEL,
   SC_MONTHLY_PERSON_KIND_LABELS,
-  SC_MONTHLY_SHAREHOLDER,
   SC_SHARE_TYPE_LABELS,
   SC_SHARE_TYPES,
   scAppendixASelectValues,
@@ -319,7 +318,7 @@ export function AddPersonForm({
           />
           {isShareholder ? (
             <TextField
-              label={SC_MONTHLY_SHAREHOLDER.shareholdingPercentage.label}
+              label={PROFILE_LABEL.shareholdingPercentage}
               value={form.shareholdingPercentage}
               onChange={(value) =>
                 setForm({ ...form, shareholdingPercentage: restrictShareInput(value) })
@@ -433,7 +432,7 @@ export function AddPersonForm({
       {corporate ? (
         <>
           <DateField
-            label={SC_MONTHLY_ISSUER.dateOfIncorporation.label}
+            label={PROFILE_LABEL.dateOfIncorporation}
             value={form.dateOfIncorporation}
             onChange={(value) => setForm({ ...form, dateOfIncorporation: value })}
             required
@@ -485,7 +484,7 @@ export function AddPersonForm({
       {showShare ? (
         <>
           <SelectField
-            label={SC_MONTHLY_SHAREHOLDER.typeOfShares.label}
+            label={PROFILE_LABEL.typeOfShares}
             value={form.shareType}
             onChange={(value) => setForm({ ...form, shareType: value })}
             options={SC_SHARE_TYPES.map((key) => ({ value: key, label: SC_SHARE_TYPE_LABELS[key] }))}
@@ -494,14 +493,14 @@ export function AddPersonForm({
           />
           {form.shareType === "OTHERS" ? (
             <TextField
-              label={SC_MONTHLY_SHAREHOLDER.typeOfSharesOthers.label}
+              label={PROFILE_LABEL.typeOfSharesOther}
               value={form.shareTypeOther}
               onChange={(value) => setForm({ ...form, shareTypeOther: value })}
               required
             />
           ) : null}
           <TextField
-            label={SC_MONTHLY_SHAREHOLDER.shareholdingUnits.label}
+            label={PROFILE_LABEL.shareholdingUnits}
             value={form.shareholdingUnits}
             onChange={(value) => setForm({ ...form, shareholdingUnits: restrictShareInput(value) })}
             required
@@ -509,7 +508,7 @@ export function AddPersonForm({
             inputMode="decimal"
           />
           <TextField
-            label={SC_MONTHLY_SHAREHOLDER.shareholdingAmount.label}
+            label={PROFILE_LABEL.shareholdingAmount}
             value={form.shareholdingAmount}
             onChange={(value) => setForm({ ...form, shareholdingAmount: restrictShareInput(value) })}
             required
@@ -517,7 +516,7 @@ export function AddPersonForm({
             inputMode="decimal"
           />
           <TextField
-            label={SC_MONTHLY_SHAREHOLDER.shareholdingPercentage.label}
+            label={PROFILE_LABEL.shareholdingPercentage}
             value={form.shareholdingPercentage}
             onChange={(value) =>
               setForm({ ...form, shareholdingPercentage: restrictShareInput(value) })
@@ -531,7 +530,7 @@ export function AddPersonForm({
       {showOfficer ? (
         <>
           <SelectField
-            label={SC_MONTHLY_BOARD.designation.label}
+            label={PROFILE_LABEL.designation}
             value={form.designation}
             onChange={(value) => setForm({ ...form, designation: value })}
             options={SC_DESIGNATIONS.map((key) => ({ value: key, label: SC_DESIGNATION_LABELS[key] }))}
@@ -540,25 +539,24 @@ export function AddPersonForm({
           />
           {form.designation === "OTHERS" ? (
             <TextField
-              label={SC_MONTHLY_BOARD.designationOthers.label}
+              label={PROFILE_LABEL.designationOther}
               value={form.designationOther}
               onChange={(value) => setForm({ ...form, designationOther: value })}
               required
-              help={SC_MONTHLY_BOARD.designationOthers.help}
             />
           ) : null}
           <DateField
-            label={SC_MONTHLY_BOARD.appointmentDate.label}
+            label={PROFILE_LABEL.appointmentDate}
             value={form.appointmentDate}
             onChange={(value) => setForm({ ...form, appointmentDate: value })}
             required
             error={fieldErrors.appointmentDate}
           />
           <DateField
-            label={SC_MONTHLY_BOARD.resignationDate.label}
+            label={PROFILE_LABEL.resignationDate}
             value={form.resignationDate}
             onChange={(value) => setForm({ ...form, resignationDate: value })}
-            help={SC_MONTHLY_BOARD.resignationDate.help}
+            help={PROFILE_HELP.resignationDate}
           />
         </>
       ) : null}
@@ -834,7 +832,7 @@ export function PartyFillEmptyForm({
       ) : null}
       {corporate && !party.dateOfIncorporation ? (
         <DateField
-          label={SC_MONTHLY_ISSUER.dateOfIncorporation.label}
+          label={PROFILE_LABEL.dateOfIncorporation}
           value={form.dateOfIncorporation}
           onChange={(value) => setForm({ ...form, dateOfIncorporation: value })}
           required
@@ -842,7 +840,7 @@ export function PartyFillEmptyForm({
         />
       ) : corporate && party.dateOfIncorporation ? (
         <ProfileReadField
-          label={SC_MONTHLY_ISSUER.dateOfIncorporation.label}
+          label={PROFILE_LABEL.dateOfIncorporation}
           value={party.dateOfIncorporation.slice(0, 10)}
           locked
         />
@@ -895,7 +893,7 @@ export function PartyFillEmptyForm({
       {party.isShareholder ? (
         <>
           <SelectField
-            label={SC_MONTHLY_SHAREHOLDER.typeOfShares.label}
+            label={PROFILE_LABEL.typeOfShares}
             value={form.shareType}
             onChange={(value) => setForm({ ...form, shareType: value })}
             options={SC_SHARE_TYPES.map((key) => ({ value: key, label: SC_SHARE_TYPE_LABELS[key] }))}
@@ -904,7 +902,7 @@ export function PartyFillEmptyForm({
           />
           {form.shareType === "OTHERS" ? (
             <TextField
-              label={SC_MONTHLY_SHAREHOLDER.typeOfSharesOthers.label}
+              label={PROFILE_LABEL.typeOfSharesOther}
               value={form.shareTypeOther}
               onChange={(value) => setForm({ ...form, shareTypeOther: value })}
               required
@@ -912,7 +910,7 @@ export function PartyFillEmptyForm({
             />
           ) : null}
           <TextField
-            label={SC_MONTHLY_SHAREHOLDER.shareholdingUnits.label}
+            label={PROFILE_LABEL.shareholdingUnits}
             value={form.shareholdingUnits}
             onChange={(value) => setForm({ ...form, shareholdingUnits: restrictShareInput(value) })}
             required
@@ -920,7 +918,7 @@ export function PartyFillEmptyForm({
             inputMode="decimal"
           />
           <TextField
-            label={SC_MONTHLY_SHAREHOLDER.shareholdingAmount.label}
+            label={PROFILE_LABEL.shareholdingAmount}
             value={form.shareholdingAmount}
             onChange={(value) => setForm({ ...form, shareholdingAmount: restrictShareInput(value) })}
             required
@@ -928,7 +926,7 @@ export function PartyFillEmptyForm({
             inputMode="decimal"
           />
           <TextField
-            label={SC_MONTHLY_SHAREHOLDER.shareholdingPercentage.label}
+            label={PROFILE_LABEL.shareholdingPercentage}
             value={form.shareholdingPercentage}
             onChange={(value) =>
               setForm({ ...form, shareholdingPercentage: restrictShareInput(value) })
@@ -942,7 +940,7 @@ export function PartyFillEmptyForm({
       {officer ? (
         <>
           <SelectField
-            label={SC_MONTHLY_BOARD.designation.label}
+            label={PROFILE_LABEL.designation}
             value={form.designation}
             onChange={(value) => setForm({ ...form, designation: value })}
             options={SC_DESIGNATIONS.map((key) => ({ value: key, label: SC_DESIGNATION_LABELS[key] }))}
@@ -951,26 +949,25 @@ export function PartyFillEmptyForm({
           />
           {form.designation === "OTHERS" ? (
             <TextField
-              label={SC_MONTHLY_BOARD.designationOthers.label}
+              label={PROFILE_LABEL.designationOther}
               value={form.designationOther}
               onChange={(value) => setForm({ ...form, designationOther: value })}
               required
-              help={SC_MONTHLY_BOARD.designationOthers.help}
               error={fieldErrors.designationOther}
             />
           ) : null}
           <DateField
-            label={SC_MONTHLY_BOARD.appointmentDate.label}
+            label={PROFILE_LABEL.appointmentDate}
             value={form.appointmentDate}
             onChange={(value) => setForm({ ...form, appointmentDate: value })}
             required
             error={fieldErrors.appointmentDate}
           />
           <DateField
-            label={SC_MONTHLY_BOARD.resignationDate.label}
+            label={PROFILE_LABEL.resignationDate}
             value={form.resignationDate}
             onChange={(value) => setForm({ ...form, resignationDate: value })}
-            help={SC_MONTHLY_BOARD.resignationDate.help}
+            help={PROFILE_HELP.resignationDate}
           />
         </>
       ) : null}
@@ -1028,20 +1025,17 @@ function TextField({
 }) {
   return (
     <div className="space-y-2">
-      <ComRepFieldLabel label={label} required={required} help={help} />
+      <ComRepFieldLabel label={label} required={required} optional={!required} help={help} />
       <Input
         className="h-10 text-ui"
         value={value}
         maxLength={maxLength ?? 500}
         inputMode={inputMode}
         aria-invalid={Boolean(error)}
+        aria-required={required}
         onChange={(event) => onChange(event.target.value)}
       />
-      {error ? (
-        <p className="text-meta text-destructive">{error}</p>
-      ) : required && !value.trim() ? (
-        <p className="text-meta text-status-action-text">Required</p>
-      ) : null}
+      {error ? <p className="text-meta text-destructive">{error}</p> : null}
     </div>
   );
 }
@@ -1063,13 +1057,9 @@ function DateField({
 }) {
   return (
     <div className="space-y-2">
-      <ComRepFieldLabel label={label} required={required} help={help} />
-      <Input className="h-10 text-ui" type="date" value={value} onChange={(event) => onChange(event.target.value)} />
-      {error ? (
-        <p className="text-meta text-destructive">{error}</p>
-      ) : required && !value.trim() ? (
-        <p className="text-meta text-status-action-text">Required</p>
-      ) : null}
+      <ComRepFieldLabel label={label} required={required} optional={!required} help={help} />
+      <Input className="h-10 text-ui" type="date" value={value} onChange={(event) => onChange(event.target.value)} aria-required={required} />
+      {error ? <p className="text-meta text-destructive">{error}</p> : null}
     </div>
   );
 }
@@ -1121,7 +1111,7 @@ function SelectField({
 }) {
   return (
     <div className="space-y-2">
-      <ComRepFieldLabel label={label} required={required} help={help} />
+      <ComRepFieldLabel label={label} required={required} optional={!required} help={help} />
       <Select value={value || undefined} onValueChange={onChange}>
         <SelectTrigger className="h-10 text-ui">
           <SelectValue placeholder="Select" />
@@ -1134,11 +1124,7 @@ function SelectField({
           ))}
         </SelectContent>
       </Select>
-      {error ? (
-        <p className="text-meta text-destructive">{error}</p>
-      ) : required && !value.trim() ? (
-        <p className="text-meta text-status-action-text">Required</p>
-      ) : null}
+      {error ? <p className="text-meta text-destructive">{error}</p> : null}
     </div>
   );
 }

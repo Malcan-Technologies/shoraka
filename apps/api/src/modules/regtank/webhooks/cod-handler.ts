@@ -30,6 +30,7 @@ import {
 } from "./onboarding-webhook-guards";
 import { preserveFilledCodMasterFacts } from "../../organization-profile/serialize";
 import { parseRegTankCodAddresses } from "../helpers/cod-addresses";
+import { parseRegTankCodDeclarations } from "../helpers/cod-declarations";
 import { createOnboardingLogRow, persistOrganizationUpdateAndOnboardingLogs, webhookAuditContext } from "../../../lib/audit";
 import { webhookOccurredAt } from "../webhook-occurred-at";
 
@@ -212,29 +213,9 @@ export class CODWebhookHandler extends BaseWebhookHandler {
           return operationalInfo || null;
         };
 
-        // Extract Transaction Information (Wealth Declaration)
-        // Return full RegTank format with content array for frontend FormDataDisplay
-        const extractTransactionInfo = (codDetails: any) => {
-          const transactionInfo = codDetails.formContent?.displayAreas?.find(
-            (area: any) => area.displayArea === "Transaction Information"
-          );
-
-          if (!transactionInfo) return null;
-
-          return transactionInfo;
-        };
-
-        // Extract Beneficiary Account Information (Compliance Declaration)
-        // Return full RegTank format with content array for frontend FormDataDisplay
-        const extractBeneficiaryInfo = (codDetails: any) => {
-          const beneficiaryInfo = codDetails.formContent?.displayAreas?.find(
-            (area: any) => area.displayArea === "Beneficiary Account Information"
-          );
-
-          if (!beneficiaryInfo) return null;
-
-          return beneficiaryInfo;
-        };
+        const { wealthDeclaration, complianceDeclaration } = parseRegTankCodDeclarations(
+          codDetails.formContent?.displayAreas
+        );
 
         // Extract Corporate Onboarding Data
         const extractCorporateOnboardingData = (codDetails: any) => {
@@ -250,6 +231,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             entityType: basicContent.find((f: any) => f.fieldName === "Type of Entity")?.fieldValue || null,
             ssmRegistrationNumber: basicContent.find((f: any) => f.fieldName === "New SSM registration number")?.fieldValue || null,
             tin: basicContent.find((f: any) => f.fieldName === "TIN")?.fieldValue || null,
+            tinNumber: basicContent.find((f: any) => f.fieldName === "TIN")?.fieldValue || null,
             industry: basicContent.find((f: any) => f.fieldName === "Industry")?.fieldValue || null,
             numberOfEmployees: basicContent.find((f: any) => f.fieldName === "Number of employees")?.fieldValue || null,
             annualRevenue: basicContent.find((f: any) => f.fieldName === "Annual revenue (RM)")?.fieldValue || null,
@@ -568,8 +550,6 @@ export class CODWebhookHandler extends BaseWebhookHandler {
 
         // Extract additional corporate onboarding data
         const bankingDetails = extractBankingDetails(codDetails);
-        const transactionInfo = extractTransactionInfo(codDetails);
-        const beneficiaryInfo = extractBeneficiaryInfo(codDetails);
         const corporateOnboardingData = extractCorporateOnboardingData(codDetails);
         const corporateRequiredDocuments = extractRequiredDocuments(codDetails);
         const corporateEntities = extractCorporateEntities(codDetails);
@@ -718,8 +698,8 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                   : {}),
                 director_kyc_status: directorKycStatus as Prisma.InputJsonValue,
                 bank_account_details: bankingDetails as Prisma.InputJsonValue,
-                wealth_declaration: transactionInfo as Prisma.InputJsonValue,
-                compliance_declaration: beneficiaryInfo as Prisma.InputJsonValue,
+                wealth_declaration: wealthDeclaration as Prisma.InputJsonValue,
+                compliance_declaration: complianceDeclaration as Prisma.InputJsonValue,
                 corporate_onboarding_data: mergedCod as Prisma.InputJsonValue,
                 corporate_required_documents: corporateRequiredDocuments as Prisma.InputJsonValue,
                 corporate_entities: corporateEntities as Prisma.InputJsonValue,
@@ -804,8 +784,8 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                   : {}),
                 director_kyc_status: directorKycStatus as Prisma.InputJsonValue,
                 bank_account_details: bankingDetails as Prisma.InputJsonValue,
-                wealth_declaration: transactionInfo as Prisma.InputJsonValue,
-                compliance_declaration: beneficiaryInfo as Prisma.InputJsonValue,
+                wealth_declaration: wealthDeclaration as Prisma.InputJsonValue,
+                compliance_declaration: complianceDeclaration as Prisma.InputJsonValue,
                 corporate_onboarding_data: mergedCod as Prisma.InputJsonValue,
                 corporate_required_documents: corporateRequiredDocuments as Prisma.InputJsonValue,
                 corporate_entities: corporateEntities as Prisma.InputJsonValue,

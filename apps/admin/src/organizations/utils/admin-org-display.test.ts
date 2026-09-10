@@ -30,6 +30,18 @@ describe("adminOnboardingEvidenceCards", () => {
     expect(adminOnboardingEvidenceCards({ wealthDeclaration: null })).toEqual([]);
     expect(adminOnboardingEvidenceCards({ wealthDeclaration: {} })).toEqual([]);
   });
+
+  it("shows issuer COD Transaction Information as Compliance Declaration, not Wealth", () => {
+    const cards = adminOnboardingEvidenceCards({
+      wealthDeclaration: {
+        displayArea: "Transaction Information",
+        content: [{ fieldName: "Are any of the directors or shareholders classified as a Politically Exposed Person (PEP)?" }],
+      },
+      complianceDeclaration: null,
+    });
+    expect(cards.map((card) => card.label)).toEqual(["Compliance Declaration"]);
+    expect(cards[0]?.data.displayArea).toBe("Transaction Information");
+  });
 });
 
 describe("hasOrganizationScreeningResponse", () => {

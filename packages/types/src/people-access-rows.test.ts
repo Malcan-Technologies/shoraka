@@ -5,6 +5,7 @@ import {
   buildPeopleAccessRows,
   filterPeopleAccessRows,
   peopleAccessAmlLabel,
+  peopleAccessCorporateKybLabel,
   peopleAccessKycLabel,
   peopleAccessPlatformLabel,
   type PeopleAccessInvitation,
@@ -139,6 +140,25 @@ describe("peopleAccessKycLabel / peopleAccessAmlLabel", () => {
         person({ matchKey: "m1", roles: ["MANAGEMENT"], onboarding: { status: "NOT_STARTED" } })
       )
     ).toBe("—");
+  });
+});
+
+describe("peopleAccessCorporateKybLabel", () => {
+  it("maps corporate COD onboarding without using individual KYC eligibility", () => {
+    const corp = person({
+      matchKey: "ROC1",
+      entityType: "CORPORATE",
+      roles: ["SHAREHOLDER"],
+      sharePercentage: 50,
+    });
+    expect(peopleAccessCorporateKybLabel(corp)).toBe("—");
+    expect(peopleAccessCorporateKybLabel({ ...corp, onboarding: { status: "WAIT_FOR_APPROVAL" } })).toBe(
+      "Pending approval"
+    );
+    expect(peopleAccessCorporateKybLabel({ ...corp, onboarding: { status: "ID_UPLOADED" } })).toBe(
+      "In progress"
+    );
+    expect(peopleAccessKycLabel({ ...corp, onboarding: { status: "WAIT_FOR_APPROVAL" } })).toBe("—");
   });
 });
 

@@ -28,7 +28,7 @@ import { useAuth } from "../../lib/auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccountDocuments } from "../../hooks/use-account-documents";
 import { useOrganizationInvitations } from "../../hooks/use-organization-invitations";
-import { filterVisiblePeopleRows, firstIssueMessage, humanizeApiValidationMessage, isOrganisationProfileTab, isValidProfilePhone, organisationProfileTabFromSearchParam, PROFILE_PATH, PROFILE_TAB_PEOPLE, PROFILE_TAB_PROFILE, restrictScPostcodeInput, SC_MALAYSIAN_STATES, SC_MONTHLY_ISSUER, storedProfilePhone, validateIssuerAddressForm, validateIssuerContactPersonForm } from "@cashsouk/types";
+import { filterVisiblePeopleRows, firstIssueMessage, humanizeApiValidationMessage, isOrganisationProfileTab, isValidProfilePhone, organisationProfileTabFromSearchParam, PROFILE_ADDRESS_FIELD_LABELS, PROFILE_ADDRESS_HELP, PROFILE_HELP, PROFILE_LABEL, PROFILE_PATH, PROFILE_TAB_PEOPLE, PROFILE_TAB_PROFILE, restrictScPostcodeInput, SC_MALAYSIAN_STATES, storedProfilePhone, validateIssuerAddressForm, validateIssuerContactPersonForm } from "@cashsouk/types";
 import { DirectorShareholderAlertCard } from "../../components/director-shareholder-alert-card";
 import { IssuerProfileCompletenessBanner } from "../../components/profile-completeness-banner";
 import { AboutYourBusinessCard } from "../../components/about-your-business-card";
@@ -55,15 +55,12 @@ import {
   issuerFieldChromeClassName,
   issuerFieldFocusWithinOpenClassName,
 } from "@/lib/issuer-input-chrome";
-import { formInputDisabledClassName } from "@/app/(application-flow)/applications/components/form-control";
 import {
   UserIcon,
   BuildingOffice2Icon,
   ArrowPathIcon,
   PencilIcon,
   XMarkIcon,
-  IdentificationIcon,
-  BanknotesIcon,
   DocumentTextIcon,
   MapPinIcon,
   PhoneIcon,
@@ -639,11 +636,9 @@ export default function ProfilePage() {
       return;
     }
 
-    if (!contactName.trim() || !contactPosition.trim()) {
-      toast.error("Enter all contact details");
-      return;
-    }
     const issues = validateIssuerContactPersonForm({
+      name: contactName,
+      position: contactPosition,
       email: contactEmail,
       contact: contactPhone,
     });
@@ -1074,12 +1069,12 @@ export default function ProfilePage() {
                   </div>
                   <div className="p-6 space-y-4">
                     <div className="space-y-4 pt-2">
-                      <h3 className="text-sm font-semibold">Registered address</h3>
+                      <h3 className="text-sm font-semibold">{PROFILE_LABEL.registeredAddress}</h3>
                       {!isEditingAddresses ? (
                         <ProfileFieldGrid>
                           <ProfileReadField
                             className="sm:col-span-2"
-                            label={SC_MONTHLY_ISSUER.registeredAddress.label}
+                            label={PROFILE_ADDRESS_FIELD_LABELS.address}
                             value={[
                               orgData?.corporateOnboardingData?.addresses?.registered?.line1,
                               orgData?.corporateOnboardingData?.addresses?.registered?.line2,
@@ -1087,23 +1082,18 @@ export default function ProfilePage() {
                               .filter((part) => part && part.trim())
                               .join(", ") || "—"}
                             missing={missingFieldKeys.has("registeredAddress.line1")}
-                            required
                           />
                           <ProfileReadField
-                            label={SC_MONTHLY_ISSUER.registeredAddressState.label}
+                            label={PROFILE_ADDRESS_FIELD_LABELS.state}
                             value={orgData?.corporateOnboardingData?.addresses?.registered?.state || "—"}
                             missing={missingFieldKeys.has("registeredAddress.state")}
-                            required
-                            help={SC_MONTHLY_ISSUER.registeredAddressState.help}
                           />
                           <ProfileReadField
-                            label={SC_MONTHLY_ISSUER.registeredAddressPostcode.label}
+                            label={PROFILE_ADDRESS_FIELD_LABELS.postcode}
                             value={
                               orgData?.corporateOnboardingData?.addresses?.registered?.postalCode || "—"
                             }
                             missing={missingFieldKeys.has("registeredAddress.postalCode")}
-                            required
-                            help={SC_MONTHLY_ISSUER.registeredAddressPostcode.help}
                           />
                         </ProfileFieldGrid>
                       ) : (
@@ -1121,21 +1111,22 @@ export default function ProfilePage() {
                       {isEditingAddresses && !sameAsBusinessAddress ? (
                           <div className="grid gap-4 sm:grid-cols-2">
                             <div className="space-y-2 sm:col-span-2">
-                              <ComRepFieldLabel label={SC_MONTHLY_ISSUER.registeredAddress.label} required />
+                              <ComRepFieldLabel label={PROFILE_ADDRESS_FIELD_LABELS.address} required />
                               <Input
                                 value={registeredLine1}
                                 onChange={(e) => setRegisteredLine1(e.target.value)}
+                                aria-required
                               />
                             </div>
                             <div className="space-y-2 sm:col-span-2">
-                              <Label>Address line 2</Label>
+                              <ComRepFieldLabel label={PROFILE_ADDRESS_FIELD_LABELS.addressLine2} optional />
                               <Input
                                 value={registeredLine2}
                                 onChange={(e) => setRegisteredLine2(e.target.value)}
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label>City</Label>
+                              <ComRepFieldLabel label={PROFILE_ADDRESS_FIELD_LABELS.city} optional />
                               <Input
                                 value={registeredCity}
                                 onChange={(e) => setRegisteredCity(e.target.value)}
@@ -1143,9 +1134,10 @@ export default function ProfilePage() {
                             </div>
                             <div className="space-y-2">
                               <ComRepFieldLabel
-                                label={SC_MONTHLY_ISSUER.registeredAddressPostcode.label}
+                                label={PROFILE_ADDRESS_FIELD_LABELS.postcode}
                                 required={registeredState !== "Outside Malaysia"}
-                                help={SC_MONTHLY_ISSUER.registeredAddressPostcode.help}
+                                optional={registeredState === "Outside Malaysia"}
+                                help={PROFILE_ADDRESS_HELP.postcode}
                               />
                               <Input
                                 value={registeredPostalCode}
@@ -1154,13 +1146,14 @@ export default function ProfilePage() {
                                     restrictScPostcodeInput(registeredState, e.target.value)
                                   )
                                 }
+                                aria-required={registeredState !== "Outside Malaysia"}
                               />
                             </div>
                             <div className="space-y-2">
                               <ComRepFieldLabel
-                                label={SC_MONTHLY_ISSUER.registeredAddressState.label}
+                                label={PROFILE_ADDRESS_FIELD_LABELS.state}
                                 required
-                                help={SC_MONTHLY_ISSUER.registeredAddressState.help}
+                                help={PROFILE_ADDRESS_HELP.state}
                               />
                               <Select
                                 value={registeredState || undefined}
@@ -1179,7 +1172,7 @@ export default function ProfilePage() {
                               </Select>
                             </div>
                             <div className="space-y-2">
-                              <Label>Country</Label>
+                              <ComRepFieldLabel label={PROFILE_ADDRESS_FIELD_LABELS.country} optional />
                               <Input
                                 value={registeredCountry}
                                 onChange={(e) => setRegisteredCountry(e.target.value)}
@@ -1191,12 +1184,12 @@ export default function ProfilePage() {
                     </div>
 
                     <div className="space-y-4 pt-4 border-t">
-                      <h3 className="text-sm font-semibold">Business address</h3>
+                      <h3 className="text-sm font-semibold">{PROFILE_LABEL.businessAddress}</h3>
                       {!isEditingAddresses ? (
                         <ProfileFieldGrid>
                           <ProfileReadField
                             className="sm:col-span-2"
-                            label={SC_MONTHLY_ISSUER.businessAddress.label}
+                            label={PROFILE_ADDRESS_FIELD_LABELS.address}
                             value={[
                               orgData?.corporateOnboardingData?.addresses?.business?.line1,
                               orgData?.corporateOnboardingData?.addresses?.business?.line2,
@@ -1204,43 +1197,39 @@ export default function ProfilePage() {
                               .filter((part) => part && part.trim())
                               .join(", ") || "—"}
                             missing={missingFieldKeys.has("businessAddress.line1")}
-                            required
                           />
                           <ProfileReadField
-                            label={SC_MONTHLY_ISSUER.businessAddressState.label}
+                            label={PROFILE_ADDRESS_FIELD_LABELS.state}
                             value={orgData?.corporateOnboardingData?.addresses?.business?.state || "—"}
                             missing={missingFieldKeys.has("businessAddress.state")}
-                            required
-                            help={SC_MONTHLY_ISSUER.businessAddressState.help}
                           />
                           <ProfileReadField
-                            label={SC_MONTHLY_ISSUER.businessAddressPostcode.label}
+                            label={PROFILE_ADDRESS_FIELD_LABELS.postcode}
                             value={
                               orgData?.corporateOnboardingData?.addresses?.business?.postalCode || "—"
                             }
                             missing={missingFieldKeys.has("businessAddress.postalCode")}
-                            required
-                            help={SC_MONTHLY_ISSUER.businessAddressPostcode.help}
                           />
                         </ProfileFieldGrid>
                       ) : (
                         <div className="grid gap-4 sm:grid-cols-2">
                           <div className="space-y-2 sm:col-span-2">
-                            <ComRepFieldLabel label={SC_MONTHLY_ISSUER.businessAddress.label} required />
+                            <ComRepFieldLabel label={PROFILE_ADDRESS_FIELD_LABELS.address} required />
                             <Input
                               value={businessLine1}
                               onChange={(e) => setBusinessLine1(e.target.value)}
+                              aria-required
                             />
                           </div>
                           <div className="space-y-2 sm:col-span-2">
-                            <Label>Address line 2</Label>
+                            <ComRepFieldLabel label={PROFILE_ADDRESS_FIELD_LABELS.addressLine2} optional />
                             <Input
                               value={businessLine2}
                               onChange={(e) => setBusinessLine2(e.target.value)}
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label>City</Label>
+                            <ComRepFieldLabel label={PROFILE_ADDRESS_FIELD_LABELS.city} optional />
                             <Input
                               value={businessCity}
                               onChange={(e) => setBusinessCity(e.target.value)}
@@ -1248,9 +1237,10 @@ export default function ProfilePage() {
                           </div>
                           <div className="space-y-2">
                             <ComRepFieldLabel
-                              label={SC_MONTHLY_ISSUER.businessAddressPostcode.label}
+                              label={PROFILE_ADDRESS_FIELD_LABELS.postcode}
                               required={businessState !== "Outside Malaysia"}
-                              help={SC_MONTHLY_ISSUER.businessAddressPostcode.help}
+                              optional={businessState === "Outside Malaysia"}
+                              help={PROFILE_ADDRESS_HELP.postcode}
                             />
                             <Input
                               value={businessPostalCode}
@@ -1259,13 +1249,14 @@ export default function ProfilePage() {
                                   restrictScPostcodeInput(businessState, e.target.value)
                                 )
                               }
+                              aria-required={businessState !== "Outside Malaysia"}
                             />
                           </div>
                           <div className="space-y-2">
                             <ComRepFieldLabel
-                              label={SC_MONTHLY_ISSUER.businessAddressState.label}
+                              label={PROFILE_ADDRESS_FIELD_LABELS.state}
                               required
-                              help={SC_MONTHLY_ISSUER.businessAddressState.help}
+                              help={PROFILE_ADDRESS_HELP.state}
                             />
                             <Select value={businessState || undefined} onValueChange={setBusinessState}>
                               <SelectTrigger className="h-11 text-ui">
@@ -1281,7 +1272,7 @@ export default function ProfilePage() {
                             </Select>
                           </div>
                           <div className="space-y-2">
-                            <Label>Country</Label>
+                            <ComRepFieldLabel label={PROFILE_ADDRESS_FIELD_LABELS.country} optional />
                             <Input
                               value={businessCountry}
                               onChange={(e) => setBusinessCountry(e.target.value)}
@@ -1387,38 +1378,39 @@ export default function ProfilePage() {
                   ) : isEditingProfile ? (
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
-                        <Label>Name</Label>
+                        <ComRepFieldLabel label={PROFILE_LABEL.fullName} required />
                         <Input
                           value={contactName}
                           onChange={(e) => setContactName(e.target.value)}
                           placeholder="eg. John Doe"
+                          aria-required
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label>Position</Label>
+                        <ComRepFieldLabel label={PROFILE_LABEL.position} required />
                         <Input
                           value={contactPosition}
                           onChange={(e) => setContactPosition(e.target.value)}
                           placeholder="eg. CFO"
+                          aria-required
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label className="flex items-center gap-2">
-                          <EnvelopeIcon className="h-4 w-4" />
-                          {SC_MONTHLY_ISSUER.emailAddress.label}
-                        </Label>
+                        <ComRepFieldLabel
+                          label={PROFILE_LABEL.personEmail}
+                          required
+                          help={PROFILE_HELP.personEmail}
+                        />
                         <Input
                           type="email"
                           value={contactEmail}
                           onChange={(e) => setContactEmail(e.target.value)}
                           placeholder="eg. name@company.com"
+                          aria-required
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label className="flex items-center gap-2">
-                          <PhoneIcon className="h-4 w-4" />
-                          {SC_MONTHLY_ISSUER.phoneNumber.label}
-                        </Label>
+                        <ComRepFieldLabel label={PROFILE_LABEL.phone} required />
                           <PhoneInput
                             international
                             defaultCountry="MY"
@@ -1434,21 +1426,25 @@ export default function ProfilePage() {
                     </div>
                   ) : (
                     <ProfileFieldGrid>
-                      <ProfileReadField label="Name" value={contactName || "—"} />
-                      <ProfileReadField label="Position" value={contactPosition || "—"} />
                       <ProfileReadField
-                        label={SC_MONTHLY_ISSUER.emailAddress.label}
-                        value={contactEmail || "—"}
-                        missing={missingFieldKeys.has("contactPersonEmail")}
-                        required
-                        help={SC_MONTHLY_ISSUER.emailAddress.help}
+                        label={PROFILE_LABEL.fullName}
+                        value={contactName || "—"}
+                        missing={missingFieldKeys.has("contactPersonName")}
                       />
                       <ProfileReadField
-                        label={SC_MONTHLY_ISSUER.phoneNumber.label}
+                        label={PROFILE_LABEL.position}
+                        value={contactPosition || "—"}
+                        missing={missingFieldKeys.has("contactPersonPosition")}
+                      />
+                      <ProfileReadField
+                        label={PROFILE_LABEL.personEmail}
+                        value={contactEmail || "—"}
+                        missing={missingFieldKeys.has("contactPersonEmail")}
+                      />
+                      <ProfileReadField
+                        label={PROFILE_LABEL.phone}
                         value={contactPhone || "—"}
                         missing={missingFieldKeys.has("contactPersonPhone")}
-                        required
-                        help={SC_MONTHLY_ISSUER.phoneNumber.help}
                       />
                     </ProfileFieldGrid>
                   )}
@@ -1508,77 +1504,61 @@ export default function ProfilePage() {
                 </div>
                 <div className="p-6 space-y-4">
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <BanknotesIcon className="h-4 w-4" />
-                        Bank name
-                      </Label>
-                      {isEditingBanking ? (
-                        <Select value={bankName} onValueChange={setBankName}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select bank" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {MALAYSIAN_BANKS.map((bank) => (
-                              <SelectItem key={bank.value} value={bank.value}>
-                                {bank.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <Input
-                          value={bankName || "—"}
-                          disabled
-                          className={formInputDisabledClassName}
+                    {isEditingBanking ? (
+                      <>
+                        <div className="space-y-2">
+                          <ComRepFieldLabel label={PROFILE_LABEL.bankName} optional />
+                          <Select value={bankName} onValueChange={setBankName}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select bank" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {MALAYSIAN_BANKS.map((bank) => (
+                                <SelectItem key={bank.value} value={bank.value}>
+                                  {bank.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <ComRepFieldLabel label={PROFILE_LABEL.accountType} optional />
+                          <Select value={accountType} onValueChange={setAccountType}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select account type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Savings">Savings</SelectItem>
+                              <SelectItem value="Checking">Checking</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2 sm:col-span-2">
+                          <ComRepFieldLabel
+                            label={PROFILE_LABEL.bankAccountNumber}
+                            optional
+                            help="Enter a 10–18 digit account number if you add banking details."
+                          />
+                          <Input
+                            placeholder="Enter your bank account number"
+                            value={accountNumber}
+                            onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, ""))}
+                            maxLength={18}
+                            className="font-mono"
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <ProfileFieldGrid className="sm:col-span-2">
+                        <ProfileReadField label={PROFILE_LABEL.bankName} value={bankName || "—"} />
+                        <ProfileReadField label={PROFILE_LABEL.accountType} value={accountType || "—"} />
+                        <ProfileReadField
+                          className="sm:col-span-2"
+                          label={PROFILE_LABEL.bankAccountNumber}
+                          value={accountNumber || "—"}
                         />
-                      )}
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <DocumentTextIcon className="h-4 w-4" />
-                        Account type
-                      </Label>
-                      {isEditingBanking ? (
-                        <Select value={accountType} onValueChange={setAccountType}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select account type" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Savings">Savings</SelectItem>
-                            <SelectItem value="Checking">Checking</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <Input
-                          value={accountType || "—"}
-                          disabled
-                          className={formInputDisabledClassName}
-                        />
-                      )}
-                    </div>
-                    <div className="space-y-2 sm:col-span-2">
-                      <Label className="flex items-center gap-2">
-                        <IdentificationIcon className="h-4 w-4" />
-                        Bank account number
-                      </Label>
-                      <Input
-                        placeholder="Enter your bank account number"
-                        value={accountNumber}
-                        onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, ""))}
-                        disabled={!isEditingBanking}
-                        maxLength={18}
-                        className={cn(
-                          "font-mono",
-                          !isEditingBanking && formInputDisabledClassName
-                        )}
-                      />
-                      {isEditingBanking && (
-                        <p className="text-xs text-muted-foreground">
-                          Enter 10-18 digit account number
-                        </p>
-                      )}
-                    </div>
+                      </ProfileFieldGrid>
+                    )}
                   </div>
 
                   {isEditingBanking && isCurrentUserAdmin && (

@@ -110,7 +110,7 @@ describe("buildPartyProfileDetailItems", () => {
     });
     const labels = items.map((item) => item.label);
     expect(labels).toContain("Name");
-    expect(labels).toContain("Email");
+    expect(labels).toContain("Person Email");
     expect(labels).not.toContain("Residential Address");
     expect(labels).not.toContain("Designation");
   });
@@ -142,10 +142,10 @@ describe("buildPartyProfileDetailItems", () => {
         email: "onboarding@example.com",
       },
     });
-    expect(items.find((item) => item.label === "Email")?.value).toBe(
+    expect(items.find((item) => item.label === "Person Email")?.value).toBe(
       "onboarding@example.com"
     );
-    expect(items.find((item) => item.label === "Platform login email")?.value).toBe(
+    expect(items.find((item) => item.label === "Account Email")?.value).toBe(
       "login@example.com"
     );
   });

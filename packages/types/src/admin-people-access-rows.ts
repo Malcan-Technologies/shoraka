@@ -24,6 +24,7 @@ import {
   peopleAccessAmlLabel,
   peopleAccessCompanyRolesFromParty,
   peopleAccessCompanyRolesFromPerson,
+  peopleAccessCorporateKybLabel,
   peopleAccessKycLabel,
   peopleAccessPlatformLabel,
   type PeopleAccessAmlLabel,
@@ -204,7 +205,8 @@ function kycCell(params: {
   corporate: boolean;
   platformOnly: boolean;
 }): PeopleAccessKycLabel {
-  if (params.corporate || params.platformOnly) return "—";
+  if (params.platformOnly) return "—";
+  if (params.corporate) return peopleAccessCorporateKybLabel(params.person);
   return peopleAccessKycLabel(params.person);
 }
 

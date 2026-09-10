@@ -20,10 +20,10 @@ import {
   SC_INDIVIDUAL_GENDERS,
   SC_IDENTITY_PREFIXES,
   SC_MALAYSIAN_STATES,
-  SC_MONTHLY_BOARD,
-  SC_MONTHLY_ISSUER,
   SC_MONTHLY_PERSON_KIND_LABELS,
   SC_MONTHLY_SHAREHOLDER,
+  PROFILE_HELP,
+  PROFILE_LABEL,
   SC_SHARE_TYPE_LABELS,
   SC_SHARE_TYPES,
   scAppendixASelectValues,
@@ -355,7 +355,7 @@ export function OrganizationPersonEditorDialog({
           </fieldset>
           {minimalOnboardingAdd && values.isShareholder ? (
             <Field
-              label={SC_MONTHLY_SHAREHOLDER.shareholdingPercentage.label}
+              label={PROFILE_LABEL.shareholdingPercentage}
               value={values.shareholdingPercentage}
               onChange={(shareholdingPercentage) => set("shareholdingPercentage", shareholdingPercentage)}
               required
@@ -369,7 +369,7 @@ export function OrganizationPersonEditorDialog({
             <>
               <Field
                 type="date"
-                label={SC_MONTHLY_ISSUER.dateOfIncorporation.label}
+                label={PROFILE_LABEL.dateOfIncorporation}
                 value={values.dateOfIncorporation}
                 onChange={(dateOfIncorporation) => set("dateOfIncorporation", dateOfIncorporation)}
                 required
@@ -482,7 +482,7 @@ export function OrganizationPersonEditorDialog({
           {showShare ? (
             <>
               <div className="space-y-1.5">
-                <ComRepFieldLabel label={SC_MONTHLY_SHAREHOLDER.typeOfShares.label} required />
+                <ComRepFieldLabel label={PROFILE_LABEL.typeOfShares} required />
                 <Select value={values.shareType || undefined} onValueChange={(shareType) => set("shareType", shareType)}>
                   <SelectTrigger className="h-10 text-ui">
                     <SelectValue placeholder="Select" />
@@ -498,14 +498,14 @@ export function OrganizationPersonEditorDialog({
               </div>
               {values.shareType === "OTHERS" ? (
                 <Field
-                  label={SC_MONTHLY_SHAREHOLDER.typeOfSharesOthers.label}
+                  label={PROFILE_LABEL.typeOfSharesOther}
                   value={values.shareTypeOther}
                   onChange={(shareTypeOther) => set("shareTypeOther", shareTypeOther)}
                   required
                 />
               ) : null}
               <Field
-                label={SC_MONTHLY_SHAREHOLDER.shareholdingUnits.label}
+                label={PROFILE_LABEL.shareholdingUnits}
                 value={values.shareholdingUnits}
                 onChange={(shareholdingUnits) =>
                   set("shareholdingUnits", shareholdingUnits.replace(/[^\d.]/g, ""))
@@ -515,7 +515,7 @@ export function OrganizationPersonEditorDialog({
                 inputMode="decimal"
               />
               <Field
-                label={SC_MONTHLY_SHAREHOLDER.shareholdingAmount.label}
+                label={PROFILE_LABEL.shareholdingAmount}
                 value={values.shareholdingAmount}
                 onChange={(shareholdingAmount) =>
                   set("shareholdingAmount", shareholdingAmount.replace(/[^\d.]/g, ""))
@@ -525,7 +525,7 @@ export function OrganizationPersonEditorDialog({
                 inputMode="decimal"
               />
               <Field
-                label={SC_MONTHLY_SHAREHOLDER.shareholdingPercentage.label}
+                label={PROFILE_LABEL.shareholdingPercentage}
                 value={values.shareholdingPercentage}
                 onChange={(shareholdingPercentage) =>
                   set("shareholdingPercentage", shareholdingPercentage.replace(/[^\d.]/g, ""))
@@ -539,7 +539,7 @@ export function OrganizationPersonEditorDialog({
           {showOfficer ? (
             <>
               <div className="space-y-1.5">
-                <ComRepFieldLabel label={SC_MONTHLY_BOARD.designation.label} required />
+                <ComRepFieldLabel label={PROFILE_LABEL.designation} required />
                 <Select
                   value={values.designation || undefined}
                   onValueChange={(designation) => set("designation", designation)}
@@ -558,26 +558,25 @@ export function OrganizationPersonEditorDialog({
               </div>
               {values.designation === "OTHERS" ? (
                 <Field
-                  label={SC_MONTHLY_BOARD.designationOthers.label}
+                  label={PROFILE_LABEL.designationOther}
                   value={values.designationOther}
                   onChange={(designationOther) => set("designationOther", designationOther)}
                   required
-                  help={SC_MONTHLY_BOARD.designationOthers.help}
                 />
               ) : null}
               <Field
                 type="date"
-                label={SC_MONTHLY_BOARD.appointmentDate.label}
+                label={PROFILE_LABEL.appointmentDate}
                 value={values.appointmentDate}
                 onChange={(appointmentDate) => set("appointmentDate", appointmentDate)}
                 required
               />
               <Field
                 type="date"
-                label={SC_MONTHLY_BOARD.resignationDate.label}
+                label={PROFILE_LABEL.resignationDate}
                 value={values.resignationDate}
                 onChange={(resignationDate) => set("resignationDate", resignationDate)}
-                help={SC_MONTHLY_BOARD.resignationDate.help}
+                help={PROFILE_HELP.resignationDate}
               />
             </>
           ) : null}
@@ -684,7 +683,7 @@ function Field({
 }) {
   return (
     <div className="space-y-1.5">
-      <ComRepFieldLabel label={label} required={required} help={help} />
+      <ComRepFieldLabel label={label} required={required} optional={!required} help={help} />
       <Input
         className="h-10 text-ui"
         type={type}
@@ -693,6 +692,7 @@ function Field({
         inputMode={inputMode}
         onChange={(event) => onChange(event.target.value)}
         aria-invalid={Boolean(error)}
+        aria-required={required}
       />
       {error ? <p className="text-meta text-destructive">{error}</p> : null}
     </div>

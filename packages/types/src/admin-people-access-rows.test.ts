@@ -404,6 +404,39 @@ describe("buildAdminPeopleAccessRows", () => {
     expect(row.corporate).toBe(true);
   });
 
+  it("projects corporate KYB onboarding status without treating it as individual KYC", () => {
+    const { active } = buildAdminPeopleAccessRows({
+      parties: [
+        party({
+          id: "corp-2",
+          partyKey: "ROC2",
+          name: "Orion Crest Holdings Sdn. Bhd.",
+          identityNumber: "ROC2",
+          entityType: "CORPORATE",
+          isShareholder: true,
+          shareholdingPercentage: "50",
+        }),
+      ],
+      people: [
+        person({
+          matchKey: "ROC2",
+          name: "Orion Crest Holdings Sdn. Bhd.",
+          entityType: "CORPORATE",
+          roles: ["SHAREHOLDER"],
+          sharePercentage: 50,
+          onboarding: { status: "WAIT_FOR_APPROVAL", id: null },
+          partyCorporateRequestId: "COD05595",
+        }),
+      ],
+      members: [],
+      owner,
+    });
+    const row = active.find((item) => item.partyId === "corp-2")!;
+    expect(row.corporate).toBe(true);
+    expect(row.kyc).toBe("Pending approval");
+    expect(row.aml).toBe("—");
+  });
+
   it("16. people-only unmatched rows are not merged by email", () => {
     const { active } = buildAdminPeopleAccessRows({
       parties: [

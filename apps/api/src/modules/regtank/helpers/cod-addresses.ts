@@ -20,6 +20,7 @@ export type CodAddresses = {
 type CodField = { fieldName?: unknown; fieldValue?: unknown };
 
 function asText(value: unknown): string | null {
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
@@ -29,12 +30,17 @@ function fieldName(row: CodField): string {
   return typeof row.fieldName === "string" ? row.fieldName.trim() : "";
 }
 
+function isHeader(row: CodField): boolean {
+  return String((row as { fieldType?: unknown }).fieldType ?? "").trim().toLowerCase() === "header";
+}
+
 function findExact(content: CodField[], names: readonly string[]): string | null {
   const wanted = new Set(names.map((name) => name.trim().toLowerCase()));
   for (const row of content) {
-    if (wanted.has(fieldName(row).toLowerCase())) {
-      return asText(row.fieldValue);
-    }
+    if (isHeader(row)) continue;
+    if (!wanted.has(fieldName(row).toLowerCase())) continue;
+    const value = asText(row.fieldValue);
+    if (value) return value;
   }
   return null;
 }
@@ -65,11 +71,10 @@ const BUSINESS_POSTCODE = ["Postal code", "Postal Code", "Postcode"] as const;
 const BUSINESS_STATE = ["State"] as const;
 const BUSINESS_COUNTRY = ["Country"] as const;
 
-/** Registered address uses the Registered Address qualified field names only. */
+/** Registered address uses qualified field names only — never the section header "Registered Address". */
 const REGISTERED_LINE1 = [
   "Address line 1 (Registered Address)",
   "Registered Address line 1",
-  "Registered Address",
 ] as const;
 const REGISTERED_LINE2 = [
   "Address line 2 (Registered Address)",

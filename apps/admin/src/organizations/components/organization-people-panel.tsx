@@ -14,7 +14,7 @@ import {
   optionalEmailIssue,
   observedPartyBlockedByIdentityConflict,
   phoneFormatIssue,
-  SC_MONTHLY_ISSUER,
+  PROFILE_LABEL,
   validateIssuerContactPersonForm,
 } from "@cashsouk/types";
 import { AdminDetailCardHeader } from "@/components/admin-detail";
@@ -111,8 +111,8 @@ export function OrganizationPeoplePanel({
         picEvidence?.contactNumber
     );
   const issuerContact = portal === "issuer";
-  const picEmailLabel = issuerContact ? SC_MONTHLY_ISSUER.emailAddress.label : "Email";
-  const picPhoneLabel = issuerContact ? SC_MONTHLY_ISSUER.phoneNumber.label : "Contact Number";
+  const picEmailLabel = issuerContact ? PROFILE_LABEL.personEmail : PROFILE_LABEL.email;
+  const picPhoneLabel = issuerContact ? PROFILE_LABEL.phone : PROFILE_LABEL.phone;
   const picHasChanges = Object.keys(buildSectionPayload(org, draft, "pic")).length > 0;
   const unified = unifyOrganizationPeople(org.partyProfiles, org.people);
   const linkedUserIds = linkedPartyUserIds(org.partyProfiles ?? []);
@@ -144,12 +144,14 @@ export function OrganizationPeoplePanel({
   const handleSavePic = () => {
     const issues = issuerContact
       ? validateIssuerContactPersonForm({
+          name: draft.picName,
+          position: draft.picPosition,
           email: draft.picEmail,
           contact: draft.picContactNumber,
         })
       : [
-          optionalEmailIssue(draft.picEmail, "picEmail", "Email"),
-          phoneFormatIssue(draft.picContactNumber, "picContactNumber", "Contact Number"),
+          optionalEmailIssue(draft.picEmail, "picEmail", PROFILE_LABEL.email),
+          phoneFormatIssue(draft.picContactNumber, "picContactNumber", PROFILE_LABEL.phone),
         ].filter((issue): issue is NonNullable<typeof issue> => Boolean(issue));
     if (issues.length > 0) {
       setPicFieldErrors(Object.fromEntries(issues.map((issue) => [issue.field, issue.message])));
@@ -446,17 +448,22 @@ export function OrganizationPeoplePanel({
                     label="Name"
                     value={draft.picName}
                     onChange={(picName) => setDraft((current) => ({ ...current, picName }))}
+                    required={issuerContact}
+                    error={picFieldErrors.picName || picFieldErrors.contactPersonName}
                   />
                   <EditableField
                     label="Position"
                     value={draft.picPosition}
                     onChange={(picPosition) => setDraft((current) => ({ ...current, picPosition }))}
+                    required={issuerContact}
+                    error={picFieldErrors.picPosition || picFieldErrors.contactPersonPosition}
                   />
                   <EditableField
                     label={picEmailLabel}
                     value={draft.picEmail}
                     onChange={(picEmail) => setDraft((current) => ({ ...current, picEmail }))}
                     maxLength={255}
+                    required={issuerContact}
                     error={picFieldErrors.picEmail || picFieldErrors.contactPersonEmail}
                   />
                   <EditablePhoneField
@@ -465,6 +472,7 @@ export function OrganizationPeoplePanel({
                     onChange={(picContactNumber) =>
                       setDraft((current) => ({ ...current, picContactNumber }))
                     }
+                    required={issuerContact}
                     error={picFieldErrors.picContactNumber || picFieldErrors.contactPersonPhone}
                   />
                 </>

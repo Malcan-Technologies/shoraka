@@ -160,7 +160,20 @@ export function peopleAccessPlatformLabel(input: {
 
 export function peopleAccessKycLabel(person: ApplicationPersonRow | null | undefined): PeopleAccessKycLabel {
   if (!person || !requiresOnboardingEmail(person)) return "—";
-  const group = getKycGroup(person.onboarding?.status ?? "");
+  return kycGroupToPeopleAccessLabel(getKycGroup(person.onboarding?.status ?? ""));
+}
+
+/** Corporate KYB onboarding — never an individual KYC status. */
+export function peopleAccessCorporateKybLabel(
+  person: ApplicationPersonRow | null | undefined
+): PeopleAccessKycLabel {
+  if (!person || person.entityType !== "CORPORATE") return "—";
+  const raw = person.onboarding?.status ?? "";
+  if (!String(raw).trim()) return "—";
+  return kycGroupToPeopleAccessLabel(getKycGroup(raw));
+}
+
+function kycGroupToPeopleAccessLabel(group: ReturnType<typeof getKycGroup>): PeopleAccessKycLabel {
   switch (group) {
     case "NOT_STARTED":
       return "Not started";

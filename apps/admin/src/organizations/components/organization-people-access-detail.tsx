@@ -283,7 +283,18 @@ export function OrganizationPeopleAccessDetail({
         {row.kind !== "platform_only" ? (
           <TabsContent value="kyc" className="space-y-4 pt-4">
             {row.corporate ? (
-              <p className="text-ui text-muted-foreground">Individual KYC is not required.</p>
+              <>
+                <p className="text-ui text-muted-foreground">
+                  Individual KYC is not required. This tab shows business onboarding (KYB) when a
+                  corporate request exists.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <KycBadge label={row.kyc} />
+                </div>
+                <ReadField label="Onboarding stage" value={person?.onboarding?.status} />
+                <ReadField label="Party COD" value={person?.partyCorporateRequestId} />
+                <ReadField label="Onboarding ID" value={person?.onboarding?.id} />
+              </>
             ) : (
               <>
                 <div className="flex flex-wrap gap-2">

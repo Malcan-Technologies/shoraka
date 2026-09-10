@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import { ComRepFieldLabel, ProfilePhoneInput } from "@cashsouk/ui";
+import { ComRepFieldLabel, ProfilePhoneInput, ProfileReadField } from "@cashsouk/ui";
 import {
   ArrowTopRightOnSquareIcon,
   ClipboardDocumentCheckIcon,
@@ -21,7 +21,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import type { AdminOrganizationAddressInput } from "@cashsouk/types";
-import { PROFILE_LOCKED_VERIFIED_DURING_ONBOARDING, restrictScPostcodeInput } from "@cashsouk/types";
+import { PROFILE_ADDRESS_FIELD_LABELS, restrictScPostcodeInput } from "@cashsouk/types";
 
 export function DetailRow({
   label,
@@ -148,31 +148,19 @@ export function ReadField({
   help?: string;
   required?: boolean;
 }) {
-  const empty = value === null || value === undefined || value === "";
   return (
-    <div className={cn("space-y-2", className)}>
-      <ComRepFieldLabel label={label} required={required} help={help} />
-      <div
-        className={cn(
-          "w-full rounded-md border px-3 text-ui",
-          multiline ? "min-h-[120px] whitespace-pre-wrap py-2.5" : "flex min-h-11 items-center",
-          missing
-            ? "border-status-action-text/40 bg-[hsl(var(--status-action-bg)/0.35)] text-foreground"
-            : "border-input bg-muted text-foreground"
-        )}
-      >
-        <span className={cn("min-w-0 break-words", empty && "text-muted-foreground")}>
-          {empty ? null : value}
-        </span>
-      </div>
-      {missing ? <p className="text-meta text-status-action-text">Required</p> : null}
-      {locked && !missing ? (
-        <p className="text-meta text-muted-foreground">
-          {lockReason ?? PROFILE_LOCKED_VERIFIED_DURING_ONBOARDING}
-        </p>
-      ) : null}
-      {hint ? <div className="text-meta text-muted-foreground">{hint}</div> : null}
-    </div>
+    <ProfileReadField
+      label={label}
+      value={value}
+      missing={missing}
+      hint={hint}
+      locked={locked}
+      lockReason={lockReason}
+      multiline={multiline}
+      className={className}
+      help={help}
+      required={required}
+    />
   );
 }
 
@@ -186,6 +174,7 @@ export function EditableField({
   inputClassName,
   help,
   required = false,
+  optional,
   error,
   inputMode,
 }: {
@@ -198,13 +187,21 @@ export function EditableField({
   inputClassName?: string;
   help?: string;
   required?: boolean;
+  optional?: boolean;
   error?: string;
   inputMode?: "numeric" | "decimal" | "email" | "tel" | "text";
 }) {
   const fieldId = id ?? label.toLowerCase().replace(/\s+/g, "-");
+  const showOptional = optional ?? !required;
   return (
     <div className="space-y-2">
-      <ComRepFieldLabel htmlFor={fieldId} label={label} required={required} help={help} />
+      <ComRepFieldLabel
+        htmlFor={fieldId}
+        label={label}
+        required={required}
+        optional={showOptional}
+        help={help}
+      />
       {multiline ? (
         <Textarea
           id={fieldId}
@@ -214,6 +211,7 @@ export function EditableField({
           onChange={(event) => onChange(event.target.value)}
           rows={5}
           aria-invalid={Boolean(error)}
+          aria-required={required}
         />
       ) : (
         <Input
@@ -224,6 +222,7 @@ export function EditableField({
           inputMode={inputMode}
           onChange={(event) => onChange(event.target.value)}
           aria-invalid={Boolean(error)}
+          aria-required={required}
         />
       )}
       {error ? <p className="text-meta text-destructive">{error}</p> : null}
@@ -251,7 +250,13 @@ export function EditablePhoneField({
   const fieldId = id ?? label.toLowerCase().replace(/\s+/g, "-");
   return (
     <div className="space-y-2">
-      <ComRepFieldLabel htmlFor={fieldId} label={label} required={required} help={help} />
+      <ComRepFieldLabel
+        htmlFor={fieldId}
+        label={label}
+        required={required}
+        optional={!required}
+        help={help}
+      />
       <ProfilePhoneInput id={fieldId} value={value} onChange={onChange} error={Boolean(error)} />
       {error ? <p className="text-meta text-destructive">{error}</p> : null}
     </div>
@@ -276,13 +281,14 @@ export function EditableDateField({
   const fieldId = id ?? label.toLowerCase().replace(/\s+/g, "-");
   return (
     <div className="space-y-2">
-      <ComRepFieldLabel htmlFor={fieldId} label={label} required={required} help={help} />
+      <ComRepFieldLabel htmlFor={fieldId} label={label} required={required} optional={!required} help={help} />
       <Input
         id={fieldId}
         className="h-11 text-ui"
         type="date"
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        aria-required={required}
       />
     </div>
   );
@@ -309,7 +315,7 @@ export function EditableSelect({
 }) {
   return (
     <div className="space-y-2">
-      <ComRepFieldLabel label={label} required={required} help={help} />
+      <ComRepFieldLabel label={label} required={required} optional={!required} help={help} />
       <Select value={value || undefined} onValueChange={onChange} disabled={disabled}>
         <SelectTrigger className="h-11 text-ui">
           <SelectValue placeholder={placeholder} />
@@ -349,7 +355,7 @@ export function EditableYesNo({
 }) {
   return (
     <div className="space-y-2">
-      <ComRepFieldLabel label={label} required={required} />
+      <ComRepFieldLabel label={label} required={required} optional={!required} />
       <div className="flex min-h-11 items-center gap-6">
         {(
           [
@@ -753,9 +759,9 @@ export function EditableAddressFields({
   label,
   value,
   onChange,
-  lineLabel = "Address Line 1",
-  stateLabel = "State",
-  postcodeLabel = "Postal Code",
+  lineLabel = PROFILE_ADDRESS_FIELD_LABELS.address,
+  stateLabel = PROFILE_ADDRESS_FIELD_LABELS.state,
+  postcodeLabel = PROFILE_ADDRESS_FIELD_LABELS.postcode,
   showHeading = true,
   errors,
 }: {
@@ -769,6 +775,7 @@ export function EditableAddressFields({
   errors?: { line1?: string; state?: string; postalCode?: string };
 }) {
   const prefix = label.toLowerCase().replace(/\s+/g, "-");
+  const postcodeRequired = value.state !== "Outside Malaysia";
   return (
     <div className="space-y-2">
       {showHeading ? <p className="text-meta font-medium text-muted-foreground">{label}</p> : null}
@@ -780,13 +787,14 @@ export function EditableAddressFields({
             value={value.line1}
             onChange={(line1) => onChange({ ...value, line1 })}
             maxLength={500}
+            required
             error={errors?.line1}
           />
         </div>
         <div className="sm:col-span-2">
           <EditableField
             id={`${prefix}-line2`}
-            label="Address Line 2"
+            label={PROFILE_ADDRESS_FIELD_LABELS.addressLine2}
             value={value.line2}
             onChange={(line2) => onChange({ ...value, line2 })}
             maxLength={500}
@@ -794,7 +802,7 @@ export function EditableAddressFields({
         </div>
         <EditableField
           id={`${prefix}-city`}
-          label="City"
+          label={PROFILE_ADDRESS_FIELD_LABELS.city}
           value={value.city}
           onChange={(city) => onChange({ ...value, city })}
         />
@@ -806,6 +814,7 @@ export function EditableAddressFields({
             onChange({ ...value, postalCode: restrictScPostcodeInput(value.state, postalCode) })
           }
           inputMode={value.state === "Outside Malaysia" ? "text" : "numeric"}
+          required={postcodeRequired}
           error={errors?.postalCode}
         />
         <EditableField
@@ -813,11 +822,12 @@ export function EditableAddressFields({
           label={stateLabel}
           value={value.state}
           onChange={(state) => onChange({ ...value, state })}
+          required
           error={errors?.state}
         />
         <EditableField
           id={`${prefix}-country`}
-          label="Country"
+          label={PROFILE_ADDRESS_FIELD_LABELS.country}
           value={value.country}
           onChange={(country) => onChange({ ...value, country })}
         />

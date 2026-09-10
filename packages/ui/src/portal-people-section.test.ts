@@ -43,9 +43,10 @@ describe("PortalPeopleSection", () => {
     expect(source).toContain("onView={() => setViewPeopleOnlyKey(person.matchKey)}");
   });
 
-  it("shows how many profile fields are missing and hides KYC/AML for company shareholders", () => {
+  it("shows how many profile fields are missing and uses KYB for company shareholders", () => {
     expect(card).toContain("} missing");
-    expect(card).toContain("Company shareholder. Individual KYC/AML is not required.");
+    expect(card).toContain("`KYB: ${kyc.label}`");
+    expect(card).not.toContain("Company shareholder. Individual KYC/AML is not required.");
     expect(source).toContain("canSendOnboarding={Boolean(");
     expect(source).toContain('portal === "issuer"');
     expect(source).toContain("kycOnboardingStatus");

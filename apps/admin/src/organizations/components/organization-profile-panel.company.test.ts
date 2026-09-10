@@ -13,7 +13,7 @@ describe("Admin company organisation profile", () => {
   });
 
   it("labels the account-owner email instead of a generic company Address", () => {
-    expect(panel).toContain("Account owner email");
+    expect(panel).toContain("PROFILE_LABEL.accountOwnerEmail");
     expect(panel).not.toContain('label="Address"');
   });
 
@@ -24,6 +24,13 @@ describe("Admin company organisation profile", () => {
     expect(pic).toContain("RegTank evidence");
     expect(pic).toContain("picContactsDiffer");
     expect(panel).toContain("OrganizationPicCard");
+  });
+
+  it("requires issuer PIC Full Name and Position on Save, matching application company-details", () => {
+    expect(pic).toContain("name: draft.picName");
+    expect(pic).toContain("position: draft.picPosition");
+    expect(pic).toContain("required={issuerContact}");
+    expect(pic).toContain("validateIssuerContactPersonForm");
   });
 
   it("shows missing field counts and does not require individual KYC on company shareholders", () => {
@@ -47,8 +54,8 @@ describe("Admin company organisation profile", () => {
   });
 
   it("simplifies Registered and Business Address field labels", () => {
-    expect(panel).toContain("SC_MONTHLY_ISSUER.registeredAddress.label");
-    expect(panel).toContain("SC_MONTHLY_ISSUER.businessAddress.label");
+    expect(panel).toContain("PROFILE_LABEL.registeredAddress");
+    expect(panel).toContain("PROFILE_LABEL.businessAddress");
     expect(panel).toContain("ADMIN_ORG_ADDRESS_FIELD_LABELS.address");
     expect(panel).toContain("ADMIN_ORG_ADDRESS_FIELD_LABELS.state");
     expect(panel).toContain("ADMIN_ORG_ADDRESS_FIELD_LABELS.postcode");
@@ -69,5 +76,11 @@ describe("Admin company organisation profile", () => {
     expect(panel).toContain("adminOnboardingEvidenceCards");
     expect(panel).toContain("wealthDeclaration: org.wealthDeclaration");
     expect(panel.indexOf("evidenceCards.map")).toBeGreaterThan(panel.indexOf('title="Documents"'));
+  });
+
+  it("does not render individual KYC document fields on company organisations", () => {
+    expect(panel).toContain('org.type !== "COMPANY"');
+    expect(panel).toContain('label="Document Type"');
+    expect(panel).toContain("corporateRequiredDocuments");
   });
 });

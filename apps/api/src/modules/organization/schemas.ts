@@ -234,7 +234,7 @@ export const updateCorporateInfoSchema = z
       }
       return true;
     },
-    { message: "Business Address, Business Address - State, and Business Address - Postcode are required unless the state is Outside Malaysia.", path: ["businessAddress"] }
+    { message: "Business Address, State, and Postcode are required unless the state is Outside Malaysia.", path: ["businessAddress"] }
   )
   .refine(
     (val) => {
@@ -243,7 +243,7 @@ export const updateCorporateInfoSchema = z
       }
       return true;
     },
-    { message: "Registered Address, Registered Address - State, and Registered Address - Postcode are required unless the state is Outside Malaysia.", path: ["registeredAddress"] }
+    { message: "Registered Address, State, and Postcode are required unless the state is Outside Malaysia.", path: ["registeredAddress"] }
   );
 
 export type CreateOrganizationInput = z.infer<typeof createOrganizationSchema>;
