@@ -3,10 +3,9 @@ import {
   getCtosPartyCurrentOnboardingRequestId,
   isCurrentCtosPartyOnboardingRequest,
 } from "./ctos-party-supplement-json";
-import {
-  PERSON_REGTANK_VERIFY_LINK_UNAVAILABLE,
-  planPersonRegTankIndividualSend,
-} from "./person-regtank-send";
+import { planPersonRegTankIndividualSend } from "./person-regtank-send";
+
+const now = new Date("2026-09-10T12:00:00.000Z");
 
 describe("planPersonRegTankIndividualSend", () => {
   it("creates when there is no current onboarding request", () => {
@@ -18,9 +17,29 @@ describe("planPersonRegTankIndividualSend", () => {
     ).toEqual({ action: "create" });
   });
 
-  it("resends the stored verifyLink during IN_PROGRESS without creating", () => {
+  it("resends a stored verifyLink that is still valid", () => {
     expect(
       planPersonRegTankIndividualSend({
+        now,
+        supplementRoot: {
+          requestId: "LD-CURRENT",
+          status: "IN_PROGRESS",
+          verifyLink: "https://verify.example/current",
+          verifyLinkExpiresAt: "2026-09-10T13:00:00.000Z",
+          email: "ali@example.com",
+        },
+      })
+    ).toEqual({
+      action: "resend",
+      requestId: "LD-CURRENT",
+      verifyLink: "https://verify.example/current",
+    });
+  });
+
+  it("resends when expiry is unknown and does not assume the link is expired", () => {
+    expect(
+      planPersonRegTankIndividualSend({
+        now,
         supplementRoot: {
           requestId: "LD-CURRENT",
           status: "IN_PROGRESS",
@@ -35,6 +54,37 @@ describe("planPersonRegTankIndividualSend", () => {
     });
   });
 
+  it("renews an expired same-email link without creating", () => {
+    expect(
+      planPersonRegTankIndividualSend({
+        now,
+        supplementRoot: {
+          requestId: "LD-CURRENT",
+          status: "IN_PROGRESS",
+          verifyLink: "https://verify.example/current",
+          verifyLinkExpiresAt: "2026-09-10T11:00:00.000Z",
+        },
+      })
+    ).toEqual({
+      action: "renew",
+      requestId: "LD-CURRENT",
+      verifyLink: "https://verify.example/current",
+    });
+  });
+
+  it("renews when the current request exists but verifyLink is missing", () => {
+    expect(
+      planPersonRegTankIndividualSend({
+        now,
+        supplementRoot: { requestId: "LD-CURRENT", status: "IN_PROGRESS" },
+      })
+    ).toEqual({
+      action: "renew",
+      requestId: "LD-CURRENT",
+      verifyLink: "",
+    });
+  });
+
   it("creates after an IN_PROGRESS email change resets the local pipeline", () => {
     const afterSend = mergeCtosPartySupplementDocument(null, {
       onboarding: {
@@ -42,6 +92,7 @@ describe("planPersonRegTankIndividualSend", () => {
         status: "IN_PROGRESS",
         requestId: "LD-OLD",
         verifyLink: "https://verify.example/old",
+        verifyLinkExpiresAt: "2026-09-10T13:00:00.000Z",
       },
     });
     const afterEmailChange = mergeCtosPartySupplementDocument(afterSend, {
@@ -49,6 +100,9 @@ describe("planPersonRegTankIndividualSend", () => {
       pipelineReset: true,
       screeningReset: true,
     });
+    expect(afterEmailChange.requestId).toBe("");
+    expect(afterEmailChange.verifyLink).toBeUndefined();
+    expect(afterEmailChange.verifyLinkExpiresAt).toBeUndefined();
     expect(planPersonRegTankIndividualSend({ supplementRoot: afterEmailChange })).toEqual({
       action: "create",
     });
@@ -66,27 +120,26 @@ describe("planPersonRegTankIndividualSend", () => {
     ).toEqual({ action: "create" });
   });
 
-  it("rejects replacement when the stored verifyLink is missing", () => {
-    const plan = planPersonRegTankIndividualSend({
-      supplementRoot: { requestId: "LD-CURRENT", status: "IN_PROGRESS" },
-    });
-    expect(plan).toEqual({
-      action: "reject",
-      code: "VERIFY_LINK_UNAVAILABLE",
-      message: PERSON_REGTANK_VERIFY_LINK_UNAVAILABLE,
-    });
-  });
-
-  it("rejects replacement at WAIT_FOR_APPROVAL", () => {
-    expect(
-      planPersonRegTankIndividualSend({
-        supplementRoot: {
-          requestId: "LD-CURRENT",
-          status: "WAIT_FOR_APPROVAL",
-          verifyLink: "https://verify.example/current",
-        },
-      }).action
-    ).toBe("reject");
+  it("rejects WAIT_FOR_APPROVAL and later protected statuses", () => {
+    for (const status of [
+      "WAIT_FOR_APPROVAL",
+      "LIVENESS_PASSED",
+      "PENDING_APPROVAL",
+      "APPROVED",
+      "REJECTED",
+      "COMPLETED",
+    ]) {
+      expect(
+        planPersonRegTankIndividualSend({
+          supplementRoot: {
+            requestId: "LD-CURRENT",
+            status,
+            verifyLink: "https://verify.example/current",
+            verifyLinkExpiresAt: "2026-09-10T11:00:00.000Z",
+          },
+        }).action
+      ).toBe("reject");
+    }
   });
 });
 
@@ -112,5 +165,25 @@ describe("current Person onboarding requestId", () => {
     expect(isCurrentCtosPartyOnboardingRequest(current, "LD-OLD")).toBe(false);
     expect(isCurrentCtosPartyOnboardingRequest(current, "")).toBe(false);
     expect(isCurrentCtosPartyOnboardingRequest(current, undefined)).toBe(false);
+  });
+
+  it("keeps the same requestId current after a token renew merge", () => {
+    const afterRenew = mergeCtosPartySupplementDocument(
+      {
+        requestId: "LD-CURRENT",
+        status: "IN_PROGRESS",
+        verifyLink: "https://verify.example/?requestId=LD-CURRENT&token=OLD",
+        verifyLinkExpiresAt: "2026-09-10T11:00:00.000Z",
+      },
+      {
+        onboarding: {
+          requestId: "LD-CURRENT",
+          verifyLink: "https://verify.example/?requestId=LD-CURRENT&token=NEW",
+          verifyLinkExpiresAt: "2026-09-11T12:00:00.000Z",
+        },
+      }
+    );
+    expect(isCurrentCtosPartyOnboardingRequest(afterRenew, "LD-CURRENT")).toBe(true);
+    expect(afterRenew.requestId).toBe("LD-CURRENT");
   });
 });

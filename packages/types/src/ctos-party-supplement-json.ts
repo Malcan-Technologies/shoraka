@@ -32,6 +32,8 @@ export type CtosPartySupplement = {
   status: string;
   email?: string;
   verifyLink?: string;
+  /** ISO timestamp: RegTank `timestamp` + `expiredIn` seconds. */
+  verifyLinkExpiresAt?: string;
   /** RegTank `referenceId` for webhook + Prisma JSON path lookup. */
   referenceId?: string;
   sentAt?: string;
@@ -108,6 +110,8 @@ export function parseCtosPartySupplement(raw: unknown): CtosPartySupplement {
     status,
     email: typeof raw.email === "string" ? raw.email.trim() || undefined : undefined,
     verifyLink: typeof raw.verifyLink === "string" ? raw.verifyLink.trim() || undefined : undefined,
+    verifyLinkExpiresAt:
+      typeof raw.verifyLinkExpiresAt === "string" ? raw.verifyLinkExpiresAt.trim() || undefined : undefined,
     referenceId: typeof raw.referenceId === "string" ? raw.referenceId.trim() || undefined : undefined,
     sentAt: typeof raw.sentAt === "string" ? raw.sentAt.trim() || undefined : undefined,
     lastSentAt: typeof raw.lastSentAt === "string" ? raw.lastSentAt.trim() || undefined : undefined,
@@ -166,6 +170,15 @@ function mergeOnboardingFields(
     const vl = str(patch.verifyLink);
     if (vl !== undefined) base.verifyLink = vl;
   }
+  if (patch.verifyLinkExpiresAt === "" || patch.verifyLinkExpiresAt === null) {
+    base.verifyLinkExpiresAt = undefined;
+  } else {
+    const exp = str(patch.verifyLinkExpiresAt);
+    if (exp !== undefined) {
+      const ms = Date.parse(exp);
+      base.verifyLinkExpiresAt = Number.isFinite(ms) ? new Date(ms).toISOString() : exp;
+    }
+  }
   const ref = str(patch.referenceId);
   if (ref !== undefined) base.referenceId = ref;
   const sa = str(patch.sentAt);
@@ -204,6 +217,7 @@ export function mergeCtosPartySupplementDocument(
     base.requestId = "";
     base.status = "";
     base.verifyLink = undefined;
+    base.verifyLinkExpiresAt = undefined;
     base.referenceId = undefined;
     base.sentAt = undefined;
     base.lastSentAt = undefined;
@@ -241,6 +255,7 @@ export function serializeCtosPartySupplement(doc: CtosPartySupplement): Record<s
   };
   if (doc.email !== undefined) o.email = doc.email;
   if (doc.verifyLink !== undefined) o.verifyLink = doc.verifyLink;
+  if (doc.verifyLinkExpiresAt !== undefined) o.verifyLinkExpiresAt = doc.verifyLinkExpiresAt;
   if (doc.referenceId !== undefined) o.referenceId = doc.referenceId;
   if (doc.sentAt !== undefined) o.sentAt = doc.sentAt;
   if (doc.lastSentAt !== undefined) o.lastSentAt = doc.lastSentAt;

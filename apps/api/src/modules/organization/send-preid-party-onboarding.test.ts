@@ -68,6 +68,7 @@ jest.mock("@aws-sdk/client-cognito-identity-provider", () => ({
 jest.mock("../regtank/api-client", () => ({
   RegTankAPIClient: jest.fn().mockImplementation(() => ({
     createIndividualOnboarding: (...args: unknown[]) => mockCreateIndividualOnboarding(...args),
+    renewIndividualOnboardingToken: jest.fn(),
   })),
 }));
 

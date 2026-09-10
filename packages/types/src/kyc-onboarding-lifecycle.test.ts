@@ -92,6 +92,8 @@ describe("email-only supplement merge", () => {
         status: "IN_PROGRESS",
         requestId: "LD1",
         sentAt: "2026-09-08T00:00:00.000Z",
+        verifyLink: "https://verify.example/old",
+        verifyLinkExpiresAt: "2026-09-08T01:00:00.000Z",
       },
     });
     const afterEmailChange = mergeCtosPartySupplementDocument(afterSend, {
@@ -101,6 +103,9 @@ describe("email-only supplement merge", () => {
     });
     expect(getCtosPartySupplementPipelineStatus(afterEmailChange)).toBe("");
     expect(afterEmailChange.email).toBe("b@example.com");
+    expect(afterEmailChange.verifyLinkExpiresAt).toBeUndefined();
+    expect(afterEmailChange.verifyLink).toBeUndefined();
+    expect(afterEmailChange.requestId).toBe("");
   });
 
   it("keeps In Progress when Send onboarding writes a real request", () => {

@@ -369,4 +369,41 @@ describe("KYCWebhookHandler", () => {
 
     expect(prisma.ctosPartySupplement.update).not.toHaveBeenCalled();
   });
+
+  it("accepts the current KYC webhook", async () => {
+    mockFindByRequestId.mockResolvedValue(null);
+    (findCtosPartySupplementByOnboardingJsonMatch as jest.Mock).mockResolvedValue({
+      id: "sup-current",
+      party_key: "user:1",
+      issuer_organization_id: "org-iss",
+      investor_organization_id: null,
+      onboarding_json: {
+        requestId: "LD-NEW",
+        status: "APPROVED",
+        screening: null,
+      },
+    });
+    const handler = new KYCWebhookHandler("ACURIS");
+
+    await (handler as any).handle({
+      requestId: "KYC-NEW",
+      onboardingId: "LD-NEW",
+      referenceId: "org-iss_user1",
+      status: "Pending",
+    });
+
+    expect(prisma.ctosPartySupplement.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "sup-current" } })
+    );
+    expect(linkCtosPartyToKyb).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: "org-iss",
+        partyKey: "user:1",
+        onboardingJson: expect.objectContaining({
+          requestId: "LD-NEW",
+          screening: expect.objectContaining({ requestId: "KYC-NEW" }),
+        }),
+      })
+    );
+  });
 });

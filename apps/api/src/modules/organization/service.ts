@@ -72,12 +72,15 @@ import {
   isGeneratedUserPartyKey,
   usablePersonSendName,
   planPersonRegTankIndividualSend,
+  calculateRegTankVerifyLinkExpiresAt,
+  resolvePersonRenewedVerifyLink,
 } from "@cashsouk/types";
 import { buildDirectorShareholderPeopleListWithMaster } from "../organization-profile/load-master-parties-for-people";
 import { writeOrganizationPartyEmail } from "../organization-profile/person-email";
 import { RegTankAPIClient } from "../regtank/api-client";
 import { ensureRegTankFormId } from "../regtank/form-id";
 import type { RegTankIndividualOnboardingRequest } from "../regtank/types";
+import { getRegTankIndividualOnboardingOrigin } from "../../config/regtank";
 import { listLatestCtosSubjectReportsForAdminOrg } from "../ctos/ctos-report-service";
 import { allocateDisplayReference } from "../../lib/display-reference";
 
@@ -2590,7 +2593,10 @@ export class OrganizationService {
           );
         }
 
-        const sendPlan = planPersonRegTankIndividualSend({ supplementRoot: lockedRoot });
+        const sendPlan = planPersonRegTankIndividualSend({
+          supplementRoot: lockedRoot,
+          now,
+        });
         if (sendPlan.action === "reject") {
           throw new AppError(400, sendPlan.code, sendPlan.message);
         }
@@ -2619,6 +2625,86 @@ export class OrganizationService {
           };
         }
 
+        const regTankApi = new RegTankAPIClient();
+
+        if (sendPlan.action === "renew") {
+          let renewedVerifyLink = "";
+          let renewedExpiresAt: Date | undefined;
+          try {
+            const renewed = await regTankApi.renewIndividualOnboardingToken({
+              requestId: sendPlan.requestId,
+              email: lockedEmail,
+            });
+            const returnedRequestId =
+              typeof renewed.requestId === "string" ? renewed.requestId.trim() : "";
+            if (returnedRequestId && returnedRequestId !== sendPlan.requestId) {
+              throw new AppError(
+                502,
+                "REGTANK_RENEW_FAILED",
+                "RegTank renew-token returned a different requestId"
+              );
+            }
+            const token = typeof renewed.token === "string" ? renewed.token.trim() : "";
+            const returnedVerifyLink =
+              typeof renewed.verifyLink === "string" ? renewed.verifyLink.trim() : "";
+            renewedVerifyLink = resolvePersonRenewedVerifyLink({
+              existingVerifyLink: sendPlan.verifyLink,
+              requestId: sendPlan.requestId,
+              token,
+              formId,
+              origin: getRegTankIndividualOnboardingOrigin(),
+              returnedVerifyLink,
+            });
+            renewedExpiresAt = calculateRegTankVerifyLinkExpiresAt({
+              expiredIn: renewed.expiredIn,
+              timestamp: renewed.timestamp,
+              now,
+            });
+          } catch (e) {
+            logger.error(
+              { organizationId, partyKey: pk, error: e instanceof Error ? e.message : String(e) },
+              "RegTank director onboarding token renew failed"
+            );
+            if (e instanceof AppError) throw e;
+            throw new AppError(
+              502,
+              "REGTANK_RENEW_FAILED",
+              e instanceof Error ? e.message : "RegTank renew-token request failed"
+            );
+          }
+          if (!renewedVerifyLink) {
+            throw new AppError(
+              502,
+              "REGTANK_RENEW_FAILED",
+              "Could not build a usable verification link after renew-token"
+            );
+          }
+
+          const mergedRenew = mergeCtosPartySupplementDocument(lockedRoot, {
+            onboarding: {
+              requestId: sendPlan.requestId,
+              verifyLink: renewedVerifyLink,
+              verifyLinkExpiresAt: renewedExpiresAt ? renewedExpiresAt.toISOString() : "",
+              lastSentAt: nowIso,
+              sendTimestamps: [...sendHistory, nowIso],
+            },
+          });
+          await upsertCtosPartySupplementOnboardingJson(
+            portalType,
+            organizationId,
+            pk,
+            mergedRenew as Prisma.InputJsonValue,
+            entities.directorKycStatus,
+            tx
+          );
+          return {
+            kind: "renew" as const,
+            requestId: sendPlan.requestId,
+            verifyLink: renewedVerifyLink,
+            email: lockedEmail,
+          };
+        }
+
         const onboardingRequest: RegTankIndividualOnboardingRequest = {
           email: lockedEmail,
           surname,
@@ -2637,9 +2723,9 @@ export class OrganizationService {
           formId,
         };
 
-        const regTankApi = new RegTankAPIClient();
         let requestId: string;
         let verifyLink = "";
+        let verifyLinkExpiresAt: Date | undefined;
         try {
           logger.info({ referenceId }, "RegTank director onboarding referenceId");
           console.log("[Director CTOS onboarding] request before RegTank (remove after debug)", {
@@ -2651,6 +2737,11 @@ export class OrganizationService {
           requestId = regTankResponse.requestId;
           verifyLink =
             typeof regTankResponse.verifyLink === "string" ? regTankResponse.verifyLink.trim() : "";
+          verifyLinkExpiresAt = calculateRegTankVerifyLinkExpiresAt({
+            expiredIn: regTankResponse.expiredIn,
+            timestamp: regTankResponse.timestamp,
+            now,
+          });
 
           console.log(
             "\n========== [Director CTOS] STAGE 1: RegTank HTTP OK — verify link (NOT emailed yet, DB not updated yet) =========="
@@ -2686,6 +2777,7 @@ export class OrganizationService {
             requestId,
             referenceId,
             ...(verifyLink ? { verifyLink } : {}),
+            verifyLinkExpiresAt: verifyLinkExpiresAt ? verifyLinkExpiresAt.toISOString() : "",
             sentAt: nowIso,
             lastSentAt: nowIso,
             sendTimestamps: [...sendHistory, nowIso],
@@ -2710,6 +2802,8 @@ export class OrganizationService {
     );
 
     const { requestId, verifyLink } = sendOutcome;
+    const sesKindLabel =
+      sendOutcome.kind === "resend" ? "resent" : sendOutcome.kind === "renew" ? "renewed" : "sent";
     if (verifyLink) {
       try {
         console.log(
@@ -2728,9 +2822,7 @@ export class OrganizationService {
             portalType,
             sendKind: sendOutcome.kind,
           },
-          sendOutcome.kind === "resend"
-            ? "Director CTOS onboarding verify link resent via SES"
-            : "Director CTOS onboarding verify link sent via SES"
+          `Director CTOS onboarding verify link ${sesKindLabel} via SES`
         );
         console.log(
           "\n========== [Director CTOS] STAGE 3: SES sendOnboardingEmail finished OK ==========\n"
@@ -2765,7 +2857,9 @@ export class OrganizationService {
       { organizationId, partyKey: pk, userId, requestId, portalType, sendKind: sendOutcome.kind },
       sendOutcome.kind === "resend"
         ? "Director CTOS party RegTank onboarding resent"
-        : "Director CTOS party RegTank onboarding sent"
+        : sendOutcome.kind === "renew"
+          ? "Director CTOS party RegTank onboarding token renewed"
+          : "Director CTOS party RegTank onboarding sent"
     );
     return { requestId };
   }

@@ -1,3 +1,4 @@
+import { deriveRegTankIndividualOnboardingOrigin } from "@cashsouk/types";
 import { z } from "zod";
 import { logger } from "../lib/logger";
 
@@ -97,6 +98,11 @@ export function getRegTankConfig(): RegTankConfig {
 
   cachedConfig = config;
   return config;
+}
+
+/** Person verify-link origin: `https://{client}-onboarding.regtank.com` from the API server URL. */
+export function getRegTankIndividualOnboardingOrigin(): string {
+  return deriveRegTankIndividualOnboardingOrigin(getRegTankConfig().apiBaseUrl);
 }
 
 

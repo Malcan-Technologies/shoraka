@@ -65,6 +65,24 @@ export interface RegTankOnboardingResponse {
   [key: string]: unknown; // Allow storage as JSON
 }
 
+export interface RegTankRenewIndividualTokenRequest {
+  requestId: string;
+  email: string;
+}
+
+/**
+ * POST /v3/onboarding/v2/indv/renew-token
+ * Same requestId, new token + expiredIn. verifyLink is optional.
+ */
+export interface RegTankRenewIndividualTokenResponse {
+  requestId: string;
+  token: string;
+  expiredIn: number;
+  timestamp?: string;
+  verifyLink?: string;
+  [key: string]: unknown;
+}
+
 /**
  * RegTank Webhook Payload
  */
