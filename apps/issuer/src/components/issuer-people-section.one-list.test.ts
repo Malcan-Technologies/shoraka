@@ -24,6 +24,14 @@ describe("Issuer People & Access", () => {
     expect(profile).not.toContain("id=\"profile-people\"");
   });
 
+  it("always uses company Organisation tabs and does not hide People & Access for PERSONAL", () => {
+    expect(profile).toContain("organisationProfileTabFromSearchParam(searchParams.get(\"tab\"), true)");
+    expect(profile).toContain("isOrganisationProfileTab(next, true)");
+    expect(profile).not.toContain("isCompanyOrg");
+    expect(profile).not.toContain("{!isPersonal ? (\n              <TabsTrigger value=\"people\"");
+    expect(profile).not.toContain("{!isPersonal ? (\n              <TabsContent value=\"people\"");
+  });
+
   it("keeps inactive people out of the default table", () => {
     expect(peopleAccess).toContain("Inactive company people");
   });

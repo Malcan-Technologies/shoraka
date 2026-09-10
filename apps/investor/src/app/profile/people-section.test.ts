@@ -21,8 +21,9 @@ describe("Investor People & Access", () => {
     expect(profile).toContain("canInactivate={false}");
   });
 
-  it("does not show People & Access on the personal investor Profile tab", () => {
+  it("does not show People & Access on the personal investor Organisation page", () => {
     expect(profile).toContain("{!isPersonal ? (");
     expect(profile).toContain('value="people"');
+    expect(profile).toContain("profileTabFromSearchParam(searchParams.get(\"tab\"), Boolean(isCompanyOrg))");
   });
 });

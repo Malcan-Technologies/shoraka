@@ -479,14 +479,13 @@ export default function ProfilePage() {
   );
 
   const searchParams = useSearchParams();
-  const isCompanyOrg = activeOrganization?.type === "COMPANY";
-  const urlTab = organisationProfileTabFromSearchParam(searchParams.get("tab"), Boolean(isCompanyOrg));
+  const urlTab = organisationProfileTabFromSearchParam(searchParams.get("tab"), true);
   const [activeTab, setActiveTab] = React.useState(urlTab);
   React.useEffect(() => {
     setActiveTab(urlTab);
   }, [urlTab]);
   function handleTabChange(next: string) {
-    if (!isOrganisationProfileTab(next, Boolean(isCompanyOrg))) return;
+    if (!isOrganisationProfileTab(next, true)) return;
     setActiveTab(next);
     const params = new URLSearchParams(searchParams.toString());
     if (next === PROFILE_TAB_PROFILE) params.delete("tab");
@@ -508,13 +507,13 @@ export default function ProfilePage() {
   const financialsSectionRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
-    if (!focusDirectors || !isCompanyOrg) return;
+    if (!focusDirectors) return;
     setActiveTab(PROFILE_TAB_PEOPLE);
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", PROFILE_TAB_PEOPLE);
     params.delete("focus");
     router.replace(`${PROFILE_PATH}?${params.toString()}`, { scroll: false });
-  }, [focusDirectors, isCompanyOrg, router, searchParams]);
+  }, [focusDirectors, router, searchParams]);
 
   React.useEffect(() => {
     if (!focusContact) return;
@@ -879,23 +878,16 @@ export default function ProfilePage() {
 
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-            <TabsList
-              className={cn(
-                "grid h-12 w-full rounded-xl bg-muted p-1",
-                isPersonal ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-2 sm:grid-cols-4"
-              )}
-            >
+            <TabsList className="grid h-12 w-full grid-cols-2 rounded-xl bg-muted p-1 sm:grid-cols-4">
               <TabsTrigger value="profile" className="rounded-lg data-[state=active]:bg-background">
                 Profile
               </TabsTrigger>
               <TabsTrigger value="banking" className="rounded-lg data-[state=active]:bg-background">
                 Banking
               </TabsTrigger>
-              {!isPersonal ? (
-                <TabsTrigger value="people" className="rounded-lg data-[state=active]:bg-background">
-                  People & Access
-                </TabsTrigger>
-              ) : null}
+              <TabsTrigger value="people" className="rounded-lg data-[state=active]:bg-background">
+                People & Access
+              </TabsTrigger>
               <TabsTrigger
                 value="documents"
                 className="rounded-lg data-[state=active]:bg-background"
@@ -1613,8 +1605,7 @@ export default function ProfilePage() {
               </div>
             </TabsContent>
 
-            {!isPersonal ? (
-              <TabsContent value="people" className="mt-6 space-y-6">
+            <TabsContent value="people" className="mt-6 space-y-6">
                 {activeOrganization?.id ? (
                   <PeopleAccessSection
                     portal="issuer"
@@ -1645,7 +1636,6 @@ export default function ProfilePage() {
                   />
                 ) : null}
               </TabsContent>
-            ) : null}
 
             {/* Documents Tab */}
             <TabsContent value="documents" className="space-y-6 mt-6">

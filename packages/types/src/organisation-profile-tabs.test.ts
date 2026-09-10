@@ -1,6 +1,7 @@
 import {
   isOrganisationProfileTab,
   organisationProfileTabFromSearchParam,
+  organisationProfileTabs,
   PROFILE_BANKING_HREF,
   PROFILE_PEOPLE_HREF,
   PROFILE_TAB_PEOPLE,
@@ -14,5 +15,15 @@ describe("organisation profile tabs", () => {
     expect(organisationProfileTabFromSearchParam("people", true)).toBe(PROFILE_TAB_PEOPLE);
     expect(PROFILE_BANKING_HREF).toBe("/profile?tab=banking");
     expect(PROFILE_PEOPLE_HREF).toBe("/profile?tab=people");
+  });
+
+  it("treats issuer as company-only (never a personal-issuer tab set)", () => {
+    expect(organisationProfileTabs(true)).toEqual([
+      "profile",
+      "banking",
+      "people",
+      "documents",
+    ]);
+    expect(organisationProfileTabs(false)).not.toContain("people");
   });
 });

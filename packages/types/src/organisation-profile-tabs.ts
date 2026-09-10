@@ -1,6 +1,9 @@
 /**
  * Organisation page tabs (issuer + investor portals).
  * My Account stays at /account and is not part of this set.
+ *
+ * Issuer is company-only: always use COMPANY_ORGANISATION_TABS.
+ * PERSONAL_ORGANISATION_TABS is for investor personal accounts only.
  */
 export const PROFILE_PATH = "/profile";
 export const PROFILE_TAB_PROFILE = "profile";
