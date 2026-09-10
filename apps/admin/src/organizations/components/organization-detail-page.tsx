@@ -405,7 +405,6 @@ export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
                 />
 
                 <AdminRelatedRecordsRail
-                  hideRail={resolvedTab === "people"}
                   main={
                     <AdminDetailTabs tabs={tabs} value={resolvedTab} onValueChange={setActiveTab}>
                       <AdminDetailTabPanel value="organization" preserveMount>
@@ -464,6 +463,7 @@ export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
                             organizationId={organizationId}
                             selectedKey={peopleUrl.selectedKey}
                             filter={peopleUrl.filter}
+                            drawerEnabled={resolvedTab === "people"}
                             onSelectedKeyChange={peopleUrl.setSelectedKey}
                             onFilterChange={peopleUrl.setFilter}
                           />
@@ -510,7 +510,9 @@ export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
                     </AdminDetailTabs>
                   }
                 >
-                  {org.kycResponse ? <OrganizationKycResponseCard data={org.kycResponse} /> : null}
+                  {org.kycResponse ? (
+                    <OrganizationKycResponseCard data={org.kycResponse} organizationType={org.type} />
+                  ) : null}
                   <OrganizationIssuerCtosReportsCard
                     organizationId={organizationId}
                     portal={portal}

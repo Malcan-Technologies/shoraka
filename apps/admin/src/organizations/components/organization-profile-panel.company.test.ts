@@ -4,7 +4,6 @@ import { join } from "path";
 const panel = readFileSync(join(__dirname, "organization-profile-panel.tsx"), "utf8");
 const pic = readFileSync(join(__dirname, "organization-pic-card.tsx"), "utf8");
 const detail = readFileSync(join(__dirname, "organization-people-access-detail.tsx"), "utf8");
-const screening = readFileSync(join(__dirname, "organization-kyc-response-card.tsx"), "utf8");
 
 describe("Admin company organisation profile", () => {
   it("hides Personal Details (KYC) on company organisations", () => {
@@ -30,9 +29,19 @@ describe("Admin company organisation profile", () => {
     expect(detail).toContain("Individual KYC is not required.");
   });
 
-  it("renames organisation screening so it is not person KYC/AML", () => {
-    expect(screening).toContain("Organisation Screening Result");
-    expect(screening).toContain("Organisation-level RegTank screening. This is separate from person KYC and AML.");
-    expect(screening).not.toContain("KYC/AML Screening Result");
+  it("labels onboarding status without mixing in person KYC/AML", () => {
+    expect(panel).toContain('title="Onboarding Status"');
+    expect(panel).toContain("Status of this organisation's onboarding.");
+    expect(panel).not.toContain("Organisation verification");
+    expect(panel).not.toContain("Organisation onboarding status. Person KYC and AML are on People & Access.");
+  });
+
+  it("renders Wealth Declaration in the documents / onboarding evidence area when DTO JSON exists", () => {
+    expect(panel).toContain("adminOnboardingEvidenceCards");
+    expect(panel).toContain("wealthDeclaration: org.wealthDeclaration");
+    expect(panel.indexOf("evidenceCards.map")).toBeGreaterThan(panel.indexOf('title="Documents"'));
+    expect(panel.indexOf("evidenceCards.map")).toBeLessThan(
+      panel.lastIndexOf("{org.type === \"COMPANY\" ? verificationCard : null}")
+    );
   });
 });

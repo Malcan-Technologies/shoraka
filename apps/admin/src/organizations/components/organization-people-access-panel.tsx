@@ -80,6 +80,7 @@ export function OrganizationPeopleAccessPanel({
   organizationId,
   selectedKey,
   filter,
+  drawerEnabled = true,
   onSelectedKeyChange,
   onFilterChange,
 }: {
@@ -88,6 +89,7 @@ export function OrganizationPeopleAccessPanel({
   organizationId: string;
   selectedKey: string | null;
   filter: AdminPeopleAccessFilter;
+  drawerEnabled?: boolean;
   onSelectedKeyChange: (key: string | null) => void;
   onFilterChange: (filter: AdminPeopleAccessFilter) => void;
 }) {
@@ -97,17 +99,8 @@ export function OrganizationPeopleAccessPanel({
   const canManageUsers = can("users.manage");
   const peopleMutations = useOrganizationMasterPeople(portal, organizationId);
   const [search, setSearch] = React.useState("");
-  const [narrow, setNarrow] = React.useState(false);
   const [editingPartyId, setEditingPartyId] = React.useState<string | null>(null);
   const [editingMemberUserId, setEditingMemberUserId] = React.useState<string | null>(null);
-
-  React.useEffect(() => {
-    const media = window.matchMedia("(max-width: 1023px)");
-    const sync = () => setNarrow(media.matches);
-    sync();
-    media.addEventListener("change", sync);
-    return () => media.removeEventListener("change", sync);
-  }, []);
 
   const members: PeopleAccessMember[] = org.members.map((member) => ({
     id: member.userId,
@@ -224,12 +217,10 @@ export function OrganizationPeopleAccessPanel({
       }
       onEditMember={selected.userId ? () => setEditingMemberUserId(selected.userId) : undefined}
     />
-  ) : (
-    <p className="text-ui text-muted-foreground">Select a person to view details and evidence.</p>
-  );
+  ) : null;
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(360px,420px)]">
+    <div>
       <Card id="profile-people" className="rounded-2xl">
         <AdminDetailCardHeader
           icon={UsersIcon}
@@ -302,26 +293,21 @@ export function OrganizationPeopleAccessPanel({
         </CardContent>
       </Card>
 
-      <aside aria-label="Selected person" className="min-w-0 hidden lg:block">
-        {!narrow ? (
-          <Card className="rounded-2xl">
-            <CardContent className="p-6">{detail}</CardContent>
-          </Card>
-        ) : null}
-      </aside>
-
       <Sheet
-        open={narrow && Boolean(selected)}
+        open={drawerEnabled && Boolean(selected)}
         onOpenChange={(open) => {
-          if (!open) onSelectedKeyChange(null);
+          if (!open && drawerEnabled) onSelectedKeyChange(null);
         }}
       >
-        <SheetContent className="flex w-full flex-col overflow-y-auto sm:max-w-lg">
+        <SheetContent
+          aria-label="Selected person"
+          className="flex w-full flex-col overflow-y-auto sm:max-w-2xl"
+        >
           <SheetHeader>
             <SheetTitle>{selected?.name ?? "Person"}</SheetTitle>
             <SheetDescription>Admin evidence and actions for this row.</SheetDescription>
           </SheetHeader>
-          <div className="mt-4">{detail}</div>
+          <div className="mt-4 min-w-0">{detail}</div>
         </SheetContent>
       </Sheet>
 
@@ -475,6 +461,16 @@ export function usePeopleAccessUrlState(): {
     return isAdminPeopleAccessFilter(value) ? value : "all";
   });
 
+  React.useEffect(() => {
+    const syncFromUrl = () => {
+      setSelectedKeyState(readParam("person"));
+      const value = readParam("filter");
+      setFilterState(isAdminPeopleAccessFilter(value) ? value : "all");
+    };
+    window.addEventListener("popstate", syncFromUrl);
+    return () => window.removeEventListener("popstate", syncFromUrl);
+  }, []);
+
   const write = React.useCallback(
     (nextPerson: string | null, nextFilter: AdminPeopleAccessFilter) => {
       if (typeof window === "undefined") return;
@@ -484,7 +480,10 @@ export function usePeopleAccessUrlState(): {
       if (nextFilter !== "all") params.set("filter", nextFilter);
       else params.delete("filter");
       const query = params.toString();
-      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+      const href = query ? `${pathname}?${query}` : pathname;
+      const current = `${window.location.pathname}${window.location.search}`;
+      if (current === href) return;
+      router.push(href, { scroll: false });
     },
     [pathname, router]
   );

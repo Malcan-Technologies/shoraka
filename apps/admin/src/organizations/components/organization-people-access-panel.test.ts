@@ -7,6 +7,17 @@ const page = readFileSync(join(__dirname, "organization-detail-page.tsx"), "utf8
 const overview = readFileSync(join(__dirname, "../utils/organization-profile-overview.ts"), "utf8");
 const hook = readFileSync(join(__dirname, "../hooks/use-organization-master-people.ts"), "utf8");
 const mismatch = readFileSync(join(__dirname, "organization-external-review-sheet.tsx"), "utf8");
+const screening = readFileSync(join(__dirname, "organization-kyc-response-card.tsx"), "utf8");
+const display = readFileSync(join(__dirname, "../utils/admin-org-display.ts"), "utf8");
+const ctos = readFileSync(
+  join(__dirname, "../../components/organization-issuer-ctos-reports-card.tsx"),
+  "utf8"
+);
+const quickLinks = readFileSync(join(__dirname, "organization-quick-links-card.tsx"), "utf8");
+const rail = readFileSync(
+  join(__dirname, "../../components/admin-detail/admin-related-records-rail.tsx"),
+  "utf8"
+);
 
 describe("Admin People & Access surface", () => {
   it("uses one table with Company Role, Platform Access, KYC, AML, and CTOS", () => {
@@ -87,6 +98,71 @@ describe("Admin organisation tabs", () => {
   it("sends Review CTOS to People & Access instead of a competing sheet workflow", () => {
     expect(page).toContain('peopleUrl.setFilter("ctos-review")');
     expect(page).not.toContain("OrganizationExternalReviewSheet");
-    expect(page).toContain('hideRail={resolvedTab === "people"}');
+    expect(page).not.toContain("hideRail");
+  });
+
+  it("keeps organisation screening, CTOS Report History, and Quick Links on the shared right rail", () => {
+    expect(page).toContain("AdminRelatedRecordsRail");
+    expect(page).toContain("OrganizationIssuerCtosReportsCard");
+    expect(page).toContain("OrganizationQuickLinksCard");
+    expect(page).toContain("organizationType={org.type}");
+    expect(page).toContain("org.kycResponse ?");
+    expect(page).not.toContain("hideRail");
+    expect(rail).not.toContain("hideRail");
+    expect(ctos).toContain("CTOS Report History");
+    expect(ctos).toContain("CTOS_UI.fetchReport");
+    expect(quickLinks).toContain("Quick Links");
+    expect(quickLinks).toContain("Owner account");
+    expect(quickLinks).toContain("Organisation reference");
+    expect(quickLinks).toContain("Organisation ID");
+    expect(screening).toContain("Status:");
+    expect(screening).toContain("Risk Level:");
+    expect(screening).toContain("Risk Score:");
+    expect(screening).toContain("possible");
+    expect(screening).toContain("blacklisted");
+    expect(screening).toContain("System ID");
+    expect(screening).toContain("Request ID");
+    expect(screening).toContain("Onboarding ID");
+    expect(screening).toContain("Message Status");
+    expect(screening).toContain("Screening Date");
+    expect(page.indexOf("OrganizationKycResponseCard")).toBeGreaterThan(page.indexOf("AdminRelatedRecordsRail"));
+    expect(page.indexOf("OrganizationIssuerCtosReportsCard")).toBeGreaterThan(page.indexOf("AdminRelatedRecordsRail"));
+    expect(page.indexOf("OrganizationQuickLinksCard")).toBeGreaterThan(page.indexOf("AdminRelatedRecordsRail"));
+  });
+
+  it("opens selected person detail in a drawer instead of replacing the right rail", () => {
+    expect(panel).toContain("open={drawerEnabled && Boolean(selected)}");
+    expect(panel).toContain('aria-label="Selected person"');
+    expect(panel).toContain("sm:max-w-2xl");
+    expect(panel).toContain('params.set("person", nextPerson)');
+    expect(panel).toContain('params.delete("person")');
+    expect(panel).toContain("popstate");
+    expect(panel).not.toContain("narrow && Boolean(selected)");
+    expect(panel).not.toContain('aria-label="Selected person" className="min-w-0 hidden lg:block"');
+    expect(page).toContain("drawerEnabled={resolvedTab === \"people\"}");
+  });
+
+  it("keeps person KYC and AML separate from organisation screening", () => {
+    expect(panel).toContain(">KYC<");
+    expect(panel).toContain(">AML<");
+    expect(detail).toContain('value="kyc"');
+    expect(detail).toContain('value="aml"');
+    expect(detail).toContain(">KYC<");
+    expect(detail).toContain(">AML<");
+    expect(screening).toContain("organizationScreeningResultTitle");
+    expect(display).toContain('"KYB/AML Screening Result"');
+    expect(display).toContain('"KYC/AML Screening Result"');
+    expect(screening).not.toContain("Organisation Screening Result");
+    expect(screening).toContain("Person KYC and AML remain on People & Access.");
+  });
+
+  it("preserves person actions in the selected-person drawer", () => {
+    expect(detail).toContain("Complete profile");
+    expect(detail).toContain("Adopt");
+    expect(mismatch).toContain("Keep current value");
+    expect(mismatch).toContain("Use CTOS value");
+    expect(panel).toContain("View");
+    expect(panel).toContain("Edit");
+    expect(panel).toContain("Mark inactive");
   });
 });

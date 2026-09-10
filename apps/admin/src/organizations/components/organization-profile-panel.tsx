@@ -85,9 +85,9 @@ import {
   EditablePhoneField,
   EditableSelect,
   EditableYesNo,
+  adminOnboardingEvidenceCards,
   formatAddressDisplay,
   formatMasterDate,
-  hasJsonContent,
   isUrl,
   JsonFields,
   ReadField,
@@ -309,13 +309,18 @@ export function OrganizationProfilePanel({
       ? [...MALAYSIAN_BANKS, { value: draft.bankName, label: draft.bankName }]
       : [...MALAYSIAN_BANKS];
 
-  const pairableCards = [
-    { data: org.wealthDeclaration, icon: DocumentTextIcon, label: "Wealth Declaration" },
-    { data: org.documentInfo, icon: DocumentTextIcon, label: "Document Info" },
-    { data: org.livenessCheckInfo, icon: FaceSmileIcon, label: "Liveness Check Info" },
-  ].filter((card) => hasJsonContent(card.data as Record<string, unknown> | null));
-
-  const complianceData = org.complianceDeclaration as Record<string, unknown> | null;
+  const evidenceCards = adminOnboardingEvidenceCards({
+    wealthDeclaration: org.wealthDeclaration,
+    documentInfo: org.documentInfo,
+    livenessCheckInfo: org.livenessCheckInfo,
+    complianceDeclaration: org.complianceDeclaration as Record<string, unknown> | null,
+  });
+  const evidenceIcon = {
+    wealth: DocumentTextIcon,
+    documentInfo: DocumentTextIcon,
+    liveness: FaceSmileIcon,
+    compliance: ShieldCheckIcon,
+  } as const;
   const onboardingPresentation = getOrganizationOnboardingPresentation(org.onboardingStatus, {
     completedLabel: "Onboarded",
   });
@@ -437,12 +442,8 @@ export function OrganizationProfilePanel({
     <Card id="profile-kyc" className="rounded-2xl">
       <AdminDetailCardHeader
         icon={ShieldCheckIcon}
-        title={org.type === "COMPANY" ? "Organisation verification" : "Onboarding / verification"}
-        description={
-          org.type === "COMPANY"
-            ? "Organisation onboarding status. Person KYC and AML are on People & Access."
-            : "Onboarding status for this investor."
-        }
+        title="Onboarding Status"
+        description="Status of this organisation's onboarding."
       />
       <CardContent>
         <ReadField
@@ -1220,19 +1221,16 @@ export function OrganizationProfilePanel({
         </Card>
       ) : null}
 
+      {evidenceCards.map((card) => {
+        const Icon = evidenceIcon[card.id];
+        return (
+          <AdminCollapsibleCard key={card.id} title={card.label} icon={Icon}>
+            <JsonFields data={card.data} />
+          </AdminCollapsibleCard>
+        );
+      })}
+
       {org.type === "COMPANY" ? verificationCard : null}
-
-      {pairableCards.map((card) => (
-        <AdminCollapsibleCard key={card.label} title={card.label} icon={card.icon}>
-          <JsonFields data={card.data as Record<string, unknown>} />
-        </AdminCollapsibleCard>
-      ))}
-
-      {hasJsonContent(complianceData) ? (
-        <AdminCollapsibleCard title="Compliance Declaration" icon={ShieldCheckIcon}>
-          <JsonFields data={complianceData as Record<string, unknown>} />
-        </AdminCollapsibleCard>
-      ) : null}
 
       <AlertDialog
         open={showConfirm}

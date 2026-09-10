@@ -824,9 +824,12 @@ export function EditableAddressFields({
   );
 }
 
-export function hasJsonContent(data: Record<string, unknown> | null | undefined): boolean {
-  return Boolean(data && Object.keys(data).length > 0);
-}
+export {
+  ADMIN_ONBOARDING_EVIDENCE_LABELS,
+  adminOnboardingEvidenceCards,
+  hasJsonContent,
+} from "@/organizations/utils/admin-org-display";
+export type { AdminOnboardingEvidenceCard } from "@/organizations/utils/admin-org-display";
 
 export function fieldValueToString(value: FormField["fieldValue"]): string {
   if (value === null || value === undefined) return "";

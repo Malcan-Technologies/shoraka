@@ -8,8 +8,6 @@ export type AdminRelatedRecordsRailProps = {
   children: React.ReactNode;
   label?: string;
   className?: string;
-  /** Hide the right rail so the main column can use the full width. */
-  hideRail?: boolean;
 };
 
 /** Two-column detail layout that collapses to a single column below `lg`. */
@@ -18,12 +16,7 @@ export function AdminRelatedRecordsRail({
   children,
   label = "Related records",
   className,
-  hideRail = false,
 }: AdminRelatedRecordsRailProps) {
-  if (hideRail) {
-    return <div className={cn("min-w-0", className)}>{main}</div>;
-  }
-
   return (
     <div
       className={cn(
