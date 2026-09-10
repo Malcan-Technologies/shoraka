@@ -7,8 +7,13 @@ import { shouldDeferOnboardingPersonComrep } from "./person-onboarding-display";
  * profile completeness uses monthly P2P [02000], [05000], [06000], [07000], [09000], [09100].
  *
  * Issuer [02000] "Issuer ID (if any)" and [02000] Company Activities are not
- * completeness blockers: the former is explicitly "if any"; the latter's
- * fundraising-purpose wording is not equated with the profile business narrative.
+ * completeness blockers: the former is explicitly "if any"; the latter is stored
+ * as the issuer's general/current activity on Issuer Profile. Campaign-specific
+ * ComRep interpretation of Company Activities remains
+ * Needs business/compliance confirmation.
+ *
+ * [02000] Company category and [03000] Sustainability Category of the Campaign
+ * are invoice/campaign fields, not issuer-profile completeness.
  */
 
 export const SC_COMPANY_CATEGORIES = ["TECHNOLOGY", "NON_TECHNOLOGY"] as const;
@@ -201,6 +206,52 @@ export function parseInvoiceOfferSustainabilityCategory(
   const raw = (offer as Record<string, unknown>).sustainability_category;
   return isScSustainabilityCategory(raw) ? raw : null;
 }
+
+/**
+ * Authoritative Company category for an invoice/campaign.
+ * Offer freeze wins after Admin send/correction; otherwise issuer-submitted invoice.details.
+ * Never read IssuerOrganization.company_category.
+ */
+export function resolveInvoiceCompanyCategory(invoice: {
+  details?: unknown;
+  offer_details?: unknown;
+}): ScCompanyCategory | null {
+  return (
+    parseInvoiceOfferCompanyCategory(invoice.offer_details) ??
+    parseInvoiceOfferCompanyCategory(invoice.details)
+  );
+}
+
+/**
+ * Authoritative Sustainability Category of the Campaign for an invoice/campaign.
+ * Offer freeze wins after Admin send/correction; otherwise issuer-submitted invoice.details.
+ * Do not default to 00 – None.
+ */
+export function resolveInvoiceSustainabilityCategory(invoice: {
+  details?: unknown;
+  offer_details?: unknown;
+}): ScSustainabilityCategory | null {
+  return (
+    parseInvoiceOfferSustainabilityCategory(invoice.offer_details) ??
+    parseInvoiceOfferSustainabilityCategory(invoice.details)
+  );
+}
+
+/** ComRep [07000] Investment by Related Party — per investment, not investor profile. */
+export const SC_INVESTMENT_RELATED_PARTIES = [
+  "SHAREHOLDER_OF_RMO",
+  "RELATED_CO_OF_RMO",
+  "OFFICER_OF_RMO",
+  "NOT_APPLICABLE",
+] as const;
+export type ScInvestmentRelatedParty = (typeof SC_INVESTMENT_RELATED_PARTIES)[number];
+
+export const SC_INVESTMENT_RELATED_PARTY_LABELS: Record<ScInvestmentRelatedParty, string> = {
+  SHAREHOLDER_OF_RMO: "Shareholder of the RMO",
+  RELATED_CO_OF_RMO: "Related co of the RMO",
+  OFFICER_OF_RMO: "Officer of the RMO",
+  NOT_APPLICABLE: "Not applicable",
+};
 
 /**
  * SC Campaign Sector (SME Corp closed list). Stored on the campaign/offer, not issuer Industry.

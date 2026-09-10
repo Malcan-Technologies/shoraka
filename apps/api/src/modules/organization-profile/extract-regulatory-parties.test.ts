@@ -34,6 +34,23 @@ describe("extractRegulatoryPartiesFromCtos", () => {
     expect(individual?.addressLine1).toBe("1 Jalan Test");
   });
 
+  it("does not map a CTOS director to ComRep Board of Director", () => {
+    const parties = extractRegulatoryPartiesFromCtos({
+      directors: [
+        {
+          party_type: "I",
+          nic_brno: "800101011234",
+          name: "Aina Director",
+          position: "DO",
+        },
+      ],
+      shareholders: [],
+    });
+    expect(parties).toHaveLength(1);
+    expect(parties[0]?.isDirector).toBe(true);
+    expect(parties[0]?.isBoard).toBe(false);
+  });
+
   it("does not invent country of incorporation from an address line", () => {
     const parties = extractRegulatoryPartiesFromCtos({
       shareholders: [

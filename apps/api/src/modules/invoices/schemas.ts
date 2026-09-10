@@ -4,6 +4,8 @@ import {
   FINANCING_TENURE_MIN_DAYS,
   FINANCING_TENURE_STEP_DAYS,
   MAX_INVOICE_FINANCING_RATIO_PERCENT,
+  SC_COMPANY_CATEGORIES,
+  SC_SUSTAINABILITY_CATEGORIES,
   isValidFinancingTenureDays,
   validateFinancingTenureAgainstDueDate,
 } from "@cashsouk/types";
@@ -31,6 +33,8 @@ export const invoiceDetailsFieldsSchema = z.object({
     .default(60),
   financing_tenure_days: financingTenureDaysSchema,
   document: documentSchema.nullable().optional(),
+  company_category: z.enum(SC_COMPANY_CATEGORIES),
+  sustainability_category: z.enum(SC_SUSTAINABILITY_CATEGORIES),
 });
 
 export const invoiceDetailsSchema = invoiceDetailsFieldsSchema.superRefine((data, ctx) => {

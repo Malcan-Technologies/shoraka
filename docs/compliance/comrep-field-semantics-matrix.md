@@ -418,7 +418,7 @@ Report campaigns whose hosting ended in the period.
 | LNPI | Auto | | Export | n/a | n/a | missing | DERIVED |
 | Name of Issuer | Official company name | | Org / COD businessName | checked | checked | missing | PARTIAL |
 | Issuer ROC | BRN or ROC | §2.3 | `registration_number` | checked | checked | missing | PARTIAL |
-| Company category | Technology / Non-Technology (issuer **or campaign** activity) | Campaign/offer, not a frozen issuer-only fact | `Invoice.offer_details.company_category` | checked | checked | missing | PARTIAL |
+| Company category | Technology / Non-Technology (issuer **or campaign** activity) | Campaign/invoice, not a frozen issuer-only fact | `Invoice.details.company_category` (offer freeze on `offer_details`) | checked | checked | missing | PARTIAL |
 | Issuer ID (if any) | Unique issuer ID | Optional | Org id (candidate) | n/a | stored | missing | NEEDS BUSINESS CONFIRMATION |
 | Date of Incorporation (dd/mm/yyyy) | SSM/equivalent incorporation | | `date_of_incorporation` | checked | checked | missing | PARTIAL |
 | Date of Commencement (dd/mm/yyyy) | Business commencement | | `date_of_commencement` | checked | checked | missing | PARTIAL |
@@ -432,7 +432,7 @@ Report campaigns whose hosting ended in the period.
 | Phone Number | Current Contact Person phone; PIC fallback if empty. Operational `phone_number` is not this field. | | `contactPerson.contact` | checked | checked | missing | PARTIAL |
 | E-mail Address | Current Contact Person email; PIC fallback if empty. Not `User.email` or Person Email. | | `contactPerson.email` | checked | checked | missing | PARTIAL |
 | Website | URL where applicable | Blank OK | COD website | checked | checked | missing | PARTIAL |
-| Company Activities | Activity **based on the purpose of the issuer’s fundraising** | Not silently the profile “what does your company do?” | Profile narrative exists; mapping unconfirmed | checked label | stored separate | missing | NEEDS BUSINESS CONFIRMATION |
+| Company Activities | Activity **based on the purpose of the issuer’s fundraising** | Not silently every campaign’s purpose | Issuer Profile `aboutYourBusiness.whatDoesCompanyDo` (general/current activity); campaign-specific ComRep source unconfirmed | checked label | stored | missing | NEEDS BUSINESS CONFIRMATION |
 
 ### [03000] Financing Details 1
 
@@ -450,7 +450,7 @@ Only campaigns whose hosting **ended**. Active campaigns wait for the next perio
 | Campaign Approval Date (dd/mm/yyyy) | Date RMO approved fundraising for this Campaign ID | | Several timestamps | NEEDS BUSINESS CONFIRMATION |
 | Campaign URL on Operator Website | URL to the campaign | | Compose from base URL | PARTIAL |
 | Campaign Sector | 21 SME Corp values; no Other-specify | Definitions per SME Corp | `campaign_sector` on offer/snapshot | PARTIAL |
-| Sustainability Category of the Campaign | 00 – None; G1–G17 | | `sustainability_category` | PARTIAL |
+| Sustainability Category of the Campaign | 00 – None; G1–G17 | Campaign-specific | `Invoice.details.sustainability_category` | PARTIAL |
 | Type of Investment Notes | Islamic Investment Note / Investment Note | | Not stored | MISSING / NEEDS BUSINESS CONFIRMATION |
 | Name of Shariah Adviser (if applicable) | Name who approved Islamic product | If Islamic | Not stored | MISSING / NEEDS BUSINESS CONFIRMATION |
 | Purpose of Fund Raising | Working Capital / Business Expansion / Others | Campaign | `sc_purpose_of_fund_raising` | PARTIAL |
@@ -557,7 +557,7 @@ Individuals connected to the issuer. Gender has **no** Not Applicable.
 | Amount Invested (RM) | Amount invested | | amount while CONFIRMED | PARTIAL |
 | Nominees Name (if applicable) | Nominee name | If nominee | None | MISSING / NEEDS BUSINESS CONFIRMATION |
 | Nominees ROC (if applicable) | BRN/ROC | If nominee | None | MISSING |
-| Investment by Related Party | Four values including Not applicable | If related to RMO | Not stored for investors | MISSING |
+| Investment by Related Party | Four values including Not applicable | If related to RMO | `NoteInvestment.investment_by_related_party` (unset until who-sets is confirmed) | PARTIAL |
 | Remarks | Free | | None dedicated | MISSING |
 
 Position [10000] Type of Investor is the **3-value** list. Do not collapse Profile to 3 values.

@@ -28,6 +28,8 @@ import {
   parseInvoiceOfferCampaignSector,
   parseInvoiceOfferCompanyCategory,
   parseInvoiceOfferSustainabilityCategory,
+  resolveInvoiceCompanyCategory,
+  resolveInvoiceSustainabilityCategory,
   SC_CAMPAIGN_SECTORS,
   SC_CAMPAIGN_SECTOR_LABELS,
   SC_COMPANY_CATEGORIES,
@@ -334,7 +336,7 @@ export function InvoiceList({
     Record<string, ScCampaignSector | null>
   >({});
   const [sustainabilityCategoryByInvoiceId, setSustainabilityCategoryByInvoiceId] = React.useState<
-    Record<string, ScSustainabilityCategory>
+    Record<string, ScSustainabilityCategory | null>
   >({});
 
   /** Draft strings while typing financing ratio (%); committed on blur with min/max clamp. */
@@ -403,7 +405,7 @@ export function InvoiceList({
       let changed = false;
       for (const inv of invoices) {
         if (inv.id in next) continue;
-        next[inv.id] = parseInvoiceOfferCompanyCategory(inv.offer_details);
+        next[inv.id] = resolveInvoiceCompanyCategory(inv);
         changed = true;
       }
       return changed ? next : prev;
@@ -413,7 +415,7 @@ export function InvoiceList({
       let changed = false;
       for (const inv of invoices) {
         if (inv.id in next) continue;
-        next[inv.id] = parseInvoiceOfferSustainabilityCategory(inv.offer_details) ?? "NONE";
+        next[inv.id] = resolveInvoiceSustainabilityCategory(inv);
         changed = true;
       }
       return changed ? next : prev;
@@ -994,7 +996,7 @@ export function InvoiceList({
                                       </p>
                                     ) : (
                                       <Select
-                                        value={sustainabilityCategoryByInvoiceId[inv.id] ?? "NONE"}
+                                        value={sustainabilityCategoryByInvoiceId[inv.id] ?? undefined}
                                         onValueChange={(value) => {
                                           if (isScSustainabilityCategory(value)) {
                                             setSustainabilityCategoryByInvoiceId((prev) => ({
@@ -1327,6 +1329,7 @@ export function InvoiceList({
                                         !riskRatingByInvoiceId[inv.id] ||
                                         !companyCategoryByInvoiceId[inv.id] ||
                                         !campaignSectorByInvoiceId[inv.id] ||
+                                        !sustainabilityCategoryByInvoiceId[inv.id] ||
                                         Boolean(feeSendBlockedReason)
                                       }
                                       onClick={() => {
@@ -1346,7 +1349,11 @@ export function InvoiceList({
                                           return;
                                         }
                                         const sustainabilityCat =
-                                          sustainabilityCategoryByInvoiceId[inv.id] ?? "NONE";
+                                          sustainabilityCategoryByInvoiceId[inv.id];
+                                        if (!sustainabilityCat) {
+                                          alert("Select a sustainability category for this invoice.");
+                                          return;
+                                        }
                                         const platformFeeRatePercent = resolveDrawdownFeeRateForSend({
                                           committedPercent: offered.platformFeeRatePercent,
                                           draft: platformFeeDraftByInvoiceId[inv.id],

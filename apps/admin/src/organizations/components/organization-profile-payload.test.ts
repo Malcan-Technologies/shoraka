@@ -124,6 +124,8 @@ describe("buildSectionPayload", () => {
       scCompanyType: "PUBLIC_LIMITED",
       dateOfCommencement: "2020-06-01",
     });
+    expect(buildSectionPayload(org, draft, "company")).not.toHaveProperty("companyCategory");
+    expect(draft).not.toHaveProperty("companyCategory");
   });
 
   it("sends only person-in-charge fields when the PIC card is saved", () => {

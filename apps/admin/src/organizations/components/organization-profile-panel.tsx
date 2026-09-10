@@ -538,7 +538,7 @@ export function OrganizationProfilePanel({
             {editingSection === "about" ? (
               <>
                 <EditableField
-                  label="What Does Your Company Do?"
+                  label="Company Activities"
                   value={draft.whatDoesCompanyDo}
                   onChange={(whatDoesCompanyDo) =>
                     setDraft((current) => ({ ...current, whatDoesCompanyDo }))
@@ -573,7 +573,7 @@ export function OrganizationProfilePanel({
             ) : (
               <>
                 <ReadField
-                  label="What Does Your Company Do?"
+                  label="Company Activities"
                   value={draft.whatDoesCompanyDo}
                   missing={requiredFieldKeys.has("companyActivities")}
                   multiline

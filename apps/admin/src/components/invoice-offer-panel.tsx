@@ -29,6 +29,8 @@ import {
   parseInvoiceOfferCampaignSector,
   parseInvoiceOfferCompanyCategory,
   parseInvoiceOfferSustainabilityCategory,
+  resolveInvoiceCompanyCategory,
+  resolveInvoiceSustainabilityCategory,
   previewAcceptanceDeadlineFromWorkflow,
   readProductLimitViolationMessage,
   resolveDefaultInvoiceRiskRating,
@@ -282,8 +284,8 @@ export function InvoiceOfferPanel({
   }, [initialRisk]);
 
   const initialCompanyCategory = React.useMemo(
-    () => parseInvoiceOfferCompanyCategory(invoice.offer_details),
-    [invoice.offer_details]
+    () => resolveInvoiceCompanyCategory(invoice),
+    [invoice]
   );
   const [companyCategory, setCompanyCategory] = React.useState<ScCompanyCategory | null>(
     initialCompanyCategory
@@ -304,11 +306,11 @@ export function InvoiceOfferPanel({
   }, [initialCampaignSector]);
 
   const initialSustainabilityCategory = React.useMemo(
-    () => parseInvoiceOfferSustainabilityCategory(invoice.offer_details) ?? "NONE",
-    [invoice.offer_details]
+    () => resolveInvoiceSustainabilityCategory(invoice),
+    [invoice]
   );
   const [sustainabilityCategory, setSustainabilityCategory] =
-    React.useState<ScSustainabilityCategory>(initialSustainabilityCategory);
+    React.useState<ScSustainabilityCategory | null>(initialSustainabilityCategory);
   React.useEffect(() => {
     setSustainabilityCategory(initialSustainabilityCategory);
   }, [initialSustainabilityCategory]);
@@ -718,7 +720,7 @@ export function InvoiceOfferPanel({
           </div>
         ) : (
           <Select
-            value={sustainabilityCategory}
+            value={sustainabilityCategory ?? undefined}
             onValueChange={(value) => {
               if (isScSustainabilityCategory(value)) setSustainabilityCategory(value);
             }}
@@ -999,6 +1001,7 @@ export function InvoiceOfferPanel({
               financingTenureDays == null ||
               !companyCategory
               || !campaignSector
+              || !sustainabilityCategory
             }
             onClick={() => {
               if (

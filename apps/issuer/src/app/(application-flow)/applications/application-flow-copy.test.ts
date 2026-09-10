@@ -58,7 +58,9 @@ describe("issuer application workflow copy", () => {
       "utf8"
     );
     expect(company).toContain("About your business");
+    expect(company).toContain("Company Activities");
     expect(company).toContain('href="/profile?focus=about"');
+    expect(business).not.toContain("Company Activities");
     expect(business).not.toContain("What does your company do?");
     expect(business).not.toContain("about_your_business");
   });

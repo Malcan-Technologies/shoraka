@@ -23,6 +23,11 @@ import {
   OPERATOR_HOLDER_TYPES,
   ORGANIZATION_PARTY_ENTITY_TYPES,
   parseInvoiceOfferCampaignSector,
+  resolveInvoiceCompanyCategory,
+  resolveInvoiceSustainabilityCategory,
+  isIssuerOfficerRole,
+  SC_INVESTMENT_RELATED_PARTIES,
+  SC_INVESTMENT_RELATED_PARTY_LABELS,
   formatScPurposeOfFundRaisingDisplay,
   resolveApplicationPurposeOfFundRaising,
   SC_INVESTOR_CATEGORIES,
@@ -373,6 +378,8 @@ describe("investor personal completeness [07000]", () => {
     expect(result.missing.map((item) => item.field)).not.toContain("dateOfIncorporation");
     expect(result.missing.map((item) => item.field)).not.toContain("registrationNumber");
     expect(result.missing.map((item) => item.field)).not.toContain("countryOfIncorporation");
+    expect(result.missing.map((item) => item.field)).not.toContain("relatedParty");
+    expect(result.missing.map((item) => item.field)).not.toContain("investmentByRelatedParty");
   });
 });
 
@@ -402,6 +409,8 @@ describe("investor company completeness is not issuer Person completeness", () =
     );
     expect(result.missing.some((item) => item.field === "campaignId")).toBe(false);
     expect(result.missing.some((item) => item.field === "issuerId")).toBe(false);
+    expect(result.missing.some((item) => item.field === "relatedParty")).toBe(false);
+    expect(result.missing.some((item) => item.field === "investmentByRelatedParty")).toBe(false);
   });
 
   it("remains incomplete for genuine Investor Details identity gaps", () => {
@@ -920,6 +929,40 @@ describe("campaign SC enums", () => {
     expect(parseInvoiceOfferCampaignSector({ industry: "Manufacturing" })).toBeNull();
     expect(parseInvoiceOfferCampaignSector({ company_category: "TECHNOLOGY" })).toBeNull();
   });
+
+  it("reads Company category and Sustainability from invoice.details, not issuer profile", () => {
+    expect(
+      resolveInvoiceCompanyCategory({
+        details: { company_category: "TECHNOLOGY" },
+        offer_details: null,
+      })
+    ).toBe("TECHNOLOGY");
+    expect(
+      resolveInvoiceSustainabilityCategory({
+        details: { sustainability_category: "G9" },
+        offer_details: null,
+      })
+    ).toBe("G9");
+    expect(
+      resolveInvoiceCompanyCategory({
+        details: { company_category: "NON_TECHNOLOGY" },
+        offer_details: { company_category: "TECHNOLOGY" },
+      })
+    ).toBe("TECHNOLOGY");
+  });
+
+  it("lets two invoices of the same issuer keep independent classification values", () => {
+    const invoiceA = { details: { company_category: "TECHNOLOGY", sustainability_category: "G8" } };
+    const invoiceB = { details: { company_category: "NON_TECHNOLOGY", sustainability_category: "NONE" } };
+    expect(resolveInvoiceCompanyCategory(invoiceA)).toBe("TECHNOLOGY");
+    expect(resolveInvoiceCompanyCategory(invoiceB)).toBe("NON_TECHNOLOGY");
+    expect(resolveInvoiceSustainabilityCategory(invoiceA)).toBe("G8");
+    expect(resolveInvoiceSustainabilityCategory(invoiceB)).toBe("NONE");
+  });
+
+  it("does not default Sustainability Category to 00 – None", () => {
+    expect(resolveInvoiceSustainabilityCategory({ details: {}, offer_details: null })).toBeNull();
+  });
 });
 
 describe("issuer profile financial editor keys", () => {
@@ -1261,6 +1304,29 @@ describe("people completeness by actual role", () => {
     });
     expect(missing.map((item) => item.field)).not.toContain("contactPersonEmail");
     expect(missing.map((item) => item.field)).not.toContain("companyEmail");
+  });
+});
+
+describe("person role independence", () => {
+  it("does not treat Director as Board of Director for [06000]", () => {
+    expect(isIssuerOfficerRole({ isBoard: false, isManagement: false })).toBe(false);
+    expect(isIssuerOfficerRole({ isBoard: true, isManagement: false })).toBe(true);
+    expect(isIssuerOfficerRole({ isBoard: false, isManagement: true })).toBe(true);
+  });
+});
+
+describe("Investment by Related Party [07000]", () => {
+  it("keeps the SC four-value list off investor profile completeness", () => {
+    expect(SC_INVESTMENT_RELATED_PARTIES).toEqual([
+      "SHAREHOLDER_OF_RMO",
+      "RELATED_CO_OF_RMO",
+      "OFFICER_OF_RMO",
+      "NOT_APPLICABLE",
+    ]);
+    expect(SC_INVESTMENT_RELATED_PARTY_LABELS.SHAREHOLDER_OF_RMO).toBe("Shareholder of the RMO");
+    expect(SC_INVESTMENT_RELATED_PARTY_LABELS.RELATED_CO_OF_RMO).toBe("Related co of the RMO");
+    expect(SC_INVESTMENT_RELATED_PARTY_LABELS.OFFICER_OF_RMO).toBe("Officer of the RMO");
+    expect(SC_INVESTMENT_RELATED_PARTY_LABELS.NOT_APPLICABLE).toBe("Not applicable");
   });
 });
 

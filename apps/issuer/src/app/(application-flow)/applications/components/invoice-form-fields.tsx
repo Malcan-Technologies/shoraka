@@ -9,6 +9,8 @@ import {
   applicationFlowAmendmentTargetSurfaceClassName,
   applicationFlowLabelCellAlignInputClassName,
   applicationFlowLabelCellAlignTopClassName,
+  applicationFlowSectionDividerClassName,
+  applicationFlowSectionTitleClassName,
   fieldLabelWithTooltipRowClassName,
   fieldTooltipContentClassName,
   fieldTooltipTriggerClassName,
@@ -28,6 +30,15 @@ import {
   formatFinancingTenureDaysLabel,
   malaysiaCalendarDaysRemaining,
   validateFinancingTenureAgainstDueDate,
+  isScCompanyCategory,
+  isScSustainabilityCategory,
+  SC_COMPANY_CATEGORIES,
+  SC_COMPANY_CATEGORY_LABELS,
+  SC_MONTHLY_CAMPAIGN,
+  SC_SUSTAINABILITY_CATEGORIES,
+  SC_SUSTAINABILITY_CATEGORY_LABELS,
+  type ScCompanyCategory,
+  type ScSustainabilityCategory,
   type WithdrawReason,
 } from "@cashsouk/types";
 import {
@@ -50,6 +61,8 @@ export type InvoiceFormModel = {
   withdraw_reason?: WithdrawReason;
   document?: { file_name: string; file_size?: number; s3_key?: string; uploaded_at?: string } | null;
   displayReference?: string | null;
+  company_category?: ScCompanyCategory | null;
+  sustainability_category?: ScSustainabilityCategory | null;
 };
 
 export type InvoiceFieldErrors = Partial<{
@@ -60,6 +73,8 @@ export type InvoiceFieldErrors = Partial<{
   financing_ratio_percent: string;
   financing_amount: string;
   document: string;
+  company_category: string;
+  sustainability_category: string;
 }>;
 
 const sectionGridClassName =
@@ -137,6 +152,8 @@ export interface InvoiceFormFieldsProps {
   onFinancingAmountCommit?: (formatted: string) => void;
   onFileSelect?: (file: File) => void;
   onRemoveFile?: () => void;
+  onCompanyCategoryChange?: (value: ScCompanyCategory) => void;
+  onSustainabilityCategoryChange?: (value: ScSustainabilityCategory) => void;
   financingAmountTooltip?: string;
   invoiceValueTooltip?: string;
   invoiceValueHint?: string;
@@ -162,6 +179,8 @@ export function InvoiceFormFields({
   onFinancingAmountCommit,
   onFileSelect,
   onRemoveFile,
+  onCompanyCategoryChange,
+  onSustainabilityCategoryChange,
   financingAmountTooltip,
   invoiceValueTooltip,
   invoiceValueHint,
@@ -390,6 +409,77 @@ export function InvoiceFormFields({
             disabled={!isEditable}
           />
           <FieldError message={fieldErrors?.document} />
+        </div>
+      </div>
+
+      <div className="mt-8 space-y-3">
+        <div>
+          <h3 className={applicationFlowSectionTitleClassName}>Campaign classification</h3>
+          <div className={applicationFlowSectionDividerClassName} />
+        </div>
+        <div className={sectionGridClassName}>
+          <LabelWithTooltip htmlFor={`invoice-company-category-${invoice.id}`} label="Company category *" />
+          <div className="space-y-1">
+            <Select
+              value={invoice.company_category ?? undefined}
+              onValueChange={(value) => {
+                if (isScCompanyCategory(value)) onCompanyCategoryChange?.(value);
+              }}
+              disabled={!isEditable}
+            >
+              <SelectTrigger
+                id={`invoice-company-category-${invoice.id}`}
+                aria-label="Company category"
+                className={withFieldError(
+                  cn(formSelectTriggerClassName, !isEditable && formInputDisabledClassName),
+                  Boolean(fieldErrors?.company_category)
+                )}
+              >
+                <SelectValue placeholder="Select" />
+              </SelectTrigger>
+              <SelectContent>
+                {SC_COMPANY_CATEGORIES.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {SC_COMPANY_CATEGORY_LABELS[value]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <FieldError message={fieldErrors?.company_category} />
+          </div>
+
+          <LabelWithTooltip
+            htmlFor={`invoice-sustainability-category-${invoice.id}`}
+            label={`${SC_MONTHLY_CAMPAIGN.sustainabilityCategory.label} *`}
+          />
+          <div className="space-y-1">
+            <Select
+              value={invoice.sustainability_category ?? undefined}
+              onValueChange={(value) => {
+                if (isScSustainabilityCategory(value)) onSustainabilityCategoryChange?.(value);
+              }}
+              disabled={!isEditable}
+            >
+              <SelectTrigger
+                id={`invoice-sustainability-category-${invoice.id}`}
+                aria-label={SC_MONTHLY_CAMPAIGN.sustainabilityCategory.label}
+                className={withFieldError(
+                  cn(formSelectTriggerClassName, !isEditable && formInputDisabledClassName),
+                  Boolean(fieldErrors?.sustainability_category)
+                )}
+              >
+                <SelectValue placeholder="Select" />
+              </SelectTrigger>
+              <SelectContent className="max-h-[280px]">
+                {SC_SUSTAINABILITY_CATEGORIES.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {SC_SUSTAINABILITY_CATEGORY_LABELS[value]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <FieldError message={fieldErrors?.sustainability_category} />
+          </div>
         </div>
       </div>
     </div>

@@ -116,8 +116,9 @@ Integer without decimal points (UI + API): Ordinary/Preference/Others **No. of S
 | Issuer / Admin Person in Charge | [02000] | Phone Number | yes | REQUIRED | yes | yes | yes | Source is `contactPerson.contact` with PIC fallback | CONSISTENT |
 | Issuer / Admin Person in Charge | [02000] | E-mail Address | yes | REQUIRED | yes | yes | yes | Source is `contactPerson.email` with PIC fallback | CONSISTENT |
 | Issuer / Admin company | [02000] | Website | no | NOT REQUIRED | no | no | no | SC “where applicable” | CONSISTENT |
-| Issuer / Admin | [02000] | Company Activities | no | NEEDS BUSINESS CONFIRMATION | no | no | no | Mapping unresolved | CONSISTENT |
-| Campaign | [02000] | Company category | campaign | NOT REQUIRED (profile) | campaign | campaign | no | Not issuer profile completeness | CONSISTENT |
+| Issuer / Admin | [02000] | Company Activities | no | NEEDS BUSINESS CONFIRMATION | no | no | no | Profile stores general/current activity; campaign-specific ComRep source unresolved | CONSISTENT |
+| Issuer Invoice step | [02000] | Company category | yes | CashSouk-required for application completeness | yes | yes (create) | no (profile) | Per invoice/campaign; Admin reviews/corrects | CONSISTENT |
+| Issuer Invoice step | [03000] | Sustainability Category of the Campaign | yes | CashSouk-required for application completeness | yes | yes (create) | no (profile) | Per invoice/campaign; Admin reviews/corrects | CONSISTENT |
 | Issuer / Admin company | CashSouk | TIN, Industry, Number of Employees, Annual Revenue | no | NOT REQUIRED | no | no | no | Not ComRep [02000] | CONSISTENT |
 
 **E-mail Address * (issuer Person in Charge)**
@@ -187,7 +188,8 @@ Do not move these into Profile completeness. Requiredness applies when the campa
 
 | Exact Field | Required State |
 |---|---|
-| Campaign Sector, Sustainability Category, Purpose of Fund Raising, Campaign Description, Campaign dates, Target amount, Financing amount | REQUIRED at campaign stage (existing collection) |
+| Campaign Sector, Purpose of Fund Raising, Campaign Description, Campaign dates, Target amount, Financing amount | REQUIRED at campaign stage (existing collection) |
+| Company category, Sustainability Category of the Campaign | CashSouk-required on Issuer Invoice step (application completeness); not issuer profile |
 | Purpose of Fund Raising - Others | CONDITIONAL when Others |
 | Type of Investment Notes | NEEDS BUSINESS CONFIRMATION |
 | Name of Shariah Adviser (if applicable) | NEEDS BUSINESS CONFIRMATION |
@@ -218,8 +220,9 @@ Unrelated partial updates may omit a required field. Explicit `null` / `""` / wh
 ## Remaining inconsistencies
 
 1. Campaign ComRep fields listed as NEEDS BUSINESS CONFIRMATION — no requiredness invented.
-2. Company Activities mapping still unresolved.
-3. Investor free-text address is CashSouk-only; [07000] only has State and Postcode.
-4. Completeness treats presence, not email/ROC format; Save and API enforce format.
-5. Investor master PATCH that clears `name` may surface the issuer label “Name of Issuer” (same schema).
-6. Browser Save of issuer E-mail Address was not exercised in a live logged-in session in this pass; UI validator + API tests cover the same rules.
+2. Company Activities: profile stores general/current activity; campaign-specific ComRep source unresolved.
+3. Investment by Related Party: belongs on `NoteInvestment`; who sets it (system-derived vs Admin/Ops) needs confirmation. Not investor profile.
+4. Investor free-text address is CashSouk-only; [07000] only has State and Postcode.
+5. Completeness treats presence, not email/ROC format; Save and API enforce format.
+6. Investor master PATCH that clears `name` may surface the issuer label “Name of Issuer” (same schema).
+7. Browser Save of issuer E-mail Address was not exercised in a live logged-in session in this pass; UI validator + API tests cover the same rules.

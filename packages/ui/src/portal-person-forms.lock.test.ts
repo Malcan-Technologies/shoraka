@@ -17,6 +17,18 @@ describe("PartyFillEmptyForm lock and officer fields", () => {
     expect(source).not.toContain("personKind:");
   });
 
+  it("does not automatically set Board when Director is selected", () => {
+    expect(source).not.toContain("setIsBoard(isDirector");
+    expect(source).not.toContain("setIsBoard(true)");
+    expect(source).toContain('<RoleCheck label="Director" checked={isDirector} onChange={setIsDirector} />');
+    expect(source).toContain(
+      "<RoleCheck label={SC_MONTHLY_PERSON_KIND_LABELS.BOARD} checked={isBoard} onChange={setIsBoard} />"
+    );
+    expect(source).toContain(
+      "<RoleCheck label={SC_MONTHLY_PERSON_KIND_LABELS.MANAGEMENT} checked={isManagement} onChange={setIsManagement} />"
+    );
+  });
+
   it("uses a minimal individual Director/Shareholder add form", () => {
     expect(source).toContain("minimalOnboardingAdd");
     expect(source).toContain('label="Full Name"');

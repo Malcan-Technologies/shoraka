@@ -1446,6 +1446,8 @@ model NoteInvestment {
   committed_at               DateTime                   @default(now())
   confirmed_at               DateTime?
   released_at                DateTime?
+  /// ComRep [07000] Investment by Related Party. Per investment, not investor profile.
+  investment_by_related_party ScInvestmentRelatedParty?
   metadata                   Json?
   /// Exact published Prospectus freeze for this investment (not version-alone).
   prospectus_publication_id  String?
@@ -3264,6 +3266,13 @@ enum PaymasterAssignmentNoticeStatus {
 enum ScCompanyCategory {
   TECHNOLOGY
   NON_TECHNOLOGY
+}
+
+enum ScInvestmentRelatedParty {
+  SHAREHOLDER_OF_RMO
+  RELATED_CO_OF_RMO
+  OFFICER_OF_RMO
+  NOT_APPLICABLE
 }
 
 enum ScCompanyType {

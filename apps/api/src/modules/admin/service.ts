@@ -9580,10 +9580,13 @@ export class AdminService {
         "Saving invoice offer risk rating"
       );
       const companyCategory =
-        campaignClassification?.companyCategory ?? parseInvoiceOfferCompanyCategory(previousOffer);
+        campaignClassification?.companyCategory ??
+        parseInvoiceOfferCompanyCategory(previousOffer) ??
+        parseInvoiceOfferCompanyCategory(details);
       const sustainabilityCategory =
         campaignClassification?.sustainabilityCategory ??
-        parseInvoiceOfferSustainabilityCategory(previousOffer);
+        parseInvoiceOfferSustainabilityCategory(previousOffer) ??
+        parseInvoiceOfferSustainabilityCategory(details);
       const campaignSector =
         campaignClassification?.campaignSector ?? parseInvoiceOfferCampaignSector(previousOffer);
       if (companyCategory && !isScCompanyCategory(companyCategory)) {

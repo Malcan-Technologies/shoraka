@@ -7,6 +7,10 @@ import {
   issuerUnauditedPlddForFyEndYear,
   malaysiaCalendarDaysRemaining,
   smallestFinancingTenureDaysCovering,
+  SC_COMPANY_CATEGORIES,
+  SC_SUSTAINABILITY_CATEGORIES,
+  type ScCompanyCategory,
+  type ScSustainabilityCategory,
 } from "@cashsouk/types";
 import { format, subDays, addDays, startOfDay } from "date-fns";
 
@@ -113,6 +117,8 @@ export interface InvoiceRowInput {
   financing_ratio_percent?: number;
   status?: string;
   document?: { file_name: string; file_size: number; s3_key?: string } | null;
+  company_category?: ScCompanyCategory | null;
+  sustainability_category?: ScSustainabilityCategory | null;
 }
 
 /** Invoice data for invoice details step. Maturity today or future; value > 0; financing_ratio 60–80. One invoice. */
@@ -143,6 +149,9 @@ export function generateInvoiceData(): { invoices: InvoiceRowInput[] } {
       financing_ratio_percent: randomInt(60, 80),
       status: "DRAFT",
       document: null,
+      company_category: SC_COMPANY_CATEGORIES[randomInt(0, SC_COMPANY_CATEGORIES.length - 1)],
+      sustainability_category:
+        SC_SUSTAINABILITY_CATEGORIES[randomInt(0, SC_SUSTAINABILITY_CATEGORIES.length - 1)],
     });
   }
 

@@ -6,7 +6,6 @@ import {
 import type {
   AdminOrganizationAddressInput,
   OrganizationDetailResponse,
-  ScCompanyCategory,
   ScCompanyType,
   ScGender,
   ScInvestorCategory,
@@ -127,7 +126,6 @@ export type OrgProfileDraft = {
   dateOfCommencement: string;
   countryOfIncorporation: string;
   scCompanyType: string;
-  companyCategory: string;
   scInvestorCategory: string;
   isSophisticatedInvestor: boolean | null;
   gender: string;
@@ -224,7 +222,6 @@ export function buildDraft(org: OrganizationDetailResponse): OrgProfileDraft {
     dateOfCommencement: toDateInput(org.dateOfCommencement),
     countryOfIncorporation: org.countryOfIncorporation ?? "",
     scCompanyType: org.scCompanyType ?? "",
-    companyCategory: org.companyCategory ?? "",
     scInvestorCategory: org.scInvestorCategory ?? "",
     isSophisticatedInvestor:
       org.isSophisticatedInvestor === true || org.isSophisticatedInvestor === false
@@ -312,9 +309,6 @@ export function buildSectionPayload(
       }
       if (emptyToNull(draft.scCompanyType) !== emptyToNull(original.scCompanyType)) {
         payload.scCompanyType = (emptyToNull(draft.scCompanyType) as ScCompanyType | null) ?? null;
-      }
-      if (emptyToNull(draft.companyCategory) !== emptyToNull(original.companyCategory)) {
-        payload.companyCategory = (emptyToNull(draft.companyCategory) as ScCompanyCategory | null) ?? null;
       }
     }
     return payload;
