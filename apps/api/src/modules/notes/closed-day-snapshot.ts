@@ -36,22 +36,30 @@ export type SnapshotWaiver = {
   gharamah_waived_amount: unknown;
 };
 
+export function settlementPostedAsOfCutoff(
+  row: Pick<SnapshotSettlement, "status" | "posted_at">,
+  cutoff: Date
+): boolean {
+  return row.status === NoteSettlementStatus.POSTED && occurredBeforeCutoff(row.posted_at, cutoff);
+}
+
+export function settlementAppliedAsOfCutoff(
+  row: Pick<SnapshotSettlement, "status" | "posted_at" | "approved_at">,
+  cutoff: Date
+): boolean {
+  if (settlementPostedAsOfCutoff(row, cutoff)) return true;
+  return (
+    (row.status === NoteSettlementStatus.APPROVED || row.status === NoteSettlementStatus.POSTED) &&
+    occurredBeforeCutoff(row.approved_at, cutoff)
+  );
+}
+
 export function settlementsAsOfCutoff<T extends SnapshotSettlement>(
   settlements: T[],
   cutoff: Date
 ): { applied: T[]; posted: T[] } {
-  const posted = settlements.filter(
-    (row) => row.status === NoteSettlementStatus.POSTED && occurredBeforeCutoff(row.posted_at, cutoff)
-  );
-  const applied = settlements.filter((row) => {
-    if (row.status === NoteSettlementStatus.POSTED) {
-      return occurredBeforeCutoff(row.posted_at, cutoff);
-    }
-    if (row.status === NoteSettlementStatus.APPROVED) {
-      return occurredBeforeCutoff(row.approved_at ?? row.posted_at, cutoff);
-    }
-    return false;
-  });
+  const posted = settlements.filter((row) => settlementPostedAsOfCutoff(row, cutoff));
+  const applied = settlements.filter((row) => settlementAppliedAsOfCutoff(row, cutoff));
   return { applied, posted };
 }
 
@@ -60,6 +68,7 @@ export function waiversAsOfCutoff<T extends SnapshotWaiver>(waivers: T[], cutoff
 }
 
 export function closedDaySnapshotStatuses(input: {
+  repaidAsOfCutoff: boolean;
   postedAsOfCutoff: boolean;
   defaultedAsOfCutoff: boolean;
   classification: ServicingClassification;
@@ -69,11 +78,18 @@ export function closedDaySnapshotStatuses(input: {
   servicingStatus: NoteServicingStatus;
   noteStatus: NoteStatus;
 } {
-  if (input.postedAsOfCutoff) {
+  if (input.repaidAsOfCutoff) {
     return {
       daysPastDue: 0,
       servicingStatus: NoteServicingStatus.SETTLED,
       noteStatus: NoteStatus.REPAID,
+    };
+  }
+  if (input.postedAsOfCutoff) {
+    return {
+      daysPastDue: 0,
+      servicingStatus: NoteServicingStatus.CURRENT,
+      noteStatus: NoteStatus.ACTIVE,
     };
   }
   if (input.defaultedAsOfCutoff) {

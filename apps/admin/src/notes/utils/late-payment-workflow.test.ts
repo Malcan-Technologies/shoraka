@@ -149,4 +149,20 @@ describe("resolveLatePaymentActionGates", () => {
     expect(gates.canGenerateDefaultLetter).toBe(false);
     expect(gates.canMarkDefault).toBe(true);
   });
+
+  it("allows generating a default letter after default even if the note later settles", () => {
+    const gates = resolveLatePaymentActionGates({
+      timeline: resolveLatePaymentTimeline(
+        note({ servicingStatus: NoteServicingStatus.SETTLED, status: NoteStatus.REPAID })
+      ),
+      servicingOpen: false,
+      canDefaultPermission: true,
+      servicingStatusArrears: false,
+      defaultReason: "",
+      defaultMarkedAt: "2026-01-10T00:00:00.000Z",
+    });
+    expect(gates.canGenerateDefaultLetter).toBe(true);
+    expect(gates.canMarkDefault).toBe(false);
+    expect(gates.canGenerateArrearsLetter).toBe(false);
+  });
 });

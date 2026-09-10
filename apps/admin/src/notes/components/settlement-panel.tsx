@@ -1171,6 +1171,7 @@ export function SettlementPanel({
     canDefaultPermission: canDefault,
     servicingStatusArrears: canMarkDefault,
     defaultReason,
+    defaultMarkedAt: note.defaultMarkedAt,
   });
   const documentActionAvailable =
     servicingOpen &&

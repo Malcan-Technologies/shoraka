@@ -327,21 +327,22 @@ export function resolveLatePaymentActionGates(input: {
   canDefaultPermission: boolean;
   servicingStatusArrears: boolean;
   defaultReason: string;
+  defaultMarkedAt?: string | null;
 }): LatePaymentActionGates {
   const { timeline, servicingOpen, canDefaultPermission, servicingStatusArrears, defaultReason } =
     input;
   const reasonFilled = defaultReason.trim().length > 0;
+  const recordedDefault = Boolean(input.defaultMarkedAt) || timeline.phase === "defaulted";
 
-  if (timeline.phase === "defaulted") {
+  if (recordedDefault) {
     return {
       canGenerateArrearsLetter: false,
-      canGenerateDefaultLetter: canDefaultPermission && servicingOpen,
+      canGenerateDefaultLetter: canDefaultPermission,
       canMarkDefault: false,
       arrearsHelperText: null,
-      defaultHelperText:
-        canDefaultPermission && servicingOpen
-          ? "Generate the default notice if it was not emailed when default was marked."
-          : null,
+      defaultHelperText: canDefaultPermission
+        ? "Generate the default notice if it was not emailed when default was marked."
+        : null,
       defaultReasonHelperText: null,
     };
   }

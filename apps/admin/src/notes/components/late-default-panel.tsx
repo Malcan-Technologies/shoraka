@@ -15,7 +15,10 @@ import {
   useGenerateDefaultLetter,
   useMarkNoteDefault,
 } from "../hooks/use-notes";
-import { resolveLatePaymentTimeline } from "../utils/late-payment-workflow";
+import {
+  resolveLatePaymentActionGates,
+  resolveLatePaymentTimeline,
+} from "../utils/late-payment-workflow";
 
 export function LateDefaultPanel({ note }: { note: NoteDetail }) {
   const { can } = usePermissions();
@@ -27,6 +30,16 @@ export function LateDefaultPanel({ note }: { note: NoteDetail }) {
   const defaultLetter = useGenerateDefaultLetter();
   const markDefault = useMarkNoteDefault();
   const timeline = resolveLatePaymentTimeline(note);
+  const servicingOpen =
+    note.fundingStatus === "FUNDED" && note.servicingStatus !== "NOT_STARTED";
+  const latePaymentActionGates = resolveLatePaymentActionGates({
+    timeline,
+    servicingOpen,
+    canDefaultPermission: canManage,
+    servicingStatusArrears: note.servicingStatus === "ARREARS",
+    defaultReason: reason,
+    defaultMarkedAt: note.defaultMarkedAt,
+  });
   const eligible = note.servicingStatus === "ARREARS";
 
   const handleLetter = async (kind: "arrears" | "default") => {
@@ -70,7 +83,7 @@ export function LateDefaultPanel({ note }: { note: NoteDetail }) {
             <Button
               className="mt-3"
               variant="destructive"
-              disabled={!canManage || markDefault.isPending}
+              disabled={!latePaymentActionGates.canMarkDefault || markDefault.isPending}
               onClick={() => setMarkDefaultOpen(true)}
             >
               Mark Default
@@ -99,28 +112,38 @@ export function LateDefaultPanel({ note }: { note: NoteDetail }) {
           <Button
             variant="outline"
             onClick={() => handleLetter("arrears")}
-            disabled={
-              arrearsLetter.isPending ||
-              !canManage ||
-              (note.servicingStatus !== "LATE" && note.servicingStatus !== "ARREARS")
+            disabled={arrearsLetter.isPending || !latePaymentActionGates.canGenerateArrearsLetter}
+            title={
+              !canManage
+                ? "You do not have permission to perform this action."
+                : !latePaymentActionGates.canGenerateArrearsLetter
+                  ? (latePaymentActionGates.arrearsHelperText ?? undefined)
+                  : undefined
             }
-            title={!canManage ? "You do not have permission to perform this action." : undefined}
           >
             Generate Arrears Letter
           </Button>
           <Button
             variant="outline"
             onClick={() => handleLetter("default")}
-            disabled={
-              defaultLetter.isPending ||
-              !canManage ||
-              (note.servicingStatus !== "ARREARS" && note.servicingStatus !== "DEFAULTED")
+            disabled={defaultLetter.isPending || !latePaymentActionGates.canGenerateDefaultLetter}
+            title={
+              !canManage
+                ? "You do not have permission to perform this action."
+                : !latePaymentActionGates.canGenerateDefaultLetter
+                  ? (latePaymentActionGates.defaultHelperText ?? undefined)
+                  : undefined
             }
-            title={!canManage ? "You do not have permission to perform this action." : undefined}
           >
             Generate Default Letter
           </Button>
         </div>
+        {latePaymentActionGates.arrearsHelperText ? (
+          <p className="text-xs text-muted-foreground">{latePaymentActionGates.arrearsHelperText}</p>
+        ) : null}
+        {latePaymentActionGates.defaultHelperText ? (
+          <p className="text-xs text-muted-foreground">{latePaymentActionGates.defaultHelperText}</p>
+        ) : null}
         <div className="rounded-xl border bg-muted/20 p-4">
           <div className="mb-3 text-sm font-medium">Servicing letters</div>
           <NoteServicingLettersList note={note} canManage={canManage} />

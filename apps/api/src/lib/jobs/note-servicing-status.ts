@@ -746,12 +746,16 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
         profitRatePercent: toNumber(note.profit_rate_percent),
         tenureDays: tenureDaysForNote(note),
       });
+      const postedAsOfCutoff = asOfSettlements.posted.length > 0;
+      const repaidAsOfCutoff = occurredBeforeCutoff(note.repaid_at, cutoff);
       const snapshotStatuses = closedDaySnapshotStatuses({
-        postedAsOfCutoff: asOfSettlements.posted.length > 0,
+        repaidAsOfCutoff,
+        postedAsOfCutoff,
         defaultedAsOfCutoff: occurredBeforeCutoff(note.default_marked_at, cutoff),
         classification: closedClassification,
         liveNoteStatus: note.status,
       });
+      const closedChargesCleared = repaidAsOfCutoff || postedAsOfCutoff;
 
       if (
         !fundedAsOfCutoff(note.funding_closed_at, cutoff) ||
@@ -781,19 +785,13 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
           recovered_profit: snapshotRecoveredProfit,
           applied_tawidh: snapshotAppliedTawidh,
           applied_gharamah: snapshotAppliedGharamah,
-          indicative_tawidh:
-            snapshotStatuses.servicingStatus === NoteServicingStatus.SETTLED
-              ? 0
-              : closedClassification.indicativeTawidhAmount,
-          indicative_gharamah:
-            snapshotStatuses.servicingStatus === NoteServicingStatus.SETTLED
-              ? 0
-              : closedClassification.indicativeGharamahAmount,
+          indicative_tawidh: closedChargesCleared ? 0 : closedClassification.indicativeTawidhAmount,
+          indicative_gharamah: closedChargesCleared
+            ? 0
+            : closedClassification.indicativeGharamahAmount,
           waived_tawidh: snapshotWaivedTawidh,
           waived_gharamah: snapshotWaivedGharamah,
-          is_sc_default:
-            snapshotStatuses.servicingStatus !== NoteServicingStatus.SETTLED &&
-            closedClassification.isScDefault,
+          is_sc_default: !closedChargesCleared && closedClassification.isScDefault,
         },
         update: {
           days_past_due: snapshotStatuses.daysPastDue,
@@ -807,19 +805,13 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
           recovered_profit: snapshotRecoveredProfit,
           applied_tawidh: snapshotAppliedTawidh,
           applied_gharamah: snapshotAppliedGharamah,
-          indicative_tawidh:
-            snapshotStatuses.servicingStatus === NoteServicingStatus.SETTLED
-              ? 0
-              : closedClassification.indicativeTawidhAmount,
-          indicative_gharamah:
-            snapshotStatuses.servicingStatus === NoteServicingStatus.SETTLED
-              ? 0
-              : closedClassification.indicativeGharamahAmount,
+          indicative_tawidh: closedChargesCleared ? 0 : closedClassification.indicativeTawidhAmount,
+          indicative_gharamah: closedChargesCleared
+            ? 0
+            : closedClassification.indicativeGharamahAmount,
           waived_tawidh: snapshotWaivedTawidh,
           waived_gharamah: snapshotWaivedGharamah,
-          is_sc_default:
-            snapshotStatuses.servicingStatus !== NoteServicingStatus.SETTLED &&
-            closedClassification.isScDefault,
+          is_sc_default: !closedChargesCleared && closedClassification.isScDefault,
         },
       });
       result.snapshotsWritten += 1;

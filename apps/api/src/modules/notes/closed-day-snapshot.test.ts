@@ -53,6 +53,45 @@ describe("settlementsAsOfCutoff", () => {
     expect(posted).toHaveLength(0);
     expect(applied).toHaveLength(0);
   });
+
+  it("keeps pre-cutoff approval in applied when posting happens after midnight", () => {
+    const { posted, applied } = settlementsAsOfCutoff(
+      [
+        settlement(
+          NoteSettlementStatus.POSTED,
+          "2026-01-01T16:10:00.000Z",
+          "2026-01-01T15:50:00.000Z"
+        ),
+      ],
+      cutoff
+    );
+    expect(posted).toHaveLength(0);
+    expect(applied).toHaveLength(1);
+  });
+
+  it("keeps an approved settlement that is still unposted at the cutoff", () => {
+    const { posted, applied } = settlementsAsOfCutoff(
+      [settlement(NoteSettlementStatus.APPROVED, null, "2026-01-01T15:50:00.000Z")],
+      cutoff
+    );
+    expect(posted).toHaveLength(0);
+    expect(applied).toHaveLength(1);
+  });
+
+  it("does not treat a same-morning approval as applied on the closed day", () => {
+    const { posted, applied } = settlementsAsOfCutoff(
+      [
+        settlement(
+          NoteSettlementStatus.POSTED,
+          "2026-01-01T16:20:00.000Z",
+          "2026-01-01T16:10:00.000Z"
+        ),
+      ],
+      cutoff
+    );
+    expect(posted).toHaveLength(0);
+    expect(applied).toHaveLength(0);
+  });
 });
 
 describe("waiversAsOfCutoff", () => {
@@ -86,6 +125,7 @@ describe("closedDaySnapshotStatuses", () => {
   it("keeps an after-cutoff settlement as an open arrears position on the closed day", () => {
     expect(
       closedDaySnapshotStatuses({
+        repaidAsOfCutoff: false,
         postedAsOfCutoff: false,
         defaultedAsOfCutoff: false,
         classification,
@@ -98,9 +138,56 @@ describe("closedDaySnapshotStatuses", () => {
     });
   });
 
+  it("does not close the note until repaid_at is before the cutoff", () => {
+    expect(
+      closedDaySnapshotStatuses({
+        repaidAsOfCutoff: false,
+        postedAsOfCutoff: false,
+        defaultedAsOfCutoff: false,
+        classification: {
+          ...classification,
+          servicingStatus: NoteServicingStatus.CURRENT,
+          noteStatus: NoteStatus.ACTIVE,
+          daysPastDue: 0,
+        },
+        liveNoteStatus: NoteStatus.ACTIVE,
+      })
+    ).toMatchObject({
+      servicingStatus: NoteServicingStatus.CURRENT,
+      noteStatus: NoteStatus.ACTIVE,
+    });
+    expect(
+      closedDaySnapshotStatuses({
+        repaidAsOfCutoff: false,
+        postedAsOfCutoff: true,
+        defaultedAsOfCutoff: false,
+        classification,
+        liveNoteStatus: NoteStatus.ACTIVE,
+      })
+    ).toEqual({
+      daysPastDue: 0,
+      servicingStatus: NoteServicingStatus.CURRENT,
+      noteStatus: NoteStatus.ACTIVE,
+    });
+    expect(
+      closedDaySnapshotStatuses({
+        repaidAsOfCutoff: true,
+        postedAsOfCutoff: true,
+        defaultedAsOfCutoff: false,
+        classification,
+        liveNoteStatus: NoteStatus.REPAID,
+      })
+    ).toEqual({
+      daysPastDue: 0,
+      servicingStatus: NoteServicingStatus.SETTLED,
+      noteStatus: NoteStatus.REPAID,
+    });
+  });
+
   it("does not stamp a same-morning default onto the closed day", () => {
     expect(
       closedDaySnapshotStatuses({
+        repaidAsOfCutoff: false,
         postedAsOfCutoff: false,
         defaultedAsOfCutoff: false,
         classification,
@@ -112,6 +199,7 @@ describe("closedDaySnapshotStatuses", () => {
   it("keeps a late closed day as ACTIVE when default is marked after cutoff", () => {
     expect(
       closedDaySnapshotStatuses({
+        repaidAsOfCutoff: false,
         postedAsOfCutoff: false,
         defaultedAsOfCutoff: false,
         classification: {
