@@ -2,6 +2,8 @@
 
 Status: **plan only. Do not implement yet.**
 
+Implementation sequencing (P0 identity/Send, P1 query seed, P2 UI): [person-onboarding-implementation-plan.md](./person-onboarding-implementation-plan.md).
+
 This is the product and architecture plan for **company Person** RegTank onboarding (issuer and investor company People). It is **not** personal-org onboarding, **not** platform invitation, and **not** SigningCloud.
 
 Wording: this is **minimal pre-onboarding Person creation**. It is **not** “email-only Manual Add”. Name and Role are required. Shareholding % is required only when Role includes Shareholder.
