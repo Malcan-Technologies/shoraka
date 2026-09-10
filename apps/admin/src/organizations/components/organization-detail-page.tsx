@@ -34,7 +34,6 @@ import {
 } from "@/components/admin-detail";
 import { OrganizationActivityTimeline } from "@/components/organization-activity-timeline";
 import { OrganizationIssuerCtosReportsCard } from "@/components/organization-issuer-ctos-reports-card";
-import { OrganizationMarcCard } from "@/organizations/components/organization-marc-card";
 import { OrganizationTypeBadge } from "@/components/organization-type-badge";
 import { RequirePermission } from "@/components/require-permission";
 import {
@@ -48,14 +47,15 @@ import { getOrganizationOnboardingPresentation } from "@/lib/organization-status
 import { OrganizationKycResponseCard } from "./organization-kyc-response-card";
 import { OrganizationLegalAcceptancesPanel } from "./organization-legal-acceptances-panel";
 import { OrganizationLinkedRecordsPanel } from "./organization-linked-records-panel";
-import { OrganizationPeoplePanel } from "./organization-people-panel";
+import {
+  OrganizationPeopleAccessPanel,
+  usePeopleAccessUrlState,
+} from "./organization-people-access-panel";
 import { OrganizationWalletActivityPanel } from "./organization-wallet-activity-panel";
 import { CopyableText } from "./organization-profile-helpers";
 import { OrganizationProfilePanel } from "./organization-profile-panel";
 import { OrganizationProfileOverviewCard } from "./organization-profile-overview-card";
-import { OrganizationExternalReviewSheet } from "./organization-external-review-sheet";
 import { OrganizationQuickLinksCard } from "./organization-quick-links-card";
-import { useOrganizationMasterPeople } from "@/organizations/hooks/use-organization-master-people";
 import { firstIncompleteProfileAnchor } from "@/organizations/utils/organization-profile-overview";
 import {
   isOrgDetailTabId,
@@ -106,14 +106,12 @@ export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
   const canViewAccounts = can("users.view");
   const params = useParams();
   const organizationId = params.id as string;
-  const peopleMutations = useOrganizationMasterPeople(portal, organizationId);
-  const [reviewOpen, setReviewOpen] = React.useState(false);
-  const [highlightedPartyId, setHighlightedPartyId] = React.useState<string | null>(null);
 
   const { data: org, isLoading, error } = useOrganizationDetail(portal, organizationId, {
     enabled: canView,
   });
   const updateSophisticatedMutation = useUpdateSophisticatedStatus();
+  const peopleUrl = usePeopleAccessUrlState();
   const [showSophisticatedDialog, setShowSophisticatedDialog] = React.useState(false);
   const [pendingSophisticatedStatus, setPendingSophisticatedStatus] = React.useState<boolean | null>(
     null
@@ -200,7 +198,7 @@ export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
     return [
       {
         id: "organization",
-        label: "Organization",
+        label: "Organisation",
         statusToken: orgTab.statusToken,
         statusLabel: orgTab.statusLabel,
       },
@@ -208,7 +206,7 @@ export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
         ? [
             {
               id: "people" as const,
-              label: "People",
+              label: "People & Access",
               statusToken: "neutral" as const,
               statusLabel: adminTabStatusLabel("neutral"),
             },
@@ -216,7 +214,7 @@ export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
         : []),
       {
         id: "linked-records",
-        label: "Linked records",
+        label: "Linked Records",
         statusToken: "neutral",
         statusLabel: adminTabStatusLabel("neutral"),
       },
@@ -407,6 +405,7 @@ export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
                 />
 
                 <AdminRelatedRecordsRail
+                  hideRail={resolvedTab === "people"}
                   main={
                     <AdminDetailTabs tabs={tabs} value={resolvedTab} onValueChange={setActiveTab}>
                       <AdminDetailTabPanel value="organization" preserveMount>
@@ -441,7 +440,11 @@ export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
                                 });
                               });
                             }}
-                            onReviewChanges={() => setReviewOpen(true)}
+                            onReviewChanges={() => {
+                              if (!canShowPeopleTab) return;
+                              setActiveTab("people");
+                              peopleUrl.setFilter("ctos-review");
+                            }}
                           />
                           <OrganizationProfilePanel
                             key={organizationId}
@@ -450,26 +453,19 @@ export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
                             organizationId={organizationId}
                             displayName={displayName}
                           />
-                          {portal === "issuer" ? (
-                            <div id="marc-assessment">
-                              <OrganizationMarcCard
-                                org={org}
-                                organizationId={organizationId}
-                                portal={portal}
-                              />
-                            </div>
-                          ) : null}
                         </div>
                       </AdminDetailTabPanel>
                       {canShowPeopleTab ? (
                         <AdminDetailTabPanel value="people" preserveMount>
-                          <OrganizationPeoplePanel
+                          <OrganizationPeopleAccessPanel
                             key={organizationId}
                             org={org}
                             portal={portal}
                             organizationId={organizationId}
-                            displayName={displayName}
-                            highlightedPartyId={highlightedPartyId}
+                            selectedKey={peopleUrl.selectedKey}
+                            filter={peopleUrl.filter}
+                            onSelectedKeyChange={peopleUrl.setSelectedKey}
+                            onFilterChange={peopleUrl.setFilter}
                           />
                         </AdminDetailTabPanel>
                       ) : null}
@@ -525,24 +521,6 @@ export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
             ) : null}
           </div>
         </div>
-
-        <OrganizationExternalReviewSheet
-          open={reviewOpen}
-          onOpenChange={setReviewOpen}
-          parties={org?.partyProfiles ?? []}
-          canManage={canManage}
-          onKeep={(partyId, field) => peopleMutations.resolve.mutate({ partyId, action: "KEEP", field })}
-          onUseExternal={(partyId, field) =>
-            peopleMutations.resolve.mutate({ partyId, action: "USE_EXTERNAL", field })
-          }
-          onAdopt={(partyId) => peopleMutations.adopt.mutate(partyId)}
-          onInactivate={(partyId) => peopleMutations.inactivate.mutate(partyId)}
-          onOpenPerson={(partyId) => {
-            setReviewOpen(false);
-            setHighlightedPartyId(partyId);
-            if (canShowPeopleTab) setActiveTab("people");
-          }}
-        />
 
         <AlertDialog open={showSophisticatedDialog} onOpenChange={setShowSophisticatedDialog}>
           <AlertDialogContent>

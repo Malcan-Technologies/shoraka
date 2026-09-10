@@ -912,7 +912,7 @@ export const ISSUER_PROFILE_UI_SECTIONS: Array<{
   { id: "about", label: "About your business", href: "#profile-about" },
   { id: "addresses", label: "Addresses", href: "#profile-addresses" },
   { id: "contact", label: "Person in Charge", href: "#profile-contact" },
-  { id: "people", label: "People", href: "#profile-people" },
+  { id: "people", label: "People & Access", href: "#profile-people" },
   { id: "financials", label: "Financials", href: "#profile-financials" },
 ];
 

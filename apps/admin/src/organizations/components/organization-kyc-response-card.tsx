@@ -42,8 +42,11 @@ export function OrganizationKycResponseCard({
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-card-title">
           <ShieldExclamationIcon className="h-4 w-4" />
-          KYC/AML Screening Result
+          Organisation Screening Result
         </CardTitle>
+        <p className="text-meta text-muted-foreground">
+          Organisation-level RegTank screening. This is separate from person KYC and AML.
+        </p>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-wrap gap-3">

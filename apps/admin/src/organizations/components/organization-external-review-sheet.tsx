@@ -78,7 +78,7 @@ export function OrganizationExternalReviewSheet({
                         Adopt
                       </Button>
                       <Button className="h-10" variant="outline" onClick={() => onOpenChange(false)}>
-                        Keep as CTOS only
+                        Leave as CTOS observation
                       </Button>
                     </div>
                   ) : null}
@@ -132,7 +132,7 @@ export function OrganizationExternalReviewSheet({
                   {canManage ? (
                     <div className="flex flex-wrap gap-2">
                       <Button className="h-10" variant="outline" onClick={() => onOpenChange(false)}>
-                        Keep current
+                        Leave as current profile
                       </Button>
                       <Button className="h-10" variant="outline" onClick={() => onInactivate(party.id)}>
                         Mark inactive
@@ -190,10 +190,10 @@ export function MismatchBlock({
       {canManage ? (
         <div className="flex flex-wrap gap-2">
           <Button className="h-10" variant="outline" onClick={onKeep}>
-            Keep {master}
+            Keep current value
           </Button>
           <Button className="h-10" onClick={onUseExternal}>
-            Use {external}
+            Use CTOS value
           </Button>
         </div>
       ) : null}

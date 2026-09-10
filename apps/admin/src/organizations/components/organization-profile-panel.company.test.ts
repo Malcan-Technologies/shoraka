@@ -2,8 +2,9 @@ import { readFileSync } from "fs";
 import { join } from "path";
 
 const panel = readFileSync(join(__dirname, "organization-profile-panel.tsx"), "utf8");
-const people = readFileSync(join(__dirname, "organization-people-panel.tsx"), "utf8");
-const personCard = readFileSync(join(__dirname, "organization-person-card.tsx"), "utf8");
+const pic = readFileSync(join(__dirname, "organization-pic-card.tsx"), "utf8");
+const detail = readFileSync(join(__dirname, "organization-people-access-detail.tsx"), "utf8");
+const screening = readFileSync(join(__dirname, "organization-kyc-response-card.tsx"), "utf8");
 
 describe("Admin company organisation profile", () => {
   it("hides Personal Details (KYC) on company organisations", () => {
@@ -15,13 +16,23 @@ describe("Admin company organisation profile", () => {
     expect(panel).not.toContain('label="Address"');
   });
 
-  it("keeps Person in Charge as the company contact person", () => {
-    expect(people).toContain("Person in Charge");
-    expect(people).toContain("Main contact person for this company.");
+  it("keeps Person in Charge on Organisation, not inside People & Access", () => {
+    expect(pic).toContain("Person in Charge");
+    expect(pic).toContain("Main company contact. Not a director, shareholder, or platform user unless they also separately appear in People & Access.");
+    expect(pic).toContain("Current contact");
+    expect(pic).toContain("RegTank evidence");
+    expect(pic).toContain("picContactsDiffer");
+    expect(panel).toContain("OrganizationPicCard");
   });
 
-  it("shows missing field counts and does not require KYC/AML on company shareholders", () => {
-    expect(personCard).toContain("} missing");
-    expect(personCard).toContain("Company shareholder. Individual KYC/AML is not required.");
+  it("shows missing field counts and does not require individual KYC on company shareholders", () => {
+    expect(detail).toContain("fields\"} remaining");
+    expect(detail).toContain("Individual KYC is not required.");
+  });
+
+  it("renames organisation screening so it is not person KYC/AML", () => {
+    expect(screening).toContain("Organisation Screening Result");
+    expect(screening).toContain("Organisation-level RegTank screening. This is separate from person KYC and AML.");
+    expect(screening).not.toContain("KYC/AML Screening Result");
   });
 });
