@@ -1887,7 +1887,31 @@ describe("user-added master parties", () => {
     expect(parties.filter((p) => p.id === "p-inv")).toHaveLength(1);
   });
 
-  it("after establishment, adds a missing RegTank corporate shareholder and clears auto Board on a director", async () => {
+  it("first usable CTOS seed does not create a RegTank-only party as MASTER_ACTIVE", async () => {
+    issuerOrg.corporate_entities = {
+      directors: [
+        {
+          personalInfo: {
+            fullName: "Bob",
+            governmentIdNumber: "900101101234",
+          },
+        },
+      ],
+      shareholders: [],
+      corporateShareholders: [],
+    };
+    mockCtosFindFirst.mockResolvedValue({
+      company_json: {
+        directors: [{ party_type: "I", nic_brno: "800101011234", name: "Jamie", position: "DO" }],
+        shareholders: [],
+      },
+    });
+    await seedMasterPartiesIfEmpty("issuer", "org-1");
+    expect(parties.some((p) => p.party_key === "800101011234")).toBe(true);
+    expect(parties.some((p) => p.party_key === "900101101234")).toBe(false);
+  });
+
+  it("after usable CTOS, does not add a missing RegTank-only corporate shareholder as MASTER_ACTIVE", async () => {
     issuerOrg.regulatory_structure_established_at = new Date("2026-01-01T00:00:00.000Z");
     issuerOrg.corporate_entities = {
       directors: [
@@ -1946,9 +1970,7 @@ describe("user-added master parties", () => {
     expect(aina?.is_shareholder).toBe(true);
     expect(aina?.is_board).toBe(false);
     const apex = parties.find((p) => String(p.name).includes("ApexStar"));
-    expect(apex?.entity_type).toBe("CORPORATE");
-    expect(apex?.is_shareholder).toBe(true);
-    expect(apex?.membership_status).toBe(OrganizationPartyMembershipStatus.MASTER_ACTIVE);
+    expect(apex).toBeUndefined();
   });
 
   it("promotes a CTOS-only ApexStar onto the live list at RegTank 10% and keeps the 50% observation", async () => {

@@ -47,6 +47,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   type OnboardingApprovalStatus,
   getFinalStatusLabel,
+  getRelatedPartyStatusToken,
+  relatedPartyVerificationCaption,
   filterVisiblePeopleRows,
   formatPeopleRolesLine,
   partitionPeopleByIdentityResolution,
@@ -59,8 +61,10 @@ import {
   ONBOARDING_REFRESH_LABEL,
   ONBOARDING_REFRESH_LOADING_LABEL,
   ONBOARDING_RESTART_LABEL,
+  PROVIDER_REFRESH_RECENTLY_MESSAGE,
+  PROVIDER_REFRESH_FAILED_MESSAGE,
+  PROVIDER_REQUEST_NOT_FOUND_MESSAGE,
 } from "@cashsouk/config";
-import { getDirectorFinalStatusToken } from "@/lib/admin-status-token";
 import { cn } from "@/lib/utils";
 import { usePermissions } from "@/hooks/use-permissions";
 import {
@@ -145,14 +149,17 @@ function OnboardingPeopleReadonlyCards({
             <div className="min-w-0 flex-1 space-y-0.5">
               <p className="text-sm font-medium">{p.name ?? "-"}</p>
               {rolesLine ? (
-                <p className="text-xs text-muted-foreground tracking-wide">{rolesLine}</p>
-              ) : null}
+              <p className="text-xs text-muted-foreground tracking-wide">{rolesLine}</p>
+                ) : null}
+              <p className="text-xs text-muted-foreground">
+                {relatedPartyVerificationCaption(p.entityType)}
+              </p>
               <p className="text-xs text-muted-foreground font-mono break-all">{idLine}</p>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2 shrink-0 sm:pt-0.5">
               <StatusBadge
                 label={finalStatus.label}
-                status={getDirectorFinalStatusToken(finalStatus.tone)}
+                status={getRelatedPartyStatusToken(finalStatus, "admin")}
               />
             </div>
           </div>
@@ -479,13 +486,11 @@ export function OnboardingReviewDialog({
       if (code === "REFRESH_IN_PROGRESS") {
         toast.warning("Refresh already in progress.");
       } else if (code === "REGTANK_RATE_LIMITED") {
-        toast.error(
-          "RegTank is temporarily limiting status requests. Existing onboarding data has been preserved. Please try again later."
-        );
+        toast.error(PROVIDER_REFRESH_RECENTLY_MESSAGE);
+      } else if (code === "NOT_FOUND") {
+        toast.error(PROVIDER_REQUEST_NOT_FOUND_MESSAGE);
       } else {
-        toast.error("Unable to retrieve the latest status from RegTank.", {
-          description: err instanceof Error ? err.message : String(err),
-        });
+        toast.error(PROVIDER_REFRESH_FAILED_MESSAGE);
       }
     }
     void queryClient.invalidateQueries({ queryKey: ["admin", "onboarding-applications"] });
@@ -626,8 +631,8 @@ export function OnboardingReviewDialog({
 
               {isCompany ? (
                 <OnboardingDirectorShareholderSection
-                  title="Director/Shareholder KYC Status"
-                  tooltip="All directors/shareholders must complete their KYC verification in RegTank before corporate onboarding can be approved."
+                  title="Related Party Verification Status"
+                  tooltip="Directors and shareholders listed here show their current RegTank verification status. Corporate shareholders use KYB; individuals use KYC."
                   visibleRows={visiblePeopleRows as OnboardingPersonRow[]}
                   peopleRowCount={peopleRows.length}
                   resolvedCtosEmptyWarning={resolvedCtosEmptyWarning}
@@ -754,7 +759,7 @@ export function OnboardingReviewDialog({
               {isCompany ? (
                 <OnboardingDirectorShareholderSection
                   title="AML screening status"
-                  tooltip="Individual director AML screening must be completed and approved in RegTank before corporate AML approval. Once all directors are approved, corporate KYB/AML will be processed automatically."
+                  tooltip="Related-party screening status from RegTank. Individuals show AML/KYC; corporate shareholders show KYB. Parent-company AML still drives this step."
                   visibleRows={visiblePeopleRows as OnboardingPersonRow[]}
                   peopleRowCount={peopleRows.length}
                   resolvedCtosEmptyWarning={resolvedCtosEmptyWarning}

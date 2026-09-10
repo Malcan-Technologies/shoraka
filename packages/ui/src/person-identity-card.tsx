@@ -4,7 +4,7 @@ import {
   formatPartyRoleLine,
   formatPeopleRolesLine,
   getFinalStatusLabel,
-  getFinalStatusToken,
+  getRelatedPartyStatusToken,
   IDENTITY_CONFLICT_ISSUER_LABEL,
   isBlockedPersonIdentityConflict,
   isPersonKycApproved,
@@ -69,10 +69,10 @@ export function PersonIdentityCard({
       : "Person";
   const kyc = person
     ? getFinalStatusLabel(person, { displayMode: "kyc_only" })
-    : { label: "Not Started", tone: "neutral" as const };
+    : { label: "Not Started", tone: "neutral" as const, actor: "none" as const };
   const aml = person
     ? getFinalStatusLabel({ screening: person.screening })
-    : { label: "Not Started", tone: "neutral" as const };
+    : { label: "Not Started", tone: "neutral" as const, actor: "none" as const };
   const access: PersonPlatformAccess | null = party?.platformAccess ?? null;
   const showPlatform = Boolean(party) && !corporate;
   const identityConflict = isBlockedPersonIdentityConflict(readPersonIdentityConflict(party?.externalObservation));
@@ -132,24 +132,21 @@ export function PersonIdentityCard({
             <p className="text-meta text-muted-foreground">{completenessHint}</p>
           ) : null}
           {corporate ? (
-            <p className="text-meta text-muted-foreground">
-              Company shareholder. Individual KYC/AML is not required.
-            </p>
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <StatusBadge status={getRelatedPartyStatusToken(kyc, "user")} label={`KYB: ${kyc.label}`} />
+              <StatusBadge status={getRelatedPartyStatusToken(aml, "user")} label={`AML: ${aml.label}`} />
+              {inactive ? <StatusBadge status="neutral" label="Inactive" /> : null}
+            </div>
           ) : (
             <div className="flex flex-wrap items-center gap-2 pt-1">
-              <StatusBadge status={getFinalStatusToken(kyc.tone)} label={`KYC: ${kyc.label}`} />
-              <StatusBadge status={getFinalStatusToken(aml.tone)} label={`AML: ${aml.label}`} />
+              <StatusBadge status={getRelatedPartyStatusToken(kyc, "user")} label={`KYC: ${kyc.label}`} />
+              <StatusBadge status={getRelatedPartyStatusToken(aml, "user")} label={`AML: ${aml.label}`} />
               {identityConflict ? (
-                <StatusBadge status={getFinalStatusToken("info")} label={IDENTITY_CONFLICT_ISSUER_LABEL} />
+                <StatusBadge status="submitted" label={IDENTITY_CONFLICT_ISSUER_LABEL} />
               ) : null}
               {inactive ? <StatusBadge status="neutral" label="Inactive" /> : null}
             </div>
           )}
-          {corporate && inactive ? (
-            <div className="flex flex-wrap gap-2 pt-1">
-              <StatusBadge status="neutral" label="Inactive" />
-            </div>
-          ) : null}
           {showPlatform && access ? (
             <p className="text-meta text-muted-foreground">
               Platform access: <span className="text-foreground">{access.label}</span>

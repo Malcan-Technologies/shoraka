@@ -536,7 +536,7 @@ export function OrganizationPeoplePanel({
             <DialogTitle>{viewingParty?.name || viewingPerson?.name || "Person"}</DialogTitle>
             <DialogDescription>Read-only details for this person.</DialogDescription>
           </DialogHeader>
-          <PartyProfileDetailFields party={viewingParty} person={viewingPerson} />
+          <PartyProfileDetailFields party={viewingParty} person={viewingPerson} statusViewer="admin" />
         </DialogContent>
       </Dialog>
 

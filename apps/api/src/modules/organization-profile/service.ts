@@ -59,6 +59,7 @@ import {
 import type { CreatePartyInput, OrgMasterPatchInput, PartyPatchInput } from "./schemas";
 import { writeOrganizationPartyEmail } from "./person-email";
 import { assertObservedPartyNotBlockedByIdentityConflict } from "./regtank-party-seed";
+import { ctosCompanyJsonHasUsableRelatedParties } from "../regtank/helpers/detect-director-gaps";
 import {
   asAddress,
   asJson,
@@ -537,10 +538,13 @@ export async function seedMasterPartiesIfEmpty(
   const fromCtos = extractRegulatoryPartiesFromCtos(ctos?.company_json ?? null);
   const fromRegtank = extractRegulatoryPartiesFromCorporateEntities(org.corporate_entities);
   const merged = mergeRegulatoryPartyCandidates(fromCtos, fromRegtank);
-  if (merged.length === 0) return;
+  const ctosUsable = ctosCompanyJsonHasUsableRelatedParties(ctos?.company_json ?? null);
+  if (merged.length === 0 && fromCtos.length === 0 && fromRegtank.length === 0) return;
 
   if (!established) {
-    await applyInitialRegulatoryCandidates(portal, organizationId, merged);
+    const initial = ctosUsable && fromCtos.length > 0 ? fromCtos : fromRegtank;
+    if (initial.length === 0) return;
+    await applyInitialRegulatoryCandidates(portal, organizationId, initial);
     await markRegulatoryStructureEstablished(portal, organizationId);
     return;
   }
@@ -569,6 +573,7 @@ export async function seedMasterPartiesIfEmpty(
     const idx = existing.findIndex((p) => p.id === row.id);
     if (idx >= 0) existing[idx] = updated;
   }
+  if (ctosUsable) return;
   await applyInitialRegulatoryCandidates(
     portal,
     organizationId,

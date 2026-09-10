@@ -8,6 +8,13 @@ export const ONBOARDING_REFRESH_LABEL = "Refresh status";
 export const ONBOARDING_REFRESH_LOADING_LABEL = "Refreshing…";
 export const ONBOARDING_OPEN_REGTANK_REVIEW_LABEL = "Open RegTank Review";
 export const ONBOARDING_RESTART_LABEL = "Restart Onboarding";
+export const PROVIDER_REFRESH_RECENTLY_MESSAGE =
+  "Status was refreshed recently. Please wait a moment and try again.";
+export const PROVIDER_REFRESH_FAILED_MESSAGE =
+  "Unable to refresh the status right now. Please try again.";
+export const PROVIDER_REQUEST_NOT_FOUND_MESSAGE = "This onboarding request could not be found.";
+export const CTOS_FETCH_FAILED_SHOWING_ONBOARDING_MESSAGE =
+  "Unable to fetch CTOS data. Showing the submitted onboarding data instead.";
 
 /** High-level onboarding destination used for routing and guards. */
 export type OnboardingFlowStep =

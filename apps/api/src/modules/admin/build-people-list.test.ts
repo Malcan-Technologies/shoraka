@@ -697,7 +697,7 @@ describe("buildUnifiedPeople", () => {
     expect(result.people[0]?.name).toBe("CTOS Director");
   });
 
-  it("returns empty people and warning when CTOS report exists but has no usable directors/shareholders", () => {
+  it("keeps the RegTank people list and warns when CTOS report exists but has no usable directors/shareholders", () => {
     const result = buildDirectorShareholderPeopleList({
       ctos: { directors: [], shareholders: [] },
       issuerDirectorKycStatus: null,
@@ -720,7 +720,8 @@ describe("buildUnifiedPeople", () => {
     });
 
     expect(result.listSource).toBe("CTOS_EMPTY");
-    expect(result.people).toEqual([]);
+    expect(result.people).toHaveLength(1);
+    expect(result.people[0]?.name).toBe("Onboarding Only");
     expect(result.ctosDirectorShareholderWarning).toBe(CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING);
   });
 
@@ -913,6 +914,7 @@ describe("buildUnifiedPeople", () => {
           isDirector: true,
           isShareholder: false,
           shareholdingPercentage: null,
+          origin: "USER_ADDED",
         },
       ],
     });
@@ -942,6 +944,7 @@ describe("buildUnifiedPeople", () => {
           isDirector: true,
           isShareholder: false,
           shareholdingPercentage: null,
+          origin: "USER_ADDED",
         },
       ],
     });
@@ -976,6 +979,7 @@ describe("buildUnifiedPeople", () => {
 
   it("does not put EXTERNAL_OBSERVED CTOS people onto the operational KYC list", () => {
     const result = buildDirectorShareholderPeopleList({
+      initialCorporateOnboarding: false,
       ctos: {
         directors: [
           { party_type: "I", nic_brno: "990101011111", name: "New Director C", position: "DO" },
@@ -1522,6 +1526,340 @@ describe("buildUnifiedPeople", () => {
       corporateEntities: null,
     });
     expect(rows[0]?.onboarding?.status).toBe("APPROVED");
-    expect(getFinalStatusLabel(rows[0]!, { displayMode: "kyc_only" }).label).toBe("Verified");
+    expect(getFinalStatusLabel(rows[0]!, { displayMode: "kyc_only" }).label).toBe("Approved");
+  });
+});
+
+const jamieDirector = {
+  party_type: "I",
+  nic_brno: "800101011234",
+  name: "Jamie",
+  position: "DO",
+};
+const aliShareholder = {
+  party_type: "I",
+  nic_brno: "850101011111",
+  name: "Ali",
+  position: "SO",
+  equity_percentage: 25,
+};
+const abcCorporate = {
+  party_type: "C",
+  ic_lcno: "202001234567",
+  name: "ABC Berhad",
+  position: "SO",
+  equity_percentage: 30,
+};
+
+describe("initial corporate onboarding CTOS source of truth", () => {
+  const bobCe = {
+    directors: [
+      {
+        personalInfo: {
+          fullName: "Bob",
+          formContent: {
+            content: [{ fieldName: "Government ID Number", fieldValue: "900101101234" }],
+          },
+        },
+      },
+      {
+        personalInfo: {
+          fullName: "Jamie",
+          formContent: {
+            content: [{ fieldName: "Government ID Number", fieldValue: "800101-01-1234" }],
+          },
+        },
+      },
+    ],
+    shareholders: [
+      {
+        personalInfo: {
+          fullName: "Ali",
+          formContent: {
+            content: [
+              { fieldName: "Government ID Number", fieldValue: "850101011111" },
+              { fieldName: "% of Shares", fieldValue: "20" },
+            ],
+          },
+        },
+      },
+    ],
+    corporateShareholders: [
+      {
+        businessName: "ABC Berhad",
+        formContent: {
+          displayAreas: [
+            {
+              displayArea: "Basic Information Setting",
+              content: [
+                { fieldName: "Business Name", fieldValue: "ABC Berhad" },
+                { fieldName: "Business Number", fieldValue: "202001234567" },
+                { fieldName: "% of Shares", fieldValue: "30" },
+              ],
+            },
+          ],
+        },
+      },
+    ],
+  };
+
+  it("1. no CTOS uses the RegTank list", () => {
+    const result = buildDirectorShareholderPeopleList({
+      ctos: null,
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      corporateEntities: bobCe,
+    });
+    expect(result.listSource).toBe("ONBOARDING");
+    expect(result.people.map((p) => p.name).sort()).toEqual(["ABC Berhad", "Ali", "Bob", "Jamie"]);
+  });
+
+  it("2/17. usable CTOS uses CTOS structure and CTOS share %", () => {
+    const result = buildDirectorShareholderPeopleList({
+      ctos: { directors: [jamieDirector, aliShareholder, abcCorporate] },
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      corporateEntities: bobCe,
+    });
+    expect(result.listSource).toBe("CTOS");
+    const names = result.people.map((p) => p.name).sort();
+    expect(names).toEqual(["ABC Berhad", "Ali", "Jamie"]);
+    expect(result.people.find((p) => p.name === "Ali")?.sharePercentage).toBe(25);
+    expect(result.people.find((p) => p.name === "Bob")).toBeUndefined();
+  });
+
+  it("5. CTOS success with no usable people keeps RegTank and warns", () => {
+    const result = buildDirectorShareholderPeopleList({
+      ctos: { directors: [], shareholders: [] },
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      corporateEntities: bobCe,
+    });
+    expect(result.listSource).toBe("CTOS_EMPTY");
+    expect(result.ctosDirectorShareholderWarning).toContain("did not return usable");
+    expect(result.people.some((p) => p.name === "Bob")).toBe(true);
+  });
+
+  it("6. RegTank-only party is not active after usable CTOS", () => {
+    const result = buildDirectorShareholderPeopleList({
+      ctos: { directors: [jamieDirector, aliShareholder, abcCorporate] },
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      corporateEntities: bobCe,
+      masterParties: [
+        {
+          partyKey: "900101101234",
+          membershipStatus: "MASTER_ACTIVE",
+          entityType: "INDIVIDUAL",
+          name: "Bob",
+          identityNumber: "900101101234",
+          isDirector: true,
+          isShareholder: false,
+          shareholdingPercentage: null,
+          origin: "REGTANK_PARTY",
+        },
+      ],
+    });
+    expect(result.people.find((p) => p.name === "Bob")).toBeUndefined();
+  });
+
+  it("7-12. extracts directors, 5% shareholders, corporates, and DS dual roles", () => {
+    const result = buildDirectorShareholderPeopleList({
+      ctos: {
+        directors: [
+          jamieDirector,
+          { party_type: "I", nic_brno: "810101011111", name: "Small Sh", position: "SO", equity_percentage: 2 },
+          {
+            party_type: "I",
+            nic_brno: "820101011111",
+            name: "Both Roles",
+            position: "DS",
+            equity_percentage: 12,
+          },
+          abcCorporate,
+          {
+            party_type: "C",
+            ic_lcno: "199901000001",
+            name: "Tiny Co",
+            position: "SO",
+            equity_percentage: 4,
+          },
+        ],
+      },
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      corporateEntities: null,
+    });
+    const byName = Object.fromEntries(result.people.map((p) => [p.name, p]));
+    expect(byName.Jamie?.roles).toEqual(["DIRECTOR"]);
+    expect(byName["Small Sh"]).toBeUndefined();
+    expect(byName["Both Roles"]?.roles).toEqual(expect.arrayContaining(["DIRECTOR", "SHAREHOLDER"]));
+    expect(byName["ABC Berhad"]?.entityType).toBe("CORPORATE");
+    expect(byName["Tiny Co"]).toBeUndefined();
+  });
+
+  it("13-16. matches by IC/SSM and does not merge different IDs with the same name", () => {
+    const result = buildDirectorShareholderPeopleList({
+      ctos: {
+        directors: [
+          { party_type: "I", nic_brno: "111111111111", name: "Same Name", position: "DO" },
+          { party_type: "C", ic_lcno: "123456-A", name: "ABC SDN BHD", position: "SO", equity_percentage: 40 },
+        ],
+      },
+      issuerDirectorKycStatus: {
+        directors: [{ governmentIdNumber: "111111111111", kycStatus: "APPROVED", name: "Same Name" }],
+      },
+      issuerDirectorAmlStatus: null,
+      corporateEntities: {
+        directors: [
+          {
+            personalInfo: {
+              fullName: "Same Name",
+              formContent: {
+                content: [{ fieldName: "Government ID Number", fieldValue: "222222222222" }],
+              },
+            },
+          },
+        ],
+        shareholders: [],
+        corporateShareholders: [
+          {
+            businessName: "ABC SDN BHD",
+            formContent: {
+              displayAreas: [
+                {
+                  displayArea: "Basic Information Setting",
+                  content: [
+                    { fieldName: "Business Name", fieldValue: "ABC SDN BHD" },
+                    { fieldName: "Business Number", fieldValue: "202001234567" },
+                    { fieldName: "% of Shares", fieldValue: "40" },
+                  ],
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+    const sameIc = result.people.find((p) => p.matchKey === "111111111111");
+    expect(sameIc?.onboarding?.status).toBe("APPROVED");
+    expect(result.people.find((p) => p.matchKey === "222222222222")).toBeUndefined();
+    expect(result.people.find((p) => p.matchKey === "123456A")).toBeDefined();
+    expect(result.people.find((p) => p.matchKey === "202001234567")).toBeUndefined();
+  });
+
+  it("19-20. corporate vs individual entity types stay distinct", () => {
+    const result = buildDirectorShareholderPeopleList({
+      ctos: { directors: [jamieDirector, abcCorporate] },
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      corporateEntities: null,
+    });
+    expect(result.people.find((p) => p.name === "Jamie")?.entityType).toBe("INDIVIDUAL");
+    expect(result.people.find((p) => p.name === "ABC Berhad")?.entityType).toBe("CORPORATE");
+  });
+
+  it("21. later USER_ADDED member is kept after usable CTOS", () => {
+    const result = buildDirectorShareholderPeopleList({
+      ctos: { directors: [jamieDirector] },
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      corporateEntities: null,
+      masterParties: [
+        {
+          partyKey: "900101101234",
+          membershipStatus: "MASTER_ACTIVE",
+          entityType: "INDIVIDUAL",
+          name: "Bob Later",
+          identityNumber: "900101101234",
+          isDirector: true,
+          isShareholder: false,
+          shareholdingPercentage: null,
+          origin: "USER_ADDED",
+        },
+      ],
+    });
+    expect(result.people.find((p) => p.name === "Bob Later")).toBeDefined();
+  });
+
+  it("later flow after COMPLETED still filters CTOS-only EXTERNAL_OBSERVED parties", () => {
+    const result = buildDirectorShareholderPeopleList({
+      initialCorporateOnboarding: false,
+      ctos: {
+        directors: [
+          jamieDirector,
+          { party_type: "I", nic_brno: "990101011111", name: "Zara Observed", position: "DO" },
+        ],
+      },
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      corporateEntities: null,
+      masterParties: [
+        {
+          partyKey: "800101011234",
+          membershipStatus: "MASTER_ACTIVE",
+          entityType: "INDIVIDUAL",
+          name: "Jamie",
+          identityNumber: "800101011234",
+          isDirector: true,
+          isShareholder: false,
+          shareholdingPercentage: null,
+          origin: "CTOS_PARTY",
+        },
+        {
+          partyKey: "990101011111",
+          membershipStatus: "EXTERNAL_OBSERVED",
+          entityType: "INDIVIDUAL",
+          name: "Zara Observed",
+          identityNumber: "990101011111",
+          isDirector: true,
+          isShareholder: false,
+          shareholdingPercentage: null,
+          origin: "CTOS_PARTY",
+        },
+      ],
+    });
+    expect(result.people.find((p) => p.name === "Jamie")).toBeDefined();
+    expect(result.people.find((p) => p.name === "Zara Observed")).toBeUndefined();
+  });
+
+  it("3/4. missing or invalid CTOS payload keeps the RegTank list", () => {
+    for (const ctos of [null, "not-json", 12]) {
+      const result = buildDirectorShareholderPeopleList({
+        ctos,
+        issuerDirectorKycStatus: null,
+        issuerDirectorAmlStatus: null,
+        corporateEntities: bobCe,
+      });
+      expect(result.listSource).toBe("ONBOARDING");
+      expect(result.ctosDirectorShareholderWarning).toBeNull();
+      expect(result.people.some((p) => p.name === "Bob")).toBe(true);
+    }
+  });
+
+  it("reads a corporate shareholder from directors[] using brn_ssm only", () => {
+    const result = buildDirectorShareholderPeopleList({
+      ctos: {
+        directors: [
+          {
+            party_type: "C",
+            nic_brno: "",
+            ic_lcno: "",
+            brn_ssm: "13570K",
+            name: "ECM Libra",
+            position: "SO",
+            equity_percentage: 40,
+          },
+        ],
+      },
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      corporateEntities: null,
+    });
+    expect(result.listSource).toBe("CTOS");
+    expect(result.people).toHaveLength(1);
+    expect(result.people[0]?.entityType).toBe("CORPORATE");
+    expect(result.people[0]?.matchKey).toBe("13570K");
+    expect(result.people[0]?.sharePercentage).toBe(40);
   });
 });

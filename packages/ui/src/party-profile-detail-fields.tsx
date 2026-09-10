@@ -10,7 +10,8 @@ import {
   SC_SHARE_TYPE_LABELS,
   formatPartyRoleLine,
   getFinalStatusLabel,
-  getFinalStatusToken,
+  getRelatedPartyStatusToken,
+  type RelatedPartyStatusViewer,
   monthlyIssuerPersonCopy,
   partyRoleLabels,
   personIdentityDisplay,
@@ -227,23 +228,29 @@ export function buildPartyProfileDetailItems(params: {
 export function PartyProfileDetailFields({
   party,
   person,
+  statusViewer = "user",
 }: {
   party?: OrganizationPartyProfileDto | null;
   person?: ApplicationPersonRow | null;
+  statusViewer?: RelatedPartyStatusViewer;
 }) {
+  const corporate = party?.entityType === "CORPORATE" || person?.entityType === "CORPORATE";
   const kyc = person
     ? getFinalStatusLabel(person, { displayMode: "kyc_only" })
-    : { label: "—", tone: "neutral" as const };
+    : { label: "—", tone: "neutral" as const, actor: "none" as const };
   const aml = person
     ? getFinalStatusLabel({ screening: person.screening })
-    : { label: "—", tone: "neutral" as const };
+    : { label: "—", tone: "neutral" as const, actor: "none" as const };
   const items = buildPartyProfileDetailItems({ party, person });
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
-        <StatusBadge status={getFinalStatusToken(kyc.tone)} label={`KYC: ${kyc.label}`} />
-        <StatusBadge status={getFinalStatusToken(aml.tone)} label={`AML: ${aml.label}`} />
+        <StatusBadge
+          status={getRelatedPartyStatusToken(kyc, statusViewer)}
+          label={`${corporate ? "KYB" : "KYC"}: ${kyc.label}`}
+        />
+        <StatusBadge status={getRelatedPartyStatusToken(aml, statusViewer)} label={`AML: ${aml.label}`} />
       </div>
       <PartyRoleBadges party={party} person={person} />
       <ProfileFieldGrid>

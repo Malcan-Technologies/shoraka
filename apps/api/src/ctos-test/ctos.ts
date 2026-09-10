@@ -572,6 +572,7 @@ async function parseCtosReportXml(xmlStr: string) {
       alias: xmlText(safeGet(x, ["alias", 0])),
       ic_lcno: xmlText(safeGet(x, ["ic_lcno", 0])),
       nic_brno: xmlText(safeGet(x, ["nic_brno", 0])),
+      brn_ssm: xmlText(safeGet(x, ["brn_ssm", 0])),
       position: xmlText(safeGet(x, ["position", 0])),
       addr: xmlText(safeGet(x, ["addr", 0])),
       appoint: xmlText(safeGet(x, ["appoint", 0])),

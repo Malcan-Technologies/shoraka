@@ -8,6 +8,9 @@ import {
   useOrganization,
   ONBOARDING_REFRESH_LABEL,
   ONBOARDING_REFRESH_LOADING_LABEL,
+  PROVIDER_REFRESH_FAILED_MESSAGE,
+  PROVIDER_REFRESH_RECENTLY_MESSAGE,
+  PROVIDER_REQUEST_NOT_FOUND_MESSAGE,
 } from "@cashsouk/config";
 import {
   buildDirectorShareholderDisplayRowForEmailEligibility,
@@ -115,9 +118,14 @@ export function OnboardingStatusCard({
         toast.info("AML status refreshed. RegTank approval is still pending.");
       }
     } catch (error) {
-      toast.error("Failed to refresh AML status", {
-        description: error instanceof Error ? error.message : "An unknown error occurred",
-      });
+      const code = error instanceof Error ? (error as Error & { code?: string }).code : undefined;
+      if (code === "REGTANK_RATE_LIMITED" || code === "RATE_LIMITED") {
+        toast.error(PROVIDER_REFRESH_RECENTLY_MESSAGE);
+      } else if (code === "NOT_FOUND") {
+        toast.error(PROVIDER_REQUEST_NOT_FOUND_MESSAGE);
+      } else {
+        toast.error(PROVIDER_REFRESH_FAILED_MESSAGE);
+      }
     } finally {
       setIsRefreshing(false);
     }

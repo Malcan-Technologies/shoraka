@@ -24,7 +24,20 @@ import { displayGovernmentIdentityNumber } from "./organization-party-key";
 export type DirectorShareholderListSource = "ONBOARDING" | "CTOS" | "CTOS_EMPTY";
 
 export const CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING =
-  "The latest CTOS information did not include directors or shareholders. Current profile people are kept until you choose to update them." as const;
+  "CTOS did not return usable directors or shareholders. Showing the submitted onboarding data. Review this before continuing." as const;
+
+/** Org is still in the initial corporate onboarding/review pipeline (not a later Profile/People member-management org). */
+export function isInitialCorporateOnboardingStatus(status: string | null | undefined): boolean {
+  const s = String(status ?? "").trim().toUpperCase();
+  if (!s) return true;
+  return s !== "COMPLETED" && s !== "REJECTED";
+}
+
+export function relatedPartyVerificationCaption(
+  entityType: "INDIVIDUAL" | "CORPORATE" | null | undefined
+): string {
+  return entityType === "CORPORATE" ? "Company · KYB" : "Individual · KYC";
+}
 
 export function resolveDirectorShareholderCtosEmptyWarning(input: {
   directorShareholderListSource?: DirectorShareholderListSource | null;

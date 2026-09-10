@@ -777,7 +777,11 @@ export function OrganizationProvider({ children, portalType, apiUrl }: Organizat
       }>(`/v1/organizations/${portalType}/${organizationId}/refresh-aml`);
 
       if (!result.success) {
-        throw new Error(result.error?.message || "Failed to refresh AML status");
+        const err = new Error(
+          result.error?.message || "Failed to refresh AML status"
+        ) as Error & { code?: string };
+        err.code = result.error?.code;
+        throw err;
       }
 
       // Update local state with refreshed AML status

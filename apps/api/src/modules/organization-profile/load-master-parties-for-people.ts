@@ -1,5 +1,6 @@
 import { prisma } from "../../lib/prisma";
 import { seedMasterPartiesIfEmpty } from "./service";
+import { isInitialCorporateOnboardingStatus } from "@cashsouk/types";
 import {
   buildDirectorShareholderPeopleList,
   type BuildDirectorShareholderPeopleParams,
@@ -13,6 +14,26 @@ function orgWhere(portal: Portal, organizationId: string) {
   return portal === "issuer"
     ? { issuer_organization_id: organizationId, investor_organization_id: null }
     : { investor_organization_id: organizationId, issuer_organization_id: null };
+}
+
+async function readOrganizationOnboardingStatus(
+  portal: Portal,
+  organizationId: string
+): Promise<string | null> {
+  if (portal === "issuer") {
+    if (typeof prisma.issuerOrganization?.findUnique !== "function") return null;
+    const row = await prisma.issuerOrganization.findUnique({
+      where: { id: organizationId },
+      select: { onboarding_status: true },
+    });
+    return row?.onboarding_status ?? null;
+  }
+  if (typeof prisma.investorOrganization?.findUnique !== "function") return null;
+  const row = await prisma.investorOrganization.findUnique({
+    where: { id: organizationId },
+    select: { onboarding_status: true },
+  });
+  return row?.onboarding_status ?? null;
 }
 
 export async function loadMasterPartiesForPeopleMerge(
@@ -33,6 +54,7 @@ export async function loadMasterPartiesForPeopleMerge(
       is_shareholder: true,
       shareholding_percentage: true,
       email: true,
+      origin: true,
     },
   });
   return rows.map((row) => ({
@@ -45,6 +67,7 @@ export async function loadMasterPartiesForPeopleMerge(
     isShareholder: row.is_shareholder,
     shareholdingPercentage: row.shareholding_percentage?.toString() ?? null,
     email: row.email,
+    origin: row.origin ?? null,
   }));
 }
 
@@ -69,9 +92,11 @@ export async function buildDirectorShareholderPeopleListWithMaster(
     });
     parentCorporateRequestId = onboarding?.request_id ?? null;
   }
+  const onboardingStatus = await readOrganizationOnboardingStatus(portal, organizationId);
   return buildDirectorShareholderPeopleList({
     ...params,
     masterParties,
     parentCorporateRequestId,
+    initialCorporateOnboarding: isInitialCorporateOnboardingStatus(onboardingStatus),
   });
 }
