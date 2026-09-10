@@ -27,7 +27,7 @@ import {
   MALAYSIAN_BANKS,
 } from "@cashsouk/config";
 import type { ApplicationPersonRow } from "@cashsouk/types";
-import { filterVisiblePeopleRows, SC_GENDER_LABELS, SC_INDIVIDUAL_GENDERS, SC_MALAYSIAN_STATES, SC_MONTHLY_INVESTOR, firstIssueMessage, humanizeApiValidationMessage, isValidProfilePhone, restrictScPostcodeInput, scAppendixASelectValues, storedProfilePhone, userFacingCompleteness, validateInvestorPersonalForm, type ScGender } from "@cashsouk/types";
+import { filterVisiblePeopleRows, SC_GENDER_LABELS, SC_INDIVIDUAL_GENDERS, SC_MALAYSIAN_STATES, SC_MONTHLY_INVESTOR, firstIssueMessage, humanizeApiValidationMessage, isMemberWithoutCompanyRole, isValidProfilePhone, linkedPartyUserIds, restrictScPostcodeInput, scAppendixASelectValues, storedProfilePhone, userFacingCompleteness, validateInvestorPersonalForm, type ScGender } from "@cashsouk/types";
 import { useAuth } from "../../lib/auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccountDocuments } from "../../hooks/use-account-documents";
@@ -456,6 +456,28 @@ export default function ProfilePage() {
   const { invitations, resend, revoke } = useOrganizationInvitations(activeOrganization?.id, {
     enabled: isCurrentUserAdmin,
   });
+
+  const { data: partyProfiles = [] } = useQuery({
+    queryKey: ["party-profiles", "investor", activeOrganization?.id],
+    queryFn: async () => {
+      const result = await apiClient.getPartyProfiles("investor", activeOrganization!.id);
+      if (!result.success) throw new Error(result.error.message);
+      return result.data;
+    },
+    enabled: Boolean(activeOrganization?.id) && activeOrganization?.type === "COMPANY",
+  });
+  const linkedUserIds = React.useMemo(() => linkedPartyUserIds(partyProfiles), [partyProfiles]);
+  const membersWithoutCompanyRole = React.useMemo(
+    () =>
+      (activeOrganization?.members ?? []).filter((member) =>
+        isMemberWithoutCompanyRole(member.id, linkedUserIds)
+      ),
+    [activeOrganization?.members, linkedUserIds]
+  );
+  const unscopedInvitations = React.useMemo(
+    () => invitations.filter((invitation) => !invitation.partyProfileId),
+    [invitations]
+  );
 
   // Confirmation dialog states
   const [confirmDialog, setConfirmDialog] = React.useState<{
@@ -1740,8 +1762,8 @@ export default function ProfilePage() {
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-semibold">
-                    {isPersonal ? "Account Holder" : "Organization Members"} (
-                    {activeOrganization.members?.length || 0})
+                    {isPersonal ? "Account Holder" : "Platform members without a company role"} (
+                    {isPersonal ? activeOrganization.members?.length || 0 : membersWithoutCompanyRole.length})
                   </h2>
                   {!isPersonal && isCurrentUserAdmin && (
                     <div className="flex items-center gap-2">
@@ -1769,9 +1791,9 @@ export default function ProfilePage() {
                     </div>
                   )}
                 </div>
-                {activeOrganization.members && activeOrganization.members.length > 0 ? (
+                {membersWithoutCompanyRole.length > 0 ? (
                   <div className="grid gap-3">
-                    {activeOrganization.members.map((member) => {
+                    {membersWithoutCompanyRole.map((member) => {
                       const isCurrentUser = currentUser && member.id === currentUser.userId;
                       const canManageMembers = !isPersonal && isCurrentUserAdmin && !isCurrentUser;
                       const isOwner = activeOrganization.isOwner && isCurrentUser;
@@ -1869,24 +1891,24 @@ export default function ProfilePage() {
                   </div>
                 ) : (
                   <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground">
-                    <p>No members found</p>
+                    <p>No platform members without a company role</p>
                   </div>
                 )}
               </div>
 
               {/* Pending Invitations Section - Only for COMPANY accounts and admins */}
-              {!isPersonal && isCurrentUserAdmin && invitations.length > 0 && (
+              {!isPersonal && isCurrentUserAdmin && unscopedInvitations.length > 0 && (
                 <div className="rounded-xl border bg-card">
                   <div className="flex items-center justify-between p-6 border-b">
                     <div>
                       <h2 className="text-lg font-semibold">Pending Invitations</h2>
                       <p className="text-sm text-muted-foreground">
-                        Invitations awaiting acceptance
+                        Invitations awaiting acceptance. Person invitations are shown on People cards.
                       </p>
                     </div>
                   </div>
                   <div className="p-6 space-y-3">
-                    {invitations.map((invitation) => {
+                    {unscopedInvitations.map((invitation) => {
                       const isPlaceholderEmail = invitation.email.startsWith('invitation-') &&
                                                 invitation.email.includes('@cashsouk.com');
                       return (

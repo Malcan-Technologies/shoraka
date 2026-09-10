@@ -1,4 +1,5 @@
 import { normalizeProfilePhone } from "./profile-phone";
+import { shouldDeferOnboardingPersonComrep } from "./person-onboarding-display";
 
 /**
  * SC ComRep enumerations and CashSouk master-profile completeness.
@@ -6,8 +7,13 @@ import { normalizeProfilePhone } from "./profile-phone";
  * profile completeness uses monthly P2P [02000], [05000], [06000], [07000], [09000], [09100].
  *
  * Issuer [02000] "Issuer ID (if any)" and [02000] Company Activities are not
- * completeness blockers: the former is explicitly "if any"; the latter's
- * fundraising-purpose wording is not equated with the profile business narrative.
+ * completeness blockers: the former is explicitly "if any"; the latter is stored
+ * as the issuer's general/current activity on Issuer Profile. Campaign-specific
+ * ComRep interpretation of Company Activities remains
+ * Needs business/compliance confirmation.
+ *
+ * [02000] Company category and [03000] Sustainability Category of the Campaign
+ * are invoice/campaign fields, not issuer-profile completeness.
  */
 
 export const SC_COMPANY_CATEGORIES = ["TECHNOLOGY", "NON_TECHNOLOGY"] as const;
@@ -202,7 +208,53 @@ export function parseInvoiceOfferSustainabilityCategory(
 }
 
 /**
- * SC Campaign Sector (SME Corp closed list). Stored on the campaign/offer, not issuer Industry.
+ * Authoritative Company category for an invoice/campaign.
+ * Offer freeze wins after Admin send/correction; otherwise issuer-submitted invoice.details.
+ * Never read IssuerOrganization.company_category.
+ */
+export function resolveInvoiceCompanyCategory(invoice: {
+  details?: unknown;
+  offer_details?: unknown;
+}): ScCompanyCategory | null {
+  return (
+    parseInvoiceOfferCompanyCategory(invoice.offer_details) ??
+    parseInvoiceOfferCompanyCategory(invoice.details)
+  );
+}
+
+/**
+ * Authoritative Sustainability Category of the Campaign for an invoice/campaign.
+ * Offer freeze wins after Admin send/correction; otherwise issuer-submitted invoice.details.
+ * Do not default to 00 – None.
+ */
+export function resolveInvoiceSustainabilityCategory(invoice: {
+  details?: unknown;
+  offer_details?: unknown;
+}): ScSustainabilityCategory | null {
+  return (
+    parseInvoiceOfferSustainabilityCategory(invoice.offer_details) ??
+    parseInvoiceOfferSustainabilityCategory(invoice.details)
+  );
+}
+
+/** ComRep [07000] Investment by Related Party — per investment, not investor profile. */
+export const SC_INVESTMENT_RELATED_PARTIES = [
+  "SHAREHOLDER_OF_RMO",
+  "RELATED_CO_OF_RMO",
+  "OFFICER_OF_RMO",
+  "NOT_APPLICABLE",
+] as const;
+export type ScInvestmentRelatedParty = (typeof SC_INVESTMENT_RELATED_PARTIES)[number];
+
+export const SC_INVESTMENT_RELATED_PARTY_LABELS: Record<ScInvestmentRelatedParty, string> = {
+  SHAREHOLDER_OF_RMO: "Shareholder of the RMO",
+  RELATED_CO_OF_RMO: "Related co of the RMO",
+  OFFICER_OF_RMO: "Officer of the RMO",
+  NOT_APPLICABLE: "Not applicable",
+};
+
+/**
+ * SC Campaign Sector (SME Corp closed list). Invoice/campaign field, not issuer Industry.
  * Labels match the ComRep RMO-P2P manual. Do not auto-map from CashSouk industry taxonomy.
  */
 export const SC_CAMPAIGN_SECTORS = [
@@ -266,6 +318,21 @@ export function parseInvoiceOfferCampaignSector(offer: unknown): ScCampaignSecto
   if (!offer || typeof offer !== "object") return null;
   const raw = (offer as Record<string, unknown>).campaign_sector;
   return isScCampaignSector(raw) ? raw : null;
+}
+
+/**
+ * Authoritative Campaign Sector for an invoice/campaign.
+ * Offer freeze wins after Admin send/correction; otherwise issuer-submitted invoice.details.
+ * Never read issuer Industry / profile.
+ */
+export function resolveInvoiceCampaignSector(invoice: {
+  details?: unknown;
+  offer_details?: unknown;
+}): ScCampaignSector | null {
+  return (
+    parseInvoiceOfferCampaignSector(invoice.offer_details) ??
+    parseInvoiceOfferCampaignSector(invoice.details)
+  );
 }
 
 /** SC Purpose of Fund Raising. Campaign/application field — not issuer Profile. */
@@ -336,20 +403,146 @@ export const SC_COMPANY_TYPE_LABELS: Record<ScCompanyType, string> = {
   FOREIGN: "Foreign",
 };
 
-/** Map RegTank COD "Type of Entity" text onto the SC Type of Company enum. */
+/**
+ * Confirmed RegTank COD "Type of Entity" → SC Type of Company.
+ * Unlisted Public Company and Foreign have no confirmed mapping — leave incomplete.
+ */
+const REGTANK_ENTITY_TYPE_TO_SC_COMPANY_TYPE: Record<string, ScCompanyType> = {
+  "private limited company (sdn bhd)": "PRIVATE_LIMITED",
+  "limited liability partnerships": "LLP",
+};
+
+/** Map only confirmed exact RegTank Type of Entity strings (trimmed, case-insensitive). */
 export function mapRegTankEntityTypeToScCompanyType(raw: unknown): ScCompanyType | null {
   if (typeof raw !== "string") return null;
   const n = raw.trim().toLowerCase();
   if (!n) return null;
-  if (n.includes("limited liability partnership") || n === "llp") return "LLP";
-  if (n.includes("sole proprietor")) return "SOLE_PROPRIETORSHIP";
-  if (n.includes("private limited") || n.includes("sdn bhd") || n.includes("sdn. bhd")) {
-    return "PRIVATE_LIMITED";
-  }
-  if (n.includes("public limited") || (/\bbhd\b/.test(n) && !n.includes("sdn"))) return "PUBLIC_LIMITED";
-  if (n.includes("partnership")) return "PARTNERSHIP";
-  if (n.includes("foreign")) return "FOREIGN";
-  return null;
+  return REGTANK_ENTITY_TYPE_TO_SC_COMPANY_TYPE[n] ?? null;
+}
+
+/** Current CashSouk issuer operational contact. Distinct from RegTank personInCharge evidence. */
+export type IssuerContactPerson = {
+  name?: string | null;
+  position?: string | null;
+  email?: string | null;
+  contact?: string | null;
+};
+
+/** RegTank onboarding PIC snapshot. Not the current ComRep contact once contactPerson is filled. */
+export type IssuerPersonInChargeEvidence = {
+  name?: string | null;
+  position?: string | null;
+  email?: string | null;
+  contactNumber?: string | null;
+};
+
+function trimContactText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+export function isIssuerContactPersonFilled(
+  contact: IssuerContactPerson | null | undefined
+): boolean {
+  if (!contact) return false;
+  return Boolean(
+    trimContactText(contact.name) ||
+      trimContactText(contact.position) ||
+      trimContactText(contact.email) ||
+      trimContactText(contact.contact)
+  );
+}
+
+export function seedIssuerContactPersonFromPic(
+  pic: IssuerPersonInChargeEvidence | null | undefined
+): IssuerContactPerson {
+  return {
+    name: pic?.name ?? null,
+    position: pic?.position ?? null,
+    email: pic?.email ?? null,
+    contact: pic?.contactNumber ?? null,
+  };
+}
+
+export function asIssuerContactPerson(value: unknown): IssuerContactPerson | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const rec = value as Record<string, unknown>;
+  return {
+    name: typeof rec.name === "string" ? rec.name : rec.name == null ? null : String(rec.name),
+    position:
+      typeof rec.position === "string" ? rec.position : rec.position == null ? null : String(rec.position),
+    email: typeof rec.email === "string" ? rec.email : rec.email == null ? null : String(rec.email),
+    contact:
+      typeof rec.contact === "string"
+        ? rec.contact
+        : rec.contact == null
+          ? typeof rec.contactNumber === "string"
+            ? rec.contactNumber
+            : rec.contactNumber == null
+              ? null
+              : String(rec.contactNumber)
+          : String(rec.contact),
+  };
+}
+
+export function asIssuerPersonInCharge(value: unknown): IssuerPersonInChargeEvidence | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const rec = value as Record<string, unknown>;
+  return {
+    name: typeof rec.name === "string" ? rec.name : rec.name == null ? null : String(rec.name),
+    position:
+      typeof rec.position === "string" ? rec.position : rec.position == null ? null : String(rec.position),
+    email: typeof rec.email === "string" ? rec.email : rec.email == null ? null : String(rec.email),
+    contactNumber:
+      typeof rec.contactNumber === "string"
+        ? rec.contactNumber
+        : rec.contactNumber == null
+          ? typeof rec.contact === "string"
+            ? rec.contact
+            : rec.contact == null
+              ? null
+              : String(rec.contact)
+          : String(rec.contactNumber),
+  };
+}
+
+/**
+ * Keep filled CashSouk contactPerson; seed from RegTank PIC only when master is empty.
+ * Incoming PIC missing must not delete a filled master.
+ */
+export function mergeCodContactPersonMaster(params: {
+  existingContact: unknown;
+  incomingPic: unknown;
+  incomingContact: unknown;
+}): IssuerContactPerson | null {
+  const existing = asIssuerContactPerson(params.existingContact);
+  if (isIssuerContactPersonFilled(existing)) return existing;
+  const incomingContact = asIssuerContactPerson(params.incomingContact);
+  if (isIssuerContactPersonFilled(incomingContact)) return incomingContact;
+  const pic = asIssuerPersonInCharge(params.incomingPic);
+  const seeded = seedIssuerContactPersonFromPic(pic);
+  return isIssuerContactPersonFilled(seeded) ? seeded : existing;
+}
+
+/** ComRep [02000] E-mail Address: current Contact Person, then RegTank PIC evidence. */
+export function resolveIssuerComrepEmail(
+  contactPerson: IssuerContactPerson | null | undefined,
+  personInCharge: IssuerPersonInChargeEvidence | null | undefined
+): string | null {
+  const fromContact = trimContactText(contactPerson?.email);
+  if (fromContact) return fromContact;
+  const fromPic = trimContactText(personInCharge?.email);
+  return fromPic || null;
+}
+
+/** ComRep [02000] Phone Number: current Contact Person, then RegTank PIC evidence. */
+export function resolveIssuerComrepPhone(
+  contactPerson: IssuerContactPerson | null | undefined,
+  personInCharge: IssuerPersonInChargeEvidence | null | undefined
+): string | null {
+  const fromContact = trimContactText(contactPerson?.contact);
+  if (fromContact) return fromContact;
+  const fromPic = trimContactText(personInCharge?.contactNumber);
+  return fromPic || null;
 }
 
 export const PROFILE_LOCKED_VERIFIED_DURING_ONBOARDING =
@@ -378,16 +571,16 @@ export function hasOrganizationPartyRole(roles: {
   return Boolean(roles.isDirector || roles.isShareholder || roles.isBoard || roles.isManagement);
 }
 
+/** Display the stored CashSouk Type of Company only. Confirmed RegTank maps prefill the master; they are not a live completeness substitute. */
 export function displayScCompanyTypeLabel(
   scCompanyType: string | null | undefined,
-  regTankEntityType?: string | null
+  _regTankEntityType?: string | null
 ): string | null {
   const stored =
     scCompanyType && scCompanyType in SC_COMPANY_TYPE_LABELS
       ? (scCompanyType as ScCompanyType)
       : null;
-  const mapped = stored ?? mapRegTankEntityTypeToScCompanyType(regTankEntityType);
-  return mapped ? SC_COMPANY_TYPE_LABELS[mapped] : null;
+  return stored ? SC_COMPANY_TYPE_LABELS[stored] : null;
 }
 
 export const SC_SHARE_TYPE_LABELS: Record<ScShareType, string> = {
@@ -730,7 +923,9 @@ export function issuerUiSectionForMissing(item: ProfileMissingItem): ProfileUiSe
   if (item.field.startsWith("registeredAddress") || item.field.startsWith("businessAddress")) {
     return "addresses";
   }
-  if (item.field === "phoneNumber" || item.field === "companyEmail") return "company";
+  if (item.field === "contactPersonEmail" || item.field === "contactPersonPhone") {
+    return "contact";
+  }
   return "company";
 }
 
@@ -767,7 +962,6 @@ export const INVESTOR_COMPANY_UI_SECTIONS: Array<{
   { id: "company", label: "Company Details", href: "#profile-company" },
   { id: "addresses", label: "Business Address", href: "#profile-addresses" },
   { id: "contact", label: "Account owner", href: "#profile-contact" },
-  { id: "people", label: "People", href: "#profile-people" },
   { id: "classification", label: "Investor classification", href: "#profile-classification" },
 ];
 
@@ -775,7 +969,6 @@ export function investorUiSectionForMissing(
   item: ProfileMissingItem,
   organizationType: "PERSONAL" | "COMPANY"
 ): ProfileUiSectionId {
-  if (item.step === "shareholders" || item.step === "board") return "people";
   if (item.field === "state" || item.field === "postalCode") return "addresses";
   if (item.field === "businessState" || item.field === "businessPostalCode") return "addresses";
   if (item.field === "scInvestorCategory" || item.field === "isSophisticatedInvestor") {
@@ -892,8 +1085,8 @@ export interface IssuerCompanyCompletenessInput {
   scCompanyType: ScCompanyType | null | undefined;
   registeredAddress: ProfileAddress | null | undefined;
   businessAddress: ProfileAddress | null | undefined;
-  phoneNumber: string | null | undefined;
-  companyEmail: string | null | undefined;
+  contactPerson?: IssuerContactPerson | null;
+  personInCharge?: IssuerPersonInChargeEvidence | null;
   companyActivities: string | null | undefined;
 }
 
@@ -963,6 +1156,8 @@ export interface IssuerPersonCompletenessInput {
   designation: ScDesignation | null | undefined;
   designationOther: string | null | undefined;
   appointmentDate: string | Date | null | undefined;
+  /** When set, onboarding-eligible individuals defer ComRep gaps until KYC APPROVED. */
+  kycOnboardingStatus?: string | null;
 }
 
 export interface IssuerFinancialCompletenessInput {
@@ -1204,8 +1399,14 @@ export function computeIssuerCompanyCompleteness(
   if (!hasRequiredPostcodeValue(input.businessAddress?.postalCode, input.businessAddress?.state)) {
     pushMissing(missing, step, "businessAddress.postalCode", "Business Address - Postcode");
   }
-  if (!hasValidPhoneValue(input.phoneNumber)) pushMissing(missing, step, "phoneNumber", "Phone Number");
-  if (!hasValidEmailValue(input.companyEmail)) pushMissing(missing, step, "companyEmail", "E-mail Address");
+  const contactEmail = resolveIssuerComrepEmail(input.contactPerson, input.personInCharge);
+  const contactPhone = resolveIssuerComrepPhone(input.contactPerson, input.personInCharge);
+  if (!hasValidPhoneValue(contactPhone)) {
+    pushMissing(missing, step, "contactPersonPhone", "Phone Number");
+  }
+  if (!hasValidEmailValue(contactEmail)) {
+    pushMissing(missing, step, "contactPersonEmail", "E-mail Address");
+  }
   return missing;
 }
 
@@ -1328,6 +1529,16 @@ function issuerPersonRequiredFields(party: IssuerPersonCompletenessInput): Issue
   const active =
     party.isDirector || party.isShareholder || party.isBoard || party.isManagement;
   if (!active) return [];
+  if (
+    shouldDeferOnboardingPersonComrep({
+      entityType: party.entityType,
+      isDirector: party.isDirector,
+      isShareholder: party.isShareholder,
+      kycOnboardingStatus: party.kycOnboardingStatus,
+    })
+  ) {
+    return [];
+  }
   const fields: IssuerPersonRequiredField[] = [];
   const corporate = party.entityType === "CORPORATE";
   const identityStep: ComrepProfileStepId = party.isShareholder ? "shareholders" : "board";
@@ -1476,6 +1687,7 @@ export function issuerPersonCompletenessInputFromParty(party: {
   designation: ScDesignation | null | undefined;
   designationOther: string | null | undefined;
   appointmentDate: string | Date | null | undefined;
+  kycOnboardingStatus?: string | null;
 }): IssuerPersonCompletenessInput {
   return {
     partyKey: party.partyKey,
@@ -1501,6 +1713,7 @@ export function issuerPersonCompletenessInputFromParty(party: {
     designation: party.designation,
     designationOther: party.designationOther,
     appointmentDate: party.appointmentDate,
+    kycOnboardingStatus: party.kycOnboardingStatus,
   };
 }
 
@@ -1797,29 +2010,18 @@ export function buildInvestorProfileCompleteness(input: {
   organizationType: "PERSONAL" | "COMPANY";
   personal?: InvestorPersonalCompletenessInput;
   corporate?: InvestorCorporateCompletenessInput;
-  people?: IssuerPersonCompletenessInput[];
 }): ComrepProfileCompleteness {
   const identityMissing =
     input.organizationType === "COMPANY"
       ? computeInvestorCorporateCompleteness(input.corporate ?? ({} as InvestorCorporateCompletenessInput))
       : computeInvestorPersonalCompleteness(input.personal ?? ({} as InvestorPersonalCompletenessInput));
-  const people = input.organizationType === "COMPANY" ? input.people ?? [] : [];
-  const peopleMissing = people.flatMap(computeIssuerPersonCompleteness);
-  const peopleRequired = people.reduce(
-    (total, party) => total + countIssuerPersonRequiredFields(party),
-    0
-  );
   const identityRequired = INVESTOR_IDENTITY_REQUIRED_COUNT;
   const identityFilled = Math.max(0, identityRequired - identityMissing.length);
-  const peopleFilled = Math.max(0, peopleRequired - peopleMissing.length);
-  const missing = [...identityMissing, ...peopleMissing];
-  const requiredCount = identityRequired + peopleRequired;
-  const filledCount = identityFilled + peopleFilled;
-  const percent = requiredCount === 0 ? 0 : Math.round((filledCount / requiredCount) * 100);
+  const percent = Math.round((identityFilled / identityRequired) * 100);
   return withUserFacingCompleteness({
     portal: "investor",
     organizationType: input.organizationType,
-    complete: missing.length === 0,
+    complete: identityMissing.length === 0,
     percent,
     steps: [
       {
@@ -1830,28 +2032,16 @@ export function buildInvestorProfileCompleteness(input: {
         filledCount: identityFilled,
         missing: identityMissing,
       },
-      ...(peopleRequired > 0 || peopleMissing.length > 0
-        ? [
-            {
-              id: "shareholders" as const,
-              label: ISSUER_PROFILE_STEP_LABELS.shareholders,
-              complete: peopleMissing.length === 0,
-              requiredCount: peopleRequired,
-              filledCount: peopleFilled,
-              missing: peopleMissing,
-            },
-          ]
-        : []),
       {
         id: "review",
         label: INVESTOR_PROFILE_STEP_LABELS.review,
-        complete: missing.length === 0,
+        complete: identityMissing.length === 0,
         requiredCount: 0,
         filledCount: 0,
         missing: [],
       },
     ],
-    missing,
+    missing: identityMissing,
   });
 }
 

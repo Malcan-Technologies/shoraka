@@ -87,6 +87,79 @@ describe("createPartySchema role flags", () => {
     })).not.toMatch(/personKind/i);
   });
 
+  it("allows an onboarding-eligible director without government ID when name and email are present", () => {
+    const parsed = createPartySchema.parse({
+      name: "Pre Id Director",
+      email: "preid@example.com",
+      isDirector: true,
+    });
+    expect(parsed.isDirector).toBe(true);
+    expect(parsed.identityNumber ?? null).toBeNull();
+  });
+
+  it("requires Person Email on the pre-ID director create path", () => {
+    expect(
+      parseMessage({
+        name: "Pre Id Director",
+        isDirector: true,
+      })
+    ).toMatch(/Person Email is required/i);
+  });
+
+  it("allows Director + Shareholder without government ID", () => {
+    const parsed = createPartySchema.parse({
+      name: "Both Roles",
+      email: "both@example.com",
+      isDirector: true,
+      isShareholder: true,
+      shareholdingPercentage: "10",
+    });
+    expect(parsed.isDirector).toBe(true);
+    expect(parsed.isShareholder).toBe(true);
+    expect(parsed.identityNumber ?? null).toBeNull();
+  });
+
+  it("allows a >=5% shareholder without government ID", () => {
+    const parsed = createPartySchema.parse({
+      name: "Pre Id Shareholder",
+      email: "share@example.com",
+      isShareholder: true,
+      shareholdingPercentage: "8",
+    });
+    expect(parsed.isShareholder).toBe(true);
+  });
+
+  it("rejects a <5% shareholder on the pre-ID create path", () => {
+    expect(
+      parseMessage({
+        name: "Small Holder",
+        email: "small@example.com",
+        isShareholder: true,
+        shareholdingPercentage: "4",
+      })
+    ).toMatch(/5%/);
+  });
+
+  it("still requires identity on the Board create path", () => {
+    const message = parseMessage({
+      name: "Board Member",
+      email: "board@example.com",
+      isBoard: true,
+      ...officerFields,
+    });
+    expect(message).toMatch(/Identity/i);
+  });
+
+  it("still requires identity on the corporate shareholder create path", () => {
+    const message = parseMessage({
+      name: "HoldCo Sdn Bhd",
+      entityType: "CORPORATE",
+      isShareholder: true,
+      shareholdingPercentage: "10",
+    });
+    expect(message).toMatch(/Identity/i);
+  });
+
   it("CASE E: Director + Shareholder >=5% saves without Board fields", () => {
     const parsed = createPartySchema.parse({
       ...identity,

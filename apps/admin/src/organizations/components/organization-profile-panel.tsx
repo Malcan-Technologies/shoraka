@@ -165,7 +165,6 @@ export function OrganizationProfilePanel({
         dateOfIncorporation: draft.dateOfIncorporation,
         dateOfCommencement: draft.dateOfCommencement,
         countryOfIncorporation: draft.countryOfIncorporation,
-        companyEmail: draft.companyEmail,
         phoneNumber: draft.phoneNumber,
       });
       if (issues.length > 0) {
@@ -347,8 +346,7 @@ export function OrganizationProfilePanel({
   const countryIncorpLabel = issuerCompany
     ? SC_MONTHLY_ISSUER.countryOfIncorporation.label
     : SC_MONTHLY_INVESTOR.nationalityCountry.label;
-  const phoneLabel = issuerCompany ? SC_MONTHLY_ISSUER.phoneNumber.label : "Phone Number";
-  const emailLabel = issuerCompany ? SC_MONTHLY_ISSUER.emailAddress.label : "Email";
+  const phoneLabel = issuerCompany ? "Company phone" : "Phone Number";
   const websiteLabel = SC_MONTHLY_ISSUER.website.label;
 
   return (
@@ -439,21 +437,10 @@ export function OrganizationProfilePanel({
                     value={draft.website}
                     onChange={(website) => setDraft((current) => ({ ...current, website }))}
                   />
-                  {portal === "issuer" ? (
-                    <EditableField
-                      label={emailLabel}
-                      value={draft.companyEmail}
-                      onChange={(companyEmail) => setDraft((current) => ({ ...current, companyEmail }))}
-                      required
-                      maxLength={255}
-                      error={fieldErrors.companyEmail}
-                    />
-                  ) : null}
                   <EditablePhoneField
                     label={phoneLabel}
                     value={draft.phoneNumber}
                     onChange={(phoneNumber) => setDraft((current) => ({ ...current, phoneNumber }))}
-                    required={issuerCompany}
                     error={fieldErrors.phoneNumber}
                   />
                 </>
@@ -528,19 +515,9 @@ export function OrganizationProfilePanel({
                       ) : null
                     }
                   />
-                  {portal === "issuer" ? (
-                    <ReadField
-                      label={emailLabel}
-                      value={org.companyEmail}
-                      missing={requiredFieldKeys.has("companyEmail")}
-                      required
-                    />
-                  ) : null}
                   <ReadField
                     label={phoneLabel}
                     value={org.phoneNumber}
-                    missing={requiredFieldKeys.has("phoneNumber")}
-                    required={issuerCompany}
                   />
                 </>
               )}
@@ -561,7 +538,7 @@ export function OrganizationProfilePanel({
             {editingSection === "about" ? (
               <>
                 <EditableField
-                  label="What Does Your Company Do?"
+                  label="Company Activities"
                   value={draft.whatDoesCompanyDo}
                   onChange={(whatDoesCompanyDo) =>
                     setDraft((current) => ({ ...current, whatDoesCompanyDo }))
@@ -596,7 +573,7 @@ export function OrganizationProfilePanel({
             ) : (
               <>
                 <ReadField
-                  label="What Does Your Company Do?"
+                  label="Company Activities"
                   value={draft.whatDoesCompanyDo}
                   missing={requiredFieldKeys.has("companyActivities")}
                   multiline

@@ -5,6 +5,7 @@ import {
   formatMasterPartyRoles,
   formatSharePercent,
   unifyOrganizationPeople,
+  adminMayInactivateMasterParty,
 } from "./organization-profile-overview";
 
 function party(
@@ -16,6 +17,7 @@ function party(
     entityType: "INDIVIDUAL",
     absentFromLatestExternal: false,
     name: "Sarah Tan",
+    email: null,
     salutation: null,
     identityPrefix: "NRIC",
     identityNumber: "900101145678",
@@ -43,6 +45,15 @@ function party(
     mismatches: [],
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
+    userId: null,
+    linkedUser: null,
+    platformAccess: {
+      status: "NOT_INVITED",
+      label: "Not invited",
+      memberRole: null,
+      invitationId: null,
+      invitationExpiresAt: null,
+    },
     ...overrides,
   };
 }
@@ -112,6 +123,70 @@ describe("unifyOrganizationPeople", () => {
     expect(unified.master[0]?.person?.name).toBe("Sarah Tan");
     expect(unified.peopleOnly).toHaveLength(0);
     expect(unified.external).toHaveLength(0);
+  });
+
+  it("moves MASTER_INACTIVE people out of the active list and into Inactive", () => {
+    const people: ApplicationPersonRow[] = [
+      {
+        matchKey: "900101-14-5678",
+        name: "Sarah Tan",
+        entityType: "INDIVIDUAL",
+        roles: ["DIRECTOR"],
+        sharePercentage: 20,
+        status: "APPROVED",
+        onboarding: { status: "APPROVED", id: "kyc-1" },
+        screening: { status: "APPROVED" },
+      },
+    ];
+    const unified = unifyOrganizationPeople(
+      [party({ id: "p1", partyKey: "900101145678", membershipStatus: "MASTER_INACTIVE" })],
+      people
+    );
+    expect(unified.master).toHaveLength(0);
+    expect(unified.inactive).toHaveLength(1);
+    expect(unified.inactive[0]?.person?.onboarding?.id).toBe("kyc-1");
+    expect(unified.inactive[0]?.person?.screening?.status).toBe("APPROVED");
+    expect(unified.peopleOnly).toHaveLength(0);
+  });
+});
+
+describe("adminMayInactivateMasterParty", () => {
+  it("allows Admin to mark a CTOS-absent active party inactive", () => {
+    expect(
+      adminMayInactivateMasterParty(
+        party({ id: "p1", partyKey: "a", absentFromLatestExternal: true })
+      )
+    ).toBe(true);
+  });
+
+  it("allows Admin to mark a CTOS-present active party inactive", () => {
+    expect(
+      adminMayInactivateMasterParty(
+        party({ id: "p1", partyKey: "a", absentFromLatestExternal: false, externalObservation: { name: "Sarah" } })
+      )
+    ).toBe(true);
+  });
+
+  it("allows Admin to mark a manually-added active party inactive", () => {
+    expect(
+      adminMayInactivateMasterParty(
+        party({ id: "p1", partyKey: "a", origin: "USER_ADDED", absentFromLatestExternal: false })
+      )
+    ).toBe(true);
+  });
+
+  it("does not allow marking an already inactive party inactive again", () => {
+    expect(
+      adminMayInactivateMasterParty(party({ id: "p1", partyKey: "a", membershipStatus: "MASTER_INACTIVE" }))
+    ).toBe(false);
+  });
+
+  it("does not allow marking a CTOS-observed-only party inactive", () => {
+    expect(
+      adminMayInactivateMasterParty(
+        party({ id: "p1", partyKey: "a", membershipStatus: "EXTERNAL_OBSERVED" })
+      )
+    ).toBe(false);
   });
 });
 

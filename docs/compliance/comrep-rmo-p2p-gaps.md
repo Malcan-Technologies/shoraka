@@ -149,13 +149,14 @@ The remaining annual gaps are `[06000]`–`[09000]` (registered users / national
 
 | Field | PDF p. | State | Current situation | Suggested collection point |
 |---|---|---|---|---|
-| Company category: Technology vs Non-Technology | 28 | Stored | `Invoice.offer_details.company_category` (snapshotted onto `Note.invoice_snapshot`) | Admin invoice offer. Not an issuer-profile field. Historical `IssuerOrganization.company_category` is retained and unused for completeness. |
+| Company category: Technology vs Non-Technology | 28 | Stored | `Invoice.details.company_category` (issuer Invoice step; Admin may correct at offer). Frozen onto `Invoice.offer_details` and `Note.invoice_snapshot` at offer send. Historical `IssuerOrganization.company_category` is unused. | Issuer application Invoice step. |
+| Date of Incorporation | 29 | Stored | `IssuerOrganization.date_of_incorporation` | Same. Not copied from registered-address country or silently overwritten by later CTOS. |
 | Date of Incorporation | 29 | Stored | `IssuerOrganization.date_of_incorporation` | Same. Not copied from registered-address country or silently overwritten by later CTOS. |
 | Date of Commencement | 29 | Stored | `IssuerOrganization.date_of_commencement` | Same. |
 | Country of Incorporation | 29 | Stored | `IssuerOrganization.country_of_incorporation` | Explicit field. Not copied from registered-address country. |
 | Type of Company (6-value SC enum) | 29 | Stored | `IssuerOrganization.sc_company_type` | Same. |
-| E-mail Address (company-level) | 29 | Stored | `IssuerOrganization.company_email` | Same. |
-| Company Activities | 30 | Needs confirmation | Profile still stores `aboutYourBusiness.whatDoesCompanyDo` as the business narrative. SC wording is activity based on the purpose of the issuer’s fundraising. That is not silently mapped to the profile narrative or to campaign Purpose of Fund Raising. | Export mapping needs compliance confirmation. |
+| E-mail Address (company contact) | 29 | Stored | `corporate_onboarding_data.contactPerson.email` with PIC fallback | Person in Charge on issuer profile. Not `User.email` or Person Email. |
+| Company Activities | 30 | Needs confirmation | Profile stores `aboutYourBusiness.whatDoesCompanyDo` as the issuer’s general/current Company Activities. SC wording is activity based on the purpose of the issuer’s fundraising. That is not silently mapped to every campaign. | Profile field retained. Final campaign-specific ComRep source = Needs business/compliance confirmation. |
 
 ### [03000] Financing Details 1 — pp. 30–33
 
@@ -164,8 +165,8 @@ The remaining annual gaps are `[06000]`–`[09000]` (registered users / national
 | Campaign Description | 31 | Partial | Spread across `NoteListing.summary`, `Note.product_snapshot.description`, and `Note.purpose_snapshot.financing_for`. No canonical field. | Pick one field as canonical for reporting — `purpose_snapshot.financing_for` is closest to the SC's intent — and document it. |
 | Campaign Approval Date | 31 | Partial | No dedicated timestamp. Approval is spread across `ApplicationReview.reviewed_at` per section and the invoice offer approval. | Stamp an `approved_at` on `Application` (or `Note`) when the invoice offer is approved. Small, high-value change. |
 | Campaign URL on Operator Website | 31 | Missing | The route `/investments/{note.id}` exists but no absolute URL is stored. | Compose at export time from a base-URL env var plus the note ID. No schema change needed. |
-| Campaign Sector (21-value SME Corp / MSIC enum) | 31–32 | Stored | `Invoice.offer_details.campaign_sector` (snapshotted onto `Note.invoice_snapshot.offer_details`). Admin confirms at invoice offer. Not auto-mapped from issuer Industry. | Admin invoice offer. Keep frozen on the note snapshot. |
-| Sustainability Category (00–G17 UN SDG) | 32 | Stored | `Invoice.offer_details.sustainability_category` (snapshotted onto `Note.invoice_snapshot`) | Admin invoice offer. Official dropdown: `00 – None`, `G1`–`G17`. Defaults to None in the offer UI until changed. |
+| Campaign Sector (21-value SME Corp / MSIC enum) | 31–32 | Stored | `Invoice.details.campaign_sector` (issuer Invoice step; Admin may correct at offer). Frozen onto `Invoice.offer_details.campaign_sector` and `Note.invoice_snapshot.offer_details`. Reuses `SC_CAMPAIGN_SECTORS`. Not auto-mapped from issuer Industry. | Issuer application Invoice step. |
+| Sustainability Category (00–G17 UN SDG) | 32 | Stored | `Invoice.details.sustainability_category` (issuer Invoice step; Admin may correct at offer). Frozen onto `Invoice.offer_details` and `Note.invoice_snapshot`. Official dropdown: `00 – None`, `G1`–`G17`. | Issuer application Invoice step. |
 | Type of Investment Note: Islamic vs conventional | 32 | Missing | Every note is treated as Shariah-compliant via fixed prospectus constants, but nothing records it as data. | Add a field on `Product` (inherited by notes) rather than per campaign, since it follows the product. **Not implemented — needs business confirmation.** |
 | Name of Shariah Adviser | 32 | Missing | — | Operator-level setting, snapshotted onto the note at publish. **Not implemented — needs business confirmation.** |
 | Purpose of Fund Raising (Working Capital / Business Expansion / Others) | 32 | Stored | Dedicated `why_raising_funds.sc_purpose_of_fund_raising` (+ `sc_purpose_other` when Others) is the issuer purpose question. Legacy free-text `financing_for` is retained on existing application JSON and still frozen into `purpose_snapshot.financing_for` when present; new applications freeze the SC label instead. | Application business-details step. Frozen onto `Note.purpose_snapshot`. |
@@ -231,7 +232,7 @@ Shareholder data comes from RegTank corporate onboarding and CTOS. Identity and 
 | Type of Investor (6-value SC enum: Angel, Retail, Sophisticated ×3, Non-sophisticated entity) | 44–45 | Partial | `sc_investor_category` is stored and set by Admin. Full ComRep completeness requires it; investor-facing completeness does not. Personal options: Angel / Retail / HNW Individual / Accredited. Corporate options: HNW Entity / Non-sophisticated entity. Product `is_sophisticated_investor` stays unchanged. | Admin investor detail → Investor classification. |
 | Amount Pledged (RM) | 45 | Partial | `NoteInvestment.amount` serves as both pledged and invested; the distinction is only the `status` transition COMMITTED → CONFIRMED. | Report `amount` while COMMITTED as pledged and while CONFIRMED as invested. Document the interpretation. |
 | Nominees Name; Nominees ROC | 45 | Missing | No nominee concept. Investments are held directly. | Only needed if nominee structures are supported. Confirm with compliance — likely permanently blank. |
-| Investment by Related Party (4-value enum) | 45 | Missing | `is_related_party` exists only on the **paymaster** in contract `customer_details`, not for investors. | Add a related-party declaration to investor onboarding, plus an admin override for staff/shareholder accounts we know about. |
+| Investment by Related Party (4-value enum) | 45 | Placed | Field is `NoteInvestment.investment_by_related_party` (per investment). Not investor profile or onboarding. Paymaster `is_related_party` is a different concept (issuer customer). Who sets the ComRep value needs confirmation; commit currently leaves it unset. | Investment record. Needs business/compliance confirmation on who sets it. |
 
 ### [08000] Fees and Charges (per campaign) — pp. 45–46
 

@@ -181,7 +181,7 @@ export function AboutYourBusinessCard({
       <div className="space-y-6 p-6">
         <div className="space-y-2">
           <Label htmlFor="profile-what-does-company-do" className={formLabelClassName}>
-            What does your company do?
+            Company Activities
           </Label>
           <TextareaWithCharCount
             id="profile-what-does-company-do"

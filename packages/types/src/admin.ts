@@ -382,6 +382,8 @@ export type OnboardingEventType =
   | "MEMBER_INVITED"
   | "MEMBER_REMOVED"
   | "MEMBER_ROLE_CHANGED"
+  | "PERSON_PLATFORM_USER_LINKED"
+  | "PERSON_PLATFORM_ACCESS_RESTORED"
   | "MARC_ASSESSMENT_SAVED"
   | "EOD_APPROVED"
   | "EOD_REJECTED";
@@ -537,6 +539,7 @@ export interface OrganizationInvitation {
   token: string;
   expiresAt: string;
   createdAt: string;
+  partyProfileId?: string | null;
   invitedBy: {
     firstName: string;
     lastName: string;
@@ -714,7 +717,7 @@ export interface OrganizationDetailResponse {
       email?: string | null;
       contactNumber?: string | null;
     };
-    /** Editable org contact for applications; seeded from personInCharge at COD */
+    /** Editable org contact; Person in Charge UI. Distinct from RegTank personInCharge evidence. */
     contactPerson?: {
       name?: string | null;
       position?: string | null;
@@ -764,7 +767,6 @@ export interface OrganizationDetailResponse {
   countryOfIncorporation?: string | null;
   scCompanyType?: string | null;
   companyCategory?: string | null;
-  companyEmail?: string | null;
   scInvestorCategory?: string | null;
   residentialAddress?: import("./comrep-profile").ProfileAddress | null;
 
@@ -832,6 +834,12 @@ export interface UpdateAdminOrganizationCorporateOnboardingInput {
     email?: string | null;
     contactNumber?: string | null;
   };
+  contactPerson?: {
+    name?: string | null;
+    position?: string | null;
+    email?: string | null;
+    contact?: string | null;
+  };
   aboutYourBusiness?: {
     whatDoesCompanyDo?: string | null;
     mainCustomers?: string | null;
@@ -862,7 +870,6 @@ export interface UpdateAdminOrganizationProfileInput {
   countryOfIncorporation?: string | null;
   scCompanyType?: import("./comrep-profile").ScCompanyType | null;
   companyCategory?: import("./comrep-profile").ScCompanyCategory | null;
-  companyEmail?: string | null;
   scInvestorCategory?: import("./comrep-profile").ScInvestorCategory | null;
   isSophisticatedInvestor?: boolean;
   residentialAddress?: AdminOrganizationAddressInput | null;

@@ -118,6 +118,52 @@ describe("logOrganizationMembershipEvent", () => {
     );
   });
 
+  it("writes PERSON_PLATFORM_USER_LINKED with party, user, actor, and invitation", async () => {
+    await logOrganizationMembershipEvent({
+      eventType: "PERSON_PLATFORM_USER_LINKED",
+      actorUserId: "admin-1",
+      ownerUserId: "owner-1",
+      organizationId: "org-1",
+      portalType: "issuer",
+      memberUserId: "AAAAA",
+      partyProfileId: "party-1",
+      invitationId: "inv-1",
+    });
+    expect(createOnboardingLogRowMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: "admin-1",
+        eventType: "PERSON_PLATFORM_USER_LINKED",
+        metadata: expect.objectContaining({
+          organizationId: "org-1",
+          memberUserId: "AAAAA",
+          partyProfileId: "party-1",
+          invitationId: "inv-1",
+        }),
+      }),
+      expect.anything()
+    );
+  });
+
+  it("writes PERSON_PLATFORM_ACCESS_RESTORED without NRIC", async () => {
+    await logOrganizationMembershipEvent({
+      eventType: "PERSON_PLATFORM_ACCESS_RESTORED",
+      actorUserId: "admin-1",
+      ownerUserId: "owner-1",
+      organizationId: "org-1",
+      portalType: "issuer",
+      memberUserId: "AAAAA",
+      partyProfileId: "party-1",
+    });
+    const metadata = createOnboardingLogRowMock.mock.calls[0]?.[0]?.metadata as Record<
+      string,
+      unknown
+    >;
+    expect(metadata.action).toBe("PERSON_PLATFORM_ACCESS_RESTORED");
+    expect(metadata.partyProfileId).toBe("party-1");
+    expect(metadata).not.toHaveProperty("identityNumber");
+    expect(metadata).not.toHaveProperty("nric");
+  });
+
   it("never stores the organisation UUID as organizationReference", async () => {
     await logOrganizationMembershipEvent({
       eventType: "MEMBER_ADDED",

@@ -13,6 +13,7 @@ function party(partial: Partial<OrganizationPartyProfileDto>): OrganizationParty
     entityType: "INDIVIDUAL",
     absentFromLatestExternal: false,
     name: "Ivan Chew Ken Yoong",
+    email: null,
     salutation: null,
     identityPrefix: "NRIC",
     identityNumber: "900101101234",
@@ -40,6 +41,15 @@ function party(partial: Partial<OrganizationPartyProfileDto>): OrganizationParty
     mismatches: [],
     createdAt: "2020-01-01T00:00:00.000Z",
     updatedAt: "2020-01-01T00:00:00.000Z",
+    userId: null,
+    linkedUser: null,
+    platformAccess: {
+      status: "NOT_INVITED",
+      label: "Not invited",
+      memberRole: null,
+      invitationId: null,
+      invitationExpiresAt: null,
+    },
     ...partial,
   };
 }
@@ -100,9 +110,73 @@ describe("buildPartyProfileDetailItems", () => {
     });
     const labels = items.map((item) => item.label);
     expect(labels).toContain("Name");
-    expect(labels).toContain("E-mail");
+    expect(labels).toContain("Email");
     expect(labels).not.toContain("Residential Address");
     expect(labels).not.toContain("Designation");
+  });
+
+  it("keeps onboarding email separate from platform login email", () => {
+    const items = buildPartyProfileDetailItems({
+      party: party({
+        linkedUser: {
+          userId: "AAAAA",
+          email: "login@example.com",
+          firstName: "Ivan",
+          lastName: "Chew",
+        },
+      }),
+      person: {
+        matchKey: "900101101234",
+        name: "Ivan Chew Ken Yoong",
+        entityType: "INDIVIDUAL",
+        roles: ["DIRECTOR"],
+        sharePercentage: 20,
+        status: "",
+        action: null,
+        screening: null,
+        onboarding: null,
+        requestId: null,
+        requestIdType: null,
+        icFrontUrl: null,
+        icBackUrl: null,
+        email: "onboarding@example.com",
+      },
+    });
+    expect(items.find((item) => item.label === "Email")?.value).toBe(
+      "onboarding@example.com"
+    );
+    expect(items.find((item) => item.label === "Platform login email")?.value).toBe(
+      "login@example.com"
+    );
+  });
+
+  it("does not show a generated user:{uuid} party_key as government ID", () => {
+    const items = buildPartyProfileDetailItems({
+      party: party({
+        partyKey: "user:550e8400-e29b-41d4-a716-446655440000",
+        identityNumber: null,
+        identityPrefix: null,
+      }),
+      person: {
+        matchKey: "user:550e8400-e29b-41d4-a716-446655440000",
+        name: "Ahmad Bin Ali",
+        entityType: "INDIVIDUAL",
+        roles: ["DIRECTOR"],
+        sharePercentage: null,
+        status: "",
+        action: null,
+        screening: null,
+        onboarding: { status: null, id: null },
+        requestId: null,
+        requestIdType: null,
+        icFrontUrl: null,
+        icBackUrl: null,
+        email: "ahmad@example.com",
+      },
+    });
+    const identity = items.find((item) => item.label === "Identity");
+    expect(identity?.value).toBe("Pending onboarding");
+    expect(identity?.value).not.toContain("user:");
   });
 
   it("says CTOS when the person is missing from or differs from the latest CTOS information", () => {

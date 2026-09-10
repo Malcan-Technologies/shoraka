@@ -93,6 +93,9 @@ describe("AdminService sendInvoiceOffer financing tenure", () => {
     applied_financing: 40_000,
     maturity_date: maturityDate,
     financing_tenure_days: 90,
+    company_category: "NON_TECHNOLOGY",
+    campaign_sector: "CONSTRUCTIONS",
+    sustainability_category: "G3",
   };
 
   let lastTx: ReturnType<typeof createTx> | null = null;
@@ -221,6 +224,30 @@ describe("AdminService sendInvoiceOffer financing tenure", () => {
     expect(offer.company_category).toBe("TECHNOLOGY");
     expect(offer.sustainability_category).toBe("G9");
     expect(offer.campaign_sector).toBe("MANUFACTURING");
+  });
+
+  it("stamps issuer-submitted invoice.details classification when Admin does not re-enter it", async () => {
+    await service.sendInvoiceOffer(
+      "app-1",
+      "inv-1",
+      40_000,
+      70,
+      12,
+      0,
+      "SME-3",
+      "admin-1",
+      undefined,
+      undefined,
+      105
+    );
+
+    const offer = lastTx?.invoice.updateMany.mock.calls[0]?.[0]?.data?.offer_details as Record<
+      string,
+      unknown
+    >;
+    expect(offer.company_category).toBe("NON_TECHNOLOGY");
+    expect(offer.campaign_sector).toBe("CONSTRUCTIONS");
+    expect(offer.sustainability_category).toBe("G3");
   });
 
   it("rejects an offer tenure shorter than days remaining to the due date", async () => {

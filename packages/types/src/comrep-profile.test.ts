@@ -8,6 +8,9 @@ import {
   computeShareholderCompleteness,
   displayScCompanyTypeLabel,
   ISSUER_COMPANY_COMPLETENESS_FIELD_COUNT,
+  mapRegTankEntityTypeToScCompanyType,
+  resolveIssuerComrepEmail,
+  resolveIssuerComrepPhone,
   ISSUER_FINANCIAL_REQUIRED_FIELD_COUNT,
   groupInvestorMissingByProfileSection,
   groupIssuerMissingByProfileSection,
@@ -16,11 +19,16 @@ import {
   issuerFlowStepComplete,
   isMasterFieldEmpty,
   latestUnauditedYearKey,
-  mapRegTankEntityTypeToScCompanyType,
   missingItemsForIssuerFlowStep,
   OPERATOR_HOLDER_TYPES,
   ORGANIZATION_PARTY_ENTITY_TYPES,
   parseInvoiceOfferCampaignSector,
+  resolveInvoiceCampaignSector,
+  resolveInvoiceCompanyCategory,
+  resolveInvoiceSustainabilityCategory,
+  isIssuerOfficerRole,
+  SC_INVESTMENT_RELATED_PARTIES,
+  SC_INVESTMENT_RELATED_PARTY_LABELS,
   formatScPurposeOfFundRaisingDisplay,
   resolveApplicationPurposeOfFundRaising,
   SC_INVESTOR_CATEGORIES,
@@ -39,6 +47,10 @@ import {
   ISSUER_PROFILE_PNL_KEYS,
 } from "./financial-field-labels";
 
+const FILLED_CONTACT = {
+  contactPerson: { email: "ops@acme.test", contact: "+60123456789" },
+} as const;
+
 describe("issuer company completeness [02000]", () => {
   it("requires registered and business line1, state, and postcode", () => {
     const missing = computeIssuerCompanyCompleteness({
@@ -51,8 +63,7 @@ describe("issuer company completeness [02000]", () => {
       scCompanyType: "PRIVATE_LIMITED",
       registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
       businessAddress: { line1: "", state: "Selangor", postalCode: "40000" },
-      phoneNumber: "+60123456789",
-      companyEmail: "ops@acme.test",
+      ...FILLED_CONTACT,
       companyActivities: "Invoice financing",
     });
     expect(missing.map((m) => m.field)).toContain("businessAddress.line1");
@@ -69,12 +80,13 @@ describe("issuer company completeness [02000]", () => {
       scCompanyType: "PRIVATE_LIMITED",
       registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
       businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
-      phoneNumber: "+60123456789",
-      companyEmail: "ops@acme.test",
+      ...FILLED_CONTACT,
       companyActivities: null,
     });
     expect(missing.map((m) => m.field)).not.toContain("website");
     expect(missing.map((m) => m.field)).not.toContain("companyCategory");
+    expect(missing.map((m) => m.field)).not.toContain("campaignSector");
+    expect(missing.map((m) => m.field)).not.toContain("campaign_sector");
     expect(missing.map((m) => m.field)).not.toContain("organizationId");
     expect(missing.map((m) => m.field)).not.toContain("companyActivities");
     expect(missing).toHaveLength(0);
@@ -91,8 +103,6 @@ describe("issuer company completeness [02000]", () => {
       scCompanyType: null,
       registeredAddress: null,
       businessAddress: null,
-      phoneNumber: null,
-      companyEmail: null,
       companyActivities: null,
     });
     expect(missing).toHaveLength(ISSUER_COMPANY_COMPLETENESS_FIELD_COUNT);
@@ -109,11 +119,10 @@ describe("issuer company completeness [02000]", () => {
       scCompanyType: "PRIVATE_LIMITED",
       registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
       businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
-      phoneNumber: "+60123456789",
-      companyEmail: "   ",
+      contactPerson: { email: "   ", contact: "+60123456789" },
       companyActivities: null,
     });
-    expect(missing.map((m) => m.field)).toEqual(["companyEmail"]);
+    expect(missing.map((m) => m.field)).toEqual(["contactPersonEmail"]);
   });
 
   it("CASE F: invalid e-mail is missing; a valid e-mail is not", () => {
@@ -127,11 +136,10 @@ describe("issuer company completeness [02000]", () => {
       scCompanyType: "PRIVATE_LIMITED",
       registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
       businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
-      phoneNumber: "+60123456789",
-      companyEmail: "not-an-email",
+      contactPerson: { email: "not-an-email", contact: "+60123456789" },
       companyActivities: null,
     });
-    expect(invalid.map((m) => m.field)).toEqual(["companyEmail"]);
+    expect(invalid.map((m) => m.field)).toEqual(["contactPersonEmail"]);
     const valid = computeIssuerCompanyCompleteness({
       name: "Acme Sdn Bhd",
       registrationNumber: "1234567A",
@@ -142,11 +150,10 @@ describe("issuer company completeness [02000]", () => {
       scCompanyType: "PRIVATE_LIMITED",
       registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
       businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
-      phoneNumber: "+60123456789",
-      companyEmail: "ops@acme.test",
+      ...FILLED_CONTACT,
       companyActivities: null,
     });
-    expect(valid.map((m) => m.field)).not.toContain("companyEmail");
+    expect(valid.map((m) => m.field)).not.toContain("contactPersonEmail");
   });
 
   it("CASE D: a local Malaysian phone is complete", () => {
@@ -160,11 +167,53 @@ describe("issuer company completeness [02000]", () => {
       scCompanyType: "PRIVATE_LIMITED",
       registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
       businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
-      phoneNumber: "0182316817",
-      companyEmail: "ops@acme.test",
+      contactPerson: { email: "ops@acme.test", contact: "0182316817" },
       companyActivities: null,
     });
-    expect(missing.map((m) => m.field)).not.toContain("phoneNumber");
+    expect(missing.map((m) => m.field)).not.toContain("contactPersonPhone");
+  });
+
+  it("uses Contact Person email/phone for ComRep and falls back to PIC only when empty", () => {
+    expect(
+      resolveIssuerComrepEmail({ email: "khai.kit@company.com" }, { email: "aisha@regtank.test" })
+    ).toBe("khai.kit@company.com");
+    expect(resolveIssuerComrepEmail({ email: "" }, { email: "aisha@regtank.test" })).toBe(
+      "aisha@regtank.test"
+    );
+    expect(
+      resolveIssuerComrepPhone({ contact: "+60122222222" }, { contactNumber: "+60111111111" })
+    ).toBe("+60122222222");
+    const fromPic = computeIssuerCompanyCompleteness({
+      name: "Acme Sdn Bhd",
+      registrationNumber: "1234567A",
+      organizationId: "org_1",
+      dateOfIncorporation: "2020-01-01",
+      dateOfCommencement: "2020-02-01",
+      countryOfIncorporation: "Malaysia",
+      scCompanyType: "PRIVATE_LIMITED",
+      registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
+      businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
+      contactPerson: { email: "", contact: "" },
+      personInCharge: { email: "aisha@regtank.test", contactNumber: "+60111111111" },
+      companyActivities: null,
+    });
+    expect(fromPic).toHaveLength(0);
+    const incomplete = computeIssuerCompanyCompleteness({
+      name: "Acme Sdn Bhd",
+      registrationNumber: "1234567A",
+      organizationId: "org_1",
+      dateOfIncorporation: "2020-01-01",
+      dateOfCommencement: "2020-02-01",
+      countryOfIncorporation: "Malaysia",
+      scCompanyType: "PRIVATE_LIMITED",
+      registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
+      businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
+      companyActivities: null,
+    });
+    expect(incomplete.map((m) => m.field)).toEqual(
+      expect.arrayContaining(["contactPersonEmail", "contactPersonPhone"])
+    );
+    expect(incomplete.map((m) => m.field)).not.toContain("companyEmail");
   });
 
   it("does not require postcode when State is Outside Malaysia", () => {
@@ -178,8 +227,7 @@ describe("issuer company completeness [02000]", () => {
       scCompanyType: "FOREIGN",
       registeredAddress: { line1: "1 Overseas Rd", state: "Outside Malaysia", postalCode: "" },
       businessAddress: { line1: "2 Overseas Rd", state: "Outside Malaysia", postalCode: null },
-      phoneNumber: "+60123456789",
-      companyEmail: "ops@acme.test",
+      ...FILLED_CONTACT,
       companyActivities: null,
     });
     expect(missing.map((m) => m.field)).not.toContain("registeredAddress.postalCode");
@@ -201,8 +249,7 @@ describe("issuer profile completeness", () => {
         scCompanyType: "PRIVATE_LIMITED",
         registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
         businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
-        phoneNumber: "+60123456789",
-        companyEmail: "ops@acme.test",
+        ...FILLED_CONTACT,
         companyActivities: "Lending",
       },
       shareholders: [],
@@ -227,8 +274,7 @@ describe("issuer profile completeness", () => {
         scCompanyType: "PRIVATE_LIMITED",
         registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
         businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
-        phoneNumber: "+60123456789",
-        companyEmail: "ops@acme.test",
+        ...FILLED_CONTACT,
         companyActivities: "Lending",
       },
       shareholders: [
@@ -315,6 +361,86 @@ describe("investor personal completeness [07000]", () => {
     expect(result.userComplete).toBe(true);
     expect(result.missing.some((m) => m.field === "address.line1")).toBe(false);
   });
+
+  it("does not require company-only incorporation fields on a personal investor", () => {
+    const result = buildInvestorProfileCompleteness({
+      organizationType: "PERSONAL",
+      personal: {
+        name: "Ali Bin Abu",
+        identityPrefix: "NRIC",
+        identityNumber: "800101011234",
+        dateOfBirth: "1980-01-01",
+        gender: "MALE",
+        state: "Selangor",
+        postalCode: "47300",
+        nationality: "Malaysia",
+        scInvestorCategory: "RETAIL",
+        isSophisticatedInvestor: false,
+      },
+    });
+    expect(result.missing.map((item) => item.field)).not.toContain("dateOfIncorporation");
+    expect(result.missing.map((item) => item.field)).not.toContain("registrationNumber");
+    expect(result.missing.map((item) => item.field)).not.toContain("countryOfIncorporation");
+    expect(result.missing.map((item) => item.field)).not.toContain("relatedParty");
+    expect(result.missing.map((item) => item.field)).not.toContain("investmentByRelatedParty");
+  });
+});
+
+describe("investor company completeness is not issuer Person completeness", () => {
+  const completeCorporate = {
+    name: "Acme Capital Sdn Bhd",
+    registrationNumber: "202401000001",
+    identityPrefix: "ROC" as const,
+    dateOfIncorporation: "2020-01-01",
+    countryOfIncorporation: "Malaysia",
+    gender: "NOT_APPLICABLE" as const,
+    businessState: "Selangor",
+    businessPostalCode: "47300",
+    scInvestorCategory: "NON_SOPHISTICATED_ENTITY" as const,
+    isSophisticatedInvestor: false,
+  };
+
+  it("stays complete when a company-investor Person is missing issuer designation and share block", () => {
+    const result = buildInvestorProfileCompleteness({
+      organizationType: "COMPANY",
+      corporate: completeCorporate,
+    });
+    expect(result.complete).toBe(true);
+    expect(result.steps.some((step) => step.id === "shareholders" || step.id === "board")).toBe(false);
+    expect(result.missing.map((item) => item.field)).not.toEqual(
+      expect.arrayContaining(["designation", "shareType", "shareholdingUnits", "shareholdingAmount"])
+    );
+    expect(result.missing.some((item) => item.field === "campaignId")).toBe(false);
+    expect(result.missing.some((item) => item.field === "issuerId")).toBe(false);
+    expect(result.missing.some((item) => item.field === "relatedParty")).toBe(false);
+    expect(result.missing.some((item) => item.field === "investmentByRelatedParty")).toBe(false);
+  });
+
+  it("remains incomplete for genuine Investor Details identity gaps", () => {
+    const result = buildInvestorProfileCompleteness({
+      organizationType: "COMPANY",
+      corporate: {
+        ...completeCorporate,
+        name: "",
+        dateOfIncorporation: null,
+      },
+    });
+    expect(result.complete).toBe(false);
+    expect(result.missing.map((item) => item.field)).toEqual(
+      expect.arrayContaining(["name", "dateOfIncorporation"])
+    );
+    expect(result.missing.map((item) => item.field)).not.toContain("dateOfBirth");
+  });
+
+  it("does not list People as an Investor ComRep completeness section", () => {
+    const rows = groupInvestorMissingByProfileSection([], "COMPANY");
+    expect(rows.map((row) => row.id)).toEqual([
+      "company",
+      "addresses",
+      "contact",
+      "classification",
+    ]);
+  });
 });
 
 describe("master vs observation helpers", () => {
@@ -354,7 +480,7 @@ describe("issuer profile flow grouping", () => {
     percent: 70,
     steps: [],
     missing: [
-      { step: "company" as const, field: "companyEmail", label: "E-mail address" },
+      { step: "company" as const, field: "contactPersonEmail", label: "E-mail Address" },
       { step: "shareholders" as const, field: "shareType", label: "Type of shares", partyKey: "a", partyName: "Max" },
       { step: "board" as const, field: "designation", label: "Designation", partyKey: "b", partyName: "Sarah" },
       { step: "financials" as const, field: "revenue", label: "Total revenue" },
@@ -766,14 +892,14 @@ describe("profile UI section grouping", () => {
       { step: "company", field: "dateOfIncorporation", label: "Date of incorporation" },
       { step: "company", field: "companyActivities", label: "Company activities" },
       { step: "company", field: "registeredAddress.state", label: "Registered address — state" },
-      { step: "company", field: "phoneNumber", label: "Phone number" },
+      { step: "company", field: "contactPersonPhone", label: "Phone Number" },
       { step: "shareholders", field: "gender", label: "Gender", partyKey: "p1" },
       { step: "financials", field: "revenue", label: "Total revenue and income" },
     ]);
-    expect(rows.find((row) => row.id === "company")?.missingCount).toBe(2);
+    expect(rows.find((row) => row.id === "company")?.missingCount).toBe(1);
     expect(rows.find((row) => row.id === "about")?.missingCount).toBe(1);
     expect(rows.find((row) => row.id === "addresses")?.missingCount).toBe(1);
-    expect(rows.find((row) => row.id === "contact")?.missingCount).toBe(0);
+    expect(rows.find((row) => row.id === "contact")?.missingCount).toBe(1);
     expect(rows.find((row) => row.id === "people")?.missingCount).toBe(1);
     expect(rows.find((row) => row.id === "financials")?.missingCount).toBe(1);
   });
@@ -805,6 +931,75 @@ describe("campaign SC enums", () => {
     expect(parseInvoiceOfferCampaignSector({ campaign_sector: "MANUFACTURING" })).toBe("MANUFACTURING");
     expect(parseInvoiceOfferCampaignSector({ industry: "Manufacturing" })).toBeNull();
     expect(parseInvoiceOfferCampaignSector({ company_category: "TECHNOLOGY" })).toBeNull();
+  });
+
+  it("reads Company category and Sustainability from invoice.details, not issuer profile", () => {
+    expect(
+      resolveInvoiceCompanyCategory({
+        details: { company_category: "TECHNOLOGY" },
+        offer_details: null,
+      })
+    ).toBe("TECHNOLOGY");
+    expect(
+      resolveInvoiceSustainabilityCategory({
+        details: { sustainability_category: "G9" },
+        offer_details: null,
+      })
+    ).toBe("G9");
+    expect(
+      resolveInvoiceCompanyCategory({
+        details: { company_category: "NON_TECHNOLOGY" },
+        offer_details: { company_category: "TECHNOLOGY" },
+      })
+    ).toBe("TECHNOLOGY");
+  });
+
+  it("reads Campaign Sector from invoice.details until offer freeze, then offer_details wins", () => {
+    expect(
+      resolveInvoiceCampaignSector({
+        details: { campaign_sector: "CONSTRUCTIONS" },
+        offer_details: null,
+      })
+    ).toBe("CONSTRUCTIONS");
+    expect(
+      resolveInvoiceCampaignSector({
+        details: { campaign_sector: "CONSTRUCTIONS" },
+        offer_details: { campaign_sector: "MANUFACTURING" },
+      })
+    ).toBe("MANUFACTURING");
+    expect(
+      resolveInvoiceCampaignSector({
+        details: { industry: "Manufacturing" },
+        offer_details: null,
+      })
+    ).toBeNull();
+  });
+
+  it("lets two invoices of the same issuer keep independent classification values", () => {
+    const invoiceA = {
+      details: {
+        company_category: "TECHNOLOGY",
+        campaign_sector: "MANUFACTURING",
+        sustainability_category: "G8",
+      },
+    };
+    const invoiceB = {
+      details: {
+        company_category: "NON_TECHNOLOGY",
+        campaign_sector: "CONSTRUCTIONS",
+        sustainability_category: "NONE",
+      },
+    };
+    expect(resolveInvoiceCompanyCategory(invoiceA)).toBe("TECHNOLOGY");
+    expect(resolveInvoiceCompanyCategory(invoiceB)).toBe("NON_TECHNOLOGY");
+    expect(resolveInvoiceCampaignSector(invoiceA)).toBe("MANUFACTURING");
+    expect(resolveInvoiceCampaignSector(invoiceB)).toBe("CONSTRUCTIONS");
+    expect(resolveInvoiceSustainabilityCategory(invoiceA)).toBe("G8");
+    expect(resolveInvoiceSustainabilityCategory(invoiceB)).toBe("NONE");
+  });
+
+  it("does not default Sustainability Category to 00 – None", () => {
+    expect(resolveInvoiceSustainabilityCategory({ details: {}, offer_details: null })).toBeNull();
   });
 });
 
@@ -856,8 +1051,7 @@ describe("issuer profile financial editor keys", () => {
         scCompanyType: "PRIVATE_LIMITED",
         registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
         businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
-        phoneNumber: "+60123456789",
-        companyEmail: "ops@acme.test",
+        ...FILLED_CONTACT,
         companyActivities: null,
       },
       shareholders: [
@@ -917,12 +1111,16 @@ describe("issuer profile financial editor keys", () => {
 });
 
 describe("company type mapping and personal KYC visibility", () => {
-  it("maps Limited Liability Partnerships to LLP and does not display the raw RegTank label", () => {
-    expect(mapRegTankEntityTypeToScCompanyType("Limited Liability Partnerships")).toBe("LLP");
-    expect(displayScCompanyTypeLabel(null, "Limited Liability Partnerships")).toBe(
-      "Limited Liability Partnership"
+  it("maps only confirmed exact RegTank Type of Entity strings", () => {
+    expect(mapRegTankEntityTypeToScCompanyType("Private Limited Company (Sdn Bhd)")).toBe(
+      "PRIVATE_LIMITED"
     );
-    expect(displayScCompanyTypeLabel(null, "Something unknown")).toBeNull();
+    expect(mapRegTankEntityTypeToScCompanyType("Limited Liability Partnerships")).toBe("LLP");
+    expect(mapRegTankEntityTypeToScCompanyType("Unlisted Public Company")).toBeNull();
+    expect(mapRegTankEntityTypeToScCompanyType("Foreign")).toBeNull();
+    expect(mapRegTankEntityTypeToScCompanyType("Something unknown")).toBeNull();
+    expect(displayScCompanyTypeLabel("LLP")).toBe("Limited Liability Partnership");
+    expect(displayScCompanyTypeLabel(null, "Limited Liability Partnerships")).toBeNull();
   });
 
   it("hides organisation Personal Details (KYC) for company organisations (scenario G)", () => {
@@ -1065,6 +1263,69 @@ describe("people completeness by actual role", () => {
     expect(missing.map((item) => item.field)).not.toContain("gender");
   });
 
+  it("still requires monthly [05000] share fields on an issuer shareholder", () => {
+    const missing = computeIssuerPersonCompleteness({
+      partyKey: "800101011234",
+      name: "Ali",
+      entityType: "INDIVIDUAL",
+      isDirector: false,
+      isShareholder: true,
+      isBoard: false,
+      isManagement: false,
+      identityPrefix: "NRIC",
+      identityNumber: "800101011234",
+      dateOfBirth: "1980-01-01",
+      dateOfIncorporation: null,
+      gender: "MALE",
+      nationality: "MALAYSIA",
+      countryOfIncorporation: null,
+      address: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
+      shareType: null,
+      shareTypeOther: null,
+      shareholdingUnits: null,
+      shareholdingAmount: null,
+      shareholdingPercentage: "25",
+      designation: null,
+      designationOther: null,
+      appointmentDate: null,
+    });
+    expect(missing.map((item) => item.field)).toEqual(
+      expect.arrayContaining(["shareType", "shareholdingUnits", "shareholdingAmount"])
+    );
+    expect(missing.map((item) => item.field)).not.toContain("designation");
+    expect(missing.map((item) => item.field)).not.toContain("dateAcquired");
+  });
+
+  it("still requires monthly [06000] Designation on issuer Board/Management", () => {
+    const missing = computeIssuerPersonCompleteness({
+      partyKey: "800101011234",
+      name: "Ali",
+      entityType: "INDIVIDUAL",
+      isDirector: false,
+      isShareholder: false,
+      isBoard: true,
+      isManagement: false,
+      identityPrefix: "NRIC",
+      identityNumber: "800101011234",
+      dateOfBirth: "1980-01-01",
+      dateOfIncorporation: null,
+      gender: "MALE",
+      nationality: "MALAYSIA",
+      countryOfIncorporation: null,
+      address: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
+      shareType: null,
+      shareTypeOther: null,
+      shareholdingUnits: null,
+      shareholdingAmount: null,
+      shareholdingPercentage: null,
+      designation: null,
+      designationOther: null,
+      appointmentDate: "2020-01-01",
+    });
+    expect(missing.map((item) => item.field)).toContain("designation");
+    expect(missing.map((item) => item.field)).not.toContain("shareType");
+  });
+
   it("counts populated company email as filled (scenario B)", () => {
     const missing = computeIssuerCompanyCompleteness({
       name: "Acme Sdn Bhd",
@@ -1076,11 +1337,34 @@ describe("people completeness by actual role", () => {
       scCompanyType: "LLP",
       registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
       businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
-      phoneNumber: "+60123456789",
-      companyEmail: "ops@acme.test",
+      ...FILLED_CONTACT,
       companyActivities: null,
     });
+    expect(missing.map((item) => item.field)).not.toContain("contactPersonEmail");
     expect(missing.map((item) => item.field)).not.toContain("companyEmail");
+  });
+});
+
+describe("person role independence", () => {
+  it("does not treat Director as Board of Director for [06000]", () => {
+    expect(isIssuerOfficerRole({ isBoard: false, isManagement: false })).toBe(false);
+    expect(isIssuerOfficerRole({ isBoard: true, isManagement: false })).toBe(true);
+    expect(isIssuerOfficerRole({ isBoard: false, isManagement: true })).toBe(true);
+  });
+});
+
+describe("Investment by Related Party [07000]", () => {
+  it("keeps the SC four-value list off investor profile completeness", () => {
+    expect(SC_INVESTMENT_RELATED_PARTIES).toEqual([
+      "SHAREHOLDER_OF_RMO",
+      "RELATED_CO_OF_RMO",
+      "OFFICER_OF_RMO",
+      "NOT_APPLICABLE",
+    ]);
+    expect(SC_INVESTMENT_RELATED_PARTY_LABELS.SHAREHOLDER_OF_RMO).toBe("Shareholder of the RMO");
+    expect(SC_INVESTMENT_RELATED_PARTY_LABELS.RELATED_CO_OF_RMO).toBe("Related co of the RMO");
+    expect(SC_INVESTMENT_RELATED_PARTY_LABELS.OFFICER_OF_RMO).toBe("Officer of the RMO");
+    expect(SC_INVESTMENT_RELATED_PARTY_LABELS.NOT_APPLICABLE).toBe("Not applicable");
   });
 });
 

@@ -676,6 +676,17 @@ export class ApiClient {
     );
   }
 
+  async inactivatePartyProfile(
+    portal: "investor" | "issuer",
+    organizationId: string,
+    partyId: string
+  ): Promise<ApiResponse<OrganizationPartyProfileDto> | ApiError> {
+    return this.post<OrganizationPartyProfileDto>(
+      `/v1/organizations/${portal}/${organizationId}/party-profiles/${partyId}/inactivate`,
+      {}
+    );
+  }
+
   async getIssuerLatestFinancialStatements(
     organizationId: string
   ): Promise<
@@ -733,6 +744,18 @@ export class ApiClient {
     return this.post<OrganizationPartyProfileDto>(
       `/v1/admin/organizations/${portal}/${organizationId}/party-profiles/${partyId}/adopt`,
       {}
+    );
+  }
+
+  async resolvePersonIdentityConflict(
+    portal: "investor" | "issuer",
+    organizationId: string,
+    partyId: string,
+    action: "KEEP_ONBOARDING" | "KEEP_CTOS"
+  ): Promise<ApiResponse<OrganizationPartyProfileDto> | ApiError> {
+    return this.post<OrganizationPartyProfileDto>(
+      `/v1/admin/organizations/${portal}/${organizationId}/party-profiles/${partyId}/resolve-identity-conflict`,
+      { action }
     );
   }
 
@@ -842,6 +865,43 @@ export class ApiClient {
 
   async deleteOperatorOfficer(id: string): Promise<ApiResponse<OperatorProfileDto> | ApiError> {
     return this.delete<OperatorProfileDto>(`/v1/admin/operator-profile/officers/${id}`);
+  }
+
+  async requestOperatorSigningSignatureUploadUrl(data: {
+    fileName: string;
+    contentType: string;
+    fileSize: number;
+  }): Promise<ApiResponse<{ uploadUrl: string; s3Key: string; expiresIn: number }> | ApiError> {
+    return this.post("/v1/admin/operator-profile/signing-people/signature-upload-url", data);
+  }
+
+  async requestOperatorCompanyStampUploadUrl(data: {
+    fileName: string;
+    contentType: string;
+    fileSize: number;
+  }): Promise<ApiResponse<{ uploadUrl: string; s3Key: string; expiresIn: number }> | ApiError> {
+    return this.post("/v1/admin/operator-profile/company-stamp/upload-url", data);
+  }
+
+  async patchOperatorCompanyStamp(data: {
+    s3Key: string;
+    fileName?: string;
+    contentType?: string;
+  }): Promise<ApiResponse<OperatorProfileDto> | ApiError> {
+    return this.patch<OperatorProfileDto>("/v1/admin/operator-profile/company-stamp", data);
+  }
+
+  async createOperatorSigningPerson(
+    data: Record<string, unknown>
+  ): Promise<ApiResponse<OperatorProfileDto> | ApiError> {
+    return this.post<OperatorProfileDto>("/v1/admin/operator-profile/signing-people", data);
+  }
+
+  async updateOperatorSigningPerson(
+    id: string,
+    data: Record<string, unknown>
+  ): Promise<ApiResponse<OperatorProfileDto> | ApiError> {
+    return this.patch<OperatorProfileDto>(`/v1/admin/operator-profile/signing-people/${id}`, data);
   }
 
   async createOperatorAdvisor(

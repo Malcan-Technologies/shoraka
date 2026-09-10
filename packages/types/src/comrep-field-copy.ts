@@ -662,17 +662,21 @@ export const SC_MONTHLY_ISSUER = {
   },
   companyActivities: {
     label: "Company Activities",
-    help: "Enter the issuer’s company activity based on the purpose of this fundraising.",
+    help: "Enter the issuer’s general or current business activity. Campaign-specific ComRep reporting of this field remains Needs business/compliance confirmation.",
     required: false as const,
-    requiredReason: "Mapping unresolved — NEEDS BUSINESS/COMPLIANCE CONFIRMATION",
+    requiredReason: "Stored on Issuer Profile; campaign-specific ComRep source unresolved",
   },
 } as const;
 
 /** Monthly [03000] campaign fields used in offer UI */
 export const SC_MONTHLY_CAMPAIGN = {
+  companyCategory: {
+    label: "Company category",
+    help: "Select Technology or Non-Technology for this invoice/campaign. CashSouk-required for application completeness.",
+  },
   campaignSector: {
     label: "Campaign Sector",
-    help: "Select the sector for this fundraising campaign. Use SME Corp definitions.",
+    help: "Select the sector for this fundraising campaign. Use SME Corp definitions. CashSouk-required for application completeness.",
   },
   sustainabilityCategory: { label: "Sustainability Category of the Campaign" },
   purposeOfFundRaising: { label: "Purpose of Fund Raising" },

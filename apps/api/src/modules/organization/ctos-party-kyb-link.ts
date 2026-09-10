@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import {
   getCtosPartySupplementPipelineStatus,
   issuerShareholdingMeetsMinimum,
+  isGeneratedUserPartyKey,
   normalizeDirectorShareholderIdKey,
   parseCtosPartySupplement,
   sanitizeCtosPartySupplementOnboardingJsonForPersist,
@@ -190,7 +191,31 @@ export async function linkCtosPartyToKyb(input: LinkCtosPartyToKybInput): Promis
     return;
   }
 
-  const partyKeyNorm = normalizeDirectorShareholderIdKey(partyKey);
+  let partyKeyNorm = isGeneratedUserPartyKey(partyKey)
+    ? null
+    : normalizeDirectorShareholderIdKey(partyKey);
+  if (isGeneratedUserPartyKey(partyKey)) {
+    const party = await prisma.organizationPartyProfile.findFirst({
+      where: { issuer_organization_id: organizationId, party_key: partyKey },
+      select: { identity_number: true },
+    });
+    partyKeyNorm = normalizeDirectorShareholderIdKey(party?.identity_number ?? null);
+    if (!partyKeyNorm) {
+      logger.info(
+        { organizationId, partyKey },
+        "CTOS KYB link skipped: pre-ID person has no identity_number yet"
+      );
+      return;
+    }
+  }
+  if (!partyKeyNorm) {
+    logger.info(
+      { organizationId, partyKey },
+      "CTOS KYB link skipped: missing CTOS identity match key"
+    );
+    return;
+  }
+
   const report = await prisma.ctosReport.findFirst({
     where: {
       issuer_organization_id: organizationId,
