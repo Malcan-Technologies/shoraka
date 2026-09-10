@@ -85,6 +85,13 @@ import { getRegTankIndividualOnboardingOrigin } from "../../config/regtank";
 import { listLatestCtosSubjectReportsForAdminOrg } from "../ctos/ctos-report-service";
 import { allocateDisplayReference } from "../../lib/display-reference";
 
+export type CreateOrganizationOutcome = "CREATED" | "EXISTING_INCOMPLETE_MATCH";
+
+export type CreateOrganizationServiceResult = {
+  outcome: CreateOrganizationOutcome;
+  organization: InvestorOrganization | IssuerOrganization;
+};
+
 const cognitoClient = new CognitoIdentityProviderClient({
   region: process.env.AWS_REGION || "ap-southeast-5",
 });
@@ -435,7 +442,7 @@ export class OrganizationService {
     userId: string,
     portalType: PortalType,
     input: CreateOrganizationInput
-  ): Promise<InvestorOrganization | IssuerOrganization> {
+  ): Promise<CreateOrganizationServiceResult> {
     const orgType =
       input.type === "PERSONAL" ? OrganizationType.PERSONAL : OrganizationType.COMPANY;
 
@@ -458,6 +465,26 @@ export class OrganizationService {
     // Company organizations require a name
     if (orgType === OrganizationType.COMPANY && !input.name) {
       throw new AppError(400, "NAME_REQUIRED", "Company name is required for company accounts.");
+    }
+
+    if (orgType === OrganizationType.COMPANY && input.name && !input.allowDuplicateIncomplete) {
+      const existingIncomplete = await this.repository.findOwnedResumableCompanyByName(
+        userId,
+        portalType,
+        input.name
+      );
+      if (existingIncomplete) {
+        logger.info(
+          {
+            userId,
+            portalType,
+            existingOrganizationId: existingIncomplete.id,
+            name: input.name,
+          },
+          "Owned incomplete company with the same display name; returning match instead of creating"
+        );
+        return { outcome: "EXISTING_INCOMPLETE_MATCH", organization: existingIncomplete };
+      }
     }
 
     // Soft duplicate warning only: keep allowing creation on name match.
@@ -644,7 +671,7 @@ export class OrganizationService {
       }
     }
 
-    return organization;
+    return { outcome: "CREATED", organization };
   }
 
   /**

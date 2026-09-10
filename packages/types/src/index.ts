@@ -536,6 +536,7 @@ export * from "./regtank-onboarding-status";
 export * from "./status-normalization";
 export * from "./title-case";
 export * from "./onboarding-readiness";
+export * from "./incomplete-company-onboarding";
 export * from "./ctos-party-supplement-json";
 export * from "./regtank-iso3166-countries";
 export * from "./notes";

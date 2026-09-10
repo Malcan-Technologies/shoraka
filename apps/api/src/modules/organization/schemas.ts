@@ -9,6 +9,8 @@ export const createOrganizationSchema = z.object({
   type: z.enum(["PERSONAL", "COMPANY"]),
   name: z.string().min(1).max(255).optional(),
   registrationNumber: z.string().max(100).optional(),
+  /** When true, create a new COMPANY even if this user already owns an incomplete same-name company. */
+  allowDuplicateIncomplete: z.boolean().optional(),
 });
 
 export const completeOnboardingSchema = z.object({

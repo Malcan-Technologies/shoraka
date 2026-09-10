@@ -53,6 +53,7 @@ export interface Organization {
   regtankOnboardingStatus?: string | null;
   regtankVerifyLink?: string | null;
   createdAt: string;
+  displayReference?: string | null;
   // KYC-verified fields (read-only)
   nationality?: string | null;
   country?: string | null;
@@ -159,7 +160,8 @@ interface OrganizationContextType {
   hasPersonalOrganization: boolean;
   switchOrganization: (organizationId: string) => void;
   refreshOrganizations: () => Promise<void>;
-  createOrganization: (input: CreateOrganizationInput) => Promise<Organization>;
+  createOrganization: (input: CreateOrganizationInput) => Promise<CreateOrganizationResult>;
+  adoptOrganization: (organization: Organization) => void;
   completeOnboarding: (organizationId: string) => Promise<void>;
   startRegTankOnboarding: (organizationId: string) => Promise<{
     verifyLink: string;
@@ -220,6 +222,49 @@ export interface CreateOrganizationInput {
   type: "PERSONAL" | "COMPANY";
   name?: string;
   registrationNumber?: string;
+  allowDuplicateIncomplete?: boolean;
+}
+
+export type CreateOrganizationOutcome = "CREATED" | "EXISTING_INCOMPLETE_MATCH";
+
+export type CreateOrganizationResult = {
+  outcome: CreateOrganizationOutcome;
+  organization: Organization;
+};
+
+type CreateOrganizationApiOrg = {
+  id: string;
+  type: OrganizationType;
+  name: string | null;
+  registrationNumber: string | null;
+  onboardingStatus: OnboardingStatus;
+  createdAt: string;
+  ownerId: string;
+  displayReference?: string | null;
+  tncAccepted?: boolean;
+  onboardingFeePaidAt?: string | null;
+  depositReceived?: boolean;
+};
+
+function mapCreatedOrganizationPayload(data: CreateOrganizationApiOrg): Organization {
+  return {
+    id: data.id,
+    type: data.type,
+    name: data.name,
+    firstName: null,
+    lastName: null,
+    registrationNumber: data.registrationNumber,
+    onboardingStatus: data.onboardingStatus,
+    onboardedAt: null,
+    isOwner: true,
+    ownerId: data.ownerId,
+    members: [],
+    createdAt: data.createdAt,
+    displayReference: data.displayReference ?? null,
+    tncAccepted: data.tncAccepted ?? false,
+    onboardingFeePaidAt: data.onboardingFeePaidAt ?? null,
+    depositReceived: data.depositReceived ?? false,
+  };
 }
 
 const OrganizationContext = createContext<OrganizationContextType | undefined>(undefined);
@@ -286,10 +331,8 @@ export function OrganizationProvider({ children, portalType, apiUrl }: Organizat
   const trueIsLoading = useMemo(() => {
     if (!hasFetched) return true;
     if (isLoading) return true;
-    // If we have organizations but no active one selected yet, still loading
-    if (organizations.length > 0 && !activeOrganization && activeOrganizationId) return true;
     return false;
-  }, [hasFetched, isLoading, organizations.length, activeOrganization, activeOrganizationId]);
+  }, [hasFetched, isLoading]);
 
   /**
    * Fetch organizations from API
@@ -357,62 +400,69 @@ export function OrganizationProvider({ children, portalType, apiUrl }: Organizat
    */
   const switchOrganization = useCallback(
     (organizationId: string) => {
-      const org = organizations.find((o) => o.id === organizationId);
-      if (org) {
-        setActiveOrganizationId(organizationId);
-        localStorage.setItem(storageKey, organizationId);
-      }
+      setActiveOrganizationId(organizationId);
+      localStorage.setItem(storageKey, organizationId);
     },
-    [organizations, storageKey]
+    [storageKey]
+  );
+
+  const adoptOrganization = useCallback(
+    (organization: Organization) => {
+      setOrganizations((prev) => {
+        const existing = prev.find((org) => org.id === organization.id);
+        if (!existing) {
+          return [...prev, organization];
+        }
+        return prev.map((org) =>
+          org.id === organization.id
+            ? {
+                ...org,
+                ...organization,
+                members:
+                  organization.members.length > 0 ? organization.members : org.members,
+              }
+            : org
+        );
+      });
+      setActiveOrganizationId(organization.id);
+      localStorage.setItem(storageKey, organization.id);
+    },
+    [storageKey]
   );
 
   /**
    * Create a new organization
    */
   const createOrganization = useCallback(
-    async (input: CreateOrganizationInput): Promise<Organization> => {
+    async (input: CreateOrganizationInput): Promise<CreateOrganizationResult> => {
       const apiClient = createApiClient(apiUrl, getAccessToken);
-      const result = await apiClient.post<{
-        id: string;
-        type: OrganizationType;
-        name: string | null;
-        registrationNumber: string | null;
-        onboardingStatus: OnboardingStatus;
-        createdAt: string;
-        ownerId: string;
-      }>(`/v1/organizations/${portalType}`, input);
+      const result = await apiClient.post<
+        | (CreateOrganizationApiOrg & { outcome?: "CREATED" })
+        | { outcome: "EXISTING_INCOMPLETE_MATCH"; organization: CreateOrganizationApiOrg }
+      >(`/v1/organizations/${portalType}`, input);
 
       if (!result.success) {
         throw new Error(result.error?.message || "Failed to create organization");
       }
 
-      // Create a full organization object for the new org
-      const newOrg: Organization = {
-        id: result.data.id,
-        type: result.data.type,
-        name: result.data.name,
-        firstName: null, // Will be populated from RegTank data after onboarding
-        lastName: null,
-        registrationNumber: result.data.registrationNumber,
-        onboardingStatus: result.data.onboardingStatus,
-        onboardedAt: null,
-        isOwner: true,
-        ownerId: result.data.ownerId,
-        members: [],
-        createdAt: result.data.createdAt,
-      };
+      if (result.data.outcome === "EXISTING_INCOMPLETE_MATCH") {
+        return {
+          outcome: "EXISTING_INCOMPLETE_MATCH",
+          organization: mapCreatedOrganizationPayload(result.data.organization),
+        };
+      }
 
-      // Add to local state and set as active
+      const newOrg = mapCreatedOrganizationPayload(result.data);
+
       setOrganizations((prev) => [...prev, newOrg]);
       setActiveOrganizationId(newOrg.id);
       localStorage.setItem(storageKey, newOrg.id);
 
-      // Update hasPersonalOrganization if needed
       if (input.type === "PERSONAL") {
         setHasPersonalOrganization(true);
       }
 
-      return newOrg;
+      return { outcome: "CREATED", organization: newOrg };
     },
     [apiUrl, getAccessToken, portalType, storageKey]
   );
@@ -769,6 +819,7 @@ export function OrganizationProvider({ children, portalType, apiUrl }: Organizat
         switchOrganization,
         refreshOrganizations,
         createOrganization,
+        adoptOrganization,
         completeOnboarding,
         startRegTankOnboarding,
         startIndividualOnboarding,

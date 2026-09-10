@@ -8,8 +8,17 @@ import {
   OrganizationMemberRole,
   Prisma,
 } from "@prisma/client";
-import { normalizeDirectorShareholderPartyEmail } from "@cashsouk/types";
+import {
+  isResumableIncompleteCompanyOnboardingStatus,
+  normalizeDirectorShareholderPartyEmail,
+  organizationDisplayNamesMatch,
+} from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
+
+const RESUMABLE_COMPANY_STATUS_FILTER: OnboardingStatus[] = [
+  OnboardingStatus.PENDING,
+  OnboardingStatus.IN_PROGRESS,
+];
 
 type OrganizationDbClient = typeof prisma | Prisma.TransactionClient;
 
@@ -1049,6 +1058,49 @@ export class OrganizationRepository {
         data: { corporate_onboarding_data: mergedData },
       });
     }
+  }
+
+  /**
+   * Oldest incomplete COMPANY org owned by this user whose display name matches (trim + case-insensitive).
+   */
+  async findOwnedResumableCompanyByName(
+    userId: string,
+    portalType: "investor" | "issuer",
+    name: string
+  ): Promise<InvestorOrganization | IssuerOrganization | null> {
+    if (portalType === "investor") {
+      const orgs = await prisma.investorOrganization.findMany({
+        where: {
+          owner_user_id: userId,
+          type: OrganizationType.COMPANY,
+          onboarding_status: { in: RESUMABLE_COMPANY_STATUS_FILTER },
+        },
+        orderBy: { created_at: "asc" },
+      });
+      return (
+        orgs.find(
+          (org) =>
+            isResumableIncompleteCompanyOnboardingStatus(org.onboarding_status) &&
+            organizationDisplayNamesMatch(org.name, name)
+        ) ?? null
+      );
+    }
+
+    const orgs = await prisma.issuerOrganization.findMany({
+      where: {
+        owner_user_id: userId,
+        type: OrganizationType.COMPANY,
+        onboarding_status: { in: RESUMABLE_COMPANY_STATUS_FILTER },
+      },
+      orderBy: { created_at: "asc" },
+    });
+    return (
+      orgs.find(
+        (org) =>
+          isResumableIncompleteCompanyOnboardingStatus(org.onboarding_status) &&
+          organizationDisplayNamesMatch(org.name, name)
+      ) ?? null
+    );
   }
 
   /**

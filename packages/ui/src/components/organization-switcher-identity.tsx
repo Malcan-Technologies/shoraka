@@ -61,14 +61,37 @@ export function OrganizationSwitcherAvatar({
   );
 }
 
-export function OrganizationSwitcherCaption({
+export function organizationSwitcherSecondaryText({
   type,
+  displayReference,
+  status,
+  regtankStatus,
 }: {
   type?: string | null;
+  displayReference?: string | null;
+  status?: string;
+  regtankStatus?: string | null;
+}): string {
+  const typeLabel = organizationTypeLabel(type ?? "");
+  const statusLabel = status ? onboardingStatusLabel(status, regtankStatus) : null;
+  const parts = [displayReference?.trim() || null, statusLabel].filter(Boolean);
+  return parts.length > 0 ? parts.join(" · ") : typeLabel;
+}
+
+export function OrganizationSwitcherCaption({
+  type,
+  displayReference,
+  status,
+  regtankStatus,
+}: {
+  type?: string | null;
+  displayReference?: string | null;
+  status?: string;
+  regtankStatus?: string | null;
 }) {
   return (
     <span className="mt-0.5 truncate text-meta text-muted-foreground">
-      {organizationTypeLabel(type ?? "")}
+      {organizationSwitcherSecondaryText({ type, displayReference, status, regtankStatus })}
     </span>
   );
 }
