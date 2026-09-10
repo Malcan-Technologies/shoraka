@@ -26,7 +26,6 @@ import {
   SC_SUSTAINABILITY_CATEGORIES,
   isNoteMoneyAmount,
   isValidFinancingTenureDays,
-  requiredEmailIssue,
   requiredTextIssue,
   storedProfilePhone,
   phoneFormatIssue,
@@ -361,6 +360,20 @@ export const updateAdminOrganizationProfileSchema = z
             contactNumber: optionalContactPhone,
           })
           .optional(),
+        contactPerson: z
+          .object({
+            name: z.string().max(255).optional().nullable(),
+            position: z.string().max(255).optional().nullable(),
+            email: z
+              .union([
+                z.string().email({ message: "Enter a valid e-mail address." }),
+                z.literal(""),
+                z.null(),
+              ])
+              .optional(),
+            contact: optionalContactPhone,
+          })
+          .optional(),
         aboutYourBusiness: aboutYourBusinessSchema.optional(),
       })
       .optional(),
@@ -369,7 +382,6 @@ export const updateAdminOrganizationProfileSchema = z
     countryOfIncorporation: z.string().max(500).optional().nullable(),
     scCompanyType: z.enum(SC_COMPANY_TYPES).optional().nullable(),
     companyCategory: z.enum(SC_COMPANY_CATEGORIES).optional().nullable(),
-    companyEmail: z.string().max(255).optional().nullable(),
     scInvestorCategory: z.enum(SC_INVESTOR_CATEGORIES).optional().nullable(),
     isSophisticatedInvestor: z.boolean().optional(),
     residentialAddress: addressSchema.optional().nullable(),
@@ -378,12 +390,6 @@ export const updateAdminOrganizationProfileSchema = z
   })
   .strict()
   .superRefine((value, ctx) => {
-    if (value.companyEmail !== undefined) {
-      const issue = requiredEmailIssue(value.companyEmail, "companyEmail", "E-mail Address");
-      if (issue) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["companyEmail"], message: issue.message });
-      }
-    }
     if (value.name !== undefined) {
       const issue = requiredTextIssue(value.name, "name", "Name of Issuer");
       if (issue) {
@@ -398,12 +404,6 @@ export const updateAdminOrganizationProfileSchema = z
           path: ["phoneNumber"],
           message: issue.message,
         });
-      }
-    }
-    if (value.phoneNumber !== undefined) {
-      const issue = requiredTextIssue(value.phoneNumber, "phoneNumber", "Phone Number");
-      if (issue) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["phoneNumber"], message: issue.message });
       }
     }
     const patch = value as Record<string, unknown>;

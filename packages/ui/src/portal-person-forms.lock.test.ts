@@ -16,4 +16,30 @@ describe("PartyFillEmptyForm lock and officer fields", () => {
     expect(source).toContain("SELECT_AT_LEAST_ONE_ROLE_MESSAGE");
     expect(source).not.toContain("personKind:");
   });
+
+  it("does not automatically set Board when Director is selected", () => {
+    expect(source).not.toContain("setIsBoard(isDirector");
+    expect(source).not.toContain("setIsBoard(true)");
+    expect(source).toContain('<RoleCheck label="Director" checked={isDirector} onChange={setIsDirector} />');
+    expect(source).toContain(
+      "<RoleCheck label={SC_MONTHLY_PERSON_KIND_LABELS.BOARD} checked={isBoard} onChange={setIsBoard} />"
+    );
+    expect(source).toContain(
+      "<RoleCheck label={SC_MONTHLY_PERSON_KIND_LABELS.MANAGEMENT} checked={isManagement} onChange={setIsManagement} />"
+    );
+  });
+
+  it("uses a minimal individual Director/Shareholder add form", () => {
+    expect(source).toContain("minimalOnboardingAdd");
+    expect(source).toContain('label="Full Name"');
+    expect(source).toContain('label="Person Email"');
+    expect(source).toContain("validateOnboardingPersonCreate");
+    expect(source).toContain('label={copy.identity.label}');
+  });
+
+  it("lets later edit fill empty identity prefix and number", () => {
+    expect(source).toContain("identityNumberEmpty");
+    expect(source).toContain("identityPrefixEmpty");
+    expect(source).toContain("if (identityNumberEmpty && form.identityNumber) data.identityNumber = form.identityNumber");
+  });
 });

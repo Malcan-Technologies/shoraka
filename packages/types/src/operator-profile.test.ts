@@ -1,4 +1,12 @@
-import { buildOperatorProfileCompleteness, type OperatorProfileDto } from "./operator-profile";
+import {
+  buildOperatorProfileCompleteness,
+  isOperatorSigningRole,
+  legacyAuthorisedSignatoryNameFromSigningPeople,
+  OPERATOR_SIGNING_ROLE_LABELS,
+  OPERATOR_SIGNING_ROLES,
+  signingRolesImpliedByOfficer,
+  type OperatorProfileDto,
+} from "./operator-profile";
 
 function completeShareholder(
   overrides: Partial<OperatorProfileDto["shareholders"][number]> = {}
@@ -147,6 +155,8 @@ function emptyProfile(overrides: Partial<OperatorProfileDto> = {}): OperatorProf
     advisors: [],
     interests: [],
     financialStatements: [],
+    signingPeople: [],
+    companyStamp: null,
     updatedAt: "2026-09-03T00:00:00.000Z",
     ...overrides,
   };
@@ -482,6 +492,26 @@ describe("operator profile completeness", () => {
     expect(result.complete).toBe(true);
   });
 
+  it("uses annual [03000] Date Acquired rather than monthly issuer [05000] Identity Prefix", () => {
+    const missingAcquired = buildOperatorProfileCompleteness(
+      completeOperator({
+        shareholders: [completeShareholder({ dateAcquired: null })],
+      })
+    );
+    expect(missingAcquired.missing.some((item) => item.field.includes("dateAcquired"))).toBe(true);
+    expect(missingAcquired.missing.some((item) => item.field.includes("identityPrefix"))).toBe(false);
+  });
+
+  it("uses annual [04000] Board of Director/Management Team rather than issuer share type", () => {
+    const missingKind = buildOperatorProfileCompleteness(
+      completeOperator({
+        officers: [completeOfficer({ personKind: "" as never })],
+      })
+    );
+    expect(missingKind.missing.some((item) => item.field.includes("personKind"))).toBe(true);
+    expect(missingKind.missing.some((item) => item.field.includes("shareType"))).toBe(false);
+  });
+
   it("requires individual shareholder salutation and annual financial line items", () => {
     const missingSalutation = buildOperatorProfileCompleteness(
       completeOperator({
@@ -498,5 +528,86 @@ describe("operator profile completeness", () => {
     expect(missingPnl.missing.map((item) => item.field)).toContain(
       "financialStatements.fs_1.revenueDonation"
     );
+  });
+
+  it("does not treat Signing & Authorisation as a profile completeness section", () => {
+    const complete = buildOperatorProfileCompleteness(completeOperator());
+    const withSigning = buildOperatorProfileCompleteness(
+      completeOperator({
+        signingPeople: [
+          {
+            id: "sp_1",
+            officerId: "of_1",
+            personName: "Aisha Tan",
+            personKind: "BOARD",
+            designation: "DIRECTOR_EXECUTIVE",
+            designationOther: null,
+            roles: ["AUTHORISED_SIGNATORY", "WITNESS"],
+            signature: { s3Key: "sig/a.png" },
+            active: true,
+          },
+        ],
+        companyStamp: { s3Key: "stamps/a.png", fileName: "stamp.png", contentType: "image/png" },
+      })
+    );
+    expect(complete.percent).toBe(withSigning.percent);
+    expect(withSigning.missing.some((item) => item.field.includes("signing"))).toBe(false);
+    expect(withSigning.sections.map((section) => section.id)).not.toContain("signing");
+  });
+});
+
+describe("Shoraka signing execution roles", () => {
+  it("exposes Authorised Signatory and Witness only", () => {
+    expect(OPERATOR_SIGNING_ROLES).toEqual(["AUTHORISED_SIGNATORY", "WITNESS"]);
+    expect(OPERATOR_SIGNING_ROLE_LABELS.AUTHORISED_SIGNATORY).toBe("Authorised Signatory");
+    expect(OPERATOR_SIGNING_ROLE_LABELS.WITNESS).toBe("Witness");
+    expect(isOperatorSigningRole("AUTHORISED_SIGNATORY")).toBe(true);
+    expect(isOperatorSigningRole("WITNESS")).toBe(true);
+  });
+
+  it("does not map Board, Management, or Director designations to signing roles", () => {
+    expect(isOperatorSigningRole("BOARD")).toBe(false);
+    expect(isOperatorSigningRole("MANAGEMENT")).toBe(false);
+    expect(isOperatorSigningRole("DIRECTOR")).toBe(false);
+    expect(isOperatorSigningRole("DIRECTOR_EXECUTIVE")).toBe(false);
+    expect(
+      signingRolesImpliedByOfficer({ personKind: "BOARD", designation: "DIRECTOR_EXECUTIVE" })
+    ).toEqual([]);
+    expect(signingRolesImpliedByOfficer({ personKind: "MANAGEMENT", designation: "SECRETARY" })).toEqual(
+      []
+    );
+  });
+
+  it("can store multiple execution roles on one person", () => {
+    const name = legacyAuthorisedSignatoryNameFromSigningPeople([
+      {
+        active: true,
+        roles: ["WITNESS"],
+        personName: "Sarah",
+      },
+      {
+        active: true,
+        roles: ["AUTHORISED_SIGNATORY", "WITNESS"],
+        personName: "Ahmad Lee",
+      },
+    ]);
+    expect(name).toBe("Ahmad Lee");
+  });
+
+  it("does not blank the legacy name when no active Authorised Signatory exists", () => {
+    expect(
+      legacyAuthorisedSignatoryNameFromSigningPeople([
+        {
+          active: false,
+          roles: ["AUTHORISED_SIGNATORY"],
+          personName: "Ahmad Lee",
+        },
+        {
+          active: true,
+          roles: ["WITNESS"],
+          personName: "Sarah Tan",
+        },
+      ])
+    ).toBeNull();
   });
 });

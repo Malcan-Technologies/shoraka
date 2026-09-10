@@ -36,6 +36,10 @@ describe("audit presentation", () => {
     expect(formatAuditEventLabel("MEMBER_INVITED")).toBe("Member Invited");
     expect(formatAuditEventLabel("MEMBER_REMOVED")).toBe("Member Removed");
     expect(formatAuditEventLabel("MEMBER_ROLE_CHANGED")).toBe("Member Role Changed");
+    expect(formatAuditEventLabel("PERSON_PLATFORM_USER_LINKED")).toBe("Person Linked to Platform User");
+    expect(formatAuditEventLabel("PERSON_PLATFORM_ACCESS_RESTORED")).toBe(
+      "Person Platform Access Restored"
+    );
     expect(formatAuditEventLabel("OVERDUE_LATE_CHARGE_CHECKED")).toBe("Overdue Check Completed");
     expect(formatAuditEventLabel("ONBOARDING_APPROVED")).toBe("Onboarding Submission Approved");
     expect(formatAuditEventLabel("EOD_APPROVED")).toBe("Entity Onboarding Data Approved");

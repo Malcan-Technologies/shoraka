@@ -176,6 +176,8 @@ export const EVENT_CATALOGUE: Record<string, EventCatalogueEntry> = {
   MEMBER_INVITED: entry(EVENT_LAYER.ORG_ACTIVITY, "onboarding_logs"),
   MEMBER_REMOVED: entry(EVENT_LAYER.ORG_ACTIVITY, "onboarding_logs"),
   MEMBER_ROLE_CHANGED: entry(EVENT_LAYER.ORG_ACTIVITY, "onboarding_logs"),
+  PERSON_PLATFORM_USER_LINKED: entry(EVENT_LAYER.ORG_ACTIVITY, "onboarding_logs"),
+  PERSON_PLATFORM_ACCESS_RESTORED: entry(EVENT_LAYER.ORG_ACTIVITY, "onboarding_logs"),
   MARC_ASSESSMENT_SAVED: entry(EVENT_LAYER.ADMIN_ACTIVITY, "onboarding_logs"),
   EOD_APPROVED: entry(EVENT_LAYER.ADMIN_ACTIVITY, "onboarding_logs"),
   EOD_REJECTED: entry(EVENT_LAYER.ADMIN_ACTIVITY, "onboarding_logs"),

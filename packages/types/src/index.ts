@@ -449,6 +449,12 @@ export interface InvoiceDetails {
     file_name: string;
     file_size: number;
   };
+  /** ComRep [02000] Company category — per invoice/campaign, not issuer profile. */
+  company_category?: import("./comrep-profile").ScCompanyCategory;
+  /** ComRep [03000] Campaign Sector — per invoice/campaign, not issuer Industry. */
+  campaign_sector?: import("./comrep-profile").ScCampaignSector;
+  /** ComRep [03000] Sustainability Category of the Campaign. */
+  sustainability_category?: import("./comrep-profile").ScSustainabilityCategory;
 }
 
 export interface Invoice {
@@ -488,6 +494,12 @@ export interface InvoiceOfferDetails {
   version: number;
   /** Phased accept → admin review → signing (Option A). Absent on legacy offers. */
   offer_acceptance?: import("./offer-acceptance").OfferAcceptanceDetails;
+  /** Frozen from issuer invoice.details; Admin may correct at offer send. */
+  company_category?: import("./comrep-profile").ScCompanyCategory;
+  /** Frozen from issuer invoice.details; Admin may correct at offer send. */
+  campaign_sector?: import("./comrep-profile").ScCampaignSector;
+  /** Frozen from issuer invoice.details; Admin may correct at offer send. */
+  sustainability_category?: import("./comrep-profile").ScSustainabilityCategory;
 }
 
 export * from "./deadline-config";
@@ -510,6 +522,7 @@ export * from "./contract-originating-application";
 export * from "./resubmit-path-utils";
 export * from "./resubmit-meaningful-field-path";
 export * from "./application-people-display";
+export * from "./person-email";
 export * from "./issuer-director-shareholder-ctos-notification-diff";
 export * from "./director-kyc-gov-id";
 export * from "./director-shareholder-final-status";
@@ -595,6 +608,12 @@ export * from "./api-validation-message";
 export * from "./sc-appendix-a-countries";
 export * from "./organization-party-profile";
 export * from "./organization-party-key";
+export * from "./onboarding-person-create";
+export * from "./person-onboarding-display";
+export * from "./person-identity-conflict";
+export * from "./regtank-person-profile-seed";
+export * from "./party-ctos-comparison";
+export * from "./person-platform-access";
 export * from "./issuer-shareholder-threshold";
 export * from "./operator-profile";
 export * from "./support";

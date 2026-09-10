@@ -1,4 +1,5 @@
 import { Router, Request, Response, NextFunction } from "express";
+import { OrganizationMemberRole } from "@prisma/client";
 import { requireAuth, requirePermission } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
 import { OrganizationService } from "../organization/service";
@@ -17,8 +18,10 @@ import {
   resolvePartyMismatch,
   seedMasterPartiesIfEmpty,
 } from "./service";
+import { resolvePersonIdentityConflict } from "./regtank-party-seed";
 import {
   financialYearPatchSchema,
+  identityConflictResolveSchema,
   mismatchResolveSchema,
   orgMasterPatchSchema,
   partyPatchSchema,
@@ -56,6 +59,24 @@ async function assertOrgAccess(req: Request, portal: "issuer" | "investor", orga
   if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
   await organizationService.getOrganization(req.user.user_id, organizationId, portal);
   return req.user.user_id;
+}
+
+async function assertOrgOwnerOrAdmin(
+  req: Request,
+  portal: "issuer" | "investor",
+  organizationId: string
+) {
+  if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
+  const userId = req.user.user_id;
+  const organization = await organizationService.getOrganization(userId, organizationId, portal);
+  const userMember = organization.members.find((member) => member.user_id === userId);
+  const canManage =
+    organization.owner_user_id === userId ||
+    userMember?.role === OrganizationMemberRole.ORGANIZATION_ADMIN;
+  if (!canManage) {
+    throw new AppError(403, "FORBIDDEN", "You do not have permission to update this organization");
+  }
+  return userId;
 }
 
 function portalFromParams(req: Request): "issuer" | "investor" {
@@ -201,9 +222,43 @@ export function createOrganizationProfileRouter() {
       try {
         const portal = portalFromParams(req);
         const { id, partyId } = req.params;
-        await assertOrgAccess(req, portal, id);
+        await assertOrgOwnerOrAdmin(req, portal, id);
         await deleteManagementParty({ portal, organizationId: id, partyId });
         res.json({ success: true, data: { success: true }, correlationId: res.locals.correlationId });
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+
+  router.post(
+    "/:portal/:id/party-profiles/:partyId/inactivate",
+    requireAuth,
+    async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const portal = portalFromParams(req);
+        if (portal !== "issuer") {
+          throw new AppError(
+            403,
+            "FORBIDDEN",
+            "Only issuer organization owners and admins can mark people inactive"
+          );
+        }
+        const { id, partyId } = req.params;
+        await assertOrgOwnerOrAdmin(req, portal, id);
+        const data = await inactivateMasterParty({
+          portal,
+          organizationId: id,
+          partyId,
+        });
+        await logMasterProfileAudit({
+          req,
+          organizationId: id,
+          eventType: "MASTER_PARTY_INACTIVATED",
+          portal: AUDIT_PORTAL.ISSUER,
+          metadata: { portal, source: "USER", partyId },
+        });
+        res.json({ success: true, data, correlationId: res.locals.correlationId });
       } catch (error) {
         next(error);
       }
@@ -343,6 +398,32 @@ export function createAdminOrganizationProfileRouter() {
       next(error);
     }
   });
+
+  router.post(
+    "/:portal/:id/party-profiles/:partyId/resolve-identity-conflict",
+    requirePermission("organizations.manage"),
+    async (req, res, next) => {
+      try {
+        const portal = portalFromParams(req);
+        const input = identityConflictResolveSchema.parse(req.body);
+        const data = await resolvePersonIdentityConflict({
+          portal,
+          organizationId: req.params.id,
+          partyId: req.params.partyId,
+          action: input.action,
+        });
+        await logMasterProfileAudit({
+          req,
+          organizationId: req.params.id,
+          eventType: "MASTER_PARTY_IDENTITY_CONFLICT_RESOLVED",
+          metadata: { portal, partyId: req.params.partyId, action: input.action },
+        });
+        res.json({ success: true, data, correlationId: res.locals.correlationId });
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
 
   router.post("/:portal/:id/party-profiles/:partyId/inactivate", requirePermission("organizations.manage"), async (req, res, next) => {
     try {

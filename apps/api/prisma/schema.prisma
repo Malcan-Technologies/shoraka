@@ -45,6 +45,7 @@ model User {
   sessions                         UserSession[]
   authored_review_remarks          ApplicationReviewRemark[]
   signingcloud_ekyc                SigningCloudEkyc[]
+  organization_party_profiles      OrganizationPartyProfile[]
 
   @@index([cognito_sub])
   @@map("users")
@@ -419,7 +420,6 @@ model IssuerOrganization {
   country_of_incorporation     String?
   sc_company_type              ScCompanyType?
   company_category             ScCompanyCategory?
-  company_email                String?
   profile_field_sources        Json                           @default("{}")
   /// Set when the first CTOS or RegTank director/shareholder snapshot has been applied.
   /// User-added people alone do not set this.
@@ -461,6 +461,8 @@ model OrganizationPartyProfile {
   entity_type                 OrganizationPartyEntityType
   absent_from_latest_external Boolean                           @default(false)
   name                        String?
+  /// Person Email master (trim + lowercase). Not User.email. Not an identity key.
+  email                       String?
   salutation                  String?
   identity_prefix             ScIdentityPrefix?
   identity_number             String?
@@ -487,13 +489,36 @@ model OrganizationPartyProfile {
   external_observation        Json?
   created_at                  DateTime                          @default(now())
   updated_at                  DateTime                          @updatedAt
+  /// OPTIONAL durable identity link to a CashSouk User — not an access grant.
+  /// OrganizationPartyProfile is company identity (NRIC/passport/ROC).
+  /// OrganizationMember controls current portal access. The link is optional:
+  /// a director does not need a CashSouk account. Never infer this from email.
+  ///
+  /// Removing OrganizationMember must not clear this field.
+  /// Never overwrite an existing different user_id during invitation acceptance.
+  /// Person-scoped acceptance must be transactional.
+  /// Person ↔ User reassignment is intentionally unsupported.
+  ///
+  /// Same User may be linked in different organizations.
+  /// Uniqueness is only within one organization.
+  /// Prisma 5 cannot represent these partial unique indexes.
+  /// They are enforced by migration SQL:
+  ///   organization_party_profiles_issuer_org_user_id_key
+  ///   organization_party_profiles_investor_org_user_id_key
+  /// Do not remove them during db push/schema maintenance, and do not replace
+  /// them with a global unique(user_id).
+  user_id                     String?                           @db.VarChar(5)
   issuer_organization         IssuerOrganization?               @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
   investor_organization       InvestorOrganization?             @relation(fields: [investor_organization_id], references: [id], onDelete: Cascade)
+  user                        User?                             @relation(fields: [user_id], references: [user_id], onDelete: SetNull)
+  issuer_invitations          IssuerOrganizationInvitation[]
+  investor_invitations        InvestorOrganizationInvitation[]
 
   @@index([issuer_organization_id])
   @@index([investor_organization_id])
   @@index([issuer_organization_id, membership_status])
   @@index([investor_organization_id, membership_status])
+  @@index([user_id])
   @@map("organization_party_profiles")
 }
 
@@ -514,6 +539,7 @@ model OperatorProfile {
   advisors                    OperatorAdvisor[]
   interests                   OperatorInterest[]
   financial_statements        OperatorFinancialStatement[]
+  signing_people              OperatorSigningPerson[]
 
   @@map("operator_profiles")
 }
@@ -587,9 +613,28 @@ model OperatorOfficer {
   created_at            DateTime        @default(now())
   updated_at            DateTime        @updatedAt
   operator_profile      OperatorProfile @relation(fields: [operator_profile_id], references: [id], onDelete: Cascade)
+  signing_person        OperatorSigningPerson?
 
   @@index([operator_profile_id])
   @@map("operator_officers")
+}
+
+model OperatorSigningPerson {
+  id                       String                @id @default(cuid())
+  operator_profile_id      String
+  officer_id               String                @unique
+  roles                    OperatorSigningRole[]
+  signature_s3_key         String?
+  signature_file_name      String?
+  signature_content_type   String?
+  active                   Boolean               @default(true)
+  created_at               DateTime              @default(now())
+  updated_at               DateTime              @updatedAt
+  operator_profile         OperatorProfile       @relation(fields: [operator_profile_id], references: [id], onDelete: Cascade)
+  officer                  OperatorOfficer       @relation(fields: [officer_id], references: [id], onDelete: Cascade)
+
+  @@index([operator_profile_id])
+  @@map("operator_signing_people")
 }
 
 model OperatorAdvisor {
@@ -1430,6 +1475,8 @@ model NoteInvestment {
   committed_at               DateTime                   @default(now())
   confirmed_at               DateTime?
   released_at                DateTime?
+  /// ComRep [07000] Investment by Related Party. Per investment, not investor profile.
+  investment_by_related_party ScInvestmentRelatedParty?
   metadata                   Json?
   /// Exact published Prospectus freeze for this investment (not version-alone).
   prospectus_publication_id  String?
@@ -2130,44 +2177,54 @@ model OrganizationMember {
 }
 
 model InvestorOrganizationInvitation {
-  id                       String                 @id @default(cuid())
-  email                    String
-  role                     OrganizationMemberRole
-  investor_organization_id String
-  token                    String                 @unique
-  expires_at               DateTime
-  accepted                 Boolean                @default(false)
-  accepted_at              DateTime?
-  invited_by_user_id       String
-  created_at               DateTime               @default(now())
-  investor_organization    InvestorOrganization   @relation(fields: [investor_organization_id], references: [id], onDelete: Cascade)
-  invited_by               User                   @relation("SentInvestorOrgInvitations", fields: [invited_by_user_id], references: [user_id], onDelete: Cascade)
+  id                            String                    @id @default(cuid())
+  email                         String
+  role                          OrganizationMemberRole
+  investor_organization_id      String
+  token                         String                    @unique
+  expires_at                    DateTime
+  accepted                      Boolean                   @default(false)
+  accepted_at                   DateTime?
+  invited_by_user_id            String
+  created_at                    DateTime                  @default(now())
+  /// Optional origin person. Email on this row is invitation delivery only,
+  /// not Person identity. Null means a Members-flow invite with no Person.
+  organization_party_profile_id String?
+  investor_organization         InvestorOrganization      @relation(fields: [investor_organization_id], references: [id], onDelete: Cascade)
+  invited_by                    User                      @relation("SentInvestorOrgInvitations", fields: [invited_by_user_id], references: [user_id], onDelete: Cascade)
+  organization_party_profile    OrganizationPartyProfile? @relation(fields: [organization_party_profile_id], references: [id], onDelete: SetNull)
 
   @@index([email])
   @@index([token])
   @@index([expires_at])
   @@index([investor_organization_id])
+  @@index([organization_party_profile_id])
   @@map("investor_organization_invitation")
 }
 
 model IssuerOrganizationInvitation {
-  id                     String                 @id @default(cuid())
-  email                  String
-  role                   OrganizationMemberRole
-  issuer_organization_id String
-  token                  String                 @unique
-  expires_at             DateTime
-  accepted               Boolean                @default(false)
-  accepted_at            DateTime?
-  invited_by_user_id     String
-  created_at             DateTime               @default(now())
-  invited_by             User                   @relation("SentIssuerOrgInvitations", fields: [invited_by_user_id], references: [user_id], onDelete: Cascade)
-  issuer_organization    IssuerOrganization     @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
+  id                            String                    @id @default(cuid())
+  email                         String
+  role                          OrganizationMemberRole
+  issuer_organization_id        String
+  token                         String                    @unique
+  expires_at                    DateTime
+  accepted                      Boolean                   @default(false)
+  accepted_at                   DateTime?
+  invited_by_user_id            String
+  created_at                    DateTime                  @default(now())
+  /// Optional origin person. Email on this row is invitation delivery only,
+  /// not Person identity. Null means a Members-flow invite with no Person.
+  organization_party_profile_id String?
+  invited_by                    User                      @relation("SentIssuerOrgInvitations", fields: [invited_by_user_id], references: [user_id], onDelete: Cascade)
+  issuer_organization           IssuerOrganization        @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
+  organization_party_profile    OrganizationPartyProfile? @relation(fields: [organization_party_profile_id], references: [id], onDelete: SetNull)
 
   @@index([email])
   @@index([token])
   @@index([expires_at])
   @@index([issuer_organization_id])
+  @@index([organization_party_profile_id])
   @@map("issuer_organization_invitation")
 }
 
@@ -3343,6 +3400,13 @@ enum ScCompanyCategory {
   NON_TECHNOLOGY
 }
 
+enum ScInvestmentRelatedParty {
+  SHAREHOLDER_OF_RMO
+  RELATED_CO_OF_RMO
+  OFFICER_OF_RMO
+  NOT_APPLICABLE
+}
+
 enum ScCompanyType {
   SOLE_PROPRIETORSHIP
   PARTNERSHIP
@@ -3373,6 +3437,11 @@ enum ScGender {
 enum ScPersonKind {
   BOARD
   MANAGEMENT
+}
+
+enum OperatorSigningRole {
+  AUTHORISED_SIGNATORY
+  WITNESS
 }
 
 enum ScDesignation {

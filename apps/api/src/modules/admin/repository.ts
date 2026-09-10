@@ -1876,7 +1876,6 @@ export class AdminRepository {
     country_of_incorporation?: string | null;
     sc_company_type?: string | null;
     company_category?: string | null;
-    company_email?: string | null;
     sc_investor_category?: string | null;
     residential_address?: unknown;
     // Investor wallet balance row (only for investor portal)

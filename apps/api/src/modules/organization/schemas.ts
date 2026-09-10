@@ -132,12 +132,13 @@ export const updateOrganizationProfileSchema = z.object({
 export const inviteMemberSchema = z.object({
   email: z.string().email().optional(),
   role: z.enum(["ORGANIZATION_ADMIN", "ORGANIZATION_MEMBER"]),
+  partyProfileId: z.string().cuid().optional(),
 });
 
-// Generate invitation link schema (same as invite, but explicitly for link generation)
 export const generateMemberInviteLinkSchema = z.object({
   email: z.string().email().optional(),
   role: z.enum(["ORGANIZATION_ADMIN", "ORGANIZATION_MEMBER"]),
+  partyProfileId: z.string().cuid().optional(),
 });
 
 // Accept invitation schema

@@ -152,6 +152,26 @@ export function unifyOrganizationPeople(
   return { master, external, inactive, peopleOnly };
 }
 
+/**
+ * Business rule:
+ * Admin may mark ANY active organization party as inactive.
+ *
+ * This is intentionally not restricted to CTOS-absent parties.
+ * Inactivation is a soft state change only:
+ * MASTER_ACTIVE -> MASTER_INACTIVE
+ *
+ * Do not delete identity, roles, KYC/AML, onboarding, or historical data.
+ *
+ * If the business later wants to restore the previous behavior,
+ * restrict the Admin "Mark inactive" action back to parties that are
+ * absent from the latest CTOS observation/comparison.
+ */
+export function adminMayInactivateMasterParty(
+  party: Pick<OrganizationPartyProfileDto, "membershipStatus"> | null | undefined
+): boolean {
+  return party?.membershipStatus === "MASTER_ACTIVE";
+}
+
 export function formatMasterPartyRoles(party: OrganizationPartyProfileDto): string {
   const parts: string[] = [];
   if (party.isDirector) parts.push("Director");

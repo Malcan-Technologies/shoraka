@@ -9,6 +9,7 @@ import {
   requiredTextIssue,
   validateIssuerAddressForm,
   validateIssuerCompanyForm,
+  validateIssuerContactPersonForm,
   validateIssuerMasterPatch,
   validateIssuerPersonForm,
   validateOperatorGeneral,
@@ -46,27 +47,31 @@ describe("ComRep requiredness", () => {
     );
   });
 
-  it("blocks issuer company Save when E-mail Address is blank", () => {
+  it("blocks issuer contact Save when E-mail Address is blank", () => {
+    const issues = validateIssuerContactPersonForm({
+      email: "",
+      contact: "+60123456789",
+    });
+    expect(issues.map((issue) => issue.field)).toContain("contactPersonEmail");
+  });
+
+  it("does not require company-level E-mail Address on Company Details", () => {
     const issues = validateIssuerCompanyForm({
       scCompanyType: "PRIVATE_LIMITED",
       dateOfIncorporation: "2020-01-01",
       dateOfCommencement: "2020-02-01",
       countryOfIncorporation: "MALAYSIA",
-      companyEmail: "",
-      phoneNumber: "+60123456789",
     });
-    expect(issues.map((issue) => issue.field)).toContain("companyEmail");
+    expect(issues.map((issue) => issue.field)).not.toContain("companyEmail");
+    expect(issues.map((issue) => issue.field)).not.toContain("contactPersonEmail");
   });
 
-  it("allows PATCH omit of required fields and rejects explicit clear", () => {
+  it("allows PATCH omit of required fields and rejects explicit clear of dates", () => {
     expect(validateIssuerMasterPatch({ website: "https://acme.test" }, "issuer")).toEqual([]);
     expect(
-      validateIssuerMasterPatch({ companyEmail: null }, "issuer").map((issue) => issue.field)
-    ).toEqual(["companyEmail"]);
-    expect(
-      validateIssuerMasterPatch({ companyEmail: "   " }, "issuer").map((issue) => issue.field)
-    ).toEqual(["companyEmail"]);
-    expect(validateIssuerMasterPatch({ companyEmail: "ops@acme.test" }, "issuer")).toEqual([]);
+      validateIssuerMasterPatch({ dateOfIncorporation: null }, "issuer").map((issue) => issue.field)
+    ).toEqual(["dateOfIncorporation"]);
+    expect(validateIssuerMasterPatch({ scCompanyType: "PRIVATE_LIMITED" }, "issuer")).toEqual([]);
   });
 
   it("requires Type of Shares - Others only when Others is selected", () => {
@@ -311,5 +316,27 @@ describe("secondary-onboarding field messages", () => {
       shareholdingPercentage: "101",
     });
     expect(issues.map((issue) => issue.message)).toContain("Enter a percentage of 100 or less.");
+  });
+});
+
+describe("annual RMO people rules vs monthly issuer people rules", () => {
+  it("requires annual [03000] Date Acquired and does not require issuer Identity Prefix", () => {
+    const issues = validateOperatorShareholder({
+      entityType: "INDIVIDUAL",
+      holderType: "SHAREHOLDER",
+      name: "Aisha Tan",
+      salutation: "Ms",
+      identityNumber: "800101011234",
+      dateOfBirth: "1980-01-01",
+      nationality: "MALAYSIA",
+      address: "1 Jalan Ampang",
+      shareType: "ORDINARY",
+      shareholdingUnits: "1000",
+      shareholdingAmount: "1000",
+      shareholdingPercentage: "100",
+    });
+    expect(issues.some((issue) => issue.field === "dateAcquired")).toBe(true);
+    expect(issues.some((issue) => issue.field === "identityPrefix")).toBe(false);
+    expect(issues.some((issue) => issue.field === "shareholdingUnits")).toBe(false);
   });
 });

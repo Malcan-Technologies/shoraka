@@ -15,4 +15,13 @@ describe("Investor People section", () => {
     expect(profile).toContain('return currentUserMember?.role === "ORGANIZATION_ADMIN"');
     expect(profile).toContain("if (activeOrganization.isOwner) return true");
   });
+
+  it("does not enable issuer Mark inactive on the investor People section", () => {
+    expect(profile).not.toContain("canInactivate");
+  });
+
+  it("does not introduce issuer ComRep completeness onto investor People cards", () => {
+    expect(profile).toContain("PortalPeopleSection");
+    expect(profile).toContain('portal="investor"');
+  });
 });

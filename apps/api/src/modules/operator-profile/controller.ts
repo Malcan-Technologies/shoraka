@@ -2,13 +2,17 @@ import { Router, Request, Response, NextFunction } from "express";
 import { requirePermission } from "../../lib/auth/middleware";
 import {
   operatorAdvisorSchema,
+  operatorCompanyStampPatchSchema,
   operatorFinancialStatementSchema,
   operatorInterestSchema,
   operatorOfficerSchema,
   operatorProfilePatchSchema,
   operatorShareCapitalPatchSchema,
   operatorShareholderSchema,
+  operatorSigningPersonCreateSchema,
+  operatorSigningPersonUpdateSchema,
   parseOperatorBody,
+  requestOperatorSigningImageUploadUrlSchema,
 } from "../organization-profile/schemas";
 import * as operatorProfile from "./service";
 
@@ -115,7 +119,83 @@ export function createOperatorProfileRouter() {
     requirePermission("platform_settings.manage"),
     async (req, res, next) => {
       try {
-        const data = await operatorProfile.deleteOfficer(req.params.id);
+      const data = await operatorProfile.deleteOfficer(req.params.id);
+      res.json({ success: true, data, correlationId: res.locals.correlationId });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+  router.post(
+    "/signing-people/signature-upload-url",
+    requirePermission("platform_settings.manage"),
+    async (req, res, next) => {
+      try {
+        const input = requestOperatorSigningImageUploadUrlSchema.parse(req.body);
+        const data = await operatorProfile.requestOperatorSigningImageUploadUrl({
+          ...input,
+          kind: "signature",
+        });
+        res.json({ success: true, data, correlationId: res.locals.correlationId });
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+
+  router.post(
+    "/company-stamp/upload-url",
+    requirePermission("platform_settings.manage"),
+    async (req, res, next) => {
+      try {
+        const input = requestOperatorSigningImageUploadUrlSchema.parse(req.body);
+        const data = await operatorProfile.requestOperatorSigningImageUploadUrl({
+          ...input,
+          kind: "company_stamp",
+        });
+        res.json({ success: true, data, correlationId: res.locals.correlationId });
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+
+  router.patch(
+    "/company-stamp",
+    requirePermission("platform_settings.manage"),
+    async (req, res, next) => {
+      try {
+        const input = parseOperatorBody(operatorCompanyStampPatchSchema, req.body);
+        const data = await operatorProfile.patchOperatorCompanyStamp(input);
+        res.json({ success: true, data, correlationId: res.locals.correlationId });
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+
+  router.post(
+    "/signing-people",
+    requirePermission("platform_settings.manage"),
+    async (req, res, next) => {
+      try {
+        const input = parseOperatorBody(operatorSigningPersonCreateSchema, req.body);
+        const data = await operatorProfile.createSigningPerson(input);
+        res.json({ success: true, data, correlationId: res.locals.correlationId });
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+
+  router.patch(
+    "/signing-people/:id",
+    requirePermission("platform_settings.manage"),
+    async (req, res, next) => {
+      try {
+        const input = parseOperatorBody(operatorSigningPersonUpdateSchema, req.body);
+        const data = await operatorProfile.updateSigningPerson(req.params.id, input);
         res.json({ success: true, data, correlationId: res.locals.correlationId });
       } catch (error) {
         next(error);

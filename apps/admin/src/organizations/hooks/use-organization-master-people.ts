@@ -55,6 +55,22 @@ export function useOrganizationMasterPeople(portal: PortalType, organizationId: 
     onError: (err: Error) => toast.error(humanizeApiValidationMessage(err.message)),
   });
 
+  const resolveIdentityConflict = useMutation({
+    mutationFn: async (input: { partyId: string; action: "KEEP_ONBOARDING" | "KEEP_CTOS" }) => {
+      const res = await api.resolvePersonIdentityConflict(portal, organizationId, input.partyId, input.action);
+      if (!res.success) throw profileValidationErrorFromApi(res.error);
+    },
+    onSuccess: async (_data, input) => {
+      await invalidate();
+      toast.success(
+        input.action === "KEEP_ONBOARDING"
+          ? "Onboarding Person kept. Identity saved without changing the Person key."
+          : "Onboarding Person marked inactive. The CTOS Person remains available to Adopt."
+      );
+    },
+    onError: (err: Error) => toast.error(humanizeApiValidationMessage(err.message)),
+  });
+
   const createParty = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
       const res = await api.createAdminPartyProfile(portal, organizationId, data);
@@ -81,5 +97,5 @@ export function useOrganizationMasterPeople(portal: PortalType, organizationId: 
     onError: (err: Error) => toast.error(humanizeApiValidationMessage(err.message)),
   });
 
-  return { resolve, adopt, inactivate, createParty, patchParty };
+  return { resolve, adopt, inactivate, resolveIdentityConflict, createParty, patchParty };
 }

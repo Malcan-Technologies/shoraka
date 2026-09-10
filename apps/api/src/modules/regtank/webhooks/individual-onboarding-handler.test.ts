@@ -44,7 +44,7 @@ jest.mock("../../notification/service", () => ({
 
 jest.mock("../../../lib/prisma", () => ({
   prisma: {
-    ctosPartySupplement: { update: jest.fn() },
+    ctosPartySupplement: { update: jest.fn().mockResolvedValue({}) },
   },
 }));
 
@@ -52,6 +52,13 @@ jest.mock("../../organization/ctos-party-supplement-webhook-lookup", () => ({
   findCtosPartySupplementByOnboardingJsonMatch: jest.fn().mockResolvedValue(null),
 }));
 
+const mockEnrichApprovedCtosPartySupplement = jest.fn().mockResolvedValue(undefined);
+jest.mock("../../organization-profile/regtank-party-seed", () => ({
+  enrichApprovedCtosPartySupplement: (...args: unknown[]) => mockEnrichApprovedCtosPartySupplement(...args),
+}));
+
+import { prisma } from "../../../lib/prisma";
+import { findCtosPartySupplementByOnboardingJsonMatch } from "../../organization/ctos-party-supplement-webhook-lookup";
 import { IndividualOnboardingWebhookHandler } from "./individual-onboarding-handler";
 
 function baseOnboardingRow(overrides: Record<string, unknown> = {}) {
@@ -74,6 +81,8 @@ function baseOnboardingRow(overrides: Record<string, unknown> = {}) {
 describe("IndividualOnboardingWebhookHandler", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (findCtosPartySupplementByOnboardingJsonMatch as jest.Mock).mockResolvedValue(null);
+    mockEnrichApprovedCtosPartySupplement.mockResolvedValue(undefined);
   });
 
   it("immediate exact match performs one lookup", async () => {
@@ -275,5 +284,49 @@ describe("IndividualOnboardingWebhookHandler", () => {
       "LD83612-R03",
       expect.anything()
     );
+  });
+
+  it("APPROVED party webhook persists status then queries onboarding details", async () => {
+    mockFindByRequestId.mockResolvedValue(null);
+    (findCtosPartySupplementByOnboardingJsonMatch as jest.Mock).mockResolvedValue({
+      id: "sup-1",
+      party_key: "user:550e8400-e29b-41d4-a716-446655440000",
+      issuer_organization_id: "org-1",
+      investor_organization_id: null,
+      onboarding_json: { requestId: "LD-PREID-1", status: "IN_PROGRESS" },
+    });
+    const handler = new IndividualOnboardingWebhookHandler();
+
+    await (handler as any).handle({ requestId: "LD-PREID-1", status: "APPROVED", referenceId: "org-1_user" });
+
+    expect(prisma.ctosPartySupplement.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "sup-1" } })
+    );
+    expect(mockEnrichApprovedCtosPartySupplement).toHaveBeenCalledWith(
+      expect.objectContaining({
+        portal: "issuer",
+        organizationId: "org-1",
+        partyKey: "user:550e8400-e29b-41d4-a716-446655440000",
+        requestId: "LD-PREID-1",
+      })
+    );
+  });
+
+  it("keeps APPROVED persistence when the follow-up query/seed fails", async () => {
+    mockFindByRequestId.mockResolvedValue(null);
+    (findCtosPartySupplementByOnboardingJsonMatch as jest.Mock).mockResolvedValue({
+      id: "sup-1",
+      party_key: "user:550e8400-e29b-41d4-a716-446655440000",
+      issuer_organization_id: "org-1",
+      investor_organization_id: null,
+      onboarding_json: { requestId: "LD-PREID-1" },
+    });
+    mockEnrichApprovedCtosPartySupplement.mockRejectedValueOnce(new Error("RegTank down"));
+    const handler = new IndividualOnboardingWebhookHandler();
+
+    await expect(
+      (handler as any).handle({ requestId: "LD-PREID-1", status: "APPROVED" })
+    ).resolves.toBeUndefined();
+    expect(prisma.ctosPartySupplement.update).toHaveBeenCalled();
   });
 });

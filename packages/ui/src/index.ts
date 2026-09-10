@@ -342,6 +342,8 @@ export {
 export type { PartyProfileDetailItem } from "./party-profile-detail-fields";
 export { ProfileCompletenessSummary } from "./components/profile-completeness-summary";
 export type { ProfileCompletenessSectionRow } from "./components/profile-completeness-summary";
+export { PersonIdentityCard } from "./person-identity-card";
+export { PartyCtosIndicator, partyCtosComparisonFor } from "./party-ctos-indicator";
 export { PortalPeopleSection } from "./portal-people-section";
 export type { PortalPeoplePortal } from "./portal-people-section";
 export { AddPersonForm, PartyFillEmptyForm } from "./portal-person-forms";

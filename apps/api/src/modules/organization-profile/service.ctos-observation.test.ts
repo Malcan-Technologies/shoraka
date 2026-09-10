@@ -52,6 +52,7 @@ import {
   seedMasterPartiesIfEmpty,
 } from "./service";
 import { serializeParty } from "./serialize";
+import { planRegTankPersonSeed, resolvePersonIdentityConflict } from "./regtank-party-seed";
 
 function row(partial: Record<string, unknown>) {
   const partyKey = String(partial.party_key ?? "800101011234");
@@ -64,6 +65,7 @@ function row(partial: Record<string, unknown>) {
     entity_type: "INDIVIDUAL",
     absent_from_latest_external: false,
     name: "A",
+    email: null,
     salutation: null,
     identity_prefix: "NRIC",
     identity_number: partyKey,
@@ -92,7 +94,9 @@ function row(partial: Record<string, unknown>) {
     updated_at: new Date(),
     ...partial,
     party_key: partyKey,
-    identity_number: partial.identity_number ?? partyKey,
+    identity_number: Object.prototype.hasOwnProperty.call(partial, "identity_number")
+      ? (partial.identity_number as string | null) ?? null
+      : partyKey,
   };
 }
 
@@ -113,7 +117,6 @@ function wireIssuerOrg() {
     country_of_incorporation: null,
     sc_company_type: null,
     phone_number: null,
-    company_email: null,
   };
   mockIssuerFindUnique.mockImplementation(async () => issuerOrg);
   mockIssuerUpdateMany.mockImplementation(
@@ -184,8 +187,24 @@ describe("CTOS master party observation", () => {
       parties.filter((p) => p.membership_status === "MASTER_ACTIVE").length
     );
     mockPartyFindMany.mockImplementation(async () => [...parties]);
-    mockPartyFindFirst.mockImplementation(async ({ where }: { where: { id?: string } }) =>
-      parties.find((p) => p.id === where.id) ?? null
+    mockPartyFindFirst.mockImplementation(async ({ where }: { where: Record<string, unknown> }) =>
+      parties.find((p) => {
+        if (where.party_key != null && p.party_key !== where.party_key) return false;
+        if (where.id != null && p.id !== where.id) return false;
+        if (
+          where.issuer_organization_id != null &&
+          p.issuer_organization_id !== where.issuer_organization_id
+        ) {
+          return false;
+        }
+        if (
+          Object.prototype.hasOwnProperty.call(where, "investor_organization_id") &&
+          p.investor_organization_id !== where.investor_organization_id
+        ) {
+          return false;
+        }
+        return true;
+      }) ?? null
     );
     mockPartyCreate.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => {
       const created = row({
@@ -540,6 +559,245 @@ describe("CTOS master party observation", () => {
     expect(cfo?.absent_from_latest_external).toBe(false);
   });
 
+  it("does not rekey a user:{uuid} director when CTOS later matches identity_number", async () => {
+    const generatedKey = "user:550e8400-e29b-41d4-a716-446655440000";
+    parties.push(
+      row({
+        id: "p-preid",
+        party_key: generatedKey,
+        identity_number: "900101101234",
+        name: "Pre Id",
+        origin: OrganizationPartyOrigin.USER_ADDED,
+        membership_status: OrganizationPartyMembershipStatus.MASTER_ACTIVE,
+        is_director: true,
+        is_shareholder: false,
+      })
+    );
+    await observeExternalCtosParties("issuer", "org-1", {
+      directors: [{ party_type: "I", nic_brno: "900101-10-1234", name: "PRE ID", position: "DO" }],
+    });
+    const preId = parties.find((p) => p.id === "p-preid");
+    expect(preId?.party_key).toBe(generatedKey);
+    expect(preId?.identity_number).toBe("900101101234");
+    expect(parties.filter((p) => p.party_key === "900101101234")).toHaveLength(0);
+  });
+
+  it("after identity seed, later CTOS refresh matches the same user:{uuid} Person and does not create EXTERNAL_OBSERVED", async () => {
+    const generatedKey = "user:550e8400-e29b-41d4-a716-446655440000";
+    parties.push(
+      row({
+        id: "p-seeded",
+        party_key: generatedKey,
+        identity_number: "900101101234",
+        name: "Pre Id",
+        origin: OrganizationPartyOrigin.USER_ADDED,
+        membership_status: OrganizationPartyMembershipStatus.MASTER_ACTIVE,
+        is_director: true,
+        is_shareholder: false,
+      })
+    );
+    await observeExternalCtosParties("issuer", "org-1", {
+      directors: [{ party_type: "I", nic_brno: "900101-10-1234", name: "PRE ID", position: "DO" }],
+    });
+    expect(parties.find((p) => p.id === "p-seeded")?.party_key).toBe(generatedKey);
+    expect(parties.filter((p) => p.membership_status === OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED)).toHaveLength(
+      0
+    );
+    expect(parties.filter((p) => p.party_key === "900101101234")).toHaveLength(0);
+  });
+
+  it("never assigns a CTOS NRIC onto a generated user:{uuid} party_key", async () => {
+    const generatedKey = "user:550e8400-e29b-41d4-a716-446655440000";
+    issuerOrg.regulatory_structure_established_at = new Date();
+    parties.push(
+      row({
+        id: "p-preid-empty",
+        party_key: generatedKey,
+        identity_number: null,
+        name: "Pre Id Empty",
+        origin: OrganizationPartyOrigin.USER_ADDED,
+        membership_status: OrganizationPartyMembershipStatus.MASTER_ACTIVE,
+        is_director: true,
+        is_shareholder: false,
+      })
+    );
+    await observeExternalCtosParties("issuer", "org-1", {
+      directors: [{ party_type: "I", nic_brno: "900101-10-1234", name: "PRE ID EMPTY", position: "DO" }],
+    });
+    const preId = parties.find((p) => p.id === "p-preid-empty");
+    expect(preId?.party_key).toBe(generatedKey);
+    expect(preId?.identity_number).toBeNull();
+    const observed = parties.find((p) => p.party_key === "900101101234");
+    expect(observed?.membership_status).toBe(OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED);
+    const planned = planRegTankPersonSeed({
+      current: {
+        id: String(preId?.id),
+        party_key: generatedKey,
+        name: "Pre Id Empty",
+        email: null,
+        identity_number: null,
+        identity_prefix: null,
+        gender: null,
+        date_of_birth: null,
+        nationality: null,
+        field_sources: {},
+        entity_type: "INDIVIDUAL",
+      },
+      seed: {
+        name: "Pre Id Empty",
+        identityNumber: "900101-10-1234",
+        identityPrefix: null,
+        gender: null,
+        dateOfBirth: null,
+        nationality: null,
+      },
+      otherRows: parties.map((p) => ({
+        id: String(p.id),
+        party_key: String(p.party_key),
+        identity_number: (p.identity_number as string | null) ?? null,
+        entity_type: String(p.entity_type),
+        membership_status: String(p.membership_status),
+      })),
+    });
+    expect(planned.identityCollision?.status).toBe("BLOCKED");
+    expect(planned.data.identity_number).toBeUndefined();
+  });
+
+  it("blocks Adopt of an EXTERNAL_OBSERVED Person that collides with an onboarding Person", async () => {
+    const generatedKey = "user:550e8400-e29b-41d4-a716-446655440000";
+    parties.push(
+      row({
+        id: "p-onb",
+        party_key: generatedKey,
+        identity_number: null,
+        origin: OrganizationPartyOrigin.USER_ADDED,
+        membership_status: OrganizationPartyMembershipStatus.MASTER_ACTIVE,
+        is_director: true,
+        is_shareholder: false,
+        external_observation: {
+          identityConflict: {
+            status: "BLOCKED",
+            canonicalIdentity: "900101101234",
+            otherPartyId: "p-obs",
+            otherPartyKey: "900101101234",
+            otherMembershipStatus: "EXTERNAL_OBSERVED",
+            source: "REGTANK_QUERY",
+            at: "2026-09-10T00:00:00.000Z",
+          },
+        },
+      }),
+      row({
+        id: "p-obs",
+        party_key: "900101101234",
+        identity_number: "900101101234",
+        membership_status: OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED,
+        is_director: true,
+        is_shareholder: false,
+      })
+    );
+    await expect(
+      adoptObservedParty({ portal: "issuer", organizationId: "org-1", partyId: "p-obs" })
+    ).rejects.toMatchObject({ statusCode: 400, code: "IDENTITY_CONFLICT" });
+  });
+
+  it("Keep onboarding Person writes identity_number without rekeying user:{uuid}", async () => {
+    const generatedKey = "user:550e8400-e29b-41d4-a716-446655440000";
+    parties.push(
+      row({
+        id: "p-onb",
+        party_key: generatedKey,
+        identity_number: null,
+        origin: OrganizationPartyOrigin.USER_ADDED,
+        membership_status: OrganizationPartyMembershipStatus.MASTER_ACTIVE,
+        is_director: true,
+        is_shareholder: false,
+        external_observation: {
+          identityConflict: {
+            status: "BLOCKED",
+            canonicalIdentity: "900101101234",
+            otherPartyId: "p-obs",
+            otherPartyKey: "900101101234",
+            otherMembershipStatus: "EXTERNAL_OBSERVED",
+            source: "REGTANK_QUERY",
+            at: "2026-09-10T00:00:00.000Z",
+          },
+        },
+      })
+    );
+    const updated = await resolvePersonIdentityConflict({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-onb",
+      action: "KEEP_ONBOARDING",
+    });
+    expect(updated.partyKey).toBe(generatedKey);
+    expect(updated.identityNumber).toBe("900101101234");
+    expect(updated.fieldSources.identityNumber?.source).toBe("REGTANK");
+    const observation = parties.find((p) => p.id === "p-onb")?.external_observation as {
+      identityConflict?: { status?: string };
+    };
+    expect(observation?.identityConflict?.status).toBe("RESOLVED_KEEP_ONBOARDING");
+    parties.push(
+      row({
+        id: "p-obs",
+        party_key: "900101101234",
+        identity_number: "900101101234",
+        membership_status: OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED,
+        is_director: true,
+        is_shareholder: false,
+      })
+    );
+    await expect(
+      adoptObservedParty({ portal: "issuer", organizationId: "org-1", partyId: "p-obs" })
+    ).rejects.toMatchObject({ statusCode: 400, code: "IDENTITY_CONFLICT" });
+  });
+
+  it("Keep CTOS Person inactivates the onboarding Person without merging", async () => {
+    const generatedKey = "user:550e8400-e29b-41d4-a716-446655440000";
+    parties.push(
+      row({
+        id: "p-onb",
+        party_key: generatedKey,
+        identity_number: null,
+        origin: OrganizationPartyOrigin.USER_ADDED,
+        membership_status: OrganizationPartyMembershipStatus.MASTER_ACTIVE,
+        is_director: true,
+        is_shareholder: false,
+        external_observation: {
+          identityConflict: {
+            status: "BLOCKED",
+            canonicalIdentity: "900101101234",
+            otherPartyId: "p-obs",
+            otherPartyKey: "900101101234",
+            otherMembershipStatus: "EXTERNAL_OBSERVED",
+            source: "REGTANK_QUERY",
+            at: "2026-09-10T00:00:00.000Z",
+          },
+        },
+      }),
+      row({
+        id: "p-obs",
+        party_key: "900101101234",
+        identity_number: "900101101234",
+        membership_status: OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED,
+        is_director: true,
+        is_shareholder: false,
+      })
+    );
+    const updated = await resolvePersonIdentityConflict({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-onb",
+      action: "KEEP_CTOS",
+    });
+    expect(updated.membershipStatus).toBe("MASTER_INACTIVE");
+    expect(updated.partyKey).toBe(generatedKey);
+    expect(updated.identityNumber).toBeNull();
+    expect(parties.find((p) => p.id === "p-obs")?.membership_status).toBe(
+      OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED
+    );
+  });
+
   it("does not delete a user-added director when latest CTOS lists no parties", async () => {
     parties.push(
       row({
@@ -704,8 +962,24 @@ describe("user-added master parties", () => {
       parties.filter((p) => p.membership_status === "MASTER_ACTIVE").length
     );
     mockPartyFindMany.mockImplementation(async () => [...parties]);
-    mockPartyFindFirst.mockImplementation(async ({ where }: { where: { id?: string } }) =>
-      parties.find((p) => p.id === where.id) ?? null
+    mockPartyFindFirst.mockImplementation(async ({ where }: { where: Record<string, unknown> }) =>
+      parties.find((p) => {
+        if (where.party_key != null && p.party_key !== where.party_key) return false;
+        if (where.id != null && p.id !== where.id) return false;
+        if (
+          where.issuer_organization_id != null &&
+          p.issuer_organization_id !== where.issuer_organization_id
+        ) {
+          return false;
+        }
+        if (
+          Object.prototype.hasOwnProperty.call(where, "investor_organization_id") &&
+          p.investor_organization_id !== where.investor_organization_id
+        ) {
+          return false;
+        }
+        return true;
+      }) ?? null
     );
     mockPartyCreate.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => {
       const created = row({
@@ -843,6 +1117,77 @@ describe("user-added master parties", () => {
       })
     ).rejects.toMatchObject({ statusCode: 400 });
     expect(parties).toHaveLength(0);
+  });
+
+  it("creates a director without government ID using a stable user:{uuid} party_key", async () => {
+    const created = await createUserAddedParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      source: "USER",
+      patch: {
+        name: "Pre Id Director",
+        email: "preid.director@example.com",
+        isDirector: true,
+      },
+    });
+    expect(created.membershipStatus).toBe("MASTER_ACTIVE");
+    expect(created.origin).toBe("USER_ADDED");
+    expect(created.partyKey.startsWith("user:")).toBe(true);
+    expect(created.partyKey).toMatch(/^user:[0-9a-f-]{36}$/i);
+    expect(created.identityNumber).toBeNull();
+    expect(created.email).toBe("preid.director@example.com");
+  });
+
+  it("creates a >=5% individual shareholder without government ID using user:{uuid}", async () => {
+    const created = await createUserAddedParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      source: "USER",
+      patch: {
+        name: "Pre Id Shareholder",
+        email: "preid.share@example.com",
+        isShareholder: true,
+        shareholdingPercentage: "10",
+      },
+    });
+    expect(created.partyKey.startsWith("user:")).toBe(true);
+    expect(created.identityNumber).toBeNull();
+    expect(created.isShareholder).toBe(true);
+    expect(Number(created.shareholdingPercentage)).toBe(10);
+  });
+
+  it("still rejects a <5% individual shareholder without government ID", async () => {
+    await expect(
+      createUserAddedParty({
+        portal: "issuer",
+        organizationId: "org-1",
+        source: "USER",
+        patch: {
+          name: "Small Holder",
+          email: "small@example.com",
+          isShareholder: true,
+          shareholdingPercentage: "4",
+        },
+      })
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(parties).toHaveLength(0);
+  });
+
+  it("still uses canonical NRIC party_key when identity is provided", async () => {
+    const created = await createUserAddedParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      source: "USER",
+      patch: {
+        name: "Sarah Tan",
+        identityNumber: "900101-10-1234",
+        identityPrefix: "NRIC",
+        isDirector: true,
+        email: "sarah@example.com",
+      },
+    });
+    expect(created.partyKey).toBe("900101101234");
+    expect(created.identityNumber).toBe("900101101234");
   });
 
   it("does not auto-adopt a CTOS-observed person when the same identity is added manually", async () => {
@@ -1341,7 +1686,7 @@ describe("user-added master parties", () => {
     expect(parties.filter((p) => canonicalKey(p.party_key) === "880101011111")).toHaveLength(1);
   });
 
-  it("inactivate only marks membership inactive and keeps identity, roles, and observation", async () => {
+  it("inactivates a CTOS-present MASTER_ACTIVE party and only changes membership_status", async () => {
     parties.push(
       row({
         id: "p-john",
@@ -1352,14 +1697,21 @@ describe("user-added master parties", () => {
         is_board: true,
         shareholding_percentage: new Prisma.Decimal("20"),
         external_observation: { name: "JOHN" },
+        absent_from_latest_external: false,
       })
     );
+    const before = parties.find((p) => p.id === "p-john");
+    const beforeSnapshot = { ...before };
     const updated = await inactivateMasterParty({
       portal: "issuer",
       organizationId: "org-1",
       partyId: "p-john",
     });
     expect(updated.membershipStatus).toBe("MASTER_INACTIVE");
+    expect(mockPartyUpdate).toHaveBeenCalledWith({
+      where: { id: "p-john" },
+      data: { membership_status: OrganizationPartyMembershipStatus.MASTER_INACTIVE },
+    });
     const stored = parties.find((p) => p.id === "p-john");
     expect(stored?.name).toBe("John");
     expect(stored?.is_director).toBe(true);
@@ -1367,7 +1719,119 @@ describe("user-added master parties", () => {
     expect(stored?.is_board).toBe(true);
     expect(Number(stored?.shareholding_percentage)).toBe(20);
     expect(stored?.external_observation).toEqual({ name: "JOHN" });
+    expect(stored?.identity_number).toBe(beforeSnapshot.identity_number);
+    expect(stored?.field_sources).toEqual(beforeSnapshot.field_sources);
     expect(parties.filter((p) => p.id === "p-john")).toHaveLength(1);
+    const rest = { ...stored } as Record<string, unknown>;
+    const beforeRest = { ...beforeSnapshot } as Record<string, unknown>;
+    delete rest.membership_status;
+    delete rest.updated_at;
+    delete beforeRest.membership_status;
+    delete beforeRest.updated_at;
+    expect(rest).toEqual(beforeRest);
+  });
+
+  it("inactivates a CTOS-absent MASTER_ACTIVE party without clearing identity or roles", async () => {
+    parties.push(
+      row({
+        id: "p-absent",
+        party_key: "770101011111",
+        name: "Absent",
+        is_director: true,
+        absent_from_latest_external: true,
+        external_observation: { name: "ABSENT" },
+      })
+    );
+    const updated = await inactivateMasterParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-absent",
+    });
+    expect(updated.membershipStatus).toBe("MASTER_INACTIVE");
+    expect(mockPartyUpdate).toHaveBeenCalledWith({
+      where: { id: "p-absent" },
+      data: { membership_status: OrganizationPartyMembershipStatus.MASTER_INACTIVE },
+    });
+    const stored = parties.find((p) => p.id === "p-absent");
+    expect(stored?.name).toBe("Absent");
+    expect(stored?.is_director).toBe(true);
+    expect(stored?.identity_number).toBe("770101011111");
+    expect(stored?.absent_from_latest_external).toBe(true);
+    expect(stored?.external_observation).toEqual({ name: "ABSENT" });
+  });
+
+  it("inactivates a USER_ADDED MASTER_ACTIVE party without deleting the row", async () => {
+    parties.push(
+      row({
+        id: "p-manual",
+        party_key: "660101011111",
+        name: "Manual",
+        origin: OrganizationPartyOrigin.USER_ADDED,
+        is_management: true,
+        is_shareholder: false,
+        shareholding_percentage: null,
+      })
+    );
+    const updated = await inactivateMasterParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-manual",
+    });
+    expect(updated.membershipStatus).toBe("MASTER_INACTIVE");
+    expect(mockPartyUpdate).toHaveBeenCalledWith({
+      where: { id: "p-manual" },
+      data: { membership_status: OrganizationPartyMembershipStatus.MASTER_INACTIVE },
+    });
+    expect(parties.filter((p) => p.id === "p-manual")).toHaveLength(1);
+    expect(parties.find((p) => p.id === "p-manual")?.origin).toBe(OrganizationPartyOrigin.USER_ADDED);
+    expect(parties.find((p) => p.id === "p-manual")?.is_management).toBe(true);
+  });
+
+  it("does not inactivate a party that belongs to another organization", async () => {
+    parties.push(
+      row({
+        id: "p-other",
+        issuer_organization_id: "org-2",
+        party_key: "990101011234",
+        name: "Other Org Person",
+      })
+    );
+    await expect(
+      inactivateMasterParty({
+        portal: "issuer",
+        organizationId: "org-1",
+        partyId: "p-other",
+      })
+    ).rejects.toMatchObject({
+      statusCode: 404,
+      message: "Party profile not found",
+    });
+    expect(mockPartyUpdate).not.toHaveBeenCalled();
+    expect(parties.find((p) => p.id === "p-other")?.membership_status).toBe(
+      OrganizationPartyMembershipStatus.MASTER_ACTIVE
+    );
+  });
+
+  it("does not inactivate a person who is already inactive", async () => {
+    parties.push(
+      row({
+        id: "p-john",
+        party_key: "880101011111",
+        name: "John",
+        membership_status: OrganizationPartyMembershipStatus.MASTER_INACTIVE,
+      })
+    );
+    await expect(
+      inactivateMasterParty({
+        portal: "issuer",
+        organizationId: "org-1",
+        partyId: "p-john",
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      code: "INVALID_PARTY_STATUS",
+    });
+    expect(mockPartyUpdate).not.toHaveBeenCalled();
   });
 
   it("CTOS listing an inactive person again does not reactivate them", async () => {

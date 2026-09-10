@@ -1,31 +1,51 @@
 import { Prisma } from "@prisma/client";
+import { randomUUID } from "crypto";
 import type {
   OperatorAdvisorDto,
+  OperatorCompanyStampFields,
   OperatorFinancialStatementDto,
   OperatorInterestDto,
   OperatorOfficerDto,
   OperatorProfileDto,
   OperatorShareCapitalDto,
   OperatorShareholderDto,
+  OperatorSigningPersonDto,
+  OperatorSigningRole,
   ScCompanyType,
 } from "@cashsouk/types";
 import {
+  legacyAuthorisedSignatoryNameFromSigningPeople,
   normalizeScIdentityNumber,
   normalizeScRegistrationNumber,
 } from "@cashsouk/types";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
+import { generatePresignedUploadUrl } from "../../lib/s3/client";
 import { decimalToString, parseDateInput, toIsoDate } from "../organization-profile/serialize";
+import { parseDocumentAuthorisationConfig } from "../notes/document-authorisation/config";
 import type {
   OperatorAdvisorInput,
+  OperatorCompanyStampPatchInput,
   OperatorFinancialStatementInput,
   OperatorInterestInput,
   OperatorOfficerInput,
   OperatorShareCapitalInput,
   OperatorShareholderInput,
+  OperatorSigningPersonCreateInput,
+  OperatorSigningPersonUpdateInput,
 } from "../organization-profile/schemas";
 
 const SINGLETON = "cashsouk";
+
+const PROFILE_INCLUDE = {
+  share_capital: true,
+  shareholders: { orderBy: { created_at: "asc" as const } },
+  officers: { orderBy: { created_at: "asc" as const } },
+  advisors: { orderBy: { created_at: "asc" as const } },
+  interests: { orderBy: { created_at: "asc" as const } },
+  financial_statements: { orderBy: { financial_year_end: "desc" as const } },
+  signing_people: { include: { officer: true }, orderBy: { created_at: "asc" as const } },
+};
 
 function holderIdentityNumber(
   entityType: OperatorShareholderInput["entityType"],
@@ -162,6 +182,47 @@ function serializeOfficer(row: {
     appointmentDate: toIsoDate(row.appointment_date),
     resignationDate: toIsoDate(row.resignation_date),
   };
+}
+
+function serializeSigningPerson(row: {
+  id: string;
+  officer_id: string;
+  roles: OperatorSigningRole[];
+  signature_s3_key: string | null;
+  signature_file_name: string | null;
+  signature_content_type: string | null;
+  active: boolean;
+  officer: {
+    name: string | null;
+    person_kind: OperatorOfficerDto["personKind"];
+    designation: OperatorOfficerDto["designation"];
+    designation_other: string | null;
+  };
+}): OperatorSigningPersonDto {
+  return {
+    id: row.id,
+    officerId: row.officer_id,
+    personName: row.officer.name,
+    personKind: row.officer.person_kind,
+    designation: row.officer.designation,
+    designationOther: row.officer.designation_other,
+    roles: row.roles,
+    signature: row.signature_s3_key
+      ? {
+          s3Key: row.signature_s3_key,
+          ...(row.signature_file_name ? { fileName: row.signature_file_name } : {}),
+          ...(row.signature_content_type ? { contentType: row.signature_content_type } : {}),
+        }
+      : null,
+    active: row.active,
+  };
+}
+
+function companyStampFromConfig(value: unknown): OperatorCompanyStampFields | null {
+  const config = parseDocumentAuthorisationConfig(value);
+  const stamp = config.certificateCompanyStamp;
+  if (!stamp?.s3Key) return null;
+  return stamp;
 }
 
 function serializeAdvisor(row: {
@@ -301,28 +362,18 @@ function serializeFinancial(row: {
 export async function getOrCreateOperatorProfile(): Promise<OperatorProfileDto> {
   const existing = await prisma.operatorProfile.findUnique({
     where: { singleton_key: SINGLETON },
-    include: {
-      share_capital: true,
-      shareholders: { orderBy: { created_at: "asc" } },
-      officers: { orderBy: { created_at: "asc" } },
-      advisors: { orderBy: { created_at: "asc" } },
-      interests: { orderBy: { created_at: "asc" } },
-      financial_statements: { orderBy: { financial_year_end: "desc" } },
-    },
+    include: PROFILE_INCLUDE,
   });
   const row =
     existing ??
     (await prisma.operatorProfile.create({
       data: { singleton_key: SINGLETON },
-      include: {
-        share_capital: true,
-        shareholders: true,
-        officers: true,
-        advisors: true,
-        interests: true,
-        financial_statements: true,
-      },
+      include: PROFILE_INCLUDE,
     }));
+  const finance = await prisma.platformFinanceSetting.findUnique({
+    where: { key: "DEFAULT" },
+    select: { document_authorisation_config: true },
+  });
   return {
     id: row.id,
     singletonKey: row.singleton_key,
@@ -338,6 +389,8 @@ export async function getOrCreateOperatorProfile(): Promise<OperatorProfileDto> 
     advisors: row.advisors.map(serializeAdvisor),
     interests: row.interests.map(serializeInterest),
     financialStatements: row.financial_statements.map(serializeFinancial),
+    signingPeople: row.signing_people.map(serializeSigningPerson),
+    companyStamp: companyStampFromConfig(finance?.document_authorisation_config),
     updatedAt: row.updated_at.toISOString(),
   };
 }
@@ -517,6 +570,7 @@ export async function updateOfficer(
       resignation_date: parseDateInput(input.resignationDate),
     },
   });
+  await syncLegacyAuthorisedSignatoryName();
   return getOrCreateOperatorProfile();
 }
 
@@ -524,6 +578,7 @@ export async function deleteOfficer(id: string): Promise<OperatorProfileDto> {
   await prisma.operatorOfficer.delete({ where: { id } }).catch(() => {
     throw new AppError(404, "NOT_FOUND", "Officer not found");
   });
+  await syncLegacyAuthorisedSignatoryName();
   return getOrCreateOperatorProfile();
 }
 
@@ -695,4 +750,169 @@ export async function deleteFinancialStatement(id: string): Promise<OperatorProf
     throw new AppError(404, "NOT_FOUND", "Financial statement not found");
   });
   return getOrCreateOperatorProfile();
+}
+
+function imageExtensionForContentType(contentType: string): string {
+  if (contentType === "image/jpeg" || contentType === "image/jpg") return "jpg";
+  if (contentType === "image/webp") return "webp";
+  return "png";
+}
+
+async function patchDocumentAuthorisationConfig(patch: {
+  authorisedSignatoryName?: string;
+  certificateCompanyStamp?: OperatorCompanyStampFields;
+}): Promise<void> {
+  const existing = await prisma.platformFinanceSetting.findUnique({
+    where: { key: "DEFAULT" },
+    select: { document_authorisation_config: true },
+  });
+  const current = parseDocumentAuthorisationConfig(existing?.document_authorisation_config);
+  const next = {
+    authorisedSignatoryName:
+      patch.authorisedSignatoryName !== undefined
+        ? patch.authorisedSignatoryName
+        : current.authorisedSignatoryName,
+    useSameCompanyStamp: current.useSameCompanyStamp,
+    certificateCompanyStamp: patch.certificateCompanyStamp ?? current.certificateCompanyStamp,
+    receiptCompanyStamp: current.receiptCompanyStamp,
+  };
+  await prisma.platformFinanceSetting.upsert({
+    where: { key: "DEFAULT" },
+    create: {
+      key: "DEFAULT",
+      document_authorisation_config: next as Prisma.InputJsonValue,
+    },
+    update: {
+      document_authorisation_config: next as Prisma.InputJsonValue,
+    },
+  });
+}
+
+async function syncLegacyAuthorisedSignatoryName(): Promise<void> {
+  const people = await prisma.operatorSigningPerson.findMany({
+    include: { officer: true },
+    orderBy: { created_at: "asc" },
+  });
+  const name = legacyAuthorisedSignatoryNameFromSigningPeople(
+    people.map((row) => ({
+      active: row.active,
+      roles: row.roles as OperatorSigningRole[],
+      personName: row.officer.name,
+    }))
+  );
+  if (!name) return;
+  await patchDocumentAuthorisationConfig({ authorisedSignatoryName: name });
+}
+
+function signatureData(signature: OperatorSigningPersonCreateInput["signature"]): {
+  signature_s3_key: string | null;
+  signature_file_name: string | null;
+  signature_content_type: string | null;
+} {
+  if (!signature?.s3Key) {
+    return {
+      signature_s3_key: null,
+      signature_file_name: null,
+      signature_content_type: null,
+    };
+  }
+  return {
+    signature_s3_key: signature.s3Key,
+    signature_file_name: signature.fileName ?? null,
+    signature_content_type: signature.contentType ?? null,
+  };
+}
+
+export async function createSigningPerson(
+  input: OperatorSigningPersonCreateInput
+): Promise<OperatorProfileDto> {
+  const current = await getOrCreateOperatorProfile();
+  const officer = await prisma.operatorOfficer.findFirst({
+    where: { id: input.officerId, operator_profile_id: current.id },
+  });
+  if (!officer) throw new AppError(404, "NOT_FOUND", "Shoraka person not found");
+  try {
+    await prisma.operatorSigningPerson.create({
+      data: {
+        operator_profile_id: current.id,
+        officer_id: officer.id,
+        roles: input.roles,
+        active: input.active ?? true,
+        ...signatureData(input.signature),
+      },
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      throw new AppError(
+        409,
+        "SIGNING_PERSON_EXISTS",
+        "This person already has a signing configuration"
+      );
+    }
+    throw error;
+  }
+  await syncLegacyAuthorisedSignatoryName();
+  return getOrCreateOperatorProfile();
+}
+
+export async function updateSigningPerson(
+  id: string,
+  input: OperatorSigningPersonUpdateInput
+): Promise<OperatorProfileDto> {
+  const row = await prisma.operatorSigningPerson.findUnique({ where: { id } });
+  if (!row) throw new AppError(404, "NOT_FOUND", "Signing person not found");
+  const signaturePatch =
+    input.signature === undefined
+      ? {}
+      : input.signature?.s3Key
+        ? signatureData(input.signature)
+        : {
+            signature_s3_key: null,
+            signature_file_name: null,
+            signature_content_type: null,
+          };
+  await prisma.operatorSigningPerson.update({
+    where: { id },
+    data: {
+      ...(input.roles ? { roles: input.roles } : {}),
+      ...(input.active === undefined ? {} : { active: input.active }),
+      ...signaturePatch,
+    },
+  });
+  await syncLegacyAuthorisedSignatoryName();
+  return getOrCreateOperatorProfile();
+}
+
+export async function patchOperatorCompanyStamp(
+  input: OperatorCompanyStampPatchInput
+): Promise<OperatorProfileDto> {
+  await patchDocumentAuthorisationConfig({
+    certificateCompanyStamp: {
+      s3Key: input.s3Key,
+      ...(input.fileName ? { fileName: input.fileName } : {}),
+      ...(input.contentType ? { contentType: input.contentType } : {}),
+    },
+  });
+  return getOrCreateOperatorProfile();
+}
+
+export async function requestOperatorSigningImageUploadUrl(input: {
+  fileName: string;
+  contentType: string;
+  fileSize: number;
+  kind: "signature" | "company_stamp";
+}): Promise<{ uploadUrl: string; s3Key: string; expiresIn: number }> {
+  const extension = imageExtensionForContentType(input.contentType);
+  const date = new Date().toISOString().split("T")[0];
+  const folder =
+    input.kind === "company_stamp"
+      ? "platform-finance/document-stamps/certificate"
+      : "operator-profile/signing-signatures";
+  const key = `${folder}/v1-${date}-${randomUUID()}.${extension}`;
+  const { uploadUrl, key: s3Key, expiresIn } = await generatePresignedUploadUrl({
+    key,
+    contentType: input.contentType,
+    contentLength: input.fileSize,
+  });
+  return { uploadUrl, s3Key, expiresIn };
 }

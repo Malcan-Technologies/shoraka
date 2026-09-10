@@ -14,6 +14,7 @@ import {
   normalizeRawStatus,
 } from "@cashsouk/types";
 import { findCtosPartySupplementByOnboardingJsonMatch } from "../../organization/ctos-party-supplement-webhook-lookup";
+import { enrichApprovedCtosPartySupplement } from "../../organization-profile/regtank-party-seed";
 import { getIndividualWaitForApprovalUpdate } from "../helpers/individual-onboarding-transition";
 import {
   isCancelledOnboardingRow,
@@ -440,6 +441,32 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
       },
       "CTOS onboarding webhook handled"
     );
+
+    if (normalizeRawStatus(status).toUpperCase() === "APPROVED") {
+      const organizationId = supplement.issuer_organization_id || supplement.investor_organization_id;
+      const portal = supplement.issuer_organization_id ? "issuer" : "investor";
+      if (organizationId) {
+        try {
+          await enrichApprovedCtosPartySupplement({
+            portal,
+            organizationId,
+            partyKey: supplement.party_key,
+            requestId,
+            onboardingJson: mergedBase,
+          });
+        } catch (error) {
+          logger.error(
+            {
+              requestId,
+              partyKey: supplement.party_key,
+              organizationId,
+              error: error instanceof Error ? error.message : String(error),
+            },
+            "RegTank person profile seed failed after APPROVED (non-blocking)"
+          );
+        }
+      }
+    }
 
     return true;
   }

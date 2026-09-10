@@ -795,7 +795,7 @@ export function CompanyDetailsStep({
 
           <div className={aboutRowGridClassName}>
             <Label htmlFor="company-what-does-company-do" className={labelClassName}>
-              What does your company do?
+              Company Activities
             </Label>
             <div className="flex flex-col gap-1">
               <TextareaWithCharCount

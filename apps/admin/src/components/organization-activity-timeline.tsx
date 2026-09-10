@@ -69,6 +69,8 @@ function getEventLabel(eventType: string): string {
     MEMBER_INVITED: "Member Invited",
     MEMBER_REMOVED: "Member Removed",
     MEMBER_ROLE_CHANGED: "Member Role Changed",
+    PERSON_PLATFORM_USER_LINKED: "Person Linked to Platform User",
+    PERSON_PLATFORM_ACCESS_RESTORED: "Person Platform Access Restored",
     MARC_ASSESSMENT_SAVED: "MARC Assessment Saved",
     USER_COMPLETED: "User Completed",
   };
@@ -153,6 +155,10 @@ function buildEventDescription(
         return `Member role changed from ${String(metadata.previousRole)} to ${String(metadata.newRole)}.`;
       }
       return "A member role was changed.";
+    case "PERSON_PLATFORM_USER_LINKED":
+      return "This person was linked to a platform account.";
+    case "PERSON_PLATFORM_ACCESS_RESTORED":
+      return "Platform access was restored for the linked account.";
     case "MARC_ASSESSMENT_SAVED": {
       const next =
         metadata.nextValues && typeof metadata.nextValues === "object" && !Array.isArray(metadata.nextValues)

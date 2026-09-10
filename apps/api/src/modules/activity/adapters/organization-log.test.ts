@@ -21,6 +21,8 @@ describe("OrganizationLogAdapter", () => {
     expect(adapter.getEventTypes()).not.toEqual(
       expect.arrayContaining(["MEMBER_ADDED", "MEMBER_INVITED", "MEMBER_REMOVED", "MEMBER_ROLE_CHANGED"])
     );
+    expect(adapter.getEventTypes()).not.toContain("PERSON_PLATFORM_USER_LINKED");
+    expect(adapter.getEventTypes()).not.toContain("PERSON_PLATFORM_ACCESS_RESTORED");
     expect(adapter.getEventTypes()).not.toContain("MARC_ASSESSMENT_SAVED");
   });
 
