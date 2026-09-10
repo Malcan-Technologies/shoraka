@@ -36,7 +36,7 @@ import {
   type ScGender,
   type ScInvestorCategory,
 } from "@cashsouk/types";
-import { StatusBadge, YesNoRadioDisplay } from "@cashsouk/ui";
+import { YesNoRadioDisplay } from "@cashsouk/ui";
 import {
   ArrowTopRightOnSquareIcon,
   BanknotesIcon,
@@ -75,7 +75,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { usePermissions } from "@/hooks/use-permissions";
-import { getOrganizationOnboardingPresentation } from "@/lib/organization-status";
 import { OrganizationCardEditActions } from "./organization-card-edit-actions";
 import { useUpdateOrganizationProfile } from "@/organizations/hooks/use-update-organization-profile";
 import {
@@ -93,6 +92,7 @@ import {
   ReadField,
   shortenUrl,
 } from "./organization-profile-helpers";
+import { ADMIN_ORG_ADDRESS_FIELD_LABELS } from "@/organizations/utils/admin-org-display";
 import { missingFieldKeys } from "@/organizations/utils/organization-profile-overview";
 import { OrganizationFinancialsPanel } from "./organization-financials-panel";
 import { OrganizationMarcCard } from "./organization-marc-card";
@@ -321,9 +321,6 @@ export function OrganizationProfilePanel({
     liveness: FaceSmileIcon,
     compliance: ShieldCheckIcon,
   } as const;
-  const onboardingPresentation = getOrganizationOnboardingPresentation(org.onboardingStatus, {
-    completedLabel: "Onboarded",
-  });
   const sectionHasChanges = editingSection
     ? Object.keys(buildSectionPayload(org, draft, editingSection)).length > 0
     : false;
@@ -438,26 +435,6 @@ export function OrganizationProfilePanel({
           </CardContent>
         </Card>
   ) : null;
-  const verificationCard = (
-    <Card id="profile-kyc" className="rounded-2xl">
-      <AdminDetailCardHeader
-        icon={ShieldCheckIcon}
-        title="Onboarding Status"
-        description="Status of this organisation's onboarding."
-      />
-      <CardContent>
-        <ReadField
-          label="Onboarding"
-          value={
-            <StatusBadge
-              label={onboardingPresentation.label}
-              status={onboardingPresentation.status}
-            />
-          }
-        />
-      </CardContent>
-    </Card>
-  );
 
   return (
     <div className="space-y-6">
@@ -724,9 +701,9 @@ export function OrganizationProfilePanel({
               <>
                 <EditableAddressFields
                   label={SC_MONTHLY_ISSUER.businessAddress.label}
-                  lineLabel={SC_MONTHLY_ISSUER.businessAddress.label}
-                  stateLabel={SC_MONTHLY_ISSUER.businessAddressState.label}
-                  postcodeLabel={SC_MONTHLY_ISSUER.businessAddressPostcode.label}
+                  lineLabel={ADMIN_ORG_ADDRESS_FIELD_LABELS.address}
+                  stateLabel={ADMIN_ORG_ADDRESS_FIELD_LABELS.state}
+                  postcodeLabel={ADMIN_ORG_ADDRESS_FIELD_LABELS.postcode}
                   value={draft.businessAddress}
                   onChange={(businessAddress) => {
                     setDraft((current) => ({
@@ -770,9 +747,10 @@ export function OrganizationProfilePanel({
                   ) : (
                     <EditableAddressFields
                       label={SC_MONTHLY_ISSUER.registeredAddress.label}
-                      lineLabel={SC_MONTHLY_ISSUER.registeredAddress.label}
-                      stateLabel={SC_MONTHLY_ISSUER.registeredAddressState.label}
-                      postcodeLabel={SC_MONTHLY_ISSUER.registeredAddressPostcode.label}
+                      lineLabel={ADMIN_ORG_ADDRESS_FIELD_LABELS.address}
+                      stateLabel={ADMIN_ORG_ADDRESS_FIELD_LABELS.state}
+                      postcodeLabel={ADMIN_ORG_ADDRESS_FIELD_LABELS.postcode}
+                      showHeading={false}
                       value={draft.registeredAddress}
                       onChange={(registeredAddress) =>
                         setDraft((current) => ({ ...current, registeredAddress }))
@@ -793,7 +771,7 @@ export function OrganizationProfilePanel({
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <ReadField
                       className="sm:col-span-2"
-                      label={SC_MONTHLY_ISSUER.registeredAddress.label}
+                      label={ADMIN_ORG_ADDRESS_FIELD_LABELS.address}
                       value={
                         [
                           org.corporateOnboardingData?.addresses?.registered?.line1,
@@ -805,13 +783,13 @@ export function OrganizationProfilePanel({
                       missing={requiredFieldKeys.has("registeredAddress.line1")}
                     />
                     <ReadField
-                      label={SC_MONTHLY_ISSUER.registeredAddressState.label}
+                      label={ADMIN_ORG_ADDRESS_FIELD_LABELS.state}
                       value={org.corporateOnboardingData?.addresses?.registered?.state}
                       missing={requiredFieldKeys.has("registeredAddress.state")}
                       help={SC_MONTHLY_ISSUER.registeredAddressState.help}
                     />
                     <ReadField
-                      label={SC_MONTHLY_ISSUER.registeredAddressPostcode.label}
+                      label={ADMIN_ORG_ADDRESS_FIELD_LABELS.postcode}
                       value={org.corporateOnboardingData?.addresses?.registered?.postalCode}
                       missing={requiredFieldKeys.has("registeredAddress.postalCode")}
                       help={SC_MONTHLY_ISSUER.registeredAddressPostcode.help}
@@ -823,7 +801,7 @@ export function OrganizationProfilePanel({
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <ReadField
                       className="sm:col-span-2"
-                      label={SC_MONTHLY_ISSUER.businessAddress.label}
+                      label={ADMIN_ORG_ADDRESS_FIELD_LABELS.address}
                       value={
                         [
                           org.corporateOnboardingData?.addresses?.business?.line1,
@@ -836,7 +814,7 @@ export function OrganizationProfilePanel({
                       help={SC_MONTHLY_ISSUER.businessAddress.help}
                     />
                     <ReadField
-                      label={SC_MONTHLY_ISSUER.businessAddressState.label}
+                      label={ADMIN_ORG_ADDRESS_FIELD_LABELS.state}
                       value={org.corporateOnboardingData?.addresses?.business?.state}
                       missing={
                         requiredFieldKeys.has("businessAddress.state") ||
@@ -845,7 +823,7 @@ export function OrganizationProfilePanel({
                       help={SC_MONTHLY_ISSUER.businessAddressState.help}
                     />
                     <ReadField
-                      label={SC_MONTHLY_ISSUER.businessAddressPostcode.label}
+                      label={ADMIN_ORG_ADDRESS_FIELD_LABELS.postcode}
                       value={org.corporateOnboardingData?.addresses?.business?.postalCode}
                       missing={
                         requiredFieldKeys.has("businessAddress.postalCode") ||
@@ -1077,8 +1055,6 @@ export function OrganizationProfilePanel({
 
       {org.type !== "COMPANY" ? classificationCard : null}
 
-      {org.type !== "COMPANY" ? verificationCard : null}
-
       <Card className="rounded-2xl">
         <AdminDetailCardHeader
           icon={BanknotesIcon}
@@ -1229,8 +1205,6 @@ export function OrganizationProfilePanel({
           </AdminCollapsibleCard>
         );
       })}
-
-      {org.type === "COMPANY" ? verificationCard : null}
 
       <AlertDialog
         open={showConfirm}

@@ -1,4 +1,5 @@
 import {
+  ADMIN_ORG_ADDRESS_FIELD_LABELS,
   adminOnboardingEvidenceCards,
   hasOrganizationScreeningResponse,
   organizationScreeningResultTitle,
@@ -50,5 +51,15 @@ describe("hasOrganizationScreeningResponse", () => {
   it("is false only when source data is absent", () => {
     expect(hasOrganizationScreeningResponse(null)).toBe(false);
     expect(hasOrganizationScreeningResponse(undefined)).toBe(false);
+  });
+});
+
+describe("ADMIN_ORG_ADDRESS_FIELD_LABELS", () => {
+  it("uses short field labels under Registered and Business Address headings", () => {
+    expect(ADMIN_ORG_ADDRESS_FIELD_LABELS).toEqual({
+      address: "Address",
+      state: "State",
+      postcode: "Postcode",
+    });
   });
 });

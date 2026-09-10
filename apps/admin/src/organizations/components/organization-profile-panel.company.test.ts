@@ -4,6 +4,8 @@ import { join } from "path";
 const panel = readFileSync(join(__dirname, "organization-profile-panel.tsx"), "utf8");
 const pic = readFileSync(join(__dirname, "organization-pic-card.tsx"), "utf8");
 const detail = readFileSync(join(__dirname, "organization-people-access-detail.tsx"), "utf8");
+const page = readFileSync(join(__dirname, "organization-detail-page.tsx"), "utf8");
+const helpers = readFileSync(join(__dirname, "organization-profile-helpers.tsx"), "utf8");
 
 describe("Admin company organisation profile", () => {
   it("hides Personal Details (KYC) on company organisations", () => {
@@ -29,19 +31,43 @@ describe("Admin company organisation profile", () => {
     expect(detail).toContain("Individual KYC is not required.");
   });
 
-  it("labels onboarding status without mixing in person KYC/AML", () => {
-    expect(panel).toContain('title="Onboarding Status"');
-    expect(panel).toContain("Status of this organisation's onboarding.");
+  it("does not render a duplicate Organisation verification card", () => {
     expect(panel).not.toContain("Organisation verification");
+    expect(panel).not.toContain("verificationCard");
+    expect(panel).not.toContain('title="Onboarding Status"');
+    expect(panel).not.toContain("Status of this organisation's onboarding.");
     expect(panel).not.toContain("Organisation onboarding status. Person KYC and AML are on People & Access.");
+  });
+
+  it("keeps the header onboarding badge", () => {
+    expect(page).toContain("getOrganizationOnboardingPresentation");
+    expect(page).toContain('completedLabel: "Onboarded"');
+    expect(page).toContain("onboardingPresentation.label");
+    expect(page).toContain("onboardingPresentation.status");
+  });
+
+  it("simplifies Registered and Business Address field labels", () => {
+    expect(panel).toContain("SC_MONTHLY_ISSUER.registeredAddress.label");
+    expect(panel).toContain("SC_MONTHLY_ISSUER.businessAddress.label");
+    expect(panel).toContain("ADMIN_ORG_ADDRESS_FIELD_LABELS.address");
+    expect(panel).toContain("ADMIN_ORG_ADDRESS_FIELD_LABELS.state");
+    expect(panel).toContain("ADMIN_ORG_ADDRESS_FIELD_LABELS.postcode");
+    expect(panel).not.toContain("label={SC_MONTHLY_ISSUER.registeredAddressState.label}");
+    expect(panel).not.toContain("label={SC_MONTHLY_ISSUER.registeredAddressPostcode.label}");
+    expect(panel).not.toContain("label={SC_MONTHLY_ISSUER.businessAddressState.label}");
+    expect(panel).not.toContain("label={SC_MONTHLY_ISSUER.businessAddressPostcode.label}");
+    expect(panel).not.toContain("stateLabel={SC_MONTHLY_ISSUER.registeredAddressState.label}");
+    expect(panel).not.toContain("postcodeLabel={SC_MONTHLY_ISSUER.registeredAddressPostcode.label}");
+    expect(panel).not.toContain("stateLabel={SC_MONTHLY_ISSUER.businessAddressState.label}");
+    expect(panel).not.toContain("postcodeLabel={SC_MONTHLY_ISSUER.businessAddressPostcode.label}");
+    expect(panel).not.toContain("lineLabel={SC_MONTHLY_ISSUER.registeredAddress.label}");
+    expect(panel).not.toContain("lineLabel={SC_MONTHLY_ISSUER.businessAddress.label}");
+    expect(helpers).toContain("showHeading");
   });
 
   it("renders Wealth Declaration in the documents / onboarding evidence area when DTO JSON exists", () => {
     expect(panel).toContain("adminOnboardingEvidenceCards");
     expect(panel).toContain("wealthDeclaration: org.wealthDeclaration");
     expect(panel.indexOf("evidenceCards.map")).toBeGreaterThan(panel.indexOf('title="Documents"'));
-    expect(panel.indexOf("evidenceCards.map")).toBeLessThan(
-      panel.lastIndexOf("{org.type === \"COMPANY\" ? verificationCard : null}")
-    );
   });
 });

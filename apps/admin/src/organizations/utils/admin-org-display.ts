@@ -41,3 +41,9 @@ export function organizationScreeningResultTitle(organizationType: string | null
 export function hasOrganizationScreeningResponse(kycResponse: unknown): boolean {
   return kycResponse != null && typeof kycResponse === "object";
 }
+
+export const ADMIN_ORG_ADDRESS_FIELD_LABELS = {
+  address: "Address",
+  state: "State",
+  postcode: "Postcode",
+} as const;
