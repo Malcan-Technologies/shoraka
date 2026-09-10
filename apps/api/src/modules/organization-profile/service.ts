@@ -57,6 +57,7 @@ import {
 } from "./extract-regulatory-parties";
 import type { CreatePartyInput, OrgMasterPatchInput, PartyPatchInput } from "./schemas";
 import { writeOrganizationPartyEmail } from "./person-email";
+import { assertObservedPartyNotBlockedByIdentityConflict } from "./regtank-party-seed";
 import {
   asAddress,
   asJson,
@@ -1898,6 +1899,11 @@ export async function adoptObservedParty(params: {
   if (row.membership_status !== OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED) {
     throw new AppError(400, "INVALID_PARTY_STATUS", "Only new people from CTOS can be added to the current profile.");
   }
+  await assertObservedPartyNotBlockedByIdentityConflict({
+    portal: params.portal,
+    organizationId: params.organizationId,
+    partyId: params.partyId,
+  });
   if (
     isIssuerShareholderOnlyBelowMinimum({
       isShareholder: row.is_shareholder,

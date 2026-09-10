@@ -12,6 +12,7 @@ import {
   isProfileValidationError,
   linkedPartyUserIds,
   optionalEmailIssue,
+  observedPartyBlockedByIdentityConflict,
   phoneFormatIssue,
   SC_MONTHLY_ISSUER,
   validateIssuerContactPersonForm,
@@ -285,6 +286,14 @@ export function OrganizationPeoplePanel({
                     enforceIssuerShareholderMinimum
                     onView={() => item.party && setViewingPartyId(item.party.id)}
                     onAdopt={item.party ? () => peopleMutations.adopt.mutate(item.party!.id) : undefined}
+                    conflictBlocksAdopt={Boolean(
+                      item.party &&
+                        observedPartyBlockedByIdentityConflict({
+                          observedPartyId: item.party.id,
+                          observedPartyKey: item.party.partyKey,
+                          parties: org.partyProfiles ?? [],
+                        })
+                    )}
                   />
                 </div>
               ))}
@@ -318,6 +327,24 @@ export function OrganizationPeoplePanel({
                 // Previous behavior limited this action to CTOS-absent parties.
                 // Reapply the CTOS-absence check here if that business rule is restored.
                 onInactivate={item.party ? () => peopleMutations.inactivate.mutate(item.party!.id) : undefined}
+                onKeepOnboardingIdentity={
+                  item.party
+                    ? () =>
+                        peopleMutations.resolveIdentityConflict.mutate({
+                          partyId: item.party!.id,
+                          action: "KEEP_ONBOARDING",
+                        })
+                    : undefined
+                }
+                onKeepCtosPerson={
+                  item.party
+                    ? () =>
+                        peopleMutations.resolveIdentityConflict.mutate({
+                          partyId: item.party!.id,
+                          action: "KEEP_CTOS",
+                        })
+                    : undefined
+                }
                 onKeepAbsent={() => toast.success("Kept on the current profile")}
               />
             </div>

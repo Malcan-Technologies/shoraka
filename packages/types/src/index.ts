@@ -594,6 +594,8 @@ export * from "./sc-appendix-a-countries";
 export * from "./organization-party-profile";
 export * from "./organization-party-key";
 export * from "./onboarding-person-create";
+export * from "./person-identity-conflict";
+export * from "./regtank-person-profile-seed";
 export * from "./party-ctos-comparison";
 export * from "./person-platform-access";
 export * from "./issuer-shareholder-threshold";

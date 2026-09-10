@@ -8,6 +8,11 @@ import {
   isIssuerShareholderOnlyBelowMinimum,
   computeIssuerPersonCompleteness,
   issuerPersonCompletenessInputFromParty,
+  isBlockedPersonIdentityConflict,
+  readPersonIdentityConflict,
+  IDENTITY_CONFLICT_ADMIN_BODY,
+  IDENTITY_CONFLICT_ADMIN_TITLE,
+  IDENTITY_CONFLICT_OBSERVED_BODY,
   type OrganizationPartyProfileDto,
 } from "@cashsouk/types";
 import { PartyRoleBadges, PartyCtosIndicator, StatusBadge } from "@cashsouk/ui";
@@ -28,6 +33,9 @@ export function OrganizationPersonCard({
   onAdopt,
   onInactivate,
   onKeepAbsent,
+  onKeepOnboardingIdentity,
+  onKeepCtosPerson,
+  conflictBlocksAdopt = false,
   enforceIssuerShareholderMinimum = true,
 }: {
   item: UnifiedOrgPerson;
@@ -39,6 +47,9 @@ export function OrganizationPersonCard({
   onAdopt?: () => void;
   onInactivate?: () => void;
   onKeepAbsent?: () => void;
+  onKeepOnboardingIdentity?: () => void;
+  onKeepCtosPerson?: () => void;
+  conflictBlocksAdopt?: boolean;
   enforceIssuerShareholderMinimum?: boolean;
 }) {
   const party = item.party;
@@ -68,6 +79,9 @@ export function OrganizationPersonCard({
       isManagement: party.isManagement,
       shareholdingPercentage: party.shareholdingPercentage,
     });
+  const identityConflict = readPersonIdentityConflict(party?.externalObservation);
+  const blockedIdentityConflict = isBlockedPersonIdentityConflict(identityConflict);
+  const observedConflictTarget = item.kind === "external" && conflictBlocksAdopt;
 
   return (
     <div className={cn("space-y-3 rounded-xl border p-4", highlight && ADMIN_ACTION_SURFACE_CLASS)}>
@@ -126,13 +140,49 @@ export function OrganizationPersonCard({
         </div>
       </div>
 
+      {blockedIdentityConflict && party ? (
+        <div className="space-y-2">
+          <p className="flex items-center gap-1.5 text-ui text-status-action-text">
+            <ExclamationTriangleIcon className="h-4 w-4" />
+            {IDENTITY_CONFLICT_ADMIN_TITLE}
+          </p>
+          <p className="text-ui text-status-action-text">{IDENTITY_CONFLICT_ADMIN_BODY}</p>
+          {identityConflict?.otherMembershipStatus === "EXTERNAL_OBSERVED" ? (
+            <p className="text-meta text-muted-foreground">
+              Matching CTOS Person key: {identityConflict.otherPartyKey || identityConflict.otherPartyId}
+            </p>
+          ) : (
+            <p className="text-meta text-muted-foreground">
+              Matching Person key: {identityConflict?.otherPartyKey || identityConflict?.otherPartyId}
+            </p>
+          )}
+          {canManage && identityConflict?.otherMembershipStatus === "EXTERNAL_OBSERVED" ? (
+            <div className="flex flex-wrap gap-2">
+              {onKeepOnboardingIdentity ? (
+                <Button className="h-10" onClick={onKeepOnboardingIdentity}>
+                  Keep onboarding Person
+                </Button>
+              ) : null}
+              {onKeepCtosPerson ? (
+                <Button className="h-10" variant="outline" onClick={onKeepCtosPerson}>
+                  Keep CTOS Person
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       {item.kind === "external" && party ? (
         <div className="space-y-2">
           <p className="flex items-center gap-1.5 text-ui text-status-action-text">
             <ExclamationTriangleIcon className="h-4 w-4" />
             New person found in the latest CTOS information.
           </p>
-          {canManage && onAdopt && !belowMinimumShareholder ? (
+          {observedConflictTarget ? (
+            <p className="text-ui text-status-action-text">{IDENTITY_CONFLICT_OBSERVED_BODY}</p>
+          ) : null}
+          {canManage && onAdopt && !belowMinimumShareholder && !observedConflictTarget ? (
             <div className="flex flex-wrap gap-2">
               <Button className="h-10" onClick={onAdopt}>
                 Adopt

@@ -191,6 +191,12 @@ export const mismatchResolveSchema = z
   })
   .strict();
 
+export const identityConflictResolveSchema = z
+  .object({
+    action: z.enum(["KEEP_ONBOARDING", "KEEP_CTOS"]),
+  })
+  .strict();
+
 export const financialYearPatchSchema = z
   .object({
     year: z.string().regex(/^\d{4}$/),

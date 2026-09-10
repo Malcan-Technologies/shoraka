@@ -747,6 +747,18 @@ export class ApiClient {
     );
   }
 
+  async resolvePersonIdentityConflict(
+    portal: "investor" | "issuer",
+    organizationId: string,
+    partyId: string,
+    action: "KEEP_ONBOARDING" | "KEEP_CTOS"
+  ): Promise<ApiResponse<OrganizationPartyProfileDto> | ApiError> {
+    return this.post<OrganizationPartyProfileDto>(
+      `/v1/admin/organizations/${portal}/${organizationId}/party-profiles/${partyId}/resolve-identity-conflict`,
+      { action }
+    );
+  }
+
   async inactivateMasterParty(
     portal: "investor" | "issuer",
     organizationId: string,

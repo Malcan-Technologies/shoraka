@@ -18,8 +18,10 @@ import {
   resolvePartyMismatch,
   seedMasterPartiesIfEmpty,
 } from "./service";
+import { resolvePersonIdentityConflict } from "./regtank-party-seed";
 import {
   financialYearPatchSchema,
+  identityConflictResolveSchema,
   mismatchResolveSchema,
   orgMasterPatchSchema,
   partyPatchSchema,
@@ -396,6 +398,32 @@ export function createAdminOrganizationProfileRouter() {
       next(error);
     }
   });
+
+  router.post(
+    "/:portal/:id/party-profiles/:partyId/resolve-identity-conflict",
+    requirePermission("organizations.manage"),
+    async (req, res, next) => {
+      try {
+        const portal = portalFromParams(req);
+        const input = identityConflictResolveSchema.parse(req.body);
+        const data = await resolvePersonIdentityConflict({
+          portal,
+          organizationId: req.params.id,
+          partyId: req.params.partyId,
+          action: input.action,
+        });
+        await logMasterProfileAudit({
+          req,
+          organizationId: req.params.id,
+          eventType: "MASTER_PARTY_IDENTITY_CONFLICT_RESOLVED",
+          metadata: { portal, partyId: req.params.partyId, action: input.action },
+        });
+        res.json({ success: true, data, correlationId: res.locals.correlationId });
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
 
   router.post("/:portal/:id/party-profiles/:partyId/inactivate", requirePermission("organizations.manage"), async (req, res, next) => {
     try {

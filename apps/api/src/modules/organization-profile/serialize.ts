@@ -12,6 +12,8 @@ import {
   mergeCodContactPersonMaster,
   normalizeDirectorShareholderIdKey,
   parseComrepCalendarDate,
+  parsePersonIdentityConflict,
+  PERSON_IDENTITY_CONFLICT_KEY,
   valuesEqualForMismatch,
 } from "@cashsouk/types";
 
@@ -192,12 +194,19 @@ export function mergeObservationResolutions(
       kept[field] = meta;
     }
   }
-  if (Object.keys(kept).length === 0) {
-    const rest = { ...next };
-    delete rest[OBSERVATION_RESOLVED_KEY];
-    return rest;
+  const merged =
+    Object.keys(kept).length === 0
+      ? (() => {
+          const rest = { ...next };
+          delete rest[OBSERVATION_RESOLVED_KEY];
+          return rest;
+        })()
+      : { ...next, [OBSERVATION_RESOLVED_KEY]: kept };
+  const conflict = parsePersonIdentityConflict(previous);
+  if (conflict) {
+    merged[PERSON_IDENTITY_CONFLICT_KEY] = conflict;
   }
-  return { ...next, [OBSERVATION_RESOLVED_KEY]: kept };
+  return merged;
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

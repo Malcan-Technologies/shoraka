@@ -5,6 +5,9 @@ import {
   formatPeopleRolesLine,
   getFinalStatusLabel,
   getFinalStatusToken,
+  IDENTITY_CONFLICT_ISSUER_LABEL,
+  isBlockedPersonIdentityConflict,
+  readPersonIdentityConflict,
   type ApplicationPersonRow,
   type OrganizationPartyProfileDto,
   type PersonPlatformAccess,
@@ -69,6 +72,7 @@ export function PersonIdentityCard({
     : { label: "Not Started", tone: "neutral" as const };
   const access: PersonPlatformAccess | null = party?.platformAccess ?? null;
   const showPlatform = Boolean(party) && !corporate;
+  const identityConflict = isBlockedPersonIdentityConflict(readPersonIdentityConflict(party?.externalObservation));
   const inviteStatus = access?.status;
   const showInvite =
     canManagePlatform &&
@@ -111,6 +115,9 @@ export function PersonIdentityCard({
             <div className="flex flex-wrap items-center gap-2 pt-1">
               <StatusBadge status={getFinalStatusToken(kyc.tone)} label={`KYC: ${kyc.label}`} />
               <StatusBadge status={getFinalStatusToken(aml.tone)} label={`AML: ${aml.label}`} />
+              {identityConflict ? (
+                <StatusBadge status={getFinalStatusToken("info")} label={IDENTITY_CONFLICT_ISSUER_LABEL} />
+              ) : null}
               {inactive ? <StatusBadge status="neutral" label="Inactive" /> : null}
             </div>
           )}

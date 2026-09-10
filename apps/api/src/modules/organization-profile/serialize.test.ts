@@ -138,6 +138,24 @@ describe("mergeObservationResolutions", () => {
     const changed = mergeObservationResolutions(previous, { shareholdingPercentage: 40 });
     expect(changed[OBSERVATION_RESOLVED_KEY]).toBeUndefined();
   });
+
+  it("preserves identityConflict when CTOS observation is merged", () => {
+    const previous = {
+      shareholdingPercentage: 38,
+      identityConflict: {
+        status: "BLOCKED",
+        canonicalIdentity: "900101101234",
+        otherPartyId: "obs-1",
+        otherPartyKey: "900101101234",
+        otherMembershipStatus: "EXTERNAL_OBSERVED",
+        source: "REGTANK_QUERY",
+        at: "2026-09-10T00:00:00.000Z",
+      },
+    };
+    const merged = mergeObservationResolutions(previous, { shareholdingPercentage: 40, name: "ALI" });
+    expect(merged.identityConflict).toEqual(previous.identityConflict);
+    expect(merged.shareholdingPercentage).toBe(40);
+  });
 });
 
 describe("preserveFilledCodMasterFacts", () => {
