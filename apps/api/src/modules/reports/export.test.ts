@@ -1,5 +1,10 @@
 import type { ReportResult } from "@cashsouk/types";
-import { buildReportCsv, buildReportXlsx, neutralizeSpreadsheetFormula } from "./export";
+import {
+  buildReportCsv,
+  buildReportXlsx,
+  neutralizeSpreadsheetFormula,
+  reportDownloadName,
+} from "./export";
 
 const sample: ReportResult = {
   key: "ageing",
@@ -25,6 +30,16 @@ describe("report export", () => {
   it("builds an XLSX buffer", async () => {
     const buffer = await buildReportXlsx(sample);
     expect(buffer.subarray(0, 2).toString()).toBe("PK");
+  });
+
+  it("includes the portfolio breakdown in export filenames", () => {
+    expect(
+      reportDownloadName(
+        { ...sample, key: "portfolio_composition" },
+        "csv",
+        "issuer"
+      )
+    ).toBe("portfolio_composition-issuer-2026-09-09.csv");
   });
 
   it("appends portfolio-at-risk rows to the summary", () => {

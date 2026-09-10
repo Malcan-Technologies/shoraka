@@ -6,7 +6,7 @@ import {
 } from "@prisma/client";
 import type { ReportQuery, ReportResult, ReportSummaryRow } from "@cashsouk/types";
 import { prisma } from "../../lib/prisma";
-import { postedAtRange, reportDefinition, toNumber } from "./report-shared";
+import { postedAtRange, reportDefinition, roundMoney, toNumber } from "./report-shared";
 
 export const TRUST_BUCKET_ORDER: NoteLedgerAccountType[] = [
   NoteLedgerAccountType.INVESTOR_POOL,
@@ -65,11 +65,11 @@ export function classifyTrustMovement(input: {
 }
 
 export function ledgerSignedBalance(credits: number, debits: number): number {
-  return credits - debits;
+  return roundMoney(credits - debits);
 }
 
 export function ledgerClosing(opening: number, credits: number, debits: number): number {
-  return opening + credits - debits;
+  return roundMoney(opening + credits - debits);
 }
 
 type AggRow = { account_id: string; direction: NoteLedgerDirection; _sum: { amount: Prisma.Decimal | null } };
@@ -79,8 +79,11 @@ function totalsByAccount(rows: AggRow[]) {
   for (const row of rows) {
     const current = map.get(row.account_id) ?? { credits: 0, debits: 0 };
     const amount = toNumber(row._sum.amount);
-    if (row.direction === NoteLedgerDirection.CREDIT) current.credits += amount;
-    else current.debits += amount;
+    if (row.direction === NoteLedgerDirection.CREDIT) {
+      current.credits = roundMoney(current.credits + amount);
+    } else {
+      current.debits = roundMoney(current.debits + amount);
+    }
     map.set(row.account_id, current);
   }
   return map;
@@ -176,7 +179,7 @@ export async function runTrustRevenue(query: ReportQuery): Promise<ReportResult>
         : null,
     });
     if (kind === "other") continue;
-    revenue[kind] += toNumber(entry.amount);
+    revenue[kind] = roundMoney(revenue[kind] + toNumber(entry.amount));
   }
 
   const rows = TRUST_BUCKET_ORDER.flatMap((code) => {

@@ -75,7 +75,12 @@ export async function buildReportXlsx(result: ReportResult): Promise<Buffer> {
   return Buffer.from(buffer);
 }
 
-export function reportDownloadName(result: ReportResult, format: "csv" | "xlsx"): string {
+export function reportDownloadName(
+  result: ReportResult,
+  format: "csv" | "xlsx",
+  groupBy?: string
+): string {
   const stamp = (result.asOf ?? result.to ?? result.generatedAt.slice(0, 10)).replace(/[^\d-]/g, "");
-  return `${result.key}-${stamp}.${format}`;
+  const breakdown = groupBy ? `-${groupBy.replace(/[^a-z0-9_-]/gi, "")}` : "";
+  return `${result.key}${breakdown}-${stamp}.${format}`;
 }

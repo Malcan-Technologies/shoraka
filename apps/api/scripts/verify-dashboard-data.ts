@@ -125,8 +125,10 @@ async function main() {
       ref: note.note_reference,
       status: note.status,
       servicing: note.servicing_status,
+      defaultMarkedAt: note.default_marked_at,
       storedDpd: note.days_past_due,
       liveDpd: live.daysPastDue,
+      dueDate: due,
       outstanding,
     };
   });
@@ -240,60 +242,56 @@ async function main() {
   }
 
   const book = await repo.getBookMetrics();
-  const [
-    outstanding,
-    inFunding,
-    arrears,
-    defaulted,
-    dueSoonActive,
-  ] = await Promise.all([
-    prisma.note.aggregate({
-      where: { status: NoteStatus.ACTIVE },
-      _sum: { funded_amount: true },
-      _count: true,
-    }),
-    prisma.note.aggregate({
-      where: { status: { in: [NoteStatus.PUBLISHED, NoteStatus.FUNDING] } },
-      _sum: { funded_amount: true },
-      _count: true,
-    }),
-    prisma.note.aggregate({
-      where: { servicing_status: NoteServicingStatus.ARREARS, default_marked_at: null },
-      _sum: { funded_amount: true },
-      _count: true,
-    }),
-    prisma.note.aggregate({
-      where: { servicing_status: NoteServicingStatus.DEFAULTED },
-      _sum: { funded_amount: true },
-      _count: true,
-    }),
-    prisma.note.findMany({
-      where: { status: NoteStatus.ACTIVE, maturity_date: { not: null } },
-      select: { funded_amount: true, maturity_date: true },
-    }),
-  ]);
+  const inFunding = await prisma.note.aggregate({
+    where: { status: { in: [NoteStatus.PUBLISHED, NoteStatus.FUNDING] } },
+    _sum: { funded_amount: true },
+    _count: true,
+  });
+  const metric = (rows: typeof independentRows) => ({
+    count: rows.length,
+    amount: roundNoteMoney(
+      rows.reduce((sum, row) => sum + row.outstanding.outstandingTotal, 0)
+    ),
+  });
+  const outstanding = metric(
+    independentRows.filter((row) => row.status === NoteStatus.ACTIVE)
+  );
+  const arrears = metric(
+    independentRows.filter(
+      (row) =>
+        row.servicing === NoteServicingStatus.ARREARS && row.defaultMarkedAt == null
+    )
+  );
+  const defaulted = metric(
+    independentRows.filter((row) => row.servicing === NoteServicingStatus.DEFAULTED)
+  );
 
-  expectEqual("Finance outstanding count", book.outstanding.count, outstanding._count);
-  expectEqual("Finance outstanding amount", book.outstanding.amount, n(outstanding._sum.funded_amount), "money");
+  expectEqual("Finance outstanding count", book.outstanding.count, outstanding.count);
+  expectEqual("Finance outstanding amount", book.outstanding.amount, outstanding.amount, "money");
   expectEqual("Finance in-funding count", book.inFunding.count, inFunding._count);
   expectEqual("Finance in-funding amount", book.inFunding.amount, n(inFunding._sum.funded_amount), "money");
-  expectEqual("Finance arrears count", book.arrears.count, arrears._count);
-  expectEqual("Finance arrears amount", book.arrears.amount, n(arrears._sum.funded_amount), "money");
-  expectEqual("Finance defaulted count", book.defaulted.count, defaulted._count);
-  expectEqual("Finance defaulted amount", book.defaulted.amount, n(defaulted._sum.funded_amount), "money");
+  expectEqual("Finance arrears count", book.arrears.count, arrears.count);
+  expectEqual("Finance arrears amount", book.arrears.amount, arrears.amount, "money");
+  expectEqual("Finance defaulted count", book.defaulted.count, defaulted.count);
+  expectEqual("Finance defaulted amount", book.defaulted.amount, defaulted.amount, "money");
 
   const todayParts = mytCalendarParts(new Date());
   const dueSoonStart = mytStartOfDayUtc(todayParts);
   const dueSoonEnd = mytStartOfDayUtc(addMytCalendarDays(todayParts, 7));
-  const dueSoonLocal = dueSoonActive.filter((note) => {
-    const maturity = note.maturity_date;
-    return maturity != null && maturity >= dueSoonStart && maturity < dueSoonEnd;
-  });
-  expectEqual("Finance due-soon count", book.dueSoon.count, dueSoonLocal.length);
+  const dueSoon = metric(
+    independentRows.filter(
+      (row) =>
+        row.status === NoteStatus.ACTIVE &&
+        row.dueDate != null &&
+        row.dueDate >= dueSoonStart &&
+        row.dueDate < dueSoonEnd
+    )
+  );
+  expectEqual("Finance due-soon count", book.dueSoon.count, dueSoon.count);
   expectEqual(
     "Finance due-soon amount",
     book.dueSoon.amount,
-    dueSoonLocal.reduce((sum, note) => sum + n(note.funded_amount), 0),
+    dueSoon.amount,
     "money"
   );
 
@@ -305,13 +303,10 @@ async function main() {
     );
   }
 
-  const activeRemaining = independentRows
-    .filter((row) => fundedOpen.find((note) => note.id === row.id)?.status === NoteStatus.ACTIVE)
-    .reduce((sum, row) => sum + row.outstanding.outstandingTotal, 0);
   check(
-    "Finance Outstanding is funded_amount of ACTIVE notes (not remaining principal+profit)",
-    moneyClose(book.outstanding.amount, n(outstanding._sum.funded_amount)),
-    `funded ${book.outstanding.amount.toFixed(2)}; remaining on those notes ${activeRemaining.toFixed(2)}`
+    "Finance Outstanding is remaining principal plus profit for ACTIVE notes",
+    moneyClose(book.outstanding.amount, outstanding.amount),
+    `dashboard ${book.outstanding.amount.toFixed(2)}; independently derived ${outstanding.amount.toFixed(2)}`
   );
 
   const ops = await Promise.all([
@@ -540,16 +535,26 @@ async function main() {
   if (snapshotRowCount < 2) {
     const historyDays = BOOK_METRICS_HISTORY_LOOKBACK_DAYS + 1;
     console.log(
-      `INFO  book_metrics_daily_snapshots has ${snapshotRowCount} row(s); upserting ${historyDays} MYT calendar days from live getBookMetrics()`
+      `INFO  book_metrics_daily_snapshots has ${snapshotRowCount} row(s); reconstructing ${historyDays} MYT calendar days`
     );
     for (let offset = historyDays - 1; offset >= 0; offset -= 1) {
-      await repo.upsertBookMetricsDailySnapshot(addUtcCalendarDays(today, -offset), book);
+      const snapshotDate = addUtcCalendarDays(today, -offset);
+      const snapshotParts = {
+        year: snapshotDate.getUTCFullYear(),
+        month: snapshotDate.getUTCMonth() + 1,
+        day: snapshotDate.getUTCDate(),
+      };
+      const cutoff = mytStartOfDayUtc(addMytCalendarDays(snapshotParts, 1));
+      await repo.upsertBookMetricsDailySnapshot(
+        snapshotDate,
+        await repo.getBookMetrics(cutoff)
+      );
     }
     snapshotsSeeded = true;
     check(
       "Seeded book metric snapshots",
       (await prisma.bookMetricsDailySnapshot.count()) >= 2,
-      `${historyDays} MYT days copied from live book metrics`
+      `${historyDays} MYT days reconstructed from timestamped note state`
     );
   } else {
     check(

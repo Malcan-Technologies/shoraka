@@ -20,10 +20,12 @@ import {
   shouldSendArrearsLetter,
   shouldRetryServicingTransitionSideEffects,
   shouldSendServicingLetter,
+  shouldProcessServicingNote,
+  servicingJobNoteWhere,
   servicingTransitionNotificationKeyPrefixes,
   servicingTransitionNotificationsDelivered,
 } from "./note-servicing-status";
-import { NoteServicingStatus } from "@prisma/client";
+import { NoteFundingStatus, NoteServicingStatus } from "@prisma/client";
 
 describe("servicingTransitionTimestampUpdate", () => {
   it("stores the actual UTC occurrence instant when an MYT calendar day has already advanced", () => {
@@ -63,6 +65,29 @@ describe("servicingTransitionTimestampUpdate", () => {
       overdue_started_at: undefined,
       late_started_at: new Date("2026-01-08T01:00:00.000Z"),
       arrears_started_at: undefined,
+    });
+  });
+});
+
+describe("shouldProcessServicingNote", () => {
+  it("does not start servicing before note activation", () => {
+    expect(shouldProcessServicingNote(NoteServicingStatus.NOT_STARTED)).toBe(false);
+    expect(shouldProcessServicingNote(NoteServicingStatus.CURRENT)).toBe(true);
+    expect(shouldProcessServicingNote(NoteServicingStatus.ARREARS)).toBe(true);
+  });
+
+  it("excludes unactivated and old settled notes from the job query", () => {
+    const cutoff = new Date("2026-09-09T16:00:00.000Z");
+    expect(servicingJobNoteWhere(cutoff)).toEqual({
+      funding_status: NoteFundingStatus.FUNDED,
+      OR: [
+        {
+          servicing_status: {
+            notIn: [NoteServicingStatus.NOT_STARTED, NoteServicingStatus.SETTLED],
+          },
+        },
+        { repaid_at: { gte: cutoff } },
+      ],
     });
   });
 });

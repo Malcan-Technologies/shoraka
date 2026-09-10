@@ -5861,8 +5861,8 @@ export class NoteService {
     const settings = await this.getPlatformFinanceSettings();
     return calculateLateChargeValues({
       receiptAmount: input.receiptAmount,
-      dueDate: new Date(input.dueDate),
-      receiptDate: new Date(input.receiptDate),
+      dueDate: calendarDateInTimeZone(new Date(input.dueDate)),
+      receiptDate: calendarDateInTimeZone(new Date(input.receiptDate)),
       gracePeriodDays: settings.gracePeriodDays,
       tawidhRateCapPercent: settings.tawidhRateCapPercent,
       gharamahRateCapPercent: settings.gharamahRateCapPercent,
@@ -5886,7 +5886,7 @@ export class NoteService {
           required: false,
         })
       : input.receiptDate
-        ? new Date(input.receiptDate)
+        ? calendarDateInTimeZone(new Date(input.receiptDate))
         : calendarDateInTimeZone(new Date());
     const invoiceSettlementAmount = resolveNoteSettlementAmount(note);
     const receiptAmount = input.receiptAmount ?? invoiceSettlementAmount;
@@ -5914,7 +5914,7 @@ export class NoteService {
 
     const total = calculateLateChargeValues({
       receiptAmount: invoiceSettlementAmount,
-      dueDate,
+      dueDate: calendarDateInTimeZone(dueDate),
       receiptDate: checkDate,
       gracePeriodDays: note.grace_period_days,
       tawidhRateCapPercent: toNumber(note.tawidh_rate_cap_percent),

@@ -255,6 +255,24 @@ export function shouldSendServicingLetter(
 
 export const shouldSendArrearsLetter = shouldSendServicingLetter;
 
+export function shouldProcessServicingNote(status: NoteServicingStatus): boolean {
+  return status !== NoteServicingStatus.NOT_STARTED;
+}
+
+export function servicingJobNoteWhere(cutoff: Date): Prisma.NoteWhereInput {
+  return {
+    funding_status: NoteFundingStatus.FUNDED,
+    OR: [
+      {
+        servicing_status: {
+          notIn: [NoteServicingStatus.NOT_STARTED, NoteServicingStatus.SETTLED],
+        },
+      },
+      { repaid_at: { gte: cutoff } },
+    ],
+  };
+}
+
 export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteServicingStatusJobResult> {
   const today = calendarDateInTimeZone(now);
   const snapshotDate = previousMytCalendarDate(now);
@@ -270,13 +288,7 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
   };
 
   const notes = await prisma.note.findMany({
-    where: {
-      funding_status: NoteFundingStatus.FUNDED,
-      OR: [
-        { servicing_status: { not: NoteServicingStatus.SETTLED } },
-        { repaid_at: { gte: cutoff } },
-      ],
-    },
+    where: servicingJobNoteWhere(cutoff),
     include: {
       payment_schedules: { select: { due_date: true, sequence: true } },
       settlements: {
@@ -297,6 +309,7 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
   });
 
   for (const note of notes) {
+    if (!shouldProcessServicingNote(note.servicing_status)) continue;
     result.notesProcessed += 1;
     try {
       const liveApplied = note.settlements.filter(

@@ -92,4 +92,21 @@ describe("portfolio composition grouping", () => {
     expect(rows[1]?.defaultedCount).toBe(1);
     expect(rows[1]?.defaultExposurePercent).toBe(20);
   });
+
+  it("rounds grouped money at report boundaries", () => {
+    const rows = aggregateCompositionRows(
+      [
+        {
+          fundedPrincipal: 100.005,
+          outstandingTotal: 80.005,
+          daysPastDue: 0,
+          servicingStatus: NoteServicingStatus.CURRENT,
+          groupLabel: "A",
+        },
+      ],
+      80.005
+    );
+
+    expect(rows[0]).toMatchObject({ fundedPrincipal: 100.01, outstandingTotal: 80.01 });
+  });
 });

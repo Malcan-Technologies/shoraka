@@ -17,7 +17,13 @@ import {
 import { prisma } from "../../lib/prisma";
 import { parseSettlementAllocations } from "../notes/investment-settlement-confirmation/snapshot";
 import { resolveInvestorExpectedName } from "../payment/deposit-service";
-import { postedAtRange, percentOf, reportDefinition, toNumber } from "./report-shared";
+import {
+  postedAtRange,
+  percentOf,
+  reportDefinition,
+  roundMoney,
+  toNumber,
+} from "./report-shared";
 
 export function isExternalCashAdded(source: InvestorBalanceTransactionSource): boolean {
   return (
@@ -184,22 +190,26 @@ export async function runInvestorBook(query: ReportQuery): Promise<ReportResult>
 
   const rows = orgs.map((org) => {
     const orgInvestments = investmentsByOrg.get(org.id) ?? [];
-    const reserved = orgInvestments
-      .filter((item) => item.status === NoteInvestmentStatus.COMMITTED)
-      .reduce((sum, item) => sum + toNumber(item.amount), 0);
+    const reserved = roundMoney(
+      orgInvestments
+        .filter((item) => item.status === NoteInvestmentStatus.COMMITTED)
+        .reduce((sum, item) => sum + toNumber(item.amount), 0)
+    );
     const activeConfirmed = orgInvestments.filter(
       (item) =>
         item.status === NoteInvestmentStatus.CONFIRMED &&
         item.note.servicing_status !== NoteServicingStatus.SETTLED
     );
-    const confirmedAmount = activeConfirmed.reduce((sum, item) => sum + toNumber(item.amount), 0);
+    const confirmedAmount = roundMoney(
+      activeConfirmed.reduce((sum, item) => sum + toNumber(item.amount), 0)
+    );
     const realisedRow = realised.get(org.id);
     return {
       investorOrganizationId: org.id,
       investorName:
         resolveInvestorExpectedName(org as unknown as InvestorOrganization) ?? org.name ?? "Not recorded",
       investorCategory: categoryLabel(org.sc_investor_category),
-      availableCash: toNumber(org.investor_balance?.available_amount),
+      availableCash: roundMoney(toNumber(org.investor_balance?.available_amount)),
       reservedAmount: reserved,
       confirmedAmount,
       activeNoteCount: distinctActiveNoteCount(
@@ -212,16 +222,20 @@ export async function runInvestorBook(query: ReportQuery): Promise<ReportResult>
           serviceFeeRatePercent: toNumber(item.note.service_fee_rate_percent),
         }))
       ),
-      realisedPrincipal: realisedRow?.principal ?? 0,
-      realisedProfitNet: realisedRow?.profitNet ?? 0,
-      realisedTawidh: realisedRow?.tawidh ?? 0,
+      realisedPrincipal: roundMoney(realisedRow?.principal ?? 0),
+      realisedProfitNet: roundMoney(realisedRow?.profitNet ?? 0),
+      realisedTawidh: roundMoney(realisedRow?.tawidh ?? 0),
     };
   });
 
   const investedCount = rows.filter((row) => (investmentsByOrg.get(String(row.investorOrganizationId)) ?? []).length > 0)
     .length;
-  const availableCash = rows.reduce((sum, row) => sum + Number(row.availableCash), 0);
-  const realisedProfit = rows.reduce((sum, row) => sum + Number(row.realisedProfitNet), 0);
+  const availableCash = roundMoney(
+    rows.reduce((sum, row) => sum + Number(row.availableCash), 0)
+  );
+  const realisedProfit = roundMoney(
+    rows.reduce((sum, row) => sum + Number(row.realisedProfitNet), 0)
+  );
 
   return {
     key: "investor_book",
@@ -236,9 +250,9 @@ export async function runInvestorBook(query: ReportQuery): Promise<ReportResult>
       { label: "Invested", count: investedCount, percent: percentOf(investedCount, rows.length) },
       { label: "Never invested", count: rows.length - investedCount },
       { label: "Available cash", amount: availableCash },
-      { label: "Cash added", amount: cashAdded },
-      { label: "Withdrawals", amount: withdrawals },
-      { label: "Refunds", amount: refunds },
+      { label: "Cash added", amount: roundMoney(cashAdded) },
+      { label: "Withdrawals", amount: roundMoney(withdrawals) },
+      { label: "Refunds", amount: roundMoney(refunds) },
       { label: "Realised net profit", amount: realisedProfit },
     ],
   };

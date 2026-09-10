@@ -3,6 +3,7 @@ import {
   inclusiveRangePostedAtFilter,
   mytStartOfDayUtc,
   REPORT_REGISTRY,
+  roundNoteMoney,
   type ReportKey,
   type ReportQuery,
 } from "@cashsouk/types";
@@ -65,7 +66,7 @@ export function defaultedNoteWhere(asOfExclusiveEnd?: Date) {
 }
 
 export function roundMoney(value: number): number {
-  return Math.round(value * 1e6) / 1e6;
+  return roundNoteMoney(value);
 }
 
 export function percentOf(part: number, whole: number): number {
@@ -101,6 +102,14 @@ export function jsonRecord(value: Prisma.JsonValue | null | undefined): Record<s
 export function assertReportQuery(key: ReportKey, query: ReportQuery) {
   if (Boolean(query.from) !== Boolean(query.to)) {
     throw new AppError(400, "VALIDATION_ERROR", "From and to must be provided together.");
+  }
+  const definition = REPORT_REGISTRY.find((item) => item.key === key);
+  if (definition?.filters.includes("from") && (!query.from || !query.to)) {
+    throw new AppError(
+      400,
+      "VALIDATION_ERROR",
+      "From and to are required for range reports."
+    );
   }
   if (query.from && query.to && query.from > query.to) {
     throw new AppError(400, "VALIDATION_ERROR", "From must be on or before to.");

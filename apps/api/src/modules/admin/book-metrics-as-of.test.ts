@@ -69,10 +69,16 @@ describe("bookMetricsAsOfFilters", () => {
     expect(JSON.stringify(filters.outstanding)).toContain("ARREARS");
   });
 
-  it("reconstructs in-funding from publication and funding-close timestamps", () => {
+  it("keeps a funded note in funding until activation at the cutoff", () => {
     expect(bookMetricsAsOfFilters(cutoff).inFunding).toEqual({
       published_at: { not: null, lt: cutoff },
-      OR: [{ funding_closed_at: null }, { funding_closed_at: { gte: cutoff } }],
+      OR: [
+        { activated_at: { gte: cutoff } },
+        {
+          activated_at: null,
+          status: { in: [NoteStatus.PUBLISHED, NoteStatus.FUNDING] },
+        },
+      ],
     });
   });
 });

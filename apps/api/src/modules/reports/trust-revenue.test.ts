@@ -67,4 +67,9 @@ describe("trust revenue classification", () => {
     const serviceFeeSummary = 25;
     expect(closing).not.toBe(opening + serviceFeeSummary);
   });
+
+  it("rounds trust balances at money boundaries", () => {
+    expect(ledgerSignedBalance(100.005, 0)).toBe(100.01);
+    expect(ledgerClosing(100.005, 0.005, 0)).toBe(100.01);
+  });
 });

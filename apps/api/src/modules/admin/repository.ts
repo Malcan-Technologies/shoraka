@@ -15,6 +15,7 @@ import {
   ApplicationStatus,
   NoteStatus,
   NoteServicingStatus,
+  NoteSettlementStatus,
   ReviewSection,
   ReviewStepStatus,
 } from "@prisma/client";
@@ -26,6 +27,11 @@ import {
   type AdminRoleKey,
 } from "@cashsouk/types";
 import { bookMetricsAsOfFilters, bookMetricsDueSoonWindow } from "./book-metrics-as-of";
+import {
+  aggregateBookMetricNotes,
+  aggregateDueSoonBookMetric,
+  type BookMetricNote,
+} from "./book-metrics-calculation";
 import type {
   GetUsersQuery,
   GetAccessLogsQuery,
@@ -2199,59 +2205,72 @@ export class AdminRepository {
       asOfCutoff
     );
     const filters = bookMetricsAsOfFilters(asOfCutoff);
+    const positionSelect = {
+      funded_amount: true,
+      profit_rate_percent: true,
+      tenure_days: true,
+      disbursement_value_date: true,
+      activated_at: true,
+      maturity_date: true,
+      payment_schedules: {
+        select: { due_date: true, sequence: true },
+        orderBy: { sequence: "asc" as const },
+      },
+      settlements: {
+        where: {
+          status: NoteSettlementStatus.POSTED,
+          ...(asOfCutoff ? { posted_at: { lt: asOfCutoff } } : {}),
+        },
+        select: { investor_principal: true, investor_profit_gross: true },
+      },
+    } satisfies Prisma.NoteSelect;
 
-    const [outstanding, inFunding, distressed, arrears, defaulted, dueSoon] = await Promise.all([
-      prisma.note.aggregate({
-        where: filters.outstanding,
-        _sum: { funded_amount: true },
-        _count: true,
-      }),
-      prisma.note.aggregate({
-        where: filters.inFunding,
-        _sum: { funded_amount: true },
-        _count: true,
-      }),
-      prisma.note.aggregate({
-        where: filters.distressed,
-        _sum: { funded_amount: true },
-        _count: true,
-      }),
-      prisma.note.aggregate({
-        where: filters.arrears,
-        _sum: { funded_amount: true },
-        _count: true,
-      }),
-      prisma.note.aggregate({
-        where: filters.defaulted,
-        _sum: { funded_amount: true },
-        _count: true,
-      }),
-      prisma.note.aggregate({
-        where: asOfCutoff
-          ? {
-              AND: [filters.outstanding, { maturity_date: { gte: dueSoonStart, lt: dueSoonEnd } }],
-            }
-          : {
-              status: NoteStatus.ACTIVE,
-              maturity_date: { gte: dueSoonStart, lt: dueSoonEnd },
-            },
-        _sum: { funded_amount: true },
-        _count: true,
-      }),
-    ]);
+    const [outstandingNotes, inFunding, distressedNotes, arrearsNotes, defaultedNotes] =
+      await Promise.all([
+        prisma.note.findMany({
+          where: filters.outstanding,
+          select: positionSelect,
+        }),
+        prisma.note.aggregate({
+          where: filters.inFunding,
+          _sum: { funded_amount: true },
+          _count: true,
+        }),
+        prisma.note.findMany({
+          where: filters.distressed,
+          select: positionSelect,
+        }),
+        prisma.note.findMany({
+          where: filters.arrears,
+          select: positionSelect,
+        }),
+        prisma.note.findMany({
+          where: filters.defaulted,
+          select: positionSelect,
+        }),
+      ]);
 
-    const toMetric = (row: { _sum: { funded_amount: Prisma.Decimal | null }; _count: number }) => ({
-      amount: row._sum.funded_amount?.toNumber() ?? 0,
-      count: row._count,
-    });
+    const inFundingMetric = {
+      amount: inFunding._sum.funded_amount?.toNumber() ?? 0,
+      count: inFunding._count,
+    };
+    const outstanding = aggregateBookMetricNotes(outstandingNotes as BookMetricNote[]);
+    const distressed = aggregateBookMetricNotes(distressedNotes as BookMetricNote[]);
+    const arrears = aggregateBookMetricNotes(arrearsNotes as BookMetricNote[]);
+    const defaulted = aggregateBookMetricNotes(defaultedNotes as BookMetricNote[]);
+    const dueSoon = aggregateDueSoonBookMetric(
+      outstandingNotes as BookMetricNote[],
+      dueSoonStart,
+      dueSoonEnd
+    );
 
     return {
-      outstanding: toMetric(outstanding),
-      inFunding: toMetric(inFunding),
-      distressed: toMetric(distressed),
-      arrears: toMetric(arrears),
-      defaulted: toMetric(defaulted),
-      dueSoon: toMetric(dueSoon),
+      outstanding,
+      inFunding: inFundingMetric,
+      distressed,
+      arrears,
+      defaulted,
+      dueSoon,
     };
   }
 

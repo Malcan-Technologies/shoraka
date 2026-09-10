@@ -35,7 +35,7 @@ adminReportsRouter.get(
         res.setHeader("Content-Type", "text/csv; charset=utf-8");
         res.setHeader(
           "Content-Disposition",
-          `attachment; filename="${reportDownloadName(result, "csv")}"`
+          `attachment; filename="${reportDownloadName(result, "csv", query.groupBy)}"`
         );
         res.send(csv);
         return;
@@ -48,7 +48,7 @@ adminReportsRouter.get(
         );
         res.setHeader(
           "Content-Disposition",
-          `attachment; filename="${reportDownloadName(result, "xlsx")}"`
+          `attachment; filename="${reportDownloadName(result, "xlsx", query.groupBy)}"`
         );
         res.send(xlsx);
         return;

@@ -1,4 +1,8 @@
-import { mergeDefaultRecoverySnapshots } from "./report-shared";
+import {
+  assertReportQuery,
+  mergeDefaultRecoverySnapshots,
+  roundMoney,
+} from "./report-shared";
 
 type Snapshot = {
   note_id: string;
@@ -42,5 +46,23 @@ describe("mergeDefaultRecoverySnapshots", () => {
     expect(
       mergeDefaultRecoverySnapshots<Snapshot>([exact], [earlierSettled, laterSettled])
     ).toEqual([exact]);
+  });
+});
+
+describe("assertReportQuery", () => {
+  it("rejects an unbounded range report", () => {
+    expect(() => assertReportQuery("trust_revenue", {})).toThrow(
+      "From and to are required for range reports."
+    );
+  });
+
+  it("allows as-of reports without an explicit date", () => {
+    expect(() => assertReportQuery("ageing", {})).not.toThrow();
+  });
+});
+
+describe("roundMoney", () => {
+  it("uses the shared note-money precision", () => {
+    expect(roundMoney(100.005)).toBe(100.01);
   });
 });

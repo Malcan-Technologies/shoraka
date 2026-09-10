@@ -22,6 +22,7 @@ import {
   parseAsOf,
   percentOf,
   reportDefinition,
+  roundMoney,
   snapshotName,
   toNumber,
 } from "./report-shared";
@@ -114,15 +115,15 @@ export function aggregateCompositionRows(notes: CompositionNote[], totalOutstand
       defaultedAmount: 0,
     };
     current.noteCount += 1;
-    current.fundedPrincipal += note.fundedPrincipal;
-    current.outstandingTotal += note.outstandingTotal;
+    current.fundedPrincipal = roundMoney(current.fundedPrincipal + note.fundedPrincipal);
+    current.outstandingTotal = roundMoney(current.outstandingTotal + note.outstandingTotal);
     if (note.daysPastDue > 0) {
       current.pastDueCount += 1;
-      current.pastDueAmount += note.outstandingTotal;
+      current.pastDueAmount = roundMoney(current.pastDueAmount + note.outstandingTotal);
     }
     if (note.servicingStatus === NoteServicingStatus.DEFAULTED) {
       current.defaultedCount += 1;
-      current.defaultedAmount += note.outstandingTotal;
+      current.defaultedAmount = roundMoney(current.defaultedAmount + note.outstandingTotal);
     }
     groups.set(note.groupLabel, current);
   }
@@ -264,7 +265,9 @@ function finishComposition(
   asOfLabel: string,
   notes: CompositionNote[]
 ): ReportResult {
-  const totalOutstanding = notes.reduce((sum, note) => sum + note.outstandingTotal, 0);
+  const totalOutstanding = roundMoney(
+    notes.reduce((sum, note) => sum + note.outstandingTotal, 0)
+  );
   const rows = aggregateCompositionRows(notes, totalOutstanding);
   return {
     key: "portfolio_composition",
