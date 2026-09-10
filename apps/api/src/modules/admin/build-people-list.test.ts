@@ -7,7 +7,7 @@
  */
 
 import { buildUnifiedPeople, buildDirectorShareholderPeopleList, mergeMasterPartiesIntoPeopleList } from "./build-people-list";
-import { CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING, getFinalStatusLabel } from "@cashsouk/types";
+import { CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING, getFinalStatusLabel, isMissingGovernmentIdPerson } from "@cashsouk/types";
 
 describe("buildUnifiedPeople", () => {
   it("merges director + shareholder into one person row", () => {
@@ -1300,6 +1300,43 @@ describe("buildUnifiedPeople", () => {
     expect(person?.screening?.status ?? null).toBeNull();
     expect(getFinalStatusLabel(person!, { displayMode: "kyc_only" }).label).toBe("Not Started");
     expect(getFinalStatusLabel({ screening: person?.screening }).label).toBe("Not Started");
+  });
+
+  it("includes a pre-ID user:{uuid} director in people[] with exact matchKey", () => {
+    const generatedKey = "user:550e8400-e29b-41d4-a716-446655440000";
+    const result = buildDirectorShareholderPeopleList({
+      ctos: null,
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      ctosPartySupplements: [
+        {
+          partyKey: generatedKey,
+          onboardingJson: { email: "preid@example.com" },
+        },
+      ],
+      corporateEntities: null,
+      masterParties: [
+        {
+          partyKey: generatedKey,
+          membershipStatus: "MASTER_ACTIVE",
+          entityType: "INDIVIDUAL",
+          name: "Pre Id Director",
+          identityNumber: null,
+          isDirector: true,
+          isShareholder: false,
+          shareholdingPercentage: null,
+          email: "preid@example.com",
+        },
+      ],
+    });
+    const person = result.people.find((p) => p.matchKey === generatedKey);
+    expect(person).toBeDefined();
+    expect(person?.matchKey).toBe(generatedKey);
+    expect(isMissingGovernmentIdPerson(person)).toBe(false);
+    expect(person?.identityWarning).toBeUndefined();
+    expect(person?.identityNumber ?? null).toBeNull();
+    expect(person?.email).toBe("preid@example.com");
+    expect(person?.onboarding?.status ?? null).toBeNull();
   });
 
   it("uses OrganizationPartyProfile.email as people[].email when the master is filled", () => {

@@ -22,6 +22,8 @@ import {
   validateOperatorShareCapitalPatch,
   validateIssuerMasterPatch,
   validateIssuerPersonForm,
+  validateOnboardingPersonCreate,
+  isMinimalOnboardingPersonCreate,
   validateOperatorAdvisor,
   validateOperatorFinancialStatement,
   validateOperatorGeneralPatch,
@@ -421,13 +423,37 @@ export const createPartySchema = partyPatchObjectSchema
   .superRefine((value, ctx) => {
     const entityType =
       value.entityType === "CORPORATE" || value.identityPrefix === "ROC" ? "CORPORATE" : "INDIVIDUAL";
+    const officer =
+      value.isBoard === true ||
+      value.isManagement === true ||
+      value.personKind === "BOARD" ||
+      value.personKind === "MANAGEMENT";
+    if (
+      isMinimalOnboardingPersonCreate({
+        entityType,
+        identityPrefix: value.identityPrefix,
+        identityNumber: value.identityNumber,
+        isDirector: value.isDirector,
+        isShareholder: value.isShareholder,
+        isBoard: value.isBoard,
+        isManagement: value.isManagement,
+        personKind: value.personKind,
+      })
+    ) {
+      addComrepIssues(
+        ctx,
+        validateOnboardingPersonCreate({
+          name: value.name,
+          email: value.email,
+          isShareholder: value.isShareholder === true,
+          shareholdingPercentage: value.shareholdingPercentage,
+        })
+      );
+      return;
+    }
     const applied = applyPartyComrepSemantics({
       entityType,
-      isOfficer:
-        value.isBoard === true ||
-        value.isManagement === true ||
-        value.personKind === "BOARD" ||
-        value.personKind === "MANAGEMENT",
+      isOfficer: officer,
       gender: value.gender,
       salutation: value.salutation,
       identityPrefix: value.identityPrefix,
@@ -441,11 +467,6 @@ export const createPartySchema = partyPatchObjectSchema
     for (const issue of applied.issues) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: issue });
     }
-    const officer =
-      value.isBoard === true ||
-      value.isManagement === true ||
-      value.personKind === "BOARD" ||
-      value.personKind === "MANAGEMENT";
     addComrepIssues(
       ctx,
       validateIssuerPersonForm({

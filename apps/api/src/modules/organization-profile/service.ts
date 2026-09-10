@@ -19,6 +19,7 @@ import {
   isCtosComparableParty,
   partySeenInExternalKeys,
   USER_GENERATED_PARTY_KEY_PREFIX,
+  isGeneratedUserPartyKey,
   type ComrepProfileCompleteness,
   type IssuerOrgFinancialSummary,
   type OrganizationPartyProfileDto,
@@ -319,6 +320,7 @@ async function fillEmptyPartyFromCandidate(
   }
 
   const rekey =
+    !isGeneratedUserPartyKey(row.party_key) &&
     row.party_key !== candidate.partyKey &&
     !existing.some((p) => p.id !== row.id && p.party_key === candidate.partyKey);
   if (rekey) {
@@ -638,7 +640,10 @@ export async function observeExternalCtosParties(
       !Array.isArray(row.external_observation)
         ? (row.external_observation as Record<string, unknown>)
         : null;
-    const rekey = row.party_key !== partyKey && !existing.some((p) => p.id !== row.id && p.party_key === partyKey);
+    const rekey =
+      !isGeneratedUserPartyKey(row.party_key) &&
+      row.party_key !== partyKey &&
+      !existing.some((p) => p.id !== row.id && p.party_key === partyKey);
     const updated = await prisma.organizationPartyProfile.update({
       where: { id: row.id },
       data: {
@@ -1639,9 +1644,17 @@ export async function createUserAddedParty(params: {
 
   const identity = appliedCreate.identityNumber;
   const identityKey = canonicalPartyIdentityKey(identity);
-  const needsIdentity = roles.isDirector || roles.isShareholder || roles.isBoard;
+  const needsIdentity = entityType === OrganizationPartyEntityType.CORPORATE || roles.isBoard;
   if (needsIdentity && !identityKey) {
     throw new AppError(400, "VALIDATION_ERROR", "Identity number is required for this role");
+  }
+  if ((roles.isDirector || roles.isShareholder) && !identityKey) {
+    if (!String(params.patch.name ?? "").trim()) {
+      throw new AppError(400, "VALIDATION_ERROR", "Name is required.");
+    }
+    if (!String(params.patch.email ?? "").trim()) {
+      throw new AppError(400, "VALIDATION_ERROR", "Person Email is required.");
+    }
   }
 
   const existingRows = await prisma.organizationPartyProfile.findMany({
@@ -1730,6 +1743,7 @@ export async function createUserAddedParty(params: {
         resignation_date: fill(existing.resignation_date, parseDateInput(params.patch.resignationDate)),
         field_sources: asJson({ ...parseFieldSources(existing.field_sources), ...fieldSources }),
         ...(existing.party_key !== partyKey &&
+        !isGeneratedUserPartyKey(existing.party_key) &&
         !existingRows.some((row) => row.id !== existing.id && row.party_key === partyKey)
           ? { party_key: partyKey }
           : {}),

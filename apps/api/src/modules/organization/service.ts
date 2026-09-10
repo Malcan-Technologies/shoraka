@@ -66,6 +66,11 @@ import {
   parseCtosPartySupplement,
   attachGovernmentIdToUnresolvedCorporateEntities,
   normalizePersonEmail,
+  resolvePartyLookupKey,
+  partyKeyMatchesLookup,
+  governmentIdNumberForOnboardingSend,
+  isGeneratedUserPartyKey,
+  usablePersonSendName,
 } from "@cashsouk/types";
 import { buildDirectorShareholderPeopleListWithMaster } from "../organization-profile/load-master-parties-for-people";
 import { writeOrganizationPartyEmail } from "../organization-profile/person-email";
@@ -90,8 +95,12 @@ function resolveKycEligibleDisplayRow(params: {
     (r) =>
       r.type === "INDIVIDUAL" &&
       (r.id === `ctos-${params.partyKey}` ||
-        normalizeDirectorShareholderIdKey(r.idNumber) === params.partyKey ||
-        normalizeDirectorShareholderIdKey(r.enquiryId) === params.partyKey)
+        r.id === params.partyKey ||
+        partyKeyMatchesLookup(r.id, params.partyKey) ||
+        partyKeyMatchesLookup(r.idNumber, params.partyKey) ||
+        (!isGeneratedUserPartyKey(params.partyKey) &&
+          (normalizeDirectorShareholderIdKey(r.idNumber) === params.partyKey ||
+            normalizeDirectorShareholderIdKey(r.enquiryId) === params.partyKey)))
   );
   if (fromCtos) return fromCtos;
   if (!params.personRow) return null;
@@ -141,7 +150,8 @@ function parseSendTimestampsFromSupplementJson(raw: unknown): string[] {
   return s.sendTimestamps ?? [];
 }
 
-/** RegTank referenceId: only [A-Za-z0-9_-], no colons; max length 99. */
+/** RegTank referenceId: transport correlation only, not government identity.
+ *  Only [A-Za-z0-9_-], no colons; max length 99. `user:{uuid}` may lose `:`. */
 const REGTANK_REFERENCE_ID_MAX_LEN = 99;
 
 function buildSafeReferenceId(organizationId: string, partyKey: string): string {
@@ -2242,13 +2252,13 @@ export class OrganizationService {
       throw new AppError(403, "FORBIDDEN", "You do not have permission to update party email");
     }
     assertOrgOnboardingCompletedForCompanyPartyActions(organization);
-    const partyKey = normalizeDirectorShareholderIdKey(input.partyKey);
+    const partyKey = resolvePartyLookupKey(input.partyKey);
     if (!partyKey) {
       throw new AppError(400, "VALIDATION_ERROR", "Invalid party key");
     }
     const entitiesForParty = await this.getCorporateEntities(userId, organizationId, portalType);
     const peopleRows = filterVisiblePeopleRows(entitiesForParty.people ?? []);
-    const personRow = peopleRows.find((p) => normalizeDirectorShareholderIdKey(p.matchKey) === partyKey);
+    const personRow = peopleRows.find((p) => partyKeyMatchesLookup(p.matchKey, partyKey));
     if (!personRow || !canManageDirectorShareholder(personRow)) {
       throw new AppError(
         400,
@@ -2268,8 +2278,8 @@ export class OrganizationService {
       displayRows: displayRowsForParty,
       partyKey,
       personRow,
-      supplementJson: entitiesForParty.ctosPartySupplements?.find(
-        (s) => normalizeDirectorShareholderIdKey(s.partyKey) === partyKey
+      supplementJson: entitiesForParty.ctosPartySupplements?.find((s) =>
+        partyKeyMatchesLookup(s.partyKey, partyKey)
       )?.onboardingJson,
     });
     if (!partyDisplayRow || !isCtosIndividualKycEligibleRow(partyDisplayRow)) {
@@ -2409,14 +2419,14 @@ export class OrganizationService {
     }
     assertOrgOnboardingCompletedForCompanyPartyActions(organization);
 
-    const pk = normalizeDirectorShareholderIdKey(input.partyKey);
+    const pk = resolvePartyLookupKey(input.partyKey);
     if (!pk) {
       throw new AppError(400, "VALIDATION_ERROR", "Invalid party key");
     }
 
     const entities = await this.getCorporateEntities(userId, organizationId, portalType);
     const peopleRows = filterVisiblePeopleRows(entities.people ?? []);
-    const personRow = peopleRows.find((p) => normalizeDirectorShareholderIdKey(p.matchKey) === pk);
+    const personRow = peopleRows.find((p) => partyKeyMatchesLookup(p.matchKey, pk));
     if (!personRow) {
       throw new AppError(
         400,
@@ -2449,7 +2459,7 @@ export class OrganizationService {
         portalType === "issuer"
           ? { issuer_organization_id: organizationId, party_key: pk }
           : { investor_organization_id: organizationId, party_key: pk },
-      select: { email: true },
+      select: { email: true, identity_number: true, name: true },
     });
     const masterEmail =
       normalizePersonEmail(partyMaster?.email) ?? normalizePersonEmail(parseCtosPartySupplement(prevRoot).email);
@@ -2486,12 +2496,19 @@ export class OrganizationService {
       );
     }
 
-    const idGov = String(target.idNumber || target.enquiryId || "").trim();
-    if (!idGov) {
-      throw new AppError(400, "VALIDATION_ERROR", "Party has no government ID for onboarding");
+    const personName = usablePersonSendName(partyMaster?.name ?? target.name);
+    if (!personName) {
+      throw new AppError(400, "VALIDATION_ERROR", "Enter the person's name before sending onboarding");
     }
 
-    const { forename, surname } = splitForenameSurname(target.name);
+    const idGov = governmentIdNumberForOnboardingSend({
+      partyKey: pk,
+      identityNumber: partyMaster?.identity_number ?? target.idNumber,
+      fallbackIdNumber: target.idNumber,
+      fallbackEnquiryId: isGeneratedUserPartyKey(pk) ? null : target.enquiryId,
+    });
+
+    const { forename, surname } = splitForenameSurname(personName);
     const formId = ensureRegTankFormId(process.env.REGTANK_ISSUER_PERSONAL_FORM_ID, 1015495);
     const referenceId = buildSafeReferenceId(organizationId, pk);
     const onboardingRequest: RegTankIndividualOnboardingRequest = {

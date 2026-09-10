@@ -8,6 +8,8 @@ import {
   CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING,
   canonicalPartyIdentityKey,
   isGeneratedUserPartyKey,
+  resolvePartyLookupKey,
+  displayGovernmentIdentityNumber,
   stripGeneratedPartyKeyPrefix,
   isMissingGovernmentIdPerson,
   issuerShareholdingMeetsMinimum,
@@ -428,7 +430,7 @@ type SupplementParsed = { sup: CtosPartySupplement; raw: unknown };
 function buildSupplementMapByMatchKey(supplements: SupplementInput[] | null | undefined): Map<string, SupplementParsed> {
   const m = new Map<string, SupplementParsed>();
   for (const s of supplements ?? []) {
-    const key = normalizeDirectorShareholderIdKey(String(s.partyKey ?? s.party_key ?? ""));
+    const key = resolvePartyLookupKey(String(s.partyKey ?? s.party_key ?? ""));
     if (!key) continue;
     const raw = s.onboardingJson ?? s.onboarding_json;
     m.set(key, { sup: parseCtosPartySupplement(raw), raw });
@@ -481,6 +483,7 @@ function personRowFromSupplement(params: {
   supplementRaw: unknown;
   icFrontUrl?: string | null;
   icBackUrl?: string | null;
+  identityNumber?: string | null;
 }): ApplicationPersonRow {
   const screening = screeningFromSupplementParsed(params.sup.screening);
   const onboardingStatus = canonicalPartyKycOnboardingStatus({
@@ -501,6 +504,11 @@ function personRowFromSupplement(params: {
   const onboardingRid = onboardingIdFromRaw(topLevelOnboardingRequestIdFromSupplementRaw(params.supplementRaw));
   return {
     matchKey: params.matchKey,
+    identityNumber:
+      displayGovernmentIdentityNumber({
+        partyKey: params.matchKey,
+        identityNumber: params.identityNumber,
+      }) ?? null,
     name: params.name,
     entityType: params.entityType,
     roles: [...params.roles],
@@ -844,9 +852,9 @@ function operationalRolesForMasterParty(
 }
 
 function operationalMatchKeyForMasterParty(party: MasterPartyPeopleSeed): string | null {
+  if (isGeneratedUserPartyKey(party.partyKey)) return party.partyKey;
   const fromIdentity = canonicalPartyIdentityKey(party.identityNumber);
   if (fromIdentity) return fromIdentity;
-  if (isGeneratedUserPartyKey(party.partyKey)) return null;
   return (
     canonicalPartyIdentityKey(stripGeneratedPartyKeyPrefix(party.partyKey)) ??
     canonicalPartyIdentityKey(party.partyKey)
@@ -866,7 +874,7 @@ function applyMasterPersonEmail(
   }
   if (byKey.size === 0) return people;
   return people.map((row) => {
-    const key = normalizeDirectorShareholderIdKey(row.matchKey);
+    const key = resolvePartyLookupKey(row.matchKey);
     const master = key ? byKey.get(key) : undefined;
     return master ? { ...row, email: master } : row;
   });
@@ -886,7 +894,7 @@ export function mergeMasterPartiesIntoPeopleList(params: {
   const out = [...params.people];
   const index = new Map<string, number>();
   out.forEach((row, i) => {
-    const key = normalizeDirectorShareholderIdKey(row.matchKey);
+    const key = resolvePartyLookupKey(row.matchKey);
     if (key) index.set(key, i);
   });
   const supplementByKey = buildSupplementMapByMatchKey(params.ctosPartySupplements);
@@ -908,6 +916,12 @@ export function mergeMasterPartiesIntoPeopleList(params: {
       out[existingIndex] = {
         ...existing,
         name: existing.name ?? party.name,
+        identityNumber:
+          existing.identityNumber ??
+          displayGovernmentIdentityNumber({
+            partyKey: party.partyKey,
+            identityNumber: party.identityNumber,
+          }),
         roles: Array.from(roleSet),
         sharePercentage:
           existing.sharePercentage != null && share != null
@@ -927,11 +941,16 @@ export function mergeMasterPartiesIntoPeopleList(params: {
           sharePercentage: share,
           sup: bundle.sup,
           supplementRaw: bundle.raw,
+          identityNumber: party.identityNumber,
         })
       );
     } else {
       out.push({
         matchKey: key,
+        identityNumber: displayGovernmentIdentityNumber({
+          partyKey: party.partyKey,
+          identityNumber: party.identityNumber,
+        }),
         name: party.name,
         entityType: party.entityType,
         roles,
@@ -982,7 +1001,7 @@ function retainMasterActiveOperationalPeople(
   );
   return people.filter((row) => {
     if (isMissingGovernmentIdPerson(row)) return true;
-    const key = normalizeDirectorShareholderIdKey(row.matchKey);
+    const key = resolvePartyLookupKey(row.matchKey);
     if (!key) return true;
     return activeKeys.has(key);
   });

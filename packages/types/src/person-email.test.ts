@@ -100,6 +100,23 @@ describe("planPersonEmailWrite", () => {
       }).action
     ).toBe("reject");
   });
+
+  it("rejects Person Email writes when KYC is APPROVED or AML is terminal", () => {
+    expect(
+      planPersonEmailWrite({
+        currentMasterEmail: "old@acme.test",
+        incomingEmail: "new@acme.test",
+        supplementRoot: { status: "APPROVED", requestId: "req-1" },
+      }).action
+    ).toBe("reject");
+    expect(
+      planPersonEmailWrite({
+        currentMasterEmail: "old@acme.test",
+        incomingEmail: "new@acme.test",
+        supplementRoot: { status: "IN_PROGRESS", screening: { status: "CLEAR", requestId: "aml-1" } },
+      }).action
+    ).toBe("reject");
+  });
 });
 
 describe("hasPersonOnboardingPipeline", () => {

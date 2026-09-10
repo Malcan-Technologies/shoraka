@@ -93,7 +93,9 @@ function row(partial: Record<string, unknown>) {
     updated_at: new Date(),
     ...partial,
     party_key: partyKey,
-    identity_number: partial.identity_number ?? partyKey,
+    identity_number: Object.prototype.hasOwnProperty.call(partial, "identity_number")
+      ? (partial.identity_number as string | null) ?? null
+      : partyKey,
   };
 }
 
@@ -556,6 +558,51 @@ describe("CTOS master party observation", () => {
     expect(cfo?.absent_from_latest_external).toBe(false);
   });
 
+  it("does not rekey a user:{uuid} director when CTOS later matches identity_number", async () => {
+    const generatedKey = "user:550e8400-e29b-41d4-a716-446655440000";
+    parties.push(
+      row({
+        id: "p-preid",
+        party_key: generatedKey,
+        identity_number: "900101101234",
+        name: "Pre Id",
+        origin: OrganizationPartyOrigin.USER_ADDED,
+        membership_status: OrganizationPartyMembershipStatus.MASTER_ACTIVE,
+        is_director: true,
+        is_shareholder: false,
+      })
+    );
+    await observeExternalCtosParties("issuer", "org-1", {
+      directors: [{ party_type: "I", nic_brno: "900101-10-1234", name: "PRE ID", position: "DO" }],
+    });
+    const preId = parties.find((p) => p.id === "p-preid");
+    expect(preId?.party_key).toBe(generatedKey);
+    expect(preId?.identity_number).toBe("900101101234");
+    expect(parties.filter((p) => p.party_key === "900101101234")).toHaveLength(0);
+  });
+
+  it("never assigns a CTOS NRIC onto a generated user:{uuid} party_key", async () => {
+    const generatedKey = "user:550e8400-e29b-41d4-a716-446655440000";
+    parties.push(
+      row({
+        id: "p-preid-empty",
+        party_key: generatedKey,
+        identity_number: null,
+        name: "Pre Id Empty",
+        origin: OrganizationPartyOrigin.USER_ADDED,
+        membership_status: OrganizationPartyMembershipStatus.MASTER_ACTIVE,
+        is_director: true,
+        is_shareholder: false,
+      })
+    );
+    await observeExternalCtosParties("issuer", "org-1", {
+      directors: [{ party_type: "I", nic_brno: "900101-10-1234", name: "PRE ID EMPTY", position: "DO" }],
+    });
+    const preId = parties.find((p) => p.id === "p-preid-empty");
+    expect(preId?.party_key).toBe(generatedKey);
+    expect(preId?.identity_number).toBeNull();
+  });
+
   it("does not delete a user-added director when latest CTOS lists no parties", async () => {
     parties.push(
       row({
@@ -875,6 +922,77 @@ describe("user-added master parties", () => {
       })
     ).rejects.toMatchObject({ statusCode: 400 });
     expect(parties).toHaveLength(0);
+  });
+
+  it("creates a director without government ID using a stable user:{uuid} party_key", async () => {
+    const created = await createUserAddedParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      source: "USER",
+      patch: {
+        name: "Pre Id Director",
+        email: "preid.director@example.com",
+        isDirector: true,
+      },
+    });
+    expect(created.membershipStatus).toBe("MASTER_ACTIVE");
+    expect(created.origin).toBe("USER_ADDED");
+    expect(created.partyKey.startsWith("user:")).toBe(true);
+    expect(created.partyKey).toMatch(/^user:[0-9a-f-]{36}$/i);
+    expect(created.identityNumber).toBeNull();
+    expect(created.email).toBe("preid.director@example.com");
+  });
+
+  it("creates a >=5% individual shareholder without government ID using user:{uuid}", async () => {
+    const created = await createUserAddedParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      source: "USER",
+      patch: {
+        name: "Pre Id Shareholder",
+        email: "preid.share@example.com",
+        isShareholder: true,
+        shareholdingPercentage: "10",
+      },
+    });
+    expect(created.partyKey.startsWith("user:")).toBe(true);
+    expect(created.identityNumber).toBeNull();
+    expect(created.isShareholder).toBe(true);
+    expect(Number(created.shareholdingPercentage)).toBe(10);
+  });
+
+  it("still rejects a <5% individual shareholder without government ID", async () => {
+    await expect(
+      createUserAddedParty({
+        portal: "issuer",
+        organizationId: "org-1",
+        source: "USER",
+        patch: {
+          name: "Small Holder",
+          email: "small@example.com",
+          isShareholder: true,
+          shareholdingPercentage: "4",
+        },
+      })
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(parties).toHaveLength(0);
+  });
+
+  it("still uses canonical NRIC party_key when identity is provided", async () => {
+    const created = await createUserAddedParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      source: "USER",
+      patch: {
+        name: "Sarah Tan",
+        identityNumber: "900101-10-1234",
+        identityPrefix: "NRIC",
+        isDirector: true,
+        email: "sarah@example.com",
+      },
+    });
+    expect(created.partyKey).toBe("900101101234");
+    expect(created.identityNumber).toBe("900101101234");
   });
 
   it("does not auto-adopt a CTOS-observed person when the same identity is added manually", async () => {

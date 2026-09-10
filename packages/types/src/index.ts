@@ -593,6 +593,7 @@ export * from "./api-validation-message";
 export * from "./sc-appendix-a-countries";
 export * from "./organization-party-profile";
 export * from "./organization-party-key";
+export * from "./onboarding-person-create";
 export * from "./party-ctos-comparison";
 export * from "./person-platform-access";
 export * from "./issuer-shareholder-threshold";
