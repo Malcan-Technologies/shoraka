@@ -97,7 +97,10 @@ function getCtosId(x: unknown): string | null {
     return normalized.length > 0 ? normalized : null;
   }
   if (partyType === "C") {
-    const id = typeof x.ic_lcno === "string" && x.ic_lcno.trim() ? x.ic_lcno : x.brn_ssm;
+    const id =
+      (typeof x.ic_lcno === "string" && x.ic_lcno.trim() ? x.ic_lcno : null) ??
+      (typeof x.brn_ssm === "string" && x.brn_ssm.trim() ? x.brn_ssm : null) ??
+      x.nic_brno;
     if (typeof id !== "string" || !id.trim()) return null;
     const normalized = id.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
     return normalized.length > 0 ? normalized : null;
@@ -129,6 +132,13 @@ function parseCtosEquityPercentage(value: unknown): number | null {
   if (raw > 0 && raw <= 1) return raw * 100;
   return raw;
 }
+
+export function ctosCompanyJsonHasUsableRelatedParties(ctos: unknown): boolean {
+  return extractCtosRelatedParties(ctos).length > 0;
+}
+
+/** CTOS related parties (individuals and companies) from `company_json.directors[]`. */
+export const extractCtosRelatedParties = extractCtosIndividuals;
 
 export function extractCtosIndividuals(ctos: unknown): CtosIndividual[] {
   if (!isObject(ctos)) return [];

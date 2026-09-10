@@ -28,8 +28,7 @@
  * Case 16 (Michelle Low people-only unmatched) is unsupported with a structured master.
  *
  * Also demonstrates:
- * - KYB/AML Screening Result (issuer + investor company kyc_response)
- * - KYC/AML Screening Result (personal investor kyc_response)
+ * - KYC/AML Screening Result (issuer, investor company, and personal kyc_response)
  * - Wealth Declaration / Document Info / Liveness / Compliance
  * - CTOS report history (latest + older)
  * - PIC current vs RegTank evidence mismatch

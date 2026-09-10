@@ -618,6 +618,7 @@ export * from "./regtank-person-profile-seed";
 export * from "./party-ctos-comparison";
 export * from "./person-platform-access";
 export * from "./people-access-rows";
+export * from "./people-access-refresh";
 export * from "./admin-people-access-rows";
 export * from "./organisation-profile-tabs";
 export * from "./director-shareholder-single-status-display";

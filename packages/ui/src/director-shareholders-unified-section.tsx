@@ -11,7 +11,7 @@ import {
   formatPeopleRolesLine,
   formatPeopleRolesLineTitleCase,
   getFinalStatusLabel,
-  getFinalStatusToken,
+  getRelatedPartyStatusToken,
   isMissingGovernmentIdPerson,
   normalizeDirectorShareholderIdKey,
   normalizeDirectorShareholderPartyEmail,
@@ -260,7 +260,7 @@ export function DirectorShareholdersUnifiedSection({
           <div className="pt-0.5">
             <StatusBadge
               label={finalStatus.label}
-              status={getFinalStatusToken(finalStatus.tone)}
+              status={getRelatedPartyStatusToken(finalStatus, "user")}
               size="sm"
             />
           </div>

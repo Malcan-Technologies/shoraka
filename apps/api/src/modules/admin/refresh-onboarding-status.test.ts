@@ -1084,5 +1084,6 @@ describe("AdminService.refreshOnboardingStatus — company", () => {
     release({ status: "WAIT_FOR_APPROVAL", corpIndvDirectors: [], corpIndvShareholders: [], corpBizShareholders: [] });
     const firstResult = await first;
     expect(firstResult.refreshOutcome).toBe("COMPLETED");
+    expect(firstResult.refreshedSources).not.toContain("CTOS");
   });
 });

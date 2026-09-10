@@ -19,7 +19,7 @@ import {
   type DirectorShareholderListSource,
 } from "@cashsouk/types";
 import { getDirectorShareholderDisplayRows } from "@cashsouk/types";
-import { extractCtosIndividuals } from "../regtank/helpers/detect-director-gaps";
+import { extractCtosRelatedParties } from "../regtank/helpers/detect-director-gaps";
 
 type SupplementInput = {
   party_key?: string;
@@ -832,7 +832,13 @@ export type MasterPartyPeopleSeed = {
   isShareholder: boolean;
   shareholdingPercentage: string | number | null;
   email?: string | null;
+  origin?: string | null;
 };
+
+function isLaterAddedMasterParty(party: MasterPartyPeopleSeed): boolean {
+  if (isGeneratedUserPartyKey(party.partyKey)) return true;
+  return String(party.origin ?? "").trim().toUpperCase() === "USER_ADDED";
+}
 
 function sharePercentFromMaster(value: string | number | null): number | null {
   if (value == null || value === "") return null;
@@ -890,6 +896,8 @@ export function mergeMasterPartiesIntoPeopleList(params: {
   people: ApplicationPersonRow[];
   masterParties: MasterPartyPeopleSeed[];
   ctosPartySupplements?: SupplementInput[] | null;
+  injectLaterAddedOnly?: boolean;
+  preserveExistingSharePercentage?: boolean;
 }): ApplicationPersonRow[] {
   const out = [...params.people];
   const index = new Map<string, number>();
@@ -901,6 +909,8 @@ export function mergeMasterPartiesIntoPeopleList(params: {
 
   for (const party of params.masterParties) {
     if (party.membershipStatus !== "MASTER_ACTIVE") continue;
+    const laterAdded = isLaterAddedMasterParty(party);
+    if (params.injectLaterAddedOnly && !laterAdded) continue;
     const roles = operationalRolesForMasterParty(party);
     if (roles.length === 0) continue;
     const key = operationalMatchKeyForMasterParty(party);
@@ -913,6 +923,12 @@ export function mergeMasterPartiesIntoPeopleList(params: {
         ...(existing.roles ?? []).map((r) => String(r).toUpperCase()),
         ...roles,
       ]);
+      const nextShare =
+        params.preserveExistingSharePercentage && !laterAdded
+          ? existing.sharePercentage
+          : existing.sharePercentage != null && share != null
+            ? Math.max(existing.sharePercentage, share)
+            : existing.sharePercentage ?? share;
       out[existingIndex] = {
         ...existing,
         name: existing.name ?? party.name,
@@ -922,11 +938,8 @@ export function mergeMasterPartiesIntoPeopleList(params: {
             partyKey: party.partyKey,
             identityNumber: party.identityNumber,
           }),
-        roles: Array.from(roleSet),
-        sharePercentage:
-          existing.sharePercentage != null && share != null
-            ? Math.max(existing.sharePercentage, share)
-            : existing.sharePercentage ?? share,
+        roles: laterAdded ? Array.from(roleSet) : existing.roles,
+        sharePercentage: nextShare,
       };
       continue;
     }
@@ -981,6 +994,11 @@ export type BuildDirectorShareholderPeopleParams = {
   corporateEntities: unknown;
   masterParties?: MasterPartyPeopleSeed[] | null;
   parentCorporateRequestId?: string | null;
+  /**
+   * Initial corporate onboarding vs later Profile/People member management.
+   * Default true so CTOS can be the structure source during admin review.
+   */
+  initialCorporateOnboarding?: boolean;
 };
 
 function retainMasterActiveOperationalPeople(
@@ -1101,7 +1119,7 @@ function buildPeopleFromCtosCompanyJson(
     }
   }
 
-  const ctosPeople = extractCtosIndividuals(ctosSafe);
+  const ctosPeople = extractCtosRelatedParties(ctosSafe);
 
   const peopleMap = new Map<
     string,
@@ -1240,6 +1258,7 @@ export function buildDirectorShareholderPeopleList(
   params: BuildDirectorShareholderPeopleParams
 ): DirectorShareholderPeopleBuildResult {
   const ctosSafe = normalizeCtosCompanyJson(params.ctos);
+  const initialCorporateOnboarding = params.initialCorporateOnboarding !== false;
 
   let result: DirectorShareholderPeopleBuildResult;
   if (!ctosSafe) {
@@ -1256,18 +1275,24 @@ export function buildDirectorShareholderPeopleList(
   } else {
     const people = buildPeopleFromCtosCompanyJson(params, ctosSafe);
     const visible = filterVisiblePeopleRows(people);
-    result =
-      visible.length === 0
-        ? {
-            people: [],
-            listSource: "CTOS_EMPTY",
-            ctosDirectorShareholderWarning: CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING,
-          }
-        : {
-            people,
-            listSource: "CTOS",
-            ctosDirectorShareholderWarning: null,
-          };
+    if (visible.length === 0) {
+      result = {
+        people: buildPeopleFromUserDeclaredData({
+          corporateEntities: params.corporateEntities,
+          issuerDirectorKycStatus: params.issuerDirectorKycStatus,
+          issuerDirectorAmlStatus: params.issuerDirectorAmlStatus,
+          ctosPartySupplements: params.ctosPartySupplements ?? null,
+        }),
+        listSource: "CTOS_EMPTY",
+        ctosDirectorShareholderWarning: CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING,
+      };
+    } else {
+      result = {
+        people,
+        listSource: "CTOS",
+        ctosDirectorShareholderWarning: null,
+      };
+    }
   }
 
   if (!params.masterParties?.length) {
@@ -1276,7 +1301,11 @@ export function buildDirectorShareholderPeopleList(
       people: stampParentCorporateRequestId(result.people, params.parentCorporateRequestId),
     };
   }
-  const people = retainMasterActiveOperationalPeople(result.people, params.masterParties);
+
+  const ctosAuthoritative = result.listSource === "CTOS" && initialCorporateOnboarding;
+  const people = ctosAuthoritative
+    ? result.people
+    : retainMasterActiveOperationalPeople(result.people, params.masterParties);
   return {
     ...result,
     people: stampParentCorporateRequestId(
@@ -1285,6 +1314,8 @@ export function buildDirectorShareholderPeopleList(
           people,
           masterParties: params.masterParties,
           ctosPartySupplements: params.ctosPartySupplements ?? null,
+          injectLaterAddedOnly: ctosAuthoritative,
+          preserveExistingSharePercentage: ctosAuthoritative,
         }),
         params.masterParties
       ),

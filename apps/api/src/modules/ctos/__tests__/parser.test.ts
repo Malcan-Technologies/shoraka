@@ -169,4 +169,63 @@ describe("parseCtosReportXml", () => {
     expect(parsed.financials_json.length).toBe(1);
     expect(parsed.financials_json[0].account.turnover).toBe(100);
   });
+
+  it("stores related parties including corporate shareholders on company_json.directors", async () => {
+    const xml = `<?xml version="1.0"?>
+<report version="5.11.0" xmlns="http://ws.cmctos.com.my/ctosnet/response">
+  <enq_report>
+    <summary></summary>
+    <enquiry>
+      <section_summary></section_summary>
+      <section_a data="true">
+        <record>
+          <directors>
+            <director seq="1">
+              <name>Jamie</name>
+              <ic_lcno/>
+              <nic_brno>800101011234</nic_brno>
+              <position>DO</position>
+              <equity/>
+              <equity_percentage/>
+              <party_type>I</party_type>
+            </director>
+            <director seq="2">
+              <name>ECM LIBRA FINANCIAL GROUP BHD</name>
+              <ic_lcno>13570K</ic_lcno>
+              <nic_brno/>
+              <position>SO</position>
+              <equity>6000000</equity>
+              <equity_percentage>100.00</equity_percentage>
+              <party_type>C</party_type>
+              <brn_ssm>13570K</brn_ssm>
+            </director>
+          </directors>
+        </record>
+      </section_a>
+      <section_ccris></section_ccris>
+    </enquiry>
+  </enq_report>
+</report>`;
+
+    const parsed = await parseCtosReportXml(xml);
+    expect(parsed.company_json).not.toBeNull();
+    expect(parsed.company_json).not.toHaveProperty("shareholders");
+    const directors = (parsed.company_json as { directors: Array<Record<string, unknown>> }).directors;
+    expect(directors).toHaveLength(2);
+    expect(directors[0]).toMatchObject({
+      name: "Jamie",
+      nic_brno: "800101011234",
+      position: "DO",
+      party_type: "I",
+    });
+    expect(directors[1]).toMatchObject({
+      name: "ECM LIBRA FINANCIAL GROUP BHD",
+      ic_lcno: "13570K",
+      brn_ssm: "13570K",
+      position: "SO",
+      equity: 6000000,
+      equity_percentage: 100,
+      party_type: "C",
+    });
+  });
 });

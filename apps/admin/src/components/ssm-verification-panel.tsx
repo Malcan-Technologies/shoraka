@@ -10,7 +10,7 @@
 
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createApiClient, useAuthToken } from "@cashsouk/config";
+import { createApiClient, useAuthToken, CTOS_FETCH_FAILED_SHOWING_ONBOARDING_MESSAGE, PROVIDER_REFRESH_RECENTLY_MESSAGE } from "@cashsouk/config";
 import { toast } from "sonner";
 import {
   Card,
@@ -741,7 +741,9 @@ export function SSMVerificationPanel({
         skipDirectorShareholderNotifications: true,
       });
       if (!res.success) {
-        throw new Error(formatApiErrorMessage(res.error));
+        const err = new Error(res.error.message) as Error & { code?: string };
+        err.code = res.error.code;
+        throw err;
       }
       return res.data;
     },
@@ -751,8 +753,21 @@ export function SSMVerificationPanel({
       });
       toast.success("SSM report saved.");
     },
-    onError: (e: Error) => {
-      toast.error(e.message || "SSM request failed");
+    onError: (e: Error & { code?: string }) => {
+      const code = String(e.code ?? "");
+      if (code === "CTOS_RATE_LIMITED") {
+        toast.error(PROVIDER_REFRESH_RECENTLY_MESSAGE);
+        return;
+      }
+      if (
+        code === "CTOS_MISSING_SUBJECT_IDENTIFIER" ||
+        code === "CTOS_INVALID_SUBJECT_IDENTIFIER" ||
+        code === "CTOS_NO_MATCH"
+      ) {
+        toast.error(e.message || CTOS_FETCH_FAILED_SHOWING_ONBOARDING_MESSAGE);
+        return;
+      }
+      toast.error(CTOS_FETCH_FAILED_SHOWING_ONBOARDING_MESSAGE);
     },
   });
 

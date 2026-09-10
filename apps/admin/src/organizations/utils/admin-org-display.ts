@@ -34,10 +34,6 @@ export function adminOnboardingEvidenceCards(org: {
   return candidates.filter((card): card is AdminOnboardingEvidenceCard => hasJsonContent(card.data));
 }
 
-export function organizationScreeningResultTitle(organizationType: string | null | undefined): string {
-  return organizationType === "COMPANY" ? "KYB/AML Screening Result" : "KYC/AML Screening Result";
-}
-
 export function hasOrganizationScreeningResponse(kycResponse: unknown): boolean {
   return kycResponse != null && typeof kycResponse === "object";
 }

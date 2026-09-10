@@ -59,10 +59,10 @@ describe("People KYC badge labels", () => {
     ).toBe("In Progress");
   });
 
-  it("shows Verified when KYC is approved", () => {
+  it("shows Approved when KYC is approved", () => {
     expect(
       getFinalStatusLabel({ onboarding: { status: "APPROVED" } }, { displayMode: "kyc_only" }).label
-    ).toBe("Verified");
+    ).toBe("Approved");
   });
 
   it("keeps AML Not Started when only KYC has a placeholder", () => {

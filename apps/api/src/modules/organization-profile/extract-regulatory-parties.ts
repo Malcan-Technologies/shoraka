@@ -57,7 +57,9 @@ function ctosPartyKey(row: Record<string, unknown>): string | null {
     return normalizeDirectorShareholderIdKey(asText(row.nic_brno));
   }
   if (partyType === "C") {
-    return normalizeDirectorShareholderIdKey(asText(row.ic_lcno) ?? asText(row.brn_ssm));
+    return normalizeDirectorShareholderIdKey(
+      asText(row.ic_lcno) ?? asText(row.brn_ssm) ?? asText(row.nic_brno)
+    );
   }
   return (
     normalizeDirectorShareholderIdKey(asText(row.nic_brno)) ??

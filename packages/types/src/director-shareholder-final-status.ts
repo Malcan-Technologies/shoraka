@@ -17,6 +17,11 @@ export type DirectorShareholderFinalStatusTone =
   | "neutral"
   | "expired";
 
+/** Who the related-party status is waiting on. Portal theme then picks yellow vs blue. */
+export type RelatedPartyStatusActor = "admin" | "user" | "none";
+
+export type RelatedPartyStatusViewer = "admin" | "user";
+
 export type DirectorShareholderEffectiveStatusSource = "AML" | "ONBOARDING";
 
 /** `aml_first`: screening wins when non-empty. `kyc_only`: badge from onboarding/KYB only (admin step 3 — onboarding approval). */
@@ -40,6 +45,7 @@ const PENDING_REVIEW = new Set([
 const IN_PROGRESS = new Set([
   "IN_PROGRESS",
   "PROCESSING",
+  "URL_GENERATED",
   "ID_UPLOADED",
   "LIVENESS_STARTED",
   "LIVENESS_PASSED",
@@ -48,9 +54,7 @@ const IN_PROGRESS = new Set([
   "FORM_FILLING",
 ]);
 
-const VERIFIED = new Set(["APPROVED", "AML_APPROVED", "CLEAR"]);
-
-const REJECT_FAIL_DECLINE = new Set(["REJECTED", "FAILED", "DECLINED"]);
+const APPROVED_DONE = new Set(["APPROVED", "AML_APPROVED", "CLEAR"]);
 
 export type DirectorShareholderStatusPerson = {
   onboarding?: { status?: string | null } | null;
@@ -72,54 +76,64 @@ export function getDirectorShareholderEffectiveStatus(
   };
 }
 
+export type DirectorShareholderFinalStatusPresentation = {
+  label: string;
+  tone: DirectorShareholderFinalStatusTone;
+  actor: RelatedPartyStatusActor;
+};
+
 function labelFromEffective(effective: {
   source: DirectorShareholderEffectiveStatusSource;
   value: string;
-}): { label: string; tone: DirectorShareholderFinalStatusTone } {
+}): DirectorShareholderFinalStatusPresentation {
   const { source, value } = effective;
 
   if (!value || isKycOnboardingNotStartedToken(value)) {
-    return { label: "Not Started", tone: "neutral" };
+    return { label: "Not Started", tone: "neutral", actor: "none" };
   }
 
   if (value === "EXPIRED" || value === "TIMEOUT") {
-    return { label: "Expired", tone: "expired" };
+    return { label: "Expired", tone: "expired", actor: "none" };
   }
 
   if (value === "ACTION_REQUIRED" || value === "ACTION_NEEDED") {
-    return { label: "Action Required", tone: "warning" };
+    return { label: "Action Required", tone: "warning", actor: "user" };
   }
 
   if (source === "ONBOARDING" && value === "REJECTED") {
-    return { label: "Action Required", tone: "warning" };
+    return { label: "Action Required", tone: "warning", actor: "user" };
   }
 
-  if (source === "AML" && REJECT_FAIL_DECLINE.has(value)) {
-    return { label: "Rejected", tone: "danger" };
+  if (value === "FAILED") {
+    return { label: "Failed", tone: "danger", actor: "none" };
   }
-  if (source === "ONBOARDING" && (value === "FAILED" || value === "DECLINED")) {
-    return { label: "Rejected", tone: "danger" };
+  if (value === "REJECTED" || value === "DECLINED") {
+    return { label: "Rejected", tone: "danger", actor: "none" };
   }
 
   if (PENDING_REVIEW.has(value)) {
-    return { label: "Pending Review", tone: "info" };
+    return { label: "Pending Review", tone: "info", actor: "admin" };
   }
 
   if (IN_PROGRESS.has(value)) {
-    return { label: "In Progress", tone: "info" };
+    return { label: "In Progress", tone: "warning", actor: "user" };
   }
 
-  if (VERIFIED.has(value)) {
-    return { label: "Verified", tone: "success" };
+  if (value === "COMPLETED") {
+    return { label: "Completed", tone: "success", actor: "none" };
   }
 
-  return { label: "In Progress", tone: "info" };
+  if (APPROVED_DONE.has(value)) {
+    return { label: "Approved", tone: "success", actor: "none" };
+  }
+
+  return { label: "In Progress", tone: "warning", actor: "user" };
 }
 
 export function getFinalStatusLabel(
   person: DirectorShareholderStatusPerson,
   options?: GetFinalStatusLabelOptions
-): { label: string; tone: DirectorShareholderFinalStatusTone } {
+): DirectorShareholderFinalStatusPresentation {
   const effective =
     options?.displayMode === "kyc_only"
       ? {
@@ -138,7 +152,7 @@ export function getFinalStatusLabel(
  */
 export function getFinalStatusToken(
   tone: DirectorShareholderFinalStatusTone
-): "action" | "submitted" | "success" | "rejected" | "neutral" {
+): "action" | "submitted" | "success" | "rejected" | "neutral" | "active" {
   switch (tone) {
     case "success":
       return "success";
@@ -152,6 +166,26 @@ export function getFinalStatusToken(
     default:
       return "neutral";
   }
+}
+
+/**
+ * Ivan's portal colour rule for related-party verification:
+ * admin-action pending → yellow on admin / blue on issuer-investor
+ * user-action pending → blue on admin / yellow on issuer-investor
+ */
+export function getRelatedPartyStatusToken(
+  presentation: Pick<DirectorShareholderFinalStatusPresentation, "tone"> & {
+    actor?: RelatedPartyStatusActor;
+  },
+  viewer: RelatedPartyStatusViewer
+): "action" | "submitted" | "success" | "rejected" | "neutral" | "active" {
+  if (presentation.actor === "admin") {
+    return viewer === "admin" ? "action" : "submitted";
+  }
+  if (presentation.actor === "user") {
+    return viewer === "admin" ? "submitted" : "action";
+  }
+  return getFinalStatusToken(presentation.tone);
 }
 
 /**

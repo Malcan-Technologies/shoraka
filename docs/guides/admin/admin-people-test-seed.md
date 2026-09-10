@@ -68,8 +68,7 @@ No Personal Issuer is seeded.
 
 | Surface | Where |
 | --- | --- |
-| KYB/AML Screening Result | Issuer + investor company (`kyc_response`) |
-| KYC/AML Screening Result | Personal investor Lina Aziz |
+| KYC/AML Screening Result | Issuer, investor company, and personal investor (`kyc_response`) |
 | Wealth Declaration, Document Info, Liveness, Compliance | All three orgs |
 | CTOS report history (latest + older) | Issuer + investor company |
 | PIC “Differs from current contact” | Issuer PIC email; investor PIC position |
