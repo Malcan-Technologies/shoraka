@@ -44,6 +44,9 @@ describe("renderSettlementHibahReceiptDocx", () => {
     expect(plain).not.toContain("{issuerLegalName}");
     expect(plain).not.toContain("SR-YYYY-0000");
     expect(plain).not.toContain("§COMPANY_STAMP_IMAGE§");
+    expect(plain).not.toContain("§SIGNATURE_IMAGE§");
+    expect(plain).toContain("As agent of the Issuer");
+    expect(plain).toContain("Company Stamp");
   });
 
   it("fills frozen identifiers, invoice, paymaster and dates", () => {
@@ -196,5 +199,33 @@ describe("renderSettlementHibahReceiptDocx", () => {
     const xml = zip.file("word/document.xml")?.asText() ?? "";
     expect(xml).toContain("<w:drawing>");
     expect(xml).not.toContain("§COMPANY_STAMP_IMAGE§");
+  });
+
+  it("embeds a signature image and company stamp together", () => {
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFhAH+plp0OQAAAABJRU5ErkJggg==",
+      "base64"
+    );
+    const snapshot = sampleSettlementHibahReceiptSnapshot({
+      authorisation: {
+        stampSource: "SHARED_CERTIFICATE_STAMP",
+        companyStamp: null,
+        signingPersonName: "John Lee",
+        authorisedSignatoryName: "John Lee",
+      },
+    });
+    const data = buildSettlementHibahReceiptDocxMergeData(snapshot);
+    expect(data.signatoryNameAndDate).toBe("John Lee / 02 Sep 2026");
+    const docx = renderSettlementHibahReceiptDocx(snapshot, { bytes: png, contentType: "image/png" }, {
+      bytes: png,
+      contentType: "image/png",
+    });
+    const zip = new PizZip(docx);
+    expect(zip.file("word/media/company-stamp.png")).toBeTruthy();
+    expect(zip.file("word/media/signing-signature.png")).toBeTruthy();
+    const plain = wordPlainText(zip.file("word/document.xml")?.asText() ?? "");
+    expect(plain).toContain("As agent of the Issuer");
+    expect(plain).toContain("John Lee / 02 Sep 2026");
+    expect(plain).toContain("Company Stamp");
   });
 });

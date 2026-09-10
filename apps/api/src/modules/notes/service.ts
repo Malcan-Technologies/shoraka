@@ -1919,7 +1919,7 @@ export class NoteService {
       }),
       prisma.investorOrganization.findMany({
         where: { id: { in: investorOrgIds } },
-        select: { id: true, name: true },
+        select: { id: true, name: true, display_reference: true },
       }),
       prisma.user.findMany({
         where: { user_id: { in: investorUserIds } },
@@ -1965,6 +1965,7 @@ export class NoteService {
         issuerOrganizationName: issuer?.name ?? null,
         investorOrganizationId: inv.investor_organization_id,
         investorOrganizationName: investorOrg?.name ?? null,
+        investorOrganizationDisplayReference: investorOrg?.display_reference ?? null,
         investorUserId: inv.investor_user_id,
         investorUserName: investorUserName || (investorUser?.email ?? null),
         investorUserEmail: investorUser?.email ?? null,

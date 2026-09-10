@@ -24,6 +24,10 @@ export const idParamSchema = z.object({
   id: z.string().min(1),
 });
 
+export const documentSigningPersonBodySchema = z.object({
+  signingPersonId: z.string().trim().min(1),
+});
+
 export const noteSettlementParamsSchema = z.object({
   id: z.string().min(1),
   settlementId: z.string().min(1),

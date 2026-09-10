@@ -371,6 +371,16 @@ describe("renderInvestmentNoteCertificateDocx", () => {
     expect(data.signatoryNameAndDate).toBe("Ahmad / 02 Sep 2026");
     const plain = wordPlainText(renderedXml(named, { audience: "ADMIN" }));
     expect(plain).toContain("Ahmad / 02 Sep 2026");
+    expect(plain).toContain("As agent of the Issuer");
+  });
+
+  it("uses the frozen signing person name when present", () => {
+    const named = sampleInvestmentNoteCertificateSnapshot();
+    named.authorisation.authorisedSignatoryName = "Legacy";
+    named.authorisation.signingPersonName = "John Lee";
+    expect(buildCertificateDocxMergeData(named, { audience: "ADMIN" }).signatoryNameAndDate).toBe(
+      "John Lee / 02 Sep 2026"
+    );
   });
 
   it("embeds a company stamp image when provided", () => {
