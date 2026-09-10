@@ -353,6 +353,82 @@ describe("investor personal completeness [07000]", () => {
     expect(result.userComplete).toBe(true);
     expect(result.missing.some((m) => m.field === "address.line1")).toBe(false);
   });
+
+  it("does not require company-only incorporation fields on a personal investor", () => {
+    const result = buildInvestorProfileCompleteness({
+      organizationType: "PERSONAL",
+      personal: {
+        name: "Ali Bin Abu",
+        identityPrefix: "NRIC",
+        identityNumber: "800101011234",
+        dateOfBirth: "1980-01-01",
+        gender: "MALE",
+        state: "Selangor",
+        postalCode: "47300",
+        nationality: "Malaysia",
+        scInvestorCategory: "RETAIL",
+        isSophisticatedInvestor: false,
+      },
+    });
+    expect(result.missing.map((item) => item.field)).not.toContain("dateOfIncorporation");
+    expect(result.missing.map((item) => item.field)).not.toContain("registrationNumber");
+    expect(result.missing.map((item) => item.field)).not.toContain("countryOfIncorporation");
+  });
+});
+
+describe("investor company completeness is not issuer Person completeness", () => {
+  const completeCorporate = {
+    name: "Acme Capital Sdn Bhd",
+    registrationNumber: "202401000001",
+    identityPrefix: "ROC" as const,
+    dateOfIncorporation: "2020-01-01",
+    countryOfIncorporation: "Malaysia",
+    gender: "NOT_APPLICABLE" as const,
+    businessState: "Selangor",
+    businessPostalCode: "47300",
+    scInvestorCategory: "NON_SOPHISTICATED_ENTITY" as const,
+    isSophisticatedInvestor: false,
+  };
+
+  it("stays complete when a company-investor Person is missing issuer designation and share block", () => {
+    const result = buildInvestorProfileCompleteness({
+      organizationType: "COMPANY",
+      corporate: completeCorporate,
+    });
+    expect(result.complete).toBe(true);
+    expect(result.steps.some((step) => step.id === "shareholders" || step.id === "board")).toBe(false);
+    expect(result.missing.map((item) => item.field)).not.toEqual(
+      expect.arrayContaining(["designation", "shareType", "shareholdingUnits", "shareholdingAmount"])
+    );
+    expect(result.missing.some((item) => item.field === "campaignId")).toBe(false);
+    expect(result.missing.some((item) => item.field === "issuerId")).toBe(false);
+  });
+
+  it("remains incomplete for genuine Investor Details identity gaps", () => {
+    const result = buildInvestorProfileCompleteness({
+      organizationType: "COMPANY",
+      corporate: {
+        ...completeCorporate,
+        name: "",
+        dateOfIncorporation: null,
+      },
+    });
+    expect(result.complete).toBe(false);
+    expect(result.missing.map((item) => item.field)).toEqual(
+      expect.arrayContaining(["name", "dateOfIncorporation"])
+    );
+    expect(result.missing.map((item) => item.field)).not.toContain("dateOfBirth");
+  });
+
+  it("does not list People as an Investor ComRep completeness section", () => {
+    const rows = groupInvestorMissingByProfileSection([], "COMPANY");
+    expect(rows.map((row) => row.id)).toEqual([
+      "company",
+      "addresses",
+      "contact",
+      "classification",
+    ]);
+  });
 });
 
 describe("master vs observation helpers", () => {
@@ -1104,6 +1180,69 @@ describe("people completeness by actual role", () => {
       appointmentDate: null,
     });
     expect(missing.map((item) => item.field)).not.toContain("gender");
+  });
+
+  it("still requires monthly [05000] share fields on an issuer shareholder", () => {
+    const missing = computeIssuerPersonCompleteness({
+      partyKey: "800101011234",
+      name: "Ali",
+      entityType: "INDIVIDUAL",
+      isDirector: false,
+      isShareholder: true,
+      isBoard: false,
+      isManagement: false,
+      identityPrefix: "NRIC",
+      identityNumber: "800101011234",
+      dateOfBirth: "1980-01-01",
+      dateOfIncorporation: null,
+      gender: "MALE",
+      nationality: "MALAYSIA",
+      countryOfIncorporation: null,
+      address: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
+      shareType: null,
+      shareTypeOther: null,
+      shareholdingUnits: null,
+      shareholdingAmount: null,
+      shareholdingPercentage: "25",
+      designation: null,
+      designationOther: null,
+      appointmentDate: null,
+    });
+    expect(missing.map((item) => item.field)).toEqual(
+      expect.arrayContaining(["shareType", "shareholdingUnits", "shareholdingAmount"])
+    );
+    expect(missing.map((item) => item.field)).not.toContain("designation");
+    expect(missing.map((item) => item.field)).not.toContain("dateAcquired");
+  });
+
+  it("still requires monthly [06000] Designation on issuer Board/Management", () => {
+    const missing = computeIssuerPersonCompleteness({
+      partyKey: "800101011234",
+      name: "Ali",
+      entityType: "INDIVIDUAL",
+      isDirector: false,
+      isShareholder: false,
+      isBoard: true,
+      isManagement: false,
+      identityPrefix: "NRIC",
+      identityNumber: "800101011234",
+      dateOfBirth: "1980-01-01",
+      dateOfIncorporation: null,
+      gender: "MALE",
+      nationality: "MALAYSIA",
+      countryOfIncorporation: null,
+      address: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
+      shareType: null,
+      shareTypeOther: null,
+      shareholdingUnits: null,
+      shareholdingAmount: null,
+      shareholdingPercentage: null,
+      designation: null,
+      designationOther: null,
+      appointmentDate: "2020-01-01",
+    });
+    expect(missing.map((item) => item.field)).toContain("designation");
+    expect(missing.map((item) => item.field)).not.toContain("shareType");
   });
 
   it("counts populated company email as filled (scenario B)", () => {

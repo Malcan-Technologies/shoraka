@@ -896,7 +896,6 @@ export const INVESTOR_COMPANY_UI_SECTIONS: Array<{
   { id: "company", label: "Company Details", href: "#profile-company" },
   { id: "addresses", label: "Business Address", href: "#profile-addresses" },
   { id: "contact", label: "Account owner", href: "#profile-contact" },
-  { id: "people", label: "People", href: "#profile-people" },
   { id: "classification", label: "Investor classification", href: "#profile-classification" },
 ];
 
@@ -904,7 +903,6 @@ export function investorUiSectionForMissing(
   item: ProfileMissingItem,
   organizationType: "PERSONAL" | "COMPANY"
 ): ProfileUiSectionId {
-  if (item.step === "shareholders" || item.step === "board") return "people";
   if (item.field === "state" || item.field === "postalCode") return "addresses";
   if (item.field === "businessState" || item.field === "businessPostalCode") return "addresses";
   if (item.field === "scInvestorCategory" || item.field === "isSophisticatedInvestor") {
@@ -1946,29 +1944,18 @@ export function buildInvestorProfileCompleteness(input: {
   organizationType: "PERSONAL" | "COMPANY";
   personal?: InvestorPersonalCompletenessInput;
   corporate?: InvestorCorporateCompletenessInput;
-  people?: IssuerPersonCompletenessInput[];
 }): ComrepProfileCompleteness {
   const identityMissing =
     input.organizationType === "COMPANY"
       ? computeInvestorCorporateCompleteness(input.corporate ?? ({} as InvestorCorporateCompletenessInput))
       : computeInvestorPersonalCompleteness(input.personal ?? ({} as InvestorPersonalCompletenessInput));
-  const people = input.organizationType === "COMPANY" ? input.people ?? [] : [];
-  const peopleMissing = people.flatMap(computeIssuerPersonCompleteness);
-  const peopleRequired = people.reduce(
-    (total, party) => total + countIssuerPersonRequiredFields(party),
-    0
-  );
   const identityRequired = INVESTOR_IDENTITY_REQUIRED_COUNT;
   const identityFilled = Math.max(0, identityRequired - identityMissing.length);
-  const peopleFilled = Math.max(0, peopleRequired - peopleMissing.length);
-  const missing = [...identityMissing, ...peopleMissing];
-  const requiredCount = identityRequired + peopleRequired;
-  const filledCount = identityFilled + peopleFilled;
-  const percent = requiredCount === 0 ? 0 : Math.round((filledCount / requiredCount) * 100);
+  const percent = Math.round((identityFilled / identityRequired) * 100);
   return withUserFacingCompleteness({
     portal: "investor",
     organizationType: input.organizationType,
-    complete: missing.length === 0,
+    complete: identityMissing.length === 0,
     percent,
     steps: [
       {
@@ -1979,28 +1966,16 @@ export function buildInvestorProfileCompleteness(input: {
         filledCount: identityFilled,
         missing: identityMissing,
       },
-      ...(peopleRequired > 0 || peopleMissing.length > 0
-        ? [
-            {
-              id: "shareholders" as const,
-              label: ISSUER_PROFILE_STEP_LABELS.shareholders,
-              complete: peopleMissing.length === 0,
-              requiredCount: peopleRequired,
-              filledCount: peopleFilled,
-              missing: peopleMissing,
-            },
-          ]
-        : []),
       {
         id: "review",
         label: INVESTOR_PROFILE_STEP_LABELS.review,
-        complete: missing.length === 0,
+        complete: identityMissing.length === 0,
         requiredCount: 0,
         filledCount: 0,
         missing: [],
       },
     ],
-    missing,
+    missing: identityMissing,
   });
 }
 

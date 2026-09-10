@@ -482,6 +482,26 @@ describe("operator profile completeness", () => {
     expect(result.complete).toBe(true);
   });
 
+  it("uses annual [03000] Date Acquired rather than monthly issuer [05000] Identity Prefix", () => {
+    const missingAcquired = buildOperatorProfileCompleteness(
+      completeOperator({
+        shareholders: [completeShareholder({ dateAcquired: null })],
+      })
+    );
+    expect(missingAcquired.missing.some((item) => item.field.includes("dateAcquired"))).toBe(true);
+    expect(missingAcquired.missing.some((item) => item.field.includes("identityPrefix"))).toBe(false);
+  });
+
+  it("uses annual [04000] Board of Director/Management Team rather than issuer share type", () => {
+    const missingKind = buildOperatorProfileCompleteness(
+      completeOperator({
+        officers: [completeOfficer({ personKind: "" as never })],
+      })
+    );
+    expect(missingKind.missing.some((item) => item.field.includes("personKind"))).toBe(true);
+    expect(missingKind.missing.some((item) => item.field.includes("shareType"))).toBe(false);
+  });
+
   it("requires individual shareholder salutation and annual financial line items", () => {
     const missingSalutation = buildOperatorProfileCompleteness(
       completeOperator({

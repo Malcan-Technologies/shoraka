@@ -890,7 +890,6 @@ export async function computeOrgProfileCompleteness(
 
   const org = await prisma.investorOrganization.findUnique({
     where: { id: organizationId },
-    include: { party_profiles: true },
   });
   if (!org) throw new AppError(404, "NOT_FOUND", "Investor organization not found");
   const residential = asAddress(org.residential_address);
@@ -906,40 +905,6 @@ export async function computeOrgProfileCompleteness(
     : null;
   if (organizationType === "COMPANY") {
     const business = pickCodAddress(org.corporate_onboarding_data, "business");
-    const people = org.party_profiles
-      .filter(
-        (p) =>
-          p.membership_status === OrganizationPartyMembershipStatus.MASTER_ACTIVE &&
-          (p.is_shareholder || p.is_director || p.is_board || p.is_management)
-      )
-      .map((p) => {
-        const addr = asAddress(p.address);
-        return {
-          partyKey: p.party_key,
-          name: p.name,
-          entityType: p.entity_type,
-          isDirector: p.is_director,
-          isShareholder: p.is_shareholder,
-          isBoard: p.is_board,
-          isManagement: p.is_management,
-          identityPrefix: p.identity_prefix,
-          identityNumber: p.identity_number,
-          dateOfBirth: p.date_of_birth,
-          dateOfIncorporation: p.date_of_incorporation,
-          gender: p.gender,
-          nationality: p.nationality,
-          countryOfIncorporation: p.country_of_incorporation,
-          address: addr,
-          shareType: p.share_type,
-          shareTypeOther: p.share_type_other,
-          shareholdingUnits: p.shareholding_units?.toString() ?? null,
-          shareholdingAmount: p.shareholding_amount?.toString() ?? null,
-          shareholdingPercentage: p.shareholding_percentage?.toString() ?? null,
-          designation: p.designation,
-          designationOther: p.designation_other,
-          appointmentDate: p.appointment_date,
-        };
-      });
     return buildInvestorProfileCompleteness({
       organizationType: "COMPANY",
       corporate: {
@@ -954,7 +919,6 @@ export async function computeOrgProfileCompleteness(
         scInvestorCategory,
         isSophisticatedInvestor: org.is_sophisticated_investor,
       },
-      people,
     });
   }
   return buildInvestorProfileCompleteness({

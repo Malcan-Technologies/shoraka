@@ -318,3 +318,25 @@ describe("secondary-onboarding field messages", () => {
     expect(issues.map((issue) => issue.message)).toContain("Enter a percentage of 100 or less.");
   });
 });
+
+describe("annual RMO people rules vs monthly issuer people rules", () => {
+  it("requires annual [03000] Date Acquired and does not require issuer Identity Prefix", () => {
+    const issues = validateOperatorShareholder({
+      entityType: "INDIVIDUAL",
+      holderType: "SHAREHOLDER",
+      name: "Aisha Tan",
+      salutation: "Ms",
+      identityNumber: "800101011234",
+      dateOfBirth: "1980-01-01",
+      nationality: "MALAYSIA",
+      address: "1 Jalan Ampang",
+      shareType: "ORDINARY",
+      shareholdingUnits: "1000",
+      shareholdingAmount: "1000",
+      shareholdingPercentage: "100",
+    });
+    expect(issues.some((issue) => issue.field === "dateAcquired")).toBe(true);
+    expect(issues.some((issue) => issue.field === "identityPrefix")).toBe(false);
+    expect(issues.some((issue) => issue.field === "shareholdingUnits")).toBe(false);
+  });
+});
