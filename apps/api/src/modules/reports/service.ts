@@ -2,7 +2,6 @@ import {
   DpdBucket,
   GatewayPaymentPurpose,
   GatewayPaymentStatus,
-  NoteFundingStatus,
   NoteServicingStatus,
   NoteSettlementStatus,
   Prisma,
@@ -30,6 +29,7 @@ import {
   assertReportQuery,
   defaultedNoteWhere,
   exclusiveEndOfMytDateLabel,
+  liveOpenBookNoteWhere,
   mergeDefaultRecoverySnapshots,
   openBookSnapshots,
   postedAtRange,
@@ -219,10 +219,7 @@ async function runAgeing(query: ReportQuery): Promise<ReportResult> {
   }
 
   const notes = await prisma.note.findMany({
-    where: {
-      funding_status: NoteFundingStatus.FUNDED,
-      servicing_status: { not: NoteServicingStatus.SETTLED },
-    },
+    where: liveOpenBookNoteWhere(),
     select: {
       id: true,
       note_reference: true,

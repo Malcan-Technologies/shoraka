@@ -7,7 +7,7 @@ import {
   type ReportKey,
   type ReportQuery,
 } from "@cashsouk/types";
-import { Prisma } from "@prisma/client";
+import { NoteFundingStatus, NoteServicingStatus, Prisma } from "@prisma/client";
 import { AppError } from "../../lib/http/error-handler";
 import { calendarDateInTimeZone } from "../notes/servicing-classifier";
 
@@ -71,6 +71,14 @@ export function roundMoney(value: number): number {
 
 export function percentOf(part: number, whole: number): number {
   return whole > 0 ? (part / whole) * 100 : 0;
+}
+
+export function liveOpenBookNoteWhere(): Prisma.NoteWhereInput {
+  return {
+    funding_status: NoteFundingStatus.FUNDED,
+    activated_at: { not: null },
+    servicing_status: { not: NoteServicingStatus.SETTLED },
+  };
 }
 
 export function openBookSnapshots<T extends { servicing_status: string }>(snapshots: T[]): T[] {

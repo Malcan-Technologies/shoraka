@@ -1,4 +1,9 @@
-import { NoteInvestmentStatus, WithdrawalType, type Notification } from "@prisma/client";
+import {
+  NoteInvestmentStatus,
+  NoteServicingStatus,
+  WithdrawalType,
+  type Notification,
+} from "@prisma/client";
 import { logger } from "../../lib/logger";
 import { systemNotificationLogKey } from "./delivery-log";
 import { NotificationPayloads, NotificationTypeId, NotificationTypeIds } from "./registry";
@@ -76,6 +81,83 @@ async function sendToInvestorOrganizations<T extends NotificationTypeId>(
 
 function logLifecycleError(stage: string, noteId: string, err: unknown) {
   logger.error({ err, noteId, stage }, "Note lifecycle notification failed");
+}
+
+function issuerUserNotificationKey(prefix: string, userId: string): string {
+  return `${prefix}:user:${userId}`;
+}
+
+function investorUserNotificationKey(prefix: string, organizationId: string, userId: string): string {
+  return `${prefix}:investor-org:${organizationId}:user:${userId}`;
+}
+
+async function listIssuerNotificationKeys(issuerOrganizationId: string, prefix: string): Promise<string[]> {
+  const userIds = await listIssuerOrgMemberUserIds(issuerOrganizationId);
+  return userIds.map((userId) => issuerUserNotificationKey(prefix, userId));
+}
+
+async function listInvestorNoteNotificationKeys(noteId: string, prefix: string): Promise<string[]> {
+  const orgIds = await listDistinctInvestorOrganizationIdsForNote(noteId, [
+    NoteInvestmentStatus.CONFIRMED,
+  ]);
+  const batches = await Promise.all(
+    orgIds.map(async (organizationId) => {
+      const userIds = await listInvestorOrgMemberUserIds(organizationId);
+      return userIds.map((userId) => investorUserNotificationKey(prefix, organizationId, userId));
+    })
+  );
+  return batches.flat();
+}
+
+export async function expectedServicingTransitionNotificationKeys(input: {
+  status: NoteServicingStatus;
+  noteId: string;
+  issuerOrganizationId: string;
+}): Promise<string[]> {
+  if (input.status === NoteServicingStatus.OVERDUE) {
+    return listIssuerNotificationKeys(
+      input.issuerOrganizationId,
+      `note:servicing:${input.noteId}:overdue`
+    );
+  }
+  if (input.status === NoteServicingStatus.LATE) {
+    const [issuerKeys, investorKeys] = await Promise.all([
+      listIssuerNotificationKeys(input.issuerOrganizationId, `note:servicing:${input.noteId}:late`),
+      listInvestorNoteNotificationKeys(input.noteId, `note:servicing:${input.noteId}:late:investor`),
+    ]);
+    return [...issuerKeys, ...investorKeys];
+  }
+  if (input.status === NoteServicingStatus.ARREARS) {
+    const [issuerKeys, investorKeys] = await Promise.all([
+      listIssuerNotificationKeys(
+        input.issuerOrganizationId,
+        `note:lifecycle:${input.noteId}:arrears:issuer`
+      ),
+      listInvestorNoteNotificationKeys(
+        input.noteId,
+        `note:lifecycle:${input.noteId}:arrears:investor`
+      ),
+    ]);
+    return [...issuerKeys, ...investorKeys];
+  }
+  return [];
+}
+
+export async function expectedDefaultNotificationKeys(input: {
+  noteId: string;
+  issuerOrganizationId: string;
+}): Promise<string[]> {
+  const [issuerKeys, investorKeys] = await Promise.all([
+    listIssuerNotificationKeys(
+      input.issuerOrganizationId,
+      `note:lifecycle:${input.noteId}:defaulted:issuer`
+    ),
+    listInvestorNoteNotificationKeys(
+      input.noteId,
+      `note:lifecycle:${input.noteId}:defaulted:investor`
+    ),
+  ]);
+  return [...issuerKeys, ...investorKeys];
 }
 
 /** After marketplace publish — issuer organisation only. */

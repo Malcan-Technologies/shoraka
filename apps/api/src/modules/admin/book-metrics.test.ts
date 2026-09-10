@@ -107,12 +107,9 @@ describe("AdminRepository.getBookMetrics", () => {
     expect(mockNoteAggregate).toHaveBeenCalledWith({
       where: {
         published_at: { not: null, lt: cutoff },
-        OR: [
-          { activated_at: { gte: cutoff } },
-          {
-            activated_at: null,
-            status: { in: [NoteStatus.PUBLISHED, NoteStatus.FUNDING] },
-          },
+        AND: [
+          { OR: [{ funding_closed_at: null }, { funding_closed_at: { gte: cutoff } }] },
+          { OR: [{ activated_at: null }, { activated_at: { gte: cutoff } }] },
         ],
       },
       _sum: { funded_amount: true },

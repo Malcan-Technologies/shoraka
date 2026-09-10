@@ -15,12 +15,9 @@ export function bookMetricsAsOfFilters(asOfCutoff?: Date) {
   const inFunding = asOfCutoff
     ? {
         published_at: { not: null, lt: asOfCutoff },
-        OR: [
-          { activated_at: { gte: asOfCutoff } },
-          {
-            activated_at: null,
-            status: { in: [NoteStatus.PUBLISHED, NoteStatus.FUNDING] },
-          },
+        AND: [
+          { OR: [{ funding_closed_at: null }, { funding_closed_at: { gte: asOfCutoff } }] },
+          { OR: [{ activated_at: null }, { activated_at: { gte: asOfCutoff } }] },
         ],
       }
     : { status: { in: [NoteStatus.PUBLISHED, NoteStatus.FUNDING] } };

@@ -10,7 +10,10 @@ import { logger } from "../logger";
 import { prisma } from "../prisma";
 import { NotificationService } from "../../modules/notification/service";
 import {
+  expectedDefaultNotificationKeys,
+  expectedServicingTransitionNotificationKeys,
   notifyNoteArrears,
+  notifyNoteDefaulted,
   notifyNoteLate,
   notifyNoteOverdue,
   notifyNoteRepaymentDueSoon,
@@ -167,14 +170,35 @@ export function servicingTransitionNotificationsDelivered(
     send_to_email: boolean;
     email_sent_at: Date | null;
   }>,
-  expectedPrefixes: string[]
+  expectedKeys: string[]
 ): boolean {
-  if (expectedPrefixes.length === 0) return true;
-  return expectedPrefixes.every((prefix) => {
-    const rows = notifications.filter((row) => row.idempotency_key?.startsWith(prefix));
-    if (rows.length === 0) return false;
-    return rows.every((row) => !row.send_to_email || row.email_sent_at != null);
+  if (expectedKeys.length === 0) return true;
+  const byKey = new Map(
+    notifications.flatMap((row) => (row.idempotency_key ? [[row.idempotency_key, row] as const] : []))
+  );
+  return expectedKeys.every((key) => {
+    const row = byKey.get(key);
+    if (!row) return false;
+    return !row.send_to_email || row.email_sent_at != null;
   });
+}
+
+async function retryNotificationsIfNeeded(input: {
+  expectedKeys: string[];
+  notify: () => Promise<void>;
+}) {
+  if (input.expectedKeys.length === 0) return;
+  const deliveryRows = await prisma.notification.findMany({
+    where: { idempotency_key: { in: input.expectedKeys } },
+    select: {
+      idempotency_key: true,
+      send_to_email: true,
+      email_sent_at: true,
+    },
+  });
+  if (!servicingTransitionNotificationsDelivered(deliveryRows, input.expectedKeys)) {
+    await input.notify();
+  }
 }
 
 async function notifyServicingTransition(input: {
@@ -486,33 +510,20 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
           await logSystemNoteEvent(note.id, transitionEventType, transitionMetadata);
           result.transitions += 1;
         }
-        const expectedPrefixes = servicingTransitionNotificationKeyPrefixes(
-          classification.servicingStatus,
-          note.id
-        );
-        const deliveryRows =
-          expectedPrefixes.length === 0
-            ? []
-            : await prisma.notification.findMany({
-                where: {
-                  OR: expectedPrefixes.map((prefix) => ({
-                    idempotency_key: { startsWith: prefix },
-                  })),
-                },
-                select: {
-                  idempotency_key: true,
-                  send_to_email: true,
-                  email_sent_at: true,
-                },
-              });
-        if (!servicingTransitionNotificationsDelivered(deliveryRows, expectedPrefixes)) {
-          await notifyServicingTransition({
+        await retryNotificationsIfNeeded({
+          expectedKeys: await expectedServicingTransitionNotificationKeys({
             status: classification.servicingStatus,
             noteId: note.id,
             issuerOrganizationId: note.issuer_organization_id,
-            noteTitle: title,
-          });
-        }
+          }),
+          notify: () =>
+            notifyServicingTransition({
+              status: classification.servicingStatus,
+              noteId: note.id,
+              issuerOrganizationId: note.issuer_organization_id,
+              noteTitle: title,
+            }),
+        });
       }
 
       const arrearsNow =
@@ -564,6 +575,21 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
       }
 
       const defaultedNow = note.servicing_status === NoteServicingStatus.DEFAULTED;
+      if (defaultedNow) {
+        await retryNotificationsIfNeeded({
+          expectedKeys: await expectedDefaultNotificationKeys({
+            noteId: note.id,
+            issuerOrganizationId: note.issuer_organization_id,
+          }),
+          notify: () =>
+            notifyNoteDefaulted({
+              notificationService,
+              noteId: note.id,
+              issuerOrganizationId: note.issuer_organization_id,
+              noteTitle: title,
+            }),
+        });
+      }
       if (!hasPostedSettlement && defaultedNow) {
         const existingDefaultLetter = await prisma.noteServicingLetter.findFirst({
           where: { note_id: note.id, type: NoteServicingLetterType.DEFAULT },

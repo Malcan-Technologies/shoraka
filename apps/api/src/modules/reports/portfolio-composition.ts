@@ -1,5 +1,4 @@
 import {
-  NoteFundingStatus,
   NoteServicingStatus,
   NoteSettlementStatus,
   Prisma,
@@ -18,6 +17,7 @@ import {
   isToday,
   issuerName,
   jsonRecord,
+  liveOpenBookNoteWhere,
   openBookSnapshots,
   parseAsOf,
   percentOf,
@@ -205,10 +205,7 @@ export async function runPortfolioComposition(query: ReportQuery): Promise<Repor
   }
 
   const notes = await prisma.note.findMany({
-    where: {
-      funding_status: NoteFundingStatus.FUNDED,
-      servicing_status: { not: NoteServicingStatus.SETTLED },
-    },
+    where: liveOpenBookNoteWhere(),
     select: {
       funded_amount: true,
       profit_rate_percent: true,

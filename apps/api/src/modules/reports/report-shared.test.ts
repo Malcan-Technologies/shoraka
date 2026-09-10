@@ -1,8 +1,10 @@
 import {
   assertReportQuery,
+  liveOpenBookNoteWhere,
   mergeDefaultRecoverySnapshots,
   roundMoney,
 } from "./report-shared";
+import { NoteFundingStatus, NoteServicingStatus } from "@prisma/client";
 
 type Snapshot = {
   note_id: string;
@@ -64,5 +66,15 @@ describe("assertReportQuery", () => {
 describe("roundMoney", () => {
   it("uses the shared note-money precision", () => {
     expect(roundMoney(100.005)).toBe(100.01);
+  });
+});
+
+describe("liveOpenBookNoteWhere", () => {
+  it("excludes funded notes that have not activated yet", () => {
+    expect(liveOpenBookNoteWhere()).toEqual({
+      funding_status: NoteFundingStatus.FUNDED,
+      activated_at: { not: null },
+      servicing_status: { not: NoteServicingStatus.SETTLED },
+    });
   });
 });

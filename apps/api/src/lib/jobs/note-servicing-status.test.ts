@@ -143,47 +143,93 @@ describe("servicingTransitionNotificationsDelivered", () => {
       "note:servicing:note-1:late",
       "note:servicing:note-1:late:investor",
     ]);
-    expect(servicingTransitionNotificationsDelivered([], prefixes)).toBe(false);
+    expect(servicingTransitionNotificationsDelivered([], [`${prefixes[0]}:user:u1`])).toBe(false);
   });
 
   it("retries when email was selected but SES never marked the row sent", () => {
     const prefixes = servicingTransitionNotificationKeyPrefixes(NoteServicingStatus.OVERDUE, "note-1");
+    const issuerKey = `${prefixes[0]}:user:u1`;
     expect(
       servicingTransitionNotificationsDelivered(
         [
           {
-            idempotency_key: `${prefixes[0]}:user:u1`,
+            idempotency_key: issuerKey,
             send_to_email: true,
             email_sent_at: null,
           },
         ],
-        prefixes
+        [issuerKey]
       )
     ).toBe(false);
   });
 
-  it("treats platform-only delivery as complete and requires every expected batch", () => {
-    const prefixes = servicingTransitionNotificationKeyPrefixes(NoteServicingStatus.ARREARS, "note-1");
+  it("does not treat a delivered investor LATE row as issuer delivery", () => {
+    const prefixes = servicingTransitionNotificationKeyPrefixes(NoteServicingStatus.LATE, "note-1");
+    const issuerKey = `${prefixes[0]}:user:u1`;
+    const investorKey = `${prefixes[1]}:investor-org:org-1:user:u2`;
     expect(
       servicingTransitionNotificationsDelivered(
         [
           {
-            idempotency_key: `${prefixes[0]}:user:u1`,
+            idempotency_key: investorKey,
+            send_to_email: true,
+            email_sent_at: new Date("2026-09-10T00:00:00.000Z"),
+          },
+        ],
+        [issuerKey, investorKey]
+      )
+    ).toBe(false);
+  });
+
+  it("retries when one issuer recipient is missing from a delivered batch", () => {
+    const prefixes = servicingTransitionNotificationKeyPrefixes(NoteServicingStatus.OVERDUE, "note-1");
+    const delivered = `${prefixes[0]}:user:u1`;
+    const missing = `${prefixes[0]}:user:u2`;
+    expect(
+      servicingTransitionNotificationsDelivered(
+        [
+          {
+            idempotency_key: delivered,
+            send_to_email: true,
+            email_sent_at: new Date("2026-09-10T00:00:00.000Z"),
+          },
+        ],
+        [delivered, missing]
+      )
+    ).toBe(false);
+  });
+
+  it("treats platform-only delivery as complete and requires every expected key", () => {
+    const prefixes = servicingTransitionNotificationKeyPrefixes(NoteServicingStatus.ARREARS, "note-1");
+    const issuerKey = `${prefixes[0]}:user:u1`;
+    const investorKey = `${prefixes[1]}:investor-org:org-1:user:u2`;
+    expect(
+      servicingTransitionNotificationsDelivered(
+        [
+          {
+            idempotency_key: issuerKey,
             send_to_email: false,
             email_sent_at: null,
           },
         ],
-        prefixes
+        [issuerKey, investorKey]
       )
     ).toBe(false);
     expect(
       servicingTransitionNotificationsDelivered(
-        prefixes.map((prefix) => ({
-          idempotency_key: `${prefix}:user:u1`,
-          send_to_email: true,
-          email_sent_at: new Date("2026-09-10T00:00:00.000Z"),
-        })),
-        prefixes
+        [
+          {
+            idempotency_key: issuerKey,
+            send_to_email: false,
+            email_sent_at: null,
+          },
+          {
+            idempotency_key: investorKey,
+            send_to_email: true,
+            email_sent_at: new Date("2026-09-10T00:00:00.000Z"),
+          },
+        ],
+        [issuerKey, investorKey]
       )
     ).toBe(true);
   });
