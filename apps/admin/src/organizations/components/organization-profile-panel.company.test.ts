@@ -77,4 +77,10 @@ describe("Admin company organisation profile", () => {
     expect(panel).toContain("wealthDeclaration: org.wealthDeclaration");
     expect(panel.indexOf("evidenceCards.map")).toBeGreaterThan(panel.indexOf('title="Documents"'));
   });
+
+  it("does not render individual KYC document fields on company organisations", () => {
+    expect(panel).toContain('org.type !== "COMPANY"');
+    expect(panel).toContain('label="Document Type"');
+    expect(panel).toContain("corporateRequiredDocuments");
+  });
 });

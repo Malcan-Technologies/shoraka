@@ -532,6 +532,46 @@ describe("buildUnifiedPeople", () => {
     expect(corp?.matchKey).toBe("123123123");
   });
 
+  it("keeps corporate shareholder COD status as KYB onboarding, not individual KYC", () => {
+    const rows = buildUnifiedPeople({
+      ctos: null,
+      issuerDirectorKycStatus: { directors: [] },
+      issuerDirectorAmlStatus: { directors: [], businessShareholders: [] },
+      ctosPartySupplements: null,
+      corporateEntities: {
+        directors: [],
+        shareholders: [],
+        corporateShareholders: [
+          {
+            companyName: "Orion Crest Holdings Sdn. Bhd.",
+            requestId: "COD05595",
+            status: "WAIT_FOR_APPROVAL",
+            kybType: "ACURIS",
+            kybRequestDto: null,
+            formContent: {
+              displayAreas: [
+                {
+                  displayArea: "Basic Information Setting",
+                  content: [
+                    { fieldName: "Business Name", fieldValue: "Orion Crest Holdings Sdn. Bhd." },
+                    { fieldName: "Business Number", fieldValue: "8217649D" },
+                    { fieldName: "% of Shares", fieldValue: "50" },
+                  ],
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    const corp = rows.find((r) => r.entityType === "CORPORATE");
+    expect(corp?.matchKey).toBe("8217649D");
+    expect(corp?.onboarding?.status).toBe("WAIT_FOR_APPROVAL");
+    expect(corp?.partyCorporateRequestId).toBe("COD05595");
+    expect(corp?.screening?.status ?? null).toBeNull();
+  });
+
   it("includes individual when Government ID is only in personalInfo.formContent", () => {
     const rows = buildUnifiedPeople({
       ctos: null,

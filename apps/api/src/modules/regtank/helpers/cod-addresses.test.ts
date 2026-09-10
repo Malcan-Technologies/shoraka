@@ -63,4 +63,30 @@ describe("parseRegTankCodAddresses", () => {
     expect(addresses.business.postalCode).toBe("47800");
     expect(addresses.business.postalCode).not.toBe(addresses.business.line1);
   });
+
+  it("does not treat the Registered Address section header as line 1", () => {
+    const addresses = parseRegTankCodAddresses([
+      { fieldName: "Address (line 1)", fieldType: "text", fieldValue: "address (line 1)" },
+      { fieldName: "Registered Address", fieldType: "header", fieldValue: "" },
+      {
+        fieldName: "Address line 1 (Registered Address)",
+        fieldType: "text",
+        fieldValue: "Address (line 1)",
+      },
+      { fieldName: "Address line 2 (Registered Address)", fieldType: "text", fieldValue: "Address (line 2)" },
+      { fieldName: "City (Registered Address)", fieldType: "text", fieldValue: "City" },
+      { fieldName: "Postal code (Registered Address)", fieldType: "number", fieldValue: "47300" },
+      { fieldName: "State (Registered Address)", fieldType: "picklist", fieldValue: "Johor" },
+      { fieldName: "Country (Registered Address)", fieldType: "picklist", fieldValue: "Malaysia" },
+    ]);
+    expect(addresses.registered).toEqual({
+      line1: "Address (line 1)",
+      line2: "Address (line 2)",
+      city: "City",
+      postalCode: "47300",
+      state: "Johor",
+      country: "Malaysia",
+    });
+    expect(addresses.business.line1).toBe("address (line 1)");
+  });
 });

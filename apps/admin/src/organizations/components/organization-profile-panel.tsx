@@ -293,13 +293,13 @@ export function OrganizationProfilePanel({
     draft.gender && draft.gender in SC_GENDER_LABELS
       ? SC_GENDER_LABELS[draft.gender as ScGender]
       : org.gender;
-  const hasDocumentInfo = Boolean(
-    org.documentType || org.documentNumber || org.idIssuingCountry || org.kycId
-  );
   const corporateDocuments = Array.isArray(org.corporateRequiredDocuments)
     ? (org.corporateRequiredDocuments as Record<string, unknown>[])
     : [];
-  const showDocuments = hasDocumentInfo || corporateDocuments.length > 0 || org.type === "COMPANY";
+  const showDocuments =
+    org.type === "COMPANY" ||
+    Boolean(org.documentType || org.documentNumber || org.idIssuingCountry || org.kycId) ||
+    corporateDocuments.length > 0;
   const isEditingBank = editingSection === "bank";
   const bankOptions: Array<{ value: string; label: string }> = MALAYSIAN_BANKS.some(
     (bank) => bank.value === draft.bankName
@@ -1149,12 +1149,14 @@ export function OrganizationProfilePanel({
             description="Onboarding evidence collected for this organisation. Users cannot upload documents from their profile."
           />
           <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <ReadField label="Document Type" value={org.documentType} />
-              <ReadField label="Document Number" value={org.documentNumber} />
-              <ReadField label="ID Issuing Country" value={org.idIssuingCountry} />
-              <ReadField label="KYC ID" value={org.kycId} />
-            </div>
+            {org.type !== "COMPANY" ? (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <ReadField label="Document Type" value={org.documentType} />
+                <ReadField label="Document Number" value={org.documentNumber} />
+                <ReadField label="ID Issuing Country" value={org.idIssuingCountry} />
+                <ReadField label="KYC ID" value={org.kycId} />
+              </div>
+            ) : null}
             {corporateDocuments.length > 0 ? (
               <div className="space-y-3">
                 {corporateDocuments.map((doc, idx) => (
@@ -1186,7 +1188,7 @@ export function OrganizationProfilePanel({
                   </div>
                 ))}
               </div>
-            ) : org.type === "COMPANY" && !hasDocumentInfo ? (
+            ) : org.type === "COMPANY" && corporateDocuments.length === 0 ? (
               <p className="text-ui text-muted-foreground">No documents available yet.</p>
             ) : null}
           </CardContent>
