@@ -40,12 +40,14 @@ export const LAYOUT_DETECTED_SIGN_FIELD = {
 /**
  * SigningCloud displays `signdate` at width = 5 × height.
  * Sit the box on the printed Date line, to the right of the label.
+ * Offset 4 (not 2): SigningCloud stamps the date near the top of the field, so a
+ * smaller offset left the digits sitting above the Date label baseline.
  */
 export const LAYOUT_DETECTED_DATE_FIELD = {
   height: 14,
   widthMultiplier: 5,
   leftGap: 4,
-  topOffset: 2,
+  topOffset: 4,
   minTop: 24,
   minLeft: 20,
 } as const;
