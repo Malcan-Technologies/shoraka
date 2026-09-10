@@ -14,6 +14,8 @@ Also runs at the end of `pnpm --filter @cashsouk/api prisma:seed`.
 
 Idempotent: children for these org ids are deleted and recreated. Blocked when `NODE_ENV=production`.
 
+Party supplements are seeded with `kybDirectorLinked` and `kybShareholderLinked` already true. That is the existing terminal state for the CTOS KYB retry job, so fake demo KYB/KYC IDs are never sent to the live RegTank trial API. KYC/AML badges still come from `status` / `screening.status`.
+
 These users follow the existing local seed convention (Cognito `seed_apt_*` placeholders). They do not get a documented shared password.
 
 ## Organisations

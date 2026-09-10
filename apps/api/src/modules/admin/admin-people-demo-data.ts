@@ -338,6 +338,10 @@ export function adminPeopleDemoSupplement(params: {
     sentAt: notStarted ? undefined : ADMIN_PEOPLE_DEMO_FIXED_AT,
     updatedAt: ADMIN_PEOPLE_DEMO_SCREENED_AT,
     screening,
+    // Terminal for the CTOS KYB retry job. Demo IDs are not real RegTank records;
+    // without these flags local cron would call /v3/kyb/add-director against trial.
+    kybDirectorLinked: true,
+    kybShareholderLinked: true,
   };
 }
 

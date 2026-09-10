@@ -34,6 +34,9 @@
  * - CTOS report history (latest + older)
  * - PIC current vs RegTank evidence mismatch
  *
+ * Party supplements set kybDirectorLinked + kybShareholderLinked so the CTOS KYB
+ * retry job does not call the live RegTank trial API with demo KYB/KYC IDs.
+ *
  * Usage:
  *   pnpm --filter @cashsouk/api seed:admin-people-demo
  *   (also invoked from prisma/seed.ts)

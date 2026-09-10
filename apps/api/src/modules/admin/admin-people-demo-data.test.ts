@@ -4,6 +4,8 @@
  */
 import { Prisma } from "@prisma/client";
 import {
+  getKycGroup,
+  getAmlGroup,
   isIssuerShareholderOnlyBelowMinimum,
   observedPartyBlockedByIdentityConflict,
   parsePersonIdentityConflict,
@@ -11,6 +13,7 @@ import {
   type ApplicationPersonRow,
 } from "@cashsouk/types";
 import { computePartyMismatches } from "../organization-profile/serialize";
+import { ctosPartySupplementNeedsKybRetry } from "../../lib/jobs/ctos-kyb-retry";
 import {
   ADMIN_PEOPLE_DEMO_EMAIL,
   ADMIN_PEOPLE_DEMO_IC,
@@ -27,6 +30,7 @@ import {
   adminPeopleDemoHenryObservation,
   adminPeopleDemoNathanIdentityConflict,
   adminPeopleDemoOliviaIsBelowFivePercent,
+  adminPeopleDemoSupplement,
   adminPeopleDemoWeiObservation,
 } from "./admin-people-demo-data";
 
@@ -153,5 +157,58 @@ describe("admin people demo seed fixtures", () => {
 
   it("documents Case 16 as unsupported rather than inventing a people_only row", () => {
     expect(ADMIN_PEOPLE_DEMO_UNSUPPORTED[0]?.caseId).toBe(16);
+  });
+
+  it("marks demo supplements terminal for CTOS KYB retry while keeping KYC/AML display tokens", () => {
+    const approved = adminPeopleDemoSupplement({
+      requestId: "EOD90001",
+      status: "APPROVED",
+      screeningStatus: "APPROVED",
+      screeningRequestId: "KYC90001",
+    });
+    const pendingAml = adminPeopleDemoSupplement({
+      requestId: "EOD90002",
+      status: "APPROVED",
+      screeningStatus: "PENDING",
+      screeningRequestId: "KYC90002",
+    });
+    const pendingApproval = adminPeopleDemoSupplement({
+      requestId: "EOD90003",
+      status: "WAIT_FOR_APPROVAL",
+      email: "chloe.lim@admin-people-test.example",
+    });
+    const inProgress = adminPeopleDemoSupplement({
+      requestId: "EOD90005",
+      status: "IN_PROGRESS",
+      screeningStatus: "PENDING",
+      screeningRequestId: "KYC90005",
+    });
+    const expired = adminPeopleDemoSupplement({
+      requestId: "EOD90009",
+      status: "EXPIRED",
+      screeningStatus: "PENDING",
+      screeningRequestId: "KYC90009",
+    });
+    const rejected = adminPeopleDemoSupplement({
+      requestId: "EOD90014",
+      status: "REJECTED",
+      screeningStatus: "REJECTED",
+      screeningRequestId: "KYC90014",
+    });
+
+    for (const json of [approved, pendingAml, pendingApproval, inProgress, expired, rejected]) {
+      expect(json.kybDirectorLinked).toBe(true);
+      expect(json.kybShareholderLinked).toBe(true);
+      expect(ctosPartySupplementNeedsKybRetry(json)).toBe(false);
+    }
+
+    expect(getKycGroup(String(approved.status))).toBe("APPROVED");
+    expect(getKycGroup(String(pendingApproval.status))).toBe("PENDING_REVIEW");
+    expect(getKycGroup(String(inProgress.status))).toBe("IN_PROGRESS");
+    expect(getKycGroup(String(expired.status))).toBe("EXPIRED");
+    expect(getKycGroup(String(rejected.status))).toBe("REJECTED");
+    expect(getAmlGroup(String((pendingAml.screening as { status: string }).status))).toBe("IN_PROGRESS");
+    expect(getAmlGroup(String((approved.screening as { status: string }).status))).toBe("APPROVED");
+    expect(getAmlGroup(String((rejected.screening as { status: string }).status))).toBe("REJECTED");
   });
 });
