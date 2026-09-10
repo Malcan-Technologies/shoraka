@@ -7,6 +7,9 @@ import {
   getFinalStatusToken,
   IDENTITY_CONFLICT_ISSUER_LABEL,
   isBlockedPersonIdentityConflict,
+  isPersonKycApproved,
+  PERSON_COMPLETE_ONBOARDING_FIRST,
+  personIdentityDisplay,
   readPersonIdentityConflict,
   type ApplicationPersonRow,
   type OrganizationPartyProfileDto,
@@ -73,6 +76,17 @@ export function PersonIdentityCard({
   const access: PersonPlatformAccess | null = party?.platformAccess ?? null;
   const showPlatform = Boolean(party) && !corporate;
   const identityConflict = isBlockedPersonIdentityConflict(readPersonIdentityConflict(party?.externalObservation));
+  const kycApproved = isPersonKycApproved(person?.onboarding?.status);
+  const identity = personIdentityDisplay({
+    identityNumber: party?.identityNumber ?? person?.identityNumber,
+    partyKey: party?.partyKey,
+    matchKey: person?.matchKey,
+    kycOnboardingStatus: person?.onboarding?.status,
+  });
+  const showCompleteProfile = Boolean(onEdit && !inactive && !corporate && kycApproved && missingCount > 0);
+  const onboardingNotStarted = !corporate && kyc.label === "Not Started";
+  const completenessHint =
+    !inactive && !corporate && onboardingNotStarted ? PERSON_COMPLETE_ONBOARDING_FIRST : null;
   const inviteStatus = access?.status;
   const showInvite =
     canManagePlatform &&
@@ -102,10 +116,20 @@ export function PersonIdentityCard({
             {party ? <PartyCtosIndicator party={party} /> : null}
           </div>
           <p className="text-meta text-muted-foreground">{roleLine}</p>
+          {!corporate ? (
+            <p className="text-meta text-muted-foreground">
+              Identity: <span className="text-foreground">{identity.value}</span>
+            </p>
+          ) : null}
           {missingCount > 0 && !inactive ? (
             <p className="text-meta text-status-action-text">
-              {missingCount} {missingCount === 1 ? "field" : "fields"} missing
+              {kycApproved
+                ? `${missingCount} ${missingCount === 1 ? "field" : "fields"} remaining`
+                : `${missingCount} ${missingCount === 1 ? "field" : "fields"} missing`}
             </p>
+          ) : null}
+          {completenessHint ? (
+            <p className="text-meta text-muted-foreground">{completenessHint}</p>
           ) : null}
           {corporate ? (
             <p className="text-meta text-muted-foreground">
@@ -140,11 +164,16 @@ export function PersonIdentityCard({
           ) : null}
           {onEdit ? (
             <Button type="button" variant="outline" size="sm" onClick={onEdit}>
-              Edit
+              {showCompleteProfile ? "Complete profile" : "Edit"}
             </Button>
           ) : null}
           {canSendOnboarding && onSendOnboarding ? (
-            <Button type="button" variant="outline" size="sm" onClick={onSendOnboarding}>
+            <Button
+              type="button"
+              variant={onboardingNotStarted ? "default" : "outline"}
+              size="sm"
+              onClick={onSendOnboarding}
+            >
               Send onboarding
             </Button>
           ) : null}

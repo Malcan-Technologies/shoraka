@@ -9,6 +9,7 @@ import {
   firstIssueMessage,
   humanizeApiValidationMessage,
   isMemberWithoutCompanyRole,
+  isMinimalOnboardingPersonCreate,
   isProfileValidationError,
   linkedPartyUserIds,
   optionalEmailIssue,
@@ -204,7 +205,29 @@ export function OrganizationPeoplePanel({
   };
 
   const saveParty = async (values: PartyEditorValues, partyId?: string) => {
-    const payload: Record<string, unknown> = {
+    const minimalCreate =
+      !partyId &&
+      isMinimalOnboardingPersonCreate({
+        entityType: values.entityType,
+        identityPrefix: values.identityPrefix,
+        identityNumber: values.identityNumber,
+        isDirector: values.isDirector,
+        isShareholder: values.isShareholder,
+        isBoard: values.isBoard,
+        isManagement: values.isManagement,
+      });
+    const payload: Record<string, unknown> = minimalCreate
+      ? {
+          name: values.name.trim(),
+          email: values.email.trim() || null,
+          entityType: "INDIVIDUAL",
+          isDirector: values.isDirector,
+          isShareholder: values.isShareholder,
+          isBoard: false,
+          isManagement: false,
+          shareholdingPercentage: values.isShareholder ? values.shareholdingPercentage.trim() || null : null,
+        }
+      : {
       name: values.name.trim(),
       identityPrefix: values.entityType === "CORPORATE" ? "ROC" : values.identityPrefix || null,
       identityNumber: values.identityNumber.trim() || null,
@@ -283,6 +306,7 @@ export function OrganizationPeoplePanel({
                   <OrganizationPersonCard
                     item={item}
                     canManage={canManage}
+                    applyIssuerComrep={portal === "issuer"}
                     enforceIssuerShareholderMinimum
                     onView={() => item.party && setViewingPartyId(item.party.id)}
                     onAdopt={item.party ? () => peopleMutations.adopt.mutate(item.party!.id) : undefined}
@@ -306,10 +330,11 @@ export function OrganizationPeoplePanel({
 
           {unified.master.map((item) => (
             <div key={item.key} id={item.party ? `person-${item.party.id}` : undefined}>
-              <OrganizationPersonCard
-                item={item}
-                canManage={canManage}
-                enforceIssuerShareholderMinimum
+                  <OrganizationPersonCard
+                    item={item}
+                    canManage={canManage}
+                    applyIssuerComrep={portal === "issuer"}
+                    enforceIssuerShareholderMinimum
                 onView={() => item.party && setViewingPartyId(item.party.id)}
                 onEdit={item.party ? () => setEditingPartyId(item.party!.id) : undefined}
                 onKeep={
@@ -355,6 +380,7 @@ export function OrganizationPeoplePanel({
               key={item.key}
               item={item}
               canManage={canManage}
+              applyIssuerComrep={portal === "issuer"}
               onView={() => setViewingPartyId(item.key)}
               onEdit={
                 item.person
@@ -378,6 +404,7 @@ export function OrganizationPeoplePanel({
                   key={item.key}
                   item={item}
                   canManage={canManage}
+                  applyIssuerComrep={portal === "issuer"}
                   onView={() => item.party && setViewingPartyId(item.party.id)}
                 />
               ))}
@@ -552,6 +579,7 @@ export function OrganizationPeoplePanel({
         initial={seedValues}
         isSaving={peopleMutations.createParty.isPending}
         enforceIssuerShareholderMinimum
+        mode="create"
         onSave={(values) => saveParty(values)}
       />
 

@@ -19,4 +19,9 @@ describe("Investor People section", () => {
   it("does not enable issuer Mark inactive on the investor People section", () => {
     expect(profile).not.toContain("canInactivate");
   });
+
+  it("does not introduce issuer ComRep completeness onto investor People cards", () => {
+    expect(profile).toContain("PortalPeopleSection");
+    expect(profile).toContain('portal="investor"');
+  });
 });

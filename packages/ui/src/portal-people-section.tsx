@@ -315,7 +315,16 @@ export function PortalPeopleSection({
             name={item.party.name || item.party.partyKey}
             party={item.party}
             person={item.person}
-            missingCount={computeIssuerPersonCompleteness(issuerPersonCompletenessInputFromParty(item.party)).length}
+            missingCount={
+              portal === "issuer"
+                ? computeIssuerPersonCompleteness(
+                    issuerPersonCompletenessInputFromParty({
+                      ...item.party,
+                      kycOnboardingStatus: item.person?.onboarding?.status ?? null,
+                    })
+                  ).length
+                : 0
+            }
             identityKey={normalizeDirectorShareholderIdKey(item.party.identityNumber ?? "")}
             canSendOnboarding={Boolean(
               canEdit && item.person && !blockOnboarding && canManageDirectorShareholder(item.person)

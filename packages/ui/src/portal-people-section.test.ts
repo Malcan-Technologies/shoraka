@@ -41,6 +41,11 @@ describe("PortalPeopleSection", () => {
     expect(card).toContain("} missing");
     expect(card).toContain("Company shareholder. Individual KYC/AML is not required.");
     expect(source).toContain("canSendOnboarding={Boolean(");
+    expect(source).toContain('portal === "issuer"');
+    expect(source).toContain("kycOnboardingStatus");
+    expect(card).toContain("personIdentityDisplay");
+    expect(card).toContain("PERSON_COMPLETE_ONBOARDING_FIRST");
+    expect(card).toContain("} remaining");
   });
 
   it("keeps platform invite separate from RegTank onboarding", () => {
@@ -48,6 +53,9 @@ describe("PortalPeopleSection", () => {
     expect(card).toContain("Restore access");
     expect(card).toContain("NO_PLATFORM_ACCESS");
     expect(card).toContain("Send onboarding");
+    expect(card).toContain("Identity:");
+    expect(card).toContain("Complete profile");
+    expect(card).toContain("IDENTITY_CONFLICT_ISSUER_LABEL");
     expect(source).toContain("KYC/AML onboarding is separate from platform access");
     expect(source).toContain("/members/invite");
     expect(source).toContain("send-director-onboarding");

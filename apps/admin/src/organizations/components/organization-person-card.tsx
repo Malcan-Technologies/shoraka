@@ -13,6 +13,10 @@ import {
   IDENTITY_CONFLICT_ADMIN_BODY,
   IDENTITY_CONFLICT_ADMIN_TITLE,
   IDENTITY_CONFLICT_OBSERVED_BODY,
+  PERSON_COMPLETE_ONBOARDING_FIRST,
+  shouldDeferOnboardingPersonComrep,
+  isPersonKycApproved,
+  personIdentityDisplay,
   type OrganizationPartyProfileDto,
 } from "@cashsouk/types";
 import { PartyRoleBadges, PartyCtosIndicator, StatusBadge } from "@cashsouk/ui";
@@ -37,6 +41,7 @@ export function OrganizationPersonCard({
   onKeepCtosPerson,
   conflictBlocksAdopt = false,
   enforceIssuerShareholderMinimum = true,
+  applyIssuerComrep = true,
 }: {
   item: UnifiedOrgPerson;
   canManage: boolean;
@@ -51,14 +56,41 @@ export function OrganizationPersonCard({
   onKeepCtosPerson?: () => void;
   conflictBlocksAdopt?: boolean;
   enforceIssuerShareholderMinimum?: boolean;
+  applyIssuerComrep?: boolean;
 }) {
   const party = item.party;
   const person = item.person;
   const name = party?.name || person?.name || party?.partyKey || "Unnamed";
   const corporate = party?.entityType === "CORPORATE";
-  const missingCount = party
-    ? computeIssuerPersonCompleteness(issuerPersonCompletenessInputFromParty(party)).length
-    : 0;
+  const missingCount =
+    applyIssuerComrep && party
+      ? computeIssuerPersonCompleteness(
+          issuerPersonCompletenessInputFromParty({
+            ...party,
+            kycOnboardingStatus: person?.onboarding?.status ?? null,
+          })
+        ).length
+      : 0;
+  const kycApproved = isPersonKycApproved(person?.onboarding?.status);
+  const identity = personIdentityDisplay({
+    identityNumber: party?.identityNumber ?? person?.identityNumber,
+    partyKey: party?.partyKey,
+    matchKey: person?.matchKey,
+    kycOnboardingStatus: person?.onboarding?.status,
+  });
+  const completenessHint =
+    applyIssuerComrep &&
+    party &&
+    item.kind !== "inactive" &&
+    item.kind !== "external" &&
+    shouldDeferOnboardingPersonComrep({
+      entityType: party.entityType,
+      isDirector: party.isDirector,
+      isShareholder: party.isShareholder,
+      kycOnboardingStatus: person?.onboarding?.status ?? null,
+    })
+      ? PERSON_COMPLETE_ONBOARDING_FIRST
+      : null;
   const kyc = person
     ? getFinalStatusLabel(person, { displayMode: "kyc_only" })
     : { label: "—", token: "neutral" as const, tone: "neutral" as const };
@@ -92,10 +124,20 @@ export function OrganizationPersonCard({
             {party ? <PartyCtosIndicator party={party} /> : null}
           </div>
           <PartyRoleBadges party={party} person={person} />
+          {!corporate ? (
+            <p className="text-meta text-muted-foreground">
+              Identity: <span className="text-foreground">{identity.value}</span>
+            </p>
+          ) : null}
           {missingCount > 0 && item.kind !== "inactive" ? (
             <p className="text-meta text-status-action-text">
-              {missingCount} {missingCount === 1 ? "field" : "fields"} missing
+              {kycApproved
+                ? `${missingCount} ${missingCount === 1 ? "field" : "fields"} remaining`
+                : `${missingCount} ${missingCount === 1 ? "field" : "fields"} missing`}
             </p>
+          ) : null}
+          {completenessHint ? (
+            <p className="text-meta text-muted-foreground">{completenessHint}</p>
           ) : null}
           {corporate ? (
             <p className="text-meta text-muted-foreground">
@@ -126,7 +168,7 @@ export function OrganizationPersonCard({
           </Button>
           {canManage && item.kind !== "external" && item.kind !== "inactive" && onEdit ? (
             <Button type="button" variant="outline" size="sm" onClick={onEdit}>
-              Edit
+              {kycApproved && missingCount > 0 ? "Complete profile" : "Edit"}
             </Button>
           ) : null}
           {canManage && onInactivate && adminMayInactivateMasterParty(party) ? (

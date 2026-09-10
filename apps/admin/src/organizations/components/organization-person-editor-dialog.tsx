@@ -10,6 +10,7 @@ import {
   issuerShareholdingThresholdIssue,
   issuesByField,
   monthlyIssuerPersonCopy,
+  PERSON_EMAIL_HELP,
   restrictScIdentityInput,
   restrictScPostcodeInput,
   SELECT_AT_LEAST_ONE_ROLE_MESSAGE,
@@ -27,6 +28,7 @@ import {
   SC_SHARE_TYPES,
   scAppendixASelectValues,
   validateIssuerPersonForm,
+  validateOnboardingPersonCreate,
 } from "@cashsouk/types";
 import { ComRepFieldLabel } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
@@ -170,6 +172,7 @@ export function OrganizationPersonEditorDialog({
   isSaving,
   onSave,
   enforceIssuerShareholderMinimum = true,
+  mode = "edit",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -179,6 +182,7 @@ export function OrganizationPersonEditorDialog({
   isSaving: boolean;
   onSave: (values: PartyEditorValues) => Promise<void>;
   enforceIssuerShareholderMinimum?: boolean;
+  mode?: "create" | "edit";
 }) {
   const [values, setValues] = React.useState<PartyEditorValues>(initial ?? emptyValues);
   const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
@@ -198,6 +202,11 @@ export function OrganizationPersonEditorDialog({
   const showOfficer = !corporate && isIssuerOfficerRole(values);
   const copy = monthlyIssuerPersonCopy({ shareholder: showShare, officer: showOfficer });
   const prefixOptions = SC_IDENTITY_PREFIXES.filter((key) => copy.includeRocPrefix || key !== "ROC");
+  const minimalOnboardingAdd =
+    mode === "create" &&
+    !corporate &&
+    !showOfficer &&
+    !String(values.identityNumber ?? "").trim();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -208,15 +217,15 @@ export function OrganizationPersonEditorDialog({
         </DialogHeader>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field
-            label={copy.name.label}
+            label={minimalOnboardingAdd ? "Full Name" : copy.name.label}
             value={values.name}
             onChange={(name) => set("name", name)}
             required
-            help={copy.name.help}
+            help={minimalOnboardingAdd ? undefined : copy.name.help}
             error={fieldErrors.name}
             maxLength={500}
           />
-          {!corporate ? (
+          {!corporate && !minimalOnboardingAdd ? (
             <Field
               label={copy.salutation.label}
               value={values.salutation}
@@ -264,7 +273,7 @@ export function OrganizationPersonEditorDialog({
               </SelectContent>
             </Select>
           </div>
-          {!corporate ? (
+          {!corporate && !minimalOnboardingAdd ? (
             <div className="space-y-1.5">
               <ComRepFieldLabel label={copy.identityPrefix.label} />
               <Select
@@ -293,6 +302,7 @@ export function OrganizationPersonEditorDialog({
               </Select>
             </div>
           ) : null}
+          {!minimalOnboardingAdd ? (
           <Field
             label={copy.identity.label}
             value={values.identityNumber}
@@ -310,11 +320,13 @@ export function OrganizationPersonEditorDialog({
             error={fieldErrors.identityNumber}
             maxLength={500}
           />
+          ) : null}
           <Field
-            label="Email"
+            label="Person Email"
             value={values.email}
             onChange={(email) => set("email", email)}
-            help="Used for onboarding, signing, and platform invitations for this person."
+            required={minimalOnboardingAdd}
+            help={PERSON_EMAIL_HELP}
             error={fieldErrors.email}
             maxLength={255}
             inputMode="email"
@@ -341,6 +353,18 @@ export function OrganizationPersonEditorDialog({
               </label>
             ))}
           </fieldset>
+          {minimalOnboardingAdd && values.isShareholder ? (
+            <Field
+              label={SC_MONTHLY_SHAREHOLDER.shareholdingPercentage.label}
+              value={values.shareholdingPercentage}
+              onChange={(shareholdingPercentage) => set("shareholdingPercentage", shareholdingPercentage)}
+              required
+              error={fieldErrors.shareholdingPercentage}
+              inputMode="decimal"
+            />
+          ) : null}
+          {!minimalOnboardingAdd ? (
+          <>
           {corporate ? (
             <>
               <Field
@@ -557,6 +581,8 @@ export function OrganizationPersonEditorDialog({
               />
             </>
           ) : null}
+          </>
+          ) : null}
         </div>
         <DialogFooter>
           <Button type="button" variant="outline" className="h-10" onClick={() => onOpenChange(false)}>
@@ -572,7 +598,14 @@ export function OrganizationPersonEditorDialog({
                 return;
               }
               const officer = isIssuerOfficerRole(values);
-              const issues = validateIssuerPersonForm({
+              const issues = minimalOnboardingAdd
+                ? validateOnboardingPersonCreate({
+                    name: values.name,
+                    email: values.email,
+                    isShareholder: values.isShareholder,
+                    shareholdingPercentage: values.shareholdingPercentage,
+                  })
+                : validateIssuerPersonForm({
                 entityType: values.entityType,
                 name: values.name,
                 identityPrefix: values.identityPrefix,
@@ -598,6 +631,7 @@ export function OrganizationPersonEditorDialog({
                 appointmentDate: values.appointmentDate,
               });
               if (
+                !minimalOnboardingAdd &&
                 enforceIssuerShareholderMinimum &&
                 (values.isShareholder || values.entityType === "CORPORATE")
               ) {
@@ -619,7 +653,7 @@ export function OrganizationPersonEditorDialog({
               }
             }}
           >
-            {isSaving ? "Saving..." : "Save"}
+            {isSaving ? "Saving..." : mode === "create" ? "Add Person" : "Save"}
           </Button>
         </DialogFooter>
       </DialogContent>

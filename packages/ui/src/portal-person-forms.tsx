@@ -30,6 +30,7 @@ import {
   SC_SHARE_TYPES,
   scAppendixASelectValues,
   validateIssuerPersonForm,
+  validateOnboardingPersonCreate,
   type OrganizationPartyProfileDto,
 } from "@cashsouk/types";
 import { ComRepFieldLabel } from "./comrep-field-label";
@@ -117,6 +118,8 @@ export function AddPersonForm({
   const showOfficer = !corporate && isIssuerOfficerRole({ isBoard, isManagement });
   const copy = monthlyIssuerPersonCopy({ shareholder: showShare, officer: showOfficer });
   const prefixOptions = SC_IDENTITY_PREFIXES.filter((key) => copy.includeRocPrefix || key !== "ROC");
+  const minimalOnboardingAdd =
+    !corporate && !showOfficer && !String(initial?.identityNumber ?? "").trim();
 
   return (
     <form
@@ -128,32 +131,39 @@ export function AddPersonForm({
           return;
         }
         const officer = isIssuerOfficerRole({ isBoard, isManagement });
-        const issues = validateIssuerPersonForm({
-          entityType,
-          name: form.name,
-          identityPrefix: corporate ? "ROC" : form.identityPrefix,
-          identityNumber: form.identityNumber,
-          email: form.email,
-          dateOfBirth: form.dateOfBirth,
-          dateOfIncorporation: form.dateOfIncorporation,
-          gender: form.gender,
-          nationality: form.nationality,
-          countryOfIncorporation: form.countryOfIncorporation,
-          line1: form.line1,
-          state: form.state,
-          postalCode: form.postalCode,
-          isShareholder: corporate || isShareholder,
-          isOfficer: !corporate && officer,
-          shareType: form.shareType,
-          shareTypeOther: form.shareTypeOther,
-          shareholdingUnits: form.shareholdingUnits,
-          shareholdingAmount: form.shareholdingAmount,
-          shareholdingPercentage: form.shareholdingPercentage,
-          designation: form.designation,
-          designationOther: form.designationOther,
-          appointmentDate: form.appointmentDate,
-        });
-        if (corporate || isShareholder) {
+        const issues = minimalOnboardingAdd
+          ? validateOnboardingPersonCreate({
+              name: form.name,
+              email: form.email,
+              isShareholder,
+              shareholdingPercentage: form.shareholdingPercentage,
+            })
+          : validateIssuerPersonForm({
+              entityType,
+              name: form.name,
+              identityPrefix: corporate ? "ROC" : form.identityPrefix,
+              identityNumber: form.identityNumber,
+              email: form.email,
+              dateOfBirth: form.dateOfBirth,
+              dateOfIncorporation: form.dateOfIncorporation,
+              gender: form.gender,
+              nationality: form.nationality,
+              countryOfIncorporation: form.countryOfIncorporation,
+              line1: form.line1,
+              state: form.state,
+              postalCode: form.postalCode,
+              isShareholder: corporate || isShareholder,
+              isOfficer: !corporate && officer,
+              shareType: form.shareType,
+              shareTypeOther: form.shareTypeOther,
+              shareholdingUnits: form.shareholdingUnits,
+              shareholdingAmount: form.shareholdingAmount,
+              shareholdingPercentage: form.shareholdingPercentage,
+              designation: form.designation,
+              designationOther: form.designationOther,
+              appointmentDate: form.appointmentDate,
+            });
+        if (!minimalOnboardingAdd && (corporate || isShareholder)) {
           const shareIssue = issuerShareholdingThresholdIssue(form.shareholdingPercentage, {
             required: true,
           });
@@ -167,41 +177,56 @@ export function AddPersonForm({
         setFieldErrors({});
         setPending(true);
         try {
-          await onSave({
-            entityType,
-            name: form.name || null,
-            salutation: form.salutation || null,
-            identityPrefix: corporate ? "ROC" : form.identityPrefix || null,
-            identityNumber: form.identityNumber || null,
-            email: corporate ? null : form.email || null,
-            isDirector: corporate ? false : isDirector,
-            isShareholder: corporate ? true : isShareholder,
-            isBoard: corporate ? false : isBoard,
-            isManagement: corporate ? false : isManagement,
-            dateOfBirth: form.dateOfBirth || null,
-            dateOfIncorporation: form.dateOfIncorporation || null,
-            nationality: form.nationality || null,
-            countryOfIncorporation: form.countryOfIncorporation || null,
-            gender: corporate ? "NOT_APPLICABLE" : form.gender || null,
-            address:
-              form.line1 || form.line2 || form.state || form.postalCode
-                ? {
-                    line1: form.line1 || null,
-                    line2: form.line2 || null,
-                    state: form.state || null,
-                    postalCode: form.postalCode || null,
-                  }
-                : null,
-            shareType: showShare ? form.shareType || null : null,
-            shareTypeOther: showShare && form.shareType === "OTHERS" ? form.shareTypeOther || null : null,
-            shareholdingUnits: showShare ? form.shareholdingUnits || null : null,
-            shareholdingAmount: showShare ? form.shareholdingAmount || null : null,
-            shareholdingPercentage: showShare ? form.shareholdingPercentage || null : null,
-            designation: showOfficer ? form.designation || null : null,
-            designationOther: showOfficer && form.designation === "OTHERS" ? form.designationOther || null : null,
-            appointmentDate: showOfficer ? form.appointmentDate || null : null,
-            resignationDate: showOfficer ? form.resignationDate || null : null,
-          });
+          await onSave(
+            minimalOnboardingAdd
+              ? {
+                  entityType: "INDIVIDUAL",
+                  name: form.name || null,
+                  email: form.email || null,
+                  isDirector,
+                  isShareholder,
+                  isBoard: false,
+                  isManagement: false,
+                  shareholdingPercentage: isShareholder ? form.shareholdingPercentage || null : null,
+                }
+              : {
+                  entityType,
+                  name: form.name || null,
+                  salutation: form.salutation || null,
+                  identityPrefix: corporate ? "ROC" : form.identityPrefix || null,
+                  identityNumber: form.identityNumber || null,
+                  email: corporate ? null : form.email || null,
+                  isDirector: corporate ? false : isDirector,
+                  isShareholder: corporate ? true : isShareholder,
+                  isBoard: corporate ? false : isBoard,
+                  isManagement: corporate ? false : isManagement,
+                  dateOfBirth: form.dateOfBirth || null,
+                  dateOfIncorporation: form.dateOfIncorporation || null,
+                  nationality: form.nationality || null,
+                  countryOfIncorporation: form.countryOfIncorporation || null,
+                  gender: corporate ? "NOT_APPLICABLE" : form.gender || null,
+                  address:
+                    form.line1 || form.line2 || form.state || form.postalCode
+                      ? {
+                          line1: form.line1 || null,
+                          line2: form.line2 || null,
+                          state: form.state || null,
+                          postalCode: form.postalCode || null,
+                        }
+                      : null,
+                  shareType: showShare ? form.shareType || null : null,
+                  shareTypeOther:
+                    showShare && form.shareType === "OTHERS" ? form.shareTypeOther || null : null,
+                  shareholdingUnits: showShare ? form.shareholdingUnits || null : null,
+                  shareholdingAmount: showShare ? form.shareholdingAmount || null : null,
+                  shareholdingPercentage: showShare ? form.shareholdingPercentage || null : null,
+                  designation: showOfficer ? form.designation || null : null,
+                  designationOther:
+                    showOfficer && form.designation === "OTHERS" ? form.designationOther || null : null,
+                  appointmentDate: showOfficer ? form.appointmentDate || null : null,
+                  resignationDate: showOfficer ? form.resignationDate || null : null,
+                }
+          );
         } catch (err) {
           if (isProfileValidationError(err)) setFieldErrors(err.fieldErrors);
           toast.error(
@@ -269,13 +294,39 @@ export function AddPersonForm({
         </div>
       </div>
       <TextField
-        label={copy.name.label}
+        label="Full Name"
         value={form.name}
         onChange={(value) => setForm({ ...form, name: value })}
         required
-        help={copy.name.help}
         error={fieldErrors.name}
       />
+      {minimalOnboardingAdd ? (
+        <>
+          <TextField
+            label="Person Email"
+            value={form.email}
+            onChange={(value) => setForm({ ...form, email: value })}
+            required
+            help={PERSON_EMAIL_HELP}
+            error={fieldErrors.email}
+            maxLength={255}
+            inputMode="email"
+          />
+          {isShareholder ? (
+            <TextField
+              label={SC_MONTHLY_SHAREHOLDER.shareholdingPercentage.label}
+              value={form.shareholdingPercentage}
+              onChange={(value) =>
+                setForm({ ...form, shareholdingPercentage: restrictShareInput(value) })
+              }
+              required
+              error={fieldErrors.shareholdingPercentage}
+              inputMode="decimal"
+            />
+          ) : null}
+        </>
+      ) : (
+        <>
       {!corporate ? (
         <TextField
           label={copy.salutation.label}
@@ -336,7 +387,7 @@ export function AddPersonForm({
             maxLength={500}
           />
           <TextField
-            label="Email"
+            label="Person Email"
             value={form.email}
             onChange={(value) => setForm({ ...form, email: value })}
             help={PERSON_EMAIL_HELP}
@@ -503,9 +554,11 @@ export function AddPersonForm({
           />
         </>
       ) : null}
+        </>
+      )}
       <div className="flex gap-2 sm:col-span-2">
         <Button type="submit" className="h-10" disabled={pending}>
-          {pending ? "Saving…" : "Save person"}
+          {pending ? "Saving…" : "Add Person"}
         </Button>
         <Button type="button" className="h-10" variant="outline" onClick={onCancel}>
           Cancel
@@ -527,6 +580,8 @@ export function PartyFillEmptyForm({
   const [pending, setPending] = React.useState(false);
   const [form, setForm] = React.useState({
     salutation: party.salutation ?? "",
+    identityPrefix: String(party.identityPrefix || (party.entityType === "CORPORATE" ? "ROC" : "NRIC")),
+    identityNumber: party.identityNumber ?? "",
     gender: party.gender ?? "",
     nationality: party.nationality ?? "",
     dateOfBirth: party.dateOfBirth?.slice(0, 10) ?? "",
@@ -550,6 +605,9 @@ export function PartyFillEmptyForm({
   const officer = isIssuerOfficerRole(party);
   const corporate = party.entityType === "CORPORATE";
   const copy = monthlyIssuerPersonCopy({ shareholder: party.isShareholder, officer });
+  const prefixOptions = SC_IDENTITY_PREFIXES.filter((key) => copy.includeRocPrefix || key !== "ROC");
+  const identityNumberEmpty = !String(party.identityNumber ?? "").trim();
+  const identityPrefixEmpty = !String(party.identityPrefix ?? "").trim();
   const identityLocked =
     copy.identityPrefixLabels[party.identityPrefix as keyof typeof copy.identityPrefixLabels] ??
     party.identityPrefix;
@@ -562,8 +620,8 @@ export function PartyFillEmptyForm({
         const issues = validateIssuerPersonForm({
           entityType: party.entityType,
           name: party.name,
-          identityPrefix: party.identityPrefix,
-          identityNumber: party.identityNumber,
+          identityPrefix: identityPrefixEmpty ? form.identityPrefix : party.identityPrefix,
+          identityNumber: identityNumberEmpty ? form.identityNumber : party.identityNumber,
           dateOfBirth: form.dateOfBirth || party.dateOfBirth,
           dateOfIncorporation: form.dateOfIncorporation || party.dateOfIncorporation,
           gender: form.gender || party.gender,
@@ -603,6 +661,8 @@ export function PartyFillEmptyForm({
             postalCode: form.postalCode || null,
           },
         };
+        if (identityPrefixEmpty && form.identityPrefix) data.identityPrefix = form.identityPrefix;
+        if (identityNumberEmpty && form.identityNumber) data.identityNumber = form.identityNumber;
         if (!party.salutation && form.salutation) data.salutation = form.salutation;
         if (corporate && party.gender !== "NOT_APPLICABLE") {
           data.gender = "NOT_APPLICABLE";
@@ -644,12 +704,71 @@ export function PartyFillEmptyForm({
       }}
     >
       <ProfileReadField label={copy.name.label} value={party.name} locked help={copy.name.help} />
-      <ProfileReadField
-        label={copy.identity.label}
-        value={[identityLocked, party.identityNumber].filter(Boolean).join(" ")}
-        locked
-        help={copy.identity.help}
-      />
+      {!identityNumberEmpty && !identityPrefixEmpty ? (
+        <ProfileReadField
+          label={copy.identity.label}
+          value={[identityLocked, party.identityNumber].filter(Boolean).join(" ")}
+          locked
+          help={copy.identity.help}
+        />
+      ) : (
+        <>
+          {identityPrefixEmpty && !corporate ? (
+            <SelectField
+              label={copy.identityPrefix.label}
+              value={form.identityPrefix}
+              onChange={(value) =>
+                setForm({
+                  ...form,
+                  identityPrefix: value,
+                  identityNumber: restrictScIdentityInput(
+                    value === "PASSPORT" ? "PASSPORT" : "NRIC",
+                    form.identityNumber
+                  ),
+                })
+              }
+              options={prefixOptions.map((key) => ({
+                value: key,
+                label: copy.identityPrefixLabels[key as keyof typeof copy.identityPrefixLabels] ?? key,
+              }))}
+              required
+              error={fieldErrors.identityPrefix}
+            />
+          ) : (
+            <ProfileReadField
+              label={copy.identityPrefix.label}
+              value={identityLocked || (corporate ? "ROC" : "")}
+              locked
+            />
+          )}
+          {identityNumberEmpty ? (
+            <TextField
+              label={copy.identity.label}
+              value={form.identityNumber}
+              onChange={(value) =>
+                setForm({
+                  ...form,
+                  identityNumber: restrictScIdentityInput(
+                    corporate ? "ROC" : form.identityPrefix === "PASSPORT" ? "PASSPORT" : "NRIC",
+                    value
+                  ),
+                })
+              }
+              required
+              help={copy.identity.help}
+              error={fieldErrors.identityNumber}
+              maxLength={500}
+            />
+          ) : (
+            <ProfileReadField
+              label={copy.identity.label}
+              value={party.identityNumber}
+              locked
+              help={copy.identity.help}
+            />
+          )}
+        </>
+      )}
       <ProfileReadField label="Roles" value={formatPartyRoleLine(party)} locked lockReason={PROFILE_LOCKED_ROLES_CANNOT_CHANGE} />
       {!corporate && !party.salutation ? (
         <TextField

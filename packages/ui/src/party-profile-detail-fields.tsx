@@ -13,6 +13,7 @@ import {
   getFinalStatusToken,
   monthlyIssuerPersonCopy,
   partyRoleLabels,
+  personIdentityDisplay,
   type ApplicationPersonRow,
   type OrganizationPartyProfileDto,
 } from "@cashsouk/types";
@@ -87,7 +88,12 @@ export function buildPartyProfileDetailItems(params: {
   ]
     .filter(Boolean)
     .join("; ");
-  const identity = party?.identityNumber || person?.matchKey || "";
+  const identity = personIdentityDisplay({
+    identityNumber: party?.identityNumber ?? person?.identityNumber,
+    partyKey: party?.partyKey,
+    matchKey: person?.matchKey,
+    kycOnboardingStatus: person?.onboarding?.status,
+  });
   const personEmail = party?.email || person?.email || "";
   const loginEmail = party?.linkedUser?.email || "";
   const name = party?.name || person?.name || "";
@@ -107,8 +113,14 @@ export function buildPartyProfileDetailItems(params: {
     items.push({ label: copy.salutation.label, value: party?.salutation ?? "", help: copy.salutation.help });
   }
   if (isPresent(prefix)) items.push({ label: copy.identityPrefix.label, value: prefix });
-  if (isPresent(identity)) {
-    items.push({ label: copy.identity.label, value: identity, help: copy.identity.help });
+  if (!corporate) {
+    items.push({
+      label: "Identity",
+      value: identity.value,
+      help: identity.governmentId ? copy.identity.help : undefined,
+    });
+  } else if (identity.governmentId) {
+    items.push({ label: copy.identity.label, value: identity.governmentId, help: copy.identity.help });
   }
   if (isPresent(personEmail)) {
     items.push({

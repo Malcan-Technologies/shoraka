@@ -1,4 +1,5 @@
 import { normalizeProfilePhone } from "./profile-phone";
+import { shouldDeferOnboardingPersonComrep } from "./person-onboarding-display";
 
 /**
  * SC ComRep enumerations and CashSouk master-profile completeness.
@@ -1091,6 +1092,8 @@ export interface IssuerPersonCompletenessInput {
   designation: ScDesignation | null | undefined;
   designationOther: string | null | undefined;
   appointmentDate: string | Date | null | undefined;
+  /** When set, onboarding-eligible individuals defer ComRep gaps until KYC APPROVED. */
+  kycOnboardingStatus?: string | null;
 }
 
 export interface IssuerFinancialCompletenessInput {
@@ -1462,6 +1465,16 @@ function issuerPersonRequiredFields(party: IssuerPersonCompletenessInput): Issue
   const active =
     party.isDirector || party.isShareholder || party.isBoard || party.isManagement;
   if (!active) return [];
+  if (
+    shouldDeferOnboardingPersonComrep({
+      entityType: party.entityType,
+      isDirector: party.isDirector,
+      isShareholder: party.isShareholder,
+      kycOnboardingStatus: party.kycOnboardingStatus,
+    })
+  ) {
+    return [];
+  }
   const fields: IssuerPersonRequiredField[] = [];
   const corporate = party.entityType === "CORPORATE";
   const identityStep: ComrepProfileStepId = party.isShareholder ? "shareholders" : "board";
@@ -1610,6 +1623,7 @@ export function issuerPersonCompletenessInputFromParty(party: {
   designation: ScDesignation | null | undefined;
   designationOther: string | null | undefined;
   appointmentDate: string | Date | null | undefined;
+  kycOnboardingStatus?: string | null;
 }): IssuerPersonCompletenessInput {
   return {
     partyKey: party.partyKey,
@@ -1635,6 +1649,7 @@ export function issuerPersonCompletenessInputFromParty(party: {
     designation: party.designation,
     designationOther: party.designationOther,
     appointmentDate: party.appointmentDate,
+    kycOnboardingStatus: party.kycOnboardingStatus,
   };
 }
 

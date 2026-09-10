@@ -106,6 +106,19 @@ describe("createPartySchema role flags", () => {
     ).toMatch(/Person Email is required/i);
   });
 
+  it("allows Director + Shareholder without government ID", () => {
+    const parsed = createPartySchema.parse({
+      name: "Both Roles",
+      email: "both@example.com",
+      isDirector: true,
+      isShareholder: true,
+      shareholdingPercentage: "10",
+    });
+    expect(parsed.isDirector).toBe(true);
+    expect(parsed.isShareholder).toBe(true);
+    expect(parsed.identityNumber ?? null).toBeNull();
+  });
+
   it("allows a >=5% shareholder without government ID", () => {
     const parsed = createPartySchema.parse({
       name: "Pre Id Shareholder",
@@ -133,6 +146,16 @@ describe("createPartySchema role flags", () => {
       email: "board@example.com",
       isBoard: true,
       ...officerFields,
+    });
+    expect(message).toMatch(/Identity/i);
+  });
+
+  it("still requires identity on the corporate shareholder create path", () => {
+    const message = parseMessage({
+      name: "HoldCo Sdn Bhd",
+      entityType: "CORPORATE",
+      isShareholder: true,
+      shareholdingPercentage: "10",
     });
     expect(message).toMatch(/Identity/i);
   });

@@ -20,6 +20,7 @@ import {
   partySeenInExternalKeys,
   USER_GENERATED_PARTY_KEY_PREFIX,
   isGeneratedUserPartyKey,
+  getCtosPartySupplementPipelineStatus,
   type ComrepProfileCompleteness,
   type IssuerOrgFinancialSummary,
   type OrganizationPartyProfileDto,
@@ -782,7 +783,7 @@ export async function computeOrgProfileCompleteness(
   if (portal === "issuer") {
     const org = await prisma.issuerOrganization.findUnique({
       where: { id: organizationId },
-      include: { party_profiles: true },
+      include: { party_profiles: true, ctos_party_supplements: true },
     });
     if (!org) throw new AppError(404, "NOT_FOUND", "Issuer organization not found");
     const fs = await prisma.issuerOrganizationFinancialStatement.findUnique({
@@ -805,6 +806,12 @@ export async function computeOrgProfileCompleteness(
     const roc = org.registration_number || cod?.basicInfo?.ssmRegisterNumber || cod?.basicInfo?.ssmRegistrationNumber || null;
     const masterParties = org.party_profiles.filter(
       (p) => p.membership_status === OrganizationPartyMembershipStatus.MASTER_ACTIVE
+    );
+    const kycByPartyKey = new Map(
+      org.ctos_party_supplements.map((row) => [
+        row.party_key,
+        getCtosPartySupplementPipelineStatus(row.onboarding_json) || null,
+      ])
     );
     const people = masterParties
       .filter((p) => p.is_shareholder || p.is_director || p.is_board || p.is_management)
@@ -834,6 +841,7 @@ export async function computeOrgProfileCompleteness(
           designation: p.designation,
           designationOther: p.designation_other,
           appointmentDate: p.appointment_date,
+          kycOnboardingStatus: kycByPartyKey.get(p.party_key) ?? null,
         };
       });
     const shareholders = people.filter((p) => p.isShareholder);

@@ -16,4 +16,18 @@ describe("PartyFillEmptyForm lock and officer fields", () => {
     expect(source).toContain("SELECT_AT_LEAST_ONE_ROLE_MESSAGE");
     expect(source).not.toContain("personKind:");
   });
+
+  it("uses a minimal individual Director/Shareholder add form", () => {
+    expect(source).toContain("minimalOnboardingAdd");
+    expect(source).toContain('label="Full Name"');
+    expect(source).toContain('label="Person Email"');
+    expect(source).toContain("validateOnboardingPersonCreate");
+    expect(source).toContain('label={copy.identity.label}');
+  });
+
+  it("lets later edit fill empty identity prefix and number", () => {
+    expect(source).toContain("identityNumberEmpty");
+    expect(source).toContain("identityPrefixEmpty");
+    expect(source).toContain("if (identityNumberEmpty && form.identityNumber) data.identityNumber = form.identityNumber");
+  });
 });

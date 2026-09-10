@@ -42,6 +42,42 @@ describe("minimal onboarding person create", () => {
     expect(issues.some((i) => i.field === "name")).toBe(true);
     expect(issues.some((i) => i.field === "email")).toBe(true);
   });
+
+  it("accepts Director, Shareholder >=5%, and both roles without government ID", () => {
+    expect(
+      validateOnboardingPersonCreate({
+        name: "Ahmad Bin Ali",
+        email: "ahmad@example.com",
+        isShareholder: false,
+      })
+    ).toHaveLength(0);
+    expect(
+      validateOnboardingPersonCreate({
+        name: "Ahmad Bin Ali",
+        email: "ahmad@example.com",
+        isShareholder: true,
+        shareholdingPercentage: "25",
+      })
+    ).toHaveLength(0);
+    expect(
+      isMinimalOnboardingPersonCreate({
+        name: "Ahmad Bin Ali",
+        email: "ahmad@example.com",
+        isDirector: true,
+        isShareholder: true,
+      })
+    ).toBe(true);
+  });
+
+  it("preserves the existing <5% shareholder rejection", () => {
+    const issues = validateOnboardingPersonCreate({
+      name: "Small Holder",
+      email: "small@example.com",
+      isShareholder: true,
+      shareholdingPercentage: "4",
+    });
+    expect(issues.some((i) => i.field === "shareholdingPercentage")).toBe(true);
+  });
 });
 
 describe("pre-ID people display", () => {

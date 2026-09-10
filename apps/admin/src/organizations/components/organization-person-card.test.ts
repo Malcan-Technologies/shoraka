@@ -31,3 +31,21 @@ describe("Admin People Mark inactive eligibility", () => {
     expect(panel).not.toContain("Reactivate");
   });
 });
+
+describe("Admin People P2 onboarding add and identity display", () => {
+  it("keeps a minimal individual add path and full corporate/board/management add", () => {
+    const editor = readFileSync(join(__dirname, "organization-person-editor-dialog.tsx"), "utf8");
+    expect(editor).toContain("minimalOnboardingAdd");
+    expect(editor).toContain("validateOnboardingPersonCreate");
+    expect(editor).toContain('label={minimalOnboardingAdd ? "Full Name" : copy.name.label}');
+    expect(panel).toContain('mode="create"');
+    expect(panel).toContain("isMinimalOnboardingPersonCreate");
+  });
+
+  it("does not show user:{uuid} as government ID and preserves P1 conflict copy", () => {
+    expect(card).toContain("Identity:");
+    expect(card).toContain("personIdentityDisplay");
+    expect(card).toContain("IDENTITY_CONFLICT_ADMIN_TITLE");
+    expect(card).toContain("Complete profile");
+  });
+});

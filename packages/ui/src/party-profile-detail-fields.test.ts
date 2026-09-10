@@ -150,6 +150,35 @@ describe("buildPartyProfileDetailItems", () => {
     );
   });
 
+  it("does not show a generated user:{uuid} party_key as government ID", () => {
+    const items = buildPartyProfileDetailItems({
+      party: party({
+        partyKey: "user:550e8400-e29b-41d4-a716-446655440000",
+        identityNumber: null,
+        identityPrefix: null,
+      }),
+      person: {
+        matchKey: "user:550e8400-e29b-41d4-a716-446655440000",
+        name: "Ahmad Bin Ali",
+        entityType: "INDIVIDUAL",
+        roles: ["DIRECTOR"],
+        sharePercentage: null,
+        status: "",
+        action: null,
+        screening: null,
+        onboarding: { status: null, id: null },
+        requestId: null,
+        requestIdType: null,
+        icFrontUrl: null,
+        icBackUrl: null,
+        email: "ahmad@example.com",
+      },
+    });
+    const identity = items.find((item) => item.label === "Identity");
+    expect(identity?.value).toBe("Pending onboarding");
+    expect(identity?.value).not.toContain("user:");
+  });
+
   it("says CTOS when the person is missing from or differs from the latest CTOS information", () => {
     const absent = buildPartyProfileDetailItems({
       party: party({ absentFromLatestExternal: true }),
