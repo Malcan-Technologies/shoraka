@@ -22,7 +22,7 @@ export function PoolSummaryCard({
     <div
       className={cn(
         "rounded-md border px-2 py-1.5",
-        emphasized ? "border-primary/30 bg-card" : "border-border bg-card"
+        emphasized ? "border-primary/30 bg-primary/5" : "border-border/50 bg-muted/10"
       )}
     >
       <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
