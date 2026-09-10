@@ -4,7 +4,7 @@ import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import { firstIssueMessage, humanizeApiValidationMessage, isProfileValidationError, issuesByField, profileValidationErrorFromApi, SC_MONTHLY_INVESTOR, scAppendixASelectValues, validateInvestorCorporateForm } from "@cashsouk/types";
+import { firstIssueMessage, humanizeApiValidationMessage, isProfileValidationError, issuesByField, profileValidationErrorFromApi, PROFILE_LABEL, scAppendixASelectValues, validateInvestorCorporateForm } from "@cashsouk/types";
 import { ComRepFieldLabel, ProfileFieldGrid, ProfileReadField } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -122,27 +122,22 @@ export function InvestorCompanyDetailsCard({
       <div className="space-y-4 p-6">
         <ProfileFieldGrid>
           <ProfileReadField
-            label={SC_MONTHLY_INVESTOR.investorName.label}
+            label={PROFILE_LABEL.companyName}
             value={name || "—"}
             locked
             missing={missing.has("name")}
-            required
-            help={SC_MONTHLY_INVESTOR.investorName.help}
           />
           <ProfileReadField
-            label={SC_MONTHLY_INVESTOR.investorIdentification.label}
+            label={PROFILE_LABEL.companyRegistrationNumber}
             value={registrationNumber || "—"}
             locked
             missing={missing.has("registrationNumber")}
-            required
-            help={SC_MONTHLY_INVESTOR.investorIdentification.help}
           />
           {isEditing && !dateOfIncorporation ? (
             <div className="space-y-2">
               <ComRepFieldLabel
-                label={SC_MONTHLY_INVESTOR.dateOfBirthIncorporation.label}
+                label={PROFILE_LABEL.dateOfIncorporation}
                 required
-                help={SC_MONTHLY_INVESTOR.dateOfBirthIncorporation.help}
               />
               <Input
                 className="h-11 text-ui"
@@ -159,20 +154,17 @@ export function InvestorCompanyDetailsCard({
             </div>
           ) : (
             <ProfileReadField
-              label={SC_MONTHLY_INVESTOR.dateOfBirthIncorporation.label}
+              label={PROFILE_LABEL.dateOfIncorporation}
               value={formatDate(dateOfIncorporation)}
               locked={Boolean(dateOfIncorporation)}
               missing={missing.has("dateOfIncorporation")}
-              required
-              help={SC_MONTHLY_INVESTOR.dateOfBirthIncorporation.help}
             />
           )}
           {isEditing && !countryOfIncorporation ? (
             <div className="space-y-2">
               <ComRepFieldLabel
-                label={SC_MONTHLY_INVESTOR.nationalityCountry.label}
+                label={PROFILE_LABEL.countryOfIncorporation}
                 required
-                help={SC_MONTHLY_INVESTOR.nationalityCountry.help}
               />
               <Select
                 value={country || undefined}
@@ -198,12 +190,10 @@ export function InvestorCompanyDetailsCard({
             </div>
           ) : (
             <ProfileReadField
-              label={SC_MONTHLY_INVESTOR.nationalityCountry.label}
+              label={PROFILE_LABEL.countryOfIncorporation}
               value={countryOfIncorporation || "—"}
               locked={Boolean(countryOfIncorporation)}
               missing={missing.has("countryOfIncorporation")}
-              required
-              help={SC_MONTHLY_INVESTOR.nationalityCountry.help}
             />
           )}
         </ProfileFieldGrid>

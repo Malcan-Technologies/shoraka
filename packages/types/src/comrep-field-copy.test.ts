@@ -37,13 +37,13 @@ describe("SC ComRep field copy", () => {
 
   it("selects monthly shareholder labels when the issuer person is a shareholder", () => {
     const copy = monthlyIssuerPersonCopy({ shareholder: true, officer: true });
-    expect(copy.identity.label).toBe("Shareholder Identity (NRIC/Passport/Company Registration No.)");
+    expect(copy.identity.label).toBe("Identity Number");
     expect(copy.includeRocPrefix).toBe(true);
   });
 
   it("selects monthly board labels when the issuer person is board/management only", () => {
     const copy = monthlyIssuerPersonCopy({ shareholder: false, officer: true });
-    expect(copy.identity.label).toBe("Identity Number (NRIC/Passport No.)");
+    expect(copy.identity.label).toBe("Identity Number");
     expect(copy.includeRocPrefix).toBe(false);
   });
 });

@@ -8,7 +8,12 @@ import {
   ISSUER_PROFILE_BALANCE_SHEET_KEYS,
   ISSUER_PROFILE_PNL_KEYS,
 } from "./financial-field-labels";
-import { SC_MONTHLY_ISSUER_FINANCIAL_LABELS } from "./comrep-field-copy";
+import {
+  PROFILE_ADDRESS_FIELD_LABELS,
+  PROFILE_LABEL,
+  profileAddressCompletenessLabel,
+  profileFinancialFieldLabel,
+} from "./profile-field-copy";
 import { isScIntegerWithoutDecimal } from "./comrep-normalization";
 import {
   OPERATOR_ADVISOR_TYPES,
@@ -218,7 +223,7 @@ export function validateIssuerFinancialFieldsPatch(
   const known = new Set<string>([...ISSUER_PROFILE_BALANCE_SHEET_KEYS, ...ISSUER_PROFILE_PNL_KEYS]);
   for (const [key, value] of Object.entries(fields)) {
     if (!known.has(key) || !isIssuerFinancialFieldRequired(key)) continue;
-    const label = SC_MONTHLY_ISSUER_FINANCIAL_LABELS[key] ?? key;
+    const label = profileFinancialFieldLabel(key);
     push(issues, requiredNumberIssue(value, key, label));
   }
   return issues;
@@ -370,7 +375,7 @@ export function validateIssuerFinancialFields(
   const issues: ComrepFieldIssue[] = [];
   for (const key of [...ISSUER_PROFILE_BALANCE_SHEET_KEYS, ...ISSUER_PROFILE_PNL_KEYS]) {
     if (!isIssuerFinancialFieldRequired(key)) continue;
-    const label = SC_MONTHLY_ISSUER_FINANCIAL_LABELS[key] ?? key;
+    const label = profileFinancialFieldLabel(key);
     push(issues, requiredNumberIssue(fields[key], key, label));
   }
   return issues;
@@ -387,23 +392,23 @@ export function validateIssuerCompanyForm(input: {
 }): ComrepFieldIssue[] {
   const issues: ComrepFieldIssue[] = [];
   if (input.includeName) {
-    push(issues, requiredTextIssue(input.name, "name", "Name of Issuer"));
+    push(issues, requiredTextIssue(input.name, "name", PROFILE_LABEL.companyName));
   }
-  push(issues, requiredEnumIssue(input.scCompanyType, SC_COMPANY_TYPES, "scCompanyType", "Type of Company"));
+  push(issues, requiredEnumIssue(input.scCompanyType, SC_COMPANY_TYPES, "scCompanyType", PROFILE_LABEL.typeOfCompany));
   push(
     issues,
-    requiredDateIssue(input.dateOfIncorporation, "dateOfIncorporation", "Date of Incorporation (dd/mm/yyyy)")
+    requiredDateIssue(input.dateOfIncorporation, "dateOfIncorporation", PROFILE_LABEL.dateOfIncorporation)
   );
   push(
     issues,
-    requiredDateIssue(input.dateOfCommencement, "dateOfCommencement", "Date of Commencement (dd/mm/yyyy)")
+    requiredDateIssue(input.dateOfCommencement, "dateOfCommencement", PROFILE_LABEL.dateBusinessCommenced)
   );
   push(
     issues,
-    requiredTextIssue(input.countryOfIncorporation, "countryOfIncorporation", "Country of Incorporation")
+    requiredTextIssue(input.countryOfIncorporation, "countryOfIncorporation", PROFILE_LABEL.countryOfIncorporation)
   );
   if (input.phoneNumber !== undefined && input.phoneNumber != null && String(input.phoneNumber).trim() !== "") {
-    push(issues, requiredPhoneIssue(input.phoneNumber, "phoneNumber", "Phone Number"));
+    push(issues, requiredPhoneIssue(input.phoneNumber, "phoneNumber", PROFILE_LABEL.companyPhone));
   }
   return issues;
 }
@@ -414,8 +419,8 @@ export function validateIssuerContactPersonForm(input: {
   contact?: unknown;
 }): ComrepFieldIssue[] {
   const issues: ComrepFieldIssue[] = [];
-  push(issues, requiredEmailIssue(input.email, "contactPersonEmail", "E-mail Address"));
-  push(issues, requiredPhoneIssue(input.contact, "contactPersonPhone", "Phone Number"));
+  push(issues, requiredEmailIssue(input.email, "contactPersonEmail", PROFILE_LABEL.personEmail));
+  push(issues, requiredPhoneIssue(input.contact, "contactPersonPhone", PROFILE_LABEL.phone));
   return issues;
 }
 
@@ -428,26 +433,54 @@ export function validateIssuerAddressForm(input: {
   businessPostalCode?: unknown;
 }): ComrepFieldIssue[] {
   const issues: ComrepFieldIssue[] = [];
-  push(issues, requiredTextIssue(input.registeredLine1, "registeredAddress.line1", "Registered Address"));
-  push(issues, requiredTextIssue(input.registeredState, "registeredAddress.state", "Registered Address - State"));
+  push(
+    issues,
+    requiredTextIssue(
+      input.registeredLine1,
+      "registeredAddress.line1",
+      profileAddressCompletenessLabel("registered", "line1")
+    )
+  );
+  push(
+    issues,
+    requiredTextIssue(
+      input.registeredState,
+      "registeredAddress.state",
+      profileAddressCompletenessLabel("registered", "state")
+    )
+  );
   push(
     issues,
     requiredPostcodeIssue(
       input.registeredPostalCode,
       input.registeredState,
       "registeredAddress.postalCode",
-      "Registered Address - Postcode"
+      profileAddressCompletenessLabel("registered", "postcode")
     )
   );
-  push(issues, requiredTextIssue(input.businessLine1, "businessAddress.line1", "Business Address"));
-  push(issues, requiredTextIssue(input.businessState, "businessAddress.state", "Business Address - State"));
+  push(
+    issues,
+    requiredTextIssue(
+      input.businessLine1,
+      "businessAddress.line1",
+      profileAddressCompletenessLabel("business", "line1")
+    )
+  );
+  push(
+    issues,
+    requiredTextIssue(
+      input.businessState,
+      "businessAddress.state",
+      profileAddressCompletenessLabel("business", "state")
+    )
+  );
   push(
     issues,
     requiredPostcodeIssue(
       input.businessPostalCode,
       input.businessState,
       "businessAddress.postalCode",
-      "Business Address - Postcode"
+      profileAddressCompletenessLabel("business", "postcode")
     )
   );
   return issues;
@@ -460,16 +493,16 @@ export function validateInvestorPersonalForm(input: {
   postalCode?: unknown;
 }): ComrepFieldIssue[] {
   const issues: ComrepFieldIssue[] = [];
-  push(issues, requiredEnumIssue(input.gender, ["MALE", "FEMALE"], "gender", "Gender"));
-  push(issues, requiredTextIssue(input.nationality, "nationality", "Nationality/Country"));
-  push(issues, requiredTextIssue(input.state, "state", "Business/Residential Address - State"));
+  push(issues, requiredEnumIssue(input.gender, ["MALE", "FEMALE"], "gender", PROFILE_LABEL.gender));
+  push(issues, requiredTextIssue(input.nationality, "nationality", PROFILE_LABEL.nationality));
+  push(issues, requiredTextIssue(input.state, "state", PROFILE_ADDRESS_FIELD_LABELS.state));
   push(
     issues,
     requiredPostcodeIssue(
       input.postalCode,
       input.state,
       "postalCode",
-      "Business/Residential Address - Postcode"
+      PROFILE_ADDRESS_FIELD_LABELS.postcode
     )
   );
   return issues;
@@ -485,12 +518,12 @@ export function validateInvestorCorporateForm(input: {
     requiredDateIssue(
       input.dateOfIncorporation,
       "dateOfIncorporation",
-      "Date of Birth/Incorporation (dd/mm/yyyy)"
+      PROFILE_LABEL.dateOfIncorporation
     )
   );
   push(
     issues,
-    requiredTextIssue(input.countryOfIncorporation, "countryOfIncorporation", "Nationality/Country")
+    requiredTextIssue(input.countryOfIncorporation, "countryOfIncorporation", PROFILE_LABEL.countryOfIncorporation)
   );
   return issues;
 }
@@ -561,45 +594,45 @@ export function validateIssuerMasterPatch(
 ): ComrepFieldIssue[] {
   const issues: ComrepFieldIssue[] = [];
   if (portal === "issuer") {
-    push(issues, rejectClearedRequiredText(patch, "name", "Name of Issuer"));
+    push(issues, rejectClearedRequiredText(patch, "name", PROFILE_LABEL.companyName));
     if (present(patch, "phoneNumber") && patch.phoneNumber != null && String(patch.phoneNumber).trim() !== "") {
-      push(issues, requiredPhoneIssue(patch.phoneNumber, "phoneNumber", "Phone Number"));
+      push(issues, requiredPhoneIssue(patch.phoneNumber, "phoneNumber", PROFILE_LABEL.companyPhone));
     }
     push(
       issues,
-      rejectClearedRequiredDate(patch, "dateOfIncorporation", "Date of Incorporation (dd/mm/yyyy)")
+      rejectClearedRequiredDate(patch, "dateOfIncorporation", PROFILE_LABEL.dateOfIncorporation)
     );
     push(
       issues,
-      rejectClearedRequiredDate(patch, "dateOfCommencement", "Date of Commencement (dd/mm/yyyy)")
+      rejectClearedRequiredDate(patch, "dateOfCommencement", PROFILE_LABEL.dateBusinessCommenced)
     );
-    push(issues, rejectClearedRequiredText(patch, "countryOfIncorporation", "Country of Incorporation"));
-    push(issues, rejectClearedRequiredEnum(patch, "scCompanyType", SC_COMPANY_TYPES, "Type of Company"));
+    push(issues, rejectClearedRequiredText(patch, "countryOfIncorporation", PROFILE_LABEL.countryOfIncorporation));
+    push(issues, rejectClearedRequiredEnum(patch, "scCompanyType", SC_COMPANY_TYPES, PROFILE_LABEL.typeOfCompany));
     issues.push(
       ...rejectClearedAddress(patch, "registeredAddress", {
-        object: "Registered Address",
-        line1: "Registered Address",
-        state: "Registered Address - State",
-        postcode: "Registered Address - Postcode",
+        object: PROFILE_LABEL.registeredAddress,
+        line1: profileAddressCompletenessLabel("registered", "line1"),
+        state: profileAddressCompletenessLabel("registered", "state"),
+        postcode: profileAddressCompletenessLabel("registered", "postcode"),
       })
     );
     issues.push(
       ...rejectClearedAddress(patch, "businessAddress", {
-        object: "Business Address",
-        line1: "Business Address",
-        state: "Business Address - State",
-        postcode: "Business Address - Postcode",
+        object: PROFILE_LABEL.businessAddress,
+        line1: profileAddressCompletenessLabel("business", "line1"),
+        state: profileAddressCompletenessLabel("business", "state"),
+        postcode: profileAddressCompletenessLabel("business", "postcode"),
       })
     );
   } else {
     push(
       issues,
-      rejectClearedRequiredDate(patch, "dateOfIncorporation", "Date of Birth/Incorporation (dd/mm/yyyy)")
+      rejectClearedRequiredDate(patch, "dateOfIncorporation", PROFILE_LABEL.dateOfIncorporation)
     );
-    push(issues, rejectClearedRequiredDate(patch, "dateOfBirth", "Date of Birth/Incorporation (dd/mm/yyyy)"));
-    push(issues, rejectClearedRequiredText(patch, "countryOfIncorporation", "Nationality/Country"));
-    push(issues, rejectClearedRequiredText(patch, "nationality", "Nationality/Country"));
-    push(issues, rejectClearedRequiredText(patch, "name", "Investor Name"));
+    push(issues, rejectClearedRequiredDate(patch, "dateOfBirth", PROFILE_LABEL.dateOfBirth));
+    push(issues, rejectClearedRequiredText(patch, "countryOfIncorporation", PROFILE_LABEL.countryOfIncorporation));
+    push(issues, rejectClearedRequiredText(patch, "nationality", PROFILE_LABEL.nationality));
+    push(issues, rejectClearedRequiredText(patch, "name", PROFILE_LABEL.investorName));
     if (present(patch, "gender")) {
       const gender = trimToNull(patch.gender);
       if (!gender) {
@@ -617,7 +650,7 @@ export function validateIssuerMasterPatch(
       if (present(address, "state") || present(address, "postalCode")) {
         push(
           issues,
-          requiredTextIssue(address.state, "residentialAddress.state", "Business/Residential Address - State")
+          requiredTextIssue(address.state, "residentialAddress.state", PROFILE_ADDRESS_FIELD_LABELS.state)
         );
         push(
           issues,
@@ -625,7 +658,7 @@ export function validateIssuerMasterPatch(
             address.postalCode,
             address.state,
             "residentialAddress.postalCode",
-            "Business/Residential Address - Postcode"
+            PROFILE_ADDRESS_FIELD_LABELS.postcode
           )
         );
       }
@@ -857,22 +890,22 @@ export function validateOperatorInterest(input: {
 export const OPERATOR_FINANCIAL_REQUIRED_FIELDS = [
   ["consolidatedAccounts", "Consolidated Accounts"],
   ["auditorName", "Auditor's Name"],
-  ["financialYearEnd", "Financial Year End (dd/mm/yyyy)"],
-  ["unmodifiedReports", "UnModified Reports"],
-  ["dateTabledToBoard", "Date of Tabling to Board (dd/mm/yyyy)"],
+  ["financialYearEnd", "Financial Year End"],
+  ["unmodifiedReports", "Unmodified Reports"],
+  ["dateTabledToBoard", "Date of Tabling to Board"],
   ["currency", "Currency"],
   ["numberOfShares", "Number of Shares"],
   ["totalAssets", "Total Assets"],
-  ["nonCurrentAssets", "Non-Current Assets"],
+  ["nonCurrentAssets", "Non-current Assets"],
   ["currentAssets", "Current Assets"],
   ["totalEquity", "Total Equity"],
   ["paidUpCapital", "Paid-up Capital"],
   ["shareApplicationAccount", "Share Application Account"],
   ["sharePremiumAndReserves", "Share Premium & Other Reserves"],
-  ["accumulatedProfitCarriedForward", "Accumulated Profit Carried Forward"],
+  ["accumulatedProfitCarriedForward", "Accumulated Profit / (Loss)"],
   ["equityMinorityInterest", "Minority Interest"],
   ["totalLiabilities", "Total Liabilities"],
-  ["nonCurrentLiabilities", "Non-Current Liabilities"],
+  ["nonCurrentLiabilities", "Non-current Liabilities"],
   ["currentLiabilities", "Current Liabilities"],
   ["totalRevenue", "Total Revenue"],
   ["revenueDonation", "Donation Based"],
@@ -888,9 +921,9 @@ export const OPERATOR_FINANCIAL_REQUIRED_FIELDS = [
   ["costSystem", "System Cost"],
   ["costPromotion", "Promotion Activities"],
   ["costOther", "Other - Cost"],
-  ["profitBeforeTax", "Profit/(Loss) Before Tax"],
+  ["profitBeforeTax", "Profit / (Loss) Before Tax"],
   ["taxation", "Taxation"],
-  ["profitAfterTax", "Profit/(Loss) After Tax"],
+  ["profitAfterTax", "Profit / (Loss) After Tax"],
   ["pnlMinorityInterest", "Minority Interest"],
   ["netDividend", "Net Dividend"],
 ] as const;
@@ -949,21 +982,13 @@ export function validateIssuerPersonForm(input: {
   const corporate = input.entityType === "CORPORATE";
   const shareholder = Boolean(input.isShareholder) || corporate;
   const officer = Boolean(input.isOfficer) && !corporate;
-  const nameLabel = shareholder ? "Shareholder Name" : "Name";
-  const identityLabel = shareholder
-    ? "Shareholder Identity (NRIC/Passport/Company Registration No.)"
-    : "Identity Number (NRIC/Passport No.)";
-  const dobLabel = corporate
-    ? "Date of Incorporation (dd/mm/yyyy)"
-    : "Date of Birth (dd/mm/yyyy)";
-  const nationalityLabel = shareholder ? "Nationality/Country" : "Nationality";
-  const addressLabel = shareholder ? "Business/Residential Address" : "Residential Address";
-  const stateLabel = shareholder
-    ? "Business/Residential Address - State"
-    : "Residential Address - State";
-  const postcodeLabel = shareholder
-    ? "Business/Residential Address - Postcode"
-    : "Residential Address - Postcode";
+  const nameLabel = PROFILE_LABEL.fullName;
+  const identityLabel = PROFILE_LABEL.identityNumber;
+  const dobLabel = corporate ? PROFILE_LABEL.dateOfIncorporation : PROFILE_LABEL.dateOfBirth;
+  const nationalityLabel = PROFILE_LABEL.nationality;
+  const addressLabel = PROFILE_ADDRESS_FIELD_LABELS.address;
+  const stateLabel = PROFILE_ADDRESS_FIELD_LABELS.state;
+  const postcodeLabel = PROFILE_ADDRESS_FIELD_LABELS.postcode;
 
   push(issues, requiredTextIssue(input.name, "name", nameLabel));
   if (!corporate) {
@@ -993,52 +1018,52 @@ export function validateIssuerPersonForm(input: {
   push(issues, requiredTextIssue(input.state, "address.state", stateLabel));
   push(issues, requiredPostcodeIssue(input.postalCode, input.state, "address.postalCode", postcodeLabel));
   if (shareholder) {
-    push(issues, requiredEnumIssue(input.shareType, SC_SHARE_TYPES, "shareType", "Type of Shares"));
+    push(issues, requiredEnumIssue(input.shareType, SC_SHARE_TYPES, "shareType", PROFILE_LABEL.typeOfShares));
     if (input.shareType === "OTHERS") {
       push(
         issues,
-        requiredTextIssue(input.shareTypeOther, "shareTypeOther", "Type of Shares - Others (please specify)")
+        requiredTextIssue(input.shareTypeOther, "shareTypeOther", PROFILE_LABEL.typeOfSharesOther)
       );
     }
-    push(issues, requiredNumberIssue(input.shareholdingUnits, "shareholdingUnits", "Shareholding Units (unit)"));
-    push(issues, requiredNumberIssue(input.shareholdingAmount, "shareholdingAmount", "Shareholding Amount (RM)"));
+    push(issues, requiredNumberIssue(input.shareholdingUnits, "shareholdingUnits", PROFILE_LABEL.shareholdingUnits));
+    push(issues, requiredNumberIssue(input.shareholdingAmount, "shareholdingAmount", PROFILE_LABEL.shareholdingAmount));
     push(
       issues,
-      requiredNumberIssue(input.shareholdingPercentage, "shareholdingPercentage", "Shareholding Percentage (%)")
+      requiredNumberIssue(input.shareholdingPercentage, "shareholdingPercentage", PROFILE_LABEL.shareholdingPercentage)
     );
     push(
       issues,
-      percentCapIssue(input.shareholdingPercentage, "shareholdingPercentage", "Shareholding Percentage (%)")
+      percentCapIssue(input.shareholdingPercentage, "shareholdingPercentage", PROFILE_LABEL.shareholdingPercentage)
     );
   }
   if (officer) {
-    push(issues, requiredEnumIssue(input.designation, SC_DESIGNATIONS, "designation", "Designation"));
+    push(issues, requiredEnumIssue(input.designation, SC_DESIGNATIONS, "designation", PROFILE_LABEL.designation));
     if (input.designation === "OTHERS") {
       push(
         issues,
-        requiredTextIssue(input.designationOther, "designationOther", "Designation - Others (please specify)")
+        requiredTextIssue(input.designationOther, "designationOther", PROFILE_LABEL.designationOther)
       );
     }
-    push(issues, requiredDateIssue(input.appointmentDate, "appointmentDate", "Appointment Date (dd/mm/yyyy)"));
+    push(issues, requiredDateIssue(input.appointmentDate, "appointmentDate", PROFILE_LABEL.appointmentDate));
   }
   return issues;
 }
 
 export function validatePartyPatch(patch: Record<string, unknown>): ComrepFieldIssue[] {
   const issues: ComrepFieldIssue[] = [];
-  push(issues, rejectClearedRequiredText(patch, "name", "Name"));
-  push(issues, rejectClearedRequiredText(patch, "identityNumber", "Identity Number"));
-  push(issues, rejectClearedRequiredEnum(patch, "identityPrefix", SC_IDENTITY_PREFIXES, "Identity Prefix"));
-  push(issues, rejectClearedRequiredDate(patch, "dateOfBirth", "Date of Birth (dd/mm/yyyy)"));
-  push(issues, rejectClearedRequiredDate(patch, "dateOfIncorporation", "Date of Birth (dd/mm/yyyy)"));
-  push(issues, rejectClearedRequiredText(patch, "nationality", "Nationality"));
-  push(issues, rejectClearedRequiredText(patch, "countryOfIncorporation", "Nationality/Country"));
-  push(issues, rejectClearedRequiredEnum(patch, "shareType", SC_SHARE_TYPES, "Type of Shares"));
-  push(issues, rejectClearedRequiredNumber(patch, "shareholdingUnits", "Shareholding Units (unit)"));
-  push(issues, rejectClearedRequiredNumber(patch, "shareholdingAmount", "Shareholding Amount (RM)"));
-  push(issues, rejectClearedRequiredNumber(patch, "shareholdingPercentage", "Shareholding Percentage (%)"));
-  push(issues, rejectClearedRequiredEnum(patch, "designation", SC_DESIGNATIONS, "Designation"));
-  push(issues, rejectClearedRequiredDate(patch, "appointmentDate", "Appointment Date (dd/mm/yyyy)"));
+  push(issues, rejectClearedRequiredText(patch, "name", PROFILE_LABEL.fullName));
+  push(issues, rejectClearedRequiredText(patch, "identityNumber", PROFILE_LABEL.identityNumber));
+  push(issues, rejectClearedRequiredEnum(patch, "identityPrefix", SC_IDENTITY_PREFIXES, PROFILE_LABEL.identityPrefix));
+  push(issues, rejectClearedRequiredDate(patch, "dateOfBirth", PROFILE_LABEL.dateOfBirth));
+  push(issues, rejectClearedRequiredDate(patch, "dateOfIncorporation", PROFILE_LABEL.dateOfIncorporation));
+  push(issues, rejectClearedRequiredText(patch, "nationality", PROFILE_LABEL.nationality));
+  push(issues, rejectClearedRequiredText(patch, "countryOfIncorporation", PROFILE_LABEL.countryOfIncorporation));
+  push(issues, rejectClearedRequiredEnum(patch, "shareType", SC_SHARE_TYPES, PROFILE_LABEL.typeOfShares));
+  push(issues, rejectClearedRequiredNumber(patch, "shareholdingUnits", PROFILE_LABEL.shareholdingUnits));
+  push(issues, rejectClearedRequiredNumber(patch, "shareholdingAmount", PROFILE_LABEL.shareholdingAmount));
+  push(issues, rejectClearedRequiredNumber(patch, "shareholdingPercentage", PROFILE_LABEL.shareholdingPercentage));
+  push(issues, rejectClearedRequiredEnum(patch, "designation", SC_DESIGNATIONS, PROFILE_LABEL.designation));
+  push(issues, rejectClearedRequiredDate(patch, "appointmentDate", PROFILE_LABEL.appointmentDate));
   if (present(patch, "gender")) {
     const gender = trimToNull(patch.gender);
     if (!gender) issues.push({ field: "gender", label: "Gender", message: "Gender is required." });

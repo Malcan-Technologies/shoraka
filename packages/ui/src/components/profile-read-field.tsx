@@ -1,6 +1,5 @@
 import * as React from "react";
 import { cn } from "../lib/utils";
-import { ComRepFieldLabel } from "../comrep-field-label";
 
 import { PROFILE_LOCKED_VERIFIED_DURING_ONBOARDING } from "@cashsouk/types";
 
@@ -12,7 +11,9 @@ export type ProfileReadFieldProps = {
   lockReason?: string;
   multiline?: boolean;
   hint?: React.ReactNode;
+  /** Ignored in read mode. Kept so edit/read call sites can share props. */
   help?: string;
+  /** Ignored in read mode. Required/optional markers belong on edit controls. */
   required?: boolean;
   className?: string;
 };
@@ -29,28 +30,22 @@ export function ProfileReadField({
   lockReason,
   multiline = false,
   hint,
-  help,
-  required = false,
   className,
 }: ProfileReadFieldProps) {
   const empty = isEmptyValue(value);
   return (
-    <div className={cn("space-y-2", className)}>
-      <ComRepFieldLabel label={label} required={required} help={help} />
+    <div className={cn("space-y-1", className)}>
+      <p className="text-meta text-muted-foreground">{label}</p>
       <div
         className={cn(
-          "w-full rounded-md border px-3 text-ui",
-          multiline ? "min-h-[120px] whitespace-pre-wrap py-2.5" : "flex min-h-11 items-center",
-          missing
-            ? "border-status-action-text/40 bg-[hsl(var(--status-action-bg)/0.35)] text-foreground"
-            : "border-input bg-muted text-foreground"
+          "text-ui break-words",
+          multiline && "whitespace-pre-wrap",
+          empty && "text-muted-foreground",
+          missing && "text-status-action-text"
         )}
       >
-        <span className={cn("min-w-0 break-words", empty && "text-muted-foreground")}>
-          {empty ? null : value}
-        </span>
+        {empty ? "—" : value}
       </div>
-      {missing ? <p className="text-meta text-status-action-text">Required</p> : null}
       {locked && !missing ? (
         <p className="text-meta text-muted-foreground">
           {lockReason ?? PROFILE_LOCKED_VERIFIED_DURING_ONBOARDING}

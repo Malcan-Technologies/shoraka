@@ -14,7 +14,7 @@ import {
   optionalEmailIssue,
   observedPartyBlockedByIdentityConflict,
   phoneFormatIssue,
-  SC_MONTHLY_ISSUER,
+  PROFILE_LABEL,
   validateIssuerContactPersonForm,
 } from "@cashsouk/types";
 import { AdminDetailCardHeader } from "@/components/admin-detail";
@@ -111,8 +111,8 @@ export function OrganizationPeoplePanel({
         picEvidence?.contactNumber
     );
   const issuerContact = portal === "issuer";
-  const picEmailLabel = issuerContact ? SC_MONTHLY_ISSUER.emailAddress.label : "Email";
-  const picPhoneLabel = issuerContact ? SC_MONTHLY_ISSUER.phoneNumber.label : "Contact Number";
+  const picEmailLabel = issuerContact ? PROFILE_LABEL.personEmail : PROFILE_LABEL.email;
+  const picPhoneLabel = issuerContact ? PROFILE_LABEL.phone : PROFILE_LABEL.phone;
   const picHasChanges = Object.keys(buildSectionPayload(org, draft, "pic")).length > 0;
   const unified = unifyOrganizationPeople(org.partyProfiles, org.people);
   const linkedUserIds = linkedPartyUserIds(org.partyProfiles ?? []);
@@ -148,8 +148,8 @@ export function OrganizationPeoplePanel({
           contact: draft.picContactNumber,
         })
       : [
-          optionalEmailIssue(draft.picEmail, "picEmail", "Email"),
-          phoneFormatIssue(draft.picContactNumber, "picContactNumber", "Contact Number"),
+          optionalEmailIssue(draft.picEmail, "picEmail", PROFILE_LABEL.email),
+          phoneFormatIssue(draft.picContactNumber, "picContactNumber", PROFILE_LABEL.phone),
         ].filter((issue): issue is NonNullable<typeof issue> => Boolean(issue));
     if (issues.length > 0) {
       setPicFieldErrors(Object.fromEntries(issues.map((issue) => [issue.field, issue.message])));

@@ -12,12 +12,14 @@ describe("investor classification card", () => {
   const source = readFileSync(join(__dirname, "investor-classification-card.tsx"), "utf8");
 
   it("shows Sophisticated Investor Yes/No and Type of Investor as separate required fields", () => {
-    expect(source).toContain('label="Sophisticated Investor"');
-    expect(source).toContain("typeOfInvestor");
-    expect(source).toContain("isSophisticatedInvestor: next");
+    expect(source).toContain("PROFILE_LABEL.sophisticatedInvestor");
+    expect(source).toContain("PROFILE_LABEL.typeOfInvestor");
+    expect(source).toContain("payload.isSophisticatedInvestor");
     expect(source).not.toContain("SC ComRep Investor Type");
     expect(source).toContain('patchMasterProfile("investor"');
-    expect(source).toContain("scInvestorCategory: next");
+    expect(source).toContain("payload.scInvestorCategory");
+    expect(source).toContain("Save changes");
+    expect(source).not.toContain("saveSophisticated.mutate");
   });
 
   it("does not auto-select Type of Investor", () => {

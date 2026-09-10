@@ -19,8 +19,6 @@ import {
   isSophisticatedInvestorSelected,
   typeOfInvestorValidationMessage,
   SC_MALAYSIAN_STATES,
-  SC_MONTHLY_INVESTOR,
-  SC_MONTHLY_ISSUER,
   displayScCompanyTypeLabel,
   firstIssueMessage,
   humanizeApiValidationMessage,
@@ -35,8 +33,11 @@ import {
   type PortalType,
   type ScGender,
   type ScInvestorCategory,
+  PROFILE_ADDRESS_FIELD_LABELS,
+  PROFILE_HELP,
+  PROFILE_LABEL,
 } from "@cashsouk/types";
-import { YesNoRadioDisplay } from "@cashsouk/ui";
+import { ComRepFieldLabel, YesNoRadioDisplay } from "@cashsouk/ui";
 import {
   ArrowTopRightOnSquareIcon,
   BanknotesIcon,
@@ -56,7 +57,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -338,19 +338,17 @@ export function OrganizationProfilePanel({
   );
 
   const issuerCompany = portal === "issuer";
-  const companyNameLabel = issuerCompany ? SC_MONTHLY_ISSUER.nameOfIssuer.label : SC_MONTHLY_INVESTOR.investorName.label;
-  const companyRocLabel = issuerCompany ? SC_MONTHLY_ISSUER.issuerRoc.label : SC_MONTHLY_INVESTOR.investorIdentification.label;
-  const companyRocHelp = issuerCompany ? SC_MONTHLY_ISSUER.issuerRoc.help : SC_MONTHLY_INVESTOR.investorIdentification.help;
-  const companyTypeLabelSc = SC_MONTHLY_ISSUER.typeOfCompany.label;
-  const incorporationLabel = issuerCompany
-    ? SC_MONTHLY_ISSUER.dateOfIncorporation.label
-    : SC_MONTHLY_INVESTOR.dateOfBirthIncorporation.label;
-  const commencementLabel = SC_MONTHLY_ISSUER.dateOfCommencement.label;
+  const companyNameLabel = PROFILE_LABEL.companyName;
+  const companyRocLabel = PROFILE_LABEL.companyRegistrationNumber;
+  const companyRocHelp = PROFILE_HELP.companyRegistrationNumber;
+  const companyTypeLabelSc = PROFILE_LABEL.typeOfCompany;
+  const incorporationLabel = PROFILE_LABEL.dateOfIncorporation;
+  const commencementLabel = PROFILE_LABEL.dateBusinessCommenced;
   const countryIncorpLabel = issuerCompany
-    ? SC_MONTHLY_ISSUER.countryOfIncorporation.label
-    : SC_MONTHLY_INVESTOR.nationalityCountry.label;
-  const phoneLabel = issuerCompany ? "Company phone" : "Phone Number";
-  const websiteLabel = SC_MONTHLY_ISSUER.website.label;
+    ? PROFILE_LABEL.countryOfIncorporation
+    : PROFILE_LABEL.countryOfIncorporation;
+  const phoneLabel = issuerCompany ? PROFILE_LABEL.companyPhone : PROFILE_LABEL.phone;
+  const websiteLabel = PROFILE_LABEL.website;
 
   const classificationCard = showClassification ? (
     <Card id="profile-classification" className="rounded-2xl">
@@ -402,7 +400,7 @@ export function OrganizationProfilePanel({
               {editingSection === "classification" ? (
                 <div className="space-y-2">
                   <EditableSelect
-                    label={SC_MONTHLY_INVESTOR.typeOfInvestor.label}
+                    label={PROFILE_LABEL.typeOfInvestor}
                     value={draft.scInvestorCategory}
                     onChange={(scInvestorCategory) =>
                       setDraft((current) => ({ ...current, scInvestorCategory }))
@@ -424,7 +422,7 @@ export function OrganizationProfilePanel({
                 </div>
               ) : (
                 <ReadField
-                  label={SC_MONTHLY_INVESTOR.typeOfInvestor.label}
+                  label={PROFILE_LABEL.typeOfInvestor}
                   value={investorCategoryLabel}
                   missing={requiredFieldKeys.has("scInvestorCategory")}
                   help={investorCategoryHelp}
@@ -454,11 +452,11 @@ export function OrganizationProfilePanel({
                     label={companyNameLabel}
                     value={draft.name}
                     onChange={(name) => setDraft((current) => ({ ...current, name }))}
-                    required={issuerCompany}
+                    required
                   />
-                  <ReadField label={companyRocLabel} value={ssmNumber} locked help={companyRocHelp} required={issuerCompany} />
+                  <ReadField label={companyRocLabel} value={ssmNumber} locked />
                   <EditableField
-                    label="TIN"
+                    label={PROFILE_LABEL.tin}
                     value={draft.tinNumber}
                     onChange={(tinNumber) => setDraft((current) => ({ ...current, tinNumber }))}
                   />
@@ -504,7 +502,7 @@ export function OrganizationProfilePanel({
                     onChange={(industry) => setDraft((current) => ({ ...current, industry }))}
                   />
                   <EditableField
-                    label="Employees"
+                    label={PROFILE_LABEL.numberOfEmployees}
                     value={draft.numberOfEmployees}
                     onChange={(numberOfEmployees) =>
                       setDraft((current) => ({
@@ -515,7 +513,7 @@ export function OrganizationProfilePanel({
                     inputMode="numeric"
                   />
                   <EditableField
-                    label="Annual Revenue (RM)"
+                    label={`${PROFILE_LABEL.annualRevenue} (RM)`}
                     value={draft.annualRevenue}
                     onChange={(annualRevenue) => setDraft((current) => ({ ...current, annualRevenue }))}
                   />
@@ -546,7 +544,7 @@ export function OrganizationProfilePanel({
                     missing={requiredFieldKeys.has("registrationNumber")}
                     locked
                   />
-                  <ReadField label="TIN" value={basic?.tinNumber} />
+                  <ReadField label={PROFILE_LABEL.tin} value={basic?.tinNumber} />
                   <ReadField
                     label={companyTypeLabelSc}
                     value={companyTypeLabel}
@@ -575,12 +573,12 @@ export function OrganizationProfilePanel({
                   />
                   <ReadField label="Industry" value={basic?.industry} />
                   <ReadField
-                    label="Employees"
+                    label={PROFILE_LABEL.numberOfEmployees}
                     value={
                       basic?.numberOfEmployees !== undefined ? String(basic.numberOfEmployees) : null
                     }
                   />
-                  <ReadField label="Annual Revenue (RM)" value={basic?.annualRevenue} />
+                  <ReadField label={PROFILE_LABEL.annualRevenue} value={basic?.annualRevenue} />
                   <ReadField
                     label={websiteLabel}
                     value={
@@ -700,7 +698,7 @@ export function OrganizationProfilePanel({
             {editingSection === "addresses" ? (
               <>
                 <EditableAddressFields
-                  label={SC_MONTHLY_ISSUER.businessAddress.label}
+                  label={PROFILE_LABEL.businessAddress}
                   lineLabel={ADMIN_ORG_ADDRESS_FIELD_LABELS.address}
                   stateLabel={ADMIN_ORG_ADDRESS_FIELD_LABELS.state}
                   postcodeLabel={ADMIN_ORG_ADDRESS_FIELD_LABELS.postcode}
@@ -720,7 +718,7 @@ export function OrganizationProfilePanel({
                 />
                 <div className="space-y-4 border-t pt-6">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-meta font-medium text-muted-foreground">{SC_MONTHLY_ISSUER.registeredAddress.label}</p>
+                    <p className="text-meta font-medium text-muted-foreground">{PROFILE_LABEL.registeredAddress}</p>
                     <label className="flex items-center gap-2 text-ui">
                       <input
                         type="checkbox"
@@ -746,7 +744,7 @@ export function OrganizationProfilePanel({
                     </p>
                   ) : (
                     <EditableAddressFields
-                      label={SC_MONTHLY_ISSUER.registeredAddress.label}
+                      label={PROFILE_LABEL.registeredAddress}
                       lineLabel={ADMIN_ORG_ADDRESS_FIELD_LABELS.address}
                       stateLabel={ADMIN_ORG_ADDRESS_FIELD_LABELS.state}
                       postcodeLabel={ADMIN_ORG_ADDRESS_FIELD_LABELS.postcode}
@@ -767,7 +765,7 @@ export function OrganizationProfilePanel({
             ) : (
               <>
                 <div className="space-y-4">
-                  <p className="text-ui font-medium">{SC_MONTHLY_ISSUER.registeredAddress.label}</p>
+                  <p className="text-ui font-medium">{PROFILE_LABEL.registeredAddress}</p>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <ReadField
                       className="sm:col-span-2"
@@ -786,18 +784,16 @@ export function OrganizationProfilePanel({
                       label={ADMIN_ORG_ADDRESS_FIELD_LABELS.state}
                       value={org.corporateOnboardingData?.addresses?.registered?.state}
                       missing={requiredFieldKeys.has("registeredAddress.state")}
-                      help={SC_MONTHLY_ISSUER.registeredAddressState.help}
                     />
                     <ReadField
                       label={ADMIN_ORG_ADDRESS_FIELD_LABELS.postcode}
                       value={org.corporateOnboardingData?.addresses?.registered?.postalCode}
                       missing={requiredFieldKeys.has("registeredAddress.postalCode")}
-                      help={SC_MONTHLY_ISSUER.registeredAddressPostcode.help}
                     />
                   </div>
                 </div>
                 <div className="space-y-4 border-t pt-6">
-                  <p className="text-ui font-medium">{SC_MONTHLY_ISSUER.businessAddress.label}</p>
+                  <p className="text-ui font-medium">{PROFILE_LABEL.businessAddress}</p>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <ReadField
                       className="sm:col-span-2"
@@ -811,7 +807,6 @@ export function OrganizationProfilePanel({
                           .join(", ") || null
                       }
                       missing={requiredFieldKeys.has("businessAddress.line1")}
-                      help={SC_MONTHLY_ISSUER.businessAddress.help}
                     />
                     <ReadField
                       label={ADMIN_ORG_ADDRESS_FIELD_LABELS.state}
@@ -820,7 +815,6 @@ export function OrganizationProfilePanel({
                         requiredFieldKeys.has("businessAddress.state") ||
                         requiredFieldKeys.has("businessState")
                       }
-                      help={SC_MONTHLY_ISSUER.businessAddressState.help}
                     />
                     <ReadField
                       label={ADMIN_ORG_ADDRESS_FIELD_LABELS.postcode}
@@ -829,7 +823,6 @@ export function OrganizationProfilePanel({
                         requiredFieldKeys.has("businessAddress.postalCode") ||
                         requiredFieldKeys.has("businessPostalCode")
                       }
-                      help={SC_MONTHLY_ISSUER.businessAddressPostcode.help}
                     />
                   </div>
                 </div>
@@ -855,7 +848,7 @@ export function OrganizationProfilePanel({
                 <>
                   {org.type !== "COMPANY" ? (
                     <EditableField
-                      label={SC_MONTHLY_INVESTOR.investorName.label}
+                      label={PROFILE_LABEL.fullName}
                       value={draft.name}
                       onChange={(name) => setDraft((current) => ({ ...current, name }))}
                     />
@@ -876,12 +869,12 @@ export function OrganizationProfilePanel({
                     onChange={(middleName) => setDraft((current) => ({ ...current, middleName }))}
                   />
                   <ReadField
-                    label={SC_MONTHLY_INVESTOR.investorIdentification.label}
+                    label={PROFILE_LABEL.identityNumber}
                     value={[org.documentType, org.documentNumber].filter(Boolean).join(" · ") || null}
                     missing={
                       requiredFieldKeys.has("identityNumber") || requiredFieldKeys.has("identityPrefix")
                     }
-                    help={SC_MONTHLY_INVESTOR.investorIdentification.help}
+                    help={PROFILE_HELP.identityNumberNric}
                     required
                   />
                   <EditableSelect
@@ -893,12 +886,12 @@ export function OrganizationProfilePanel({
                     ).map((value) => ({ value, label: SC_GENDER_LABELS[value] }))}
                   />
                   <ReadField
-                    label={SC_MONTHLY_INVESTOR.dateOfBirthIncorporation.label}
+                    label={PROFILE_LABEL.dateOfBirth}
                     value={org.dateOfBirth ? format(new Date(org.dateOfBirth), "PP") : null}
                     missing={requiredFieldKeys.has("dateOfBirth")}
                   />
                   <EditableField
-                    label={SC_MONTHLY_INVESTOR.nationalityCountry.label}
+                    label={PROFILE_LABEL.nationality}
                     value={draft.nationality}
                     onChange={(nationality) => setDraft((current) => ({ ...current, nationality }))}
                   />
@@ -907,18 +900,18 @@ export function OrganizationProfilePanel({
               ) : (
                 <>
                   {org.type !== "COMPANY" ? (
-                    <ReadField label={SC_MONTHLY_INVESTOR.investorName.label} value={org.name} missing={requiredFieldKeys.has("name")} />
+                    <ReadField label={PROFILE_LABEL.fullName} value={org.name} missing={requiredFieldKeys.has("name")} />
                   ) : null}
                   <ReadField label="First Name" value={org.firstName} />
                   <ReadField label="Last Name" value={org.lastName} />
                   <ReadField label="Middle Name" value={org.middleName} />
                   <ReadField
-                    label={SC_MONTHLY_INVESTOR.investorIdentification.label}
+                    label={PROFILE_LABEL.identityNumber}
                     value={[org.documentType, org.documentNumber].filter(Boolean).join(" · ") || null}
                     missing={
                       requiredFieldKeys.has("identityNumber") || requiredFieldKeys.has("identityPrefix")
                     }
-                    help={SC_MONTHLY_INVESTOR.investorIdentification.help}
+                    help={PROFILE_HELP.identityNumberNric}
                     required
                   />
                   <ReadField
@@ -927,12 +920,12 @@ export function OrganizationProfilePanel({
                     missing={requiredFieldKeys.has("gender")}
                   />
                   <ReadField
-                    label={SC_MONTHLY_INVESTOR.dateOfBirthIncorporation.label}
+                    label={PROFILE_LABEL.dateOfBirth}
                     value={org.dateOfBirth ? format(new Date(org.dateOfBirth), "PP") : null}
                     missing={requiredFieldKeys.has("dateOfBirth")}
                   />
                   <ReadField
-                    label={SC_MONTHLY_INVESTOR.nationalityCountry.label}
+                    label={PROFILE_LABEL.nationality}
                     value={org.nationality}
                     missing={requiredFieldKeys.has("nationality")}
                   />
@@ -965,7 +958,7 @@ export function OrganizationProfilePanel({
                     />
                   </div>
                   <EditableSelect
-                    label={SC_MONTHLY_INVESTOR.businessResidentialAddressState.label}
+                    label={PROFILE_ADDRESS_FIELD_LABELS.state}
                     value={draft.residentialState}
                     onChange={(residentialState) =>
                       setDraft((current) => ({ ...current, residentialState }))
@@ -973,7 +966,7 @@ export function OrganizationProfilePanel({
                     options={SC_MALAYSIAN_STATES.map((state) => ({ value: state, label: state }))}
                   />
                   <EditableField
-                    label={SC_MONTHLY_INVESTOR.businessResidentialAddressPostcode.label}
+                    label={PROFILE_ADDRESS_FIELD_LABELS.postcode}
                     value={draft.residentialPostalCode}
                     onChange={(residentialPostalCode) =>
                       setDraft((current) => ({
@@ -993,12 +986,12 @@ export function OrganizationProfilePanel({
                     <ReadField label="Residential Address" value={org.address} />
                   </div>
                   <ReadField
-                    label={SC_MONTHLY_INVESTOR.businessResidentialAddressState.label}
+                    label={PROFILE_ADDRESS_FIELD_LABELS.state}
                     value={org.residentialAddress?.state}
                     missing={requiredFieldKeys.has("state")}
                   />
                   <ReadField
-                    label={SC_MONTHLY_INVESTOR.businessResidentialAddressPostcode.label}
+                    label={PROFILE_ADDRESS_FIELD_LABELS.postcode}
                     value={org.residentialAddress?.postalCode}
                     missing={requiredFieldKeys.has("postalCode")}
                   />
@@ -1029,14 +1022,14 @@ export function OrganizationProfilePanel({
                       error={fieldErrors.phoneNumber}
                     />
                   ) : null}
-                  <ReadField label="Account owner email" value={org.owner.email} locked />
+                  <ReadField label={PROFILE_LABEL.accountOwnerEmail} value={org.owner.email} locked />
                 </>
               ) : (
                 <>
                   {org.type !== "COMPANY" ? (
                     <ReadField label="Phone Number" value={org.phoneNumber} />
                   ) : null}
-                  <ReadField label="Account owner email" value={org.owner.email} locked />
+                  <ReadField label={PROFILE_LABEL.accountOwnerEmail} value={org.owner.email} locked />
                 </>
               )}
             </div>
@@ -1064,54 +1057,50 @@ export function OrganizationProfilePanel({
         />
         <CardContent>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5 py-2">
-              <Label className="text-meta text-muted-foreground">Bank name</Label>
-              {isEditingBank && canManage ? (
-                <Select
-                  value={draft.bankName || undefined}
-                  onValueChange={(bankName) => setDraft((current) => ({ ...current, bankName }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select bank" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {bankOptions.map((bank) => (
-                      <SelectItem key={bank.value} value={bank.value}>
-                        {bank.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <p className="text-ui font-medium">{malaysianBankLabel(draft.bankName) || "—"}</p>
-              )}
-            </div>
-            <div className="space-y-1.5 py-2">
-              <Label className="text-meta text-muted-foreground">Account type</Label>
-              {isEditingBank && canManage ? (
-                <Select
-                  value={draft.accountType || undefined}
-                  onValueChange={(accountType) => setDraft((current) => ({ ...current, accountType }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select account type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {BANK_ACCOUNT_TYPES.map((type) => (
-                      <SelectItem key={type.value} value={type.value}>
-                        {type.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <p className="text-ui font-medium">{draft.accountType || "—"}</p>
-              )}
-            </div>
-            <div className="space-y-1.5 py-2 sm:col-span-2">
-              <Label className="text-meta text-muted-foreground">Bank account number</Label>
-              {isEditingBank && canManage ? (
-                <>
+            {isEditingBank && canManage ? (
+              <>
+                <div className="space-y-2">
+                  <ComRepFieldLabel label={PROFILE_LABEL.bankName} optional />
+                  <Select
+                    value={draft.bankName || undefined}
+                    onValueChange={(bankName) => setDraft((current) => ({ ...current, bankName }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select bank" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {bankOptions.map((bank) => (
+                        <SelectItem key={bank.value} value={bank.value}>
+                          {bank.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <ComRepFieldLabel label={PROFILE_LABEL.accountType} optional />
+                  <Select
+                    value={draft.accountType || undefined}
+                    onValueChange={(accountType) => setDraft((current) => ({ ...current, accountType }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select account type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {BANK_ACCOUNT_TYPES.map((type) => (
+                        <SelectItem key={type.value} value={type.value}>
+                          {type.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <ComRepFieldLabel
+                    label={PROFILE_LABEL.bankAccountNumber}
+                    optional
+                    help="Enter a 10–18 digit account number if you add banking details."
+                  />
                   <Input
                     className="font-mono text-ui"
                     inputMode="numeric"
@@ -1125,12 +1114,19 @@ export function OrganizationProfilePanel({
                     }
                     placeholder="Enter bank account number"
                   />
-                  <p className="text-meta text-muted-foreground">Enter 10-18 digit account number</p>
-                </>
-              ) : (
-                <p className="font-mono text-ui font-medium">{draft.accountNumber || "—"}</p>
-              )}
-            </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <ReadField label={PROFILE_LABEL.bankName} value={malaysianBankLabel(draft.bankName)} />
+                <ReadField label={PROFILE_LABEL.accountType} value={draft.accountType} />
+                <ReadField
+                  className="sm:col-span-2"
+                  label={PROFILE_LABEL.bankAccountNumber}
+                  value={draft.accountNumber}
+                />
+              </>
+            )}
           </div>
         </CardContent>
       </Card>

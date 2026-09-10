@@ -18,12 +18,13 @@ describe("Issuer organisation profile copy", () => {
     expect(profile).not.toContain('missing={missingFieldKeys.has("companyEmail")}');
     expect(profile).toContain('missing={missingFieldKeys.has("contactPersonEmail")}');
     expect(company).not.toContain("companyEmail");
-    expect(company).toContain("Company phone");
+    expect(company).toContain("PROFILE_LABEL.companyPhone");
   });
 
-  it("uses Edit financials and does not invent a financial year on the card", () => {
-    expect(financials).toContain("Edit financials");
+  it("uses inline financial editing and does not invent a financial year on the card", () => {
+    expect(financials).toContain("Financial Statements");
     expect(financials).not.toContain("Complete financials");
+    expect(financials).not.toContain("<Dialog");
     expect(financials).toContain("yearBlock && year");
   });
 

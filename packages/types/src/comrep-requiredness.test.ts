@@ -158,9 +158,9 @@ describe("ComRep requiredness", () => {
   });
 
   it("waives postcode when State is Outside Malaysia", () => {
-    expect(requiredPostcodeIssue("", "Outside Malaysia", "postalCode", "Registered Address - Postcode")).toBeNull();
-    expect(requiredPostcodeIssue("", "Selangor", "postalCode", "Registered Address - Postcode")?.message).toBe(
-      "Registered Address - Postcode is required."
+    expect(requiredPostcodeIssue("", "Outside Malaysia", "postalCode", "Postcode")).toBeNull();
+    expect(requiredPostcodeIssue("", "Selangor", "postalCode", "Postcode")?.message).toBe(
+      "Postcode is required."
     );
     const issues = validateIssuerAddressForm({
       registeredLine1: "1 Street",

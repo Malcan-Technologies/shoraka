@@ -9,14 +9,13 @@ import {
 import { BriefcaseIcon, PencilIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { ComRepFieldLabel, ProfileReadField } from "@cashsouk/ui";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TextareaWithCharCount } from "@/components/textarea-with-char-count";
 import { useCorporateInfo } from "@/hooks/use-corporate-info";
 import { cn } from "@/lib/utils";
 import {
   formInputClassName,
-  formInputDisabledClassName,
   formLabelClassName,
   formTextareaClassName,
 } from "@/app/(application-flow)/applications/components/form-control";
@@ -143,8 +142,6 @@ export function AboutYourBusinessCard({
     );
   }
 
-  const fieldsLocked = !isEditing;
-
   return (
     <div id="profile-about" className="scroll-mt-24 rounded-xl border bg-card">
       <div className="flex items-center justify-between border-b p-6">
@@ -179,10 +176,10 @@ export function AboutYourBusinessCard({
         ) : null}
       </div>
       <div className="space-y-6 p-6">
+        {isEditing ? (
+          <>
         <div className="space-y-2">
-          <Label htmlFor="profile-what-does-company-do" className={formLabelClassName}>
-            Company Activities
-          </Label>
+          <ComRepFieldLabel htmlFor="profile-what-does-company-do" label="Company Activities" optional />
           <TextareaWithCharCount
             id="profile-what-does-company-do"
             value={draft.whatDoesCompanyDo}
@@ -196,13 +193,10 @@ export function AboutYourBusinessCard({
             maxLength={ABOUT_YOUR_BUSINESS_LIMITS.whatDoesCompanyDo}
             className={textareaClassName}
             countLabel={`${draft.whatDoesCompanyDo.length}/${ABOUT_YOUR_BUSINESS_LIMITS.whatDoesCompanyDo} characters`}
-            disabled={fieldsLocked}
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="profile-main-customers" className={formLabelClassName}>
-            Who are your main customers?
-          </Label>
+          <ComRepFieldLabel htmlFor="profile-main-customers" label="Who are your main customers?" optional />
           <TextareaWithCharCount
             id="profile-main-customers"
             value={draft.mainCustomers}
@@ -216,26 +210,20 @@ export function AboutYourBusinessCard({
             maxLength={ABOUT_YOUR_BUSINESS_LIMITS.mainCustomers}
             className={textareaClassName}
             countLabel={`${draft.mainCustomers.length}/${ABOUT_YOUR_BUSINESS_LIMITS.mainCustomers} characters`}
-            disabled={fieldsLocked}
           />
         </div>
         <div className="space-y-2">
-          <Label className={formLabelClassName}>
-            Does any single customer make up more than 50% of your revenue?
-          </Label>
+          <ComRepFieldLabel label="Does any single customer make up more than 50% of your revenue?" optional />
           <YesNoRadio
             name="profile-single-customer-over-50"
             value={draft.singleCustomerOver50Revenue}
             onChange={(singleCustomerOver50Revenue) =>
               setDraft((prev) => ({ ...prev, singleCustomerOver50Revenue }))
             }
-            disabled={fieldsLocked}
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="profile-accounting-software" className={formLabelClassName}>
-            Which accounting software does the issuer use?
-          </Label>
+          <ComRepFieldLabel htmlFor="profile-accounting-software" label="Which accounting software does the issuer use?" optional />
           <Input
             id="profile-accounting-software"
             value={draft.accountingSoftware}
@@ -247,10 +235,38 @@ export function AboutYourBusinessCard({
             }
             placeholder="e.g. QuickBooks, Xero, SAP"
             maxLength={ABOUT_YOUR_BUSINESS_LIMITS.accountingSoftware}
-            disabled={fieldsLocked}
-            className={cn(formInputClassName, fieldsLocked && formInputDisabledClassName)}
+            className={formInputClassName}
           />
         </div>
+          </>
+        ) : (
+          <>
+            <ProfileReadField
+              label="Company Activities"
+              value={draft.whatDoesCompanyDo}
+              multiline
+            />
+            <ProfileReadField
+              label="Who are your main customers?"
+              value={draft.mainCustomers}
+              multiline
+            />
+            <ProfileReadField
+              label="Does any single customer make up more than 50% of your revenue?"
+              value={
+                draft.singleCustomerOver50Revenue === true
+                  ? "Yes"
+                  : draft.singleCustomerOver50Revenue === false
+                    ? "No"
+                    : ""
+              }
+            />
+            <ProfileReadField
+              label="Which accounting software does the issuer use?"
+              value={draft.accountingSoftware}
+            />
+          </>
+        )}
       </div>
     </div>
   );

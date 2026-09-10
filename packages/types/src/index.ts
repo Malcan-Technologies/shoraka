@@ -512,6 +512,7 @@ export * from "./legal-documents";
 export * from "./application-steps";
 export * from "./financial-calculator";
 export * from "./financial-field-labels";
+export * from "./profile-field-copy";
 export * from "./ctos-report-table-math";
 export * from "./ctos-financial-highlights";
 export * from "./financial-unaudited-ctos-validation";

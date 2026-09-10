@@ -10,7 +10,7 @@ import {
   optionalEmailIssue,
   phoneFormatIssue,
   picContactsDiffer,
-  SC_MONTHLY_ISSUER,
+  PROFILE_LABEL,
   validateIssuerContactPersonForm,
 } from "@cashsouk/types";
 import { UserIcon } from "@heroicons/react/24/outline";
@@ -65,8 +65,8 @@ export function OrganizationPicCard({
   if (org.type !== "COMPANY") return null;
 
   const issuerContact = portal === "issuer";
-  const picEmailLabel = "Person-in-Charge Email";
-  const picPhoneLabel = issuerContact ? SC_MONTHLY_ISSUER.phoneNumber.label : "Phone";
+  const picEmailLabel = PROFILE_LABEL.personEmail;
+  const picPhoneLabel = PROFILE_LABEL.phone;
   const picHasChanges = Object.keys(buildSectionPayload(org, draft, "pic")).length > 0;
   const differs = picContactsDiffer(contact, picEvidence);
   const evidencePresent = Boolean(
@@ -93,8 +93,8 @@ export function OrganizationPicCard({
           contact: draft.picContactNumber,
         })
       : [
-          optionalEmailIssue(draft.picEmail, "picEmail", "Email"),
-          phoneFormatIssue(draft.picContactNumber, "picContactNumber", "Contact Number"),
+          optionalEmailIssue(draft.picEmail, "picEmail", PROFILE_LABEL.email),
+          phoneFormatIssue(draft.picContactNumber, "picContactNumber", PROFILE_LABEL.phone),
         ].filter((issue): issue is NonNullable<typeof issue> => Boolean(issue));
     if (issues.length > 0) {
       setPicFieldErrors(Object.fromEntries(issues.map((issue) => [issue.field, issue.message])));
@@ -172,12 +172,12 @@ export function OrganizationPicCard({
               {editingPic ? (
                 <>
                   <EditableField
-                    label="Name"
+                    label={PROFILE_LABEL.fullName}
                     value={draft.picName}
                     onChange={(picName) => setDraft((current) => ({ ...current, picName }))}
                   />
                   <EditableField
-                    label="Position"
+                    label={PROFILE_LABEL.position}
                     value={draft.picPosition}
                     onChange={(picPosition) => setDraft((current) => ({ ...current, picPosition }))}
                   />
@@ -186,6 +186,7 @@ export function OrganizationPicCard({
                     value={draft.picEmail}
                     onChange={(picEmail) => setDraft((current) => ({ ...current, picEmail }))}
                     maxLength={255}
+                    required={issuerContact}
                     error={picFieldErrors.picEmail || picFieldErrors.contactPersonEmail}
                   />
                   <EditablePhoneField
@@ -194,13 +195,14 @@ export function OrganizationPicCard({
                     onChange={(picContactNumber) =>
                       setDraft((current) => ({ ...current, picContactNumber }))
                     }
+                    required={issuerContact}
                     error={picFieldErrors.picContactNumber || picFieldErrors.contactPersonPhone}
                   />
                 </>
               ) : (
                 <>
-                  <ReadField label="Name" value={contact?.name} />
-                  <ReadField label="Position" value={contact?.position} />
+                  <ReadField label={PROFILE_LABEL.fullName} value={contact?.name} />
+                  <ReadField label={PROFILE_LABEL.position} value={contact?.position} />
                   <ReadField label={picEmailLabel} value={contact?.email} />
                   <ReadField label={picPhoneLabel} value={contact?.contact} />
                 </>
@@ -222,10 +224,10 @@ export function OrganizationPicCard({
                 ) : null}
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <ReadField label="Name" value={picEvidence?.name} />
-                <ReadField label="Position" value={picEvidence?.position} />
-                <ReadField label="Email" value={picEvidence?.email} />
-                <ReadField label="Contact Number" value={picEvidence?.contactNumber} />
+                <ReadField label={PROFILE_LABEL.fullName} value={picEvidence?.name} />
+                <ReadField label={PROFILE_LABEL.position} value={picEvidence?.position} />
+                <ReadField label={PROFILE_LABEL.personEmail} value={picEvidence?.email} />
+                <ReadField label={PROFILE_LABEL.phone} value={picEvidence?.contactNumber} />
               </div>
             </div>
           ) : null}
