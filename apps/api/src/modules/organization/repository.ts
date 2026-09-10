@@ -727,7 +727,6 @@ export class OrganizationRepository {
       where: {
         investor_organization_id: organizationId,
         accepted: false,
-        expires_at: { gt: new Date() },
       },
       include: {
         invited_by: {
@@ -751,7 +750,6 @@ export class OrganizationRepository {
       where: {
         issuer_organization_id: organizationId,
         accepted: false,
-        expires_at: { gt: new Date() },
       },
       include: {
         invited_by: {

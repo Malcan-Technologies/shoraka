@@ -74,10 +74,12 @@ export function AddPersonForm({
   onSave,
   onCancel,
   initial,
+  layout = "default",
 }: {
   onSave: (data: Record<string, unknown>) => Promise<void>;
   onCancel: () => void;
   initial?: AddPersonInitial | null;
+  layout?: "default" | "grouped";
 }) {
   const [entityType, setEntityType] = React.useState<"INDIVIDUAL" | "CORPORATE">(
     initial?.entityType ?? "INDIVIDUAL"
@@ -237,6 +239,9 @@ export function AddPersonForm({
         }
       }}
     >
+      {layout === "grouped" ? (
+        <p className="text-card-title sm:col-span-2">Required information</p>
+      ) : null}
       <div className="space-y-2">
         <Label className="text-ui">Person / entity type</Label>
         <Select
@@ -327,6 +332,9 @@ export function AddPersonForm({
         </>
       ) : (
         <>
+      {layout === "grouped" ? (
+        <p className="text-card-title sm:col-span-2">Additional details</p>
+      ) : null}
       {!corporate ? (
         <TextField
           label={copy.salutation.label}

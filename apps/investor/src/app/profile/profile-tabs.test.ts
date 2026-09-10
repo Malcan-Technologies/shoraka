@@ -10,6 +10,8 @@ describe("profile tabs", () => {
     expect(profileTabFromSearchParam("documents")).toBe("documents");
     expect(profileTabFromSearchParam(null)).toBe("profile");
     expect(isProfileTab("settings")).toBe(false);
+    expect(isProfileTab("people", true)).toBe(true);
+    expect(isProfileTab("people", false)).toBe(false);
     expect(PROFILE_BANKING_HREF).toBe("/profile?tab=banking");
   });
 });

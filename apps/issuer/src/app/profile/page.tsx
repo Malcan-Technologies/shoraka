@@ -20,8 +20,6 @@ import {
   useOrganization,
   useAuthToken,
   createApiClient,
-  type OrganizationMember,
-  type OrganizationMemberRole,
   type BankAccountDetails,
   type UpdateOrganizationProfileInput,
   MALAYSIAN_BANKS,
@@ -29,23 +27,19 @@ import {
 import { useAuth } from "../../lib/auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccountDocuments } from "../../hooks/use-account-documents";
-import { useOrganizationMembers } from "../../hooks/use-organization-members";
 import { useOrganizationInvitations } from "../../hooks/use-organization-invitations";
-import { filterVisiblePeopleRows, firstIssueMessage, humanizeApiValidationMessage, isMemberWithoutCompanyRole, isValidProfilePhone, linkedPartyUserIds, restrictScPostcodeInput, SC_MALAYSIAN_STATES, SC_MONTHLY_ISSUER, storedProfilePhone, validateIssuerAddressForm, validateIssuerContactPersonForm } from "@cashsouk/types";
+import { filterVisiblePeopleRows, firstIssueMessage, humanizeApiValidationMessage, isOrganisationProfileTab, isValidProfilePhone, organisationProfileTabFromSearchParam, PROFILE_PATH, PROFILE_TAB_PEOPLE, PROFILE_TAB_PROFILE, restrictScPostcodeInput, SC_MALAYSIAN_STATES, SC_MONTHLY_ISSUER, storedProfilePhone, validateIssuerAddressForm, validateIssuerContactPersonForm } from "@cashsouk/types";
 import { DirectorShareholderAlertCard } from "../../components/director-shareholder-alert-card";
 import { IssuerProfileCompletenessBanner } from "../../components/profile-completeness-banner";
 import { AboutYourBusinessCard } from "../../components/about-your-business-card";
 import { IssuerCompanyDetailsCard } from "../../components/issuer-company-details-card";
 import { IssuerFinancialsCard } from "../../components/issuer-financials-card";
-import { IssuerPeopleSection } from "../../components/issuer-people-section";
-import { InviteMemberDialog } from "../../components/invite-member-dialog";
-import { TransferOwnershipDialog } from "../../components/transfer-ownership-dialog";
 import { toast } from "sonner";
 import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
 import {
-  ConfirmDialog,
   PageShell,
+  PeopleAccessSection,
   ProfileFieldGrid,
   ProfileReadField,
   VerifiedBadge,
@@ -65,8 +59,6 @@ import { formInputDisabledClassName } from "@/app/(application-flow)/application
 import {
   UserIcon,
   BuildingOffice2Icon,
-  ShieldCheckIcon,
-  EnvelopeIcon,
   ArrowPathIcon,
   PencilIcon,
   XMarkIcon,
@@ -75,82 +67,17 @@ import {
   DocumentTextIcon,
   MapPinIcon,
   PhoneIcon,
+  EnvelopeIcon,
   ArrowDownTrayIcon,
-  UserPlusIcon,
-  TrashIcon,
-  ArrowUpIcon,
-  ArrowDownIcon,
-  ClipboardIcon,
 } from "@heroicons/react/24/outline";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-
-const roleConfig: Record<
-  OrganizationMemberRole,
-  { label: string; color: string; bgColor: string; borderColor: string }
-> = {
-  ORGANIZATION_ADMIN: {
-    label: "Organization Admin",
-    color: "text-primary",
-    bgColor: "bg-primary/10",
-    borderColor: "border-primary/20",
-  },
-  ORGANIZATION_MEMBER: {
-    label: "Organization Member",
-    color: "text-muted-foreground",
-    bgColor: "bg-muted",
-    borderColor: "border-border",
-  },
-};
-
-function RoleBadge({ role }: { role: OrganizationMemberRole }) {
-  const config = roleConfig[role];
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${config.color} ${config.bgColor} border ${config.borderColor}`}
-    >
-      <ShieldCheckIcon className="h-3 w-3" />
-      {config.label}
-    </span>
-  );
-}
-
-function MemberCard({ member, ownerId }: { member: OrganizationMember; ownerId?: string }) {
-  const fullName = [member.firstName, member.lastName].filter(Boolean).join(" ") || "Unknown";
-  const initials =
-    [member.firstName?.[0], member.lastName?.[0]].filter(Boolean).join("").toUpperCase() || "?";
-  const isOwner = ownerId && member.id === ownerId;
-
-  return (
-    <div className="flex items-center gap-4 p-4 rounded-xl border bg-card transition-none">
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-lg">
-        {initials}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <p className="text-sm font-semibold text-foreground truncate">{fullName}</p>
-          {isOwner && (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium text-orange-700 bg-orange-50 border border-orange-200">
-              <ShieldCheckIcon className="h-3 w-3" />
-              Organization Owner
-            </span>
-          )}
-          <RoleBadge role={member.role} />
-        </div>
-        <div className="flex items-center gap-1.5 mt-1 text-muted-foreground">
-          <EnvelopeIcon className="h-3.5 w-3.5" />
-          <p className="text-xs truncate">{member.email}</p>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function ProfileSkeleton() {
   return (
     <div className={issuerMainContentClassName}>
       <div className={cn(issuerContentMaxWidthClassName, "space-y-6", issuerPageGutterClassName)}>
-        <PageShell title="Organisation" description="Company details, members, and documents.">
+        <PageShell title="Organisation" description="Company details, people and access, banking, and documents.">
           <Skeleton className="h-10 w-64" />
           <Skeleton className="h-5 w-96" />
           <div className="mt-8 space-y-4">
@@ -169,7 +96,7 @@ function NoOrganizationState({ showOnboardingPrompt = true }: { showOnboardingPr
   return (
     <div className={issuerMainContentClassName}>
       <div className={cn(issuerContentMaxWidthClassName, issuerPageGutterClassName)}>
-        <PageShell title="Organisation" description="Company details, members, and documents.">
+        <PageShell title="Organisation" description="Company details, people and access, banking, and documents.">
           <div className="rounded-xl border bg-card p-8 text-center opacity-60">
             <div className="mb-4 flex justify-center">
               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
@@ -180,7 +107,7 @@ function NoOrganizationState({ showOnboardingPrompt = true }: { showOnboardingPr
               No organisation selected
             </h2>
             <p className="mb-6 text-muted-foreground">
-              Create or select an organisation to view details and members.
+              Create or select an organisation to view company details, people and access, banking, and documents.
             </p>
             {showOnboardingPrompt && (
               <Button variant="outline" onClick={() => router.push("/onboarding/account")}>
@@ -351,6 +278,7 @@ function DocumentsTabContent({ apiClient }: { apiClient: ReturnType<typeof creat
 export default function ProfilePage() {
   const { isAuthenticated } = useAuth();
   const { getAccessToken } = useAuthToken();
+  const router = useRouter();
   const {
     activeOrganization,
     isLoading,
@@ -368,25 +296,11 @@ export default function ProfilePage() {
   const apiClient = createApiClient(API_URL, getAccessToken);
 
   const [isRefreshing, setIsRefreshing] = React.useState(false);
-  const [activeTab, setActiveTab] = React.useState("profile");
-  const [inviteDialogOpen, setInviteDialogOpen] = React.useState(false);
 
   // Editing states
   const [isEditingProfile, setIsEditingProfile] = React.useState(false);
   const [isEditingBanking, setIsEditingBanking] = React.useState(false);
   const [isEditingAddresses, setIsEditingAddresses] = React.useState(false);
-
-  // Organization management hooks
-  const {
-    removeMember,
-    changeRole,
-    leave,
-    transferOwnership,
-    isRemoving,
-    isChangingRole,
-    isLeaving,
-    isTransferringOwnership,
-  } = useOrganizationMembers(activeOrganization?.id);
 
   // Fetch current user ID
   const { data: currentUser } = useQuery({
@@ -418,46 +332,9 @@ export default function ProfilePage() {
     return currentUserMember?.role === "ORGANIZATION_ADMIN";
   }, [activeOrganization, currentUser]);
 
-  const { invitations, resend, revoke } = useOrganizationInvitations(activeOrganization?.id, {
+  const { invitations } = useOrganizationInvitations(activeOrganization?.id, {
     enabled: isCurrentUserAdmin,
   });
-
-  const { data: partyProfiles = [] } = useQuery({
-    queryKey: ["party-profiles", "issuer", activeOrganization?.id],
-    queryFn: async () => {
-      const result = await apiClient.getPartyProfiles("issuer", activeOrganization!.id);
-      if (!result.success) throw new Error(result.error.message);
-      return result.data;
-    },
-    enabled: Boolean(activeOrganization?.id) && activeOrganization?.type === "COMPANY",
-  });
-  const linkedUserIds = React.useMemo(() => linkedPartyUserIds(partyProfiles), [partyProfiles]);
-  const membersWithoutCompanyRole = React.useMemo(
-    () =>
-      (activeOrganization?.members ?? []).filter((member) =>
-        isMemberWithoutCompanyRole(member.id, linkedUserIds)
-      ),
-    [activeOrganization?.members, linkedUserIds]
-  );
-  const unscopedInvitations = React.useMemo(
-    () => invitations.filter((invitation) => !invitation.partyProfileId),
-    [invitations]
-  );
-
-  // Confirmation dialog states
-  const [confirmDialog, setConfirmDialog] = React.useState<{
-    open: boolean;
-    type: "remove" | "leave" | "promote" | "demote" | null;
-    memberId?: string;
-    memberName?: string;
-    memberRole?: "ORGANIZATION_ADMIN" | "ORGANIZATION_MEMBER";
-  }>({
-    open: false,
-    type: null,
-  });
-
-  // Transfer ownership dialog state
-  const [transferOwnershipOpen, setTransferOwnershipOpen] = React.useState(false);
 
   // Form states for profile (phone + address)
   const [phoneNumber, setPhoneNumber] = React.useState<string | undefined>(undefined);
@@ -602,6 +479,21 @@ export default function ProfilePage() {
   );
 
   const searchParams = useSearchParams();
+  const isCompanyOrg = activeOrganization?.type === "COMPANY";
+  const urlTab = organisationProfileTabFromSearchParam(searchParams.get("tab"), Boolean(isCompanyOrg));
+  const [activeTab, setActiveTab] = React.useState(urlTab);
+  React.useEffect(() => {
+    setActiveTab(urlTab);
+  }, [urlTab]);
+  function handleTabChange(next: string) {
+    if (!isOrganisationProfileTab(next, Boolean(isCompanyOrg))) return;
+    setActiveTab(next);
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === PROFILE_TAB_PROFILE) params.delete("tab");
+    else params.set("tab", next);
+    const query = params.toString();
+    router.replace(query ? `${PROFILE_PATH}?${query}` : PROFILE_PATH, { scroll: false });
+  }
   const focusDirectors = searchParams.get("focus") === "directors" || searchParams.get("focus") === "people";
   const focusContact = searchParams.get("focus") === "contact";
   const focusAbout = searchParams.get("focus") === "about";
@@ -609,7 +501,6 @@ export default function ProfilePage() {
   const focusAddresses = searchParams.get("focus") === "addresses";
   const focusFinancials = searchParams.get("focus") === "financials";
   const focusedPersonKey = searchParams.get("person");
-  const directorsSectionRef = React.useRef<HTMLDivElement>(null);
   const contactSectionRef = React.useRef<HTMLDivElement>(null);
   const aboutSectionRef = React.useRef<HTMLDivElement>(null);
   const companySectionRef = React.useRef<HTMLDivElement>(null);
@@ -617,15 +508,13 @@ export default function ProfilePage() {
   const financialsSectionRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
-    if (!focusDirectors) return;
-    setActiveTab("profile");
-    const el = directorsSectionRef.current;
-    if (!el) return;
-    const t = window.setTimeout(() => {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 200);
-    return () => window.clearTimeout(t);
-  }, [focusDirectors, orgData, activeOrganization?.id]);
+    if (!focusDirectors || !isCompanyOrg) return;
+    setActiveTab(PROFILE_TAB_PEOPLE);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", PROFILE_TAB_PEOPLE);
+    params.delete("focus");
+    router.replace(`${PROFILE_PATH}?${params.toString()}`, { scroll: false });
+  }, [focusDirectors, isCompanyOrg, router, searchParams]);
 
   React.useEffect(() => {
     if (!focusContact) return;
@@ -949,7 +838,7 @@ export default function ProfilePage() {
       <div className={cn(issuerContentMaxWidthClassName, "space-y-6", issuerPageGutterClassName)}>
         <PageShell
           title="Organisation"
-          description="Company details, members, banking, and documents."
+          description="Company details, people and access, banking, and documents."
           action={
             <Button
               variant="outline"
@@ -989,22 +878,29 @@ export default function ProfilePage() {
           />
 
           {/* Tabs */}
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid h-12 w-full grid-cols-2 rounded-xl bg-muted p-1 sm:grid-cols-4">
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+            <TabsList
+              className={cn(
+                "grid h-12 w-full rounded-xl bg-muted p-1",
+                isPersonal ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-2 sm:grid-cols-4"
+              )}
+            >
               <TabsTrigger value="profile" className="rounded-lg data-[state=active]:bg-background">
                 Profile
               </TabsTrigger>
               <TabsTrigger value="banking" className="rounded-lg data-[state=active]:bg-background">
                 Banking
               </TabsTrigger>
+              {!isPersonal ? (
+                <TabsTrigger value="people" className="rounded-lg data-[state=active]:bg-background">
+                  People & Access
+                </TabsTrigger>
+              ) : null}
               <TabsTrigger
                 value="documents"
                 className="rounded-lg data-[state=active]:bg-background"
               >
                 Documents
-              </TabsTrigger>
-              <TabsTrigger value="members" className="rounded-lg data-[state=active]:bg-background">
-                Members
               </TabsTrigger>
             </TabsList>
 
@@ -1588,28 +1484,6 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              {!isPersonal && activeOrganization?.id && orgData ? (
-                <div ref={directorsSectionRef} className="scroll-mt-24">
-                  <IssuerPeopleSection
-                    organizationId={activeOrganization.id}
-                    organizationOnboardingStatus={orgData.onboardingStatus}
-                    people={orgData.people ?? []}
-                    directorShareholderListSource={orgData.directorShareholderListSource ?? null}
-                    ctosDirectorShareholderWarning={orgData.ctosDirectorShareholderWarning ?? null}
-                    focusedMatchKey={focusedPersonKey}
-                    canEdit={isCurrentUserAdmin}
-                    onChanged={async () => {
-                      await queryClient.invalidateQueries({
-                        queryKey: ["corporate-entities", activeOrganization.id],
-                      });
-                      await queryClient.invalidateQueries({
-                        queryKey: ["organization-detail", activeOrganization.id],
-                      });
-                    }}
-                  />
-                </div>
-              ) : null}
-
               {!isPersonal && activeOrganization?.id ? (
                 <div ref={financialsSectionRef}>
                   <IssuerFinancialsCard organizationId={activeOrganization.id} />
@@ -1739,342 +1613,48 @@ export default function ProfilePage() {
               </div>
             </TabsContent>
 
+            {!isPersonal ? (
+              <TabsContent value="people" className="mt-6 space-y-6">
+                {activeOrganization?.id ? (
+                  <PeopleAccessSection
+                    portal="issuer"
+                    organizationId={activeOrganization.id}
+                    organizationOnboardingStatus={orgData?.onboardingStatus}
+                    people={orgData?.people ?? activeOrganization.people ?? []}
+                    directorShareholderListSource={orgData?.directorShareholderListSource ?? null}
+                    ctosDirectorShareholderWarning={orgData?.ctosDirectorShareholderWarning ?? null}
+                    focusedMatchKey={focusedPersonKey}
+                    canEdit={isCurrentUserAdmin}
+                    canInactivate={isCurrentUserAdmin}
+                    currentUserId={currentUser?.userId}
+                    ownerUserId={activeOrganization.ownerId}
+                    members={activeOrganization.members ?? []}
+                    invitations={invitations}
+                    invitePortalUrl={process.env.NEXT_PUBLIC_ISSUER_PORTAL_URL || "http://localhost:3001"}
+                    onViewPerson={(partyId) => router.push(`/profile/people/${partyId}`)}
+                    onChanged={async () => {
+                      await queryClient.invalidateQueries({
+                        queryKey: ["corporate-entities", activeOrganization.id],
+                      });
+                      await queryClient.invalidateQueries({
+                        queryKey: ["organization-detail", activeOrganization.id],
+                      });
+                      await queryClient.invalidateQueries({ queryKey: ["party-profiles"] });
+                      await queryClient.invalidateQueries({ queryKey: ["organization-invitations"] });
+                    }}
+                  />
+                ) : null}
+              </TabsContent>
+            ) : null}
+
             {/* Documents Tab */}
             <TabsContent value="documents" className="space-y-6 mt-6">
               <DocumentsTabContent apiClient={apiClient} />
-            </TabsContent>
-
-            {/* Members Tab */}
-            <TabsContent value="members" className="mt-6 space-y-6">
-              <div className="space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-lg font-semibold">
-                      {isPersonal ? "Account holder" : "Platform members without a company role"}
-                    </h2>
-                    <p className="text-sm text-muted-foreground">
-                      {isPersonal
-                        ? "People with access to this account"
-                        : "Directors and shareholders with platform access are listed under People. This list is for members who are not on the company profile."}
-                    </p>
-                  </div>
-                  {!isPersonal && isCurrentUserAdmin ? (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setInviteDialogOpen(true)}
-                        className="gap-2 rounded-xl"
-                      >
-                        <UserPlusIcon className="h-4 w-4" />
-                        Invite member
-                      </Button>
-                      {activeOrganization.isOwner &&
-                      activeOrganization.members &&
-                      activeOrganization.members.length > 1 ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setTransferOwnershipOpen(true)}
-                          disabled={isTransferringOwnership}
-                          className="gap-2 rounded-xl border-status-action-text/30 text-status-action-text hover:bg-status-action-bg"
-                        >
-                          <ArrowPathIcon className="h-4 w-4" />
-                          Transfer ownership
-                        </Button>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-                {membersWithoutCompanyRole.length > 0 ? (
-                  <div className="grid gap-3">
-                    {membersWithoutCompanyRole.map((member) => {
-                      const isCurrentUser = currentUser && member.id === currentUser.userId;
-                      const canManageMembers = !isPersonal && isCurrentUserAdmin && !isCurrentUser;
-                      const isOwner = activeOrganization.isOwner && isCurrentUser;
-                      const canLeave = !isPersonal && isCurrentUser && !isOwner;
-                      const memberName =
-                        [member.firstName, member.lastName].filter(Boolean).join(" ") ||
-                        member.email;
-
-                      return (
-                        <div
-                          key={member.id}
-                          className="flex items-center gap-4 rounded-xl border bg-card p-4 transition-none"
-                        >
-                          <div className="flex-1">
-                            <MemberCard member={member} ownerId={activeOrganization.ownerId} />
-                          </div>
-                          {canManageMembers ? (
-                            <div className="ml-auto flex items-center gap-2">
-                              {member.role === "ORGANIZATION_MEMBER" ? (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() =>
-                                    setConfirmDialog({
-                                      open: true,
-                                      type: "promote",
-                                      memberId: member.id,
-                                      memberName,
-                                      memberRole: member.role,
-                                    })
-                                  }
-                                  disabled={isChangingRole}
-                                  className="gap-1"
-                                >
-                                  <ArrowUpIcon className="h-4 w-4" />
-                                  Make admin
-                                </Button>
-                              ) : !isCurrentUser ? (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() =>
-                                    setConfirmDialog({
-                                      open: true,
-                                      type: "demote",
-                                      memberId: member.id,
-                                      memberName,
-                                      memberRole: member.role,
-                                    })
-                                  }
-                                  disabled={isChangingRole}
-                                  className="gap-1"
-                                >
-                                  <ArrowDownIcon className="h-4 w-4" />
-                                  Make member
-                                </Button>
-                              ) : null}
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() =>
-                                  setConfirmDialog({
-                                    open: true,
-                                    type: "remove",
-                                    memberId: member.id,
-                                    memberName,
-                                  })
-                                }
-                                disabled={isRemoving}
-                                className="gap-1 text-destructive hover:text-destructive"
-                              >
-                                <TrashIcon className="h-4 w-4" />
-                                Remove
-                              </Button>
-                            </div>
-                          ) : null}
-                          {canLeave ? (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() =>
-                                setConfirmDialog({
-                                  open: true,
-                                  type: "leave",
-                                })
-                              }
-                              disabled={isLeaving}
-                              className="ml-auto gap-1 text-destructive hover:text-destructive"
-                            >
-                              Leave
-                            </Button>
-                          ) : null}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="rounded-xl border border-dashed bg-card p-8 text-center text-muted-foreground">
-                    <p>No platform members without a company role</p>
-                  </div>
-                )}
-              </div>
-
-              {!isPersonal && isCurrentUserAdmin && unscopedInvitations.length > 0 ? (
-                <div className="rounded-xl border bg-card">
-                  <div className="flex items-center justify-between border-b p-6">
-                    <div>
-                      <h2 className="text-lg font-semibold">Pending invitations</h2>
-                      <p className="text-sm text-muted-foreground">
-                        Waiting for people to accept. Person invitations are shown on People cards.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="space-y-3 p-6">
-                    {unscopedInvitations.map((invitation) => {
-                      const isPlaceholderEmail =
-                        invitation.email.startsWith("invitation-") &&
-                        invitation.email.includes("@cashsouk.com");
-                      return (
-                        <div
-                          key={invitation.id}
-                          className="flex items-center justify-between rounded-lg border bg-muted/30 p-3"
-                        >
-                          <div>
-                            <p className="font-medium">
-                              {isPlaceholderEmail ? "Link-based invitation" : invitation.email}
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                              {invitation.role === "ORGANIZATION_ADMIN" ? "Admin" : "Member"} ·
-                              Expires {new Date(invitation.expiresAt).toLocaleDateString()}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                const portalUrl =
-                                  process.env.NEXT_PUBLIC_ISSUER_PORTAL_URL ||
-                                  "http://localhost:3001";
-                                const inviteLink = `${portalUrl}/accept-invitation?token=${invitation.token}`;
-                                navigator.clipboard.writeText(inviteLink);
-                                toast.success("Invitation link copied to clipboard");
-                              }}
-                              className="gap-1"
-                            >
-                              <ClipboardIcon className="h-4 w-4" />
-                              Copy link
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => resend(invitation.id)}
-                              className="gap-1"
-                            >
-                              Resend
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => revoke(invitation.id)}
-                              className="gap-1 text-destructive"
-                            >
-                              Revoke
-                            </Button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : null}
-
-              {activeOrganization?.id && isCurrentUserAdmin ? (
-                <InviteMemberDialog
-                  organizationId={activeOrganization.id}
-                  open={inviteDialogOpen}
-                  onOpenChange={setInviteDialogOpen}
-                />
-              ) : null}
             </TabsContent>
           </Tabs>
         </PageShell>
       </div>
 
-      {/* Confirmation Dialogs */}
-      {confirmDialog.type === "remove" && confirmDialog.memberId && (
-        <ConfirmDialog
-          open={confirmDialog.open}
-          onOpenChange={(open) =>
-            setConfirmDialog({ ...confirmDialog, open })
-          }
-          title="Remove member"
-          description={`Are you sure you want to remove ${confirmDialog.memberName} from this organisation? This cannot be undone.`}
-          confirmText="Remove"
-          cancelText="Cancel"
-          variant="destructive"
-          onConfirm={async () => {
-            if (confirmDialog.memberId) {
-              removeMember(confirmDialog.memberId);
-              setConfirmDialog({ open: false, type: null });
-            }
-          }}
-          isLoading={isRemoving}
-        />
-      )}
-
-      {confirmDialog.type === "leave" && (
-        <ConfirmDialog
-          open={confirmDialog.open}
-          onOpenChange={(open) =>
-            setConfirmDialog({ ...confirmDialog, open })
-          }
-          title="Leave organisation"
-          description="Are you sure you want to leave this organisation? You will lose access and need a new invitation to return."
-          confirmText="Leave"
-          cancelText="Cancel"
-          variant="destructive"
-          onConfirm={async () => {
-            try {
-              await leave();
-              setConfirmDialog({ open: false, type: null });
-            } catch {
-              // Error is handled by the hook
-            }
-          }}
-          isLoading={isLeaving}
-        />
-      )}
-
-      {confirmDialog.type === "promote" && confirmDialog.memberId && (
-        <ConfirmDialog
-          open={confirmDialog.open}
-          onOpenChange={(open) =>
-            setConfirmDialog({ ...confirmDialog, open })
-          }
-          title="Make admin"
-          description={`Give ${confirmDialog.memberName} admin access? They will be able to manage members and organisation settings.`}
-          confirmText="Make admin"
-          cancelText="Cancel"
-          variant="default"
-          onConfirm={async () => {
-            if (confirmDialog.memberId) {
-              changeRole({ userId: confirmDialog.memberId, role: "ORGANIZATION_ADMIN" });
-              setConfirmDialog({ open: false, type: null });
-            }
-          }}
-          isLoading={isChangingRole}
-        />
-      )}
-
-      {confirmDialog.type === "demote" && confirmDialog.memberId && (
-        <ConfirmDialog
-          open={confirmDialog.open}
-          onOpenChange={(open) =>
-            setConfirmDialog({ ...confirmDialog, open })
-          }
-          title="Make member"
-          description={`Change ${confirmDialog.memberName} to a regular member? They will lose admin privileges.`}
-          confirmText="Make member"
-          cancelText="Cancel"
-          variant="default"
-          onConfirm={async () => {
-            if (confirmDialog.memberId) {
-              changeRole({ userId: confirmDialog.memberId, role: "ORGANIZATION_MEMBER" });
-              setConfirmDialog({ open: false, type: null });
-            }
-          }}
-          isLoading={isChangingRole}
-        />
-      )}
-
-      {/* Transfer Ownership Dialog */}
-      {activeOrganization && currentUser && (
-        <TransferOwnershipDialog
-          open={transferOwnershipOpen}
-          onOpenChange={setTransferOwnershipOpen}
-          members={activeOrganization.members || []}
-          currentUserId={currentUser.userId}
-          onConfirm={(newOwnerId) => {
-            transferOwnership(newOwnerId);
-            setTransferOwnershipOpen(false);
-          }}
-          isLoading={isTransferringOwnership}
-        />
-      )}
     </div>
   );
 }
