@@ -4,27 +4,21 @@ import { join } from "node:path";
 const page = readFileSync(join(__dirname, "./page.tsx"), "utf8");
 
 describe("Platform Finance Document Authorisation tab", () => {
-  it("saves signatory name, stamps, and the use-same option", () => {
-    expect(page).toContain('value="document-authorisation"');
-    expect(page).toContain("Authorised Signatory Name");
-    expect(page).toContain("Use same company stamp as Islamic Investment Note Certificate");
-    expect(page).toContain("CERTIFICATE_COMPANY_STAMP");
-    expect(page).toContain("RECEIPT_COMPANY_STAMP");
-    expect(page).toContain("Save Document Authorisation");
-    expect(page).toContain("requestPlatformFinanceDocumentStampUploadUrl");
-    expect(page).not.toContain("confirmPlatformFinanceDocumentStampUpload");
-    expect(page).toContain("validateCompanyStampFile");
-    expect(page).toContain("object-contain");
-    expect(page).toContain("Use same company stamp as Islamic Investment Note Certificate");
-    expect(page).toContain("documentAuthorisationConfig");
-    expect(page).toContain("Upload a PNG, JPG, or WEBP company stamp image (maximum 5 MB).");
-    expect(page).not.toContain("Full-page screenshots");
-    expect(page).toContain("handleSignatureFileChange");
-    expect(page).toContain("Only PNG, JPG/JPEG, or WEBP images are allowed.");
+  it("no longer hosts authorised signatory name or company stamp configuration", () => {
+    expect(page).not.toContain('value="document-authorisation"');
+    expect(page).not.toContain("Authorised Signatory Name");
+    expect(page).not.toContain("Save Document Authorisation");
+    expect(page).not.toContain("requestPlatformFinanceDocumentStampUploadUrl");
+    expect(page).not.toContain("CERTIFICATE_COMPANY_STAMP");
+    expect(page).not.toContain("RECEIPT_COMPANY_STAMP");
+    expect(page).not.toContain("Use same company stamp as Islamic Investment Note Certificate");
+    expect(page).not.toContain("documentAuthorisationConfig");
+    expect(page).not.toContain("validateCompanyStampFile");
   });
 
-  it("hides the Hibah stamp upload while Use same stamp is enabled", () => {
-    expect(page).toContain("documentAuthorisation.useSameCompanyStamp ? null");
-    expect(page).toContain("RECEIPT_COMPANY_STAMP");
+  it("still lets Admin upload the trustee letter authorised signature", () => {
+    expect(page).toContain("handleSignatureFileChange");
+    expect(page).toContain("Only PNG, JPG/JPEG, or WEBP images are allowed.");
+    expect(page).toContain("Save Trustee Letter");
   });
 });

@@ -8,14 +8,14 @@ tags:
   - trustee
   - withdrawals
 order: 24
-updated: 2026-08-24
+updated: 2026-09-10
 ---
 
 ## Platform Finance Settings
 
 Open **Settings → Platform Finance** to manage platform-wide finance and trustee letter settings.
 
-The page has tabs for late payment, gateway fees, offer deadlines, trustee letters, document authorisation, and money-flow accounts. Edit the fields you need, then click the save button for that tab.
+The page has tabs for late payment, gateway fees, offer deadlines, trustee letters, and money-flow accounts. Edit the fields you need, then click the save button for that tab.
 
 ### Late Payment
 
@@ -65,19 +65,11 @@ When you finish editing, click **Save Trustee Letter**.
 
 ### Document Authorisation
 
-Use this tab to set the platform-wide authorised signatory name and company stamps used on official PDFs.
+Configure the Shoraka company stamp and signing people under **Shoraka → Profile → Signing & Authorisation**. Assign **Authorised Signatory** or **Witness** to an existing Board or Management person; Director and Board are organisation roles, not signing roles.
 
-You can configure:
-
-- Authorised Signatory Name (Islamic Investment Note Certificate only)
-- Islamic Investment Note Certificate company stamp
-- Whether the Settlement & Hibah Receipt uses the same stamp, or a separate receipt stamp
-
-New certificates and receipts use the settings in force when that version is first generated. Changing these settings does not rewrite an already READY PDF. To apply updated signatory or stamp details, Admin can **Regenerate / Reissue** the READY document; that creates a new version and leaves the previous version stored.
+Certificates and receipts still use the stored platform settings when a version is first generated. Selecting a person as Authorised Signatory also updates the stored authorised-signatory name used by current documents. Changing these settings does not rewrite an already READY PDF. To apply updated signatory or stamp details, Admin can **Regenerate / Reissue** the READY document; that creates a new version and leaves the previous version stored.
 
 Investment Settlement Confirmation does not use these fields.
-
-When you finish editing, click **Save Document Authorisation**.
 
 ### Money Flow Accounts
 

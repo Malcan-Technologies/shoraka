@@ -31,6 +31,9 @@ import {
   validateOperatorOfficer,
   validateOperatorShareholder,
   validatePartyPatch,
+  COMPANY_STAMP_ALLOWED_CONTENT_TYPES,
+  COMPANY_STAMP_MAX_FILE_SIZE_BYTES,
+  OPERATOR_SIGNING_ROLES,
   type ComrepFieldIssue,
 } from "@cashsouk/types";
 
@@ -512,3 +515,58 @@ export type OperatorAdvisorInput = z.infer<typeof operatorAdvisorSchema>;
 export type OperatorInterestInput = z.infer<typeof operatorInterestSchema>;
 export type OperatorFinancialStatementInput = z.infer<typeof operatorFinancialStatementSchema>;
 export type OperatorShareCapitalInput = z.infer<typeof operatorShareCapitalPatchSchema>;
+
+const operatorSigningStampFieldsSchema = z
+  .object({
+    s3Key: z.string().min(1),
+    fileName: z.string().min(1).max(255).optional(),
+    contentType: z.enum(["image/png", "image/jpeg", "image/jpg", "image/webp"]).optional(),
+  })
+  .strict()
+  .optional();
+
+const operatorSigningRolesSchema = z
+  .array(z.enum(OPERATOR_SIGNING_ROLES))
+  .min(1, "Select at least one signing role")
+  .refine((roles) => new Set(roles).size === roles.length, {
+    message: "Duplicate signing role",
+  });
+
+export const operatorSigningPersonCreateSchema = z
+  .object({
+    officerId: z.string().cuid(),
+    roles: operatorSigningRolesSchema,
+    signature: operatorSigningStampFieldsSchema,
+    active: z.boolean().optional(),
+  })
+  .strict();
+
+export const operatorSigningPersonUpdateSchema = z
+  .object({
+    roles: operatorSigningRolesSchema.optional(),
+    signature: operatorSigningStampFieldsSchema,
+    active: z.boolean().optional(),
+  })
+  .strict();
+
+export const operatorCompanyStampPatchSchema = z
+  .object({
+    s3Key: z.string().min(1),
+    fileName: z.string().min(1).max(255).optional(),
+    contentType: z.enum(["image/png", "image/jpeg", "image/jpg", "image/webp"]).optional(),
+  })
+  .strict();
+
+export const requestOperatorSigningImageUploadUrlSchema = z.object({
+  fileName: z.string().min(1),
+  contentType: z.enum(COMPANY_STAMP_ALLOWED_CONTENT_TYPES, {
+    errorMap: () => ({ message: "Upload a PNG, JPG or WEBP image." }),
+  }),
+  fileSize: z.number().int().positive().max(COMPANY_STAMP_MAX_FILE_SIZE_BYTES, {
+    message: "Image must be 5 MB or smaller.",
+  }),
+});
+
+export type OperatorSigningPersonCreateInput = z.infer<typeof operatorSigningPersonCreateSchema>;
+export type OperatorSigningPersonUpdateInput = z.infer<typeof operatorSigningPersonUpdateSchema>;
+export type OperatorCompanyStampPatchInput = z.infer<typeof operatorCompanyStampPatchSchema>;

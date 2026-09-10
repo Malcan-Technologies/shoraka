@@ -539,6 +539,7 @@ model OperatorProfile {
   advisors                    OperatorAdvisor[]
   interests                   OperatorInterest[]
   financial_statements        OperatorFinancialStatement[]
+  signing_people              OperatorSigningPerson[]
 
   @@map("operator_profiles")
 }
@@ -612,9 +613,28 @@ model OperatorOfficer {
   created_at            DateTime        @default(now())
   updated_at            DateTime        @updatedAt
   operator_profile      OperatorProfile @relation(fields: [operator_profile_id], references: [id], onDelete: Cascade)
+  signing_person        OperatorSigningPerson?
 
   @@index([operator_profile_id])
   @@map("operator_officers")
+}
+
+model OperatorSigningPerson {
+  id                       String                @id @default(cuid())
+  operator_profile_id      String
+  officer_id               String                @unique
+  roles                    OperatorSigningRole[]
+  signature_s3_key         String?
+  signature_file_name      String?
+  signature_content_type   String?
+  active                   Boolean               @default(true)
+  created_at               DateTime              @default(now())
+  updated_at               DateTime              @updatedAt
+  operator_profile         OperatorProfile       @relation(fields: [operator_profile_id], references: [id], onDelete: Cascade)
+  officer                  OperatorOfficer       @relation(fields: [officer_id], references: [id], onDelete: Cascade)
+
+  @@index([operator_profile_id])
+  @@map("operator_signing_people")
 }
 
 model OperatorAdvisor {
@@ -3305,6 +3325,11 @@ enum ScGender {
 enum ScPersonKind {
   BOARD
   MANAGEMENT
+}
+
+enum OperatorSigningRole {
+  AUTHORISED_SIGNATORY
+  WITNESS
 }
 
 enum ScDesignation {

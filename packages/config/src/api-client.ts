@@ -867,6 +867,43 @@ export class ApiClient {
     return this.delete<OperatorProfileDto>(`/v1/admin/operator-profile/officers/${id}`);
   }
 
+  async requestOperatorSigningSignatureUploadUrl(data: {
+    fileName: string;
+    contentType: string;
+    fileSize: number;
+  }): Promise<ApiResponse<{ uploadUrl: string; s3Key: string; expiresIn: number }> | ApiError> {
+    return this.post("/v1/admin/operator-profile/signing-people/signature-upload-url", data);
+  }
+
+  async requestOperatorCompanyStampUploadUrl(data: {
+    fileName: string;
+    contentType: string;
+    fileSize: number;
+  }): Promise<ApiResponse<{ uploadUrl: string; s3Key: string; expiresIn: number }> | ApiError> {
+    return this.post("/v1/admin/operator-profile/company-stamp/upload-url", data);
+  }
+
+  async patchOperatorCompanyStamp(data: {
+    s3Key: string;
+    fileName?: string;
+    contentType?: string;
+  }): Promise<ApiResponse<OperatorProfileDto> | ApiError> {
+    return this.patch<OperatorProfileDto>("/v1/admin/operator-profile/company-stamp", data);
+  }
+
+  async createOperatorSigningPerson(
+    data: Record<string, unknown>
+  ): Promise<ApiResponse<OperatorProfileDto> | ApiError> {
+    return this.post<OperatorProfileDto>("/v1/admin/operator-profile/signing-people", data);
+  }
+
+  async updateOperatorSigningPerson(
+    id: string,
+    data: Record<string, unknown>
+  ): Promise<ApiResponse<OperatorProfileDto> | ApiError> {
+    return this.patch<OperatorProfileDto>(`/v1/admin/operator-profile/signing-people/${id}`, data);
+  }
+
   async createOperatorAdvisor(
     data: Record<string, unknown>
   ): Promise<ApiResponse<OperatorProfileDto> | ApiError> {
