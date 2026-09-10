@@ -135,4 +135,18 @@ describe("resolveLatePaymentActionGates", () => {
     expect(gates.canGenerateDefaultLetter).toBe(true);
     expect(gates.canMarkDefault).toBe(false);
   });
+
+  it("does not generate a default letter until the note is marked default", () => {
+    const gates = resolveLatePaymentActionGates({
+      timeline: resolveLatePaymentTimeline(
+        note({ servicingStatus: NoteServicingStatus.ARREARS, daysPastDue: 40 })
+      ),
+      servicingOpen: true,
+      canDefaultPermission: true,
+      servicingStatusArrears: true,
+      defaultReason: "Issuer missed the arrears threshold",
+    });
+    expect(gates.canGenerateDefaultLetter).toBe(false);
+    expect(gates.canMarkDefault).toBe(true);
+  });
 });

@@ -9,6 +9,7 @@ jest.mock("../../modules/notification/service", () => ({
 jest.mock("../../modules/notes/servicing-letters/service", () => ({
   generateAndSendServicingLetter: jest.fn(),
   resendServicingLetter: jest.fn(),
+  ensureServicingLetterAudit: jest.fn(),
 }));
 
 jest.mock("../../modules/admin/book-metrics-snapshot", () => ({

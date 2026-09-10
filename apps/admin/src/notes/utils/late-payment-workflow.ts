@@ -405,10 +405,10 @@ export function resolveLatePaymentActionGates(input: {
 
   return {
     canGenerateArrearsLetter: true,
-    canGenerateDefaultLetter: true,
+    canGenerateDefaultLetter: false,
     canMarkDefault: servicingStatusArrears,
     arrearsHelperText: null,
-    defaultHelperText: null,
+    defaultHelperText: "Generate the default notice after marking this note as default.",
     defaultReasonHelperText: reasonFilled
       ? null
       : "Enter a default reason before marking this note as default.",

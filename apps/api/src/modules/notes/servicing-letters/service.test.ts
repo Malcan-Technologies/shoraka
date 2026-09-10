@@ -28,6 +28,9 @@ jest.mock("../../../lib/prisma", () => ({
       findFirst: jest.fn(),
       update: jest.fn(),
     },
+    noteEvent: {
+      findFirst: jest.fn(),
+    },
   },
 }));
 
@@ -36,7 +39,7 @@ import { createNoteEventRow } from "../../../lib/audit";
 import { sendEmailWithAttachments } from "../../../lib/email/ses-client";
 import { prisma } from "../../../lib/prisma";
 import { listIssuerOrgMemberUserIds } from "../../notification/org-member-recipients";
-import { generateAndSendServicingLetter, resendServicingLetter } from "./service";
+import { generateAndSendServicingLetter, resendServicingLetter, ensureServicingLetterAudit } from "./service";
 
 const actor = {
   userId: "SYS",
@@ -67,6 +70,7 @@ describe("servicing letter audit trail", () => {
     (prisma.noteServicingLetter.create as jest.Mock).mockResolvedValue({
       id: "letter-1",
     });
+    (prisma.noteEvent.findFirst as jest.Mock).mockResolvedValue(null);
   });
 
   it("writes NOTE_LETTER_SENT when the arrears notice is emailed", async () => {
@@ -226,5 +230,66 @@ describe("servicing letter audit trail", () => {
     ).rejects.toThrow("LETTER_RECIPIENTS_MISSING");
     expect(createNoteEventRow).not.toHaveBeenCalled();
     expect(prisma.noteServicingLetter.update).not.toHaveBeenCalled();
+  });
+
+  it("keeps sent_at after a successful email when the audit write fails", async () => {
+    (listIssuerOrgMemberUserIds as jest.Mock).mockResolvedValue(["user-1"]);
+    (prisma.user.findMany as jest.Mock).mockResolvedValue([{ email: "issuer@example.com" }]);
+    (createNoteEventRow as jest.Mock).mockRejectedValueOnce(new Error("audit unavailable"));
+
+    await expect(generateAndSendServicingLetter(letterInput)).resolves.toEqual({
+      id: "letter-1",
+      s3Key: expect.stringContaining("note-letters/note-1/arrears-"),
+      sentTo: ["issuer@example.com"],
+    });
+    expect(prisma.noteServicingLetter.update).toHaveBeenCalledWith({
+      where: { id: "letter-1" },
+      data: { sent_at: expect.any(Date), sent_to: ["issuer@example.com"] },
+    });
+  });
+
+  it("retries a missing letter audit without sending again", async () => {
+    await expect(
+      ensureServicingLetterAudit({
+        noteId: "note-1",
+        letter: {
+          id: "letter-1",
+          type: NoteServicingLetterType.ARREARS,
+          s3_key: "note-letters/note-1/arrears.pdf",
+          sent_to: ["issuer@example.com"],
+        },
+        actor,
+        triggeredBy: "SYSTEM",
+      })
+    ).resolves.toBe(true);
+    expect(createNoteEventRow).toHaveBeenCalledWith(
+      prisma,
+      expect.objectContaining({
+        eventType: "NOTE_LETTER_SENT",
+        metadata: expect.objectContaining({
+          letterId: "letter-1",
+          s3Key: "note-letters/note-1/arrears.pdf",
+          delivered: true,
+        }),
+      })
+    );
+  });
+
+  it("does not duplicate a letter audit that already exists", async () => {
+    (prisma.noteEvent.findFirst as jest.Mock).mockResolvedValue({ id: "event-1" });
+    await expect(
+      ensureServicingLetterAudit({
+        noteId: "note-1",
+        letter: {
+          id: "letter-1",
+          type: NoteServicingLetterType.ARREARS,
+          s3_key: "note-letters/note-1/arrears.pdf",
+          sent_to: ["issuer@example.com"],
+        },
+        actor,
+        triggeredBy: "SYSTEM",
+      })
+    ).resolves.toBe(false);
+    expect(createNoteEventRow).not.toHaveBeenCalled();
   });
 });

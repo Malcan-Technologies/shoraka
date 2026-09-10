@@ -104,6 +104,65 @@ async function writeServicingLetterAudit(input: {
   });
 }
 
+async function writeServicingLetterAuditSafe(input: {
+  noteId: string;
+  actor: ServicingLetterActor;
+  metadata: Record<string, unknown>;
+}) {
+  try {
+    await writeServicingLetterAudit(input);
+  } catch (err) {
+    logger.error(
+      { err, noteId: input.noteId, letterId: input.metadata.letterId },
+      "Servicing letter audit trail failed after delivery"
+    );
+  }
+}
+
+function letterSentTo(value: Prisma.JsonValue | null | undefined): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === "string");
+}
+
+export async function ensureServicingLetterAudit(input: {
+  noteId: string;
+  letter: {
+    id: string;
+    type: NoteServicingLetterType;
+    s3_key: string;
+    sent_to: Prisma.JsonValue | null;
+  };
+  actor: ServicingLetterActor;
+  triggeredBy: "SYSTEM" | "ADMIN";
+  resent?: boolean;
+}): Promise<boolean> {
+  const existing = await prisma.noteEvent.findFirst({
+    where: {
+      note_id: input.noteId,
+      event_type: "NOTE_LETTER_SENT",
+      metadata: { path: ["letterId"], equals: input.letter.id },
+    },
+    select: { id: true },
+  });
+  if (existing) return false;
+  const sentTo = letterSentTo(input.letter.sent_to);
+  await writeServicingLetterAudit({
+    noteId: input.noteId,
+    actor: input.actor,
+    metadata: {
+      letterId: input.letter.id,
+      s3Key: input.letter.s3_key,
+      kind: input.letter.type === NoteServicingLetterType.DEFAULT ? "DEFAULT" : "ARREARS",
+      sentTo,
+      triggeredBy: input.triggeredBy,
+      delivered: sentTo.length > 0,
+      recipientCount: sentTo.length,
+      ...(input.resent ? { resent: true } : {}),
+    },
+  });
+  return true;
+}
+
 async function issuerEmails(issuerOrganizationId: string): Promise<string[]> {
   const userIds = await listIssuerOrgMemberUserIds(issuerOrganizationId);
   if (userIds.length === 0) return [];
@@ -174,7 +233,7 @@ export async function generateAndSendServicingLetter(
     logger.warn({ noteId: input.noteId }, "Servicing letter generated with no issuer email recipients");
   }
 
-  await writeServicingLetterAudit({
+  await writeServicingLetterAuditSafe({
     noteId: input.noteId,
     actor: input.actor,
     metadata: {
@@ -231,7 +290,7 @@ export async function resendServicingLetter(input: {
     where: { id: letter.id },
     data: { sent_at: new Date(), sent_to: sentTo },
   });
-  await writeServicingLetterAudit({
+  await writeServicingLetterAuditSafe({
     noteId: input.noteId,
     actor: input.actor,
     metadata: {

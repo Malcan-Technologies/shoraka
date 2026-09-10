@@ -213,6 +213,7 @@ import {
   uniqueSettlementsById,
   ytdChangePercent,
 } from "./investor-dashboard-metrics";
+import { canIssueDefaultNotice } from "./servicing-letters/eligibility";
 import {
   generateAndSendServicingLetter,
   resendServicingLetter as resendServicingLetterRecord,
@@ -6192,16 +6193,11 @@ export class NoteService {
   async generateNoteLetter(id: string, type: "arrears" | "default", actor: ActorContext) {
     const note = await noteRepository.findById(id);
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
-    if (
-      type === "default" &&
-      note.servicing_status !== NoteServicingStatus.ARREARS &&
-      note.servicing_status !== NoteServicingStatus.DEFAULTED &&
-      note.default_marked_at == null
-    ) {
+    if (type === "default" && !canIssueDefaultNotice(note)) {
       throw new AppError(
         409,
-        "NOTE_NOT_IN_ARREARS",
-        "Default notices can only be generated for notes in arrears or already defaulted"
+        "NOTE_NOT_DEFAULTED",
+        "Default notices can only be generated after a note is marked default"
       );
     }
     if (

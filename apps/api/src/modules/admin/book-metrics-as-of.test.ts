@@ -62,6 +62,40 @@ describe("bookMetricsAsOfFilters", () => {
     );
   });
 
+  it("keeps notes that were already in arrears then defaulted after cutoff on distressed", () => {
+    const filters = bookMetricsAsOfFilters(cutoff);
+    expect(filters.distressed).toEqual(
+      expect.objectContaining({
+        OR: expect.arrayContaining([
+          expect.objectContaining({
+            status: NoteStatus.DEFAULTED,
+            default_marked_at: { gte: cutoff },
+            arrears_started_at: { not: null, lt: cutoff },
+          }),
+        ]),
+      })
+    );
+  });
+
+  it("keeps notes that entered arrears after cutoff then defaulted before the snapshot on outstanding", () => {
+    const filters = bookMetricsAsOfFilters(cutoff);
+    expect(filters.outstanding).toEqual(
+      expect.objectContaining({
+        AND: expect.arrayContaining([
+          expect.objectContaining({
+            OR: expect.arrayContaining([
+              expect.objectContaining({
+                status: NoteStatus.DEFAULTED,
+                default_marked_at: { gte: cutoff },
+                OR: [{ arrears_started_at: null }, { arrears_started_at: { gte: cutoff } }],
+              }),
+            ]),
+          }),
+        ]),
+      })
+    );
+  });
+
   it("keeps same-morning arrears on the outstanding book instead of yesterday's arrears", () => {
     const filters = bookMetricsAsOfFilters(cutoff);
     expect(JSON.stringify(filters.arrears)).toContain("\"lt\":");

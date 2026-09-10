@@ -33,6 +33,7 @@ import {
 import {
   generateAndSendServicingLetter,
   resendServicingLetter,
+  ensureServicingLetterAudit,
 } from "../../modules/notes/servicing-letters/service";
 import { resolveNoteEventTarget } from "../../modules/notes/audit-fields";
 import { writeTodayBookMetricsSnapshot } from "../../modules/admin/book-metrics-snapshot";
@@ -77,6 +78,31 @@ function systemActor() {
       correlationId: CRON_CORRELATION_ID,
     }),
   };
+}
+
+async function retryServicingLetterAudit(input: {
+  noteId: string;
+  letter: {
+    id: string;
+    type: NoteServicingLetterType;
+    s3_key: string;
+    sent_to: Prisma.JsonValue | null;
+  } | null;
+}) {
+  if (!input.letter) return;
+  try {
+    await ensureServicingLetterAudit({
+      noteId: input.noteId,
+      letter: input.letter,
+      actor: systemActor(),
+      triggeredBy: "SYSTEM",
+    });
+  } catch (error) {
+    logger.error(
+      { error, noteId: input.noteId, letterId: input.letter.id },
+      "Failed to persist servicing letter audit"
+    );
+  }
 }
 
 async function logSystemNoteEvent(
@@ -589,53 +615,57 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
         NoteServicingStatus.ARREARS;
       const existingArrearsLetter = await prisma.noteServicingLetter.findFirst({
         where: { note_id: note.id, type: NoteServicingLetterType.ARREARS },
-        select: { id: true, sent_at: true },
+        select: { id: true, sent_at: true, sent_to: true, type: true },
       });
       const letterAction = shouldSendArrearsLetter(existingArrearsLetter);
-      if (
-        shouldAttemptArrearsLetter({
-          arrearsNow,
-          arrearsStartedAt: note.arrears_started_at,
-          existingLetter: existingArrearsLetter,
-        })
-      ) {
-        if (letterAction !== "skip") {
-          try {
-            if (letterAction === "retry" && existingArrearsLetter) {
-              const resent = await resendServicingLetter({
-                letterId: existingArrearsLetter.id,
-                noteId: note.id,
-                actor: systemActor(),
-                triggeredBy: "SYSTEM",
-              });
-              if (resent.sentTo.length > 0) result.lettersSent += 1;
-            } else {
-              const created = await generateAndSendServicingLetter({
-                noteId: note.id,
-                kind: "ARREARS",
-                triggeredBy: "SYSTEM",
-                actor: systemActor(),
-                issuerName: resolveIssuerName(note.issuer_snapshot),
-                noteReference: note.note_reference,
-                issuerOrganizationId: note.issuer_organization_id,
-                dueDate: classification.dueDate,
-                daysPastDue: classification.daysPastDue,
-                outstandingTotal: outstanding.outstandingTotal,
-                indicativeTawidhAmount: classification.indicativeTawidhAmount,
-                indicativeGharamahAmount: classification.indicativeGharamahAmount,
-                gracePeriodDays: note.grace_period_days,
-                arrearsThresholdDays: note.arrears_threshold_days,
-              });
-              if (created.sentTo.length > 0) result.lettersSent += 1;
-            }
-          } catch (error) {
-            result.errors += 1;
-            logger.error(
-              { error, noteId: note.id },
-              "Failed to send arrears servicing letter"
-            );
+      const attemptArrearsLetter = shouldAttemptArrearsLetter({
+        arrearsNow,
+        arrearsStartedAt: note.arrears_started_at,
+        existingLetter: existingArrearsLetter,
+      });
+      if (attemptArrearsLetter && letterAction !== "skip") {
+        try {
+          if (letterAction === "retry" && existingArrearsLetter) {
+            const resent = await resendServicingLetter({
+              letterId: existingArrearsLetter.id,
+              noteId: note.id,
+              actor: systemActor(),
+              triggeredBy: "SYSTEM",
+            });
+            if (resent.sentTo.length > 0) result.lettersSent += 1;
+          } else {
+            const created = await generateAndSendServicingLetter({
+              noteId: note.id,
+              kind: "ARREARS",
+              triggeredBy: "SYSTEM",
+              actor: systemActor(),
+              issuerName: resolveIssuerName(note.issuer_snapshot),
+              noteReference: note.note_reference,
+              issuerOrganizationId: note.issuer_organization_id,
+              dueDate: classification.dueDate,
+              daysPastDue: classification.daysPastDue,
+              outstandingTotal: outstanding.outstandingTotal,
+              indicativeTawidhAmount: classification.indicativeTawidhAmount,
+              indicativeGharamahAmount: classification.indicativeGharamahAmount,
+              gracePeriodDays: note.grace_period_days,
+              arrearsThresholdDays: note.arrears_threshold_days,
+            });
+            if (created.sentTo.length > 0) result.lettersSent += 1;
           }
+        } catch (error) {
+          result.errors += 1;
+          logger.error(
+            { error, noteId: note.id },
+            "Failed to send arrears servicing letter"
+          );
         }
+      }
+      if (existingArrearsLetter || attemptArrearsLetter) {
+        const arrearsLetter = await prisma.noteServicingLetter.findFirst({
+          where: { note_id: note.id, type: NoteServicingLetterType.ARREARS },
+          select: { id: true, type: true, sent_to: true, s3_key: true },
+        });
+        await retryServicingLetterAudit({ noteId: note.id, letter: arrearsLetter });
       }
 
       const wasDefaulted = note.default_marked_at != null;
@@ -655,7 +685,7 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
         });
         const existingDefaultLetter = await prisma.noteServicingLetter.findFirst({
           where: { note_id: note.id, type: NoteServicingLetterType.DEFAULT },
-          select: { id: true, sent_at: true },
+          select: { id: true, sent_at: true, sent_to: true, type: true },
         });
         const letterAction = shouldSendServicingLetter(existingDefaultLetter);
         if (letterAction !== "skip") {
@@ -694,6 +724,11 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
             logger.error({ error, noteId: note.id }, "Failed to send default servicing letter");
           }
         }
+        const defaultLetter = await prisma.noteServicingLetter.findFirst({
+          where: { note_id: note.id, type: NoteServicingLetterType.DEFAULT },
+          select: { id: true, type: true, sent_to: true, s3_key: true },
+        });
+        await retryServicingLetterAudit({ noteId: note.id, letter: defaultLetter });
       }
 
       const snapshotRecoveredPrincipal = asOfSettlements.posted.reduce(
