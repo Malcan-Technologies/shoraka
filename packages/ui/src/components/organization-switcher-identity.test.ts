@@ -1,14 +1,14 @@
 import { organizationSwitcherSecondaryText } from "./organization-switcher-identity";
 
 describe("organizationSwitcherSecondaryText", () => {
-  it("joins display reference and onboarding status without using the company name", () => {
+  it("puts onboarding status before the display reference", () => {
     expect(
       organizationSwitcherSecondaryText({
         type: "COMPANY",
         displayReference: "ISS-202608-DK3",
         status: "IN_PROGRESS",
       })
-    ).toBe("ISS-202608-DK3 · In Progress");
+    ).toBe("In Progress · ISS-202608-DK3");
 
     expect(
       organizationSwitcherSecondaryText({
@@ -17,10 +17,26 @@ describe("organizationSwitcherSecondaryText", () => {
         status: "PENDING",
         regtankStatus: "EXPIRED",
       })
-    ).toBe("IVT-202608-D7F · Expired");
+    ).toBe("Expired · IVT-202608-D7F");
   });
 
-  it("falls back to company/personal type when no reference is present", () => {
+  it("keeps status-only captions when no reference is allocated", () => {
+    expect(
+      organizationSwitcherSecondaryText({
+        type: "COMPANY",
+        status: "COMPLETED",
+      })
+    ).toBe("Verified");
+
+    expect(
+      organizationSwitcherSecondaryText({
+        type: "PERSONAL",
+        status: "COMPLETED",
+      })
+    ).toBe("Verified");
+  });
+
+  it("falls back to company/personal type when no status or reference is present", () => {
     expect(organizationSwitcherSecondaryText({ type: "COMPANY" })).toBe("Company");
     expect(organizationSwitcherSecondaryText({ type: "PERSONAL" })).toBe("Personal");
   });
