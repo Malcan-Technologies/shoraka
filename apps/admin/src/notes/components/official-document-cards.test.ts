@@ -6,52 +6,86 @@ function source(relative: string): string {
 }
 
 describe("admin official document cards", () => {
-  it("shows Generate, Retry, View, Download, Regenerate and Publish for certificates", () => {
+  it("shows Generate, Retry, View, Download, Reissue and Publish for certificates", () => {
     const card = source("../components/investment-note-certificate-card.tsx");
     expect(card).toContain("Islamic Investment Note Certificate");
+    expect(card).toContain("Islamic Investment Note Certificate generated");
     expect(card).toContain("Generate Certificate");
     expect(card).toContain("Retry");
     expect(card).toContain("View");
     expect(card).toContain("Download");
-    expect(card).toContain("Regenerate");
+    expect(card).toContain("Reissue");
     expect(card).toContain("Publish New Version");
-    expect(card).toContain("Ready for review");
-    expect(card).toContain("Version {payload.version}");
+    expect(card).toContain("payload.version");
     expect(card).toContain("useReissueAdminInvestmentNoteCertificate");
     expect(card).toContain("useGenerateAdminInvestmentNoteCertificate");
     expect(card).toContain("usePublishAdminInvestmentNoteCertificate");
     expect(card).toContain("DocumentSigningPersonFields");
     expect(card).toContain("Shoraka signing person");
+    expect(card).toContain("OfficialDocumentWorkflowPanel");
+    expect(card).toContain("workflowTaskSurfaceClass");
+    expect(card).toContain("officialDocumentWorkflowLabel");
     expect(card).not.toContain("Document Authorisation");
     expect(card).not.toContain("Regenerate / Reissue");
+    expect(card).not.toMatch(/["']Regenerate["']/);
+    expect(card).not.toContain("Ready for review");
   });
 
-  it("shows Generate, Retry, View, Download, Regenerate and Publish for receipts", () => {
+  it("shows Generate, Retry, View, Download, Reissue and Publish for receipts", () => {
     const card = source("../components/settlement-hibah-receipt-card.tsx");
     expect(card).toContain("Generate Receipt");
     expect(card).toContain("Retry");
     expect(card).toContain("View");
     expect(card).toContain("Download");
-    expect(card).toContain("Regenerate");
+    expect(card).toContain("Reissue");
     expect(card).toContain("Publish New Version");
     expect(card).toContain("useReissueAdminSettlementHibahReceipt");
     expect(card).toContain("useGenerateAdminSettlementHibahReceipt");
     expect(card).toContain("DocumentSigningPersonFields");
     expect(card).toContain("Shoraka signing person");
+    expect(card).toContain("OfficialDocumentWorkflowPanel");
     expect(card).not.toContain("Document Authorisation");
     expect(card).not.toContain("Regenerate / Reissue");
+    expect(card).not.toMatch(/["']Regenerate["']/);
   });
 
-  it("shows per-investor Generate, Generate All, Retry, Regenerate and Publish for confirmations", () => {
+  it("shows per-investor Generate, Generate All, Retry, Reissue and Publish for confirmations", () => {
     const card = source("../components/investment-settlement-confirmation-card.tsx");
     expect(card).toContain("Investment Settlement Confirmations");
     expect(card).toContain("Generate All");
     expect(card).toContain("Generate");
     expect(card).toContain("Retry");
-    expect(card).toContain("Regenerate");
+    expect(card).toContain("Reissue");
     expect(card).toContain("Publish New Version");
     expect(card).toContain("Not generated");
+    expect(card).toContain("OfficialDocumentWorkflowPanel");
     expect(card).not.toContain("Regenerate / Reissue");
+    expect(card).not.toMatch(/["']Regenerate["']/);
+  });
+
+  it("washes the whole document panel with the workflow state colour", () => {
+    const panel = source("./official-document-workflow-panel.tsx");
+    expect(panel).toContain("workflowTaskSurfaceClass(tone)");
+    expect(panel).toContain("Version {version}");
+    expect(panel).toContain("justify-end gap-2 border-t");
+  });
+
+  it("places servicing documents after trustee instruction", () => {
+    const panel = source("../components/settlement-panel.tsx");
+    const trustee = panel.indexOf("completeLabel=\"3. Trustee instruction complete\"");
+    const confirmations = panel.indexOf("<InvestmentSettlementConfirmationCard");
+    const receipt = panel.indexOf("<SettlementHibahReceiptCard");
+    expect(trustee).toBeGreaterThan(-1);
+    expect(confirmations).toBeGreaterThan(trustee);
+    expect(receipt).toBeGreaterThan(confirmations);
+  });
+
+  it("keeps the disbursement certificate after trustee payout, not before", () => {
+    const page = source("../../app/notes/[id]/page.tsx");
+    const payout = page.indexOf("<IssuerPayoutCard");
+    const certificate = page.indexOf("<InvestmentNoteCertificateCard");
+    expect(payout).toBeGreaterThan(-1);
+    expect(certificate).toBeGreaterThan(payout);
   });
 });
 
@@ -70,4 +104,3 @@ describe("admin document signing person fields", () => {
     expect(fields).not.toContain("authorisedSignatoryName");
   });
 });
-
