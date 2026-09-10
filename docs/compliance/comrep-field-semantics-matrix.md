@@ -449,7 +449,7 @@ Only campaigns whose hosting **ended**. Active campaigns wait for the next perio
 | Campaign Application Date (dd/mm/yyyy) | Date issuer sought financing for this Campaign ID | | `submitted_at` candidate | NEEDS BUSINESS CONFIRMATION |
 | Campaign Approval Date (dd/mm/yyyy) | Date RMO approved fundraising for this Campaign ID | | Several timestamps | NEEDS BUSINESS CONFIRMATION |
 | Campaign URL on Operator Website | URL to the campaign | | Compose from base URL | PARTIAL |
-| Campaign Sector | 21 SME Corp values; no Other-specify | Definitions per SME Corp | `campaign_sector` on offer/snapshot | PARTIAL |
+| Campaign Sector | 21 SME Corp values; no Other-specify | Definitions per SME Corp | `Invoice.details.campaign_sector` (frozen onto offer/snapshot) | PARTIAL |
 | Sustainability Category of the Campaign | 00 – None; G1–G17 | Campaign-specific | `Invoice.details.sustainability_category` | PARTIAL |
 | Type of Investment Notes | Islamic Investment Note / Investment Note | | Not stored | MISSING / NEEDS BUSINESS CONFIRMATION |
 | Name of Shariah Adviser (if applicable) | Name who approved Islamic product | If Islamic | Not stored | MISSING / NEEDS BUSINESS CONFIRMATION |

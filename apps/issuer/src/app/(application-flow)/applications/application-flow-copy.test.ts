@@ -63,5 +63,8 @@ describe("issuer application workflow copy", () => {
     expect(business).not.toContain("Company Activities");
     expect(business).not.toContain("What does your company do?");
     expect(business).not.toContain("about_your_business");
+    expect(company).not.toContain("Campaign Sector");
+    expect(company).not.toContain("campaign_sector");
+    expect(business).not.toContain("Campaign Sector");
   });
 });

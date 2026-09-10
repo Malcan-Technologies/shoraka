@@ -254,7 +254,7 @@ export const SC_INVESTMENT_RELATED_PARTY_LABELS: Record<ScInvestmentRelatedParty
 };
 
 /**
- * SC Campaign Sector (SME Corp closed list). Stored on the campaign/offer, not issuer Industry.
+ * SC Campaign Sector (SME Corp closed list). Invoice/campaign field, not issuer Industry.
  * Labels match the ComRep RMO-P2P manual. Do not auto-map from CashSouk industry taxonomy.
  */
 export const SC_CAMPAIGN_SECTORS = [
@@ -318,6 +318,21 @@ export function parseInvoiceOfferCampaignSector(offer: unknown): ScCampaignSecto
   if (!offer || typeof offer !== "object") return null;
   const raw = (offer as Record<string, unknown>).campaign_sector;
   return isScCampaignSector(raw) ? raw : null;
+}
+
+/**
+ * Authoritative Campaign Sector for an invoice/campaign.
+ * Offer freeze wins after Admin send/correction; otherwise issuer-submitted invoice.details.
+ * Never read issuer Industry / profile.
+ */
+export function resolveInvoiceCampaignSector(invoice: {
+  details?: unknown;
+  offer_details?: unknown;
+}): ScCampaignSector | null {
+  return (
+    parseInvoiceOfferCampaignSector(invoice.offer_details) ??
+    parseInvoiceOfferCampaignSector(invoice.details)
+  );
 }
 
 /** SC Purpose of Fund Raising. Campaign/application field — not issuer Profile. */

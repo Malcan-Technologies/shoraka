@@ -451,6 +451,8 @@ export interface InvoiceDetails {
   };
   /** ComRep [02000] Company category — per invoice/campaign, not issuer profile. */
   company_category?: import("./comrep-profile").ScCompanyCategory;
+  /** ComRep [03000] Campaign Sector — per invoice/campaign, not issuer Industry. */
+  campaign_sector?: import("./comrep-profile").ScCampaignSector;
   /** ComRep [03000] Sustainability Category of the Campaign. */
   sustainability_category?: import("./comrep-profile").ScSustainabilityCategory;
 }
@@ -494,6 +496,7 @@ export interface InvoiceOfferDetails {
   offer_acceptance?: import("./offer-acceptance").OfferAcceptanceDetails;
   /** Frozen from issuer invoice.details; Admin may correct at offer send. */
   company_category?: import("./comrep-profile").ScCompanyCategory;
+  /** Frozen from issuer invoice.details; Admin may correct at offer send. */
   campaign_sector?: import("./comrep-profile").ScCampaignSector;
   /** Frozen from issuer invoice.details; Admin may correct at offer send. */
   sustainability_category?: import("./comrep-profile").ScSustainabilityCategory;

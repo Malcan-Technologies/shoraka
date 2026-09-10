@@ -117,6 +117,7 @@ Integer without decimal points (UI + API): Ordinary/Preference/Others **No. of S
 | Issuer / Admin Person in Charge | [02000] | E-mail Address | yes | REQUIRED | yes | yes | yes | Source is `contactPerson.email` with PIC fallback | CONSISTENT |
 | Issuer / Admin company | [02000] | Website | no | NOT REQUIRED | no | no | no | SC “where applicable” | CONSISTENT |
 | Issuer / Admin | [02000] | Company Activities | no | NEEDS BUSINESS CONFIRMATION | no | no | no | Profile stores general/current activity; campaign-specific ComRep source unresolved | CONSISTENT |
+| Issuer Invoice step | [03000] | Campaign Sector | yes | CashSouk-required for application completeness | yes | yes (create) | no (profile) | Per invoice/campaign; Admin reviews/corrects | CONSISTENT |
 | Issuer Invoice step | [02000] | Company category | yes | CashSouk-required for application completeness | yes | yes (create) | no (profile) | Per invoice/campaign; Admin reviews/corrects | CONSISTENT |
 | Issuer Invoice step | [03000] | Sustainability Category of the Campaign | yes | CashSouk-required for application completeness | yes | yes (create) | no (profile) | Per invoice/campaign; Admin reviews/corrects | CONSISTENT |
 | Issuer / Admin company | CashSouk | TIN, Industry, Number of Employees, Annual Revenue | no | NOT REQUIRED | no | no | no | Not ComRep [02000] | CONSISTENT |
@@ -188,8 +189,8 @@ Do not move these into Profile completeness. Requiredness applies when the campa
 
 | Exact Field | Required State |
 |---|---|
-| Campaign Sector, Purpose of Fund Raising, Campaign Description, Campaign dates, Target amount, Financing amount | REQUIRED at campaign stage (existing collection) |
-| Company category, Sustainability Category of the Campaign | CashSouk-required on Issuer Invoice step (application completeness); not issuer profile |
+| Purpose of Fund Raising, Campaign Description, Campaign dates, Target amount, Financing amount | REQUIRED at campaign stage (existing collection) |
+| Campaign Sector, Company category, Sustainability Category of the Campaign | CashSouk-required on Issuer Invoice step (application completeness); not issuer profile |
 | Purpose of Fund Raising - Others | CONDITIONAL when Others |
 | Type of Investment Notes | NEEDS BUSINESS CONFIRMATION |
 | Name of Shariah Adviser (if applicable) | NEEDS BUSINESS CONFIRMATION |

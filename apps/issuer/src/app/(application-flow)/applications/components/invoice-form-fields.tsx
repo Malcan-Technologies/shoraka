@@ -31,12 +31,16 @@ import {
   malaysiaCalendarDaysRemaining,
   validateFinancingTenureAgainstDueDate,
   isScCompanyCategory,
+  isScCampaignSector,
   isScSustainabilityCategory,
+  SC_CAMPAIGN_SECTORS,
+  SC_CAMPAIGN_SECTOR_LABELS,
   SC_COMPANY_CATEGORIES,
   SC_COMPANY_CATEGORY_LABELS,
   SC_MONTHLY_CAMPAIGN,
   SC_SUSTAINABILITY_CATEGORIES,
   SC_SUSTAINABILITY_CATEGORY_LABELS,
+  type ScCampaignSector,
   type ScCompanyCategory,
   type ScSustainabilityCategory,
   type WithdrawReason,
@@ -61,6 +65,7 @@ export type InvoiceFormModel = {
   withdraw_reason?: WithdrawReason;
   document?: { file_name: string; file_size?: number; s3_key?: string; uploaded_at?: string } | null;
   displayReference?: string | null;
+  campaign_sector?: ScCampaignSector | null;
   company_category?: ScCompanyCategory | null;
   sustainability_category?: ScSustainabilityCategory | null;
 };
@@ -73,6 +78,7 @@ export type InvoiceFieldErrors = Partial<{
   financing_ratio_percent: string;
   financing_amount: string;
   document: string;
+  campaign_sector: string;
   company_category: string;
   sustainability_category: string;
 }>;
@@ -152,6 +158,7 @@ export interface InvoiceFormFieldsProps {
   onFinancingAmountCommit?: (formatted: string) => void;
   onFileSelect?: (file: File) => void;
   onRemoveFile?: () => void;
+  onCampaignSectorChange?: (value: ScCampaignSector) => void;
   onCompanyCategoryChange?: (value: ScCompanyCategory) => void;
   onSustainabilityCategoryChange?: (value: ScSustainabilityCategory) => void;
   financingAmountTooltip?: string;
@@ -179,6 +186,7 @@ export function InvoiceFormFields({
   onFinancingAmountCommit,
   onFileSelect,
   onRemoveFile,
+  onCampaignSectorChange,
   onCompanyCategoryChange,
   onSustainabilityCategoryChange,
   financingAmountTooltip,
@@ -418,6 +426,39 @@ export function InvoiceFormFields({
           <div className={applicationFlowSectionDividerClassName} />
         </div>
         <div className={sectionGridClassName}>
+          <LabelWithTooltip
+            htmlFor={`invoice-campaign-sector-${invoice.id}`}
+            label={`${SC_MONTHLY_CAMPAIGN.campaignSector.label} *`}
+          />
+          <div className="space-y-1">
+            <Select
+              value={invoice.campaign_sector ?? undefined}
+              onValueChange={(value) => {
+                if (isScCampaignSector(value)) onCampaignSectorChange?.(value);
+              }}
+              disabled={!isEditable}
+            >
+              <SelectTrigger
+                id={`invoice-campaign-sector-${invoice.id}`}
+                aria-label={SC_MONTHLY_CAMPAIGN.campaignSector.label}
+                className={withFieldError(
+                  cn(formSelectTriggerClassName, !isEditable && formInputDisabledClassName),
+                  Boolean(fieldErrors?.campaign_sector)
+                )}
+              >
+                <SelectValue placeholder="Select" />
+              </SelectTrigger>
+              <SelectContent className="max-h-[280px]">
+                {SC_CAMPAIGN_SECTORS.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {SC_CAMPAIGN_SECTOR_LABELS[value]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <FieldError message={fieldErrors?.campaign_sector} />
+          </div>
+
           <LabelWithTooltip htmlFor={`invoice-company-category-${invoice.id}`} label="Company category *" />
           <div className="space-y-1">
             <Select

@@ -5,9 +5,11 @@ describe("admin invoice offer campaign classification ownership", () => {
   const offerSource = fs.readFileSync(path.join(__dirname, "invoice-offer-panel.tsx"), "utf8");
   const reviewSource = fs.readFileSync(path.join(__dirname, "invoice-review-list.tsx"), "utf8");
 
-  it("prefills Company category and Sustainability from issuer invoice values", () => {
+  it("prefills Campaign Sector, Company category, and Sustainability from issuer invoice values", () => {
+    expect(offerSource).toContain("resolveInvoiceCampaignSector(invoice)");
     expect(offerSource).toContain("resolveInvoiceCompanyCategory(invoice)");
     expect(offerSource).toContain("resolveInvoiceSustainabilityCategory(invoice)");
+    expect(reviewSource).toContain("resolveInvoiceCampaignSector(inv)");
     expect(reviewSource).toContain("resolveInvoiceCompanyCategory(inv)");
     expect(reviewSource).toContain("resolveInvoiceSustainabilityCategory(inv)");
   });

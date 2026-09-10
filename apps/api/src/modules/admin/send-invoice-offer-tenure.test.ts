@@ -94,6 +94,7 @@ describe("AdminService sendInvoiceOffer financing tenure", () => {
     maturity_date: maturityDate,
     financing_tenure_days: 90,
     company_category: "NON_TECHNOLOGY",
+    campaign_sector: "CONSTRUCTIONS",
     sustainability_category: "G3",
   };
 
@@ -245,6 +246,7 @@ describe("AdminService sendInvoiceOffer financing tenure", () => {
       unknown
     >;
     expect(offer.company_category).toBe("NON_TECHNOLOGY");
+    expect(offer.campaign_sector).toBe("CONSTRUCTIONS");
     expect(offer.sustainability_category).toBe("G3");
   });
 

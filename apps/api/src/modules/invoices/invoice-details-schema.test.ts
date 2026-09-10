@@ -12,6 +12,7 @@ function details(overrides: Record<string, unknown> = {}) {
     value: 10_000,
     financing_ratio_percent: 70,
     company_category: "TECHNOLOGY",
+    campaign_sector: "MANUFACTURING",
     sustainability_category: "G8",
     ...overrides,
   };
@@ -95,7 +96,16 @@ describe("invoiceDetailsSchema financing ratio cap", () => {
 describe("invoiceDetailsSchema campaign classification", () => {
   const soonDue = ymdDaysFromNow(20);
 
-  it("requires Company category and Sustainability Category of the Campaign", () => {
+  it("requires Campaign Sector, Company category, and Sustainability Category of the Campaign", () => {
+    expect(
+      invoiceDetailsSchema.safeParse(
+        details({
+          maturity_date: soonDue,
+          financing_tenure_days: 30,
+          campaign_sector: undefined,
+        })
+      ).success
+    ).toBe(false);
     expect(
       invoiceDetailsSchema.safeParse(
         details({
@@ -116,13 +126,14 @@ describe("invoiceDetailsSchema campaign classification", () => {
     ).toBe(false);
   });
 
-  it("accepts independent Technology / Non-Technology and 00–G17 values per invoice", () => {
+  it("accepts independent Technology / Non-Technology, SC sectors, and 00–G17 values per invoice", () => {
     expect(
       invoiceDetailsSchema.safeParse(
         details({
           maturity_date: soonDue,
           financing_tenure_days: 30,
           company_category: "NON_TECHNOLOGY",
+          campaign_sector: "CONSTRUCTIONS",
           sustainability_category: "NONE",
         })
       ).success
@@ -134,6 +145,7 @@ describe("invoiceDetailsSchema campaign classification", () => {
           maturity_date: soonDue,
           financing_tenure_days: 30,
           company_category: "TECHNOLOGY",
+          campaign_sector: "MANUFACTURING",
           sustainability_category: "G17",
         })
       ).success

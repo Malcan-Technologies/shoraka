@@ -77,6 +77,7 @@ import {
   mapCapacityApiError,
   maturityMeetsMinimumMonthsFrom,
   parseFinancingTenureDays,
+  parseInvoiceOfferCampaignSector,
   parseInvoiceOfferCompanyCategory,
   parseInvoiceOfferSustainabilityCategory,
   previewDualLimits,
@@ -226,6 +227,7 @@ function toLocalInvoice(it: Invoice & { withdraw_reason?: WithdrawReason | strin
         }
       : null,
     displayReference: it.displayReference ?? null,
+    campaign_sector: parseInvoiceOfferCampaignSector(d),
     company_category: parseInvoiceOfferCompanyCategory(d),
     sustainability_category: parseInvoiceOfferSustainabilityCategory(d),
   };
@@ -446,6 +448,7 @@ export default function InvoiceDetailsStep({
           financing_ratio_percent: defaultRatio,
           document: null,
           status: "DRAFT",
+          campaign_sector: null,
           company_category: null,
           sustainability_category: null,
         },
@@ -824,6 +827,7 @@ export default function InvoiceDetailsStep({
         if (!hasDate) errors.maturity_date = "Maturity date is required";
         if (!hasTenure) errors.financing_tenure_days = "Financing tenure is required";
         if (!hasDocument) errors.document = "Document is required";
+        if (!inv.campaign_sector) errors.campaign_sector = "Campaign Sector is required";
         if (!inv.company_category) errors.company_category = "Company category is required";
         if (!inv.sustainability_category) {
           errors.sustainability_category = "Sustainability Category of the Campaign is required";
@@ -940,6 +944,7 @@ export default function InvoiceDetailsStep({
             })(),
             financing_ratio_percent: inv.financing_ratio_percent ?? displayMinRatio,
             financing_tenure_days: inv.financing_tenure_days,
+            campaign_sector: inv.campaign_sector ?? undefined,
             company_category: inv.company_category ?? undefined,
             sustainability_category: inv.sustainability_category ?? undefined,
           },
@@ -1009,6 +1014,7 @@ export default function InvoiceDetailsStep({
           })(),
           financing_ratio_percent: inv.financing_ratio_percent ?? displayMinRatio,
           financing_tenure_days: inv.financing_tenure_days,
+          campaign_sector: inv.campaign_sector ?? undefined,
           company_category: inv.company_category ?? undefined,
           sustainability_category: inv.sustainability_category ?? undefined,
         };
@@ -1570,6 +1576,9 @@ export default function InvoiceDetailsStep({
                       }
                       onFinancingTenureDaysChange={(value) =>
                         updateInvoiceField(inv.id, "financing_tenure_days", value)
+                      }
+                      onCampaignSectorChange={(value) =>
+                        updateInvoiceField(inv.id, "campaign_sector", value)
                       }
                       onCompanyCategoryChange={(value) =>
                         updateInvoiceField(inv.id, "company_category", value)

@@ -29,6 +29,7 @@ import {
   parseInvoiceOfferCampaignSector,
   parseInvoiceOfferCompanyCategory,
   parseInvoiceOfferSustainabilityCategory,
+  resolveInvoiceCampaignSector,
   resolveInvoiceCompanyCategory,
   resolveInvoiceSustainabilityCategory,
   previewAcceptanceDeadlineFromWorkflow,
@@ -295,8 +296,8 @@ export function InvoiceOfferPanel({
   }, [initialCompanyCategory]);
 
   const initialCampaignSector = React.useMemo(
-    () => parseInvoiceOfferCampaignSector(invoice.offer_details),
-    [invoice.offer_details]
+    () => resolveInvoiceCampaignSector(invoice),
+    [invoice]
   );
   const [campaignSector, setCampaignSector] = React.useState<ScCampaignSector | null>(
     initialCampaignSector

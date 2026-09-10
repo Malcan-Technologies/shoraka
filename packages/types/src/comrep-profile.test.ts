@@ -23,6 +23,7 @@ import {
   OPERATOR_HOLDER_TYPES,
   ORGANIZATION_PARTY_ENTITY_TYPES,
   parseInvoiceOfferCampaignSector,
+  resolveInvoiceCampaignSector,
   resolveInvoiceCompanyCategory,
   resolveInvoiceSustainabilityCategory,
   isIssuerOfficerRole,
@@ -84,6 +85,8 @@ describe("issuer company completeness [02000]", () => {
     });
     expect(missing.map((m) => m.field)).not.toContain("website");
     expect(missing.map((m) => m.field)).not.toContain("companyCategory");
+    expect(missing.map((m) => m.field)).not.toContain("campaignSector");
+    expect(missing.map((m) => m.field)).not.toContain("campaign_sector");
     expect(missing.map((m) => m.field)).not.toContain("organizationId");
     expect(missing.map((m) => m.field)).not.toContain("companyActivities");
     expect(missing).toHaveLength(0);
@@ -951,11 +954,46 @@ describe("campaign SC enums", () => {
     ).toBe("TECHNOLOGY");
   });
 
+  it("reads Campaign Sector from invoice.details until offer freeze, then offer_details wins", () => {
+    expect(
+      resolveInvoiceCampaignSector({
+        details: { campaign_sector: "CONSTRUCTIONS" },
+        offer_details: null,
+      })
+    ).toBe("CONSTRUCTIONS");
+    expect(
+      resolveInvoiceCampaignSector({
+        details: { campaign_sector: "CONSTRUCTIONS" },
+        offer_details: { campaign_sector: "MANUFACTURING" },
+      })
+    ).toBe("MANUFACTURING");
+    expect(
+      resolveInvoiceCampaignSector({
+        details: { industry: "Manufacturing" },
+        offer_details: null,
+      })
+    ).toBeNull();
+  });
+
   it("lets two invoices of the same issuer keep independent classification values", () => {
-    const invoiceA = { details: { company_category: "TECHNOLOGY", sustainability_category: "G8" } };
-    const invoiceB = { details: { company_category: "NON_TECHNOLOGY", sustainability_category: "NONE" } };
+    const invoiceA = {
+      details: {
+        company_category: "TECHNOLOGY",
+        campaign_sector: "MANUFACTURING",
+        sustainability_category: "G8",
+      },
+    };
+    const invoiceB = {
+      details: {
+        company_category: "NON_TECHNOLOGY",
+        campaign_sector: "CONSTRUCTIONS",
+        sustainability_category: "NONE",
+      },
+    };
     expect(resolveInvoiceCompanyCategory(invoiceA)).toBe("TECHNOLOGY");
     expect(resolveInvoiceCompanyCategory(invoiceB)).toBe("NON_TECHNOLOGY");
+    expect(resolveInvoiceCampaignSector(invoiceA)).toBe("MANUFACTURING");
+    expect(resolveInvoiceCampaignSector(invoiceB)).toBe("CONSTRUCTIONS");
     expect(resolveInvoiceSustainabilityCategory(invoiceA)).toBe("G8");
     expect(resolveInvoiceSustainabilityCategory(invoiceB)).toBe("NONE");
   });

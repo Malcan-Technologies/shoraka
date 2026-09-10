@@ -9588,7 +9588,9 @@ export class AdminService {
         parseInvoiceOfferSustainabilityCategory(previousOffer) ??
         parseInvoiceOfferSustainabilityCategory(details);
       const campaignSector =
-        campaignClassification?.campaignSector ?? parseInvoiceOfferCampaignSector(previousOffer);
+        campaignClassification?.campaignSector ??
+        parseInvoiceOfferCampaignSector(previousOffer) ??
+        parseInvoiceOfferCampaignSector(details);
       if (companyCategory && !isScCompanyCategory(companyCategory)) {
         throw new AppError(
           400,

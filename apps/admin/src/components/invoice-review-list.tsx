@@ -28,6 +28,7 @@ import {
   parseInvoiceOfferCampaignSector,
   parseInvoiceOfferCompanyCategory,
   parseInvoiceOfferSustainabilityCategory,
+  resolveInvoiceCampaignSector,
   resolveInvoiceCompanyCategory,
   resolveInvoiceSustainabilityCategory,
   SC_CAMPAIGN_SECTORS,
@@ -406,6 +407,16 @@ export function InvoiceList({
       for (const inv of invoices) {
         if (inv.id in next) continue;
         next[inv.id] = resolveInvoiceCompanyCategory(inv);
+        changed = true;
+      }
+      return changed ? next : prev;
+    });
+    setCampaignSectorByInvoiceId((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const inv of invoices) {
+        if (inv.id in next) continue;
+        next[inv.id] = resolveInvoiceCampaignSector(inv);
         changed = true;
       }
       return changed ? next : prev;

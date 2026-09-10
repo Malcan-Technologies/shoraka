@@ -676,7 +676,7 @@ export const SC_MONTHLY_CAMPAIGN = {
   },
   campaignSector: {
     label: "Campaign Sector",
-    help: "Select the sector for this fundraising campaign. Use SME Corp definitions.",
+    help: "Select the sector for this fundraising campaign. Use SME Corp definitions. CashSouk-required for application completeness.",
   },
   sustainabilityCategory: { label: "Sustainability Category of the Campaign" },
   purposeOfFundRaising: { label: "Purpose of Fund Raising" },

@@ -5,6 +5,7 @@ import {
   FINANCING_TENURE_STEP_DAYS,
   MAX_INVOICE_FINANCING_RATIO_PERCENT,
   SC_COMPANY_CATEGORIES,
+  SC_CAMPAIGN_SECTORS,
   SC_SUSTAINABILITY_CATEGORIES,
   isValidFinancingTenureDays,
   validateFinancingTenureAgainstDueDate,
@@ -34,6 +35,7 @@ export const invoiceDetailsFieldsSchema = z.object({
   financing_tenure_days: financingTenureDaysSchema,
   document: documentSchema.nullable().optional(),
   company_category: z.enum(SC_COMPANY_CATEGORIES),
+  campaign_sector: z.enum(SC_CAMPAIGN_SECTORS),
   sustainability_category: z.enum(SC_SUSTAINABILITY_CATEGORIES),
 });
 

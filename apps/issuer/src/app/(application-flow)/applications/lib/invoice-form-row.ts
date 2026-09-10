@@ -13,6 +13,7 @@ export function invoiceRowHasRequiredFields(
   const hasDate = Boolean(String(inv.maturity_date).trim());
   const hasTenure = inv.financing_tenure_days != null;
   const hasDocument = Boolean(inv.document) || hasPendingFile;
+  const hasCampaignSector = Boolean(inv.campaign_sector);
   const hasCompanyCategory = Boolean(inv.company_category);
   const hasSustainabilityCategory = Boolean(inv.sustainability_category);
   return (
@@ -21,6 +22,7 @@ export function invoiceRowHasRequiredFields(
     hasDate &&
     hasTenure &&
     hasDocument &&
+    hasCampaignSector &&
     hasCompanyCategory &&
     hasSustainabilityCategory
   );
@@ -73,6 +75,7 @@ export function hasInvoiceFormRowChanged(
     inv.maturity_date !== baseline.maturity_date ||
     inv.financing_ratio_percent !== baseline.financing_ratio_percent ||
     inv.financing_tenure_days !== baseline.financing_tenure_days ||
+    inv.campaign_sector !== baseline.campaign_sector ||
     inv.company_category !== baseline.company_category ||
     inv.sustainability_category !== baseline.sustainability_category ||
     inv.document?.s3_key !== baseline.document?.s3_key
