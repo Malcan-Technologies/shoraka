@@ -338,7 +338,6 @@ async function getOrganization(
       country_of_incorporation?: string | null;
       sc_company_type?: string | null;
       company_category?: string | null;
-      company_email?: string | null;
       sc_investor_category?: string | null;
       residential_address?: unknown;
     };
@@ -615,7 +614,6 @@ async function getOrganization(
         countryOfIncorporation: org.country_of_incorporation ?? null,
         scCompanyType: org.sc_company_type ?? null,
         companyCategory: org.company_category ?? null,
-        companyEmail: org.company_email ?? null,
         scInvestorCategory: org.sc_investor_category ?? null,
         residentialAddress: org.residential_address ?? null,
         profileCompleteness,

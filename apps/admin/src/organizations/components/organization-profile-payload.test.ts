@@ -115,18 +115,17 @@ describe("buildSectionPayload", () => {
       dateOfIncorporation: "2020-03-12T00:00:00.000Z",
       scCompanyType: "PRIVATE_LIMITED",
       companyCategory: "NON_TECHNOLOGY",
-      companyEmail: "ops@acme.test",
     });
     const draft = buildDraft(org);
     draft.scCompanyType = "PUBLIC_LIMITED";
     draft.dateOfCommencement = "2020-06-01";
-    draft.companyEmail = "hello@acme.test";
 
     expect(buildSectionPayload(org, draft, "company")).toEqual({
       scCompanyType: "PUBLIC_LIMITED",
       dateOfCommencement: "2020-06-01",
-      companyEmail: "hello@acme.test",
     });
+    expect(buildSectionPayload(org, draft, "company")).not.toHaveProperty("companyCategory");
+    expect(draft).not.toHaveProperty("companyCategory");
   });
 
   it("sends only person-in-charge fields when the PIC card is saved", () => {
@@ -139,11 +138,11 @@ describe("buildSectionPayload", () => {
 
     expect(payload).toEqual({
       corporateOnboardingData: {
-        personInCharge: {
+        contactPerson: {
           name: "New PIC",
           position: "CFO",
           email: "pic@acme.test",
-          contactNumber: "+60999",
+          contact: "+60999",
         },
       },
     });

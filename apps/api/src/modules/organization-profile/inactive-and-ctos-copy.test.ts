@@ -48,4 +48,16 @@ describe("Inactive and CTOS copy in party profile services", () => {
     });
     expect(hits).toEqual([]);
   });
+
+  it("inactivateMasterParty only updates membership_status and does not delete KYC/AML/onboarding", () => {
+    const fn = service.slice(
+      service.indexOf("export async function inactivateMasterParty"),
+      service.indexOf("export async function getIssuerFinancialSummary")
+    );
+    expect(fn).toContain("membership_status: OrganizationPartyMembershipStatus.MASTER_INACTIVE");
+    expect(fn).not.toMatch(/\.delete\(/);
+    expect(fn.toLowerCase()).not.toContain("regtank");
+    expect(fn.toLowerCase()).not.toContain("kyc");
+    expect(fn.toLowerCase()).not.toContain("aml");
+  });
 });

@@ -22,6 +22,8 @@ import {
   validateOperatorShareCapitalPatch,
   validateIssuerMasterPatch,
   validateIssuerPersonForm,
+  validateOnboardingPersonCreate,
+  isMinimalOnboardingPersonCreate,
   validateOperatorAdvisor,
   validateOperatorFinancialStatement,
   validateOperatorGeneralPatch,
@@ -29,6 +31,9 @@ import {
   validateOperatorOfficer,
   validateOperatorShareholder,
   validatePartyPatch,
+  COMPANY_STAMP_ALLOWED_CONTENT_TYPES,
+  COMPANY_STAMP_MAX_FILE_SIZE_BYTES,
+  OPERATOR_SIGNING_ROLES,
   type ComrepFieldIssue,
 } from "@cashsouk/types";
 
@@ -103,7 +108,6 @@ export const orgMasterPatchSchema = z
     countryOfIncorporation: optionalText,
     scCompanyType: z.enum(SC_COMPANY_TYPES).optional().nullable(),
     companyCategory: z.enum(SC_COMPANY_CATEGORIES).optional().nullable(),
-    companyEmail: z.string().max(255).optional().nullable(),
     scInvestorCategory: z.enum(SC_INVESTOR_CATEGORIES).optional().nullable(),
     isSophisticatedInvestor: z.boolean().optional(),
     residentialAddress: addressPatchSchema.optional().nullable(),
@@ -124,7 +128,6 @@ export const orgMasterPatchSchema = z
         return true;
       }
       return (
-        issue.field === "companyEmail" ||
         issue.field === "phoneNumber" ||
         issue.field === "dateOfIncorporation" ||
         issue.field === "dateOfCommencement" ||
@@ -171,6 +174,11 @@ export const partyPatchObjectSchema = z
     designationOther: optionalText,
     appointmentDate: optionalDate,
     resignationDate: optionalDate,
+    email: z.union([
+      z.string().email({ message: "Enter a valid e-mail address." }).max(255),
+      z.literal(""),
+      z.null(),
+    ]).optional(),
   })
   .strict();
 
@@ -183,6 +191,12 @@ export const mismatchResolveSchema = z
     action: z.enum(["KEEP", "USE_EXTERNAL", "EDIT"]),
     field: z.string().min(1).max(100),
     value: z.unknown().optional(),
+  })
+  .strict();
+
+export const identityConflictResolveSchema = z
+  .object({
+    action: z.enum(["KEEP_ONBOARDING", "KEEP_CTOS"]),
   })
   .strict();
 
@@ -402,11 +416,6 @@ export const operatorFinancialStatementSchema = z
 export const createPartySchema = partyPatchObjectSchema
   .extend({
     entityType: z.enum(ORGANIZATION_PARTY_ENTITY_TYPES).optional(),
-    email: z.union([
-      z.string().email({ message: "Enter a valid e-mail address." }).max(255),
-      z.literal(""),
-      z.null(),
-    ]).optional(),
   })
   .refine(
     (value) =>
@@ -423,13 +432,37 @@ export const createPartySchema = partyPatchObjectSchema
   .superRefine((value, ctx) => {
     const entityType =
       value.entityType === "CORPORATE" || value.identityPrefix === "ROC" ? "CORPORATE" : "INDIVIDUAL";
+    const officer =
+      value.isBoard === true ||
+      value.isManagement === true ||
+      value.personKind === "BOARD" ||
+      value.personKind === "MANAGEMENT";
+    if (
+      isMinimalOnboardingPersonCreate({
+        entityType,
+        identityPrefix: value.identityPrefix,
+        identityNumber: value.identityNumber,
+        isDirector: value.isDirector,
+        isShareholder: value.isShareholder,
+        isBoard: value.isBoard,
+        isManagement: value.isManagement,
+        personKind: value.personKind,
+      })
+    ) {
+      addComrepIssues(
+        ctx,
+        validateOnboardingPersonCreate({
+          name: value.name,
+          email: value.email,
+          isShareholder: value.isShareholder === true,
+          shareholdingPercentage: value.shareholdingPercentage,
+        })
+      );
+      return;
+    }
     const applied = applyPartyComrepSemantics({
       entityType,
-      isOfficer:
-        value.isBoard === true ||
-        value.isManagement === true ||
-        value.personKind === "BOARD" ||
-        value.personKind === "MANAGEMENT",
+      isOfficer: officer,
       gender: value.gender,
       salutation: value.salutation,
       identityPrefix: value.identityPrefix,
@@ -443,11 +476,6 @@ export const createPartySchema = partyPatchObjectSchema
     for (const issue of applied.issues) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: issue });
     }
-    const officer =
-      value.isBoard === true ||
-      value.isManagement === true ||
-      value.personKind === "BOARD" ||
-      value.personKind === "MANAGEMENT";
     addComrepIssues(
       ctx,
       validateIssuerPersonForm({
@@ -487,3 +515,58 @@ export type OperatorAdvisorInput = z.infer<typeof operatorAdvisorSchema>;
 export type OperatorInterestInput = z.infer<typeof operatorInterestSchema>;
 export type OperatorFinancialStatementInput = z.infer<typeof operatorFinancialStatementSchema>;
 export type OperatorShareCapitalInput = z.infer<typeof operatorShareCapitalPatchSchema>;
+
+const operatorSigningStampFieldsSchema = z
+  .object({
+    s3Key: z.string().min(1),
+    fileName: z.string().min(1).max(255).optional(),
+    contentType: z.enum(["image/png", "image/jpeg", "image/jpg", "image/webp"]).optional(),
+  })
+  .strict()
+  .optional();
+
+const operatorSigningRolesSchema = z
+  .array(z.enum(OPERATOR_SIGNING_ROLES))
+  .min(1, "Select at least one signing role")
+  .refine((roles) => new Set(roles).size === roles.length, {
+    message: "Duplicate signing role",
+  });
+
+export const operatorSigningPersonCreateSchema = z
+  .object({
+    officerId: z.string().cuid(),
+    roles: operatorSigningRolesSchema,
+    signature: operatorSigningStampFieldsSchema,
+    active: z.boolean().optional(),
+  })
+  .strict();
+
+export const operatorSigningPersonUpdateSchema = z
+  .object({
+    roles: operatorSigningRolesSchema.optional(),
+    signature: operatorSigningStampFieldsSchema,
+    active: z.boolean().optional(),
+  })
+  .strict();
+
+export const operatorCompanyStampPatchSchema = z
+  .object({
+    s3Key: z.string().min(1),
+    fileName: z.string().min(1).max(255).optional(),
+    contentType: z.enum(["image/png", "image/jpeg", "image/jpg", "image/webp"]).optional(),
+  })
+  .strict();
+
+export const requestOperatorSigningImageUploadUrlSchema = z.object({
+  fileName: z.string().min(1),
+  contentType: z.enum(COMPANY_STAMP_ALLOWED_CONTENT_TYPES, {
+    errorMap: () => ({ message: "Upload a PNG, JPG or WEBP image." }),
+  }),
+  fileSize: z.number().int().positive().max(COMPANY_STAMP_MAX_FILE_SIZE_BYTES, {
+    message: "Image must be 5 MB or smaller.",
+  }),
+});
+
+export type OperatorSigningPersonCreateInput = z.infer<typeof operatorSigningPersonCreateSchema>;
+export type OperatorSigningPersonUpdateInput = z.infer<typeof operatorSigningPersonUpdateSchema>;
+export type OperatorCompanyStampPatchInput = z.infer<typeof operatorCompanyStampPatchSchema>;

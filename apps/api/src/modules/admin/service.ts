@@ -2961,7 +2961,6 @@ export class AdminService {
     countryOfIncorporation?: string | null;
     scCompanyType?: string | null;
     companyCategory?: string | null;
-    companyEmail?: string | null;
     scInvestorCategory?: string | null;
     residentialAddress?: import("@cashsouk/types").ProfileAddress | null;
   } | null> {
@@ -3269,7 +3268,6 @@ export class AdminService {
       countryOfIncorporation: org.country_of_incorporation ?? null,
       scCompanyType: org.sc_company_type ?? null,
       companyCategory: org.company_category ?? null,
-      companyEmail: org.company_email ?? null,
       scInvestorCategory: org.sc_investor_category ?? null,
       residentialAddress:
         (org.residential_address as import("@cashsouk/types").ProfileAddress | null) ?? null,
@@ -9582,12 +9580,17 @@ export class AdminService {
         "Saving invoice offer risk rating"
       );
       const companyCategory =
-        campaignClassification?.companyCategory ?? parseInvoiceOfferCompanyCategory(previousOffer);
+        campaignClassification?.companyCategory ??
+        parseInvoiceOfferCompanyCategory(previousOffer) ??
+        parseInvoiceOfferCompanyCategory(details);
       const sustainabilityCategory =
         campaignClassification?.sustainabilityCategory ??
-        parseInvoiceOfferSustainabilityCategory(previousOffer);
+        parseInvoiceOfferSustainabilityCategory(previousOffer) ??
+        parseInvoiceOfferSustainabilityCategory(details);
       const campaignSector =
-        campaignClassification?.campaignSector ?? parseInvoiceOfferCampaignSector(previousOffer);
+        campaignClassification?.campaignSector ??
+        parseInvoiceOfferCampaignSector(previousOffer) ??
+        parseInvoiceOfferCampaignSector(details);
       if (companyCategory && !isScCompanyCategory(companyCategory)) {
         throw new AppError(
           400,

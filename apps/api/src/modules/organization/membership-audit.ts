@@ -8,6 +8,8 @@ export const ORGANIZATION_MEMBERSHIP_EVENT = {
   MEMBER_INVITED: "MEMBER_INVITED",
   MEMBER_REMOVED: "MEMBER_REMOVED",
   MEMBER_ROLE_CHANGED: "MEMBER_ROLE_CHANGED",
+  PERSON_PLATFORM_USER_LINKED: "PERSON_PLATFORM_USER_LINKED",
+  PERSON_PLATFORM_ACCESS_RESTORED: "PERSON_PLATFORM_ACCESS_RESTORED",
 } as const;
 
 export type OrganizationMembershipEventType =
@@ -26,6 +28,7 @@ export async function logOrganizationMembershipEvent(params: {
   previousRole?: string | null;
   newRole?: string | null;
   invitationId?: string | null;
+  partyProfileId?: string | null;
   db?: AccountAuditDb;
 }): Promise<void> {
   const organizationReference = snapshotBusinessReference(
@@ -52,6 +55,7 @@ export async function logOrganizationMembershipEvent(params: {
         ...(params.previousRole ? { previousRole: params.previousRole } : {}),
         ...(params.newRole ? { newRole: params.newRole } : {}),
         ...(params.invitationId ? { invitationId: params.invitationId } : {}),
+        ...(params.partyProfileId ? { partyProfileId: params.partyProfileId } : {}),
       },
     },
     params.db ?? prisma

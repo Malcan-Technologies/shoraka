@@ -18,6 +18,7 @@ import { getCtosPartySupplementFlatRead } from "./ctos-party-supplement-json";
 import { isKycOnboardingNotStartedToken } from "./kyc-onboarding-lifecycle";
 import { normalizeRawStatus } from "./status-normalization";
 import { isReadyOnboardingStatus } from "./onboarding-readiness";
+import { displayGovernmentIdentityNumber } from "./organization-party-key";
 
 /** How issuer/investor director-shareholder `people[]` was built (org list + detail APIs). */
 export type DirectorShareholderListSource = "ONBOARDING" | "CTOS" | "CTOS_EMPTY";
@@ -51,6 +52,11 @@ export type ApplicationPersonRow = {
    * - Backend chooses **supplement-only** vs **issuer-only** per `matchKey` (`build-people-list.ts`); the UI must not merge raw JSON or issuer blobs into these fields.
    */
   matchKey: string;
+  /**
+   * Government identity for display. Independent of {@link ApplicationPersonRow.matchKey},
+   * which is the stable party_key for generated `user:{uuid}` people.
+   */
+  identityNumber?: string | null;
   /**
    * When set, this row is display-only unresolved identity (no trusted government ID).
    * `matchKey` is empty and must not be used for merge/match.
@@ -656,7 +662,13 @@ export function buildDirectorShareholderDisplayRowForEmailEligibility(
     name: p.name ?? "",
     role: formatPeopleRolesLine(p),
     type: p.entityType === "CORPORATE" ? "COMPANY" : "INDIVIDUAL",
-    idNumber: p.entityType === "INDIVIDUAL" && !isMissingGovernmentIdPerson(p) ? p.matchKey : null,
+    idNumber:
+      p.entityType === "INDIVIDUAL" && !isMissingGovernmentIdPerson(p)
+        ? displayGovernmentIdentityNumber({
+            partyKey: p.matchKey,
+            identityNumber: p.identityNumber,
+          })
+        : null,
     registrationNumber: p.entityType === "CORPORATE" ? p.matchKey : null,
     ownershipDisplay,
     email,

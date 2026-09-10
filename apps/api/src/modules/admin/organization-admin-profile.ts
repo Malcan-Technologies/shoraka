@@ -20,7 +20,6 @@ const MASTER_ONLY_KEYS = [
   "countryOfIncorporation",
   "scCompanyType",
   "companyCategory",
-  "companyEmail",
   "scInvestorCategory",
   "isSophisticatedInvestor",
   "residentialAddress",
@@ -101,6 +100,19 @@ export function mergeCorporateOnboardingData(
       pic.contactNumber = patch.personInCharge.contactNumber;
     }
     current.personInCharge = pic;
+  }
+
+  if (patch.contactPerson) {
+    const contact = isPlainObjectRecord(current.contactPerson) ? { ...current.contactPerson } : {};
+    if (patch.contactPerson.name !== undefined) contact.name = patch.contactPerson.name;
+    if (patch.contactPerson.position !== undefined) contact.position = patch.contactPerson.position;
+    if (patch.contactPerson.email !== undefined) {
+      contact.email = patch.contactPerson.email === "" ? null : patch.contactPerson.email;
+    }
+    if (patch.contactPerson.contact !== undefined) {
+      contact.contact = patch.contactPerson.contact;
+    }
+    current.contactPerson = contact;
   }
 
   if (patch.aboutYourBusiness !== undefined) {

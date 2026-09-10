@@ -33,6 +33,9 @@ export interface OperatorProfileDto {
   advisors: OperatorAdvisorDto[];
   interests: OperatorInterestDto[];
   financialStatements: OperatorFinancialStatementDto[];
+  signingPeople: OperatorSigningPersonDto[];
+  /** Existing platform company stamp (certificate stamp JSON). Documents still read the original config. */
+  companyStamp: OperatorCompanyStampFields | null;
   updatedAt: string;
 }
 
@@ -88,6 +91,59 @@ export interface OperatorOfficerDto {
   designationOther: string | null;
   appointmentDate: string | null;
   resignationDate: string | null;
+}
+
+/** Document execution roles on Shoraka Profile. Separate from Board / Management / Director. */
+export const OPERATOR_SIGNING_ROLES = ["AUTHORISED_SIGNATORY", "WITNESS"] as const;
+export type OperatorSigningRole = (typeof OPERATOR_SIGNING_ROLES)[number];
+
+export const OPERATOR_SIGNING_ROLE_LABELS: Record<OperatorSigningRole, string> = {
+  AUTHORISED_SIGNATORY: "Authorised Signatory",
+  WITNESS: "Witness",
+};
+
+export function isOperatorSigningRole(value: unknown): value is OperatorSigningRole {
+  return typeof value === "string" && (OPERATOR_SIGNING_ROLES as readonly string[]).includes(value);
+}
+
+export interface OperatorCompanyStampFields {
+  s3Key?: string;
+  fileName?: string;
+  contentType?: string;
+}
+
+export interface OperatorSigningPersonDto {
+  id: string;
+  officerId: string;
+  personName: string | null;
+  personKind: ScPersonKind;
+  designation: ScDesignation | null;
+  designationOther: string | null;
+  roles: OperatorSigningRole[];
+  signature: OperatorCompanyStampFields | null;
+  active: boolean;
+}
+
+/**
+ * Legacy documents still read a single authorised-signatory name.
+ * Use the first active Authorised Signatory's person name, or null if none.
+ */
+export function legacyAuthorisedSignatoryNameFromSigningPeople(
+  people: Array<Pick<OperatorSigningPersonDto, "active" | "roles" | "personName">>
+): string | null {
+  const match = people.find(
+    (row) => row.active && row.roles.includes("AUTHORISED_SIGNATORY") && Boolean(row.personName?.trim())
+  );
+  const name = match?.personName?.trim();
+  return name ? name : null;
+}
+
+/** Org roles never become execution roles. Assignment is always explicit. */
+export function signingRolesImpliedByOfficer(_officer: {
+  personKind?: unknown;
+  designation?: unknown;
+}): OperatorSigningRole[] {
+  return [];
 }
 
 export interface OperatorAdvisorDto {

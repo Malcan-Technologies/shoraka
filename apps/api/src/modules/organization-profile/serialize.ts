@@ -9,8 +9,11 @@ import type {
 import {
   comrepCalendarDateKey,
   isMasterFieldEmpty,
+  mergeCodContactPersonMaster,
   normalizeDirectorShareholderIdKey,
   parseComrepCalendarDate,
+  parsePersonIdentityConflict,
+  PERSON_IDENTITY_CONFLICT_KEY,
   valuesEqualForMismatch,
 } from "@cashsouk/types";
 
@@ -191,12 +194,19 @@ export function mergeObservationResolutions(
       kept[field] = meta;
     }
   }
-  if (Object.keys(kept).length === 0) {
-    const rest = { ...next };
-    delete rest[OBSERVATION_RESOLVED_KEY];
-    return rest;
+  const merged =
+    Object.keys(kept).length === 0
+      ? (() => {
+          const rest = { ...next };
+          delete rest[OBSERVATION_RESOLVED_KEY];
+          return rest;
+        })()
+      : { ...next, [OBSERVATION_RESOLVED_KEY]: kept };
+  const conflict = parsePersonIdentityConflict(previous);
+  if (conflict) {
+    merged[PERSON_IDENTITY_CONFLICT_KEY] = conflict;
   }
-  return { ...next, [OBSERVATION_RESOLVED_KEY]: kept };
+  return merged;
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -239,6 +249,8 @@ export function preserveFilledOrgIdentityFields<T extends Record<string, unknown
 /**
  * COD webhooks replace corporate_onboarding_data. Address/activity facts filled
  * during secondary onboarding live in that JSON — keep filled subfields.
+ * personInCharge is RegTank evidence (always take incoming). contactPerson is
+ * CashSouk master: seed from PIC when empty, never silently overwrite when filled.
  * Directors/entities in the incoming payload still replace (KYC/AML).
  */
 export function preserveFilledCodMasterFacts(existing: unknown, incoming: unknown): unknown {
@@ -274,6 +286,15 @@ export function preserveFilledCodMasterFacts(existing: unknown, incoming: unknow
     source: "REGTANK",
   }).value;
   next.aboutYourBusiness = nextAbout;
+
+  if ("personInCharge" in next || prev.personInCharge != null) {
+    next.personInCharge = next.personInCharge ?? prev.personInCharge ?? null;
+  }
+  next.contactPerson = mergeCodContactPersonMaster({
+    existingContact: prev.contactPerson,
+    incomingPic: next.personInCharge,
+    incomingContact: next.contactPerson,
+  });
   return next;
 }
 
@@ -350,6 +371,7 @@ export function serializeParty(
     entity_type: OrganizationPartyProfileDto["entityType"];
     absent_from_latest_external: boolean;
     name: string | null;
+    email?: string | null;
     salutation: string | null;
     identity_prefix: OrganizationPartyProfileDto["identityPrefix"];
     identity_number: string | null;
@@ -376,6 +398,13 @@ export function serializeParty(
     external_observation: Prisma.JsonValue | null;
     created_at: Date;
     updated_at: Date;
+    user_id?: string | null;
+    user?: {
+      user_id: string;
+      email: string;
+      first_name: string;
+      last_name: string;
+    } | null;
   }
 ): OrganizationPartyProfileDto {
   const fieldSources = parseFieldSources(row.field_sources);
@@ -391,6 +420,7 @@ export function serializeParty(
     entityType: row.entity_type,
     absentFromLatestExternal: row.absent_from_latest_external,
     name: row.name,
+    email: row.email ?? null,
     salutation: row.salutation,
     identityPrefix: row.identity_prefix,
     identityNumber: row.identity_number,
@@ -431,5 +461,22 @@ export function serializeParty(
     }),
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
+    // OPTIONAL Person ↔ User. Never infer from email; listPartyProfiles fills platformAccess.
+    userId: row.user_id ?? row.user?.user_id ?? null,
+    linkedUser: row.user
+      ? {
+          userId: row.user.user_id,
+          email: row.user.email,
+          firstName: row.user.first_name,
+          lastName: row.user.last_name,
+        }
+      : null,
+    platformAccess: {
+      status: "NOT_INVITED",
+      label: "Not invited",
+      memberRole: null,
+      invitationId: null,
+      invitationExpiresAt: null,
+    },
   };
 }

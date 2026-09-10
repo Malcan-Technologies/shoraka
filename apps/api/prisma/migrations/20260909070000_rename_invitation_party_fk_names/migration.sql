@@ -1,0 +1,11 @@
+-- RenameForeignKey
+ALTER TABLE "investor_organization_invitation" RENAME CONSTRAINT "investor_organization_invitation_organization_party_profile_id_" TO "investor_organization_invitation_organization_party_profil_fkey";
+
+-- RenameForeignKey
+ALTER TABLE "issuer_organization_invitation" RENAME CONSTRAINT "issuer_organization_invitation_organization_party_profile_id_fk" TO "issuer_organization_invitation_organization_party_profile__fkey";
+
+-- RenameIndex
+ALTER INDEX "investor_organization_invitation_organization_party_profile_id_" RENAME TO "investor_organization_invitation_organization_party_profile_idx";
+
+-- RenameIndex
+ALTER INDEX "issuer_organization_invitation_organization_party_profile_id_id" RENAME TO "issuer_organization_invitation_organization_party_profile_i_idx";

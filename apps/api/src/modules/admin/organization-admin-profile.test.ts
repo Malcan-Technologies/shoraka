@@ -27,32 +27,24 @@ describe("updateAdminOrganizationProfileSchema", () => {
   it("accepts CashSouk master profile fields on the same organization patch", () => {
     const parsed = updateAdminOrganizationProfileSchema.parse({
       name: "Acme Sdn Bhd",
-      companyEmail: "ops@acme.example",
       scCompanyType: "PRIVATE_LIMITED",
       companyCategory: "NON_TECHNOLOGY",
       dateOfIncorporation: "2020-03-12",
     });
-    expect(parsed.companyEmail).toBe("ops@acme.example");
     expect(parsed.scCompanyType).toBe("PRIVATE_LIMITED");
   });
 
-  it("rejects blank, whitespace, and invalid E-mail Address", () => {
-    expect(updateAdminOrganizationProfileSchema.safeParse({ companyEmail: "" }).success).toBe(false);
-    expect(updateAdminOrganizationProfileSchema.safeParse({ companyEmail: "   " }).success).toBe(false);
-    expect(updateAdminOrganizationProfileSchema.safeParse({ companyEmail: "not-an-email" }).success).toBe(
+  it("rejects unknown companyEmail on the organization patch", () => {
+    expect(updateAdminOrganizationProfileSchema.safeParse({ companyEmail: "ops@acme.example" }).success).toBe(
       false
     );
-    expect(updateAdminOrganizationProfileSchema.safeParse({ companyEmail: null }).success).toBe(false);
-    expect(
-      updateAdminOrganizationProfileSchema.safeParse({ companyEmail: "ops@acme.example" }).success
-    ).toBe(true);
   });
 
-  it("allows an unrelated patch to omit E-mail Address", () => {
+  it("allows an unrelated patch to omit contact email", () => {
     const parsed = updateAdminOrganizationProfileSchema.parse({
       name: "Acme Sdn Bhd",
     });
-    expect(parsed.companyEmail).toBeUndefined();
+    expect(parsed.corporateOnboardingData?.contactPerson).toBeUndefined();
   });
 
   it("rejects locked identity fields", () => {
@@ -99,6 +91,22 @@ describe("mergeCorporateOnboardingData", () => {
     expect(about.singleCustomerOver50Revenue).toBe(false);
     expect(about.accountingSoftware).toBe("SAP");
   });
+
+  it("writes contactPerson without replacing personInCharge evidence", () => {
+    const merged = mergeCorporateOnboardingData(
+      {
+        personInCharge: { name: "RegTank Pic", email: "pic@regtank.test" },
+        contactPerson: { name: "Ops", email: "ops@acme.test", contact: "+60111" },
+      },
+      { contactPerson: { email: "new@acme.test" } }
+    );
+    expect(merged.personInCharge).toEqual({ name: "RegTank Pic", email: "pic@regtank.test" });
+    expect(merged.contactPerson).toEqual({
+      name: "Ops",
+      email: "new@acme.test",
+      contact: "+60111",
+    });
+  });
 });
 
 describe("summarizeProfilePatch", () => {
@@ -125,7 +133,6 @@ describe("extractMasterProfilePatch", () => {
       scCompanyType: "PRIVATE_LIMITED",
       companyCategory: "NON_TECHNOLOGY",
       dateOfIncorporation: "2020-03-12",
-      companyEmail: "ops@acme.example",
       corporateOnboardingData: {
         website: "https://acme.example",
         addresses: {
@@ -148,12 +155,10 @@ describe("extractMasterProfilePatch", () => {
     const operational = stripMasterOnlyProfileFields({
       name: "Acme Sdn Bhd",
       scCompanyType: "PRIVATE_LIMITED",
-      companyEmail: "ops@acme.example",
       corporateOnboardingData: { website: "https://acme.example" },
     });
     expect(operational.name).toBe("Acme Sdn Bhd");
     expect(operational.scCompanyType).toBeUndefined();
-    expect(operational.companyEmail).toBeUndefined();
     expect(operational.corporateOnboardingData?.website).toBe("https://acme.example");
   });
 });

@@ -17,6 +17,9 @@ function row(overrides: Partial<InvoiceFormModel> = {}): InvoiceFormModel {
     financing_ratio_percent: 70,
     financing_tenure_days: 90,
     document: { s3_key: "s3/a", file_name: "inv.pdf" },
+    company_category: "TECHNOLOGY",
+    campaign_sector: "MANUFACTURING",
+    sustainability_category: "G8",
     ...overrides,
   };
 }
@@ -29,6 +32,9 @@ const emptyRow = (): InvoiceFormModel =>
     maturity_date: "",
     financing_tenure_days: undefined,
     document: null,
+    company_category: null,
+    campaign_sector: null,
+    sustainability_category: null,
   });
 
 describe("invoice form row change detection", () => {
@@ -40,6 +46,7 @@ describe("invoice form row change detection", () => {
     const baseline = row();
     expect(hasInvoiceFormRowChanged(row(), baseline)).toBe(false);
     expect(hasInvoiceFormRowChanged(row({ financing_tenure_days: 105 }), baseline)).toBe(true);
+    expect(hasInvoiceFormRowChanged(row({ campaign_sector: "CONSTRUCTIONS" }), baseline)).toBe(true);
     expect(isInvoiceFormRowEmpty(emptyRow())).toBe(true);
   });
 });
@@ -55,6 +62,26 @@ describe("invoice step Continue presence gate", () => {
     expect(invoiceRowHasRequiredFields(started)).toBe(false);
     expect(isInvoiceFormRowPartial(started)).toBe(true);
     expect(invoiceRowHasRequiredFields(started, true)).toBe(false);
+  });
+
+  it("requires Campaign Sector, Company category, and Sustainability Category of the Campaign", () => {
+    const complete = row({
+      campaign_sector: "MANUFACTURING",
+      company_category: "TECHNOLOGY",
+      sustainability_category: "G8",
+    });
+    expect(invoiceRowHasRequiredFields(complete)).toBe(true);
+    expect(
+      invoiceRowHasRequiredFields(
+        row({ campaign_sector: null, company_category: "TECHNOLOGY", sustainability_category: "G8" })
+      )
+    ).toBe(false);
+    expect(
+      invoiceRowHasRequiredFields(row({ company_category: null, sustainability_category: "G8" }))
+    ).toBe(false);
+    expect(
+      invoiceRowHasRequiredFields(row({ company_category: "TECHNOLOGY", sustainability_category: null }))
+    ).toBe(false);
   });
 
   it("counts a pending file as the document field", () => {

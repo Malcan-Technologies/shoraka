@@ -17,6 +17,7 @@ export const COMPANY_STAMP_MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 
 export const COMPANY_STAMP_UNSUPPORTED_TYPE_MESSAGE = "Upload a PNG, JPG or WEBP image.";
 export const COMPANY_STAMP_TOO_LARGE_MESSAGE = "Company stamp image must be 5 MB or smaller.";
+export const PERSON_SIGNATURE_TOO_LARGE_MESSAGE = "Signature image must be 5 MB or smaller.";
 
 export function isCompanyStampContentType(value: string): value is CompanyStampContentType {
   const normalized = value.trim().toLowerCase();
@@ -32,6 +33,19 @@ export function companyStampDeclaredFileRejection(
   }
   if (!Number.isFinite(fileSize) || fileSize <= 0 || fileSize > COMPANY_STAMP_MAX_FILE_SIZE_BYTES) {
     return COMPANY_STAMP_TOO_LARGE_MESSAGE;
+  }
+  return null;
+}
+
+export function personSignatureDeclaredFileRejection(
+  contentType: string,
+  fileSize: number
+): string | null {
+  if (!isCompanyStampContentType(contentType)) {
+    return COMPANY_STAMP_UNSUPPORTED_TYPE_MESSAGE;
+  }
+  if (!Number.isFinite(fileSize) || fileSize <= 0 || fileSize > COMPANY_STAMP_MAX_FILE_SIZE_BYTES) {
+    return PERSON_SIGNATURE_TOO_LARGE_MESSAGE;
   }
   return null;
 }

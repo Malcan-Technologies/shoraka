@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  PERSON_EMAIL_HELP,
   SC_DESIGNATION_LABELS,
   SC_GENDER_LABELS,
   SC_MONTHLY_BOARD,
@@ -12,6 +13,7 @@ import {
   getFinalStatusToken,
   monthlyIssuerPersonCopy,
   partyRoleLabels,
+  personIdentityDisplay,
   type ApplicationPersonRow,
   type OrganizationPartyProfileDto,
 } from "@cashsouk/types";
@@ -86,8 +88,14 @@ export function buildPartyProfileDetailItems(params: {
   ]
     .filter(Boolean)
     .join("; ");
-  const identity = party?.identityNumber || person?.matchKey || "";
-  const email = person?.email || "";
+  const identity = personIdentityDisplay({
+    identityNumber: party?.identityNumber ?? person?.identityNumber,
+    partyKey: party?.partyKey,
+    matchKey: person?.matchKey,
+    kycOnboardingStatus: person?.onboarding?.status,
+  });
+  const personEmail = party?.email || person?.email || "";
+  const loginEmail = party?.linkedUser?.email || "";
   const name = party?.name || person?.name || "";
   const roles = party
     ? formatPartyRoleLine(party)
@@ -105,10 +113,29 @@ export function buildPartyProfileDetailItems(params: {
     items.push({ label: copy.salutation.label, value: party?.salutation ?? "", help: copy.salutation.help });
   }
   if (isPresent(prefix)) items.push({ label: copy.identityPrefix.label, value: prefix });
-  if (isPresent(identity)) {
-    items.push({ label: copy.identity.label, value: identity, help: copy.identity.help });
+  if (!corporate) {
+    items.push({
+      label: "Identity",
+      value: identity.value,
+      help: identity.governmentId ? copy.identity.help : undefined,
+    });
+  } else if (identity.governmentId) {
+    items.push({ label: copy.identity.label, value: identity.governmentId, help: copy.identity.help });
   }
-  if (isPresent(email)) items.push({ label: "E-mail", value: email });
+  if (isPresent(personEmail)) {
+    items.push({
+      label: "Email",
+      value: personEmail,
+      help: PERSON_EMAIL_HELP,
+    });
+  }
+  if (isPresent(loginEmail)) {
+    items.push({
+      label: "Platform login email",
+      value: loginEmail,
+      help: "Login email for the linked CashSouk account. Changing Person Email does not change this.",
+    });
+  }
   if (party) {
     if (!corporate && isPresent(gender)) {
       items.push({ label: copy.gender.label, value: gender, help: copy.gender.help });

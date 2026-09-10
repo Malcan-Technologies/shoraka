@@ -91,6 +91,7 @@ import {
   shorakaShareholderPayload,
 } from "./shoraka-profile-payload";
 import { ShorakaRecordSection } from "./shoraka-record-section";
+import { ShorakaSigningAuthorisationSection } from "./shoraka-signing-authorisation-section";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -99,6 +100,7 @@ const SHORAKA_TABS = [
   "capital",
   "holders",
   "officers",
+  "signing",
   "advisors",
   "interests",
   "financials",
@@ -288,6 +290,7 @@ export default function RmoProfilePage() {
             { id: "capital", label: "Share Capital", ...tabStatus("capital") },
             { id: "holders", label: "Ownership", ...tabStatus("holders") },
             { id: "officers", label: "Board & Management", ...tabStatus("officers") },
+            { id: "signing", label: "Signing & Authorisation" },
             { id: "advisors", label: "Advisers" },
             { id: "interests", label: "Other Companies" },
             { id: "financials", label: "Financial Statements", ...tabStatus("financials") },
@@ -1207,6 +1210,18 @@ export default function RmoProfilePage() {
                 )}
               />
             </div>
+          </AdminDetailTabPanel>
+
+          <AdminDetailTabPanel value="signing">
+            <ShorakaSigningAuthorisationSection
+              profile={draft}
+              canManage={canManage}
+              api={api}
+              onProfileChange={(data) => {
+                queryClient.setQueryData(["admin", "operator-profile"], data);
+                setDraft(data);
+              }}
+            />
           </AdminDetailTabPanel>
 
           <AdminDetailTabPanel value="advisors">

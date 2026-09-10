@@ -19,6 +19,8 @@ export interface OrganizationPartyProfileDto {
   entityType: OrganizationPartyEntityType;
   absentFromLatestExternal: boolean;
   name: string | null;
+  /** Person Email master. Not User.email and not an identity key. */
+  email: string | null;
   salutation: string | null;
   identityPrefix: ScIdentityPrefix | null;
   identityNumber: string | null;
@@ -46,6 +48,20 @@ export interface OrganizationPartyProfileDto {
   mismatches: OrganizationPartyFieldMismatch[];
   createdAt: string;
   updatedAt: string;
+  /**
+   * OPTIONAL platform User for this company/regulatory person.
+   * Never infer from email; only set via an explicit Person-scoped invitation.
+   */
+  userId: string | null;
+  linkedUser: OrganizationPartyLinkedUser | null;
+  platformAccess: import("./person-platform-access").PersonPlatformAccess;
+}
+
+export interface OrganizationPartyLinkedUser {
+  userId: string;
+  email: string;
+  firstName: string;
+  lastName: string;
 }
 
 export interface OrganizationPartyFieldMismatch {
@@ -69,10 +85,26 @@ export interface OrganizationMasterProfileDto {
   countryOfIncorporation: string | null;
   scCompanyType: import("./comrep-profile").ScCompanyType | null;
   companyCategory: import("./comrep-profile").ScCompanyCategory | null;
-  companyEmail: string | null;
   scInvestorCategory: import("./comrep-profile").ScInvestorCategory | null;
   residentialAddress: ProfileAddress | null;
   fieldSources: ProfileFieldSources;
+}
+
+export function emptyPartyPlatformFields(): Pick<
+  OrganizationPartyProfileDto,
+  "userId" | "linkedUser" | "platformAccess"
+> {
+  return {
+    userId: null,
+    linkedUser: null,
+    platformAccess: {
+      status: "NOT_INVITED",
+      label: "Not invited",
+      memberRole: null,
+      invitationId: null,
+      invitationExpiresAt: null,
+    },
+  };
 }
 
 export function formatPartySharePercent(value: string | number | null | undefined): string | null {

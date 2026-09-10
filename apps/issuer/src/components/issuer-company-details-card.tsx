@@ -53,7 +53,6 @@ export type IssuerCompanyDetailsOrg = {
   dateOfCommencement?: string | Date | null;
   countryOfIncorporation?: string | null;
   scCompanyType?: string | null;
-  companyEmail?: string | null;
   corporateOnboardingData?: {
     basicInfo?: {
       tinNumber?: string;
@@ -106,7 +105,6 @@ export function IssuerCompanyDetailsCard({
     org.countryOfIncorporation ?? ""
   );
   const [scCompanyType, setScCompanyType] = React.useState(org.scCompanyType ?? "");
-  const [companyEmail, setCompanyEmail] = React.useState(org.companyEmail ?? "");
   const [phoneNumber, setPhoneNumber] = React.useState(org.phoneNumber ?? "");
   const [website, setWebsite] = React.useState(basic?.website ?? "");
   const [annualRevenue, setAnnualRevenue] = React.useState(basic?.annualRevenue ?? "");
@@ -120,7 +118,6 @@ export function IssuerCompanyDetailsCard({
     setDateOfCommencement(toDateInput(org.dateOfCommencement));
     setCountryOfIncorporation(org.countryOfIncorporation ?? "");
     setScCompanyType(org.scCompanyType ?? "");
-    setCompanyEmail(org.companyEmail ?? "");
     setPhoneNumber(org.phoneNumber ?? "");
     setWebsite(basic?.website ?? "");
     setAnnualRevenue(basic?.annualRevenue ?? "");
@@ -139,7 +136,6 @@ export function IssuerCompanyDetailsCard({
         dateOfIncorporation: org.dateOfIncorporation ?? dateOfIncorporation,
         dateOfCommencement: org.dateOfCommencement ?? dateOfCommencement,
         countryOfIncorporation: org.countryOfIncorporation ?? countryOfIncorporation,
-        companyEmail,
         phoneNumber,
       });
       if (issues.length > 0) {
@@ -152,10 +148,12 @@ export function IssuerCompanyDetailsCard({
       }
       setFieldErrors({});
 
-      const master: Record<string, unknown> = {
-        companyEmail: companyEmail.trim(),
-        phoneNumber: storedProfilePhone(phoneNumber.trim()) ?? phoneNumber.trim(),
-      };
+      const master: Record<string, unknown> = {};
+      if (phoneNumber.trim()) {
+        master.phoneNumber = storedProfilePhone(phoneNumber.trim()) ?? phoneNumber.trim();
+      } else {
+        master.phoneNumber = null;
+      }
       if (!org.dateOfIncorporation) master.dateOfIncorporation = dateOfIncorporation.trim();
       if (!org.dateOfCommencement) master.dateOfCommencement = dateOfCommencement.trim();
       if (!org.countryOfIncorporation) master.countryOfIncorporation = countryOfIncorporation.trim();
@@ -357,36 +355,8 @@ export function IssuerCompanyDetailsCard({
             />
           )}
           {isEditing ? (
-            <InputRow
-              id="field-companyEmail"
-              label={SC_MONTHLY_ISSUER.emailAddress.label}
-              value={companyEmail}
-              onChange={(value) => {
-                setCompanyEmail(value);
-                setFieldErrors((current) => ({ ...current, companyEmail: "" }));
-              }}
-              help={SC_MONTHLY_ISSUER.emailAddress.help}
-              required
-              maxLength={255}
-              type="email"
-              error={fieldErrors.companyEmail}
-            />
-          ) : (
-            <ProfileReadField
-              label={SC_MONTHLY_ISSUER.emailAddress.label}
-              value={displayProfileValue(org.companyEmail)}
-              missing={missing.has("companyEmail")}
-              required
-              help={SC_MONTHLY_ISSUER.emailAddress.help}
-            />
-          )}
-          {isEditing ? (
             <div className="space-y-2">
-              <ComRepFieldLabel
-                label={SC_MONTHLY_ISSUER.phoneNumber.label}
-                required
-                help={SC_MONTHLY_ISSUER.phoneNumber.help}
-              />
+              <ComRepFieldLabel label="Company phone" help="General company phone for payments and receipts. Fundraising contact phone is under Person in Charge." />
               <ProfilePhoneInput
                 id="field-phoneNumber"
                 value={phoneNumber}
@@ -402,11 +372,9 @@ export function IssuerCompanyDetailsCard({
             </div>
           ) : (
             <ProfileReadField
-              label={SC_MONTHLY_ISSUER.phoneNumber.label}
+              label="Company phone"
               value={displayProfileValue(org.phoneNumber)}
-              missing={missing.has("phoneNumber")}
-              required
-              help={SC_MONTHLY_ISSUER.phoneNumber.help}
+              help="General company phone for payments and receipts. Fundraising contact phone is under Person in Charge."
             />
           )}
         </ProfileFieldGrid>

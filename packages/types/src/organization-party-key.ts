@@ -23,6 +23,63 @@ export function isGeneratedUserPartyKey(partyKey: string): boolean {
   return partyKey.toLowerCase().startsWith(USER_GENERATED_PARTY_KEY_PREFIX);
 }
 
+/**
+ * Lookup key for OPP / supplement / people[] rows.
+ * Generated `user:{uuid}` keys stay exact (colon and hyphens). Government IDs keep existing normalization.
+ */
+export function resolvePartyLookupKey(raw: string | null | undefined): string | null {
+  const trimmed = String(raw ?? "").trim();
+  if (!trimmed) return null;
+  if (isGeneratedUserPartyKey(trimmed)) return trimmed;
+  return canonicalPartyIdentityKey(trimmed);
+}
+
+export function partyKeyMatchesLookup(
+  stored: string | null | undefined,
+  input: string | null | undefined
+): boolean {
+  const a = String(stored ?? "").trim();
+  const b = String(input ?? "").trim();
+  if (!a || !b) return false;
+  if (isGeneratedUserPartyKey(a) || isGeneratedUserPartyKey(b)) return a === b;
+  return resolvePartyLookupKey(a) === resolvePartyLookupKey(b);
+}
+
+/** Government ID shown to users. Never treat a generated party_key as NRIC/passport. */
+export function displayGovernmentIdentityNumber(params: {
+  partyKey?: string | null;
+  identityNumber?: string | null;
+}): string | null {
+  const identity = String(params.identityNumber ?? "").trim();
+  if (identity) return identity;
+  const key = String(params.partyKey ?? "").trim();
+  if (!key || isGeneratedUserPartyKey(key)) return null;
+  return key;
+}
+
+/**
+ * RegTank `governmentIdNumber` for Person Send.
+ * Generated keys must not be sent as identity. `referenceId` remains correlation only.
+ */
+export function governmentIdNumberForOnboardingSend(params: {
+  partyKey: string;
+  identityNumber?: string | null;
+  fallbackIdNumber?: string | null;
+  fallbackEnquiryId?: string | null;
+}): string {
+  const fromIdentity = canonicalPartyIdentityKey(params.identityNumber);
+  if (fromIdentity) return fromIdentity;
+  if (isGeneratedUserPartyKey(params.partyKey)) return "";
+  const fromDisplay = canonicalPartyIdentityKey(params.fallbackIdNumber);
+  if (fromDisplay) return fromDisplay;
+  return String(params.fallbackEnquiryId ?? "").trim();
+}
+
+export function usablePersonSendName(name: string | null | undefined): string | null {
+  const trimmed = String(name ?? "").trim();
+  return trimmed || null;
+}
+
 export function isCtosComparableParty(flags: {
   isDirector: boolean;
   isShareholder: boolean;
@@ -71,18 +128,30 @@ export function findExistingPartyForIdentityKey<T extends PartyKeyRow>(
   identityKey: string,
   options?: { entityType?: string | null }
 ): T | undefined {
-  const want = canonicalPartyIdentityKey(identityKey);
-  if (!want) return undefined;
+  const raw = String(identityKey ?? "").trim();
+  if (!raw) return undefined;
   const wantType = options?.entityType ? String(options.entityType) : null;
+  const typeOk = (row: T) => {
+    if (!wantType) return true;
+    const rowType = rowEntityType(row);
+    return !rowType || rowType === wantType;
+  };
+  if (isGeneratedUserPartyKey(raw)) {
+    return rows.find((row) => typeOk(row) && rowPartyKey(row) === raw);
+  }
+  const want = canonicalPartyIdentityKey(raw);
+  if (!want) return undefined;
   return rows.find((row) => {
-    if (wantType) {
-      const rowType = rowEntityType(row);
-      if (rowType && rowType !== wantType) return false;
-    }
+    if (!typeOk(row)) return false;
     const key = rowPartyKey(row);
+    if (isGeneratedUserPartyKey(key)) {
+      return canonicalPartyIdentityKey(rowIdentityNumber(row)) === want;
+    }
     if (canonicalPartyIdentityKey(key) === want) return true;
     if (canonicalPartyIdentityKey(rowIdentityNumber(row)) === want) return true;
-    if (canonicalPartyIdentityKey(stripGeneratedPartyKeyPrefix(key)) === want) return true;
+    if (key.toLowerCase().startsWith(LEGACY_MGMT_PARTY_KEY_PREFIX)) {
+      return canonicalPartyIdentityKey(stripGeneratedPartyKeyPrefix(key)) === want;
+    }
     return false;
   });
 }
@@ -93,11 +162,14 @@ export function partySeenInExternalKeys(
 ): boolean {
   const key = rowPartyKey(row);
   if (seen.has(key)) return true;
-  const canonicalKey = canonicalPartyIdentityKey(key);
-  if (canonicalKey && seen.has(canonicalKey)) return true;
   const identity = canonicalPartyIdentityKey(rowIdentityNumber(row));
   if (identity && seen.has(identity)) return true;
-  const stripped = canonicalPartyIdentityKey(stripGeneratedPartyKeyPrefix(key));
-  if (stripped && seen.has(stripped)) return true;
+  if (isGeneratedUserPartyKey(key)) return false;
+  const canonicalKey = canonicalPartyIdentityKey(key);
+  if (canonicalKey && seen.has(canonicalKey)) return true;
+  if (key.toLowerCase().startsWith(LEGACY_MGMT_PARTY_KEY_PREFIX)) {
+    const stripped = canonicalPartyIdentityKey(stripGeneratedPartyKeyPrefix(key));
+    if (stripped && seen.has(stripped)) return true;
+  }
   return false;
 }

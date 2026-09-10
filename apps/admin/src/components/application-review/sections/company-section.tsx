@@ -212,7 +212,7 @@ export function CompanySection({
         <ReviewFieldBlock title="About Your Business">
           <div className="space-y-2">
             <ComparisonFieldRow
-              label="What Does Your Company Do?"
+              label="Company Activities"
               before={b.whatDoesCompanyDo}
               after={a.whatDoesCompanyDo}
               changed={isPathChanged("company_details") || isPathChanged("issuer_organization")}
@@ -398,7 +398,7 @@ export function CompanySection({
 
       <ReviewFieldBlock title="About Your Business">
         <div className={reviewRowGridClass}>
-          <Label className={reviewLabelClass}>What Does Your Company Do?</Label>
+          <Label className={reviewLabelClass}>Company Activities</Label>
           <ReviewValue value={whatDoesCompanyDo} multiline />
           <Label className={reviewLabelClass}>Who Are Your Main Customers?</Label>
           <ReviewValue value={mainCustomers} multiline />

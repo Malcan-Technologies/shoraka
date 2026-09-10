@@ -69,6 +69,8 @@ describe("Activity Adapters", () => {
       expect(types).not.toContain("MEMBER_INVITED");
       expect(types).not.toContain("MEMBER_REMOVED");
       expect(types).not.toContain("MEMBER_ROLE_CHANGED");
+      expect(types).not.toContain("PERSON_PLATFORM_USER_LINKED");
+      expect(types).not.toContain("PERSON_PLATFORM_ACCESS_RESTORED");
       expect(types).not.toContain("MARC_ASSESSMENT_SAVED");
     });
   });

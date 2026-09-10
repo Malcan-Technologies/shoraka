@@ -245,12 +245,8 @@ describe("operator ComRep schemas", () => {
 });
 
 describe("issuer master profile patch", () => {
-  it("rejects blank and invalid E-mail Address and accepts a valid address", () => {
-    expect(orgMasterPatchSchema.safeParse({ companyEmail: "" }).success).toBe(false);
-    expect(orgMasterPatchSchema.safeParse({ companyEmail: "   " }).success).toBe(false);
-    expect(orgMasterPatchSchema.safeParse({ companyEmail: "not-an-email" }).success).toBe(false);
-    expect(orgMasterPatchSchema.safeParse({ companyEmail: null }).success).toBe(false);
-    expect(orgMasterPatchSchema.safeParse({ companyEmail: "ops@acme.test" }).success).toBe(true);
+  it("rejects unknown companyEmail keys", () => {
+    expect(orgMasterPatchSchema.safeParse({ companyEmail: "ops@acme.test" }).success).toBe(false);
   });
 
   it("allows an unrelated patch to omit E-mail Address", () => {

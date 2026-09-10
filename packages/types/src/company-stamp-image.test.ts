@@ -2,7 +2,9 @@ import {
   COMPANY_STAMP_MAX_FILE_SIZE_BYTES,
   COMPANY_STAMP_TOO_LARGE_MESSAGE,
   COMPANY_STAMP_UNSUPPORTED_TYPE_MESSAGE,
+  PERSON_SIGNATURE_TOO_LARGE_MESSAGE,
   companyStampDeclaredFileRejection,
+  personSignatureDeclaredFileRejection,
 } from "./company-stamp-image";
 import * as stampRules from "./company-stamp-image";
 
@@ -37,5 +39,17 @@ describe("companyStampDeclaredFileRejection", () => {
     expect("COMPANY_STAMP_MAX_EDGE_PX" in stampRules).toBe(false);
     expect("COMPANY_STAMP_MIN_ASPECT_RATIO" in stampRules).toBe(false);
     expect("COMPANY_STAMP_MAX_ASPECT_RATIO" in stampRules).toBe(false);
+  });
+});
+
+describe("personSignatureDeclaredFileRejection", () => {
+  it("accepts the same image types as company stamp", () => {
+    expect(personSignatureDeclaredFileRejection("image/png", 1024)).toBeNull();
+  });
+
+  it("rejects oversize signature images with a signature-specific message", () => {
+    expect(
+      personSignatureDeclaredFileRejection("image/png", COMPANY_STAMP_MAX_FILE_SIZE_BYTES + 1)
+    ).toBe(PERSON_SIGNATURE_TOO_LARGE_MESSAGE);
   });
 });

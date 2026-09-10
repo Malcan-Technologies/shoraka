@@ -381,7 +381,6 @@ export function validateIssuerCompanyForm(input: {
   dateOfIncorporation?: unknown;
   dateOfCommencement?: unknown;
   countryOfIncorporation?: unknown;
-  companyEmail?: unknown;
   phoneNumber?: unknown;
   name?: unknown;
   includeName?: boolean;
@@ -403,8 +402,20 @@ export function validateIssuerCompanyForm(input: {
     issues,
     requiredTextIssue(input.countryOfIncorporation, "countryOfIncorporation", "Country of Incorporation")
   );
-  push(issues, requiredEmailIssue(input.companyEmail, "companyEmail", "E-mail Address"));
-  push(issues, requiredPhoneIssue(input.phoneNumber, "phoneNumber", "Phone Number"));
+  if (input.phoneNumber !== undefined && input.phoneNumber != null && String(input.phoneNumber).trim() !== "") {
+    push(issues, requiredPhoneIssue(input.phoneNumber, "phoneNumber", "Phone Number"));
+  }
+  return issues;
+}
+
+/** ComRep [02000] E-mail Address and Phone Number live on current Contact Person. */
+export function validateIssuerContactPersonForm(input: {
+  email?: unknown;
+  contact?: unknown;
+}): ComrepFieldIssue[] {
+  const issues: ComrepFieldIssue[] = [];
+  push(issues, requiredEmailIssue(input.email, "contactPersonEmail", "E-mail Address"));
+  push(issues, requiredPhoneIssue(input.contact, "contactPersonPhone", "Phone Number"));
   return issues;
 }
 
@@ -551,8 +562,7 @@ export function validateIssuerMasterPatch(
   const issues: ComrepFieldIssue[] = [];
   if (portal === "issuer") {
     push(issues, rejectClearedRequiredText(patch, "name", "Name of Issuer"));
-    push(issues, rejectClearedRequiredEmail(patch, "companyEmail", "E-mail Address"));
-    if (present(patch, "phoneNumber")) {
+    if (present(patch, "phoneNumber") && patch.phoneNumber != null && String(patch.phoneNumber).trim() !== "") {
       push(issues, requiredPhoneIssue(patch.phoneNumber, "phoneNumber", "Phone Number"));
     }
     push(

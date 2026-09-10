@@ -32,6 +32,7 @@ export async function loadMasterPartiesForPeopleMerge(
       is_director: true,
       is_shareholder: true,
       shareholding_percentage: true,
+      email: true,
     },
   });
   return rows.map((row) => ({
@@ -43,6 +44,7 @@ export async function loadMasterPartiesForPeopleMerge(
     isDirector: row.is_director,
     isShareholder: row.is_shareholder,
     shareholdingPercentage: row.shareholding_percentage?.toString() ?? null,
+    email: row.email,
   }));
 }
 

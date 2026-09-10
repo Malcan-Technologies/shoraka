@@ -47,7 +47,7 @@
     "packages/types/src/legal-documents.ts": "4709b8f6aba3b14a5e1690154446ca6494d69843151aec26530e2cfdca8e2229",
     "packages/types/src/gateway-payments.ts": "25dc1c2fe972c02165dc25a4817d74c8f59c152c2eebfd4dee5fdf07920ba459",
     "packages/types/src/signing-envelopes.ts": "03738b69a0e937e8740d04cc812a1deb70aeb46b4113e6a18ee654a5153e4049",
-    "packages/types/src/index.ts": "9fe8b59f6b8750c1f755321a4a1bacac33f6d541879c4efa4a0231d4c34a249e",
+    "packages/types/src/index.ts": "e34c3d1a31a203aff00237a16c8d897511988ea2eea0b3484c397821a63d79fc",
     "packages/types/src/rbac.ts": "5f5fddc0abaad68ad94f6f1eb6a6a2e79bdb6d63a4065f99e9fc425212e47c01",
     "packages/config/src/api-client.ts": "d382bdcdea0a3097d2fb26e5802fdd195c45d8fcf8ea74d8feddcdf491304b97",
     "packages/ui/src/components/activity-feed.tsx": "db3bc9cf27a5680d30fabb9c3e5b661925807e3e059fdb226e23b6c0388ffafd",
