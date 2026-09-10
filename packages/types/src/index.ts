@@ -523,6 +523,7 @@ export * from "./resubmit-path-utils";
 export * from "./resubmit-meaningful-field-path";
 export * from "./application-people-display";
 export * from "./person-email";
+export * from "./person-regtank-send";
 export * from "./issuer-director-shareholder-ctos-notification-diff";
 export * from "./director-kyc-gov-id";
 export * from "./director-shareholder-final-status";

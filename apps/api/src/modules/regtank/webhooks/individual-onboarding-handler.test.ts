@@ -329,4 +329,47 @@ describe("IndividualOnboardingWebhookHandler", () => {
     ).resolves.toBeUndefined();
     expect(prisma.ctosPartySupplement.update).toHaveBeenCalled();
   });
+
+  it("ignores a stale /liveness webhook after the Person request was replaced", async () => {
+    mockFindByRequestId.mockResolvedValue(null);
+    (findCtosPartySupplementByOnboardingJsonMatch as jest.Mock).mockResolvedValue({
+      id: "sup-1",
+      party_key: "user:550e8400-e29b-41d4-a716-446655440000",
+      issuer_organization_id: "org-1",
+      investor_organization_id: null,
+      onboarding_json: { requestId: "LD-NEW", status: "IN_PROGRESS" },
+    });
+    const handler = new IndividualOnboardingWebhookHandler();
+
+    await (handler as any).handle({
+      requestId: "LD-OLD",
+      status: "WAIT_FOR_APPROVAL",
+      referenceId: "org-1_user",
+    });
+
+    expect(prisma.ctosPartySupplement.update).not.toHaveBeenCalled();
+    expect(mockEnrichApprovedCtosPartySupplement).not.toHaveBeenCalled();
+  });
+
+  it("accepts the current /liveness webhook", async () => {
+    mockFindByRequestId.mockResolvedValue(null);
+    (findCtosPartySupplementByOnboardingJsonMatch as jest.Mock).mockResolvedValue({
+      id: "sup-1",
+      party_key: "user:550e8400-e29b-41d4-a716-446655440000",
+      issuer_organization_id: "org-1",
+      investor_organization_id: null,
+      onboarding_json: { requestId: "LD-NEW", status: "IN_PROGRESS" },
+    });
+    const handler = new IndividualOnboardingWebhookHandler();
+
+    await (handler as any).handle({
+      requestId: "LD-NEW",
+      status: "WAIT_FOR_APPROVAL",
+      referenceId: "org-1_user",
+    });
+
+    expect(prisma.ctosPartySupplement.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "sup-1" } })
+    );
+  });
 });

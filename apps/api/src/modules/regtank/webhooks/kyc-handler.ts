@@ -12,10 +12,10 @@ import { syncApplicationGuarantorsFromRegTankAmlWebhook } from "../../admin/guar
 import { maybeAdvanceOrgAfterAmlScreeningCleared } from "./org-aml-milestone";
 import { linkCtosPartyToKyb } from "../../organization/ctos-party-kyb-link";
 import { findCtosPartySupplementByOnboardingJsonMatch } from "../../organization/ctos-party-supplement-webhook-lookup";
+import { shouldIgnoreStaleCtosPartyOnboardingWebhook } from "../../organization/ctos-party-onboarding-request-guard";
 import {
   getCtosPartySupplementPipelineStatus,
   mergeCtosPartySupplementDocument,
-  parseCtosPartySupplement,
 } from "@cashsouk/types";
 import { mapRegTankKycScreeningStatusToAmlStatus } from "../helpers/regtank-kyc-screening-to-aml-status";
 import {
@@ -815,7 +815,6 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
     }
 
     const prevRoot = supplement.onboarding_json;
-    const prev = parseCtosPartySupplement(prevRoot);
 
     const rawStatus = typeof status === "string" ? status : "";
     if (!rawStatus) {
@@ -832,20 +831,13 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
     }
     const now = new Date().toISOString();
 
-    const latestRequestId = prev.requestId.trim();
-    const webhookOnboardingId = typeof onboardingId === "string" ? onboardingId.trim() : "";
-    if (latestRequestId && webhookOnboardingId && latestRequestId !== webhookOnboardingId) {
-      logger.info(
-        {
-          latestRequestId,
-          webhookOnboardingId,
-          requestId,
-          partyKey: supplement.party_key,
-          issuerOrganizationId: supplement.issuer_organization_id,
-          investorOrganizationId: supplement.investor_organization_id,
-        },
-        "Ignored stale CTOS party KYC webhook for non-latest onboarding requestId"
-      );
+    if (
+      shouldIgnoreStaleCtosPartyOnboardingWebhook({
+        supplement,
+        incomingOnboardingRequestId: onboardingId,
+        webhookType: "kyc",
+      })
+    ) {
       return true;
     }
 

@@ -268,6 +268,29 @@ export function getCtosPartySupplementRequestId(root: unknown): string {
   return isDraftPartyOnboardingRequestId(id) ? "" : id;
 }
 
+/**
+ * Current individual onboarding request id stored at onboarding_json.requestId.
+ * Does not fall back to screening.requestId (that field is the KYC ID).
+ */
+export function getCtosPartyCurrentOnboardingRequestId(root: unknown): string {
+  if (!isObject(root)) return "";
+  const id = String(root.requestId ?? "").trim();
+  return isDraftPartyOnboardingRequestId(id) ? "" : id;
+}
+
+/**
+ * Webhook mutation gate: referenceId may locate the Person, but only the current
+ * onboarding requestId may change pipeline/screening state.
+ */
+export function isCurrentCtosPartyOnboardingRequest(
+  root: unknown,
+  incomingOnboardingRequestId: string | null | undefined
+): boolean {
+  const current = getCtosPartyCurrentOnboardingRequestId(root);
+  const incoming = String(incomingOnboardingRequestId ?? "").trim();
+  return Boolean(current) && Boolean(incoming) && current === incoming;
+}
+
 export function isCtosPartySupplementApprovalLocked(root: unknown): boolean {
   const s = parseCtosPartySupplement(root);
   const onb = normalizeRawStatus(s.status);

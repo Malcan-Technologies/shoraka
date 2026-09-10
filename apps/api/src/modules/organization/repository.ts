@@ -850,6 +850,34 @@ export class OrganizationRepository {
     }
   }
 
+  /**
+   * Serialize Person RegTank Send against the supplement row when it exists.
+   * Combined with {@link lockOrganizationPartyProfileForUpdate} so two HTTP
+   * requests cannot both observe "no current request" and create two RegTank IDs.
+   */
+  async lockCtosPartySupplementForUpdate(
+    organizationId: string,
+    portalType: "investor" | "issuer",
+    partyKey: string,
+    db: OrganizationDbClient
+  ): Promise<void> {
+    if (portalType === "investor") {
+      await db.$queryRaw<{ id: string }[]>`
+        SELECT id FROM ctos_party_supplements
+        WHERE investor_organization_id = ${organizationId}
+          AND party_key = ${partyKey}
+        FOR UPDATE
+      `;
+      return;
+    }
+    await db.$queryRaw<{ id: string }[]>`
+      SELECT id FROM ctos_party_supplements
+      WHERE issuer_organization_id = ${organizationId}
+        AND party_key = ${partyKey}
+      FOR UPDATE
+    `;
+  }
+
   async listActivePersonScopedInvitations(
     organizationId: string,
     portalType: "investor" | "issuer",

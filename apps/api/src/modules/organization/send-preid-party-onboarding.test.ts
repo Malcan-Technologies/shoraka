@@ -10,8 +10,28 @@ const mockSupplementCreate = jest.fn();
 const mockSupplementUpdate = jest.fn();
 const mockIssuerFindUnique = jest.fn();
 
+const mockLockParty = jest.fn().mockResolvedValue(undefined);
+const mockLockSupplement = jest.fn().mockResolvedValue(undefined);
+
 jest.mock("../../lib/prisma", () => ({
   prisma: {
+    $transaction: async (fn: (tx: unknown) => unknown) =>
+      fn({
+        organizationPartyProfile: {
+          findFirst: (...args: unknown[]) => mockPartyFindFirst(...args),
+        },
+        ctosPartySupplement: {
+          findFirst: (...args: unknown[]) => mockSupplementFindFirst(...args),
+          create: (...args: unknown[]) => mockSupplementCreate(...args),
+          update: (...args: unknown[]) => mockSupplementUpdate(...args),
+        },
+        issuerOrganization: {
+          findUnique: (...args: unknown[]) => mockIssuerFindUnique(...args),
+        },
+        investorOrganization: {
+          findUnique: jest.fn(),
+        },
+      }),
     organizationPartyProfile: {
       findFirst: (...args: unknown[]) => mockPartyFindFirst(...args),
     },
@@ -30,7 +50,10 @@ jest.mock("../../lib/prisma", () => ({
 }));
 
 jest.mock("./repository", () => ({
-  OrganizationRepository: jest.fn().mockImplementation(() => ({})),
+  OrganizationRepository: jest.fn().mockImplementation(() => ({
+    lockOrganizationPartyProfileForUpdate: (...args: unknown[]) => mockLockParty(...args),
+    lockCtosPartySupplementForUpdate: (...args: unknown[]) => mockLockSupplement(...args),
+  })),
 }));
 
 jest.mock("../auth/repository", () => ({
@@ -113,6 +136,8 @@ describe("sendDirectorCtosPartyOnboarding pre-ID party_key", () => {
       corporateShareholders: [],
     });
     mockPartyFindFirst.mockResolvedValue({
+      id: "party-1",
+      party_key: generatedKey,
       email: "ahmad@example.com",
       identity_number: null,
       name: "Ahmad",
@@ -150,6 +175,8 @@ describe("sendDirectorCtosPartyOnboarding pre-ID party_key", () => {
       corporateShareholders: [],
     });
     mockPartyFindFirst.mockResolvedValue({
+      id: "party-1",
+      party_key: nricKey,
       email: "sarah@example.com",
       identity_number: "900101-10-1234",
       name: "Sarah Tan",
@@ -179,6 +206,8 @@ describe("sendDirectorCtosPartyOnboarding pre-ID party_key", () => {
       corporateShareholders: [],
     });
     mockPartyFindFirst.mockResolvedValue({
+      id: "party-1",
+      party_key: generatedKey,
       email: "ahmad@example.com",
       identity_number: null,
       name: "   ",

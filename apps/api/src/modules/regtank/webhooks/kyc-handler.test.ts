@@ -70,6 +70,7 @@ jest.mock("../../../lib/prisma", () => ({
 import { KYCWebhookHandler } from "./kyc-handler";
 import { linkCtosPartyToKyb } from "../../organization/ctos-party-kyb-link";
 import { findCtosPartySupplementByOnboardingJsonMatch } from "../../organization/ctos-party-supplement-webhook-lookup";
+import { prisma } from "../../../lib/prisma";
 
 function baseOnboardingRow(overrides: Record<string, unknown> = {}) {
   return {
@@ -291,5 +292,81 @@ describe("KYCWebhookHandler", () => {
     });
 
     expect(linkCtosPartyToKyb).not.toHaveBeenCalled();
+  });
+
+  it("ignores a stale KYC webhook and does not replace the current KYC ID or associate", async () => {
+    mockFindByRequestId.mockResolvedValue(null);
+    (findCtosPartySupplementByOnboardingJsonMatch as jest.Mock).mockResolvedValue({
+      id: "sup-stale",
+      party_key: "user:1",
+      issuer_organization_id: "org-iss",
+      investor_organization_id: null,
+      onboarding_json: {
+        requestId: "LD-NEW",
+        status: "APPROVED",
+        screening: { requestId: "KYC-NEW", status: "PENDING" },
+      },
+    });
+    const handler = new KYCWebhookHandler("ACURIS");
+
+    await (handler as any).handle({
+      requestId: "KYC-OLD",
+      onboardingId: "LD-OLD",
+      referenceId: "org-iss_user1",
+      status: "Approved",
+    });
+
+    expect(prisma.ctosPartySupplement.update).not.toHaveBeenCalled();
+    expect(linkCtosPartyToKyb).not.toHaveBeenCalled();
+  });
+
+  it("ignores a KYC webhook that only matches referenceId and has no onboardingId", async () => {
+    mockFindByRequestId.mockResolvedValue(null);
+    (findCtosPartySupplementByOnboardingJsonMatch as jest.Mock).mockResolvedValue({
+      id: "sup-ref",
+      party_key: "user:1",
+      issuer_organization_id: "org-iss",
+      investor_organization_id: null,
+      onboarding_json: {
+        requestId: "LD-NEW",
+        status: "APPROVED",
+        screening: { requestId: "KYC-NEW", status: "PENDING" },
+      },
+    });
+    const handler = new KYCWebhookHandler("ACURIS");
+
+    await (handler as any).handle({
+      requestId: "KYC-OLD",
+      referenceId: "org-iss_user1",
+      status: "Approved",
+    });
+
+    expect(prisma.ctosPartySupplement.update).not.toHaveBeenCalled();
+    expect(linkCtosPartyToKyb).not.toHaveBeenCalled();
+  });
+
+  it("ignores a stale AML/KYC event so it cannot overwrite current screening", async () => {
+    mockFindByRequestId.mockResolvedValue(null);
+    (findCtosPartySupplementByOnboardingJsonMatch as jest.Mock).mockResolvedValue({
+      id: "sup-aml",
+      party_key: "user:1",
+      issuer_organization_id: "org-iss",
+      investor_organization_id: null,
+      onboarding_json: {
+        requestId: "LD-NEW",
+        status: "IN_PROGRESS",
+        screening: { requestId: "KYC-NEW", status: "PENDING" },
+      },
+    });
+    const handler = new KYCWebhookHandler("ACURIS");
+
+    await (handler as any).handle({
+      requestId: "KYC-OLD",
+      onboardingId: "LD-OLD",
+      referenceId: "org-iss_user1",
+      status: "CLEAR",
+    });
+
+    expect(prisma.ctosPartySupplement.update).not.toHaveBeenCalled();
   });
 });
