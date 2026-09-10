@@ -19,12 +19,10 @@ import {
   shouldSendArrearsLetter,
   shouldRetryServicingTransitionSideEffects,
   shouldSendServicingLetter,
-  servicingTransitionDeliveryLogKeys,
+  servicingTransitionNotificationKeyPrefixes,
   servicingTransitionNotificationsDelivered,
 } from "./note-servicing-status";
 import { NoteServicingStatus } from "@prisma/client";
-import { systemNotificationLogKey } from "../../modules/notification/delivery-log";
-import { NotificationTypeIds } from "../../modules/notification/registry";
 
 describe("shouldSendArrearsLetter", () => {
   it("generates when no letter exists", () => {
@@ -71,56 +69,53 @@ describe("shouldRetryServicingTransitionSideEffects", () => {
 });
 
 describe("servicingTransitionNotificationsDelivered", () => {
-  it("retries when the transition event exists but no delivery was recorded", () => {
-    const keys = servicingTransitionDeliveryLogKeys(NoteServicingStatus.LATE, "note-1");
-    expect(keys).toEqual([
-      systemNotificationLogKey(NotificationTypeIds.NOTE_LATE, "note:servicing:note-1:late"),
-      systemNotificationLogKey(
-        NotificationTypeIds.NOTE_LATE_INVESTOR,
-        "note:servicing:note-1:late:investor"
-      ),
+  it("retries when no notification rows exist for the transition", () => {
+    const prefixes = servicingTransitionNotificationKeyPrefixes(NoteServicingStatus.LATE, "note-1");
+    expect(prefixes).toEqual([
+      "note:servicing:note-1:late",
+      "note:servicing:note-1:late:investor",
     ]);
-    expect(servicingTransitionNotificationsDelivered([], keys)).toBe(false);
+    expect(servicingTransitionNotificationsDelivered([], prefixes)).toBe(false);
   });
 
-  it("does not treat a zero-delivery log as success", () => {
-    const keys = servicingTransitionDeliveryLogKeys(NoteServicingStatus.OVERDUE, "note-1");
+  it("retries when email was selected but SES never marked the row sent", () => {
+    const prefixes = servicingTransitionNotificationKeyPrefixes(NoteServicingStatus.OVERDUE, "note-1");
     expect(
       servicingTransitionNotificationsDelivered(
         [
           {
-            idempotency_key: keys[0] ?? null,
-            delivered_platform_count: 0,
-            delivered_email_count: 0,
+            idempotency_key: `${prefixes[0]}:user:u1`,
+            send_to_email: true,
+            email_sent_at: null,
           },
         ],
-        keys
+        prefixes
       )
     ).toBe(false);
   });
 
-  it("requires every expected batch to have been delivered", () => {
-    const keys = servicingTransitionDeliveryLogKeys(NoteServicingStatus.ARREARS, "note-1");
+  it("treats platform-only delivery as complete and requires every expected batch", () => {
+    const prefixes = servicingTransitionNotificationKeyPrefixes(NoteServicingStatus.ARREARS, "note-1");
     expect(
       servicingTransitionNotificationsDelivered(
         [
           {
-            idempotency_key: keys[0] ?? null,
-            delivered_platform_count: 1,
-            delivered_email_count: 0,
+            idempotency_key: `${prefixes[0]}:user:u1`,
+            send_to_email: false,
+            email_sent_at: null,
           },
         ],
-        keys
+        prefixes
       )
     ).toBe(false);
     expect(
       servicingTransitionNotificationsDelivered(
-        keys.map((key) => ({
-          idempotency_key: key,
-          delivered_platform_count: 1,
-          delivered_email_count: 0,
+        prefixes.map((prefix) => ({
+          idempotency_key: `${prefix}:user:u1`,
+          send_to_email: true,
+          email_sent_at: new Date("2026-09-10T00:00:00.000Z"),
         })),
-        keys
+        prefixes
       )
     ).toBe(true);
   });

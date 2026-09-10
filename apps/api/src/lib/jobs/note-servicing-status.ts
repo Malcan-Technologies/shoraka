@@ -9,8 +9,6 @@ import { createNoteEventRow, systemAuditContext } from "../audit";
 import { logger } from "../logger";
 import { prisma } from "../prisma";
 import { NotificationService } from "../../modules/notification/service";
-import { systemNotificationLogKey } from "../../modules/notification/delivery-log";
-import { NotificationTypeIds } from "../../modules/notification/registry";
 import {
   notifyNoteArrears,
   notifyNoteLate,
@@ -118,53 +116,40 @@ export function shouldRetryServicingTransitionSideEffects(input: {
   return servicingTransitionEventType(input.classifiedStatus) != null;
 }
 
-/** Matches the SYSTEM log keys written by notifyNoteOverdue / Late / Arrears. */
-export function servicingTransitionDeliveryLogKeys(
+/** Matches the per-user idempotency prefixes written by notifyNoteOverdue / Late / Arrears. */
+export function servicingTransitionNotificationKeyPrefixes(
   status: NoteServicingStatus,
   noteId: string
 ): string[] {
   if (status === NoteServicingStatus.OVERDUE) {
-    return [systemNotificationLogKey(NotificationTypeIds.NOTE_OVERDUE, `note:servicing:${noteId}:overdue`)];
+    return [`note:servicing:${noteId}:overdue`];
   }
   if (status === NoteServicingStatus.LATE) {
-    return [
-      systemNotificationLogKey(NotificationTypeIds.NOTE_LATE, `note:servicing:${noteId}:late`),
-      systemNotificationLogKey(
-        NotificationTypeIds.NOTE_LATE_INVESTOR,
-        `note:servicing:${noteId}:late:investor`
-      ),
-    ];
+    return [`note:servicing:${noteId}:late`, `note:servicing:${noteId}:late:investor`];
   }
   if (status === NoteServicingStatus.ARREARS) {
     return [
-      systemNotificationLogKey(
-        NotificationTypeIds.NOTE_ARREARS,
-        `note:lifecycle:${noteId}:arrears:issuer`
-      ),
-      systemNotificationLogKey(
-        NotificationTypeIds.NOTE_ARREARS_INVESTOR,
-        `note:lifecycle:${noteId}:arrears:investor`
-      ),
+      `note:lifecycle:${noteId}:arrears:issuer`,
+      `note:lifecycle:${noteId}:arrears:investor`,
     ];
   }
   return [];
 }
 
 export function servicingTransitionNotificationsDelivered(
-  logs: Array<{
+  notifications: Array<{
     idempotency_key: string | null;
-    delivered_platform_count: number;
-    delivered_email_count: number;
+    send_to_email: boolean;
+    email_sent_at: Date | null;
   }>,
-  expectedKeys: string[]
+  expectedPrefixes: string[]
 ): boolean {
-  if (expectedKeys.length === 0) return true;
-  const delivered = new Set(
-    logs
-      .filter((log) => log.delivered_platform_count + log.delivered_email_count > 0)
-      .map((log) => log.idempotency_key)
-  );
-  return expectedKeys.every((key) => delivered.has(key));
+  if (expectedPrefixes.length === 0) return true;
+  return expectedPrefixes.every((prefix) => {
+    const rows = notifications.filter((row) => row.idempotency_key?.startsWith(prefix));
+    if (rows.length === 0) return false;
+    return rows.every((row) => !row.send_to_email || row.email_sent_at != null);
+  });
 }
 
 async function notifyServicingTransition(input: {
@@ -472,19 +457,26 @@ export async function runNoteServicingStatusJob(now = new Date()): Promise<NoteS
           await logSystemNoteEvent(note.id, transitionEventType, transitionMetadata);
           result.transitions += 1;
         }
-        const expectedKeys = servicingTransitionDeliveryLogKeys(
+        const expectedPrefixes = servicingTransitionNotificationKeyPrefixes(
           classification.servicingStatus,
           note.id
         );
-        const deliveryLogs = await prisma.notificationLog.findMany({
-          where: { idempotency_key: { in: expectedKeys } },
-          select: {
-            idempotency_key: true,
-            delivered_platform_count: true,
-            delivered_email_count: true,
-          },
-        });
-        if (!servicingTransitionNotificationsDelivered(deliveryLogs, expectedKeys)) {
+        const deliveryRows =
+          expectedPrefixes.length === 0
+            ? []
+            : await prisma.notification.findMany({
+                where: {
+                  OR: expectedPrefixes.map((prefix) => ({
+                    idempotency_key: { startsWith: prefix },
+                  })),
+                },
+                select: {
+                  idempotency_key: true,
+                  send_to_email: true,
+                  email_sent_at: true,
+                },
+              });
+        if (!servicingTransitionNotificationsDelivered(deliveryRows, expectedPrefixes)) {
           await notifyServicingTransition({
             status: classification.servicingStatus,
             noteId: note.id,

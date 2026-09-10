@@ -1,7 +1,7 @@
 import { AppError } from "../../lib/http/error-handler";
 import { inclusiveRangePostedAtFilter } from "@cashsouk/types";
 import { reportQuerySchema } from "./schemas";
-import { assertReportQuery, openBookSnapshots } from "./report-shared";
+import { assertReportQuery, defaultedNoteWhere, exclusiveEndOfMytDateLabel, openBookSnapshots } from "./report-shared";
 
 describe("report query schema", () => {
   it("requires from and to together and rejects inverted ranges", () => {
@@ -49,5 +49,16 @@ describe("late fees MYT range", () => {
     expect(earlyMyt >= range!.gte && earlyMyt < range!.lt).toBe(true);
     const utcMidnightSameLabel = new Date("2026-09-09T00:00:00.000Z");
     expect(utcMidnightSameLabel >= range!.gte && utcMidnightSameLabel < range!.lt).toBe(true);
+  });
+});
+
+describe("defaulted note as-of filter", () => {
+  it("keeps recovered notes and excludes defaults after the Malaysia day", () => {
+    expect(defaultedNoteWhere()).toEqual({ default_marked_at: { not: null } });
+    const end = exclusiveEndOfMytDateLabel("2026-09-09");
+    expect(end.toISOString()).toBe("2026-09-09T16:00:00.000Z");
+    expect(defaultedNoteWhere(end)).toEqual({
+      default_marked_at: { not: null, lt: end },
+    });
   });
 });

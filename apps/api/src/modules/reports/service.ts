@@ -1,5 +1,7 @@
 import {
   DpdBucket,
+  GatewayPaymentPurpose,
+  GatewayPaymentStatus,
   NoteFundingStatus,
   NoteServicingStatus,
   NoteSettlementStatus,
@@ -24,7 +26,18 @@ import { runInvestorBook } from "./investor-book";
 import { runOrigination } from "./origination";
 import { summarizePortfolioAtRisk } from "./par-summary";
 import { runPortfolioComposition } from "./portfolio-composition";
-import { assertReportQuery, openBookSnapshots, postedAtRange } from "./report-shared";
+import {
+  assertReportQuery,
+  defaultedNoteWhere,
+  exclusiveEndOfMytDateLabel,
+  openBookSnapshots,
+  postedAtRange,
+} from "./report-shared";
+import {
+  lateFeeExcessPaymentRow,
+  lateFeeSettlementAppliedRow,
+  lateFeeWaiverMovementRow,
+} from "./late-fees-report";
 import { runTrustRevenue } from "./trust-revenue";
 
 function toNumber(value: Prisma.Decimal | number | string | null | undefined): number {
@@ -335,57 +348,71 @@ async function runNpl(query: ReportQuery): Promise<ReportResult> {
 async function runLateFees(query: ReportQuery): Promise<ReportResult> {
   const report = definition("late_fees");
   const range = postedAtRange(query);
-  const settlements = await prisma.noteSettlement.findMany({
-    where: {
-      status: NoteSettlementStatus.POSTED,
-      ...(range ? { posted_at: { gte: range.gte, lt: range.lt } } : {}),
-    },
-    include: { note: { select: { id: true, note_reference: true } } },
-    orderBy: { posted_at: "desc" },
+  const movementRange = range
+    ? {
+        OR: [
+          { settled_at: { gte: range.gte, lt: range.lt } },
+          { settled_at: null, updated_at: { gte: range.gte, lt: range.lt } },
+        ],
+      }
+    : {};
+  const [settlements, waivers, excessPayments] = await Promise.all([
+    prisma.noteSettlement.findMany({
+      where: {
+        status: NoteSettlementStatus.POSTED,
+        ...(range ? { posted_at: { gte: range.gte, lt: range.lt } } : {}),
+      },
+      include: { note: { select: { id: true, note_reference: true } } },
+      orderBy: { posted_at: "desc" },
+    }),
+    prisma.noteLateChargeWaiver.findMany({
+      where: range ? { created_at: { gte: range.gte, lt: range.lt } } : {},
+      include: { note: { select: { id: true, note_reference: true } } },
+      orderBy: { created_at: "desc" },
+    }),
+    prisma.gatewayPayment.findMany({
+      where: {
+        purpose: GatewayPaymentPurpose.EXCESS_LATE_CHARGES,
+        status: GatewayPaymentStatus.COMPLETED,
+        ...movementRange,
+      },
+      include: { note: { select: { id: true, note_reference: true } } },
+      orderBy: { updated_at: "desc" },
+    }),
+  ]);
+  const rows = settlements.map((settlement) =>
+    lateFeeSettlementAppliedRow({
+      noteId: settlement.note.id,
+      noteReference: settlement.note.note_reference,
+      settlementReference: settlement.display_reference ?? "Settlement",
+      postedAt: settlement.posted_at?.toISOString() ?? null,
+      tawidhApplied: toNumber(settlement.tawidh_amount),
+      gharamahApplied: toNumber(settlement.gharamah_amount),
+      tawidhInvestor: toNumber(settlement.tawidh_investor_amount),
+      tawidhPlatform: toNumber(settlement.tawidh_account_amount),
+      excessLateChargeAmount: toNumber(settlement.excess_late_charge_amount),
+    })
+  );
+  const waiverRows = waivers.map((waiver) =>
+    lateFeeWaiverMovementRow({
+      noteId: waiver.note.id,
+      noteReference: waiver.note.note_reference,
+      createdAt: waiver.created_at.toISOString(),
+      waivedTotal: toNumber(waiver.tawidh_waived_amount) + toNumber(waiver.gharamah_waived_amount),
+    })
+  );
+  const paymentRows = excessPayments.flatMap((payment) => {
+    if (!payment.note) return [];
+    return [
+      lateFeeExcessPaymentRow({
+        noteId: payment.note.id,
+        noteReference: payment.note.note_reference,
+        completedAt: (payment.settled_at ?? payment.updated_at).toISOString(),
+        excessPaid: toNumber(payment.amount),
+      }),
+    ];
   });
-  const rows = settlements.map((settlement) => ({
-    noteId: settlement.note.id,
-    noteReference: settlement.note.note_reference,
-    settlementReference: settlement.display_reference,
-    postedAt: settlement.posted_at?.toISOString() ?? null,
-    tawidhApplied: toNumber(settlement.tawidh_amount),
-    gharamahApplied: toNumber(settlement.gharamah_amount),
-    tawidhInvestor: toNumber(settlement.tawidh_investor_amount),
-    tawidhPlatform: toNumber(settlement.tawidh_account_amount),
-    gharamahCharity: toNumber(settlement.gharamah_amount),
-    waivedTotal: toNumber(settlement.excess_late_charge_waived_amount),
-    excessOwed: Math.max(
-      0,
-      toNumber(settlement.excess_late_charge_amount) -
-        toNumber(settlement.excess_late_charge_paid_amount) -
-        toNumber(settlement.excess_late_charge_waived_amount)
-    ),
-    excessPaid: toNumber(settlement.excess_late_charge_paid_amount),
-  }));
-  const waivers = await prisma.noteLateChargeWaiver.findMany({
-    where: {
-      settlement_id: null,
-      ...(range ? { created_at: { gte: range.gte, lt: range.lt } } : {}),
-    },
-    include: { note: { select: { id: true, note_reference: true } } },
-    orderBy: { created_at: "desc" },
-  });
-  const waiverRows = waivers.map((waiver) => ({
-    noteId: waiver.note.id,
-    noteReference: waiver.note.note_reference,
-    settlementReference: "Waiver",
-    postedAt: waiver.created_at.toISOString(),
-    tawidhApplied: 0,
-    gharamahApplied: 0,
-    tawidhInvestor: 0,
-    tawidhPlatform: 0,
-    gharamahCharity: 0,
-    waivedTotal:
-      toNumber(waiver.tawidh_waived_amount) + toNumber(waiver.gharamah_waived_amount),
-    excessOwed: 0,
-    excessPaid: 0,
-  }));
-  const combined = [...rows, ...waiverRows];
+  const combined = [...rows, ...waiverRows, ...paymentRows];
   const tawidh = combined.reduce((sum, row) => sum + Number(row.tawidhApplied), 0);
   const gharamah = combined.reduce((sum, row) => sum + Number(row.gharamahApplied), 0);
   const waived = combined.reduce((sum, row) => sum + Number(row.waivedTotal), 0);
@@ -409,9 +436,10 @@ async function runDefaultRecovery(query: ReportQuery): Promise<ReportResult> {
   const report = definition("default_recovery");
   const asOf = parseAsOf(query.asOf);
   const asOfLabel = asOf.toISOString().slice(0, 10);
+  const asOfExclusiveEnd = exclusiveEndOfMytDateLabel(asOfLabel);
   if (!isToday(query.asOf)) {
     const snapshots = await prisma.notePositionSnapshot.findMany({
-      where: { snapshot_date: asOf, servicing_status: NoteServicingStatus.DEFAULTED },
+      where: { snapshot_date: asOf, note: defaultedNoteWhere(asOfExclusiveEnd) },
       include: {
         note: {
           select: {
@@ -451,7 +479,7 @@ async function runDefaultRecovery(query: ReportQuery): Promise<ReportResult> {
         noteId: snapshot.note.id,
         noteReference: snapshot.note.note_reference,
         issuerName: issuerName(snapshot.note.issuer_snapshot),
-        servicingStatus: NoteServicingStatus.DEFAULTED,
+        servicingStatus: snapshot.servicing_status,
         defaultDate: snapshot.note.default_marked_at?.toISOString() ?? null,
         defaultReason: snapshot.note.default_reason,
         fundedPrincipal: funded,
@@ -480,7 +508,7 @@ async function runDefaultRecovery(query: ReportQuery): Promise<ReportResult> {
   }
 
   const notes = await prisma.note.findMany({
-    where: { servicing_status: NoteServicingStatus.DEFAULTED },
+    where: defaultedNoteWhere(),
     include: {
       settlements: {
         where: { status: NoteSettlementStatus.POSTED },
@@ -522,7 +550,7 @@ async function runDefaultRecovery(query: ReportQuery): Promise<ReportResult> {
       noteId: note.id,
       noteReference: note.note_reference,
       issuerName: issuerName(note.issuer_snapshot),
-      servicingStatus: NoteServicingStatus.DEFAULTED,
+      servicingStatus: note.servicing_status,
       defaultDate: note.default_marked_at?.toISOString() ?? null,
       defaultReason: note.default_reason,
       fundedPrincipal: funded,

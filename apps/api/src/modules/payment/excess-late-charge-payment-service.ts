@@ -556,6 +556,7 @@ export async function completeExcessLateChargePayment(
     data: {
       status: GatewayPaymentStatus.COMPLETED,
       settlement_id: settlement.id,
+      settled_at: gatewayPayment.settled_at ?? new Date(),
     },
   });
 

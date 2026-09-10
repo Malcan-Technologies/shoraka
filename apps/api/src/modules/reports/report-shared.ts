@@ -1,5 +1,7 @@
 import {
+  addMytCalendarDays,
   inclusiveRangePostedAtFilter,
+  mytStartOfDayUtc,
   REPORT_REGISTRY,
   type ReportKey,
   type ReportQuery,
@@ -49,6 +51,17 @@ export function reportDefinition(key: ReportKey) {
 
 export function postedAtRange(query: Pick<ReportQuery, "from" | "to">) {
   return inclusiveRangePostedAtFilter(query.from, query.to);
+}
+
+/** Exclusive UTC instant after the last MYT instant of YYYY-MM-DD. */
+export function exclusiveEndOfMytDateLabel(asOfLabel: string): Date {
+  const [year = 0, month = 0, day = 0] = asOfLabel.split("-").map(Number);
+  return mytStartOfDayUtc(addMytCalendarDays({ year, month, day }, 1));
+}
+
+export function defaultedNoteWhere(asOfExclusiveEnd?: Date) {
+  if (!asOfExclusiveEnd) return { default_marked_at: { not: null } };
+  return { default_marked_at: { not: null, lt: asOfExclusiveEnd } };
 }
 
 export function roundMoney(value: number): number {
