@@ -16,6 +16,8 @@ describe("loadLatestSubmittedFinancialsByYear", () => {
     expect(source).toContain("indexLatestSubmittedFinancialsByYear");
     expect(source).not.toContain("prisma.application.findMany");
     expect(source).not.toContain("issuerOrganizationFinancialStatement");
+    expect(source).toContain("select: { snapshot: true }");
+    expect(source).not.toContain("financial_statements: true");
   });
 
   it("does not change the CTOS parser or 6-month tab helper", () => {

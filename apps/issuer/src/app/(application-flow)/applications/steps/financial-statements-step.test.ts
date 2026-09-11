@@ -66,5 +66,7 @@ describe("issuer application Financial Statements step", () => {
     );
     expect(source).not.toContain("org_master");
     expect(source).not.toContain("autoPrefillMode");
+    expect(source).toContain("fromSaved(resolved.fields)");
+    expect(source).not.toContain("fromCtos");
   });
 });
