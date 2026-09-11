@@ -148,6 +148,9 @@ describe("AdminService sendInvoiceOffer financing ratio cap", () => {
           status: ApplicationStatus.INVOICE_PENDING,
           contract_id: null,
           invoices: [{ id: "inv-1", details }],
+          application_review_items: [
+            { item_type: "invoice", item_id: "invoice_details:0:INV-1", status: "APPROVED" },
+          ],
         },
       });
     (service as unknown as { ensureUnderReview: jest.Mock }).ensureUnderReview = jest.fn();

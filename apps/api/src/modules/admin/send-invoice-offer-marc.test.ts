@@ -159,6 +159,9 @@ describe("AdminService sendInvoiceOffer MARC risk rating", () => {
           contract_id: null,
           issuer_organization_id: "org-1",
           invoices: [{ id: "inv-1", details }],
+          application_review_items: [
+            { item_type: "invoice", item_id: "invoice_details:0:INV-1", status: "APPROVED" },
+          ],
         },
       });
     (service as unknown as { ensureUnderReview: jest.Mock }).ensureUnderReview = jest.fn();

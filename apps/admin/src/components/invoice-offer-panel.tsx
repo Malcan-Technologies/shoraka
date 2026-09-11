@@ -18,6 +18,7 @@ import {
   formatInvoiceReference,
   getOfferPhaseDeadlineDisplay,
   isReservedCapacityInvoiceStatus,
+  isCommercialOfferSendUnlocked,
   isMarcSmeGrade,
   isValidFinancingTenureDays,
   MARC_ASSESSMENT_REQUIRED_MESSAGE,
@@ -221,6 +222,10 @@ export function InvoiceOfferPanel({
   const issuerTenureDays = resolveFinancingTenureDays(null, invoice.details);
   const status = reviewItemStatus;
   const isOfferSent = status === "OFFER_SENT";
+  const canSendAfterDetails = isCommercialOfferSendUnlocked({
+    detailsStatus: reviewItemStatus,
+    entityStatus: invoice.status,
+  });
   const hasOfferSnapshot = status === "OFFER_SENT" || status === "OFFER_EXPIRED";
   const acceptanceDeadlinePreview = previewAcceptanceDeadlineFromWorkflow(productWorkflow);
   const platformFeeCap = React.useMemo(() => {
@@ -885,13 +890,15 @@ export function InvoiceOfferPanel({
               !companyCategory
               || !campaignSector
               || !sustainabilityCategory
+              || !canSendAfterDetails
             }
             onClick={() => {
               if (
                 offerDisable.disabled ||
                 feeSendBlockedReason ||
                 sendOfferBlockedByTenure ||
-                offerViolationMessage
+                offerViolationMessage ||
+                !canSendAfterDetails
               ) {
                 return;
               }
@@ -968,6 +975,14 @@ export function InvoiceOfferPanel({
           ) : productLimitSendError ? (
             <p role="alert" className="text-ui leading-snug text-destructive">
               {productLimitSendError}
+            </p>
+          ) : !canSendAfterDetails &&
+            !isRowGreyedOut &&
+            (invoice.status ?? "").toUpperCase() !== "APPROVED" &&
+            (invoice.status ?? "").toUpperCase() !== "WITHDRAWN" &&
+            (invoice.status ?? "").toUpperCase() !== "OFFER_SENT" ? (
+            <p role="alert" className="text-ui leading-snug text-destructive">
+              Approve invoice details first (Action → Approve).
             </p>
           ) : offerDisable.message &&
             offerDisable.reason !== "rejected" &&

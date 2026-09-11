@@ -3,7 +3,6 @@
  * Step 1 is two screens (authorised representatives, then uploads) and one submit.
  */
 
-import type { SigningOfferStep } from "@/components/signing/signing-progress-stepper";
 import {
   canDirectAcceptInvoice,
   getOfferAcceptanceFromOfferDetails,
@@ -27,6 +26,13 @@ export type SigningOfferStepId =
   | "declined"
   | "signing"
   | "complete";
+
+export interface SigningOfferStep {
+  id: string;
+  label: string;
+  description?: string;
+  status: "completed" | "current" | "pending" | "skipped";
+}
 
 /** Which Step 1 screen is the domain cursor (people first, then uploads). */
 export type AcceptanceStep1Screen = "representatives" | "documents";

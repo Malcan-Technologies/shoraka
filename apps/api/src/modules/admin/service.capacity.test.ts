@@ -182,6 +182,9 @@ describe("AdminService capacity offer paths", () => {
       contract_id: "holder-1",
       financing_structure: { structure_type: "invoice_only" },
       invoices: [{ id: "inv-1", contract_id: "legacy-holder-1", details: invoiceOfferDetails }],
+      application_review_items: [
+        { item_type: "invoice", item_id: "invoice_details:0:INV-1", status: "APPROVED" },
+      ],
     };
     (service as unknown as { prepareForReviewAction: jest.Mock }).prepareForReviewAction = jest
       .fn()
@@ -291,7 +294,7 @@ describe("AdminService capacity offer paths", () => {
         },
       ],
       application_review_items: [
-        { item_type: "invoice", item_id: "invoice_details:0:INV-1", status: "OFFER_SENT" },
+        { item_type: "invoice", item_id: "invoice_details:0:INV-1", status: "APPROVED" },
       ],
     };
     (service as unknown as { prepareForReviewAction: jest.Mock }).prepareForReviewAction = jest

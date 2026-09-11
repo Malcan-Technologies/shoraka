@@ -160,6 +160,9 @@ describe("AdminService sendInvoiceOffer product rules", () => {
           status: ApplicationStatus.INVOICE_PENDING,
           contract_id: null,
           invoices: [{ id: "inv-1", details }],
+          application_review_items: [
+            { item_type: "invoice", item_id: "invoice_details:0:INV-1", status: "APPROVED" },
+          ],
         },
       });
     (service as unknown as { ensureUnderReview: jest.Mock }).ensureUnderReview = jest.fn();
@@ -251,6 +254,9 @@ describe("AdminService sendInvoiceOffer product rules", () => {
           contract_id: "contract-1",
           financing_structure: { structure_type: "existing_contract" },
           invoices: [{ id: "inv-1", details }],
+          application_review_items: [
+            { item_type: "invoice", item_id: "invoice_details:0:INV-1", status: "APPROVED" },
+          ],
         },
       });
     mockApply.mockImplementation(async (_id, _db, mutate: (tx: unknown) => unknown) => ({
@@ -273,6 +279,9 @@ describe("AdminService sendInvoiceOffer product rules", () => {
           contract_id: "contract-1",
           financing_structure: { structure_type: "invoice_only" },
           invoices: [{ id: "inv-1", details }],
+          application_review_items: [
+            { item_type: "invoice", item_id: "invoice_details:0:INV-1", status: "APPROVED" },
+          ],
         },
       });
     await expect(send(65_000, 65)).resolves.toBeDefined();

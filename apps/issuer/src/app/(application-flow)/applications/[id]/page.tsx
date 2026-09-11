@@ -823,7 +823,6 @@ function ApplicationDetailPageBody() {
                 (offerType === "invoice" && canShowInvoiceOfferPanel) ? (
                   <OfferReviewPanel
                     key={offerPanelKey}
-                    mode="inline"
                     type={offerType}
                     applicationId={application.id}
                     issuerOrganizationId={application.issuerOrganizationId}
@@ -881,31 +880,33 @@ function ApplicationDetailPageBody() {
               const contractSelected = offerType === "contract";
 
               return (
-                <div className="grid gap-4 lg:grid-cols-[minmax(15rem,18rem)_minmax(0,1fr)] lg:items-start">
-                  <aside className="rounded-2xl border border-border bg-card p-2 shadow-sm">
-                    <p className="px-3 pb-2 pt-1 text-ui font-medium text-muted-foreground">
-                      Offers to review
+                <div className="space-y-5">
+                  <div className="rounded-2xl border border-border bg-card px-4 py-3.5">
+                    <p className="text-meta font-semibold uppercase tracking-wide text-muted-foreground">
+                      Offers awaiting your response
                     </p>
-                    <nav className="flex flex-col gap-1" aria-label="Select offer">
+                    <nav className="mt-2.5 flex flex-wrap gap-2" aria-label="Select offer">
                       {hasIssuerFacilityOffer(application) ? (
                         <button
                           type="button"
                           onClick={() => selectOfferInvoice(null)}
                           className={cn(
-                            "rounded-xl px-3 py-3 text-left transition-colors",
+                            "min-w-0 rounded-xl border px-3.5 py-2.5 text-left transition-colors",
                             contractSelected
-                              ? "bg-primary/10 text-primary"
-                              : "text-foreground hover:bg-muted/60"
+                              ? "border-primary/40 bg-primary/5"
+                              : "border-border bg-card hover:border-border"
                           )}
                           aria-current={contractSelected ? "true" : undefined}
                         >
-                          <span className="block text-sm font-semibold">Facility offer</span>
                           <span
                             className={cn(
-                              "mt-0.5 block text-ui leading-5",
-                              contractSelected ? "text-primary/80" : "text-muted-foreground"
+                              "block text-ui font-semibold",
+                              contractSelected ? "text-primary" : "text-foreground"
                             )}
                           >
+                            Facility offer
+                          </span>
+                          <span className="mt-0.5 block text-meta tabular-nums text-muted-foreground">
                             Facility financing
                           </span>
                         </button>
@@ -918,22 +919,22 @@ function ApplicationDetailPageBody() {
                             type="button"
                             onClick={() => selectOfferInvoice(inv)}
                             className={cn(
-                              "rounded-xl px-3 py-3 text-left transition-colors",
+                              "min-w-0 rounded-xl border px-3.5 py-2.5 text-left transition-colors",
                               selected
-                                ? "bg-primary/10 text-primary"
-                                : "text-foreground hover:bg-muted/60"
+                                ? "border-primary/40 bg-primary/5"
+                                : "border-border bg-card hover:border-border"
                             )}
                             aria-current={selected ? "true" : undefined}
                           >
-                            <span className="block text-sm font-semibold">
-                              Invoice {inv.number}
-                            </span>
                             <span
                               className={cn(
-                                "mt-0.5 block text-ui leading-5",
-                                selected ? "text-primary/80" : "text-muted-foreground"
+                                "block text-ui font-semibold",
+                                selected ? "text-primary" : "text-foreground"
                               )}
                             >
+                              Invoice {inv.number}
+                            </span>
+                            <span className="mt-0.5 block text-meta tabular-nums text-muted-foreground">
                               {inv.appliedFinancing != null
                                 ? formatCurrency(inv.appliedFinancing)
                                 : "Invoice financing"}
@@ -942,7 +943,7 @@ function ApplicationDetailPageBody() {
                         );
                       })}
                     </nav>
-                  </aside>
+                  </div>
                   <div className="min-w-0">{offerPanel}</div>
                 </div>
               );

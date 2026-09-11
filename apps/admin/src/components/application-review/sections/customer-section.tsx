@@ -1,27 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { Label } from "@/components/ui/label";
 import { DocumentTextIcon } from "@heroicons/react/24/outline";
 import { ReviewSectionCard } from "../review-section-card";
 import { ReviewFieldBlock } from "../review-field-block";
 import { SectionComments, type SectionCommentItem } from "../section-comments";
-import {
-  reviewLabelClass,
-  reviewValueClass,
-  reviewRowGridClass,
-  reviewEmptyStateClass,
-  REVIEW_EMPTY_LABEL,
-  formatReviewValue,
-} from "../review-section-styles";
+import { formatReviewValue } from "../review-section-styles";
 import type { ReviewSectionId } from "../section-types";
 import { ComparisonFieldRow, ComparisonYesNoRadioRow, unknownToTriBool } from "../comparison-field-row";
-import { PaymasterVerificationPanel, type ApplicationReviewPaymaster } from "@/paymasters/components/paymaster-verification-panel";
-import {
-  shouldShowSubmittedVerifiedPaymaster,
-  SubmittedVerifiedPaymasterIdentity,
-} from "../paymaster-identity-comparison";
-import { usePermissions } from "@/hooks/use-permissions";
+import { CustomerReviewFields } from "./customer-review-fields";
+import type { ApplicationReviewPaymaster } from "@/paymasters/components/paymaster-verification-panel";
 
 export interface CustomerSectionProps {
   customerDetails?: unknown;
@@ -47,6 +35,8 @@ export interface CustomerSectionProps {
     isPathChanged: (path: string) => boolean;
   };
   hideSectionComments?: boolean;
+  /** Skip Customer card chrome when nested in a stage card. */
+  embedded?: boolean;
   paymaster?: ApplicationReviewPaymaster | null;
   paymasterId?: string | null;
   applicationId?: string;
@@ -68,12 +58,11 @@ export function CustomerSection({
   onAddComment,
   sectionComparison,
   hideSectionComments = false,
+  embedded = false,
   paymaster,
   paymasterId,
   applicationId,
 }: CustomerSectionProps) {
-  const { can } = usePermissions();
-  const canManagePaymasters = can("paymasters.manage");
   if (sectionComparison) {
     const { beforeCustomer, afterCustomer, isPathChanged } = sectionComparison;
     const b = beforeCustomer as Record<string, unknown> | null | undefined;
@@ -121,13 +110,6 @@ export function CustomerSection({
     );
   }
 
-  const cust = customerDetails as Record<string, unknown> | null | undefined;
-  const hasData = !!cust;
-  const showIdentityComparison = shouldShowSubmittedVerifiedPaymaster({
-    customerDetails: cust,
-    paymaster,
-  });
-
   return (
     <ReviewSectionCard
       title="Customer"
@@ -143,54 +125,18 @@ export function CustomerSection({
       onReject={onReject}
       onRequestAmendment={onRequestAmendment}
       showApprove={true}
+      embedded={embedded}
     >
-      {hasData && showIdentityComparison ? (
-        <SubmittedVerifiedPaymasterIdentity
-          customerDetails={cust}
-          paymaster={paymaster}
-          actionsDisabled={!isReviewable || !!isActionLocked}
-          onRequestAmendment={() => onRequestAmendment(section)}
-        />
-      ) : null}
-      {hasData ? (
-        <ReviewFieldBlock title="Customer Details">
-          <div className={reviewRowGridClass}>
-            {!showIdentityComparison ? (
-              <>
-                <Label className={reviewLabelClass}>Customer Name</Label>
-                <div className={reviewValueClass}>{formatReviewValue(cust.name)}</div>
-                <Label className={reviewLabelClass}>Customer Entity Type</Label>
-                <div className={reviewValueClass}>{formatReviewValue(cust.entity_type)}</div>
-                <Label className={reviewLabelClass}>Customer SSM Number</Label>
-                <div className={reviewValueClass}>{formatReviewValue(cust.ssm_number)}</div>
-                <Label className={reviewLabelClass}>Customer Country</Label>
-                <div className={reviewValueClass}>{formatReviewValue(cust.country)}</div>
-              </>
-            ) : null}
-            <Label className={reviewLabelClass}>Is Customer Related to Issuer?</Label>
-            <div className={reviewValueClass}>
-              {cust.is_related_party === true
-                ? "Yes"
-                : cust.is_related_party === false
-                  ? "No"
-                  : REVIEW_EMPTY_LABEL}
-            </div>
-          </div>
-        </ReviewFieldBlock>
-      ) : (
-        <p className={reviewEmptyStateClass}>No customer details submitted.</p>
-      )}
-      {hasData ? (
-        <ReviewFieldBlock title="Paymaster Verification">
-          <PaymasterVerificationPanel
-            paymaster={paymaster}
-            paymasterId={paymasterId}
-            customerDetails={customerDetails}
-            applicationId={applicationId}
-            canManage={canManagePaymasters}
-          />
-        </ReviewFieldBlock>
-      ) : null}
+      <CustomerReviewFields
+        customerDetails={customerDetails}
+        section={section}
+        isReviewable={isReviewable}
+        isActionLocked={isActionLocked}
+        onRequestAmendment={onRequestAmendment}
+        paymaster={paymaster}
+        paymasterId={paymasterId}
+        applicationId={applicationId}
+      />
       {!hideSectionComments ? (
         <SectionComments comments={comments} onSubmitComment={onAddComment} />
       ) : null}

@@ -73,6 +73,18 @@ export type AcceptanceSectionProps = {
   sectionStatus?: string;
   remainingCredit?: number | null;
   remainingAllocation?: number | null;
+  /**
+   * Unified Offer & acceptance stages:
+   * - full (default): current Acceptance tab
+   * - parties: deadline + authorised parties (issuer response)
+   * - documents: acceptance document list + download all
+   * - signing: SigningEnvelopePanel only
+   */
+  contentMode?: "full" | "parties" | "documents" | "signing";
+  /** Skip Acceptance card chrome when nested in a stage card. */
+  embedded?: boolean;
+  /** Hide remaining credit/allocation tiles when the parent already shows capacity. */
+  hideCapacityTiles?: boolean;
 };
 
 function collectAcceptanceDownloadFiles(
@@ -120,6 +132,8 @@ function OfferAcceptanceBlock({
   offerDetails,
   structureType,
   documentsSlot,
+  includeParties = true,
+  includeEmptyHints = true,
   guarantors,
   reviewItems,
   isReviewable,
@@ -134,6 +148,8 @@ function OfferAcceptanceBlock({
   structureType?: string | null;
   /** Acceptance documents list rendered inside this same package card. */
   documentsSlot?: React.ReactNode;
+  includeParties?: boolean;
+  includeEmptyHints?: boolean;
   guarantors?: unknown;
   reviewItems?: { item_type: string; item_id: string; status: string }[];
   isReviewable?: boolean;
@@ -172,7 +188,7 @@ function OfferAcceptanceBlock({
         </p>
       ) : null}
 
-      {isOfferAcceptanceDocumentsVisibleToAdmin(acceptance) ? (
+      {includeParties && isOfferAcceptanceDocumentsVisibleToAdmin(acceptance) ? (
         <AuthorizedPartiesReadOnly
           offerDetails={offerDetails}
           guarantors={guarantors}
@@ -189,13 +205,15 @@ function OfferAcceptanceBlock({
 
       {documentsSlot ? (
         documentsSlot
-      ) : acceptance ? (
+      ) : includeEmptyHints ? (
+        acceptance ? (
         <p className="text-sm text-muted-foreground">
           Acceptance documents appear here after the issuer submits them.
         </p>
-      ) : (
+        ) : (
         <p className="text-sm text-muted-foreground">{emptyHint}</p>
-      )}
+        )
+      ) : null}
     </div>
   );
 }
@@ -231,11 +249,22 @@ export function AcceptanceSection({
   sectionStatus,
   remainingCredit,
   remainingAllocation,
+  contentMode = "full",
+  embedded = false,
+  hideCapacityTiles = false,
 }: AcceptanceSectionProps) {
   const isInheritedAcceptance = acceptanceReviewMode === "inherited";
   const isInvoiceOnly = isInvoiceOnlyFinancingStructure({ structure_type: structureType });
   const showSigningHub = typeof applicationId === "string" && applicationId.length > 0;
-  const showHolderCapacity = !isInvoiceOnly && (remainingCredit != null || remainingAllocation != null);
+  const showHolderCapacity =
+    !hideCapacityTiles &&
+    !isInvoiceOnly &&
+    (remainingCredit != null || remainingAllocation != null) &&
+    (contentMode === "full" || contentMode === "documents");
+  const showParties = contentMode === "full" || contentMode === "parties";
+  const showDocuments = contentMode === "full" || contentMode === "documents";
+  const showSigning = contentMode === "full" || contentMode === "signing";
+  const showComments = !hideSectionComments && contentMode === "full";
   const {
     signedDocumentPending,
     handleViewSignedDocument,
@@ -280,16 +309,9 @@ export function AcceptanceSection({
     </Button>
   );
 
-  return (
-    <Card className="rounded-2xl">
-      <CardHeader className="pb-3">
-        <div className="flex items-center gap-2">
-          <DocumentTextIcon className="h-5 w-5 text-primary" />
-          <CardTitle className={reviewCardTitleClass}>Acceptance</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-10">
-        {isInheritedAcceptance ? (
+  const body = (
+    <div className={embedded ? "space-y-8" : "space-y-10"}>
+        {isInheritedAcceptance && (contentMode === "full" || contentMode === "documents" || contentMode === "signing") ? (
           <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
             Acceptance and signing were completed when this facility was approved
             {inheritedSourceHref ? (
@@ -325,8 +347,8 @@ export function AcceptanceSection({
             </div>
           </div>
         ) : null}
-        {(() => {
-          if (showSigningHub && !productHasAcceptanceDocuments) {
+        {showParties || showDocuments ? (() => {
+          if (showSigningHub && !productHasAcceptanceDocuments && contentMode === "full") {
             return null;
           }
 
@@ -355,7 +377,7 @@ export function AcceptanceSection({
             />
           );
 
-          if (showSigningHub) {
+          if (showSigningHub || contentMode === "parties" || contentMode === "documents") {
             const acceptance = getOfferAcceptanceFromOfferDetails(acceptanceOfferDetails);
             const useSectionReviewBadge =
               !!sectionStatus &&
@@ -370,11 +392,12 @@ export function AcceptanceSection({
                 ? getOfferAcceptanceStatusPresentation(acceptance.status)
                 : null;
             const badgePresentation = sectionPresentation ?? phasePresentation;
+            const showDocsSlot = showDocuments && showAcceptanceDocuments;
             return (
               <ReviewFieldBlock
-                title="Acceptance documents"
+                title={contentMode === "parties" ? "Authorised parties" : "Acceptance documents"}
                 titleAside={
-                  badgePresentation ? (
+                  showDocuments && badgePresentation ? (
                     <StatusBadge
                       label={badgePresentation.label}
                       status={
@@ -385,12 +408,14 @@ export function AcceptanceSection({
                     />
                   ) : null
                 }
-                titleEnd={showAcceptanceDocuments ? downloadAllButton : undefined}
+                titleEnd={showDocuments && showAcceptanceDocuments ? downloadAllButton : undefined}
               >
                 <OfferAcceptanceBlock
                   offerDetails={acceptanceOfferDetails}
                   structureType={structureType}
-                  documentsSlot={showAcceptanceDocuments ? documentsList : undefined}
+                  documentsSlot={showDocsSlot ? documentsList : undefined}
+                  includeParties={showParties}
+                  includeEmptyHints={showDocuments || contentMode === "parties"}
                   guarantors={guarantors}
                   reviewItems={reviewItems}
                   isReviewable={isReviewable}
@@ -423,9 +448,9 @@ export function AcceptanceSection({
               </div>
             </ReviewFieldBlock>
           );
-        })()}
+        })() : null}
 
-        {showSigningHub ? (
+        {showSigning && showSigningHub ? (
           <ReviewFieldBlock title="Signing package">
             <SigningEnvelopePanel
               applicationId={applicationId}
@@ -443,10 +468,23 @@ export function AcceptanceSection({
           </ReviewFieldBlock>
         ) : null}
 
-        {!hideSectionComments ? (
+        {showComments ? (
           <SectionComments comments={comments} onSubmitComment={onAddComment} />
         ) : null}
-      </CardContent>
+    </div>
+  );
+
+  if (embedded) return body;
+
+  return (
+    <Card className="rounded-2xl">
+      <CardHeader className="pb-3">
+        <div className="flex items-center gap-2">
+          <DocumentTextIcon className="h-5 w-5 text-primary" />
+          <CardTitle className={reviewCardTitleClass}>Acceptance</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent>{body}</CardContent>
     </Card>
   );
 }

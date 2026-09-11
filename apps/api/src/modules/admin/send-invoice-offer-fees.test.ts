@@ -181,6 +181,9 @@ describe("AdminService sendInvoiceOffer facility fees", () => {
               details: invoiceOfferDetails,
             },
           ],
+          application_review_items: [
+            { item_type: "invoice", item_id: "invoice_details:0:INV-1", status: "APPROVED" },
+          ],
         },
       });
     (service as unknown as { ensureUnderReview: jest.Mock }).ensureUnderReview = jest.fn();

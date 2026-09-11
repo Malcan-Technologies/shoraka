@@ -7,6 +7,13 @@ describe("admin facility fee gateway UI wiring", () => {
       path.join(__dirname, "../components/application-review/sections/contract-section.tsx"),
       "utf8"
     );
+    const confirm = fs.readFileSync(
+      path.join(
+        __dirname,
+        "../components/application-review/sections/contract-offer-confirm-dialog.tsx"
+      ),
+      "utf8"
+    );
     const hook = fs.readFileSync(
       path.join(__dirname, "../hooks/use-application-review-actions.ts"),
       "utf8"
@@ -17,8 +24,8 @@ describe("admin facility fee gateway UI wiring", () => {
     );
     expect(section).toContain("facilityFeeUpfrontCollectAmount");
     expect(section).toContain("buildSendContractOfferPayload");
-    expect(section).toContain("Upfront via payment gateway");
-    expect(section).toContain("Remaining for drawdown collections");
+    expect(confirm).toContain("Upfront via payment gateway");
+    expect(confirm).toContain("Remaining for drawdown collections");
     expect(hook).toContain("facilityFeeUpfrontCollectAmount ?? 0");
     expect(client).toContain("facilityFeeUpfrontCollectAmount: facilityFeeUpfrontCollectAmount ?? 0");
   });

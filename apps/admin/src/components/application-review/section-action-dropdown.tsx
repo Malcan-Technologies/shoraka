@@ -77,7 +77,11 @@ export function SectionActionDropdown({
 
   const showViewSignedOffer = !!onViewSignedOffer && signedOfferLetterAvailable === true;
   const normalizedStatus = (sectionStatus ?? "PENDING").toUpperCase();
-  const showApproveAction = showApprove && normalizedStatus !== "APPROVED";
+  const offerLifecycle =
+    normalizedStatus === "OFFER_SENT" ||
+    normalizedStatus === "OFFER_EXPIRED" ||
+    normalizedStatus === "WITHDRAWN";
+  const showApproveAction = showApprove && normalizedStatus !== "APPROVED" && !offerLifecycle;
   const canReject = showReject && normalizedStatus !== "REJECTED";
   const canRequestAmendment =
     showRequestAmendment && normalizedStatus !== "AMENDMENT_REQUESTED";

@@ -110,6 +110,7 @@ import {
   shouldShowAcceptanceDocumentsReviewSection,
   isFacilityOnlyNewContract,
   isInvoiceOnlyFinancingStructure,
+  isCommercialOfferSendUnlocked,
   INHERITED_FACILITY_GUARANTORS_AML_BLOCKED,
   isRegtankIso3166Code,
   normalizeDirectorShareholderIdKey,
@@ -869,6 +870,21 @@ export class AdminService {
         "INVALID_ACTION",
         "Standalone invoice applications do not have facility offers."
       );
+    }
+  }
+
+  private assertCommercialDetailsApprovedForSend(input: {
+    detailsStatus?: string | null;
+    entityStatus?: string | null;
+    message: string;
+  }): void {
+    if (
+      !isCommercialOfferSendUnlocked({
+        detailsStatus: input.detailsStatus,
+        entityStatus: input.entityStatus,
+      })
+    ) {
+      throw new AppError(400, "INVALID_STATE", input.message);
     }
   }
 
@@ -9007,6 +9023,13 @@ export class AdminService {
       application
     );
     this.ensureFacilityOfferActionAllowed(application);
+    this.assertCommercialDetailsApprovedForSend({
+      detailsStatus: application.application_reviews?.find(
+        (row: { section: string; status: string }) => row.section === "contract_details"
+      )?.status,
+      entityStatus: application.contract?.status,
+      message: "Approve facility details before sending an offer",
+    });
 
     if (!application.contract_id) {
       throw new AppError(400, "INVALID_STATE", "Application has no facility to offer");
@@ -9488,6 +9511,15 @@ export class AdminService {
         "Invoice was rejected; reset review to pending before sending an offer"
       );
     }
+    this.assertCommercialDetailsApprovedForSend({
+      detailsStatus: (
+        application.application_review_items as
+          | { item_type: string; item_id: string; status: string }[]
+          | undefined
+      )?.find((row) => row.item_type === "invoice" && row.item_id === scopeKey)?.status,
+      entityStatus: invoiceForSend?.status,
+      message: "Approve invoice details before sending an offer",
+    });
 
     const workflow = await this.loadApplicationProductWorkflow(application);
     const stampOfferAcceptance =
@@ -10094,18 +10126,36 @@ export class AdminService {
           : "Acceptance section status is derived from per-document and representative-list reviews; approve each item instead"
       );
     }
-    if (section === "contract_details" || section === "invoice_details") {
+    if (section === "invoice_details") {
+      throw new AppError(
+        400,
+        "INVALID_ACTION",
+        "Invoice section status is derived from per-invoice reviews; approve each invoice instead"
+      );
+    }
+    if (section === "contract_details") {
       const structure = application.financing_structure as
         | { structure_type?: string }
         | null
         | undefined;
-      const isInvoiceOnly = structure?.structure_type === "invoice_only";
-      const contractApprovalAllowed = section === "contract_details" && isInvoiceOnly;
-      if (!contractApprovalAllowed) {
+      if (structure?.structure_type === "existing_contract") {
         throw new AppError(
           400,
           "INVALID_ACTION",
-          "Facility and invoice approvals must be finalized by issuer offer response"
+          "Facility was approved in a prior application"
+        );
+      }
+      const contractStatus = application.contract?.status?.toString().toUpperCase() ?? "";
+      if (
+        structure?.structure_type !== "invoice_only" &&
+        (contractStatus === "OFFER_SENT" ||
+          contractStatus === "APPROVED" ||
+          contractStatus === "WITHDRAWN")
+      ) {
+        throw new AppError(
+          400,
+          "INVALID_ACTION",
+          "Facility details cannot be approved after the offer was sent or finalized"
         );
       }
     }
@@ -10942,11 +10992,25 @@ export class AdminService {
       application
     );
     if (itemType === "invoice") {
-      throw new AppError(
-        400,
-        "INVALID_ACTION",
-        "Invoice approvals must be finalized by issuer offer response"
+      await this.ensureInvoiceOfferItemActionAllowed(applicationId, itemId, application);
+      const invoiceId = this.resolveInvoiceIdFromScopeKey(
+        application as { invoices?: { id: string; details?: { number?: string | number } }[] },
+        itemId
       );
+      if (invoiceId) {
+        const invoice = await prisma.invoice.findUnique({
+          where: { id: invoiceId, application_id: applicationId },
+          select: { status: true },
+        });
+        const invoiceStatus = invoice?.status?.toString().toUpperCase() ?? "";
+        if (invoiceStatus === "OFFER_SENT" || invoiceStatus === "OFFER_EXPIRED") {
+          throw new AppError(
+            400,
+            "INVALID_ACTION",
+            "Invoice details cannot be approved after the offer was sent"
+          );
+        }
+      }
     }
     if (isAcceptanceHubReviewItem(itemType, itemId)) {
       await this.assertNoActiveSigningPackageForAcceptanceActions(

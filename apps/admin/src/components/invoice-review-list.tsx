@@ -532,7 +532,7 @@ export function InvoiceList({
             const isAdminRejected = reviewItemStatus === "REJECTED";
             const isRowReadOnly = readOnlyInvoiceIds?.has(inv.id) ?? false;
             const isTabLocked = !!isActionLocked || !isReviewable;
-            const isInvoiceFinalizedByIssuer = reviewItemStatus === "APPROVED";
+            const isInvoiceFinalizedByIssuer = entityStatus === "APPROVED";
             const signedOfferAvailable = isSignedInvoiceOfferLetterAvailable({
               invoiceId: inv.id,
               envelopes: signingEnvelopes,
@@ -624,7 +624,11 @@ export function InvoiceList({
                         onReject={onRejectItem}
                         onRequestAmendment={onRequestAmendmentItem}
                         onResetToPending={onResetItemToPending}
-                        showApprove={false}
+                        showApprove={
+                          reviewItemStatus !== "OFFER_SENT" &&
+                          reviewItemStatus !== "OFFER_EXPIRED" &&
+                          reviewItemStatus !== "WITHDRAWN"
+                        }
                         onViewSignedOffer={
                           signedOfferAvailable && onViewSignedInvoiceOffer
                             ? () => void onViewSignedInvoiceOffer(inv.id)

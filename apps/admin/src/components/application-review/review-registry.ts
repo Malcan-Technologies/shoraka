@@ -14,14 +14,20 @@ import {
 export const REVIEW_SECTION_IDS = REVIEW_SECTION_ORDER;
 export type ReviewSectionId = ReviewSection;
 
+/** Live unified Offer & acceptance tab — not a backend review section. */
+export const OFFER_ACCEPTANCE_TAB_KIND = "offer_acceptance" as const;
+export type ReviewTabKind = ReviewSectionId | typeof OFFER_ACCEPTANCE_TAB_KIND;
+
 /** Descriptor for an admin review tab. Used for dynamic tab rendering. */
 export type ReviewTabDescriptor = {
   id: string;
   label: string;
   reviewSection: ReviewSectionId;
-  kind: ReviewSectionId;
+  kind: ReviewTabKind;
   stepKey?: string;
   stepId?: string;
+  /** When set, this tab stands in for multiple backend review sections. */
+  mergedSections?: ReviewSectionId[];
 };
 
 /**
@@ -44,6 +50,7 @@ const REVIEW_TAB_LABELS: Record<string, string> = {
   contract_details: "Facility",
   invoice_details: "Invoice",
   company_details: "Company",
+  offer_acceptance: "Offer & acceptance",
 };
 
 /**
@@ -152,7 +159,8 @@ export function isTabUnlocked(
   sectionStatusMap: Map<string, string>,
   availableSections?: ReadonlySet<string>,
   prerequisitesBySection?: Record<string, string[]>,
-  structureType?: string | null
+  structureType?: string | null,
+  contractEntityStatus?: string | null
 ): boolean {
   const prereqs = resolveTabPrerequisites(sectionId, prerequisitesBySection, structureType);
   if (!prereqs?.length) return true;
@@ -160,8 +168,9 @@ export function isTabUnlocked(
     ? prereqs.filter((prereq) => availableSections.has(prereq))
     : prereqs;
   if (!relevantPrereqs.length) return true;
+  const satisfaction = { structureType, contractEntityStatus };
   return relevantPrereqs.every((prereq) =>
-    isPrerequisiteSectionSatisfied(prereq, sectionStatusMap.get(prereq), sectionId)
+    isPrerequisiteSectionSatisfied(prereq, sectionStatusMap.get(prereq), sectionId, satisfaction)
   );
 }
 
@@ -172,7 +181,8 @@ export function getTabUnlockTooltip(
   availableSections?: ReadonlySet<string>,
   prerequisitesBySection?: Record<string, string[]>,
   labelOverrides?: Record<string, string>,
-  structureType?: string | null
+  structureType?: string | null,
+  contractEntityStatus?: string | null
 ): string {
   const prereqs = resolveTabPrerequisites(sectionId, prerequisitesBySection, structureType);
   if (!prereqs?.length) return "";
@@ -180,10 +190,15 @@ export function getTabUnlockTooltip(
     ? prereqs.filter((prereq) => availableSections.has(prereq))
     : prereqs;
   if (!relevantPrereqs.length) return "";
+  const satisfaction = { structureType, contractEntityStatus };
   const missing = relevantPrereqs.filter(
-    (p) => !isPrerequisiteSectionSatisfied(p, sectionStatusMap.get(p), sectionId)
+    (p) => !isPrerequisiteSectionSatisfied(p, sectionStatusMap.get(p), sectionId, satisfaction)
   );
   if (missing.length === 0) return "";
+
+  if (sectionId === "invoice_details" && missing.includes("contract_details") && structureType === "new_contract") {
+    return "Complete the facility offer first";
+  }
 
   if (sectionId === "acceptance_documents") {
     const commercialMissing = missing.filter(

@@ -19,6 +19,7 @@ import {
 import { AuditDetailDrawer } from "@/components/audit/audit-detail-drawer";
 import { walletActivityToAuditDetail } from "@/components/audit/audit-adapters";
 import { useOrganizationWalletActivity } from "@/organizations/hooks/use-organization-wallet-activity";
+import { clampListPage } from "@/shared/admin-list/clamp-list-page";
 import { TablePagination } from "@/shared/admin-list/components/table-pagination";
 import { adminActionRowClass, getAdminStatusToken } from "@/lib/admin-status-token";
 import { cn } from "@/lib/utils";
@@ -110,10 +111,10 @@ export function OrganizationWalletActivityPanel({ organizationId }: { organizati
   const startIndex = totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const endIndex = Math.min(page * PAGE_SIZE, totalCount);
   const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-
-  React.useEffect(() => {
-    if (page > totalPages) setPage(totalPages);
-  }, [page, totalPages]);
+  const nextPage = clampListPage(page, totalPages, Boolean(data));
+  if (nextPage !== page) {
+    setPage(nextPage);
+  }
 
   return (
     <Card className="rounded-2xl">

@@ -4,6 +4,7 @@ import {
   getReviewSectionPrerequisites,
   getSectionSortIndex,
   isPrerequisiteSectionSatisfied,
+  isCommercialOfferSendUnlocked,
   REVIEW_SECTION_ORDER,
   REVIEW_SECTION_ORDER_INVOICE_ONLY,
   applicationPrimaryOfferUsesContractAcceptance,
@@ -138,6 +139,21 @@ describe("isPrerequisiteSectionSatisfied", () => {
     );
   });
 
+  it("does not unlock Invoice from facility-details Approve on a new facility", () => {
+    expect(
+      isPrerequisiteSectionSatisfied("contract_details", "APPROVED", "invoice_details", {
+        structureType: "new_contract",
+        contractEntityStatus: "SUBMITTED",
+      })
+    ).toBe(false);
+    expect(
+      isPrerequisiteSectionSatisfied("contract_details", "APPROVED", "invoice_details", {
+        structureType: "new_contract",
+        contractEntityStatus: "APPROVED",
+      })
+    ).toBe(true);
+  });
+
   it("treats Contract/Invoice OFFER_SENT as satisfied only for Acceptance", () => {
     expect(
       isPrerequisiteSectionSatisfied("contract_details", "OFFER_SENT", "acceptance_documents")
@@ -168,6 +184,23 @@ describe("isPrerequisiteSectionSatisfied", () => {
     ).toBe(false);
     expect(
       isPrerequisiteSectionSatisfied("contract_details", undefined, "acceptance_documents")
+    ).toBe(false);
+  });
+});
+
+describe("isCommercialOfferSendUnlocked", () => {
+  it("requires details Approve before send, and allows expired resend", () => {
+    expect(
+      isCommercialOfferSendUnlocked({ detailsStatus: "PENDING", entityStatus: "SUBMITTED" })
+    ).toBe(false);
+    expect(
+      isCommercialOfferSendUnlocked({ detailsStatus: "APPROVED", entityStatus: "SUBMITTED" })
+    ).toBe(true);
+    expect(
+      isCommercialOfferSendUnlocked({ detailsStatus: "OFFER_SENT", entityStatus: "OFFER_EXPIRED" })
+    ).toBe(true);
+    expect(
+      isCommercialOfferSendUnlocked({ detailsStatus: "APPROVED", entityStatus: "OFFER_SENT" })
     ).toBe(false);
   });
 });
