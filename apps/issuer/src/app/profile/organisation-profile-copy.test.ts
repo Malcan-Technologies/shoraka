@@ -44,4 +44,12 @@ describe("Issuer organisation profile copy", () => {
   it("maps Type of Company from the SC enum, not a raw RegTank label", () => {
     expect(company).toContain("displayScCompanyTypeLabel");
   });
+
+  it("marks required company fields without a Profile asterisk", () => {
+    expect(company).toContain("required");
+    expect(company).toContain('missing={missing.has("scCompanyType")}');
+    expect(company).toContain("required\n              missing={missing.has(\"scCompanyType\")}");
+    expect(company).not.toContain("text-destructive\">*</");
+    expect(company).not.toContain("Please fill up");
+  });
 });

@@ -12,11 +12,11 @@ import {
  * Annual RMO Information Report tables are [01000]–[11000]; issuer/investor
  * profile completeness uses monthly P2P [02000], [05000], [06000], [07000], [09000], [09100].
  *
- * Issuer [02000] "Issuer ID (if any)" and [02000] Company Activities are not
- * completeness blockers: the former is explicitly "if any"; the latter is stored
- * as the issuer's general/current activity on Issuer Profile. Campaign-specific
- * ComRep interpretation of Company Activities remains
- * Needs business/compliance confirmation.
+ * Issuer [02000] "Issuer ID (if any)" is not a completeness blocker (explicitly
+ * "if any"). Company Activities (`whatDoesCompanyDo`) and main customers are
+ * CashSouk profile completeness blockers because the application company step
+ * cannot continue without them. Campaign-specific ComRep interpretation of
+ * Company Activities remains Needs business/compliance confirmation.
  *
  * [02000] Company category and [03000] Sustainability Category of the Campaign
  * are invoice/campaign fields, not issuer-profile completeness.
@@ -941,7 +941,7 @@ export const ISSUER_PROFILE_UI_SECTIONS: Array<{
 export function issuerUiSectionForMissing(item: ProfileMissingItem): ProfileUiSectionId {
   if (item.step === "shareholders" || item.step === "board") return "people";
   if (item.step === "financials") return "financials";
-  if (item.field === "companyActivities") return "about";
+  if (item.field === "companyActivities" || item.field === "mainCustomers") return "about";
   if (item.field.startsWith("registeredAddress") || item.field.startsWith("businessAddress")) {
     return "addresses";
   }
@@ -1115,6 +1115,7 @@ export interface IssuerCompanyCompletenessInput {
   contactPerson?: IssuerContactPerson | null;
   personInCharge?: IssuerPersonInChargeEvidence | null;
   companyActivities: string | null | undefined;
+  mainCustomers: string | null | undefined;
 }
 
 export interface PartyAddressCompletenessInput {
@@ -1388,11 +1389,11 @@ function withUserFacingCompleteness(
 
 /**
  * Platform completeness for issuer company master data.
- * Includes Person in Charge Full Name and Position because the issuer application
- * company-details step cannot continue without them on Profile.
- * Issuer ID (if any) and Company Activities are not counted.
+ * Includes Person in Charge Full Name and Position, Company Activities, and main
+ * customers because the issuer application company-details step cannot continue
+ * without them on Profile. Issuer ID (if any) is not counted.
  */
-export const ISSUER_COMPANY_COMPLETENESS_FIELD_COUNT = 16;
+export const ISSUER_COMPANY_COMPLETENESS_FIELD_COUNT = 18;
 
 export function computeIssuerCompanyCompleteness(
   input: IssuerCompanyCompletenessInput
@@ -1457,6 +1458,12 @@ export function computeIssuerCompanyCompleteness(
   }
   if (!hasValidEmailValue(contactEmail)) {
     pushMissing(missing, step, "contactPersonEmail", PROFILE_LABEL.personEmail);
+  }
+  if (!hasText(input.companyActivities)) {
+    pushMissing(missing, step, "companyActivities", PROFILE_LABEL.companyActivities);
+  }
+  if (!hasText(input.mainCustomers)) {
+    pushMissing(missing, step, "mainCustomers", PROFILE_LABEL.mainCustomers);
   }
   return missing;
 }

@@ -104,6 +104,7 @@ export function useCorporateInfo(organizationId: string | undefined) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["corporate-info", organizationId] });
       queryClient.invalidateQueries({ queryKey: ["organization-detail", organizationId] });
+      queryClient.invalidateQueries({ queryKey: ["issuer", "profile-completeness", organizationId] });
       toast.success("Corporate info updated successfully");
     },
     onError: (error: Error) => {

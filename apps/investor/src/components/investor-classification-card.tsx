@@ -224,8 +224,8 @@ export function InvestorClassificationCard({
           </div>
         ) : (
           <ProfileFieldGrid>
-            <ProfileReadField label={PROFILE_LABEL.sophisticatedInvestor} value={sophisticatedLabel} />
-            <ProfileReadField label={PROFILE_LABEL.typeOfInvestor} value={categoryLabel} />
+            <ProfileReadField label={PROFILE_LABEL.sophisticatedInvestor} value={sophisticatedLabel} required />
+            <ProfileReadField label={PROFILE_LABEL.typeOfInvestor} value={categoryLabel} required />
           </ProfileFieldGrid>
         )}
       </div>

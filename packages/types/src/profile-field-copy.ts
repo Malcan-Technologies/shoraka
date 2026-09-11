@@ -26,6 +26,8 @@ export const PROFILE_LABEL = {
   nationality: "Nationality",
   nationalityOrCountry: "Nationality / Country",
   typeOfCompany: "Type of Company",
+  companyActivities: "Company Activities",
+  mainCustomers: "Who are your main customers?",
   industry: "Industry",
   numberOfEmployees: "Number of Employees",
   annualRevenue: "Annual Revenue",
@@ -58,6 +60,9 @@ export const PROFILE_LABEL = {
   sophisticatedInvestor: "Sophisticated Investor",
   typeOfInvestor: "Type of Investor",
 } as const;
+
+/** Customer Profile read mode: required + empty. Not used in edit inputs. */
+export const PROFILE_REQUIRED_EMPTY_LABEL = "Please fill up";
 
 export const PROFILE_ADDRESS_FIELD_LABELS = {
   address: "Address",

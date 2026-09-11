@@ -73,6 +73,16 @@ describe("Admin company organisation profile", () => {
     expect(helpers).toContain("showHeading");
   });
 
+  it("does not forward customer Please fill up requiredness from Admin ReadField", () => {
+    const readField = helpers.slice(
+      helpers.indexOf("export function ReadField"),
+      helpers.indexOf("export function EditableField")
+    );
+    expect(readField).not.toContain("required={required}");
+    expect(readField).not.toContain("PROFILE_REQUIRED_EMPTY_LABEL");
+    expect(readField).toContain("customer empty-required prompt");
+  });
+
   it("renders Wealth Declaration in the documents / onboarding evidence area when DTO JSON exists", () => {
     expect(panel).toContain("adminOnboardingEvidenceCards");
     expect(panel).toContain("wealthDeclaration: org.wealthDeclaration");

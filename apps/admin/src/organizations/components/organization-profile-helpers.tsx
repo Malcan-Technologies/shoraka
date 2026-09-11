@@ -135,7 +135,6 @@ export function ReadField({
   multiline = false,
   className,
   help,
-  required = false,
 }: {
   label: string;
   value: React.ReactNode;
@@ -146,6 +145,7 @@ export function ReadField({
   multiline?: boolean;
   className?: string;
   help?: string;
+  /** Accepted for call-site compatibility. Admin read mode keeps the em dash / missing styling, not the customer empty-required prompt. */
   required?: boolean;
 }) {
   return (
@@ -159,7 +159,6 @@ export function ReadField({
       multiline={multiline}
       className={className}
       help={help}
-      required={required}
     />
   );
 }

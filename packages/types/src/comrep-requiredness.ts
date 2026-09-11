@@ -413,6 +413,20 @@ export function validateIssuerCompanyForm(input: {
   return issues;
 }
 
+/** Issuer Profile “About your business” fields required for application company-details. */
+export function validateAboutYourBusinessForm(input: {
+  whatDoesCompanyDo?: unknown;
+  mainCustomers?: unknown;
+}): ComrepFieldIssue[] {
+  const issues: ComrepFieldIssue[] = [];
+  push(
+    issues,
+    requiredTextIssue(input.whatDoesCompanyDo, "whatDoesCompanyDo", PROFILE_LABEL.companyActivities)
+  );
+  push(issues, requiredTextIssue(input.mainCustomers, "mainCustomers", PROFILE_LABEL.mainCustomers));
+  return issues;
+}
+
 /**
  * Issuer Person in Charge (current contact) form.
  * Person Email and Phone are ComRep [02000] company contact fields.

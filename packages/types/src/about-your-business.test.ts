@@ -1,7 +1,9 @@
 import {
   emptyAboutYourBusiness,
   isAboutYourBusinessComplete,
+  isAboutYourBusinessFieldRequired,
   isAboutYourBusinessPresent,
+  isAboutYourBusinessProfileComplete,
   parseAboutYourBusiness,
   parseAboutYourBusinessFromBusinessDetails,
   parseAboutYourBusinessFromCorporateData,
@@ -92,5 +94,28 @@ describe("completeness helpers", () => {
         accountingSoftware: "Xero",
       })
     ).toBe(true);
+  });
+
+  it("treats Company Activities and main customers as the profile-required pair", () => {
+    expect(isAboutYourBusinessFieldRequired("whatDoesCompanyDo")).toBe(true);
+    expect(isAboutYourBusinessFieldRequired("mainCustomers")).toBe(true);
+    expect(isAboutYourBusinessFieldRequired("singleCustomerOver50Revenue")).toBe(false);
+    expect(isAboutYourBusinessFieldRequired("accountingSoftware")).toBe(false);
+    expect(
+      isAboutYourBusinessProfileComplete({
+        whatDoesCompanyDo: "A",
+        mainCustomers: "B",
+        singleCustomerOver50Revenue: null,
+        accountingSoftware: "",
+      })
+    ).toBe(true);
+    expect(
+      isAboutYourBusinessProfileComplete({
+        whatDoesCompanyDo: "",
+        mainCustomers: "B",
+        singleCustomerOver50Revenue: false,
+        accountingSoftware: "Xero",
+      })
+    ).toBe(false);
   });
 });

@@ -17,6 +17,19 @@ export type AboutYourBusiness = {
   accountingSoftware: string;
 };
 
+/** Profile + application-required About keys. Completeness field aliases: companyActivities, mainCustomers. */
+export const ABOUT_YOUR_BUSINESS_PROFILE_REQUIRED_KEYS = ["whatDoesCompanyDo", "mainCustomers"] as const;
+export type AboutYourBusinessProfileRequiredKey =
+  (typeof ABOUT_YOUR_BUSINESS_PROFILE_REQUIRED_KEYS)[number];
+
+export function isAboutYourBusinessFieldRequired(field: keyof AboutYourBusiness): boolean {
+  return (ABOUT_YOUR_BUSINESS_PROFILE_REQUIRED_KEYS as readonly string[]).includes(field);
+}
+
+export function isAboutYourBusinessProfileComplete(about: AboutYourBusiness): boolean {
+  return ABOUT_YOUR_BUSINESS_PROFILE_REQUIRED_KEYS.every((key) => about[key].trim().length > 0);
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)

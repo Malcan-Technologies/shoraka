@@ -17,10 +17,11 @@ describe("Profile required/optional convention", () => {
   });
 
   it("does not show Optional or Required in read mode", () => {
-    expect(readField).toContain('empty ? "—" : value');
-    expect(readField).toContain("Ignored in read mode");
+    expect(readField).toContain("promptRequiredEmpty ? PROFILE_REQUIRED_EMPTY_LABEL");
+    expect(readField).toContain("Requiredness from completeness/validators");
     expect(readField).not.toContain(">Optional<");
     expect(readField).not.toContain("text-status-action-text\">Required");
+    expect(readField).not.toContain("text-destructive\">*");
   });
 
   it("edits financial statements in place with Optional only on optional keys", () => {

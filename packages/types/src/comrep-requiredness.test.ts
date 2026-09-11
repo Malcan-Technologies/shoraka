@@ -12,6 +12,7 @@ import {
   validateIssuerContactPersonForm,
   validateIssuerMasterPatch,
   validateIssuerPersonForm,
+  validateAboutYourBusinessForm,
   validateOperatorGeneral,
   validateOperatorShareCapital,
   validateOperatorShareholder,
@@ -97,6 +98,29 @@ describe("ComRep requiredness", () => {
     });
     expect(issues.map((issue) => issue.field)).not.toContain("companyEmail");
     expect(issues.map((issue) => issue.field)).not.toContain("contactPersonEmail");
+  });
+
+  it("blocks About your business Save when Company Activities or main customers are blank", () => {
+    const missingActivities = validateAboutYourBusinessForm({
+      whatDoesCompanyDo: "  ",
+      mainCustomers: "Retail chains",
+    });
+    expect(missingActivities.map((issue) => issue.field)).toEqual(["whatDoesCompanyDo"]);
+    expect(missingActivities[0]?.message).toBe("Company Activities is required.");
+
+    const missingCustomers = validateAboutYourBusinessForm({
+      whatDoesCompanyDo: "Wholesale",
+      mainCustomers: "",
+    });
+    expect(missingCustomers.map((issue) => issue.field)).toEqual(["mainCustomers"]);
+    expect(missingCustomers[0]?.message).toBe("Who are your main customers? is required.");
+
+    expect(
+      validateAboutYourBusinessForm({
+        whatDoesCompanyDo: "Wholesale",
+        mainCustomers: "Retail chains",
+      })
+    ).toEqual([]);
   });
 
   it("allows PATCH omit of required fields and rejects explicit clear of dates", () => {

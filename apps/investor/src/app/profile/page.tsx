@@ -25,7 +25,7 @@ import {
   MALAYSIAN_BANKS,
 } from "@cashsouk/config";
 import type { ApplicationPersonRow } from "@cashsouk/types";
-import { filterVisiblePeopleRows, SC_GENDER_LABELS, SC_INDIVIDUAL_GENDERS, SC_MALAYSIAN_STATES, PROFILE_ADDRESS_FIELD_LABELS, PROFILE_ADDRESS_HELP, PROFILE_HELP, PROFILE_LABEL, firstIssueMessage, humanizeApiValidationMessage, isValidProfilePhone, restrictScPostcodeInput, scAppendixASelectValues, storedProfilePhone, userFacingCompleteness, validateInvestorPersonalForm, type ScGender } from "@cashsouk/types";
+import { filterVisiblePeopleRows, SC_GENDER_LABELS, SC_INDIVIDUAL_GENDERS, SC_MALAYSIAN_STATES, PROFILE_ADDRESS_FIELD_LABELS, PROFILE_ADDRESS_HELP, PROFILE_HELP, PROFILE_LABEL, firstIssueMessage, humanizeApiValidationMessage, isScPostcodeRequired, isValidProfilePhone, restrictScPostcodeInput, scAppendixASelectValues, storedProfilePhone, userFacingCompleteness, validateInvestorPersonalForm, type ScGender } from "@cashsouk/types";
 import { useAuth } from "../../lib/auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccountDocuments } from "../../hooks/use-account-documents";
@@ -1031,15 +1031,18 @@ export default function ProfilePage() {
                           className="sm:col-span-2"
                           label={PROFILE_ADDRESS_FIELD_LABELS.address}
                           value={address.trim() || null}
+                          required
                         />
                         <ProfileReadField
                           label={PROFILE_ADDRESS_FIELD_LABELS.state}
                           value={orgData?.residentialAddress?.state}
+                          required
                           missing={missingFieldKeys.has("state")}
                         />
                         <ProfileReadField
                           label={PROFILE_ADDRESS_FIELD_LABELS.postcode}
                           value={orgData?.residentialAddress?.postalCode}
+                          required={isScPostcodeRequired(orgData?.residentialAddress?.state)}
                           missing={missingFieldKeys.has("postalCode")}
                         />
                       </ProfileFieldGrid>
@@ -1279,11 +1282,13 @@ export default function ProfilePage() {
                             ]
                               .filter((part) => part && part.trim())
                               .join(", ") || null}
+                            required
                             missing={missingFieldKeys.has("businessAddress.line1")}
                           />
                           <ProfileReadField
                             label={PROFILE_ADDRESS_FIELD_LABELS.state}
                             value={orgData?.corporateOnboardingData?.addresses?.business?.state}
+                            required
                             missing={
                               missingFieldKeys.has("businessState") ||
                               missingFieldKeys.has("businessAddress.state")
@@ -1292,6 +1297,9 @@ export default function ProfilePage() {
                           <ProfileReadField
                             label={PROFILE_ADDRESS_FIELD_LABELS.postcode}
                             value={orgData?.corporateOnboardingData?.addresses?.business?.postalCode}
+                            required={isScPostcodeRequired(
+                              orgData?.corporateOnboardingData?.addresses?.business?.state
+                            )}
                             missing={
                               missingFieldKeys.has("businessPostalCode") ||
                               missingFieldKeys.has("businessAddress.postalCode")

@@ -813,7 +813,7 @@ export async function computeOrgProfileCompleteness(
         ssmRegistrationNumber?: string;
         entityType?: string;
       };
-      aboutYourBusiness?: { whatDoesCompanyDo?: string };
+      aboutYourBusiness?: { whatDoesCompanyDo?: string; mainCustomers?: string };
       addresses?: { registered?: unknown; business?: unknown };
       contactPerson?: unknown;
       personInCharge?: unknown;
@@ -896,6 +896,7 @@ export async function computeOrgProfileCompleteness(
         contactPerson: asIssuerContactPerson(cod?.contactPerson),
         personInCharge: asIssuerPersonInCharge(cod?.personInCharge),
         companyActivities: cod?.aboutYourBusiness?.whatDoesCompanyDo ?? null,
+        mainCustomers: cod?.aboutYourBusiness?.mainCustomers ?? null,
       },
       shareholders,
       board,
