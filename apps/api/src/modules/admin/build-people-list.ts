@@ -899,6 +899,11 @@ export function mergeMasterPartiesIntoPeopleList(params: {
   ctosPartySupplements?: SupplementInput[] | null;
   injectLaterAddedOnly?: boolean;
   preserveExistingSharePercentage?: boolean;
+  /**
+   * After initial onboarding, the stored master party is authoritative.
+   * Matching the same IC/SSM must not copy CTOS name, roles, or share % onto people[].
+   */
+  preferMasterValues?: boolean;
 }): ApplicationPersonRow[] {
   const out = [...params.people];
   const index = new Map<string, number>();
@@ -927,19 +932,30 @@ export function mergeMasterPartiesIntoPeopleList(params: {
       const nextShare =
         params.preserveExistingSharePercentage && !laterAdded
           ? existing.sharePercentage
-          : existing.sharePercentage != null && share != null
-            ? Math.max(existing.sharePercentage, share)
-            : existing.sharePercentage ?? share;
+          : params.preferMasterValues
+            ? share
+            : existing.sharePercentage != null && share != null
+              ? Math.max(existing.sharePercentage, share)
+              : existing.sharePercentage ?? share;
+      const masterName = String(party.name ?? "").trim();
+      const masterIdentity = displayGovernmentIdentityNumber({
+        partyKey: party.partyKey,
+        identityNumber: party.identityNumber,
+      });
       out[existingIndex] = {
         ...existing,
-        name: existing.name ?? party.name,
+        name: params.preferMasterValues && masterName ? masterName : existing.name ?? party.name,
         identityNumber:
-          existing.identityNumber ??
-          displayGovernmentIdentityNumber({
-            partyKey: party.partyKey,
-            identityNumber: party.identityNumber,
-          }),
-        roles: laterAdded ? Array.from(roleSet) : existing.roles,
+          params.preferMasterValues && masterIdentity
+            ? masterIdentity
+            : existing.identityNumber ?? masterIdentity,
+        roles: params.preferMasterValues
+          ? roles.length > 0
+            ? roles
+            : existing.roles
+          : laterAdded
+            ? Array.from(roleSet)
+            : existing.roles,
         sharePercentage: nextShare,
       };
       continue;
@@ -1317,6 +1333,7 @@ export function buildDirectorShareholderPeopleList(
           ctosPartySupplements: params.ctosPartySupplements ?? null,
           injectLaterAddedOnly: ctosAuthoritative,
           preserveExistingSharePercentage: ctosAuthoritative,
+          preferMasterValues: !initialCorporateOnboarding,
         }),
         params.masterParties
       ),
