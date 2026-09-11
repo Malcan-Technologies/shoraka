@@ -17,7 +17,8 @@ import {
   filterVisiblePeopleRows,
   formatPeopleRolesLine,
   isMissingGovernmentIdPerson,
-  resolveDirectorShareholderCtosEmptyWarning,
+  CUSTOMER_DIRECTOR_SHAREHOLDER_EMPTY_STATE,
+  resolveCustomerDirectorShareholderEmptyWarning,
   type ApplicationPersonRow,
   type DirectorShareholderListSource,
 } from "@cashsouk/types";
@@ -82,7 +83,7 @@ export function OnboardingStatusCard({
 
   const resolvedCtosEmptyWarning = React.useMemo(
     () =>
-      resolveDirectorShareholderCtosEmptyWarning({
+      resolveCustomerDirectorShareholderEmptyWarning({
         directorShareholderListSource: orgWithPeople.directorShareholderListSource ?? null,
         ctosDirectorShareholderWarning: orgWithPeople.ctosDirectorShareholderWarning ?? null,
       }),
@@ -198,7 +199,7 @@ export function OnboardingStatusCard({
             unresolvedCorporatePeople.length === 0 &&
             resolvedCtosEmptyWarning ? (
               <p className="text-sm text-muted-foreground">
-                No directors or shareholders were found in the latest CTOS information.
+                {CUSTOMER_DIRECTOR_SHAREHOLDER_EMPTY_STATE}
               </p>
             ) : null}
           </CardContent>

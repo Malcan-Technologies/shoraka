@@ -61,7 +61,9 @@ describe("issuer application Financial Statements step", () => {
     expect(source).toContain("buildApplicationFinancialPrefillByYear");
     expect(source).toContain("year amounts are not copied from profile");
     expect(source).toContain("submittedByYear: prefillSubmittedByYear");
-    expect(source).toContain("Previous financial year auto-filled from CTOS or a previous financing");
+    expect(source).toContain(
+      "Previous financial year auto-filled from company records or a previous financing"
+    );
     expect(source).not.toContain("org_master");
     expect(source).not.toContain("autoPrefillMode");
   });

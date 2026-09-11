@@ -27,7 +27,8 @@ import {
   parseAboutYourBusiness,
   isAboutYourBusinessComplete,
   ABOUT_YOUR_BUSINESS_LIMITS,
-  resolveDirectorShareholderCtosEmptyWarning,
+  CUSTOMER_DIRECTOR_SHAREHOLDER_EMPTY_STATE,
+  resolveCustomerDirectorShareholderEmptyWarning,
   UNRESOLVED_IDENTITY_RECOVERY_COPY,
   UNRESOLVED_IDENTITY_RECOVERY_TITLE,
 } from "@cashsouk/types";
@@ -299,7 +300,7 @@ export function CompanyDetailsStep({
 
   const resolvedCtosEmptyWarning = React.useMemo(
     () =>
-      resolveDirectorShareholderCtosEmptyWarning({
+      resolveCustomerDirectorShareholderEmptyWarning({
         directorShareholderListSource: entitiesData?.directorShareholderListSource ?? null,
         ctosDirectorShareholderWarning: entitiesData?.ctosDirectorShareholderWarning ?? null,
       }),
@@ -943,7 +944,7 @@ export function CompanyDetailsStep({
             !visiblePeopleRows.some((p) => isMissingGovernmentIdPerson(p)) ? (
               <p className="text-body leading-7 text-muted-foreground col-span-2">
                 {resolvedCtosEmptyWarning
-                  ? "No directors or shareholders were found in the latest CTOS information."
+                  ? CUSTOMER_DIRECTOR_SHAREHOLDER_EMPTY_STATE
                   : "No directors or shareholders found"}
               </p>
             ) : (

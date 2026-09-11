@@ -15,7 +15,7 @@ import {
   isMissingGovernmentIdPerson,
   normalizeDirectorShareholderIdKey,
   normalizeDirectorShareholderPartyEmail,
-  resolveDirectorShareholderCtosEmptyWarning,
+  resolveCustomerDirectorShareholderEmptyWarning,
   UNRESOLVED_IDENTITY_RECOVERY_COPY,
   UNRESOLVED_IDENTITY_RECOVERY_TITLE,
   type ApplicationPersonRow,
@@ -108,7 +108,7 @@ export function DirectorShareholdersUnifiedSection({
 
   const resolvedCtosEmptyWarning = React.useMemo(
     () =>
-      resolveDirectorShareholderCtosEmptyWarning({
+      resolveCustomerDirectorShareholderEmptyWarning({
         directorShareholderListSource,
         ctosDirectorShareholderWarning,
       }),

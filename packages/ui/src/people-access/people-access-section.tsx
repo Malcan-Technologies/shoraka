@@ -28,7 +28,7 @@ import {
   PERSON_EMAIL_HELP,
   profileValidationErrorFromApi,
   relatedPartyVerificationCaption,
-  resolveDirectorShareholderCtosEmptyWarning,
+  resolveCustomerDirectorShareholderEmptyWarning,
   shouldShowPartyAmlRefresh,
   shouldShowPartyKycRefresh,
   UNRESOLVED_IDENTITY_RECOVERY_COPY,
@@ -268,7 +268,7 @@ export function PeopleAccessSection({
   const visibleRows = filterPeopleAccessRows(active, filter, search);
   const visiblePeople = filterVisiblePeopleRows(people);
   const unresolvedPeople = visiblePeople.filter((person) => isMissingGovernmentIdPerson(person));
-  const ctosEmpty = resolveDirectorShareholderCtosEmptyWarning({
+  const ctosEmpty = resolveCustomerDirectorShareholderEmptyWarning({
     directorShareholderListSource,
     ctosDirectorShareholderWarning,
   });

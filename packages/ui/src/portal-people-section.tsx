@@ -16,7 +16,7 @@ import {
   normalizeDirectorShareholderIdKey,
   normalizeDirectorShareholderPartyEmail,
   PERSON_EMAIL_HELP,
-  resolveDirectorShareholderCtosEmptyWarning,
+  resolveCustomerDirectorShareholderEmptyWarning,
   UNRESOLVED_IDENTITY_RECOVERY_COPY,
   UNRESOLVED_IDENTITY_RECOVERY_TITLE,
   type ApplicationPersonRow,
@@ -194,7 +194,7 @@ export function PortalPeopleSection({
       personMatchesFilter(person, filter)
   );
   const unresolvedPeople = visiblePeople.filter((person) => isMissingGovernmentIdPerson(person));
-  const ctosEmpty = resolveDirectorShareholderCtosEmptyWarning({
+  const ctosEmpty = resolveCustomerDirectorShareholderEmptyWarning({
     directorShareholderListSource,
     ctosDirectorShareholderWarning,
   });

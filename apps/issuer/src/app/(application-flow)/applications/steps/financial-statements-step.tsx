@@ -590,7 +590,7 @@ export function FinancialStatementsStep({
         );
       }
 
-      console.log("Financial step initialized (v2 saved / blank / CTOS auto-prefill attempted)");
+      console.log("Financial step initialized (v2 saved / blank / auto-prefill attempted)");
     }
     setIsInitialized(true);
   }, [application, isInitialized, shouldAttemptAutoPrefill, orgLatestFinancialStatementsQuery.isLoading, orgLatestFinancialStatementsQuery.data]);
@@ -1149,8 +1149,8 @@ export function FinancialStatementsStep({
           <div className="space-y-4 px-3">
             {autoPrefillApplied ? (
               <p className="text-xs text-muted-foreground">
-                Previous financial year auto-filled from CTOS or a previous financing. Please review
-                before continuing.
+                Previous financial year auto-filled from company records or a previous financing. Please
+                review before continuing.
               </p>
             ) : null}
           {!questionnaireDto ? (
