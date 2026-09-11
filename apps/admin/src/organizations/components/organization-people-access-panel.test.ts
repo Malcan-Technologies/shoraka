@@ -19,11 +19,11 @@ const rail = readFileSync(
 );
 
 describe("Admin People & Access surface", () => {
-  it("uses one table with Company Role, Platform Access, KYC, AML, and CTOS", () => {
+  it("uses one table with Company Role, Platform Access, KYC/KYB, AML, and CTOS", () => {
     expect(panel).toContain(">Name<");
     expect(panel).toContain(">Company Role<");
     expect(panel).toContain(">Platform Access<");
-    expect(panel).toContain(">KYC<");
+    expect(panel).toContain(">KYC/KYB<");
     expect(panel).toContain(">AML<");
     expect(panel).toContain(">CTOS<");
     expect(panel).toContain("buildAdminPeopleAccessRows");
@@ -72,6 +72,9 @@ describe("Admin People & Access surface", () => {
     expect(detail).toContain("adminPersonHasCtosEvidence");
     expect(detail).toContain("buildAdminPersonRegTankRoleRecords");
     expect(detail).toContain("record.actionLabel");
+    expect(detail).toContain("View screening result");
+    expect(detail).not.toContain("View KYC result");
+    expect(detail).not.toContain("View KYB result");
     expect(detail).toContain("Current profile");
   });
 
@@ -156,7 +159,7 @@ describe("Admin organisation tabs", () => {
   });
 
   it("keeps person KYC and AML separate from organisation screening", () => {
-    expect(panel).toContain(">KYC<");
+    expect(panel).toContain(">KYC/KYB<");
     expect(panel).toContain(">AML<");
     expect(detail).toContain('value="kyc"');
     expect(detail).toContain('value="aml"');

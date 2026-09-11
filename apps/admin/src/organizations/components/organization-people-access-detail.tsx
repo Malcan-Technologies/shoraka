@@ -14,21 +14,21 @@ import {
   adminPeopleAccessAmlDisplayLabel,
   adminPeopleAccessDetailRoleLine,
   adminPeopleAccessVerificationLabel,
+  adminPersonAmlScreeningResultUrl,
   adminPersonHasCtosEvidence,
   adminPersonHasRegTankEvidence,
-  adminPersonKycResultUrl,
-  adminPersonKybResultUrl,
   adminProfileCompletenessHint,
   buildAdminPeopleAccessOverviewItems,
   buildAdminPersonRegTankRoleRecords,
   computeIssuerPersonCompleteness,
+  getRelatedPartyStatusToken,
   isBlockedPersonIdentityConflict,
   isIssuerShareholderOnlyBelowMinimum,
   isPersonKycApproved,
   issuerPersonCompletenessInputFromParty,
   observedPartyBlockedByIdentityConflict,
-  peopleAccessAmlBadgeStatus,
-  peopleAccessKycBadgeStatus,
+  peopleAccessAmlChipPresentation,
+  peopleAccessKycChipPresentation,
   peopleAccessPlatformBadgeStatus,
   personRegTankKycId,
   personRegTankKybId,
@@ -62,16 +62,20 @@ function AccessBadge({ label }: { label: string }) {
   return <StatusBadge status={status} label={label} />;
 }
 
-function KycBadge({ label }: { label: string }) {
-  const status = peopleAccessKycBadgeStatus(label as never);
-  if (!status) return <span className="text-ui text-muted-foreground">—</span>;
-  return <StatusBadge status={status} label={label} />;
+function KycBadge({ person }: { person: AdminPeopleAccessRow["person"] }) {
+  const presentation = peopleAccessKycChipPresentation(person);
+  if (!presentation) return <span className="text-ui text-muted-foreground">—</span>;
+  return (
+    <StatusBadge status={getRelatedPartyStatusToken(presentation, "admin")} label={presentation.label} />
+  );
 }
 
-function AmlBadge({ label }: { label: string }) {
-  const status = peopleAccessAmlBadgeStatus(label as never);
-  if (!status) return <span className="text-ui text-muted-foreground">—</span>;
-  return <StatusBadge status={status} label={label} />;
+function AmlBadge({ person }: { person: AdminPeopleAccessRow["person"] }) {
+  const presentation = peopleAccessAmlChipPresentation(person);
+  if (!presentation) return <span className="text-ui text-muted-foreground">—</span>;
+  return (
+    <StatusBadge status={getRelatedPartyStatusToken(presentation, "admin")} label={presentation.label} />
+  );
 }
 
 function ExternalRegTankLink({ href, children }: { href: string; children: React.ReactNode }) {
@@ -179,17 +183,15 @@ export function OrganizationPeopleAccessDetail({
   });
   const showRegTank = adminPersonHasRegTankEvidence(person) || roleRecords.length > 0;
   const verificationLabel = adminPeopleAccessVerificationLabel(row.corporate);
-  const kycLabel = row.kyc === "—" && row.corporate ? "Not started" : row.kyc;
   const amlLabel = adminPeopleAccessAmlDisplayLabel(row);
   const amlWaiting = adminAmlWaitingCopy({
     corporate: row.corporate,
     person,
-    amlLabel: row.aml,
+    amlLabel,
   });
   const kycId = personRegTankKycId(person);
   const kybId = personRegTankKybId(person);
-  const kycResultUrl = adminPersonKycResultUrl(person);
-  const kybResultUrl = adminPersonKybResultUrl(person);
+  const screeningResultUrl = adminPersonAmlScreeningResultUrl(person);
   const roleLine = adminPeopleAccessDetailRoleLine(row);
   const recordSource = adminPartyRecordSourceLabel(party?.origin);
   const overviewItems = buildAdminPeopleAccessOverviewItems(row);
@@ -304,7 +306,7 @@ export function OrganizationPeopleAccessDetail({
                 <p className="text-ui text-muted-foreground">
                   Business verification (KYB). Individual KYC is not required.
                 </p>
-                <KycBadge label={kycLabel} />
+                <KycBadge person={person} />
                 {person?.onboarding?.status ? (
                   <ProfileReadField label="Current stage" value={adminOnboardingStageLabel(person.onboarding.status)} />
                 ) : null}
@@ -316,11 +318,10 @@ export function OrganizationPeopleAccessDetail({
                   value={kybId}
                   hint={!kybId ? "Generated after business screening starts." : undefined}
                 />
-                {kybResultUrl ? <ExternalRegTankLink href={kybResultUrl}>View KYB result</ExternalRegTankLink> : null}
               </>
             ) : (
               <>
-                <KycBadge label={row.kyc} />
+                <KycBadge person={person} />
                 <ProfileReadField
                   label="Current stage"
                   value={adminOnboardingStageLabel(person?.onboarding?.status)}
@@ -330,7 +331,6 @@ export function OrganizationPeopleAccessDetail({
                   value={kycId}
                   hint={!kycId ? "Generated after KYC approval." : undefined}
                 />
-                {kycResultUrl ? <ExternalRegTankLink href={kycResultUrl}>View KYC result</ExternalRegTankLink> : null}
                 {roleRecords.length > 1 ? (
                   <p className="text-meta text-muted-foreground">
                     This person has separate Director and Shareholder onboarding records for the same identity.
@@ -344,6 +344,13 @@ export function OrganizationPeopleAccessDetail({
                 ) : null}
               </>
             )}
+            {roleRecords.map((record) =>
+              record.url ? (
+                <ExternalRegTankLink key={`${record.kind}-${record.requestId}`} href={record.url}>
+                  {record.actionLabel}
+                </ExternalRegTankLink>
+              ) : null
+            )}
           </TabsContent>
         ) : null}
 
@@ -354,7 +361,7 @@ export function OrganizationPeopleAccessDetail({
                 ? "Business screening for this company shareholder. This is not organisation screening."
                 : "Person screening. This is not the organisation screening result."}
             </p>
-            <AmlBadge label={amlLabel} />
+            <AmlBadge person={person} />
             {amlWaiting ? <p className="text-ui text-muted-foreground">{amlWaiting}</p> : null}
             {person?.screening?.riskLevel ? (
               <ProfileReadField label="Risk level" value={String(person.screening.riskLevel)} />
@@ -364,8 +371,9 @@ export function OrganizationPeopleAccessDetail({
             ) : null}
             {kycId && !row.corporate ? <ProfileReadField label="KYC ID" value={kycId} /> : null}
             {kybId && row.corporate ? <ProfileReadField label="KYB ID" value={kybId} /> : null}
-            {kycResultUrl ? <ExternalRegTankLink href={kycResultUrl}>View KYC result</ExternalRegTankLink> : null}
-            {kybResultUrl ? <ExternalRegTankLink href={kybResultUrl}>View KYB result</ExternalRegTankLink> : null}
+            {screeningResultUrl ? (
+              <ExternalRegTankLink href={screeningResultUrl}>View screening result</ExternalRegTankLink>
+            ) : null}
           </TabsContent>
         ) : null}
 

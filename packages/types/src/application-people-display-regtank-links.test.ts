@@ -1,6 +1,8 @@
 import {
   getRegtankCorporateOnboardingUrl,
   getRegtankCorporatePersonOnboardingUrl,
+  getRegtankKycResultUrl,
+  getRegtankKybResultUrl,
   getRegtankLivenessUrl,
   getRegtankOnboardingViewLinks,
   getRegtankScreeningLink,
@@ -97,5 +99,13 @@ describe("RegTank portal URL helpers", () => {
     expect(getRegtankLivenessUrl("LD71675-R01")).toBe(
       "https://shoraka-trial.regtank.com/app/liveness/LD71675-R01?archived=false"
     );
+    expect(getRegtankKycResultUrl("KYC00184")).toBe(
+      "https://shoraka-trial.regtank.com/app/screen-kyc/result/KYC00184"
+    );
+    expect(getRegtankKybResultUrl("KYB00105")).toBe(
+      "https://shoraka-trial.regtank.com/app/screen-kyb/result/KYB00105"
+    );
+    expect(getRegtankKycResultUrl("COD05594")).toBeNull();
+    expect(getRegtankKybResultUrl("COD05595")).toBeNull();
   });
 });

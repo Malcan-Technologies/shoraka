@@ -4,9 +4,17 @@
  */
 import type { ApplicationPersonRow } from "./application-people-display";
 import { filterVisiblePeopleRows, isMissingGovernmentIdPerson, requiresOnboardingEmail } from "./application-people-display";
+import {
+  getFinalStatusLabel,
+  type DirectorShareholderFinalStatusPresentation,
+} from "./director-shareholder-final-status";
 import { getAmlGroup, getKycGroup } from "./director-shareholder-single-status-display";
 import { findExistingPartyForIdentityKey } from "./organization-party-key";
 import type { OrganizationPartyProfileDto } from "./organization-party-profile";
+import {
+  peopleAccessShowsCorporateAmlChip,
+  peopleAccessShowsCorporateKycChip,
+} from "./people-access-refresh";
 import {
   isMemberWithoutCompanyRole,
   linkedPartyUserIds,
@@ -208,6 +216,31 @@ export function peopleAccessAmlLabel(person: ApplicationPersonRow | null | undef
     default:
       return "Pending";
   }
+}
+
+/** Same labels as onboarding review (`getFinalStatusLabel`). Null when the column is not applicable. */
+export function peopleAccessKycChipPresentation(
+  person: ApplicationPersonRow | null | undefined
+): DirectorShareholderFinalStatusPresentation | null {
+  if (!person) return null;
+  if (person.entityType === "CORPORATE") {
+    if (!peopleAccessShowsCorporateKycChip(person)) return null;
+    return getFinalStatusLabel(person, { displayMode: "kyc_only" });
+  }
+  if (peopleAccessKycLabel(person) === "—") return null;
+  return getFinalStatusLabel(person, { displayMode: "kyc_only" });
+}
+
+export function peopleAccessAmlChipPresentation(
+  person: ApplicationPersonRow | null | undefined
+): DirectorShareholderFinalStatusPresentation | null {
+  if (!person) return null;
+  if (person.entityType === "CORPORATE") {
+    if (!peopleAccessShowsCorporateAmlChip(person)) return null;
+    return getFinalStatusLabel({ screening: person.screening });
+  }
+  if (peopleAccessAmlLabel(person) === "—") return null;
+  return getFinalStatusLabel({ screening: person.screening });
 }
 
 function memberDisplayName(member: PeopleAccessMember): string {

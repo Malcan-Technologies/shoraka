@@ -6,8 +6,9 @@ import type { ApplicationPersonRow } from "./application-people-display";
 import {
   getRegtankCorporateOnboardingUrl,
   getRegtankCorporatePersonOnboardingUrl,
+  getRegtankKycResultUrl,
+  getRegtankKybResultUrl,
   getRegtankLivenessUrl,
-  getRegtankScreeningLink,
 } from "./application-people-display";
 import type { AdminPeopleAccessRow } from "./admin-people-access-rows";
 import {
@@ -28,8 +29,9 @@ import {
 import { resolvePartyCtosComparison } from "./party-ctos-comparison";
 import { displayGovernmentIdentityNumber } from "./organization-party-key";
 import {
+  peopleAccessAmlChipPresentation,
   peopleAccessAmlLabel,
-  peopleAccessCorporateKybLabel,
+  peopleAccessKycChipPresentation,
   peopleAccessKycLabel,
 } from "./people-access-rows";
 import { getAmlGroup } from "./director-shareholder-single-status-display";
@@ -93,7 +95,7 @@ export function adminOnboardingStageLabel(statusRaw: string | null | undefined):
     case "WAIT_FOR_APPROVAL":
     case "WAITING_FOR_APPROVAL":
     case "PENDING_APPROVAL":
-      return "Pending approval";
+      return "Pending Review";
     case "APPROVED":
     case "AML_APPROVED":
     case "CLEAR":
@@ -151,15 +153,18 @@ export function personRegTankKybId(person: ApplicationPersonRow | null | undefin
 }
 
 export function adminPersonKycResultUrl(person: ApplicationPersonRow | null | undefined): string | null {
-  const kycId = personRegTankKycId(person);
-  if (!kycId || !person) return null;
-  return getRegtankScreeningLink({ screeningRequestId: kycId, requestId: kycId, screening: person.screening });
+  return getRegtankKycResultUrl(personRegTankKycId(person));
 }
 
 export function adminPersonKybResultUrl(person: ApplicationPersonRow | null | undefined): string | null {
-  const kybId = personRegTankKybId(person);
-  if (!kybId || !person) return null;
-  return getRegtankScreeningLink({ screeningRequestId: kybId, requestId: kybId, screening: person.screening });
+  return getRegtankKybResultUrl(personRegTankKybId(person));
+}
+
+/** AML tab: screening result only. Never a COD/EOD/LD onboarding URL. */
+export function adminPersonAmlScreeningResultUrl(person: ApplicationPersonRow | null | undefined): string | null {
+  if (!person) return null;
+  if (person.entityType === "CORPORATE") return adminPersonKybResultUrl(person);
+  return adminPersonKycResultUrl(person);
 }
 
 export function roleOnboardingStatusFromCorporateEntities(
@@ -204,7 +209,7 @@ export function buildAdminPersonRegTankRoleRecords(params: {
         requestId: ownCod,
         stageLabel: personStage,
         url: getRegtankCorporateOnboardingUrl(ownCod),
-        actionLabel: "View corporate shareholder onboarding",
+        actionLabel: "View onboarding",
       });
     }
     return records;
@@ -229,12 +234,12 @@ export function buildAdminPersonRegTankRoleRecords(params: {
       requestId: eod,
       stageLabel: adminOnboardingStageLabel(roleStatus ?? person.onboarding?.status),
       url,
-      actionLabel: url ? actionLabel : "Open in RegTank",
+      actionLabel: url ? (eod.startsWith("LD") ? "View onboarding" : actionLabel) : "Open in RegTank",
     });
   };
 
   if (directorEod && directorEod === shareholderEod) {
-    pushPerson("director", "Director and shareholder", directorEod, "Open in RegTank");
+    pushPerson("director", "Director and shareholder", directorEod, "View onboarding");
     return records;
   }
   if (directorEod) {
@@ -294,14 +299,24 @@ export function adminAmlWaitingCopy(params: {
   amlLabel: string;
 }): string | null {
   if (params.corporate) {
-    if (params.amlLabel === "—" || params.amlLabel === "Not started") {
+    if (
+      params.amlLabel === "—" ||
+      params.amlLabel === "Not started" ||
+      params.amlLabel === "Not Started"
+    ) {
       return "Business screening has not started yet.";
     }
     return null;
   }
   const kycApproved = isPersonKycApproved(params.person?.onboarding?.status);
   const amlGroup = getAmlGroup(params.person?.screening?.status ?? "");
-  if (!kycApproved && (amlGroup === "NOT_STARTED" || params.amlLabel === "Not started" || params.amlLabel === "—")) {
+  if (
+    !kycApproved &&
+    (amlGroup === "NOT_STARTED" ||
+      params.amlLabel === "Not started" ||
+      params.amlLabel === "Not Started" ||
+      params.amlLabel === "—")
+  ) {
     return "AML review becomes available after KYC approval.";
   }
   if (kycApproved && amlGroup === "NOT_STARTED") {
@@ -413,18 +428,14 @@ export function adminPeopleAccessVerificationLabel(corporate: boolean): "KYC" | 
 }
 
 export function adminPeopleAccessKycOrKybLabel(row: AdminPeopleAccessRow): string {
-  if (row.corporate) return peopleAccessCorporateKybLabel(row.person);
-  return peopleAccessKycLabel(row.person);
+  return peopleAccessKycChipPresentation(row.person)?.label ?? peopleAccessKycLabel(row.person);
 }
 
 export function adminPeopleAccessAmlDisplayLabel(row: AdminPeopleAccessRow): string {
-  if (row.corporate) {
-    const status = row.person?.screening?.status;
-    if (!status || !String(status).trim()) return "Not started";
-  }
-  const label = row.aml;
-  if (label === "—") return row.corporate ? "Not started" : peopleAccessAmlLabel(row.person);
-  return label;
+  const presentation = peopleAccessAmlChipPresentation(row.person);
+  if (presentation) return presentation.label;
+  if (row.corporate) return "Not Started";
+  return peopleAccessAmlLabel(row.person);
 }
 
 export function isCustomerRegTankVerifyUrl(url: string | null | undefined): boolean {

@@ -408,6 +408,64 @@ describe("CTOS master party observation", () => {
     expect(updated.mismatches.find((m) => m.field === "shareholdingPercentage")).toBeUndefined();
   });
 
+  it("after COMPLETED, same-IC CTOS match does not overwrite master share or add a director role", async () => {
+    issuerOrg.regulatory_structure_established_at = new Date("2026-01-01T00:00:00.000Z");
+    issuerOrg.onboarding_status = "COMPLETED";
+    parties.push(
+      row({
+        id: "p-ali",
+        party_key: "850101011111",
+        identity_number: "850101011111",
+        name: "Ali",
+        is_director: false,
+        is_shareholder: true,
+        shareholding_percentage: new Prisma.Decimal("20"),
+      })
+    );
+    const laterCtos = {
+      directors: [{ party_type: "I", nic_brno: "850101011111", name: "Ali", position: "DO" }],
+      shareholders: [{ party_type: "I", nic_brno: "850101011111", name: "Ali", equity_percentage: 30 }],
+    };
+    mockCtosFindFirst.mockResolvedValue({ company_json: laterCtos });
+    await observeExternalCtosParties("issuer", "org-1", laterCtos);
+    const master = parties.find((p) => p.id === "p-ali");
+    expect(Number(master?.shareholding_percentage)).toBe(20);
+    expect(master?.is_director).toBe(false);
+    expect(master?.is_shareholder).toBe(true);
+    const dto = serializeParty(master as never);
+    expect(dto.mismatches.find((m) => m.field === "shareholdingPercentage")?.externalValue).toBe(30);
+    expect(dto.mismatches.find((m) => m.field === "isDirector")?.externalValue).toBe(true);
+  });
+
+  it("after COMPLETED, same-SSM CTOS match does not overwrite master share", async () => {
+    issuerOrg.regulatory_structure_established_at = new Date("2026-01-01T00:00:00.000Z");
+    issuerOrg.onboarding_status = "COMPLETED";
+    parties.push(
+      row({
+        id: "p-abc",
+        party_key: "202001234567",
+        identity_number: "202001234567",
+        identity_prefix: "ROC",
+        entity_type: "CORPORATE",
+        name: "ABC Berhad",
+        is_director: false,
+        is_shareholder: true,
+        shareholding_percentage: new Prisma.Decimal("20"),
+      })
+    );
+    const laterCtos = {
+      shareholders: [
+        { party_type: "C", ic_lcno: "202001234567", name: "ABC Berhad", equity_percentage: 30 },
+      ],
+    };
+    mockCtosFindFirst.mockResolvedValue({ company_json: laterCtos });
+    await observeExternalCtosParties("issuer", "org-1", laterCtos);
+    const master = parties.find((p) => p.id === "p-abc");
+    expect(Number(master?.shareholding_percentage)).toBe(20);
+    const dto = serializeParty(master as never);
+    expect(dto.mismatches.find((m) => m.field === "shareholdingPercentage")?.externalValue).toBe(30);
+  });
+
   it("allows an issuer user to update a filled shareholding percentage that still meets 5%", async () => {
     parties.push(
       row({

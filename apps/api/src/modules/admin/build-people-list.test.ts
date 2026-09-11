@@ -572,6 +572,56 @@ describe("buildUnifiedPeople", () => {
     expect(corp?.screening?.status ?? null).toBeNull();
   });
 
+  it("does not use KYB screening status as corporate onboarding status", () => {
+    const rows = buildUnifiedPeople({
+      ctos: null,
+      issuerDirectorKycStatus: { directors: [] },
+      issuerDirectorAmlStatus: {
+        directors: [],
+        businessShareholders: [
+          {
+            businessNumber: "8217649D",
+            rawStatus: "PENDING",
+            kybId: "KYB00105",
+          },
+        ],
+      },
+      ctosPartySupplements: null,
+      corporateEntities: {
+        directors: [],
+        shareholders: [],
+        corporateShareholders: [
+          {
+            companyName: "Orion Crest Holdings Sdn. Bhd.",
+            requestId: "COD05595",
+            status: "APPROVED",
+            kybType: "ACURIS",
+            kybRequestDto: { kybId: "KYB00105", status: "PENDING" },
+            formContent: {
+              displayAreas: [
+                {
+                  displayArea: "Basic Information Setting",
+                  content: [
+                    { fieldName: "Business Name", fieldValue: "Orion Crest Holdings Sdn. Bhd." },
+                    { fieldName: "Business Number", fieldValue: "8217649D" },
+                    { fieldName: "% of Shares", fieldValue: "50" },
+                  ],
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    const corp = rows.find((r) => r.entityType === "CORPORATE");
+    expect(corp?.onboarding?.status).toBe("APPROVED");
+    expect(corp?.onboarding?.id).toBe("KYB00105");
+    expect(corp?.screening?.status).toBe("PENDING");
+    expect(corp?.screeningRequestId).toBe("KYB00105");
+    expect(corp?.partyCorporateRequestId).toBe("COD05595");
+  });
+
   it("includes individual when Government ID is only in personalInfo.formContent", () => {
     const rows = buildUnifiedPeople({
       ctos: null,
@@ -1861,6 +1911,116 @@ describe("initial corporate onboarding CTOS source of truth", () => {
     });
     expect(result.people.find((p) => p.name === "Jamie")).toBeDefined();
     expect(result.people.find((p) => p.name === "Zara Observed")).toBeUndefined();
+  });
+
+  it("after COMPLETED, same-IC CTOS match keeps master share % and roles on people[]", () => {
+    const result = buildDirectorShareholderPeopleList({
+      initialCorporateOnboarding: false,
+      ctos: {
+        directors: [],
+        shareholders: [
+          {
+            party_type: "I",
+            nic_brno: "850101011111",
+            name: "Ali",
+            position: "SO",
+            equity_percentage: 30,
+          },
+        ],
+      },
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      corporateEntities: null,
+      masterParties: [
+        {
+          partyKey: "850101011111",
+          membershipStatus: "MASTER_ACTIVE",
+          entityType: "INDIVIDUAL",
+          name: "Ali",
+          identityNumber: "850101011111",
+          isDirector: false,
+          isShareholder: true,
+          shareholdingPercentage: "20",
+          origin: "CTOS_PARTY",
+        },
+      ],
+    });
+    const ali = result.people.find((p) => p.matchKey === "850101011111");
+    expect(ali?.sharePercentage).toBe(20);
+    expect(ali?.roles).toEqual(["SHAREHOLDER"]);
+    expect(ali?.name).toBe("Ali");
+  });
+
+  it("after COMPLETED, same-SSM CTOS match keeps master share % on people[]", () => {
+    const result = buildDirectorShareholderPeopleList({
+      initialCorporateOnboarding: false,
+      ctos: {
+        directors: [],
+        shareholders: [
+          {
+            party_type: "C",
+            ic_lcno: "202001234567",
+            name: "ABC Berhad",
+            position: "SO",
+            equity_percentage: 40,
+          },
+        ],
+      },
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      corporateEntities: null,
+      masterParties: [
+        {
+          partyKey: "202001234567",
+          membershipStatus: "MASTER_ACTIVE",
+          entityType: "CORPORATE",
+          name: "ABC Berhad",
+          identityNumber: "202001234567",
+          isDirector: false,
+          isShareholder: true,
+          shareholdingPercentage: "30",
+          origin: "CTOS_PARTY",
+        },
+      ],
+    });
+    const abc = result.people.find((p) => p.matchKey === "202001234567");
+    expect(abc?.sharePercentage).toBe(30);
+    expect(abc?.roles).toEqual(["SHAREHOLDER"]);
+  });
+
+  it("during initial onboarding, same-IC CTOS share % remains the people[] source of truth", () => {
+    const result = buildDirectorShareholderPeopleList({
+      initialCorporateOnboarding: true,
+      ctos: {
+        directors: [],
+        shareholders: [
+          {
+            party_type: "I",
+            nic_brno: "850101011111",
+            name: "Ali",
+            position: "SO",
+            equity_percentage: 30,
+          },
+        ],
+      },
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      corporateEntities: null,
+      masterParties: [
+        {
+          partyKey: "850101011111",
+          membershipStatus: "MASTER_ACTIVE",
+          entityType: "INDIVIDUAL",
+          name: "Ali",
+          identityNumber: "850101011111",
+          isDirector: false,
+          isShareholder: true,
+          shareholdingPercentage: "20",
+          origin: "CTOS_PARTY",
+        },
+      ],
+    });
+    expect(result.people.find((p) => p.matchKey === "850101011111")?.sharePercentage).toBe(30);
   });
 
   it("3/4. missing or invalid CTOS payload keeps the RegTank list", () => {

@@ -9,6 +9,7 @@ import {
   adminPartyProfileStatusLabel,
   adminPartyRecordSourceLabel,
   adminPeopleAccessDetailRoleLine,
+  adminPersonAmlScreeningResultUrl,
   adminPersonCtosAbsenceCopy,
   adminPersonHasCtosEvidence,
   adminPersonHasRegTankEvidence,
@@ -118,7 +119,7 @@ function row(overrides: Partial<AdminPeopleAccessRow> = {}): AdminPeopleAccessRo
 describe("admin onboarding stage labels", () => {
   it("maps ID_UPLOADED to identity documents submitted, not the raw token", () => {
     expect(adminOnboardingStageLabel("ID_UPLOADED")).toBe("Identity documents submitted");
-    expect(adminOnboardingStageLabel("WAIT_FOR_APPROVAL")).toBe("Pending approval");
+    expect(adminOnboardingStageLabel("WAIT_FOR_APPROVAL")).toBe("Pending Review");
     expect(adminOnboardingStageLabel("APPROVED")).toBe("Approved");
     expect(adminOnboardingStageLabel("URL_GENERATED")).toBe("Invitation sent");
     expect(adminOnboardingStageLabel("NOT_STARTED")).toBe("Not started");
@@ -348,7 +349,7 @@ describe("RegTank role records and links", () => {
       expect.objectContaining({
         requestId: "COD05595",
         url: "https://shoraka-trial.regtank.com/app/onboardingCorporate/COD05595?archived=false",
-        actionLabel: "View corporate shareholder onboarding",
+        actionLabel: "View onboarding",
       }),
     ]);
   });
@@ -503,5 +504,77 @@ describe("platform-only and inactive", () => {
       "Platform access only"
     );
     expect(adminPartyProfileStatusLabel(row({ inactive: true }))).toBe("Inactive");
+  });
+});
+
+describe("KYC tab onboarding vs AML tab screening URLs", () => {
+  it("uses onboarding URLs for KYC/KYB actions, never screening-result URLs", () => {
+    const records = buildAdminPersonRegTankRoleRecords({
+      person: row().person,
+    });
+    expect(records.map((record) => record.url)).toEqual([
+      "https://shoraka-trial.regtank.com/app/onboardingCorporate/COD05594/EOD06934",
+      "https://shoraka-trial.regtank.com/app/onboardingCorporate/COD05594/EOD06933",
+    ]);
+    expect(records.map((record) => record.actionLabel)).toEqual([
+      "View Director onboarding",
+      "View Shareholder onboarding",
+    ]);
+    for (const record of records) {
+      expect(record.url).not.toContain("/screen-kyc/");
+      expect(record.url).not.toContain("/screen-kyb/");
+    }
+  });
+
+  it("uses liveness for standalone individual onboarding", () => {
+    const records = buildAdminPersonRegTankRoleRecords({
+      person: person({
+        matchKey: "1",
+        roles: ["DIRECTOR"],
+        directorEodRequestId: "LD71675-R01",
+        parentCorporateRequestId: null,
+      }),
+    });
+    expect(records).toEqual([
+      expect.objectContaining({
+        url: "https://shoraka-trial.regtank.com/app/liveness/LD71675-R01?archived=false",
+        actionLabel: "View onboarding",
+      }),
+    ]);
+  });
+
+  it("opens AML screening results only when a KYC or KYB id exists", () => {
+    expect(adminPersonAmlScreeningResultUrl(row().person)).toBeNull();
+    expect(
+      adminPersonAmlScreeningResultUrl(
+        person({
+          matchKey: "021116101341",
+          onboarding: { status: "APPROVED", id: "KYC00184" },
+          screeningRequestId: "KYC00184",
+        })
+      )
+    ).toBe("https://shoraka-trial.regtank.com/app/screen-kyc/result/KYC00184");
+    expect(
+      adminPersonAmlScreeningResultUrl(
+        person({
+          matchKey: "8217649D",
+          entityType: "CORPORATE",
+          roles: ["SHAREHOLDER"],
+          partyCorporateRequestId: "COD05595",
+          screeningRequestId: "KYB00105",
+        })
+      )
+    ).toBe("https://shoraka-trial.regtank.com/app/screen-kyb/result/KYB00105");
+    expect(
+      adminPersonAmlScreeningResultUrl(
+        person({
+          matchKey: "8217649D",
+          entityType: "CORPORATE",
+          roles: ["SHAREHOLDER"],
+          partyCorporateRequestId: "COD05595",
+          screeningRequestId: "COD05595",
+        })
+      )
+    ).toBeNull();
   });
 });

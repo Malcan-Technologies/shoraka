@@ -10,12 +10,14 @@ import {
   adminPeopleAccessRowNeedsAttention,
   buildAdminPeopleAccessRows,
   filterAdminPeopleAccessRows,
+  getRelatedPartyStatusToken,
   isAdminPeopleAccessFilter,
   isIssuerShareholderOnlyBelowMinimum,
   observedPartyBlockedByIdentityConflict,
-  peopleAccessAmlBadgeStatus,
-  peopleAccessKycBadgeStatus,
+  peopleAccessAmlChipPresentation,
+  peopleAccessKycChipPresentation,
   peopleAccessPlatformBadgeStatus,
+  relatedPartyVerificationCaption,
   type AdminPeopleAccessFilter,
   type AdminPeopleAccessRow,
   type PeopleAccessMember,
@@ -264,7 +266,7 @@ export function OrganizationPeopleAccessPanel({
                     <TableHead className="sticky top-0 z-10 bg-card">Name</TableHead>
                     <TableHead className="sticky top-0 z-10 bg-card">Company Role</TableHead>
                     <TableHead className="sticky top-0 z-10 bg-card">Platform Access</TableHead>
-                    <TableHead className="sticky top-0 z-10 bg-card">KYC</TableHead>
+                    <TableHead className="sticky top-0 z-10 bg-card">KYC/KYB</TableHead>
                     <TableHead className="sticky top-0 z-10 bg-card">AML</TableHead>
                     <TableHead className="sticky top-0 z-10 bg-card">CTOS</TableHead>
                     <TableHead className="sticky top-0 z-10 w-20 bg-card">Actions</TableHead>
@@ -361,8 +363,8 @@ function PeopleAccessTableRow({
   onInactivate: () => void;
   onEditMember: () => void;
 }) {
-  const kycStatus = peopleAccessKycBadgeStatus(row.kyc);
-  const amlStatus = peopleAccessAmlBadgeStatus(row.aml);
+  const kycPresentation = peopleAccessKycChipPresentation(row.person);
+  const amlPresentation = peopleAccessAmlChipPresentation(row.person);
   const accessStatus = row.platformAccess === "—" ? null : peopleAccessPlatformBadgeStatus(row.platformAccess);
   const ctosStatus = adminPeopleAccessCtosBadgeStatus(row.ctos);
   const needsAction = adminPeopleAccessRowNeedsAttention(row);
@@ -412,10 +414,29 @@ function PeopleAccessTableRow({
         {accessStatus ? <StatusBadge status={accessStatus} label={row.platformAccess} /> : <CellDash>—</CellDash>}
       </TableCell>
       <TableCell>
-        {kycStatus ? <StatusBadge status={kycStatus} label={row.kyc} /> : <CellDash>—</CellDash>}
+        {kycPresentation ? (
+          <div className="flex flex-col items-start gap-0.5">
+            <span className="text-meta text-muted-foreground">
+              {relatedPartyVerificationCaption(row.person?.entityType ?? row.party?.entityType)}
+            </span>
+            <StatusBadge
+              status={getRelatedPartyStatusToken(kycPresentation, "admin")}
+              label={kycPresentation.label}
+            />
+          </div>
+        ) : (
+          <CellDash>—</CellDash>
+        )}
       </TableCell>
       <TableCell>
-        {amlStatus ? <StatusBadge status={amlStatus} label={row.aml} /> : <CellDash>—</CellDash>}
+        {amlPresentation ? (
+          <StatusBadge
+            status={getRelatedPartyStatusToken(amlPresentation, "admin")}
+            label={amlPresentation.label}
+          />
+        ) : (
+          <CellDash>—</CellDash>
+        )}
       </TableCell>
       <TableCell>
         {ctosStatus ? <StatusBadge status={ctosStatus} label={row.ctos} /> : <CellDash>—</CellDash>}

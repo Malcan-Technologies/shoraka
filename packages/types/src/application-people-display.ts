@@ -227,18 +227,27 @@ export function getRegtankLivenessUrl(requestId: string | null | undefined): str
   return `${base}/app/liveness/${encodeURIComponent(id)}?archived=false`;
 }
 
+export function getRegtankKycResultUrl(kycId: string | null | undefined): string | null {
+  const id = trimRegtankId(kycId);
+  if (!id || !id.startsWith("KYC")) return null;
+  return `${getRegtankClientPortalBaseUrl()}/app/screen-kyc/result/${encodeURIComponent(id)}`;
+}
+
+export function getRegtankKybResultUrl(kybId: string | null | undefined): string | null {
+  const id = trimRegtankId(kybId);
+  if (!id || !id.startsWith("KYB")) return null;
+  return `${getRegtankClientPortalBaseUrl()}/app/screen-kyb/result/${encodeURIComponent(id)}`;
+}
+
 export function getRegtankScreeningLink(
   person: Pick<ApplicationPersonRow, "screeningRequestId" | "screening" | "requestId">
 ): string | null {
   const id = trimRegtankId(person.screeningRequestId) || trimRegtankId(person.requestId);
   if (!id || !isScreeningRequestId(id)) return null;
-  const base = getRegtankClientPortalBaseUrl();
-  const enc = encodeURIComponent(id);
-  if (id.startsWith("KYC")) {
-    return `${base}/app/screen-kyc/result/${enc}`;
-  }
+  if (id.startsWith("KYC")) return getRegtankKycResultUrl(id);
   const suffix = kybScreeningHasRisk(person.screening) ? "/riskAssessment" : "";
-  return `${base}/app/screen-kyb/result/${enc}${suffix}`;
+  const base = getRegtankKybResultUrl(id);
+  return base ? `${base}${suffix}` : null;
 }
 
 /**

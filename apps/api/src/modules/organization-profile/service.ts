@@ -46,6 +46,7 @@ import {
   hasOrganizationPartyRole,
   SELECT_AT_LEAST_ONE_ROLE_MESSAGE,
   resolvePersonPlatformAccess,
+  isInitialCorporateOnboardingStatus,
 } from "@cashsouk/types";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
@@ -198,6 +199,7 @@ async function readOrgRegulatoryState(portal: Portal, organizationId: string) {
       select: {
         corporate_entities: true,
         regulatory_structure_established_at: true,
+        onboarding_status: true,
       },
     });
   }
@@ -206,6 +208,7 @@ async function readOrgRegulatoryState(portal: Portal, organizationId: string) {
     select: {
       corporate_entities: true,
       regulatory_structure_established_at: true,
+      onboarding_status: true,
     },
   });
 }
@@ -273,7 +276,8 @@ function candidateToCreateManyRow(
 async function fillEmptyPartyFromCandidate(
   row: OrganizationPartyProfile,
   candidate: RegulatoryPartyCandidate,
-  existing: Array<{ id: string; party_key: string }>
+  existing: Array<{ id: string; party_key: string }>,
+  options?: { applyRoleMutations?: boolean }
 ): Promise<OrganizationPartyProfile> {
   const source = candidateSource(candidate);
   let sources = parseFieldSources(row.field_sources);
@@ -331,36 +335,39 @@ async function fillEmptyPartyFromCandidate(
     wrote = true;
   }
 
-  if (candidate.isDirector && !row.is_director) {
-    data.is_director = true;
-    wrote = true;
-  }
-  if (candidate.isShareholder && !row.is_shareholder) {
-    data.is_shareholder = true;
-    wrote = true;
-  }
-  if (
-    row.is_shareholder &&
-    !candidate.isShareholder &&
-    (row.origin === OrganizationPartyOrigin.CTOS_PARTY ||
-      row.origin === OrganizationPartyOrigin.REGTANK_PARTY)
-  ) {
-    data.is_shareholder = false;
-    wrote = true;
-  }
-  if (candidate.isBoard && !row.is_board) {
-    data.is_board = true;
-    wrote = true;
-  }
-  if (
-    row.is_board &&
-    !candidate.isBoard &&
-    (row.origin === OrganizationPartyOrigin.CTOS_PARTY ||
-      row.origin === OrganizationPartyOrigin.REGTANK_PARTY) &&
-    !row.is_management
-  ) {
-    data.is_board = false;
-    wrote = true;
+  // After COMPLETED/REJECTED, matching CTOS must not add or strip live roles.
+  if (options?.applyRoleMutations !== false) {
+    if (candidate.isDirector && !row.is_director) {
+      data.is_director = true;
+      wrote = true;
+    }
+    if (candidate.isShareholder && !row.is_shareholder) {
+      data.is_shareholder = true;
+      wrote = true;
+    }
+    if (
+      row.is_shareholder &&
+      !candidate.isShareholder &&
+      (row.origin === OrganizationPartyOrigin.CTOS_PARTY ||
+        row.origin === OrganizationPartyOrigin.REGTANK_PARTY)
+    ) {
+      data.is_shareholder = false;
+      wrote = true;
+    }
+    if (candidate.isBoard && !row.is_board) {
+      data.is_board = true;
+      wrote = true;
+    }
+    if (
+      row.is_board &&
+      !candidate.isBoard &&
+      (row.origin === OrganizationPartyOrigin.CTOS_PARTY ||
+        row.origin === OrganizationPartyOrigin.REGTANK_PARTY) &&
+      !row.is_management
+    ) {
+      data.is_board = false;
+      wrote = true;
+    }
   }
   if (candidate.entityType === "CORPORATE" && row.gender !== "NOT_APPLICABLE") {
     data.gender = "NOT_APPLICABLE";
@@ -552,6 +559,7 @@ export async function seedMasterPartiesIfEmpty(
   const existing = await prisma.organizationPartyProfile.findMany({
     where: orgWhere(portal, organizationId),
   });
+  const applyRoleMutations = isInitialCorporateOnboardingStatus(org.onboarding_status);
   for (const candidate of merged) {
     const gated = gateShareholderCandidate(candidate);
     const row = findExistingPartyForIdentityKey(existing, candidate.partyKey, {
@@ -560,7 +568,9 @@ export async function seedMasterPartiesIfEmpty(
     if (!row || row.membership_status !== OrganizationPartyMembershipStatus.MASTER_ACTIVE) {
       continue;
     }
-    const updated = await fillEmptyPartyFromCandidate(row, gated.candidate, existing);
+    const updated = await fillEmptyPartyFromCandidate(row, gated.candidate, existing, {
+      applyRoleMutations,
+    });
     const idx = existing.findIndex((p) => p.id === row.id);
     if (idx >= 0) existing[idx] = updated;
   }

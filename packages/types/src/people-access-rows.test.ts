@@ -6,6 +6,8 @@ import {
   filterPeopleAccessRows,
   peopleAccessAmlLabel,
   peopleAccessCorporateKybLabel,
+  peopleAccessKycChipPresentation,
+  peopleAccessAmlChipPresentation,
   peopleAccessKycLabel,
   peopleAccessPlatformLabel,
   type PeopleAccessInvitation,
@@ -159,6 +161,37 @@ describe("peopleAccessCorporateKybLabel", () => {
       "In progress"
     );
     expect(peopleAccessKycLabel({ ...corp, onboarding: { status: "WAIT_FOR_APPROVAL" } })).toBe("—");
+  });
+});
+
+describe("peopleAccessKycChipPresentation / peopleAccessAmlChipPresentation", () => {
+  it("uses the same Pending Review labels as onboarding review", () => {
+    const eligible = person({ matchKey: "p1", roles: ["DIRECTOR"] });
+    expect(
+      peopleAccessKycChipPresentation({ ...eligible, onboarding: { status: "WAIT_FOR_APPROVAL" } })?.label
+    ).toBe("Pending Review");
+    expect(peopleAccessKycChipPresentation({ ...eligible, onboarding: { status: "APPROVED" } })?.label).toBe(
+      "Approved"
+    );
+    expect(
+      peopleAccessAmlChipPresentation({
+        ...eligible,
+        onboarding: { status: "APPROVED" },
+        screening: { status: "PENDING" },
+      })?.label
+    ).toBe("Pending Review");
+    expect(
+      peopleAccessKycChipPresentation({
+        ...person({
+          matchKey: "ROC1",
+          name: "Orion",
+          entityType: "CORPORATE",
+          roles: ["SHAREHOLDER"],
+          sharePercentage: 50,
+        }),
+        onboarding: { status: "APPROVED" },
+      })?.label
+    ).toBe("Approved");
   });
 });
 
