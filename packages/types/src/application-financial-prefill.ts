@@ -1,5 +1,7 @@
 /**
- * New-application financial prefill: completed years from CTOS, else same-FY submitted history.
+ * New-application financial prefill: completed years from one whole source.
+ * CTOS exact FY → core application fields only (Additional Financial Details stay blank).
+ * Else newest submitted same-FY revision → core + Additional Financial Details from that block.
  * In-progress year stays blank. Organisation profile JSON is not a prefill fallback.
  *
  * Does not write org master or CTOS storage. Callers copy the returned fields into application form state.
@@ -85,10 +87,15 @@ export function pickSubmittedApplicationFinancialYearFields(
   return out;
 }
 
-function ctosYearApplicationFields(ctosFinancials: unknown, year: number): Record<string, unknown> | null {
+/** Same exact-year match as before: `financial_year === year` after CTOS row parse. */
+function findCtosExactYearRow(ctosFinancials: unknown, year: number) {
   const rows = parseCtosFinancialStatementRows(ctosFinancials);
-  const row = rows.find((item) => item.financial_year === year);
-  if (!row) return null;
+  return rows.find((item) => item.financial_year === year) ?? null;
+}
+
+function mapCtosRowToCoreApplicationFields(
+  row: NonNullable<ReturnType<typeof findCtosExactYearRow>>
+): Record<string, unknown> | null {
   const mapped = pickApplicationFinancialPrefillFields(ctosFinancialRowToFsFields(row));
   if (!financialYearBlockHasActualData(mapped)) return null;
   return mapped;
@@ -138,7 +145,9 @@ export function resolveLatestSubmittedFinancialsForYear(
 /**
  * Effective starting values for one application tab year.
  * In-progress year is always blank.
- * Completed years: CTOS year block, else submitted same-FY year block, else blank.
+ * Completed years: if CTOS has that exact FY, that CTOS block wins (core only).
+ * Submitted history is not consulted for that year — including missing core fields
+ * and Additional Financial Details. Else newest submitted same-FY block (core + extras).
  */
 export function resolveApplicationFinancialYearPrefill(params: {
   year: number;
@@ -152,9 +161,13 @@ export function resolveApplicationFinancialYearPrefill(params: {
   if (inProgressYear != null && year === inProgressYear) {
     return { year, source: "blank", fields: null };
   }
-  const fromCtos = ctosYearApplicationFields(ctosFinancials, year);
-  if (fromCtos) {
-    return { year, source: "ctos", fields: fromCtos };
+  const ctosRow = findCtosExactYearRow(ctosFinancials, year);
+  if (ctosRow) {
+    const fromCtos = mapCtosRowToCoreApplicationFields(ctosRow);
+    if (fromCtos) {
+      return { year, source: "ctos", fields: fromCtos };
+    }
+    return { year, source: "blank", fields: null };
   }
   const fromSubmitted = resolveLatestSubmittedFinancialsForYear(submittedByYear ?? null, year);
   if (fromSubmitted) {

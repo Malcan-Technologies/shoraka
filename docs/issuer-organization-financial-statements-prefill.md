@@ -34,12 +34,13 @@ In-progress year = calendar year of the selected **next** financial year end (`g
 
 | Year | Effective starting value |
 |------|--------------------------|
-| Completed / previous tab | CTOS application fields for that year, if present; else the newest submitted revision that contains that **same** FY; else blank |
+| Completed / previous tab | If CTOS has that exact FY: core application fields from CTOS; Additional Financial Details stay blank. Else the newest submitted revision that contains that **same** FY (core + Additional Financial Details from that block). Else blank. One whole source — never CTOS+history field merge. |
 | In-progress / current tab | Always blank (not org, not CTOS, not submitted history) |
 
 - Do not copy year blocks before FYE is known (stale FYE must not leave figures on the current tab).
 - Do not copy FY N into FY N+1.
 - CTOS maps only the existing issuer application money keys (`bsfatot` … `plyear`). ComRep-only splits are not in CTOS and are not derived from related totals.
+- When CTOS has that FY, submitted history is not used to fill missing CTOS core fields or Additional Financial Details.
 - Submitted same-FY fallback copies that year’s stored block (core keys plus any ComRep extras already saved on that revision).
 - All prefilled fields stay editable. Save/submit store the issuer’s values on the application.
 
