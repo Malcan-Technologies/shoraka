@@ -27,7 +27,7 @@ export function IssuerFinancialsCard({ organizationId }: { organizationId: strin
     <ProfileCard
       id="profile-financials"
       title="Financial Statements"
-      description="Read-only history from submitted financing applications. Enter or update figures in a financing application."
+      description="Financial history from submitted financing applications."
     >
       <ProfileFinancialHistory years={years} />
     </ProfileCard>

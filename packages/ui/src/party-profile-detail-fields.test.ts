@@ -182,6 +182,7 @@ describe("buildPartyProfileDetailItems", () => {
   it("says CTOS when the person is missing from or differs from the latest CTOS information", () => {
     const absent = buildPartyProfileDetailItems({
       party: party({ absentFromLatestExternal: true }),
+      includeCtosEvidence: true,
     });
     expect(absent.find((item) => item.label === "Latest CTOS information")?.value).toBe(
       "This person was not found in the latest CTOS information."
@@ -197,9 +198,30 @@ describe("buildPartyProfileDetailItems", () => {
           },
         ],
       }),
+      includeCtosEvidence: true,
     });
     expect(mismatch.find((item) => item.label === "Latest CTOS information")?.value).toBe(
       "CTOS information differs from the current profile."
     );
+  });
+
+  it("hides CTOS evidence from customer-facing Profile items", () => {
+    const absent = buildPartyProfileDetailItems({
+      party: party({ absentFromLatestExternal: true }),
+    });
+    const mismatch = buildPartyProfileDetailItems({
+      party: party({
+        mismatches: [
+          {
+            field: "shareholdingPercentage",
+            masterValue: "20",
+            externalValue: "25",
+            source: "CTOS",
+          },
+        ],
+      }),
+    });
+    expect(absent.map((item) => item.label).join(" ")).not.toMatch(/CTOS/i);
+    expect(mismatch.map((item) => item.label).join(" ")).not.toMatch(/CTOS/i);
   });
 });

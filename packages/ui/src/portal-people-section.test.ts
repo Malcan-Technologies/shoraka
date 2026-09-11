@@ -87,10 +87,10 @@ describe("Person-scoped invite dialog", () => {
 });
 
 describe("Person identity card CTOS indicator", () => {
-  it("explains that CTOS matched is latest comparison, not origin", () => {
+  it("keeps CTOS comparison for Admin and hides it on customer identity cards", () => {
     expect(ctos).toContain("It does NOT merely mean the record originally came from CTOS");
     expect(ctos).toContain("aria-label={comparison.tooltip}");
-    expect(card).toContain("PartyCtosIndicator");
+    expect(card).not.toContain("PartyCtosIndicator");
   });
 
   it("does not infer Person ↔ User from email", () => {

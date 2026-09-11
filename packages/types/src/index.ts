@@ -611,6 +611,7 @@ export * from "./profile-phone";
 export * from "./api-validation-message";
 export * from "./sc-appendix-a-countries";
 export * from "./organization-party-profile";
+export * from "./customer-person-profile";
 export * from "./organization-party-key";
 export * from "./onboarding-person-create";
 export * from "./person-onboarding-display";

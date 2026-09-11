@@ -26,6 +26,13 @@ export type DirectorShareholderListSource = "ONBOARDING" | "CTOS" | "CTOS_EMPTY"
 export const CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING =
   "CTOS did not return usable directors or shareholders. Showing the submitted onboarding data. Review this before continuing." as const;
 
+/** Issuer/investor copy for the same empty-directors condition. Never names the provider. */
+export const CUSTOMER_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING =
+  "No directors or shareholders were found in the company information. Showing the details submitted during onboarding. Please add the required people before continuing." as const;
+
+export const CUSTOMER_DIRECTOR_SHAREHOLDER_EMPTY_STATE =
+  "No directors or shareholders were found in the company information." as const;
+
 /** Org is still in the initial corporate onboarding/review pipeline (not a later Profile/People member-management org). */
 export function isInitialCorporateOnboardingStatus(status: string | null | undefined): boolean {
   const s = String(status ?? "").trim().toUpperCase();
@@ -52,6 +59,32 @@ export function resolveDirectorShareholderCtosEmptyWarning(input: {
     return CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING;
   }
   return null;
+}
+
+type DirectorShareholderEmptyWarningInput = {
+  directorShareholderListSource?: DirectorShareholderListSource | null;
+  ctosDirectorShareholderWarning?: string | null;
+};
+
+function hasDirectorShareholderEmptyCondition(input: DirectorShareholderEmptyWarningInput): boolean {
+  const explicit =
+    typeof input.ctosDirectorShareholderWarning === "string"
+      ? input.ctosDirectorShareholderWarning.trim()
+      : "";
+  return Boolean(explicit) || input.directorShareholderListSource === "CTOS_EMPTY";
+}
+
+/** Customer portals: same empty-list condition as Admin, without naming the provider. */
+export function resolveCustomerDirectorShareholderEmptyWarning(
+  input: DirectorShareholderEmptyWarningInput
+): string | null {
+  const explicit =
+    typeof input.ctosDirectorShareholderWarning === "string"
+      ? input.ctosDirectorShareholderWarning.trim()
+      : "";
+  if (!hasDirectorShareholderEmptyCondition(input)) return null;
+  if (explicit && !/CTOS/i.test(explicit)) return explicit;
+  return CUSTOMER_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING;
 }
 
 /** Display-only identity issue on API `people[]` rows (never persisted to DB JSON). */

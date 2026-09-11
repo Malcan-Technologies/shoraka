@@ -4,6 +4,17 @@ import { join } from "path";
 const section = readFileSync(join(__dirname, "people-access-section.tsx"), "utf8");
 const invite = readFileSync(join(__dirname, "invite-user-dialog.tsx"), "utf8");
 const detail = readFileSync(join(__dirname, "person-detail-view.tsx"), "utf8");
+const overview = readFileSync(join(__dirname, "customer-person-overview.tsx"), "utf8");
+const identityCard = readFileSync(join(__dirname, "../person-identity-card.tsx"), "utf8");
+const partyFields = readFileSync(join(__dirname, "../party-profile-detail-fields.tsx"), "utf8");
+const adminPersonCard = readFileSync(
+  join(__dirname, "../../../../apps/admin/src/organizations/components/organization-person-card.tsx"),
+  "utf8"
+);
+const adminPeopleDetail = readFileSync(
+  join(__dirname, "../../../../apps/admin/src/organizations/components/organization-people-access-detail.tsx"),
+  "utf8"
+);
 
 describe("People & Access customer UI", () => {
   it("uses one table with Company Role, Platform Access, KYC/KYB and AML", () => {
@@ -29,6 +40,9 @@ describe("People & Access customer UI", () => {
     expect(detail).toContain('label="Account Email"');
     expect(detail).toContain("isPersonEmailLifecycleLocked");
     expect(detail).toContain("/ctos-party-email");
+    expect(detail).toContain("customerPersonEmail");
+    expect(detail).toContain("customerAccountEmail");
+    expect(detail).not.toContain("party.email || joinedPerson?.email");
   });
 
   it("does not create a second KYC request while IN_PROGRESS", () => {
@@ -54,5 +68,62 @@ describe("People & Access customer UI", () => {
     expect(invite).not.toContain("ORGANIZATION_OWNER");
     expect(section).toContain("Transfer CashSouk organisation ownership");
     expect(detail).toContain("Transfer CashSouk organisation ownership");
+  });
+});
+
+describe("customer person Profile mapping and privacy", () => {
+  it("shows KYC ID only from the KYC* helper and never relabels EOD/COD/LD", () => {
+    expect(detail).toContain("customerKycId");
+    expect(detail).toContain("customerKybId");
+    expect(detail).not.toContain("joinedPerson?.requestId || onboardingId");
+    expect(detail).not.toContain('label="Request ID"');
+    expect(detail).not.toContain('label="Onboarding stage"');
+    expect(detail).not.toContain('label="Screening ID"');
+  });
+
+  it("does not expose RegTank admin portal links", () => {
+    expect(detail).not.toContain("regtank.com");
+    expect(detail).not.toContain("getRegtank");
+    expect(detail).not.toContain("Open in RegTank");
+    expect(detail).not.toContain("new RegTank request");
+  });
+
+  it("uses KYB for corporate people and hides Platform Access", () => {
+    expect(detail).toContain('corporate ? "KYB" : "KYC"');
+    expect(detail).toContain("showAccessTab = !corporate");
+    expect(detail).toContain("KYB Verification");
+  });
+
+  it("edits Person Email in the shared Profile edit lifecycle", () => {
+    expect(detail).toContain("emailLocked={emailLocked}");
+    expect(detail).toContain("PartyFillEmptyForm");
+    expect(detail).not.toContain("Save Person Email");
+  });
+
+  it("places Mark inactive in page-level more actions, not Platform Access", () => {
+    expect(detail).toContain('aria-label="More actions"');
+    expect(detail).toContain("Mark inactive");
+    expect(detail.indexOf('setConfirm("inactivate")')).toBeLessThan(detail.indexOf('value="access"'));
+  });
+
+  it("does not expose CTOS comparison copy on customer person Profile", () => {
+    const customerUi = [detail, overview, identityCard, section].join("\n");
+    expect(customerUi).not.toContain("Latest CTOS information");
+    expect(customerUi).not.toContain("not found in the latest CTOS");
+    expect(customerUi).not.toContain("CTOS matched");
+    expect(customerUi).not.toContain("CTOS differs");
+    expect(customerUi).not.toContain("PartyCtosIndicator");
+    expect(customerUi).not.toContain("includeCtosEvidence: true");
+    expect(section).toContain("resolveCustomerDirectorShareholderEmptyWarning");
+    expect(section).not.toContain("resolveDirectorShareholderCtosEmptyWarning");
+    expect(overview).toContain("buildCustomerPersonOverviewSections");
+  });
+
+  it("keeps Admin CTOS presentation unchanged", () => {
+    expect(partyFields).toContain("Latest CTOS information");
+    expect(partyFields).toContain('includeCtosEvidence: statusViewer === "admin"');
+    expect(adminPersonCard).toContain("PartyCtosIndicator");
+    expect(adminPeopleDetail).toContain("CtosEvidence");
+    expect(adminPeopleDetail).toContain("the latest CTOS information");
   });
 });

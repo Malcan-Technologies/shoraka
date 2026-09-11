@@ -87,7 +87,7 @@ describe("Admin company organisation profile", () => {
 
   it("shows organisation financials as read-only submitted history", () => {
     expect(financials).toContain("ProfileFinancialHistory");
-    expect(financials).toContain("Read-only history from submitted financing applications");
+    expect(financials).toContain("Financial history from submitted financing applications.");
     expect(financials).not.toContain("required fields missing");
     expect(financials).not.toContain("isEditing");
     expect(financials).not.toContain("patchIssuerOrgFinancials");

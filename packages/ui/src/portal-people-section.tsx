@@ -16,7 +16,7 @@ import {
   normalizeDirectorShareholderIdKey,
   normalizeDirectorShareholderPartyEmail,
   PERSON_EMAIL_HELP,
-  resolveDirectorShareholderCtosEmptyWarning,
+  resolveCustomerDirectorShareholderEmptyWarning,
   UNRESOLVED_IDENTITY_RECOVERY_COPY,
   UNRESOLVED_IDENTITY_RECOVERY_TITLE,
   type ApplicationPersonRow,
@@ -26,7 +26,7 @@ import {
 } from "@cashsouk/types";
 import { DirectorShareholderCtosEmptyAlert } from "./director-shareholder-ctos-empty-alert";
 import { DirectorShareholderUnresolvedIdentitySection } from "./director-shareholder-unresolved-identity-card";
-import { PartyProfileDetailFields } from "./party-profile-detail-fields";
+import { CustomerPartyProfileOverview } from "./people-access/customer-person-overview";
 import { PersonIdentityCard } from "./person-identity-card";
 import { InviteMemberDialog } from "./invite-member-dialog";
 import { Button } from "./components/button";
@@ -194,7 +194,7 @@ export function PortalPeopleSection({
       personMatchesFilter(person, filter)
   );
   const unresolvedPeople = visiblePeople.filter((person) => isMissingGovernmentIdPerson(person));
-  const ctosEmpty = resolveDirectorShareholderCtosEmptyWarning({
+  const ctosEmpty = resolveCustomerDirectorShareholderEmptyWarning({
     directorShareholderListSource,
     ctosDirectorShareholderWarning,
   });
@@ -503,7 +503,7 @@ export function PortalPeopleSection({
             </DialogDescription>
           </DialogHeader>
           {viewing || viewingPerson ? (
-            <PartyProfileDetailFields party={viewing} person={viewingPerson} />
+            <CustomerPartyProfileOverview party={viewing} person={viewingPerson} />
           ) : null}
           {canEdit &&
           viewing &&
