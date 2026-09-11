@@ -33,6 +33,9 @@ import {
   SC_SHARE_TYPES,
   scAppendixASelectValues,
   validateIssuerPersonForm,
+  addCompanyPersonUsesOnboardingFlow,
+  ADD_COMPANY_PERSON_MANUAL_HELP,
+  ADD_COMPANY_PERSON_ONBOARDING_HELP,
   validateOnboardingPersonCreate,
   type OrganizationPartyProfileDto,
 } from "@cashsouk/types";
@@ -123,8 +126,13 @@ export function AddPersonForm({
   const showOfficer = !corporate && isIssuerOfficerRole({ isBoard, isManagement });
   const copy = monthlyIssuerPersonCopy({ shareholder: showShare, officer: showOfficer });
   const prefixOptions = SC_IDENTITY_PREFIXES.filter((key) => copy.includeRocPrefix || key !== "ROC");
+  const onboardingRolesSelected = addCompanyPersonUsesOnboardingFlow({
+    entityType,
+    isDirector,
+    isShareholder,
+  });
   const minimalOnboardingAdd =
-    !corporate && !showOfficer && !String(initial?.identityNumber ?? "").trim();
+    onboardingRolesSelected && !String(initial?.identityNumber ?? "").trim();
 
   return (
     <form
@@ -190,8 +198,8 @@ export function AddPersonForm({
                   email: form.email || null,
                   isDirector,
                   isShareholder,
-                  isBoard: false,
-                  isManagement: false,
+                  isBoard,
+                  isManagement,
                   shareholdingPercentage: isShareholder ? form.shareholdingPercentage || null : null,
                 }
               : {
@@ -242,6 +250,9 @@ export function AddPersonForm({
         }
       }}
     >
+      <p className="text-ui text-muted-foreground sm:col-span-2">
+        {onboardingRolesSelected ? ADD_COMPANY_PERSON_ONBOARDING_HELP : ADD_COMPANY_PERSON_MANUAL_HELP}
+      </p>
       {layout === "grouped" ? (
         <p className="text-card-title sm:col-span-2">Required information</p>
       ) : null}

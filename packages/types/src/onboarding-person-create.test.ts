@@ -1,6 +1,7 @@
 import { buildDirectorShareholderDisplayRowForEmailEligibility } from "./application-people-display";
 import type { ApplicationPersonRow } from "./application-people-display";
 import {
+  addCompanyPersonUsesOnboardingFlow,
   isMinimalOnboardingPersonCreate,
   validateOnboardingPersonCreate,
 } from "./onboarding-person-create";
@@ -21,6 +22,68 @@ const preIdDirector: ApplicationPersonRow = {
   icBackUrl: null,
   email: "preid@example.com",
 };
+
+describe("add company person role flow", () => {
+  it("Director only → onboarding flow", () => {
+    expect(addCompanyPersonUsesOnboardingFlow({ isDirector: true })).toBe(true);
+    expect(isMinimalOnboardingPersonCreate({ isDirector: true })).toBe(true);
+  });
+
+  it("Shareholder only → onboarding flow", () => {
+    expect(addCompanyPersonUsesOnboardingFlow({ isShareholder: true })).toBe(true);
+    expect(isMinimalOnboardingPersonCreate({ isShareholder: true })).toBe(true);
+  });
+
+  it("Director + Management Team → onboarding flow", () => {
+    expect(
+      addCompanyPersonUsesOnboardingFlow({ isDirector: true, isShareholder: false })
+    ).toBe(true);
+    expect(
+      isMinimalOnboardingPersonCreate({ isDirector: true, isManagement: true })
+    ).toBe(true);
+  });
+
+  it("Shareholder + Board of Director → onboarding flow", () => {
+    expect(addCompanyPersonUsesOnboardingFlow({ isShareholder: true })).toBe(true);
+    expect(
+      isMinimalOnboardingPersonCreate({ isShareholder: true, isBoard: true })
+    ).toBe(true);
+  });
+
+  it("Director + Shareholder → onboarding flow", () => {
+    expect(
+      addCompanyPersonUsesOnboardingFlow({ isDirector: true, isShareholder: true })
+    ).toBe(true);
+    expect(
+      isMinimalOnboardingPersonCreate({ isDirector: true, isShareholder: true })
+    ).toBe(true);
+  });
+
+  it("Board of Director only → manual flow", () => {
+    expect(addCompanyPersonUsesOnboardingFlow({})).toBe(false);
+    expect(isMinimalOnboardingPersonCreate({ isBoard: true })).toBe(false);
+  });
+
+  it("Management Team only → manual flow", () => {
+    expect(addCompanyPersonUsesOnboardingFlow({ isDirector: false, isShareholder: false })).toBe(
+      false
+    );
+    expect(isMinimalOnboardingPersonCreate({ isManagement: true })).toBe(false);
+  });
+
+  it("Board of Director + Management Team → manual flow", () => {
+    expect(isMinimalOnboardingPersonCreate({ isBoard: true, isManagement: true })).toBe(false);
+  });
+
+  it("corporate shareholder stays on the manual create path", () => {
+    expect(
+      addCompanyPersonUsesOnboardingFlow({ entityType: "CORPORATE", isShareholder: true })
+    ).toBe(false);
+    expect(
+      isMinimalOnboardingPersonCreate({ entityType: "CORPORATE", isShareholder: true })
+    ).toBe(false);
+  });
+});
 
 describe("minimal onboarding person create", () => {
   it("detects pre-ID director/shareholder creates", () => {

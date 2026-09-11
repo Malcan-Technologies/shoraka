@@ -87,13 +87,28 @@ describe("createPartySchema role flags", () => {
     })).not.toMatch(/personKind/i);
   });
 
-  it("allows an onboarding-eligible director without government ID when name and email are present", () => {
+  it("allows Director + Management without government ID", () => {
     const parsed = createPartySchema.parse({
-      name: "Pre Id Director",
-      email: "preid@example.com",
+      name: "Director Manager",
+      email: "dm@example.com",
       isDirector: true,
+      isManagement: true,
     });
     expect(parsed.isDirector).toBe(true);
+    expect(parsed.isManagement).toBe(true);
+    expect(parsed.identityNumber ?? null).toBeNull();
+  });
+
+  it("allows Shareholder + Board without government ID", () => {
+    const parsed = createPartySchema.parse({
+      name: "Shareholder Board",
+      email: "sb@example.com",
+      isShareholder: true,
+      isBoard: true,
+      shareholdingPercentage: "10",
+    });
+    expect(parsed.isShareholder).toBe(true);
+    expect(parsed.isBoard).toBe(true);
     expect(parsed.identityNumber ?? null).toBeNull();
   });
 
