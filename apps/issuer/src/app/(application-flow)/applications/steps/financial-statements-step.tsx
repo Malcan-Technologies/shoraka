@@ -455,6 +455,9 @@ export function FinancialStatementsStep({
   const [prefillEnabled, setPrefillEnabled] = React.useState(false);
   const [prefillOrgFs, setPrefillOrgFs] = React.useState<unknown>(null);
   const [prefillCtos, setPrefillCtos] = React.useState<unknown>(null);
+  const [prefillSubmittedByYear, setPrefillSubmittedByYear] = React.useState<
+    Record<string, Record<string, unknown>>
+  >({});
   const prevInProgressYearRef = React.useRef<number | null>(null);
 
   const appShape = application as
@@ -490,6 +493,7 @@ export function FinancialStatementsStep({
     setPrefillEnabled(false);
     setPrefillOrgFs(null);
     setPrefillCtos(null);
+    setPrefillSubmittedByYear({});
     prevInProgressYearRef.current = null;
     setFyeDateInput("");
     setFormsByYear({});
@@ -542,7 +546,7 @@ export function FinancialStatementsStep({
         return;
       }
 
-      // No financial_statements on the app yet: load latest CTOS for prefill.
+      // No financial_statements on the app yet: load CTOS + submitted same-FY history for prefill.
       // Org JSON may still supply a future FYE date; year amounts are not copied from profile.
       if (shouldAttemptAutoPrefill) {
         if (orgLatestFinancialStatementsQuery.isLoading) return;
@@ -550,6 +554,7 @@ export function FinancialStatementsStep({
         const latest = orgLatestFinancialStatementsQuery.data ?? null;
         setPrefillOrgFs(latest?.financial_statements ?? null);
         setPrefillCtos(latest?.ctos_financials ?? null);
+        setPrefillSubmittedByYear(latest?.submitted_by_year ?? {});
         setPrefillEnabled(true);
 
         const orgSaved =
@@ -627,6 +632,7 @@ export function FinancialStatementsStep({
       ? buildApplicationFinancialPrefillByYear({
           questionnaire: questionnaireDto,
           orgFinancialStatements: prefillOrgFs,
+          submittedByYear: prefillSubmittedByYear,
           ctosFinancials: prefillCtos,
         })
       : null;
@@ -671,13 +677,13 @@ export function FinancialStatementsStep({
       prevInProgressYearRef.current = built.inProgressYear;
       const filledHistorical = built.tabYears.some((year) => {
         const source = built.years[String(year)]?.source;
-        return source === "ctos";
+        return source === "ctos" || source === "submitted";
       });
       if (filledHistorical) {
         setAutoPrefillApplied(true);
       }
     }
-  }, [yearsToShow, questionnaireDto, prefillEnabled, prefillOrgFs, prefillCtos]);
+  }, [yearsToShow, questionnaireDto, prefillEnabled, prefillOrgFs, prefillCtos, prefillSubmittedByYear]);
 
   React.useEffect(() => {
     const raw =
@@ -1143,7 +1149,8 @@ export function FinancialStatementsStep({
           <div className="space-y-4 px-3">
             {autoPrefillApplied ? (
               <p className="text-xs text-muted-foreground">
-                Previous financial year auto-filled from CTOS. Please review before continuing.
+                Previous financial year auto-filled from CTOS or a previous financing. Please review
+                before continuing.
               </p>
             ) : null}
           {!questionnaireDto ? (

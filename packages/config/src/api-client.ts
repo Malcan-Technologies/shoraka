@@ -711,6 +711,7 @@ export class ApiClient {
     | ApiResponse<{
         financial_statements: unknown | null;
         ctos_financials: unknown | null;
+        submitted_by_year?: Record<string, Record<string, unknown>>;
         source_application_id: string | null;
         source_application_revision_id: string | null;
         updated_at: string | null;
