@@ -62,8 +62,9 @@ export type PartyProfileDetailItem = { label: string; value: string; help?: stri
 export function buildPartyProfileDetailItems(params: {
   party?: OrganizationPartyProfileDto | null;
   person?: ApplicationPersonRow | null;
+  includeCtosEvidence?: boolean;
 }): PartyProfileDetailItem[] {
-  const { party, person } = params;
+  const { party, person, includeCtosEvidence = false } = params;
   const officer = Boolean(party?.isDirector || party?.isBoard || party?.isManagement);
   const shareholder = Boolean(party?.isShareholder || person?.roles?.includes("SHAREHOLDER"));
   const copy = monthlyIssuerPersonCopy({ shareholder, officer });
@@ -212,16 +213,18 @@ export function buildPartyProfileDetailItems(params: {
       });
     }
   }
-  if (party?.absentFromLatestExternal) {
-    items.push({
-      label: "Latest CTOS information",
-      value: "This person was not found in the latest CTOS information.",
-    });
-  } else if (party && party.mismatches.length > 0) {
-    items.push({
-      label: "Latest CTOS information",
-      value: "CTOS information differs from the current profile.",
-    });
+  if (includeCtosEvidence) {
+    if (party?.absentFromLatestExternal) {
+      items.push({
+        label: "Latest CTOS information",
+        value: "This person was not found in the latest CTOS information.",
+      });
+    } else if (party && party.mismatches.length > 0) {
+      items.push({
+        label: "Latest CTOS information",
+        value: "CTOS information differs from the current profile.",
+      });
+    }
   }
   return items.filter((item) => isPresent(item.value));
 }
@@ -246,7 +249,11 @@ export function PartyProfileDetailFields({
   const aml = person
     ? getFinalStatusLabel({ screening: person.screening })
     : { label: "—", tone: "neutral" as const, actor: "none" as const };
-  const items = buildPartyProfileDetailItems({ party, person });
+  const items = buildPartyProfileDetailItems({
+    party,
+    person,
+    includeCtosEvidence: statusViewer === "admin",
+  });
 
   return (
     <div className="space-y-4">

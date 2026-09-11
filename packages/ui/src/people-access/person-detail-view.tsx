@@ -2,23 +2,29 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import { ArrowLeftIcon } from "@heroicons/react/24/outline";
+import { ArrowLeftIcon, EllipsisHorizontalIcon } from "@heroicons/react/24/outline";
 import { createApiClient, useAuthToken, PARTY_STATUS_REFRESHED_MESSAGE, PARTY_STATUS_REFRESH_FAILED_MESSAGE, PROVIDER_REFRESH_RECENTLY_MESSAGE } from "@cashsouk/config";
 import {
   buildPeopleAccessRows,
   canManageDirectorShareholder,
-  formatPeopleAccessCompanyRoleLine,
-  getFinalStatusLabel,
+  customerAccountEmail,
+  customerAmlWaitingCopy,
+  customerApprovedAt,
+  customerHeaderFacts,
+  customerKycCurrentStage,
+  customerKycId,
+  customerKybId,
+  customerPersonEmail,
+  customerProcessStatusLabel,
   getKycGroup,
+  getRelatedPartyStatusToken,
   isPersonEmailLifecycleLocked,
   matchPersonToParty,
-  peopleAccessAmlLabel,
-  peopleAccessKycLabel,
+  peopleAccessAmlChipPresentation,
+  peopleAccessKycChipPresentation,
   peopleAccessPlatformLabel,
-  peopleAccessCompanyRolesFromParty,
   PERSON_EMAIL_HELP,
   profileValidationErrorFromApi,
-  relatedPartyVerificationCaption,
   shouldShowPartyAmlRefresh,
   shouldShowPartyKycRefresh,
   type ApplicationPersonRow,
@@ -26,7 +32,7 @@ import {
   type PeopleAccessInvitation,
   type PeopleAccessMember,
 } from "@cashsouk/types";
-import { PartyProfileDetailFields } from "../party-profile-detail-fields";
+import { CustomerPartyProfileOverview } from "./customer-person-overview";
 import { PartyFillEmptyForm } from "../portal-person-forms";
 import { InviteUserDialog, inviteableCompanyPeople } from "./invite-user-dialog";
 import { PartyStatusRefreshControl } from "./party-status-refresh-control";
@@ -38,6 +44,12 @@ import { ConfirmDialog } from "../components/confirm-dialog";
 import { DetailHeader } from "../components/detail-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/tabs";
 import { ProfileReadField, ProfileFieldGrid } from "../components/profile-read-field";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../components/dropdown-menu";
 import type { PortalPeoplePortal } from "../portal-people-section";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -119,20 +131,18 @@ export function PersonDetailView({
   });
   const row = [...active, ...inactiveRows].find((item) => item.partyId === partyId);
   const inactive = party?.membershipStatus === "MASTER_INACTIVE";
-  const roles = party ? peopleAccessCompanyRolesFromParty(party) : [];
+  const corporate = party?.entityType === "CORPORATE";
   const orgBase = `/v1/organizations/${portal}/${organizationId}`;
   const blockOnboarding = organizationOnboardingStatus !== "COMPLETED";
   const kycGroup = joinedPerson ? getKycGroup(joinedPerson.onboarding?.status ?? "") : "NOT_STARTED";
   const hasVerifyLink = Boolean(joinedPerson?.onboarding?.verifyLink);
   const inProgressKyc = kycGroup === "IN_PROGRESS";
-  const onboardingId = joinedPerson?.onboarding?.id?.trim() || "";
-  const kycId =
-    joinedPerson?.screeningRequestId?.trim() ||
-    (onboardingId.startsWith("KYC") || onboardingId.startsWith("KYB") ? onboardingId : "");
+  const verificationId = corporate ? customerKybId(joinedPerson) : customerKycId(joinedPerson);
   const showResendKycEmail = canEdit && !blockOnboarding && joinedPerson && inProgressKyc && hasVerifyLink;
   const showCreateKyc =
     canEdit &&
     !blockOnboarding &&
+    !corporate &&
     joinedPerson &&
     canManageDirectorShareholder(joinedPerson) &&
     !inProgressKyc;
@@ -140,6 +150,8 @@ export function PersonDetailView({
     onboardingStatus: joinedPerson?.onboarding?.status,
     screeningStatus: joinedPerson?.screening?.status,
   });
+  const personEmail = customerPersonEmail({ party, person: joinedPerson });
+  const accountEmail = customerAccountEmail(party);
   const showKycRefresh =
     canEdit &&
     !inactive &&
@@ -167,10 +179,29 @@ export function PersonDetailView({
         status: party.platformAccess.status,
       })
     : "No access";
+  const kycStatus = customerProcessStatusLabel({
+    kind: corporate ? "kyb" : "kyc",
+    person: joinedPerson,
+  });
+  const amlStatus = customerProcessStatusLabel({ kind: "aml", person: joinedPerson });
+  const kycChip = peopleAccessKycChipPresentation(joinedPerson);
+  const amlChip = peopleAccessAmlChipPresentation(joinedPerson);
+  const kycStage = customerKycCurrentStage({ person: joinedPerson, statusLabel: kycStatus });
+  const approvedAt = customerApprovedAt(joinedPerson);
+  const amlWaiting = customerAmlWaitingCopy({
+    corporate: Boolean(corporate),
+    person: joinedPerson,
+    amlLabel: amlStatus,
+  });
+  const showAccessTab = !corporate;
 
   React.useEffect(() => {
-    setEmailDraft(party?.email ?? joinedPerson?.email ?? "");
-  }, [joinedPerson?.email, party?.email]);
+    setEmailDraft(personEmail);
+  }, [personEmail]);
+
+  React.useEffect(() => {
+    if (!showAccessTab && section === "access") setSection("overview");
+  }, [section, showAccessTab]);
 
   const invalidate = async () => {
     await loadParties();
@@ -203,6 +234,17 @@ export function PersonDetailView({
     }
   };
 
+  const savePersonEmail = async (email: string) => {
+    if (!party) return;
+    const saveRes = await api.patch(`${orgBase}/ctos-party-email`, {
+      partyKey: party.partyKey,
+      email,
+    });
+    if (!saveRes.success) {
+      throw new Error(saveRes.error.message);
+    }
+  };
+
   if (loading) {
     return <p className="text-ui text-muted-foreground">Loading…</p>;
   }
@@ -226,26 +268,66 @@ export function PersonDetailView({
       </Button>
       <DetailHeader
         title={party.name || "Person"}
-        status={inactive ? <StatusBadge status="neutral" label="Inactive" /> : undefined}
-        facts={formatPeopleAccessCompanyRoleLine(roles)}
+        status={
+          <div className="flex flex-wrap items-center gap-2">
+            {inactive ? <StatusBadge status="neutral" label="Inactive" /> : null}
+            {kycChip ? (
+              <StatusBadge
+                status={getRelatedPartyStatusToken(kycChip, "user")}
+                label={`${corporate ? "KYB" : "KYC"} ${kycStatus}`}
+              />
+            ) : null}
+            {amlChip ? (
+              <StatusBadge status={getRelatedPartyStatusToken(amlChip, "user")} label={`AML ${amlStatus}`} />
+            ) : null}
+          </div>
+        }
+        facts={customerHeaderFacts({ party, person: joinedPerson })}
+        actions={
+          canInactivate && !inactive ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" variant="outline" size="sm" className="h-8 w-8 p-0" aria-label="More actions">
+                  <EllipsisHorizontalIcon className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setConfirm("inactivate")}>Mark inactive</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null
+        }
       />
 
-      <Tabs value={section} onValueChange={(value) => setSection(value as PersonDetailSection)}>
+      <Tabs
+        value={section}
+        onValueChange={(value) => {
+          setSection(value as PersonDetailSection);
+          if (value !== "overview") setEditing(false);
+        }}
+      >
         <TabsList className="h-10">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="kyc">KYC</TabsTrigger>
+          <TabsTrigger value="kyc">{corporate ? "KYB" : "KYC"}</TabsTrigger>
           <TabsTrigger value="aml">AML</TabsTrigger>
-          <TabsTrigger value="access">Platform Access</TabsTrigger>
+          {showAccessTab ? <TabsTrigger value="access">Platform Access</TabsTrigger> : null}
         </TabsList>
 
-        <TabsContent value="overview" className="mt-6 space-y-4">
+        <TabsContent value="overview" className="mt-6 space-y-6">
           {editing && canEdit && !inactive ? (
             <PartyFillEmptyForm
               party={party}
+              emailLocked={emailLocked}
               onCancel={() => setEditing(false)}
               onSave={async (data) => {
-                const res = await api.patchPartyProfile(portal, organizationId, party.id, data);
+                const nextEmail = typeof data.email === "string" ? data.email : undefined;
+                const profile = { ...data };
+                delete profile.email;
+                const res = await api.patchPartyProfile(portal, organizationId, party.id, profile);
                 if (!res.success) throw profileValidationErrorFromApi(res.error);
+                if (nextEmail !== undefined && !emailLocked && nextEmail.trim() !== personEmail) {
+                  await savePersonEmail(nextEmail);
+                }
                 toast.success("Person updated");
                 setEditing(false);
                 await invalidate();
@@ -253,55 +335,7 @@ export function PersonDetailView({
             />
           ) : (
             <>
-              <PartyProfileDetailFields
-                party={party}
-                person={joinedPerson}
-                kycRefresh={
-                  showKycRefresh ? (
-                    <PartyStatusRefreshControl busy={refreshing} onRefresh={() => void refreshPartyStatus()} />
-                  ) : null
-                }
-                amlRefresh={
-                  showAmlRefresh ? (
-                    <PartyStatusRefreshControl busy={refreshing} onRefresh={() => void refreshPartyStatus()} />
-                  ) : null
-                }
-              />
-              {canEdit && party.entityType !== "CORPORATE" && !inactive ? (
-                <div className="space-y-2 rounded-xl border bg-card p-4">
-                  <Label htmlFor="person-email">Person Email</Label>
-                  <Input
-                    id="person-email"
-                    type="email"
-                    value={emailDraft}
-                    disabled={emailLocked}
-                    onChange={(event) => setEmailDraft(event.target.value)}
-                  />
-                  <p className="text-meta text-muted-foreground">{PERSON_EMAIL_HELP}</p>
-                  {party.linkedUser?.email ? (
-                    <p className="text-meta text-muted-foreground">Account Email: {party.linkedUser.email}</p>
-                  ) : null}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={emailLocked}
-                    onClick={async () => {
-                      const saveRes = await api.patch(`${orgBase}/ctos-party-email`, {
-                        partyKey: party.partyKey,
-                        email: emailDraft,
-                      });
-                      if (!saveRes.success) {
-                        toast.error(saveRes.error.message);
-                        return;
-                      }
-                      toast.success("Person Email saved");
-                      await invalidate();
-                    }}
-                  >
-                    Save Person Email
-                  </Button>
-                </div>
-              ) : null}
+              <CustomerPartyProfileOverview party={party} person={joinedPerson} />
               {canEdit && !inactive ? (
                 <Button type="button" onClick={() => setEditing(true)}>
                   Edit
@@ -312,254 +346,246 @@ export function PersonDetailView({
         </TabsContent>
 
         <TabsContent value="kyc" className="mt-6 space-y-4">
-          <div className="rounded-xl border bg-card p-6">
-            <p className="mb-3 text-meta text-muted-foreground">
-              {relatedPartyVerificationCaption(joinedPerson?.entityType ?? party.entityType)}
-            </p>
+          <section className="space-y-4">
+            <h2 className="text-card-title">{corporate ? "KYB Verification" : "KYC Verification"}</h2>
             <ProfileFieldGrid>
-              <div className="flex items-center gap-2">
-                <ProfileReadField
-                  label={party.entityType === "CORPORATE" ? "KYB" : "KYC"}
-                  value={
-                    joinedPerson
-                      ? getFinalStatusLabel(joinedPerson, { displayMode: "kyc_only" }).label
-                      : peopleAccessKycLabel(joinedPerson)
-                  }
-                />
+              <div className="flex items-start gap-2">
+                <ProfileReadField label="Status" value={kycStatus} />
                 {showKycRefresh ? (
                   <PartyStatusRefreshControl busy={refreshing} onRefresh={() => void refreshPartyStatus()} />
                 ) : null}
               </div>
-              <ProfileReadField label="Onboarding stage" value={joinedPerson?.onboarding?.status || "—"} />
-              <ProfileReadField label="Request ID" value={joinedPerson?.requestId || onboardingId || "—"} />
-              <ProfileReadField label="KYC ID" value={kycId || "—"} />
-              <ProfileReadField label="Person Email" value={party.email || joinedPerson?.email || "—"} />
+              {kycStage ? <ProfileReadField label="Current Stage" value={kycStage} /> : null}
+              {verificationId ? (
+                <ProfileReadField label={corporate ? "KYB ID" : "KYC ID"} value={verificationId} />
+              ) : null}
+              {!corporate ? <ProfileReadField label="Person Email" value={personEmail || "—"} /> : null}
+              {approvedAt ? <ProfileReadField label="Approved date" value={approvedAt} /> : null}
             </ProfileFieldGrid>
             {showCreateKyc ? (
-              <Button
-                type="button"
-                className="mt-4"
-                disabled={sendPending || !emailDraft.trim()}
-                onClick={async () => {
-                  setSendPending(true);
-                  try {
-                    const saveRes = await api.patch(`${orgBase}/ctos-party-email`, {
-                      partyKey: party.partyKey,
-                      email: emailDraft,
-                    });
-                    if (!saveRes.success) {
-                      toast.error(saveRes.error.message);
-                      return;
+              <div className="space-y-3">
+                {!personEmail.trim() && !emailLocked ? (
+                  <div className="max-w-md space-y-2">
+                    <Label htmlFor="send-onboarding-email">Person Email</Label>
+                    <Input
+                      id="send-onboarding-email"
+                      type="email"
+                      value={emailDraft}
+                      onChange={(event) => setEmailDraft(event.target.value)}
+                    />
+                    <p className="text-meta text-muted-foreground">{PERSON_EMAIL_HELP}</p>
+                  </div>
+                ) : null}
+                <Button
+                  type="button"
+                  disabled={sendPending || !(personEmail.trim() || emailDraft.trim())}
+                  onClick={async () => {
+                    setSendPending(true);
+                    try {
+                      const email = personEmail.trim() || emailDraft.trim();
+                      if (email !== personEmail) {
+                        await savePersonEmail(email);
+                      }
+                      const sendRes = await api.post(`${orgBase}/send-director-onboarding`, {
+                        partyKey: party.partyKey,
+                      });
+                      if (!sendRes.success) {
+                        toast.error(sendRes.error.message);
+                        return;
+                      }
+                      toast.success("Onboarding sent");
+                      await invalidate();
+                    } catch (err) {
+                      toast.error(err instanceof Error ? err.message : "Could not send onboarding.");
+                    } finally {
+                      setSendPending(false);
                     }
-                    const sendRes = await api.post(`${orgBase}/send-director-onboarding`, {
-                      partyKey: party.partyKey,
-                    });
-                    if (!sendRes.success) {
-                      toast.error(sendRes.error.message);
-                      return;
-                    }
-                    toast.success("Onboarding sent");
-                    await invalidate();
-                  } finally {
-                    setSendPending(false);
-                  }
-                }}
-              >
-                Send onboarding
-              </Button>
+                  }}
+                >
+                  Send onboarding
+                </Button>
+              </div>
             ) : null}
             {showResendKycEmail ? (
-              <Button
-                type="button"
-                className="mt-4"
-                variant="outline"
-                disabled={sendPending}
-                onClick={async () => {
-                  setSendPending(true);
-                  try {
-                    const sendRes = await api.post(`${orgBase}/send-director-onboarding`, {
-                      partyKey: party.partyKey,
-                    });
-                    if (!sendRes.success) {
-                      toast.error(sendRes.error.message);
-                      return;
+              <div className="space-y-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={sendPending}
+                  onClick={async () => {
+                    setSendPending(true);
+                    try {
+                      const sendRes = await api.post(`${orgBase}/send-director-onboarding`, {
+                        partyKey: party.partyKey,
+                      });
+                      if (!sendRes.success) {
+                        toast.error(sendRes.error.message);
+                        return;
+                      }
+                      toast.success("Onboarding email resent");
+                      await invalidate();
+                    } finally {
+                      setSendPending(false);
                     }
-                    toast.success("Onboarding email resent");
-                    await invalidate();
-                  } finally {
-                    setSendPending(false);
-                  }
-                }}
-              >
-                Resend onboarding email
-              </Button>
+                  }}
+                >
+                  Resend onboarding email
+                </Button>
+                <p className="text-meta text-muted-foreground">
+                  An onboarding request is already in progress. Resend uses the stored link and does not create a new
+                  request.
+                </p>
+              </div>
             ) : null}
-            {inProgressKyc && hasVerifyLink ? (
-              <p className="mt-3 text-meta text-muted-foreground">
-                An onboarding request is already in progress. Resend uses the stored link and does not create a new RegTank request.
-              </p>
-            ) : null}
-          </div>
+          </section>
         </TabsContent>
 
         <TabsContent value="aml" className="mt-6">
-          <div className="rounded-xl border bg-card p-6">
+          <section className="space-y-4">
+            <h2 className="text-card-title">AML Screening</h2>
             <ProfileFieldGrid>
-              <div className="flex items-center gap-2">
-                <ProfileReadField
-                  label="AML"
-                  value={
-                    joinedPerson
-                      ? getFinalStatusLabel({ screening: joinedPerson.screening }).label
-                      : peopleAccessAmlLabel(joinedPerson)
-                  }
-                />
+              <div className="flex items-start gap-2">
+                <ProfileReadField label="Status" value={amlStatus} />
                 {showAmlRefresh ? (
                   <PartyStatusRefreshControl busy={refreshing} onRefresh={() => void refreshPartyStatus()} />
                 ) : null}
               </div>
-              <ProfileReadField label="Screening status" value={joinedPerson?.screening?.status || "—"} />
-              <ProfileReadField label="Screening ID" value={joinedPerson?.screening?.id || "—"} />
-              <ProfileReadField
-                label="Risk"
-                value={
-                  [joinedPerson?.screening?.riskLevel, joinedPerson?.screening?.riskScore]
-                    .filter((value) => value != null && String(value).trim() !== "")
-                    .join(" · ") || "—"
-                }
-              />
             </ProfileFieldGrid>
-          </div>
+            {amlWaiting ? <p className="text-ui text-muted-foreground">{amlWaiting}</p> : null}
+          </section>
         </TabsContent>
 
-        <TabsContent value="access" className="mt-6 space-y-4">
-          <div className="rounded-xl border bg-card p-6 space-y-4">
-            {accessLabel === "No access" || accessLabel === "Invitation expired" ? (
-              <>
-                <ProfileReadField
-                  label="Platform Access"
-                  value={accessLabel === "No access" ? "No CashSouk access" : accessLabel}
-                />
-                {canEdit ? (
-                  <Button type="button" onClick={() => setInviteOpen(true)}>
-                    Invite user
-                  </Button>
-                ) : null}
-              </>
-            ) : null}
-            {accessLabel === "Invitation sent" ? (
-              <>
-                <ProfileFieldGrid>
-                  <ProfileReadField label="Platform Access" value="Invitation sent" />
+        {showAccessTab ? (
+          <TabsContent value="access" className="mt-6 space-y-4">
+            <section className="space-y-4">
+              <h2 className="text-card-title">Platform Access</h2>
+              {accessLabel === "No access" || accessLabel === "Invitation expired" ? (
+                <>
                   <ProfileReadField
-                    label="Account Email"
-                    value={
-                      invitations.find((item) => item.id === party.platformAccess.invitationId)?.email ||
-                      party.email ||
-                      "—"
-                    }
+                    label="Access"
+                    value={accessLabel === "No access" ? "No CashSouk account" : accessLabel}
                   />
-                </ProfileFieldGrid>
-                {canEdit ? (
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={!party.platformAccess.invitationId || pending}
-                      onClick={async () => {
-                        if (!party.platformAccess.invitationId) return;
-                        setPending(true);
-                        try {
-                          const res = await api.post(
-                            `${orgBase}/invitations/${party.platformAccess.invitationId}/resend`
-                          );
-                          if (!res.success) {
-                            toast.error(res.error.message);
-                            return;
-                          }
-                          toast.success("Invitation resent");
-                          await invalidate();
-                        } finally {
-                          setPending(false);
-                        }
-                      }}
-                    >
-                      Resend invitation
+                  <p className="text-ui text-muted-foreground">
+                    {accessLabel === "No access"
+                      ? "This person does not currently have access to this organisation."
+                      : "The previous invitation expired before it was accepted."}
+                  </p>
+                  {canEdit ? (
+                    <Button type="button" onClick={() => setInviteOpen(true)}>
+                      Invite user
                     </Button>
-                    <Button type="button" variant="outline" onClick={() => setConfirm("cancel-invite")}>
-                      Cancel invitation
-                    </Button>
-                  </div>
-                ) : null}
-              </>
-            ) : null}
-            {accessLabel === "Owner" || accessLabel === "Admin" || accessLabel === "User" ? (
-              <>
-                <ProfileFieldGrid>
-                  <ProfileReadField label="Platform Access" value="Active" />
-                  <ProfileReadField label="Account Email" value={party.linkedUser?.email || row?.accountEmail || "—"} />
-                  <ProfileReadField label="Access level" value={accessLabel} />
-                </ProfileFieldGrid>
-                {canEdit && accessLabel !== "Owner" && party.userId !== currentUserId ? (
-                  <div className="flex flex-wrap gap-2">
-                    {accessLabel === "User" ? (
+                  ) : null}
+                </>
+              ) : null}
+              {accessLabel === "Invitation sent" ? (
+                <>
+                  <ProfileFieldGrid>
+                    <ProfileReadField label="Access" value="Invitation sent" />
+                    <ProfileReadField
+                      label="Account Email"
+                      value={
+                        invitations.find((item) => item.id === party.platformAccess.invitationId)?.email || "—"
+                      }
+                    />
+                  </ProfileFieldGrid>
+                  {canEdit ? (
+                    <div className="flex flex-wrap gap-2">
                       <Button
                         type="button"
                         variant="outline"
+                        disabled={!party.platformAccess.invitationId || pending}
                         onClick={async () => {
-                          if (!party.userId) return;
-                          const res = await api.patch(`${orgBase}/members/${party.userId}/role`, {
-                            role: "ORGANIZATION_ADMIN",
-                          });
-                          if (!res.success) {
-                            toast.error(res.error.message);
-                            return;
+                          if (!party.platformAccess.invitationId) return;
+                          setPending(true);
+                          try {
+                            const res = await api.post(
+                              `${orgBase}/invitations/${party.platformAccess.invitationId}/resend`
+                            );
+                            if (!res.success) {
+                              toast.error(res.error.message);
+                              return;
+                            }
+                            toast.success("Invitation resent");
+                            await invalidate();
+                          } finally {
+                            setPending(false);
                           }
-                          toast.success("Access updated to Admin");
-                          await invalidate();
                         }}
                       >
-                        Change to Admin
+                        Resend invitation
                       </Button>
-                    ) : (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={async () => {
-                          if (!party.userId) return;
-                          const res = await api.patch(`${orgBase}/members/${party.userId}/role`, {
-                            role: "ORGANIZATION_MEMBER",
-                          });
-                          if (!res.success) {
-                            toast.error(res.error.message);
-                            return;
-                          }
-                          toast.success("Access updated to User");
-                          await invalidate();
-                        }}
-                      >
-                        Change to User
+                      <Button type="button" variant="outline" onClick={() => setConfirm("cancel-invite")}>
+                        Cancel invitation
                       </Button>
-                    )}
-                    <Button type="button" variant="outline" className="text-destructive" onClick={() => setConfirm("remove")}>
-                      Remove access
+                    </div>
+                  ) : null}
+                </>
+              ) : null}
+              {accessLabel === "Owner" || accessLabel === "Admin" || accessLabel === "User" ? (
+                <>
+                  <ProfileFieldGrid>
+                    <ProfileReadField label="Access" value={accessLabel} />
+                    <ProfileReadField
+                      label="Account Email"
+                      value={accountEmail || row?.accountEmail || "—"}
+                    />
+                  </ProfileFieldGrid>
+                  {canEdit && accessLabel !== "Owner" && party.userId !== currentUserId ? (
+                    <div className="flex flex-wrap gap-2">
+                      {accessLabel === "User" ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={async () => {
+                            if (!party.userId) return;
+                            const res = await api.patch(`${orgBase}/members/${party.userId}/role`, {
+                              role: "ORGANIZATION_ADMIN",
+                            });
+                            if (!res.success) {
+                              toast.error(res.error.message);
+                              return;
+                            }
+                            toast.success("Access updated to Admin");
+                            await invalidate();
+                          }}
+                        >
+                          Change to Admin
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={async () => {
+                            if (!party.userId) return;
+                            const res = await api.patch(`${orgBase}/members/${party.userId}/role`, {
+                              role: "ORGANIZATION_MEMBER",
+                            });
+                            if (!res.success) {
+                              toast.error(res.error.message);
+                              return;
+                            }
+                            toast.success("Access updated to User");
+                            await invalidate();
+                          }}
+                        >
+                          Change to User
+                        </Button>
+                      )}
+                      <Button type="button" variant="outline" className="text-destructive" onClick={() => setConfirm("remove")}>
+                        Remove access
+                      </Button>
+                    </div>
+                  ) : null}
+                  {isOwnerViewer && party.userId && party.userId !== currentUserId ? (
+                    <Button type="button" variant="outline" onClick={() => setConfirm("transfer")}>
+                      Transfer ownership
                     </Button>
-                  </div>
-                ) : null}
-                {isOwnerViewer && party.userId && party.userId !== currentUserId ? (
-                  <Button type="button" variant="outline" onClick={() => setConfirm("transfer")}>
-                    Transfer ownership
-                  </Button>
-                ) : null}
-              </>
-            ) : null}
-          </div>
-          {canInactivate && !inactive ? (
-            <Button type="button" variant="outline" onClick={() => setConfirm("inactivate")}>
-              Mark inactive
-            </Button>
-          ) : null}
-        </TabsContent>
+                  ) : null}
+                </>
+              ) : null}
+            </section>
+          </TabsContent>
+        ) : null}
       </Tabs>
 
       <InviteUserDialog

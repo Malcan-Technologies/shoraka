@@ -45,7 +45,7 @@ import { inviteableCompanyPeople, InviteUserDialog } from "./invite-user-dialog"
 import { PartyStatusRefreshControl } from "./party-status-refresh-control";
 import { DirectorShareholderCtosEmptyAlert } from "../director-shareholder-ctos-empty-alert";
 import { DirectorShareholderUnresolvedIdentitySection } from "../director-shareholder-unresolved-identity-card";
-import { PartyProfileDetailFields } from "../party-profile-detail-fields";
+import { CustomerPartyProfileOverview } from "./customer-person-overview";
 import { AddPersonForm, type AddPersonInitial } from "../portal-person-forms";
 import { Button } from "../components/button";
 import { Input } from "../components/input";
@@ -768,7 +768,7 @@ export function PeopleAccessSection({
             <DialogTitle>{viewingPeopleOnly?.name || "Person"}</DialogTitle>
             <DialogDescription>Onboarding details for this person</DialogDescription>
           </DialogHeader>
-          {viewingPeopleOnly ? <PartyProfileDetailFields person={viewingPeopleOnly} /> : null}
+          {viewingPeopleOnly ? <CustomerPartyProfileOverview person={viewingPeopleOnly} /> : null}
         </DialogContent>
       </Dialog>
 

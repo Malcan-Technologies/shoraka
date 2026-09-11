@@ -23,7 +23,7 @@ import {
   type DirectorShareholderListSource,
 } from "@cashsouk/types";
 import { toast } from "sonner";
-import { PartyProfileDetailFields } from "./party-profile-detail-fields";
+import { CustomerPartyProfileOverview } from "./people-access/customer-person-overview";
 import { DirectorShareholderCtosEmptyAlert } from "./director-shareholder-ctos-empty-alert";
 import { DirectorShareholderUnresolvedIdentitySection } from "./director-shareholder-unresolved-identity-card";
 import { Input } from "./components/input";
@@ -397,7 +397,7 @@ export function DirectorShareholdersUnifiedSection({
             <AlertDialogTitle>{viewingRow?.name || "Person"}</AlertDialogTitle>
             <AlertDialogDescription>Read-only details for this person.</AlertDialogDescription>
           </AlertDialogHeader>
-          {viewingRow ? <PartyProfileDetailFields person={viewingRow.__person} /> : null}
+          {viewingRow ? <CustomerPartyProfileOverview person={viewingRow.__person} /> : null}
           <AlertDialogFooter>
             <AlertDialogCancel className="rounded-lg">Close</AlertDialogCancel>
           </AlertDialogFooter>

@@ -15,7 +15,6 @@ import {
   type OrganizationPartyProfileDto,
   type PersonPlatformAccess,
 } from "@cashsouk/types";
-import { PartyCtosIndicator } from "./party-ctos-indicator";
 import { StatusBadge } from "./components/status-badge";
 import { Button } from "./components/button";
 import { cn } from "./lib/utils";
@@ -113,7 +112,6 @@ export function PersonIdentityCard({
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
             <p className="text-ui font-medium">{name}</p>
-            {party ? <PartyCtosIndicator party={party} /> : null}
           </div>
           <p className="text-meta text-muted-foreground">{roleLine}</p>
           {!corporate ? (
