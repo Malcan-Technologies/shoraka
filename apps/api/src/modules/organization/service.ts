@@ -24,6 +24,7 @@ import {
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
+import { loadLatestSubmittedFinancialsByYear } from "../applications/submitted-financials-by-year";
 import {
   CognitoIdentityProviderClient,
   AdminUpdateUserAttributesCommand,
@@ -3217,7 +3218,8 @@ export class OrganizationService {
   /**
    * Latest issuer organization financial-statement history (submit/resubmit merge),
    * plus latest org CTOS `financials_json` (read-only evidence; not written back to master).
-   * New-application year amounts prefill from CTOS only; this JSON is not a prefill fallback.
+   * Year-amount prefill uses CTOS first, then submitted application revisions for the same FY.
+   * Org JSON is not a year-amount prefill fallback; it may still supply a future FYE date.
    *
    * Access is restricted to the organization owner / members.
    */
@@ -3227,6 +3229,7 @@ export class OrganizationService {
   ): Promise<{
     financial_statements: unknown | null;
     ctos_financials: unknown | null;
+    submitted_by_year: Record<string, Record<string, unknown>>;
     source_application_id: string | null;
     source_application_revision_id: string | null;
     updated_at: Date | null;
@@ -3251,7 +3254,7 @@ export class OrganizationService {
       }
     }
 
-    const [latest, ctos] = await Promise.all([
+    const [latest, ctos, submittedByYear] = await Promise.all([
       prisma.issuerOrganizationFinancialStatement.findUnique({
         where: { issuer_organization_id: organizationId },
         select: {
@@ -3266,11 +3269,13 @@ export class OrganizationService {
         orderBy: { fetched_at: "desc" },
         select: { financials_json: true },
       }),
+      loadLatestSubmittedFinancialsByYear(organizationId),
     ]);
 
     return {
       financial_statements: latest?.financial_statements ?? null,
       ctos_financials: ctos?.financials_json ?? null,
+      submitted_by_year: submittedByYear,
       source_application_id: latest?.source_application_id ?? null,
       source_application_revision_id: latest?.source_application_revision_id ?? null,
       updated_at: latest?.updated_at ?? null,

@@ -1,8 +1,8 @@
 /**
- * New-application financial prefill: CTOS for completed years; in-progress year stays blank.
+ * New-application financial prefill: completed years from CTOS, else same-FY submitted history.
+ * In-progress year stays blank. Organisation profile JSON is not a prefill fallback.
  *
  * Does not write org master or CTOS storage. Callers copy the returned fields into application form state.
- * Organisation profile JSON is not a prefill fallback.
  */
 
 import {
@@ -28,13 +28,21 @@ export const APPLICATION_FINANCIAL_PREFILL_KEYS = APPLICATION_CORE_MONEY_KEYS;
 
 export type ApplicationFinancialPrefillKey = (typeof APPLICATION_FINANCIAL_PREFILL_KEYS)[number];
 
-export type ApplicationFinancialPrefillSource = "ctos" | "blank";
+export type ApplicationFinancialPrefillSource = "ctos" | "submitted" | "blank";
 
 export type ApplicationFinancialYearPrefill = {
   year: number;
   source: ApplicationFinancialPrefillSource;
   fields: Record<string, unknown> | null;
 };
+
+const YEAR_KEY_RE = /^\d{4}$/;
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
 
 export function isPresentFinancialValue(value: unknown): boolean {
   if (value === undefined || value === null) return false;
@@ -62,6 +70,21 @@ export function pickApplicationFinancialPrefillFields(
   return out;
 }
 
+/** Same-year submitted block: core application keys plus any present ComRep extras. */
+export function pickSubmittedApplicationFinancialYearFields(
+  raw: Record<string, unknown> | null | undefined
+): Record<string, unknown> {
+  const out = pickApplicationFinancialPrefillFields(raw);
+  if (!raw) return out;
+  for (const key of APPLICATION_COMREP_DETAIL_KEYS) {
+    const value = raw[key];
+    if (!isPresentFinancialValue(value)) continue;
+    if (typeof value === "number" && !Number.isFinite(value)) continue;
+    out[key] = value;
+  }
+  return out;
+}
+
 function ctosYearApplicationFields(ctosFinancials: unknown, year: number): Record<string, unknown> | null {
   const rows = parseCtosFinancialStatementRows(ctosFinancials);
   const row = rows.find((item) => item.financial_year === year);
@@ -71,24 +94,71 @@ function ctosYearApplicationFields(ctosFinancials: unknown, year: number): Recor
   return mapped;
 }
 
+/** Prefer `ApplicationRevision.snapshot.application.financial_statements`. */
+export function financialStatementsFromRevisionSnapshot(snapshot: unknown): unknown | null {
+  const root = asRecord(snapshot);
+  if (!root) return null;
+  const application = asRecord(root.application);
+  if (!application || !("financial_statements" in application)) return null;
+  return application.financial_statements ?? null;
+}
+
+/**
+ * Newest-first submitted revisions → one year block per FY key.
+ * A later revision without FY N does not hide an older revision that has FY N.
+ */
+export function indexLatestSubmittedFinancialsByYear(
+  revisions: Array<{ snapshot: unknown }>
+): Record<string, Record<string, unknown>> {
+  const out: Record<string, Record<string, unknown>> = {};
+  for (const revision of revisions) {
+    const fs = financialStatementsFromRevisionSnapshot(revision.snapshot);
+    const byYear = asRecord(asRecord(fs)?.unaudited_by_year);
+    if (!byYear) continue;
+    for (const [yearKey, blockUnknown] of Object.entries(byYear)) {
+      if (!YEAR_KEY_RE.test(yearKey) || out[yearKey]) continue;
+      const mapped = pickSubmittedApplicationFinancialYearFields(asRecord(blockUnknown));
+      if (!financialYearBlockHasActualData(mapped)) continue;
+      out[yearKey] = mapped;
+    }
+  }
+  return out;
+}
+
+export function resolveLatestSubmittedFinancialsForYear(
+  submittedByYear: Record<string, Record<string, unknown>> | null | undefined,
+  year: number
+): Record<string, unknown> | null {
+  if (!submittedByYear) return null;
+  const mapped = submittedByYear[String(year)];
+  if (!mapped || !financialYearBlockHasActualData(mapped)) return null;
+  return mapped;
+}
+
 /**
  * Effective starting values for one application tab year.
- * In-progress year is always blank. Completed years: CTOS application fields only.
+ * In-progress year is always blank.
+ * Completed years: CTOS year block, else submitted same-FY year block, else blank.
  */
 export function resolveApplicationFinancialYearPrefill(params: {
   year: number;
   inProgressYear: number | null;
   ctosFinancials: unknown;
-  /** Ignored. Kept so callers can stop passing org JSON without a signature scramble. */
+  submittedByYear?: Record<string, Record<string, unknown>> | null;
+  /** Ignored. Organisation profile is not an application prefill source. */
   orgFinancialStatements?: unknown;
 }): ApplicationFinancialYearPrefill {
-  const { year, inProgressYear, ctosFinancials } = params;
+  const { year, inProgressYear, ctosFinancials, submittedByYear } = params;
   if (inProgressYear != null && year === inProgressYear) {
     return { year, source: "blank", fields: null };
   }
   const fromCtos = ctosYearApplicationFields(ctosFinancials, year);
   if (fromCtos) {
     return { year, source: "ctos", fields: fromCtos };
+  }
+  const fromSubmitted = resolveLatestSubmittedFinancialsForYear(submittedByYear ?? null, year);
+  if (fromSubmitted) {
+    return { year, source: "submitted", fields: fromSubmitted };
   }
   return { year, source: "blank", fields: null };
 }
@@ -106,11 +176,12 @@ export type ApplicationFinancialPrefillByYear = {
 export function buildApplicationFinancialPrefillByYear(params: {
   questionnaire: FinancialStatementsQuestionnaire | null;
   ctosFinancials: unknown;
+  submittedByYear?: Record<string, Record<string, unknown>> | null;
   ref?: Date;
   /** Ignored. Organisation profile is not an application prefill source. */
   orgFinancialStatements?: unknown;
 }): ApplicationFinancialPrefillByYear {
-  const { questionnaire, ctosFinancials, ref } = params;
+  const { questionnaire, ctosFinancials, submittedByYear, ref } = params;
   if (!questionnaire) {
     return { tabYears: [], inProgressYear: null, years: {} };
   }
@@ -122,6 +193,7 @@ export function buildApplicationFinancialPrefillByYear(params: {
       year,
       inProgressYear,
       ctosFinancials,
+      submittedByYear,
     });
   }
   return { tabYears, inProgressYear, years };
