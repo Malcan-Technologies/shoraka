@@ -105,6 +105,9 @@ describe("AdminService sendInvoiceOffer financing tenure", () => {
     return {
       $queryRaw: jest.fn(async (sql: unknown) => {
         const text = sqlText(sql);
+        if (text.includes("FROM application_review_items")) {
+          return [{ status: "APPROVED" }];
+        }
         if (text.includes("FROM applications")) {
           return [{ status: ApplicationStatus.INVOICE_PENDING }];
         }
@@ -152,6 +155,13 @@ describe("AdminService sendInvoiceOffer financing tenure", () => {
           invoices: [{ id: "inv-1", details }],
           application_review_items: [
             { item_type: "invoice", item_id: "invoice_details:0:INV-1", status: "APPROVED" },
+          ],
+          application_reviews: [
+            { section: "financial", status: "APPROVED" },
+            { section: "company_details", status: "APPROVED" },
+            { section: "business_details", status: "APPROVED" },
+            { section: "supporting_documents", status: "APPROVED" },
+            { section: "contract_details", status: "APPROVED" },
           ],
         },
       });
@@ -286,6 +296,13 @@ describe("AdminService sendInvoiceOffer financing tenure", () => {
         application_review_items: [
           { item_type: "invoice", item_id: "invoice_details:0:INV-1", status: "APPROVED" },
         ],
+        application_reviews: [
+          { section: "financial", status: "APPROVED" },
+          { section: "company_details", status: "APPROVED" },
+          { section: "business_details", status: "APPROVED" },
+          { section: "supporting_documents", status: "APPROVED" },
+          { section: "contract_details", status: "APPROVED" },
+        ],
       },
     });
 
@@ -318,6 +335,13 @@ describe("AdminService sendInvoiceOffer financing tenure", () => {
         invoices: [{ id: "inv-1", details }],
         application_review_items: [
           { item_type: "invoice", item_id: "invoice_details:0:INV-1", status: "PENDING" },
+        ],
+        application_reviews: [
+          { section: "financial", status: "APPROVED" },
+          { section: "company_details", status: "APPROVED" },
+          { section: "business_details", status: "APPROVED" },
+          { section: "supporting_documents", status: "APPROVED" },
+          { section: "contract_details", status: "APPROVED" },
         ],
       },
     });

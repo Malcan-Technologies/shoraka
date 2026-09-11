@@ -4,6 +4,7 @@ import {
   getReviewSectionPrerequisites,
   getSectionSortIndex,
   isPrerequisiteSectionSatisfied,
+  arePrerequisiteSectionsSatisfied,
   isCommercialOfferSendUnlocked,
   REVIEW_SECTION_ORDER,
   REVIEW_SECTION_ORDER_INVOICE_ONLY,
@@ -185,6 +186,51 @@ describe("isPrerequisiteSectionSatisfied", () => {
     expect(
       isPrerequisiteSectionSatisfied("contract_details", undefined, "acceptance_documents")
     ).toBe(false);
+  });
+});
+
+describe("arePrerequisiteSectionsSatisfied", () => {
+  const approvedUnderwriting = (section: string) =>
+    ["financial", "company_details", "business_details", "supporting_documents"].includes(section)
+      ? "APPROVED"
+      : undefined;
+
+  it("blocks facility approve while underwriting is pending", () => {
+    expect(
+      arePrerequisiteSectionsSatisfied({
+        prereqs: getReviewSectionPrerequisites("new_contract").contract_details,
+        dependentSection: "contract_details",
+        getStatus: () => "PENDING",
+      })
+    ).toBe(false);
+    expect(
+      arePrerequisiteSectionsSatisfied({
+        prereqs: getReviewSectionPrerequisites("new_contract").contract_details,
+        dependentSection: "contract_details",
+        getStatus: approvedUnderwriting,
+      })
+    ).toBe(true);
+  });
+
+  it("blocks invoice approve before Customer on invoice_only", () => {
+    expect(
+      arePrerequisiteSectionsSatisfied({
+        prereqs: getReviewSectionPrerequisites("invoice_only").invoice_details,
+        dependentSection: "invoice_details",
+        getStatus: (section) =>
+          section === "contract_details" ? "PENDING" : approvedUnderwriting(section),
+        structureType: "invoice_only",
+      })
+    ).toBe(false);
+    expect(
+      arePrerequisiteSectionsSatisfied({
+        prereqs: getReviewSectionPrerequisites("invoice_only").invoice_details,
+        dependentSection: "invoice_details",
+        getStatus: (section) =>
+          section === "contract_details" ? "APPROVED" : approvedUnderwriting(section),
+        structureType: "invoice_only",
+      })
+    ).toBe(true);
   });
 });
 

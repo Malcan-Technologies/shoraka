@@ -54,6 +54,7 @@ import {
   reviewItemRejectSchema,
   reviewItemRequestAmendmentSchema,
   normalizeReviewItemType,
+  reviewItemTypeSchema,
   sendContractOfferSchema,
   patchContractCustomerLargePrivateSchema,
   sendInvoiceOfferSchema,
@@ -67,6 +68,7 @@ import {
 } from "./schemas";
 import { prisma } from "../../lib/prisma";
 import { logger } from "../../lib/logger";
+import { getApplicationItemManagePermission } from "./review-item-permission";
 import {
   handleCreateIssuerMarc,
   handleGetIssuerMarc,
@@ -148,6 +150,35 @@ function requireApplicationSectionManage(req: Request, _res: Response, next: Nex
     next();
   } catch (error) {
     next(error instanceof AppError ? error : new AppError(403, "FORBIDDEN", "Insufficient permissions"));
+  }
+}
+
+function requireApplicationItemManage(req: Request, _res: Response, next: NextFunction): void {
+  try {
+    if (!req.user) {
+      next(new AppError(401, "UNAUTHORIZED", "Authentication required"));
+      return;
+    }
+
+    const itemType = normalizeReviewItemType(
+      reviewItemTypeSchema.parse((req.body as { itemType?: unknown } | undefined)?.itemType)
+    );
+    const requiredPermission = getApplicationItemManagePermission(itemType);
+
+    if (req.adminRoleKey && FULL_ACCESS_ADMIN_ROLE_KEYS.includes(req.adminRoleKey as AdminRoleKey)) {
+      next();
+      return;
+    }
+
+    const assignedPermissions = new Set(req.adminPermissions ?? []);
+    if (!assignedPermissions.has(requiredPermission)) {
+      next(new AppError(403, "FORBIDDEN", "Insufficient permissions"));
+      return;
+    }
+
+    next();
+  } catch (error) {
+    next(error);
   }
 }
 
@@ -3400,7 +3431,7 @@ router.post(
 
 router.post(
   "/applications/:id/reviews/items/approve",
-  requirePermission("applications.manage"),
+  requireApplicationItemManage,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
@@ -3430,7 +3461,7 @@ router.post(
 
 router.post(
   "/applications/:id/reviews/items/reject",
-  requirePermission("applications.manage"),
+  requireApplicationItemManage,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
@@ -3460,7 +3491,7 @@ router.post(
 
 router.post(
   "/applications/:id/reviews/items/request-amendment",
-  requirePermission("applications.manage"),
+  requireApplicationItemManage,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
@@ -3490,7 +3521,7 @@ router.post(
 
 router.post(
   "/applications/:id/reviews/items/reset-to-pending",
-  requirePermission("applications.manage"),
+  requireApplicationItemManage,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");

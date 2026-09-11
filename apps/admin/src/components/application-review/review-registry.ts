@@ -1,5 +1,6 @@
 import {
   getReviewSectionOrder,
+  arePrerequisiteSectionsSatisfied,
   getReviewSectionPrerequisites,
   getStepKeyFromStepId,
   isInvoiceOnlyFinancingStructure,
@@ -163,15 +164,14 @@ export function isTabUnlocked(
   contractEntityStatus?: string | null
 ): boolean {
   const prereqs = resolveTabPrerequisites(sectionId, prerequisitesBySection, structureType);
-  if (!prereqs?.length) return true;
-  const relevantPrereqs = availableSections
-    ? prereqs.filter((prereq) => availableSections.has(prereq))
-    : prereqs;
-  if (!relevantPrereqs.length) return true;
-  const satisfaction = { structureType, contractEntityStatus };
-  return relevantPrereqs.every((prereq) =>
-    isPrerequisiteSectionSatisfied(prereq, sectionStatusMap.get(prereq), sectionId, satisfaction)
-  );
+  return arePrerequisiteSectionsSatisfied({
+    prereqs,
+    dependentSection: sectionId,
+    getStatus: (section) => sectionStatusMap.get(section),
+    availableSections,
+    structureType,
+    contractEntityStatus,
+  });
 }
 
 /** Human-readable tooltip explaining why a tab is locked. */

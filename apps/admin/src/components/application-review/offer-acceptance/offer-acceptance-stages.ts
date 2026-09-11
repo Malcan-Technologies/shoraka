@@ -100,12 +100,12 @@ export type OfferAcceptanceStageModel = {
   currentStageId: OfferAcceptanceStageId;
 };
 
-const SENT_OR_LATER = new Set([
+/** Statuses after a commercial offer was sent. Admin REJECTED is not an offer-sent state. */
+const OFFER_SENT_OR_LATER = new Set([
   "OFFER_SENT",
   "OFFER_EXPIRED",
   "APPROVED",
   "WITHDRAWN",
-  "REJECTED",
 ]);
 
 function normalizeStructureType(value?: string | null): OfferAcceptanceStructureType {
@@ -214,7 +214,7 @@ function isCompletedReviewStatus(status: string): boolean {
 
 /**
  * Action freeze (paymaster after offer, permission, prerequisites) still locks section
- * controls. Once the commercial offer is SENT_OR_LATER, the rail presents a completed
+ * controls. Once the commercial offer is OFFER_SENT_OR_LATER, the rail presents a completed
  * review as done instead of Locked. Withdrawn and pre-offer locks stay locked.
  */
 function isWorkflowReviewPresentationLocked(
@@ -261,7 +261,7 @@ function sendOfferStage(args: {
   const noun = args.offerType === "facility" ? "facility" : "invoice";
   const locked = args.withdrawn || !!args.lock?.locked;
   const base = { id: "send_offer" as const, section: args.section, title: "Send offer", kind: "workflow" as const };
-  if (locked && !SENT_OR_LATER.has(args.entityStatus)) {
+  if (locked && !OFFER_SENT_OR_LATER.has(args.entityStatus)) {
     return {
       ...base,
       tag: "Locked",
@@ -340,9 +340,10 @@ function sendOfferStage(args: {
   if (args.entityStatus === "REJECTED" && args.offerType === "invoice") {
     return {
       ...base,
-      tag: "Ready",
-      tone: "action",
-      summary: "Issuer declined this invoice offer. Set terms and send a new offer.",
+      tag: "Rejected",
+      tone: "locked",
+      summary: "This invoice was rejected. Set to pending before sending an offer.",
+      lockTooltip: "This invoice was rejected. Use Action → Set to pending before sending an offer.",
     };
   }
   return {
@@ -360,7 +361,17 @@ function issuerResponseStage(args: {
   acceptance: OfferAcceptanceStatus | null;
 }): OfferAcceptanceStage {
   const noun = args.offerType === "facility" ? "facility" : "invoice";
-  if (!SENT_OR_LATER.has(args.entityStatus)) {
+  if (args.entityStatus === "WITHDRAWN" || args.acceptance === "DECLINED") {
+    return {
+      id: "issuer_response",
+      section: args.section,
+      title: "Issuer response",
+      tag: "Declined",
+      tone: "done",
+      summary: `Issuer declined the ${noun} offer.`,
+    };
+  }
+  if (!OFFER_SENT_OR_LATER.has(args.entityStatus)) {
     return {
       id: "issuer_response",
       section: args.section,
@@ -379,20 +390,6 @@ function issuerResponseStage(args: {
       tag: "Expired",
       tone: "done",
       summary: `The ${noun} offer expired before the issuer responded.`,
-    };
-  }
-  if (
-    args.entityStatus === "WITHDRAWN" ||
-    args.entityStatus === "REJECTED" ||
-    args.acceptance === "DECLINED"
-  ) {
-    return {
-      id: "issuer_response",
-      section: args.section,
-      title: "Issuer response",
-      tag: "Declined",
-      tone: "done",
-      summary: `Issuer declined the ${noun} offer.`,
     };
   }
   if (args.entityStatus === "APPROVED" || args.acceptance === "COMPLETED") {
@@ -447,7 +444,7 @@ function acceptanceDocumentsStage(args: {
   acceptance: OfferAcceptanceStatus | null;
   entityStatus: string;
 }): OfferAcceptanceStage {
-  const lockedUntilOffer = !SENT_OR_LATER.has(args.entityStatus);
+  const lockedUntilOffer = !OFFER_SENT_OR_LATER.has(args.entityStatus);
   if (args.lock?.locked || lockedUntilOffer) {
     return {
       id: "acceptance_documents",
@@ -672,7 +669,7 @@ export function buildOfferAcceptanceStageModel(
   const customerReviewComplete =
     structureType !== "invoice_only" ||
     isCompletedReviewStatus(customerStatus) ||
-    SENT_OR_LATER.has(entityStatus);
+    OFFER_SENT_OR_LATER.has(entityStatus);
   const invoiceSendLock =
     customerReviewComplete || invoiceLock?.locked
       ? invoiceLock
@@ -689,7 +686,7 @@ export function buildOfferAcceptanceStageModel(
   }
 
   if (structureType === "invoice_only") {
-    const commercialOfferSent = SENT_OR_LATER.has(entityStatus);
+    const commercialOfferSent = OFFER_SENT_OR_LATER.has(entityStatus);
     const customerReviewLocked = isWorkflowReviewPresentationLocked(
       withdrawn,
       commercialOfferSent,
@@ -726,7 +723,7 @@ export function buildOfferAcceptanceStageModel(
 
   if (structureType === "new_contract") {
     const facilityStatus = readSectionStatus(input.sectionStatuses, "contract_details");
-    const workflowComplete = SENT_OR_LATER.has(entityStatus);
+    const workflowComplete = OFFER_SENT_OR_LATER.has(entityStatus);
     const reviewStatus = workflowComplete ? "APPROVED" : facilityStatus;
     const facilityReviewLocked = isWorkflowReviewPresentationLocked(
       withdrawn,
@@ -753,7 +750,7 @@ export function buildOfferAcceptanceStageModel(
 
   if (structureType !== "new_contract") {
     const itemStatus = selectedInvoiceReviewStatus;
-    const reviewStatus = SENT_OR_LATER.has(entityStatus) ? "APPROVED" : itemStatus;
+    const reviewStatus = OFFER_SENT_OR_LATER.has(entityStatus) ? "APPROVED" : itemStatus;
     const invoiceReviewLocked = withdrawn || !!invoiceLock?.locked || !customerReviewComplete;
     const invoiceReview = reviewTone(
       invoice ? reviewStatus : "PENDING",
@@ -770,20 +767,20 @@ export function buildOfferAcceptanceStageModel(
       ...invoiceReview,
       summary: !invoice
         ? "No invoices submitted."
-        : SENT_OR_LATER.has(entityStatus)
+        : OFFER_SENT_OR_LATER.has(entityStatus)
           ? "Invoice details reviewed."
           : invoiceReview.summary,
       tone:
         !invoice && invoiceReview.tone !== "locked"
           ? "action"
-          : SENT_OR_LATER.has(entityStatus) && invoiceReview.tone !== "locked"
+          : OFFER_SENT_OR_LATER.has(entityStatus) && invoiceReview.tone !== "locked"
             ? "done"
             : invoiceReview.tone,
       tag: !invoice
         ? invoiceReview.tone === "locked"
           ? "Locked"
           : "Empty"
-        : SENT_OR_LATER.has(entityStatus) && invoiceReview.tone !== "locked"
+        : OFFER_SENT_OR_LATER.has(entityStatus) && invoiceReview.tone !== "locked"
           ? "Reviewed"
           : invoiceReview.tag,
     });

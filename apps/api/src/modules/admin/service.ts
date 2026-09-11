@@ -96,6 +96,7 @@ import {
   REVIEW_SECTION_ORDER,
   getReviewSectionOrder,
   getReviewSectionPrerequisites,
+  arePrerequisiteSectionsSatisfied,
   getStepKeyFromStepId,
   workflowHasAcceptanceDocuments,
   collectAcceptanceDocumentReviewKeys,
@@ -870,6 +871,67 @@ export class AdminService {
         "INVALID_ACTION",
         "Standalone invoice applications do not have facility offers."
       );
+    }
+  }
+
+  private financingStructureType(application: { financing_structure?: unknown }): string | undefined {
+    const structure = application.financing_structure;
+    if (structure && typeof structure === "object") {
+      return (structure as { structure_type?: string }).structure_type;
+    }
+    return undefined;
+  }
+
+  private async assertReviewSectionPrerequisites(
+    application: {
+      financing_structure?: unknown;
+      financing_type?: unknown;
+      product_version?: number | null;
+      application_reviews?: { section: string; status: string }[];
+      contract?: { status?: string | null } | null;
+    },
+    section: ReviewSection
+  ): Promise<void> {
+    const sectionPolicy = await this.getReviewSectionPolicy(application);
+    const statusBySection = new Map(
+      (application.application_reviews ?? []).map((row) => [row.section, row.status])
+    );
+    if (
+      arePrerequisiteSectionsSatisfied({
+        prereqs: sectionPolicy.prerequisitesBySection[section],
+        dependentSection: section,
+        getStatus: (key) => statusBySection.get(key),
+        availableSections: sectionPolicy.visibleSections,
+        structureType: this.financingStructureType(application),
+        contractEntityStatus: application.contract?.status,
+      })
+    ) {
+      return;
+    }
+    throw new AppError(
+      400,
+      "INVALID_STATE",
+      "Complete previous review sections before this action"
+    );
+  }
+
+  private async assertReviewItemPrerequisites(
+    application: {
+      financing_structure?: unknown;
+      financing_type?: unknown;
+      product_version?: number | null;
+      application_reviews?: { section: string; status: string }[];
+      contract?: { status?: string | null } | null;
+    },
+    itemType: ReviewItemType,
+    itemId: string
+  ): Promise<void> {
+    if (itemType === "invoice") {
+      await this.assertReviewSectionPrerequisites(application, "invoice_details");
+      return;
+    }
+    if (isAcceptanceHubReviewItem(itemType, itemId)) {
+      await this.assertReviewSectionPrerequisites(application, "acceptance_documents");
     }
   }
 
@@ -7721,41 +7783,58 @@ export class AdminService {
   }
 
   private isContractTabUnlocked(
-    application: { application_reviews?: { section: string; status: string }[] },
+    application: {
+      application_reviews?: { section: string; status: string }[];
+      financing_structure?: unknown;
+      contract?: { status?: string | null } | null;
+    },
     sectionPolicy: {
       visibleSections: Set<ReviewSection>;
       prerequisitesBySection: Partial<Record<ReviewSection, ReviewSection[]>>;
     }
   ): boolean {
-    const prereqs = sectionPolicy.prerequisitesBySection.contract_details;
-    if (!prereqs?.length) return true;
-    const relevantPrereqs = prereqs.filter((p) => sectionPolicy.visibleSections.has(p));
-    if (!relevantPrereqs.length) return true;
-    const reviews = (application.application_reviews ?? []) as {
-      section: string;
-      status: string;
-    }[];
-    const sectionStatusMap = new Map(reviews.map((r) => [r.section, r.status]));
-    return relevantPrereqs.every((prereq) => sectionStatusMap.get(prereq) === "APPROVED");
+    return this.isReviewSectionUnlocked(application, "contract_details", sectionPolicy);
   }
 
   private isInvoiceTabUnlocked(
-    application: { application_reviews?: { section: string; status: string }[] },
+    application: {
+      application_reviews?: { section: string; status: string }[];
+      financing_structure?: unknown;
+      contract?: { status?: string | null } | null;
+    },
     sectionPolicy: {
       visibleSections: Set<ReviewSection>;
       prerequisitesBySection: Partial<Record<ReviewSection, ReviewSection[]>>;
     }
   ): boolean {
-    const prereqs = sectionPolicy.prerequisitesBySection.invoice_details;
-    if (!prereqs?.length) return true;
-    const relevantPrereqs = prereqs.filter((p) => sectionPolicy.visibleSections.has(p));
-    if (!relevantPrereqs.length) return true;
+    return this.isReviewSectionUnlocked(application, "invoice_details", sectionPolicy);
+  }
+
+  private isReviewSectionUnlocked(
+    application: {
+      application_reviews?: { section: string; status: string }[];
+      financing_structure?: unknown;
+      contract?: { status?: string | null } | null;
+    },
+    section: ReviewSection,
+    sectionPolicy: {
+      visibleSections: Set<ReviewSection>;
+      prerequisitesBySection: Partial<Record<ReviewSection, ReviewSection[]>>;
+    }
+  ): boolean {
     const reviews = (application.application_reviews ?? []) as {
       section: string;
       status: string;
     }[];
-    const sectionStatusMap = new Map(reviews.map((r) => [r.section, r.status]));
-    return relevantPrereqs.every((prereq) => sectionStatusMap.get(prereq) === "APPROVED");
+    const sectionStatusMap = new Map(reviews.map((row) => [row.section, row.status]));
+    return arePrerequisiteSectionsSatisfied({
+      prereqs: sectionPolicy.prerequisitesBySection[section],
+      dependentSection: section,
+      getStatus: (key) => sectionStatusMap.get(key),
+      availableSections: sectionPolicy.visibleSections,
+      structureType: this.financingStructureType(application),
+      contractEntityStatus: application.contract?.status,
+    });
   }
 
   private resolveAdminStageStatus(input: {
@@ -9023,6 +9102,15 @@ export class AdminService {
       application
     );
     this.ensureFacilityOfferActionAllowed(application);
+    await this.assertReviewSectionPrerequisites(application, "contract_details");
+    const contractStatus = application.contract?.status?.toString().toUpperCase() ?? "";
+    if (contractStatus === "REJECTED") {
+      throw new AppError(
+        400,
+        "INVALID_STATE",
+        "Facility was rejected; reset review to pending before sending an offer"
+      );
+    }
     this.assertCommercialDetailsApprovedForSend({
       detailsStatus: application.application_reviews?.find(
         (row: { section: string; status: string }) => row.section === "contract_details"
@@ -9087,6 +9175,25 @@ export class AdminService {
           "Facility offer was finalized by issuer and cannot be modified"
         );
       }
+      if (lockedContract.status === "REJECTED") {
+        throw new AppError(
+          400,
+          "INVALID_STATE",
+          "Facility was rejected; reset review to pending before sending an offer"
+        );
+      }
+
+      const lockedReviews = await tx.$queryRaw<{ status: string }[]>`
+        SELECT status
+        FROM application_reviews
+        WHERE application_id = ${applicationId} AND section = 'contract_details'
+        FOR UPDATE
+      `;
+      this.assertCommercialDetailsApprovedForSend({
+        detailsStatus: lockedReviews[0]?.status,
+        entityStatus: lockedContract.status,
+        message: "Approve facility details before sending an offer",
+      });
 
       const customerDetailsLocked =
         (lockedContract.customer_details as Record<string, unknown> | null) ?? null;
@@ -9484,6 +9591,7 @@ export class AdminService {
       throw new AppError(400, "INVALID_STATE", "Unable to resolve invoice scope key");
     }
     await this.ensureInvoiceOfferItemActionAllowed(applicationId, scopeKey, application);
+    await this.assertReviewSectionPrerequisites(application, "invoice_details");
     await this.assertNoActiveSigningPackage(
       applicationId,
       { invoiceId },
@@ -9574,6 +9682,27 @@ export class AdminService {
           "Invoice offer was finalized by issuer and cannot be modified"
         );
       }
+      if (lockedInvoice.status === "REJECTED") {
+        throw new AppError(
+          400,
+          "INVALID_STATE",
+          "Invoice was rejected; reset review to pending before sending an offer"
+        );
+      }
+
+      const lockedItems = await tx.$queryRaw<{ status: string }[]>`
+        SELECT status
+        FROM application_review_items
+        WHERE application_id = ${applicationId}
+          AND item_type = 'invoice'
+          AND item_id = ${scopeKey}
+        FOR UPDATE
+      `;
+      this.assertCommercialDetailsApprovedForSend({
+        detailsStatus: lockedItems[0]?.status,
+        entityStatus: lockedInvoice.status,
+        message: "Approve invoice details before sending an offer",
+      });
 
       const details = (lockedInvoice.details as Record<string, unknown> | null) ?? {};
       const invoiceValue = Number(details.value);
@@ -10159,6 +10288,7 @@ export class AdminService {
         );
       }
     }
+    await this.assertReviewSectionPrerequisites(application, section);
     await repository.ensureApplicationReviewSection(applicationId, section);
 
     const existing = application.application_reviews?.find(
@@ -10834,6 +10964,7 @@ export class AdminService {
     if (section === "invoice_details") {
       await this.ensureInvoiceSectionActionAllowed(applicationId);
     }
+    await this.assertReviewSectionPrerequisites(application, section);
     await repository.ensureApplicationReviewSection(applicationId, section);
 
     const existing = application.application_reviews?.find(
@@ -10905,6 +11036,7 @@ export class AdminService {
     if (section === "invoice_details") {
       await this.ensureInvoiceSectionActionAllowed(applicationId);
     }
+    await this.assertReviewSectionPrerequisites(application, section);
     await repository.ensureApplicationReviewSection(applicationId, section);
 
     const existing = application.application_reviews?.find(
@@ -11012,6 +11144,7 @@ export class AdminService {
         }
       }
     }
+    await this.assertReviewItemPrerequisites(application, itemType, itemId);
     if (isAcceptanceHubReviewItem(itemType, itemId)) {
       await this.assertNoActiveSigningPackageForAcceptanceActions(
         applicationId,
@@ -11113,6 +11246,7 @@ export class AdminService {
         "rejecting acceptance documents"
       );
     }
+    await this.assertReviewItemPrerequisites(application, itemType, itemId);
     const existing = application.application_review_items?.find(
       (r: { item_type: string; item_id: string; status: string }) =>
         r.item_type === itemType && r.item_id === itemId
@@ -11255,6 +11389,7 @@ export class AdminService {
         "requesting acceptance document changes"
       );
     }
+    await this.assertReviewItemPrerequisites(application, itemType, itemId);
 
     await repository.upsertItemReviewStatus(
       applicationId,

@@ -100,6 +100,14 @@ const invoiceOfferDetails = {
   financing_tenure_days: 90,
 };
 
+const approvedOfferPrereqReviews = [
+  { section: "financial", status: "APPROVED" },
+  { section: "company_details", status: "APPROVED" },
+  { section: "business_details", status: "APPROVED" },
+  { section: "supporting_documents", status: "APPROVED" },
+  { section: "contract_details", status: "APPROVED" },
+];
+
 describe("AdminService capacity offer paths", () => {
   const service = new AdminService();
   const repository = {
@@ -132,6 +140,7 @@ describe("AdminService capacity offer paths", () => {
       status: ApplicationStatus.INVOICE_PENDING,
       contract_id: "contract-1",
       invoices: [{ id: "inv-1", details: invoiceOfferDetails }],
+      application_reviews: approvedOfferPrereqReviews,
     };
     (service as unknown as { prepareForReviewAction: jest.Mock }).prepareForReviewAction = jest
       .fn()
@@ -185,6 +194,7 @@ describe("AdminService capacity offer paths", () => {
       application_review_items: [
         { item_type: "invoice", item_id: "invoice_details:0:INV-1", status: "APPROVED" },
       ],
+      application_reviews: approvedOfferPrereqReviews,
     };
     (service as unknown as { prepareForReviewAction: jest.Mock }).prepareForReviewAction = jest
       .fn()
@@ -296,6 +306,7 @@ describe("AdminService capacity offer paths", () => {
       application_review_items: [
         { item_type: "invoice", item_id: "invoice_details:0:INV-1", status: "APPROVED" },
       ],
+      application_reviews: approvedOfferPrereqReviews,
     };
     (service as unknown as { prepareForReviewAction: jest.Mock }).prepareForReviewAction = jest
       .fn()

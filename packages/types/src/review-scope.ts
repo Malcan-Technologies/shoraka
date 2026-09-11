@@ -177,6 +177,37 @@ export function isPrerequisiteSectionSatisfied(
 }
 
 /**
+ * Whether every prerequisite section for `dependentSection` is satisfied.
+ * Hidden / unavailable sections are ignored, matching admin tab unlock.
+ */
+export function arePrerequisiteSectionsSatisfied(input: {
+  prereqs: readonly string[] | undefined;
+  dependentSection: string;
+  getStatus: (section: string) => string | undefined;
+  availableSections?: ReadonlySet<string>;
+  structureType?: string | null;
+  contractEntityStatus?: string | null;
+}): boolean {
+  if (!input.prereqs?.length) return true;
+  const relevantPrereqs = input.availableSections
+    ? input.prereqs.filter((prereq) => input.availableSections!.has(prereq))
+    : [...input.prereqs];
+  if (!relevantPrereqs.length) return true;
+  const options = {
+    structureType: input.structureType,
+    contractEntityStatus: input.contractEntityStatus,
+  };
+  return relevantPrereqs.every((prereq) =>
+    isPrerequisiteSectionSatisfied(
+      prereq,
+      input.getStatus(prereq),
+      input.dependentSection,
+      options
+    )
+  );
+}
+
+/**
  * Default review-section prerequisites by financing structure.
  * Server may still override; clients use this when API prereqs are absent.
  */

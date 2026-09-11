@@ -16,6 +16,11 @@ describe("commercial details approval before send offer", () => {
     );
     expect(SERVICE).toContain("assertCommercialDetailsApprovedForSend");
     expect(SERVICE).toContain("isCommercialOfferSendUnlocked");
+    expect(SERVICE).toContain("assertReviewSectionPrerequisites");
+    expect(SERVICE).toContain("assertReviewItemPrerequisites");
+    expect(SERVICE).toContain("FROM application_reviews");
+    expect(SERVICE).toContain("FROM application_review_items");
+    expect(SERVICE).toContain("Complete previous review sections before this action");
     expect(SERVICE).toContain("ITEM_REVIEWED_");
     expect(SERVICE).toContain("SECTION_REVIEWED_");
   });

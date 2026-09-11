@@ -453,21 +453,21 @@ describe("buildOfferAcceptanceStageModel — existing_contract invoice under fac
     expect(stage({ ...input, selectedInvoiceId: "inv-1" }, "invoice_review")?.tag).toBe("Approved");
   });
 
-  it("treats invoice entity REJECTED as issuer decline and reopens send offer unless the review item is rejected", () => {
-    const declined: OfferAcceptanceStageInput = {
+  it("keeps admin-rejected invoices on the rejected review stage instead of treating them as sent", () => {
+    const declinedWithoutOffer: OfferAcceptanceStageInput = {
       ...invoiceUnderFacilityBase,
       invoices: [{ id: "inv-1", status: "REJECTED", details: { number: "INV-1" } }],
       reviewItems: [
         { item_type: "invoice", item_id: "invoice_details:0:INV-1", status: "PENDING" },
       ],
     };
-    expect(stage(declined, "issuer_response")?.tag).toBe("Declined");
-    expect(stage(declined, "send_offer")?.tone).toBe("locked");
-    expect(stage(declined, "send_offer")?.summary).toMatch(/approve invoice details/i);
+    expect(stage(declinedWithoutOffer, "issuer_response")?.tag).toBe("Locked");
+    expect(stage(declinedWithoutOffer, "invoice_review")?.tag).toBe("Review");
+    expect(stage(declinedWithoutOffer, "send_offer")?.tone).toBe("locked");
 
     const adminRejected: OfferAcceptanceStageInput = {
       ...invoiceUnderFacilityBase,
-      invoices: [{ id: "inv-1", status: "SUBMITTED", details: { number: "INV-1" } }],
+      invoices: [{ id: "inv-1", status: "REJECTED", details: { number: "INV-1" } }],
       reviewItems: [
         { item_type: "invoice", item_id: "invoice_details:0:INV-1", status: "REJECTED" },
       ],
@@ -476,6 +476,19 @@ describe("buildOfferAcceptanceStageModel — existing_contract invoice under fac
     expect(stage(adminRejected, "send_offer")?.tone).toBe("locked");
     expect(stage(adminRejected, "send_offer")?.tag).toBe("Rejected");
     expect(stage(adminRejected, "issuer_response")?.tag).toBe("Locked");
+  });
+
+  it("still treats issuer WITHDRAWN as a declined offer response", () => {
+    const withdrawn: OfferAcceptanceStageInput = {
+      ...invoiceUnderFacilityBase,
+      invoices: [{ id: "inv-1", status: "WITHDRAWN", details: { number: "INV-1" } }],
+      reviewItems: [
+        { item_type: "invoice", item_id: "invoice_details:0:INV-1", status: "APPROVED" },
+      ],
+    };
+    expect(stage(withdrawn, "invoice_review")?.tag).toBe("Reviewed");
+    expect(stage(withdrawn, "send_offer")?.tag).toBe("Declined");
+    expect(stage(withdrawn, "issuer_response")?.tag).toBe("Declined");
   });
 });
 
