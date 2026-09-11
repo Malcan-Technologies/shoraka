@@ -29,7 +29,10 @@ describe("Issuer organisation profile copy", () => {
   it("shows submitted financial history as read-only, not an editable master", () => {
     expect(financials).toContain("Financial Statements");
     expect(financials).toContain("ProfileFinancialHistory");
-    expect(financials).toContain("Read-only history from submitted financing applications");
+    expect(financials).toContain("Financial history from submitted financing applications.");
+    expect(financials).not.toContain("Enter or update figures");
+    expect(financials).toContain("query.data?.financial_statements");
+    expect(financials).not.toContain("ctos_financials");
     expect(financials).not.toContain("Complete financials");
     expect(financials).not.toContain("required fields missing");
     expect(financials).not.toContain("<Dialog");

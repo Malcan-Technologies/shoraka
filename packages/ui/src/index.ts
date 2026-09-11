@@ -337,6 +337,7 @@ export { ProfileReadField, ProfileFieldGrid } from "./components/profile-read-fi
 export type { ProfileReadFieldProps } from "./components/profile-read-field";
 export {
   ProfileFinancialHistory,
+  ProfileFinancialYearDetails,
   ProfileFinancialSaveBar,
   ProfileFinancialStatementsBody,
   profileFinancialDraftFromValues,

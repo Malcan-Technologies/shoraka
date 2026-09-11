@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import {
   APPLICATION_COMREP_DETAIL_KEYS,
   APPLICATION_CORE_MONEY_KEYS,
@@ -195,51 +196,86 @@ export function validateProfileFinancialDraft(draft: Record<string, string>) {
   };
 }
 
+export function ProfileFinancialYearDetails({
+  block,
+}: {
+  block: Record<string, unknown>;
+}) {
+  return (
+    <div className="space-y-5">
+      <div className="space-y-3">
+        <h4 className="text-ui font-medium text-foreground">Financial statements</h4>
+        <ProfileFieldGrid>
+          {APPLICATION_CORE_MONEY_KEYS.map((key) => (
+            <ProfileReadField
+              key={key}
+              label={FINANCIAL_FIELD_LABELS[key] ?? key}
+              value={formatProfileRmAmount(block[key])}
+            />
+          ))}
+        </ProfileFieldGrid>
+      </div>
+      <div className="space-y-3">
+        <h4 className="text-ui font-medium text-foreground">Additional financial details</h4>
+        <p className="text-meta text-muted-foreground">For regulatory reporting</p>
+        <ProfileFieldGrid>
+          {APPLICATION_COMREP_DETAIL_KEYS.map((key) => (
+            <ProfileReadField
+              key={key}
+              label={FINANCIAL_FIELD_LABELS[key] ?? key}
+              value={formatProfileRmAmount(block[key])}
+            />
+          ))}
+        </ProfileFieldGrid>
+      </div>
+    </div>
+  );
+}
+
 export function ProfileFinancialHistory({
   years,
 }: {
   years: Array<{ year: string; block: Record<string, unknown> }>;
 }) {
+  const [expandedYear, setExpandedYear] = React.useState<string | null>(null);
+
   if (years.length === 0) {
-    return (
-      <p className="text-ui text-muted-foreground">
-        No submitted financial statements yet. Enter figures on a financing application.
-      </p>
-    );
+    return <p className="text-ui text-muted-foreground">No submitted financial statements yet.</p>;
   }
 
+  const orderedYears = [...years].sort((a, b) => Number(b.year) - Number(a.year));
+
   return (
-    <div className="space-y-8">
-      {years.map(({ year, block }) => (
-        <div key={year} className="space-y-5">
-          <h3 className="text-card-title">FY{year}</h3>
-          <div className="space-y-3">
-            <h4 className="text-ui font-medium text-foreground">Financial statements</h4>
-            <ProfileFieldGrid>
-              {APPLICATION_CORE_MONEY_KEYS.map((key) => (
-                <ProfileReadField
-                  key={key}
-                  label={FINANCIAL_FIELD_LABELS[key] ?? key}
-                  value={formatProfileRmAmount(block[key])}
-                />
-              ))}
-            </ProfileFieldGrid>
+    <div className="divide-y">
+      {orderedYears.map(({ year, block }) => {
+        const expanded = expandedYear === year;
+        const detailsId = `profile-financial-year-${year}`;
+        return (
+          <div key={year} className="space-y-4 py-4 first:pt-0 last:pb-0">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="text-card-title">FY{year}</h3>
+                <p className="text-ui text-muted-foreground">Submitted financial record</p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                aria-expanded={expanded}
+                aria-controls={detailsId}
+                onClick={() => setExpandedYear(expanded ? null : year)}
+              >
+                {expanded ? "Hide details" : "View details"}
+              </Button>
+            </div>
+            {expanded ? (
+              <div id={detailsId}>
+                <ProfileFinancialYearDetails block={block} />
+              </div>
+            ) : null}
           </div>
-          <div className="space-y-3">
-            <h4 className="text-ui font-medium text-foreground">Additional financial details</h4>
-            <p className="text-meta text-muted-foreground">For regulatory reporting</p>
-            <ProfileFieldGrid>
-              {APPLICATION_COMREP_DETAIL_KEYS.map((key) => (
-                <ProfileReadField
-                  key={key}
-                  label={FINANCIAL_FIELD_LABELS[key] ?? key}
-                  value={formatProfileRmAmount(block[key])}
-                />
-              ))}
-            </ProfileFieldGrid>
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

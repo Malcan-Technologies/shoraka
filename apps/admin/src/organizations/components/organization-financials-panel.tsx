@@ -19,7 +19,7 @@ export function OrganizationFinancialsPanel({
       <AdminDetailCardHeader
         icon={BanknotesIcon}
         title="Financial Statements"
-        description="Read-only history from submitted financing applications."
+        description="Financial history from submitted financing applications."
       />
       <CardContent className="space-y-4">
         <ProfileFinancialHistory years={years} />
