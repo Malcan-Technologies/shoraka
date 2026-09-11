@@ -493,6 +493,44 @@ describe("buildPeopleAccessRows", () => {
     );
   });
 
+  it("keeps an unlinked organisation owner on a separate row from a company director", () => {
+    const { active } = buildPeopleAccessRows({
+      parties: [],
+      people: [
+        person({
+          matchKey: "IC-IVAN",
+          name: "Ivan Chew Ken Yoong",
+          roles: ["DIRECTOR", "SHAREHOLDER"],
+          sharePercentage: 100,
+          email: "ivan@example.com",
+        }),
+      ],
+      members: [
+        member({
+          id: "owner",
+          firstName: "Ivan",
+          lastName: "Chew",
+          email: "ivan@example.com",
+          role: "ORGANIZATION_ADMIN",
+        }),
+      ],
+      invitations: [],
+      ownerUserId: "owner",
+      now,
+    });
+    expect(active).toHaveLength(2);
+    expect(active.find((row) => row.kind === "people_only")).toMatchObject({
+      name: "Ivan Chew Ken Yoong",
+      companyRoleLine: "Director, Shareholder",
+      platformAccess: "No access",
+    });
+    expect(active.find((row) => row.kind === "platform_only")).toMatchObject({
+      platformAccess: "Owner",
+      companyRoleLine: "—",
+      userId: "owner",
+    });
+  });
+
   it("keeps an inactive company person out of the active table", () => {
     const { active, inactive } = buildPeopleAccessRows({
       parties: [

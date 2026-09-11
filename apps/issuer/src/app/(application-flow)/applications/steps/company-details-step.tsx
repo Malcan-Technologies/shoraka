@@ -303,8 +303,13 @@ export function CompanyDetailsStep({
       resolveCustomerDirectorShareholderEmptyWarning({
         directorShareholderListSource: entitiesData?.directorShareholderListSource ?? null,
         ctosDirectorShareholderWarning: entitiesData?.ctosDirectorShareholderWarning ?? null,
+        people: entitiesData?.people ?? [],
       }),
-    [entitiesData?.directorShareholderListSource, entitiesData?.ctosDirectorShareholderWarning]
+    [
+      entitiesData?.directorShareholderListSource,
+      entitiesData?.ctosDirectorShareholderWarning,
+      entitiesData?.people,
+    ]
   );
 
   const resolveOrgContactPerson = React.useCallback(() => {
@@ -543,14 +548,6 @@ export function CompanyDetailsStep({
     if (!formState.mainCustomers.trim()) {
       errors.push("About your business incomplete — update your company profile");
       fieldErrors.mainCustomers = "Update on company profile";
-    }
-    if (formState.singleCustomerOver50Revenue === null) {
-      errors.push("About your business incomplete — update your company profile");
-      fieldErrors.singleCustomerOver50Revenue = "Update on company profile";
-    }
-    if (!formState.accountingSoftware.trim()) {
-      errors.push("About your business incomplete — update your company profile");
-      fieldErrors.accountingSoftware = "Update on company profile";
     }
 
     // Banking validation
@@ -848,14 +845,6 @@ export function CompanyDetailsStep({
             </div>
             <div className="flex min-h-11 flex-col justify-center gap-1">
               <YesNoRadioDisplay value={formState.singleCustomerOver50Revenue} />
-              {fieldErrors.singleCustomerOver50Revenue ? (
-                <p className="text-xs text-destructive">
-                  {fieldErrors.singleCustomerOver50Revenue}.{" "}
-                  <Link href="/profile?focus=about" className="underline underline-offset-2">
-                    Open company profile
-                  </Link>
-                </p>
-              ) : null}
             </div>
 
             <Label htmlFor="company-accounting-software" className={labelClassName}>
@@ -867,16 +856,8 @@ export function CompanyDetailsStep({
                 value={formState.accountingSoftware}
                 disabled
                 placeholder="e.g. QuickBooks, Xero, SAP"
-                className={withFieldError(inputClassName, Boolean(fieldErrors.accountingSoftware))}
+                className={inputClassName}
               />
-              {fieldErrors.accountingSoftware ? (
-                <p className="text-xs text-destructive">
-                  {fieldErrors.accountingSoftware}.{" "}
-                  <Link href="/profile?focus=about" className="underline underline-offset-2">
-                    Open company profile
-                  </Link>
-                </p>
-              ) : null}
             </div>
           </div>
         </div>

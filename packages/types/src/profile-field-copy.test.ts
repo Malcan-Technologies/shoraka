@@ -6,6 +6,7 @@ import {
 import {
   PROFILE_ADDRESS_FIELD_LABELS,
   PROFILE_LABEL,
+  PROFILE_REQUIRED_EMPTY_LABEL,
   formatProfileRmAmount,
   profileAddressCompletenessLabel,
   profileFinancialFieldLabel,
@@ -56,7 +57,10 @@ describe("Profile field copy", () => {
     expect(PROFILE_LABEL.companyRegistrationNumber).toBe("Company Registration Number");
     expect(PROFILE_LABEL.personEmail).toBe("Person Email");
     expect(PROFILE_LABEL.accountEmail).toBe("Account Email");
+    expect(PROFILE_LABEL.companyActivities).toBe("Company Activities");
+    expect(PROFILE_LABEL.mainCustomers).toBe("Who are your main customers?");
     expect(PROFILE_ADDRESS_FIELD_LABELS.state).toBe("State");
     expect(PROFILE_ADDRESS_FIELD_LABELS.postcode).toBe("Postcode");
+    expect(PROFILE_REQUIRED_EMPTY_LABEL).toBe("Please fill up");
   });
 });

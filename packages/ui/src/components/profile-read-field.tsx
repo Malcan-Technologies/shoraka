@@ -1,7 +1,9 @@
 import * as React from "react";
 import { cn } from "../lib/utils";
 
-import { PROFILE_LOCKED_VERIFIED_DURING_ONBOARDING } from "@cashsouk/types";
+import { PROFILE_LOCKED_VERIFIED_DURING_ONBOARDING, PROFILE_REQUIRED_EMPTY_LABEL } from "@cashsouk/types";
+
+const PROFILE_READ_EMPTY_DASH = "—";
 
 export type ProfileReadFieldProps = {
   label: string;
@@ -13,13 +15,21 @@ export type ProfileReadFieldProps = {
   hint?: React.ReactNode;
   /** Ignored in read mode. Kept so edit/read call sites can share props. */
   help?: string;
-  /** Ignored in read mode. Required/optional markers belong on edit controls. */
+  /**
+   * Requiredness from completeness/validators — not an asterisk.
+   * Required + empty in customer read mode shows {@link PROFILE_REQUIRED_EMPTY_LABEL}.
+   */
   required?: boolean;
   className?: string;
 };
 
-function isEmptyValue(value: React.ReactNode): boolean {
-  return value === null || value === undefined || value === "";
+export function isProfileReadValueEmpty(value: React.ReactNode): boolean {
+  if (value === null || value === undefined) return true;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length === 0 || trimmed === PROFILE_READ_EMPTY_DASH;
+  }
+  return false;
 }
 
 export function ProfileReadField({
@@ -30,9 +40,11 @@ export function ProfileReadField({
   lockReason,
   multiline = false,
   hint,
+  required = false,
   className,
 }: ProfileReadFieldProps) {
-  const empty = isEmptyValue(value);
+  const empty = isProfileReadValueEmpty(value);
+  const promptRequiredEmpty = required && empty;
   return (
     <div className={cn("space-y-1", className)}>
       <p className="text-meta text-muted-foreground">{label}</p>
@@ -40,13 +52,14 @@ export function ProfileReadField({
         className={cn(
           "text-ui break-words",
           multiline && "whitespace-pre-wrap",
-          empty && "text-muted-foreground",
-          missing && "text-status-action-text"
+          promptRequiredEmpty && "text-destructive",
+          !promptRequiredEmpty && empty && "text-muted-foreground",
+          !promptRequiredEmpty && missing && "text-status-action-text"
         )}
       >
-        {empty ? "—" : value}
+        {promptRequiredEmpty ? PROFILE_REQUIRED_EMPTY_LABEL : empty ? PROFILE_READ_EMPTY_DASH : value}
       </div>
-      {locked && !missing ? (
+      {locked && !missing && !promptRequiredEmpty ? (
         <p className="text-meta text-muted-foreground">
           {lockReason ?? PROFILE_LOCKED_VERIFIED_DURING_ONBOARDING}
         </p>

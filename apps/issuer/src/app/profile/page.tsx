@@ -28,7 +28,7 @@ import { useAuth } from "../../lib/auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccountDocuments } from "../../hooks/use-account-documents";
 import { useOrganizationInvitations } from "../../hooks/use-organization-invitations";
-import { filterVisiblePeopleRows, firstIssueMessage, humanizeApiValidationMessage, isOrganisationProfileTab, isValidProfilePhone, organisationProfileTabFromSearchParam, PROFILE_ADDRESS_FIELD_LABELS, PROFILE_ADDRESS_HELP, PROFILE_HELP, PROFILE_LABEL, PROFILE_PATH, PROFILE_TAB_PEOPLE, PROFILE_TAB_PROFILE, restrictScPostcodeInput, SC_MALAYSIAN_STATES, storedProfilePhone, validateIssuerAddressForm, validateIssuerContactPersonForm } from "@cashsouk/types";
+import { filterVisiblePeopleRows, firstIssueMessage, humanizeApiValidationMessage, isOrganisationProfileTab, isScPostcodeRequired, isValidProfilePhone, organisationProfileTabFromSearchParam, PROFILE_ADDRESS_FIELD_LABELS, PROFILE_ADDRESS_HELP, PROFILE_HELP, PROFILE_LABEL, PROFILE_PATH, PROFILE_TAB_PEOPLE, PROFILE_TAB_PROFILE, restrictScPostcodeInput, SC_MALAYSIAN_STATES, storedProfilePhone, validateIssuerAddressForm, validateIssuerContactPersonForm } from "@cashsouk/types";
 import { DirectorShareholderAlertCard } from "../../components/director-shareholder-alert-card";
 import { IssuerProfileCompletenessBanner } from "../../components/profile-completeness-banner";
 import { AboutYourBusinessCard } from "../../components/about-your-business-card";
@@ -1081,11 +1081,13 @@ export default function ProfilePage() {
                             ]
                               .filter((part) => part && part.trim())
                               .join(", ") || "—"}
+                            required
                             missing={missingFieldKeys.has("registeredAddress.line1")}
                           />
                           <ProfileReadField
                             label={PROFILE_ADDRESS_FIELD_LABELS.state}
                             value={orgData?.corporateOnboardingData?.addresses?.registered?.state || "—"}
+                            required
                             missing={missingFieldKeys.has("registeredAddress.state")}
                           />
                           <ProfileReadField
@@ -1093,6 +1095,9 @@ export default function ProfilePage() {
                             value={
                               orgData?.corporateOnboardingData?.addresses?.registered?.postalCode || "—"
                             }
+                            required={isScPostcodeRequired(
+                              orgData?.corporateOnboardingData?.addresses?.registered?.state
+                            )}
                             missing={missingFieldKeys.has("registeredAddress.postalCode")}
                           />
                         </ProfileFieldGrid>
@@ -1196,11 +1201,13 @@ export default function ProfilePage() {
                             ]
                               .filter((part) => part && part.trim())
                               .join(", ") || "—"}
+                            required
                             missing={missingFieldKeys.has("businessAddress.line1")}
                           />
                           <ProfileReadField
                             label={PROFILE_ADDRESS_FIELD_LABELS.state}
                             value={orgData?.corporateOnboardingData?.addresses?.business?.state || "—"}
+                            required
                             missing={missingFieldKeys.has("businessAddress.state")}
                           />
                           <ProfileReadField
@@ -1208,6 +1215,9 @@ export default function ProfilePage() {
                             value={
                               orgData?.corporateOnboardingData?.addresses?.business?.postalCode || "—"
                             }
+                            required={isScPostcodeRequired(
+                              orgData?.corporateOnboardingData?.addresses?.business?.state
+                            )}
                             missing={missingFieldKeys.has("businessAddress.postalCode")}
                           />
                         </ProfileFieldGrid>
@@ -1429,21 +1439,25 @@ export default function ProfilePage() {
                       <ProfileReadField
                         label={PROFILE_LABEL.fullName}
                         value={contactName || "—"}
+                        required
                         missing={missingFieldKeys.has("contactPersonName")}
                       />
                       <ProfileReadField
                         label={PROFILE_LABEL.position}
                         value={contactPosition || "—"}
+                        required
                         missing={missingFieldKeys.has("contactPersonPosition")}
                       />
                       <ProfileReadField
                         label={PROFILE_LABEL.personEmail}
                         value={contactEmail || "—"}
+                        required
                         missing={missingFieldKeys.has("contactPersonEmail")}
                       />
                       <ProfileReadField
                         label={PROFILE_LABEL.phone}
                         value={contactPhone || "—"}
+                        required
                         missing={missingFieldKeys.has("contactPersonPhone")}
                       />
                     </ProfileFieldGrid>

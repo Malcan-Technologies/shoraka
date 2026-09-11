@@ -58,6 +58,11 @@ const FILLED_CONTACT = {
   },
 } as const;
 
+const FILLED_ABOUT = {
+  companyActivities: "Invoice financing",
+  mainCustomers: "Trade counterparties",
+} as const;
+
 describe("issuer company completeness [02000]", () => {
   it("requires registered and business line1, state, and postcode", () => {
     const missing = computeIssuerCompanyCompleteness({
@@ -71,12 +76,12 @@ describe("issuer company completeness [02000]", () => {
       registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
       businessAddress: { line1: "", state: "Selangor", postalCode: "40000" },
       ...FILLED_CONTACT,
-      companyActivities: "Invoice financing",
+      ...FILLED_ABOUT,
     });
     expect(missing.map((m) => m.field)).toContain("businessAddress.line1");
   });
 
-  it("does not require website, city, TIN, Issuer ID, or company activities", () => {
+  it("does not require website, city, TIN, or Issuer ID", () => {
     const missing = computeIssuerCompanyCompleteness({
       name: "Acme Sdn Bhd",
       registrationNumber: "1234567A",
@@ -88,18 +93,70 @@ describe("issuer company completeness [02000]", () => {
       registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
       businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
       ...FILLED_CONTACT,
-      companyActivities: null,
+      ...FILLED_ABOUT,
     });
     expect(missing.map((m) => m.field)).not.toContain("website");
     expect(missing.map((m) => m.field)).not.toContain("companyCategory");
     expect(missing.map((m) => m.field)).not.toContain("campaignSector");
     expect(missing.map((m) => m.field)).not.toContain("campaign_sector");
     expect(missing.map((m) => m.field)).not.toContain("organizationId");
-    expect(missing.map((m) => m.field)).not.toContain("companyActivities");
     expect(missing).toHaveLength(0);
   });
 
-  it("counts 16 company completeness fields when empty", () => {
+  it("requires Company Activities and main customers for profile completeness", () => {
+    const missingBoth = computeIssuerCompanyCompleteness({
+      name: "Acme Sdn Bhd",
+      registrationNumber: "1234567A",
+      organizationId: "org_1",
+      dateOfIncorporation: "2020-01-01",
+      dateOfCommencement: "2020-02-01",
+      countryOfIncorporation: "Malaysia",
+      scCompanyType: "PRIVATE_LIMITED",
+      registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
+      businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
+      ...FILLED_CONTACT,
+      companyActivities: "  ",
+      mainCustomers: "",
+    });
+    expect(missingBoth.map((m) => m.field)).toEqual(["companyActivities", "mainCustomers"]);
+
+    const missingCustomers = computeIssuerCompanyCompleteness({
+      name: "Acme Sdn Bhd",
+      registrationNumber: "1234567A",
+      organizationId: "org_1",
+      dateOfIncorporation: "2020-01-01",
+      dateOfCommencement: "2020-02-01",
+      countryOfIncorporation: "Malaysia",
+      scCompanyType: "PRIVATE_LIMITED",
+      registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
+      businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
+      ...FILLED_CONTACT,
+      companyActivities: "Invoice financing",
+      mainCustomers: null,
+    });
+    expect(missingCustomers.map((m) => m.field)).toEqual(["mainCustomers"]);
+
+    const filled = computeIssuerCompanyCompleteness({
+      name: "Acme Sdn Bhd",
+      registrationNumber: "1234567A",
+      organizationId: "org_1",
+      dateOfIncorporation: "2020-01-01",
+      dateOfCommencement: "2020-02-01",
+      countryOfIncorporation: "Malaysia",
+      scCompanyType: "PRIVATE_LIMITED",
+      registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
+      businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
+      ...FILLED_CONTACT,
+      ...FILLED_ABOUT,
+    });
+    expect(filled.map((m) => m.field)).not.toContain("companyActivities");
+    expect(filled.map((m) => m.field)).not.toContain("mainCustomers");
+    expect(filled.map((m) => m.field)).not.toContain("singleCustomerOver50Revenue");
+    expect(filled.map((m) => m.field)).not.toContain("accountingSoftware");
+    expect(filled).toHaveLength(0);
+  });
+
+  it("counts 18 company completeness fields when empty", () => {
     const missing = computeIssuerCompanyCompleteness({
       name: null,
       registrationNumber: null,
@@ -111,6 +168,7 @@ describe("issuer company completeness [02000]", () => {
       registeredAddress: null,
       businessAddress: null,
       companyActivities: null,
+      mainCustomers: null,
     });
     expect(missing).toHaveLength(ISSUER_COMPANY_COMPLETENESS_FIELD_COUNT);
   });
@@ -127,7 +185,7 @@ describe("issuer company completeness [02000]", () => {
       registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
       businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
       contactPerson: { name: "Ops Contact", position: "CFO", email: "   ", contact: "+60123456789" },
-      companyActivities: null,
+      ...FILLED_ABOUT,
     });
     expect(missing.map((m) => m.field)).toEqual(["contactPersonEmail"]);
   });
@@ -144,7 +202,7 @@ describe("issuer company completeness [02000]", () => {
       registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
       businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
       contactPerson: { name: "Ops Contact", position: "CFO", email: "not-an-email", contact: "+60123456789" },
-      companyActivities: null,
+      ...FILLED_ABOUT,
     });
     expect(invalid.map((m) => m.field)).toEqual(["contactPersonEmail"]);
     const valid = computeIssuerCompanyCompleteness({
@@ -158,7 +216,7 @@ describe("issuer company completeness [02000]", () => {
       registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
       businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
       ...FILLED_CONTACT,
-      companyActivities: null,
+      ...FILLED_ABOUT,
     });
     expect(valid.map((m) => m.field)).not.toContain("contactPersonEmail");
   });
@@ -175,7 +233,7 @@ describe("issuer company completeness [02000]", () => {
       registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
       businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
       contactPerson: { name: "Ops Contact", position: "CFO", email: "ops@acme.test", contact: "0182316817" },
-      companyActivities: null,
+      ...FILLED_ABOUT,
     });
     expect(missing.map((m) => m.field)).not.toContain("contactPersonPhone");
   });
@@ -207,7 +265,7 @@ describe("issuer company completeness [02000]", () => {
         email: "aisha@regtank.test",
         contactNumber: "+60111111111",
       },
-      companyActivities: null,
+      ...FILLED_ABOUT,
     });
     expect(fromPic).toHaveLength(0);
     const incomplete = computeIssuerCompanyCompleteness({
@@ -220,7 +278,7 @@ describe("issuer company completeness [02000]", () => {
       scCompanyType: "PRIVATE_LIMITED",
       registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
       businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
-      companyActivities: null,
+      ...FILLED_ABOUT,
     });
     expect(incomplete.map((m) => m.field)).toEqual(
       expect.arrayContaining([
@@ -246,7 +304,7 @@ describe("issuer company completeness [02000]", () => {
       businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
       contactPerson: { email: "ops@acme.test", contact: "+60123456789" },
       personInCharge: { name: "Aisha", position: "Director", email: "aisha@regtank.test", contactNumber: "+60111" },
-      companyActivities: null,
+      ...FILLED_ABOUT,
     });
     expect(missing.map((m) => m.field)).toEqual(
       expect.arrayContaining(["contactPersonName", "contactPersonPosition"])
@@ -271,7 +329,7 @@ describe("issuer company completeness [02000]", () => {
       registeredAddress: { line1: "1 Overseas Rd", state: "Outside Malaysia", postalCode: "" },
       businessAddress: { line1: "2 Overseas Rd", state: "Outside Malaysia", postalCode: null },
       ...FILLED_CONTACT,
-      companyActivities: null,
+      ...FILLED_ABOUT,
     });
     expect(missing.map((m) => m.field)).not.toContain("registeredAddress.postalCode");
     expect(missing.map((m) => m.field)).not.toContain("businessAddress.postalCode");
@@ -293,7 +351,7 @@ describe("issuer profile completeness", () => {
         registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
         businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
         ...FILLED_CONTACT,
-        companyActivities: "Lending",
+        ...FILLED_ABOUT,
       },
       shareholders: [],
       board: [],
@@ -318,7 +376,7 @@ describe("issuer profile completeness", () => {
         registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
         businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
         ...FILLED_CONTACT,
-        companyActivities: "Lending",
+        ...FILLED_ABOUT,
       },
       shareholders: [
         {
@@ -934,6 +992,7 @@ describe("profile UI section grouping", () => {
     const rows = groupIssuerMissingByProfileSection([
       { step: "company", field: "dateOfIncorporation", label: "Date of incorporation" },
       { step: "company", field: "companyActivities", label: "Company activities" },
+      { step: "company", field: "mainCustomers", label: "Who are your main customers?" },
       { step: "company", field: "registeredAddress.state", label: "Registered address — state" },
       { step: "company", field: "contactPersonPhone", label: "Phone Number" },
       { step: "company", field: "contactPersonName", label: "Full Name" },
@@ -941,7 +1000,7 @@ describe("profile UI section grouping", () => {
       { step: "financials", field: "revenue", label: "Total revenue and income" },
     ]);
     expect(rows.find((row) => row.id === "company")?.missingCount).toBe(1);
-    expect(rows.find((row) => row.id === "about")?.missingCount).toBe(1);
+    expect(rows.find((row) => row.id === "about")?.missingCount).toBe(2);
     expect(rows.find((row) => row.id === "addresses")?.missingCount).toBe(1);
     expect(rows.find((row) => row.id === "contact")?.missingCount).toBe(2);
     expect(rows.find((row) => row.id === "people")?.missingCount).toBe(1);
@@ -1096,7 +1155,7 @@ describe("issuer profile financial editor keys", () => {
         registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
         businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
         ...FILLED_CONTACT,
-        companyActivities: null,
+        ...FILLED_ABOUT,
       },
       shareholders: [
         {
@@ -1396,7 +1455,7 @@ describe("people completeness by actual role", () => {
       registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
       businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
       ...FILLED_CONTACT,
-      companyActivities: null,
+      ...FILLED_ABOUT,
     });
     expect(missing.map((item) => item.field)).not.toContain("contactPersonEmail");
     expect(missing.map((item) => item.field)).not.toContain("companyEmail");

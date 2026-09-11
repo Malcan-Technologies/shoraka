@@ -125,12 +125,14 @@ export function InvestorCompanyDetailsCard({
             label={PROFILE_LABEL.companyName}
             value={name || "—"}
             locked
+            required
             missing={missing.has("name")}
           />
           <ProfileReadField
             label={PROFILE_LABEL.companyRegistrationNumber}
             value={registrationNumber || "—"}
             locked
+            required
             missing={missing.has("registrationNumber")}
           />
           {isEditing && !dateOfIncorporation ? (
@@ -157,6 +159,7 @@ export function InvestorCompanyDetailsCard({
               label={PROFILE_LABEL.dateOfIncorporation}
               value={formatDate(dateOfIncorporation)}
               locked={Boolean(dateOfIncorporation)}
+              required
               missing={missing.has("dateOfIncorporation")}
             />
           )}
@@ -193,6 +196,7 @@ export function InvestorCompanyDetailsCard({
               label={PROFILE_LABEL.countryOfIncorporation}
               value={countryOfIncorporation || "—"}
               locked={Boolean(countryOfIncorporation)}
+              required
               missing={missing.has("countryOfIncorporation")}
             />
           )}

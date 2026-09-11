@@ -217,12 +217,14 @@ export function IssuerCompanyDetailsCard({
             label={PROFILE_LABEL.companyName}
             value={displayProfileValue(businessName)}
             locked
+            required
             missing={missing.has("name")}
           />
           <ProfileReadField
             label={PROFILE_LABEL.companyRegistrationNumber}
             value={displayProfileValue(ssm)}
             locked
+            required
             missing={missing.has("registrationNumber")}
           />
           {isEditing && !org.scCompanyType ? (
@@ -241,6 +243,7 @@ export function IssuerCompanyDetailsCard({
               label={PROFILE_LABEL.typeOfCompany}
               value={displayProfileValue(companyTypeLabel)}
               locked={Boolean(org.scCompanyType)}
+              required
               missing={missing.has("scCompanyType")}
             />
           )}
@@ -262,6 +265,7 @@ export function IssuerCompanyDetailsCard({
               label={PROFILE_LABEL.dateOfIncorporation}
               value={displayProfileValue(formatDate(org.dateOfIncorporation))}
               locked={Boolean(org.dateOfIncorporation)}
+              required
               missing={missing.has("dateOfIncorporation")}
             />
           )}
@@ -283,6 +287,7 @@ export function IssuerCompanyDetailsCard({
               label={PROFILE_LABEL.dateBusinessCommenced}
               value={displayProfileValue(formatDate(org.dateOfCommencement))}
               locked={Boolean(org.dateOfCommencement)}
+              required
               missing={missing.has("dateOfCommencement")}
             />
           )}
@@ -302,6 +307,7 @@ export function IssuerCompanyDetailsCard({
               label={PROFILE_LABEL.countryOfIncorporation}
               value={displayProfileValue(org.countryOfIncorporation)}
               locked={Boolean(org.countryOfIncorporation)}
+              required
               missing={missing.has("countryOfIncorporation")}
             />
           )}

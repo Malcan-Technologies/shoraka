@@ -47,6 +47,7 @@ import {
   SELECT_AT_LEAST_ONE_ROLE_MESSAGE,
   resolvePersonPlatformAccess,
   isInitialCorporateOnboardingStatus,
+  isMinimalOnboardingPersonCreate,
 } from "@cashsouk/types";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
@@ -812,7 +813,7 @@ export async function computeOrgProfileCompleteness(
         ssmRegistrationNumber?: string;
         entityType?: string;
       };
-      aboutYourBusiness?: { whatDoesCompanyDo?: string };
+      aboutYourBusiness?: { whatDoesCompanyDo?: string; mainCustomers?: string };
       addresses?: { registered?: unknown; business?: unknown };
       contactPerson?: unknown;
       personInCharge?: unknown;
@@ -895,6 +896,7 @@ export async function computeOrgProfileCompleteness(
         contactPerson: asIssuerContactPerson(cod?.contactPerson),
         personInCharge: asIssuerPersonInCharge(cod?.personInCharge),
         companyActivities: cod?.aboutYourBusiness?.whatDoesCompanyDo ?? null,
+        mainCustomers: cod?.aboutYourBusiness?.mainCustomers ?? null,
       },
       shareholders,
       board,
@@ -1632,9 +1634,21 @@ export async function createUserAddedParty(params: {
 
   const identity = appliedCreate.identityNumber;
   const identityKey = canonicalPartyIdentityKey(identity);
-  const needsIdentity = entityType === OrganizationPartyEntityType.CORPORATE || roles.isBoard;
-  if (needsIdentity && !identityKey) {
-    throw new AppError(400, "VALIDATION_ERROR", "Identity number is required for this role");
+  const onboardingCreate = isMinimalOnboardingPersonCreate({
+    entityType,
+    identityPrefix: params.patch.identityPrefix,
+    identityNumber: params.patch.identityNumber,
+    isDirector: roles.isDirector,
+    isShareholder: roles.isShareholder,
+    isBoard: roles.isBoard,
+    isManagement: roles.isManagement,
+    personKind: params.patch.personKind,
+  });
+  if (!onboardingCreate) {
+    const needsIdentity = entityType === OrganizationPartyEntityType.CORPORATE || roles.isBoard;
+    if (needsIdentity && !identityKey) {
+      throw new AppError(400, "VALIDATION_ERROR", "Identity number is required for this role");
+    }
   }
   if ((roles.isDirector || roles.isShareholder) && !identityKey) {
     if (!String(params.patch.name ?? "").trim()) {

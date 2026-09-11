@@ -27,6 +27,7 @@ import {
   peopleAccessPlatformBadgeStatus,
   PERSON_EMAIL_HELP,
   profileValidationErrorFromApi,
+  addCompanyPersonUsesOnboardingFlow,
   relatedPartyVerificationCaption,
   resolveCustomerDirectorShareholderEmptyWarning,
   shouldShowPartyAmlRefresh,
@@ -271,6 +272,7 @@ export function PeopleAccessSection({
   const ctosEmpty = resolveCustomerDirectorShareholderEmptyWarning({
     directorShareholderListSource,
     ctosDirectorShareholderWarning,
+    people,
   });
   const invitePeople = inviteableCompanyPeople(active);
   const viewingPeopleOnly =
@@ -679,9 +681,9 @@ export function PeopleAccessSection({
       >
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{addInitial ? "Add company person" : "Add company person"}</DialogTitle>
-            <DialogDescription>
-              Add this person to the company profile. This does not create a CashSouk login.
+            <DialogTitle>Add company person</DialogTitle>
+            <DialogDescription className="sr-only">
+              Add a person to the company profile.
             </DialogDescription>
           </DialogHeader>
           <AddPersonForm
@@ -694,7 +696,25 @@ export function PeopleAccessSection({
             onSave={async (data) => {
               const res = await api.createManagementParty(portal, organizationId, data);
               if (!res.success) throw profileValidationErrorFromApi(res.error);
-              toast.success("Person added");
+              const shouldSendOnboarding =
+                addCompanyPersonUsesOnboardingFlow({
+                  entityType: data.entityType,
+                  isDirector: data.isDirector === true,
+                  isShareholder: data.isShareholder === true,
+                }) && Boolean(String(data.email ?? "").trim()) && Boolean(res.data.partyKey);
+              if (shouldSendOnboarding) {
+                const sendRes = await api.post(`${orgBase}/send-director-onboarding`, {
+                  partyKey: res.data.partyKey,
+                });
+                if (!sendRes.success) {
+                  toast.success("Person added");
+                  toast.error(sendRes.error.message);
+                } else {
+                  toast.success("Person added and onboarding link sent");
+                }
+              } else {
+                toast.success("Person added");
+              }
               setAddOpen(false);
               await invalidate();
             }}

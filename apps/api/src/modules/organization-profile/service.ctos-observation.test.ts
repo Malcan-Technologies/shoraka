@@ -1196,6 +1196,61 @@ describe("user-added master parties", () => {
     expect(created.email).toBe("preid.director@example.com");
   });
 
+  it("creates Director + Management without government ID", async () => {
+    const created = await createUserAddedParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      source: "USER",
+      patch: {
+        name: "Director Manager",
+        email: "dm@example.com",
+        isDirector: true,
+        isManagement: true,
+      },
+    });
+    expect(created.partyKey.startsWith("user:")).toBe(true);
+    expect(created.identityNumber).toBeNull();
+    expect(created.isDirector).toBe(true);
+    expect(created.isManagement).toBe(true);
+    expect(created.isBoard).toBe(false);
+  });
+
+  it("creates Shareholder + Board without government ID", async () => {
+    const created = await createUserAddedParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      source: "USER",
+      patch: {
+        name: "Shareholder Board",
+        email: "sb@example.com",
+        isShareholder: true,
+        isBoard: true,
+        shareholdingPercentage: "12",
+      },
+    });
+    expect(created.partyKey.startsWith("user:")).toBe(true);
+    expect(created.identityNumber).toBeNull();
+    expect(created.isShareholder).toBe(true);
+    expect(created.isBoard).toBe(true);
+  });
+
+  it("still requires identity for Board-only create", async () => {
+    await expect(
+      createUserAddedParty({
+        portal: "issuer",
+        organizationId: "org-1",
+        source: "USER",
+        patch: {
+          name: "Board Only",
+          email: "board@example.com",
+          isBoard: true,
+          designation: "CHIEF_EXECUTIVE_OFFICER",
+          appointmentDate: "2026-09-25",
+        },
+      })
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
   it("creates a >=5% individual shareholder without government ID using user:{uuid}", async () => {
     const created = await createUserAddedParty({
       portal: "issuer",

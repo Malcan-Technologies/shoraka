@@ -86,8 +86,13 @@ export function OnboardingStatusCard({
       resolveCustomerDirectorShareholderEmptyWarning({
         directorShareholderListSource: orgWithPeople.directorShareholderListSource ?? null,
         ctosDirectorShareholderWarning: orgWithPeople.ctosDirectorShareholderWarning ?? null,
+        people: orgWithPeople.people ?? [],
       }),
-    [orgWithPeople.directorShareholderListSource, orgWithPeople.ctosDirectorShareholderWarning]
+    [
+      orgWithPeople.directorShareholderListSource,
+      orgWithPeople.ctosDirectorShareholderWarning,
+      orgWithPeople.people,
+    ]
   );
 
   const isPendingAml = organization.onboardingStatus === "PENDING_AML";

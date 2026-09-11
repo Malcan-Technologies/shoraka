@@ -333,7 +333,7 @@ export type {
 } from "./components/sticky-form-footer";
 export { KeyValueGrid } from "./components/key-value-grid";
 export type { KeyValueGridProps, KeyValueItem } from "./components/key-value-grid";
-export { ProfileReadField, ProfileFieldGrid } from "./components/profile-read-field";
+export { ProfileReadField, ProfileFieldGrid, isProfileReadValueEmpty } from "./components/profile-read-field";
 export type { ProfileReadFieldProps } from "./components/profile-read-field";
 export {
   ProfileFinancialHistory,

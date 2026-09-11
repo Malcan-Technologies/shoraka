@@ -115,6 +115,7 @@ describe("customer person Profile mapping and privacy", () => {
     expect(customerUi).not.toContain("PartyCtosIndicator");
     expect(customerUi).not.toContain("includeCtosEvidence: true");
     expect(section).toContain("resolveCustomerDirectorShareholderEmptyWarning");
+    expect(section).toContain("ctosDirectorShareholderWarning,\n    people,");
     expect(section).not.toContain("resolveDirectorShareholderCtosEmptyWarning");
     expect(overview).toContain("buildCustomerPersonOverviewSections");
   });
@@ -125,5 +126,32 @@ describe("customer person Profile mapping and privacy", () => {
     expect(adminPersonCard).toContain("PartyCtosIndicator");
     expect(adminPeopleDetail).toContain("CtosEvidence");
     expect(adminPeopleDetail).toContain("the latest CTOS information");
+  });
+});
+
+describe("Add company person role-driven onboarding", () => {
+  const forms = readFileSync(join(__dirname, "../portal-person-forms.tsx"), "utf8");
+
+  it("creates then sends RegTank onboarding for Director/Shareholder roles only", () => {
+    const addSaveStart = section.indexOf("api.createManagementParty(portal, organizationId, data)");
+    const addSave = section.slice(addSaveStart, addSaveStart + 1400);
+    expect(addSave).toContain("addCompanyPersonUsesOnboardingFlow");
+    expect(addSave).toContain("send-director-onboarding");
+    expect(addSave).toContain("partyKey: res.data.partyKey");
+    expect(addSave).not.toContain("/members/invite");
+  });
+
+  it("switches helper copy with the selected roles", () => {
+    expect(forms).toContain("ADD_COMPANY_PERSON_ONBOARDING_HELP");
+    expect(forms).toContain("ADD_COMPANY_PERSON_MANUAL_HELP");
+    expect(forms).toContain("onboardingRolesSelected ? ADD_COMPANY_PERSON_ONBOARDING_HELP : ADD_COMPANY_PERSON_MANUAL_HELP");
+  });
+
+  it("keeps existing row-level send/resend and platform invite unchanged", () => {
+    expect(section).toContain("const sendOnboarding = async");
+    expect(section).toContain("Email saved and onboarding link sent");
+    expect(section).toContain("InviteUserDialog");
+    expect(section).toContain("/members/invite");
+    expect(section).toContain("Invite user");
   });
 });
