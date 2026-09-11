@@ -621,6 +621,7 @@ export * from "./person-platform-access";
 export * from "./people-access-rows";
 export * from "./people-access-refresh";
 export * from "./admin-people-access-rows";
+export * from "./admin-people-access-detail";
 export * from "./organisation-profile-tabs";
 export * from "./director-shareholder-single-status-display";
 export * from "./issuer-shareholder-threshold";

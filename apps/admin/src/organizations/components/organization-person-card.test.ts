@@ -63,8 +63,7 @@ describe("Admin People cannot create a Person", () => {
 
 describe("Admin People identity display", () => {
   it("does not show user:{uuid} as government ID and preserves conflict copy", () => {
-    expect(detail).toContain("Identity:");
-    expect(detail).toContain("personIdentityDisplay");
+    expect(detail).toContain("buildAdminPeopleAccessOverviewItems");
     expect(detail).toContain("IDENTITY_CONFLICT_ADMIN_TITLE");
     expect(detail).toContain("Complete profile");
   });

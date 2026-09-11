@@ -60,6 +60,21 @@ describe("Admin People & Access surface", () => {
     expect(detail).not.toContain("Remove access");
   });
 
+  it("presents person detail without raw internal codes or vague sheet copy", () => {
+    expect(panel).toContain('className="sr-only"');
+    expect(panel).not.toContain("Admin evidence and actions for this row.");
+    expect(detail).not.toContain("REGTANK_PARTY");
+    expect(detail).not.toContain("ID_UPLOADED");
+    expect(detail).not.toContain("Complete onboarding first");
+    expect(detail).not.toContain("label=\"Origin\"");
+    expect(detail).not.toContain("label=\"Onboarding ID\"");
+    expect(detail).not.toContain("label=\"Director EOD\"");
+    expect(detail).toContain("adminPersonHasCtosEvidence");
+    expect(detail).toContain("buildAdminPersonRegTankRoleRecords");
+    expect(detail).toContain("record.actionLabel");
+    expect(detail).toContain("Current profile");
+  });
+
   it("uses Approved rather than Verified for KYC on this surface", () => {
     expect(detail).not.toContain("Verified");
     expect(panel).not.toContain("Verified");
@@ -145,8 +160,8 @@ describe("Admin organisation tabs", () => {
     expect(panel).toContain(">AML<");
     expect(detail).toContain('value="kyc"');
     expect(detail).toContain('value="aml"');
-    expect(detail).toContain(">KYC<");
-    expect(detail).toContain(">AML<");
+    expect(detail).toContain("verificationLabel");
+    expect(detail).toContain("Business verification (KYB). Individual KYC is not required.");
     expect(screening).toContain("KYC/AML Screening Result");
     expect(screening).not.toContain("KYB/AML Screening Result");
     expect(screening).not.toContain("Organisation Screening Result");
