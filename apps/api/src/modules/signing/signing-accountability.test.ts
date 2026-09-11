@@ -372,6 +372,114 @@ describe("signing accountability", () => {
     );
   });
 
+  it("finalizes a completed envelope as a system actor when created_by_user_id is an admin", async () => {
+    const envelope = baseEnvelope({
+      created_by_user_id: "admin-1",
+      status: "IN_PROGRESS",
+      documents: [
+        {
+          id: "d1",
+          envelope_id: "env-1",
+          name: "Offer",
+          description: null,
+          source: "GENERATED_OFFER_LETTER",
+          order: 0,
+          required: true,
+          status: "PENDING",
+          provider_contract_ref: "sc-1",
+          unsigned_s3_key: "u",
+          signed_s3_key: "applications/app-1/signed.pdf",
+          signed_file_sha256: "abc",
+          metadata: null,
+          created_at: new Date(),
+          updated_at: new Date(),
+        },
+      ],
+      recipients: [
+        {
+          id: "r1",
+          envelope_id: "env-1",
+          role_key: "issuer_director",
+          role_label: "Director",
+          application_guarantor_id: null,
+          name: "Ali",
+          email: "ali@co.my",
+          ic_number: null,
+          routing_order: 0,
+          kyc_required: true,
+          status: "SENT",
+          access_token_hash: null,
+          access_token_expires_at: null,
+          access_code_verified_at: new Date(),
+          sent_at: new Date(),
+          viewed_at: null,
+          completed_at: null,
+          declined_at: null,
+          decline_reason: null,
+          last_reminder_at: null,
+          metadata: null,
+          created_at: new Date(),
+          updated_at: new Date(),
+        },
+      ],
+      assignments: [
+        {
+          id: "a1",
+          envelope_id: "env-1",
+          document_id: "d1",
+          recipient_id: "r1",
+          required: true,
+          action: "SIGN",
+          status: "PENDING",
+          signed_at: null,
+          signset: null,
+          created_at: new Date(),
+          updated_at: new Date(),
+        },
+      ],
+    } as SigningEnvelopeWithGraph);
+
+    const repo: Partial<SigningRepository> = {
+      findById: jest.fn().mockResolvedValue(envelope),
+      markAssignmentSigned: jest.fn().mockImplementation(async () => {
+        envelope.assignments[0].status = "SIGNED";
+      }),
+      markRecipientViewedIfUnset: jest.fn().mockResolvedValue(undefined),
+      updateRecipientStatus: jest.fn().mockImplementation(async (_id, status) => {
+        envelope.recipients[0].status = status;
+      }),
+      updateDocumentStatus: jest.fn().mockImplementation(async (_id, status) => {
+        envelope.documents[0].status = status;
+      }),
+      updateEnvelopeStatusIfCurrent: jest.fn().mockImplementation(async (_id, _from, next) => {
+        envelope.status = next;
+        return true;
+      }),
+      recordSignedDocument: jest.fn(),
+    };
+    const provider: Partial<SigningProvider> = {
+      name: "test",
+      getContractDetails: jest.fn().mockResolvedValue({
+        documentState: 4,
+        signers: [{ email: "ali@co.my", status: "SIGNED", name: "Ali" }],
+      }),
+    };
+    const service = createService(repo, provider);
+
+    await service.syncEnvelopeFromProvider("env-1", { context: webhookAuditContext() });
+
+    expect(finalizeOffer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        applicationId: "app-1",
+        initiatedByUserId: null,
+        signedFileSha256: "abc",
+      })
+    );
+    expect(finalizeOffer).not.toHaveBeenCalledWith(
+      expect.objectContaining({ initiatedByUserId: "admin-1" })
+    );
+  });
+
   it("records viewed_at from the external link and from provider detail", async () => {
     const recipient = {
       id: "r1",

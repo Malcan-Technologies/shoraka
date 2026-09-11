@@ -2176,6 +2176,22 @@ export class SigningService {
     return this.getEnvelope(envelopeId);
   }
 
+  /** Admin: refresh from SigningCloud without issuer-org membership. */
+  async syncEnvelopeFromProviderForAdmin(
+    envelopeId: string,
+    options?: { context?: AuditRequestContext | null }
+  ): Promise<SigningEnvelopeDto> {
+    const envelope = await this.requireEnvelope(envelopeId);
+    if (
+      envelope.status !== "VOIDED" &&
+      envelope.status !== "DECLINED" &&
+      envelope.status !== "EXPIRED"
+    ) {
+      await this.syncEnvelopeFromProvider(envelopeId, { context: options?.context });
+    }
+    return this.getEnvelope(envelopeId);
+  }
+
   /**
    * Pull live per-signer status from the provider (SigningCloud Get Document Detail)
    * and update assignments by email. Fetches signed PDFs when a document is complete.
@@ -2293,7 +2309,7 @@ export class SigningService {
 
     if (envelope.status === "COMPLETED") {
       envelope = await this.requireEnvelope(envelopeId);
-      await this.finalizeCompletedEnvelopeOffer(envelope);
+      await this.tryFinalizeCompletedEnvelopeOffer(envelope);
     }
 
     if (detailAttempts > 0 && detailFailures === detailAttempts) {
@@ -2391,7 +2407,7 @@ export class SigningService {
           portal: null,
           context: options?.context ?? internalAuditContext(),
         });
-        await this.finalizeCompletedEnvelopeOffer(envelope);
+        await this.tryFinalizeCompletedEnvelopeOffer(envelope);
       } else if (nextEnvelopeStatus === "DECLINED") {
         await this.logSigningPackageActivity({
           userId: null,
@@ -2406,11 +2422,26 @@ export class SigningService {
     }
   }
 
+  private async tryFinalizeCompletedEnvelopeOffer(
+    envelope: SigningEnvelopeWithGraph
+  ): Promise<void> {
+    try {
+      await this.finalizeCompletedEnvelopeOffer(envelope);
+    } catch (err) {
+      logger.error(
+        { err, envelopeId: envelope.id },
+        "Failed to finalize offer after signing envelope completion"
+      );
+    }
+  }
+
   private async finalizeCompletedEnvelopeOffer(envelope: SigningEnvelopeWithGraph): Promise<void> {
-    const initiatedByUserId = envelope.created_by_user_id;
     const signedDocument = pickPrimarySignedOfferDocument(envelope.documents);
     if (!signedDocument?.signed_s3_key || !signedDocument.signed_file_sha256) {
-      logger.warn({ envelopeId: envelope.id }, "Skipping offer finalization because no signed document is available");
+      logger.warn(
+        { envelopeId: envelope.id },
+        "Skipping offer finalization because no signed document is available"
+      );
       return;
     }
 
@@ -2418,7 +2449,7 @@ export class SigningService {
       applicationId: envelope.application_id,
       contractId: envelope.contract_id,
       invoiceId: envelope.invoice_id,
-      initiatedByUserId,
+      initiatedByUserId: null,
       signedOfferLetterS3Key: signedDocument.signed_s3_key,
       signedFileSha256: signedDocument.signed_file_sha256,
     });

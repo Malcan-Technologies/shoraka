@@ -450,6 +450,125 @@ describe("signing lifecycle", () => {
     expect(finalizeOffer).toHaveBeenCalled();
   });
 
+  it("stores a missing signed PDF when rollup finalization rejects", async () => {
+    const envelope = baseEnvelope({
+      status: "IN_PROGRESS",
+      documents: [
+        documentRow({
+          id: "offer",
+          name: "Offer Letter",
+          source: "GENERATED_OFFER_LETTER",
+          order: 0,
+          status: "PENDING",
+          provider_contract_ref: "sc-offer",
+          signed_s3_key: "applications/app-1/signing/env-1/offer.pdf",
+          signed_file_sha256: "offer-sha",
+        }),
+        documentRow({
+          id: "d2",
+          name: "Deed of Assignment",
+          template_ref: "deed_of_assignment",
+          order: 1,
+          status: "PENDING",
+          provider_contract_ref: "sc-2",
+          signed_s3_key: null,
+        }),
+      ],
+      recipients: [recipientRow()],
+      assignments: [
+        assignmentRow({
+          id: "a-offer",
+          document_id: "offer",
+          status: "PENDING",
+        }),
+        assignmentRow({
+          id: "a2",
+          document_id: "d2",
+          status: "PENDING",
+        }),
+      ],
+    });
+    const recordSignedDocument = jest.fn().mockImplementation(async (id, key, sha256) => {
+      const document = envelope.documents.find((row) => row.id === id);
+      if (!document) return;
+      document.signed_s3_key = key;
+      document.signed_file_sha256 = sha256;
+    });
+    const repo: Partial<SigningRepository> = {
+      findById: jest.fn().mockResolvedValue(envelope),
+      recordSignedDocument,
+      markAssignmentSigned: jest.fn().mockImplementation(async (id) => {
+        const assignment = envelope.assignments.find((row) => row.id === id);
+        if (assignment) assignment.status = "SIGNED";
+      }),
+      markRecipientViewedIfUnset: jest.fn(),
+      updateRecipientStatus: jest.fn().mockImplementation(async (_id, status) => {
+        envelope.recipients[0].status = status;
+      }),
+      updateDocumentStatus: jest.fn().mockImplementation(async (id, status) => {
+        const document = envelope.documents.find((row) => row.id === id);
+        if (document) document.status = status;
+      }),
+      updateEnvelopeStatusIfCurrent: jest.fn().mockImplementation(async (_id, _from, next) => {
+        envelope.status = next;
+        return true;
+      }),
+    };
+    const fetchSignedDocument = jest.fn().mockImplementation(async ({ providerRef }: { providerRef: string }) => {
+      if (providerRef === "sc-2") {
+        return { pdfBuffer: Buffer.from("%PDF-missing"), sha256: "missing-sha" };
+      }
+      return { pdfBuffer: Buffer.from("%PDF-offer"), sha256: "offer-sha" };
+    });
+    finalizeOffer.mockRejectedValue(new Error("issuer org membership required"));
+    const service = createService(repo, {
+      name: "test",
+      getContractDetails: jest.fn().mockResolvedValue({
+        documentState: 4,
+        signers: [{ email: "signer@example.com", status: "SIGNED", name: "Ali" }],
+      }),
+      fetchSignedDocument,
+      createDocumentContract: jest.fn(),
+      startSignerSession: jest.fn(),
+    });
+
+    await expect(service.syncEnvelopeFromProvider("env-1")).resolves.toBeUndefined();
+
+    expect(envelope.status).toBe("COMPLETED");
+    expect(finalizeOffer).toHaveBeenCalled();
+    expect(fetchSignedDocument).toHaveBeenCalledWith({ providerRef: "sc-2" });
+    expect(putS3ObjectBuffer).toHaveBeenCalledWith({
+      key: "applications/app-1/signing/env-1/d2.pdf",
+      body: Buffer.from("%PDF-missing"),
+      contentType: "application/pdf",
+    });
+    expect(recordSignedDocument).toHaveBeenCalledWith(
+      "d2",
+      "applications/app-1/signing/env-1/d2.pdf",
+      "missing-sha",
+      "COMPLETED"
+    );
+  });
+
+  it("admin provider sync skips issuer access and closed envelopes", async () => {
+    const completed = baseEnvelope({ status: "COMPLETED" });
+    const voided = baseEnvelope({ id: "env-void", status: "VOIDED" });
+    const findById = jest.fn().mockImplementation(async (id: string) => {
+      return id === "env-void" ? voided : completed;
+    });
+    const service = createService({ findById });
+    const sync = jest.spyOn(service, "syncEnvelopeFromProvider").mockResolvedValue(undefined);
+    const context = { source: "API", portal: "ADMIN", actorUserId: "admin-1" } as never;
+
+    const dto = await service.syncEnvelopeFromProviderForAdmin("env-1", { context });
+    expect(sync).toHaveBeenCalledWith("env-1", { context });
+    expect(dto.id).toBe("env-1");
+
+    sync.mockClear();
+    await service.syncEnvelopeFromProviderForAdmin("env-void", { context });
+    expect(sync).not.toHaveBeenCalled();
+  });
+
   it("ignores webhooks for voided envelopes", async () => {
     const envelope = baseEnvelope({ status: "VOIDED" });
     const getContractDetails = jest.fn();

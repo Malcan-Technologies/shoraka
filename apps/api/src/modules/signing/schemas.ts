@@ -57,4 +57,8 @@ export const remindRecipientSchema = z.object({
   documentId: z.string().min(1).optional(),
 });
 
+export const envelopeIdParamsSchema = z.object({
+  id: z.string().trim().min(1),
+});
+
 export type SendAdminSigningPackageBody = z.infer<typeof sendAdminSigningPackageSchema>;

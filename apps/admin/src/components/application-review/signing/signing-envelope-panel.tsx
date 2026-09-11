@@ -17,9 +17,11 @@ import { SigningProgressMatrix } from "./signing-progress-matrix";
 import {
   useAdminSigningEnvelopes,
   useSendAdminSigningPackage,
+  useSyncAdminSigningEnvelope,
   useVoidSigningEnvelope,
   useRemindSigningRecipient,
 } from "@/hooks/use-signing-envelopes";
+import { canResyncAdminSigningEnvelope } from "./signing-envelope-resync";
 import { useAdminSigningDocumentPreview } from "@/hooks/use-admin-signing-document-preview";
 import {
   computeSigningEnvelopeProgress,
@@ -164,6 +166,7 @@ export function SigningEnvelopePanel({
 }: SigningEnvelopePanelProps) {
   const { data: envelopes = [], isLoading } = useAdminSigningEnvelopes(applicationId);
   const sendMutation = useSendAdminSigningPackage(applicationId);
+  const syncMutation = useSyncAdminSigningEnvelope(applicationId);
   const voidMutation = useVoidSigningEnvelope(applicationId);
   const remindMutation = useRemindSigningRecipient(applicationId);
   const { previewPendingKey, handlePreview, handleDownload } =
@@ -218,6 +221,15 @@ export function SigningEnvelopePanel({
       absolute: formatPhaseDeadlineAbsolute(completeByIso),
     };
   }, [workflow, extendConfirmOpen]);
+
+  const handleResync = async (envelopeId: string) => {
+    try {
+      await syncMutation.mutateAsync(envelopeId);
+      toast.success("Signing package synced");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to re-sync");
+    }
+  };
 
   const handleVoid = async (envelopeId: string) => {
     try {
@@ -439,7 +451,9 @@ export function SigningEnvelopePanel({
           canManage={canManage}
           canRemind={canRemindPrimary}
           remindDisabled={remindMutation.isPending}
+          resyncDisabled={syncMutation.isPending}
           voidDisabled={voidMutation.isPending}
+          onResync={() => handleResync(primary.id)}
           onVoid={() => handleVoid(primary.id)}
           onRemind={(recipientId, documentId) => handleRemind(primary.id, recipientId, documentId)}
           onResendReminders={canRemindPrimary ? handleResendReminders : undefined}
@@ -625,7 +639,9 @@ function ActiveEnvelopeCard({
   canManage,
   canRemind,
   remindDisabled,
+  resyncDisabled,
   voidDisabled,
+  onResync,
   onVoid,
   onRemind,
   onResendReminders,
@@ -639,7 +655,9 @@ function ActiveEnvelopeCard({
   canManage: boolean;
   canRemind: boolean;
   remindDisabled: boolean;
+  resyncDisabled: boolean;
   voidDisabled: boolean;
+  onResync: () => void;
   onVoid: () => void;
   onRemind: (recipientId: string, documentId: string) => void;
   onResendReminders?: () => void;
@@ -651,6 +669,7 @@ function ActiveEnvelopeCard({
 }) {
   const canVoid =
     canManage && envelope.status !== "COMPLETED" && envelope.status !== "VOIDED";
+  const canResync = canResyncAdminSigningEnvelope(canManage, envelope.status);
   const unsignedCount = envelope.recipients.filter(
     (recipient) => recipient.status !== "SIGNED" && recipient.status !== "DECLINED"
   ).length;
@@ -665,10 +684,25 @@ function ActiveEnvelopeCard({
             status={getAdminStatusToken(envelope.status)}
           />
         </div>
-        {canVoid ? (
-          <Button size="sm" variant="outline" onClick={onVoid} disabled={voidDisabled}>
-            Void
-          </Button>
+        {canResync || canVoid ? (
+          <div className="flex shrink-0 items-center gap-2">
+            {canResync ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={onResync}
+                disabled={resyncDisabled}
+              >
+                Re-sync
+              </Button>
+            ) : null}
+            {canVoid ? (
+              <Button size="sm" variant="outline" onClick={onVoid} disabled={voidDisabled}>
+                Void
+              </Button>
+            ) : null}
+          </div>
         ) : null}
       </div>
 

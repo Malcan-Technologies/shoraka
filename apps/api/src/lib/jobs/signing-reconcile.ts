@@ -1,5 +1,6 @@
 /**
- * Reconcile signing envelopes stuck without stored PDFs and stale trust-return sessions.
+ * Reconcile signing envelopes stuck without stored PDFs, completed envelopes
+ * still linked to an OFFER_SENT contract/invoice, and stale trust-return sessions.
  */
 import { prisma } from "../prisma";
 import { Prisma } from "@prisma/client";
@@ -8,10 +9,17 @@ import { systemAuditContext } from "../audit";
 import { signingService } from "../../modules/signing/service";
 
 export type SigningReconcileResult = {
+  /** COMPLETED envelopes missing a signed PDF that were synced. */
   syncedEnvelopeIds: string[];
+  /** OFFER_SENT candidates whose linked contract/invoice left OFFER_SENT after sync. */
+  finalizedEnvelopeIds: string[];
   pdfStoredDocumentIds: string[];
   staleTrustReturnRecipientIds: string[];
   errors: string[];
+};
+
+const OFFER_SENT_RELATION: Prisma.SigningEnvelopeWhereInput = {
+  OR: [{ contract: { status: "OFFER_SENT" } }, { invoice: { status: "OFFER_SENT" } }],
 };
 
 const TRUST_RETURN_SESSION_MAX_MS = 2 * 60 * 60 * 1000;
@@ -26,9 +34,23 @@ function readTrustReturnStartedAt(metadata: unknown): number | null {
   return Number.isFinite(ms) ? ms : null;
 }
 
+function uniqueEnvelopeRows(...groups: Array<Array<{ id: string }>>): Array<{ id: string }> {
+  const seen = new Set<string>();
+  const rows: Array<{ id: string }> = [];
+  for (const group of groups) {
+    for (const row of group) {
+      if (seen.has(row.id)) continue;
+      seen.add(row.id);
+      rows.push(row);
+    }
+  }
+  return rows;
+}
+
 export async function runSigningReconcileJob(): Promise<SigningReconcileResult> {
   const result: SigningReconcileResult = {
     syncedEnvelopeIds: [],
+    finalizedEnvelopeIds: [],
     pdfStoredDocumentIds: [],
     staleTrustReturnRecipientIds: [],
     errors: [],
@@ -48,16 +70,37 @@ export async function runSigningReconcileJob(): Promise<SigningReconcileResult> 
     select: { id: true },
   });
 
+  const completedOfferSent = await prisma.signingEnvelope.findMany({
+    where: {
+      status: "COMPLETED",
+      ...OFFER_SENT_RELATION,
+    },
+    select: { id: true },
+  });
+
+  const missingPdfIds = new Set(completedWithoutPdf.map((row) => row.id));
+  const offerSentIds = new Set(completedOfferSent.map((row) => row.id));
+  const rows = uniqueEnvelopeRows(completedWithoutPdf, completedOfferSent);
+
   const jobContext = systemAuditContext({ correlationId: "cron:signing-reconcile" });
 
-  for (const row of completedWithoutPdf) {
+  for (const row of rows) {
     try {
       await signingService.syncEnvelopeFromProvider(row.id, { context: jobContext });
-      result.syncedEnvelopeIds.push(row.id);
+      if (missingPdfIds.has(row.id)) result.syncedEnvelopeIds.push(row.id);
+      if (offerSentIds.has(row.id)) {
+        const stillOfferSent = await prisma.signingEnvelope.findFirst({
+          where: { id: row.id, ...OFFER_SENT_RELATION },
+          select: { id: true },
+        });
+        if (stillOfferSent) {
+          result.errors.push(`finalize ${row.id}: offer still OFFER_SENT after sync`);
+        } else {
+          result.finalizedEnvelopeIds.push(row.id);
+        }
+      }
     } catch (err) {
-      result.errors.push(
-        `sync ${row.id}: ${err instanceof Error ? err.message : String(err)}`
-      );
+      result.errors.push(`sync ${row.id}: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
@@ -89,6 +132,7 @@ export async function runSigningReconcileJob(): Promise<SigningReconcileResult> 
 
   if (
     result.syncedEnvelopeIds.length > 0 ||
+    result.finalizedEnvelopeIds.length > 0 ||
     result.staleTrustReturnRecipientIds.length > 0 ||
     result.errors.length > 0
   ) {

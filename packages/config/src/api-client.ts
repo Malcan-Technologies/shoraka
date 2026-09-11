@@ -3328,6 +3328,16 @@ export class ApiClient {
     );
   }
 
+  /** Admin: refresh envelope statuses from SigningCloud document detail. */
+  async syncAdminSigningEnvelopeFromProvider(
+    envelopeId: string
+  ): Promise<ApiResponse<SigningEnvelopeDto> | ApiError> {
+    return this.post<SigningEnvelopeDto>(
+      `/v1/admin/signing/envelopes/${envelopeId}/sync-from-provider`,
+      {}
+    );
+  }
+
   /** Admin: list all envelopes for an application. */
   async getAdminSigningEnvelopes(
     applicationId: string

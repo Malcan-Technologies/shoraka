@@ -19,6 +19,7 @@ import {
   verifyExternalAccessCodeSchema,
   recipientEkycSessionSchema,
   remindRecipientSchema,
+  envelopeIdParamsSchema,
 } from "./schemas";
 
 const signedDocumentParamsSchema = z.object({
@@ -254,6 +255,20 @@ async function syncEnvelopeFromProvider(req: Request, res: Response, next: NextF
   }
 }
 
+async function syncEnvelopeFromProviderForAdmin(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = envelopeIdParamsSchema.parse(req.params);
+    ok(
+      res,
+      await signingService.syncEnvelopeFromProviderForAdmin(id, {
+        context: auditContextFromRequest(req, { res, portal: AUDIT_PORTAL.ADMIN }),
+      })
+    );
+  } catch (e) {
+    next(e);
+  }
+}
+
 async function sendSignedDocument(
   res: Response,
   buffer: Buffer,
@@ -321,6 +336,7 @@ export function createSigningAdminRouter(): Router {
   const router = Router();
   router.post("/applications/:applicationId/envelopes/send", sendAdminSigningPackage);
   router.post("/envelopes/:id/void", voidEnvelope);
+  router.post("/envelopes/:id/sync-from-provider", syncEnvelopeFromProviderForAdmin);
   router.post("/envelopes/:id/recipients/:recipientId/remind", remindRecipient);
   router.get("/envelopes/:id", async (req, res, next) => {
     try {

@@ -41,6 +41,7 @@ import { ApplicationStatusBadge } from "@/components/application-review";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useContractDetail } from "@/contracts/hooks/use-contract-detail";
+import { resolveOfferRespondedByLabel } from "@/contracts/utils/offer-responded-by";
 import { useAdminS3DocumentViewDownload } from "@/hooks/use-admin-s3-document-view-download";
 import {
   CONTRACT_EMPTY_LABEL,
@@ -774,7 +775,10 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
                         />
                         <ContractDetailRow
                           label="Responded by"
-                          value={data.offerRespondedByUserName ?? "No response yet"}
+                          value={resolveOfferRespondedByLabel(
+                            data.offerRespondedByUserName,
+                            data.offerDetails?.responded_at
+                          )}
                         />
                       </div>
                     </div>

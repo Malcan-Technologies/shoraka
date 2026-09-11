@@ -213,6 +213,39 @@ describe("SigningController", () => {
       );
     });
 
+    it("POST /envelopes/:id/sync-from-provider uses admin audit context", async () => {
+      const authedAdmin = express();
+      authedAdmin.use(express.json());
+      authedAdmin.use((req: Request, _res: Response, next: NextFunction) => {
+        req.user = { ...mockUser, roles: [UserRole.ADMIN] };
+        next();
+      });
+      authedAdmin.use("/v1/admin/signing", createSigningAdminRouter());
+      authedAdmin.use((err: Error & { statusCode?: number }, _req: Request, res: Response, _next: NextFunction) => {
+        res.status(err.statusCode || 500).json({
+          success: false,
+          error: { message: err.message },
+        });
+      });
+
+      (signingService.syncEnvelopeFromProviderForAdmin as jest.Mock).mockResolvedValue({
+        id: "env-1",
+        status: "COMPLETED",
+      });
+      const res = await request(authedAdmin).post("/v1/admin/signing/envelopes/env-1/sync-from-provider");
+      expect(res.status).toBe(200);
+      expect(signingService.syncEnvelopeFromProviderForAdmin).toHaveBeenCalledWith(
+        "env-1",
+        expect.objectContaining({
+          context: expect.objectContaining({
+            source: "API",
+            portal: "ADMIN",
+            actorUserId: "user-1",
+          }),
+        })
+      );
+    });
+
     it("GET document preview returns a merged PDF", async () => {
       const authedAdmin = express();
       authedAdmin.use(express.json());

@@ -1,6 +1,6 @@
 /**
  * Admin data hooks for multi-party signing envelopes: list per application plus
- * send / void / remind mutations. Mirrors the review-actions hook pattern.
+ * send / sync / void / remind mutations. Mirrors the review-actions hook pattern.
  */
 "use client";
 
@@ -71,6 +71,26 @@ export function useSendAdminSigningPackage(applicationId: string) {
       await queryClient.refetchQueries({
         queryKey: applicationsKeys.detail(applicationId),
       });
+    },
+    onError: () => {
+      invalidateAfterSigningMutation(queryClient, applicationId);
+    },
+  });
+}
+
+export function useSyncAdminSigningEnvelope(applicationId: string) {
+  const { getAccessToken } = useAuthToken();
+  const queryClient = useQueryClient();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+
+  return useMutation({
+    mutationFn: async (envelopeId: string): Promise<SigningEnvelopeDto> => {
+      const response = await apiClient.syncAdminSigningEnvelopeFromProvider(envelopeId);
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+    onSuccess: () => {
+      invalidateAfterSigningMutation(queryClient, applicationId);
     },
     onError: () => {
       invalidateAfterSigningMutation(queryClient, applicationId);

@@ -23,3 +23,26 @@ aws sts get-caller-identity --profile cashsouk
 Expected ARN: `arn:aws:iam::652821469470:user/cli-admin`
 
 Never print, commit, or copy the secret key. If auth fails, check that profile and the credentials file — do not fall back to root login unless asked.
+
+# Prod Postgres — cashsouk-prod-db
+
+Reachable from this machine (RDS is publicly accessible). Do not print, commit, or echo the password.
+
+- Host: `cashsouk-prod-db.c5ayu8mwom04.ap-southeast-5.rds.amazonaws.com`
+- Port: `5432`
+- Database: `cashsouk`
+- Username: `cashsouk_admin`
+- SSL: `sslmode=require`
+- Password: RDS-managed secret `rds!db-71798d0b-adc4-4acb-a5e7-0a3275e77182` in Secrets Manager (`ap-southeast-5`). Fetch at use time:
+
+```bash
+aws secretsmanager get-secret-value \
+  --profile cashsouk \
+  --region ap-southeast-5 \
+  --secret-id "rds!db-71798d0b-adc4-4acb-a5e7-0a3275e77182" \
+  --query SecretString --output text
+```
+
+JSON has `username` + `password`. App connection string (different user) is secret `cashsouk/database-url`.
+
+When the user asks to inspect prod data, connect with these details. Mask PII in replies. Prefer read-only `SELECT`s unless asked to repair.
