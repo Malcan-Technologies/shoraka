@@ -28,8 +28,15 @@ import { formatCurrency, resolveOfferedAmount, resolveRequestedInvoiceAmount } f
 import {
   formatFinancingTenureDaysLabel,
   parseFinancingTenureDays,
+  parseInvoiceOfferCampaignSector,
+  parseInvoiceOfferCompanyCategory,
+  parseInvoiceOfferSustainabilityCategory,
   isValidFinancingTenureDays,
   readInvoiceProductRules,
+  SC_CAMPAIGN_SECTOR_LABELS,
+  SC_COMPANY_CATEGORY_LABELS,
+  SC_MONTHLY_CAMPAIGN,
+  SC_SUSTAINABILITY_CATEGORY_LABELS,
   type InvoiceProductRules,
 } from "@cashsouk/types";
 import { parseFacilityAmount } from "@/contracts/utils/contract-facility-metrics";
@@ -191,6 +198,23 @@ function invoiceDocument(details: unknown) {
   return d?.document as { s3_key?: string; file_name?: string; file_size?: number } | undefined;
 }
 
+function invoiceSubmittedCompanyCategoryLabel(invoice: { details?: unknown } | undefined): string {
+  const value = parseInvoiceOfferCompanyCategory(invoice?.details);
+  return value ? SC_COMPANY_CATEGORY_LABELS[value] : REVIEW_EMPTY_LABEL;
+}
+
+function invoiceSubmittedCampaignSectorLabel(invoice: { details?: unknown } | undefined): string {
+  const value = parseInvoiceOfferCampaignSector(invoice?.details);
+  return value ? SC_CAMPAIGN_SECTOR_LABELS[value] : REVIEW_EMPTY_LABEL;
+}
+
+function invoiceSubmittedSustainabilityCategoryLabel(
+  invoice: { details?: unknown } | undefined
+): string {
+  const value = parseInvoiceOfferSustainabilityCategory(invoice?.details);
+  return value ? SC_SUSTAINABILITY_CATEGORY_LABELS[value] : REVIEW_EMPTY_LABEL;
+}
+
 function InvoiceStackedFields({
   invoice,
   onViewDocument,
@@ -226,6 +250,21 @@ function InvoiceStackedFields({
       <div className={reviewValueClass}>{invoiceFinancingRatioDisplay(invoice)}</div>
       <Label className={reviewLabelClass}>Financing amount</Label>
       <div className={reviewValueClass}>{invoiceFinancingAmountDisplay(invoice)}</div>
+      <Label className={reviewLabelClass}>{SC_MONTHLY_CAMPAIGN.companyCategory.label}</Label>
+      <div className={reviewValueClass} aria-label={SC_MONTHLY_CAMPAIGN.companyCategory.label}>
+        {invoiceSubmittedCompanyCategoryLabel(invoice)}
+      </div>
+      <Label className={reviewLabelClass}>{SC_MONTHLY_CAMPAIGN.campaignSector.label}</Label>
+      <div className={reviewValueClass} aria-label={SC_MONTHLY_CAMPAIGN.campaignSector.label}>
+        {invoiceSubmittedCampaignSectorLabel(invoice)}
+      </div>
+      <Label className={reviewLabelClass}>{SC_MONTHLY_CAMPAIGN.sustainabilityCategory.label}</Label>
+      <div
+        className={reviewValueClass}
+        aria-label={SC_MONTHLY_CAMPAIGN.sustainabilityCategory.label}
+      >
+        {invoiceSubmittedSustainabilityCategoryLabel(invoice)}
+      </div>
       <Label className={reviewLabelClass}>Document</Label>
       <div className="flex min-w-0 items-start justify-between gap-3 rounded-xl border border-input bg-background px-4 py-3">
         <div className="min-w-0">
@@ -376,6 +415,24 @@ export function InvoiceSection({
                       label="Financing Amount"
                       before={bOffAmt > 0 ? formatCurrency(bOffAmt) : REVIEW_EMPTY_LABEL}
                       after={aOffAmt > 0 ? formatCurrency(aOffAmt) : REVIEW_EMPTY_LABEL}
+                      changed={changed}
+                    />
+                    <ComparisonFieldRow
+                      label={SC_MONTHLY_CAMPAIGN.companyCategory.label}
+                      before={invoiceSubmittedCompanyCategoryLabel(bInv)}
+                      after={invoiceSubmittedCompanyCategoryLabel(aInv)}
+                      changed={changed}
+                    />
+                    <ComparisonFieldRow
+                      label={SC_MONTHLY_CAMPAIGN.campaignSector.label}
+                      before={invoiceSubmittedCampaignSectorLabel(bInv)}
+                      after={invoiceSubmittedCampaignSectorLabel(aInv)}
+                      changed={changed}
+                    />
+                    <ComparisonFieldRow
+                      label={SC_MONTHLY_CAMPAIGN.sustainabilityCategory.label}
+                      before={invoiceSubmittedSustainabilityCategoryLabel(bInv)}
+                      after={invoiceSubmittedSustainabilityCategoryLabel(aInv)}
                       changed={changed}
                     />
                     <ComparisonDocumentTitleRow

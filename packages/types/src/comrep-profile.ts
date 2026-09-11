@@ -215,7 +215,7 @@ export function parseInvoiceOfferSustainabilityCategory(
 
 /**
  * Authoritative Company category for an invoice/campaign.
- * Offer freeze wins after Admin send/correction; otherwise issuer-submitted invoice.details.
+ * Offer freeze wins after send (copied from issuer-submitted invoice.details); otherwise invoice.details.
  * Never read IssuerOrganization.company_category.
  */
 export function resolveInvoiceCompanyCategory(invoice: {
@@ -230,7 +230,7 @@ export function resolveInvoiceCompanyCategory(invoice: {
 
 /**
  * Authoritative Sustainability Category of the Campaign for an invoice/campaign.
- * Offer freeze wins after Admin send/correction; otherwise issuer-submitted invoice.details.
+ * Offer freeze wins after send (copied from issuer-submitted invoice.details); otherwise invoice.details.
  * Do not default to 00 – None.
  */
 export function resolveInvoiceSustainabilityCategory(invoice: {
@@ -328,7 +328,7 @@ export function parseInvoiceOfferCampaignSector(offer: unknown): ScCampaignSecto
 
 /**
  * Authoritative Campaign Sector for an invoice/campaign.
- * Offer freeze wins after Admin send/correction; otherwise issuer-submitted invoice.details.
+ * Offer freeze wins after send (copied from issuer-submitted invoice.details); otherwise invoice.details.
  * Never read issuer Industry / profile.
  */
 export function resolveInvoiceCampaignSector(invoice: {

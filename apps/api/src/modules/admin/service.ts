@@ -144,9 +144,6 @@ import {
   type ScCompanyCategory,
   type ScCampaignSector,
   type ScSustainabilityCategory,
-  isScCompanyCategory,
-  isScCampaignSector,
-  isScSustainabilityCategory,
   parseInvoiceOfferCompanyCategory,
   parseInvoiceOfferCampaignSector,
   parseInvoiceOfferSustainabilityCategory,
@@ -9360,7 +9357,7 @@ export class AdminService {
       additionalFees?: AdditionalFeeLine[];
     },
     financingTenureDays?: number,
-    campaignClassification?: {
+    _campaignClassification?: {
       companyCategory: ScCompanyCategory;
       sustainabilityCategory: ScSustainabilityCategory;
       campaignSector?: ScCampaignSector | null;
@@ -9609,31 +9606,9 @@ export class AdminService {
         { applicationId, invoiceId, riskRating, marcSuggestedGrade: marc.creditGrade },
         "Saving invoice offer risk rating"
       );
-      const companyCategory =
-        campaignClassification?.companyCategory ??
-        parseInvoiceOfferCompanyCategory(previousOffer) ??
-        parseInvoiceOfferCompanyCategory(details);
-      const sustainabilityCategory =
-        campaignClassification?.sustainabilityCategory ??
-        parseInvoiceOfferSustainabilityCategory(previousOffer) ??
-        parseInvoiceOfferSustainabilityCategory(details);
-      const campaignSector =
-        campaignClassification?.campaignSector ??
-        parseInvoiceOfferCampaignSector(previousOffer) ??
-        parseInvoiceOfferCampaignSector(details);
-      if (companyCategory && !isScCompanyCategory(companyCategory)) {
-        throw new AppError(
-          400,
-          "INVALID_INPUT",
-          "Company category must be Technology or Non-Technology"
-        );
-      }
-      if (campaignSector && !isScCampaignSector(campaignSector)) {
-        throw new AppError(400, "INVALID_INPUT", "Campaign sector is invalid");
-      }
-      if (sustainabilityCategory && !isScSustainabilityCategory(sustainabilityCategory)) {
-        throw new AppError(400, "INVALID_INPUT", "Sustainability category is invalid");
-      }
+      const companyCategory = parseInvoiceOfferCompanyCategory(details);
+      const campaignSector = parseInvoiceOfferCampaignSector(details);
+      const sustainabilityCategory = parseInvoiceOfferSustainabilityCategory(details);
       const offerDetails: Record<string, unknown> = {
         requested_amount: requestedAmount,
         offered_amount: offeredAmount,

@@ -19,9 +19,6 @@ import {
   getOfferPhaseDeadlineDisplay,
   isReservedCapacityInvoiceStatus,
   isMarcSmeGrade,
-  isScCampaignSector,
-  isScCompanyCategory,
-  isScSustainabilityCategory,
   isValidFinancingTenureDays,
   MARC_ASSESSMENT_REQUIRED_MESSAGE,
   MARC_SME_GRADES,
@@ -29,21 +26,15 @@ import {
   parseInvoiceOfferCampaignSector,
   parseInvoiceOfferCompanyCategory,
   parseInvoiceOfferSustainabilityCategory,
-  resolveInvoiceCampaignSector,
-  resolveInvoiceCompanyCategory,
-  resolveInvoiceSustainabilityCategory,
   previewAcceptanceDeadlineFromWorkflow,
   readProductLimitViolationMessage,
   resolveDefaultInvoiceRiskRating,
   resolveFinancingTenureDays,
   validateFinancingTenureAgainstDueDate,
   validateInvoiceAgainstProductRules,
-  SC_CAMPAIGN_SECTORS,
   SC_CAMPAIGN_SECTOR_LABELS,
-  SC_COMPANY_CATEGORIES,
   SC_COMPANY_CATEGORY_LABELS,
   SC_MONTHLY_CAMPAIGN,
-  SC_SUSTAINABILITY_CATEGORIES,
   SC_SUSTAINABILITY_CATEGORY_LABELS,
   type InvoiceProductRules,
   type MarcSmeGrade,
@@ -284,37 +275,9 @@ export function InvoiceOfferPanel({
     setRiskRating(initialRisk);
   }, [initialRisk]);
 
-  const initialCompanyCategory = React.useMemo(
-    () => resolveInvoiceCompanyCategory(invoice),
-    [invoice]
-  );
-  const [companyCategory, setCompanyCategory] = React.useState<ScCompanyCategory | null>(
-    initialCompanyCategory
-  );
-  React.useEffect(() => {
-    setCompanyCategory(initialCompanyCategory);
-  }, [initialCompanyCategory]);
-
-  const initialCampaignSector = React.useMemo(
-    () => resolveInvoiceCampaignSector(invoice),
-    [invoice]
-  );
-  const [campaignSector, setCampaignSector] = React.useState<ScCampaignSector | null>(
-    initialCampaignSector
-  );
-  React.useEffect(() => {
-    setCampaignSector(initialCampaignSector);
-  }, [initialCampaignSector]);
-
-  const initialSustainabilityCategory = React.useMemo(
-    () => resolveInvoiceSustainabilityCategory(invoice),
-    [invoice]
-  );
-  const [sustainabilityCategory, setSustainabilityCategory] =
-    React.useState<ScSustainabilityCategory | null>(initialSustainabilityCategory);
-  React.useEffect(() => {
-    setSustainabilityCategory(initialSustainabilityCategory);
-  }, [initialSustainabilityCategory]);
+  const companyCategory = parseInvoiceOfferCompanyCategory(invoice.details);
+  const campaignSector = parseInvoiceOfferCampaignSector(invoice.details);
+  const sustainabilityCategory = parseInvoiceOfferSustainabilityCategory(invoice.details);
 
   const initialTenureDays = React.useMemo(() => {
     const fromOffer = parseFinancingTenureDays(
@@ -538,15 +501,21 @@ export function InvoiceOfferPanel({
       return;
     }
     if (!invoiceOfferConfirm.company_category) {
-      alert("Select Technology or Non-Technology for this invoice.");
+      alert(
+        "Company category is missing from the submitted invoice. Use Request Amendment so the issuer can correct it."
+      );
       return;
     }
     if (!invoiceOfferConfirm.campaign_sector) {
-      alert("Select a Campaign Sector.");
+      alert(
+        "Campaign Sector is missing from the submitted invoice. Use Request Amendment so the issuer can correct it."
+      );
       return;
     }
     if (!invoiceOfferConfirm.sustainability_category) {
-      alert("Select a sustainability category for this invoice.");
+      alert(
+        "Sustainability Category of the Campaign is missing from the submitted invoice. Use Request Amendment so the issuer can correct it."
+      );
       return;
     }
     if (offerDisable.disabled || invoiceOfferConfirmBlocked || !applicationId) {
@@ -651,93 +620,6 @@ export function InvoiceOfferPanel({
               </Button>
             ) : null}
           </div>
-        )}
-
-        <Label className={reviewLabelClass}>Company category</Label>
-        {isOfferSent ? (
-          <div className={reviewValueClass}>
-            {(() => {
-              const raw = parseInvoiceOfferCompanyCategory(invoice.offer_details);
-              return raw ? SC_COMPANY_CATEGORY_LABELS[raw] : REVIEW_EMPTY_LABEL;
-            })()}
-          </div>
-        ) : (
-          <Select
-            value={companyCategory ?? undefined}
-            onValueChange={(value) => {
-              if (isScCompanyCategory(value)) setCompanyCategory(value);
-            }}
-            disabled={controlsDisabled}
-          >
-            <SelectTrigger aria-label="Company category" className={RISK_RATING_CONTROL_WIDTH_CLASS}>
-              <SelectValue placeholder="Select" />
-            </SelectTrigger>
-            <SelectContent>
-              {SC_COMPANY_CATEGORIES.map((value) => (
-                <SelectItem key={value} value={value}>
-                  {SC_COMPANY_CATEGORY_LABELS[value]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-
-        <Label className={reviewLabelClass}>{SC_MONTHLY_CAMPAIGN.campaignSector.label}</Label>
-        {isOfferSent ? (
-          <div className={reviewValueClass}>
-            {(() => {
-              const raw = parseInvoiceOfferCampaignSector(invoice.offer_details);
-              return raw ? SC_CAMPAIGN_SECTOR_LABELS[raw] : REVIEW_EMPTY_LABEL;
-            })()}
-          </div>
-        ) : (
-          <Select
-            value={campaignSector ?? undefined}
-            onValueChange={(value) => {
-              if (isScCampaignSector(value)) setCampaignSector(value);
-            }}
-            disabled={controlsDisabled}
-          >
-            <SelectTrigger aria-label={SC_MONTHLY_CAMPAIGN.campaignSector.label} className="h-9 w-full max-w-[22rem] rounded-xl border-border bg-background text-ui">
-              <SelectValue placeholder="Select" />
-            </SelectTrigger>
-            <SelectContent className="max-h-[280px]">
-              {SC_CAMPAIGN_SECTORS.map((value) => (
-                <SelectItem key={value} value={value}>
-                  {SC_CAMPAIGN_SECTOR_LABELS[value]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-
-        <Label className={reviewLabelClass}>{SC_MONTHLY_CAMPAIGN.sustainabilityCategory.label}</Label>
-        {isOfferSent ? (
-          <div className={reviewValueClass}>
-            {(() => {
-              const raw = parseInvoiceOfferSustainabilityCategory(invoice.offer_details);
-              return raw ? SC_SUSTAINABILITY_CATEGORY_LABELS[raw] : REVIEW_EMPTY_LABEL;
-            })()}
-          </div>
-        ) : (
-          <Select
-            value={sustainabilityCategory ?? undefined}
-            onValueChange={(value) => {
-              if (isScSustainabilityCategory(value)) setSustainabilityCategory(value);
-            }}
-            disabled={controlsDisabled}
-          >
-            <SelectTrigger aria-label={SC_MONTHLY_CAMPAIGN.sustainabilityCategory.label} className="h-9 w-full max-w-[22rem] rounded-xl border-border bg-background text-ui">
-              <SelectValue placeholder="Select" />
-            </SelectTrigger>
-            <SelectContent className="max-h-[280px]">
-              {SC_SUSTAINABILITY_CATEGORIES.map((value) => (
-                <SelectItem key={value} value={value}>
-                  {SC_SUSTAINABILITY_CATEGORY_LABELS[value]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
         )}
 
         <Label className={reviewLabelClass}>Profit rate</Label>
@@ -1030,15 +912,21 @@ export function InvoiceOfferPanel({
                 return;
               }
               if (!companyCategory) {
-                alert("Select Technology or Non-Technology for this invoice.");
+                alert(
+                  "Company category is missing from the submitted invoice. Use Request Amendment so the issuer can correct it."
+                );
                 return;
               }
               if (!campaignSector) {
-                alert("Select a Campaign Sector.");
+                alert(
+                  "Campaign Sector is missing from the submitted invoice. Use Request Amendment so the issuer can correct it."
+                );
                 return;
               }
               if (!sustainabilityCategory) {
-                alert("Select a sustainability category for this invoice.");
+                alert(
+                  "Sustainability Category of the Campaign is missing from the submitted invoice. Use Request Amendment so the issuer can correct it."
+                );
                 return;
               }
               const platformFeeRatePercent = resolveDrawdownFeeRateForSend({
