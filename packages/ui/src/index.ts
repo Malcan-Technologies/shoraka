@@ -336,6 +336,7 @@ export type { KeyValueGridProps, KeyValueItem } from "./components/key-value-gri
 export { ProfileReadField, ProfileFieldGrid } from "./components/profile-read-field";
 export type { ProfileReadFieldProps } from "./components/profile-read-field";
 export {
+  ProfileFinancialHistory,
   ProfileFinancialSaveBar,
   ProfileFinancialStatementsBody,
   profileFinancialDraftFromValues,

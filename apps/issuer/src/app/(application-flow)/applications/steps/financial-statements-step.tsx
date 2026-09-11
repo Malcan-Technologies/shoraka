@@ -39,12 +39,18 @@ import { MoneyInput } from "@cashsouk/ui";
 import { parseMoney, formatMoney } from "@cashsouk/ui";
 import { FinancialStatementsSkeleton } from "@/app/(application-flow)/applications/components/financial-statements-skeleton";
 import {
+  APPLICATION_COMREP_DETAIL_KEYS,
+  APPLICATION_COMREP_NEGATIVE_ALLOWED_KEYS,
+  APPLICATION_COMREP_OPTIONAL_KEYS,
+  APPLICATION_CORE_MONEY_KEYS,
   FINANCIAL_FIELD_LABELS,
+  applicationComrepFieldError,
   buildApplicationFinancialPrefillByYear,
   formatFinancialFyPeriodDisplay,
   getFinancialYearEndComputationDetails,
   getIssuerFinancialTabYears,
   issuerUnauditedPlddForFyEndYear,
+  isPresentFinancialValue,
   normalizeFinancialStatementsQuestionnaire,
   type FinancialStatementsQuestionnaire,
 } from "@cashsouk/types";
@@ -109,6 +115,19 @@ interface FinancialStatementsPayload {
   plnpat: string;
   plnetdiv: string;
   plyear: string;
+  curlib_borrowing: string;
+  curlib_non_borrowing: string;
+  ncl_loan: string;
+  ncl_non_loan: string;
+  equity_share_application: string;
+  equity_share_premium: string;
+  equity_accumulated_profit: string;
+  equity_minority: string;
+  operating_cost: string;
+  admin_cost: string;
+  interest_cost: string;
+  other_cost: string;
+  pl_minority: string;
 }
 
 const DEFAULT_PAYLOAD: FinancialStatementsPayload = {
@@ -126,6 +145,19 @@ const DEFAULT_PAYLOAD: FinancialStatementsPayload = {
   plnpat: "",
   plnetdiv: "",
   plyear: "",
+  curlib_borrowing: "",
+  curlib_non_borrowing: "",
+  ncl_loan: "",
+  ncl_non_loan: "",
+  equity_share_application: "",
+  equity_share_premium: "",
+  equity_accumulated_profit: "",
+  equity_minority: "",
+  operating_cost: "",
+  admin_cost: "",
+  interest_cost: "",
+  other_cost: "",
+  pl_minority: "",
 };
 
 /* ================================================================
@@ -158,6 +190,9 @@ function fromSaved(saved: unknown): FinancialStatementsPayload {
       out.pldd = normalizePlddIsoFromSaved(val);
       return;
     }
+    if ((APPLICATION_COMREP_DETAIL_KEYS as readonly string[]).includes(key) && !isPresentFinancialValue(val)) {
+      return;
+    }
     const n = toNum(val);
     (out as unknown as Record<string, unknown>)[key] = formatMoney(n);
   };
@@ -172,14 +207,13 @@ function fromSaved(saved: unknown): FinancialStatementsPayload {
 function toApiPayload(form: FinancialStatementsPayload): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   out.pldd = String(form.pldd ?? "").trim();
-  for (const k of Object.keys(DEFAULT_PAYLOAD) as (keyof FinancialStatementsPayload)[]) {
-    if (k === "pldd") continue;
-    if (k === "plyear") {
-      out[k] = parseMoney(form.plyear ?? "");
-    } else {
-      const val = (form as unknown as Record<string, unknown>)[k];
-      out[k] = parseMoney(String(val ?? ""));
-    }
+  for (const k of APPLICATION_CORE_MONEY_KEYS) {
+    out[k] = parseMoney(form[k] ?? "");
+  }
+  for (const k of APPLICATION_COMREP_DETAIL_KEYS) {
+    const raw = String(form[k] ?? "").trim();
+    if (!isPresentFinancialValue(raw)) continue;
+    out[k] = parseMoney(raw);
   }
   return out;
 }
@@ -254,6 +288,7 @@ function MoneyFieldRow({
   showNegativeTooltip = false,
   hasError = false,
   errorMessage,
+  optional = false,
 }: {
   id: string;
   label: string;
@@ -264,6 +299,7 @@ function MoneyFieldRow({
   showNegativeTooltip?: boolean;
   hasError?: boolean;
   errorMessage?: string;
+  optional?: boolean;
 }) {
   const inputEl = (
     <MoneyInput
@@ -314,6 +350,7 @@ function MoneyFieldRow({
     <>
       <Label htmlFor={id} className={labelCellClassName}>
         {label}
+        {optional ? <span className="font-normal text-muted-foreground"> (if applicable)</span> : null}
       </Label>
       <div className="min-w-0">{wrappedInput}</div>
     </>
@@ -354,25 +391,12 @@ function buildV2ApiPayload(
   return { questionnaire: q, unaudited_by_year };
 }
 
-const YEAR_MONEY_FIELDS: (keyof FinancialStatementsPayload)[] = [
-  "bsfatot",
-  "othass",
-  "bscatot",
-  "bsclbank",
-  "curlib",
-  "bsslltd",
-  "bsclstd",
-  "bsqpuc",
-  "turnover",
-  "plnpbt",
-  "plnpat",
-  "plnetdiv",
-  "plyear",
-];
+const YEAR_MONEY_FIELDS: (keyof FinancialStatementsPayload)[] = [...APPLICATION_CORE_MONEY_KEYS];
 
 function yearPayloadHasMoney(form: FinancialStatementsPayload | undefined): boolean {
   if (!form) return false;
-  return YEAR_MONEY_FIELDS.some((key) => String(form[key] ?? "").trim() !== "");
+  if (YEAR_MONEY_FIELDS.some((key) => String(form[key] ?? "").trim() !== "")) return true;
+  return APPLICATION_COMREP_DETAIL_KEYS.some((key) => String(form[key] ?? "").trim() !== "");
 }
 
 type YearBlockFieldErrors = {
@@ -390,6 +414,10 @@ function getYearBlockFieldErrors(form: FinancialStatementsPayload): YearBlockFie
   }
   if (hasValue(form.turnover) && parseMoney(form.turnover ?? "") < 0) {
     money.turnover = "Turnover must be 0 or greater";
+  }
+  for (const k of APPLICATION_COMREP_DETAIL_KEYS) {
+    const message = applicationComrepFieldError(k, form[k]);
+    if (message) money[k] = message;
   }
   return { money };
 }
@@ -424,7 +452,6 @@ export function FinancialStatementsStep({
 }: FinancialStatementsStepProps) {
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
   const [autoPrefillApplied, setAutoPrefillApplied] = React.useState(false);
-  const [autoPrefillMode, setAutoPrefillMode] = React.useState<"allYears" | "previousYearOnly">("allYears");
   const [prefillEnabled, setPrefillEnabled] = React.useState(false);
   const [prefillOrgFs, setPrefillOrgFs] = React.useState<unknown>(null);
   const [prefillCtos, setPrefillCtos] = React.useState<unknown>(null);
@@ -460,7 +487,6 @@ export function FinancialStatementsStep({
   React.useEffect(() => {
     setIsInitialized(false);
     setAutoPrefillApplied(false);
-    setAutoPrefillMode("allYears");
     setPrefillEnabled(false);
     setPrefillOrgFs(null);
     setPrefillCtos(null);
@@ -516,8 +542,8 @@ export function FinancialStatementsStep({
         return;
       }
 
-      // No financial_statements on the app yet: load org master + CTOS for effective prefill.
-      // Do not copy year blocks here — wait until FYE/tabs identify the in-progress year.
+      // No financial_statements on the app yet: load latest CTOS for prefill.
+      // Org JSON may still supply a future FYE date; year amounts are not copied from profile.
       if (shouldAttemptAutoPrefill) {
         if (orgLatestFinancialStatementsQuery.isLoading) return;
 
@@ -559,7 +585,7 @@ export function FinancialStatementsStep({
         );
       }
 
-      console.log("Financial step initialized (v2 saved / blank / org auto-prefill attempted)");
+      console.log("Financial step initialized (v2 saved / blank / CTOS auto-prefill attempted)");
     }
     setIsInitialized(true);
   }, [application, isInitialized, shouldAttemptAutoPrefill, orgLatestFinancialStatementsQuery.isLoading, orgLatestFinancialStatementsQuery.data]);
@@ -645,11 +671,10 @@ export function FinancialStatementsStep({
       prevInProgressYearRef.current = built.inProgressYear;
       const filledHistorical = built.tabYears.some((year) => {
         const source = built.years[String(year)]?.source;
-        return source === "ctos" || source === "org_master";
+        return source === "ctos";
       });
       if (filledHistorical) {
         setAutoPrefillApplied(true);
-        setAutoPrefillMode("previousYearOnly");
       }
     }
   }, [yearsToShow, questionnaireDto, prefillEnabled, prefillOrgFs, prefillCtos]);
@@ -969,6 +994,96 @@ export function FinancialStatementsStep({
             />
           </div>
         </section>
+        <div className="border-t border-border pt-8">
+          <div className="mb-6">
+            <h4 className={applicationFlowSectionTitleClassName}>Additional Financial Details</h4>
+            <p className="text-sm text-muted-foreground">For regulatory reporting</p>
+            <div className={applicationFlowSectionDividerClassName} />
+          </div>
+          <section className={cn(sectionWrapperClassName, yearBlockInnerSectionClassName)}>
+            <h4 className={subsectionHeadingClassName}>Liability breakdown</h4>
+            <div className={stepFormRowGridClassName}>
+              {(["curlib_borrowing", "curlib_non_borrowing", "ncl_loan", "ncl_non_loan"] as const).map(
+                (key) => (
+                  <MoneyFieldRow
+                    key={`${yearKey}-${key}`}
+                    id={`${yearKey}-${key}`}
+                    label={getLabel(key)}
+                    value={form[key] ?? ""}
+                    onValueChange={(v) => updateFormYear(yearKey, key, v)}
+                    readOnly={readOnly}
+                    hasError={Boolean(yearErrors.money[key])}
+                    errorMessage={yearErrors.money[key]}
+                  />
+                )
+              )}
+            </div>
+          </section>
+          <section className={cn(sectionWrapperClassName, yearBlockInnerSectionClassName, "mt-8")}>
+            <h4 className={subsectionHeadingClassName}>Equity breakdown</h4>
+            <div className={stepFormRowGridClassName}>
+              {(
+                [
+                  "equity_share_application",
+                  "equity_share_premium",
+                  "equity_accumulated_profit",
+                  "equity_minority",
+                ] as const
+              ).map((key) => (
+                <MoneyFieldRow
+                  key={`${yearKey}-${key}`}
+                  id={`${yearKey}-${key}`}
+                  label={getLabel(key)}
+                  value={form[key] ?? ""}
+                  onValueChange={(v) => updateFormYear(yearKey, key, v)}
+                  readOnly={readOnly}
+                  optional={(APPLICATION_COMREP_OPTIONAL_KEYS as readonly string[]).includes(key)}
+                  allowNegative={(APPLICATION_COMREP_NEGATIVE_ALLOWED_KEYS as readonly string[]).includes(
+                    key
+                  )}
+                  showNegativeTooltip={(APPLICATION_COMREP_NEGATIVE_ALLOWED_KEYS as readonly string[]).includes(
+                    key
+                  )}
+                  hasError={Boolean(yearErrors.money[key])}
+                  errorMessage={yearErrors.money[key]}
+                />
+              ))}
+            </div>
+          </section>
+          <section className={cn(sectionWrapperClassName, yearBlockInnerSectionClassName, "mt-8")}>
+            <h4 className={subsectionHeadingClassName}>Costs</h4>
+            <div className={stepFormRowGridClassName}>
+              {(["operating_cost", "admin_cost", "interest_cost", "other_cost"] as const).map((key) => (
+                <MoneyFieldRow
+                  key={`${yearKey}-${key}`}
+                  id={`${yearKey}-${key}`}
+                  label={getLabel(key)}
+                  value={form[key] ?? ""}
+                  onValueChange={(v) => updateFormYear(yearKey, key, v)}
+                  readOnly={readOnly}
+                  hasError={Boolean(yearErrors.money[key])}
+                  errorMessage={yearErrors.money[key]}
+                />
+              ))}
+            </div>
+          </section>
+          <section className={cn(sectionWrapperClassName, yearBlockInnerSectionClassName, "mt-8")}>
+            <h4 className={subsectionHeadingClassName}>Profit and Loss extras</h4>
+            <div className={stepFormRowGridClassName}>
+              <MoneyFieldRow
+                id={`${yearKey}-pl_minority`}
+                label={getLabel("pl_minority")}
+                value={form.pl_minority ?? ""}
+                onValueChange={(v) => updateFormYear(yearKey, "pl_minority", v)}
+                readOnly={readOnly}
+                allowNegative
+                showNegativeTooltip
+                hasError={Boolean(yearErrors.money.pl_minority)}
+                errorMessage={yearErrors.money.pl_minority}
+              />
+            </div>
+          </section>
+        </div>
       </div>
     );
   };
@@ -1028,9 +1143,7 @@ export function FinancialStatementsStep({
           <div className="space-y-4 px-3">
             {autoPrefillApplied ? (
               <p className="text-xs text-muted-foreground">
-                {autoPrefillMode === "previousYearOnly"
-                  ? "Previous financial year auto-filled from a previous submitted application. Please review before continuing."
-                  : "Auto-filled from previous submitted application. Please review before continuing."}
+                Previous financial year auto-filled from CTOS. Please review before continuing.
               </p>
             ) : null}
           {!questionnaireDto ? (

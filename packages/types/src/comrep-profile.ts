@@ -1990,8 +1990,7 @@ export function buildIssuerProfileCompleteness(input: {
         ? 0
         : input.board.length * 12;
   const boardStepMissing = peopleRequired != null ? [] : boardMissing;
-  const financialMissing = computeIssuerFinancialCompleteness(input.financials);
-  const financialRequired = ISSUER_FINANCIAL_REQUIRED_FIELD_COUNT;
+  // Financial figures are collected on the financing application, not as a profile gate.
 
   const steps: ComrepProfileStepCompleteness[] = [
     stepFromMissing("company", ISSUER_PROFILE_STEP_LABELS.company, companyMissing, companyRequired),
@@ -2011,12 +2010,14 @@ export function buildIssuerProfileCompleteness(input: {
       filledCount: Math.max(0, boardFieldCount - boardStepMissing.length),
       missing: boardStepMissing,
     },
-    stepFromMissing(
-      "financials",
-      ISSUER_PROFILE_STEP_LABELS.financials,
-      financialMissing,
-      financialRequired
-    ),
+    {
+      id: "financials",
+      label: ISSUER_PROFILE_STEP_LABELS.financials,
+      complete: true,
+      requiredCount: 0,
+      filledCount: 0,
+      missing: [],
+    },
   ];
 
   const allMissing = steps.flatMap((s) => s.missing);
@@ -2126,6 +2127,24 @@ export function latestUnauditedYearKey(financialStatements: unknown): string | n
   return years.length === 0 ? null : String(years[0]);
 }
 
+export function unauditedYearEntries(
+  financialStatements: unknown
+): Array<{ year: string; block: Record<string, unknown> }> {
+  if (!financialStatements || typeof financialStatements !== "object") return [];
+  const byYear = (financialStatements as { unaudited_by_year?: Record<string, unknown> })
+    .unaudited_by_year;
+  if (!byYear || typeof byYear !== "object") return [];
+  return Object.keys(byYear)
+    .map((year) => Number(year))
+    .filter((year) => Number.isFinite(year))
+    .sort((a, b) => b - a)
+    .flatMap((year) => {
+      const block = byYear[String(year)];
+      if (!block || typeof block !== "object") return [];
+      return [{ year: String(year), block: block as Record<string, unknown> }];
+    });
+}
+
 export function latestUnauditedYearBlock(
   financialStatements: unknown
 ): Record<string, unknown> | null {
@@ -2145,6 +2164,7 @@ export interface IssuerOrgFinancialSummary {
   missingCount: number;
   missing: ProfileMissingItem[];
   fields: Record<string, unknown> | null;
+  years: Array<{ year: string; block: Record<string, unknown> }>;
 }
 
 const ISO_DATE_RE = /^(\d{4})-(\d{2})-(\d{2})/;

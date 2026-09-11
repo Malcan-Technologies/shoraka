@@ -1,7 +1,9 @@
-# Issuer org financial statements: latest prefill
+# Issuer org financial statements: latest copy and CTOS prefill
 
 ## Why this exists
-Financial statements are “issuer organization” information (the issuer company), not one specific invoice. When an issuer applies again later, we prefill **completed** years so they do not re-type filed figures. The **in-progress** year always starts blank.
+Financial statements for a financing live on the **application**. CTOS is the prefill source for completed years. The organisation JSON is submitted-application **history** (and a future ComRep source), not a second editable master and not an application prefill fallback.
+
+The **in-progress** year always starts blank.
 
 Prefill is a convenience. It must not change admin review behavior or rewrite historical applications. CTOS is not written into org master.
 
@@ -15,8 +17,9 @@ Prefill is a convenience. It must not change admin review behavior or rewrite hi
    - A submit/resubmit snapshot of the application at that point in time.
 
 3. `IssuerOrganizationFinancialStatement`
-   - Latest reusable organization-level financial JSON (one row per issuer org).
-   - Updated on submit/resubmit only (not draft save).
+   - Organisation-level history merged on submit/resubmit (one row per issuer org).
+   - Not used to prefill a new application’s year amounts.
+   - Issuer Profile shows this as read-only history.
 
 4. `CtosReport.financials_json`
    - External evidence. Latest org report is read for prefill; never merged into org master by prefill.
@@ -29,14 +32,14 @@ In-progress year = calendar year of the selected **next** financial year end (`g
 
 | Year | Effective starting value |
 |------|--------------------------|
-| Completed / previous tab | CTOS application fields for that year, if present; otherwise org master |
+| Completed / previous tab | CTOS application fields for that year, if present; otherwise blank |
 | In-progress / current tab | Always blank (not org, not CTOS) |
 
 - Do not copy year blocks before FYE is known (stale FYE must not leave figures on the current tab).
-- Prefill maps only the issuer application field set (`bsfatot` … `plyear`). No ComRep borrowing/cost splits.
+- Prefill maps only the existing issuer application money keys (`bsfatot` … `plyear`). ComRep-only splits are not in CTOS and are not derived from related totals.
 - All prefilled fields stay editable. Save/submit store the issuer’s values on the application.
 
 ## Update rules (draft vs submit/resubmit)
 
 - Draft save: `Application.financial_statements` only.
-- Submit / resubmit: after `ApplicationRevision`, upsert org master from the application (existing merge). Prefill does not change that path.
+- Submit / resubmit: after `ApplicationRevision`, merge application years into org history (existing year-key merge; older years are kept). That merge is history, not prefill.

@@ -20,6 +20,7 @@ import {
   issuerFlowStepComplete,
   isMasterFieldEmpty,
   latestUnauditedYearKey,
+  unauditedYearEntries,
   missingItemsForIssuerFlowStep,
   OPERATOR_HOLDER_TYPES,
   ORGANIZATION_PARTY_ENTITY_TYPES,
@@ -1081,7 +1082,7 @@ describe("issuer profile financial editor keys", () => {
     expect(computeIssuerFinancialCompleteness(filled).map((item) => item.field)).toEqual([]);
   });
 
-  it("counts every required financial field when no year block exists (scenario F)", () => {
+  it("does not treat missing financial year blocks as an issuer profile gate", () => {
     expect(computeIssuerFinancialCompleteness(null)).toHaveLength(ISSUER_FINANCIAL_REQUIRED_FIELD_COUNT);
     const result = buildIssuerProfileCompleteness({
       company: {
@@ -1147,9 +1148,23 @@ describe("issuer profile financial editor keys", () => {
       ],
       financials: null,
     });
-    expect(result.missing.filter((item) => item.step === "financials")).toHaveLength(
-      ISSUER_FINANCIAL_REQUIRED_FIELD_COUNT
-    );
+    expect(result.missing.filter((item) => item.step === "financials")).toHaveLength(0);
+    expect(result.steps.find((step) => step.id === "financials")?.requiredCount).toBe(0);
+    expect(result.steps.find((step) => step.id === "financials")?.complete).toBe(true);
+  });
+
+  it("lists stored unaudited years newest first without dropping older years", () => {
+    expect(
+      unauditedYearEntries({
+        unaudited_by_year: {
+          "2024": { turnover: 10, curlib_borrowing: 4 },
+          "2023": { turnover: 9 },
+        },
+      })
+    ).toEqual([
+      { year: "2024", block: { turnover: 10, curlib_borrowing: 4 } },
+      { year: "2023", block: { turnover: 9 } },
+    ]);
   });
 });
 

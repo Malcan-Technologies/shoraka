@@ -51,14 +51,14 @@ export function mergeIssuerOrgFinancialStatementsFromApplication(params: {
 }
 
 /**
- * Upsert the latest reusable org financial statements for an issuer organization.
+ * Upsert organisation financial-statement history for an issuer organization.
  *
  * Important:
- * - This is for "latest prefill" only (org-level reusable data).
+ * - Org JSON is historical / future ComRep source, not application prefill.
  * - Do not break submit/resubmit if the application has no financial_statements
  *   (e.g. legacy data or optional step).
  * - Incoming application payloads merge into existing master year blocks. They must
- *   not replace the whole JSON and erase richer ComRep fields completed on Profile.
+ *   not replace the whole JSON and erase other years or richer keys already stored.
  */
 export async function upsertLatestOrganizationFinancialStatementsFromApplication(params: {
   applicationId: string;

@@ -1,6 +1,9 @@
 "use client";
 
 import {
+  APPLICATION_COMREP_DETAIL_KEYS,
+  APPLICATION_CORE_MONEY_KEYS,
+  FINANCIAL_FIELD_LABELS,
   ISSUER_PROFILE_BALANCE_SHEET_KEYS,
   ISSUER_PROFILE_PNL_KEYS,
   firstIssueMessage,
@@ -190,4 +193,53 @@ export function validateProfileFinancialDraft(draft: Record<string, string>) {
     fieldErrors: issuesByField(issues),
     firstMessage: firstIssueMessage(issues) ?? "Complete the required financial fields.",
   };
+}
+
+export function ProfileFinancialHistory({
+  years,
+}: {
+  years: Array<{ year: string; block: Record<string, unknown> }>;
+}) {
+  if (years.length === 0) {
+    return (
+      <p className="text-ui text-muted-foreground">
+        No submitted financial statements yet. Enter figures on a financing application.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+      {years.map(({ year, block }) => (
+        <div key={year} className="space-y-5">
+          <h3 className="text-card-title">FY{year}</h3>
+          <div className="space-y-3">
+            <h4 className="text-ui font-medium text-foreground">Financial statements</h4>
+            <ProfileFieldGrid>
+              {APPLICATION_CORE_MONEY_KEYS.map((key) => (
+                <ProfileReadField
+                  key={key}
+                  label={FINANCIAL_FIELD_LABELS[key] ?? key}
+                  value={formatProfileRmAmount(block[key])}
+                />
+              ))}
+            </ProfileFieldGrid>
+          </div>
+          <div className="space-y-3">
+            <h4 className="text-ui font-medium text-foreground">Additional financial details</h4>
+            <p className="text-meta text-muted-foreground">For regulatory reporting</p>
+            <ProfileFieldGrid>
+              {APPLICATION_COMREP_DETAIL_KEYS.map((key) => (
+                <ProfileReadField
+                  key={key}
+                  label={FINANCIAL_FIELD_LABELS[key] ?? key}
+                  value={formatProfileRmAmount(block[key])}
+                />
+              ))}
+            </ProfileFieldGrid>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }

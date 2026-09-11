@@ -174,5 +174,34 @@ describe("financial-unaudited-ctos-validation", () => {
       const historicalKey = String(years[0]);
       expect(parsed.data.unaudited_by_year[historicalKey]?.turnover).toBe(220);
     });
+    it("accepts optional ComRep extras without requiring them", () => {
+      const futureFye = format(addDays(startOfDay(new Date()), 400), "yyyy-MM-dd");
+      const q = { financial_year_end: futureFye };
+      const years = getIssuerFinancialTabYears(q, new Date());
+      const unaudited: Record<string, ReturnType<typeof block> & Record<string, number>> = {};
+      for (const y of years) {
+        unaudited[String(y)] = block(y, q);
+      }
+      const withoutExtras = financialStatementsV2Schema.safeParse({
+        questionnaire: q,
+        unaudited_by_year: unaudited,
+      });
+      expect(withoutExtras.success).toBe(true);
+      if (years[0] != null) {
+        unaudited[String(years[0])] = {
+          ...block(years[0], q),
+          curlib_borrowing: 40,
+          equity_share_application: 1,
+        };
+      }
+      const withExtras = financialStatementsV2Schema.safeParse({
+        questionnaire: q,
+        unaudited_by_year: unaudited,
+      });
+      expect(withExtras.success).toBe(true);
+      if (!withExtras.success || years[0] == null) return;
+      expect(withExtras.data.unaudited_by_year[String(years[0])]?.curlib_borrowing).toBe(40);
+      expect(withExtras.data.unaudited_by_year[String(years[0])]?.equity_share_application).toBe(1);
+    });
   });
 });

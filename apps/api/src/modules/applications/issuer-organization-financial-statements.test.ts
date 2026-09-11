@@ -195,4 +195,43 @@ describe("mergeIssuerOrgFinancialStatementsFromApplication", () => {
     expect(year.ncl_loan).toBeUndefined();
     expect(year.ncl_non_loan).toBeUndefined();
   });
+
+  it("persists application ComRep extras into org history when the issuer provided them", () => {
+    const incomingRaw = {
+      questionnaire,
+      unaudited_by_year: {
+        "2024": {
+          pldd: "2024-12-31",
+          bsfatot: 1,
+          othass: 0,
+          bscatot: 0,
+          bsclbank: 0,
+          curlib: 70,
+          bsslltd: 30,
+          bsclstd: 0,
+          bsqpuc: 0,
+          turnover: 200,
+          plnpbt: 0,
+          plnpat: 0,
+          plnetdiv: 0,
+          plyear: 0,
+          curlib_borrowing: 55,
+          operating_cost: 12,
+        },
+      },
+    };
+    const merged = mergeIssuerOrgFinancialStatementsFromApplication({
+      existing: {
+        questionnaire: { financial_year_end: "2026-12-31" },
+        unaudited_by_year: { "2023": { turnover: 9 } },
+      },
+      incomingRaw,
+      incomingParsed: parseApplicationPayload(incomingRaw),
+    });
+    const byYear = merged.unaudited_by_year as Record<string, Record<string, unknown>>;
+    expect(byYear["2024"].curlib).toBe(70);
+    expect(byYear["2024"].curlib_borrowing).toBe(55);
+    expect(byYear["2024"].operating_cost).toBe(12);
+    expect(byYear["2023"].turnover).toBe(9);
+  });
 });

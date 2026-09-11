@@ -65,3 +65,55 @@ export const ISSUER_PROFILE_FINANCIAL_EDITABLE_KEYS = [
   ...ISSUER_PROFILE_BALANCE_SHEET_KEYS,
   ...ISSUER_PROFILE_PNL_KEYS,
 ] as const;
+
+/** Existing issuer application Financial Statements money keys (CTOS-overlapping). Do not rename. */
+export const APPLICATION_CORE_MONEY_KEYS = [
+  "bsfatot",
+  "othass",
+  "bscatot",
+  "bsclbank",
+  "curlib",
+  "bsslltd",
+  "bsclstd",
+  "bsqpuc",
+  "turnover",
+  "plnpbt",
+  "plnpat",
+  "plnetdiv",
+  "plyear",
+] as const;
+
+export type ApplicationCoreMoneyKey = (typeof APPLICATION_CORE_MONEY_KEYS)[number];
+
+/**
+ * ComRep [09000]/[09100] extras collected on the application, separate from core fields.
+ * SC “(if applicable)” equity lines stay optional and must not block Save/Continue.
+ */
+export const APPLICATION_COMREP_DETAIL_KEYS = [
+  "curlib_borrowing",
+  "curlib_non_borrowing",
+  "ncl_loan",
+  "ncl_non_loan",
+  "equity_share_application",
+  "equity_share_premium",
+  "equity_accumulated_profit",
+  "equity_minority",
+  "operating_cost",
+  "admin_cost",
+  "interest_cost",
+  "other_cost",
+  "pl_minority",
+] as const;
+
+export type ApplicationComrepDetailKey = (typeof APPLICATION_COMREP_DETAIL_KEYS)[number];
+
+export const APPLICATION_COMREP_OPTIONAL_KEYS = [
+  "equity_share_application",
+  "equity_share_premium",
+  "equity_minority",
+] as const;
+
+export const APPLICATION_COMREP_NEGATIVE_ALLOWED_KEYS = [
+  "equity_accumulated_profit",
+  "pl_minority",
+] as const;
