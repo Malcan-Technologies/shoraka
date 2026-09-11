@@ -120,7 +120,10 @@ function recommendationInputFromNote(note: {
   const invoice = asRecord(note.invoice_snapshot);
   const offer = asRecord(invoice?.offer_details);
   // Issuer Fundamentals highlight recommendations use MARC SME grades (SME-1..SME-10).
-  const riskRating = isMarcSmeGrade(offer?.risk_rating) ? offer.risk_rating : null;
+  const rawRiskRating = offer?.risk_rating;
+  const normalizedRiskRating =
+    typeof rawRiskRating === "string" ? rawRiskRating.trim() : rawRiskRating;
+  const riskRating = isMarcSmeGrade(normalizedRiskRating) ? normalizedRiskRating : null;
   const profit =
     note.profit_rate_percent == null ? null : Number(note.profit_rate_percent);
   return {
