@@ -201,7 +201,7 @@ describe("AdminService sendInvoiceOffer financing tenure", () => {
     expect(offer.financing_tenure_days).toBe(105);
   });
 
-  it("stamps campaign Technology/Non-Technology and sustainability onto offer_details", async () => {
+  it("stamps issuer-submitted classification onto offer_details and ignores admin overwrite", async () => {
     await service.sendInvoiceOffer(
       "app-1",
       "inv-1",
@@ -221,9 +221,9 @@ describe("AdminService sendInvoiceOffer financing tenure", () => {
       string,
       unknown
     >;
-    expect(offer.company_category).toBe("TECHNOLOGY");
-    expect(offer.sustainability_category).toBe("G9");
-    expect(offer.campaign_sector).toBe("MANUFACTURING");
+    expect(offer.company_category).toBe("NON_TECHNOLOGY");
+    expect(offer.campaign_sector).toBe("CONSTRUCTIONS");
+    expect(offer.sustainability_category).toBe("G3");
   });
 
   it("stamps issuer-submitted invoice.details classification when Admin does not re-enter it", async () => {

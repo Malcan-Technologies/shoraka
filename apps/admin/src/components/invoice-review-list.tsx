@@ -18,9 +18,6 @@ import {
 import {
   getOfferPhaseDeadlineDisplay,
   isMarcSmeGrade,
-  isScCampaignSector,
-  isScCompanyCategory,
-  isScSustainabilityCategory,
   previewAcceptanceDeadlineFromWorkflow,
   resolveDefaultInvoiceRiskRating,
   resolveFinancingTenureDays,
@@ -28,14 +25,9 @@ import {
   parseInvoiceOfferCampaignSector,
   parseInvoiceOfferCompanyCategory,
   parseInvoiceOfferSustainabilityCategory,
-  resolveInvoiceCampaignSector,
-  resolveInvoiceCompanyCategory,
-  resolveInvoiceSustainabilityCategory,
-  SC_CAMPAIGN_SECTORS,
   SC_CAMPAIGN_SECTOR_LABELS,
-  SC_COMPANY_CATEGORIES,
   SC_COMPANY_CATEGORY_LABELS,
-  SC_SUSTAINABILITY_CATEGORIES,
+  SC_MONTHLY_CAMPAIGN,
   SC_SUSTAINABILITY_CATEGORY_LABELS,
   type MarcSmeGrade,
   type ScCampaignSector,
@@ -330,15 +322,6 @@ export function InvoiceList({
   const [riskRatingByInvoiceId, setRiskRatingByInvoiceId] = React.useState<
     Record<string, MarcSmeGrade | null>
   >({});
-  const [companyCategoryByInvoiceId, setCompanyCategoryByInvoiceId] = React.useState<
-    Record<string, ScCompanyCategory | null>
-  >({});
-  const [campaignSectorByInvoiceId, setCampaignSectorByInvoiceId] = React.useState<
-    Record<string, ScCampaignSector | null>
-  >({});
-  const [sustainabilityCategoryByInvoiceId, setSustainabilityCategoryByInvoiceId] = React.useState<
-    Record<string, ScSustainabilityCategory | null>
-  >({});
 
   /** Draft strings while typing financing ratio (%); committed on blur with min/max clamp. */
   const [financingRatioDraftByInvoiceId, setFinancingRatioDraftByInvoiceId] = React.useState<
@@ -399,39 +382,6 @@ export function InvoiceList({
       });
     }
   }, [initialRiskFromInvoices]);
-
-  React.useEffect(() => {
-    setCompanyCategoryByInvoiceId((prev) => {
-      const next = { ...prev };
-      let changed = false;
-      for (const inv of invoices) {
-        if (inv.id in next) continue;
-        next[inv.id] = resolveInvoiceCompanyCategory(inv);
-        changed = true;
-      }
-      return changed ? next : prev;
-    });
-    setCampaignSectorByInvoiceId((prev) => {
-      const next = { ...prev };
-      let changed = false;
-      for (const inv of invoices) {
-        if (inv.id in next) continue;
-        next[inv.id] = resolveInvoiceCampaignSector(inv);
-        changed = true;
-      }
-      return changed ? next : prev;
-    });
-    setSustainabilityCategoryByInvoiceId((prev) => {
-      const next = { ...prev };
-      let changed = false;
-      for (const inv of invoices) {
-        if (inv.id in next) continue;
-        next[inv.id] = resolveInvoiceSustainabilityCategory(inv);
-        changed = true;
-      }
-      return changed ? next : prev;
-    });
-  }, [invoices]);
 
   const toggleExpanded = React.useCallback((invoiceId: string) => {
     setExpandedById((prev) => ({ ...prev, [invoiceId]: !prev[invoiceId] }));
@@ -506,11 +456,15 @@ export function InvoiceList({
       return;
     }
     if (!invoiceOfferConfirm.company_category) {
-      alert("Select Technology or Non-Technology for this invoice.");
+      alert(
+        "Company category is missing from the submitted invoice. Use Request Amendment so the issuer can correct it."
+      );
       return;
     }
     if (!invoiceOfferConfirm.campaign_sector) {
-      alert("Select a Campaign Sector.");
+      alert(
+        "Campaign Sector is missing from the submitted invoice. Use Request Amendment so the issuer can correct it."
+      );
       return;
     }
     if (
@@ -912,127 +866,49 @@ export function InvoiceList({
                                   </div>
                                   <div className={applicationTableExpandableFieldBlockClass}>
                                     <p className={applicationTableExpandableLabelClass}>Company category</p>
-                                    {isOfferSent ? (
-                                      <p className={applicationTableExpandableValueClass}>
-                                        {(() => {
-                                          const raw = parseInvoiceOfferCompanyCategory(inv.offer_details);
-                                          return raw
-                                            ? SC_COMPANY_CATEGORY_LABELS[raw]
-                                            : REVIEW_EMPTY_LABEL;
-                                        })()}
-                                      </p>
-                                    ) : (
-                                      <Select
-                                        value={companyCategoryByInvoiceId[inv.id] ?? undefined}
-                                        onValueChange={(value) => {
-                                          if (isScCompanyCategory(value)) {
-                                            setCompanyCategoryByInvoiceId((prev) => ({
-                                              ...prev,
-                                              [inv.id]: value,
-                                            }));
-                                          }
-                                        }}
-                                        disabled={isRowGreyedOut || isAdminRejected}
-                                      >
-                                        <SelectTrigger
-                                          aria-label="Company category"
-                                          className={OFFER_CONTROL_WIDTH_CLASS}
-                                        >
-                                          <SelectValue placeholder="Select" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          {SC_COMPANY_CATEGORIES.map((value) => (
-                                            <SelectItem key={value} value={value}>
-                                              {SC_COMPANY_CATEGORY_LABELS[value]}
-                                            </SelectItem>
-                                          ))}
-                                        </SelectContent>
-                                      </Select>
-                                    )}
-                                  </div>
-                                  <div className={applicationTableExpandableFieldBlockClass}>
-                                    <p className={applicationTableExpandableLabelClass}>Campaign Sector</p>
-                                    {isOfferSent ? (
-                                      <p className={applicationTableExpandableValueClass}>
-                                        {(() => {
-                                          const raw = parseInvoiceOfferCampaignSector(inv.offer_details);
-                                          return raw
-                                            ? SC_CAMPAIGN_SECTOR_LABELS[raw]
-                                            : REVIEW_EMPTY_LABEL;
-                                        })()}
-                                      </p>
-                                    ) : (
-                                      <Select
-                                        value={campaignSectorByInvoiceId[inv.id] ?? undefined}
-                                        onValueChange={(value) => {
-                                          if (isScCampaignSector(value)) {
-                                            setCampaignSectorByInvoiceId((prev) => ({
-                                              ...prev,
-                                              [inv.id]: value,
-                                            }));
-                                          }
-                                        }}
-                                        disabled={isRowGreyedOut || isAdminRejected}
-                                      >
-                                        <SelectTrigger
-                                          aria-label="Campaign Sector"
-                                          className="h-9 w-full min-w-[8rem] max-w-[18rem] rounded-xl border-border bg-background text-ui"
-                                        >
-                                          <SelectValue placeholder="Select" />
-                                        </SelectTrigger>
-                                        <SelectContent className="max-h-[280px]">
-                                          {SC_CAMPAIGN_SECTORS.map((value) => (
-                                            <SelectItem key={value} value={value}>
-                                              {SC_CAMPAIGN_SECTOR_LABELS[value]}
-                                            </SelectItem>
-                                          ))}
-                                        </SelectContent>
-                                      </Select>
-                                    )}
+                                    <p
+                                      className={applicationTableExpandableValueClass}
+                                      aria-label="Company category"
+                                    >
+                                      {(() => {
+                                        const raw = parseInvoiceOfferCompanyCategory(inv.details);
+                                        return raw
+                                          ? SC_COMPANY_CATEGORY_LABELS[raw]
+                                          : REVIEW_EMPTY_LABEL;
+                                      })()}
+                                    </p>
                                   </div>
                                   <div className={applicationTableExpandableFieldBlockClass}>
                                     <p className={applicationTableExpandableLabelClass}>
-                                      Sustainability Category of the Campaign
+                                      {SC_MONTHLY_CAMPAIGN.campaignSector.label}
                                     </p>
-                                    {isOfferSent ? (
-                                      <p className={applicationTableExpandableValueClass}>
-                                        {(() => {
-                                          const raw = parseInvoiceOfferSustainabilityCategory(
-                                            inv.offer_details
-                                          );
-                                          return raw
-                                            ? SC_SUSTAINABILITY_CATEGORY_LABELS[raw]
-                                            : REVIEW_EMPTY_LABEL;
-                                        })()}
-                                      </p>
-                                    ) : (
-                                      <Select
-                                        value={sustainabilityCategoryByInvoiceId[inv.id] ?? undefined}
-                                        onValueChange={(value) => {
-                                          if (isScSustainabilityCategory(value)) {
-                                            setSustainabilityCategoryByInvoiceId((prev) => ({
-                                              ...prev,
-                                              [inv.id]: value,
-                                            }));
-                                          }
-                                        }}
-                                        disabled={isRowGreyedOut || isAdminRejected}
-                                      >
-                                        <SelectTrigger
-                                          aria-label="Sustainability Category of the Campaign"
-                                          className="h-9 w-full min-w-[8rem] max-w-[18rem] rounded-xl border-border bg-background text-ui"
-                                        >
-                                          <SelectValue placeholder="Select" />
-                                        </SelectTrigger>
-                                        <SelectContent className="max-h-[280px]">
-                                          {SC_SUSTAINABILITY_CATEGORIES.map((value) => (
-                                            <SelectItem key={value} value={value}>
-                                              {SC_SUSTAINABILITY_CATEGORY_LABELS[value]}
-                                            </SelectItem>
-                                          ))}
-                                        </SelectContent>
-                                      </Select>
-                                    )}
+                                    <p
+                                      className={applicationTableExpandableValueClass}
+                                      aria-label={SC_MONTHLY_CAMPAIGN.campaignSector.label}
+                                    >
+                                      {(() => {
+                                        const raw = parseInvoiceOfferCampaignSector(inv.details);
+                                        return raw
+                                          ? SC_CAMPAIGN_SECTOR_LABELS[raw]
+                                          : REVIEW_EMPTY_LABEL;
+                                      })()}
+                                    </p>
+                                  </div>
+                                  <div className={applicationTableExpandableFieldBlockClass}>
+                                    <p className={applicationTableExpandableLabelClass}>
+                                      {SC_MONTHLY_CAMPAIGN.sustainabilityCategory.label}
+                                    </p>
+                                    <p
+                                      className={applicationTableExpandableValueClass}
+                                      aria-label={SC_MONTHLY_CAMPAIGN.sustainabilityCategory.label}
+                                    >
+                                      {(() => {
+                                        const raw = parseInvoiceOfferSustainabilityCategory(inv.details);
+                                        return raw
+                                          ? SC_SUSTAINABILITY_CATEGORY_LABELS[raw]
+                                          : REVIEW_EMPTY_LABEL;
+                                      })()}
+                                    </p>
                                   </div>
                                   <div className={applicationTableExpandableFieldBlockClass}>
                                     <p className={applicationTableExpandableLabelClass}>
@@ -1338,9 +1214,9 @@ export function InvoiceList({
                                         !!isSendInvoiceOfferPending ||
                                         offeredAmount === null ||
                                         !riskRatingByInvoiceId[inv.id] ||
-                                        !companyCategoryByInvoiceId[inv.id] ||
-                                        !campaignSectorByInvoiceId[inv.id] ||
-                                        !sustainabilityCategoryByInvoiceId[inv.id] ||
+                                        !parseInvoiceOfferCompanyCategory(inv.details) ||
+                                        !parseInvoiceOfferCampaignSector(inv.details) ||
+                                        !parseInvoiceOfferSustainabilityCategory(inv.details) ||
                                         Boolean(feeSendBlockedReason)
                                       }
                                       onClick={() => {
@@ -1349,20 +1225,26 @@ export function InvoiceList({
                                           alert("Please select a risk rating before sending the offer.");
                                           return;
                                         }
-                                        const companyCat = companyCategoryByInvoiceId[inv.id];
+                                        const companyCat = parseInvoiceOfferCompanyCategory(inv.details);
                                         if (!companyCat) {
-                                          alert("Select Technology or Non-Technology for this invoice.");
+                                          alert(
+                                            "Company category is missing from the submitted invoice. Use Request Amendment so the issuer can correct it."
+                                          );
                                           return;
                                         }
-                                        const campaignSector = campaignSectorByInvoiceId[inv.id];
+                                        const campaignSector = parseInvoiceOfferCampaignSector(inv.details);
                                         if (!campaignSector) {
-                                          alert("Select a Campaign Sector.");
+                                          alert(
+                                            "Campaign Sector is missing from the submitted invoice. Use Request Amendment so the issuer can correct it."
+                                          );
                                           return;
                                         }
                                         const sustainabilityCat =
-                                          sustainabilityCategoryByInvoiceId[inv.id];
+                                          parseInvoiceOfferSustainabilityCategory(inv.details);
                                         if (!sustainabilityCat) {
-                                          alert("Select a sustainability category for this invoice.");
+                                          alert(
+                                            "Sustainability Category of the Campaign is missing from the submitted invoice. Use Request Amendment so the issuer can correct it."
+                                          );
                                           return;
                                         }
                                         const platformFeeRatePercent = resolveDrawdownFeeRateForSend({
