@@ -123,6 +123,15 @@ describe("ComRep requiredness", () => {
     ).toEqual([]);
   });
 
+  it("does not require concentration or accounting software on About Save", () => {
+    expect(
+      validateAboutYourBusinessForm({
+        whatDoesCompanyDo: "Wholesale",
+        mainCustomers: "Retail chains",
+      }).map((issue) => issue.field)
+    ).not.toEqual(expect.arrayContaining(["singleCustomerOver50Revenue", "accountingSoftware"]));
+  });
+
   it("allows PATCH omit of required fields and rejects explicit clear of dates", () => {
     expect(validateIssuerMasterPatch({ website: "https://acme.test" }, "issuer")).toEqual([]);
     expect(

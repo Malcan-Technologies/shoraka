@@ -74,26 +74,35 @@ describe("parseAboutYourBusinessFromCorporateData", () => {
 });
 
 describe("completeness helpers", () => {
-  it("treats unanswered concentration as incomplete", () => {
-    const about = {
-      whatDoesCompanyDo: "A",
-      mainCustomers: "B",
-      singleCustomerOver50Revenue: null,
-      accountingSoftware: "Xero",
-    };
-    expect(isAboutYourBusinessPresent(about)).toBe(true);
-    expect(isAboutYourBusinessComplete(about)).toBe(false);
-  });
-
-  it("is complete when all four fields are set", () => {
+  it("is incomplete when Company Activities or main customers are blank", () => {
     expect(
       isAboutYourBusinessComplete({
-        whatDoesCompanyDo: "A",
+        whatDoesCompanyDo: "",
         mainCustomers: "B",
         singleCustomerOver50Revenue: false,
         accountingSoftware: "Xero",
       })
-    ).toBe(true);
+    ).toBe(false);
+    expect(
+      isAboutYourBusinessComplete({
+        whatDoesCompanyDo: "A",
+        mainCustomers: "  ",
+        singleCustomerOver50Revenue: false,
+        accountingSoftware: "Xero",
+      })
+    ).toBe(false);
+  });
+
+  it("is complete when the two required fields are set even if optional About fields are empty", () => {
+    const about = {
+      whatDoesCompanyDo: "A",
+      mainCustomers: "B",
+      singleCustomerOver50Revenue: null,
+      accountingSoftware: "",
+    };
+    expect(isAboutYourBusinessPresent(about)).toBe(true);
+    expect(isAboutYourBusinessComplete(about)).toBe(true);
+    expect(isAboutYourBusinessProfileComplete(about)).toBe(true);
   });
 
   it("treats Company Activities and main customers as the profile-required pair", () => {

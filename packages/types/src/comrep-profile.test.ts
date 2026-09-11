@@ -151,6 +151,8 @@ describe("issuer company completeness [02000]", () => {
     });
     expect(filled.map((m) => m.field)).not.toContain("companyActivities");
     expect(filled.map((m) => m.field)).not.toContain("mainCustomers");
+    expect(filled.map((m) => m.field)).not.toContain("singleCustomerOver50Revenue");
+    expect(filled.map((m) => m.field)).not.toContain("accountingSoftware");
     expect(filled).toHaveLength(0);
   });
 

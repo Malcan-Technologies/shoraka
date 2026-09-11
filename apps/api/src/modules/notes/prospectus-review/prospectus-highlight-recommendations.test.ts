@@ -1,5 +1,4 @@
 import {
-  ISSUER_FINANCIAL_STRENGTH_RECOMMENDATIONS,
   PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT,
   PROSPECTUS_FIXED_SHARIAH_PRINCIPLE,
   buildProspectusHighlightRecommendations,
@@ -7,6 +6,8 @@ import {
   recommendIssuerFinancialStrengthHighlight,
   recommendPaymasterHighlight,
   recommendReturnHighlight,
+  MARC_SME_GRADES,
+  MARC_SCORE_DEFINITIONS,
 } from "@cashsouk/types";
 import { normalizeHighlightSelections } from "./prospectus-review-content";
 
@@ -37,12 +38,14 @@ describe("prospectus highlight recommendations", () => {
     });
   });
 
-  it("maps every SoukScore grade to a placeholder issuer recommendation", () => {
-    for (const grade of ["A", "B", "C", "D", "E", "F"] as const) {
-      expect(recommendIssuerFinancialStrengthHighlight({ riskRating: grade })).toEqual(
-        ISSUER_FINANCIAL_STRENGTH_RECOMMENDATIONS[grade]
-      );
+  it("uses MARC SME riskProfile wording for issuer financial profile", () => {
+    for (const grade of MARC_SME_GRADES) {
+      expect(recommendIssuerFinancialStrengthHighlight({ riskRating: grade })).toEqual({
+        title: "Issuer financial profile",
+        description: MARC_SCORE_DEFINITIONS[grade].riskProfile,
+      });
     }
+
     expect(recommendIssuerFinancialStrengthHighlight({ riskRating: "AAA" }).description).toBe(
       "—"
     );

@@ -65,7 +65,15 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 }
 
 function textOrEmpty(value: unknown): string {
-  return typeof value === "string" && value.trim() ? value.trim() : "";
+  if (typeof value !== "string") return "";
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+
+  // Defensive: sometimes template/asset placeholders leak into content.
+  // If a value looks like an artifact bundle name, treat it as missing.
+  if (/^@[^\\s]+\\.zip$/i.test(trimmed) || /\\.zip$/i.test(trimmed)) return "";
+
+  return trimmed;
 }
 
 /**

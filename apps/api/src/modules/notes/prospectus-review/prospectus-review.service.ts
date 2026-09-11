@@ -12,7 +12,7 @@ import {
 } from "@prisma/client";
 import {
   buildProspectusHighlightRecommendations,
-  isSoukscoreRiskRating,
+  isMarcSmeGrade,
   isNoteProspectusPublished,
   normalizeProspectusWorkflowStatus,
   type ProspectusAboutInvoiceRecommendationInput,
@@ -119,9 +119,8 @@ function recommendationInputFromNote(note: {
 }): ProspectusHighlightRecommendationInput {
   const invoice = asRecord(note.invoice_snapshot);
   const offer = asRecord(invoice?.offer_details);
-  // Issuer Fundamentals highlight recommendations are driven by Soukscore A–F.
-  // If the stored risk_rating isn't A–F, we intentionally fall back to "—".
-  const riskRating = isSoukscoreRiskRating(offer?.risk_rating) ? offer.risk_rating : null;
+  // Issuer Fundamentals highlight recommendations use MARC SME grades (SME-1..SME-10).
+  const riskRating = isMarcSmeGrade(offer?.risk_rating) ? offer.risk_rating : null;
   const profit =
     note.profit_rate_percent == null ? null : Number(note.profit_rate_percent);
   return {

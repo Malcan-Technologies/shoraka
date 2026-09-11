@@ -22,6 +22,8 @@ describe("About your business profile card", () => {
     expect(card).toContain("optional={!softwareRequired}");
     expect(card).toContain("required={concentrationRequired}");
     expect(card).toContain("required={softwareRequired}");
+    expect(card).not.toContain("text-destructive\">*</");
+    expect(card).not.toContain("Please fill up");
   });
 
   it("shows existing field-error copy on Save when required fields are blank", () => {

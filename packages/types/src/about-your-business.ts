@@ -26,8 +26,12 @@ export function isAboutYourBusinessFieldRequired(field: keyof AboutYourBusiness)
   return (ABOUT_YOUR_BUSINESS_PROFILE_REQUIRED_KEYS as readonly string[]).includes(field);
 }
 
-export function isAboutYourBusinessProfileComplete(about: AboutYourBusiness): boolean {
+export function isAboutYourBusinessComplete(about: AboutYourBusiness): boolean {
   return ABOUT_YOUR_BUSINESS_PROFILE_REQUIRED_KEYS.every((key) => about[key].trim().length > 0);
+}
+
+export function isAboutYourBusinessProfileComplete(about: AboutYourBusiness): boolean {
+  return isAboutYourBusinessComplete(about);
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -90,15 +94,6 @@ export function isAboutYourBusinessPresent(about: AboutYourBusiness): boolean {
     about.whatDoesCompanyDo.trim() ||
       about.mainCustomers.trim() ||
       about.singleCustomerOver50Revenue !== null ||
-      about.accountingSoftware.trim()
-  );
-}
-
-export function isAboutYourBusinessComplete(about: AboutYourBusiness): boolean {
-  return Boolean(
-    about.whatDoesCompanyDo.trim() &&
-      about.mainCustomers.trim() &&
-      about.singleCustomerOver50Revenue !== null &&
       about.accountingSoftware.trim()
   );
 }
