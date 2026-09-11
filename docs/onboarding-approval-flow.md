@@ -1032,7 +1032,7 @@ The table below focuses on the **organization lifecycle** (`InvestorOrganization
 | Current status | Trigger | Who/what triggers it | New status | Notes |
 |---|---|---|---|---|
 | `PENDING` (company) | COD “wait for approval” webhook | `CODWebhookHandler` on `/codliveness` | `PENDING_SSM_REVIEW` | Company COD sets `onboarding_approved = false` and resets SSM gates in wait state. |
-| `IN_PROGRESS` (personal) | Liveness passed / wait-for-approval | `IndividualOnboardingWebhookHandler` on `/liveness` | `PENDING_APPROVAL` | Sets org to `PENDING_APPROVAL` and logs `trigger: LIVENESS_PASSED` / `WAIT_FOR_APPROVAL`. |
+| `IN_PROGRESS` (personal) | Liveness passed / wait-for-approval | `IndividualOnboardingWebhookHandler` on `/liveness` | `PENDING_APPROVAL` | Lands on `PENDING_APPROVAL` with `onboarding_approved = false`. Applicant completion is not an onboarding approval; `onboarding_approved` is set only on RegTank `APPROVED`. |
 | `PENDING_SSM_REVIEW` | Admin approves SSM/CTOS | `POST /v1/admin/onboarding-applications/:id/approve-ssm` | `PENDING_APPROVAL` | Sets `ssm_approved` (investor) or `ssm_checked` (issuer). |
 | `PENDING_APPROVAL` | Admin approves onboarding submission OR COD approval sets flag | `AdminService.approveOnboardingSubmission` or `CODWebhookHandler` sets `onboarding_approved = true` + calls `advanceOnboardingStatusFromFlags` | `PENDING_AML` (company only if SSM gate satisfied; personal can advance without SSM gate) | The transition is controlled by `advanceOnboardingStatusFromFlags`. |
 | `PENDING_AML` | AML milestone cleared | `maybeAdvanceOrgAfterAmlScreeningCleared` (webhook-driven) OR `AdminService.approveAmlScreening` | `PENDING_FINAL_APPROVAL` | Webhooks require `org.onboarding_status === PENDING_AML` before advancing. |

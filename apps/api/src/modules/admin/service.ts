@@ -167,7 +167,10 @@ import {
   applyPersonalAmlMilestoneFromLiveKyc,
 } from "../regtank/webhooks/org-aml-milestone";
 import { shouldApplyCodApprovedOnboardingFlag } from "../regtank/helpers/cod-amendment-transition";
-import { getIndividualWaitForApprovalUpdate } from "../regtank/helpers/individual-onboarding-transition";
+import {
+  getIndividualWaitForApprovalUpdate,
+  getPrematurePersonalOnboardingHeal,
+} from "../regtank/helpers/individual-onboarding-transition";
 import {
   isRegTankRateLimited,
   REGTANK_RATE_LIMITED_MESSAGE,
@@ -3654,6 +3657,7 @@ export class AdminService {
       ? application.investor_organization_id
       : application.issuer_organization_id;
     if (orgId) {
+      await this.revertPrematurePersonalOnboardingAdvance(application);
       await advanceOnboardingStatusFromFlags({
         organizationId: orgId,
         portalType: isInvestor ? "investor" : "issuer",
@@ -3767,6 +3771,53 @@ export class AdminService {
   }
 
   /**
+   * Personal WAIT_FOR_APPROVAL used to set onboarding_approved, and opening this dialog
+   * then advanced the org to AML. Persist the rollback before flag-driven advance.
+   */
+  private async revertPrematurePersonalOnboardingAdvance(
+    application: OnboardingApplicationRecord
+  ): Promise<void> {
+    const isInvestor = application.portal_type === "investor";
+    const org = isInvestor ? application.investor_organization : application.issuer_organization;
+    if (!org) return;
+    const isPersonal =
+      application.organization_type === OrganizationType.PERSONAL ||
+      org.type === OrganizationType.PERSONAL;
+    if (!isPersonal) return;
+
+    const heal = getPrematurePersonalOnboardingHeal({
+      currentOnboardingStatus: org.onboarding_status,
+      onboardingApproved: org.onboarding_approved,
+      regtankStatus: application.status,
+    });
+    if (!heal) return;
+
+    if (isInvestor) {
+      await this.organizationRepository.updateInvestorOrganizationOnboarding(
+        org.id,
+        OnboardingStatus.PENDING_APPROVAL,
+        { onboardingApproved: heal.onboardingApproved }
+      );
+    } else {
+      await this.organizationRepository.updateIssuerOrganizationOnboarding(
+        org.id,
+        OnboardingStatus.PENDING_APPROVAL,
+        { onboardingApproved: heal.onboardingApproved }
+      );
+    }
+
+    logger.info(
+      {
+        organizationId: org.id,
+        requestId: application.request_id,
+        previousStatus: org.onboarding_status,
+        newStatus: heal.nextStatus,
+      },
+      "Reverted premature personal AML step — RegTank identity onboarding is still awaiting approval"
+    );
+  }
+
+  /**
    * Map a RegTank onboarding record to the admin-friendly response format.
    * onboarding_status on the organization drives the admin flow step; status mirrors the queue label.
    */
@@ -3774,16 +3825,31 @@ export class AdminService {
     record: OnboardingApplicationRecord
   ): OnboardingApplicationResponse {
     const isInvestor = record.portal_type === "investor";
-    const org = isInvestor ? record.investor_organization : record.issuer_organization;
-    const orgOnboardingStatus = org?.onboarding_status || OnboardingStatus.PENDING;
-
-    const isInvestorOrg = record.portal_type === "investor";
     const investorOrg = record.investor_organization;
     const issuerOrg = record.issuer_organization;
+    const org = isInvestor ? record.investor_organization : record.issuer_organization;
 
-    const ssmApproved = isInvestorOrg
+    const ssmApproved = isInvestor
       ? (investorOrg?.ssm_approved ?? false)
       : (issuerOrg?.ssm_checked ?? false);
+
+    let orgOnboardingStatus = org?.onboarding_status || OnboardingStatus.PENDING;
+    let onboardingApproved = isInvestor
+      ? (investorOrg?.onboarding_approved ?? false)
+      : (issuerOrg?.onboarding_approved ?? false);
+    const isPersonal =
+      record.organization_type === OrganizationType.PERSONAL || org?.type === OrganizationType.PERSONAL;
+    if (isPersonal) {
+      const heal = getPrematurePersonalOnboardingHeal({
+        currentOnboardingStatus: orgOnboardingStatus,
+        onboardingApproved,
+        regtankStatus: record.status,
+      });
+      if (heal) {
+        orgOnboardingStatus = heal.nextStatus;
+        onboardingApproved = heal.onboardingApproved;
+      }
+    }
 
     const status = this.queueStatusFromOnboardingRecord(record.status, orgOnboardingStatus);
 
@@ -3846,13 +3912,10 @@ export class AdminService {
       : null;
 
     // For investors, use investor_organization fields; for issuers, use issuer_organization fields
-    const onboardingApproved = isInvestorOrg
-      ? (investorOrg?.onboarding_approved ?? false)
-      : (issuerOrg?.onboarding_approved ?? false);
-    const amlApproved = isInvestorOrg
+    const amlApproved = isInvestor
       ? (investorOrg?.aml_approved ?? false)
       : (issuerOrg?.aml_approved ?? false);
-    const tncAccepted = isInvestorOrg
+    const tncAccepted = isInvestor
       ? (investorOrg?.tnc_accepted ?? false)
       : (issuerOrg?.tnc_accepted ?? false);
 
@@ -3868,17 +3931,17 @@ export class AdminService {
     });
 
     // Sophisticated investor status (only for investor portal)
-    const isSophisticatedInvestor = isInvestorOrg
+    const isSophisticatedInvestor = isInvestor
       ? (investorOrg?.is_sophisticated_investor ?? null)
       : undefined;
-    const sophisticatedInvestorReason = isInvestorOrg
+    const sophisticatedInvestorReason = isInvestor
       ? (investorOrg?.sophisticated_investor_reason ?? null)
       : undefined;
 
     // Director KYC status (only for corporate onboarding)
     const directorKycStatusRaw =
       record.organization_type === "COMPANY"
-        ? isInvestorOrg
+        ? isInvestor
           ? (investorOrg as { director_kyc_status?: unknown })?.director_kyc_status
           : (issuerOrg as { director_kyc_status?: unknown })?.director_kyc_status
         : undefined;
@@ -3950,7 +4013,7 @@ export class AdminService {
     // Director AML status (only for corporate onboarding)
     const directorAmlStatusRaw =
       record.organization_type === "COMPANY"
-        ? isInvestorOrg
+        ? isInvestor
           ? (investorOrg as { director_aml_status?: unknown })?.director_aml_status
           : (issuerOrg as { director_aml_status?: unknown })?.director_aml_status
         : undefined;
@@ -4056,7 +4119,7 @@ export class AdminService {
     // Corporate entities (only for corporate onboarding)
     const corporateEntitiesRaw =
       record.organization_type === "COMPANY"
-        ? isInvestorOrg
+        ? isInvestor
           ? (investorOrg as { corporate_entities?: unknown })?.corporate_entities
           : (issuerOrg as { corporate_entities?: unknown })?.corporate_entities
         : undefined;
@@ -4093,7 +4156,7 @@ export class AdminService {
       basicInfo?.ssmRegisterNumber ??
       null;
 
-    const orgForCtos = isInvestorOrg ? investorOrg : issuerOrg;
+    const orgForCtos = isInvestor ? investorOrg : issuerOrg;
     const latestOrganizationCtosCompanyJson = orgForCtos?.ctos_reports?.[0]?.company_json ?? null;
     const ctosPartySupplementsRaw = orgForCtos?.ctos_party_supplements;
     const ctosPartySupplements =
@@ -6282,21 +6345,33 @@ export class AdminService {
       const update = getIndividualWaitForApprovalUpdate({
         currentOnboardingStatus: org.onboarding_status,
       });
-      if (update) {
+      const prematureHeal = getPrematurePersonalOnboardingHeal({
+        currentOnboardingStatus: org.onboarding_status,
+        onboardingApproved: org.onboarding_approved,
+        regtankStatus: statusUpper,
+      });
+      const landing = update ?? prematureHeal;
+      if (landing) {
         const adminContext = adminAuditContextFromRequest(req, adminUserId);
         await prisma.$transaction(async (tx) => {
           if (isInvestor) {
             await this.organizationRepository.updateInvestorOrganizationOnboarding(
               org.id,
               OnboardingStatus.PENDING_APPROVAL,
-              { resetCompanySsmGateFromRegtankWebhook: true },
+              {
+                resetCompanySsmGateFromRegtankWebhook: true,
+                onboardingApproved: landing.onboardingApproved,
+              },
               tx
             );
           } else {
             await this.organizationRepository.updateIssuerOrganizationOnboarding(
               org.id,
               OnboardingStatus.PENDING_APPROVAL,
-              { resetCompanySsmGateFromRegtankWebhook: true },
+              {
+                resetCompanySsmGateFromRegtankWebhook: true,
+                onboardingApproved: landing.onboardingApproved,
+              },
               tx
             );
           }
