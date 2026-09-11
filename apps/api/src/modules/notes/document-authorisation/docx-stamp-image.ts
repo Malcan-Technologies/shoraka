@@ -1,5 +1,5 @@
 import PizZip from "pizzip";
-import { fitStampImageForDocx, type StampExtentEmu } from "./stamp-image-contain";
+import { fitStampImageForDocx, type StampExtentEmu, type StampMaxBoundsEmu } from "./stamp-image-contain";
 
 export const COMPANY_STAMP_IMAGE_PLACEHOLDER = "§COMPANY_STAMP_IMAGE§";
 export const SIGNATURE_IMAGE_PLACEHOLDER = "§SIGNATURE_IMAGE§";
@@ -20,6 +20,18 @@ const A14_NS = "http://schemas.microsoft.com/office/drawing/2010/main";
 /** Same id Word uses on wp:docPr / pic:cNvPr. LibreOffice rejects pic:cNvPr id="0". */
 const STAMP_DRAWING_ID = 91001;
 const SIGNATURE_DRAWING_ID = 91002;
+
+export type AuthorisationImageSizing = "default" | "compact";
+
+// Compact bounds reduce the actual rendered footprint for the two DOCX templates
+// where we need signature/stamp to stay within a single A4 page.
+export const COMPACT_MAX_STAMP_WIDTH_EMU = 1_200_000;
+export const COMPACT_MAX_STAMP_HEIGHT_EMU = 600_000;
+
+const COMPACT_BOUNDS: StampMaxBoundsEmu = {
+  maxWidthEmu: COMPACT_MAX_STAMP_WIDTH_EMU,
+  maxHeightEmu: COMPACT_MAX_STAMP_HEIGHT_EMU,
+};
 
 type StampImageInput = {
   bytes: Buffer;
@@ -147,7 +159,8 @@ function applyPlaceholderImageToDocx(
     image: StampImageInput | null | undefined;
     mediaBaseName: string;
     drawing: { id: number; docPrName: string; picName: string };
-  }
+  },
+  sizing: AuthorisationImageSizing = "default"
 ): Buffer {
   const zip = new PizZip(docx);
   const documentFile = zip.file("word/document.xml");
@@ -163,7 +176,10 @@ function applyPlaceholderImageToDocx(
     return zip.generate({ type: "nodebuffer", compression: "DEFLATE" }) as Buffer;
   }
 
-  const fitted = fitStampImageForDocx(input.image.bytes, input.image.contentType);
+  const fitted =
+    sizing === "compact"
+      ? fitStampImageForDocx(input.image.bytes, input.image.contentType, COMPACT_BOUNDS)
+      : fitStampImageForDocx(input.image.bytes, input.image.contentType);
   const { ext, mime } = stampExtension(fitted.contentType);
   const mediaFile = `${input.mediaBaseName}.${ext}`;
   zip.file(`word/media/${mediaFile}`, fitted.bytes);
@@ -198,26 +214,28 @@ function applyPlaceholderImageToDocx(
 
 export function applyCompanyStampToDocx(
   docx: Buffer,
-  stamp: StampImageInput | null | undefined
+  stamp: StampImageInput | null | undefined,
+  options?: { sizing?: AuthorisationImageSizing }
 ): Buffer {
   return applyPlaceholderImageToDocx(docx, {
     placeholder: COMPANY_STAMP_IMAGE_PLACEHOLDER,
     image: stamp,
     mediaBaseName: "company-stamp",
     drawing: { id: STAMP_DRAWING_ID, docPrName: "CompanyStamp", picName: "company-stamp" },
-  });
+  }, options?.sizing ?? "default");
 }
 
 export function applySignatureImageToDocx(
   docx: Buffer,
-  signature: StampImageInput | null | undefined
+  signature: StampImageInput | null | undefined,
+  options?: { sizing?: AuthorisationImageSizing }
 ): Buffer {
   return applyPlaceholderImageToDocx(docx, {
     placeholder: SIGNATURE_IMAGE_PLACEHOLDER,
     image: signature,
     mediaBaseName: "signing-signature",
     drawing: { id: SIGNATURE_DRAWING_ID, docPrName: "Signature", picName: "signing-signature" },
-  });
+  }, options?.sizing ?? "default");
 }
 
 export function applyDocumentAuthorisationImagesToDocx(
@@ -225,10 +243,12 @@ export function applyDocumentAuthorisationImagesToDocx(
   images: {
     signature?: StampImageInput | null;
     stamp?: StampImageInput | null;
-  }
+  },
+  options?: { sizing?: AuthorisationImageSizing }
 ): Buffer {
   return applyCompanyStampToDocx(
-    applySignatureImageToDocx(docx, images.signature),
-    images.stamp
+    applySignatureImageToDocx(docx, images.signature, options),
+    images.stamp,
+    options
   );
 }

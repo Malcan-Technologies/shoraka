@@ -55,5 +55,5 @@ export function renderInvestmentNoteCertificateDocx(
   return applyDocumentAuthorisationImagesToDocx(rendered, {
     signature: signatureImage ?? null,
     stamp: stampImage ?? null,
-  });
+  }, { sizing: "compact" });
 }

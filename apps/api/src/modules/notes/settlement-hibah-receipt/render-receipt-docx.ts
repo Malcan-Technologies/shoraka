@@ -53,5 +53,5 @@ export function renderSettlementHibahReceiptDocx(
   return applyDocumentAuthorisationImagesToDocx(rendered, {
     signature: signatureImage ?? null,
     stamp: stampImage ?? null,
-  });
+  }, { sizing: "compact" });
 }

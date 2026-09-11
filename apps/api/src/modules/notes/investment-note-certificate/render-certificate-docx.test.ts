@@ -1,4 +1,5 @@
 import PizZip from "pizzip";
+import { PNG } from "pngjs";
 import { PROSPECTUS_FIXED_SHARIAH_PRINCIPLE } from "@cashsouk/types";
 import { buildCertificateDocxMergeData } from "./certificate-merge-data";
 import {
@@ -10,6 +11,8 @@ import {
   resolveCertificateTemplatePath,
 } from "./render-certificate-docx";
 import type { InvestmentNoteCertificateSnapshot } from "./types";
+import { COMPACT_MAX_STAMP_HEIGHT_EMU } from "../document-authorisation/docx-stamp-image";
+import { MAX_STAMP_HEIGHT_EMU } from "../document-authorisation/stamp-image-contain";
 
 function decodeXmlText(value: string): string {
   return value
@@ -398,5 +401,66 @@ describe("renderInvestmentNoteCertificateDocx", () => {
     const xml = zip.file("word/document.xml")?.asText() ?? "";
     expect(xml).toContain("<w:drawing>");
     expect(xml).not.toContain("§COMPANY_STAMP_IMAGE§");
+  });
+
+  it("keeps certificate signature on page 1 via explicit Investor Schedule page break", () => {
+    const xml = renderedXml(snapshot, { audience: "ADMIN" });
+
+    const pageBreakIdx = xml.indexOf('<w:br w:type="page"/>');
+    expect(pageBreakIdx).toBeGreaterThanOrEqual(0);
+
+    // There may be other "INVESTOR SCHEDULE" text earlier in the XML; ensure
+    // we find the heading that comes after the inserted page break.
+    const investorAfterBreakIdx = xml.indexOf("INVESTOR SCHEDULE", pageBreakIdx);
+    expect(investorAfterBreakIdx).toBeGreaterThanOrEqual(0);
+
+    const noticeIdx = xml.indexOf('w14:paraId="179C2E2B"');
+    expect(noticeIdx).toBeGreaterThanOrEqual(0);
+    expect(xml.slice(noticeIdx, noticeIdx + 600)).toContain('<w:spacing w:after="50"/>');
+
+    const agentIdx = xml.indexOf("As agent of the Issuer");
+    expect(agentIdx).toBeGreaterThanOrEqual(0);
+    expect(pageBreakIdx).toBeGreaterThan(agentIdx);
+
+    const window = xml.slice(Math.max(0, agentIdx - 2000), agentIdx + 2500);
+    expect(window).toContain('<w:top w:w="25" w:type="dxa"/>');
+    expect(window).toContain('<w:bottom w:w="25" w:type="dxa"/>');
+  });
+
+  it("uses compact wp:extent sizing for signature + company stamp (Investment Note Certificate)", () => {
+    const png = new PNG({ width: 800, height: 800 });
+    png.data.fill(200);
+    for (let i = 3; i < png.data.length; i += 4) png.data[i] = 255;
+    const bytes = PNG.sync.write(png);
+
+    const docx = renderInvestmentNoteCertificateDocx(
+      snapshot,
+      { audience: "ADMIN" },
+      { bytes, contentType: "image/png" },
+      { bytes, contentType: "image/png" }
+    );
+    const injectedXml = new PizZip(docx).file("word/document.xml")?.asText() ?? "";
+
+    const extentFor = (docPrId: number): { cx: number; cy: number } => {
+      const re = new RegExp(
+        `<wp:extent cx="(\\d+)" cy="(\\d+)"\\/>[\\s\\S]*?<wp:docPr id="${docPrId}"`,
+        "m"
+      );
+      const match = injectedXml.match(re);
+      expect(match).toBeTruthy();
+      return { cx: Number(match![1]), cy: Number(match![2]) };
+    };
+
+    const signatureExtent = extentFor(91002);
+    const stampExtent = extentFor(91001);
+
+    expect(signatureExtent.cy).toBe(COMPACT_MAX_STAMP_HEIGHT_EMU);
+    expect(signatureExtent.cx).toBe(COMPACT_MAX_STAMP_HEIGHT_EMU);
+    expect(stampExtent.cy).toBe(COMPACT_MAX_STAMP_HEIGHT_EMU);
+    expect(stampExtent.cx).toBe(COMPACT_MAX_STAMP_HEIGHT_EMU);
+    expect(COMPACT_MAX_STAMP_HEIGHT_EMU).toBeLessThan(MAX_STAMP_HEIGHT_EMU);
+
+    expect(injectedXml).toContain('<wp:docPr id="91001"');
+    expect(injectedXml).toContain('<wp:docPr id="91002"');
   });
 });
