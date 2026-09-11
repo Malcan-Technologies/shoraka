@@ -58,13 +58,21 @@ function readTrustAccount(ledgerBucketAccountsConfig: unknown): {
   };
 }
 
+export type DeedOfAssignmentOfferKind = "contract" | "invoice";
+
 export type BuildDeedOfAssignmentMergeInput = {
+  offerKind: DeedOfAssignmentOfferKind;
   contract: {
     id: string;
     contract_details?: unknown;
     offer_details?: unknown;
     issuer_organization_id: string;
   };
+  invoice?: {
+    id: string;
+    display_reference?: unknown;
+    offer_details?: unknown;
+  } | null;
   issuerOrganization: {
     id: string;
     name?: string | null;
@@ -84,12 +92,14 @@ export function buildDeedOfAssignmentMergeData(
   input: BuildDeedOfAssignmentMergeInput
 ): DeedOfAssignmentMergeData {
   const base = createDeedOfAssignmentFixture();
-  const offer = asRecord(input.contract.offer_details);
+  const offerDetails =
+    input.offerKind === "invoice" ? input.invoice?.offer_details : input.contract.offer_details;
+  const offer = asRecord(offerDetails);
   const company = asRecord(input.application?.company_details);
   const contact = asRecord(company?.contact_person);
   const sentAt = asString(offer?.sent_at);
   const assignmentDate = sentAt ? formatLetterDate(sentAt) : "";
-  const acceptance = getOfferAcceptanceFromOfferDetails(input.contract.offer_details);
+  const acceptance = getOfferAcceptanceFromOfferDetails(offerDetails);
   const authorizedParties = getLoAuthorizedPartiesFromAcceptance(acceptance);
   const issuerParty = getIssuerAuthorizedParty(authorizedParties);
   const assignor_signatories = (issuerParty?.representatives ?? [])

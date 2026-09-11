@@ -68,18 +68,18 @@ describe("issuer financing goal model", () => {
     ).toBe("existing_contract");
   });
 
-  it("renders the facility selector and no-facility action outside the radio cards", () => {
+  it("greys out the approved-facility choice without a separate empty-state action", () => {
     const source = fs.readFileSync(
       path.join(__dirname, "../steps/financing-structure-step.tsx"),
       "utf8"
     );
     expect(source).toContain('selectionRole="radio"');
     expect(source).toContain("goalRadioTabIndex");
-    expect(source).toMatch(
-      /<SelectionCard[\s\S]*?selectionRole="radio"[\s\S]*?\/>\s*\{isExisting && choice.disabled/
-    );
+    expect(source).toContain("choice.disabled");
     expect(source).toContain("<Select");
-    expect(source).toContain("<Button");
+    expect(source).not.toContain("NO_APPROVED_FACILITY_COPY");
+    expect(source).not.toContain("SET_UP_FACILITY_INSTEAD_COPY");
+    expect(source).not.toContain("<Button");
   });
 
   it("places the journey above the goal options as informational copy", () => {

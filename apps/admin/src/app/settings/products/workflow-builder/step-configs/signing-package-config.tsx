@@ -44,14 +44,14 @@ const SYSTEM_SIGNING_TEMPLATES = [
   {
     templateKey: "guarantor_agreement",
     label: "Guarantor Agreement",
-    description: "CA-signed Joint and Several Guarantee generated from the facility offer",
+    description: "CA-signed Joint and Several Guarantee generated from the facility or invoice offer",
     source: "TEMPLATE" as SigningDocumentSource,
     defaultName: "Guarantor Agreement",
   },
   {
     templateKey: "deed_of_assignment",
     label: "Deed of Assignment",
-    description: "CA-signed Deed of Assignment generated from the facility offer",
+    description: "CA-signed Deed of Assignment generated from the facility or invoice offer",
     source: "TEMPLATE" as SigningDocumentSource,
     defaultName: "Deed of Assignment",
   },

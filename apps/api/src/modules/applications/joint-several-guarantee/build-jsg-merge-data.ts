@@ -38,7 +38,10 @@ export function formatJsgFacilityDescription(amountRm: string, letterDate: strin
   return `Account Receivable Financing-i Facility of ${amountRm} as described in the Letter of Offer dated ${letterDate}`;
 }
 
+export type JsgOfferKind = "contract" | "invoice";
+
 export type BuildJsgMergeInput = {
+  offerKind: JsgOfferKind;
   contract: {
     id: string;
     display_reference?: string | null;
@@ -46,6 +49,11 @@ export type BuildJsgMergeInput = {
     offer_details?: unknown;
     issuer_organization_id: string;
   };
+  invoice?: {
+    id: string;
+    display_reference?: unknown;
+    offer_details?: unknown;
+  } | null;
   issuerOrganization: {
     id: string;
     name?: string | null;
@@ -75,16 +83,20 @@ export function buildJsgMergeData(input: BuildJsgMergeInput): JsgMergeData {
     schedule_guarantors: [],
   };
 
-  const offer = asRecord(input.contract.offer_details);
+  const offerDetails =
+    input.offerKind === "invoice" ? input.invoice?.offer_details : input.contract.offer_details;
+  const offer = asRecord(offerDetails);
   const contractDetails = asRecord(input.contract.contract_details);
   const offeredFacility = asNumber(offer?.offered_facility);
   const approvedFacility = asNumber(contractDetails?.approved_facility);
-  const facilityAmount = offeredFacility ?? approvedFacility;
+  const offeredAmount = asNumber(offer?.offered_amount);
+  const facilityAmount =
+    input.offerKind === "invoice" ? offeredAmount : (offeredFacility ?? approvedFacility);
   const sentAt = asString(offer?.sent_at);
   const letterDate = sentAt ? formatLetterDate(sentAt) : "";
   const amountRm = formatRmAmount(facilityAmount ?? undefined);
 
-  const acceptance = getOfferAcceptanceFromOfferDetails(input.contract.offer_details);
+  const acceptance = getOfferAcceptanceFromOfferDetails(offerDetails);
   const authorizedParties = getLoAuthorizedPartiesFromAcceptance(acceptance);
   const liveGuarantors = input.application?.application_guarantors;
 
@@ -93,10 +105,16 @@ export function buildJsgMergeData(input: BuildJsgMergeInput): JsgMergeData {
     ...emptyMissing,
     guarantee_date: letterDate,
     letter_date: letterDate,
-    our_reference: documentCanonicalReference({
-      displayReference: input.contract.display_reference,
-      id: input.contract.id,
-    }),
+    our_reference:
+      input.offerKind === "invoice"
+        ? documentCanonicalReference({
+            displayReference: asString(input.invoice?.display_reference),
+            id: asString(input.invoice?.id),
+          })
+        : documentCanonicalReference({
+            displayReference: input.contract.display_reference,
+            id: input.contract.id,
+          }),
     issuer_name: asString(input.issuerOrganization.name),
     issuer_registration_number: resolveIssuerRegistrationNumber(input.issuerOrganization),
     issuer_address: resolveRegisteredAddress(input.issuerOrganization),

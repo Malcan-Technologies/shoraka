@@ -530,6 +530,7 @@ describe("GeneratedDocumentsService.generateDocument", () => {
     expect(result.filename.endsWith(".pdf")).toBe(true);
     expect(buildJsgMerge.buildJsgMergeData).toHaveBeenCalledWith(
       expect.objectContaining({
+        offerKind: "contract",
         contract: expect.objectContaining({ display_reference: "CON-ARF-202608-K71" }),
       })
     );
@@ -579,6 +580,75 @@ describe("GeneratedDocumentsService.generateDocument", () => {
     });
   });
 
+  it("returns JSG PDF for an invoice offer and stores invoice evidence", async () => {
+    productRepository.findByBaseAndVersion.mockResolvedValue({
+      workflow: jsgWorkflow,
+    } as never);
+    applicationRepository.findById.mockResolvedValue({
+      ...baseApplication,
+      contract: {
+        ...baseApplication.contract,
+        offer_details: null,
+      },
+      invoices: [
+        {
+          id: "inv_1",
+          display_reference: "INV-ARF-202608-0N5",
+          offer_details: {
+            offered_amount: 180000,
+            platform_fee_rate_percent: 1.5,
+            sent_at: "2026-08-20T00:00:00.000Z",
+            offer_acceptance: baseApplication.contract.offer_details.offer_acceptance,
+          },
+        },
+      ],
+    } as never);
+
+    const result = await service.generateDocument({
+      applicationId,
+      typeKey: "arf_joint_several_guarantee",
+      format: "pdf",
+      userId,
+      invoiceId: "inv_1",
+    });
+
+    expect(result.contentType).toBe("application/pdf");
+    expect(buildJsgMerge.buildJsgMergeData).toHaveBeenCalledWith(
+      expect.objectContaining({ offerKind: "invoice" })
+    );
+    expect(prisma.generatedDocumentEvidence.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          document_type: "arf_joint_several_guarantee",
+          invoice_id: "inv_1",
+        }),
+      })
+    );
+  });
+
+  it("rejects JSG when no offer has been sent", async () => {
+    productRepository.findByBaseAndVersion.mockResolvedValue({
+      workflow: jsgWorkflow,
+    } as never);
+    applicationRepository.findById.mockResolvedValue({
+      ...baseApplication,
+      contract: { ...baseApplication.contract, offer_details: null },
+      invoices: [],
+    } as never);
+
+    await expect(
+      service.generateDocument({
+        applicationId,
+        typeKey: "arf_joint_several_guarantee",
+        format: "pdf",
+        userId,
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      code: "GENERATED_DOCUMENT_REQUIRES_NOT_MET",
+    });
+  });
+
   it("returns Deed of Assignment PDF when the signing package includes it", async () => {
     productRepository.findByBaseAndVersion.mockResolvedValue({
       workflow: doaWorkflow,
@@ -593,7 +663,11 @@ describe("GeneratedDocumentsService.generateDocument", () => {
 
     expect(result.contentType).toBe("application/pdf");
     expect(result.filename).toMatch(/^ARF-DOA-.+\.pdf$/);
-    expect(buildDoaMerge.buildDeedOfAssignmentMergeData).toHaveBeenCalled();
+    expect(buildDoaMerge.buildDeedOfAssignmentMergeData).toHaveBeenCalledWith(
+      expect.objectContaining({
+        offerKind: "contract",
+      })
+    );
     expect(renderDoa.renderDeedOfAssignmentDocx).toHaveBeenCalled();
     expect(convertPdf.convertDocxToPdf).toHaveBeenCalled();
   });
@@ -637,6 +711,75 @@ describe("GeneratedDocumentsService.generateDocument", () => {
     ).rejects.toMatchObject({
       statusCode: 400,
       code: "GENERATED_DOCUMENT_DATA_INCOMPLETE",
+    });
+  });
+
+  it("returns Deed of Assignment PDF for an invoice offer and stores invoice evidence", async () => {
+    productRepository.findByBaseAndVersion.mockResolvedValue({
+      workflow: doaWorkflow,
+    } as never);
+    applicationRepository.findById.mockResolvedValue({
+      ...baseApplication,
+      contract: {
+        ...baseApplication.contract,
+        offer_details: null,
+      },
+      invoices: [
+        {
+          id: "inv_1",
+          display_reference: "INV-ARF-202608-0N5",
+          offer_details: {
+            offered_amount: 180000,
+            platform_fee_rate_percent: 1.5,
+            sent_at: "2026-08-20T00:00:00.000Z",
+            offer_acceptance: baseApplication.contract.offer_details.offer_acceptance,
+          },
+        },
+      ],
+    } as never);
+
+    const result = await service.generateDocument({
+      applicationId,
+      typeKey: "arf_deed_of_assignment",
+      format: "pdf",
+      userId,
+      invoiceId: "inv_1",
+    });
+
+    expect(result.contentType).toBe("application/pdf");
+    expect(buildDoaMerge.buildDeedOfAssignmentMergeData).toHaveBeenCalledWith(
+      expect.objectContaining({ offerKind: "invoice" })
+    );
+    expect(prisma.generatedDocumentEvidence.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          document_type: "arf_deed_of_assignment",
+          invoice_id: "inv_1",
+        }),
+      })
+    );
+  });
+
+  it("rejects Deed of Assignment when no offer has been sent", async () => {
+    productRepository.findByBaseAndVersion.mockResolvedValue({
+      workflow: doaWorkflow,
+    } as never);
+    applicationRepository.findById.mockResolvedValue({
+      ...baseApplication,
+      contract: { ...baseApplication.contract, offer_details: null },
+      invoices: [],
+    } as never);
+
+    await expect(
+      service.generateDocument({
+        applicationId,
+        typeKey: "arf_deed_of_assignment",
+        format: "pdf",
+        userId,
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      code: "GENERATED_DOCUMENT_REQUIRES_NOT_MET",
     });
   });
 

@@ -505,4 +505,3 @@ export const FACILITY_GUARANTORS_REQUIRED =
   "The selected facility has no guarantors. Contact CashSouk before requesting a drawdown.";
 
 export const NO_APPROVED_FACILITY_COPY = "You do not have an approved facility yet";
-export const SET_UP_FACILITY_INSTEAD_COPY = "Set up a new facility instead";

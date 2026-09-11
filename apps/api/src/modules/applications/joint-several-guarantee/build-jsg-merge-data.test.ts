@@ -36,6 +36,7 @@ describe("formatJsgFacilityDescription", () => {
 describe("buildJsgMergeData", () => {
   it("fills identity, LO date/ref, facility, and ordered guarantors", () => {
     const data = buildJsgMergeData({
+      offerKind: "contract",
       contract: {
         id: "ctr_abc",
         display_reference: "CON-ARF-202608-K71",
@@ -121,6 +122,7 @@ describe("buildJsgMergeData", () => {
 
   it("leaves our_reference empty instead of printing the contract CUID", () => {
     const data = buildJsgMergeData({
+      offerKind: "contract",
       contract: {
         id: "ctr_abc",
         issuer_organization_id: "org_1",
@@ -140,6 +142,7 @@ describe("buildJsgMergeData", () => {
 
   it("leaves facility_description empty when the financing amount is missing", () => {
     const data = buildJsgMergeData({
+      offerKind: "contract",
       contract: {
         id: "ctr_abc",
         issuer_organization_id: "org_1",
@@ -158,6 +161,7 @@ describe("buildJsgMergeData", () => {
 
   it("does not fall back org.address for issuer_business_address", () => {
     const data = buildJsgMergeData({
+      offerKind: "contract",
       contract: {
         id: "ctr_abc",
         issuer_organization_id: "org_1",
@@ -184,5 +188,60 @@ describe("buildJsgMergeData", () => {
     });
     expect(data.issuer_address).toContain("1 Jalan Test");
     expect(data.issuer_business_address).toBe("");
+  });
+
+  it("uses invoice offered amount, sent date, reference, and acceptance signatories", () => {
+    const data = buildJsgMergeData({
+      offerKind: "invoice",
+      contract: {
+        id: "holder_ctr",
+        display_reference: "CON-ARF-202608-K71",
+        issuer_organization_id: "org_1",
+        offer_details: null,
+        contract_details: { approved_facility: 1000000 },
+      },
+      invoice: {
+        id: "inv_1",
+        display_reference: "INV-ARF-202608-0N5",
+        offer_details: {
+          offered_amount: 180000,
+          sent_at: "2026-08-20T02:00:00.000Z",
+          offer_acceptance: {
+            status: "PENDING_ISSUER",
+            authorized_parties_draft: CORPORATE_SNAPSHOT,
+          },
+        },
+      },
+      issuerOrganization: {
+        id: "org_1",
+        name: "Issuer Co",
+        registration_number: "123456-A",
+      },
+      application: {
+        id: "app_1",
+        application_guarantors: [
+          {
+            id: "g_co",
+            guarantor_type: "company",
+            business_name: "HoldCo",
+            ssm_number: "999999-X",
+          },
+        ],
+      },
+    });
+
+    expect(data.our_reference).toBe("INV-ARF-202608-0N5");
+    expect(data.letter_date).toBe("20 August 2026");
+    expect(data.guarantee_date).toBe("20 August 2026");
+    expect(data.facility_description).toContain("RM 180,000.00");
+    expect(data.guarantors_corporate).toEqual([
+      {
+        name: "HoldCo",
+        ssm: "999999-X",
+        signatories: [
+          { name: "Nora Abdullah", nric: "880101015555", capacity: "director" },
+        ],
+      },
+    ]);
   });
 });

@@ -54,6 +54,7 @@ const BASE_ORG = {
 describe("buildDeedOfAssignmentMergeData", () => {
   it("fills assignor identity and trust account from platform data", () => {
     const data = buildDeedOfAssignmentMergeData({
+      offerKind: "contract",
       contract: {
         id: "ctr_abc",
         issuer_organization_id: "org_1",
@@ -113,6 +114,7 @@ describe("buildDeedOfAssignmentMergeData", () => {
 
   it("does not read invoices into the Deed payload", () => {
     const data = buildDeedOfAssignmentMergeData({
+      offerKind: "contract",
       contract: {
         id: "ctr_abc",
         issuer_organization_id: "org_1",
@@ -129,6 +131,7 @@ describe("buildDeedOfAssignmentMergeData", () => {
 
   it("maps every issuer authorised representative, not only the first two", () => {
     const data = buildDeedOfAssignmentMergeData({
+      offerKind: "contract",
       contract: {
         id: "ctr_abc",
         issuer_organization_id: "org_1",
@@ -168,6 +171,7 @@ describe("buildDeedOfAssignmentMergeData", () => {
 
   it("maps a single authorised representative without padding a second block", () => {
     const data = buildDeedOfAssignmentMergeData({
+      offerKind: "contract",
       contract: {
         id: "ctr_abc",
         issuer_organization_id: "org_1",
@@ -200,6 +204,7 @@ describe("buildDeedOfAssignmentMergeData", () => {
 
   it("falls back to the organisation phone when contact_person.contact is empty", () => {
     const data = buildDeedOfAssignmentMergeData({
+      offerKind: "contract",
       contract: {
         id: "ctr_abc",
         issuer_organization_id: "org_1",
@@ -217,6 +222,7 @@ describe("buildDeedOfAssignmentMergeData", () => {
 
   it("does not invent SWIFT when the repayment pool has none", () => {
     const data = buildDeedOfAssignmentMergeData({
+      offerKind: "contract",
       contract: {
         id: "ctr_abc",
         issuer_organization_id: "org_1",
@@ -225,5 +231,45 @@ describe("buildDeedOfAssignmentMergeData", () => {
       issuerOrganization: BASE_ORG,
     });
     expect(data.trust_swift_code).toBe("");
+  });
+
+  it("uses invoice sent date and acceptance signatories without adding invoice fields", () => {
+    const data = buildDeedOfAssignmentMergeData({
+      offerKind: "invoice",
+      contract: {
+        id: "holder_ctr",
+        issuer_organization_id: "org_1",
+        offer_details: null,
+      },
+      invoice: {
+        id: "inv_1",
+        display_reference: "INV-ARF-202608-0N5",
+        offer_details: {
+          offered_amount: 180000,
+          sent_at: "2026-08-20T02:00:00.000Z",
+          offer_acceptance: {
+            status: "PENDING_ISSUER",
+            authorized_parties_draft: ISSUER_SNAPSHOT,
+          },
+        },
+      },
+      issuerOrganization: BASE_ORG,
+    });
+
+    expect(data.assignment_date).toBe("20 August 2026");
+    expect(data.assignor_signatories).toEqual([
+      {
+        name: "Ali Bin Abu",
+        identity_number: "820508105871",
+        designation: "Director",
+      },
+      {
+        name: "Siti Binti Ahmad",
+        identity_number: "900101015555",
+        designation: "Authorised Signatory",
+      },
+    ]);
+    expect(data).not.toHaveProperty("transaction_documents");
+    expect(data).not.toHaveProperty("debtor_company_name");
   });
 });
