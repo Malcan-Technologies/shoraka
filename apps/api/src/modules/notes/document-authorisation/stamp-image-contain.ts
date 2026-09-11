@@ -6,6 +6,11 @@ export type StampExtentEmu = {
   cy: number;
 };
 
+export type StampMaxBoundsEmu = {
+  maxWidthEmu: number;
+  maxHeightEmu: number;
+};
+
 export type FittedStampImage = {
   bytes: Buffer;
   contentType: "image/png" | "image/jpeg" | "image/webp";
@@ -32,23 +37,35 @@ type RasterRgba = {
   data: Buffer;
 };
 
-export function maxStampPixelBox(): { width: number; height: number } {
+export function maxStampPixelBox(
+  bounds: StampMaxBoundsEmu = {
+    maxWidthEmu: MAX_STAMP_WIDTH_EMU,
+    maxHeightEmu: MAX_STAMP_HEIGHT_EMU,
+  }
+): { width: number; height: number } {
   return {
-    width: Math.max(1, Math.round((MAX_STAMP_WIDTH_EMU * STAMP_IMAGE_LAYOUT_DPI) / EMU_PER_INCH)),
-    height: Math.max(1, Math.round((MAX_STAMP_HEIGHT_EMU * STAMP_IMAGE_LAYOUT_DPI) / EMU_PER_INCH)),
+    width: Math.max(1, Math.round((bounds.maxWidthEmu * STAMP_IMAGE_LAYOUT_DPI) / EMU_PER_INCH)),
+    height: Math.max(1, Math.round((bounds.maxHeightEmu * STAMP_IMAGE_LAYOUT_DPI) / EMU_PER_INCH)),
   };
 }
 
-export function stampExtentEmuFromPixels(width: number, height: number): StampExtentEmu {
+export function stampExtentEmuFromPixels(
+  width: number,
+  height: number,
+  bounds: StampMaxBoundsEmu = {
+    maxWidthEmu: MAX_STAMP_WIDTH_EMU,
+    maxHeightEmu: MAX_STAMP_HEIGHT_EMU,
+  }
+): StampExtentEmu {
   const w = width > 0 ? width : 1;
   const h = height > 0 ? height : 1;
-  const heightIfFullWidth = Math.round((MAX_STAMP_WIDTH_EMU * h) / w);
-  if (heightIfFullWidth <= MAX_STAMP_HEIGHT_EMU) {
-    return { cx: MAX_STAMP_WIDTH_EMU, cy: Math.max(1, heightIfFullWidth) };
+  const heightIfFullWidth = Math.round((bounds.maxWidthEmu * h) / w);
+  if (heightIfFullWidth <= bounds.maxHeightEmu) {
+    return { cx: bounds.maxWidthEmu, cy: Math.max(1, heightIfFullWidth) };
   }
   return {
-    cx: Math.max(1, Math.round((MAX_STAMP_HEIGHT_EMU * w) / h)),
-    cy: MAX_STAMP_HEIGHT_EMU,
+    cx: Math.max(1, Math.round((bounds.maxHeightEmu * w) / h)),
+    cy: bounds.maxHeightEmu,
   };
 }
 
@@ -307,12 +324,16 @@ function fallbackMime(contentType: string | null | undefined): FittedStampImage[
  */
 export function fitStampImageForDocx(
   bytes: Buffer,
-  contentType?: string | null
+  contentType?: string | null,
+  bounds: StampMaxBoundsEmu = {
+    maxWidthEmu: MAX_STAMP_WIDTH_EMU,
+    maxHeightEmu: MAX_STAMP_HEIGHT_EMU,
+  }
 ): FittedStampImage {
   const raster = tryDecodeRaster(bytes);
   if (raster) {
-    const extent = stampExtentEmuFromPixels(raster.width, raster.height);
-    const box = maxStampPixelBox();
+    const extent = stampExtentEmuFromPixels(raster.width, raster.height, bounds);
+    const box = maxStampPixelBox(bounds);
     const target = containPixelSize(raster.width, raster.height, box.width, box.height);
     const fitted = resizeRgbaNearest(raster, target.width, target.height);
     const pngBytes = encodePngRgba(fitted);
@@ -322,8 +343,8 @@ export function fitStampImageForDocx(
 
   const size = readPngSize(bytes) ?? readJpegSize(bytes) ?? readWebpSize(bytes);
   const extent = size
-    ? stampExtentEmuFromPixels(size.width, size.height)
-    : { cx: MAX_STAMP_HEIGHT_EMU, cy: MAX_STAMP_HEIGHT_EMU };
+    ? stampExtentEmuFromPixels(size.width, size.height, bounds)
+    : { cx: bounds.maxHeightEmu, cy: bounds.maxHeightEmu };
   if (size && readPngSize(bytes)) {
     const withPhys = pngWithPhysForExtent(bytes, size.width, size.height, extent);
     return { bytes: withPhys ?? bytes, contentType: "image/png", extent };

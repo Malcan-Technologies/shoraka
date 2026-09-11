@@ -3,10 +3,11 @@ import { sampleInvestmentNoteCertificateSnapshot } from "../investment-note-cert
 import { renderInvestmentNoteCertificateDocx } from "../investment-note-certificate/render-certificate-docx";
 import {
   applyCompanyStampToDocx,
-  stampExtentEmu,
+  COMPACT_MAX_STAMP_HEIGHT_EMU,
+  COMPACT_MAX_STAMP_WIDTH_EMU,
   stampExtentEmuFromPixels,
 } from "./docx-stamp-image";
-import { MAX_STAMP_HEIGHT_EMU, maxStampPixelBox, readPngSize } from "./stamp-image-contain";
+import { maxStampPixelBox, readPngSize, type StampMaxBoundsEmu } from "./stamp-image-contain";
 import { PNG } from "pngjs";
 
 const ONE_BY_ONE_PNG = Buffer.from(
@@ -68,7 +69,11 @@ describe("applyCompanyStampToDocx", () => {
     expect(xml).toContain('<pic:cNvPr id="91001" name="company-stamp"/>');
     expect(xml).toContain('<wp:docPr id="91001" name="CompanyStamp"/>');
     expect(xml).not.toContain('<pic:cNvPr id="0"');
-    const extent = stampExtentEmu(TWO_BY_ONE_PNG);
+    const bounds: StampMaxBoundsEmu = {
+      maxWidthEmu: COMPACT_MAX_STAMP_WIDTH_EMU,
+      maxHeightEmu: COMPACT_MAX_STAMP_HEIGHT_EMU,
+    };
+    const extent = stampExtentEmuFromPixels(2, 1, bounds);
     expect(xml).toContain(`<wp:extent cx="${extent.cx}" cy="${extent.cy}"/>`);
     expect(xml).toContain(`<a:ext cx="${extent.cx}" cy="${extent.cy}"/>`);
     expect(xml).toContain("r:embed=");
@@ -116,10 +121,13 @@ describe("applyCompanyStampToDocx", () => {
     const embedded = zip.file("word/media/company-stamp.png")?.asNodeBuffer();
     expect(embedded).toBeTruthy();
     const size = readPngSize(embedded!);
-    const box = maxStampPixelBox();
+    const box = maxStampPixelBox({
+      maxWidthEmu: COMPACT_MAX_STAMP_WIDTH_EMU,
+      maxHeightEmu: COMPACT_MAX_STAMP_HEIGHT_EMU,
+    });
     expect(size).toEqual({ width: box.height, height: box.height });
     const xml = drawingXml(rendered);
-    expect(xml).toContain(`<wp:extent cx="${MAX_STAMP_HEIGHT_EMU}" cy="${MAX_STAMP_HEIGHT_EMU}"/>`);
+    expect(xml).toContain(`<wp:extent cx="${COMPACT_MAX_STAMP_HEIGHT_EMU}" cy="${COMPACT_MAX_STAMP_HEIGHT_EMU}"/>`);
   });
 });
 
