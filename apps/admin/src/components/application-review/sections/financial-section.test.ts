@@ -76,3 +76,21 @@ describe("Financial section MARC approve wiring", () => {
     expect(source).toContain("approveDisabledReason={approveDisabledReason}");
   });
 });
+
+describe("admin application financial review extra ComRep section", () => {
+  it("shows Additional Financial Details separately from the existing summary rows", () => {
+    const content = fs.readFileSync(
+      path.join(__dirname, "../../application-financial-review-content.tsx"),
+      "utf8"
+    );
+    const comparison = fs.readFileSync(
+      path.join(__dirname, "../../application-financial-review-comparison.tsx"),
+      "utf8"
+    );
+    expect(content).toContain('title="Additional Financial Details"');
+    expect(content).toContain("APPLICATION_COMREP_DETAIL_KEYS");
+    expect(content.indexOf('id: "curlib"')).toBeLessThan(content.indexOf("APPLICATION_COMREP_DETAIL_KEYS.map"));
+    expect(comparison).toContain('title="Additional Financial Details"');
+    expect(comparison).toContain("COMREP_ROW_LABELS");
+  });
+});

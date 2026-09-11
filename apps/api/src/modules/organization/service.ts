@@ -3215,8 +3215,9 @@ export class OrganizationService {
   }
 
   /**
-   * Latest reusable issuer organization-level financial statements (for future prefill),
+   * Latest issuer organization financial-statement history (submit/resubmit merge),
    * plus latest org CTOS `financials_json` (read-only evidence; not written back to master).
+   * New-application year amounts prefill from CTOS only; this JSON is not a prefill fallback.
    *
    * Access is restricted to the organization owner / members.
    */

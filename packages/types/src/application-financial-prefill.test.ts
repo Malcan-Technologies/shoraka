@@ -1,7 +1,14 @@
 import {
+  APPLICATION_FINANCIAL_PREFILL_KEYS,
+  applicationComrepFieldError,
   buildApplicationFinancialPrefillByYear,
+  buildStoredApplicationFinancialYearBlock,
   resolveApplicationFinancialYearPrefill,
 } from "./application-financial-prefill";
+import {
+  APPLICATION_COMREP_DETAIL_KEYS,
+  APPLICATION_CORE_MONEY_KEYS,
+} from "./financial-field-labels";
 
 function orgStatements(byYear: Record<string, Record<string, unknown>>, fye: string) {
   return {
@@ -23,6 +30,28 @@ const oneTabRef = new Date("2026-09-08T00:00:00");
 const fye2026 = "2026-12-31";
 
 describe("application financial prefill", () => {
+  it("keeps the existing application money keys", () => {
+    expect([...APPLICATION_FINANCIAL_PREFILL_KEYS]).toEqual([...APPLICATION_CORE_MONEY_KEYS]);
+    expect(APPLICATION_CORE_MONEY_KEYS).toEqual([
+      "bsfatot",
+      "othass",
+      "bscatot",
+      "bsclbank",
+      "curlib",
+      "bsslltd",
+      "bsclstd",
+      "bsqpuc",
+      "turnover",
+      "plnpbt",
+      "plnpat",
+      "plnetdiv",
+      "plyear",
+    ]);
+    for (const key of APPLICATION_COMREP_DETAIL_KEYS) {
+      expect(APPLICATION_CORE_MONEY_KEYS).not.toContain(key);
+    }
+  });
+
   it("CASE A — two tabs, CTOS exists for historical year", () => {
     const result = buildApplicationFinancialPrefillByYear({
       questionnaire: { financial_year_end: fye2026 },
@@ -43,7 +72,7 @@ describe("application financial prefill", () => {
     expect(result.years["2026"]).toEqual({ year: 2026, source: "blank", fields: null });
   });
 
-  it("CASE B — two tabs, no CTOS for historical year uses org master", () => {
+  it("CASE B — two tabs, no CTOS for historical year stays blank (profile is not a fallback)", () => {
     const result = buildApplicationFinancialPrefillByYear({
       questionnaire: { financial_year_end: fye2026 },
       orgFinancialStatements: orgStatements({ "2025": { turnover: 900 } }, fye2026),
@@ -51,11 +80,7 @@ describe("application financial prefill", () => {
       ref: twoTabRef,
     });
     expect(result.tabYears).toEqual([2025, 2026]);
-    expect(result.years["2025"]).toEqual({
-      year: 2025,
-      source: "org_master",
-      fields: expect.objectContaining({ turnover: 900 }),
-    });
+    expect(result.years["2025"]).toEqual({ year: 2025, source: "blank", fields: null });
     expect(result.years["2026"]).toEqual({ year: 2026, source: "blank", fields: null });
   });
 
@@ -96,7 +121,7 @@ describe("application financial prefill", () => {
     expect(afterFye.years["2026"]).toEqual({ year: 2026, source: "blank", fields: null });
   });
 
-  it("CASE E — CTOS same historical year wins over org master", () => {
+  it("CASE E — CTOS same historical year is used even when org master has another value", () => {
     const resolved = resolveApplicationFinancialYearPrefill({
       year: 2025,
       inProgressYear: 2026,
@@ -141,14 +166,83 @@ describe("application financial prefill", () => {
     expect(resolved.fields?.curlib_non_borrowing).toBeUndefined();
   });
 
-  it("falls through to org when CTOS has the year but no application line items", () => {
+  it("does not fall back to org when CTOS has the year but no application line items", () => {
     const resolved = resolveApplicationFinancialYearPrefill({
       year: 2025,
       inProgressYear: 2026,
       orgFinancialStatements: orgStatements({ "2025": { turnover: 900 } }, fye2026),
       ctosFinancials: [ctosRow(2025, { totass: 1_000_000, gear: 1.2 })],
     });
-    expect(resolved.source).toBe("org_master");
-    expect(resolved.fields?.turnover).toBe(900);
+    expect(resolved.source).toBe("blank");
+    expect(resolved.fields).toBeNull();
+  });
+
+  it("does not fabricate ComRep-only fields from CTOS or profile", () => {
+    const resolved = resolveApplicationFinancialYearPrefill({
+      year: 2025,
+      inProgressYear: 2026,
+      orgFinancialStatements: orgStatements(
+        {
+          "2025": {
+            turnover: 900,
+            curlib_borrowing: 40,
+            operating_cost: 12,
+          },
+        },
+        fye2026
+      ),
+      ctosFinancials: [ctosRow(2025, { turnover: 180, curlib: 70, totass: 1 })],
+    });
+    expect(resolved.source).toBe("ctos");
+    for (const key of APPLICATION_COMREP_DETAIL_KEYS) {
+      expect(resolved.fields?.[key]).toBeUndefined();
+    }
+  });
+
+  it("does not block optional ComRep fields when blank", () => {
+    expect(applicationComrepFieldError("equity_share_application", "")).toBeNull();
+    expect(applicationComrepFieldError("equity_share_premium", null)).toBeNull();
+    expect(applicationComrepFieldError("operating_cost", "")).toBeNull();
+    expect(applicationComrepFieldError("curlib_borrowing", "-1")).toBe(
+      "Current Borrowings must be 0 or greater"
+    );
+    expect(applicationComrepFieldError("equity_accumulated_profit", "-10")).toBeNull();
+    expect(applicationComrepFieldError("pl_minority", "-2")).toBeNull();
+  });
+
+  it("stores core fields and only present ComRep extras", () => {
+    const stored = buildStoredApplicationFinancialYearBlock({
+      pldd: "2025-12-31",
+      turnover: 100,
+      bsfatot: 1,
+      curlib_borrowing: 40,
+      equity_share_application: "",
+    });
+    expect(stored.pldd).toBe("2025-12-31");
+    expect(stored.turnover).toBe(100);
+    expect(stored.bsfatot).toBe(1);
+    expect(stored.curlib_borrowing).toBe(40);
+    expect(stored.equity_share_application).toBeUndefined();
+    expect(stored.curlib).toBe(0);
+  });
+
+  it("does not treat organisation JSON as a completed-year prefill source", () => {
+    const resolved = resolveApplicationFinancialYearPrefill({
+      year: 2025,
+      inProgressYear: 2026,
+      orgFinancialStatements: orgStatements(
+        {
+          "2025": {
+            turnover: 900,
+            bsfatot: 50,
+            curlib: 20,
+            curlib_borrowing: 8,
+          },
+        },
+        fye2026
+      ),
+      ctosFinancials: [],
+    });
+    expect(resolved).toEqual({ year: 2025, source: "blank", fields: null });
   });
 });

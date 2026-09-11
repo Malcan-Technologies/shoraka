@@ -26,11 +26,16 @@ describe("Issuer organisation profile copy", () => {
     expect(company).toContain("PROFILE_LABEL.companyPhone");
   });
 
-  it("uses inline financial editing and does not invent a financial year on the card", () => {
+  it("shows submitted financial history as read-only, not an editable master", () => {
     expect(financials).toContain("Financial Statements");
+    expect(financials).toContain("ProfileFinancialHistory");
+    expect(financials).toContain("Read-only history from submitted financing applications");
     expect(financials).not.toContain("Complete financials");
+    expect(financials).not.toContain("required fields missing");
     expect(financials).not.toContain("<Dialog");
-    expect(financials).toContain("yearBlock && year");
+    expect(financials).not.toContain("yearBlock && year");
+    expect(financials).not.toContain("isEditing");
+    expect(financials).not.toContain("patchIssuerOrgFinancials");
   });
 
   it("maps Type of Company from the SC enum, not a raw RegTank label", () => {

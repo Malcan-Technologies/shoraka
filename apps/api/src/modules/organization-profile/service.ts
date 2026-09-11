@@ -8,10 +8,10 @@ import {
 import {
   buildInvestorProfileCompleteness,
   buildIssuerProfileCompleteness,
-  computeIssuerFinancialCompleteness,
   issuerFinancialsFromYearBlock,
   latestUnauditedYearBlock,
   latestUnauditedYearKey,
+  unauditedYearEntries,
   isMasterFieldEmpty,
   valuesEqualForMismatch,
   canonicalPartyIdentityKey,
@@ -1960,13 +1960,14 @@ export async function getIssuerFinancialSummary(
   const statements = existing?.financial_statements ?? null;
   const latestYear = latestUnauditedYearKey(statements);
   const yearBlock = latestUnauditedYearBlock(statements);
-  const missing = computeIssuerFinancialCompleteness(issuerFinancialsFromYearBlock(yearBlock));
+  const years = unauditedYearEntries(statements);
   return {
     latestYear,
-    complete: missing.length === 0 && yearBlock != null,
-    missingCount: missing.length,
-    missing,
+    complete: true,
+    missingCount: 0,
+    missing: [],
     fields: yearBlock,
+    years,
   };
 }
 

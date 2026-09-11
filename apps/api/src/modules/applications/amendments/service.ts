@@ -321,7 +321,7 @@ export async function resubmitApplication(
 
   logger.info({ applicationId }, "Application resubmitted: cleared amendment flags, created revision");
 
-  // Update org-level latest reusable financial statements for future app auto-prefill.
+  // Org-level history / future ComRep source. Not an application prefill fallback.
   // Only happens on RESUBMITTED (not draft save).
   await upsertLatestOrganizationFinancialStatementsFromApplication({
     applicationId,

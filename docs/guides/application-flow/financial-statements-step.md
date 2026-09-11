@@ -19,7 +19,7 @@ Issuers select **one** date: the **next financial year end** (`financial_year_en
 
 **Year tabs (issuer)** — `getIssuerFinancialTabYears(questionnaire, ref)` in `@cashsouk/types`. In-progress year is always the selected next FYE calendar year (`getInProgressFinancialYearEndYear`), including one-tab mode.
 
-**New-application prefill** — `buildApplicationFinancialPrefillByYear`: completed tabs use CTOS when that year has application line items, otherwise org master. The in-progress tab starts blank. See `docs/issuer-organization-financial-statements-prefill.md`.
+**New-application prefill** — `buildApplicationFinancialPrefillByYear`: completed tabs use CTOS when that year has application line items; otherwise the tab starts blank. Organisation profile JSON is not a fallback. The in-progress tab always starts blank. See `docs/issuer-organization-financial-statements-prefill.md`.
 
 **Admin Financial Summary** — Three fixed CTOS columns (latest three CTOS `financial_year` values, ascending, padded with empty slots on the **left** so the newest CTOS year sits next to user columns). **User Input** columns use the **same** year list as the issuer: `getAdminFinancialSummaryUserColumnYears(questionnaire, ref)` (0–2 columns). User cells use `unaudited_by_year[String(year)]` or missing copy when a field is empty.
 
@@ -29,7 +29,11 @@ Issuers select **one** date: the **next financial year end** (`financial_year_en
 
 ## Stored field keys (per year)
 
-Numeric keys: `bsfatot`, `othass`, `bscatot`, …, `plyear`. See `financialStatementsInputSchema` in `apps/api/src/modules/applications/schemas.ts`.
+Core application keys (unchanged): `pldd`, `bsfatot`, `othass`, `bscatot`, `bsclbank`, `curlib`, `bsslltd`, `bsclstd`, `bsqpuc`, `turnover`, `plnpbt`, `plnpat`, `plnetdiv`, `plyear`.
+
+Optional ComRep extras (same year block, separate issuer section): `curlib_borrowing`, `curlib_non_borrowing`, `ncl_loan`, `ncl_non_loan`, `equity_share_application`, `equity_share_premium`, `equity_accumulated_profit`, `equity_minority`, `operating_cost`, `admin_cost`, `interest_cost`, `other_cost`, `pl_minority`. Blank extras are omitted from storage and do not block Save/Continue.
+
+See `financialStatementsInputSchema` in `apps/api/src/modules/applications/schemas.ts`.
 
 ---
 

@@ -32,6 +32,7 @@ import { cn } from "@/lib/utils";
 import { DirectorShareholderTable } from "@/components/admin/director-shareholder-table";
 import { formatCurrency, formatNumber } from "@cashsouk/config";
 import {
+  APPLICATION_COMREP_DETAIL_KEYS,
   FINANCIAL_FIELD_LABELS,
   computeColumnMetrics,
   computeTurnoverGrowth,
@@ -794,6 +795,95 @@ export function ApplicationFinancialReviewContent({
                                 {cellText}
                               </span>
                             )
+                          ) : (
+                            <span className="tabular-nums">{cellText}</span>
+                          )}
+                        </TableCell>
+                      );
+                    })}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      </ReviewFieldBlock>
+
+      <ReviewFieldBlock
+        title="Additional Financial Details"
+        titleTooltip="ComRep reporting fields entered by the issuer. These are separate from the financing statement lines above and are not in CTOS extracts."
+      >
+        <div className={applicationTableWrapperClass}>
+          <div className="overflow-x-auto">
+            <Table className="table-fixed w-full min-w-[760px] text-[15px]">
+              <TableHeader className={cn(applicationTableHeaderBgClass, "[&_tr]:border-b-border")}>
+                <TableRow className="hover:bg-transparent border-b border-border">
+                  <TableHead
+                    className={cn(
+                      applicationTableHeaderClass,
+                      "w-[22%] min-w-[140px] border-r border-border bg-muted/30 align-middle"
+                    )}
+                  >
+                    Field
+                  </TableHead>
+                  {columns.map((spec, i) => (
+                    <TableHead
+                      key={`comrep-yr-${i}-${spec.kind}-${spec.year ?? "dash"}`}
+                      className={cn(
+                        applicationTableHeaderClass,
+                        "w-[15.5%] align-middle text-right tabular-nums",
+                        i < columns.length - 1 ? "border-r border-border" : "",
+                        financialSummaryColumnShellClass(spec.kind, i, spec.year)
+                      )}
+                    >
+                      {spec.kind === "unaudited" && spec.year != null
+                        ? `FY${spec.year}`
+                        : spec.kind === "ctos"
+                          ? spec.year != null
+                            ? String(spec.year)
+                            : "No year"
+                          : HEADER_PLACEHOLDER}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {APPLICATION_COMREP_DETAIL_KEYS.map((key) => (
+                  <TableRow key={key} className={applicationTableRowClass}>
+                    <TableCell
+                      className={cn(
+                        applicationTableCellClass,
+                        "border-r border-border bg-muted/20 font-medium text-foreground"
+                      )}
+                    >
+                      {FINANCIAL_FIELD_LABELS[key] ?? key}
+                    </TableCell>
+                    {columns.map((spec, ci) => {
+                      const fs = spec.year == null ? null : getFsCol(ci);
+                      let cellText = "—";
+                      if (spec.kind === "ctos") {
+                        cellText = spec.year == null ? "—" : "Not in CTOS extract";
+                      } else if (!fs || fs[key] == null || fs[key] === "") {
+                        cellText = "Not provided in issuer form";
+                      } else {
+                        cellText = formatCurrency(toNum(fs[key]), { decimals: 0 });
+                      }
+                      const muted =
+                        cellText === "—" ||
+                        cellText === "Not provided in issuer form" ||
+                        cellText === "Not in CTOS extract";
+                      return (
+                        <TableCell
+                          key={`comrep-${spec.kind}-${spec.year ?? "x"}-${ci}-${key}`}
+                          className={cn(
+                            applicationTableCellClass,
+                            "border-r border-border text-right tabular-nums last:border-r-0",
+                            financialSummaryColumnShellClass(spec.kind, ci, spec.year),
+                            !muted && "text-foreground"
+                          )}
+                        >
+                          {muted ? (
+                            <span className="text-muted-foreground">{cellText}</span>
                           ) : (
                             <span className="tabular-nums">{cellText}</span>
                           )}

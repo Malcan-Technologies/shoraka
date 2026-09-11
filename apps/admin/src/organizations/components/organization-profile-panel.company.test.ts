@@ -6,6 +6,7 @@ const pic = readFileSync(join(__dirname, "organization-pic-card.tsx"), "utf8");
 const detail = readFileSync(join(__dirname, "organization-people-access-detail.tsx"), "utf8");
 const page = readFileSync(join(__dirname, "organization-detail-page.tsx"), "utf8");
 const helpers = readFileSync(join(__dirname, "organization-profile-helpers.tsx"), "utf8");
+const financials = readFileSync(join(__dirname, "organization-financials-panel.tsx"), "utf8");
 
 describe("Admin company organisation profile", () => {
   it("hides Personal Details (KYC) on company organisations", () => {
@@ -82,5 +83,13 @@ describe("Admin company organisation profile", () => {
     expect(panel).toContain('org.type !== "COMPANY"');
     expect(panel).toContain('label="Document Type"');
     expect(panel).toContain("corporateRequiredDocuments");
+  });
+
+  it("shows organisation financials as read-only submitted history", () => {
+    expect(financials).toContain("ProfileFinancialHistory");
+    expect(financials).toContain("Read-only history from submitted financing applications");
+    expect(financials).not.toContain("required fields missing");
+    expect(financials).not.toContain("isEditing");
+    expect(financials).not.toContain("patchIssuerOrgFinancials");
   });
 });
