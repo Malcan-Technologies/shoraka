@@ -34,7 +34,7 @@ describe("Admin company organisation profile", () => {
   });
 
   it("shows missing field counts and does not require individual KYC on company shareholders", () => {
-    expect(detail).toContain("fields\"} remaining");
+    expect(detail).toContain("fields remain");
     expect(detail).toContain("Individual KYC is not required.");
   });
 

@@ -179,7 +179,7 @@ function kybScreeningHasRisk(screening: ApplicationPersonRow["screening"]): bool
 
 export type RegtankPortalLink = {
   label: string;
-  url: string;
+  url: string | null;
   requestId: string;
 };
 
@@ -283,10 +283,20 @@ export function getRegtankOnboardingViewLinks(
     return [{ label: "View", url, requestId: eod }];
   }
 
-  const standalone = directorOk ? directorEod : shareholderOk ? shareholderEod : "";
-  const liveness = getRegtankLivenessUrl(standalone);
-  if (!liveness || !standalone) return [];
-  return [{ label: "View", url: liveness, requestId: standalone }];
+  const ldId = [directorEod, shareholderEod].find((id) => id.startsWith("LD")) ?? "";
+  const liveness = getRegtankLivenessUrl(ldId);
+  if (liveness && ldId) {
+    return [{ label: "View", url: liveness, requestId: ldId }];
+  }
+
+  const orphanEods = [directorEod, shareholderEod].filter(
+    (id, index, all) => id.startsWith("EOD") && all.indexOf(id) === index
+  );
+  return orphanEods.map((id) => ({
+    label: id === directorEod && id !== shareholderEod ? "Director" : id === shareholderEod && id !== directorEod ? "Shareholder" : "View",
+    url: null,
+    requestId: id,
+  }));
 }
 
 export type RegtankColumnDisplayRow = {

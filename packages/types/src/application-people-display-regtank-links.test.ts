@@ -74,4 +74,28 @@ describe("RegTank portal URL helpers", () => {
       },
     ]);
   });
+
+  it("builds Vertex-shaped Admin deep links", () => {
+    expect(getRegtankCorporateOnboardingUrl("COD05594")).toBe(
+      "https://shoraka-trial.regtank.com/app/onboardingCorporate/COD05594?archived=false"
+    );
+    expect(getRegtankCorporatePersonOnboardingUrl("COD05594", "EOD06934")).toBe(
+      "https://shoraka-trial.regtank.com/app/onboardingCorporate/COD05594/EOD06934"
+    );
+    expect(getRegtankCorporatePersonOnboardingUrl("COD05594", "EOD06933")).toBe(
+      "https://shoraka-trial.regtank.com/app/onboardingCorporate/COD05594/EOD06933"
+    );
+    expect(getRegtankCorporateOnboardingUrl("COD05595")).toBe(
+      "https://shoraka-trial.regtank.com/app/onboardingCorporate/COD05595?archived=false"
+    );
+    expect(getRegtankScreeningLink({ screeningRequestId: "KYC00184", requestId: "KYC00184" })).toBe(
+      "https://shoraka-trial.regtank.com/app/screen-kyc/result/KYC00184"
+    );
+    expect(getRegtankScreeningLink({ screeningRequestId: "KYB00105", requestId: "KYB00105" })).toBe(
+      "https://shoraka-trial.regtank.com/app/screen-kyb/result/KYB00105"
+    );
+    expect(getRegtankLivenessUrl("LD71675-R01")).toBe(
+      "https://shoraka-trial.regtank.com/app/liveness/LD71675-R01?archived=false"
+    );
+  });
 });

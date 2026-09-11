@@ -303,9 +303,9 @@ export function OrganizationPeopleAccessPanel({
           aria-label="Selected person"
           className="flex w-full flex-col overflow-y-auto sm:max-w-2xl"
         >
-          <SheetHeader>
+          <SheetHeader className="sr-only">
             <SheetTitle>{selected?.name ?? "Person"}</SheetTitle>
-            <SheetDescription>Admin evidence and actions for this row.</SheetDescription>
+            <SheetDescription>Selected person details</SheetDescription>
           </SheetHeader>
           <div className="mt-4 min-w-0">{detail}</div>
         </SheetContent>

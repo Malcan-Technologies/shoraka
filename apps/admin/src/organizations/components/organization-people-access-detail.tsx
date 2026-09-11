@@ -3,12 +3,24 @@
 import * as React from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
+import { ArrowTopRightOnSquareIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import {
   IDENTITY_CONFLICT_ADMIN_BODY,
   IDENTITY_CONFLICT_ADMIN_TITLE,
   IDENTITY_CONFLICT_OBSERVED_BODY,
-  PERSON_COMPLETE_ONBOARDING_FIRST,
+  adminAmlWaitingCopy,
+  adminOnboardingStageLabel,
+  adminPartyRecordSourceLabel,
+  adminPeopleAccessAmlDisplayLabel,
+  adminPeopleAccessDetailRoleLine,
+  adminPeopleAccessVerificationLabel,
+  adminPersonHasCtosEvidence,
+  adminPersonHasRegTankEvidence,
+  adminPersonKycResultUrl,
+  adminPersonKybResultUrl,
+  adminProfileCompletenessHint,
+  buildAdminPeopleAccessOverviewItems,
+  buildAdminPersonRegTankRoleRecords,
   computeIssuerPersonCompleteness,
   isBlockedPersonIdentityConflict,
   isIssuerShareholderOnlyBelowMinimum,
@@ -18,15 +30,14 @@ import {
   peopleAccessAmlBadgeStatus,
   peopleAccessKycBadgeStatus,
   peopleAccessPlatformBadgeStatus,
-  personIdentityDisplay,
+  personRegTankKycId,
+  personRegTankKybId,
   readPersonIdentityConflict,
-  shouldDeferOnboardingPersonComrep,
   type AdminPeopleAccessRow,
   type OrganizationDetailResponse,
   type OrganizationPartyProfileDto,
 } from "@cashsouk/types";
 import {
-  PartyRoleBadges,
   ProfileFieldGrid,
   ProfileReadField,
   StatusBadge,
@@ -34,42 +45,47 @@ import {
   TabsContent,
   TabsList,
   TabsTrigger,
-  buildPartyProfileDetailItems,
 } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { accountHref } from "@/lib/admin-directory-hrefs";
 import { ADMIN_ACTION_SURFACE_CLASS } from "@/lib/admin-status-token";
 import { cn } from "@/lib/utils";
-import { RegtankRecordsControl } from "@/components/admin/regtank-records-control";
 import { MismatchBlock } from "./organization-external-review-sheet";
-import { ReadField } from "./organization-profile-helpers";
 import { adminMayInactivateMasterParty } from "@/organizations/utils/organization-profile-overview";
 
-function AccessBadge({ label }: { label: AdminPeopleAccessRow["platformAccess"] }) {
-  if (label === "—") return <span className="text-ui text-muted-foreground">—</span>;
-  const status = peopleAccessPlatformBadgeStatus(label);
+function AccessBadge({ label }: { label: string }) {
+  if (label === "—" || label === "Not applicable") {
+    return <span className="text-ui text-muted-foreground">{label === "Not applicable" ? label : "No access"}</span>;
+  }
+  const status = peopleAccessPlatformBadgeStatus(label as never);
   if (!status) return <span className="text-ui text-muted-foreground">{label}</span>;
   return <StatusBadge status={status} label={label} />;
 }
 
-function KycBadge({ label }: { label: AdminPeopleAccessRow["kyc"] }) {
-  const status = peopleAccessKycBadgeStatus(label);
+function KycBadge({ label }: { label: string }) {
+  const status = peopleAccessKycBadgeStatus(label as never);
   if (!status) return <span className="text-ui text-muted-foreground">—</span>;
   return <StatusBadge status={status} label={label} />;
 }
 
-function AmlBadge({ label }: { label: AdminPeopleAccessRow["aml"] }) {
-  const status = peopleAccessAmlBadgeStatus(label);
+function AmlBadge({ label }: { label: string }) {
+  const status = peopleAccessAmlBadgeStatus(label as never);
   if (!status) return <span className="text-ui text-muted-foreground">—</span>;
   return <StatusBadge status={status} label={label} />;
 }
 
-function masterStateLabel(row: AdminPeopleAccessRow): string {
-  if (row.observed) return "Observed from CTOS";
-  if (row.inactive) return "Inactive";
-  if (row.kind === "people_only") return "Not on current profile";
-  if (row.kind === "platform_only") return "Platform access only";
-  return "Active profile";
+function ExternalRegTankLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1.5 text-ui text-primary underline-offset-4 hover:underline"
+    >
+      {children}
+      <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" aria-hidden />
+    </a>
+  );
 }
 
 export function OrganizationPeopleAccessDetail({
@@ -115,19 +131,12 @@ export function OrganizationPeopleAccessDetail({
         ).length
       : 0;
   const kycApproved = isPersonKycApproved(person?.onboarding?.status);
-  const completenessHint =
-    applyIssuerComrep &&
-    party &&
-    !row.inactive &&
-    !row.observed &&
-    shouldDeferOnboardingPersonComrep({
-      entityType: party.entityType,
-      isDirector: party.isDirector,
-      isShareholder: party.isShareholder,
-      kycOnboardingStatus: person?.onboarding?.status ?? null,
-    })
-      ? PERSON_COMPLETE_ONBOARDING_FIRST
-      : null;
+  const completenessHint = adminProfileCompletenessHint({
+    applyIssuerComrep,
+    row,
+    missingCount,
+    kycApproved,
+  });
   const belowMinimumShareholder = isIssuerShareholderOnlyBelowMinimum({
     isShareholder: party?.isShareholder ?? false,
     isDirector: party?.isDirector ?? false,
@@ -153,11 +162,42 @@ export function OrganizationPeopleAccessDetail({
     Boolean(onAdopt) &&
     !belowMinimumShareholder &&
     !observedConflictTarget;
-  const showCompleteProfile = canManage && !row.observed && !row.inactive && Boolean(onEdit) && kycApproved && missingCount > 0;
-  const showEdit = canManage && !row.observed && !row.inactive && Boolean(onEdit) && row.kind !== "people_only" && row.kind !== "platform_only";
+  const showCompleteProfile =
+    canManage && !row.observed && !row.inactive && Boolean(onEdit) && kycApproved && missingCount > 0;
+  const showEdit =
+    canManage && !row.observed && !row.inactive && Boolean(onEdit) && row.kind !== "people_only" && row.kind !== "platform_only";
   const showInactivate = canManage && Boolean(onInactivate) && adminMayInactivateMasterParty(party);
+  const showCtos = adminPersonHasCtosEvidence(row);
+  const roleRecords = buildAdminPersonRegTankRoleRecords({
+    person: person
+      ? {
+          ...person,
+          parentCorporateRequestId: person.parentCorporateRequestId || org.codRequestId || null,
+        }
+      : person,
+    corporateEntities: org.corporateEntities,
+  });
+  const showRegTank = adminPersonHasRegTankEvidence(person) || roleRecords.length > 0;
+  const verificationLabel = adminPeopleAccessVerificationLabel(row.corporate);
+  const kycLabel = row.kyc === "—" && row.corporate ? "Not started" : row.kyc;
+  const amlLabel = adminPeopleAccessAmlDisplayLabel(row);
+  const amlWaiting = adminAmlWaitingCopy({
+    corporate: row.corporate,
+    person,
+    amlLabel: row.aml,
+  });
+  const kycId = personRegTankKycId(person);
+  const kybId = personRegTankKybId(person);
+  const kycResultUrl = adminPersonKycResultUrl(person);
+  const kybResultUrl = adminPersonKybResultUrl(person);
+  const roleLine = adminPeopleAccessDetailRoleLine(row);
+  const recordSource = adminPartyRecordSourceLabel(party?.origin);
+  const overviewItems = buildAdminPeopleAccessOverviewItems(row);
+  const platformLabel = row.corporate ? "Not applicable" : row.platformAccess === "—" ? "No access" : row.platformAccess;
+  const profileStatus = overviewItems.find((item) => item.label === "Profile Status")?.value ?? "Active profile";
+
   const defaultSection =
-    row.observed || row.ctos === "Differs" || row.ctos === "Not found" || row.identityConflict
+    showCtos && (row.observed || row.ctos === "Differs" || row.ctos === "Not found" || row.identityConflict)
       ? "ctos"
       : row.kind === "platform_only"
         ? "access"
@@ -167,29 +207,17 @@ export function OrganizationPeopleAccessDetail({
     setSection(defaultSection);
   }, [defaultSection, row.key]);
 
-  const identity = personIdentityDisplay({
-    identityNumber: party?.identityNumber ?? person?.identityNumber,
-    partyKey: party?.partyKey,
-    matchKey: person?.matchKey,
-    kycOnboardingStatus: person?.onboarding?.status,
-  });
-
   const orgMember = row.userId ? org.members.find((member) => member.userId === row.userId) ?? null : null;
+  const parentCod = person?.parentCorporateRequestId ?? org.codRequestId ?? null;
 
   return (
     <div className="space-y-4">
       <div className="space-y-2">
         <h2 className="text-card-title break-words">{row.name}</h2>
-        <p className="text-ui text-muted-foreground">{row.companyRoleLine}</p>
+        {roleLine ? <p className="text-ui text-muted-foreground">{roleLine}</p> : null}
         <div className="flex flex-wrap gap-2">
-          <AccessBadge label={row.platformAccess} />
-          <StatusBadge status="neutral" label={masterStateLabel(row)} />
-          {row.ctos !== "—" ? (
-            <StatusBadge
-              status={row.ctos === "Matched" ? "success" : "action"}
-              label={row.ctos}
-            />
-          ) : null}
+          <StatusBadge status="neutral" label={profileStatus} />
+          <AccessBadge label={platformLabel} />
         </div>
         {row.inactive ? (
           <p className={cn("rounded-lg border p-3 text-ui", ADMIN_ACTION_SURFACE_CLASS)}>
@@ -233,13 +261,6 @@ export function OrganizationPeopleAccessDetail({
             </Button>
           ) : null}
         </div>
-        {applyIssuerComrep && missingCount > 0 && !row.inactive && !row.observed ? (
-          <p className="text-meta text-status-action-text">
-            {kycApproved
-              ? `${missingCount} ${missingCount === 1 ? "field" : "fields"} remaining`
-              : `${missingCount} ${missingCount === 1 ? "field" : "fields"} missing`}
-          </p>
-        ) : null}
         {completenessHint ? <p className="text-meta text-muted-foreground">{completenessHint}</p> : null}
       </div>
 
@@ -250,33 +271,29 @@ export function OrganizationPeopleAccessDetail({
           ) : (
             <>
               <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="kyc">KYC</TabsTrigger>
+              <TabsTrigger value="kyc">{verificationLabel}</TabsTrigger>
               <TabsTrigger value="aml">AML</TabsTrigger>
               <TabsTrigger value="access">Access</TabsTrigger>
-              <TabsTrigger value="ctos">CTOS</TabsTrigger>
-              <TabsTrigger value="regtank">RegTank</TabsTrigger>
+              {showCtos ? <TabsTrigger value="ctos">CTOS</TabsTrigger> : null}
+              {showRegTank ? <TabsTrigger value="regtank">RegTank</TabsTrigger> : null}
             </>
           )}
         </TabsList>
 
         {row.kind !== "platform_only" ? (
           <TabsContent value="overview" className="space-y-4 pt-4">
-            {!row.corporate ? (
-              <p className="text-meta text-muted-foreground">
-                Identity: <span className="text-foreground">{identity.value}</span>
-              </p>
-            ) : (
-              <p className="text-meta text-muted-foreground">
-                Company shareholder. Individual KYC is not required. Platform access does not apply.
-              </p>
-            )}
-            <PartyRoleBadges party={party} person={person} />
+            <p className="text-meta text-muted-foreground">Current profile</p>
             <ProfileFieldGrid>
-              {buildPartyProfileDetailItems({ party, person }).map((item) => (
-                <ProfileReadField key={item.label} label={item.label} value={item.value} help={item.help} />
+              {overviewItems.map((item) => (
+                <ProfileReadField key={item.label} label={item.label} value={item.value} />
               ))}
             </ProfileFieldGrid>
-            {party?.origin ? <ReadField label="Origin" value={party.origin} /> : null}
+            {recordSource ? (
+              <div className="space-y-1">
+                <p className="text-meta text-muted-foreground">Record information</p>
+                <ProfileReadField label="Record source" value={recordSource} />
+              </div>
+            ) : null}
           </TabsContent>
         ) : null}
 
@@ -285,52 +302,44 @@ export function OrganizationPeopleAccessDetail({
             {row.corporate ? (
               <>
                 <p className="text-ui text-muted-foreground">
-                  Individual KYC is not required. This tab shows business onboarding (KYB) when a
-                  corporate request exists.
+                  Business verification (KYB). Individual KYC is not required.
                 </p>
-                <div className="flex flex-wrap gap-2">
-                  <KycBadge label={row.kyc} />
-                </div>
-                <ReadField label="Onboarding stage" value={person?.onboarding?.status} />
-                <ReadField label="Party COD" value={person?.partyCorporateRequestId} />
-                <ReadField label="Onboarding ID" value={person?.onboarding?.id} />
+                <KycBadge label={kycLabel} />
+                {person?.onboarding?.status ? (
+                  <ProfileReadField label="Current stage" value={adminOnboardingStageLabel(person.onboarding.status)} />
+                ) : null}
+                {person?.partyCorporateRequestId ? (
+                  <ProfileReadField label="Corporate onboarding" value={person.partyCorporateRequestId} />
+                ) : null}
+                <ProfileReadField
+                  label="KYB ID"
+                  value={kybId}
+                  hint={!kybId ? "Generated after business screening starts." : undefined}
+                />
+                {kybResultUrl ? <ExternalRegTankLink href={kybResultUrl}>View KYB result</ExternalRegTankLink> : null}
               </>
             ) : (
               <>
-                <div className="flex flex-wrap gap-2">
-                  <KycBadge label={row.kyc} />
-                </div>
-                <ReadField label="Onboarding stage" value={person?.onboarding?.status} />
-                <ReadField label="Onboarding ID" value={person?.onboarding?.id} />
-                <ReadField label="Director EOD" value={person?.directorEodRequestId} />
-                <ReadField label="Shareholder EOD" value={person?.shareholderEodRequestId} />
-                <ReadField
-                  label="KYC ID"
-                  value={
-                    person?.screeningRequestId ||
-                    (person?.onboarding?.id?.startsWith("KYC") || person?.onboarding?.id?.startsWith("KYB")
-                      ? person.onboarding.id
-                      : null)
-                  }
+                <KycBadge label={row.kyc} />
+                <ProfileReadField
+                  label="Current stage"
+                  value={adminOnboardingStageLabel(person?.onboarding?.status)}
                 />
-                {person?.onboarding?.verifyLink ? (
-                  <div>
-                    <p className="text-meta text-muted-foreground">Verify link</p>
-                    <a
-                      href={person.onboarding.verifyLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="break-all text-ui text-primary underline-offset-4 hover:underline"
-                    >
-                      Open verify link
-                    </a>
-                  </div>
+                <ProfileReadField
+                  label="KYC ID"
+                  value={kycId}
+                  hint={!kycId ? "Generated after KYC approval." : undefined}
+                />
+                {kycResultUrl ? <ExternalRegTankLink href={kycResultUrl}>View KYC result</ExternalRegTankLink> : null}
+                {roleRecords.length > 1 ? (
+                  <p className="text-meta text-muted-foreground">
+                    This person has separate Director and Shareholder onboarding records for the same identity.
+                  </p>
                 ) : null}
-                <ReadField label="Person Email" value={row.personEmail} />
                 {applyIssuerComrep && missingCount > 0 && kycApproved ? (
                   <p className="text-meta text-muted-foreground">
-                    KYC is approved. {missingCount} profile {missingCount === 1 ? "field remains" : "fields remain"} — use
-                    Complete profile.
+                    KYC is approved. {missingCount} profile {missingCount === 1 ? "field remains" : "fields remain"} —
+                    use Complete profile.
                   </p>
                 ) : null}
               </>
@@ -342,29 +351,37 @@ export function OrganizationPeopleAccessDetail({
           <TabsContent value="aml" className="space-y-4 pt-4">
             <p className="text-meta text-muted-foreground">
               {row.corporate
-                ? "Business / KYB screening for this company shareholder. This is not organisation screening."
+                ? "Business screening for this company shareholder. This is not organisation screening."
                 : "Person screening. This is not the organisation screening result."}
             </p>
-            <AmlBadge label={row.aml} />
-            <ReadField label="Screening status" value={person?.screening?.status} />
-            <ReadField label="Screening ID" value={person?.screening?.id ?? person?.screeningRequestId} />
+            <AmlBadge label={amlLabel} />
+            {amlWaiting ? <p className="text-ui text-muted-foreground">{amlWaiting}</p> : null}
             {person?.screening?.riskLevel ? (
-              <ReadField label="Risk level" value={String(person.screening.riskLevel)} />
+              <ProfileReadField label="Risk level" value={String(person.screening.riskLevel)} />
             ) : null}
             {person?.screening?.riskScore != null && String(person.screening.riskScore) !== "" ? (
-              <ReadField label="Risk score" value={String(person.screening.riskScore)} />
+              <ProfileReadField label="Risk score" value={String(person.screening.riskScore)} />
             ) : null}
+            {kycId && !row.corporate ? <ProfileReadField label="KYC ID" value={kycId} /> : null}
+            {kybId && row.corporate ? <ProfileReadField label="KYB ID" value={kybId} /> : null}
+            {kycResultUrl ? <ExternalRegTankLink href={kycResultUrl}>View KYC result</ExternalRegTankLink> : null}
+            {kybResultUrl ? <ExternalRegTankLink href={kybResultUrl}>View KYB result</ExternalRegTankLink> : null}
           </TabsContent>
         ) : null}
 
         <TabsContent value="access" className="space-y-4 pt-4">
-          <AccessBadge label={row.platformAccess} />
+          <AccessBadge label={platformLabel} />
           {row.corporate ? (
             <p className="text-ui text-muted-foreground">Corporate shareholders cannot have platform access.</p>
           ) : null}
-          <ReadField label="Account Email" value={row.accountEmail} />
-          {row.kind !== "platform_only" ? <ReadField label="Person Email" value={row.personEmail} /> : null}
-          {row.kind === "platform_only" ? <ReadField label="Phone" value={orgMember?.phone} /> : null}
+          {row.userId ? (
+            <ProfileReadField label="Account Email" value={row.accountEmail} />
+          ) : row.kind !== "platform_only" && !row.corporate ? (
+            <ProfileReadField label="Account" value="No platform account" />
+          ) : null}
+          {row.kind === "platform_only" && orgMember?.phone ? (
+            <ProfileReadField label="Phone" value={orgMember.phone} />
+          ) : null}
           {row.userId && canViewAccounts ? (
             <div>
               <p className="text-meta text-muted-foreground">Linked user</p>
@@ -372,24 +389,16 @@ export function OrganizationPeopleAccessDetail({
                 Open account
               </Link>
             </div>
-          ) : (
-            <ReadField label="Linked user" value={row.userId} />
-          )}
-          {orgMember ? (
-            <details className="text-meta text-muted-foreground">
-              <summary className="cursor-pointer text-ui">System role</summary>
-              <p className="mt-2 font-mono">{orgMember.role}</p>
-            </details>
           ) : null}
           {row.invitationId ? (
-            <ReadField
+            <ProfileReadField
               label="Invitation"
               value={`${row.platformAccess}${row.invitationExpiresAt ? ` · ${row.invitationExpiresAt}` : ""}`}
             />
           ) : null}
         </TabsContent>
 
-        {row.kind !== "platform_only" ? (
+        {row.kind !== "platform_only" && showCtos ? (
           <TabsContent value="ctos" className="space-y-4 pt-4">
             <CtosEvidence
               row={row}
@@ -410,15 +419,48 @@ export function OrganizationPeopleAccessDetail({
           </TabsContent>
         ) : null}
 
-        {row.kind !== "platform_only" ? (
+        {row.kind !== "platform_only" && showRegTank ? (
           <TabsContent value="regtank" className="space-y-4 pt-4">
-            {person ? (
-              <RegtankRecordsControl person={person} />
+            <p className="text-meta text-muted-foreground">
+              External onboarding evidence. {verificationLabel} status is summarised on the {verificationLabel} tab.
+            </p>
+            {roleRecords.length > 0 ? (
+              <div className="space-y-3">
+                {roleRecords.map((record) => (
+                  <div key={`${record.kind}-${record.requestId}`} className="space-y-1 rounded-lg border p-3">
+                    <p className="text-ui font-medium">{record.title}</p>
+                    <ProfileReadField label="Onboarding reference" value={record.requestId} />
+                    <ProfileReadField label="Current stage" value={record.stageLabel} />
+                    {record.url ? (
+                      <ExternalRegTankLink href={record.url}>{record.actionLabel}</ExternalRegTankLink>
+                    ) : (
+                      <p className="text-meta text-muted-foreground">
+                        Open in RegTank is unavailable until the parent company onboarding reference is known.
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
             ) : (
-              <p className="text-ui text-muted-foreground">No RegTank records on this row.</p>
+              <p className="text-ui text-muted-foreground">No RegTank onboarding evidence.</p>
             )}
-            <ReadField label="Parent COD" value={person?.parentCorporateRequestId} />
-            <ReadField label="Party COD" value={person?.partyCorporateRequestId} />
+            {!row.corporate && parentCod ? (
+              <ProfileReadField label="Parent company onboarding" value={parentCod} />
+            ) : null}
+            {row.corporate && parentCod && parentCod !== person?.partyCorporateRequestId ? (
+              <p className="text-meta text-muted-foreground">
+                This company onboards as a shareholder of {parentCod}.
+              </p>
+            ) : null}
+            {person?.onboarding?.updatedAt ? (
+              <ProfileReadField label="Last updated" value={person.onboarding.updatedAt} />
+            ) : null}
+            {person?.icFrontUrl ? (
+              <ExternalRegTankLink href={person.icFrontUrl}>View identity document (front)</ExternalRegTankLink>
+            ) : null}
+            {person?.icBackUrl ? (
+              <ExternalRegTankLink href={person.icBackUrl}>View identity document (back)</ExternalRegTankLink>
+            ) : null}
           </TabsContent>
         ) : null}
       </Tabs>
@@ -471,7 +513,7 @@ function CtosEvidence({
           </p>
           <p className="text-ui text-status-action-text">{IDENTITY_CONFLICT_ADMIN_BODY}</p>
           <p className="text-meta text-muted-foreground">
-            Matching {identityConflict?.otherMembershipStatus === "EXTERNAL_OBSERVED" ? "CTOS" : ""} Person key:{" "}
+            Matching {identityConflict?.otherMembershipStatus === "EXTERNAL_OBSERVED" ? "CTOS" : ""} person:{" "}
             {identityConflict?.otherPartyKey || identityConflict?.otherPartyId}
           </p>
           {canManage && identityConflict?.otherMembershipStatus === "EXTERNAL_OBSERVED" ? (
@@ -516,7 +558,9 @@ function CtosEvidence({
               className="h-10"
               variant="outline"
               onClick={() =>
-                toast.message("Closes this review. The person remains a CTOS observation until someone adopts them. This does not save a separate decision.")
+                toast.message(
+                  "Closes this review. The person remains a CTOS observation until someone adopts them. This does not save a separate decision."
+                )
               }
             >
               Leave as CTOS observation
@@ -572,15 +616,6 @@ function CtosEvidence({
 
       {row.ctos === "Matched" ? (
         <p className="text-ui text-muted-foreground">This person matches the latest CTOS information.</p>
-      ) : null}
-
-      {party?.externalObservation && typeof party.externalObservation === "object" ? (
-        <details className="text-meta text-muted-foreground">
-          <summary className="cursor-pointer text-ui">Latest CTOS snapshot</summary>
-          <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-muted/50 p-3 text-meta">
-            {JSON.stringify(party.externalObservation, null, 2)}
-          </pre>
-        </details>
       ) : null}
     </div>
   );
