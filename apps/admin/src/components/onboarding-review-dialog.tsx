@@ -401,7 +401,7 @@ export function OnboardingReviewDialog({
     if (!application) return;
     const url = isCompany && application.kybPortalUrl
       ? application.kybPortalUrl
-      : application.kycPortalUrl;
+      : application.kycPortalUrl || application.regtankPortalUrl;
     if (url) {
       window.open(url, "_blank", "noopener,noreferrer");
     } else {
@@ -730,7 +730,9 @@ export function OnboardingReviewDialog({
                 )}
               </div>
               {(() => {
-                const amlPortalUrl = isCompany ? application.kybPortalUrl : application.kycPortalUrl;
+                const amlPortalUrl = isCompany
+                  ? application.kybPortalUrl
+                  : application.kycPortalUrl || application.regtankPortalUrl;
                 const noPermission = !canManage;
                 const noReviewLink = canManage && !amlPortalUrl;
                 const disabledReason = noPermission

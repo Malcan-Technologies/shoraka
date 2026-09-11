@@ -46,9 +46,14 @@ export type OrganizationWithMembers = (InvestorOrganization | IssuerOrganization
   ssm_checked?: boolean; // Only for issuer organizations
 };
 
-/** When transitioning to PENDING_APPROVAL via RegTank webhook, callers may clear company SSM flags for a fresh admin gate. */
+/**
+ * When transitioning to PENDING_APPROVAL via RegTank webhook, callers may clear company SSM
+ * flags for a fresh admin gate. `onboardingApproved` is never inferred from status —
+ * awaiting review is not an onboarding approval.
+ */
 export type UpdateOrganizationOnboardingOptions = {
   resetCompanySsmGateFromRegtankWebhook?: boolean;
+  onboardingApproved?: boolean;
 };
 
 function mergeAboutYourBusinessPatch(
@@ -367,12 +372,11 @@ export class OrganizationRepository {
       onboarded_at: status === OnboardingStatus.COMPLETED ? new Date() : null,
     };
 
-    // Set onboarding_approved to true when status is PENDING_APPROVAL
-    if (status === OnboardingStatus.PENDING_APPROVAL) {
-      updateData.onboarding_approved = true;
-      if (options?.resetCompanySsmGateFromRegtankWebhook) {
-        updateData.ssm_approved = false;
-      }
+    if (options?.onboardingApproved !== undefined) {
+      updateData.onboarding_approved = options.onboardingApproved;
+    }
+    if (status === OnboardingStatus.PENDING_APPROVAL && options?.resetCompanySsmGateFromRegtankWebhook) {
+      updateData.ssm_approved = false;
     }
 
     return db.investorOrganization.update({
@@ -400,12 +404,11 @@ export class OrganizationRepository {
       onboarded_at: status === OnboardingStatus.COMPLETED ? new Date() : null,
     };
 
-    // Set onboarding_approved to true when status is PENDING_APPROVAL
-    if (status === OnboardingStatus.PENDING_APPROVAL) {
-      updateData.onboarding_approved = true;
-      if (options?.resetCompanySsmGateFromRegtankWebhook) {
-        updateData.ssm_checked = false;
-      }
+    if (options?.onboardingApproved !== undefined) {
+      updateData.onboarding_approved = options.onboardingApproved;
+    }
+    if (status === OnboardingStatus.PENDING_APPROVAL && options?.resetCompanySsmGateFromRegtankWebhook) {
+      updateData.ssm_checked = false;
     }
 
     return db.issuerOrganization.update({

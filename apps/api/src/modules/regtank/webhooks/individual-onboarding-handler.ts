@@ -341,14 +341,20 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
             await this.organizationRepository.updateInvestorOrganizationOnboarding(
               organizationId,
               OnboardingStatus.PENDING_APPROVAL,
-              { resetCompanySsmGateFromRegtankWebhook: true },
+              {
+                resetCompanySsmGateFromRegtankWebhook: true,
+                onboardingApproved: update.onboardingApproved,
+              },
               tx
             );
           } else {
             await this.organizationRepository.updateIssuerOrganizationOnboarding(
               organizationId,
               OnboardingStatus.PENDING_APPROVAL,
-              { resetCompanySsmGateFromRegtankWebhook: true },
+              {
+                resetCompanySsmGateFromRegtankWebhook: true,
+                onboardingApproved: update.onboardingApproved,
+              },
               tx
             );
           }

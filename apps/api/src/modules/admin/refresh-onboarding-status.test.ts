@@ -219,7 +219,7 @@ describe("AdminService.refreshOnboardingStatus — personal", () => {
     mockQueryOnboardingDetails.mockResolvedValue({ status: "WAIT_FOR_APPROVAL" });
     mockInvestorOrgFindUnique.mockResolvedValue({
       onboarding_status: OnboardingStatus.PENDING_APPROVAL,
-      onboarding_approved: true,
+      onboarding_approved: false,
       aml_approved: false,
       kyc_id: null,
       name: "Jane Doe",
@@ -229,9 +229,51 @@ describe("AdminService.refreshOnboardingStatus — personal", () => {
     const result = await service.refreshOnboardingStatus(adminReq, "onboarding-1", "admin-1");
 
     expect(mockHandleWebhookUpdate).not.toHaveBeenCalled();
+    expect(mockUpdateInvestorOrganizationOnboarding).toHaveBeenCalledWith(
+      "org-1",
+      OnboardingStatus.PENDING_APPROVAL,
+      expect.objectContaining({ onboardingApproved: false }),
+      expect.anything()
+    );
     expect(result.onboardingStatus).toBe(OnboardingStatus.PENDING_APPROVAL);
     expect(result.advanced).toBe(false);
     expect(result.message).toContain("still pending");
+  });
+
+  it("rolls PENDING_AML back to Onboarding Approval when RegTank is still WAIT_FOR_APPROVAL", async () => {
+    mockRegTankOnboardingFindUnique.mockResolvedValue(
+      personalOnboarding({
+        investor_organization: {
+          id: "org-1",
+          name: "Jane Doe",
+          onboarding_status: OnboardingStatus.PENDING_AML,
+          onboarding_approved: true,
+          aml_approved: false,
+          kyc_id: null,
+        },
+      })
+    );
+    mockQueryOnboardingDetails.mockResolvedValue({ status: "WAIT_FOR_APPROVAL" });
+    mockInvestorOrgFindUnique.mockResolvedValue({
+      onboarding_status: OnboardingStatus.PENDING_APPROVAL,
+      onboarding_approved: false,
+      aml_approved: false,
+      kyc_id: null,
+      name: "Jane Doe",
+    });
+
+    const service = new AdminService();
+    const result = await service.refreshOnboardingStatus(adminReq, "onboarding-1", "admin-1");
+
+    expect(mockHandleWebhookUpdate).not.toHaveBeenCalled();
+    expect(mockUpdateInvestorOrganizationOnboarding).toHaveBeenCalledWith(
+      "org-1",
+      OnboardingStatus.PENDING_APPROVAL,
+      expect.objectContaining({ onboardingApproved: false }),
+      expect.anything()
+    );
+    expect(result.onboardingStatus).toBe(OnboardingStatus.PENDING_APPROVAL);
+    expect(result.advanced).toBe(false);
   });
 
   it("does not set aml_approved when the live KYC screening is still pending", async () => {

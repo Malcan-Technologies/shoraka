@@ -2630,14 +2630,20 @@ export class RegTankService {
                 await this.organizationRepository.updateInvestorOrganizationOnboarding(
                   organizationId,
                   OnboardingStatus.PENDING_APPROVAL,
-                  { resetCompanySsmGateFromRegtankWebhook: true },
+                  {
+                    resetCompanySsmGateFromRegtankWebhook: true,
+                    onboardingApproved: update.onboardingApproved,
+                  },
                   tx
                 );
               } else {
                 await this.organizationRepository.updateIssuerOrganizationOnboarding(
                   organizationId,
                   OnboardingStatus.PENDING_APPROVAL,
-                  { resetCompanySsmGateFromRegtankWebhook: true },
+                  {
+                    resetCompanySsmGateFromRegtankWebhook: true,
+                    onboardingApproved: update.onboardingApproved,
+                  },
                   tx
                 );
               }
@@ -2880,7 +2886,10 @@ export class RegTankService {
                   await this.organizationRepository.updateInvestorOrganizationOnboarding(
                     organizationId,
                     healedOrgStatus,
-                    { resetCompanySsmGateFromRegtankWebhook: true },
+                    {
+                      resetCompanySsmGateFromRegtankWebhook: true,
+                      onboardingApproved: true,
+                    },
                     tx
                   );
                   await createOnboardingLogRow(
