@@ -572,6 +572,56 @@ describe("buildUnifiedPeople", () => {
     expect(corp?.screening?.status ?? null).toBeNull();
   });
 
+  it("does not use KYB screening status as corporate onboarding status", () => {
+    const rows = buildUnifiedPeople({
+      ctos: null,
+      issuerDirectorKycStatus: { directors: [] },
+      issuerDirectorAmlStatus: {
+        directors: [],
+        businessShareholders: [
+          {
+            businessNumber: "8217649D",
+            rawStatus: "PENDING",
+            kybId: "KYB00105",
+          },
+        ],
+      },
+      ctosPartySupplements: null,
+      corporateEntities: {
+        directors: [],
+        shareholders: [],
+        corporateShareholders: [
+          {
+            companyName: "Orion Crest Holdings Sdn. Bhd.",
+            requestId: "COD05595",
+            status: "APPROVED",
+            kybType: "ACURIS",
+            kybRequestDto: { kybId: "KYB00105", status: "PENDING" },
+            formContent: {
+              displayAreas: [
+                {
+                  displayArea: "Basic Information Setting",
+                  content: [
+                    { fieldName: "Business Name", fieldValue: "Orion Crest Holdings Sdn. Bhd." },
+                    { fieldName: "Business Number", fieldValue: "8217649D" },
+                    { fieldName: "% of Shares", fieldValue: "50" },
+                  ],
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    const corp = rows.find((r) => r.entityType === "CORPORATE");
+    expect(corp?.onboarding?.status).toBe("APPROVED");
+    expect(corp?.onboarding?.id).toBe("KYB00105");
+    expect(corp?.screening?.status).toBe("PENDING");
+    expect(corp?.screeningRequestId).toBe("KYB00105");
+    expect(corp?.partyCorporateRequestId).toBe("COD05595");
+  });
+
   it("includes individual when Government ID is only in personalInfo.formContent", () => {
     const rows = buildUnifiedPeople({
       ctos: null,

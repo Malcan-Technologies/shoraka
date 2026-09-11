@@ -15,7 +15,6 @@ import {
   filterPeopleAccessRows,
   filterVisiblePeopleRows,
   formatPeopleRolesLine,
-  getFinalStatusLabel,
   getKycGroup,
   getRelatedPartyStatusToken,
   isMissingGovernmentIdPerson,
@@ -23,11 +22,9 @@ import {
   issuerPersonCompletenessInputFromParty,
   normalizeDirectorShareholderIdKey,
   normalizeDirectorShareholderPartyEmail,
-  peopleAccessAmlLabel,
-  peopleAccessKycLabel,
+  peopleAccessAmlChipPresentation,
+  peopleAccessKycChipPresentation,
   peopleAccessPlatformBadgeStatus,
-  peopleAccessShowsCorporateAmlChip,
-  peopleAccessShowsCorporateKycChip,
   PERSON_EMAIL_HELP,
   profileValidationErrorFromApi,
   relatedPartyVerificationCaption,
@@ -118,13 +115,10 @@ function PeopleAccessKycStatus({
   onRefresh?: () => void;
 }) {
   const person = row.person;
-  const showCorporate = peopleAccessShowsCorporateKycChip(person);
-  const showIndividual = peopleAccessKycLabel(person) !== "—";
-  if (!showCorporate && !showIndividual) {
+  const presentation = peopleAccessKycChipPresentation(person);
+  if (!presentation || !person) {
     return <span className="text-ui text-muted-foreground">—</span>;
   }
-  if (!person) return <span className="text-ui text-muted-foreground">—</span>;
-  const presentation = getFinalStatusLabel(person, { displayMode: "kyc_only" });
   const showRefresh = Boolean(canEdit && onRefresh && shouldShowPartyKycRefresh(refreshParams(row)));
   return (
     <div className="flex flex-col items-start gap-0.5">
@@ -153,13 +147,10 @@ function PeopleAccessAmlStatus({
   onRefresh?: () => void;
 }) {
   const person = row.person;
-  const showCorporate = peopleAccessShowsCorporateAmlChip(person);
-  const showIndividual = peopleAccessAmlLabel(person) !== "—";
-  if (!showCorporate && !showIndividual) {
+  const presentation = peopleAccessAmlChipPresentation(person);
+  if (!presentation || !person) {
     return <span className="text-ui text-muted-foreground">—</span>;
   }
-  if (!person) return <span className="text-ui text-muted-foreground">—</span>;
-  const presentation = getFinalStatusLabel({ screening: person.screening });
   const showRefresh = Boolean(canEdit && onRefresh && shouldShowPartyAmlRefresh(refreshParams(row)));
   return (
     <div className="flex items-center gap-1">
@@ -470,7 +461,7 @@ export function PeopleAccessSection({
                   <th className="px-4 py-3 text-left font-semibold">Name</th>
                   <th className="px-4 py-3 text-left font-semibold">Company Role</th>
                   <th className="px-4 py-3 text-left font-semibold">Platform Access</th>
-                  <th className="px-4 py-3 text-left font-semibold">KYC</th>
+                  <th className="px-4 py-3 text-left font-semibold">KYC/KYB</th>
                   <th className="px-4 py-3 text-left font-semibold">AML</th>
                   <th className="px-4 py-3 text-right font-semibold">Actions</th>
                 </tr>

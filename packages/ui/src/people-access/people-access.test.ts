@@ -6,10 +6,10 @@ const invite = readFileSync(join(__dirname, "invite-user-dialog.tsx"), "utf8");
 const detail = readFileSync(join(__dirname, "person-detail-view.tsx"), "utf8");
 
 describe("People & Access customer UI", () => {
-  it("uses one table with Company Role, Platform Access, KYC and AML", () => {
+  it("uses one table with Company Role, Platform Access, KYC/KYB and AML", () => {
     expect(section).toContain(">Company Role<");
     expect(section).toContain(">Platform Access<");
-    expect(section).toContain(">KYC<");
+    expect(section).toContain(">KYC/KYB<");
     expect(section).toContain(">AML<");
     expect(section).not.toContain(">Status<");
     expect(section).toContain("Add company person");

@@ -280,7 +280,8 @@ function buildCePartyRefs(corporateEntities: unknown): Map<string, CePartyRef> {
       null;
     const kybDto = c.kybRequestDto as UnknownRecord | undefined;
     const kybId = strField(kybDto, "kybId") || strField(c, "kybId") || null;
-    const kybSt = strField(kybDto, "status") || strField(c, "status") || null;
+    // COD onboarding status only. Never use kybRequestDto.status here — that is KYB screening (AML).
+    const kybSt = strField(corpOnb ?? {}, "status") || strField(c, "status") || null;
     merge(ssmKey || null, { cod: cod || null, kybId: kybId || null, kybStatusRaw: kybSt || null });
   }
 
