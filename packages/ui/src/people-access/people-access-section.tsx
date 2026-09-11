@@ -272,6 +272,7 @@ export function PeopleAccessSection({
   const ctosEmpty = resolveCustomerDirectorShareholderEmptyWarning({
     directorShareholderListSource,
     ctosDirectorShareholderWarning,
+    people,
   });
   const invitePeople = inviteableCompanyPeople(active);
   const viewingPeopleOnly =

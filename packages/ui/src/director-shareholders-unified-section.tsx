@@ -111,8 +111,9 @@ export function DirectorShareholdersUnifiedSection({
       resolveCustomerDirectorShareholderEmptyWarning({
         directorShareholderListSource,
         ctosDirectorShareholderWarning,
+        people,
       }),
-    [directorShareholderListSource, ctosDirectorShareholderWarning]
+    [directorShareholderListSource, ctosDirectorShareholderWarning, people]
   );
 
   const blockPartyOnboarding = Boolean(organizationId) && organizationOnboardingStatus !== "COMPLETED";

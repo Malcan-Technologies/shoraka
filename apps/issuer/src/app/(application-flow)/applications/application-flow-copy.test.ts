@@ -43,6 +43,7 @@ describe("issuer application workflow copy", () => {
     );
     expect(source).toContain("UNRESOLVED_IDENTITY_RECOVERY_TITLE");
     expect(source).toContain("UNRESOLVED_IDENTITY_RECOVERY_COPY");
+    expect(source).toContain("people: entitiesData?.people ?? []");
     expect(source).toContain('href="/profile?focus=directors"');
     expect(source).toContain("Open Organisation");
     expect(source).toContain("showTechnicalIds={false}");

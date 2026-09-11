@@ -197,6 +197,7 @@ export function PortalPeopleSection({
   const ctosEmpty = resolveCustomerDirectorShareholderEmptyWarning({
     directorShareholderListSource,
     ctosDirectorShareholderWarning,
+    people,
   });
   const inactivating = parties.find((party) => party.id === inactivatePartyId) ?? null;
   const viewing = parties.find((party) => party.id === viewPartyId) ?? null;

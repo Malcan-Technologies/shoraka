@@ -64,6 +64,8 @@ export function resolveDirectorShareholderCtosEmptyWarning(input: {
 type DirectorShareholderEmptyWarningInput = {
   directorShareholderListSource?: DirectorShareholderListSource | null;
   ctosDirectorShareholderWarning?: string | null;
+  /** Final resolved people[] after CTOS / onboarding / master fallback. */
+  people?: ReadonlyArray<PeopleRolesRowInput | null | undefined> | null;
 };
 
 function hasDirectorShareholderEmptyCondition(input: DirectorShareholderEmptyWarningInput): boolean {
@@ -74,7 +76,10 @@ function hasDirectorShareholderEmptyCondition(input: DirectorShareholderEmptyWar
   return Boolean(explicit) || input.directorShareholderListSource === "CTOS_EMPTY";
 }
 
-/** Customer portals: same empty-list condition as Admin, without naming the provider. */
+/**
+ * Customer portals: missing-people warning only when CTOS was empty AND the
+ * final visible director/shareholder list is also empty. Never names the provider.
+ */
 export function resolveCustomerDirectorShareholderEmptyWarning(
   input: DirectorShareholderEmptyWarningInput
 ): string | null {
@@ -83,6 +88,7 @@ export function resolveCustomerDirectorShareholderEmptyWarning(
       ? input.ctosDirectorShareholderWarning.trim()
       : "";
   if (!hasDirectorShareholderEmptyCondition(input)) return null;
+  if (hasUsableDirectorShareholderPeople(input.people)) return null;
   if (explicit && !/CTOS/i.test(explicit)) return explicit;
   return CUSTOMER_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING;
 }
@@ -456,6 +462,17 @@ export function filterVisiblePeopleRows<T extends PeopleRolesRowInput>(peopleRow
       return { ...p, roles: nextRoles };
     })
     .filter((p): p is NonNullable<typeof p> => p !== null);
+}
+
+/** True when the final people list has a current director or ≥5% shareholder. */
+export function hasUsableDirectorShareholderPeople(
+  people?: ReadonlyArray<PeopleRolesRowInput | null | undefined> | null
+): boolean {
+  const list = (people ?? []).filter((p): p is PeopleRolesRowInput => p != null);
+  return filterVisiblePeopleRows(list).some((p) => {
+    const roles = (p.roles ?? []).map((role) => String(role).toUpperCase());
+    return roles.includes("DIRECTOR") || roles.includes("SHAREHOLDER");
+  });
 }
 
 export function isMissingGovernmentIdPerson(

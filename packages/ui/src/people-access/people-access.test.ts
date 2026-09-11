@@ -115,6 +115,7 @@ describe("customer person Profile mapping and privacy", () => {
     expect(customerUi).not.toContain("PartyCtosIndicator");
     expect(customerUi).not.toContain("includeCtosEvidence: true");
     expect(section).toContain("resolveCustomerDirectorShareholderEmptyWarning");
+    expect(section).toContain("ctosDirectorShareholderWarning,\n    people,");
     expect(section).not.toContain("resolveDirectorShareholderCtosEmptyWarning");
     expect(overview).toContain("buildCustomerPersonOverviewSections");
   });

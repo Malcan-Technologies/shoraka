@@ -303,8 +303,13 @@ export function CompanyDetailsStep({
       resolveCustomerDirectorShareholderEmptyWarning({
         directorShareholderListSource: entitiesData?.directorShareholderListSource ?? null,
         ctosDirectorShareholderWarning: entitiesData?.ctosDirectorShareholderWarning ?? null,
+        people: entitiesData?.people ?? [],
       }),
-    [entitiesData?.directorShareholderListSource, entitiesData?.ctosDirectorShareholderWarning]
+    [
+      entitiesData?.directorShareholderListSource,
+      entitiesData?.ctosDirectorShareholderWarning,
+      entitiesData?.people,
+    ]
   );
 
   const resolveOrgContactPerson = React.useCallback(() => {
