@@ -67,6 +67,8 @@ export type AcceptanceSectionProps = {
   contractOfferDetails?: unknown;
   invoices?: { id: string; offer_details?: unknown }[];
   structureType?: string | null;
+  /** Invoice-only: scope parties, documents visibility, and signing to this invoice. */
+  selectedInvoiceId?: string | null;
   acceptanceReviewMode?: "live" | "inherited";
   inheritedSourceApplication?: { id: string; productId: string | null };
   /** Derived acceptance_documents section status (same source as review tab dot). */
@@ -244,6 +246,7 @@ export function AcceptanceSection({
   contractOfferDetails,
   invoices = [],
   structureType,
+  selectedInvoiceId,
   acceptanceReviewMode = "live",
   inheritedSourceApplication,
   sectionStatus,
@@ -276,8 +279,9 @@ export function AcceptanceSection({
       resolveAcceptanceOfferDetails({
         offerDetails: contractOfferDetails,
         invoices,
+        selectedInvoiceId: isInvoiceOnly ? selectedInvoiceId : null,
       }),
-    [contractOfferDetails, invoices]
+    [contractOfferDetails, invoices, isInvoiceOnly, selectedInvoiceId]
   );
 
   const downloadableFiles = React.useMemo(
@@ -458,6 +462,7 @@ export function AcceptanceSection({
               canManage={canManageSigning}
               offerDetails={contractOfferDetails}
               invoices={invoices}
+              selectedInvoiceId={selectedInvoiceId}
               showOfferAcceptanceSummary={false}
               structureType={structureType}
               embedded

@@ -265,6 +265,14 @@ describe("buildOfferAcceptanceStageModel — new_contract facility", () => {
     };
     expect(stage(declined, "send_offer")?.tag).toBe("Declined");
     expect(stage(declined, "issuer_response")?.tag).toBe("Declined");
+    expect(stage(declined, "acceptance_documents")?.tag).toBe("Skipped");
+    expect(stage(declined, "acceptance_documents")?.tone).toBe("done");
+    expect(stage(declined, "signing_package")?.tag).toBe("Skipped");
+    expect(stage(declined, "signing_package")?.tone).toBe("done");
+    expect(buildOfferAcceptanceStageModel(declined).currentStageId).toBe("issuer_response");
+    expect(buildOfferAcceptanceStageModel(declined).nextAction?.headline).toBe(
+      "Issuer declined the offer"
+    );
 
     const expired: OfferAcceptanceStageInput = {
       ...facilityPending,
@@ -287,6 +295,8 @@ describe("buildOfferAcceptanceStageModel — new_contract facility", () => {
     expect(stage(input, "send_offer")?.tag).toBe("Rejected");
     expect(stage(input, "issuer_response")?.tag).toBe("Declined");
     expect(stage(input, "issuer_response")?.summary).toMatch(/declined the facility offer/i);
+    expect(stage(input, "acceptance_documents")?.tag).toBe("Skipped");
+    expect(stage(input, "signing_package")?.tag).toBe("Skipped");
   });
 
   it("keeps amendment and rejected review states on facility review", () => {
@@ -334,6 +344,15 @@ describe("buildOfferAcceptanceStageModel — new_contract facility", () => {
     };
     expect(stage(accepted, "signing_package")?.tone).toBe("action");
     expect(buildOfferAcceptanceStageModel(accepted).currentStageId).toBe("signing_package");
+
+    const declined: OfferAcceptanceStageInput = {
+      ...sent,
+      contractStatus: "WITHDRAWN",
+      contractOfferDetails: { offer_acceptance: { status: "DECLINED" } },
+    };
+    expect(stage(declined, "signing_package")?.tag).toBe("Skipped");
+    expect(stage(declined, "signing_package")?.tone).toBe("done");
+    expect(buildOfferAcceptanceStageModel(declined).currentStageId).toBe("issuer_response");
   });
 
   it("omits the signing stage when the product has acceptance documents but no signing package", () => {
@@ -344,6 +363,20 @@ describe("buildOfferAcceptanceStageModel — new_contract facility", () => {
         hasSigningPackage: false,
       })
     ).toEqual(["facility_review", "send_offer", "issuer_response", "acceptance_documents"]);
+
+    const declinedDocsOnly: OfferAcceptanceStageInput = {
+      ...facilityPending,
+      hasAcceptanceDocumentsSection: true,
+      hasSigningPackage: false,
+      contractStatus: "WITHDRAWN",
+      contractOfferDetails: { offer_acceptance: { status: "DECLINED" } },
+      sectionStatuses: { contract_details: "APPROVED" },
+    };
+    expect(stage(declinedDocsOnly, "acceptance_documents")?.tag).toBe("Skipped");
+    expect(stage(declinedDocsOnly, "signing_package")).toBeUndefined();
+    expect(buildOfferAcceptanceStageModel(declinedDocsOnly).currentStageId).toBe(
+      "issuer_response"
+    );
   });
 });
 
@@ -525,6 +558,8 @@ describe("buildOfferAcceptanceStageModel — existing_contract invoice under fac
     expect(stage(withdrawn, "invoice_review")?.tag).toBe("Reviewed");
     expect(stage(withdrawn, "send_offer")?.tag).toBe("Declined");
     expect(stage(withdrawn, "issuer_response")?.tag).toBe("Declined");
+    expect(stage(withdrawn, "inherited_acceptance")?.tone).toBe("done");
+    expect(buildOfferAcceptanceStageModel(withdrawn).currentStageId).toBe("issuer_response");
   });
 });
 
@@ -642,6 +677,34 @@ describe("buildOfferAcceptanceStageModel — invoice_only", () => {
       ],
     };
     expect(stage(signing, "signing_package")?.tone).toBe("action");
+  });
+
+  it("skips acceptance documents and signing after the issuer declines", () => {
+    const declined: OfferAcceptanceStageInput = {
+      ...invoiceOnlyBase,
+      invoices: [
+        {
+          id: "inv-1",
+          status: "WITHDRAWN",
+          offer_details: { offer_acceptance: { status: "DECLINED" } },
+        },
+      ],
+      sectionStatuses: {
+        contract_details: "APPROVED",
+        invoice_details: "APPROVED",
+        acceptance_documents: "PENDING",
+      },
+      reviewItems: [
+        { item_type: "invoice", item_id: "invoice_details:0:INV-1", status: "APPROVED" },
+      ],
+    };
+    expect(stage(declined, "issuer_response")?.tag).toBe("Declined");
+    expect(stage(declined, "acceptance_documents")?.tag).toBe("Skipped");
+    expect(stage(declined, "signing_package")?.tag).toBe("Skipped");
+    expect(buildOfferAcceptanceStageModel(declined).currentStageId).toBe("issuer_response");
+    expect(buildOfferAcceptanceStageModel(declined).nextAction?.headline).toBe(
+      "Issuer declined the offer"
+    );
   });
 
   it("locks customer review when the section cannot be managed", () => {

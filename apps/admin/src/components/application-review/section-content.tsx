@@ -525,6 +525,11 @@ export function SectionContent({
           canManageSigning={canManageSigning && !isInheritedAcceptance}
           contractOfferDetails={app.contract?.offer_details}
           invoices={app.invoices ?? []}
+          selectedInvoiceId={
+            isInvoiceOnlyFinancingStructure({ structure_type: structureType })
+              ? (app.invoices?.[app.invoices.length - 1]?.id ?? null)
+              : null
+          }
           structureType={structureType}
           acceptanceReviewMode={isInheritedAcceptance ? "inherited" : "live"}
           inheritedSourceApplication={

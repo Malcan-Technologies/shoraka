@@ -357,6 +357,13 @@ function sendOfferStage(args: {
   };
 }
 
+function isIssuerDeclinedOffer(
+  entityStatus: string,
+  acceptance: OfferAcceptanceStatus | null
+): boolean {
+  return entityStatus === "WITHDRAWN" || acceptance === "DECLINED";
+}
+
 function issuerResponseStage(args: {
   section: ReviewSectionId;
   offerType: OfferAcceptanceOfferType;
@@ -364,7 +371,7 @@ function issuerResponseStage(args: {
   acceptance: OfferAcceptanceStatus | null;
 }): OfferAcceptanceStage {
   const noun = args.offerType === "facility" ? "facility" : "invoice";
-  if (args.entityStatus === "WITHDRAWN" || args.acceptance === "DECLINED") {
+  if (isIssuerDeclinedOffer(args.entityStatus, args.acceptance)) {
     return {
       id: "issuer_response",
       section: args.section,
@@ -447,6 +454,16 @@ function acceptanceDocumentsStage(args: {
   acceptance: OfferAcceptanceStatus | null;
   entityStatus: string;
 }): OfferAcceptanceStage {
+  if (isIssuerDeclinedOffer(args.entityStatus, args.acceptance)) {
+    return {
+      id: "acceptance_documents",
+      section: "acceptance_documents",
+      title: "Acceptance documents",
+      tag: "Skipped",
+      tone: "done",
+      summary: "Acceptance documents are not required after the issuer declined the offer.",
+    };
+  }
   const lockedUntilOffer = !OFFER_SENT_OR_LATER.has(args.entityStatus);
   if (args.lock?.locked || lockedUntilOffer) {
     return {
@@ -529,6 +546,16 @@ function signingPackageStage(args: {
       args.envelopeStatus === "IN_PROGRESS" ||
       args.envelopeStatus === "COMPLETED");
   const readyForSigning = acceptanceReady || signingOnlyReady;
+  if (isIssuerDeclinedOffer(args.entityStatus, args.acceptance)) {
+    return {
+      id: "signing_package",
+      section: "acceptance_documents",
+      title: "Signing package",
+      tag: "Skipped",
+      tone: "done",
+      summary: "Signing is not required after the issuer declined the offer.",
+    };
+  }
   if (!readyForSigning) {
     const untilIssuerAccepts = "Locked until the issuer accepts the offer.";
     const untilDocsApproved = "Locked until acceptance documents and representatives are approved.";
@@ -592,9 +619,13 @@ function nextActionFor(stages: OfferAcceptanceStage[]): {
   nextAction: OfferAcceptanceNextAction | null;
 } {
   const workflow = stages.filter((stage) => !isReferenceOfferAcceptanceStage(stage));
+  const declinedIssuer = workflow.find(
+    (stage) => stage.id === "issuer_response" && stage.tag === "Declined"
+  );
   const current =
     workflow.find((stage) => stage.tone === "action") ??
     workflow.find((stage) => stage.tone === "wait") ??
+    declinedIssuer ??
     workflow[workflow.length - 1];
   if (!current) {
     return { currentStageId: "send_offer", nextAction: null };
@@ -614,6 +645,9 @@ function nextActionFor(stages: OfferAcceptanceStage[]): {
 function headlineFor(stage: OfferAcceptanceStage): string {
   if (stage.id === "send_offer" && stage.tone === "action") {
     return stage.tag === "Expired" ? "Send a new offer" : "Send the offer";
+  }
+  if (stage.id === "issuer_response" && stage.tag === "Declined") {
+    return "Issuer declined the offer";
   }
   if (stage.id === "issuer_response" && stage.tone === "wait") {
     return "Waiting on the issuer";

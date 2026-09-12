@@ -22,6 +22,10 @@ import {
   useRemindSigningRecipient,
 } from "@/hooks/use-signing-envelopes";
 import { canResyncAdminSigningEnvelope } from "./signing-envelope-resync";
+import {
+  envelopesForSelectedInvoice,
+  resolveAcceptanceOfferDetails,
+} from "./signing-envelope-scope";
 import { useAdminSigningDocumentPreview } from "@/hooks/use-admin-signing-document-preview";
 import {
   computeSigningEnvelopeProgress,
@@ -106,26 +110,10 @@ function splitEnvelopes(envelopes: SigningEnvelopeDto[]): {
   return { primary: sorted[0] ?? null, history: sorted.slice(1) };
 }
 
-/**
- * Resolve offer_details used for offer_acceptance phase UI.
- * Prefer the invoice tied to the primary envelope when present.
- */
-export function resolveAcceptanceOfferDetails(args: {
-  primaryEnvelopeInvoiceId?: string | null;
-  offerDetails?: unknown;
-  invoices?: { id: string; offer_details?: unknown }[];
-}): unknown {
-  const { primaryEnvelopeInvoiceId, offerDetails, invoices = [] } = args;
-  if (primaryEnvelopeInvoiceId) {
-    return (
-      invoices.find((inv) => inv.id === primaryEnvelopeInvoiceId)?.offer_details ??
-      offerDetails ??
-      null
-    );
-  }
-  if (offerDetails != null) return offerDetails;
-  return invoices.find((inv) => inv.offer_details != null)?.offer_details ?? null;
-}
+export {
+  envelopesForSelectedInvoice,
+  resolveAcceptanceOfferDetails,
+} from "./signing-envelope-scope";
 
 export interface SigningEnvelopePanelProps {
   applicationId: string;
@@ -137,6 +125,11 @@ export interface SigningEnvelopePanelProps {
   offerDetails?: unknown;
   /** Standalone invoices (invoice_only structure) — each carries its own offer_details. */
   invoices?: { id: string; offer_details?: unknown }[];
+  /**
+   * Invoice-only: later stages and signing actions belong to this invoice,
+   * not the first invoice that happens to have offer details.
+   */
+  selectedInvoiceId?: string | null;
   /**
    * When false, hide the offer-acceptance status block
    * (Acceptance tab renders that above this panel).
@@ -157,6 +150,7 @@ export function SigningEnvelopePanel({
   canManage = true,
   offerDetails,
   invoices = [],
+  selectedInvoiceId,
   showOfferAcceptanceSummary = true,
   structureType,
   embedded = false,
@@ -177,7 +171,16 @@ export function SigningEnvelopePanel({
   const [extendConfirmOpen, setExtendConfirmOpen] = React.useState(false);
   const [sendConfirmOpen, setSendConfirmOpen] = React.useState(false);
 
-  const { primary, history } = React.useMemo(() => splitEnvelopes(envelopes), [envelopes]);
+  const isInvoiceOnly = isInvoiceOnlyFinancingStructure({ structure_type: structureType });
+  const scopedEnvelopes = React.useMemo(
+    () =>
+      isInvoiceOnly ? envelopesForSelectedInvoice(envelopes, selectedInvoiceId) : envelopes,
+    [envelopes, isInvoiceOnly, selectedInvoiceId]
+  );
+  const { primary, history } = React.useMemo(
+    () => splitEnvelopes(scopedEnvelopes),
+    [scopedEnvelopes]
+  );
 
   const acceptanceOfferDetails = React.useMemo(
     () =>
@@ -185,8 +188,9 @@ export function SigningEnvelopePanel({
         primaryEnvelopeInvoiceId: primary?.invoice_id,
         offerDetails,
         invoices,
+        selectedInvoiceId: isInvoiceOnly ? selectedInvoiceId : null,
       }),
-    [primary, offerDetails, invoices]
+    [primary, offerDetails, invoices, isInvoiceOnly, selectedInvoiceId]
   );
 
   const acceptance = getOfferAcceptanceFromOfferDetails(acceptanceOfferDetails);
@@ -199,17 +203,17 @@ export function SigningEnvelopePanel({
     acceptance.status !== "SIGNING_IN_PROGRESS" &&
     acceptance.status !== "COMPLETED";
 
-  const isInvoiceOnly = isInvoiceOnlyFinancingStructure({ structure_type: structureType });
   const noOfferYetHint = isInvoiceOnly
     ? "Send an offer from Invoice to start acceptance."
     : "Send an offer from Facility to start acceptance.";
 
   const invoiceIdForExtend = React.useMemo(() => {
     if (!isInvoiceOnly) return null;
+    if (selectedInvoiceId) return selectedInvoiceId;
     if (primary?.invoice_id) return primary.invoice_id;
     const withOffer = invoices.find((inv) => inv.offer_details != null);
     return withOffer?.id ?? null;
-  }, [isInvoiceOnly, primary?.invoice_id, invoices]);
+  }, [isInvoiceOnly, selectedInvoiceId, primary?.invoice_id, invoices]);
 
   const extendPending = extendContractMutation.isPending || extendInvoiceMutation.isPending;
 
@@ -341,7 +345,7 @@ export function SigningEnvelopePanel({
     canManage &&
     acceptance?.status === "APPROVED_FOR_SIGNING" &&
     !signingClockPast &&
-    !hasEnvelopeBlockingNewSend(envelopes) &&
+    !hasEnvelopeBlockingNewSend(scopedEnvelopes) &&
     (!isInvoiceOnly || Boolean(invoiceIdForExtend));
 
   const sendPending = sendMutation.isPending;
@@ -411,7 +415,7 @@ export function SigningEnvelopePanel({
 
       {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
 
-      {!isLoading && envelopes.length === 0 && (
+      {!isLoading && scopedEnvelopes.length === 0 && (
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground">{emptySigningMessage}</p>
           {canSendSigningLinks ? (
@@ -428,7 +432,7 @@ export function SigningEnvelopePanel({
         </div>
       )}
 
-      {!isLoading && envelopes.length > 0 && canSendSigningLinks ? (
+      {!isLoading && scopedEnvelopes.length > 0 && canSendSigningLinks ? (
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm text-muted-foreground">
             Previous packages were voided. Send new signing links to the authorised representatives.

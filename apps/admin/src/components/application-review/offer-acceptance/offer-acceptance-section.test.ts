@@ -50,6 +50,9 @@ describe("offer-acceptance wiring", () => {
     expect(SECTION_CONTENT).toContain("OfferAcceptanceSection");
     expect(SECTION_CONTENT).toContain("sectionActionLocks={sectionActionLocks}");
     expect(SECTION_CONTENT).toContain("offerAcceptanceFocusStageId={offerAcceptanceFocusStageId}");
+    expect(SECTION_CONTENT).toContain(
+      "isInvoiceOnlyFinancingStructure({ structure_type: structureType })"
+    );
     expect(SECTION_CONTENT).toContain('case "contract_details"');
     expect(SECTION_CONTENT).toContain('case "invoice_details"');
     expect(SECTION_CONTENT).toContain('case "acceptance_documents"');
@@ -78,6 +81,11 @@ describe("offer-acceptance wiring", () => {
     expect(SECTION).toContain("StageSigningPackage");
     expect(SECTION).toContain("StageInheritedAcceptance");
     expect(SECTION).toContain("StageCustomerReview");
+    expect(SECTION).toContain(
+      'selectedInvoiceId: stageModel.offerType === "invoice" ? selectedThisAppInvoiceId : null'
+    );
+    expect(ACCEPTANCE).toContain("selectedInvoiceId={selectedInvoiceId}");
+    expect(ACCEPTANCE).toContain("isInvoiceOnly ? selectedInvoiceId : null");
     expect(SECTION).toContain('structureType === "new_contract" && appInvoices.length > 0');
   });
 

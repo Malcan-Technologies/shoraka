@@ -447,6 +447,7 @@ export function OfferAcceptanceSection(
     canManageSigning: canManageSigning && !isInheritedAcceptance,
     contractOfferDetails: app.contract?.offer_details,
     invoices: app.invoices ?? [],
+    selectedInvoiceId: stageModel.offerType === "invoice" ? selectedThisAppInvoiceId : null,
     structureType,
     acceptanceReviewMode: isInheritedAcceptance ? ("inherited" as const) : ("live" as const),
     inheritedSourceApplication,
