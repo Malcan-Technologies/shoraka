@@ -11338,6 +11338,16 @@ export class AdminService {
         reviewerUserId
       );
     }
+    if (itemType === "invoice" && nextApp) {
+      await this.syncInvoiceDetailsSectionFromItems(
+        repository,
+        applicationId,
+        nextApp,
+        reviewerUserId,
+        logContext
+      );
+      nextApp = await repository.getApplicationById(applicationId);
+    }
     if (nextApp) {
       await this.syncAdminStageStatus(repository, applicationId, nextApp);
       nextApp = await repository.getApplicationById(applicationId);

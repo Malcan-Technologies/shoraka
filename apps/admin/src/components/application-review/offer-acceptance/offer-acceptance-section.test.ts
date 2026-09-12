@@ -10,6 +10,10 @@ const ISSUER_RESPONSE = fs.readFileSync(
 const SECTION_CONTENT = fs.readFileSync(path.join(__dirname, "../section-content.tsx"), "utf8");
 const CONTRACT = fs.readFileSync(path.join(__dirname, "../sections/contract-section.tsx"), "utf8");
 const INVOICE = fs.readFileSync(path.join(__dirname, "../sections/invoice-section.tsx"), "utf8");
+const INVOICE_LIST = fs.readFileSync(
+  path.join(__dirname, "../../invoice-review-list.tsx"),
+  "utf8"
+);
 const ACCEPTANCE = fs.readFileSync(
   path.join(__dirname, "../sections/acceptance-section.tsx"),
   "utf8"
@@ -99,6 +103,11 @@ describe("offer-acceptance wiring", () => {
     expect(INVOICE).toContain("viewSignedOfferOnly");
     expect(INVOICE).toContain('entityStatus === "APPROVED"');
     expect(INVOICE).not.toContain("showApprove={false}");
+    expect(INVOICE).toContain("!isAdminRejected &&");
+    expect(INVOICE).toContain("showRequestAmendment={!isAdminRejected}");
+    expect(INVOICE).toContain('entityStatus === "REJECTED"');
+    expect(INVOICE_LIST).toContain("!isAdminRejected &&");
+    expect(INVOICE_LIST).toContain("showRequestAmendment={!isAdminRejected}");
     expect(ACCEPTANCE).toContain('contentMode === "documents"');
     expect(ACCEPTANCE).toContain("SigningEnvelopePanel");
     expect(ACCEPTANCE).toContain("AuthorizedPartiesReadOnly");

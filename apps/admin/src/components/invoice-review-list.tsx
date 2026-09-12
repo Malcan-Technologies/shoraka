@@ -529,7 +529,8 @@ export function InvoiceList({
                   ? "OFFER_EXPIRED"
                   : reviewItemStatus;
             /** Admin rejected this invoice in review; offer stays locked until reset to pending. */
-            const isAdminRejected = reviewItemStatus === "REJECTED";
+            const isAdminRejected =
+              reviewItemStatus === "REJECTED" || entityStatus === "REJECTED";
             const isRowReadOnly = readOnlyInvoiceIds?.has(inv.id) ?? false;
             const isTabLocked = !!isActionLocked || !isReviewable;
             const isInvoiceFinalizedByIssuer = entityStatus === "APPROVED";
@@ -625,10 +626,12 @@ export function InvoiceList({
                         onRequestAmendment={onRequestAmendmentItem}
                         onResetToPending={onResetItemToPending}
                         showApprove={
+                          !isAdminRejected &&
                           reviewItemStatus !== "OFFER_SENT" &&
                           reviewItemStatus !== "OFFER_EXPIRED" &&
                           reviewItemStatus !== "WITHDRAWN"
                         }
+                        showRequestAmendment={!isAdminRejected}
                         onViewSignedOffer={
                           signedOfferAvailable && onViewSignedInvoiceOffer
                             ? () => void onViewSignedInvoiceOffer(inv.id)

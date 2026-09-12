@@ -385,7 +385,8 @@ export function InvoiceSection({
                 : entityStatus === "OFFER_EXPIRED"
                   ? "OFFER_EXPIRED"
                   : reviewItemStatus;
-            const isAdminRejected = reviewItemStatus === "REJECTED";
+            const isAdminRejected =
+              reviewItemStatus === "REJECTED" || entityStatus === "REJECTED";
             const isRowReadOnly = readOnlyInvoiceIds?.has(inv.id) ?? false;
             const isTabLocked = !!isActionLocked || !isReviewable;
             const isInvoiceFinalizedByIssuer = entityStatus === "APPROVED";
@@ -423,10 +424,12 @@ export function InvoiceSection({
                         onRequestAmendment={onRequestAmendmentItem}
                         onResetToPending={onResetItemToPending}
                         showApprove={
+                          !isAdminRejected &&
                           reviewItemStatus !== "OFFER_SENT" &&
                           reviewItemStatus !== "OFFER_EXPIRED" &&
                           reviewItemStatus !== "WITHDRAWN"
                         }
+                        showRequestAmendment={!isAdminRejected}
                         onViewSignedOffer={
                           signedOfferAvailable && onViewSignedInvoiceOffer
                             ? () => void onViewSignedInvoiceOffer(inv.id)

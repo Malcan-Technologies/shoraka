@@ -32,4 +32,16 @@ describe("commercial details approval before send offer", () => {
     expect(SERVICE).toContain("assertReviewSectionPrerequisites(application, scopeKey as ReviewSection)");
     expect(SERVICE).toContain("assertReviewItemPrerequisites(application, itemType, itemId)");
   });
+
+  it("syncs invoice_details from items after invoice item approve, matching reject/amend/reset", () => {
+    const approveBody = SERVICE.slice(
+      SERVICE.indexOf("async approveReviewItem("),
+      SERVICE.indexOf("async rejectReviewItem(")
+    );
+    expect(approveBody).toContain("syncInvoiceDetailsSectionFromItems");
+    expect(approveBody).toContain("syncAdminStageStatus");
+    expect(approveBody.indexOf("syncInvoiceDetailsSectionFromItems")).toBeLessThan(
+      approveBody.indexOf("syncAdminStageStatus")
+    );
+  });
 });
