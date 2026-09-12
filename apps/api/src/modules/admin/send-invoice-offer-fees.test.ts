@@ -118,6 +118,15 @@ function createTx(options: {
       if (text.includes("FROM application_review_items")) {
         return [{ status: "APPROVED" }];
       }
+      if (text.includes("FROM application_reviews")) {
+        return [
+          { section: "financial", status: "APPROVED" },
+          { section: "company_details", status: "APPROVED" },
+          { section: "business_details", status: "APPROVED" },
+          { section: "supporting_documents", status: "APPROVED" },
+          { section: "contract_details", status: "APPROVED" },
+        ];
+      }
       if (text.includes("FROM applications")) {
         return [{ status: ApplicationStatus.INVOICE_PENDING }];
       }

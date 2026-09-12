@@ -941,7 +941,7 @@ export class AdminService {
       SELECT section, status
       FROM application_reviews
       WHERE application_id = ${applicationId}
-        AND section IN (${Prisma.join(uniqueSections.map((section) => Prisma.sql`${section}`))})
+        AND section::text IN (${Prisma.join(uniqueSections.map((section) => Prisma.sql`${section}`))})
       FOR UPDATE
     `;
     return new Map(lockedReviews.map((row) => [row.section, row.status]));
