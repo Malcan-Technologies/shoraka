@@ -28,6 +28,17 @@ const facilityPending: OfferAcceptanceStageInput = {
   hasAcceptanceDocumentsSection: true,
 };
 
+const pendingAuthorisedPartyItem = {
+  item_type: "authorized_representatives",
+  item_id: "authorized_representatives:issuer",
+  status: "PENDING",
+} as const;
+
+const approvedAuthorisedPartyItem = {
+  ...pendingAuthorisedPartyItem,
+  status: "APPROVED",
+} as const;
+
 const issuerAuthorizedParties = {
   submitted_by_user_id: "user_1",
   submitted_at: "2026-09-12T00:00:00.000Z",
@@ -209,13 +220,7 @@ describe("buildOfferAcceptanceStageModel — new_contract facility", () => {
           authorized_parties: issuerAuthorizedParties,
         },
       },
-      reviewItems: [
-        {
-          item_type: "authorized_representatives",
-          item_id: "authorized_representatives:issuer",
-          status: "PENDING",
-        },
-      ],
+      reviewItems: [pendingAuthorisedPartyItem],
       sectionStatuses: { contract_details: "OFFER_SENT", acceptance_documents: "PENDING" },
     };
     expect(stage(input, "issuer_response")?.tone).toBe("action");
@@ -233,13 +238,7 @@ describe("buildOfferAcceptanceStageModel — new_contract facility", () => {
       ...facilityPending,
       contractStatus: "OFFER_SENT",
       contractOfferDetails: { offer_acceptance: { status: "PENDING_ADMIN_REVIEW" } },
-      reviewItems: [
-        {
-          item_type: "authorized_representatives",
-          item_id: "authorized_representatives:issuer",
-          status: "PENDING",
-        },
-      ],
+      reviewItems: [pendingAuthorisedPartyItem],
     };
     expect(stage(input, "issuer_response")?.tone).toBe("action");
     expect(buildOfferAcceptanceStageModel(input).currentStageId).toBe("issuer_response");
@@ -255,13 +254,7 @@ describe("buildOfferAcceptanceStageModel — new_contract facility", () => {
           authorized_parties: issuerAuthorizedParties,
         },
       },
-      reviewItems: [
-        {
-          item_type: "authorized_representatives",
-          item_id: "authorized_representatives:issuer",
-          status: "APPROVED",
-        },
-      ],
+      reviewItems: [approvedAuthorisedPartyItem],
       sectionStatuses: { contract_details: "OFFER_SENT", acceptance_documents: "PENDING" },
     };
     expect(stage(input, "issuer_response")?.tone).toBe("done");
@@ -597,6 +590,34 @@ describe("buildOfferAcceptanceStageModel — existing_contract invoice under fac
     expect(stage(input, "issuer_response")?.tag).toBe("Accepted");
   });
 
+  it("does not keep issuer response as a party-review action after OTP submit", () => {
+    const input: OfferAcceptanceStageInput = {
+      ...invoiceUnderFacilityBase,
+      invoices: [
+        {
+          id: "inv-1",
+          status: "OFFER_SENT",
+          offer_details: {
+            offer_acceptance: {
+              status: "PENDING_ADMIN_REVIEW",
+              authorized_parties: issuerAuthorizedParties,
+            },
+          },
+        },
+      ],
+      reviewItems: [pendingAuthorisedPartyItem],
+      sectionStatuses: {
+        contract_details: "APPROVED",
+        invoice_details: "OFFER_SENT",
+        acceptance_documents: "APPROVED",
+      },
+    };
+    expect(stage(input, "issuer_response")?.tone).toBe("done");
+    expect(stage(input, "issuer_response")?.tag).toBe("Submitted");
+    expect(stage(input, "acceptance_documents")).toBeUndefined();
+    expect(buildOfferAcceptanceStageModel(input).currentStageId).toBe("issuer_response");
+  });
+
   it("uses the selected invoice when several exist", () => {
     const input: OfferAcceptanceStageInput = {
       ...invoiceUnderFacilityBase,
@@ -798,7 +819,9 @@ describe("buildOfferAcceptanceStageModel — invoice_only", () => {
         },
       ],
     };
+    expect(stage(review, "issuer_response")?.tone).toBe("done");
     expect(stage(review, "acceptance_documents")?.tone).toBe("action");
+    expect(buildOfferAcceptanceStageModel(review).currentStageId).toBe("acceptance_documents");
 
     const signing: OfferAcceptanceStageInput = {
       ...sent,
@@ -811,6 +834,64 @@ describe("buildOfferAcceptanceStageModel — invoice_only", () => {
       ],
     };
     expect(stage(signing, "signing_package")?.tone).toBe("action");
+  });
+
+  it("keeps issuer response as the admin action while authorised parties still need approval", () => {
+    const input: OfferAcceptanceStageInput = {
+      ...invoiceOnlyBase,
+      invoices: [
+        {
+          id: "inv-1",
+          status: "OFFER_SENT",
+          offer_details: {
+            offer_acceptance: {
+              status: "PENDING_ADMIN_REVIEW",
+              authorized_parties: issuerAuthorizedParties,
+            },
+          },
+        },
+      ],
+      reviewItems: [pendingAuthorisedPartyItem],
+      sectionStatuses: {
+        contract_details: "APPROVED",
+        invoice_details: "OFFER_SENT",
+        acceptance_documents: "PENDING",
+      },
+    };
+    expect(stage(input, "issuer_response")?.tone).toBe("action");
+    expect(stage(input, "issuer_response")?.tag).toBe("Review");
+    expect(stage(input, "acceptance_documents")?.tone).toBe("action");
+    expect(buildOfferAcceptanceStageModel(input).currentStageId).toBe("issuer_response");
+    expect(buildOfferAcceptanceStageModel(input).nextAction?.headline).toBe(
+      "Review authorised parties"
+    );
+  });
+
+  it("opens acceptance documents after authorised parties are approved", () => {
+    const input: OfferAcceptanceStageInput = {
+      ...invoiceOnlyBase,
+      invoices: [
+        {
+          id: "inv-1",
+          status: "OFFER_SENT",
+          offer_details: {
+            offer_acceptance: {
+              status: "PENDING_ADMIN_REVIEW",
+              authorized_parties: issuerAuthorizedParties,
+            },
+          },
+        },
+      ],
+      reviewItems: [approvedAuthorisedPartyItem],
+      sectionStatuses: {
+        contract_details: "APPROVED",
+        invoice_details: "OFFER_SENT",
+        acceptance_documents: "PENDING",
+      },
+    };
+    expect(stage(input, "issuer_response")?.tone).toBe("done");
+    expect(stage(input, "acceptance_documents")?.tone).toBe("action");
+    expect(buildOfferAcceptanceStageModel(input).currentStageId).toBe("acceptance_documents");
   });
 
   it("skips acceptance documents and signing after the issuer declines", () => {

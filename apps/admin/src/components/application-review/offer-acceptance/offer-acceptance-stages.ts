@@ -400,6 +400,8 @@ function issuerResponseStage(args: {
   acceptance: OfferAcceptanceStatus | null;
   authorizedParties?: AuthorizedPartiesSnapshot | null;
   reviewItems?: OfferAcceptanceReviewItemInput[];
+  /** False on existing_contract — parties were approved on the originating facility. */
+  reviewAuthorisedParties?: boolean;
 }): OfferAcceptanceStage {
   const noun = args.offerType === "facility" ? "facility" : "invoice";
   if (isIssuerDeclinedOffer(args.entityStatus, args.acceptance)) {
@@ -454,7 +456,10 @@ function issuerResponseStage(args: {
     };
   }
   if (args.acceptance === "PENDING_ADMIN_REVIEW") {
-    if (authorisedPartiesNeedAdminReview(args.authorizedParties, args.reviewItems)) {
+    if (
+      args.reviewAuthorisedParties !== false &&
+      authorisedPartiesNeedAdminReview(args.authorizedParties, args.reviewItems)
+    ) {
       return {
         id: "issuer_response",
         section: args.section,
@@ -923,6 +928,7 @@ export function buildOfferAcceptanceStageModel(
       acceptance,
       authorizedParties: offerAcceptance?.authorized_parties,
       reviewItems: input.reviewItems,
+      reviewAuthorisedParties: structureType !== "existing_contract",
     })
   );
 
