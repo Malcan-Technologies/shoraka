@@ -150,7 +150,8 @@ export type PrerequisiteSatisfactionOptions = {
 /**
  * Whether a prerequisite section's review status unlocks a dependent tab.
  * Acceptance treats Contract / Invoice as satisfied once the offer is sent.
- * On a new facility, Invoice waits until the facility entity is accepted.
+ * Invoice waits on the facility entity: new_contract until accepted, existing_contract
+ * on the already-approved linked facility (this app cannot re-approve Facility).
  */
 export function isPrerequisiteSectionSatisfied(
   prereqSection: string,
@@ -161,7 +162,8 @@ export function isPrerequisiteSectionSatisfied(
   if (
     prereqSection === "contract_details" &&
     dependentSection === "invoice_details" &&
-    options?.structureType === "new_contract"
+    (options?.structureType === "new_contract" ||
+      options?.structureType === "existing_contract")
   ) {
     return (options.contractEntityStatus ?? "").toUpperCase() === "APPROVED";
   }

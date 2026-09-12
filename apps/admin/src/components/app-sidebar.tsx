@@ -71,31 +71,6 @@ import {
 import { cn } from "@/lib/utils";
 import { usePermissions } from "@/hooks/use-permissions";
 
-function ApplicationNavSectionHeader({
-  kind,
-  count,
-}: {
-  kind: "active" | "inactive";
-  count: number;
-}) {
-  const isActiveSection = kind === "active";
-  const label = isActiveSection ? "Active" : "Inactive";
-  return (
-    <div
-      className={cn(
-        "flex w-full min-w-0 items-baseline gap-1.5 px-2 pb-1 text-[11px] font-semibold leading-none tracking-wide",
-        isActiveSection ? "text-emerald-800 dark:text-emerald-200" : "text-muted-foreground"
-      )}
-      aria-label={`${label} products, ${count} listed`}
-    >
-      <span className="truncate uppercase">{label}</span>
-      <span className="font-medium tabular-nums text-sidebar-foreground/50 dark:text-sidebar-foreground/45">
-        {count}
-      </span>
-    </div>
-  );
-}
-
 function ApplicationInactiveNavSection({
   groups,
   pathname,
@@ -369,6 +344,7 @@ function FinanceCollapsibleGroup({
                 <SidebarMenuSubItem key={item.title}>
                   <SidebarMenuSubButton
                     asChild
+                    size="sm"
                     isActive={pathname === item.url || pathname.startsWith(`${item.url}/`)}
                   >
                     <Link href={item.url}>
@@ -670,13 +646,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
                               return (
                                 <SidebarMenuSub className="gap-0 py-0">
-                                  <li className="list-none px-0 pt-3">
-                                    <ApplicationNavSectionHeader
-                                      kind="active"
-                                      count={activeGroups.length}
-                                    />
-                                  </li>
-
                                   {activeGroups.map((g) => {
                                     const label = applicationsSidebarProductLabel(g.productTitle);
                                     return (

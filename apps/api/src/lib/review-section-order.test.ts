@@ -155,6 +155,21 @@ describe("isPrerequisiteSectionSatisfied", () => {
     ).toBe(true);
   });
 
+  it("unlocks Invoice from the approved linked facility on existing_contract", () => {
+    expect(
+      isPrerequisiteSectionSatisfied("contract_details", "PENDING", "invoice_details", {
+        structureType: "existing_contract",
+        contractEntityStatus: "APPROVED",
+      })
+    ).toBe(true);
+    expect(
+      isPrerequisiteSectionSatisfied("contract_details", "PENDING", "invoice_details", {
+        structureType: "existing_contract",
+        contractEntityStatus: "SUBMITTED",
+      })
+    ).toBe(false);
+  });
+
   it("treats Contract/Invoice OFFER_SENT as satisfied only for Acceptance", () => {
     expect(
       isPrerequisiteSectionSatisfied("contract_details", "OFFER_SENT", "acceptance_documents")
@@ -210,6 +225,29 @@ describe("arePrerequisiteSectionsSatisfied", () => {
         getStatus: approvedUnderwriting,
       })
     ).toBe(true);
+  });
+
+  it("allows invoice approve on existing_contract when underwriting is done and facility is approved", () => {
+    expect(
+      arePrerequisiteSectionsSatisfied({
+        prereqs: getReviewSectionPrerequisites("existing_contract").invoice_details,
+        dependentSection: "invoice_details",
+        getStatus: (section) =>
+          section === "contract_details" ? "PENDING" : approvedUnderwriting(section),
+        structureType: "existing_contract",
+        contractEntityStatus: "APPROVED",
+      })
+    ).toBe(true);
+    expect(
+      arePrerequisiteSectionsSatisfied({
+        prereqs: getReviewSectionPrerequisites("existing_contract").invoice_details,
+        dependentSection: "invoice_details",
+        getStatus: (section) =>
+          section === "contract_details" ? "PENDING" : approvedUnderwriting(section),
+        structureType: "existing_contract",
+        contractEntityStatus: "SUBMITTED",
+      })
+    ).toBe(false);
   });
 
   it("blocks invoice approve before Customer on invoice_only", () => {
