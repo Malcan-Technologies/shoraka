@@ -28,6 +28,25 @@ const facilityPending: OfferAcceptanceStageInput = {
   hasAcceptanceDocumentsSection: true,
 };
 
+const issuerAuthorizedParties = {
+  submitted_by_user_id: "user_1",
+  submitted_at: "2026-09-12T00:00:00.000Z",
+  parties: [
+    {
+      key: "issuer",
+      entity_kind: "ISSUER",
+      representatives: [
+        {
+          name: "Ali Bin Abu",
+          email: "ali@co.my",
+          ic_number: "820508105871",
+          capacity: "director",
+        },
+      ],
+    },
+  ],
+};
+
 const invoiceUnderFacilityBase: OfferAcceptanceStageInput = {
   structureType: "existing_contract",
   contractStatus: "APPROVED",
@@ -180,7 +199,81 @@ describe("buildOfferAcceptanceStageModel — new_contract facility", () => {
     expect(buildOfferAcceptanceStageModel(input).currentStageId).toBe("issuer_response");
   });
 
-  it("opens acceptance documents when the issuer has submitted", () => {
+  it("keeps issuer response as the admin action while authorised parties still need approval", () => {
+    const input: OfferAcceptanceStageInput = {
+      ...facilityPending,
+      contractStatus: "OFFER_SENT",
+      contractOfferDetails: {
+        offer_acceptance: {
+          status: "PENDING_ADMIN_REVIEW",
+          authorized_parties: issuerAuthorizedParties,
+        },
+      },
+      reviewItems: [
+        {
+          item_type: "authorized_representatives",
+          item_id: "authorized_representatives:issuer",
+          status: "PENDING",
+        },
+      ],
+      sectionStatuses: { contract_details: "OFFER_SENT", acceptance_documents: "PENDING" },
+    };
+    expect(stage(input, "issuer_response")?.tone).toBe("action");
+    expect(stage(input, "issuer_response")?.tag).toBe("Review");
+    expect(stage(input, "acceptance_documents")?.tone).toBe("action");
+    expect(stage(input, "signing_package")?.tone).toBe("locked");
+    expect(buildOfferAcceptanceStageModel(input).currentStageId).toBe("issuer_response");
+    expect(buildOfferAcceptanceStageModel(input).nextAction?.headline).toBe(
+      "Review authorised parties"
+    );
+  });
+
+  it("treats pending authorised-party review items as an issuer-response action even without a snapshot", () => {
+    const input: OfferAcceptanceStageInput = {
+      ...facilityPending,
+      contractStatus: "OFFER_SENT",
+      contractOfferDetails: { offer_acceptance: { status: "PENDING_ADMIN_REVIEW" } },
+      reviewItems: [
+        {
+          item_type: "authorized_representatives",
+          item_id: "authorized_representatives:issuer",
+          status: "PENDING",
+        },
+      ],
+    };
+    expect(stage(input, "issuer_response")?.tone).toBe("action");
+    expect(buildOfferAcceptanceStageModel(input).currentStageId).toBe("issuer_response");
+  });
+
+  it("opens acceptance documents after authorised parties are approved", () => {
+    const input: OfferAcceptanceStageInput = {
+      ...facilityPending,
+      contractStatus: "OFFER_SENT",
+      contractOfferDetails: {
+        offer_acceptance: {
+          status: "PENDING_ADMIN_REVIEW",
+          authorized_parties: issuerAuthorizedParties,
+        },
+      },
+      reviewItems: [
+        {
+          item_type: "authorized_representatives",
+          item_id: "authorized_representatives:issuer",
+          status: "APPROVED",
+        },
+      ],
+      sectionStatuses: { contract_details: "OFFER_SENT", acceptance_documents: "PENDING" },
+    };
+    expect(stage(input, "issuer_response")?.tone).toBe("done");
+    expect(stage(input, "acceptance_documents")?.tone).toBe("action");
+    expect(stage(input, "signing_package")?.tone).toBe("locked");
+    expect(buildOfferAcceptanceStageModel(input).currentStageId).toBe("acceptance_documents");
+    expect(buildOfferAcceptanceStageModel(input).nextAction?.headline).toBe(
+      "Review acceptance documents"
+    );
+  });
+
+  it("opens acceptance documents when the issuer has submitted and there are no authorised parties", () => {
     const input: OfferAcceptanceStageInput = {
       ...facilityPending,
       contractStatus: "OFFER_SENT",

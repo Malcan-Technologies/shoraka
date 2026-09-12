@@ -4,8 +4,10 @@
  */
 
 import {
+  collectAuthorizedRepresentativeReviewKeys,
   getOfferAcceptanceFromOfferDetails,
   isCommercialOfferSendUnlocked,
+  type AuthorizedPartiesSnapshot,
   type OfferAcceptanceStatus,
   type ReviewSection,
 } from "@cashsouk/types";
@@ -165,10 +167,6 @@ function commercialEntityStatus(
   invoice: OfferAcceptanceInvoiceInput | null
 ): string {
   return offerType === "facility" ? upper(contractStatus) : upper(invoice?.status);
-}
-
-function acceptanceStatus(offerDetails: unknown): OfferAcceptanceStatus | null {
-  return getOfferAcceptanceFromOfferDetails(offerDetails)?.status ?? null;
 }
 
 function invoiceReviewStatus(
@@ -365,11 +363,43 @@ function isIssuerDeclinedOffer(
   return entityStatus === "WITHDRAWN" || acceptance === "DECLINED";
 }
 
+function isAuthorizedRepresentativesReviewItem(
+  item: OfferAcceptanceReviewItemInput
+): boolean {
+  return (
+    item.item_type === "authorized_representatives" ||
+    item.item_id.startsWith("authorized_representatives:")
+  );
+}
+
+/** Authorised-party Approve lives on Issuer response until every party item is approved. */
+function authorisedPartiesNeedAdminReview(
+  authorizedParties: AuthorizedPartiesSnapshot | null | undefined,
+  reviewItems: OfferAcceptanceReviewItemInput[] | undefined
+): boolean {
+  const keys = new Set(collectAuthorizedRepresentativeReviewKeys(authorizedParties));
+  for (const item of reviewItems ?? []) {
+    if (isAuthorizedRepresentativesReviewItem(item)) keys.add(item.item_id);
+  }
+  if (keys.size === 0) return false;
+  const statusById = new Map(
+    (reviewItems ?? [])
+      .filter(isAuthorizedRepresentativesReviewItem)
+      .map((item) => [item.item_id, item.status])
+  );
+  for (const key of keys) {
+    if ((statusById.get(key) ?? "PENDING") !== "APPROVED") return true;
+  }
+  return false;
+}
+
 function issuerResponseStage(args: {
   section: ReviewSectionId;
   offerType: OfferAcceptanceOfferType;
   entityStatus: string;
   acceptance: OfferAcceptanceStatus | null;
+  authorizedParties?: AuthorizedPartiesSnapshot | null;
+  reviewItems?: OfferAcceptanceReviewItemInput[];
 }): OfferAcceptanceStage {
   const noun = args.offerType === "facility" ? "facility" : "invoice";
   if (isIssuerDeclinedOffer(args.entityStatus, args.acceptance)) {
@@ -423,11 +453,27 @@ function issuerResponseStage(args: {
       summary: "Waiting for the issuer to resubmit flagged representatives or documents.",
     };
   }
-  if (
-    args.acceptance === "PENDING_ADMIN_REVIEW" ||
-    args.acceptance === "APPROVED_FOR_SIGNING" ||
-    args.acceptance === "SIGNING_IN_PROGRESS"
-  ) {
+  if (args.acceptance === "PENDING_ADMIN_REVIEW") {
+    if (authorisedPartiesNeedAdminReview(args.authorizedParties, args.reviewItems)) {
+      return {
+        id: "issuer_response",
+        section: args.section,
+        title: "Issuer response",
+        tag: "Review",
+        tone: "action",
+        summary: "Review and approve authorised parties.",
+      };
+    }
+    return {
+      id: "issuer_response",
+      section: args.section,
+      title: "Issuer response",
+      tag: "Submitted",
+      tone: "done",
+      summary: "Issuer submitted authorised parties and acceptance documents.",
+    };
+  }
+  if (args.acceptance === "APPROVED_FOR_SIGNING" || args.acceptance === "SIGNING_IN_PROGRESS") {
     return {
       id: "issuer_response",
       section: args.section,
@@ -508,7 +554,7 @@ function acceptanceDocumentsStage(args: {
       title: "Acceptance documents",
       tag: "Pending review",
       tone: "action",
-      summary: "Review authorised parties and acceptance documents.",
+      summary: "Review acceptance documents.",
     };
   }
   if (
@@ -657,6 +703,9 @@ function headlineFor(stage: OfferAcceptanceStage): string {
   if (stage.id === "issuer_response" && stage.tag === "Declined") {
     return "Issuer declined the offer";
   }
+  if (stage.id === "issuer_response" && stage.tone === "action") {
+    return "Review authorised parties";
+  }
   if (stage.id === "issuer_response" && stage.tone === "wait") {
     return "Waiting on the issuer";
   }
@@ -715,7 +764,8 @@ export function buildOfferAcceptanceStageModel(
   const invoice = pickInvoice(invoices, input.selectedInvoiceId);
   const entityStatus = commercialEntityStatus(offerType, input.contractStatus, invoice);
   const offerDetails = commercialOfferDetails(offerType, input.contractOfferDetails, invoice);
-  const acceptance = acceptanceStatus(offerDetails);
+  const offerAcceptance = getOfferAcceptanceFromOfferDetails(offerDetails);
+  const acceptance = offerAcceptance?.status ?? null;
   const withdrawn = !!input.applicationWithdrawn;
   const hasAcceptanceDocuments =
     input.hasAcceptanceDocumentsSection ?? structureType !== "existing_contract";
@@ -871,6 +921,8 @@ export function buildOfferAcceptanceStageModel(
       offerType,
       entityStatus,
       acceptance,
+      authorizedParties: offerAcceptance?.authorized_parties,
+      reviewItems: input.reviewItems,
     })
   );
 
