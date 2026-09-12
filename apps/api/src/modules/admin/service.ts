@@ -893,6 +893,21 @@ export class AdminService {
     section: ReviewSection
   ): Promise<void> {
     const sectionPolicy = await this.getReviewSectionPolicy(application);
+    this.assertReviewSectionPrerequisitesFromPolicy(application, section, sectionPolicy);
+  }
+
+  private assertReviewSectionPrerequisitesFromPolicy(
+    application: {
+      financing_structure?: unknown;
+      application_reviews?: { section: string; status: string }[];
+      contract?: { status?: string | null } | null;
+    },
+    section: ReviewSection,
+    sectionPolicy: {
+      visibleSections: Set<ReviewSection>;
+      prerequisitesBySection: Partial<Record<ReviewSection, ReviewSection[]>>;
+    }
+  ): void {
     const statusBySection = new Map(
       (application.application_reviews ?? []).map((row) => [row.section, row.status])
     );
@@ -913,6 +928,81 @@ export class AdminService {
       "INVALID_STATE",
       "Complete previous review sections before this action"
     );
+  }
+
+  private async lockApplicationReviewSections(
+    tx: Prisma.TransactionClient,
+    applicationId: string,
+    sections: readonly string[]
+  ): Promise<Map<string, string>> {
+    const uniqueSections = [...new Set(sections)].sort();
+    if (uniqueSections.length === 0) return new Map();
+    const lockedReviews = await tx.$queryRaw<{ section: string; status: string }[]>`
+      SELECT section, status
+      FROM application_reviews
+      WHERE application_id = ${applicationId}
+        AND section IN (${Prisma.join(uniqueSections.map((section) => Prisma.sql`${section}`))})
+      FOR UPDATE
+    `;
+    return new Map(lockedReviews.map((row) => [row.section, row.status]));
+  }
+
+  private assertReviewSectionPrerequisitesFromStatuses(
+    section: ReviewSection,
+    statusBySection: Map<string, string>,
+    sectionPolicy: {
+      visibleSections: Set<ReviewSection>;
+      prerequisitesBySection: Partial<Record<ReviewSection, ReviewSection[]>>;
+    },
+    structureType: string | undefined,
+    contractEntityStatus: string | null | undefined
+  ): void {
+    if (
+      arePrerequisiteSectionsSatisfied({
+        prereqs: sectionPolicy.prerequisitesBySection[section],
+        dependentSection: section,
+        getStatus: (key) => statusBySection.get(key),
+        availableSections: sectionPolicy.visibleSections,
+        structureType,
+        contractEntityStatus,
+      })
+    ) {
+      return;
+    }
+    throw new AppError(
+      400,
+      "INVALID_STATE",
+      "Complete previous review sections before this action"
+    );
+  }
+
+  private async assertLockedReviewSectionPrerequisites(
+    tx: Prisma.TransactionClient,
+    applicationId: string,
+    section: ReviewSection,
+    sectionPolicy: {
+      visibleSections: Set<ReviewSection>;
+      prerequisitesBySection: Partial<Record<ReviewSection, ReviewSection[]>>;
+    },
+    structureType: string | undefined,
+    contractEntityStatus: string | null | undefined,
+    extraSections: readonly string[] = []
+  ): Promise<Map<string, string>> {
+    const prereqs = (sectionPolicy.prerequisitesBySection[section] ?? []).filter((prereq) =>
+      sectionPolicy.visibleSections.has(prereq)
+    );
+    const statusBySection = await this.lockApplicationReviewSections(tx, applicationId, [
+      ...prereqs,
+      ...extraSections,
+    ]);
+    this.assertReviewSectionPrerequisitesFromStatuses(
+      section,
+      statusBySection,
+      sectionPolicy,
+      structureType,
+      contractEntityStatus
+    );
+    return statusBySection;
   }
 
   private async assertReviewItemPrerequisites(
@@ -9117,7 +9207,8 @@ export class AdminService {
       application
     );
     this.ensureFacilityOfferActionAllowed(application);
-    await this.assertReviewSectionPrerequisites(application, "contract_details");
+    const sectionPolicy = await this.getReviewSectionPolicy(application);
+    this.assertReviewSectionPrerequisitesFromPolicy(application, "contract_details", sectionPolicy);
     const contractStatus = application.contract?.status?.toString().toUpperCase() ?? "";
     if (contractStatus === "REJECTED") {
       throw new AppError(
@@ -9198,14 +9289,17 @@ export class AdminService {
         );
       }
 
-      const lockedReviews = await tx.$queryRaw<{ status: string }[]>`
-        SELECT status
-        FROM application_reviews
-        WHERE application_id = ${applicationId} AND section = 'contract_details'
-        FOR UPDATE
-      `;
+      const lockedReviewStatuses = await this.assertLockedReviewSectionPrerequisites(
+        tx,
+        applicationId,
+        "contract_details",
+        sectionPolicy,
+        this.financingStructureType(application),
+        lockedContract.status,
+        ["contract_details"]
+      );
       this.assertCommercialDetailsApprovedForSend({
-        detailsStatus: lockedReviews[0]?.status,
+        detailsStatus: lockedReviewStatuses.get("contract_details"),
         entityStatus: lockedContract.status,
         message: "Approve facility details before sending an offer",
       });
@@ -9608,7 +9702,8 @@ export class AdminService {
     await this.ensureInvoiceOfferItemActionAllowed(applicationId, scopeKey, application, {
       rejectedMessage: "Invoice was rejected; reset review to pending before sending an offer",
     });
-    await this.assertReviewSectionPrerequisites(application, "invoice_details");
+    const sectionPolicy = await this.getReviewSectionPolicy(application);
+    this.assertReviewSectionPrerequisitesFromPolicy(application, "invoice_details", sectionPolicy);
     await this.assertNoActiveSigningPackage(
       applicationId,
       { invoiceId },
@@ -9720,6 +9815,14 @@ export class AdminService {
         entityStatus: lockedInvoice.status,
         message: "Approve invoice details before sending an offer",
       });
+      await this.assertLockedReviewSectionPrerequisites(
+        tx,
+        applicationId,
+        "invoice_details",
+        sectionPolicy,
+        this.financingStructureType(application),
+        application.contract?.status
+      );
 
       const details = (lockedInvoice.details as Record<string, unknown> | null) ?? {};
       const invoiceValue = Number(details.value);

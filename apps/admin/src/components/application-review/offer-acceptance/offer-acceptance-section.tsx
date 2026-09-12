@@ -9,6 +9,8 @@ import {
   isInvoiceOnlyFinancingStructure,
   parseItemScopeKey,
   paymasterIdentityOfferBlockReason,
+  workflowHasAcceptanceDocuments,
+  workflowHasSigningPackage,
   type ReviewItemType,
 } from "@cashsouk/types";
 import { useAdminSigningEnvelopes } from "@/hooks/use-signing-envelopes";
@@ -225,7 +227,14 @@ export function OfferAcceptanceSection(
     signingEnvelopes,
     sectionLocks: sectionActionLocks,
     applicationWithdrawn: app.status === "WITHDRAWN",
-    hasAcceptanceDocumentsSection: descriptor.mergedSections?.includes("acceptance_documents"),
+    hasAcceptanceDocumentsSection:
+      productWorkflow != null
+        ? workflowHasAcceptanceDocuments(productWorkflow)
+        : Boolean(descriptor.mergedSections?.includes("acceptance_documents")),
+    hasSigningPackage:
+      productWorkflow != null
+        ? workflowHasSigningPackage(productWorkflow)
+        : Boolean(descriptor.mergedSections?.includes("acceptance_documents")),
     sourceApplicationDisplayReference: sourceRef,
     canManageSigning,
   });

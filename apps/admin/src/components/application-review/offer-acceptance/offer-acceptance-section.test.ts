@@ -64,6 +64,8 @@ describe("offer-acceptance wiring", () => {
     expect(SECTION).toContain("nextAction.primaryLabel");
     expect(SECTION).toContain("buildOfferAcceptanceStageModel");
     expect(SECTION).toContain("sourceApplicationDisplayReference: sourceRef,\n    canManageSigning,");
+    expect(SECTION).toContain("workflowHasAcceptanceDocuments");
+    expect(SECTION).toContain("workflowHasSigningPackage");
     expect(SECTION).not.toContain("acceptanceLock.canManage");
     expect(SECTION).toContain('variant="kpi-strip"');
     expect(SECTION).toContain("MergedSectionComments");

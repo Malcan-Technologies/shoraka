@@ -86,7 +86,10 @@ export type OfferAcceptanceStageInput = {
   signingEnvelopes?: OfferAcceptanceEnvelopeInput[];
   sectionLocks?: SectionActionLockMap;
   applicationWithdrawn?: boolean;
+  /** Product has acceptance-document steps. Independent of the signing hub. */
   hasAcceptanceDocumentsSection?: boolean;
+  /** Product defines a signing package. May be true when there are no acceptance documents. */
+  hasSigningPackage?: boolean;
   sourceApplicationDisplayReference?: string | null;
   /** `applications.manage` — not documents.manage. SigningEnvelopePanel uses this. */
   canManageSigning?: boolean;
@@ -512,20 +515,32 @@ function signingPackageStage(args: {
   acceptance: OfferAcceptanceStatus | null;
   envelopeStatus: string | null;
   canManageSigning: boolean;
+  entityStatus: string;
+  requiresAcceptanceDocuments: boolean;
 }): OfferAcceptanceStage {
-  const readyForSigning =
+  const acceptanceReady =
     args.acceptance === "APPROVED_FOR_SIGNING" ||
     args.acceptance === "SIGNING_IN_PROGRESS" ||
     args.acceptance === "COMPLETED";
+  const signingOnlyReady =
+    !args.requiresAcceptanceDocuments &&
+    (args.entityStatus === "APPROVED" ||
+      args.envelopeStatus === "SENT" ||
+      args.envelopeStatus === "IN_PROGRESS" ||
+      args.envelopeStatus === "COMPLETED");
+  const readyForSigning = acceptanceReady || signingOnlyReady;
   if (!readyForSigning) {
+    const untilIssuerAccepts = "Locked until the issuer accepts the offer.";
+    const untilDocsApproved = "Locked until acceptance documents and representatives are approved.";
+    const summary = args.requiresAcceptanceDocuments ? untilDocsApproved : untilIssuerAccepts;
     return {
       id: "signing_package",
       section: "acceptance_documents",
       title: "Signing package",
       tag: "Locked",
       tone: "locked",
-      summary: "Locked until acceptance documents and representatives are approved.",
-      lockTooltip: "Locked until acceptance documents and representatives are approved.",
+      summary: summary,
+      lockTooltip: summary,
     };
   }
   if (args.acceptance === "COMPLETED" || args.envelopeStatus === "COMPLETED") {
@@ -657,8 +672,12 @@ export function buildOfferAcceptanceStageModel(
   const offerDetails = commercialOfferDetails(offerType, input.contractOfferDetails, invoice);
   const acceptance = acceptanceStatus(offerDetails);
   const withdrawn = !!input.applicationWithdrawn;
-  const hasAcceptanceSection = input.hasAcceptanceDocumentsSection ?? structureType !== "existing_contract";
-  const showLiveAcceptance = structureType !== "existing_contract" && hasAcceptanceSection;
+  const hasAcceptanceDocuments =
+    input.hasAcceptanceDocumentsSection ?? structureType !== "existing_contract";
+  const hasSigningPackage = input.hasSigningPackage ?? hasAcceptanceDocuments;
+  const showLiveAcceptanceDocuments =
+    structureType !== "existing_contract" && hasAcceptanceDocuments;
+  const showLiveSigning = structureType !== "existing_contract" && hasSigningPackage;
   const envStatus = envelopeStatus(input.signingEnvelopes, offerType, invoice?.id ?? null);
   const contractLock = lockFor(input.sectionLocks, "contract_details");
   const invoiceLock = lockFor(input.sectionLocks, "invoice_details");
@@ -806,7 +825,7 @@ export function buildOfferAcceptanceStageModel(
     })
   );
 
-  if (showLiveAcceptance) {
+  if (showLiveAcceptanceDocuments) {
     stages.push(
       acceptanceDocumentsStage({
         lock: withdrawn ? { locked: true, tooltip: "Application withdrawn", canManage: true } : acceptanceLock,
@@ -814,12 +833,16 @@ export function buildOfferAcceptanceStageModel(
         entityStatus,
       })
     );
+  }
+  if (showLiveSigning) {
     stages.push(
       signingPackageStage({
         lock: acceptanceLock,
         acceptance,
         envelopeStatus: envStatus,
         canManageSigning: input.canManageSigning ?? true,
+        entityStatus,
+        requiresAcceptanceDocuments: hasAcceptanceDocuments,
       })
     );
   }

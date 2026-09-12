@@ -309,6 +309,42 @@ describe("buildOfferAcceptanceStageModel — new_contract facility", () => {
       ids({ ...facilityPending, hasAcceptanceDocumentsSection: false })
     ).toEqual(["facility_review", "send_offer", "issuer_response"]);
   });
+
+  it("skips the documents stage on signing-only products and unlocks signing after issuer accept", () => {
+    const sent: OfferAcceptanceStageInput = {
+      ...facilityPending,
+      hasAcceptanceDocumentsSection: false,
+      hasSigningPackage: true,
+      contractStatus: "OFFER_SENT",
+      sectionStatuses: { contract_details: "APPROVED" },
+    };
+    expect(ids(sent)).toEqual([
+      "facility_review",
+      "send_offer",
+      "issuer_response",
+      "signing_package",
+    ]);
+    expect(stage(sent, "acceptance_documents")).toBeUndefined();
+    expect(stage(sent, "signing_package")?.tone).toBe("locked");
+    expect(stage(sent, "signing_package")?.summary).toMatch(/issuer accepts/i);
+
+    const accepted: OfferAcceptanceStageInput = {
+      ...sent,
+      contractStatus: "APPROVED",
+    };
+    expect(stage(accepted, "signing_package")?.tone).toBe("action");
+    expect(buildOfferAcceptanceStageModel(accepted).currentStageId).toBe("signing_package");
+  });
+
+  it("omits the signing stage when the product has acceptance documents but no signing package", () => {
+    expect(
+      ids({
+        ...facilityPending,
+        hasAcceptanceDocumentsSection: true,
+        hasSigningPackage: false,
+      })
+    ).toEqual(["facility_review", "send_offer", "issuer_response", "acceptance_documents"]);
+  });
 });
 
 describe("buildOfferAcceptanceStageModel — existing_contract invoice under facility", () => {
