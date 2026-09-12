@@ -64,7 +64,7 @@ import {
 } from "../notification/registry";
 import { getIssuerRecipientUserIdsForApplication } from "../notification/application-recipients";
 import { sendTypedToUsersSafe } from "../notification/send-typed-safe";
-import { listOrganizationLinkedRecords } from "./organization-linked-records";
+import { listOrganizationLinkedRecords, productIdFromFinancingType } from "./organization-linked-records";
 import { sumApprovedFacilityAmount } from "./organization-header-metrics";
 import { updateAdminOrganizationProfile } from "./organization-admin-profile";
 import {
@@ -1110,7 +1110,8 @@ export class AdminService {
   private async ensureInvoiceOfferItemActionAllowed(
     applicationId: string,
     itemScopeKey: string,
-    application: { invoices?: { id: string; details?: unknown }[] }
+    application: { invoices?: { id: string; details?: unknown }[] },
+    options?: { allowRejectedEntity?: boolean; rejectedMessage?: string }
   ): Promise<void> {
     const invoiceId = this.resolveInvoiceIdFromScopeKey(
       application as { invoices?: { id: string; details?: { number?: string | number } }[] },
@@ -1131,6 +1132,14 @@ export class AdminService {
         400,
         "OFFER_FINALIZED",
         "Invoice offer was finalized by issuer and cannot be modified"
+      );
+    }
+    if (invoice.status === "REJECTED" && !options?.allowRejectedEntity) {
+      throw new AppError(
+        400,
+        "INVALID_STATE",
+        options?.rejectedMessage ??
+          "Invoice was rejected; reset review to pending before continuing"
       );
     }
   }
@@ -7250,10 +7259,16 @@ export class AdminService {
       ? {
           ...applicationWithIssuerExtras.contract,
           displayReference: applicationWithIssuerExtras.contract.display_reference ?? null,
-          invoices: (applicationWithIssuerExtras.contract.invoices ?? []).map((invoice) => ({
-            ...invoice,
-            displayReference: invoice.display_reference ?? null,
-          })),
+          invoices: (applicationWithIssuerExtras.contract.invoices ?? []).map((invoice) => {
+            const { application: invoiceApplication, ...invoiceRest } = invoice as typeof invoice & {
+              application?: { financing_type?: unknown } | null;
+            };
+            return {
+              ...invoiceRest,
+              displayReference: invoice.display_reference ?? null,
+              product_id: productIdFromFinancingType(invoiceApplication?.financing_type),
+            };
+          }),
         }
       : null;
     const invoicesWithDisplayReference = (applicationWithIssuerExtras.invoices ?? []).map(
@@ -9590,7 +9605,9 @@ export class AdminService {
     if (!scopeKey) {
       throw new AppError(400, "INVALID_STATE", "Unable to resolve invoice scope key");
     }
-    await this.ensureInvoiceOfferItemActionAllowed(applicationId, scopeKey, application);
+    await this.ensureInvoiceOfferItemActionAllowed(applicationId, scopeKey, application, {
+      rejectedMessage: "Invoice was rejected; reset review to pending before sending an offer",
+    });
     await this.assertReviewSectionPrerequisites(application, "invoice_details");
     await this.assertNoActiveSigningPackage(
       applicationId,
@@ -10279,7 +10296,8 @@ export class AdminService {
         structure?.structure_type !== "invoice_only" &&
         (contractStatus === "OFFER_SENT" ||
           contractStatus === "APPROVED" ||
-          contractStatus === "WITHDRAWN")
+          contractStatus === "WITHDRAWN" ||
+          contractStatus === "REJECTED")
       ) {
         throw new AppError(
           400,
@@ -10656,7 +10674,9 @@ export class AdminService {
       application
     );
     if (itemType === "invoice") {
-      await this.ensureInvoiceOfferItemActionAllowed(applicationId, itemId, application);
+      await this.ensureInvoiceOfferItemActionAllowed(applicationId, itemId, application, {
+        allowRejectedEntity: true,
+      });
     }
     if (isAcceptanceHubReviewItem(itemType, itemId)) {
       this.assertAcceptanceReviewNotInherited(application);
@@ -11142,6 +11162,13 @@ export class AdminService {
             "Invoice details cannot be approved after the offer was sent"
           );
         }
+        if (invoiceStatus === "REJECTED") {
+          throw new AppError(
+            400,
+            "INVALID_STATE",
+            "Invoice was rejected; reset review to pending before continuing"
+          );
+        }
       }
     }
     await this.assertReviewItemPrerequisites(application, itemType, itemId);
@@ -11562,6 +11589,7 @@ export class AdminService {
       if (scopeKey === "invoice_details") {
         await this.ensureInvoiceSectionActionAllowed(applicationId);
       }
+      await this.assertReviewSectionPrerequisites(application, scopeKey as ReviewSection);
       await repository.updateSectionReviewStatus(
         applicationId,
         scopeKey as ReviewSection,
@@ -11582,6 +11610,7 @@ export class AdminService {
       if (itemType === "invoice") {
         await this.ensureInvoiceOfferItemActionAllowed(applicationId, itemId, application);
       }
+      await this.assertReviewItemPrerequisites(application, itemType, itemId);
       if (itemType === "invoice") {
         const targetInvoiceId = this.resolveInvoiceIdFromScopeKey(application, itemId);
         if (targetInvoiceId) {
@@ -11773,7 +11802,9 @@ export class AdminService {
     if (scope === "item") {
       const { itemType, itemId } = parseItemScopeKey(scopeKey);
       if (itemType === "invoice") {
-        await this.ensureInvoiceOfferItemActionAllowed(applicationId, itemId, application);
+        await this.ensureInvoiceOfferItemActionAllowed(applicationId, itemId, application, {
+          allowRejectedEntity: true,
+        });
       }
     }
 

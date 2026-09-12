@@ -135,6 +135,7 @@ export function OfferAcceptanceSection(
     invoices?: {
       id: string;
       application_id: string;
+      product_id?: string | null;
       details?: unknown;
       status?: string;
       offer_details?: unknown;
@@ -190,7 +191,7 @@ export function OfferAcceptanceSection(
     thisTabs.find((inv) => inv.id === selectedThisAppInvoiceId) ?? thisTabs[thisTabs.length - 1] ?? null;
   const otherInvoiceHref = otherInvoiceApplicationHref({
     applicationId: selectedOtherInvoice?.application_id,
-    productId: (selectedOtherInvoice as { product_id?: string | null } | null)?.product_id,
+    productId: selectedOtherInvoice?.product_id,
   });
 
   const contractLock = sectionActionLocks?.contract_details;

@@ -16,6 +16,7 @@ import {
   ADMIN_WAITING_SURFACE_CLASS,
 } from "@/lib/admin-status-token";
 import { AcceptanceSection, type AcceptanceSectionProps } from "../sections/acceptance-section";
+import { issuerResponseBannerKind } from "./issuer-response-banner";
 import { isAcceptanceHubReviewItem } from "./is-acceptance-hub-review-item";
 
 function formatTimestamp(value: unknown): string | null {
@@ -60,28 +61,20 @@ export function StageIssuerResponse({
   const flagged = reviewItems.filter(
     (item) => item.status === "AMENDMENT_REQUESTED" && isAcceptanceHubReviewItem(item)
   );
-  const isWaiting = status === "OFFER_SENT";
-  const isDeclined =
-    status === "WITHDRAWN" || status === "REJECTED" || acceptance?.status === "DECLINED";
-  const isExpired = status === "OFFER_EXPIRED";
-  const isAccepted =
-    status === "APPROVED" ||
-    acceptance?.status === "COMPLETED" ||
-    acceptance?.status === "PENDING_ADMIN_REVIEW" ||
-    acceptance?.status === "APPROVED_FOR_SIGNING" ||
-    acceptance?.status === "SIGNING_IN_PROGRESS";
-  const isChanges = acceptance?.status === "CHANGES_REQUESTED";
-  const notSent = !status || ["SUBMITTED", "PENDING", "DRAFT"].includes(status);
+  const banner = issuerResponseBannerKind({
+    entityStatus: status,
+    acceptanceStatus: acceptance?.status,
+  });
 
   return (
     <div className="space-y-4">
-      {notSent ? (
+      {banner === "not_sent" ? (
         <p className="text-ui text-muted-foreground">
           Nothing here yet — the issuer responds once the {noun} offer is sent.
         </p>
       ) : null}
 
-      {isWaiting ? (
+      {banner === "waiting" ? (
         <div
           className={cn(
             "flex gap-3 rounded-xl border px-4 py-3.5",
@@ -99,7 +92,7 @@ export function StageIssuerResponse({
         </div>
       ) : null}
 
-      {isDeclined ? (
+      {banner === "declined" ? (
         <div className="flex gap-3 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3.5 text-destructive">
           <XMarkIcon className="mt-0.5 h-5 w-5 shrink-0" />
           <div className="min-w-0 text-ui leading-6">
@@ -113,7 +106,7 @@ export function StageIssuerResponse({
         </div>
       ) : null}
 
-      {isExpired ? (
+      {banner === "expired" ? (
         <div
           className={cn(
             "flex gap-3 rounded-xl border px-4 py-3.5",
@@ -130,14 +123,14 @@ export function StageIssuerResponse({
         </div>
       ) : null}
 
-      {isAccepted && !isDeclined ? (
+      {banner === "accepted" ? (
         <p className="text-ui text-muted-foreground">
           {respondedAt ? `Issuer accepted ${respondedAt}.` : "Issuer accepted the offer."}
           {submittedAt ? ` Submitted for review ${submittedAt}.` : ""}
         </p>
       ) : null}
 
-      {isChanges ? (
+      {banner === "changes" ? (
         <div className={cn("rounded-xl border px-4 py-3.5", ADMIN_ACTION_SURFACE_CLASS)}>
           <p className="text-ui font-semibold text-status-action-text">
             Amendments requested — waiting on the issuer

@@ -23,5 +23,11 @@ describe("commercial details approval before send offer", () => {
     expect(SERVICE).toContain("Complete previous review sections before this action");
     expect(SERVICE).toContain("ITEM_REVIEWED_");
     expect(SERVICE).toContain("SECTION_REVIEWED_");
+    expect(SERVICE).toContain(
+      "Invoice was rejected; reset review to pending before continuing"
+    );
+    expect(SERVICE).toContain("productIdFromFinancingType");
+    expect(SERVICE).toContain("assertReviewSectionPrerequisites(application, scopeKey as ReviewSection)");
+    expect(SERVICE).toContain("assertReviewItemPrerequisites(application, itemType, itemId)");
   });
 });

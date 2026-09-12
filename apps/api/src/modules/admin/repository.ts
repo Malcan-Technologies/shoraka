@@ -3020,7 +3020,14 @@ export class AdminRepository {
         invoices: { orderBy: { created_at: "asc" } },
         contract: {
           include: {
-            invoices: { orderBy: { created_at: "asc" } },
+            invoices: {
+              orderBy: { created_at: "asc" },
+              include: {
+                application: {
+                  select: { financing_type: true },
+                },
+              },
+            },
             paymaster: {
               select: {
                 id: true,

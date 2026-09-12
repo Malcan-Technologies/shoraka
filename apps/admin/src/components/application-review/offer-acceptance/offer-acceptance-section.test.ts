@@ -107,6 +107,7 @@ describe("offer-acceptance wiring", () => {
     expect(SECTION).toContain("selectedIsOther");
     expect(SECTION).toContain("InvoiceStackedFields");
     expect(SECTION).toContain("otherInvoiceApplicationHref");
+    expect(SECTION).toContain("selectedOtherInvoice?.product_id");
     expect(SECTION).toContain("OTHER_FACILITY_INVOICE_HELPER");
     expect(SECTION).toContain("const nextAction = selectedIsOther ? null : stageModel.nextAction");
     expect(SECTION).toContain("selectedIsOther ? (");
@@ -118,7 +119,8 @@ describe("offer-acceptance wiring", () => {
   it("leaves facility actions on ContractSection and removes the issuer-response dropdown", () => {
     expect(ISSUER_RESPONSE).not.toContain("SectionActionDropdown");
     expect(ISSUER_RESPONSE).toContain("isAcceptanceHubReviewItem");
-    expect(ISSUER_RESPONSE).toContain('status === "REJECTED"');
+    expect(ISSUER_RESPONSE).toContain("issuerResponseBannerKind");
+    expect(ISSUER_RESPONSE).not.toContain("status === \"REJECTED\"");
     expect(CONTRACT).toContain("isContractFinalizedByIssuer");
     expect(CONTRACT).toContain("showApprove={!isContractOfferSendLocked && !isContractFinalizedByIssuer}");
     expect(CONTRACT).toContain("onResetToPending={onResetSectionToPending}");
