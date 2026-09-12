@@ -6,6 +6,7 @@ import { CheckCircleIcon, LockClosedIcon } from "@heroicons/react/24/outline";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
+  getOfferAcceptanceFromOfferDetails,
   isInvoiceOnlyFinancingStructure,
   parseItemScopeKey,
   paymasterIdentityOfferBlockReason,
@@ -13,6 +14,7 @@ import {
   workflowHasSigningPackage,
   type ReviewItemType,
 } from "@cashsouk/types";
+import { filterAcceptanceReviewItemsForOffer } from "../signing/acceptance-review-scope";
 import { useAdminSigningEnvelopes } from "@/hooks/use-signing-envelopes";
 import { ContractFacilitySummary } from "../contract-facility-summary";
 import { resolveAdminReviewTabCapacity } from "../admin-review-capacity";
@@ -404,12 +406,19 @@ export function OfferAcceptanceSection(
     onSelectedInvoiceTabIdChange: setInvoiceTabId,
   };
 
+  const selectedAcceptanceOfferDetails =
+    stageModel.offerType === "invoice"
+      ? selectedInvoice?.offer_details
+      : app.contract?.offer_details;
   const acceptanceDocuments = isInheritedAcceptance
     ? inherited.acceptance_documents
     : app.acceptance_documents;
   const acceptanceReviewItems = isInheritedAcceptance
     ? inherited.review_items
-    : reviewItems;
+    : filterAcceptanceReviewItemsForOffer(
+        reviewItems,
+        getOfferAcceptanceFromOfferDetails(selectedAcceptanceOfferDetails)?.authorized_parties
+      );
   const signingHubApplicationId = isInheritedAcceptance
     ? inherited.source_application_id
     : liveApplicationId;
@@ -627,7 +636,7 @@ export function OfferAcceptanceSection(
                 entityStatus={commercialEntityStatus}
                 offerType={stageModel.offerType}
                 showParties={structureType !== "existing_contract"}
-                reviewItems={reviewItems}
+                reviewItems={acceptanceReviewItems}
                 reviewRemarks={reviewComments}
                 acceptanceProps={
                   structureType === "existing_contract" ? undefined : acceptanceSectionProps

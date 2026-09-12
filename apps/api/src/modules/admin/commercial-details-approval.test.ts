@@ -31,6 +31,8 @@ describe("commercial details approval before send offer", () => {
     expect(SERVICE).toContain("productIdFromFinancingType");
     expect(SERVICE).toContain("assertReviewSectionPrerequisites(application, scopeKey as ReviewSection)");
     expect(SERVICE).toContain("assertReviewItemPrerequisites(application, itemType, itemId)");
+    expect(SERVICE).toContain("resolveOfferAcceptancePhaseTarget");
+    expect(SERVICE).toContain("collectAuthorizedRepresentativeReviewKeys(current?.authorized_parties)");
   });
 
   it("syncs invoice_details from items after invoice item approve, matching reject/amend/reset", () => {

@@ -94,6 +94,7 @@ import {
   resolveAcceptanceStep1Screen,
   resolveOfferAcceptanceStatus,
   resolveReviewOfferModalMode,
+  shouldShowOfferDeclineAction,
   workflowUsesOfferAcceptanceFlow,
   type SigningOfferStepId,
 } from "@/lib/signing-offer-steps";
@@ -2272,13 +2273,23 @@ export function OfferReviewPanel({
                   "Finish facility signing first before accepting this invoice offer."}
               </AlertDescription>
             </Alert>
-            <Button
-              className="h-11 rounded-xl"
-              onClick={handleAccept}
-              disabled={acceptDisabled}
-            >
-              Accept offer & authorise listing
-            </Button>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <Button
+                className="h-11 rounded-xl"
+                onClick={handleAccept}
+                disabled={acceptDisabled}
+              >
+                Accept offer & authorise listing
+              </Button>
+              <Button
+                variant="outline"
+                className="h-11 rounded-xl"
+                disabled={isPending}
+                onClick={() => setIsRejectMode(true)}
+              >
+                Reject offer
+              </Button>
+            </div>
           </div>
         )}
       </div>
@@ -2291,15 +2302,14 @@ export function OfferReviewPanel({
       ? "Complete each step below to put this offer in force."
       : "Accept or decline this offer.";
 
-  const showDeclineFooter =
-    !isPhaseDeadlinePast &&
-    !envelopeCompleted &&
-    displaySigningStepId !== "complete" &&
-    displaySigningStepId !== "awaiting_review" &&
-    ((useSigningStepper &&
-      displaySigningStepId !== "rejected" &&
-      displaySigningStepId !== "declined") ||
-      isRejectMode);
+  const showDeclineFooter = shouldShowOfferDeclineAction({
+    isPhaseDeadlinePast,
+    envelopeCompleted,
+    displaySigningStepId,
+    useSigningStepper,
+    isRejectMode,
+    acceptDeclineUi: modalMode.ui === "accept_decline" && !canDirectAccept,
+  });
 
   const statePanel = isLoading ? (
     <p className="py-8 text-ui text-muted-foreground">Loading offer...</p>

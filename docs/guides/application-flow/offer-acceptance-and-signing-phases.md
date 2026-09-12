@@ -4,7 +4,7 @@ Standard post-offer flow for **contract** and **invoice-only** offers (same prod
 
 Admin review uses a single **Offer & acceptance** staged tab. The issuer responds on the application-detail **Offer** tab (horizontal stepper). Field and action inventory: [offer-acceptance-tab-inventory.md](./offer-acceptance-tab-inventory.md).
 
-Invoice-only applications allow **at most one invoice** (enforced on create).
+Invoice-only applications allow **at most one invoice** (enforced on create). Legacy multi-invoice rows keep **application-wide** acceptance uploads; admin review and phase sync use each invoice’s own `authorized_parties` so approving invoice B cannot move invoice A to `APPROVED_FOR_SIGNING`. Contract-linked invoices can decline while facility signing still blocks Accept.
 
 ## Phase clocks
 

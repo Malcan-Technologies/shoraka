@@ -95,6 +95,28 @@ export function resolveReviewOfferModalMode(input: {
   };
 }
 
+/** Footer / panel decline while the offer is still open. */
+export function shouldShowOfferDeclineAction(input: {
+  isPhaseDeadlinePast: boolean;
+  envelopeCompleted: boolean;
+  displaySigningStepId?: string | null;
+  useSigningStepper: boolean;
+  isRejectMode: boolean;
+  acceptDeclineUi: boolean;
+}): boolean {
+  if (input.isPhaseDeadlinePast || input.envelopeCompleted) return false;
+  const step = input.displaySigningStepId;
+  if (
+    step === "complete" ||
+    step === "awaiting_review" ||
+    step === "rejected" ||
+    step === "declined"
+  ) {
+    return false;
+  }
+  return input.useSigningStepper || input.isRejectMode || input.acceptDeclineUi;
+}
+
 /** True when a COMPLETED envelope exists for the given contract id. */
 export function hasCompletedContractEnvelope(
   envelopes: Array<{ contract_id: string | null; status: string }>,

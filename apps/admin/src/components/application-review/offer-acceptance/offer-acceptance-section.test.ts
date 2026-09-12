@@ -91,6 +91,8 @@ describe("offer-acceptance wiring", () => {
     );
     expect(ACCEPTANCE).toContain("selectedInvoiceId={selectedInvoiceId}");
     expect(ACCEPTANCE).toContain("isInvoiceOnly ? selectedInvoiceId : null");
+    expect(SECTION).toContain("filterAcceptanceReviewItemsForOffer");
+    expect(SECTION).toContain("reviewItems={acceptanceReviewItems}");
     expect(SECTION).toContain('structureType === "new_contract" && appInvoices.length > 0');
   });
 

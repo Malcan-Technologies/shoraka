@@ -195,7 +195,10 @@ import { notifyIssuerDirectorShareholderActionRequired } from "../notification/d
 import { logApplicationActivity } from "../applications/logs/service";
 import { createApplicationReviewEventRow } from "../applications/logs/review-events";
 import { ActivityPortal, ApplicationLogEventType } from "../applications/logs/types";
-import { resolveAcceptanceReviewApprovalGate } from "../applications/acceptance-document-review-sync";
+import {
+  resolveAcceptanceReviewApprovalGate,
+  resolveOfferAcceptancePhaseTarget,
+} from "../applications/acceptance-document-review-sync";
 
 type OnboardingRefreshOutcome = "COMPLETED" | "PARTIAL" | "SKIPPED_TERMINAL";
 
@@ -8473,9 +8476,20 @@ export class AdminService {
     const docs = application.acceptance_documents;
     const docKeys =
       docs && typeof docs === "object" ? [...this.collectAcceptanceDocumentKeys(docs)] : [];
-    const partyKeys = collectAuthorizedRepresentativeReviewKeys(
-      this.getPrimaryOfferAcceptance(application)?.authorized_parties
-    );
+    const partyKeys = [
+      ...new Set([
+        ...collectAuthorizedRepresentativeReviewKeys(
+          getOfferAcceptanceFromOfferDetails(application.contract?.offer_details)?.authorized_parties
+        ),
+        ...(application.invoices ?? [])
+          .filter((invoice) => !invoice.contract_id)
+          .flatMap((invoice) =>
+            collectAuthorizedRepresentativeReviewKeys(
+              getOfferAcceptanceFromOfferDetails(invoice.offer_details)?.authorized_parties
+            )
+          ),
+      ]),
+    ];
     if (docKeys.length === 0 && partyKeys.length === 0) {
       return;
     }
@@ -8697,9 +8711,6 @@ export class AdminService {
     }
 
     const docKeys = collectAcceptanceDocumentReviewKeys(workflow, application.acceptance_documents);
-    const partyKeys = collectAuthorizedRepresentativeReviewKeys(
-      this.getPrimaryOfferAcceptance(application)?.authorized_parties
-    );
     const reviewRows = application.application_review_items ?? [];
     const statusByKey = new Map(
       reviewRows
@@ -8709,73 +8720,31 @@ export class AdminService {
         )
         .map((row) => [row.item_id, row.status])
     );
-    const { hasAmendment, allApproved } = resolveAcceptanceReviewApprovalGate({
-      docKeys,
-      partyKeys,
-      statusByKey,
-    });
 
     const now = new Date().toISOString();
-
-    const resolveTargetStatus = (
-      current: { status: string; submitted_at?: string | null } | null | undefined
-    ): "CHANGES_REQUESTED" | "APPROVED_FOR_SIGNING" | "PENDING_ADMIN_REVIEW" | null => {
-      if (!current) return null;
-      if (
-        current.status === "PENDING_ISSUER" ||
-        current.status === "REJECTED" ||
-        current.status === "DECLINED" ||
-        current.status === "COMPLETED" ||
-        current.status === "SIGNING_IN_PROGRESS"
-      ) {
-        return null;
-      }
-      // Issuer has not submitted Step 1 yet (no submitted_at on a fresh phase).
-      if (!current.submitted_at && current.status !== "APPROVED_FOR_SIGNING") {
-        return null;
-      }
-
-      if (hasAmendment) {
-        if (
-          current.status === "PENDING_ADMIN_REVIEW" ||
-          current.status === "APPROVED_FOR_SIGNING" ||
-          current.status === "CHANGES_REQUESTED"
-        ) {
-          return "CHANGES_REQUESTED";
-        }
-        return null;
-      }
-
-      // Admin cleared every change request (Set to Pending) — leave issuer-action phase.
-      if (current.status === "CHANGES_REQUESTED") {
-        return "PENDING_ADMIN_REVIEW";
-      }
-
-      if (allApproved) {
-        // Require resubmit after changes: do not approve while still CHANGES_REQUESTED.
-        if (
-          current.status === "PENDING_ADMIN_REVIEW" ||
-          current.status === "APPROVED_FOR_SIGNING"
-        ) {
-          return "APPROVED_FOR_SIGNING";
-        }
-        return null;
-      }
-
-      if (
-        current.status === "APPROVED_FOR_SIGNING" &&
-        (docKeys.length > 0 || partyKeys.length > 0)
-      ) {
-        return "PENDING_ADMIN_REVIEW";
-      }
-      return null;
+    const resolveEntityTarget = (offerDetails: unknown) => {
+      const current = getOfferAcceptanceFromOfferDetails(offerDetails);
+      const partyKeys = collectAuthorizedRepresentativeReviewKeys(current?.authorized_parties);
+      const gate = resolveAcceptanceReviewApprovalGate({
+        docKeys,
+        partyKeys,
+        statusByKey,
+      });
+      return {
+        current,
+        target: resolveOfferAcceptancePhaseTarget({
+          current,
+          hasAmendment: gate.hasAmendment,
+          allApproved: gate.allApproved,
+          requiredKeyCount: docKeys.length + partyKeys.length,
+        }),
+      };
     };
 
     const contract = application.contract;
     if (contract && contract.status === "OFFER_SENT" && contract.offer_details) {
       const offer = (contract.offer_details as Record<string, unknown>) ?? {};
-      const current = getOfferAcceptanceFromOfferDetails(offer);
-      const target = resolveTargetStatus(current);
+      const { current, target } = resolveEntityTarget(offer);
       if (current && target && current.status !== target) {
         const updated = patchOfferAcceptance(offer, {
           status: target,
@@ -8806,8 +8775,7 @@ export class AdminService {
       if (invoice.contract_id) continue;
       if (invoice.status !== "OFFER_SENT" || !invoice.offer_details) continue;
       const offer = (invoice.offer_details as Record<string, unknown>) ?? {};
-      const current = getOfferAcceptanceFromOfferDetails(offer);
-      const target = resolveTargetStatus(current);
+      const { current, target } = resolveEntityTarget(offer);
       if (!current || !target || current.status === target) {
         continue;
       }
