@@ -663,10 +663,8 @@ export default function DynamicApplicationDetailPage() {
     for (const descriptor of effectiveTabDescriptors) {
       const section = descriptor.reviewSection;
       const canManage = canManageReviewSection(section, can);
-      const contractEntityStatus =
-        typeof (app?.contract as { status?: string | null } | null | undefined)?.status === "string"
-          ? (app.contract as { status: string }).status
-          : null;
+      const contractStatus = (app?.contract as { status?: string | null } | null | undefined)?.status;
+      const contractEntityStatus = typeof contractStatus === "string" ? contractStatus : null;
       const tabUnlocked = isTabUnlocked(
         section,
         sectionStatusMap,
