@@ -13,6 +13,10 @@ import {
 } from "@cashsouk/types";
 import type { ReviewSectionId } from "../review-registry";
 import { resolveInvoiceReviewItemStatus } from "../sections/invoice-review-scope";
+import {
+  resolveFacilityFeeUpfrontRail,
+  type FacilityFeeUpfrontRail,
+} from "./facility-fee-upfront-rail";
 import type { SectionActionLock, SectionActionLockMap } from "./resolve-section-action-lock";
 
 export type OfferAcceptanceStructureType =
@@ -29,6 +33,7 @@ export type OfferAcceptanceStageId =
   | "invoice_review"
   | "send_offer"
   | "issuer_response"
+  | "facility_fee"
   | "acceptance_documents"
   | "signing_package"
   | "inherited_acceptance";
@@ -80,6 +85,7 @@ export type OfferAcceptanceReviewItemInput = {
 export type OfferAcceptanceStageInput = {
   structureType?: string | null;
   contractStatus?: string | null;
+  contractDetails?: unknown;
   contractOfferDetails?: unknown;
   invoices?: OfferAcceptanceInvoiceInput[];
   selectedInvoiceId?: string | null;
@@ -501,6 +507,66 @@ function issuerResponseStage(args: {
   };
 }
 
+function facilityFeeStage(args: {
+  rail: FacilityFeeUpfrontRail;
+  entityStatus: string;
+  acceptance: OfferAcceptanceStatus | null;
+}): OfferAcceptanceStage {
+  const base = {
+    id: "facility_fee" as const,
+    section: "contract_details" as const,
+    title: "Upfront facility fee",
+    kind: "workflow" as const,
+  };
+  if (isIssuerDeclinedOffer(args.entityStatus, args.acceptance)) {
+    return {
+      ...base,
+      tag: "Skipped",
+      tone: "done",
+      summary: "No upfront facility fee is due after the issuer declined the offer.",
+    };
+  }
+  if (args.entityStatus === "OFFER_EXPIRED") {
+    return {
+      ...base,
+      tag: "Skipped",
+      tone: "done",
+      summary: "No upfront facility fee is due after the offer expired.",
+    };
+  }
+  if (args.entityStatus !== "APPROVED") {
+    return {
+      ...base,
+      tag: "Locked",
+      tone: "locked",
+      summary: "The issuer pays this after they accept the facility offer.",
+      lockTooltip: "The issuer pays this after they accept the facility offer.",
+    };
+  }
+  if (args.rail.outstanding > 0) {
+    return {
+      ...base,
+      tag: "Due",
+      tone: "wait",
+      summary: "Waiting for the issuer to pay the upfront facility fee via the payment gateway.",
+    };
+  }
+  if (args.rail.waived) {
+    return {
+      ...base,
+      tag: "Waived",
+      tone: "done",
+      summary: "The remaining facility fee was waived.",
+    };
+  }
+  return {
+    ...base,
+    tag: "Paid",
+    tone: "done",
+    summary: "Upfront facility fee received. Drawdowns are unlocked.",
+  };
+}
+
 function acceptanceDocumentsStage(args: {
   lock?: SectionActionLock;
   acceptance: OfferAcceptanceStatus | null;
@@ -713,6 +779,9 @@ function headlineFor(stage: OfferAcceptanceStage): string {
   }
   if (stage.id === "issuer_response" && stage.tone === "wait") {
     return "Waiting on the issuer";
+  }
+  if (stage.id === "facility_fee" && stage.tone === "wait") {
+    return "Waiting for the upfront facility fee";
   }
   if (stage.id === "acceptance_documents" && stage.tone === "wait") {
     return "Waiting on the issuer";
@@ -931,6 +1000,22 @@ export function buildOfferAcceptanceStageModel(
       reviewAuthorisedParties: structureType !== "existing_contract",
     })
   );
+
+  if (structureType === "new_contract") {
+    const facilityFeeRail = resolveFacilityFeeUpfrontRail({
+      contractDetails: input.contractDetails,
+      offerDetails: offerDetails,
+    });
+    if (facilityFeeRail) {
+      stages.push(
+        facilityFeeStage({
+          rail: facilityFeeRail,
+          entityStatus,
+          acceptance,
+        })
+      );
+    }
+  }
 
   if (showLiveAcceptanceDocuments) {
     stages.push(

@@ -81,6 +81,7 @@ describe("offer-acceptance wiring", () => {
     expect(SECTION).toContain("StageInvoiceReview");
     expect(SECTION).toContain("StageInvoiceSendOffer");
     expect(SECTION).toContain("StageIssuerResponse");
+    expect(SECTION).toContain("StageFacilityFee");
     expect(SECTION).toContain("StageAcceptanceDocuments");
     expect(SECTION).toContain("StageSigningPackage");
     expect(SECTION).toContain("StageInheritedAcceptance");

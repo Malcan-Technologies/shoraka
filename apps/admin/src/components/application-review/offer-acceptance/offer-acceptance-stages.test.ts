@@ -432,6 +432,79 @@ describe("buildOfferAcceptanceStageModel — new_contract facility", () => {
     ).toBe("Rejected");
   });
 
+  it("inserts upfront facility fee after issuer response only when collect-upfront is set", () => {
+    expect(ids(facilityPending)).not.toContain("facility_fee");
+
+    const offered: OfferAcceptanceStageInput = {
+      ...facilityPending,
+      contractStatus: "OFFER_SENT",
+      contractOfferDetails: {
+        offer_acceptance: { status: "PENDING_ISSUER" },
+        facility_fee_upfront_collect_amount: 400,
+      },
+      sectionStatuses: { contract_details: "OFFER_SENT", acceptance_documents: "PENDING" },
+    };
+    expect(ids(offered)).toEqual([
+      "facility_review",
+      "send_offer",
+      "issuer_response",
+      "facility_fee",
+      "acceptance_documents",
+      "signing_package",
+    ]);
+    expect(stage(offered, "facility_fee")?.tone).toBe("locked");
+    expect(buildOfferAcceptanceStageModel(offered).currentStageId).toBe("issuer_response");
+
+    const due: OfferAcceptanceStageInput = {
+      ...offered,
+      contractStatus: "APPROVED",
+      contractDetails: {
+        approved_facility: 100_000,
+        facility_fee_total_amount: 1_000,
+        facility_fee_upfront_amount: 400,
+        facility_fee_paid_amount: 0,
+      },
+    };
+    expect(stage(due, "facility_fee")?.tone).toBe("wait");
+    expect(stage(due, "facility_fee")?.tag).toBe("Due");
+    expect(buildOfferAcceptanceStageModel(due).nextAction?.headline).toBe(
+      "Waiting for the upfront facility fee"
+    );
+
+    const paid: OfferAcceptanceStageInput = {
+      ...due,
+      contractDetails: {
+        approved_facility: 100_000,
+        facility_fee_total_amount: 1_000,
+        facility_fee_upfront_amount: 400,
+        facility_fee_paid_amount: 400,
+      },
+    };
+    expect(stage(paid, "facility_fee")?.tone).toBe("done");
+    expect(stage(paid, "facility_fee")?.tag).toBe("Paid");
+  });
+
+  it("does not add an upfront facility fee step on invoice structures", () => {
+    const invoiceOnly: OfferAcceptanceStageInput = {
+      ...invoiceOnlyBase,
+      invoices: [
+        {
+          id: "inv-1",
+          status: "OFFER_SENT",
+          offer_details: { facility_fee_upfront_collect_amount: 400 },
+        },
+      ],
+    };
+    expect(ids(invoiceOnly)).not.toContain("facility_fee");
+
+    const underFacility: OfferAcceptanceStageInput = {
+      ...invoiceUnderFacilityBase,
+      contractDetails: { facility_fee_upfront_amount: 400, facility_fee_paid_amount: 0 },
+      contractOfferDetails: { facility_fee_upfront_collect_amount: 400 },
+    };
+    expect(ids(underFacility)).not.toContain("facility_fee");
+  });
+
   it("omits live acceptance stages when the product has no acceptance section", () => {
     expect(
       ids({ ...facilityPending, hasAcceptanceDocumentsSection: false })

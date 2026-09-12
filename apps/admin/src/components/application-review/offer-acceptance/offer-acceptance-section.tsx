@@ -49,6 +49,8 @@ import {
 } from "./stage-review";
 import { StageFacilitySendOffer, StageInvoiceSendOffer } from "./stage-send-offer";
 import { StageIssuerResponse } from "./stage-issuer-response";
+import { StageFacilityFee } from "./stage-facility-fee";
+import { resolveFacilityFeeUpfrontRail } from "./facility-fee-upfront-rail";
 import {
   StageAcceptanceDocuments,
   StageInheritedAcceptance,
@@ -213,6 +215,7 @@ export function OfferAcceptanceSection(
   const stageModel = buildOfferAcceptanceStageModel({
     structureType,
     contractStatus: app.contract?.status,
+    contractDetails: app.contract?.contract_details,
     contractOfferDetails: app.contract?.offer_details,
     invoices: appInvoices.map((inv) => ({
       id: inv.id,
@@ -460,6 +463,13 @@ export function OfferAcceptanceSection(
     stageModel.offerType === "facility" ? app.contract?.offer_details : selectedInvoice?.offer_details;
   const commercialEntityStatus =
     stageModel.offerType === "facility" ? app.contract?.status : selectedInvoice?.status;
+  const facilityFeeRail =
+    structureType === "new_contract"
+      ? resolveFacilityFeeUpfrontRail({
+          contractDetails: app.contract?.contract_details,
+          offerDetails: app.contract?.offer_details,
+        })
+      : null;
   const showInvoiceStages = structureType !== "new_contract";
   const workflowStages = stageModel.stages.filter((stage) => !isReferenceOfferAcceptanceStage(stage));
   const lastWorkflowStageId = workflowStages[workflowStages.length - 1]?.id ?? null;
@@ -621,6 +631,16 @@ export function OfferAcceptanceSection(
                 reviewRemarks={reviewComments}
                 acceptanceProps={
                   structureType === "existing_contract" ? undefined : acceptanceSectionProps
+                }
+              />
+            ) : null}
+            {stage.id === "facility_fee" && facilityFeeRail ? (
+              <StageFacilityFee
+                rail={facilityFeeRail}
+                contractHref={
+                  facilityContractId
+                    ? `/contracts/${encodeURIComponent(facilityContractId)}`
+                    : null
                 }
               />
             ) : null}
