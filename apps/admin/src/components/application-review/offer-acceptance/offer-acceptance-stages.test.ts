@@ -131,10 +131,26 @@ describe("buildOfferAcceptanceStageModel — new_contract facility", () => {
     expect(stage(accepted, "facility_review")?.tag).toBe("Reviewed");
   });
 
-  it("still locks facility review when the application is withdrawn", () => {
+  it("keeps facility review reviewed after send when the application is withdrawn", () => {
     const input: OfferAcceptanceStageInput = {
       ...facilityPending,
       contractStatus: "APPROVED",
+      applicationWithdrawn: true,
+      sectionLocks: {
+        contract_details: {
+          locked: true,
+          tooltip: "Application withdrawn",
+          canManage: true,
+        },
+      },
+    };
+    expect(stage(input, "facility_review")?.tone).toBe("done");
+    expect(stage(input, "facility_review")?.tag).toBe("Reviewed");
+  });
+
+  it("still locks facility review when the application is withdrawn before an offer is sent", () => {
+    const input: OfferAcceptanceStageInput = {
+      ...facilityPending,
       applicationWithdrawn: true,
       sectionLocks: {
         contract_details: {
@@ -179,14 +195,20 @@ describe("buildOfferAcceptanceStageModel — new_contract facility", () => {
     );
   });
 
-  it("treats CHANGES_REQUESTED as wait on issuer and action on acceptance", () => {
+  it("treats CHANGES_REQUESTED as waiting on the issuer, not an admin review action", () => {
     const input: OfferAcceptanceStageInput = {
       ...facilityPending,
       contractStatus: "OFFER_SENT",
       contractOfferDetails: { offer_acceptance: { status: "CHANGES_REQUESTED" } },
     };
     expect(stage(input, "issuer_response")?.tone).toBe("wait");
-    expect(stage(input, "acceptance_documents")?.tone).toBe("action");
+    expect(stage(input, "acceptance_documents")?.tone).toBe("wait");
+    expect(stage(input, "acceptance_documents")?.tag).toBe("Changes requested");
+    expect(stage(input, "acceptance_documents")?.summary).toMatch(/resubmit/i);
+    expect(buildOfferAcceptanceStageModel(input).currentStageId).toBe("issuer_response");
+    expect(buildOfferAcceptanceStageModel(input).nextAction?.headline).toBe(
+      "Waiting on the issuer"
+    );
   });
 
   it("unlocks signing at APPROVED_FOR_SIGNING", () => {
@@ -262,7 +284,17 @@ describe("buildOfferAcceptanceStageModel — new_contract facility", () => {
       ...facilityPending,
       contractStatus: "WITHDRAWN",
       contractOfferDetails: { offer_acceptance: { status: "DECLINED" } },
+      applicationWithdrawn: true,
+      sectionLocks: {
+        contract_details: {
+          locked: true,
+          tooltip: "Application withdrawn",
+          canManage: true,
+        },
+      },
     };
+    expect(stage(declined, "facility_review")?.tag).toBe("Reviewed");
+    expect(stage(declined, "facility_review")?.tone).toBe("done");
     expect(stage(declined, "send_offer")?.tag).toBe("Declined");
     expect(stage(declined, "issuer_response")?.tag).toBe("Declined");
     expect(stage(declined, "acceptance_documents")?.tag).toBe("Skipped");
@@ -554,8 +586,17 @@ describe("buildOfferAcceptanceStageModel — existing_contract invoice under fac
       reviewItems: [
         { item_type: "invoice", item_id: "invoice_details:0:INV-1", status: "APPROVED" },
       ],
+      applicationWithdrawn: true,
+      sectionLocks: {
+        invoice_details: {
+          locked: true,
+          tooltip: "Application withdrawn",
+          canManage: true,
+        },
+      },
     };
     expect(stage(withdrawn, "invoice_review")?.tag).toBe("Reviewed");
+    expect(stage(withdrawn, "invoice_review")?.tone).toBe("done");
     expect(stage(withdrawn, "send_offer")?.tag).toBe("Declined");
     expect(stage(withdrawn, "issuer_response")?.tag).toBe("Declined");
     expect(stage(withdrawn, "inherited_acceptance")?.tone).toBe("done");
@@ -697,7 +738,23 @@ describe("buildOfferAcceptanceStageModel — invoice_only", () => {
       reviewItems: [
         { item_type: "invoice", item_id: "invoice_details:0:INV-1", status: "APPROVED" },
       ],
+      applicationWithdrawn: true,
+      sectionLocks: {
+        contract_details: {
+          locked: true,
+          tooltip: "Application withdrawn",
+          canManage: true,
+        },
+        invoice_details: {
+          locked: true,
+          tooltip: "Application withdrawn",
+          canManage: true,
+        },
+      },
     };
+    expect(stage(declined, "customer_review")?.tag).toBe("Reviewed");
+    expect(stage(declined, "invoice_review")?.tag).toBe("Reviewed");
+    expect(stage(declined, "invoice_review")?.tone).toBe("done");
     expect(stage(declined, "issuer_response")?.tag).toBe("Declined");
     expect(stage(declined, "acceptance_documents")?.tag).toBe("Skipped");
     expect(stage(declined, "signing_package")?.tag).toBe("Skipped");
@@ -705,6 +762,58 @@ describe("buildOfferAcceptanceStageModel — invoice_only", () => {
     expect(buildOfferAcceptanceStageModel(declined).nextAction?.headline).toBe(
       "Issuer declined the offer"
     );
+  });
+
+  it("keeps invoice review reviewed after send when the application is withdrawn", () => {
+    const input: OfferAcceptanceStageInput = {
+      ...invoiceOnlyBase,
+      invoices: [
+        {
+          id: "inv-1",
+          status: "OFFER_SENT",
+          offer_details: { offer_acceptance: { status: "PENDING_ISSUER" } },
+        },
+      ],
+      sectionStatuses: {
+        contract_details: "APPROVED",
+        invoice_details: "APPROVED",
+        acceptance_documents: "PENDING",
+      },
+      reviewItems: [
+        { item_type: "invoice", item_id: "invoice_details:0:INV-1", status: "APPROVED" },
+      ],
+      applicationWithdrawn: true,
+      sectionLocks: {
+        invoice_details: {
+          locked: true,
+          tooltip: "Application withdrawn",
+          canManage: true,
+        },
+      },
+    };
+    expect(stage(input, "invoice_review")?.tag).toBe("Reviewed");
+    expect(stage(input, "invoice_review")?.tone).toBe("done");
+  });
+
+  it("treats invoice CHANGES_REQUESTED as waiting on the issuer", () => {
+    const input: OfferAcceptanceStageInput = {
+      ...invoiceOnlyBase,
+      invoices: [
+        {
+          id: "inv-1",
+          status: "OFFER_SENT",
+          offer_details: { offer_acceptance: { status: "CHANGES_REQUESTED" } },
+        },
+      ],
+      sectionStatuses: {
+        contract_details: "APPROVED",
+        invoice_details: "OFFER_SENT",
+        acceptance_documents: "PENDING",
+      },
+    };
+    expect(stage(input, "issuer_response")?.tone).toBe("wait");
+    expect(stage(input, "acceptance_documents")?.tone).toBe("wait");
+    expect(buildOfferAcceptanceStageModel(input).currentStageId).toBe("issuer_response");
   });
 
   it("locks customer review when the section cannot be managed", () => {

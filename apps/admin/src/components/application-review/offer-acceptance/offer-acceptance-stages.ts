@@ -218,14 +218,15 @@ function isCompletedReviewStatus(status: string): boolean {
 /**
  * Action freeze (paymaster after offer, permission, prerequisites) still locks section
  * controls. Once the commercial offer is OFFER_SENT_OR_LATER, the rail presents a completed
- * review as done instead of Locked. Withdrawn and pre-offer locks stay locked.
+ * review as done instead of Locked. Withdrawal before send still locks presentation;
+ * after send, keep Reviewed and leave actions disabled via section locks.
  */
 function isWorkflowReviewPresentationLocked(
   withdrawn: boolean,
   commercialOfferSent: boolean,
   actionLocked: boolean
 ): boolean {
-  return withdrawn || (!commercialOfferSent && actionLocked);
+  return !commercialOfferSent && (withdrawn || actionLocked);
 }
 
 function reviewTone(status: string, locked: boolean, lockTooltip?: string): Pick<
@@ -490,17 +491,24 @@ function acceptanceDocumentsStage(args: {
       summary: "Acceptance was rejected.",
     };
   }
-  if (args.acceptance === "PENDING_ADMIN_REVIEW" || args.acceptance === "CHANGES_REQUESTED") {
+  if (args.acceptance === "CHANGES_REQUESTED") {
     return {
       id: "acceptance_documents",
       section: "acceptance_documents",
       title: "Acceptance documents",
-      tag: args.acceptance === "CHANGES_REQUESTED" ? "Changes requested" : "Pending review",
+      tag: "Changes requested",
+      tone: "wait",
+      summary: "Waiting for the issuer to resubmit flagged representatives or documents.",
+    };
+  }
+  if (args.acceptance === "PENDING_ADMIN_REVIEW") {
+    return {
+      id: "acceptance_documents",
+      section: "acceptance_documents",
+      title: "Acceptance documents",
+      tag: "Pending review",
       tone: "action",
-      summary:
-        args.acceptance === "CHANGES_REQUESTED"
-          ? "Issuer resubmitted after requested changes — review again."
-          : "Review authorised parties and acceptance documents.",
+      summary: "Review authorised parties and acceptance documents.",
     };
   }
   if (
@@ -650,6 +658,9 @@ function headlineFor(stage: OfferAcceptanceStage): string {
     return "Issuer declined the offer";
   }
   if (stage.id === "issuer_response" && stage.tone === "wait") {
+    return "Waiting on the issuer";
+  }
+  if (stage.id === "acceptance_documents" && stage.tone === "wait") {
     return "Waiting on the issuer";
   }
   if (stage.id === "acceptance_documents" && stage.tone === "action") {
@@ -804,7 +815,11 @@ export function buildOfferAcceptanceStageModel(
   if (structureType !== "new_contract") {
     const itemStatus = selectedInvoiceReviewStatus;
     const reviewStatus = OFFER_SENT_OR_LATER.has(entityStatus) ? "APPROVED" : itemStatus;
-    const invoiceReviewLocked = withdrawn || !!invoiceLock?.locked || !customerReviewComplete;
+    const invoiceReviewLocked = isWorkflowReviewPresentationLocked(
+      withdrawn,
+      OFFER_SENT_OR_LATER.has(entityStatus),
+      !!invoiceLock?.locked || !customerReviewComplete
+    );
     const invoiceReview = reviewTone(
       invoice ? reviewStatus : "PENDING",
       invoiceReviewLocked,
