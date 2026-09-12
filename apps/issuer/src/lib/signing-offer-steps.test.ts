@@ -1,3 +1,5 @@
+import * as fs from "fs";
+import * as path from "path";
 import { acceptanceDocumentCategoryEntries } from "@cashsouk/types";
 import {
   compareSigningOfferStepOrder,
@@ -10,6 +12,7 @@ import {
   isSigningOfferStepReachable,
   resolveAcceptanceStep1Screen,
   resolveReviewOfferModalMode,
+  shouldShowOfferDeclineAction,
 } from "./signing-offer-steps";
 
 const unlockedBase = {
@@ -307,6 +310,46 @@ describe("resolveReviewOfferModalMode", () => {
     if (mode.ui === "accept_decline") {
       expect(mode.blockedMessage).toMatch(/facility signing/i);
     }
+  });
+});
+
+describe("shouldShowOfferDeclineAction", () => {
+  const open = {
+    isPhaseDeadlinePast: false,
+    envelopeCompleted: false,
+    displaySigningStepId: "signing" as const,
+    useSigningStepper: false,
+    isRejectMode: false,
+    acceptDeclineUi: true,
+  };
+
+  it("keeps decline available while facility signing still blocks accept", () => {
+    expect(shouldShowOfferDeclineAction(open)).toBe(true);
+  });
+
+  it("hides decline after expiry or envelope completion", () => {
+    expect(shouldShowOfferDeclineAction({ ...open, isPhaseDeadlinePast: true })).toBe(false);
+    expect(shouldShowOfferDeclineAction({ ...open, envelopeCompleted: true })).toBe(false);
+    expect(
+      shouldShowOfferDeclineAction({ ...open, displaySigningStepId: "awaiting_review" })
+    ).toBe(false);
+  });
+});
+
+describe("OfferReviewPanel decline while accept is blocked", () => {
+  const panel = fs.readFileSync(
+    path.join(
+      __dirname,
+      "../app/(application-management)/applications/components/OfferReviewPanel.tsx"
+    ),
+    "utf8"
+  );
+
+  it("shows Reject on the blocked accept panel and uses the shared decline gate", () => {
+    expect(panel).toContain("shouldShowOfferDeclineAction");
+    expect(panel).toContain("Accepting is on hold.");
+    expect(panel).toContain("Reject offer");
+    expect(panel).toContain("onClick={() => setIsRejectMode(true)}");
   });
 });
 

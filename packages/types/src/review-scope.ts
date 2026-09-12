@@ -107,8 +107,9 @@ const UNDERWRITING_BEFORE_CONTRACT: ReviewSection[] = [
 /**
  * Prerequisites for the Acceptance tab.
  * Contract: underwriting + Contract. Invoice-only: underwriting + Customer + Invoice.
- * Commercial prereqs (Contract / Invoice) are satisfied by OFFER_SENT or APPROVED —
- * see isPrerequisiteSectionSatisfied (Contract/Invoice cannot be manually approved).
+ * Commercial prereqs (Contract / Invoice) are satisfied by OFFER_SENT or APPROVED.
+ * Admin Approve on facility/invoice details writes review APPROVED before Send offer;
+ * Acceptance still unlocks on OFFER_SENT. New-facility Invoice waits for the live facility.
  */
 export function getAcceptanceDocumentsPrerequisites(
   structureType?: string | null
@@ -119,16 +120,53 @@ export function getAcceptanceDocumentsPrerequisites(
   return [...UNDERWRITING_BEFORE_CONTRACT, "contract_details"];
 }
 
+/** Admin signed off submitted facility or invoice details (review row APPROVED). */
+export function isCommercialDetailsApproved(status?: string | null): boolean {
+  return (status ?? "").toUpperCase() === "APPROVED";
+}
+
+/**
+ * Send offer is allowed after details Approve, or when resending an expired offer.
+ * Retract / issuer-finalized states stay blocked here; callers also enforce entity locks.
+ */
+export function isCommercialOfferSendUnlocked(input: {
+  detailsStatus?: string | null;
+  entityStatus?: string | null;
+}): boolean {
+  const entity = (input.entityStatus ?? "").toUpperCase();
+  if (entity === "OFFER_EXPIRED") return true;
+  if (entity === "OFFER_SENT" || entity === "APPROVED" || entity === "WITHDRAWN") {
+    return false;
+  }
+  return isCommercialDetailsApproved(input.detailsStatus);
+}
+
+export type PrerequisiteSatisfactionOptions = {
+  structureType?: string | null;
+  /** Contract row status — used so facility-details Approve does not unlock Invoice. */
+  contractEntityStatus?: string | null;
+};
+
 /**
  * Whether a prerequisite section's review status unlocks a dependent tab.
- * Acceptance treats Contract / Invoice as satisfied once the offer is sent
- * (manual approve is blocked; APPROVED arrives only after issuer accept / signing).
+ * Acceptance treats Contract / Invoice as satisfied once the offer is sent.
+ * Invoice waits on the facility entity: new_contract until accepted, existing_contract
+ * on the already-approved linked facility (this app cannot re-approve Facility).
  */
 export function isPrerequisiteSectionSatisfied(
   prereqSection: string,
   status: string | undefined,
-  dependentSection?: string
+  dependentSection?: string,
+  options?: PrerequisiteSatisfactionOptions
 ): boolean {
+  if (
+    prereqSection === "contract_details" &&
+    dependentSection === "invoice_details" &&
+    (options?.structureType === "new_contract" ||
+      options?.structureType === "existing_contract")
+  ) {
+    return (options.contractEntityStatus ?? "").toUpperCase() === "APPROVED";
+  }
   if (status === "APPROVED") return true;
   if (
     dependentSection === "acceptance_documents" &&
@@ -138,6 +176,37 @@ export function isPrerequisiteSectionSatisfied(
     return true;
   }
   return false;
+}
+
+/**
+ * Whether every prerequisite section for `dependentSection` is satisfied.
+ * Hidden / unavailable sections are ignored, matching admin tab unlock.
+ */
+export function arePrerequisiteSectionsSatisfied(input: {
+  prereqs: readonly string[] | undefined;
+  dependentSection: string;
+  getStatus: (section: string) => string | undefined;
+  availableSections?: ReadonlySet<string>;
+  structureType?: string | null;
+  contractEntityStatus?: string | null;
+}): boolean {
+  if (!input.prereqs?.length) return true;
+  const relevantPrereqs = input.availableSections
+    ? input.prereqs.filter((prereq) => input.availableSections!.has(prereq))
+    : [...input.prereqs];
+  if (!relevantPrereqs.length) return true;
+  const options = {
+    structureType: input.structureType,
+    contractEntityStatus: input.contractEntityStatus,
+  };
+  return relevantPrereqs.every((prereq) =>
+    isPrerequisiteSectionSatisfied(
+      prereq,
+      input.getStatus(prereq),
+      input.dependentSection,
+      options
+    )
+  );
 }
 
 /**

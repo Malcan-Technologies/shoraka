@@ -18,3 +18,64 @@ export function resolveAcceptanceReviewApprovalGate(input: {
     requiredKeys.every((key) => input.statusByKey.get(key) === "APPROVED");
   return { hasAmendment, allApproved };
 }
+
+export type OfferAcceptancePhaseTarget =
+  | "CHANGES_REQUESTED"
+  | "APPROVED_FOR_SIGNING"
+  | "PENDING_ADMIN_REVIEW";
+
+/**
+ * Next offer_acceptance.status for one contract or invoice ceremony.
+ * Callers must pass that entity's own authorized-party keys — never a sibling offer's.
+ */
+export function resolveOfferAcceptancePhaseTarget(input: {
+  current: { status: string; submitted_at?: string | null } | null | undefined;
+  hasAmendment: boolean;
+  allApproved: boolean;
+  requiredKeyCount: number;
+}): OfferAcceptancePhaseTarget | null {
+  const current = input.current;
+  if (!current) return null;
+  if (
+    current.status === "PENDING_ISSUER" ||
+    current.status === "REJECTED" ||
+    current.status === "DECLINED" ||
+    current.status === "COMPLETED" ||
+    current.status === "SIGNING_IN_PROGRESS"
+  ) {
+    return null;
+  }
+  if (!current.submitted_at && current.status !== "APPROVED_FOR_SIGNING") {
+    return null;
+  }
+
+  if (input.hasAmendment) {
+    if (
+      current.status === "PENDING_ADMIN_REVIEW" ||
+      current.status === "APPROVED_FOR_SIGNING" ||
+      current.status === "CHANGES_REQUESTED"
+    ) {
+      return "CHANGES_REQUESTED";
+    }
+    return null;
+  }
+
+  if (current.status === "CHANGES_REQUESTED") {
+    return "PENDING_ADMIN_REVIEW";
+  }
+
+  if (input.allApproved) {
+    if (
+      current.status === "PENDING_ADMIN_REVIEW" ||
+      current.status === "APPROVED_FOR_SIGNING"
+    ) {
+      return "APPROVED_FOR_SIGNING";
+    }
+    return null;
+  }
+
+  if (current.status === "APPROVED_FOR_SIGNING" && input.requiredKeyCount > 0) {
+    return "PENDING_ADMIN_REVIEW";
+  }
+  return null;
+}

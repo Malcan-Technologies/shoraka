@@ -2,7 +2,9 @@
 
 Standard post-offer flow for **contract** and **invoice-only** offers (same product signing package). Contract-linked invoices stay on direct Accept/Decline after the contract envelope completes (unchanged).
 
-Invoice-only applications allow **at most one invoice** (enforced on create).
+Admin review uses a single **Offer & acceptance** staged tab. The issuer responds on the application-detail **Offer** tab (horizontal stepper). Field and action inventory: [offer-acceptance-tab-inventory.md](./offer-acceptance-tab-inventory.md).
+
+Invoice-only applications allow **at most one invoice** (enforced on create). Legacy multi-invoice rows keep **application-wide** acceptance uploads; admin review and phase sync use each invoice’s own `authorized_parties` so approving invoice B cannot move invoice A to `APPROVED_FOR_SIGNING`. Contract-linked invoices can decline while facility signing still blocks Accept.
 
 ## Phase clocks
 
@@ -22,7 +24,7 @@ Runtime stamps:
 - On admin amendment → `CHANGES_REQUESTED`: restamp `acceptance_expires_at` (fresh product window) and clear prior `acceptance:*` reminder keys
 - `offer_acceptance.signing_expires_at` when admin **sends signing links** (`SIGNING_IN_PROGRESS`)
 - Envelope `expires_at` aligned to `signing_expires_at` when links are sent
-- After signing clock passes: admin can **Extend signing deadline** on Acceptance → Signing package (restamps `signing_expires_at`, clears `signing:*` reminders, restores `OFFER_SENT` if durable-expired). Full **Send Offer** on Contract/Invoice remains the commercial reset path.
+- After signing clock passes: admin can **Extend signing deadline** on Offer & acceptance → Signing package (restamps `signing_expires_at`, clears `signing:*` reminders, restores `OFFER_SENT` if durable-expired). Full **Send Offer** on Facility/Invoice remains the commercial reset path.
 
 **Expiry** (API gates + hourly job; boundary `now >= expiresAt`):
 
@@ -38,9 +40,9 @@ Manual test: `pnpm seed-expired-acceptance-deadline-for-test` then `pnpm run-acc
 
 | Phase | Actor | UI | Outcome |
 |-------|--------|-----|---------|
-| **Step 1 — Accept offer** | Issuer | Shared Review Offer modal | Two screens, one submit: **Authorised representatives** (issuer directors and individual guarantors show name, email, and IC from records, read-only; corporate guarantor representatives enter name, email, and 12-digit IC), then **Upload documents** (product acceptance files, e.g. Board Resolution). **Submit** writes `acceptance_documents` and `offer_acceptance.authorized_parties`, then advances the phase. |
-| **Step 2 — Review acceptance** | Admin | Acceptance Documents review tab | Approve / request changes on files **and** representative lists, or reject (withdraw). No SigningCloud yet. |
-| **Step 3 — Execution pack** | Admin then issuer | Admin Acceptance tab → Signing package; issuer tracking modal | Admin sends signing links to the approved authorised representatives. Issuer tracks progress. No upload or configure-signers step. |
+| **Step 1 — Accept offer** | Issuer | Application-detail **Offer** tab (horizontal stepper) | Two screens, one submit: **Representatives** (issuer directors and individual guarantors show name, email, and IC from records, read-only; corporate guarantor representatives enter name, email, and 12-digit IC), then **Documents** (product acceptance files, e.g. Board Resolution). **Submit** writes `acceptance_documents` and `offer_acceptance.authorized_parties`, then advances the phase. |
+| **Step 2 — Review acceptance** | Admin | **Offer & acceptance** → Acceptance documents (parties also on Issuer response after submit) | Approve / request changes on files **and** representative lists, or reject (withdraw). No SigningCloud yet. |
+| **Step 3 — Execution pack** | Admin then issuer | Admin **Offer & acceptance** → Signing package; issuer Offer tab **Signing** step | Admin sends signing links to the approved authorised representatives. Issuer tracks progress. No upload or configure-signers step. |
 
 Envelope create/send is an **admin** action, blocked until acceptance docs **and** authorised representative lists are **admin-approved**. Bindings are taken from the approved snapshot’s **will-sign** people (authorised-but-not-signing stay on the snapshot for admin). The issuer does not declare signers again.
 
@@ -131,7 +133,7 @@ Defaults when admin sends offer: `offer_acceptance.status = "PENDING_ISSUER"` an
 ### Reject / changes (locked)
 
 - **Request change (acceptance docs or representative lists)** — immediate per-item action on **pending or approved** Acceptance rows (docs and `authorized_representatives:*` lists for issuer directors and corporate guarantors; not the underwriting amendment buffer). Individual guarantor rows keep Request change visible but disabled — identity is amended on **Business & Guarantor Details**. Sets item `AMENDMENT_REQUESTED`, phase `CHANGES_REQUESTED`, required remark, restamps `acceptance_expires_at`. In-app notify once when first entering `CHANGES_REQUESTED` (`acceptance_document_changes_requested`; email seed default off). Does **not** set `application.status` to `AMENDMENT_REQUESTED` or grow the underwriting amendment queue. Missing party ids fail closed. Drawdown (inherited) acceptance cannot be amended.
-- **Issuer Step 1 while `CHANGES_REQUESTED`:** only flagged document slots and flagged representative lists are editable (API 403 otherwise). Review Offer lands on **Authorised representatives** if any list is flagged, or **Upload documents** if only files are flagged. Banner states remaining work across **both** docs and lists on each Step 1 screen. Highlights flagged entity cards or files, and **View Remarks** beside Replace file on flagged documents. A people-only request can **Submit** from the representatives screen without waiting for the hidden upload step to hydrate.
+- **Issuer Step 1 while `CHANGES_REQUESTED`:** only flagged document slots and flagged representative lists are editable (API 403 otherwise). The Offer tab lands on **Representatives** if any list is flagged, or **Documents** if only files are flagged. Banner states remaining work across **both** docs and lists on each Step 1 screen. Highlights flagged entity cards or files, and **View Remarks** beside Replace file on flagged documents. A people-only request can **Submit** from the representatives screen without waiting for the hidden upload step to hydrate.
 - **Resubmit from `CHANGES_REQUESTED`:** only `AMENDMENT_REQUESTED` acceptance items (docs and party lists) reset to `PENDING` (remarks cleared); previously **APPROVED** items stay approved. First submit from `PENDING_ISSUER` still initializes all uploaded acceptance keys and snapshot party keys to `PENDING`.
 - **Reject (admin)** — withdraw offer (`WITHDRAWN` + `OFFER_REJECTED`); set `offer_acceptance.status = "REJECTED"`. No silent “try again” without a new offer.
 - **Decline (issuer)** — existing reject offer path; phase ends.
@@ -142,11 +144,11 @@ Configured on the financing-type step **Acceptance** tab in product builder (`ac
 
 **Re-send policy:** Once `offer_acceptance` is past `PENDING_ISSUER`, or `submitted_at` exists, admin cannot re-send over the same offer — retract first, then send revised terms. Step 1 submit also freezes `acknowledged_terms` (facility/amount, rates, expiry, offer/product version) under `offer_acceptance` for audit.
 
-**Acceptance documents (issuer):** Navigating away from Upload (or closing the modal) does **not** write `Application.acceptance_documents`. Submit flushes uploads then calls `POST .../acceptance`. Admin Acceptance documents list requires `submitted_at` or a post-submit phase (`isOfferAcceptanceDocumentsVisibleToAdmin`) — draft uploads while `PENDING_ISSUER` stay hidden.
+**Acceptance documents (issuer):** Leaving Documents (including **Back to applications**) does **not** write `Application.acceptance_documents`. Pending uploads prompt **Unsaved changes** (Discard / Stay); Discard drops the local draft. Submit flushes uploads then calls `POST .../acceptance`. Admin Acceptance documents list requires `submitted_at` or a post-submit phase (`isOfferAcceptanceDocumentsVisibleToAdmin`) — draft uploads while `PENDING_ISSUER` stay hidden.
 
 Stale `offer_acknowledgements` keys on saved products are stripped on product save and ignored at runtime.
 
-**While `PENDING_ADMIN_REVIEW` | `APPROVED_FOR_SIGNING` | `SIGNING_IN_PROGRESS`:** modal shows waiting state or signing tracking as appropriate. The issuer **Review Offer** CTA is hidden while waiting on admin (`PENDING_ADMIN_REVIEW` and `APPROVED_FOR_SIGNING`); it stays available for Step 1 (`PENDING_ISSUER` / `CHANGES_REQUESTED`) and for tracking (`SIGNING_IN_PROGRESS`). When phase is `CHANGES_REQUESTED`, the card/row CTA label switches to **Update requested changes** (same modal; `makeAmendments` button variant + hint “CashSouk requested changes to your acceptance documents or authorised representatives.”). The applications card badge is **Offer Received** (issuer-action amber) for Step 1 (`PENDING_ISSUER`, `CHANGES_REQUESTED`) and while tracking signing (`SIGNING_IN_PROGRESS`); **Under Review** (admin-action blue) while waiting on CashSouk (`PENDING_ADMIN_REVIEW`, `APPROVED_FOR_SIGNING`). Acceptance clock is paused during admin review (no “Accept by” on the card). Resetting the Acceptance **section** resets document **and** representative-list items to pending (Send Offer does the same so leftover `APPROVED` people rows cannot unlock signing). Resetting from Approved rolls `offer_acceptance` back to `PENDING_ADMIN_REVIEW`. Clearing all acceptance-doc **and** representative-list change requests (Set to Pending so no item stays `AMENDMENT_REQUESTED`) also rolls `CHANGES_REQUESTED` → `PENDING_ADMIN_REVIEW`. Admin Acceptance visibility and phase sync both use the application’s **frozen** `product_version`. Acceptance phase badges use the shared four-group taxonomy in [`status-badges.md`](../status-badges.md) (admin-action blue for review/signing phases; issuer-action amber for `CHANGES_REQUESTED`). The Acceptance section badge is derived from **document and party** item rows (a people-only change request marks the section as amendment).
+**While `PENDING_ADMIN_REVIEW` | `APPROVED_FOR_SIGNING` | `SIGNING_IN_PROGRESS`:** the Offer tab in-page panel shows waiting (CashSouk review) or signing tracking as appropriate. The issuer **Review offer** CTA is hidden while waiting on admin (`PENDING_ADMIN_REVIEW` and `APPROVED_FOR_SIGNING`); it stays available for Step 1 (`PENDING_ISSUER` / `CHANGES_REQUESTED`) and for tracking (`SIGNING_IN_PROGRESS`). When phase is `CHANGES_REQUESTED`, the card/row CTA label switches to **Update requested changes** (same Offer tab; `makeAmendments` button variant + hint “CashSouk requested changes to your acceptance documents or authorised representatives.”). The applications card badge is **Offer Received** (issuer-action amber) for Step 1 (`PENDING_ISSUER`, `CHANGES_REQUESTED`) and while tracking signing (`SIGNING_IN_PROGRESS`); **Under Review** (admin-action blue) while waiting on CashSouk (`PENDING_ADMIN_REVIEW`, `APPROVED_FOR_SIGNING`). Acceptance clock is paused during admin review (no “Accept by” on the card). Resetting the Acceptance **section** resets document **and** representative-list items to pending (Send Offer does the same so leftover `APPROVED` people rows cannot unlock signing). Resetting from Approved rolls `offer_acceptance` back to `PENDING_ADMIN_REVIEW`. Clearing all acceptance-doc **and** representative-list change requests (Set to Pending so no item stays `AMENDMENT_REQUESTED`) also rolls `CHANGES_REQUESTED` → `PENDING_ADMIN_REVIEW`. Admin Acceptance visibility and phase sync both use the application’s **frozen** `product_version`. Acceptance phase badges use the shared four-group taxonomy in [`status-badges.md`](../status-badges.md) (admin-action blue for review/signing phases; issuer-action amber for `CHANGES_REQUESTED`). The Acceptance section badge is derived from **document and party** item rows (a people-only change request marks the section as amendment).
 
 **Refresh policy:** Detail views poll ~15s; application lists ~60s (focus refetch). Signing envelopes poll only while `SENT` | `IN_PROGRESS`.
 
@@ -154,31 +156,42 @@ Stale `offer_acknowledgements` keys on saved products are stripped on product sa
 
 - **Document signing** → **Complete**. No configure-signers step.
 - **No** “Upload documents” step.
-- Admin sends links from Acceptance → Signing package once docs and representative lists are approved. Voiding the envelope resends to the **same** people; it does not reopen Step 1 or clear the snapshot. Company guarantor signer names come from the named people, never the company `business_name`.
+- Admin sends links from Offer & acceptance → Signing package once docs and representative lists are approved. Voiding the envelope resends to the **same** people; it does not reopen Step 1 or clear the snapshot. Company guarantor signer names come from the named people, never the company `business_name`.
 
-**Contract-linked invoices:** unchanged `accept_decline` mode after contract envelope `COMPLETED`.
+**Contract-linked invoices:** unchanged `accept_decline` mode after contract envelope `COMPLETED` — in-page Confirm & accept on the Offer tab; OTP stays a dialog.
 
 ## Admin
 
-- Acceptance tab is the **primary-offer hub** (single outer card). Layout:
-  1. **Offer acceptance** — financing-offer status + acceptance deadline
-  2. **Authorised representatives** — stacked lists from `authorized_parties` after `submitted_at` (issuer, then each guarantor; same visibility as documents). Everyone named must sign; admin checks the Board Resolution that those people (and their IC numbers) are listed there. Each list has the same item actions as a document row (approve / request change + remark / reset to pending). Item **reject** is hidden; offer-level reject stays withdraw.
-  3. **Acceptance documents** — nested under offer acceptance when active (`PENDING_ADMIN_REVIEW`+ or uploads exist); Download all beside the documents heading
-  4. **Signing package** — send links (when `APPROVED_FOR_SIGNING`) / remind / void / history; signed PDF **View / Download** inline on each package document row when `signed_s3_key` is set (including the Facility Agreement or legacy offer letter when keyed). Template docs (Facility Agreement, JSG, Deed of Assignment) generate from the contract offer or, for invoice-only, the invoice offer.
+Live review collapses Facility / Invoice / Acceptance into one **Offer & acceptance** tab. Comparison modal keeps the uncollapsed Facility / Customer / Invoice / Acceptance tabs. Per-field and action inventory: [offer-acceptance-tab-inventory.md](./offer-acceptance-tab-inventory.md).
+
+**Stages by structure** (reference cards are not numbered workflow stages):
+
+- **new_contract:** Facility review → Send offer → Issuer response → Acceptance documents → Signing package
+- **invoice_only:** Customer review → Invoice review → Send offer → Issuer response → Acceptance documents → Signing package
+- **existing_contract:** Facility reference (collapsed) → Invoice review → Send offer → Issuer response → Inherited acceptance (collapsed). No live acceptance or signing stages.
+- Signing-only products (no acceptance-documents section): omit Acceptance documents and Signing package; stop at Issuer response.
+- **Merged notes** at the foot of the tab keep every existing comment thread.
+
+Backend sections (`contract_details`, `invoice_details`, `acceptance_documents`) and their permissions / locks are unchanged. Send Offer still writes those commercial sections (not a new API).
+
+Content that used to sit on the Acceptance tab is now these stages:
+
+1. **Issuer response** — financing-offer status + acceptance deadline; authorised representatives from `authorized_parties` after `submitted_at` (issuer, then each guarantor; same visibility as documents). Everyone named must sign; admin checks the Board Resolution that those people (and their IC numbers) are listed there. Each list has the same item actions as a document row (approve / request change + remark / reset to pending). Item **reject** is hidden; offer-level reject stays withdraw.
+2. **Acceptance documents** — when active (`PENDING_ADMIN_REVIEW`+ or uploads exist); Download all beside the documents heading
+3. **Signing package** — send links (when `APPROVED_FOR_SIGNING`) / remind / void / history; signed PDF **View / Download** inline on each package document row when `signed_s3_key` is set (including the Facility Agreement or legacy offer letter when keyed). Template docs (Facility Agreement, JSG, Deed of Assignment) generate from the contract offer or, for invoice-only, the invoice offer.
+
 - Actions on acceptance docs **and** representative lists drive `CHANGES_REQUESTED` / `APPROVED_FOR_SIGNING` / reject-withdraw. `APPROVED_FOR_SIGNING` requires every acceptance doc key **and** every party item key `APPROVED`.
 - Guarantor identity: review item ids use stable `client_guarantor_id`. Step 1 submit rewrites snapshot `application_guarantor_id` to the live Prisma row id. Signing accepts either id and stores the live Prisma id. Matching never pairs leftover parties by kind/order.
-- Signing package create/send is an admin action on the Acceptance tab (`POST /v1/admin/signing/applications/:id/envelopes/send`). Bindings are built from the approved `authorized_parties` snapshot. The send button shows at `APPROVED_FOR_SIGNING` when there is no draft, sent, in-progress, or completed envelope. A leftover **draft** keeps Send on that card. Voided (or expired/declined) packages unlock send again. If send fails before the package is live, the leftover draft is voided automatically.
-- Tab visibility: show Acceptance when `workflowShowsAcceptanceReviewSection` (product has `acceptance_documents` **or** a signing package with documents). Signing-only products skip the documents block and show the signing hub only.
+- Signing package create/send is an admin action on Offer & acceptance → Signing package (`POST /v1/admin/signing/applications/:id/envelopes/send`). Bindings are built from the approved `authorized_parties` snapshot. The send button shows at `APPROVED_FOR_SIGNING` when there is no draft, sent, in-progress, or completed envelope. A leftover **draft** keeps Send on that card. Voided (or expired/declined) packages unlock send again. If send fails before the package is live, the leftover draft is voided automatically.
+- Tab visibility: show the unified tab when any merged section would have shown. Acceptance documents / Signing package stages appear when `workflowShowsAcceptanceReviewSection` (product has `acceptance_documents` **or** a signing package with documents). Signing-only products skip the documents block and show the signing hub only.
 - Issuer with no acceptance documents still uses the same authorised-representatives submit when that flow applies; there is no issuer configure-signers path.
-- **Structure-aware tab order** (`getReviewSectionOrder`):
-  - Contract / default: `… → Contract → Acceptance → Invoice`
-  - Invoice-only: `… → Customer → Invoice → Acceptance`
+- **Structure-aware order** (`getReviewSectionOrder` then collapse): Contract / Invoice / Acceptance sections merge into **Offer & acceptance** at the first original position (`… → Offer & acceptance` on both contract and invoice-only paths).
 - **Acceptance unlock prerequisites** (`getAcceptanceDocumentsPrerequisites` + `isPrerequisiteSectionSatisfied`):
-  - Contract: underwriting approved + Contract `OFFER_SENT` or `APPROVED` (Send Offer unlocks Acceptance; Contract cannot be manually approved)
-  - Invoice-only: underwriting + Customer approved + Invoice `OFFER_SENT` or `APPROVED`
-- **Post-send handoff (v1):** after successful Send Offer on Contract, or on Invoice for invoice-only, toast + switch to the Acceptance tab. Contract-linked invoice send does **not** jump.
+  - Contract: underwriting approved + Contract `OFFER_SENT` or `APPROVED` (Send Offer unlocks Acceptance documents / Signing package; admin Approves facility details first, which is a separate review `APPROVED`)
+  - Invoice-only: underwriting + Customer approved + Invoice `OFFER_SENT` or `APPROVED` (admin Approves invoice details before Send offer)
+- **Post-send handoff:** after successful Send Offer on Facility, or on Invoice for invoice-only, toast + stay on Offer & acceptance and expand **Acceptance documents** (or **Issuer response** if that stage is absent). Contract-linked invoice send does **not** jump.
 - On envelope / primary-offer accept: Contract (or Invoice) review → `APPROVED`; Acceptance review section → `APPROVED` (including signing-only products with no acceptance documents).
-- Acceptance stays **visible-only** (not required for final application approval). Send Offer remains on Contract / Invoice (v1).
+- Acceptance stays **visible-only** (not required for final application approval). Send Offer remains the Facility / Invoice commercial action on this tab.
 
 ## Gates
 
@@ -195,6 +208,6 @@ Presence-only gate for send is **replaced** by admin-approved when acceptance do
 1. **Done — Config + types + Step 1 UI + submit API** — `acceptance_documents`, `offer_acceptance` on `offer_details`, issuer Step 1 (authorised representatives then uploads), remove upload from Step 3 when acceptance phase applies.
 2. **Done — Admin gate** — block create/send until approved; wire review outcomes to `offer_acceptance.status`; admin panel copy.
 3. **Done — Admin review linearity (Slice A)** — structure-aware tab order + Acceptance prerequisites + tab visibility via `workflowShowsAcceptanceReviewSection`.
-4. **Done — Acceptance hub (Slice B)** — Signing package + offer-acceptance summary in the Acceptance tab (status → docs → signing); no page-level signing panel.
-5. **Done — Signed downloads + post-send handoff (Slice C)** — inline View/Download on Signing package document rows when `signed_s3_key` is set; after Send Offer (Contract / invoice-only), toast + focus Acceptance.
-6. **Done — Phase clocks** — Acceptance + signing deadlines (product config, stamps, API gates, hourly job with reminders, durable `OFFER_EXPIRED` + resend). Still deferred: HTML merge templates; Send Offer → Acceptance (v2).
+4. **Done — Acceptance hub (Slice B)** — Signing package + offer-acceptance summary as stages on **Offer & acceptance** (status → docs → signing); no page-level signing panel.
+5. **Done — Signed downloads + post-send handoff (Slice C)** — inline View/Download on Signing package document rows when `signed_s3_key` is set; after Send Offer (Facility / invoice-only), toast + expand Acceptance documents on Offer & acceptance.
+6. **Done — Phase clocks** — Acceptance + signing deadlines (product config, stamps, API gates, hourly job with reminders, durable `OFFER_EXPIRED` + resend). Still deferred: HTML merge templates.

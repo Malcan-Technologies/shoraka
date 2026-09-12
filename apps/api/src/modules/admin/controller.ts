@@ -54,6 +54,7 @@ import {
   reviewItemRejectSchema,
   reviewItemRequestAmendmentSchema,
   normalizeReviewItemType,
+  reviewItemTypeSchema,
   sendContractOfferSchema,
   patchContractCustomerLargePrivateSchema,
   sendInvoiceOfferSchema,
@@ -67,6 +68,12 @@ import {
 } from "./schemas";
 import { prisma } from "../../lib/prisma";
 import { logger } from "../../lib/logger";
+import {
+  getApplicationItemManagePermission,
+  getApplicationSectionManagePermission,
+  getPendingAmendmentCreatePermission,
+  getPendingAmendmentRoutePermission,
+} from "./review-item-permission";
 import {
   handleCreateIssuerMarc,
   handleGetIssuerMarc,
@@ -96,30 +103,6 @@ router.use("/organizations", createAdminOrganizationProfileRouter());
 router.use("/operator-profile", createOperatorProfileRouter());
 const adminService = new AdminService();
 
-function getApplicationSectionManagePermission(section: string): AdminPermission | null {
-  // Map Prisma `ReviewSection` values to our RBAC keys.
-  switch (section) {
-    case "financial":
-      return "applications.financial.manage";
-    case "business_details":
-      return "applications.business_guarantor.manage";
-    case "business_guarantor":
-      return "applications.business_guarantor.manage";
-    case "supporting_documents":
-      return "applications.documents.manage";
-    case "acceptance_documents":
-      return "applications.documents.manage";
-    case "contract_details":
-      return "applications.contract.manage";
-    case "invoice_details":
-      return "applications.invoice.manage";
-    case "company_details":
-      return "applications.company.manage";
-    default:
-      return null;
-  }
-}
-
 function requireApplicationSectionManage(req: Request, _res: Response, next: NextFunction): void {
   try {
     const validatedSection = reviewSectionSchema.parse(req.params.section);
@@ -145,6 +128,100 @@ function requireApplicationSectionManage(req: Request, _res: Response, next: Nex
       return;
     }
 
+    next();
+  } catch (error) {
+    next(error instanceof AppError ? error : new AppError(403, "FORBIDDEN", "Insufficient permissions"));
+  }
+}
+
+function requireApplicationItemManage(req: Request, _res: Response, next: NextFunction): void {
+  try {
+    if (!req.user) {
+      next(new AppError(401, "UNAUTHORIZED", "Authentication required"));
+      return;
+    }
+
+    const itemType = normalizeReviewItemType(
+      reviewItemTypeSchema.parse((req.body as { itemType?: unknown } | undefined)?.itemType)
+    );
+    const requiredPermission = getApplicationItemManagePermission(itemType);
+
+    if (req.adminRoleKey && FULL_ACCESS_ADMIN_ROLE_KEYS.includes(req.adminRoleKey as AdminRoleKey)) {
+      next();
+      return;
+    }
+
+    const assignedPermissions = new Set(req.adminPermissions ?? []);
+    if (!assignedPermissions.has(requiredPermission)) {
+      next(new AppError(403, "FORBIDDEN", "Insufficient permissions"));
+      return;
+    }
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+}
+
+function requireAssignedPermission(
+  req: Request,
+  requiredPermission: AdminPermission | null,
+  next: NextFunction
+): boolean {
+  if (!requiredPermission) {
+    next(new AppError(403, "FORBIDDEN", "Insufficient permissions"));
+    return false;
+  }
+  if (!req.user) {
+    next(new AppError(401, "UNAUTHORIZED", "Authentication required"));
+    return false;
+  }
+  if (req.adminRoleKey && FULL_ACCESS_ADMIN_ROLE_KEYS.includes(req.adminRoleKey as AdminRoleKey)) {
+    return true;
+  }
+  const assignedPermissions = new Set(req.adminPermissions ?? []);
+  if (!assignedPermissions.has(requiredPermission)) {
+    next(new AppError(403, "FORBIDDEN", "Insufficient permissions"));
+    return false;
+  }
+  return true;
+}
+
+function requirePendingAmendmentCreate(req: Request, _res: Response, next: NextFunction): void {
+  try {
+    if (!req.user) {
+      next(new AppError(401, "UNAUTHORIZED", "Authentication required"));
+      return;
+    }
+    const parsed = addPendingAmendmentSchema.safeParse(req.body);
+    if (!parsed.success) {
+      next();
+      return;
+    }
+    const itemType =
+      parsed.data.itemType != null ? normalizeReviewItemType(parsed.data.itemType) : undefined;
+    const requiredPermission = getPendingAmendmentCreatePermission({
+      scope: parsed.data.scope,
+      scopeKey: parsed.data.scopeKey,
+      itemType,
+    });
+    if (!requireAssignedPermission(req, requiredPermission, next)) return;
+    next();
+  } catch (error) {
+    next(error instanceof AppError ? error : new AppError(403, "FORBIDDEN", "Insufficient permissions"));
+  }
+}
+
+function requirePendingAmendmentRoute(req: Request, _res: Response, next: NextFunction): void {
+  try {
+    const scope = req.params.scope;
+    if (scope !== "section" && scope !== "item") {
+      next(new AppError(400, "INVALID_SCOPE", "Invalid amendment scope"));
+      return;
+    }
+    const scopeKey = decodeURIComponent(String(req.params.scopeKey ?? ""));
+    const requiredPermission = getPendingAmendmentRoutePermission(scope, scopeKey);
+    if (!requireAssignedPermission(req, requiredPermission, next)) return;
     next();
   } catch (error) {
     next(error instanceof AppError ? error : new AppError(403, "FORBIDDEN", "Insufficient permissions"));
@@ -3400,7 +3477,7 @@ router.post(
 
 router.post(
   "/applications/:id/reviews/items/approve",
-  requirePermission("applications.manage"),
+  requireApplicationItemManage,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
@@ -3430,7 +3507,7 @@ router.post(
 
 router.post(
   "/applications/:id/reviews/items/reject",
-  requirePermission("applications.manage"),
+  requireApplicationItemManage,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
@@ -3460,7 +3537,7 @@ router.post(
 
 router.post(
   "/applications/:id/reviews/items/request-amendment",
-  requirePermission("applications.manage"),
+  requireApplicationItemManage,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
@@ -3490,7 +3567,7 @@ router.post(
 
 router.post(
   "/applications/:id/reviews/items/reset-to-pending",
-  requirePermission("applications.manage"),
+  requireApplicationItemManage,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
@@ -3705,7 +3782,7 @@ router.get(
 
 router.post(
   "/applications/:id/reviews/pending-amendments",
-  requirePermission("applications.manage"),
+  requirePendingAmendmentCreate,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
@@ -3763,7 +3840,7 @@ router.get(
 
 router.patch(
   "/applications/:id/reviews/pending-amendments/:scope/:scopeKey",
-  requirePermission("applications.manage"),
+  requirePendingAmendmentRoute,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
@@ -3791,7 +3868,7 @@ router.patch(
 
 router.delete(
   "/applications/:id/reviews/pending-amendments/:scope/:scopeKey",
-  requirePermission("applications.manage"),
+  requirePendingAmendmentRoute,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");

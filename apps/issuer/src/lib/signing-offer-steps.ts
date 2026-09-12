@@ -3,7 +3,6 @@
  * Step 1 is two screens (authorised representatives, then uploads) and one submit.
  */
 
-import type { SigningOfferStep } from "@/components/signing/signing-progress-stepper";
 import {
   canDirectAcceptInvoice,
   getOfferAcceptanceFromOfferDetails,
@@ -27,6 +26,13 @@ export type SigningOfferStepId =
   | "declined"
   | "signing"
   | "complete";
+
+export interface SigningOfferStep {
+  id: string;
+  label: string;
+  description?: string;
+  status: "completed" | "current" | "pending" | "skipped";
+}
 
 /** Which Step 1 screen is the domain cursor (people first, then uploads). */
 export type AcceptanceStep1Screen = "representatives" | "documents";
@@ -87,6 +93,28 @@ export function resolveReviewOfferModalMode(input: {
     blockedMessage:
       "Finish facility signing first before accepting this invoice offer.",
   };
+}
+
+/** Footer / panel decline while the offer is still open. */
+export function shouldShowOfferDeclineAction(input: {
+  isPhaseDeadlinePast: boolean;
+  envelopeCompleted: boolean;
+  displaySigningStepId?: string | null;
+  useSigningStepper: boolean;
+  isRejectMode: boolean;
+  acceptDeclineUi: boolean;
+}): boolean {
+  if (input.isPhaseDeadlinePast || input.envelopeCompleted) return false;
+  const step = input.displaySigningStepId;
+  if (
+    step === "complete" ||
+    step === "awaiting_review" ||
+    step === "rejected" ||
+    step === "declined"
+  ) {
+    return false;
+  }
+  return input.useSigningStepper || input.isRejectMode || input.acceptDeclineUi;
 }
 
 /** True when a COMPLETED envelope exists for the given contract id. */

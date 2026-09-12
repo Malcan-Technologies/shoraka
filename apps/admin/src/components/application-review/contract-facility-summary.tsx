@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { formatCurrency } from "@cashsouk/config";
 import { StatusBadge } from "@cashsouk/ui";
 import {
@@ -30,6 +31,8 @@ export interface ContractFacilitySummaryProps {
   lifetimeCap?: number;
   lifetimeUsed?: number;
   lifetimeRemaining?: number;
+  /** Compact 5-tile strip for the unified Offer & acceptance header. Default keeps the dual-meter cards. */
+  variant?: "meters" | "kpi-strip";
 }
 
 function meterPercent(value: number, max: number): number {
@@ -81,6 +84,29 @@ function MetricCell({ label, value, hint }: { label: string; value: string; hint
   );
 }
 
+function KpiTile({
+  label,
+  value,
+  hint,
+  badge,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  badge?: ReactNode;
+}) {
+  return (
+    <div className="min-w-[10rem] flex-1 bg-card px-3.5 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-meta font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+        {badge}
+      </div>
+      <p className="mt-1.5 text-lg font-semibold tabular-nums text-foreground">{value}</p>
+      {hint ? <p className="mt-0.5 text-meta text-muted-foreground tabular-nums">{hint}</p> : null}
+    </div>
+  );
+}
+
 export function ContractFacilitySummary({
   contractFacility,
   availableFacility,
@@ -89,6 +115,7 @@ export function ContractFacilitySummary({
   lifetimeCap = 0,
   lifetimeUsed = 0,
   lifetimeRemaining,
+  variant = "meters",
 }: ContractFacilitySummaryProps) {
   const reserved = pendingFacility;
   const occupied = utilizedFacility + reserved;
@@ -102,6 +129,45 @@ export function ContractFacilitySummary({
   const showAllocation = lifetimeCap > 0;
 
   if (!showCredit && !showAllocation) return null;
+
+  if (variant === "kpi-strip") {
+    return (
+      <div className="overflow-hidden rounded-2xl border border-border bg-card">
+        <div className="flex flex-wrap">
+          {showCredit ? (
+            <>
+              <KpiTile label="Approved facility" value={formatCurrency(contractFacility)} />
+              <KpiTile
+                label={REMAINING_CREDIT_LABEL}
+                value={formatCurrency(remainingCredit)}
+                badge={creditOverLimit ? <StatusBadge label={OVER_LIMIT_LABEL} status="rejected" /> : null}
+              />
+              <KpiTile label="Utilized" value={formatCurrency(utilizedFacility)} />
+              <KpiTile
+                label={RESERVED_LABEL}
+                value={formatCurrency(reserved)}
+                hint={reserved > 0 ? "Submitted, amendment, and offer requests" : undefined}
+              />
+            </>
+          ) : null}
+          {showAllocation ? (
+            <KpiTile
+              label={REMAINING_ALLOCATION_LABEL}
+              value={formatCurrency(remainingAllocation)}
+              hint={
+                lifetimeCap > 0
+                  ? `Cap ${formatCurrency(lifetimeCap)} · used ${formatCurrency(lifetimeUsed)}`
+                  : undefined
+              }
+              badge={
+                allocationOverLimit ? <StatusBadge label={OVER_LIMIT_LABEL} status="rejected" /> : null
+              }
+            />
+          ) : null}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="grid gap-3 lg:grid-cols-2">

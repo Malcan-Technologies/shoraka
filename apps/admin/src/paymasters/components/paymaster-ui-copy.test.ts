@@ -110,8 +110,16 @@ describe("Admin Paymaster UI copy after mismatch removal", () => {
       join(__dirname, "../../components/application-review/sections/customer-section.tsx"),
       "utf8"
     );
+    const customerFields = readFileSync(
+      join(__dirname, "../../components/application-review/sections/customer-review-fields.tsx"),
+      "utf8"
+    );
     const contract = readFileSync(
       join(__dirname, "../../components/application-review/sections/contract-section.tsx"),
+      "utf8"
+    );
+    const contractFields = readFileSync(
+      join(__dirname, "../../components/application-review/sections/contract-review-fields.tsx"),
       "utf8"
     );
     const comparison = readFileSync(
@@ -122,10 +130,10 @@ describe("Admin Paymaster UI copy after mismatch removal", () => {
       "utf8"
     );
     const panel = readFileSync(join(__dirname, "paymaster-verification-panel.tsx"), "utf8");
-    expect(customer).toContain("Paymaster Verification");
-    expect(contract).toContain("Paymaster Verification");
-    expect(customer).toContain("SubmittedVerifiedPaymasterIdentity");
-    expect(contract).toContain("SubmittedVerifiedPaymasterIdentity");
+    expect(customerFields).toContain("Paymaster Verification");
+    expect(contractFields).toContain("Paymaster Verification");
+    expect(customerFields).toContain("SubmittedVerifiedPaymasterIdentity");
+    expect(contractFields).toContain("SubmittedVerifiedPaymasterIdentity");
     expect(comparison).toContain("Current Paymaster Details");
     expect(comparison).toContain("Official Paymaster Identity");
     expect(comparison).not.toContain("Originally submitted by issuer");
@@ -134,8 +142,12 @@ describe("Admin Paymaster UI copy after mismatch removal", () => {
     expect(comparison).not.toContain("useVerifiedDisabled");
     expect(customer).not.toContain("useVerifiedDisabled");
     expect(contract).not.toContain("useVerifiedDisabled");
+    expect(customerFields).not.toContain("useVerifiedDisabled");
+    expect(contractFields).not.toContain("useVerifiedDisabled");
     expect(customer).not.toMatch(/showMismatchBanner/);
     expect(contract).not.toMatch(/showMismatchBanner/);
+    expect(customerFields).not.toMatch(/showMismatchBanner/);
+    expect(contractFields).not.toMatch(/showMismatchBanner/);
     expect(panel).toContain("Verify Paymaster");
     expect(panel).toContain("applicationId");
     expect(panel).toContain("PaymasterOfficialIdentityDialog");
@@ -147,7 +159,14 @@ describe("Admin Paymaster UI copy after mismatch removal", () => {
     );
     expect(reviewPage).toContain("isPaymasterSwitchingFrozen");
     expect(reviewPage).toContain("paymasterSwitchingFrozen");
-    expect(reviewPage).toContain(
+    const sectionLock = readFileSync(
+      join(
+        __dirname,
+        "../../components/application-review/offer-acceptance/resolve-section-action-lock.ts"
+      ),
+      "utf8"
+    );
+    expect(sectionLock).toContain(
       "Paymaster cannot be changed after a commercial offer or signed facility"
     );
   });

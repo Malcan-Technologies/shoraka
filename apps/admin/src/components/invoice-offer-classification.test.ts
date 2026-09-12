@@ -8,6 +8,10 @@ describe("admin invoice campaign classification is issuer-owned", () => {
     path.join(__dirname, "application-review/sections/invoice-section.tsx"),
     "utf8"
   );
+  const stackedFieldsSource = fs.readFileSync(
+    path.join(__dirname, "application-review/sections/invoice-stacked-fields.tsx"),
+    "utf8"
+  );
 
   it("shows Company Category, Campaign Sector, and Sustainability as submitted values", () => {
     expect(invoiceSectionSource).toContain("invoiceSubmittedCompanyCategoryLabel");
@@ -16,7 +20,7 @@ describe("admin invoice campaign classification is issuer-owned", () => {
     expect(invoiceSectionSource).toContain("SC_MONTHLY_CAMPAIGN.companyCategory.label");
     expect(invoiceSectionSource).toContain("SC_MONTHLY_CAMPAIGN.campaignSector.label");
     expect(invoiceSectionSource).toContain("SC_MONTHLY_CAMPAIGN.sustainabilityCategory.label");
-    expect(invoiceSectionSource).toContain("aria-label={SC_MONTHLY_CAMPAIGN.companyCategory.label}");
+    expect(stackedFieldsSource).toContain("aria-label={SC_MONTHLY_CAMPAIGN.companyCategory.label}");
     expect(reviewSource).toContain('aria-label="Company category"');
     expect(reviewSource).toContain("SC_MONTHLY_CAMPAIGN.campaignSector.label");
     expect(reviewSource).toContain("SC_MONTHLY_CAMPAIGN.sustainabilityCategory.label");
@@ -47,7 +51,7 @@ describe("admin invoice campaign classification is issuer-owned", () => {
     expect(reviewSource).toContain("parseInvoiceOfferCompanyCategory(inv.details)");
     expect(reviewSource).toContain("parseInvoiceOfferCampaignSector(inv.details)");
     expect(reviewSource).toContain("parseInvoiceOfferSustainabilityCategory(inv.details)");
-    expect(invoiceSectionSource).toContain("parseInvoiceOfferCompanyCategory(invoice?.details)");
+    expect(stackedFieldsSource).toContain("parseInvoiceOfferCompanyCategory(invoice?.details)");
   });
 
   it("does not default Sustainability Category to 00 – None at first offer entry", () => {

@@ -18,6 +18,8 @@ export interface SectionCommentItem {
   created_at: string;
   author_user_id?: string;
   author?: { first_name?: string | null; last_name?: string | null } | null;
+  /** Optional source tag for merged Offer & acceptance threads. Omitted in the default UI. */
+  sourceLabel?: string;
 }
 
 function getAuthorLabel(comment: SectionCommentItem): string {
@@ -98,10 +100,15 @@ export function SectionComments({
           <div className="space-y-3">
             {visibleComments.map((entry) => (
               <div key={entry.id} className="pt-3 first:pt-0">
-                <div className="mb-1 flex items-center gap-2">
+                <div className="mb-1 flex flex-wrap items-center gap-2">
                   <span className="text-sm font-medium text-foreground">
                     {getAuthorLabel(entry)}
                   </span>
+                  {entry.sourceLabel ? (
+                    <span className="inline-flex h-5 items-center rounded-full bg-muted px-2 text-meta font-normal text-muted-foreground">
+                      {entry.sourceLabel}
+                    </span>
+                  ) : null}
                   <span
                     className="text-xs text-muted-foreground shrink-0"
                     title={format(new Date(entry.created_at), "PPpp")}

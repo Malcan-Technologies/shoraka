@@ -105,6 +105,18 @@ describe("AdminService sendInvoiceOffer financing tenure", () => {
     return {
       $queryRaw: jest.fn(async (sql: unknown) => {
         const text = sqlText(sql);
+        if (text.includes("FROM application_review_items")) {
+          return [{ status: "APPROVED" }];
+        }
+        if (text.includes("FROM application_reviews")) {
+          return [
+            { section: "financial", status: "APPROVED" },
+            { section: "company_details", status: "APPROVED" },
+            { section: "business_details", status: "APPROVED" },
+            { section: "supporting_documents", status: "APPROVED" },
+            { section: "contract_details", status: "APPROVED" },
+          ];
+        }
         if (text.includes("FROM applications")) {
           return [{ status: ApplicationStatus.INVOICE_PENDING }];
         }
@@ -150,6 +162,16 @@ describe("AdminService sendInvoiceOffer financing tenure", () => {
           status: ApplicationStatus.INVOICE_PENDING,
           contract_id: null,
           invoices: [{ id: "inv-1", details }],
+          application_review_items: [
+            { item_type: "invoice", item_id: "invoice_details:0:INV-1", status: "APPROVED" },
+          ],
+          application_reviews: [
+            { section: "financial", status: "APPROVED" },
+            { section: "company_details", status: "APPROVED" },
+            { section: "business_details", status: "APPROVED" },
+            { section: "supporting_documents", status: "APPROVED" },
+            { section: "contract_details", status: "APPROVED" },
+          ],
         },
       });
     (service as unknown as { ensureUnderReview: jest.Mock }).ensureUnderReview = jest.fn();
@@ -280,6 +302,16 @@ describe("AdminService sendInvoiceOffer financing tenure", () => {
         status: ApplicationStatus.INVOICE_PENDING,
         contract_id: null,
         invoices: [{ id: "inv-1", details: pastDetails }],
+        application_review_items: [
+          { item_type: "invoice", item_id: "invoice_details:0:INV-1", status: "APPROVED" },
+        ],
+        application_reviews: [
+          { section: "financial", status: "APPROVED" },
+          { section: "company_details", status: "APPROVED" },
+          { section: "business_details", status: "APPROVED" },
+          { section: "supporting_documents", status: "APPROVED" },
+          { section: "contract_details", status: "APPROVED" },
+        ],
       },
     });
 
@@ -298,5 +330,49 @@ describe("AdminService sendInvoiceOffer financing tenure", () => {
         30
       )
     ).rejects.toThrow("Invoice due date cannot be in the past.");
+  });
+
+  it("rejects send until admin has approved invoice details", async () => {
+    (
+      service as unknown as { prepareForReviewAction: jest.Mock }
+    ).prepareForReviewAction.mockResolvedValue({
+      repository: { getApplicationById: jest.fn().mockResolvedValue({ id: "app-1" }) },
+      application: {
+        id: "app-1",
+        status: ApplicationStatus.INVOICE_PENDING,
+        contract_id: null,
+        invoices: [{ id: "inv-1", details }],
+        application_review_items: [
+          { item_type: "invoice", item_id: "invoice_details:0:INV-1", status: "PENDING" },
+        ],
+        application_reviews: [
+          { section: "financial", status: "APPROVED" },
+          { section: "company_details", status: "APPROVED" },
+          { section: "business_details", status: "APPROVED" },
+          { section: "supporting_documents", status: "APPROVED" },
+          { section: "contract_details", status: "APPROVED" },
+        ],
+      },
+    });
+
+    await expect(
+      service.sendInvoiceOffer(
+        "app-1",
+        "inv-1",
+        40_000,
+        70,
+        12,
+        0,
+        "SME-3",
+        "admin-1",
+        undefined,
+        undefined,
+        90
+      )
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      code: "INVALID_STATE",
+      message: "Approve invoice details before sending an offer",
+    });
   });
 });

@@ -61,6 +61,7 @@ See [DEPLOYMENT.md](./DEPLOYMENT.md) for AWS setup details.
 | `LOG_LEVEL`               | Logging level            | `info`   | Use `debug` for dev |
 | `RATE_LIMIT_WINDOW_MS`    | Rate limit window        | `900000` | 15 minutes          |
 | `RATE_LIMIT_MAX_REQUESTS` | Max requests per window  | `100`    | Adjust per needs    |
+| `GOTENBERG_URL`           | Gotenberg PDF API base   | `http://127.0.0.1:3100` | Optional; PDF export returns 503 if unset |
 
 ### AWS Integration
 

@@ -5,14 +5,13 @@
  * letter, accept, decline, or track the SigningCloud signing package after CashSouk sends it.
  * CashSouk brand styling per BRANDING.md. Contract end date uses contract_details.end_date.
  *
- * - mode="inline" (default): embeds on the application detail Offer tab without the outer Dialog;
- *   the awaiting-review success view and confirm dialogs render inline/standalone.
- * - mode="modal": full Dialog shell (legacy hosts only).
+ * Inline on the application detail Offer tab. OTP stays in OfferAcceptOtpDialog.
  */
 
 import * as React from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { TextareaWithCharCount } from "@/components/textarea-with-char-count";
 import { Label } from "@/components/ui/label";
@@ -43,6 +42,7 @@ import {
   ClockIcon,
   DocumentTextIcon,
   ExclamationTriangleIcon,
+  LockClosedIcon,
   PencilSquareIcon,
   UserGroupIcon,
   XMarkIcon,
@@ -63,6 +63,8 @@ import {
   areUtilisationOfferConsentsComplete,
   computeIndicativeAmountPayable,
   computeIndicativeUtilisationProfit,
+  isSignedContractOfferLetterAvailable,
+  isSignedInvoiceOfferLetterAvailable,
   utilisationOfferAcceptBlockedReason,
   type Application,
   type UtilisationOfferConsentId,
@@ -76,8 +78,11 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { ApplicationSummaryDownloadButton } from "@/components/application-summary-download-button";
 import { OfferAcceptOtpDialog } from "./offer-accept-otp/offer-accept-otp-dialog";
 import { UtilisationOfferTerms } from "./utilisation-offer-terms";
+import { StatusBadge } from "@cashsouk/ui";
 import { SigningProgressMatrix } from "@/components/signing/signing-progress-matrix";
-import { SigningProgressStepper, type SigningOfferStep } from "@/components/signing/signing-progress-stepper";
+import { HorizontalOfferStepper } from "@/components/signing/horizontal-offer-stepper";
+import { openPdfBlob } from "@/lib/open-pdf-blob";
+import { buildHorizontalOfferSteps } from "@/lib/offer-stepper-model";
 import {
   compareSigningOfferStepOrder,
   getCurrentSigningOfferStepId,
@@ -89,12 +94,11 @@ import {
   resolveAcceptanceStep1Screen,
   resolveOfferAcceptanceStatus,
   resolveReviewOfferModalMode,
+  shouldShowOfferDeclineAction,
   workflowUsesOfferAcceptanceFlow,
   type SigningOfferStepId,
 } from "@/lib/signing-offer-steps";
-import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Separator } from "@/components/ui/separator";
 import {
   Card,
   CardContent,
@@ -103,8 +107,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { OfferAcceptanceSubmittedSuccessView } from "@/components/onboarding-fee-return-views";
 import { InvoiceOfferTerms } from "./invoice-offer-terms";
+import { OfferTermsDlColumn, OfferTermsDlRow, OfferTermsKpiGrid } from "./offer-terms-layout";
 import { offerLetterDownloadFileName } from "./offer-letter-filename";
 import { buildInvoiceFeeDisplay } from "@/lib/facility-fee-display";
 import { IssuerAuthorizedRepresentativesCard } from "./issuer-authorized-representatives-card";
@@ -148,10 +152,8 @@ export type OfferReviewPanelProps = {
   /** Kept for host compatibility; the signing/accept-decline split is derived from the
    * frozen product workflow (resolveReviewOfferModalMode), not this flag. */
   requiresInvoiceSigning?: boolean;
-  /** Called after decline/accept-without-signing, or when the panel/dialog dismisses. */
+  /** Called after decline/accept-without-signing, or when unsaved uploads are discarded. */
   onClose?: () => void;
-  /** modal = Dialog shell (financing pages). inline = embed on application detail Offer tab. */
-  mode?: "modal" | "inline";
   className?: string;
 };
 
@@ -236,7 +238,7 @@ function findActiveSigningEnvelope(
   return open.find((envelope) => envelope.invoice_id != null) ?? open[0] ?? null;
 }
 
-/** Only mounted when Review Offer is clicked. Renders once, no isOpen toggle to avoid flash. */
+/** Only mounted when the application Offer tab has a live facility or invoice offer. */
 export function OfferReviewPanel({
   type,
   applicationId,
@@ -247,10 +249,10 @@ export function OfferReviewPanel({
   invoice,
   requiresInvoiceSigning: _unusedRequiresInvoiceSigning,
   onClose,
-  mode = "inline",
   className,
 }: OfferReviewPanelProps) {
   // productId/requiresInvoiceSigning kept in props for callers; signing/post-docs use frozen application workflow.
+  const router = useRouter();
   const { getAccessToken } = useAuthToken();
   const queryClient = useQueryClient();
   const { activeOrganization } = useOrganization();
@@ -518,6 +520,7 @@ export function OfferReviewPanel({
   const isLoading = shouldLoadContract ? isLoadingContract : false;
 
   const [downloading, setDownloading] = React.useState(false);
+  const [downloadingSigned, setDownloadingSigned] = React.useState(false);
   const [rejectionReason, setRejectionReason] = React.useState("");
   const [selectedDeclineReason, setSelectedDeclineReason] = React.useState("");
   const [isRejectMode, setIsRejectMode] = React.useState(false);
@@ -826,6 +829,40 @@ export function OfferReviewPanel({
       });
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const signedOfferLetterAvailable =
+    type === "contract"
+      ? isSignedContractOfferLetterAvailable({
+          contractId,
+          envelopes: signingEnvelopes,
+        })
+      : isSignedInvoiceOfferLetterAvailable({
+          invoiceId: invoice?.id,
+          envelopes: signingEnvelopes,
+        });
+
+  const handleDownloadSignedOffer = async () => {
+    if (type === "invoice" && !invoice?.id) {
+      toast.error("Cannot download", {
+        description: "Invoice ID is missing. Please refresh and try again.",
+      });
+      return;
+    }
+    setDownloadingSigned(true);
+    try {
+      const blob =
+        type === "contract"
+          ? await apiClient.getSignedContractOfferLetterBlob(applicationId)
+          : await apiClient.getSignedInvoiceOfferLetterBlob(applicationId, invoice!.id);
+      openPdfBlob(blob);
+    } catch (e) {
+      toast.error("Failed to open signed offer letter", {
+        description: e instanceof Error ? e.message : "Unknown error",
+      });
+    } finally {
+      setDownloadingSigned(false);
     }
   };
 
@@ -1315,8 +1352,7 @@ export function OfferReviewPanel({
   const keepAcceptanceDocsDraftMounted =
     deferAcceptanceDocsUntilSubmit && hasPostDocs && !packageSent;
 
-  // Close without auto-save; discard confirm when Upload has pending changes (D-11).
-  const requestClose = React.useCallback(() => {
+  const leaveToApplications = React.useCallback(() => {
     if (
       postDocsState.hasPendingChanges &&
       (displaySigningStepId === "documents" || keepAcceptanceDocsDraftMounted)
@@ -1324,12 +1360,12 @@ export function OfferReviewPanel({
       setDiscardConfirmOpen(true);
       return;
     }
-    onClose?.();
+    router.push("/applications");
   }, [
     displaySigningStepId,
     keepAcceptanceDocsDraftMounted,
-    onClose,
     postDocsState.hasPendingChanges,
+    router,
   ]);
 
   // Legacy (non-phased) Upload: persist before leaving. Acceptance Step 1: local draft until Submit.
@@ -1394,145 +1430,11 @@ export function OfferReviewPanel({
     })();
   };
 
-  const invoiceOfferPhaseDeadline = phaseDeadline ? (
-    <div className="space-y-1 text-ui">
-      <p className="text-muted-foreground">{phaseDeadlineRowLabel}</p>
-      <p
-        className={cn(
-          "font-medium tabular-nums",
-          phaseDeadline.urgency === "past" && "text-destructive",
-          phaseDeadline.urgency === "soon" && "text-status-action-text"
-        )}
-      >
-        {phaseDeadline.absolute}
-        {phaseDeadline.relative ? (
-          <span
-            className={cn(
-              "mt-0.5 block text-meta font-normal",
-              phaseDeadline.urgency === "past"
-                ? "text-destructive"
-                : phaseDeadline.urgency === "soon"
-                  ? "text-status-action-text"
-                  : "text-muted-foreground"
-            )}
-          >
-            {phaseDeadline.relative}
-          </span>
-        ) : null}
-      </p>
-    </div>
-  ) : null;
-
-  const invoiceOfferTerms = type === "invoice" ? (
-    <InvoiceOfferTerms
-      invoiceNumber={contractName}
-      invoiceValue={invoice?.value ?? null}
-      maturityDate={invoiceMaturityDate}
-      financingTenureDays={invoice?.financingTenureDays ?? null}
-      profitRate={profitRateDisplay}
-      riskRating={invoiceRiskRating}
-      financingMarginPercent={invoiceFinancingMarginPercent}
-      indicativeProfit={invoiceIndicativeProfit}
-      indicativeAmountPayable={invoiceIndicativeAmountPayable}
-      requestedFinancing={requestedFinancingNumber}
-      approvedFinancing={invoiceFinancingAmountNumber}
-      includeFacilityFee={isContractLinkedInvoice}
-      feeDisplay={invoiceFeeDisplay}
-      footer={invoiceOfferPhaseDeadline}
-    />
-  ) : null;
-
-  // Label/value stack reads better in the sidebar than a cramped two-column dl.
-  const offerDetailsList =
-    type === "contract" ? (
-      <dl className="space-y-3 text-sm">
-        <div className="space-y-1">
-          <dt className="text-muted-foreground">Contract name</dt>
-          <dd className="font-medium break-words">{contractName}</dd>
-        </div>
-        {contractValueNumber != null ? (
-          <div className="space-y-1">
-            <dt className="text-muted-foreground">Contract value</dt>
-            <dd className="font-medium tabular-nums">{formatCurrency(contractValueNumber)}</dd>
-          </div>
-        ) : null}
-        {requestedFacilityNumber != null ? (
-          <div className="space-y-1">
-            <dt className="text-muted-foreground">Requested facility</dt>
-            <dd className="font-medium tabular-nums">{formatCurrency(requestedFacilityNumber)}</dd>
-          </div>
-        ) : null}
-        <div className="space-y-1">
-          <dt className="text-muted-foreground">Contract period</dt>
-          <dd className="font-medium tabular-nums">
-            {contractStartDate != null && contractEndDate != null
-              ? `${contractStartDate} – ${contractEndDate}`
-              : "—"}
-          </dd>
-        </div>
-        <div className="space-y-1">
-          <dt className="text-muted-foreground inline-flex items-center gap-1">
-            Facility fee rate
-            <InfoTooltip content={CONTRACT_FACILITY_FEE_RATE_TOOLTIP} iconClassName="h-3.5 w-3.5 shrink-0" />
-          </dt>
-          <dd className="font-medium tabular-nums">
-            {facilityFeeRatePercentNumber != null ? `${facilityFeeRatePercentNumber}%` : "—"}
-          </dd>
-        </div>
-        {contractOfferFeeBalance ? (
-          <FacilityFeeBalanceSummary
-            balance={contractOfferFeeBalance}
-            stacked
-            owedLabelExtra={
-              <InfoTooltip content={CONTRACT_FACILITY_FEE_CAP_TOOLTIP} iconClassName="h-3.5 w-3.5 shrink-0" />
-            }
-          />
-        ) : (
-          <div className="space-y-1">
-            <dt className="text-muted-foreground inline-flex items-center gap-1">
-              Facility fee owed
-              <InfoTooltip content={CONTRACT_FACILITY_FEE_CAP_TOOLTIP} iconClassName="h-3.5 w-3.5 shrink-0" />
-            </dt>
-            <dd className="font-medium tabular-nums">
-              {maximumFacilityFeeNumber != null ? formatCurrency(maximumFacilityFeeNumber) : "—"}
-            </dd>
-          </div>
-        )}
-        {phaseDeadline ? (
-          <div className="space-y-1">
-            <dt className="text-muted-foreground">{phaseDeadlineRowLabel}</dt>
-            <dd
-              className={cn(
-                "font-medium tabular-nums",
-                phaseDeadline.urgency === "past" && "text-destructive",
-                phaseDeadline.urgency === "soon" && "text-status-action-text"
-              )}
-            >
-              {phaseDeadline.absolute}
-              {phaseDeadline.relative ? (
-                <span
-                  className={cn(
-                    "mt-0.5 block text-xs font-normal",
-                    phaseDeadline.urgency === "past"
-                      ? "text-destructive"
-                      : phaseDeadline.urgency === "soon"
-                        ? "text-status-action-text"
-                        : "text-muted-foreground"
-                  )}
-                >
-                  {phaseDeadline.relative}
-                </span>
-              ) : null}
-            </dd>
-          </div>
-        ) : null}
-      </dl>
-    ) : (
-      invoiceOfferTerms
-    );
-
-  const renderSigningStepContent = (stepId: SigningOfferStepId) => {
-    if (isRejectMode) {
+  const renderSigningStepContent = (
+    stepId: SigningOfferStepId,
+    options?: { ignoreRejectMode?: boolean }
+  ) => {
+    if (isRejectMode && !options?.ignoreRejectMode) {
       return (
         <Card className="border-destructive/30 bg-destructive/5">
           <CardHeader>
@@ -1595,15 +1497,28 @@ export function OfferReviewPanel({
                 disabled={isPending}
               />
             </div>
-            <Button
-              variant="outline"
-              className="w-full rounded-xl"
-              disabled={confirmDeclineDisabled}
-              onClick={handleReject}
-            >
-              <CheckCircleIcon className="mr-2 h-4 w-4" />
-              Confirm decline
-            </Button>
+            <div className="flex flex-wrap gap-2.5">
+              <Button
+                variant="outline"
+                className="rounded-xl"
+                disabled={confirmDeclineDisabled}
+                onClick={handleReject}
+              >
+                Confirm decline
+              </Button>
+              <Button
+                variant="outline"
+                className="rounded-xl"
+                disabled={isPending}
+                onClick={() => {
+                  setIsRejectMode(false);
+                  setRejectionReason("");
+                  setSelectedDeclineReason("");
+                }}
+              >
+                Keep reviewing
+              </Button>
+            </div>
           </CardContent>
         </Card>
       );
@@ -1611,8 +1526,18 @@ export function OfferReviewPanel({
 
     switch (stepId) {
       case "awaiting_review":
-        // Replaced by OfferAcceptanceSubmittedSuccessView at the modal root.
-        return null;
+        return (
+          <div className="mx-auto max-w-lg px-2 py-4 text-center">
+            <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-status-submitted-bg text-status-submitted-text">
+              <ClockIcon className="h-7 w-7" aria-hidden />
+            </span>
+            <h3 className="mt-4 text-lg font-semibold">Submitted for review</h3>
+            <p className="mt-2 text-ui leading-6 text-muted-foreground">
+              CashSouk is reviewing your representatives and acceptance documents. This usually
+              takes one business day. We&apos;ll email you, and this page updates on its own.
+            </p>
+          </div>
+        );
       case "rejected":
       case "declined": {
         // Terminal — never the "Under review" copy or the auto-refresh reassurance (nothing
@@ -1630,7 +1555,7 @@ export function OfferReviewPanel({
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">
-                This offer is closed. No further action is available in this dialog.
+                This offer is closed. No further action is available.
               </p>
             </CardContent>
           </Card>
@@ -1640,15 +1565,20 @@ export function OfferReviewPanel({
         return (
           <Card className="border-primary/20 bg-primary/5">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <UserGroupIcon className="h-5 w-5 text-primary" />
-                Authorised representatives
-              </CardTitle>
-              <CardDescription>
-                Name who will represent the issuer and each company guarantor, then confirm
-                individual guarantors. Everyone named here must sign. CashSouk will review these
-                lists with the Board Resolution.
-              </CardDescription>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <UserGroupIcon className="h-5 w-5 text-primary" />
+                    Authorised representatives
+                  </CardTitle>
+                  <CardDescription>
+                    Name who will represent the issuer and each company guarantor, then confirm
+                    individual guarantors. Everyone named here must sign. CashSouk will review these
+                    lists with the Board Resolution.
+                  </CardDescription>
+                </div>
+                <StatusBadge label="Your action" status="action" showDot={false} />
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               {isAcceptanceChangesRequested &&
@@ -1793,15 +1723,20 @@ export function OfferReviewPanel({
         return (
           <Card className="border-primary/20 bg-primary/5">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <DocumentTextIcon className="h-5 w-5 text-primary" />
-                Upload documents
-              </CardTitle>
-              <CardDescription>
-                {usesAcceptanceFlow
-                  ? "Upload required acceptance documents (for example a Board Resolution). CashSouk must approve them before signing."
-                  : "Upload required documents. Optional documents can stay empty."}
-              </CardDescription>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <DocumentTextIcon className="h-5 w-5 text-primary" />
+                    Upload documents
+                  </CardTitle>
+                  <CardDescription>
+                    {usesAcceptanceFlow
+                      ? "Upload required acceptance documents (for example a Board Resolution). CashSouk must approve them before signing."
+                      : "Upload required documents. Optional documents can stay empty."}
+                  </CardDescription>
+                </div>
+                <StatusBadge label="Your action" status="action" showDot={false} />
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               {usesAcceptanceFlow &&
@@ -1930,36 +1865,51 @@ export function OfferReviewPanel({
         );
       case "complete":
         return (
-          <Card className="border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <CheckCircleIcon className="h-5 w-5 text-emerald-600" />
-                Signing complete
-              </CardTitle>
-              <CardDescription>
-                All required documents have been signed. The offer acceptance process is complete.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {activeSigningEnvelope ? (
-                <SigningProgressMatrix envelope={activeSigningEnvelope} />
-              ) : null}
-            </CardContent>
-          </Card>
+          <div className="space-y-4">
+            <div className="flex gap-3.5 rounded-2xl border border-status-success-text/20 bg-status-success-bg px-5 py-4">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-status-success-bg text-status-success-text">
+                <CheckCircleIcon className="h-5 w-5" aria-hidden />
+              </span>
+              <div className="min-w-0">
+                <h3 className="text-lg font-semibold text-status-success-text">
+                  {type === "contract" ? "Offer accepted and fully signed" : "Offer accepted"}
+                </h3>
+                <p className="mt-1.5 text-ui leading-6 text-status-success-text">
+                  All required documents have been signed. The offer acceptance process is complete.
+                </p>
+              </div>
+            </div>
+            {signedOfferLetterAvailable ? (
+              <div className="rounded-xl border border-border px-4 py-3.5">
+                <div className="text-meta font-semibold uppercase tracking-wide text-muted-foreground">
+                  Signed offer letter
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-2 rounded-xl"
+                  onClick={() => void handleDownloadSignedOffer()}
+                  disabled={downloadingSigned}
+                >
+                  {downloadingSigned ? "Opening…" : "View"}
+                </Button>
+              </div>
+            ) : null}
+            {activeSigningEnvelope ? (
+              <SigningProgressMatrix envelope={activeSigningEnvelope} />
+            ) : null}
+            <Button variant="link" className="h-auto px-0" asChild>
+              <Link href={contractId ? `/financing/contracts/${contractId}` : "/financing"}>
+                Go to Financing
+              </Link>
+            </Button>
+          </div>
         );
       default:
         return null;
     }
   };
-
-  const acceptDeclineSteps: SigningOfferStep[] = [
-    {
-      id: "respond",
-      label: "Respond to offer",
-      description: "Accept or decline this invoice offer",
-      status: "current",
-    },
-  ];
 
   const canDirectAccept =
     modalMode.ui === "accept_decline" &&
@@ -2025,62 +1975,246 @@ export function OfferReviewPanel({
         })
       : null;
 
-  const linkedContractDetailsList = (
-    <dl className="space-y-3 text-sm">
-      <div className="space-y-1">
-        <dt className="text-muted-foreground">Contract name</dt>
-        <dd className="font-medium break-words">{linkedContractTitle}</dd>
-      </div>
-      {linkedContractValueNumber != null ? (
-        <div className="space-y-1">
-          <dt className="text-muted-foreground">Contract value</dt>
-          <dd className="font-medium tabular-nums">{formatCurrency(linkedContractValueNumber)}</dd>
-        </div>
-      ) : null}
-      {linkedApprovedFacilityNumber != null ? (
-        <div className="space-y-1">
-          <dt className="text-muted-foreground">Approved facility</dt>
-          <dd className="font-medium tabular-nums">
-            {formatCurrency(linkedApprovedFacilityNumber)}
-          </dd>
-        </div>
-      ) : null}
-      <div className="space-y-1">
-        <dt className="text-muted-foreground">Contract period</dt>
-        <dd className="font-medium tabular-nums">
-          {linkedContractStartDate != null && linkedContractEndDate != null
-            ? `${linkedContractStartDate} – ${linkedContractEndDate}`
-            : "—"}
-        </dd>
-      </div>
-      <div className="space-y-1">
-        <dt className="text-muted-foreground inline-flex items-center gap-1">
-          Facility fee rate
-          <InfoTooltip
-            content={CONTRACT_FACILITY_FEE_RATE_TOOLTIP}
-            iconClassName="h-3.5 w-3.5 shrink-0"
+  const phaseDeadlineValueClass = cn(
+    phaseDeadline?.urgency === "past" && "text-destructive",
+    phaseDeadline?.urgency === "soon" && "text-status-action-text"
+  );
+  const phaseDeadlineRow = phaseDeadline ? (
+    <OfferTermsDlRow
+      label={phaseDeadlineRowLabel}
+      value={
+        <span className={phaseDeadlineValueClass}>
+          {phaseDeadline.absolute}
+          {phaseDeadline.relative ? (
+            <span
+              className={cn(
+                "mt-0.5 block text-meta font-normal",
+                phaseDeadline.urgency === "past"
+                  ? "text-destructive"
+                  : phaseDeadline.urgency === "soon"
+                    ? "text-status-action-text"
+                    : "text-muted-foreground"
+              )}
+            >
+              {phaseDeadline.relative}
+            </span>
+          ) : null}
+        </span>
+      }
+      valueClassName={cn("font-semibold", phaseDeadlineValueClass)}
+    />
+  ) : null;
+
+  const linkedFacilityColumn =
+    !useSigningStepper && isContractLinkedInvoice ? (
+      <OfferTermsDlColumn title="Facility">
+        <OfferTermsDlRow label="Contract name" value={linkedContractTitle} />
+        {linkedContractValueNumber != null ? (
+          <OfferTermsDlRow label="Contract value" value={formatCurrency(linkedContractValueNumber)} />
+        ) : null}
+        {linkedApprovedFacilityNumber != null ? (
+          <OfferTermsDlRow
+            label="Approved facility"
+            value={formatCurrency(linkedApprovedFacilityNumber)}
           />
-        </dt>
-        <dd className="font-medium tabular-nums">
-          {linkedFacilityFeeRatePercent != null ? `${linkedFacilityFeeRatePercent}%` : "—"}
-        </dd>
-      </div>
-      {linkedFacilityFeeBalance ? (
-        <FacilityFeeBalanceSummary
-          balance={linkedFacilityFeeBalance}
-          stacked
-          owedLabelExtra={
-            <InfoTooltip
-              content={CONTRACT_FACILITY_FEE_CAP_TOOLTIP}
-              iconClassName="h-3.5 w-3.5 shrink-0"
-            />
+        ) : null}
+        <OfferTermsDlRow
+          label="Contract period"
+          value={
+            linkedContractStartDate != null && linkedContractEndDate != null
+              ? `${linkedContractStartDate} – ${linkedContractEndDate}`
+              : "—"
           }
         />
-      ) : null}
-    </dl>
-  );
+        <OfferTermsDlRow
+          label={
+            <span className="inline-flex items-center gap-1">
+              Facility fee rate
+              <InfoTooltip
+                content={CONTRACT_FACILITY_FEE_RATE_TOOLTIP}
+                iconClassName="h-3.5 w-3.5 shrink-0"
+              />
+            </span>
+          }
+          value={linkedFacilityFeeRatePercent != null ? `${linkedFacilityFeeRatePercent}%` : "—"}
+        />
+        {linkedFacilityFeeBalance ? (
+          <FacilityFeeBalanceSummary
+            balance={linkedFacilityFeeBalance}
+            stacked
+            owedLabelExtra={
+              <InfoTooltip
+                content={CONTRACT_FACILITY_FEE_CAP_TOOLTIP}
+                iconClassName="h-3.5 w-3.5 shrink-0"
+              />
+            }
+          />
+        ) : null}
+      </OfferTermsDlColumn>
+    ) : null;
 
-  const invoiceOfferTermsList = invoiceOfferTerms;
+  const facilityPeriodLabel =
+    contractStartDate != null && contractEndDate != null
+      ? `${contractStartDate} – ${contractEndDate}`
+      : null;
+  const facilityTermsSection =
+    type === "contract" ? (
+      <div>
+        <h3 className="text-card-title font-semibold">Offer terms</h3>
+        <OfferTermsKpiGrid
+          tiles={[
+            ...(offeredFacilityNumber != null
+              ? [
+                  {
+                    key: "approved",
+                    label: "Approved facility",
+                    value: formatCurrency(offeredFacilityNumber),
+                    hint:
+                      requestedFacilityNumber != null
+                        ? `Requested ${formatCurrency(requestedFacilityNumber)}`
+                        : undefined,
+                  },
+                ]
+              : []),
+            ...(profitRateDisplay !== "—"
+              ? [
+                  {
+                    key: "profit",
+                    label: "Profit rate",
+                    value: profitRateDisplay,
+                    hint: "per annum, per drawdown",
+                  },
+                ]
+              : []),
+            ...(facilityPeriodLabel
+              ? [
+                  {
+                    key: "period",
+                    label: "Facility period",
+                    value: facilityPeriodLabel,
+                  },
+                ]
+              : []),
+            ...(maximumFacilityFeeNumber != null
+              ? [
+                  {
+                    key: "fee",
+                    label: "Facility fee",
+                    value: formatCurrency(maximumFacilityFeeNumber),
+                    hint:
+                      facilityFeeRatePercentNumber != null
+                        ? `${facilityFeeRatePercentNumber}% — owed on acceptance`
+                        : undefined,
+                  },
+                ]
+              : []),
+            ...(phaseDeadline
+              ? [
+                  {
+                    key: "accept-by",
+                    label: phaseDeadlineRowLabel,
+                    value: phaseDeadline.absolute,
+                    hint: phaseDeadline.relative,
+                    valueClassName: phaseDeadlineValueClass,
+                  },
+                ]
+              : []),
+          ]}
+        />
+        <div className="mt-5 grid gap-5 [grid-template-columns:repeat(auto-fit,minmax(14.5rem,1fr))]">
+          <OfferTermsDlColumn title="Contract">
+            <OfferTermsDlRow label="Contract name" value={contractName} />
+            {contractValueNumber != null ? (
+              <OfferTermsDlRow label="Contract value" value={formatCurrency(contractValueNumber)} />
+            ) : null}
+            <OfferTermsDlRow label="Contract period" value={facilityPeriodLabel ?? "—"} />
+          </OfferTermsDlColumn>
+          <OfferTermsDlColumn title="Facility & pricing">
+            {requestedFacilityNumber != null ? (
+              <OfferTermsDlRow
+                label="Requested facility"
+                value={formatCurrency(requestedFacilityNumber)}
+              />
+            ) : null}
+            <OfferTermsDlRow label="Offered facility" value={offeredValue} />
+          </OfferTermsDlColumn>
+          <OfferTermsDlColumn title="Facility fee">
+            <OfferTermsDlRow
+              label={
+                <span className="inline-flex items-center gap-1">
+                  Facility fee rate
+                  <InfoTooltip
+                    content={CONTRACT_FACILITY_FEE_RATE_TOOLTIP}
+                    iconClassName="h-3.5 w-3.5 shrink-0"
+                  />
+                </span>
+              }
+              value={facilityFeeRatePercentNumber != null ? `${facilityFeeRatePercentNumber}%` : "—"}
+            />
+            {contractOfferFeeBalance ? (
+              <FacilityFeeBalanceSummary
+                balance={contractOfferFeeBalance}
+                stacked
+                owedLabelExtra={
+                  <InfoTooltip
+                    content={CONTRACT_FACILITY_FEE_CAP_TOOLTIP}
+                    iconClassName="h-3.5 w-3.5 shrink-0"
+                  />
+                }
+              />
+            ) : (
+              <OfferTermsDlRow
+                label={
+                  <span className="inline-flex items-center gap-1">
+                    Facility fee owed
+                    <InfoTooltip
+                      content={CONTRACT_FACILITY_FEE_CAP_TOOLTIP}
+                      iconClassName="h-3.5 w-3.5 shrink-0"
+                    />
+                  </span>
+                }
+                value={
+                  maximumFacilityFeeNumber != null ? formatCurrency(maximumFacilityFeeNumber) : "—"
+                }
+              />
+            )}
+            {phaseDeadlineRow}
+          </OfferTermsDlColumn>
+        </div>
+      </div>
+    ) : (
+      <InvoiceOfferTerms
+        invoiceNumber={contractName}
+        invoiceValue={invoice?.value ?? null}
+        maturityDate={invoiceMaturityDate}
+        financingTenureDays={invoice?.financingTenureDays ?? null}
+        profitRate={profitRateDisplay}
+        riskRating={invoiceRiskRating}
+        financingMarginPercent={invoiceFinancingMarginPercent}
+        indicativeProfit={invoiceIndicativeProfit}
+        indicativeAmountPayable={invoiceIndicativeAmountPayable}
+        requestedFinancing={requestedFinancingNumber}
+        approvedFinancing={invoiceFinancingAmountNumber}
+        includeFacilityFee={isContractLinkedInvoice}
+        feeDisplay={invoiceFeeDisplay}
+        footer={phaseDeadlineRow}
+        aside={linkedFacilityColumn}
+      />
+    );
+
+  const clickableSigningStepIds = signingSteps
+    .filter((step) => step.status === "completed" || step.status === "current")
+    .map((step) => step.id);
+  const horizontalSteps = buildHorizontalOfferSteps({
+    kind: useSigningStepper ? "signing" : "direct_accept",
+    offerType: type,
+    hasPostDocs,
+    usesAcceptanceFlow,
+    currentSigningStepId: useSigningStepper ? currentSigningStepId : null,
+    isExpired: isPhaseDeadlinePast,
+    envelopeCompleted,
+    clickableSigningStepIds,
+  });
 
   const renderAcceptDeclineContent = () => {
     if (isRejectMode) {
@@ -2092,266 +2226,258 @@ export function OfferReviewPanel({
       isLoadingSigningEnvelopes ||
       (modalMode.ui === "accept_decline" && !modalMode.canAccept) ||
       (canDirectAccept && !utilisationConsentsComplete);
+    const blockedMessage =
+      modalMode.ui === "accept_decline"
+        ? modalMode.blockedMessage
+        : "Finish facility signing first before accepting this invoice offer.";
 
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <DocumentTextIcon className="h-5 w-5 text-primary" />
-            Offer terms
-          </CardTitle>
-          <CardDescription>
-            {canDirectAccept
-              ? "No signing package is required for this invoice. Confirm the utilisation, then accept or decline."
-              : (modalMode.ui === "accept_decline" && modalMode.blockedMessage) ||
-                "Finish facility signing first before accepting this invoice offer."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {invoiceOfferTermsList}
-          {modalMode.ui === "accept_decline" ? (
+      <div className="space-y-5">
+        {canDirectAccept ? (
+          <>
+            <div>
+              <h3 className="text-lg font-semibold">Confirm and accept</h3>
+              <p className="mt-1.5 max-w-[70ch] text-ui leading-6 text-muted-foreground">
+                No signing package is required for this drawdown — your facility agreement already
+                covers it. Confirm the utilisation below, then accept. Accepting authorises CashSouk
+                to list this note to investors.
+              </p>
+            </div>
             <UtilisationOfferTerms
-              showConsents={canDirectAccept}
+              showConsents
               consentsLocked={acceptOfferConfirmOpen}
               consentIds={utilisationConsentIds}
               onConsentIdsChange={setUtilisationConsentIds}
             />
-          ) : null}
-          <Separator />
-          <div className="space-y-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="w-full gap-2 rounded-xl"
-              onClick={handleDownload}
-              disabled={!canDownload || downloading}
-            >
-              <ArrowDownTrayIcon className="h-4 w-4" />
-              {downloading ? "Downloading…" : "Download offer letter"}
-            </Button>
-            <ApplicationSummaryDownloadButton
-              applicationId={applicationId}
-              className="w-full"
-            />
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Button
-              variant="outline"
-              className="h-11 rounded-xl"
-              disabled={isPending}
-              onClick={() => setIsRejectMode(true)}
-            >
-              Reject Offer
-            </Button>
-            <Button className="h-11 rounded-xl" onClick={handleAccept} disabled={acceptDisabled}>
-              {acceptInvoice.isPending ? "Accepting..." : "Accept Offer & Authorize Listing"}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  };
-
-  // After Step 1 submit (or if reopened while PENDING_ADMIN_REVIEW): simple completion
-  // view — same pattern as application processing-fee success — not the full Review Offer UI.
-  if (displaySigningStepId === "awaiting_review") {
-    if (mode === "inline") {
-      return (
-        <div className={cn("mx-auto w-full max-w-md", className)}>
-          <OfferAcceptanceSubmittedSuccessView onContinue={onClose} />
-        </div>
-      );
-    }
-    return (
-      <Dialog open={true} onOpenChange={(open) => !open && onClose?.()}>
-        <DialogContent
-          className="max-w-md border-0 bg-transparent p-0 shadow-none"
-          aria-describedby={undefined}
-        >
-          <DialogTitle className="sr-only">Documents submitted</DialogTitle>
-          <OfferAcceptanceSubmittedSuccessView onContinue={onClose} />
-        </DialogContent>
-      </Dialog>
-    );
-  }
-
-  const headingBadges = (
-    <>
-      <Badge variant="outline" className="font-normal">
-        {type === "contract" ? "Facility" : "Invoice"}
-      </Badge>
-      <Badge
-        variant="secondary"
-        className="border-transparent bg-status-success-bg font-normal text-status-success-text"
-      >
-        {offeredValue} approved
-      </Badge>
-    </>
-  );
-  const headingDescriptionText = useSigningStepper
-    ? "Complete each step to accept this offer."
-    : "Accept or decline this offer.";
-
-  const mainBodyContent = (
-    <>
-      {phaseDeadline?.urgency === "soon" || phaseDeadline?.urgency === "past" ? (
-          <Alert
-            variant={phaseDeadline.urgency === "past" ? "destructive" : "default"}
-            className={cn(
-              "mt-4 flex items-start gap-3",
-              phaseDeadline.urgency === "soon" &&
-                "border-status-action-text/30 bg-status-action-bg text-status-action-text"
-            )}
-          >
-            {phaseDeadline.urgency === "past" ? (
-              <ExclamationTriangleIcon className="mt-0.5 h-5 w-5 shrink-0" aria-hidden />
-            ) : (
-              <ClockIcon className="mt-0.5 h-5 w-5 shrink-0" aria-hidden />
-            )}
-            <AlertDescription className="min-w-0">
-              {phaseDeadline.urgency === "past"
-                ? `Expired ${phaseDeadline.absolute}. Accepting is no longer available. If CashSouk sends a new offer, it will appear on your applications.`
-                : `${phaseDeadlineRowLabel} ${phaseDeadline.absolute} — ${phaseDeadline.relative}. Act soon to avoid this offer lapsing.`}
-            </AlertDescription>
-          </Alert>
-        ) : null}
-
-        {isLoading ? (
-          <p className="py-8 text-sm text-muted-foreground">Loading offer...</p>
-        ) : (
-          <>
-            <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,17rem)_minmax(0,1fr)]">
-              <div className="space-y-4">
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">
-                      Progress
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <SigningProgressStepper
-                      steps={useSigningStepper ? signingSteps : acceptDeclineSteps}
-                      onStepClick={
-                        useSigningStepper
-                          ? (stepId) => handleSigningStepSelect(stepId as SigningOfferStepId)
-                          : undefined
-                      }
-                    />
-                  </CardContent>
-                </Card>
-
-                {useSigningStepper ? (
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm font-medium text-muted-foreground">
-                        Offer details
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      {offerDetailsList}
-                      <Separator />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="w-full gap-2 rounded-xl"
-                        onClick={handleDownload}
-                        disabled={!canDownload || downloading}
-                      >
-                        <ArrowDownTrayIcon className="h-4 w-4" />
-                        {downloading ? "Downloading…" : "Download offer letter"}
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm font-medium text-muted-foreground">
-                        Contract details
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>{linkedContractDetailsList}</CardContent>
-                  </Card>
-                )}
-              </div>
-
-              <div className="min-w-0">
-                {isPhaseDeadlinePast ? (
-                  <Card className="border-destructive/20 bg-destructive/5">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-lg text-destructive">
-                        <ExclamationTriangleIcon className="h-5 w-5" />
-                        Offer Expired
-                      </CardTitle>
-                      <CardDescription>
-                        Expired {phaseDeadline?.absolute}. You can still download the offer letter from
-                        the details panel.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm text-muted-foreground">
-                        No further action is available in this dialog. Close it and check your
-                        applications — a new offer will appear here if CashSouk resends one.
-                      </p>
-                    </CardContent>
-                  </Card>
-                ) : useSigningStepper ? (
-                  <>
-                    {keepAcceptanceDocsDraftMounted ? (
-                      <div
-                        className={cn(displaySigningStepId !== "documents" && "hidden")}
-                        aria-hidden={displaySigningStepId !== "documents"}
-                      >
-                        {renderSigningStepContent("documents")}
-                      </div>
-                    ) : null}
-                    {displaySigningStepId !== "documents" || !keepAcceptanceDocsDraftMounted
-                      ? renderSigningStepContent(displaySigningStepId)
-                      : null}
-                  </>
-                ) : (
-                  renderAcceptDeclineContent()
-                )}
-              </div>
-            </div>
-
-            <div className="mt-6 flex flex-wrap items-center justify-end gap-3 border-t pt-4">
-              {!isPhaseDeadlinePast &&
-              !envelopeCompleted &&
-              displaySigningStepId !== "complete" &&
-              ((useSigningStepper &&
-                displaySigningStepId !== "rejected" &&
-                displaySigningStepId !== "declined") ||
-                isRejectMode) ? (
-                <Button
-                  variant="outline"
-                  onClick={() =>
-                    setIsRejectMode((prev) => {
-                      if (prev) {
-                        setRejectionReason("");
-                        setSelectedDeclineReason("");
-                      }
-                      return !prev;
-                    })
-                  }
-                  disabled={isPending || (useSigningStepper && isPostDocsConfigLoading)}
-                  className="rounded-xl"
-                >
-                  {isRejectMode ? "Cancel decline" : "Decline offer"}
-                </Button>
-              ) : null}
-              <Button variant="outline" className="rounded-xl" onClick={requestClose}>
-                Close
+            <div className="flex flex-wrap items-center gap-2.5">
+              <Button className="h-11 rounded-xl" onClick={handleAccept} disabled={acceptDisabled}>
+                {acceptInvoice.isPending ? "Accepting..." : "Accept offer & authorise listing"}
+              </Button>
+              <Button
+                variant="outline"
+                className="h-11 rounded-xl"
+                disabled={isPending}
+                onClick={() => setIsRejectMode(true)}
+              >
+                Reject offer
               </Button>
             </div>
           </>
+        ) : (
+          <div className="max-w-xl space-y-4">
+            <Alert className="border-status-action-text/30 bg-status-action-bg text-status-action-text">
+              <LockClosedIcon className="mt-0.5 h-5 w-5 shrink-0" aria-hidden />
+              <AlertDescription>
+                <span className="font-semibold">Accepting is on hold.</span>{" "}
+                {blockedMessage ||
+                  "Finish facility signing first before accepting this invoice offer."}
+              </AlertDescription>
+            </Alert>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <Button
+                className="h-11 rounded-xl"
+                onClick={handleAccept}
+                disabled={acceptDisabled}
+              >
+                Accept offer & authorise listing
+              </Button>
+              <Button
+                variant="outline"
+                className="h-11 rounded-xl"
+                disabled={isPending}
+                onClick={() => setIsRejectMode(true)}
+              >
+                Reject offer
+              </Button>
+            </div>
+          </div>
         )}
+      </div>
+    );
+  };
+
+  const headingDescriptionText = isPhaseDeadlinePast
+    ? "This offer lapsed before it was accepted."
+    : useSigningStepper
+      ? "Complete each step below to put this offer in force."
+      : "Accept or decline this offer.";
+
+  const showDeclineFooter = shouldShowOfferDeclineAction({
+    isPhaseDeadlinePast,
+    envelopeCompleted,
+    displaySigningStepId,
+    useSigningStepper,
+    isRejectMode,
+    acceptDeclineUi: modalMode.ui === "accept_decline" && !canDirectAccept,
+  });
+
+  const statePanel = isLoading ? (
+    <p className="py-8 text-ui text-muted-foreground">Loading offer...</p>
+  ) : isPhaseDeadlinePast ? (
+    <div className="max-w-xl">
+      <h3 className="text-lg font-semibold text-destructive">This offer has expired</h3>
+      <p className="mt-2 text-ui leading-6 text-muted-foreground">
+        Expired {phaseDeadline?.absolute}. Accepting is no longer available. You can still download
+        the offer letter above. If CashSouk resends an offer, it appears here.
+      </p>
+    </div>
+  ) : useSigningStepper ? (
+    <>
+      {keepAcceptanceDocsDraftMounted ? (
+        <div
+          className={cn(
+            (displaySigningStepId !== "documents" || isRejectMode) && "hidden"
+          )}
+          aria-hidden={displaySigningStepId !== "documents" || isRejectMode}
+        >
+          {renderSigningStepContent("documents", { ignoreRejectMode: true })}
+        </div>
+      ) : null}
+      {isRejectMode ||
+      displaySigningStepId !== "documents" ||
+      !keepAcceptanceDocsDraftMounted
+        ? renderSigningStepContent(displaySigningStepId)
+        : null}
     </>
+  ) : (
+    renderAcceptDeclineContent()
   );
 
-  const confirmDialogs = (
-    <>
+  return (
+    <div className={cn("w-full space-y-5", className)}>
+      {phaseDeadline?.urgency === "soon" || phaseDeadline?.urgency === "past" ? (
+        <Alert
+          variant={phaseDeadline.urgency === "past" ? "destructive" : "default"}
+          className={cn(
+            "flex items-start gap-3 rounded-xl",
+            phaseDeadline.urgency === "soon" &&
+              "border-status-action-text/30 bg-status-action-bg text-status-action-text"
+          )}
+        >
+          {phaseDeadline.urgency === "past" ? (
+            <ExclamationTriangleIcon className="mt-0.5 h-5 w-5 shrink-0" aria-hidden />
+          ) : (
+            <ClockIcon className="mt-0.5 h-5 w-5 shrink-0" aria-hidden />
+          )}
+          <AlertDescription className="min-w-0">
+            {phaseDeadline.urgency === "past" ? (
+              <>
+                <span className="font-semibold">Expired {phaseDeadline.absolute}.</span> Accepting
+                is no longer available. You can still download the offer letter below. If CashSouk
+                resends an offer, it appears here.
+              </>
+            ) : (
+              <>
+                <span className="font-semibold">
+                  {phaseDeadlineRowLabel} {phaseDeadline.absolute}
+                </span>
+                {phaseDeadline.relative ? ` — ${phaseDeadline.relative}.` : "."} Act soon to avoid
+                this offer lapsing.
+              </>
+            )}
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border px-6 py-5">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-section-title font-semibold">Financing offer</h2>
+              <StatusBadge
+                label={type === "contract" ? "Facility" : "Invoice"}
+                status="neutral"
+                showDot={false}
+              />
+              <StatusBadge
+                label={`${offeredValue} approved`}
+                status="success"
+                showDot={false}
+              />
+            </div>
+            <p className="mt-1.5 text-ui text-muted-foreground">{headingDescriptionText}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="gap-2 rounded-xl"
+              onClick={handleDownload}
+              disabled={!canDownload || downloading}
+            >
+              <ArrowDownTrayIcon className="h-4 w-4" aria-hidden />
+              {downloading ? "Downloading…" : "Offer letter"}
+            </Button>
+            {modalMode.ui === "accept_decline" ? (
+              <ApplicationSummaryDownloadButton applicationId={applicationId} size="default" />
+            ) : null}
+            {signedOfferLetterAvailable ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="gap-2 rounded-xl"
+                onClick={() => void handleDownloadSignedOffer()}
+                disabled={downloadingSigned}
+              >
+                {downloadingSigned ? "Opening…" : "Signed offer"}
+              </Button>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="border-b border-border bg-muted/30 px-6 py-5">
+          <HorizontalOfferStepper
+            steps={horizontalSteps}
+            onStepClick={
+              useSigningStepper
+                ? (stepId) => handleSigningStepSelect(stepId as SigningOfferStepId)
+                : undefined
+            }
+          />
+        </div>
+
+        <div className="border-b border-border px-6 py-5">{facilityTermsSection}</div>
+
+        <div className="px-6 py-5">{statePanel}</div>
+
+        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border bg-muted/30 px-6 py-3.5">
+          {showDeclineFooter ? (
+            <Button
+              variant="outline"
+              onClick={() =>
+                setIsRejectMode((prev) => {
+                  if (prev) {
+                    setRejectionReason("");
+                    setSelectedDeclineReason("");
+                  }
+                  return !prev;
+                })
+              }
+              disabled={isPending || (useSigningStepper && isPostDocsConfigLoading)}
+              className="rounded-xl"
+            >
+              {isRejectMode ? "Cancel decline" : "Decline offer"}
+            </Button>
+          ) : null}
+          <Button variant="outline" className="rounded-xl" asChild>
+            <Link
+              href="/applications"
+              onClick={(event) => {
+                if (
+                  postDocsState.hasPendingChanges &&
+                  (displaySigningStepId === "documents" || keepAcceptanceDocsDraftMounted)
+                ) {
+                  event.preventDefault();
+                  leaveToApplications();
+                }
+              }}
+            >
+              Back to applications
+            </Link>
+          </Button>
+        </div>
+      </div>
+
       <OfferAcceptOtpDialog
         key={`${applicationId}:${invoice?.id ?? "none"}`}
         open={acceptOfferConfirmOpen}
@@ -2376,47 +2502,9 @@ export function OfferReviewPanel({
         onConfirm={() => {
           setDiscardConfirmOpen(false);
           onClose?.();
+          router.push("/applications");
         }}
       />
-    </>
-  );
-
-  if (mode === "inline") {
-    return (
-      <div
-        className={cn(
-          "w-full rounded-2xl border border-border bg-card p-6 shadow-sm",
-          className
-        )}
-      >
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 text-xl font-semibold leading-none tracking-tight">
-            Review financing offer
-            {headingBadges}
-          </div>
-        </div>
-        <p className="mt-1.5 text-sm text-muted-foreground">{headingDescriptionText}</p>
-        {mainBodyContent}
-        {confirmDialogs}
-      </div>
-    );
-  }
-
-  return (
-    <Dialog open={true} onOpenChange={(open) => !open && requestClose()}>
-      <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto rounded-xl border-border p-6 gap-0">
-        <DialogHeader>
-          <div className="flex items-center justify-between gap-4">
-            <DialogTitle className="text-xl flex items-center gap-3">
-              Review financing offer
-              {headingBadges}
-            </DialogTitle>
-          </div>
-          <DialogDescription>{headingDescriptionText}</DialogDescription>
-        </DialogHeader>
-        {mainBodyContent}
-      </DialogContent>
-      {confirmDialogs}
-    </Dialog>
+    </div>
   );
 }

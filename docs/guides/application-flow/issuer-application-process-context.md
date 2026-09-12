@@ -233,7 +233,7 @@ Review action behavior:
 
 - First review action on `SUBMITTED` or `RESUBMITTED` calls `ensureUnderReview`, which moves the application into the current admin stage (`UNDER_REVIEW`, `CONTRACT_PENDING`, `INVOICE_PENDING`, `CONTRACT_SENT`, or `INVOICES_SENT`) based on contract/invoice state and tab unlocks.
 - The Documents section is derived from per-document item rows; admins approve, reject, or amend each document item.
-- Invoice approvals are finalized by issuer offer response, not by the generic item approval endpoint.
+- Invoice and facility details are admin-approved (item/section Approve) before Send offer. The issuer accept/signing flow still finalizes the contract or invoice entity.
 - Contract and invoice review actions are locked once the related offer is finalized by the issuer.
 - Resetting contract or invoice review to pending can retract sent offers and reset contract or invoice statuses when the offer has not been finalized.
 

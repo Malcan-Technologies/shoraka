@@ -30,6 +30,11 @@ export interface ReviewSectionCardProps {
   onViewSignedOffer?: () => void | Promise<void>;
   /** When true, "View Signed Offer" appears in the Action menu (signed PDF on file). */
   signedOfferLetterAvailable?: boolean;
+  /**
+   * Skip the card chrome (title/icon). Used inside Offer & acceptance stage cards.
+   * Section actions still render when the stage needs them.
+   */
+  embedded?: boolean;
   children: React.ReactNode;
 }
 
@@ -58,6 +63,7 @@ export function ReviewSectionCard({
   viewSignedOfferOnly = false,
   onViewSignedOffer,
   signedOfferLetterAvailable = false,
+  embedded = false,
   children,
 }: ReviewSectionCardProps) {
   const showActions =
@@ -67,6 +73,41 @@ export function ReviewSectionCard({
     onApprove &&
     onReject &&
     onRequestAmendment;
+
+  const actions = showActions ? (
+    <SectionActionDropdown
+      section={section}
+      isReviewable={isReviewable!}
+      onApprove={onApprove}
+      onReject={onReject}
+      onRequestAmendment={onRequestAmendment}
+      isPending={!!approvePending}
+      isActionLocked={isActionLocked}
+      actionLockTooltip={actionLockTooltip}
+      sectionStatus={sectionStatus}
+      onResetToPending={onResetToPending}
+      showApprove={showApprove}
+      approveDisabled={approveDisabled}
+      approveDisabledReason={approveDisabledReason}
+      viewSignedOfferOnly={viewSignedOfferOnly}
+      onViewSignedOffer={onViewSignedOffer}
+      signedOfferLetterAvailable={signedOfferLetterAvailable}
+    />
+  ) : null;
+
+  if (embedded) {
+    return (
+      <div className="space-y-8">
+        {headerRight || actions ? (
+          <div className="flex flex-wrap items-start justify-end gap-3">
+            {headerRight ? <div>{headerRight}</div> : null}
+            {actions}
+          </div>
+        ) : null}
+        {children}
+      </div>
+    );
+  }
 
   return (
     <Card className="rounded-2xl">
@@ -81,24 +122,7 @@ export function ReviewSectionCard({
             {showActions ? (
               <>
                 {headerRight ? <div className="h-9 w-px bg-border/60 self-stretch" /> : null}
-                <SectionActionDropdown
-                  section={section}
-                  isReviewable={isReviewable!}
-                  onApprove={onApprove}
-                  onReject={onReject}
-                  onRequestAmendment={onRequestAmendment}
-                  isPending={!!approvePending}
-                  isActionLocked={isActionLocked}
-                  actionLockTooltip={actionLockTooltip}
-                  sectionStatus={sectionStatus}
-                  onResetToPending={onResetToPending}
-                  showApprove={showApprove}
-                  approveDisabled={approveDisabled}
-                  approveDisabledReason={approveDisabledReason}
-                  viewSignedOfferOnly={viewSignedOfferOnly}
-                  onViewSignedOffer={onViewSignedOffer}
-                  signedOfferLetterAvailable={signedOfferLetterAvailable}
-                />
+                {actions}
               </>
             ) : null}
           </div>

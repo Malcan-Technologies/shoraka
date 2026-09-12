@@ -102,6 +102,18 @@ describe("AdminService sendInvoiceOffer financing ratio cap", () => {
     return {
       $queryRaw: jest.fn(async (sql: unknown) => {
         const text = sqlText(sql);
+        if (text.includes("FROM application_review_items")) {
+          return [{ status: "APPROVED" }];
+        }
+        if (text.includes("FROM application_reviews")) {
+          return [
+            { section: "financial", status: "APPROVED" },
+            { section: "company_details", status: "APPROVED" },
+            { section: "business_details", status: "APPROVED" },
+            { section: "supporting_documents", status: "APPROVED" },
+            { section: "contract_details", status: "APPROVED" },
+          ];
+        }
         if (text.includes("FROM applications")) {
           return [{ status: ApplicationStatus.INVOICE_PENDING }];
         }
@@ -148,6 +160,16 @@ describe("AdminService sendInvoiceOffer financing ratio cap", () => {
           status: ApplicationStatus.INVOICE_PENDING,
           contract_id: null,
           invoices: [{ id: "inv-1", details }],
+          application_review_items: [
+            { item_type: "invoice", item_id: "invoice_details:0:INV-1", status: "APPROVED" },
+          ],
+          application_reviews: [
+            { section: "financial", status: "APPROVED" },
+            { section: "company_details", status: "APPROVED" },
+            { section: "business_details", status: "APPROVED" },
+            { section: "supporting_documents", status: "APPROVED" },
+            { section: "contract_details", status: "APPROVED" },
+          ],
         },
       });
     (service as unknown as { ensureUnderReview: jest.Mock }).ensureUnderReview = jest.fn();

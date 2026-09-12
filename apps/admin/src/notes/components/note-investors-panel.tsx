@@ -18,6 +18,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useAdminInvestments } from "@/investments/hooks/use-admin-investments";
+import { clampListPage } from "@/shared/admin-list/clamp-list-page";
 import { TablePagination } from "@/shared/admin-list/components/table-pagination";
 import { getAdminStatusToken, adminActionRowClass } from "@/lib/admin-status-token";
 
@@ -61,10 +62,10 @@ export function NoteInvestorsPanel({ note }: NoteInvestorsPanelProps) {
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const startIndex = totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const endIndex = Math.min(page * PAGE_SIZE, totalCount);
-
-  React.useEffect(() => {
-    if (page > totalPages) setPage(totalPages);
-  }, [page, totalPages]);
+  const nextPage = clampListPage(page, totalPages, Boolean(data));
+  if (nextPage !== page) {
+    setPage(nextPage);
+  }
 
   return (
     <Card className="rounded-2xl">
