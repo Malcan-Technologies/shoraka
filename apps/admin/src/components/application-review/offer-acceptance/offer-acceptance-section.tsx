@@ -37,7 +37,9 @@ import {
   otherInvoiceApplicationHref,
   otherInvoiceTabId,
   parseOtherInvoiceTabId,
+  resolveDefaultOfferAcceptanceInvoiceTabId,
   resolveThisAppInvoiceIdForStages,
+  shouldListOtherFacilityInvoices,
   thisInvoiceTabId,
 } from "./offer-acceptance-invoice-selection";
 import { OfferAcceptanceStageCard } from "./stage-card";
@@ -149,7 +151,10 @@ export function OfferAcceptanceSection(
   const contractInvoices = contract?.invoices ?? [];
   const applicationId = typeof app.id === "string" ? app.id : "";
   const otherContractInvoices =
-    !isInvoiceOnly && applicationId && app.contract && contractInvoices.length > 0
+    shouldListOtherFacilityInvoices(structureType) &&
+    applicationId &&
+    app.contract &&
+    contractInvoices.length > 0
       ? contractInvoices.filter((inv) => inv.application_id !== applicationId)
       : [];
   const otherTabs = otherContractInvoices.filter(
@@ -170,13 +175,8 @@ export function OfferAcceptanceSection(
       label: invoiceTabLabel(inv),
     })),
   ];
-  const showInvoiceSwitcher = structureType !== "new_contract" && switcherTabs.length > 1;
-  const defaultTabId =
-    thisTabs.length > 0
-      ? thisInvoiceTabId(thisTabs[thisTabs.length - 1]!.id)
-      : otherTabs.length > 0
-        ? otherInvoiceTabId(otherTabs[0]!.id)
-        : null;
+  const showInvoiceSwitcher = shouldListOtherFacilityInvoices(structureType) && switcherTabs.length > 1;
+  const defaultTabId = resolveDefaultOfferAcceptanceInvoiceTabId(thisTabs.map((inv) => inv.id));
   const [invoiceTabId, setInvoiceTabId] = React.useState<string | null>(null);
   const selectedTabId = switcherTabs.some((tab) => tab.id === invoiceTabId)
     ? invoiceTabId

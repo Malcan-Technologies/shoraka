@@ -3,7 +3,9 @@ import {
   otherInvoiceApplicationHref,
   otherInvoiceTabId,
   parseOtherInvoiceTabId,
+  resolveDefaultOfferAcceptanceInvoiceTabId,
   resolveThisAppInvoiceIdForStages,
+  shouldListOtherFacilityInvoices,
   thisInvoiceTabId,
 } from "./offer-acceptance-invoice-selection";
 
@@ -24,6 +26,19 @@ describe("offer-acceptance invoice selection", () => {
         thisAppInvoiceIds: ["inv-a", "inv-this"],
       })
     ).toBe("inv-this");
+  });
+
+  it("defaults to this application's invoice and never to a sibling", () => {
+    expect(resolveDefaultOfferAcceptanceInvoiceTabId(["inv-a", "inv-this"])).toBe(
+      thisInvoiceTabId("inv-this")
+    );
+    expect(resolveDefaultOfferAcceptanceInvoiceTabId([])).toBeNull();
+  });
+
+  it("lists sibling invoices only on invoice-under-facility", () => {
+    expect(shouldListOtherFacilityInvoices("existing_contract")).toBe(true);
+    expect(shouldListOtherFacilityInvoices("new_contract")).toBe(false);
+    expect(shouldListOtherFacilityInvoices("invoice_only")).toBe(false);
   });
 
   it("omits Open that application unless the other invoice has application id and product id", () => {

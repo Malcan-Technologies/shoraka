@@ -50,3 +50,16 @@ export function resolveThisAppInvoiceIdForStages(input: {
   if (selected && input.thisAppInvoiceIds.includes(selected)) return selected;
   return input.thisAppInvoiceIds[input.thisAppInvoiceIds.length - 1] ?? null;
 }
+
+/** Sibling facility invoices are peek-only on invoice-under-facility, never on the originating facility. */
+export function shouldListOtherFacilityInvoices(structureType?: string | null): boolean {
+  return structureType === "existing_contract";
+}
+
+/** Always open this application's invoice. Other-app chips are opt-in. */
+export function resolveDefaultOfferAcceptanceInvoiceTabId(
+  thisAppInvoiceIds: readonly string[]
+): string | null {
+  const id = thisAppInvoiceIds[thisAppInvoiceIds.length - 1];
+  return id ? thisInvoiceTabId(id) : null;
+}

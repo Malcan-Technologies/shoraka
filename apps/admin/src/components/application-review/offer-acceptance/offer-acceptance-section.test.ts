@@ -134,6 +134,8 @@ describe("offer-acceptance wiring", () => {
     expect(SECTION).toContain("selectedOtherInvoice ? (");
     expect(SECTION).not.toContain("inheritedSourceApplication?.productId && inheritedSourceApplication.id");
     expect(SECTION).toContain("resolveThisAppInvoiceIdForStages");
+    expect(SECTION).toContain("shouldListOtherFacilityInvoices(structureType)");
+    expect(SECTION).toContain("resolveDefaultOfferAcceptanceInvoiceTabId");
   });
 
   it("leaves facility actions on ContractSection and removes the issuer-response dropdown", () => {
