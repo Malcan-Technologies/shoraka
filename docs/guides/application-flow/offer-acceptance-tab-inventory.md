@@ -2,7 +2,7 @@
 
 Source of truth: current admin/issuer code (not the redesign mock). Mock-only actions are omitted. Comparison-modal branches stay on the old sections; they are listed so nothing is dropped from live or comparison surfaces.
 
-**Stage names (admin, after redesign):** Facility review · Customer review · Invoice review · Send offer · Issuer response · Upfront facility fee (new_contract, only when collect-upfront > 0) · Acceptance documents · Signing package · Facility reference (existing_contract collapsed) · Inherited acceptance (existing_contract collapsed) · Merged notes.
+**Stage names (admin, after redesign):** Facility review · Customer review · Invoice review · Send offer · Issuer response · Acceptance documents · Signing package · Upfront facility fee (new_contract, only when collect-upfront > 0; after signing) · Facility reference (existing_contract collapsed) · Inherited acceptance (existing_contract collapsed) · Merged notes.
 
 **Stage names (issuer, after redesign):** Review terms · Confirm & accept · Representatives · Documents · CashSouk review · Signing · Complete (facility: Facility in force / invoice: Offer complete) · Offer tab chrome (switcher, empty/stale/signed).
 
@@ -45,7 +45,7 @@ Tab: `contract_details` when structure is not `invoice_only`. Live: `ContractSec
 - **Facility fee rate %** — optional; 0–max, ≤2 dp; tooltip `FACILITY_FEE_RATE_FIELD_TOOLTIP`; prefill offer then product default — Send offer.
 - **Collect upfront now** — `MoneyInput`; tooltip `FACILITY_FEE_UPFRONT_FIELD_TOOLTIP`; `validateFacilityFeeUpfrontCollectAmount` — Send offer.
 - **Fee preview dl** — Total facility fee / Upfront via payment gateway / Left for later drawdowns — `resolveFacilityFeeOfferSplit` — Send offer.
-- **Upfront facility fee stage** — `new_contract` only when `facility_fee_upfront_collect_amount` or stamped `facility_fee_upfront_amount` > 0 — locked until contract `APPROVED`, then Due / Paid / Waived — `resolveFacilityFeeUpfrontRail` — after Issuer response. Invoice rails omit this; issuer pays on the facility record.
+- **Upfront facility fee stage** — `new_contract` only when `facility_fee_upfront_collect_amount` or stamped `facility_fee_upfront_amount` > 0 — locked until signing completes (`APPROVED`), then Due / Paid / Waived — `resolveFacilityFeeUpfrontRail` — after Signing package. Invoice rails omit this; issuer pays on the facility record.
 - **Fee inputs disabled** — same as offered facility lock — Send offer.
 - **Confirm Facility Offer dialog** — after large-private + paymaster checks — rows: contract value, requested, offered, fee rate, total fee, upfront, remaining for drawdown, `OfferAcceptanceDeadlineConfirmRows` if `previewAcceptanceDeadlineFromWorkflow` — Confirm & Send Offer / Cancel — `handleConfirmContractOffer` → page `useSendContractOffer`; success toast “Facility offer sent” or “… continue on Acceptance” + `goToAcceptanceTab` if Acceptance tab exists — Send offer.
 - **Confirm disabled** — cannot send, pending, or fee errors — Send offer.

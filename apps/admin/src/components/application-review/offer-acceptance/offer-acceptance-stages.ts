@@ -511,6 +511,7 @@ function facilityFeeStage(args: {
   rail: FacilityFeeUpfrontRail;
   entityStatus: string;
   acceptance: OfferAcceptanceStatus | null;
+  afterSigning: boolean;
 }): OfferAcceptanceStage {
   const base = {
     id: "facility_fee" as const,
@@ -535,12 +536,15 @@ function facilityFeeStage(args: {
     };
   }
   if (args.entityStatus !== "APPROVED") {
+    const untilSigning = "The issuer pays this after the signing package is complete.";
+    const untilAccept = "The issuer pays this after they accept the facility offer.";
+    const summary = args.afterSigning ? untilSigning : untilAccept;
     return {
       ...base,
       tag: "Locked",
       tone: "locked",
-      summary: "The issuer pays this after they accept the facility offer.",
-      lockTooltip: "The issuer pays this after they accept the facility offer.",
+      summary,
+      lockTooltip: summary,
     };
   }
   if (args.rail.outstanding > 0) {
@@ -1001,22 +1005,6 @@ export function buildOfferAcceptanceStageModel(
     })
   );
 
-  if (structureType === "new_contract") {
-    const facilityFeeRail = resolveFacilityFeeUpfrontRail({
-      contractDetails: input.contractDetails,
-      offerDetails: offerDetails,
-    });
-    if (facilityFeeRail) {
-      stages.push(
-        facilityFeeStage({
-          rail: facilityFeeRail,
-          entityStatus,
-          acceptance,
-        })
-      );
-    }
-  }
-
   if (showLiveAcceptanceDocuments) {
     stages.push(
       acceptanceDocumentsStage({
@@ -1037,6 +1025,23 @@ export function buildOfferAcceptanceStageModel(
         requiresAcceptanceDocuments: hasAcceptanceDocuments,
       })
     );
+  }
+
+  if (structureType === "new_contract") {
+    const facilityFeeRail = resolveFacilityFeeUpfrontRail({
+      contractDetails: input.contractDetails,
+      offerDetails: offerDetails,
+    });
+    if (facilityFeeRail) {
+      stages.push(
+        facilityFeeStage({
+          rail: facilityFeeRail,
+          entityStatus,
+          acceptance,
+          afterSigning: showLiveSigning,
+        })
+      );
+    }
   }
 
   if (structureType === "existing_contract") {

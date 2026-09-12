@@ -432,7 +432,7 @@ describe("buildOfferAcceptanceStageModel — new_contract facility", () => {
     ).toBe("Rejected");
   });
 
-  it("inserts upfront facility fee after issuer response only when collect-upfront is set", () => {
+  it("inserts upfront facility fee after signing only when collect-upfront is set", () => {
     expect(ids(facilityPending)).not.toContain("facility_fee");
 
     const offered: OfferAcceptanceStageInput = {
@@ -448,16 +448,22 @@ describe("buildOfferAcceptanceStageModel — new_contract facility", () => {
       "facility_review",
       "send_offer",
       "issuer_response",
-      "facility_fee",
       "acceptance_documents",
       "signing_package",
+      "facility_fee",
     ]);
     expect(stage(offered, "facility_fee")?.tone).toBe("locked");
+    expect(stage(offered, "facility_fee")?.summary).toMatch(/signing package is complete/i);
     expect(buildOfferAcceptanceStageModel(offered).currentStageId).toBe("issuer_response");
 
     const due: OfferAcceptanceStageInput = {
       ...offered,
       contractStatus: "APPROVED",
+      contractOfferDetails: {
+        offer_acceptance: { status: "COMPLETED" },
+        facility_fee_upfront_collect_amount: 400,
+      },
+      signingEnvelopes: [{ status: "COMPLETED", contract_id: "ctr-1" }],
       contractDetails: {
         approved_facility: 100_000,
         facility_fee_total_amount: 1_000,
@@ -467,6 +473,7 @@ describe("buildOfferAcceptanceStageModel — new_contract facility", () => {
     };
     expect(stage(due, "facility_fee")?.tone).toBe("wait");
     expect(stage(due, "facility_fee")?.tag).toBe("Due");
+    expect(buildOfferAcceptanceStageModel(due).currentStageId).toBe("facility_fee");
     expect(buildOfferAcceptanceStageModel(due).nextAction?.headline).toBe(
       "Waiting for the upfront facility fee"
     );
