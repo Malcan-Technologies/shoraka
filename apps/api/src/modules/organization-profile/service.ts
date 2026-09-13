@@ -8,11 +8,14 @@ import {
 import {
   buildInvestorProfileCompleteness,
   buildIssuerProfileCompleteness,
+  filterVisiblePeopleRows,
   issuerFinancialsFromYearBlock,
   latestUnauditedYearBlock,
   latestUnauditedYearKey,
   unauditedYearEntries,
   isMasterFieldEmpty,
+  normalizeDirectorShareholderIdKey,
+  issuerShareholdingMeetsMinimum,
   valuesEqualForMismatch,
   canonicalPartyIdentityKey,
   findExistingPartyForIdentityKey,
@@ -51,6 +54,10 @@ import {
 } from "@cashsouk/types";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
+import {
+  buildDirectorShareholderPeopleList,
+  type MasterPartyPeopleSeed,
+} from "../admin/build-people-list";
 import {
   extractCtosObservationSnapshot,
   extractRegulatoryPartiesFromCorporateEntities,
@@ -1984,27 +1991,187 @@ function partyRequiresAdminReviewForReactivation(party: OrganizationPartyProfile
   return party.mismatches.length > 0;
 }
 
+function mapMasterPartySeed(row: {
+  party_key: string;
+  membership_status: OrganizationPartyMembershipStatus;
+  entity_type: OrganizationPartyEntityType;
+  name: string | null;
+  identity_number: string | null;
+  is_director: boolean;
+  is_shareholder: boolean;
+  shareholding_percentage: Prisma.Decimal | null;
+  email: string | null;
+  origin: OrganizationPartyOrigin;
+}): MasterPartyPeopleSeed {
+  return {
+    partyKey: row.party_key,
+    membershipStatus: row.membership_status,
+    entityType: row.entity_type,
+    name: row.name,
+    identityNumber: row.identity_number,
+    isDirector: row.is_director,
+    isShareholder: row.is_shareholder,
+    shareholdingPercentage: row.shareholding_percentage?.toString() ?? null,
+    email: row.email,
+    origin: row.origin ?? null,
+  };
+}
+
+function evidenceObservationFromResolvedPerson(person: {
+  matchKey: string;
+  name: string | null;
+  entityType: "INDIVIDUAL" | "CORPORATE";
+  roles: string[];
+  sharePercentage: number | null;
+  identityNumber?: string | null;
+  candidate?: {
+    name: string | null;
+    identityNumber: string | null;
+    isDirector: boolean;
+    isShareholder: boolean;
+    shareholdingPercentage: number | null;
+  } | null;
+}): Record<string, unknown> {
+  const roles = (person.roles ?? []).map((role) => String(role).toUpperCase());
+  const candidate = person.candidate ?? null;
+  const hasDirectorRole = roles.includes("DIRECTOR") || Boolean(candidate?.isDirector);
+  const hasShareholderRole = roles.includes("SHAREHOLDER") || Boolean(candidate?.isShareholder);
+  return {
+    name: person.name ?? candidate?.name ?? null,
+    identityNumber: person.identityNumber ?? candidate?.identityNumber ?? person.matchKey ?? null,
+    entityType: person.entityType,
+    isDirector: hasDirectorRole,
+    isShareholder: hasShareholderRole,
+    shareholdingPercentage: person.sharePercentage ?? candidate?.shareholdingPercentage ?? null,
+    appointmentDate: null,
+    resignationDate: null,
+  };
+}
+
+async function resolveReactivationEvidence(params: {
+  portal: Portal;
+  organizationId: string;
+  party: {
+    party_key: string;
+    entity_type: OrganizationPartyEntityType;
+  };
+  masterRows: Array<{
+    party_key: string;
+    membership_status: OrganizationPartyMembershipStatus;
+    entity_type: OrganizationPartyEntityType;
+    name: string | null;
+    identity_number: string | null;
+    is_director: boolean;
+    is_shareholder: boolean;
+    shareholding_percentage: Prisma.Decimal | null;
+    email: string | null;
+    origin: OrganizationPartyOrigin;
+  }>;
+}): Promise<Record<string, unknown> | null> {
+  const [org, latestCtos, supplements] = await Promise.all([
+    params.portal === "issuer"
+      ? prisma.issuerOrganization.findUnique({
+          where: { id: params.organizationId },
+          select: {
+            corporate_entities: true,
+            director_kyc_status: true,
+            director_aml_status: true,
+            onboarding_status: true,
+          },
+        })
+      : prisma.investorOrganization.findUnique({
+          where: { id: params.organizationId },
+          select: {
+            corporate_entities: true,
+            director_kyc_status: true,
+            director_aml_status: true,
+            onboarding_status: true,
+          },
+        }),
+    prisma.ctosReport.findFirst({
+      where:
+        params.portal === "issuer"
+          ? { issuer_organization_id: params.organizationId, subject_ref: null }
+          : { investor_organization_id: params.organizationId, subject_ref: null },
+      orderBy: { fetched_at: "desc" },
+      select: { company_json: true },
+    }),
+    prisma.ctosPartySupplement.findMany({
+      where:
+        params.portal === "issuer"
+          ? { issuer_organization_id: params.organizationId }
+          : { investor_organization_id: params.organizationId },
+      select: { party_key: true, onboarding_json: true },
+      orderBy: { party_key: "asc" },
+    }),
+  ]);
+
+  if (!org) return null;
+
+  const partyBuild = buildDirectorShareholderPeopleList({
+    ctos: latestCtos?.company_json ?? null,
+    issuerDirectorKycStatus: org.director_kyc_status ?? null,
+    issuerDirectorAmlStatus: org.director_aml_status ?? null,
+    ctosPartySupplements: (supplements ?? []).map((row) => ({
+      partyKey: row.party_key,
+      onboardingJson: row.onboarding_json,
+    })),
+    corporateEntities: org.corporate_entities ?? null,
+    masterParties: params.masterRows.map(mapMasterPartySeed),
+    initialCorporateOnboarding: isInitialCorporateOnboardingStatus(org.onboarding_status),
+  });
+
+  const targetKey = normalizeDirectorShareholderIdKey(params.party.party_key ?? "");
+  if (!targetKey) return null;
+  const targetEntity = params.party.entity_type === "CORPORATE" ? "CORPORATE" : "INDIVIDUAL";
+  const ctosCandidates = extractRegulatoryPartiesFromCtos(latestCtos?.company_json ?? null);
+  const regtankCandidates = extractRegulatoryPartiesFromCorporateEntities(org.corporate_entities ?? null);
+  const ctosUsable = ctosCompanyJsonHasUsableRelatedParties(latestCtos?.company_json ?? null);
+  const evidenceCandidates = ctosUsable
+    ? ctosCandidates
+    : mergeRegulatoryPartyCandidates(ctosCandidates, regtankCandidates);
+
+  const resolved = filterVisiblePeopleRows(partyBuild.people).find((person) => {
+    const personKey = normalizeDirectorShareholderIdKey(person.matchKey ?? "");
+    if (!personKey || personKey !== targetKey) return false;
+    return person.entityType === targetEntity;
+  });
+  const candidate = evidenceCandidates.find((row) => {
+    const rowKey = normalizeDirectorShareholderIdKey(row.partyKey ?? "");
+    if (!rowKey || rowKey !== targetKey) return false;
+    return row.entityType === targetEntity;
+  });
+  if (!resolved) {
+    if (!candidate) return null;
+    const candidateUsable =
+      candidate.isDirector ||
+      (candidate.isShareholder && issuerShareholdingMeetsMinimum(candidate.shareholdingPercentage));
+    if (!candidateUsable) return null;
+    const roles: string[] = [];
+    if (candidate.isDirector) roles.push("DIRECTOR");
+    if (candidate.isShareholder) roles.push("SHAREHOLDER");
+    return evidenceObservationFromResolvedPerson({
+      matchKey: candidate.partyKey,
+      name: candidate.name,
+      entityType: candidate.entityType,
+      roles,
+      sharePercentage: candidate.shareholdingPercentage,
+      identityNumber: candidate.identityNumber,
+      candidate,
+    });
+  }
+  return evidenceObservationFromResolvedPerson({ ...resolved, candidate: candidate ?? null });
+}
+
 export async function reactivateMasterParty(params: {
   portal: Portal;
   organizationId: string;
   partyId: string;
 }): Promise<{ party: OrganizationPartyProfileDto; reviewRequired: boolean }> {
-  await seedMasterPartiesIfEmpty(params.portal, params.organizationId);
-  const latestCtos = await prisma.ctosReport.findFirst({
-    where:
-      params.portal === "issuer"
-        ? { issuer_organization_id: params.organizationId, subject_ref: null }
-        : { investor_organization_id: params.organizationId, subject_ref: null },
-    orderBy: { fetched_at: "desc" },
-    select: { company_json: true },
+  const masterRows = await prisma.organizationPartyProfile.findMany({
+    where: orgWhere(params.portal, params.organizationId),
   });
-  if (latestCtos?.company_json) {
-    await observeExternalCtosParties(params.portal, params.organizationId, latestCtos.company_json);
-  }
-
-  const row = await prisma.organizationPartyProfile.findFirst({
-    where: { id: params.partyId, ...orgWhere(params.portal, params.organizationId) },
-  });
+  const row = masterRows.find((candidate) => candidate.id === params.partyId) ?? null;
   if (!row) throw new AppError(404, "NOT_FOUND", "Party profile not found");
   if (row.membership_status !== OrganizationPartyMembershipStatus.MASTER_INACTIVE) {
     throw new AppError(
@@ -2013,7 +2180,36 @@ export async function reactivateMasterParty(params: {
       "Only an inactive person on the current profile can be reactivated."
     );
   }
-  const current = serializeParty(row);
+
+  const evidenceObservation = await resolveReactivationEvidence({
+    portal: params.portal,
+    organizationId: params.organizationId,
+    party: {
+      party_key: row.party_key,
+      entity_type: row.entity_type,
+    },
+    masterRows,
+  });
+  const previousObservation =
+    row.external_observation &&
+    typeof row.external_observation === "object" &&
+    !Array.isArray(row.external_observation)
+      ? (row.external_observation as Record<string, unknown>)
+      : null;
+  const nextObservation = evidenceObservation
+    ? mergeObservationResolutions(previousObservation, evidenceObservation)
+    : null;
+  const rowWithLatestEvidence =
+    evidenceObservation !== null || row.external_observation !== null
+      ? await prisma.organizationPartyProfile.update({
+          where: { id: row.id },
+          data: {
+            external_observation: nextObservation ? asJson(nextObservation) : Prisma.DbNull,
+          },
+        })
+      : row;
+
+  const current = serializeParty(rowWithLatestEvidence);
   const reviewRequired = partyRequiresAdminReviewForReactivation(current);
   if (reviewRequired) {
     return { party: current, reviewRequired: true };
