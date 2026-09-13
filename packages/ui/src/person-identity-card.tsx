@@ -39,6 +39,7 @@ export function PersonIdentityCard({
   onView,
   onEdit,
   onInactivate,
+  onReactivate,
   onSendOnboarding,
   onInviteToPlatform,
   onResendInvitation,
@@ -55,6 +56,7 @@ export function PersonIdentityCard({
   onView?: () => void;
   onEdit?: () => void;
   onInactivate?: () => void;
+  onReactivate?: () => void;
   onSendOnboarding?: () => void;
   onInviteToPlatform?: () => void;
   onResendInvitation?: () => void;
@@ -195,6 +197,11 @@ export function PersonIdentityCard({
           {onInactivate ? (
             <Button type="button" variant="outline" size="sm" onClick={onInactivate}>
               Mark inactive
+            </Button>
+          ) : null}
+          {onReactivate ? (
+            <Button type="button" variant="outline" size="sm" onClick={onReactivate}>
+              Reactivate
             </Button>
           ) : null}
         </div>

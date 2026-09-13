@@ -31,16 +31,16 @@ describe("Admin People & Access surface", () => {
     expect(panel).not.toContain("Add person");
     expect(panel).not.toContain("Add Person");
     expect(panel).not.toContain("Invite user");
-    expect(panel).not.toContain("Reactivate");
+    expect(panel).toContain("Reactivate");
     expect(hook).not.toContain("createParty");
   });
 
-  it("keeps Mark inactive on any MASTER_ACTIVE party and does not add Reactivate", () => {
+  it("keeps Mark inactive on any MASTER_ACTIVE party and shows Reactivate for inactive parties", () => {
     expect(detail).toContain("adminMayInactivateMasterParty(party)");
     expect(panel).toContain("adminMayInactivateMasterParty(party)");
     expect(overview).toContain("Admin may mark ANY active organization party as inactive.");
     expect(detail).toContain("Mark inactive");
-    expect(detail).not.toContain("Reactivate");
+    expect(detail).toContain("Reactivate");
     expect(panel).not.toContain("absentFromLatestExternal &&");
   });
 

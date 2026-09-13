@@ -106,6 +106,13 @@ describe("customer person Profile mapping and privacy", () => {
     expect(detail.indexOf('setConfirm("inactivate")')).toBeLessThan(detail.indexOf('value="access"'));
   });
 
+  it("adds Reactivate for inactive people and reuses existing review flow copy", () => {
+    expect(section).toContain("Inactive company people");
+    expect(section).toContain("Reactivate");
+    expect(section).toContain("api.reactivatePartyProfile");
+    expect(section).toContain("reviewRequired");
+  });
+
   it("does not expose CTOS comparison copy on customer person Profile", () => {
     const customerUi = [detail, overview, identityCard, section].join("\n");
     expect(customerUi).not.toContain("Latest CTOS information");

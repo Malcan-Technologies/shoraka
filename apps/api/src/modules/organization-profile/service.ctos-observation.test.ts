@@ -48,6 +48,7 @@ import {
   inactivateMasterParty,
   observeExternalCtosParties,
   patchPartyProfile,
+  reactivateMasterParty,
   resolvePartyMismatch,
   seedMasterPartiesIfEmpty,
 } from "./service";
@@ -1965,6 +1966,177 @@ describe("user-added master parties", () => {
     expect(john?.membership_status).toBe("MASTER_INACTIVE");
     expect(john?.absent_from_latest_external).toBe(false);
     expect(parties.filter((p) => canonicalKey(p.party_key) === "880101011111")).toHaveLength(1);
+  });
+
+  it("reactivates an inactive person directly when no differences are detected", async () => {
+    parties.push(
+      row({
+        id: "p-reactivate",
+        party_key: "880101011777",
+        identity_number: "880101011777",
+        name: "ALI",
+        membership_status: OrganizationPartyMembershipStatus.MASTER_INACTIVE,
+        user_id: "user-1",
+        external_observation: { name: "ALI", shareholdingPercentage: 30 },
+        shareholding_percentage: new Prisma.Decimal("30"),
+      })
+    );
+    const beforeCount = parties.length;
+    const before = { ...(parties.find((p) => p.id === "p-reactivate") as Record<string, unknown>) };
+    const result = await reactivateMasterParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-reactivate",
+    });
+    expect(result.reviewRequired).toBe(false);
+    expect(result.party.id).toBe("p-reactivate");
+    expect(result.party.membershipStatus).toBe("MASTER_ACTIVE");
+    expect(result.party.partyKey).toBe("880101011777");
+    expect(result.party.identityNumber).toBe("880101011777");
+    expect(result.party.userId).toBe("user-1");
+    expect(parties.length).toBe(beforeCount);
+    expect(prisma.ctosPartySupplement.create).not.toHaveBeenCalled();
+    const after = parties.find((p) => p.id === "p-reactivate") as Record<string, unknown>;
+    expect(after.membership_status).toBe(OrganizationPartyMembershipStatus.MASTER_ACTIVE);
+    expect(after.party_key).toBe(before.party_key);
+    expect(after.identity_number).toBe(before.identity_number);
+    expect(after.user_id).toBe(before.user_id);
+    expect(after.external_observation).toEqual(before.external_observation);
+  });
+
+  it("keeps an inactive person pending review when differences exist and does not silently overwrite", async () => {
+    parties.push(
+      row({
+        id: "p-reactivate-diff",
+        party_key: "880101011778",
+        identity_number: "880101011778",
+        name: "Ali",
+        membership_status: OrganizationPartyMembershipStatus.MASTER_INACTIVE,
+        shareholding_percentage: new Prisma.Decimal("30"),
+        external_observation: { name: "Ali", shareholdingPercentage: 40 },
+      })
+    );
+    const result = await reactivateMasterParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-reactivate-diff",
+    });
+    expect(result.reviewRequired).toBe(true);
+    expect(result.party.membershipStatus).toBe("MASTER_INACTIVE");
+    expect(Number(result.party.shareholdingPercentage)).toBe(30);
+    expect(
+      result.party.mismatches.find((mismatch) => mismatch.field === "shareholdingPercentage")?.externalValue
+    ).toBe(40);
+    expect(parties.find((p) => p.id === "p-reactivate-diff")?.membership_status).toBe(
+      OrganizationPartyMembershipStatus.MASTER_INACTIVE
+    );
+  });
+
+  it("Admin Keep current resolves the mismatch and reactivates the same inactive person", async () => {
+    parties.push(
+      row({
+        id: "p-reactivate-keep",
+        party_key: "880101011779",
+        identity_number: "880101011779",
+        name: "Ali",
+        membership_status: OrganizationPartyMembershipStatus.MASTER_INACTIVE,
+        shareholding_percentage: new Prisma.Decimal("30"),
+        external_observation: { name: "Ali", shareholdingPercentage: 40 },
+      })
+    );
+    const pending = await reactivateMasterParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-reactivate-keep",
+    });
+    expect(pending.reviewRequired).toBe(true);
+    const resolved = await resolvePartyMismatch({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-reactivate-keep",
+      input: { action: "KEEP", field: "shareholdingPercentage" },
+    });
+    expect(resolved.id).toBe("p-reactivate-keep");
+    expect(resolved.membershipStatus).toBe("MASTER_ACTIVE");
+    expect(Number(resolved.shareholdingPercentage)).toBe(30);
+  });
+
+  it("Admin Use CTOS applies approved latest values and reactivates the same inactive person", async () => {
+    parties.push(
+      row({
+        id: "p-reactivate-use",
+        party_key: "880101011780",
+        identity_number: "880101011780",
+        name: "Ali",
+        membership_status: OrganizationPartyMembershipStatus.MASTER_INACTIVE,
+        shareholding_percentage: new Prisma.Decimal("30"),
+        external_observation: { name: "Ali", shareholdingPercentage: 40 },
+      })
+    );
+    const pending = await reactivateMasterParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-reactivate-use",
+    });
+    expect(pending.reviewRequired).toBe(true);
+    const resolved = await resolvePartyMismatch({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-reactivate-use",
+      input: { action: "USE_EXTERNAL", field: "shareholdingPercentage" },
+    });
+    expect(resolved.id).toBe("p-reactivate-use");
+    expect(resolved.membershipStatus).toBe("MASTER_ACTIVE");
+    expect(Number(resolved.shareholdingPercentage)).toBe(40);
+  });
+
+  it("reactivation preserves key identity links/history and does not create duplicates", async () => {
+    parties.push(
+      row({
+        id: "p-reactivate-preserve",
+        party_key: "880101011781",
+        identity_number: "880101011781",
+        name: "Ali",
+        membership_status: OrganizationPartyMembershipStatus.MASTER_INACTIVE,
+        user_id: "user-preserved",
+        field_sources: { identityNumber: { source: "REGTANK", updatedAt: "2026-01-01T00:00:00.000Z" } },
+        external_observation: { name: "Ali", identityNumber: "880101011781" },
+      })
+    );
+    const result = await reactivateMasterParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-reactivate-preserve",
+    });
+    expect(result.reviewRequired).toBe(false);
+    expect(result.party.partyKey).toBe("880101011781");
+    expect(result.party.identityNumber).toBe("880101011781");
+    expect(result.party.userId).toBe("user-preserved");
+    expect(result.party.fieldSources.identityNumber?.source).toBe("REGTANK");
+    expect(parties.filter((p) => p.party_key === "880101011781")).toHaveLength(1);
+    expect(prisma.ctosPartySupplement.create).not.toHaveBeenCalled();
+  });
+
+  it("supports both issuer and investor reactivation with the same flow", async () => {
+    (prisma.investorOrganization.findUnique as jest.Mock).mockResolvedValue({ id: "inv-1" });
+    parties.push(
+      row({
+        id: "p-reactivate-investor",
+        party_key: "880101011782",
+        identity_number: "880101011782",
+        issuer_organization_id: null,
+        investor_organization_id: "inv-1",
+        membership_status: OrganizationPartyMembershipStatus.MASTER_INACTIVE,
+      })
+    );
+    const investorResult = await reactivateMasterParty({
+      portal: "investor",
+      organizationId: "inv-1",
+      partyId: "p-reactivate-investor",
+    });
+    expect(investorResult.reviewRequired).toBe(false);
+    expect(investorResult.party.membershipStatus).toBe("MASTER_ACTIVE");
+    expect(parties.find((p) => p.id === "p-reactivate-investor")?.investor_organization_id).toBe("inv-1");
   });
 
   it("investor edit updates the same master person and keeps unrelated roles", async () => {

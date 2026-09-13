@@ -102,6 +102,7 @@ export function OrganizationPeopleAccessDetail({
   onEdit,
   onAdopt,
   onInactivate,
+  onReactivate,
   onKeep,
   onUseExternal,
   onKeepOnboardingIdentity,
@@ -117,6 +118,7 @@ export function OrganizationPeopleAccessDetail({
   onEdit?: () => void;
   onAdopt?: () => void;
   onInactivate?: () => void;
+  onReactivate?: () => void;
   onKeep?: (field: string) => void;
   onUseExternal?: (field: string) => void;
   onKeepOnboardingIdentity?: () => void;
@@ -171,6 +173,7 @@ export function OrganizationPeopleAccessDetail({
   const showEdit =
     canManage && !row.observed && !row.inactive && Boolean(onEdit) && row.kind !== "people_only" && row.kind !== "platform_only";
   const showInactivate = canManage && Boolean(onInactivate) && adminMayInactivateMasterParty(party);
+  const showReactivate = canManage && row.inactive && Boolean(onReactivate) && row.kind !== "people_only";
   const showCtos = adminPersonHasCtosEvidence(row);
   const roleRecords = buildAdminPersonRegTankRoleRecords({
     person: person
@@ -255,6 +258,11 @@ export function OrganizationPeopleAccessDetail({
           {showInactivate ? (
             <Button type="button" variant="outline" size="sm" onClick={onInactivate}>
               Mark inactive
+            </Button>
+          ) : null}
+          {showReactivate ? (
+            <Button type="button" variant="outline" size="sm" onClick={onReactivate}>
+              Reactivate
             </Button>
           ) : null}
           {row.kind === "platform_only" && canManageUsers && orgMember && onEditMember ? (

@@ -15,6 +15,7 @@ import {
   patchIssuerOrgFinancials,
   patchOrgMasterProfile,
   patchPartyProfile,
+  reactivateMasterParty,
   resolvePartyMismatch,
   seedMasterPartiesIfEmpty,
 } from "./service";
@@ -267,6 +268,33 @@ export function createOrganizationProfileRouter() {
   );
 
   router.post(
+    "/:portal/:id/party-profiles/:partyId/reactivate",
+    requireAuth,
+    async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const portal = portalFromParams(req);
+        const { id, partyId } = req.params;
+        await assertOrgOwnerOrAdmin(req, portal, id);
+        const data = await reactivateMasterParty({
+          portal,
+          organizationId: id,
+          partyId,
+        });
+        await logMasterProfileAudit({
+          req,
+          organizationId: id,
+          eventType: "MASTER_PARTY_REACTIVATED",
+          portal: portal === "issuer" ? AUDIT_PORTAL.ISSUER : AUDIT_PORTAL.INVESTOR,
+          metadata: { portal, source: "USER", partyId, reviewRequired: data.reviewRequired },
+        });
+        res.json({ success: true, data, correlationId: res.locals.correlationId });
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+
+  router.post(
     "/:portal/:id/party-profiles/:partyId/refresh-status",
     requireAuth,
     async (req: Request, res: Response, next: NextFunction) => {
@@ -455,6 +483,26 @@ export function createAdminOrganizationProfileRouter() {
         organizationId: req.params.id,
         eventType: "MASTER_PARTY_INACTIVATED",
         metadata: { portal, partyId: req.params.partyId },
+      });
+      res.json({ success: true, data, correlationId: res.locals.correlationId });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/:portal/:id/party-profiles/:partyId/reactivate", requirePermission("organizations.manage"), async (req, res, next) => {
+    try {
+      const portal = portalFromParams(req);
+      const data = await reactivateMasterParty({
+        portal,
+        organizationId: req.params.id,
+        partyId: req.params.partyId,
+      });
+      await logMasterProfileAudit({
+        req,
+        organizationId: req.params.id,
+        eventType: "MASTER_PARTY_REACTIVATED",
+        metadata: { portal, partyId: req.params.partyId, reviewRequired: data.reviewRequired },
       });
       res.json({ success: true, data, correlationId: res.locals.correlationId });
     } catch (error) {

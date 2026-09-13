@@ -68,6 +68,7 @@ export function PersonDetailView({
   currentUserId,
   canEdit,
   canInactivate = false,
+  canReactivate = canEdit,
   onBack,
   onChanged,
 }: {
@@ -82,6 +83,7 @@ export function PersonDetailView({
   currentUserId?: string | null;
   canEdit: boolean;
   canInactivate?: boolean;
+  canReactivate?: boolean;
   onBack: () => void;
   onChanged?: () => void | Promise<void>;
 }) {
@@ -97,7 +99,7 @@ export function PersonDetailView({
   const refreshInFlight = React.useRef(false);
   const [inviteOpen, setInviteOpen] = React.useState(false);
   const [pending, setPending] = React.useState(false);
-  const [confirm, setConfirm] = React.useState<"remove" | "inactivate" | "cancel-invite" | "transfer" | null>(null);
+  const [confirm, setConfirm] = React.useState<"remove" | "inactivate" | "reactivate" | "cancel-invite" | "transfer" | null>(null);
 
   const loadParties = React.useCallback(async () => {
     const res = await api.getPartyProfiles(portal, organizationId);
@@ -295,6 +297,10 @@ export function PersonDetailView({
                 <DropdownMenuItem onClick={() => setConfirm("inactivate")}>Mark inactive</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+          ) : canReactivate && inactive ? (
+            <Button type="button" variant="outline" size="sm" onClick={() => setConfirm("reactivate")}>
+              Reactivate
+            </Button>
           ) : null
         }
       />
@@ -670,6 +676,24 @@ export function PersonDetailView({
           const res = await api.inactivatePartyProfile(portal, organizationId, party.id);
           if (!res.success) throw profileValidationErrorFromApi(res.error);
           toast.success("Person marked inactive");
+          setConfirm(null);
+          await invalidate();
+        }}
+      />
+      <ConfirmDialog
+        open={confirm === "reactivate"}
+        onOpenChange={(open) => !open && setConfirm(null)}
+        title="Reactivate person"
+        description="Reactivate this person on the current profile? Existing KYC, AML and onboarding history will be kept."
+        confirmText="Reactivate"
+        onConfirm={async () => {
+          const res = await api.reactivatePartyProfile(portal, organizationId, party.id);
+          if (!res.success) throw profileValidationErrorFromApi(res.error);
+          if (res.data.reviewRequired) {
+            toast.success("Changes detected. Sent for Admin review before reactivation.");
+          } else {
+            toast.success("Person reactivated");
+          }
           setConfirm(null);
           await invalidate();
         }}

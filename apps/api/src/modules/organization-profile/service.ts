@@ -1258,7 +1258,10 @@ export async function patchPartyProfile(params: {
   if (row.membership_status === OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED) {
     throw new AppError(400, "INVALID_PARTY_STATUS", "Add this CTOS person to the current profile before editing.");
   }
-  if (row.membership_status === OrganizationPartyMembershipStatus.MASTER_INACTIVE) {
+  if (
+    row.membership_status === OrganizationPartyMembershipStatus.MASTER_INACTIVE &&
+    params.source !== "ADMIN"
+  ) {
     throw new AppError(400, "INVALID_PARTY_STATUS", "This person is no longer active on the current profile.");
   }
 
@@ -1847,12 +1850,23 @@ export async function resolvePartyMismatch(params: {
   partyId: string;
   input: PartyMismatchResolveInput;
 }): Promise<OrganizationPartyProfileDto> {
-  const row = await prisma.organizationPartyProfile.findFirst({
+  const initialRow = await prisma.organizationPartyProfile.findFirst({
     where: { id: params.partyId, ...orgWhere(params.portal, params.organizationId) },
   });
-  if (!row) throw new AppError(404, "NOT_FOUND", "Party profile not found");
+  if (!initialRow) throw new AppError(404, "NOT_FOUND", "Party profile not found");
+  const startedInactive =
+    initialRow.membership_status === OrganizationPartyMembershipStatus.MASTER_INACTIVE;
+  const reactivateIfReviewResolved = async (dto: OrganizationPartyProfileDto) => {
+    if (!startedInactive) return dto;
+    if (partyRequiresAdminReviewForReactivation(dto)) return dto;
+    const activated = await prisma.organizationPartyProfile.update({
+      where: { id: dto.id },
+      data: { membership_status: OrganizationPartyMembershipStatus.MASTER_ACTIVE },
+    });
+    return serializeParty(activated);
+  };
   if (params.input.action === "KEEP") {
-    const observation = (row.external_observation as Record<string, unknown> | null) ?? {};
+    const observation = (initialRow.external_observation as Record<string, unknown> | null) ?? {};
     const resolved = readObservationResolutions(observation);
     resolved[params.input.field] = {
       action: "KEEP",
@@ -1860,12 +1874,12 @@ export async function resolvePartyMismatch(params: {
     };
     observation[OBSERVATION_RESOLVED_KEY] = resolved;
     const updated = await prisma.organizationPartyProfile.update({
-      where: { id: row.id },
+      where: { id: initialRow.id },
       data: { external_observation: asJson(observation) },
     });
-    return serializeParty(updated);
+    return reactivateIfReviewResolved(serializeParty(updated));
   }
-  const observation = (row.external_observation as Record<string, unknown> | null) ?? {};
+  const observation = (initialRow.external_observation as Record<string, unknown> | null) ?? {};
   const incoming =
     params.input.action === "EDIT" ? params.input.value : observation[params.input.field];
   const fieldMap: Record<string, keyof PartyPatch> = {
@@ -1879,13 +1893,14 @@ export async function resolvePartyMismatch(params: {
   if (!patchKey) {
     throw new AppError(400, "VALIDATION_ERROR", "This field cannot be updated from CTOS.");
   }
-  return patchPartyProfile({
+  const updated = await patchPartyProfile({
     portal: params.portal,
     organizationId: params.organizationId,
     partyId: params.partyId,
     source: "ADMIN",
     patch: { [patchKey]: incoming as never },
   });
+  return reactivateIfReviewResolved(updated);
 }
 
 export async function adoptObservedParty(params: {
@@ -1963,6 +1978,51 @@ export async function inactivateMasterParty(params: {
     data: { membership_status: OrganizationPartyMembershipStatus.MASTER_INACTIVE },
   });
   return serializeParty(updated);
+}
+
+function partyRequiresAdminReviewForReactivation(party: OrganizationPartyProfileDto): boolean {
+  return party.mismatches.length > 0;
+}
+
+export async function reactivateMasterParty(params: {
+  portal: Portal;
+  organizationId: string;
+  partyId: string;
+}): Promise<{ party: OrganizationPartyProfileDto; reviewRequired: boolean }> {
+  await seedMasterPartiesIfEmpty(params.portal, params.organizationId);
+  const latestCtos = await prisma.ctosReport.findFirst({
+    where:
+      params.portal === "issuer"
+        ? { issuer_organization_id: params.organizationId, subject_ref: null }
+        : { investor_organization_id: params.organizationId, subject_ref: null },
+    orderBy: { fetched_at: "desc" },
+    select: { company_json: true },
+  });
+  if (latestCtos?.company_json) {
+    await observeExternalCtosParties(params.portal, params.organizationId, latestCtos.company_json);
+  }
+
+  const row = await prisma.organizationPartyProfile.findFirst({
+    where: { id: params.partyId, ...orgWhere(params.portal, params.organizationId) },
+  });
+  if (!row) throw new AppError(404, "NOT_FOUND", "Party profile not found");
+  if (row.membership_status !== OrganizationPartyMembershipStatus.MASTER_INACTIVE) {
+    throw new AppError(
+      400,
+      "INVALID_PARTY_STATUS",
+      "Only an inactive person on the current profile can be reactivated."
+    );
+  }
+  const current = serializeParty(row);
+  const reviewRequired = partyRequiresAdminReviewForReactivation(current);
+  if (reviewRequired) {
+    return { party: current, reviewRequired: true };
+  }
+  const updated = await prisma.organizationPartyProfile.update({
+    where: { id: row.id },
+    data: { membership_status: OrganizationPartyMembershipStatus.MASTER_ACTIVE },
+  });
+  return { party: serializeParty(updated), reviewRequired: false };
 }
 
 export async function getIssuerFinancialSummary(
