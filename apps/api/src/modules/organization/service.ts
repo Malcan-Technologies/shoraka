@@ -1109,45 +1109,74 @@ export class OrganizationService {
       };
     }
 
+    // TODO: Add dedicated Profile audit tests for multi-field diffs (contactPerson, banking), masking, and unchanged-field suppression.
+    const previousCorporate = (organization.corporate_onboarding_data ?? null) as unknown;
+    const nextCorporate =
+      input.contactPerson !== undefined
+        ? {
+            ...(previousCorporate && typeof previousCorporate === "object" ? (previousCorporate as Record<string, unknown>) : {}),
+            contactPerson: input.contactPerson,
+          }
+        : previousCorporate;
+
     const evidence = buildOrganizationProfileAuditEvidence({
       previous: {
+        name: organization.name,
         phoneNumber: organization.phone_number,
         address: organization.address,
+        firstName: organization.first_name,
+        lastName: organization.last_name,
+        middleName: organization.middle_name,
+        corporateOnboardingData: previousCorporate,
+        bankAccountDetails: organization.bank_account_details,
       },
       next: {
+        name: organization.name,
         phoneNumber:
           input.phoneNumber !== undefined ? input.phoneNumber : organization.phone_number,
         address: input.address !== undefined ? input.address : organization.address,
+        firstName: organization.first_name,
+        lastName: organization.last_name,
+        middleName: organization.middle_name,
+        corporateOnboardingData: nextCorporate,
+        bankAccountDetails:
+          input.bankAccountDetails !== undefined ? input.bankAccountDetails : organization.bank_account_details,
       },
+      corporatePatch: input.contactPerson !== undefined ? { contactPerson: input.contactPerson } : undefined,
       bankFieldsChanged: input.bankAccountDetails !== undefined,
       organizationReference: organization.display_reference,
     });
+
+    const logs =
+      evidence.updatedFields.length > 0
+        ? [
+            {
+              userId,
+              actorUserId: userId,
+              investorOrganizationId: portalType === "investor" ? organizationId : null,
+              issuerOrganizationId: portalType === "issuer" ? organizationId : null,
+              organizationName: organization.name || undefined,
+              role: portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER,
+              eventType: "PROFILE_UPDATED",
+              portal: portalType,
+              metadata: {
+                updatedFields: evidence.updatedFields,
+                bankFieldsChanged: evidence.bankFieldsChanged,
+                previousValues: evidence.previousValues,
+                nextValues: evidence.nextValues,
+                ...(evidence.organizationReference
+                  ? { organizationReference: evidence.organizationReference }
+                  : {}),
+              },
+            },
+          ]
+        : [];
 
     await persistOrganizationUpdateAndOnboardingLogs({
       portalType,
       organizationId,
       data: updateData as Prisma.InvestorOrganizationUpdateInput | Prisma.IssuerOrganizationUpdateInput,
-      logs: [
-        {
-          userId,
-          actorUserId: userId,
-          investorOrganizationId: portalType === "investor" ? organizationId : null,
-          issuerOrganizationId: portalType === "issuer" ? organizationId : null,
-          organizationName: organization.name || undefined,
-          role: portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER,
-          eventType: "PROFILE_UPDATED",
-          portal: portalType,
-          metadata: {
-            updatedFields: evidence.updatedFields,
-            bankFieldsChanged: evidence.bankFieldsChanged,
-            previousValues: evidence.previousValues,
-            nextValues: evidence.nextValues,
-            ...(evidence.organizationReference
-              ? { organizationReference: evidence.organizationReference }
-              : {}),
-          },
-        },
-      ],
+      logs,
     });
 
     logger.info({ organizationId, portalType, userId }, "Organization profile updated");

@@ -192,6 +192,7 @@ export async function updateAdminOrganizationProfile(params: {
             last_name: true,
             middle_name: true,
             corporate_onboarding_data: true,
+            bank_account_details: true,
             type: true,
             display_reference: true,
           },
@@ -208,6 +209,7 @@ export async function updateAdminOrganizationProfile(params: {
             last_name: true,
             middle_name: true,
             corporate_onboarding_data: true,
+            bank_account_details: true,
             type: true,
             display_reference: true,
           },
@@ -250,6 +252,7 @@ export async function updateAdminOrganizationProfile(params: {
       lastName: org.last_name,
       middleName: org.middle_name,
       corporateOnboardingData: org.corporate_onboarding_data,
+      bankAccountDetails: org.bank_account_details,
     },
     next: {
       name: operational.name !== undefined ? operational.name : org.name,
@@ -260,6 +263,10 @@ export async function updateAdminOrganizationProfile(params: {
       middleName: operational.middleName !== undefined ? operational.middleName : org.middle_name,
       corporateOnboardingData:
         (updateData.corporate_onboarding_data as unknown) ?? org.corporate_onboarding_data,
+      bankAccountDetails:
+        operational.bankAccountDetails !== undefined
+          ? operational.bankAccountDetails
+          : org.bank_account_details,
     },
     corporatePatch: operational.corporateOnboardingData,
     bankFieldsChanged,
@@ -267,7 +274,7 @@ export async function updateAdminOrganizationProfile(params: {
   });
   const updatedFields = Array.from(new Set([...evidence.updatedFields, ...masterFieldNames]));
 
-  if (Object.keys(updateData).length > 0) {
+  if (Object.keys(updateData).length > 0 && evidence.updatedFields.length > 0) {
     await persistOrganizationUpdateAndOnboardingLogs({
       portalType: portal,
       organizationId,
@@ -320,7 +327,10 @@ export async function updateAdminOrganizationProfile(params: {
       userAgent: requestMeta.userAgent,
       metadata: {
         updatedBy: adminUserId,
-        updatedFields,
+        updatedFields: evidence.updatedFields,
+        bankFieldsChanged: evidence.bankFieldsChanged,
+        previousValues: evidence.previousValues,
+        nextValues: evidence.nextValues,
         subjectPortal: portal,
       },
       context: {

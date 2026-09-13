@@ -35,6 +35,12 @@ type CorporatePatch = {
   annualRevenue?: string | number | null;
   tinNumber?: string | null;
   businessName?: string | null;
+  contactPerson?: {
+    name?: string | null;
+    position?: string | null;
+    email?: string | null;
+    contact?: string | null;
+  } | null;
   addresses?: {
     business?: unknown;
     registered?: unknown;
@@ -59,7 +65,38 @@ export type OrganizationProfileSnapshot = {
   lastName?: string | null;
   middleName?: string | null;
   corporateOnboardingData?: unknown;
+  bankAccountDetails?: unknown;
 };
+
+function asRecord(v: unknown): Record<string, unknown> | null {
+  return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+}
+
+function extractBankField(bankDetails: unknown, fieldName: string): string | null {
+  const record = asRecord(bankDetails);
+  const content = record?.content;
+  if (!Array.isArray(content)) return null;
+  for (const row of content) {
+    const r = asRecord(row);
+    if (!r) continue;
+    if (r.fieldName === fieldName) {
+      const raw = r.fieldValue;
+      if (raw == null) return null;
+      const s = typeof raw === "string" ? raw.trim() : String(raw).trim();
+      return s.length > 0 ? s : null;
+    }
+  }
+  return null;
+}
+
+function maskBankAccountNumber(value: string | null): string | null {
+  if (!value) return null;
+  const digits = value.replace(/\s+/g, "");
+  if (!/^\d+$/.test(digits)) return value;
+  if (digits.length <= 4) return "****";
+  const last4 = digits.slice(-4);
+  return `****${last4}`;
+}
 
 export function buildOrganizationProfileAuditEvidence(input: {
   previous: OrganizationProfileSnapshot;
@@ -195,8 +232,57 @@ export function buildOrganizationProfileAuditEvidence(input: {
     }
   }
 
+  const prevContact = isPlainObjectRecord(previousCorporate.contactPerson)
+    ? previousCorporate.contactPerson
+    : {};
+  const nextContact = isPlainObjectRecord(nextCorporate.contactPerson)
+    ? nextCorporate.contactPerson
+    : {};
+  if (!patch || patch.contactPerson !== undefined) {
+    for (const key of ["name", "position", "email", "contact"] as const) {
+      recordIfChanged(
+        previousValues,
+        nextValues,
+        updatedFields,
+        `corporateOnboardingData.contactPerson.${key}`,
+        prevContact[key] ?? null,
+        nextContact[key] ?? null
+      );
+    }
+  }
+
   if (input.bankFieldsChanged) {
-    updatedFields.push("bankAccountDetails");
+    const prevBank = input.previous.bankAccountDetails;
+    const nextBank = input.next.bankAccountDetails;
+
+    // Preserve existing behaviour when we don't have the bank payload:
+    // store only the fact that "bank details changed", without dumping JSON.
+    if (prevBank == null || nextBank == null) {
+      updatedFields.push("bankAccountDetails");
+    } else {
+      const prevObj = {
+        bankName:
+          extractBankField(prevBank, "Bank") ?? extractBankField(prevBank, "Bank name") ?? null,
+        accountType: extractBankField(prevBank, "Account type") ?? null,
+        accountNumber: maskBankAccountNumber(
+          extractBankField(prevBank, "Bank account number") ?? extractBankField(prevBank, "Account number")
+        ),
+      };
+      const nextObj = {
+        bankName:
+          extractBankField(nextBank, "Bank") ?? extractBankField(nextBank, "Bank name") ?? null,
+        accountType: extractBankField(nextBank, "Account type") ?? null,
+        accountNumber: maskBankAccountNumber(
+          extractBankField(nextBank, "Bank account number") ?? extractBankField(nextBank, "Account number")
+        ),
+      };
+
+      if (scalarChanged(prevObj, nextObj)) {
+        previousValues.bankAccountDetails = prevObj;
+        nextValues.bankAccountDetails = nextObj;
+        updatedFields.push("bankAccountDetails");
+      }
+    }
   }
 
   const organizationReference = input.organizationReference?.trim() || undefined;
