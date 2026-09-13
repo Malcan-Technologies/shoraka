@@ -132,16 +132,16 @@ describe("loadReceiptMerchantDetails", () => {
     process.env = originalEnv;
   });
 
-  it("requires legal name and registration number in production", () => {
+  it("treats merchant legalName/registrationNumber as optional metadata in production", () => {
     process.env = {
       ...originalEnv,
       NODE_ENV: "production",
       RECEIPT_MERCHANT_LEGAL_NAME: "",
       RECEIPT_MERCHANT_REGISTRATION_NUMBER: "",
     };
-    expect(() => loadReceiptMerchantDetails("CashSouk Sdn Bhd")).toThrow(
-      /RECEIPT_MERCHANT_CONFIG_REQUIRED/
-    );
+    const merchant = loadReceiptMerchantDetails("CashSouk Sdn Bhd");
+    expect(merchant.legalName).toBeNull();
+    expect(merchant.registrationNumber).toBeNull();
   });
 
   it("allows fallback legal name outside production", () => {
@@ -162,6 +162,116 @@ describe("generateGatewayPaymentReceipt", () => {
     process.env.NODE_ENV = "test";
     delete process.env.RECEIPT_MERCHANT_LEGAL_NAME;
     delete process.env.RECEIPT_MERCHANT_REGISTRATION_NUMBER;
+  });
+
+  function withProductionMerchantEnv(input: {
+    legalName?: string | null;
+    registrationNumber?: string | null;
+  }) {
+    process.env.NODE_ENV = "production";
+    if (input.legalName === undefined) {
+      delete process.env.RECEIPT_MERCHANT_LEGAL_NAME;
+    } else if (input.legalName === null) {
+      delete process.env.RECEIPT_MERCHANT_LEGAL_NAME;
+    } else {
+      process.env.RECEIPT_MERCHANT_LEGAL_NAME = input.legalName;
+    }
+
+    if (input.registrationNumber === undefined) {
+      delete process.env.RECEIPT_MERCHANT_REGISTRATION_NUMBER;
+    } else if (input.registrationNumber === null) {
+      delete process.env.RECEIPT_MERCHANT_REGISTRATION_NUMBER;
+    } else {
+      process.env.RECEIPT_MERCHANT_REGISTRATION_NUMBER = input.registrationNumber;
+    }
+  }
+
+  it("production + missing RECEIPT_MERCHANT_LEGAL_NAME still generates", async () => {
+    withProductionMerchantEnv({ legalName: null, registrationNumber: "REG-123" });
+
+    const db = createDbMock();
+    const result = await generateGatewayPaymentReceipt("pay_1", db as never);
+    expect(result?.status).toBe(GatewayPaymentReceiptStatus.GENERATED);
+
+    const html = (renderReceiptHtmlToPdfBuffer as jest.Mock).mock.calls[0][0] as string;
+    expect(html).toContain("SSM / Co. Reg: REG-123");
+  });
+
+  it("production + missing RECEIPT_MERCHANT_REGISTRATION_NUMBER still generates and omits SSM line", async () => {
+    withProductionMerchantEnv({ legalName: "Any Legal Name", registrationNumber: null });
+
+    const db = createDbMock();
+    const result = await generateGatewayPaymentReceipt("pay_1", db as never);
+    expect(result?.status).toBe(GatewayPaymentReceiptStatus.GENERATED);
+
+    const html = (renderReceiptHtmlToPdfBuffer as jest.Mock).mock.calls[0][0] as string;
+    expect(html).not.toContain("SSM / Co. Reg");
+  });
+
+  it("production + neither merchant env var set still generates and omits SSM line", async () => {
+    withProductionMerchantEnv({ legalName: null, registrationNumber: null });
+
+    const db = createDbMock();
+    const result = await generateGatewayPaymentReceipt("pay_1", db as never);
+    expect(result?.status).toBe(GatewayPaymentReceiptStatus.GENERATED);
+
+    const html = (renderReceiptHtmlToPdfBuffer as jest.Mock).mock.calls[0][0] as string;
+    expect(html).not.toContain("SSM / Co. Reg");
+  });
+
+  it("reuses an existing merchant snapshot without legalName for retry generation", async () => {
+    withProductionMerchantEnv({ legalName: null, registrationNumber: null });
+
+    const db = createDbMock({
+      existingReceipt: {
+        id: "rcp_1",
+        receipt_number: "RCP-20260803-001",
+        gateway_payment_id: "pay_1",
+        payment_purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
+        purpose_label: "Issuer Registration Fee",
+        status: GatewayPaymentReceiptStatus.FAILED,
+        pdf_s3_key: null,
+        generation_error: "previous failure",
+        merchant_snapshot: {
+          // Intentionally omit legalName; snapshot should still be reusable.
+          registrationNumber: "SSM-999",
+          licenceNumber: null,
+          address: null,
+          telephone: null,
+          email: null,
+        },
+        amount: { toNumber: () => 150 },
+        currency: "MYR",
+        payment_method: "fpx",
+        payment_date: new Date("2026-08-03T02:00:00.000Z"),
+        curlec_payment_id: "pay_curlec_1",
+        curlec_order_id: "order_1",
+        related_entity_type: "ISSUER_ORGANIZATION",
+        related_entity_id: "issuer_1",
+        related_reference: "SSM-1",
+        wallet_credited: false,
+        payer_name: null,
+        payer_company_name: "Issuer Co",
+        payer_unique_id: null,
+        payer_registration_number: "SSM-1",
+        payer_email: "issuer@example.com",
+        payer_phone: "012",
+        created_at: new Date("2026-08-03T02:00:00.000Z"),
+      },
+    });
+
+    const result = await generateGatewayPaymentReceipt("pay_1", db as never);
+    expect(result?.id).toBe("rcp_1");
+    expect(result?.receipt_number).toBe("RCP-20260803-001");
+    expect(result?.status).toBe(GatewayPaymentReceiptStatus.GENERATED);
+    expect(result?.generation_error).toBeNull();
+    expect(renderReceiptHtmlToPdfBuffer).toHaveBeenCalledTimes(1);
+
+    const html = (renderReceiptHtmlToPdfBuffer as jest.Mock).mock.calls[0][0] as string;
+    expect(html).toContain("SSM / Co. Reg: SSM-999");
+
+    // Retry should not create a second receipt row.
+    expect(db.gatewayPaymentReceipt.create).not.toHaveBeenCalled();
   });
 
   it("skips non-completed payments", async () => {

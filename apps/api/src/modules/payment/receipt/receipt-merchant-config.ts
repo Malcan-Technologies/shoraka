@@ -1,5 +1,5 @@
 export type ReceiptMerchantDetails = {
-  legalName: string;
+  legalName: string | null;
   registrationNumber: string | null;
   licenceNumber: string | null;
   address: string | null;
@@ -30,13 +30,9 @@ export function loadReceiptMerchantDetails(
   );
 
   if (isProductionRuntime()) {
-    if (!fromEnvLegalName || !registrationNumber) {
-      throw new Error(
-        "RECEIPT_MERCHANT_CONFIG_REQUIRED: set RECEIPT_MERCHANT_LEGAL_NAME and RECEIPT_MERCHANT_REGISTRATION_NUMBER in production"
-      );
-    }
-
     return {
+      // Production treats merchant identity as optional metadata.
+      // Receipt template does not currently render legalName, and registrationNumber is conditional.
       legalName: fromEnvLegalName,
       registrationNumber,
       licenceNumber: trimOrNull(process.env.RECEIPT_MERCHANT_LICENCE_NUMBER),
