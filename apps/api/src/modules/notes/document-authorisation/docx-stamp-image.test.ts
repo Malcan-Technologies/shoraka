@@ -108,7 +108,7 @@ describe("applyCompanyStampToDocx", () => {
     expect(xml).not.toContain("<w:drawing>");
   });
 
-  it("downsamples a large stamp so LibreOffice cannot overflow onto an extra page", () => {
+  it("preserves a large stamp bitmap and still caps rendered footprint via wp:extent", () => {
     const png = new PNG({ width: 800, height: 800 });
     png.data.fill(200);
     for (let i = 3; i < png.data.length; i += 4) png.data[i] = 255;
@@ -121,11 +121,7 @@ describe("applyCompanyStampToDocx", () => {
     const embedded = zip.file("word/media/company-stamp.png")?.asNodeBuffer();
     expect(embedded).toBeTruthy();
     const size = readPngSize(embedded!);
-    const box = maxStampPixelBox({
-      maxWidthEmu: COMPACT_MAX_STAMP_WIDTH_EMU,
-      maxHeightEmu: COMPACT_MAX_STAMP_HEIGHT_EMU,
-    });
-    expect(size).toEqual({ width: box.height, height: box.height });
+    expect(size).toEqual({ width: 800, height: 800 });
     const xml = drawingXml(rendered);
     expect(xml).toContain(`<wp:extent cx="${COMPACT_MAX_STAMP_HEIGHT_EMU}" cy="${COMPACT_MAX_STAMP_HEIGHT_EMU}"/>`);
   });

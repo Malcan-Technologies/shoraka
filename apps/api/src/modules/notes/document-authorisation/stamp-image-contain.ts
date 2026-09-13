@@ -378,36 +378,24 @@ export function fitStampImageForDocx(
   const raster = tryDecodeRaster(bytes);
   if (raster) {
     const extent = stampExtentEmuFromPixels(raster.width, raster.height, bounds);
-    const box = maxStampPixelBox(bounds);
-
-    // Only downsample when the source is *massively* larger than what we can render.
-    // For normal-sized uploads, keep original pixels and only control physical size via wp:extent + pHYs/JFIF.
-    const downsampleNeeded =
-      raster.width > box.width * 2 || raster.height > box.height * 2 || raster.width * raster.height > 5_000_000;
 
     const normalized = (contentType ?? "").trim().toLowerCase();
     const wantsPng = normalized === "image/png" || bytes.subarray(0, 8).compare(PNG_SIGNATURE) === 0;
     const wantsJpeg = normalized === "image/jpeg" || normalized === "image/jpg";
 
-    if (!downsampleNeeded) {
-      if (wantsPng) {
-        const withPhys = pngWithPhysForExtent(bytes, raster.width, raster.height, extent);
-        return { bytes: withPhys ?? bytes, contentType: "image/png", extent };
-      }
-      if (wantsJpeg) {
-        const withDpi = jpegWithJfifDpi(bytes, extent, { width: raster.width, height: raster.height });
-        return { bytes: withDpi ?? bytes, contentType: "image/jpeg", extent };
-      }
-      // WebP path: we may not be able to attach physical sizing metadata without decoding,
-      // so we keep the original bytes and rely on wp:extent sizing.
-      return { bytes, contentType: "image/webp", extent };
+    // Quality-first: never resize/re-encode bitmap pixels.
+    // We control the physical size using wp:extent, and only adjust metadata for DOCX/LibreOffice compatibility.
+    if (wantsPng) {
+      const withPhys = pngWithPhysForExtent(bytes, raster.width, raster.height, extent);
+      return { bytes: withPhys ?? bytes, contentType: "image/png", extent };
+    }
+    if (wantsJpeg) {
+      const withDpi = jpegWithJfifDpi(bytes, extent, { width: raster.width, height: raster.height });
+      return { bytes: withDpi ?? bytes, contentType: "image/jpeg", extent };
     }
 
-    const target = containPixelSize(raster.width, raster.height, box.width, box.height);
-    const fitted = resizeRgbaBilinear(raster, target.width, target.height);
-    const pngBytes = encodePngRgba(fitted);
-    const withPhys = pngWithPhysForExtent(pngBytes, fitted.width, fitted.height, extent);
-    return { bytes: withPhys ?? pngBytes, contentType: "image/png", extent };
+    // WebP path: keep original bytes and rely on wp:extent sizing.
+    return { bytes, contentType: fallbackMime(contentType), extent };
   }
 
   const size = readPngSize(bytes) ?? readJpegSize(bytes) ?? readWebpSize(bytes);
