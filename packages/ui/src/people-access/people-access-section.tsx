@@ -11,7 +11,6 @@ import { createApiClient, useAuthToken, PARTY_STATUS_REFRESHED_MESSAGE, PARTY_ST
 import {
   buildPeopleAccessRows,
   canManageDirectorShareholder,
-  computeIssuerPersonCompleteness,
   filterPeopleAccessRows,
   filterVisiblePeopleRows,
   formatPeopleRolesLine,
@@ -20,6 +19,7 @@ import {
   isMissingGovernmentIdPerson,
   isPersonEmailLifecycleLocked,
   issuerPersonCompletenessInputFromParty,
+  issuerPersonCompletenessSummary,
   normalizeDirectorShareholderIdKey,
   normalizeDirectorShareholderPartyEmail,
   peopleAccessAmlChipPresentation,
@@ -478,7 +478,6 @@ export function PeopleAccessSection({
                   <PeopleAccessTableRow
                     key={row.key}
                     row={row}
-                    portal={portal}
                     canEdit={canEdit}
                     canInactivate={canInactivate}
                     currentUserId={currentUserId}
@@ -588,6 +587,19 @@ export function PeopleAccessSection({
               >
                 <p className="text-ui font-medium">{row.name}</p>
                 <p className="text-meta text-muted-foreground">{row.companyRoleLine}</p>
+                {row.kind === "company_person" && row.party ? (
+                  (() => {
+                    const missingCount = issuerPersonCompletenessSummary(
+                      issuerPersonCompletenessInputFromParty({
+                        ...row.party,
+                        kycOnboardingStatus: row.person?.onboarding?.status ?? null,
+                      })
+                    ).missingCount;
+                    return missingCount > 0 ? (
+                      <p className="text-meta text-status-action-text">{missingCount} details missing</p>
+                    ) : null;
+                  })()
+                ) : null}
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <AccessBadge label={row.platformAccess} />
                   <PeopleAccessKycStatus
@@ -1127,7 +1139,6 @@ export function PeopleAccessSection({
 
 function PeopleAccessTableRow({
   row,
-  portal,
   canEdit,
   canInactivate,
   currentUserId,
@@ -1149,7 +1160,6 @@ function PeopleAccessTableRow({
   onRefreshStatus,
 }: {
   row: PeopleAccessRow;
-  portal: PortalPeoplePortal;
   canEdit: boolean;
   canInactivate: boolean;
   currentUserId?: string | null;
@@ -1172,15 +1182,16 @@ function PeopleAccessTableRow({
 }) {
   const isSelf = Boolean(currentUserId && row.userId === currentUserId);
   const isOwnerRow = row.platformAccess === "Owner";
-  const missingCount =
-    portal === "issuer" && row.party
-      ? computeIssuerPersonCompleteness(
+  const missingSummary =
+    row.kind === "company_person" && row.party
+      ? issuerPersonCompletenessSummary(
           issuerPersonCompletenessInputFromParty({
             ...row.party,
             kycOnboardingStatus: row.person?.onboarding?.status ?? null,
           })
-        ).length
-      : 0;
+        )
+      : null;
+  const missingCount = missingSummary?.missingCount ?? 0;
   const canSend =
     canEdit &&
     !blockOnboarding &&
@@ -1223,7 +1234,7 @@ function PeopleAccessTableRow({
         <div className="min-w-0">
           <p className="truncate font-medium">{row.name}</p>
           {missingCount > 0 ? (
-            <p className="text-meta text-status-action-text">{missingCount} profile fields remaining</p>
+            <p className="text-meta text-status-action-text">{missingCount} details missing</p>
           ) : null}
         </div>
       </td>

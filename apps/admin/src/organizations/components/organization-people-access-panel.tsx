@@ -17,6 +17,8 @@ import {
   peopleAccessAmlChipPresentation,
   peopleAccessKycChipPresentation,
   peopleAccessPlatformBadgeStatus,
+  issuerPersonCompletenessInputFromParty,
+  issuerPersonCompletenessSummary,
   relatedPartyVerificationCaption,
   type AdminPeopleAccessFilter,
   type AdminPeopleAccessRow,
@@ -373,6 +375,15 @@ function PeopleAccessTableRow({
   const ctosStatus = adminPeopleAccessCtosBadgeStatus(row.ctos);
   const needsAction = adminPeopleAccessRowNeedsAttention(row);
   const party = row.party;
+  const missingCount =
+    party && row.kind !== "people_only" && row.kind !== "platform_only"
+      ? issuerPersonCompletenessSummary(
+          issuerPersonCompletenessInputFromParty({
+            ...party,
+            kycOnboardingStatus: row.person?.onboarding?.status ?? null,
+          })
+        ).missingCount
+      : 0;
   const belowMinimumShareholder = isIssuerShareholderOnlyBelowMinimum({
     isShareholder: party?.isShareholder ?? false,
     isDirector: party?.isDirector ?? false,
@@ -408,6 +419,9 @@ function PeopleAccessTableRow({
     >
       <TableCell className="max-w-[180px]">
         <div className="truncate font-medium">{row.name}</div>
+        {missingCount > 0 ? (
+          <div className="text-meta text-status-action-text">{missingCount} details missing</div>
+        ) : null}
         {row.kind === "people_only" ? (
           <div className="text-meta text-status-action-text">Not on current profile</div>
         ) : null}

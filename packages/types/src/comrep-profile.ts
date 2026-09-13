@@ -1791,6 +1791,14 @@ export function computeIssuerPersonCompleteness(
     }));
 }
 
+export function issuerPersonCompletenessSummary(
+  party: IssuerPersonCompletenessInput
+): { missingCount: number; missingFields: string[]; missingItems: ProfileMissingItem[] } {
+  const missingItems = computeIssuerPersonCompleteness(party);
+  const missingFields = Array.from(new Set(missingItems.map((item) => item.label)));
+  return { missingCount: missingItems.length, missingFields, missingItems };
+}
+
 export function dedupeProfileMissingByPartyField(items: ProfileMissingItem[]): ProfileMissingItem[] {
   const seen = new Set<string>();
   const out: ProfileMissingItem[] = [];

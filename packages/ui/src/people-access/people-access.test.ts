@@ -162,3 +162,20 @@ describe("Add company person role-driven onboarding", () => {
     expect(section).toContain("Invite user");
   });
 });
+
+describe("People & Access completeness copy", () => {
+  it("surfaces incomplete company-person completeness as 'X details missing'", () => {
+    expect(section).toContain("details missing");
+  });
+
+  it("shows a compact completeness notice in incomplete person Overview", () => {
+    expect(detail).toContain("Complete this profile");
+    expect(detail).toContain("details are still missing");
+    expect(detail).toContain("Complete details");
+  });
+
+  it("only computes person completeness when a company-person party exists", () => {
+    expect(detail).toContain("if (!party || inactive) return null;");
+    expect(detail).toContain("missingCount > 0");
+  });
+});
