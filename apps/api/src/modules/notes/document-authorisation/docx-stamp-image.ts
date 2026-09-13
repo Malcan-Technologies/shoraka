@@ -25,8 +25,8 @@ export type AuthorisationImageSizing = "default" | "compact";
 
 // Compact bounds reduce the actual rendered footprint for the two DOCX templates
 // where we need signature/stamp to stay within a single A4 page.
-export const COMPACT_MAX_STAMP_WIDTH_EMU = 1_200_000;
-export const COMPACT_MAX_STAMP_HEIGHT_EMU = 600_000;
+export const COMPACT_MAX_STAMP_WIDTH_EMU = 900_000;
+export const COMPACT_MAX_STAMP_HEIGHT_EMU = 450_000;
 
 const COMPACT_BOUNDS: StampMaxBoundsEmu = {
   maxWidthEmu: COMPACT_MAX_STAMP_WIDTH_EMU,

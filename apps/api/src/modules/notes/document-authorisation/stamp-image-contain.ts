@@ -171,6 +171,51 @@ function resizeRgbaNearest(src: RasterRgba, dstW: number, dstH: number): RasterR
   return { width: dstW, height: dstH, data: dst };
 }
 
+function resizeRgbaBilinear(src: RasterRgba, dstW: number, dstH: number): RasterRgba {
+  if (src.width === dstW && src.height === dstH) {
+    return { width: dstW, height: dstH, data: Buffer.from(src.data) };
+  }
+
+  const dst = Buffer.alloc(dstW * dstH * 4);
+
+  // Use center-of-pixel mapping for more stable resampling.
+  const xScale = src.width / dstW;
+  const yScale = src.height / dstH;
+
+  for (let y = 0; y < dstH; y += 1) {
+    const srcY = (y + 0.5) * yScale - 0.5;
+    const y0 = Math.max(0, Math.floor(srcY));
+    const y1 = Math.min(src.height - 1, y0 + 1);
+    const fy = Math.max(0, Math.min(1, srcY - y0));
+
+    for (let x = 0; x < dstW; x += 1) {
+      const srcX = (x + 0.5) * xScale - 0.5;
+      const x0 = Math.max(0, Math.floor(srcX));
+      const x1 = Math.min(src.width - 1, x0 + 1);
+      const fx = Math.max(0, Math.min(1, srcX - x0));
+
+      const i00 = (y0 * src.width + x0) * 4;
+      const i10 = (y0 * src.width + x1) * 4;
+      const i01 = (y1 * src.width + x0) * 4;
+      const i11 = (y1 * src.width + x1) * 4;
+
+      const di = (y * dstW + x) * 4;
+      for (let c = 0; c < 4; c += 1) {
+        const v00 = src.data[i00 + c]!;
+        const v10 = src.data[i10 + c]!;
+        const v01 = src.data[i01 + c]!;
+        const v11 = src.data[i11 + c]!;
+
+        const v0 = v00 * (1 - fx) + v10 * fx;
+        const v1 = v01 * (1 - fx) + v11 * fx;
+        dst[di + c] = Math.round(v0 * (1 - fy) + v1 * fy);
+      }
+    }
+  }
+
+  return { width: dstW, height: dstH, data: dst };
+}
+
 function tryDecodeRaster(bytes: Buffer): RasterRgba | null {
   try {
     const png = PNG.sync.read(bytes);
@@ -334,8 +379,32 @@ export function fitStampImageForDocx(
   if (raster) {
     const extent = stampExtentEmuFromPixels(raster.width, raster.height, bounds);
     const box = maxStampPixelBox(bounds);
+
+    // Only downsample when the source is *massively* larger than what we can render.
+    // For normal-sized uploads, keep original pixels and only control physical size via wp:extent + pHYs/JFIF.
+    const downsampleNeeded =
+      raster.width > box.width * 2 || raster.height > box.height * 2 || raster.width * raster.height > 5_000_000;
+
+    const normalized = (contentType ?? "").trim().toLowerCase();
+    const wantsPng = normalized === "image/png" || bytes.subarray(0, 8).compare(PNG_SIGNATURE) === 0;
+    const wantsJpeg = normalized === "image/jpeg" || normalized === "image/jpg";
+
+    if (!downsampleNeeded) {
+      if (wantsPng) {
+        const withPhys = pngWithPhysForExtent(bytes, raster.width, raster.height, extent);
+        return { bytes: withPhys ?? bytes, contentType: "image/png", extent };
+      }
+      if (wantsJpeg) {
+        const withDpi = jpegWithJfifDpi(bytes, extent, { width: raster.width, height: raster.height });
+        return { bytes: withDpi ?? bytes, contentType: "image/jpeg", extent };
+      }
+      // WebP path: we may not be able to attach physical sizing metadata without decoding,
+      // so we keep the original bytes and rely on wp:extent sizing.
+      return { bytes, contentType: "image/webp", extent };
+    }
+
     const target = containPixelSize(raster.width, raster.height, box.width, box.height);
-    const fitted = resizeRgbaNearest(raster, target.width, target.height);
+    const fitted = resizeRgbaBilinear(raster, target.width, target.height);
     const pngBytes = encodePngRgba(fitted);
     const withPhys = pngWithPhysForExtent(pngBytes, fitted.width, fitted.height, extent);
     return { bytes: withPhys ?? pngBytes, contentType: "image/png", extent };
