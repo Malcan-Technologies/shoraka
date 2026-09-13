@@ -41,6 +41,10 @@ export interface LegalExternalAcceptanceListItem {
   sourceId: string;
   envelopeId: string | null;
   applicationId: string | null;
+  /** Application.display_reference (when applicationId is present). */
+  applicationReference?: string | null;
+  /** SigningEnvelope.title (when envelopeId is present). */
+  envelopeTitle?: string | null;
   organizationId: string | null;
   organizationName: string | null;
   openedAt: string | null;

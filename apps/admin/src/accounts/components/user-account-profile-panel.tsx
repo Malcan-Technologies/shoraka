@@ -191,6 +191,22 @@ export function UserAccountProfilePanel({
             {editingSection === "profile" ? (
               <>
                 <EditableField
+                  label="First name"
+                  value={draft.firstName}
+                  onChange={(firstName) => setDraft((current) => ({ ...current, firstName }))}
+                />
+                <EditableField
+                  label="Last name"
+                  value={draft.lastName}
+                  onChange={(lastName) => setDraft((current) => ({ ...current, lastName }))}
+                />
+                <ReadField label="Email" value={user.email ?? null} />
+                <EditableField
+                  label="Phone"
+                  value={draft.phone}
+                  onChange={(phone) => setDraft((current) => ({ ...current, phone }))}
+                />
+                <EditableField
                   label="Internal User ID"
                   value={draft.userId}
                   maxLength={5}
@@ -202,31 +218,17 @@ export function UserAccountProfilePanel({
                     }))
                   }
                 />
-                <EditableField
-                  label="First name"
-                  value={draft.firstName}
-                  onChange={(firstName) => setDraft((current) => ({ ...current, firstName }))}
-                />
-                <EditableField
-                  label="Last name"
-                  value={draft.lastName}
-                  onChange={(lastName) => setDraft((current) => ({ ...current, lastName }))}
-                />
-                <EditableField
-                  label="Phone"
-                  value={draft.phone}
-                  onChange={(phone) => setDraft((current) => ({ ...current, phone }))}
-                />
               </>
             ) : (
               <>
+                <ReadField label="First name" value={user.first_name} />
+                <ReadField label="Last name" value={user.last_name} />
+                <ReadField label="Email" value={user.email ?? null} />
+                <ReadField label="Phone" value={user.phone} />
                 <ReadField
                   label="Internal User ID"
                   value={user.user_id ? <span className="font-mono">{user.user_id}</span> : null}
                 />
-                <ReadField label="First name" value={user.first_name} />
-                <ReadField label="Last name" value={user.last_name} />
-                <ReadField label="Phone" value={user.phone} />
               </>
             )}
           </div>

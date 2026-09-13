@@ -100,7 +100,6 @@ export function LegalAcceptanceDetailSheet({
                   label="Event"
                   value={legalAcceptanceEventLabel(acceptance.status)}
                 />
-                <DetailField label="Acceptance ID" value={acceptance.id} />
                 <DetailField
                   label="Status"
                   value={
@@ -158,8 +157,6 @@ export function LegalAcceptanceDetailSheet({
                   label="Version"
                   value={acceptance.versionNumber != null ? `v${acceptance.versionNumber}` : "—"}
                 />
-                <DetailField label="Version ID" value={acceptance.legalDocumentVersionId} />
-                <DetailField label="Document ID" value={acceptance.legalDocumentId} />
                 <DetailField label="Hash" value={acceptance.documentHash} />
                 <DetailField label="File name" value={acceptance.fileName} />
                 <DetailField label="Version status" value={acceptance.versionStatus ?? "—"} />
@@ -182,10 +179,8 @@ export function LegalAcceptanceDetailSheet({
             <div className="space-y-4">
               <h3 className="text-ui font-semibold">User / organization</h3>
               <div className="grid gap-4 sm:grid-cols-2">
-                <DetailField label="User ID" value={acceptance.userId} />
                 <DetailField label="User name snapshot" value={acceptance.userName} />
                 <DetailField label="User email snapshot" value={acceptance.userEmail} />
-                <DetailField label="Organization ID" value={acceptance.organizationId} />
                 <DetailField
                   label="Organization name snapshot"
                   value={acceptance.organizationName}
@@ -197,6 +192,26 @@ export function LegalAcceptanceDetailSheet({
                 <DetailField
                   label="Portal"
                   value={<PortalBadge portal={acceptance.portal} />}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="text-ui font-semibold">Technical details</h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <DetailField label="Internal Acceptance ID" value={acceptance.id} />
+                <DetailField
+                  label="Internal Legal Document Version ID"
+                  value={acceptance.legalDocumentVersionId}
+                />
+                <DetailField
+                  label="Internal Legal Document ID"
+                  value={acceptance.legalDocumentId}
+                />
+                <DetailField label="Internal User ID" value={acceptance.userId} />
+                <DetailField
+                  label="Internal Organisation ID"
+                  value={acceptance.organizationId}
                 />
               </div>
             </div>

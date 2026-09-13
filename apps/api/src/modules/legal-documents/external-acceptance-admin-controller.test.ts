@@ -17,6 +17,10 @@ describe("legal external acceptance Admin export route", () => {
     expect(controller).toContain("row.partyIcMasked");
     expect(controller).not.toContain("partyIcNumber");
     expect(controller).not.toContain("party_ic_number");
+    expect(controller).toContain('"Application Reference"');
+    expect(controller).toContain('"Application ID"');
+    expect(controller).toContain('"Envelope Title"');
+    expect(controller).toContain('"Envelope ID"');
     expect(controller).not.toMatch(/\.\.\.row\b/);
   });
 
