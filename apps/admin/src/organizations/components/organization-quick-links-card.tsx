@@ -79,10 +79,10 @@ export function OrganizationQuickLinksCard({
           label="Owner account"
           value={org.owner.userId}
           href={ownerHref}
-          display={ownerName ? `${ownerName} (${org.owner.userId})` : org.owner.userId}
+          display={ownerName ? ownerName : org.owner.userId}
         />
         <QuickLink label="Organisation reference" value={reference} />
-        <QuickLink label="Organisation ID" value={org.id} />
+        <QuickLink label="Internal Organisation ID" value={org.id} />
         {org.type === "COMPANY" && org.codRequestId ? (
           <QuickLink
             label="COD"

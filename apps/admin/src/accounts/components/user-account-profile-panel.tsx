@@ -191,7 +191,7 @@ export function UserAccountProfilePanel({
             {editingSection === "profile" ? (
               <>
                 <EditableField
-                  label="User ID"
+                  label="Internal User ID"
                   value={draft.userId}
                   maxLength={5}
                   inputClassName="font-mono uppercase"
@@ -221,7 +221,7 @@ export function UserAccountProfilePanel({
             ) : (
               <>
                 <ReadField
-                  label="User ID"
+                  label="Internal User ID"
                   value={user.user_id ? <span className="font-mono">{user.user_id}</span> : null}
                 />
                 <ReadField label="First name" value={user.first_name} />
