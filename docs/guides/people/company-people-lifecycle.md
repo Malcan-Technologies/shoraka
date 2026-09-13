@@ -259,8 +259,9 @@ Effects:
 
 Customer routes:
 - Requires org owner or org admin (`assertOrgOwnerOrAdmin`).
-- Inactivate endpoint currently blocks non-issuer portal (`portal !== "issuer"` guard).
-- Reactivate route is available for both issuer/investor and owner/org-admin.
+- Issuer company: owner/admin can inactivate and reactivate.
+- Investor company: owner/admin can inactivate and reactivate.
+- Regular member/user: cannot inactivate or reactivate.
 
 Admin routes:
 - Require `organizations.manage`.
@@ -407,7 +408,6 @@ flowchart LR
 
 - **PRODUCT DECISION NEEDED:** Should customer see a non-blocking “external source empty, fallback shown” informational state distinct from “no usable people”?
 - **PRODUCT DECISION NEEDED:** Should issuer submit guard fail when there are zero visible individual people (currently treated as ready)?
-- **PRODUCT DECISION NEEDED:** Should investor customer route support inactivate like issuer route, or is issuer-only intentional?
 - **PRODUCT DECISION NEEDED:** For minimal manual adds without identity, should there be a guided reconciliation UX to reduce duplicate-human rows before CTOS matching?
 
 ## 29) Primary Code References

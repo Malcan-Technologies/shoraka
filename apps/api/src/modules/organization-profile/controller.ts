@@ -239,13 +239,6 @@ export function createOrganizationProfileRouter() {
     async (req: Request, res: Response, next: NextFunction) => {
       try {
         const portal = portalFromParams(req);
-        if (portal !== "issuer") {
-          throw new AppError(
-            403,
-            "FORBIDDEN",
-            "Only issuer organization owners and admins can mark people inactive"
-          );
-        }
         const { id, partyId } = req.params;
         await assertOrgOwnerOrAdmin(req, portal, id);
         const data = await inactivateMasterParty({

@@ -1877,6 +1877,35 @@ describe("user-added master parties", () => {
     expect(stored?.external_observation).toEqual({ name: "ABSENT" });
   });
 
+  it("inactivates an investor MASTER_ACTIVE party with the same shared flow", async () => {
+    parties.push(
+      row({
+        id: "p-investor",
+        issuer_organization_id: null,
+        investor_organization_id: "org-1",
+        party_key: "770101011112",
+        identity_number: "770101011112",
+        name: "Investor Person",
+        is_director: true,
+        user_id: "user-investor-1",
+        external_observation: { name: "INVESTOR PERSON" },
+      })
+    );
+    const before = { ...(parties.find((p) => p.id === "p-investor") as Record<string, unknown>) };
+    const updated = await inactivateMasterParty({
+      portal: "investor",
+      organizationId: "org-1",
+      partyId: "p-investor",
+    });
+    expect(updated.membershipStatus).toBe("MASTER_INACTIVE");
+    const after = parties.find((p) => p.id === "p-investor") as Record<string, unknown>;
+    expect(after.membership_status).toBe(OrganizationPartyMembershipStatus.MASTER_INACTIVE);
+    expect(after.party_key).toBe(before.party_key);
+    expect(after.identity_number).toBe(before.identity_number);
+    expect(after.user_id).toBe(before.user_id);
+    expect(after.external_observation).toEqual(before.external_observation);
+  });
+
   it("inactivates a USER_ADDED MASTER_ACTIVE party without deleting the row", async () => {
     parties.push(
       row({

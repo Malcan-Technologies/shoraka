@@ -1637,7 +1637,7 @@ export default function ProfilePage() {
                     ctosDirectorShareholderWarning={orgData?.ctosDirectorShareholderWarning ?? null}
                     focusedMatchKey={focusedPersonKey}
                     canEdit={isCurrentUserAdmin}
-                    canInactivate={false}
+                    canInactivate={isCurrentUserAdmin}
                     currentUserId={currentUser?.userId}
                     ownerUserId={activeOrganization.ownerId}
                     members={activeOrganization.members ?? []}

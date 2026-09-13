@@ -137,10 +137,46 @@ describe("issuer and admin party inactivation routes", () => {
     });
   });
 
+  it("lets an investor owner mark an active member inactive", async () => {
+    mockAuthState.user = { user_id: "owner-1" };
+    const response = await request(app).post(
+      "/v1/organizations/investor/org-a/party-profiles/party-a/inactivate"
+    );
+    expect(response.status).toBe(200);
+    expect(response.body.data.membershipStatus).toBe("MASTER_INACTIVE");
+    expect(mockInactivateMasterParty).toHaveBeenCalledWith({
+      portal: "investor",
+      organizationId: "org-a",
+      partyId: "party-a",
+    });
+  });
+
+  it("lets an investor organization admin mark an active member inactive", async () => {
+    mockAuthState.user = { user_id: "admin-1" };
+    const response = await request(app).post(
+      "/v1/organizations/investor/org-a/party-profiles/party-a/inactivate"
+    );
+    expect(response.status).toBe(200);
+    expect(mockInactivateMasterParty).toHaveBeenCalledWith({
+      portal: "investor",
+      organizationId: "org-a",
+      partyId: "party-a",
+    });
+  });
+
   it("blocks an ordinary issuer member from marking a person inactive", async () => {
     mockAuthState.user = { user_id: "member-1" };
     const response = await request(app).post(
       "/v1/organizations/issuer/org-a/party-profiles/party-a/inactivate"
+    );
+    expect(response.status).toBe(403);
+    expect(mockInactivateMasterParty).not.toHaveBeenCalled();
+  });
+
+  it("blocks an ordinary investor member from marking a person inactive", async () => {
+    mockAuthState.user = { user_id: "member-1" };
+    const response = await request(app).post(
+      "/v1/organizations/investor/org-a/party-profiles/party-a/inactivate"
     );
     expect(response.status).toBe(403);
     expect(mockInactivateMasterParty).not.toHaveBeenCalled();
