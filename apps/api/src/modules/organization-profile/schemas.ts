@@ -33,7 +33,12 @@ import {
   validatePartyPatch,
   COMPANY_STAMP_ALLOWED_CONTENT_TYPES,
   COMPANY_STAMP_MAX_FILE_SIZE_BYTES,
+  OPERATOR_DOCUMENT_EXECUTION_ROLES,
+  allDocumentExecutionSlots,
+  isValidExecutionSlotIndex,
   OPERATOR_SIGNING_ROLES,
+  normalizeSigningEmail,
+  signingCloudLegalImageDeclaredFileRejection,
   type ComrepFieldIssue,
 } from "@cashsouk/types";
 
@@ -532,10 +537,22 @@ const operatorSigningRolesSchema = z
     message: "Duplicate signing role",
   });
 
+const operatorSigningEmailSchema = z
+  .union([z.string(), z.null()])
+  .transform((value) => {
+    if (value === null) return null;
+    const normalized = normalizeSigningEmail(value);
+    return normalized === "" ? null : normalized;
+  })
+  .refine((value) => value === null || z.string().email().max(255).safeParse(value).success, {
+    message: "Enter a valid e-mail address.",
+  });
+
 export const operatorSigningPersonCreateSchema = z
   .object({
     officerId: z.string().cuid(),
     roles: operatorSigningRolesSchema,
+    signingEmail: operatorSigningEmailSchema.optional(),
     signature: operatorSigningStampFieldsSchema,
     active: z.boolean().optional(),
   })
@@ -544,6 +561,7 @@ export const operatorSigningPersonCreateSchema = z
 export const operatorSigningPersonUpdateSchema = z
   .object({
     roles: operatorSigningRolesSchema.optional(),
+    signingEmail: operatorSigningEmailSchema.optional(),
     signature: operatorSigningStampFieldsSchema,
     active: z.boolean().optional(),
   })
@@ -567,6 +585,74 @@ export const requestOperatorSigningImageUploadUrlSchema = z.object({
   }),
 });
 
+export const requestOperatorSigningSignatureUploadUrlSchema = z
+  .object({
+    fileName: z.string().min(1),
+    contentType: z.string().min(1),
+    fileSize: z.number().int(),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    const rejection = signingCloudLegalImageDeclaredFileRejection(
+      value.contentType,
+      value.fileSize
+    );
+    if (rejection) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: rejection });
+    }
+  });
+
+export const confirmOperatorSigningSignatureSchema = z
+  .object({
+    s3Key: z.string().min(1),
+  })
+  .strict();
+
+export const operatorSigningSignatureConfirmSchema = confirmOperatorSigningSignatureSchema;
+
+const operatorDocumentExecutionBindingSchema = z
+  .object({
+    roleKey: z.enum(OPERATOR_DOCUMENT_EXECUTION_ROLES),
+    slotIndex: z.number().int().min(1),
+    signingPersonId: z.string().cuid().nullable(),
+    legalEntityLabel: z.string().trim().max(255),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    if (!isValidExecutionSlotIndex(value.roleKey, value.slotIndex)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["slotIndex"],
+        message: "Slot index is not valid for this execution role.",
+      });
+    }
+  });
+
+export const operatorDocumentExecutionBindingsPutSchema = z
+  .object({
+    bindings: z
+      .array(operatorDocumentExecutionBindingSchema)
+      .refine(
+        (bindings) => {
+          const expected = allDocumentExecutionSlots();
+          if (bindings.length !== expected.length) return false;
+          const keys = bindings.map((row) => `${row.roleKey}:${row.slotIndex}`);
+          if (new Set(keys).size !== keys.length) return false;
+          return expected.every((slot) =>
+            bindings.some((row) => row.roleKey === slot.roleKey && row.slotIndex === slot.slotIndex)
+          );
+        },
+        { message: "Provide every CashSouk representative and witness assignment slot." }
+      ),
+  })
+  .strict();
+
 export type OperatorSigningPersonCreateInput = z.infer<typeof operatorSigningPersonCreateSchema>;
 export type OperatorSigningPersonUpdateInput = z.infer<typeof operatorSigningPersonUpdateSchema>;
 export type OperatorCompanyStampPatchInput = z.infer<typeof operatorCompanyStampPatchSchema>;
+export type OperatorSigningSignatureConfirmInput = z.infer<
+  typeof operatorSigningSignatureConfirmSchema
+>;
+export type OperatorDocumentExecutionBindingsPutInput = z.infer<
+  typeof operatorDocumentExecutionBindingsPutSchema
+>;

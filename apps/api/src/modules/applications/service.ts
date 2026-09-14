@@ -73,7 +73,7 @@ import {
 } from "./authorized-representatives-review";
 import {
   applicationGuarantorsForParties,
-  assertAuthorizedPartiesValid,
+  assertAuthorizedPartiesForOffer,
   loadIssuerDirectorPool,
   type ApplicationGuarantorForParties,
 } from "./authorized-parties";
@@ -2766,7 +2766,12 @@ export class ApplicationService {
     const guarantors = applicationGuarantorsForParties(
       (application as { application_guarantors?: unknown }).application_guarantors
     );
-    assertAuthorizedPartiesValid(authorizedPartiesPayload.parties, directorPool, guarantors);
+    await assertAuthorizedPartiesForOffer(
+      authorizedPartiesPayload.parties,
+      directorPool,
+      guarantors,
+      { issuerOrganizationId: application.issuer_organization_id, workflow }
+    );
 
     const now = new Date().toISOString();
     const draft = stampAuthorizedPartiesSnapshot({
@@ -2863,7 +2868,12 @@ export class ApplicationService {
     const guarantors = applicationGuarantorsForParties(
       (application as { application_guarantors?: unknown }).application_guarantors
     );
-    assertAuthorizedPartiesValid(authorizedPartiesPayload.parties, directorPool, guarantors);
+    await assertAuthorizedPartiesForOffer(
+      authorizedPartiesPayload.parties,
+      directorPool,
+      guarantors,
+      { issuerOrganizationId: application.issuer_organization_id, workflow }
+    );
 
     const now = new Date().toISOString();
     const authorizedParties = stampAuthorizedPartiesSnapshot({
@@ -3043,7 +3053,12 @@ export class ApplicationService {
     const guarantors = applicationGuarantorsForParties(
       (application as { application_guarantors?: unknown }).application_guarantors
     );
-    assertAuthorizedPartiesValid(authorizedPartiesPayload.parties, directorPool, guarantors);
+    await assertAuthorizedPartiesForOffer(
+      authorizedPartiesPayload.parties,
+      directorPool,
+      guarantors,
+      { issuerOrganizationId: application.issuer_organization_id, workflow }
+    );
 
     const now = new Date().toISOString();
     const authorizedParties = stampAuthorizedPartiesSnapshot({

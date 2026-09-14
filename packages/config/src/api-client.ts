@@ -169,6 +169,10 @@ import type {
   IssuerOrgFinancialSummary,
   OrganizationPartyProfileDto,
   OperatorProfileDto,
+  OperatorDocumentExecutionBindingInput,
+  SigningPackageReadinessDto,
+  OperatorSignatureConfirmDto,
+  IssuerCompanySealDto,
   PartyMismatchResolveInput,
 } from "@cashsouk/types";
 import { parseContentDispositionFilename } from "./content-disposition-filename";
@@ -687,6 +691,38 @@ export class ApiClient {
     );
   }
 
+  async getIssuerCompanySeal(
+    organizationId: string
+  ): Promise<ApiResponse<{ seal: IssuerCompanySealDto | null }> | ApiError> {
+    return this.get(`/v1/organizations/issuer/${organizationId}/company-seal`);
+  }
+
+  async requestIssuerCompanySealUploadUrl(
+    organizationId: string,
+    data: { fileName: string; contentType: string; fileSize: number }
+  ): Promise<ApiResponse<{ uploadUrl: string; s3Key: string; expiresIn: number }> | ApiError> {
+    return this.post(`/v1/organizations/issuer/${organizationId}/company-seal/upload-url`, data);
+  }
+
+  async confirmIssuerCompanySeal(
+    organizationId: string,
+    data: { s3Key: string; fileName: string }
+  ): Promise<ApiResponse<{ seal: IssuerCompanySealDto }> | ApiError> {
+    return this.post(`/v1/organizations/issuer/${organizationId}/company-seal/confirm`, data);
+  }
+
+  async deleteIssuerCompanySeal(
+    organizationId: string
+  ): Promise<ApiResponse<{ seal: null }> | ApiError> {
+    return this.delete(`/v1/organizations/issuer/${organizationId}/company-seal`);
+  }
+
+  async getIssuerCompanySealPreview(
+    organizationId: string
+  ): Promise<ApiResponse<{ viewUrl: string | null; expiresIn: number | null }> | ApiError> {
+    return this.get(`/v1/organizations/issuer/${organizationId}/company-seal/preview`);
+  }
+
   async getIssuerLatestFinancialStatements(
     organizationId: string
   ): Promise<
@@ -875,6 +911,15 @@ export class ApiClient {
     return this.post("/v1/admin/operator-profile/signing-people/signature-upload-url", data);
   }
 
+  async confirmOperatorSigningSignature(data: {
+    s3Key: string;
+  }): Promise<ApiResponse<OperatorSignatureConfirmDto> | ApiError> {
+    return this.post<OperatorSignatureConfirmDto>(
+      "/v1/admin/operator-profile/signing-people/signature-confirm",
+      data
+    );
+  }
+
   async requestOperatorCompanyStampUploadUrl(data: {
     fileName: string;
     contentType: string;
@@ -902,6 +947,31 @@ export class ApiClient {
     data: Record<string, unknown>
   ): Promise<ApiResponse<OperatorProfileDto> | ApiError> {
     return this.patch<OperatorProfileDto>(`/v1/admin/operator-profile/signing-people/${id}`, data);
+  }
+
+  async confirmOperatorSigningPersonSignature(
+    id: string,
+    data: { s3Key: string }
+  ): Promise<ApiResponse<OperatorProfileDto> | ApiError> {
+    return this.post<OperatorProfileDto>(
+      `/v1/admin/operator-profile/signing-people/${id}/signature-confirm`,
+      data
+    );
+  }
+
+  async getOperatorSigningPersonSignaturePreview(
+    id: string
+  ): Promise<ApiResponse<{ viewUrl: string | null; expiresIn: number | null }> | ApiError> {
+    return this.get(`/v1/admin/operator-profile/signing-people/${id}/signature-preview`);
+  }
+
+  async putOperatorDocumentExecutionBindings(
+    data: { bindings: OperatorDocumentExecutionBindingInput[] }
+  ): Promise<ApiResponse<OperatorProfileDto> | ApiError> {
+    return this.put<OperatorProfileDto>(
+      "/v1/admin/operator-profile/document-execution-bindings",
+      data
+    );
   }
 
   async createOperatorAdvisor(
@@ -3237,6 +3307,35 @@ export class ApiClient {
     return this.post<{ ok: boolean }>(
       `/v1/admin/signing/envelopes/${envelopeId}/recipients/${recipientId}/remind`,
       documentId ? { documentId } : {}
+    );
+  }
+
+  /** Admin: retry one failed CashSouk automatic countersign. */
+  async retryAutomaticSigningAssignment(
+    envelopeId: string,
+    assignmentId: string
+  ): Promise<ApiResponse<SigningEnvelopeDto> | ApiError> {
+    return this.post<SigningEnvelopeDto>(
+      `/v1/admin/signing/envelopes/${envelopeId}/assignments/${assignmentId}/auto-sign-retry`,
+      {}
+    );
+  }
+
+  async retrySigningEnvelopeDelivery(
+    envelopeId: string
+  ): Promise<ApiResponse<SigningEnvelopeDto> | ApiError> {
+    return this.post<SigningEnvelopeDto>(
+      `/v1/admin/signing/envelopes/${envelopeId}/retry-delivery`,
+      {}
+    );
+  }
+
+  /** Admin: CashSouk automatic-signer readiness for this application's signing package. */
+  async getAdminSigningPackageReadiness(
+    applicationId: string
+  ): Promise<ApiResponse<SigningPackageReadinessDto> | ApiError> {
+    return this.get<SigningPackageReadinessDto>(
+      `/v1/admin/signing/applications/${applicationId}/readiness`
     );
   }
 

@@ -6,8 +6,11 @@
 import {
   isGuarantorAuthorizedParty,
   isValidSigningIcNumber,
+  issuerSealApplierIssue,
   normalizeSigningEmail,
   normalizeSigningIcNumber,
+  resolveSigningTemplateFromWorkflow,
+  signingPackageRequiresIssuerSeal,
   type ApplicationPersonRow,
   type AuthorizedParty,
   type AuthorizedPartyCorporateGuarantor,
@@ -15,6 +18,7 @@ import {
   type AuthorizedRepresentative,
 } from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
+import { isSigningCloudSealFieldEnabled } from "../signingcloud/signingcloud-api";
 import { prisma } from "../../lib/prisma";
 import { OrganizationService } from "../organization/service";
 import { buildAdminPeopleList } from "../admin/build-people-list";
@@ -119,9 +123,14 @@ function requireMatchingIssuerDirector(
   return director;
 }
 
+export type AuthorizedPartiesValidationOptions = {
+  requireSealApplier?: boolean;
+};
+
 export function assertIssuerAuthorizedPartiesValid(
   parties: AuthorizedParty[],
-  pool: IssuerDirectorPoolEntry[]
+  pool: IssuerDirectorPoolEntry[],
+  options?: AuthorizedPartiesValidationOptions
 ): void {
   const issuer = parties.find((party) => party.entity_kind === "ISSUER");
   if (!issuer || issuer.representatives.length === 0) {
@@ -147,6 +156,11 @@ export function assertIssuerAuthorizedPartiesValid(
     representative.email = director.email;
     representative.ic_number = director.icNumber;
     representative.person_match_key = director.matchKey;
+  }
+
+  const issue = issuerSealApplierIssue(parties, options?.requireSealApplier === true);
+  if (issue) {
+    throw new AppError(400, "AUTHORIZED_PARTIES_INVALID", issue);
   }
 }
 
@@ -320,8 +334,56 @@ export function assertGuarantorAuthorizedPartiesValid(
 export function assertAuthorizedPartiesValid(
   parties: AuthorizedParty[],
   pool: IssuerDirectorPoolEntry[],
-  guarantors: ApplicationGuarantorForParties[]
+  guarantors: ApplicationGuarantorForParties[],
+  options?: AuthorizedPartiesValidationOptions
 ): void {
-  assertIssuerAuthorizedPartiesValid(parties, pool);
+  assertIssuerAuthorizedPartiesValid(parties, pool, options);
   assertGuarantorAuthorizedPartiesValid(parties, guarantors);
 }
+
+export const ISSUER_COMPANY_SEAL_REQUIRED_MESSAGE =
+  "Upload a company seal in Issuer Profile before submitting this offer.";
+
+export async function assertIssuerSealReadyForPackage(
+  organizationId: string,
+  parties: AuthorizedParty[],
+  documentKeys: readonly string[]
+): Promise<void> {
+  if (!isSigningCloudSealFieldEnabled() || !signingPackageRequiresIssuerSeal(documentKeys)) {
+    return;
+  }
+  const issue = issuerSealApplierIssue(parties, true);
+  if (issue) {
+    throw new AppError(400, "AUTHORIZED_PARTIES_INVALID", issue);
+  }
+  const active = await prisma.issuerOrganizationCompanySeal.findFirst({
+    where: { issuer_organization_id: organizationId, superseded_at: null },
+    select: { id: true },
+  });
+  if (!active) {
+    throw new AppError(400, "ISSUER_COMPANY_SEAL_REQUIRED", ISSUER_COMPANY_SEAL_REQUIRED_MESSAGE);
+  }
+}
+
+export async function assertIssuerSealRequirements(
+  parties: AuthorizedParty[],
+  issuerOrganizationId: string,
+  workflow: unknown
+): Promise<void> {
+  await assertIssuerSealReadyForPackage(
+    issuerOrganizationId,
+    parties,
+    resolveSigningTemplateFromWorkflow(workflow).documents.map((document) => document.key)
+  );
+}
+
+export async function assertAuthorizedPartiesForOffer(
+  parties: AuthorizedParty[],
+  pool: IssuerDirectorPoolEntry[],
+  guarantors: ApplicationGuarantorForParties[],
+  context: { issuerOrganizationId: string; workflow: unknown }
+): Promise<void> {
+  assertAuthorizedPartiesValid(parties, pool, guarantors);
+  await assertIssuerSealRequirements(parties, context.issuerOrganizationId, context.workflow);
+}
+

@@ -325,6 +325,7 @@ const issuerAuthorizedRepresentativeSchema = z.object({
   ic_number: signingIcSchema,
   capacity: z.literal("director"),
   person_match_key: z.string().trim().min(1),
+  applies_company_seal: z.boolean().optional(),
 });
 
 const issuerAuthorizedPartySchema = z.object({

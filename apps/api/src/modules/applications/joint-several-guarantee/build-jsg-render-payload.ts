@@ -10,7 +10,23 @@ import {
 
 export type JsgRenderPayload = Record<string, unknown>;
 
-function buildJsgCorporateBlocks(companies: JsgMergeData["guarantors_corporate"]) {
+function withGuarantorWitness<T extends Record<string, unknown>>(
+  row: T,
+  witnessName: string,
+  witnessNric: string
+): T & { witness_name: string; witness_nric: string } {
+  return {
+    ...row,
+    witness_name: visibleMergeScalar("witness_name", witnessName),
+    witness_nric: visibleNric(witnessNric),
+  };
+}
+
+function buildJsgCorporateBlocks(
+  companies: JsgMergeData["guarantors_corporate"],
+  witnessName: string,
+  witnessNric: string
+) {
   return companies
     .filter((company) => company.name.trim())
     .map((company) => {
@@ -19,11 +35,20 @@ function buildJsgCorporateBlocks(companies: JsgMergeData["guarantors_corporate"]
         .filter((signatory) => signatory.name.length > 0);
       const signatories =
         people.length > 0
-          ? people.map((signatory) => ({
-              name: signatory.name,
-              nric: visibleNric(signatory.nric),
-            }))
-          : [{ name: LO_MERGE_PLACEHOLDER_NAME, nric: visibleNric("") }];
+          ? people.map((signatory) =>
+              withGuarantorWitness(
+                { name: signatory.name, nric: visibleNric(signatory.nric) },
+                witnessName,
+                witnessNric
+              )
+            )
+          : [
+              withGuarantorWitness(
+                { name: LO_MERGE_PLACEHOLDER_NAME, nric: visibleNric("") },
+                witnessName,
+                witnessNric
+              ),
+            ];
       return {
         company_name: visibleMergeScalar("company_name", company.name),
         company_ssm: visibleMergeScalar("company_ssm", company.ssm),
@@ -34,13 +59,20 @@ function buildJsgCorporateBlocks(companies: JsgMergeData["guarantors_corporate"]
 
 /** Docxtemplater payload: yellow value tags stay visible when empty; execution blocks flow. */
 export function buildJsgRenderPayload(data: JsgMergeData): JsgRenderPayload {
-  const corporate_guarantor_pages = buildJsgCorporateBlocks(data.guarantors_corporate);
+  const corporate_guarantor_pages = buildJsgCorporateBlocks(
+    data.guarantors_corporate,
+    data.guarantor_witness_name,
+    data.guarantor_witness_nric
+  );
   const hasCorporate = corporate_guarantor_pages.length > 0;
 
-  const guarantors = data.guarantors_individual.map((guarantor) => ({
-    ...guarantor,
-    nric: visibleNric(guarantor.nric),
-  }));
+  const guarantors = data.guarantors_individual.map((guarantor) =>
+    withGuarantorWitness(
+      { ...guarantor, nric: visibleNric(guarantor.nric) },
+      data.guarantor_witness_name,
+      data.guarantor_witness_nric
+    )
+  );
 
   const schedule =
     data.schedule_guarantors.length > 0

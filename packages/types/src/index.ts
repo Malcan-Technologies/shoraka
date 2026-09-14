@@ -538,6 +538,8 @@ export * from "./ctos-party-supplement-json";
 export * from "./regtank-iso3166-countries";
 export * from "./notes";
 export * from "./company-stamp-image";
+export * from "./signingcloud-legal-image";
+export * from "./issuer-company-seal";
 export * from "./official-document-version";
 export * from "./investment-note-certificate";
 export * from "./settlement-hibah-receipt";
@@ -613,6 +615,7 @@ export * from "./party-ctos-comparison";
 export * from "./person-platform-access";
 export * from "./issuer-shareholder-threshold";
 export * from "./operator-profile";
+export * from "./operator-document-execution";
 export * from "./support";
 export {
   ADMIN_PERMISSIONS,

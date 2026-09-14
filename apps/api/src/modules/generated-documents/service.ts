@@ -14,6 +14,7 @@ import {
   getStepKeyFromStepId,
   resolveSigningTemplateFromWorkflow,
   SIGNING_PACKAGE_GENERATED_DOCUMENT_TYPES,
+  type FrozenDocumentExecutionContext,
   type GeneratedDocumentContext,
   type GeneratedDocumentTypeDefinition,
   type GeneratedDocumentTypeKey,
@@ -51,6 +52,12 @@ import {
   readFacilityAgreementTemplateBytes,
   renderFacilityAgreementDocx,
 } from "../applications/facility-agreement/render-fa-docx";
+import {
+  applyFrozenDoaExecution,
+  applyFrozenFaExecution,
+  applyFrozenJsgExecution,
+} from "./apply-frozen-execution";
+import { readConfirmedLegalImage } from "../signing/automatic-signers";
 
 const SUPPORTING_DOC_CATEGORIES = [
   "financial_docs",
@@ -281,6 +288,7 @@ export class GeneratedDocumentsService {
     asAdmin?: boolean;
     contractId?: string | null;
     invoiceId?: string | null;
+    execution?: FrozenDocumentExecutionContext | null;
   }): Promise<GeneratedDocumentResult> {
     const typeKey = parseGeneratedDocumentTypeKey(input.typeKey);
     if (!typeKey) {
@@ -328,14 +336,16 @@ export class GeneratedDocumentsService {
           application,
           typeDef,
           input.format,
-          input.userId
+          input.userId,
+          input.execution
         );
       case "arf_deed_of_assignment":
         return this.generateArfDeedOfAssignment(
           application,
           typeDef,
           input.format,
-          input.userId
+          input.userId,
+          input.execution
         );
       case "arf_facility_agreement":
         return this.generateArfFacilityAgreement(
@@ -345,7 +355,8 @@ export class GeneratedDocumentsService {
           workflow,
           input.userId,
           input.contractId,
-          input.invoiceId
+          input.invoiceId,
+          input.execution
         );
     }
   }
@@ -501,7 +512,8 @@ export class GeneratedDocumentsService {
     application: Awaited<ReturnType<ApplicationRepository["findById"]>>,
     typeDef: GeneratedDocumentTypeDefinition,
     format: GeneratedDocumentFormat,
-    createdByUserId: string
+    createdByUserId: string,
+    execution?: FrozenDocumentExecutionContext | null
   ): Promise<GeneratedDocumentResult> {
     const contract = this.requireContractForGenerate(
       application,
@@ -510,7 +522,8 @@ export class GeneratedDocumentsService {
     const issuerOrganization = this.requireIssuerOrganization(application);
     const { liveGuarantors } = await this.resolveOfferDocumentGuarantors(application, contract);
 
-    const mergeData = buildJsgMergeData({
+    const mergeData = applyFrozenJsgExecution(
+      buildJsgMergeData({
       contract: {
         id: String(contract.id),
         display_reference:
@@ -530,7 +543,9 @@ export class GeneratedDocumentsService {
         id: application!.id,
         application_guarantors: liveGuarantors,
       },
-    });
+    }),
+      execution
+    );
 
     const liveGuarantorCount = Array.isArray(liveGuarantors) ? liveGuarantors.length : 0;
     assertJsgMergeReady({
@@ -558,7 +573,8 @@ export class GeneratedDocumentsService {
     application: Awaited<ReturnType<ApplicationRepository["findById"]>>,
     typeDef: GeneratedDocumentTypeDefinition,
     format: GeneratedDocumentFormat,
-    createdByUserId: string
+    createdByUserId: string,
+    execution?: FrozenDocumentExecutionContext | null
   ): Promise<GeneratedDocumentResult> {
     const contract = this.requireContractForGenerate(
       application,
@@ -577,7 +593,8 @@ export class GeneratedDocumentsService {
       // Platform finance settings may be unavailable in some envs.
     }
 
-    const mergeData = buildDeedOfAssignmentMergeData({
+    const mergeData = applyFrozenDoaExecution(
+      buildDeedOfAssignmentMergeData({
       contract: {
         id: String(contract.id),
         issuer_organization_id: String(contract.issuer_organization_id),
@@ -597,7 +614,9 @@ export class GeneratedDocumentsService {
         company_details: application!.company_details,
       },
       ledgerBucketAccountsConfig,
-    });
+    }),
+      execution
+    );
 
     assertDeedOfAssignmentMergeReady({
       mergeData,
@@ -607,6 +626,10 @@ export class GeneratedDocumentsService {
       ),
     });
 
+    const stamp = execution?.companyStamp
+      ? await readConfirmedLegalImage(execution.companyStamp.s3Key)
+      : null;
+
     return this.finalizeGeneratedDocument({
       applicationId: application!.id,
       contractId: typeof contract.id === "string" ? contract.id : null,
@@ -614,7 +637,12 @@ export class GeneratedDocumentsService {
       format,
       createdByUserId,
       templateBytes: readDeedOfAssignmentTemplateBytes(),
-      docxBuffer: renderDeedOfAssignmentDocx(mergeData),
+      docxBuffer: renderDeedOfAssignmentDocx(
+        mergeData,
+        stamp
+          ? { bytes: stamp.bytes, contentType: stamp.contentType }
+          : null
+      ),
       basename: offerDocumentBasename("ARF-DOA", mergeData.assignor_company_name),
     });
   }
@@ -702,7 +730,8 @@ export class GeneratedDocumentsService {
     productWorkflow: unknown[],
     createdByUserId: string,
     contractId?: string | null,
-    invoiceId?: string | null
+    invoiceId?: string | null,
+    execution?: FrozenDocumentExecutionContext | null
   ): Promise<GeneratedDocumentResult> {
     const contract = this.requireContractForGenerate(
       application,
@@ -728,7 +757,8 @@ export class GeneratedDocumentsService {
       // Platform finance settings may be unavailable in some envs.
     }
 
-    const mergeData = buildFacilityAgreementMergeData({
+    const mergeData = applyFrozenFaExecution(
+      buildFacilityAgreementMergeData({
       offerKind: target.offerKind,
       contract: {
         id: String(contract.id),
@@ -754,7 +784,9 @@ export class GeneratedDocumentsService {
       },
       productWorkflow,
       trusteeDisclosureEmail,
-    });
+    }),
+      execution
+    );
 
     const liveGuarantorCount = Array.isArray(liveGuarantors) ? liveGuarantors.length : 0;
     assertFacilityAgreementMergeReady({

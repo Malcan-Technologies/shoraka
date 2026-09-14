@@ -201,6 +201,7 @@ describe("SigningController", () => {
           userId: "user-1",
           contractId: null,
           invoiceId: null,
+          waitForProvider: false,
         })
       );
       const sent = (signingService.createAndSendAdminEnvelope as jest.Mock).mock.calls[0][0];
@@ -211,6 +212,60 @@ describe("SigningController", () => {
           actorUserId: "user-1",
         })
       );
+    });
+
+    it("POST /envelopes/:id/retry-delivery retries invitation delivery", async () => {
+      const authedAdmin = express();
+      authedAdmin.use(express.json());
+      authedAdmin.use((req: Request, _res: Response, next: NextFunction) => {
+        req.user = { ...mockUser, roles: [UserRole.ADMIN] };
+        next();
+      });
+      authedAdmin.use("/v1/admin/signing", createSigningAdminRouter());
+      authedAdmin.use((err: Error & { statusCode?: number }, _req: Request, res: Response, _next: NextFunction) => {
+        res.status(err.statusCode || 500).json({
+          success: false,
+          error: { message: err.message },
+        });
+      });
+
+      (signingService.retryEnvelopeDelivery as jest.Mock).mockResolvedValue({
+        id: "env-1",
+        status: "SENT",
+        send_phase: "SENT",
+      });
+      const res = await request(authedAdmin).post("/v1/admin/signing/envelopes/env-1/retry-delivery");
+      expect(res.status).toBe(200);
+      expect(signingService.retryEnvelopeDelivery).toHaveBeenCalledWith(
+        "env-1",
+        expect.objectContaining({ userId: "user-1", portal: "ADMIN" })
+      );
+    });
+
+    it("POST /envelopes/:id/assignments/:assignmentId/auto-sign-retry retries one assignment", async () => {
+      const authedAdmin = express();
+      authedAdmin.use(express.json());
+      authedAdmin.use((req: Request, _res: Response, next: NextFunction) => {
+        req.user = { ...mockUser, roles: [UserRole.ADMIN] };
+        next();
+      });
+      authedAdmin.use("/v1/admin/signing", createSigningAdminRouter());
+      authedAdmin.use((err: Error & { statusCode?: number }, _req: Request, res: Response, _next: NextFunction) => {
+        res.status(err.statusCode || 500).json({
+          success: false,
+          error: { message: err.message },
+        });
+      });
+
+      (signingService.retryAutomaticAssignment as jest.Mock).mockResolvedValue({
+        id: "env-1",
+        status: "IN_PROGRESS",
+      });
+      const res = await request(authedAdmin).post(
+        "/v1/admin/signing/envelopes/env-1/assignments/asg-1/auto-sign-retry"
+      );
+      expect(res.status).toBe(200);
+      expect(signingService.retryAutomaticAssignment).toHaveBeenCalledWith("env-1", "asg-1");
     });
 
     it("GET document preview returns a merged PDF", async () => {
@@ -244,6 +299,31 @@ describe("SigningController", () => {
         contractId: null,
         invoiceId: "inv-1",
       });
+    });
+
+    it("GET /applications/:applicationId/readiness returns CashSouk signing readiness", async () => {
+      const authedAdmin = express();
+      authedAdmin.use(express.json());
+      authedAdmin.use((req: Request, _res: Response, next: NextFunction) => {
+        req.user = { ...mockUser, roles: [UserRole.ADMIN] };
+        next();
+      });
+      authedAdmin.use("/v1/admin/signing", createSigningAdminRouter());
+      authedAdmin.use((err: Error & { statusCode?: number }, _req: Request, res: Response, _next: NextFunction) => {
+        res.status(err.statusCode || 500).json({
+          success: false,
+          error: { message: err.message },
+        });
+      });
+
+      (signingService.getSigningPackageReadiness as jest.Mock).mockResolvedValue({
+        ready: false,
+        issues: [{ code: "SIGNING_AUTOMATIC_ROLE_UNBOUND", message: "Missing Investor 2" }],
+      });
+      const res = await request(authedAdmin).get("/v1/admin/signing/applications/app-1/readiness");
+      expect(res.status).toBe(200);
+      expect(res.body.data.ready).toBe(false);
+      expect(signingService.getSigningPackageReadiness).toHaveBeenCalledWith("app-1");
     });
   });
 });

@@ -1,8 +1,11 @@
 #!/usr/bin/env tsx
 /**
  * Rebuild `arf-deed-of-assignment.docx` from the clean Deed of Assignment:
- * rewrite merge slots to docxtemplater tags and replace ASSIGNOR execution
- * with one signatory/witness table per authorised representative.
+ * Rewrite merge slots to docxtemplater tags, keep the SSP hanging-parenthesis
+ * execution (first stroke on the company-name line), page-break before
+ * ASSIGNOR, and replace ASSIGNOR execution with one signatory/witness table
+ * per authorised representative. Signature strokes stay as the clean-copy
+ * underscore runs (one line per signatory / witness).
  *
  * Schedule 2 stays the prescribed form (original placeholders, no merge tags).
  * Schedule 3 keeps its heading/table and records Nil at execution.
@@ -145,13 +148,39 @@ function rewriteParagraphText(pXml: string, next: string): string {
   return `${open}${pPr}${runs.join("")}</w:p>`;
 }
 
+function paragraphRuns(text: string, rPr: string): string {
+  const runs: string[] = [];
+  const pieces = text.split("\t");
+  pieces.forEach((piece, i) => {
+    if (piece) runs.push(runsFromTemplatedText(piece, rPr));
+    if (i < pieces.length - 1) {
+      runs.push(`<w:r>${rPr}<w:tab/></w:r>`);
+    }
+  });
+  return runs.join("");
+}
+
 function makePara(
   text: string,
   opts?: { center?: boolean; heading?: boolean; bold?: boolean }
 ): string {
   const jc = opts?.center || opts?.heading ? "center" : "both";
   const rPr = bodyRpr({ bold: opts?.heading || opts?.bold, underline: opts?.heading });
-  return `<w:p><w:pPr><w:spacing w:line="360" w:lineRule="auto"/><w:jc w:val="${jc}"/>${rPr}</w:pPr>${runsFromTemplatedText(text, rPr)}</w:p>`;
+  return `<w:p><w:pPr><w:spacing w:line="360" w:lineRule="auto"/><w:jc w:val="${jc}"/>${rPr}</w:pPr>${paragraphRuns(text, rPr)}</w:p>`;
+}
+
+/** Clean-copy SSP hanging lines: default line spacing, no extra gap after the paragraph. */
+function hangingPara(text: string): string {
+  const rPr = bodyRpr();
+  return `<w:p><w:pPr><w:spacing w:after="0"/><w:jc w:val="both"/>${rPr}</w:pPr>${paragraphRuns(text, rPr)}</w:p>`;
+}
+
+function hangingEmptyParas(count: number): string {
+  const rPr = bodyRpr();
+  return Array.from(
+    { length: count },
+    () => `<w:p><w:pPr><w:jc w:val="both"/>${rPr}</w:pPr></w:p>`
+  ).join("");
 }
 
 function emptyParas(count: number): string {
@@ -184,11 +213,55 @@ function twoColTable(rows: Array<[string, string]>): string {
   ].join("");
 }
 
-function dottedSignatureRow(): [string, string] {
+function signatureStrokeRow(): [string, string] {
+  return [makePara("______________________________________"), makePara("_______________________________")];
+}
+
+const SSP_SIGNATURE_STROKE = "______________________________________";
+
+function sspSignatoryLabels(nameTag: string, designationTag: string): string {
   return [
-    makePara("..........................................................................."),
-    makePara(".............................................................."),
-  ];
+    hangingPara(`\t\t\t\t\t\tName: {${nameTag}}`),
+    hangingPara(`\t\t\t\t\t\tDesignation: {${designationTag}}`),
+  ].join("");
+}
+
+function sspExecutionXml(): string {
+  return [
+    hangingEmptyParas(1),
+    hangingPara("Signed by\t\t\t\t)"),
+    hangingPara("for and on behalf of \t\t\t)"),
+    hangingPara(`SHORAKA SUYULA PLATFORM \t)\t${SSP_SIGNATURE_STROKE}`),
+    sspSignatoryLabels("ssp_1_name", "ssp_1_designation"),
+    hangingEmptyParas(5),
+    hangingPara(`\t\t\t\t\t\t${SSP_SIGNATURE_STROKE}`),
+    sspSignatoryLabels("ssp_2_name", "ssp_2_designation"),
+    hangingEmptyParas(1),
+    makePara("[SSP]"),
+    makePara("Company Stamp: §SSP_COMPANY_STAMP_IMAGE§"),
+  ].join("");
+}
+
+function rebuildSspExecution(xml: string): string {
+  const headingStart = paragraphStartEquals(xml, "SHORAKA SUYULA PLATFORM");
+  const headingEnd = paragraphEndAfter(xml, headingStart);
+  const assignorStart = paragraphStartContaining(xml, "MINIMUM OF TWO");
+  if (assignorStart <= headingEnd) {
+    throw new Error("SSP execution heading is not before ASSIGNOR");
+  }
+  return xml.slice(0, headingEnd) + sspExecutionXml() + pageBreakPara() + xml.slice(assignorStart);
+}
+
+function countSspSignatureStrokes(xml: string): number {
+  const headingStart = paragraphStartEquals(xml, "SHORAKA SUYULA PLATFORM");
+  const assignorStart = paragraphStartContaining(xml, "MINIMUM OF TWO");
+  const slice = xml.slice(headingStart, assignorStart);
+  let count = 0;
+  for (const match of slice.matchAll(/<w:p\b[\s\S]*?<\/w:p>/g)) {
+    const compact = compactParagraphText(paragraphPlainText(match[0])).replace(/\s/g, "");
+    if (/_{8,}/.test(compact)) count += 1;
+  }
+  return count;
 }
 
 function assignorSignatoryTable(): string {
@@ -197,10 +270,10 @@ function assignorSignatoryTable(): string {
     [makePara("For and on behalf of )"), makePara("")],
     [makePara("{assignor_company_name} )"), makePara("")],
     [emptyParas(2), emptyParas(2)],
-    dottedSignatureRow(),
+    signatureStrokeRow(),
     [makePara(""), makePara("[Witness]")],
-    [makePara("Name: {name}"), makePara("Name:")],
-    [makePara("NRIC / Passport No: {identity_number}"), makePara("Designation:")],
+    [makePara("Name: {name}"), makePara("Name: {witness_name}")],
+    [makePara("NRIC / Passport No: {identity_number}"), makePara("Designation: {witness_designation}")],
     [makePara("Designation: {designation}"), makePara("")],
   ]);
 }
@@ -426,7 +499,14 @@ function requiredTagsPresent(xml: string): string[] {
     "{name}",
     "{identity_number}",
     "{designation}",
+    "{witness_name}",
+    "{witness_designation}",
     "{/assignor_signatories}",
+    "{ssp_1_name}",
+    "{ssp_1_designation}",
+    "{ssp_2_name}",
+    "{ssp_2_designation}",
+    "§SSP_COMPANY_STAMP_IMAGE§",
     "{trust_bank_name}",
     "{trust_account_name}",
     "{trust_account_number}",
@@ -535,6 +615,7 @@ function main(): void {
 
   documentXml = rewriteBodyParagraphs(documentXml);
   documentXml = rewriteSchedule3Table(documentXml);
+  documentXml = rebuildSspExecution(documentXml);
   documentXml = rebuildAssignorExecution(documentXml);
   documentXml = ensureYellowOnValueTagRuns(documentXml);
 
@@ -558,6 +639,16 @@ function main(): void {
   );
   if (!stillHasDebtorMarker) {
     throw new Error("Legal copy [Debtor] sender marker was removed");
+  }
+  if (countSspSignatureStrokes(documentXml) !== 2) {
+    throw new Error("SSP execution must have two standalone signature lines");
+  }
+  const assignorSlice = documentXml.slice(
+    paragraphStartContaining(documentXml, "MINIMUM OF TWO"),
+    paragraphStartEquals(documentXml, "SCHEDULE 1")
+  );
+  if (/Date:\s*_{8,}/.test(assignorSlice)) {
+    throw new Error("ASSIGNOR execution must not have Date lines");
   }
 
   const out = new PizZip(cleanBytes);

@@ -15,6 +15,8 @@ export const FA_DRAWDOWN_FEE_AS_PRESCRIBED = "As prescribed in the Letter of Off
 export type FacilityAgreementIssuerSignatory = {
   name: string;
   designation: string;
+  witness_name: string;
+  witness_nric: string;
 };
 
 export type FacilityAgreementMergeData = {
@@ -35,6 +37,14 @@ export type FacilityAgreementMergeData = {
   issuer_bank_account_number: string;
   issuer_bank_account_name: string;
   issuer_bank_swift: string;
+  investor_1_name: string;
+  investor_1_designation: string;
+  investor_2_name: string;
+  investor_2_designation: string;
+  agent_1_name: string;
+  agent_1_designation: string;
+  agent_2_name: string;
+  agent_2_designation: string;
   guarantors_individual: ContractFacilityLoIndividualGuarantor[];
   guarantors_corporate: ContractFacilityLoCorporateGuarantor[];
   issuer_signatories: FacilityAgreementIssuerSignatory[];
@@ -59,4 +69,12 @@ export const FACILITY_AGREEMENT_MERGE_KEYS = [
   "issuer_bank_account_number",
   "issuer_bank_account_name",
   "issuer_bank_swift",
+  "investor_1_name",
+  "investor_1_designation",
+  "investor_2_name",
+  "investor_2_designation",
+  "agent_1_name",
+  "agent_1_designation",
+  "agent_2_name",
+  "agent_2_designation",
 ] as const satisfies ReadonlyArray<keyof FacilityAgreementMergeData>;

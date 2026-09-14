@@ -36,6 +36,7 @@ import { DirectorShareholderAlertCard } from "../../components/director-sharehol
 import { IssuerProfileCompletenessBanner } from "../../components/profile-completeness-banner";
 import { AboutYourBusinessCard } from "../../components/about-your-business-card";
 import { IssuerCompanyDetailsCard } from "../../components/issuer-company-details-card";
+import { IssuerCompanySealCard } from "../../components/issuer-company-seal-card";
 import { IssuerFinancialsCard } from "../../components/issuer-financials-card";
 import { IssuerPeopleSection } from "../../components/issuer-people-section";
 import { InviteMemberDialog } from "../../components/invite-member-dialog";
@@ -1076,6 +1077,13 @@ export default function ProfilePage() {
                   }}
                 />
                 </div>
+              ) : null}
+
+              {!isPersonal && activeOrganization?.id ? (
+                <IssuerCompanySealCard
+                  organizationId={activeOrganization.id}
+                  canEdit={isCurrentUserAdmin}
+                />
               ) : null}
 
               {!isPersonal && activeOrganization?.id && (

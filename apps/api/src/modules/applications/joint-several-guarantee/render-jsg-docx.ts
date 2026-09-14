@@ -4,6 +4,7 @@ import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
 import type { JsgMergeData } from "./jsg-merge.types";
 import { buildJsgRenderPayload } from "./build-jsg-render-payload";
+import { solidifySignatureLinesInDocx } from "../../generated-documents/solid-signature-lines";
 
 const TEMPLATE_FILENAME = "arf-joint-several-guarantee.docx";
 
@@ -39,5 +40,9 @@ export function renderJsgDocx(data: JsgMergeData): Buffer {
     },
   });
   doc.render(buildJsgRenderPayload(data) as Record<string, unknown>);
-  return doc.getZip().generate({ type: "nodebuffer", compression: "DEFLATE" }) as Buffer;
+  const rendered = doc.getZip().generate({
+    type: "nodebuffer",
+    compression: "DEFLATE",
+  }) as Buffer;
+  return solidifySignatureLinesInDocx(rendered);
 }

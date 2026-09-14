@@ -7,6 +7,8 @@ import type {
   ScPersonKind,
   ScShareType,
 } from "./comrep-profile";
+import { SC_DESIGNATION_LABELS } from "./comrep-profile";
+import type { OperatorDocumentExecutionSlotDto } from "./operator-document-execution";
 import {
   validateOperatorAdvisor,
   validateOperatorFinancialStatement,
@@ -34,6 +36,8 @@ export interface OperatorProfileDto {
   interests: OperatorInterestDto[];
   financialStatements: OperatorFinancialStatementDto[];
   signingPeople: OperatorSigningPersonDto[];
+  /** Role-level CashSouk representative and witness assignments. Unassigned slots have a null person. */
+  documentExecutionSlots: OperatorDocumentExecutionSlotDto[];
   /** Existing platform company stamp (certificate stamp JSON). Documents still read the original config. */
   companyStamp: OperatorCompanyStampFields | null;
   updatedAt: string;
@@ -106,10 +110,42 @@ export function isOperatorSigningRole(value: unknown): value is OperatorSigningR
   return typeof value === "string" && (OPERATOR_SIGNING_ROLES as readonly string[]).includes(value);
 }
 
+export function operatorOfficerDesignationLabel(officer: {
+  designation?: ScDesignation | null;
+  designationOther?: string | null;
+}): string | null {
+  if (officer.designation === "OTHERS") {
+    const other = officer.designationOther?.trim();
+    return other || null;
+  }
+  if (!officer.designation) return null;
+  return SC_DESIGNATION_LABELS[officer.designation];
+}
+
 export interface OperatorCompanyStampFields {
   s3Key?: string;
   fileName?: string;
   contentType?: string;
+}
+
+/** Signature image plus optional SigningCloud confirm metadata. */
+export interface OperatorSigningSignatureAsset extends OperatorCompanyStampFields {
+  sha256?: string;
+  widthPx?: number;
+  heightPx?: number;
+  byteSize?: number;
+  confirmedAt?: string;
+}
+
+/** Result of validating a signature object without writing a person row. */
+export interface OperatorSignatureConfirmDto {
+  s3Key: string;
+  sha256: string;
+  widthPx: number;
+  heightPx: number;
+  byteSize: number;
+  contentType: string;
+  confirmedAt: string;
 }
 
 export interface OperatorSigningPersonDto {
@@ -119,8 +155,14 @@ export interface OperatorSigningPersonDto {
   personKind: ScPersonKind;
   designation: ScDesignation | null;
   designationOther: string | null;
+  identityNumber: string | null;
   roles: OperatorSigningRole[];
-  signature: OperatorCompanyStampFields | null;
+  signingEmail: string | null;
+  signature: OperatorSigningSignatureAsset | null;
+  /** True when email + confirmed provider-ready signature are present for an Authorised Signatory. */
+  signatureProviderReady: boolean;
+  /** True when email + confirmed signature are present for a Witness. */
+  witnessProviderReady: boolean;
   active: boolean;
 }
 

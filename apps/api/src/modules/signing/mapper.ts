@@ -16,6 +16,7 @@ import type {
 } from "@cashsouk/types";
 import { resolveSigningKycStatusMap } from "../ekyc/service";
 import { legalExternalAcceptanceService } from "../legal-documents/external-acceptance-service";
+import { readEnvelopeSendState } from "./envelope-send-state";
 
 export type SigningEnvelopeWithGraph = SigningEnvelope & {
   documents: SigningDocument[];
@@ -68,6 +69,8 @@ function mapRecipient(
     kyc_status: kycStatus,
     completed_at: recipient.completed_at ? recipient.completed_at.toISOString() : null,
     viewed_at: recipient.viewed_at ? recipient.viewed_at.toISOString() : null,
+    execution_mode: recipient.execution_mode,
+    delivery_mode: recipient.delivery_mode,
     email_delivery_status: readEmailDeliveryStatus(recipient.metadata),
     warning_accepted_at: recipient.role_key === "guarantor" ? warningAcceptedAt : null,
   };
@@ -82,10 +85,13 @@ function mapAssignment(assignment: SigningAssignment): SigningAssignmentDto {
     action: assignment.action,
     status: assignment.status,
     signed_at: assignment.signed_at ? assignment.signed_at.toISOString() : null,
+    auto_sign_error: assignment.last_auto_sign_error ?? null,
+    auto_sign_attempt_count: assignment.auto_sign_attempt_count,
   };
 }
 
 export function mapSigningEnvelopeToDto(envelope: SigningEnvelopeWithGraph): SigningEnvelopeDto {
+  const send = readEnvelopeSendState(envelope);
   return {
     id: envelope.id,
     application_id: envelope.application_id,
@@ -101,6 +107,9 @@ export function mapSigningEnvelopeToDto(envelope: SigningEnvelopeWithGraph): Sig
       .sort((a, b) => a.routing_order - b.routing_order)
       .map((recipient) => mapRecipient(recipient)),
     assignments: envelope.assignments.map(mapAssignment),
+    send_phase: send.phase,
+    send_in_progress: send.inProgress,
+    send_error: send.error,
   };
 }
 
@@ -113,17 +122,9 @@ export async function mapSigningEnvelopeToDtoWithEkyc(
       envelope.recipients.filter((r) => r.role_key === "guarantor").map((r) => r.id)
     ),
   ]);
+  const mapped = mapSigningEnvelopeToDto(envelope);
   return {
-    id: envelope.id,
-    application_id: envelope.application_id,
-    contract_id: envelope.contract_id ?? null,
-    invoice_id: envelope.invoice_id ?? null,
-    title: envelope.title,
-    status: envelope.status,
-    expires_at: envelope.expires_at ? envelope.expires_at.toISOString() : null,
-    sent_at: envelope.sent_at ? envelope.sent_at.toISOString() : null,
-    completed_at: envelope.completed_at ? envelope.completed_at.toISOString() : null,
-    documents: [...envelope.documents].sort((a, b) => a.order - b.order).map(mapDocument),
+    ...mapped,
     recipients: [...envelope.recipients]
       .sort((a, b) => a.routing_order - b.routing_order)
       .map((recipient) =>
@@ -133,6 +134,5 @@ export async function mapSigningEnvelopeToDtoWithEkyc(
           warningAcceptedAt.get(recipient.id) ?? null
         )
       ),
-    assignments: envelope.assignments.map(mapAssignment),
   };
 }

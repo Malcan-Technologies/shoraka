@@ -4,9 +4,9 @@
  * rewrite merge slots to docxtemplater tags and replace the two hardcoded
  * execution blocks + Schedule 1 with loops (individuals, corporate blocks).
  * Individual and corporate execution blocks flow onto shared pages. The
- * OPERATOR page is copied from the clean JSG (fixed layout: hanging
- * parentheses, two attorneys on the right, one witness on the left).
- * Schedule 1 still starts on its own page.
+ * OPERATOR page is copied from the clean JSG then normalised (both attorneys
+ * share the right-column Name/NRIC/Designation style, witness stroke is
+ * extractable period-dots, no Date lines). Schedule 1 still starts on its own page.
  *
  * Usage: pnpm --filter @cashsouk/api retag-jsg-template
  */
@@ -184,8 +184,8 @@ function individualExecutionTable(): string {
     [emptyParas(2), emptyParas(2)],
     dottedSignatureRow(),
     [makePara("Signature of Guarantor"), makePara("Signature of Witness")],
-    [makePara("Full Name: {name}"), makePara("Full Name:")],
-    [makePara("NRIC No.: {nric}"), makePara("NRIC No.:")],
+    [makePara("Full Name: {name}"), makePara("Full Name: {witness_name}")],
+    [makePara("NRIC No.: {nric}"), makePara("NRIC No.: {witness_nric}")],
     [makePara("Date: ________________"), makePara("Date: ________________")],
   ]);
 }
@@ -302,6 +302,127 @@ function rewriteParagraphContaining(
   return xml.slice(0, start) + rewriteParagraphText(pXml, next) + xml.slice(end);
 }
 
+/** Same pPr as the attorney dotted strokes: right column, 9pt Arial, 1.15 line. */
+const OPERATOR_DETAIL_PPR =
+  '<w:pPr><w:spacing w:line="276" w:lineRule="auto"/><w:ind w:left="3600" w:firstLine="936"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial"/><w:sz w:val="18"/></w:rPr></w:pPr>';
+
+function rewriteOperatorDetailParagraph(pXml: string, next: string): string {
+  const open = pXml.match(/^<w:p\b[^>]*>/)?.[0] ?? "<w:p>";
+  return `${open}${OPERATOR_DETAIL_PPR}${runsFromTemplatedText(next, bodyRpr())}</w:p>`;
+}
+
+function tagOperatorExecution(xml: string): string {
+  let nameCount = 0;
+  let nricCount = 0;
+  let designationCount = 0;
+  return xml.replace(/<w:p\b[^>]*\/>|<w:p\b[\s\S]*?<\/w:p>/g, (pXml) => {
+    const compact = compactParagraphText(paragraphPlainText(pXml)).replace(/\s+/g, " ").trim();
+    if (/^name\s*:?\s*$/i.test(compact) && nameCount < 2) {
+      nameCount += 1;
+      return rewriteOperatorDetailParagraph(pXml, `Name: {operator_${nameCount}_name}`);
+    }
+    if (/^nric(?:\s*no\.?)?\s*:?\s*$/i.test(compact) && nricCount < 2) {
+      nricCount += 1;
+      return rewriteOperatorDetailParagraph(pXml, `NRIC No.: {operator_${nricCount}_nric}`);
+    }
+    if (/^designation\s*:?\s*$/i.test(compact) && designationCount < 2) {
+      designationCount += 1;
+      return rewriteOperatorDetailParagraph(pXml, `Designation: {operator_${designationCount}_designation}`);
+    }
+    return pXml;
+  });
+}
+
+function paragraphIndent(pXml: string): string | null {
+  return pXml.match(/<w:ind\b[^/]*\/>/)?.[0] ?? null;
+}
+
+function isDateParagraph(text: string): boolean {
+  return /^date(\s*:.*)?$/i.test(compactParagraphText(text).replace(/\s+/g, " ").trim());
+}
+
+function leftAlignParagraph(pXml: string): string {
+  if (/<w:jc\b/.test(pXml)) {
+    return pXml.replace(/<w:jc\b[^/]*\/>/, '<w:jc w:val="left"/>');
+  }
+  if (pXml.includes("<w:pPr>")) {
+    return pXml.replace("<w:pPr>", '<w:pPr><w:jc w:val="left"/>');
+  }
+  return pXml.replace(/^<w:p([^>]*)>/, `<w:p$1><w:pPr><w:jc w:val="left"/></w:pPr>`);
+}
+
+function paragraphAroundTag(xml: string, tag: string): string {
+  const nameStart = xml.indexOf(tag);
+  if (nameStart < 0) return "";
+  const paraStart = Math.max(xml.lastIndexOf("<w:p ", nameStart), xml.lastIndexOf("<w:p>", nameStart));
+  const paraEnd = xml.indexOf("</w:p>", nameStart);
+  if (paraStart < 0 || paraEnd < 0) return "";
+  return xml.slice(paraStart, paraEnd);
+}
+
+/**
+ * Clean JSG stores the first attorney Name with leading spaces (no w:ind) and
+ * mismatched rPr (bold vs not, Mincho hanging Designation). Detail lines are
+ * rewritten to the dotted-stroke column. The witness stroke is a justified
+ * ellipsis that PDF text extraction often misses. The template has no Date.
+ */
+function normalizeOperatorExecution(xml: string): string {
+  const paras = xml.match(/<w:p\b[^>]*\/>|<w:p\b[\s\S]*?<\/w:p>/g);
+  if (!paras) return xml;
+  return paras
+    .filter((pXml) => !isDateParagraph(paragraphPlainText(pXml)))
+    .map((pXml) => {
+      const compact = compactParagraphText(paragraphPlainText(pXml)).replace(/\s+/g, " ").trim();
+      const glyphs = compact.replace(/\s+/g, "");
+      if (/^[\u2026.]+$/.test(glyphs) && glyphs.length >= 8 && !paragraphIndent(pXml)) {
+        return rewriteParagraphText(
+          leftAlignParagraph(pXml),
+          "........................................................................"
+        );
+      }
+      return pXml;
+    })
+    .join("");
+}
+
+function operatorLayoutIssues(xml: string): string[] {
+  const start = paragraphStartContaining(xml, "OPERATOR");
+  const end = paragraphStartContaining(xml, "SCHEDULE 1");
+  const slice = xml.slice(start, end);
+  const issues: string[] = [];
+  const detailTags = [
+    "{operator_1_name}",
+    "{operator_1_nric}",
+    "{operator_1_designation}",
+    "{operator_2_name}",
+    "{operator_2_nric}",
+    "{operator_2_designation}",
+  ];
+  for (const tag of detailTags) {
+    const para = paragraphAroundTag(slice, tag);
+    if (!para) {
+      issues.push(`OPERATOR page is missing ${tag}`);
+      continue;
+    }
+    if (!para.includes('w:left="3600"') || !para.includes('w:firstLine="936"')) {
+      issues.push(`${tag} is missing the right-column indent`);
+    }
+    if (!para.includes('w:line="276"')) {
+      issues.push(`${tag} is missing the attorney line spacing`);
+    }
+    if (/<w:b\s*\/>/.test(para) || /<w:u\b/.test(para) || para.includes("MS Mincho")) {
+      issues.push(`${tag} must not be bold, underlined, or Mincho`);
+    }
+  }
+  const paras = [...slice.matchAll(/<w:p\b[^>]*\/>|<w:p\b[\s\S]*?<\/w:p>/g)].map((match) =>
+    compactParagraphText(paragraphPlainText(match[0])).replace(/\s+/g, " ").trim()
+  );
+  if (paras.some((text) => isDateParagraph(text))) {
+    issues.push("OPERATOR page must not have Date lines");
+  }
+  return issues;
+}
+
 function rebuildExecutionAndSchedule(xml: string): string {
   const execStart = paragraphStartContaining(xml, "EXECUTION PAGE");
   const operatorStart = paragraphStartContaining(xml, "OPERATOR");
@@ -313,7 +434,9 @@ function rebuildExecutionAndSchedule(xml: string): string {
   if (operatorStart <= execStart || scheduleStart <= operatorStart || sectPrStart <= scheduleStart) {
     throw new Error("EXECUTION PAGE, OPERATOR, and SCHEDULE 1 are not in expected order");
   }
-  const originalOperator = xml.slice(operatorStart, scheduleStart);
+  const originalOperator = normalizeOperatorExecution(
+    tagOperatorExecution(xml.slice(operatorStart, scheduleStart))
+  );
   return (
     xml.slice(0, execStart) +
     executionGuarantorsXml() +
@@ -398,11 +521,19 @@ function requiredTagsPresent(xml: string): string[] {
     "{#guarantors_individual}",
     "{name}",
     "{nric}",
+    "{witness_name}",
+    "{witness_nric}",
     "{#has_corporate_guarantor}",
     "{#corporate_guarantor_pages}",
     "{company_name}",
     "{company_ssm}",
     "{#signatories}",
+    "{operator_1_name}",
+    "{operator_1_nric}",
+    "{operator_1_designation}",
+    "{operator_2_name}",
+    "{operator_2_nric}",
+    "{operator_2_designation}",
   ];
   return required.filter((tag) => !xml.includes(tag));
 }
@@ -460,6 +591,10 @@ function main(): void {
   const leftovers = leftoverPlaceholders(documentXml);
   if (leftovers.length > 0) {
     throw new Error(`Leftover placeholders in document.xml: ${leftovers.join(", ")}`);
+  }
+  const operatorIssues = operatorLayoutIssues(documentXml);
+  if (operatorIssues.length > 0) {
+    throw new Error(`OPERATOR page layout: ${operatorIssues.join("; ")}`);
   }
 
   const numberingXml = cleanZip.file("word/numbering.xml")?.asText();

@@ -6,14 +6,20 @@
  * document — e.g. the same director is authorised signatory for an individual and a
  * corporate guarantor. Such assignments collapse into a single signer whose signset
  * carries every signature field they own.
+ *
+ * Manual and automatic identities must stay distinct even if an email collides.
+ * Automatic rows still need at least one `fieldtype: "sign"` box — SigningCloud
+ * rejects an empty signset (`Missing signature attribute`).
  */
 import { normalizeSigningEmail } from "@cashsouk/types";
+import { AppError } from "../../lib/http/error-handler";
 import type { ProviderSigner } from "./provider/adapter";
 
 export interface DocumentSignerRow {
   email: string;
   /** Signature-field placements for this assignment, in signing order. */
   signset?: unknown;
+  executionMode?: "MANUAL" | "AUTOMATIC";
 }
 
 function readSignFields(signset: unknown): unknown[] {
@@ -23,19 +29,39 @@ function readSignFields(signset: unknown): unknown[] {
 export function buildDocumentProviderSigners(
   rows: readonly DocumentSignerRow[]
 ): ProviderSigner[] {
-  const byEmail = new Map<string, { email: string; fields: unknown[] }>();
+  const byKey = new Map<
+    string,
+    { email: string; fields: unknown[]; executionMode: "MANUAL" | "AUTOMATIC" }
+  >();
   for (const row of rows) {
-    const key = normalizeSigningEmail(row.email);
-    const signer = byEmail.get(key);
+    const executionMode = row.executionMode === "AUTOMATIC" ? "AUTOMATIC" : "MANUAL";
+    const emailKey = normalizeSigningEmail(row.email);
+    const key = `${executionMode}:${emailKey}`;
+    const colliding = [...byKey.values()].find(
+      (signer) =>
+        normalizeSigningEmail(signer.email) === emailKey && signer.executionMode !== executionMode
+    );
+    if (colliding) {
+      throw new AppError(
+        400,
+        "SIGNING_BINDINGS_INVALID",
+        `SigningCloud email ${emailKey} cannot be both a manual signer and an automatic CashSouk signer on the same document.`
+      );
+    }
+    const signer = byKey.get(key);
     if (signer) {
       signer.fields.push(...readSignFields(row.signset));
       continue;
     }
-    byEmail.set(key, { email: row.email, fields: [...readSignFields(row.signset)] });
+    byKey.set(key, {
+      email: row.email,
+      fields: [...readSignFields(row.signset)],
+      executionMode,
+    });
   }
-  return [...byEmail.values()].map(({ email, fields }) => ({
+  return [...byKey.values()].map(({ email, fields, executionMode }) => ({
     email,
-    // No fields means the provider adapter places its stacked default rectangle.
-    signset: fields.length > 0 ? fields : undefined,
+    executionMode,
+    signset: fields.length > 0 ? fields : executionMode === "AUTOMATIC" ? [] : undefined,
   }));
 }

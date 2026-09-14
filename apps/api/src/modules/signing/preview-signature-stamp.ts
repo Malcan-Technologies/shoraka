@@ -16,10 +16,10 @@ export type WetInkPreviewField = {
   showAnnotations?: boolean;
 };
 
-export function signerNamesForPlannedDocument(
+export function plannedRecipientsForDocument(
   plan: EnvelopePlan,
   documentKey: string
-): string[] {
+): EnvelopePlan["recipients"] {
   const byRef = new Map(plan.recipients.map((recipient) => [recipient.ref, recipient]));
   return plan.assignments
     .filter((assignment) => assignment.document_ref === documentKey)
@@ -29,8 +29,14 @@ export function signerNamesForPlannedDocument(
       const order = a.routing_order - b.routing_order;
       if (order !== 0) return order;
       return a.name.localeCompare(b.name);
-    })
-    .map((recipient) => recipient.name);
+    });
+}
+
+export function signerNamesForPlannedDocument(
+  plan: EnvelopePlan,
+  documentKey: string
+): string[] {
+  return plannedRecipientsForDocument(plan, documentKey).map((recipient) => recipient.name);
 }
 
 /** Map signer names onto stacked SigningCloud rectangles on the given 1-based page. */

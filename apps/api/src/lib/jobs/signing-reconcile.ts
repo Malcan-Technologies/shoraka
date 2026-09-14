@@ -6,6 +6,7 @@ import { Prisma } from "@prisma/client";
 import { logger } from "../logger";
 import { systemAuditContext } from "../audit";
 import { signingService } from "../../modules/signing/service";
+import { signingRepository } from "../../modules/signing/repository";
 
 export type SigningReconcileResult = {
   syncedEnvelopeIds: string[];
@@ -83,6 +84,33 @@ export async function runSigningReconcileJob(): Promise<SigningReconcileResult> 
     } catch (err) {
       result.errors.push(
         `trust-return ${recipient.id}: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  }
+
+  const pendingAutomaticEnvelopeIds =
+    await signingRepository.findEnvelopeIdsWithPendingAutomaticAssignments();
+  for (const envelopeId of pendingAutomaticEnvelopeIds) {
+    if (result.syncedEnvelopeIds.includes(envelopeId)) continue;
+    try {
+      await signingService.syncEnvelopeFromProvider(envelopeId, { context: jobContext });
+      result.syncedEnvelopeIds.push(envelopeId);
+    } catch (err) {
+      result.errors.push(
+        `auto-sign ${envelopeId}: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  }
+
+  const staleBefore = new Date(Date.now() - 10 * 60 * 1000);
+  const staleSendIds = await signingRepository.findStaleSendEnvelopeIds(staleBefore);
+  for (const envelopeId of staleSendIds) {
+    try {
+      await signingService.continueEnvelopeSend(envelopeId);
+      result.syncedEnvelopeIds.push(envelopeId);
+    } catch (err) {
+      result.errors.push(
+        `send ${envelopeId}: ${err instanceof Error ? err.message : String(err)}`
       );
     }
   }

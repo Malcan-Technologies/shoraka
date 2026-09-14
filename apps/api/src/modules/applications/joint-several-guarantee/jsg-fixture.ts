@@ -12,6 +12,14 @@ export function createJsgFixture(): JsgMergeData {
     issuer_business_address: "Lot 2, Jalan Industri, 40150 Shah Alam, Selangor, Malaysia",
     facility_description:
       "Account Receivable Financing-i Facility of RM 1,000,000.00 as described in the Letter of Offer dated 19 August 2026",
+    operator_1_name: "Aisha Rahman",
+    operator_1_nric: "850101015555",
+    operator_1_designation: "Chief Executive Officer",
+    operator_2_name: "Ben Tan",
+    operator_2_nric: "860202025555",
+    operator_2_designation: "Director",
+    guarantor_witness_name: "Chloe Lim",
+    guarantor_witness_nric: "850101015555",
     guarantors_individual: [
       {
         name: "Ali Bin Abu",

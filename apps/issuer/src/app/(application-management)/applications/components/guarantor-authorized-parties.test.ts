@@ -196,12 +196,14 @@ describe("buildAuthorizedPartiesSubmitPayload", () => {
         corporateRepsById: { g_co: [nora] },
         individualEmailsById: { g_ind: "ali.personal@co.my" },
       },
+      sealApplierMatchKey: "820508105871",
     });
     expect(payload.parties.map((party) => party.entity_kind)).toEqual([
       "ISSUER",
       "CORPORATE_GUARANTOR",
       "INDIVIDUAL_GUARANTOR",
     ]);
+    expect(payload.parties[0]?.representatives[0]?.applies_company_seal).toBe(true);
     expect(payload.parties[1]).toMatchObject({
       application_guarantor_id: "g_co",
       representatives: [
@@ -219,5 +221,20 @@ describe("buildAuthorizedPartiesSubmitPayload", () => {
         },
       ],
     });
+  });
+
+  it("passes the issuer seal applier through to the issuer party", () => {
+    const payload = buildAuthorizedPartiesSubmitPayload({
+      directors,
+      selectedMatchKeys: ["820508105871"],
+      guarantors: [company],
+      drafts: {
+        corporateRepsById: { g_co: [nora] },
+        individualEmailsById: {},
+      },
+      sealApplierMatchKey: "820508105871",
+    });
+    expect(payload.parties[0]?.representatives[0]?.applies_company_seal).toBe(true);
+    expect(payload.parties[1]?.representatives[0]?.applies_company_seal).toBeUndefined();
   });
 });

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   isValidProfilePhone,
+  signingCloudLegalImageDeclaredFileRejection,
   storedProfilePhone,
   validateIssuerAddressForm,
 } from "@cashsouk/types";
@@ -258,4 +259,32 @@ export type PatchCtosPartyEmailInput = z.infer<typeof patchCtosPartyEmailSchema>
 export type PortalType = z.infer<typeof portalTypeSchema>;
 export type UpdateOrganizationProfileInput = z.infer<typeof updateOrganizationProfileSchema>;
 export type BankAccountDetails = z.infer<typeof bankAccountDetailsSchema>;
+
+export const issuerCompanySealUploadUrlBodySchema = z
+  .object({
+    fileName: z.string().trim().min(1).max(255),
+    contentType: z.string().min(1),
+    fileSize: z.number().int(),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    const rejection = signingCloudLegalImageDeclaredFileRejection(
+      value.contentType,
+      value.fileSize
+    );
+    if (rejection) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: rejection });
+    }
+  });
+
+export const issuerCompanySealConfirmBodySchema = z
+  .object({
+    s3Key: z.string().trim().min(1),
+    fileName: z.string().trim().min(1).max(255),
+  })
+  .strict();
+
+export type IssuerCompanySealUploadUrlInput = z.infer<typeof issuerCompanySealUploadUrlBodySchema>;
+export type IssuerCompanySealConfirmInput = z.infer<typeof issuerCompanySealConfirmBodySchema>;
+
 

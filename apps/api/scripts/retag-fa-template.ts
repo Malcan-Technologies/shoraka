@@ -2,10 +2,16 @@
 /**
  * Rebuild `arf-facility-agreement.docx` from the 19 August 2026 clean Facility
  * Agreement: rewrite merge slots to yellow-highlighted docxtemplater tags and
- * replace the two hardcoded ISSUER signature blocks with a signer loop. The
- * original ISSUER heading, SIGNED BY line, and “for and on behalf of” lines
- * are kept (the execution brace drawing is removed). Each signatory sits beside one wet-ink witness (JSG two-column
- * table), with page breaks so ISSUER execution is not shared with Schedule 1.
+ * replace the two hardcoded ISSUER signature blocks with a signer loop. Investor
+ * and Agent keep the clean-copy hanging layout (SIGNED BY, company lines, tabbed
+ * signature strokes); only Name/Designation merge tags are inserted after the
+ * colons. Signature strokes stay as the clean-copy underscore runs — one line,
+ * no extra border or Courier restyling. Name/Designation/Date are pinned to the
+ * right column so wrapped values cannot jump to the left margin.
+ * The original ISSUER heading, SIGNED BY line, and “for and on behalf of”
+ * lines are kept (the execution brace drawing is removed). Each issuer signatory
+ * sits beside one wet-ink witness (JSG two-column table), with page breaks so
+ * ISSUER execution is not shared with Schedule 1.
  * Schedules 4 to 8 stay unchanged. Schedule 9 Appendix 1 fills the Facility
  * Agreement date and issuer particulars; remaining schedule placeholders stay.
  *
@@ -145,9 +151,10 @@ function makePara(
     bold?: boolean;
     underline?: boolean;
     pageBreakBefore?: boolean;
+    align?: "both" | "left";
   }
 ): string {
-  const jc = opts?.center || opts?.heading ? "center" : "both";
+  const jc = opts?.center || opts?.heading ? "center" : opts?.align === "left" ? "left" : "both";
   const rPr = bodyRpr({
     bold: opts?.heading || opts?.bold,
     underline: opts?.heading || opts?.underline,
@@ -162,6 +169,14 @@ function emptyParas(count: number): string {
 
 function pageBreakPara(): string {
   return `<w:p><w:pPr><w:spacing w:after="0" w:line="276" w:lineRule="auto"/></w:pPr><w:r><w:br w:type="page"/></w:r></w:p>`;
+}
+
+/** Clean-copy ISSUER / witness strokes: default Arial underscores, no second rule. */
+const ISSUER_SIGNATURE_STROKE = "________________________";
+const WITNESS_SIGNATURE_STROKE = "______________________";
+
+function signatureStrokePara(stroke: string): string {
+  return `<w:p><w:pPr><w:spacing w:after="0" w:line="276" w:lineRule="auto"/><w:jc w:val="left"/></w:pPr><w:r><w:t>${stroke}</w:t></w:r></w:p>`;
 }
 
 function tableCell(paras: string, width: string): string {
@@ -188,12 +203,11 @@ function twoColTable(rows: Array<[string, string]>): string {
 
 /** One CA signatory on the left, one wet-ink witness on the right. Blank rows leave room for the stamp. */
 function issuerSignatoryTable(): string {
-  const line = "______________________________";
   return twoColTable([
     [emptyParas(2), emptyParas(2)],
-    [makePara(line), makePara(line)],
-    [makePara("Name : {name}"), makePara("Name of Witness:")],
-    [makePara("Designation : {designation}"), makePara("NRIC:")],
+    [signatureStrokePara(ISSUER_SIGNATURE_STROKE), signatureStrokePara(WITNESS_SIGNATURE_STROKE)],
+    [makePara("Name : {name}"), makePara("Name of Witness: {witness_name}")],
+    [makePara("Designation : {designation}"), makePara("NRIC: {witness_nric}")],
     [makePara("Date :"), makePara("Date :")],
     [makePara("Issuer's company stamp:"), makePara("")],
   ]);
@@ -412,6 +426,111 @@ function insertAccountNumberBankRow(xml: string): string {
   return next;
 }
 
+/** Matches the clean-copy first-line indent (Investor 4320+720, Agent 5040+720). */
+const EXECUTION_INVESTOR_LABEL_LEFT_TWIPS = 5040;
+const EXECUTION_AGENT_LABEL_LEFT_TWIPS = 5760;
+/** Tab from "Name"/"Designation" to the value so wrapped lines stay under the value. */
+const EXECUTION_LABEL_VALUE_HANGING_TWIPS = 1080;
+
+function executionLabelParagraph(label: "Name" | "Designation" | "Date", leftTwips: number, tag?: string): string {
+  const wrapLeft = leftTwips + EXECUTION_LABEL_VALUE_HANGING_TWIPS;
+  const rPr = bodyRpr();
+  const runs = [textRun(label, rPr), `<w:r>${rPr}<w:tab/></w:r>`, textRun(":", rPr)];
+  if (tag) {
+    runs.push(textRun(" ", rPr));
+    runs.push(textRun(`{${tag}}`, rprWithYellow(rPr)));
+  }
+  return `<w:p><w:pPr><w:tabs><w:tab w:val="left" w:pos="${wrapLeft}"/></w:tabs><w:spacing w:after="0" w:line="276" w:lineRule="auto"/><w:ind w:left="${wrapLeft}" w:hanging="${EXECUTION_LABEL_VALUE_HANGING_TWIPS}"/><w:jc w:val="left"/>${rPr}</w:pPr>${runs.join("")}</w:p>`;
+}
+
+function polishInvestorAgentParagraph(pXml: string, labelLeftTwips: number): string {
+  const compact = compactParagraphText(paragraphPlainText(pXml));
+  if (/^name:?$/i.test(compact) || /^designation:?$/i.test(compact) || /^date:?$/i.test(compact)) {
+    const label = /^name/i.test(compact) ? "Name" : /^designation/i.test(compact) ? "Designation" : "Date";
+    return executionLabelParagraph(label, labelLeftTwips);
+  }
+  return pXml;
+}
+
+/** Keep the clean-copy hanging Investor/Agent layout; only fill Name and Designation. */
+function tagInvestorAgentExecution(xml: string): string {
+  const state = {
+    seenWitness: false,
+    phase: "pre" as "pre" | "investor" | "agent" | "done",
+    nameIndex: 0,
+    designationIndex: 0,
+    investorNames: 0,
+    investorDesignations: 0,
+    agentNames: 0,
+    agentDesignations: 0,
+  };
+  const next = mapWordParagraphs(xml, (pXml) => {
+    const compact = compactParagraphText(paragraphPlainText(pXml));
+    if (compact.startsWith("IN WITNESS WHEREOF the parties hereto have caused this Agreement")) {
+      state.seenWitness = true;
+      return pXml;
+    }
+    if (!state.seenWitness || state.phase === "done") return pXml;
+    if (compact === "INVESTOR" && state.phase === "pre") {
+      state.phase = "investor";
+      return pXml;
+    }
+    if (compact === "AGENT" && state.phase === "investor") {
+      state.investorNames = state.nameIndex;
+      state.investorDesignations = state.designationIndex;
+      state.phase = "agent";
+      state.nameIndex = 0;
+      state.designationIndex = 0;
+      return pXml;
+    }
+    if (compact === "ISSUER" && (state.phase === "agent" || state.phase === "investor")) {
+      if (state.phase === "agent") {
+        state.agentNames = state.nameIndex;
+        state.agentDesignations = state.designationIndex;
+      }
+      state.phase = "done";
+      return pXml;
+    }
+    if (state.phase !== "investor" && state.phase !== "agent") return pXml;
+    const prefix = state.phase === "investor" ? "investor" : "agent";
+    const labelLeftTwips =
+      prefix === "investor" ? EXECUTION_INVESTOR_LABEL_LEFT_TWIPS : EXECUTION_AGENT_LABEL_LEFT_TWIPS;
+    if (/^name:?$/i.test(compact)) {
+      state.nameIndex += 1;
+      if (state.nameIndex > 2) {
+        throw new Error(`${prefix} execution has more than 2 Name lines`);
+      }
+      return executionLabelParagraph("Name", labelLeftTwips, `${prefix}_${state.nameIndex}_name`);
+    }
+    if (/^designation:?$/i.test(compact)) {
+      state.designationIndex += 1;
+      if (state.designationIndex > 2) {
+        throw new Error(`${prefix} execution has more than 2 Designation lines`);
+      }
+      return executionLabelParagraph(
+        "Designation",
+        labelLeftTwips,
+        `${prefix}_${state.designationIndex}_designation`
+      );
+    }
+    return polishInvestorAgentParagraph(pXml, labelLeftTwips);
+  });
+  if (state.phase !== "done") {
+    throw new Error("Could not find Investor/Agent execution headings before ISSUER");
+  }
+  if (state.investorNames !== 2 || state.investorDesignations !== 2) {
+    throw new Error(
+      `Investor execution needs 2 Name and 2 Designation lines, found ${state.investorNames}/${state.investorDesignations}`
+    );
+  }
+  if (state.agentNames !== 2 || state.agentDesignations !== 2) {
+    throw new Error(
+      `Agent execution needs 2 Name and 2 Designation lines, found ${state.agentNames}/${state.agentDesignations}`
+    );
+  }
+  return next;
+}
+
 function rebuildIssuerExecution(xml: string): string {
   const matches = [...xml.matchAll(WORD_PARAGRAPH_RE)];
   let issuerMatch: RegExpMatchArray | null = null;
@@ -519,7 +638,17 @@ function requiredTagsPresent(xml: string): string[] {
     "{#issuer_signatories}",
     "{name}",
     "{designation}",
+    "{witness_name}",
+    "{witness_nric}",
     "{/issuer_signatories}",
+    "{investor_1_name}",
+    "{investor_1_designation}",
+    "{investor_2_name}",
+    "{investor_2_designation}",
+    "{agent_1_name}",
+    "{agent_1_designation}",
+    "{agent_2_name}",
+    "{agent_2_designation}",
   ];
   return required.filter((tag) => !xml.includes(tag));
 }
@@ -680,6 +809,7 @@ function main(): void {
   let taggedHead = stripYellowHighlights(before);
   taggedHead = rewriteBodyParagraphs(taggedHead);
   taggedHead = insertAccountNumberBankRow(taggedHead);
+  taggedHead = tagInvestorAgentExecution(taggedHead);
   taggedHead = rebuildIssuerExecution(taggedHead);
   taggedHead = ensureYellowOnValueTagRuns(taggedHead);
 
@@ -712,6 +842,12 @@ function main(): void {
   }
   if (!taggedHead.includes("INVESTOR") || !taggedHead.includes("AGENT")) {
     throw new Error("Investor/Agent execution blocks were removed");
+  }
+  if (!taggedHead.includes("SIGNED BY authorised representatives of")) {
+    throw new Error("Investor hanging execution text was removed");
+  }
+  if (!taggedHead.includes("Investor Agreement signed with")) {
+    throw new Error("Investor hanging execution text was removed");
   }
 
   const documentXml = taggedHead + fromSchedule4;

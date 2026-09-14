@@ -9,10 +9,13 @@ import {
   operatorProfilePatchSchema,
   operatorShareCapitalPatchSchema,
   operatorShareholderSchema,
+  operatorDocumentExecutionBindingsPutSchema,
   operatorSigningPersonCreateSchema,
   operatorSigningPersonUpdateSchema,
+  confirmOperatorSigningSignatureSchema,
   parseOperatorBody,
   requestOperatorSigningImageUploadUrlSchema,
+  requestOperatorSigningSignatureUploadUrlSchema,
 } from "../organization-profile/schemas";
 import * as operatorProfile from "./service";
 
@@ -132,11 +135,25 @@ export function createOperatorProfileRouter() {
     requirePermission("platform_settings.manage"),
     async (req, res, next) => {
       try {
-        const input = requestOperatorSigningImageUploadUrlSchema.parse(req.body);
+        const input = requestOperatorSigningSignatureUploadUrlSchema.parse(req.body);
         const data = await operatorProfile.requestOperatorSigningImageUploadUrl({
           ...input,
           kind: "signature",
         });
+        res.json({ success: true, data, correlationId: res.locals.correlationId });
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+
+  router.post(
+    "/signing-people/signature-confirm",
+    requirePermission("platform_settings.manage"),
+    async (req, res, next) => {
+      try {
+        const input = parseOperatorBody(confirmOperatorSigningSignatureSchema, req.body);
+        const data = await operatorProfile.confirmSigningSignatureObject(input.s3Key);
         res.json({ success: true, data, correlationId: res.locals.correlationId });
       } catch (error) {
         next(error);
@@ -196,6 +213,49 @@ export function createOperatorProfileRouter() {
       try {
         const input = parseOperatorBody(operatorSigningPersonUpdateSchema, req.body);
         const data = await operatorProfile.updateSigningPerson(req.params.id, input);
+        res.json({ success: true, data, correlationId: res.locals.correlationId });
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+
+  router.post(
+    "/signing-people/:id/signature-confirm",
+    requirePermission("platform_settings.manage"),
+    async (req, res, next) => {
+      try {
+        const input = parseOperatorBody(confirmOperatorSigningSignatureSchema, req.body);
+        const data = await operatorProfile.confirmSigningPersonSignature(
+          req.params.id,
+          input.s3Key
+        );
+        res.json({ success: true, data, correlationId: res.locals.correlationId });
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+
+  router.get(
+    "/signing-people/:id/signature-preview",
+    async (req, res, next) => {
+      try {
+        const data = await operatorProfile.getSigningPersonSignaturePreview(req.params.id);
+        res.json({ success: true, data, correlationId: res.locals.correlationId });
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+
+  router.put(
+    "/document-execution-bindings",
+    requirePermission("platform_settings.manage"),
+    async (req, res, next) => {
+      try {
+        const input = parseOperatorBody(operatorDocumentExecutionBindingsPutSchema, req.body);
+        const data = await operatorProfile.putDocumentExecutionBindings(input);
         res.json({ success: true, data, correlationId: res.locals.correlationId });
       } catch (error) {
         next(error);

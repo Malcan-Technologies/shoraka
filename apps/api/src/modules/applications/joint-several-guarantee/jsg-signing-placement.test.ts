@@ -9,6 +9,11 @@ import {
   type JsgPdfTextItem,
 } from "./jsg-signing-placement";
 import { countPdfPages } from "./jsg-signing-signsets";
+import {
+  LAYOUT_DETECTED_DATE_FIELD,
+  LAYOUT_DETECTED_PRINTED_LINE_GAP,
+  signatureFieldsOverlap,
+} from "../../signing/signature-field-geometry";
 
 function item(
   pageindex: number,
@@ -105,6 +110,33 @@ describe("collectJsgSignatureSlots", () => {
     expect((ali?.top ?? 0) + (ali?.height ?? 0)).toBeLessThan(190);
     expect((nora?.top ?? 0) + (nora?.height ?? 0)).toBeLessThan(466);
     expect(nora?.left).toBe(farid?.left);
+    const gap = LAYOUT_DETECTED_PRINTED_LINE_GAP;
+    const aliDate = ali?.extraFields?.find((field) => field.fieldtype === "signdate");
+    const siti = slots.find((slot) => slot.name === "Siti Binti Ahmad");
+    const sitiDate = siti?.extraFields?.find((field) => field.fieldtype === "signdate");
+    expect(aliDate).toBeDefined();
+    expect(sitiDate).toBeDefined();
+    expect((ali?.top ?? 0) + (ali?.height ?? 0) + gap).toBeLessThanOrEqual(190);
+    expect(aliDate!.top).toBe(
+      238 - LAYOUT_DETECTED_DATE_FIELD.height + LAYOUT_DETECTED_DATE_FIELD.topOffset
+    );
+    expect((siti?.top ?? 0) + (siti?.height ?? 0) + gap).toBeLessThanOrEqual(332);
+    expect(sitiDate!.top).toBe(
+      364 - LAYOUT_DETECTED_DATE_FIELD.height + LAYOUT_DETECTED_DATE_FIELD.topOffset
+    );
+    expect(
+      signatureFieldsOverlap(
+        {
+          fieldtype: "sign",
+          pageindex: ali!.pageindex,
+          top: ali!.top,
+          left: ali!.left,
+          height: ali!.height,
+          width: ali!.width,
+        },
+        aliDate!
+      )
+    ).toBe(false);
   });
 
   it("places stacked corporate representatives on dotted guarantor lines, not a shared right-hand column", () => {

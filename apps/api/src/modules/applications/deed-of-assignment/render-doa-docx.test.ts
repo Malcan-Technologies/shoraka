@@ -80,6 +80,11 @@ describe("renderDeedOfAssignmentDocx", () => {
     expect(plain).toContain("{#assignor_signatories}");
     expect(plain).toContain("{/assignor_signatories}");
     expect(plain).toContain("Name: {name}");
+    expect(plain).toContain("Name: {witness_name}");
+    expect(plain).toContain("Designation: {witness_designation}");
+    expect(plain).toContain("{ssp_1_name}");
+    expect(plain).toContain("{ssp_2_designation}");
+    expect(xml).toContain("§SSP_COMPANY_STAMP_IMAGE§");
     expect(plain).toContain("In the presence of:");
     expect(plain).toContain("[Witness]");
     expect(plain).not.toContain("ELECTRONIC SIGNATURES — ASSIGNOR");
@@ -93,6 +98,19 @@ describe("renderDeedOfAssignmentDocx", () => {
     expect(plain).toContain(SCHEDULE3_NIL_NOTE);
     expect(plain).toContain("SHORAKA SUYULA PLATFORM SDN. BHD.");
     expect(plain).toContain("SHORAKA SUYULA SDN. BHD.");
+    expect(plain).toContain("[SSP]");
+    expect(
+      plain.slice(0, plain.indexOf("[SSP]")).split("______________________________________").length - 1
+    ).toBe(2);
+    expect(plain).toMatch(/SHORAKA SUYULA PLATFORM\s*\)\s*_{10,}/);
+    const sspEnd = xml.indexOf("MINIMUM OF TWO");
+    expect(sspEnd).toBeGreaterThan(-1);
+    expect(xml.slice(0, sspEnd)).toContain('<w:br w:type="page"/>');
+    const assignorXml = xml.slice(xml.indexOf("{#assignor_signatories}"), xml.indexOf("{/assignor_signatories}"));
+    expect(assignorXml).toContain("______________________________________");
+    expect(assignorXml).toContain("_______________________________");
+    expect(assignorXml).not.toContain("Date: ________________");
+    expect(assignorXml).not.toContain("...........................................................................");
 
     expect(runContaining(xml, "{assignment_date}")).toContain('w:val="yellow"');
     expect(runContaining(xml, "{assignor_company_name}")).toContain('w:val="yellow"');
@@ -115,6 +133,18 @@ describe("renderDeedOfAssignmentDocx", () => {
     expect(plain).not.toContain("ELECTRONIC SIGNATURES — ASSIGNOR");
     expect(plain).not.toContain("{#assignor_signatories}");
     expect(plain).not.toContain("{#transaction_documents}");
+  });
+
+  it("connects underscore signature strokes without hiding the glyphs", () => {
+    const xml = renderedXml(createDeedOfAssignmentFixture());
+    const underscoreRuns = [...xml.matchAll(/<w:r\b[\s\S]*?<\/w:r>/g)]
+      .map((match) => match[0])
+      .filter((run) => /^_{8,}$/.test(wordPlainText(run).trim()));
+
+    expect(underscoreRuns.length).toBeGreaterThan(0);
+    expect(underscoreRuns.every((run) => run.includes('<w:spacing w:val="-40"/>'))).toBe(true);
+    expect(underscoreRuns.some((run) => run.includes('w:val="FFFFFF"'))).toBe(false);
+    expect(underscoreRuns.some((run) => run.includes("<w:u "))).toBe(false);
   });
 
   it("renders one assignor block per authorised representative", () => {

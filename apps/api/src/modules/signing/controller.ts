@@ -19,6 +19,7 @@ import {
   verifyExternalAccessCodeSchema,
   recipientEkycSessionSchema,
   remindRecipientSchema,
+  autoSignRetryParamsSchema,
 } from "./schemas";
 
 const signedDocumentParamsSchema = z.object({
@@ -54,6 +55,7 @@ async function sendAdminSigningPackage(req: Request, res: Response, next: NextFu
       contractId: body.contractId ?? null,
       invoiceId: body.invoiceId ?? null,
       context: auditContextFromRequest(req, { res, portal: AUDIT_PORTAL.ADMIN }),
+      waitForProvider: false,
     });
     ok(res, envelope);
   } catch (e) {
@@ -96,6 +98,30 @@ async function remindRecipientForIssuer(req: Request, res: Response, next: NextF
       body.documentId
     );
     ok(res, { ok: true });
+  } catch (e) {
+    next(e);
+  }
+}
+
+async function retryEnvelopeDelivery(req: Request, res: Response, next: NextFunction) {
+  try {
+    ok(
+      res,
+      await signingService.retryEnvelopeDelivery(req.params.id, {
+        userId: getUserId(req),
+        portal: ActivityPortal.ADMIN,
+        context: auditContextFromRequest(req, { res, portal: AUDIT_PORTAL.ADMIN }),
+      })
+    );
+  } catch (e) {
+    next(e);
+  }
+}
+
+async function retryAutomaticAssignment(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id, assignmentId } = autoSignRetryParamsSchema.parse(req.params);
+    ok(res, await signingService.retryAutomaticAssignment(id, assignmentId));
   } catch (e) {
     next(e);
   }
@@ -300,6 +326,14 @@ async function getIssuerSignedDocument(req: Request, res: Response, next: NextFu
   }
 }
 
+async function getAdminSigningPackageReadiness(req: Request, res: Response, next: NextFunction) {
+  try {
+    ok(res, await signingService.getSigningPackageReadiness(req.params.applicationId));
+  } catch (e) {
+    next(e);
+  }
+}
+
 async function getAdminSigningDocumentPreview(req: Request, res: Response, next: NextFunction) {
   try {
     const { applicationId, documentKey } = previewSigningDocumentParamsSchema.parse(req.params);
@@ -321,7 +355,12 @@ export function createSigningAdminRouter(): Router {
   const router = Router();
   router.post("/applications/:applicationId/envelopes/send", sendAdminSigningPackage);
   router.post("/envelopes/:id/void", voidEnvelope);
+  router.post("/envelopes/:id/retry-delivery", retryEnvelopeDelivery);
   router.post("/envelopes/:id/recipients/:recipientId/remind", remindRecipient);
+  router.post(
+    "/envelopes/:id/assignments/:assignmentId/auto-sign-retry",
+    retryAutomaticAssignment
+  );
   router.get("/envelopes/:id", async (req, res, next) => {
     try {
       ok(res, await signingService.getEnvelope(req.params.id));
@@ -329,6 +368,7 @@ export function createSigningAdminRouter(): Router {
       next(e);
     }
   });
+  router.get("/applications/:applicationId/readiness", getAdminSigningPackageReadiness);
   router.get("/applications/:applicationId/envelopes", async (req, res, next) => {
     try {
       ok(res, await signingService.listEnvelopesForApplication(req.params.applicationId));

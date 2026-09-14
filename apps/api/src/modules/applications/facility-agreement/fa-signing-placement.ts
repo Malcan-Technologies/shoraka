@@ -8,9 +8,16 @@ import type { SigningCloudSignField } from "../joint-several-guarantee/jsg-signi
 import {
   dateFieldFromLine,
   findSignerDateLabel,
+  findSignerDesignationLabel,
   fitDateFieldBetweenSignatures,
+  fitSignFieldAbovePrintedLine,
   matchSignersToNamedSlots,
   signatureFieldFromLine,
+  textFieldFromLine,
+  attachPrimarySealField,
+  asLayoutDetectedSigners,
+  namesFromLayoutDetectedSigners,
+  type LayoutDetectedSigner,
 } from "../../signing/signature-field-geometry";
 
 export class FaSigningLayoutError extends Error {
@@ -128,14 +135,24 @@ function isIssuerNameLabel(text: string): boolean {
   return /^name\s*:/i.test(value);
 }
 
+export type FaPlacementOptions = {
+  includeTextField?: boolean;
+  includeSeal?: boolean;
+};
+
 /** CA slots on ISSUER execution underscored lines only — never Investor, Agent, or witness. */
-export function collectFaIssuerSignatureSlots(items: JsgPdfTextItem[]): FaSignatureSlot[] {
+export function collectFaIssuerSignatureSlots(
+  items: JsgPdfTextItem[],
+  options: Pick<FaPlacementOptions, "includeTextField"> = {}
+): FaSignatureSlot[] {
   const lines = linesFromJsgPdfItems(items);
   const executionLines = issuerExecutionLines(lines);
   if (executionLines.length === 0) {
     throw new FaSigningLayoutError("Facility Agreement PDF is missing the ISSUER execution block.");
   }
-  const located: Array<FaSignatureSlot & { strokeX: number; strokeYTop: number }> = [];
+  const located: Array<
+    FaSignatureSlot & { strokeX: number; strokeYTop: number; printedYTop: number }
+  > = [];
 
   for (const line of executionLines) {
     if (!isUnderscoreLine(line.text)) continue;
@@ -146,12 +163,14 @@ export function collectFaIssuerSignatureSlots(items: JsgPdfTextItem[]): FaSignat
       ...fieldFromSignatureLine(line),
       strokeX: line.x,
       strokeYTop: line.yTop,
+      printedYTop: below.yTop,
     });
   }
 
   located.sort((a, b) => a.pageindex - b.pageindex || a.strokeYTop - b.strokeYTop || a.left - b.left);
 
   const slots: FaSignatureSlot[] = [];
+  let previousBottom: number | undefined;
   for (let index = 0; index < located.length; index += 1) {
     const current = located[index];
     if (!current) continue;
@@ -171,33 +190,53 @@ export function collectFaIssuerSignatureSlots(items: JsgPdfTextItem[]): FaSignat
         `Facility Agreement PDF is missing a Date line for "${current.name || "an issuer signatory"}".`
       );
     }
-    const signField = {
-      fieldtype: "sign" as const,
-      pageindex: current.pageindex,
-      top: current.top,
-      left: current.left,
-      height: current.height,
-      width: current.width,
-    };
-    const nextSign = next
-      ? {
-          fieldtype: "sign" as const,
-          pageindex: next.pageindex,
-          top: next.top,
-          left: next.left,
-          height: next.height,
-          width: next.width,
-        }
-      : undefined;
+    const samePagePrevious =
+      previousBottom != null && slots[slots.length - 1]?.pageindex === current.pageindex
+        ? previousBottom
+        : undefined;
+    const signField = fitSignFieldAbovePrintedLine(
+      {
+        fieldtype: "sign",
+        pageindex: current.pageindex,
+        top: current.top,
+        left: current.left,
+        height: current.height,
+        width: current.width,
+      },
+      current.printedYTop,
+      samePagePrevious
+    );
+    const extraFields = [
+      fitDateFieldBetweenSignatures(dateFieldFromLine(dateLine), signField, undefined),
+    ];
+    const designationLine = findSignerDesignationLabel(
+      { pageindex: current.pageindex, x: current.strokeX, yTop: current.strokeYTop },
+      executionLines,
+      {
+        sameColumnDelta: SAME_COLUMN_X,
+        maxBelow: DATE_SEARCH_BELOW,
+        beforeYTop: dateLine.yTop,
+      }
+    );
+    if (options.includeTextField) {
+      if (!designationLine) {
+        throw new FaSigningLayoutError(
+          `Facility Agreement PDF is missing a Designation line for "${current.name || "an issuer signatory"}".`
+        );
+      }
+      extraFields.push(textFieldFromLine(designationLine));
+    }
     slots.push({
       name: current.name,
-      pageindex: current.pageindex,
-      top: current.top,
-      left: current.left,
-      height: current.height,
-      width: current.width,
-      extraFields: [fitDateFieldBetweenSignatures(dateFieldFromLine(dateLine), signField, nextSign)],
+      pageindex: signField.pageindex,
+      top: signField.top,
+      left: signField.left,
+      height: signField.height,
+      width: signField.width,
+      extraFields,
     });
+    const dateField = extraFields[0];
+    previousBottom = dateField ? dateField.top + dateField.height : signField.top + signField.height;
   }
 
   return slots;
@@ -224,13 +263,27 @@ export function matchFaSignersToSlots(
 
 export async function buildFaSigningCloudSignsetsFromPdf(
   pdfBuffer: Buffer,
-  signerNames: string[]
+  signers: string[] | LayoutDetectedSigner[],
+  options: FaPlacementOptions = {}
 ): Promise<SigningCloudSignField[][]> {
+  const signerNames = namesFromLayoutDetectedSigners(signers);
   if (signerNames.length === 0) return [];
   try {
     const items = await extractPdfTextItems(pdfBuffer);
-    const slots = collectFaIssuerSignatureSlots(items);
-    return matchFaSignersToSlots(signerNames, slots);
+    const slots = collectFaIssuerSignatureSlots(items, {
+      includeTextField: options.includeTextField,
+    });
+    const signsets = matchFaSignersToSlots(signerNames, slots);
+    if (!options.includeSeal) return signsets;
+    const page = items[0]
+      ? { pageWidth: items[0].pageWidth, pageHeight: items[0].pageHeight }
+      : {};
+    return attachPrimarySealField(
+      signsets,
+      asLayoutDetectedSigners(signers),
+      page,
+      (message) => new FaSigningLayoutError(message)
+    );
   } catch (err) {
     if (err instanceof FaSigningLayoutError) throw err;
     const detail = err instanceof Error ? err.message : String(err);

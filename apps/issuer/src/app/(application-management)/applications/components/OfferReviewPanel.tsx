@@ -63,6 +63,10 @@ import {
   areUtilisationOfferConsentsComplete,
   computeIndicativeAmountPayable,
   computeIndicativeUtilisationProfit,
+  isRemindableSigningRecipient,
+  ISSUER_SEAL_APPLIER_REQUIRED_MESSAGE,
+  resolveSigningTemplateFromWorkflow,
+  signingPackageRequiresIssuerSeal,
   utilisationOfferAcceptBlockedReason,
   type Application,
   type UtilisationOfferConsentId,
@@ -118,6 +122,7 @@ import {
 import {
   guarantorsFromApplication,
   nextIssuerRepMatchKeys,
+  nextIssuerSealApplierMatchKey,
 } from "./build-issuer-envelope-bindings";
 import {
   areGuarantorPartiesReady,
@@ -284,6 +289,15 @@ export function OfferReviewPanel({
     () => hasAcceptanceDocuments(frozenProductWorkflow?.workflow),
     [frozenProductWorkflow]
   );
+  const requiresIssuerSeal = React.useMemo(
+    () =>
+      signingPackageRequiresIssuerSeal(
+        resolveSigningTemplateFromWorkflow(frozenProductWorkflow?.workflow).documents.map(
+          (document) => document.key
+        )
+      ),
+    [frozenProductWorkflow]
+  );
   const usesAcceptanceFlow = React.useMemo(
     () => workflowUsesOfferAcceptanceFlow(frozenProductWorkflow?.workflow),
     [frozenProductWorkflow]
@@ -326,9 +340,7 @@ export function OfferReviewPanel({
   const canRemindSigners =
     activeSigningEnvelope != null &&
     (activeSigningEnvelope.status === "SENT" || activeSigningEnvelope.status === "IN_PROGRESS") &&
-    activeSigningEnvelope.recipients.some(
-      (recipient) => recipient.status !== "SIGNED" && recipient.status !== "DECLINED"
-    );
+    activeSigningEnvelope.recipients.some(isRemindableSigningRecipient);
   // Always enabled (not gated on useSigningStepper): this is the polling source of truth for
   // acceptance phase — application/contract refresh on the detail policy (15s), so the modal
   // never derives phase from a stale snapshot.
@@ -548,6 +560,8 @@ export function OfferReviewPanel({
   const [issuerRepMatchKeys, setIssuerRepMatchKeys] = React.useState<string[]>([]);
   const issuerRepInitializedRef = React.useRef(false);
   const issuerRepDirtyRef = React.useRef(false);
+  const [sealApplierMatchKey, setSealApplierMatchKey] = React.useState<string | null>(null);
+  const issuerSealApplierDirtyRef = React.useRef(false);
   const [guarantorDrafts, setGuarantorDrafts] = React.useState(emptyGuarantorPartyDrafts);
   const guarantorPartiesDirtyRef = React.useRef(false);
   const [acceptOfferConfirmOpen, setAcceptOfferConfirmOpen] = React.useState(false);
@@ -575,6 +589,8 @@ export function OfferReviewPanel({
     issuerRepInitializedRef.current = false;
     issuerRepDirtyRef.current = false;
     setIssuerRepMatchKeys([]);
+    issuerSealApplierDirtyRef.current = false;
+    setSealApplierMatchKey(null);
     guarantorPartiesDirtyRef.current = false;
     setGuarantorDrafts(emptyGuarantorPartyDrafts());
   }, [applicationId]);
@@ -585,6 +601,7 @@ export function OfferReviewPanel({
     prevAcceptanceStatusRef.current = acceptanceStatus;
     if (acceptanceStatus === "CHANGES_REQUESTED" && previous !== "CHANGES_REQUESTED") {
       issuerRepDirtyRef.current = false;
+      issuerSealApplierDirtyRef.current = false;
       guarantorPartiesDirtyRef.current = false;
       setPeopleStepConfirmed(false);
     }
@@ -612,6 +629,30 @@ export function OfferReviewPanel({
     issuerDirectors,
     issuerRepMatchKeys,
     offerDetailsReady,
+    useSigningStepper,
+    usesAcceptanceFlow,
+  ]);
+
+  React.useEffect(() => {
+    if (!usesAcceptanceFlow || !requiresIssuerSeal) return;
+    if (useSigningStepper && !isCorporateEntitiesFetched) return;
+    if (!offerDetailsReady) return;
+    const nextApplier = nextIssuerSealApplierMatchKey({
+      snapshot: authorizedParties,
+      directors: issuerDirectors,
+      selectedMatchKeys: issuerRepMatchKeys,
+      currentKey: sealApplierMatchKey,
+      dirty: issuerSealApplierDirtyRef.current,
+    });
+    if (nextApplier !== sealApplierMatchKey) setSealApplierMatchKey(nextApplier);
+  }, [
+    authorizedParties,
+    isCorporateEntitiesFetched,
+    issuerDirectors,
+    issuerRepMatchKeys,
+    offerDetailsReady,
+    requiresIssuerSeal,
+    sealApplierMatchKey,
     useSigningStepper,
     usesAcceptanceFlow,
   ]);
@@ -943,11 +984,16 @@ export function OfferReviewPanel({
       toast.error("Complete authorised representatives for every guarantor.");
       return;
     }
+    if (requiresIssuerSeal && !sealApplierMatchKey) {
+      toast.error(ISSUER_SEAL_APPLIER_REQUIRED_MESSAGE);
+      return;
+    }
     const authorizedPartiesPayload = buildAuthorizedPartiesSubmitPayload({
       directors: issuerDirectors,
       selectedMatchKeys: issuerRepMatchKeys,
       guarantors: guarantorRows,
       drafts: guarantorDrafts,
+      sealApplierMatchKey: requiresIssuerSeal ? sealApplierMatchKey : null,
     });
     setIsSubmittingAcceptance(true);
     try {
@@ -991,6 +1037,8 @@ export function OfferReviewPanel({
     isPhaseDeadlinePast,
     issuerDirectors,
     issuerRepMatchKeys,
+    requiresIssuerSeal,
+    sealApplierMatchKey,
     type,
   ]);
 
@@ -1003,12 +1051,17 @@ export function OfferReviewPanel({
       toast.error("Complete authorised representatives for every guarantor.");
       return;
     }
+    if (requiresIssuerSeal && !sealApplierMatchKey) {
+      toast.error(ISSUER_SEAL_APPLIER_REQUIRED_MESSAGE);
+      return;
+    }
     if (type === "contract") {
       const authorizedPartiesPayload = buildAuthorizedPartiesSubmitPayload({
         directors: issuerDirectors,
         selectedMatchKeys: issuerRepMatchKeys,
         guarantors: guarantorRows,
         drafts: guarantorDrafts,
+        sealApplierMatchKey: requiresIssuerSeal ? sealApplierMatchKey : null,
       });
       setIsSavingPartyDraft(true);
       try {
@@ -1050,6 +1103,8 @@ export function OfferReviewPanel({
     invalidateOfferAcceptanceQueries,
     issuerDirectors,
     issuerRepMatchKeys,
+    requiresIssuerSeal,
+    sealApplierMatchKey,
     type,
   ]);
 
@@ -1140,7 +1195,7 @@ export function OfferReviewPanel({
       return;
     }
     if (!activeSigningEnvelope || !canRemindSigners) return;
-    const unsigned = activeSigningEnvelope.recipients.filter((r) => r.status !== "SIGNED");
+    const unsigned = activeSigningEnvelope.recipients.filter(isRemindableSigningRecipient);
     if (unsigned.length === 0) {
       toast.info("All signers have already signed.");
       return;
@@ -1219,10 +1274,12 @@ export function OfferReviewPanel({
     usesAcceptanceFlow && offerAcceptanceAllowsSigning(acceptanceStatus);
   const postDocsReady =
     signingPhaseSkipsUploadGate || !hasPostDocs || postDocsState.areAllFilesUploaded;
+  const missingSealApplier = requiresIssuerSeal && !sealApplierMatchKey;
   const issuerRepsReady =
     !usesAcceptanceFlow ||
     (areIssuerDirectorSelectionsReady(issuerDirectors, issuerRepMatchKeys) &&
-      areGuarantorPartiesReady(guarantorRows, guarantorDrafts));
+      areGuarantorPartiesReady(guarantorRows, guarantorDrafts) &&
+      !missingSealApplier);
   const canSubmitFromRepresentatives =
     usesAcceptanceFlow &&
     (!hasPostDocs ||
@@ -1667,6 +1724,16 @@ export function OfferReviewPanel({
                   onChange={(keys) => {
                     issuerRepDirtyRef.current = true;
                     setIssuerRepMatchKeys(keys);
+                    if (sealApplierMatchKey && !keys.includes(sealApplierMatchKey)) {
+                      issuerSealApplierDirtyRef.current = true;
+                      setSealApplierMatchKey(null);
+                    }
+                  }}
+                  showSealApplier={requiresIssuerSeal}
+                  sealApplierMatchKey={sealApplierMatchKey}
+                  onSealApplierChange={(matchKey) => {
+                    issuerSealApplierDirtyRef.current = true;
+                    setSealApplierMatchKey(matchKey);
                   }}
                   readOnly={isStep1PartyCardReadOnly(AUTHORIZED_REPRESENTATIVES_ISSUER_ITEM_ID)}
                   highlighted={flaggedPartyItemIds.has(AUTHORIZED_REPRESENTATIVES_ISSUER_ITEM_ID)}
@@ -1782,8 +1849,9 @@ export function OfferReviewPanel({
               !issuerRepsReady &&
               isCorporateEntitiesFetched ? (
                 <p className="text-ui text-muted-foreground">
-                  Complete authorised representatives for the issuer and every guarantor before
-                  continuing.
+                  {missingSealApplier
+                    ? ISSUER_SEAL_APPLIER_REQUIRED_MESSAGE
+                    : "Complete authorised representatives for the issuer and every guarantor before continuing."}
                 </p>
               ) : null}
             </CardContent>
@@ -1861,8 +1929,9 @@ export function OfferReviewPanel({
               !issuerRepsReady &&
               isCorporateEntitiesFetched ? (
                 <p className="text-ui text-muted-foreground">
-                  Complete authorised representatives for the issuer and every guarantor before
-                  submitting.
+                  {missingSealApplier
+                    ? ISSUER_SEAL_APPLIER_REQUIRED_MESSAGE
+                    : "Complete authorised representatives for the issuer and every guarantor before submitting."}
                 </p>
               ) : null}
             </CardContent>
@@ -1879,9 +1948,13 @@ export function OfferReviewPanel({
                     Document signing
                   </CardTitle>
                   <CardDescription>
-                    {packageSent
-                      ? "Signers complete signing externally via secure links. Track progress and send reminders to anyone who has not signed yet."
-                      : "CashSouk will send signing links to the authorised representatives. You can track progress here once the package is sent."}
+                    {activeSigningEnvelope?.send_in_progress
+                      ? "CashSouk is preparing the signing package. Progress appears here once invitation emails are sent."
+                      : activeSigningEnvelope?.send_error || activeSigningEnvelope?.send_phase === "FAILED"
+                        ? "CashSouk could not finish sending this signing package. Wait for CashSouk to retry delivery."
+                      : packageSent
+                        ? "Signers complete signing externally via secure links. Track progress and send reminders to anyone who has not signed yet."
+                        : "CashSouk will send signing links to the authorised representatives. You can track progress here once the package is sent."}
                   </CardDescription>
                 </div>
                 {packageSent ? (
@@ -1904,7 +1977,18 @@ export function OfferReviewPanel({
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              {activeSigningEnvelope ? (
+              {activeSigningEnvelope?.send_in_progress ? (
+                <p className="text-sm text-muted-foreground">
+                  {activeSigningEnvelope.send_phase === "DELIVERING"
+                    ? "Invitation emails are being sent."
+                    : "The signing package is being prepared."}
+                </p>
+              ) : activeSigningEnvelope?.send_error || activeSigningEnvelope?.send_phase === "FAILED" ? (
+                <p className="text-sm text-destructive">
+                  {activeSigningEnvelope.send_error ??
+                    "Sending this signing package failed. CashSouk can retry delivery from the admin portal."}
+                </p>
+              ) : activeSigningEnvelope ? (
                 <SigningProgressMatrix
                   envelope={activeSigningEnvelope}
                   onRemind={canRemindSigners ? handleRemindRecipient : undefined}

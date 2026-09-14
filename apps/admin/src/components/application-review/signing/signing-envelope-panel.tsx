@@ -10,15 +10,19 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ChevronDownIcon, ArrowDownTrayIcon, EyeIcon } from "@heroicons/react/24/outline";
 import { SigningProgressMatrix } from "./signing-progress-matrix";
 import {
   useAdminSigningEnvelopes,
+  useAdminSigningPackageReadiness,
   useSendAdminSigningPackage,
   useVoidSigningEnvelope,
   useRemindSigningRecipient,
+  useRetryAutomaticSigningAssignment,
+  useRetrySigningEnvelopeDelivery,
 } from "@/hooks/use-signing-envelopes";
 import { useAdminSigningDocumentPreview } from "@/hooks/use-admin-signing-document-preview";
 import {
@@ -30,10 +34,12 @@ import {
   getOfferPhaseDeadlineDisplay,
   hasEnvelopeBlockingNewSend,
   isInvoiceOnlyFinancingStructure,
+  isRemindableSigningRecipient,
   resolveSigningDeadlineFromWorkflow,
   resolveSigningTemplateFromWorkflow,
   isSigningPackagePreviewDocument,
   DEFAULT_SIGNING_DEADLINE,
+  SHORAKA_SIGNING_ASSIGNMENTS_HREF,
   type SigningEnvelopeDto,
   type SigningEnvelopeStatus,
   type SigningTemplateDocument,
@@ -163,9 +169,12 @@ export function SigningEnvelopePanel({
   onDownloadSignedDocument,
 }: SigningEnvelopePanelProps) {
   const { data: envelopes = [], isLoading } = useAdminSigningEnvelopes(applicationId);
+  const readinessQuery = useAdminSigningPackageReadiness(applicationId, canManage);
   const sendMutation = useSendAdminSigningPackage(applicationId);
   const voidMutation = useVoidSigningEnvelope(applicationId);
   const remindMutation = useRemindSigningRecipient(applicationId);
+  const retryAutoSignMutation = useRetryAutomaticSigningAssignment(applicationId);
+  const retryDeliveryMutation = useRetrySigningEnvelopeDelivery(applicationId);
   const { previewPendingKey, handlePreview, handleDownload } =
     useAdminSigningDocumentPreview(applicationId);
   const extendContractMutation = useExtendContractSigningDeadline();
@@ -175,6 +184,25 @@ export function SigningEnvelopePanel({
   const [sendConfirmOpen, setSendConfirmOpen] = React.useState(false);
 
   const { primary, history } = React.useMemo(() => splitEnvelopes(envelopes), [envelopes]);
+  const previousPrimaryStatus = React.useRef<string | undefined>(undefined);
+  const previousSendError = React.useRef<string | null | undefined>(undefined);
+
+  React.useEffect(() => {
+    const previous = previousPrimaryStatus.current;
+    previousPrimaryStatus.current = primary?.status;
+    if (previous === "DRAFT" && primary?.status === "SENT") {
+      toast.success("Signing links sent to the authorised representatives");
+    }
+  }, [primary?.id, primary?.status]);
+
+  React.useEffect(() => {
+    const error = primary?.send_error ?? null;
+    const previous = previousSendError.current;
+    previousSendError.current = error;
+    if (error && error !== previous) {
+      toast.error(error);
+    }
+  }, [primary?.id, primary?.send_error]);
 
   const acceptanceOfferDetails = React.useMemo(
     () =>
@@ -228,6 +256,15 @@ export function SigningEnvelopePanel({
     }
   };
 
+  const handleRetryAutoSign = async (envelopeId: string, assignmentId: string) => {
+    try {
+      await retryAutoSignMutation.mutateAsync({ envelopeId, assignmentId });
+      toast.success("CashSouk countersign retried");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to retry automatic signing");
+    }
+  };
+
   const handleRemind = async (envelopeId: string, recipientId: string, documentId?: string) => {
     try {
       await remindMutation.mutateAsync({ envelopeId, recipientId, documentId });
@@ -239,9 +276,7 @@ export function SigningEnvelopePanel({
 
   const handleResendReminders = async () => {
     if (!primary) return;
-    const unsigned = primary.recipients.filter(
-      (recipient) => recipient.status !== "SIGNED" && recipient.status !== "DECLINED"
-    );
+    const unsigned = primary.recipients.filter(isRemindableSigningRecipient);
     if (unsigned.length === 0) {
       toast.info("All signers have already signed.");
       return;
@@ -283,11 +318,17 @@ export function SigningEnvelopePanel({
 
   const handleSendSigningLinks = async () => {
     try {
-      await sendMutation.mutateAsync(
+      const envelope = await sendMutation.mutateAsync(
         isInvoiceOnly ? { invoiceId: invoiceIdForExtend } : {}
       );
-      toast.success("Signing links sent to the authorised representatives");
       setSendConfirmOpen(false);
+      if (envelope.status === "DRAFT" && envelope.send_in_progress) {
+        toast.message("Sending signing links. Stay on this page — this can take a minute.");
+        return;
+      }
+      if (envelope.status === "SENT" || envelope.status === "IN_PROGRESS") {
+        toast.success("Signing links sent to the authorised representatives");
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to send signing links");
     }
@@ -332,7 +373,15 @@ export function SigningEnvelopePanel({
     !hasEnvelopeBlockingNewSend(envelopes) &&
     (!isInvoiceOnly || Boolean(invoiceIdForExtend));
 
-  const sendPending = sendMutation.isPending;
+  const sendPending = sendMutation.isPending || primary?.send_in_progress === true;
+  const signingAssignmentsReady = readinessQuery.data?.ready === true;
+  const sendDisabled = sendPending || !signingAssignmentsReady;
+  const showSigningAssignmentNotice =
+    canManage &&
+    (canSendSigningLinks ||
+      (primary?.status === "DRAFT" &&
+        acceptance?.status === "APPROVED_FOR_SIGNING" &&
+        !signingClockPast));
 
   const previewDocuments = React.useMemo(() => {
     const template = resolveSigningTemplateFromWorkflow(workflow);
@@ -397,6 +446,10 @@ export function SigningEnvelopePanel({
         />
       ) : null}
 
+      {showSigningAssignmentNotice ? (
+        <CashSoukSigningReadinessNotice query={readinessQuery} />
+      ) : null}
+
       {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
 
       {!isLoading && envelopes.length === 0 && (
@@ -408,7 +461,7 @@ export function SigningEnvelopePanel({
               size="sm"
               className="rounded-lg"
               onClick={() => setSendConfirmOpen(true)}
-              disabled={sendPending}
+              disabled={sendDisabled}
             >
               Send signing links
             </Button>
@@ -426,7 +479,7 @@ export function SigningEnvelopePanel({
             size="sm"
             className="rounded-lg"
             onClick={() => setSendConfirmOpen(true)}
-            disabled={sendPending}
+            disabled={sendDisabled}
           >
             Send signing links
           </Button>
@@ -439,9 +492,21 @@ export function SigningEnvelopePanel({
           canManage={canManage}
           canRemind={canRemindPrimary}
           remindDisabled={remindMutation.isPending}
-          voidDisabled={voidMutation.isPending}
+          voidDisabled={voidMutation.isPending || sendPending}
           onVoid={() => handleVoid(primary.id)}
           onRemind={(recipientId, documentId) => handleRemind(primary.id, recipientId, documentId)}
+          onRetryAutoSign={(assignmentId) => handleRetryAutoSign(primary.id, assignmentId)}
+          retryDisabled={retryAutoSignMutation.isPending}
+          onRetryDelivery={
+            canManage && (primary.send_error || primary.send_phase === "FAILED")
+              ? () => {
+                  void retryDeliveryMutation.mutateAsync(primary.id).catch((error) => {
+                    toast.error(error instanceof Error ? error.message : "Failed to retry delivery");
+                  });
+                }
+              : undefined
+          }
+          retryDeliveryPending={retryDeliveryMutation.isPending}
           onResendReminders={canRemindPrimary ? handleResendReminders : undefined}
           onSendDraft={
             canManage &&
@@ -452,6 +517,7 @@ export function SigningEnvelopePanel({
               : undefined
           }
           sendPending={sendPending}
+          sendDisabled={!signingAssignmentsReady}
           signedDocumentPending={signedDocumentPending}
           onViewSignedDocument={onViewSignedDocument}
           onDownloadSignedDocument={onDownloadSignedDocument}
@@ -530,7 +596,7 @@ export function SigningEnvelopePanel({
           <AlertDialogFooter>
             <AlertDialogCancel disabled={sendPending}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              disabled={sendPending}
+              disabled={sendDisabled}
               onClick={(e) => {
                 e.preventDefault();
                 void handleSendSigningLinks();
@@ -620,6 +686,20 @@ function SigningDocumentPreviewList({
   );
 }
 
+function sendPhaseMessage(envelope: SigningEnvelopeDto): string {
+  if (envelope.send_phase === "PREPARING" || (envelope.send_in_progress && envelope.send_phase !== "DELIVERING")) {
+    return "Preparing the signing package. Stay on this page.";
+  }
+  if (envelope.send_phase === "DELIVERING") {
+    return "Sending invitation emails. Stay on this page.";
+  }
+  if (envelope.send_error) return envelope.send_error;
+  if (envelope.status === "DRAFT") {
+    return "This package was not sent. Send the signing links, or void it to start over.";
+  }
+  return "";
+}
+
 function ActiveEnvelopeCard({
   envelope,
   canManage,
@@ -628,9 +708,14 @@ function ActiveEnvelopeCard({
   voidDisabled,
   onVoid,
   onRemind,
+  onRetryAutoSign,
+  retryDisabled,
+  onRetryDelivery,
+  retryDeliveryPending,
   onResendReminders,
   onSendDraft,
   sendPending,
+  sendDisabled,
   signedDocumentPending,
   onViewSignedDocument,
   onDownloadSignedDocument,
@@ -642,18 +727,26 @@ function ActiveEnvelopeCard({
   voidDisabled: boolean;
   onVoid: () => void;
   onRemind: (recipientId: string, documentId: string) => void;
+  onRetryAutoSign?: (assignmentId: string) => void;
+  retryDisabled?: boolean;
+  onRetryDelivery?: () => void;
+  retryDeliveryPending?: boolean;
   onResendReminders?: () => void;
   onSendDraft?: () => void;
   sendPending?: boolean;
+  sendDisabled?: boolean;
   signedDocumentPending?: boolean;
   onViewSignedDocument?: (documentId: string) => void;
   onDownloadSignedDocument?: (documentId: string, fileName?: string) => void;
 }) {
   const canVoid =
     canManage && envelope.status !== "COMPLETED" && envelope.status !== "VOIDED";
-  const unsignedCount = envelope.recipients.filter(
-    (recipient) => recipient.status !== "SIGNED" && recipient.status !== "DECLINED"
-  ).length;
+  const unsignedCount = envelope.recipients.filter(isRemindableSigningRecipient).length;
+  const phaseMessage = sendPhaseMessage(envelope);
+  const showSendStatus =
+    envelope.status === "DRAFT" ||
+    envelope.send_phase === "FAILED" ||
+    Boolean(envelope.send_error);
 
   return (
     <div className="space-y-3 rounded-lg border p-4">
@@ -672,22 +765,42 @@ function ActiveEnvelopeCard({
         ) : null}
       </div>
 
-      {envelope.status === "DRAFT" ? (
+      {showSendStatus && phaseMessage ? (
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm text-muted-foreground">
-            This package was not sent. Send the signing links, or void it to start over.
+          <p
+            className={
+              envelope.send_error || envelope.send_phase === "FAILED"
+                ? "text-sm text-destructive"
+                : "text-sm text-muted-foreground"
+            }
+          >
+            {phaseMessage}
           </p>
-          {onSendDraft ? (
-            <Button
-              type="button"
-              size="sm"
-              className="rounded-lg"
-              onClick={onSendDraft}
-              disabled={sendPending}
-            >
-              {sendPending ? "Sending…" : "Send signing links"}
-            </Button>
-          ) : null}
+          <div className="flex flex-wrap gap-2">
+            {onRetryDelivery ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="rounded-lg"
+                onClick={onRetryDelivery}
+                disabled={retryDeliveryPending || envelope.send_in_progress}
+              >
+                {retryDeliveryPending ? "Retrying…" : "Retry delivery"}
+              </Button>
+            ) : null}
+            {onSendDraft && envelope.status === "DRAFT" && !envelope.send_in_progress ? (
+              <Button
+                type="button"
+                size="sm"
+                className="rounded-lg"
+                onClick={onSendDraft}
+                disabled={sendPending || sendDisabled}
+              >
+                {sendPending ? "Sending…" : "Send signing links"}
+              </Button>
+            ) : null}
+          </div>
         </div>
       ) : null}
 
@@ -698,6 +811,8 @@ function ActiveEnvelopeCard({
         showRemindActions={canRemind}
         onRemind={onRemind}
         remindDisabled={remindDisabled}
+        onRetryAutoSign={onRetryAutoSign}
+        retryDisabled={retryDisabled}
         viewDocumentPending={signedDocumentPending}
         onViewSignedDocument={onViewSignedDocument}
         onDownloadSignedDocument={onDownloadSignedDocument}
@@ -770,5 +885,43 @@ function HistoryEnvelopeRow({
         </CollapsibleContent>
       </div>
     </Collapsible>
+  );
+}
+
+function CashSoukSigningReadinessNotice({
+  query,
+}: {
+  query: ReturnType<typeof useAdminSigningPackageReadiness>;
+}) {
+  if (query.isLoading) {
+    return (
+      <p className="text-meta text-muted-foreground">Checking CashSouk signing assignments…</p>
+    );
+  }
+  if (query.isError) {
+    return (
+      <p className="text-meta text-muted-foreground">
+        Could not check CashSouk signing assignments. Sending is blocked until this succeeds.
+      </p>
+    );
+  }
+  const issues = query.data?.issues ?? [];
+  if (query.data?.ready || issues.length === 0) return null;
+  return (
+    <ul className="space-y-1">
+      {issues.map((issue) => (
+        <li key={`${issue.code}:${issue.message}`} className="text-meta text-muted-foreground">
+          {issue.message}{" "}
+          {issue.href || issue.code.startsWith("SIGNING_AUTOMATIC") || issue.code.startsWith("DOCUMENT_EXECUTION") ? (
+            <Link
+              href={issue.href ?? SHORAKA_SIGNING_ASSIGNMENTS_HREF}
+              className="font-medium text-primary underline-offset-4 hover:underline"
+            >
+              Open Shoraka signing assignments
+            </Link>
+          ) : null}
+        </li>
+      ))}
+    </ul>
   );
 }

@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+    <title>eKYC capture</title>
+    <link rel="stylesheet" href="/wailib/css/wailib-min-1.12.0.css" />
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 0;
+        padding: 0.75rem;
+        background: #fff;
+      }
+      h1 {
+        font-size: 1.1rem;
+        margin: 0 0 0.25rem;
+      }
+      .muted {
+        color: #64748b;
+        font-size: 0.875rem;
+        margin-bottom: 0.75rem;
+      }
+      #ekyc-container {
+        min-height: 70vh;
+      }
+      pre {
+        font-size: 0.75rem;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .done {
+        padding: 1rem;
+        background: #f0fdf4;
+        border: 1px solid #86efac;
+        border-radius: 0.5rem;
+        color: #166534;
+      }
+      .error {
+        color: #b91c1c;
+      }
+    </style>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="/wailib/js/webrtc-adapter.js"></script>
+    <script src="/wailib/js/wailib-util-min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/onnxjs/dist/onnx.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/ort.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/ort.webgpu.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+    <script src="/wailib/js/wailib-sdk-1.12.2.js"></script>
+  </head>
+  <body>
+    <h1>Scan &amp; capture</h1>
+    <p class="muted">Complete MyKad / passport capture on this device, then return to your desktop session.</p>
+    <div id="status" class="muted">Starting…</div>
+    <div id="ekyc-container"></div>
+    <pre id="result" hidden></pre>
+
+    <script>
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get("token");
+      const endpoint = params.get("endpoint");
+      const docType = params.get("docType") || "mykad";
+      const statusEl = document.getElementById("status");
+      const resultEl = document.getElementById("result");
+      const containerId = "ekyc-container";
+
+      function setStatus(text, isError) {
+        statusEl.textContent = text;
+        statusEl.className = isError ? "error" : "muted";
+      }
+
+      async function run() {
+        if (!token || !endpoint) {
+          setStatus("Missing token or endpoint in URL.", true);
+          return;
+        }
+
+        if (typeof WAILib === "undefined" || !WAILib.SDK) {
+          setStatus("WiseAI SDK failed to load.", true);
+          return;
+        }
+
+        const sdk = new WAILib.SDK(
+          token,
+          endpoint,
+          containerId,
+          {
+            docType,
+            showActionButtons: true,
+            cameraFit: true,
+            enableIDFraudDetection: true,
+          },
+          "/wailib/models"
+        );
+
+        sdk.startCamera();
+        setStatus("Position your ID and follow the on-screen steps.");
+
+        sdk.cameraCapture({
+          onSuccess: async function (stage, rawResult) {
+            setStatus("Uploading result…");
+            try {
+              const res = await fetch("/api/ekyc/complete", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ token, result: rawResult }),
+              });
+              const body = await res.json();
+              if (!res.ok) throw new Error(body.error || "Submit failed");
+
+              document.getElementById("ekyc-container").innerHTML = "";
+              document.getElementById("ekyc-container").innerHTML =
+                '<div class="done"><strong>Done.</strong> You can close this page and continue on your computer.</div>';
+              resultEl.hidden = false;
+              resultEl.textContent = JSON.stringify(body, null, 2);
+              setStatus("Capture submitted.");
+            } catch (err) {
+              setStatus(String(err), true);
+              resultEl.hidden = false;
+              resultEl.textContent = JSON.stringify({ stage, rawResult }, null, 2);
+            }
+          },
+          onError: function (stage, error) {
+            setStatus("Error at stage " + stage + ": " + error, true);
+          },
+        });
+      }
+
+      run();
+    </script>
+  </body>
+</html>

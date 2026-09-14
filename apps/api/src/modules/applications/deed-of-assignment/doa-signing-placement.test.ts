@@ -1,11 +1,17 @@
 import {
   buildDoaSigningCloudSignsetsFromPdf,
   collectDoaAssignorSignatureSlots,
+  findDoaAssignorCompanyStampLine,
   DoaSigningLayoutError,
   matchDoaSignersToSlots,
   type DoaSignatureSlot,
 } from "./doa-signing-placement";
 import { previewFieldsFromSignsets } from "../../signing/preview-signature-stamp";
+import {
+  attachPrimarySealField,
+  sealFieldFromLabel,
+  signatureFieldsOverlap,
+} from "../../signing/signature-field-geometry";
 import type { JsgPdfTextItem } from "../joint-several-guarantee/jsg-signing-placement";
 import { createDeedOfAssignmentFixture } from "./doa-fixture";
 import { renderDeedOfAssignmentDocx } from "./render-doa-docx";
@@ -42,17 +48,17 @@ function assignorExecutionItems(signerCount: 1 | 2): JsgPdfTextItem[] {
     item(7, 120, 72, "Signed by )"),
     item(7, 136, 72, "For and on behalf of )"),
     item(7, 152, 72, "DEMO ISSUER SDN. BHD. )"),
-    item(7, 200, 72, "........................................................", 140),
+    item(7, 200, 72, "______________________________________", 140),
     item(7, 216, 72, "Name: Ali Bin Abu"),
-    item(7, 200, 360, "........................................................", 140),
+    item(7, 200, 360, "_______________________________", 140),
     item(7, 216, 360, "[Witness]"),
     item(7, 232, 360, "Name:"),
   ];
   if (signerCount === 2) {
     items.push(
-      item(7, 280, 72, "........................................................", 140),
+      item(7, 280, 72, "______________________________________", 140),
       item(7, 296, 72, "Name: Siti Binti Ahmad"),
-      item(7, 280, 360, "........................................................", 140),
+      item(7, 280, 360, "_______________________________", 140),
       item(7, 296, 360, "[Witness]"),
       item(7, 312, 360, "Name:")
     );
@@ -61,7 +67,7 @@ function assignorExecutionItems(signerCount: 1 | 2): JsgPdfTextItem[] {
     item(7, 360, 400, "[Assignor]"),
     item(7, 376, 400, "Company Stamp:"),
     item(8, 80, 72, "SCHEDULE 1"),
-    item(8, 120, 72, "........................................................", 140),
+    item(8, 120, 72, "______________________________________", 140),
     item(8, 136, 72, "Name: Schedule Party")
   );
   return items;
@@ -87,6 +93,80 @@ describe("collectDoaAssignorSignatureSlots", () => {
     );
     const slots = collectDoaAssignorSignatureSlots(items);
     expect(slots.map((slot) => slot.name)).toEqual(["Ali Bin Abu", "Siti Binti Ahmad"]);
+  });
+
+  it("still finds a single assignor line when a CashSouk keyword joined the signature stroke", () => {
+    const items = assignorExecutionItems(1).map((entry) =>
+      entry.text.startsWith("____") && entry.x === 72
+        ? { ...entry, text: `${entry.text}CASHSOUK_DOA_SSP` }
+        : entry
+    );
+    const slots = collectDoaAssignorSignatureSlots(items);
+    expect(slots.map((slot) => slot.name)).toEqual(["Ali Bin Abu"]);
+  });
+
+  it("keeps assignor and witness signature lines in separate columns when the gutter is narrow", () => {
+    const items: JsgPdfTextItem[] = [
+      item(7, 80, 72, "ASSIGNOR – [MINIMUM OF TWO (2) AUTHORISED SIGNATORIES’ SIGNATURES]"),
+      item(7, 81.4, 77.5, "______________________________________", 208),
+      item(7, 81.4, 303.1, "_______________________________", 172),
+      item(7, 99.8, 303.1, "[Witness]", 41),
+      item(7, 118.1, 77.5, "Name: Ali Bin Abu"),
+      item(7, 118.1, 303.1, "Name: Chloe Lim"),
+    ];
+    const slots = collectDoaAssignorSignatureSlots(items);
+    expect(slots.map((slot) => slot.name)).toEqual(["Ali Bin Abu"]);
+    expect(Math.round(slots[0]?.left ?? 0)).toBe(78);
+  });
+});
+
+describe("DOA mixed SigningCloud fields", () => {
+  function withDesignation(items: JsgPdfTextItem[]): JsgPdfTextItem[] {
+    const extra: JsgPdfTextItem[] = [];
+    for (const row of items) {
+      if (!/^Name:\s+/i.test(row.text) || row.x !== 72) continue;
+      extra.push(item(row.pageindex, row.yTop + 16, row.x, "Designation :", 40));
+    }
+    return [...items, ...extra];
+  }
+
+  it("adds a textfield on each assignor Designation line when requested", () => {
+    const slots = collectDoaAssignorSignatureSlots(withDesignation(assignorExecutionItems(2)), {
+      includeTextField: true,
+    });
+    const signsets = matchDoaSignersToSlots(["Ali Bin Abu", "Siti Binti Ahmad"], slots);
+    expect(signsets.every((fields) => fields.map((field) => field.fieldtype).join(",") === "sign,textfield")).toBe(
+      true
+    );
+  });
+
+  it("fails when a Designation line is missing and textfields are required", () => {
+    expect(() =>
+      collectDoaAssignorSignatureSlots(assignorExecutionItems(1), { includeTextField: true })
+    ).toThrow(/missing a Designation line/);
+  });
+
+  it("places the organisation seal on the Assignor Company Stamp line", () => {
+    const items = withDesignation(assignorExecutionItems(2));
+    const slots = collectDoaAssignorSignatureSlots(items, { includeTextField: true });
+    const signsets = matchDoaSignersToSlots(["Ali Bin Abu", "Siti Binti Ahmad"], slots);
+    const stampLine = findDoaAssignorCompanyStampLine(items);
+    expect(stampLine?.text).toMatch(/Company Stamp/i);
+    const withSeal = attachPrimarySealField(
+      signsets,
+      [
+        { name: "Ali Bin Abu", appliesCompanySeal: false },
+        { name: "Siti Binti Ahmad", appliesCompanySeal: true },
+      ],
+      { pageWidth: 595, pageHeight: 842 },
+      (message) => new Error(message),
+      stampLine ? [sealFieldFromLabel(stampLine)] : []
+    );
+    const signs = withSeal.flat().filter((field) => field.fieldtype === "sign");
+    const seal = withSeal.flat().find((field) => field.fieldtype === "seal");
+    expect(seal).toBeDefined();
+    expect(seal!.top).toBeGreaterThan(Math.max(...signs.map((field) => field.top + field.height)));
+    expect(signs.every((sign) => !signatureFieldsOverlap(sign, seal!))).toBe(true);
   });
 });
 

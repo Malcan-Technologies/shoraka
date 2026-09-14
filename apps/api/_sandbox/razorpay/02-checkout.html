@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>M0 spike — Curlec FPX checkout</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 40rem;
+        margin: 2rem auto;
+        padding: 0 1rem;
+        line-height: 1.5;
+      }
+      code,
+      pre {
+        background: #f4f4f5;
+        padding: 0.2rem 0.4rem;
+        border-radius: 4px;
+      }
+      pre {
+        padding: 1rem;
+        overflow-x: auto;
+      }
+      button {
+        font-size: 1rem;
+        padding: 0.6rem 1.2rem;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>M0 — FPX checkout (test mode)</h1>
+    <p>
+      Serve this folder over HTTP (Curlec needs a real <code>callback_url</code>), then open this page:
+    </p>
+    <pre>npx serve _sandbox/razorpay -p 8765</pre>
+    <p>Then visit <code>http://localhost:8765/02-checkout.html</code></p>
+
+    <p>
+      <strong>Before paying:</strong> edit <code>CONFIG</code> below with your test key id, order id from step 1,
+      and amount in sen.
+    </p>
+
+    <button id="pay">Open Curlec Checkout (FPX)</button>
+
+    <div id="result"></div>
+
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <script>
+      // ============ CONFIG — edit before each run ============
+      const CONFIG = {
+        keyId: "rzp_test_T2DL3aVUZYCGjr",
+        orderId: "order_T4KuKP8eNvfkMZ",
+        amountSen: 10000,
+        currency: "MYR",
+        businessName: "CashSouk M0 Spike",
+        prefillName: "John Doe",
+        prefillEmail: "spike@example.com",
+        prefillContact: "+60123456789",
+      };
+
+      const params = new URLSearchParams(window.location.search);
+      const resultEl = document.getElementById("result");
+
+      // After FPX Success, Curlec redirects here with payment ids in the query string.
+      if (
+        params.has("razorpay_payment_id") ||
+        params.has("razorpay_order_id") ||
+        params.has("razorpay_signature")
+      ) {
+        const captured = {
+          razorpay_payment_id: params.get("razorpay_payment_id"),
+          razorpay_order_id: params.get("razorpay_order_id"),
+          razorpay_signature: params.get("razorpay_signature"),
+        };
+        resultEl.innerHTML =
+          "<h2>Payment callback</h2><p>Copy <code>razorpay_payment_id</code> for step 3:</p><pre>" +
+          JSON.stringify(captured, null, 2) +
+          "</pre><p>Run: <code>npx tsx _sandbox/razorpay/03-fetch-payment.ts " +
+          (captured.razorpay_payment_id || "pay_xxx") +
+          "</code></p>";
+      }
+
+      document.getElementById("pay").onclick = function (e) {
+        e.preventDefault();
+
+        const options = {
+          key: CONFIG.keyId,
+          amount: String(CONFIG.amountSen),
+          currency: CONFIG.currency,
+          name: CONFIG.businessName,
+          description: "M0 H1 spike",
+          order_id: CONFIG.orderId,
+          callback_url: window.location.href.split("?")[0],
+          redirect: true,
+          prefill: {
+            name: CONFIG.prefillName,
+            email: CONFIG.prefillEmail,
+            contact: CONFIG.prefillContact,
+          },
+          notes: {
+            purpose: "M0_H1_spike",
+          },
+          theme: { color: "#3399cc" },
+        };
+
+        const rzp = new Razorpay(options);
+        rzp.on("payment.failed", function (response) {
+          resultEl.innerHTML =
+            "<h2>Payment failed</h2><pre>" + JSON.stringify(response.error, null, 2) + "</pre>";
+        });
+        rzp.open();
+      };
+    </script>
+  </body>
+</html>

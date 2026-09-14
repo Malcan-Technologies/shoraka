@@ -120,6 +120,9 @@ function RepresentativeLines({
           {representative.ic_number ? (
             <span className="block text-meta text-muted-foreground">{representative.ic_number}</span>
           ) : null}
+          {block.entity_kind === "ISSUER" && representative.applies_company_seal ? (
+            <span className="block text-meta text-muted-foreground">Applies company seal</span>
+          ) : null}
         </li>
       ))}
     </ul>

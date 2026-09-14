@@ -172,10 +172,12 @@ export function buildAuthorizedPartiesSubmitPayload(input: {
   selectedMatchKeys: string[];
   guarantors: ApplicationGuarantorRow[];
   drafts: GuarantorPartyDrafts;
+  sealApplierMatchKey?: string | null;
 }): AuthorizedPartiesSubmitPayload {
   const issuer = buildIssuerAuthorizedPartiesSubmitPayload(
     input.directors,
-    input.selectedMatchKeys
+    input.selectedMatchKeys,
+    input.sealApplierMatchKey
   );
   const guarantorParties: AuthorizedParty[] = [];
   for (const guarantor of input.guarantors) {

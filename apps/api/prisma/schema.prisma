@@ -439,6 +439,7 @@ model IssuerOrganization {
   paymaster_links              IssuerPaymasterLink[]
   marc_assessments             IssuerOrganizationMarcAssessment[]
   assignment_notices           PaymasterAssignmentNotice[]
+  company_seals                IssuerOrganizationCompanySeal[]
 
   @@index([owner_user_id])
   @@index([owner_user_id, type])
@@ -539,7 +540,8 @@ model OperatorProfile {
   advisors                    OperatorAdvisor[]
   interests                   OperatorInterest[]
   financial_statements        OperatorFinancialStatement[]
-  signing_people              OperatorSigningPerson[]
+  signing_people                OperatorSigningPerson[]
+  document_execution_bindings   OperatorDocumentExecutionBinding[]
 
   @@map("operator_profiles")
 }
@@ -620,21 +622,70 @@ model OperatorOfficer {
 }
 
 model OperatorSigningPerson {
-  id                       String                @id @default(cuid())
+  id                       String                             @id @default(cuid())
   operator_profile_id      String
-  officer_id               String                @unique
+  officer_id               String                             @unique
   roles                    OperatorSigningRole[]
+  /// SigningCloud identity for this person. Required before automatic execution.
+  signing_email            String?
   signature_s3_key         String?
   signature_file_name      String?
   signature_content_type   String?
-  active                   Boolean               @default(true)
-  created_at               DateTime              @default(now())
-  updated_at               DateTime              @updatedAt
-  operator_profile         OperatorProfile       @relation(fields: [operator_profile_id], references: [id], onDelete: Cascade)
-  officer                  OperatorOfficer       @relation(fields: [officer_id], references: [id], onDelete: Cascade)
+  signature_sha256         String?
+  signature_width_px       Int?
+  signature_height_px      Int?
+  signature_byte_size      Int?
+  signature_confirmed_at   DateTime?
+  active                   Boolean                            @default(true)
+  created_at               DateTime                           @default(now())
+  updated_at               DateTime                           @updatedAt
+  operator_profile         OperatorProfile                    @relation(fields: [operator_profile_id], references: [id], onDelete: Cascade)
+  officer                  OperatorOfficer                    @relation(fields: [officer_id], references: [id], onDelete: Cascade)
+  document_execution_bindings OperatorDocumentExecutionBinding[]
 
   @@index([operator_profile_id])
+  @@index([signing_email])
   @@map("operator_signing_people")
+}
+
+/// Versioned issuer organisation seal. Superseded rows stay for historical envelopes.
+model IssuerOrganizationCompanySeal {
+  id                  String            @id @default(cuid())
+  issuer_organization_id String
+  s3_key              String            @unique
+  original_file_name  String
+  content_type        String
+  byte_size           Int
+  sha256              String
+  width_px            Int
+  height_px           Int
+  transparency_mode   SigningCloudImageTransparency
+  uploaded_by_user_id String            @db.VarChar(5)
+  created_at          DateTime          @default(now())
+  superseded_at       DateTime?
+  issuer_organization IssuerOrganization @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
+  signing_assignments SigningAssignment[]
+
+  @@index([issuer_organization_id, superseded_at])
+  @@map("issuer_organization_company_seals")
+}
+
+/// One row per automatic CashSouk representative or witness slot.
+model OperatorDocumentExecutionBinding {
+  id                  String                         @id @default(cuid())
+  operator_profile_id String
+  role_key            OperatorDocumentExecutionRole
+  slot_index          Int
+  signing_person_id   String
+  legal_entity_label  String
+  created_at          DateTime                       @default(now())
+  updated_at          DateTime                       @updatedAt
+  operator_profile    OperatorProfile                @relation(fields: [operator_profile_id], references: [id], onDelete: Cascade)
+  signing_person      OperatorSigningPerson          @relation(fields: [signing_person_id], references: [id], onDelete: Restrict)
+
+  @@unique([operator_profile_id, role_key, slot_index], map: "operator_doc_exec_bindings_profile_role_slot_key")
+  @@index([signing_person_id])
+  @@map("operator_document_execution_bindings")
 }
 
 model OperatorAdvisor {
@@ -1048,8 +1099,9 @@ model OfferAcceptOtpChallenge {
   @@map("offer_accept_otp_challenges")
 }
 
-/// A multi-document signing package for one application/offer. All signers are external
-/// parties emailed an opaque link; MyKad eKYC is shared per email via signingcloud_ekyc.
+/// A multi-document signing package for one application/offer.
+/// Manual recipients are emailed an opaque link; automatic CashSouk parties are not.
+/// MyKad eKYC is shared per emailed identity via signingcloud_ekyc.
 model SigningEnvelope {
   id                 String                @id @default(cuid())
   application_id     String
@@ -1071,6 +1123,10 @@ model SigningEnvelope {
   /// Provider-level references (e.g. batch id) when the provider groups documents.
   provider_ref       Json?
   metadata           Json?
+  send_phase         SigningEnvelopeSendPhase @default(IDLE)
+  send_error         String?
+  send_started_at    DateTime?
+  send_attempt_count Int                      @default(0)
   created_at         DateTime              @default(now())
   updated_at         DateTime              @updatedAt
 
@@ -1085,6 +1141,7 @@ model SigningEnvelope {
   @@index([contract_id])
   @@index([invoice_id])
   @@index([status])
+  @@index([send_phase])
   @@map("signing_envelopes")
 }
 
@@ -1118,12 +1175,12 @@ model SigningDocument {
   @@map("signing_documents")
 }
 
-/// A party (person) acting on an envelope. All signers receive an emailed no-auth link.
-/// eKYC session state is tracked per-recipient without a User row.
+/// A party acting on an envelope. Manual signers receive an emailed no-auth link.
+/// Automatic CashSouk parties are delivery_mode INTERNAL and are never emailed.
 model SigningRecipient {
   id                       String                 @id @default(cuid())
   envelope_id              String
-  /// Template role key (e.g. "issuer_director", "guarantor").
+  /// Template role key (e.g. "issuer_director", "guarantor") or automatic execution role.
   role_key                 String
   role_label               String
   /// Scalar reference to application_guarantors.id when pre-filled from a guarantor.
@@ -1132,8 +1189,10 @@ model SigningRecipient {
   email                    String
   ic_number                String?
   routing_order            Int                    @default(0)
-  /// When false (e.g. some guarantor roles), MyKad eKYC is skipped for this signer.
+  /// When false (e.g. some guarantor roles or automatic CashSouk parties), MyKad eKYC is skipped.
   kyc_required             Boolean                @default(true)
+  execution_mode           SigningExecutionMode   @default(MANUAL)
+  delivery_mode            SigningDeliveryMode    @default(EMAIL)
   status                   SigningRecipientStatus @default(PENDING)
   /// SHA-256 hash of the opaque token embedded in the no-auth signing link.
   access_token_hash        String?                @unique
@@ -1162,28 +1221,36 @@ model SigningRecipient {
 /// The document x recipient matrix: who must act on which document, with per-signer
 /// signature-field placement (signset) and independent status.
 model SigningAssignment {
-  id           String                  @id @default(cuid())
-  envelope_id  String
-  document_id  String
-  recipient_id String
-  required     Boolean                 @default(true)
-  action       SigningAction           @default(SIGN)
+  id                       String                  @id @default(cuid())
+  envelope_id              String
+  document_id              String
+  recipient_id             String
+  required                 Boolean                 @default(true)
+  action                   SigningAction           @default(SIGN)
   /// Per-signer signature field placement for this document (SigningCloud signset).
-  signset      Json?
-  status       SigningAssignmentStatus @default(PENDING)
-  signed_at    DateTime?
-  declined_at  DateTime?
-  created_at   DateTime                @default(now())
-  updated_at   DateTime                @updatedAt
+  signset                  Json?
+  /// Frozen automatic-signer or issuer-seal snapshot for this assignment.
+  frozen_asset_snapshot    Json?
+  frozen_company_seal_id   String?
+  auto_sign_attempt_count  Int                     @default(0)
+  last_auto_sign_error     String?
+  last_auto_sign_at        DateTime?
+  status                   SigningAssignmentStatus @default(PENDING)
+  signed_at                DateTime?
+  declined_at              DateTime?
+  created_at               DateTime                @default(now())
+  updated_at               DateTime                @updatedAt
 
-  envelope  SigningEnvelope  @relation(fields: [envelope_id], references: [id], onDelete: Cascade)
-  document  SigningDocument  @relation(fields: [document_id], references: [id], onDelete: Cascade)
-  recipient SigningRecipient @relation(fields: [recipient_id], references: [id], onDelete: Cascade)
+  envelope      SigningEnvelope                 @relation(fields: [envelope_id], references: [id], onDelete: Cascade)
+  document      SigningDocument                 @relation(fields: [document_id], references: [id], onDelete: Cascade)
+  recipient     SigningRecipient                @relation(fields: [recipient_id], references: [id], onDelete: Cascade)
+  company_seal  IssuerOrganizationCompanySeal?  @relation(fields: [frozen_company_seal_id], references: [id], onDelete: Restrict)
 
   @@unique([document_id, recipient_id])
   @@index([envelope_id])
   @@index([document_id])
   @@index([recipient_id])
+  @@index([frozen_company_seal_id])
   @@map("signing_assignments")
 }
 
@@ -3330,6 +3397,40 @@ enum ScPersonKind {
 enum OperatorSigningRole {
   AUTHORISED_SIGNATORY
   WITNESS
+}
+
+enum OperatorDocumentExecutionRole {
+  FA_INVESTOR
+  FA_AGENT
+  JSG_OPERATOR
+  DOA_SSP
+  FA_ISSUER_WITNESS
+  JSG_GUARANTOR_WITNESS
+  JSG_OPERATOR_WITNESS
+  DOA_ASSIGNOR_WITNESS
+}
+
+enum SigningEnvelopeSendPhase {
+  IDLE
+  PREPARING
+  DELIVERING
+  SENT
+  FAILED
+}
+
+enum SigningExecutionMode {
+  MANUAL
+  AUTOMATIC
+}
+
+enum SigningDeliveryMode {
+  EMAIL
+  INTERNAL
+}
+
+enum SigningCloudImageTransparency {
+  OPAQUE
+  ALPHA
 }
 
 enum ScDesignation {

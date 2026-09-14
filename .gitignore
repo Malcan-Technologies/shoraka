@@ -2,10 +2,13 @@
 node_modules
 .pnp
 .pnp.js
+.pnpm-store/
 
 # Testing
 coverage
 .nyc_output
+playwright-report/
+test-results/
 
 # Next.js
 .next
@@ -29,7 +32,11 @@ pnpm-debug.log*
 # Local env files
 .env
 .env*.local
+.env.localhost
+.env.tunnel
+.env.backup
 .env.prod
+apps/api/.local/
 
 # Vercel
 .vercel
@@ -43,6 +50,7 @@ pnpm-debug.log*
 
 # Local generated prospectus POC output
 apps/api/tmp/
+tmp/
 
 # IDE
 .vscode
@@ -61,9 +69,11 @@ kill-dev.sh
 # next-agents-md
 .next-docs/
 
-
 CashSouk Prospectus Template.pdf
 CashSouk Prospectus Template.zip
 CashSouk-Prospectus-Data-First-Section-Map.pptx
 cashsouk-html-css.zip
 New folder.zip
+
+# Local agent scratch (not project source)
+.agents/

@@ -107,6 +107,10 @@ describe("buildFacilityAgreementMergeData", () => {
       "Ali Bin Abu",
       "Siti Binti Ahmad",
     ]);
+    expect(data.issuer_signatories.map((row) => row.designation)).toEqual([
+      "Director",
+      "Authorised Signatory",
+    ]);
     expect(data.guarantors_individual[0]?.name).toBe("Ali Bin Abu");
   });
 
@@ -252,4 +256,5 @@ describe("buildFacilityAgreementMergeData", () => {
     });
     expect(invoiceData.our_reference).toBe("");
   });
+
 });

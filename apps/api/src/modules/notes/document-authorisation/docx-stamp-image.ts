@@ -1,6 +1,8 @@
 import PizZip from "pizzip";
+import { readJpegSize, readPngSize } from "../../../lib/images/raster-image";
 
 export const COMPANY_STAMP_IMAGE_PLACEHOLDER = "§COMPANY_STAMP_IMAGE§";
+export const SSP_COMPANY_STAMP_IMAGE_PLACEHOLDER = "§SSP_COMPANY_STAMP_IMAGE§";
 export const COMPANY_STAMP_UNDERSCORE_FALLBACK = "________________________";
 
 const IMAGE_REL_TYPE =
@@ -65,41 +67,6 @@ function ensureContentTypeDefault(contentTypesXml: string, ext: string, mime: st
     /<Types\b[^>]*>/,
     (open) => `${open}<Default Extension="${ext}" ContentType="${mime}"/>`
   );
-}
-
-function readPngSize(bytes: Buffer): { width: number; height: number } | null {
-  if (bytes.length < 24) return null;
-  if (bytes.subarray(0, 8).compare(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) !== 0) {
-    return null;
-  }
-  if (bytes.toString("ascii", 12, 16) !== "IHDR") return null;
-  const width = bytes.readUInt32BE(16);
-  const height = bytes.readUInt32BE(20);
-  if (width < 1 || height < 1) return null;
-  return { width, height };
-}
-
-function readJpegSize(bytes: Buffer): { width: number; height: number } | null {
-  if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) return null;
-  let offset = 2;
-  while (offset + 8 < bytes.length) {
-    if (bytes[offset] !== 0xff) return null;
-    const marker = bytes[offset + 1]!;
-    const size = bytes.readUInt16BE(offset + 2);
-    if (
-      (marker >= 0xc0 && marker <= 0xc3) ||
-      (marker >= 0xc5 && marker <= 0xc7) ||
-      (marker >= 0xc9 && marker <= 0xcb) ||
-      (marker >= 0xcd && marker <= 0xcf)
-    ) {
-      const height = bytes.readUInt16BE(offset + 5);
-      const width = bytes.readUInt16BE(offset + 7);
-      if (width < 1 || height < 1) return null;
-      return { width, height };
-    }
-    offset += 2 + size;
-  }
-  return null;
 }
 
 export function stampExtentEmuFromPixels(width: number, height: number): StampExtentEmu {
@@ -176,13 +143,17 @@ function lastWordRunOpenIndex(xml: string, before: number): number {
  * A `/<w:r>[\s\S]*?placeholder/` regex starts at the first run in the document
  * and deletes the identifier tables, which makes LibreOffice reject the DOCX.
  */
-function replacePlaceholderRun(documentXml: string, innerXml: string): string {
-  const tokenIndex = documentXml.indexOf(COMPANY_STAMP_IMAGE_PLACEHOLDER);
+function replacePlaceholderRun(
+  documentXml: string,
+  innerXml: string,
+  placeholder: string
+): string {
+  const tokenIndex = documentXml.indexOf(placeholder);
   if (tokenIndex < 0) return documentXml;
   const runOpen = lastWordRunOpenIndex(documentXml, tokenIndex);
   const runClose = documentXml.indexOf("</w:r>", tokenIndex);
   if (runOpen < 0 || runClose < 0 || runClose < runOpen) {
-    return documentXml.split(COMPANY_STAMP_IMAGE_PLACEHOLDER).join("");
+    return documentXml.split(placeholder).join("");
   }
   return (
     documentXml.slice(0, runOpen) +
@@ -199,24 +170,51 @@ export function applyCompanyStampToDocx(
   docx: Buffer,
   stamp: StampImageInput | null | undefined
 ): Buffer {
+  return applyStampImageToDocx(
+    docx,
+    stamp,
+    COMPANY_STAMP_IMAGE_PLACEHOLDER,
+    "company-stamp",
+    COMPANY_STAMP_UNDERSCORE_FALLBACK
+  );
+}
+
+export function applySspStampToDocx(
+  docx: Buffer,
+  stamp: StampImageInput | null | undefined
+): Buffer {
+  return applyStampImageToDocx(
+    docx,
+    stamp,
+    SSP_COMPANY_STAMP_IMAGE_PLACEHOLDER,
+    "ssp-company-stamp",
+    ""
+  );
+}
+
+export function applyStampImageToDocx(
+  docx: Buffer,
+  stamp: StampImageInput | null | undefined,
+  placeholder: string,
+  mediaStem: string,
+  emptyFallback = ""
+): Buffer {
   const zip = new PizZip(docx);
   const documentFile = zip.file("word/document.xml");
   if (!documentFile) return docx;
   let documentXml = documentFile.asText();
-  if (!documentXml.includes(COMPANY_STAMP_IMAGE_PLACEHOLDER)) {
+  if (!documentXml.includes(placeholder)) {
     return docx;
   }
 
   if (!stamp || stamp.bytes.length === 0) {
-    documentXml = documentXml.split(COMPANY_STAMP_IMAGE_PLACEHOLDER).join(
-      COMPANY_STAMP_UNDERSCORE_FALLBACK
-    );
+    documentXml = documentXml.split(placeholder).join(emptyFallback);
     zip.file("word/document.xml", documentXml);
     return zip.generate({ type: "nodebuffer", compression: "DEFLATE" }) as Buffer;
   }
 
   const { ext, mime } = stampExtension(stamp.contentType);
-  const mediaPath = `word/media/company-stamp.${ext}`;
+  const mediaPath = `word/media/${mediaStem}.${ext}`;
   zip.file(mediaPath, stamp.bytes);
 
   const relsPath = "word/_rels/document.xml.rels";
@@ -226,7 +224,7 @@ export function applyCompanyStampToDocx(
   const relId = nextRelationshipId(relsXml);
   relsXml = relsXml.replace(
     "</Relationships>",
-    `<Relationship Id="${relId}" Type="${IMAGE_REL_TYPE}" Target="media/company-stamp.${ext}"/></Relationships>`
+    `<Relationship Id="${relId}" Type="${IMAGE_REL_TYPE}" Target="media/${mediaStem}.${ext}"/></Relationships>`
   );
   zip.file(relsPath, relsXml);
 
@@ -238,7 +236,11 @@ export function applyCompanyStampToDocx(
     );
   }
 
-  documentXml = replacePlaceholderRun(documentXml, inlineStampDrawingXml(relId, stampExtentEmu(stamp.bytes)));
+  documentXml = replacePlaceholderRun(
+    documentXml,
+    inlineStampDrawingXml(relId, stampExtentEmu(stamp.bytes)),
+    placeholder
+  );
   zip.file("word/document.xml", documentXml);
   return zip.generate({ type: "nodebuffer", compression: "DEFLATE" }) as Buffer;
 }

@@ -7,7 +7,9 @@
 import * as React from "react";
 import { Progress, StatusBadge } from "@cashsouk/ui";
 import {
+  automaticSigningProgressBadge,
   computeSigningEnvelopeProgress,
+  isRemindableSigningRecipient,
   type SigningAssignmentDto,
   type SigningAssignmentStatus,
   type SigningEnvelopeDto,
@@ -23,6 +25,7 @@ import {
 import { cn } from "@/lib/utils";
 import {
   ArrowDownTrayIcon,
+  ArrowPathIcon,
   ArrowTopRightOnSquareIcon,
   CheckCircleIcon,
   ChevronDownIcon,
@@ -52,6 +55,8 @@ type SigningProgressMatrixProps = {
   onRemind?: (recipientId: string, documentId: string) => void;
   remindDisabled?: boolean;
   showRemindActions?: boolean;
+  onRetryAutoSign?: (assignmentId: string) => void;
+  retryDisabled?: boolean;
   /** Collapse fully-signed document groups by default. */
   collapseCompletedDocuments?: boolean;
   /** Tighter row padding for dense admin review. */
@@ -118,6 +123,8 @@ export function SigningProgressMatrix({
   onRemind,
   remindDisabled = false,
   showRemindActions = false,
+  onRetryAutoSign,
+  retryDisabled = false,
   collapseCompletedDocuments = false,
   compact = false,
   viewDocumentPending = false,
@@ -204,14 +211,24 @@ export function SigningProgressMatrix({
                   const recipient = recipientById.get(assignment.recipient_id);
                   if (!recipient) return null;
 
+                  const isAutomatic = recipient.execution_mode === "AUTOMATIC";
+                  const automaticBadge = isAutomatic
+                    ? automaticSigningProgressBadge(assignment.status)
+                    : null;
                   const meta = STATUS_META[assignment.status];
                   const StatusIcon = meta.Icon;
                   const isSigned = assignment.status === "SIGNED";
                   const canRemind =
+                    !isAutomatic &&
                     showRemindActions &&
                     onRemind != null &&
-                    !isSigned &&
-                    assignment.status !== "DECLINED";
+                    isRemindableSigningRecipient(recipient) &&
+                    assignment.status !== "DECLINED" &&
+                    !isSigned;
+                  const autoSignError =
+                    isAutomatic && !isSigned ? assignment.auto_sign_error?.trim() || null : null;
+                  const canRetry =
+                    Boolean(autoSignError) && onRetryAutoSign != null && !isSigned;
 
                   return (
                     <li
@@ -247,18 +264,25 @@ export function SigningProgressMatrix({
 
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-foreground">{recipient.name}</p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-meta text-muted-foreground">
                           {recipientLabel(recipient, duplicateNames)}
                         </p>
                         {recipient.warning_accepted_at ? (
-                          <p className="text-xs text-muted-foreground">Warning accepted</p>
+                          <p className="text-meta text-muted-foreground">Warning accepted</p>
+                        ) : null}
+                        {autoSignError ? (
+                          <p className="text-meta text-status-rejected-text">{autoSignError}</p>
                         ) : null}
                       </div>
 
                       <div className="flex shrink-0 flex-col items-end gap-1.5 sm:flex-row sm:items-center sm:gap-2">
                         <StatusBadge
-                          label={meta.label}
-                          status={getAdminStatusToken(assignment.status)}
+                          label={automaticBadge?.label ?? meta.label}
+                          status={
+                            autoSignError
+                              ? "action"
+                              : (automaticBadge?.status ?? getAdminStatusToken(assignment.status))
+                          }
                         />
                         {canRemind ? (
                           <Button
@@ -269,6 +293,19 @@ export function SigningProgressMatrix({
                             onClick={() => onRemind(recipient.id, document.id)}
                           >
                             Remind
+                          </Button>
+                        ) : null}
+                        {canRetry ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="text-ui"
+                            disabled={retryDisabled}
+                            onClick={() => onRetryAutoSign(assignment.id)}
+                          >
+                            <ArrowPathIcon className="h-4 w-4" />
+                            Retry
                           </Button>
                         ) : null}
                       </div>

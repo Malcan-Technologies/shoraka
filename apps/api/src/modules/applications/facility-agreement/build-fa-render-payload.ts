@@ -11,6 +11,8 @@ export type FacilityAgreementRenderPayload = Record<string, unknown>;
 const PLACEHOLDER_SIGNATORY = {
   name: visibleMergeScalar("name", ""),
   designation: visibleMergeScalar("designation", ""),
+  witness_name: visibleMergeScalar("witness_name", ""),
+  witness_nric: visibleMergeScalar("witness_nric", ""),
 };
 
 const PLACEHOLDER_INDIVIDUAL = {
@@ -56,6 +58,8 @@ export function buildFacilityAgreementRenderPayload(
       ? data.issuer_signatories.map((signatory) => ({
           name: visibleMergeScalar("name", signatory.name),
           designation: visibleMergeScalar("designation", signatory.designation),
+          witness_name: visibleMergeScalar("witness_name", signatory.witness_name),
+          witness_nric: visibleMergeScalar("witness_nric", signatory.witness_nric),
         }))
       : [PLACEHOLDER_SIGNATORY];
 

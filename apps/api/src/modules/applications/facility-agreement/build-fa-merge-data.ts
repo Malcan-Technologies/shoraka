@@ -10,13 +10,13 @@ import {
   resolveRegisteredAddress,
 } from "../letter-of-offer/build-facility-lo-merge-data";
 import {
-  authorizedRepresentativeCapacityLabel,
   documentCanonicalReference,
   FA_DRAWDOWN_FEE_AS_PRESCRIBED,
   getIssuerAuthorizedParty,
   getLoAuthorizedPartiesFromAcceptance,
   getOfferAcceptanceFromOfferDetails,
   malaysianBankSwift,
+  signingDesignationFromCapacity,
   readInvoiceSubLimitPerInvoiceRmFromWorkflow,
 } from "@cashsouk/types";
 
@@ -166,6 +166,14 @@ export function buildFacilityAgreementMergeData(
     issuer_bank_account_number: "",
     issuer_bank_account_name: "",
     issuer_bank_swift: "",
+    investor_1_name: "",
+    investor_1_designation: "",
+    investor_2_name: "",
+    investor_2_designation: "",
+    agent_1_name: "",
+    agent_1_designation: "",
+    agent_2_name: "",
+    agent_2_designation: "",
     guarantors_individual: [],
     guarantors_corporate: [],
     issuer_signatories: [],
@@ -234,7 +242,9 @@ export function buildFacilityAgreementMergeData(
     guarantors_corporate: mapCorporateGuarantors(liveGuarantors, authorizedParties),
     issuer_signatories: (issuerParty?.representatives ?? []).map((rep) => ({
       name: asString(rep.name),
-      designation: authorizedRepresentativeCapacityLabel(rep.capacity),
+      designation: signingDesignationFromCapacity(rep.capacity),
+      witness_name: "",
+      witness_nric: "",
     })),
   };
 }

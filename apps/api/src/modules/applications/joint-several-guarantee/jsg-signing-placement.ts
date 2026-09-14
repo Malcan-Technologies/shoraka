@@ -5,6 +5,9 @@ import {
   dateFieldFromLine,
   findSignerDateLabel,
   fitDateFieldBetweenSignatures,
+  fitSignFieldAbovePrintedLine,
+  isSignatureStrokeGlyphRun,
+  isSignatureStrokeLine,
   matchSignersToNamedSlots,
   signatureFieldFromLine,
 } from "../../signing/signature-field-geometry";
@@ -135,7 +138,20 @@ function splitColumnClusters(cluster: JsgPdfTextItem[]): JsgPdfTextItem[][] {
     const prev = last?.[last.length - 1];
     const gap = prev ? item.x - (prev.x + prev.width) : 0;
     const crossesGutter = Boolean(prev && prev.x < pageCenter - 20 && item.x > pageCenter + 20);
-    if (!last || !prev || gap >= COLUMN_GAP || crossesGutter) {
+    // Deed of Assignment SSP: the first underscore sits on the company-name
+    // baseline. After space glyphs are dropped, that gap is < COLUMN_GAP.
+    const strokeBoundary = Boolean(
+      prev && isSignatureStrokeLine(prev.text) !== isSignatureStrokeLine(item.text)
+    );
+    // DoA assignor/witness signature lines share a table row. The gutter is
+    // narrower than COLUMN_GAP, so a gap between two stroke runs is a column.
+    const strokeRunBoundary = Boolean(
+      prev &&
+        isSignatureStrokeGlyphRun(prev.text) &&
+        isSignatureStrokeGlyphRun(item.text) &&
+        gap > 1.5
+    );
+    if (!last || !prev || gap >= COLUMN_GAP || crossesGutter || strokeBoundary || strokeRunBoundary) {
       groups.push([item]);
     } else {
       last.push(item);
@@ -286,7 +302,9 @@ export function collectJsgSignatureSlots(items: JsgPdfTextItem[]): JsgSignatureS
   const executionLines = lines.filter(
     (line) => line.pageindex >= window.start && line.pageindex < window.end
   );
-  const located: Array<JsgSignatureSlot & { strokeX: number; strokeYTop: number }> = [];
+  const located: Array<
+    JsgSignatureSlot & { strokeX: number; strokeYTop: number; printedYTop: number }
+  > = [];
 
   for (const line of executionLines) {
     if (compactLineText(line.text).toLowerCase() !== "signature of guarantor") continue;
@@ -297,6 +315,7 @@ export function collectJsgSignatureSlots(items: JsgPdfTextItem[]): JsgSignatureS
       ...fieldFromSignatureLine(stroke),
       strokeX: stroke.x,
       strokeYTop: stroke.yTop,
+      printedYTop: line.yTop,
     });
   }
 
@@ -310,12 +329,14 @@ export function collectJsgSignatureSlots(items: JsgPdfTextItem[]): JsgSignatureS
       ...fieldFromSignatureLine(line),
       strokeX: line.x,
       strokeYTop: line.yTop,
+      printedYTop: below.yTop,
     });
   }
 
   located.sort((a, b) => a.pageindex - b.pageindex || a.strokeYTop - b.strokeYTop || a.left - b.left);
 
   const slots: JsgSignatureSlot[] = [];
+  let previousBottom: number | undefined;
   for (let index = 0; index < located.length; index += 1) {
     const current = located[index];
     if (!current) continue;
@@ -335,34 +356,38 @@ export function collectJsgSignatureSlots(items: JsgPdfTextItem[]): JsgSignatureS
         `JSG PDF is missing a Date line for "${current.name || "a guarantor"}".`
       );
     }
-    const signField = {
-      fieldtype: "sign" as const,
-      pageindex: current.pageindex,
-      top: current.top,
-      left: current.left,
-      height: current.height,
-      width: current.width,
-    };
-    const nextSign = next
-      ? {
-          fieldtype: "sign" as const,
-          pageindex: next.pageindex,
-          top: next.top,
-          left: next.left,
-          height: next.height,
-          width: next.width,
-        }
-      : undefined;
+    const samePagePrevious =
+      previousBottom != null && slots[slots.length - 1]?.pageindex === current.pageindex
+        ? previousBottom
+        : undefined;
+    const signField = fitSignFieldAbovePrintedLine(
+      {
+        fieldtype: "sign",
+        pageindex: current.pageindex,
+        top: current.top,
+        left: current.left,
+        height: current.height,
+        width: current.width,
+      },
+      current.printedYTop,
+      samePagePrevious
+    );
+    const dateField = fitDateFieldBetweenSignatures(
+      dateFieldFromLine(dateLine),
+      signField,
+      undefined
+    );
     slots.push({
       kind: current.kind,
       name: current.name,
-      pageindex: current.pageindex,
-      top: current.top,
-      left: current.left,
-      height: current.height,
-      width: current.width,
-      extraFields: [fitDateFieldBetweenSignatures(dateFieldFromLine(dateLine), signField, nextSign)],
+      pageindex: signField.pageindex,
+      top: signField.top,
+      left: signField.left,
+      height: signField.height,
+      width: signField.width,
+      extraFields: [dateField],
     });
+    previousBottom = dateField.top + dateField.height;
   }
 
   return slots;

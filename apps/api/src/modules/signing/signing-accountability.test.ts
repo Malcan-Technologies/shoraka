@@ -71,6 +71,10 @@ function baseEnvelope(
     completed_at: null,
     voided_at: null,
     void_reason: null,
+    send_phase: "IDLE",
+    send_error: null,
+    send_started_at: null,
+    send_attempt_count: 0,
     created_at: new Date(),
     updated_at: new Date(),
     documents: [],
@@ -82,7 +86,10 @@ function baseEnvelope(
 
 function createService(repo: Partial<SigningRepository>, provider?: Partial<SigningProvider>) {
   return new SigningService(
-    repo as SigningRepository,
+    {
+      setEnvelopeSendState: jest.fn().mockResolvedValue(undefined),
+      ...repo,
+    } as SigningRepository,
     (provider ?? {
       name: "test",
       getContractDetails: jest.fn(),

@@ -4,9 +4,9 @@ What [`buildFacilityAgreementMergeData`](../../apps/api/src/modules/applications
 
 Requires `offer_sent` (contract facility offer **or** standalone invoice offer). Generated when admin previews or sends the signing package if the frozen product includes **Facility Agreement**. Replaces the e-sign Offer Letter; the Step 1 `arf_contract_facility_lo` download/upload is unchanged.
 
-SigningCloud recipients are the configured **issuer authorised signatories** only. Investor, Agent, witness, and Schedule 4–9 utilisation lines stay unsigned so platform signatures can be added later. Each ISSUER signatory is paired with one wet-ink witness in a two-column table (signatory left, witness right). CA boxes sit on the left-column underscores; a SigningCloud `signdate` box sits on that signatory’s blank `Date :` line. Name and designation are merged before upload. Witness dates, company stamps, and schedule lines are not tagged. ISSUER execution starts on its own page, before Schedule 1. Current fixture PDFs place both issuer CA boxes on page 44 (Investor, Agent, witness, and schedule lines are not selected).
+SigningCloud **issuer** recipients are the configured authorised signatories only. CashSouk **Investor** and **Agent** keep the clean-copy hanging execution layout (SIGNED BY, company lines, tabbed signature strokes). Each has two authorised representatives assigned independently on Shoraka Profile (the same pair may be reused); name and designation merge after the existing colons. One CashSouk **issuer witness** is repeated across every ISSUER signatory row. Date lines use SigningCloud `signdate` so they show the actual automatic-sign date, not generate time. Each ISSUER signatory is paired with the CashSouk witness in a two-column table (signatory left, witness right). CA boxes sit on the left-column underscores; a `signdate` box sits on that signatory’s blank `Date :` line and on each witness date line. ISSUER execution starts on its own page, before Schedule 1.
 
-SigningCloud must enable `signdate` on the CashSouk tenant before production send (`seal`, `textfield`, and `signdate` require sales/support activation).
+SigningCloud must enable `signdate` and `seal` on the CashSouk tenant before production send. Same SigningCloud email on one document consolidates to one participant.
 
 ## Filled from platform data
 
@@ -28,7 +28,8 @@ SigningCloud must enable `signdate` on the CashSouk tenant before production sen
 | `issuer_bank_name`, `issuer_bank_account_name`, `issuer_bank_account_number` | Organisation `bank_account_details` |
 | `issuer_bank_swift` | Stored SWIFT on the org, else exact picklist value or short label from [`MALAYSIAN_BANKS`](../../packages/types/src/malaysian-banks.ts) |
 | `guarantors_individual` / `guarantors_corporate` | Live application guarantors + authorised-parties snapshot |
-| `issuer_signatories` | Issuer authorised representatives (`Director` / `Authorised Signatory`) |
+| `issuer_signatories` | Issuer authorised representatives (`Director` / `Authorised Signatory`). Each row also receives the frozen CashSouk issuer-witness name and NRIC. |
+| `investor_1_name` / `investor_1_designation` / `investor_2_*` / `agent_*` | Frozen Shoraka authorised representatives for those execution roles. Empty tags stay visible until a signing preview or envelope freeze fills them. |
 
 ## Visible tags (not collected yet)
 
