@@ -18,7 +18,7 @@ export function UserAccountIdentityCard({ user }: { user: UserDetailResponse }) 
         description="System identifiers and activity totals"
       />
       <CardContent className="grid grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-1">
-        <CopyableField label="User ID" value={user.user_id} />
+        <CopyableField label="Internal User ID" value={user.user_id} />
         <CopyableField label="Email" value={user.email} />
         <CopyableField label="Cognito Username" value={user.cognito_username} />
         <CopyableField label="Cognito Sub" value={user.cognito_sub} />

@@ -11,7 +11,6 @@ import { createApiClient, useAuthToken, PARTY_STATUS_REFRESHED_MESSAGE, PARTY_ST
 import {
   buildPeopleAccessRows,
   canManageDirectorShareholder,
-  computeIssuerPersonCompleteness,
   filterPeopleAccessRows,
   filterVisiblePeopleRows,
   formatPeopleRolesLine,
@@ -20,6 +19,7 @@ import {
   isMissingGovernmentIdPerson,
   isPersonEmailLifecycleLocked,
   issuerPersonCompletenessInputFromParty,
+  issuerPersonCompletenessSummary,
   normalizeDirectorShareholderIdKey,
   normalizeDirectorShareholderPartyEmail,
   peopleAccessAmlChipPresentation,
@@ -175,6 +175,7 @@ export function PeopleAccessSection({
   focusedMatchKey,
   canEdit,
   canInactivate = false,
+  canReactivate = canEdit,
   currentUserId,
   ownerUserId,
   members,
@@ -192,6 +193,7 @@ export function PeopleAccessSection({
   focusedMatchKey?: string | null;
   canEdit: boolean;
   canInactivate?: boolean;
+  canReactivate?: boolean;
   currentUserId?: string | null;
   ownerUserId?: string | null;
   members: PeopleAccessMember[];
@@ -213,6 +215,8 @@ export function PeopleAccessSection({
   const [viewPeopleOnlyKey, setViewPeopleOnlyKey] = React.useState<string | null>(null);
   const [inactivatePartyId, setInactivatePartyId] = React.useState<string | null>(null);
   const [inactivatePending, setInactivatePending] = React.useState(false);
+  const [reactivatePartyId, setReactivatePartyId] = React.useState<string | null>(null);
+  const [reactivatePending, setReactivatePending] = React.useState(false);
   const [onboardKey, setOnboardKey] = React.useState<string | null>(null);
   const [draftEmails, setDraftEmails] = React.useState<Record<string, string>>({});
   const [sendPending, setSendPending] = React.useState(false);
@@ -278,6 +282,7 @@ export function PeopleAccessSection({
   const viewingPeopleOnly =
     visiblePeople.find((person) => person.matchKey === viewPeopleOnlyKey) ?? null;
   const inactivating = parties.find((party) => party.id === inactivatePartyId) ?? null;
+  const reactivating = parties.find((party) => party.id === reactivatePartyId) ?? null;
   const platformRow = active.find((row) => row.key === platformRowKey) ?? null;
   const onboardPerson =
     active.find((row) => row.partyId === onboardKey || row.partyKey === onboardKey)?.person ??
@@ -473,7 +478,6 @@ export function PeopleAccessSection({
                   <PeopleAccessTableRow
                     key={row.key}
                     row={row}
-                    portal={portal}
                     canEdit={canEdit}
                     canInactivate={canInactivate}
                     currentUserId={currentUserId}
@@ -583,6 +587,19 @@ export function PeopleAccessSection({
               >
                 <p className="text-ui font-medium">{row.name}</p>
                 <p className="text-meta text-muted-foreground">{row.companyRoleLine}</p>
+                {row.kind === "company_person" && row.party ? (
+                  (() => {
+                    const missingCount = issuerPersonCompletenessSummary(
+                      issuerPersonCompletenessInputFromParty({
+                        ...row.party,
+                        kycOnboardingStatus: row.person?.onboarding?.status ?? null,
+                      })
+                    ).missingCount;
+                    return missingCount > 0 ? (
+                      <p className="text-meta text-status-action-text">{missingCount} details missing</p>
+                    ) : null;
+                  })()
+                ) : null}
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <AccessBadge label={row.platformAccess} />
                   <PeopleAccessKycStatus
@@ -658,15 +675,27 @@ export function PeopleAccessSection({
           <summary className="cursor-pointer text-ui font-medium">Inactive company people</summary>
           <div className="mt-3 space-y-2">
             {inactive.map((row) => (
-              <button
-                key={row.key}
-                type="button"
-                className="flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left"
-                onClick={() => viewRow(row)}
-              >
-                <span className="text-ui">{row.name}</span>
-                <StatusBadge status="neutral" label="Inactive" />
-              </button>
+              <div key={row.key} className="flex w-full items-center justify-between gap-2 rounded-lg border px-3 py-2">
+                <button
+                  type="button"
+                  className="flex min-w-0 flex-1 items-center justify-between text-left"
+                  onClick={() => viewRow(row)}
+                >
+                  <span className="truncate text-ui">{row.name}</span>
+                  <StatusBadge status="neutral" label="Inactive" />
+                </button>
+                {canReactivate && row.partyId ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8"
+                    onClick={() => setReactivatePartyId(row.partyId)}
+                  >
+                    Reactivate
+                  </Button>
+                ) : null}
+              </div>
             ))}
           </div>
         </details>
@@ -972,6 +1001,36 @@ export function PeopleAccessSection({
       />
 
       <ConfirmDialog
+        open={Boolean(reactivating)}
+        onOpenChange={(open) => {
+          if (!open && !reactivatePending) setReactivatePartyId(null);
+        }}
+        title="Reactivate person"
+        description="Reactivate this person on the current profile? Existing KYC, AML and onboarding history will be kept."
+        confirmText="Reactivate"
+        isLoading={reactivatePending}
+        onConfirm={async () => {
+          if (!reactivating) return;
+          setReactivatePending(true);
+          try {
+            const res = await api.reactivatePartyProfile(portal, organizationId, reactivating.id);
+            if (!res.success) throw profileValidationErrorFromApi(res.error);
+            if (res.data.reviewRequired) {
+              toast.success("Changes detected. Sent for Admin review before reactivation.");
+            } else {
+              toast.success("Person reactivated");
+            }
+            setReactivatePartyId(null);
+            await invalidate();
+          } catch (err) {
+            toast.error(err instanceof Error ? err.message : "Could not reactivate this person");
+          } finally {
+            setReactivatePending(false);
+          }
+        }}
+      />
+
+      <ConfirmDialog
         open={confirm?.type === "remove"}
         onOpenChange={(open) => !open && setConfirm(null)}
         title="Remove access"
@@ -1080,7 +1139,6 @@ export function PeopleAccessSection({
 
 function PeopleAccessTableRow({
   row,
-  portal,
   canEdit,
   canInactivate,
   currentUserId,
@@ -1102,7 +1160,6 @@ function PeopleAccessTableRow({
   onRefreshStatus,
 }: {
   row: PeopleAccessRow;
-  portal: PortalPeoplePortal;
   canEdit: boolean;
   canInactivate: boolean;
   currentUserId?: string | null;
@@ -1125,15 +1182,16 @@ function PeopleAccessTableRow({
 }) {
   const isSelf = Boolean(currentUserId && row.userId === currentUserId);
   const isOwnerRow = row.platformAccess === "Owner";
-  const missingCount =
-    portal === "issuer" && row.party
-      ? computeIssuerPersonCompleteness(
+  const missingSummary =
+    row.kind === "company_person" && row.party
+      ? issuerPersonCompletenessSummary(
           issuerPersonCompletenessInputFromParty({
             ...row.party,
             kycOnboardingStatus: row.person?.onboarding?.status ?? null,
           })
-        ).length
-      : 0;
+        )
+      : null;
+  const missingCount = missingSummary?.missingCount ?? 0;
   const canSend =
     canEdit &&
     !blockOnboarding &&
@@ -1176,7 +1234,7 @@ function PeopleAccessTableRow({
         <div className="min-w-0">
           <p className="truncate font-medium">{row.name}</p>
           {missingCount > 0 ? (
-            <p className="text-meta text-status-action-text">{missingCount} profile fields remaining</p>
+            <p className="text-meta text-status-action-text">{missingCount} details missing</p>
           ) : null}
         </div>
       </td>

@@ -24,11 +24,11 @@ describe("Admin People Mark inactive eligibility", () => {
     expect(markInactiveBlock).not.toContain("absentFromLatestExternal");
   });
 
-  it("keeps Mark inactive behind organizations.manage and does not add Reactivate or delete", () => {
+  it("keeps Mark inactive behind organizations.manage and supports Reactivate", () => {
     expect(detail).toContain("canManage && Boolean(onInactivate) && adminMayInactivateMasterParty(party)");
-    expect(detail).not.toContain("Reactivate");
+    expect(detail).toContain("Reactivate");
     expect(detail).not.toContain("deleteManagementParty");
-    expect(panel).not.toContain("Reactivate");
+    expect(panel).toContain("Reactivate");
   });
 });
 

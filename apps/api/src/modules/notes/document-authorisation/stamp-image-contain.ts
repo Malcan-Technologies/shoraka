@@ -138,38 +138,6 @@ export function stampExtentEmu(bytes: Buffer): StampExtentEmu {
   return stampExtentEmuFromPixels(size.width, size.height);
 }
 
-function containPixelSize(
-  srcW: number,
-  srcH: number,
-  maxW: number,
-  maxH: number
-): { width: number; height: number } {
-  const scale = Math.min(maxW / srcW, maxH / srcH, 1);
-  return {
-    width: Math.max(1, Math.round(srcW * scale)),
-    height: Math.max(1, Math.round(srcH * scale)),
-  };
-}
-
-function resizeRgbaNearest(src: RasterRgba, dstW: number, dstH: number): RasterRgba {
-  if (src.width === dstW && src.height === dstH) {
-    return { width: dstW, height: dstH, data: Buffer.from(src.data) };
-  }
-  const dst = Buffer.alloc(dstW * dstH * 4);
-  for (let y = 0; y < dstH; y += 1) {
-    const srcY = Math.min(src.height - 1, Math.floor((y * src.height) / dstH));
-    for (let x = 0; x < dstW; x += 1) {
-      const srcX = Math.min(src.width - 1, Math.floor((x * src.width) / dstW));
-      const si = (srcY * src.width + srcX) * 4;
-      const di = (y * dstW + x) * 4;
-      dst[di] = src.data[si]!;
-      dst[di + 1] = src.data[si + 1]!;
-      dst[di + 2] = src.data[si + 2]!;
-      dst[di + 3] = src.data[si + 3]!;
-    }
-  }
-  return { width: dstW, height: dstH, data: dst };
-}
 
 function tryDecodeRaster(bytes: Buffer): RasterRgba | null {
   try {
@@ -186,12 +154,6 @@ function tryDecodeRaster(bytes: Buffer): RasterRgba | null {
   } catch {
     return null;
   }
-}
-
-function encodePngRgba(raster: RasterRgba): Buffer {
-  const png = new PNG({ width: raster.width, height: raster.height });
-  png.data = raster.data;
-  return PNG.sync.write(png);
 }
 
 function crc32(bytes: Buffer): number {
@@ -333,12 +295,24 @@ export function fitStampImageForDocx(
   const raster = tryDecodeRaster(bytes);
   if (raster) {
     const extent = stampExtentEmuFromPixels(raster.width, raster.height, bounds);
-    const box = maxStampPixelBox(bounds);
-    const target = containPixelSize(raster.width, raster.height, box.width, box.height);
-    const fitted = resizeRgbaNearest(raster, target.width, target.height);
-    const pngBytes = encodePngRgba(fitted);
-    const withPhys = pngWithPhysForExtent(pngBytes, fitted.width, fitted.height, extent);
-    return { bytes: withPhys ?? pngBytes, contentType: "image/png", extent };
+
+    const normalized = (contentType ?? "").trim().toLowerCase();
+    const wantsPng = normalized === "image/png" || bytes.subarray(0, 8).compare(PNG_SIGNATURE) === 0;
+    const wantsJpeg = normalized === "image/jpeg" || normalized === "image/jpg";
+
+    // Quality-first: never resize/re-encode bitmap pixels.
+    // We control the physical size using wp:extent, and only adjust metadata for DOCX/LibreOffice compatibility.
+    if (wantsPng) {
+      const withPhys = pngWithPhysForExtent(bytes, raster.width, raster.height, extent);
+      return { bytes: withPhys ?? bytes, contentType: "image/png", extent };
+    }
+    if (wantsJpeg) {
+      const withDpi = jpegWithJfifDpi(bytes, extent, { width: raster.width, height: raster.height });
+      return { bytes: withDpi ?? bytes, contentType: "image/jpeg", extent };
+    }
+
+    // WebP path: keep original bytes and rely on wp:extent sizing.
+    return { bytes, contentType: fallbackMime(contentType), extent };
   }
 
   const size = readPngSize(bytes) ?? readJpegSize(bytes) ?? readWebpSize(bytes);

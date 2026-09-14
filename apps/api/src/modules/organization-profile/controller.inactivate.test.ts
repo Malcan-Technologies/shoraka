@@ -5,6 +5,7 @@ import { AppError } from "../../lib/http/error-handler";
 
 const mockGetOrganization = jest.fn();
 const mockInactivateMasterParty = jest.fn();
+const mockReactivateMasterParty = jest.fn();
 const mockAuthState = {
   user: { user_id: "owner-1" } as Pick<User, "user_id">,
   adminPermissions: ["organizations.view", "organizations.manage"] as string[] | null,
@@ -24,6 +25,7 @@ jest.mock("./service", () => ({
   deleteManagementParty: jest.fn(),
   getIssuerFinancialSummary: jest.fn(),
   inactivateMasterParty: (...args: unknown[]) => mockInactivateMasterParty(...args),
+  reactivateMasterParty: (...args: unknown[]) => mockReactivateMasterParty(...args),
   listPartyProfiles: jest.fn(),
   patchIssuerOrgFinancials: jest.fn(),
   patchOrgMasterProfile: jest.fn(),
@@ -102,6 +104,10 @@ describe("issuer and admin party inactivation routes", () => {
       id: "party-a",
       membershipStatus: "MASTER_INACTIVE",
     });
+    mockReactivateMasterParty.mockResolvedValue({
+      party: { id: "party-a", membershipStatus: "MASTER_ACTIVE" },
+      reviewRequired: false,
+    });
   });
 
   it("lets an issuer owner mark an active member inactive", async () => {
@@ -131,10 +137,46 @@ describe("issuer and admin party inactivation routes", () => {
     });
   });
 
+  it("lets an investor owner mark an active member inactive", async () => {
+    mockAuthState.user = { user_id: "owner-1" };
+    const response = await request(app).post(
+      "/v1/organizations/investor/org-a/party-profiles/party-a/inactivate"
+    );
+    expect(response.status).toBe(200);
+    expect(response.body.data.membershipStatus).toBe("MASTER_INACTIVE");
+    expect(mockInactivateMasterParty).toHaveBeenCalledWith({
+      portal: "investor",
+      organizationId: "org-a",
+      partyId: "party-a",
+    });
+  });
+
+  it("lets an investor organization admin mark an active member inactive", async () => {
+    mockAuthState.user = { user_id: "admin-1" };
+    const response = await request(app).post(
+      "/v1/organizations/investor/org-a/party-profiles/party-a/inactivate"
+    );
+    expect(response.status).toBe(200);
+    expect(mockInactivateMasterParty).toHaveBeenCalledWith({
+      portal: "investor",
+      organizationId: "org-a",
+      partyId: "party-a",
+    });
+  });
+
   it("blocks an ordinary issuer member from marking a person inactive", async () => {
     mockAuthState.user = { user_id: "member-1" };
     const response = await request(app).post(
       "/v1/organizations/issuer/org-a/party-profiles/party-a/inactivate"
+    );
+    expect(response.status).toBe(403);
+    expect(mockInactivateMasterParty).not.toHaveBeenCalled();
+  });
+
+  it("blocks an ordinary investor member from marking a person inactive", async () => {
+    mockAuthState.user = { user_id: "member-1" };
+    const response = await request(app).post(
+      "/v1/organizations/investor/org-a/party-profiles/party-a/inactivate"
     );
     expect(response.status).toBe(403);
     expect(mockInactivateMasterParty).not.toHaveBeenCalled();
@@ -163,6 +205,56 @@ describe("issuer and admin party inactivation routes", () => {
     });
   });
 
+  it("lets an issuer owner reactivate an inactive member", async () => {
+    mockAuthState.user = { user_id: "owner-1" };
+    const response = await request(app).post(
+      "/v1/organizations/issuer/org-a/party-profiles/party-a/reactivate"
+    );
+    expect(response.status).toBe(200);
+    expect(response.body.data.party.membershipStatus).toBe("MASTER_ACTIVE");
+    expect(mockReactivateMasterParty).toHaveBeenCalledWith({
+      portal: "issuer",
+      organizationId: "org-a",
+      partyId: "party-a",
+    });
+  });
+
+  it("lets an investor owner reactivate an inactive member", async () => {
+    mockAuthState.user = { user_id: "owner-1" };
+    const response = await request(app).post(
+      "/v1/organizations/investor/org-a/party-profiles/party-a/reactivate"
+    );
+    expect(response.status).toBe(200);
+    expect(mockReactivateMasterParty).toHaveBeenCalledWith({
+      portal: "investor",
+      organizationId: "org-a",
+      partyId: "party-a",
+    });
+  });
+
+  it("blocks an ordinary member from reactivating a person", async () => {
+    mockAuthState.user = { user_id: "member-1" };
+    const response = await request(app).post(
+      "/v1/organizations/investor/org-a/party-profiles/party-a/reactivate"
+    );
+    expect(response.status).toBe(403);
+    expect(mockReactivateMasterParty).not.toHaveBeenCalled();
+  });
+
+  it("keeps the existing admin reactivation route", async () => {
+    mockAuthState.user = { user_id: "admin-staff" };
+    const response = await request(app).post(
+      "/v1/admin/organizations/issuer/org-a/party-profiles/party-a/reactivate"
+    );
+    expect(response.status).toBe(200);
+    expect(mockGetOrganization).not.toHaveBeenCalled();
+    expect(mockReactivateMasterParty).toHaveBeenCalledWith({
+      portal: "issuer",
+      organizationId: "org-a",
+      partyId: "party-a",
+    });
+  });
+
   it("blocks admin inactivation without organizations.manage", async () => {
     mockAuthState.user = { user_id: "admin-staff" };
     mockAuthState.adminPermissions = ["organizations.view"];
@@ -171,6 +263,16 @@ describe("issuer and admin party inactivation routes", () => {
     );
     expect(response.status).toBe(403);
     expect(mockInactivateMasterParty).not.toHaveBeenCalled();
+  });
+
+  it("blocks admin reactivation without organizations.manage", async () => {
+    mockAuthState.user = { user_id: "admin-staff" };
+    mockAuthState.adminPermissions = ["organizations.view"];
+    const response = await request(app).post(
+      "/v1/admin/organizations/issuer/org-a/party-profiles/party-a/reactivate"
+    );
+    expect(response.status).toBe(403);
+    expect(mockReactivateMasterParty).not.toHaveBeenCalled();
   });
 });
 

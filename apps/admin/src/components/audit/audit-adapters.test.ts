@@ -172,7 +172,7 @@ describe("application Event Details keep DB id and display reference separate", 
     );
     expect(detail.target?.applicationReference).toBe("APP-CS-2026-001");
     expect(detail.technical).toEqual(
-      expect.arrayContaining([{ label: "Application ID", value: "cuid-application-uuid" }])
+      expect.arrayContaining([{ label: "Internal Application ID", value: "cuid-application-uuid" }])
     );
   });
 
@@ -393,7 +393,7 @@ describe("contract activity Event Details", () => {
     );
     expect(detail.target?.applicationReference).toBe("APP-CS-2026-001");
     expect(detail.technical).toEqual(
-      expect.arrayContaining([{ label: "Application ID", value: "cuid-application-uuid" }])
+      expect.arrayContaining([{ label: "Internal Application ID", value: "cuid-application-uuid" }])
     );
 
     const historical = contractEventToAuditDetail(
@@ -441,7 +441,7 @@ describe("occupancy Event Details display references", () => {
     expect(detail.target?.contractReference).toBe("FAC-ARF-202608-A1Z");
     expect(detail.target?.invoiceReference).toBe("INV-ARF-202608-B2Y");
     expect(detail.technical).toEqual(
-      expect.arrayContaining([{ label: "Application ID", value: "cuid-application-uuid" }])
+      expect.arrayContaining([{ label: "Internal Application ID", value: "cuid-application-uuid" }])
     );
   });
 

@@ -39,7 +39,7 @@ describe("admin organization profile router permissions", () => {
     expect(userRouter).toContain('"/:portal/:id/party-profiles/:partyId/inactivate"');
     expect(userRouter).toContain("assertOrgOwnerOrAdmin");
     expect(userRouter).toContain("inactivateMasterParty");
-    expect(userRouter).toContain('portal !== "issuer"');
+    expect(userRouter).not.toContain('portal !== "issuer"');
     expect(userRouter).not.toMatch(/router\.delete\(\s*"\/:portal\/:id\/party-profiles\/:partyId\/inactivate"/);
     expect(userRouter).not.toContain("Reactivate");
   });

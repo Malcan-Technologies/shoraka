@@ -54,9 +54,8 @@ export type SettlementHibahReceiptDocxMergeData = {
 };
 
 export function financingReferenceFromSnapshot(snapshot: SettlementHibahReceiptSnapshot): string {
-  return snapshot.facilityReference
-    ? `${snapshot.noteReference} / ${snapshot.facilityReference}`
-    : snapshot.noteReference;
+  // Keep consistent with the Investment Note Certificate: use Financing/Note ID only.
+  return snapshot.noteReference;
 }
 
 /**

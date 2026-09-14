@@ -106,6 +106,13 @@ describe("customer person Profile mapping and privacy", () => {
     expect(detail.indexOf('setConfirm("inactivate")')).toBeLessThan(detail.indexOf('value="access"'));
   });
 
+  it("adds Reactivate for inactive people and reuses existing review flow copy", () => {
+    expect(section).toContain("Inactive company people");
+    expect(section).toContain("Reactivate");
+    expect(section).toContain("api.reactivatePartyProfile");
+    expect(section).toContain("reviewRequired");
+  });
+
   it("does not expose CTOS comparison copy on customer person Profile", () => {
     const customerUi = [detail, overview, identityCard, section].join("\n");
     expect(customerUi).not.toContain("Latest CTOS information");
@@ -153,5 +160,22 @@ describe("Add company person role-driven onboarding", () => {
     expect(section).toContain("InviteUserDialog");
     expect(section).toContain("/members/invite");
     expect(section).toContain("Invite user");
+  });
+});
+
+describe("People & Access completeness copy", () => {
+  it("surfaces incomplete company-person completeness as 'X details missing'", () => {
+    expect(section).toContain("details missing");
+  });
+
+  it("shows a compact completeness notice in incomplete person Overview", () => {
+    expect(detail).toContain("Complete this profile");
+    expect(detail).toContain("details are still missing");
+    expect(detail).toContain("Complete details");
+  });
+
+  it("only computes person completeness when a company-person party exists", () => {
+    expect(detail).toContain("if (!party || inactive) return null;");
+    expect(detail).toContain("missingCount > 0");
   });
 });

@@ -329,9 +329,12 @@ export default function ProfilePage() {
   );
 
   // Editing states
-  const [isEditingProfile, setIsEditingProfile] = React.useState(false);
+  const [isEditingPersonalDetails, setIsEditingPersonalDetails] = React.useState(false);
+  const [isEditingResidentialAddress, setIsEditingResidentialAddress] = React.useState(false);
+  const [isEditingContactDetails, setIsEditingContactDetails] = React.useState(false);
   const [isEditingBanking, setIsEditingBanking] = React.useState(false);
   const [isEditingAddresses, setIsEditingAddresses] = React.useState(false);
+  const [isSavingMasterProfile, setIsSavingMasterProfile] = React.useState(false);
 
   // Fetch current user ID
   const { data: currentUser } = useQuery({
@@ -372,6 +375,7 @@ export default function ProfilePage() {
   const [address, setAddress] = React.useState("");
   const [gender, setGender] = React.useState("");
   const [nationality, setNationality] = React.useState("");
+  const [dateOfBirth, setDateOfBirth] = React.useState("");
   const [residentialState, setResidentialState] = React.useState("");
   const [residentialPostalCode, setResidentialPostalCode] = React.useState("");
 
@@ -564,6 +568,7 @@ export default function ProfilePage() {
       setAddress(orgData.address || "");
       setGender(orgData.gender ?? "");
       setNationality(orgData.nationality ?? "");
+      setDateOfBirth(orgData.dateOfBirth ?? "");
       setResidentialState(orgData.residentialAddress?.state ?? "");
       setResidentialPostalCode(orgData.residentialAddress?.postalCode ?? "");
 
@@ -602,7 +607,9 @@ export default function ProfilePage() {
       queryClient.invalidateQueries({ queryKey: ["organization-detail", activeOrganization?.id] });
       queryClient.invalidateQueries({ queryKey: ["investor", "profile-completeness", activeOrganization?.id] });
       toast.success("Profile updated successfully");
-      setIsEditingProfile(false);
+      setIsEditingPersonalDetails(false);
+      setIsEditingResidentialAddress(false);
+      setIsEditingContactDetails(false);
       setIsEditingBanking(false);
     },
     onError: (error: Error) => {
@@ -626,42 +633,120 @@ export default function ProfilePage() {
       return;
     }
 
+    const invalidateAfterSave = () => {
+      queryClient.invalidateQueries({ queryKey: ["organization-detail", activeOrganization.id] });
+      queryClient.invalidateQueries({ queryKey: ["investor", "profile-completeness", activeOrganization.id] });
+      toast.success("Profile updated successfully");
+    };
+
     if (activeOrganization.type === "PERSONAL") {
-      const issues = validateInvestorPersonalForm({
-        gender,
-        nationality,
-        state: residentialState,
-        postalCode: residentialPostalCode,
-      });
-      if (issues.length > 0) {
-        toast.error(firstIssueMessage(issues));
+      if (isEditingPersonalDetails) {
+        const issues = validateInvestorPersonalForm({
+          gender,
+          nationality,
+          state: residentialState,
+          postalCode: residentialPostalCode,
+        });
+        if (issues.length > 0) {
+          toast.error(firstIssueMessage(issues));
+          return;
+        }
+
+        const dob = dateOfBirth.trim();
+        if (!dob || !/^\d{4}-\d{2}-\d{2}$/.test(dob)) {
+          toast.error("Enter a valid Date of Birth.");
+          return;
+        }
+
+        const master: Record<string, unknown> = {
+          gender,
+          nationality: nationality.trim(),
+          dateOfBirth: dob,
+        };
+        setIsSavingMasterProfile(true);
+        try {
+          const masterRes = await apiClient.patchMasterProfile(
+            "investor",
+            activeOrganization.id,
+            master
+          );
+          if (!masterRes.success) {
+            toast.error("Failed to update profile", {
+              description: humanizeApiValidationMessage(masterRes.error.message),
+            });
+            return;
+          }
+        } finally {
+          setIsSavingMasterProfile(false);
+        }
+
+        invalidateAfterSave();
+        setIsEditingPersonalDetails(false);
+        setIsEditingResidentialAddress(false);
+        setIsEditingContactDetails(false);
         return;
       }
-      const master: Record<string, unknown> = {
-        gender,
-        nationality: nationality.trim(),
-        residentialAddress: {
-          state: residentialState,
-          postalCode: residentialState === "Outside Malaysia" ? residentialPostalCode.trim() || null : residentialPostalCode.trim(),
-        },
-      };
-      const masterRes = await apiClient.patchMasterProfile(
-        "investor",
-        activeOrganization.id,
-        master
-      );
-      if (!masterRes.success) {
-        toast.error("Failed to update profile", {
-          description: humanizeApiValidationMessage(masterRes.error.message),
+
+      if (isEditingResidentialAddress) {
+        if (!residentialState) {
+          toast.error("State is required.");
+          return;
+        }
+        const needsPostcode = isScPostcodeRequired(residentialState);
+        const postcode = residentialPostalCode.trim();
+        if (needsPostcode && !postcode) {
+          toast.error("Postcode is required.");
+          return;
+        }
+
+        const master: Record<string, unknown> = {
+          residentialAddress: {
+            state: residentialState,
+            postalCode:
+              residentialState === "Outside Malaysia" ? (postcode || null) : postcode,
+          },
+        };
+        setIsSavingMasterProfile(true);
+        try {
+          const masterRes = await apiClient.patchMasterProfile(
+            "investor",
+            activeOrganization.id,
+            master
+          );
+          if (!masterRes.success) {
+            toast.error("Failed to update profile", {
+              description: humanizeApiValidationMessage(masterRes.error.message),
+            });
+            return;
+          }
+        } finally {
+          setIsSavingMasterProfile(false);
+        }
+
+        await updateProfileMutation.mutateAsync({
+          address: address.trim() || null,
         });
         return;
       }
+
+      if (isEditingContactDetails) {
+        await updateProfileMutation.mutateAsync({
+          phoneNumber: storedProfilePhone(phoneNumber) || null,
+        });
+        return;
+      }
+
+      // If no recognized flag is active, do nothing.
+      return;
     }
 
-    updateProfileMutation.mutate({
-      phoneNumber: storedProfilePhone(phoneNumber) || null,
-      address: address.trim() || null,
-    });
+    // COMPANY organizations: only contact details are editable in this page.
+    if (isEditingContactDetails) {
+      await updateProfileMutation.mutateAsync({
+        phoneNumber: storedProfilePhone(phoneNumber) || null,
+      });
+      return;
+    }
   };
 
   const handleSaveBanking = () => {
@@ -686,10 +771,13 @@ export default function ProfilePage() {
       setAddress(orgData.address || "");
       setGender(orgData.gender ?? "");
       setNationality(orgData.nationality ?? "");
+      setDateOfBirth(orgData.dateOfBirth ?? "");
       setResidentialState(orgData.residentialAddress?.state ?? "");
       setResidentialPostalCode(orgData.residentialAddress?.postalCode ?? "");
     }
-    setIsEditingProfile(false);
+    setIsEditingPersonalDetails(false);
+    setIsEditingResidentialAddress(false);
+    setIsEditingContactDetails(false);
   };
 
   const handleCancelBankingEdit = () => {
@@ -893,11 +981,15 @@ export default function ProfilePage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <VerifiedBadge />
-                      {!isEditingProfile ? (
+                      {!isEditingPersonalDetails ? (
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => setIsEditingProfile(true)}
+                          onClick={() => {
+                            setIsEditingPersonalDetails(true);
+                            setIsEditingResidentialAddress(false);
+                            setIsEditingContactDetails(false);
+                          }}
                           className="gap-2 rounded-xl"
                         >
                           <PencilIcon className="h-4 w-4" />
@@ -920,13 +1012,26 @@ export default function ProfilePage() {
                         locked
                         required
                       />
-                      <ProfileReadField
-                        label={PROFILE_LABEL.dateOfBirth}
-                        value={formatProfileDate(orgData?.dateOfBirth)}
-                        locked
-                        required
-                      />
-                      {isEditingProfile ? (
+                      {isEditingPersonalDetails ? (
+                        <div className="space-y-2">
+                          <ComRepFieldLabel label={PROFILE_LABEL.dateOfBirth} required />
+                          <Input
+                            type="date"
+                            className="h-11 text-ui"
+                            value={dateOfBirth}
+                            onChange={(e) => setDateOfBirth(e.target.value)}
+                            aria-required
+                          />
+                        </div>
+                      ) : (
+                        <ProfileReadField
+                          label={PROFILE_LABEL.dateOfBirth}
+                          value={formatProfileDate(orgData?.dateOfBirth)}
+                          missing={missingFieldKeys.has("dateOfBirth")}
+                          required
+                        />
+                      )}
+                      {isEditingPersonalDetails ? (
                         <div className="space-y-2">
                           <ComRepFieldLabel
                             label={PROFILE_LABEL.gender}
@@ -953,7 +1058,7 @@ export default function ProfilePage() {
                           required
                         />
                       )}
-                      {isEditingProfile ? (
+                      {isEditingPersonalDetails ? (
                         <div className="space-y-2">
                           <ComRepFieldLabel
                             label={PROFILE_LABEL.nationality}
@@ -981,6 +1086,26 @@ export default function ProfilePage() {
                         />
                       )}
                     </ProfileFieldGrid>
+                    {isEditingPersonalDetails && (
+                      <div className="flex justify-end gap-2 pt-4">
+                        <Button
+                          variant="outline"
+                          onClick={handleCancelProfileEdit}
+                          disabled={isSavingMasterProfile}
+                          className="gap-2 rounded-xl"
+                        >
+                          <XMarkIcon className="h-4 w-4" />
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={handleSaveProfile}
+                          disabled={isSavingMasterProfile}
+                          className="gap-2 rounded-xl"
+                        >
+                          {isSavingMasterProfile ? "Saving..." : "Save changes"}
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -1012,11 +1137,15 @@ export default function ProfilePage() {
                         Ensure your primary address is up to date
                       </p>
                     </div>
-                    {!isEditingProfile && (
+                    {!isEditingResidentialAddress && (
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setIsEditingProfile(true)}
+                        onClick={() => {
+                          setIsEditingResidentialAddress(true);
+                          setIsEditingPersonalDetails(false);
+                          setIsEditingContactDetails(false);
+                        }}
                         className="gap-2 rounded-xl"
                       >
                         <PencilIcon className="h-4 w-4" />
@@ -1025,7 +1154,7 @@ export default function ProfilePage() {
                     )}
                   </div>
                   <div className="p-6 space-y-4">
-                    {!isEditingProfile ? (
+                    {!isEditingResidentialAddress ? (
                       <ProfileFieldGrid>
                         <ProfileReadField
                           className="sm:col-span-2"
@@ -1100,12 +1229,12 @@ export default function ProfilePage() {
                     </div>
                     )}
 
-                    {isEditingProfile && (
+                    {isEditingResidentialAddress && (
                       <div className="flex justify-end gap-2 pt-4">
                         <Button
                           variant="outline"
                           onClick={handleCancelProfileEdit}
-                          disabled={updateProfileMutation.isPending}
+                          disabled={updateProfileMutation.isPending || isSavingMasterProfile}
                           className="gap-2 rounded-xl"
                         >
                           <XMarkIcon className="h-4 w-4" />
@@ -1113,7 +1242,7 @@ export default function ProfilePage() {
                         </Button>
                         <Button
                           onClick={handleSaveProfile}
-                          disabled={updateProfileMutation.isPending}
+                          disabled={updateProfileMutation.isPending || isSavingMasterProfile}
                           className="gap-2 rounded-xl"
                         >
                           {updateProfileMutation.isPending ? "Saving..." : "Save changes"}
@@ -1172,11 +1301,15 @@ export default function ProfilePage() {
                           Manage your phone number and email address
                         </p>
                       </div>
-                      {!isEditingProfile && (
+                      {!isEditingContactDetails && (
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => setIsEditingProfile(true)}
+                          onClick={() => {
+                            setIsEditingContactDetails(true);
+                            setIsEditingPersonalDetails(false);
+                            setIsEditingResidentialAddress(false);
+                          }}
                           className="gap-2 rounded-xl"
                         >
                           <PencilIcon className="h-4 w-4" />
@@ -1185,7 +1318,7 @@ export default function ProfilePage() {
                       )}
                     </div>
                     <div className="p-6 space-y-4">
-                      {isEditingProfile ? (
+                      {isEditingContactDetails ? (
                       <div className="grid gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
                           <ComRepFieldLabel label={PROFILE_LABEL.phone} optional />
@@ -1220,12 +1353,12 @@ export default function ProfilePage() {
                       </ProfileFieldGrid>
                       )}
 
-                      {isEditingProfile && (
+                      {isEditingContactDetails && (
                         <div className="flex justify-end gap-2 pt-4">
                           <Button
                             variant="outline"
                             onClick={handleCancelProfileEdit}
-                            disabled={updateProfileMutation.isPending}
+                            disabled={updateProfileMutation.isPending || isSavingMasterProfile}
                             className="gap-2 rounded-xl"
                           >
                             <XMarkIcon className="h-4 w-4" />
@@ -1233,7 +1366,7 @@ export default function ProfilePage() {
                           </Button>
                           <Button
                             onClick={handleSaveProfile}
-                            disabled={updateProfileMutation.isPending}
+                            disabled={updateProfileMutation.isPending || isSavingMasterProfile}
                             className="gap-2 rounded-xl"
                           >
                             {updateProfileMutation.isPending ? "Saving..." : "Save changes"}
@@ -1519,11 +1652,15 @@ export default function ProfilePage() {
                         Login email for the organisation owner. This is not the company e-mail.
                       </p>
                     </div>
-                    {!isEditingProfile && (
+                    {!isEditingContactDetails && (
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setIsEditingProfile(true)}
+                        onClick={() => {
+                          setIsEditingContactDetails(true);
+                          setIsEditingPersonalDetails(false);
+                          setIsEditingResidentialAddress(false);
+                        }}
                         className="gap-2 rounded-xl"
                       >
                         <PencilIcon className="h-4 w-4" />
@@ -1532,7 +1669,7 @@ export default function ProfilePage() {
                     )}
                   </div>
                     <div className="p-6 space-y-4">
-                      {isEditingProfile ? (
+                      {isEditingContactDetails ? (
                       <div className="grid gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
                           <ComRepFieldLabel
@@ -1571,12 +1708,12 @@ export default function ProfilePage() {
                       </ProfileFieldGrid>
                       )}
 
-                    {isEditingProfile && (
+                    {isEditingContactDetails && (
                       <div className="flex justify-end gap-2 pt-4">
                         <Button
                           variant="outline"
                           onClick={handleCancelProfileEdit}
-                          disabled={updateProfileMutation.isPending}
+                          disabled={updateProfileMutation.isPending || isSavingMasterProfile}
                           className="gap-2 rounded-xl"
                         >
                           <XMarkIcon className="h-4 w-4" />
@@ -1584,7 +1721,7 @@ export default function ProfilePage() {
                         </Button>
                         <Button
                           onClick={handleSaveProfile}
-                          disabled={updateProfileMutation.isPending}
+                          disabled={updateProfileMutation.isPending || isSavingMasterProfile}
                           className="gap-2 rounded-xl"
                         >
                           {updateProfileMutation.isPending ? "Saving..." : "Save changes"}
@@ -1637,7 +1774,7 @@ export default function ProfilePage() {
                     ctosDirectorShareholderWarning={orgData?.ctosDirectorShareholderWarning ?? null}
                     focusedMatchKey={focusedPersonKey}
                     canEdit={isCurrentUserAdmin}
-                    canInactivate={false}
+                    canInactivate={isCurrentUserAdmin}
                     currentUserId={currentUser?.userId}
                     ownerUserId={activeOrganization.ownerId}
                     members={activeOrganization.members ?? []}

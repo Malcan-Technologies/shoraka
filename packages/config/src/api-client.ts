@@ -694,6 +694,17 @@ export class ApiClient {
     );
   }
 
+  async reactivatePartyProfile(
+    portal: "investor" | "issuer",
+    organizationId: string,
+    partyId: string
+  ): Promise<ApiResponse<{ party: OrganizationPartyProfileDto; reviewRequired: boolean }> | ApiError> {
+    return this.post<{ party: OrganizationPartyProfileDto; reviewRequired: boolean }>(
+      `/v1/organizations/${portal}/${organizationId}/party-profiles/${partyId}/reactivate`,
+      {}
+    );
+  }
+
   async refreshPartyRegTankStatus(
     portal: "investor" | "issuer",
     organizationId: string,
@@ -785,6 +796,17 @@ export class ApiClient {
   ): Promise<ApiResponse<OrganizationPartyProfileDto> | ApiError> {
     return this.post<OrganizationPartyProfileDto>(
       `/v1/admin/organizations/${portal}/${organizationId}/party-profiles/${partyId}/inactivate`,
+      {}
+    );
+  }
+
+  async reactivateMasterParty(
+    portal: "investor" | "issuer",
+    organizationId: string,
+    partyId: string
+  ): Promise<ApiResponse<{ party: OrganizationPartyProfileDto; reviewRequired: boolean }> | ApiError> {
+    return this.post<{ party: OrganizationPartyProfileDto; reviewRequired: boolean }>(
+      `/v1/admin/organizations/${portal}/${organizationId}/party-profiles/${partyId}/reactivate`,
       {}
     );
   }

@@ -2,6 +2,7 @@ import { readFileSync } from "fs";
 import { join } from "path";
 
 const profile = readFileSync(join(__dirname, "page.tsx"), "utf8");
+const personDetail = readFileSync(join(__dirname, "people/[partyId]/page.tsx"), "utf8");
 
 describe("Investor People & Access", () => {
   it("uses the shared People & Access table for company organisations", () => {
@@ -17,8 +18,14 @@ describe("Investor People & Access", () => {
     expect(profile).toContain("if (activeOrganization.isOwner) return true");
   });
 
-  it("does not enable issuer Mark inactive on the investor People & Access section", () => {
-    expect(profile).toContain("canInactivate={false}");
+  it("enables Mark inactive for investor owner/admin on active company people", () => {
+    expect(profile).toContain("canInactivate={isCurrentUserAdmin}");
+    expect(personDetail).toContain('canInactivate={isCurrentUserAdmin && activeOrganization.type === "COMPANY"}');
+  });
+
+  it("keeps reactivation flow available on investor person detail", () => {
+    expect(personDetail).toContain("PersonDetailView");
+    expect(personDetail).toContain('portal="investor"');
   });
 
   it("does not show People & Access on the personal investor Organisation page", () => {

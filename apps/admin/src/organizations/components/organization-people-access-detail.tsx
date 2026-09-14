@@ -20,12 +20,12 @@ import {
   adminProfileCompletenessHint,
   buildAdminPeopleAccessOverviewItems,
   buildAdminPersonRegTankRoleRecords,
-  computeIssuerPersonCompleteness,
   getRelatedPartyStatusToken,
   isBlockedPersonIdentityConflict,
   isIssuerShareholderOnlyBelowMinimum,
   isPersonKycApproved,
   issuerPersonCompletenessInputFromParty,
+  issuerPersonCompletenessSummary,
   observedPartyBlockedByIdentityConflict,
   peopleAccessAmlChipPresentation,
   peopleAccessKycChipPresentation,
@@ -102,6 +102,7 @@ export function OrganizationPeopleAccessDetail({
   onEdit,
   onAdopt,
   onInactivate,
+  onReactivate,
   onKeep,
   onUseExternal,
   onKeepOnboardingIdentity,
@@ -117,6 +118,7 @@ export function OrganizationPeopleAccessDetail({
   onEdit?: () => void;
   onAdopt?: () => void;
   onInactivate?: () => void;
+  onReactivate?: () => void;
   onKeep?: (field: string) => void;
   onUseExternal?: (field: string) => void;
   onKeepOnboardingIdentity?: () => void;
@@ -125,15 +127,17 @@ export function OrganizationPeopleAccessDetail({
 }) {
   const party = row.party;
   const person = row.person;
-  const missingCount =
+  const missingSummary =
     applyIssuerComrep && party
-      ? computeIssuerPersonCompleteness(
+      ? issuerPersonCompletenessSummary(
           issuerPersonCompletenessInputFromParty({
             ...party,
             kycOnboardingStatus: person?.onboarding?.status ?? null,
           })
-        ).length
-      : 0;
+        )
+      : null;
+  const missingCount = missingSummary?.missingCount ?? 0;
+  const missingFields = missingSummary?.missingFields ?? [];
   const kycApproved = isPersonKycApproved(person?.onboarding?.status);
   const completenessHint = adminProfileCompletenessHint({
     applyIssuerComrep,
@@ -171,6 +175,7 @@ export function OrganizationPeopleAccessDetail({
   const showEdit =
     canManage && !row.observed && !row.inactive && Boolean(onEdit) && row.kind !== "people_only" && row.kind !== "platform_only";
   const showInactivate = canManage && Boolean(onInactivate) && adminMayInactivateMasterParty(party);
+  const showReactivate = canManage && row.inactive && Boolean(onReactivate) && row.kind !== "people_only";
   const showCtos = adminPersonHasCtosEvidence(row);
   const roleRecords = buildAdminPersonRegTankRoleRecords({
     person: person
@@ -257,6 +262,11 @@ export function OrganizationPeopleAccessDetail({
               Mark inactive
             </Button>
           ) : null}
+          {showReactivate ? (
+            <Button type="button" variant="outline" size="sm" onClick={onReactivate}>
+              Reactivate
+            </Button>
+          ) : null}
           {row.kind === "platform_only" && canManageUsers && orgMember && onEditMember ? (
             <Button type="button" variant="outline" size="sm" onClick={onEditMember}>
               Edit
@@ -285,6 +295,24 @@ export function OrganizationPeopleAccessDetail({
         {row.kind !== "platform_only" ? (
           <TabsContent value="overview" className="space-y-4 pt-4">
             <p className="text-meta text-muted-foreground">Current profile</p>
+            {missingCount > 0 && !row.observed && !row.inactive ? (
+              <div className="space-y-2 rounded-xl border border-status-action-text/30 bg-[hsl(var(--status-action-bg)/0.15)] p-4">
+                <p className="text-ui font-semibold text-status-action-text">Complete this profile</p>
+                <p className="text-ui text-muted-foreground">
+                  {missingCount} details are still missing.
+                </p>
+                {missingFields.length > 0 ? (
+                  <p className="text-meta text-status-action-text">
+                    {missingFields.slice(0, 6).join(" · ")}
+                  </p>
+                ) : null}
+                {showEdit ? (
+                  <Button type="button" size="sm" variant="outline" onClick={onEdit}>
+                    Complete details
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
             <ProfileFieldGrid>
               {overviewItems.map((item) => (
                 <ProfileReadField key={item.label} label={item.label} value={item.value} />

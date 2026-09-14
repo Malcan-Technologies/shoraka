@@ -61,6 +61,7 @@ export function OrganizationQuickLinksCard({
   const { can } = usePermissions();
   const ownerHref = can("users.view") ? accountHref(org.owner.userId) : null;
   const ownerName = `${org.owner.firstName} ${org.owner.lastName}`.trim();
+  const ownerEmail = org.owner.email ?? null;
   const reference = formatOrganizationReference({
     displayReference: org.displayReference,
     id: org.id,
@@ -79,10 +80,14 @@ export function OrganizationQuickLinksCard({
           label="Owner account"
           value={org.owner.userId}
           href={ownerHref}
-          display={ownerName ? `${ownerName} (${org.owner.userId})` : org.owner.userId}
+          display={
+            ownerName && ownerEmail
+              ? `${ownerName} (${ownerEmail})`
+              : ownerName ?? ownerEmail ?? org.owner.userId
+          }
         />
         <QuickLink label="Organisation reference" value={reference} />
-        <QuickLink label="Organisation ID" value={org.id} />
+        <QuickLink label="Internal Organisation ID" value={org.id} />
         {org.type === "COMPANY" && org.codRequestId ? (
           <QuickLink
             label="COD"

@@ -19,6 +19,7 @@ Step-by-step guides for common tasks:
 - **[Database Workflow](./guides/database-workflow.md)** - Working with Prisma
 - **[Authentication](./guides/authentication.md)** - Auth implementation (planned)
 - **[Environment Variables](./guides/environment-variables.md)** - Configuration reference
+- **[Company People Lifecycle](./guides/people/company-people-lifecycle.md)** - End-to-end issuer/investor people lifecycle, source precedence, CTOS/RegTank/master rules
 - **[Plain Support](./guides/plain-support.md)** - Help Center, chat widget, and article publishing
 - **[Notification Testing Guide](./guides/notifications/notification-testing-guide.md)** - Notification trigger map and test steps
 

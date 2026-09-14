@@ -27,15 +27,16 @@ describe("PortalPeopleSection", () => {
     expect(card).toContain('label="Inactive"');
   });
 
-  it("lets permitted users mark an active person inactive without delete or reactivate", () => {
+  it("lets permitted users mark active people inactive and inactive people reactivate", () => {
     expect(card).toContain("Mark inactive");
+    expect(card).toContain("Reactivate");
     expect(source).toContain(
       "Mark this person as inactive? Their existing KYC, AML and onboarding history will be kept."
     );
     expect(source).toContain("api.inactivatePartyProfile(portal, organizationId, inactivating.id)");
+    expect(source).toContain("api.reactivatePartyProfile(portal, organizationId, reactivating.id)");
     expect(source).toContain("onInactivate={canInactivate ? () => setInactivatePartyId(item.party.id) : undefined}");
     expect(source).not.toContain("deleteManagementParty");
-    expect(source).not.toContain("Reactivate");
   });
 
   it("people-only rows reuse add/merge instead of creating a second editor", () => {

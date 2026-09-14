@@ -880,6 +880,7 @@ export interface UpdateAdminOrganizationProfileInput {
   } | null;
   corporateOnboardingData?: UpdateAdminOrganizationCorporateOnboardingInput;
   dateOfIncorporation?: string | null;
+  dateOfBirth?: string | null;
   dateOfCommencement?: string | null;
   countryOfIncorporation?: string | null;
   scCompanyType?: import("./comrep-profile").ScCompanyType | null;

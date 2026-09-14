@@ -471,7 +471,7 @@ export function applicationLogToAuditDetail(
     remark: log.remark,
     technical: presentFields([
       { label: "Event type", value: log.event_type },
-      { label: "Application ID", value: log.application_id },
+      { label: "Internal Application ID", value: log.application_id },
       { label: "Actor ID", value: log.actor_id },
       { label: "Source", value: formatAuditSourceLabel(log.source) },
       { label: "Correlation ID", value: log.correlation_id },
@@ -598,7 +598,7 @@ export function contractEventToAuditDetail(
     reason: event.remark,
     technical: presentFields([
       { label: "Event type", value: event.eventType },
-      { label: "Application ID", value: event.applicationId },
+      { label: "Internal Application ID", value: event.applicationId },
       { label: "Actor ID", value: event.actorUserId },
       { label: "Source", value: event.portal },
     ]),
@@ -655,7 +655,7 @@ export function paymasterActivityToAuditDetail(
     technical: presentFields([
       { label: "Event type", value: event.eventType },
       { label: "Paymaster ID", value: event.paymasterId },
-      { label: "Application ID", value: event.applicationId },
+      { label: "Internal Application ID", value: event.applicationId },
       { label: "Actor ID", value: event.actorUserId },
       { label: "Source", value: event.portal },
     ]),

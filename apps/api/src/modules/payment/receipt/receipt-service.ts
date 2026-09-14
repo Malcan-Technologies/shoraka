@@ -445,14 +445,35 @@ async function generatePdfForExistingReceipt(
 
     const resolvedMerchant = merchant?.legalName
       ? {
-          legalName: merchant.legalName,
+          legalName: merchant.legalName ?? null,
           registrationNumber: merchant.registrationNumber ?? null,
           licenceNumber: merchant.licenceNumber ?? null,
           address: merchant.address ?? null,
           telephone: merchant.telephone ?? null,
           email: merchant.email ?? null,
         }
-      : await resolveMerchantForReceipt(db);
+      : await (async () => {
+          const canReuseMerchantSnapshot =
+            merchant &&
+            (merchant.registrationNumber !== undefined ||
+              merchant.licenceNumber !== undefined ||
+              merchant.address !== undefined ||
+              merchant.telephone !== undefined ||
+              merchant.email !== undefined);
+
+          if (canReuseMerchantSnapshot) {
+            return {
+              legalName: merchant.legalName ?? null,
+              registrationNumber: merchant.registrationNumber ?? null,
+              licenceNumber: merchant.licenceNumber ?? null,
+              address: merchant.address ?? null,
+              telephone: merchant.telephone ?? null,
+              email: merchant.email ?? null,
+            };
+          }
+
+          return resolveMerchantForReceipt(db);
+        })();
 
     const amountLabel = formatAmountLabel(receipt.amount, receipt.currency);
     const paymentStatus = preserveRefunded ? "Refunded" : "Paid";

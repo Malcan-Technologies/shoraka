@@ -5,6 +5,7 @@ import {
   computeIssuerCompanyCompleteness,
   computeIssuerFinancialCompleteness,
   computeIssuerPersonCompleteness,
+  issuerPersonCompletenessSummary,
   computeShareholderCompleteness,
   displayScCompanyTypeLabel,
   ISSUER_COMPANY_COMPLETENESS_FIELD_COUNT,
@@ -1281,6 +1282,103 @@ describe("people completeness by actual role", () => {
     ]);
     expect(missing).toHaveLength(3);
     expect(missing.some((item) => item.field === "designation")).toBe(false);
+  });
+
+  it("issuerPersonCompletenessSummary derives missingCount and missingFields from the same rules", () => {
+    const person = {
+      partyKey: "950829083430",
+      name: "Nur Aina Farisha Binti Salleh",
+      entityType: "INDIVIDUAL" as const,
+      isDirector: true,
+      isShareholder: false,
+      isBoard: false,
+      isManagement: false,
+      identityPrefix: "NRIC" as const,
+      identityNumber: "950829083430",
+      dateOfBirth: null,
+      dateOfIncorporation: null,
+      gender: null,
+      nationality: null,
+      countryOfIncorporation: null,
+      address: { line1: "1 Jalan A", state: "Selangor", postalCode: "47800" },
+      shareType: null,
+      shareTypeOther: null,
+      shareholdingUnits: null,
+      shareholdingAmount: null,
+      shareholdingPercentage: null,
+      designation: null,
+      designationOther: null,
+      appointmentDate: null,
+    };
+
+    const missing = computeIssuerPersonCompleteness(person);
+    const summary = issuerPersonCompletenessSummary(person);
+    expect(summary.missingCount).toBe(missing.length);
+    expect(summary.missingFields).toEqual(expect.arrayContaining(["Date of Birth", "Gender", "Nationality"]));
+    // Optional/role-specific officer fields must not become required just for display.
+    expect(summary.missingFields).not.toContain("Designation");
+  });
+
+  it("groupIssuerMissingByProfileSection 'people' count matches person-level missing items", () => {
+    const director = {
+      partyKey: "950829083430",
+      name: "Nur Aina Farisha Binti Salleh",
+      entityType: "INDIVIDUAL" as const,
+      isDirector: true,
+      isShareholder: false,
+      isBoard: false,
+      isManagement: false,
+      identityPrefix: "NRIC" as const,
+      identityNumber: "950829083430",
+      dateOfBirth: null,
+      dateOfIncorporation: null,
+      gender: null,
+      nationality: null,
+      countryOfIncorporation: null,
+      address: { line1: "1 Jalan A", state: "Selangor", postalCode: "47800" },
+      shareType: null,
+      shareTypeOther: null,
+      shareholdingUnits: null,
+      shareholdingAmount: null,
+      shareholdingPercentage: null,
+      designation: null,
+      designationOther: null,
+      appointmentDate: null,
+    };
+
+    const shareholder = {
+      partyKey: "900101010101",
+      name: "Ali Shareholder",
+      entityType: "INDIVIDUAL" as const,
+      isDirector: false,
+      isShareholder: true,
+      isBoard: false,
+      isManagement: false,
+      identityPrefix: "NRIC" as const,
+      identityNumber: "900101010101",
+      dateOfBirth: "1980-01-01",
+      dateOfIncorporation: null,
+      gender: "MALE" as const,
+      nationality: "MALAYSIA",
+      countryOfIncorporation: null,
+      address: { line1: "10 Jalan B", state: "Selangor", postalCode: "40000" },
+      shareType: "ORDINARY" as const,
+      shareTypeOther: null,
+      shareholdingUnits: 10,
+      shareholdingAmount: 10,
+      shareholdingPercentage: "25",
+      designation: null,
+      designationOther: null,
+      appointmentDate: null,
+    };
+
+    const directorMissing = computeIssuerPersonCompleteness(director);
+    const shareholderMissing = computeIssuerPersonCompleteness(shareholder);
+    expect(shareholderMissing).toHaveLength(0);
+
+    const grouped = groupIssuerMissingByProfileSection([...directorMissing, ...shareholderMissing]);
+    const peopleRow = grouped.find((row) => row.id === "people");
+    expect(peopleRow?.missingCount).toBe(directorMissing.length);
   });
 
   it("does not treat a director as Board and does not double-count shared identity fields", () => {

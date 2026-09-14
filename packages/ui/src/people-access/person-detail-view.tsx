@@ -23,6 +23,8 @@ import {
   peopleAccessAmlChipPresentation,
   peopleAccessKycChipPresentation,
   peopleAccessPlatformLabel,
+  issuerPersonCompletenessInputFromParty,
+  issuerPersonCompletenessSummary,
   PERSON_EMAIL_HELP,
   profileValidationErrorFromApi,
   shouldShowPartyAmlRefresh,
@@ -68,6 +70,7 @@ export function PersonDetailView({
   currentUserId,
   canEdit,
   canInactivate = false,
+  canReactivate = canEdit,
   onBack,
   onChanged,
 }: {
@@ -82,6 +85,7 @@ export function PersonDetailView({
   currentUserId?: string | null;
   canEdit: boolean;
   canInactivate?: boolean;
+  canReactivate?: boolean;
   onBack: () => void;
   onChanged?: () => void | Promise<void>;
 }) {
@@ -97,7 +101,7 @@ export function PersonDetailView({
   const refreshInFlight = React.useRef(false);
   const [inviteOpen, setInviteOpen] = React.useState(false);
   const [pending, setPending] = React.useState(false);
-  const [confirm, setConfirm] = React.useState<"remove" | "inactivate" | "cancel-invite" | "transfer" | null>(null);
+  const [confirm, setConfirm] = React.useState<"remove" | "inactivate" | "reactivate" | "cancel-invite" | "transfer" | null>(null);
 
   const loadParties = React.useCallback(async () => {
     const res = await api.getPartyProfiles(portal, organizationId);
@@ -194,6 +198,16 @@ export function PersonDetailView({
     amlLabel: amlStatus,
   });
   const showAccessTab = !corporate;
+
+  const profileCompletenessMissingSummary = React.useMemo(() => {
+    if (!party || inactive) return null;
+    return issuerPersonCompletenessSummary(
+      issuerPersonCompletenessInputFromParty({
+        ...party,
+        kycOnboardingStatus: joinedPerson?.onboarding?.status ?? null,
+      })
+    );
+  }, [inactive, joinedPerson?.onboarding?.status, party]);
 
   React.useEffect(() => {
     setEmailDraft(personEmail);
@@ -295,6 +309,10 @@ export function PersonDetailView({
                 <DropdownMenuItem onClick={() => setConfirm("inactivate")}>Mark inactive</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+          ) : canReactivate && inactive ? (
+            <Button type="button" variant="outline" size="sm" onClick={() => setConfirm("reactivate")}>
+              Reactivate
+            </Button>
           ) : null
         }
       />
@@ -335,6 +353,24 @@ export function PersonDetailView({
             />
           ) : (
             <>
+              {profileCompletenessMissingSummary && profileCompletenessMissingSummary.missingCount > 0 ? (
+                <div className="space-y-2 rounded-xl border border-status-action-text/30 bg-[hsl(var(--status-action-bg)/0.15)] p-4">
+                  <p className="text-ui font-semibold text-status-action-text">Complete this profile</p>
+                  <p className="text-ui text-muted-foreground">
+                    {profileCompletenessMissingSummary.missingCount} details are still missing.
+                  </p>
+                  {profileCompletenessMissingSummary.missingFields.length > 0 ? (
+                    <p className="text-meta text-status-action-text">
+                      {profileCompletenessMissingSummary.missingFields.slice(0, 6).join(" · ")}
+                    </p>
+                  ) : null}
+                  {canEdit && !inactive ? (
+                    <Button type="button" size="sm" variant="outline" onClick={() => setEditing(true)}>
+                      Complete details
+                    </Button>
+                  ) : null}
+                </div>
+              ) : null}
               <CustomerPartyProfileOverview party={party} person={joinedPerson} />
               {canEdit && !inactive ? (
                 <Button type="button" onClick={() => setEditing(true)}>
@@ -670,6 +706,24 @@ export function PersonDetailView({
           const res = await api.inactivatePartyProfile(portal, organizationId, party.id);
           if (!res.success) throw profileValidationErrorFromApi(res.error);
           toast.success("Person marked inactive");
+          setConfirm(null);
+          await invalidate();
+        }}
+      />
+      <ConfirmDialog
+        open={confirm === "reactivate"}
+        onOpenChange={(open) => !open && setConfirm(null)}
+        title="Reactivate person"
+        description="Reactivate this person on the current profile? Existing KYC, AML and onboarding history will be kept."
+        confirmText="Reactivate"
+        onConfirm={async () => {
+          const res = await api.reactivatePartyProfile(portal, organizationId, party.id);
+          if (!res.success) throw profileValidationErrorFromApi(res.error);
+          if (res.data.reviewRequired) {
+            toast.success("Changes detected. Sent for Admin review before reactivation.");
+          } else {
+            toast.success("Person reactivated");
+          }
           setConfirm(null);
           await invalidate();
         }}

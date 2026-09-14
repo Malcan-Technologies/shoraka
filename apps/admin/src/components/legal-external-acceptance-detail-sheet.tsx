@@ -85,7 +85,6 @@ export function LegalExternalAcceptanceDetailSheet({
                   label="Event"
                   value={legalAcceptanceEventLabel(acceptance.status)}
                 />
-                <DetailField label="Acceptance ID" value={acceptance.id} />
                 <DetailField
                   label="Status"
                   value={
@@ -110,7 +109,6 @@ export function LegalExternalAcceptanceDetailSheet({
                 <DetailField label="Party role" value={acceptance.partyRole} />
                 <DetailField label="IC number" value={acceptance.partyIcNumber} />
                 <DetailField label="Source type" value={acceptance.sourceType} />
-                <DetailField label="Source ID" value={acceptance.sourceId} />
               </div>
             </div>
 
@@ -155,8 +153,6 @@ export function LegalExternalAcceptanceDetailSheet({
                   label="Version"
                   value={acceptance.versionNumber != null ? `v${acceptance.versionNumber}` : "—"}
                 />
-                <DetailField label="Version ID" value={acceptance.legalDocumentVersionId} />
-                <DetailField label="Document ID" value={acceptance.legalDocumentId} />
                 <DetailField label="Hash" value={acceptance.documentHash} />
                 <DetailField label="File name" value={acceptance.fileName} />
                 <DetailField label="Version status" value={acceptance.versionStatus ?? "—"} />
@@ -180,9 +176,48 @@ export function LegalExternalAcceptanceDetailSheet({
               <h3 className="text-ui font-semibold">Linkage</h3>
               <div className="grid gap-4 sm:grid-cols-2">
                 <DetailField label="Organisation" value={acceptance.organizationName} />
-                <DetailField label="Organisation ID" value={acceptance.organizationId} />
-                <DetailField label="Application" value={acceptance.applicationId} />
-                <DetailField label="Envelope" value={acceptance.envelopeId} />
+                <DetailField label="Internal Organisation ID" value={acceptance.organizationId} />
+                <DetailField
+                  label="Application Reference"
+                  value={acceptance.applicationReference ?? acceptance.applicationId ?? "—"}
+                />
+                <DetailField label="Internal Application ID" value={acceptance.applicationId} />
+                <DetailField
+                  label="Envelope Title"
+                  value={acceptance.envelopeTitle ?? acceptance.envelopeId ?? "—"}
+                />
+                <DetailField label="Internal Envelope ID" value={acceptance.envelopeId} />
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="text-ui font-semibold">Technical details</h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <DetailField label="Internal Acceptance ID" value={acceptance.id} />
+                <DetailField
+                  label="Internal Legal Document ID"
+                  value={acceptance.legalDocumentId}
+                />
+                <DetailField
+                  label="Internal Legal Document Version ID"
+                  value={acceptance.legalDocumentVersionId}
+                />
+                <DetailField
+                  label="Internal Source ID"
+                  value={acceptance.sourceId}
+                />
+                <DetailField
+                  label="Internal Organisation ID"
+                  value={acceptance.organizationId}
+                />
+                <DetailField
+                  label="Internal Application ID"
+                  value={acceptance.applicationId}
+                />
+                <DetailField
+                  label="Internal Envelope ID"
+                  value={acceptance.envelopeId}
+                />
               </div>
             </div>
           </div>

@@ -73,7 +73,7 @@ export default function InvestorPersonDetailPage() {
           ownerUserId={activeOrganization.ownerId}
           currentUserId={currentUser?.userId}
           canEdit={isCurrentUserAdmin}
-          canInactivate={false}
+          canInactivate={isCurrentUserAdmin && activeOrganization.type === "COMPANY"}
           onBack={() => router.push("/profile?tab=people")}
           onChanged={async () => {
             await queryClient.invalidateQueries({ queryKey: ["organization-detail", activeOrganization.id] });

@@ -17,6 +17,8 @@ import {
   peopleAccessAmlChipPresentation,
   peopleAccessKycChipPresentation,
   peopleAccessPlatformBadgeStatus,
+  issuerPersonCompletenessInputFromParty,
+  issuerPersonCompletenessSummary,
   relatedPartyVerificationCaption,
   type AdminPeopleAccessFilter,
   type AdminPeopleAccessRow,
@@ -189,6 +191,7 @@ export function OrganizationPeopleAccessPanel({
       onEdit={selected.party ? () => setEditingPartyId(selected.party!.id) : undefined}
       onAdopt={selected.party ? () => peopleMutations.adopt.mutate(selected.party!.id) : undefined}
       onInactivate={selected.party ? () => peopleMutations.inactivate.mutate(selected.party!.id) : undefined}
+      onReactivate={selected.party ? () => peopleMutations.reactivate.mutate(selected.party!.id) : undefined}
       onKeep={
         selected.party
           ? (field) => peopleMutations.resolve.mutate({ partyId: selected.party!.id, action: "KEEP", field })
@@ -285,6 +288,7 @@ export function OrganizationPeopleAccessPanel({
                       onEdit={() => row.party && setEditingPartyId(row.party.id)}
                       onAdopt={() => row.party && peopleMutations.adopt.mutate(row.party.id)}
                       onInactivate={() => row.party && peopleMutations.inactivate.mutate(row.party.id)}
+                      onReactivate={() => row.party && peopleMutations.reactivate.mutate(row.party.id)}
                       onEditMember={() => row.userId && setEditingMemberUserId(row.userId)}
                     />
                   ))}
@@ -350,6 +354,7 @@ function PeopleAccessTableRow({
   onEdit,
   onAdopt,
   onInactivate,
+  onReactivate,
   onEditMember,
 }: {
   row: AdminPeopleAccessRow;
@@ -361,6 +366,7 @@ function PeopleAccessTableRow({
   onEdit: () => void;
   onAdopt: () => void;
   onInactivate: () => void;
+  onReactivate: () => void;
   onEditMember: () => void;
 }) {
   const kycPresentation = peopleAccessKycChipPresentation(row.person);
@@ -369,6 +375,15 @@ function PeopleAccessTableRow({
   const ctosStatus = adminPeopleAccessCtosBadgeStatus(row.ctos);
   const needsAction = adminPeopleAccessRowNeedsAttention(row);
   const party = row.party;
+  const missingCount =
+    party && row.kind !== "people_only" && row.kind !== "platform_only"
+      ? issuerPersonCompletenessSummary(
+          issuerPersonCompletenessInputFromParty({
+            ...party,
+            kycOnboardingStatus: row.person?.onboarding?.status ?? null,
+          })
+        ).missingCount
+      : 0;
   const belowMinimumShareholder = isIssuerShareholderOnlyBelowMinimum({
     isShareholder: party?.isShareholder ?? false,
     isDirector: party?.isDirector ?? false,
@@ -386,6 +401,7 @@ function PeopleAccessTableRow({
   const showAdopt = canManage && row.observed && !belowMinimumShareholder && !conflictBlocksAdopt;
   const showEdit = canManage && !row.observed && !row.inactive && row.kind !== "people_only" && row.kind !== "platform_only";
   const showInactivate = canManage && adminMayInactivateMasterParty(party);
+  const showReactivate = canManage && row.inactive && row.kind !== "people_only";
   const showMemberEdit =
     row.kind === "platform_only" &&
     canManageUsers &&
@@ -403,6 +419,9 @@ function PeopleAccessTableRow({
     >
       <TableCell className="max-w-[180px]">
         <div className="truncate font-medium">{row.name}</div>
+        {missingCount > 0 ? (
+          <div className="text-meta text-status-action-text">{missingCount} details missing</div>
+        ) : null}
         {row.kind === "people_only" ? (
           <div className="text-meta text-status-action-text">Not on current profile</div>
         ) : null}
@@ -460,6 +479,7 @@ function PeopleAccessTableRow({
             {showAdopt ? <DropdownMenuItem onClick={onAdopt}>Adopt</DropdownMenuItem> : null}
             {showEdit ? <DropdownMenuItem onClick={onEdit}>Edit</DropdownMenuItem> : null}
             {showInactivate ? <DropdownMenuItem onClick={onInactivate}>Mark inactive</DropdownMenuItem> : null}
+            {showReactivate ? <DropdownMenuItem onClick={onReactivate}>Reactivate</DropdownMenuItem> : null}
             {showMemberEdit ? <DropdownMenuItem onClick={onEditMember}>Edit name and phone</DropdownMenuItem> : null}
           </DropdownMenuContent>
         </DropdownMenu>

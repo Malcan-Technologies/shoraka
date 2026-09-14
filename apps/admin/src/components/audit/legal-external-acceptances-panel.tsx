@@ -293,8 +293,8 @@ export function LegalExternalAcceptancesPanel() {
             <AuditLogHead>Organisation</AuditLogHead>
             <AuditLogHead>Document</AuditLogHead>
             <AuditLogHead>Version</AuditLogHead>
-            <AuditLogHead>Application</AuditLogHead>
-            <AuditLogHead>Envelope</AuditLogHead>
+            <AuditLogHead>Application Reference</AuditLogHead>
+            <AuditLogHead>Envelope Title</AuditLogHead>
             <AuditLogHead>Status</AuditLogHead>
             <AuditLogHead align="right">Actions</AuditLogHead>
           </AuditLogHeaderRow>
@@ -338,8 +338,22 @@ export function LegalExternalAcceptancesPanel() {
                     <TableCell className="text-ui tabular-nums">
                       {row.versionNumber != null ? `v${row.versionNumber}` : "—"}
                     </TableCell>
-                    <TableCell className="font-mono text-meta">{row.applicationId ?? "—"}</TableCell>
-                    <TableCell className="font-mono text-meta">{row.envelopeId ?? "—"}</TableCell>
+                    <TableCell className="max-w-[220px]">
+                      <p
+                        className="truncate font-mono text-meta"
+                        title={row.applicationId ?? undefined}
+                      >
+                        {row.applicationReference ?? row.applicationId ?? "—"}
+                      </p>
+                    </TableCell>
+                    <TableCell className="max-w-[220px]">
+                      <p
+                        className="truncate font-mono text-meta"
+                        title={row.envelopeId ?? undefined}
+                      >
+                        {row.envelopeTitle ?? row.envelopeId ?? "—"}
+                      </p>
+                    </TableCell>
                     <TableCell>
                       <StatusBadge label={statusLabel} status={token} />
                     </TableCell>

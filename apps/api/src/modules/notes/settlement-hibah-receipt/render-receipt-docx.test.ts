@@ -59,7 +59,7 @@ describe("renderSettlementHibahReceiptDocx", () => {
     expect(plain).toContain("ISS-1");
     expect(plain).toContain("Helios Sdn Bhd");
     expect(plain).toContain("1234567-A");
-    expect(plain).toContain("ARF-202608-A52 / FAC-1");
+    expect(plain).toContain("ARF-202608-A52");
     expect(plain).toContain("Paymaster Co");
     expect(plain).toContain("INV-9");
     expect(plain).toContain("RM 100,000.00");
