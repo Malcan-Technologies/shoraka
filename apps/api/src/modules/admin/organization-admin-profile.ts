@@ -16,6 +16,7 @@ import { buildOrganizationProfileAuditEvidence } from "./organization-profile-au
 
 const MASTER_ONLY_KEYS = [
   "dateOfIncorporation",
+  "dateOfBirth",
   "dateOfCommencement",
   "countryOfIncorporation",
   "scCompanyType",
@@ -191,6 +192,7 @@ export async function updateAdminOrganizationProfile(params: {
             first_name: true,
             last_name: true,
             middle_name: true,
+            date_of_birth: true,
             corporate_onboarding_data: true,
             bank_account_details: true,
             type: true,
@@ -208,6 +210,7 @@ export async function updateAdminOrganizationProfile(params: {
             first_name: true,
             last_name: true,
             middle_name: true,
+            date_of_birth: true,
             corporate_onboarding_data: true,
             bank_account_details: true,
             type: true,
@@ -251,6 +254,7 @@ export async function updateAdminOrganizationProfile(params: {
       firstName: org.first_name,
       lastName: org.last_name,
       middleName: org.middle_name,
+      dateOfBirth: org.date_of_birth ? org.date_of_birth.toISOString().slice(0, 10) : null,
       corporateOnboardingData: org.corporate_onboarding_data,
       bankAccountDetails: org.bank_account_details,
     },
@@ -261,6 +265,12 @@ export async function updateAdminOrganizationProfile(params: {
       firstName: operational.firstName !== undefined ? operational.firstName : org.first_name,
       lastName: operational.lastName !== undefined ? operational.lastName : org.last_name,
       middleName: operational.middleName !== undefined ? operational.middleName : org.middle_name,
+      dateOfBirth:
+        operational.dateOfBirth !== undefined
+          ? operational.dateOfBirth
+          : org.date_of_birth
+            ? org.date_of_birth.toISOString().slice(0, 10)
+            : null,
       corporateOnboardingData:
         (updateData.corporate_onboarding_data as unknown) ?? org.corporate_onboarding_data,
       bankAccountDetails:

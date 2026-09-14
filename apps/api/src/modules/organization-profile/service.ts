@@ -92,6 +92,7 @@ const USER_OVERWRITE_ORG_FIELDS = new Set([
   "scInvestorCategory",
   "isSophisticatedInvestor",
   "phoneNumber",
+  "dateOfBirth",
 ]);
 /** Verified identity fields stay locked once filled. ComRep collection fields may be corrected. */
 const USER_LOCKED_PARTY_FIELDS = new Set(["name", "identityNumber", "identityPrefix"]);
@@ -1045,6 +1046,13 @@ export async function patchOrgMasterProfile(params: {
         parseDateInput(patch.dateOfIncorporation)
       );
     }
+    if (patch.dateOfBirth !== undefined) {
+      data.date_of_birth = applyScalar(
+        "dateOfBirth",
+        issuer.date_of_birth as Date | null,
+        parseDateInput(patch.dateOfBirth)
+      );
+    }
     if (patch.dateOfCommencement !== undefined) {
       data.date_of_commencement = applyScalar(
         "dateOfCommencement",
@@ -1208,6 +1216,13 @@ export async function patchOrgMasterProfile(params: {
       "nationality",
       investor.nationality as string | null,
       patch.nationality
+    );
+  }
+  if (patch.dateOfBirth !== undefined) {
+    data.date_of_birth = applyScalar(
+      "dateOfBirth",
+      investor.date_of_birth as Date | null,
+      parseDateInput(patch.dateOfBirth)
     );
   }
   if (patch.phoneNumber !== undefined) {

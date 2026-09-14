@@ -295,7 +295,8 @@ export default function ProfilePage() {
   const [isRefreshing, setIsRefreshing] = React.useState(false);
 
   // Editing states
-  const [isEditingProfile, setIsEditingProfile] = React.useState(false);
+  const [isEditingAddress, setIsEditingAddress] = React.useState(false);
+  const [isEditingContactDetails, setIsEditingContactDetails] = React.useState(false);
   const [isEditingBanking, setIsEditingBanking] = React.useState(false);
   const [isEditingAddresses, setIsEditingAddresses] = React.useState(false);
 
@@ -605,7 +606,8 @@ export default function ProfilePage() {
       queryClient.invalidateQueries({ queryKey: ["organization-detail", activeOrganization?.id] });
       queryClient.invalidateQueries({ queryKey: ["issuer", "profile-completeness", activeOrganization?.id] });
       toast.success("Profile updated successfully");
-      setIsEditingProfile(false);
+      setIsEditingAddress(false);
+      setIsEditingContactDetails(false);
       setIsEditingBanking(false);
     },
     onError: (error: Error) => {
@@ -623,38 +625,52 @@ export default function ProfilePage() {
   };
 
   const handleSaveProfile = () => {
+    if (!activeOrganization?.id) return;
+
     if (isPersonal) {
-      if (phoneNumber && !isValidProfilePhone(phoneNumber)) {
-        toast.error("Enter a valid phone number.");
+      if (isEditingAddress) {
+        updateProfileMutation.mutate({
+          address: address.trim() || null,
+        });
+        return;
+      }
+
+      if (isEditingContactDetails) {
+        if (phoneNumber && !isValidProfilePhone(phoneNumber)) {
+          toast.error("Enter a valid phone number.");
+          return;
+        }
+        updateProfileMutation.mutate({
+          phoneNumber: storedProfilePhone(phoneNumber) || null,
+        });
+        return;
+      }
+
+      return;
+    }
+
+    // Company issuer: "Person in Charge" editing.
+    if (isEditingContactDetails) {
+      const issues = validateIssuerContactPersonForm({
+        name: contactName,
+        position: contactPosition,
+        email: contactEmail,
+        contact: contactPhone,
+      });
+      if (issues.length > 0) {
+        toast.error(firstIssueMessage(issues) ?? "Enter the Person in Charge contact details.");
         return;
       }
 
       updateProfileMutation.mutate({
-        phoneNumber: storedProfilePhone(phoneNumber) || null,
-        address: address.trim() || null,
+        contactPerson: {
+          name: contactName.trim(),
+          email: contactEmail.trim(),
+          position: contactPosition.trim(),
+          contact: storedProfilePhone(contactPhone) || contactPhone,
+        },
       });
-      return;
     }
-
-    const issues = validateIssuerContactPersonForm({
-      name: contactName,
-      position: contactPosition,
-      email: contactEmail,
-      contact: contactPhone,
-    });
-    if (issues.length > 0) {
-      toast.error(firstIssueMessage(issues) ?? "Enter the Person in Charge contact details.");
-      return;
-    }
-
-    updateProfileMutation.mutate({
-      contactPerson: {
-        name: contactName.trim(),
-        email: contactEmail.trim(),
-        position: contactPosition.trim(),
-        contact: storedProfilePhone(contactPhone) || contactPhone,
-      },
-    });
   };
 
   const handleSaveBanking = () => {
@@ -691,7 +707,8 @@ export default function ProfilePage() {
       setContactPosition(contact?.position || "");
       setContactPhone(contact?.contact || undefined);
     }
-    setIsEditingProfile(false);
+    setIsEditingAddress(false);
+    setIsEditingContactDetails(false);
   };
 
   const handleCancelBankingEdit = () => {
@@ -981,11 +998,14 @@ export default function ProfilePage() {
                         Ensure your primary address is up to date
                       </p>
                     </div>
-                    {!isEditingProfile && isCurrentUserAdmin ? (
+                    {!isEditingAddress && isCurrentUserAdmin ? (
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setIsEditingProfile(true)}
+                        onClick={() => {
+                          setIsEditingAddress(true);
+                          setIsEditingContactDetails(false);
+                        }}
                         className="gap-2 rounded-xl"
                       >
                         <PencilIcon className="h-4 w-4" />
@@ -994,7 +1014,7 @@ export default function ProfilePage() {
                     ) : null}
                   </div>
                   <div className="p-6 space-y-4">
-                    {!isEditingProfile ? (
+                    {!isEditingAddress ? (
                       <ProfileReadField
                         label="Full address"
                         value={address.trim() || "—"}
@@ -1009,18 +1029,18 @@ export default function ProfilePage() {
                         placeholder="Enter your full address"
                         value={address}
                         onChange={(e) => setAddress(e.target.value)}
-                        disabled={!isEditingProfile}
+                        disabled={!isEditingAddress}
                         rows={3}
                         maxLength={500}
-                        className={`resize-none ${!isEditingProfile ? "bg-muted" : ""}`}
+                        className={`resize-none ${!isEditingAddress ? "bg-muted" : ""}`}
                       />
-                      {isEditingProfile && (
+                      {isEditingAddress && (
                         <p className="text-xs text-muted-foreground">Maximum 500 characters</p>
                       )}
                     </div>
                     )}
 
-                    {isEditingProfile && isCurrentUserAdmin && (
+                    {isEditingAddress && isCurrentUserAdmin && (
                       <div className="flex justify-end gap-2 pt-4">
                         <Button
                           variant="outline"
@@ -1329,11 +1349,14 @@ export default function ProfilePage() {
                         : "Main contact person for this company."}
                     </p>
                   </div>
-                  {!isEditingProfile && isCurrentUserAdmin ? (
+                  {!isEditingContactDetails && isCurrentUserAdmin ? (
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setIsEditingProfile(true)}
+                      onClick={() => {
+                        setIsEditingContactDetails(true);
+                        setIsEditingAddress(false);
+                      }}
                       className="gap-2 rounded-xl"
                     >
                       <PencilIcon className="h-4 w-4" />
@@ -1343,7 +1366,7 @@ export default function ProfilePage() {
                 </div>
                 <div className="p-6 space-y-4">
                   {isPersonal ? (
-                    isEditingProfile ? (
+                    isEditingContactDetails ? (
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
                         <Label className="flex items-center gap-2">
@@ -1385,7 +1408,7 @@ export default function ProfilePage() {
                         />
                       </ProfileFieldGrid>
                     )
-                  ) : isEditingProfile ? (
+                  ) : isEditingContactDetails ? (
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
                         <ComRepFieldLabel label={PROFILE_LABEL.fullName} required />
@@ -1463,7 +1486,7 @@ export default function ProfilePage() {
                     </ProfileFieldGrid>
                   )}
 
-                  {isEditingProfile && (
+                  {isEditingContactDetails && (
                     <div className="flex justify-end gap-2 pt-4">
                       <Button
                         variant="outline"

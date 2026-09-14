@@ -138,83 +138,6 @@ export function stampExtentEmu(bytes: Buffer): StampExtentEmu {
   return stampExtentEmuFromPixels(size.width, size.height);
 }
 
-function containPixelSize(
-  srcW: number,
-  srcH: number,
-  maxW: number,
-  maxH: number
-): { width: number; height: number } {
-  const scale = Math.min(maxW / srcW, maxH / srcH, 1);
-  return {
-    width: Math.max(1, Math.round(srcW * scale)),
-    height: Math.max(1, Math.round(srcH * scale)),
-  };
-}
-
-function resizeRgbaNearest(src: RasterRgba, dstW: number, dstH: number): RasterRgba {
-  if (src.width === dstW && src.height === dstH) {
-    return { width: dstW, height: dstH, data: Buffer.from(src.data) };
-  }
-  const dst = Buffer.alloc(dstW * dstH * 4);
-  for (let y = 0; y < dstH; y += 1) {
-    const srcY = Math.min(src.height - 1, Math.floor((y * src.height) / dstH));
-    for (let x = 0; x < dstW; x += 1) {
-      const srcX = Math.min(src.width - 1, Math.floor((x * src.width) / dstW));
-      const si = (srcY * src.width + srcX) * 4;
-      const di = (y * dstW + x) * 4;
-      dst[di] = src.data[si]!;
-      dst[di + 1] = src.data[si + 1]!;
-      dst[di + 2] = src.data[si + 2]!;
-      dst[di + 3] = src.data[si + 3]!;
-    }
-  }
-  return { width: dstW, height: dstH, data: dst };
-}
-
-function resizeRgbaBilinear(src: RasterRgba, dstW: number, dstH: number): RasterRgba {
-  if (src.width === dstW && src.height === dstH) {
-    return { width: dstW, height: dstH, data: Buffer.from(src.data) };
-  }
-
-  const dst = Buffer.alloc(dstW * dstH * 4);
-
-  // Use center-of-pixel mapping for more stable resampling.
-  const xScale = src.width / dstW;
-  const yScale = src.height / dstH;
-
-  for (let y = 0; y < dstH; y += 1) {
-    const srcY = (y + 0.5) * yScale - 0.5;
-    const y0 = Math.max(0, Math.floor(srcY));
-    const y1 = Math.min(src.height - 1, y0 + 1);
-    const fy = Math.max(0, Math.min(1, srcY - y0));
-
-    for (let x = 0; x < dstW; x += 1) {
-      const srcX = (x + 0.5) * xScale - 0.5;
-      const x0 = Math.max(0, Math.floor(srcX));
-      const x1 = Math.min(src.width - 1, x0 + 1);
-      const fx = Math.max(0, Math.min(1, srcX - x0));
-
-      const i00 = (y0 * src.width + x0) * 4;
-      const i10 = (y0 * src.width + x1) * 4;
-      const i01 = (y1 * src.width + x0) * 4;
-      const i11 = (y1 * src.width + x1) * 4;
-
-      const di = (y * dstW + x) * 4;
-      for (let c = 0; c < 4; c += 1) {
-        const v00 = src.data[i00 + c]!;
-        const v10 = src.data[i10 + c]!;
-        const v01 = src.data[i01 + c]!;
-        const v11 = src.data[i11 + c]!;
-
-        const v0 = v00 * (1 - fx) + v10 * fx;
-        const v1 = v01 * (1 - fx) + v11 * fx;
-        dst[di + c] = Math.round(v0 * (1 - fy) + v1 * fy);
-      }
-    }
-  }
-
-  return { width: dstW, height: dstH, data: dst };
-}
 
 function tryDecodeRaster(bytes: Buffer): RasterRgba | null {
   try {
@@ -231,12 +154,6 @@ function tryDecodeRaster(bytes: Buffer): RasterRgba | null {
   } catch {
     return null;
   }
-}
-
-function encodePngRgba(raster: RasterRgba): Buffer {
-  const png = new PNG({ width: raster.width, height: raster.height });
-  png.data = raster.data;
-  return PNG.sync.write(png);
 }
 
 function crc32(bytes: Buffer): number {

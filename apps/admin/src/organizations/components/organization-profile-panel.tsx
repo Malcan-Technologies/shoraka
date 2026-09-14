@@ -201,6 +201,19 @@ export function OrganizationProfilePanel({
         toast.error(firstIssueMessage(issues));
         return;
       }
+      if (requiredFieldKeys.has("dateOfBirth")) {
+        const dob = draft.dateOfBirth.trim();
+        if (!dob) {
+          setFieldErrors({ dateOfBirth: "Date of Birth is required." });
+          toast.error("Date of Birth is required.");
+          return;
+        }
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dob)) {
+          setFieldErrors({ dateOfBirth: "Enter a valid Date of Birth." });
+          toast.error("Enter a valid Date of Birth.");
+          return;
+        }
+      }
     }
     if (editingSection === "classification" && portal === "investor") {
       if (!isSophisticatedInvestorSelected(draft.isSophisticatedInvestor)) {
@@ -885,10 +898,11 @@ export function OrganizationProfilePanel({
                       (value) => org.type === "COMPANY" || value !== "NOT_APPLICABLE"
                     ).map((value) => ({ value, label: SC_GENDER_LABELS[value] }))}
                   />
-                  <ReadField
+                  <EditableDateField
                     label={PROFILE_LABEL.dateOfBirth}
-                    value={org.dateOfBirth ? format(new Date(org.dateOfBirth), "PP") : null}
-                    missing={requiredFieldKeys.has("dateOfBirth")}
+                    value={draft.dateOfBirth}
+                    onChange={(dateOfBirth) => setDraft((current) => ({ ...current, dateOfBirth }))}
+                    required={requiredFieldKeys.has("dateOfBirth")}
                   />
                   <EditableField
                     label={PROFILE_LABEL.nationality}

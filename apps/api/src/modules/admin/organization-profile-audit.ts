@@ -64,6 +64,7 @@ export type OrganizationProfileSnapshot = {
   firstName?: string | null;
   lastName?: string | null;
   middleName?: string | null;
+  dateOfBirth?: string | null;
   corporateOnboardingData?: unknown;
   bankAccountDetails?: unknown;
 };
@@ -155,6 +156,14 @@ export function buildOrganizationProfileAuditEvidence(input: {
     "middleName",
     input.previous.middleName,
     input.next.middleName
+  );
+  recordIfChanged(
+    previousValues,
+    nextValues,
+    updatedFields,
+    "dateOfBirth",
+    input.previous.dateOfBirth,
+    input.next.dateOfBirth
   );
 
   const previousCorporate = isPlainObjectRecord(input.previous.corporateOnboardingData)
