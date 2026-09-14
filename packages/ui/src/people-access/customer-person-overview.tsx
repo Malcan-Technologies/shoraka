@@ -8,8 +8,11 @@ import {
   PROFILE_LABEL,
 } from "@cashsouk/types";
 import { PencilIcon } from "@heroicons/react/24/outline";
+import type { ReactNode } from "react";
 import { Button } from "../components/button";
 import { ProfileFieldGrid, ProfileReadField } from "../components/profile-read-field";
+
+type OverviewSectionId = "details" | "role" | "contact" | "address";
 
 export function CustomerPartyProfileOverview({
   party,
@@ -19,14 +22,18 @@ export function CustomerPartyProfileOverview({
   onEdit,
   editLabel = "Edit",
   showEditInAllSections = false,
+  editingSection = null,
+  renderEditSection,
 }: {
   party?: OrganizationPartyProfileDto | null;
   person?: ApplicationPersonRow | null;
   variant?: "simple" | "profile";
   requiredMissingLabels?: Set<string> | string[] | null;
-  onEdit?: () => void;
+  onEdit?: (sectionId: OverviewSectionId) => void;
   editLabel?: string;
   showEditInAllSections?: boolean;
+  editingSection?: OverviewSectionId | null;
+  renderEditSection?: (sectionId: OverviewSectionId) => ReactNode;
 }) {
   const sections = buildCustomerPersonOverviewSections({ party, person });
   if (sections.length === 0) {
@@ -143,13 +150,13 @@ export function CustomerPartyProfileOverview({
         <div key={section.id} className="rounded-xl border bg-card">
           <div className="flex items-center justify-between gap-4 border-b p-6">
             <h2 className="text-lg font-semibold">{section.title}</h2>
-            {onEdit && (showEditInAllSections || index === 0) ? (
+            {onEdit && !editingSection && (showEditInAllSections || index === 0) ? (
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 className="gap-2 rounded-xl"
-                onClick={onEdit}
+                onClick={() => onEdit(section.id as OverviewSectionId)}
               >
                 <PencilIcon className="h-4 w-4" aria-hidden />
                 {editLabel}
@@ -157,16 +164,20 @@ export function CustomerPartyProfileOverview({
             ) : null}
           </div>
           <div className="p-6">
-            <ProfileFieldGrid>
-              {section.fields.map((item) => (
-                <ProfileReadField
-                  key={`${section.id}-${item.label}`}
-                  label={item.label}
-                  required={requiredMissing.has(item.label)}
-                  value={requiredMissing.has(item.label) ? "" : item.value}
-                />
-              ))}
-            </ProfileFieldGrid>
+            {variant === "profile" && editingSection === section.id && renderEditSection ? (
+              renderEditSection(section.id as OverviewSectionId)
+            ) : (
+              <ProfileFieldGrid>
+                {section.fields.map((item) => (
+                  <ProfileReadField
+                    key={`${section.id}-${item.label}`}
+                    label={item.label}
+                    required={requiredMissing.has(item.label)}
+                    value={requiredMissing.has(item.label) ? "" : item.value}
+                  />
+                ))}
+              </ProfileFieldGrid>
+            )}
           </div>
         </div>
       ))}

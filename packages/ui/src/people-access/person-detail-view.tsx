@@ -58,6 +58,7 @@ import type { PortalPeoplePortal } from "../portal-people-section";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 export type PersonDetailSection = "overview" | "kyc" | "aml" | "access";
+export type PersonDetailOverviewSectionId = "details" | "role" | "contact" | "address";
 
 export function PersonDetailView({
   portal,
@@ -95,7 +96,7 @@ export function PersonDetailView({
   const [section, setSection] = React.useState<PersonDetailSection>("overview");
   const [parties, setParties] = React.useState<OrganizationPartyProfileDto[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [editing, setEditing] = React.useState(false);
+  const [editingSection, setEditingSection] = React.useState<PersonDetailOverviewSectionId | null>(null);
   const [emailDraft, setEmailDraft] = React.useState("");
   const [sendPending, setSendPending] = React.useState(false);
   const [refreshing, setRefreshing] = React.useState(false);
@@ -346,7 +347,7 @@ export function PersonDetailView({
         value={section}
         onValueChange={(value) => {
           setSection(value as PersonDetailSection);
-          if (value !== "overview") setEditing(false);
+            if (value !== "overview") setEditingSection(null);
         }}
       >
         <TabsList
@@ -387,30 +388,8 @@ export function PersonDetailView({
         </TabsList>
 
         <TabsContent value="overview" className="mt-6 space-y-6">
-          {editing && canEdit && !inactive ? (
-            <div className={profileVariant ? "rounded-xl border bg-card p-6" : undefined}>
-              <PartyFillEmptyForm
-                party={party}
-                emailLocked={emailLocked}
-                onCancel={() => setEditing(false)}
-                onSave={async (data) => {
-                  const nextEmail = typeof data.email === "string" ? data.email : undefined;
-                  const profile = { ...data };
-                  delete profile.email;
-                  const res = await api.patchPartyProfile(portal, organizationId, party.id, profile);
-                  if (!res.success) throw profileValidationErrorFromApi(res.error);
-                  if (nextEmail !== undefined && !emailLocked && nextEmail.trim() !== personEmail) {
-                    await savePersonEmail(nextEmail);
-                  }
-                  toast.success("Person updated");
-                  setEditing(false);
-                  await invalidate();
-                }}
-              />
-            </div>
-          ) : (
-            <>
-              {profileVariant ? (
+          <>
+            {profileVariant ? (
                 <>
                   {profileCompletenessMissingSummary && profileCompletenessMissingSummary.missingCount > 0 ? (
                     <div className="rounded-xl border border-status-action-text/15 bg-[hsl(var(--status-action-bg)/0.15)] p-5">
@@ -433,11 +412,75 @@ export function PersonDetailView({
                         ? new Set(profileCompletenessMissingSummary.missingItems.map((item) => item.label))
                         : undefined
                     }
-                    onEdit={canEdit && !inactive ? () => setEditing(true) : undefined}
+                    editingSection={editingSection}
+                    onEdit={
+                      canEdit && !inactive
+                        ? (sectionId) => {
+                            setEditingSection(sectionId);
+                          }
+                        : undefined
+                    }
+                    renderEditSection={
+                      canEdit && !inactive
+                        ? (sectionId) => (
+                            <PartyFillEmptyForm
+                              party={party}
+                              emailLocked={emailLocked}
+                              section={sectionId}
+                              hideSectionHeading
+                              onCancel={() => setEditingSection(null)}
+                              onSave={async (data) => {
+                                const nextEmail = typeof data.email === "string" ? data.email : undefined;
+                                const profile = { ...data };
+                                delete profile.email;
+                                const res = await api.patchPartyProfile(
+                                  portal,
+                                  organizationId,
+                                  party.id,
+                                  profile
+                                );
+                                if (!res.success) throw profileValidationErrorFromApi(res.error);
+                                if (
+                                  nextEmail !== undefined &&
+                                  !emailLocked &&
+                                  nextEmail.trim() !== personEmail
+                                ) {
+                                  await savePersonEmail(nextEmail);
+                                }
+                                toast.success("Person updated");
+                                setEditingSection(null);
+                                await invalidate();
+                              }}
+                            />
+                          )
+                        : undefined
+                    }
                     editLabel="Edit"
                     showEditInAllSections
                   />
                 </>
+              ) : editingSection && canEdit && !inactive ? (
+                <div className="rounded-xl border bg-card p-6">
+                  <PartyFillEmptyForm
+                    party={party}
+                    emailLocked={emailLocked}
+                    section={editingSection}
+                    onCancel={() => setEditingSection(null)}
+                    onSave={async (data) => {
+                      const nextEmail = typeof data.email === "string" ? data.email : undefined;
+                      const profile = { ...data };
+                      delete profile.email;
+                      const res = await api.patchPartyProfile(portal, organizationId, party.id, profile);
+                      if (!res.success) throw profileValidationErrorFromApi(res.error);
+                      if (nextEmail !== undefined && !emailLocked && nextEmail.trim() !== personEmail) {
+                        await savePersonEmail(nextEmail);
+                      }
+                      toast.success("Person updated");
+                      setEditingSection(null);
+                      await invalidate();
+                    }}
+                  />
+                </div>
               ) : (
                 <>
                   {profileCompletenessMissingSummary && profileCompletenessMissingSummary.missingCount > 0 ? (
@@ -452,7 +495,12 @@ export function PersonDetailView({
                         </p>
                       ) : null}
                       {canEdit && !inactive ? (
-                        <Button type="button" size="sm" variant="outline" onClick={() => setEditing(true)}>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setEditingSection("details")}
+                        >
                           Complete details
                         </Button>
                       ) : null}
@@ -460,14 +508,13 @@ export function PersonDetailView({
                   ) : null}
                   <CustomerPartyProfileOverview party={party} person={joinedPerson} />
                   {canEdit && !inactive ? (
-                    <Button type="button" onClick={() => setEditing(true)}>
+                    <Button type="button" onClick={() => setEditingSection("details")}>
                       Edit
                     </Button>
                   ) : null}
                 </>
               )}
-            </>
-          )}
+          </>
         </TabsContent>
 
         <TabsContent value="kyc" className="mt-6 space-y-4">
@@ -475,7 +522,19 @@ export function PersonDetailView({
             <h2 className="text-card-title">{corporate ? "KYB Verification" : "KYC Verification"}</h2>
             <ProfileFieldGrid>
               <div className="flex items-start gap-2">
-                <ProfileReadField label="Status" value={kycStatus} />
+                <div className="flex items-start gap-2">
+                  <div className="space-y-1">
+                    <p className="text-meta text-muted-foreground">Status</p>
+                    {kycChip ? (
+                      <StatusBadge
+                        status={getRelatedPartyStatusToken(kycChip, "user")}
+                        label={`${corporate ? "KYB" : "KYC"} ${kycStatus}`}
+                      />
+                    ) : (
+                      <p className="text-ui text-muted-foreground">—</p>
+                    )}
+                  </div>
+                </div>
                 {showKycRefresh ? (
                   <PartyStatusRefreshControl busy={refreshing} onRefresh={() => void refreshPartyStatus()} />
                 ) : null}
@@ -570,7 +629,14 @@ export function PersonDetailView({
             <h2 className="text-card-title">AML Screening</h2>
             <ProfileFieldGrid>
               <div className="flex items-start gap-2">
-                <ProfileReadField label="Status" value={amlStatus} />
+                <div className="space-y-1">
+                  <p className="text-meta text-muted-foreground">Status</p>
+                  {amlChip ? (
+                    <StatusBadge status={getRelatedPartyStatusToken(amlChip, "user")} label={`AML ${amlStatus}`} />
+                  ) : (
+                    <p className="text-ui text-muted-foreground">—</p>
+                  )}
+                </div>
                 {showAmlRefresh ? (
                   <PartyStatusRefreshControl busy={refreshing} onRefresh={() => void refreshPartyStatus()} />
                 ) : null}

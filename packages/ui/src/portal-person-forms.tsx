@@ -33,6 +33,7 @@ import {
   SC_SHARE_TYPES,
   scAppendixASelectValues,
   validateIssuerPersonForm,
+  validatePartyPatch,
   addCompanyPersonUsesOnboardingFlow,
   ADD_COMPANY_PERSON_MANUAL_HELP,
   ADD_COMPANY_PERSON_ONBOARDING_HELP,
@@ -594,11 +595,15 @@ export function PartyFillEmptyForm({
   onSave,
   onCancel,
   emailLocked = false,
+  section,
+  hideSectionHeading = false,
 }: {
   party: OrganizationPartyProfileDto;
   onSave: (data: Record<string, unknown>) => Promise<void>;
   onCancel: () => void;
   emailLocked?: boolean;
+  section?: "details" | "role" | "contact" | "address";
+  hideSectionHeading?: boolean;
 }) {
   const [pending, setPending] = React.useState(false);
   const [form, setForm] = React.useState({
@@ -640,6 +645,84 @@ export function PartyFillEmptyForm({
       className="grid gap-4 sm:grid-cols-2"
       onSubmit={async (event) => {
         event.preventDefault();
+        if (section) {
+          const data: Record<string, unknown> = {};
+
+          if (section === "details") {
+            if (!corporate) {
+              if (identityPrefixEmpty) data.identityPrefix = form.identityPrefix || null;
+              if (identityNumberEmpty) data.identityNumber = form.identityNumber || null;
+              if (!party.salutation) data.salutation = form.salutation || null;
+              if (!party.gender) data.gender = form.gender || null;
+              if (!party.nationality) data.nationality = form.nationality || null;
+              if (!party.dateOfBirth) data.dateOfBirth = form.dateOfBirth || null;
+            } else {
+              if (identityNumberEmpty) data.identityNumber = form.identityNumber || null;
+              if (!party.dateOfIncorporation) data.dateOfIncorporation = form.dateOfIncorporation || null;
+              if (!party.countryOfIncorporation) data.countryOfIncorporation = form.countryOfIncorporation || null;
+            }
+          }
+
+          if (section === "role") {
+            if (party.isShareholder) {
+              data.shareType = form.shareType || null;
+              data.shareTypeOther = form.shareType === "OTHERS" ? form.shareTypeOther || null : null;
+              data.shareholdingUnits = form.shareholdingUnits || null;
+              data.shareholdingAmount = form.shareholdingAmount || null;
+              data.shareholdingPercentage = form.shareholdingPercentage || null;
+            }
+            if (officer) {
+              data.designation = form.designation || null;
+              data.designationOther =
+                form.designation === "OTHERS" ? form.designationOther || null : null;
+              data.appointmentDate = form.appointmentDate || null;
+              data.resignationDate = form.resignationDate || null;
+            }
+          }
+
+          if (section === "contact") {
+            if (!corporate && !emailLocked) {
+              data.email = form.email || null;
+            }
+          }
+
+          if (section === "address") {
+            data.address = {
+              line1: form.line1 || null,
+              line2: form.line2 || null,
+              state: form.state || null,
+              postalCode: form.postalCode || null,
+            };
+          }
+
+          const issues = validatePartyPatch(data as Record<string, unknown>);
+          if (section === "role" && party.isShareholder) {
+            const shareIssue = issuerShareholdingThresholdIssue(form.shareholdingPercentage, { required: true });
+            if (shareIssue) issues.push(shareIssue);
+          }
+
+          if (issues.length > 0) {
+            setFieldErrors(issuesByField(issues));
+            toast.error(firstIssueMessage(issues));
+            return;
+          }
+
+          setFieldErrors({});
+          setPending(true);
+          try {
+            await onSave(data);
+          } catch (err) {
+            if (isProfileValidationError(err)) setFieldErrors(err.fieldErrors);
+            toast.error(
+              err instanceof Error
+                ? humanizeApiValidationMessage(err.message)
+                : "Could not save this person."
+            );
+          } finally {
+            setPending(false);
+          }
+          return;
+        }
         const issues = validateIssuerPersonForm({
           entityType: party.entityType,
           name: party.name,
@@ -729,26 +812,46 @@ export function PartyFillEmptyForm({
         }
       }}
     >
-      <p className="text-card-title sm:col-span-2">{corporate ? "Company Details" : "Personal Details"}</p>
-      <ProfileReadField
-        label={corporate ? CUSTOMER_PERSON_LABEL.companyName : CUSTOMER_PERSON_LABEL.fullName}
-        value={party.name}
-        locked
-      />
-      <ProfileReadField label={CUSTOMER_PERSON_LABEL.entityType} value={corporate ? "Company" : "Individual"} locked />
-      {!identityNumberEmpty && !identityPrefixEmpty ? (
+      {hideSectionHeading ? null : (
+        <p className="text-card-title sm:col-span-2">
+          {section === "role"
+            ? "Company Role"
+            : section === "contact"
+              ? "Contact"
+              : section === "address"
+                ? "Address"
+                : corporate
+                  ? "Company Details"
+                  : "Personal Details"}
+        </p>
+      )}
+
+      {(!section || section === "details") && (
         <>
-          <ProfileReadField label={CUSTOMER_PERSON_LABEL.identityType} value={identityTypeLabel} locked />
           <ProfileReadField
-            label={corporate ? CUSTOMER_PERSON_LABEL.companyRegistrationNumber : CUSTOMER_PERSON_LABEL.identityNumber}
-            value={party.identityNumber}
+            label={corporate ? CUSTOMER_PERSON_LABEL.companyName : CUSTOMER_PERSON_LABEL.fullName}
+            value={party.name}
             locked
-            help={copy.identity.help}
           />
-        </>
-      ) : (
-        <>
-          {identityPrefixEmpty && !corporate ? (
+          <ProfileReadField
+            label={CUSTOMER_PERSON_LABEL.entityType}
+            value={corporate ? "Company" : "Individual"}
+            locked
+          />
+
+          {!identityNumberEmpty && !identityPrefixEmpty ? (
+            <>
+              <ProfileReadField label={CUSTOMER_PERSON_LABEL.identityType} value={identityTypeLabel} locked />
+              <ProfileReadField
+                label={corporate ? CUSTOMER_PERSON_LABEL.companyRegistrationNumber : CUSTOMER_PERSON_LABEL.identityNumber}
+                value={party.identityNumber}
+                locked
+                help={copy.identity.help}
+              />
+            </>
+          ) : (
+            <>
+              {identityPrefixEmpty && !corporate ? (
             <SelectField
               label={CUSTOMER_PERSON_LABEL.identityType}
               value={form.identityPrefix}
@@ -803,185 +906,212 @@ export function PartyFillEmptyForm({
             />
           )}
         </>
+          )}
+        </>
       )}
-      {!corporate && !party.salutation ? (
+      {(!section || section === "details") && (
+        <>
+          {!corporate && !party.salutation ? (
         <TextField
           label={CUSTOMER_PERSON_LABEL.salutation}
           value={form.salutation}
           onChange={(value) => setForm({ ...form, salutation: value })}
         />
-      ) : !corporate && party.salutation ? (
-        <ProfileReadField label={CUSTOMER_PERSON_LABEL.salutation} value={party.salutation} locked />
-      ) : null}
-      {!corporate && !party.gender ? (
-        <SelectField
-          label={CUSTOMER_PERSON_LABEL.gender}
-          value={form.gender}
-          onChange={(value) => setForm({ ...form, gender: value })}
-          options={SC_INDIVIDUAL_GENDERS.map((key) => ({ value: key, label: SC_GENDER_LABELS[key] }))}
-          required
-          error={fieldErrors.gender}
-        />
-      ) : !corporate && party.gender ? (
-        <ProfileReadField
-          label={CUSTOMER_PERSON_LABEL.gender}
-          value={SC_GENDER_LABELS[party.gender as keyof typeof SC_GENDER_LABELS] ?? party.gender}
-          locked
-        />
-      ) : null}
-      {!corporate && !party.dateOfBirth ? (
-        <DateField
-          label={CUSTOMER_PERSON_LABEL.dateOfBirth}
-          value={form.dateOfBirth}
-          onChange={(value) => setForm({ ...form, dateOfBirth: value })}
-          required
-          error={fieldErrors.dateOfBirth}
-        />
-      ) : !corporate && party.dateOfBirth ? (
-        <ProfileReadField
-          label={CUSTOMER_PERSON_LABEL.dateOfBirth}
-          value={formatCustomerProfileDate(party.dateOfBirth)}
-          locked
-        />
-      ) : null}
-      {!corporate && !party.nationality ? (
-        <CountryField
-          label={CUSTOMER_PERSON_LABEL.nationality}
-          value={form.nationality}
-          onChange={(value) => setForm({ ...form, nationality: value })}
-          required
-          error={fieldErrors.nationality}
-        />
-      ) : !corporate && party.nationality ? (
-        <ProfileReadField
-          label={CUSTOMER_PERSON_LABEL.nationality}
-          value={formatCustomerCountryName(party.nationality)}
-          locked
-        />
-      ) : null}
-      {corporate && !party.dateOfIncorporation ? (
-        <DateField
-          label={CUSTOMER_PERSON_LABEL.dateOfIncorporation}
-          value={form.dateOfIncorporation}
-          onChange={(value) => setForm({ ...form, dateOfIncorporation: value })}
-          required
-          error={fieldErrors.dateOfIncorporation}
-        />
-      ) : corporate && party.dateOfIncorporation ? (
-        <ProfileReadField
-          label={CUSTOMER_PERSON_LABEL.dateOfIncorporation}
-          value={formatCustomerProfileDate(party.dateOfIncorporation)}
-          locked
-        />
-      ) : null}
-      {corporate && !party.countryOfIncorporation ? (
-        <CountryField
-          label={CUSTOMER_PERSON_LABEL.countryOfIncorporation}
-          value={form.countryOfIncorporation}
-          onChange={(value) => setForm({ ...form, countryOfIncorporation: value })}
-          required
-          error={fieldErrors.countryOfIncorporation}
-        />
-      ) : corporate && party.countryOfIncorporation ? (
-        <ProfileReadField
-          label={CUSTOMER_PERSON_LABEL.countryOfIncorporation}
-          value={formatCustomerCountryName(party.countryOfIncorporation)}
-          locked
-        />
-      ) : null}
-
-      <p className="text-card-title sm:col-span-2">Company Role</p>
-      <ProfileReadField
-        label={CUSTOMER_PERSON_LABEL.roles}
-        value={formatPartyRoleLineWithoutShare(party)}
-        locked
-        lockReason={PROFILE_LOCKED_ROLES_CANNOT_CHANGE}
-      />
-      {party.isShareholder ? (
-        <>
-          <SelectField
-            label={CUSTOMER_PERSON_LABEL.typeOfShares}
-            value={form.shareType}
-            onChange={(value) => setForm({ ...form, shareType: value })}
-            options={SC_SHARE_TYPES.map((key) => ({ value: key, label: SC_SHARE_TYPE_LABELS[key] }))}
-            required
-            error={fieldErrors.shareType}
-          />
-          {form.shareType === "OTHERS" ? (
-            <TextField
-              label={CUSTOMER_PERSON_LABEL.typeOfSharesOther}
-              value={form.shareTypeOther}
-              onChange={(value) => setForm({ ...form, shareTypeOther: value })}
-              required
-              error={fieldErrors.shareTypeOther}
+          ) : !corporate && party.salutation ? (
+            <ProfileReadField
+              label={CUSTOMER_PERSON_LABEL.salutation}
+              value={party.salutation}
+              locked
             />
           ) : null}
-          <TextField
-            label={CUSTOMER_PERSON_LABEL.shareholding}
-            value={form.shareholdingPercentage}
-            onChange={(value) =>
-              setForm({ ...form, shareholdingPercentage: restrictShareInput(value) })
-            }
-            required
-            error={fieldErrors.shareholdingPercentage}
-            inputMode="decimal"
-          />
-          <TextField
-            label={CUSTOMER_PERSON_LABEL.shareholdingUnits}
-            value={form.shareholdingUnits}
-            onChange={(value) => setForm({ ...form, shareholdingUnits: restrictShareInput(value) })}
-            required
-            error={fieldErrors.shareholdingUnits}
-            inputMode="decimal"
-          />
-          <TextField
-            label={CUSTOMER_PERSON_LABEL.shareholdingAmount}
-            value={form.shareholdingAmount}
-            onChange={(value) => setForm({ ...form, shareholdingAmount: restrictShareInput(value) })}
-            required
-            error={fieldErrors.shareholdingAmount}
-            inputMode="decimal"
-          />
-        </>
-      ) : null}
-      {officer ? (
-        <>
-          <SelectField
-            label={CUSTOMER_PERSON_LABEL.designation}
-            value={form.designation}
-            onChange={(value) => setForm({ ...form, designation: value })}
-            options={SC_DESIGNATIONS.map((key) => ({ value: key, label: SC_DESIGNATION_LABELS[key] }))}
-            required
-            error={fieldErrors.designation}
-          />
-          {form.designation === "OTHERS" ? (
-            <TextField
-              label={CUSTOMER_PERSON_LABEL.designationOther}
-              value={form.designationOther}
-              onChange={(value) => setForm({ ...form, designationOther: value })}
+          {!corporate && !party.gender ? (
+            <SelectField
+              label={CUSTOMER_PERSON_LABEL.gender}
+              value={form.gender}
+              onChange={(value) => setForm({ ...form, gender: value })}
+              options={SC_INDIVIDUAL_GENDERS.map((key) => ({
+                value: key,
+                label: SC_GENDER_LABELS[key],
+              }))}
               required
-              error={fieldErrors.designationOther}
+              error={fieldErrors.gender}
+            />
+          ) : !corporate && party.gender ? (
+            <ProfileReadField
+              label={CUSTOMER_PERSON_LABEL.gender}
+              value={SC_GENDER_LABELS[party.gender as keyof typeof SC_GENDER_LABELS] ?? party.gender}
+              locked
             />
           ) : null}
-          <DateField
-            label={CUSTOMER_PERSON_LABEL.appointmentDate}
-            value={form.appointmentDate}
-            onChange={(value) => setForm({ ...form, appointmentDate: value })}
-            required
-            error={fieldErrors.appointmentDate}
+          {!corporate && !party.dateOfBirth ? (
+            <DateField
+              label={CUSTOMER_PERSON_LABEL.dateOfBirth}
+              value={form.dateOfBirth}
+              onChange={(value) => setForm({ ...form, dateOfBirth: value })}
+              required
+              error={fieldErrors.dateOfBirth}
+            />
+          ) : !corporate && party.dateOfBirth ? (
+            <ProfileReadField
+              label={CUSTOMER_PERSON_LABEL.dateOfBirth}
+              value={formatCustomerProfileDate(party.dateOfBirth)}
+              locked
+            />
+          ) : null}
+          {!corporate && !party.nationality ? (
+            <CountryField
+              label={CUSTOMER_PERSON_LABEL.nationality}
+              value={form.nationality}
+              onChange={(value) => setForm({ ...form, nationality: value })}
+              required
+              error={fieldErrors.nationality}
+            />
+          ) : !corporate && party.nationality ? (
+            <ProfileReadField
+              label={CUSTOMER_PERSON_LABEL.nationality}
+              value={formatCustomerCountryName(party.nationality)}
+              locked
+            />
+          ) : null}
+          {corporate && !party.dateOfIncorporation ? (
+            <DateField
+              label={CUSTOMER_PERSON_LABEL.dateOfIncorporation}
+              value={form.dateOfIncorporation}
+              onChange={(value) => setForm({ ...form, dateOfIncorporation: value })}
+              required
+              error={fieldErrors.dateOfIncorporation}
+            />
+          ) : corporate && party.dateOfIncorporation ? (
+            <ProfileReadField
+              label={CUSTOMER_PERSON_LABEL.dateOfIncorporation}
+              value={formatCustomerProfileDate(party.dateOfIncorporation)}
+              locked
+            />
+          ) : null}
+          {corporate && !party.countryOfIncorporation ? (
+            <CountryField
+              label={CUSTOMER_PERSON_LABEL.countryOfIncorporation}
+              value={form.countryOfIncorporation}
+              onChange={(value) => setForm({ ...form, countryOfIncorporation: value })}
+              required
+              error={fieldErrors.countryOfIncorporation}
+            />
+          ) : corporate && party.countryOfIncorporation ? (
+            <ProfileReadField
+              label={CUSTOMER_PERSON_LABEL.countryOfIncorporation}
+              value={formatCustomerCountryName(party.countryOfIncorporation)}
+              locked
+            />
+          ) : null}
+        </>
+      )}
+
+      {(!section || section === "role") ? (
+        <>
+          {hideSectionHeading ? null : <p className="text-card-title sm:col-span-2">Company Role</p>}
+          <ProfileReadField
+            label={CUSTOMER_PERSON_LABEL.roles}
+            value={formatPartyRoleLineWithoutShare(party)}
+            locked
+            lockReason={PROFILE_LOCKED_ROLES_CANNOT_CHANGE}
           />
-          <DateField
-            label={CUSTOMER_PERSON_LABEL.resignationDate}
-            value={form.resignationDate}
-            onChange={(value) => setForm({ ...form, resignationDate: value })}
-            help={PROFILE_HELP.resignationDate}
-          />
+          {party.isShareholder ? (
+            <>
+              <SelectField
+                label={CUSTOMER_PERSON_LABEL.typeOfShares}
+                value={form.shareType}
+                onChange={(value) => setForm({ ...form, shareType: value })}
+                options={SC_SHARE_TYPES.map((key) => ({
+                  value: key,
+                  label: SC_SHARE_TYPE_LABELS[key],
+                }))}
+                required
+                error={fieldErrors.shareType}
+              />
+              {form.shareType === "OTHERS" ? (
+                <TextField
+                  label={CUSTOMER_PERSON_LABEL.typeOfSharesOther}
+                  value={form.shareTypeOther}
+                  onChange={(value) => setForm({ ...form, shareTypeOther: value })}
+                  required
+                  error={fieldErrors.shareTypeOther}
+                />
+              ) : null}
+              <TextField
+                label={CUSTOMER_PERSON_LABEL.shareholding}
+                value={form.shareholdingPercentage}
+                onChange={(value) =>
+                  setForm({ ...form, shareholdingPercentage: restrictShareInput(value) })
+                }
+                required
+                error={fieldErrors.shareholdingPercentage}
+                inputMode="decimal"
+              />
+              <TextField
+                label={CUSTOMER_PERSON_LABEL.shareholdingUnits}
+                value={form.shareholdingUnits}
+                onChange={(value) =>
+                  setForm({ ...form, shareholdingUnits: restrictShareInput(value) })
+                }
+                required
+                error={fieldErrors.shareholdingUnits}
+                inputMode="decimal"
+              />
+              <TextField
+                label={CUSTOMER_PERSON_LABEL.shareholdingAmount}
+                value={form.shareholdingAmount}
+                onChange={(value) =>
+                  setForm({ ...form, shareholdingAmount: restrictShareInput(value) })
+                }
+                required
+                error={fieldErrors.shareholdingAmount}
+                inputMode="decimal"
+              />
+            </>
+          ) : null}
+          {officer ? (
+            <>
+              <SelectField
+                label={CUSTOMER_PERSON_LABEL.designation}
+                value={form.designation}
+                onChange={(value) => setForm({ ...form, designation: value })}
+                options={SC_DESIGNATIONS.map((key) => ({
+                  value: key,
+                  label: SC_DESIGNATION_LABELS[key],
+                }))}
+                required
+                error={fieldErrors.designation}
+              />
+              {form.designation === "OTHERS" ? (
+                <TextField
+                  label={CUSTOMER_PERSON_LABEL.designationOther}
+                  value={form.designationOther}
+                  onChange={(value) => setForm({ ...form, designationOther: value })}
+                  required
+                  error={fieldErrors.designationOther}
+                />
+              ) : null}
+              <DateField
+                label={CUSTOMER_PERSON_LABEL.appointmentDate}
+                value={form.appointmentDate}
+                onChange={(value) => setForm({ ...form, appointmentDate: value })}
+                required
+                error={fieldErrors.appointmentDate}
+              />
+              <DateField
+                label={CUSTOMER_PERSON_LABEL.resignationDate}
+                value={form.resignationDate}
+                onChange={(value) => setForm({ ...form, resignationDate: value })}
+                help={PROFILE_HELP.resignationDate}
+              />
+            </>
+          ) : null}
         </>
       ) : null}
 
-      {!corporate ? (
+      {(!section || section === "contact") && !corporate ? (
         <>
-          <p className="text-card-title sm:col-span-2">Contact</p>
+          {hideSectionHeading ? null : <p className="text-card-title sm:col-span-2">Contact</p>}
           {emailLocked ? (
             <ProfileReadField
               label={CUSTOMER_PERSON_LABEL.personEmail}
@@ -1003,43 +1133,47 @@ export function PartyFillEmptyForm({
         </>
       ) : null}
 
-      <p className="text-card-title sm:col-span-2">Address</p>
-      <TextField
-        label={CUSTOMER_PERSON_LABEL.address}
-        value={form.line1}
-        onChange={(value) => setForm({ ...form, line1: value })}
-        required
-        error={fieldErrors["address.line1"]}
-      />
-      <TextField
-        label={CUSTOMER_PERSON_LABEL.addressLine2}
-        value={form.line2}
-        onChange={(value) => setForm({ ...form, line2: value })}
-      />
-      <SelectField
-        label={CUSTOMER_PERSON_LABEL.state}
-        value={form.state}
-        onChange={(value) => setForm({ ...form, state: value })}
-        options={SC_MALAYSIAN_STATES.map((state) => ({ value: state, label: state }))}
-        help={copy.addressState.help}
-        required
-        error={fieldErrors["address.state"]}
-      />
-      <TextField
-        label={CUSTOMER_PERSON_LABEL.postcode}
-        value={form.postalCode}
-        onChange={(value) =>
-          setForm({ ...form, postalCode: restrictScPostcodeInput(form.state, value) })
-        }
-        help={copy.addressPostcode.help}
-        required={form.state !== "Outside Malaysia"}
-        error={fieldErrors["address.postalCode"]}
-        inputMode={form.state === "Outside Malaysia" ? undefined : "numeric"}
-        maxLength={form.state === "Outside Malaysia" ? 500 : 32}
-      />
+      {(!section || section === "address") && (
+        <>
+          {hideSectionHeading ? null : <p className="text-card-title sm:col-span-2">Address</p>}
+          <TextField
+            label={CUSTOMER_PERSON_LABEL.address}
+            value={form.line1}
+            onChange={(value) => setForm({ ...form, line1: value })}
+            required
+            error={fieldErrors["address.line1"]}
+          />
+          <TextField
+            label={CUSTOMER_PERSON_LABEL.addressLine2}
+            value={form.line2}
+            onChange={(value) => setForm({ ...form, line2: value })}
+          />
+          <SelectField
+            label={CUSTOMER_PERSON_LABEL.state}
+            value={form.state}
+            onChange={(value) => setForm({ ...form, state: value })}
+            options={SC_MALAYSIAN_STATES.map((state) => ({ value: state, label: state }))}
+            help={copy.addressState.help}
+            required
+            error={fieldErrors["address.state"]}
+          />
+          <TextField
+            label={CUSTOMER_PERSON_LABEL.postcode}
+            value={form.postalCode}
+            onChange={(value) =>
+              setForm({ ...form, postalCode: restrictScPostcodeInput(form.state, value) })
+            }
+            help={copy.addressPostcode.help}
+            required={form.state !== "Outside Malaysia"}
+            error={fieldErrors["address.postalCode"]}
+            inputMode={form.state === "Outside Malaysia" ? undefined : "numeric"}
+            maxLength={form.state === "Outside Malaysia" ? 500 : 32}
+          />
+        </>
+      )}
       <div className="flex justify-end gap-2 sm:col-span-2 pt-4">
         <Button type="submit" className="h-10" disabled={pending}>
-          {pending ? "Saving…" : "Save"}
+          {pending ? "Saving…" : section ? "Save changes" : "Save"}
         </Button>
         <Button type="button" className="h-10" variant="outline" onClick={onCancel}>
           Cancel
