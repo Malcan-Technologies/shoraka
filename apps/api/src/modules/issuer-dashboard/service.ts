@@ -718,6 +718,7 @@ export class IssuerDashboardService {
         listingClosesAt: note.listing?.closes_at ?? null,
         paymasterSnapshot: note.paymaster_snapshot,
         invoiceSnapshot: note.invoice_snapshot,
+        minimumFundingPercent: decimalToNumber(note.minimum_funding_percent),
       };
     });
 

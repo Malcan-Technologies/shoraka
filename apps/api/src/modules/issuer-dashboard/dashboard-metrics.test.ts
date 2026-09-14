@@ -165,8 +165,26 @@ describe("computeFundingProgress", () => {
       status: "open",
       percent: 40,
       daysLeft: 7,
+      minimumFundingPercent: 80,
     });
     expect(rows[1]).toMatchObject({ noteId: "note-2", status: "funded", percent: 100 });
+  });
+
+  it("carries a non-default minimum funding threshold", () => {
+    const now = new Date("2026-09-09T02:00:00.000Z");
+    const rows = computeFundingProgress(
+      [
+        note({
+          status: "PUBLISHED",
+          fundingStatus: "OPEN",
+          fundedAmount: 40_000,
+          targetAmount: 100_000,
+          minimumFundingPercent: 75,
+        }),
+      ],
+      now
+    );
+    expect(rows[0]?.minimumFundingPercent).toBe(75);
   });
 
   it("includes pending listing and failed funding, and excludes live notes", () => {

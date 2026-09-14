@@ -65,7 +65,7 @@ export function MarketplaceSnapCarousel({
   const [activeIndex, setActiveIndex] = React.useState(0);
   const [overflows, setOverflows] = React.useState(false);
   const count = items.length;
-  const showHeaderControls = Boolean(header) && count > 1;
+  const showHeaderControls = Boolean(header) && count > 1 && overflows;
   const showFooterControls = !header && count > 1 && overflows;
   const slideWidthClass = marketplaceSlideWidthClass(count, compact);
 

@@ -45,6 +45,7 @@ export type IssuerBookNoteInput = {
   listingClosesAt?: Date | null;
   paymasterSnapshot?: unknown;
   invoiceSnapshot?: unknown;
+  minimumFundingPercent?: number | null;
 };
 
 function isLiveFundedNote(note: IssuerBookNoteInput): boolean {
@@ -259,6 +260,10 @@ export function computeFundingProgress(
         fundedAmount: roundNoteMoney(note.fundedAmount, 2),
         targetAmount: roundNoteMoney(note.targetAmount, 2),
         percent,
+        minimumFundingPercent:
+          note.minimumFundingPercent != null && Number.isFinite(note.minimumFundingPercent)
+            ? note.minimumFundingPercent
+            : 80,
         status,
       };
     })

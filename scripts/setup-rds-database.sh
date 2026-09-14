@@ -9,9 +9,9 @@ set -euo pipefail
 # Migrations (ECS migrate task) use cashsouk/database-url (cashsouk_admin) and
 # are not overwritten here.
 #
-# Target architecture: production RDS is private and operator laptops have no
-# direct route. Run this from a host that can reach RDS (bastion, VPN, or ECS),
-# not from an operator laptop.
+# Target architecture: production RDS is private. Operator laptops, bastions,
+# and VPNs have no route. Run this from ECS (API or migrate task network), which
+# is the only application path that retains TCP 5432.
 
 echo "Setting up CashSouk RDS database (app role least privilege)..."
 
@@ -19,6 +19,11 @@ AWS_REGION="${AWS_REGION:-ap-southeast-5}"
 AWS_PROFILE="${AWS_PROFILE:-${AWS_DEFAULT_PROFILE:-cashsouk}}"
 RDS_HOST="${RDS_HOST:-cashsouk-prod-db.c5ayu8mwom04.ap-southeast-5.rds.amazonaws.com}"
 RDS_PROXY_HOST="${RDS_PROXY_HOST:-cashsouk-prod-proxy.proxy-c5ayu8mwom04.ap-southeast-5.rds.amazonaws.com}"
+# Runtime secret host must stay the private instance endpoint that pentest verified
+# for API ECS. RDS Proxy remains an allowed SG source for pooling, but do not
+# rewrite cashsouk/app-database-url to the proxy by default — both live secrets
+# currently use RDS_HOST. Override APP_DB_HOST only when intentionally pointing
+# runtime at the proxy.
 APP_DB_HOST="${APP_DB_HOST:-$RDS_HOST}"
 DB_NAME="${DB_NAME:-cashsouk}"
 MASTER_USER="${MASTER_USER:-cashsouk_admin}"
@@ -43,7 +48,7 @@ fi
 
 if [ -z "${MASTER_PASS:-}" ]; then
   echo "Master password is not available. Set MASTER_PASS or allow Secrets Manager access to $MASTER_SECRET_ID."
-  echo "Run from a host with a route to private RDS; operator laptops are not an intended path."
+  echo "Run from the ECS API or migrate task network; operator laptops, bastions, and VPNs have no route to private RDS."
   exit 1
 fi
 
@@ -55,7 +60,7 @@ echo "Testing connection to RDS..."
 if ! psql_admin -c "SELECT version();" > /dev/null; then
   echo "Cannot connect to RDS."
   echo "Target architecture: production RDS is private; operator laptops have no direct route."
-  echo "Run this script from a bastion, VPN, or ECS task that can reach the instance."
+  echo "Run this script from the ECS API or migrate task network. Operator laptops, bastions, and VPNs have no route to private RDS."
   exit 1
 fi
 echo "Connection successful."

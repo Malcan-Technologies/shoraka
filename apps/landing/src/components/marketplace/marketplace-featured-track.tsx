@@ -49,6 +49,7 @@ export function MarketplaceFeaturedTrack({ notes }: { notes: readonly Marketplac
   };
 
   if (notes.length === 0) return null;
+  const overflows = notes.length > 1 && !(atStart && atEnd);
 
   return (
     <section>
@@ -62,32 +63,34 @@ export function MarketplaceFeaturedTrack({ notes }: { notes: readonly Marketplac
             · {marketplaceNotesCountLabel(notes.length)}
           </span>
         </div>
-        <div className="flex items-center gap-3.5 sm:ml-auto">
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className="rounded-full"
-              aria-label="Previous featured notes"
-              disabled={atStart}
-              onClick={() => scrollByCard(-1)}
-            >
-              <ChevronLeftIcon className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className="rounded-full"
-              aria-label="More featured notes"
-              disabled={atEnd}
-              onClick={() => scrollByCard(1)}
-            >
-              <ChevronRightIcon className="h-4 w-4" />
-            </Button>
+        {overflows ? (
+          <div className="flex items-center gap-3.5 sm:ml-auto">
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="rounded-full"
+                aria-label="Previous featured notes"
+                disabled={atStart}
+                onClick={() => scrollByCard(-1)}
+              >
+                <ChevronLeftIcon className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="rounded-full"
+                aria-label="More featured notes"
+                disabled={atEnd}
+                onClick={() => scrollByCard(1)}
+              >
+                <ChevronRightIcon className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
-        </div>
+        ) : null}
       </div>
 
       <div

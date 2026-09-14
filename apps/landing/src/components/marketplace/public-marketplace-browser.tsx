@@ -157,28 +157,27 @@ export function PublicMarketplaceBrowser({
   );
 
   const normalizedSearchQuery = debouncedSearch.trim().toLowerCase();
+  const effectiveFilters = useMemo(
+    () => ({
+      search: normalizedSearchQuery,
+      industry: industryFilter,
+      risk: riskFilter,
+      profit: profitFilter,
+      tenor: tenorFilter,
+      listing: "open" as const,
+    }),
+    [industryFilter, normalizedSearchQuery, profitFilter, riskFilter, tenorFilter]
+  );
+  const visibleFeaturedNotes = useMemo(
+    () => featuredNotes.filter((note) => marketplaceNoteMatchesFilters(note, effectiveFilters)),
+    [effectiveFilters, featuredNotes]
+  );
 
   const filteredNotes = useMemo(() => {
     return marketplaceNotes
       .filter((note) => !note.isFeatured)
-      .filter((note) =>
-        marketplaceNoteMatchesFilters(note, {
-          search: normalizedSearchQuery,
-          industry: industryFilter,
-          risk: riskFilter,
-          profit: profitFilter,
-          tenor: tenorFilter,
-          listing: "open",
-        })
-      );
-  }, [
-    industryFilter,
-    marketplaceNotes,
-    normalizedSearchQuery,
-    profitFilter,
-    riskFilter,
-    tenorFilter,
-  ]);
+      .filter((note) => marketplaceNoteMatchesFilters(note, effectiveFilters));
+  }, [effectiveFilters, marketplaceNotes]);
 
   const sortedNotes = useMemo(
     () => sortMarketplaceNotes(filteredNotes, sort),
@@ -295,7 +294,8 @@ export function PublicMarketplaceBrowser({
     filteredListingsCount
   );
   const catalogEmpty = marketplaceNotes.length === 0;
-  const noFilterMatches = !catalogEmpty && filteredListingsCount === 0;
+  const noFilterMatches =
+    !catalogEmpty && filteredListingsCount === 0 && visibleFeaturedNotes.length === 0;
   const chipFilterCount =
     (industryFilter !== "all" ? 1 : 0) +
     (riskFilter !== "all" ? 1 : 0) +
@@ -314,7 +314,9 @@ export function PublicMarketplaceBrowser({
 
   return (
     <div className="space-y-11">
-      {featuredNotes.length > 0 ? <MarketplaceFeaturedTrack notes={featuredNotes} /> : null}
+      {visibleFeaturedNotes.length > 0 ? (
+        <MarketplaceFeaturedTrack notes={visibleFeaturedNotes} />
+      ) : null}
 
       <section>
         <div className="mb-4 flex items-baseline justify-between gap-3">

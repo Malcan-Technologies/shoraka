@@ -34,6 +34,7 @@ export type IssuerBookFundingProgress = {
   fundedAmount: number;
   targetAmount: number;
   percent: number;
+  minimumFundingPercent: number;
   status: IssuerBookFundingProgressStatus;
 };
 

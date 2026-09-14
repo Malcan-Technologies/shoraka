@@ -50,6 +50,8 @@ describe("issuer dashboard layout", () => {
     expect(fundingSource).toContain("Load");
     expect(fundingSource).toContain("nextDashboardVisibleCount");
     expect(fundingSource).toContain("FundingNoteCard");
+    expect(fundingSource).toContain("thresholdPercent={item.minimumFundingPercent}");
+    expect(fundingSource).not.toContain("80% minimum required");
     expect(fundingSource.indexOf("Raised across open notes")).toBeLessThan(
       fundingSource.indexOf("grid grid-cols-1")
     );

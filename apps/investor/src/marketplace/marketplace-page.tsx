@@ -183,6 +183,10 @@ export function MarketplacePage() {
     () => marketplaceNotes.filter((note) => !featuredIds.has(note.id)),
     [featuredIds, marketplaceNotes]
   );
+  const visibleFeaturedNotes = useMemo(
+    () => featuredNotes.filter((note) => marketplaceNoteMatchesFilters(note, effectiveFilters)),
+    [effectiveFilters, featuredNotes]
+  );
 
   const filteredNotes = useMemo(
     () =>
@@ -374,9 +378,9 @@ export function MarketplacePage() {
 
         {isLoading ? <LoadingState variant="cards" rows={3} /> : null}
 
-        {!isLoading && !error && featuredNotes.length > 0 ? (
+        {!isLoading && !error && visibleFeaturedNotes.length > 0 ? (
           <MarketplaceFeaturedSection
-            notes={featuredNotes}
+            notes={visibleFeaturedNotes}
             onInvest={openInvestDialog}
             onViewProspectus={openProspectus}
           />
@@ -428,7 +432,7 @@ export function MarketplacePage() {
               isLoading={isLoading}
             />
 
-            {filteredNotes.length === 0 && hasActiveFilters ? (
+            {filteredNotes.length === 0 && visibleFeaturedNotes.length === 0 && hasActiveFilters ? (
               <EmptyState
                 variant="no-results"
                 title="No matching notes"

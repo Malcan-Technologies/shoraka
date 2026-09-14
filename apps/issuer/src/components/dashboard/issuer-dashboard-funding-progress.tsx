@@ -100,12 +100,12 @@ function FundingNoteCard({ item }: { item: IssuerBookFundingProgress }) {
         <FundingProgress
           className="mt-4"
           percent={item.percent}
+          thresholdPercent={item.minimumFundingPercent}
           fillClassName={cn(
             item.status === "funded" && "bg-status-success-text",
             item.status === "failed" && "bg-status-rejected-text",
             item.status === "open" && "bg-primary"
           )}
-          aria-label={`${Math.round(item.percent)}% funded. 80% minimum required for funding to succeed.`}
         />
       ) : null}
     </Card>
