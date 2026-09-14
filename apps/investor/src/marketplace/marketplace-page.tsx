@@ -183,21 +183,21 @@ export function MarketplacePage() {
     () => marketplaceNotes.filter((note) => !featuredIds.has(note.id)),
     [featuredIds, marketplaceNotes]
   );
-  const visibleFeaturedNotes = useMemo(
-    () => featuredNotes.filter((note) => marketplaceNoteMatchesFilters(note, effectiveFilters)),
-    [effectiveFilters, featuredNotes]
-  );
+  const hasActiveFilters = marketplaceHasActiveFilters({ ...filters, search });
+  // Featured sits above the filters and is never constrained by them.
+  // When search or filters are active, include featured notes in the listing so a
+  // matching query can still find them; otherwise keep them out of the catalog to
+  // avoid duplicating the strip above.
+  const listingNotes = hasActiveFilters ? marketplaceNotes : catalogNotes;
 
   const filteredNotes = useMemo(
     () =>
       sortMarketplaceNotes(
-        catalogNotes.filter((note) => marketplaceNoteMatchesFilters(note, effectiveFilters)),
+        listingNotes.filter((note) => marketplaceNoteMatchesFilters(note, effectiveFilters)),
         sort
       ),
-    [catalogNotes, effectiveFilters, sort]
+    [effectiveFilters, listingNotes, sort]
   );
-
-  const hasActiveFilters = marketplaceHasActiveFilters({ ...filters, search });
   const sectorOptions = useMemo(() => {
     const options = marketplaceSectorOptions(marketplaceNotes);
     if (filters.industry !== "all" && !options.includes(filters.industry)) {
@@ -353,7 +353,7 @@ export function MarketplacePage() {
   }
 
   const listingCountLabel = hasActiveFilters
-    ? `${filteredNotes.length} of ${catalogNotes.length} notes`
+    ? `${filteredNotes.length} of ${listingNotes.length} notes`
     : `${filteredNotes.length} ${filteredNotes.length === 1 ? "note" : "notes"}`;
 
   return (
@@ -378,9 +378,9 @@ export function MarketplacePage() {
 
         {isLoading ? <LoadingState variant="cards" rows={3} /> : null}
 
-        {!isLoading && !error && visibleFeaturedNotes.length > 0 ? (
+        {!isLoading && !error && featuredNotes.length > 0 ? (
           <MarketplaceFeaturedSection
-            notes={visibleFeaturedNotes}
+            notes={featuredNotes}
             onInvest={openInvestDialog}
             onViewProspectus={openProspectus}
           />
@@ -432,7 +432,7 @@ export function MarketplacePage() {
               isLoading={isLoading}
             />
 
-            {filteredNotes.length === 0 && visibleFeaturedNotes.length === 0 && hasActiveFilters ? (
+            {filteredNotes.length === 0 && hasActiveFilters ? (
               <EmptyState
                 variant="no-results"
                 title="No matching notes"

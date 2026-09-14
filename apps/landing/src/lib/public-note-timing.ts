@@ -1,5 +1,4 @@
 import {
-  resolveMarketplaceFilterDays,
   resolveMarketplaceListingDaysLeft,
   resolveNoteTimingDisplay,
   type NoteListItem,
@@ -13,9 +12,10 @@ export type PublicNoteTimingFields = {
 };
 
 export function mapPublicNoteTiming(note: NoteListItem): PublicNoteTimingFields {
+  const timing = resolveNoteTimingDisplay(note);
   return {
-    tenorDays: resolveMarketplaceFilterDays(note),
-    timing: resolveNoteTimingDisplay(note),
+    tenorDays: timing.tenureDays,
+    timing,
     daysLeft: resolveMarketplaceListingDaysLeft(note.listingClosesAt),
   };
 }

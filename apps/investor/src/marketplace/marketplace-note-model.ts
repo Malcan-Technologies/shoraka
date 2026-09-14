@@ -5,7 +5,6 @@ import {
   formatNoteReferenceDisplay,
   marketplaceListingKind,
   matchesMarketplaceTenureFilter,
-  resolveMarketplaceFilterDays,
   resolveMarketplaceListingDaysLeft,
   resolveNoteTimingDisplay,
   type MarketplaceListingFilter,
@@ -46,6 +45,7 @@ export type MarketplaceNote = {
   remainingCapacity: number;
   fundingPercent: number;
   annualReturn: number | null;
+  /** Stored financing tenure. Legacy notes without tenureDays are null — not days-to-maturity. */
   tenorDays: number | null;
   timing: NoteTimingDisplay;
   riskScore: string | null;
@@ -94,6 +94,8 @@ export function toMarketplaceNote(note: NoteListItem): MarketplaceNote {
     fundingStatus: note.fundingStatus,
   });
 
+  const timing = resolveNoteTimingDisplay(note);
+
   return {
     id: note.id,
     noteCode: note.noteReference.trim() || null,
@@ -110,8 +112,8 @@ export function toMarketplaceNote(note: NoteListItem): MarketplaceNote {
     remainingCapacity,
     fundingPercent,
     annualReturn: note.profitRatePercent,
-    tenorDays: resolveMarketplaceFilterDays(note),
-    timing: resolveNoteTimingDisplay(note),
+    tenorDays: timing.tenureDays,
+    timing,
     riskScore: note.riskRating,
     daysLeft: resolveMarketplaceListingDaysLeft(note.listingClosesAt),
     minInvestment: minCommit,
@@ -163,7 +165,9 @@ export function marketplaceNoteMatchesFilters(
       ((filters.profit === "low" && note.annualReturn < 14) ||
         (filters.profit === "mid" && note.annualReturn >= 14 && note.annualReturn <= 15) ||
         (filters.profit === "high" && note.annualReturn > 15)));
-  const matchesTenor = matchesMarketplaceTenureFilter(note.tenorDays, filters.tenor);
+  // Tenure bands still use filterDays so legacy notes remain findable; sort and
+  // tenure-range metrics use stored tenorDays only.
+  const matchesTenor = matchesMarketplaceTenureFilter(note.timing.filterDays, filters.tenor);
   const matchesListing = filters.listing === "all" || note.listingKind === filters.listing;
 
   return (

@@ -76,6 +76,7 @@ describe("mapPublicNoteTiming", () => {
   it("keeps legacy notes on days remaining when tenure is absent", () => {
     const legacy = mapPublicNoteTiming(note({ maturityDate: "2026-09-12T00:00:00.000Z" }));
     expect(legacy.timing.kind).toBe("legacy");
-    expect(legacy.tenorDays).toBe(legacy.timing.filterDays);
+    expect(legacy.tenorDays).toBeNull();
+    expect(legacy.timing.filterDays).not.toBeNull();
   });
 });

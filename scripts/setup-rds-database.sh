@@ -16,7 +16,9 @@ set -euo pipefail
 echo "Setting up CashSouk RDS database (app role least privilege)..."
 
 AWS_REGION="${AWS_REGION:-ap-southeast-5}"
-AWS_PROFILE="${AWS_PROFILE:-${AWS_DEFAULT_PROFILE:-cashsouk}}"
+# ECS uses the task role. Do not default a named profile — that fails in ECS
+# (no cashsouk profile on the task). Set AWS_PROFILE only on a host that has it.
+AWS_PROFILE="${AWS_PROFILE:-${AWS_DEFAULT_PROFILE:-}}"
 RDS_HOST="${RDS_HOST:-cashsouk-prod-db.c5ayu8mwom04.ap-southeast-5.rds.amazonaws.com}"
 RDS_PROXY_HOST="${RDS_PROXY_HOST:-cashsouk-prod-proxy.proxy-c5ayu8mwom04.ap-southeast-5.rds.amazonaws.com}"
 # Runtime secret host must stay the private instance endpoint that pentest verified
@@ -34,7 +36,11 @@ MIGRATE_SECRET_NAME="cashsouk/database-url"
 RUN_MIGRATIONS="${RUN_MIGRATIONS:-1}"
 
 aws_sm() {
-  aws --profile "$AWS_PROFILE" --region "$AWS_REGION" secretsmanager "$@"
+  if [ -n "$AWS_PROFILE" ]; then
+    aws --profile "$AWS_PROFILE" --region "$AWS_REGION" secretsmanager "$@"
+  else
+    aws --region "$AWS_REGION" secretsmanager "$@"
+  fi
 }
 
 if [ -z "${MASTER_PASS:-}" ]; then

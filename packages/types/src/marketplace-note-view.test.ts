@@ -88,6 +88,18 @@ describe("sortMarketplaceNotes", () => {
     expect(sortMarketplaceNotes(notes, "grade").map((item) => item.id)).toEqual(["c", "a", "b"]);
     expect(sortMarketplaceNotes(notes, "closing").map((item) => item.id)).toEqual(["b", "a", "c"]);
   });
+
+  it("sorts notes without stored tenure last, not by listing countdown", () => {
+    expect(
+      sortMarketplaceNotes(
+        [
+          note({ id: "legacy", tenorDays: null, daysLeft: 1 }),
+          note({ id: "term", tenorDays: 90, daysLeft: 20 }),
+        ],
+        "tenor"
+      ).map((item) => item.id)
+    ).toEqual(["term", "legacy"]);
+  });
 });
 
 describe("marketplaceBookSummary", () => {
@@ -106,6 +118,13 @@ describe("marketplaceBookSummary", () => {
         note({ listingKind: "funded", annualReturn: 8, tenorDays: 30 }),
       ])
     ).toEqual({ openCount: 1, rateRange: "—", tenureRange: "—" });
+
+    expect(
+      marketplaceBookSummary([
+        note({ listingKind: "open", annualReturn: 8, tenorDays: null }),
+        note({ listingKind: "open", annualReturn: 8, tenorDays: 90 }),
+      ]).tenureRange
+    ).toBe("90–90d");
   });
 });
 

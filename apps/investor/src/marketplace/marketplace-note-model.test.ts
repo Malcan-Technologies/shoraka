@@ -124,6 +124,11 @@ describe("toMarketplaceNote", () => {
     expect(toMarketplaceNote(note({ maturityDate: "not-a-date", tenureDays: 75 })).tenorDays).toBe(
       75
     );
+    const legacy = toMarketplaceNote(
+      note({ tenureDays: null, maturityDate: "2026-09-12T00:00:00.000Z" })
+    );
+    expect(legacy.tenorDays).toBeNull();
+    expect(legacy.timing.filterDays).not.toBeNull();
   });
 
   it("defaults a missing minimum threshold to 80%", () => {

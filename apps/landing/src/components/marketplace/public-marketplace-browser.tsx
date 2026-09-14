@@ -16,6 +16,7 @@ import {
   MARKETPLACE_SORT_OPTIONS,
   MARKETPLACE_TENURE_FILTER_LABELS,
   MARC_SME_GRADES,
+  marketplaceHasActiveFilters,
   marketplaceNoteMatchesFilters,
   marketplaceSectorOptions,
   parseMarketplaceSort,
@@ -168,16 +169,17 @@ export function PublicMarketplaceBrowser({
     }),
     [industryFilter, normalizedSearchQuery, profitFilter, riskFilter, tenorFilter]
   );
-  const visibleFeaturedNotes = useMemo(
-    () => featuredNotes.filter((note) => marketplaceNoteMatchesFilters(note, effectiveFilters)),
-    [effectiveFilters, featuredNotes]
-  );
-
+  const hasActiveFilters = marketplaceHasActiveFilters(effectiveFilters);
+  // Featured sits above the filters and is never constrained by them.
+  // When search or filters are active, include featured notes in the listing so a
+  // matching query can still find them; otherwise keep them out of the catalog to
+  // avoid duplicating the strip above.
   const filteredNotes = useMemo(() => {
-    return marketplaceNotes
-      .filter((note) => !note.isFeatured)
-      .filter((note) => marketplaceNoteMatchesFilters(note, effectiveFilters));
-  }, [effectiveFilters, marketplaceNotes]);
+    const listingNotes = hasActiveFilters
+      ? marketplaceNotes
+      : marketplaceNotes.filter((note) => !note.isFeatured);
+    return listingNotes.filter((note) => marketplaceNoteMatchesFilters(note, effectiveFilters));
+  }, [effectiveFilters, hasActiveFilters, marketplaceNotes]);
 
   const sortedNotes = useMemo(
     () => sortMarketplaceNotes(filteredNotes, sort),
@@ -294,8 +296,7 @@ export function PublicMarketplaceBrowser({
     filteredListingsCount
   );
   const catalogEmpty = marketplaceNotes.length === 0;
-  const noFilterMatches =
-    !catalogEmpty && filteredListingsCount === 0 && visibleFeaturedNotes.length === 0;
+  const noFilterMatches = !catalogEmpty && filteredListingsCount === 0;
   const chipFilterCount =
     (industryFilter !== "all" ? 1 : 0) +
     (riskFilter !== "all" ? 1 : 0) +
@@ -314,9 +315,7 @@ export function PublicMarketplaceBrowser({
 
   return (
     <div className="space-y-11">
-      {visibleFeaturedNotes.length > 0 ? (
-        <MarketplaceFeaturedTrack notes={visibleFeaturedNotes} />
-      ) : null}
+      {featuredNotes.length > 0 ? <MarketplaceFeaturedTrack notes={featuredNotes} /> : null}
 
       <section>
         <div className="mb-4 flex items-baseline justify-between gap-3">
