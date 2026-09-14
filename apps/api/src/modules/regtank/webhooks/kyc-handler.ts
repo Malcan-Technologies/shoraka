@@ -12,10 +12,10 @@ import { syncApplicationGuarantorsFromRegTankAmlWebhook } from "../../admin/guar
 import { maybeAdvanceOrgAfterAmlScreeningCleared } from "./org-aml-milestone";
 import { linkCtosPartyToKyb } from "../../organization/ctos-party-kyb-link";
 import { findCtosPartySupplementByOnboardingJsonMatch } from "../../organization/ctos-party-supplement-webhook-lookup";
+import { shouldIgnoreStaleCtosPartyOnboardingWebhook } from "../../organization/ctos-party-onboarding-request-guard";
 import {
   getCtosPartySupplementPipelineStatus,
   mergeCtosPartySupplementDocument,
-  parseCtosPartySupplement,
 } from "@cashsouk/types";
 import { mapRegTankKycScreeningStatusToAmlStatus } from "../helpers/regtank-kyc-screening-to-aml-status";
 import {
@@ -793,7 +793,7 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
   }
 
   /**
-   * Issuer CTOS party individual onboarding: no reg_tank_onboarding row; match supplement by onboarding_json.requestId or referenceId.
+   * Company-related party individual onboarding: no reg_tank_onboarding row; match supplement by onboarding_json.requestId or referenceId.
    * When webhook `referenceId` uses `buildSafeReferenceId(orgId, partyKey)`, lookup is scoped to that org so another org cannot match the same ids.
    */
   private async tryHandleCtosPartyKycFromWebhook(payload: RegTankKYCWebhook): Promise<boolean> {
@@ -815,7 +815,6 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
     }
 
     const prevRoot = supplement.onboarding_json;
-    const prev = parseCtosPartySupplement(prevRoot);
 
     const rawStatus = typeof status === "string" ? status : "";
     if (!rawStatus) {
@@ -832,20 +831,13 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
     }
     const now = new Date().toISOString();
 
-    const latestRequestId = prev.requestId.trim();
-    const webhookOnboardingId = typeof onboardingId === "string" ? onboardingId.trim() : "";
-    if (latestRequestId && webhookOnboardingId && latestRequestId !== webhookOnboardingId) {
-      logger.info(
-        {
-          latestRequestId,
-          webhookOnboardingId,
-          requestId,
-          partyKey: supplement.party_key,
-          issuerOrganizationId: supplement.issuer_organization_id,
-          investorOrganizationId: supplement.investor_organization_id,
-        },
-        "Ignored stale CTOS party KYC webhook for non-latest onboarding requestId"
-      );
+    if (
+      shouldIgnoreStaleCtosPartyOnboardingWebhook({
+        supplement,
+        incomingOnboardingRequestId: onboardingId,
+        webhookType: "kyc",
+      })
+    ) {
       return true;
     }
 
@@ -916,19 +908,27 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
 
     const updatedRec = mergedBase as Record<string, unknown>;
     const approved = getCtosPartySupplementPipelineStatus(updatedRec).toUpperCase() === "APPROVED";
-    if (approved && this.provider === "ACURIS" && supplement.issuer_organization_id) {
+    const portalType = supplement.issuer_organization_id
+      ? "issuer"
+      : supplement.investor_organization_id
+        ? "investor"
+        : null;
+    const organizationId = supplement.issuer_organization_id || supplement.investor_organization_id;
+    if (approved && this.provider === "ACURIS" && portalType && organizationId) {
       try {
         await linkCtosPartyToKyb({
-          organizationId: supplement.issuer_organization_id,
+          organizationId,
           partyKey: supplement.party_key,
           onboardingJson: updatedRec,
+          portalType,
         });
       } catch (e) {
         logger.error(
           {
             error: e instanceof Error ? e.message : String(e),
-            organizationId: supplement.issuer_organization_id,
+            organizationId,
             partyKey: supplement.party_key,
+            portalType,
           },
           "CTOS KYB auto-link failed (non-blocking)"
         );

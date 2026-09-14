@@ -45,7 +45,7 @@ All portal services use similar configuration:
 
 ### Environment Variables (via SSM/Secrets Manager):
 
-- `DATABASE_URL` (Secret)
+- `DATABASE_URL` (Secret `cashsouk/app-database-url`, `cashsouk_app` DML). Do not use `cashsouk/database-url` here.
 - `RDS_PROXY_ENDPOINT`
 - `S3_BUCKET`
 - `S3_PREFIX`
@@ -56,12 +56,13 @@ All portal services use similar configuration:
 
 ## Migrations Task
 
-Special one-shot task for running Prisma migrations:
+Special one-shot task for running Prisma migrations as `cashsouk_admin`:
 
 - **CPU**: 256 (0.25 vCPU)
 - **Memory**: 512 MB
 - **Command**: `cd apps/api && npx prisma migrate deploy`
 - **No health check** (exits after completion)
+- `DATABASE_URL` from Secret `cashsouk/database-url` (admin/DDL). Do not point this task at `cashsouk/app-database-url`.
 
 ### Usage:
 

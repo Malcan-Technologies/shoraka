@@ -78,6 +78,9 @@ async function runCreateForType(typeId: string, enabledPlatform: boolean, enable
     message: "Please complete onboarding for Director B.",
     link_path: "/profile",
     metadata: { portal: typeId.includes("investor") ? "investor" : "issuer" },
+    send_to_platform: enabledPlatform,
+    send_to_email: enabledEmail,
+    email_sent_at: null,
   });
   mockSendEmail.mockResolvedValue(undefined);
   (prisma.notification.update as jest.Mock).mockResolvedValue({});
@@ -190,6 +193,9 @@ describe("NotificationService AUTHENTICATION forced delivery", () => {
       message: "The password for your account was changed.",
       link_path: "/account",
       metadata: {},
+      send_to_platform: true,
+      send_to_email: true,
+      email_sent_at: null,
     });
     mockSendEmail.mockResolvedValue(undefined);
     (prisma.notification.update as jest.Mock).mockResolvedValue({});
@@ -393,5 +399,35 @@ describe("Admin-configurable channels for investment_committed and deposit_succe
         enabled_email: true,
       })
     ).resolves.toEqual(expect.objectContaining({ enabled_email: true }));
+  });
+
+  it("retries email on idempotent replay when SES failed the first time", async () => {
+    mockFindByIdempotencyKey.mockResolvedValue({
+      id: "notif-1",
+      send_to_email: true,
+      email_sent_at: null,
+      title: "Note overdue",
+      message: "Payment is overdue",
+      link_path: "/notes/n1",
+      metadata: { portal: "issuer" },
+    });
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue(ownerUser);
+    mockSendEmail.mockResolvedValue(undefined);
+    (prisma.notification.update as jest.Mock).mockResolvedValue({});
+
+    const service = new NotificationService();
+    await service.sendTyped(
+      ownerUser.user_id,
+      NotificationTypeIds.NOTE_OVERDUE,
+      { noteId: "n1", noteTitle: "Note" },
+      "note:servicing:n1:overdue:user:owner-1"
+    );
+
+    expect(mockRepositoryCreate).not.toHaveBeenCalled();
+    expect(mockSendEmail).toHaveBeenCalledTimes(1);
+    expect(prisma.notification.update).toHaveBeenCalledWith({
+      where: { id: "notif-1" },
+      data: { email_sent_at: expect.any(Date) },
+    });
   });
 });

@@ -1,9 +1,7 @@
 {
   "family": "default-api-cashsouk-09ff",
   "networkMode": "awsvpc",
-  "requiresCompatibilities": [
-    "FARGATE"
-  ],
+  "requiresCompatibilities": ["FARGATE"],
   "cpu": "1024",
   "memory": "2048",
   "executionRoleArn": "arn:aws:iam::652821469470:role/service-role/ecsTaskExecutionRole",
@@ -48,7 +46,7 @@
       "secrets": [
         {
           "name": "DATABASE_URL",
-          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:cashsouk/database-url-rsKFxD"
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:cashsouk/app-database-url-X60A4B"
         },
         {
           "name": "COGNITO_USER_POOL_ID",

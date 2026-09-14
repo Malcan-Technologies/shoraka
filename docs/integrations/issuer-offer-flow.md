@@ -4,11 +4,13 @@ Admin sends offers for Contract and Invoice. The issuer receives them, can accep
 
 For products configured with **acceptance documents**, the issuer follows a phased flow (see [Offer acceptance & signing phases](../guides/application-flow/offer-acceptance-and-signing-phases.md)):
 
-1. **Step 1** — Authorised representatives, then upload acceptance docs configured on the product, submit.
-2. **Step 2** — Admin reviews on the **Acceptance** tab (offer status, authorised representatives, acceptance docs, signing package; approve / request changes / reject).
-3. **Step 3** — Admin sends signing links from **Signing package**. Issuer tracks progress. No upload or configure-signers step.
+1. **Step 1** — On the application-detail **Offer** tab: authorised representatives, then upload acceptance docs configured on the product, submit.
+2. **Step 2** — Admin reviews on the **Offer & acceptance** tab (staged: send offer, issuer response, acceptance docs, signing package; approve / request changes / reject).
+3. **Step 3** — Admin sends signing links from **Signing package**. Issuer tracks progress on the same Offer tab. No upload or configure-signers step.
 
 `offer_details.offer_acceptance.status` tracks the phase (Option A). Envelope create/send requires `APPROVED_FOR_SIGNING` (or later). Contract-linked invoices still Accept/Decline after the contract envelope is `COMPLETED`.
+
+UI field and action inventory: [offer-acceptance-tab-inventory.md](../guides/application-flow/offer-acceptance-tab-inventory.md).
 
 ## Data Sources
 
@@ -70,14 +72,25 @@ Entity `contract.status` / `invoice.status` stays `OFFER_SENT` until commercial 
 
 Uses the active phase deadline on `offer_acceptance` (`acceptance_expires_at` while in Step 1 / issuer changes requested; `signing_expires_at` while signing is in progress after links are sent). Deadlines are **Malaysia calendar days** valid through **11:59 PM** on the last valid day; expiry is **`now >= expiresAt`** (exclusive next-midnight MYT stored as UTC). UI labels use shared formatting (`Accept by 06 Aug 2026, 11:59 PM`). See `apps/issuer/src/lib/offer-utils.ts` and `packages/types/src/deadline-config.ts`.
 
-- **"Offer received"** — Show offer badge, enable "Review offer" / Accept–Reject when the active clock has not passed.
+- **"Offer received"** — Show offer badge, enable "Review offer" / Accept–Reject when the active clock has not passed. Review offer opens `/applications/:id?tab=offer`.
 - **"Offer expired"** — Same label for past-deadline soft window (`OFFER_SENT` + clock past) and durable entity status `OFFER_EXPIRED`:
   - Card badge **Offer Expired**, Review CTA hidden, short note that a resent offer may appear
-  - Full offer details remain available (download / read-only modal)
-  - If the Review modal is already open, it becomes read-only (Close + download only; no accept/decline/continue)
+  - Full offer details remain available (download / read-only Offer tab)
+  - If the Offer tab is already open, it becomes read-only (download + **Back to applications**; no accept/decline/continue)
 
 Past deadline API actions return `400 OFFER_EXPIRED`. After the hourly job, entity status is `OFFER_EXPIRED` until admin Send Offer.
 - **null** — No offer (retracted, not sent, or already responded).
+
+## Issuer Offer tab
+
+Application detail hosts the offer in-page (`?tab=offer`; auto-opens when `showReviewOffer` and no tab query). An Offer URL with nothing to review redirects to Summary. Multiple pending offers use a chip switcher (Facility offer + invoices with `canReviewOffer`). Empty, stale, and signed-only states stay on this tab (signed letters download from Documents).
+
+**Horizontal stepper** (not a sidebar):
+
+- Signing / acceptance: Review terms → Representatives → Documents (if workflow) → CashSouk review → Signing → Facility in force / Offer complete
+- Direct accept (contract-linked invoice): Review terms → Confirm & accept → Listed to investors
+
+Terms stay on the page; the panel below the stepper is the current state (reps, documents, waiting, signing, expired, decline). Direct OTP is the only remaining dialog (utilisation consents stay in-page and lock while OTP is open). **Back to applications** leaves the tab; pending acceptance uploads prompt **Unsaved changes** (Discard / Stay) and discard the local draft if confirmed.
 
 ## Offer Details Shape
 
@@ -102,11 +115,11 @@ Signing packages are **always required** for offer types that need an envelope �
 - **Contract offers** (`new_contract` / `existing_contract`)
 - **Invoice-only offers** (invoice with no `contract_id`)
 
-**Contract-linked invoices** (invoice with `contract_id` set) never create an invoice envelope. After the **contract** package envelope is `COMPLETED`, the issuer Accept/Declines that invoice offer directly in Review offer (no signers, uploads, or signing steps). If the contract envelope is not yet complete, Accept is blocked with a short message; Decline remains available.
+**Contract-linked invoices** (invoice with `contract_id` set) never create an invoice envelope. After the **contract** package envelope is `COMPLETED`, the issuer Accept/Declines that invoice offer directly on the Offer tab (no signers, uploads, or signing steps). Confirm & accept is in-page; OTP stays a dialog. If the contract envelope is not yet complete, Accept is blocked with a short message; Decline remains available.
 
 **Invoice-only** offers each get their own envelope from the same product package. Different invoices on the same application may have active envelopes **in parallel** (uniqueness is per `contract_id` or per `invoice_id`, not per application). Active = `DRAFT` | `SENT` | `IN_PROGRESS`.
 
-Every signer is an external party emailed an opaque link. For envelope paths, CashSouk sends the package from the admin Acceptance tab after approving authorised representatives. The issuer **Review offer** modal is the tracking surface once links are sent (progress and reminders). Acceptance documents (e.g. Board Resolution) are uploaded in Step 1.
+Every signer is an external party emailed an opaque link. For envelope paths, CashSouk sends the package from the admin **Offer & acceptance** Signing package stage after approving authorised representatives. The issuer **Offer** tab is the tracking surface once links are sent (progress and reminders). Acceptance documents (e.g. Board Resolution) are uploaded in Step 1 (Documents).
 
 **Product snapshot:** signing package documents and acceptance-document gates come from the application's frozen product version (`application.product_version` within the product `base_id` family), not the latest live catalog row. Acceptance documents are configured on the financing-type step as `acceptance_documents`. Void + recreate rebuilds from that same frozen workflow and does not pick up later product edits. Facility Agreement replaces the e-sign Offer Letter on new packages (issuer CA fields only); the Letter of Offer itself stays an acceptance-document download, not a SigningCloud envelope document. Guarantor Agreement appears only when that frozen signing template includes it (no silent auto-inject); send then fills the Joint and Several Guarantee (JSG) PDF for CA signing on the execution page. Deed of Assignment uses the same layout-detected field geometry. Preview and send rectangles are computed from the same generated PDF. Legacy dual `{ contract, invoice }` under `signing_packages` and flat `signing_template` are migrated in-memory to a single package until the product is re-saved.
 

@@ -1,7 +1,7 @@
 "use client";
 
 import type { ApplicationPersonRow, DirectorShareholderDisplayRow } from "@cashsouk/types";
-import { getFinalStatusLabel, getFinalStatusToken } from "@cashsouk/types";
+import { getFinalStatusLabel, getRelatedPartyStatusToken, relatedPartyVerificationCaption } from "@cashsouk/types";
 import { StatusBadge } from "./status-badge";
 import { cn } from "../lib/utils";
 
@@ -53,12 +53,15 @@ export function UnifiedKycAmlReadonlyRows({ rows, isRefreshing }: UnifiedKycAmlR
                   SSM {row.registrationNumber}
                 </p>
               ) : null}
+              <p className="text-meta text-muted-foreground mt-0.5">
+                {relatedPartyVerificationCaption(row.__person?.entityType ?? (row.type === "COMPANY" ? "CORPORATE" : "INDIVIDUAL"))}
+              </p>
             </div>
             <div className="flex flex-wrap items-center gap-2 shrink-0">
               <span className="text-meta text-muted-foreground">Status</span>
               <StatusBadge
                 label={finalStatus.label}
-                status={getFinalStatusToken(finalStatus.tone)}
+                status={getRelatedPartyStatusToken(finalStatus, "user")}
                 size="sm"
               />
             </div>

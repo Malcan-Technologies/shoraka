@@ -6,13 +6,14 @@ export default async function IssuerProfileCompleteRedirectPage({
   searchParams: Promise<{ step?: string }>;
 }) {
   const { step } = await searchParams;
+  if (step === "people") {
+    redirect("/profile?tab=people");
+  }
   const focus =
     step === "financials"
       ? "financials"
-      : step === "people"
-        ? "people"
-        : step === "company"
-          ? "company"
-          : "completeness";
+      : step === "company"
+        ? "company"
+        : "completeness";
   redirect(`/profile?focus=${focus}`);
 }

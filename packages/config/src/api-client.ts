@@ -105,6 +105,13 @@ import type {
   AdminInvestmentSettlementConfirmationsPayload,
   NoteSettlementPreviewResult,
   NoteActionRequiredCountResponse,
+  NoteDefaultEligibleCountResponse,
+  NoteServicingLetter,
+  WaiveLateChargeInput,
+  ReportCatalogResponse,
+  ReportKey,
+  ReportQuery,
+  ReportResult,
   GetAdminInvestmentsParams,
   GetAdminInvestmentsResponse,
   PendingIssuerPayoutsResponse,
@@ -723,12 +730,35 @@ export class ApiClient {
     return this.get(`/v1/organizations/issuer/${organizationId}/company-seal/preview`);
   }
 
+  async reactivatePartyProfile(
+    portal: "investor" | "issuer",
+    organizationId: string,
+    partyId: string
+  ): Promise<ApiResponse<{ party: OrganizationPartyProfileDto; reviewRequired: boolean }> | ApiError> {
+    return this.post<{ party: OrganizationPartyProfileDto; reviewRequired: boolean }>(
+      `/v1/organizations/${portal}/${organizationId}/party-profiles/${partyId}/reactivate`,
+      {}
+    );
+  }
+
+  async refreshPartyRegTankStatus(
+    portal: "investor" | "issuer",
+    organizationId: string,
+    partyId: string
+  ): Promise<ApiResponse<{ message: string; refreshedSources: string[] }> | ApiError> {
+    return this.post<{ message: string; refreshedSources: string[] }>(
+      `/v1/organizations/${portal}/${organizationId}/party-profiles/${partyId}/refresh-status`,
+      {}
+    );
+  }
+
   async getIssuerLatestFinancialStatements(
     organizationId: string
   ): Promise<
     | ApiResponse<{
         financial_statements: unknown | null;
         ctos_financials: unknown | null;
+        submitted_by_year?: Record<string, Record<string, unknown>>;
         source_application_id: string | null;
         source_application_revision_id: string | null;
         updated_at: string | null;
@@ -806,6 +836,17 @@ export class ApiClient {
     );
   }
 
+  async reactivateMasterParty(
+    portal: "investor" | "issuer",
+    organizationId: string,
+    partyId: string
+  ): Promise<ApiResponse<{ party: OrganizationPartyProfileDto; reviewRequired: boolean }> | ApiError> {
+    return this.post<{ party: OrganizationPartyProfileDto; reviewRequired: boolean }>(
+      `/v1/admin/organizations/${portal}/${organizationId}/party-profiles/${partyId}/reactivate`,
+      {}
+    );
+  }
+
   async patchAdminMasterProfile(
     portal: "investor" | "issuer",
     organizationId: string,
@@ -825,17 +866,6 @@ export class ApiClient {
   ): Promise<ApiResponse<OrganizationPartyProfileDto> | ApiError> {
     return this.patch<OrganizationPartyProfileDto>(
       `/v1/admin/organizations/${portal}/${organizationId}/party-profiles/${partyId}`,
-      data
-    );
-  }
-
-  async createAdminPartyProfile(
-    portal: "investor" | "issuer",
-    organizationId: string,
-    data: Record<string, unknown>
-  ): Promise<ApiResponse<OrganizationPartyProfileDto> | ApiError> {
-    return this.post<OrganizationPartyProfileDto>(
-      `/v1/admin/organizations/${portal}/${organizationId}/party-profiles`,
       data
     );
   }
@@ -1404,9 +1434,10 @@ export class ApiClient {
   }
 
   async generateAdminInvestmentNoteCertificate(
-    id: string
+    id: string,
+    body: { signingPersonId: string }
   ): Promise<ApiResponse<InvestmentNoteCertificatePdfPayload> | ApiError> {
-    return this.post(`/v1/admin/notes/${id}/investment-note-certificate/generate`, {});
+    return this.post(`/v1/admin/notes/${id}/investment-note-certificate/generate`, body);
   }
 
   async retryAdminInvestmentNoteCertificate(
@@ -1428,9 +1459,10 @@ export class ApiClient {
   }
 
   async generateAdminSettlementHibahReceipt(
-    id: string
+    id: string,
+    body: { signingPersonId: string }
   ): Promise<ApiResponse<SettlementHibahReceiptPdfPayload> | ApiError> {
-    return this.post(`/v1/admin/notes/${id}/settlement-hibah-receipt/generate`, {});
+    return this.post(`/v1/admin/notes/${id}/settlement-hibah-receipt/generate`, body);
   }
 
   async retryAdminSettlementHibahReceipt(
@@ -1652,6 +1684,12 @@ export class ApiClient {
     return this.get<NoteActionRequiredCountResponse>("/v1/admin/notes/action-count");
   }
 
+  async getAdminNoteDefaultEligibleCount(): Promise<
+    ApiResponse<NoteDefaultEligibleCountResponse> | ApiError
+  > {
+    return this.get<NoteDefaultEligibleCountResponse>("/v1/admin/notes/default-eligible-count");
+  }
+
   async getAdminPendingRepayments(): Promise<ApiResponse<PendingRepaymentsResponse> | ApiError> {
     return this.get<PendingRepaymentsResponse>("/v1/admin/notes/pending-repayments");
   }
@@ -1764,6 +1802,38 @@ export class ApiClient {
     return this.post<Record<string, unknown>>(`/v1/admin/notes/${id}/late-charge/approve`, data);
   }
 
+  async waiveAdminNoteLateCharge(
+    id: string,
+    data: WaiveLateChargeInput
+  ): Promise<ApiResponse<NoteDetail> | ApiError> {
+    return this.post<NoteDetail>(`/v1/admin/notes/${id}/late-charge/waive`, data);
+  }
+
+  async getAdminNoteServicingLetters(
+    id: string
+  ): Promise<ApiResponse<NoteServicingLetter[]> | ApiError> {
+    return this.get<NoteServicingLetter[]>(`/v1/admin/notes/${id}/servicing-letters`);
+  }
+
+  async getAdminNoteServicingLetterViewUrl(
+    id: string,
+    letterId: string
+  ): Promise<ApiResponse<{ viewUrl: string; expiresIn: number }> | ApiError> {
+    return this.get<{ viewUrl: string; expiresIn: number }>(
+      `/v1/admin/notes/${id}/servicing-letters/${letterId}/view`
+    );
+  }
+
+  async resendAdminNoteServicingLetter(
+    id: string,
+    letterId: string
+  ): Promise<ApiResponse<{ s3Key: string; sentTo: string[] }> | ApiError> {
+    return this.post<{ s3Key: string; sentTo: string[] }>(
+      `/v1/admin/notes/${id}/servicing-letters/${letterId}/resend`,
+      {}
+    );
+  }
+
   async generateAdminNoteArrearsLetter(
     id: string
   ): Promise<ApiResponse<{ s3Key: string }> | ApiError> {
@@ -1852,15 +1922,17 @@ export class ApiClient {
   }
 
   async reissueAdminInvestmentNoteCertificate(
-    id: string
+    id: string,
+    body: { signingPersonId: string }
   ): Promise<ApiResponse<InvestmentNoteCertificatePdfPayload> | ApiError> {
-    return this.post(`/v1/admin/notes/${id}/investment-note-certificate/reissue`, {});
+    return this.post(`/v1/admin/notes/${id}/investment-note-certificate/reissue`, body);
   }
 
   async reissueAdminSettlementHibahReceipt(
-    id: string
+    id: string,
+    body: { signingPersonId: string }
   ): Promise<ApiResponse<SettlementHibahReceiptPdfPayload> | ApiError> {
-    return this.post(`/v1/admin/notes/${id}/settlement-hibah-receipt/reissue`, {});
+    return this.post(`/v1/admin/notes/${id}/settlement-hibah-receipt/reissue`, body);
   }
 
   async getAdminInvestorWithdrawals(params?: {
@@ -2750,6 +2822,44 @@ export class ApiClient {
     return this.get<DashboardStatsResponse>(`/v1/admin/dashboard/stats`);
   }
 
+  async getAdminReportCatalog(): Promise<ApiResponse<ReportCatalogResponse> | ApiError> {
+    return this.get<ReportCatalogResponse>("/v1/admin/reports");
+  }
+
+  async getAdminReport(
+    key: ReportKey,
+    params: ReportQuery = {}
+  ): Promise<ApiResponse<ReportResult> | ApiError> {
+    const search = new URLSearchParams();
+    if (params.asOf) search.set("asOf", params.asOf);
+    if (params.from) search.set("from", params.from);
+    if (params.to) search.set("to", params.to);
+    if (params.groupBy) search.set("groupBy", params.groupBy);
+    search.set("format", "json");
+    return this.get<ReportResult>(`/v1/admin/reports/${key}?${search.toString()}`);
+  }
+
+  async downloadAdminReport(
+    key: ReportKey,
+    params: ReportQuery & { format: "csv" | "xlsx" }
+  ): Promise<Blob> {
+    const search = new URLSearchParams();
+    if (params.asOf) search.set("asOf", params.asOf);
+    if (params.from) search.set("from", params.from);
+    if (params.to) search.set("to", params.to);
+    if (params.groupBy) search.set("groupBy", params.groupBy);
+    search.set("format", params.format);
+    const url = `${this.baseUrl}/v1/admin/reports/${key}?${search.toString()}`;
+    const authToken = await this.getAuthToken();
+    const headers: HeadersInit = {};
+    if (authToken) headers.Authorization = `Bearer ${authToken}`;
+    const response = await fetch(url, { method: "GET", credentials: "include", headers });
+    if (!response.ok) {
+      throw new Error(`Report download failed (${response.status})`);
+    }
+    return response.blob();
+  }
+
   // Admin - Access Logs
   async getAccessLogs(
     params: GetAccessLogsParams
@@ -3326,6 +3436,16 @@ export class ApiClient {
   ): Promise<ApiResponse<SigningEnvelopeDto> | ApiError> {
     return this.post<SigningEnvelopeDto>(
       `/v1/admin/signing/envelopes/${envelopeId}/retry-delivery`,
+      {}
+    );
+  }
+
+  /** Admin: refresh envelope statuses from SigningCloud document detail. */
+  async syncAdminSigningEnvelopeFromProvider(
+    envelopeId: string
+  ): Promise<ApiResponse<SigningEnvelopeDto> | ApiError> {
+    return this.post<SigningEnvelopeDto>(
+      `/v1/admin/signing/envelopes/${envelopeId}/sync-from-provider`,
       {}
     );
   }
@@ -4254,6 +4374,15 @@ export class ApiClient {
 
   async getIssuerNote(id: string): Promise<ApiResponse<NoteDetail> | ApiError> {
     return this.get<NoteDetail>(`/v1/issuer/notes/${id}`);
+  }
+
+  async getIssuerServicingLetterViewUrl(
+    noteId: string,
+    letterId: string
+  ): Promise<ApiResponse<{ viewUrl: string; expiresIn: number }> | ApiError> {
+    return this.get<{ viewUrl: string; expiresIn: number }>(
+      `/v1/issuer/notes/${noteId}/servicing-letters/${letterId}/view`
+    );
   }
 
   async getIssuerNotePaymentInstructions(

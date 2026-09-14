@@ -18,7 +18,7 @@ describe("Platform Finance Document Authorisation tab", () => {
 
   it("still lets Admin upload the trustee letter authorised signature", () => {
     expect(page).toContain("handleSignatureFileChange");
-    expect(page).toContain("Only PNG, JPG/JPEG, or WEBP images are allowed.");
+    expect(page).toContain("COMPANY_STAMP_UNSUPPORTED_TYPE_MESSAGE");
     expect(page).toContain("Save Trustee Letter");
   });
 });

@@ -92,7 +92,11 @@ export function AttentionSnapCarousel({
             role="group"
             aria-roledescription="slide"
             aria-label={`${index + 1} of ${count}`}
-            className={cn("flex", slideWidthClass, count > 1 ? "snap-start" : null)}
+            className={cn(
+              "flex min-w-0 overflow-hidden",
+              slideWidthClass,
+              count > 1 ? "snap-start" : null
+            )}
           >
             {item.node}
           </div>

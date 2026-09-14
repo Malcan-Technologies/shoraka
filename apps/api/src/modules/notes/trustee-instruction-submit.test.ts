@@ -35,6 +35,9 @@ jest.mock("../../lib/prisma", () => ({
       findFirst: jest.fn(),
       updateMany: jest.fn(),
     },
+    notePositionSnapshot: {
+      upsert: jest.fn(),
+    },
     notePayment: {
       findMany: jest.fn(),
     },
@@ -168,6 +171,7 @@ describe("trustee instruction submit email wiring", () => {
       status: WithdrawalStatus.SUBMITTED_TO_TRUSTEE,
     });
     (prisma.noteSettlement.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+    (prisma.notePositionSnapshot.upsert as jest.Mock).mockResolvedValue({});
     (prisma.noteEvent.create as jest.Mock).mockResolvedValue({});
     (prisma.noteEvent.findMany as jest.Mock).mockResolvedValue([
       {

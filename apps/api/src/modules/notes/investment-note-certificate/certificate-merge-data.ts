@@ -13,6 +13,7 @@ import {
   formatCertificateRm,
   formatCertificateShare,
 } from "./certificate-format";
+import { printedSignatoryName, printedSignatoryNameAndDate } from "../document-authorisation/printed-signatory";
 
 export type CertificateInvestorRowMerge = {
   rowNumber: string;
@@ -93,7 +94,7 @@ export function buildCertificateDocxMergeData(
   const sumProfit = investors.reduce((sum, row) => sum + row.expectedGrossProfit, 0);
   const sumPayable = investors.reduce((sum, row) => sum + row.totalPayable, 0);
   const investorScoped = input.audience === "INVESTOR";
-  const authorisedSignatoryName = snapshot.authorisation?.authorisedSignatoryName?.trim() ?? "";
+  const authorisedSignatoryName = printedSignatoryName(snapshot.authorisation);
   const signatoryDate = cert.certificateDateDisplay;
 
   return {
@@ -152,8 +153,6 @@ export function buildCertificateDocxMergeData(
     showIssuerLegalIdentity: showIssuerLegalIdentityForAudience(input.audience),
     authorisedSignatoryName,
     signatoryDate,
-    signatoryNameAndDate: authorisedSignatoryName
-      ? `${authorisedSignatoryName} / ${signatoryDate}`
-      : signatoryDate,
+    signatoryNameAndDate: printedSignatoryNameAndDate(snapshot.authorisation, signatoryDate),
   };
 }

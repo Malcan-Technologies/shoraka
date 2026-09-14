@@ -49,7 +49,7 @@ export function deriveExcessLateChargePaymentCardModel(input: {
 }): ExcessLateChargePaymentCardModel {
   const owedAmount = Math.max(0, input.owedAmount);
   const outstanding = Math.max(0, input.outstanding);
-  const creditedAmount = Math.max(0, Math.min(owedAmount, owedAmount - outstanding));
+  const creditedAmount = Math.max(0, Math.min(owedAmount, input.paidAmount));
   const progressPercent =
     owedAmount <= 0 ? 100 : Math.min(100, Math.round((creditedAmount / owedAmount) * 100));
   const requiresMultiplePayments =

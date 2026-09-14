@@ -19,6 +19,7 @@ Step-by-step guides for common tasks:
 - **[Database Workflow](./guides/database-workflow.md)** - Working with Prisma
 - **[Authentication](./guides/authentication.md)** - Auth implementation (planned)
 - **[Environment Variables](./guides/environment-variables.md)** - Configuration reference
+- **[Company People Lifecycle](./guides/people/company-people-lifecycle.md)** - End-to-end issuer/investor people lifecycle, source precedence, CTOS/RegTank/master rules
 - **[Plain Support](./guides/plain-support.md)** - Help Center, chat widget, and article publishing
 - **[Notification Testing Guide](./guides/notifications/notification-testing-guide.md)** - Notification trigger map and test steps
 
@@ -51,6 +52,7 @@ Admin portal and activity timeline:
 
 - **[Activity Timeline](./guides/admin/activity-timeline.md)** - Application log creation, remark at top-level, event labels/icons
 - **[CTOS financial summary display](./guides/admin/ctos-financial-summary-display.md)** - CTOS-first cells and fallback formulas in application review
+- **[Admin People Test seed](./guides/admin/admin-people-test-seed.md)** - Local demo orgs for People & Access / CTOS / RegTank UI states
 
 ### 🏗️ Architecture
 

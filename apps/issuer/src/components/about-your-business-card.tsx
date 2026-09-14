@@ -3,20 +3,25 @@
 import * as React from "react";
 import {
   ABOUT_YOUR_BUSINESS_LIMITS,
+  firstIssueMessage,
+  isAboutYourBusinessFieldRequired,
+  issuesByField,
   parseAboutYourBusiness,
+  PROFILE_LABEL,
+  validateAboutYourBusinessForm,
   type AboutYourBusiness,
 } from "@cashsouk/types";
 import { BriefcaseIcon, PencilIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { ComRepFieldLabel, ProfileReadField } from "@cashsouk/ui";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TextareaWithCharCount } from "@/components/textarea-with-char-count";
 import { useCorporateInfo } from "@/hooks/use-corporate-info";
 import { cn } from "@/lib/utils";
 import {
   formInputClassName,
-  formInputDisabledClassName,
   formLabelClassName,
   formTextareaClassName,
 } from "@/app/(application-flow)/applications/components/form-control";
@@ -106,12 +111,29 @@ export function AboutYourBusinessCard({
   const { corporateInfo, isLoading, update, isUpdating } = useCorporateInfo(organizationId);
   const [isEditing, setIsEditing] = React.useState(false);
   const [draft, setDraft] = React.useState<AboutYourBusiness>(emptyDraft);
+  const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
 
   React.useEffect(() => {
     setDraft(parseAboutYourBusiness(corporateInfo?.aboutYourBusiness));
   }, [corporateInfo]);
 
   const handleSave = () => {
+    const issues = validateAboutYourBusinessForm({
+      whatDoesCompanyDo: draft.whatDoesCompanyDo,
+      mainCustomers: draft.mainCustomers,
+    });
+    if (issues.length > 0) {
+      setFieldErrors(issuesByField(issues));
+      const first = issues[0];
+      const el = document.getElementById(
+        first.field === "mainCustomers" ? "profile-main-customers" : "profile-what-does-company-do"
+      );
+      el?.scrollIntoView({ block: "center", behavior: "smooth" });
+      if (el instanceof HTMLElement) el.focus();
+      toast.error(firstIssueMessage(issues) ?? "Complete the required fields.");
+      return;
+    }
+    setFieldErrors({});
     update({
       aboutYourBusiness: {
         whatDoesCompanyDo: draft.whatDoesCompanyDo,
@@ -125,6 +147,7 @@ export function AboutYourBusinessCard({
 
   const handleCancel = () => {
     setDraft(parseAboutYourBusiness(corporateInfo?.aboutYourBusiness));
+    setFieldErrors({});
     setIsEditing(false);
   };
 
@@ -143,7 +166,10 @@ export function AboutYourBusinessCard({
     );
   }
 
-  const fieldsLocked = !isEditing;
+  const activitiesRequired = isAboutYourBusinessFieldRequired("whatDoesCompanyDo");
+  const customersRequired = isAboutYourBusinessFieldRequired("mainCustomers");
+  const concentrationRequired = isAboutYourBusinessFieldRequired("singleCustomerOver50Revenue");
+  const softwareRequired = isAboutYourBusinessFieldRequired("accountingSoftware");
 
   return (
     <div id="profile-about" className="scroll-mt-24 rounded-xl border bg-card">
@@ -179,63 +205,81 @@ export function AboutYourBusinessCard({
         ) : null}
       </div>
       <div className="space-y-6 p-6">
+        {isEditing ? (
+          <>
         <div className="space-y-2">
-          <Label htmlFor="profile-what-does-company-do" className={formLabelClassName}>
-            Company Activities
-          </Label>
+          <ComRepFieldLabel
+            htmlFor="profile-what-does-company-do"
+            label={PROFILE_LABEL.companyActivities}
+            required={activitiesRequired}
+            optional={!activitiesRequired}
+          />
           <TextareaWithCharCount
             id="profile-what-does-company-do"
             value={draft.whatDoesCompanyDo}
-            onChange={(e) =>
+            onChange={(e) => {
               setDraft((prev) => ({
                 ...prev,
                 whatDoesCompanyDo: e.target.value.slice(0, ABOUT_YOUR_BUSINESS_LIMITS.whatDoesCompanyDo),
-              }))
-            }
+              }));
+              setFieldErrors((current) => ({ ...current, whatDoesCompanyDo: "" }));
+            }}
             placeholder="Add details"
             maxLength={ABOUT_YOUR_BUSINESS_LIMITS.whatDoesCompanyDo}
             className={textareaClassName}
             countLabel={`${draft.whatDoesCompanyDo.length}/${ABOUT_YOUR_BUSINESS_LIMITS.whatDoesCompanyDo} characters`}
-            disabled={fieldsLocked}
           />
+          {fieldErrors.whatDoesCompanyDo ? (
+            <p className="text-meta text-destructive">{fieldErrors.whatDoesCompanyDo}</p>
+          ) : null}
         </div>
         <div className="space-y-2">
-          <Label htmlFor="profile-main-customers" className={formLabelClassName}>
-            Who are your main customers?
-          </Label>
+          <ComRepFieldLabel
+            htmlFor="profile-main-customers"
+            label={PROFILE_LABEL.mainCustomers}
+            required={customersRequired}
+            optional={!customersRequired}
+          />
           <TextareaWithCharCount
             id="profile-main-customers"
             value={draft.mainCustomers}
-            onChange={(e) =>
+            onChange={(e) => {
               setDraft((prev) => ({
                 ...prev,
                 mainCustomers: e.target.value.slice(0, ABOUT_YOUR_BUSINESS_LIMITS.mainCustomers),
-              }))
-            }
+              }));
+              setFieldErrors((current) => ({ ...current, mainCustomers: "" }));
+            }}
             placeholder="Add details"
             maxLength={ABOUT_YOUR_BUSINESS_LIMITS.mainCustomers}
             className={textareaClassName}
             countLabel={`${draft.mainCustomers.length}/${ABOUT_YOUR_BUSINESS_LIMITS.mainCustomers} characters`}
-            disabled={fieldsLocked}
           />
+          {fieldErrors.mainCustomers ? (
+            <p className="text-meta text-destructive">{fieldErrors.mainCustomers}</p>
+          ) : null}
         </div>
         <div className="space-y-2">
-          <Label className={formLabelClassName}>
-            Does any single customer make up more than 50% of your revenue?
-          </Label>
+          <ComRepFieldLabel
+            label="Does any single customer make up more than 50% of your revenue?"
+            required={concentrationRequired}
+            optional={!concentrationRequired}
+          />
           <YesNoRadio
             name="profile-single-customer-over-50"
             value={draft.singleCustomerOver50Revenue}
             onChange={(singleCustomerOver50Revenue) =>
               setDraft((prev) => ({ ...prev, singleCustomerOver50Revenue }))
             }
-            disabled={fieldsLocked}
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="profile-accounting-software" className={formLabelClassName}>
-            Which accounting software does the issuer use?
-          </Label>
+          <ComRepFieldLabel
+            htmlFor="profile-accounting-software"
+            label="Which accounting software does the issuer use?"
+            required={softwareRequired}
+            optional={!softwareRequired}
+          />
           <Input
             id="profile-accounting-software"
             value={draft.accountingSoftware}
@@ -247,10 +291,42 @@ export function AboutYourBusinessCard({
             }
             placeholder="e.g. QuickBooks, Xero, SAP"
             maxLength={ABOUT_YOUR_BUSINESS_LIMITS.accountingSoftware}
-            disabled={fieldsLocked}
-            className={cn(formInputClassName, fieldsLocked && formInputDisabledClassName)}
+            className={formInputClassName}
           />
         </div>
+          </>
+        ) : (
+          <>
+            <ProfileReadField
+              label={PROFILE_LABEL.companyActivities}
+              value={draft.whatDoesCompanyDo}
+              required={activitiesRequired}
+              multiline
+            />
+            <ProfileReadField
+              label={PROFILE_LABEL.mainCustomers}
+              value={draft.mainCustomers}
+              required={customersRequired}
+              multiline
+            />
+            <ProfileReadField
+              label="Does any single customer make up more than 50% of your revenue?"
+              value={
+                draft.singleCustomerOver50Revenue === true
+                  ? "Yes"
+                  : draft.singleCustomerOver50Revenue === false
+                    ? "No"
+                    : ""
+              }
+              required={concentrationRequired}
+            />
+            <ProfileReadField
+              label="Which accounting software does the issuer use?"
+              value={draft.accountingSoftware}
+              required={softwareRequired}
+            />
+          </>
+        )}
       </div>
     </div>
   );

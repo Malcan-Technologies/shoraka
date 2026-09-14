@@ -128,15 +128,30 @@ function tagDocumentXml(xml: string): string {
 
 function tagReceiptStampTable(tableXml: string): string {
   const cells = matchAll(tableXml, /<w:tc\b[\s\S]*?<\/w:tc>/g);
-  if (cells.length < 1) {
+  if (cells.length < 2) {
     throw new Error("Receipt stamp table is missing cells");
   }
-  const stampCell = cells[0]!.replace(
-    ">________________________<",
-    ">§COMPANY_STAMP_IMAGE§<"
-  );
+  const runPr =
+    `<w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial"/><w:color w:val="666666"/><w:sz w:val="14"/></w:rPr>`;
+  const tcPr0 = cells[0]!.match(/<w:tcPr\b[\s\S]*?<\/w:tcPr>/)?.[0] ?? "";
+  const pOpen0 = cells[0]!.match(/<w:p\b[^>]*>/)?.[0] ?? "<w:p>";
+  const signatureCell =
+    `<w:tc>${tcPr0}${pOpen0}` +
+    `<w:r>${runPr}<w:t>§SIGNATURE_IMAGE§</w:t></w:r>` +
+    `<w:r>${runPr}<w:br/></w:r>` +
+    `<w:r>${runPr}<w:t>As agent of the Issuer</w:t></w:r>` +
+    `<w:r>${runPr}<w:br/></w:r>` +
+    `<w:r>${runPr}<w:t xml:space="preserve">Name / Date: {signatoryNameAndDate}</w:t></w:r>` +
+    `</w:p></w:tc>`;
+  const tcPr1 = cells[1]!.match(/<w:tcPr\b[\s\S]*?<\/w:tcPr>/)?.[0] ?? "";
+  const stampCell =
+    `<w:tc>${tcPr1}<w:p>` +
+    `<w:r>${runPr}<w:t>§COMPANY_STAMP_IMAGE§</w:t></w:r>` +
+    `<w:r>${runPr}<w:br/></w:r>` +
+    `<w:r>${runPr}<w:t>Company Stamp</w:t></w:r>` +
+    `</w:p></w:tc>`;
+  const updated = [signatureCell, stampCell, ...cells.slice(2)];
   let cursor = 0;
-  const updated = [stampCell, ...cells.slice(1)];
   return tableXml.replace(/<w:tc\b[\s\S]*?<\/w:tc>/g, () => updated[cursor++] ?? "");
 }
 

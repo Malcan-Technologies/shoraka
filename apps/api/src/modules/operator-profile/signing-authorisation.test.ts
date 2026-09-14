@@ -109,7 +109,7 @@ describe("Shoraka signature confirm and upload schemas", () => {
     expect(operatorSigningSignatureConfirmSchema.safeParse({}).success).toBe(false);
   });
 
-  it("tightens signature uploads to PNG/JPEG at 500 KB while company stamps stay on 5 MB WebP rules", () => {
+  it("tightens signature uploads to PNG/JPEG at 500 KB while company stamps stay on the 5 MB PNG/JPEG cap", () => {
     expect(
       requestOperatorSigningSignatureUploadUrlSchema.safeParse({
         fileName: "sig.png",
@@ -135,6 +135,13 @@ describe("Shoraka signature confirm and upload schemas", () => {
       requestOperatorSigningImageUploadUrlSchema.safeParse({
         fileName: "stamp.webp",
         contentType: "image/webp",
+        fileSize: 5 * 1024 * 1024,
+      }).success
+    ).toBe(false);
+    expect(
+      requestOperatorSigningImageUploadUrlSchema.safeParse({
+        fileName: "stamp.png",
+        contentType: "image/png",
         fileSize: 5 * 1024 * 1024,
       }).success
     ).toBe(true);
@@ -214,15 +221,15 @@ describe("Shoraka signing authorisation storage boundaries", () => {
     expect(service).toContain("if (!name) return;");
   });
 
-  it("does not change document freeze or generation read paths", () => {
+  it("does not change SigningCloud or invent a parallel freeze store", () => {
     expect(freezeConfig).toContain("document_authorisation_config");
     expect(freezeConfig).toContain("export async function freezeCertificateAuthorisation");
     expect(freezeConfig).toContain("export async function freezeReceiptAuthorisation");
     expect(freezeConfig).not.toContain("operatorSigningPerson");
     expect(freezeConfig).not.toContain("signingPeople");
-    expect(certificateService).toContain("freezeCertificateAuthorisation");
+    expect(certificateService).toContain("freezeShorakaSigningAuthorisation");
     expect(certificateService).not.toContain("createSigningPerson");
-    expect(receiptService).toContain("freezeReceiptAuthorisation");
+    expect(receiptService).toContain("freezeShorakaSigningAuthorisation");
     expect(receiptService).not.toContain("createSigningPerson");
   });
 

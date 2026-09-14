@@ -1,4 +1,5 @@
 import PizZip from "pizzip";
+import { PNG } from "pngjs";
 import { SETTLEMENT_CONFIRMATION_COPY } from "./types";
 import { sampleSettlementHibahReceiptSnapshot } from "./receipt-fixture";
 import { buildSettlementHibahReceiptDocxMergeData } from "./receipt-merge-data";
@@ -6,6 +7,8 @@ import {
   renderSettlementHibahReceiptDocx,
   resolveSettlementHibahReceiptTemplatePath,
 } from "./render-receipt-docx";
+import { COMPACT_MAX_STAMP_HEIGHT_EMU } from "../document-authorisation/docx-stamp-image";
+import { MAX_STAMP_HEIGHT_EMU } from "../document-authorisation/stamp-image-contain";
 
 function wordPlainText(xml: string): string {
   let text = "";
@@ -44,6 +47,9 @@ describe("renderSettlementHibahReceiptDocx", () => {
     expect(plain).not.toContain("{issuerLegalName}");
     expect(plain).not.toContain("SR-YYYY-0000");
     expect(plain).not.toContain("§COMPANY_STAMP_IMAGE§");
+    expect(plain).not.toContain("§SIGNATURE_IMAGE§");
+    expect(plain).toContain("As agent of the Issuer");
+    expect(plain).toContain("Company Stamp");
   });
 
   it("fills frozen identifiers, invoice, paymaster and dates", () => {
@@ -53,7 +59,7 @@ describe("renderSettlementHibahReceiptDocx", () => {
     expect(plain).toContain("ISS-1");
     expect(plain).toContain("Helios Sdn Bhd");
     expect(plain).toContain("1234567-A");
-    expect(plain).toContain("ARF-202608-A52 / FAC-1");
+    expect(plain).toContain("ARF-202608-A52");
     expect(plain).toContain("Paymaster Co");
     expect(plain).toContain("INV-9");
     expect(plain).toContain("RM 100,000.00");
@@ -196,5 +202,82 @@ describe("renderSettlementHibahReceiptDocx", () => {
     const xml = zip.file("word/document.xml")?.asText() ?? "";
     expect(xml).toContain("<w:drawing>");
     expect(xml).not.toContain("§COMPANY_STAMP_IMAGE§");
+  });
+
+  it("embeds a signature image and company stamp together", () => {
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFhAH+plp0OQAAAABJRU5ErkJggg==",
+      "base64"
+    );
+    const snapshot = sampleSettlementHibahReceiptSnapshot({
+      authorisation: {
+        stampSource: "SHARED_CERTIFICATE_STAMP",
+        companyStamp: null,
+        signingPersonName: "John Lee",
+        authorisedSignatoryName: "John Lee",
+      },
+    });
+    const data = buildSettlementHibahReceiptDocxMergeData(snapshot);
+    expect(data.signatoryNameAndDate).toBe("John Lee / 02 Sep 2026");
+    const docx = renderSettlementHibahReceiptDocx(snapshot, { bytes: png, contentType: "image/png" }, {
+      bytes: png,
+      contentType: "image/png",
+    });
+    const zip = new PizZip(docx);
+    expect(zip.file("word/media/company-stamp.png")).toBeTruthy();
+    expect(zip.file("word/media/signing-signature.png")).toBeTruthy();
+    const plain = wordPlainText(zip.file("word/document.xml")?.asText() ?? "");
+    expect(plain).toContain("As agent of the Issuer");
+    expect(plain).toContain("John Lee / 02 Sep 2026");
+    expect(plain).toContain("Company Stamp");
+  });
+
+  it("tightens signature/stamp block spacing for one-page Hibah receipt layout", () => {
+    const xml = renderedXml();
+
+    const paraIdx = xml.indexOf('w14:paraId="4160D8A5"');
+    expect(paraIdx).toBeGreaterThanOrEqual(0);
+    expect(xml.slice(paraIdx, paraIdx + 600)).toContain('<w:spacing w:after="20"/>');
+
+    const agentIdx = xml.indexOf("As agent of the Issuer");
+    expect(agentIdx).toBeGreaterThanOrEqual(0);
+    const window = xml.slice(Math.max(0, agentIdx - 2000), agentIdx + 600);
+    expect(window).toContain('<w:top w:w="25" w:type="dxa"/>');
+    expect(window).toContain('<w:bottom w:w="25" w:type="dxa"/>');
+  });
+
+  it("uses compact wp:extent sizing for signature + company stamp (Hibah receipt)", () => {
+    const png = new PNG({ width: 800, height: 800 });
+    png.data.fill(200);
+    for (let i = 3; i < png.data.length; i += 4) png.data[i] = 255;
+    const bytes = PNG.sync.write(png);
+
+    const docx = renderSettlementHibahReceiptDocx(
+      sampleSettlementHibahReceiptSnapshot(),
+      { bytes, contentType: "image/png" },
+      { bytes, contentType: "image/png" }
+    );
+    const xml = new PizZip(docx).file("word/document.xml")?.asText() ?? "";
+
+    const extentFor = (docPrId: number): { cx: number; cy: number } => {
+      const re = new RegExp(
+        `<wp:extent cx="(\\d+)" cy="(\\d+)"\\/>([\\s\\S]*?)<wp:docPr id="${docPrId}"`,
+        "m"
+      );
+      const match = xml.match(re);
+      expect(match).toBeTruthy();
+      return { cx: Number(match![1]), cy: Number(match![2]) };
+    };
+
+    const signatureExtent = extentFor(91002);
+    const stampExtent = extentFor(91001);
+
+    expect(signatureExtent.cy).toBe(COMPACT_MAX_STAMP_HEIGHT_EMU);
+    expect(signatureExtent.cx).toBe(COMPACT_MAX_STAMP_HEIGHT_EMU);
+    expect(stampExtent.cy).toBe(COMPACT_MAX_STAMP_HEIGHT_EMU);
+    expect(stampExtent.cx).toBe(COMPACT_MAX_STAMP_HEIGHT_EMU);
+
+    // Compact should be materially smaller than the default max bounds.
+    expect(COMPACT_MAX_STAMP_HEIGHT_EMU).toBeLessThan(MAX_STAMP_HEIGHT_EMU);
   });
 });

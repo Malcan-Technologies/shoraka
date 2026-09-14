@@ -3,6 +3,7 @@ const mockRepository = {
   hasPersonalIssuerOrganization: jest.fn(),
   investorOrganizationNameExists: jest.fn(),
   issuerOrganizationNameExists: jest.fn(),
+  findOwnedResumableCompanyByName: jest.fn(),
   createInvestorOrganization: jest.fn(),
   createIssuerOrganization: jest.fn(),
   addOrganizationMember: jest.fn(),
@@ -66,6 +67,7 @@ describe("OrganizationService createOrganization display reference", () => {
     mockRepository.hasPersonalIssuerOrganization.mockResolvedValue(false);
     mockRepository.investorOrganizationNameExists.mockResolvedValue(false);
     mockRepository.issuerOrganizationNameExists.mockResolvedValue(false);
+    mockRepository.findOwnedResumableCompanyByName.mockResolvedValue(null);
     mockPrisma.user.findUnique.mockResolvedValue({
       user_id: "user_1",
       roles: [UserRole.INVESTOR, UserRole.ISSUER],
@@ -112,7 +114,8 @@ describe("OrganizationService createOrganization display reference", () => {
         data: { display_reference: "IVT-202608-D7F" },
       })
     );
-    expect((result as any).display_reference).toBe("IVT-202608-D7F");
+    expect((result as any).outcome).toBe("CREATED");
+    expect((result as any).organization.display_reference).toBe("IVT-202608-D7F");
   });
 
   it("allocates ISS reference when creating issuer organization", async () => {
@@ -151,6 +154,7 @@ describe("OrganizationService createOrganization display reference", () => {
         data: { display_reference: "ISS-202608-DK3" },
       })
     );
-    expect((result as any).display_reference).toBe("ISS-202608-DK3");
+    expect((result as any).outcome).toBe("CREATED");
+    expect((result as any).organization.display_reference).toBe("ISS-202608-DK3");
   });
 });

@@ -134,6 +134,29 @@ export function partyRoleLabels(party: {
   return parts;
 }
 
+/** Role labels without ownership % — use when Shareholding is a separate field. */
+export function partyRoleLabelsWithoutShare(party: {
+  isDirector: boolean;
+  isBoard: boolean;
+  isManagement: boolean;
+  isShareholder: boolean;
+  entityType?: OrganizationPartyEntityType;
+}): string[] {
+  const parts: string[] = [];
+  if (party.isDirector) parts.push("Director");
+  if (party.isBoard) parts.push("Board");
+  if (party.isManagement) parts.push("Management");
+  if (party.isShareholder) parts.push("Shareholder");
+  return parts;
+}
+
 export function formatPartyRoleLine(party: OrganizationPartyProfileDto): string {
   return partyRoleLabels(party).join(" · ") || (party.entityType === "CORPORATE" ? "Company" : "Person");
+}
+
+export function formatPartyRoleLineWithoutShare(party: OrganizationPartyProfileDto): string {
+  return (
+    partyRoleLabelsWithoutShare(party).join(" · ") ||
+    (party.entityType === "CORPORATE" ? "Company" : "Person")
+  );
 }

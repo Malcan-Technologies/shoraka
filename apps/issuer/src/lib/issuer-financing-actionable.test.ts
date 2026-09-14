@@ -236,6 +236,21 @@ describe("isIssuerNoteActionable", () => {
     ).toBe(false);
   });
 
+  it("flags OVERDUE servicing even before the maturity calendar heuristic", () => {
+    expect(
+      isIssuerNoteActionable(
+        note({
+          status: "ACTIVE" as NoteListItem["status"],
+          servicingStatus: "OVERDUE" as NoteListItem["servicingStatus"],
+          maturityDate: "2026-08-24T00:00:00.000Z",
+          daysPastDue: 3,
+          excessLateCharges: null,
+        }),
+        now
+      )
+    ).toBe(true);
+  });
+
   it("flags an active note after the Malaysia maturity calendar day", () => {
     expect(
       isIssuerNoteActionable(

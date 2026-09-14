@@ -15,6 +15,7 @@ import {
   MARKETPLACE_MIN_COMMIT_MYR,
   PROSPECTUS_COMPANY_SIZE_VALUES,
   PROSPECTUS_DEED_OF_ASSIGNMENT_VALUES,
+  PROSPECTUS_ABOUT_INVOICE_TEMPLATES,
   CASHSCOUK_RISK_GRADE_LETTER_COLOR,
   MARC_SME_BANDS,
   normalizeProspectusCompanySize,
@@ -262,6 +263,33 @@ export function WorkingAreaPageTwo({
                         invoicePaymaster: {
                           ...prev.page2.invoicePaymaster,
                           deedOfAssignment: normalizeProspectusDeedOfAssignment(value),
+                        },
+                        // Keep the About-Invoice deed statement in sync immediately.
+                        // It is SYSTEM_SUGGESTION by default; otherwise we risk overwriting officer-entered copy.
+                        aboutInvoice: {
+                          items: (() => {
+                            const normalizedDeed =
+                              normalizeProspectusDeedOfAssignment(value);
+                            const nextText =
+                              normalizedDeed === "Yes"
+                                ? PROSPECTUS_ABOUT_INVOICE_TEMPLATES.deed_of_assignment
+                                : "";
+
+                            const existing = prev.page2.aboutInvoice?.items ?? [];
+                            const hasDeedItem = existing.some((i) => i.id === "deed_of_assignment");
+
+                            const updated = existing.map((item) => {
+                              if (item.id !== "deed_of_assignment") return item;
+                              if (item.sourceType !== "SYSTEM_SUGGESTION") return item;
+                              return { ...item, text: nextText };
+                            });
+
+                            if (hasDeedItem) return updated;
+                            return [
+                              ...updated,
+                              { id: "deed_of_assignment", text: nextText, sourceType: "SYSTEM_SUGGESTION" as const },
+                            ];
+                          })(),
                         },
                       },
                     }))

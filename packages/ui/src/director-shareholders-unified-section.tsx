@@ -11,11 +11,11 @@ import {
   formatPeopleRolesLine,
   formatPeopleRolesLineTitleCase,
   getFinalStatusLabel,
-  getFinalStatusToken,
+  getRelatedPartyStatusToken,
   isMissingGovernmentIdPerson,
   normalizeDirectorShareholderIdKey,
   normalizeDirectorShareholderPartyEmail,
-  resolveDirectorShareholderCtosEmptyWarning,
+  resolveCustomerDirectorShareholderEmptyWarning,
   UNRESOLVED_IDENTITY_RECOVERY_COPY,
   UNRESOLVED_IDENTITY_RECOVERY_TITLE,
   type ApplicationPersonRow,
@@ -23,7 +23,7 @@ import {
   type DirectorShareholderListSource,
 } from "@cashsouk/types";
 import { toast } from "sonner";
-import { PartyProfileDetailFields } from "./party-profile-detail-fields";
+import { CustomerPartyProfileOverview } from "./people-access/customer-person-overview";
 import { DirectorShareholderCtosEmptyAlert } from "./director-shareholder-ctos-empty-alert";
 import { DirectorShareholderUnresolvedIdentitySection } from "./director-shareholder-unresolved-identity-card";
 import { Input } from "./components/input";
@@ -108,11 +108,12 @@ export function DirectorShareholdersUnifiedSection({
 
   const resolvedCtosEmptyWarning = React.useMemo(
     () =>
-      resolveDirectorShareholderCtosEmptyWarning({
+      resolveCustomerDirectorShareholderEmptyWarning({
         directorShareholderListSource,
         ctosDirectorShareholderWarning,
+        people,
       }),
-    [directorShareholderListSource, ctosDirectorShareholderWarning]
+    [directorShareholderListSource, ctosDirectorShareholderWarning, people]
   );
 
   const blockPartyOnboarding = Boolean(organizationId) && organizationOnboardingStatus !== "COMPLETED";
@@ -260,7 +261,7 @@ export function DirectorShareholdersUnifiedSection({
           <div className="pt-0.5">
             <StatusBadge
               label={finalStatus.label}
-              status={getFinalStatusToken(finalStatus.tone)}
+              status={getRelatedPartyStatusToken(finalStatus, "user")}
               size="sm"
             />
           </div>
@@ -397,7 +398,7 @@ export function DirectorShareholdersUnifiedSection({
             <AlertDialogTitle>{viewingRow?.name || "Person"}</AlertDialogTitle>
             <AlertDialogDescription>Read-only details for this person.</AlertDialogDescription>
           </AlertDialogHeader>
-          {viewingRow ? <PartyProfileDetailFields person={viewingRow.__person} /> : null}
+          {viewingRow ? <CustomerPartyProfileOverview person={viewingRow.__person} /> : null}
           <AlertDialogFooter>
             <AlertDialogCancel className="rounded-lg">Close</AlertDialogCancel>
           </AlertDialogFooter>

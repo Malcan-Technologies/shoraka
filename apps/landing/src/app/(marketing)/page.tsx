@@ -14,8 +14,8 @@ export default function HomePage() {
       <LandingComingSoonBanner />
       <LandingHero />
       <LandingConvenienceAndListings />
-      <LandingProcess />
       <LandingInvestmentListings />
+      <LandingProcess />
       <LandingFinancingSections />
       <LandingFinalSections />
     </main>

@@ -53,6 +53,7 @@ import { excessLateChargePaymentRouter } from "./modules/payment/excess-late-cha
 import { gatewayPaymentsAdminRouter } from "./modules/payment/admin-controller";
 import { gatewayReconAdminRouter } from "./modules/payment/recon-controller";
 import { facilityLoDemoRouter } from "./modules/applications/letter-of-offer/facility-lo-demo.controller";
+import { adminReportsRouter } from "./modules/reports/controller";
 export function registerRoutes(app: Application): void {
   // Swagger API documentation (only in development)
   if (process.env.NODE_ENV !== "production") {
@@ -150,6 +151,7 @@ export function registerRoutes(app: Application): void {
     v1Router.use("/admin", devAuthBypass, requireRole(UserRole.ADMIN), adminRouter);
     v1Router.use("/admin/signing", devAuthBypass, requireRole(UserRole.ADMIN), createSigningAdminRouter());
     v1Router.use("/admin/notes", devAuthBypass, adminNotesRouter);
+    v1Router.use("/admin/reports", devAuthBypass, adminReportsRouter);
     v1Router.use("/admin/paymasters", devAuthBypass, requireRole(UserRole.ADMIN), adminPaymasterRouter);
     v1Router.use("/admin/investments", devAuthBypass, adminInvestmentsRouter);
     v1Router.use("/admin/platform-finance-settings", devAuthBypass, platformFinanceSettingsRouter);
@@ -172,6 +174,7 @@ export function registerRoutes(app: Application): void {
     v1Router.use("/admin", requireAuth, requireRole(UserRole.ADMIN), adminRouter);
     v1Router.use("/admin/signing", requireAuth, requireRole(UserRole.ADMIN), createSigningAdminRouter());
     v1Router.use("/admin/notes", requireAuth, adminNotesRouter);
+    v1Router.use("/admin/reports", requireAuth, adminReportsRouter);
     v1Router.use("/admin/paymasters", requireAuth, requireRole(UserRole.ADMIN), adminPaymasterRouter);
     v1Router.use("/admin/investments", requireAuth, adminInvestmentsRouter);
     v1Router.use("/admin/platform-finance-settings", requireAuth, platformFinanceSettingsRouter);

@@ -37,7 +37,7 @@ import {
   type ReceiptGenerationSource,
   type SettlementHibahReceiptSnapshot,
 } from "./types";
-import { freezeReceiptAuthorisation } from "../document-authorisation/config";
+import { freezeShorakaSigningAuthorisation, toReceiptAuthorisationSnapshot } from "../document-authorisation/signing-person-freeze";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -202,8 +202,7 @@ export function reissueHibahReceiptSnapshotFromReady(
   previous: SettlementHibahReceiptSnapshot,
   input: {
     version: string;
-    stampSource: ReceiptAuthorisationSnapshot["stampSource"];
-    companyStamp: ReceiptAuthorisationSnapshot["companyStamp"];
+    authorisation: ReceiptAuthorisationSnapshot;
     generatedAt?: Date;
   }
 ): SettlementHibahReceiptSnapshot {
@@ -213,10 +212,7 @@ export function reissueHibahReceiptSnapshotFromReady(
     snapshotGeneratedAt: generatedAt.toISOString(),
     source: "ADMIN_REISSUE",
     version: input.version,
-    authorisation: {
-      stampSource: input.stampSource,
-      companyStamp: input.companyStamp,
-    },
+    authorisation: input.authorisation,
   });
 }
 
@@ -259,8 +255,9 @@ function resolvePaymasterName(paymasterSnapshot: unknown): string {
 export async function buildSettlementHibahReceiptSnapshot(
   noteId: string,
   source: ReceiptGenerationSource,
-  generatedAt = new Date()
+  options?: { signingPersonId?: string; generatedAt?: Date }
 ): Promise<SettlementHibahReceiptSnapshot> {
+  const generatedAt = options?.generatedAt ?? new Date();
   const note = await prisma.note.findUnique({
     where: { id: noteId },
     select: {
@@ -412,7 +409,9 @@ export async function buildSettlementHibahReceiptSnapshot(
   }
   const clearedDisplay = displayUtcDate(clearedDate);
   const maturityIso = isoDate(note.maturity_date);
-  const authorisation = await freezeReceiptAuthorisation();
+  const authorisation = toReceiptAuthorisationSnapshot(
+    await freezeShorakaSigningAuthorisation(options?.signingPersonId ?? "")
+  );
 
   const withoutHash = {
     templateId: RECEIPT_TEMPLATE_ID,

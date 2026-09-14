@@ -397,6 +397,7 @@ export async function parseCtosReportXml(xmlStr: string): Promise<CtosReportPars
       alias: xmlText(safeGet(x, ["alias", 0])),
       ic_lcno: xmlText(safeGet(x, ["ic_lcno", 0])),
       nic_brno: xmlText(safeGet(x, ["nic_brno", 0])),
+      brn_ssm: xmlText(safeGet(x, ["brn_ssm", 0])),
       /** ENQWS-style codes: DO, SO, DS, AD, AS (see admin CTOS cross-check mapping). */
       position: xmlText(safeGet(x, ["position", 0])),
       addr: xmlText(safeGet(x, ["addr", 0])),

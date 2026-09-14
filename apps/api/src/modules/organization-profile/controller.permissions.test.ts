@@ -15,6 +15,22 @@ describe("admin organization profile router permissions", () => {
     expect(source).toContain('router.patch("/:portal/:id/financials", requirePermission("organizations.manage")');
   });
 
+  it("lets issuer owners and org admins refresh later-added party RegTank status", () => {
+    const userRouter = source.slice(
+      source.indexOf("export function createOrganizationProfileRouter"),
+      source.indexOf("export function createAdminOrganizationProfileRouter")
+    );
+    expect(userRouter).toContain('"/:portal/:id/party-profiles/:partyId/refresh-status"');
+    expect(userRouter).toContain("assertOrgOwnerOrAdmin");
+    expect(userRouter).toContain("refreshPartyRegTankStatus");
+  });
+
+  it("does not expose party People & Access refresh on the admin organization profile router", () => {
+    const adminRouter = source.slice(source.indexOf("export function createAdminOrganizationProfileRouter"));
+    expect(adminRouter).not.toContain("refreshPartyRegTankStatus");
+    expect(adminRouter).not.toContain("/refresh-status");
+  });
+
   it("lets issuer owners and org admins inactivate via the same service without a hard delete", () => {
     const userRouter = source.slice(
       source.indexOf("export function createOrganizationProfileRouter"),
@@ -23,7 +39,7 @@ describe("admin organization profile router permissions", () => {
     expect(userRouter).toContain('"/:portal/:id/party-profiles/:partyId/inactivate"');
     expect(userRouter).toContain("assertOrgOwnerOrAdmin");
     expect(userRouter).toContain("inactivateMasterParty");
-    expect(userRouter).toContain('portal !== "issuer"');
+    expect(userRouter).not.toContain('portal !== "issuer"');
     expect(userRouter).not.toMatch(/router\.delete\(\s*"\/:portal\/:id\/party-profiles\/:partyId\/inactivate"/);
     expect(userRouter).not.toContain("Reactivate");
   });
@@ -50,5 +66,14 @@ describe("admin organization profile router permissions", () => {
     expect(source).toContain("MASTER_PARTY_INACTIVATED");
     expect(source).toContain("MASTER_PARTY_CREATED");
     expect(source).toContain("MASTER_FINANCIALS_UPDATED");
+  });
+
+  it("does not let Admin create a company Person", () => {
+    const adminRouter = source.slice(source.indexOf("export function createAdminOrganizationProfileRouter"));
+    expect(adminRouter).not.toContain("createUserAddedParty");
+    expect(adminRouter).not.toContain(
+      'router.post("/:portal/:id/party-profiles", requirePermission("organizations.manage")'
+    );
+    expect(adminRouter).not.toContain("MASTER_PARTY_CREATED");
   });
 });

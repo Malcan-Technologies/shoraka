@@ -32,4 +32,5 @@ export type InvestmentNoteCertificatePdfPayload = {
   pdfFileName: string | null;
   pdfSha256: string | null;
   reviewVersion: import("./official-document-version").OfficialDocumentReviewVersion | null;
+  signingOptions?: import("./operator-profile").DocumentSigningOptions;
 };

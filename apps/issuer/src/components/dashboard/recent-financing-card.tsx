@@ -41,6 +41,7 @@ type Row =
 const STATUS_RANK: Record<IssuerFinancingStatusKind, number> = {
   action_required: 0,
   arrears: 1,
+  defaulted: 1,
   pending_approval: 2,
   pending_listing: 3,
   in_progress: 4,

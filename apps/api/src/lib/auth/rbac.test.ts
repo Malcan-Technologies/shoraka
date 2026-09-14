@@ -65,4 +65,24 @@ describeIntegration("admin RBAC catalog backfill", () => {
     );
   });
 
+  it("does not regrant reports.view to a notes-only role after it was revoked", async () => {
+    const suffix = `${Date.now()}`.slice(-6);
+    const role = await prisma.adminRoleConfig.create({
+      data: {
+        key: `TEST_NOTES_ONLY_${suffix}`,
+        name: `Notes Only ${suffix}`,
+        permissions: ["notes.view"],
+        is_system: false,
+        is_editable: true,
+        is_default: false,
+      },
+    });
+    createdRoleIds.push(role.id);
+
+    await ensureAdminRoleCatalog(prisma);
+
+    const updated = await prisma.adminRoleConfig.findUniqueOrThrow({ where: { id: role.id } });
+    expect(updated.permissions).toEqual(["notes.view"]);
+    expect(updated.permissions).not.toContain("reports.view");
+  });
 });

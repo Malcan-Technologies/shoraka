@@ -337,6 +337,8 @@ export class GeneratedDocumentsService {
           typeDef,
           input.format,
           input.userId,
+          input.contractId,
+          input.invoiceId,
           input.execution
         );
       case "arf_deed_of_assignment":
@@ -345,6 +347,8 @@ export class GeneratedDocumentsService {
           typeDef,
           input.format,
           input.userId,
+          input.contractId,
+          input.invoiceId,
           input.execution
         );
       case "arf_facility_agreement":
@@ -513,6 +517,8 @@ export class GeneratedDocumentsService {
     typeDef: GeneratedDocumentTypeDefinition,
     format: GeneratedDocumentFormat,
     createdByUserId: string,
+    contractId?: string | null,
+    invoiceId?: string | null,
     execution?: FrozenDocumentExecutionContext | null
   ): Promise<GeneratedDocumentResult> {
     const contract = this.requireContractForGenerate(
@@ -520,10 +526,17 @@ export class GeneratedDocumentsService {
       "Application has no contract for joint and several guarantee generation."
     );
     const issuerOrganization = this.requireIssuerOrganization(application);
+    const target = this.resolveOfferDocumentTarget(
+      application,
+      contract,
+      contractId,
+      invoiceId
+    );
     const { liveGuarantors } = await this.resolveOfferDocumentGuarantors(application, contract);
 
     const mergeData = applyFrozenJsgExecution(
       buildJsgMergeData({
+      offerKind: target.offerKind,
       contract: {
         id: String(contract.id),
         display_reference:
@@ -532,6 +545,7 @@ export class GeneratedDocumentsService {
         contract_details: contract.contract_details,
         offer_details: contract.offer_details,
       },
+      invoice: target.invoice,
       issuerOrganization: {
         id: issuerOrganization.id,
         name: issuerOrganization.name,
@@ -550,9 +564,9 @@ export class GeneratedDocumentsService {
     const liveGuarantorCount = Array.isArray(liveGuarantors) ? liveGuarantors.length : 0;
     assertJsgMergeReady({
       mergeData,
-      sentAt: readOfferSentAt(contract.offer_details),
+      sentAt: readOfferSentAt(target.offerDetails),
       authorizedParties: getLoAuthorizedPartiesFromAcceptance(
-        getOfferAcceptanceFromOfferDetails(contract.offer_details)
+        getOfferAcceptanceFromOfferDetails(target.offerDetails)
       ),
       liveGuarantorCount,
     });
@@ -560,6 +574,7 @@ export class GeneratedDocumentsService {
     return this.finalizeGeneratedDocument({
       applicationId: application!.id,
       contractId: typeof contract.id === "string" ? contract.id : null,
+      invoiceId: target.invoice?.id ?? null,
       typeDef,
       format,
       createdByUserId,
@@ -574,6 +589,8 @@ export class GeneratedDocumentsService {
     typeDef: GeneratedDocumentTypeDefinition,
     format: GeneratedDocumentFormat,
     createdByUserId: string,
+    contractId?: string | null,
+    invoiceId?: string | null,
     execution?: FrozenDocumentExecutionContext | null
   ): Promise<GeneratedDocumentResult> {
     const contract = this.requireContractForGenerate(
@@ -581,6 +598,12 @@ export class GeneratedDocumentsService {
       "Application has no contract for deed of assignment generation."
     );
     const issuerOrganization = this.requireIssuerOrganization(application);
+    const target = this.resolveOfferDocumentTarget(
+      application,
+      contract,
+      contractId,
+      invoiceId
+    );
 
     let ledgerBucketAccountsConfig: unknown = null;
     try {
@@ -595,12 +618,14 @@ export class GeneratedDocumentsService {
 
     const mergeData = applyFrozenDoaExecution(
       buildDeedOfAssignmentMergeData({
+      offerKind: target.offerKind,
       contract: {
         id: String(contract.id),
         issuer_organization_id: String(contract.issuer_organization_id),
         contract_details: contract.contract_details,
         offer_details: contract.offer_details,
       },
+      invoice: target.invoice,
       issuerOrganization: {
         id: issuerOrganization.id,
         name: issuerOrganization.name,
@@ -620,9 +645,9 @@ export class GeneratedDocumentsService {
 
     assertDeedOfAssignmentMergeReady({
       mergeData,
-      sentAt: readOfferSentAt(contract.offer_details),
+      sentAt: readOfferSentAt(target.offerDetails),
       authorizedParties: getLoAuthorizedPartiesFromAcceptance(
-        getOfferAcceptanceFromOfferDetails(contract.offer_details)
+        getOfferAcceptanceFromOfferDetails(target.offerDetails)
       ),
     });
 
@@ -633,6 +658,7 @@ export class GeneratedDocumentsService {
     return this.finalizeGeneratedDocument({
       applicationId: application!.id,
       contractId: typeof contract.id === "string" ? contract.id : null,
+      invoiceId: target.invoice?.id ?? null,
       typeDef,
       format,
       createdByUserId,
@@ -647,7 +673,7 @@ export class GeneratedDocumentsService {
     });
   }
 
-  private resolveFacilityAgreementOfferTarget(
+  private resolveOfferDocumentTarget(
     application: Awaited<ReturnType<ApplicationRepository["findById"]>>,
     contract: Record<string, unknown>,
     contractId?: string | null,
@@ -738,7 +764,7 @@ export class GeneratedDocumentsService {
       "Application has no contract for facility agreement generation."
     );
     const issuerOrganization = this.requireIssuerOrganization(application);
-    const target = this.resolveFacilityAgreementOfferTarget(
+    const target = this.resolveOfferDocumentTarget(
       application,
       contract,
       contractId,

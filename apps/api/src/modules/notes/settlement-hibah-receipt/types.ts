@@ -2,6 +2,7 @@ import {
   SETTLEMENT_HIBAH_RECEIPT_TEMPLATE_ID,
   SETTLEMENT_HIBAH_RECEIPT_VERSION_V01,
   type DocumentStampSource,
+  type OperatorSigningRole,
   type SettlementHibahReceiptGenerationSource,
 } from "@cashsouk/types";
 
@@ -32,6 +33,11 @@ export type FrozenReceiptCompanyStamp = {
 export type ReceiptAuthorisationSnapshot = {
   stampSource: DocumentStampSource;
   companyStamp: FrozenReceiptCompanyStamp | null;
+  signingPersonId?: string;
+  signingPersonName?: string;
+  signingRoles?: OperatorSigningRole[];
+  signature?: FrozenReceiptCompanyStamp | null;
+  authorisedSignatoryName?: string;
 };
 
 export type SettlementHibahReceiptSnapshot = {

@@ -23,3 +23,29 @@ aws sts get-caller-identity --profile cashsouk
 Expected ARN: `arn:aws:iam::652821469470:user/cli-admin`
 
 Never print, commit, or copy the secret key. If auth fails, check that profile and the credentials file — do not fall back to root login unless asked.
+
+# Prod Postgres — cashsouk-prod-db
+
+Target architecture: RDS is private; operator laptops have no direct route. Do not print, commit, or echo passwords. Prefer the ECS migrate task for DDL.
+
+- Host: `cashsouk-prod-db.c5ayu8mwom04.ap-southeast-5.rds.amazonaws.com`
+- Port: `5432`
+- Database: `cashsouk`
+- Username: `cashsouk_admin` (migrations / admin)
+- SSL: `sslmode=require`
+- Admin password: RDS-managed secret `rds!db-71798d0b-adc4-4acb-a5e7-0a3275e77182` in Secrets Manager (`ap-southeast-5`). Fetch at use time from a host that can reach RDS:
+
+```bash
+aws secretsmanager get-secret-value \
+  --profile cashsouk \
+  --region ap-southeast-5 \
+  --secret-id "rds!db-71798d0b-adc4-4acb-a5e7-0a3275e77182" \
+  --query SecretString --output text
+```
+
+JSON has `username` + `password`. Connection-string split:
+
+- Migrations (ECS migrate task): `cashsouk/database-url` (`cashsouk_admin`)
+- API runtime (ECS API task): `cashsouk/app-database-url` (`cashsouk_app`, DML only)
+
+When the user asks to inspect prod data, use a path that can reach private RDS. Mask PII in replies. Prefer read-only `SELECT`s unless asked to repair.

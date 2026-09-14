@@ -4,6 +4,7 @@ import {
   formatIssuerFinancingTenure,
   formatIssuerMaturityCountdown,
   formatIssuerNoteMaturity,
+  formatMytDateTime,
   formatNoteDateEnMy,
   isCompactNoteTimingValueShort,
   joinNoteTimingExtra,
@@ -23,6 +24,11 @@ describe("formatNoteDateEnMy", () => {
   it("keeps a UTC-midnight Malaysia calendar day stable regardless of host timezone", () => {
     expect(formatNoteDateEnMy("2026-11-18T00:00:00.000Z")).toBe("18 Nov 2026");
     expect(formatNoteDateEnMy("2026-09-12")).toBe("12 Sept 2026");
+  });
+
+  it("formats UTC instants on their Malaysia calendar date", () => {
+    expect(formatNoteDateEnMy("2026-09-08T16:30:00.000Z")).toBe("9 Sept 2026");
+    expect(formatMytDateTime("2026-09-08T16:30:00.000Z")).toBe("9 Sept 2026, 00:30");
   });
 });
 

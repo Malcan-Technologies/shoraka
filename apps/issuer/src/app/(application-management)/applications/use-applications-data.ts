@@ -562,6 +562,7 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
     applicationStatus: String(api.status ?? "DRAFT").toUpperCase(),
     canWithdraw: Boolean((api as { canWithdraw?: boolean }).canWithdraw),
     facilityInForceNoInvoices,
+    structureType: structureType ?? null,
   };
 }
 

@@ -16,14 +16,17 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  IncompleteCompanyOnboardingDialog,
 } from "@cashsouk/ui";
 import { UserIcon, BuildingOffice2Icon, ArrowLeftIcon } from "@heroicons/react/24/outline";
 import { CheckCircleIcon, ExclamationCircleIcon } from "@heroicons/react/24/solid";
 import {
   useOrganization,
   type CreateOrganizationInput,
+  type Organization,
   createApiClient,
   useAuthToken,
+  getOnboardingRouteForOrg,
 } from "@cashsouk/config";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,7 +44,7 @@ type ConfirmationType = "personal" | "company" | null;
 export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
   const router = useRouter();
   const { getAccessToken } = useAuthToken();
-  const { hasPersonalOrganization, organizations, createOrganization, switchOrganization } =
+  const { hasPersonalOrganization, organizations, createOrganization, switchOrganization, adoptOrganization } =
     useOrganization();
   const [step, setStep] = React.useState<Step>("select-type");
   const [error, setError] = React.useState<string | null>(null);
@@ -49,16 +52,7 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
   const [confirmationType, setConfirmationType] = React.useState<ConfirmationType>(null);
   const [companyName, setCompanyName] = React.useState("");
   const [formErrors, setFormErrors] = React.useState<{ companyName?: string }>({});
-  const normalizedCompanyName = companyName.trim().toLowerCase();
-  const duplicateCompanyNameWarning = React.useMemo(() => {
-    if (!normalizedCompanyName) return null;
-    const exists = organizations.some(
-      (org) => org.type === "COMPANY" && (org.name ?? "").trim().toLowerCase() === normalizedCompanyName
-    );
-    return exists
-      ? "A company with this name already exists in your list. You can still continue and start onboarding."
-      : null;
-  }, [normalizedCompanyName, organizations]);
+  const [resumeMatch, setResumeMatch] = React.useState<Organization | null>(null);
 
   const personalOrganization = React.useMemo(
     () => organizations.find((org) => org.type === "PERSONAL"),
@@ -117,7 +111,8 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
         org = existingPersonalOrg;
       } else {
         const input: CreateOrganizationInput = { type: "PERSONAL" };
-        org = await createOrganization(input);
+        const result = await createOrganization(input);
+        org = result.organization;
       }
 
       switchOrganization(org.id);
@@ -143,7 +138,10 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
     void handleConfirmCompany(companyName.trim());
   };
 
-  const handleConfirmCompany = async (companyNameValue: string) => {
+  const handleConfirmCompany = async (
+    companyNameValue: string,
+    allowDuplicateIncomplete = false
+  ) => {
     setConfirmationType(null);
     setIsSubmitting(true);
     setError(null);
@@ -155,9 +153,16 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
       const input: CreateOrganizationInput = {
         type: "COMPANY",
         name: companyNameValue,
+        ...(allowDuplicateIncomplete ? { allowDuplicateIncomplete: true } : {}),
       };
-      const org = await createOrganization(input);
-      switchOrganization(org.id);
+      const result = await createOrganization(input);
+      if (!allowDuplicateIncomplete && result.outcome === "EXISTING_INCOMPLETE_MATCH") {
+        setResumeMatch(result.organization);
+        setStep("select-type");
+        setIsSubmitting(false);
+        return;
+      }
+      switchOrganization(result.organization.id);
       router.push("/onboarding/terms");
     } catch (err) {
       console.error("[AccountTypeSelector] Failed to create company account:", err);
@@ -165,6 +170,22 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
       setStep("select-type");
       setIsSubmitting(false);
     }
+  };
+
+  const handleContinueIncomplete = () => {
+    if (!resumeMatch) return;
+    const existing = organizations.find((org) => org.id === resumeMatch.id);
+    const org = existing ?? resumeMatch;
+    adoptOrganization(org);
+    setResumeMatch(null);
+    router.push(getOnboardingRouteForOrg(org, "investor"));
+  };
+
+  const handleCreateSeparateCompany = () => {
+    const name = resumeMatch?.name?.trim() || companyName.trim();
+    setResumeMatch(null);
+    if (!name) return;
+    void handleConfirmCompany(name, true);
   };
 
   if (step === "completing") {
@@ -256,9 +277,6 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
               {formErrors.companyName ? (
                 <p className="text-sm text-destructive">{formErrors.companyName}</p>
               ) : null}
-              {!formErrors.companyName && duplicateCompanyNameWarning ? (
-                <p className="text-sm text-orange-700">{duplicateCompanyNameWarning}</p>
-              ) : null}
             </div>
           </div>
           <AlertDialogFooter>
@@ -269,6 +287,17 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <IncompleteCompanyOnboardingDialog
+        open={resumeMatch != null}
+        companyName={resumeMatch?.name ?? companyName}
+        isSubmitting={isSubmitting}
+        onOpenChange={(open) => {
+          if (!open) setResumeMatch(null);
+        }}
+        onContinue={handleContinueIncomplete}
+        onCreateSeparate={handleCreateSeparateCompany}
+      />
 
       <div className="w-full max-w-xl space-y-6">
         <div className="text-center space-y-2">

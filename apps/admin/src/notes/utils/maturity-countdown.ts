@@ -69,7 +69,12 @@ export function isNoteInArrears(note: {
   status: string;
   servicingStatus?: string | null;
 }): boolean {
-  return note.status === "ARREARS" || note.servicingStatus === "ARREARS";
+  return (
+    note.status === "ARREARS" ||
+    note.status === "DEFAULTED" ||
+    note.servicingStatus === "ARREARS" ||
+    note.servicingStatus === "DEFAULTED"
+  );
 }
 
 /** Active notes with maturity today, within 30 days, or already past. */

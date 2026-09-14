@@ -3,6 +3,9 @@ import {
   allocateRoundedShares,
   frozenExcessLateChargeTotal,
   remainingExcessLateChargeSplit,
+  remainingFrozenSplitAfterWaivers,
+  remainingWaivableExcessLateChargeSplit,
+  postedSettlementWaiverLimits,
 } from "./excess-late-charge-allocation";
 
 describe("excess late charge allocation", () => {
@@ -57,6 +60,64 @@ describe("excess late charge allocation", () => {
     expect(allocation.allocatedTotal).toBe(3);
     expect(allocation.tawidhAmount).toBe(0);
     expect(allocation.gharamahAmount).toBe(3);
+  });
+
+  it("reduces the frozen split by component waivers so leftover still allocates", () => {
+    const posted = { excessTawidhAmount: 80, excessGharamahAmount: 20 };
+    const net = remainingFrozenSplitAfterWaivers({
+      ...posted,
+      waivedTawidhAmount: 10,
+      waivedGharamahAmount: 0,
+    });
+    const splitTotal = frozenExcessLateChargeTotal(net.excessTawidhAmount, net.excessGharamahAmount);
+    const owedAmount = frozenExcessLateChargeTotal(posted.excessTawidhAmount, posted.excessGharamahAmount) - 10;
+    expect(splitTotal).toBe(owedAmount);
+
+    const allocation = allocateExcessLateChargePayment({
+      ...net,
+      tawidhInvestorSharePercent: 0,
+      priorPaidAmount: 0,
+      paymentAmount: owedAmount,
+    });
+    expect(allocation.allocatedTotal).toBe(90);
+    expect(allocation.tawidhAmount).toBe(70);
+    expect(allocation.gharamahAmount).toBe(20);
+  });
+
+  it("subtracts ordered Ta'widh-then-Gharamah payments from waivable components", () => {
+    expect(
+      remainingWaivableExcessLateChargeSplit({
+        excessTawidhAmount: 100,
+        excessGharamahAmount: 100,
+        waivedTawidhAmount: 0,
+        waivedGharamahAmount: 0,
+        paidAmount: 100,
+      })
+    ).toEqual({ remainingTawidh: 0, remainingGharamah: 100 });
+  });
+
+  it("uses the locked settlement aggregate so a second waiver cannot overwrite the first", () => {
+    const first = postedSettlementWaiverLimits({
+      excessTawidhAmount: 100,
+      excessGharamahAmount: 100,
+      excessLateChargeAmount: 200,
+      paidAmount: 0,
+      waivedAmount: 0,
+      waivedTawidhAmount: 0,
+      waivedGharamahAmount: 0,
+    });
+    expect(first.remainingExcess).toBe(200);
+    const afterFirst = postedSettlementWaiverLimits({
+      excessTawidhAmount: 100,
+      excessGharamahAmount: 100,
+      excessLateChargeAmount: 200,
+      paidAmount: 0,
+      waivedAmount: 80,
+      waivedTawidhAmount: 80,
+      waivedGharamahAmount: 0,
+    });
+    expect(afterFirst.remainingExcess).toBe(120);
+    expect(afterFirst.remainingTawidhAmount).toBe(20);
   });
 
   it("assigns 2dp residual to the last positive investor weight", () => {

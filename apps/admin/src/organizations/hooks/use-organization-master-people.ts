@@ -55,6 +55,23 @@ export function useOrganizationMasterPeople(portal: PortalType, organizationId: 
     onError: (err: Error) => toast.error(humanizeApiValidationMessage(err.message)),
   });
 
+  const reactivate = useMutation({
+    mutationFn: async (partyId: string) => {
+      const res = await api.reactivateMasterParty(portal, organizationId, partyId);
+      if (!res.success) throw profileValidationErrorFromApi(res.error);
+      return res.data;
+    },
+    onSuccess: async (data) => {
+      await invalidate();
+      if (data.reviewRequired) {
+        toast.success("Review latest CTOS differences, then reactivate");
+        return;
+      }
+      toast.success("Person reactivated");
+    },
+    onError: (err: Error) => toast.error(humanizeApiValidationMessage(err.message)),
+  });
+
   const resolveIdentityConflict = useMutation({
     mutationFn: async (input: { partyId: string; action: "KEEP_ONBOARDING" | "KEEP_CTOS" }) => {
       const res = await api.resolvePersonIdentityConflict(portal, organizationId, input.partyId, input.action);
@@ -67,19 +84,6 @@ export function useOrganizationMasterPeople(portal: PortalType, organizationId: 
           ? "Onboarding Person kept. Identity saved without changing the Person key."
           : "Onboarding Person marked inactive. The CTOS Person remains available to Adopt."
       );
-    },
-    onError: (err: Error) => toast.error(humanizeApiValidationMessage(err.message)),
-  });
-
-  const createParty = useMutation({
-    mutationFn: async (data: Record<string, unknown>) => {
-      const res = await api.createAdminPartyProfile(portal, organizationId, data);
-      if (!res.success) throw profileValidationErrorFromApi(res.error);
-      return res.data;
-    },
-    onSuccess: async () => {
-      await invalidate();
-      toast.success("Person added");
     },
     onError: (err: Error) => toast.error(humanizeApiValidationMessage(err.message)),
   });
@@ -97,5 +101,5 @@ export function useOrganizationMasterPeople(portal: PortalType, organizationId: 
     onError: (err: Error) => toast.error(humanizeApiValidationMessage(err.message)),
   });
 
-  return { resolve, adopt, inactivate, resolveIdentityConflict, createParty, patchParty };
+  return { resolve, adopt, inactivate, reactivate, resolveIdentityConflict, patchParty };
 }

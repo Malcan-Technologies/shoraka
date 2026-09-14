@@ -1,4 +1,3 @@
-import { formatNoteReferenceDisplay } from "@cashsouk/types";
 import { escapeHtml } from "../prospectus/prospectus-html";
 import type { InvestmentSettlementConfirmationSnapshot } from "./types";
 
@@ -111,7 +110,7 @@ h1 {
 export function buildInvestmentSettlementConfirmationHtml(
   snapshot: InvestmentSettlementConfirmationSnapshot
 ): string {
-  const noteId = formatNoteReferenceDisplay(snapshot.noteReference) || snapshot.noteReference;
+  const noteId = snapshot.noteReference.trim() || "—";
   const tawidhRow = snapshot.showTawidh
     ? `<div class="detail-row">
         <span>Ta’widh compensation</span>

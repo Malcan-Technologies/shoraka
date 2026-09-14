@@ -34,6 +34,10 @@ interface ListToolbarProps {
   extraToggleLabel?: string;
   extraToggleChecked?: boolean;
   onExtraToggleChange?: (checked: boolean) => void;
+  secondaryFilterLabel?: string;
+  secondaryFilters?: string[];
+  onSecondaryFiltersChange?: (values: string[]) => void;
+  secondaryOptions?: readonly ListStatusOption[];
 }
 
 export function ListToolbar({
@@ -54,11 +58,22 @@ export function ListToolbar({
   extraToggleLabel,
   extraToggleChecked = false,
   onExtraToggleChange,
+  secondaryFilterLabel,
+  secondaryFilters = [],
+  onSecondaryFiltersChange,
+  secondaryOptions = [],
 }: ListToolbarProps) {
   const hasExtraToggle = Boolean(extraToggleLabel && onExtraToggleChange);
+  const hasSecondaryFilter = Boolean(secondaryFilterLabel && onSecondaryFiltersChange);
   const hasFilters =
-    searchQuery !== "" || statusFilters.length > 0 || (hasExtraToggle && extraToggleChecked);
-  const activeFilterCount = statusFilters.length + (hasExtraToggle && extraToggleChecked ? 1 : 0);
+    searchQuery !== "" ||
+    statusFilters.length > 0 ||
+    secondaryFilters.length > 0 ||
+    (hasExtraToggle && extraToggleChecked);
+  const activeFilterCount =
+    statusFilters.length +
+    secondaryFilters.length +
+    (hasExtraToggle && extraToggleChecked ? 1 : 0);
 
   const handleStatusToggle = (status: string) => {
     if (statusFilterMode === "single") {
@@ -84,6 +99,18 @@ export function ListToolbar({
       label: extraToggleLabel,
       onRemove: () => onExtraToggleChange?.(false),
     });
+  }
+  if (hasSecondaryFilter) {
+    for (const value of secondaryFilters) {
+      appliedFilters.push({
+        id: `secondary-${value}`,
+        label: `${secondaryFilterLabel}: ${
+          secondaryOptions.find((option) => option.value === value)?.label ?? value
+        }`,
+        onRemove: () =>
+          onSecondaryFiltersChange?.(secondaryFilters.filter((item) => item !== value)),
+      });
+    }
   }
 
   return (
@@ -120,6 +147,30 @@ export function ListToolbar({
                 {option.label}
               </DropdownMenuCheckboxItem>
             ))}
+            {hasSecondaryFilter ? (
+              <>
+                <DropdownMenuLabel>{secondaryFilterLabel}</DropdownMenuLabel>
+                <DropdownMenuCheckboxItem
+                  checked={secondaryFilters.length === 0}
+                  onCheckedChange={() => onSecondaryFiltersChange?.([])}
+                >
+                  All
+                </DropdownMenuCheckboxItem>
+                {secondaryOptions.map((option) => (
+                  <DropdownMenuCheckboxItem
+                    key={option.value}
+                    checked={secondaryFilters.includes(option.value)}
+                    onCheckedChange={() =>
+                      onSecondaryFiltersChange?.(
+                        secondaryFilters.includes(option.value) ? [] : [option.value]
+                      )
+                    }
+                  >
+                    {option.label}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </>
+            ) : null}
             {hasExtraToggle ? (
               <DropdownMenuCheckboxItem
                 checked={extraToggleChecked}

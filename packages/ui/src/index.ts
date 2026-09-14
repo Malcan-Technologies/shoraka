@@ -256,6 +256,7 @@ export {
   OnboardingLayout,
   OnboardingStatusCard,
   getOnboardingSteps,
+  IncompleteCompanyOnboardingDialog,
 } from "./onboarding";
 export type {
   OnboardingStepperStep,
@@ -314,6 +315,7 @@ export { OnboardingOrgStatusBadge } from "./components/onboarding-org-status-bad
 export {
   OrganizationSwitcherAvatar,
   OrganizationSwitcherCaption,
+  organizationSwitcherSecondaryText,
   organizationTypeLabel,
 } from "./components/organization-switcher-identity";
 export { PortalBadge } from "./components/portal-badge";
@@ -331,8 +333,16 @@ export type {
 } from "./components/sticky-form-footer";
 export { KeyValueGrid } from "./components/key-value-grid";
 export type { KeyValueGridProps, KeyValueItem } from "./components/key-value-grid";
-export { ProfileReadField, ProfileFieldGrid } from "./components/profile-read-field";
+export { ProfileReadField, ProfileFieldGrid, isProfileReadValueEmpty } from "./components/profile-read-field";
 export type { ProfileReadFieldProps } from "./components/profile-read-field";
+export {
+  ProfileFinancialHistory,
+  ProfileFinancialYearDetails,
+  ProfileFinancialSaveBar,
+  ProfileFinancialStatementsBody,
+  profileFinancialDraftFromValues,
+  validateProfileFinancialDraft,
+} from "./profile-financial-statements";
 export { ProfilePhoneInput } from "./profile-phone-input";
 export {
   PartyProfileDetailFields,
@@ -346,8 +356,23 @@ export { PersonIdentityCard } from "./person-identity-card";
 export { PartyCtosIndicator, partyCtosComparisonFor } from "./party-ctos-indicator";
 export { PortalPeopleSection } from "./portal-people-section";
 export type { PortalPeoplePortal } from "./portal-people-section";
+export { PeopleAccessSection } from "./people-access/people-access-section";
+export { PersonDetailView } from "./people-access/person-detail-view";
+export { CustomerPartyProfileOverview } from "./people-access/customer-person-overview";
+export { InviteUserDialog, inviteableCompanyPeople } from "./people-access/invite-user-dialog";
 export { AddPersonForm, PartyFillEmptyForm } from "./portal-person-forms";
 export type { AddPersonInitial } from "./portal-person-forms";
 export { ProductNameWithIcon } from "./components/product-name-with-icon";
 export { ProductCatalogName } from "./components/product-catalog-name";
 export { ProductCatalogImage } from "./components/product-catalog-image";
+export { SegmentedControl } from "./components/segmented-control";
+export type { SegmentedControlOption } from "./components/segmented-control";
+export { ChoiceChips } from "./components/choice-chips";
+export type { ChoiceChipOption } from "./components/choice-chips";
+export {
+  DEFAULT_FUNDING_THRESHOLD_PERCENT,
+  FundingProgress,
+  resolveFundingThresholdPercent,
+} from "./components/funding-progress";
+export { StatStrip } from "./components/stat-strip";
+export type { StatStripCell } from "./components/stat-strip";

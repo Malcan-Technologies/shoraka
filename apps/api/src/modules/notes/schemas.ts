@@ -24,6 +24,10 @@ export const idParamSchema = z.object({
   id: z.string().min(1),
 });
 
+export const documentSigningPersonBodySchema = z.object({
+  signingPersonId: z.string().trim().min(1),
+});
+
 export const noteSettlementParamsSchema = z.object({
   id: z.string().min(1),
   settlementId: z.string().min(1),
@@ -238,6 +242,18 @@ export const defaultMarkSchema = z.object({
   reason: z.string().min(1).max(1000),
 });
 
+export const lateChargeWaiverSchema = z.object({
+  tawidhAmount: z.number().min(0).default(0),
+  gharamahAmount: z.number().min(0).default(0),
+  reason: z.string().trim().min(1).max(1000),
+  settlementId: z.string().optional(),
+});
+
+export const noteLetterParamsSchema = z.object({
+  id: z.string().min(1),
+  letterId: z.string().min(1),
+});
+
 export const waiveNoteFacilityFeeCollectionSchema = z.object({
   reason: z.string().trim().min(1).max(1000),
 });
@@ -334,7 +350,9 @@ export const updatePlatformFinanceSettingsSchema = z.object({
 
 export const requestTrusteeSignatureUploadUrlSchema = z.object({
   fileName: z.string().min(1),
-  contentType: z.enum(["image/png", "image/jpeg", "image/jpg", "image/webp"]),
+  contentType: z.enum(COMPANY_STAMP_ALLOWED_CONTENT_TYPES, {
+    errorMap: () => ({ message: COMPANY_STAMP_UNSUPPORTED_TYPE_MESSAGE }),
+  }),
   fileSize: z.number().int().positive().max(5 * 1024 * 1024),
 });
 

@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { formatCurrency, useOrganization } from "@cashsouk/config";
 import {
   EmptyState,
-  ListToolbar,
   LoadingState,
   PageShell,
   Pagination,
@@ -22,31 +21,35 @@ import {
 } from "@cashsouk/types";
 import { Button } from "@/components/ui/button";
 import { DepositDialog } from "@/app/transactions/components/deposit-dialog";
-import { InvestmentListSection } from "@/investments/components/investment-list-section";
-import { ONBOARDING_INDUSTRY_OPTIONS } from "@/investments/industry-filter-options";
 import {
   useCommitInvestment,
   useInvestorPortfolio,
-  useMarketplaceNotes,
+  useMarketplaceNotesAll,
   useOpenMarketplaceProspectus,
 } from "@/investments/hooks/use-marketplace-notes";
 import { cn } from "@/lib/utils";
-import { MarketplaceCashBar } from "./marketplace-cash-bar";
+import { MarketplaceCompareTable } from "./marketplace-compare-table";
 import { MarketplaceFeaturedSection } from "./marketplace-featured-section";
-import {
-  MarketplaceFilterToolbar,
-  marketplaceFilterChips,
-} from "./marketplace-filter-toolbar";
+import { MarketplaceFilterPanel } from "./marketplace-filter-panel";
 import { MarketplaceInvestDialog } from "./marketplace-invest-dialogs";
 import { MarketplaceNoteCard } from "./marketplace-note-card";
+import { MarketplaceStatsStrip } from "./marketplace-stats-strip";
 import {
   DEFAULT_MARKETPLACE_FILTERS,
+  DEFAULT_MARKETPLACE_SORT,
+  DEFAULT_MARKETPLACE_VIEW,
   marketplaceHasActiveFilters,
   marketplaceNoteMatchesFilters,
+  marketplaceSectorOptions,
+  parseMarketplaceSort,
+  parseMarketplaceViewMode,
   sortFeaturedMarketplaceNotes,
+  sortMarketplaceNotes,
   toMarketplaceNote,
   type MarketplaceNote,
   type MarketplaceNoteFilters,
+  type MarketplaceSortId,
+  type MarketplaceViewMode,
 } from "./marketplace-note-model";
 
 const MARKETPLACE_PAGE_SIZE_OPTIONS = [10, 25, 50];
@@ -81,13 +84,7 @@ function filtersFromSearchParams(params: URLSearchParams): MarketplaceNoteFilter
 
   return {
     search: params.get("q") ?? "",
-    industry:
-      industryParam &&
-      ONBOARDING_INDUSTRY_OPTIONS.includes(
-        industryParam as (typeof ONBOARDING_INDUSTRY_OPTIONS)[number]
-      )
-        ? industryParam
-        : "all",
+    industry: industryParam && industryParam !== "all" ? industryParam : "all",
     risk:
       riskParam &&
       MARC_SME_GRADES.includes(riskParam as (typeof MARC_SME_GRADES)[number])
@@ -119,6 +116,12 @@ export function MarketplacePage() {
   const [search, setSearch] = useState(initialFilters.search);
   const [debouncedSearch, setDebouncedSearch] = useState(initialFilters.search);
   const [filters, setFilters] = useState<MarketplaceNoteFilters>(initialFilters);
+  const [sort, setSort] = useState<MarketplaceSortId>(
+    parseMarketplaceSort(searchParams.get("sort"))
+  );
+  const [view, setView] = useState<MarketplaceViewMode>(
+    parseMarketplaceViewMode(searchParams.get("view"))
+  );
   const [currentPage, setCurrentPage] = useState(parseMarketplaceListPageParam(searchParams.get("page")));
   const [pageSize, setPageSize] = useState(parseMarketplacePageSizeParam(searchParams.get("pageSize")));
 
@@ -146,33 +149,18 @@ export function MarketplacePage() {
     [debouncedSearch, filters]
   );
 
-  useEffect(() => {
-    const params = new URLSearchParams();
-    const trimmedSearch = search.trim();
-    if (trimmedSearch) params.set("q", trimmedSearch);
-    if (filters.industry !== "all") params.set("industry", filters.industry);
-    if (filters.risk !== "all") params.set("risk", filters.risk);
-    if (filters.profit !== "all") params.set("profit", filters.profit);
-    if (filters.tenor !== "all") params.set("tenor", filters.tenor);
-    if (filters.listing !== "open") params.set("listing", filters.listing);
-    if (currentPage > 1) params.set("page", String(currentPage));
-    if (pageSize !== 10) params.set("pageSize", String(pageSize));
-    const query = params.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
-  }, [currentPage, filters, pageSize, pathname, router, search]);
-
   const {
     data: featuredData,
     isLoading: isFeaturedLoading,
     error: featuredError,
     refetch: refetchFeaturedNotes,
-  } = useMarketplaceNotes({ page: 1, pageSize: 100, featuredOnly: true });
+  } = useMarketplaceNotesAll({ featuredOnly: true });
   const {
     data: listData,
     isLoading: isListLoading,
     error: listError,
     refetch: refetchMarketplaceList,
-  } = useMarketplaceNotes({ page: 1, pageSize: 100, includeClosed: true });
+  } = useMarketplaceNotesAll({ includeClosed: true });
 
   const isLoading = isFeaturedLoading || isListLoading;
   const error = listError ?? featuredError;
@@ -195,23 +183,28 @@ export function MarketplacePage() {
     () => marketplaceNotes.filter((note) => !featuredIds.has(note.id)),
     [featuredIds, marketplaceNotes]
   );
-  const filtersAreActive = marketplaceHasActiveFilters(effectiveFilters);
-  const listingSource = filtersAreActive ? marketplaceNotes : catalogNotes;
+  const hasActiveFilters = marketplaceHasActiveFilters(effectiveFilters);
+  // Featured sits above the filters and is never constrained by them.
+  // When search or filters are active, include featured notes in the listing so a
+  // matching query can still find them; otherwise keep them out of the catalog to
+  // avoid duplicating the strip above.
+  const listingNotes = hasActiveFilters ? marketplaceNotes : catalogNotes;
 
   const filteredNotes = useMemo(
-    () => listingSource.filter((note) => marketplaceNoteMatchesFilters(note, effectiveFilters)),
-    [effectiveFilters, listingSource]
-  );
-
-  const hasActiveFilters = marketplaceHasActiveFilters({ ...filters, search });
-  const appliedFilters = useMemo(
     () =>
-      marketplaceFilterChips(effectiveFilters, (next) => {
-        setFilters(next);
-        setCurrentPage(1);
-      }),
-    [effectiveFilters]
+      sortMarketplaceNotes(
+        listingNotes.filter((note) => marketplaceNoteMatchesFilters(note, effectiveFilters)),
+        sort
+      ),
+    [effectiveFilters, listingNotes, sort]
   );
+  const sectorOptions = useMemo(() => {
+    const options = marketplaceSectorOptions(marketplaceNotes);
+    if (filters.industry !== "all" && !options.includes(filters.industry)) {
+      return [filters.industry, ...options];
+    }
+    return options;
+  }, [filters.industry, marketplaceNotes]);
 
   const totalPages = filteredNotes.length === 0 ? 0 : Math.ceil(filteredNotes.length / pageSize);
   const effectivePage = totalPages === 0 ? 1 : Math.min(currentPage, totalPages);
@@ -219,6 +212,23 @@ export function MarketplacePage() {
     (effectivePage - 1) * pageSize,
     (effectivePage - 1) * pageSize + pageSize
   );
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    const trimmedSearch = search.trim();
+    if (trimmedSearch) params.set("q", trimmedSearch);
+    if (filters.industry !== "all") params.set("industry", filters.industry);
+    if (filters.risk !== "all") params.set("risk", filters.risk);
+    if (filters.profit !== "all") params.set("profit", filters.profit);
+    if (filters.tenor !== "all") params.set("tenor", filters.tenor);
+    if (filters.listing !== "open") params.set("listing", filters.listing);
+    if (sort !== DEFAULT_MARKETPLACE_SORT) params.set("sort", sort);
+    if (view !== DEFAULT_MARKETPLACE_VIEW) params.set("view", view);
+    if (effectivePage > 1) params.set("page", String(effectivePage));
+    if (pageSize !== 10) params.set("pageSize", String(pageSize));
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }, [effectivePage, filters, pageSize, pathname, router, search, sort, view]);
 
   function handleClearFilters() {
     setSearch("");
@@ -336,9 +346,8 @@ export function MarketplacePage() {
     }
   }
 
-  const openListingCount = marketplaceNotes.filter((note) => note.listingKind === "open").length;
   const listingCountLabel = hasActiveFilters
-    ? `${filteredNotes.length} of ${marketplaceNotes.length} notes`
+    ? `${filteredNotes.length} of ${listingNotes.length} notes`
     : `${filteredNotes.length} ${filteredNotes.length === 1 ? "note" : "notes"}`;
 
   return (
@@ -347,10 +356,11 @@ export function MarketplacePage() {
         title="Marketplace"
         description="Compare published notes and commit from your available cash."
       >
-        <MarketplaceCashBar
+        <MarketplaceStatsStrip
           availableBalance={availableBalance}
-          openListingCount={openListingCount}
-          isLoading={isPortfolioLoading || isLoading}
+          notes={marketplaceNotes}
+          isBalanceLoading={isPortfolioLoading || isLoading}
+          isBookLoading={isLoading}
           onDeposit={() => setDepositOpen(true)}
         />
 
@@ -362,34 +372,7 @@ export function MarketplacePage() {
 
         {isLoading ? <LoadingState variant="cards" rows={3} /> : null}
 
-        {!isLoading && !error ? (
-          <ListToolbar
-            searchValue={search}
-            onSearchChange={(value) => {
-              setSearch(value);
-              setCurrentPage(1);
-            }}
-            searchPlaceholder="Search by purpose, note, industry, or product"
-            appliedFilters={appliedFilters}
-            onClearFilters={hasActiveFilters ? handleClearFilters : undefined}
-            onReload={() => {
-              void Promise.all([refetchFeaturedNotes(), refetchMarketplaceList()]);
-            }}
-            isLoading={isLoading}
-            countLabel={listingCountLabel}
-            filterGroups={
-              <MarketplaceFilterToolbar
-                filters={effectiveFilters}
-                onChange={(next) => {
-                  setFilters(next);
-                  setCurrentPage(1);
-                }}
-              />
-            }
-          />
-        ) : null}
-
-        {!isLoading && !error && !filtersAreActive && featuredNotes.length > 0 ? (
+        {!isLoading && !error && featuredNotes.length > 0 ? (
           <MarketplaceFeaturedSection
             notes={featuredNotes}
             onInvest={openInvestDialog}
@@ -404,50 +387,95 @@ export function MarketplacePage() {
           />
         ) : null}
 
-        {!isLoading && !error && filteredNotes.length === 0 && hasActiveFilters ? (
-          <EmptyState
-            variant="no-results"
-            title="No matching notes"
-            message="Try a different search or clear your filters."
-            action={
-              <Button variant="outline" className="rounded-xl" onClick={handleClearFilters}>
-                Clear filters
-              </Button>
-            }
-          />
-        ) : null}
+        {!isLoading && !error && (marketplaceNotes.length > 0 || featuredNotes.length > 0) ? (
+          <section className="space-y-4">
+            <div className="flex items-baseline justify-between gap-3">
+              <h2 className="min-w-0 text-base font-semibold tracking-tight text-foreground">
+                {filters.listing === "open" ? "All open notes" : "All notes"}
+              </h2>
+              <span className="shrink-0 text-ui tabular-nums text-muted-foreground">
+                {listingCountLabel}
+              </span>
+            </div>
 
-        {!isLoading && !error && filteredNotes.length > 0 ? (
-          <>
-            <InvestmentListSection
-              title={featuredNotes.length > 0 ? "All notes" : "Notes"}
-              count={filteredNotes.length}
-              items={visibleNotes.map((note) => ({
-                key: note.id,
-                node: (
-                  <MarketplaceNoteCard
-                    note={note}
+            <MarketplaceFilterPanel
+              search={search}
+              onSearchChange={(value) => {
+                setSearch(value);
+                setCurrentPage(1);
+              }}
+              filters={filters}
+              onFiltersChange={(next) => {
+                setFilters(next);
+                setCurrentPage(1);
+              }}
+              sort={sort}
+              onSortChange={(value) => {
+                setSort(value);
+                setCurrentPage(1);
+              }}
+              view={view}
+              onViewChange={setView}
+              sectorOptions={sectorOptions}
+              countLabel={listingCountLabel}
+              hasActiveFilters={hasActiveFilters}
+              onClearFilters={handleClearFilters}
+              onReload={() => {
+                void Promise.all([refetchFeaturedNotes(), refetchMarketplaceList()]);
+              }}
+              isLoading={isLoading}
+            />
+
+            {filteredNotes.length === 0 && hasActiveFilters ? (
+              <EmptyState
+                variant="no-results"
+                title="No matching notes"
+                message="Try a different search or clear your filters."
+                action={
+                  <Button variant="outline" className="rounded-xl" onClick={handleClearFilters}>
+                    Clear filters
+                  </Button>
+                }
+              />
+            ) : null}
+
+            {filteredNotes.length > 0 ? (
+              <>
+                {view === "cards" ? (
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                    {visibleNotes.map((note) => (
+                      <MarketplaceNoteCard
+                        key={note.id}
+                        note={note}
+                        onInvest={openInvestDialog}
+                        onViewProspectus={openProspectus}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <MarketplaceCompareTable
+                    notes={visibleNotes}
                     onInvest={openInvestDialog}
                     onViewProspectus={openProspectus}
                   />
-                ),
-              }))}
-            />
-            {filteredNotes.length > 10 || pageSize !== 10 ? (
-              <Pagination
-                page={effectivePage}
-                pageSize={pageSize}
-                total={filteredNotes.length}
-                onPageChange={setCurrentPage}
-                onPageSizeChange={(size) => {
-                  setPageSize(size);
-                  setCurrentPage(1);
-                }}
-                pageSizeOptions={MARKETPLACE_PAGE_SIZE_OPTIONS}
-                itemLabel="notes"
-              />
+                )}
+                {filteredNotes.length > 10 || pageSize !== 10 ? (
+                  <Pagination
+                    page={effectivePage}
+                    pageSize={pageSize}
+                    total={filteredNotes.length}
+                    onPageChange={setCurrentPage}
+                    onPageSizeChange={(size) => {
+                      setPageSize(size);
+                      setCurrentPage(1);
+                    }}
+                    pageSizeOptions={MARKETPLACE_PAGE_SIZE_OPTIONS}
+                    itemLabel="notes"
+                  />
+                ) : null}
+              </>
             ) : null}
-          </>
+          </section>
         ) : null}
       </PageShell>
 

@@ -68,7 +68,7 @@ describe("documentAuthorisationConfig schema", () => {
 });
 
 describe("requestDocumentStampUploadUrlSchema", () => {
-  it("accepts PNG, JPEG, JPG, and WEBP stamp uploads", () => {
+  it("accepts PNG, JPEG, and JPG stamp uploads", () => {
     expect(
       requestDocumentStampUploadUrlSchema.parse({
         purpose: "CERTIFICATE_COMPANY_STAMP",
@@ -94,13 +94,13 @@ describe("requestDocumentStampUploadUrlSchema", () => {
       }).contentType
     ).toBe("image/jpg");
     expect(
-      requestDocumentStampUploadUrlSchema.parse({
+      requestDocumentStampUploadUrlSchema.safeParse({
         purpose: "CERTIFICATE_COMPANY_STAMP",
         fileName: "stamp.webp",
         contentType: "image/webp",
         fileSize: 2048,
-      }).contentType
-    ).toBe("image/webp");
+      }).success
+    ).toBe(false);
   });
 
   it("accepts files at the 5 MB cap with no aspect or pixel-dimension fields", () => {
@@ -138,13 +138,13 @@ describe("requestDocumentStampUploadUrlSchema", () => {
     });
     expect(parsed.success).toBe(false);
     if (!parsed.success) {
-      expect(parsed.error.issues[0]?.message).toBe("Upload a PNG, JPG or WEBP image.");
+      expect(parsed.error.issues[0]?.message).toBe("Upload a PNG or JPG image.");
     }
   });
 });
 
 describe("requestTrusteeSignatureUploadUrlSchema", () => {
-  it("keeps the existing trustee MIME list and 5 MB cap", () => {
+  it("accepts PNG or JPG up to 5 MB and rejects other types", () => {
     expect(
       requestTrusteeSignatureUploadUrlSchema.parse({
         fileName: "sign.png",
@@ -156,6 +156,13 @@ describe("requestTrusteeSignatureUploadUrlSchema", () => {
       requestTrusteeSignatureUploadUrlSchema.safeParse({
         fileName: "sign.pdf",
         contentType: "application/pdf",
+        fileSize: 1024,
+      }).success
+    ).toBe(false);
+    expect(
+      requestTrusteeSignatureUploadUrlSchema.safeParse({
+        fileName: "sign.webp",
+        contentType: "image/webp",
         fileSize: 1024,
       }).success
     ).toBe(false);

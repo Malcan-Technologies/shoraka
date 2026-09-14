@@ -5,10 +5,7 @@
 
 import { calculateCalendarDayCount } from "./prospectus-calendar";
 import { PROSPECTUS_FIXED_SHARIAH_PRINCIPLE } from "./prospectus-fixed-templates";
-import {
-  isSoukscoreRiskRating,
-  type SoukscoreRiskRating,
-} from "./invoice-offer-risk-rating";
+import { isMarcSmeGrade, MARC_SCORE_DEFINITIONS } from "./marc-credit-grade";
 import { roundNoteMoney } from "./note-expected-return";
 
 export const PROSPECTUS_HIGHLIGHT_KEYS = [
@@ -32,37 +29,6 @@ export const PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT_DESCRIPTION = `Structured under 
 export const PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT: ProspectusHighlightCopy = {
   title: PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT_TITLE,
   description: PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT_DESCRIPTION,
-};
-
-/** Placeholder Cashsouk grade → Issuer Financial Strength recommendations (not approved claims). */
-export const ISSUER_FINANCIAL_STRENGTH_RECOMMENDATIONS: Record<
-  SoukscoreRiskRating,
-  ProspectusHighlightCopy
-> = {
-  A: {
-    title: "Issuer financial profile",
-    description: "Placeholder recommendation for an issuer with an A risk rating.",
-  },
-  B: {
-    title: "Issuer financial profile",
-    description: "Placeholder recommendation for an issuer with a B risk rating.",
-  },
-  C: {
-    title: "Issuer financial profile",
-    description: "Placeholder recommendation for an issuer with a C risk rating.",
-  },
-  D: {
-    title: "Issuer financial profile",
-    description: "Placeholder recommendation for an issuer with a D risk rating.",
-  },
-  E: {
-    title: "Issuer financial profile",
-    description: "Placeholder recommendation for an issuer with an E risk rating.",
-  },
-  F: {
-    title: "Issuer financial profile",
-    description: "Placeholder recommendation for an issuer with an F risk rating.",
-  },
 };
 
 export type PaymasterNatureBucket =
@@ -165,19 +131,20 @@ export function recommendPaymasterHighlight(input: {
 }
 
 /**
- * Issuer Financial Strength recommendation from standardised SoukScore risk rating.
+ * Issuer Financial Strength recommendation from MARC SME riskProfile wording.
  * Placeholder copy only — not approved financial claims.
  */
 export function recommendIssuerFinancialStrengthHighlight(input: {
   riskRating?: unknown;
 }): ProspectusHighlightCopy {
-  if (!isSoukscoreRiskRating(input.riskRating)) {
-    return {
-      title: "Issuer financial profile",
-      description: DNA,
-    };
+  if (!isMarcSmeGrade(input.riskRating)) {
+    return { title: "Issuer financial profile", description: DNA };
   }
-  return ISSUER_FINANCIAL_STRENGTH_RECOMMENDATIONS[input.riskRating];
+
+  return {
+    title: "Issuer financial profile",
+    description: MARC_SCORE_DEFINITIONS[input.riskRating].riskProfile,
+  };
 }
 
 /** Canva-aligned Profit Rate label (one decimal), e.g. "12.0%". */

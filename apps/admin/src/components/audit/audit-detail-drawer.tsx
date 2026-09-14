@@ -87,7 +87,6 @@ export function AuditDetailDrawer({
   const targetFields = target
     ? [
         { label: "Target type", value: target.type },
-        { label: "Target ID", value: target.id },
         { label: "Application reference", value: target.applicationReference },
         { label: "Contract reference", value: target.contractReference },
         { label: "Invoice reference", value: target.invoiceReference },
@@ -99,6 +98,7 @@ export function AuditDetailDrawer({
         { label: "Gateway reference", value: target.gatewayReference },
         { label: "Trustee instruction", value: target.trusteeInstructionReference },
         { label: "Envelope reference", value: target.envelopeReference },
+        { label: "Internal Target ID", value: target.id },
         ...(target.extra ?? []),
       ].filter((field): field is AuditDetailField => nonEmpty(field.value))
     : [];

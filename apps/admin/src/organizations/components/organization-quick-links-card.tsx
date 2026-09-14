@@ -61,6 +61,7 @@ export function OrganizationQuickLinksCard({
   const { can } = usePermissions();
   const ownerHref = can("users.view") ? accountHref(org.owner.userId) : null;
   const ownerName = `${org.owner.firstName} ${org.owner.lastName}`.trim();
+  const ownerEmail = org.owner.email ?? null;
   const reference = formatOrganizationReference({
     displayReference: org.displayReference,
     id: org.id,
@@ -79,22 +80,20 @@ export function OrganizationQuickLinksCard({
           label="Owner account"
           value={org.owner.userId}
           href={ownerHref}
-          display={ownerName ? `${ownerName} (${org.owner.userId})` : org.owner.userId}
+          display={
+            ownerName && ownerEmail
+              ? `${ownerName} (${ownerEmail})`
+              : ownerName ?? ownerEmail ?? org.owner.userId
+          }
         />
-        <QuickLink label="Organization reference" value={reference} />
-        <QuickLink label="Organization ID" value={org.id} />
+        <QuickLink label="Organisation reference" value={reference} />
+        <QuickLink label="Internal Organisation ID" value={org.id} />
         {org.type === "COMPANY" && org.codRequestId ? (
           <QuickLink
             label="COD"
             value={org.codRequestId}
             href={getRegtankCorporateOnboardingUrl(org.codRequestId)}
           />
-        ) : null}
-        {org.type === "COMPANY" ? (
-          <div className="space-y-1">
-            <div className="text-meta text-muted-foreground">Members</div>
-            <div className="text-ui font-medium">{org.members.length}</div>
-          </div>
         ) : null}
         <QuickLink label="Created" value={format(new Date(org.createdAt), "dd MMM yyyy, p")} />
         <QuickLink label="Updated" value={format(new Date(org.updatedAt), "dd MMM yyyy, p")} />

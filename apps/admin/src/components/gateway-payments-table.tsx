@@ -48,6 +48,7 @@ import {
   statusToken,
   statusVariant,
 } from "@/lib/gateway-payment-display";
+import { clampListPage } from "@/shared/admin-list/clamp-list-page";
 import { TablePagination } from "@/shared/admin-list/components/table-pagination";
 import { adminActionRowClass } from "@/lib/admin-status-token";
 
@@ -251,8 +252,9 @@ function GatewayPaymentsTableContent({
   const startIndex = total === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
   const endIndex = Math.min(currentPage * PAGE_SIZE, total);
 
-  if (currentPage > totalPages) {
-    setCurrentPage(totalPages);
+  const nextPage = clampListPage(currentPage, totalPages, Boolean(data));
+  if (nextPage !== currentPage) {
+    setCurrentPage(nextPage);
   }
 
   const activeFilterCount = [

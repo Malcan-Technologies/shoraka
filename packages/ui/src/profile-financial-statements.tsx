@@ -1,0 +1,281 @@
+"use client";
+
+import * as React from "react";
+import {
+  APPLICATION_COMREP_DETAIL_KEYS,
+  APPLICATION_CORE_MONEY_KEYS,
+  FINANCIAL_FIELD_LABELS,
+  ISSUER_PROFILE_BALANCE_SHEET_KEYS,
+  ISSUER_PROFILE_PNL_KEYS,
+  firstIssueMessage,
+  formatProfileRmAmount,
+  isIssuerFinancialFieldRequired,
+  issuesByField,
+  profileFinancialFieldLabel,
+  PROFILE_FINANCIAL_FIELD_HELP,
+  validateIssuerFinancialFields,
+} from "@cashsouk/types";
+import { Button } from "./components/button";
+import { Input } from "./components/input";
+import { ComRepFieldLabel } from "./comrep-field-label";
+import { ProfileFieldGrid, ProfileReadField } from "./components/profile-read-field";
+import { StatusBadge } from "./components/status-badge";
+import { cn } from "./lib/utils";
+
+const EDITABLE_KEYS = [...ISSUER_PROFILE_BALANCE_SHEET_KEYS, ...ISSUER_PROFILE_PNL_KEYS] as const;
+
+export function profileFinancialDraftFromValues(values: Record<string, unknown> | null | undefined): Record<string, string> {
+  const next: Record<string, string> = {};
+  for (const key of EDITABLE_KEYS) {
+    const current = values?.[key];
+    next[key] = current == null ? "" : String(current);
+  }
+  return next;
+}
+
+function FinancialAmountFields({
+  keys,
+  values,
+  isEditing,
+  draft,
+  fieldErrors,
+  onDraftChange,
+}: {
+  keys: readonly string[];
+  values: Record<string, unknown> | null | undefined;
+  isEditing: boolean;
+  draft: Record<string, string>;
+  fieldErrors: Record<string, string>;
+  onDraftChange: (key: string, value: string) => void;
+}) {
+  if (isEditing) {
+    return (
+      <div className="grid gap-4 sm:grid-cols-2">
+        {keys.map((key) => {
+          const required = isIssuerFinancialFieldRequired(key);
+          const error = fieldErrors[key];
+          return (
+            <div key={key} className="space-y-2">
+              <ComRepFieldLabel
+                htmlFor={`profile-financial-${key}`}
+                label={profileFinancialFieldLabel(key, true)}
+                required={required}
+                optional={!required}
+                help={PROFILE_FINANCIAL_FIELD_HELP[key]}
+              />
+              <Input
+                id={`profile-financial-${key}`}
+                className="h-11 text-ui"
+                inputMode="decimal"
+                value={draft[key] ?? ""}
+                aria-required={required}
+                aria-invalid={Boolean(error)}
+                onChange={(event) => onDraftChange(key, event.target.value)}
+              />
+              {error ? <p className="text-meta text-destructive">{error}</p> : null}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  return (
+    <ProfileFieldGrid>
+      {keys.map((key) => (
+        <ProfileReadField
+          key={key}
+          label={profileFinancialFieldLabel(key)}
+          value={formatProfileRmAmount(values?.[key])}
+        />
+      ))}
+    </ProfileFieldGrid>
+  );
+}
+
+export function ProfileFinancialStatementsBody({
+  yearLabel,
+  values,
+  isEditing,
+  draft,
+  fieldErrors,
+  missingCount,
+  complete,
+  onDraftChange,
+}: {
+  yearLabel: string | null;
+  values: Record<string, unknown> | null | undefined;
+  isEditing: boolean;
+  draft: Record<string, string>;
+  fieldErrors: Record<string, string>;
+  missingCount: number;
+  complete: boolean;
+  onDraftChange: (key: string, value: string) => void;
+}) {
+  const statusLabel = complete
+    ? "Complete"
+    : missingCount
+      ? `${missingCount} required ${missingCount === 1 ? "field" : "fields"} missing`
+      : "Missing fields";
+
+  return (
+    <div className="space-y-6">
+      <ProfileFieldGrid>
+        <ProfileReadField label="Financial Year" value={yearLabel ?? "—"} />
+        <ProfileReadField
+          label="Status"
+          value={<StatusBadge status={complete ? "success" : "action"} label={statusLabel} />}
+        />
+      </ProfileFieldGrid>
+      <div className="space-y-3">
+        <h3 className="text-card-title">Balance Sheet</h3>
+        {values || isEditing ? (
+          <FinancialAmountFields
+            keys={ISSUER_PROFILE_BALANCE_SHEET_KEYS}
+            values={values}
+            isEditing={isEditing}
+            draft={draft}
+            fieldErrors={fieldErrors}
+            onDraftChange={onDraftChange}
+          />
+        ) : (
+          <p className="text-ui text-muted-foreground">No financial statements have been added yet.</p>
+        )}
+      </div>
+      {values || isEditing ? (
+        <div className="space-y-3">
+          <h3 className="text-card-title">Profit and Loss</h3>
+          <FinancialAmountFields
+            keys={ISSUER_PROFILE_PNL_KEYS}
+            values={values}
+            isEditing={isEditing}
+            draft={draft}
+            fieldErrors={fieldErrors}
+            onDraftChange={onDraftChange}
+          />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export function ProfileFinancialSaveBar({
+  isSaving,
+  onCancel,
+  onSave,
+  className,
+}: {
+  isSaving: boolean;
+  onCancel: () => void;
+  onSave: () => void;
+  className?: string;
+}) {
+  return (
+    <div className={cn("flex justify-end gap-2 pt-2", className)}>
+      <Button type="button" variant="outline" className="h-10" onClick={onCancel} disabled={isSaving}>
+        Cancel
+      </Button>
+      <Button type="button" className="h-10" onClick={onSave} disabled={isSaving}>
+        {isSaving ? "Saving..." : "Save changes"}
+      </Button>
+    </div>
+  );
+}
+
+export function validateProfileFinancialDraft(draft: Record<string, string>) {
+  const fields: Record<string, string | number | null> = {};
+  for (const [key, value] of Object.entries(draft)) {
+    fields[key] = value.trim() === "" ? null : value.trim();
+  }
+  const issues = validateIssuerFinancialFields(fields);
+  return {
+    fields,
+    issues,
+    fieldErrors: issuesByField(issues),
+    firstMessage: firstIssueMessage(issues) ?? "Complete the required financial fields.",
+  };
+}
+
+export function ProfileFinancialYearDetails({
+  block,
+}: {
+  block: Record<string, unknown>;
+}) {
+  return (
+    <div className="space-y-5">
+      <div className="space-y-3">
+        <h4 className="text-ui font-medium text-foreground">Financial statements</h4>
+        <ProfileFieldGrid>
+          {APPLICATION_CORE_MONEY_KEYS.map((key) => (
+            <ProfileReadField
+              key={key}
+              label={FINANCIAL_FIELD_LABELS[key] ?? key}
+              value={formatProfileRmAmount(block[key])}
+            />
+          ))}
+        </ProfileFieldGrid>
+      </div>
+      <div className="space-y-3">
+        <h4 className="text-ui font-medium text-foreground">Additional financial details</h4>
+        <p className="text-meta text-muted-foreground">For regulatory reporting</p>
+        <ProfileFieldGrid>
+          {APPLICATION_COMREP_DETAIL_KEYS.map((key) => (
+            <ProfileReadField
+              key={key}
+              label={FINANCIAL_FIELD_LABELS[key] ?? key}
+              value={formatProfileRmAmount(block[key])}
+            />
+          ))}
+        </ProfileFieldGrid>
+      </div>
+    </div>
+  );
+}
+
+export function ProfileFinancialHistory({
+  years,
+}: {
+  years: Array<{ year: string; block: Record<string, unknown> }>;
+}) {
+  const [expandedYear, setExpandedYear] = React.useState<string | null>(null);
+
+  if (years.length === 0) {
+    return <p className="text-ui text-muted-foreground">No submitted financial statements yet.</p>;
+  }
+
+  const orderedYears = [...years].sort((a, b) => Number(b.year) - Number(a.year));
+
+  return (
+    <div className="divide-y">
+      {orderedYears.map(({ year, block }) => {
+        const expanded = expandedYear === year;
+        const detailsId = `profile-financial-year-${year}`;
+        return (
+          <div key={year} className="space-y-4 py-4 first:pt-0 last:pb-0">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="text-card-title">FY{year}</h3>
+                <p className="text-ui text-muted-foreground">Submitted financial record</p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                aria-expanded={expanded}
+                aria-controls={detailsId}
+                onClick={() => setExpandedYear(expanded ? null : year)}
+              >
+                {expanded ? "Hide details" : "View details"}
+              </Button>
+            </div>
+            {expanded ? (
+              <div id={detailsId}>
+                <ProfileFinancialYearDetails block={block} />
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+}

@@ -7,7 +7,6 @@ import {
 import {
   deriveGrossProfitAndServiceFeeFromNet,
   formatNoteDateEnMy,
-  formatNoteReferenceDisplay,
   formatServiceFeeRateLabel,
   NOTE_MONEY_DECIMALS,
   NOTE_MONEY_TOLERANCE,
@@ -379,9 +378,7 @@ export async function buildInvestmentSettlementConfirmationSnapshot(input: {
     }),
   ]);
 
-  const noteReference =
-    nonEmpty(settlement.note.note_reference) ??
-    formatNoteReferenceDisplay(settlement.note.note_reference);
+  const noteReference = nonEmpty(settlement.note.note_reference);
   if (!noteReference) {
     throw new ConfirmationGenerationError(
       "Note reference is missing for the settlement confirmation",
@@ -396,7 +393,7 @@ export async function buildInvestmentSettlementConfirmationSnapshot(input: {
     investorOrg?.display_reference,
     input.investorOrganizationId
   );
-  const settlementReference = nonEmpty(settlement.display_reference) ?? settlement.id;
+  const settlementReference = nonEmpty(settlement.display_reference) ?? "—";
   const dates = resolveConfirmationSettlementDate({
     actualSettlementDate: settlement.actual_settlement_date,
     postedAt: settlement.posted_at,

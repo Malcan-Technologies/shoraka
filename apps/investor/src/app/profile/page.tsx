@@ -20,25 +20,19 @@ import {
   useOrganization,
   useAuthToken,
   createApiClient,
-  type OrganizationMember,
-  type OrganizationMemberRole,
   type BankAccountDetails,
   type UpdateOrganizationProfileInput,
   MALAYSIAN_BANKS,
 } from "@cashsouk/config";
 import type { ApplicationPersonRow } from "@cashsouk/types";
-import { filterVisiblePeopleRows, SC_GENDER_LABELS, SC_INDIVIDUAL_GENDERS, SC_MALAYSIAN_STATES, SC_MONTHLY_INVESTOR, firstIssueMessage, humanizeApiValidationMessage, isMemberWithoutCompanyRole, isValidProfilePhone, linkedPartyUserIds, restrictScPostcodeInput, scAppendixASelectValues, storedProfilePhone, userFacingCompleteness, validateInvestorPersonalForm, type ScGender } from "@cashsouk/types";
+import { filterVisiblePeopleRows, SC_GENDER_LABELS, SC_INDIVIDUAL_GENDERS, SC_MALAYSIAN_STATES, PROFILE_ADDRESS_FIELD_LABELS, PROFILE_ADDRESS_HELP, PROFILE_HELP, PROFILE_LABEL, firstIssueMessage, humanizeApiValidationMessage, isScPostcodeRequired, isValidProfilePhone, restrictScPostcodeInput, scAppendixASelectValues, storedProfilePhone, userFacingCompleteness, validateInvestorPersonalForm, type ScGender } from "@cashsouk/types";
 import { useAuth } from "../../lib/auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccountDocuments } from "../../hooks/use-account-documents";
-import { useOrganizationMembers } from "../../hooks/use-organization-members";
 import { useOrganizationInvitations } from "../../hooks/use-organization-invitations";
 import { InvestorCompanyDetailsCard } from "../../components/investor-company-details-card";
 import { InvestorClassificationCard } from "../../components/investor-classification-card";
 import { InvestorProfileCompletenessBanner } from "../../components/profile-completeness-banner";
-import { InviteMemberDialog } from "../../components/invite-member-dialog";
-import { ConfirmDialog } from "../../components/confirm-dialog";
-import { TransferOwnershipDialog } from "../../components/transfer-ownership-dialog";
 import { toast } from "sonner";
 import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
@@ -46,7 +40,7 @@ import {
   useHeader,
   DirectorShareholderAlertCard,
   INVESTOR_DIRECTOR_SHAREHOLDER_ALERT_COPY,
-  PortalPeopleSection,
+  PeopleAccessSection,
   ProfileFieldGrid,
   ProfileReadField,
   ComRepFieldLabel,
@@ -60,97 +54,26 @@ import {
   profileTabFromSearchParam,
   PROFILE_PATH,
   PROFILE_TAB_PROFILE,
+  PROFILE_TAB_PEOPLE,
   type ProfileTab,
 } from "@/app/profile/profile-tabs";
 import {
   UserIcon,
   BuildingOffice2Icon,
-  ShieldCheckIcon,
-  EnvelopeIcon,
   ArrowPathIcon,
   PencilIcon,
   XMarkIcon,
-  IdentificationIcon,
-  BanknotesIcon,
   DocumentTextIcon,
-  MapPinIcon,
-  PhoneIcon,
   ArrowDownTrayIcon,
-  UserPlusIcon,
-  TrashIcon,
-  ArrowUpIcon,
-  ArrowDownIcon,
-  ClipboardIcon,
 } from "@heroicons/react/24/outline";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-
-const roleConfig: Record<
-  OrganizationMemberRole,
-  { label: string; color: string; bgColor: string; borderColor: string }
-> = {
-  ORGANIZATION_ADMIN: {
-    label: "Organization Admin",
-    color: "text-primary",
-    bgColor: "bg-primary/10",
-    borderColor: "border-primary/20",
-  },
-  ORGANIZATION_MEMBER: {
-    label: "Organization Member",
-    color: "text-muted-foreground",
-    bgColor: "bg-muted",
-    borderColor: "border-border",
-  },
-};
-
-function RoleBadge({ role }: { role: OrganizationMemberRole }) {
-  const config = roleConfig[role];
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${config.color} ${config.bgColor} border ${config.borderColor}`}
-    >
-      <ShieldCheckIcon className="h-3 w-3" />
-      {config.label}
-    </span>
-  );
-}
-
-function MemberCard({ member, ownerId }: { member: OrganizationMember; ownerId?: string }) {
-  const fullName = [member.firstName, member.lastName].filter(Boolean).join(" ") || "Unknown";
-  const initials =
-    [member.firstName?.[0], member.lastName?.[0]].filter(Boolean).join("").toUpperCase() || "?";
-  const isOwner = ownerId && member.id === ownerId;
-
-  return (
-    <div className="flex items-center gap-4 p-4 rounded-xl border bg-card hover:bg-muted/30 transition-colors">
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-lg">
-        {initials}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <p className="text-sm font-semibold text-foreground truncate">{fullName}</p>
-          {isOwner && (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium text-orange-700 bg-orange-50 border border-orange-200">
-              <ShieldCheckIcon className="h-3 w-3" />
-              Organization Owner
-            </span>
-          )}
-          <RoleBadge role={member.role} />
-        </div>
-        <div className="flex items-center gap-1.5 mt-1 text-muted-foreground">
-          <EnvelopeIcon className="h-3.5 w-3.5" />
-          <p className="text-xs truncate">{member.email}</p>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function ProfileSkeleton() {
   const { setTitle } = useHeader();
 
   React.useEffect(() => {
-    setTitle("Profile");
+    setTitle("Organisation");
   }, [setTitle]);
 
   return (
@@ -174,7 +97,7 @@ function NoOrganizationState({ showOnboardingPrompt = true }: { showOnboardingPr
   const { setTitle } = useHeader();
 
   React.useEffect(() => {
-    setTitle("Profile");
+    setTitle("Organisation");
   }, [setTitle]);
 
   return (
@@ -191,7 +114,7 @@ function NoOrganizationState({ showOnboardingPrompt = true }: { showOnboardingPr
               No Profile Selected
             </h2>
             <p className="text-muted-foreground mb-6">
-              Create or select a profile to view profile details and members.
+              Create or select a profile to view company details, people and access, banking, and documents.
             </p>
             {showOnboardingPrompt && (
               <Button variant="outline" onClick={() => router.push("/onboarding/account")}>
@@ -377,7 +300,7 @@ export default function ProfilePage() {
   const { setTitle } = useHeader();
 
   React.useEffect(() => {
-    setTitle("Profile");
+    setTitle("Organisation");
   }, [setTitle]);
 
   const { isAuthenticated } = useAuth();
@@ -402,26 +325,16 @@ export default function ProfilePage() {
 
   const [isRefreshing, setIsRefreshing] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState<ProfileTab>(() =>
-    profileTabFromSearchParam(searchParams.get("tab"))
+    profileTabFromSearchParam(searchParams.get("tab"), false)
   );
-  const [inviteDialogOpen, setInviteDialogOpen] = React.useState(false);
 
   // Editing states
-  const [isEditingProfile, setIsEditingProfile] = React.useState(false);
+  const [isEditingPersonalDetails, setIsEditingPersonalDetails] = React.useState(false);
+  const [isEditingResidentialAddress, setIsEditingResidentialAddress] = React.useState(false);
+  const [isEditingContactDetails, setIsEditingContactDetails] = React.useState(false);
   const [isEditingBanking, setIsEditingBanking] = React.useState(false);
   const [isEditingAddresses, setIsEditingAddresses] = React.useState(false);
-
-  // Organization management hooks
-  const {
-    removeMember,
-    changeRole,
-    leave,
-    transferOwnership,
-    isRemoving,
-    isChangingRole,
-    isLeaving,
-    isTransferringOwnership,
-  } = useOrganizationMembers(activeOrganization?.id);
+  const [isSavingMasterProfile, setIsSavingMasterProfile] = React.useState(false);
 
   // Fetch current user ID
   const { data: currentUser } = useQuery({
@@ -453,52 +366,16 @@ export default function ProfilePage() {
     return currentUserMember?.role === "ORGANIZATION_ADMIN";
   }, [activeOrganization, currentUser]);
 
-  const { invitations, resend, revoke } = useOrganizationInvitations(activeOrganization?.id, {
+  const { invitations } = useOrganizationInvitations(activeOrganization?.id, {
     enabled: isCurrentUserAdmin,
   });
-
-  const { data: partyProfiles = [] } = useQuery({
-    queryKey: ["party-profiles", "investor", activeOrganization?.id],
-    queryFn: async () => {
-      const result = await apiClient.getPartyProfiles("investor", activeOrganization!.id);
-      if (!result.success) throw new Error(result.error.message);
-      return result.data;
-    },
-    enabled: Boolean(activeOrganization?.id) && activeOrganization?.type === "COMPANY",
-  });
-  const linkedUserIds = React.useMemo(() => linkedPartyUserIds(partyProfiles), [partyProfiles]);
-  const membersWithoutCompanyRole = React.useMemo(
-    () =>
-      (activeOrganization?.members ?? []).filter((member) =>
-        isMemberWithoutCompanyRole(member.id, linkedUserIds)
-      ),
-    [activeOrganization?.members, linkedUserIds]
-  );
-  const unscopedInvitations = React.useMemo(
-    () => invitations.filter((invitation) => !invitation.partyProfileId),
-    [invitations]
-  );
-
-  // Confirmation dialog states
-  const [confirmDialog, setConfirmDialog] = React.useState<{
-    open: boolean;
-    type: "remove" | "leave" | "promote" | "demote" | null;
-    memberId?: string;
-    memberName?: string;
-    memberRole?: "ORGANIZATION_ADMIN" | "ORGANIZATION_MEMBER";
-  }>({
-    open: false,
-    type: null,
-  });
-
-  // Transfer ownership dialog state
-  const [transferOwnershipOpen, setTransferOwnershipOpen] = React.useState(false);
 
   // Form states for profile (phone + address)
   const [phoneNumber, setPhoneNumber] = React.useState<string | undefined>(undefined);
   const [address, setAddress] = React.useState("");
   const [gender, setGender] = React.useState("");
   const [nationality, setNationality] = React.useState("");
+  const [dateOfBirth, setDateOfBirth] = React.useState("");
   const [residentialState, setResidentialState] = React.useState("");
   const [residentialPostalCode, setResidentialPostalCode] = React.useState("");
 
@@ -624,17 +501,18 @@ export default function ProfilePage() {
       .map((item) => item.field)
   );
 
-  const urlTab = profileTabFromSearchParam(searchParams.get("tab"));
-  const focusDirectors = searchParams.get("focus") === "directors";
+  const isCompanyOrg = activeOrganization?.type === "COMPANY";
+  const urlTab = profileTabFromSearchParam(searchParams.get("tab"), Boolean(isCompanyOrg));
+  const focusDirectors =
+    searchParams.get("focus") === "directors" || searchParams.get("focus") === "people";
   const focusedPersonKey = searchParams.get("person");
-  const directorsSectionRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
     setActiveTab(urlTab);
   }, [urlTab]);
 
   function handleTabChange(next: string) {
-    if (!isProfileTab(next)) return;
+    if (!isProfileTab(next, Boolean(isCompanyOrg))) return;
     setActiveTab(next);
     const params = new URLSearchParams(searchParams.toString());
     if (next === PROFILE_TAB_PROFILE) params.delete("tab");
@@ -644,14 +522,13 @@ export default function ProfilePage() {
   }
 
   React.useEffect(() => {
-    if (!focusDirectors) return;
-    const el = directorsSectionRef.current;
-    if (!el) return;
-    const t = window.setTimeout(() => {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 200);
-    return () => window.clearTimeout(t);
-  }, [focusDirectors, orgData, activeOrganization?.id]);
+    if (!focusDirectors || !isCompanyOrg) return;
+    setActiveTab(PROFILE_TAB_PEOPLE);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", PROFILE_TAB_PEOPLE);
+    params.delete("focus");
+    router.replace(`${PROFILE_PATH}?${params.toString()}`, { scroll: false });
+  }, [focusDirectors, isCompanyOrg, router, searchParams]);
 
   React.useEffect(() => {
     const focus = searchParams.get("focus");
@@ -691,6 +568,7 @@ export default function ProfilePage() {
       setAddress(orgData.address || "");
       setGender(orgData.gender ?? "");
       setNationality(orgData.nationality ?? "");
+      setDateOfBirth(orgData.dateOfBirth ?? "");
       setResidentialState(orgData.residentialAddress?.state ?? "");
       setResidentialPostalCode(orgData.residentialAddress?.postalCode ?? "");
 
@@ -729,7 +607,9 @@ export default function ProfilePage() {
       queryClient.invalidateQueries({ queryKey: ["organization-detail", activeOrganization?.id] });
       queryClient.invalidateQueries({ queryKey: ["investor", "profile-completeness", activeOrganization?.id] });
       toast.success("Profile updated successfully");
-      setIsEditingProfile(false);
+      setIsEditingPersonalDetails(false);
+      setIsEditingResidentialAddress(false);
+      setIsEditingContactDetails(false);
       setIsEditingBanking(false);
     },
     onError: (error: Error) => {
@@ -753,42 +633,120 @@ export default function ProfilePage() {
       return;
     }
 
+    const invalidateAfterSave = () => {
+      queryClient.invalidateQueries({ queryKey: ["organization-detail", activeOrganization.id] });
+      queryClient.invalidateQueries({ queryKey: ["investor", "profile-completeness", activeOrganization.id] });
+      toast.success("Profile updated successfully");
+    };
+
     if (activeOrganization.type === "PERSONAL") {
-      const issues = validateInvestorPersonalForm({
-        gender,
-        nationality,
-        state: residentialState,
-        postalCode: residentialPostalCode,
-      });
-      if (issues.length > 0) {
-        toast.error(firstIssueMessage(issues));
+      if (isEditingPersonalDetails) {
+        const issues = validateInvestorPersonalForm({
+          gender,
+          nationality,
+          state: residentialState,
+          postalCode: residentialPostalCode,
+        });
+        if (issues.length > 0) {
+          toast.error(firstIssueMessage(issues));
+          return;
+        }
+
+        const dob = dateOfBirth.trim();
+        if (!dob || !/^\d{4}-\d{2}-\d{2}$/.test(dob)) {
+          toast.error("Enter a valid Date of Birth.");
+          return;
+        }
+
+        const master: Record<string, unknown> = {
+          gender,
+          nationality: nationality.trim(),
+          dateOfBirth: dob,
+        };
+        setIsSavingMasterProfile(true);
+        try {
+          const masterRes = await apiClient.patchMasterProfile(
+            "investor",
+            activeOrganization.id,
+            master
+          );
+          if (!masterRes.success) {
+            toast.error("Failed to update profile", {
+              description: humanizeApiValidationMessage(masterRes.error.message),
+            });
+            return;
+          }
+        } finally {
+          setIsSavingMasterProfile(false);
+        }
+
+        invalidateAfterSave();
+        setIsEditingPersonalDetails(false);
+        setIsEditingResidentialAddress(false);
+        setIsEditingContactDetails(false);
         return;
       }
-      const master: Record<string, unknown> = {
-        gender,
-        nationality: nationality.trim(),
-        residentialAddress: {
-          state: residentialState,
-          postalCode: residentialState === "Outside Malaysia" ? residentialPostalCode.trim() || null : residentialPostalCode.trim(),
-        },
-      };
-      const masterRes = await apiClient.patchMasterProfile(
-        "investor",
-        activeOrganization.id,
-        master
-      );
-      if (!masterRes.success) {
-        toast.error("Failed to update profile", {
-          description: humanizeApiValidationMessage(masterRes.error.message),
+
+      if (isEditingResidentialAddress) {
+        if (!residentialState) {
+          toast.error("State is required.");
+          return;
+        }
+        const needsPostcode = isScPostcodeRequired(residentialState);
+        const postcode = residentialPostalCode.trim();
+        if (needsPostcode && !postcode) {
+          toast.error("Postcode is required.");
+          return;
+        }
+
+        const master: Record<string, unknown> = {
+          residentialAddress: {
+            state: residentialState,
+            postalCode:
+              residentialState === "Outside Malaysia" ? (postcode || null) : postcode,
+          },
+        };
+        setIsSavingMasterProfile(true);
+        try {
+          const masterRes = await apiClient.patchMasterProfile(
+            "investor",
+            activeOrganization.id,
+            master
+          );
+          if (!masterRes.success) {
+            toast.error("Failed to update profile", {
+              description: humanizeApiValidationMessage(masterRes.error.message),
+            });
+            return;
+          }
+        } finally {
+          setIsSavingMasterProfile(false);
+        }
+
+        await updateProfileMutation.mutateAsync({
+          address: address.trim() || null,
         });
         return;
       }
+
+      if (isEditingContactDetails) {
+        await updateProfileMutation.mutateAsync({
+          phoneNumber: storedProfilePhone(phoneNumber) || null,
+        });
+        return;
+      }
+
+      // If no recognized flag is active, do nothing.
+      return;
     }
 
-    updateProfileMutation.mutate({
-      phoneNumber: storedProfilePhone(phoneNumber) || null,
-      address: address.trim() || null,
-    });
+    // COMPANY organizations: only contact details are editable in this page.
+    if (isEditingContactDetails) {
+      await updateProfileMutation.mutateAsync({
+        phoneNumber: storedProfilePhone(phoneNumber) || null,
+      });
+      return;
+    }
   };
 
   const handleSaveBanking = () => {
@@ -813,10 +771,13 @@ export default function ProfilePage() {
       setAddress(orgData.address || "");
       setGender(orgData.gender ?? "");
       setNationality(orgData.nationality ?? "");
+      setDateOfBirth(orgData.dateOfBirth ?? "");
       setResidentialState(orgData.residentialAddress?.state ?? "");
       setResidentialPostalCode(orgData.residentialAddress?.postalCode ?? "");
     }
-    setIsEditingProfile(false);
+    setIsEditingPersonalDetails(false);
+    setIsEditingResidentialAddress(false);
+    setIsEditingContactDetails(false);
   };
 
   const handleCancelBankingEdit = () => {
@@ -983,13 +944,23 @@ export default function ProfilePage() {
 
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-            <TabsList className="grid w-full grid-cols-3 h-12 rounded-xl bg-muted p-1">
+            <TabsList
+              className={cn(
+                "grid h-12 w-full rounded-xl bg-muted p-1",
+                isPersonal ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-4"
+              )}
+            >
               <TabsTrigger value="profile" className="rounded-lg data-[state=active]:bg-background">
                 Profile
               </TabsTrigger>
               <TabsTrigger value="banking" className="rounded-lg data-[state=active]:bg-background">
                 Banking
               </TabsTrigger>
+              {!isPersonal ? (
+                <TabsTrigger value="people" className="rounded-lg data-[state=active]:bg-background">
+                  People & Access
+                </TabsTrigger>
+              ) : null}
               <TabsTrigger
                 value="documents"
                 className="rounded-lg data-[state=active]:bg-background"
@@ -1010,11 +981,15 @@ export default function ProfilePage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <VerifiedBadge />
-                      {!isEditingProfile ? (
+                      {!isEditingPersonalDetails ? (
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => setIsEditingProfile(true)}
+                          onClick={() => {
+                            setIsEditingPersonalDetails(true);
+                            setIsEditingResidentialAddress(false);
+                            setIsEditingContactDetails(false);
+                          }}
                           className="gap-2 rounded-xl"
                         >
                           <PencilIcon className="h-4 w-4" />
@@ -1026,31 +1001,40 @@ export default function ProfilePage() {
                   <div className="p-6">
                     <ProfileFieldGrid>
                       <ProfileReadField
-                        label={SC_MONTHLY_INVESTOR.investorName.label}
+                        label={PROFILE_LABEL.investorName}
                         value={displayName}
                         locked
                         required
-                        help={SC_MONTHLY_INVESTOR.investorName.help}
                       />
                       <ProfileReadField
-                        label={SC_MONTHLY_INVESTOR.investorIdentification.label}
+                        label={PROFILE_LABEL.identityNumber}
                         value={`${formatDocumentType(orgData?.documentType)} ${orgData?.documentNumber || ""}`.trim()}
                         locked
                         required
-                        help={SC_MONTHLY_INVESTOR.investorIdentification.help}
                       />
-                      <ProfileReadField
-                        label={SC_MONTHLY_INVESTOR.dateOfBirthIncorporation.label}
-                        value={formatProfileDate(orgData?.dateOfBirth)}
-                        locked
-                        required
-                        help={SC_MONTHLY_INVESTOR.dateOfBirthIncorporation.help}
-                      />
-                      {isEditingProfile ? (
+                      {isEditingPersonalDetails ? (
+                        <div className="space-y-2">
+                          <ComRepFieldLabel label={PROFILE_LABEL.dateOfBirth} required />
+                          <Input
+                            type="date"
+                            className="h-11 text-ui"
+                            value={dateOfBirth}
+                            onChange={(e) => setDateOfBirth(e.target.value)}
+                            aria-required
+                          />
+                        </div>
+                      ) : (
+                        <ProfileReadField
+                          label={PROFILE_LABEL.dateOfBirth}
+                          value={formatProfileDate(orgData?.dateOfBirth)}
+                          missing={missingFieldKeys.has("dateOfBirth")}
+                          required
+                        />
+                      )}
+                      {isEditingPersonalDetails ? (
                         <div className="space-y-2">
                           <ComRepFieldLabel
-                            label={SC_MONTHLY_INVESTOR.gender.label}
-                            help={SC_MONTHLY_INVESTOR.gender.help}
+                            label={PROFILE_LABEL.gender}
                             required
                           />
                           <Select value={gender || undefined} onValueChange={setGender}>
@@ -1068,18 +1052,16 @@ export default function ProfilePage() {
                         </div>
                       ) : (
                         <ProfileReadField
-                          label={SC_MONTHLY_INVESTOR.gender.label}
+                          label={PROFILE_LABEL.gender}
                           value={formatGender(orgData?.gender)}
                           missing={missingFieldKeys.has("gender")}
                           required
-                          help={SC_MONTHLY_INVESTOR.gender.help}
                         />
                       )}
-                      {isEditingProfile ? (
+                      {isEditingPersonalDetails ? (
                         <div className="space-y-2">
                           <ComRepFieldLabel
-                            label={SC_MONTHLY_INVESTOR.nationalityCountry.label}
-                            help={SC_MONTHLY_INVESTOR.nationalityCountry.help}
+                            label={PROFILE_LABEL.nationality}
                             required
                           />
                           <Select value={nationality || undefined} onValueChange={setNationality}>
@@ -1097,14 +1079,33 @@ export default function ProfilePage() {
                         </div>
                       ) : (
                         <ProfileReadField
-                          label={SC_MONTHLY_INVESTOR.nationalityCountry.label}
+                          label={PROFILE_LABEL.nationality}
                           value={orgData?.nationality}
                           missing={missingFieldKeys.has("nationality")}
                           required
-                          help={SC_MONTHLY_INVESTOR.nationalityCountry.help}
                         />
                       )}
                     </ProfileFieldGrid>
+                    {isEditingPersonalDetails && (
+                      <div className="flex justify-end gap-2 pt-4">
+                        <Button
+                          variant="outline"
+                          onClick={handleCancelProfileEdit}
+                          disabled={isSavingMasterProfile}
+                          className="gap-2 rounded-xl"
+                        >
+                          <XMarkIcon className="h-4 w-4" />
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={handleSaveProfile}
+                          disabled={isSavingMasterProfile}
+                          className="gap-2 rounded-xl"
+                        >
+                          {isSavingMasterProfile ? "Saving..." : "Save changes"}
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -1131,16 +1132,20 @@ export default function ProfilePage() {
                   <div id="profile-address" className="scroll-mt-24 rounded-xl border bg-card">
                     <div className="flex items-center justify-between p-6 border-b">
                     <div>
-                      <h2 className="text-lg font-semibold">Address</h2>
+                      <h2 className="text-lg font-semibold">{PROFILE_LABEL.residentialAddress}</h2>
                       <p className="text-sm text-muted-foreground">
                         Ensure your primary address is up to date
                       </p>
                     </div>
-                    {!isEditingProfile && (
+                    {!isEditingResidentialAddress && (
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setIsEditingProfile(true)}
+                        onClick={() => {
+                          setIsEditingResidentialAddress(true);
+                          setIsEditingPersonalDetails(false);
+                          setIsEditingContactDetails(false);
+                        }}
                         className="gap-2 rounded-xl"
                       >
                         <PencilIcon className="h-4 w-4" />
@@ -1149,33 +1154,31 @@ export default function ProfilePage() {
                     )}
                   </div>
                   <div className="p-6 space-y-4">
-                    {!isEditingProfile ? (
+                    {!isEditingResidentialAddress ? (
                       <ProfileFieldGrid>
                         <ProfileReadField
                           className="sm:col-span-2"
-                          label="Residential address"
+                          label={PROFILE_ADDRESS_FIELD_LABELS.address}
                           value={address.trim() || null}
+                          required
                         />
                         <ProfileReadField
-                          label={SC_MONTHLY_INVESTOR.businessResidentialAddressState.label}
+                          label={PROFILE_ADDRESS_FIELD_LABELS.state}
                           value={orgData?.residentialAddress?.state}
-                          missing={missingFieldKeys.has("state")}
                           required
+                          missing={missingFieldKeys.has("state")}
                         />
                         <ProfileReadField
-                          label={SC_MONTHLY_INVESTOR.businessResidentialAddressPostcode.label}
+                          label={PROFILE_ADDRESS_FIELD_LABELS.postcode}
                           value={orgData?.residentialAddress?.postalCode}
+                          required={isScPostcodeRequired(orgData?.residentialAddress?.state)}
                           missing={missingFieldKeys.has("postalCode")}
-                          required
                         />
                       </ProfileFieldGrid>
                     ) : (
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-2 sm:col-span-2">
-                      <Label className="flex items-center gap-2">
-                        <MapPinIcon className="h-4 w-4" />
-                        Residential address
-                      </Label>
+                            <ComRepFieldLabel label={PROFILE_ADDRESS_FIELD_LABELS.address} required />
                       <Textarea
                         placeholder="Enter your full address"
                         value={address}
@@ -1183,13 +1186,14 @@ export default function ProfilePage() {
                         rows={3}
                         maxLength={500}
                         className="resize-none"
+                        aria-required
                       />
-                        <p className="text-xs text-muted-foreground">Maximum 500 characters</p>
                       </div>
                       <div className="space-y-2">
                         <ComRepFieldLabel
-                          label={SC_MONTHLY_INVESTOR.businessResidentialAddressState.label}
+                          label={PROFILE_ADDRESS_FIELD_LABELS.state}
                           required
+                          help={PROFILE_ADDRESS_HELP.state}
                         />
                         <Select value={residentialState || undefined} onValueChange={setResidentialState}>
                           <SelectTrigger className="h-11 text-ui">
@@ -1206,8 +1210,10 @@ export default function ProfilePage() {
                       </div>
                       <div className="space-y-2">
                         <ComRepFieldLabel
-                          label={SC_MONTHLY_INVESTOR.businessResidentialAddressPostcode.label}
-                          required
+                          label={PROFILE_ADDRESS_FIELD_LABELS.postcode}
+                          required={residentialState !== "Outside Malaysia"}
+                          optional={residentialState === "Outside Malaysia"}
+                          help={PROFILE_ADDRESS_HELP.postcode}
                         />
                         <Input
                           className="h-11 text-ui"
@@ -1217,17 +1223,18 @@ export default function ProfilePage() {
                               restrictScPostcodeInput(residentialState, event.target.value)
                             )
                           }
+                          aria-required={residentialState !== "Outside Malaysia"}
                         />
                       </div>
                     </div>
                     )}
 
-                    {isEditingProfile && (
+                    {isEditingResidentialAddress && (
                       <div className="flex justify-end gap-2 pt-4">
                         <Button
                           variant="outline"
                           onClick={handleCancelProfileEdit}
-                          disabled={updateProfileMutation.isPending}
+                          disabled={updateProfileMutation.isPending || isSavingMasterProfile}
                           className="gap-2 rounded-xl"
                         >
                           <XMarkIcon className="h-4 w-4" />
@@ -1235,7 +1242,7 @@ export default function ProfilePage() {
                         </Button>
                         <Button
                           onClick={handleSaveProfile}
-                          disabled={updateProfileMutation.isPending}
+                          disabled={updateProfileMutation.isPending || isSavingMasterProfile}
                           className="gap-2 rounded-xl"
                         >
                           {updateProfileMutation.isPending ? "Saving..." : "Save changes"}
@@ -1294,11 +1301,15 @@ export default function ProfilePage() {
                           Manage your phone number and email address
                         </p>
                       </div>
-                      {!isEditingProfile && (
+                      {!isEditingContactDetails && (
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => setIsEditingProfile(true)}
+                          onClick={() => {
+                            setIsEditingContactDetails(true);
+                            setIsEditingPersonalDetails(false);
+                            setIsEditingResidentialAddress(false);
+                          }}
                           className="gap-2 rounded-xl"
                         >
                           <PencilIcon className="h-4 w-4" />
@@ -1307,49 +1318,47 @@ export default function ProfilePage() {
                       )}
                     </div>
                     <div className="p-6 space-y-4">
+                      {isEditingContactDetails ? (
                       <div className="grid gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
-                          <Label className="flex items-center gap-2">
-                            <PhoneIcon className="h-4 w-4" />
-                            Phone number
-                          </Label>
-                          {isEditingProfile ? (
-                            <PhoneInput
-                              international
-                              defaultCountry="MY"
-                              value={phoneNumber}
-                              onChange={setPhoneNumber}
-                              className="h-11 rounded-xl border border-input px-4 [&>input]:border-0 [&>input]:bg-transparent [&>input]:outline-none [&>input]:text-sm"
-                            />
-                          ) : (
-                            <Input
-                              value={phoneNumber || "—"}
-                              disabled
-                              className="bg-muted h-11 rounded-xl"
-                            />
-                          )}
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="flex items-center gap-2">
-                            <EnvelopeIcon className="h-4 w-4" />
-                            Email
-                          </Label>
-                          <Input
-                            value={
-                              activeOrganization.members?.find((m) => m.id === activeOrganization.ownerId)?.email || "—"
-                            }
-                            disabled
-                            className="bg-muted h-11 rounded-xl"
+                          <ComRepFieldLabel label={PROFILE_LABEL.phone} optional />
+                          <PhoneInput
+                            international
+                            defaultCountry="MY"
+                            value={phoneNumber}
+                            onChange={setPhoneNumber}
+                            className="h-11 rounded-xl border border-input px-4 [&>input]:border-0 [&>input]:bg-transparent [&>input]:outline-none [&>input]:text-sm"
                           />
                         </div>
+                        <ProfileReadField
+                          label={PROFILE_LABEL.accountEmail}
+                          value={
+                            activeOrganization.members?.find((m) => m.id === activeOrganization.ownerId)?.email || "—"
+                          }
+                          locked
+                          lockReason="Managed on the account, not this profile."
+                        />
                       </div>
+                      ) : (
+                      <ProfileFieldGrid>
+                        <ProfileReadField label={PROFILE_LABEL.phone} value={phoneNumber || "—"} />
+                        <ProfileReadField
+                          label={PROFILE_LABEL.accountEmail}
+                          value={
+                            activeOrganization.members?.find((m) => m.id === activeOrganization.ownerId)?.email || "—"
+                          }
+                          locked
+                          lockReason="Managed on the account, not this profile."
+                        />
+                      </ProfileFieldGrid>
+                      )}
 
-                      {isEditingProfile && (
+                      {isEditingContactDetails && (
                         <div className="flex justify-end gap-2 pt-4">
                           <Button
                             variant="outline"
                             onClick={handleCancelProfileEdit}
-                            disabled={updateProfileMutation.isPending}
+                            disabled={updateProfileMutation.isPending || isSavingMasterProfile}
                             className="gap-2 rounded-xl"
                           >
                             <XMarkIcon className="h-4 w-4" />
@@ -1357,7 +1366,7 @@ export default function ProfilePage() {
                           </Button>
                           <Button
                             onClick={handleSaveProfile}
-                            disabled={updateProfileMutation.isPending}
+                            disabled={updateProfileMutation.isPending || isSavingMasterProfile}
                             className="gap-2 rounded-xl"
                           >
                             {updateProfileMutation.isPending ? "Saving..." : "Save changes"}
@@ -1406,19 +1415,24 @@ export default function ProfilePage() {
                             ]
                               .filter((part) => part && part.trim())
                               .join(", ") || null}
+                            required
                             missing={missingFieldKeys.has("businessAddress.line1")}
                           />
                           <ProfileReadField
-                            label={SC_MONTHLY_INVESTOR.businessResidentialAddressState.label}
+                            label={PROFILE_ADDRESS_FIELD_LABELS.state}
                             value={orgData?.corporateOnboardingData?.addresses?.business?.state}
+                            required
                             missing={
                               missingFieldKeys.has("businessState") ||
                               missingFieldKeys.has("businessAddress.state")
                             }
                           />
                           <ProfileReadField
-                            label={SC_MONTHLY_INVESTOR.businessResidentialAddressPostcode.label}
+                            label={PROFILE_ADDRESS_FIELD_LABELS.postcode}
                             value={orgData?.corporateOnboardingData?.addresses?.business?.postalCode}
+                            required={isScPostcodeRequired(
+                              orgData?.corporateOnboardingData?.addresses?.business?.state
+                            )}
                             missing={
                               missingFieldKeys.has("businessPostalCode") ||
                               missingFieldKeys.has("businessAddress.postalCode")
@@ -1428,7 +1442,7 @@ export default function ProfilePage() {
                       ) : (
                         <div className="grid gap-4 sm:grid-cols-2">
                           <div className="space-y-2 sm:col-span-2">
-                            <Label>Address Line 1</Label>
+                            <ComRepFieldLabel label={PROFILE_ADDRESS_FIELD_LABELS.address} required />
                             <Input
                               value={businessLine1}
                               onChange={(e) => setBusinessLine1(e.target.value)}
@@ -1437,7 +1451,7 @@ export default function ProfilePage() {
                             />
                           </div>
                           <div className="space-y-2 sm:col-span-2">
-                            <Label>Address Line 2</Label>
+                            <ComRepFieldLabel label={PROFILE_ADDRESS_FIELD_LABELS.addressLine2} optional />
                             <Input
                               value={businessLine2}
                               onChange={(e) => setBusinessLine2(e.target.value)}
@@ -1446,7 +1460,7 @@ export default function ProfilePage() {
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label>City</Label>
+                            <ComRepFieldLabel label={PROFILE_ADDRESS_FIELD_LABELS.city} optional />
                             <Input
                               value={businessCity}
                               onChange={(e) => setBusinessCity(e.target.value)}
@@ -1455,7 +1469,7 @@ export default function ProfilePage() {
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label>{SC_MONTHLY_INVESTOR.businessResidentialAddressPostcode.label}</Label>
+                            <ComRepFieldLabel label={PROFILE_ADDRESS_FIELD_LABELS.postcode} required />
                             <Input
                               value={businessPostalCode}
                               onChange={(e) => setBusinessPostalCode(e.target.value)}
@@ -1464,7 +1478,7 @@ export default function ProfilePage() {
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label>{SC_MONTHLY_INVESTOR.businessResidentialAddressState.label}</Label>
+                            <ComRepFieldLabel label={PROFILE_ADDRESS_FIELD_LABELS.state} required />
                             <Input
                               value={businessState}
                               onChange={(e) => setBusinessState(e.target.value)}
@@ -1473,7 +1487,7 @@ export default function ProfilePage() {
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label>Country</Label>
+                            <ComRepFieldLabel label={PROFILE_ADDRESS_FIELD_LABELS.country} optional />
                             <Input
                               value={businessCountry}
                               onChange={(e) => setBusinessCountry(e.target.value)}
@@ -1503,7 +1517,7 @@ export default function ProfilePage() {
                         {!sameAsBusinessAddress ? (
                           <div className="grid gap-4 sm:grid-cols-2">
                             <div className="space-y-2 sm:col-span-2">
-                              <Label>Address Line 1</Label>
+                              <ComRepFieldLabel label={PROFILE_ADDRESS_FIELD_LABELS.address} required />
                               <Input
                                 value={registeredLine1}
                                 onChange={(e) => setRegisteredLine1(e.target.value)}
@@ -1512,7 +1526,7 @@ export default function ProfilePage() {
                               />
                             </div>
                             <div className="space-y-2 sm:col-span-2">
-                              <Label>Address Line 2</Label>
+                              <ComRepFieldLabel label={PROFILE_ADDRESS_FIELD_LABELS.addressLine2} optional />
                               <Input
                                 value={registeredLine2}
                                 onChange={(e) => setRegisteredLine2(e.target.value)}
@@ -1521,7 +1535,7 @@ export default function ProfilePage() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label>City</Label>
+                              <ComRepFieldLabel label={PROFILE_ADDRESS_FIELD_LABELS.city} optional />
                               <Input
                                 value={registeredCity}
                                 onChange={(e) => setRegisteredCity(e.target.value)}
@@ -1530,7 +1544,7 @@ export default function ProfilePage() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label>{SC_MONTHLY_INVESTOR.businessResidentialAddressPostcode.label}</Label>
+                              <ComRepFieldLabel label={PROFILE_ADDRESS_FIELD_LABELS.postcode} required />
                               <Input
                                 value={registeredPostalCode}
                                 onChange={(e) => setRegisteredPostalCode(e.target.value)}
@@ -1539,7 +1553,7 @@ export default function ProfilePage() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label>{SC_MONTHLY_INVESTOR.businessResidentialAddressState.label}</Label>
+                              <ComRepFieldLabel label={PROFILE_ADDRESS_FIELD_LABELS.state} required />
                               <Input
                                 value={registeredState}
                                 onChange={(e) => setRegisteredState(e.target.value)}
@@ -1548,7 +1562,7 @@ export default function ProfilePage() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label>Country</Label>
+                              <ComRepFieldLabel label={PROFILE_ADDRESS_FIELD_LABELS.country} optional />
                               <Input
                                 value={registeredCountry}
                                 onChange={(e) => setRegisteredCountry(e.target.value)}
@@ -1638,11 +1652,15 @@ export default function ProfilePage() {
                         Login email for the organisation owner. This is not the company e-mail.
                       </p>
                     </div>
-                    {!isEditingProfile && (
+                    {!isEditingContactDetails && (
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setIsEditingProfile(true)}
+                        onClick={() => {
+                          setIsEditingContactDetails(true);
+                          setIsEditingPersonalDetails(false);
+                          setIsEditingResidentialAddress(false);
+                        }}
                         className="gap-2 rounded-xl"
                       >
                         <PencilIcon className="h-4 w-4" />
@@ -1650,14 +1668,15 @@ export default function ProfilePage() {
                       </Button>
                     )}
                   </div>
-                  <div className="p-6 space-y-4">
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label className="flex items-center gap-2">
-                          <PhoneIcon className="h-4 w-4" />
-                          Company phone number
-                        </Label>
-                        {isEditingProfile ? (
+                    <div className="p-6 space-y-4">
+                      {isEditingContactDetails ? (
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <ComRepFieldLabel
+                            label={PROFILE_LABEL.companyPhone}
+                            optional
+                            help={PROFILE_HELP.companyPhone}
+                          />
                           <PhoneInput
                             international
                             defaultCountry="MY"
@@ -1665,35 +1684,36 @@ export default function ProfilePage() {
                             onChange={setPhoneNumber}
                             className="h-11 rounded-xl border border-input px-4 [&>input]:border-0 [&>input]:bg-transparent [&>input]:outline-none [&>input]:text-sm"
                           />
-                        ) : (
-                          <Input
-                            value={phoneNumber || "—"}
-                            disabled
-                            className="bg-muted h-11 rounded-xl"
-                          />
-                        )}
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="flex items-center gap-2">
-                          <EnvelopeIcon className="h-4 w-4" />
-                          Account owner email
-                        </Label>
-                        <Input
+                        </div>
+                        <ProfileReadField
+                          label={PROFILE_LABEL.accountOwnerEmail}
                           value={
                             activeOrganization.members?.find((m) => m.id === activeOrganization.ownerId)?.email || "—"
                           }
-                          disabled
-                          className="bg-muted h-11 rounded-xl"
+                          locked
+                          lockReason="Managed on the account, not this profile."
                         />
                       </div>
-                    </div>
+                      ) : (
+                      <ProfileFieldGrid>
+                        <ProfileReadField label={PROFILE_LABEL.companyPhone} value={phoneNumber || "—"} />
+                        <ProfileReadField
+                          label={PROFILE_LABEL.accountOwnerEmail}
+                          value={
+                            activeOrganization.members?.find((m) => m.id === activeOrganization.ownerId)?.email || "—"
+                          }
+                          locked
+                          lockReason="Managed on the account, not this profile."
+                        />
+                      </ProfileFieldGrid>
+                      )}
 
-                    {isEditingProfile && (
+                    {isEditingContactDetails && (
                       <div className="flex justify-end gap-2 pt-4">
                         <Button
                           variant="outline"
                           onClick={handleCancelProfileEdit}
-                          disabled={updateProfileMutation.isPending}
+                          disabled={updateProfileMutation.isPending || isSavingMasterProfile}
                           className="gap-2 rounded-xl"
                         >
                           <XMarkIcon className="h-4 w-4" />
@@ -1701,7 +1721,7 @@ export default function ProfilePage() {
                         </Button>
                         <Button
                           onClick={handleSaveProfile}
-                          disabled={updateProfileMutation.isPending}
+                          disabled={updateProfileMutation.isPending || isSavingMasterProfile}
                           className="gap-2 rounded-xl"
                         >
                           {updateProfileMutation.isPending ? "Saving..." : "Save changes"}
@@ -1716,261 +1736,56 @@ export default function ProfilePage() {
                 <div id="profile-person-in-charge" className="scroll-mt-24 rounded-xl border bg-card">
                   <div className="p-6 border-b">
                     <h2 className="text-lg font-semibold">Person in Charge</h2>
-                    <p className="text-sm text-muted-foreground">Main contact person for this company.</p>
+                    <p className="text-sm text-muted-foreground">Onboarding / RegTank evidence. This is not the editable company profile.</p>
                   </div>
                   <div className="p-6">
                     <ProfileFieldGrid>
                       <ProfileReadField
-                        label="Name"
+                        label={PROFILE_LABEL.fullName}
                         value={orgData.corporateOnboardingData.personInCharge.name || "—"}
                       />
                       <ProfileReadField
-                        label="Position"
+                        label={PROFILE_LABEL.position}
                         value={orgData.corporateOnboardingData.personInCharge.position || "—"}
                       />
                       <ProfileReadField
-                        label="Email"
+                        label={PROFILE_LABEL.personEmail}
                         value={orgData.corporateOnboardingData.personInCharge.email || "—"}
                       />
                       <ProfileReadField
-                        label="Contact Number"
+                        label={PROFILE_LABEL.phone}
                         value={orgData.corporateOnboardingData.personInCharge.contactNumber || "—"}
                       />
                     </ProfileFieldGrid>
                   </div>
                 </div>
               ) : null}
+            </TabsContent>
 
-              {/* 4. Directors/Shareholders Section - Only for COMPANY accounts */}
-              {!isPersonal && activeOrganization?.id && orgData?.type === "COMPANY" && (
-                <div ref={directorsSectionRef} className="scroll-mt-24">
-                  <PortalPeopleSection
+            {!isPersonal ? (
+              <TabsContent value="people" className="mt-6 space-y-6">
+                {activeOrganization?.id ? (
+                  <PeopleAccessSection
                     portal="investor"
                     organizationId={activeOrganization.id}
-                    organizationOnboardingStatus={orgData.onboardingStatus}
-                    people={orgData.people ?? []}
-                    directorShareholderListSource={orgData.directorShareholderListSource ?? null}
-                    ctosDirectorShareholderWarning={orgData.ctosDirectorShareholderWarning ?? null}
+                    organizationOnboardingStatus={orgData?.onboardingStatus}
+                    people={orgData?.people ?? []}
+                    directorShareholderListSource={orgData?.directorShareholderListSource ?? null}
+                    ctosDirectorShareholderWarning={orgData?.ctosDirectorShareholderWarning ?? null}
                     focusedMatchKey={focusedPersonKey}
                     canEdit={isCurrentUserAdmin}
+                    canInactivate={isCurrentUserAdmin}
+                    currentUserId={currentUser?.userId}
+                    ownerUserId={activeOrganization.ownerId}
+                    members={activeOrganization.members ?? []}
+                    invitations={invitations}
+                    invitePortalUrl={process.env.NEXT_PUBLIC_INVESTOR_PORTAL_URL || "http://localhost:3002"}
+                    onViewPerson={(partyId) => router.push(`/profile/people/${partyId}`)}
                     onChanged={handlePartyOnboardingSent}
                   />
-                </div>
-              )}
-
-              {/* 5. Members Section */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-semibold">
-                    {isPersonal ? "Account Holder" : "Platform members without a company role"} (
-                    {isPersonal ? activeOrganization.members?.length || 0 : membersWithoutCompanyRole.length})
-                  </h2>
-                  {!isPersonal && isCurrentUserAdmin && (
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setInviteDialogOpen(true)}
-                        className="gap-2 rounded-xl"
-                      >
-                        <UserPlusIcon className="h-4 w-4" />
-                        Invite Member
-                      </Button>
-                      {activeOrganization.isOwner && activeOrganization.members && activeOrganization.members.length > 1 && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setTransferOwnershipOpen(true)}
-                          disabled={isTransferringOwnership}
-                          className="gap-2 rounded-xl text-orange-600 hover:text-orange-700 hover:bg-orange-50 border-orange-200"
-                        >
-                          <ArrowPathIcon className="h-4 w-4" />
-                          Transfer Ownership
-                        </Button>
-                      )}
-                    </div>
-                  )}
-                </div>
-                {membersWithoutCompanyRole.length > 0 ? (
-                  <div className="grid gap-3">
-                    {membersWithoutCompanyRole.map((member) => {
-                      const isCurrentUser = currentUser && member.id === currentUser.userId;
-                      const canManageMembers = !isPersonal && isCurrentUserAdmin && !isCurrentUser;
-                      const isOwner = activeOrganization.isOwner && isCurrentUser;
-                      const canLeave = !isPersonal && isCurrentUser && !isOwner;
-                      const memberName = [member.firstName, member.lastName].filter(Boolean).join(" ") || member.email;
-
-                      return (
-                        <div key={member.id} className="flex items-center gap-4 p-4 rounded-xl border bg-card hover:bg-muted/30 transition-colors">
-                          <div className="flex-1">
-                            <MemberCard member={member} ownerId={activeOrganization.ownerId} />
-                          </div>
-                          {canManageMembers && (
-                            <div className="flex items-center gap-2 ml-auto">
-                              {member.role === "ORGANIZATION_MEMBER" ? (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() =>
-                                    setConfirmDialog({
-                                      open: true,
-                                      type: "promote",
-                                      memberId: member.id,
-                                      memberName,
-                                      memberRole: member.role,
-                                    })
-                                  }
-                                  disabled={isChangingRole}
-                                  className="gap-1"
-                                  title="Promote to Admin"
-                                >
-                                  <ArrowUpIcon className="h-4 w-4" />
-                                </Button>
-                              ) : (
-                                // Only show demote button if not demoting yourself
-                                !isCurrentUser && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() =>
-                                      setConfirmDialog({
-                                        open: true,
-                                        type: "demote",
-                                        memberId: member.id,
-                                        memberName,
-                                        memberRole: member.role,
-                                      })
-                                    }
-                                    disabled={isChangingRole}
-                                    className="gap-1"
-                                    title="Demote to Member"
-                                  >
-                                    <ArrowDownIcon className="h-4 w-4" />
-                                  </Button>
-                                )
-                              )}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() =>
-                                  setConfirmDialog({
-                                    open: true,
-                                    type: "remove",
-                                    memberId: member.id,
-                                    memberName,
-                                  })
-                                }
-                                disabled={isRemoving}
-                                className="gap-1 text-destructive hover:text-destructive"
-                                title="Remove Member"
-                              >
-                                <TrashIcon className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          )}
-                          {canLeave && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() =>
-                                setConfirmDialog({
-                                  open: true,
-                                  type: "leave",
-                                })
-                              }
-                              disabled={isLeaving}
-                              className="gap-1 text-destructive hover:text-destructive ml-auto"
-                              title="Leave Organization"
-                            >
-                              Leave
-                            </Button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground">
-                    <p>No platform members without a company role</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Pending Invitations Section - Only for COMPANY accounts and admins */}
-              {!isPersonal && isCurrentUserAdmin && unscopedInvitations.length > 0 && (
-                <div className="rounded-xl border bg-card">
-                  <div className="flex items-center justify-between p-6 border-b">
-                    <div>
-                      <h2 className="text-lg font-semibold">Pending Invitations</h2>
-                      <p className="text-sm text-muted-foreground">
-                        Invitations awaiting acceptance. Person invitations are shown on People cards.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="p-6 space-y-3">
-                    {unscopedInvitations.map((invitation) => {
-                      const isPlaceholderEmail = invitation.email.startsWith('invitation-') &&
-                                                invitation.email.includes('@cashsouk.com');
-                      return (
-                        <div key={invitation.id} className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
-                          <div>
-                            <p className="font-medium">
-                              {isPlaceholderEmail ? 'Link-based invitation' : invitation.email}
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                              {invitation.role === "ORGANIZATION_ADMIN" ? "Admin" : "Member"} • Expires{" "}
-                              {new Date(invitation.expiresAt).toLocaleDateString()}
-                            </p>
-                          </div>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              const portalUrl = process.env.NEXT_PUBLIC_INVESTOR_PORTAL_URL || "http://localhost:3002";
-                              const inviteLink = `${portalUrl}/accept-invitation?token=${invitation.token}`;
-                              navigator.clipboard.writeText(inviteLink);
-                              toast.success("Invitation link copied to clipboard");
-                            }}
-                            className="gap-1"
-                          >
-                            <ClipboardIcon className="h-4 w-4" />
-                            Copy Link
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => resend(invitation.id)}
-                            className="gap-1"
-                          >
-                            Resend
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => revoke(invitation.id)}
-                            className="gap-1 text-destructive"
-                          >
-                            Revoke
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                    })}
-                  </div>
-                </div>
-              )}
-
-
-              {/* Invite Member Dialog - only mount for org admins to avoid 403 on invitations API */}
-              {activeOrganization?.id && isCurrentUserAdmin && (
-                <InviteMemberDialog
-                  organizationId={activeOrganization.id}
-                  open={inviteDialogOpen}
-                  onOpenChange={setInviteDialogOpen}
-                />
-              )}
-            </TabsContent>
+                ) : null}
+              </TabsContent>
+            ) : null}
 
             {/* Banking Tab */}
             <TabsContent value="banking" className="space-y-6 mt-6">
@@ -1995,76 +1810,61 @@ export default function ProfilePage() {
                   )}
                 </div>
                 <div className="p-6 space-y-4">
+                  {isEditingBanking ? (
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <BanknotesIcon className="h-4 w-4" />
-                        Bank name
-                      </Label>
-                      {isEditingBanking ? (
-                        <Select value={bankName} onValueChange={setBankName}>
-                          <SelectTrigger className="h-11 rounded-xl">
-                            <SelectValue placeholder="Select bank" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {MALAYSIAN_BANKS.map((bank) => (
-                              <SelectItem key={bank.value} value={bank.value}>
-                                {bank.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <Input
-                          value={bankName || "—"}
-                          disabled
-                          className="bg-muted h-11 rounded-xl"
-                        />
-                      )}
+                      <ComRepFieldLabel label={PROFILE_LABEL.bankName} optional />
+                      <Select value={bankName} onValueChange={setBankName}>
+                        <SelectTrigger className="h-11 rounded-xl">
+                          <SelectValue placeholder="Select bank" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {MALAYSIAN_BANKS.map((bank) => (
+                            <SelectItem key={bank.value} value={bank.value}>
+                              {bank.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <DocumentTextIcon className="h-4 w-4" />
-                        Account type
-                      </Label>
-                      {isEditingBanking ? (
-                        <Select value={accountType} onValueChange={setAccountType}>
-                          <SelectTrigger className="h-11 rounded-xl">
-                            <SelectValue placeholder="Select account type" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Savings">Savings</SelectItem>
-                            <SelectItem value="Checking">Checking</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <Input
-                          value={accountType || "—"}
-                          disabled
-                          className="bg-muted h-11 rounded-xl"
-                        />
-                      )}
+                      <ComRepFieldLabel label={PROFILE_LABEL.accountType} optional />
+                      <Select value={accountType} onValueChange={setAccountType}>
+                        <SelectTrigger className="h-11 rounded-xl">
+                          <SelectValue placeholder="Select account type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Savings">Savings</SelectItem>
+                          <SelectItem value="Checking">Checking</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-2 sm:col-span-2">
-                      <Label className="flex items-center gap-2">
-                        <IdentificationIcon className="h-4 w-4" />
-                        Bank account number
-                      </Label>
+                      <ComRepFieldLabel
+                        label={PROFILE_LABEL.bankAccountNumber}
+                        optional
+                        help="Enter a 10–18 digit account number if you add banking details."
+                      />
                       <Input
                         placeholder="Enter your bank account number"
                         value={accountNumber}
                         onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, ""))}
-                        disabled={!isEditingBanking}
                         maxLength={18}
-                        className={`h-11 rounded-xl font-mono ${!isEditingBanking ? "bg-muted" : ""}`}
+                        className="h-11 rounded-xl font-mono"
                       />
-                      {isEditingBanking && (
-                        <p className="text-xs text-muted-foreground">
-                          Enter 10-18 digit account number
-                        </p>
-                      )}
                     </div>
                   </div>
+                  ) : (
+                    <ProfileFieldGrid>
+                      <ProfileReadField label={PROFILE_LABEL.bankName} value={bankName || "—"} />
+                      <ProfileReadField label={PROFILE_LABEL.accountType} value={accountType || "—"} />
+                      <ProfileReadField
+                        className="sm:col-span-2"
+                        label={PROFILE_LABEL.bankAccountNumber}
+                        value={accountNumber || "—"}
+                      />
+                    </ProfileFieldGrid>
+                  )}
 
                   {isEditingBanking && (
                     <div className="flex justify-end gap-2 pt-4">
@@ -2098,107 +1898,6 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* Confirmation Dialogs */}
-      {confirmDialog.type === "remove" && confirmDialog.memberId && (
-        <ConfirmDialog
-          open={confirmDialog.open}
-          onOpenChange={(open) =>
-            setConfirmDialog({ ...confirmDialog, open })
-          }
-          title="Remove Member"
-          description={`Are you sure you want to remove ${confirmDialog.memberName} from this organization? This action cannot be undone.`}
-          confirmText="Remove"
-          cancelText="Cancel"
-          variant="destructive"
-          onConfirm={async () => {
-            if (confirmDialog.memberId) {
-              removeMember(confirmDialog.memberId);
-              setConfirmDialog({ open: false, type: null });
-            }
-          }}
-          isLoading={isRemoving}
-        />
-      )}
-
-      {confirmDialog.type === "leave" && (
-        <ConfirmDialog
-          open={confirmDialog.open}
-          onOpenChange={(open) =>
-            setConfirmDialog({ ...confirmDialog, open })
-          }
-          title="Leave Organization"
-          description="Are you sure you want to leave this organization? You will lose access to all organization data and will need to be re-invited to regain access."
-          confirmText="Leave"
-          cancelText="Cancel"
-          variant="destructive"
-          onConfirm={async () => {
-            try {
-              await leave();
-              setConfirmDialog({ open: false, type: null });
-            } catch {
-              // Error is handled by the hook
-            }
-          }}
-          isLoading={isLeaving}
-        />
-      )}
-
-      {confirmDialog.type === "promote" && confirmDialog.memberId && (
-        <ConfirmDialog
-          open={confirmDialog.open}
-          onOpenChange={(open) =>
-            setConfirmDialog({ ...confirmDialog, open })
-          }
-          title="Promote to Admin"
-          description={`Are you sure you want to promote ${confirmDialog.memberName} to Organization Admin? They will be able to manage members and organization settings.`}
-          confirmText="Promote"
-          cancelText="Cancel"
-          variant="default"
-          onConfirm={async () => {
-            if (confirmDialog.memberId) {
-              changeRole({ userId: confirmDialog.memberId, role: "ORGANIZATION_ADMIN" });
-              setConfirmDialog({ open: false, type: null });
-            }
-          }}
-          isLoading={isChangingRole}
-        />
-      )}
-
-      {confirmDialog.type === "demote" && confirmDialog.memberId && (
-        <ConfirmDialog
-          open={confirmDialog.open}
-          onOpenChange={(open) =>
-            setConfirmDialog({ ...confirmDialog, open })
-          }
-          title="Demote to Member"
-          description={`Are you sure you want to demote ${confirmDialog.memberName} to Organization Member? They will lose admin privileges.`}
-          confirmText="Demote"
-          cancelText="Cancel"
-          variant="default"
-          onConfirm={async () => {
-            if (confirmDialog.memberId) {
-              changeRole({ userId: confirmDialog.memberId, role: "ORGANIZATION_MEMBER" });
-              setConfirmDialog({ open: false, type: null });
-            }
-          }}
-          isLoading={isChangingRole}
-        />
-      )}
-
-      {/* Transfer Ownership Dialog */}
-      {activeOrganization && currentUser && (
-        <TransferOwnershipDialog
-          open={transferOwnershipOpen}
-          onOpenChange={setTransferOwnershipOpen}
-          members={activeOrganization.members || []}
-          currentUserId={currentUser.userId}
-          onConfirm={(newOwnerId) => {
-            transferOwnership(newOwnerId);
-            setTransferOwnershipOpen(false);
-          }}
-          isLoading={isTransferringOwnership}
-        />
-      )}
     </>
   );
 }

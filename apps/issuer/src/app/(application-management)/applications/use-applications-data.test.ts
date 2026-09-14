@@ -75,6 +75,7 @@ describe("prepareApplication invoice_only holder", () => {
     const app = prepareApplication(leakedHolder);
 
     expect(app.type).toBe("Invoice financing");
+    expect(app.structureType).toBe("invoice_only");
     expect(app.customer).toBe("Paymaster Co");
     expect(app.contractId).toBeNull();
     expect(app.contractStatus).toBeNull();
@@ -191,6 +192,7 @@ describe("prepareApplication invoice_only holder", () => {
     });
 
     expect(app.type).toBe("Facility financing");
+    expect(app.structureType).toBe("new_contract");
     expect(app.contractId).toBe("ctr_real");
     expect(app.contractStatus).toBe("APPROVED");
     expect(app.contractTitle).toBe("Supply agreement");

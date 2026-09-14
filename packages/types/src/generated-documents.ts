@@ -52,21 +52,21 @@ export const GENERATED_DOCUMENT_TYPES: Record<
   },
   arf_joint_several_guarantee: {
     key: "arf_joint_several_guarantee",
-    version: 1,
+    version: 2,
     label: "ARF Joint and Several Guarantee (JSG)",
     description:
-      "CA-signed joint and several guarantee for the signing-package Guarantor Agreement.",
+      "CA-signed joint and several guarantee generated from the facility or invoice offer.",
     allowedContexts: ["signing_packages"],
-    requires: ["contract_offer_sent"],
+    requires: ["offer_sent"],
   },
   arf_deed_of_assignment: {
     key: "arf_deed_of_assignment",
-    version: 2,
+    version: 3,
     label: "ARF Deed of Assignment",
     description:
-      "CA-signed deed of assignment for the signing-package Deed of Assignment.",
+      "CA-signed deed of assignment generated from the facility or invoice offer.",
     allowedContexts: ["signing_packages"],
-    requires: ["contract_offer_sent"],
+    requires: ["offer_sent"],
   },
   arf_facility_agreement: {
     key: "arf_facility_agreement",

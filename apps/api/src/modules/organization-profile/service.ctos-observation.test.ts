@@ -4,6 +4,7 @@ let partySeq = 1;
 const mockIssuerFindUnique = jest.fn();
 const mockIssuerUpdateMany = jest.fn();
 const mockCtosFindFirst = jest.fn();
+const mockCtosPartySupplementFindMany = jest.fn();
 const mockPartyCount = jest.fn();
 const mockPartyFindMany = jest.fn();
 const mockPartyFindFirst = jest.fn();
@@ -31,6 +32,7 @@ jest.mock("../../lib/prisma", () => ({
       update: (...args: unknown[]) => mockPartyUpdate(...args),
     },
     ctosPartySupplement: {
+      findMany: (...args: unknown[]) => mockCtosPartySupplementFindMany(...args),
       findFirst: jest.fn().mockResolvedValue(null),
       create: jest.fn().mockResolvedValue({ id: "sup-1" }),
       update: jest.fn(),
@@ -48,6 +50,7 @@ import {
   inactivateMasterParty,
   observeExternalCtosParties,
   patchPartyProfile,
+  reactivateMasterParty,
   resolvePartyMismatch,
   seedMasterPartiesIfEmpty,
 } from "./service";
@@ -183,6 +186,7 @@ describe("CTOS master party observation", () => {
     jest.clearAllMocks();
     wireIssuerOrg();
     mockCtosFindFirst.mockResolvedValue(null);
+    mockCtosPartySupplementFindMany.mockResolvedValue([]);
     mockPartyCount.mockImplementation(async () =>
       parties.filter((p) => p.membership_status === "MASTER_ACTIVE").length
     );
@@ -406,6 +410,64 @@ describe("CTOS master party observation", () => {
     });
     expect(Number(updated.shareholdingPercentage)).toBe(36);
     expect(updated.mismatches.find((m) => m.field === "shareholdingPercentage")).toBeUndefined();
+  });
+
+  it("after COMPLETED, same-IC CTOS match does not overwrite master share or add a director role", async () => {
+    issuerOrg.regulatory_structure_established_at = new Date("2026-01-01T00:00:00.000Z");
+    issuerOrg.onboarding_status = "COMPLETED";
+    parties.push(
+      row({
+        id: "p-ali",
+        party_key: "850101011111",
+        identity_number: "850101011111",
+        name: "Ali",
+        is_director: false,
+        is_shareholder: true,
+        shareholding_percentage: new Prisma.Decimal("20"),
+      })
+    );
+    const laterCtos = {
+      directors: [{ party_type: "I", nic_brno: "850101011111", name: "Ali", position: "DO" }],
+      shareholders: [{ party_type: "I", nic_brno: "850101011111", name: "Ali", equity_percentage: 30 }],
+    };
+    mockCtosFindFirst.mockResolvedValue({ company_json: laterCtos });
+    await observeExternalCtosParties("issuer", "org-1", laterCtos);
+    const master = parties.find((p) => p.id === "p-ali");
+    expect(Number(master?.shareholding_percentage)).toBe(20);
+    expect(master?.is_director).toBe(false);
+    expect(master?.is_shareholder).toBe(true);
+    const dto = serializeParty(master as never);
+    expect(dto.mismatches.find((m) => m.field === "shareholdingPercentage")?.externalValue).toBe(30);
+    expect(dto.mismatches.find((m) => m.field === "isDirector")?.externalValue).toBe(true);
+  });
+
+  it("after COMPLETED, same-SSM CTOS match does not overwrite master share", async () => {
+    issuerOrg.regulatory_structure_established_at = new Date("2026-01-01T00:00:00.000Z");
+    issuerOrg.onboarding_status = "COMPLETED";
+    parties.push(
+      row({
+        id: "p-abc",
+        party_key: "202001234567",
+        identity_number: "202001234567",
+        identity_prefix: "ROC",
+        entity_type: "CORPORATE",
+        name: "ABC Berhad",
+        is_director: false,
+        is_shareholder: true,
+        shareholding_percentage: new Prisma.Decimal("20"),
+      })
+    );
+    const laterCtos = {
+      shareholders: [
+        { party_type: "C", ic_lcno: "202001234567", name: "ABC Berhad", equity_percentage: 30 },
+      ],
+    };
+    mockCtosFindFirst.mockResolvedValue({ company_json: laterCtos });
+    await observeExternalCtosParties("issuer", "org-1", laterCtos);
+    const master = parties.find((p) => p.id === "p-abc");
+    expect(Number(master?.shareholding_percentage)).toBe(20);
+    const dto = serializeParty(master as never);
+    expect(dto.mismatches.find((m) => m.field === "shareholdingPercentage")?.externalValue).toBe(30);
   });
 
   it("allows an issuer user to update a filled shareholding percentage that still meets 5%", async () => {
@@ -1138,6 +1200,61 @@ describe("user-added master parties", () => {
     expect(created.email).toBe("preid.director@example.com");
   });
 
+  it("creates Director + Management without government ID", async () => {
+    const created = await createUserAddedParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      source: "USER",
+      patch: {
+        name: "Director Manager",
+        email: "dm@example.com",
+        isDirector: true,
+        isManagement: true,
+      },
+    });
+    expect(created.partyKey.startsWith("user:")).toBe(true);
+    expect(created.identityNumber).toBeNull();
+    expect(created.isDirector).toBe(true);
+    expect(created.isManagement).toBe(true);
+    expect(created.isBoard).toBe(false);
+  });
+
+  it("creates Shareholder + Board without government ID", async () => {
+    const created = await createUserAddedParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      source: "USER",
+      patch: {
+        name: "Shareholder Board",
+        email: "sb@example.com",
+        isShareholder: true,
+        isBoard: true,
+        shareholdingPercentage: "12",
+      },
+    });
+    expect(created.partyKey.startsWith("user:")).toBe(true);
+    expect(created.identityNumber).toBeNull();
+    expect(created.isShareholder).toBe(true);
+    expect(created.isBoard).toBe(true);
+  });
+
+  it("still requires identity for Board-only create", async () => {
+    await expect(
+      createUserAddedParty({
+        portal: "issuer",
+        organizationId: "org-1",
+        source: "USER",
+        patch: {
+          name: "Board Only",
+          email: "board@example.com",
+          isBoard: true,
+          designation: "CHIEF_EXECUTIVE_OFFICER",
+          appointmentDate: "2026-09-25",
+        },
+      })
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
   it("creates a >=5% individual shareholder without government ID using user:{uuid}", async () => {
     const created = await createUserAddedParty({
       portal: "issuer",
@@ -1760,6 +1877,35 @@ describe("user-added master parties", () => {
     expect(stored?.external_observation).toEqual({ name: "ABSENT" });
   });
 
+  it("inactivates an investor MASTER_ACTIVE party with the same shared flow", async () => {
+    parties.push(
+      row({
+        id: "p-investor",
+        issuer_organization_id: null,
+        investor_organization_id: "org-1",
+        party_key: "770101011112",
+        identity_number: "770101011112",
+        name: "Investor Person",
+        is_director: true,
+        user_id: "user-investor-1",
+        external_observation: { name: "INVESTOR PERSON" },
+      })
+    );
+    const before = { ...(parties.find((p) => p.id === "p-investor") as Record<string, unknown>) };
+    const updated = await inactivateMasterParty({
+      portal: "investor",
+      organizationId: "org-1",
+      partyId: "p-investor",
+    });
+    expect(updated.membershipStatus).toBe("MASTER_INACTIVE");
+    const after = parties.find((p) => p.id === "p-investor") as Record<string, unknown>;
+    expect(after.membership_status).toBe(OrganizationPartyMembershipStatus.MASTER_INACTIVE);
+    expect(after.party_key).toBe(before.party_key);
+    expect(after.identity_number).toBe(before.identity_number);
+    expect(after.user_id).toBe(before.user_id);
+    expect(after.external_observation).toEqual(before.external_observation);
+  });
+
   it("inactivates a USER_ADDED MASTER_ACTIVE party without deleting the row", async () => {
     parties.push(
       row({
@@ -1854,6 +2000,395 @@ describe("user-added master parties", () => {
     expect(parties.filter((p) => canonicalKey(p.party_key) === "880101011111")).toHaveLength(1);
   });
 
+  it("reactivates an inactive person directly when effective evidence matches", async () => {
+    mockCtosFindFirst.mockResolvedValue({
+      company_json: {
+        directors: [{ party_type: "I", nic_brno: "880101011777", name: "ALI", position: "DO" }],
+        shareholders: [{ party_type: "I", nic_brno: "880101011777", name: "ALI", equity_percentage: 30 }],
+      },
+    });
+    parties.push(
+      row({
+        id: "p-reactivate",
+        party_key: "880101011777",
+        identity_number: "880101011777",
+        name: "ALI",
+        is_director: true,
+        membership_status: OrganizationPartyMembershipStatus.MASTER_INACTIVE,
+        user_id: "user-1",
+        external_observation: { name: "ALI", shareholdingPercentage: 30 },
+        shareholding_percentage: new Prisma.Decimal("30"),
+      })
+    );
+    const beforeCount = parties.length;
+    const before = { ...(parties.find((p) => p.id === "p-reactivate") as Record<string, unknown>) };
+    const result = await reactivateMasterParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-reactivate",
+    });
+    expect(result.reviewRequired).toBe(false);
+    expect(result.party.id).toBe("p-reactivate");
+    expect(result.party.membershipStatus).toBe("MASTER_ACTIVE");
+    expect(result.party.partyKey).toBe("880101011777");
+    expect(result.party.identityNumber).toBe("880101011777");
+    expect(result.party.userId).toBe("user-1");
+    expect(parties.length).toBe(beforeCount);
+    expect(prisma.ctosPartySupplement.create).not.toHaveBeenCalled();
+    const after = parties.find((p) => p.id === "p-reactivate") as Record<string, unknown>;
+    expect(after.membership_status).toBe(OrganizationPartyMembershipStatus.MASTER_ACTIVE);
+    expect(after.party_key).toBe(before.party_key);
+    expect(after.identity_number).toBe(before.identity_number);
+    expect(after.user_id).toBe(before.user_id);
+    expect(after.external_observation).toEqual({
+      name: "ALI",
+      identityNumber: "880101011777",
+      entityType: "INDIVIDUAL",
+      isDirector: true,
+      isShareholder: true,
+      shareholdingPercentage: 30,
+      appointmentDate: null,
+      resignationDate: null,
+    });
+  });
+
+  it("keeps an inactive person pending review when differences exist and does not silently overwrite", async () => {
+    mockCtosFindFirst.mockResolvedValue({
+      company_json: {
+        directors: [{ party_type: "I", nic_brno: "880101011778", name: "Ali", position: "DO" }],
+        shareholders: [{ party_type: "I", nic_brno: "880101011778", name: "Ali", equity_percentage: 40 }],
+      },
+    });
+    parties.push(
+      row({
+        id: "p-reactivate-diff",
+        party_key: "880101011778",
+        identity_number: "880101011778",
+        name: "Ali",
+        membership_status: OrganizationPartyMembershipStatus.MASTER_INACTIVE,
+        shareholding_percentage: new Prisma.Decimal("30"),
+        external_observation: { name: "Ali", shareholdingPercentage: 40 },
+      })
+    );
+    const result = await reactivateMasterParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-reactivate-diff",
+    });
+    expect(result.reviewRequired).toBe(true);
+    expect(result.party.membershipStatus).toBe("MASTER_INACTIVE");
+    expect(Number(result.party.shareholdingPercentage)).toBe(30);
+    expect(
+      result.party.mismatches.find((mismatch) => mismatch.field === "shareholdingPercentage")?.externalValue
+    ).toBe(40);
+    expect(parties.find((p) => p.id === "p-reactivate-diff")?.membership_status).toBe(
+      OrganizationPartyMembershipStatus.MASTER_INACTIVE
+    );
+  });
+
+  it("CTOS_EMPTY plus onboarding director evidence does not trigger false mismatch", async () => {
+    mockCtosFindFirst.mockResolvedValue({ company_json: { directors: [], shareholders: [] } });
+    issuerOrg.corporate_entities = {
+      directors: [
+        {
+          personalInfo: {
+            fullName: "Same Director",
+            governmentIdNumber: "880101011783",
+          },
+        },
+      ],
+      shareholders: [],
+      corporateShareholders: [],
+    };
+    parties.push(
+      row({
+        id: "p-reactivate-fallback-director",
+        party_key: "880101011783",
+        identity_number: "880101011783",
+        name: "Same Director",
+        is_director: true,
+        is_shareholder: false,
+        membership_status: OrganizationPartyMembershipStatus.MASTER_INACTIVE,
+        external_observation: { name: "Old Snapshot", shareholdingPercentage: 99 },
+      })
+    );
+
+    const result = await reactivateMasterParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-reactivate-fallback-director",
+    });
+    expect(result.reviewRequired).toBe(false);
+    expect(result.party.membershipStatus).toBe("MASTER_ACTIVE");
+    expect(result.party.mismatches).toHaveLength(0);
+  });
+
+  it("CTOS_EMPTY plus onboarding shareholding changes still requires review", async () => {
+    mockCtosFindFirst.mockResolvedValue({ company_json: { directors: [], shareholders: [] } });
+    issuerOrg.corporate_entities = {
+      directors: [
+        {
+          formContent: {
+            content: [{ fieldName: "Government ID Number", fieldValue: "880101011784" }],
+          },
+          personalInfo: {
+            fullName: "Shareholder Changed",
+            governmentIdNumber: "880101011784",
+          },
+        },
+      ],
+      shareholders: [
+        {
+          sharePercentage: 40,
+          formContent: {
+            content: [
+              { fieldName: "Government ID Number", fieldValue: "880101011784" },
+              { fieldName: "% of Shares", fieldValue: "40" },
+            ],
+          },
+          personalInfo: {
+            fullName: "Shareholder Changed",
+            governmentIdNumber: "880101011784",
+          },
+        },
+      ],
+      corporateShareholders: [],
+    };
+    issuerOrg.director_kyc_status = {
+      directors: [
+        {
+          name: "Shareholder Changed",
+          role: "Director, Shareholder (40%)",
+          governmentIdNumber: "880101011784",
+          ic_lcno: "880101011784",
+          kycStatus: "APPROVED",
+        },
+      ],
+    };
+    parties.push(
+      row({
+        id: "p-reactivate-fallback-share",
+        party_key: "880101011784",
+        identity_number: "880101011784",
+        name: "Shareholder Changed",
+        is_director: true,
+        is_shareholder: true,
+        shareholding_percentage: new Prisma.Decimal("30"),
+        membership_status: OrganizationPartyMembershipStatus.MASTER_INACTIVE,
+      })
+    );
+
+    const result = await reactivateMasterParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-reactivate-fallback-share",
+    });
+    expect(result.reviewRequired).toBe(true);
+    expect(
+      result.party.mismatches.find((mismatch) => mismatch.field === "shareholdingPercentage")?.externalValue
+    ).toBe(40);
+    expect(result.party.membershipStatus).toBe("MASTER_INACTIVE");
+  });
+
+  it("reactivates when no usable external/onboarding evidence exists", async () => {
+    mockCtosFindFirst.mockResolvedValue(null);
+    issuerOrg.corporate_entities = null;
+    parties.push(
+      row({
+        id: "p-reactivate-no-evidence",
+        party_key: "880101011785",
+        identity_number: "880101011785",
+        name: "No Evidence",
+        is_director: true,
+        membership_status: OrganizationPartyMembershipStatus.MASTER_INACTIVE,
+        external_observation: { name: "Stale", shareholdingPercentage: 88 },
+      })
+    );
+
+    const result = await reactivateMasterParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-reactivate-no-evidence",
+    });
+    expect(result.reviewRequired).toBe(false);
+    expect(result.party.membershipStatus).toBe("MASTER_ACTIVE");
+    expect(result.party.mismatches).toHaveLength(0);
+  });
+
+  it("keeps Director+Shareholder as a single person evidence during reactivation", async () => {
+    mockCtosFindFirst.mockResolvedValue({ company_json: { directors: [], shareholders: [] } });
+    issuerOrg.corporate_entities = {
+      directors: [
+        {
+          personalInfo: {
+            fullName: "Dual Role Person",
+            governmentIdNumber: "880101011786",
+          },
+        },
+      ],
+      shareholders: [
+        {
+          sharePercentage: 100,
+          personalInfo: {
+            fullName: "Dual Role Person",
+            governmentIdNumber: "880101011786",
+          },
+        },
+      ],
+      corporateShareholders: [],
+    };
+    parties.push(
+      row({
+        id: "p-reactivate-dual-role",
+        party_key: "880101011786",
+        identity_number: "880101011786",
+        name: "Dual Role Person",
+        is_director: true,
+        is_shareholder: true,
+        shareholding_percentage: new Prisma.Decimal("100"),
+        membership_status: OrganizationPartyMembershipStatus.MASTER_INACTIVE,
+      })
+    );
+
+    const beforeCount = parties.length;
+    const result = await reactivateMasterParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-reactivate-dual-role",
+    });
+    expect(result.reviewRequired).toBe(false);
+    expect(result.party.membershipStatus).toBe("MASTER_ACTIVE");
+    expect(parties.length).toBe(beforeCount);
+    expect(parties.filter((p) => p.party_key === "880101011786")).toHaveLength(1);
+  });
+
+  it("Admin Keep current resolves the mismatch and reactivates the same inactive person", async () => {
+    mockCtosFindFirst.mockResolvedValue({
+      company_json: {
+        directors: [{ party_type: "I", nic_brno: "880101011779", name: "Ali", position: "DO" }],
+        shareholders: [{ party_type: "I", nic_brno: "880101011779", name: "Ali", equity_percentage: 40 }],
+      },
+    });
+    parties.push(
+      row({
+        id: "p-reactivate-keep",
+        party_key: "880101011779",
+        identity_number: "880101011779",
+        name: "Ali",
+        is_director: true,
+        membership_status: OrganizationPartyMembershipStatus.MASTER_INACTIVE,
+        shareholding_percentage: new Prisma.Decimal("30"),
+        external_observation: { name: "Ali", shareholdingPercentage: 40 },
+      })
+    );
+    const pending = await reactivateMasterParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-reactivate-keep",
+    });
+    expect(pending.reviewRequired).toBe(true);
+    const resolved = await resolvePartyMismatch({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-reactivate-keep",
+      input: { action: "KEEP", field: "shareholdingPercentage" },
+    });
+    expect(resolved.id).toBe("p-reactivate-keep");
+    expect(resolved.membershipStatus).toBe("MASTER_ACTIVE");
+    expect(Number(resolved.shareholdingPercentage)).toBe(30);
+  });
+
+  it("Admin Use CTOS applies approved latest values and reactivates the same inactive person", async () => {
+    mockCtosFindFirst.mockResolvedValue({
+      company_json: {
+        directors: [{ party_type: "I", nic_brno: "880101011780", name: "Ali", position: "DO" }],
+        shareholders: [{ party_type: "I", nic_brno: "880101011780", name: "Ali", equity_percentage: 40 }],
+      },
+    });
+    parties.push(
+      row({
+        id: "p-reactivate-use",
+        party_key: "880101011780",
+        identity_number: "880101011780",
+        name: "Ali",
+        is_director: true,
+        membership_status: OrganizationPartyMembershipStatus.MASTER_INACTIVE,
+        shareholding_percentage: new Prisma.Decimal("30"),
+        external_observation: { name: "Ali", shareholdingPercentage: 40 },
+      })
+    );
+    const pending = await reactivateMasterParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-reactivate-use",
+    });
+    expect(pending.reviewRequired).toBe(true);
+    const resolved = await resolvePartyMismatch({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-reactivate-use",
+      input: { action: "USE_EXTERNAL", field: "shareholdingPercentage" },
+    });
+    expect(resolved.id).toBe("p-reactivate-use");
+    expect(resolved.membershipStatus).toBe("MASTER_ACTIVE");
+    expect(Number(resolved.shareholdingPercentage)).toBe(40);
+  });
+
+  it("reactivation preserves key identity links/history and does not create duplicates", async () => {
+    parties.push(
+      row({
+        id: "p-reactivate-preserve",
+        party_key: "880101011781",
+        identity_number: "880101011781",
+        name: "Ali",
+        membership_status: OrganizationPartyMembershipStatus.MASTER_INACTIVE,
+        user_id: "user-preserved",
+        field_sources: { identityNumber: { source: "REGTANK", updatedAt: "2026-01-01T00:00:00.000Z" } },
+        external_observation: { name: "Ali", identityNumber: "880101011781" },
+      })
+    );
+    const result = await reactivateMasterParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-reactivate-preserve",
+    });
+    expect(result.reviewRequired).toBe(false);
+    expect(result.party.partyKey).toBe("880101011781");
+    expect(result.party.identityNumber).toBe("880101011781");
+    expect(result.party.userId).toBe("user-preserved");
+    expect(result.party.fieldSources.identityNumber?.source).toBe("REGTANK");
+    expect(parties.filter((p) => p.party_key === "880101011781")).toHaveLength(1);
+    expect(prisma.ctosPartySupplement.create).not.toHaveBeenCalled();
+  });
+
+  it("supports both issuer and investor reactivation with the same flow", async () => {
+    (prisma.investorOrganization.findUnique as jest.Mock).mockResolvedValue({
+      id: "inv-1",
+      corporate_entities: null,
+      director_kyc_status: null,
+      director_aml_status: null,
+      onboarding_status: "COMPLETED",
+    });
+    parties.push(
+      row({
+        id: "p-reactivate-investor",
+        party_key: "880101011782",
+        identity_number: "880101011782",
+        issuer_organization_id: null,
+        investor_organization_id: "inv-1",
+        membership_status: OrganizationPartyMembershipStatus.MASTER_INACTIVE,
+      })
+    );
+    const investorResult = await reactivateMasterParty({
+      portal: "investor",
+      organizationId: "inv-1",
+      partyId: "p-reactivate-investor",
+    });
+    expect(investorResult.reviewRequired).toBe(false);
+    expect(investorResult.party.membershipStatus).toBe("MASTER_ACTIVE");
+    expect(parties.find((p) => p.id === "p-reactivate-investor")?.investor_organization_id).toBe("inv-1");
+  });
+
   it("investor edit updates the same master person and keeps unrelated roles", async () => {
     (prisma.investorOrganization.findUnique as jest.Mock).mockResolvedValue({ id: "inv-1" });
     parties.push(
@@ -1887,7 +2422,31 @@ describe("user-added master parties", () => {
     expect(parties.filter((p) => p.id === "p-inv")).toHaveLength(1);
   });
 
-  it("after establishment, adds a missing RegTank corporate shareholder and clears auto Board on a director", async () => {
+  it("first usable CTOS seed does not create a RegTank-only party as MASTER_ACTIVE", async () => {
+    issuerOrg.corporate_entities = {
+      directors: [
+        {
+          personalInfo: {
+            fullName: "Bob",
+            governmentIdNumber: "900101101234",
+          },
+        },
+      ],
+      shareholders: [],
+      corporateShareholders: [],
+    };
+    mockCtosFindFirst.mockResolvedValue({
+      company_json: {
+        directors: [{ party_type: "I", nic_brno: "800101011234", name: "Jamie", position: "DO" }],
+        shareholders: [],
+      },
+    });
+    await seedMasterPartiesIfEmpty("issuer", "org-1");
+    expect(parties.some((p) => p.party_key === "800101011234")).toBe(true);
+    expect(parties.some((p) => p.party_key === "900101101234")).toBe(false);
+  });
+
+  it("after usable CTOS, does not add a missing RegTank-only corporate shareholder as MASTER_ACTIVE", async () => {
     issuerOrg.regulatory_structure_established_at = new Date("2026-01-01T00:00:00.000Z");
     issuerOrg.corporate_entities = {
       directors: [
@@ -1946,9 +2505,7 @@ describe("user-added master parties", () => {
     expect(aina?.is_shareholder).toBe(true);
     expect(aina?.is_board).toBe(false);
     const apex = parties.find((p) => String(p.name).includes("ApexStar"));
-    expect(apex?.entity_type).toBe("CORPORATE");
-    expect(apex?.is_shareholder).toBe(true);
-    expect(apex?.membership_status).toBe(OrganizationPartyMembershipStatus.MASTER_ACTIVE);
+    expect(apex).toBeUndefined();
   });
 
   it("promotes a CTOS-only ApexStar onto the live list at RegTank 10% and keeps the 50% observation", async () => {

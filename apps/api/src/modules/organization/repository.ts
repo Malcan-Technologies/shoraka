@@ -8,8 +8,17 @@ import {
   OrganizationMemberRole,
   Prisma,
 } from "@prisma/client";
-import { normalizeDirectorShareholderPartyEmail } from "@cashsouk/types";
+import {
+  isResumableIncompleteCompanyOnboardingStatus,
+  normalizeDirectorShareholderPartyEmail,
+  organizationDisplayNamesMatch,
+} from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
+
+const RESUMABLE_COMPANY_STATUS_FILTER: OnboardingStatus[] = [
+  OnboardingStatus.PENDING,
+  OnboardingStatus.IN_PROGRESS,
+];
 
 type OrganizationDbClient = typeof prisma | Prisma.TransactionClient;
 
@@ -26,6 +35,7 @@ export type OrganizationWithMembers = (InvestorOrganization | IssuerOrganization
     status: string;
     verify_link: string | null;
     request_id: string;
+    submitted_at: Date | null;
   } | null;
   // Approval workflow flags
   onboarding_approved: boolean;
@@ -36,9 +46,14 @@ export type OrganizationWithMembers = (InvestorOrganization | IssuerOrganization
   ssm_checked?: boolean; // Only for issuer organizations
 };
 
-/** When transitioning to PENDING_APPROVAL via RegTank webhook, callers may clear company SSM flags for a fresh admin gate. */
+/**
+ * When transitioning to PENDING_APPROVAL via RegTank webhook, callers may clear company SSM
+ * flags for a fresh admin gate. `onboardingApproved` is never inferred from status —
+ * awaiting review is not an onboarding approval.
+ */
 export type UpdateOrganizationOnboardingOptions = {
   resetCompanySsmGateFromRegtankWebhook?: boolean;
+  onboardingApproved?: boolean;
 };
 
 function mergeAboutYourBusinessPatch(
@@ -176,6 +191,7 @@ export class OrganizationRepository {
             status: true,
             verify_link: true,
             request_id: true,
+            submitted_at: true,
           },
         },
       },
@@ -215,6 +231,7 @@ export class OrganizationRepository {
             status: true,
             verify_link: true,
             request_id: true,
+            submitted_at: true,
           },
         },
       },
@@ -256,6 +273,7 @@ export class OrganizationRepository {
             status: true,
             verify_link: true,
             request_id: true,
+            submitted_at: true,
           },
         },
       },
@@ -296,6 +314,7 @@ export class OrganizationRepository {
             status: true,
             verify_link: true,
             request_id: true,
+            submitted_at: true,
           },
         },
       },
@@ -353,12 +372,11 @@ export class OrganizationRepository {
       onboarded_at: status === OnboardingStatus.COMPLETED ? new Date() : null,
     };
 
-    // Set onboarding_approved to true when status is PENDING_APPROVAL
-    if (status === OnboardingStatus.PENDING_APPROVAL) {
-      updateData.onboarding_approved = true;
-      if (options?.resetCompanySsmGateFromRegtankWebhook) {
-        updateData.ssm_approved = false;
-      }
+    if (options?.onboardingApproved !== undefined) {
+      updateData.onboarding_approved = options.onboardingApproved;
+    }
+    if (status === OnboardingStatus.PENDING_APPROVAL && options?.resetCompanySsmGateFromRegtankWebhook) {
+      updateData.ssm_approved = false;
     }
 
     return db.investorOrganization.update({
@@ -386,12 +404,11 @@ export class OrganizationRepository {
       onboarded_at: status === OnboardingStatus.COMPLETED ? new Date() : null,
     };
 
-    // Set onboarding_approved to true when status is PENDING_APPROVAL
-    if (status === OnboardingStatus.PENDING_APPROVAL) {
-      updateData.onboarding_approved = true;
-      if (options?.resetCompanySsmGateFromRegtankWebhook) {
-        updateData.ssm_checked = false;
-      }
+    if (options?.onboardingApproved !== undefined) {
+      updateData.onboarding_approved = options.onboardingApproved;
+    }
+    if (status === OnboardingStatus.PENDING_APPROVAL && options?.resetCompanySsmGateFromRegtankWebhook) {
+      updateData.ssm_checked = false;
     }
 
     return db.issuerOrganization.update({
@@ -713,7 +730,6 @@ export class OrganizationRepository {
       where: {
         investor_organization_id: organizationId,
         accepted: false,
-        expires_at: { gt: new Date() },
       },
       include: {
         invited_by: {
@@ -737,7 +753,6 @@ export class OrganizationRepository {
       where: {
         issuer_organization_id: organizationId,
         accepted: false,
-        expires_at: { gt: new Date() },
       },
       include: {
         invited_by: {
@@ -843,6 +858,34 @@ export class OrganizationRepository {
     if (rows.length === 0) {
       throw new AppError(404, "NOT_FOUND", "Person not found in this organization");
     }
+  }
+
+  /**
+   * Serialize Person RegTank Send against the supplement row when it exists.
+   * Combined with {@link lockOrganizationPartyProfileForUpdate} so two HTTP
+   * requests cannot both observe "no current request" and create two RegTank IDs.
+   */
+  async lockCtosPartySupplementForUpdate(
+    organizationId: string,
+    portalType: "investor" | "issuer",
+    partyKey: string,
+    db: OrganizationDbClient
+  ): Promise<void> {
+    if (portalType === "investor") {
+      await db.$queryRaw<{ id: string }[]>`
+        SELECT id FROM ctos_party_supplements
+        WHERE investor_organization_id = ${organizationId}
+          AND party_key = ${partyKey}
+        FOR UPDATE
+      `;
+      return;
+    }
+    await db.$queryRaw<{ id: string }[]>`
+      SELECT id FROM ctos_party_supplements
+      WHERE issuer_organization_id = ${organizationId}
+        AND party_key = ${partyKey}
+      FOR UPDATE
+    `;
   }
 
   async listActivePersonScopedInvitations(
@@ -1016,6 +1059,49 @@ export class OrganizationRepository {
         data: { corporate_onboarding_data: mergedData },
       });
     }
+  }
+
+  /**
+   * Oldest incomplete COMPANY org owned by this user whose display name matches (trim + case-insensitive).
+   */
+  async findOwnedResumableCompanyByName(
+    userId: string,
+    portalType: "investor" | "issuer",
+    name: string
+  ): Promise<InvestorOrganization | IssuerOrganization | null> {
+    if (portalType === "investor") {
+      const orgs = await prisma.investorOrganization.findMany({
+        where: {
+          owner_user_id: userId,
+          type: OrganizationType.COMPANY,
+          onboarding_status: { in: RESUMABLE_COMPANY_STATUS_FILTER },
+        },
+        orderBy: { created_at: "asc" },
+      });
+      return (
+        orgs.find(
+          (org) =>
+            isResumableIncompleteCompanyOnboardingStatus(org.onboarding_status) &&
+            organizationDisplayNamesMatch(org.name, name)
+        ) ?? null
+      );
+    }
+
+    const orgs = await prisma.issuerOrganization.findMany({
+      where: {
+        owner_user_id: userId,
+        type: OrganizationType.COMPANY,
+        onboarding_status: { in: RESUMABLE_COMPANY_STATUS_FILTER },
+      },
+      orderBy: { created_at: "asc" },
+    });
+    return (
+      orgs.find(
+        (org) =>
+          isResumableIncompleteCompanyOnboardingStatus(org.onboarding_status) &&
+          organizationDisplayNamesMatch(org.name, name)
+      ) ?? null
+    );
   }
 
   /**

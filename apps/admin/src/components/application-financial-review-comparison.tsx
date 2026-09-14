@@ -11,6 +11,7 @@
 import * as React from "react";
 import { formatCurrency, formatNumber } from "@cashsouk/config";
 import {
+  APPLICATION_COMREP_DETAIL_KEYS,
   FINANCIAL_FIELD_LABELS,
   computeColumnMetrics,
   financialFormToBsPl,
@@ -318,6 +319,10 @@ function formatIssuerFinancialCell(rowId: string, fs: Record<string, unknown> | 
     case "workcap":
       return formatCurrency(computed.workcap, { decimals: 0 });
     default:
+      if ((APPLICATION_COMREP_DETAIL_KEYS as readonly string[]).includes(rowId)) {
+        if (!fs || fs[rowId] == null || fs[rowId] === "") return "—";
+        return formatCurrency(toNum(fs[rowId]), { decimals: 0 });
+      }
       return "—";
   }
 }
@@ -346,6 +351,11 @@ const ROW_LABELS: { id: string; label: string }[] = [
   { id: "currat", label: COMPUTED_FIELD_LABELS.currat },
   { id: "workcap", label: COMPUTED_FIELD_LABELS.workcap },
 ];
+
+const COMREP_ROW_LABELS: { id: string; label: string }[] = APPLICATION_COMREP_DETAIL_KEYS.map((id) => ({
+  id,
+  label: FINANCIAL_FIELD_LABELS[id] ?? id,
+}));
 
 export function ApplicationFinancialReviewComparison({
   beforeApp,
@@ -531,6 +541,89 @@ export function ApplicationFinancialReviewComparison({
                       </TableRow>
                     );
                   })}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        )}
+      </ReviewFieldBlock>
+      <ReviewFieldBlock title="Additional Financial Details">
+        {unauditedSlots.length === 0 ? (
+          <p className={reviewEmptyStateClass}>No additional financial details to compare.</p>
+        ) : (
+          <div className={applicationTableWrapperClass}>
+            <div className="overflow-x-auto">
+              <Table className="table-fixed w-full min-w-[760px] text-[15px]">
+                <TableHeader className={cn(applicationTableHeaderBgClass, "[&_tr]:border-b-border")}>
+                  <TableRow className="hover:bg-transparent border-b border-border">
+                    <TableHead
+                      className={cn(
+                        applicationTableHeaderClass,
+                        "w-[22%] min-w-[140px] border-r border-border bg-muted/30 align-middle"
+                      )}
+                    >
+                      Field
+                    </TableHead>
+                    {unauditedSlots.map((_, si) => (
+                      <TableHead
+                        key={`comrep-g-${si}`}
+                        colSpan={2}
+                        className={cn(
+                          applicationTableHeaderClass,
+                          "border-r border-border text-center last:border-r-0"
+                        )}
+                      >
+                        Unaudited
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {COMREP_ROW_LABELS.map((row) => (
+                    <TableRow key={row.id} className={applicationTableRowClass}>
+                      <TableCell
+                        className={cn(
+                          applicationTableCellClass,
+                          "border-r border-border bg-muted/20 font-medium text-foreground"
+                        )}
+                      >
+                        {row.label}
+                      </TableCell>
+                      {unauditedSlots.flatMap((slot, si) => {
+                        const beforeFs = slot.beforeYear
+                          ? (beforeByYear[slot.beforeYear] as Record<string, unknown> | undefined) ??
+                            null
+                          : null;
+                        const afterFs = slot.afterYear
+                          ? (afterByYear[slot.afterYear] as Record<string, unknown> | undefined) ?? null
+                          : null;
+                        const b = formatIssuerFinancialCell(row.id, beforeFs);
+                        const a = formatIssuerFinancialCell(row.id, afterFs);
+                        const differs = financialCellsDiffer(b, a);
+                        return [
+                          <TableCell
+                            key={`${si}-comrep-b`}
+                            className={cn(
+                              applicationTableCellClass,
+                              "border-r border-border text-right tabular-nums text-muted-foreground"
+                            )}
+                          >
+                            {b}
+                          </TableCell>,
+                          <TableCell
+                            key={`${si}-comrep-a`}
+                            className={cn(
+                              applicationTableCellClass,
+                              "border-r border-border text-right tabular-nums text-foreground last:border-r-0",
+                              differs && cn(comparisonSurfaceChangedAfterClass, "rounded-none")
+                            )}
+                          >
+                            {a}
+                          </TableCell>,
+                        ];
+                      })}
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
             </div>

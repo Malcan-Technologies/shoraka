@@ -40,7 +40,22 @@ test.describe("Landing Page", () => {
     await expect(
       page.getByRole("heading", { name: /Start Your Investment Journey Today/i })
     ).toBeVisible();
-    await expect(page.getByPlaceholder("Enter your email")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Subscribe" })).toBeVisible();
+    await expect(page.getByPlaceholder("Enter your email")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Subscribe" })).toHaveCount(0);
+    await expect(
+      page.getByText(/Level 19, Wisma Mont Kiara/i)
+    ).toBeVisible();
+    await expect(page.getByRole("link", { name: "enquiry@cashsouk.com" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "03-2708 8100" })).toBeVisible();
+    await expect(page.getByText("Shoraka Global Resources Sdn. Bhd.").first()).toBeVisible();
+    await expect(
+      page.getByText(
+        new RegExp(
+          `Copyright © ${new Date().getFullYear()} Shoraka Global Resources Sdn\\. Bhd\\. \\(Registration No\\. 201501030089 \\(1155412-V\\)\\)\\. All Rights Reserved\\.`
+        )
+      )
+    ).toBeVisible();
+    await expect(page.getByRole("link", { name: "GitHub" })).toHaveCount(0);
+    await expect(page.getByLabel("Social links")).toHaveCount(0);
   });
 });

@@ -11,14 +11,32 @@ const mockPrisma: any = {
 
 jest.mock("../../../lib/prisma", () => ({ prisma: mockPrisma }));
 
-const mockFreezeCertificateAuthorisation = jest.fn(async () => ({
+const mockFreezeShorakaSigningAuthorisation = jest.fn(async () => ({
+  signingPersonId: "sp-1",
+  signingPersonName: "",
+  signingRoles: ["AUTHORISED_SIGNATORY"],
   authorisedSignatoryName: "",
+  signature: {
+    s3Key: "sigs/a.png",
+    sha256: "sig-a",
+    contentType: "image/png",
+    fileName: "a.png",
+  },
   companyStamp: null,
+  stampSource: "SHARED_CERTIFICATE_STAMP",
 }));
 
-jest.mock("../document-authorisation/config", () => ({
-  freezeCertificateAuthorisation: (...args: unknown[]) =>
-    mockFreezeCertificateAuthorisation(...args),
+jest.mock("../document-authorisation/signing-person-freeze", () => ({
+  freezeShorakaSigningAuthorisation: (...args: unknown[]) =>
+    mockFreezeShorakaSigningAuthorisation(...args),
+  toCertificateAuthorisationSnapshot: (frozen: any) => ({
+    authorisedSignatoryName: frozen.authorisedSignatoryName,
+    companyStamp: frozen.companyStamp,
+    signingPersonId: frozen.signingPersonId,
+    signingPersonName: frozen.signingPersonName,
+    signingRoles: frozen.signingRoles,
+    signature: frozen.signature,
+  }),
 }));
 
 import {
@@ -29,9 +47,19 @@ import {
 describe("buildInvestmentNoteCertificateSnapshot", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockFreezeCertificateAuthorisation.mockResolvedValue({
+    mockFreezeShorakaSigningAuthorisation.mockResolvedValue({
+      signingPersonId: "sp-1",
+      signingPersonName: "",
+      signingRoles: ["AUTHORISED_SIGNATORY"],
       authorisedSignatoryName: "",
+      signature: {
+        s3Key: "sigs/a.png",
+        sha256: "sig-a",
+        contentType: "image/png",
+        fileName: "a.png",
+      },
       companyStamp: null,
+      stampSource: "SHARED_CERTIFICATE_STAMP",
     });
   });
 
@@ -363,17 +391,31 @@ describe("buildInvestmentNoteCertificateSnapshot", () => {
         display_reference: "IVT-A",
       },
     ]);
-    mockFreezeCertificateAuthorisation.mockResolvedValue({
+    mockFreezeShorakaSigningAuthorisation.mockResolvedValue({
+      signingPersonId: "sp-1",
+      signingPersonName: "Ahmad",
+      signingRoles: ["AUTHORISED_SIGNATORY"],
       authorisedSignatoryName: "Ahmad",
+      signature: {
+        s3Key: "sigs/a.png",
+        sha256: "sig-a",
+        contentType: "image/png",
+        fileName: "a.png",
+      },
       companyStamp: {
         s3Key: "stamps/a.png",
         sha256: "stamp-a",
         contentType: "image/png",
         fileName: "a.png",
       },
+      stampSource: "SHARED_CERTIFICATE_STAMP",
     });
-    const snapshot = await buildInvestmentNoteCertificateSnapshot("note-1");
+    const snapshot = await buildInvestmentNoteCertificateSnapshot("note-1", {
+      signingPersonId: "sp-1",
+    });
     expect(snapshot.authorisation.authorisedSignatoryName).toBe("Ahmad");
+    expect(snapshot.authorisation.signingPersonId).toBe("sp-1");
+    expect(snapshot.authorisation.signature?.s3Key).toBe("sigs/a.png");
     expect(snapshot.authorisation.companyStamp?.s3Key).toBe("stamps/a.png");
     expect(snapshot.certificate.certificateDateDisplay.length).toBeGreaterThan(0);
     expect(snapshot.certificate.certificateDate).toBe(snapshot.snapshotGeneratedAt);
@@ -410,18 +452,26 @@ describe("reissueCertificateSnapshotFromReady", () => {
     } as any;
     const next = reissueCertificateSnapshotFromReady(previous, {
       version: "V02",
-      authorisedSignatoryName: "Sarah",
-      companyStamp: {
-        s3Key: "stamps/b.png",
-        sha256: "b",
-        contentType: "image/png",
-        fileName: "b.png",
+      authorisation: {
+        authorisedSignatoryName: "Sarah",
+        signingPersonId: "sp-2",
+        signingPersonName: "Sarah",
+        signingRoles: ["AUTHORISED_SIGNATORY"],
+        signature: { s3Key: "sigs/b.png", sha256: "b", contentType: "image/png", fileName: "b.png" },
+        companyStamp: {
+          s3Key: "stamps/b.png",
+          sha256: "b",
+          contentType: "image/png",
+          fileName: "b.png",
+        },
       },
       generatedAt: new Date("2026-09-03T00:00:00.000Z"),
     });
     expect(next.certificate.version).toBe("V02");
     expect(next.certificate.certificateDate).toBe("2026-09-02T00:00:00.000Z");
     expect(next.authorisation.authorisedSignatoryName).toBe("Sarah");
+    expect(next.authorisation.signingPersonName).toBe("Sarah");
+    expect(next.authorisation.signature?.s3Key).toBe("sigs/b.png");
     expect(next.authorisation.companyStamp?.s3Key).toBe("stamps/b.png");
     expect(next.note.fundedAmount).toBe(80_000);
     expect(next.note.contractedProfit).toBe(2_000);

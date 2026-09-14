@@ -1,6 +1,6 @@
 # Notification Register
 
-**As of:** 1 September 2026  
+**As of:** 9 September 2026  
 **Scope:** Messages the **current live platform can still send**: typed inbox/email, Admin custom sends, and other live transactional emails.  
 **Method:** Traced from UI/API → `NotificationService` / SES → `notifications` / `notification_logs`. A seeded type is listed as automatic only if a production caller exists.
 
@@ -177,6 +177,10 @@ They are not always the same. This register lists all three.
 
 | Notification ID | Notification (inbox) | System Type | Admin Display Name | Trigger | Recipient | Recipient Role | Automatic / Manual | In-App Supported | Email Supported | Admin Configurable | Default Delivery | Preference Source | Delivery Record | Admin Location | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| NTF-LTE-000A | Repayment due soon | `note_repayment_due_soon` | Repayment due soon | T-7 or T-1 before due date | Issuer organisation members | Issuer | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | Idempotent per note per T-7/T-1 |
+| NTF-LTE-000B | Note overdue | `note_overdue` | Note overdue | Note entered OVERDUE | Issuer organisation members | Issuer | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | Inside grace |
+| NTF-LTE-000C | Note late | `note_late` | Note late | Note entered LATE | Issuer organisation members | Issuer | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | Past grace |
+| NTF-LTE-000D | Note late | `note_late_investor` | Note late | Same LATE transition | Investors | Investor | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | — |
 | NTF-LTE-001 | Note in Arrears | `note_arrears` | Note in arrears | Note entered arrears | Issuer organisation members | Issuer | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | — |
 | NTF-LTE-002 | Note in Arrears | `note_arrears_investor` | Note in arrears | Same arrears | Investors | Investor | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | Inbox casing Note in Arrears |
 | NTF-LTE-003 | Your Note Is in Default | `note_defaulted` | Note defaulted (issuer) | Note marked default | Issuer organisation members | Issuer | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | — |

@@ -166,7 +166,7 @@ function FaqSection() {
             Straight answers on how investing and financing work on CashSouk. Can&apos;t find the
             answer you&apos;re looking for? Please{" "}
             <Link
-              href="mailto:hello@cashsouk.com"
+              href="mailto:enquiry@cashsouk.com"
               className="font-medium text-foreground underline underline-offset-4 hover:text-primary"
             >
               chat to our friendly team

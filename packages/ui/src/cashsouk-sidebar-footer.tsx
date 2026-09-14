@@ -1,6 +1,6 @@
 "use client";
 
-import { APP_VERSION } from "@cashsouk/config";
+import { APP_VERSION, COMPANY, companyCopyrightLine, companyTelHref } from "@cashsouk/config";
 import { toast } from "sonner";
 import { openPublicLegalPdf } from "./lib/compact-portal-legal-links";
 import { useCompactPortalLegalLinks } from "./hooks/use-compact-portal-legal-links";
@@ -51,24 +51,33 @@ function PortalLegalFooterLinks({
   );
 }
 
+function CompanyContactLinks({ className }: { className?: string }) {
+  return (
+    <div className={className}>
+      <a href={`mailto:${COMPANY.email}`} className="hover:text-foreground">
+        {COMPANY.email}
+      </a>
+      <a href={companyTelHref()} className="hover:text-foreground">
+        {COMPANY.phone}
+      </a>
+    </div>
+  );
+}
+
 export function CashSoukSidebarFooter({ variant }: { variant: SidebarFooterVariant }) {
   const showContact = variant !== "admin";
   const portalVariant: PortalFooterVariant | null =
     variant === "admin" ? null : variant;
 
   return (
-    <div className="mt-auto px-4 py-3 text-left text-xs text-muted-foreground">
+    <div className="mt-auto px-4 py-3 text-left text-meta text-muted-foreground">
       <div className="font-medium text-foreground">CashSouk {APP_VERSION}</div>
-      <div className="mt-1">© 2026 Shoraka Sdn. Bhd.</div>
+      <div className="mt-1">{companyCopyrightLine()}</div>
 
       {showContact && portalVariant ? (
         <>
-          <div className="mt-1">(SSM No. 201612345678)</div>
-
-          <div className="mt-2">+60 3-1234 5678</div>
-
-          <div>info@cashsouk.com</div>
-
+          {COMPANY.address ? <div className="mt-1">{COMPANY.address}</div> : null}
+          <CompanyContactLinks className="mt-2 flex flex-col gap-0.5" />
           <PortalLegalFooterLinks
             portal={portalVariant}
             className="mt-2 flex flex-wrap gap-2"
@@ -85,22 +94,21 @@ export function CashSoukPortalFooter({ variant }: { variant: PortalFooterVariant
   return (
     <footer
       aria-label={ariaLabel}
-      className="border-t bg-background px-4 py-3 text-xs text-muted-foreground md:px-6"
+      className="border-t bg-background px-4 py-3 text-meta text-muted-foreground md:px-6"
     >
-      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span className="font-medium text-foreground">CashSouk {APP_VERSION}</span>
-          <span>© 2026 Shoraka Sdn. Bhd.</span>
-          <span>(SSM No. 201612345678)</span>
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0 space-y-1">
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <span className="font-medium text-foreground">CashSouk {APP_VERSION}</span>
+            <span>{companyCopyrightLine()}</span>
+          </div>
+          {COMPANY.address ? <p>{COMPANY.address}</p> : null}
         </div>
-        <div className="ml-auto flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-right">
-          <span>+60 3-1234 5678</span>
-          <a href="mailto:info@cashsouk.com" className="hover:text-foreground">
-            info@cashsouk.com
-          </a>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 lg:justify-end lg:text-right">
+          <CompanyContactLinks className="flex flex-wrap items-center gap-x-3 gap-y-1" />
           <PortalLegalFooterLinks
             portal={variant}
-            className="flex flex-wrap items-center justify-end gap-2"
+            className="flex flex-wrap items-center gap-2"
           />
         </div>
       </div>

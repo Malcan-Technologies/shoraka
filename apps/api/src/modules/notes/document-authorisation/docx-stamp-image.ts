@@ -1,9 +1,15 @@
 import PizZip from "pizzip";
-import { readJpegSize, readPngSize } from "../../../lib/images/raster-image";
+import { fitStampImageForDocx, type StampExtentEmu, type StampMaxBoundsEmu } from "./stamp-image-contain";
 
 export const COMPANY_STAMP_IMAGE_PLACEHOLDER = "§COMPANY_STAMP_IMAGE§";
+export const SIGNATURE_IMAGE_PLACEHOLDER = "§SIGNATURE_IMAGE§";
 export const SSP_COMPANY_STAMP_IMAGE_PLACEHOLDER = "§SSP_COMPANY_STAMP_IMAGE§";
 export const COMPANY_STAMP_UNDERSCORE_FALLBACK = "________________________";
+export {
+  stampExtentEmu,
+  stampExtentEmuFromPixels,
+  type StampExtentEmu,
+} from "./stamp-image-contain";
 
 const IMAGE_REL_TYPE =
   "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image";
@@ -14,23 +20,24 @@ const A14_NS = "http://schemas.microsoft.com/office/drawing/2010/main";
 
 /** Same id Word uses on wp:docPr / pic:cNvPr. LibreOffice rejects pic:cNvPr id="0". */
 const STAMP_DRAWING_ID = 91001;
+const SIGNATURE_DRAWING_ID = 91002;
+const SSP_STAMP_DRAWING_ID = 91003;
 
-/**
- * Fit the stamp into the authorisation table cell (~3080 twips / 2.14in wide).
- * A square EMU box with noChangeAspect=1 on a wide screenshot makes LibreOffice
- * fail or hang during Gotenberg conversion.
- */
-const MAX_STAMP_WIDTH_EMU = 1_555_000;
-const MAX_STAMP_HEIGHT_EMU = 792_000;
+export type AuthorisationImageSizing = "default" | "compact";
+
+// Compact bounds reduce the actual rendered footprint for the two DOCX templates
+// where we need signature/stamp to stay within a single A4 page.
+export const COMPACT_MAX_STAMP_WIDTH_EMU = 550_000;
+export const COMPACT_MAX_STAMP_HEIGHT_EMU = 275_000;
+
+const COMPACT_BOUNDS: StampMaxBoundsEmu = {
+  maxWidthEmu: COMPACT_MAX_STAMP_WIDTH_EMU,
+  maxHeightEmu: COMPACT_MAX_STAMP_HEIGHT_EMU,
+};
 
 type StampImageInput = {
   bytes: Buffer;
   contentType?: string | null;
-};
-
-export type StampExtentEmu = {
-  cx: number;
-  cy: number;
 };
 
 function stampExtension(contentType: string | null | undefined): {
@@ -69,33 +76,18 @@ function ensureContentTypeDefault(contentTypesXml: string, ext: string, mime: st
   );
 }
 
-export function stampExtentEmuFromPixels(width: number, height: number): StampExtentEmu {
-  const w = width > 0 ? width : 1;
-  const h = height > 0 ? height : 1;
-  const heightIfFullWidth = Math.round((MAX_STAMP_WIDTH_EMU * h) / w);
-  if (heightIfFullWidth <= MAX_STAMP_HEIGHT_EMU) {
-    return { cx: MAX_STAMP_WIDTH_EMU, cy: Math.max(1, heightIfFullWidth) };
-  }
-  return {
-    cx: Math.max(1, Math.round((MAX_STAMP_HEIGHT_EMU * w) / h)),
-    cy: MAX_STAMP_HEIGHT_EMU,
-  };
-}
-
-export function stampExtentEmu(bytes: Buffer): StampExtentEmu {
-  const size = readPngSize(bytes) ?? readJpegSize(bytes);
-  if (!size) return { cx: MAX_STAMP_HEIGHT_EMU, cy: MAX_STAMP_HEIGHT_EMU };
-  return stampExtentEmuFromPixels(size.width, size.height);
-}
-
-function inlineStampDrawingXml(relationshipId: string, extent: StampExtentEmu): string {
+function inlineStampDrawingXml(
+  relationshipId: string,
+  extent: StampExtentEmu,
+  drawing: { id: number; docPrName: string; picName: string }
+): string {
   const { cx, cy } = extent;
   return (
     `<w:drawing>` +
     `<wp:inline distT="0" distB="0" distL="0" distR="0">` +
     `<wp:extent cx="${cx}" cy="${cy}"/>` +
     `<wp:effectExtent l="0" t="0" r="0" b="0"/>` +
-    `<wp:docPr id="${STAMP_DRAWING_ID}" name="CompanyStamp"/>` +
+    `<wp:docPr id="${drawing.id}" name="${drawing.docPrName}"/>` +
     `<wp:cNvGraphicFramePr>` +
     `<a:graphicFrameLocks xmlns:a="${DRAWINGML_MAIN}" noChangeAspect="1"/>` +
     `</wp:cNvGraphicFramePr>` +
@@ -103,7 +95,7 @@ function inlineStampDrawingXml(relationshipId: string, extent: StampExtentEmu): 
     `<a:graphicData uri="${DRAWINGML_PICTURE}">` +
     `<pic:pic xmlns:pic="${DRAWINGML_PICTURE}">` +
     `<pic:nvPicPr>` +
-    `<pic:cNvPr id="${STAMP_DRAWING_ID}" name="company-stamp"/>` +
+    `<pic:cNvPr id="${drawing.id}" name="${drawing.picName}"/>` +
     `<pic:cNvPicPr/>` +
     `</pic:nvPicPr>` +
     `<pic:blipFill>` +
@@ -143,11 +135,7 @@ function lastWordRunOpenIndex(xml: string, before: number): number {
  * A `/<w:r>[\s\S]*?placeholder/` regex starts at the first run in the document
  * and deletes the identifier tables, which makes LibreOffice reject the DOCX.
  */
-function replacePlaceholderRun(
-  documentXml: string,
-  innerXml: string,
-  placeholder: string
-): string {
+function replacePlaceholderRun(documentXml: string, placeholder: string, innerXml: string): string {
   const tokenIndex = documentXml.indexOf(placeholder);
   if (tokenIndex < 0) return documentXml;
   const runOpen = lastWordRunOpenIndex(documentXml, tokenIndex);
@@ -163,59 +151,42 @@ function replacePlaceholderRun(
 }
 
 /**
- * After docxtemplater render, insert the frozen company stamp image (or restore
- * the original underscore line when no image was configured).
+ * After docxtemplater render, insert a frozen image (or restore the original
+ * underscore line when no image was configured).
  */
-export function applyCompanyStampToDocx(
+function applyPlaceholderImageToDocx(
   docx: Buffer,
-  stamp: StampImageInput | null | undefined
-): Buffer {
-  return applyStampImageToDocx(
-    docx,
-    stamp,
-    COMPANY_STAMP_IMAGE_PLACEHOLDER,
-    "company-stamp",
-    COMPANY_STAMP_UNDERSCORE_FALLBACK
-  );
-}
-
-export function applySspStampToDocx(
-  docx: Buffer,
-  stamp: StampImageInput | null | undefined
-): Buffer {
-  return applyStampImageToDocx(
-    docx,
-    stamp,
-    SSP_COMPANY_STAMP_IMAGE_PLACEHOLDER,
-    "ssp-company-stamp",
-    ""
-  );
-}
-
-export function applyStampImageToDocx(
-  docx: Buffer,
-  stamp: StampImageInput | null | undefined,
-  placeholder: string,
-  mediaStem: string,
-  emptyFallback = ""
+  input: {
+    placeholder: string;
+    image: StampImageInput | null | undefined;
+    mediaBaseName: string;
+    drawing: { id: number; docPrName: string; picName: string };
+    emptyFallback?: string;
+  },
+  sizing: AuthorisationImageSizing = "default"
 ): Buffer {
   const zip = new PizZip(docx);
   const documentFile = zip.file("word/document.xml");
   if (!documentFile) return docx;
   let documentXml = documentFile.asText();
-  if (!documentXml.includes(placeholder)) {
+  if (!documentXml.includes(input.placeholder)) {
     return docx;
   }
 
-  if (!stamp || stamp.bytes.length === 0) {
-    documentXml = documentXml.split(placeholder).join(emptyFallback);
+  const emptyFallback = input.emptyFallback ?? COMPANY_STAMP_UNDERSCORE_FALLBACK;
+  if (!input.image || input.image.bytes.length === 0) {
+    documentXml = documentXml.split(input.placeholder).join(emptyFallback);
     zip.file("word/document.xml", documentXml);
     return zip.generate({ type: "nodebuffer", compression: "DEFLATE" }) as Buffer;
   }
 
-  const { ext, mime } = stampExtension(stamp.contentType);
-  const mediaPath = `word/media/${mediaStem}.${ext}`;
-  zip.file(mediaPath, stamp.bytes);
+  const fitted =
+    sizing === "compact"
+      ? fitStampImageForDocx(input.image.bytes, input.image.contentType, COMPACT_BOUNDS)
+      : fitStampImageForDocx(input.image.bytes, input.image.contentType);
+  const { ext, mime } = stampExtension(fitted.contentType);
+  const mediaFile = `${input.mediaBaseName}.${ext}`;
+  zip.file(`word/media/${mediaFile}`, fitted.bytes);
 
   const relsPath = "word/_rels/document.xml.rels";
   const relsFile = zip.file(relsPath);
@@ -224,7 +195,7 @@ export function applyStampImageToDocx(
   const relId = nextRelationshipId(relsXml);
   relsXml = relsXml.replace(
     "</Relationships>",
-    `<Relationship Id="${relId}" Type="${IMAGE_REL_TYPE}" Target="media/${mediaStem}.${ext}"/></Relationships>`
+    `<Relationship Id="${relId}" Type="${IMAGE_REL_TYPE}" Target="media/${mediaFile}"/></Relationships>`
   );
   zip.file(relsPath, relsXml);
 
@@ -238,9 +209,64 @@ export function applyStampImageToDocx(
 
   documentXml = replacePlaceholderRun(
     documentXml,
-    inlineStampDrawingXml(relId, stampExtentEmu(stamp.bytes)),
-    placeholder
+    input.placeholder,
+    inlineStampDrawingXml(relId, fitted.extent, input.drawing)
   );
   zip.file("word/document.xml", documentXml);
   return zip.generate({ type: "nodebuffer", compression: "DEFLATE" }) as Buffer;
+}
+
+export function applyCompanyStampToDocx(
+  docx: Buffer,
+  stamp: StampImageInput | null | undefined,
+  options?: { sizing?: AuthorisationImageSizing }
+): Buffer {
+  return applyPlaceholderImageToDocx(docx, {
+    placeholder: COMPANY_STAMP_IMAGE_PLACEHOLDER,
+    image: stamp,
+    mediaBaseName: "company-stamp",
+    drawing: { id: STAMP_DRAWING_ID, docPrName: "CompanyStamp", picName: "company-stamp" },
+  }, options?.sizing ?? "default");
+}
+
+export function applySignatureImageToDocx(
+  docx: Buffer,
+  signature: StampImageInput | null | undefined,
+  options?: { sizing?: AuthorisationImageSizing }
+): Buffer {
+  return applyPlaceholderImageToDocx(docx, {
+    placeholder: SIGNATURE_IMAGE_PLACEHOLDER,
+    image: signature,
+    mediaBaseName: "signing-signature",
+    drawing: { id: SIGNATURE_DRAWING_ID, docPrName: "Signature", picName: "signing-signature" },
+  }, options?.sizing ?? "default");
+}
+
+export function applySspStampToDocx(
+  docx: Buffer,
+  stamp: StampImageInput | null | undefined,
+  options?: { sizing?: AuthorisationImageSizing }
+): Buffer {
+  return applyPlaceholderImageToDocx(docx, {
+    placeholder: SSP_COMPANY_STAMP_IMAGE_PLACEHOLDER,
+    image: stamp,
+    mediaBaseName: "ssp-company-stamp",
+    drawing: { id: SSP_STAMP_DRAWING_ID, docPrName: "SspCompanyStamp", picName: "ssp-company-stamp" },
+    emptyFallback: "",
+  }, options?.sizing ?? "default");
+}
+
+export function applyDocumentAuthorisationImagesToDocx(
+  docx: Buffer,
+  images: {
+    signature?: StampImageInput | null;
+    stamp?: StampImageInput | null;
+  },
+  options?: { sizing?: AuthorisationImageSizing }
+): Buffer {
+  return applyCompanyStampToDocx(
+    applySignatureImageToDocx(docx, images.signature, options),
+    images.stamp,
+    options
+  );
 }

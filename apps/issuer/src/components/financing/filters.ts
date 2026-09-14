@@ -14,6 +14,7 @@ export const FINANCING_STATUS_ORDER: IssuerFinancingStatusKind[] = [
   "funded",
   "active",
   "arrears",
+  "defaulted",
   "completed",
   "unsuccessful",
 ];

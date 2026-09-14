@@ -4,7 +4,7 @@ import { format } from "date-fns";
 import { formatCurrency } from "@cashsouk/config";
 import {
   NoteStatusBadge,
-  Progress,
+  FundingProgress,
   SoukscoreRiskRatingBadge,
   StatusBadge,
   getNoteDerivedStatusToken,
@@ -256,10 +256,12 @@ function NoteRow({ note, onViewDetails }: NoteRowProps) {
             {formatNoteStatus(note.fundingStatus)}
           </span>
         </div>
-        <Progress
-          value={fundingProgress}
-          className={cn("mt-2 h-2", getNoteFundingProgressClass(note))}
-          indicatorClassName={getNoteFundingIndicatorClass(note)}
+        <FundingProgress
+          className="mt-2"
+          percent={fundingProgress}
+          thresholdPercent={note.minimumFundingPercent}
+          fillClassName={getNoteFundingIndicatorClass(note)}
+          trackClassName={getNoteFundingProgressClass(note)}
         />
         <div
           className={cn(
@@ -272,6 +274,9 @@ function NoteRow({ note, onViewDetails }: NoteRowProps) {
       </TableCell>
       <TableCell className="min-w-0 overflow-hidden">
         <NoteStatusBadge note={note} marker="dot" />
+      </TableCell>
+      <TableCell className="min-w-0 overflow-hidden tabular-nums">
+        {note.daysPastDue && note.daysPastDue > 0 ? note.daysPastDue : "—"}
       </TableCell>
       <TableCell className="min-w-0 overflow-hidden">
         <SettlementRegistryCell note={note} />
@@ -342,6 +347,9 @@ function ReadyInvoiceRow({
       </TableCell>
       <TableCell className="min-w-0 overflow-hidden">
         <StatusBadge label="Ready" status="action" className="max-w-full truncate" />
+      </TableCell>
+      <TableCell className="min-w-0 overflow-hidden">
+        <span className="text-muted-foreground">—</span>
       </TableCell>
       <TableCell className="min-w-0 overflow-hidden">
         <span className="text-muted-foreground">-</span>

@@ -51,6 +51,10 @@ export const NotificationTypeIds = {
   NOTE_REPAID_ISSUER: "note_repaid_issuer",
   NOTE_PAYMENT_RECEIVED: "note_payment_received",
   NOTE_SETTLEMENT_POSTED: "note_settlement_posted",
+  NOTE_REPAYMENT_DUE_SOON: "note_repayment_due_soon",
+  NOTE_OVERDUE: "note_overdue",
+  NOTE_LATE: "note_late",
+  NOTE_LATE_INVESTOR: "note_late_investor",
   NOTE_ARREARS: "note_arrears",
   NOTE_ARREARS_INVESTOR: "note_arrears_investor",
   NOTE_DEFAULTED: "note_defaulted",
@@ -227,6 +231,23 @@ export interface NotificationPayloads {
     noteTitle: string;
   };
   [NotificationTypeIds.NOTE_SETTLEMENT_POSTED]: {
+    noteId: string;
+    noteTitle: string;
+  };
+  [NotificationTypeIds.NOTE_REPAYMENT_DUE_SOON]: {
+    noteId: string;
+    noteTitle: string;
+    daysUntilDue: number;
+  };
+  [NotificationTypeIds.NOTE_OVERDUE]: {
+    noteId: string;
+    noteTitle: string;
+  };
+  [NotificationTypeIds.NOTE_LATE]: {
+    noteId: string;
+    noteTitle: string;
+  };
+  [NotificationTypeIds.NOTE_LATE_INVESTOR]: {
     noteId: string;
     noteTitle: string;
   };
@@ -577,6 +598,36 @@ export const NOTIFICATION_TEMPLATES: {
   [NotificationTypeIds.NOTE_SETTLEMENT_POSTED]: {
     title: "Settlement Posted",
     message: (data) => `Settlement has been posted for "${data.noteTitle}".`,
+    linkPath: (data) => `/investments/${data.noteId}`,
+    portal: "investor",
+  },
+  [NotificationTypeIds.NOTE_REPAYMENT_DUE_SOON]: {
+    title: "Repayment due soon",
+    message: (data) =>
+      data.daysUntilDue === 1
+        ? `"${data.noteTitle}" is due tomorrow. Please arrange repayment.`
+        : `"${data.noteTitle}" is due in ${data.daysUntilDue} days. Please arrange repayment.`,
+    linkPath: (data) => `/notes/${data.noteId}`,
+    portal: "issuer",
+  },
+  [NotificationTypeIds.NOTE_OVERDUE]: {
+    title: "Note overdue",
+    message: (data) =>
+      `"${data.noteTitle}" is past its due date and is still inside the grace period.`,
+    linkPath: (data) => `/notes/${data.noteId}`,
+    portal: "issuer",
+  },
+  [NotificationTypeIds.NOTE_LATE]: {
+    title: "Note late",
+    message: (data) =>
+      `"${data.noteTitle}" is past the grace period. Late charges may apply at settlement.`,
+    linkPath: (data) => `/notes/${data.noteId}`,
+    portal: "issuer",
+  },
+  [NotificationTypeIds.NOTE_LATE_INVESTOR]: {
+    title: "Note late",
+    message: (data) =>
+      `"${data.noteTitle}" is past the grace period. We will keep you informed as servicing continues.`,
     linkPath: (data) => `/investments/${data.noteId}`,
     portal: "investor",
   },

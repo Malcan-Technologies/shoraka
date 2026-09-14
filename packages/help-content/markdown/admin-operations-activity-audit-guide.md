@@ -8,7 +8,7 @@ tags:
   - audit
   - notifications
 order: 29
-updated: 2026-09-08
+updated: 2026-09-09
 ---
 
 This guide lists the Activity records, Admin logs, notifications, and direct emails available in the current platform.
@@ -171,11 +171,14 @@ For a residual return, Admin Activity may show Residual Return Letter Generated,
 
 | Activity | Admin Location | Customer Visibility | Notification | Delivery |
 | --- | --- | --- | --- | --- |
-| Note Entered Arrears | Note → Late Payment; Note → Activity | Notification | Note in Arrears | Follows Admin notification settings |
+| Note Overdue | Note → Activity | Activity + Notification | Note overdue | Follows Admin notification settings |
+| Note Late | Note → Activity | Activity + Notification | Note late | Follows Admin notification settings |
+| Note Entered Arrears | Note → Late Payment; Note → Activity | Activity + Notification | Note in Arrears | Follows Admin notification settings |
+| Late Charge Waived | Note → Activity | Activity | None | None |
+| Servicing Letter Sent | Note → Activity | Activity | None | Direct email of the arrears or default PDF |
 | Note Defaulted | Note → Activity | Activity + Notification | Your Note Is in Default | Follows Admin notification settings |
 | Late Charge Approved | Note → Activity | Not customer visible | None | None |
-| Arrears Letter Generated | Note → Activity | Not customer visible | None | None |
-| Default Letter Generated | Note → Activity | Not customer visible | None | None |
+| Overdue Check Completed | Note → Activity | Not customer visible | None | None |
 
 ### Settlement
 
@@ -248,7 +251,8 @@ Payment Amount Mismatch may appear as Payment Currency Mismatch when the currenc
 | --- | --- | --- | --- | --- |
 | Repayment Received | Note → Activity | Notification | Repayment Received | Follows Admin notification settings |
 | Settlement Posted | Note → Activity | Activity + Notification | Settlement Posted | Follows Admin notification settings |
-| Note Entered Arrears | Note → Late Payment; Note → Activity | Notification | Note in Arrears | Follows Admin notification settings |
+| Note Late | Note → Activity | Activity + Notification | Note late | Follows Admin notification settings |
+| Note Entered Arrears | Note → Late Payment; Note → Activity | Activity + Notification | Note in Arrears | Follows Admin notification settings |
 | Note Defaulted | Note → Activity | Activity + Notification | Your Investment Is in Default | Follows Admin notification settings |
 | Residual Return Completed | Note → Activity | Activity | None | None |
 
@@ -424,6 +428,9 @@ Settings → Notifications may use a different name from the customer inbox titl
 | Note Repaid | Issuer organisation members | Note fully repaid | Follows Admin notification settings |
 | Repayment Received | Investors on the Note | Repayment recorded | Follows Admin notification settings |
 | Settlement Posted | Investors on the Note | Settlement posted | Follows Admin notification settings |
+| Repayment due soon | Issuer organisation members | T-7 or T-1 before the due date | Follows Admin notification settings |
+| Note overdue | Issuer organisation members | Payment is past due inside grace | Follows Admin notification settings |
+| Note late | Issuer organisation members and investors | Payment is past grace | Follows Admin notification settings |
 | Note in Arrears | Issuer organisation members and investors | Note entered arrears | Follows Admin notification settings |
 | Your Note Is in Default | Issuer organisation members | Note marked default | Follows Admin notification settings |
 | Your Investment Is in Default | Investors | Note marked default | Follows Admin notification settings |

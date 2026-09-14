@@ -5,10 +5,8 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
 } from "@heroicons/react/24/solid";
-import {
-  InvestmentListingCard,
-  type InvestmentListingData,
-} from "./investment-listing-card";
+import type { MarketplaceNote } from "@cashsouk/types";
+import { MarketplaceListingCard } from "./marketplace/marketplace-listing-card";
 
 const AUTO_SCROLL_PX_PER_SEC = 62;
 
@@ -16,10 +14,12 @@ function loopSegmentWidth(el: HTMLElement) {
   return el.scrollWidth > 2 ? el.scrollWidth / 2 : 0;
 }
 
+const SLIDE_CLASS = "flex w-[min(20rem,calc(100vw-2.5rem))] shrink-0 flex-none";
+
 export function InvestmentListingsCarousel({
-  listings,
+  notes,
 }: {
-  listings: InvestmentListingData[];
+  notes: readonly MarketplaceNote[];
 }) {
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const pausedRef = React.useRef(false);
@@ -86,7 +86,7 @@ export function InvestmentListingsCarousel({
   }, [normalizeLoop]);
 
   React.useEffect(() => {
-    if (respectMotion || listings.length < 2) return;
+    if (respectMotion || notes.length < 2) return;
 
     let raf = 0;
     let last = performance.now();
@@ -111,9 +111,9 @@ export function InvestmentListingsCarousel({
 
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [listings.length, respectMotion]);
+  }, [notes.length, respectMotion]);
 
-  if (listings.length === 0) return null;
+  if (notes.length === 0) return null;
 
   return (
     <div
@@ -136,25 +136,26 @@ export function InvestmentListingsCarousel({
             "max(1rem, calc((100vw - min(100vw, 80rem)) / 2 + 1rem))",
         }}
       >
-        {listings.map((data, i) => (
+        {notes.map((note, i) => (
           <div
-            key={`${data.id}-set-a-${i}`}
+            key={`${note.id}-set-a-${i}`}
             data-carousel-slide
-            className="flex w-[min(20.5rem,calc(100vw-2rem))] shrink-0 sm:w-[min(24rem,calc(100vw-3.5rem))] lg:w-[min(26rem,calc(100vw-4rem))]"
+            className={SLIDE_CLASS}
           >
-            <InvestmentListingCard data={data} showProspectus />
+            <MarketplaceListingCard note={note} />
           </div>
         ))}
-        {listings.length > 1
-          ? listings.map((data, i) => (
-          <div
-            key={`${data.id}-set-b-${i}`}
-            data-carousel-slide
-            aria-hidden
-            className="flex w-[min(20.5rem,calc(100vw-2rem))] shrink-0 sm:w-[min(24rem,calc(100vw-3.5rem))] lg:w-[min(26rem,calc(100vw-4rem))]"
-          >
-            <InvestmentListingCard data={data} showProspectus />
-          </div>
+        {notes.length > 1
+          ? notes.map((note, i) => (
+              <div
+                key={`${note.id}-set-b-${i}`}
+                data-carousel-slide
+                aria-hidden
+                inert
+                className={SLIDE_CLASS}
+              >
+                <MarketplaceListingCard note={note} />
+              </div>
             ))
           : null}
       </div>

@@ -175,6 +175,12 @@ describe("Person-scoped invitation reuse and supersession", () => {
     expect(repository).toContain("organization_party_profile_id: partyProfileId");
   });
 
+  it("grants portal role and account array when an invitation is accepted", () => {
+    expect(service).toContain("ensurePortalAccessForOrganizationMember");
+    const accept = service.slice(service.indexOf("async acceptInvitation"));
+    expect(accept).toContain("ensurePortalAccessForOrganizationMember");
+  });
+
   it("keeps generic Members generate-link reuse on email + role without Person supersede", () => {
     expect(generateLink).toContain("if (partyProfileId)");
     expect(generateLink.indexOf("issuePersonScopedInvitation")).toBeLessThan(

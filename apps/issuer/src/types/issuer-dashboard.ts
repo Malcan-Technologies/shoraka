@@ -1,4 +1,4 @@
-import type { AdditionalFeeCharge, Contract, Invoice } from "@cashsouk/types";
+import type { AdditionalFeeCharge, Contract, Invoice, IssuerDashboardBook } from "@cashsouk/types";
 
 export type IssuerDashboardNote = {
   id: string;
@@ -17,6 +17,7 @@ export type IssuerDashboardNote = {
   tenureDays?: number | null;
   marketplaceStatusLabel: string | null;
   investorCount: number;
+  excessLateChargesOutstanding?: number | null;
   disbursementBreakdown: {
     grossFundedAmount: string | null;
     platformFeeAmount: string | null;
@@ -107,6 +108,7 @@ export type IssuerDashboardData = {
   };
   contracts: IssuerDashboardContract[];
   invoices: IssuerDashboardInvoice[];
+  book: IssuerDashboardBook;
 };
 
 export function asContractForModal(value: unknown): Contract {

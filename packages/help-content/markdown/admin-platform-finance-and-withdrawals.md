@@ -23,7 +23,7 @@ Use this tab to set default late-payment rules used in note servicing.
 
 You can configure:
 
-- Grace period days (default 7). During grace, profit has already stopped at maturity and no Ta'widh or Gharamah applies
+- Grace period days (default 7). During grace the note is **OVERDUE**, profit has already stopped at maturity, and no Ta'widh or Gharamah applies. After grace it becomes **LATE**, then **ARREARS** after the threshold. A nightly job updates status and indicative fees; applied fees are still set at settlement.
 - Arrears threshold days
 - Ta'widh rate cap %
 - Default Ta'widh rate %

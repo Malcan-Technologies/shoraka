@@ -3,19 +3,18 @@
 import * as React from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { PlusIcon, UserIcon, UsersIcon } from "@heroicons/react/24/outline";
+import { UserIcon, UsersIcon } from "@heroicons/react/24/outline";
 import type { OrganizationDetailResponse, PortalType } from "@cashsouk/types";
 import {
   firstIssueMessage,
   humanizeApiValidationMessage,
   isMemberWithoutCompanyRole,
-  isMinimalOnboardingPersonCreate,
   isProfileValidationError,
   linkedPartyUserIds,
   optionalEmailIssue,
   observedPartyBlockedByIdentityConflict,
   phoneFormatIssue,
-  SC_MONTHLY_ISSUER,
+  PROFILE_LABEL,
   validateIssuerContactPersonForm,
 } from "@cashsouk/types";
 import { AdminDetailCardHeader } from "@/components/admin-detail";
@@ -50,7 +49,6 @@ import { OrganizationPersonCard } from "./organization-person-card";
 import {
   OrganizationPersonEditorDialog,
   partyToEditorValues,
-  personToEditorValues,
   type PartyEditorValues,
 } from "./organization-person-editor-dialog";
 import { EditableField, EditablePhoneField, ReadField } from "./organization-profile-helpers";
@@ -87,8 +85,6 @@ export function OrganizationPeoplePanel({
   const [showConfirm, setShowConfirm] = React.useState(false);
   const [picFieldErrors, setPicFieldErrors] = React.useState<Record<string, string>>({});
   const [editingMemberId, setEditingMemberId] = React.useState<string | null>(null);
-  const [addOpen, setAddOpen] = React.useState(false);
-  const [seedValues, setSeedValues] = React.useState<PartyEditorValues | null>(null);
   const [editingPartyId, setEditingPartyId] = React.useState<string | null>(null);
   const [viewingPartyId, setViewingPartyId] = React.useState<string | null>(null);
 
@@ -115,8 +111,8 @@ export function OrganizationPeoplePanel({
         picEvidence?.contactNumber
     );
   const issuerContact = portal === "issuer";
-  const picEmailLabel = issuerContact ? SC_MONTHLY_ISSUER.emailAddress.label : "Email";
-  const picPhoneLabel = issuerContact ? SC_MONTHLY_ISSUER.phoneNumber.label : "Contact Number";
+  const picEmailLabel = issuerContact ? PROFILE_LABEL.personEmail : PROFILE_LABEL.email;
+  const picPhoneLabel = issuerContact ? PROFILE_LABEL.phone : PROFILE_LABEL.phone;
   const picHasChanges = Object.keys(buildSectionPayload(org, draft, "pic")).length > 0;
   const unified = unifyOrganizationPeople(org.partyProfiles, org.people);
   const linkedUserIds = linkedPartyUserIds(org.partyProfiles ?? []);
@@ -148,12 +144,14 @@ export function OrganizationPeoplePanel({
   const handleSavePic = () => {
     const issues = issuerContact
       ? validateIssuerContactPersonForm({
+          name: draft.picName,
+          position: draft.picPosition,
           email: draft.picEmail,
           contact: draft.picContactNumber,
         })
       : [
-          optionalEmailIssue(draft.picEmail, "picEmail", "Email"),
-          phoneFormatIssue(draft.picContactNumber, "picContactNumber", "Contact Number"),
+          optionalEmailIssue(draft.picEmail, "picEmail", PROFILE_LABEL.email),
+          phoneFormatIssue(draft.picContactNumber, "picContactNumber", PROFILE_LABEL.phone),
         ].filter((issue): issue is NonNullable<typeof issue> => Boolean(issue));
     if (issues.length > 0) {
       setPicFieldErrors(Object.fromEntries(issues.map((issue) => [issue.field, issue.message])));
@@ -204,30 +202,8 @@ export function OrganizationPeoplePanel({
     }
   };
 
-  const saveParty = async (values: PartyEditorValues, partyId?: string) => {
-    const minimalCreate =
-      !partyId &&
-      isMinimalOnboardingPersonCreate({
-        entityType: values.entityType,
-        identityPrefix: values.identityPrefix,
-        identityNumber: values.identityNumber,
-        isDirector: values.isDirector,
-        isShareholder: values.isShareholder,
-        isBoard: values.isBoard,
-        isManagement: values.isManagement,
-      });
-    const payload: Record<string, unknown> = minimalCreate
-      ? {
-          name: values.name.trim(),
-          email: values.email.trim() || null,
-          entityType: "INDIVIDUAL",
-          isDirector: values.isDirector,
-          isShareholder: values.isShareholder,
-          isBoard: false,
-          isManagement: false,
-          shareholdingPercentage: values.isShareholder ? values.shareholdingPercentage.trim() || null : null,
-        }
-      : {
+  const saveParty = async (values: PartyEditorValues, partyId: string) => {
+    const payload: Record<string, unknown> = {
       name: values.name.trim(),
       identityPrefix: values.entityType === "CORPORATE" ? "ROC" : values.identityPrefix || null,
       identityNumber: values.identityNumber.trim() || null,
@@ -262,13 +238,8 @@ export function OrganizationPeoplePanel({
       resignationDate: values.resignationDate || null,
       email: values.email.trim() || null,
     };
-    if (partyId) {
-      await peopleMutations.patchParty.mutateAsync({ partyId, data: payload });
-      setEditingPartyId(null);
-      return;
-    }
-    await peopleMutations.createParty.mutateAsync(payload);
-    setAddOpen(false);
+    await peopleMutations.patchParty.mutateAsync({ partyId, data: payload });
+    setEditingPartyId(null);
   };
 
   if (org.type !== "COMPANY") return null;
@@ -280,22 +251,6 @@ export function OrganizationPeoplePanel({
           icon={UsersIcon}
           title="People"
           description="Directors, shareholders, board, and management. The same person can have more than one role."
-          actions={
-            canManage ? (
-              <Button
-                type="button"
-                size="sm"
-                className="gap-1.5"
-                onClick={() => {
-                  setSeedValues(null);
-                  setAddOpen(true);
-                }}
-              >
-                <PlusIcon className="h-4 w-4" />
-                Add person
-              </Button>
-            ) : null
-          }
         />
         <CardContent className="space-y-6">
           {unified.external.length > 0 ? (
@@ -382,14 +337,6 @@ export function OrganizationPeoplePanel({
               canManage={canManage}
               applyIssuerComrep={portal === "issuer"}
               onView={() => setViewingPartyId(item.key)}
-              onEdit={
-                item.person
-                  ? () => {
-                      setSeedValues(personToEditorValues(item.person!));
-                      setAddOpen(true);
-                    }
-                  : undefined
-              }
             />
           ))}
 
@@ -501,17 +448,22 @@ export function OrganizationPeoplePanel({
                     label="Name"
                     value={draft.picName}
                     onChange={(picName) => setDraft((current) => ({ ...current, picName }))}
+                    required={issuerContact}
+                    error={picFieldErrors.picName || picFieldErrors.contactPersonName}
                   />
                   <EditableField
                     label="Position"
                     value={draft.picPosition}
                     onChange={(picPosition) => setDraft((current) => ({ ...current, picPosition }))}
+                    required={issuerContact}
+                    error={picFieldErrors.picPosition || picFieldErrors.contactPersonPosition}
                   />
                   <EditableField
                     label={picEmailLabel}
                     value={draft.picEmail}
                     onChange={(picEmail) => setDraft((current) => ({ ...current, picEmail }))}
                     maxLength={255}
+                    required={issuerContact}
                     error={picFieldErrors.picEmail || picFieldErrors.contactPersonEmail}
                   />
                   <EditablePhoneField
@@ -520,6 +472,7 @@ export function OrganizationPeoplePanel({
                     onChange={(picContactNumber) =>
                       setDraft((current) => ({ ...current, picContactNumber }))
                     }
+                    required={issuerContact}
                     error={picFieldErrors.picContactNumber || picFieldErrors.contactPersonPhone}
                   />
                 </>
@@ -565,25 +518,6 @@ export function OrganizationPeoplePanel({
       />
 
       <OrganizationPersonEditorDialog
-        open={addOpen}
-        onOpenChange={(open) => {
-          setAddOpen(open);
-          if (!open) setSeedValues(null);
-        }}
-        title={seedValues ? "Edit person" : "Add person"}
-        description={
-          seedValues
-            ? "Add this person to the company profile. Existing details are kept if they are already filled."
-            : "Add this person to the company profile."
-        }
-        initial={seedValues}
-        isSaving={peopleMutations.createParty.isPending}
-        enforceIssuerShareholderMinimum
-        mode="create"
-        onSave={(values) => saveParty(values)}
-      />
-
-      <OrganizationPersonEditorDialog
         open={Boolean(editingParty)}
         onOpenChange={(open) => {
           if (!open) setEditingPartyId(null);
@@ -593,7 +527,10 @@ export function OrganizationPeoplePanel({
         initial={editingParty ? partyToEditorValues(editingParty) : null}
         isSaving={peopleMutations.patchParty.isPending}
         enforceIssuerShareholderMinimum
-        onSave={(values) => saveParty(values, editingParty?.id)}
+        onSave={async (values) => {
+          if (!editingParty) return;
+          await saveParty(values, editingParty.id);
+        }}
       />
 
       <Dialog
@@ -607,7 +544,7 @@ export function OrganizationPeoplePanel({
             <DialogTitle>{viewingParty?.name || viewingPerson?.name || "Person"}</DialogTitle>
             <DialogDescription>Read-only details for this person.</DialogDescription>
           </DialogHeader>
-          <PartyProfileDetailFields party={viewingParty} person={viewingPerson} />
+          <PartyProfileDetailFields party={viewingParty} person={viewingPerson} statusViewer="admin" />
         </DialogContent>
       </Dialog>
 

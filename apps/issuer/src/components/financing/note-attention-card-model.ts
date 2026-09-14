@@ -22,16 +22,35 @@ export function getNoteAttentionAction(note: NoteListItem): NoteAttentionAction 
   }
   const status = String(note.status ?? "").toUpperCase();
   const servicing = String(note.servicingStatus ?? "").toUpperCase();
+  const dpd = Number(note.daysPastDue ?? 0);
+  const dpdHint =
+    Number.isFinite(dpd) && dpd > 0
+      ? `${dpd} day${dpd === 1 ? "" : "s"} past due.`
+      : null;
+  if (status === "DEFAULTED" || servicing === "DEFAULTED") {
+    return {
+      headline: "Note is in default",
+      label: "View details",
+      hint: dpdHint,
+    };
+  }
   if (status === "ARREARS" || servicing === "ARREARS") {
     return {
       headline: "Repayment is in arrears",
       label: "Report repayment",
-      hint: "Arrange payment with your customer and upload proof.",
+      hint: dpdHint ?? "Arrange payment with your customer and upload proof.",
+    };
+  }
+  if (servicing === "LATE") {
+    return {
+      headline: "Repayment is late",
+      label: "View details",
+      hint: dpdHint,
     };
   }
   return {
     headline: "Repayment is overdue",
     label: "View details",
-    hint: null,
+    hint: dpdHint,
   };
 }

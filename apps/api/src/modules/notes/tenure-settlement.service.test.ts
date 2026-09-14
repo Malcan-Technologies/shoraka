@@ -182,7 +182,9 @@ describe("NoteService tenure settlement", () => {
       })
     );
     const tx = {
+      $queryRaw: jest.fn().mockResolvedValue([{ id: "note-tenure" }]),
       noteSettlement: {
+        findFirst: jest.fn().mockResolvedValue(null),
         updateMany: jest.fn().mockResolvedValue({ count: 0 }),
         create: jest.fn().mockResolvedValue({ id: "set-1" }),
       },

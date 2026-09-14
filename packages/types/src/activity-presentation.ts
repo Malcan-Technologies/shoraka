@@ -109,6 +109,11 @@ const ACTIVITY_STATUS_BY_EVENT: Record<string, ActivityStatusToken> = {
   INVESTMENT_COMMITTED: "success",
   SETTLEMENT_POSTED: "success",
   NOTE_DEFAULT_MARKED: "rejected",
+  NOTE_OVERDUE: "action",
+  NOTE_LATE: "action",
+  NOTE_ARREARS: "action",
+  LATE_CHARGE_WAIVED: "success",
+  NOTE_LETTER_SENT: "submitted",
 };
 
 export function getActivityStatusToken(eventType: string): ActivityStatusToken {

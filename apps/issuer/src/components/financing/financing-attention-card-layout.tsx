@@ -41,21 +41,23 @@ export function FinancingAttentionCardLayout({
   return (
     <article
       className={cn(
-        "flex h-full min-h-[18.5rem] w-full flex-col rounded-2xl border p-6 shadow-sm md:p-8 md:shadow",
+        "flex h-full min-h-[18.5rem] w-full min-w-0 flex-col overflow-hidden rounded-2xl border p-6 shadow-sm md:p-8 md:shadow",
         surfaceClassName
       )}
     >
       <div className="flex items-start justify-between gap-3">{badge}</div>
       <AttentionCardHeading kind={kind}>{headline}</AttentionCardHeading>
-      <div className="mt-2 flex min-h-0 flex-1 flex-col">
+      <div className="mt-2 flex min-h-0 min-w-0 flex-1 flex-col">
         <p className="truncate text-ui text-muted-foreground" title={customer}>
           {customer}
         </p>
         <p className="mt-1 text-section-title tabular-nums tracking-tight">{amount}</p>
-        <p className="mt-3 text-ui text-muted-foreground">{meta}</p>
-        {detail ? <p className="text-ui text-muted-foreground">{detail}</p> : null}
-        {hint ? <p className="mt-2 text-ui text-muted-foreground">{hint}</p> : null}
-        {product ? <div className="mt-2 min-w-0">{product}</div> : null}
+        <p className="mt-3 min-w-0 break-all text-ui text-muted-foreground" title={meta}>
+          {meta}
+        </p>
+        {detail ? <p className="min-w-0 text-ui text-muted-foreground">{detail}</p> : null}
+        {hint ? <p className="mt-2 min-w-0 text-ui text-muted-foreground">{hint}</p> : null}
+        {product ? <div className="mt-2 min-w-0 max-w-full">{product}</div> : null}
         {related ? <div className="mt-2 min-w-0">{related}</div> : null}
         <div className="mt-auto pt-6">
           <Button size="lg" variant={ctaVariant} className="w-full" asChild>

@@ -3,9 +3,9 @@ import { join } from "path";
 
 const source = [
   join(__dirname, "organization-profile-overview-card.tsx"),
-  join(__dirname, "organization-person-card.tsx"),
+  join(__dirname, "organization-people-access-detail.tsx"),
+  join(__dirname, "organization-people-access-panel.tsx"),
   join(__dirname, "organization-external-review-sheet.tsx"),
-  join(__dirname, "organization-people-panel.tsx"),
   join(__dirname, "../utils/organization-profile-overview.ts"),
 ]
   .map((path) => readFileSync(path, "utf8"))
@@ -18,6 +18,10 @@ describe("Admin People CTOS copy", () => {
     expect(source).toContain("from CTOS");
     expect(source).toContain("not found in the latest CTOS information");
     expect(source).toContain("Review CTOS changes");
+    expect(source).toContain("Leave as CTOS observation");
+    expect(source).toContain("Leave as current profile");
+    expect(source).toContain("Keep current value");
+    expect(source).toContain("Use CTOS value");
   });
 
   it("does not keep generic external-information copy on CTOS-only screens", () => {

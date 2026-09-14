@@ -8,13 +8,17 @@ import {
   useOrganization,
   ONBOARDING_REFRESH_LABEL,
   ONBOARDING_REFRESH_LOADING_LABEL,
+  PROVIDER_REFRESH_FAILED_MESSAGE,
+  PROVIDER_REFRESH_RECENTLY_MESSAGE,
+  PROVIDER_REQUEST_NOT_FOUND_MESSAGE,
 } from "@cashsouk/config";
 import {
   buildDirectorShareholderDisplayRowForEmailEligibility,
   filterVisiblePeopleRows,
   formatPeopleRolesLine,
   isMissingGovernmentIdPerson,
-  resolveDirectorShareholderCtosEmptyWarning,
+  CUSTOMER_DIRECTOR_SHAREHOLDER_EMPTY_STATE,
+  resolveCustomerDirectorShareholderEmptyWarning,
   type ApplicationPersonRow,
   type DirectorShareholderListSource,
 } from "@cashsouk/types";
@@ -79,11 +83,16 @@ export function OnboardingStatusCard({
 
   const resolvedCtosEmptyWarning = React.useMemo(
     () =>
-      resolveDirectorShareholderCtosEmptyWarning({
+      resolveCustomerDirectorShareholderEmptyWarning({
         directorShareholderListSource: orgWithPeople.directorShareholderListSource ?? null,
         ctosDirectorShareholderWarning: orgWithPeople.ctosDirectorShareholderWarning ?? null,
+        people: orgWithPeople.people ?? [],
       }),
-    [orgWithPeople.directorShareholderListSource, orgWithPeople.ctosDirectorShareholderWarning]
+    [
+      orgWithPeople.directorShareholderListSource,
+      orgWithPeople.ctosDirectorShareholderWarning,
+      orgWithPeople.people,
+    ]
   );
 
   const isPendingAml = organization.onboardingStatus === "PENDING_AML";
@@ -115,9 +124,14 @@ export function OnboardingStatusCard({
         toast.info("AML status refreshed. RegTank approval is still pending.");
       }
     } catch (error) {
-      toast.error("Failed to refresh AML status", {
-        description: error instanceof Error ? error.message : "An unknown error occurred",
-      });
+      const code = error instanceof Error ? (error as Error & { code?: string }).code : undefined;
+      if (code === "REGTANK_RATE_LIMITED" || code === "RATE_LIMITED") {
+        toast.error(PROVIDER_REFRESH_RECENTLY_MESSAGE);
+      } else if (code === "NOT_FOUND") {
+        toast.error(PROVIDER_REQUEST_NOT_FOUND_MESSAGE);
+      } else {
+        toast.error(PROVIDER_REFRESH_FAILED_MESSAGE);
+      }
     } finally {
       setIsRefreshing(false);
     }
@@ -190,7 +204,7 @@ export function OnboardingStatusCard({
             unresolvedCorporatePeople.length === 0 &&
             resolvedCtosEmptyWarning ? (
               <p className="text-sm text-muted-foreground">
-                No directors or shareholders were found in the latest CTOS information.
+                {CUSTOMER_DIRECTOR_SHAREHOLDER_EMPTY_STATE}
               </p>
             ) : null}
           </CardContent>

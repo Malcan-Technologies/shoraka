@@ -124,6 +124,7 @@ export type OrgProfileDraft = {
   accountingSoftware: string;
   dateOfIncorporation: string;
   dateOfCommencement: string;
+  dateOfBirth: string;
   countryOfIncorporation: string;
   scCompanyType: string;
   scInvestorCategory: string;
@@ -220,6 +221,7 @@ export function buildDraft(org: OrganizationDetailResponse): OrgProfileDraft {
     accountingSoftware: about.accountingSoftware,
     dateOfIncorporation: toDateInput(org.dateOfIncorporation),
     dateOfCommencement: toDateInput(org.dateOfCommencement),
+    dateOfBirth: toDateInput(org.dateOfBirth),
     countryOfIncorporation: org.countryOfIncorporation ?? "",
     scCompanyType: org.scCompanyType ?? "",
     scInvestorCategory: org.scInvestorCategory ?? "",
@@ -399,6 +401,9 @@ export function buildSectionPayload(
     }
     if (emptyToNull(draft.middleName) !== emptyToNull(original.middleName)) {
       payload.middleName = emptyToNull(draft.middleName);
+    }
+    if (emptyToNull(draft.dateOfBirth) !== emptyToNull(original.dateOfBirth)) {
+      payload.dateOfBirth = emptyToNull(draft.dateOfBirth);
     }
     if (emptyToNull(draft.gender) !== emptyToNull(original.gender)) {
       payload.gender = (emptyToNull(draft.gender) as ScGender | null) ?? null;

@@ -1,6 +1,10 @@
 import { ADMIN_ACTION_SURFACE_CLASS, ADMIN_WAITING_SURFACE_CLASS } from "@/lib/admin-status-token";
 import {
   disbursementLifecycleStripTone,
+  latePaymentPhaseTone,
+  officialDocumentReviewTone,
+  officialDocumentWorkflowLabel,
+  officialDocumentWorkflowTone,
   paymentReceiptStatusLabel,
   paymentReceiptTone,
   settlementLifecycleStripTone,
@@ -107,10 +111,36 @@ describe("settlement and receipt tones", () => {
     ).toBe("success");
   });
 
+  it("washes official documents green when generated, yellow while in progress, red when failed", () => {
+    expect(officialDocumentWorkflowTone({ status: "READY" })).toBe("success");
+    expect(officialDocumentWorkflowTone({ status: "NONE", canGenerate: true })).toBe("active");
+    expect(officialDocumentWorkflowTone({ status: "PENDING" })).toBe("active");
+    expect(officialDocumentWorkflowTone({ status: "FAILED" })).toBe("danger");
+    expect(officialDocumentWorkflowTone({ status: "READY", reviewStatus: "READY" })).toBe(
+      "active"
+    );
+    expect(officialDocumentWorkflowLabel({ status: "READY" })).toBe("Generated");
+    expect(officialDocumentWorkflowLabel({ status: "READY", reviewStatus: "READY" })).toBe(
+      "Awaiting publish"
+    );
+    expect(officialDocumentReviewTone("FAILED")).toBe("danger");
+    expect(officialDocumentReviewTone("READY")).toBe("active");
+  });
+
   it("colours the disbursement strip yellow until waiting on trustee", () => {
     expect(disbursementLifecycleStripTone(null)).toBe("active");
     expect(disbursementLifecycleStripTone("DRAFT")).toBe("active");
     expect(disbursementLifecycleStripTone("SUBMITTED_TO_TRUSTEE")).toBe("warning");
     expect(disbursementLifecycleStripTone("COMPLETED")).toBe("success");
+  });
+});
+
+describe("latePaymentPhaseTone", () => {
+  it("keeps default-eligible yellow so admin action is visible, and defaulted red", () => {
+    expect(latePaymentPhaseTone("in-grace")).toBe("active");
+    expect(latePaymentPhaseTone("late")).toBe("active");
+    expect(latePaymentPhaseTone("arrears")).toBe("active");
+    expect(latePaymentPhaseTone("default-eligible")).toBe("active");
+    expect(latePaymentPhaseTone("defaulted")).toBe("danger");
   });
 });

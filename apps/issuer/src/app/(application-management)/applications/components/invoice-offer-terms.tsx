@@ -2,21 +2,18 @@ import type { ReactNode } from "react";
 import { formatCurrency } from "@cashsouk/config";
 import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableFooter,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   formatFinancingTenureFromDisbursement,
   INVOICE_OFFER_INDICATIVE_PAYABLE_TOOLTIP,
   INVOICE_OFFER_INDICATIVE_PROFIT_TOOLTIP,
 } from "@cashsouk/types";
 import type { InvoiceFeeDisplay } from "@/lib/facility-fee-display";
 import { buildInvoiceOfferMoneyRows } from "./invoice-offer-money-rows";
+import {
+  OfferTermsDlColumn,
+  OfferTermsDlRow,
+  OfferTermsKpiGrid,
+  type OfferTermsKpiTile,
+} from "./offer-terms-layout";
 
 export const INVOICE_OFFER_PLATFORM_FEE_TOOLTIP =
   "Deducted from disbursement when funding closes, as a percentage of the funded amount. The amount shown is estimated from the offered amount; the final fee uses actual funded.";
@@ -75,6 +72,8 @@ export function InvoiceOfferTerms({
   includeFacilityFee,
   feeDisplay,
   footer,
+  aside,
+  meta,
 }: {
   invoiceNumber: string;
   invoiceValue: number | null;
@@ -90,6 +89,8 @@ export function InvoiceOfferTerms({
   includeFacilityFee: boolean;
   feeDisplay: InvoiceFeeDisplay;
   footer?: ReactNode;
+  aside?: ReactNode;
+  meta?: ReactNode;
 }) {
   const rows = buildInvoiceOfferMoneyRows({
     requestedFinancing,
@@ -97,147 +98,138 @@ export function InvoiceOfferTerms({
     includeFacilityFee,
     feeDisplay,
   });
-  const bodyRows = rows.filter((row) => row.kind !== "net");
-  const netRow = rows.find((row) => row.kind === "net");
+  const feeRows = rows.filter((row) => row.key !== "requested" && row.key !== "approved");
+
+  const kpis: OfferTermsKpiTile[] = [];
+  if (approvedFinancing != null) {
+    kpis.push({
+      key: "approved",
+      label: "Approved financing",
+      value: formatCurrency(approvedFinancing),
+      hint:
+        requestedFinancing != null ? `Requested ${formatCurrency(requestedFinancing)}` : undefined,
+    });
+  }
+  kpis.push({
+    key: "profit",
+    label: "Profit rate",
+    value: (
+      <span className="inline-flex items-center gap-1">
+        {profitRate}
+        <InfoTooltip content={INVOICE_OFFER_PROFIT_RATE_TOOLTIP} iconClassName="h-3.5 w-3.5 shrink-0" />
+      </span>
+    ),
+    hint: "per annum",
+  });
+  if (financingTenureDays != null) {
+    kpis.push({
+      key: "tenure",
+      label: "Financing tenure",
+      value: formatFinancingTenureFromDisbursement(financingTenureDays),
+      hint: maturityDate ? `Matures ${maturityDate}` : undefined,
+    });
+  }
+  if (indicativeProfit != null) {
+    kpis.push({
+      key: "profit-amount",
+      label: "Indicative profit",
+      value: (
+        <span className="inline-flex items-center gap-1">
+          {formatCurrency(indicativeProfit)}
+          <InfoTooltip
+            content={INVOICE_OFFER_INDICATIVE_PROFIT_TOOLTIP}
+            iconClassName="h-3.5 w-3.5 shrink-0"
+          />
+        </span>
+      ),
+      hint: "Estimate, not final",
+    });
+  }
+  if (indicativeAmountPayable != null) {
+    kpis.push({
+      key: "payable",
+      label: "Payable at maturity",
+      value: (
+        <span className="inline-flex items-center gap-1">
+          {formatCurrency(indicativeAmountPayable)}
+          <InfoTooltip
+            content={INVOICE_OFFER_INDICATIVE_PAYABLE_TOOLTIP}
+            iconClassName="h-3.5 w-3.5 shrink-0"
+          />
+        </span>
+      ),
+      hint: "Financing + profit",
+    });
+  }
 
   return (
-    <div className="space-y-4">
-      <dl className="grid gap-x-8 gap-y-3 text-ui sm:grid-cols-2">
-        <div className="space-y-1">
-          <dt className="text-muted-foreground">Invoice number</dt>
-          <dd className="font-medium break-words">{invoiceNumber}</dd>
-        </div>
-        <div className="space-y-1">
-          <dt className="text-muted-foreground">Invoice value</dt>
-          <dd className="font-medium tabular-nums">
-            {invoiceValue != null ? formatCurrency(invoiceValue) : "—"}
-          </dd>
-        </div>
-        {maturityDate ? (
-          <div className="space-y-1">
-            <dt className="text-muted-foreground">Invoice due date</dt>
-            <dd className="font-medium tabular-nums">{maturityDate}</dd>
-          </div>
-        ) : null}
-        {financingTenureDays != null ? (
-          <div className="space-y-1">
-            <dt className="text-muted-foreground">Financing tenure</dt>
-            <dd className="font-medium tabular-nums">
-              {formatFinancingTenureFromDisbursement(financingTenureDays)}
-            </dd>
-          </div>
-        ) : null}
-        <div className="space-y-1">
-          <dt className="inline-flex items-center gap-1 text-muted-foreground">
-            Profit rate (p.a.)
-            <InfoTooltip
-              content={INVOICE_OFFER_PROFIT_RATE_TOOLTIP}
-              iconClassName="h-3.5 w-3.5 shrink-0"
-            />
-          </dt>
-          <dd className="font-medium tabular-nums">{profitRate}</dd>
-        </div>
-        {riskRating ? (
-          <div className="space-y-1">
-            <dt className="text-muted-foreground">Risk rating</dt>
-            <dd className="font-medium tabular-nums">{riskRating}</dd>
-          </div>
-        ) : null}
-        {financingMarginPercent != null && Number.isFinite(financingMarginPercent) ? (
-          <div className="space-y-1">
-            <dt className="text-muted-foreground">Financing margin</dt>
-            <dd className="font-medium tabular-nums">{financingMarginPercent}%</dd>
-          </div>
-        ) : null}
-        {indicativeProfit != null ? (
-          <div className="space-y-1">
-            <dt className="inline-flex items-center gap-1 text-muted-foreground">
-              Indicative profit
-              <InfoTooltip
-                content={INVOICE_OFFER_INDICATIVE_PROFIT_TOOLTIP}
-                iconClassName="h-3.5 w-3.5 shrink-0"
-              />
-            </dt>
-            <dd className="font-medium tabular-nums">{formatCurrency(indicativeProfit)}</dd>
-          </div>
-        ) : null}
-        {indicativeAmountPayable != null ? (
-          <div className="space-y-1">
-            <dt className="inline-flex items-center gap-1 text-muted-foreground">
-              Indicative amount payable
-              <InfoTooltip
-                content={INVOICE_OFFER_INDICATIVE_PAYABLE_TOOLTIP}
-                iconClassName="h-3.5 w-3.5 shrink-0"
-              />
-            </dt>
-            <dd className="font-medium tabular-nums">{formatCurrency(indicativeAmountPayable)}</dd>
-          </div>
-        ) : null}
-      </dl>
-
-      <div className="overflow-hidden rounded-xl border">
-        <Table>
-          <TableHeader>
-            <TableRow className="hover:bg-transparent">
-              <TableHead>Item</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {bodyRows.map((row) => (
-              <TableRow key={row.key} className="hover:bg-transparent">
-                <TableCell>
+    <div>
+      <div className="flex flex-wrap items-baseline justify-between gap-2.5">
+        <h3 className="text-card-title font-semibold">Offer terms</h3>
+        {meta ? <span className="text-meta text-muted-foreground">{meta}</span> : null}
+      </div>
+      <OfferTermsKpiGrid tiles={kpis} />
+      <div className="mt-5 grid gap-5 [grid-template-columns:repeat(auto-fit,minmax(14.5rem,1fr))]">
+        <OfferTermsDlColumn title="Invoice">
+          <OfferTermsDlRow label="Invoice number" value={invoiceNumber} />
+          <OfferTermsDlRow
+            label="Invoice value"
+            value={invoiceValue != null ? formatCurrency(invoiceValue) : "—"}
+          />
+          {maturityDate ? <OfferTermsDlRow label="Invoice due date" value={maturityDate} /> : null}
+          {financingMarginPercent != null && Number.isFinite(financingMarginPercent) ? (
+            <OfferTermsDlRow label="Financing margin" value={`${financingMarginPercent}%`} />
+          ) : null}
+          {riskRating ? <OfferTermsDlRow label="Risk rating" value={riskRating} /> : null}
+        </OfferTermsDlColumn>
+        <OfferTermsDlColumn title="Fees">
+          {feeRows.map((row) => {
+            const tooltip =
+              row.key === "platform" ? (
+                <InfoTooltip
+                  content={INVOICE_OFFER_PLATFORM_FEE_TOOLTIP}
+                  iconClassName="h-3.5 w-3.5 shrink-0"
+                />
+              ) : row.key === "facility" ? (
+                <InfoTooltip
+                  content={invoiceOfferFacilityFeeTooltip(feeDisplay)}
+                  iconClassName="h-3.5 w-3.5 shrink-0"
+                />
+              ) : row.key === "net" ? (
+                <InfoTooltip
+                  content={INVOICE_OFFER_NET_DISBURSEMENT_TOOLTIP}
+                  iconClassName="h-3.5 w-3.5 shrink-0"
+                />
+              ) : null;
+            return (
+              <OfferTermsDlRow
+                key={row.key}
+                label={
                   <span className="inline-flex items-center gap-1">
                     {row.label}
-                    {row.key === "platform" ? (
-                      <InfoTooltip
-                        content={INVOICE_OFFER_PLATFORM_FEE_TOOLTIP}
-                        iconClassName="h-3.5 w-3.5 shrink-0"
-                      />
-                    ) : null}
-                    {row.key === "facility" ? (
-                      <InfoTooltip
-                        content={invoiceOfferFacilityFeeTooltip(feeDisplay)}
-                        iconClassName="h-3.5 w-3.5 shrink-0"
-                      />
+                    {tooltip}
+                  </span>
+                }
+                value={
+                  <span>
+                    {formatMoneyCell(row.amount, row.kind)}
+                    {row.hint ? (
+                      <span className="mt-0.5 block text-meta font-normal text-muted-foreground">
+                        {row.hint}
+                      </span>
                     ) : null}
                   </span>
-                  {row.hint ? (
-                    <span className="mt-0.5 block text-meta text-muted-foreground">{row.hint}</span>
-                  ) : null}
-                </TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {formatMoneyCell(row.amount, row.kind)}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-          {netRow ? (
-            <TableFooter>
-              <TableRow className="hover:bg-transparent">
-                <TableCell>
-                  <span className="inline-flex items-center gap-1">
-                    {netRow.label}
-                    <InfoTooltip
-                      content={INVOICE_OFFER_NET_DISBURSEMENT_TOOLTIP}
-                      iconClassName="h-3.5 w-3.5 shrink-0"
-                    />
-                  </span>
-                  {netRow.hint ? (
-                    <span className="mt-0.5 block text-meta font-normal text-muted-foreground">
-                      {netRow.hint}
-                    </span>
-                  ) : null}
-                </TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {formatMoneyCell(netRow.amount, netRow.kind)}
-                </TableCell>
-              </TableRow>
-            </TableFooter>
-          ) : null}
-        </Table>
+                }
+                valueClassName={row.kind === "net" ? "font-semibold" : undefined}
+              />
+            );
+          })}
+        </OfferTermsDlColumn>
+        {aside ? aside : null}
+        {footer ? (
+          <OfferTermsDlColumn title="Dates">{footer}</OfferTermsDlColumn>
+        ) : null}
       </div>
-      {footer}
     </div>
   );
 }

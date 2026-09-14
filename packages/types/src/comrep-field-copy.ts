@@ -379,17 +379,17 @@ export const SC_ANNUAL_FINANCIAL = {
     requiredReason: "CashSouk master completeness when a financial statement row exists",
   },
   financialYearEnd: {
-    label: "Financial Year End (dd/mm/yyyy)",
+    label: "Financial Year End",
     required: true as const,
     requiredReason: "CashSouk master completeness when a financial statement row exists",
   },
   unmodifiedReports: {
-    label: "UnModified Reports",
+    label: "Unmodified Reports",
     required: true as const,
     requiredReason: "CashSouk master completeness when a financial statement row exists",
   },
   dateOfTablingToBoard: {
-    label: "Date of Tabling to Board (dd/mm/yyyy)",
+    label: "Date of Tabling to Board",
     required: true as const,
     requiredReason: "CashSouk master completeness when a financial statement row exists",
   },
@@ -410,7 +410,7 @@ export const SC_ANNUAL_FINANCIAL = {
     requiredReason: "CashSouk master completeness",
   },
   nonCurrentAssets: {
-    label: "Non-Current Assets",
+    label: "Non-current Assets",
     required: true as const,
     requiredReason: "CashSouk master completeness when a financial statement row exists",
   },
@@ -441,7 +441,7 @@ export const SC_ANNUAL_FINANCIAL = {
     requiredReason: "CashSouk master completeness when a financial statement row exists",
   },
   accumulatedProfitCarriedForward: {
-    label: "Accumulated Profit Carried Forward",
+    label: "Accumulated Profit / (Loss)",
     required: true as const,
     requiredReason: "CashSouk master completeness when a financial statement row exists",
   },
@@ -457,7 +457,7 @@ export const SC_ANNUAL_FINANCIAL = {
     requiredReason: "CashSouk master completeness when a financial statement row exists",
   },
   nonCurrentLiabilities: {
-    label: "Non-Current Liabilities",
+    label: "Non-current Liabilities",
     required: true as const,
     requiredReason: "CashSouk master completeness when a financial statement row exists",
   },
@@ -540,7 +540,7 @@ export const SC_ANNUAL_FINANCIAL = {
     requiredReason: "CashSouk master completeness when a financial statement row exists",
   },
   profitLossBeforeTax: {
-    label: "Profit/(Loss) Before Tax",
+    label: "Profit / (Loss) Before Tax",
     required: true as const,
     requiredReason: "CashSouk master completeness",
   },
@@ -550,7 +550,7 @@ export const SC_ANNUAL_FINANCIAL = {
     requiredReason: "CashSouk master completeness when a financial statement row exists",
   },
   profitLossAfterTax: {
-    label: "Profit/(Loss) After Tax",
+    label: "Profit / (Loss) After Tax",
     required: true as const,
     requiredReason: "CashSouk master completeness when a financial statement row exists",
   },
@@ -834,13 +834,8 @@ export const SC_MONTHLY_ISSUER_FINANCIAL_LABELS: Record<string, string> = {
   plnetdiv: "Net Dividend (RM)",
 };
 
-export const SC_MONTHLY_ISSUER_FINANCIAL_HELP: Record<string, string> = {
-  bscatot:
-    "Enter figures from the latest audited financial statements or management accounts.",
-  equity_share_application: "Enter this if it applies.",
-  equity_share_premium: "Enter this if it applies.",
-  equity_minority: "Enter this if it applies.",
-};
+/** SC item names for ComRep mapping. Profile UI uses `profileFinancialFieldLabel`. */
+export const SC_MONTHLY_ISSUER_FINANCIAL_HELP: Record<string, string> = {};
 
 export const SC_ANNUAL_PERSON_KIND_LABELS = {
   BOARD: "Board of director",
@@ -869,36 +864,49 @@ export const SC_MONTHLY_INVESTOR_IDENTITY_PREFIX_LABELS = {
   ROC: "ROC",
 } as const;
 
+import {
+  PROFILE_ADDRESS_FIELD_LABELS,
+  PROFILE_ADDRESS_HELP,
+  PROFILE_HELP,
+  PROFILE_LABEL,
+} from "./profile-field-copy";
+
 /** Monthly issuer people: [05000] labels when the row is a shareholder; [06000] when board/management only. */
 export function monthlyIssuerPersonCopy(roles: { shareholder: boolean; officer: boolean }) {
   if (roles.shareholder) {
     return {
-      name: SC_MONTHLY_SHAREHOLDER.shareholderName,
-      salutation: SC_MONTHLY_SHAREHOLDER.salutation,
-      identityPrefix: SC_MONTHLY_SHAREHOLDER.identityPrefix,
+      name: { ...SC_MONTHLY_SHAREHOLDER.shareholderName, label: PROFILE_LABEL.fullName },
+      salutation: { label: PROFILE_LABEL.salutation, help: undefined },
+      identityPrefix: { label: PROFILE_LABEL.identityPrefix },
       identityPrefixLabels: SC_MONTHLY_SHAREHOLDER_IDENTITY_PREFIX_LABELS,
-      identity: SC_MONTHLY_SHAREHOLDER.shareholderIdentity,
-      dateOfBirth: SC_MONTHLY_SHAREHOLDER.dateOfBirth,
-      nationality: SC_MONTHLY_SHAREHOLDER.nationalityCountry,
-      gender: SC_MONTHLY_SHAREHOLDER.gender,
-      address: SC_MONTHLY_SHAREHOLDER.businessResidentialAddress,
-      addressState: SC_MONTHLY_SHAREHOLDER.businessResidentialAddressState,
-      addressPostcode: SC_MONTHLY_SHAREHOLDER.businessResidentialAddressPostcode,
+      identity: {
+        label: PROFILE_LABEL.identityNumber,
+        help: PROFILE_HELP.identityNumberPersonOrCompany,
+      },
+      dateOfBirth: { label: PROFILE_LABEL.dateOfBirthOrIncorporation, help: undefined },
+      nationality: { label: PROFILE_LABEL.nationalityOrCountry, help: undefined },
+      gender: { label: PROFILE_LABEL.gender, help: undefined },
+      address: { label: PROFILE_ADDRESS_FIELD_LABELS.address },
+      addressState: { label: PROFILE_ADDRESS_FIELD_LABELS.state, help: PROFILE_ADDRESS_HELP.state },
+      addressPostcode: { label: PROFILE_ADDRESS_FIELD_LABELS.postcode, help: PROFILE_ADDRESS_HELP.postcode },
       includeRocPrefix: true,
     };
   }
   return {
-    name: SC_MONTHLY_BOARD.name,
-    salutation: SC_MONTHLY_BOARD.salutation,
-    identityPrefix: SC_MONTHLY_BOARD.identityPrefix,
+    name: { ...SC_MONTHLY_BOARD.name, label: PROFILE_LABEL.fullName },
+    salutation: { label: PROFILE_LABEL.salutation, help: undefined },
+    identityPrefix: { label: PROFILE_LABEL.identityPrefix },
     identityPrefixLabels: SC_MONTHLY_BOARD_IDENTITY_PREFIX_LABELS,
-    identity: SC_MONTHLY_BOARD.identityNumber,
-    dateOfBirth: SC_MONTHLY_BOARD.dateOfBirth,
-    nationality: SC_MONTHLY_BOARD.nationality,
-    gender: SC_MONTHLY_BOARD.gender,
-    address: SC_MONTHLY_BOARD.residentialAddress,
-    addressState: SC_MONTHLY_BOARD.residentialAddressState,
-    addressPostcode: SC_MONTHLY_BOARD.residentialAddressPostcode,
+    identity: {
+      label: PROFILE_LABEL.identityNumber,
+      help: PROFILE_HELP.identityNumberNric,
+    },
+    dateOfBirth: { label: PROFILE_LABEL.dateOfBirth, help: undefined },
+    nationality: { label: PROFILE_LABEL.nationality, help: undefined },
+    gender: { label: PROFILE_LABEL.gender, help: undefined },
+    address: { label: PROFILE_ADDRESS_FIELD_LABELS.address },
+    addressState: { label: PROFILE_ADDRESS_FIELD_LABELS.state, help: PROFILE_ADDRESS_HELP.state },
+    addressPostcode: { label: PROFILE_ADDRESS_FIELD_LABELS.postcode, help: PROFILE_ADDRESS_HELP.postcode },
     includeRocPrefix: false,
   };
 }

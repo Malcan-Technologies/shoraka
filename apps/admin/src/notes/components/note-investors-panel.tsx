@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { UsersIcon } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import type { AdminInvestmentItem, NoteDetail } from "@cashsouk/types";
+import { formatOrganizationReference } from "@cashsouk/types";
 import { Skeleton, StatusBadge } from "@cashsouk/ui";
 import { AdminDetailCardHeader } from "@/components/admin-detail";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,6 +18,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useAdminInvestments } from "@/investments/hooks/use-admin-investments";
+import { clampListPage } from "@/shared/admin-list/clamp-list-page";
 import { TablePagination } from "@/shared/admin-list/components/table-pagination";
 import { getAdminStatusToken, adminActionRowClass } from "@/lib/admin-status-token";
 
@@ -35,12 +37,13 @@ function formatDate(value: string | null): string {
 }
 
 function getInvestorName(item: AdminInvestmentItem): string {
-  return (
-    item.investorOrganizationName ??
-    item.investorUserName ??
-    item.investorUserEmail ??
-    item.investorUserId
-  );
+  return item.investorOrganizationName ?? item.investorUserName ?? item.investorUserEmail ?? "—";
+}
+
+function getInvestorDisplayId(item: AdminInvestmentItem): string {
+  return formatOrganizationReference({
+    displayReference: item.investorOrganizationDisplayReference,
+  });
 }
 
 interface NoteInvestorsPanelProps {
@@ -59,10 +62,10 @@ export function NoteInvestorsPanel({ note }: NoteInvestorsPanelProps) {
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const startIndex = totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const endIndex = Math.min(page * PAGE_SIZE, totalCount);
-
-  React.useEffect(() => {
-    if (page > totalPages) setPage(totalPages);
-  }, [page, totalPages]);
+  const nextPage = clampListPage(page, totalPages, Boolean(data));
+  if (nextPage !== page) {
+    setPage(nextPage);
+  }
 
   return (
     <Card className="rounded-2xl">
@@ -122,7 +125,11 @@ export function NoteInvestorsPanel({ note }: NoteInvestorsPanelProps) {
                           >
                             <TableCell>
                               <div className="font-medium">{getInvestorName(investment)}</div>
-                              {investment.investorUserName && investment.investorOrganizationName ? (
+                              {getInvestorDisplayId(investment) !== "—" ? (
+                                <div className="text-xs text-muted-foreground">
+                                  {getInvestorDisplayId(investment)}
+                                </div>
+                              ) : investment.investorUserName && investment.investorOrganizationName ? (
                                 <div className="text-xs text-muted-foreground">
                                   {investment.investorUserName}
                                 </div>

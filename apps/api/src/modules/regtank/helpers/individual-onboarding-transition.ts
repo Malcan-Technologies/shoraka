@@ -23,9 +23,40 @@ const PRE_REVIEW_ONBOARDING_STATUSES: ReadonlySet<OnboardingStatus> = new Set([
   OnboardingStatus.PENDING_APPROVAL,
 ]);
 
-export type IndividualWaitForApprovalUpdate = {
+/**
+ * Individual onboarding statuses that mean the applicant has not been approved in
+ * RegTank yet. Landing on `PENDING_APPROVAL` from these must not set
+ * `onboarding_approved` — that flag is the AML-step gate.
+ */
+const INDIVIDUAL_PRE_APPROVAL_REGTANK_STATUSES: ReadonlySet<string> = new Set([
+  "URL_GENERATED",
+  "PROCESSING",
+  "ID_UPLOADED_FAILED",
+  "ID_UPLOADED",
+  "LIVENESS_STARTED",
+  "LIVENESS_FAILED",
+  "CAMERA_FAILED",
+  "EMAIL_SENT",
+  "LIVENESS_PASSED",
+  "WAIT_FOR_APPROVAL",
+  "RESUBMISSION",
+  "FORM_FILLING",
+  "FORM_FILLED",
+]);
+
+function normalizeIndividualRegtankStatus(status: string | null | undefined): string {
+  return String(status ?? "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "_");
+}
+
+export type IndividualAwaitingReviewUpdate = {
   nextStatus: "PENDING_APPROVAL";
+  onboardingApproved: false;
 };
+
+export type IndividualWaitForApprovalUpdate = IndividualAwaitingReviewUpdate;
 
 /**
  * Decide whether a `LIVENESS_PASSED` or `WAIT_FOR_APPROVAL` individual webhook may
@@ -34,7 +65,8 @@ export type IndividualWaitForApprovalUpdate = {
  * Duplicate or out-of-order individual webhooks must never regress an organization
  * that has already progressed past review (`PENDING_AML`, `PENDING_FINAL_APPROVAL`,
  * `COMPLETED`) or is terminal (`REJECTED`). Returns `null` when the update must be
- * skipped.
+ * skipped. Callers must persist `onboardingApproved: false` — awaiting review is not
+ * an onboarding approval.
  */
 export function getIndividualWaitForApprovalUpdate(params: {
   currentOnboardingStatus: OnboardingStatus;
@@ -42,7 +74,36 @@ export function getIndividualWaitForApprovalUpdate(params: {
   if (!PRE_REVIEW_ONBOARDING_STATUSES.has(params.currentOnboardingStatus)) {
     return null;
   }
-  return { nextStatus: "PENDING_APPROVAL" };
+  return { nextStatus: "PENDING_APPROVAL", onboardingApproved: false };
+}
+
+/**
+ * Roll back a personal org that jumped to AML (or got `onboarding_approved`) before
+ * RegTank actually approved identity onboarding.
+ *
+ * This heals the combination of: landing on `PENDING_APPROVAL` used to set
+ * `onboarding_approved`, then `advanceOnboardingStatusFromFlags` (including opening
+ * the admin review dialog) skipped Onboarding Approval and greyed out the liveness
+ * review link because AML uses the KYC URL which does not exist yet.
+ */
+export function getPrematurePersonalOnboardingHeal(params: {
+  currentOnboardingStatus: OnboardingStatus | string;
+  onboardingApproved: boolean;
+  regtankStatus: string | null | undefined;
+}): IndividualAwaitingReviewUpdate | null {
+  const regtank = normalizeIndividualRegtankStatus(params.regtankStatus);
+  if (!INDIVIDUAL_PRE_APPROVAL_REGTANK_STATUSES.has(regtank)) {
+    return null;
+  }
+
+  const status = params.currentOnboardingStatus as OnboardingStatus;
+  if (status === OnboardingStatus.PENDING_AML) {
+    return { nextStatus: "PENDING_APPROVAL", onboardingApproved: false };
+  }
+  if (status === OnboardingStatus.PENDING_APPROVAL && params.onboardingApproved) {
+    return { nextStatus: "PENDING_APPROVAL", onboardingApproved: false };
+  }
+  return null;
 }
 
 export type IndividualApprovedOutcome =
@@ -62,7 +123,8 @@ const PRE_PENDING_APPROVAL_STATUSES: ReadonlySet<OnboardingStatus> = new Set([
  *
  * - `heal-to-pending-approval`: the org has not reached `PENDING_APPROVAL` yet (e.g. the
  *   `APPROVED` webhook arrived before `WAIT_FOR_APPROVAL`/`LIVENESS_PASSED` was
- *   processed). Safe to land it on `PENDING_APPROVAL` with `onboarding_approved` set.
+ *   processed). Land on `PENDING_APPROVAL` and set `onboarding_approved` explicitly
+ *   (callers must pass that flag — landing on `PENDING_APPROVAL` does not imply it).
  * - `set-approved-and-advance`: org is on `PENDING_APPROVAL` and not yet approved —
  *   apply the milestone once, then run the shared sequencing helper.
  * - `advance-only`: org already has `onboarding_approved` set, or is in a later/terminal

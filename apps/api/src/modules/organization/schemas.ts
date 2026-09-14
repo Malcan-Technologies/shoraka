@@ -10,6 +10,8 @@ export const createOrganizationSchema = z.object({
   type: z.enum(["PERSONAL", "COMPANY"]),
   name: z.string().min(1).max(255).optional(),
   registrationNumber: z.string().max(100).optional(),
+  /** When true, create a new COMPANY even if this user already owns an incomplete same-name company. */
+  allowDuplicateIncomplete: z.boolean().optional(),
 });
 
 export const completeOnboardingSchema = z.object({
@@ -233,7 +235,7 @@ export const updateCorporateInfoSchema = z
       }
       return true;
     },
-    { message: "Business Address, Business Address - State, and Business Address - Postcode are required unless the state is Outside Malaysia.", path: ["businessAddress"] }
+    { message: "Business Address, State, and Postcode are required unless the state is Outside Malaysia.", path: ["businessAddress"] }
   )
   .refine(
     (val) => {
@@ -242,7 +244,7 @@ export const updateCorporateInfoSchema = z
       }
       return true;
     },
-    { message: "Registered Address, Registered Address - State, and Registered Address - Postcode are required unless the state is Outside Malaysia.", path: ["registeredAddress"] }
+    { message: "Registered Address, State, and Postcode are required unless the state is Outside Malaysia.", path: ["registeredAddress"] }
   );
 
 export type CreateOrganizationInput = z.infer<typeof createOrganizationSchema>;

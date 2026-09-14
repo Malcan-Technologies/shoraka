@@ -9,11 +9,11 @@ import {
 import * as stampRules from "./company-stamp-image";
 
 describe("companyStampDeclaredFileRejection", () => {
-  it("accepts PNG, JPEG, JPG, and WEBP within the trustee 5 MB cap", () => {
+  it("accepts PNG, JPEG, and JPG within the trustee 5 MB cap", () => {
     expect(companyStampDeclaredFileRejection("image/png", 1024)).toBeNull();
     expect(companyStampDeclaredFileRejection("image/jpeg", 2048)).toBeNull();
     expect(companyStampDeclaredFileRejection("image/jpg", 2048)).toBeNull();
-    expect(companyStampDeclaredFileRejection("image/webp", COMPANY_STAMP_MAX_FILE_SIZE_BYTES)).toBeNull();
+    expect(companyStampDeclaredFileRejection("image/png", COMPANY_STAMP_MAX_FILE_SIZE_BYTES)).toBeNull();
   });
 
   it("rejects unsupported MIME types", () => {
@@ -21,6 +21,9 @@ describe("companyStampDeclaredFileRejection", () => {
       COMPANY_STAMP_UNSUPPORTED_TYPE_MESSAGE
     );
     expect(companyStampDeclaredFileRejection("image/svg+xml", 1024)).toBe(
+      COMPANY_STAMP_UNSUPPORTED_TYPE_MESSAGE
+    );
+    expect(companyStampDeclaredFileRejection("image/webp", 2048)).toBe(
       COMPANY_STAMP_UNSUPPORTED_TYPE_MESSAGE
     );
   });
@@ -45,6 +48,9 @@ describe("companyStampDeclaredFileRejection", () => {
 describe("personSignatureDeclaredFileRejection", () => {
   it("accepts the same image types as company stamp", () => {
     expect(personSignatureDeclaredFileRejection("image/png", 1024)).toBeNull();
+    expect(personSignatureDeclaredFileRejection("image/webp", 1024)).toBe(
+      COMPANY_STAMP_UNSUPPORTED_TYPE_MESSAGE
+    );
   });
 
   it("rejects oversize signature images with a signature-specific message", () => {

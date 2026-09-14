@@ -24,7 +24,27 @@ import { displayGovernmentIdentityNumber } from "./organization-party-key";
 export type DirectorShareholderListSource = "ONBOARDING" | "CTOS" | "CTOS_EMPTY";
 
 export const CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING =
-  "The latest CTOS information did not include directors or shareholders. Current profile people are kept until you choose to update them." as const;
+  "CTOS did not return usable directors or shareholders. Showing the submitted onboarding data. Review this before continuing." as const;
+
+/** Issuer/investor copy for the same empty-directors condition. Never names the provider. */
+export const CUSTOMER_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING =
+  "No directors or shareholders were found in the company information. Showing the details submitted during onboarding. Please add the required people before continuing." as const;
+
+export const CUSTOMER_DIRECTOR_SHAREHOLDER_EMPTY_STATE =
+  "No directors or shareholders were found in the company information." as const;
+
+/** Org is still in the initial corporate onboarding/review pipeline (not a later Profile/People member-management org). */
+export function isInitialCorporateOnboardingStatus(status: string | null | undefined): boolean {
+  const s = String(status ?? "").trim().toUpperCase();
+  if (!s) return true;
+  return s !== "COMPLETED" && s !== "REJECTED";
+}
+
+export function relatedPartyVerificationCaption(
+  entityType: "INDIVIDUAL" | "CORPORATE" | null | undefined
+): string {
+  return entityType === "CORPORATE" ? "Company · KYB" : "Individual · KYC";
+}
 
 export function resolveDirectorShareholderCtosEmptyWarning(input: {
   directorShareholderListSource?: DirectorShareholderListSource | null;
@@ -39,6 +59,38 @@ export function resolveDirectorShareholderCtosEmptyWarning(input: {
     return CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING;
   }
   return null;
+}
+
+type DirectorShareholderEmptyWarningInput = {
+  directorShareholderListSource?: DirectorShareholderListSource | null;
+  ctosDirectorShareholderWarning?: string | null;
+  /** Final resolved people[] after CTOS / onboarding / master fallback. */
+  people?: ReadonlyArray<PeopleRolesRowInput | null | undefined> | null;
+};
+
+function hasDirectorShareholderEmptyCondition(input: DirectorShareholderEmptyWarningInput): boolean {
+  const explicit =
+    typeof input.ctosDirectorShareholderWarning === "string"
+      ? input.ctosDirectorShareholderWarning.trim()
+      : "";
+  return Boolean(explicit) || input.directorShareholderListSource === "CTOS_EMPTY";
+}
+
+/**
+ * Customer portals: missing-people warning only when CTOS was empty AND the
+ * final visible director/shareholder list is also empty. Never names the provider.
+ */
+export function resolveCustomerDirectorShareholderEmptyWarning(
+  input: DirectorShareholderEmptyWarningInput
+): string | null {
+  const explicit =
+    typeof input.ctosDirectorShareholderWarning === "string"
+      ? input.ctosDirectorShareholderWarning.trim()
+      : "";
+  if (!hasDirectorShareholderEmptyCondition(input)) return null;
+  if (hasUsableDirectorShareholderPeople(input.people)) return null;
+  if (explicit && !/CTOS/i.test(explicit)) return explicit;
+  return CUSTOMER_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING;
 }
 
 /** Display-only identity issue on API `people[]` rows (never persisted to DB JSON). */
@@ -166,7 +218,7 @@ function kybScreeningHasRisk(screening: ApplicationPersonRow["screening"]): bool
 
 export type RegtankPortalLink = {
   label: string;
-  url: string;
+  url: string | null;
   requestId: string;
 };
 
@@ -214,18 +266,27 @@ export function getRegtankLivenessUrl(requestId: string | null | undefined): str
   return `${base}/app/liveness/${encodeURIComponent(id)}?archived=false`;
 }
 
+export function getRegtankKycResultUrl(kycId: string | null | undefined): string | null {
+  const id = trimRegtankId(kycId);
+  if (!id || !id.startsWith("KYC")) return null;
+  return `${getRegtankClientPortalBaseUrl()}/app/screen-kyc/result/${encodeURIComponent(id)}`;
+}
+
+export function getRegtankKybResultUrl(kybId: string | null | undefined): string | null {
+  const id = trimRegtankId(kybId);
+  if (!id || !id.startsWith("KYB")) return null;
+  return `${getRegtankClientPortalBaseUrl()}/app/screen-kyb/result/${encodeURIComponent(id)}`;
+}
+
 export function getRegtankScreeningLink(
   person: Pick<ApplicationPersonRow, "screeningRequestId" | "screening" | "requestId">
 ): string | null {
   const id = trimRegtankId(person.screeningRequestId) || trimRegtankId(person.requestId);
   if (!id || !isScreeningRequestId(id)) return null;
-  const base = getRegtankClientPortalBaseUrl();
-  const enc = encodeURIComponent(id);
-  if (id.startsWith("KYC")) {
-    return `${base}/app/screen-kyc/result/${enc}`;
-  }
+  if (id.startsWith("KYC")) return getRegtankKycResultUrl(id);
   const suffix = kybScreeningHasRisk(person.screening) ? "/riskAssessment" : "";
-  return `${base}/app/screen-kyb/result/${enc}${suffix}`;
+  const base = getRegtankKybResultUrl(id);
+  return base ? `${base}${suffix}` : null;
 }
 
 /**
@@ -270,10 +331,20 @@ export function getRegtankOnboardingViewLinks(
     return [{ label: "View", url, requestId: eod }];
   }
 
-  const standalone = directorOk ? directorEod : shareholderOk ? shareholderEod : "";
-  const liveness = getRegtankLivenessUrl(standalone);
-  if (!liveness || !standalone) return [];
-  return [{ label: "View", url: liveness, requestId: standalone }];
+  const ldId = [directorEod, shareholderEod].find((id) => id.startsWith("LD")) ?? "";
+  const liveness = getRegtankLivenessUrl(ldId);
+  if (liveness && ldId) {
+    return [{ label: "View", url: liveness, requestId: ldId }];
+  }
+
+  const orphanEods = [directorEod, shareholderEod].filter(
+    (id, index, all) => id.startsWith("EOD") && all.indexOf(id) === index
+  );
+  return orphanEods.map((id) => ({
+    label: id === directorEod && id !== shareholderEod ? "Director" : id === shareholderEod && id !== directorEod ? "Shareholder" : "View",
+    url: null,
+    requestId: id,
+  }));
 }
 
 export type RegtankColumnDisplayRow = {
@@ -391,6 +462,17 @@ export function filterVisiblePeopleRows<T extends PeopleRolesRowInput>(peopleRow
       return { ...p, roles: nextRoles };
     })
     .filter((p): p is NonNullable<typeof p> => p !== null);
+}
+
+/** True when the final people list has a current director or ≥5% shareholder. */
+export function hasUsableDirectorShareholderPeople(
+  people?: ReadonlyArray<PeopleRolesRowInput | null | undefined> | null
+): boolean {
+  const list = (people ?? []).filter((p): p is PeopleRolesRowInput => p != null);
+  return filterVisiblePeopleRows(list).some((p) => {
+    const roles = (p.roles ?? []).map((role) => String(role).toUpperCase());
+    return roles.includes("DIRECTOR") || roles.includes("SHAREHOLDER");
+  });
 }
 
 export function isMissingGovernmentIdPerson(

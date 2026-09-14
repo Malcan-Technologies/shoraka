@@ -15,6 +15,9 @@ jest.mock("../../lib/prisma", () => ({
     noteInvestment: {
       findMany: jest.fn(),
     },
+    notification: {
+      findMany: jest.fn().mockResolvedValue([]),
+    },
   },
 }));
 import {
@@ -28,11 +31,14 @@ import {
   notifyNoteActiveInvestors,
   notifyNotePublished,
   notifyNoteSettlementPosted,
+  expectedDefaultNotificationKeys,
+  expectedServicingTransitionNotificationKeys,
   resolveNoteNotificationTitle,
 } from "./note-lifecycle-notifications";
 import { NotificationTypeIds } from "./registry";
 import { NotificationService } from "./service";
 import { prisma } from "../../lib/prisma";
+import { NoteServicingStatus } from "@prisma/client";
 
 describe("resolveNoteNotificationTitle", () => {
   it("uses title then reference then fallback", () => {
@@ -446,5 +452,83 @@ describe("notifyNoteActivated", () => {
       "note:lifecycle:note-1:active:investor:investor-org:inv-org-1:user:INVOWN"
     );
     expect(logTypedSystemBatch).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("expected servicing and default notification keys", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (prisma.issuerOrganization.findUnique as jest.Mock).mockResolvedValue({
+      owner_user_id: "UOWN",
+    });
+    (prisma.investorOrganization.findUnique as jest.Mock).mockResolvedValue({
+      owner_user_id: "INVOWN",
+    });
+    (prisma.organizationMember.findMany as jest.Mock).mockImplementation(
+      async (args: {
+        where: { issuer_organization_id?: string; investor_organization_id?: string };
+      }) => {
+        if (args.where.issuer_organization_id) return [{ user_id: "UM1" }];
+        return [{ user_id: "IM1" }];
+      }
+    );
+    (prisma.noteInvestment.findMany as jest.Mock).mockResolvedValue([
+      { investor_organization_id: "inv-org-1" },
+    ]);
+    (prisma.notification.findMany as jest.Mock).mockResolvedValue([]);
+  });
+
+  it("lists distinct issuer and investor LATE keys so investor rows cannot cover issuer delivery", async () => {
+    const keys = await expectedServicingTransitionNotificationKeys({
+      status: NoteServicingStatus.LATE,
+      noteId: "note-1",
+      issuerOrganizationId: "iss-1",
+    });
+    expect(prisma.noteInvestment.findMany).toHaveBeenCalledWith({
+      where: { note_id: "note-1", status: { in: ["CONFIRMED", "SETTLED"] } },
+      select: { investor_organization_id: true },
+      distinct: ["investor_organization_id"],
+    });
+    expect(keys).toEqual([
+      "note:servicing:note-1:late:user:UOWN",
+      "note:servicing:note-1:late:user:UM1",
+      "note:servicing:note-1:late:investor:investor-org:inv-org-1:user:INVOWN",
+      "note:servicing:note-1:late:investor:investor-org:inv-org-1:user:IM1",
+    ]);
+  });
+
+  it("lists defaulted issuer and investor keys for the daily retry", async () => {
+    const keys = await expectedDefaultNotificationKeys({
+      noteId: "note-1",
+      issuerOrganizationId: "iss-1",
+    });
+    expect(prisma.noteInvestment.findMany).toHaveBeenCalledWith({
+      where: { note_id: "note-1", status: { in: ["CONFIRMED", "SETTLED"] } },
+      select: { investor_organization_id: true },
+      distinct: ["investor_organization_id"],
+    });
+    expect(keys).toEqual([
+      "note:lifecycle:note-1:defaulted:issuer:user:UOWN",
+      "note:lifecycle:note-1:defaulted:issuer:user:UM1",
+      "note:lifecycle:note-1:defaulted:investor:investor-org:inv-org-1:user:INVOWN",
+      "note:lifecycle:note-1:defaulted:investor:investor-org:inv-org-1:user:IM1",
+    ]);
+  });
+
+  it("keeps persisted default recipients after live investments have settled", async () => {
+    (prisma.notification.findMany as jest.Mock).mockResolvedValue([
+      {
+        idempotency_key:
+          "note:lifecycle:note-1:defaulted:investor:investor-org:old-org:user:OLD",
+      },
+    ]);
+    const keys = await expectedDefaultNotificationKeys({
+      noteId: "note-1",
+      issuerOrganizationId: "iss-1",
+    });
+    expect(keys).toContain(
+      "note:lifecycle:note-1:defaulted:investor:investor-org:old-org:user:OLD"
+    );
+    expect(keys).toContain("note:lifecycle:note-1:defaulted:issuer:user:UOWN");
   });
 });

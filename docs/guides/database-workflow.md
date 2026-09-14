@@ -14,6 +14,7 @@ This guide covers the complete database workflow from local development to produ
 ```
 
 This will:
+
 - ✅ Start PostgreSQL container via Docker Compose
 - ✅ Wait for database to be ready
 - ✅ Run all existing Prisma migrations
@@ -84,6 +85,7 @@ pnpm prisma migrate dev --name add_phone_number_to_users
 ```
 
 This will:
+
 - Generate SQL migration file in `prisma/migrations/`
 - Apply migration to local database
 - Regenerate Prisma Client
@@ -136,6 +138,7 @@ git push origin main
 4. ✅ Deploys new API version to ECS
 
 The migration happens **BEFORE** deploying the new API, ensuring:
+
 - No downtime
 - No race conditions (advisory lock ensures only one migration runs at a time)
 - Automatic rollback if migration fails (API won't deploy)
@@ -156,6 +159,7 @@ When API code changes are detected, GitHub Actions:
 ```
 
 **Advisory Lock Magic:**
+
 ```sql
 -- Only ONE migration can run at a time
 SELECT pg_try_advisory_lock(123456789);  -- Returns true for first caller, false for others
@@ -168,41 +172,16 @@ SELECT pg_try_advisory_lock(123456789);  -- Returns true for first caller, false
 
 ## **Production Database Management**
 
-### **Connecting to Production Database**
+Production RDS is intended to be private. Operator laptops have no direct route; do not treat local `psql` as a production access path.
 
-#### **Via RDS Proxy (Application Connection)**
+Role split (do not collapse these secrets):
 
-```bash
-# Get credentials from AWS Secrets Manager
-aws secretsmanager get-secret-value \
-  --secret-id prod/cashsouk/db \
-  --region ap-southeast-5 \
-  --query SecretString \
-  --output text | jq -r .
-
-# Connect via psql
-psql "postgresql://cashsouk_app:PASSWORD@cashsouk-prod-proxy.proxy-c5ayu8mwom04.ap-southeast-5.rds.amazonaws.com:5432/cashsouk"
-```
-
-#### **Via Direct RDS (Admin/Migrations)**
-
-```bash
-# Use master credentials
-psql "postgresql://cashsouk_admin:PASSWORD@cashsouk-prod-db.c5ayu8mwom04.ap-southeast-5.rds.amazonaws.com:5432/cashsouk"
-```
+- **API runtime** — ECS API task `DATABASE_URL` from Secrets Manager `cashsouk/app-database-url` (`cashsouk_app`, DML only: schema `USAGE`; tables `SELECT`/`INSERT`/`UPDATE`/`DELETE`; sequences `USAGE`/`SELECT`).
+- **Migrations** — ECS migrate task `DATABASE_URL` from Secrets Manager `cashsouk/database-url` (`cashsouk_admin`, DDL). GitHub Actions runs this task before API rollout.
 
 ### **Manual Migration (Emergency)**
 
-If you need to run migrations manually (not recommended for normal deployments):
-
-```bash
-# Get master credentials
-export DATABASE_URL="postgresql://cashsouk_admin:PASSWORD@cashsouk-prod-db.c5ayu8mwom04.ap-southeast-5.rds.amazonaws.com:5432/cashsouk"
-
-# Run migrations
-cd apps/api
-pnpm prisma migrate deploy
-```
+Do not run migrations from an operator laptop. Use the ECS migrate task (workflow `migrations-only` / `run_migration_only`), which keeps `cashsouk/database-url`.
 
 ### **Viewing Migration Status**
 
@@ -218,6 +197,7 @@ pnpm --filter api prisma migrate status --schema=./prisma/schema.prisma
 ### **✅ DO**
 
 1. **Always test migrations locally first**
+
    ```bash
    pnpm prisma migrate dev --name my_migration
    # Test thoroughly
@@ -225,23 +205,25 @@ pnpm --filter api prisma migrate status --schema=./prisma/schema.prisma
    ```
 
 2. **Use descriptive migration names**
+
    ```bash
    # Good
    pnpm prisma migrate dev --name add_user_roles
    pnpm prisma migrate dev --name create_access_logs_table
-   
+
    # Bad
    pnpm prisma migrate dev --name update
    pnpm prisma migrate dev --name fix
    ```
 
 3. **Make migrations backwards-compatible when possible**
+
    ```prisma
    # Adding optional field - safe
    model User {
      phoneNumber String?  // ✅ Optional
    }
-   
+
    # Adding required field - needs default or data migration
    model User {
      phoneNumber String @default("")  // ✅ Has default
@@ -281,12 +263,13 @@ pnpm --filter api prisma migrate status --schema=./prisma/schema.prisma
 4. **Don't rename columns/enums the running API still selects** — use `@map` / `@@map`.
 
 5. **Don't make breaking schema changes without a migration strategy**
+
    ```prisma
    # Breaking: Removing required field
    model User {
      - email String  // ❌ Data loss!
    }
-   
+
    # Better: Mark as optional first, deploy, then remove later
    model User {
      email String?  // ✅ Step 1: Make optional
@@ -301,17 +284,20 @@ pnpm --filter api prisma migrate status --schema=./prisma/schema.prisma
 ### **Migration fails in production**
 
 **Check logs:**
+
 ```bash
 # GitHub Actions will show migration task logs
 # Or check CloudWatch logs for task: cashsouk-migrate
 ```
 
 **Common issues:**
-- Missing permissions (ensure app user has DDL rights)
+
+- Missing permissions (migrations must run as `cashsouk_admin` via the migrate task; `cashsouk_app` is DML-only)
 - Breaking change (data doesn't match new schema)
 - Network issue (ECS can't reach RDS)
 
 **Solution:**
+
 1. Fix the issue (update schema, add data migration)
 2. Create new migration
 3. Push again
@@ -319,6 +305,7 @@ pnpm --filter api prisma migrate status --schema=./prisma/schema.prisma
 ### **Race condition during deployment**
 
 **Won't happen!** Advisory lock prevents it:
+
 - Multiple API containers deploying simultaneously
 - Only ONE migration task runs
 - Others wait for the lock to be released
@@ -338,6 +325,7 @@ pnpm --filter api prisma migrate deploy
 **Prisma doesn't support automatic rollbacks.** You must:
 
 1. Create a new migration that reverses the changes
+
    ```bash
    # Manually edit schema to reverse
    pnpm prisma migrate dev --name revert_phone_number
@@ -370,17 +358,17 @@ ALTER TABLE "users" ALTER COLUMN "full_name" SET NOT NULL;
 
 ```typescript
 // apps/api/prisma/data-migrations/001-populate-full-names.ts
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
 async function migrate() {
   const users = await prisma.user.findMany();
-  
+
   for (const user of users) {
     await prisma.user.update({
       where: { id: user.id },
-      data: { fullName: `${user.firstName} ${user.lastName}` }
+      data: { fullName: `${user.firstName} ${user.lastName}` },
     });
   }
 }
@@ -389,6 +377,7 @@ migrate().catch(console.error);
 ```
 
 Run before deploying:
+
 ```bash
 tsx apps/api/prisma/data-migrations/001-populate-full-names.ts
 ```
@@ -441,4 +430,3 @@ git push origin main                          # GitHub Actions handles the rest!
 ```
 
 **That's it!** No manual intervention needed for production deployments. 🚀
-

@@ -21,8 +21,8 @@ describe("humanizeApiValidationMessage", () => {
     expect(humanizeApiValidationMessage("companyRegistrationNo: Enter a 12-digit Company Registration Number.")).toBe(
       "Enter a 12-digit Company Registration Number."
     );
-    expect(humanizeApiValidationMessage("address.postalCode: Registered Address - Postcode is required.")).toBe(
-      "Registered Address - Postcode is required."
+    expect(humanizeApiValidationMessage("address.postalCode: Registered Address (Postcode) is required.")).toBe(
+      "Registered Address (Postcode) is required."
     );
   });
 
@@ -37,10 +37,10 @@ describe("humanizeApiValidationMessage", () => {
   it("maps Zod details onto field errors without property-name prefixes", () => {
     const fields = fieldErrorsFromApiDetails([
       { path: ["responsiblePersonPhone"], message: "Enter a valid phone number." },
-      { path: ["address", "postalCode"], message: "Registered Address - Postcode is required." },
+      { path: ["address", "postalCode"], message: "Registered Address (Postcode) is required." },
     ]);
     expect(fields.responsiblePersonPhone).toBe("Enter a valid contact number.");
-    expect(fields["address.postalCode"]).toBe("Registered Address - Postcode is required.");
+    expect(fields["address.postalCode"]).toBe("Registered Address (Postcode) is required.");
     const error = profileValidationErrorFromApi({
       message: "responsiblePersonPhone: Enter a valid phone number.",
       details: [{ path: ["responsiblePersonPhone"], message: "Enter a valid phone number." }],

@@ -32,6 +32,7 @@ import {
   organizationLinkedRecordHref,
   organizationLinkedRecordTypeLabel,
 } from "@/organizations/utils/organization-linked-record-href";
+import { clampListPage } from "@/shared/admin-list/clamp-list-page";
 import { TablePagination } from "@/shared/admin-list/components/table-pagination";
 import { adminActionRowClass, getAdminStatusToken } from "@/lib/admin-status-token";
 import { cn } from "@/lib/utils";
@@ -90,10 +91,10 @@ export function OrganizationLinkedRecordsPanel({
   const totalPages = Math.max(1, data?.pagination.totalPages ?? 1);
   const startIndex = totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const endIndex = Math.min(page * PAGE_SIZE, totalCount);
-
-  React.useEffect(() => {
-    if (page > totalPages) setPage(totalPages);
-  }, [page, totalPages]);
+  const nextPage = clampListPage(page, totalPages, Boolean(data));
+  if (nextPage !== page) {
+    setPage(nextPage);
+  }
 
   const handleTypeChange = (next: OrganizationLinkedRecordType) => {
     setType(next);

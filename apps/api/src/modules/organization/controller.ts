@@ -123,6 +123,7 @@ async function listOrganizations(
           registrationNumber: org.registration_number,
           onboardingStatus: org.onboarding_status,
           onboardedAt: org.onboarded_at,
+          submittedAt: org.regtank_onboarding?.submitted_at?.toISOString() ?? null,
           isOwner: org.owner_user_id === userId,
           ownerId: org.owner_user_id,
           members: org.members.map(
@@ -262,6 +263,41 @@ async function listOrganizations(
   }
 }
 
+function serializeCreatedOrganization(
+  organization: {
+    id: string;
+    display_reference?: string | null;
+    type: string;
+    name: string | null;
+    registration_number: string | null;
+    onboarding_status: string;
+    created_at: Date;
+    owner_user_id: string;
+    tnc_accepted?: boolean;
+    onboarding_fee_paid_at?: Date | null;
+    deposit_received?: boolean;
+  },
+  portalType: PortalType
+) {
+  return {
+    id: organization.id,
+    displayReference: organization.display_reference ?? null,
+    type: organization.type,
+    name: organization.name,
+    registrationNumber: organization.registration_number,
+    onboardingStatus: organization.onboarding_status,
+    createdAt: organization.created_at.toISOString(),
+    ownerId: organization.owner_user_id,
+    tncAccepted: organization.tnc_accepted ?? false,
+    ...(portalType === "issuer" && {
+      onboardingFeePaidAt: organization.onboarding_fee_paid_at?.toISOString() ?? null,
+    }),
+    ...(portalType === "investor" && {
+      depositReceived: organization.deposit_received ?? false,
+    }),
+  };
+}
+
 /**
  * Create a new organization
  * POST /v1/organizations/investor
@@ -277,19 +313,25 @@ async function createOrganization(
     const userId = getUserId(req);
     const input = createOrganizationSchema.parse(req.body);
 
-    const organization = await organizationService.createOrganization(req, userId, portalType, input);
+    const result = await organizationService.createOrganization(req, userId, portalType, input);
+    const payload = serializeCreatedOrganization(result.organization, portalType);
+
+    if (result.outcome === "EXISTING_INCOMPLETE_MATCH") {
+      res.status(200).json({
+        success: true,
+        data: {
+          outcome: "EXISTING_INCOMPLETE_MATCH" as const,
+          organization: payload,
+        },
+      });
+      return;
+    }
 
     res.status(201).json({
       success: true,
       data: {
-        id: organization.id,
-        displayReference: organization.display_reference ?? null,
-        type: organization.type,
-        name: organization.name,
-        registrationNumber: organization.registration_number,
-        onboardingStatus: organization.onboarding_status,
-        createdAt: organization.created_at,
-        ownerId: organization.owner_user_id,
+        outcome: "CREATED" as const,
+        ...payload,
       },
     });
   } catch (error) {
@@ -400,6 +442,7 @@ async function getOrganization(
         registrationNumber: organization.registration_number,
         onboardingStatus: organization.onboarding_status,
         onboardedAt: organization.onboarded_at,
+        submittedAt: organization.regtank_onboarding?.submitted_at?.toISOString() ?? null,
         isOwner: organization.owner_user_id === userId,
         ownerId: organization.owner_user_id,
         members: organization.members.map(

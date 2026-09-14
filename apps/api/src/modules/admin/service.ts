@@ -1,5 +1,11 @@
 import { AdminRepository } from "./repository";
 import {
+  assembleBookMetricHistory,
+  bookMetricsHistoryQueryWindow,
+  roundBookMetrics,
+} from "./book-metrics-snapshot";
+import { calendarDateInTimeZone } from "../notes/servicing-classifier";
+import {
   User,
   AccessLog,
   UserRole,
@@ -58,7 +64,7 @@ import {
 } from "../notification/registry";
 import { getIssuerRecipientUserIdsForApplication } from "../notification/application-recipients";
 import { sendTypedToUsersSafe } from "../notification/send-typed-safe";
-import { listOrganizationLinkedRecords } from "./organization-linked-records";
+import { listOrganizationLinkedRecords, productIdFromFinancingType } from "./organization-linked-records";
 import { sumApprovedFacilityAmount } from "./organization-header-metrics";
 import { updateAdminOrganizationProfile } from "./organization-admin-profile";
 import {
@@ -90,6 +96,7 @@ import {
   REVIEW_SECTION_ORDER,
   getReviewSectionOrder,
   getReviewSectionPrerequisites,
+  arePrerequisiteSectionsSatisfied,
   getStepKeyFromStepId,
   workflowHasAcceptanceDocuments,
   collectAcceptanceDocumentReviewKeys,
@@ -104,6 +111,7 @@ import {
   shouldShowAcceptanceDocumentsReviewSection,
   isFacilityOnlyNewContract,
   isInvoiceOnlyFinancingStructure,
+  isCommercialOfferSendUnlocked,
   INHERITED_FACILITY_GUARANTORS_AML_BLOCKED,
   isRegtankIso3166Code,
   normalizeDirectorShareholderIdKey,
@@ -138,9 +146,6 @@ import {
   type ScCompanyCategory,
   type ScCampaignSector,
   type ScSustainabilityCategory,
-  isScCompanyCategory,
-  isScCampaignSector,
-  isScSustainabilityCategory,
   parseInvoiceOfferCompanyCategory,
   parseInvoiceOfferCampaignSector,
   parseInvoiceOfferSustainabilityCategory,
@@ -164,7 +169,10 @@ import {
   applyPersonalAmlMilestoneFromLiveKyc,
 } from "../regtank/webhooks/org-aml-milestone";
 import { shouldApplyCodApprovedOnboardingFlag } from "../regtank/helpers/cod-amendment-transition";
-import { getIndividualWaitForApprovalUpdate } from "../regtank/helpers/individual-onboarding-transition";
+import {
+  getIndividualWaitForApprovalUpdate,
+  getPrematurePersonalOnboardingHeal,
+} from "../regtank/helpers/individual-onboarding-transition";
 import {
   isRegTankRateLimited,
   REGTANK_RATE_LIMITED_MESSAGE,
@@ -187,7 +195,10 @@ import { notifyIssuerDirectorShareholderActionRequired } from "../notification/d
 import { logApplicationActivity } from "../applications/logs/service";
 import { createApplicationReviewEventRow } from "../applications/logs/review-events";
 import { ActivityPortal, ApplicationLogEventType } from "../applications/logs/types";
-import { resolveAcceptanceReviewApprovalGate } from "../applications/acceptance-document-review-sync";
+import {
+  resolveAcceptanceReviewApprovalGate,
+  resolveOfferAcceptancePhaseTarget,
+} from "../applications/acceptance-document-review-sync";
 
 type OnboardingRefreshOutcome = "COMPLETED" | "PARTIAL" | "SKIPPED_TERMINAL";
 
@@ -866,6 +877,172 @@ export class AdminService {
     }
   }
 
+  private financingStructureType(application: { financing_structure?: unknown }): string | undefined {
+    const structure = application.financing_structure;
+    if (structure && typeof structure === "object") {
+      return (structure as { structure_type?: string }).structure_type;
+    }
+    return undefined;
+  }
+
+  private async assertReviewSectionPrerequisites(
+    application: {
+      financing_structure?: unknown;
+      financing_type?: unknown;
+      product_version?: number | null;
+      application_reviews?: { section: string; status: string }[];
+      contract?: { status?: string | null } | null;
+    },
+    section: ReviewSection
+  ): Promise<void> {
+    const sectionPolicy = await this.getReviewSectionPolicy(application);
+    this.assertReviewSectionPrerequisitesFromPolicy(application, section, sectionPolicy);
+  }
+
+  private assertReviewSectionPrerequisitesFromPolicy(
+    application: {
+      financing_structure?: unknown;
+      application_reviews?: { section: string; status: string }[];
+      contract?: { status?: string | null } | null;
+    },
+    section: ReviewSection,
+    sectionPolicy: {
+      visibleSections: Set<ReviewSection>;
+      prerequisitesBySection: Partial<Record<ReviewSection, ReviewSection[]>>;
+    }
+  ): void {
+    const statusBySection = new Map(
+      (application.application_reviews ?? []).map((row) => [row.section, row.status])
+    );
+    if (
+      arePrerequisiteSectionsSatisfied({
+        prereqs: sectionPolicy.prerequisitesBySection[section],
+        dependentSection: section,
+        getStatus: (key) => statusBySection.get(key),
+        availableSections: sectionPolicy.visibleSections,
+        structureType: this.financingStructureType(application),
+        contractEntityStatus: application.contract?.status,
+      })
+    ) {
+      return;
+    }
+    throw new AppError(
+      400,
+      "INVALID_STATE",
+      "Complete previous review sections before this action"
+    );
+  }
+
+  private async lockApplicationReviewSections(
+    tx: Prisma.TransactionClient,
+    applicationId: string,
+    sections: readonly string[]
+  ): Promise<Map<string, string>> {
+    const uniqueSections = [...new Set(sections)].sort();
+    if (uniqueSections.length === 0) return new Map();
+    const lockedReviews = await tx.$queryRaw<{ section: string; status: string }[]>`
+      SELECT section, status
+      FROM application_reviews
+      WHERE application_id = ${applicationId}
+        AND section::text IN (${Prisma.join(uniqueSections.map((section) => Prisma.sql`${section}`))})
+      FOR UPDATE
+    `;
+    return new Map(lockedReviews.map((row) => [row.section, row.status]));
+  }
+
+  private assertReviewSectionPrerequisitesFromStatuses(
+    section: ReviewSection,
+    statusBySection: Map<string, string>,
+    sectionPolicy: {
+      visibleSections: Set<ReviewSection>;
+      prerequisitesBySection: Partial<Record<ReviewSection, ReviewSection[]>>;
+    },
+    structureType: string | undefined,
+    contractEntityStatus: string | null | undefined
+  ): void {
+    if (
+      arePrerequisiteSectionsSatisfied({
+        prereqs: sectionPolicy.prerequisitesBySection[section],
+        dependentSection: section,
+        getStatus: (key) => statusBySection.get(key),
+        availableSections: sectionPolicy.visibleSections,
+        structureType,
+        contractEntityStatus,
+      })
+    ) {
+      return;
+    }
+    throw new AppError(
+      400,
+      "INVALID_STATE",
+      "Complete previous review sections before this action"
+    );
+  }
+
+  private async assertLockedReviewSectionPrerequisites(
+    tx: Prisma.TransactionClient,
+    applicationId: string,
+    section: ReviewSection,
+    sectionPolicy: {
+      visibleSections: Set<ReviewSection>;
+      prerequisitesBySection: Partial<Record<ReviewSection, ReviewSection[]>>;
+    },
+    structureType: string | undefined,
+    contractEntityStatus: string | null | undefined,
+    extraSections: readonly string[] = []
+  ): Promise<Map<string, string>> {
+    const prereqs = (sectionPolicy.prerequisitesBySection[section] ?? []).filter((prereq) =>
+      sectionPolicy.visibleSections.has(prereq)
+    );
+    const statusBySection = await this.lockApplicationReviewSections(tx, applicationId, [
+      ...prereqs,
+      ...extraSections,
+    ]);
+    this.assertReviewSectionPrerequisitesFromStatuses(
+      section,
+      statusBySection,
+      sectionPolicy,
+      structureType,
+      contractEntityStatus
+    );
+    return statusBySection;
+  }
+
+  private async assertReviewItemPrerequisites(
+    application: {
+      financing_structure?: unknown;
+      financing_type?: unknown;
+      product_version?: number | null;
+      application_reviews?: { section: string; status: string }[];
+      contract?: { status?: string | null } | null;
+    },
+    itemType: ReviewItemType,
+    itemId: string
+  ): Promise<void> {
+    if (itemType === "invoice") {
+      await this.assertReviewSectionPrerequisites(application, "invoice_details");
+      return;
+    }
+    if (isAcceptanceHubReviewItem(itemType, itemId)) {
+      await this.assertReviewSectionPrerequisites(application, "acceptance_documents");
+    }
+  }
+
+  private assertCommercialDetailsApprovedForSend(input: {
+    detailsStatus?: string | null;
+    entityStatus?: string | null;
+    message: string;
+  }): void {
+    if (
+      !isCommercialOfferSendUnlocked({
+        detailsStatus: input.detailsStatus,
+        entityStatus: input.entityStatus,
+      })
+    ) {
+      throw new AppError(400, "INVALID_STATE", input.message);
+    }
+  }
+
   private getInvoiceOccupancyContractId(
     application: {
       contract_id?: string | null;
@@ -1026,7 +1203,8 @@ export class AdminService {
   private async ensureInvoiceOfferItemActionAllowed(
     applicationId: string,
     itemScopeKey: string,
-    application: { invoices?: { id: string; details?: unknown }[] }
+    application: { invoices?: { id: string; details?: unknown }[] },
+    options?: { allowRejectedEntity?: boolean; rejectedMessage?: string }
   ): Promise<void> {
     const invoiceId = this.resolveInvoiceIdFromScopeKey(
       application as { invoices?: { id: string; details?: { number?: string | number } }[] },
@@ -1047,6 +1225,14 @@ export class AdminService {
         400,
         "OFFER_FINALIZED",
         "Invoice offer was finalized by issuer and cannot be modified"
+      );
+    }
+    if (invoice.status === "REJECTED" && !options?.allowRejectedEntity) {
+      throw new AppError(
+        400,
+        "INVALID_STATE",
+        options?.rejectedMessage ??
+          "Invoice was rejected; reset review to pending before continuing"
       );
     }
   }
@@ -1789,16 +1975,30 @@ export class AdminService {
       live: number;
       repaid: number;
       distressed: number;
+      arrears: number;
+      defaulted: number;
       cancelledOrFailedFunding: number;
     };
     bookMetrics: {
       outstanding: { amount: number; count: number };
       inFunding: { amount: number; count: number };
       distressed: { amount: number; count: number };
+      arrears: { amount: number; count: number };
+      defaulted: { amount: number; count: number };
       dueSoon: { amount: number; count: number };
     };
+    bookMetricHistory: Array<{
+      date: string;
+      outstanding: { amount: number; count: number };
+      inFunding: { amount: number; count: number };
+      arrears: { amount: number; count: number };
+      defaulted: { amount: number; count: number };
+      dueSoon: { amount: number; count: number };
+    }>;
   }> {
     const TREND_PERIOD_DAYS = 30;
+    const today = calendarDateInTimeZone(new Date());
+    const historyWindow = bookMetricsHistoryQueryWindow(today);
 
     // Get all stats in parallel
     const [
@@ -1812,7 +2012,8 @@ export class AdminService {
       applicationMetrics,
       contractMetrics,
       noteMetrics,
-      bookMetrics,
+      liveBookMetrics,
+      bookMetricSnapshots,
     ] = await Promise.all([
       this.repository.getUserStats(),
       this.repository.getCurrentPeriodStats(TREND_PERIOD_DAYS),
@@ -1825,7 +2026,15 @@ export class AdminService {
       this.repository.getContractDashboardMetrics(),
       this.repository.getNoteDashboardMetrics(),
       this.repository.getBookMetrics(),
+      this.repository.listBookMetricsDailySnapshots(historyWindow.fromDate, historyWindow.toDate),
     ]);
+
+    const bookMetrics = roundBookMetrics(liveBookMetrics);
+    const bookMetricHistory = assembleBookMetricHistory({
+      snapshots: bookMetricSnapshots,
+      live: bookMetrics,
+      today,
+    });
 
     // Calculate percentage changes
     const calculatePercentageChange = (current: number, previous: number): number => {
@@ -1891,6 +2100,7 @@ export class AdminService {
       contractMetrics,
       noteMetrics,
       bookMetrics,
+      bookMetricHistory,
     };
   }
 
@@ -3627,6 +3837,7 @@ export class AdminService {
       ? application.investor_organization_id
       : application.issuer_organization_id;
     if (orgId) {
+      await this.revertPrematurePersonalOnboardingAdvance(application);
       await advanceOnboardingStatusFromFlags({
         organizationId: orgId,
         portalType: isInvestor ? "investor" : "issuer",
@@ -3740,6 +3951,53 @@ export class AdminService {
   }
 
   /**
+   * Personal WAIT_FOR_APPROVAL used to set onboarding_approved, and opening this dialog
+   * then advanced the org to AML. Persist the rollback before flag-driven advance.
+   */
+  private async revertPrematurePersonalOnboardingAdvance(
+    application: OnboardingApplicationRecord
+  ): Promise<void> {
+    const isInvestor = application.portal_type === "investor";
+    const org = isInvestor ? application.investor_organization : application.issuer_organization;
+    if (!org) return;
+    const isPersonal =
+      application.organization_type === OrganizationType.PERSONAL ||
+      org.type === OrganizationType.PERSONAL;
+    if (!isPersonal) return;
+
+    const heal = getPrematurePersonalOnboardingHeal({
+      currentOnboardingStatus: org.onboarding_status,
+      onboardingApproved: org.onboarding_approved,
+      regtankStatus: application.status,
+    });
+    if (!heal) return;
+
+    if (isInvestor) {
+      await this.organizationRepository.updateInvestorOrganizationOnboarding(
+        org.id,
+        OnboardingStatus.PENDING_APPROVAL,
+        { onboardingApproved: heal.onboardingApproved }
+      );
+    } else {
+      await this.organizationRepository.updateIssuerOrganizationOnboarding(
+        org.id,
+        OnboardingStatus.PENDING_APPROVAL,
+        { onboardingApproved: heal.onboardingApproved }
+      );
+    }
+
+    logger.info(
+      {
+        organizationId: org.id,
+        requestId: application.request_id,
+        previousStatus: org.onboarding_status,
+        newStatus: heal.nextStatus,
+      },
+      "Reverted premature personal AML step — RegTank identity onboarding is still awaiting approval"
+    );
+  }
+
+  /**
    * Map a RegTank onboarding record to the admin-friendly response format.
    * onboarding_status on the organization drives the admin flow step; status mirrors the queue label.
    */
@@ -3747,16 +4005,31 @@ export class AdminService {
     record: OnboardingApplicationRecord
   ): OnboardingApplicationResponse {
     const isInvestor = record.portal_type === "investor";
-    const org = isInvestor ? record.investor_organization : record.issuer_organization;
-    const orgOnboardingStatus = org?.onboarding_status || OnboardingStatus.PENDING;
-
-    const isInvestorOrg = record.portal_type === "investor";
     const investorOrg = record.investor_organization;
     const issuerOrg = record.issuer_organization;
+    const org = isInvestor ? record.investor_organization : record.issuer_organization;
 
-    const ssmApproved = isInvestorOrg
+    const ssmApproved = isInvestor
       ? (investorOrg?.ssm_approved ?? false)
       : (issuerOrg?.ssm_checked ?? false);
+
+    let orgOnboardingStatus = org?.onboarding_status || OnboardingStatus.PENDING;
+    let onboardingApproved = isInvestor
+      ? (investorOrg?.onboarding_approved ?? false)
+      : (issuerOrg?.onboarding_approved ?? false);
+    const isPersonal =
+      record.organization_type === OrganizationType.PERSONAL || org?.type === OrganizationType.PERSONAL;
+    if (isPersonal) {
+      const heal = getPrematurePersonalOnboardingHeal({
+        currentOnboardingStatus: orgOnboardingStatus,
+        onboardingApproved,
+        regtankStatus: record.status,
+      });
+      if (heal) {
+        orgOnboardingStatus = heal.nextStatus;
+        onboardingApproved = heal.onboardingApproved;
+      }
+    }
 
     const status = this.queueStatusFromOnboardingRecord(record.status, orgOnboardingStatus);
 
@@ -3819,13 +4092,10 @@ export class AdminService {
       : null;
 
     // For investors, use investor_organization fields; for issuers, use issuer_organization fields
-    const onboardingApproved = isInvestorOrg
-      ? (investorOrg?.onboarding_approved ?? false)
-      : (issuerOrg?.onboarding_approved ?? false);
-    const amlApproved = isInvestorOrg
+    const amlApproved = isInvestor
       ? (investorOrg?.aml_approved ?? false)
       : (issuerOrg?.aml_approved ?? false);
-    const tncAccepted = isInvestorOrg
+    const tncAccepted = isInvestor
       ? (investorOrg?.tnc_accepted ?? false)
       : (issuerOrg?.tnc_accepted ?? false);
 
@@ -3841,17 +4111,17 @@ export class AdminService {
     });
 
     // Sophisticated investor status (only for investor portal)
-    const isSophisticatedInvestor = isInvestorOrg
+    const isSophisticatedInvestor = isInvestor
       ? (investorOrg?.is_sophisticated_investor ?? null)
       : undefined;
-    const sophisticatedInvestorReason = isInvestorOrg
+    const sophisticatedInvestorReason = isInvestor
       ? (investorOrg?.sophisticated_investor_reason ?? null)
       : undefined;
 
     // Director KYC status (only for corporate onboarding)
     const directorKycStatusRaw =
       record.organization_type === "COMPANY"
-        ? isInvestorOrg
+        ? isInvestor
           ? (investorOrg as { director_kyc_status?: unknown })?.director_kyc_status
           : (issuerOrg as { director_kyc_status?: unknown })?.director_kyc_status
         : undefined;
@@ -3923,7 +4193,7 @@ export class AdminService {
     // Director AML status (only for corporate onboarding)
     const directorAmlStatusRaw =
       record.organization_type === "COMPANY"
-        ? isInvestorOrg
+        ? isInvestor
           ? (investorOrg as { director_aml_status?: unknown })?.director_aml_status
           : (issuerOrg as { director_aml_status?: unknown })?.director_aml_status
         : undefined;
@@ -4029,7 +4299,7 @@ export class AdminService {
     // Corporate entities (only for corporate onboarding)
     const corporateEntitiesRaw =
       record.organization_type === "COMPANY"
-        ? isInvestorOrg
+        ? isInvestor
           ? (investorOrg as { corporate_entities?: unknown })?.corporate_entities
           : (issuerOrg as { corporate_entities?: unknown })?.corporate_entities
         : undefined;
@@ -4066,7 +4336,7 @@ export class AdminService {
       basicInfo?.ssmRegisterNumber ??
       null;
 
-    const orgForCtos = isInvestorOrg ? investorOrg : issuerOrg;
+    const orgForCtos = isInvestor ? investorOrg : issuerOrg;
     const latestOrganizationCtosCompanyJson = orgForCtos?.ctos_reports?.[0]?.company_json ?? null;
     const ctosPartySupplementsRaw = orgForCtos?.ctos_party_supplements;
     const ctosPartySupplements =
@@ -6255,21 +6525,33 @@ export class AdminService {
       const update = getIndividualWaitForApprovalUpdate({
         currentOnboardingStatus: org.onboarding_status,
       });
-      if (update) {
+      const prematureHeal = getPrematurePersonalOnboardingHeal({
+        currentOnboardingStatus: org.onboarding_status,
+        onboardingApproved: org.onboarding_approved,
+        regtankStatus: statusUpper,
+      });
+      const landing = update ?? prematureHeal;
+      if (landing) {
         const adminContext = adminAuditContextFromRequest(req, adminUserId);
         await prisma.$transaction(async (tx) => {
           if (isInvestor) {
             await this.organizationRepository.updateInvestorOrganizationOnboarding(
               org.id,
               OnboardingStatus.PENDING_APPROVAL,
-              { resetCompanySsmGateFromRegtankWebhook: true },
+              {
+                resetCompanySsmGateFromRegtankWebhook: true,
+                onboardingApproved: landing.onboardingApproved,
+              },
               tx
             );
           } else {
             await this.organizationRepository.updateIssuerOrganizationOnboarding(
               org.id,
               OnboardingStatus.PENDING_APPROVAL,
-              { resetCompanySsmGateFromRegtankWebhook: true },
+              {
+                resetCompanySsmGateFromRegtankWebhook: true,
+                onboardingApproved: landing.onboardingApproved,
+              },
               tx
             );
           }
@@ -7070,10 +7352,16 @@ export class AdminService {
       ? {
           ...applicationWithIssuerExtras.contract,
           displayReference: applicationWithIssuerExtras.contract.display_reference ?? null,
-          invoices: (applicationWithIssuerExtras.contract.invoices ?? []).map((invoice) => ({
-            ...invoice,
-            displayReference: invoice.display_reference ?? null,
-          })),
+          invoices: (applicationWithIssuerExtras.contract.invoices ?? []).map((invoice) => {
+            const { application: invoiceApplication, ...invoiceRest } = invoice as typeof invoice & {
+              application?: { financing_type?: unknown } | null;
+            };
+            return {
+              ...invoiceRest,
+              displayReference: invoice.display_reference ?? null,
+              product_id: productIdFromFinancingType(invoiceApplication?.financing_type),
+            };
+          }),
         }
       : null;
     const invoicesWithDisplayReference = (applicationWithIssuerExtras.invoices ?? []).map(
@@ -7603,41 +7891,58 @@ export class AdminService {
   }
 
   private isContractTabUnlocked(
-    application: { application_reviews?: { section: string; status: string }[] },
+    application: {
+      application_reviews?: { section: string; status: string }[];
+      financing_structure?: unknown;
+      contract?: { status?: string | null } | null;
+    },
     sectionPolicy: {
       visibleSections: Set<ReviewSection>;
       prerequisitesBySection: Partial<Record<ReviewSection, ReviewSection[]>>;
     }
   ): boolean {
-    const prereqs = sectionPolicy.prerequisitesBySection.contract_details;
-    if (!prereqs?.length) return true;
-    const relevantPrereqs = prereqs.filter((p) => sectionPolicy.visibleSections.has(p));
-    if (!relevantPrereqs.length) return true;
-    const reviews = (application.application_reviews ?? []) as {
-      section: string;
-      status: string;
-    }[];
-    const sectionStatusMap = new Map(reviews.map((r) => [r.section, r.status]));
-    return relevantPrereqs.every((prereq) => sectionStatusMap.get(prereq) === "APPROVED");
+    return this.isReviewSectionUnlocked(application, "contract_details", sectionPolicy);
   }
 
   private isInvoiceTabUnlocked(
-    application: { application_reviews?: { section: string; status: string }[] },
+    application: {
+      application_reviews?: { section: string; status: string }[];
+      financing_structure?: unknown;
+      contract?: { status?: string | null } | null;
+    },
     sectionPolicy: {
       visibleSections: Set<ReviewSection>;
       prerequisitesBySection: Partial<Record<ReviewSection, ReviewSection[]>>;
     }
   ): boolean {
-    const prereqs = sectionPolicy.prerequisitesBySection.invoice_details;
-    if (!prereqs?.length) return true;
-    const relevantPrereqs = prereqs.filter((p) => sectionPolicy.visibleSections.has(p));
-    if (!relevantPrereqs.length) return true;
+    return this.isReviewSectionUnlocked(application, "invoice_details", sectionPolicy);
+  }
+
+  private isReviewSectionUnlocked(
+    application: {
+      application_reviews?: { section: string; status: string }[];
+      financing_structure?: unknown;
+      contract?: { status?: string | null } | null;
+    },
+    section: ReviewSection,
+    sectionPolicy: {
+      visibleSections: Set<ReviewSection>;
+      prerequisitesBySection: Partial<Record<ReviewSection, ReviewSection[]>>;
+    }
+  ): boolean {
     const reviews = (application.application_reviews ?? []) as {
       section: string;
       status: string;
     }[];
-    const sectionStatusMap = new Map(reviews.map((r) => [r.section, r.status]));
-    return relevantPrereqs.every((prereq) => sectionStatusMap.get(prereq) === "APPROVED");
+    const sectionStatusMap = new Map(reviews.map((row) => [row.section, row.status]));
+    return arePrerequisiteSectionsSatisfied({
+      prereqs: sectionPolicy.prerequisitesBySection[section],
+      dependentSection: section,
+      getStatus: (key) => sectionStatusMap.get(key),
+      availableSections: sectionPolicy.visibleSections,
+      structureType: this.financingStructureType(application),
+      contractEntityStatus: application.contract?.status,
+    });
   }
 
   private resolveAdminStageStatus(input: {
@@ -8171,9 +8476,20 @@ export class AdminService {
     const docs = application.acceptance_documents;
     const docKeys =
       docs && typeof docs === "object" ? [...this.collectAcceptanceDocumentKeys(docs)] : [];
-    const partyKeys = collectAuthorizedRepresentativeReviewKeys(
-      this.getPrimaryOfferAcceptance(application)?.authorized_parties
-    );
+    const partyKeys = [
+      ...new Set([
+        ...collectAuthorizedRepresentativeReviewKeys(
+          getOfferAcceptanceFromOfferDetails(application.contract?.offer_details)?.authorized_parties
+        ),
+        ...(application.invoices ?? [])
+          .filter((invoice) => !invoice.contract_id)
+          .flatMap((invoice) =>
+            collectAuthorizedRepresentativeReviewKeys(
+              getOfferAcceptanceFromOfferDetails(invoice.offer_details)?.authorized_parties
+            )
+          ),
+      ]),
+    ];
     if (docKeys.length === 0 && partyKeys.length === 0) {
       return;
     }
@@ -8395,9 +8711,6 @@ export class AdminService {
     }
 
     const docKeys = collectAcceptanceDocumentReviewKeys(workflow, application.acceptance_documents);
-    const partyKeys = collectAuthorizedRepresentativeReviewKeys(
-      this.getPrimaryOfferAcceptance(application)?.authorized_parties
-    );
     const reviewRows = application.application_review_items ?? [];
     const statusByKey = new Map(
       reviewRows
@@ -8407,73 +8720,31 @@ export class AdminService {
         )
         .map((row) => [row.item_id, row.status])
     );
-    const { hasAmendment, allApproved } = resolveAcceptanceReviewApprovalGate({
-      docKeys,
-      partyKeys,
-      statusByKey,
-    });
 
     const now = new Date().toISOString();
-
-    const resolveTargetStatus = (
-      current: { status: string; submitted_at?: string | null } | null | undefined
-    ): "CHANGES_REQUESTED" | "APPROVED_FOR_SIGNING" | "PENDING_ADMIN_REVIEW" | null => {
-      if (!current) return null;
-      if (
-        current.status === "PENDING_ISSUER" ||
-        current.status === "REJECTED" ||
-        current.status === "DECLINED" ||
-        current.status === "COMPLETED" ||
-        current.status === "SIGNING_IN_PROGRESS"
-      ) {
-        return null;
-      }
-      // Issuer has not submitted Step 1 yet (no submitted_at on a fresh phase).
-      if (!current.submitted_at && current.status !== "APPROVED_FOR_SIGNING") {
-        return null;
-      }
-
-      if (hasAmendment) {
-        if (
-          current.status === "PENDING_ADMIN_REVIEW" ||
-          current.status === "APPROVED_FOR_SIGNING" ||
-          current.status === "CHANGES_REQUESTED"
-        ) {
-          return "CHANGES_REQUESTED";
-        }
-        return null;
-      }
-
-      // Admin cleared every change request (Set to Pending) — leave issuer-action phase.
-      if (current.status === "CHANGES_REQUESTED") {
-        return "PENDING_ADMIN_REVIEW";
-      }
-
-      if (allApproved) {
-        // Require resubmit after changes: do not approve while still CHANGES_REQUESTED.
-        if (
-          current.status === "PENDING_ADMIN_REVIEW" ||
-          current.status === "APPROVED_FOR_SIGNING"
-        ) {
-          return "APPROVED_FOR_SIGNING";
-        }
-        return null;
-      }
-
-      if (
-        current.status === "APPROVED_FOR_SIGNING" &&
-        (docKeys.length > 0 || partyKeys.length > 0)
-      ) {
-        return "PENDING_ADMIN_REVIEW";
-      }
-      return null;
+    const resolveEntityTarget = (offerDetails: unknown) => {
+      const current = getOfferAcceptanceFromOfferDetails(offerDetails);
+      const partyKeys = collectAuthorizedRepresentativeReviewKeys(current?.authorized_parties);
+      const gate = resolveAcceptanceReviewApprovalGate({
+        docKeys,
+        partyKeys,
+        statusByKey,
+      });
+      return {
+        current,
+        target: resolveOfferAcceptancePhaseTarget({
+          current,
+          hasAmendment: gate.hasAmendment,
+          allApproved: gate.allApproved,
+          requiredKeyCount: docKeys.length + partyKeys.length,
+        }),
+      };
     };
 
     const contract = application.contract;
     if (contract && contract.status === "OFFER_SENT" && contract.offer_details) {
       const offer = (contract.offer_details as Record<string, unknown>) ?? {};
-      const current = getOfferAcceptanceFromOfferDetails(offer);
-      const target = resolveTargetStatus(current);
+      const { current, target } = resolveEntityTarget(offer);
       if (current && target && current.status !== target) {
         const updated = patchOfferAcceptance(offer, {
           status: target,
@@ -8504,8 +8775,7 @@ export class AdminService {
       if (invoice.contract_id) continue;
       if (invoice.status !== "OFFER_SENT" || !invoice.offer_details) continue;
       const offer = (invoice.offer_details as Record<string, unknown>) ?? {};
-      const current = getOfferAcceptanceFromOfferDetails(offer);
-      const target = resolveTargetStatus(current);
+      const { current, target } = resolveEntityTarget(offer);
       if (!current || !target || current.status === target) {
         continue;
       }
@@ -8905,6 +9175,23 @@ export class AdminService {
       application
     );
     this.ensureFacilityOfferActionAllowed(application);
+    const sectionPolicy = await this.getReviewSectionPolicy(application);
+    this.assertReviewSectionPrerequisitesFromPolicy(application, "contract_details", sectionPolicy);
+    const contractStatus = application.contract?.status?.toString().toUpperCase() ?? "";
+    if (contractStatus === "REJECTED") {
+      throw new AppError(
+        400,
+        "INVALID_STATE",
+        "Facility was rejected; reset review to pending before sending an offer"
+      );
+    }
+    this.assertCommercialDetailsApprovedForSend({
+      detailsStatus: application.application_reviews?.find(
+        (row: { section: string; status: string }) => row.section === "contract_details"
+      )?.status,
+      entityStatus: application.contract?.status,
+      message: "Approve facility details before sending an offer",
+    });
 
     if (!application.contract_id) {
       throw new AppError(400, "INVALID_STATE", "Application has no facility to offer");
@@ -8962,6 +9249,28 @@ export class AdminService {
           "Facility offer was finalized by issuer and cannot be modified"
         );
       }
+      if (lockedContract.status === "REJECTED") {
+        throw new AppError(
+          400,
+          "INVALID_STATE",
+          "Facility was rejected; reset review to pending before sending an offer"
+        );
+      }
+
+      const lockedReviewStatuses = await this.assertLockedReviewSectionPrerequisites(
+        tx,
+        applicationId,
+        "contract_details",
+        sectionPolicy,
+        this.financingStructureType(application),
+        lockedContract.status,
+        ["contract_details"]
+      );
+      this.assertCommercialDetailsApprovedForSend({
+        detailsStatus: lockedReviewStatuses.get("contract_details"),
+        entityStatus: lockedContract.status,
+        message: "Approve facility details before sending an offer",
+      });
 
       const customerDetailsLocked =
         (lockedContract.customer_details as Record<string, unknown> | null) ?? null;
@@ -9330,7 +9639,7 @@ export class AdminService {
       additionalFees?: AdditionalFeeLine[];
     },
     financingTenureDays?: number,
-    campaignClassification?: {
+    _campaignClassification?: {
       companyCategory: ScCompanyCategory;
       sustainabilityCategory: ScSustainabilityCategory;
       campaignSector?: ScCampaignSector | null;
@@ -9358,7 +9667,11 @@ export class AdminService {
     if (!scopeKey) {
       throw new AppError(400, "INVALID_STATE", "Unable to resolve invoice scope key");
     }
-    await this.ensureInvoiceOfferItemActionAllowed(applicationId, scopeKey, application);
+    await this.ensureInvoiceOfferItemActionAllowed(applicationId, scopeKey, application, {
+      rejectedMessage: "Invoice was rejected; reset review to pending before sending an offer",
+    });
+    const sectionPolicy = await this.getReviewSectionPolicy(application);
+    this.assertReviewSectionPrerequisitesFromPolicy(application, "invoice_details", sectionPolicy);
     await this.assertNoActiveSigningPackage(
       applicationId,
       { invoiceId },
@@ -9386,6 +9699,15 @@ export class AdminService {
         "Invoice was rejected; reset review to pending before sending an offer"
       );
     }
+    this.assertCommercialDetailsApprovedForSend({
+      detailsStatus: (
+        application.application_review_items as
+          | { item_type: string; item_id: string; status: string }[]
+          | undefined
+      )?.find((row) => row.item_type === "invoice" && row.item_id === scopeKey)?.status,
+      entityStatus: invoiceForSend?.status,
+      message: "Approve invoice details before sending an offer",
+    });
 
     const workflow = await this.loadApplicationProductWorkflow(application);
     const stampOfferAcceptance =
@@ -9440,6 +9762,35 @@ export class AdminService {
           "Invoice offer was finalized by issuer and cannot be modified"
         );
       }
+      if (lockedInvoice.status === "REJECTED") {
+        throw new AppError(
+          400,
+          "INVALID_STATE",
+          "Invoice was rejected; reset review to pending before sending an offer"
+        );
+      }
+
+      const lockedItems = await tx.$queryRaw<{ status: string }[]>`
+        SELECT status
+        FROM application_review_items
+        WHERE application_id = ${applicationId}
+          AND item_type = 'invoice'
+          AND item_id = ${scopeKey}
+        FOR UPDATE
+      `;
+      this.assertCommercialDetailsApprovedForSend({
+        detailsStatus: lockedItems[0]?.status,
+        entityStatus: lockedInvoice.status,
+        message: "Approve invoice details before sending an offer",
+      });
+      await this.assertLockedReviewSectionPrerequisites(
+        tx,
+        applicationId,
+        "invoice_details",
+        sectionPolicy,
+        this.financingStructureType(application),
+        application.contract?.status
+      );
 
       const details = (lockedInvoice.details as Record<string, unknown> | null) ?? {};
       const invoiceValue = Number(details.value);
@@ -9579,31 +9930,9 @@ export class AdminService {
         { applicationId, invoiceId, riskRating, marcSuggestedGrade: marc.creditGrade },
         "Saving invoice offer risk rating"
       );
-      const companyCategory =
-        campaignClassification?.companyCategory ??
-        parseInvoiceOfferCompanyCategory(previousOffer) ??
-        parseInvoiceOfferCompanyCategory(details);
-      const sustainabilityCategory =
-        campaignClassification?.sustainabilityCategory ??
-        parseInvoiceOfferSustainabilityCategory(previousOffer) ??
-        parseInvoiceOfferSustainabilityCategory(details);
-      const campaignSector =
-        campaignClassification?.campaignSector ??
-        parseInvoiceOfferCampaignSector(previousOffer) ??
-        parseInvoiceOfferCampaignSector(details);
-      if (companyCategory && !isScCompanyCategory(companyCategory)) {
-        throw new AppError(
-          400,
-          "INVALID_INPUT",
-          "Company category must be Technology or Non-Technology"
-        );
-      }
-      if (campaignSector && !isScCampaignSector(campaignSector)) {
-        throw new AppError(400, "INVALID_INPUT", "Campaign sector is invalid");
-      }
-      if (sustainabilityCategory && !isScSustainabilityCategory(sustainabilityCategory)) {
-        throw new AppError(400, "INVALID_INPUT", "Sustainability category is invalid");
-      }
+      const companyCategory = parseInvoiceOfferCompanyCategory(details);
+      const campaignSector = parseInvoiceOfferCampaignSector(details);
+      const sustainabilityCategory = parseInvoiceOfferSustainabilityCategory(details);
       const offerDetails: Record<string, unknown> = {
         requested_amount: requestedAmount,
         offered_amount: offeredAmount,
@@ -10014,21 +10343,41 @@ export class AdminService {
           : "Acceptance section status is derived from per-document and representative-list reviews; approve each item instead"
       );
     }
-    if (section === "contract_details" || section === "invoice_details") {
+    if (section === "invoice_details") {
+      throw new AppError(
+        400,
+        "INVALID_ACTION",
+        "Invoice section status is derived from per-invoice reviews; approve each invoice instead"
+      );
+    }
+    if (section === "contract_details") {
       const structure = application.financing_structure as
         | { structure_type?: string }
         | null
         | undefined;
-      const isInvoiceOnly = structure?.structure_type === "invoice_only";
-      const contractApprovalAllowed = section === "contract_details" && isInvoiceOnly;
-      if (!contractApprovalAllowed) {
+      if (structure?.structure_type === "existing_contract") {
         throw new AppError(
           400,
           "INVALID_ACTION",
-          "Facility and invoice approvals must be finalized by issuer offer response"
+          "Facility was approved in a prior application"
+        );
+      }
+      const contractStatus = application.contract?.status?.toString().toUpperCase() ?? "";
+      if (
+        structure?.structure_type !== "invoice_only" &&
+        (contractStatus === "OFFER_SENT" ||
+          contractStatus === "APPROVED" ||
+          contractStatus === "WITHDRAWN" ||
+          contractStatus === "REJECTED")
+      ) {
+        throw new AppError(
+          400,
+          "INVALID_ACTION",
+          "Facility details cannot be approved after the offer was sent or finalized"
         );
       }
     }
+    await this.assertReviewSectionPrerequisites(application, section);
     await repository.ensureApplicationReviewSection(applicationId, section);
 
     const existing = application.application_reviews?.find(
@@ -10396,7 +10745,9 @@ export class AdminService {
       application
     );
     if (itemType === "invoice") {
-      await this.ensureInvoiceOfferItemActionAllowed(applicationId, itemId, application);
+      await this.ensureInvoiceOfferItemActionAllowed(applicationId, itemId, application, {
+        allowRejectedEntity: true,
+      });
     }
     if (isAcceptanceHubReviewItem(itemType, itemId)) {
       this.assertAcceptanceReviewNotInherited(application);
@@ -10704,6 +11055,7 @@ export class AdminService {
     if (section === "invoice_details") {
       await this.ensureInvoiceSectionActionAllowed(applicationId);
     }
+    await this.assertReviewSectionPrerequisites(application, section);
     await repository.ensureApplicationReviewSection(applicationId, section);
 
     const existing = application.application_reviews?.find(
@@ -10775,6 +11127,7 @@ export class AdminService {
     if (section === "invoice_details") {
       await this.ensureInvoiceSectionActionAllowed(applicationId);
     }
+    await this.assertReviewSectionPrerequisites(application, section);
     await repository.ensureApplicationReviewSection(applicationId, section);
 
     const existing = application.application_reviews?.find(
@@ -10862,12 +11215,34 @@ export class AdminService {
       application
     );
     if (itemType === "invoice") {
-      throw new AppError(
-        400,
-        "INVALID_ACTION",
-        "Invoice approvals must be finalized by issuer offer response"
+      await this.ensureInvoiceOfferItemActionAllowed(applicationId, itemId, application);
+      const invoiceId = this.resolveInvoiceIdFromScopeKey(
+        application as { invoices?: { id: string; details?: { number?: string | number } }[] },
+        itemId
       );
+      if (invoiceId) {
+        const invoice = await prisma.invoice.findUnique({
+          where: { id: invoiceId, application_id: applicationId },
+          select: { status: true },
+        });
+        const invoiceStatus = invoice?.status?.toString().toUpperCase() ?? "";
+        if (invoiceStatus === "OFFER_SENT" || invoiceStatus === "OFFER_EXPIRED") {
+          throw new AppError(
+            400,
+            "INVALID_ACTION",
+            "Invoice details cannot be approved after the offer was sent"
+          );
+        }
+        if (invoiceStatus === "REJECTED") {
+          throw new AppError(
+            400,
+            "INVALID_STATE",
+            "Invoice was rejected; reset review to pending before continuing"
+          );
+        }
+      }
     }
+    await this.assertReviewItemPrerequisites(application, itemType, itemId);
     if (isAcceptanceHubReviewItem(itemType, itemId)) {
       await this.assertNoActiveSigningPackageForAcceptanceActions(
         applicationId,
@@ -10931,6 +11306,16 @@ export class AdminService {
         reviewerUserId
       );
     }
+    if (itemType === "invoice" && nextApp) {
+      await this.syncInvoiceDetailsSectionFromItems(
+        repository,
+        applicationId,
+        nextApp,
+        reviewerUserId,
+        logContext
+      );
+      nextApp = await repository.getApplicationById(applicationId);
+    }
     if (nextApp) {
       await this.syncAdminStageStatus(repository, applicationId, nextApp);
       nextApp = await repository.getApplicationById(applicationId);
@@ -10969,6 +11354,7 @@ export class AdminService {
         "rejecting acceptance documents"
       );
     }
+    await this.assertReviewItemPrerequisites(application, itemType, itemId);
     const existing = application.application_review_items?.find(
       (r: { item_type: string; item_id: string; status: string }) =>
         r.item_type === itemType && r.item_id === itemId
@@ -11111,6 +11497,7 @@ export class AdminService {
         "requesting acceptance document changes"
       );
     }
+    await this.assertReviewItemPrerequisites(application, itemType, itemId);
 
     await repository.upsertItemReviewStatus(
       applicationId,
@@ -11283,6 +11670,7 @@ export class AdminService {
       if (scopeKey === "invoice_details") {
         await this.ensureInvoiceSectionActionAllowed(applicationId);
       }
+      await this.assertReviewSectionPrerequisites(application, scopeKey as ReviewSection);
       await repository.updateSectionReviewStatus(
         applicationId,
         scopeKey as ReviewSection,
@@ -11303,6 +11691,7 @@ export class AdminService {
       if (itemType === "invoice") {
         await this.ensureInvoiceOfferItemActionAllowed(applicationId, itemId, application);
       }
+      await this.assertReviewItemPrerequisites(application, itemType, itemId);
       if (itemType === "invoice") {
         const targetInvoiceId = this.resolveInvoiceIdFromScopeKey(application, itemId);
         if (targetInvoiceId) {
@@ -11494,7 +11883,9 @@ export class AdminService {
     if (scope === "item") {
       const { itemType, itemId } = parseItemScopeKey(scopeKey);
       if (itemType === "invoice") {
-        await this.ensureInvoiceOfferItemActionAllowed(applicationId, itemId, application);
+        await this.ensureInvoiceOfferItemActionAllowed(applicationId, itemId, application, {
+          allowRejectedEntity: true,
+        });
       }
     }
 

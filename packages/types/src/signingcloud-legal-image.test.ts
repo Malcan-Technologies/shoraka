@@ -17,12 +17,20 @@ describe("SigningCloud legal image rules", () => {
     expect(signingCloudLegalImageDeclaredFileRejection("image/jpg", SIGNINGCLOUD_LEGAL_IMAGE_MAX_BYTES)).toBeNull();
   });
 
-  it("rejects WebP and other types without changing certificate-stamp rules", () => {
+  it("rejects WebP without relaxing SigningCloud size limits to the 5 MB stamp cap", () => {
     expect(signingCloudLegalImageDeclaredFileRejection("image/webp", 1024)).toBe(
       SIGNINGCLOUD_LEGAL_IMAGE_UNSUPPORTED_TYPE_MESSAGE
     );
-    expect(companyStamp.isCompanyStampContentType("image/webp")).toBe(true);
-    expect(companyStamp.companyStampDeclaredFileRejection("image/webp", 1024)).toBeNull();
+    expect(companyStamp.isCompanyStampContentType("image/webp")).toBe(false);
+    expect(companyStamp.companyStampDeclaredFileRejection("image/webp", 1024)).toBe(
+      companyStamp.COMPANY_STAMP_UNSUPPORTED_TYPE_MESSAGE
+    );
+    expect(
+      signingCloudLegalImageDeclaredFileRejection("image/png", SIGNINGCLOUD_LEGAL_IMAGE_MAX_BYTES + 1)
+    ).toBe(SIGNINGCLOUD_LEGAL_IMAGE_TOO_LARGE_MESSAGE);
+    expect(
+      companyStamp.companyStampDeclaredFileRejection("image/png", SIGNINGCLOUD_LEGAL_IMAGE_MAX_BYTES + 1)
+    ).toBeNull();
   });
 
   it("rejects oversized declared files", () => {

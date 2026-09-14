@@ -77,7 +77,7 @@ export function ShorakaField({
 }) {
   return (
     <div className="space-y-2">
-      <ComRepFieldLabel label={label} required={required} help={help} />
+      <ComRepFieldLabel label={label} required={required} optional={!required} help={help} />
       <Input
         className="h-11 text-ui"
         type={type}
@@ -89,6 +89,7 @@ export function ShorakaField({
         }
         disabled={disabled}
         aria-invalid={Boolean(error)}
+        aria-required={required}
       />
       {error ? <p className="text-meta text-destructive">{error}</p> : null}
     </div>
@@ -114,7 +115,7 @@ export function ShorakaPhoneField({
 }) {
   return (
     <div className="space-y-2">
-      <ComRepFieldLabel label={label} required={required} help={help} />
+      <ComRepFieldLabel label={label} required={required} optional={!required} help={help} />
       <ProfilePhoneInput value={value} onChange={onChange} disabled={disabled} error={Boolean(error)} />
       {error ? <p className="text-meta text-destructive">{error}</p> : null}
     </div>
@@ -144,7 +145,7 @@ export function ShorakaEnumSelect<T extends string>({
 }) {
   return (
     <div className="space-y-2">
-      <ComRepFieldLabel label={label} required={required} help={help} />
+      <ComRepFieldLabel label={label} required={required} optional={!required} help={help} />
       <Select value={value || undefined} onValueChange={(v) => onChange(v as T)} disabled={disabled}>
         <SelectTrigger className="h-11 text-ui">
           <SelectValue placeholder="Select" />
@@ -181,7 +182,7 @@ export function ShorakaCountrySelect({
 }) {
   return (
     <div className="space-y-2">
-      <ComRepFieldLabel label={label} required={required} help={help} />
+      <ComRepFieldLabel label={label} required={required} optional={!required} help={help} />
       <Select
         value={value || undefined}
         onValueChange={onChange}
@@ -222,7 +223,7 @@ export function ShorakaYesNo({
 }) {
   return (
     <div className="space-y-2">
-      <ComRepFieldLabel label={label} required={required} help={help} />
+      <ComRepFieldLabel label={label} required={required} optional={!required} help={help} />
       <Select
         value={value == null ? undefined : value ? "YES" : "NO"}
         onValueChange={(v) => onChange(v === "YES")}

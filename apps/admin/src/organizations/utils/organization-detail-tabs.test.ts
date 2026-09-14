@@ -20,8 +20,11 @@ describe("isOrgDetailTabId", () => {
 });
 
 describe("isOrgPeopleTabAvailable", () => {
-  it("is only available for company organisations", () => {
+  it("is available for company issuer and investor organisations", () => {
     expect(isOrgPeopleTabAvailable("COMPANY")).toBe(true);
+  });
+
+  it("is not available for personal investor organisations", () => {
     expect(isOrgPeopleTabAvailable("PERSONAL")).toBe(false);
     expect(isOrgPeopleTabAvailable(undefined)).toBe(false);
   });

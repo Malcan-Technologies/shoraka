@@ -141,13 +141,13 @@ describe("mergeCtosDirectorsForVerification", () => {
     expect(merged[0].equity_percentage).toBe(40);
   });
 
-  it("dedupes two corporate CTOS rows with the same nic_brno into one", () => {
+  it("dedupes two corporate CTOS rows with the same nic_brno when SSM fields are empty", () => {
     const merged = mergeCtosDirectorsForVerification([
       {
         name: "FOO BHD",
         ic_lcno: null,
         nic_brno: "130586H",
-        brn_ssm: "999",
+        brn_ssm: null,
         party_type: "C",
         position: "SO",
         equity_percentage: 5,
@@ -157,7 +157,7 @@ describe("mergeCtosDirectorsForVerification", () => {
         name: "FOO BHD",
         ic_lcno: null,
         nic_brno: "130586H",
-        brn_ssm: "888",
+        brn_ssm: null,
         party_type: "C",
         position: "SO",
         equity_percentage: 10,
@@ -169,6 +169,60 @@ describe("mergeCtosDirectorsForVerification", () => {
     expect(merged[0].nic_brno).toBe("130586H");
     expect(merged[0].equity_percentage).toBe(10);
     expect(merged[0].remark).toBe("merged");
+  });
+
+  it("does not merge corporate rows with different SSM numbers even when names match", () => {
+    const merged = mergeCtosDirectorsForVerification([
+      {
+        name: "ABC SDN BHD",
+        ic_lcno: null,
+        nic_brno: null,
+        brn_ssm: "202001234567",
+        party_type: "C",
+        position: "SO",
+        equity_percentage: 30,
+        equity: 0,
+      },
+      {
+        name: "ABC SDN BHD",
+        ic_lcno: "123456-A",
+        nic_brno: null,
+        brn_ssm: "123456-A",
+        party_type: "C",
+        position: "SO",
+        equity_percentage: 30,
+        equity: 0,
+      },
+    ]);
+    expect(merged).toHaveLength(2);
+  });
+
+  it("dedupes two corporate CTOS rows that only have the same brn_ssm", () => {
+    const merged = mergeCtosDirectorsForVerification([
+      {
+        name: "ECM LIBRA",
+        ic_lcno: null,
+        nic_brno: null,
+        brn_ssm: "13570K",
+        party_type: "C",
+        position: "SO",
+        equity_percentage: 100,
+        equity: 6000000,
+      },
+      {
+        name: "ECM LIBRA",
+        ic_lcno: null,
+        nic_brno: null,
+        brn_ssm: "13570K",
+        party_type: "C",
+        position: "SO",
+        equity_percentage: 100,
+        equity: 6000000,
+        remark: "dup",
+      },
+    ]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0].brn_ssm).toBe("13570K");
   });
 
   it("dedupes two corporate CTOS rows without nic_brno but same ic_lcno into one", () => {

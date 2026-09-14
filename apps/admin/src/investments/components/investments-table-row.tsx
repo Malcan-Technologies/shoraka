@@ -2,6 +2,7 @@ import * as React from "react";
 import { format } from "date-fns";
 import { formatCurrency } from "@cashsouk/config";
 import type { AdminInvestmentItem } from "@cashsouk/types";
+import { formatOrganizationReference } from "@cashsouk/types";
 import { StatusBadge } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { TableCell, TableRow } from "@/components/ui/table";
@@ -40,7 +41,10 @@ export function InvestmentsTableRow({ investment, onViewNote }: InvestmentsTable
     investment.investorOrganizationName ??
     investment.investorUserName ??
     investment.investorUserEmail ??
-    investment.investorUserId;
+    "—";
+  const investorId = formatOrganizationReference({
+    displayReference: investment.investorOrganizationDisplayReference,
+  });
 
   return (
     <TableRow className={adminActionRowClass(getAdminStatusToken(investment.status))}>
@@ -62,7 +66,11 @@ export function InvestmentsTableRow({ investment, onViewNote }: InvestmentsTable
         <div className="truncate font-medium" title={investorName ?? ""}>
           {investorName ?? "—"}
         </div>
-        {investment.investorUserName && investment.investorOrganizationName ? (
+        {investorId !== "—" ? (
+          <div className="truncate text-xs text-muted-foreground" title={investorId}>
+            {investorId}
+          </div>
+        ) : investment.investorUserName && investment.investorOrganizationName ? (
           <div
             className="truncate text-xs text-muted-foreground"
             title={investment.investorUserName}

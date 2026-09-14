@@ -220,6 +220,7 @@ describe("audit traceability source contracts", () => {
     expect(logAdmin).toMatch(/extraMetadata/);
     expect(logAdmin).toMatch(/beforeState/);
     expect(logAdmin).toMatch(/afterState/);
+    expect(logAdmin).toMatch(/reason: typeof extraMetadata\?\.reason === "string"/);
     expect(logAdmin.match(/this\.logEvent\(/g)?.length).toBe(1);
   });
 

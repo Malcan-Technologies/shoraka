@@ -135,6 +135,7 @@ function getNotePaymentDueSummary(note: NoteDetail) {
     (note.status === "ACTIVE" ||
       note.status === "ARREARS" ||
       note.status === "DEFAULTED" ||
+      note.servicingStatus === "OVERDUE" ||
       note.servicingStatus === "LATE" ||
       note.servicingStatus === "ARREARS");
 
@@ -511,6 +512,7 @@ export default function NoteDetailPage() {
                       <AdminMetricProgress
                         variant="hero"
                         percent={note.fundingPercent}
+                        thresholdPercent={note.minimumFundingPercent}
                         leftLabel="Funded"
                         leftValue={formatCurrency(note.fundedAmount)}
                         leftHint={`of ${formatCurrency(note.targetAmount)} target`}
@@ -603,8 +605,8 @@ export default function NoteDetailPage() {
                               </div>
                             )}
                             {investmentNoteCertificate &&
-                            (investmentNoteCertificate.canGenerate ||
-                              investmentNoteCertificate.status !== "NONE") ? (
+                            disbursementWithdrawal &&
+                            disbursementWithdrawal.status !== "CANCELLED" ? (
                               <InvestmentNoteCertificateCard
                                 noteId={note.id}
                                 payload={{

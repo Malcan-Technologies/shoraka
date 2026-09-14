@@ -10,26 +10,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { MoneyInput } from "@cashsouk/ui";
 import { formatMoney, parseMoney } from "@cashsouk/ui";
-import {
-  DocumentTextIcon,
-  ArrowTopRightOnSquareIcon,
-  ArrowDownTrayIcon,
-} from "@heroicons/react/24/outline";
+import { DocumentTextIcon } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { usePatchContractCustomerLargePrivate } from "@/hooks/use-application-review-actions";
 import { format, isValid, parse, startOfDay } from "date-fns";
-import { formatCurrency, resolveRequestedFacility, resolveOfferedFacility, resolveApprovedFacility } from "@cashsouk/config";
+import { formatCurrency, resolveRequestedFacility, resolveOfferedFacility } from "@cashsouk/config";
 import {
   FACILITY_FEE_RATE_MAX_PERCENT,
   getOfferPhaseDeadlineDisplay,
@@ -38,6 +26,7 @@ import {
   previewAcceptanceDeadlineFromWorkflow,
   readProductLimitViolationMessage,
   REQUESTED_FACILITY_BELOW_CONTRACT_COPY,
+  isCommercialOfferSendUnlocked,
   validateContractAgainstProductRules,
   type ContractProductRules,
 } from "@cashsouk/types";
@@ -58,37 +47,27 @@ import {
   OFFERED_FACILITY_BELOW_CONTRACT_COPY,
   REMAINING_ALLOCATION_LABEL,
   REMAINING_CREDIT_LABEL,
-  RESERVED_LABEL,
   resolveFacilityOfferBlockReason,
 } from "@/lib/facility-capacity-display";
 import { ReviewSectionCard } from "../review-section-card";
 import { ReviewFieldBlock } from "../review-field-block";
-import { OfferAcceptanceDeadlineConfirmRows } from "../offer-acceptance-deadline-confirm-rows";
 import { SectionComments, type SectionCommentItem } from "../section-comments";
 import {
   reviewLabelClass,
   reviewValueClass,
-  reviewValueClassTextArea,
   reviewRowGridClass,
   reviewEmptyStateClass,
   REVIEW_EMPTY_LABEL,
   formatReviewValue,
   formatReviewDate,
-  formatFileSize,
 } from "../review-section-styles";
 import { parseFacilityAmount } from "@/contracts/utils/contract-facility-metrics";
 import type { ReviewSectionId } from "../section-types";
 import { ComparisonFieldRow, ComparisonYesNoRadioRow, unknownToTriBool } from "../comparison-field-row";
-import { PaymasterVerificationPanel, type ApplicationReviewPaymaster } from "@/paymasters/components/paymaster-verification-panel";
-import {
-  shouldShowSubmittedVerifiedPaymaster,
-  SubmittedVerifiedPaymasterIdentity,
-} from "../paymaster-identity-comparison";
-import { usePermissions } from "@/hooks/use-permissions";
-import {
-  ComparisonDocumentTitleRow,
-  fileDocToComparisonChips,
-} from "../comparison-document-pair";
+import type { ApplicationReviewPaymaster } from "@/paymasters/components/paymaster-verification-panel";
+import { ComparisonDocumentTitleRow, fileDocToComparisonChips } from "../comparison-document-pair";
+import { ContractReviewFields } from "./contract-review-fields";
+import { ContractOfferConfirmDialog } from "./contract-offer-confirm-dialog";
 
 interface FileDoc {
   s3_key?: string;
@@ -161,6 +140,16 @@ export interface ContractSectionProps {
     isPathChanged: (path: string) => boolean;
   };
   hideSectionComments?: boolean;
+  /**
+   * Unified Offer & acceptance stages:
+   * - full (default): current Facility tab
+   * - review: details, customer, paymaster, evidence, section actions
+   * - offer: commercial send/retract controls (owns send-offer state)
+   * - reference: read-only originating facility for existing_contract
+   */
+  contentMode?: "full" | "review" | "offer" | "reference";
+  /** Skip Facility card chrome when nested in a stage card. */
+  embedded?: boolean;
   /** Canonical occupancy from section-content — keeps remaining/reserved aligned with invoice and acceptance. */
   reviewOccupancy?: {
     remainingCredit: number;
@@ -201,12 +190,12 @@ export function ContractSection({
   signedContractOfferLetterAvailable,
   sectionComparison,
   hideSectionComments = false,
+  contentMode = "full",
+  embedded = false,
   reviewOccupancy,
   paymaster,
   paymasterId,
 }: ContractSectionProps) {
-  const { can } = usePermissions();
-  const canManagePaymasters = can("paymasters.manage");
   const patchLargePrivate = usePatchContractCustomerLargePrivate();
   const liveCustomerDetails = customerDetails as Record<string, unknown> | null | undefined;
   const [largePrivateCompany, setLargePrivateCompany] = React.useState<boolean | null>(() =>
@@ -221,25 +210,12 @@ export function ContractSection({
   const cd = contractDetails as Record<string, unknown> | null | undefined;
   const offer = offerDetails as Record<string, unknown> | null | undefined;
   const cust = liveCustomerDetails;
-  const showIdentityComparison = shouldShowSubmittedVerifiedPaymaster({
-    customerDetails: cust,
-    paymaster,
-  });
   const paymasterOfferBlock = paymasterIdentityOfferBlockReason({
     submitted: cust,
     paymaster,
   });
 
-  const contractDoc = cd?.document as FileDoc | undefined;
   const requestedFacility = resolveRequestedFacility(cd);
-  const approvedShown = resolveApprovedFacility(contractRowStatus ?? "", cd);
-  const utilizedShown = parseFacilityAmount(cd?.utilized_facility) ?? 0;
-  const reservedShown =
-    reviewOccupancy?.reservedFacility ?? parseFacilityAmount(cd?.pending_facility) ?? 0;
-  const availableShown =
-    reviewOccupancy?.remainingCredit ??
-    parseFacilityAmount(cd?.available_facility) ??
-    (approvedShown > 0 ? approvedShown - utilizedShown - reservedShown : 0);
   const contractValue =
     parseFacilityAmount(cd?.value) ?? parseFacilityAmount(cd?.contract_value) ?? 0;
   const remainingCredit =
@@ -336,14 +312,17 @@ export function ContractSection({
     offeredFacility,
     contractValue,
   });
-  const isContractApproved = sectionStatus === "APPROVED";
-  const isContractFinalizedByIssuer = isContractApproved;
+  const isContractFinalizedByIssuer = (contractRowStatus ?? "").toUpperCase() === "APPROVED";
+  const canSendAfterDetails = isCommercialOfferSendUnlocked({
+    detailsStatus: sectionStatus,
+    entityStatus: contractRowStatus,
+  });
   const showViewSignedOfferOnlyAction =
     isContractFinalizedByIssuer &&
     !!signedContractOfferLetterAvailable &&
     !!onViewSignedContractOffer;
   const canSendContractOffer =
-    !isContractApproved &&
+    canSendAfterDetails &&
     !isContractOfferSendLocked &&
     offeredFacility > 0 &&
     !facilityOfferBlockReason;
@@ -384,7 +363,7 @@ export function ContractSection({
     !isReviewable ||
     !!isActionLocked ||
     !onSendOffer ||
-    isContractApproved ||
+    isContractFinalizedByIssuer ||
     isContractOfferSendLocked;
   // Facility fee rate is optional; errors are only used to block "Send Offer" when a value is provided.
 
@@ -462,6 +441,74 @@ export function ContractSection({
       }
     },
     [applicationId, patchLargePrivate, liveCustomerDetails?.is_large_private_company]
+  );
+
+  const showOfferBlock = contentMode === "full" || contentMode === "offer";
+  const showReviewFields =
+    contentMode === "full" || contentMode === "review" || contentMode === "reference";
+  const showOfferSentSummary =
+    contentMode === "offer" &&
+    (contractRowStatus === "OFFER_SENT" ||
+      contractRowStatus === "APPROVED" ||
+      contractRowStatus === "WITHDRAWN");
+  const showOfferForm = showOfferBlock && !showOfferSentSummary;
+  const showLockedOfferHint =
+    contentMode === "offer" && !showOfferSentSummary && !!isActionLocked && !isContractOfferSendLocked;
+  const hideSectionActions = contentMode === "reference";
+  const showComments = !hideSectionComments && contentMode === "full";
+  const largePrivateFieldId =
+    contentMode === "offer" ? "customer-large-private-company-offer" : "customer-large-private-company";
+  const largePrivateSelect = (
+    <>
+      <Label htmlFor={largePrivateFieldId} className={reviewLabelClass}>
+        Is Customer a Large Private Company?{" "}
+        <span className="text-destructive" aria-hidden="true">
+          *
+        </span>
+      </Label>
+      <div className={cn("flex flex-col gap-1.5", contractReviewControlWidthClass)}>
+        <Select
+          value={
+            largePrivateCompany === null ? undefined : largePrivateCompany ? "yes" : "no"
+          }
+          onValueChange={(v) => {
+            if (v === "yes") void persistLargePrivate(true);
+            if (v === "no") void persistLargePrivate(false);
+          }}
+          disabled={
+            !isReviewable ||
+            !!isActionLocked ||
+            isContractFinalizedByIssuer ||
+            isContractOfferSendLocked ||
+            patchLargePrivate.isPending
+          }
+        >
+          <SelectTrigger
+            id={largePrivateFieldId}
+            className={cn(
+              "h-9 rounded-lg text-left text-sm font-normal",
+              contractReviewControlWidthClass,
+              largePrivateHighlight &&
+                "ring-2 ring-destructive ring-offset-2 ring-offset-background"
+            )}
+            aria-invalid={largePrivateHighlight}
+          >
+            <SelectValue placeholder="Choose Yes or No" />
+          </SelectTrigger>
+          <SelectContent className="rounded-xl">
+            <SelectItem value="yes" className="rounded-lg">
+              Yes
+            </SelectItem>
+            <SelectItem value="no" className="rounded-lg">
+              No
+            </SelectItem>
+          </SelectContent>
+        </Select>
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          Required before you can send the facility offer.
+        </p>
+      </div>
+    </>
   );
 
   if (sectionComparison) {
@@ -655,7 +702,7 @@ export function ContractSection({
       title="Facility"
       icon={DocumentTextIcon}
       section={section}
-      isReviewable={isReviewable}
+      isReviewable={isReviewable && !hideSectionActions}
       approvePending={approvePending}
       isActionLocked={isActionLocked || isContractFinalizedByIssuer}
       actionLockTooltip={
@@ -668,13 +715,81 @@ export function ContractSection({
       onApprove={onApprove}
       onReject={onReject}
       onRequestAmendment={onRequestAmendment}
-      showApprove={false}
+      showApprove={!isContractOfferSendLocked && !isContractFinalizedByIssuer}
       viewSignedOfferOnly={showViewSignedOfferOnlyAction}
       onViewSignedOffer={onViewSignedContractOffer}
       signedOfferLetterAvailable={!!signedContractOfferLetterAvailable}
+      embedded={embedded}
     >
       {hasData ? (
         <>
+          {showLockedOfferHint ? (
+            <p className="text-ui text-muted-foreground">
+              {actionLockTooltip || "Approve earlier review stages before sending an offer."}
+            </p>
+          ) : null}
+
+          {showOfferSentSummary ? (
+            <div className="space-y-3">
+              <div className="overflow-hidden rounded-xl border border-border">
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(10rem,1fr))] gap-px bg-border">
+                  <div className="bg-card px-3.5 py-3">
+                    <p className="text-meta font-semibold uppercase tracking-wide text-muted-foreground">
+                      Offered facility
+                    </p>
+                    <p className="mt-1.5 text-lg font-semibold tabular-nums">
+                      {persistedOffered > 0 ? formatCurrency(persistedOffered) : REVIEW_EMPTY_LABEL}
+                    </p>
+                  </div>
+                  <div className="bg-card px-3.5 py-3">
+                    <p className="text-meta font-semibold uppercase tracking-wide text-muted-foreground">
+                      Fee rate
+                    </p>
+                    <p className="mt-1.5 text-lg font-semibold tabular-nums">
+                      {typeof offer?.facility_fee_rate_percent === "number"
+                        ? `${offer.facility_fee_rate_percent}%`
+                        : REVIEW_EMPTY_LABEL}
+                    </p>
+                  </div>
+                  <div className="bg-card px-3.5 py-3">
+                    <p className="text-meta font-semibold uppercase tracking-wide text-muted-foreground">
+                      Total fee
+                    </p>
+                    <p className="mt-1.5 text-lg font-semibold tabular-nums">
+                      {formatCurrency(facilityFeeSplit.totalFacilityFee)}
+                    </p>
+                  </div>
+                  <div className="bg-card px-3.5 py-3">
+                    <p className="text-meta font-semibold uppercase tracking-wide text-muted-foreground">
+                      Upfront
+                    </p>
+                    <p className="mt-1.5 text-lg font-semibold tabular-nums">
+                      {formatCurrency(facilityFeeSplit.upfrontAmount)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              {offerTimelineLine ? (
+                <p className="text-ui text-muted-foreground tabular-nums">{offerTimelineLine}</p>
+              ) : null}
+              {phaseDeadlineDisplay ? (
+                <p
+                  className={cn(
+                    "text-ui tabular-nums",
+                    phaseDeadlineDisplay.urgency === "past"
+                      ? "font-medium text-destructive"
+                      : phaseDeadlineDisplay.urgency === "soon"
+                        ? "font-medium text-amber-800"
+                        : "text-muted-foreground"
+                  )}
+                >
+                  {phaseDeadlineDisplay.summary}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
+          {showOfferForm ? (
           <ReviewFieldBlock title="Offer to Issuer">
             <div className="space-y-4">
               {contractDurationWarning ? (
@@ -696,7 +811,7 @@ export function ContractSection({
                         !isReviewable ||
                         !!isActionLocked ||
                         !onSendOffer ||
-                        isContractApproved ||
+                        isContractFinalizedByIssuer ||
                         isContractOfferSendLocked
                       }
                       className={contractReviewControlWidthClass}
@@ -757,6 +872,14 @@ export function ContractSection({
                   {productLimitSendError ? (
                     <p role="alert" className="text-ui text-destructive">
                       {productLimitSendError}
+                    </p>
+                  ) : null}
+                  {!canSendAfterDetails &&
+                  !isContractOfferSendLocked &&
+                  !isActionLocked &&
+                  !isContractFinalizedByIssuer ? (
+                    <p role="alert" className="text-ui text-destructive">
+                      Approve facility details first (Action → Approve).
                     </p>
                   ) : null}
                   {remainingCredit != null || remainingAllocation != null ? (
@@ -854,302 +977,62 @@ export function ContractSection({
               </div>
             </div>
           </ReviewFieldBlock>
-
-          {cd && (
-            <ReviewFieldBlock title="Contract Details">
-              <div className={reviewRowGridClass}>
-                <Label className={reviewLabelClass}>Contract Title</Label>
-                <div className={reviewValueClass}>{formatReviewValue(cd.title)}</div>
-                <Label className={reviewLabelClass}>Contract Description</Label>
-                <div className={reviewValueClassTextArea}>{formatReviewValue(cd.description)}</div>
-                <Label className={reviewLabelClass}>Contract Number</Label>
-                <div className={reviewValueClass}>{formatReviewValue(cd.number)}</div>
-                <Label className={reviewLabelClass}>Contract Value</Label>
-                <div className={reviewValueClass}>
-                  {typeof cd.value === "number"
-                    ? formatCurrency(cd.value)
-                    : formatReviewValue(cd.value)}
-                </div>
-                <Label className={reviewLabelClass}>Contract Financing</Label>
-                <div className={reviewValueClass}>
-                  {typeof cd.financing === "number"
-                    ? formatCurrency(cd.financing)
-                    : formatReviewValue(cd.financing)}
-                </div>
-                <Label className={reviewLabelClass}>Contract Start Date</Label>
-                <div className={reviewValueClass}>{formatReviewDate(cd.start_date as string)}</div>
-                <Label className={reviewLabelClass}>Contract End Date</Label>
-                <div className={reviewValueClass}>{formatReviewDate(cd.end_date as string)}</div>
-                {contractProductRules?.minContractMonths != null ? (
-                  <>
-                    <Label className={reviewLabelClass}>Minimum facility duration</Label>
-                    <div className={reviewValueClass}>
-                      {contractProductRules.minContractMonths} months
-                    </div>
-                  </>
-                ) : null}
-                {approvedShown > 0 ? (
-                  <>
-                    <Label className={reviewLabelClass}>Approved Facility</Label>
-                    <div className={reviewValueClass}>{formatCurrency(approvedShown)}</div>
-                    <Label className={reviewLabelClass}>Utilized</Label>
-                    <div className={reviewValueClass}>{formatCurrency(utilizedShown)}</div>
-                    <Label className={reviewLabelClass}>{RESERVED_LABEL}</Label>
-                    <div className={reviewValueClass}>{formatCurrency(reservedShown)}</div>
-                    <Label className={reviewLabelClass}>{REMAINING_CREDIT_LABEL}</Label>
-                    <div className={reviewValueClass}>{formatCurrency(availableShown)}</div>
-                    {remainingAllocation != null ? (
-                      <>
-                        <Label className={reviewLabelClass}>{REMAINING_ALLOCATION_LABEL}</Label>
-                        <div className={reviewValueClass}>{formatCurrency(remainingAllocation)}</div>
-                      </>
-                    ) : null}
-                  </>
-                ) : null}
-              </div>
-            </ReviewFieldBlock>
-          )}
-
-          {cust && showIdentityComparison ? (
-            <SubmittedVerifiedPaymasterIdentity
-              customerDetails={cust}
-              paymaster={paymaster}
-              actionsDisabled={!isReviewable || !!isActionLocked}
-              onRequestAmendment={() => onRequestAmendment(section)}
-            />
           ) : null}
 
-          {cust && (
+          {showReviewFields ? (
+          <>
+          {contractDurationWarning && !showOfferForm ? (
+            <ProductRuleWarningNotice message={contractDurationWarning} />
+          ) : null}
+          <ContractReviewFields
+            contractDetails={contractDetails}
+            customerDetails={customerDetails}
+            contractStatus={contractRowStatus}
+            section={section}
+            isReviewable={isReviewable}
+            isActionLocked={isActionLocked}
+            onRequestAmendment={onRequestAmendment}
+            onViewDocument={onViewDocument}
+            onDownloadDocument={onDownloadDocument}
+            viewDocumentPending={viewDocumentPending}
+            contractProductRules={contractProductRules}
+            reviewOccupancy={reviewOccupancy}
+            paymaster={paymaster}
+            paymasterId={paymasterId}
+            applicationId={applicationId}
+            customerDetailsExtra={contentMode === "reference" ? undefined : largePrivateSelect}
+          />
+          </>
+          ) : showOfferForm ? (
             <ReviewFieldBlock title="Customer Details">
-              <div className={reviewRowGridClass}>
-                {!showIdentityComparison ? (
-                  <>
-                    <Label className={reviewLabelClass}>Customer Name</Label>
-                    <div className={reviewValueClass}>{formatReviewValue(cust.name)}</div>
-                    <Label className={reviewLabelClass}>Customer Entity Type</Label>
-                    <div className={reviewValueClass}>{formatReviewValue(cust.entity_type)}</div>
-                  </>
-                ) : null}
-                <Label htmlFor="customer-large-private-company" className={reviewLabelClass}>
-                  Is Customer a Large Private Company?{" "}
-                  <span className="text-destructive" aria-hidden="true">
-                    *
-                  </span>
-                </Label>
-                <div className={cn("flex flex-col gap-1.5", contractReviewControlWidthClass)}>
-                  <Select
-                    value={
-                      largePrivateCompany === null
-                        ? undefined
-                        : largePrivateCompany
-                          ? "yes"
-                          : "no"
-                    }
-                    onValueChange={(v) => {
-                      if (v === "yes") void persistLargePrivate(true);
-                      if (v === "no") void persistLargePrivate(false);
-                    }}
-                    disabled={
-                      !isReviewable ||
-                      !!isActionLocked ||
-                      isContractApproved ||
-                      isContractOfferSendLocked ||
-                      patchLargePrivate.isPending
-                    }
-                  >
-                    <SelectTrigger
-                      id="customer-large-private-company"
-                      className={cn(
-                        "h-9 rounded-lg text-left text-sm font-normal",
-                        contractReviewControlWidthClass,
-                        largePrivateHighlight &&
-                          "ring-2 ring-destructive ring-offset-2 ring-offset-background"
-                      )}
-                      aria-invalid={largePrivateHighlight}
-                    >
-                      <SelectValue placeholder="Choose Yes or No" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl">
-                      <SelectItem value="yes" className="rounded-lg">
-                        Yes
-                      </SelectItem>
-                      <SelectItem value="no" className="rounded-lg">
-                        No
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs leading-relaxed text-muted-foreground">
-                    Required before you can send the facility offer.
-                  </p>
-                </div>
-                {!showIdentityComparison ? (
-                  <>
-                    <Label className={reviewLabelClass}>Customer SSM Number</Label>
-                    <div className={reviewValueClass}>{formatReviewValue(cust.ssm_number)}</div>
-                    <Label className={reviewLabelClass}>Customer Country</Label>
-                    <div className={reviewValueClass}>{formatReviewValue(cust.country)}</div>
-                  </>
-                ) : null}
-                <Label className={reviewLabelClass}>Is Customer Related to Issuer?</Label>
-                <div className={reviewValueClass}>
-                  {cust.is_related_party === true
-                    ? "Yes"
-                    : cust.is_related_party === false
-                      ? "No"
-                      : REVIEW_EMPTY_LABEL}
-                </div>
-              </div>
-            </ReviewFieldBlock>
-          )}
-
-          {cust ? (
-            <ReviewFieldBlock title="Paymaster Verification">
-              <PaymasterVerificationPanel
-                paymaster={paymaster}
-                paymasterId={paymasterId}
-                customerDetails={customerDetails}
-                applicationId={applicationId}
-                canManage={canManagePaymasters}
-              />
+              <div className={reviewRowGridClass}>{largePrivateSelect}</div>
             </ReviewFieldBlock>
           ) : null}
-
-          <ReviewFieldBlock title="Evidence">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between rounded-xl border border-input bg-background px-4 py-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <DocumentTextIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-foreground">Contract Document</div>
-                    <div className="text-xs text-muted-foreground truncate">
-                      {contractDoc?.file_name
-                        ? `${contractDoc.file_name}${
-                            contractDoc.file_size
-                              ? ` (${formatFileSize(contractDoc.file_size)})`
-                              : ""
-                          }`
-                        : REVIEW_EMPTY_LABEL}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 shrink-0">
-                  {contractDoc?.s3_key && onViewDocument && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="rounded-lg h-9 gap-1"
-                      onClick={() => onViewDocument(contractDoc.s3_key!)}
-                      disabled={viewDocumentPending}
-                    >
-                      <ArrowTopRightOnSquareIcon className="h-4 w-4" />
-                      View
-                    </Button>
-                  )}
-                  {contractDoc?.s3_key && onDownloadDocument && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="rounded-lg h-9 gap-1"
-                      onClick={() =>
-                        onDownloadDocument(contractDoc.s3_key!, contractDoc.file_name)
-                      }
-                      disabled={viewDocumentPending}
-                    >
-                      <ArrowDownTrayIcon className="h-4 w-4" />
-                      Download
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </div>
-          </ReviewFieldBlock>
         </>
       ) : (
         <p className={reviewEmptyStateClass}>No facility details submitted.</p>
       )}
-      {!hideSectionComments ? (
+      {showComments ? (
         <SectionComments comments={comments} onSubmitComment={onAddComment} />
       ) : null}
 
-      <Dialog open={contractOfferConfirmOpen} onOpenChange={setContractOfferConfirmOpen}>
-        <DialogContent className="rounded-2xl sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Confirm Facility Offer</DialogTitle>
-            <DialogDescription>
-              Review the offer details below before sending to the issuer.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-2 py-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Contract value</span>
-              <span className="font-medium tabular-nums">
-                {contractValue > 0 ? formatCurrency(contractValue) : REVIEW_EMPTY_LABEL}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Requested facility</span>
-              <span className="font-medium tabular-nums">
-                {requestedFacility > 0 ? formatCurrency(requestedFacility) : REVIEW_EMPTY_LABEL}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Offered facility</span>
-              <span className="font-medium tabular-nums">{formatCurrency(offeredFacility)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Facility fee rate</span>
-              <span className="font-medium tabular-nums">
-                {facilityFeeRatePercentParsed == null ? "—" : `${facilityFeeRatePercentParsed}%`}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Total facility fee</span>
-              <span className="font-medium tabular-nums">
-                {formatCurrency(facilityFeeSplit.totalFacilityFee)}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Upfront via payment gateway</span>
-              <span className="font-medium tabular-nums">
-                {formatCurrency(facilityFeeSplit.upfrontAmount)}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Remaining for drawdown collections</span>
-              <span className="font-medium tabular-nums">
-                {formatCurrency(facilityFeeSplit.remainingForDrawdown)}
-              </span>
-            </div>
-            {acceptanceDeadlinePreview ? (
-              <OfferAcceptanceDeadlineConfirmRows preview={acceptanceDeadlinePreview} />
-            ) : null}
-            {facilityOfferBlockReason ? (
-              <p className="mt-2 text-sm text-destructive">{facilityOfferBlockReason}</p>
-            ) : null}
-          </div>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              variant="outline"
-              onClick={() => setContractOfferConfirmOpen(false)}
-              className="rounded-xl"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleConfirmContractOffer}
-              disabled={
-                !canSendContractOffer ||
-                !!isSendOfferPending ||
-                !!facilityFeeRatePercentError ||
-                !!facilityFeeUpfrontError
-              }
-              className="rounded-xl"
-            >
-              {isSendOfferPending ? "Sending..." : "Confirm & Send Offer"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ContractOfferConfirmDialog
+        open={contractOfferConfirmOpen}
+        onOpenChange={setContractOfferConfirmOpen}
+        contractValue={contractValue}
+        requestedFacility={requestedFacility}
+        offeredFacility={offeredFacility}
+        facilityFeeRatePercent={facilityFeeRatePercentParsed}
+        totalFacilityFee={facilityFeeSplit.totalFacilityFee}
+        upfrontAmount={facilityFeeSplit.upfrontAmount}
+        remainingForDrawdown={facilityFeeSplit.remainingForDrawdown}
+        acceptanceDeadlinePreview={acceptanceDeadlinePreview}
+        facilityOfferBlockReason={facilityOfferBlockReason}
+        canSend={canSendContractOffer}
+        isSendPending={isSendOfferPending}
+        hasFeeErrors={!!facilityFeeRatePercentError || !!facilityFeeUpfrontError}
+        onConfirm={() => void handleConfirmContractOffer()}
+      />
     </ReviewSectionCard>
   );
 }

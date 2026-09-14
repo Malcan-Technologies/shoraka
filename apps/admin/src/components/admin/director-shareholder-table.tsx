@@ -5,7 +5,7 @@ import { format } from "date-fns";
 import { useAuthToken } from "@cashsouk/config";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@cashsouk/ui";
-import { getDirectorFinalStatusToken, adminActionRowClass } from "@/lib/admin-status-token";
+import { adminActionRowClass } from "@/lib/admin-status-token";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,6 +31,8 @@ import {
   formatPeopleRolesLineWithoutShare,
   isMissingGovernmentIdPerson,
   getFinalStatusLabel,
+  getRelatedPartyStatusToken,
+  relatedPartyVerificationCaption,
   normalizeDirectorShareholderIdKey,
   resolveDirectorShareholderCtosEmptyWarning,
   type ApplicationPersonRow,
@@ -196,11 +198,14 @@ export function DirectorShareholderTable({
               return (
                 <TableRow
                   key={p.matchKey}
-                  className={adminActionRowClass(getDirectorFinalStatusToken(finalStatus.tone))}
+                  className={adminActionRowClass(getRelatedPartyStatusToken(finalStatus, "admin"))}
                 >
                   <TableCell className="align-top min-w-[11.5rem] w-[13rem] max-w-[14rem]">
                     <div className="font-medium">{p.name ?? "—"}</div>
                     <div className="mt-0.5 whitespace-nowrap font-mono text-meta text-muted-foreground">{p.matchKey}</div>
+                    <div className="mt-0.5 text-meta text-muted-foreground">
+                      {relatedPartyVerificationCaption(p.entityType)}
+                    </div>
                   </TableCell>
                   <TableCell className="align-top min-w-[11.5rem] w-[13rem] max-w-[14rem]">
                     {formatRoleTitleCaseWithoutShare(p)}
@@ -209,7 +214,7 @@ export function DirectorShareholderTable({
                   <TableCell className="align-top w-[10.5rem] whitespace-nowrap">
                     <StatusBadge
                       label={finalStatus.label}
-                      status={getDirectorFinalStatusToken(finalStatus.tone)}
+                      status={getRelatedPartyStatusToken(finalStatus, "admin")}
                     />
                   </TableCell>
                   <TableCell className="align-top w-[11rem] whitespace-nowrap">

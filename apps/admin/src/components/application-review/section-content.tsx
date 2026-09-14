@@ -17,8 +17,13 @@ import { CompanySection } from "./sections/company-section";
 import { ContractSection } from "./sections/contract-section";
 import { CustomerSection } from "./sections/customer-section";
 import { InvoiceSection } from "./sections/invoice-section";
+import { OfferAcceptanceSection } from "./offer-acceptance/offer-acceptance-section";
 import type { ReviewSectionId } from "./section-types";
 import type { ReviewTabDescriptor } from "./review-registry";
+import type {
+  OfferAcceptanceStageId,
+  SectionActionLockMap,
+} from "./offer-acceptance";
 import { isSignedContractOfferLetterAvailable } from "./offer-signing-availability";
 import { useAdminSigningEnvelopes } from "@/hooks/use-signing-envelopes";
 import type { SendInvoiceOfferUiPayload } from "@/components/utilisation-fee-lines";
@@ -61,6 +66,7 @@ export interface PendingAmendmentItem {
 
 export type ReviewApplicationView = {
   id?: string;
+  status?: string;
   people?: import("@cashsouk/types").ApplicationPersonRow[];
   directorShareholderListSource?: import("@cashsouk/types").DirectorShareholderListSource;
   ctosDirectorShareholderWarning?: string | null;
@@ -168,6 +174,10 @@ export interface SectionContentProps {
   actionLockTooltip?: string;
   /** Current status of this section for conditional "Set to Pending" option. */
   sectionStatus?: string;
+  /** Per-backend-section locks for the unified Offer & acceptance tab. */
+  sectionActionLocks?: SectionActionLockMap;
+  /** Stage the unified tab should expand after Send Offer / goToAcceptanceTab. */
+  offerAcceptanceFocusStageId?: OfferAcceptanceStageId | string | null;
   /** Callback to reset section to PENDING. */
   onResetSectionToPending?: (section: ReviewSectionId) => void;
   onApproveSection: (section: ReviewSectionId) => void;
@@ -235,6 +245,8 @@ export function SectionContent({
   isActionLocked,
   actionLockTooltip,
   sectionStatus,
+  sectionActionLocks,
+  offerAcceptanceFocusStageId,
   onResetSectionToPending,
   onApproveSection,
   onRejectSection,
@@ -513,6 +525,11 @@ export function SectionContent({
           canManageSigning={canManageSigning && !isInheritedAcceptance}
           contractOfferDetails={app.contract?.offer_details}
           invoices={app.invoices ?? []}
+          selectedInvoiceId={
+            isInvoiceOnlyFinancingStructure({ structure_type: structureType })
+              ? (app.invoices?.[app.invoices.length - 1]?.id ?? null)
+              : null
+          }
           structureType={structureType}
           acceptanceReviewMode={isInheritedAcceptance ? "inherited" : "live"}
           inheritedSourceApplication={
@@ -697,6 +714,53 @@ export function SectionContent({
         />
       );
     }
+    case "offer_acceptance":
+      return (
+        <OfferAcceptanceSection
+          descriptor={descriptor}
+          app={app}
+          liveApplicationId={liveApplicationId}
+          isReviewable={isReviewable}
+          approveSectionPending={approveSectionPending}
+          approveItemPending={approveItemPending}
+          viewDocumentPending={viewDocumentPending}
+          isActionLocked={isActionLocked}
+          actionLockTooltip={actionLockTooltip}
+          sectionStatus={sectionStatus}
+          sectionActionLocks={sectionActionLocks}
+          offerAcceptanceFocusStageId={offerAcceptanceFocusStageId}
+          onResetSectionToPending={onResetSectionToPending}
+          onApproveSection={onApproveSection}
+          onRejectSection={onRejectSection}
+          onRequestAmendmentSection={onRequestAmendmentSection}
+          onTriggerGuarantorAml={onTriggerGuarantorAml}
+          onViewDocument={onViewDocument}
+          onDownloadDocument={onDownloadDocument}
+          onDownloadAllDocuments={onDownloadAllDocuments}
+          downloadAllDocumentsPending={downloadAllDocumentsPending}
+          onApproveItem={onApproveItem}
+          onRejectItem={onRejectItem}
+          onRequestAmendmentItem={onRequestAmendmentItem}
+          onResetItemToPending={onResetItemToPending}
+          onSendContractOffer={onSendContractOffer}
+          onSendInvoiceOffer={onSendInvoiceOffer}
+          sendContractOfferPending={sendContractOfferPending}
+          sendInvoiceOfferPending={sendInvoiceOfferPending}
+          onAddSectionComment={onAddSectionComment}
+          invoiceProductRules={invoiceProductRules}
+          contractProductRules={contractProductRules}
+          platformFeeRateCapPercent={platformFeeRateCapPercent}
+          productDefaultFacilityFeeRatePercent={productDefaultFacilityFeeRatePercent}
+          minMonthsReviewToMaturityForOffer={minMonthsReviewToMaturityForOffer}
+          sectionStatusMap={sectionStatusMap}
+          onViewSignedInvoiceOffer={onViewSignedInvoiceOffer}
+          onViewSignedContractOffer={onViewSignedContractOffer}
+          viewSignedOfferLetterPending={viewSignedOfferLetterPending}
+          hideSectionComments={hideSectionComments}
+          productWorkflow={productWorkflow}
+          canManageSigning={canManageSigning}
+        />
+      );
     default:
       return null;
   }

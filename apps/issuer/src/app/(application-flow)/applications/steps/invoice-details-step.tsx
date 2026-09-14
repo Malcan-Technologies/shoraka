@@ -827,6 +827,8 @@ export default function InvoiceDetailsStep({
         if (!hasDate) errors.maturity_date = "Maturity date is required";
         if (!hasTenure) errors.financing_tenure_days = "Financing tenure is required";
         if (!hasDocument) errors.document = "Document is required";
+      }
+      if (hasSubmitted) {
         if (!inv.campaign_sector) errors.campaign_sector = "Campaign Sector is required";
         if (!inv.company_category) errors.company_category = "Company category is required";
         if (!inv.sustainability_category) {

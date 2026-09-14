@@ -27,7 +27,8 @@ import {
   parseAboutYourBusiness,
   isAboutYourBusinessComplete,
   ABOUT_YOUR_BUSINESS_LIMITS,
-  resolveDirectorShareholderCtosEmptyWarning,
+  CUSTOMER_DIRECTOR_SHAREHOLDER_EMPTY_STATE,
+  resolveCustomerDirectorShareholderEmptyWarning,
   UNRESOLVED_IDENTITY_RECOVERY_COPY,
   UNRESOLVED_IDENTITY_RECOVERY_TITLE,
 } from "@cashsouk/types";
@@ -299,11 +300,16 @@ export function CompanyDetailsStep({
 
   const resolvedCtosEmptyWarning = React.useMemo(
     () =>
-      resolveDirectorShareholderCtosEmptyWarning({
+      resolveCustomerDirectorShareholderEmptyWarning({
         directorShareholderListSource: entitiesData?.directorShareholderListSource ?? null,
         ctosDirectorShareholderWarning: entitiesData?.ctosDirectorShareholderWarning ?? null,
+        people: entitiesData?.people ?? [],
       }),
-    [entitiesData?.directorShareholderListSource, entitiesData?.ctosDirectorShareholderWarning]
+    [
+      entitiesData?.directorShareholderListSource,
+      entitiesData?.ctosDirectorShareholderWarning,
+      entitiesData?.people,
+    ]
   );
 
   const resolveOrgContactPerson = React.useCallback(() => {
@@ -542,14 +548,6 @@ export function CompanyDetailsStep({
     if (!formState.mainCustomers.trim()) {
       errors.push("About your business incomplete — update your company profile");
       fieldErrors.mainCustomers = "Update on company profile";
-    }
-    if (formState.singleCustomerOver50Revenue === null) {
-      errors.push("About your business incomplete — update your company profile");
-      fieldErrors.singleCustomerOver50Revenue = "Update on company profile";
-    }
-    if (!formState.accountingSoftware.trim()) {
-      errors.push("About your business incomplete — update your company profile");
-      fieldErrors.accountingSoftware = "Update on company profile";
     }
 
     // Banking validation
@@ -847,14 +845,6 @@ export function CompanyDetailsStep({
             </div>
             <div className="flex min-h-11 flex-col justify-center gap-1">
               <YesNoRadioDisplay value={formState.singleCustomerOver50Revenue} />
-              {fieldErrors.singleCustomerOver50Revenue ? (
-                <p className="text-xs text-destructive">
-                  {fieldErrors.singleCustomerOver50Revenue}.{" "}
-                  <Link href="/profile?focus=about" className="underline underline-offset-2">
-                    Open company profile
-                  </Link>
-                </p>
-              ) : null}
             </div>
 
             <Label htmlFor="company-accounting-software" className={labelClassName}>
@@ -866,16 +856,8 @@ export function CompanyDetailsStep({
                 value={formState.accountingSoftware}
                 disabled
                 placeholder="e.g. QuickBooks, Xero, SAP"
-                className={withFieldError(inputClassName, Boolean(fieldErrors.accountingSoftware))}
+                className={inputClassName}
               />
-              {fieldErrors.accountingSoftware ? (
-                <p className="text-xs text-destructive">
-                  {fieldErrors.accountingSoftware}.{" "}
-                  <Link href="/profile?focus=about" className="underline underline-offset-2">
-                    Open company profile
-                  </Link>
-                </p>
-              ) : null}
             </div>
           </div>
         </div>
@@ -943,7 +925,7 @@ export function CompanyDetailsStep({
             !visiblePeopleRows.some((p) => isMissingGovernmentIdPerson(p)) ? (
               <p className="text-body leading-7 text-muted-foreground col-span-2">
                 {resolvedCtosEmptyWarning
-                  ? "No directors or shareholders were found in the latest CTOS information."
+                  ? CUSTOMER_DIRECTOR_SHAREHOLDER_EMPTY_STATE
                   : "No directors or shareholders found"}
               </p>
             ) : (

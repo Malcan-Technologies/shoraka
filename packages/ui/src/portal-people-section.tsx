@@ -16,7 +16,7 @@ import {
   normalizeDirectorShareholderIdKey,
   normalizeDirectorShareholderPartyEmail,
   PERSON_EMAIL_HELP,
-  resolveDirectorShareholderCtosEmptyWarning,
+  resolveCustomerDirectorShareholderEmptyWarning,
   UNRESOLVED_IDENTITY_RECOVERY_COPY,
   UNRESOLVED_IDENTITY_RECOVERY_TITLE,
   type ApplicationPersonRow,
@@ -26,7 +26,7 @@ import {
 } from "@cashsouk/types";
 import { DirectorShareholderCtosEmptyAlert } from "./director-shareholder-ctos-empty-alert";
 import { DirectorShareholderUnresolvedIdentitySection } from "./director-shareholder-unresolved-identity-card";
-import { PartyProfileDetailFields } from "./party-profile-detail-fields";
+import { CustomerPartyProfileOverview } from "./people-access/customer-person-overview";
 import { PersonIdentityCard } from "./person-identity-card";
 import { InviteMemberDialog } from "./invite-member-dialog";
 import { Button } from "./components/button";
@@ -107,6 +107,7 @@ export function PortalPeopleSection({
   focusedMatchKey,
   canEdit,
   canInactivate = false,
+  canReactivate = canEdit,
   onChanged,
 }: {
   portal: PortalPeoplePortal;
@@ -118,6 +119,7 @@ export function PortalPeopleSection({
   focusedMatchKey?: string | null;
   canEdit: boolean;
   canInactivate?: boolean;
+  canReactivate?: boolean;
   onChanged?: () => void | Promise<void>;
 }) {
   const { getAccessToken } = useAuthToken();
@@ -134,6 +136,8 @@ export function PortalPeopleSection({
   const [loading, setLoading] = React.useState(true);
   const [inactivatePartyId, setInactivatePartyId] = React.useState<string | null>(null);
   const [inactivatePending, setInactivatePending] = React.useState(false);
+  const [reactivatePartyId, setReactivatePartyId] = React.useState<string | null>(null);
+  const [reactivatePending, setReactivatePending] = React.useState(false);
   const [invitePartyId, setInvitePartyId] = React.useState<string | null>(null);
   const [managePartyId, setManagePartyId] = React.useState<string | null>(null);
   const [onboardKey, setOnboardKey] = React.useState<string | null>(null);
@@ -194,11 +198,13 @@ export function PortalPeopleSection({
       personMatchesFilter(person, filter)
   );
   const unresolvedPeople = visiblePeople.filter((person) => isMissingGovernmentIdPerson(person));
-  const ctosEmpty = resolveDirectorShareholderCtosEmptyWarning({
+  const ctosEmpty = resolveCustomerDirectorShareholderEmptyWarning({
     directorShareholderListSource,
     ctosDirectorShareholderWarning,
+    people,
   });
   const inactivating = parties.find((party) => party.id === inactivatePartyId) ?? null;
+  const reactivating = parties.find((party) => party.id === reactivatePartyId) ?? null;
   const viewing = parties.find((party) => party.id === viewPartyId) ?? null;
   const viewingPerson =
     masterCards.find((item) => item.party.id === viewPartyId)?.person ??
@@ -447,6 +453,11 @@ export function PortalPeopleSection({
                 identityKey={normalizeDirectorShareholderIdKey(item.party.identityNumber ?? "")}
                 inactive
                 onView={() => setViewPartyId(item.party.id)}
+                onReactivate={
+                  canReactivate
+                    ? () => setReactivatePartyId(item.party.id)
+                    : undefined
+                }
               />
             ))}
           </div>
@@ -503,7 +514,7 @@ export function PortalPeopleSection({
             </DialogDescription>
           </DialogHeader>
           {viewing || viewingPerson ? (
-            <PartyProfileDetailFields party={viewing} person={viewingPerson} />
+            <CustomerPartyProfileOverview party={viewing} person={viewingPerson} />
           ) : null}
           {canEdit &&
           viewing &&
@@ -829,6 +840,35 @@ export function PortalPeopleSection({
             toast.error(err instanceof Error ? err.message : "Could not mark this person inactive");
           } finally {
             setInactivatePending(false);
+          }
+        }}
+      />
+      <ConfirmDialog
+        open={Boolean(reactivating)}
+        onOpenChange={(open) => {
+          if (!open && !reactivatePending) setReactivatePartyId(null);
+        }}
+        title="Reactivate person"
+        description="Reactivate this person on the current profile? Existing KYC, AML and onboarding history will be kept."
+        confirmText="Reactivate"
+        isLoading={reactivatePending}
+        onConfirm={async () => {
+          if (!reactivating) return;
+          setReactivatePending(true);
+          try {
+            const res = await api.reactivatePartyProfile(portal, organizationId, reactivating.id);
+            if (!res.success) throw profileValidationErrorFromApi(res.error);
+            if (res.data.reviewRequired) {
+              toast.success("Changes detected. Sent for Admin review before reactivation.");
+            } else {
+              toast.success("Person reactivated");
+            }
+            setReactivatePartyId(null);
+            await invalidate();
+          } catch (err) {
+            toast.error(err instanceof Error ? err.message : "Could not reactivate this person");
+          } finally {
+            setReactivatePending(false);
           }
         }}
       />

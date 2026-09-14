@@ -117,9 +117,11 @@ export async function listLegalExternalAcceptances(query: ListLegalExternalAccep
   ]);
 
   const orgNames = await resolveOrgNames(rows);
+  const applicationReferences = await resolveApplicationReferences(rows);
+  const envelopeTitles = await resolveEnvelopeTitles(rows);
 
   return {
-    acceptances: rows.map((row) => toListItem(row, orgNames)),
+    acceptances: rows.map((row) => toListItem(row, orgNames, applicationReferences, envelopeTitles)),
     pagination: {
       page: query.page,
       pageSize: query.pageSize,
@@ -140,8 +142,10 @@ export async function getLegalExternalAcceptanceById(id: string) {
     throw new AppError(404, "LEGAL_EXTERNAL_ACCEPTANCE_NOT_FOUND", "External acceptance not found");
   }
   const orgNames = await resolveOrgNames([row]);
+  const applicationReferences = await resolveApplicationReferences([row]);
+  const envelopeTitles = await resolveEnvelopeTitles([row]);
   return {
-    ...toDetail(row, orgNames),
+    ...toDetail(row, orgNames, applicationReferences, envelopeTitles),
     partyIcNumber: row.party_ic_number,
   };
 }
@@ -160,7 +164,9 @@ export async function exportLegalExternalAcceptances(query: ExportLegalExternalA
   });
 
   const orgNames = await resolveOrgNames(rows);
-  return rows.map((row) => toDetail(row, orgNames));
+  const applicationReferences = await resolveApplicationReferences(rows);
+  const envelopeTitles = await resolveEnvelopeTitles(rows);
+  return rows.map((row) => toDetail(row, orgNames, applicationReferences, envelopeTitles));
 }
 
 async function resolveOrgNames(rows: Array<{ organization_id: string | null }>) {
@@ -172,6 +178,30 @@ async function resolveOrgNames(rows: Array<{ organization_id: string | null }>) 
       })
     : [];
   return new Map(orgs.map((org) => [org.id, org.name]));
+}
+
+async function resolveApplicationReferences(rows: Array<{ application_id: string | null }>) {
+  const applicationIds = [...new Set(rows.map((row) => row.application_id).filter(Boolean))] as string[];
+  if (!applicationIds.length) return new Map<string, string | null>();
+
+  const apps = await prisma.application.findMany({
+    where: { id: { in: applicationIds } },
+    select: { id: true, display_reference: true },
+  });
+
+  return new Map(apps.map((app) => [app.id, app.display_reference ?? null]));
+}
+
+async function resolveEnvelopeTitles(rows: Array<{ envelope_id: string | null }>) {
+  const envelopeIds = [...new Set(rows.map((row) => row.envelope_id).filter(Boolean))] as string[];
+  if (!envelopeIds.length) return new Map<string, string | null>();
+
+  const envelopes = await prisma.signingEnvelope.findMany({
+    where: { id: { in: envelopeIds } },
+    select: { id: true, title: true },
+  });
+
+  return new Map(envelopes.map((env) => [env.id, env.title]));
 }
 
 function buildWhere(query: ExternalAcceptanceFilters) {
@@ -200,7 +230,12 @@ function buildWhere(query: ExternalAcceptanceFilters) {
   return where;
 }
 
-function toListItem(row: ExternalAcceptanceRow, orgNames: Map<string, string | null>) {
+function toListItem(
+  row: ExternalAcceptanceRow,
+  orgNames: Map<string, string | null>,
+  applicationReferences: Map<string, string | null>,
+  envelopeTitles: Map<string, string | null>
+) {
   const type = (row.document_type ?? row.version.legal_document.type) as LegalDocumentType;
   return {
     id: row.id,
@@ -220,6 +255,10 @@ function toListItem(row: ExternalAcceptanceRow, orgNames: Map<string, string | n
     sourceId: row.source_id,
     envelopeId: row.envelope_id,
     applicationId: row.application_id,
+    applicationReference:
+      row.application_id != null ? applicationReferences.get(row.application_id) ?? null : null,
+    envelopeTitle:
+      row.envelope_id != null ? envelopeTitles.get(row.envelope_id) ?? null : null,
     organizationId: row.organization_id,
     organizationName: row.organization_id ? orgNames.get(row.organization_id) ?? null : null,
     openedAt: row.opened_at?.toISOString() ?? null,
@@ -228,9 +267,14 @@ function toListItem(row: ExternalAcceptanceRow, orgNames: Map<string, string | n
   };
 }
 
-function toDetail(row: ExternalAcceptanceRow, orgNames: Map<string, string | null>) {
+function toDetail(
+  row: ExternalAcceptanceRow,
+  orgNames: Map<string, string | null>,
+  applicationReferences: Map<string, string | null>,
+  envelopeTitles: Map<string, string | null>
+) {
   return {
-    ...toListItem(row, orgNames),
+    ...toListItem(row, orgNames, applicationReferences, envelopeTitles),
     openedIpAddress: row.opened_ip_address ?? null,
     openedUserAgent: row.opened_user_agent ?? null,
     openedDeviceInfo: row.opened_device_info ?? null,

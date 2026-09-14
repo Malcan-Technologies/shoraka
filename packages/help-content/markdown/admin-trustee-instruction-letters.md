@@ -66,11 +66,11 @@ The **Activity timeline** on the right records when letters were generated and l
 
 ## Arrears and default letters
 
-**When:** While servicing, for formal **arrears** communication, or when handling **default** paperwork.
+**When:** When a note enters **arrears**, or when you confirm **Mark Default**.
 
-**Where:** **Late Payment** tab → **Arrears and Default Documents**.
+**Where:** **Late Payment** tab → letters list.
 
-Generate **Arrears Letter** or **Default Letter** as appropriate. Review before external use. Copies appear in the generated letters list and the Activity timeline.
+The system generates a platform-letterhead PDF and emails the issuer. You can view, download, or resend. Each send is written to the note timeline as `NOTE_LETTER_SENT`.
 
 ## Investor and other withdrawals
 

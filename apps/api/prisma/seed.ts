@@ -3,6 +3,7 @@ import { AdminRole } from "@cashsouk/types";
 import { logger } from "../src/lib/logger";
 import { generateUniqueUserId } from "../src/lib/user-id-generator";
 import { buildAboutYourBusinessCod } from "../scripts/seed-application-helpers";
+import { seedAdminPeopleDemo } from "../scripts/seed-admin-people-demo";
 
 const prisma = new PrismaClient();
 
@@ -1453,6 +1454,8 @@ async function main() {
     });
     logger.info(`✅ Admin portal access ensured for seeded tested-org owner (${testedOwnerEmail})`);
   }
+
+  await seedAdminPeopleDemo(prisma);
 
   logger.info("🎉 Database seed completed successfully!");
 }

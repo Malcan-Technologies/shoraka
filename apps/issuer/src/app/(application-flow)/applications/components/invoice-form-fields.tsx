@@ -9,8 +9,6 @@ import {
   applicationFlowAmendmentTargetSurfaceClassName,
   applicationFlowLabelCellAlignInputClassName,
   applicationFlowLabelCellAlignTopClassName,
-  applicationFlowSectionDividerClassName,
-  applicationFlowSectionTitleClassName,
   fieldLabelWithTooltipRowClassName,
   fieldTooltipContentClassName,
   fieldTooltipTriggerClassName,
@@ -407,6 +405,107 @@ export function InvoiceFormFields({
           <FieldError message={fieldErrors?.financing_amount} />
         </div>
 
+        <LabelWithTooltip
+          htmlFor={`invoice-company-category-${invoice.id}`}
+          label={SC_MONTHLY_CAMPAIGN.companyCategory.label}
+          tooltip={SC_MONTHLY_CAMPAIGN.companyCategory.help}
+        />
+        <div className="space-y-1">
+          <Select
+            value={invoice.company_category ?? undefined}
+            onValueChange={(value) => {
+              if (isScCompanyCategory(value)) onCompanyCategoryChange?.(value);
+            }}
+            disabled={!isEditable}
+          >
+            <SelectTrigger
+              id={`invoice-company-category-${invoice.id}`}
+              aria-label={SC_MONTHLY_CAMPAIGN.companyCategory.label}
+              className={withFieldError(
+                cn(formSelectTriggerClassName, !isEditable && formInputDisabledClassName),
+                Boolean(fieldErrors?.company_category)
+              )}
+            >
+              <SelectValue placeholder="Select" />
+            </SelectTrigger>
+            <SelectContent>
+              {SC_COMPANY_CATEGORIES.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {SC_COMPANY_CATEGORY_LABELS[value]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <FieldError message={fieldErrors?.company_category} />
+        </div>
+
+        <LabelWithTooltip
+          htmlFor={`invoice-campaign-sector-${invoice.id}`}
+          label={SC_MONTHLY_CAMPAIGN.campaignSector.label}
+          tooltip={SC_MONTHLY_CAMPAIGN.campaignSector.help}
+        />
+        <div className="space-y-1">
+          <Select
+            value={invoice.campaign_sector ?? undefined}
+            onValueChange={(value) => {
+              if (isScCampaignSector(value)) onCampaignSectorChange?.(value);
+            }}
+            disabled={!isEditable}
+          >
+            <SelectTrigger
+              id={`invoice-campaign-sector-${invoice.id}`}
+              aria-label={SC_MONTHLY_CAMPAIGN.campaignSector.label}
+              className={withFieldError(
+                cn(formSelectTriggerClassName, !isEditable && formInputDisabledClassName),
+                Boolean(fieldErrors?.campaign_sector)
+              )}
+            >
+              <SelectValue placeholder="Select" />
+            </SelectTrigger>
+            <SelectContent className="max-h-[280px]">
+              {SC_CAMPAIGN_SECTORS.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {SC_CAMPAIGN_SECTOR_LABELS[value]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <FieldError message={fieldErrors?.campaign_sector} />
+        </div>
+
+        <LabelWithTooltip
+          htmlFor={`invoice-sustainability-category-${invoice.id}`}
+          label={SC_MONTHLY_CAMPAIGN.sustainabilityCategory.label}
+        />
+        <div className="space-y-1">
+          <Select
+            value={invoice.sustainability_category ?? undefined}
+            onValueChange={(value) => {
+              if (isScSustainabilityCategory(value)) onSustainabilityCategoryChange?.(value);
+            }}
+            disabled={!isEditable}
+          >
+            <SelectTrigger
+              id={`invoice-sustainability-category-${invoice.id}`}
+              aria-label={SC_MONTHLY_CAMPAIGN.sustainabilityCategory.label}
+              className={withFieldError(
+                cn(formSelectTriggerClassName, !isEditable && formInputDisabledClassName),
+                Boolean(fieldErrors?.sustainability_category)
+              )}
+            >
+              <SelectValue placeholder="Select" />
+            </SelectTrigger>
+            <SelectContent className="max-h-[280px]">
+              {SC_SUSTAINABILITY_CATEGORIES.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {SC_SUSTAINABILITY_CATEGORY_LABELS[value]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <FieldError message={fieldErrors?.sustainability_category} />
+        </div>
+
         <LabelWithTooltip htmlFor={`invoice-document-${invoice.id}`} label="Document" alignTop />
         <div className="space-y-1 self-start">
           <FileUploadArea
@@ -417,110 +516,6 @@ export function InvoiceFormFields({
             disabled={!isEditable}
           />
           <FieldError message={fieldErrors?.document} />
-        </div>
-      </div>
-
-      <div className="mt-8 space-y-3">
-        <div>
-          <h3 className={applicationFlowSectionTitleClassName}>Campaign classification</h3>
-          <div className={applicationFlowSectionDividerClassName} />
-        </div>
-        <div className={sectionGridClassName}>
-          <LabelWithTooltip
-            htmlFor={`invoice-campaign-sector-${invoice.id}`}
-            label={`${SC_MONTHLY_CAMPAIGN.campaignSector.label} *`}
-          />
-          <div className="space-y-1">
-            <Select
-              value={invoice.campaign_sector ?? undefined}
-              onValueChange={(value) => {
-                if (isScCampaignSector(value)) onCampaignSectorChange?.(value);
-              }}
-              disabled={!isEditable}
-            >
-              <SelectTrigger
-                id={`invoice-campaign-sector-${invoice.id}`}
-                aria-label={SC_MONTHLY_CAMPAIGN.campaignSector.label}
-                className={withFieldError(
-                  cn(formSelectTriggerClassName, !isEditable && formInputDisabledClassName),
-                  Boolean(fieldErrors?.campaign_sector)
-                )}
-              >
-                <SelectValue placeholder="Select" />
-              </SelectTrigger>
-              <SelectContent className="max-h-[280px]">
-                {SC_CAMPAIGN_SECTORS.map((value) => (
-                  <SelectItem key={value} value={value}>
-                    {SC_CAMPAIGN_SECTOR_LABELS[value]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <FieldError message={fieldErrors?.campaign_sector} />
-          </div>
-
-          <LabelWithTooltip htmlFor={`invoice-company-category-${invoice.id}`} label="Company category *" />
-          <div className="space-y-1">
-            <Select
-              value={invoice.company_category ?? undefined}
-              onValueChange={(value) => {
-                if (isScCompanyCategory(value)) onCompanyCategoryChange?.(value);
-              }}
-              disabled={!isEditable}
-            >
-              <SelectTrigger
-                id={`invoice-company-category-${invoice.id}`}
-                aria-label="Company category"
-                className={withFieldError(
-                  cn(formSelectTriggerClassName, !isEditable && formInputDisabledClassName),
-                  Boolean(fieldErrors?.company_category)
-                )}
-              >
-                <SelectValue placeholder="Select" />
-              </SelectTrigger>
-              <SelectContent>
-                {SC_COMPANY_CATEGORIES.map((value) => (
-                  <SelectItem key={value} value={value}>
-                    {SC_COMPANY_CATEGORY_LABELS[value]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <FieldError message={fieldErrors?.company_category} />
-          </div>
-
-          <LabelWithTooltip
-            htmlFor={`invoice-sustainability-category-${invoice.id}`}
-            label={`${SC_MONTHLY_CAMPAIGN.sustainabilityCategory.label} *`}
-          />
-          <div className="space-y-1">
-            <Select
-              value={invoice.sustainability_category ?? undefined}
-              onValueChange={(value) => {
-                if (isScSustainabilityCategory(value)) onSustainabilityCategoryChange?.(value);
-              }}
-              disabled={!isEditable}
-            >
-              <SelectTrigger
-                id={`invoice-sustainability-category-${invoice.id}`}
-                aria-label={SC_MONTHLY_CAMPAIGN.sustainabilityCategory.label}
-                className={withFieldError(
-                  cn(formSelectTriggerClassName, !isEditable && formInputDisabledClassName),
-                  Boolean(fieldErrors?.sustainability_category)
-                )}
-              >
-                <SelectValue placeholder="Select" />
-              </SelectTrigger>
-              <SelectContent className="max-h-[280px]">
-                {SC_SUSTAINABILITY_CATEGORIES.map((value) => (
-                  <SelectItem key={value} value={value}>
-                    {SC_SUSTAINABILITY_CATEGORY_LABELS[value]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <FieldError message={fieldErrors?.sustainability_category} />
-          </div>
         </div>
       </div>
     </div>

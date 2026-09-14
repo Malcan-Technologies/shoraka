@@ -29,7 +29,7 @@ const SUCCESS_STATUSES = new Set([
   "REPAID",
 ]);
 
-const ACTIVE_STATUSES = new Set(["ACTIVE", "CONFIRMED"]);
+const ACTIVE_STATUSES = new Set(["ACTIVE", "CONFIRMED", "CURRENT", "ADVANCE_PAID"]);
 
 const REJECTED_STATUSES = new Set([
   "REJECTED",
@@ -57,6 +57,8 @@ const YOUR_ACTION_STATUSES = new Set([
   "SENT",
   "IN_PROGRESS",
   "SIGNING_IN_PROGRESS",
+  "OVERDUE",
+  "LATE",
 ]);
 
 /** Blue — waiting on CashSouk, trustee, or another party. Inverse of admin-must-act. */

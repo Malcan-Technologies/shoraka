@@ -133,6 +133,9 @@ import {
   canDirectAcceptInvoice,
   canArchiveApplication,
   canWithdrawApplication,
+  APPLICATION_COMREP_DETAIL_KEYS,
+  applicationComrepFieldError,
+  buildStoredApplicationFinancialYearBlock,
   getFinancialYearEndComputationDetails,
   getIssuerFinancialTabYears,
   issuerUnauditedPlddForFyEndYear,
@@ -221,24 +224,9 @@ function isFinalApplicationStatus(status: string | null | undefined): boolean {
   );
 }
 
-/** Business rules for v2 per-year financial blocks (no bsdd). */
-function validateFinancialYearBlockOrThrow(raw: {
-  pldd?: string;
-  bsfatot?: unknown;
-  othass?: unknown;
-  bscatot?: unknown;
-  bsclbank?: unknown;
-  curlib?: unknown;
-  bsslltd?: unknown;
-  bsclstd?: unknown;
-  bsqpuc?: unknown;
-  turnover?: unknown;
-  plnpbt?: unknown;
-  plnpat?: unknown;
-  plnetdiv?: unknown;
-  plyear?: unknown;
-}): void {
-  const nonNegativeFields: { key: keyof typeof raw; label: string }[] = [
+/** Business rules for v2 per-year financial blocks (no bsdd). Core fields unchanged. */
+function validateFinancialYearBlockOrThrow(raw: Record<string, unknown>): void {
+  const nonNegativeFields: { key: string; label: string }[] = [
     { key: "turnover", label: "Turnover" },
     { key: "bsfatot", label: "Fixed assets" },
     { key: "othass", label: "Other assets" },
@@ -256,25 +244,16 @@ function validateFinancialYearBlockOrThrow(raw: {
       throw new AppError(400, "VALIDATION_ERROR", `${label} cannot be negative`);
     }
   }
+  for (const key of APPLICATION_COMREP_DETAIL_KEYS) {
+    const message = applicationComrepFieldError(key, raw[key]);
+    if (message) {
+      throw new AppError(400, "VALIDATION_ERROR", message);
+    }
+  }
 }
 
 function normalizeFinancialYearBlock(raw: Record<string, unknown>): Prisma.InputJsonValue {
-  return {
-    pldd: String(raw.pldd ?? ""),
-    bsfatot: financialToNum(raw.bsfatot),
-    othass: financialToNum(raw.othass),
-    bscatot: financialToNum(raw.bscatot),
-    bsclbank: financialToNum(raw.bsclbank),
-    curlib: financialToNum(raw.curlib),
-    bsslltd: financialToNum(raw.bsslltd),
-    bsclstd: financialToNum(raw.bsclstd),
-    bsqpuc: financialToNum(raw.bsqpuc),
-    turnover: financialToNum(raw.turnover),
-    plnpbt: financialToNum(raw.plnpbt),
-    plnpat: financialToNum(raw.plnpat),
-    plnetdiv: financialToNum(raw.plnetdiv),
-    plyear: financialToNum(raw.plyear),
-  } as Prisma.InputJsonValue;
+  return buildStoredApplicationFinancialYearBlock(raw) as Prisma.InputJsonValue;
 }
 
 export class ApplicationService {
@@ -2316,7 +2295,7 @@ export class ApplicationService {
             },
           });
 
-          // Update org-level latest reusable financial statements for future app auto-prefill.
+          // Org-level history / future ComRep source. Not an application prefill fallback.
           // Only happens on submit (not draft save). Invoice-only uses the same snapshot semantics.
           await upsertLatestOrganizationFinancialStatementsFromApplication({
             applicationId: id,

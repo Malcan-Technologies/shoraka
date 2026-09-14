@@ -15,6 +15,9 @@ describe("getActivityStatusToken", () => {
     expect(getActivityStatusToken("APPLICATION_APPROVED")).toBe("success");
     expect(getActivityStatusToken("FAIL_FUNDING")).toBe("rejected");
     expect(getActivityStatusToken("APPLICATION_WITHDRAWN")).toBe("neutral");
+    expect(getActivityStatusToken("NOTE_OVERDUE")).toBe("action");
+    expect(getActivityStatusToken("NOTE_ARREARS")).toBe("action");
+    expect(getActivityStatusToken("LATE_CHARGE_WAIVED")).toBe("success");
   });
 
   it("does not use leftover indigo/sky tokens", () => {

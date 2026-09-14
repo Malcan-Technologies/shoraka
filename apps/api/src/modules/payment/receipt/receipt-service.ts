@@ -429,7 +429,7 @@ async function generatePdfForExistingReceipt(
   try {
     // Prefer merchant snapshot already sealed on a prior successful attempt.
     // First successful generation seals merchant_snapshot permanently.
-    let merchant =
+    const merchant =
       receipt.merchant_snapshot &&
       typeof receipt.merchant_snapshot === "object" &&
       !Array.isArray(receipt.merchant_snapshot)
@@ -445,14 +445,35 @@ async function generatePdfForExistingReceipt(
 
     const resolvedMerchant = merchant?.legalName
       ? {
-          legalName: merchant.legalName,
+          legalName: merchant.legalName ?? null,
           registrationNumber: merchant.registrationNumber ?? null,
           licenceNumber: merchant.licenceNumber ?? null,
           address: merchant.address ?? null,
           telephone: merchant.telephone ?? null,
           email: merchant.email ?? null,
         }
-      : await resolveMerchantForReceipt(db);
+      : await (async () => {
+          const canReuseMerchantSnapshot =
+            merchant &&
+            (merchant.registrationNumber !== undefined ||
+              merchant.licenceNumber !== undefined ||
+              merchant.address !== undefined ||
+              merchant.telephone !== undefined ||
+              merchant.email !== undefined);
+
+          if (canReuseMerchantSnapshot) {
+            return {
+              legalName: merchant.legalName ?? null,
+              registrationNumber: merchant.registrationNumber ?? null,
+              licenceNumber: merchant.licenceNumber ?? null,
+              address: merchant.address ?? null,
+              telephone: merchant.telephone ?? null,
+              email: merchant.email ?? null,
+            };
+          }
+
+          return resolveMerchantForReceipt(db);
+        })();
 
     const amountLabel = formatAmountLabel(receipt.amount, receipt.currency);
     const paymentStatus = preserveRefunded ? "Refunded" : "Paid";
@@ -484,7 +505,7 @@ async function generatePdfForExistingReceipt(
     });
 
     const pdf = await renderReceiptHtmlToPdfBuffer(html);
-    const s3Key = buildS3Key(receipt.receipt_number);
+    const s3Key = buildS3Key(receipt.receipt_number, receipt.created_at);
 
     await putS3ObjectBuffer({
       key: s3Key,

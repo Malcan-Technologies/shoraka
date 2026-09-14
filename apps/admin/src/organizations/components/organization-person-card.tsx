@@ -4,7 +4,7 @@ import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 import {
   getFinalStatusLabel,
-  getFinalStatusToken,
+  getRelatedPartyStatusToken,
   isIssuerShareholderOnlyBelowMinimum,
   computeIssuerPersonCompleteness,
   issuerPersonCompletenessInputFromParty,
@@ -93,10 +93,10 @@ export function OrganizationPersonCard({
       : null;
   const kyc = person
     ? getFinalStatusLabel(person, { displayMode: "kyc_only" })
-    : { label: "—", token: "neutral" as const, tone: "neutral" as const };
+    : { label: "—", token: "neutral" as const, tone: "neutral" as const, actor: "none" as const };
   const aml = person
     ? getFinalStatusLabel({ screening: person.screening })
-    : { label: "—", token: "neutral" as const, tone: "neutral" as const };
+    : { label: "—", token: "neutral" as const, tone: "neutral" as const, actor: "none" as const };
   const highlight =
     item.kind === "external" ||
     Boolean(party?.mismatches.length) ||
@@ -140,21 +140,18 @@ export function OrganizationPersonCard({
             <p className="text-meta text-muted-foreground">{completenessHint}</p>
           ) : null}
           {corporate ? (
-            <p className="text-meta text-muted-foreground">
-              Company shareholder. Individual KYC/AML is not required.
-            </p>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <StatusBadge status={getRelatedPartyStatusToken(kyc, "admin")} label={`KYB: ${kyc.label}`} />
+              <StatusBadge status={getRelatedPartyStatusToken(aml, "admin")} label={`AML: ${aml.label}`} />
+              {item.kind === "inactive" ? <StatusBadge status="neutral" label="Inactive" /> : null}
+            </div>
           ) : (
             <div className="flex flex-wrap gap-2 pt-1">
-              <StatusBadge status={getFinalStatusToken(kyc.tone)} label={`KYC: ${kyc.label}`} />
-              <StatusBadge status={getFinalStatusToken(aml.tone)} label={`AML: ${aml.label}`} />
+              <StatusBadge status={getRelatedPartyStatusToken(kyc, "admin")} label={`KYC: ${kyc.label}`} />
+              <StatusBadge status={getRelatedPartyStatusToken(aml, "admin")} label={`AML: ${aml.label}`} />
               {item.kind === "inactive" ? <StatusBadge status="neutral" label="Inactive" /> : null}
             </div>
           )}
-          {corporate && item.kind === "inactive" ? (
-            <div className="flex flex-wrap gap-2 pt-1">
-              <StatusBadge status="neutral" label="Inactive" />
-            </div>
-          ) : null}
           {party?.platformAccess && party.entityType !== "CORPORATE" ? (
             <p className="text-meta text-muted-foreground">
               Platform access: <span className="text-foreground">{party.platformAccess.label}</span>

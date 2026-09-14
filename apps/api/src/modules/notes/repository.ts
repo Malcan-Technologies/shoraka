@@ -17,6 +17,8 @@ export const noteInclude = {
   payments: { orderBy: { receipt_date: "desc" as const } },
   settlements: { orderBy: { created_at: "desc" as const } },
   events: { orderBy: { created_at: "desc" as const }, take: 50 },
+  servicing_letters: { orderBy: { generated_at: "desc" as const } },
+  late_charge_waivers: { orderBy: { created_at: "desc" as const } },
   prospectus_review: {
     select: {
       id: true,
@@ -287,7 +289,13 @@ export class NoteRepository {
       published_at?: Date | null;
       funding_closed_at?: Date | null;
       activated_at?: Date | null;
+      overdue_started_at?: Date | null;
+      late_started_at?: Date | null;
       arrears_started_at?: Date | null;
+      days_past_due?: number;
+      indicative_tawidh_amount?: number;
+      indicative_gharamah_amount?: number;
+      indicative_as_of?: Date | null;
       default_marked_at?: Date | null;
       default_marked_by_admin_user_id?: string | null;
       default_reason?: string | null;

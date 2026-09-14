@@ -27,6 +27,10 @@ export const investmentSortOptions: Array<{ value: InvestmentSortOption; label: 
 
 export function getInvestmentStatusLabel(note: NoteListItem) {
   if (note.servicingStatus === "SETTLED" || note.status === "REPAID") return "Settled";
+  if (note.servicingStatus === "DEFAULTED" || note.status === "DEFAULTED") return "Defaulted";
+  if (note.servicingStatus === "ARREARS" || note.status === "ARREARS") return "Arrears";
+  if (note.servicingStatus === "OVERDUE") return "Overdue";
+  if (note.servicingStatus === "LATE") return "Late";
   if (note.servicingStatus === "CURRENT" || note.status === "ACTIVE") return "Active";
   if (note.fundingStatus === "OPEN") return "Pending confirmation";
   return "In progress";

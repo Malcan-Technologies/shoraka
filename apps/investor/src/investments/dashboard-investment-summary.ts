@@ -14,6 +14,7 @@ export function isDashboardDefaultedInvestment(note: NoteListItem) {
 export function isDashboardUnderPerformingInvestment(note: NoteListItem) {
   return (
     isDashboardDefaultedInvestment(note) ||
+    note.servicingStatus === NoteServicingStatus.OVERDUE ||
     note.servicingStatus === NoteServicingStatus.LATE ||
     note.servicingStatus === NoteServicingStatus.ARREARS ||
     note.status === NoteStatus.ARREARS

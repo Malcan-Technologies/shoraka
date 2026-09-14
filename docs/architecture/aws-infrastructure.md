@@ -149,8 +149,8 @@ Existing `docker/api.Dockerfile`:
 
 **Host-Based Routing** (single ALB, HTTPS listener on port 443):
 
-| Host                   | Target Group  | Service          |
-| ---------------------- | ------------- | ---------------- |
+| Host                    | Target Group  | Service           |
+| ----------------------- | ------------- | ----------------- |
 | `cashsouk.com`          | `tg-landing`  | cashsouk-landing  |
 | `investor.cashsouk.com` | `tg-investor` | cashsouk-investor |
 | `issuer.cashsouk.com`   | `tg-issuer`   | cashsouk-issuer   |
@@ -222,7 +222,8 @@ ALLOWED_ORIGINS=https://cashsouk.com,https://investor.cashsouk.com,https://issue
 
 Environment variables injected via ECS task definitions from:
 
-- `/cashsouk/prod/api/database-url` (Secrets Manager)
+- `cashsouk/app-database-url` (Secrets Manager, API runtime / `cashsouk_app`)
+- `cashsouk/database-url` (Secrets Manager, ECS migrate task / `cashsouk_admin`)
 - `/cashsouk/prod/api/rds-proxy-endpoint`
 - `/cashsouk/prod/cognito/user-pool-id`
 - `/cashsouk/prod/cognito/client-id`

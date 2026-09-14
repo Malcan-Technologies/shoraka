@@ -3,9 +3,14 @@ import { sampleInvestmentNoteCertificateSnapshot } from "../investment-note-cert
 import { renderInvestmentNoteCertificateDocx } from "../investment-note-certificate/render-certificate-docx";
 import {
   applyCompanyStampToDocx,
-  stampExtentEmu,
+  applySspStampToDocx,
+  COMPACT_MAX_STAMP_HEIGHT_EMU,
+  COMPACT_MAX_STAMP_WIDTH_EMU,
+  SSP_COMPANY_STAMP_IMAGE_PLACEHOLDER,
   stampExtentEmuFromPixels,
 } from "./docx-stamp-image";
+import { readPngSize, type StampMaxBoundsEmu } from "./stamp-image-contain";
+import { PNG } from "pngjs";
 
 const ONE_BY_ONE_PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFhAH+plp0OQAAAABJRU5ErkJggg==",
@@ -66,7 +71,11 @@ describe("applyCompanyStampToDocx", () => {
     expect(xml).toContain('<pic:cNvPr id="91001" name="company-stamp"/>');
     expect(xml).toContain('<wp:docPr id="91001" name="CompanyStamp"/>');
     expect(xml).not.toContain('<pic:cNvPr id="0"');
-    const extent = stampExtentEmu(TWO_BY_ONE_PNG);
+    const bounds: StampMaxBoundsEmu = {
+      maxWidthEmu: COMPACT_MAX_STAMP_WIDTH_EMU,
+      maxHeightEmu: COMPACT_MAX_STAMP_HEIGHT_EMU,
+    };
+    const extent = stampExtentEmuFromPixels(2, 1, bounds);
     expect(xml).toContain(`<wp:extent cx="${extent.cx}" cy="${extent.cy}"/>`);
     expect(xml).toContain(`<a:ext cx="${extent.cx}" cy="${extent.cy}"/>`);
     expect(xml).toContain("r:embed=");
@@ -99,5 +108,85 @@ describe("applyCompanyStampToDocx", () => {
     const xml = drawingXml(rendered);
     expect(xml).toContain("________________________");
     expect(xml).not.toContain("<w:drawing>");
+  });
+
+  it("preserves a large stamp bitmap and still caps rendered footprint via wp:extent", () => {
+    const png = new PNG({ width: 800, height: 800 });
+    png.data.fill(200);
+    for (let i = 3; i < png.data.length; i += 4) png.data[i] = 255;
+    const rendered = renderInvestmentNoteCertificateDocx(
+      sampleInvestmentNoteCertificateSnapshot(),
+      { audience: "ADMIN" },
+      { bytes: PNG.sync.write(png), contentType: "image/png" }
+    );
+    const zip = new PizZip(rendered);
+    const embedded = zip.file("word/media/company-stamp.png")?.asNodeBuffer();
+    expect(embedded).toBeTruthy();
+    const size = readPngSize(embedded!);
+    expect(size).toEqual({ width: 800, height: 800 });
+    const xml = drawingXml(rendered);
+    expect(xml).toContain(`<wp:extent cx="${COMPACT_MAX_STAMP_HEIGHT_EMU}" cy="${COMPACT_MAX_STAMP_HEIGHT_EMU}"/>`);
+  });
+});
+
+describe("applySspStampToDocx", () => {
+  function sspPlaceholderDocx(): Buffer {
+    const zip = new PizZip();
+    zip.file(
+      "[Content_Types].xml",
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>`
+    );
+    zip.file(
+      "word/_rels/document.xml.rels",
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>`
+    );
+    zip.file(
+      "word/document.xml",
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>${SSP_COMPANY_STAMP_IMAGE_PLACEHOLDER}</w:t></w:r></w:p></w:body></w:document>`
+    );
+    return zip.generate({ type: "nodebuffer" }) as Buffer;
+  }
+
+  it("embeds ssp-company-stamp media and removes the placeholder", () => {
+    const rendered = applySspStampToDocx(sspPlaceholderDocx(), {
+      bytes: TWO_BY_ONE_PNG,
+      contentType: "image/png",
+    });
+    const zip = new PizZip(rendered);
+    const xml = drawingXml(rendered);
+    expect(zip.file("word/media/ssp-company-stamp.png")).toBeTruthy();
+    expect(xml).toContain('<pic:cNvPr id="91003" name="ssp-company-stamp"/>');
+    expect(xml).toContain('<wp:docPr id="91003" name="SspCompanyStamp"/>');
+    expect(xml).not.toContain(SSP_COMPANY_STAMP_IMAGE_PLACEHOLDER);
+  });
+
+  it("leaves no underscores when the SSP stamp is empty", () => {
+    const rendered = applySspStampToDocx(sspPlaceholderDocx(), null);
+    const xml = drawingXml(rendered);
+    expect(xml).not.toContain(SSP_COMPANY_STAMP_IMAGE_PLACEHOLDER);
+    expect(xml).not.toContain("________________________");
+    expect(xml).not.toContain("<w:drawing>");
+  });
+});
+
+describe("applySignatureImageToDocx", () => {
+  it("injects a signature image independently of the company stamp", () => {
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFhAH+plp0OQAAAABJRU5ErkJggg==",
+      "base64"
+    );
+    const rendered = renderInvestmentNoteCertificateDocx(
+      sampleInvestmentNoteCertificateSnapshot(),
+      { audience: "ADMIN" },
+      { bytes: TWO_BY_ONE_PNG, contentType: "image/png" },
+      { bytes: png, contentType: "image/png" }
+    );
+    const xml = drawingXml(rendered);
+    const zip = new PizZip(rendered);
+    expect(zip.file("word/media/company-stamp.png")).toBeTruthy();
+    expect(zip.file("word/media/signing-signature.png")).toBeTruthy();
+    expect(xml).toContain('<pic:cNvPr id="91001" name="company-stamp"/>');
+    expect(xml).toContain('<pic:cNvPr id="91002" name="signing-signature"/>');
+    expect(xml).not.toContain("§SIGNATURE_IMAGE§");
   });
 });

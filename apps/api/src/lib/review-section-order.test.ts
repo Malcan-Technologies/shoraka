@@ -4,6 +4,8 @@ import {
   getReviewSectionPrerequisites,
   getSectionSortIndex,
   isPrerequisiteSectionSatisfied,
+  arePrerequisiteSectionsSatisfied,
+  isCommercialOfferSendUnlocked,
   REVIEW_SECTION_ORDER,
   REVIEW_SECTION_ORDER_INVOICE_ONLY,
   applicationPrimaryOfferUsesContractAcceptance,
@@ -138,6 +140,36 @@ describe("isPrerequisiteSectionSatisfied", () => {
     );
   });
 
+  it("does not unlock Invoice from facility-details Approve on a new facility", () => {
+    expect(
+      isPrerequisiteSectionSatisfied("contract_details", "APPROVED", "invoice_details", {
+        structureType: "new_contract",
+        contractEntityStatus: "SUBMITTED",
+      })
+    ).toBe(false);
+    expect(
+      isPrerequisiteSectionSatisfied("contract_details", "APPROVED", "invoice_details", {
+        structureType: "new_contract",
+        contractEntityStatus: "APPROVED",
+      })
+    ).toBe(true);
+  });
+
+  it("unlocks Invoice from the approved linked facility on existing_contract", () => {
+    expect(
+      isPrerequisiteSectionSatisfied("contract_details", "PENDING", "invoice_details", {
+        structureType: "existing_contract",
+        contractEntityStatus: "APPROVED",
+      })
+    ).toBe(true);
+    expect(
+      isPrerequisiteSectionSatisfied("contract_details", "PENDING", "invoice_details", {
+        structureType: "existing_contract",
+        contractEntityStatus: "SUBMITTED",
+      })
+    ).toBe(false);
+  });
+
   it("treats Contract/Invoice OFFER_SENT as satisfied only for Acceptance", () => {
     expect(
       isPrerequisiteSectionSatisfied("contract_details", "OFFER_SENT", "acceptance_documents")
@@ -168,6 +200,91 @@ describe("isPrerequisiteSectionSatisfied", () => {
     ).toBe(false);
     expect(
       isPrerequisiteSectionSatisfied("contract_details", undefined, "acceptance_documents")
+    ).toBe(false);
+  });
+});
+
+describe("arePrerequisiteSectionsSatisfied", () => {
+  const approvedUnderwriting = (section: string) =>
+    ["financial", "company_details", "business_details", "supporting_documents"].includes(section)
+      ? "APPROVED"
+      : undefined;
+
+  it("blocks facility approve while underwriting is pending", () => {
+    expect(
+      arePrerequisiteSectionsSatisfied({
+        prereqs: getReviewSectionPrerequisites("new_contract").contract_details,
+        dependentSection: "contract_details",
+        getStatus: () => "PENDING",
+      })
+    ).toBe(false);
+    expect(
+      arePrerequisiteSectionsSatisfied({
+        prereqs: getReviewSectionPrerequisites("new_contract").contract_details,
+        dependentSection: "contract_details",
+        getStatus: approvedUnderwriting,
+      })
+    ).toBe(true);
+  });
+
+  it("allows invoice approve on existing_contract when underwriting is done and facility is approved", () => {
+    expect(
+      arePrerequisiteSectionsSatisfied({
+        prereqs: getReviewSectionPrerequisites("existing_contract").invoice_details,
+        dependentSection: "invoice_details",
+        getStatus: (section) =>
+          section === "contract_details" ? "PENDING" : approvedUnderwriting(section),
+        structureType: "existing_contract",
+        contractEntityStatus: "APPROVED",
+      })
+    ).toBe(true);
+    expect(
+      arePrerequisiteSectionsSatisfied({
+        prereqs: getReviewSectionPrerequisites("existing_contract").invoice_details,
+        dependentSection: "invoice_details",
+        getStatus: (section) =>
+          section === "contract_details" ? "PENDING" : approvedUnderwriting(section),
+        structureType: "existing_contract",
+        contractEntityStatus: "SUBMITTED",
+      })
+    ).toBe(false);
+  });
+
+  it("blocks invoice approve before Customer on invoice_only", () => {
+    expect(
+      arePrerequisiteSectionsSatisfied({
+        prereqs: getReviewSectionPrerequisites("invoice_only").invoice_details,
+        dependentSection: "invoice_details",
+        getStatus: (section) =>
+          section === "contract_details" ? "PENDING" : approvedUnderwriting(section),
+        structureType: "invoice_only",
+      })
+    ).toBe(false);
+    expect(
+      arePrerequisiteSectionsSatisfied({
+        prereqs: getReviewSectionPrerequisites("invoice_only").invoice_details,
+        dependentSection: "invoice_details",
+        getStatus: (section) =>
+          section === "contract_details" ? "APPROVED" : approvedUnderwriting(section),
+        structureType: "invoice_only",
+      })
+    ).toBe(true);
+  });
+});
+
+describe("isCommercialOfferSendUnlocked", () => {
+  it("requires details Approve before send, and allows expired resend", () => {
+    expect(
+      isCommercialOfferSendUnlocked({ detailsStatus: "PENDING", entityStatus: "SUBMITTED" })
+    ).toBe(false);
+    expect(
+      isCommercialOfferSendUnlocked({ detailsStatus: "APPROVED", entityStatus: "SUBMITTED" })
+    ).toBe(true);
+    expect(
+      isCommercialOfferSendUnlocked({ detailsStatus: "OFFER_SENT", entityStatus: "OFFER_EXPIRED" })
+    ).toBe(true);
+    expect(
+      isCommercialOfferSendUnlocked({ detailsStatus: "APPROVED", entityStatus: "OFFER_SENT" })
     ).toBe(false);
   });
 });

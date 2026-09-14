@@ -8,7 +8,6 @@ import {
   isSettlementWrappingUpFromSummary,
   isTenureBackedNote,
   malaysiaCalendarDaysRemaining,
-  NOTE_TIMING_GRACE_TOOLTIP,
   NOTE_TIMING_PAST_MATURITY_TOOLTIP,
   resolveNoteGracePeriodDays,
   resolveNoteTimingDisplay,
@@ -174,7 +173,37 @@ export function getInvestmentMaturityDisplay(
       tooltip: timing.tooltip,
     };
   }
+  const servicing = servicingOf(note);
   const days = calendarDaysFromToday(note.maturityDate, now);
+  const persistedDpd = Number(note.daysPastDue ?? 0);
+  const pastDueDays =
+    Number.isFinite(persistedDpd) && persistedDpd > 0
+      ? persistedDpd
+      : days != null && days < 0
+        ? Math.abs(days)
+        : 0;
+  if (
+    servicing === "OVERDUE" ||
+    servicing === "LATE" ||
+    servicing === "ARREARS" ||
+    servicing === "DEFAULTED"
+  ) {
+    const tenure = isTenureBackedNote(note.tenureDays);
+    return {
+      tone: "overdue",
+      value: String(pastDueDays),
+      unit:
+        pastDueDays === 1
+          ? tenure
+            ? "day past maturity"
+            : "day past due"
+          : tenure
+            ? "days past maturity"
+            : "days past due",
+      date,
+      tooltip: tenure ? NOTE_TIMING_PAST_MATURITY_TOOLTIP : null,
+    };
+  }
   if (days == null) {
     return { tone: "unknown", value: "—", unit: "Maturity date", date: "" };
   }
@@ -183,16 +212,6 @@ export function getInvestmentMaturityDisplay(
   }
   if (days < 0) {
     const elapsed = Math.abs(days);
-    const graceDays = resolveNoteGracePeriodDays(note);
-    if (isTenureBackedNote(note.tenureDays) && elapsed <= graceDays) {
-      return {
-        tone: "grace",
-        value: String(elapsed),
-        unit: elapsed === 1 ? "day in grace" : "days in grace",
-        date,
-        tooltip: NOTE_TIMING_GRACE_TOOLTIP,
-      };
-    }
     return {
       tone: "overdue",
       value: String(elapsed),

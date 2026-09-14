@@ -19,11 +19,17 @@ import {
   useAdminSigningEnvelopes,
   useAdminSigningPackageReadiness,
   useSendAdminSigningPackage,
+  useSyncAdminSigningEnvelope,
   useVoidSigningEnvelope,
   useRemindSigningRecipient,
   useRetryAutomaticSigningAssignment,
   useRetrySigningEnvelopeDelivery,
 } from "@/hooks/use-signing-envelopes";
+import { canResyncAdminSigningEnvelope } from "./signing-envelope-resync";
+import {
+  envelopesForSelectedInvoice,
+  resolveAcceptanceOfferDetails,
+} from "./signing-envelope-scope";
 import { useAdminSigningDocumentPreview } from "@/hooks/use-admin-signing-document-preview";
 import {
   computeSigningEnvelopeProgress,
@@ -110,26 +116,10 @@ function splitEnvelopes(envelopes: SigningEnvelopeDto[]): {
   return { primary: sorted[0] ?? null, history: sorted.slice(1) };
 }
 
-/**
- * Resolve offer_details used for offer_acceptance phase UI.
- * Prefer the invoice tied to the primary envelope when present.
- */
-export function resolveAcceptanceOfferDetails(args: {
-  primaryEnvelopeInvoiceId?: string | null;
-  offerDetails?: unknown;
-  invoices?: { id: string; offer_details?: unknown }[];
-}): unknown {
-  const { primaryEnvelopeInvoiceId, offerDetails, invoices = [] } = args;
-  if (primaryEnvelopeInvoiceId) {
-    return (
-      invoices.find((inv) => inv.id === primaryEnvelopeInvoiceId)?.offer_details ??
-      offerDetails ??
-      null
-    );
-  }
-  if (offerDetails != null) return offerDetails;
-  return invoices.find((inv) => inv.offer_details != null)?.offer_details ?? null;
-}
+export {
+  envelopesForSelectedInvoice,
+  resolveAcceptanceOfferDetails,
+} from "./signing-envelope-scope";
 
 export interface SigningEnvelopePanelProps {
   applicationId: string;
@@ -141,6 +131,11 @@ export interface SigningEnvelopePanelProps {
   offerDetails?: unknown;
   /** Standalone invoices (invoice_only structure) — each carries its own offer_details. */
   invoices?: { id: string; offer_details?: unknown }[];
+  /**
+   * Invoice-only: later stages and signing actions belong to this invoice,
+   * not the first invoice that happens to have offer details.
+   */
+  selectedInvoiceId?: string | null;
   /**
    * When false, hide the offer-acceptance status block
    * (Acceptance tab renders that above this panel).
@@ -161,6 +156,7 @@ export function SigningEnvelopePanel({
   canManage = true,
   offerDetails,
   invoices = [],
+  selectedInvoiceId,
   showOfferAcceptanceSummary = true,
   structureType,
   embedded = false,
@@ -171,6 +167,7 @@ export function SigningEnvelopePanel({
   const { data: envelopes = [], isLoading } = useAdminSigningEnvelopes(applicationId);
   const readinessQuery = useAdminSigningPackageReadiness(applicationId, canManage);
   const sendMutation = useSendAdminSigningPackage(applicationId);
+  const syncMutation = useSyncAdminSigningEnvelope(applicationId);
   const voidMutation = useVoidSigningEnvelope(applicationId);
   const remindMutation = useRemindSigningRecipient(applicationId);
   const retryAutoSignMutation = useRetryAutomaticSigningAssignment(applicationId);
@@ -183,7 +180,16 @@ export function SigningEnvelopePanel({
   const [extendConfirmOpen, setExtendConfirmOpen] = React.useState(false);
   const [sendConfirmOpen, setSendConfirmOpen] = React.useState(false);
 
-  const { primary, history } = React.useMemo(() => splitEnvelopes(envelopes), [envelopes]);
+  const isInvoiceOnly = isInvoiceOnlyFinancingStructure({ structure_type: structureType });
+  const scopedEnvelopes = React.useMemo(
+    () =>
+      isInvoiceOnly ? envelopesForSelectedInvoice(envelopes, selectedInvoiceId) : envelopes,
+    [envelopes, isInvoiceOnly, selectedInvoiceId]
+  );
+  const { primary, history } = React.useMemo(
+    () => splitEnvelopes(scopedEnvelopes),
+    [scopedEnvelopes]
+  );
   const previousPrimaryStatus = React.useRef<string | undefined>(undefined);
   const previousSendError = React.useRef<string | null | undefined>(undefined);
 
@@ -210,8 +216,9 @@ export function SigningEnvelopePanel({
         primaryEnvelopeInvoiceId: primary?.invoice_id,
         offerDetails,
         invoices,
+        selectedInvoiceId: isInvoiceOnly ? selectedInvoiceId : null,
       }),
-    [primary, offerDetails, invoices]
+    [primary, offerDetails, invoices, isInvoiceOnly, selectedInvoiceId]
   );
 
   const acceptance = getOfferAcceptanceFromOfferDetails(acceptanceOfferDetails);
@@ -224,17 +231,17 @@ export function SigningEnvelopePanel({
     acceptance.status !== "SIGNING_IN_PROGRESS" &&
     acceptance.status !== "COMPLETED";
 
-  const isInvoiceOnly = isInvoiceOnlyFinancingStructure({ structure_type: structureType });
   const noOfferYetHint = isInvoiceOnly
     ? "Send an offer from Invoice to start acceptance."
     : "Send an offer from Facility to start acceptance.";
 
   const invoiceIdForExtend = React.useMemo(() => {
     if (!isInvoiceOnly) return null;
+    if (selectedInvoiceId) return selectedInvoiceId;
     if (primary?.invoice_id) return primary.invoice_id;
     const withOffer = invoices.find((inv) => inv.offer_details != null);
     return withOffer?.id ?? null;
-  }, [isInvoiceOnly, primary?.invoice_id, invoices]);
+  }, [isInvoiceOnly, selectedInvoiceId, primary?.invoice_id, invoices]);
 
   const extendPending = extendContractMutation.isPending || extendInvoiceMutation.isPending;
 
@@ -246,6 +253,15 @@ export function SigningEnvelopePanel({
       absolute: formatPhaseDeadlineAbsolute(completeByIso),
     };
   }, [workflow, extendConfirmOpen]);
+
+  const handleResync = async (envelopeId: string) => {
+    try {
+      await syncMutation.mutateAsync(envelopeId);
+      toast.success("Signing package synced");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to re-sync");
+    }
+  };
 
   const handleVoid = async (envelopeId: string) => {
     try {
@@ -370,7 +386,7 @@ export function SigningEnvelopePanel({
     canManage &&
     acceptance?.status === "APPROVED_FOR_SIGNING" &&
     !signingClockPast &&
-    !hasEnvelopeBlockingNewSend(envelopes) &&
+    !hasEnvelopeBlockingNewSend(scopedEnvelopes) &&
     (!isInvoiceOnly || Boolean(invoiceIdForExtend));
 
   const sendPending = sendMutation.isPending || primary?.send_in_progress === true;
@@ -452,7 +468,7 @@ export function SigningEnvelopePanel({
 
       {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
 
-      {!isLoading && envelopes.length === 0 && (
+      {!isLoading && scopedEnvelopes.length === 0 && (
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground">{emptySigningMessage}</p>
           {canSendSigningLinks ? (
@@ -469,7 +485,7 @@ export function SigningEnvelopePanel({
         </div>
       )}
 
-      {!isLoading && envelopes.length > 0 && canSendSigningLinks ? (
+      {!isLoading && scopedEnvelopes.length > 0 && canSendSigningLinks ? (
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm text-muted-foreground">
             Previous packages were voided. Send new signing links to the authorised representatives.
@@ -492,7 +508,9 @@ export function SigningEnvelopePanel({
           canManage={canManage}
           canRemind={canRemindPrimary}
           remindDisabled={remindMutation.isPending}
+          resyncDisabled={syncMutation.isPending}
           voidDisabled={voidMutation.isPending || sendPending}
+          onResync={() => handleResync(primary.id)}
           onVoid={() => handleVoid(primary.id)}
           onRemind={(recipientId, documentId) => handleRemind(primary.id, recipientId, documentId)}
           onRetryAutoSign={(assignmentId) => handleRetryAutoSign(primary.id, assignmentId)}
@@ -705,7 +723,9 @@ function ActiveEnvelopeCard({
   canManage,
   canRemind,
   remindDisabled,
+  resyncDisabled,
   voidDisabled,
+  onResync,
   onVoid,
   onRemind,
   onRetryAutoSign,
@@ -724,7 +744,9 @@ function ActiveEnvelopeCard({
   canManage: boolean;
   canRemind: boolean;
   remindDisabled: boolean;
+  resyncDisabled: boolean;
   voidDisabled: boolean;
+  onResync: () => void;
   onVoid: () => void;
   onRemind: (recipientId: string, documentId: string) => void;
   onRetryAutoSign?: (assignmentId: string) => void;
@@ -741,6 +763,7 @@ function ActiveEnvelopeCard({
 }) {
   const canVoid =
     canManage && envelope.status !== "COMPLETED" && envelope.status !== "VOIDED";
+  const canResync = canResyncAdminSigningEnvelope(canManage, envelope.status);
   const unsignedCount = envelope.recipients.filter(isRemindableSigningRecipient).length;
   const phaseMessage = sendPhaseMessage(envelope);
   const showSendStatus =
@@ -758,10 +781,25 @@ function ActiveEnvelopeCard({
             status={getAdminStatusToken(envelope.status)}
           />
         </div>
-        {canVoid ? (
-          <Button size="sm" variant="outline" onClick={onVoid} disabled={voidDisabled}>
-            Void
-          </Button>
+        {canResync || canVoid ? (
+          <div className="flex shrink-0 items-center gap-2">
+            {canResync ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={onResync}
+                disabled={resyncDisabled}
+              >
+                Re-sync
+              </Button>
+            ) : null}
+            {canVoid ? (
+              <Button size="sm" variant="outline" onClick={onVoid} disabled={voidDisabled}>
+                Void
+              </Button>
+            ) : null}
+          </div>
         ) : null}
       </div>
 

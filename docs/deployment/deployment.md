@@ -40,6 +40,7 @@ Follow the comprehensive setup guide:
 📁 **[infra/README.md](../../infra/README.md)** - Step-by-step AWS resource creation
 
 This includes:
+
 - VPC and networking
 - ALB and target groups
 - ECS cluster
@@ -61,6 +62,7 @@ This creates ECR repositories for all 5 services with lifecycle policies.
 Set up GitHub Actions to deploy to AWS without long-lived credentials.
 
 **Create OIDC Provider:**
+
 ```bash
 aws iam create-open-id-connect-provider \
   --url https://token.actions.githubusercontent.com \
@@ -69,39 +71,39 @@ aws iam create-open-id-connect-provider \
 ```
 
 **Create Deployment Role:**
+
 ```json
 {
   "Version": "2012-10-17",
-  "Statement": [{
-    "Effect": "Allow",
-    "Principal": {
-      "Federated": "arn:aws:iam::ACCOUNT_ID:oidc-provider/token.actions.githubusercontent.com"
-    },
-    "Action": "sts:AssumeRoleWithWebIdentity",
-    "Condition": {
-      "StringEquals": {
-        "token.actions.githubusercontent.com:sub": "repo:ORG/REPO:ref:refs/heads/main"
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::ACCOUNT_ID:oidc-provider/token.actions.githubusercontent.com"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "token.actions.githubusercontent.com:sub": "repo:ORG/REPO:ref:refs/heads/main"
+        }
       }
     }
-  }]
+  ]
 }
 ```
 
 **Attach Policy:**
+
 ```json
 {
   "Version": "2012-10-17",
-  "Statement": [{
-    "Effect": "Allow",
-    "Action": [
-      "ecr:*",
-      "ecs:*",
-      "logs:*",
-      "ssm:GetParameter*",
-      "secretsmanager:GetSecretValue"
-    ],
-    "Resource": "*"
-  }]
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["ecr:*", "ecs:*", "logs:*", "ssm:GetParameter*", "secretsmanager:GetSecretValue"],
+      "Resource": "*"
+    }
+  ]
 }
 ```
 
@@ -133,10 +135,15 @@ aws ssm put-parameter --name /cashsouk/prod/cognito/region \
 aws ssm put-parameter --name /cashsouk/prod/cloudfront/url \
   --value "https://assets.cashsouk.com" --type String
 
-# API specific
+# API runtime (cashsouk_app). Do not point the API task at the migrate secret.
 aws secretsmanager create-secret \
-  --name /cashsouk/prod/database-url \
-  --secret-string "postgresql://user:pass@rds-endpoint:5432/cashsouk_prod"
+  --name cashsouk/app-database-url \
+  --secret-string "postgresql://cashsouk_app:PASSWORD@rds-endpoint:5432/cashsouk"
+
+# Migrations (cashsouk_admin). ECS migrate task only.
+aws secretsmanager create-secret \
+  --name cashsouk/database-url \
+  --secret-string "postgresql://cashsouk_admin:PASSWORD@rds-endpoint:5432/cashsouk"
 
 aws ssm put-parameter --name /cashsouk/prod/s3/bucket-name \
   --value "cashsouk-prod-uploads" --type String
@@ -150,13 +157,7 @@ aws ssm put-parameter --name /cashsouk/prod/cors/allowed-origins \
 
 ### 6. Initial Database Migration
 
-Run migrations manually before first deployment:
-
-```bash
-# From local machine or bastion host
-cd apps/api
-DATABASE_URL="postgresql://..." npx prisma migrate deploy
-```
+Run migrations via the ECS migrate task (`cashsouk/database-url`, admin role) before first API rollout. Production RDS is intended to be private; operator laptops have no direct route, so do not run `prisma migrate deploy` against prod from a laptop.
 
 ### 7. Deploy
 
@@ -167,6 +168,7 @@ git push origin main
 ```
 
 GitHub Actions will:
+
 1. ✅ Run tests (lint, typecheck, build)
 2. 🐳 Build Docker images
 3. 📦 Push images to ECR
@@ -182,19 +184,18 @@ on:
   push:
     branches: [main]
 
-jobs:
-  test → build → migrate → deploy
+jobs: test → build → migrate → deploy
 ```
 
 ### What Gets Deployed
 
-| Service | Image | ECS Service | ALB Host |
-|---------|-------|-------------|----------|
-| Landing | `cashsouk-landing` | `cashsouk-landing` | cashsouk.com |
+| Service  | Image               | ECS Service         | ALB Host              |
+| -------- | ------------------- | ------------------- | --------------------- |
+| Landing  | `cashsouk-landing`  | `cashsouk-landing`  | cashsouk.com          |
 | Investor | `cashsouk-investor` | `cashsouk-investor` | investor.cashsouk.com |
-| Issuer | `cashsouk-issuer` | `cashsouk-issuer` | issuer.cashsouk.com |
-| Admin | `cashsouk-admin` | `cashsouk-admin` | admin.cashsouk.com |
-| API | `cashsouk-api` | `cashsouk-api` | api.cashsouk.com |
+| Issuer   | `cashsouk-issuer`   | `cashsouk-issuer`   | issuer.cashsouk.com   |
+| Admin    | `cashsouk-admin`    | `cashsouk-admin`    | admin.cashsouk.com    |
+| API      | `cashsouk-api`      | `cashsouk-api`      | api.cashsouk.com      |
 
 ### Task Definitions
 
@@ -208,6 +209,7 @@ All task definitions are in `infra/ecs/`:
 - `task-def-migrations.json`
 
 These define:
+
 - CPU/Memory allocation
 - Environment variables
 - Secrets (from SSM)
@@ -270,17 +272,19 @@ aws ecs update-service \
 
 ## Environment Strategy
 
-| Environment | Database | Apps | Config |
-|-------------|----------|------|--------|
-| **Local Dev** | Docker | pnpm | `.env.local` |
-| **Prod** | RDS | ECS | SSM/Secrets |
+| Environment   | Database | Apps | Config       |
+| ------------- | -------- | ---- | ------------ |
+| **Local Dev** | Docker   | pnpm | `.env.local` |
+| **Prod**      | RDS      | ECS  | SSM/Secrets  |
 
 **Local Development:**
+
 - Database in Docker (easy reset)
 - Apps run with pnpm (hot reload)
 - `.env.local` files for config
 
 **AWS Production:**
+
 - Everything in Docker (reproducible)
 - RDS PostgreSQL (managed)
 - SSM Parameter Store (secure)
@@ -326,7 +330,7 @@ aws ecr get-login-password --region ap-southeast-5 | \
 - [ ] HTTPS only (ACM certificates)
 - [ ] WAF rules enabled
 - [ ] Security groups properly configured
-- [ ] RDS not publicly accessible
+- [ ] RDS not publicly accessible (target: private instance; operator laptops have no direct route)
 - [ ] Secrets in Secrets Manager (not SSM)
 - [ ] IAM roles follow least privilege
 - [ ] CloudWatch alarms configured
@@ -335,19 +339,23 @@ aws ecr get-login-password --region ap-southeast-5 | \
 ## Cost Optimization
 
 **ECS Fargate:**
+
 - Use minimum required CPU/memory
 - Enable auto-scaling (scale down overnight)
 
 **RDS:**
+
 - Right-size instance
 - Enable automated backups (7 days)
 - Consider Reserved Instances for production
 
 **S3:**
+
 - Enable lifecycle policies
 - Use Intelligent-Tiering
 
 **CloudFront:**
+
 - Cache static assets aggressively
 - Use S3 origin for static content
 
@@ -366,4 +374,3 @@ aws ecr get-login-password --region ap-southeast-5 | \
 - 📄 [Environment Variables](../guides/environment-variables.md) - All configuration
 - 📄 [Getting Started](../guides/getting-started.md) - Local development setup
 - 📄 [Development Guide](../guides/development.md) - Development workflow
-

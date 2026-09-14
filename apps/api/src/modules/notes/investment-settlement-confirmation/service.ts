@@ -1018,8 +1018,8 @@ async function payloadForRow(input: {
   const snapshot = parseConfirmationSnapshot(row.snapshot);
   const ready = row.status === InvestmentSettlementConfirmationStatus.READY && row.pdf_s3_key;
   const fileName = confirmationPdfFileName({
-    noteReference: snapshot?.noteReference ?? row.note_id,
-    investorReference: snapshot?.investorReference ?? row.investor_organization_id,
+    noteReference: snapshot?.noteReference || "note",
+    investorReference: snapshot?.investorReference || "investor",
   });
   const urls = ready
     ? await signedPdfUrls({ storageKey: row.pdf_s3_key!, fileName })
@@ -1051,8 +1051,8 @@ async function reviewPayloadForConfirmation(
   const snapshot = parseConfirmationSnapshot(row.snapshot);
   const ready = row.status === InvestmentSettlementConfirmationStatus.READY && row.pdf_s3_key;
   const fileName = confirmationPdfFileName({
-    noteReference: snapshot?.noteReference ?? row.note_id,
-    investorReference: snapshot?.investorReference ?? row.investor_organization_id,
+    noteReference: snapshot?.noteReference || "note",
+    investorReference: snapshot?.investorReference || "investor",
   });
   const urls = ready
     ? await signedPdfUrls({ storageKey: row.pdf_s3_key!, fileName })

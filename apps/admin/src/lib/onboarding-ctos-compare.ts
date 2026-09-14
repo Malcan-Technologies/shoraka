@@ -46,9 +46,9 @@ function getCtosId(x: unknown): string | null {
   }
   if (partyType === "C") {
     const id =
-      typeof row.ic_lcno === "string" && row.ic_lcno.trim()
-        ? row.ic_lcno
-        : row.brn_ssm;
+      (typeof row.ic_lcno === "string" && row.ic_lcno.trim() ? row.ic_lcno : null) ??
+      (typeof row.brn_ssm === "string" && row.brn_ssm.trim() ? row.brn_ssm : null) ??
+      (typeof row.nic_brno === "string" && row.nic_brno.trim() ? row.nic_brno : null);
     if (typeof id === "string" && id.trim()) {
       return id.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
     }

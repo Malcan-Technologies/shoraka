@@ -27,6 +27,8 @@ export const CTOS_PROVIDER_MESSAGE = "CTOS is temporarily unavailable. Please tr
 export const CTOS_PARSE_MESSAGE =
   "CTOS returned an unexpected response. Please retry or contact support if the issue continues.";
 export const CTOS_INTERNAL_MESSAGE = "CTOS fetch failed. Please retry or contact support if it continues.";
+export const CTOS_FETCH_FAILED_SHOWING_ONBOARDING_MESSAGE =
+  "Unable to fetch CTOS data. Showing the submitted onboarding data instead.";
 
 export function missingCompanyRegistrationError(includeRegtankHint: boolean): AppError {
   const message = includeRegtankHint

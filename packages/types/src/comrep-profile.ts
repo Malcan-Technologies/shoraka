@@ -1,16 +1,22 @@
 import { normalizeProfilePhone } from "./profile-phone";
 import { shouldDeferOnboardingPersonComrep } from "./person-onboarding-display";
+import { FINANCIAL_FIELD_LABELS } from "./financial-field-labels";
+import {
+  PROFILE_ADDRESS_FIELD_LABELS,
+  PROFILE_LABEL,
+  profileAddressCompletenessLabel,
+} from "./profile-field-copy";
 
 /**
  * SC ComRep enumerations and CashSouk master-profile completeness.
  * Annual RMO Information Report tables are [01000]–[11000]; issuer/investor
  * profile completeness uses monthly P2P [02000], [05000], [06000], [07000], [09000], [09100].
  *
- * Issuer [02000] "Issuer ID (if any)" and [02000] Company Activities are not
- * completeness blockers: the former is explicitly "if any"; the latter is stored
- * as the issuer's general/current activity on Issuer Profile. Campaign-specific
- * ComRep interpretation of Company Activities remains
- * Needs business/compliance confirmation.
+ * Issuer [02000] "Issuer ID (if any)" is not a completeness blocker (explicitly
+ * "if any"). Company Activities (`whatDoesCompanyDo`) and main customers are
+ * CashSouk profile completeness blockers because the application company step
+ * cannot continue without them. Campaign-specific ComRep interpretation of
+ * Company Activities remains Needs business/compliance confirmation.
  *
  * [02000] Company category and [03000] Sustainability Category of the Campaign
  * are invoice/campaign fields, not issuer-profile completeness.
@@ -209,7 +215,7 @@ export function parseInvoiceOfferSustainabilityCategory(
 
 /**
  * Authoritative Company category for an invoice/campaign.
- * Offer freeze wins after Admin send/correction; otherwise issuer-submitted invoice.details.
+ * Offer freeze wins after send (copied from issuer-submitted invoice.details); otherwise invoice.details.
  * Never read IssuerOrganization.company_category.
  */
 export function resolveInvoiceCompanyCategory(invoice: {
@@ -224,7 +230,7 @@ export function resolveInvoiceCompanyCategory(invoice: {
 
 /**
  * Authoritative Sustainability Category of the Campaign for an invoice/campaign.
- * Offer freeze wins after Admin send/correction; otherwise issuer-submitted invoice.details.
+ * Offer freeze wins after send (copied from issuer-submitted invoice.details); otherwise invoice.details.
  * Do not default to 00 – None.
  */
 export function resolveInvoiceSustainabilityCategory(invoice: {
@@ -322,7 +328,7 @@ export function parseInvoiceOfferCampaignSector(offer: unknown): ScCampaignSecto
 
 /**
  * Authoritative Campaign Sector for an invoice/campaign.
- * Offer freeze wins after Admin send/correction; otherwise issuer-submitted invoice.details.
+ * Offer freeze wins after send (copied from issuer-submitted invoice.details); otherwise invoice.details.
  * Never read issuer Industry / profile.
  */
 export function resolveInvoiceCampaignSector(invoice: {
@@ -450,6 +456,22 @@ export function isIssuerContactPersonFilled(
       trimContactText(contact.email) ||
       trimContactText(contact.contact)
   );
+}
+
+/** Current Profile contact, then RegTank PIC — same resolution the issuer application company-details step uses. */
+export function resolveIssuerProfileContactPerson(
+  contactPerson: IssuerContactPerson | null | undefined,
+  personInCharge: IssuerPersonInChargeEvidence | null | undefined
+): IssuerContactPerson {
+  if (isIssuerContactPersonFilled(contactPerson)) {
+    return {
+      name: trimContactText(contactPerson?.name) || null,
+      position: trimContactText(contactPerson?.position) || null,
+      email: trimContactText(contactPerson?.email) || null,
+      contact: trimContactText(contactPerson?.contact) || null,
+    };
+  }
+  return seedIssuerContactPersonFromPic(personInCharge);
 }
 
 export function seedIssuerContactPersonFromPic(
@@ -912,18 +934,23 @@ export const ISSUER_PROFILE_UI_SECTIONS: Array<{
   { id: "about", label: "About your business", href: "#profile-about" },
   { id: "addresses", label: "Addresses", href: "#profile-addresses" },
   { id: "contact", label: "Person in Charge", href: "#profile-contact" },
-  { id: "people", label: "People", href: "#profile-people" },
+  { id: "people", label: "People & Access", href: "#profile-people" },
   { id: "financials", label: "Financials", href: "#profile-financials" },
 ];
 
 export function issuerUiSectionForMissing(item: ProfileMissingItem): ProfileUiSectionId {
   if (item.step === "shareholders" || item.step === "board") return "people";
   if (item.step === "financials") return "financials";
-  if (item.field === "companyActivities") return "about";
+  if (item.field === "companyActivities" || item.field === "mainCustomers") return "about";
   if (item.field.startsWith("registeredAddress") || item.field.startsWith("businessAddress")) {
     return "addresses";
   }
-  if (item.field === "contactPersonEmail" || item.field === "contactPersonPhone") {
+  if (
+    item.field === "contactPersonEmail" ||
+    item.field === "contactPersonPhone" ||
+    item.field === "contactPersonName" ||
+    item.field === "contactPersonPosition"
+  ) {
     return "contact";
   }
   return "company";
@@ -1088,6 +1115,7 @@ export interface IssuerCompanyCompletenessInput {
   contactPerson?: IssuerContactPerson | null;
   personInCharge?: IssuerPersonInChargeEvidence | null;
   companyActivities: string | null | undefined;
+  mainCustomers: string | null | undefined;
 }
 
 export interface PartyAddressCompletenessInput {
@@ -1359,53 +1387,83 @@ function withUserFacingCompleteness(
   };
 }
 
-/** Platform completeness for issuer company master data. Issuer ID (if any) and Company Activities are not counted. */
-export const ISSUER_COMPANY_COMPLETENESS_FIELD_COUNT = 14;
+/**
+ * Platform completeness for issuer company master data.
+ * Includes Person in Charge Full Name and Position, Company Activities, and main
+ * customers because the issuer application company-details step cannot continue
+ * without them on Profile. Issuer ID (if any) is not counted.
+ */
+export const ISSUER_COMPANY_COMPLETENESS_FIELD_COUNT = 18;
 
 export function computeIssuerCompanyCompleteness(
   input: IssuerCompanyCompletenessInput
 ): ProfileMissingItem[] {
   const missing: ProfileMissingItem[] = [];
   const step: ComrepProfileStepId = "company";
-  if (!hasText(input.name)) pushMissing(missing, step, "name", "Name of Issuer");
-  if (!hasText(input.registrationNumber)) pushMissing(missing, step, "registrationNumber", "Issuer ROC");
+  if (!hasText(input.name)) pushMissing(missing, step, "name", PROFILE_LABEL.companyName);
+  if (!hasText(input.registrationNumber)) {
+    pushMissing(missing, step, "registrationNumber", PROFILE_LABEL.companyRegistrationNumber);
+  }
   if (!hasDate(input.dateOfIncorporation)) {
-    pushMissing(missing, step, "dateOfIncorporation", "Date of Incorporation (dd/mm/yyyy)");
+    pushMissing(missing, step, "dateOfIncorporation", PROFILE_LABEL.dateOfIncorporation);
   }
   if (!hasDate(input.dateOfCommencement)) {
-    pushMissing(missing, step, "dateOfCommencement", "Date of Commencement (dd/mm/yyyy)");
+    pushMissing(missing, step, "dateOfCommencement", PROFILE_LABEL.dateBusinessCommenced);
   }
   if (!hasText(input.countryOfIncorporation)) {
-    pushMissing(missing, step, "countryOfIncorporation", "Country of Incorporation");
+    pushMissing(missing, step, "countryOfIncorporation", PROFILE_LABEL.countryOfIncorporation);
   }
   if (!hasText(input.scCompanyType)) {
-    pushMissing(missing, step, "scCompanyType", "Type of Company");
+    pushMissing(missing, step, "scCompanyType", PROFILE_LABEL.typeOfCompany);
   }
   if (!hasText(input.registeredAddress?.line1)) {
-    pushMissing(missing, step, "registeredAddress.line1", "Registered Address");
+    pushMissing(missing, step, "registeredAddress.line1", profileAddressCompletenessLabel("registered", "line1"));
   }
   if (!hasText(input.registeredAddress?.state)) {
-    pushMissing(missing, step, "registeredAddress.state", "Registered Address - State");
+    pushMissing(missing, step, "registeredAddress.state", profileAddressCompletenessLabel("registered", "state"));
   }
   if (!hasRequiredPostcodeValue(input.registeredAddress?.postalCode, input.registeredAddress?.state)) {
-    pushMissing(missing, step, "registeredAddress.postalCode", "Registered Address - Postcode");
+    pushMissing(
+      missing,
+      step,
+      "registeredAddress.postalCode",
+      profileAddressCompletenessLabel("registered", "postcode")
+    );
   }
   if (!hasText(input.businessAddress?.line1)) {
-    pushMissing(missing, step, "businessAddress.line1", "Business Address");
+    pushMissing(missing, step, "businessAddress.line1", profileAddressCompletenessLabel("business", "line1"));
   }
   if (!hasText(input.businessAddress?.state)) {
-    pushMissing(missing, step, "businessAddress.state", "Business Address - State");
+    pushMissing(missing, step, "businessAddress.state", profileAddressCompletenessLabel("business", "state"));
   }
   if (!hasRequiredPostcodeValue(input.businessAddress?.postalCode, input.businessAddress?.state)) {
-    pushMissing(missing, step, "businessAddress.postalCode", "Business Address - Postcode");
+    pushMissing(
+      missing,
+      step,
+      "businessAddress.postalCode",
+      profileAddressCompletenessLabel("business", "postcode")
+    );
+  }
+  const profileContact = resolveIssuerProfileContactPerson(input.contactPerson, input.personInCharge);
+  if (!hasText(profileContact.name)) {
+    pushMissing(missing, step, "contactPersonName", PROFILE_LABEL.fullName);
+  }
+  if (!hasText(profileContact.position)) {
+    pushMissing(missing, step, "contactPersonPosition", PROFILE_LABEL.position);
   }
   const contactEmail = resolveIssuerComrepEmail(input.contactPerson, input.personInCharge);
   const contactPhone = resolveIssuerComrepPhone(input.contactPerson, input.personInCharge);
   if (!hasValidPhoneValue(contactPhone)) {
-    pushMissing(missing, step, "contactPersonPhone", "Phone Number");
+    pushMissing(missing, step, "contactPersonPhone", PROFILE_LABEL.phone);
   }
   if (!hasValidEmailValue(contactEmail)) {
-    pushMissing(missing, step, "contactPersonEmail", "E-mail Address");
+    pushMissing(missing, step, "contactPersonEmail", PROFILE_LABEL.personEmail);
+  }
+  if (!hasText(input.companyActivities)) {
+    pushMissing(missing, step, "companyActivities", PROFILE_LABEL.companyActivities);
+  }
+  if (!hasText(input.mainCustomers)) {
+    pushMissing(missing, step, "mainCustomers", PROFILE_LABEL.mainCustomers);
   }
   return missing;
 }
@@ -1419,7 +1477,7 @@ export function computeShareholderCompleteness(
   if (!hasText(party.entityType)) {
     pushMissing(missing, step, "entityType", "Shareholder Type", who);
   }
-  if (!hasText(party.name)) pushMissing(missing, step, "name", "Shareholder Name", who);
+  if (!hasText(party.name)) pushMissing(missing, step, "name", PROFILE_LABEL.fullName, who);
   if (party.entityType === "CORPORATE") {
     if (party.identityPrefix !== "ROC") {
       pushMissing(missing, step, "identityPrefix", "Identity Prefix", who);
@@ -1432,51 +1490,51 @@ export function computeShareholderCompleteness(
       missing,
       step,
       "identityNumber",
-      "Shareholder Identity (NRIC/Passport/Company Registration No.)",
+      PROFILE_LABEL.identityNumber,
       who
     );
   }
   if (party.entityType === "INDIVIDUAL") {
     if (!hasDate(party.dateOfBirth)) {
-      pushMissing(missing, step, "dateOfBirth", "Date of Birth (dd/mm/yyyy)", who);
+      pushMissing(missing, step, "dateOfBirth", PROFILE_LABEL.dateOfBirth, who);
     }
     if (!hasText(party.gender) || party.gender === "NOT_APPLICABLE") {
       pushMissing(missing, step, "gender", "Gender", who);
     }
-    if (!hasText(party.nationality)) pushMissing(missing, step, "nationality", "Nationality/Country", who);
+    if (!hasText(party.nationality)) pushMissing(missing, step, "nationality", PROFILE_LABEL.nationality, who);
   } else {
     if (!hasDate(party.dateOfIncorporation)) {
-      pushMissing(missing, step, "dateOfIncorporation", "Date of Birth (dd/mm/yyyy)", who);
+      pushMissing(missing, step, "dateOfIncorporation", PROFILE_LABEL.dateOfIncorporation, who);
     }
     if (party.gender !== "NOT_APPLICABLE") {
       pushMissing(missing, step, "gender", "Gender", who);
     }
     if (!hasText(party.countryOfIncorporation)) {
-      pushMissing(missing, step, "countryOfIncorporation", "Nationality/Country", who);
+      pushMissing(missing, step, "countryOfIncorporation", PROFILE_LABEL.countryOfIncorporation, who);
     }
   }
   const addr = hasAddressLineAndLocation(party.address);
   if (!addr.line1) {
-    pushMissing(missing, step, "address.line1", "Business/Residential Address", who);
+    pushMissing(missing, step, "address.line1", PROFILE_ADDRESS_FIELD_LABELS.address, who);
   }
   if (!addr.state) {
-    pushMissing(missing, step, "address.state", "Business/Residential Address - State", who);
+    pushMissing(missing, step, "address.state", PROFILE_ADDRESS_FIELD_LABELS.state, who);
   }
   if (!addr.postalCode) {
-    pushMissing(missing, step, "address.postalCode", "Business/Residential Address - Postcode", who);
+    pushMissing(missing, step, "address.postalCode", PROFILE_ADDRESS_FIELD_LABELS.postcode, who);
   }
-  if (!hasText(party.shareType)) pushMissing(missing, step, "shareType", "Type of Shares", who);
+  if (!hasText(party.shareType)) pushMissing(missing, step, "shareType", PROFILE_LABEL.typeOfShares, who);
   if (party.shareType === "OTHERS" && !hasText(party.shareTypeOther)) {
-    pushMissing(missing, step, "shareTypeOther", "Type of Shares - Others (please specify)", who);
+    pushMissing(missing, step, "shareTypeOther", PROFILE_LABEL.typeOfSharesOther, who);
   }
   if (!hasNumber(party.shareholdingUnits)) {
-    pushMissing(missing, step, "shareholdingUnits", "Shareholding Units (unit)", who);
+    pushMissing(missing, step, "shareholdingUnits", PROFILE_LABEL.shareholdingUnits, who);
   }
   if (!hasNumber(party.shareholdingAmount)) {
-    pushMissing(missing, step, "shareholdingAmount", "Shareholding Amount (RM)", who);
+    pushMissing(missing, step, "shareholdingAmount", PROFILE_LABEL.shareholdingAmount, who);
   }
   if (!hasNumber(party.shareholdingPercentage)) {
-    pushMissing(missing, step, "shareholdingPercentage", "Shareholding Percentage (%)", who);
+    pushMissing(missing, step, "shareholdingPercentage", PROFILE_LABEL.shareholdingPercentage, who);
   }
   return missing;
 }
@@ -1486,33 +1544,33 @@ export function computeBoardCompleteness(party: BoardCompletenessInput): Profile
   const step: ComrepProfileStepId = "board";
   const who = { partyKey: party.partyKey, partyName: party.name ?? null };
   const requireOfficerFields = party.requireOfficerFields !== false;
-  if (!hasText(party.name)) pushMissing(missing, step, "name", "Name", who);
+  if (!hasText(party.name)) pushMissing(missing, step, "name", PROFILE_LABEL.fullName, who);
   if (!hasText(party.identityPrefix) || party.identityPrefix === "ROC") {
-    pushMissing(missing, step, "identityPrefix", "Identity Prefix", who);
+    pushMissing(missing, step, "identityPrefix", PROFILE_LABEL.identityPrefix, who);
   }
   if (!hasText(party.identityNumber)) {
-    pushMissing(missing, step, "identityNumber", "Identity Number (NRIC/Passport No.)", who);
+    pushMissing(missing, step, "identityNumber", PROFILE_LABEL.identityNumber, who);
   }
   if (!hasText(party.gender) || party.gender === "NOT_APPLICABLE") {
-    pushMissing(missing, step, "gender", "Gender", who);
+    pushMissing(missing, step, "gender", PROFILE_LABEL.gender, who);
   }
   if (!hasDate(party.dateOfBirth)) {
-    pushMissing(missing, step, "dateOfBirth", "Date of Birth (dd/mm/yyyy)", who);
+    pushMissing(missing, step, "dateOfBirth", PROFILE_LABEL.dateOfBirth, who);
   }
-  if (!hasText(party.nationality)) pushMissing(missing, step, "nationality", "Nationality", who);
+  if (!hasText(party.nationality)) pushMissing(missing, step, "nationality", PROFILE_LABEL.nationality, who);
   const addr = hasAddressLineAndLocation(party.address);
-  if (!addr.line1) pushMissing(missing, step, "address.line1", "Residential Address", who);
-  if (!addr.state) pushMissing(missing, step, "address.state", "Residential Address - State", who);
+  if (!addr.line1) pushMissing(missing, step, "address.line1", PROFILE_ADDRESS_FIELD_LABELS.address, who);
+  if (!addr.state) pushMissing(missing, step, "address.state", PROFILE_ADDRESS_FIELD_LABELS.state, who);
   if (!addr.postalCode) {
-    pushMissing(missing, step, "address.postalCode", "Residential Address - Postcode", who);
+    pushMissing(missing, step, "address.postalCode", PROFILE_ADDRESS_FIELD_LABELS.postcode, who);
   }
   if (requireOfficerFields) {
-    if (!hasText(party.designation)) pushMissing(missing, step, "designation", "Designation", who);
+    if (!hasText(party.designation)) pushMissing(missing, step, "designation", PROFILE_LABEL.designation, who);
     if (party.designation === "OTHERS" && !hasText(party.designationOther)) {
-      pushMissing(missing, step, "designationOther", "Designation - Others (please specify)", who);
+      pushMissing(missing, step, "designationOther", PROFILE_LABEL.designationOther, who);
     }
     if (!hasDate(party.appointmentDate)) {
-      pushMissing(missing, step, "appointmentDate", "Appointment Date (dd/mm/yyyy)", who);
+      pushMissing(missing, step, "appointmentDate", PROFILE_LABEL.appointmentDate, who);
     }
   }
   return missing;
@@ -1557,105 +1615,102 @@ function issuerPersonRequiredFields(party: IssuerPersonCompletenessInput): Issue
   push(
     identityStep,
     "name",
-    party.isShareholder ? "Shareholder Name" : "Name",
+    PROFILE_LABEL.fullName,
     hasText(party.name)
   );
   if (corporate) {
-    push(identityStep, "identityPrefix", "Identity Prefix", party.identityPrefix === "ROC");
+    push(identityStep, "identityPrefix", PROFILE_LABEL.identityPrefix, party.identityPrefix === "ROC");
   } else {
     push(
       identityStep,
       "identityPrefix",
-      "Identity Prefix",
+      PROFILE_LABEL.identityPrefix,
       hasText(party.identityPrefix) && party.identityPrefix !== "ROC"
     );
   }
   push(
     identityStep,
     "identityNumber",
-    party.isShareholder
-      ? "Shareholder Identity (NRIC/Passport/Company Registration No.)"
-      : "Identity Number (NRIC/Passport No.)",
+    PROFILE_LABEL.identityNumber,
     hasText(party.identityNumber)
   );
   if (corporate) {
     push(
       identityStep,
       "dateOfIncorporation",
-      "Date of Incorporation (dd/mm/yyyy)",
+      PROFILE_LABEL.dateOfIncorporation,
       hasDate(party.dateOfIncorporation)
     );
     push(
       identityStep,
       "countryOfIncorporation",
-      "Nationality/Country",
+      PROFILE_LABEL.countryOfIncorporation,
       hasText(party.countryOfIncorporation)
     );
   } else {
-    push(identityStep, "dateOfBirth", "Date of Birth (dd/mm/yyyy)", hasDate(party.dateOfBirth));
+    push(identityStep, "dateOfBirth", PROFILE_LABEL.dateOfBirth, hasDate(party.dateOfBirth));
     push(
       identityStep,
       "gender",
-      "Gender",
+      PROFILE_LABEL.gender,
       hasText(party.gender) && party.gender !== "NOT_APPLICABLE"
     );
     push(
       identityStep,
       "nationality",
-      party.isShareholder ? "Nationality/Country" : "Nationality",
+      PROFILE_LABEL.nationality,
       hasText(party.nationality)
     );
   }
   const addr = hasAddressLineAndLocation(party.address);
-  const addressLabel = party.isShareholder ? "Business/Residential Address" : "Residential Address";
-  push(identityStep, "address.line1", addressLabel, addr.line1);
-  push(identityStep, "address.state", `${addressLabel} - State`, addr.state);
-  push(identityStep, "address.postalCode", `${addressLabel} - Postcode`, addr.postalCode);
+  push(identityStep, "address.line1", PROFILE_ADDRESS_FIELD_LABELS.address, addr.line1);
+  push(identityStep, "address.state", PROFILE_ADDRESS_FIELD_LABELS.state, addr.state);
+  push(identityStep, "address.postalCode", PROFILE_ADDRESS_FIELD_LABELS.postcode, addr.postalCode);
 
   if (party.isShareholder) {
-    push("shareholders", "shareType", "Type of Shares", hasText(party.shareType));
+    push("shareholders", "shareType", PROFILE_LABEL.typeOfShares, hasText(party.shareType));
     if (party.shareType === "OTHERS") {
       push(
         "shareholders",
         "shareTypeOther",
-        "Type of Shares - Others (please specify)",
+        PROFILE_LABEL.typeOfSharesOther,
         hasText(party.shareTypeOther)
       );
     }
     push(
       "shareholders",
       "shareholdingUnits",
-      "Shareholding Units (unit)",
+      PROFILE_LABEL.shareholdingUnits,
       hasNumber(party.shareholdingUnits)
     );
     push(
       "shareholders",
       "shareholdingAmount",
-      "Shareholding Amount (RM)",
+      PROFILE_LABEL.shareholdingAmount,
       hasNumber(party.shareholdingAmount)
     );
     push(
       "shareholders",
       "shareholdingPercentage",
-      "Shareholding Percentage (%)",
+      PROFILE_LABEL.shareholdingPercentage,
       hasNumber(party.shareholdingPercentage)
     );
   }
 
   if (!corporate && isIssuerOfficerRole(party)) {
-    push("board", "designation", "Designation", hasText(party.designation));
+    push("board", "designation", PROFILE_LABEL.designation, hasText(party.designation));
     if (party.designation === "OTHERS") {
       push(
         "board",
         "designationOther",
-        "Designation - Others (please specify)",
+        PROFILE_LABEL.designationOther,
         hasText(party.designationOther)
       );
     }
     push(
       "board",
       "appointmentDate",
-      "Appointment Date (dd/mm/yyyy)",
+      PROFILE_LABEL.appointmentDate,
       hasDate(party.appointmentDate)
     );
   }
@@ -1736,6 +1791,14 @@ export function computeIssuerPersonCompleteness(
     }));
 }
 
+export function issuerPersonCompletenessSummary(
+  party: IssuerPersonCompletenessInput
+): { missingCount: number; missingFields: string[]; missingItems: ProfileMissingItem[] } {
+  const missingItems = computeIssuerPersonCompleteness(party);
+  const missingFields = Array.from(new Set(missingItems.map((item) => item.label)));
+  return { missingCount: missingItems.length, missingFields, missingItems };
+}
+
 export function dedupeProfileMissingByPartyField(items: ProfileMissingItem[]): ProfileMissingItem[] {
   const seen = new Set<string>();
   const out: ProfileMissingItem[] = [];
@@ -1777,23 +1840,23 @@ export function computeIssuerFinancialCompleteness(
   const missing: ProfileMissingItem[] = [];
   const step: ComrepProfileStepId = "financials";
   const checks: Array<[unknown, string, string]> = [
-    [source.currentAssets, "currentAssets", "Assets|Current (RM)"],
-    [source.nonCurrentAssets, "nonCurrentAssets", "Assets|Non Current (RM)"],
-    [source.currentBorrowing, "currentBorrowing", "Liabilities|Current - Borrowing (RM)"],
-    [source.currentNonBorrowing, "currentNonBorrowing", "Liabilities|Current - Non Borrowing (RM)"],
-    [source.nonCurrentLoan, "nonCurrentLoan", "Liabilities|Non Current - Loan (RM)"],
-    [source.nonCurrentNonLoan, "nonCurrentNonLoan", "Liabilities|Non Current - Non Loan (RM)"],
-    [source.equityCapital, "equityCapital", "Equity|Capital (RM)"],
-    [source.accumulatedProfit, "accumulatedProfit", "Equity|Accumulated Profit Carried Forward (RM)"],
-    [source.revenue, "revenue", "Total Revenue and Income (RM)"],
-    [source.operatingCost, "operatingCost", "Operating Cost (RM)"],
-    [source.adminCost, "adminCost", "Administrative Cost (RM)"],
-    [source.interestCost, "interestCost", "Interest Cost (RM)"],
-    [source.otherCost, "otherCost", "Other Cost (RM)"],
-    [source.profitBeforeTax, "profitBeforeTax", "Profit/Loss Before Tax (RM)"],
-    [source.profitAfterTax, "profitAfterTax", "Profit/Loss After Tax (RM)"],
-    [source.minorityInterest, "minorityInterest", "Minority Interest (RM)"],
-    [source.netDividend, "netDividend", "Net Dividend (RM)"],
+    [source.currentAssets, "currentAssets", FINANCIAL_FIELD_LABELS.bscatot],
+    [source.nonCurrentAssets, "nonCurrentAssets", FINANCIAL_FIELD_LABELS.bsclbank],
+    [source.currentBorrowing, "currentBorrowing", FINANCIAL_FIELD_LABELS.curlib_borrowing],
+    [source.currentNonBorrowing, "currentNonBorrowing", FINANCIAL_FIELD_LABELS.curlib_non_borrowing],
+    [source.nonCurrentLoan, "nonCurrentLoan", FINANCIAL_FIELD_LABELS.ncl_loan],
+    [source.nonCurrentNonLoan, "nonCurrentNonLoan", FINANCIAL_FIELD_LABELS.ncl_non_loan],
+    [source.equityCapital, "equityCapital", FINANCIAL_FIELD_LABELS.bsqpuc],
+    [source.accumulatedProfit, "accumulatedProfit", FINANCIAL_FIELD_LABELS.equity_accumulated_profit],
+    [source.revenue, "revenue", FINANCIAL_FIELD_LABELS.turnover],
+    [source.operatingCost, "operatingCost", FINANCIAL_FIELD_LABELS.operating_cost],
+    [source.adminCost, "adminCost", FINANCIAL_FIELD_LABELS.admin_cost],
+    [source.interestCost, "interestCost", FINANCIAL_FIELD_LABELS.interest_cost],
+    [source.otherCost, "otherCost", FINANCIAL_FIELD_LABELS.other_cost],
+    [source.profitBeforeTax, "profitBeforeTax", FINANCIAL_FIELD_LABELS.plnpbt],
+    [source.profitAfterTax, "profitAfterTax", FINANCIAL_FIELD_LABELS.plnpat],
+    [source.minorityInterest, "minorityInterest", FINANCIAL_FIELD_LABELS.pl_minority],
+    [source.netDividend, "netDividend", FINANCIAL_FIELD_LABELS.plnetdiv],
   ];
   for (const [value, field, label] of checks) {
     if (!hasNumber(value)) pushMissing(missing, step, field, label);
@@ -1806,31 +1869,26 @@ export function computeInvestorPersonalCompleteness(
 ): ProfileMissingItem[] {
   const missing: ProfileMissingItem[] = [];
   const step: ComrepProfileStepId = "identity";
-  if (!hasText(input.name)) pushMissing(missing, step, "name", "Investor Name");
+  if (!hasText(input.name)) pushMissing(missing, step, "name", PROFILE_LABEL.fullName);
   if (!hasText(input.identityPrefix)) {
-    pushMissing(missing, step, "identityPrefix", "Identity Prefix");
+    pushMissing(missing, step, "identityPrefix", PROFILE_LABEL.identityPrefix);
   }
   if (!hasText(input.identityNumber)) {
-    pushMissing(
-      missing,
-      step,
-      "identityNumber",
-      "Investor Identification (NRIC / Passport / Company Registration No.)"
-    );
+    pushMissing(missing, step, "identityNumber", PROFILE_LABEL.identityNumber);
   }
   if (!hasDate(input.dateOfBirth)) {
-    pushMissing(missing, step, "dateOfBirth", "Date of Birth/Incorporation (dd/mm/yyyy)");
+    pushMissing(missing, step, "dateOfBirth", PROFILE_LABEL.dateOfBirth);
   }
   if (!hasText(input.gender) || input.gender === "NOT_APPLICABLE") {
-    pushMissing(missing, step, "gender", "Gender");
+    pushMissing(missing, step, "gender", PROFILE_LABEL.gender);
   }
   if (!hasText(input.state)) {
-    pushMissing(missing, step, "state", "Business/Residential Address - State");
+    pushMissing(missing, step, "state", PROFILE_ADDRESS_FIELD_LABELS.state);
   }
   if (!hasRequiredPostcodeValue(input.postalCode, input.state)) {
-    pushMissing(missing, step, "postalCode", "Business/Residential Address - Postcode");
+    pushMissing(missing, step, "postalCode", PROFILE_ADDRESS_FIELD_LABELS.postcode);
   }
-  if (!hasText(input.nationality)) pushMissing(missing, step, "nationality", "Nationality/Country");
+  if (!hasText(input.nationality)) pushMissing(missing, step, "nationality", PROFILE_LABEL.nationality);
   pushMissingSophisticatedInvestor(missing, step, input.isSophisticatedInvestor);
   pushMissingInvestorCategory(
     missing,
@@ -1849,32 +1907,27 @@ export function computeInvestorCorporateCompleteness(
 ): ProfileMissingItem[] {
   const missing: ProfileMissingItem[] = [];
   const step: ComrepProfileStepId = "identity";
-  if (!hasText(input.name)) pushMissing(missing, step, "name", "Investor Name");
+  if (!hasText(input.name)) pushMissing(missing, step, "name", PROFILE_LABEL.companyName);
   if (!hasText(input.registrationNumber)) {
-    pushMissing(
-      missing,
-      step,
-      "registrationNumber",
-      "Investor Identification (NRIC / Passport / Company Registration No.)"
-    );
+    pushMissing(missing, step, "registrationNumber", PROFILE_LABEL.companyRegistrationNumber);
   }
   if (input.identityPrefix !== "ROC") {
-    pushMissing(missing, step, "identityPrefix", "Identity Prefix");
+    pushMissing(missing, step, "identityPrefix", PROFILE_LABEL.identityPrefix);
   }
   if (!hasDate(input.dateOfIncorporation)) {
-    pushMissing(missing, step, "dateOfIncorporation", "Date of Birth/Incorporation (dd/mm/yyyy)");
+    pushMissing(missing, step, "dateOfIncorporation", PROFILE_LABEL.dateOfIncorporation);
   }
   if (!hasText(input.countryOfIncorporation)) {
-    pushMissing(missing, step, "countryOfIncorporation", "Nationality/Country");
+    pushMissing(missing, step, "countryOfIncorporation", PROFILE_LABEL.countryOfIncorporation);
   }
   if (input.gender !== "NOT_APPLICABLE") {
-    pushMissing(missing, step, "gender", "Gender");
+    pushMissing(missing, step, "gender", PROFILE_LABEL.gender);
   }
   if (!hasText(input.businessState)) {
-    pushMissing(missing, step, "businessState", "Business/Residential Address - State");
+    pushMissing(missing, step, "businessState", PROFILE_ADDRESS_FIELD_LABELS.state);
   }
   if (!hasRequiredPostcodeValue(input.businessPostalCode, input.businessState)) {
-    pushMissing(missing, step, "businessPostalCode", "Business/Residential Address - Postcode");
+    pushMissing(missing, step, "businessPostalCode", PROFILE_ADDRESS_FIELD_LABELS.postcode);
   }
   pushMissingSophisticatedInvestor(missing, step, input.isSophisticatedInvestor);
   pushMissingInvestorCategory(
@@ -1952,8 +2005,7 @@ export function buildIssuerProfileCompleteness(input: {
         ? 0
         : input.board.length * 12;
   const boardStepMissing = peopleRequired != null ? [] : boardMissing;
-  const financialMissing = computeIssuerFinancialCompleteness(input.financials);
-  const financialRequired = ISSUER_FINANCIAL_REQUIRED_FIELD_COUNT;
+  // Financial figures are collected on the financing application, not as a profile gate.
 
   const steps: ComrepProfileStepCompleteness[] = [
     stepFromMissing("company", ISSUER_PROFILE_STEP_LABELS.company, companyMissing, companyRequired),
@@ -1973,12 +2025,14 @@ export function buildIssuerProfileCompleteness(input: {
       filledCount: Math.max(0, boardFieldCount - boardStepMissing.length),
       missing: boardStepMissing,
     },
-    stepFromMissing(
-      "financials",
-      ISSUER_PROFILE_STEP_LABELS.financials,
-      financialMissing,
-      financialRequired
-    ),
+    {
+      id: "financials",
+      label: ISSUER_PROFILE_STEP_LABELS.financials,
+      complete: true,
+      requiredCount: 0,
+      filledCount: 0,
+      missing: [],
+    },
   ];
 
   const allMissing = steps.flatMap((s) => s.missing);
@@ -2088,6 +2142,24 @@ export function latestUnauditedYearKey(financialStatements: unknown): string | n
   return years.length === 0 ? null : String(years[0]);
 }
 
+export function unauditedYearEntries(
+  financialStatements: unknown
+): Array<{ year: string; block: Record<string, unknown> }> {
+  if (!financialStatements || typeof financialStatements !== "object") return [];
+  const byYear = (financialStatements as { unaudited_by_year?: Record<string, unknown> })
+    .unaudited_by_year;
+  if (!byYear || typeof byYear !== "object") return [];
+  return Object.keys(byYear)
+    .map((year) => Number(year))
+    .filter((year) => Number.isFinite(year))
+    .sort((a, b) => b - a)
+    .flatMap((year) => {
+      const block = byYear[String(year)];
+      if (!block || typeof block !== "object") return [];
+      return [{ year: String(year), block: block as Record<string, unknown> }];
+    });
+}
+
 export function latestUnauditedYearBlock(
   financialStatements: unknown
 ): Record<string, unknown> | null {
@@ -2107,6 +2179,7 @@ export interface IssuerOrgFinancialSummary {
   missingCount: number;
   missing: ProfileMissingItem[];
   fields: Record<string, unknown> | null;
+  years: Array<{ year: string; block: Record<string, unknown> }>;
 }
 
 const ISO_DATE_RE = /^(\d{4})-(\d{2})-(\d{2})/;

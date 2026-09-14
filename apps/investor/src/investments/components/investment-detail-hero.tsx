@@ -57,6 +57,20 @@ export function InvestmentDetailHero({
   const profitLabel = returnDisplay.label;
   const timing = resolveNoteTimingDisplay(note);
 
+  const dpd = Number(note.daysPastDue ?? 0);
+  const settled =
+    note.servicingStatus === "SETTLED" || note.status === "REPAID";
+  const showDpd =
+    !settled &&
+    (dpd > 0 ||
+      note.servicingStatus === "OVERDUE" ||
+      note.servicingStatus === "LATE" ||
+      note.servicingStatus === "ARREARS" ||
+      note.servicingStatus === "DEFAULTED");
+  const dpdTile = showDpd
+    ? { label: "Days past due", value: String(Math.max(0, dpd)) }
+    : null;
+
   const factTiles = isInvestedView
     ? [
         { label: "Invested", value: formatCurrency(facts.invested) },
@@ -66,12 +80,14 @@ export function InvestmentDetailHero({
         },
         { label: "Investment date", value: formatInvestmentDate(investmentDate) },
         { label: "Investors", value: formatNoteInvestorCount(note.investorCount ?? 0) },
+        ...(dpdTile ? [dpdTile] : []),
       ]
     : [
         { label: "Target", value: formatCurrency(note.targetAmount) },
         { label: "Funded", value: formatCurrency(note.fundedAmount) },
         { label: "Investors", value: formatNoteInvestorCount(note.investorCount ?? 0) },
         { label: "Paymaster", value: note.paymasterName?.trim() || "—" },
+        ...(dpdTile ? [dpdTile] : []),
       ];
 
   return (

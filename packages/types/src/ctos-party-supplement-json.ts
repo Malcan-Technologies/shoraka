@@ -32,6 +32,8 @@ export type CtosPartySupplement = {
   status: string;
   email?: string;
   verifyLink?: string;
+  /** ISO timestamp: RegTank `timestamp` + `expiredIn` seconds. */
+  verifyLinkExpiresAt?: string;
   /** RegTank `referenceId` for webhook + Prisma JSON path lookup. */
   referenceId?: string;
   sentAt?: string;
@@ -108,6 +110,8 @@ export function parseCtosPartySupplement(raw: unknown): CtosPartySupplement {
     status,
     email: typeof raw.email === "string" ? raw.email.trim() || undefined : undefined,
     verifyLink: typeof raw.verifyLink === "string" ? raw.verifyLink.trim() || undefined : undefined,
+    verifyLinkExpiresAt:
+      typeof raw.verifyLinkExpiresAt === "string" ? raw.verifyLinkExpiresAt.trim() || undefined : undefined,
     referenceId: typeof raw.referenceId === "string" ? raw.referenceId.trim() || undefined : undefined,
     sentAt: typeof raw.sentAt === "string" ? raw.sentAt.trim() || undefined : undefined,
     lastSentAt: typeof raw.lastSentAt === "string" ? raw.lastSentAt.trim() || undefined : undefined,
@@ -166,6 +170,15 @@ function mergeOnboardingFields(
     const vl = str(patch.verifyLink);
     if (vl !== undefined) base.verifyLink = vl;
   }
+  if (patch.verifyLinkExpiresAt === "" || patch.verifyLinkExpiresAt === null) {
+    base.verifyLinkExpiresAt = undefined;
+  } else {
+    const exp = str(patch.verifyLinkExpiresAt);
+    if (exp !== undefined) {
+      const ms = Date.parse(exp);
+      base.verifyLinkExpiresAt = Number.isFinite(ms) ? new Date(ms).toISOString() : exp;
+    }
+  }
   const ref = str(patch.referenceId);
   if (ref !== undefined) base.referenceId = ref;
   const sa = str(patch.sentAt);
@@ -204,6 +217,7 @@ export function mergeCtosPartySupplementDocument(
     base.requestId = "";
     base.status = "";
     base.verifyLink = undefined;
+    base.verifyLinkExpiresAt = undefined;
     base.referenceId = undefined;
     base.sentAt = undefined;
     base.lastSentAt = undefined;
@@ -241,6 +255,7 @@ export function serializeCtosPartySupplement(doc: CtosPartySupplement): Record<s
   };
   if (doc.email !== undefined) o.email = doc.email;
   if (doc.verifyLink !== undefined) o.verifyLink = doc.verifyLink;
+  if (doc.verifyLinkExpiresAt !== undefined) o.verifyLinkExpiresAt = doc.verifyLinkExpiresAt;
   if (doc.referenceId !== undefined) o.referenceId = doc.referenceId;
   if (doc.sentAt !== undefined) o.sentAt = doc.sentAt;
   if (doc.lastSentAt !== undefined) o.lastSentAt = doc.lastSentAt;
@@ -266,6 +281,29 @@ export function getCtosPartySupplementPipelineStatus(root: unknown): string {
 export function getCtosPartySupplementRequestId(root: unknown): string {
   const id = parseCtosPartySupplement(root).requestId;
   return isDraftPartyOnboardingRequestId(id) ? "" : id;
+}
+
+/**
+ * Current individual onboarding request id stored at onboarding_json.requestId.
+ * Does not fall back to screening.requestId (that field is the KYC ID).
+ */
+export function getCtosPartyCurrentOnboardingRequestId(root: unknown): string {
+  if (!isObject(root)) return "";
+  const id = String(root.requestId ?? "").trim();
+  return isDraftPartyOnboardingRequestId(id) ? "" : id;
+}
+
+/**
+ * Webhook mutation gate: referenceId may locate the Person, but only the current
+ * onboarding requestId may change pipeline/screening state.
+ */
+export function isCurrentCtosPartyOnboardingRequest(
+  root: unknown,
+  incomingOnboardingRequestId: string | null | undefined
+): boolean {
+  const current = getCtosPartyCurrentOnboardingRequestId(root);
+  const incoming = String(incomingOnboardingRequestId ?? "").trim();
+  return Boolean(current) && Boolean(incoming) && current === incoming;
 }
 
 export function isCtosPartySupplementApprovalLocked(root: unknown): boolean {

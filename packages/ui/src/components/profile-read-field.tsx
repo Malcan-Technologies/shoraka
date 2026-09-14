@@ -1,8 +1,9 @@
 import * as React from "react";
 import { cn } from "../lib/utils";
-import { ComRepFieldLabel } from "../comrep-field-label";
 
-import { PROFILE_LOCKED_VERIFIED_DURING_ONBOARDING } from "@cashsouk/types";
+import { PROFILE_LOCKED_VERIFIED_DURING_ONBOARDING, PROFILE_REQUIRED_EMPTY_LABEL } from "@cashsouk/types";
+
+const PROFILE_READ_EMPTY_DASH = "—";
 
 export type ProfileReadFieldProps = {
   label: string;
@@ -12,13 +13,23 @@ export type ProfileReadFieldProps = {
   lockReason?: string;
   multiline?: boolean;
   hint?: React.ReactNode;
+  /** Ignored in read mode. Kept so edit/read call sites can share props. */
   help?: string;
+  /**
+   * Requiredness from completeness/validators — not an asterisk.
+   * Required + empty in customer read mode shows {@link PROFILE_REQUIRED_EMPTY_LABEL}.
+   */
   required?: boolean;
   className?: string;
 };
 
-function isEmptyValue(value: React.ReactNode): boolean {
-  return value === null || value === undefined || value === "";
+export function isProfileReadValueEmpty(value: React.ReactNode): boolean {
+  if (value === null || value === undefined) return true;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length === 0 || trimmed === PROFILE_READ_EMPTY_DASH;
+  }
+  return false;
 }
 
 export function ProfileReadField({
@@ -29,29 +40,26 @@ export function ProfileReadField({
   lockReason,
   multiline = false,
   hint,
-  help,
   required = false,
   className,
 }: ProfileReadFieldProps) {
-  const empty = isEmptyValue(value);
+  const empty = isProfileReadValueEmpty(value);
+  const promptRequiredEmpty = required && empty;
   return (
-    <div className={cn("space-y-2", className)}>
-      <ComRepFieldLabel label={label} required={required} help={help} />
+    <div className={cn("space-y-1", className)}>
+      <p className="text-meta text-muted-foreground">{label}</p>
       <div
         className={cn(
-          "w-full rounded-md border px-3 text-ui",
-          multiline ? "min-h-[120px] whitespace-pre-wrap py-2.5" : "flex min-h-11 items-center",
-          missing
-            ? "border-status-action-text/40 bg-[hsl(var(--status-action-bg)/0.35)] text-foreground"
-            : "border-input bg-muted text-foreground"
+          "text-ui break-words",
+          multiline && "whitespace-pre-wrap",
+          promptRequiredEmpty && "text-destructive",
+          !promptRequiredEmpty && empty && "text-muted-foreground",
+          !promptRequiredEmpty && missing && "text-status-action-text"
         )}
       >
-        <span className={cn("min-w-0 break-words", empty && "text-muted-foreground")}>
-          {empty ? null : value}
-        </span>
+        {promptRequiredEmpty ? PROFILE_REQUIRED_EMPTY_LABEL : empty ? PROFILE_READ_EMPTY_DASH : value}
       </div>
-      {missing ? <p className="text-meta text-status-action-text">Required</p> : null}
-      {locked && !missing ? (
+      {locked && !missing && !promptRequiredEmpty ? (
         <p className="text-meta text-muted-foreground">
           {lockReason ?? PROFILE_LOCKED_VERIFIED_DURING_ONBOARDING}
         </p>

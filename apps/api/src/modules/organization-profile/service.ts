@@ -8,11 +8,14 @@ import {
 import {
   buildInvestorProfileCompleteness,
   buildIssuerProfileCompleteness,
-  computeIssuerFinancialCompleteness,
+  filterVisiblePeopleRows,
   issuerFinancialsFromYearBlock,
   latestUnauditedYearBlock,
   latestUnauditedYearKey,
+  unauditedYearEntries,
   isMasterFieldEmpty,
+  normalizeDirectorShareholderIdKey,
+  issuerShareholdingMeetsMinimum,
   valuesEqualForMismatch,
   canonicalPartyIdentityKey,
   findExistingPartyForIdentityKey,
@@ -46,9 +49,15 @@ import {
   hasOrganizationPartyRole,
   SELECT_AT_LEAST_ONE_ROLE_MESSAGE,
   resolvePersonPlatformAccess,
+  isInitialCorporateOnboardingStatus,
+  isMinimalOnboardingPersonCreate,
 } from "@cashsouk/types";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
+import {
+  buildDirectorShareholderPeopleList,
+  type MasterPartyPeopleSeed,
+} from "../admin/build-people-list";
 import {
   extractCtosObservationSnapshot,
   extractRegulatoryPartiesFromCorporateEntities,
@@ -59,6 +68,7 @@ import {
 import type { CreatePartyInput, OrgMasterPatchInput, PartyPatchInput } from "./schemas";
 import { writeOrganizationPartyEmail } from "./person-email";
 import { assertObservedPartyNotBlockedByIdentityConflict } from "./regtank-party-seed";
+import { ctosCompanyJsonHasUsableRelatedParties } from "../regtank/helpers/detect-director-gaps";
 import {
   asAddress,
   asJson,
@@ -82,6 +92,7 @@ const USER_OVERWRITE_ORG_FIELDS = new Set([
   "scInvestorCategory",
   "isSophisticatedInvestor",
   "phoneNumber",
+  "dateOfBirth",
 ]);
 /** Verified identity fields stay locked once filled. ComRep collection fields may be corrected. */
 const USER_LOCKED_PARTY_FIELDS = new Set(["name", "identityNumber", "identityPrefix"]);
@@ -197,6 +208,7 @@ async function readOrgRegulatoryState(portal: Portal, organizationId: string) {
       select: {
         corporate_entities: true,
         regulatory_structure_established_at: true,
+        onboarding_status: true,
       },
     });
   }
@@ -205,6 +217,7 @@ async function readOrgRegulatoryState(portal: Portal, organizationId: string) {
     select: {
       corporate_entities: true,
       regulatory_structure_established_at: true,
+      onboarding_status: true,
     },
   });
 }
@@ -272,7 +285,8 @@ function candidateToCreateManyRow(
 async function fillEmptyPartyFromCandidate(
   row: OrganizationPartyProfile,
   candidate: RegulatoryPartyCandidate,
-  existing: Array<{ id: string; party_key: string }>
+  existing: Array<{ id: string; party_key: string }>,
+  options?: { applyRoleMutations?: boolean }
 ): Promise<OrganizationPartyProfile> {
   const source = candidateSource(candidate);
   let sources = parseFieldSources(row.field_sources);
@@ -330,36 +344,39 @@ async function fillEmptyPartyFromCandidate(
     wrote = true;
   }
 
-  if (candidate.isDirector && !row.is_director) {
-    data.is_director = true;
-    wrote = true;
-  }
-  if (candidate.isShareholder && !row.is_shareholder) {
-    data.is_shareholder = true;
-    wrote = true;
-  }
-  if (
-    row.is_shareholder &&
-    !candidate.isShareholder &&
-    (row.origin === OrganizationPartyOrigin.CTOS_PARTY ||
-      row.origin === OrganizationPartyOrigin.REGTANK_PARTY)
-  ) {
-    data.is_shareholder = false;
-    wrote = true;
-  }
-  if (candidate.isBoard && !row.is_board) {
-    data.is_board = true;
-    wrote = true;
-  }
-  if (
-    row.is_board &&
-    !candidate.isBoard &&
-    (row.origin === OrganizationPartyOrigin.CTOS_PARTY ||
-      row.origin === OrganizationPartyOrigin.REGTANK_PARTY) &&
-    !row.is_management
-  ) {
-    data.is_board = false;
-    wrote = true;
+  // After COMPLETED/REJECTED, matching CTOS must not add or strip live roles.
+  if (options?.applyRoleMutations !== false) {
+    if (candidate.isDirector && !row.is_director) {
+      data.is_director = true;
+      wrote = true;
+    }
+    if (candidate.isShareholder && !row.is_shareholder) {
+      data.is_shareholder = true;
+      wrote = true;
+    }
+    if (
+      row.is_shareholder &&
+      !candidate.isShareholder &&
+      (row.origin === OrganizationPartyOrigin.CTOS_PARTY ||
+        row.origin === OrganizationPartyOrigin.REGTANK_PARTY)
+    ) {
+      data.is_shareholder = false;
+      wrote = true;
+    }
+    if (candidate.isBoard && !row.is_board) {
+      data.is_board = true;
+      wrote = true;
+    }
+    if (
+      row.is_board &&
+      !candidate.isBoard &&
+      (row.origin === OrganizationPartyOrigin.CTOS_PARTY ||
+        row.origin === OrganizationPartyOrigin.REGTANK_PARTY) &&
+      !row.is_management
+    ) {
+      data.is_board = false;
+      wrote = true;
+    }
   }
   if (candidate.entityType === "CORPORATE" && row.gender !== "NOT_APPLICABLE") {
     data.gender = "NOT_APPLICABLE";
@@ -537,10 +554,13 @@ export async function seedMasterPartiesIfEmpty(
   const fromCtos = extractRegulatoryPartiesFromCtos(ctos?.company_json ?? null);
   const fromRegtank = extractRegulatoryPartiesFromCorporateEntities(org.corporate_entities);
   const merged = mergeRegulatoryPartyCandidates(fromCtos, fromRegtank);
-  if (merged.length === 0) return;
+  const ctosUsable = ctosCompanyJsonHasUsableRelatedParties(ctos?.company_json ?? null);
+  if (merged.length === 0 && fromCtos.length === 0 && fromRegtank.length === 0) return;
 
   if (!established) {
-    await applyInitialRegulatoryCandidates(portal, organizationId, merged);
+    const initial = ctosUsable && fromCtos.length > 0 ? fromCtos : fromRegtank;
+    if (initial.length === 0) return;
+    await applyInitialRegulatoryCandidates(portal, organizationId, initial);
     await markRegulatoryStructureEstablished(portal, organizationId);
     return;
   }
@@ -548,6 +568,7 @@ export async function seedMasterPartiesIfEmpty(
   const existing = await prisma.organizationPartyProfile.findMany({
     where: orgWhere(portal, organizationId),
   });
+  const applyRoleMutations = isInitialCorporateOnboardingStatus(org.onboarding_status);
   for (const candidate of merged) {
     const gated = gateShareholderCandidate(candidate);
     const row = findExistingPartyForIdentityKey(existing, candidate.partyKey, {
@@ -556,7 +577,9 @@ export async function seedMasterPartiesIfEmpty(
     if (!row || row.membership_status !== OrganizationPartyMembershipStatus.MASTER_ACTIVE) {
       continue;
     }
-    const updated = await fillEmptyPartyFromCandidate(row, gated.candidate, existing);
+    const updated = await fillEmptyPartyFromCandidate(row, gated.candidate, existing, {
+      applyRoleMutations,
+    });
     const idx = existing.findIndex((p) => p.id === row.id);
     if (idx >= 0) existing[idx] = updated;
   }
@@ -569,6 +592,7 @@ export async function seedMasterPartiesIfEmpty(
     const idx = existing.findIndex((p) => p.id === row.id);
     if (idx >= 0) existing[idx] = updated;
   }
+  if (ctosUsable) return;
   await applyInitialRegulatoryCandidates(
     portal,
     organizationId,
@@ -797,7 +821,7 @@ export async function computeOrgProfileCompleteness(
         ssmRegistrationNumber?: string;
         entityType?: string;
       };
-      aboutYourBusiness?: { whatDoesCompanyDo?: string };
+      aboutYourBusiness?: { whatDoesCompanyDo?: string; mainCustomers?: string };
       addresses?: { registered?: unknown; business?: unknown };
       contactPerson?: unknown;
       personInCharge?: unknown;
@@ -880,6 +904,7 @@ export async function computeOrgProfileCompleteness(
         contactPerson: asIssuerContactPerson(cod?.contactPerson),
         personInCharge: asIssuerPersonInCharge(cod?.personInCharge),
         companyActivities: cod?.aboutYourBusiness?.whatDoesCompanyDo ?? null,
+        mainCustomers: cod?.aboutYourBusiness?.mainCustomers ?? null,
       },
       shareholders,
       board,
@@ -1019,6 +1044,13 @@ export async function patchOrgMasterProfile(params: {
         "dateOfIncorporation",
         issuer.date_of_incorporation as Date | null,
         parseDateInput(patch.dateOfIncorporation)
+      );
+    }
+    if (patch.dateOfBirth !== undefined) {
+      data.date_of_birth = applyScalar(
+        "dateOfBirth",
+        issuer.date_of_birth as Date | null,
+        parseDateInput(patch.dateOfBirth)
       );
     }
     if (patch.dateOfCommencement !== undefined) {
@@ -1186,6 +1218,13 @@ export async function patchOrgMasterProfile(params: {
       patch.nationality
     );
   }
+  if (patch.dateOfBirth !== undefined) {
+    data.date_of_birth = applyScalar(
+      "dateOfBirth",
+      investor.date_of_birth as Date | null,
+      parseDateInput(patch.dateOfBirth)
+    );
+  }
   if (patch.phoneNumber !== undefined) {
     data.phone_number = applyScalar(
       "phoneNumber",
@@ -1241,7 +1280,10 @@ export async function patchPartyProfile(params: {
   if (row.membership_status === OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED) {
     throw new AppError(400, "INVALID_PARTY_STATUS", "Add this CTOS person to the current profile before editing.");
   }
-  if (row.membership_status === OrganizationPartyMembershipStatus.MASTER_INACTIVE) {
+  if (
+    row.membership_status === OrganizationPartyMembershipStatus.MASTER_INACTIVE &&
+    params.source !== "ADMIN"
+  ) {
     throw new AppError(400, "INVALID_PARTY_STATUS", "This person is no longer active on the current profile.");
   }
 
@@ -1617,9 +1659,21 @@ export async function createUserAddedParty(params: {
 
   const identity = appliedCreate.identityNumber;
   const identityKey = canonicalPartyIdentityKey(identity);
-  const needsIdentity = entityType === OrganizationPartyEntityType.CORPORATE || roles.isBoard;
-  if (needsIdentity && !identityKey) {
-    throw new AppError(400, "VALIDATION_ERROR", "Identity number is required for this role");
+  const onboardingCreate = isMinimalOnboardingPersonCreate({
+    entityType,
+    identityPrefix: params.patch.identityPrefix,
+    identityNumber: params.patch.identityNumber,
+    isDirector: roles.isDirector,
+    isShareholder: roles.isShareholder,
+    isBoard: roles.isBoard,
+    isManagement: roles.isManagement,
+    personKind: params.patch.personKind,
+  });
+  if (!onboardingCreate) {
+    const needsIdentity = entityType === OrganizationPartyEntityType.CORPORATE || roles.isBoard;
+    if (needsIdentity && !identityKey) {
+      throw new AppError(400, "VALIDATION_ERROR", "Identity number is required for this role");
+    }
   }
   if ((roles.isDirector || roles.isShareholder) && !identityKey) {
     if (!String(params.patch.name ?? "").trim()) {
@@ -1818,12 +1872,23 @@ export async function resolvePartyMismatch(params: {
   partyId: string;
   input: PartyMismatchResolveInput;
 }): Promise<OrganizationPartyProfileDto> {
-  const row = await prisma.organizationPartyProfile.findFirst({
+  const initialRow = await prisma.organizationPartyProfile.findFirst({
     where: { id: params.partyId, ...orgWhere(params.portal, params.organizationId) },
   });
-  if (!row) throw new AppError(404, "NOT_FOUND", "Party profile not found");
+  if (!initialRow) throw new AppError(404, "NOT_FOUND", "Party profile not found");
+  const startedInactive =
+    initialRow.membership_status === OrganizationPartyMembershipStatus.MASTER_INACTIVE;
+  const reactivateIfReviewResolved = async (dto: OrganizationPartyProfileDto) => {
+    if (!startedInactive) return dto;
+    if (partyRequiresAdminReviewForReactivation(dto)) return dto;
+    const activated = await prisma.organizationPartyProfile.update({
+      where: { id: dto.id },
+      data: { membership_status: OrganizationPartyMembershipStatus.MASTER_ACTIVE },
+    });
+    return serializeParty(activated);
+  };
   if (params.input.action === "KEEP") {
-    const observation = (row.external_observation as Record<string, unknown> | null) ?? {};
+    const observation = (initialRow.external_observation as Record<string, unknown> | null) ?? {};
     const resolved = readObservationResolutions(observation);
     resolved[params.input.field] = {
       action: "KEEP",
@@ -1831,12 +1896,12 @@ export async function resolvePartyMismatch(params: {
     };
     observation[OBSERVATION_RESOLVED_KEY] = resolved;
     const updated = await prisma.organizationPartyProfile.update({
-      where: { id: row.id },
+      where: { id: initialRow.id },
       data: { external_observation: asJson(observation) },
     });
-    return serializeParty(updated);
+    return reactivateIfReviewResolved(serializeParty(updated));
   }
-  const observation = (row.external_observation as Record<string, unknown> | null) ?? {};
+  const observation = (initialRow.external_observation as Record<string, unknown> | null) ?? {};
   const incoming =
     params.input.action === "EDIT" ? params.input.value : observation[params.input.field];
   const fieldMap: Record<string, keyof PartyPatch> = {
@@ -1850,13 +1915,14 @@ export async function resolvePartyMismatch(params: {
   if (!patchKey) {
     throw new AppError(400, "VALIDATION_ERROR", "This field cannot be updated from CTOS.");
   }
-  return patchPartyProfile({
+  const updated = await patchPartyProfile({
     portal: params.portal,
     organizationId: params.organizationId,
     partyId: params.partyId,
     source: "ADMIN",
     patch: { [patchKey]: incoming as never },
   });
+  return reactivateIfReviewResolved(updated);
 }
 
 export async function adoptObservedParty(params: {
@@ -1936,6 +2002,240 @@ export async function inactivateMasterParty(params: {
   return serializeParty(updated);
 }
 
+function partyRequiresAdminReviewForReactivation(party: OrganizationPartyProfileDto): boolean {
+  return party.mismatches.length > 0;
+}
+
+function mapMasterPartySeed(row: {
+  party_key: string;
+  membership_status: OrganizationPartyMembershipStatus;
+  entity_type: OrganizationPartyEntityType;
+  name: string | null;
+  identity_number: string | null;
+  is_director: boolean;
+  is_shareholder: boolean;
+  shareholding_percentage: Prisma.Decimal | null;
+  email: string | null;
+  origin: OrganizationPartyOrigin;
+}): MasterPartyPeopleSeed {
+  return {
+    partyKey: row.party_key,
+    membershipStatus: row.membership_status,
+    entityType: row.entity_type,
+    name: row.name,
+    identityNumber: row.identity_number,
+    isDirector: row.is_director,
+    isShareholder: row.is_shareholder,
+    shareholdingPercentage: row.shareholding_percentage?.toString() ?? null,
+    email: row.email,
+    origin: row.origin ?? null,
+  };
+}
+
+function evidenceObservationFromResolvedPerson(person: {
+  matchKey: string;
+  name: string | null;
+  entityType: "INDIVIDUAL" | "CORPORATE";
+  roles: string[];
+  sharePercentage: number | null;
+  identityNumber?: string | null;
+  candidate?: {
+    name: string | null;
+    identityNumber: string | null;
+    isDirector: boolean;
+    isShareholder: boolean;
+    shareholdingPercentage: number | null;
+  } | null;
+}): Record<string, unknown> {
+  const roles = (person.roles ?? []).map((role) => String(role).toUpperCase());
+  const candidate = person.candidate ?? null;
+  const hasDirectorRole = roles.includes("DIRECTOR") || Boolean(candidate?.isDirector);
+  const hasShareholderRole = roles.includes("SHAREHOLDER") || Boolean(candidate?.isShareholder);
+  return {
+    name: person.name ?? candidate?.name ?? null,
+    identityNumber: person.identityNumber ?? candidate?.identityNumber ?? person.matchKey ?? null,
+    entityType: person.entityType,
+    isDirector: hasDirectorRole,
+    isShareholder: hasShareholderRole,
+    shareholdingPercentage: person.sharePercentage ?? candidate?.shareholdingPercentage ?? null,
+    appointmentDate: null,
+    resignationDate: null,
+  };
+}
+
+async function resolveReactivationEvidence(params: {
+  portal: Portal;
+  organizationId: string;
+  party: {
+    party_key: string;
+    entity_type: OrganizationPartyEntityType;
+  };
+  masterRows: Array<{
+    party_key: string;
+    membership_status: OrganizationPartyMembershipStatus;
+    entity_type: OrganizationPartyEntityType;
+    name: string | null;
+    identity_number: string | null;
+    is_director: boolean;
+    is_shareholder: boolean;
+    shareholding_percentage: Prisma.Decimal | null;
+    email: string | null;
+    origin: OrganizationPartyOrigin;
+  }>;
+}): Promise<Record<string, unknown> | null> {
+  const [org, latestCtos, supplements] = await Promise.all([
+    params.portal === "issuer"
+      ? prisma.issuerOrganization.findUnique({
+          where: { id: params.organizationId },
+          select: {
+            corporate_entities: true,
+            director_kyc_status: true,
+            director_aml_status: true,
+            onboarding_status: true,
+          },
+        })
+      : prisma.investorOrganization.findUnique({
+          where: { id: params.organizationId },
+          select: {
+            corporate_entities: true,
+            director_kyc_status: true,
+            director_aml_status: true,
+            onboarding_status: true,
+          },
+        }),
+    prisma.ctosReport.findFirst({
+      where:
+        params.portal === "issuer"
+          ? { issuer_organization_id: params.organizationId, subject_ref: null }
+          : { investor_organization_id: params.organizationId, subject_ref: null },
+      orderBy: { fetched_at: "desc" },
+      select: { company_json: true },
+    }),
+    prisma.ctosPartySupplement.findMany({
+      where:
+        params.portal === "issuer"
+          ? { issuer_organization_id: params.organizationId }
+          : { investor_organization_id: params.organizationId },
+      select: { party_key: true, onboarding_json: true },
+      orderBy: { party_key: "asc" },
+    }),
+  ]);
+
+  if (!org) return null;
+
+  const partyBuild = buildDirectorShareholderPeopleList({
+    ctos: latestCtos?.company_json ?? null,
+    issuerDirectorKycStatus: org.director_kyc_status ?? null,
+    issuerDirectorAmlStatus: org.director_aml_status ?? null,
+    ctosPartySupplements: (supplements ?? []).map((row) => ({
+      partyKey: row.party_key,
+      onboardingJson: row.onboarding_json,
+    })),
+    corporateEntities: org.corporate_entities ?? null,
+    masterParties: params.masterRows.map(mapMasterPartySeed),
+    initialCorporateOnboarding: isInitialCorporateOnboardingStatus(org.onboarding_status),
+  });
+
+  const targetKey = normalizeDirectorShareholderIdKey(params.party.party_key ?? "");
+  if (!targetKey) return null;
+  const targetEntity = params.party.entity_type === "CORPORATE" ? "CORPORATE" : "INDIVIDUAL";
+  const ctosCandidates = extractRegulatoryPartiesFromCtos(latestCtos?.company_json ?? null);
+  const regtankCandidates = extractRegulatoryPartiesFromCorporateEntities(org.corporate_entities ?? null);
+  const ctosUsable = ctosCompanyJsonHasUsableRelatedParties(latestCtos?.company_json ?? null);
+  const evidenceCandidates = ctosUsable
+    ? ctosCandidates
+    : mergeRegulatoryPartyCandidates(ctosCandidates, regtankCandidates);
+
+  const resolved = filterVisiblePeopleRows(partyBuild.people).find((person) => {
+    const personKey = normalizeDirectorShareholderIdKey(person.matchKey ?? "");
+    if (!personKey || personKey !== targetKey) return false;
+    return person.entityType === targetEntity;
+  });
+  const candidate = evidenceCandidates.find((row) => {
+    const rowKey = normalizeDirectorShareholderIdKey(row.partyKey ?? "");
+    if (!rowKey || rowKey !== targetKey) return false;
+    return row.entityType === targetEntity;
+  });
+  if (!resolved) {
+    if (!candidate) return null;
+    const candidateUsable =
+      candidate.isDirector ||
+      (candidate.isShareholder && issuerShareholdingMeetsMinimum(candidate.shareholdingPercentage));
+    if (!candidateUsable) return null;
+    const roles: string[] = [];
+    if (candidate.isDirector) roles.push("DIRECTOR");
+    if (candidate.isShareholder) roles.push("SHAREHOLDER");
+    return evidenceObservationFromResolvedPerson({
+      matchKey: candidate.partyKey,
+      name: candidate.name,
+      entityType: candidate.entityType,
+      roles,
+      sharePercentage: candidate.shareholdingPercentage,
+      identityNumber: candidate.identityNumber,
+      candidate,
+    });
+  }
+  return evidenceObservationFromResolvedPerson({ ...resolved, candidate: candidate ?? null });
+}
+
+export async function reactivateMasterParty(params: {
+  portal: Portal;
+  organizationId: string;
+  partyId: string;
+}): Promise<{ party: OrganizationPartyProfileDto; reviewRequired: boolean }> {
+  const masterRows = await prisma.organizationPartyProfile.findMany({
+    where: orgWhere(params.portal, params.organizationId),
+  });
+  const row = masterRows.find((candidate) => candidate.id === params.partyId) ?? null;
+  if (!row) throw new AppError(404, "NOT_FOUND", "Party profile not found");
+  if (row.membership_status !== OrganizationPartyMembershipStatus.MASTER_INACTIVE) {
+    throw new AppError(
+      400,
+      "INVALID_PARTY_STATUS",
+      "Only an inactive person on the current profile can be reactivated."
+    );
+  }
+
+  const evidenceObservation = await resolveReactivationEvidence({
+    portal: params.portal,
+    organizationId: params.organizationId,
+    party: {
+      party_key: row.party_key,
+      entity_type: row.entity_type,
+    },
+    masterRows,
+  });
+  const previousObservation =
+    row.external_observation &&
+    typeof row.external_observation === "object" &&
+    !Array.isArray(row.external_observation)
+      ? (row.external_observation as Record<string, unknown>)
+      : null;
+  const nextObservation = evidenceObservation
+    ? mergeObservationResolutions(previousObservation, evidenceObservation)
+    : null;
+  const rowWithLatestEvidence =
+    evidenceObservation !== null || row.external_observation !== null
+      ? await prisma.organizationPartyProfile.update({
+          where: { id: row.id },
+          data: {
+            external_observation: nextObservation ? asJson(nextObservation) : Prisma.DbNull,
+          },
+        })
+      : row;
+
+  const current = serializeParty(rowWithLatestEvidence);
+  const reviewRequired = partyRequiresAdminReviewForReactivation(current);
+  if (reviewRequired) {
+    return { party: current, reviewRequired: true };
+  }
+  const updated = await prisma.organizationPartyProfile.update({
+    where: { id: row.id },
+    data: { membership_status: OrganizationPartyMembershipStatus.MASTER_ACTIVE },
+  });
+  return { party: serializeParty(updated), reviewRequired: false };
+}
+
 export async function getIssuerFinancialSummary(
   organizationId: string
 ): Promise<IssuerOrgFinancialSummary> {
@@ -1945,13 +2245,14 @@ export async function getIssuerFinancialSummary(
   const statements = existing?.financial_statements ?? null;
   const latestYear = latestUnauditedYearKey(statements);
   const yearBlock = latestUnauditedYearBlock(statements);
-  const missing = computeIssuerFinancialCompleteness(issuerFinancialsFromYearBlock(yearBlock));
+  const years = unauditedYearEntries(statements);
   return {
     latestYear,
-    complete: missing.length === 0 && yearBlock != null,
-    missingCount: missing.length,
-    missing,
+    complete: true,
+    missingCount: 0,
+    missing: [],
     fields: yearBlock,
+    years,
   };
 }
 

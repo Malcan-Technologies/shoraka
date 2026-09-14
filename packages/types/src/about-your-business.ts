@@ -17,6 +17,23 @@ export type AboutYourBusiness = {
   accountingSoftware: string;
 };
 
+/** Profile + application-required About keys. Completeness field aliases: companyActivities, mainCustomers. */
+export const ABOUT_YOUR_BUSINESS_PROFILE_REQUIRED_KEYS = ["whatDoesCompanyDo", "mainCustomers"] as const;
+export type AboutYourBusinessProfileRequiredKey =
+  (typeof ABOUT_YOUR_BUSINESS_PROFILE_REQUIRED_KEYS)[number];
+
+export function isAboutYourBusinessFieldRequired(field: keyof AboutYourBusiness): boolean {
+  return (ABOUT_YOUR_BUSINESS_PROFILE_REQUIRED_KEYS as readonly string[]).includes(field);
+}
+
+export function isAboutYourBusinessComplete(about: AboutYourBusiness): boolean {
+  return ABOUT_YOUR_BUSINESS_PROFILE_REQUIRED_KEYS.every((key) => about[key].trim().length > 0);
+}
+
+export function isAboutYourBusinessProfileComplete(about: AboutYourBusiness): boolean {
+  return isAboutYourBusinessComplete(about);
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -77,15 +94,6 @@ export function isAboutYourBusinessPresent(about: AboutYourBusiness): boolean {
     about.whatDoesCompanyDo.trim() ||
       about.mainCustomers.trim() ||
       about.singleCustomerOver50Revenue !== null ||
-      about.accountingSoftware.trim()
-  );
-}
-
-export function isAboutYourBusinessComplete(about: AboutYourBusiness): boolean {
-  return Boolean(
-    about.whatDoesCompanyDo.trim() &&
-      about.mainCustomers.trim() &&
-      about.singleCustomerOver50Revenue !== null &&
       about.accountingSoftware.trim()
   );
 }

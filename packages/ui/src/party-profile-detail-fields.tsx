@@ -1,16 +1,19 @@
 "use client";
 
+import type { ReactNode } from "react";
 import {
   PERSON_EMAIL_HELP,
+  PROFILE_HELP,
+  PROFILE_LABEL,
   SC_DESIGNATION_LABELS,
   SC_GENDER_LABELS,
   SC_MONTHLY_BOARD,
   SC_MONTHLY_PERSON_KIND_LABELS,
-  SC_MONTHLY_SHAREHOLDER,
   SC_SHARE_TYPE_LABELS,
   formatPartyRoleLine,
   getFinalStatusLabel,
-  getFinalStatusToken,
+  getRelatedPartyStatusToken,
+  type RelatedPartyStatusViewer,
   monthlyIssuerPersonCopy,
   partyRoleLabels,
   personIdentityDisplay,
@@ -59,8 +62,9 @@ export type PartyProfileDetailItem = { label: string; value: string; help?: stri
 export function buildPartyProfileDetailItems(params: {
   party?: OrganizationPartyProfileDto | null;
   person?: ApplicationPersonRow | null;
+  includeCtosEvidence?: boolean;
 }): PartyProfileDetailItem[] {
-  const { party, person } = params;
+  const { party, person, includeCtosEvidence = false } = params;
   const officer = Boolean(party?.isDirector || party?.isBoard || party?.isManagement);
   const shareholder = Boolean(party?.isShareholder || person?.roles?.includes("SHAREHOLDER"));
   const copy = monthlyIssuerPersonCopy({ shareholder, officer });
@@ -124,16 +128,16 @@ export function buildPartyProfileDetailItems(params: {
   }
   if (isPresent(personEmail)) {
     items.push({
-      label: "Email",
+      label: PROFILE_LABEL.personEmail,
       value: personEmail,
       help: PERSON_EMAIL_HELP,
     });
   }
   if (isPresent(loginEmail)) {
     items.push({
-      label: "Platform login email",
+      label: PROFILE_LABEL.accountEmail,
       value: loginEmail,
-      help: "Login email for the linked CashSouk account. Changing Person Email does not change this.",
+      help: PROFILE_HELP.accountEmail,
     });
   }
   if (party) {
@@ -161,25 +165,25 @@ export function buildPartyProfileDetailItems(params: {
   }
   if (shareholder) {
     if (isPresent(shareType)) {
-      items.push({ label: SC_MONTHLY_SHAREHOLDER.typeOfShares.label, value: shareType });
+      items.push({ label: PROFILE_LABEL.typeOfShares, value: shareType });
     }
     if (party?.shareType === "OTHERS" && isPresent(party.shareTypeOther)) {
-      items.push({ label: SC_MONTHLY_SHAREHOLDER.typeOfSharesOthers.label, value: party.shareTypeOther ?? "" });
+      items.push({ label: PROFILE_LABEL.typeOfSharesOther, value: party.shareTypeOther ?? "" });
     }
     if (isPresent(party?.shareholdingUnits)) {
       items.push({
-        label: SC_MONTHLY_SHAREHOLDER.shareholdingUnits.label,
+        label: PROFILE_LABEL.shareholdingUnits,
         value: party?.shareholdingUnits ?? "",
       });
     }
     if (isPresent(party?.shareholdingAmount)) {
       items.push({
-        label: SC_MONTHLY_SHAREHOLDER.shareholdingAmount.label,
+        label: PROFILE_LABEL.shareholdingAmount,
         value: party?.shareholdingAmount ?? "",
       });
     }
     if (isPresent(sharePct)) {
-      items.push({ label: SC_MONTHLY_SHAREHOLDER.shareholdingPercentage.label, value: sharePct });
+      items.push({ label: PROFILE_LABEL.shareholdingPercentage, value: sharePct });
     }
   }
   if (officer) {
@@ -187,39 +191,40 @@ export function buildPartyProfileDetailItems(params: {
       items.push({ label: SC_MONTHLY_BOARD.boardOfDirectorManagementTeam.label, value: personKindValue });
     }
     if (isPresent(designation)) {
-      items.push({ label: SC_MONTHLY_BOARD.designation.label, value: designation });
+      items.push({ label: PROFILE_LABEL.designation, value: designation });
     }
     if (party?.designation === "OTHERS" && isPresent(party.designationOther)) {
       items.push({
-        label: SC_MONTHLY_BOARD.designationOthers.label,
+        label: PROFILE_LABEL.designationOther,
         value: party.designationOther ?? "",
-        help: SC_MONTHLY_BOARD.designationOthers.help,
       });
     }
     if (isPresent(party?.appointmentDate)) {
       items.push({
-        label: SC_MONTHLY_BOARD.appointmentDate.label,
+        label: PROFILE_LABEL.appointmentDate,
         value: formatDate(party?.appointmentDate),
       });
     }
     if (isPresent(party?.resignationDate)) {
       items.push({
-        label: SC_MONTHLY_BOARD.resignationDate.label,
+        label: PROFILE_LABEL.resignationDate,
         value: formatDate(party?.resignationDate),
-        help: SC_MONTHLY_BOARD.resignationDate.help,
+        help: PROFILE_HELP.resignationDate,
       });
     }
   }
-  if (party?.absentFromLatestExternal) {
-    items.push({
-      label: "Latest CTOS information",
-      value: "This person was not found in the latest CTOS information.",
-    });
-  } else if (party && party.mismatches.length > 0) {
-    items.push({
-      label: "Latest CTOS information",
-      value: "CTOS information differs from the current profile.",
-    });
+  if (includeCtosEvidence) {
+    if (party?.absentFromLatestExternal) {
+      items.push({
+        label: "Latest CTOS information",
+        value: "This person was not found in the latest CTOS information.",
+      });
+    } else if (party && party.mismatches.length > 0) {
+      items.push({
+        label: "Latest CTOS information",
+        value: "CTOS information differs from the current profile.",
+      });
+    }
   }
   return items.filter((item) => isPresent(item.value));
 }
@@ -227,23 +232,39 @@ export function buildPartyProfileDetailItems(params: {
 export function PartyProfileDetailFields({
   party,
   person,
+  statusViewer = "user",
+  kycRefresh,
+  amlRefresh,
 }: {
   party?: OrganizationPartyProfileDto | null;
   person?: ApplicationPersonRow | null;
+  statusViewer?: RelatedPartyStatusViewer;
+  kycRefresh?: ReactNode;
+  amlRefresh?: ReactNode;
 }) {
+  const corporate = party?.entityType === "CORPORATE" || person?.entityType === "CORPORATE";
   const kyc = person
     ? getFinalStatusLabel(person, { displayMode: "kyc_only" })
-    : { label: "—", tone: "neutral" as const };
+    : { label: "—", tone: "neutral" as const, actor: "none" as const };
   const aml = person
     ? getFinalStatusLabel({ screening: person.screening })
-    : { label: "—", tone: "neutral" as const };
-  const items = buildPartyProfileDetailItems({ party, person });
+    : { label: "—", tone: "neutral" as const, actor: "none" as const };
+  const items = buildPartyProfileDetailItems({
+    party,
+    person,
+    includeCtosEvidence: statusViewer === "admin",
+  });
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2">
-        <StatusBadge status={getFinalStatusToken(kyc.tone)} label={`KYC: ${kyc.label}`} />
-        <StatusBadge status={getFinalStatusToken(aml.tone)} label={`AML: ${aml.label}`} />
+      <div className="flex flex-wrap items-center gap-2">
+        <StatusBadge
+          status={getRelatedPartyStatusToken(kyc, statusViewer)}
+          label={`${corporate ? "KYB" : "KYC"}: ${kyc.label}`}
+        />
+        {kycRefresh}
+        <StatusBadge status={getRelatedPartyStatusToken(aml, statusViewer)} label={`AML: ${aml.label}`} />
+        {amlRefresh}
       </div>
       <PartyRoleBadges party={party} person={person} />
       <ProfileFieldGrid>

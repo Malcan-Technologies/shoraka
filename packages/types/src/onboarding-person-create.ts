@@ -13,9 +13,37 @@ function hasIdentityNumber(value: unknown): boolean {
   return String(value ?? "").trim().length > 0;
 }
 
+export const ADD_COMPANY_PERSON_ONBOARDING_HELP =
+  "Add this person to the company profile and send them a RegTank onboarding link.";
+
+export const ADD_COMPANY_PERSON_MANUAL_HELP =
+  "Add this person to the company profile. This does not create a CashSouk login.";
+
+type AddCompanyPersonRoleInput = {
+  entityType?: unknown;
+  identityPrefix?: unknown;
+  isDirector?: boolean;
+  isShareholder?: boolean;
+};
+
+function resolvedEntityType(value: AddCompanyPersonRoleInput): "INDIVIDUAL" | "CORPORATE" {
+  return value.entityType === "CORPORATE" || value.identityPrefix === "ROC" ? "CORPORATE" : "INDIVIDUAL";
+}
+
+/**
+ * Individual Director or Shareholder uses the RegTank onboarding-link flow.
+ * Board of Director / Management Team without those roles stay on the manual form.
+ * Corporate shareholders keep the existing full create path (no party-level COD send).
+ */
+export function addCompanyPersonUsesOnboardingFlow(value: AddCompanyPersonRoleInput): boolean {
+  if (resolvedEntityType(value) === "CORPORATE") return false;
+  return value.isDirector === true || value.isShareholder === true;
+}
+
 /**
  * Individual Director/Shareholder create without government ID.
- * Corporate, Board, Management, and identity-provided creates keep the full ComRep form.
+ * Corporate and identity-provided creates keep the full ComRep form.
+ * Board/Management alongside Director/Shareholder still uses this short path.
  */
 export function isMinimalOnboardingPersonCreate(value: {
   entityType?: unknown;
@@ -27,16 +55,7 @@ export function isMinimalOnboardingPersonCreate(value: {
   isManagement?: boolean;
   personKind?: unknown;
 }): boolean {
-  const entityType =
-    value.entityType === "CORPORATE" || value.identityPrefix === "ROC" ? "CORPORATE" : "INDIVIDUAL";
-  if (entityType === "CORPORATE") return false;
-  const officer =
-    value.isBoard === true ||
-    value.isManagement === true ||
-    value.personKind === "BOARD" ||
-    value.personKind === "MANAGEMENT";
-  if (officer) return false;
-  if (value.isDirector !== true && value.isShareholder !== true) return false;
+  if (!addCompanyPersonUsesOnboardingFlow(value)) return false;
   if (hasIdentityNumber(value.identityNumber)) return false;
   return true;
 }

@@ -82,6 +82,8 @@ export const ADMIN_PERMISSIONS = [
   "platform_settings.view",
   "platform_settings.manage",
 
+  "reports.view",
+
 ] as const;
 
 export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number];
@@ -208,6 +210,13 @@ export const ADMIN_PERMISSION_GROUPS: AdminPermissionGroup[] = [
       "notes.settlement.manage",
       "notes.default.manage"
     ),
+  },
+  {
+    key: "reports",
+    label: "Reports",
+    description:
+      "View Report Center, export extracts, and see portfolio-at-risk (PAR30/60/90) on the dashboard.",
+    permissions: pickPermissions("reports.view"),
   },
   {
     key: "applications",

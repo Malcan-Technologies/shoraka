@@ -13,6 +13,12 @@ describe("PortalPeopleSection", () => {
     expect(source).toContain("api.createManagementParty(portal, organizationId, data)");
   });
 
+  it("keeps Add person for issuer and investor company People", () => {
+    expect(source).toContain("Add person");
+    expect(source).toContain("api.createManagementParty(portal, organizationId, data)");
+    expect(source).toContain("AddPersonForm");
+  });
+
   it("keeps MASTER_ACTIVE in the People list and MASTER_INACTIVE in the Inactive section", () => {
     expect(source).toContain('party.membershipStatus === "MASTER_ACTIVE"');
     expect(source).toContain('party.membershipStatus === "MASTER_INACTIVE"');
@@ -21,15 +27,16 @@ describe("PortalPeopleSection", () => {
     expect(card).toContain('label="Inactive"');
   });
 
-  it("lets permitted users mark an active person inactive without delete or reactivate", () => {
+  it("lets permitted users mark active people inactive and inactive people reactivate", () => {
     expect(card).toContain("Mark inactive");
+    expect(card).toContain("Reactivate");
     expect(source).toContain(
       "Mark this person as inactive? Their existing KYC, AML and onboarding history will be kept."
     );
     expect(source).toContain("api.inactivatePartyProfile(portal, organizationId, inactivating.id)");
+    expect(source).toContain("api.reactivatePartyProfile(portal, organizationId, reactivating.id)");
     expect(source).toContain("onInactivate={canInactivate ? () => setInactivatePartyId(item.party.id) : undefined}");
     expect(source).not.toContain("deleteManagementParty");
-    expect(source).not.toContain("Reactivate");
   });
 
   it("people-only rows reuse add/merge instead of creating a second editor", () => {
@@ -37,9 +44,10 @@ describe("PortalPeopleSection", () => {
     expect(source).toContain("onView={() => setViewPeopleOnlyKey(person.matchKey)}");
   });
 
-  it("shows how many profile fields are missing and hides KYC/AML for company shareholders", () => {
+  it("shows how many profile fields are missing and uses KYB for company shareholders", () => {
     expect(card).toContain("} missing");
-    expect(card).toContain("Company shareholder. Individual KYC/AML is not required.");
+    expect(card).toContain("`KYB: ${kyc.label}`");
+    expect(card).not.toContain("Company shareholder. Individual KYC/AML is not required.");
     expect(source).toContain("canSendOnboarding={Boolean(");
     expect(source).toContain('portal === "issuer"');
     expect(source).toContain("kycOnboardingStatus");
@@ -80,10 +88,10 @@ describe("Person-scoped invite dialog", () => {
 });
 
 describe("Person identity card CTOS indicator", () => {
-  it("explains that CTOS matched is latest comparison, not origin", () => {
+  it("keeps CTOS comparison for Admin and hides it on customer identity cards", () => {
     expect(ctos).toContain("It does NOT merely mean the record originally came from CTOS");
     expect(ctos).toContain("aria-label={comparison.tooltip}");
-    expect(card).toContain("PartyCtosIndicator");
+    expect(card).not.toContain("PartyCtosIndicator");
   });
 
   it("does not infer Person ↔ User from email", () => {

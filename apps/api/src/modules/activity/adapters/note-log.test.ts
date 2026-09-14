@@ -206,8 +206,66 @@ describe("NoteLogAdapter", () => {
   it("only exposes curated high-signal note events", () => {
     expect(adapter.getEventTypes()).toContain("ACTIVATE");
     expect(adapter.getEventTypes()).toContain("SETTLEMENT_POSTED");
+    expect(adapter.getEventTypes()).toContain("NOTE_LATE");
+    expect(adapter.getEventTypes()).toContain("NOTE_LETTER_SENT");
     expect(adapter.getEventTypes()).not.toContain("PAYMENT_RECEIVED");
     expect(adapter.getEventTypes()).not.toContain("SHORAKA_ORDER_SUBMITTED");
     expect(adapter.getEventTypes()).not.toContain("SETTLEMENT_APPROVED");
+    expect(adapter.getEventTypes()).not.toContain("OVERDUE_LATE_CHARGE_CHECKED");
+  });
+
+  it("builds servicing activity copy for issuers and investors", () => {
+    expect(
+      adapter.buildPresentation("NOTE_OVERDUE", { noteReference: "NOTE-001" })
+    ).toEqual({
+      title: "Your Note Is Overdue",
+      description: "Note NOTE-001 is past due and still inside the grace period.",
+    });
+    expect(
+      adapter.buildPresentation("NOTE_LATE", {
+        noteReference: "NOTE-001",
+        portalType: "investor",
+      })
+    ).toEqual({
+      title: "An Investment Is Late",
+      description: "Note NOTE-001 is past the grace period.",
+    });
+    expect(
+      adapter.buildPresentation("NOTE_LETTER_SENT", {
+        noteReference: "NOTE-001",
+        kind: "DEFAULT",
+        resent: true,
+      })
+    ).toEqual({
+      title: "Default Notice Resent",
+      description: "A default notice for note NOTE-001 was emailed to your organisation.",
+    });
+    expect(
+      adapter.buildPresentation("NOTE_LETTER_SENT", {
+        noteReference: "NOTE-001",
+        kind: "ARREARS",
+        delivered: false,
+      })
+    ).toEqual({
+      title: "Arrears Notice Generated",
+      description: "An arrears notice for note NOTE-001 was generated.",
+    });
+  });
+
+  it("keeps overdue notices and letters off the investor activity feed", async () => {
+    prisma.noteEvent.findMany.mockResolvedValue([
+      createRecord({ id: "late_1", event_type: "NOTE_LATE" }),
+      createRecord({ id: "overdue_1", event_type: "NOTE_OVERDUE" }),
+      createRecord({ id: "letter_1", event_type: "NOTE_LETTER_SENT" }),
+    ]);
+
+    const records = await adapter.query("user_1", {
+      organizationId: "investor-org-1",
+      portalType: "investor",
+      limit: 10,
+      offset: 0,
+    });
+
+    expect(records.map((record) => record.event_type)).toEqual(["NOTE_LATE"]);
   });
 });

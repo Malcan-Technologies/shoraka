@@ -38,7 +38,7 @@ import {
   type CertificateAuthorisationSnapshot,
   type InvestmentNoteCertificateSnapshot,
 } from "./types";
-import { freezeCertificateAuthorisation } from "../document-authorisation/config";
+import { freezeShorakaSigningAuthorisation, toCertificateAuthorisationSnapshot } from "../document-authorisation/signing-person-freeze";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -186,8 +186,7 @@ export function reissueCertificateSnapshotFromReady(
   previous: InvestmentNoteCertificateSnapshot,
   input: {
     version: string;
-    authorisedSignatoryName: string;
-    companyStamp: CertificateAuthorisationSnapshot["companyStamp"];
+    authorisation: CertificateAuthorisationSnapshot;
     generatedAt?: Date;
   }
 ): InvestmentNoteCertificateSnapshot {
@@ -199,10 +198,7 @@ export function reissueCertificateSnapshotFromReady(
       ...previous.certificate,
       version: input.version,
     },
-    authorisation: {
-      authorisedSignatoryName: input.authorisedSignatoryName,
-      companyStamp: input.companyStamp,
-    },
+    authorisation: input.authorisation,
   });
 }
 
@@ -212,8 +208,9 @@ export function reissueCertificateSnapshotFromReady(
  */
 export async function buildInvestmentNoteCertificateSnapshot(
   noteId: string,
-  generatedAt = new Date()
+  options?: { signingPersonId?: string; generatedAt?: Date }
 ): Promise<InvestmentNoteCertificateSnapshot> {
+  const generatedAt = options?.generatedAt ?? new Date();
   const note = await prisma.note.findUnique({
     where: { id: noteId },
     select: {
@@ -345,7 +342,9 @@ export async function buildInvestmentNoteCertificateSnapshot(
   const disbursementIso = isoDate(note.disbursement_value_date);
   const maturityIso = isoDate(note.maturity_date);
   const riskRating = parseInvoiceSnapshotRiskRating(note.invoice_snapshot) ?? "—";
-  const authorisation = await freezeCertificateAuthorisation();
+  const authorisation = toCertificateAuthorisationSnapshot(
+    await freezeShorakaSigningAuthorisation(options?.signingPersonId ?? "")
+  );
 
   const withoutHash = {
     templateId: CERTIFICATE_TEMPLATE_ID,

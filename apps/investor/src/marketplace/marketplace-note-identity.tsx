@@ -33,12 +33,14 @@ function MarketplaceNoteLead({
 export function MarketplaceNoteIdentity({
   note,
   featuredMark,
+  trailing,
   titleAsLink = true,
   leadSize = "md",
   className,
 }: {
   note: MarketplaceNote;
   featuredMark?: ReactNode;
+  trailing?: ReactNode;
   titleAsLink?: boolean;
   leadSize?: "md" | "lg";
   className?: string;
@@ -50,46 +52,44 @@ export function MarketplaceNoteIdentity({
   const showFailed = note.listingKind === "failed";
   const showBadges = Boolean(featuredMark) || showFunded || showFailed;
 
-  const titleClassName = "line-clamp-2 text-card-title leading-snug text-foreground";
+  const titleClassName = "min-w-0 text-card-title leading-snug text-foreground";
 
   return (
-    <div className={cn("flex items-start gap-3", className)}>
-      <MarketplaceNoteLead note={note} size={leadSize} />
-      <div className="min-w-0 space-y-1.5">
-        {showBadges ? (
-          <div className="flex flex-wrap items-center gap-2">
-            {featuredMark}
-            {showFunded ? <StatusBadge label="Funded" status="success" /> : null}
-            {showFailed ? <StatusBadge label="Funding failed" status="rejected" /> : null}
-          </div>
-        ) : null}
+    <div className={cn("min-w-0 space-y-1.5", className)}>
+      {showBadges ? (
+        <div className="flex flex-wrap items-center gap-2">
+          {featuredMark}
+          {showFunded ? <StatusBadge label="Funded" status="success" /> : null}
+          {showFailed ? <StatusBadge label="Funding failed" status="rejected" /> : null}
+        </div>
+      ) : null}
+      <div className="flex min-w-0 items-start gap-3">
+        <MarketplaceNoteLead note={note} size={leadSize} />
         {titleAsLink ? (
           <Link
             href={`/investments/${note.id}`}
-            className={cn(titleClassName, "hover:text-primary")}
+            className={cn(titleClassName, "flex-1 hover:text-primary")}
             title={headline}
           >
             {headline}
           </Link>
         ) : (
-          <p className={titleClassName} title={headline}>
+          <p className={cn(titleClassName, "flex-1")} title={headline}>
             {headline}
           </p>
         )}
-        {contractPurpose ? (
-          <p
-            className="line-clamp-2 text-ui leading-6 text-muted-foreground"
-            title={contractPurpose}
-          >
-            {contractPurpose}
-          </p>
-        ) : null}
-        {context ? (
-          <p className="text-meta leading-5 text-muted-foreground" title={context}>
-            {context}
-          </p>
-        ) : null}
+        {trailing ? <div className="shrink-0">{trailing}</div> : null}
       </div>
+      {contractPurpose ? (
+        <p className="text-ui leading-6 text-muted-foreground" title={contractPurpose}>
+          {contractPurpose}
+        </p>
+      ) : null}
+      {context ? (
+        <p className="text-meta leading-5 text-muted-foreground" title={context}>
+          {context}
+        </p>
+      ) : null}
     </div>
   );
 }

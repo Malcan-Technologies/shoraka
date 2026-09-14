@@ -582,15 +582,17 @@ export function calculateLateCharge(input: LateChargeInput) {
   const rawLateDays = calculateCalendarDayCount(input.dueDate, input.receiptDate);
   const daysLate = Math.max(0, rawLateDays - input.gracePeriodDays);
   const annualFactor = daysLate / 365;
-  const tawidhCap = input.receiptAmount * (input.tawidhRateCapPercent / 100) * annualFactor;
-  const gharamahCap = input.receiptAmount * (input.gharamahRateCapPercent / 100) * annualFactor;
+  const tawidhCap = money(input.receiptAmount * (input.tawidhRateCapPercent / 100) * annualFactor);
+  const gharamahCap = money(
+    input.receiptAmount * (input.gharamahRateCapPercent / 100) * annualFactor
+  );
 
   return {
     daysLate,
     tawidhCap,
     gharamahCap,
-    tawidhAmount: Math.min(input.tawidhAmount ?? tawidhCap, tawidhCap),
-    gharamahAmount: Math.min(input.gharamahAmount ?? gharamahCap, gharamahCap),
+    tawidhAmount: money(Math.min(input.tawidhAmount ?? tawidhCap, tawidhCap)),
+    gharamahAmount: money(Math.min(input.gharamahAmount ?? gharamahCap, gharamahCap)),
   };
 }
 

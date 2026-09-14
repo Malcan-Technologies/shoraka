@@ -221,6 +221,8 @@ export interface NoteDashboardMetrics {
   live: number;
   repaid: number;
   distressed: number;
+  arrears: number;
+  defaulted: number;
   cancelledOrFailedFunding: number;
 }
 
@@ -233,6 +235,17 @@ export interface BookMetrics {
   outstanding: BookAmountMetric;
   inFunding: BookAmountMetric;
   distressed: BookAmountMetric;
+  arrears: BookAmountMetric;
+  defaulted: BookAmountMetric;
+  dueSoon: BookAmountMetric;
+}
+
+export interface BookMetricHistoryPoint {
+  date: string; // YYYY-MM-DD MYT
+  outstanding: BookAmountMetric;
+  inFunding: BookAmountMetric;
+  arrears: BookAmountMetric;
+  defaulted: BookAmountMetric;
   dueSoon: BookAmountMetric;
 }
 
@@ -249,6 +262,7 @@ export interface DashboardStatsResponse {
   contractMetrics?: ContractDashboardMetrics;
   noteMetrics?: NoteDashboardMetrics;
   bookMetrics?: BookMetrics;
+  bookMetricHistory?: BookMetricHistoryPoint[];
 }
 
 // Admin Management Types
@@ -866,6 +880,7 @@ export interface UpdateAdminOrganizationProfileInput {
   } | null;
   corporateOnboardingData?: UpdateAdminOrganizationCorporateOnboardingInput;
   dateOfIncorporation?: string | null;
+  dateOfBirth?: string | null;
   dateOfCommencement?: string | null;
   countryOfIncorporation?: string | null;
   scCompanyType?: import("./comrep-profile").ScCompanyType | null;

@@ -1,26 +1,30 @@
-export const PROFILE_PATH = "/profile";
-export const PROFILE_TAB_PROFILE = "profile";
-export const PROFILE_TAB_BANKING = "banking";
-export const PROFILE_TAB_DOCUMENTS = "documents";
-
-export const PROFILE_TABS = [
+export {
+  PROFILE_PATH,
   PROFILE_TAB_PROFILE,
   PROFILE_TAB_BANKING,
+  PROFILE_TAB_PEOPLE,
   PROFILE_TAB_DOCUMENTS,
-] as const;
+  PROFILE_BANKING_HREF,
+  PROFILE_PEOPLE_HREF,
+} from "@cashsouk/types";
+import {
+  isOrganisationProfileTab,
+  organisationProfileTabFromSearchParam,
+  type OrganisationProfileTab,
+} from "@cashsouk/types";
 
-export type ProfileTab = (typeof PROFILE_TABS)[number];
+export type ProfileTab = OrganisationProfileTab;
 
-export const PROFILE_BANKING_HREF = `${PROFILE_PATH}?tab=${PROFILE_TAB_BANKING}`;
-
-export function isProfileTab(value: string | null | undefined): value is ProfileTab {
-  return (
-    value === PROFILE_TAB_PROFILE ||
-    value === PROFILE_TAB_BANKING ||
-    value === PROFILE_TAB_DOCUMENTS
-  );
+export function isProfileTab(
+  value: string | null | undefined,
+  isCompany = false
+): value is ProfileTab {
+  return isOrganisationProfileTab(value, isCompany);
 }
 
-export function profileTabFromSearchParam(tab: string | null): ProfileTab {
-  return isProfileTab(tab) ? tab : PROFILE_TAB_PROFILE;
+export function profileTabFromSearchParam(
+  tab: string | null,
+  isCompany = false
+): ProfileTab {
+  return organisationProfileTabFromSearchParam(tab, isCompany);
 }

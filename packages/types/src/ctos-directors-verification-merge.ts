@@ -39,9 +39,10 @@ function individualIdNicFirstIcSecond(r: CtosDirectorRowForVerificationMerge): s
 function mergeKeyForCtosDirectorRow(r: CtosDirectorRowForVerificationMerge): string | null {
   const pt = (r.party_type ?? "").trim().toUpperCase();
   if (pt === "C") {
-    const nic = (r.nic_brno ?? "").trim();
     const ic = (r.ic_lcno ?? "").trim();
-    const corpId = nic || ic || null;
+    const brn = (r.brn_ssm ?? "").trim();
+    const nic = (r.nic_brno ?? "").trim();
+    const corpId = ic || brn || nic || null;
     return normalizeDirectorShareholderIdKey(corpId);
   }
   if (pt === "I") {

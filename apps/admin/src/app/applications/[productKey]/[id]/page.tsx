@@ -47,6 +47,13 @@ import {
   isTabUnlocked,
 } from "@/components/application-review/review-registry";
 import { getEffectiveReviewTabDescriptors } from "@/lib/effective-review-tab-descriptors";
+import {
+  canManageReviewSection,
+  collapseOfferAcceptanceDescriptors,
+  isOfferAcceptanceTabDescriptor,
+  resolveSectionActionLock,
+  type SectionActionLockMap,
+} from "@/components/application-review/offer-acceptance";
 import { mapAdminCapacityActionError } from "@/lib/facility-capacity-display";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -95,7 +102,6 @@ import {
 import { RequirePermission } from "@/components/require-permission";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useAdminSigningEnvelopes } from "@/hooks/use-signing-envelopes";
-import type { AdminPermission } from "@cashsouk/types";
 import JSZip from "jszip";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -148,16 +154,6 @@ function RelatedRecordLink({
     </div>
   );
 }
-
-const SECTION_PERMISSION_MAP: Record<string, AdminPermission> = {
-  financial: "applications.financial.manage",
-  company_details: "applications.company.manage",
-  business_details: "applications.business_guarantor.manage",
-  supporting_documents: "applications.documents.manage",
-  acceptance_documents: "applications.documents.manage",
-  contract_details: "applications.contract.manage",
-  invoice_details: "applications.invoice.manage",
-};
 
 export default function DynamicApplicationDetailPage() {
   const { can } = usePermissions();
@@ -456,31 +452,48 @@ export default function DynamicApplicationDetailPage() {
     () => getEffectiveReviewTabDescriptors(reviewProductWorkflow, app ?? null),
     [reviewProductWorkflow, app]
   );
+  const liveTabDescriptors = React.useMemo(
+    () => collapseOfferAcceptanceDescriptors(effectiveTabDescriptors),
+    [effectiveTabDescriptors]
+  );
   const hasAcceptanceTab = effectiveTabDescriptors.some(
     (descriptor) => descriptor.reviewSection === "acceptance_documents"
   );
 
-  const defaultReviewTabId = effectiveTabDescriptors[0]?.id ?? "financial";
+  const defaultReviewTabId = liveTabDescriptors[0]?.id ?? "financial";
   const [reviewTabValue, setReviewTabValue] = React.useState<string | null>(null);
+  const [offerAcceptanceFocusStageId, setOfferAcceptanceFocusStageId] = React.useState<string | null>(
+    null
+  );
   const activeReviewTabId = reviewTabValue ?? defaultReviewTabId;
 
   React.useEffect(() => {
     if (
       reviewTabValue != null &&
-      !effectiveTabDescriptors.some((descriptor) => descriptor.id === reviewTabValue)
+      !liveTabDescriptors.some((descriptor) => descriptor.id === reviewTabValue)
     ) {
       setReviewTabValue(null);
     }
-  }, [effectiveTabDescriptors, reviewTabValue]);
+  }, [liveTabDescriptors, reviewTabValue]);
 
   const goToAcceptanceTab = React.useCallback(() => {
+    const unifiedTab = liveTabDescriptors.find(isOfferAcceptanceTabDescriptor);
+    if (unifiedTab) {
+      setReviewTabValue(unifiedTab.id);
+      setOfferAcceptanceFocusStageId(
+        unifiedTab.mergedSections?.includes("acceptance_documents")
+          ? "acceptance_documents"
+          : "issuer_response"
+      );
+      return;
+    }
     const acceptanceTab = effectiveTabDescriptors.find(
       (descriptor) => descriptor.reviewSection === "acceptance_documents"
     );
     if (acceptanceTab) {
       setReviewTabValue(acceptanceTab.id);
     }
-  }, [effectiveTabDescriptors]);
+  }, [effectiveTabDescriptors, liveTabDescriptors]);
 
   const isExistingContract = React.useMemo(
     () =>
@@ -644,6 +657,54 @@ export default function DynamicApplicationDetailPage() {
     () => new Set(effectiveTabDescriptors.map((d) => d.reviewSection)),
     [effectiveTabDescriptors]
   );
+  const sectionActionLocks = React.useMemo((): SectionActionLockMap => {
+    const applicationWithdrawn = app?.status === "WITHDRAWN";
+    const locks: SectionActionLockMap = {};
+    for (const descriptor of effectiveTabDescriptors) {
+      const section = descriptor.reviewSection;
+      const canManage = canManageReviewSection(section, can);
+      const contractStatus = (app?.contract as { status?: string | null } | null | undefined)?.status;
+      const contractEntityStatus = typeof contractStatus === "string" ? contractStatus : null;
+      const tabUnlocked = isTabUnlocked(
+        section,
+        sectionStatusMap,
+        availableReviewSections,
+        tabPrerequisitesFromApi,
+        structureType,
+        contractEntityStatus
+      );
+      locks[section] = resolveSectionActionLock({
+        section,
+        applicationWithdrawn,
+        isExistingContract,
+        canManage,
+        tabUnlocked,
+        paymasterSwitchingFrozen,
+        unlockTooltip: getTabUnlockTooltip(
+          section,
+          sectionStatusMap,
+          availableReviewSections,
+          tabPrerequisitesFromApi,
+          isInvoiceOnly ? { contract_details: "Customer" } : undefined,
+          structureType,
+          contractEntityStatus
+        ),
+      });
+    }
+    return locks;
+  }, [
+    app?.status,
+    app?.contract,
+    availableReviewSections,
+    can,
+    effectiveTabDescriptors,
+    isExistingContract,
+    isInvoiceOnly,
+    paymasterSwitchingFrozen,
+    sectionStatusMap,
+    structureType,
+    tabPrerequisitesFromApi,
+  ]);
 
   const handleApproveSection = (section: string) => {
     setNoteDialog({ open: true, action: "approve", section: section as ReviewSectionId });
@@ -933,56 +994,19 @@ export default function DynamicApplicationDetailPage() {
                   <div className="min-w-0 space-y-6">
                     <ApplicationReviewTabs
                     sections={reviewSections}
-                    tabDescriptors={effectiveTabDescriptors}
+                    tabDescriptors={liveTabDescriptors}
                     defaultTabId={defaultReviewTabId}
                     tabValue={activeReviewTabId}
                     onTabValueChange={setReviewTabValue}
                   >
-                    {effectiveTabDescriptors.map((descriptor) => {
-                      const applicationWithdrawn = app?.status === "WITHDRAWN";
-                      const isContractExistingContract =
-                        descriptor.reviewSection === "contract_details" && isExistingContract;
-                      const isAcceptanceExistingContract =
-                        descriptor.reviewSection === "acceptance_documents" && isExistingContract;
-                      const sectionPermission = SECTION_PERMISSION_MAP[descriptor.reviewSection];
-                      const canManageSection = sectionPermission ? can(sectionPermission) : true;
-                      const tabUnlocked = isTabUnlocked(
-                        descriptor.reviewSection,
-                        sectionStatusMap,
-                        availableReviewSections,
-                        tabPrerequisitesFromApi,
-                        structureType
-                      );
-                      const paymasterAmendmentLocked =
-                        descriptor.reviewSection === "contract_details" && paymasterSwitchingFrozen;
-                      const actionLocked =
-                        applicationWithdrawn ||
-                        isContractExistingContract ||
-                        isAcceptanceExistingContract ||
-                        !tabUnlocked ||
-                        !canManageSection ||
-                        paymasterAmendmentLocked;
-                      const actionLockTooltip = actionLocked
-                        ? !canManageSection
-                          ? "You do not have permission to perform this action."
-                          : applicationWithdrawn
-                            ? "Application withdrawn"
-                            : isContractExistingContract
-                              ? "Facility was approved in a prior application"
-                              : isAcceptanceExistingContract
-                                ? "Acceptance was completed when the linked facility was approved"
-                                : paymasterAmendmentLocked
-                                  ? "Paymaster cannot be changed after a commercial offer or signed facility"
-                                  : getTabUnlockTooltip(
-                                  descriptor.reviewSection,
-                                  sectionStatusMap,
-                                  availableReviewSections,
-                                  tabPrerequisitesFromApi,
-                                  isInvoiceOnly ? { contract_details: "Customer" } : undefined,
-                                  structureType
-                                )
-                        : undefined;
-                      const sectionStatus = sectionStatusMap.get(descriptor.reviewSection);
+                    {liveTabDescriptors.map((descriptor) => {
+                      const isUnifiedOfferTab = isOfferAcceptanceTabDescriptor(descriptor);
+                      const lock = sectionActionLocks[descriptor.reviewSection];
+                      const actionLocked = isUnifiedOfferTab ? false : !!lock?.locked;
+                      const actionLockTooltip = isUnifiedOfferTab ? undefined : lock?.tooltip;
+                      const sectionStatus = isUnifiedOfferTab
+                        ? undefined
+                        : sectionStatusMap.get(descriptor.reviewSection);
                       return (
                         <ApplicationReviewTabContent key={descriptor.id} value={descriptor.id}>
                           <SectionContent
@@ -997,6 +1021,10 @@ export default function DynamicApplicationDetailPage() {
                             viewDocumentPending={viewDocumentPending}
                             isActionLocked={actionLocked}
                             actionLockTooltip={actionLockTooltip}
+                            sectionActionLocks={sectionActionLocks}
+                            offerAcceptanceFocusStageId={
+                              isUnifiedOfferTab ? offerAcceptanceFocusStageId : null
+                            }
                             sectionStatus={sectionStatus}
                             sectionStatusMap={sectionStatusMap}
                             onResetSectionToPending={async (section) => {

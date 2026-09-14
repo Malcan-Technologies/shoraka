@@ -65,6 +65,7 @@ describe("maturity countdown", () => {
   it("flags arrears and active notes at or within 30 days of maturity", () => {
     expect(isNoteInArrears({ status: "ARREARS", servicingStatus: "CURRENT" })).toBe(true);
     expect(isNoteInArrears({ status: "ACTIVE", servicingStatus: "ARREARS" })).toBe(true);
+    expect(isNoteInArrears({ status: "DEFAULTED", servicingStatus: "DEFAULTED" })).toBe(true);
     expect(isNoteInArrears({ status: "ACTIVE", servicingStatus: "CURRENT" })).toBe(false);
 
     expect(

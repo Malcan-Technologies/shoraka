@@ -14,6 +14,8 @@ jest.mock("../../lib/prisma", () => ({
       findUnique: jest.fn(),
     },
     issuerOrganization: { findMany: jest.fn(), findUnique: jest.fn() },
+    application: { findMany: jest.fn(), findUnique: jest.fn() },
+    signingEnvelope: { findMany: jest.fn(), findUnique: jest.fn() },
   },
 }));
 
@@ -75,6 +77,12 @@ describe("legal external acceptance Admin reader", () => {
     (prisma.issuerOrganization.findMany as jest.Mock).mockResolvedValue([
       { id: "org-1", name: "Acme Sdn Bhd" },
     ]);
+    (prisma.application.findMany as jest.Mock).mockResolvedValue([
+      { id: "app-1", display_reference: "APP-123" },
+    ]);
+    (prisma.signingEnvelope.findMany as jest.Mock).mockResolvedValue([
+      { id: "env-1", title: "Envelope Title 1" },
+    ]);
 
     const result = await legalExternalAcceptanceAdminService.listAcceptances({
       page: 1,
@@ -87,6 +95,8 @@ describe("legal external acceptance Admin reader", () => {
       id: "ext-1",
       envelopeId: "env-1",
       applicationId: "app-1",
+      envelopeTitle: "Envelope Title 1",
+      applicationReference: "APP-123",
       organizationId: "org-1",
       organizationName: "Acme Sdn Bhd",
       partyRole: "guarantor",
@@ -102,6 +112,12 @@ describe("legal external acceptance Admin reader", () => {
     (prisma.issuerOrganization.findMany as jest.Mock).mockResolvedValue([
       { id: "org-1", name: "Acme Sdn Bhd" },
     ]);
+    (prisma.application.findMany as jest.Mock).mockResolvedValue([
+      { id: "app-1", display_reference: "APP-123" },
+    ]);
+    (prisma.signingEnvelope.findMany as jest.Mock).mockResolvedValue([
+      { id: "env-1", title: "Envelope Title 1" },
+    ]);
 
     const acceptance = await legalExternalAcceptanceAdminService.getAcceptanceById("ext-1");
 
@@ -112,12 +128,20 @@ describe("legal external acceptance Admin reader", () => {
     expect(acceptance.acknowledgementText).toContain("warning statement");
     expect(acceptance.documentHash).toBe("abc");
     expect(acceptance.openedDeviceInfo).toBe("desktop");
+    expect(acceptance.applicationReference).toBe("APP-123");
+    expect(acceptance.envelopeTitle).toBe("Envelope Title 1");
   });
 
   it("exports matching rows with the same filters and never includes unmasked IC", async () => {
     (prisma.legalExternalAcceptance.findMany as jest.Mock).mockResolvedValue([makeRow()]);
     (prisma.issuerOrganization.findMany as jest.Mock).mockResolvedValue([
       { id: "org-1", name: "Acme Sdn Bhd" },
+    ]);
+    (prisma.application.findMany as jest.Mock).mockResolvedValue([
+      { id: "app-1", display_reference: "APP-123" },
+    ]);
+    (prisma.signingEnvelope.findMany as jest.Mock).mockResolvedValue([
+      { id: "env-1", title: "Envelope Title 1" },
     ]);
 
     const rows = await legalExternalAcceptanceAdminService.exportAcceptances({
@@ -143,6 +167,8 @@ describe("legal external acceptance Admin reader", () => {
     expect(rows[0]).not.toHaveProperty("partyIcNumber");
     expect(JSON.stringify(rows)).not.toContain("900101015432");
     expect(rows[0]?.acceptedIpAddress).toBe("203.0.113.20");
+    expect(rows[0]?.applicationReference).toBe("APP-123");
+    expect(rows[0]?.envelopeTitle).toBe("Envelope Title 1");
   });
 });
 

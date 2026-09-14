@@ -1,3 +1,4 @@
+import { resolveExcessLateChargeOutstanding } from "@cashsouk/types";
 import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
 import { listIssuerOrgMemberUserIds } from "./org-member-recipients";
@@ -16,6 +17,15 @@ export function excessLateChargesPaidIdempotencyKey(noteId: string, userId: stri
 
 export function shouldNotifyExcessLateChargesDue(outstandingAmount: number): boolean {
   return outstandingAmount > 0;
+}
+
+export function shouldNotifyExcessLateChargesCleared(input: {
+  owed: number;
+  paid: number;
+  waived?: number;
+}): boolean {
+  if (input.owed <= 0) return false;
+  return resolveExcessLateChargeOutstanding(input.owed, input.paid, input.waived ?? 0) <= 0.005;
 }
 
 export async function notifyExcessLateChargesDue(input: {
@@ -71,12 +81,14 @@ export async function notifyExcessLateChargesPaidIfSettled(input: {
       select: {
         excess_late_charge_amount: true,
         excess_late_charge_paid_amount: true,
+        excess_late_charge_waived_amount: true,
       },
     });
     if (!settlement) return;
     const owed = settlement.excess_late_charge_amount.toNumber();
     const paid = settlement.excess_late_charge_paid_amount.toNumber();
-    if (owed <= 0 || paid + 0.005 < owed) return;
+    const waived = settlement.excess_late_charge_waived_amount.toNumber();
+    if (!shouldNotifyExcessLateChargesCleared({ owed, paid, waived })) return;
     const orgId = input.issuerOrganizationId;
     if (!orgId) return;
 

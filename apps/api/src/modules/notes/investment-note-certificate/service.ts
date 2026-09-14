@@ -12,6 +12,7 @@ import type {
 import {
   latestOfficialDocumentVersion,
   nextOfficialDocumentVersion,
+  SHORAKA_SIGNING_PERSON_REQUIRED_MESSAGE,
 } from "@cashsouk/types";
 import { prisma as defaultPrisma } from "../../../lib/prisma";
 import {
@@ -47,9 +48,13 @@ import {
   type InvestmentNoteCertificateSnapshot,
 } from "./types";
 import {
-  freezeCertificateAuthorisation,
   loadFrozenStampImage,
 } from "../document-authorisation/config";
+import {
+  freezeShorakaSigningAuthorisation,
+  listShorakaDocumentSigningOptions,
+  toCertificateAuthorisationSnapshot,
+} from "../document-authorisation/signing-person-freeze";
 
 type ActorContext = {
   userId: string;
@@ -92,6 +97,15 @@ function emptyPdfPayload(
     pdfFileName: null,
     pdfSha256: null,
     ...overrides,
+  };
+}
+
+async function withAdminSigningOptions(
+  payload: InvestmentNoteCertificatePdfPayload
+): Promise<InvestmentNoteCertificatePdfPayload> {
+  return {
+    ...payload,
+    signingOptions: await listShorakaDocumentSigningOptions(),
   };
 }
 
@@ -287,13 +301,15 @@ async function generatePdfForRow(input: {
   }
 
   const stampImage = await loadFrozenStampImage(input.snapshot.authorisation?.companyStamp);
+  const signatureImage = await loadFrozenStampImage(input.snapshot.authorisation?.signature ?? null);
   const docx = renderInvestmentNoteCertificateDocx(
     input.snapshot,
     {
       audience: input.row.audience,
       investorOrganizationId: input.row.investor_organization_id,
     },
-    stampImage
+    stampImage,
+    signatureImage
   );
   const pdf = await convertDocxToPdf(docx, { fileName: "investment-note-certificate.docx" });
   const sha256 = sha256Hex(pdf);
@@ -434,6 +450,7 @@ export async function generateInvestmentNoteCertificates(
     source: CertificateGenerationSource;
     actor?: ActorContext;
     createMissing?: boolean;
+    signingPersonId?: string;
   },
   db: PrismaClient = defaultPrisma
 ): Promise<void> {
@@ -452,8 +469,11 @@ export async function generateInvestmentNoteCertificates(
     if (input.createMissing === false) return;
     let snapshot: InvestmentNoteCertificateSnapshot;
     try {
-      snapshot = await buildInvestmentNoteCertificateSnapshot(input.noteId);
+      snapshot = await buildInvestmentNoteCertificateSnapshot(input.noteId, {
+        signingPersonId: input.signingPersonId,
+      });
     } catch (error) {
+      if (error instanceof AppError) throw error;
       if (error instanceof CertificateGenerationError && error.code === "NOT_FUNDED") {
         return;
       }
@@ -558,8 +578,13 @@ async function generateVersionPdfs(input: {
 export async function generateAdminInvestmentNoteCertificate(
   noteId: string,
   actor: ActorContext,
+  input: { signingPersonId: string },
   db: PrismaClient = defaultPrisma
 ): Promise<InvestmentNoteCertificatePdfPayload> {
+  const signingPersonId = input.signingPersonId.trim();
+  if (!signingPersonId) {
+    throw new AppError(400, "SIGNING_PERSON_REQUIRED", SHORAKA_SIGNING_PERSON_REQUIRED_MESSAGE);
+  }
   const note = await db.note.findUnique({
     where: { id: noteId },
     select: {
@@ -586,7 +611,7 @@ export async function generateAdminInvestmentNoteCertificate(
     );
   }
   await generateInvestmentNoteCertificates(
-    { noteId, source: "ADMIN_GENERATE", actor, createMissing: true },
+    { noteId, source: "ADMIN_GENERATE", actor, createMissing: true, signingPersonId },
     db
   );
   return getAdminInvestmentNoteCertificate(noteId, db);
@@ -820,8 +845,13 @@ async function writeReissuedAuditEvent(input: {
 export async function reissueAdminInvestmentNoteCertificate(
   noteId: string,
   actor: ActorContext,
+  input: { signingPersonId: string },
   db: PrismaClient = defaultPrisma
 ): Promise<InvestmentNoteCertificatePdfPayload> {
+  const signingPersonId = input.signingPersonId.trim();
+  if (!signingPersonId) {
+    throw new AppError(400, "SIGNING_PERSON_REQUIRED", SHORAKA_SIGNING_PERSON_REQUIRED_MESSAGE);
+  }
   const note = await db.note.findUnique({
     where: { id: noteId },
     select: { id: true, funding_status: true },
@@ -875,11 +905,12 @@ export async function reissueAdminInvestmentNoteCertificate(
   }
 
   const nextVersion = nextOfficialDocumentVersion(latest ?? currentVersion);
-  const authorisation = await freezeCertificateAuthorisation();
+  const authorisation = toCertificateAuthorisationSnapshot(
+    await freezeShorakaSigningAuthorisation(signingPersonId)
+  );
   const nextSnapshot = reissueCertificateSnapshotFromReady(previousSnapshot, {
     version: nextVersion,
-    authorisedSignatoryName: authorisation.authorisedSignatoryName,
-    companyStamp: authorisation.companyStamp,
+    authorisation,
   });
 
   await generateVersionPdfs({
@@ -1048,7 +1079,7 @@ export async function getAdminInvestmentNoteCertificate(
   const eligible = isNoteEligibleForCertificateGeneration(note);
   const allRows = await loadNoteRows(db, noteId);
   if (allRows.length === 0) {
-    return emptyPdfPayload({ canGenerate: eligible });
+    return withAdminSigningOptions(emptyPdfPayload({ canGenerate: eligible }));
   }
   const currentVersion = currentOfficialDocumentVersion(allRows);
   const latest = latestVersionOf(allRows) ?? CERTIFICATE_FIRST_VERSION;
@@ -1065,15 +1096,17 @@ export async function getAdminInvestmentNoteCertificate(
     ? await reviewPayloadForRows(reviewRows, NoteInvestmentCertificateAudience.ADMIN)
     : null;
   const snapshot = snapshotFromRows(mainRows);
-  return payloadForAudienceRow({
-    row: pickAudienceRow(mainRows, NoteInvestmentCertificateAudience.ADMIN),
-    snapshot,
-    rows: mainRows,
-    version: mainVersion,
-    isCurrent: currentVersion === mainVersion && versionRowsReady(mainRows),
-    canRegenerate,
-    reviewVersion,
-  });
+  return withAdminSigningOptions(
+    await payloadForAudienceRow({
+      row: pickAudienceRow(mainRows, NoteInvestmentCertificateAudience.ADMIN),
+      snapshot,
+      rows: mainRows,
+      version: mainVersion,
+      isCurrent: currentVersion === mainVersion && versionRowsReady(mainRows),
+      canRegenerate,
+      reviewVersion,
+    })
+  );
 }
 
 export async function getIssuerInvestmentNoteCertificate(

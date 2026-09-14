@@ -13,6 +13,7 @@ import type {
 import {
   latestOfficialDocumentVersion,
   nextOfficialDocumentVersion,
+  SHORAKA_SIGNING_PERSON_REQUIRED_MESSAGE,
 } from "@cashsouk/types";
 import { prisma as defaultPrisma } from "../../../lib/prisma";
 import {
@@ -49,10 +50,12 @@ import {
   type SettlementHibahReceiptSnapshot,
 } from "./types";
 import { isNoteFullySettledForHibahReceipt } from "./eligibility";
+import { loadFrozenStampImage } from "../document-authorisation/config";
 import {
-  freezeReceiptAuthorisation,
-  loadFrozenStampImage,
-} from "../document-authorisation/config";
+  freezeShorakaSigningAuthorisation,
+  listShorakaDocumentSigningOptions,
+  toReceiptAuthorisationSnapshot,
+} from "../document-authorisation/signing-person-freeze";
 
 type ActorContext = {
   userId: string;
@@ -94,6 +97,15 @@ function emptyPdfPayload(
     pdfFileName: null,
     pdfSha256: null,
     ...overrides,
+  };
+}
+
+async function withAdminSigningOptions(
+  payload: SettlementHibahReceiptPdfPayload
+): Promise<SettlementHibahReceiptPdfPayload> {
+  return {
+    ...payload,
+    signingOptions: await listShorakaDocumentSigningOptions(),
   };
 }
 
@@ -292,7 +304,8 @@ async function generatePdfForRow(input: {
 
   const frozen = parseHibahReceiptSnapshot(input.row.snapshot) ?? input.snapshot;
   const stampImage = await loadFrozenStampImage(frozen.authorisation?.companyStamp);
-  const docx = renderSettlementHibahReceiptDocx(frozen, stampImage);
+  const signatureImage = await loadFrozenStampImage(frozen.authorisation?.signature ?? null);
+  const docx = renderSettlementHibahReceiptDocx(frozen, stampImage, signatureImage);
   const pdf = await convertDocxToPdf(docx, { fileName: "settlement-hibah-receipt.docx" });
   const sha256 = sha256Hex(pdf);
   const key = buildReceiptPdfObjectKey({
@@ -389,6 +402,7 @@ export async function generateSettlementHibahReceipt(
     source: ReceiptGenerationSource;
     actor?: ActorContext;
     createMissing?: boolean;
+    signingPersonId?: string;
   },
   db: PrismaClient = defaultPrisma
 ): Promise<void> {
@@ -427,8 +441,11 @@ export async function generateSettlementHibahReceipt(
   if (!snapshot) {
     if (input.createMissing === false) return;
     try {
-      snapshot = await buildSettlementHibahReceiptSnapshot(input.noteId, input.source);
+      snapshot = await buildSettlementHibahReceiptSnapshot(input.noteId, input.source, {
+        signingPersonId: input.signingPersonId,
+      });
     } catch (error) {
+      if (error instanceof AppError) throw error;
       if (error instanceof ReceiptGenerationError && error.code === "NOT_ELIGIBLE") {
         return;
       }
@@ -489,8 +506,13 @@ export async function generateSettlementHibahReceipt(
 export async function generateAdminSettlementHibahReceipt(
   noteId: string,
   actor: ActorContext,
+  input: { signingPersonId: string },
   db: PrismaClient = defaultPrisma
 ): Promise<SettlementHibahReceiptPdfPayload> {
+  const signingPersonId = input.signingPersonId.trim();
+  if (!signingPersonId) {
+    throw new AppError(400, "SIGNING_PERSON_REQUIRED", SHORAKA_SIGNING_PERSON_REQUIRED_MESSAGE);
+  }
   if (!(await noteIsEligible(db, noteId))) {
     throw new AppError(
       409,
@@ -511,7 +533,7 @@ export async function generateAdminSettlementHibahReceipt(
     );
   }
   await generateSettlementHibahReceipt(
-    { noteId, source: "ADMIN_GENERATE", actor, createMissing: true },
+    { noteId, source: "ADMIN_GENERATE", actor, createMissing: true, signingPersonId },
     db
   );
   return getAdminSettlementHibahReceipt(noteId, db);
@@ -721,8 +743,13 @@ async function writeReissuedReceiptAuditEvent(input: {
 export async function reissueAdminSettlementHibahReceipt(
   noteId: string,
   actor: ActorContext,
+  input: { signingPersonId: string },
   db: PrismaClient = defaultPrisma
 ): Promise<SettlementHibahReceiptPdfPayload> {
+  const signingPersonId = input.signingPersonId.trim();
+  if (!signingPersonId) {
+    throw new AppError(400, "SIGNING_PERSON_REQUIRED", SHORAKA_SIGNING_PERSON_REQUIRED_MESSAGE);
+  }
   if (!(await noteIsEligible(db, noteId))) {
     throw new AppError(
       409,
@@ -767,11 +794,12 @@ export async function reissueAdminSettlementHibahReceipt(
   }
 
   const nextVersion = nextOfficialDocumentVersion(latest ?? currentVersion);
-  const authorisation = await freezeReceiptAuthorisation();
+  const authorisation = toReceiptAuthorisationSnapshot(
+    await freezeShorakaSigningAuthorisation(signingPersonId)
+  );
   const nextSnapshot = reissueHibahReceiptSnapshotFromReady(previousSnapshot, {
     version: nextVersion,
-    stampSource: authorisation.stampSource,
-    companyStamp: authorisation.companyStamp,
+    authorisation,
   });
 
   try {
@@ -877,10 +905,10 @@ export async function getAdminSettlementHibahReceipt(
   if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
   const eligible = isNoteFullySettledForHibahReceipt(note);
   const posted = await findPostedSettlement(db, noteId);
-  if (!posted) return emptyPdfPayload();
+  if (!posted) return withAdminSigningOptions(emptyPdfPayload());
   const rows = await loadReceiptRows(db, posted.id);
   if (rows.length === 0) {
-    return emptyPdfPayload({ canGenerate: eligible });
+    return withAdminSigningOptions(emptyPdfPayload({ canGenerate: eligible }));
   }
   const currentVersion = currentOfficialDocumentVersion(rows);
   const latest = latestReceiptVersion(rows);
@@ -893,12 +921,14 @@ export async function getAdminSettlementHibahReceipt(
   const canRegenerate =
     receiptRowReady(currentVersion ? rows.find((row) => row.version === currentVersion) ?? null : null) &&
     (reviewVersionKey == null || reviewRow?.status === SettlementHibahReceiptStatus.READY);
-  return payloadForRow({
-    row: mainRow,
-    isCurrent: currentVersion === mainVersion && receiptRowReady(mainRow),
-    canRegenerate,
-    reviewVersion: await reviewPayloadForReceipt(reviewRow),
-  });
+  return withAdminSigningOptions(
+    await payloadForRow({
+      row: mainRow,
+      isCurrent: currentVersion === mainVersion && receiptRowReady(mainRow),
+      canRegenerate,
+      reviewVersion: await reviewPayloadForReceipt(reviewRow),
+    })
+  );
 }
 
 export async function getIssuerSettlementHibahReceipt(

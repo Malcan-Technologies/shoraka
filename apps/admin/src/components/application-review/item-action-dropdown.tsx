@@ -74,7 +74,11 @@ export function ItemActionDropdown({
   triggerClassName,
 }: ItemActionDropdownProps) {
   const normalizedStatus = status.toUpperCase();
-  const canApprove = showApprove && normalizedStatus !== "APPROVED";
+  const offerLifecycle =
+    normalizedStatus === "OFFER_SENT" ||
+    normalizedStatus === "OFFER_EXPIRED" ||
+    normalizedStatus === "WITHDRAWN";
+  const canApprove = showApprove && normalizedStatus !== "APPROVED" && !offerLifecycle;
   const canReject = showReject && normalizedStatus !== "REJECTED";
   const showRequestAmendmentItem =
     showRequestAmendment && normalizedStatus !== "AMENDMENT_REQUESTED";

@@ -17,9 +17,7 @@ import {
   LEFT_TO_DRAW_HELPER,
   LEFT_TO_DRAW_LABEL,
   listFinancingGoalChoices,
-  NO_APPROVED_FACILITY_COPY,
   resolveInitialFinancingGoal,
-  SET_UP_FACILITY_INSTEAD_COPY,
   type FinancingJourneySummary,
   type FinancingStructureType,
 } from "@cashsouk/types";
@@ -40,7 +38,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
 import {
   applicationFlowStepHorizontalClassName,
   formInputDisabledClassName,
@@ -423,11 +420,7 @@ export function FinancingStructureStep({
               <div key={choice.id} className="space-y-3">
                 <SelectionCard
                   title={choice.title}
-                  description={
-                    choice.disabled && choice.disabledReason
-                      ? `${choice.description} ${choice.disabledReason}.`
-                      : choice.description
-                  }
+                  description={choice.description}
                   isSelected={selectedStructure === choice.id}
                   onClick={readOnly ? () => {} : () => handleStructureSelect(choice.id)}
                   disabled={choiceDisabled}
@@ -447,21 +440,6 @@ export function FinancingStructureStep({
                     radioRefs.current[choice.id] = node;
                   }}
                 />
-                {isExisting && choice.disabled ? (
-                  <div className="rounded-md border border-border bg-muted px-3 py-3 space-y-2">
-                    <p className="text-ui text-muted-foreground">{NO_APPROVED_FACILITY_COPY}.</p>
-                    {!readOnly ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="h-10"
-                        onClick={() => handleStructureSelect("new_contract")}
-                      >
-                        {SET_UP_FACILITY_INSTEAD_COPY}
-                      </Button>
-                    ) : null}
-                  </div>
-                ) : null}
                 {showFacilityContext && hasApprovedContracts ? (
                   <div className="space-y-3">
                     {fromPrefill && selectedFacility ? (

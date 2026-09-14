@@ -54,13 +54,20 @@ export function noteLatePaymentTabStatusToken(phase: LatePaymentWorkflowPhase): 
   if (phase === "not-needed") return "success";
   if (phase === "defaulted") return "rejected";
   // In grace is still admin monitoring (branding: Active · late stays yellow).
-  if (phase === "in-grace" || phase === "arrears" || phase === "default-eligible") return "action";
+  if (
+    phase === "in-grace" ||
+    phase === "late" ||
+    phase === "arrears" ||
+    phase === "default-eligible"
+  ) {
+    return "action";
+  }
   return "neutral";
 }
 
 /** Letters or a default decision are available to the admin right now. */
 export function latePaymentPhaseNeedsAdminAction(phase: LatePaymentWorkflowPhase): boolean {
-  return phase === "arrears" || phase === "default-eligible";
+  return phase === "late" || phase === "arrears" || phase === "default-eligible";
 }
 
 /** Active issuer-disbursement instruction; cancelled attempts are ignored. */
@@ -231,9 +238,14 @@ export function resolveNoteDetailNextAction(note: NoteDetail): NoteDetailNextAct
       tabId: "late-payment",
       title:
         latePayment.phase === "default-eligible"
-          ? "Note is eligible for default"
-          : "Note is in arrears",
-      description: `${latePayment.latePaymentTimingLabel}. Generate the required letters or mark the default from the Late Payment tab.`,
+          ? "Eligible for default"
+          : latePayment.phase === "late"
+            ? "Note is late"
+            : "Note is in arrears",
+      description:
+        latePayment.phase === "default-eligible"
+          ? `${latePayment.latePaymentTimingLabel}. Confirm default from the Late Payment tab.`
+          : `${latePayment.latePaymentTimingLabel}. Review late fees and letters on the Late Payment tab.`,
       ctaLabel: "Open Late Payment",
       tone: "action",
     };

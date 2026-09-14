@@ -18,6 +18,12 @@ describe("admin dual-limit surfaces", () => {
     expect(source).toContain("REMAINING_CREDIT_LABEL");
     expect(source).toContain("REMAINING_ALLOCATION_LABEL");
     expect(source).toContain("clampMeterAriaNow");
+    expect(source).toContain('variant = "meters"');
+    expect(source).toContain('if (variant === "kpi-strip")');
+    expect(source).toContain("flex flex-wrap");
+    expect(source).toContain("min-w-[10rem] flex-1 bg-card");
+    expect(source).not.toContain("gap-px bg-border");
+    expect(source).not.toContain("grid-cols-[repeat(auto-fit,minmax(10rem,1fr))]");
     expect(source).not.toContain("Not occupying the line");
     expect(source).not.toContain("not occupying");
     expect(CREDIT_FACILITY_HEADING).toMatch(/reusable after repayment/i);
@@ -41,7 +47,7 @@ describe("admin dual-limit surfaces", () => {
       path.join(__dirname, "sections/invoice-section.tsx"),
       "utf8"
     );
-    expect(source).toContain("{contractId ? (");
+    expect(source).toContain("{showReviewDetails && contractId ? (");
     expect(source).toContain("<FacilityImpact");
   });
 

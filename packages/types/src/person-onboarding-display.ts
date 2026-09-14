@@ -4,6 +4,8 @@ import { displayGovernmentIdentityNumber } from "./organization-party-key";
 export const PERSON_IDENTITY_PENDING_ONBOARDING = "Pending onboarding";
 export const PERSON_IDENTITY_NOT_AVAILABLE = "Not available";
 export const PERSON_COMPLETE_ONBOARDING_FIRST = "Complete onboarding first";
+export const PERSON_KYC_REQUIRED_BEFORE_PROFILE_COMPLETION =
+  "KYC approval is required before remaining profile fields can be completed.";
 
 export function isPersonKycApproved(status: string | null | undefined): boolean {
   return normalizeRawStatus(status) === "APPROVED";
