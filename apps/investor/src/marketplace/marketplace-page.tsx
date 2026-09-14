@@ -24,7 +24,7 @@ import { DepositDialog } from "@/app/transactions/components/deposit-dialog";
 import {
   useCommitInvestment,
   useInvestorPortfolio,
-  useMarketplaceNotes,
+  useMarketplaceNotesAll,
   useOpenMarketplaceProspectus,
 } from "@/investments/hooks/use-marketplace-notes";
 import { cn } from "@/lib/utils";
@@ -154,13 +154,13 @@ export function MarketplacePage() {
     isLoading: isFeaturedLoading,
     error: featuredError,
     refetch: refetchFeaturedNotes,
-  } = useMarketplaceNotes({ page: 1, pageSize: 100, featuredOnly: true });
+  } = useMarketplaceNotesAll({ featuredOnly: true });
   const {
     data: listData,
     isLoading: isListLoading,
     error: listError,
     refetch: refetchMarketplaceList,
-  } = useMarketplaceNotes({ page: 1, pageSize: 100, includeClosed: true });
+  } = useMarketplaceNotesAll({ includeClosed: true });
 
   const isLoading = isFeaturedLoading || isListLoading;
   const error = listError ?? featuredError;
