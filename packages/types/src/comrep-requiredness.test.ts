@@ -238,6 +238,27 @@ describe("ComRep requiredness", () => {
     });
     expect(issues.map((issue) => issue.field)).not.toContain("registeredPostalCode");
   });
+
+  it("rejects postcode containing non-digits for Malaysian states", () => {
+    const issue = requiredPostcodeIssue("50A80", "Selangor", "postalCode", "Postcode");
+    expect(issue?.message).toBe("Postcode must contain numbers only.");
+  });
+
+  it("preserves postcode behavior for Outside Malaysia (no digits-only enforcement)", () => {
+    expect(requiredPostcodeIssue("50A80", "Outside Malaysia", "postalCode", "Postcode")).toBeNull();
+  });
+
+  it("rejects invalid state values not in the SC state list", () => {
+    const issues = validateIssuerAddressForm({
+      registeredLine1: "1 Street",
+      registeredState: "Random State",
+      registeredPostalCode: "12345",
+      businessLine1: "2 Street",
+      businessState: "Selangor",
+      businessPostalCode: "47800",
+    });
+    expect(issues.map((issue) => issue.field)).toContain("registeredAddress.state");
+  });
 });
 
 describe("validateIssuerPersonForm roles", () => {
@@ -382,6 +403,64 @@ describe("secondary-onboarding field messages", () => {
       shareholdingPercentage: "101",
     });
     expect(issues.map((issue) => issue.message)).toContain("Enter a percentage of 100 or less.");
+  });
+
+  it("rejects negative shareholding percentage", () => {
+    const issues = validateIssuerPersonForm({
+      entityType: "INDIVIDUAL",
+      name: "Ali",
+      identityPrefix: "NRIC",
+      identityNumber: "800101011234",
+      dateOfBirth: "1980-01-01",
+      gender: "MALE",
+      nationality: "MALAYSIA",
+      line1: "1 Jalan A",
+      state: "Selangor",
+      postalCode: "47800",
+      isShareholder: true,
+      shareType: "ORDINARY",
+      shareholdingUnits: "10",
+      shareholdingAmount: "10",
+      shareholdingPercentage: "-1",
+    });
+    expect(issues.map((issue) => issue.field)).toContain("shareholdingPercentage");
+  });
+
+  it("rejects negative shareholding amount (RM)", () => {
+    const issues = validateIssuerPersonForm({
+      entityType: "INDIVIDUAL",
+      name: "Ali",
+      identityPrefix: "NRIC",
+      identityNumber: "800101011234",
+      dateOfBirth: "1980-01-01",
+      gender: "MALE",
+      nationality: "MALAYSIA",
+      line1: "1 Jalan A",
+      state: "Selangor",
+      postalCode: "47800",
+      isShareholder: true,
+      shareType: "ORDINARY",
+      shareholdingUnits: "10",
+      shareholdingAmount: "-1",
+      shareholdingPercentage: "10",
+    });
+    expect(issues.map((issue) => issue.field)).toContain("shareholdingAmount");
+  });
+
+  it("rejects operator nominal value (RM) below 0", () => {
+    const issues = validateOperatorShareCapital(
+      {
+        ordinaryUnits: "50",
+        ordinaryAmount: "-1",
+        preferenceUnits: "0",
+        preferenceAmount: "0",
+        othersUnits: "0",
+        othersAmount: "0",
+        totalPaidUpCapital: "50",
+      },
+      "SDN_BHD"
+    );
+    expect(issues.map((issue) => issue.field)).toContain("ordinaryAmount");
   });
 });
 
