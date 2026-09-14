@@ -183,7 +183,7 @@ export function MarketplacePage() {
     () => marketplaceNotes.filter((note) => !featuredIds.has(note.id)),
     [featuredIds, marketplaceNotes]
   );
-  const hasActiveFilters = marketplaceHasActiveFilters({ ...filters, search });
+  const hasActiveFilters = marketplaceHasActiveFilters(effectiveFilters);
   // Featured sits above the filters and is never constrained by them.
   // When search or filters are active, include featured notes in the listing so a
   // matching query can still find them; otherwise keep them out of the catalog to
