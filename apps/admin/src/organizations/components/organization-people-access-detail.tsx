@@ -340,7 +340,7 @@ export function OrganizationPeopleAccessDetail({
                         key={item.label}
                         label={item.label}
                         value={requiredMissing ? "" : item.value}
-                        required={requiredMissing}
+                        missing={requiredMissing}
                       />
                     );
                   })}
