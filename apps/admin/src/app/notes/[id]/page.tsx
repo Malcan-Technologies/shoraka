@@ -61,6 +61,12 @@ import { InvestmentNoteCertificateCard } from "@/notes/components/investment-not
 import { useAdminInvestmentNoteCertificate } from "@/notes/hooks/use-investment-note-certificate";
 import { PaymasterAssignmentCard } from "@/notes/components/paymaster-assignment-card";
 import { NoteWorkflowTabHeader } from "@/notes/components/note-workflow-tab-header";
+import { useAdminInvestmentSettlementConfirmations } from "@/notes/hooks/use-investment-settlement-confirmation";
+import { useAdminSettlementHibahReceipt } from "@/notes/hooks/use-settlement-hibah-receipt";
+import {
+  resolveDisbursementStageStatusToken,
+  resolveServicingStageStatusToken,
+} from "@/notes/utils/workflow-stage-status";
 import {
   AdminDetailTabPanel,
   AdminDetailTabs,
@@ -86,8 +92,6 @@ import {
   noteLatePaymentTabStatusToken,
   resolveNoteCampaignTabStatus,
   resolveNoteDetailNextAction,
-  resolveNoteDisbursementTabStatus,
-  resolveNoteServicingTabStatus,
   type NoteDetailTabId,
 } from "@/notes/utils/note-detail-next-action";
 import { type NoteLifecycleAction } from "@/notes/utils/note-lifecycle-actions";
@@ -262,6 +266,8 @@ export default function NoteDetailPage() {
   const updateNoteFeatured = useUpdateNoteFeatured();
   const openProspectusPdf = useOpenAdminProspectusPdf();
   const { data: investmentNoteCertificate } = useAdminInvestmentNoteCertificate(noteId);
+  const { data: investmentSettlementConfirmations } = useAdminInvestmentSettlementConfirmations(noteId);
+  const { data: settlementHibahReceipt } = useAdminSettlementHibahReceipt(noteId);
   const [pendingAction, setPendingAction] = React.useState<NoteLifecycleAction | null>(null);
   const [featuredEnabled, setFeaturedEnabled] = React.useState(false);
 
@@ -300,8 +306,16 @@ export default function NoteDetailPage() {
   const tabs = React.useMemo<AdminDetailTab<NoteDetailTabId>[]>(() => {
     if (!note) return [];
     const campaignToken = noteDetailTabStatusToken(resolveNoteCampaignTabStatus(note));
-    const disbursementToken = noteDetailTabStatusToken(resolveNoteDisbursementTabStatus(note));
-    const servicingToken = noteDetailTabStatusToken(resolveNoteServicingTabStatus(note));
+    const disbursementToken = resolveDisbursementStageStatusToken({
+      note,
+      disbursementWithdrawal,
+      investmentNoteCertificate: investmentNoteCertificate ?? null,
+    });
+    const servicingToken = resolveServicingStageStatusToken({
+      note,
+      settlementHibahReceipt,
+      investmentSettlementConfirmations,
+    });
     const latePaymentPhase = resolveLatePaymentTimeline(note).phase;
     const latePaymentToken = noteLatePaymentTabStatusToken(latePaymentPhase);
 
@@ -341,7 +355,13 @@ export default function NoteDetailPage() {
         statusToken: NOTE_REFERENCE_TAB_TOKEN,
       },
     ];
-  }, [note]);
+  }, [
+    note,
+    disbursementWithdrawal,
+    investmentNoteCertificate,
+    settlementHibahReceipt,
+    investmentSettlementConfirmations,
+  ]);
 
   const runConfirmedAction = async () => {
     if (!note || !pendingAction) return;

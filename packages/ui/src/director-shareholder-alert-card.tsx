@@ -69,13 +69,13 @@ export function DirectorShareholderAlertCard({
       className={cn(
         "relative w-full border-2 border-primary/45 bg-primary/10 text-foreground shadow-sm",
         "rounded-2xl [&_[data-slot=alert-title]]:text-primary [&_[data-slot=alert-description]]:text-foreground",
-        "w-full sm:px-6 sm:py-5 py-4",
+        "w-full px-5 py-5",
         stickyTop ? "mb-0 shadow-sm md:shadow" : "mb-4 shadow-sm md:shadow"
       )}
     >
       <div
         data-slot="alert-title"
-        className={cn("text-body mb-2 font-bold text-primary")}
+        className={cn("text-body font-semibold leading-7 text-primary")}
       >
         {copy.title}
       </div>
@@ -93,7 +93,7 @@ export function DirectorShareholderAlertCard({
             <Button
               type="button"
               variant="action"
-              className="shrink-0 rounded-full px-5 sm:self-center"
+              className="h-10 shrink-0 rounded-xl px-5 sm:self-center font-semibold"
               onClick={() => {
                 const matchKey = firstNeedAction?.matchKey;
                 if (onGoToProfile) {

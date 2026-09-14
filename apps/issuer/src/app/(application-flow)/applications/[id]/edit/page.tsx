@@ -306,7 +306,7 @@ function EditApplicationPageBody() {
     },
   });
   const profileIncompleteWarning =
-    "Your profile is incomplete. You can continue with your application, but please complete the remaining profile information when possible.";
+    "Your profile is incomplete. Complete the remaining profile information before submitting your application.";
   const showProfileIncompleteWarning = profileCompletenessQuery.data?.complete === false;
   const { data: frozenProductWorkflowData } = useQuery({
     queryKey: ["signing-product-workflow", applicationId],
@@ -1336,6 +1336,13 @@ function EditApplicationPageBody() {
       await finalizeApplicationSubmit(wasAmendmentResubmit);
       successPendingNav = true;
     } catch (error) {
+      if (getApiMutationErrorCode(error) === "PROFILE_INCOMPLETE") {
+        const missing = profileCompletenessQuery.data?.missing ?? [];
+        const needsPeople = missing.some((m) => m.step === "shareholders" || m.step === "board");
+        toast.error("Complete your profile before submitting");
+        void safeNavigate(`/profile?focus=${needsPeople ? "directors" : "completeness"}`, { leavingPage: true });
+        return;
+      }
       const limitMessage = readProductLimitViolationMessage(error);
       if (limitMessage) {
         toast.error(limitMessage);
@@ -1420,7 +1427,16 @@ function EditApplicationPageBody() {
 
       await finalizeApplicationSubmit(application?.status === "AMENDMENT_REQUESTED");
       holdSubmitting = true;
-    } catch {
+    } catch (error) {
+      if (getApiMutationErrorCode(error) === "PROFILE_INCOMPLETE") {
+        const missing = profileCompletenessQuery.data?.missing ?? [];
+        const needsPeople = missing.some((m) => m.step === "shareholders" || m.step === "board");
+        toast.error("Complete your profile before submitting");
+        void safeNavigate(`/profile?focus=${needsPeople ? "directors" : "completeness"}`, {
+          leavingPage: true,
+        });
+        return;
+      }
       toast.error("Failed to prepare submission");
     } finally {
       if (!holdSubmitting) {
@@ -1446,6 +1462,13 @@ function EditApplicationPageBody() {
     }
     if (existingFacilityFeeBlocksSubmit) {
       toast.error(FACILITY_FEE_DRAWDOWN_BLOCKED_MESSAGE);
+      return;
+    }
+    if (profileCompletenessQuery.data?.complete === false) {
+      const missing = profileCompletenessQuery.data?.missing ?? [];
+      const needsPeople = missing.some((m) => m.step === "shareholders" || m.step === "board");
+      toast.error("Complete your profile before submitting");
+      void safeNavigate(`/profile?focus=${needsPeople ? "directors" : "completeness"}`, { leavingPage: true });
       return;
     }
     setSubmitConfirmOpen(true);

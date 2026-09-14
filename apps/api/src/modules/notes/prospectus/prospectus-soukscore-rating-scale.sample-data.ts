@@ -12,13 +12,13 @@ import type {
 /** Valid Note grade for preview highlight. */
 export const SAMPLE_PROSPECTUS_SOUKSCORE_RATING_SCALE_INPUT: ProspectusSoukscoreRatingScaleInput =
   {
-    selectedRiskRating: "B",
+    selectedRiskRating: "SME-2",
   };
 
 /** Demo Note frozen grade. */
 export const SAMPLE_PROSPECTUS_SOUKSCORE_RATING_SCALE_DEMO_INPUT: ProspectusSoukscoreRatingScaleInput =
   {
-    selectedRiskRating: "C",
+    selectedRiskRating: "SME-4",
   };
 
 export const SAMPLE_PROSPECTUS_SOUKSCORE_RATING_SCALE_INVALID_INPUT: ProspectusSoukscoreRatingScaleInput =
@@ -28,7 +28,7 @@ export const SAMPLE_PROSPECTUS_SOUKSCORE_RATING_SCALE_INVALID_INPUT: ProspectusS
 
 export const SAMPLE_PROSPECTUS_SOUKSCORE_RATING_SCALE_CANVA_INPUT: ProspectusSoukscoreRatingScaleInput =
   {
-    selectedRiskRating: "D",
+    selectedRiskRating: "SME-7",
   };
 
 export const SAMPLE_PROSPECTUS_SOUKSCORE_RATING_SCALE_MISSING_INPUT: ProspectusSoukscoreRatingScaleInput =

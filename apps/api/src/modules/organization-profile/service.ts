@@ -832,7 +832,7 @@ export async function computeOrgProfileCompleteness(
       (p) => p.membership_status === OrganizationPartyMembershipStatus.MASTER_ACTIVE
     );
     const kycByPartyKey = new Map(
-      org.ctos_party_supplements.map((row) => [
+      (org.ctos_party_supplements ?? []).map((row) => [
         row.party_key,
         getCtosPartySupplementPipelineStatus(row.onboarding_json) || null,
       ])
@@ -915,6 +915,7 @@ export async function computeOrgProfileCompleteness(
 
   const org = await prisma.investorOrganization.findUnique({
     where: { id: organizationId },
+    include: { party_profiles: true, ctos_party_supplements: true },
   });
   if (!org) throw new AppError(404, "NOT_FOUND", "Investor organization not found");
   const residential = asAddress(org.residential_address);
@@ -930,6 +931,47 @@ export async function computeOrgProfileCompleteness(
     : null;
   if (organizationType === "COMPANY") {
     const business = pickCodAddress(org.corporate_onboarding_data, "business");
+    const kycByPartyKey = new Map(
+      (org.ctos_party_supplements ?? []).map((row) => [
+        row.party_key,
+        getCtosPartySupplementPipelineStatus(row.onboarding_json) || null,
+      ])
+    );
+
+    const masterParties = (org.party_profiles ?? []).filter(
+      (p) => p.membership_status === OrganizationPartyMembershipStatus.MASTER_ACTIVE
+    );
+    const people = masterParties
+      .filter((p) => p.is_shareholder || p.is_director || p.is_board || p.is_management)
+      .map((p) => {
+        const addr = asAddress(p.address);
+        return {
+          partyKey: p.party_key,
+          name: p.name,
+          entityType: p.entity_type,
+          isDirector: p.is_director,
+          isShareholder: p.is_shareholder,
+          isBoard: p.is_board,
+          isManagement: p.is_management,
+          identityPrefix: p.identity_prefix,
+          identityNumber: p.identity_number,
+          dateOfBirth: p.date_of_birth,
+          dateOfIncorporation: p.date_of_incorporation,
+          gender: p.gender,
+          nationality: p.nationality,
+          countryOfIncorporation: p.country_of_incorporation,
+          address: addr,
+          shareType: p.share_type,
+          shareTypeOther: p.share_type_other,
+          shareholdingUnits: p.shareholding_units?.toString() ?? null,
+          shareholdingAmount: p.shareholding_amount?.toString() ?? null,
+          shareholdingPercentage: p.shareholding_percentage?.toString() ?? null,
+          designation: p.designation,
+          designationOther: p.designation_other,
+          appointmentDate: p.appointment_date,
+          kycOnboardingStatus: kycByPartyKey.get(p.party_key) ?? null,
+        };
+      });
     return buildInvestorProfileCompleteness({
       organizationType: "COMPANY",
       corporate: {
@@ -944,6 +986,7 @@ export async function computeOrgProfileCompleteness(
         scInvestorCategory,
         isSophisticatedInvestor: org.is_sophisticated_investor,
       },
+      people,
     });
   }
   return buildInvestorProfileCompleteness({
@@ -2298,10 +2341,14 @@ export async function patchIssuerOrgFinancials(params: {
   });
 }
 
-/**
- * First production rollout: ComRep profile completeness is informational only.
- * Do not throw PROFILE_INCOMPLETE here — issuers may create, save, and submit
- * applications with an incomplete master profile. Re-enable the gate when
- * operational data collection is proven.
- */
-export async function assertIssuerProfileCompleteForSubmit(_issuerOrganizationId: string): Promise<void> {}
+export async function assertIssuerProfileCompleteForSubmit(
+  issuerOrganizationId: string
+): Promise<void> {
+  const completeness = await computeOrgProfileCompleteness("issuer", issuerOrganizationId);
+  if (!completeness.complete) {
+    throw new AppError(403, "PROFILE_INCOMPLETE", "Complete your profile before submitting", {
+      missing: completeness.missing,
+      percent: completeness.percent,
+    });
+  }
+}

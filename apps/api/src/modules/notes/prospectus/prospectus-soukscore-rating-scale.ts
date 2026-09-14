@@ -3,10 +3,7 @@
  * WHY: A–F catalogue from Grade and Pricing Matrix; colours from shared reference
  */
 
-import {
-  isSoukscoreRiskRating,
-  SOUKSCORE_RISK_RATING_CATALOGUE,
-} from "@cashsouk/types";
+import { isMarcSmeGrade, resolveMarcNoteRiskPresentation } from "@cashsouk/types";
 import {
   PROSPECTUS_SOUKSCORE_GRADE_ORDER,
   PROSPECTUS_SOUKSCORE_RATING_NOT_AVAILABLE,
@@ -20,20 +17,18 @@ import {
 export function buildProspectusSoukscoreRatingScale(
   input: ProspectusSoukscoreRatingScaleInput = {}
 ): ProspectusSoukscoreRatingScale {
-  const selected = isSoukscoreRiskRating(input.selectedRiskRating)
-    ? input.selectedRiskRating
-    : null;
+  const selected = isMarcSmeGrade(input.selectedRiskRating) ? input.selectedRiskRating : null;
 
   return {
     sectionHeading: PROSPECTUS_SOUKSCORE_RATING_SCALE_SECTION_HEADING,
     grades: PROSPECTUS_SOUKSCORE_GRADE_ORDER.map((grade) => {
-      const entry = SOUKSCORE_RISK_RATING_CATALOGUE[grade];
+      const presentation = resolveMarcNoteRiskPresentation(grade);
       return {
         grade,
-        label: entry.label,
-        explanation: entry.explanation,
-        color: entry.color,
-        textColor: entry.textColor,
+        label: presentation.label,
+        explanation: presentation.riskProfile,
+        color: presentation.color,
+        textColor: presentation.textColor,
         isSelected: selected != null && grade === selected,
       };
     }),

@@ -10,7 +10,12 @@ import {
   resolveNoteTimingDisplay,
   type NoteListItem,
 } from "@cashsouk/types";
-import { NoteStatusBadge, ProductCatalogName, StatusBadge } from "@cashsouk/ui";
+import {
+  NoteStatusBadge,
+  ProductCatalogName,
+  SoukscoreRiskRatingBadge,
+  StatusBadge,
+} from "@cashsouk/ui";
 import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
 import { Button } from "@/components/ui/button";
 import {
@@ -73,14 +78,6 @@ function NoteArrearsAlert({ note }: { note: NoteListItem }) {
 
 const RISK_TOOLTIP_TEXT = "Risk grade for this invoice";
 
-function riskLetterToneClass(grade: string | null): string {
-  if (grade === "A" || grade === "B") return "text-status-success-text";
-  if (grade === "C") return "text-status-submitted-text";
-  if (grade === "D") return "text-status-action-text";
-  if (grade === "E" || grade === "F") return "text-status-rejected-text";
-  return "text-foreground";
-}
-
 function SettlementSummaryBlock({ note }: { note: NoteListItem }) {
   if (!note.settlementSummary) return null;
 
@@ -110,7 +107,6 @@ function SettlementSummaryBlock({ note }: { note: NoteListItem }) {
 export function DashboardNoteCard({ note }: { note: NoteListItem }) {
   const progress = Math.max(0, Math.min(100, note.fundingPercent));
   const noteRef = displayCell(note.noteReference);
-  const grade = note.riskRating?.trim() ? note.riskRating.trim().toUpperCase() : null;
   const donutTone = financingDonutTone(note);
   const inArrears = isIssuerNoteInArrears(note);
   const needsAttention = isIssuerNoteActionable(note);
@@ -188,8 +184,12 @@ export function DashboardNoteCard({ note }: { note: NoteListItem }) {
                 labelExtra={
                   <InfoTooltip content={RISK_TOOLTIP_TEXT} iconClassName="h-3.5 w-3.5 shrink-0" />
                 }
-                value={grade ?? EM_DASH}
-                valueClassName={riskLetterToneClass(grade)}
+                value={
+                  <SoukscoreRiskRatingBadge
+                    riskRating={note.riskRating}
+                    className="px-3 py-1 text-ui"
+                  />
+                }
               />
             </div>
 

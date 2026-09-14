@@ -541,8 +541,11 @@ describe("CTOS master party observation", () => {
     ).rejects.toMatchObject({ statusCode: 403, code: "FIELD_NOT_EDITABLE" });
   });
 
-  it("does not throw PROFILE_INCOMPLETE while issuer profile completeness is informational", async () => {
-    await expect(assertIssuerProfileCompleteForSubmit("org-1")).resolves.toBeUndefined();
+  it("throws PROFILE_INCOMPLETE when issuer profile is incomplete", async () => {
+    await expect(assertIssuerProfileCompleteForSubmit("org-1")).rejects.toMatchObject({
+      statusCode: 403,
+      code: "PROFILE_INCOMPLETE",
+    });
   });
 
   it("E: hyphenated CTOS NRIC matches a user-added MASTER_ACTIVE row", async () => {

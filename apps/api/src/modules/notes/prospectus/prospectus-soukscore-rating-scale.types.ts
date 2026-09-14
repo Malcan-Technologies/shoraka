@@ -3,17 +3,17 @@
  * WHY: Fixed A–F catalogue from Grade and Pricing Matrix; no scores/weights/pricing
  */
 
-import type { SoukscoreRiskRating } from "@cashsouk/types";
-import { SOUKSCORE_RISK_RATING_GRADES } from "@cashsouk/types";
+import type { MarcSmeGrade } from "@cashsouk/types";
+import { MARC_SME_GRADES } from "@cashsouk/types";
 
-export { SOUKSCORE_RISK_RATING_GRADES };
-export type { SoukscoreRiskRating };
+export { MARC_SME_GRADES };
+export type { MarcSmeGrade };
 
 /** Static Canva section title — not a database field. */
 export const PROSPECTUS_SOUKSCORE_RATING_SCALE_SECTION_HEADING = "Risk Rating Scale";
 
 /** Canonical grade order — reuse shared constant; do not invent a second order. */
-export const PROSPECTUS_SOUKSCORE_GRADE_ORDER = SOUKSCORE_RISK_RATING_GRADES;
+export const PROSPECTUS_SOUKSCORE_GRADE_ORDER = MARC_SME_GRADES;
 
 /**
  * Stable code version for the fixed A–F scale structure.
@@ -25,7 +25,7 @@ export const PROSPECTUS_SOUKSCORE_SCALE_VERSION = "2026.07.23.cashsouk-risk-scal
 export const PROSPECTUS_SOUKSCORE_RATING_NOT_AVAILABLE = "—";
 
 export interface ProspectusSoukscoreGradeItem {
-  grade: SoukscoreRiskRating;
+  grade: MarcSmeGrade;
   /** Catalogue risk level label (e.g. Lower Risk). */
   label: string;
   /** Catalogue description for this grade. */
@@ -39,8 +39,8 @@ export interface ProspectusSoukscoreGradeItem {
 
 export interface ProspectusSoukscoreRatingScaleAudit {
   scale: {
-    canonicalSystem: "soukscore";
-    gradeOrder: readonly SoukscoreRiskRating[];
+    canonicalSystem: "marc_sme";
+    gradeOrder: readonly MarcSmeGrade[];
     scaleVersion: typeof PROSPECTUS_SOUKSCORE_SCALE_VERSION;
     canvaAtoEScaleRejected: false;
     numericThresholdsAvailable: false;
@@ -49,7 +49,7 @@ export interface ProspectusSoukscoreRatingScaleAudit {
   };
   selection: {
     source: "notes.invoice_snapshot.offer_details.risk_rating";
-    validator: "isSoukscoreRiskRating";
+    validator: "isMarcSmeGrade";
     prospectusEditable: false;
     invalidSelectionDefaultsToGrade: false;
   };
@@ -77,7 +77,7 @@ export interface ProspectusSoukscoreRatingScaleAudit {
 
 export const PROSPECTUS_SOUKSCORE_RATING_SCALE_AUDIT: ProspectusSoukscoreRatingScaleAudit = {
   scale: {
-    canonicalSystem: "soukscore",
+    canonicalSystem: "marc_sme",
     gradeOrder: PROSPECTUS_SOUKSCORE_GRADE_ORDER,
     scaleVersion: PROSPECTUS_SOUKSCORE_SCALE_VERSION,
     canvaAtoEScaleRejected: false,
@@ -87,7 +87,7 @@ export const PROSPECTUS_SOUKSCORE_RATING_SCALE_AUDIT: ProspectusSoukscoreRatingS
   },
   selection: {
     source: "notes.invoice_snapshot.offer_details.risk_rating",
-    validator: "isSoukscoreRiskRating",
+    validator: "isMarcSmeGrade",
     prospectusEditable: false,
     invalidSelectionDefaultsToGrade: false,
   },
@@ -118,7 +118,7 @@ export interface ProspectusSoukscoreRatingScale {
   sectionHeading: string;
   grades: ProspectusSoukscoreGradeItem[];
   /** Valid frozen grade, or null when missing/invalid. */
-  selectedGrade: SoukscoreRiskRating | null;
+  selectedGrade: MarcSmeGrade | null;
   /** Single empty-state line when no grade is selected; otherwise null. */
   missingRatingMessage: string | null;
   scaleVersion: typeof PROSPECTUS_SOUKSCORE_SCALE_VERSION;

@@ -269,8 +269,9 @@ export function useCommitInvestment() {
         prospectusAcknowledged: true,
       });
       if (!response.success) {
-        const err = new Error(response.error.message) as Error & { code?: string };
+        const err = new Error(response.error.message) as Error & { code?: string; details?: unknown };
         err.code = response.error.code;
+        err.details = response.error.details;
         throw err;
       }
       return response.data;

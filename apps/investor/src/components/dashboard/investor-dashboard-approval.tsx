@@ -20,14 +20,14 @@ function stageTone(status: ApprovalPipelineStageStatus) {
 
 export function InvestorDashboardApproval({
   onboardingStatus,
-  amlApproved,
+  depositReceived,
   submittedAt,
 }: {
   onboardingStatus: string;
-  amlApproved?: boolean | null;
+  depositReceived?: boolean | null;
   submittedAt?: string | null;
 }) {
-  const stages = approvalPipelineStages({ onboardingStatus, amlApproved });
+  const stages = approvalPipelineStages({ onboardingStatus, depositReceived });
   const submittedLabel = formatMytDateTime(submittedAt);
 
   return (

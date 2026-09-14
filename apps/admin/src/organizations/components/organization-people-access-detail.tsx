@@ -21,11 +21,14 @@ import {
   buildAdminPeopleAccessOverviewItems,
   buildAdminPersonRegTankRoleRecords,
   getRelatedPartyStatusToken,
+  countIssuerPersonRequiredFields,
   isBlockedPersonIdentityConflict,
   isIssuerShareholderOnlyBelowMinimum,
   isPersonKycApproved,
   issuerPersonCompletenessInputFromParty,
   issuerPersonCompletenessSummary,
+  CUSTOMER_PERSON_LABEL,
+  PROFILE_LABEL,
   observedPartyBlockedByIdentityConflict,
   peopleAccessAmlChipPresentation,
   peopleAccessKycChipPresentation,
@@ -127,17 +130,19 @@ export function OrganizationPeopleAccessDetail({
 }) {
   const party = row.party;
   const person = row.person;
-  const missingSummary =
+  const completenessInput =
     applyIssuerComrep && party
-      ? issuerPersonCompletenessSummary(
-          issuerPersonCompletenessInputFromParty({
-            ...party,
-            kycOnboardingStatus: person?.onboarding?.status ?? null,
-          })
-        )
+      ? issuerPersonCompletenessInputFromParty({
+          ...party,
+          kycOnboardingStatus: person?.onboarding?.status ?? null,
+        })
       : null;
+
+  const missingSummary = completenessInput ? issuerPersonCompletenessSummary(completenessInput) : null;
   const missingCount = missingSummary?.missingCount ?? 0;
-  const missingFields = missingSummary?.missingFields ?? [];
+  const requiredCount = completenessInput ? countIssuerPersonRequiredFields(completenessInput) : 0;
+  const filledCount = Math.max(0, requiredCount - missingCount);
+  const percent = requiredCount > 0 ? Math.round((filledCount / requiredCount) * 100) : 0;
   const kycApproved = isPersonKycApproved(person?.onboarding?.status);
   const completenessHint = adminProfileCompletenessHint({
     applyIssuerComrep,
@@ -296,28 +301,52 @@ export function OrganizationPeopleAccessDetail({
           <TabsContent value="overview" className="space-y-4 pt-4">
             <p className="text-meta text-muted-foreground">Current profile</p>
             {missingCount > 0 && !row.observed && !row.inactive ? (
-              <div className="space-y-2 rounded-xl border border-status-action-text/30 bg-[hsl(var(--status-action-bg)/0.15)] p-4">
-                <p className="text-ui font-semibold text-status-action-text">Complete this profile</p>
-                <p className="text-ui text-muted-foreground">
-                  {missingCount} details are still missing.
-                </p>
-                {missingFields.length > 0 ? (
-                  <p className="text-meta text-status-action-text">
-                    {missingFields.slice(0, 6).join(" · ")}
+              <div className="rounded-xl border bg-card p-5">
+                <div className="min-w-0 space-y-1">
+                  <p className="text-ui font-semibold">Profile completeness</p>
+                  <p className="text-ui text-muted-foreground">
+                    {requiredCount > 0 ? `${percent}% complete · ` : ""}
+                    {missingCount} {missingCount === 1 ? "item" : "items"} remaining
                   </p>
-                ) : null}
-                {showEdit ? (
-                  <Button type="button" size="sm" variant="outline" onClick={onEdit}>
-                    Complete details
-                  </Button>
-                ) : null}
+                </div>
               </div>
             ) : null}
-            <ProfileFieldGrid>
-              {overviewItems.map((item) => (
-                <ProfileReadField key={item.label} label={item.label} value={item.value} />
-              ))}
-            </ProfileFieldGrid>
+
+            {(() => {
+              const requiredMissingLabels = new Set(missingSummary?.missingItems.map((m) => m.label) ?? []);
+              // Completeness uses PROFILE_LABEL.shareholdingPercentage, while the UI surfaces it as "Shareholding".
+              if (requiredMissingLabels.has(PROFILE_LABEL.shareholdingPercentage)) {
+                requiredMissingLabels.add(CUSTOMER_PERSON_LABEL.shareholding);
+              }
+              const mergedItems = (() => {
+                const byLabel = new Map<string, (typeof overviewItems)[number]>();
+                for (const item of overviewItems) byLabel.set(item.label, item);
+                for (const label of requiredMissingLabels) {
+                  if (byLabel.has(label)) continue;
+                  byLabel.set(label, { label, value: "" });
+                }
+                // Preserve original order for existing fields, then append newly created required-missing fields.
+                const originalLabels = new Set(overviewItems.map((i) => i.label));
+                const appended = Array.from(requiredMissingLabels).filter((l) => !originalLabels.has(l));
+                return [...overviewItems, ...appended.map((l) => ({ label: l, value: "" }))];
+              })();
+
+              return (
+                <ProfileFieldGrid>
+                  {mergedItems.map((item) => {
+                    const requiredMissing = requiredMissingLabels.has(item.label);
+                    return (
+                      <ProfileReadField
+                        key={item.label}
+                        label={item.label}
+                        value={requiredMissing ? "" : item.value}
+                        missing={requiredMissing}
+                      />
+                    );
+                  })}
+                </ProfileFieldGrid>
+              );
+            })()}
             {recordSource ? (
               <div className="space-y-1">
                 <p className="text-meta text-muted-foreground">Record information</p>

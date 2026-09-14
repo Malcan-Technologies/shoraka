@@ -37,8 +37,7 @@ describe("Admin People & Access surface", () => {
 
   it("surfaces incomplete company-person completeness as 'X details missing' and offers Complete details", () => {
     expect(panel).toContain("details missing");
-    expect(detail).toContain("Complete this profile");
-    expect(detail).toContain("Complete details");
+    expect(detail).toContain("Complete profile");
   });
 
   it("keeps Mark inactive on any MASTER_ACTIVE party and shows Reactivate for inactive parties", () => {
