@@ -1,5 +1,4 @@
 import { normalizeProfilePhone } from "./profile-phone";
-import { shouldDeferOnboardingPersonComrep } from "./person-onboarding-display";
 import { FINANCIAL_FIELD_LABELS } from "./financial-field-labels";
 import {
   PROFILE_ADDRESS_FIELD_LABELS,
@@ -1589,16 +1588,6 @@ function issuerPersonRequiredFields(party: IssuerPersonCompletenessInput): Issue
   const active =
     party.isDirector || party.isShareholder || party.isBoard || party.isManagement;
   if (!active) return [];
-  if (
-    shouldDeferOnboardingPersonComrep({
-      entityType: party.entityType,
-      isDirector: party.isDirector,
-      isShareholder: party.isShareholder,
-      kycOnboardingStatus: party.kycOnboardingStatus,
-    })
-  ) {
-    return [];
-  }
   const fields: IssuerPersonRequiredField[] = [];
   const corporate = party.entityType === "CORPORATE";
   const identityStep: ComrepProfileStepId = party.isShareholder ? "shareholders" : "board";

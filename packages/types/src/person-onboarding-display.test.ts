@@ -114,24 +114,26 @@ describe("person onboarding display and completeness gating", () => {
   });
 
   it("does not count ComRep gaps for a Not Started onboarding Person", () => {
-    expect(
-      computeIssuerPersonCompleteness({
-        ...director,
-        kycOnboardingStatus: null,
-      })
-    ).toHaveLength(0);
-    expect(
-      computeIssuerPersonCompleteness({
-        ...director,
-        kycOnboardingStatus: "IN_PROGRESS",
-      })
-    ).toHaveLength(0);
-    expect(
-      computeIssuerPersonCompleteness({
-        ...director,
-        kycOnboardingStatus: "WAIT_FOR_APPROVAL",
-      })
-    ).toHaveLength(0);
+    const missingNull = computeIssuerPersonCompleteness({
+      ...director,
+      kycOnboardingStatus: null,
+    });
+    expect(missingNull.length).toBeGreaterThan(0);
+
+    const missingInProgress = computeIssuerPersonCompleteness({
+      ...director,
+      kycOnboardingStatus: "IN_PROGRESS",
+    });
+    expect(missingInProgress.length).toBeGreaterThan(0);
+
+    const missingWait = computeIssuerPersonCompleteness({
+      ...director,
+      kycOnboardingStatus: "WAIT_FOR_APPROVAL",
+    });
+    expect(missingWait.length).toBeGreaterThan(0);
+
+    // Sanity check: required individual identity + address fields should still be counted.
+    expect(missingInProgress.some((item) => item.field === "identityNumber")).toBe(true);
   });
 
   it("shows remaining ComRep fields after KYC APPROVED", () => {
