@@ -2,9 +2,10 @@
 
 set -e
 
-echo "🔐 Creating DATABASE_URL secret in AWS Secrets Manager..."
+echo "🔐 Creating migrate/admin DATABASE_URL secret in AWS Secrets Manager..."
 echo ""
-echo "This script will create a secret with the full PostgreSQL connection string."
+echo "This creates cashsouk/database-url for the ECS migrate task (cashsouk_admin)."
+echo "API runtime must use cashsouk/app-database-url instead; do not point the API task here."
 echo ""
 
 # Get RDS endpoint
@@ -24,8 +25,8 @@ echo "✅ RDS Endpoint: $RDS_ENDPOINT"
 echo ""
 
 # Prompt for database credentials
-read -p "Enter database username (default: cashsouk_app): " DB_USER
-DB_USER=${DB_USER:-cashsouk_app}
+read -p "Enter database username (default: cashsouk_admin): " DB_USER
+DB_USER=${DB_USER:-cashsouk_admin}
 
 read -sp "Enter database password: " DB_PASSWORD
 echo ""
@@ -45,7 +46,7 @@ echo "📦 Creating secret 'cashsouk/database-url' in Secrets Manager..."
 # Create the secret (this will be a plain string, not JSON)
 aws secretsmanager create-secret \
   --name "cashsouk/database-url" \
-  --description "PostgreSQL connection string for CashSouk application" \
+  --description "PostgreSQL connection string for CashSouk migrations (cashsouk_admin)" \
   --secret-string "$DATABASE_URL" \
   --region ap-southeast-5
 
@@ -60,9 +61,7 @@ aws secretsmanager describe-secret \
   --output text
 
 echo ""
-echo "🎉 Done! The ECS tasks can now use this secret to connect to the database."
-echo ""
-echo "⚠️  IMPORTANT: Update your GitHub Actions secrets with:"
-echo "   - The new secret ARN if needed in task definitions"
+echo "Done. The ECS migrate task should keep this secret."
+echo "API task DATABASE_URL must remain cashsouk/app-database-url."
 echo ""
 

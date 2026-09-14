@@ -1,9 +1,11 @@
 "use client";
 
-import { StarIcon } from "@heroicons/react/24/solid";
 import { MarketplaceNoteCard } from "./marketplace-note-card";
 import { MarketplaceSnapCarousel } from "./marketplace-snap-carousel";
-import type { MarketplaceNote } from "./marketplace-note-model";
+import {
+  assignFeaturedMarketplaceTags,
+  type MarketplaceNote,
+} from "./marketplace-note-model";
 
 export function MarketplaceFeaturedSection({
   notes,
@@ -16,28 +18,34 @@ export function MarketplaceFeaturedSection({
 }) {
   if (notes.length === 0) return null;
 
-  const orientation = notes.length === 1 ? "row" : "stack";
+  const featuredTags = assignFeaturedMarketplaceTags(notes);
 
   return (
-    <section className="space-y-6 rounded-2xl border border-secondary/40 bg-secondary/15 p-6 md:p-8">
-      <div className="flex items-start gap-2">
-        <StarIcon className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
-        <div className="space-y-1">
-          <h2 className="text-base font-semibold text-foreground">Featured</h2>
-          <p className="text-ui text-muted-foreground">
-            Highlighted notes still open for funding.
-          </p>
-        </div>
-      </div>
+    <section>
       <MarketplaceSnapCarousel
+        compact
         ariaLabel="Featured marketplace notes"
+        header={
+          <div className="space-y-1">
+            <p className="text-meta font-semibold uppercase tracking-wider text-primary">
+              Featured
+            </p>
+            <p className="text-ui text-muted-foreground">
+              Highlighted notes still open for funding.
+              <span>
+                {" "}
+                · {notes.length} {notes.length === 1 ? "note" : "notes"}
+              </span>
+            </p>
+          </div>
+        }
         items={notes.map((note) => ({
           key: note.id,
           node: (
             <MarketplaceNoteCard
               note={note}
               variant="featured"
-              orientation={orientation}
+              featuredTag={featuredTags.get(note.id)}
               onInvest={onInvest}
               onViewProspectus={onViewProspectus}
             />

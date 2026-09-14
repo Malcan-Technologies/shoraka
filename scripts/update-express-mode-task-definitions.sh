@@ -1,47 +1,71 @@
 #!/bin/bash
+set -euo pipefail
 
-set -e
+# Updates the API ECS task definition's DATABASE_URL only.
+# Runtime (API) uses cashsouk/app-database-url (app role).
+# Migrations keep cashsouk/database-url (admin role) and are not modified.
 
-echo "🔧 Updating Express mode ECS task definitions with DATABASE_URL secret..."
+echo "Updating API ECS task definition DATABASE_URL secret (app role)..."
 echo ""
 
 REGION="ap-southeast-5"
-SECRET_ARN="arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:cashsouk/database-url"
+API_TASK_DEF_NAME="default-api-cashsouk-09ff"
+MIGRATE_TASK_DEF_NAME="cashsouk-migrate"
+APP_SECRET_NAME="cashsouk/app-database-url"
+MIGRATE_SECRET_NAME="cashsouk/database-url"
+SERVICE_NAME="api-cashsouk-09ff"
 
-# Task definition to update
-TASK_DEF_NAME="default-api-cashsouk-09ff"
+APP_SECRET_ARN=$(aws secretsmanager describe-secret \
+  --secret-id "$APP_SECRET_NAME" \
+  --region "$REGION" \
+  --query ARN \
+  --output text)
+MIGRATE_SECRET_ARN=$(aws secretsmanager describe-secret \
+  --secret-id "$MIGRATE_SECRET_NAME" \
+  --region "$REGION" \
+  --query ARN \
+  --output text)
 
-echo "📋 Fetching current task definition: $TASK_DEF_NAME..."
+if [ "$APP_SECRET_NAME" = "$MIGRATE_SECRET_NAME" ] || [ "$APP_SECRET_ARN" = "$MIGRATE_SECRET_ARN" ]; then
+  echo "API and migrate DATABASE_URL secrets must differ."
+  exit 1
+fi
 
-# Get the current task definition
+echo "Fetching current task definition: $API_TASK_DEF_NAME..."
+
 TASK_DEF=$(aws ecs describe-task-definition \
-  --task-definition "$TASK_DEF_NAME" \
+  --task-definition "$API_TASK_DEF_NAME" \
   --region "$REGION")
 
-echo "✅ Current task definition retrieved"
+echo "Current API task definition retrieved"
 echo ""
 
-# Extract the task definition and add/update the DATABASE_URL secret
-echo "🔧 Adding DATABASE_URL secret to task definition..."
+if echo "$TASK_DEF" | jq -e --arg FAMILY "$MIGRATE_TASK_DEF_NAME" '.taskDefinition.family == $FAMILY' >/dev/null; then
+  echo "Refusing to modify the migrate task definition. Migrations must keep $MIGRATE_SECRET_ARN"
+  exit 1
+fi
 
-NEW_TASK_DEF=$(echo "$TASK_DEF" | jq --arg SECRET_ARN "$SECRET_ARN" '
+echo "Setting API DATABASE_URL to app secret (preserving other secrets)..."
+
+NEW_TASK_DEF=$(echo "$TASK_DEF" | jq --arg SECRET_ARN "$APP_SECRET_ARN" --arg MIGRATE_SECRET_ARN "$MIGRATE_SECRET_ARN" '
   .taskDefinition |
-  # Remove read-only fields
   del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy) |
-  # Add or update the DATABASE_URL secret
-  .containerDefinitions[0].secrets = [
-    {
-      "name": "DATABASE_URL",
-      "valueFrom": $SECRET_ARN
-    }
-  ]
+  .containerDefinitions[0].secrets = (
+    ((.containerDefinitions[0].secrets // []) | map(select(.name != "DATABASE_URL")))
+    + [{ "name": "DATABASE_URL", "valueFrom": $SECRET_ARN }]
+  ) |
+  (.containerDefinitions[0].secrets | map(select(.name == "DATABASE_URL")) | .[0].valueFrom) as $dbUrl |
+  if $dbUrl != $SECRET_ARN or $dbUrl == $MIGRATE_SECRET_ARN then
+    error("API DATABASE_URL must reference cashsouk/app-database-url; cashsouk/database-url is reserved for the migrate task")
+  else
+    .
+  end
 ')
 
-echo "✅ Secret added to task definition"
+echo "Secret merged into API task definition"
 echo ""
 
-# Register the new task definition revision
-echo "📦 Registering new task definition revision..."
+echo "Registering new task definition revision..."
 
 NEW_REVISION=$(aws ecs register-task-definition \
   --cli-input-json "$NEW_TASK_DEF" \
@@ -49,26 +73,20 @@ NEW_REVISION=$(aws ecs register-task-definition \
   --query 'taskDefinition.revision' \
   --output text)
 
-echo "✅ New task definition revision registered: $NEW_REVISION"
+echo "New API task definition revision registered: $NEW_REVISION"
 echo ""
 
-# Update the service to use the new task definition
-echo "🚀 Updating ECS service to use new task definition..."
-
-SERVICE_NAME="api-cashsouk-09ff"
+echo "Updating ECS service to use new task definition..."
 
 aws ecs update-service \
   --cluster default \
   --service "$SERVICE_NAME" \
-  --task-definition "$TASK_DEF_NAME" \
+  --task-definition "$API_TASK_DEF_NAME" \
   --force-new-deployment \
   --region "$REGION" > /dev/null
 
-echo "✅ Service updated successfully!"
+echo "API service updated. Migrate task $MIGRATE_TASK_DEF_NAME was not changed and must remain on $MIGRATE_SECRET_ARN"
 echo ""
-echo "🎉 Done! The API service will restart with the DATABASE_URL secret."
-echo ""
-echo "📊 Monitor deployment:"
+echo "Monitor deployment:"
 echo "   aws ecs describe-services --cluster default --service $SERVICE_NAME --region $REGION"
 echo ""
-

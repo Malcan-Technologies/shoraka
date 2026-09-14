@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
-import { ChevronRightIcon } from "@heroicons/react/24/outline";
-import { PublicMarketplaceBrowser } from "../../../components/public-marketplace-browser";
+import {
+  marketplaceBookSummary,
+  parseMarketplaceSort,
+  parseMarketplaceViewMode,
+  toMarketplaceNote,
+} from "@cashsouk/types";
+import { StatStrip } from "@cashsouk/ui";
+import { PublicMarketplaceBrowser } from "../../../components/marketplace/public-marketplace-browser";
 import { getPublicMarketplaceNotes } from "../../../lib/public-marketplace-notes";
 
 export const metadata: Metadata = {
@@ -27,41 +33,39 @@ export default async function MarketplacePage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const [notes, filters] = await Promise.all([getPublicMarketplaceNotes(), searchParams]);
+  const summary = marketplaceBookSummary(notes.map(toMarketplaceNote));
 
   return (
-    <main className="flex-1 pt-16">
-      <section className="relative overflow-hidden border-b border-border/60 bg-muted/35">
-        <div
-          className="pointer-events-none absolute -left-24 -top-24 size-[min(55vw,28rem)] rounded-full bg-primary/[0.12] blur-3xl"
-          aria-hidden
-        />
-        <div
-          className="pointer-events-none absolute right-0 top-0 size-[min(40vw,20rem)] rounded-full bg-primary/10 blur-3xl"
-          aria-hidden
-        />
-        <div className="relative mx-auto max-w-7xl px-4 py-10 sm:px-6 md:py-14 lg:py-16">
-          <div className="relative z-[1] mb-8 space-y-5 md:mb-12 md:space-y-6">
-            <div className="inline-flex max-w-full flex-col overflow-hidden rounded-2xl border border-border bg-card text-xs shadow-sm sm:flex-row sm:rounded-full sm:text-[15px]">
-              <span className="inline-flex items-center gap-2 bg-muted px-3 py-1.5 font-medium text-secondary-foreground sm:px-4 sm:py-2">
-                <span className="size-2 shrink-0 rounded-full bg-primary" aria-hidden />
-                Marketplace
-              </span>
-              <span className="inline-flex items-center gap-1 px-3 py-1.5 font-medium text-foreground sm:px-4 sm:py-2">
-                Live listings
-                <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-              </span>
+    <main className="min-w-0 flex-1 overflow-x-clip pt-16">
+      <section className="bg-background">
+        <div className="mx-auto max-w-7xl px-4 pt-12 sm:px-6">
+          <div className="grid gap-10 lg:grid-cols-2 lg:items-end">
+            <div className="min-w-0">
+              <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3.5 py-1.5 text-ui font-medium text-secondary-foreground">
+                <span className="size-1.5 rounded-full bg-status-success-text" aria-hidden="true" />
+                Marketplace · live listings
+              </div>
+              <h1 className="mt-5 text-balance text-3xl font-bold tracking-tight text-foreground md:text-4xl">
+                Invest in verified secured loans
+              </h1>
+              <p className="mt-4 max-w-xl text-body leading-7 text-muted-foreground">
+                Explore opportunities reviewed for clarity and structure—see profit rates, risk
+                grades, and funding progress before you commit.
+              </p>
             </div>
-
-            <h1 className="text-balance text-2xl font-bold tracking-tight text-foreground sm:text-3xl md:text-4xl lg:text-[2.75rem] lg:leading-[1.15]">
-              Invest in verified secured loans
-            </h1>
-
-            <p className="max-w-[40rem] text-[17px] leading-7 text-muted-foreground">
-              Explore opportunities reviewed for clarity and structure—see profit rates, risk
-              grades, and funding progress before you commit.
-            </p>
+            <StatStrip
+              cells={[
+                { label: "Open notes", value: summary.openCount },
+                { label: "Rate range", value: summary.rateRange, accent: true },
+                { label: "Tenure", value: summary.tenureRange },
+              ]}
+            />
           </div>
+        </div>
+      </section>
 
+      <section className="bg-background">
+        <div className="mx-auto max-w-7xl px-4 pb-16 pt-11 sm:px-6">
           <PublicMarketplaceBrowser
             notes={notes}
             initialFilters={{
@@ -71,6 +75,8 @@ export default async function MarketplacePage({
               profit: getSingleSearchParam(filters.profit),
               tenor: getSingleSearchParam(filters.tenor),
               page: parseMarketplacePageParam(getSingleSearchParam(filters.page)),
+              sort: parseMarketplaceSort(getSingleSearchParam(filters.sort)),
+              view: parseMarketplaceViewMode(getSingleSearchParam(filters.view)),
             }}
           />
         </div>

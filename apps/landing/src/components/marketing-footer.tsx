@@ -9,59 +9,15 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  Input,
   Logo,
   openPublicLegalPdf,
   useLandingFooterLegalLinks,
 } from "@cashsouk/ui";
-import { HELP_CENTER_URL } from "@cashsouk/config";
-import {
-  BuildingLibraryIcon,
-  ChatBubbleLeftRightIcon,
-  ChevronDownIcon,
-  CodeBracketIcon,
-  GlobeAltIcon,
-  HandRaisedIcon,
-  RectangleStackIcon,
-  UserGroupIcon,
-} from "@heroicons/react/24/outline";
-
-/** Prefer env config; fall back to existing site placeholders only (do not invent new corporate data). */
-const COMPANY = {
-  legalName: process.env.NEXT_PUBLIC_COMPANY_LEGAL_NAME || "Shoraka Sdn. Bhd.",
-  brandName: process.env.NEXT_PUBLIC_COMPANY_BRAND_NAME || "CashSouk",
-  registrationNumber:
-    process.env.NEXT_PUBLIC_COMPANY_REGISTRATION_NUMBER || "201612345678",
-  address: process.env.NEXT_PUBLIC_COMPANY_ADDRESS || "",
-  email: process.env.NEXT_PUBLIC_COMPANY_EMAIL || "hello@cashsouk.com",
-  phone: process.env.NEXT_PUBLIC_COMPANY_PHONE || "+60 3-1234 5678",
-};
-
-const SOCIAL_LINKS = [
-  { href: "#", label: "X (Twitter)", Icon: ChatBubbleLeftRightIcon },
-  { href: "#", label: "LinkedIn", Icon: BuildingLibraryIcon },
-  { href: "#", label: "Facebook", Icon: UserGroupIcon },
-  { href: "#", label: "GitHub", Icon: CodeBracketIcon },
-  { href: "#", label: "Social", Icon: HandRaisedIcon },
-  { href: "#", label: "Website", Icon: GlobeAltIcon },
-  { href: "#", label: "More", Icon: RectangleStackIcon },
-] as const;
+import { COMPANY, HELP_CENTER_URL, companyCopyrightLine, companyTelHref } from "@cashsouk/config";
+import { ChevronDownIcon, EnvelopeIcon, PhoneIcon } from "@heroicons/react/24/outline";
 
 export function MarketingFooter() {
-  const year = new Date().getFullYear();
   const { links: legalLinks } = useLandingFooterLegalLinks();
-
-  const onNewsletterSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    const email = String(fd.get("email") ?? "").trim();
-    if (!email) {
-      toast.error("Please enter your email.");
-      return;
-    }
-    toast.success("Thanks — we'll be in touch soon.");
-    e.currentTarget.reset();
-  };
 
   return (
     <footer className="bg-primary text-primary-foreground">
@@ -94,27 +50,28 @@ export function MarketingFooter() {
       <div className="border-b border-primary-foreground/15">
         <div className="mx-auto grid max-w-7xl gap-10 px-4 py-10 sm:px-6 md:py-12 lg:grid-cols-3 lg:gap-14">
           <div>
-            <Link href="/" className="inline-flex items-center gap-3">
-              <Logo className="brightness-0 invert" size={44} />
+            <Link href="/" className="inline-flex max-w-md items-center">
+              <Logo className="brightness-0 invert" size={112} />
             </Link>
-            <p className="mt-4 max-w-md text-[17px] leading-7 text-primary-foreground/85">
-              Building the future of decentralized business finance. Secure, transparent, and built
-              for everyone.
-            </p>
             <div className="mt-6 space-y-1 text-sm leading-6 text-primary-foreground/85">
               <p className="font-medium text-primary-foreground">{COMPANY.legalName}</p>
               <p>Registration No. {COMPANY.registrationNumber}</p>
               {COMPANY.address ? <p>{COMPANY.address}</p> : null}
               <p>
-                <a href={`mailto:${COMPANY.email}`} className="underline-offset-4 hover:underline">
+                <a
+                  href={`mailto:${COMPANY.email}`}
+                  className="inline-flex items-center gap-2 underline-offset-4 hover:underline"
+                >
+                  <EnvelopeIcon className="size-4 shrink-0" aria-hidden />
                   {COMPANY.email}
                 </a>
               </p>
               <p>
                 <a
-                  href={`tel:${COMPANY.phone.replace(/\s+/g, "")}`}
-                  className="underline-offset-4 hover:underline"
+                  href={companyTelHref()}
+                  className="inline-flex items-center gap-2 underline-offset-4 hover:underline"
                 >
+                  <PhoneIcon className="size-4 shrink-0" aria-hidden />
                   {COMPANY.phone}
                 </a>
               </p>
@@ -179,46 +136,12 @@ export function MarketingFooter() {
                 <span className="text-primary-foreground/70">No public legal documents yet</span>
               ) : null}
             </nav>
-
-            <form
-              onSubmit={onNewsletterSubmit}
-              className="mt-8 flex max-w-md flex-col gap-3 sm:flex-row sm:items-stretch"
-            >
-              <Input
-                type="email"
-                name="email"
-                autoComplete="email"
-                placeholder="Enter your email"
-                className="h-12 flex-1 rounded-xl border-0 bg-primary-foreground px-4 text-foreground placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-primary-foreground/40"
-              />
-              <Button
-                type="submit"
-                className="h-12 shrink-0 rounded-xl bg-accent px-6 text-[15px] font-semibold text-accent-foreground shadow-none hover:opacity-95"
-              >
-                Subscribe
-              </Button>
-            </form>
           </div>
         </div>
       </div>
 
-      <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-6 px-4 py-8 sm:flex-row sm:px-6">
-        <p className="text-sm text-primary-foreground/80">
-          © {year} {COMPANY.brandName}. All rights reserved.
-        </p>
-        <ul className="flex flex-wrap items-center justify-center gap-5" aria-label="Social links">
-          {SOCIAL_LINKS.map(({ href, label, Icon }) => (
-            <li key={label}>
-              <Link
-                href={href}
-                aria-label={label}
-                className="rounded-sm text-primary-foreground transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-foreground/50 focus-visible:ring-offset-2 focus-visible:ring-offset-primary"
-              >
-                <Icon className="size-6" aria-hidden />
-              </Link>
-            </li>
-          ))}
-        </ul>
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+        <p className="text-sm leading-6 text-primary-foreground/80">{companyCopyrightLine()}</p>
       </div>
     </footer>
   );

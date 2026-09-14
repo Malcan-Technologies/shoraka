@@ -40,6 +40,7 @@ function note(overrides: Partial<MarketplaceNote> = {}): MarketplaceNote {
     investable: true,
     investorCount: 3,
     listingKind: "open",
+    publishedAt: null,
     ...overrides,
   };
 }

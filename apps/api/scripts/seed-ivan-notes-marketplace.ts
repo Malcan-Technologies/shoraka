@@ -11,17 +11,29 @@
  */
 
 import {
+  ApplicationStatus,
+  ContractStatus,
   InvoiceStatus,
   NoteFundingStatus,
   NoteInvestmentStatus,
   NoteListingStatus,
   NoteServicingStatus,
   NoteStatus,
+  OrganizationMemberRole,
+  OrganizationType,
   Prisma,
   PrismaClient,
 } from "@prisma/client";
 import {
+  buildBusinessDetails,
+  buildCompanyDetails,
+  buildContractDetails,
+  buildCustomerDetails,
+  buildDeclarations,
+  buildFinancialStatements,
   buildInvoiceDetails,
+  buildReviewAndSubmit,
+  buildSupportingDocuments,
   generateInvoiceDetailsList,
 } from "./seed-application-helpers";
 import { IVAN_COMPLETED_APP_ID, seedCuid } from "./seed-ivan-issuer-varied-statuses";
@@ -49,8 +61,14 @@ type MarketSpec = {
   funded: number;
   profitRate: number;
   featured?: boolean;
+  featuredRank?: number;
   /** Also create a CONFIRMED investment from Ivan investor org (still marketplace-open). */
   investAmount?: number;
+  riskRating?: string;
+  tenureDays?: number | null;
+  closesInDays?: number;
+  industry?: string;
+  purpose?: string;
 };
 
 type FundedSpec = {
@@ -90,6 +108,144 @@ const MARKETPLACE_SPECS: MarketSpec[] = [
     funded: 40_000,
     profitRate: 12,
     investAmount: 10_000,
+  },
+  {
+    key: "mkt_var_01",
+    reference: "NOTE-IVAN-VAR-01",
+    title: "Working capital for certified metal components",
+    purpose: "Purchase of certified stainless fittings for export orders",
+    target: 80_000,
+    funded: 0,
+    profitRate: 7.25,
+    riskRating: "SME-1",
+    tenureDays: 30,
+    closesInDays: 28,
+    industry: "Manufacturing",
+  },
+  {
+    key: "mkt_var_02",
+    reference: "NOTE-IVAN-VAR-02",
+    title: "Inventory restock for regional distributors",
+    purpose: "Restock seasonal inventory against confirmed purchase orders",
+    target: 120_000,
+    funded: 14_400,
+    profitRate: 8.5,
+    riskRating: "SME-2",
+    tenureDays: 45,
+    closesInDays: 21,
+    industry: "Trading",
+    investAmount: 4_800,
+  },
+  {
+    key: "mkt_var_03",
+    reference: "NOTE-IVAN-VAR-03",
+    title: "Cloud infrastructure expansion for SaaS billing",
+    purpose: "Expand hosting capacity ahead of contracted enterprise rollouts",
+    target: 95_000,
+    funded: 33_250,
+    profitRate: 9.15,
+    riskRating: "SME-3",
+    tenureDays: 60,
+    closesInDays: 18,
+    industry: "Technology",
+    featured: true,
+    featuredRank: 2,
+  },
+  {
+    key: "mkt_var_04",
+    reference: "NOTE-IVAN-VAR-04",
+    title: "Bridge finance for completed fit-out works",
+    purpose: "Bridge payment on completed commercial fit-out invoices",
+    target: 210_000,
+    funded: 100_800,
+    profitRate: 10.25,
+    riskRating: "SME-4",
+    tenureDays: null,
+    closesInDays: 12,
+    industry: "Construction",
+    investAmount: 15_000,
+  },
+  {
+    key: "mkt_var_05",
+    reference: "NOTE-IVAN-VAR-05",
+    title: "Medical supplies against hospital receivables",
+    purpose: "Fund delivery of consumables against approved hospital invoices",
+    target: 150_000,
+    funded: 100_500,
+    profitRate: 11.4,
+    riskRating: "SME-5",
+    tenureDays: 90,
+    closesInDays: 9,
+    industry: "Healthcare",
+  },
+  {
+    key: "mkt_var_06",
+    reference: "NOTE-IVAN-VAR-06",
+    title: "Fleet maintenance for last-mile deliveries",
+    purpose: "Cover scheduled maintenance against logistics service invoices",
+    target: 175_000,
+    funded: 138_250,
+    profitRate: 12.35,
+    riskRating: "SME-6",
+    tenureDays: 120,
+    closesInDays: 6,
+    industry: "Logistics",
+    investAmount: 8_000,
+  },
+  {
+    key: "mkt_var_07",
+    reference: "NOTE-IVAN-VAR-07",
+    title: "Cold-chain ingredients for F&B operators",
+    purpose: "Finance chilled ingredient supply against supermarket invoices",
+    target: 60_000,
+    funded: 48_000,
+    profitRate: 13.5,
+    riskRating: "SME-7",
+    tenureDays: 75,
+    closesInDays: 15,
+    industry: "Food & Beverage",
+    featured: true,
+    featuredRank: 3,
+  },
+  {
+    key: "mkt_var_08",
+    reference: "NOTE-IVAN-VAR-08",
+    title: "Retail replenishment for festive collections",
+    purpose: "Replenish festive retail stock against department-store invoices",
+    target: 88_000,
+    funded: 81_840,
+    profitRate: 8.75,
+    riskRating: "SME-8",
+    tenureDays: 45,
+    closesInDays: 4,
+    industry: "Retail",
+  },
+  {
+    key: "mkt_var_09",
+    reference: "NOTE-IVAN-VAR-09",
+    title: "Campus equipment against education invoices",
+    purpose: "Fund lab equipment deliveries against education-sector invoices",
+    target: 250_000,
+    funded: 247_500,
+    profitRate: 9.8,
+    riskRating: "SME-9",
+    tenureDays: 180,
+    closesInDays: 3,
+    industry: "Education",
+    investAmount: 12_500,
+  },
+  {
+    key: "mkt_var_10",
+    reference: "NOTE-IVAN-VAR-10",
+    title: "Agri-inputs against approved crop contracts",
+    purpose: "Finance fertiliser and seed supply against offtake invoices",
+    target: 55_000,
+    funded: 12_100,
+    profitRate: 14.25,
+    riskRating: "SME-10",
+    tenureDays: 60,
+    closesInDays: 1,
+    industry: "Agriculture",
   },
 ];
 
@@ -141,6 +297,7 @@ async function ensureInvoice(args: {
   contractId: string | null;
   amount: number;
   maturity: Date;
+  riskRating?: string;
 }) {
   const [input] = generateInvoiceDetailsList(1);
   const details = buildInvoiceDetails({
@@ -153,6 +310,7 @@ async function ensureInvoice(args: {
     offered_amount: args.amount,
     offered_profit_rate_percent: 10,
     platform_fee_rate_percent: 0,
+    ...(args.riskRating ? { risk_rating: args.riskRating } : {}),
   };
 
   await prisma.invoice.upsert({
@@ -253,13 +411,30 @@ async function main() {
   });
   if (!user) throw new Error(`User not found: ${ISSUER_EMAIL}`);
 
-  const issuerOrg = await prisma.issuerOrganization.findFirst({
+  let issuerOrg = await prisma.issuerOrganization.findFirst({
     where: {
       owner_user_id: user.user_id,
       name: { equals: ISSUER_ORG_NAME, mode: "insensitive" },
     },
   });
-  if (!issuerOrg) throw new Error(`Issuer org not found: ${ISSUER_ORG_NAME}`);
+  if (!issuerOrg) {
+    issuerOrg = await prisma.issuerOrganization.create({
+      data: {
+        owner_user_id: user.user_id,
+        type: OrganizationType.COMPANY,
+        name: ISSUER_ORG_NAME,
+        onboarding_status: "COMPLETED",
+        onboarded_at: new Date(),
+        members: {
+          create: {
+            user_id: user.user_id,
+            role: OrganizationMemberRole.OWNER,
+          },
+        },
+      },
+    });
+    console.log(`Created issuer org ${ISSUER_ORG_NAME} (${issuerOrg.id})`);
+  }
 
   const investorOrg = await prisma.investorOrganization.findFirst({
     where: { owner_user_id: user.user_id },
@@ -267,26 +442,69 @@ async function main() {
   });
   if (!investorOrg) throw new Error(`Investor org not found for ${user.email}`);
 
-  const product = await prisma.product.findUnique({ where: { id: PRODUCT_ID } });
+  let product = await prisma.product.findUnique({ where: { id: PRODUCT_ID } });
   if (!product || product.status !== "ACTIVE") {
-    throw new Error(`Active product not found: ${PRODUCT_ID}`);
+    product = await prisma.product.findFirst({
+      where: { status: "ACTIVE", product_code: "ARF" },
+      orderBy: { version: "desc" },
+    });
+  }
+  if (!product || product.status !== "ACTIVE") {
+    throw new Error("No active ARF product found to attach marketplace notes.");
   }
 
-  const sourceApp = await prisma.application.findUnique({
+  let sourceApp = await prisma.application.findUnique({
     where: { id: SOURCE_APP_ID },
     include: { contract: true },
   });
   if (!sourceApp) {
-    throw new Error(
-      `Source application ${SOURCE_APP_ID} missing. Run seed-ivan-issuer-varied-statuses.ts first.`
-    );
+    const contractId = seedCuid("con", "completed");
+    const createdAt = daysAgo(14);
+    await prisma.contract.create({
+      data: {
+        id: contractId,
+        issuer_organization_id: issuerOrg.id,
+        status: ContractStatus.APPROVED,
+        contract_details: buildContractDetails() as Prisma.InputJsonValue,
+        customer_details: buildCustomerDetails() as Prisma.InputJsonValue,
+        created_at: createdAt,
+      },
+    });
+    await prisma.application.create({
+      data: {
+        id: SOURCE_APP_ID,
+        issuer_organization_id: issuerOrg.id,
+        product_version: product.version,
+        status: ApplicationStatus.COMPLETED,
+        submitted_at: createdAt,
+        created_at: createdAt,
+        last_completed_step: 9,
+        financing_type: { product_id: product.id } as Prisma.InputJsonValue,
+        financing_structure: {
+          structure_type: "invoice_only",
+          existing_contract_id: null,
+        } as Prisma.InputJsonValue,
+        contract_id: contractId,
+        company_details: buildCompanyDetails(issuerOrg.id) as Prisma.InputJsonValue,
+        business_details: buildBusinessDetails() as Prisma.InputJsonValue,
+        financial_statements: buildFinancialStatements() as Prisma.InputJsonValue,
+        supporting_documents: buildSupportingDocuments() as Prisma.InputJsonValue,
+        declarations: buildDeclarations() as Prisma.InputJsonValue,
+        review_and_submit: buildReviewAndSubmit() as Prisma.InputJsonValue,
+      },
+    });
+    sourceApp = await prisma.application.findUniqueOrThrow({
+      where: { id: SOURCE_APP_ID },
+      include: { contract: true },
+    });
+    console.log(`Created source application ${SOURCE_APP_ID}`);
   }
 
   // Ensure source app is COMPLETED so note lineage looks production-like.
-  if (sourceApp.status !== "COMPLETED") {
+  if (sourceApp.status !== ApplicationStatus.COMPLETED) {
     await prisma.application.update({
       where: { id: sourceApp.id },
-      data: { status: "COMPLETED" },
+      data: { status: ApplicationStatus.COMPLETED },
     });
   }
 
@@ -346,7 +564,13 @@ async function main() {
     const noteId = seedCuid("note", spec.key);
     const invoiceId = seedCuid("noteinv", spec.key);
     const investmentId = seedCuid("noteinvst", spec.key);
-    const maturity = daysFromNow(100);
+    const maturity = daysFromNow(spec.tenureDays ?? 100);
+    const listingClosesAt = daysFromNow(spec.closesInDays ?? 45);
+    const featuredRank = spec.featured ? (spec.featuredRank ?? 1) : null;
+    const noteIssuerSnapshot = {
+      ...issuerSnapshot,
+      ...(spec.industry ? { industry: spec.industry } : {}),
+    };
 
     const { details, offerDetails } = await ensureInvoice({
       invoiceId,
@@ -354,6 +578,7 @@ async function main() {
       contractId: sourceApp.contract_id,
       amount: spec.target,
       maturity,
+      riskRating: spec.riskRating,
     });
 
     await prisma.note.upsert({
@@ -371,7 +596,8 @@ async function main() {
         title: spec.title,
         note_reference: spec.reference,
         product_snapshot: productSnapshot,
-        issuer_snapshot: issuerSnapshot,
+        purpose_snapshot: spec.purpose ? { financing_for: spec.purpose } : Prisma.JsonNull,
+        issuer_snapshot: noteIssuerSnapshot,
         paymaster_snapshot: PAYMASTER,
         contract_snapshot: sourceApp.contract
           ? {
@@ -393,12 +619,13 @@ async function main() {
         profit_rate_percent: money(spec.profitRate),
         platform_fee_rate_percent: money(0),
         service_fee_rate_percent: money(15),
+        tenure_days: spec.tenureDays ?? null,
         maturity_date: maturity,
         published_at: publishedAt,
         is_featured: Boolean(spec.featured),
-        featured_rank: spec.featured ? 1 : null,
+        featured_rank: featuredRank,
         featured_from: spec.featured ? opensAt : null,
-        featured_until: spec.featured ? closesAt : null,
+        featured_until: spec.featured ? listingClosesAt : null,
       },
       update: {
         source_application_id: sourceApp.id,
@@ -410,19 +637,27 @@ async function main() {
         funding_status: NoteFundingStatus.OPEN,
         servicing_status: NoteServicingStatus.NOT_STARTED,
         title: spec.title,
+        purpose_snapshot: spec.purpose ? { financing_for: spec.purpose } : Prisma.JsonNull,
         product_snapshot: productSnapshot,
-        issuer_snapshot: issuerSnapshot,
+        issuer_snapshot: noteIssuerSnapshot,
         paymaster_snapshot: PAYMASTER,
+        invoice_snapshot: {
+          id: invoiceId,
+          status: InvoiceStatus.APPROVED,
+          details,
+          offer_details: offerDetails,
+        },
         requested_amount: money(spec.target),
         target_amount: money(spec.target),
         funded_amount: money(spec.funded),
         profit_rate_percent: money(spec.profitRate),
+        tenure_days: spec.tenureDays ?? null,
         maturity_date: maturity,
         published_at: publishedAt,
         is_featured: Boolean(spec.featured),
-        featured_rank: spec.featured ? 1 : null,
+        featured_rank: featuredRank,
         featured_from: spec.featured ? opensAt : null,
-        featured_until: spec.featured ? closesAt : null,
+        featured_until: spec.featured ? listingClosesAt : null,
       },
     });
 
@@ -432,7 +667,7 @@ async function main() {
         note_id: noteId,
         status: NoteListingStatus.PUBLISHED,
         opens_at: opensAt,
-        closes_at: closesAt,
+        closes_at: listingClosesAt,
         published_at: publishedAt,
         visibility: "INVESTOR_MARKETPLACE",
         summary: `${spec.title} — open for investment`,
@@ -440,7 +675,7 @@ async function main() {
       update: {
         status: NoteListingStatus.PUBLISHED,
         opens_at: opensAt,
-        closes_at: closesAt,
+        closes_at: listingClosesAt,
         published_at: publishedAt,
         visibility: "INVESTOR_MARKETPLACE",
         summary: `${spec.title} — open for investment`,

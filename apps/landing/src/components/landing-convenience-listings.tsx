@@ -8,13 +8,9 @@ import {
   UserGroupIcon,
 } from "@heroicons/react/24/solid";
 import { Button } from "@cashsouk/ui";
-import { toMarketplaceNote } from "@cashsouk/types";
+import { toMarketplaceNote, type MarketplaceNote } from "@cashsouk/types";
 import { getPublicMarketplaceNotesSlice } from "@/lib/public-marketplace-notes";
 import { InvestmentListingsCarousel } from "./investment-listings-carousel";
-import {
-  toInvestmentListingData,
-  type InvestmentListingData,
-} from "./investment-listing-card";
 
 const FEATURE_ITEMS = [
   {
@@ -86,13 +82,13 @@ function ConvenienceSection() {
   );
 }
 
-async function getLandingCarouselListings(): Promise<InvestmentListingData[]> {
+async function getLandingCarouselNotes(): Promise<MarketplaceNote[]> {
   const notes = await getPublicMarketplaceNotesSlice(12);
-  return notes.map((note) => toInvestmentListingData(toMarketplaceNote(note)));
+  return notes.map((note) => toMarketplaceNote(note));
 }
 
 export async function LandingInvestmentListings() {
-  const listings = await getLandingCarouselListings();
+  const notes = await getLandingCarouselNotes();
 
   return (
     <section className="w-full min-w-0 overflow-x-clip border-t border-border/60 bg-muted/35 py-10 md:py-14 lg:py-16">
@@ -130,8 +126,8 @@ export async function LandingInvestmentListings() {
       </div>
 
       <div className="mt-12 w-full min-w-0">
-        {listings.length > 0 ? (
-          <InvestmentListingsCarousel listings={listings} />
+        {notes.length > 0 ? (
+          <InvestmentListingsCarousel notes={notes} />
         ) : (
           <div className="mx-auto max-w-7xl px-4 sm:px-6">
             <div className="rounded-2xl border border-border bg-card p-6 text-center sm:p-8">

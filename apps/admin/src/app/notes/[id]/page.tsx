@@ -512,6 +512,7 @@ export default function NoteDetailPage() {
                       <AdminMetricProgress
                         variant="hero"
                         percent={note.fundingPercent}
+                        thresholdPercent={note.minimumFundingPercent}
                         leftLabel="Funded"
                         leftValue={formatCurrency(note.fundedAmount)}
                         leftHint={`of ${formatCurrency(note.targetAmount)} target`}

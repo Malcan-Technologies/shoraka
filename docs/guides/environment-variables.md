@@ -29,7 +29,8 @@ cp env-templates/admin.env.local apps/admin/.env.local
 Environment variables are stored in AWS Systems Manager Parameter Store and Secrets Manager:
 
 ```
-/cashsouk/prod/api/DATABASE_URL           → Secrets Manager
+cashsouk/app-database-url                 → Secrets Manager (API runtime DATABASE_URL)
+cashsouk/database-url                     → Secrets Manager (ECS migrate task DATABASE_URL)
 /cashsouk/prod/api/JWT_SECRET             → Secrets Manager
 /cashsouk/prod/api/ALLOWED_ORIGINS        → SSM Parameter
 /cashsouk/prod/cognito/USER_POOL_ID       → SSM Parameter
@@ -54,13 +55,13 @@ See [DEPLOYMENT.md](./DEPLOYMENT.md) for AWS setup details.
 
 ### Optional (Recommended)
 
-| Variable                  | Description              | Default  | Notes               |
-| ------------------------- | ------------------------ | -------- | ------------------- |
-| `JWT_EXPIRES_IN`          | Access token expiration  | `15m`    | Short-lived tokens  |
-| `JWT_REFRESH_EXPIRES_IN`  | Refresh token expiration | `7d`     | Long-lived tokens   |
-| `LOG_LEVEL`               | Logging level            | `info`   | Use `debug` for dev |
-| `RATE_LIMIT_WINDOW_MS`    | Rate limit window        | `900000` | 15 minutes          |
-| `RATE_LIMIT_MAX_REQUESTS` | Max requests per window  | `100`    | Adjust per needs    |
+| Variable                  | Description              | Default                 | Notes                                     |
+| ------------------------- | ------------------------ | ----------------------- | ----------------------------------------- |
+| `JWT_EXPIRES_IN`          | Access token expiration  | `15m`                   | Short-lived tokens                        |
+| `JWT_REFRESH_EXPIRES_IN`  | Refresh token expiration | `7d`                    | Long-lived tokens                         |
+| `LOG_LEVEL`               | Logging level            | `info`                  | Use `debug` for dev                       |
+| `RATE_LIMIT_WINDOW_MS`    | Rate limit window        | `900000`                | 15 minutes                                |
+| `RATE_LIMIT_MAX_REQUESTS` | Max requests per window  | `100`                   | Adjust per needs                          |
 | `GOTENBERG_URL`           | Gotenberg PDF API base   | `http://127.0.0.1:3100` | Optional; PDF export returns 503 if unset |
 
 ### AWS Integration
@@ -106,27 +107,27 @@ Issuer director CTOS RegTank onboarding: after a successful RegTank create call,
 
 Server-only. All SigningCloud settings use the `SC_*` prefix. Encrypted callbacks authenticate with the provider MAC (`data` + `mac`); plaintext callbacks require the `x-signingcloud-secret` header (`SC_WEBHOOK_SECRET`). Production startup (`assertSigningProductionConfig`) also requires `API_PUBLIC_URL` (webhook/`callUrl`) and `ISSUER_URL` (hosted return/`backUrl`).
 
-| Variable | Description | Example (Dev) | Example (Prod) |
-|---|---|---|---|
-| `SC_BASE_URL` | SigningCloud API base URL | From tenant dashboard | Secrets Manager (`BACKEND_ENV`) |
-| `SC_API_KEY` | SigningCloud API key | From tenant dashboard | Secrets Manager (`BACKEND_ENV`) |
-| `SC_API_SECRET` | SigningCloud API secret | From tenant dashboard | Secrets Manager (`BACKEND_ENV`) |
-| `SC_WEBHOOK_SECRET` | Shared secret for plaintext webhook callbacks | Local shared value | Secrets Manager (`BACKEND_ENV`) |
-| `API_PUBLIC_URL` | Public API URL (webhook/`callUrl`) | `http://localhost:4000` | Secrets Manager (`BACKEND_ENV`) |
-| `ISSUER_URL` | Issuer origin for signing emails and `backUrl` | `http://localhost:3001` | Secrets Manager (`BACKEND_ENV`) |
-| `SC_ACCESS_TOKEN_TTL_MS` | In-memory access-token cache TTL (minimum 60000) | `1500000` (default 25m) | Optional override |
+| Variable                 | Description                                      | Example (Dev)           | Example (Prod)                  |
+| ------------------------ | ------------------------------------------------ | ----------------------- | ------------------------------- |
+| `SC_BASE_URL`            | SigningCloud API base URL                        | From tenant dashboard   | Secrets Manager (`BACKEND_ENV`) |
+| `SC_API_KEY`             | SigningCloud API key                             | From tenant dashboard   | Secrets Manager (`BACKEND_ENV`) |
+| `SC_API_SECRET`          | SigningCloud API secret                          | From tenant dashboard   | Secrets Manager (`BACKEND_ENV`) |
+| `SC_WEBHOOK_SECRET`      | Shared secret for plaintext webhook callbacks    | Local shared value      | Secrets Manager (`BACKEND_ENV`) |
+| `API_PUBLIC_URL`         | Public API URL (webhook/`callUrl`)               | `http://localhost:4000` | Secrets Manager (`BACKEND_ENV`) |
+| `ISSUER_URL`             | Issuer origin for signing emails and `backUrl`   | `http://localhost:3001` | Secrets Manager (`BACKEND_ENV`) |
+| `SC_ACCESS_TOKEN_TTL_MS` | In-memory access-token cache TTL (minimum 60000) | `1500000` (default 25m) | Optional override               |
 
 Disposable FA/JSG/DOA sandbox smoke (one verified sandbox email reused for every field):
 
 `SIGNINGCLOUD_SMOKE_SIGNER_EMAIL=… pnpm --filter @cashsouk/api signingcloud:generated-docs-smoke`
 
-| Variable | Description |
-|---|---|
-| `SIGNINGCLOUD_SMOKE_LAYOUT_ONLY=1` | Render fixture PDFs and overlay PNGs only (no upload) |
-| `SIGNINGCLOUD_SMOKE_SKIP_SIGN=1` | Upload disposable contracts, write gitignored session URLs, then exit |
-| `SIGNINGCLOUD_SMOKE_INSPECT_HOSTED=1` | Screenshot hosted cover + execution pages after upload |
-| `SIGNINGCLOUD_SMOKE_INSPECT_ONLY=1` | Re-screenshot saved gitignored sessions |
-| `SIGNINGCLOUD_SMOKE_VERIFY_REFS=fa:<ref>,jsg:<ref>,doa:<ref>` | Poll provider status and hash signed `%PDF` bytes after CA signing |
+| Variable                                                      | Description                                                           |
+| ------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `SIGNINGCLOUD_SMOKE_LAYOUT_ONLY=1`                            | Render fixture PDFs and overlay PNGs only (no upload)                 |
+| `SIGNINGCLOUD_SMOKE_SKIP_SIGN=1`                              | Upload disposable contracts, write gitignored session URLs, then exit |
+| `SIGNINGCLOUD_SMOKE_INSPECT_HOSTED=1`                         | Screenshot hosted cover + execution pages after upload                |
+| `SIGNINGCLOUD_SMOKE_INSPECT_ONLY=1`                           | Re-screenshot saved gitignored sessions                               |
+| `SIGNINGCLOUD_SMOKE_VERIFY_REFS=fa:<ref>,jsg:<ref>,doa:<ref>` | Poll provider status and hash signed `%PDF` bytes after CA signing    |
 
 Do not commit session URLs, access codes, or overlay captures.
 
@@ -136,13 +137,13 @@ ECS injects these from `BACKEND_ENV` via `infra/ecs-task-definition-api.json`. A
 
 Server-only on the API. The chat app id and Help Center URL are also exposed to issuer, investor, and landing so the widget can load. Admin has no Plain vars (no chat widget). Never put `PLAIN_API_KEY` or `PLAIN_CHAT_SECRET` in a `NEXT_PUBLIC_*` variable.
 
-| Variable | Where | Description |
-|---|---|---|
-| `PLAIN_API_KEY` | API | Machine-user GraphQL key (`plainApiKey_…`) |
-| `PLAIN_CHAT_APP_ID` | API | Chat app id (`liveChatApp_…`) |
-| `PLAIN_CHAT_SECRET` | API | HMAC secret for signed-in `emailHash` |
+| Variable                        | Where                       | Description                                                                                                      |
+| ------------------------------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `PLAIN_API_KEY`                 | API                         | Machine-user GraphQL key (`plainApiKey_…`)                                                                       |
+| `PLAIN_CHAT_APP_ID`             | API                         | Chat app id (`liveChatApp_…`)                                                                                    |
+| `PLAIN_CHAT_SECRET`             | API                         | HMAC secret for signed-in `emailHash`                                                                            |
 | `NEXT_PUBLIC_PLAIN_CHAT_APP_ID` | Issuer / investor / landing | Same chat app id as above. Inlined at `next build` via Docker `ARG` / GitHub secret. Also in `Frontend_Secrets`. |
-| `NEXT_PUBLIC_HELP_CENTER_URL` | Issuer / investor / landing | Hosted Help Center (`https://help.cashsouk.com`). Same build-arg path as the chat app id. |
+| `NEXT_PUBLIC_HELP_CENTER_URL`   | Issuer / investor / landing | Hosted Help Center (`https://help.cashsouk.com`). Same build-arg path as the chat app id.                        |
 
 Generate `PLAIN_CHAT_SECRET` in Plain under Settings → Chat. API key permissions should include at least `helpCenter:read`, `helpCenter:edit`, `customer:read`, `customer:create`, `thread:read`, and `chatApp:read`. See [Plain support](./plain-support.md).
 
@@ -150,15 +151,15 @@ Generate `PLAIN_CHAT_SECRET` in Plain under Settings → Chat. API key permissio
 
 Server-only — never expose key secrets or webhook secrets to clients. Loaded by `apps/api/src/config/curlec.ts`.
 
-| Variable | Description | Example (Dev) | Example (Prod) |
-|---|---|---|---|
-| `CURLEC_OPERATING_KEY_ID` | Operating merchant key ID | `rzp_test_...` | Secrets Manager |
-| `CURLEC_OPERATING_KEY_SECRET` | Operating merchant API secret | From Curlec dashboard | Secrets Manager |
-| `CURLEC_OPERATING_WEBHOOK_SECRET` | Operating merchant webhook secret | From Curlec dashboard | Secrets Manager |
-| `CURLEC_INVESTOR_POOL_KEY_ID` | Investor-pool merchant key ID | `rzp_test_...` | Secrets Manager |
-| `CURLEC_INVESTOR_POOL_KEY_SECRET` | Investor-pool merchant API secret | From Curlec dashboard | Secrets Manager |
-| `CURLEC_INVESTOR_POOL_WEBHOOK_SECRET` | Investor-pool merchant webhook secret | From Curlec dashboard | Secrets Manager |
-| `CURLEC_API_BASE_URL` | Curlec REST API base URL | `https://api.razorpay.com` | Confirm Malaysia prod URL with Curlec |
+| Variable                              | Description                           | Example (Dev)              | Example (Prod)                        |
+| ------------------------------------- | ------------------------------------- | -------------------------- | ------------------------------------- |
+| `CURLEC_OPERATING_KEY_ID`             | Operating merchant key ID             | `rzp_test_...`             | Secrets Manager                       |
+| `CURLEC_OPERATING_KEY_SECRET`         | Operating merchant API secret         | From Curlec dashboard      | Secrets Manager                       |
+| `CURLEC_OPERATING_WEBHOOK_SECRET`     | Operating merchant webhook secret     | From Curlec dashboard      | Secrets Manager                       |
+| `CURLEC_INVESTOR_POOL_KEY_ID`         | Investor-pool merchant key ID         | `rzp_test_...`             | Secrets Manager                       |
+| `CURLEC_INVESTOR_POOL_KEY_SECRET`     | Investor-pool merchant API secret     | From Curlec dashboard      | Secrets Manager                       |
+| `CURLEC_INVESTOR_POOL_WEBHOOK_SECRET` | Investor-pool merchant webhook secret | From Curlec dashboard      | Secrets Manager                       |
+| `CURLEC_API_BASE_URL`                 | Curlec REST API base URL              | `https://api.razorpay.com` | Confirm Malaysia prod URL with Curlec |
 
 The public key id is returned in order-create API responses — frontends do not need a `NEXT_PUBLIC_CURLEC_*` variable.
 
@@ -200,6 +201,11 @@ See also: `docs/integrations/payment-gateway-curlec-ops-runbook.md`, `docs/integ
 | `NEXT_PUBLIC_COGNITO_DOMAIN`    | Cognito domain    | Leave empty for dev     | `https://cashsouk-prod.auth...` |
 | `NEXT_PUBLIC_COGNITO_CLIENT_ID` | Cognito client ID | Leave empty for dev     | From Cognito console            |
 | `NEXT_PUBLIC_COGNITO_REGION`    | Cognito region    | `ap-southeast-5`        | `ap-southeast-5`                |
+| `NEXT_PUBLIC_COMPANY_LEGAL_NAME` | Footer legal name | `Shoraka Global Resources Sdn. Bhd.` | Same |
+| `NEXT_PUBLIC_COMPANY_REGISTRATION_NUMBER` | Company registration | `201501030089 (1155412-V)` | Same |
+| `NEXT_PUBLIC_COMPANY_ADDRESS` | Footer address | Wisma Mont Kiara… | Same |
+| `NEXT_PUBLIC_COMPANY_EMAIL` | Footer email | `enquiry@cashsouk.com` | Same |
+| `NEXT_PUBLIC_COMPANY_PHONE` | Footer phone | `03-2708 8100` | Same |
 
 ### Production-Only Variables
 
@@ -310,7 +316,7 @@ export const env = envSchema.parse(process.env);
   │   ├── MAX_FILE_SIZE_MB          (String)
   │   └── ALLOWED_FILE_TYPES        (String)
   ├── secrets/
-  │   ├── DATABASE_URL              (SecureString)
+  │   ├── DATABASE_URL              (API: cashsouk/app-database-url; migrate: cashsouk/database-url)
   │   ├── JWT_SECRET                (SecureString)
   │   ├── SMTP_PASSWORD             (SecureString)
   │   ├── SC_BASE_URL                                (SecureString)
@@ -341,7 +347,7 @@ Task definition example:
       "secrets": [
         {
           "name": "DATABASE_URL",
-          "valueFrom": "/cashsouk/prod/secrets/DATABASE_URL"
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:cashsouk/app-database-url"
         },
         {
           "name": "JWT_SECRET",

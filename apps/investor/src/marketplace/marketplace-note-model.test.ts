@@ -5,7 +5,9 @@ import {
   type NoteListItem,
 } from "@cashsouk/types";
 import {
+  marketplaceDaysLeftLabel,
   marketplaceFailedFundingHelp,
+  marketplaceFundedGoalLabel,
   marketplaceFundingBarClasses,
   marketplaceFundingSummary,
   marketplaceHasActiveFilters,
@@ -99,6 +101,7 @@ describe("toMarketplaceNote", () => {
     expect(mapped.minInvestment).toBe(100);
     expect(mapped.maxInvestment).toBe(68000);
     expect(mapped.minimumFundingPercent).toBe(80);
+    expect(mapped.publishedAt).toBe("2026-08-01");
   });
 
   it("uses stored tenure for new notes instead of days remaining to maturity", () => {
@@ -121,6 +124,11 @@ describe("toMarketplaceNote", () => {
     expect(toMarketplaceNote(note({ maturityDate: "not-a-date", tenureDays: 75 })).tenorDays).toBe(
       75
     );
+    const legacy = toMarketplaceNote(
+      note({ tenureDays: null, maturityDate: "2026-09-12T00:00:00.000Z" })
+    );
+    expect(legacy.tenorDays).toBeNull();
+    expect(legacy.timing.filterDays).not.toBeNull();
   });
 
   it("defaults a missing minimum threshold to 80%", () => {
@@ -315,6 +323,10 @@ describe("marketplace copy helpers", () => {
     expect(marketplaceListingUrgency(listing({ daysLeft: 12 }))).toBe("12 days left to invest");
     expect(marketplaceListingUrgency(listing({ listingKind: "funded" }))).toBe("Funding closed");
     expect(marketplaceListingUrgency(listing({ listingKind: "failed" }))).toBe("Did not meet minimum");
+    expect(marketplaceDaysLeftLabel(listing({ daysLeft: 1 }))).toBe("1 day left");
+    expect(marketplaceDaysLeftLabel(listing({ daysLeft: 12 }))).toBe("12 days left");
+    expect(marketplaceDaysLeftLabel(listing({ daysLeft: null }))).toBe("Open");
+    expect(marketplaceFundedGoalLabel(listing())).toBe("RM 32000 / RM 100000");
     expect(marketplaceFundingSummary(listing())).toBe("32% funded · 80% min · RM 68000 still open");
     expect(marketplaceInvestAnyAmountLabel(listing())).toBe(
       "Invest any amount from RM 100 to RM 68000"

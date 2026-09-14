@@ -158,7 +158,7 @@ This helper exists for local and staging-style testing only. Remove or lock down
 - `apps/landing/src/app/(marketing)/marketplace/page.tsx`
 - `apps/landing/src/components/landing-convenience-listings.tsx`
 - `apps/landing/src/components/investment-listings-carousel.tsx`
-- `apps/landing/src/components/investment-listing-card.tsx`
+- `apps/landing/src/components/marketplace/marketplace-listing-card.tsx`
 - `apps/investor/src/app/investments/page.tsx`
 - `apps/investor/src/app/investments/[id]/page.tsx`
 - `apps/investor/src/investments/hooks/use-marketplace-notes.ts`

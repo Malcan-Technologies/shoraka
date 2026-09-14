@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import type { InvestorPortfolioHistoryRange } from "@cashsouk/types";
+import { remainingPaginationPages } from "./pagination-pages";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -13,6 +14,8 @@ export const marketplaceKeys = {
     featuredOnly: boolean;
     includeClosed: boolean;
   }) => [...marketplaceKeys.all, "list", params] as const,
+  listAll: (params: { search: string; featuredOnly: boolean; includeClosed: boolean }) =>
+    [...marketplaceKeys.all, "list-all", params] as const,
   detail: (id?: string) => [...marketplaceKeys.all, "detail", id] as const,
   portfolioRoot: ["investor-portfolio"] as const,
   portfolio: (investorOrganizationId?: string) =>
@@ -182,6 +185,56 @@ export function useMarketplaceNotes({
   });
 }
 
+const MARKETPLACE_FETCH_PAGE_SIZE = 100;
+
+/** Loads every marketplace page (API caps pageSize at 100) for catalog-wide sort/filter. */
+export function useMarketplaceNotesAll({
+  search = "",
+  featuredOnly = false,
+  includeClosed = false,
+}: {
+  search?: string;
+  featuredOnly?: boolean;
+  includeClosed?: boolean;
+} = {}) {
+  const apiClient = useMarketplaceApiClient();
+  return useQuery({
+    queryKey: marketplaceKeys.listAll({ search, featuredOnly, includeClosed }),
+    queryFn: async () => {
+      const first = await apiClient.getMarketplaceNotes({
+        page: 1,
+        pageSize: MARKETPLACE_FETCH_PAGE_SIZE,
+        search,
+        featuredOnly,
+        includeClosed,
+      });
+      if (!first.success) throw new Error(first.error.message);
+
+      const notes = [...first.data.notes];
+      const extraPages = remainingPaginationPages(first.data.pagination.totalPages);
+      if (extraPages.length > 0) {
+        const remaining = await Promise.all(
+          extraPages.map((page) =>
+            apiClient.getMarketplaceNotes({
+              page,
+              pageSize: MARKETPLACE_FETCH_PAGE_SIZE,
+              search,
+              featuredOnly,
+              includeClosed,
+            })
+          )
+        );
+        for (const response of remaining) {
+          if (!response.success) throw new Error(response.error.message);
+          notes.push(...response.data.notes);
+        }
+      }
+
+      return { ...first.data, notes };
+    },
+  });
+}
+
 export function useMarketplaceNote(noteId?: string, options?: { enabled?: boolean }) {
   const apiClient = useMarketplaceApiClient();
   const allowFetch = options?.enabled ?? true;
@@ -325,13 +378,12 @@ export function useInvestorBalanceActivityAll(
       if (!first.success) throw new Error(first.error.message);
 
       const allEntries = [...first.data.entries];
-      const { totalPages } = first.data.pagination;
-
-      if (totalPages > 1) {
+      const extraPages = remainingPaginationPages(first.data.pagination.totalPages);
+      if (extraPages.length > 0) {
         const remainingPages = await Promise.all(
-          Array.from({ length: totalPages - 1 }, (_, index) =>
+          extraPages.map((page) =>
             apiClient.getInvestorBalanceActivity({
-              page: index + 2,
+              page,
               pageSize: ACTIVITY_FETCH_PAGE_SIZE,
               investorOrganizationId,
             })
