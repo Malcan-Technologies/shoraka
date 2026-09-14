@@ -55,27 +55,27 @@ export function InvestorProfileCompletenessBanner({
   return (
     <div id="profile-completeness" className="scroll-mt-24 space-y-3">
       <div
-        className="flex flex-col gap-4 rounded-xl border border-status-action-text/15 bg-[hsl(var(--status-action-bg)/0.45)] px-5 py-5 text-foreground sm:flex-row sm:items-center sm:justify-between"
+        className="flex flex-col gap-4 rounded-2xl border border-status-action-text/15 bg-[hsl(var(--status-action-bg)/0.45)] px-5 py-5 text-foreground sm:flex-row sm:items-center sm:justify-between"
         role="status"
       >
         <div className="min-w-0 space-y-1">
           <p className="text-ui font-semibold leading-7">Complete your profile</p>
           <p className="text-ui leading-6 text-muted-foreground">
-            {percent}% complete. {remaining} {remaining === 1 ? "item remaining" : "items remaining"}. Complete your
-            profile before placing an investment.
+            {percent}% complete · {remaining} {remaining === 1 ? "item" : "items"} remaining. Complete the remaining
+            profile information before placing an investment.
           </p>
         </div>
         {expandOnPage ? (
           <Button
             type="button"
-            className="h-11 shrink-0 gap-2 rounded-xl font-semibold"
+            className="h-10 shrink-0 gap-2 rounded-xl font-semibold"
             onClick={() => setExpanded((open) => !open)}
           >
             Complete profile
             <ArrowRightIcon className="h-4 w-4" />
           </Button>
         ) : (
-          <Button asChild className="h-11 shrink-0 gap-2 rounded-xl font-semibold">
+          <Button asChild className="h-10 shrink-0 gap-2 rounded-xl font-semibold">
             <Link href="/profile?focus=completeness">
               Complete profile
               <ArrowRightIcon className="h-4 w-4" />

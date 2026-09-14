@@ -306,7 +306,7 @@ function EditApplicationPageBody() {
     },
   });
   const profileIncompleteWarning =
-    "Your profile is incomplete. You can continue with your application, but please complete the remaining profile information when possible.";
+    "Your profile is incomplete. Complete the remaining profile information before submitting your application.";
   const showProfileIncompleteWarning = profileCompletenessQuery.data?.complete === false;
   const { data: frozenProductWorkflowData } = useQuery({
     queryKey: ["signing-product-workflow", applicationId],
