@@ -1037,7 +1037,7 @@ export function PartyFillEmptyForm({
         inputMode={form.state === "Outside Malaysia" ? undefined : "numeric"}
         maxLength={form.state === "Outside Malaysia" ? 500 : 32}
       />
-      <div className="flex gap-2 sm:col-span-2">
+      <div className="flex justify-end gap-2 sm:col-span-2 pt-4">
         <Button type="submit" className="h-10" disabled={pending}>
           {pending ? "Saving…" : "Save"}
         </Button>

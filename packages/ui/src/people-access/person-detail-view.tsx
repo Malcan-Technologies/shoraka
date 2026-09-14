@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import { ArrowLeftIcon, EllipsisHorizontalIcon } from "@heroicons/react/24/outline";
+import { ArrowLeftIcon, EllipsisHorizontalIcon, PencilIcon } from "@heroicons/react/24/outline";
 import { createApiClient, useAuthToken, PARTY_STATUS_REFRESHED_MESSAGE, PARTY_STATUS_REFRESH_FAILED_MESSAGE, PROVIDER_REFRESH_RECENTLY_MESSAGE } from "@cashsouk/config";
 import {
   buildPeopleAccessRows,
@@ -18,6 +18,7 @@ import {
   customerProcessStatusLabel,
   getKycGroup,
   getRelatedPartyStatusToken,
+  countIssuerPersonRequiredFields,
   isPersonEmailLifecycleLocked,
   matchPersonToParty,
   peopleAccessAmlChipPresentation,
@@ -102,6 +103,7 @@ export function PersonDetailView({
   const [inviteOpen, setInviteOpen] = React.useState(false);
   const [pending, setPending] = React.useState(false);
   const [confirm, setConfirm] = React.useState<"remove" | "inactivate" | "reactivate" | "cancel-invite" | "transfer" | null>(null);
+  const profileVariant = portal === "investor";
 
   const loadParties = React.useCallback(async () => {
     const res = await api.getPartyProfiles(portal, organizationId);
@@ -201,12 +203,15 @@ export function PersonDetailView({
 
   const profileCompletenessMissingSummary = React.useMemo(() => {
     if (!party || inactive) return null;
-    return issuerPersonCompletenessSummary(
-      issuerPersonCompletenessInputFromParty({
-        ...party,
-        kycOnboardingStatus: joinedPerson?.onboarding?.status ?? null,
-      })
-    );
+    const input = issuerPersonCompletenessInputFromParty({
+      ...party,
+      kycOnboardingStatus: joinedPerson?.onboarding?.status ?? null,
+    });
+    const missing = issuerPersonCompletenessSummary(input);
+    const requiredCount = countIssuerPersonRequiredFields(input);
+    const filledCount = Math.max(0, requiredCount - missing.missingCount);
+    const percent = requiredCount > 0 ? Math.round((filledCount / requiredCount) * 100) : 0;
+    return { ...missing, requiredCount, filledCount, percent };
   }, [inactive, joinedPerson?.onboarding?.status, party]);
 
   React.useEffect(() => {
@@ -265,7 +270,13 @@ export function PersonDetailView({
   if (!party) {
     return (
       <div className="space-y-3">
-        <Button type="button" variant="ghost" className="gap-2 px-0" onClick={onBack}>
+        <Button
+          type="button"
+          variant="ghost"
+          size={profileVariant ? "sm" : undefined}
+          className={profileVariant ? "gap-2 px-0 rounded-none" : "gap-2 px-0"}
+          onClick={onBack}
+        >
           <ArrowLeftIcon className="h-4 w-4" />
           People & Access
         </Button>
@@ -276,7 +287,13 @@ export function PersonDetailView({
 
   return (
     <div className="space-y-6">
-      <Button type="button" variant="ghost" className="gap-2 px-0" onClick={onBack}>
+      <Button
+        type="button"
+        variant="ghost"
+        size={profileVariant ? "sm" : undefined}
+        className={profileVariant ? "gap-2 px-0 rounded-none" : "gap-2 px-0"}
+        onClick={onBack}
+      >
         <ArrowLeftIcon className="h-4 w-4" />
         People & Access
       </Button>
@@ -284,19 +301,27 @@ export function PersonDetailView({
         title={party.name || "Person"}
         status={
           <div className="flex flex-wrap items-center gap-2">
-            {inactive ? <StatusBadge status="neutral" label="Inactive" /> : null}
+            {inactive ? (
+              <StatusBadge status="neutral" label="Inactive" size={profileVariant ? "sm" : undefined} />
+            ) : null}
             {kycChip ? (
               <StatusBadge
                 status={getRelatedPartyStatusToken(kycChip, "user")}
                 label={`${corporate ? "KYB" : "KYC"} ${kycStatus}`}
+                size={profileVariant ? "sm" : undefined}
               />
             ) : null}
             {amlChip ? (
-              <StatusBadge status={getRelatedPartyStatusToken(amlChip, "user")} label={`AML ${amlStatus}`} />
+              <StatusBadge
+                status={getRelatedPartyStatusToken(amlChip, "user")}
+                label={`AML ${amlStatus}`}
+                size={profileVariant ? "sm" : undefined}
+              />
             ) : null}
           </div>
         }
         facts={customerHeaderFacts({ party, person: joinedPerson })}
+        className={profileVariant ? "pb-4" : undefined}
         actions={
           canInactivate && !inactive ? (
             <DropdownMenu>
@@ -324,59 +349,141 @@ export function PersonDetailView({
           if (value !== "overview") setEditing(false);
         }}
       >
-        <TabsList className="h-10">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="kyc">{corporate ? "KYB" : "KYC"}</TabsTrigger>
-          <TabsTrigger value="aml">AML</TabsTrigger>
-          {showAccessTab ? <TabsTrigger value="access">Platform Access</TabsTrigger> : null}
+        <TabsList
+          className={
+            profileVariant
+              ? `grid h-12 w-full rounded-xl bg-muted p-1 ${
+                  showAccessTab ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"
+                }`
+              : "h-10"
+          }
+        >
+          <TabsTrigger
+            value="overview"
+            className={profileVariant ? "rounded-lg data-[state=active]:bg-background" : undefined}
+          >
+            Overview
+          </TabsTrigger>
+          <TabsTrigger
+            value="kyc"
+            className={profileVariant ? "rounded-lg data-[state=active]:bg-background" : undefined}
+          >
+            {corporate ? "KYB" : "KYC"}
+          </TabsTrigger>
+          <TabsTrigger
+            value="aml"
+            className={profileVariant ? "rounded-lg data-[state=active]:bg-background" : undefined}
+          >
+            AML
+          </TabsTrigger>
+          {showAccessTab ? (
+            <TabsTrigger
+              value="access"
+              className={profileVariant ? "rounded-lg data-[state=active]:bg-background" : undefined}
+            >
+              Platform Access
+            </TabsTrigger>
+          ) : null}
         </TabsList>
 
         <TabsContent value="overview" className="mt-6 space-y-6">
           {editing && canEdit && !inactive ? (
-            <PartyFillEmptyForm
-              party={party}
-              emailLocked={emailLocked}
-              onCancel={() => setEditing(false)}
-              onSave={async (data) => {
-                const nextEmail = typeof data.email === "string" ? data.email : undefined;
-                const profile = { ...data };
-                delete profile.email;
-                const res = await api.patchPartyProfile(portal, organizationId, party.id, profile);
-                if (!res.success) throw profileValidationErrorFromApi(res.error);
-                if (nextEmail !== undefined && !emailLocked && nextEmail.trim() !== personEmail) {
-                  await savePersonEmail(nextEmail);
-                }
-                toast.success("Person updated");
-                setEditing(false);
-                await invalidate();
-              }}
-            />
+            <div className={profileVariant ? "rounded-xl border bg-card p-6" : undefined}>
+              <PartyFillEmptyForm
+                party={party}
+                emailLocked={emailLocked}
+                onCancel={() => setEditing(false)}
+                onSave={async (data) => {
+                  const nextEmail = typeof data.email === "string" ? data.email : undefined;
+                  const profile = { ...data };
+                  delete profile.email;
+                  const res = await api.patchPartyProfile(portal, organizationId, party.id, profile);
+                  if (!res.success) throw profileValidationErrorFromApi(res.error);
+                  if (nextEmail !== undefined && !emailLocked && nextEmail.trim() !== personEmail) {
+                    await savePersonEmail(nextEmail);
+                  }
+                  toast.success("Person updated");
+                  setEditing(false);
+                  await invalidate();
+                }}
+              />
+            </div>
           ) : (
             <>
-              {profileCompletenessMissingSummary && profileCompletenessMissingSummary.missingCount > 0 ? (
-                <div className="space-y-2 rounded-xl border border-status-action-text/30 bg-[hsl(var(--status-action-bg)/0.15)] p-4">
-                  <p className="text-ui font-semibold text-status-action-text">Complete this profile</p>
-                  <p className="text-ui text-muted-foreground">
-                    {profileCompletenessMissingSummary.missingCount} details are still missing.
-                  </p>
-                  {profileCompletenessMissingSummary.missingFields.length > 0 ? (
-                    <p className="text-meta text-status-action-text">
-                      {profileCompletenessMissingSummary.missingFields.slice(0, 6).join(" · ")}
-                    </p>
+              {profileVariant ? (
+                <>
+                  {profileCompletenessMissingSummary && profileCompletenessMissingSummary.missingCount > 0 ? (
+                    <div className="rounded-xl border border-status-action-text/15 bg-[hsl(var(--status-action-bg)/0.15)] p-5">
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0 space-y-1">
+                          <p className="text-ui font-semibold">Profile completeness</p>
+                          <p className="text-ui text-muted-foreground">
+                            {profileCompletenessMissingSummary.percent}% complete ·{" "}
+                            {profileCompletenessMissingSummary.missingCount}{" "}
+                            {profileCompletenessMissingSummary.missingCount === 1 ? "item" : "items"} remaining
+                          </p>
+                        </div>
+                        {canEdit && !inactive ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-11 gap-2 rounded-xl"
+                            onClick={() => setEditing(true)}
+                          >
+                            <PencilIcon className="h-4 w-4" aria-hidden />
+                            Complete details
+                          </Button>
+                        ) : null}
+                      </div>
+                      {profileCompletenessMissingSummary.missingFields.length > 0 ? (
+                        <p className="mt-3 text-meta text-muted-foreground">
+                          {profileCompletenessMissingSummary.missingFields.slice(0, 7).join(" · ")}
+                        </p>
+                      ) : null}
+                    </div>
                   ) : null}
+
+                  <CustomerPartyProfileOverview
+                    party={party}
+                    person={joinedPerson}
+                    variant="profile"
+                    onEdit={
+                      canEdit && !inactive && !(profileCompletenessMissingSummary && profileCompletenessMissingSummary.missingCount > 0)
+                        ? () => setEditing(true)
+                        : undefined
+                    }
+                    editLabel="Edit"
+                  />
+                </>
+              ) : (
+                <>
+                  {profileCompletenessMissingSummary && profileCompletenessMissingSummary.missingCount > 0 ? (
+                    <div className="space-y-2 rounded-xl border border-status-action-text/30 bg-[hsl(var(--status-action-bg)/0.15)] p-4">
+                      <p className="text-ui font-semibold text-status-action-text">Complete this profile</p>
+                      <p className="text-ui text-muted-foreground">
+                        {profileCompletenessMissingSummary.missingCount} details are still missing.
+                      </p>
+                      {profileCompletenessMissingSummary.missingFields.length > 0 ? (
+                        <p className="text-meta text-status-action-text">
+                          {profileCompletenessMissingSummary.missingFields.slice(0, 6).join(" · ")}
+                        </p>
+                      ) : null}
+                      {canEdit && !inactive ? (
+                        <Button type="button" size="sm" variant="outline" onClick={() => setEditing(true)}>
+                          Complete details
+                        </Button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  <CustomerPartyProfileOverview party={party} person={joinedPerson} />
                   {canEdit && !inactive ? (
-                    <Button type="button" size="sm" variant="outline" onClick={() => setEditing(true)}>
-                      Complete details
+                    <Button type="button" onClick={() => setEditing(true)}>
+                      Edit
                     </Button>
                   ) : null}
-                </div>
-              ) : null}
-              <CustomerPartyProfileOverview party={party} person={joinedPerson} />
-              {canEdit && !inactive ? (
-                <Button type="button" onClick={() => setEditing(true)}>
-                  Edit
-                </Button>
-              ) : null}
+                </>
+              )}
             </>
           )}
         </TabsContent>
