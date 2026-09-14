@@ -86,10 +86,10 @@ SQL
 else
   echo "Application role '$APP_USER' already exists."
   if [ -n "$APP_PASS" ]; then
-    echo "Updating application role password..."
-    psql_admin -v app_pass="$APP_PASS" <<SQL
-ALTER USER ${APP_USER} PASSWORD :'app_pass';
-SQL
+    echo "Refusing to rotate '$APP_USER' from this script."
+    echo "ALTER USER before updating Secrets Manager and restarting ECS would desync running API tasks."
+    echo "Leave APP_PASS unset to apply grants only. Coordinate password rotation separately."
+    exit 1
   fi
 fi
 

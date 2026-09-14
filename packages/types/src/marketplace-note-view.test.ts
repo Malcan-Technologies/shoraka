@@ -89,6 +89,20 @@ describe("sortMarketplaceNotes", () => {
     expect(sortMarketplaceNotes(notes, "closing").map((item) => item.id)).toEqual(["b", "a", "c"]);
   });
 
+  it("ranks open listings ahead of closed ones when sorting by closing soon", () => {
+    expect(
+      sortMarketplaceNotes(
+        [
+          note({ id: "closed", listingKind: "funded", daysLeft: 0 }),
+          note({ id: "failed", listingKind: "failed", daysLeft: 0 }),
+          note({ id: "soon", listingKind: "open", daysLeft: 2 }),
+          note({ id: "later", listingKind: "open", daysLeft: 9 }),
+        ],
+        "closing"
+      ).map((item) => item.id)
+    ).toEqual(["soon", "later", "closed", "failed"]);
+  });
+
   it("sorts notes without stored tenure last, not by listing countdown", () => {
     expect(
       sortMarketplaceNotes(

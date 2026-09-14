@@ -296,7 +296,7 @@ export function PublicMarketplaceBrowser({
     filteredListingsCount
   );
   const catalogEmpty = marketplaceNotes.length === 0;
-  const noFilterMatches = !catalogEmpty && filteredListingsCount === 0;
+  const noFilterMatches = hasActiveFilters && !catalogEmpty && filteredListingsCount === 0;
   const chipFilterCount =
     (industryFilter !== "all" ? 1 : 0) +
     (riskFilter !== "all" ? 1 : 0) +

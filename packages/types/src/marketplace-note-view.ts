@@ -383,6 +383,10 @@ function nullsLastNumber(value: number | null | undefined): number {
   return value;
 }
 
+function listingClosingSortRank(note: Pick<MarketplaceNote, "listingKind">): number {
+  return note.listingKind === "open" ? 0 : 1;
+}
+
 export function sortMarketplaceNotes<T extends MarketplaceNote>(
   notes: readonly T[],
   sort: MarketplaceSortId
@@ -397,6 +401,8 @@ export function sortMarketplaceNotes<T extends MarketplaceNote>(
     if (sort === "grade") {
       return marcGradeSortIndex(left.riskScore) - marcGradeSortIndex(right.riskScore);
     }
+    const closingKind = listingClosingSortRank(left) - listingClosingSortRank(right);
+    if (closingKind !== 0) return closingKind;
     return nullsLastNumber(left.daysLeft) - nullsLastNumber(right.daysLeft);
   });
 }
