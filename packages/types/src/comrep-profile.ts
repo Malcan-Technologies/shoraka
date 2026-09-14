@@ -1373,7 +1373,9 @@ function withUserFacingCompleteness(
     };
   }
   const identityRequired = completeness.steps.find((step) => step.id === "identity")?.requiredCount ?? 10;
-  const peopleRequired = completeness.steps.find((step) => step.id === "shareholders")?.requiredCount ?? 0;
+  const peopleRequired = completeness.steps
+    .filter((step) => step.id === "shareholders" || step.id === "board")
+    .reduce((sum, step) => sum + step.requiredCount, 0);
   const userRequiredCount =
     Math.max(0, identityRequired - INVESTOR_ADMIN_IDENTITY_REQUIRED_COUNT) + peopleRequired;
   const userFilledCount = Math.max(0, userRequiredCount - userMissing.length);
@@ -2064,19 +2066,91 @@ export function buildInvestorProfileCompleteness(input: {
   organizationType: "PERSONAL" | "COMPANY";
   personal?: InvestorPersonalCompletenessInput;
   corporate?: InvestorCorporateCompletenessInput;
+  /**
+   * When the investor is a company, include ACTIVE company-person completeness (directors/shareholders/board/management)
+   * using the existing Issuer person completeness rules.
+   */
+  people?: IssuerPersonCompletenessInput[];
 }): ComrepProfileCompleteness {
   const identityMissing =
     input.organizationType === "COMPANY"
       ? computeInvestorCorporateCompleteness(input.corporate ?? ({} as InvestorCorporateCompletenessInput))
       : computeInvestorPersonalCompleteness(input.personal ?? ({} as InvestorPersonalCompletenessInput));
+
   const identityRequired = INVESTOR_IDENTITY_REQUIRED_COUNT;
   const identityFilled = Math.max(0, identityRequired - identityMissing.length);
-  const percent = Math.round((identityFilled / identityRequired) * 100);
+
+  if (input.organizationType === "COMPANY") {
+    const people = input.people ?? [];
+    const peopleMissing = dedupeProfileMissingByPartyField(people.flatMap(computeIssuerPersonCompleteness));
+
+    const shareholdersMissing = peopleMissing.filter((m) => m.step === "shareholders");
+    const boardMissing = peopleMissing.filter((m) => m.step === "board");
+
+    const shareholdersRequiredCount = people.reduce(
+      (sum, party) => sum + issuerPersonRequiredFields(party).filter((f) => f.step === "shareholders").length,
+      0
+    );
+    const boardRequiredCount = people.reduce(
+      (sum, party) => sum + issuerPersonRequiredFields(party).filter((f) => f.step === "board").length,
+      0
+    );
+
+    const allMissing = [...identityMissing, ...peopleMissing];
+    const complete = allMissing.length === 0;
+
+    const requiredTotal = identityRequired + shareholdersRequiredCount + boardRequiredCount;
+    const filledTotal = Math.max(0, requiredTotal - allMissing.length);
+    const percent = requiredTotal === 0 ? 0 : Math.round((filledTotal / requiredTotal) * 100);
+
+    return withUserFacingCompleteness({
+      portal: "investor",
+      organizationType: input.organizationType,
+      complete,
+      percent,
+      steps: [
+        {
+          id: "identity",
+          label: INVESTOR_PROFILE_STEP_LABELS.identity,
+          complete: identityMissing.length === 0,
+          requiredCount: identityRequired,
+          filledCount: identityFilled,
+          missing: identityMissing,
+        },
+        {
+          id: "shareholders",
+          label: ISSUER_PROFILE_STEP_LABELS.shareholders,
+          complete: shareholdersMissing.length === 0,
+          requiredCount: shareholdersRequiredCount,
+          filledCount: Math.max(0, shareholdersRequiredCount - shareholdersMissing.length),
+          missing: shareholdersMissing,
+        },
+        {
+          id: "board",
+          label: ISSUER_PROFILE_STEP_LABELS.board,
+          complete: boardMissing.length === 0,
+          requiredCount: boardRequiredCount,
+          filledCount: Math.max(0, boardRequiredCount - boardMissing.length),
+          missing: boardMissing,
+        },
+        {
+          id: "review",
+          label: INVESTOR_PROFILE_STEP_LABELS.review,
+          complete,
+          requiredCount: 0,
+          filledCount: 0,
+          missing: [],
+        },
+      ],
+      missing: allMissing,
+    });
+  }
+
   return withUserFacingCompleteness({
     portal: "investor",
     organizationType: input.organizationType,
     complete: identityMissing.length === 0,
-    percent,
+    percent: Math.round((identityFilled / identityRequired) * 100),
     steps: [
       {
         id: "identity",

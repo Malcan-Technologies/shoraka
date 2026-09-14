@@ -61,8 +61,8 @@ export function InvestorProfileCompletenessBanner({
         <div className="min-w-0 space-y-1">
           <p className="text-ui font-semibold leading-7">Complete your profile</p>
           <p className="text-ui leading-6 text-muted-foreground">
-            {percent}% complete. {remaining} {remaining === 1 ? "item remaining" : "items remaining"}. This does not
-            block investing or deposits.
+            {percent}% complete. {remaining} {remaining === 1 ? "item remaining" : "items remaining"}. Complete your
+            profile before placing an investment.
           </p>
         </div>
         {expandOnPage ? (
