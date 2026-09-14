@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import { ArrowLeftIcon, EllipsisHorizontalIcon, PencilIcon } from "@heroicons/react/24/outline";
+import { ArrowLeftIcon, EllipsisHorizontalIcon } from "@heroicons/react/24/outline";
 import { createApiClient, useAuthToken, PARTY_STATUS_REFRESHED_MESSAGE, PARTY_STATUS_REFRESH_FAILED_MESSAGE, PROVIDER_REFRESH_RECENTLY_MESSAGE } from "@cashsouk/config";
 import {
   buildPeopleAccessRows,
@@ -103,7 +103,7 @@ export function PersonDetailView({
   const [inviteOpen, setInviteOpen] = React.useState(false);
   const [pending, setPending] = React.useState(false);
   const [confirm, setConfirm] = React.useState<"remove" | "inactivate" | "reactivate" | "cancel-invite" | "transfer" | null>(null);
-  const profileVariant = portal === "investor";
+  const profileVariant = true;
 
   const loadParties = React.useCallback(async () => {
     const res = await api.getPartyProfiles(portal, organizationId);
@@ -414,33 +414,13 @@ export function PersonDetailView({
                 <>
                   {profileCompletenessMissingSummary && profileCompletenessMissingSummary.missingCount > 0 ? (
                     <div className="rounded-xl border border-status-action-text/15 bg-[hsl(var(--status-action-bg)/0.15)] p-5">
-                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="min-w-0 space-y-1">
-                          <p className="text-ui font-semibold">Profile completeness</p>
-                          <p className="text-ui text-muted-foreground">
-                            {profileCompletenessMissingSummary.percent}% complete ·{" "}
-                            {profileCompletenessMissingSummary.missingCount}{" "}
-                            {profileCompletenessMissingSummary.missingCount === 1 ? "item" : "items"} remaining
-                          </p>
-                        </div>
-                        {canEdit && !inactive ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="h-11 gap-2 rounded-xl"
-                            onClick={() => setEditing(true)}
-                          >
-                            <PencilIcon className="h-4 w-4" aria-hidden />
-                            Complete details
-                          </Button>
-                        ) : null}
-                      </div>
-                      {profileCompletenessMissingSummary.missingFields.length > 0 ? (
-                        <p className="mt-3 text-meta text-muted-foreground">
-                          {profileCompletenessMissingSummary.missingFields.slice(0, 7).join(" · ")}
+                      <div className="min-w-0 space-y-1">
+                        <p className="text-ui font-semibold">Profile completeness</p>
+                        <p className="text-ui text-muted-foreground">
+                          {profileCompletenessMissingSummary.percent}% complete · {profileCompletenessMissingSummary.missingCount}{" "}
+                          {profileCompletenessMissingSummary.missingCount === 1 ? "item" : "items"} remaining
                         </p>
-                      ) : null}
+                      </div>
                     </div>
                   ) : null}
 
@@ -448,12 +428,14 @@ export function PersonDetailView({
                     party={party}
                     person={joinedPerson}
                     variant="profile"
-                    onEdit={
-                      canEdit && !inactive && !(profileCompletenessMissingSummary && profileCompletenessMissingSummary.missingCount > 0)
-                        ? () => setEditing(true)
+                    requiredMissingLabels={
+                      profileCompletenessMissingSummary
+                        ? new Set(profileCompletenessMissingSummary.missingItems.map((item) => item.label))
                         : undefined
                     }
+                    onEdit={canEdit && !inactive ? () => setEditing(true) : undefined}
                     editLabel="Edit"
+                    showEditInAllSections
                   />
                 </>
               ) : (
