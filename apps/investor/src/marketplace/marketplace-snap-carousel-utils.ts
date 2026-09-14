@@ -1,6 +1,7 @@
-export function marketplaceSlideWidthClass(count: number): string {
+export function marketplaceSlideWidthClass(count: number, compact = false): string {
+  if (compact) return "w-[min(20rem,calc(100%-2.5rem))] shrink-0 flex-none";
   if (count <= 1) return "w-full";
-  return "w-[min(34rem,calc(100%-3rem))] shrink-0";
+  return "w-[min(34rem,calc(100%-2.5rem))] shrink-0";
 }
 
 export function clampMarketplaceSlideIndex(index: number, count: number): number {
@@ -25,9 +26,16 @@ export function marketplaceCarouselOverflows(scrollWidth: number, clientWidth: n
 
 export function nearestMarketplaceSlideIndex(
   slideOffsets: readonly number[],
-  scrollLeft: number
+  scrollLeft: number,
+  viewport?: { clientWidth: number; scrollWidth: number }
 ): number {
   if (slideOffsets.length === 0) return 0;
+  if (viewport) {
+    if (scrollLeft <= 4) return 0;
+    if (scrollLeft + viewport.clientWidth >= viewport.scrollWidth - 8) {
+      return slideOffsets.length - 1;
+    }
+  }
   let closest = 0;
   let min = Number.POSITIVE_INFINITY;
   for (let i = 0; i < slideOffsets.length; i += 1) {

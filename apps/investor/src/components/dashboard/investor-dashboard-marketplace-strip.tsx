@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Card, CardContent, StatusBadge } from "@cashsouk/ui";
+import { Card, CardContent, FundingProgress, StatusBadge } from "@cashsouk/ui";
 import { formatCurrency } from "@cashsouk/config";
 import {
   formatInvestorReturnRatePercent,
@@ -9,7 +9,6 @@ import {
   type NoteListItem,
 } from "@cashsouk/types";
 import { InvestNowButton } from "@/components/invest-now-button";
-import { cn } from "@/lib/utils";
 import {
   marketplaceFundingBarClasses,
   marketplaceListingUrgency,
@@ -105,12 +104,14 @@ function MarketplaceStripCard({ note }: { note: NoteListItem }) {
             </span>
             <span className="font-semibold text-foreground">{market.fundingPercent}%</span>
           </div>
-          <div className={cn("mt-1.5 h-2 overflow-hidden rounded-full", bar.track)}>
-            <div
-              className={cn("h-full rounded-full", closing ? "bg-status-action-text" : bar.fill)}
-              style={{ width: `${market.fundingPercent}%` }}
-            />
-          </div>
+          <FundingProgress
+            className="mt-1.5"
+            percent={market.fundingPercent}
+            thresholdPercent={market.minimumFundingPercent}
+            fillClassName={closing ? "bg-status-action-text" : bar.fill}
+            trackClassName={bar.track}
+            aria-label={`${market.fundingPercent}% funded. ${market.minimumFundingPercent}% minimum required for funding to succeed.`}
+          />
           <p className="mt-1.5 text-meta text-muted-foreground">
             {marketplaceListingUrgency(market)}
             {market.investorCount > 0

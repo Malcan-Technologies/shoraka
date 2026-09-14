@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Progress } from "@cashsouk/ui";
+import { FundingProgress, Progress } from "@cashsouk/ui";
 import { cn } from "@/lib/utils";
 
 export type AdminMetricProgressProps = {
@@ -15,6 +15,7 @@ export type AdminMetricProgressProps = {
   barClassName?: string;
   indicatorClassName?: string;
   accentClassName?: string;
+  thresholdPercent?: number | null;
   /** Extra line under the bar (e.g. notes drawing on a facility). */
   footer?: React.ReactNode;
   /** `hero` is the inset used inside `AdminEntityHeader variant="hero"`. */
@@ -36,6 +37,7 @@ export function AdminMetricProgress({
   barClassName,
   indicatorClassName,
   accentClassName,
+  thresholdPercent,
   footer,
   variant = "panel",
   className,
@@ -88,11 +90,21 @@ export function AdminMetricProgress({
           </div>
         ) : null}
       </div>
-      <Progress
-        value={clamped}
-        className={cn(hero ? "mt-5 h-3.5" : "mt-4 h-3", barClassName)}
-        indicatorClassName={indicatorClassName}
-      />
+      {thresholdPercent != null ? (
+        <FundingProgress
+          className={hero ? "mt-5" : "mt-4"}
+          percent={clamped}
+          thresholdPercent={thresholdPercent}
+          fillClassName={indicatorClassName}
+          trackClassName={barClassName}
+        />
+      ) : (
+        <Progress
+          value={clamped}
+          className={cn(hero ? "mt-5 h-3.5" : "mt-4 h-3", barClassName)}
+          indicatorClassName={indicatorClassName}
+        />
+      )}
       {footer ? <div className="mt-3 text-meta text-muted-foreground">{footer}</div> : null}
     </div>
   );

@@ -29,10 +29,10 @@ export function AttentionCardHeading({
   children: ReactNode;
 }) {
   return (
-    <div className="mt-4">
+    <div className="mt-4 min-w-0">
       {kind ? <AttentionTypeEyebrow kind={kind} /> : null}
-      <h3 className={kind ? "mt-2 text-section-title" : "text-section-title"}>
-        <span className="line-clamp-2 min-h-14 leading-7 md:min-h-16 md:leading-8">{children}</span>
+      <h3 className={kind ? "mt-2 min-w-0 text-section-title" : "min-w-0 text-section-title"}>
+        <span className="line-clamp-2 min-h-14 min-w-0 leading-7 md:min-h-16 md:leading-8">{children}</span>
       </h3>
     </div>
   );

@@ -19,7 +19,15 @@ describe("landing marketing footer legal links", () => {
     expect(source).toContain("COMPANY.legalName");
     expect(source).toContain("COMPANY.registrationNumber");
     expect(source).toContain("COMPANY.email");
-    expect(source).toContain("All rights reserved");
+    expect(source).toContain("COMPANY.address");
+    expect(source).toContain("companyCopyrightLine");
+    expect(source).toContain("EnvelopeIcon");
+    expect(source).toContain("PhoneIcon");
+    expect(source).not.toContain("Subscribe");
+    expect(source).not.toContain("Enter your email");
+    expect(source).not.toContain("Building the future of decentralized");
+    expect(source).not.toContain("Social links");
+    expect(source).not.toContain("SOCIAL_LINKS");
   });
 
   it("links Help Center off-site in a new tab", () => {

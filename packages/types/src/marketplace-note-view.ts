@@ -13,6 +13,7 @@ import {
   type NoteTimingDisplay,
 } from "./note-timing-display";
 import { roundNoteMoney } from "./note-expected-return";
+import { MARC_SME_GRADES } from "./marc-credit-grade";
 import { formatNoteReferenceDisplay, type NoteListItem } from "./notes";
 
 export function formatMarketplaceCurrency(amount: number): string {
@@ -21,6 +22,43 @@ export function formatMarketplaceCurrency(amount: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
+}
+
+export function formatCompactMarketplaceAmount(amount: number): string {
+  if (!Number.isFinite(amount)) return "RM —";
+  const absolute = Math.abs(amount);
+  if (absolute < 1000) {
+    return `RM ${Math.round(amount).toLocaleString("en-MY")}`;
+  }
+  const thousands = Math.round(amount / 1000);
+  if (absolute >= 1_000_000 || Math.abs(thousands) >= 1000) {
+    const decimals = amount % 1_000_000 === 0 ? 0 : 1;
+    return `RM ${(amount / 1_000_000).toFixed(decimals)}m`;
+  }
+  return `RM ${thousands.toLocaleString("en-MY")}k`;
+}
+
+export function formatCompactMarketplaceAmountPair(funded: number, goal: number): string {
+  const fundedLabel = formatCompactMarketplaceAmount(funded);
+  const goalLabel = formatCompactMarketplaceAmount(goal).replace(/^RM\s+/u, "");
+  return `${fundedLabel} / ${goalLabel}`;
+}
+
+export function marketplaceAmountTitle(
+  note: Pick<MarketplaceNote, "fundedAmount" | "goalAmount">
+): string {
+  return `${formatMarketplaceCurrency(note.fundedAmount)} / ${formatMarketplaceCurrency(note.goalAmount)}`;
+}
+
+export function marketplaceCardDaysLeftLabel(
+  note: Pick<MarketplaceNote, "daysLeft" | "listingKind">
+): string {
+  if (note.listingKind === "failed") return "Did not meet minimum";
+  if (note.listingKind === "funded") return "Funding closed";
+  if (note.daysLeft == null) return "Open";
+  if (note.daysLeft <= 0) return "Listing closing";
+  if (note.daysLeft === 1) return "1 day left";
+  return `${note.daysLeft} days left`;
 }
 
 export type MarketplaceNote = {
@@ -51,6 +89,7 @@ export type MarketplaceNote = {
   featuredRank?: number;
   investorCount: number;
   listingKind: MarketplaceListingKind;
+  publishedAt: string | null;
 };
 
 export type MarketplaceNoteFilters = {
@@ -114,6 +153,7 @@ export function toMarketplaceNote(note: NoteListItem): MarketplaceNote {
     featuredRank: note.featuredRank ?? undefined,
     investorCount: note.investorCount ?? 0,
     listingKind,
+    publishedAt: note.publishedAt ?? null,
   };
 }
 
@@ -249,6 +289,14 @@ export function marketplaceReturnRateLabel(note: Pick<MarketplaceNote, "timing">
   return note.timing.isTenureNote ? "Up to" : "p.a.";
 }
 
+export function marketplaceCardRateLabel(note: Pick<MarketplaceNote, "timing">): string {
+  return marketplaceReturnRateLabel(note) === "Up to" ? "Up to" : "Rate p.a.";
+}
+
+export function marketplaceCardTenureLabel(note: Pick<MarketplaceNote, "timing">): string {
+  return note.timing.isTenureNote ? "Tenure" : note.timing.compactLabel;
+}
+
 /** Investor-facing card/dialog headline. Purpose first; note reference if unpublished. */
 export function marketplaceNoteHeadline(note: MarketplaceNote): string {
   return note.purposeOfFinancing?.trim() || marketplaceNoteLabel(note) || "Note";
@@ -280,4 +328,215 @@ export function marketplaceHasActiveFilters(filters: MarketplaceNoteFilters): bo
     filters.tenor !== "all" ||
     filters.listing !== "open"
   );
+}
+
+export const MARKETPLACE_SORT_IDS = ["rate", "tenor", "grade", "closing"] as const;
+export type MarketplaceSortId = (typeof MARKETPLACE_SORT_IDS)[number];
+
+export const MARKETPLACE_SORT_OPTIONS: ReadonlyArray<{
+  id: MarketplaceSortId;
+  label: string;
+}> = [
+  { id: "rate", label: "Highest rate" },
+  { id: "tenor", label: "Shortest tenure" },
+  { id: "grade", label: "Best grade" },
+  { id: "closing", label: "Closing soon" },
+];
+
+export const DEFAULT_MARKETPLACE_SORT: MarketplaceSortId = "rate";
+
+export function parseMarketplaceSort(value: string | null | undefined): MarketplaceSortId {
+  const trimmed = value?.trim();
+  if (trimmed && (MARKETPLACE_SORT_IDS as readonly string[]).includes(trimmed)) {
+    return trimmed as MarketplaceSortId;
+  }
+  return DEFAULT_MARKETPLACE_SORT;
+}
+
+export const MARKETPLACE_VIEW_MODES = ["table", "cards"] as const;
+export type MarketplaceViewMode = (typeof MARKETPLACE_VIEW_MODES)[number];
+export const DEFAULT_MARKETPLACE_VIEW: MarketplaceViewMode = "table";
+
+export function parseMarketplaceViewMode(value: string | null | undefined): MarketplaceViewMode {
+  const trimmed = value?.trim();
+  if (trimmed && (MARKETPLACE_VIEW_MODES as readonly string[]).includes(trimmed)) {
+    return trimmed as MarketplaceViewMode;
+  }
+  return DEFAULT_MARKETPLACE_VIEW;
+}
+
+const MARC_GRADE_INDEX = new Map(
+  MARC_SME_GRADES.map((grade, index) => [grade, index] as const)
+);
+
+function marcGradeSortIndex(grade: string | null | undefined): number {
+  if (!grade) return Number.MAX_SAFE_INTEGER;
+  return MARC_GRADE_INDEX.get(grade as (typeof MARC_SME_GRADES)[number]) ?? Number.MAX_SAFE_INTEGER;
+}
+
+function nullsLastNumber(value: number | null | undefined): number {
+  if (value == null || !Number.isFinite(value)) return Number.MAX_SAFE_INTEGER;
+  return value;
+}
+
+export function sortMarketplaceNotes<T extends MarketplaceNote>(
+  notes: readonly T[],
+  sort: MarketplaceSortId
+): T[] {
+  return [...notes].sort((left, right) => {
+    if (sort === "rate") {
+      return (right.annualReturn ?? Number.NEGATIVE_INFINITY) - (left.annualReturn ?? Number.NEGATIVE_INFINITY);
+    }
+    if (sort === "tenor") {
+      return nullsLastNumber(left.tenorDays) - nullsLastNumber(right.tenorDays);
+    }
+    if (sort === "grade") {
+      return marcGradeSortIndex(left.riskScore) - marcGradeSortIndex(right.riskScore);
+    }
+    return nullsLastNumber(left.daysLeft) - nullsLastNumber(right.daysLeft);
+  });
+}
+
+export type MarketplaceBookSummary = {
+  openCount: number;
+  rateRange: string;
+  tenureRange: string;
+};
+
+function formatRateBound(value: number): string {
+  return value.toFixed(1);
+}
+
+export function marketplaceBookSummary(
+  notes: ReadonlyArray<Pick<MarketplaceNote, "listingKind" | "annualReturn" | "tenorDays">>
+): MarketplaceBookSummary {
+  const openNotes = notes.filter((note) => note.listingKind === "open");
+  const rates = openNotes
+    .map((note) => note.annualReturn)
+    .filter((value): value is number => value != null && Number.isFinite(value));
+  const tenors = openNotes
+    .map((note) => note.tenorDays)
+    .filter((value): value is number => value != null && Number.isFinite(value));
+
+  return {
+    openCount: openNotes.length,
+    rateRange:
+      rates.length === 0
+        ? "—"
+        : `${formatRateBound(Math.min(...rates))}–${formatRateBound(Math.max(...rates))}%`,
+    tenureRange:
+      tenors.length === 0 ? "—" : `${Math.min(...tenors)}–${Math.max(...tenors)}d`,
+  };
+}
+
+export const FEATURED_MARKETPLACE_TAGS = [
+  "Closing soon",
+  "Highest rate",
+  "Top grade",
+  "New listing",
+  "Featured",
+] as const;
+export type FeaturedMarketplaceTag = (typeof FEATURED_MARKETPLACE_TAGS)[number];
+
+export const FEATURED_CLOSING_SOON_MAX_DAYS = 3;
+export const FEATURED_NEW_LISTING_MAX_DAYS = 7;
+
+type FeaturedTagInput = Pick<
+  MarketplaceNote,
+  "id" | "daysLeft" | "annualReturn" | "riskScore" | "publishedAt"
+>;
+
+function isClosingSoon(note: FeaturedTagInput): boolean {
+  return (
+    note.daysLeft != null &&
+    Number.isFinite(note.daysLeft) &&
+    note.daysLeft >= 0 &&
+    note.daysLeft <= FEATURED_CLOSING_SOON_MAX_DAYS
+  );
+}
+
+function isNewListing(note: FeaturedTagInput, nowMs: number): boolean {
+  if (!note.publishedAt) return false;
+  const publishedMs = new Date(note.publishedAt).getTime();
+  if (!Number.isFinite(publishedMs)) return false;
+  const ageMs = nowMs - publishedMs;
+  if (ageMs < 0) return true;
+  return ageMs <= FEATURED_NEW_LISTING_MAX_DAYS * 24 * 60 * 60 * 1000;
+}
+
+function uniqueTagCandidates(
+  note: FeaturedTagInput,
+  featured: readonly FeaturedTagInput[],
+  nowMs: number
+): FeaturedMarketplaceTag[] {
+  const candidates: FeaturedMarketplaceTag[] = [];
+  if (isClosingSoon(note)) candidates.push("Closing soon");
+
+  const rates = featured
+    .map((item) => item.annualReturn)
+    .filter((value): value is number => value != null && Number.isFinite(value));
+  const maxRate = rates.length > 0 ? Math.max(...rates) : null;
+  if (note.annualReturn != null && maxRate != null && note.annualReturn === maxRate) {
+    candidates.push("Highest rate");
+  }
+
+  const bestGrade = featured.reduce((best, item) => {
+    const index = marcGradeSortIndex(item.riskScore);
+    return index < best ? index : best;
+  }, Number.MAX_SAFE_INTEGER);
+  if (marcGradeSortIndex(note.riskScore) === bestGrade && bestGrade !== Number.MAX_SAFE_INTEGER) {
+    candidates.push("Top grade");
+  }
+
+  if (isNewListing(note, nowMs)) candidates.push("New listing");
+  return candidates;
+}
+
+export function assignFeaturedMarketplaceTags<T extends FeaturedTagInput>(
+  featured: readonly T[],
+  now: Date = new Date()
+): Map<string, FeaturedMarketplaceTag> {
+  const nowMs = now.getTime();
+  const assigned = new Map<string, FeaturedMarketplaceTag>();
+  const uniqueTags: FeaturedMarketplaceTag[] = [
+    "Closing soon",
+    "Highest rate",
+    "Top grade",
+    "New listing",
+  ];
+
+  for (const tag of uniqueTags) {
+    const candidate = featured.find(
+      (note) => !assigned.has(note.id) && uniqueTagCandidates(note, featured, nowMs).includes(tag)
+    );
+    if (!candidate) continue;
+    assigned.set(candidate.id, tag);
+  }
+
+  for (const note of featured) {
+    if (!assigned.has(note.id)) assigned.set(note.id, "Featured");
+  }
+  return assigned;
+}
+
+export function deriveFeaturedMarketplaceTag(
+  note: FeaturedTagInput,
+  featured: readonly FeaturedTagInput[],
+  now: Date = new Date()
+): FeaturedMarketplaceTag {
+  return assignFeaturedMarketplaceTags(featured, now).get(note.id) ?? "Featured";
+}
+
+export function marketplaceSectorOptions(
+  notes: ReadonlyArray<Pick<MarketplaceNote, "industry">>
+): string[] {
+  const seen = new Set<string>();
+  const sectors: string[] = [];
+  for (const note of notes) {
+    const industry = note.industry?.trim();
+    if (!industry || seen.has(industry)) continue;
+    seen.add(industry);
+    sectors.push(industry);
+  }
+  return sectors;
 }

@@ -365,3 +365,14 @@ export type { AddPersonInitial } from "./portal-person-forms";
 export { ProductNameWithIcon } from "./components/product-name-with-icon";
 export { ProductCatalogName } from "./components/product-catalog-name";
 export { ProductCatalogImage } from "./components/product-catalog-image";
+export { SegmentedControl } from "./components/segmented-control";
+export type { SegmentedControlOption } from "./components/segmented-control";
+export { ChoiceChips } from "./components/choice-chips";
+export type { ChoiceChipOption } from "./components/choice-chips";
+export {
+  DEFAULT_FUNDING_THRESHOLD_PERCENT,
+  FundingProgress,
+  resolveFundingThresholdPercent,
+} from "./components/funding-progress";
+export { StatStrip } from "./components/stat-strip";
+export type { StatStripCell } from "./components/stat-strip";

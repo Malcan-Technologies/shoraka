@@ -1,195 +1,158 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
-# RDS Database Setup Script for CashSouk
-# This script:
-# 1. Creates application database user
-# 2. Sets up proper permissions
-# 3. Runs Prisma migrations
-# 4. Creates AWS Secrets Manager secret for the app
+# RDS database setup for CashSouk.
+# Creates the application role (if missing), applies DML-only grants, optionally
+# runs Prisma migrations as the admin role, and upserts cashsouk/app-database-url.
+#
+# Runtime (API ECS task) uses cashsouk/app-database-url (cashsouk_app).
+# Migrations (ECS migrate task) use cashsouk/database-url (cashsouk_admin) and
+# are not overwritten here.
+#
+# Target architecture: production RDS is private and operator laptops have no
+# direct route. Run this from a host that can reach RDS (bastion, VPN, or ECS),
+# not from an operator laptop.
 
-echo "🚀 Setting up CashSouk RDS Database..."
+echo "Setting up CashSouk RDS database (app role least privilege)..."
 
-# Configuration
-RDS_HOST="cashsouk-prod-db.c5ayu8mwom04.ap-southeast-5.rds.amazonaws.com"
-RDS_PROXY_HOST="cashsouk-prod-proxy.proxy-c5ayu8mwom04.ap-southeast-5.rds.amazonaws.com"
-DB_NAME="cashsouk"
-MASTER_USER="cashsouk_admin"
-MASTER_PASS='O|u*d)HN9?0UL8h$9Z7p01JlQ?L|'
-APP_USER="cashsouk_app"
-APP_PASS=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-32)
+AWS_REGION="${AWS_REGION:-ap-southeast-5}"
+AWS_PROFILE="${AWS_PROFILE:-${AWS_DEFAULT_PROFILE:-cashsouk}}"
+RDS_HOST="${RDS_HOST:-cashsouk-prod-db.c5ayu8mwom04.ap-southeast-5.rds.amazonaws.com}"
+RDS_PROXY_HOST="${RDS_PROXY_HOST:-cashsouk-prod-proxy.proxy-c5ayu8mwom04.ap-southeast-5.rds.amazonaws.com}"
+APP_DB_HOST="${APP_DB_HOST:-$RDS_HOST}"
+DB_NAME="${DB_NAME:-cashsouk}"
+MASTER_USER="${MASTER_USER:-cashsouk_admin}"
+MASTER_SECRET_ID="${MASTER_SECRET_ID:-rds!db-71798d0b-adc4-4acb-a5e7-0a3275e77182}"
+APP_USER="${APP_USER:-cashsouk_app}"
+APP_SECRET_NAME="${APP_SECRET_NAME:-cashsouk/app-database-url}"
+MIGRATE_SECRET_NAME="cashsouk/database-url"
+RUN_MIGRATIONS="${RUN_MIGRATIONS:-1}"
 
-echo "📝 Generated app user password: $APP_PASS"
-echo ""
+aws_sm() {
+  aws --profile "$AWS_PROFILE" --region "$AWS_REGION" secretsmanager "$@"
+}
 
-# Test connection
-echo "🔌 Testing connection to RDS..."
-if ! PGPASSWORD="$MASTER_PASS" psql -h "$RDS_HOST" -U "$MASTER_USER" -d "$DB_NAME" -c "SELECT version();" > /dev/null 2>&1; then
-    echo "❌ Cannot connect to RDS. Please check:"
-    echo "   1. Security group allows your IP address"
-    echo "   2. RDS is publicly accessible (or you're connected via VPN)"
-    echo "   3. Master credentials are correct"
-    exit 1
+if [ -z "${MASTER_PASS:-}" ]; then
+  MASTER_SECRET_JSON=$(aws_sm get-secret-value \
+    --secret-id "$MASTER_SECRET_ID" \
+    --query SecretString \
+    --output text)
+  MASTER_PASS=$(printf '%s' "$MASTER_SECRET_JSON" | jq -r '.password // empty')
+  unset MASTER_SECRET_JSON
 fi
-echo "✅ Connection successful!"
+
+if [ -z "${MASTER_PASS:-}" ]; then
+  echo "Master password is not available. Set MASTER_PASS or allow Secrets Manager access to $MASTER_SECRET_ID."
+  echo "Run from a host with a route to private RDS; operator laptops are not an intended path."
+  exit 1
+fi
+
+psql_admin() {
+  PGPASSWORD="$MASTER_PASS" psql -h "$RDS_HOST" -U "$MASTER_USER" -d "$DB_NAME" -v ON_ERROR_STOP=1 "$@"
+}
+
+echo "Testing connection to RDS..."
+if ! psql_admin -c "SELECT version();" > /dev/null; then
+  echo "Cannot connect to RDS."
+  echo "Target architecture: production RDS is private; operator laptops have no direct route."
+  echo "Run this script from a bastion, VPN, or ECS task that can reach the instance."
+  exit 1
+fi
+echo "Connection successful."
 echo ""
 
-# Create app user and set permissions
-echo "👤 Creating application user '$APP_USER'..."
-PGPASSWORD="$MASTER_PASS" psql -h "$RDS_HOST" -U "$MASTER_USER" -d "$DB_NAME" <<SQL
--- Create app user (ignore error if exists)
-DO \$\$
-BEGIN
-    IF NOT EXISTS (SELECT FROM pg_user WHERE usename = '$APP_USER') THEN
-        CREATE USER $APP_USER WITH PASSWORD '$APP_PASS';
-    END IF;
-END
-\$\$;
+APP_ROLE_EXISTS=$(psql_admin -tAc "SELECT 1 FROM pg_roles WHERE rolname = '${APP_USER}'" | tr -d '[:space:]')
+APP_PASS="${APP_PASS:-}"
 
--- Grant database-level permissions
-GRANT CONNECT ON DATABASE $DB_NAME TO $APP_USER;
+if [ "$APP_ROLE_EXISTS" != "1" ]; then
+  if [ -z "$APP_PASS" ]; then
+    APP_PASS=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-32)
+  fi
+  echo "Creating application role '$APP_USER'..."
+  psql_admin -v app_pass="$APP_PASS" <<SQL
+CREATE USER ${APP_USER} LOGIN PASSWORD :'app_pass';
+SQL
+else
+  echo "Application role '$APP_USER' already exists."
+  if [ -n "$APP_PASS" ]; then
+    echo "Updating application role password..."
+    psql_admin -v app_pass="$APP_PASS" <<SQL
+ALTER USER ${APP_USER} PASSWORD :'app_pass';
+SQL
+  fi
+fi
 
--- Grant schema permissions
-GRANT USAGE, CREATE ON SCHEMA public TO $APP_USER;
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO $APP_USER;
-GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO $APP_USER;
-GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO $APP_USER;
+echo "Applying DML-only grants (no CREATE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN)..."
+psql_admin <<SQL
+GRANT CONNECT ON DATABASE ${DB_NAME} TO ${APP_USER};
 
--- Ensure future objects are also granted
-ALTER DEFAULT PRIVILEGES IN SCHEMA public 
-  GRANT ALL ON TABLES TO $APP_USER;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public 
-  GRANT ALL ON SEQUENCES TO $APP_USER;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public 
-  GRANT ALL ON FUNCTIONS TO $APP_USER;
+REVOKE ALL ON SCHEMA public FROM ${APP_USER};
+GRANT USAGE ON SCHEMA public TO ${APP_USER};
+REVOKE CREATE ON SCHEMA public FROM ${APP_USER};
 
--- Verify user creation
-SELECT usename, usesuper, usecreatedb FROM pg_user WHERE usename = '$APP_USER';
+REVOKE ALL ON ALL TABLES IN SCHEMA public FROM ${APP_USER};
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${APP_USER};
+REVOKE TRUNCATE, REFERENCES, TRIGGER, MAINTAIN ON ALL TABLES IN SCHEMA public FROM ${APP_USER};
+
+REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM ${APP_USER};
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ${APP_USER};
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM ${APP_USER};
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO ${APP_USER};
+ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE TRUNCATE, REFERENCES, TRIGGER, MAINTAIN ON TABLES FROM ${APP_USER};
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON SEQUENCES FROM ${APP_USER};
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO ${APP_USER};
 SQL
 
-echo "✅ User '$APP_USER' created with permissions!"
+echo "Grants applied."
 echo ""
 
-# Run Prisma migrations
-echo "📦 Running Prisma migrations..."
-cd "$(dirname "$0")/../apps/api"
-
-# Create .env file with master credentials for migration
-cat > .env.migration <<ENV
-DATABASE_URL="postgresql://${MASTER_USER}:${MASTER_PASS}@${RDS_HOST}:5432/${DB_NAME}?schema=public"
-ENV
-
-# URL-encode the password for Prisma (handles special characters)
-ENCODED_PASS=$(printf %s "$MASTER_PASS" | jq -sRr @uri)
-
-# Run migrations using master user (has DDL permissions)
-DATABASE_URL="postgresql://${MASTER_USER}:${ENCODED_PASS}@${RDS_HOST}:5432/${DB_NAME}?schema=public" pnpm prisma migrate deploy
-
-rm .env.migration
-echo "✅ Migrations completed!"
-echo ""
-
-# Create AWS Secrets Manager secret for application
-echo "🔐 Creating AWS Secrets Manager secret for application..."
-
-SECRET_NAME="prod/cashsouk/db"
-SECRET_VALUE=$(cat <<JSON
-{
-  "username": "$APP_USER",
-  "password": "$APP_PASS",
-  "engine": "postgres",
-  "host": "$RDS_PROXY_HOST",
-  "port": 5432,
-  "dbname": "$DB_NAME",
-  "dbInstanceIdentifier": "cashsouk-prod-db"
-}
-JSON
-)
-
-# Check if secret exists
-if aws secretsmanager describe-secret --secret-id "$SECRET_NAME" --region ap-southeast-5 > /dev/null 2>&1; then
-    echo "⚠️  Secret '$SECRET_NAME' already exists. Updating..."
-    aws secretsmanager update-secret \
-        --secret-id "$SECRET_NAME" \
-        --secret-string "$SECRET_VALUE" \
-        --region ap-southeast-5
-else
-    echo "Creating new secret '$SECRET_NAME'..."
-    aws secretsmanager create-secret \
-        --name "$SECRET_NAME" \
-        --description "CashSouk production database credentials (app user via RDS Proxy)" \
-        --secret-string "$SECRET_VALUE" \
-        --region ap-southeast-5
+if [ "$RUN_MIGRATIONS" = "1" ]; then
+  echo "Running Prisma migrations as admin (DDL). Production deploys should use the ECS migrate task."
+  ENCODED_MASTER_PASS=$(printf %s "$MASTER_PASS" | jq -sRr @uri)
+  (
+    cd "$(dirname "$0")/../apps/api"
+    DATABASE_URL="postgresql://${MASTER_USER}:${ENCODED_MASTER_PASS}@${RDS_HOST}:5432/${DB_NAME}?schema=public" \
+      pnpm prisma migrate deploy
+  )
+  unset ENCODED_MASTER_PASS
+  echo "Migrations completed."
+  echo ""
 fi
 
-SECRET_ARN=$(aws secretsmanager describe-secret --secret-id "$SECRET_NAME" --region ap-southeast-5 --query ARN --output text)
+if [ -n "$APP_PASS" ]; then
+  echo "Upserting runtime secret $APP_SECRET_NAME (will not modify $MIGRATE_SECRET_NAME)..."
+  ENCODED_APP_PASS=$(printf %s "$APP_PASS" | jq -sRr @uri)
+  APP_DATABASE_URL="postgresql://${APP_USER}:${ENCODED_APP_PASS}@${APP_DB_HOST}:5432/${DB_NAME}?schema=public&connection_limit=5&sslmode=require"
+  unset ENCODED_APP_PASS
 
-echo "✅ Secret created!"
+  if aws_sm describe-secret --secret-id "$APP_SECRET_NAME" > /dev/null 2>&1; then
+    aws_sm update-secret \
+      --secret-id "$APP_SECRET_NAME" \
+      --secret-string "$APP_DATABASE_URL" \
+      --description "CashSouk API runtime DATABASE_URL (cashsouk_app, DML only)" \
+      > /dev/null
+  else
+    aws_sm create-secret \
+      --name "$APP_SECRET_NAME" \
+      --description "CashSouk API runtime DATABASE_URL (cashsouk_app, DML only)" \
+      --secret-string "$APP_DATABASE_URL" \
+      > /dev/null
+  fi
+  unset APP_DATABASE_URL
+  echo "Runtime secret upserted."
+else
+  echo "APP_PASS unset and role already existed; grants were applied without rotating $APP_SECRET_NAME."
+fi
+
+unset MASTER_PASS
+unset APP_PASS
+
 echo ""
-
-# Generate DATABASE_URL for application
-DATABASE_URL="postgresql://${APP_USER}:${APP_PASS}@${RDS_PROXY_HOST}:5432/${DB_NAME}?schema=public&connection_limit=5"
-
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "✅ Database setup complete!"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "Database setup complete."
+echo "  Admin/migrations secret: $MIGRATE_SECRET_NAME (unchanged; ECS migrate task)"
+echo "  App/runtime secret: $APP_SECRET_NAME (API ECS task DATABASE_URL)"
+echo "  App role: $APP_USER (USAGE on schema; SELECT/INSERT/UPDATE/DELETE on tables; USAGE/SELECT on sequences)"
+echo "  Target network: private RDS; operator laptops have no direct route"
 echo ""
-echo "📋 Summary:"
-echo "  • Master user: $MASTER_USER (for admin/migrations)"
-echo "  • App user: $APP_USER (for ECS application)"
-echo "  • Database: $DB_NAME"
-echo "  • Proxy endpoint: $RDS_PROXY_HOST"
-echo ""
-echo "🔐 AWS Secrets Manager:"
-echo "  • Secret name: $SECRET_NAME"
-echo "  • Secret ARN: $SECRET_ARN"
-echo ""
-echo "🔗 Connection strings:"
-echo ""
-echo "  App (via Proxy - USE THIS IN ECS):"
-echo "  $DATABASE_URL"
-echo ""
-echo "  Direct (for migrations/admin):"
-echo "  postgresql://${MASTER_USER}:[MASTER_PASS]@${RDS_HOST}:5432/${DB_NAME}"
-echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo ""
-echo "📝 Next steps:"
-echo "  1. Update ECS task definition to use secret: $SECRET_ARN"
-echo "  2. Grant ECS task role permission to read this secret"
-echo "  3. Deploy your API to ECS"
-echo ""
-echo "💾 Credentials saved to: ./rds-setup-summary.txt"
-
-# Save summary to file
-cat > "$(dirname "$0")/../rds-setup-summary.txt" <<SUMMARY
-CashSouk RDS Database Setup Summary
-Generated: $(date)
-
-CREDENTIALS:
------------
-Master User: $MASTER_USER
-Master Password: $MASTER_PASS
-App User: $APP_USER
-App Password: $APP_PASS
-
-ENDPOINTS:
-----------
-Direct RDS: $RDS_HOST
-RDS Proxy: $RDS_PROXY_HOST
-Database: $DB_NAME
-
-AWS SECRETS:
------------
-Secret Name: $SECRET_NAME
-Secret ARN: $SECRET_ARN
-
-CONNECTION STRINGS:
-------------------
-App (Proxy): $DATABASE_URL
-Master (Direct): postgresql://${MASTER_USER}:${MASTER_PASS}@${RDS_HOST}:5432/${DB_NAME}
-
-SUMMARY
-
-echo "✅ Done!"
-

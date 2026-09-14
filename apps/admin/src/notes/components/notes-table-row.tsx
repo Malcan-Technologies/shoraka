@@ -4,7 +4,7 @@ import { format } from "date-fns";
 import { formatCurrency } from "@cashsouk/config";
 import {
   NoteStatusBadge,
-  Progress,
+  FundingProgress,
   SoukscoreRiskRatingBadge,
   StatusBadge,
   getNoteDerivedStatusToken,
@@ -256,10 +256,12 @@ function NoteRow({ note, onViewDetails }: NoteRowProps) {
             {formatNoteStatus(note.fundingStatus)}
           </span>
         </div>
-        <Progress
-          value={fundingProgress}
-          className={cn("mt-2 h-2", getNoteFundingProgressClass(note))}
-          indicatorClassName={getNoteFundingIndicatorClass(note)}
+        <FundingProgress
+          className="mt-2"
+          percent={fundingProgress}
+          thresholdPercent={note.minimumFundingPercent}
+          fillClassName={getNoteFundingIndicatorClass(note)}
+          trackClassName={getNoteFundingProgressClass(note)}
         />
         <div
           className={cn(

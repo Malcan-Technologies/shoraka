@@ -17,6 +17,7 @@ export * from "./status-badges";
 export * from "./portal-status-token";
 export * from "./curlec-checkout";
 export * from "./portal-urls";
+export * from "./company";
 export * from "./curlec-checkout-contact";
 export * from "./curlec-checkout-payer";
 export * from "./onboarding-flow";

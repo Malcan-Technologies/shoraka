@@ -77,9 +77,10 @@ Production environment variables are stored in **GitHub Secrets**.
 **Current secrets (managed by DevOps):**
 
 - `NEXT_PUBLIC_API_URL` - Production API URL
-- `DATABASE_URL` - RDS connection string
 - `AWS_REGION` - Deployment region
 - Other AWS/service credentials
+
+API `DATABASE_URL` is injected by ECS from Secrets Manager `cashsouk/app-database-url`. The migrate task uses `cashsouk/database-url`. These are not GitHub Actions secrets.
 
 > ⚠️ **Developers**: Never commit secrets or API keys. Use `.env.local` for local development.
 

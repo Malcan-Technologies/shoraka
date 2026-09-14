@@ -8,6 +8,7 @@ const newSource = readFileSync(join(__dirname, "./issuer-dashboard-new.tsx"), "u
 const activeSource = readFileSync(join(__dirname, "./issuer-dashboard-active.tsx"), "utf8");
 const metricsSource = readFileSync(join(__dirname, "./issuer-dashboard-metric-cards.tsx"), "utf8");
 const standSource = readFileSync(join(__dirname, "./where-things-stand-card.tsx"), "utf8");
+const fundingSource = readFileSync(join(__dirname, "./issuer-dashboard-funding-progress.tsx"), "utf8");
 const bannerSource = readFileSync(join(__dirname, "./next-action-banner.tsx"), "utf8");
 const chartsSource = readFileSync(join(__dirname, "./issuer-dashboard-charts.tsx"), "utf8");
 const stateSource = readFileSync(join(__dirname, "./resolve-issuer-dashboard-state.ts"), "utf8");
@@ -35,10 +36,23 @@ describe("issuer dashboard layout", () => {
     expect(newSource).toContain("Turn an unpaid invoice into cash");
     expect(activeSource).toContain("WhereThingsStandCard");
     expect(activeSource).toContain("IssuerDashboardFundingProgress");
-    expect(standSource).toContain("Where things stand");
+    expect(activeSource).toMatch(
+      /IssuerDashboardMetricCards[\s\S]*IssuerDashboardRepaymentSchedule[\s\S]*IssuerDashboardCostOfFinancing[\s\S]*WhereThingsStandCard[\s\S]*IssuerDashboardFundingProgress/
+    );
+    expect(standSource).toContain("Your applications");
     expect(standSource).toContain("originationKindLabel");
     expect(standSource).toContain("All applications");
+    expect(standSource).toContain("md:grid-cols-2");
+    expect(standSource).toContain("Load");
+    expect(standSource).toContain("nextDashboardVisibleCount");
     expect(standSource).not.toContain("resolveApplicationPipeline");
+    expect(fundingSource).toContain("md:grid-cols-2");
+    expect(fundingSource).toContain("Load");
+    expect(fundingSource).toContain("nextDashboardVisibleCount");
+    expect(fundingSource).toContain("FundingNoteCard");
+    expect(fundingSource.indexOf("Raised across open notes")).toBeLessThan(
+      fundingSource.indexOf("grid grid-cols-1")
+    );
     expect(metricsSource).toContain("Outstanding financing");
     expect(metricsSource).toContain("Next repayment");
     expect(metricsSource).toContain("Available limit");

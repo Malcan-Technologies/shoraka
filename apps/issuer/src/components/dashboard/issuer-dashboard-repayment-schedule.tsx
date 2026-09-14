@@ -19,7 +19,7 @@ export function IssuerDashboardRepaymentSchedule({
   const maxAmount = Math.max(...months.map((month) => month.amount), 1);
 
   return (
-    <Card className="min-w-0 rounded-2xl shadow-sm">
+    <Card className="flex h-full min-w-0 flex-col rounded-2xl shadow-sm">
       <CardContent className="p-6">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <div>

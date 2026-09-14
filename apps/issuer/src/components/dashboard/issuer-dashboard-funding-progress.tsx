@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Card } from "@cashsouk/ui";
+import { Card, FundingProgress } from "@cashsouk/ui";
 import { formatCurrency } from "@cashsouk/config";
 import type { IssuerBookFundingProgress } from "@cashsouk/types";
 import { formatNoteReference } from "@cashsouk/types";
@@ -36,6 +36,82 @@ function fundingHint(item: IssuerBookFundingProgress): string | null {
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 
+function FundingNoteCard({ item }: { item: IssuerBookFundingProgress }) {
+  const pipeline = resolveNotePipeline(item.status);
+  const states = pipelineStepStates(
+    pipeline.steps.length,
+    pipeline.currentIndex,
+    pipeline.failed,
+    1
+  );
+  const hint = fundingHint(item);
+  const reference = formatNoteReference({
+    noteReference: item.noteReference,
+    id: item.noteId,
+  });
+  const showProgress = item.status === "open" || item.status === "funded" || item.status === "failed";
+
+  return (
+    <Card
+      className={cn(
+        "flex h-full min-w-0 flex-col overflow-hidden rounded-2xl p-5 shadow-sm md:p-6",
+        item.status === "failed" && "bg-status-rejected-bg/40"
+      )}
+    >
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+        <div className="min-w-0 flex-1">
+          <Link
+            href={`/financing/notes/${item.noteId}`}
+            className="text-ui font-semibold tabular-nums hover:text-accent"
+          >
+            {reference}
+          </Link>
+          {hint ? <p className="mt-1 text-ui text-muted-foreground">{hint}</p> : null}
+        </div>
+        {item.status !== "pending_listing" ? (
+          <div className="xl:text-right">
+            <p
+              className={cn(
+                "text-ui font-semibold tabular-nums",
+                item.status === "funded" && "text-status-success-text",
+                item.status === "failed" && "text-status-rejected-text"
+              )}
+            >
+              {Math.round(item.percent)}%
+            </p>
+            <p className="text-meta tabular-nums text-muted-foreground">
+              {formatCurrency(item.fundedAmount, { decimals: 0 })} /{" "}
+              {formatCurrency(item.targetAmount, { decimals: 0, includeSymbol: false })}
+            </p>
+          </div>
+        ) : null}
+      </div>
+      <div className="mt-auto flex w-full flex-wrap gap-3 pt-5">
+        {pipeline.steps.map((label, stepIndex) => (
+          <DashboardPipelineStep
+            key={label}
+            label={label}
+            state={states[stepIndex] ?? "upcoming"}
+            yourTurn={false}
+          />
+        ))}
+      </div>
+      {showProgress ? (
+        <FundingProgress
+          className="mt-4"
+          percent={item.percent}
+          fillClassName={cn(
+            item.status === "funded" && "bg-status-success-text",
+            item.status === "failed" && "bg-status-rejected-text",
+            item.status === "open" && "bg-primary"
+          )}
+          aria-label={`${Math.round(item.percent)}% funded. 80% minimum required for funding to succeed.`}
+        />
+      ) : null}
+    </Card>
+  );
+}
+
 export function IssuerDashboardFundingProgress({
   items,
 }: {
@@ -52,6 +128,7 @@ export function IssuerDashboardFundingProgress({
   const visible = items.slice(0, visibleCount);
   const hiddenCount = Math.max(0, items.length - visible.length);
   const nextCount = Math.min(FUNDING_PROGRESS_PAGE_SIZE, hiddenCount);
+  const showTotals = raising.length > 0 || stillToRaise > 0;
 
   return (
     <section>
@@ -64,103 +141,9 @@ export function IssuerDashboardFundingProgress({
           </Link>
         }
       />
-      <Card className="overflow-hidden rounded-2xl shadow-sm">
-        <ul>
-          {visible.map((item, index) => {
-            const pipeline = resolveNotePipeline(item.status);
-            const states = pipelineStepStates(
-              pipeline.steps.length,
-              pipeline.currentIndex,
-              pipeline.failed,
-              1
-            );
-            const showDivider = index < visible.length - 1 || hiddenCount > 0;
-            const hint = fundingHint(item);
-            const reference = formatNoteReference({
-              noteReference: item.noteReference,
-              id: item.noteId,
-            });
-            return (
-              <li
-                key={item.noteId}
-                className={cn(
-                  "p-5 md:px-6",
-                  showDivider && "border-b border-border",
-                  item.status === "failed" && "bg-status-rejected-bg/40"
-                )}
-              >
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <Link
-                      href={`/financing/notes/${item.noteId}`}
-                      className="text-ui font-semibold tabular-nums hover:text-accent"
-                    >
-                      {reference}
-                    </Link>
-                    {hint ? <p className="mt-1 text-ui text-muted-foreground">{hint}</p> : null}
-                  </div>
-                  {item.status !== "pending_listing" ? (
-                    <div className="text-right">
-                      <p
-                        className={cn(
-                          "text-ui font-semibold tabular-nums",
-                          item.status === "funded" && "text-status-success-text",
-                          item.status === "failed" && "text-status-rejected-text"
-                        )}
-                      >
-                        {Math.round(item.percent)}%
-                      </p>
-                      <p className="text-meta tabular-nums text-muted-foreground">
-                        {formatCurrency(item.fundedAmount, { decimals: 0 })} /{" "}
-                        {formatCurrency(item.targetAmount, { decimals: 0, includeSymbol: false })}
-                      </p>
-                    </div>
-                  ) : null}
-                </div>
-                <div className="mt-5 flex flex-wrap gap-3">
-                  {pipeline.steps.map((label, stepIndex) => (
-                    <DashboardPipelineStep
-                      key={label}
-                      label={label}
-                      state={states[stepIndex] ?? "upcoming"}
-                      yourTurn={false}
-                    />
-                  ))}
-                </div>
-                {item.status === "open" || item.status === "funded" || item.status === "failed" ? (
-                  <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-muted">
-                    <div
-                      className={cn(
-                        "h-full rounded-full",
-                        item.status === "funded" && "bg-status-success-text",
-                        item.status === "failed" && "bg-status-rejected-text",
-                        item.status === "open" && "bg-primary"
-                      )}
-                      style={{ width: `${Math.max(0, Math.min(100, item.percent))}%` }}
-                    />
-                  </div>
-                ) : null}
-              </li>
-            );
-          })}
-          {hiddenCount > 0 ? (
-            <li className="px-5 py-3.5 md:px-6">
-              <button
-                type="button"
-                className="text-ui font-medium text-primary hover:text-accent"
-                onClick={() =>
-                  setVisibleCount((current) =>
-                    nextDashboardVisibleCount(current, items.length, FUNDING_PROGRESS_PAGE_SIZE)
-                  )
-                }
-              >
-                {nextCount === 1 ? "Load 1 more" : `Load ${nextCount} more`}
-              </button>
-            </li>
-          ) : null}
-        </ul>
-        {raising.length > 0 || stillToRaise > 0 ? (
-          <div className="flex flex-wrap gap-7 border-t border-border px-5 py-4 md:px-6">
+      {showTotals ? (
+        <Card className="mb-3 rounded-2xl shadow-sm">
+          <div className="flex flex-wrap gap-7 p-5 md:px-6">
             <div>
               <p className="text-meta text-muted-foreground">Raised across open notes</p>
               <p className="mt-0.5 text-body font-semibold tabular-nums">
@@ -174,8 +157,30 @@ export function IssuerDashboardFundingProgress({
               </p>
             </div>
           </div>
-        ) : null}
-      </Card>
+        </Card>
+      ) : null}
+      <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        {visible.map((item) => (
+          <li key={item.noteId} className="min-w-0">
+            <FundingNoteCard item={item} />
+          </li>
+        ))}
+      </ul>
+      {hiddenCount > 0 ? (
+        <div className="mt-3">
+          <button
+            type="button"
+            className="text-ui font-medium text-primary hover:text-accent"
+            onClick={() =>
+              setVisibleCount((current) =>
+                nextDashboardVisibleCount(current, items.length, FUNDING_PROGRESS_PAGE_SIZE)
+              )
+            }
+          >
+            {nextCount === 1 ? "Load 1 more" : `Load ${nextCount} more`}
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }

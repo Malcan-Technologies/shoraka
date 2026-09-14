@@ -14,6 +14,22 @@ import {
   type NoteTimingDisplay,
 } from "@cashsouk/types";
 
+export {
+  assignFeaturedMarketplaceTags,
+  deriveFeaturedMarketplaceTag,
+  marketplaceBookSummary,
+  marketplaceSectorOptions,
+  parseMarketplaceSort,
+  parseMarketplaceViewMode,
+  sortMarketplaceNotes,
+  MARKETPLACE_SORT_OPTIONS,
+  MARKETPLACE_VIEW_MODES,
+  DEFAULT_MARKETPLACE_SORT,
+  DEFAULT_MARKETPLACE_VIEW,
+  type MarketplaceSortId,
+  type MarketplaceViewMode,
+  type FeaturedMarketplaceTag,
+} from "@cashsouk/types";
 export type MarketplaceNote = {
   id: string;
   noteCode: string | null;
@@ -42,6 +58,7 @@ export type MarketplaceNote = {
   featuredRank?: number;
   investorCount: number;
   listingKind: MarketplaceListingKind;
+  publishedAt: string | null;
 };
 
 export type MarketplaceNoteFilters = {
@@ -105,6 +122,7 @@ export function toMarketplaceNote(note: NoteListItem): MarketplaceNote {
     featuredRank: note.featuredRank ?? undefined,
     investorCount: note.investorCount ?? 0,
     listingKind,
+    publishedAt: note.publishedAt ?? null,
   };
 }
 
@@ -165,6 +183,19 @@ export function marketplaceListingUrgency(note: MarketplaceNote): string {
   if (note.daysLeft <= 0) return "Listing closing";
   if (note.daysLeft === 1) return "1 day left to invest";
   return `${note.daysLeft} days left to invest`;
+}
+
+export function marketplaceDaysLeftLabel(note: MarketplaceNote): string {
+  if (note.listingKind === "failed") return "Did not meet minimum";
+  if (note.listingKind === "funded") return "Funding closed";
+  if (note.daysLeft === null) return "Open";
+  if (note.daysLeft <= 0) return "Listing closing";
+  if (note.daysLeft === 1) return "1 day left";
+  return `${note.daysLeft} days left`;
+}
+
+export function marketplaceFundedGoalLabel(note: MarketplaceNote): string {
+  return `${formatCurrency(note.fundedAmount, { decimals: 0 })} / ${formatCurrency(note.goalAmount, { decimals: 0 })}`;
 }
 
 export function marketplaceFundingSummary(note: MarketplaceNote): string {

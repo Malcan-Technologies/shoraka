@@ -11,19 +11,63 @@ import {
   nextMarketplaceSlideIndex,
 } from "./marketplace-snap-carousel-utils";
 
+function CarouselNavButtons({
+  activeIndex,
+  count,
+  wrap = true,
+  onScrollTo,
+}: {
+  activeIndex: number;
+  count: number;
+  wrap?: boolean;
+  onScrollTo: (index: number) => void;
+}) {
+  const atStart = activeIndex <= 0;
+  const atEnd = activeIndex >= count - 1;
+  return (
+    <div className="flex shrink-0 gap-2">
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        aria-label="Previous featured note"
+        disabled={!wrap && atStart}
+        onClick={() => onScrollTo(nextMarketplaceSlideIndex(activeIndex, count, -1))}
+      >
+        <ChevronLeftIcon className="h-5 w-5" />
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        aria-label="Next featured note"
+        disabled={!wrap && atEnd}
+        onClick={() => onScrollTo(nextMarketplaceSlideIndex(activeIndex, count, 1))}
+      >
+        <ChevronRightIcon className="h-5 w-5" />
+      </Button>
+    </div>
+  );
+}
+
 export function MarketplaceSnapCarousel({
   items,
   ariaLabel,
+  compact = false,
+  header,
 }: {
   items: Array<{ key: string; node: React.ReactNode }>;
   ariaLabel: string;
+  compact?: boolean;
+  header?: React.ReactNode;
 }) {
   const scrollerRef = React.useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = React.useState(0);
   const [overflows, setOverflows] = React.useState(false);
   const count = items.length;
-  const showControls = count > 1 && overflows;
-  const slideWidthClass = marketplaceSlideWidthClass(count);
+  const showHeaderControls = Boolean(header) && count > 1;
+  const showFooterControls = !header && count > 1 && overflows;
+  const slideWidthClass = marketplaceSlideWidthClass(count, compact);
 
   const readSlideState = React.useCallback(() => {
     const el = scrollerRef.current;
@@ -32,7 +76,8 @@ export function MarketplaceSnapCarousel({
     const nextOverflows = marketplaceCarouselOverflows(el.scrollWidth, el.clientWidth);
     const nextIndex = nearestMarketplaceSlideIndex(
       slides.map((slide) => slide.offsetLeft),
-      el.scrollLeft
+      el.scrollLeft,
+      { clientWidth: el.clientWidth, scrollWidth: el.scrollWidth }
     );
     setOverflows((prev) => (prev === nextOverflows ? prev : nextOverflows));
     setActiveIndex((prev) => (prev === nextIndex ? prev : nextIndex));
@@ -68,14 +113,29 @@ export function MarketplaceSnapCarousel({
 
   return (
     <div className="space-y-4">
+      {header ? (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0 flex-1">{header}</div>
+          {showHeaderControls ? (
+            <CarouselNavButtons
+              activeIndex={activeIndex}
+              count={count}
+              wrap={!compact}
+              onScrollTo={scrollToIndex}
+            />
+          ) : null}
+        </div>
+      ) : null}
+
       <div
         ref={scrollerRef}
         role="region"
         aria-roledescription="carousel"
         aria-label={ariaLabel}
         className={cn(
-          "flex gap-6 overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
-          count > 1 ? "snap-x snap-mandatory" : null
+          "flex overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          compact ? "gap-4 snap-x snap-mandatory" : "gap-6",
+          !compact && count > 1 ? "snap-x snap-mandatory" : null
         )}
       >
         {items.map((item, index) => (
@@ -85,38 +145,19 @@ export function MarketplaceSnapCarousel({
             role="group"
             aria-roledescription="slide"
             aria-label={`${index + 1} of ${count}`}
-            className={cn("flex", slideWidthClass, count > 1 ? "snap-start" : null)}
+            className={cn("flex", slideWidthClass, compact || count > 1 ? "snap-start" : null)}
           >
             {item.node}
           </div>
         ))}
       </div>
 
-      {showControls ? (
+      {showFooterControls ? (
         <div className="flex items-center justify-between gap-3">
           <p className="text-ui text-muted-foreground" aria-live="polite">
             {activeIndex + 1} of {count}
           </p>
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              aria-label="Previous featured note"
-              onClick={() => scrollToIndex(nextMarketplaceSlideIndex(activeIndex, count, -1))}
-            >
-              <ChevronLeftIcon className="h-5 w-5" />
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              aria-label="Next featured note"
-              onClick={() => scrollToIndex(nextMarketplaceSlideIndex(activeIndex, count, 1))}
-            >
-              <ChevronRightIcon className="h-5 w-5" />
-            </Button>
-          </div>
+          <CarouselNavButtons activeIndex={activeIndex} count={count} onScrollTo={scrollToIndex} />
         </div>
       ) : null}
     </div>
