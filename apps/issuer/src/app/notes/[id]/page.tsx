@@ -74,7 +74,6 @@ import {
   formatTenureDaysSecondary,
   joinNoteTimingExtra,
   getNoteHeaderPurposeRows,
-  isSoukscoreRiskRating,
   resolveNoteTimingDisplay,
   mapNoteSettlementToPoolSummary,
   NotePaymentSource,
@@ -217,9 +216,7 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 }
 
 function getRiskRating(note: NoteDetail) {
-  const offerDetails = asRecord(note.invoiceSnapshot?.offer_details);
-  const riskRating = offerDetails?.risk_rating;
-  return isSoukscoreRiskRating(riskRating) ? riskRating : "—";
+  return note.riskRating?.trim() ? note.riskRating : "—";
 }
 
 function getFundingProgressClass(fundingStatus: NoteDetail["fundingStatus"]) {
