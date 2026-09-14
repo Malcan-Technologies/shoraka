@@ -486,7 +486,8 @@ export interface InvoiceOfferDetails {
   /** Percent of funded amount withheld as platform fee at disbursement. */
   platform_fee_rate_percent?: number | null;
   /** Manual SoukScore placeholder (v1: A | B | C). Present on offers sent after this feature. */
-  risk_rating?: import("./invoice-offer-risk-rating").SoukscoreRiskRating | null;
+  /** MARC SME grade (SME-1 … SME-10). */
+  risk_rating?: import("./marc-credit-grade").MarcSmeGrade | null;
   sent_at: string | null;
   responded_at: string | null;
   sent_by_user_id: string | null;

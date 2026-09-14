@@ -73,6 +73,7 @@
     "operator_profiles",
     "operator_share_capital",
     "operator_shareholders",
+    "operator_signing_people",
     "organization_members",
     "organization_party_profiles",
     "paymaster_assignment_notices",
