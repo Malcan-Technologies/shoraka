@@ -1,5 +1,6 @@
 import { isNoteProspectusPublished, type NoteDetail } from "@cashsouk/types";
 import type { WorkflowStatusTone } from "@/notes/utils/workflow-status-tokens";
+import type { StatusToken } from "@cashsouk/ui";
 
 export type ProspectusNoteDetailPhase = "draft" | "ready" | "approved" | "published";
 
@@ -21,6 +22,23 @@ export type ProspectusStatusCardModel = {
   /** Primary (red) while action is required; outline when reviewing approved/published. */
   actionVariant: ProspectusStatusCardActionVariant;
 };
+
+/**
+ * Admin portal semantic mapping for StatusBadge tokens.
+ *
+ * This card does NOT use `workflowToneToStatusToken`, because the prospectus
+ * workflow meanings differ:
+ * - "Ready for publish" is "active / purple" (non-final), not Draft/grey.
+ */
+export function resolveProspectusStatusCardBadgeToken(
+  model: ProspectusStatusCardModel
+): StatusToken {
+  if (model.badgeLabel === "Draft") return "neutral";
+  if (model.badgeLabel === "Ready for publish") return "active";
+  if (model.badgeLabel === "Approved") return "action";
+  if (model.badgeLabel === "Published") return "success";
+  return "neutral";
+}
 
 /** Pure UI model for Admin Note Detail prospectus next-action card. */
 export function resolveProspectusStatusCard(note: NoteDetail): ProspectusStatusCardModel {

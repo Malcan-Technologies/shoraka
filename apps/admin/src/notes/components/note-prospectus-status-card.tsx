@@ -13,8 +13,10 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@cashsouk/ui";
 import { cn } from "@/lib/utils";
 import { ADMIN_ACTION_SURFACE_CLASS } from "@/lib/admin-status-token";
-import { workflowToneToStatusToken } from "@/notes/utils/workflow-status-tokens";
-import { resolveProspectusStatusCard } from "./note-prospectus-status-card.model";
+import {
+  resolveProspectusStatusCard,
+  resolveProspectusStatusCardBadgeToken,
+} from "./note-prospectus-status-card.model";
 
 export {
   resolveProspectusStatusCard,
@@ -66,7 +68,7 @@ export function NoteProspectusStatusCard({
               <CardTitle>Prospectus</CardTitle>
               <StatusBadge
                 label={model.badgeLabel}
-                status={workflowToneToStatusToken(model.badgeTone)}
+                status={resolveProspectusStatusCardBadgeToken(model)}
               />
             </div>
           </div>
