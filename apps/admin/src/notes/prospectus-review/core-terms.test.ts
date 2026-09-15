@@ -376,6 +376,13 @@ describe("note & investment details coverage", () => {
     expect(source).toContain('title: "Investment Summary"');
     expect(source).not.toContain('title: "Investment Terms"');
   });
+
+  it('normalizes legacy `Purpose of Financing = "Others: <custom>"` to show only custom', () => {
+    const terms = buildNoteInvestmentDetailSections(
+      sampleNote({ purposeSnapshot: { financing_for: "Others: no" } })
+    ).find((s) => s.id === "investment-terms")!.rows;
+    expect(terms.find((r) => r.label === "Purpose of Financing")?.value).toBe("no");
+  });
 });
 
 describe("Investment Summary Tenure (Maturity Date remains under Dates & Paymaster)", () => {

@@ -57,6 +57,7 @@ import {
   PROFILE_TAB_PEOPLE,
   type ProfileTab,
 } from "@/app/profile/profile-tabs";
+import { toDateInputValue } from "./date-input";
 import {
   UserIcon,
   BuildingOffice2Icon,
@@ -366,6 +367,12 @@ export default function ProfilePage() {
     return currentUserMember?.role === "ORGANIZATION_ADMIN";
   }, [activeOrganization, currentUser]);
 
+  const canEditOrganization = React.useMemo(() => {
+    if (!activeOrganization || !currentUser) return false;
+    if (activeOrganization.isOwner) return true;
+    return Boolean(activeOrganization.members?.find((m) => m.id === currentUser.userId));
+  }, [activeOrganization, currentUser]);
+
   const { invitations } = useOrganizationInvitations(activeOrganization?.id, {
     enabled: isCurrentUserAdmin,
   });
@@ -568,7 +575,7 @@ export default function ProfilePage() {
       setAddress(orgData.address || "");
       setGender(orgData.gender ?? "");
       setNationality(orgData.nationality ?? "");
-      setDateOfBirth(orgData.dateOfBirth ?? "");
+      setDateOfBirth(toDateInputValue(orgData.dateOfBirth ?? ""));
       setResidentialState(orgData.residentialAddress?.state ?? "");
       setResidentialPostalCode(orgData.residentialAddress?.postalCode ?? "");
 
@@ -771,7 +778,7 @@ export default function ProfilePage() {
       setAddress(orgData.address || "");
       setGender(orgData.gender ?? "");
       setNationality(orgData.nationality ?? "");
-      setDateOfBirth(orgData.dateOfBirth ?? "");
+      setDateOfBirth(toDateInputValue(orgData.dateOfBirth ?? ""));
       setResidentialState(orgData.residentialAddress?.state ?? "");
       setResidentialPostalCode(orgData.residentialAddress?.postalCode ?? "");
     }
@@ -1121,7 +1128,7 @@ export default function ProfilePage() {
                   countryOfIncorporation={
                     orgData?.countryOfIncorporation ?? activeOrganization.countryOfIncorporation
                   }
-                  canEdit={isCurrentUserAdmin}
+                  canEdit={canEditOrganization}
                 />
               ) : null}
 
@@ -1773,8 +1780,9 @@ export default function ProfilePage() {
                     directorShareholderListSource={orgData?.directorShareholderListSource ?? null}
                     ctosDirectorShareholderWarning={orgData?.ctosDirectorShareholderWarning ?? null}
                     focusedMatchKey={focusedPersonKey}
-                    canEdit={isCurrentUserAdmin}
-                    canInactivate={isCurrentUserAdmin}
+                    canEdit={canEditOrganization}
+                    canInactivate={canEditOrganization}
+                    canManagePlatformAccess={isCurrentUserAdmin}
                     currentUserId={currentUser?.userId}
                     ownerUserId={activeOrganization.ownerId}
                     members={activeOrganization.members ?? []}

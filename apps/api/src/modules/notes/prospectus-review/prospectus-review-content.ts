@@ -250,6 +250,8 @@ export function normalizeAboutInvoiceSelections(
   const suggestions = buildProspectusAboutInvoiceRecommendations(
     aboutInvoiceRecommendationInputFromContent(content, aboutInvoiceInput)
   );
+  const doaSelection = content.page2.invoicePaymaster?.deedOfAssignment ?? null;
+  const doaYes = doaSelection === "Yes";
   const byId = new Map(
     (content.page2.aboutInvoice?.items ?? []).map((item) => [item.id, item] as const)
   );
@@ -285,9 +287,20 @@ export function normalizeAboutInvoiceSelections(
     }
 
     // Empty or SYSTEM_SUGGESTION → refresh from current templates/tokens.
+    const suggestedText = suggestions[id as ProspectusAboutInvoiceItemId].text;
+    // Preserve existing SYSTEM_SUGGESTION wording when we cannot regenerate
+    // (e.g. rendering conversions don't pass paymaster/contract snapshots).
+    // Keep DOA behavior strict: DOA must be cleared when selection is not "Yes".
+    const preserveSystemSuggestion =
+      id !== "deed_of_assignment" && existingText.length > 0 && !suggestedText.trim();
+    const resolvedText = preserveSystemSuggestion
+      ? existingText
+      : id === "deed_of_assignment" && !doaYes
+        ? ""
+        : suggestedText;
     return {
       id,
-      text: suggestions[id as ProspectusAboutInvoiceItemId].text,
+      text: resolvedText,
       sourceType: "SYSTEM_SUGGESTION",
     };
   });

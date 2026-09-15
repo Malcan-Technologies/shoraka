@@ -5,16 +5,16 @@
 
 export const PROSPECTUS_APPROVE_CONFIRM = {
   clean: {
-    title: "Approve Prospectus?",
+    title: "Mark Prospectus Ready for Publish?",
     description:
-      "This will freeze the current saved Prospectus content for publication.",
-    confirmLabel: "Approve",
+      "This will lock the current saved Prospectus content. The final PDF will be generated when you publish the Note.",
+    confirmLabel: "Mark Ready",
   },
   dirty: {
-    title: "Save changes and approve Prospectus?",
+    title: "Save changes and mark Ready for Publish?",
     description:
-      "You have unsaved changes. Approving will save the current form values and approve this version of the Prospectus.",
-    confirmLabel: "Save & Approve",
+      "You have unsaved changes. Marking Ready will save the current form values and lock this version of the Prospectus content.",
+    confirmLabel: "Save & Mark Ready",
   },
 } as const;
 

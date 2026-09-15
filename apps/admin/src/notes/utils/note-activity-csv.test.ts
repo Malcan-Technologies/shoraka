@@ -235,6 +235,7 @@ describe("buildNoteActivityCsv", () => {
       })
     );
     expect(row.targetReference).toBe("WDL-ARF-202608-A1Z");
+    expect(row.extra?.["Target Internal ID"]).toBe("clyk2n9x0001qwertyuiop");
   });
 
   it("uses a nested historical noteReference for CSV when top-level is absent", () => {

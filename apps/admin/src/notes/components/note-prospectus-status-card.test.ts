@@ -11,6 +11,7 @@ import {
   WORKFLOW_STATUS_BADGE,
 } from "@/notes/utils/workflow-status-tokens";
 import { resolveProspectusStatusCard } from "./note-prospectus-status-card.model";
+import { resolveProspectusStatusCardBadgeToken } from "./note-prospectus-status-card.model";
 
 function baseNote(overrides: Partial<NoteDetail> = {}): NoteDetail {
   return {
@@ -104,6 +105,7 @@ describe("resolveProspectusStatusCard", () => {
     expect(model.viewAvailable).toBe(false);
     expect(model.emphasize).toBe(true);
     expect(model.badgeTone).toBe("neutral");
+    expect(resolveProspectusStatusCardBadgeToken(model)).toBe("neutral");
     expect(model.actionVariant).toBe("default");
   });
 
@@ -124,6 +126,7 @@ describe("resolveProspectusStatusCard", () => {
     expect(model.phase).toBe("draft");
     expect(model.emphasize).toBe(true);
     expect(model.badgeTone).toBe("neutral");
+    expect(resolveProspectusStatusCardBadgeToken(model)).toBe("neutral");
     expect(model.actionVariant).toBe("default");
   });
 
@@ -148,8 +151,30 @@ describe("resolveProspectusStatusCard", () => {
     expect(model.viewAvailable).toBe(true);
     expect(model.emphasize).toBe(false);
     expect(model.badgeTone).toBe("success");
+    expect(resolveProspectusStatusCardBadgeToken(model)).toBe("success");
     expect(model.actionVariant).toBe("outline");
     expect(WORKFLOW_STATUS_BADGE.success.badgeClass).toMatch(/success/);
+  });
+
+  it("READY_FOR_PUBLISH maps to active (purple) badge", () => {
+    const model = resolveProspectusStatusCard(
+      baseNote({
+        prospectus: {
+          status: "READY_FOR_PUBLISH",
+          displayStatus: "Ready for publish",
+          contentVersion: 1,
+          lastSavedAt: null,
+          approvedAt: new Date().toISOString(),
+          publishedAt: null,
+        },
+      })
+    );
+    expect(model.phase).toBe("ready");
+    expect(model.heading).toBe("Ready for publish");
+    expect(model.badgeLabel).toBe("Ready for publish");
+    expect(model.workspaceLabel).toBe("Open Review");
+    expect(model.viewAvailable).toBe(false);
+    expect(resolveProspectusStatusCardBadgeToken(model)).toBe("active");
   });
 
   it("Published uses neutral card, green success badge, View PDF, and Open Review", () => {
@@ -177,6 +202,7 @@ describe("resolveProspectusStatusCard", () => {
     expect(model.viewAvailable).toBe(true);
     expect(model.emphasize).toBe(false);
     expect(model.badgeTone).toBe("success");
+    expect(resolveProspectusStatusCardBadgeToken(model)).toBe("success");
     expect(model.actionVariant).toBe("outline");
   });
 
@@ -299,7 +325,7 @@ describe("Admin Note Detail prospectus UI cleanup", () => {
   it("maps card emphasis and button variant from status model; Approved and Published get success badge tone", () => {
     expect(cardSource).toContain("ADMIN_ACTION_SURFACE_CLASS");
     expect(cardSource).toContain("ExclamationTriangleIcon");
-    expect(cardSource).toContain("workflowToneToStatusToken(model.badgeTone)");
+    expect(cardSource).toContain("resolveProspectusStatusCardBadgeToken(model)");
     expect(cardSource).toContain("variant={model.actionVariant}");
     expect(cardSource).toContain("onOpenWorkspace");
     expect(cardSource).toContain("onViewProspectus");
@@ -348,8 +374,8 @@ describe("backend publication gate remains in API (unchanged by this UI work)", 
       path.join(__dirname, "../../../../api/src/modules/notes/service.ts"),
       "utf8"
     );
-    expect(publishService).toContain("Approve the Prospectus before publishing this Note.");
+    expect(publishService).toContain("Prospectus must be ready for publish before publishing this Note.");
     expect(publishService).toContain("getApprovedSnapshotForPublish");
-    expect(publishService).toContain("structuredClone(approvedSnapshot)");
+    expect(publishService).toContain("generateFinalProspectusPdfForPublish");
   });
 });

@@ -217,6 +217,18 @@ describe("prospectus Page 1 mapper (Stages 1–6)", () => {
     expect(page.timingPurpose.purposeOfFinancing).toBe("Frozen purpose text");
   });
 
+  it("normalizes legacy `Purpose of Financing = \"Others: <custom>\"` to show only custom", async () => {
+    const input = await mapProspectusPageOneDataToInput(
+      baseNote({
+        purpose_snapshot: { financing_for: "Others: no" },
+      })
+    );
+    // Prospectus must display only the custom value (no "Others:" prefix).
+    expect(input.timingPurpose.purposeSnapshotFinancingFor).toBe("no");
+    const page = buildProspectusPageOne(input);
+    expect(page.timingPurpose.purposeOfFinancing).toBe("no");
+  });
+
   it("maps listing opens/closes and does not use funding_closed_at", async () => {
     const input = await mapProspectusPageOneDataToInput(baseNote());
     expect(input.datesPaymaster.listingOpensAt).toEqual(

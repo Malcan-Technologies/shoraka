@@ -3,7 +3,7 @@
  * WHY: Shared query for publish-time snapshot and live preview before freeze
  */
 
-import { NotePaymentStatus, NoteStatus, Prisma } from "@prisma/client";
+import { NotePaymentStatus, NoteServicingStatus, NoteStatus, Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
 import {
   PROSPECTUS_FUNDED_HISTORY_STATUS_SET,
@@ -64,6 +64,7 @@ export async function buildProspectusPage1TrackRecordSnapshot(input: {
     select: {
       id: true,
       status: true,
+      servicing_status: true,
       funded_amount: true,
       note_reference: true,
       product_snapshot: true,
@@ -78,6 +79,7 @@ export async function buildProspectusPage1TrackRecordSnapshot(input: {
   const trackRows = notes.map((n) => ({
     id: n.id,
     status: n.status,
+    servicing_status: n.servicing_status,
     funded_amount: n.funded_amount,
   }));
 
@@ -97,7 +99,22 @@ export async function buildProspectusPage1TrackRecordSnapshot(input: {
   const schedules = await prisma.notePaymentSchedule.findMany({
     where: {
       due_date: { gte: windowStart, lte: now },
-      note: { issuer_organization_id: input.issuerOrganizationId },
+      note: {
+        issuer_organization_id: input.issuerOrganizationId,
+        OR: [
+          {
+            status: {
+              in: [
+                NoteStatus.ACTIVE,
+                NoteStatus.REPAID,
+                NoteStatus.ARREARS,
+                NoteStatus.DEFAULTED,
+              ],
+            },
+          },
+          { servicing_status: NoteServicingStatus.LATE },
+        ],
+      },
     },
     select: { id: true, note_id: true, due_date: true, expected_total: true },
   });
@@ -123,12 +140,15 @@ export async function buildProspectusPage1TrackRecordSnapshot(input: {
   const historicalNotes: ProspectusPage1HistoricalNoteSnapshot[] = notes
     .filter(
       (n) =>
-        n.id !== input.currentNoteId && PROSPECTUS_FUNDED_HISTORY_STATUS_SET.has(n.status)
+        n.id !== input.currentNoteId &&
+        (PROSPECTUS_FUNDED_HISTORY_STATUS_SET.has(n.status) ||
+          n.servicing_status === NoteServicingStatus.LATE)
     )
     .sort((a, b) => b.updated_at.getTime() - a.updated_at.getTime())
     .slice(0, 4)
     .map((n) => {
-      const status = toHistoricalStatus(n.status);
+      const status =
+        n.servicing_status === NoteServicingStatus.LATE ? "LATE" : toHistoricalStatus(n.status);
       if (!status) {
         throw new Error(`Unexpected historical status ${n.status}`);
       }

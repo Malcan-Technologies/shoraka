@@ -1,7 +1,8 @@
 import { isNoteProspectusPublished, type NoteDetail } from "@cashsouk/types";
 import type { WorkflowStatusTone } from "@/notes/utils/workflow-status-tokens";
+import type { StatusToken } from "@cashsouk/ui";
 
-export type ProspectusNoteDetailPhase = "draft" | "approved" | "published";
+export type ProspectusNoteDetailPhase = "draft" | "ready" | "approved" | "published";
 
 export type ProspectusStatusCardActionVariant = "default" | "outline";
 
@@ -9,7 +10,7 @@ export type ProspectusStatusCardModel = {
   phase: ProspectusNoteDetailPhase;
   heading: string;
   description: string;
-  badgeLabel: "Draft" | "Approved" | "Published";
+  badgeLabel: "Draft" | "Ready for publish" | "Approved" | "Published";
   /** Opens the prospectus working area (`/notes/:id/prospectus`). */
   workspaceLabel: string;
   /** Frozen PDF exists after approval; opens in a new tab. */
@@ -21,6 +22,23 @@ export type ProspectusStatusCardModel = {
   /** Primary (red) while action is required; outline when reviewing approved/published. */
   actionVariant: ProspectusStatusCardActionVariant;
 };
+
+/**
+ * Admin portal semantic mapping for StatusBadge tokens.
+ *
+ * This card does NOT use `workflowToneToStatusToken`, because the prospectus
+ * workflow meanings differ:
+ * - "Ready for publish" is "active / purple" (non-final), not Draft/grey.
+ */
+export function resolveProspectusStatusCardBadgeToken(
+  model: ProspectusStatusCardModel
+): StatusToken {
+  if (model.badgeLabel === "Draft") return "neutral";
+  if (model.badgeLabel === "Ready for publish") return "active";
+  if (model.badgeLabel === "Approved") return "success";
+  if (model.badgeLabel === "Published") return "success";
+  return "neutral";
+}
 
 /** Pure UI model for Admin Note Detail prospectus next-action card. */
 export function resolveProspectusStatusCard(note: NoteDetail): ProspectusStatusCardModel {
@@ -56,6 +74,21 @@ export function resolveProspectusStatusCard(note: NoteDetail): ProspectusStatusC
       viewAvailable: true,
       emphasize: false,
       badgeTone: "success",
+      actionVariant: "outline",
+    };
+  }
+
+  if (workflow === "READY_FOR_PUBLISH" || display === "Ready for publish") {
+    return {
+      phase: "ready",
+      heading: "Ready for publish",
+      description:
+        "The prospectus content has been reviewed. Listing Date and Closing Date will be populated when the Note is published.",
+      badgeLabel: "Ready for publish",
+      workspaceLabel: "Open Review",
+      viewAvailable: false,
+      emphasize: false,
+      badgeTone: "neutral",
       actionVariant: "outline",
     };
   }

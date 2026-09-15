@@ -191,6 +191,9 @@ export async function generateAndStoreProspectusPdf(input: {
   snapshotHash: string;
   html: ProspectusFrozenHtmlBundle;
 }): Promise<ProspectusPdfArtifact> {
+  const finalizationFailedMessage =
+    "Unable to publish Note. The final Prospectus could not be generated. The Note was not published. Please try again.";
+
   const documentHtml = combineProspectusPagesHtml(input.html);
   const expectedPageCount = expectedProspectusPageCount(input.html);
   const htmlPageCount = countProspectusHtmlPages(documentHtml);
@@ -204,7 +207,7 @@ export async function generateAndStoreProspectusPdf(input: {
     throw new AppError(
       500,
       "PROSPECTUS_PDF_RENDER_FAILED",
-      error instanceof Error ? error.message : "Prospectus PDF render failed"
+      finalizationFailedMessage
     );
   }
 
@@ -232,7 +235,7 @@ export async function generateAndStoreProspectusPdf(input: {
       throw new AppError(
         500,
         "PROSPECTUS_PDF_KEY_CONFLICT",
-        "Immutable Prospectus PDF key already exists with different content"
+        finalizationFailedMessage
       );
     }
   } else {
@@ -249,7 +252,7 @@ export async function generateAndStoreProspectusPdf(input: {
       throw new AppError(
         500,
         "PROSPECTUS_PDF_UPLOAD_FAILED",
-        error instanceof Error ? error.message : "Prospectus PDF upload failed"
+        finalizationFailedMessage
       );
     }
   }

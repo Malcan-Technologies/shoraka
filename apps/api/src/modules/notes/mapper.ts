@@ -138,6 +138,8 @@ function mapProspectusSummary(note: NoteWithRelations): NoteProspectusSummary {
       ? "PUBLISHED"
       : displayStatus === "Approved"
         ? "APPROVED"
+        : displayStatus === "Ready for publish"
+          ? "READY_FOR_PUBLISH"
         : "DRAFT";
   return {
     status,

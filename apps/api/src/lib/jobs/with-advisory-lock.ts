@@ -1,6 +1,7 @@
 import { createHash } from "crypto";
 import { Pool, type PoolClient } from "pg";
 import { logger } from "../logger";
+import { getRdsPgSslConfig, stripPgSslParamsFromConnectionString } from "../pg/rds-pg-ssl";
 
 /** Stable lock keys — one per background job type. */
 export const JOB_LOCK_KEYS = {
@@ -25,7 +26,10 @@ type AdvisoryLockPool = {
 };
 
 const advisoryLockPool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: process.env.DATABASE_URL
+    ? stripPgSslParamsFromConnectionString(process.env.DATABASE_URL)
+    : process.env.DATABASE_URL,
+  ssl: getRdsPgSslConfig(process.env.NODE_ENV === "production"),
 });
 
 /** Test/process cleanup helper for advisory lock pool. */

@@ -1,4 +1,4 @@
-import { NoteStatus } from "@prisma/client";
+import { NoteServicingStatus, NoteStatus } from "@prisma/client";
 import {
   computeOnTimePaymentRatePercent,
   computeProspectusSuccessfulRepaymentPercent,
@@ -30,6 +30,33 @@ describe("issuer track-record aggregates (shared dashboard + prospectus)", () =>
         null
       )
     ).toBeNull();
+  });
+
+  it("includes LATE via servicing_status in totals", () => {
+    const withLate = [
+      { id: "current", status: NoteStatus.ACTIVE, servicing_status: NoteServicingStatus.LATE, funded_amount: 500_000 },
+      { id: "a", status: NoteStatus.REPAID, funded_amount: 200_000 },
+      {
+        id: "late-note",
+        status: NoteStatus.PUBLISHED, // not eligible by note.status
+        servicing_status: NoteServicingStatus.LATE,
+        funded_amount: 50_000,
+      },
+    ];
+
+    // Excluding current note => counts REPAID + LATE => 2
+    expect(countProspectusTotalNotesFunded(withLate as any, "current")).toBe(2);
+    expect(sumProspectusTotalAmountFunded(withLate as any, "current")).toBe(250_000);
+  });
+
+  it("treats LATE as unsuccessful outcome in successful repayment percent", () => {
+    const input = [
+      { id: "repaid", status: NoteStatus.REPAID, funded_amount: 1 },
+      { id: "late", status: NoteStatus.PUBLISHED, servicing_status: NoteServicingStatus.LATE, funded_amount: 1 },
+    ];
+
+    // REPAID / (REPAID + LATE) => 1/2 => 50%
+    expect(computeProspectusSuccessfulRepaymentPercent(input as any, null)).toBe(50);
   });
 
   it("computes six-month on-time rate and excludes current Note schedules", () => {

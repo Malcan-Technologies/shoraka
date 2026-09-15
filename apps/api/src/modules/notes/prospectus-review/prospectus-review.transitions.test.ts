@@ -257,14 +257,14 @@ describe("prospectus workflow transitions", () => {
     mockFindUnique.mockResolvedValue(row);
     mockUpdate.mockResolvedValue({
       ...row,
-      status: ProspectusReviewStatus.APPROVED,
+      status: ProspectusReviewStatus.READY_FOR_PUBLISH,
       content_version: 2,
       approved_publication_id: "pub-1",
       render_fingerprint: "fp-1",
     });
 
     const result = await service.approve("note-1", actor);
-    expect(result.status).toBe("APPROVED");
+    expect(result.status).toBe("READY_FOR_PUBLISH");
     expect(mockPublicationCreate).toHaveBeenCalled();
     expect(service.submitForReview).toBeUndefined();
   });
@@ -273,7 +273,7 @@ describe("prospectus workflow transitions", () => {
     const draft = completeDraft();
     mockFindUnique.mockResolvedValue(
       baseRow({
-        status: ProspectusReviewStatus.APPROVED,
+        status: ProspectusReviewStatus.READY_FOR_PUBLISH,
         draft_content: draft,
         approved_content: draft,
         approved_publication_id: "pub-1",
@@ -292,7 +292,7 @@ describe("prospectus workflow transitions", () => {
   it("keeps APPROVED when saving identical draft content", async () => {
     const draft = completeDraft();
     const row = baseRow({
-      status: ProspectusReviewStatus.APPROVED,
+      status: ProspectusReviewStatus.READY_FOR_PUBLISH,
       draft_content: draft,
       approved_content: draft,
       approved_snapshot: { publication_id: "pub-1" },
@@ -306,7 +306,7 @@ describe("prospectus workflow transitions", () => {
       { draftContent: draft, expectedUpdatedAt: row.updated_at.toISOString() },
       actor
     );
-    expect(result.status).toBe("APPROVED");
+    expect(result.status).toBe("READY_FOR_PUBLISH");
     expect(mockUpdate).not.toHaveBeenCalled();
   });
 

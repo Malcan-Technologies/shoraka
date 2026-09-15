@@ -378,7 +378,10 @@ export function formatScPurposeOfFundRaisingDisplay(
   const label = SC_FUND_RAISING_PURPOSE_LABELS[purpose];
   if (purpose !== "OTHERS") return label;
   const otherText = trimmedPurposeText(other);
-  return otherText ? `${label}: ${otherText}` : label;
+  // Display rule:
+  // - OTHERS + actual custom value → display ONLY the custom value
+  // - OTHERS + empty custom value → preserve fallback label ("Others")
+  return otherText ? otherText : label;
 }
 
 /**

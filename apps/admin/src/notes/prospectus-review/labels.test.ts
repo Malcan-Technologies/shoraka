@@ -40,6 +40,7 @@ describe("prospectus review admin labels", () => {
     expect(formatProspectusReviewStatus("DRAFT")).toBe("Draft");
     expect(formatProspectusReviewStatus("READY_FOR_REVIEW")).toBe("Draft");
     expect(formatProspectusReviewStatus("SUPERSEDED")).toBe("Draft");
+    expect(formatProspectusReviewStatus("READY_FOR_PUBLISH")).toBe("Ready for publish");
     expect(formatProspectusReviewStatus("APPROVED")).toBe("Approved");
     expect(formatProspectusReviewStatus("PUBLISHED", true)).toBe("Published");
   });

@@ -71,6 +71,17 @@ export const initialNotificationTypes = [
     enabled_platform: true,
     enabled_email: true,
   },
+  {
+    id: "new_investment_opportunity",
+    name: "New Investment Opportunity",
+    description: "Get notified when a new investment opportunity becomes available.",
+    category: NotificationCategory.MARKETING,
+    portal_targets: INVESTOR_ONLY,
+    default_priority: NotificationPriority.INFO,
+    user_configurable: true,
+    enabled_platform: true,
+    enabled_email: true,
+  },
   // Issuer application lifecycle
   {
     id: "application_amendments_requested",

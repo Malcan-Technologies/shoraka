@@ -174,6 +174,7 @@ export function PeopleAccessSection({
   ctosDirectorShareholderWarning,
   focusedMatchKey,
   canEdit,
+  canManagePlatformAccess = false,
   canInactivate = false,
   canReactivate = canEdit,
   currentUserId,
@@ -192,6 +193,7 @@ export function PeopleAccessSection({
   ctosDirectorShareholderWarning?: string | null;
   focusedMatchKey?: string | null;
   canEdit: boolean;
+  canManagePlatformAccess?: boolean;
   canInactivate?: boolean;
   canReactivate?: boolean;
   currentUserId?: string | null;
@@ -385,25 +387,29 @@ export function PeopleAccessSection({
             Manage company representatives and who can access this organisation.
           </p>
         </div>
-        {canEdit ? (
+        {canEdit || canManagePlatformAccess ? (
           <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-8 gap-1.5"
-              onClick={() => {
-                setAddInitial(null);
-                setAddOpen(true);
-              }}
-            >
-              <PlusIcon className="h-4 w-4" />
-              Add company person
-            </Button>
-            <Button type="button" size="sm" className="h-8 gap-1.5" onClick={() => openInvite()}>
-              <UserPlusIcon className="h-4 w-4" />
-              Invite user
-            </Button>
+            {canEdit ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5"
+                onClick={() => {
+                  setAddInitial(null);
+                  setAddOpen(true);
+                }}
+              >
+                <PlusIcon className="h-4 w-4" />
+                Add company person
+              </Button>
+            ) : null}
+            {canManagePlatformAccess ? (
+              <Button type="button" size="sm" className="h-8 gap-1.5" onClick={() => openInvite()}>
+                <UserPlusIcon className="h-4 w-4" />
+                Invite user
+              </Button>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -434,21 +440,25 @@ export function PeopleAccessSection({
           title="No people or users yet"
           message="Add company people such as directors and shareholders, or invite someone to access this organisation."
           action={
-            canEdit ? (
+            canEdit || canManagePlatformAccess ? (
               <div className="flex flex-wrap justify-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setAddInitial(null);
-                    setAddOpen(true);
-                  }}
-                >
-                  Add company person
-                </Button>
-                <Button type="button" onClick={() => openInvite()}>
-                  Invite user
-                </Button>
+                {canEdit ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setAddInitial(null);
+                      setAddOpen(true);
+                    }}
+                  >
+                    Add company person
+                  </Button>
+                ) : null}
+                {canManagePlatformAccess ? (
+                  <Button type="button" onClick={() => openInvite()}>
+                    Invite user
+                  </Button>
+                ) : null}
               </div>
             ) : null
           }
@@ -479,6 +489,7 @@ export function PeopleAccessSection({
                     key={row.key}
                     row={row}
                     canEdit={canEdit}
+                    canManagePlatformAccess={canManagePlatformAccess}
                     canInactivate={canInactivate}
                     currentUserId={currentUserId}
                     isOwnerViewer={isOwnerViewer}
@@ -892,7 +903,7 @@ export function PeopleAccessSection({
                 <p className="text-meta text-muted-foreground">Company Role</p>
                 <p className="text-ui">None</p>
               </div>
-              {canEdit && platformRow.userId && platformRow.platformAccess !== "Owner" ? (
+              {canManagePlatformAccess && platformRow.userId && platformRow.platformAccess !== "Owner" ? (
                 <div className="flex flex-col gap-2">
                   {platformRow.platformAccess === "User" ? (
                     <Button
@@ -1140,6 +1151,7 @@ export function PeopleAccessSection({
 function PeopleAccessTableRow({
   row,
   canEdit,
+  canManagePlatformAccess,
   canInactivate,
   currentUserId,
   isOwnerViewer,
@@ -1161,6 +1173,7 @@ function PeopleAccessTableRow({
 }: {
   row: PeopleAccessRow;
   canEdit: boolean;
+  canManagePlatformAccess: boolean;
   canInactivate: boolean;
   currentUserId?: string | null;
   isOwnerViewer: boolean;
@@ -1200,14 +1213,14 @@ function PeopleAccessTableRow({
     getKycGroup(row.person.onboarding?.status ?? "") !== "IN_PROGRESS";
   const identityKey = normalizeDirectorShareholderIdKey(row.party?.identityNumber ?? row.partyKey ?? "");
   const showInvite =
-    canEdit &&
+    canManagePlatformAccess &&
     (row.platformAccess === "No access" || row.platformAccess === "Invitation expired") &&
     Boolean(row.partyId);
   const showChangeToAdmin =
-    canEdit && Boolean(row.userId) && !isOwnerRow && row.platformAccess === "User";
+    canManagePlatformAccess && Boolean(row.userId) && !isOwnerRow && row.platformAccess === "User";
   const showChangeToUser =
-    canEdit && Boolean(row.userId) && !isOwnerRow && row.platformAccess === "Admin";
-  const showRemove = canEdit && Boolean(row.userId) && !isOwnerRow && !isSelf;
+    canManagePlatformAccess && Boolean(row.userId) && !isOwnerRow && row.platformAccess === "Admin";
+  const showRemove = canManagePlatformAccess && Boolean(row.userId) && !isOwnerRow && !isSelf;
   const showTransfer = isOwnerViewer && Boolean(row.userId) && !isSelf;
   const showLeave = isSelf && !isOwnerRow;
   const showInactivate = canInactivate && Boolean(row.partyId) && row.kind === "company_person";
@@ -1215,9 +1228,9 @@ function PeopleAccessTableRow({
     Boolean(onAdoptPeopleOnly) ||
     showInvite ||
     Boolean(canSend) ||
-    Boolean(canEdit && onResend) ||
-    Boolean(canEdit && onCopyInvite) ||
-    Boolean(canEdit && onCancelInvite) ||
+    Boolean(canManagePlatformAccess && onResend) ||
+    Boolean(canManagePlatformAccess && onCopyInvite) ||
+    Boolean(canManagePlatformAccess && onCancelInvite) ||
     showChangeToAdmin ||
     showChangeToUser ||
     showRemove ||
@@ -1280,9 +1293,15 @@ function PeopleAccessTableRow({
                 <DropdownMenuItem onClick={onInvite}>Invite user</DropdownMenuItem>
               ) : null}
               {canSend ? <DropdownMenuItem onClick={onSendOnboarding}>Send KYC onboarding</DropdownMenuItem> : null}
-              {canEdit && onResend ? <DropdownMenuItem onClick={() => void onResend()}>Resend invitation</DropdownMenuItem> : null}
-              {canEdit && onCopyInvite ? <DropdownMenuItem onClick={onCopyInvite}>Copy invitation link</DropdownMenuItem> : null}
-              {canEdit && onCancelInvite ? (
+              {canManagePlatformAccess && onResend ? (
+                <DropdownMenuItem onClick={() => void onResend()}>
+                  Resend invitation
+                </DropdownMenuItem>
+              ) : null}
+              {canManagePlatformAccess && onCopyInvite ? (
+                <DropdownMenuItem onClick={onCopyInvite}>Copy invitation link</DropdownMenuItem>
+              ) : null}
+              {canManagePlatformAccess && onCancelInvite ? (
                 <DropdownMenuItem onClick={onCancelInvite}>Cancel invitation</DropdownMenuItem>
               ) : null}
               {showChangeToAdmin ? (

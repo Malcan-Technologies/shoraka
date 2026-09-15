@@ -47,6 +47,7 @@ export interface NoteIssuerSnapshotOrganizationInput {
   type: string;
   registration_number?: string | null;
   country?: string | null;
+  country_of_incorporation?: string | null;
   corporate_onboarding_data: Prisma.JsonValue | null;
 }
 
@@ -69,13 +70,20 @@ export function buildNoteIssuerSnapshot(input: {
   businessDetails: Prisma.JsonValue | null | undefined;
 }): NoteIssuerSnapshot {
   const org = input.organization;
+
+  // Registered Country for Prospectus Page 2 is conceptually the company's
+  // registration/incorporation country (admin UI edits `countryOfIncorporation`).
+  const registeredCountry = nonEmptyTrimmed(
+    org.country_of_incorporation ?? org.country
+  );
+
   return {
     id: org.id,
     name: org.name,
     type: org.type,
     industry: resolveIssuerIndustryFromCorporateData(org.corporate_onboarding_data),
     registration_number: nonEmptyTrimmed(org.registration_number),
-    country: nonEmptyTrimmed(org.country),
+    country: registeredCountry,
     business_description:
       resolveBusinessDescriptionFromCorporateData(org.corporate_onboarding_data) ??
       resolveBusinessDescriptionFromBusinessDetails(input.businessDetails),
