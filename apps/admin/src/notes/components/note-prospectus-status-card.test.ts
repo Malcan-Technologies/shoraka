@@ -11,6 +11,7 @@ import {
   WORKFLOW_STATUS_BADGE,
 } from "@/notes/utils/workflow-status-tokens";
 import { resolveProspectusStatusCard } from "./note-prospectus-status-card.model";
+import { resolveProspectusStatusCardBadgeToken } from "./note-prospectus-status-card.model";
 
 function baseNote(overrides: Partial<NoteDetail> = {}): NoteDetail {
   return {
@@ -104,6 +105,7 @@ describe("resolveProspectusStatusCard", () => {
     expect(model.viewAvailable).toBe(false);
     expect(model.emphasize).toBe(true);
     expect(model.badgeTone).toBe("neutral");
+    expect(resolveProspectusStatusCardBadgeToken(model)).toBe("neutral");
     expect(model.actionVariant).toBe("default");
   });
 
@@ -124,6 +126,7 @@ describe("resolveProspectusStatusCard", () => {
     expect(model.phase).toBe("draft");
     expect(model.emphasize).toBe(true);
     expect(model.badgeTone).toBe("neutral");
+    expect(resolveProspectusStatusCardBadgeToken(model)).toBe("neutral");
     expect(model.actionVariant).toBe("default");
   });
 
@@ -148,11 +151,12 @@ describe("resolveProspectusStatusCard", () => {
     expect(model.viewAvailable).toBe(true);
     expect(model.emphasize).toBe(false);
     expect(model.badgeTone).toBe("success");
+    expect(resolveProspectusStatusCardBadgeToken(model)).toBe("success");
     expect(model.actionVariant).toBe("outline");
     expect(WORKFLOW_STATUS_BADGE.success.badgeClass).toMatch(/success/);
   });
 
-  it("READY_FOR_PUBLISH uses neutral card, success badge, Open Review, and hides View PDF", () => {
+  it("READY_FOR_PUBLISH maps to active (purple) badge", () => {
     const model = resolveProspectusStatusCard(
       baseNote({
         prospectus: {
@@ -170,6 +174,7 @@ describe("resolveProspectusStatusCard", () => {
     expect(model.badgeLabel).toBe("Ready for publish");
     expect(model.workspaceLabel).toBe("Open Review");
     expect(model.viewAvailable).toBe(false);
+    expect(resolveProspectusStatusCardBadgeToken(model)).toBe("active");
   });
 
   it("Published uses neutral card, green success badge, View PDF, and Open Review", () => {
@@ -197,6 +202,7 @@ describe("resolveProspectusStatusCard", () => {
     expect(model.viewAvailable).toBe(true);
     expect(model.emphasize).toBe(false);
     expect(model.badgeTone).toBe("success");
+    expect(resolveProspectusStatusCardBadgeToken(model)).toBe("success");
     expect(model.actionVariant).toBe("outline");
   });
 
@@ -319,7 +325,7 @@ describe("Admin Note Detail prospectus UI cleanup", () => {
   it("maps card emphasis and button variant from status model; Approved and Published get success badge tone", () => {
     expect(cardSource).toContain("ADMIN_ACTION_SURFACE_CLASS");
     expect(cardSource).toContain("ExclamationTriangleIcon");
-    expect(cardSource).toContain("workflowToneToStatusToken(model.badgeTone)");
+    expect(cardSource).toContain("resolveProspectusStatusCardBadgeToken(model)");
     expect(cardSource).toContain("variant={model.actionVariant}");
     expect(cardSource).toContain("onOpenWorkspace");
     expect(cardSource).toContain("onViewProspectus");

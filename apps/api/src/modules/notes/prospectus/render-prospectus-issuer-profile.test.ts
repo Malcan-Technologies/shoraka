@@ -10,6 +10,7 @@ import {
   PROSPECTUS_ISSUER_PROFILE_SECTION_HEADING,
 } from "./prospectus-issuer-profile.types";
 import { buildProspectusIssuerProfileDocument } from "./render-prospectus-issuer-profile";
+import { buildNoteIssuerSnapshot } from "../note-issuer-snapshot";
 
 describe("prospectus Page 2 About the Issuer (DATA STAGE 1)", () => {
   it("uses static section heading", () => {
@@ -86,6 +87,27 @@ describe("prospectus Page 2 About the Issuer (DATA STAGE 1)", () => {
         issuerSnapshot: { country: "Malaysia" },
       }).registeredCountry
     ).toBe("Registered in Malaysia");
+  });
+
+  it("HTML uses issuer_snapshot.country built from country_of_incorporation", () => {
+    const noteIssuerSnapshot = buildNoteIssuerSnapshot({
+      organization: {
+        id: "org-1",
+        name: "ABC Engineering Sdn Bhd",
+        type: "ISSUER",
+        registration_number: "201401012345",
+        country: null,
+        country_of_incorporation: " Malaysia ",
+        corporate_onboarding_data: { basicInfo: { industry: "Construction" } },
+      },
+      businessDetails: null,
+    });
+
+    const data = buildProspectusIssuerProfile({
+      issuerSnapshot: { country: noteIssuerSnapshot.country },
+    });
+    const html = buildProspectusIssuerProfileDocument(data);
+    expect(html).toContain("Registered in Malaysia");
   });
 
   it("strips leading issuer name from business description", () => {
