@@ -1,5 +1,7 @@
 import { createHash } from "crypto";
+import fs from "fs";
 import { Pool, type PoolClient } from "pg";
+import type { TLSSocketOptions } from "tls";
 import { logger } from "../logger";
 
 /** Stable lock keys — one per background job type. */
@@ -24,8 +26,28 @@ type AdvisoryLockPool = {
   connect: () => Promise<AdvisoryLockClient>;
 };
 
+function getAdvisoryLockSslConfig(): TLSSocketOptions | boolean | undefined {
+  if (process.env.NODE_ENV !== "production") {
+    return undefined;
+  }
+
+  // Keep TLS behavior consistent with the session pg pool to avoid
+  // "self-signed certificate in certificate chain" failures in minimal containers.
+  const rdsCertPath = "/app/rds-ca-cert.pem";
+  if (fs.existsSync(rdsCertPath)) {
+    const caCert = fs.readFileSync(rdsCertPath, "utf8");
+    return { ca: caCert, rejectUnauthorized: true };
+  }
+
+  // Fall back to "insecure" only when the expected CA bundle isn't present.
+  // This matches existing production behavior in `apps/api/src/app/session.ts`.
+  logger.warn("RDS CA certificate not found at /app/rds-ca-cert.pem - using insecure SSL");
+  return { rejectUnauthorized: false };
+}
+
 const advisoryLockPool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  ssl: getAdvisoryLockSslConfig(),
 });
 
 /** Test/process cleanup helper for advisory lock pool. */
