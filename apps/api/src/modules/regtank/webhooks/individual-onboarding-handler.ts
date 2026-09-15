@@ -460,6 +460,18 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
     );
 
     if (normalizeRawStatus(status).toUpperCase() === "APPROVED") {
+      // Transition-based guard:
+      // Only notify on the first time the pipeline moves into APPROVED.
+      const prevPipelineStatusRaw =
+        prevRoot && typeof prevRoot === "object" && "regtankPipelineStatus" in prevRoot
+          ? (prevRoot as Record<string, unknown>).regtankPipelineStatus
+          : undefined;
+      const prevPipelineStatus =
+        typeof prevPipelineStatusRaw === "string"
+          ? normalizeRawStatus(prevPipelineStatusRaw).toUpperCase()
+          : null;
+      const isFirstApprovedTransition = prevPipelineStatus !== "APPROVED";
+
       const organizationId = supplement.issuer_organization_id || supplement.investor_organization_id;
       const portal = supplement.issuer_organization_id ? "issuer" : "investor";
       if (organizationId) {
@@ -482,6 +494,8 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
             "RegTank person profile seed failed after APPROVED (non-blocking)"
           );
         }
+
+        if (!isFirstApprovedTransition) return true;
       }
     }
 

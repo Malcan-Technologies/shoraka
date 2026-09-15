@@ -143,6 +143,7 @@ import {
   notifyNotePaymentReceived,
   notifyNotePaymentRejected,
   notifyNotePublished,
+  notifyNotePublishedToInvestors,
   notifyNoteSettlementPosted,
   notifyIssuerDisbursementCompleted,
   notifyNoteActiveInvestors,
@@ -3088,6 +3089,12 @@ export class NoteService {
       notificationService: this.notificationService,
       noteId: id,
       issuerOrganizationId: updated.issuer_organization_id,
+      noteTitle: resolveNoteNotificationTitle(updated),
+    });
+
+    await notifyNotePublishedToInvestors({
+      notificationService: this.notificationService,
+      noteId: id,
       noteTitle: resolveNoteNotificationTitle(updated),
     });
     return await mapNoteDetail(updated);

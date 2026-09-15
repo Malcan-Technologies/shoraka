@@ -28,7 +28,8 @@ function formatMetadataLabel(key: string) {
     .replace(/([A-Z])/g, " $1")
     .replace(/_/g, " ")
     .replace(/\b\w/g, (char) => char.toUpperCase())
-    .trim();
+    .trim()
+    .replace(/\bId\b/g, "ID");
 }
 
 function stringifyMetadataValue(value: unknown): string | null {
@@ -98,6 +99,50 @@ export function extractNoteTimelineDetails(
       if (raw === true) compact.push({ key, label: "Redelivery", value: "Redelivered" });
       continue;
     }
+
+    const prefixForIdKey = key.endsWith("Id") ? key.slice(0, -2) : null;
+    if (prefixForIdKey && typeof raw === "string") {
+      const canonicalValue = (() => {
+        const v1 = (metadata as Record<string, unknown>)[`${prefixForIdKey}Reference`];
+        if (typeof v1 === "string" && v1.trim().length > 0) return v1.trim();
+        const v2 = (metadata as Record<string, unknown>)[`${prefixForIdKey}_reference`];
+        if (typeof v2 === "string" && v2.trim().length > 0) return v2.trim();
+        const v3 = (metadata as Record<string, unknown>)[`${prefixForIdKey}DisplayReference`];
+        if (typeof v3 === "string" && v3.trim().length > 0) return v3.trim();
+        return null;
+      })();
+
+      if (canonicalValue) {
+        const entityName =
+          prefixForIdKey.length > 0
+            ? `${prefixForIdKey[0].toUpperCase()}${prefixForIdKey.slice(1)}`
+            : prefixForIdKey;
+        compact.push({
+          key,
+          label: `${entityName} ID`,
+          value: canonicalValue,
+        });
+        continue;
+      }
+    }
+
+    // Suppress canonical reference keys when the corresponding internal `<entity>Id` exists
+    // (because we render both in the internal-id branch above).
+    if (
+      (key.endsWith("Reference") || key.endsWith("_reference") || key.endsWith("DisplayReference")) &&
+      typeof raw === "string"
+    ) {
+      const internalKeyGuess = (() => {
+        if (key.endsWith("Reference")) return `${key.slice(0, -("Reference".length))}Id`;
+        if (key.endsWith("_reference")) return `${key.slice(0, -("_reference".length))}Id`;
+        if (key.endsWith("DisplayReference"))
+          return `${key.slice(0, -("DisplayReference".length))}Id`;
+        return "";
+      })();
+      const hasInternal = (metadata as Record<string, unknown>)[internalKeyGuess];
+      if (typeof hasInternal === "string" && hasInternal.trim().length > 0) continue;
+    }
+
     const value = stringifyMetadataValue(raw);
     if (!value) continue;
     const detail = { key, label: formatMetadataLabel(key), value };

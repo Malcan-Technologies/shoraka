@@ -11,12 +11,14 @@ export const NotificationTypeIds = {
   ONBOARDING_COMPLETED: "onboarding_completed",
   ONBOARDING_REJECTED: "onboarding_rejected",
 
+  // People & Access (verification milestones)
   // Authentication
   PASSWORD_CHANGED: "password_changed",
 
   // Marketing / Generic
   SYSTEM_ANNOUNCEMENT: "system_announcement",
   NEW_PRODUCT_ALERT: "new_product_alert",
+  NEW_INVESTMENT_OPPORTUNITY: "new_investment_opportunity",
 
   // Issuer application / review lifecycle
   APPLICATION_AMENDMENTS_REQUESTED: "application_amendments_requested",
@@ -104,6 +106,10 @@ export interface NotificationPayloads {
   [NotificationTypeIds.NEW_PRODUCT_ALERT]: {
     productName: string;
     productId: string;
+  };
+  [NotificationTypeIds.NEW_INVESTMENT_OPPORTUNITY]: {
+    noteId: string;
+    noteTitle: string;
   };
   [NotificationTypeIds.APPLICATION_AMENDMENTS_REQUESTED]: {
     applicationId: string;
@@ -393,6 +399,12 @@ export const NOTIFICATION_TEMPLATES: {
     title: "New Investment Opportunity",
     message: (data) => `A new product "${data.productName}" is now available for investment.`,
     linkPath: (data) => `/investments/${data.productId}`,
+    portal: "investor",
+  },
+  [NotificationTypeIds.NEW_INVESTMENT_OPPORTUNITY]: {
+    title: "New Investment Opportunity",
+    message: (data) => `${data.noteTitle} is now available for investment.`,
+    linkPath: (data) => `/investments/${data.noteId}`,
     portal: "investor",
   },
   [NotificationTypeIds.APPLICATION_AMENDMENTS_REQUESTED]: {
