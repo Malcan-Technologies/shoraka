@@ -72,7 +72,7 @@ describe("admin official document cards", () => {
 
   it("places servicing documents after trustee instruction", () => {
     const panel = source("../components/settlement-panel.tsx");
-    const trustee = panel.indexOf("completeLabel=\"3. Trustee instruction complete\"");
+    const trustee = panel.indexOf("completeLabel=\"Trustee instruction complete\"");
     const confirmations = panel.indexOf("<InvestmentSettlementConfirmationCard");
     const receipt = panel.indexOf("<SettlementHibahReceiptCard");
     expect(trustee).toBeGreaterThan(-1);
