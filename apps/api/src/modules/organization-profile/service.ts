@@ -87,12 +87,16 @@ import {
 type Portal = "issuer" | "investor";
 
 const USER_LOCKED_ORG_FIELDS = new Set(["name"]);
-/** Shared master fields the investor/issuer may change even when already filled (fill-empty-only still applies to other USER writes). */
+/** Shared master fields the investor/issuer may change even when already filled.
+ * When `fillEmptyOnly: true`, other USER writes are treated as "fill empties only".
+ * DOB + gender must be overwrite-able for the Personal Investor profile editor.
+ */
 const USER_OVERWRITE_ORG_FIELDS = new Set([
   "scInvestorCategory",
   "isSophisticatedInvestor",
   "phoneNumber",
   "dateOfBirth",
+  "gender",
 ]);
 /** Verified identity fields stay locked once filled. ComRep collection fields may be corrected. */
 const USER_LOCKED_PARTY_FIELDS = new Set(["name", "identityNumber", "identityPrefix"]);
@@ -411,7 +415,7 @@ async function applyRegTankOnboardingFacts(
   existing: Array<{ id: string; party_key: string }>
 ): Promise<OrganizationPartyProfile> {
   const gated = gateShareholderCandidate(candidate);
-  let current = await fillEmptyPartyFromCandidate(row, gated.candidate, existing);
+  const current = await fillEmptyPartyFromCandidate(row, gated.candidate, existing);
   const incomingShare = incomingShareDecimal(gated.candidate);
   const sources = parseFieldSources(current.field_sources);
   const promoting =
