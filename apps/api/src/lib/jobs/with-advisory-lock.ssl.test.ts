@@ -50,6 +50,7 @@ describe("withAdvisoryLock SSL configuration", () => {
     expect(poolCtor).toHaveBeenCalledTimes(1);
     const config = poolCtor.mock.calls[0][0];
     expect(config.connectionString).toContain("host:5432/db");
+    expect(config.connectionString).not.toContain("sslmode=");
     expect(config.ssl).toEqual({ ca: "CA_CERT_VALUE", rejectUnauthorized: true });
   });
 
@@ -58,6 +59,7 @@ describe("withAdvisoryLock SSL configuration", () => {
 
     expect(poolCtor).toHaveBeenCalledTimes(1);
     const config = poolCtor.mock.calls[0][0];
+    expect(config.connectionString).not.toContain("sslmode=");
     expect(config.ssl).toEqual({ rejectUnauthorized: false });
   });
 });

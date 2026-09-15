@@ -2,7 +2,7 @@ import type { MarcSmeGrade } from "./marc-credit-grade";
 import type { FacilityFeeCollectionWaiver, InvoiceFeeSchedule } from "./fee-schedule";
 import type { ProfitWindowClassification } from "./tenure-profit";
 import type { ExcessLateChargesDto } from "./excess-late-charges";
-import { formatScPurposeOfFundRaisingDisplay } from "./comrep-profile";
+import { SC_FUND_RAISING_PURPOSE_LABELS, formatScPurposeOfFundRaisingDisplay } from "./comrep-profile";
 
 /** Display label for a stored note reference (e.g. NOTE-20260512-ABC → Note 20260512-ABC). */
 export function formatNoteReferenceDisplay(reference: string | null | undefined): string {
@@ -29,7 +29,16 @@ function trimmedText(value: unknown): string | null {
 export function resolvePurposeOfFinancing(purposeSnapshot: unknown): string | null {
   const record = asRecord(purposeSnapshot);
   const legacy = trimmedText(record?.financing_for);
-  if (legacy) return legacy;
+  if (legacy) {
+    // Legacy storage uses `financing_for = "Others: <custom>"` for the OTHERS enum.
+    // Display rule requires hiding the "Others:" prefix when a custom value exists.
+    const m = legacy.match(/^Others\s*:\s*(.*)$/i);
+    if (m) {
+      const otherText = m[1]?.trim() ?? "";
+      return otherText ? otherText : SC_FUND_RAISING_PURPOSE_LABELS.OTHERS;
+    }
+    return legacy;
+  }
   return formatScPurposeOfFundRaisingDisplay(
     record?.sc_purpose_of_fund_raising,
     record?.sc_purpose_other
