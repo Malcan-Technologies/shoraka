@@ -57,6 +57,7 @@ import {
   PROFILE_TAB_PEOPLE,
   type ProfileTab,
 } from "@/app/profile/profile-tabs";
+import { toDateInputValue } from "./date-input";
 import {
   UserIcon,
   BuildingOffice2Icon,
@@ -568,7 +569,7 @@ export default function ProfilePage() {
       setAddress(orgData.address || "");
       setGender(orgData.gender ?? "");
       setNationality(orgData.nationality ?? "");
-      setDateOfBirth(orgData.dateOfBirth ?? "");
+      setDateOfBirth(toDateInputValue(orgData.dateOfBirth ?? ""));
       setResidentialState(orgData.residentialAddress?.state ?? "");
       setResidentialPostalCode(orgData.residentialAddress?.postalCode ?? "");
 
@@ -771,7 +772,7 @@ export default function ProfilePage() {
       setAddress(orgData.address || "");
       setGender(orgData.gender ?? "");
       setNationality(orgData.nationality ?? "");
-      setDateOfBirth(orgData.dateOfBirth ?? "");
+      setDateOfBirth(toDateInputValue(orgData.dateOfBirth ?? ""));
       setResidentialState(orgData.residentialAddress?.state ?? "");
       setResidentialPostalCode(orgData.residentialAddress?.postalCode ?? "");
     }
