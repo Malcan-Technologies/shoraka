@@ -66,9 +66,8 @@ describe("extractNoteTimelineDetails", () => {
     );
     expect(withdrawal.compact).toEqual(
       expect.arrayContaining([
-        { key: "withdrawalId", label: "Withdrawal Id", value: "wd-1" },
-        { key: "withdrawalReference", label: "Withdrawal Reference", value: "WD-1" },
-        { key: "messageId", label: "Message Id", value: "ses-2" },
+        { key: "withdrawalId", label: "Withdrawal ID", value: "WD-1" },
+        { key: "messageId", label: "Message ID", value: "ses-2" },
         { key: "resend", label: "Redelivery", value: "Redelivered" },
       ])
     );
@@ -81,8 +80,8 @@ describe("extractNoteTimelineDetails", () => {
       })
     );
     expect(historicalWithdrawal.compact).toEqual([
-      { key: "withdrawalId", label: "Withdrawal Id", value: "wd-old" },
-      { key: "messageId", label: "Message Id", value: "ses-old" },
+      { key: "withdrawalId", label: "Withdrawal ID", value: "wd-old" },
+      { key: "messageId", label: "Message ID", value: "ses-old" },
     ]);
 
     const settlement = extractNoteTimelineDetails(
@@ -92,9 +91,8 @@ describe("extractNoteTimelineDetails", () => {
       })
     );
     expect(settlement.compact).toEqual([
-      { key: "settlementId", label: "Settlement Id", value: "set-1" },
-      { key: "settlementReference", label: "Settlement Reference", value: "STL-1" },
-      { key: "messageId", label: "Message Id", value: "ses-3" },
+      { key: "settlementId", label: "Settlement ID", value: "STL-1" },
+      { key: "messageId", label: "Message ID", value: "ses-3" },
     ]);
 
     const settlementResend = extractNoteTimelineDetails(
@@ -110,9 +108,8 @@ describe("extractNoteTimelineDetails", () => {
     );
     expect(settlementResend.compact).toEqual(
       expect.arrayContaining([
-        { key: "settlementId", label: "Settlement Id", value: "set-1" },
-        { key: "settlementReference", label: "Settlement Reference", value: "STL-1" },
-        { key: "messageId", label: "Message Id", value: "ses-4" },
+        { key: "settlementId", label: "Settlement ID", value: "STL-1" },
+        { key: "messageId", label: "Message ID", value: "ses-4" },
         { key: "resend", label: "Redelivery", value: "Redelivered" },
       ])
     );
@@ -125,7 +122,7 @@ describe("extractNoteTimelineDetails", () => {
         metadata: { settlementId: "set-1", s3Key: "note-letters/n1/letter.pdf" },
       })
     );
-    expect(live.compact).toEqual([{ key: "settlementId", label: "Settlement Id", value: "set-1" }]);
+    expect(live.compact).toEqual([{ key: "settlementId", label: "Settlement ID", value: "set-1" }]);
     expect(live.compact.find((row) => row.key === "s3Key")).toBeUndefined();
   });
 
@@ -179,10 +176,25 @@ describe("extractNoteTimelineDetails", () => {
       })
     );
     expect(compact).toEqual([
-      { key: "withdrawalId", label: "Withdrawal Id", value: "clyk2n9x0001qwertyuiop" },
-      { key: "withdrawalReference", label: "Withdrawal Reference", value: "WDL-ARF-202608-A1Z" },
+      { key: "withdrawalId", label: "Withdrawal ID", value: "WDL-ARF-202608-A1Z" },
     ]);
     expect(prose).toEqual([]);
+  });
+
+  it("shows Note ID canonical reference as primary and internal note id as secondary", () => {
+    const { compact } = extractNoteTimelineDetails(
+      event({
+        eventType: "NOTE_PUBLISHED",
+        metadata: {
+          noteId: "note-internal-id",
+          noteReference: "NOTE-ARF-202609-6TY",
+        },
+      })
+    );
+
+    expect(compact).toEqual([
+      { key: "noteId", label: "Note ID", value: "NOTE-ARF-202609-6TY" },
+    ]);
   });
 });
 
