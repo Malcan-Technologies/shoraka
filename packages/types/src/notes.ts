@@ -325,10 +325,10 @@ export interface NoteInvestorRepaymentSummary {
 
 /** Prospectus workflow summary on admin Note list/detail. */
 export type NoteProspectusSummary = {
-  /** Normalized workflow status: DRAFT | APPROVED | PUBLISHED. */
-  status: "DRAFT" | "APPROVED" | "PUBLISHED";
-  /** User-facing: Draft | Approved | Published. */
-  displayStatus: "Draft" | "Approved" | "Published";
+  /** Normalized workflow status: DRAFT | READY_FOR_PUBLISH | APPROVED | PUBLISHED. */
+  status: "DRAFT" | "READY_FOR_PUBLISH" | "APPROVED" | "PUBLISHED";
+  /** User-facing: Draft | Ready for publish | Approved | Published. */
+  displayStatus: "Draft" | "Ready for publish" | "Approved" | "Published";
   contentVersion: number | null;
   lastSavedAt: string | null;
   approvedAt: string | null;

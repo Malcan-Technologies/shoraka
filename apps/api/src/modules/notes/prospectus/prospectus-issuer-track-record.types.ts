@@ -31,7 +31,7 @@ export interface ProspectusIssuerTrackRecordAudit {
     currentNoteExcluded: true;
   };
   eligibility: {
-    statuses: readonly ["ACTIVE", "REPAID", "ARREARS", "DEFAULTED"];
+    statuses: readonly ["ACTIVE", "REPAID", "LATE", "ARREARS", "DEFAULTED"];
   };
   snapshot: {
     isFrozen: boolean;

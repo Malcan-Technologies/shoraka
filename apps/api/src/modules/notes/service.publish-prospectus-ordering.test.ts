@@ -45,6 +45,10 @@ jest.mock("../../lib/prisma", () => {
       updateMany: jest.fn(),
       update: jest.fn(),
       findUniqueOrThrow: jest.fn(),
+      findFirst: jest.fn(async () => ({ id: "note-1" })),
+    },
+    noteListing: {
+      upsert: jest.fn(),
     },
     contract: {
       findUnique: jest.fn(async () => ({ contract_details: {} })),
@@ -65,6 +69,7 @@ jest.mock("../../lib/prisma", () => {
       },
       $transaction: jest.fn(async (cb: (t: typeof tx) => unknown) => cb(tx)),
       note: tx.note,
+      noteListing: tx.noteListing,
       noteProspectusReview: tx.noteProspectusReview,
       noteProspectusPublication: tx.noteProspectusPublication,
     },
@@ -186,17 +191,17 @@ describe("publish-time Prospectus finalization ordering", () => {
     const finalizeOrder =
       prospectusReviewServiceAny.generateFinalProspectusPdfForPublish.mock.invocationCallOrder[0];
 
-    // Find the first Phase-1 write (listing upsert) call order.
+    // Phase 1 writes listing opens/closes (noteListing upsert) before finalization.
+    expect(prismaAny.noteListing.upsert).toHaveBeenCalled();
+    const listingOrder = prismaAny.noteListing.upsert.mock.invocationCallOrder[0];
+    expect(listingOrder).toBeLessThan(finalizeOrder);
+
+    // And ensure Phase 3 publishes after finalization.
     const updateCalls = prismaAny.note.updateMany.mock.calls.map((call: any[], idx: number) => ({
       idx,
       order: prismaAny.note.updateMany.mock.invocationCallOrder[idx],
       data: call?.[0]?.data,
     }));
-    const listingWrite = updateCalls.find((c: any) => Boolean(c.data?.listing));
-    expect(listingWrite).toBeDefined();
-    expect(listingWrite.order).toBeLessThan(finalizeOrder);
-
-    // And ensure Phase 3 publishes after finalization.
     const publishedCall = updateCalls.find((c: any) => c.data?.status === NoteStatus.PUBLISHED);
     expect(publishedCall).toBeDefined();
     expect(publishedCall.order).toBeGreaterThan(finalizeOrder);

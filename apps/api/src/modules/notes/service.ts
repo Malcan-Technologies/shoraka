@@ -2986,7 +2986,7 @@ export class NoteService {
     // Phase 1: write listing opens/closes first (final Prospectus PDF remains unavailable to investors).
     await prisma.$transaction(async (tx) => {
       await assertSourceFacilityEnabled(tx, note.source_contract_id);
-      const stateUpdate = await tx.note.updateMany({
+      const eligible = await tx.note.findFirst({
         where: {
           id,
           status: NoteStatus.DRAFT,
@@ -2999,22 +2999,20 @@ export class NoteService {
             ],
           },
         },
-        data: {
-          listing: {
-            upsert: {
-              create: { opens_at: now, closes_at: closesAt },
-              update: { opens_at: now, closes_at: closesAt },
-            },
-          },
-        },
       });
-      if (stateUpdate.count !== 1) {
+      if (!eligible) {
         throw new AppError(
           409,
           "NOTE_NOT_PUBLISHABLE",
           "Only draft or unpublished notes can be published"
         );
       }
+
+      await tx.noteListing.upsert({
+        where: { note_id: id },
+        create: { note_id: id, opens_at: now, closes_at: closesAt },
+        update: { opens_at: now, closes_at: closesAt },
+      });
     });
 
     // Phase 2: rebuild + generate final Prospectus HTML/PDF with real listing dates.
