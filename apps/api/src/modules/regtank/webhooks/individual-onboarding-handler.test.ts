@@ -102,7 +102,12 @@ describe("IndividualOnboardingWebhookHandler", () => {
     (prisma.investorOrganization.findUnique as jest.Mock).mockResolvedValue({
       owner_user_id: "owner-2",
     });
-    (prisma.organizationMember.findMany as jest.Mock).mockResolvedValue([{ user_id: "admin-1" }]);
+    // Organisation recipient helper returns owner + *all* organization members.
+    // In these tests we model: owner-1 + two member users.
+    (prisma.organizationMember.findMany as jest.Mock).mockResolvedValue([
+      { user_id: "admin-1" },
+      { user_id: "member-1" },
+    ]);
   });
 
   it("immediate exact match performs one lookup", async () => {
@@ -332,17 +337,20 @@ describe("IndividualOnboardingWebhookHandler", () => {
     );
 
     // First transition to APPROVED should create persistent notification/email via NotificationService.
-    expect(mockSendTypedAndLogSystem).toHaveBeenCalled();
-    expect(mockSendTypedAndLogSystem).toHaveBeenCalledWith(
-      "owner-1",
-      NotificationTypeIds.KYC_VERIFICATION_COMPLETED,
-      {
-        partyId: "party-1",
-        personName: "Jane Doe",
-        portalType: "issuer",
-      },
-      "party-onboarding:issuer:org-1:party-1:approved:user:owner-1"
-    );
+    const expectedRecipients = ["owner-1", "admin-1", "member-1", "linked-user-1"];
+    expect(mockSendTypedAndLogSystem).toHaveBeenCalledTimes(expectedRecipients.length);
+    for (const recipientUserId of expectedRecipients) {
+      expect(mockSendTypedAndLogSystem).toHaveBeenCalledWith(
+        recipientUserId,
+        NotificationTypeIds.KYC_VERIFICATION_COMPLETED,
+        {
+          partyId: "party-1",
+          personName: "Jane Doe",
+          portalType: "issuer",
+        },
+        `party-onboarding:issuer:org-1:party-1:approved:user:${recipientUserId}`
+      );
+    }
   });
 
   it("does NOT notify on repeated APPROVED when the previous pipeline was already APPROVED", async () => {
@@ -386,16 +394,20 @@ describe("IndividualOnboardingWebhookHandler", () => {
     const handler = new IndividualOnboardingWebhookHandler();
     await (handler as any).handle({ requestId: "LD-PREID-1", status: "APPROVED", referenceId: "org-1_user" });
 
-    expect(mockSendTypedAndLogSystem).toHaveBeenCalledWith(
-      "owner-1",
-      NotificationTypeIds.KYB_VERIFICATION_COMPLETED,
-      {
-        partyId: "party-2",
-        companyName: "ACME Holdings",
-        portalType: "issuer",
-      },
-      "party-onboarding:issuer:org-1:party-2:approved:user:owner-1"
-    );
+    const expectedRecipients = ["owner-1", "admin-1", "member-1"];
+    expect(mockSendTypedAndLogSystem).toHaveBeenCalledTimes(expectedRecipients.length);
+    for (const recipientUserId of expectedRecipients) {
+      expect(mockSendTypedAndLogSystem).toHaveBeenCalledWith(
+        recipientUserId,
+        NotificationTypeIds.KYB_VERIFICATION_COMPLETED,
+        {
+          partyId: "party-2",
+          companyName: "ACME Holdings",
+          portalType: "issuer",
+        },
+        `party-onboarding:issuer:org-1:party-2:approved:user:${recipientUserId}`
+      );
+    }
   });
 
   it("keeps APPROVED persistence when the follow-up query/seed fails", async () => {

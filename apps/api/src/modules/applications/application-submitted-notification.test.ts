@@ -98,26 +98,24 @@ describe("ApplicationService.updateApplicationStatus — APPLICATION_SUBMITTED_C
     (service as unknown as { verifyApplicationEditable: (app: unknown) => void }).verifyApplicationEditable =
       () => undefined;
     mockFindById.mockResolvedValue(draftApplication);
-    mockGetIssuerRecipientUserIdsForApplication.mockResolvedValue(["owner-1", "admin-1"]);
+    mockGetIssuerRecipientUserIdsForApplication.mockResolvedValue(["owner-1", "admin-1", "member-1"]);
   });
 
-  it("sends a confirmation notification to every issuer org owner/admin on successful submit", async () => {
+  it("sends a confirmation notification to every issuer org user on successful submit", async () => {
     await service.updateApplicationStatus("app-1", "SUBMITTED", "user-1");
 
     expect(mockGetIssuerRecipientUserIdsForApplication).toHaveBeenCalledWith("app-1");
-    expect(mockSendTyped).toHaveBeenCalledTimes(2);
-    expect(mockSendTyped).toHaveBeenCalledWith(
-      "owner-1",
-      "application_submitted_confirmation",
-      expect.objectContaining({ applicationId: "app-1" }),
-      expect.stringContaining("app:app-1:notif:application_submitted_confirmation:user:owner-1")
-    );
-    expect(mockSendTyped).toHaveBeenCalledWith(
-      "admin-1",
-      "application_submitted_confirmation",
-      expect.objectContaining({ applicationId: "app-1" }),
-      expect.any(String)
-    );
+    expect(mockSendTyped).toHaveBeenCalledTimes(3);
+    for (const recipientUserId of ["owner-1", "admin-1", "member-1"]) {
+      expect(mockSendTyped).toHaveBeenCalledWith(
+        recipientUserId,
+        "application_submitted_confirmation",
+        expect.objectContaining({ applicationId: "app-1" }),
+        expect.stringContaining(
+          `app:app-1:notif:application_submitted_confirmation:user:${recipientUserId}`
+        )
+      );
+    }
     // Session toast on the submitter's browser is a different channel from this persistent
     // org-admin inbox notification — matching application_resubmitted_confirmation, which
     // also coexists with a client toast. Do not also fire the resubmitted type here.

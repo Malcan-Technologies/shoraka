@@ -17,6 +17,7 @@ import { NotificationService } from "./service";
 import { sendTypedSafe } from "./send-typed-safe";
 import { systemNotificationLogKey } from "./delivery-log";
 import { NotificationTypeIds, type NotificationTypeId } from "./registry";
+import { listIssuerOrgMemberUserIds, listInvestorOrgMemberUserIds } from "./org-member-recipients";
 
 type SupplementRow = { party_key: string; onboarding_json: unknown };
 
@@ -168,30 +169,45 @@ async function sendDirectorShareholderActionRequiredAfterOrgCtosReportInsert(par
   const notificationService = new NotificationService();
   const results: Array<Awaited<ReturnType<NotificationService["sendTyped"]>>> = [];
   let firstPayload: Record<string, unknown> | null = null;
+
+  // Standardized recipient model: organisation-level People & Access events go to *all*
+  // organisation users (Owner + Org Admin + normal members).
+  const recipientUserIds =
+    portal === "issuer"
+      ? await listIssuerOrgMemberUserIds(organizationId)
+      : await listInvestorOrgMemberUserIds(organizationId);
+
   for (const person of newPeopleWithoutOnboarding) {
     const partyKey = normalizeDirectorShareholderIdKey(person.matchKey);
     if (!partyKey) continue;
-    const idempotencyKey = idempotencyKeyForParty(partyKey);
-    const dupKey = await prisma.notification.findUnique({
-      where: { idempotency_key: idempotencyKey },
-    });
-    if (dupKey) {
-      logger.debug(
-        { organizationId, portal, newCtosReportId, partyKey, idempotencyKey },
-        "DS action-required skipped: duplicate idempotency key"
-      );
-      continue;
-    }
     const payload = buildSendPayload(partyKey, person.name ?? undefined);
     if (!firstPayload) firstPayload = payload;
-    const notification = await sendTypedSafe(
-      notificationService,
-      ownerUserId,
-      notificationTypeId,
-      payload as never,
-      idempotencyKey
-    );
-    results.push(notification);
+
+    const baseIdempotencyKey = idempotencyKeyForParty(partyKey);
+    for (const recipientUserId of recipientUserIds) {
+      const idempotencyKey = `${baseIdempotencyKey}:user:${recipientUserId}`;
+
+      const dupKey = await prisma.notification.findUnique({
+        where: { idempotency_key: idempotencyKey },
+      });
+      if (dupKey) {
+        logger.debug(
+          { organizationId, portal, newCtosReportId, partyKey, recipientUserId, idempotencyKey },
+          "DS action-required skipped: duplicate idempotency key"
+        );
+        continue;
+      }
+
+      const notification = await sendTypedSafe(
+        notificationService,
+        recipientUserId,
+        notificationTypeId,
+        payload as never,
+        idempotencyKey
+      );
+      results.push(notification);
+    }
+
     logger.info(
       { organizationId, portal, newCtosReportId, ownerUserId, partyKey },
       createdLogMessage

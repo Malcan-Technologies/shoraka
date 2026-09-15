@@ -4,9 +4,10 @@ import { RegTankIndividualOnboardingWebhook, PortalType } from "../types";
 import { logger } from "../../../lib/logger";
 import { RegTankRepository, RegTankOnboardingWithRelations } from "../repository";
 import { OrganizationRepository } from "../../organization/repository";
-import { OnboardingStatus, OrganizationMemberRole, Prisma, UserRole } from "@prisma/client";
+import { OnboardingStatus, Prisma, UserRole } from "@prisma/client";
 import { NotificationService } from "../../notification/service";
 import { NotificationTypeIds } from "../../notification/registry";
+import { listIssuerOrgMemberUserIds, listInvestorOrgMemberUserIds } from "../../notification/org-member-recipients";
 import { prisma } from "../../../lib/prisma";
 import { createOnboardingLogRow, persistOrganizationUpdateAndOnboardingLogs, webhookAuditContext } from "../../../lib/audit";
 import {
@@ -511,46 +512,18 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
 
           if (!partyProfile) return true;
 
-          const recipientUserIds = new Set<string>();
+          // Standardized recipient model: organisation-level People & Access goes
+          // to *all* organisation users (owner + org admins + normal members).
+          const initialRecipients =
+            portal === "investor"
+              ? await listInvestorOrgMemberUserIds(organizationId)
+              : await listIssuerOrgMemberUserIds(organizationId);
 
-          if (portal === "investor") {
-            const org = await prisma.investorOrganization.findUnique({
-              where: { id: organizationId },
-              select: { owner_user_id: true },
-            });
-            if (org?.owner_user_id) recipientUserIds.add(org.owner_user_id);
+          const recipientUserIds = new Set<string>(initialRecipients);
 
-            const members = await prisma.organizationMember.findMany({
-              where: {
-                investor_organization_id: organizationId,
-                role: {
-                  in: [OrganizationMemberRole.OWNER, OrganizationMemberRole.ORGANIZATION_ADMIN],
-                },
-              },
-              select: { user_id: true },
-            });
-            for (const m of members) recipientUserIds.add(m.user_id);
-          } else {
-            const org = await prisma.issuerOrganization.findUnique({
-              where: { id: organizationId },
-              select: { owner_user_id: true },
-            });
-            if (org?.owner_user_id) recipientUserIds.add(org.owner_user_id);
-
-            const members = await prisma.organizationMember.findMany({
-              where: {
-                issuer_organization_id: organizationId,
-                role: {
-                  in: [OrganizationMemberRole.OWNER, OrganizationMemberRole.ORGANIZATION_ADMIN],
-                },
-              },
-              select: { user_id: true },
-            });
-            for (const m of members) recipientUserIds.add(m.user_id);
-          }
-
-          // Optional customer-facing notification for linked platform user
-          // (do not infer linkage from email; use explicit user_id).
+          // Optional customer-facing notification for linked platform user:
+          // include the affected person only if `party.user_id` exists, and do
+          // not infer linkage from email.
           if (partyProfile.user_id) recipientUserIds.add(partyProfile.user_id);
 
           const idempotencyBase = `party-onboarding:${portal}:${organizationId}:${partyProfile.id}:approved`;
