@@ -9,10 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AdminDetailCardHeader } from "@/components/admin-detail";
 import { AdminActivityCsvExportButton } from "@/components/admin-activity-csv-export-button";
-import {
-  mergeActivityCsvMetadata,
-  type AdminActivityCsvRow,
-} from "@/components/admin-activity-csv";
+import { applicationLogToActivityCsvRow } from "./application-log-activity-csv";
 import {
   AdminVerticalTimeline,
   AdminVerticalTimelineItem,
@@ -339,36 +336,6 @@ function paymasterIdentityCompactDetails(
   return rows;
 }
 
-function applicationLogToActivityCsvRow(
-  log: ApplicationLogEntry,
-  sectionLabelOverrides?: Record<string, string>
-): AdminActivityCsvRow {
-  const metadata = log.metadata;
-  const actorRaw = metadata?.actorName ?? metadata?.organizationName;
-  const actor =
-    typeof actorRaw === "string" && actorRaw.trim() !== "" ? actorRaw : "";
-  const portalRaw = metadata?.portal ?? metadata?.portalType;
-  return {
-    createdAt: log.created_at,
-    event: getEventLabel(log.event_type, metadata, log.entityId, sectionLabelOverrides),
-    eventType: log.event_type,
-    actor,
-    actorUserId: log.actor_id ?? "",
-    portal: typeof portalRaw === "string" ? portalRaw : "",
-    remark: log.remark ?? formatActivityText(log.activity) ?? "",
-    metadata: mergeActivityCsvMetadata(metadata, {
-      entityId: log.entityId,
-      review_cycle: log.review_cycle,
-      ip_address: log.ip_address,
-    }),
-    actorType: log.actor_type,
-    source: log.source ?? (typeof portalRaw === "string" ? portalRaw : null),
-    targetType: log.target_type,
-    targetReference: log.target_id ?? log.entityId,
-    correlationId: log.correlation_id,
-  };
-}
-
 export function AdminActivityTimeline({
   applicationId,
   applicationDisplayReference,
@@ -398,7 +365,18 @@ export function AdminActivityTimeline({
   const totalCount = logs.length;
 
   const csvRows = React.useMemo(
-    () => (data ?? []).map((log) => applicationLogToActivityCsvRow(log, sectionLabelOverrides)),
+    () =>
+      (data ?? []).map((log) =>
+        applicationLogToActivityCsvRow(
+          log,
+          getEventLabel(
+            log.event_type,
+            log.metadata as Record<string, unknown> | null,
+            log.entityId,
+            sectionLabelOverrides
+          )
+        )
+      ),
     [data, sectionLabelOverrides]
   );
 

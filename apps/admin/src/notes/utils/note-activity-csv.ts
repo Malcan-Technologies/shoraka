@@ -152,6 +152,7 @@ function noteEventCanonicalReference(event: NoteEvent): string {
 }
 
 export function noteEventToActivityCsvRow(event: NoteEvent): AdminActivityCsvRow {
+  const internalTargetId = event.targetId ?? event.noteId;
   return {
     createdAt: event.createdAt,
     event: formatNoteActivityEventLabel(event.eventType, event.metadata),
@@ -168,6 +169,9 @@ export function noteEventToActivityCsvRow(event: NoteEvent): AdminActivityCsvRow
     source: event.source ?? event.portal,
     targetType: event.targetType,
     targetReference: noteEventCanonicalReference(event),
+    extra: {
+      "Target Internal ID": internalTargetId,
+    },
     correlationId: event.correlationId,
     amount: noteEventAmount(event.metadata),
   };
