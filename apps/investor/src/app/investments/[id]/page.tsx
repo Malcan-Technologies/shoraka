@@ -18,6 +18,7 @@ import {
   portalPageGutterClassName,
   useHeader,
 } from "@cashsouk/ui";
+import { InvestorProfileCompletenessBanner } from "@/components/profile-completeness-banner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { InvestmentDetailHero } from "@/investments/components/investment-detail-hero";
@@ -95,6 +96,8 @@ export default function InvestmentDetailPage() {
   const { setTitle } = useHeader();
   const { activeOrganization } = useOrganization();
   const orgId = activeOrganization?.id;
+  const onboarded =
+    activeOrganization?.onboardingStatus === "COMPLETED" && activeOrganization?.depositReceived === true;
   const investmentsQuery = useInvestorInvestments(orgId);
   const openInvestmentProspectus = useOpenInvestmentProspectus();
   const openMarketplaceProspectus = useOpenMarketplaceProspectus();
@@ -172,6 +175,7 @@ export default function InvestmentDetailPage() {
     return (
       <div className={cn(portalPageGutterClassName, "space-y-6")}>
         <PageShell title="Investment" breadcrumb={<Link href="/investments">{backLabel}</Link>}>
+          <InvestorProfileCompletenessBanner organizationId={orgId} onboarded={onboarded} />
           <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-6 text-ui text-destructive">
             {message}
           </div>
@@ -242,6 +246,7 @@ export default function InvestmentDetailPage() {
           ) : null
         }
       >
+        <InvestorProfileCompletenessBanner organizationId={orgId} onboarded={onboarded} />
         {positionLoading ? (
           <LoadingState variant="cards" rows={2} />
         ) : note ? (

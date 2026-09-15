@@ -17,6 +17,7 @@ import {
 } from "@cashsouk/ui";
 import { cn } from "@/lib/utils";
 import { withdrawMinimumError, withdrawTypedAmountError } from "@/components/investor-money-copy";
+import { InvestorProfileCompletenessBanner } from "@/components/profile-completeness-banner";
 import { InvestNowButton } from "@/components/invest-now-button";
 import { InvestorInvestmentsList } from "@/investments/components/investor-investments-list";
 import { marketplaceKeys, useInvestorPortfolio } from "@/investments/hooks/use-marketplace-notes";
@@ -45,6 +46,8 @@ function PortfolioPageContent() {
   const { activeOrganization } = useOrganization();
   const orgId = activeOrganization?.id;
   const { getAccessToken } = useAuthToken();
+  const onboarded =
+    activeOrganization?.onboardingStatus === "COMPLETED" && activeOrganization?.depositReceived === true;
 
   const urlTab = portfolioTabFromSearchParams(searchParams.get("tab"), searchParams.get("type"));
   const typeFilter = transactionTypeFromSearchParam(searchParams.get("type"));
@@ -189,6 +192,10 @@ function PortfolioPageContent() {
           />
         }
       >
+        <InvestorProfileCompletenessBanner
+          organizationId={activeOrganization?.id}
+          onboarded={onboarded}
+        />
         <PortfolioCashBar
           availableBalance={Number(portfolioQuery.data?.availableBalance ?? 0)}
           totalInvestment={Number(portfolioQuery.data?.totalInvestment ?? 0)}

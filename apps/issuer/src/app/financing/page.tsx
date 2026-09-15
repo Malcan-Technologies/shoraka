@@ -45,6 +45,7 @@ import { FacilityAttentionCard } from "@/components/financing/facility-attention
 import { InvoiceAttentionCard } from "@/components/financing/invoice-attention-card";
 import { NoteAttentionCard } from "@/components/financing/note-attention-card";
 import { FinancingAttentionList, FinancingListSection } from "@/components/financing/needs-attention-section";
+import { IssuerProfileCompletenessBanner } from "@/components/profile-completeness-banner";
 import {
   buildFinancingInvoiceRows,
   financingInvoiceRowMatchesFilters,
@@ -208,6 +209,7 @@ function IssuerFinancingPageContent() {
   const searchParams = useSearchParams();
   const { activeOrganization } = useOrganization();
   const organizationId = activeOrganization?.id;
+  const onboarded = activeOrganization?.onboardingStatus === "COMPLETED";
   const initialTab: FinancingTab = tabFromSearchParam(searchParams.get("tab"));
   const initialSearch = searchParams.get("search") ?? "";
   const [tab, setTab] = React.useState<FinancingTab>(initialTab);
@@ -507,6 +509,7 @@ function IssuerFinancingPageContent() {
             <ApplyForFinancingButton className="h-11 shrink-0 gap-2 rounded-xl bg-primary font-semibold text-primary-foreground shadow-brand hover:opacity-95" />
           }
         >
+          <IssuerProfileCompletenessBanner organizationId={organizationId} onboarded={onboarded} />
           {children}
         </PageShell>
       </div>

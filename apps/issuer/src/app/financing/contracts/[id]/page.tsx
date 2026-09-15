@@ -29,6 +29,7 @@ import {
   issuerPageGutterClassName,
 } from "@/lib/issuer-layout";
 import { cn } from "@/lib/utils";
+import { IssuerProfileCompletenessBanner } from "@/components/profile-completeness-banner";
 import { financingOfferHref } from "@/lib/financing-offer-href";
 import {
   getIssuerOfferActionCtaFromOfferDetails,
@@ -90,6 +91,7 @@ function ContractDetailsPageContent() {
   const contractId = params.id as string;
   const { activeOrganization } = useOrganization();
   const orgId = activeOrganization?.id;
+  const onboarded = activeOrganization?.onboardingStatus === "COMPLETED";
   const tabFromUrl = searchParams.get("tab");
   const [tab, setTab] = useState<FacilityDetailTab>(() =>
     isFacilityDetailTab(tabFromUrl) ? tabFromUrl : "invoices"
@@ -322,6 +324,8 @@ function ContractDetailsPageContent() {
           </>
         }
       />
+
+      <IssuerProfileCompletenessBanner organizationId={orgId} onboarded={onboarded} />
 
       <Card className="rounded-2xl">
         <CardHeader>

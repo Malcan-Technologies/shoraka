@@ -21,6 +21,7 @@ import {
 } from "@cashsouk/types";
 import { Button } from "@/components/ui/button";
 import { DepositDialog } from "@/app/transactions/components/deposit-dialog";
+import { InvestorProfileCompletenessBanner } from "@/components/profile-completeness-banner";
 import {
   useCommitInvestment,
   useInvestorPortfolio,
@@ -105,6 +106,8 @@ export function MarketplacePage() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { activeOrganization } = useOrganization();
+  const onboarded =
+    activeOrganization?.onboardingStatus === "COMPLETED" && activeOrganization?.depositReceived === true;
   const { data: portfolio, isLoading: isPortfolioLoading } = useInvestorPortfolio(
     activeOrganization?.id
   );
@@ -375,6 +378,7 @@ export function MarketplacePage() {
         title="Marketplace"
         description="Compare published notes and commit from your available cash."
       >
+        <InvestorProfileCompletenessBanner organizationId={activeOrganization?.id} onboarded={onboarded} />
         <MarketplaceStatsStrip
           availableBalance={availableBalance}
           notes={marketplaceNotes}

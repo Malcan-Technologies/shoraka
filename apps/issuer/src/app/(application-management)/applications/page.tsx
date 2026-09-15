@@ -47,6 +47,7 @@ import { generateMockApplications } from "@/dev/mockApplications";
 import { areDirectorShareholdersReadyForApplicationSubmit } from "@/lib/director-shareholder-onboarding-ui";
 import { DirectorShareholderAlertCard } from "@/components/director-shareholder-alert-card";
 import type { NormalizedApplication } from "./status";
+import { IssuerProfileCompletenessBanner } from "@/components/profile-completeness-banner";
 
 const MOCK_APPLICATION_COUNT = 10;
 const PER_PAGE_OPTIONS = [10, 25, 50];
@@ -363,6 +364,7 @@ export default function ApplicationsPage() {
     activeOrganization?.type === "COMPANY" &&
     visiblePeopleForDsGating.length > 0 &&
     !areDirectorShareholdersReadyForApplicationSubmit({ people: visiblePeopleForDsGating });
+  const onboarded = activeOrganization?.onboardingStatus === "COMPLETED";
 
   const countLabel = hasFilters
     ? `${restTotal} of ${unfilteredRemainingCount} applications`
@@ -434,6 +436,7 @@ export default function ApplicationsPage() {
             <ApplyForFinancingButton className="h-11 shrink-0 gap-2 rounded-xl bg-primary font-semibold text-primary-foreground shadow-brand hover:opacity-95" />
           }
         >
+          <IssuerProfileCompletenessBanner organizationId={activeOrganization?.id} onboarded={onboarded} />
           <div className="space-y-6">
             {isLoading ? (
               <LoadingState variant="cards" />
