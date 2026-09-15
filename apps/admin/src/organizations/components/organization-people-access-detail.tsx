@@ -20,6 +20,7 @@ import {
   adminProfileCompletenessHint,
   buildAdminPeopleAccessOverviewItems,
   buildAdminPersonRegTankRoleRecords,
+  getRegtankCorporateOnboardingUrl,
   getRelatedPartyStatusToken,
   countIssuerPersonRequiredFields,
   isBlockedPersonIdentityConflict,
@@ -62,14 +63,18 @@ function AccessBadge({ label }: { label: string }) {
   }
   const status = peopleAccessPlatformBadgeStatus(label as never);
   if (!status) return <span className="text-ui text-muted-foreground">{label}</span>;
-  return <StatusBadge status={status} label={label} />;
+  return <StatusBadge status={status} label={label} size="sm" />;
 }
 
 function KycBadge({ person }: { person: AdminPeopleAccessRow["person"] }) {
   const presentation = peopleAccessKycChipPresentation(person);
   if (!presentation) return <span className="text-ui text-muted-foreground">—</span>;
   return (
-    <StatusBadge status={getRelatedPartyStatusToken(presentation, "admin")} label={presentation.label} />
+    <StatusBadge
+      status={getRelatedPartyStatusToken(presentation, "admin")}
+      label={presentation.label}
+      size="sm"
+    />
   );
 }
 
@@ -77,7 +82,11 @@ function AmlBadge({ person }: { person: AdminPeopleAccessRow["person"] }) {
   const presentation = peopleAccessAmlChipPresentation(person);
   if (!presentation) return <span className="text-ui text-muted-foreground">—</span>;
   return (
-    <StatusBadge status={getRelatedPartyStatusToken(presentation, "admin")} label={presentation.label} />
+    <StatusBadge
+      status={getRelatedPartyStatusToken(presentation, "admin")}
+      label={presentation.label}
+      size="sm"
+    />
   );
 }
 
@@ -208,6 +217,9 @@ export function OrganizationPeopleAccessDetail({
   const platformLabel = row.corporate ? "Not applicable" : row.platformAccess === "—" ? "No access" : row.platformAccess;
   const profileStatus = overviewItems.find((item) => item.label === "Profile Status")?.value ?? "Active profile";
 
+  const kycPresentation = peopleAccessKycChipPresentation(person);
+  const amlPresentation = peopleAccessAmlChipPresentation(person);
+
   const defaultSection =
     showCtos && (row.observed || row.ctos === "Differs" || row.ctos === "Not found" || row.identityConflict)
       ? "ctos"
@@ -227,9 +239,33 @@ export function OrganizationPeopleAccessDetail({
       <div className="space-y-2">
         <h2 className="text-card-title break-words">{row.name}</h2>
         {roleLine ? <p className="text-ui text-muted-foreground">{roleLine}</p> : null}
-        <div className="flex flex-wrap gap-2">
-          <StatusBadge status="neutral" label={profileStatus} />
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusBadge
+            status="neutral"
+            label={profileStatus === "Inactive" ? "Inactive profile" : profileStatus}
+            size="sm"
+          />
           <AccessBadge label={platformLabel} />
+          {kycPresentation ? (
+            <div className="flex items-center gap-1.5">
+              <span className="text-meta text-muted-foreground">{row.corporate ? "KYB" : "KYC"}</span>
+              <StatusBadge
+                status={getRelatedPartyStatusToken(kycPresentation, "admin")}
+                label={kycPresentation.label}
+                size="sm"
+              />
+            </div>
+          ) : null}
+          {amlPresentation ? (
+            <div className="flex items-center gap-1.5">
+              <span className="text-meta text-muted-foreground">AML</span>
+              <StatusBadge
+                status={getRelatedPartyStatusToken(amlPresentation, "admin")}
+                label={amlPresentation.label}
+                size="sm"
+              />
+            </div>
+          ) : null}
         </div>
         {row.inactive ? (
           <p className={cn("rounded-lg border p-3 text-ui", ADMIN_ACTION_SURFACE_CLASS)}>
@@ -331,20 +367,65 @@ export function OrganizationPeopleAccessDetail({
                 return [...overviewItems, ...appended.map((l) => ({ label: l, value: "" }))];
               })();
 
+              const groupTitleForLabel = (label: string): string => {
+                if (label === "Record source") return "Record information";
+                if (label === "Platform Access" || label === "Profile Status") return "Platform";
+                if (label === PROFILE_LABEL.personEmail) return "Contact";
+                if (label.includes("Address") || label === "Address") return "Address";
+                if (
+                  label === "Company Roles" ||
+                  label.includes("Shareholding") ||
+                  label.includes("Designation") ||
+                  label.includes("Appointment Date") ||
+                  label.includes("Resignation Date")
+                ) {
+                  return "Company relationship";
+                }
+                return "Identity";
+              };
+
+              const groupOrder = [
+                "Identity",
+                "Company relationship",
+                "Contact",
+                "Address",
+                "Platform",
+                "Record information",
+              ] as const;
+
+              const grouped = new Map<string, (typeof mergedItems)[number][]>();
+              for (const item of mergedItems) {
+                const title = groupTitleForLabel(item.label);
+                const list = grouped.get(title) ?? [];
+                list.push(item);
+                grouped.set(title, list);
+              }
+
               return (
-                <ProfileFieldGrid>
-                  {mergedItems.map((item) => {
-                    const requiredMissing = requiredMissingLabels.has(item.label);
+                <div className="space-y-5">
+                  {groupOrder.map((title) => {
+                    const items = grouped.get(title) ?? [];
+                    if (items.length === 0) return null;
                     return (
-                      <ProfileReadField
-                        key={item.label}
-                        label={item.label}
-                        value={requiredMissing ? "" : item.value}
-                        missing={requiredMissing}
-                      />
+                      <div key={title} className="space-y-3">
+                        <p className="text-meta text-muted-foreground">{title}</p>
+                        <ProfileFieldGrid>
+                          {items.map((item) => {
+                            const requiredMissing = requiredMissingLabels.has(item.label);
+                            return (
+                              <ProfileReadField
+                                key={item.label}
+                                label={item.label}
+                                value={requiredMissing ? "" : item.value}
+                                missing={false}
+                              />
+                            );
+                          })}
+                        </ProfileFieldGrid>
+                      </div>
                     );
                   })}
-                </ProfileFieldGrid>
+                </div>
               );
             })()}
             {recordSource ? (
@@ -358,109 +439,167 @@ export function OrganizationPeopleAccessDetail({
 
         {row.kind !== "platform_only" ? (
           <TabsContent value="kyc" className="space-y-4 pt-4">
-            {row.corporate ? (
-              <>
-                <p className="text-ui text-muted-foreground">
-                  Business verification (KYB). Individual KYC is not required.
-                </p>
-                <KycBadge person={person} />
-                {person?.onboarding?.status ? (
-                  <ProfileReadField label="Current stage" value={adminOnboardingStageLabel(person.onboarding.status)} />
-                ) : null}
-                {person?.partyCorporateRequestId ? (
-                  <ProfileReadField label="Corporate onboarding" value={person.partyCorporateRequestId} />
-                ) : null}
-                <ProfileReadField
-                  label="KYB ID"
-                  value={kybId}
-                  hint={!kybId ? "Generated after business screening starts." : undefined}
-                />
-              </>
-            ) : (
-              <>
-                <KycBadge person={person} />
-                <ProfileReadField
-                  label="Current stage"
-                  value={adminOnboardingStageLabel(person?.onboarding?.status)}
-                />
-                <ProfileReadField
-                  label="KYC ID"
-                  value={kycId}
-                  hint={!kycId ? "Generated after KYC approval." : undefined}
-                />
-                {roleRecords.length > 1 ? (
+            <section className="space-y-4">
+              <h2 className="text-card-title">{row.corporate ? "KYB Verification" : "KYC Verification"}</h2>
+
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-start gap-3">
+                  <div className="space-y-1">
+                    <p className="text-meta text-muted-foreground">Status</p>
+                    <KycBadge person={person} />
+                  </div>
+                </div>
+
+                <ProfileFieldGrid>
+                  <ProfileReadField
+                    label="Current stage"
+                    value={adminOnboardingStageLabel(person?.onboarding?.status)}
+                  />
+                  <ProfileReadField
+                    label={row.corporate ? "KYB ID" : "KYC ID"}
+                    value={row.corporate ? kybId : kycId}
+                    hint={row.corporate ? (!kybId ? "Generated after business screening starts." : undefined) : (!kycId ? "Generated after KYC approval." : undefined)}
+                  />
+                </ProfileFieldGrid>
+
+                {roleRecords.length > 1 && !row.corporate ? (
                   <p className="text-meta text-muted-foreground">
                     This person has separate Director and Shareholder onboarding records for the same identity.
                   </p>
                 ) : null}
+
                 {applyIssuerComrep && missingCount > 0 && kycApproved ? (
                   <p className="text-meta text-muted-foreground">
-                    KYC is approved. {missingCount} profile {missingCount === 1 ? "field remains" : "fields remain"} —
-                    use Complete profile.
+                    KYC is approved. {missingCount} profile {missingCount === 1 ? "field remains" : "fields remain"} — use Complete profile.
                   </p>
                 ) : null}
-              </>
-            )}
-            {roleRecords.map((record) =>
-              record.url ? (
-                <ExternalRegTankLink key={`${record.kind}-${record.requestId}`} href={record.url}>
-                  {record.actionLabel}
-                </ExternalRegTankLink>
-              ) : null
-            )}
+              </div>
+
+              {roleRecords.length > 0 ? (
+                <div className="space-y-3">
+                  {roleRecords.map((record) => (
+                    <div
+                      key={`${record.kind}-${record.requestId}`}
+                      className="space-y-2 rounded-lg border p-3"
+                    >
+                      <p className="text-ui font-medium">{record.title}</p>
+                      <ProfileReadField label="Onboarding reference" value={record.requestId} />
+                      <ProfileReadField label="Current stage" value={record.stageLabel} />
+                      {record.url ? (
+                        <ExternalRegTankLink href={record.url}>{record.actionLabel}</ExternalRegTankLink>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-ui text-muted-foreground">No onboarding evidence found.</p>
+              )}
+            </section>
           </TabsContent>
         ) : null}
 
         {row.kind !== "platform_only" ? (
           <TabsContent value="aml" className="space-y-4 pt-4">
-            <p className="text-meta text-muted-foreground">
-              {row.corporate
-                ? "Business screening for this company shareholder. This is not organisation screening."
-                : "Person screening. This is not the organisation screening result."}
-            </p>
-            <AmlBadge person={person} />
-            {amlWaiting ? <p className="text-ui text-muted-foreground">{amlWaiting}</p> : null}
-            {person?.screening?.riskLevel ? (
-              <ProfileReadField label="Risk level" value={String(person.screening.riskLevel)} />
-            ) : null}
-            {person?.screening?.riskScore != null && String(person.screening.riskScore) !== "" ? (
-              <ProfileReadField label="Risk score" value={String(person.screening.riskScore)} />
-            ) : null}
-            {kycId && !row.corporate ? <ProfileReadField label="KYC ID" value={kycId} /> : null}
-            {kybId && row.corporate ? <ProfileReadField label="KYB ID" value={kybId} /> : null}
-            {screeningResultUrl ? (
-              <ExternalRegTankLink href={screeningResultUrl}>View screening result</ExternalRegTankLink>
-            ) : null}
+            <section className="space-y-4">
+              <h2 className="text-card-title">AML Screening</h2>
+
+              <ProfileFieldGrid>
+                <div className="space-y-1">
+                  <p className="text-meta text-muted-foreground">Status</p>
+                  <AmlBadge person={person} />
+                </div>
+                <ProfileReadField
+                  label="Screening"
+                  value={row.corporate ? "Company screening" : "Person screening"}
+                />
+              </ProfileFieldGrid>
+
+              {amlWaiting ? <p className="text-ui text-muted-foreground">{amlWaiting}</p> : null}
+
+              <p className="text-meta text-muted-foreground">
+                {row.corporate
+                  ? "Company screening. This is not the organisation screening result."
+                  : "Person screening. This is not the organisation screening result."}
+              </p>
+
+              {person?.screening?.id ? (
+                <ProfileReadField label="Screening reference ID" value={String(person.screening.id)} />
+              ) : null}
+
+              {person?.screening?.riskLevel ? (
+                <ProfileReadField label="Risk level" value={String(person.screening.riskLevel)} />
+              ) : null}
+              {person?.screening?.riskScore != null && String(person.screening.riskScore) !== "" ? (
+                <ProfileReadField label="Risk score" value={String(person.screening.riskScore)} />
+              ) : null}
+
+              {kycId && !row.corporate ? (
+                <ProfileReadField label="Related KYC ID" value={kycId} />
+              ) : null}
+              {kybId && row.corporate ? (
+                <ProfileReadField label="Related KYB ID" value={kybId} />
+              ) : null}
+
+              {screeningResultUrl ? (
+                <ExternalRegTankLink href={screeningResultUrl}>View screening result</ExternalRegTankLink>
+              ) : null}
+            </section>
           </TabsContent>
         ) : null}
 
         <TabsContent value="access" className="space-y-4 pt-4">
-          <AccessBadge label={platformLabel} />
-          {row.corporate ? (
-            <p className="text-ui text-muted-foreground">Corporate shareholders cannot have platform access.</p>
-          ) : null}
-          {row.userId ? (
-            <ProfileReadField label="Account Email" value={row.accountEmail} />
-          ) : row.kind !== "platform_only" && !row.corporate ? (
-            <ProfileReadField label="Account" value="No platform account" />
-          ) : null}
-          {row.kind === "platform_only" && orgMember?.phone ? (
-            <ProfileReadField label="Phone" value={orgMember.phone} />
-          ) : null}
-          {row.userId && canViewAccounts ? (
-            <div>
-              <p className="text-meta text-muted-foreground">Linked user</p>
-              <Link href={accountHref(row.userId)} className="text-ui text-primary underline-offset-4 hover:underline">
-                Open account
-              </Link>
-            </div>
-          ) : null}
-          {row.invitationId ? (
-            <ProfileReadField
-              label="Invitation"
-              value={`${row.platformAccess}${row.invitationExpiresAt ? ` · ${row.invitationExpiresAt}` : ""}`}
-            />
-          ) : null}
+          <section className="space-y-3">
+            <h2 className="text-card-title">Platform Access</h2>
+            <AccessBadge label={platformLabel} />
+            {row.corporate ? (
+              <p className="text-ui text-muted-foreground">Corporate shareholders cannot have platform access.</p>
+            ) : null}
+          </section>
+
+          <section className="space-y-3">
+            <p className="text-meta text-muted-foreground">Account</p>
+            {row.userId ? (
+              <ProfileFieldGrid>
+                <ProfileReadField
+                  label="Linked user"
+                  value={
+                    orgMember
+                      ? `${orgMember.firstName} ${orgMember.lastName}`.trim() || row.accountEmail || "—"
+                      : row.accountEmail || "—"
+                  }
+                />
+                <ProfileReadField label="Account Email" value={row.accountEmail || "—"} />
+                {row.platformAccess === "Owner" || row.platformAccess === "Admin" || row.platformAccess === "User" ? (
+                  <ProfileReadField label="Role" value={row.platformAccess} />
+                ) : null}
+              </ProfileFieldGrid>
+            ) : !row.corporate ? (
+              <ProfileReadField label="Account" value="No platform account" />
+            ) : null}
+
+            {row.kind === "platform_only" && orgMember?.phone ? (
+              <ProfileReadField label="Phone" value={orgMember.phone} />
+            ) : null}
+
+            {row.userId && canViewAccounts ? (
+              <div>
+                <p className="text-meta text-muted-foreground">Linked user</p>
+                <Link
+                  href={accountHref(row.userId)}
+                  className="text-ui text-primary underline-offset-4 hover:underline"
+                >
+                  Open account
+                </Link>
+              </div>
+            ) : null}
+
+            {row.invitationId ? (
+              <ProfileReadField
+                label="Invitation"
+                value={`${row.platformAccess}${row.invitationExpiresAt ? ` · ${row.invitationExpiresAt}` : ""}`}
+              />
+            ) : null}
+          </section>
         </TabsContent>
 
         {row.kind !== "platform_only" && showCtos ? (
@@ -510,7 +649,15 @@ export function OrganizationPeopleAccessDetail({
               <p className="text-ui text-muted-foreground">No RegTank onboarding evidence.</p>
             )}
             {!row.corporate && parentCod ? (
-              <ProfileReadField label="Parent company onboarding" value={parentCod} />
+              <div className="space-y-2">
+                <ProfileReadField label="Parent company onboarding" value={parentCod} />
+                {(() => {
+                  const url = getRegtankCorporateOnboardingUrl(parentCod);
+                  return url ? (
+                    <ExternalRegTankLink href={url}>View company onboarding</ExternalRegTankLink>
+                  ) : null;
+                })()}
+              </div>
             ) : null}
             {row.corporate && parentCod && parentCod !== person?.partyCorporateRequestId ? (
               <p className="text-meta text-muted-foreground">

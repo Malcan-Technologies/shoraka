@@ -24,6 +24,7 @@ import {
   peopleAccessAmlChipPresentation,
   peopleAccessKycChipPresentation,
   peopleAccessPlatformLabel,
+  peopleAccessPlatformBadgeStatus,
   issuerPersonCompletenessInputFromParty,
   issuerPersonCompletenessSummary,
   PERSON_EMAIL_HELP,
@@ -129,14 +130,13 @@ export function PersonDetailView({
 
   const party = parties.find((row) => row.id === partyId) ?? null;
   const joinedPerson = party ? people.find((row) => Boolean(matchPersonToParty(row, [party]))) ?? null : null;
-  const { active, inactive: inactiveRows } = buildPeopleAccessRows({
+  const { active } = buildPeopleAccessRows({
     parties,
     people,
     members,
     invitations,
     ownerUserId: ownerUserId ?? null,
   });
-  const row = [...active, ...inactiveRows].find((item) => item.partyId === partyId);
   const inactive = party?.membershipStatus === "MASTER_INACTIVE";
   const corporate = party?.entityType === "CORPORATE";
   const orgBase = `/v1/organizations/${portal}/${organizationId}`;
@@ -159,6 +159,8 @@ export function PersonDetailView({
   });
   const personEmail = customerPersonEmail({ party, person: joinedPerson });
   const accountEmail = customerAccountEmail(party);
+  const linkedMember =
+    party?.userId ? members.find((m) => m.id === party.userId) ?? null : null;
   const showKycRefresh =
     canEdit &&
     !inactive &&
@@ -186,6 +188,7 @@ export function PersonDetailView({
         status: party.platformAccess.status,
       })
     : "No access";
+  const accessBadgeStatus = peopleAccessPlatformBadgeStatus(accessLabel);
   const kycStatus = customerProcessStatusLabel({
     kind: corporate ? "kyb" : "kyc",
     person: joinedPerson,
@@ -627,12 +630,16 @@ export function PersonDetailView({
         <TabsContent value="aml" className="mt-6">
           <section className="space-y-4">
             <h2 className="text-card-title">AML Screening</h2>
+
             <ProfileFieldGrid>
               <div className="flex items-start gap-2">
                 <div className="space-y-1">
                   <p className="text-meta text-muted-foreground">Status</p>
                   {amlChip ? (
-                    <StatusBadge status={getRelatedPartyStatusToken(amlChip, "user")} label={`AML ${amlStatus}`} />
+                    <StatusBadge
+                      status={getRelatedPartyStatusToken(amlChip, "user")}
+                      label={`AML ${amlStatus}`}
+                    />
                   ) : (
                     <p className="text-ui text-muted-foreground">—</p>
                   )}
@@ -641,6 +648,18 @@ export function PersonDetailView({
                   <PartyStatusRefreshControl busy={refreshing} onRefresh={() => void refreshPartyStatus()} />
                 ) : null}
               </div>
+
+              <ProfileReadField
+                label="Screening"
+                value={corporate ? "Company screening" : "Person screening"}
+              />
+
+              {verificationId ? (
+                <ProfileReadField
+                  label={corporate ? "Related KYB ID" : "Related KYC ID"}
+                  value={verificationId}
+                />
+              ) : null}
             </ProfileFieldGrid>
             {amlWaiting ? <p className="text-ui text-muted-foreground">{amlWaiting}</p> : null}
           </section>
@@ -650,12 +669,18 @@ export function PersonDetailView({
           <TabsContent value="access" className="mt-6 space-y-4">
             <section className="space-y-4">
               <h2 className="text-card-title">Platform Access</h2>
+              {accessBadgeStatus ? (
+                <StatusBadge status={accessBadgeStatus} label={accessLabel} />
+              ) : (
+                <p className="text-ui text-muted-foreground">—</p>
+              )}
+              <p className="text-meta text-muted-foreground">Account</p>
               {accessLabel === "No access" || accessLabel === "Invitation expired" ? (
                 <>
-                  <ProfileReadField
-                    label="Access"
-                    value={accessLabel === "No access" ? "No CashSouk account" : accessLabel}
-                  />
+                  <ProfileFieldGrid>
+                    <ProfileReadField label="Access" value={accessLabel} />
+                    <ProfileReadField label="Account" value="No platform account" />
+                  </ProfileFieldGrid>
                   <p className="text-ui text-muted-foreground">
                     {accessLabel === "No access"
                       ? "This person does not currently have access to this organisation."
@@ -672,8 +697,9 @@ export function PersonDetailView({
                 <>
                   <ProfileFieldGrid>
                     <ProfileReadField label="Access" value="Invitation sent" />
+                    <ProfileReadField label="Account" value="No platform account" />
                     <ProfileReadField
-                      label="Account Email"
+                      label="Invitation email"
                       value={
                         invitations.find((item) => item.id === party.platformAccess.invitationId)?.email || "—"
                       }
@@ -717,8 +743,16 @@ export function PersonDetailView({
                   <ProfileFieldGrid>
                     <ProfileReadField label="Access" value={accessLabel} />
                     <ProfileReadField
+                      label="Account"
+                      value={
+                        linkedMember
+                          ? `${linkedMember.firstName} ${linkedMember.lastName}`.trim() || accountEmail || "—"
+                          : accountEmail || "—"
+                      }
+                    />
+                    <ProfileReadField
                       label="Account Email"
-                      value={accountEmail || row?.accountEmail || "—"}
+                      value={accountEmail || "—"}
                     />
                   </ProfileFieldGrid>
                   {canEdit && accessLabel !== "Owner" && party.userId !== currentUserId ? (
