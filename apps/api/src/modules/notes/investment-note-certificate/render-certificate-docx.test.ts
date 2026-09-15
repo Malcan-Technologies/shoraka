@@ -403,31 +403,28 @@ describe("renderInvestmentNoteCertificateDocx", () => {
     expect(xml).not.toContain("§COMPANY_STAMP_IMAGE§");
   });
 
-  it("keeps certificate signature on page 1 via explicit Investor Schedule page break", () => {
+  it("keeps certificate signature on page 1 without an explicit Investor Schedule page break", () => {
     const xml = renderedXml(snapshot, { audience: "ADMIN" });
 
-    const pageBreakIdx = xml.indexOf('<w:br w:type="page"/>');
-    expect(pageBreakIdx).toBeGreaterThanOrEqual(0);
-
-    // Regression: after the explicit certificate->schedule page break, there must not be
-    // leftover empty paragraphs that consume vertical space and cause LibreOffice/Gotenberg
-    // to push the investor schedule to a later page.
-    expect(xml).not.toContain('w14:paraId="49424597"');
-    expect(xml).not.toContain('w14:paraId="77E93925"');
-
-    // There may be other "INVESTOR SCHEDULE" text earlier in the XML; ensure
-    // we find the heading that comes after the inserted page break.
-    const investorAfterBreakIdx = xml.indexOf("INVESTOR SCHEDULE", pageBreakIdx);
-    expect(investorAfterBreakIdx).toBeGreaterThanOrEqual(0);
-
-    const noticeIdx = xml.indexOf('w14:paraId="179C2E2B"');
-    expect(noticeIdx).toBeGreaterThanOrEqual(0);
-    expect(xml.slice(noticeIdx, noticeIdx + 600)).toContain('<w:spacing w:after="50"/>');
+    // The working template has natural flow here; our runtime-generated DOCX must not contain
+    // an explicit page-break directive between the signature/stamp section and the schedule.
+    expect(xml).not.toContain('<w:br w:type="page"/>');
+    expect(xml).toContain("As agent of the Issuer");
+    expect(xml).toContain("INVESTOR SCHEDULE");
 
     const agentIdx = xml.indexOf("As agent of the Issuer");
+    const investorIdx = xml.indexOf("INVESTOR SCHEDULE", agentIdx);
+    expect(investorIdx).toBeGreaterThanOrEqual(0);
     expect(agentIdx).toBeGreaterThanOrEqual(0);
-    expect(pageBreakIdx).toBeGreaterThan(agentIdx);
+    expect(agentIdx).toBeLessThan(investorIdx);
 
+    // Sanity: no section/page-break instructions in the certificate->schedule boundary window.
+    const boundary = xml.slice(agentIdx, investorIdx);
+    expect(boundary).not.toContain("pageBreakBefore");
+    expect(boundary).not.toContain('w:type="nextPage"');
+    expect(boundary).not.toContain("<w:sectPr");
+
+    // Signature block sizing stays intact.
     const window = xml.slice(Math.max(0, agentIdx - 2000), agentIdx + 2500);
     expect(window).toContain('<w:top w:w="25" w:type="dxa"/>');
     expect(window).toContain('<w:bottom w:w="25" w:type="dxa"/>');
