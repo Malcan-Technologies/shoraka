@@ -54,6 +54,17 @@ describe("formatContractActivityEventLabel", () => {
     expect(formatContractActivityEventLabel("SIGNING_PACKAGE_EXPIRED")).toBe(
       "Signing Package Expired"
     );
+    expect(
+      formatContractActivityEventLabel("SIGNING_DOCUMENT_SIGNED", {
+        signer_name: "Ali",
+        execution_mode: "MANUAL",
+      })
+    ).toBe("Ali Completed Signing");
+    expect(
+      formatContractActivityEventLabel("SIGNING_DOCUMENT_SIGNED", {
+        execution_mode: "AUTOMATIC",
+      })
+    ).toBe("CashSouk Completed Signing");
   });
 });
 

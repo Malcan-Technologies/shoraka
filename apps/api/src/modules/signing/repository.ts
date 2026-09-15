@@ -437,11 +437,13 @@ export class SigningRepository {
     });
   }
 
-  async markAssignmentSigned(assignmentId: string): Promise<void> {
-    await prisma.signingAssignment.update({
-      where: { id: assignmentId },
+  /** Returns true only when this call is the first SIGNED transition. */
+  async markAssignmentSigned(assignmentId: string): Promise<boolean> {
+    const result = await prisma.signingAssignment.updateMany({
+      where: { id: assignmentId, status: { not: "SIGNED" } },
       data: { status: "SIGNED", signed_at: new Date() },
     });
+    return result.count > 0;
   }
 
   async markAssignmentDeclined(assignmentId: string): Promise<void> {

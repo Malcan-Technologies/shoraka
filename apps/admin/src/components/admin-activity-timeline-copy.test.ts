@@ -21,6 +21,11 @@ describe("admin activity timeline signing-package copy", () => {
     expect(source).not.toContain("TIMELINE_HIDDEN_EVENT_TYPES");
   });
 
+  it("uses signer-aware copy for per-document signing completion", () => {
+    expect(source).toContain("formatSigningDocumentSignedTitle");
+    expect(source).toMatch(/eventType === "SIGNING_DOCUMENT_SIGNED"/);
+  });
+
   it("labels AMENDMENTS_SUBMITTED as CashSouk sending the request, not the issuer submitting", () => {
     expect(source).toMatch(/AMENDMENTS_SUBMITTED:\s*"Amendment Request Sent"/);
     expect(source).toMatch(/APPLICATION_RESUBMITTED:\s*"Application Resubmitted"/);

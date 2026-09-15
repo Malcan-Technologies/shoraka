@@ -100,6 +100,7 @@ import type {
   MarketplaceNoteDetail,
   NoteDetail,
   InvestmentNoteCertificatePdfPayload,
+  NoteDocumentCatalog,
   SettlementHibahReceiptPdfPayload,
   InvestmentSettlementConfirmationPdfPayload,
   AdminInvestmentSettlementConfirmationsPayload,
@@ -1183,6 +1184,36 @@ export class ApiClient {
 
   async getAdminNoteDetail(id: string): Promise<ApiResponse<NoteDetail> | ApiError> {
     return this.get<NoteDetail>(`/v1/admin/notes/${id}`);
+  }
+
+  async getAdminNoteDocuments(
+    id: string
+  ): Promise<ApiResponse<NoteDocumentCatalog> | ApiError> {
+    return this.get<NoteDocumentCatalog>(`/v1/admin/notes/${id}/documents`);
+  }
+
+  async getAdminNoteDocumentBlob(
+    noteId: string,
+    documentId: string,
+    disposition: "inline" | "attachment" = "inline"
+  ): Promise<{ blob: Blob; filename: string }> {
+    const url = `${this.baseUrl}/v1/admin/notes/${encodeURIComponent(
+      noteId
+    )}/documents/${encodeURIComponent(documentId)}?disposition=${disposition}`;
+    const authToken = await this.getAuthToken();
+    const headers: HeadersInit = {};
+    if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+    const response = await fetch(url, { method: "GET", credentials: "include", headers });
+    if (!response.ok) {
+      const msg = await this.parseErrorResponse(response);
+      throw new Error(msg);
+    }
+    const header = response.headers.get("Content-Disposition");
+    const match = header?.match(/filename="([^"]+)"/);
+    return {
+      blob: await response.blob(),
+      filename: match?.[1] || `${documentId}.pdf`,
+    };
   }
 
   async getIssuerPaymasters(

@@ -39,6 +39,7 @@ describe("visibility matrix", () => {
   it("shows signing completed/declined/expired to users, not created/voided", () => {
     const visible = userVisibleApplicationEventTypes();
     expect(visible).toContain("SIGNING_PACKAGE_SENT");
+    expect(visible).toContain("SIGNING_DOCUMENT_SIGNED");
     expect(visible).toContain("SIGNING_PACKAGE_COMPLETED");
     expect(visible).toContain("SIGNING_PACKAGE_DECLINED");
     expect(visible).toContain("SIGNING_PACKAGE_EXPIRED");

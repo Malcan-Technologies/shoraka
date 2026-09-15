@@ -370,6 +370,18 @@ describe("signing accountability", () => {
         eventType: ApplicationLogEventType.SIGNING_PACKAGE_COMPLETED,
       })
     );
+    expect(logActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: null,
+        eventType: ApplicationLogEventType.SIGNING_DOCUMENT_SIGNED,
+        metadata: expect.objectContaining({
+          assignment_id: "a1",
+          signer_name: "Ali",
+          execution_mode: "MANUAL",
+        }),
+      })
+    );
+    expect(JSON.stringify(logActivity.mock.calls)).not.toMatch(/ali@co\.my/i);
     expect(finalizeOffer).toHaveBeenCalledWith(
       expect.objectContaining({
         applicationId: "app-1",

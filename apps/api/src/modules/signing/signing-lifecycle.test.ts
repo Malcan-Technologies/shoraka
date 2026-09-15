@@ -93,8 +93,9 @@ import { readS3ObjectBytes, confirmLegalImageBytes } from "../../lib/legal-image
 import { sendEmail } from "../../lib/email/ses-client";
 import { generatedDocumentsService } from "../generated-documents/service";
 import { applicationService } from "../applications/service";
-import { ApplicationLogEventType } from "../applications/logs/types";
+import { ApplicationLogEventType, ActivityPortal } from "../applications/logs/types";
 import { logApplicationActivity } from "../applications/logs/service";
+import { webhookAuditContext } from "../../lib/audit";
 import { SigningService } from "./service";
 import type { SigningProvider } from "./provider/adapter";
 import type { SigningRepository } from "./repository";
@@ -1317,6 +1318,19 @@ describe("signing lifecycle", () => {
     expect(autoSign.mock.calls.map((call) => call[0].keyword)).toEqual(["CASHSOUK_FA_SPFA1_SIGN"]);
     expect(markAssignmentSigned).toHaveBeenCalledWith("a-fa-1");
     expect(fetchSignedDocument).toHaveBeenCalledWith({ providerRef: "sc-1" });
+    expect(logActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: null,
+        portal: null,
+        eventType: ApplicationLogEventType.SIGNING_DOCUMENT_SIGNED,
+        metadata: expect.objectContaining({
+          assignment_id: "a-fa-1",
+          execution_mode: "AUTOMATIC",
+          signer_name: "Aisha Rahman",
+        }),
+      })
+    );
+    expect(JSON.stringify(logActivity.mock.calls)).not.toMatch(/aisha@cashsouk\.com|850101015555/i);
   });
 
   it("does not treat provider email SIGNED as completing automatic placements", async () => {
@@ -1530,5 +1544,136 @@ describe("signing lifecycle", () => {
     expect(createDocumentContract).not.toHaveBeenCalled();
     expect(sendEmail).toHaveBeenCalled();
     expect(setRecipientEmailDeliveryStatus).toHaveBeenCalledWith("r1", "sent", null);
+  });
+
+  it("logs one SIGNING_DOCUMENT_SIGNED per newly signed document assignment", async () => {
+    const envelope = baseEnvelope({
+      documents: [
+        documentRow({ id: "d1", name: "Facility Agreement", provider_contract_ref: "sc-1" }),
+        documentRow({
+          id: "d2",
+          name: "Deed of Assignment",
+          template_ref: "deed_of_assignment",
+          provider_contract_ref: "sc-2",
+        }),
+      ],
+      recipients: [recipientRow({ name: "Ali", role_label: "Issuer director" })],
+      assignments: [
+        assignmentRow({ id: "a1", document_id: "d1" }),
+        assignmentRow({ id: "a2", document_id: "d2" }),
+      ],
+    });
+    const markAssignmentSigned = jest.fn().mockImplementation(async (id: string) => {
+      const assignment = envelope.assignments.find((row) => row.id === id);
+      if (!assignment || assignment.status === "SIGNED") return false;
+      assignment.status = "SIGNED";
+      return true;
+    });
+    const service = createService(
+      {
+        findById: jest.fn().mockResolvedValue(envelope),
+        markAssignmentSigned,
+        markRecipientViewedIfUnset: jest.fn(),
+        updateRecipientStatus: jest.fn(),
+        updateDocumentStatus: jest.fn(),
+        updateEnvelopeStatusIfCurrent: jest.fn().mockResolvedValue(false),
+        recordSignedDocument: jest.fn(),
+      },
+      {
+        name: "test",
+        getContractDetails: jest.fn().mockResolvedValue({
+          documentState: 2,
+          signers: [{ email: "signer@example.com", status: "SIGNED", name: "Ali" }],
+        }),
+        fetchSignedDocument: jest.fn(),
+        createDocumentContract: jest.fn(),
+        startSignerSession: jest.fn(),
+      }
+    );
+
+    await service.syncEnvelopeFromProvider("env-1", { context: webhookAuditContext() });
+    await service.syncEnvelopeFromProvider("env-1", { context: webhookAuditContext() });
+
+    const signedLogs = logActivity.mock.calls
+      .map(([params]) => params)
+      .filter((params) => params?.eventType === ApplicationLogEventType.SIGNING_DOCUMENT_SIGNED);
+    expect(signedLogs).toHaveLength(2);
+    expect(signedLogs.map((params) => params?.metadata)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          document_id: "d1",
+          document_name: "Facility Agreement",
+          signer_name: "Ali",
+          execution_mode: "MANUAL",
+        }),
+        expect.objectContaining({
+          document_id: "d2",
+          document_name: "Deed of Assignment",
+          signer_name: "Ali",
+          execution_mode: "MANUAL",
+        }),
+      ])
+    );
+    expect(JSON.stringify(signedLogs)).not.toMatch(/signer@example\.com|820508105871/i);
+  });
+
+  it("logs a guarantor document signature without email or IC", async () => {
+    const envelope = baseEnvelope({
+      documents: [documentRow({ provider_contract_ref: "sc-1", name: "Personal Guarantee" })],
+      recipients: [
+        recipientRow({
+          role_key: "guarantor",
+          role_label: "Guarantor",
+          name: "Siti",
+          email: "siti@co.my",
+          ic_number: "900101145678",
+        }),
+      ],
+      assignments: [assignmentRow()],
+    });
+    const markAssignmentSigned = jest.fn().mockImplementation(async (id: string) => {
+      const assignment = envelope.assignments.find((row) => row.id === id);
+      if (!assignment || assignment.status === "SIGNED") return false;
+      assignment.status = "SIGNED";
+      return true;
+    });
+    const service = createService(
+      {
+        findById: jest.fn().mockResolvedValue(envelope),
+        markAssignmentSigned,
+        markRecipientViewedIfUnset: jest.fn(),
+        updateRecipientStatus: jest.fn(),
+        updateDocumentStatus: jest.fn(),
+        updateEnvelopeStatusIfCurrent: jest.fn().mockResolvedValue(false),
+        recordSignedDocument: jest.fn(),
+      },
+      {
+        name: "test",
+        getContractDetails: jest.fn().mockResolvedValue({
+          documentState: 2,
+          signers: [{ email: "siti@co.my", status: "SIGNED", name: "Siti" }],
+        }),
+        fetchSignedDocument: jest.fn(),
+        createDocumentContract: jest.fn(),
+        startSignerSession: jest.fn(),
+      }
+    );
+
+    await service.syncEnvelopeFromProvider("env-1");
+
+    expect(logActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: null,
+        portal: ActivityPortal.ISSUER,
+        eventType: ApplicationLogEventType.SIGNING_DOCUMENT_SIGNED,
+        remark: "Siti signed Personal Guarantee as Guarantor.",
+        metadata: expect.objectContaining({
+          role_key: "guarantor",
+          signer_name: "Siti",
+          execution_mode: "MANUAL",
+        }),
+      })
+    );
+    expect(JSON.stringify(logActivity.mock.calls)).not.toMatch(/siti@co\.my|900101145678/i);
   });
 });

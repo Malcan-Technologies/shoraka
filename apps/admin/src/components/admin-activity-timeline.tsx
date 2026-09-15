@@ -19,7 +19,7 @@ import { resolveAdminTimelineActorLabel } from "@/components/admin-timeline-orig
 import { ChevronDownIcon, ClockIcon } from "@heroicons/react/24/outline";
 import { Button } from "@/components/ui/button";
 import { getReviewTabLabel } from "@/components/application-review/review-registry";
-import { formatApplicationReference, getItemDisplayNameFromScopeKey } from "@cashsouk/types";
+import { formatApplicationReference, formatSigningDocumentSignedTitle, getItemDisplayNameFromScopeKey } from "@cashsouk/types";
 import type {
   ResubmitChangesMetadata,
   ResubmitFieldChangeItem,
@@ -177,6 +177,9 @@ function getEventLabel(
     PAYMASTER_IDENTITY_SYNCED: "Paymaster Identity Synced",
     PAYMASTER_IDENTITY_RESOLVED: "Paymaster Identity Resolved",
   };
+  if (eventType === "SIGNING_DOCUMENT_SIGNED") {
+    return formatSigningDocumentSignedTitle(metadata);
+  }
   if (eventType === "INVOICE_OFFER_SENT") {
     const invoiceNumber = metadata?.invoice_number;
     return invoiceNumber != null && invoiceNumber !== ""

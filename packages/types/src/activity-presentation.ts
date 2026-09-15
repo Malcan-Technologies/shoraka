@@ -95,6 +95,8 @@ const ACTIVITY_STATUS_BY_EVENT: Record<string, ActivityStatusToken> = {
   INVOICE_WITHDRAWN: "neutral",
 
   SIGNING_PACKAGE_SENT: "action",
+  SIGNING_DOCUMENT_SIGNED: "success",
+  SIGNING_PACKAGE_COMPLETED: "success",
 
   NOTE_CREATED_FROM_INVOICE: "action",
   PUBLISH: "submitted",

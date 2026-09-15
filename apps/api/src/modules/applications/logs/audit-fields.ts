@@ -37,7 +37,7 @@ export function resolveApplicationLogTarget(
     };
   }
 
-  if (eventType.startsWith("SIGNING_PACKAGE_")) {
+  if (eventType.startsWith("SIGNING_PACKAGE_") || eventType === "SIGNING_DOCUMENT_SIGNED") {
     return {
       targetType: AUDIT_TARGET_TYPE.SIGNING_ENVELOPE,
       targetId: entityId ?? metaString(metadata, "envelope_id") ?? applicationId ?? null,

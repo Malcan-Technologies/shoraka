@@ -2520,6 +2520,32 @@ model GeneratedDocumentEvidence {
   @@map("generated_document_evidence")
 }
 
+/// Immutable evidence for each compiled Facility Agreement package PDF.
+/// The signed FA source is never overwritten; this records component hashes of the derivative.
+model FacilityAgreementPackageEvidence {
+  id                 String   @id @default(cuid())
+  note_id            String
+  application_id     String
+  contract_id        String?
+  invoice_id         String?
+  assembler_version  Int
+  signed_fa_sha256   String
+  lo_template_sha256 String
+  lo_output_sha256   String
+  /// Ordered Shoraka trade-order ids included in this output.
+  certificate_ids    Json
+  /// Ordered SHA-256 hashes aligned with certificate_ids.
+  certificate_hashes Json
+  output_sha256      String
+  created_by_user_id String?  @db.VarChar(5)
+  created_at         DateTime @default(now())
+
+  @@index([note_id])
+  @@index([application_id])
+  @@index([created_at])
+  @@map("facility_agreement_package_evidence")
+}
+
 /// Immutable admin audit trail for legal document definition/version changes.
 model LegalDocumentAuditLog {
   id                        String             @id @default(cuid())

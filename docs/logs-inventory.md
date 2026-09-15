@@ -1,6 +1,6 @@
 # Audit Log Register
 
-**As of:** 6 September 2026  
+**As of:** 16 September 2026  
 **Scope:** Named events the **current live platform can still produce**. Historical, deprecated, dead, and unreachable names are excluded.  
 **Method:** Traced from Admin / Issuer / Investor UI → API → service → Prisma / jobs / webhooks.
 
@@ -135,6 +135,7 @@ Do not treat `apps/api/src/lib/audit/visibility-matrix.ts` or `docs/logging-even
 | LOG-SGN-002 | Invoice Signing Deadline Extended | `INVOICE_SIGNING_DEADLINE_EXTENDED` | Invoice signing deadline extended | Admin extend | Admin | Invoice | New deadline | `application_logs` | Application record - Activity Timeline | Yes | — |
 | LOG-SGN-003 | Signing Package Created | `SIGNING_PACKAGE_CREATED` | Signing envelope created | Admin or system create envelope | Admin / System | Envelope | Envelope id | `application_logs` | Application record - Activity Timeline | No | Envelope table is source of truth for signing status |
 | LOG-SGN-004 | Signing Package Sent | `SIGNING_PACKAGE_SENT` | Signing links emailed | Send package | Admin / System | Envelope | Recipients | `application_logs` | Application record - Activity Timeline. Application record - Acceptance | Yes | Reminder send does not write a second Activity event |
+| LOG-SGN-009 | Signer Completed Signing | `SIGNING_DOCUMENT_SIGNED` | One signer completed one document | First assignment SIGNED transition (manual webhook/return-sync or automatic CashSouk countersign) | Customer / signer (manual) or System (automatic) | Envelope assignment / document | Envelope, assignment, document, role, signer name, execution mode | `application_logs` | Application record - Activity Timeline | Yes | One row per document assignment. Does not store email or IC. Automatic rows display as CashSouk Completed Signing |
 | LOG-SGN-005 | Signing Package Completed | `SIGNING_PACKAGE_COMPLETED` | Signing package completed | Signing webhook | Webhook | Envelope | Envelope refs | `application_logs` | Application record - Activity Timeline | Yes | — |
 | LOG-SGN-006 | Signing Package Declined | `SIGNING_PACKAGE_DECLINED` | Signer declined | Signer decline | Customer / signer | Envelope | Envelope refs | `application_logs` | Application record - Activity Timeline | Yes | Different from voided |
 | LOG-SGN-007 | Signing Package Expired | `SIGNING_PACKAGE_EXPIRED` | Signing package expired | Signing expiry job | System | Envelope | Envelope refs | `application_logs` | Application record - Activity Timeline | Yes | Offer expiry is a different event |
@@ -445,7 +446,7 @@ Remaining UI limits (not changed):
 
 | Bucket | Count |
 | --- | --- |
-| Active named event types | **159** |
+| Active named event types | **160** |
 | Supporting investigation record families | **13** |
 | Events with no current Admin reader | 2 named (`EOD_WEBHOOK`, `GENERATED_DOCUMENT_EVIDENCE`) plus supporting families without a screen |
 | Related-record patterns | **9** |

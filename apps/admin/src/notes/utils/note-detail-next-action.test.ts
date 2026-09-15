@@ -336,6 +336,11 @@ describe("resolveNoteDetailNextAction priority", () => {
     expect(action.tone).toBe("neutral");
     expect(action.tabId).toBe("campaign");
   });
+
+  it("never auto-opens the Documents reference tab", () => {
+    const source = fs.readFileSync(path.join(__dirname, "note-detail-next-action.ts"), "utf8");
+    expect(source).not.toContain('tabId: "documents"');
+  });
 });
 
 describe("note detail tab identity and dots", () => {
@@ -346,6 +351,7 @@ describe("note detail tab identity and dots", () => {
     expect(isNoteDetailTabId("late-payment")).toBe(true);
     expect(isNoteDetailTabId("ledger")).toBe(true);
     expect(isNoteDetailTabId("activity")).toBe(true);
+    expect(isNoteDetailTabId("documents")).toBe(true);
     expect(isNoteDetailTabId("overview")).toBe(false);
     expect(isNoteDetailTabId("investors")).toBe(false);
     expect(isNoteDetailTabId("servicing-settlement")).toBe(false);
@@ -464,7 +470,7 @@ describe("note detail tab identity and dots", () => {
     expect(resolveNoteDetailNextAction(fundedWithCancelled).tabId).toBe("disbursement");
   });
 
-  it("keeps Ledger and Activity grey because they have no workflow status", () => {
+  it("keeps Ledger, Activity, and Documents grey because they have no workflow status", () => {
     expect(NOTE_REFERENCE_TAB_TOKEN).toBe("neutral");
   });
 });
@@ -594,7 +600,9 @@ describe("standalone vs contract-linked notes", () => {
     expect(pageSource).toContain("NOTE_REFERENCE_TAB_TOKEN");
     expect(pageSource).toContain('id: "campaign"');
     expect(pageSource).toContain('id: "activity"');
+    expect(pageSource).toContain('id: "documents"');
     expect(pageSource).toContain("NoteCampaignActions");
+    expect(pageSource).toContain("NoteDocumentsPanel");
     expect(pageSource).toContain("NoteFacilityFeeWaiverPanel");
     expect(pageSource).toContain("<NoteLifecycleCard note={note} />");
     expect(pageSource).toContain("NoteProspectusStatusCard");
@@ -701,6 +709,7 @@ describe("?tab= synchronisation contract", () => {
     expect(pageSource).toContain('<AdminDetailTabPanel value="campaign" preserveMount>');
     expect(pageSource).toContain("NoteInvestorsPanel");
     expect(pageSource).toContain('<AdminDetailTabPanel value="ledger" preserveMount>');
+    expect(pageSource).toContain('<AdminDetailTabPanel value="documents" preserveMount>');
     expect(pageSource).not.toContain('<AdminDetailTabPanel value="servicing" preserveMount>');
     expect(pageSource).not.toContain('<AdminDetailTabPanel value="late-payment" preserveMount>');
   });

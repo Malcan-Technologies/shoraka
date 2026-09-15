@@ -108,6 +108,43 @@ describe("buildApplicationTimeline — newly-approved issuer-visible milestones"
     expect(milestones.find((m) => m.id === "resub")?.label).toBe("You Resubmitted This Application");
   });
 
+  it("renders one milestone per signed document with signer-aware copy", () => {
+    const milestones = buildApplicationTimeline(
+      [
+        makeLog({
+          id: "s1",
+          event_type: "SIGNING_DOCUMENT_SIGNED",
+          created_at: "2026-08-02T10:00:00.000Z",
+          remark: "Ali signed Facility Agreement as Issuer director.",
+          metadata: {
+            signer_name: "Ali",
+            document_name: "Facility Agreement",
+            role_label: "Issuer director",
+            execution_mode: "MANUAL",
+          },
+        }),
+        makeLog({
+          id: "s2",
+          event_type: "SIGNING_DOCUMENT_SIGNED",
+          created_at: "2026-08-02T10:05:00.000Z",
+          remark: "Facility Agreement was signed automatically as Facility Agreement — signer 1 of 2.",
+          metadata: {
+            signer_name: "Aisha Rahman",
+            document_name: "Facility Agreement",
+            role_label: "Facility Agreement — signer 1 of 2",
+            execution_mode: "AUTOMATIC",
+          },
+        }),
+      ],
+      makeApp()
+    );
+    expect(milestones.map((m) => ({ id: m.id, label: m.label }))).toEqual([
+      { id: "s2", label: "CashSouk Completed Signing" },
+      { id: "s1", label: "Ali Completed Signing" },
+    ]);
+    expect(JSON.stringify(milestones)).not.toMatch(/@|ic_number/i);
+  });
+
   it("keeps a stable mix of milestones visible together in chronological order", () => {
     const milestones = buildApplicationTimeline(
       [
