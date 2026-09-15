@@ -4,7 +4,7 @@ import { RegTankIndividualOnboardingWebhook, PortalType } from "../types";
 import { logger } from "../../../lib/logger";
 import { RegTankRepository, RegTankOnboardingWithRelations } from "../repository";
 import { OrganizationRepository } from "../../organization/repository";
-import { OnboardingStatus, Prisma, UserRole } from "@prisma/client";
+import { OnboardingStatus, OrganizationMemberRole, Prisma, UserRole } from "@prisma/client";
 import { NotificationService } from "../../notification/service";
 import { NotificationTypeIds } from "../../notification/registry";
 import { prisma } from "../../../lib/prisma";
@@ -460,6 +460,18 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
     );
 
     if (normalizeRawStatus(status).toUpperCase() === "APPROVED") {
+      // Transition-based guard:
+      // Only notify on the first time the pipeline moves into APPROVED.
+      const prevPipelineStatusRaw =
+        prevRoot && typeof prevRoot === "object" && "regtankPipelineStatus" in prevRoot
+          ? (prevRoot as Record<string, unknown>).regtankPipelineStatus
+          : undefined;
+      const prevPipelineStatus =
+        typeof prevPipelineStatusRaw === "string"
+          ? normalizeRawStatus(prevPipelineStatusRaw).toUpperCase()
+          : null;
+      const isFirstApprovedTransition = prevPipelineStatus !== "APPROVED";
+
       const organizationId = supplement.issuer_organization_id || supplement.investor_organization_id;
       const portal = supplement.issuer_organization_id ? "issuer" : "investor";
       if (organizationId) {
@@ -480,6 +492,106 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
               error: error instanceof Error ? error.message : String(error),
             },
             "RegTank person profile seed failed after APPROVED (non-blocking)"
+          );
+        }
+
+        if (!isFirstApprovedTransition) return true;
+
+        // Persistent in-app notification + email for verification completion.
+        try {
+          const partyWhere =
+            portal === "issuer"
+              ? { issuer_organization_id: organizationId }
+              : { investor_organization_id: organizationId };
+
+          const partyProfile = await prisma.organizationPartyProfile.findFirst({
+            where: { ...partyWhere, party_key: supplement.party_key },
+            select: { id: true, name: true, entity_type: true, user_id: true },
+          });
+
+          if (!partyProfile) return true;
+
+          const recipientUserIds = new Set<string>();
+
+          if (portal === "investor") {
+            const org = await prisma.investorOrganization.findUnique({
+              where: { id: organizationId },
+              select: { owner_user_id: true },
+            });
+            if (org?.owner_user_id) recipientUserIds.add(org.owner_user_id);
+
+            const members = await prisma.organizationMember.findMany({
+              where: {
+                investor_organization_id: organizationId,
+                role: {
+                  in: [OrganizationMemberRole.OWNER, OrganizationMemberRole.ORGANIZATION_ADMIN],
+                },
+              },
+              select: { user_id: true },
+            });
+            for (const m of members) recipientUserIds.add(m.user_id);
+          } else {
+            const org = await prisma.issuerOrganization.findUnique({
+              where: { id: organizationId },
+              select: { owner_user_id: true },
+            });
+            if (org?.owner_user_id) recipientUserIds.add(org.owner_user_id);
+
+            const members = await prisma.organizationMember.findMany({
+              where: {
+                issuer_organization_id: organizationId,
+                role: {
+                  in: [OrganizationMemberRole.OWNER, OrganizationMemberRole.ORGANIZATION_ADMIN],
+                },
+              },
+              select: { user_id: true },
+            });
+            for (const m of members) recipientUserIds.add(m.user_id);
+          }
+
+          // Optional customer-facing notification for linked platform user
+          // (do not infer linkage from email; use explicit user_id).
+          if (partyProfile.user_id) recipientUserIds.add(partyProfile.user_id);
+
+          const idempotencyBase = `party-onboarding:${portal}:${organizationId}:${partyProfile.id}:approved`;
+          const isCorporate = partyProfile.entity_type === "CORPORATE";
+
+          const personName = (partyProfile.name ?? "").trim() || "this person";
+          const companyName = personName;
+
+          const notificationTypeId = isCorporate
+            ? NotificationTypeIds.KYB_VERIFICATION_COMPLETED
+            : NotificationTypeIds.KYC_VERIFICATION_COMPLETED;
+
+          const payload = isCorporate
+            ? ({
+                partyId: partyProfile.id,
+                companyName,
+                portalType: portal,
+              } as const)
+            : ({
+                partyId: partyProfile.id,
+                personName,
+                portalType: portal,
+              } as const);
+
+          for (const recipientUserId of recipientUserIds) {
+            await this.notificationService.sendTypedAndLogSystem(
+              recipientUserId,
+              notificationTypeId,
+              payload as never,
+              `${idempotencyBase}:user:${recipientUserId}`
+            );
+          }
+        } catch (notifError) {
+          logger.error(
+            {
+              error: notifError,
+              requestId,
+              partyKey: supplement.party_key,
+              organizationId,
+            },
+            "Failed to send onboarding APPROVED KYC/KYB verification notification"
           );
         }
       }

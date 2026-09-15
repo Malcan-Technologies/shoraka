@@ -1,4 +1,5 @@
 import { OrganizationType } from "@prisma/client";
+import { NotificationTypeIds } from "../../notification/registry";
 
 const mockFindByRequestId = jest.fn();
 const mockAppendWebhookPayload = jest.fn().mockResolvedValue(undefined);
@@ -35,16 +36,21 @@ jest.mock("../../auth/repository", () => ({
   })),
 }));
 
+const mockSendTypedAndLogSystem = jest.fn().mockResolvedValue(undefined);
 jest.mock("../../notification/service", () => ({
   NotificationService: jest.fn().mockImplementation(() => ({
     sendTyped: jest.fn(),
-    sendTypedAndLogSystem: jest.fn(),
+    sendTypedAndLogSystem: (...args: unknown[]) => mockSendTypedAndLogSystem(...args),
   })),
 }));
 
 jest.mock("../../../lib/prisma", () => ({
   prisma: {
     ctosPartySupplement: { update: jest.fn().mockResolvedValue({}) },
+    organizationPartyProfile: { findFirst: jest.fn() },
+    issuerOrganization: { findUnique: jest.fn() },
+    investorOrganization: { findUnique: jest.fn() },
+    organizationMember: { findMany: jest.fn() },
   },
 }));
 
@@ -83,6 +89,20 @@ describe("IndividualOnboardingWebhookHandler", () => {
     jest.clearAllMocks();
     (findCtosPartySupplementByOnboardingJsonMatch as jest.Mock).mockResolvedValue(null);
     mockEnrichApprovedCtosPartySupplement.mockResolvedValue(undefined);
+
+    (prisma.organizationPartyProfile.findFirst as jest.Mock).mockResolvedValue({
+      id: "party-1",
+      name: "Jane Doe",
+      entity_type: "INDIVIDUAL",
+      user_id: "linked-user-1",
+    });
+    (prisma.issuerOrganization.findUnique as jest.Mock).mockResolvedValue({
+      owner_user_id: "owner-1",
+    });
+    (prisma.investorOrganization.findUnique as jest.Mock).mockResolvedValue({
+      owner_user_id: "owner-2",
+    });
+    (prisma.organizationMember.findMany as jest.Mock).mockResolvedValue([{ user_id: "admin-1" }]);
   });
 
   it("immediate exact match performs one lookup", async () => {
@@ -309,6 +329,72 @@ describe("IndividualOnboardingWebhookHandler", () => {
         partyKey: "user:550e8400-e29b-41d4-a716-446655440000",
         requestId: "LD-PREID-1",
       })
+    );
+
+    // First transition to APPROVED should create persistent notification/email via NotificationService.
+    expect(mockSendTypedAndLogSystem).toHaveBeenCalled();
+    expect(mockSendTypedAndLogSystem).toHaveBeenCalledWith(
+      "owner-1",
+      NotificationTypeIds.KYC_VERIFICATION_COMPLETED,
+      {
+        partyId: "party-1",
+        personName: "Jane Doe",
+        portalType: "issuer",
+      },
+      "party-onboarding:issuer:org-1:party-1:approved:user:owner-1"
+    );
+  });
+
+  it("does NOT notify on repeated APPROVED when the previous pipeline was already APPROVED", async () => {
+    mockFindByRequestId.mockResolvedValue(null);
+    (findCtosPartySupplementByOnboardingJsonMatch as jest.Mock).mockResolvedValue({
+      id: "sup-1",
+      party_key: "user:550e8400-e29b-41d4-a716-446655440000",
+      issuer_organization_id: "org-1",
+      investor_organization_id: null,
+      onboarding_json: {
+        requestId: "LD-PREID-1",
+        regtankPipelineStatus: "APPROVED",
+        status: "IN_PROGRESS",
+      },
+    });
+
+    const handler = new IndividualOnboardingWebhookHandler();
+    await (handler as any).handle({ requestId: "LD-PREID-1", status: "APPROVED", referenceId: "org-1_user" });
+
+    expect(mockEnrichApprovedCtosPartySupplement).toHaveBeenCalled();
+    expect(mockSendTypedAndLogSystem).not.toHaveBeenCalled();
+  });
+
+  it("uses KYB terminology for CORPORATE party profiles", async () => {
+    (prisma.organizationPartyProfile.findFirst as jest.Mock).mockResolvedValueOnce({
+      id: "party-2",
+      name: "ACME Holdings",
+      entity_type: "CORPORATE",
+      user_id: null,
+    });
+
+    mockFindByRequestId.mockResolvedValue(null);
+    (findCtosPartySupplementByOnboardingJsonMatch as jest.Mock).mockResolvedValue({
+      id: "sup-1",
+      party_key: "party-key-corp",
+      issuer_organization_id: "org-1",
+      investor_organization_id: null,
+      onboarding_json: { requestId: "LD-PREID-1", status: "IN_PROGRESS" },
+    });
+
+    const handler = new IndividualOnboardingWebhookHandler();
+    await (handler as any).handle({ requestId: "LD-PREID-1", status: "APPROVED", referenceId: "org-1_user" });
+
+    expect(mockSendTypedAndLogSystem).toHaveBeenCalledWith(
+      "owner-1",
+      NotificationTypeIds.KYB_VERIFICATION_COMPLETED,
+      {
+        partyId: "party-2",
+        companyName: "ACME Holdings",
+        portalType: "issuer",
+      },
+      "party-onboarding:issuer:org-1:party-2:approved:user:owner-1"
     );
   });
 

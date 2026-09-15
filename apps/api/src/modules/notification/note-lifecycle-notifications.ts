@@ -28,6 +28,7 @@ export function resolveNoteNotificationTitle(note: {
 }
 
 type BasicNotePayload = NotificationPayloads[typeof NotificationTypeIds.NOTE_PUBLISHED];
+type NewProductAlertPayload = NotificationPayloads[typeof NotificationTypeIds.NEW_PRODUCT_ALERT];
 
 async function sendToIssuerOrg<T extends NotificationTypeId>(
   svc: NotificationService,
@@ -226,6 +227,54 @@ export async function notifyNotePublished(args: {
     );
   } catch (err) {
     logLifecycleError("published", args.noteId, err);
+  }
+}
+
+async function listInvestorRoleUserIds(): Promise<string[]> {
+  const rows = await prisma.user.findMany({
+    where: { roles: { has: "INVESTOR" } },
+    select: { user_id: true },
+  });
+  return rows.map((r) => r.user_id);
+}
+
+/** After marketplace publish — notify all investor-role users (new investment opportunity). */
+export async function notifyNotePublishedToInvestors(args: {
+  notificationService: NotificationService;
+  noteId: string;
+  noteTitle: string;
+}): Promise<void> {
+  const payload: NewProductAlertPayload = {
+    productName: args.noteTitle,
+    // Investor UI uses /investments/[id] where [id] is a note ID.
+    productId: args.noteId,
+  };
+
+  const idempotencyPrefix = `note:lifecycle:${args.noteId}:published:investor`;
+
+  try {
+    const recipients = await listInvestorRoleUserIds();
+    const results = await sendTypedToUsersSafe(
+      args.notificationService,
+      recipients,
+      NotificationTypeIds.NEW_PRODUCT_ALERT,
+      payload,
+      (userId) => `${idempotencyPrefix}:user:${userId}`
+    );
+
+    await args.notificationService.logTypedSystemBatch(
+      NotificationTypeIds.NEW_PRODUCT_ALERT,
+      payload,
+      results,
+      {
+        idempotencyKey: systemNotificationLogKey(
+          NotificationTypeIds.NEW_PRODUCT_ALERT,
+          idempotencyPrefix
+        ),
+      }
+    );
+  } catch (err) {
+    logLifecycleError("published_to_investors", args.noteId, err);
   }
 }
 

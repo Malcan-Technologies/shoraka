@@ -12,6 +12,9 @@ jest.mock("../../lib/prisma", () => ({
     organizationMember: {
       findMany: jest.fn(),
     },
+    user: {
+      findMany: jest.fn(),
+    },
     noteInvestment: {
       findMany: jest.fn(),
     },
@@ -34,6 +37,7 @@ import {
   expectedDefaultNotificationKeys,
   expectedServicingTransitionNotificationKeys,
   resolveNoteNotificationTitle,
+  notifyNotePublishedToInvestors,
 } from "./note-lifecycle-notifications";
 import { NotificationTypeIds } from "./registry";
 import { NotificationService } from "./service";
@@ -95,6 +99,50 @@ describe("notifyNotePublished", () => {
       [{ id: "n1" }, { id: "n1" }, { id: "n1" }],
       {
         idempotencyKey: "system-log:note_published:note:lifecycle:note-1:published",
+      }
+    );
+  });
+});
+
+describe("notifyNotePublishedToInvestors", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (prisma.user.findMany as jest.Mock).mockResolvedValue([{ user_id: "IV1" }, { user_id: "IV2" }]);
+  });
+
+  it("notifies all investor-role users via NEW_PRODUCT_ALERT", async () => {
+    const notificationService = {
+      sendTyped,
+      logTypedSystemBatch,
+    } as unknown as NotificationService;
+
+    await notifyNotePublishedToInvestors({
+      notificationService,
+      noteId: "note-1",
+      noteTitle: "T1",
+    });
+
+    expect(prisma.user.findMany).toHaveBeenCalledWith({
+      where: { roles: { has: "INVESTOR" } },
+      select: { user_id: true },
+    });
+
+    expect(sendTyped).toHaveBeenCalledTimes(2);
+    expect(sendTyped).toHaveBeenCalledWith(
+      "IV1",
+      NotificationTypeIds.NEW_PRODUCT_ALERT,
+      { productName: "T1", productId: "note-1" },
+      "note:lifecycle:note-1:published:investor:user:IV1"
+    );
+
+    expect(logTypedSystemBatch).toHaveBeenCalledTimes(1);
+    expect(logTypedSystemBatch).toHaveBeenCalledWith(
+      NotificationTypeIds.NEW_PRODUCT_ALERT,
+      { productName: "T1", productId: "note-1" },
+      [{ id: "n1" }, { id: "n1" }],
+      {
+        idempotencyKey:
+          "system-log:new_product_alert:note:lifecycle:note-1:published:investor",
       }
     );
   });
