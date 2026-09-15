@@ -270,19 +270,16 @@ function serializeDocumentExecutionSlots(
     role_key: OperatorDocumentExecutionRole;
     slot_index: number;
     signing_person_id: string;
-    legal_entity_label: string;
-  }>,
-  defaultLegalEntityLabel: string
+  }>
 ): OperatorDocumentExecutionSlotDto[] {
   const byKey = new Map(
     bindings.map((row) => [`${row.role_key}:${row.slot_index}`, row] as const)
   );
-  return emptyDocumentExecutionSlots(defaultLegalEntityLabel).map((slot) => {
+  return emptyDocumentExecutionSlots().map((slot) => {
     const row = byKey.get(`${slot.roleKey}:${slot.slotIndex}`);
     if (!row) return slot;
     return {
       ...slot,
-      legalEntityLabel: row.legal_entity_label,
       signingPersonId: row.signing_person_id,
     };
   });
@@ -460,10 +457,7 @@ export async function getOrCreateOperatorProfile(): Promise<OperatorProfileDto> 
     interests: row.interests.map(serializeInterest),
     financialStatements: row.financial_statements.map(serializeFinancial),
     signingPeople: row.signing_people.map(serializeSigningPerson),
-    documentExecutionSlots: serializeDocumentExecutionSlots(
-      row.document_execution_bindings,
-      row.name?.trim() ?? ""
-    ),
+    documentExecutionSlots: serializeDocumentExecutionSlots(row.document_execution_bindings),
     companyStamp: companyStampFromConfig(finance?.document_authorisation_config),
     updatedAt: row.updated_at.toISOString(),
   };
@@ -1117,22 +1111,18 @@ export function buildDocumentExecutionBindingRows(input: {
   operatorProfileId: string;
   bindings: OperatorDocumentExecutionBindingsPutInput["bindings"];
   people: BindingPerson[];
-  defaultLegalEntityLabel?: string;
 }): Array<{
   operator_profile_id: string;
   role_key: OperatorDocumentExecutionRole;
   slot_index: number;
   signing_person_id: string;
-  legal_entity_label: string;
 }> {
   const byId = new Map(input.people.map((person) => [person.id, person]));
-  const fallbackLabel = input.defaultLegalEntityLabel?.trim() ?? "";
   const rows: Array<{
     operator_profile_id: string;
     role_key: OperatorDocumentExecutionRole;
     slot_index: number;
     signing_person_id: string;
-    legal_entity_label: string;
   }> = [];
   const byRole = new Map<
     OperatorDocumentExecutionRole,
@@ -1163,7 +1153,6 @@ export function buildDocumentExecutionBindingRows(input: {
       role_key: binding.roleKey,
       slot_index: binding.slotIndex,
       signing_person_id: person.id,
-      legal_entity_label: binding.legalEntityLabel.trim() || fallbackLabel,
     });
   }
   const issues = documentExecutionBindingIssues({
@@ -1249,7 +1238,6 @@ export async function putDocumentExecutionBindings(
           : person.officer.designation,
       identityNumber: person.officer.identity_number,
     })),
-    defaultLegalEntityLabel: current.name?.trim() ?? "",
   });
   await prisma.$transaction(async (tx) => {
     await tx.operatorDocumentExecutionBinding.deleteMany({

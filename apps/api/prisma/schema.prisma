@@ -677,7 +677,6 @@ model OperatorDocumentExecutionBinding {
   role_key            OperatorDocumentExecutionRole
   slot_index          Int
   signing_person_id   String
-  legal_entity_label  String
   created_at          DateTime                       @default(now())
   updated_at          DateTime                       @updatedAt
   operator_profile    OperatorProfile                @relation(fields: [operator_profile_id], references: [id], onDelete: Cascade)

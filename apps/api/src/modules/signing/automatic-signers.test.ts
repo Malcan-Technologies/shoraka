@@ -51,7 +51,6 @@ function readyBinding(
   return {
     roleKey,
     slotIndex,
-    legalEntityLabel: "CashSouk Sdn Bhd",
     signingPersonId: extras?.signingPersonId ?? `sp-${roleKey}-${slotIndex}`,
     officerName: extras?.officerName ?? `${roleKey} ${slotIndex}`,
     designation: extras?.designation ?? "Chief Executive Officer",

@@ -612,23 +612,30 @@ export const confirmOperatorSigningSignatureSchema = z
 
 export const operatorSigningSignatureConfirmSchema = confirmOperatorSigningSignatureSchema;
 
-const operatorDocumentExecutionBindingSchema = z
-  .object({
-    roleKey: z.enum(OPERATOR_DOCUMENT_EXECUTION_ROLES),
-    slotIndex: z.number().int().min(1),
-    signingPersonId: z.string().cuid().nullable(),
-    legalEntityLabel: z.string().trim().max(255),
-  })
-  .strict()
-  .superRefine((value, ctx) => {
-    if (!isValidExecutionSlotIndex(value.roleKey, value.slotIndex)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["slotIndex"],
-        message: "Slot index is not valid for this execution role.",
-      });
-    }
-  });
+const operatorDocumentExecutionBindingSchema = z.preprocess(
+  (value) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+    const copy = { ...(value as Record<string, unknown>) };
+    delete copy.legalEntityLabel;
+    return copy;
+  },
+  z
+    .object({
+      roleKey: z.enum(OPERATOR_DOCUMENT_EXECUTION_ROLES),
+      slotIndex: z.number().int().min(1),
+      signingPersonId: z.string().cuid().nullable(),
+    })
+    .strict()
+    .superRefine((value, ctx) => {
+      if (!isValidExecutionSlotIndex(value.roleKey, value.slotIndex)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["slotIndex"],
+          message: "Slot index is not valid for this execution role.",
+        });
+      }
+    })
+);
 
 export const operatorDocumentExecutionBindingsPutSchema = z
   .object({

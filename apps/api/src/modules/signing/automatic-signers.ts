@@ -121,7 +121,6 @@ async function freezeBindingPerson(
     designation: binding.designation?.trim() || null,
     identityNumber: binding.identityNumber?.trim() || null,
     signingEmail,
-    legalEntityLabel: binding.legalEntityLabel.trim() || "CashSouk",
     signatureS3Key: binding.signatureS3Key!.trim(),
     signatureSha256: image.sha256,
     signatureWidthPx: image.widthPx,

@@ -24,7 +24,6 @@ function person(
     designation: extras?.designation ?? "Chief Executive Officer",
     identityNumber: extras?.identityNumber ?? "850101015555",
     signingEmail: extras?.signingEmail ?? `${roleKey}@cashsouk.com`,
-    legalEntityLabel: "CashSouk Sdn Bhd",
     signatureS3Key: "operator-profile/signing-signatures/a.png",
     signatureSha256: "aa".repeat(32),
     signatureWidthPx: 80,

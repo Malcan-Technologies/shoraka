@@ -153,14 +153,13 @@ describe("Shoraka document execution binding schema", () => {
     roleKey: slot.roleKey,
     slotIndex: slot.slotIndex,
     signingPersonId: null,
-    legalEntityLabel: "",
   }));
 
   it("accepts a replace-all payload covering every representative and witness slot", () => {
     const parsed = operatorDocumentExecutionBindingsPutSchema.parse({
       bindings: emptyBindings.map((binding) =>
         binding.roleKey === "FA_INVESTOR" && binding.slotIndex === 1
-          ? { ...binding, signingPersonId: OFFICER_ID, legalEntityLabel: "CashSouk Sdn Bhd" }
+          ? { ...binding, signingPersonId: OFFICER_ID }
           : binding
       ),
     });
@@ -169,6 +168,27 @@ describe("Shoraka document execution binding schema", () => {
       parsed.bindings.find((binding) => binding.roleKey === "FA_INVESTOR" && binding.slotIndex === 1)
         ?.signingPersonId
     ).toBe(OFFICER_ID);
+  });
+
+  it("ignores a legacy legalEntityLabel on an otherwise valid binding", () => {
+    const parsed = operatorDocumentExecutionBindingsPutSchema.parse({
+      bindings: emptyBindings.map((binding) =>
+        binding.roleKey === "FA_INVESTOR" && binding.slotIndex === 1
+          ? {
+              ...binding,
+              signingPersonId: OFFICER_ID,
+              legalEntityLabel: "CashSouk Sdn Bhd",
+            }
+          : binding
+      ),
+    });
+    expect(
+      parsed.bindings.find((binding) => binding.roleKey === "FA_INVESTOR" && binding.slotIndex === 1)
+    ).toEqual({
+      roleKey: "FA_INVESTOR",
+      slotIndex: 1,
+      signingPersonId: OFFICER_ID,
+    });
   });
 
   it("rejects a partial or duplicate binding list", () => {

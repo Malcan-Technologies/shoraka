@@ -75,16 +75,13 @@ const INACTIVE = {
   identityNumber: "890505055555",
 };
 
-function emptyBindings(
-  overrides: Record<string, { signingPersonId: string | null; legalEntityLabel: string }> = {}
-) {
+function emptyBindings(overrides: Record<string, { signingPersonId: string | null }> = {}) {
   return allDocumentExecutionSlots().map((slot) => {
     const key = `${slot.roleKey}:${slot.slotIndex}`;
     return {
       roleKey: slot.roleKey,
       slotIndex: slot.slotIndex,
       signingPersonId: overrides[key]?.signingPersonId ?? null,
-      legalEntityLabel: overrides[key]?.legalEntityLabel ?? "",
     };
   });
 }
@@ -134,8 +131,8 @@ describe("buildDocumentExecutionBindingRows", () => {
       operatorProfileId: "op_1",
       people,
       bindings: emptyBindings({
-        "FA_INVESTOR:1": { signingPersonId: SIGNATORY_A.id, legalEntityLabel: " CashSouk Sdn Bhd " },
-        "FA_INVESTOR:2": { signingPersonId: SIGNATORY_B.id, legalEntityLabel: "CashSouk Sdn Bhd" },
+        "FA_INVESTOR:1": { signingPersonId: SIGNATORY_A.id },
+        "FA_INVESTOR:2": { signingPersonId: SIGNATORY_B.id },
       }),
     });
     expect(rows).toEqual([
@@ -144,14 +141,12 @@ describe("buildDocumentExecutionBindingRows", () => {
         role_key: "FA_INVESTOR",
         slot_index: 1,
         signing_person_id: SIGNATORY_A.id,
-        legal_entity_label: "CashSouk Sdn Bhd",
       },
       {
         operator_profile_id: "op_1",
         role_key: "FA_INVESTOR",
         slot_index: 2,
         signing_person_id: SIGNATORY_B.id,
-        legal_entity_label: "CashSouk Sdn Bhd",
       },
     ]);
   });
@@ -163,7 +158,7 @@ describe("buildDocumentExecutionBindingRows", () => {
           operatorProfileId: "op_1",
           people,
           bindings: emptyBindings({
-            "FA_INVESTOR:1": { signingPersonId: SIGNATORY_A.id, legalEntityLabel: "CashSouk" },
+            "FA_INVESTOR:1": { signingPersonId: SIGNATORY_A.id },
           }),
         }),
       "SIGNING_AUTOMATIC_ROLE_UNBOUND",
@@ -178,8 +173,8 @@ describe("buildDocumentExecutionBindingRows", () => {
           operatorProfileId: "op_1",
           people,
           bindings: emptyBindings({
-            "FA_INVESTOR:1": { signingPersonId: SIGNATORY_A.id, legalEntityLabel: "CashSouk" },
-            "FA_INVESTOR:2": { signingPersonId: SIGNATORY_A.id, legalEntityLabel: "CashSouk" },
+            "FA_INVESTOR:1": { signingPersonId: SIGNATORY_A.id },
+            "FA_INVESTOR:2": { signingPersonId: SIGNATORY_A.id },
           }),
         }),
       "DOCUMENT_EXECUTION_DUPLICATE_SIGNER",
@@ -200,8 +195,8 @@ describe("buildDocumentExecutionBindingRows", () => {
             INACTIVE,
           ],
           bindings: emptyBindings({
-            "FA_INVESTOR:1": { signingPersonId: SIGNATORY_A.id, legalEntityLabel: "CashSouk" },
-            "FA_INVESTOR:2": { signingPersonId: SIGNATORY_B.id, legalEntityLabel: "CashSouk" },
+            "FA_INVESTOR:1": { signingPersonId: SIGNATORY_A.id },
+            "FA_INVESTOR:2": { signingPersonId: SIGNATORY_B.id },
           }),
         }),
       "DOCUMENT_EXECUTION_EMAIL_COLLISION",
@@ -214,15 +209,15 @@ describe("buildDocumentExecutionBindingRows", () => {
       operatorProfileId: "op_1",
       people,
       bindings: emptyBindings({
-        "FA_INVESTOR:1": { signingPersonId: SIGNATORY_A.id, legalEntityLabel: "CashSouk" },
-        "FA_INVESTOR:2": { signingPersonId: SIGNATORY_B.id, legalEntityLabel: "CashSouk" },
-        "FA_AGENT:1": { signingPersonId: SIGNATORY_A.id, legalEntityLabel: "CashSouk" },
-        "FA_AGENT:2": { signingPersonId: SIGNATORY_B.id, legalEntityLabel: "CashSouk" },
-        "JSG_OPERATOR:1": { signingPersonId: SIGNATORY_A.id, legalEntityLabel: "CashSouk" },
-        "JSG_OPERATOR:2": { signingPersonId: SIGNATORY_B.id, legalEntityLabel: "CashSouk" },
-        "DOA_SSP:1": { signingPersonId: SIGNATORY_A.id, legalEntityLabel: "CashSouk" },
-        "DOA_SSP:2": { signingPersonId: SIGNATORY_B.id, legalEntityLabel: "CashSouk" },
-        "FA_ISSUER_WITNESS:1": { signingPersonId: WITNESS_ONLY.id, legalEntityLabel: "CashSouk" },
+        "FA_INVESTOR:1": { signingPersonId: SIGNATORY_A.id },
+        "FA_INVESTOR:2": { signingPersonId: SIGNATORY_B.id },
+        "FA_AGENT:1": { signingPersonId: SIGNATORY_A.id },
+        "FA_AGENT:2": { signingPersonId: SIGNATORY_B.id },
+        "JSG_OPERATOR:1": { signingPersonId: SIGNATORY_A.id },
+        "JSG_OPERATOR:2": { signingPersonId: SIGNATORY_B.id },
+        "DOA_SSP:1": { signingPersonId: SIGNATORY_A.id },
+        "DOA_SSP:2": { signingPersonId: SIGNATORY_B.id },
+        "FA_ISSUER_WITNESS:1": { signingPersonId: WITNESS_ONLY.id },
       }),
     });
     expect(rows).toHaveLength(9);
@@ -236,8 +231,8 @@ describe("buildDocumentExecutionBindingRows", () => {
           operatorProfileId: "op_1",
           people,
           bindings: emptyBindings({
-            "DOA_SSP:1": { signingPersonId: WITNESS_ONLY.id, legalEntityLabel: "CashSouk" },
-            "DOA_SSP:2": { signingPersonId: SIGNATORY_A.id, legalEntityLabel: "CashSouk" },
+            "DOA_SSP:1": { signingPersonId: WITNESS_ONLY.id },
+            "DOA_SSP:2": { signingPersonId: SIGNATORY_A.id },
           }),
         }),
       "VALIDATION_ERROR",
@@ -252,8 +247,8 @@ describe("buildDocumentExecutionBindingRows", () => {
           operatorProfileId: "op_1",
           people,
           bindings: emptyBindings({
-            "DOA_SSP:1": { signingPersonId: INACTIVE.id, legalEntityLabel: "CashSouk" },
-            "DOA_SSP:2": { signingPersonId: SIGNATORY_A.id, legalEntityLabel: "CashSouk" },
+            "DOA_SSP:1": { signingPersonId: INACTIVE.id },
+            "DOA_SSP:2": { signingPersonId: SIGNATORY_A.id },
           }),
         }),
       "VALIDATION_ERROR",
@@ -268,29 +263,13 @@ describe("buildDocumentExecutionBindingRows", () => {
           operatorProfileId: "op_1",
           people,
           bindings: emptyBindings({
-            "JSG_OPERATOR:1": { signingPersonId: UNSIGNED.id, legalEntityLabel: "CashSouk" },
-            "JSG_OPERATOR:2": { signingPersonId: SIGNATORY_A.id, legalEntityLabel: "CashSouk" },
+            "JSG_OPERATOR:1": { signingPersonId: UNSIGNED.id },
+            "JSG_OPERATOR:2": { signingPersonId: SIGNATORY_A.id },
           }),
         }),
       "SIGNING_AUTOMATIC_SIGNER_NOT_READY",
       "confirmed signature"
     );
-  });
-
-  it("defaults an empty legal entity label to the operator name", () => {
-    const rows = buildDocumentExecutionBindingRows({
-      operatorProfileId: "op_1",
-      people,
-      defaultLegalEntityLabel: "CashSouk Sdn Bhd",
-      bindings: emptyBindings({
-        "FA_INVESTOR:1": { signingPersonId: SIGNATORY_A.id, legalEntityLabel: "  " },
-        "FA_INVESTOR:2": { signingPersonId: SIGNATORY_B.id, legalEntityLabel: "  " },
-      }),
-    });
-    expect(rows.map((row) => row.legal_entity_label)).toEqual([
-      "CashSouk Sdn Bhd",
-      "CashSouk Sdn Bhd",
-    ]);
   });
 });
 

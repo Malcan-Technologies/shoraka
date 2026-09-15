@@ -71,12 +71,23 @@ describe("Shoraka Profile Signing & Authorisation", () => {
   it("assigns authorised representatives and witnesses independently", () => {
     expect(section).toContain("Document execution assignments");
     expect(section).toContain("putOperatorDocumentExecutionBindings");
-    expect(section).toContain("OPERATOR_DOCUMENT_REPRESENTATIVE_ROLES");
-    expect(section).toContain("OPERATOR_DOCUMENT_WITNESS_ROLES");
+    expect(section).toContain("OPERATOR_DOCUMENT_KINDS");
+    expect(section).toContain("OPERATOR_DOCUMENT_KIND_PLACEMENTS");
+    expect(section).toContain('data-signing-layout="stack"');
+    expect(section.indexOf("Signing People")).toBeLessThan(section.indexOf("Company Stamp"));
+    expect(section.indexOf("Company Stamp")).toBeLessThan(
+      section.indexOf("Document execution assignments")
+    );
+    expect(section).toContain("sm:grid-cols-2");
+    expect(section).toContain("${role} representative ${slotIndex}");
+    expect(section).toContain('role.replace(/ witness$/i, " Witness")');
+    expect(section).not.toContain("{executionRoleShortLabel(roleKey)}");
     expect(section).toContain("canBindToWitness");
     expect(section).toContain("canBindToDocumentExecution");
     expect(section).toContain("documentExecutionBindingIssues");
     expect(section).toContain("operatorOfficerDesignationLabel");
+    expect(section).not.toContain("Legal entity label");
+    expect(section).not.toContain("legalEntityLabel");
     expect(section).not.toContain("covers Investor 1 and Agent 1");
     expect(section).not.toContain("FA_SHARED_INVESTOR_AGENT_SIGNERS_ENABLED");
   });

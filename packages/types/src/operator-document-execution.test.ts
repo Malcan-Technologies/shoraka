@@ -80,7 +80,7 @@ describe("operator document execution roles", () => {
       { roleKey: "DOA_ASSIGNOR_WITNESS", slotIndex: 1 },
     ]);
     expect(
-      emptyDocumentExecutionSlots("CashSouk").map((row) => [row.roleKey, row.slotIndex])
+      emptyDocumentExecutionSlots().map((row) => [row.roleKey, row.slotIndex])
     ).toEqual([
       ["FA_INVESTOR", 1],
       ["FA_INVESTOR", 2],
@@ -207,7 +207,7 @@ describe("operator document execution roles", () => {
     expect(isOperatorDocumentExecutionRole("AUTHORISED_SIGNATORY")).toBe(false);
     expect(isOperatorDocumentWitnessRole("FA_ISSUER_WITNESS")).toBe(true);
     expect(
-      emptyDocumentExecutionSlots("CashSouk Sdn Bhd").every((row) => row.signingPersonId === null)
+      emptyDocumentExecutionSlots().every((row) => row.signingPersonId === null)
     ).toBe(true);
   });
 
@@ -463,5 +463,19 @@ describe("operator document execution roles", () => {
         ],
       })?.signerIndex
     ).toBe(2);
+    expect(
+      parseFrozenAutomaticSignerSnapshot({
+        documentKind: "FA",
+        signingPersonId: "sp-1",
+        officerName: "Aisha Rahman",
+        signingEmail: "aisha@cashsouk.com",
+        signatureS3Key: "operator-profile/signing-signatures/a.png",
+        signatureSha256: "abc123",
+        signatureWidthPx: 80,
+        signatureHeightPx: 40,
+        signatureByteSize: 1200,
+        placements: snapshot.placements,
+      })?.signingPersonId
+    ).toBe("sp-1");
   });
 });

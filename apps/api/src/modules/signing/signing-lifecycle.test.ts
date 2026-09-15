@@ -278,7 +278,6 @@ function readyExecutionBinding(
   return {
     roleKey,
     slotIndex,
-    legalEntityLabel: "CashSouk Sdn Bhd",
     signingPersonId,
     officerName: signingPersonId,
     designation: "Chief Executive Officer",

@@ -6,8 +6,9 @@ import { PencilSquareIcon, PlusIcon } from "@heroicons/react/24/outline";
 import type { ApiClient } from "@cashsouk/config";
 import {
   OPERATOR_DOCUMENT_EXECUTION_ROLE_LABELS,
-  OPERATOR_DOCUMENT_REPRESENTATIVE_ROLES,
-  OPERATOR_DOCUMENT_WITNESS_ROLES,
+  OPERATOR_DOCUMENT_KIND_LABELS,
+  OPERATOR_DOCUMENT_KIND_PLACEMENTS,
+  OPERATOR_DOCUMENT_KINDS,
   OPERATOR_SIGNING_ROLE_LABELS,
   OPERATOR_SIGNING_ROLES,
   SC_ANNUAL_PERSON_KIND_LABELS,
@@ -16,6 +17,7 @@ import {
   companyStampDeclaredFileRejection,
   documentExecutionBindingIssues,
   documentExecutionSlotLabel,
+  documentKindForExecutionRole,
   executionRoleSigningRole,
   isOperatorDocumentRepresentativeRole,
   operatorOfficerDesignationLabel,
@@ -28,7 +30,7 @@ import {
   type OperatorSigningPersonDto,
   type OperatorSigningRole,
 } from "@cashsouk/types";
-import { Checkbox, ComRepFieldLabel, EmptyState } from "@cashsouk/ui";
+import { Checkbox, ComRepFieldLabel, EmptyState, StatusBadge } from "@cashsouk/ui";
 import { AdminDetailCardHeader } from "@/components/admin-detail";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -48,6 +50,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useS3ViewUrl } from "@/hooks/use-s3";
+import { cn } from "@/lib/utils";
 import { uploadFileToS3 } from "@/lib/upload-file-to-s3";
 
 const UNASSIGNED_PERSON = "unassigned";
@@ -60,12 +63,6 @@ function personKindLabel(person: Pick<OperatorSigningPersonDto, "personKind" | "
         ? SC_DESIGNATION_LABELS[person.designation]
         : null;
   return designation || SC_ANNUAL_PERSON_KIND_LABELS[person.personKind];
-}
-
-function providerReadyStatus(row: OperatorSigningPersonDto): string {
-  return row.signatureProviderReady
-    ? "Ready for automatic signing"
-    : "Needs email and confirmed signature";
 }
 
 function canBindToDocumentExecution(person: OperatorSigningPersonDto): boolean {
@@ -85,17 +82,60 @@ function personReadyForSlot(
     : person.signatureProviderReady;
 }
 
-function StampPreview({ s3Key, alt }: { s3Key: string | null; alt: string }) {
-  const { data: url } = useS3ViewUrl(s3Key);
+function executionRoleShortLabel(roleKey: OperatorDocumentExecutionRole): string {
+  const full = OPERATOR_DOCUMENT_EXECUTION_ROLE_LABELS[roleKey];
+  const prefix = `${OPERATOR_DOCUMENT_KIND_LABELS[documentKindForExecutionRole(roleKey)]} — `;
+  if (!full.startsWith(prefix)) return full;
+  const rest = full.slice(prefix.length);
+  return rest.charAt(0).toUpperCase() + rest.slice(1);
+}
+
+function executionSlotLocalLabel(roleKey: OperatorDocumentExecutionRole, slotIndex: number): string {
+  const role = executionRoleShortLabel(roleKey);
+  if (isOperatorDocumentRepresentativeRole(roleKey)) {
+    return `${role} representative ${slotIndex}`;
+  }
+  return role.replace(/ witness$/i, " Witness");
+}
+
+function StampPreview({
+  s3Key,
+  alt,
+  className,
+}: {
+  s3Key: string | null;
+  alt: string;
+  className?: string;
+}) {
+  const { data: url, isError, isFetching } = useS3ViewUrl(s3Key);
+  const [broken, setBroken] = React.useState(false);
+
+  React.useEffect(() => {
+    setBroken(false);
+  }, [s3Key, url]);
+
   if (!s3Key) {
     return <p className="text-ui text-muted-foreground">No image uploaded.</p>;
   }
-  if (!url) {
+  if (isError || broken) {
+    return <p className="text-ui text-muted-foreground">Preview unavailable.</p>;
+  }
+  if (!url || isFetching) {
     return <p className="text-ui text-muted-foreground">Loading preview…</p>;
   }
   return (
-    <div className="flex h-24 w-40 items-center justify-center overflow-hidden rounded-md border bg-background p-2">
-      <img src={url} alt={alt} className="max-h-full max-w-full object-contain" />
+    <div
+      className={cn(
+        "flex h-16 w-28 items-center justify-center overflow-hidden rounded-md border bg-background p-2",
+        className
+      )}
+    >
+      <img
+        src={url}
+        alt={alt}
+        className="max-h-full max-w-full object-contain"
+        onError={() => setBroken(true)}
+      />
     </div>
   );
 }
@@ -285,122 +325,144 @@ export function ShorakaSigningAuthorisationSection({
         title="Signing & Authorisation"
         description="Shoraka company stamp and people who may later sign or witness documents. This does not change current document output."
       />
-      <CardContent className="space-y-8">
-        <section className="space-y-3">
-          <h3 className="text-card-title">Company Stamp</h3>
-          <p className="text-meta text-muted-foreground">
-            Upload a PNG or JPG company stamp image (maximum 5 MB). Replacing this keeps the
-            previously stored file and updates the Shoraka stamp used by Admin.
-          </p>
-          <input
-            ref={stampInputRef}
-            type="file"
-            accept={COMPANY_STAMP_FILE_ACCEPT}
-            className="hidden"
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              if (file) void uploadStamp(file);
-            }}
-          />
-          <div className="rounded-xl border p-4">
-            <StampPreview
-              s3Key={profile.companyStamp?.s3Key ?? null}
-              alt="Shoraka company stamp preview"
-            />
-            <div className="mt-3 flex flex-wrap items-center gap-2">
+      <CardContent>
+        <div className="space-y-8" data-signing-layout="stack">
+          <section className="space-y-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <h3 className="text-card-title">Signing People</h3>
               {canManage ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={uploading}
-                  onClick={() => stampInputRef.current?.click()}
-                >
-                  {uploading
-                    ? "Uploading..."
-                    : profile.companyStamp?.s3Key
-                      ? "Replace"
-                      : "Upload"}
+                <Button type="button" className="h-10 gap-1.5" onClick={openAdd}>
+                  <PlusIcon className="h-4 w-4" />
+                  Add signing person
                 </Button>
               ) : null}
-              {profile.companyStamp?.fileName ? (
-                <span className="text-meta text-muted-foreground">{profile.companyStamp.fileName}</span>
-              ) : null}
             </div>
-          </div>
-        </section>
 
-        <section className="space-y-3">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <h3 className="text-card-title">Signing People</h3>
-            {canManage ? (
-              <Button type="button" className="h-10 gap-1.5" onClick={openAdd}>
-                <PlusIcon className="h-4 w-4" />
-                Add signing person
-              </Button>
-            ) : null}
-          </div>
-
-          {profile.signingPeople.length === 0 ? (
-            <EmptyState
-              title="No signing people yet"
-              message="Select an existing Board or Management person, then assign Authorised Signatory or Witness. Director and Board roles are not signing roles."
-              action={
-                canManage ? (
-                  <Button type="button" className="h-10 gap-1.5" onClick={openAdd}>
-                    <PlusIcon className="h-4 w-4" />
-                    Add signing person
-                  </Button>
-                ) : null
-              }
-            />
-          ) : (
-            <div className="space-y-3">
-              {profile.signingPeople.map((row) => (
-                <div key={row.id} className="rounded-xl border p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0 space-y-2">
-                      <p className="text-ui font-medium">{row.personName?.trim() || "Unnamed"}</p>
-                      <p className="text-meta text-muted-foreground">{personKindLabel(row)}</p>
-                      <div className="space-y-1">
-                        <p className="text-meta text-muted-foreground">Signing roles:</p>
+            {profile.signingPeople.length === 0 ? (
+              <EmptyState
+                title="No signing people yet"
+                message="Select an existing Board or Management person, then assign Authorised Signatory or Witness. Director and Board roles are not signing roles."
+                action={
+                  canManage ? (
+                    <Button type="button" className="h-10 gap-1.5" onClick={openAdd}>
+                      <PlusIcon className="h-4 w-4" />
+                      Add signing person
+                    </Button>
+                  ) : null
+                }
+              />
+            ) : (
+              <div className="space-y-3">
+                {profile.signingPeople.map((row) => (
+                  <div key={row.id} className="rounded-xl border p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1 space-y-2">
+                        <p className="text-ui font-medium">
+                          {row.personName?.trim() || "Unnamed"}
+                        </p>
+                        <p className="text-meta text-muted-foreground">{personKindLabel(row)}</p>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {row.roles.map((role) => (
+                            <StatusBadge
+                              key={role}
+                              status="neutral"
+                              label={OPERATOR_SIGNING_ROLE_LABELS[role]}
+                              showDot={false}
+                              size="sm"
+                            />
+                          ))}
+                          {row.active ? null : (
+                            <StatusBadge status="neutral" label="Inactive" size="sm" />
+                          )}
+                          <StatusBadge
+                            status={row.signatureProviderReady ? "success" : "action"}
+                            label={
+                              row.signatureProviderReady
+                                ? "Ready for automatic signing"
+                                : "Needs email and confirmed signature"
+                            }
+                            size="sm"
+                          />
+                        </div>
                         <p className="text-ui">
-                          {row.roles.map((role) => OPERATOR_SIGNING_ROLE_LABELS[role]).join(", ")}
+                          {row.signingEmail?.trim() || "SigningCloud email not set"}
                         </p>
                       </div>
-                      <div className="space-y-1">
-                        <p className="text-meta text-muted-foreground">SigningCloud email:</p>
-                        <p className="text-ui">{row.signingEmail?.trim() || "Not set"}</p>
-                      </div>
-                      <p className="text-meta text-muted-foreground">{providerReadyStatus(row)}</p>
-                      <div className="space-y-1">
-                        <p className="text-meta text-muted-foreground">Signature:</p>
+                      <div className="flex shrink-0 flex-col items-end gap-2">
+                        {canManage ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openEdit(row)}
+                          >
+                            Edit
+                          </Button>
+                        ) : null}
                         <StampPreview
                           s3Key={row.signature?.s3Key ?? null}
                           alt={`${row.personName ?? "Person"} signature preview`}
+                          className="h-14 w-24"
                         />
                       </div>
-                      {row.active ? null : (
-                        <p className="text-meta text-muted-foreground">Inactive</p>
-                      )}
                     </div>
-                    {canManage ? (
-                      <Button type="button" variant="outline" size="sm" onClick={() => openEdit(row)}>
-                        Edit
-                      </Button>
-                    ) : null}
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
+                ))}
+              </div>
+            )}
+          </section>
 
-        <DocumentExecutionAssignments
-          profile={profile}
-          canManage={canManage}
-          api={api}
-          onProfileChange={applyProfile}
-        />
+          <section className="space-y-3">
+            <h3 className="text-card-title">Company Stamp</h3>
+            <p className="text-meta text-muted-foreground">
+              Upload a PNG or JPG company stamp image (maximum 5 MB). Replacing this keeps the
+              previously stored file and updates the Shoraka stamp used by Admin.
+            </p>
+            <input
+              ref={stampInputRef}
+              type="file"
+              accept={COMPANY_STAMP_FILE_ACCEPT}
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void uploadStamp(file);
+              }}
+            />
+            <div className="flex flex-wrap items-center gap-4 rounded-xl border p-4">
+              <StampPreview
+                s3Key={profile.companyStamp?.s3Key ?? null}
+                alt="Shoraka company stamp preview"
+                className="h-20 w-32"
+              />
+              <div className="min-w-0 space-y-2">
+                {canManage ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={uploading}
+                    onClick={() => stampInputRef.current?.click()}
+                  >
+                    {uploading
+                      ? "Uploading..."
+                      : profile.companyStamp?.s3Key
+                        ? "Replace"
+                        : "Upload"}
+                  </Button>
+                ) : null}
+                <p className="text-meta text-muted-foreground">
+                  {profile.companyStamp?.fileName ?? "No file uploaded"}
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <DocumentExecutionAssignments
+            profile={profile}
+            canManage={canManage}
+            api={api}
+            onProfileChange={applyProfile}
+          />
+        </div>
       </CardContent>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -501,7 +563,11 @@ export function ShorakaSigningAuthorisationSection({
                   Signature will be confirmed after save.
                 </p>
               ) : editing ? (
-                <p className="text-meta text-muted-foreground">{providerReadyStatus(editing)}</p>
+                <p className="text-meta text-muted-foreground">
+                  {editing.signatureProviderReady
+                    ? "Ready for automatic signing"
+                    : "Needs email and confirmed signature"}
+                </p>
               ) : null}
             </div>
 
@@ -568,7 +634,6 @@ function DocumentExecutionAssignments({
     setSlots(profile.documentExecutionSlots);
   }, [profile.documentExecutionSlots]);
 
-  const defaultLegalEntity = profile.name?.trim() ?? "";
   const peopleById = new Map(profile.signingPeople.map((person) => [person.id, person]));
 
   const updateSlot = (
@@ -618,7 +683,6 @@ function DocumentExecutionAssignments({
             roleKey: ref.roleKey,
             slotIndex: ref.slotIndex,
             signingPersonId: row?.signingPersonId ?? null,
-            legalEntityLabel: (row?.legalEntityLabel ?? "").trim() || defaultLegalEntity,
           };
         }),
       });
@@ -655,29 +719,20 @@ function DocumentExecutionAssignments({
         </ul>
       ) : null}
       <div className="space-y-3">
-        <p className="text-ui font-medium">Authorised representatives</p>
-        {OPERATOR_DOCUMENT_REPRESENTATIVE_ROLES.map((roleKey) => (
-          <ExecutionRoleGroup
-            key={roleKey}
-            roleKey={roleKey}
-            slots={slots}
-            profile={profile}
-            canManage={canManage}
-            defaultLegalEntity={defaultLegalEntity}
-            onUpdate={updateSlot}
-          />
-        ))}
-        <p className="text-ui font-medium">Witnesses</p>
-        {OPERATOR_DOCUMENT_WITNESS_ROLES.map((roleKey) => (
-          <ExecutionRoleGroup
-            key={roleKey}
-            roleKey={roleKey}
-            slots={slots}
-            profile={profile}
-            canManage={canManage}
-            defaultLegalEntity={defaultLegalEntity}
-            onUpdate={updateSlot}
-          />
+        {OPERATOR_DOCUMENT_KINDS.map((kind) => (
+          <div key={kind} className="space-y-4 rounded-xl border p-4">
+            <p className="text-ui font-medium">{OPERATOR_DOCUMENT_KIND_LABELS[kind]}</p>
+            {OPERATOR_DOCUMENT_KIND_PLACEMENTS[kind].map((roleKey) => (
+              <ExecutionRoleGroup
+                key={roleKey}
+                roleKey={roleKey}
+                slots={slots}
+                profile={profile}
+                canManage={canManage}
+                onUpdate={updateSlot}
+              />
+            ))}
+          </div>
         ))}
       </div>
       {canManage ? (
@@ -694,14 +749,12 @@ function ExecutionRoleGroup({
   slots,
   profile,
   canManage,
-  defaultLegalEntity,
   onUpdate,
 }: {
   roleKey: OperatorDocumentExecutionRole;
   slots: OperatorDocumentExecutionSlotDto[];
   profile: OperatorProfileDto;
   canManage: boolean;
-  defaultLegalEntity: string;
   onUpdate: (
     roleKey: OperatorDocumentExecutionRole,
     slotIndex: number,
@@ -711,18 +764,17 @@ function ExecutionRoleGroup({
   const group = slots
     .filter((row) => row.roleKey === roleKey)
     .sort((left, right) => left.slotIndex - right.slotIndex);
+  const paired = isOperatorDocumentRepresentativeRole(roleKey);
   return (
-    <div className="space-y-3 rounded-xl border p-4">
-      <p className="text-ui font-medium">{OPERATOR_DOCUMENT_EXECUTION_ROLE_LABELS[roleKey]}</p>
+    <div className={paired ? "grid gap-3 sm:grid-cols-2" : undefined}>
       {group.map((slot) => (
         <ExecutionSlotFields
           key={`${slot.roleKey}:${slot.slotIndex}`}
           slot={slot}
           profile={profile}
           canManage={canManage}
-          defaultLegalEntity={defaultLegalEntity}
           siblingPersonId={
-            isOperatorDocumentRepresentativeRole(roleKey)
+            paired
               ? group.find((row) => row.slotIndex !== slot.slotIndex)?.signingPersonId ?? null
               : null
           }
@@ -737,14 +789,12 @@ function ExecutionSlotFields({
   slot,
   profile,
   canManage,
-  defaultLegalEntity,
   siblingPersonId,
   onUpdate,
 }: {
   slot: OperatorDocumentExecutionSlotDto;
   profile: OperatorProfileDto;
   canManage: boolean;
-  defaultLegalEntity: string;
   siblingPersonId: string | null;
   onUpdate: (
     roleKey: OperatorDocumentExecutionRole,
@@ -753,80 +803,58 @@ function ExecutionSlotFields({
   ) => void;
 }) {
   const personId = slot.signingPersonId ?? null;
-  const label = slot.legalEntityLabel || defaultLegalEntity;
   const personLabel =
     profile.signingPeople.find((person) => person.id === personId)?.personName?.trim() ||
     "Unassigned";
   const requiredRole = executionRoleSigningRole(slot.roleKey);
   const canBind = requiredRole === "WITNESS" ? canBindToWitness : canBindToDocumentExecution;
+  const localLabel = executionSlotLocalLabel(slot.roleKey, slot.slotIndex);
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {canManage ? (
         <>
-          <div className="space-y-2">
-            <ComRepFieldLabel label={documentExecutionSlotLabel(slot.roleKey, slot.slotIndex)} />
-            <Select
-              value={personId ?? UNASSIGNED_PERSON}
-              onValueChange={(value) =>
-                onUpdate(slot.roleKey, slot.slotIndex, {
-                  signingPersonId: value === UNASSIGNED_PERSON ? null : value,
-                  legalEntityLabel: (slot.legalEntityLabel ?? "").trim() || defaultLegalEntity,
-                })
-              }
-            >
-              <SelectTrigger
-                className="h-11 text-ui"
-                aria-label={`${documentExecutionSlotLabel(slot.roleKey, slot.slotIndex)} person`}
-              >
-                <SelectValue placeholder="Unassigned" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={UNASSIGNED_PERSON}>Unassigned</SelectItem>
-                {profile.signingPeople.map((person) => (
-                  <SelectItem
-                    key={person.id}
-                    value={person.id}
-                    disabled={
-                      !canBind(person) || (siblingPersonId === person.id && person.id !== personId)
-                    }
-                  >
-                    {person.personName?.trim() || "Unnamed"}
-                    {!person.active
-                      ? " (inactive)"
-                      : canBind(person)
-                        ? ""
-                        : requiredRole === "WITNESS"
-                          ? " (not a Witness)"
-                          : " (witness only)"}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <ComRepFieldLabel
-              label="Legal entity label"
-              help="Defaults to the Shoraka company name."
-            />
-            <Input
+          <ComRepFieldLabel label={localLabel} />
+          <Select
+            value={personId ?? UNASSIGNED_PERSON}
+            onValueChange={(value) =>
+              onUpdate(slot.roleKey, slot.slotIndex, {
+                signingPersonId: value === UNASSIGNED_PERSON ? null : value,
+              })
+            }
+          >
+            <SelectTrigger
               className="h-11 text-ui"
-              value={label}
-              onChange={(event) =>
-                onUpdate(slot.roleKey, slot.slotIndex, {
-                  legalEntityLabel: event.target.value,
-                })
-              }
-              aria-label={`${documentExecutionSlotLabel(slot.roleKey, slot.slotIndex)} legal entity`}
-            />
-          </div>
+              aria-label={`${documentExecutionSlotLabel(slot.roleKey, slot.slotIndex)} person`}
+            >
+              <SelectValue placeholder="Unassigned" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={UNASSIGNED_PERSON}>Unassigned</SelectItem>
+              {profile.signingPeople.map((person) => (
+                <SelectItem
+                  key={person.id}
+                  value={person.id}
+                  disabled={
+                    !canBind(person) || (siblingPersonId === person.id && person.id !== personId)
+                  }
+                >
+                  {person.personName?.trim() || "Unnamed"}
+                  {!person.active
+                    ? " (inactive)"
+                    : canBind(person)
+                      ? ""
+                      : requiredRole === "WITNESS"
+                        ? " (not a Witness)"
+                        : " (witness only)"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </>
       ) : (
         <div className="space-y-1">
-          <p className="text-meta text-muted-foreground">
-            {documentExecutionSlotLabel(slot.roleKey, slot.slotIndex)}
-          </p>
+          <p className="text-meta text-muted-foreground">{localLabel}</p>
           <p className="text-ui">{personLabel}</p>
-          <p className="text-meta text-muted-foreground">{label || "No legal entity label"}</p>
         </div>
       )}
     </div>

@@ -13,7 +13,6 @@ import { parseDocumentAuthorisationConfig } from "../notes/document-authorisatio
 export type OperatorExecutionBindingRecord = {
   roleKey: OperatorDocumentExecutionRole;
   slotIndex: number;
-  legalEntityLabel: string;
   signingPersonId: string;
   officerName: string | null;
   designation: string | null;
@@ -634,7 +633,6 @@ export class SigningRepository {
     return profile.document_execution_bindings.map((row) => ({
       roleKey: row.role_key,
       slotIndex: row.slot_index,
-      legalEntityLabel: row.legal_entity_label,
       signingPersonId: row.signing_person_id,
       officerName: row.signing_person.officer.name,
       designation: operatorOfficerDesignationLabel({

@@ -580,7 +580,6 @@ export type OperatorDocumentExecutionSlotDto = {
   roleKey: OperatorDocumentExecutionRole;
   slotIndex: number;
   label: string;
-  legalEntityLabel: string;
   signingPersonId: string | null;
 };
 
@@ -588,7 +587,6 @@ export type OperatorDocumentExecutionBindingInput = {
   roleKey: OperatorDocumentExecutionRole;
   slotIndex: number;
   signingPersonId: string | null;
-  legalEntityLabel: string;
 };
 
 /** @deprecated Prefer OperatorDocumentExecutionSlotDto. */
@@ -621,7 +619,6 @@ export type FrozenAutomaticSignerSnapshot = {
   designation: string | null;
   identityNumber: string | null;
   signingEmail: string;
-  legalEntityLabel: string;
   signatureS3Key: string;
   signatureSha256: string;
   signatureWidthPx: number;
@@ -667,23 +664,18 @@ export type DocumentExecutionBindingIssue = {
   documentKind: OperatorDocumentKind;
 };
 
-export function emptyDocumentExecutionSlots(
-  defaultLegalEntityLabel = ""
-): OperatorDocumentExecutionSlotDto[] {
+export function emptyDocumentExecutionSlots(): OperatorDocumentExecutionSlotDto[] {
   return allDocumentExecutionSlots().map((slot) => ({
     roleKey: slot.roleKey,
     slotIndex: slot.slotIndex,
     label: documentExecutionSlotLabel(slot.roleKey, slot.slotIndex),
-    legalEntityLabel: defaultLegalEntityLabel,
     signingPersonId: null,
   }));
 }
 
 /** @deprecated Prefer emptyDocumentExecutionSlots. */
-export function emptyDocumentSigners(
-  defaultLegalEntityLabel = ""
-): OperatorDocumentSignerDto[] {
-  return emptyDocumentExecutionSlots(defaultLegalEntityLabel).map((slot) => ({
+export function emptyDocumentSigners(): OperatorDocumentSignerDto[] {
+  return emptyDocumentExecutionSlots().map((slot) => ({
     ...slot,
     documentKind: documentKindForExecutionRole(slot.roleKey),
     signerIndex: slot.slotIndex,
@@ -1062,7 +1054,6 @@ export function parseFrozenAutomaticSignerSnapshot(
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;
   const signerIndex = asPositiveInt(row.signerIndex) ?? asPositiveInt(row.slotIndex);
-  const legalEntityLabel = asNonEmptyString(row.legalEntityLabel);
   const signingPersonId = asNonEmptyString(row.signingPersonId);
   const officerName = asNonEmptyString(row.officerName);
   const signingEmail = normalizeSigningEmail(asNonEmptyString(row.signingEmail) ?? "");
@@ -1072,7 +1063,6 @@ export function parseFrozenAutomaticSignerSnapshot(
   const signatureHeightPx = asPositiveInt(row.signatureHeightPx);
   const signatureByteSize = asPositiveInt(row.signatureByteSize);
   if (
-    !legalEntityLabel ||
     !signingPersonId ||
     !officerName ||
     !signingEmail ||
@@ -1125,7 +1115,6 @@ export function parseFrozenAutomaticSignerSnapshot(
     designation: asNonEmptyString(row.designation),
     identityNumber: asNonEmptyString(row.identityNumber),
     signingEmail,
-    legalEntityLabel,
     signatureS3Key,
     signatureSha256,
     signatureWidthPx,
