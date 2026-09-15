@@ -9,6 +9,7 @@ import {
   formatNoteReferenceDisplay,
   investorActivityTitle,
   investorActivityTypeLabel,
+  filterVisiblePeopleRows,
   type InvestorBalanceActivityEntry,
   type NoteListItem,
 } from "@cashsouk/types";
@@ -17,6 +18,8 @@ import {
   PageShell,
   portalPageGutterClassName,
   useHeader,
+  DirectorShareholderAlertCard,
+  INVESTOR_DIRECTOR_SHAREHOLDER_ALERT_COPY,
 } from "@cashsouk/ui";
 import { InvestorProfileCompletenessBanner } from "@/components/profile-completeness-banner";
 import { Button } from "@/components/ui/button";
@@ -98,6 +101,10 @@ export default function InvestmentDetailPage() {
   const orgId = activeOrganization?.id;
   const onboarded =
     activeOrganization?.onboardingStatus === "COMPLETED" && activeOrganization?.depositReceived === true;
+  const visiblePeopleForDsAlert = React.useMemo(
+    () => filterVisiblePeopleRows(activeOrganization?.people ?? []),
+    [activeOrganization?.people]
+  );
   const investmentsQuery = useInvestorInvestments(orgId);
   const openInvestmentProspectus = useOpenInvestmentProspectus();
   const openMarketplaceProspectus = useOpenMarketplaceProspectus();
@@ -175,6 +182,13 @@ export default function InvestmentDetailPage() {
     return (
       <div className={cn(portalPageGutterClassName, "space-y-6")}>
         <PageShell title="Investment" breadcrumb={<Link href="/investments">{backLabel}</Link>}>
+          {activeOrganization?.type === "COMPANY" ? (
+            <DirectorShareholderAlertCard
+              visiblePeople={visiblePeopleForDsAlert}
+              enabled={activeOrganization?.onboardingStatus === "COMPLETED"}
+              copy={INVESTOR_DIRECTOR_SHAREHOLDER_ALERT_COPY}
+            />
+          ) : null}
           <InvestorProfileCompletenessBanner organizationId={orgId} onboarded={onboarded} />
           <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-6 text-ui text-destructive">
             {message}
@@ -246,6 +260,13 @@ export default function InvestmentDetailPage() {
           ) : null
         }
       >
+        {activeOrganization?.type === "COMPANY" ? (
+          <DirectorShareholderAlertCard
+            visiblePeople={visiblePeopleForDsAlert}
+            enabled={activeOrganization?.onboardingStatus === "COMPLETED"}
+            copy={INVESTOR_DIRECTOR_SHAREHOLDER_ALERT_COPY}
+          />
+        ) : null}
         <InvestorProfileCompletenessBanner organizationId={orgId} onboarded={onboarded} />
         {positionLoading ? (
           <LoadingState variant="cards" rows={2} />

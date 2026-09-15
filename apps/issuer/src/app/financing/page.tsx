@@ -13,6 +13,7 @@ import {
   type FilterChip,
 } from "@cashsouk/ui";
 import type { Product } from "@cashsouk/types";
+import { filterVisiblePeopleRows } from "@cashsouk/types";
 import {
   buildProductDisplayMap,
   resolveIssuerProductDisplay,
@@ -46,6 +47,7 @@ import { InvoiceAttentionCard } from "@/components/financing/invoice-attention-c
 import { NoteAttentionCard } from "@/components/financing/note-attention-card";
 import { FinancingAttentionList, FinancingListSection } from "@/components/financing/needs-attention-section";
 import { IssuerProfileCompletenessBanner } from "@/components/profile-completeness-banner";
+import { DirectorShareholderAlertCard } from "@/components/director-shareholder-alert-card";
 import {
   buildFinancingInvoiceRows,
   financingInvoiceRowMatchesFilters,
@@ -210,6 +212,10 @@ function IssuerFinancingPageContent() {
   const { activeOrganization } = useOrganization();
   const organizationId = activeOrganization?.id;
   const onboarded = activeOrganization?.onboardingStatus === "COMPLETED";
+  const visiblePeopleForDsGating = React.useMemo(
+    () => filterVisiblePeopleRows(activeOrganization?.people ?? []),
+    [activeOrganization?.people]
+  );
   const initialTab: FinancingTab = tabFromSearchParam(searchParams.get("tab"));
   const initialSearch = searchParams.get("search") ?? "";
   const [tab, setTab] = React.useState<FinancingTab>(initialTab);
@@ -509,6 +515,14 @@ function IssuerFinancingPageContent() {
             <ApplyForFinancingButton className="h-11 shrink-0 gap-2 rounded-xl bg-primary font-semibold text-primary-foreground shadow-brand hover:opacity-95" />
           }
         >
+          {activeOrganization?.type === "COMPANY" ? (
+            <DirectorShareholderAlertCard
+              visiblePeople={visiblePeopleForDsGating}
+              enabled={activeOrganization.onboardingStatus === "COMPLETED"}
+              stickyTop
+              className="mb-4"
+            />
+          ) : null}
           <IssuerProfileCompletenessBanner organizationId={organizationId} onboarded={onboarded} />
           {children}
         </PageShell>

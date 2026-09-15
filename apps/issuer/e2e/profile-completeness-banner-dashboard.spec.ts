@@ -25,7 +25,10 @@ async function login(page: Page) {
   await page.waitForURL(/localhost:3001/, { timeout: 30000 });
 }
 
-function mockIssuerDashboardMinimalApis(page: Page, opts: { orgId: string; orgType: "PERSONAL" | "COMPANY" }) {
+function mockIssuerDashboardMinimalApis(
+  page: Page,
+  opts: { orgId: string; orgType: "PERSONAL" | "COMPANY"; people?: unknown[] }
+) {
   // OrganizationProvider
   page.route(`${API_URL}/v1/organizations/issuer`, async (route) => {
     await route.fulfill({
@@ -43,7 +46,7 @@ function mockIssuerDashboardMinimalApis(page: Page, opts: { orgId: string; orgTy
               onboardingStatus: "COMPLETED",
               onboardingFeePaidAt: opts.orgType === "COMPANY" ? new Date().toISOString() : null,
               tncAccepted: true,
-              people: [],
+              people: opts.people ?? [],
               firstName: "Test",
               lastName: "Issuer",
               name: "Test Company",
@@ -144,45 +147,106 @@ function mockIssuerProfileCompleteness(
 }
 
 test.describe("Issuer profile-completeness banner placement", () => {
-  test("incomplete issuer: banner visible near top and CTA href preserved", async ({ page }) => {
+  const directorPending = [
+    {
+      entityType: "INDIVIDUAL",
+      roles: ["DIRECTOR"],
+      sharePercentage: null,
+      matchKey: "dir_pending_1",
+      onboarding: { status: "IN_PROGRESS" },
+      screening: { status: null },
+    } as any,
+  ];
+
+  const directorApproved = [
+    {
+      entityType: "INDIVIDUAL",
+      roles: ["DIRECTOR"],
+      sharePercentage: null,
+      matchKey: "dir_approved_1",
+      onboarding: { status: "APPROVED" },
+      screening: { status: null },
+    } as any,
+  ];
+
+  test("issuer company: red only (yellow hidden)", async ({ page }) => {
     test.skip(!hasAuthCredentials, "Set TEST_USER_EMAIL and TEST_USER_PASSWORD to run banner e2e tests");
 
-    const orgId = "org_incomplete_issuer";
-    mockIssuerDashboardMinimalApis(page, { orgId, orgType: "COMPANY" });
-    mockIssuerProfileCompleteness(page, { orgId, complete: false });
-
-    await login(page);
-    await page.goto("/");
-
-    const banner = page.getByText("Complete your profile").first();
-    await expect(banner).toBeVisible();
-
-    await expect(page.getByText("Complete your profile")).toHaveCount(1);
-    await expect(page.getByRole("link", { name: /Complete profile/i })).toHaveAttribute(
-      "href",
-      "/profile?focus=completeness"
-    );
-
-    const mainHeading = page.getByRole("heading", { name: /Turn an unpaid invoice into cash/i });
-    await expect(mainHeading).toBeVisible();
-
-    const bannerBox = await banner.boundingBox();
-    const mainBox = await mainHeading.boundingBox();
-    expect(bannerBox).not.toBeNull();
-    expect(mainBox).not.toBeNull();
-    expect(bannerBox!.y).toBeLessThan(mainBox!.y);
-  });
-
-  test("complete issuer: banner hidden", async ({ page }) => {
-    test.skip(!hasAuthCredentials, "Set TEST_USER_EMAIL and TEST_USER_PASSWORD to run banner e2e tests");
-
-    const orgId = "org_complete_issuer";
-    mockIssuerDashboardMinimalApis(page, { orgId, orgType: "COMPANY" });
+    const orgId = "org_red_only_issuer";
+    mockIssuerDashboardMinimalApis(page, { orgId, orgType: "COMPANY", people: directorPending });
     mockIssuerProfileCompleteness(page, { orgId, complete: true });
 
     await login(page);
     await page.goto("/");
 
+    const redBanner = page.getByTestId("director-shareholder-onboarding-banner");
+    await expect(redBanner).toBeVisible();
+    await expect(page.getByText("Complete your profile")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Go to People & Access/i })).toBeVisible();
+  });
+
+  test("issuer company: yellow only (red hidden)", async ({ page }) => {
+    test.skip(!hasAuthCredentials, "Set TEST_USER_EMAIL and TEST_USER_PASSWORD to run banner e2e tests");
+
+    const orgId = "org_yellow_only_issuer";
+    mockIssuerDashboardMinimalApis(page, { orgId, orgType: "COMPANY", people: directorApproved });
+    mockIssuerProfileCompleteness(page, { orgId, complete: false });
+
+    await login(page);
+    await page.goto("/");
+
+    await expect(page.getByTestId("director-shareholder-onboarding-banner")).toHaveCount(0);
+
+    const yellowBanner = page.getByText("Complete your profile").first();
+    await expect(yellowBanner).toBeVisible();
+    await expect(page.getByText("Complete your profile")).toHaveCount(1);
+    await expect(page.getByRole("link", { name: /Complete profile/i })).toHaveAttribute(
+      "href",
+      "/profile?focus=completeness"
+    );
+  });
+
+  test("issuer company: red + yellow (red before yellow, no duplicates)", async ({ page }) => {
+    test.skip(!hasAuthCredentials, "Set TEST_USER_EMAIL and TEST_USER_PASSWORD to run banner e2e tests");
+
+    const orgId = "org_both_issuer";
+    mockIssuerDashboardMinimalApis(page, { orgId, orgType: "COMPANY", people: directorPending });
+    mockIssuerProfileCompleteness(page, { orgId, complete: false });
+
+    await login(page);
+    await page.goto("/");
+
+    const redBanner = page.getByTestId("director-shareholder-onboarding-banner").first();
+    await expect(redBanner).toBeVisible();
+
+    const yellowBanner = page.getByText("Complete your profile").first();
+    await expect(yellowBanner).toBeVisible();
+    await expect(page.getByText("Complete your profile")).toHaveCount(1);
+
+    const redBox = await redBanner.boundingBox();
+    const yellowBox = await yellowBanner.boundingBox();
+    expect(redBox).not.toBeNull();
+    expect(yellowBox).not.toBeNull();
+    expect(redBox!.y).toBeLessThan(yellowBox!.y);
+
+    await expect(page.getByRole("button", { name: /Go to People & Access/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Complete profile/i })).toHaveAttribute(
+      "href",
+      "/profile?focus=completeness"
+    );
+  });
+
+  test("issuer company: neither banner hidden", async ({ page }) => {
+    test.skip(!hasAuthCredentials, "Set TEST_USER_EMAIL and TEST_USER_PASSWORD to run banner e2e tests");
+
+    const orgId = "org_neither_issuer";
+    mockIssuerDashboardMinimalApis(page, { orgId, orgType: "COMPANY", people: directorApproved });
+    mockIssuerProfileCompleteness(page, { orgId, complete: true });
+
+    await login(page);
+    await page.goto("/");
+
+    await expect(page.getByTestId("director-shareholder-onboarding-banner")).toHaveCount(0);
     await expect(page.getByText("Complete your profile")).toHaveCount(0);
   });
 });

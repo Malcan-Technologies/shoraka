@@ -14,10 +14,13 @@ import {
   TabsTrigger,
   portalPageGutterClassName,
   useHeader,
+  DirectorShareholderAlertCard,
+  INVESTOR_DIRECTOR_SHAREHOLDER_ALERT_COPY,
 } from "@cashsouk/ui";
 import { cn } from "@/lib/utils";
 import { withdrawMinimumError, withdrawTypedAmountError } from "@/components/investor-money-copy";
 import { InvestorProfileCompletenessBanner } from "@/components/profile-completeness-banner";
+import { filterVisiblePeopleRows } from "@cashsouk/types";
 import { InvestNowButton } from "@/components/invest-now-button";
 import { InvestorInvestmentsList } from "@/investments/components/investor-investments-list";
 import { marketplaceKeys, useInvestorPortfolio } from "@/investments/hooks/use-marketplace-notes";
@@ -48,6 +51,10 @@ function PortfolioPageContent() {
   const { getAccessToken } = useAuthToken();
   const onboarded =
     activeOrganization?.onboardingStatus === "COMPLETED" && activeOrganization?.depositReceived === true;
+  const visiblePeopleForDsAlert = React.useMemo(
+    () => filterVisiblePeopleRows(activeOrganization?.people ?? []),
+    [activeOrganization?.people]
+  );
 
   const urlTab = portfolioTabFromSearchParams(searchParams.get("tab"), searchParams.get("type"));
   const typeFilter = transactionTypeFromSearchParam(searchParams.get("type"));
@@ -192,6 +199,13 @@ function PortfolioPageContent() {
           />
         }
       >
+        {activeOrganization?.type === "COMPANY" ? (
+          <DirectorShareholderAlertCard
+            visiblePeople={visiblePeopleForDsAlert}
+            enabled={activeOrganization?.onboardingStatus === "COMPLETED"}
+            copy={INVESTOR_DIRECTOR_SHAREHOLDER_ALERT_COPY}
+          />
+        ) : null}
         <InvestorProfileCompletenessBanner
           organizationId={activeOrganization?.id}
           onboarded={onboarded}

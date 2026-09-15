@@ -25,7 +25,10 @@ async function login(page: Page) {
   await page.waitForURL(/localhost:3002/, { timeout: 30000 });
 }
 
-function mockInvestorDashboardApis(page: Page, opts: { orgId: string; orgType: "PERSONAL" | "COMPANY" }) {
+function mockInvestorDashboardApis(
+  page: Page,
+  opts: { orgId: string; orgType: "PERSONAL" | "COMPANY"; people?: unknown[] }
+) {
   const emptyPortfolio = {
     success: true,
     correlationId: "e2e",
@@ -104,7 +107,7 @@ function mockInvestorDashboardApis(page: Page, opts: { orgId: string; orgType: "
               tncAccepted: true,
               depositReceived: true,
               submittedAt: new Date().toISOString(),
-              people: [],
+              people: opts.people ?? [],
               firstName: "Test",
               lastName: "Investor",
               name: "Test Company",
@@ -169,6 +172,7 @@ test.describe("Investor profile-completeness banner placement", () => {
 
     const banner = page.getByText("Complete your profile").first();
     await expect(banner).toBeVisible();
+    await expect(page.getByTestId("director-shareholder-onboarding-banner")).toHaveCount(0);
 
     // CTA href must remain unchanged.
     await expect(page.getByRole("link", { name: /Complete profile/i })).toHaveAttribute(
@@ -222,40 +226,130 @@ test.describe("Investor profile-completeness banner placement", () => {
 
     await page.reload();
     await expect(page.getByText("Complete your profile")).toHaveCount(0);
+    await expect(page.getByTestId("director-shareholder-onboarding-banner")).toHaveCount(0);
   });
 
-  test("incomplete corporate investor: banner visible and placed above the main content", async ({ page }) => {
-    // Re-mock organizations + profile completeness to switch to a company org.
+  const directorPending = [
+    {
+      entityType: "INDIVIDUAL",
+      roles: ["DIRECTOR"],
+      sharePercentage: null,
+      matchKey: "dir_pending_1",
+      onboarding: { status: "IN_PROGRESS" },
+      screening: { status: null },
+    } as any,
+  ];
+
+  const directorApproved = [
+    {
+      entityType: "INDIVIDUAL",
+      roles: ["DIRECTOR"],
+      sharePercentage: null,
+      matchKey: "dir_approved_1",
+      onboarding: { status: "APPROVED" },
+      screening: { status: null },
+    } as any,
+  ];
+
+  test("corporate investor: red only (yellow hidden)", async ({ page }) => {
     await page.unroute(`${API_URL}/v1/organizations/investor`);
-    await mockInvestorDashboardApis(page, { orgId: "org_incomplete_company", orgType: "COMPANY" });
+    await mockInvestorDashboardApis(page, {
+      orgId: "org_red_only_company",
+      orgType: "COMPANY",
+      people: directorPending,
+    });
     mockInvestorProfileCompleteness(page, {
-      orgId: "org_incomplete_company",
+      orgId: "org_red_only_company",
+      orgType: "COMPANY",
+      complete: true,
+    });
+
+    await page.reload();
+
+    const redBanner = page.getByTestId("director-shareholder-onboarding-banner");
+    await expect(redBanner).toBeVisible();
+    await expect(page.getByText("Complete your profile")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Go to People & Access/i })).toBeVisible();
+  });
+
+  test("corporate investor: yellow only (red hidden)", async ({ page }) => {
+    await page.unroute(`${API_URL}/v1/organizations/investor`);
+    await mockInvestorDashboardApis(page, {
+      orgId: "org_yellow_only_company",
+      orgType: "COMPANY",
+      people: directorApproved,
+    });
+    mockInvestorProfileCompleteness(page, {
+      orgId: "org_yellow_only_company",
       orgType: "COMPANY",
       complete: false,
     });
 
     await page.reload();
 
-    const banner = page.getByText("Complete your profile").first();
-    await expect(banner).toBeVisible();
+    await expect(page.getByTestId("director-shareholder-onboarding-banner")).toHaveCount(0);
+
+    const yellowBanner = page.getByText("Complete your profile").first();
+    await expect(yellowBanner).toBeVisible();
     await expect(page.getByText("Complete your profile")).toHaveCount(1);
     await expect(page.getByRole("link", { name: /Complete profile/i })).toHaveAttribute(
       "href",
       "/profile?focus=completeness"
     );
+  });
 
-    // Investor dashboard "new" view marker (used as a stable ordering anchor).
-    const portfolioMarker = page.getByRole("heading", {
-      name: /Fund your wallet to start investing/i,
+  test("corporate investor: red + yellow (red before yellow, no duplicates)", async ({ page }) => {
+    await page.unroute(`${API_URL}/v1/organizations/investor`);
+    await mockInvestorDashboardApis(page, {
+      orgId: "org_both_company",
+      orgType: "COMPANY",
+      people: directorPending,
     });
-    await expect(portfolioMarker).toBeVisible();
+    mockInvestorProfileCompleteness(page, {
+      orgId: "org_both_company",
+      orgType: "COMPANY",
+      complete: false,
+    });
 
-    const bannerBox = await banner.boundingBox();
-    const mainBox = await portfolioMarker.boundingBox();
+    await page.reload();
 
-    expect(bannerBox).not.toBeNull();
-    expect(mainBox).not.toBeNull();
-    expect(bannerBox!.y).toBeLessThan(mainBox!.y);
+    const redBanner = page.getByTestId("director-shareholder-onboarding-banner").first();
+    await expect(redBanner).toBeVisible();
+    await expect(page.getByText("Complete your profile")).toHaveCount(1);
+
+    const yellowBanner = page.getByText("Complete your profile").first();
+
+    const redBox = await redBanner.boundingBox();
+    const yellowBox = await yellowBanner.boundingBox();
+    expect(redBox).not.toBeNull();
+    expect(yellowBox).not.toBeNull();
+    expect(redBox!.y).toBeLessThan(yellowBox!.y);
+
+    // CTAs still exist for both banners.
+    await expect(page.getByRole("button", { name: /Go to People & Access/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Complete profile/i })).toHaveAttribute(
+      "href",
+      "/profile?focus=completeness"
+    );
+  });
+
+  test("corporate investor: neither banner hidden", async ({ page }) => {
+    await page.unroute(`${API_URL}/v1/organizations/investor`);
+    await mockInvestorDashboardApis(page, {
+      orgId: "org_neither_company",
+      orgType: "COMPANY",
+      people: directorApproved,
+    });
+    mockInvestorProfileCompleteness(page, {
+      orgId: "org_neither_company",
+      orgType: "COMPANY",
+      complete: true,
+    });
+
+    await page.reload();
+
+    await expect(page.getByTestId("director-shareholder-onboarding-banner")).toHaveCount(0);
+    await expect(page.getByText("Complete your profile")).toHaveCount(0);
   });
 });
 
