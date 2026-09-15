@@ -21,7 +21,7 @@ Older editable discussion table: [arf-letter-of-offer-placeholder-map.md](../app
 | Invoice sub-limit | Frozen product `invoice_details.sub_limit_per_invoice_rm` | Also fills `part_b_financing_amount_rm`. Generation fails if unset. Also enforced as a per-invoice financing cap on facility drawdowns and admin offers. |
 | Facility Type checkboxes | `financing_structure.structure_type` | Part A for `new_contract`; Part B for `invoice_only` / `existing_contract` |
 | Assigned contract | `contract_details` + `customer_details` | Date, counterparty, description/number. Uses this application's current `customer_details` (official identity after verification auto-sync, when that application was still editable). Historical generated documents are not rewritten. |
-| Offer validity phrase | `acceptance_expires_at` vs `sent_at` | Used in **both** acceptance/lapse clauses |
+| Offer validity phrase | Frozen product `acceptance_deadline.days` (default 7) | Used in **both** acceptance/lapse clauses. Not `acceptance_expires_at − sent_at`. |
 | Transaction docs days | Frozen product `signing_deadline.days` (default 14) | Not timestamp subtraction |
 | Grace period | `PlatformFinanceSetting.grace_period_days` | When settings row exists |
 

@@ -20,7 +20,7 @@ import {
   FACILITY_LO_CHECKBOX_UNTICKED,
 } from "./facility-lo-merge.types";
 import type { AuthorizedPartiesSnapshot } from "@cashsouk/types";
-import { FINANCING_TENURE_MAX_DAYS } from "@cashsouk/types";
+import { computePhaseDeadlineExpiresAt, FINANCING_TENURE_MAX_DAYS } from "@cashsouk/types";
 
 describe("lo-format", () => {
   it("converts small numbers to words", () => {
@@ -409,6 +409,7 @@ describe("buildFacilityLoMergeData", () => {
       { line: "Ali (NRIC No. 900101145678)", representatives: [] },
       { line: "HoldCo (Registration No. 999999-X)", representatives: [] },
     ]);
+    expect(data.offer_validity_phrase).toBe("seven (7) days");
   });
 
   it("leaves issuer_id and our_reference empty instead of printing CUIDs", () => {
@@ -586,16 +587,17 @@ describe("buildFacilityLoMergeData", () => {
   });
 
   it("reads signing_deadline.days and invoice sub-limit from the frozen product workflow", () => {
+    const sentAt = "2026-07-30T02:00:00.000Z";
     const data = buildFacilityLoMergeData({
       contract: {
         id: "ctr_abc",
         issuer_organization_id: "org_1",
         offer_details: {
           offered_facility: 500000,
-          sent_at: "2026-07-16T16:00:00.000Z",
+          sent_at: sentAt,
           offer_acceptance: {
             status: "PENDING_ISSUER",
-            acceptance_expires_at: "2026-07-23T16:00:00.000Z",
+            acceptance_expires_at: computePhaseDeadlineExpiresAt(sentAt, 7),
           },
         },
         contract_details: {},
@@ -605,7 +607,10 @@ describe("buildFacilityLoMergeData", () => {
       productWorkflow: [
         {
           id: "financing_type",
-          config: { signing_deadline: { days: 14, reminders: [] } },
+          config: {
+            acceptance_deadline: { days: 7, reminders: [{ days_before_expiry: 1 }] },
+            signing_deadline: { days: 14, reminders: [] },
+          },
         },
         {
           id: "invoice_details",
@@ -618,6 +623,34 @@ describe("buildFacilityLoMergeData", () => {
     expect(data.sub_limit_per_invoice_rm).toBe("RM 250,000.00");
     expect(data.part_b_financing_amount_rm).toBe("RM 250,000.00");
     expect(data.offer_validity_phrase).toBe("seven (7) days");
+  });
+
+  it("prints acceptance_deadline.days from the product, not the exclusive midnight stamp", () => {
+    const sentAt = "2026-07-30T02:00:00.000Z";
+    const data = buildFacilityLoMergeData({
+      contract: {
+        id: "ctr_abc",
+        issuer_organization_id: "org_1",
+        offer_details: {
+          offered_facility: 500000,
+          sent_at: sentAt,
+          offer_acceptance: {
+            status: "PENDING_ISSUER",
+            acceptance_expires_at: computePhaseDeadlineExpiresAt(sentAt, 10),
+          },
+        },
+        contract_details: {},
+        customer_details: {},
+      },
+      issuerOrganization: { id: "org_1", name: "Issuer Co", registration_number: "123456-A" },
+      productWorkflow: [
+        {
+          id: "financing_type",
+          config: { acceptance_deadline: { days: 10, reminders: [] } },
+        },
+      ],
+    });
+    expect(data.offer_validity_phrase).toBe("ten (10) days");
   });
 
   it("matches corporate representatives from the authorised-parties draft", () => {

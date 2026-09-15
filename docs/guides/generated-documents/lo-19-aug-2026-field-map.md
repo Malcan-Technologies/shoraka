@@ -61,7 +61,7 @@ Already shared (no separate “demo template”):
 | `payment_period_days` | PAYMENT PERIOD max N days | `LEGAL_DEFAULT` | 180 | |
 | `grace_period_days` / `_words` | GRACE PERIOD | `EXISTS` | `PlatformFinanceSetting.grace_period_days` | |
 | `transaction_docs_days` / `_words` | Execution of Transaction Documents | `EXISTS` | Frozen `signing_deadline.days` (default 14) | |
-| `offer_validity_phrase` | Acceptance window **and** lapse sentence | `DERIVE` | Acceptance expiry − `sent_at` → `daysPhrase` | Same phrase in both clauses |
+| `offer_validity_phrase` | Acceptance window **and** lapse sentence | `EXISTS` | Frozen product `acceptance_deadline.days` → `daysPhrase` (default 7) | Same phrase in both clauses. Do not derive from exclusive midnight `acceptance_expires_at`. |
 | `assigned_contract_date` | Schedule B | `EXISTS` | `contract_details.start_date` | |
 | `assigned_contract_counterparty` | Schedule B | `EXISTS` | `customer_details.name` | |
 | `assigned_contract_description` | Schedule B | `EXISTS` | `title` / `description` / `number` | |
