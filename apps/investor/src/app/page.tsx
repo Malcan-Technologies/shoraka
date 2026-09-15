@@ -266,6 +266,13 @@ function InvestorDashboardContent() {
                 />
               ) : null}
 
+              {showCompleteness ? (
+                <InvestorProfileCompletenessBanner
+                  organizationId={activeOrganization?.id}
+                  onboarded
+                />
+              ) : null}
+
               {dashboardState === "onboarding" && activeOrganization ? (
                 <InvestorDashboardOnboarding
                   steps={steps}
@@ -306,13 +313,6 @@ function InvestorDashboardContent() {
                   seekingFunding={openTotals.seekingFunding}
                   holdings={holdingsQuery.data?.notes ?? []}
                   onDeposit={() => setDepositOpen(true)}
-                />
-              ) : null}
-
-              {showCompleteness ? (
-                <InvestorProfileCompletenessBanner
-                  organizationId={activeOrganization?.id}
-                  onboarded
                 />
               ) : null}
             </div>

@@ -20,6 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIssuerDashboardContract } from "@/hooks/use-issuer-dashboard";
 import { useIssuerProduct } from "@/hooks/use-products";
 import { resolveProductImageS3KeyFromWorkflow } from "@cashsouk/types";
+import { filterVisiblePeopleRows } from "@cashsouk/types";
 import { resolveProductDisplayName } from "@/lib/product-display";
 import { useApplicationLogsMany } from "@/hooks/use-application-logs";
 import { useIssuerNotes } from "@/notes/hooks/use-issuer-notes";
@@ -29,6 +30,8 @@ import {
   issuerPageGutterClassName,
 } from "@/lib/issuer-layout";
 import { cn } from "@/lib/utils";
+import { IssuerProfileCompletenessBanner } from "@/components/profile-completeness-banner";
+import { DirectorShareholderAlertCard } from "@/components/director-shareholder-alert-card";
 import { financingOfferHref } from "@/lib/financing-offer-href";
 import {
   getIssuerOfferActionCtaFromOfferDetails,
@@ -90,6 +93,11 @@ function ContractDetailsPageContent() {
   const contractId = params.id as string;
   const { activeOrganization } = useOrganization();
   const orgId = activeOrganization?.id;
+  const onboarded = activeOrganization?.onboardingStatus === "COMPLETED";
+  const visiblePeopleForDsGating = useMemo(
+    () => filterVisiblePeopleRows(activeOrganization?.people ?? []),
+    [activeOrganization?.people]
+  );
   const tabFromUrl = searchParams.get("tab");
   const [tab, setTab] = useState<FacilityDetailTab>(() =>
     isFacilityDetailTab(tabFromUrl) ? tabFromUrl : "invoices"
@@ -322,6 +330,16 @@ function ContractDetailsPageContent() {
           </>
         }
       />
+
+      {activeOrganization?.type === "COMPANY" ? (
+        <DirectorShareholderAlertCard
+          visiblePeople={visiblePeopleForDsGating}
+          enabled={activeOrganization.onboardingStatus === "COMPLETED"}
+          stickyTop
+          className="mb-4"
+        />
+      ) : null}
+      <IssuerProfileCompletenessBanner organizationId={orgId} onboarded={onboarded} />
 
       <Card className="rounded-2xl">
         <CardHeader>

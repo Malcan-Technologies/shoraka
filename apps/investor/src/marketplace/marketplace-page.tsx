@@ -13,14 +13,18 @@ import {
   legalReacceptanceInterceptMessage,
   portalPageGutterClassName,
   useHeader,
+  DirectorShareholderAlertCard,
+  INVESTOR_DIRECTOR_SHAREHOLDER_ALERT_COPY,
 } from "@cashsouk/ui";
 import {
   MARC_SME_GRADES,
   isNoteMoneyAmount,
+  filterVisiblePeopleRows,
   type MarketplaceListingFilter,
 } from "@cashsouk/types";
 import { Button } from "@/components/ui/button";
 import { DepositDialog } from "@/app/transactions/components/deposit-dialog";
+import { InvestorProfileCompletenessBanner } from "@/components/profile-completeness-banner";
 import {
   useCommitInvestment,
   useInvestorPortfolio,
@@ -105,6 +109,12 @@ export function MarketplacePage() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { activeOrganization } = useOrganization();
+  const onboarded =
+    activeOrganization?.onboardingStatus === "COMPLETED" && activeOrganization?.depositReceived === true;
+  const visiblePeopleForDsAlert = useMemo(
+    () => filterVisiblePeopleRows(activeOrganization?.people ?? []),
+    [activeOrganization?.people]
+  );
   const { data: portfolio, isLoading: isPortfolioLoading } = useInvestorPortfolio(
     activeOrganization?.id
   );
@@ -375,6 +385,14 @@ export function MarketplacePage() {
         title="Marketplace"
         description="Compare published notes and commit from your available cash."
       >
+        {activeOrganization?.type === "COMPANY" ? (
+          <DirectorShareholderAlertCard
+            visiblePeople={visiblePeopleForDsAlert}
+            enabled={activeOrganization?.onboardingStatus === "COMPLETED"}
+            copy={INVESTOR_DIRECTOR_SHAREHOLDER_ALERT_COPY}
+          />
+        ) : null}
+        <InvestorProfileCompletenessBanner organizationId={activeOrganization?.id} onboarded={onboarded} />
         <MarketplaceStatsStrip
           availableBalance={availableBalance}
           notes={marketplaceNotes}
