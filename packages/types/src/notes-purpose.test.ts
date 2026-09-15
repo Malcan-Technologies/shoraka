@@ -27,7 +27,13 @@ describe("note purpose helpers", () => {
         sc_purpose_of_fund_raising: "OTHERS",
         sc_purpose_other: "Refinance existing facilities",
       })
-    ).toBe("Others: Refinance existing facilities");
+    ).toBe("Refinance existing facilities");
+  });
+
+  it("normalizes legacy `financing_for = \"Others: <custom>\"` display", () => {
+    expect(resolvePurposeOfFinancing({ financing_for: "Others: no" })).toBe("no");
+    // Preserve fallback behaviour when no custom value exists.
+    expect(resolvePurposeOfFinancing({ financing_for: "Others:   " })).toBe("Others");
   });
 
   it("reads contract description from the frozen contract_details path", () => {

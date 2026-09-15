@@ -251,6 +251,41 @@ describe("prospectus about invoice (authoritative sources)", () => {
     });
   });
 
+  it("preserves existing SYSTEM_SUGGESTION about-invoice text when rendering without snapshots", () => {
+    // Simulate a real draft where officer never touched About Invoice fields:
+    // values exist but remain SYSTEM_SUGGESTION. Rendering conversions do not pass
+    // paymaster_snapshot/contract_snapshot tokens.
+    const draft = emptyProspectusReviewContent(
+      {},
+      {
+        paymasterSnapshot: PAYMASTER,
+        contractSnapshot: CONTRACT,
+        // deedOfAssignment intentionally omitted/undefined → DOA stays empty.
+      }
+    );
+
+    const work = draft.page2.aboutInvoice?.items.find((i) => i.id === "work_under_contract");
+    const cert = draft.page2.aboutInvoice?.items.find(
+      (i) => i.id === "certification_acceptance"
+    );
+    expect(work?.text).toContain("bridge repair works");
+    expect(cert?.text).toContain("certified and accepted by Demo Paymaster Sdn. Bhd.");
+
+    const publication = toProspectusPublicationContent(draft);
+    const pubWork = publication.invoiceWorkStatements.find((s) => s.key === "work_under_contract");
+    const pubCert = publication.invoiceWorkStatements.find(
+      (s) => s.key === "certification_acceptance"
+    );
+    const pubDoa = publication.invoiceWorkStatements.find((s) => s.key === "deed_of_assignment");
+
+    expect(pubWork?.text).toContain("bridge repair works");
+    expect(pubWork?.isVisible).toBe(true);
+    expect(pubCert?.text).toContain("Demo Paymaster Sdn. Bhd.");
+    expect(pubCert?.isVisible).toBe(true);
+    expect(pubDoa?.text).toBe("");
+    expect(pubDoa?.isVisible).toBe(false);
+  });
+
   it("flags work, certification, and trust-account sentences for Ops confirmation", () => {
     expect(PROSPECTUS_ABOUT_INVOICE_WORK_COMPLETION_REQUIRES_OPS_CONFIRMATION).toBe(true);
     expect(PROSPECTUS_ABOUT_INVOICE_CERTIFICATION_REQUIRES_OPS_CONFIRMATION).toBe(true);

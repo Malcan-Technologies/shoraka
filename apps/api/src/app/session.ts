@@ -3,8 +3,7 @@ import pgSession from "connect-pg-simple";
 import { Pool } from "pg";
 import { getEnv } from "../config/env";
 import { logger } from "../lib/logger";
-import fs from "fs";
-import type { TLSSocketOptions } from "tls";
+import { getRdsPgSslConfig, stripPgSslParamsFromConnectionString } from "../lib/pg/rds-pg-ssl";
 
 declare module "express-session" {
   interface SessionData {
@@ -25,36 +24,16 @@ function getPgPool(): Pool {
 
   const env = getEnv();
 
-  // AWS RDS requires SSL with CA certificate for secure connections
-  let sslConfig: TLSSocketOptions | boolean | undefined = undefined;
-
-  if (env.NODE_ENV === "production") {
-    const rdsCertPath = "/app/rds-ca-cert.pem";
-
-    if (fs.existsSync(rdsCertPath)) {
-      // Load AWS RDS CA certificate for proper SSL verification
-      const caCert = fs.readFileSync(rdsCertPath, "utf8");
-      sslConfig = {
-        ca: caCert,
-        rejectUnauthorized: true, // Verify the server certificate
-      };
-      logger.info("AWS RDS CA certificate loaded for SSL connection");
-    } else {
-      // Fallback: Force SSL but skip cert verification
-      logger.warn("RDS CA certificate not found at /app/rds-ca-cert.pem - using insecure SSL");
-      sslConfig = {
-        rejectUnauthorized: false,
-      };
-    }
-  }
-
   pgPool = new Pool({
-    connectionString: env.DATABASE_URL,
+    connectionString:
+      env.NODE_ENV === "production"
+        ? stripPgSslParamsFromConnectionString(env.DATABASE_URL)
+        : env.DATABASE_URL,
     // Optimize for session operations
     max: 10, // Maximum pool size (sessions don't need many connections)
     idleTimeoutMillis: 30000, // Close idle connections after 30 seconds
     connectionTimeoutMillis: 2000, // Timeout connection attempts after 2 seconds
-    ssl: sslConfig,
+    ssl: getRdsPgSslConfig(env.NODE_ENV === "production"),
   });
 
   pgPool.on("error", (err: Error) => {
