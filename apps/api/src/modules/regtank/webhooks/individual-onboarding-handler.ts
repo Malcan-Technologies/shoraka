@@ -7,7 +7,6 @@ import { OrganizationRepository } from "../../organization/repository";
 import { OnboardingStatus, Prisma, UserRole } from "@prisma/client";
 import { NotificationService } from "../../notification/service";
 import { NotificationTypeIds } from "../../notification/registry";
-import { listIssuerOrgMemberUserIds, listInvestorOrgMemberUserIds } from "../../notification/org-member-recipients";
 import { prisma } from "../../../lib/prisma";
 import { createOnboardingLogRow, persistOrganizationUpdateAndOnboardingLogs, webhookAuditContext } from "../../../lib/audit";
 import {
@@ -497,76 +496,6 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
         }
 
         if (!isFirstApprovedTransition) return true;
-
-        // Persistent in-app notification + email for verification completion.
-        try {
-          const partyWhere =
-            portal === "issuer"
-              ? { issuer_organization_id: organizationId }
-              : { investor_organization_id: organizationId };
-
-          const partyProfile = await prisma.organizationPartyProfile.findFirst({
-            where: { ...partyWhere, party_key: supplement.party_key },
-            select: { id: true, name: true, entity_type: true, user_id: true },
-          });
-
-          if (!partyProfile) return true;
-
-          // Standardized recipient model: organisation-level People & Access goes
-          // to *all* organisation users (owner + org admins + normal members).
-          const initialRecipients =
-            portal === "investor"
-              ? await listInvestorOrgMemberUserIds(organizationId)
-              : await listIssuerOrgMemberUserIds(organizationId);
-
-          const recipientUserIds = new Set<string>(initialRecipients);
-
-          // Optional customer-facing notification for linked platform user:
-          // include the affected person only if `party.user_id` exists, and do
-          // not infer linkage from email.
-          if (partyProfile.user_id) recipientUserIds.add(partyProfile.user_id);
-
-          const idempotencyBase = `party-onboarding:${portal}:${organizationId}:${partyProfile.id}:approved`;
-          const isCorporate = partyProfile.entity_type === "CORPORATE";
-
-          const personName = (partyProfile.name ?? "").trim() || "this person";
-          const companyName = personName;
-
-          const notificationTypeId = isCorporate
-            ? NotificationTypeIds.KYB_VERIFICATION_COMPLETED
-            : NotificationTypeIds.KYC_VERIFICATION_COMPLETED;
-
-          const payload = isCorporate
-            ? ({
-                partyId: partyProfile.id,
-                companyName,
-                portalType: portal,
-              } as const)
-            : ({
-                partyId: partyProfile.id,
-                personName,
-                portalType: portal,
-              } as const);
-
-          for (const recipientUserId of recipientUserIds) {
-            await this.notificationService.sendTypedAndLogSystem(
-              recipientUserId,
-              notificationTypeId,
-              payload as never,
-              `${idempotencyBase}:user:${recipientUserId}`
-            );
-          }
-        } catch (notifError) {
-          logger.error(
-            {
-              error: notifError,
-              requestId,
-              partyKey: supplement.party_key,
-              organizationId,
-            },
-            "Failed to send onboarding APPROVED KYC/KYB verification notification"
-          );
-        }
       }
     }
 

@@ -46,30 +46,6 @@ export const initialNotificationTypes = [
     enabled_email: true,
   },
 
-  // People & Access (individual/corporate verification milestones)
-  {
-    id: "kyc_verification_completed",
-    name: "KYC Verification Completed",
-    description: "Sent when your identity verification has been approved.",
-    category: NotificationCategory.SYSTEM,
-    portal_targets: BOTH_PORTALS,
-    default_priority: NotificationPriority.INFO,
-    user_configurable: false,
-    enabled_platform: true,
-    enabled_email: true,
-  },
-  {
-    id: "kyb_verification_completed",
-    name: "KYB Verification Completed",
-    description: "Sent when your business verification has been approved.",
-    category: NotificationCategory.SYSTEM,
-    portal_targets: BOTH_PORTALS,
-    default_priority: NotificationPriority.INFO,
-    user_configurable: false,
-    enabled_platform: true,
-    enabled_email: true,
-  },
-
   // Announcement
   {
     id: "system_announcement",

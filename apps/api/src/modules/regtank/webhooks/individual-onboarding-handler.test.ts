@@ -1,5 +1,4 @@
 import { OrganizationType } from "@prisma/client";
-import { NotificationTypeIds } from "../../notification/registry";
 
 const mockFindByRequestId = jest.fn();
 const mockAppendWebhookPayload = jest.fn().mockResolvedValue(undefined);
@@ -336,21 +335,8 @@ describe("IndividualOnboardingWebhookHandler", () => {
       })
     );
 
-    // First transition to APPROVED should create persistent notification/email via NotificationService.
-    const expectedRecipients = ["owner-1", "admin-1", "member-1", "linked-user-1"];
-    expect(mockSendTypedAndLogSystem).toHaveBeenCalledTimes(expectedRecipients.length);
-    for (const recipientUserId of expectedRecipients) {
-      expect(mockSendTypedAndLogSystem).toHaveBeenCalledWith(
-        recipientUserId,
-        NotificationTypeIds.KYC_VERIFICATION_COMPLETED,
-        {
-          partyId: "party-1",
-          personName: "Jane Doe",
-          portalType: "issuer",
-        },
-        `party-onboarding:issuer:org-1:party-1:approved:user:${recipientUserId}`
-      );
-    }
+    // First transition to APPROVED should no longer emit KYC/KYB verification completion notifications.
+    expect(mockSendTypedAndLogSystem).not.toHaveBeenCalled();
   });
 
   it("does NOT notify on repeated APPROVED when the previous pipeline was already APPROVED", async () => {
@@ -394,20 +380,8 @@ describe("IndividualOnboardingWebhookHandler", () => {
     const handler = new IndividualOnboardingWebhookHandler();
     await (handler as any).handle({ requestId: "LD-PREID-1", status: "APPROVED", referenceId: "org-1_user" });
 
-    const expectedRecipients = ["owner-1", "admin-1", "member-1"];
-    expect(mockSendTypedAndLogSystem).toHaveBeenCalledTimes(expectedRecipients.length);
-    for (const recipientUserId of expectedRecipients) {
-      expect(mockSendTypedAndLogSystem).toHaveBeenCalledWith(
-        recipientUserId,
-        NotificationTypeIds.KYB_VERIFICATION_COMPLETED,
-        {
-          partyId: "party-2",
-          companyName: "ACME Holdings",
-          portalType: "issuer",
-        },
-        `party-onboarding:issuer:org-1:party-2:approved:user:${recipientUserId}`
-      );
-    }
+    // First transition to APPROVED should no longer emit KYC/KYB verification completion notifications.
+    expect(mockSendTypedAndLogSystem).not.toHaveBeenCalled();
   });
 
   it("keeps APPROVED persistence when the follow-up query/seed fails", async () => {

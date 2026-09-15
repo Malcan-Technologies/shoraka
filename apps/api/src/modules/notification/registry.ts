@@ -12,9 +12,6 @@ export const NotificationTypeIds = {
   ONBOARDING_REJECTED: "onboarding_rejected",
 
   // People & Access (verification milestones)
-  KYC_VERIFICATION_COMPLETED: "kyc_verification_completed",
-  KYB_VERIFICATION_COMPLETED: "kyb_verification_completed",
-
   // Authentication
   PASSWORD_CHANGED: "password_changed",
 
@@ -97,16 +94,6 @@ export interface NotificationPayloads {
     onboardingType: string;
     orgName: string;
     reason?: string;
-    portalType: "investor" | "issuer";
-  };
-  [NotificationTypeIds.KYC_VERIFICATION_COMPLETED]: {
-    partyId: string;
-    personName: string;
-    portalType: "investor" | "issuer";
-  };
-  [NotificationTypeIds.KYB_VERIFICATION_COMPLETED]: {
-    partyId: string;
-    companyName: string;
     portalType: "investor" | "issuer";
   };
   [NotificationTypeIds.PASSWORD_CHANGED]: {
@@ -395,18 +382,6 @@ export const NOTIFICATION_TEMPLATES: {
     message: (data) =>
       `Unfortunately, your ${data.onboardingType.toLowerCase()} onboarding for ${data.orgName} was rejected.${data.reason ? ` Reason: ${data.reason}` : ""}`,
     linkPath: () => "/onboarding",
-    portal: (data) => data.portalType,
-  },
-  [NotificationTypeIds.KYC_VERIFICATION_COMPLETED]: {
-    title: "KYC verification completed",
-    message: (data) => `${data.personName}'s identity verification has been approved.`,
-    linkPath: (data) => `/profile/people/${data.partyId}`,
-    portal: (data) => data.portalType,
-  },
-  [NotificationTypeIds.KYB_VERIFICATION_COMPLETED]: {
-    title: "KYB verification completed",
-    message: (data) => `${data.companyName}'s business verification has been approved.`,
-    linkPath: (data) => `/profile/people/${data.partyId}`,
     portal: (data) => data.portalType,
   },
   [NotificationTypeIds.PASSWORD_CHANGED]: {
