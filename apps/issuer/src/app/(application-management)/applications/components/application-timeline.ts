@@ -1,3 +1,4 @@
+import { formatSigningDocumentSignedTitle } from "@cashsouk/types";
 import type { ApplicationLogEntry } from "@/hooks/use-application-logs";
 import type { NormalizedApplication } from "../status";
 
@@ -41,6 +42,7 @@ const EVENT_LABELS: Record<string, string> = {
   INVOICE_OFFER_EXPIRED: "Invoice offer expired",
   INVOICE_SIGNING_DEADLINE_EXTENDED: "Signing deadline extended",
   INVOICE_WITHDRAWN: "Invoice withdrawn",
+  SIGNING_DOCUMENT_SIGNED: "Signer Completed Signing",
   OFFER_EXPIRED: "An offer expired",
   AMENDMENTS_SUBMITTED: "Amendment Request Sent",
 };
@@ -148,7 +150,10 @@ export function buildApplicationTimeline(
       const remark = log.remark?.trim() || null;
       return {
         id: log.id,
-        label: EVENT_LABELS[log.event_type] ?? log.event_type.replace(/_/g, " ").toLowerCase(),
+        label:
+          log.event_type === "SIGNING_DOCUMENT_SIGNED"
+            ? formatSigningDocumentSignedTitle(log.metadata)
+            : (EVENT_LABELS[log.event_type] ?? log.event_type.replace(/_/g, " ").toLowerCase()),
         description: activitySummary ?? remark ?? undefined,
         at: log.created_at || null,
         source: "log" as const,

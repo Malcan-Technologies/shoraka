@@ -1,6 +1,7 @@
 import {
   formatInvoiceReference,
   formatNoteReference,
+  formatSigningDocumentSignedTitle,
   getActivityStatusLabel,
   getActivityStatusToken,
   InvoiceStatus,
@@ -71,6 +72,7 @@ const LOG_LABELS: Record<string, string> = {
   INVOICE_WITHDRAWN: "Invoice withdrawn",
   OFFER_EXPIRED: "An offer expired",
   SIGNING_PACKAGE_SENT: "Signing package sent",
+  SIGNING_DOCUMENT_SIGNED: "Signer Completed Signing",
   SIGNING_PACKAGE_COMPLETED: "Signing package completed",
 };
 
@@ -518,7 +520,10 @@ function rowsFromLogs(
       return rowFromKind({
         id: `log:${log.id}`,
         at: log.created_at || null,
-        label: LOG_LABELS[log.event_type] ?? log.event_type,
+        label:
+          log.event_type === "SIGNING_DOCUMENT_SIGNED"
+            ? formatSigningDocumentSignedTitle(log.metadata)
+            : (LOG_LABELS[log.event_type] ?? log.event_type),
         description: activity ?? remark,
         amount: invoice ? parseAmount(invoice.financingAmount) : null,
         referenceLabel: invoice ? invoiceReference(invoice) : null,

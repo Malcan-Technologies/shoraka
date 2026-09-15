@@ -11,7 +11,11 @@ import {
   buildDateFilter,
 } from "./base";
 import type { ActivityReferences } from "@cashsouk/types";
-import { formatApplicationReference } from "@cashsouk/types";
+import {
+  formatApplicationReference,
+  formatSigningDocumentSignedDescription,
+  formatSigningDocumentSignedTitle,
+} from "@cashsouk/types";
 import { ApplicationLogEventType } from "../../applications/logs/types";
 import { userVisibleApplicationEventTypes } from "../../../lib/audit/visibility-matrix";
 
@@ -43,6 +47,7 @@ const INVOICE_EVENT_TYPES = new Set<string>([
 const SIGNING_PACKAGE_EVENT_TYPES = new Set<string>([
   ApplicationLogEventType.SIGNING_PACKAGE_CREATED,
   ApplicationLogEventType.SIGNING_PACKAGE_SENT,
+  ApplicationLogEventType.SIGNING_DOCUMENT_SIGNED,
   ApplicationLogEventType.SIGNING_PACKAGE_COMPLETED,
   ApplicationLogEventType.SIGNING_PACKAGE_DECLINED,
   ApplicationLogEventType.SIGNING_PACKAGE_EXPIRED,
@@ -360,6 +365,8 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
         return invoiceRef
           ? `${this.capitalize(invoiceRef)} was withdrawn.`
           : fallbackDescription;
+      case ApplicationLogEventType.SIGNING_DOCUMENT_SIGNED:
+        return fallbackDescription;
       case ApplicationLogEventType.SIGNING_PACKAGE_SENT:
         return applicationRef
           ? `The signing package for ${applicationRef} was sent to signers.`
@@ -425,6 +432,14 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
       if (envelopeId) {
         references.envelopeId = envelopeId;
       }
+      const contractId = this.readDisplayString(metadata.contract_id);
+      if (contractId) {
+        references.contractId = contractId;
+      }
+      const invoiceId = this.readDisplayString(metadata.invoice_id);
+      if (invoiceId) {
+        references.invoiceId = invoiceId;
+      }
     }
 
     return Object.keys(references).length > 0 ? references : null;
@@ -450,6 +465,8 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
       "contract_reference",
       "invoice_number",
       "invoice_reference",
+      "signer_name",
+      "document_name",
     ] as const;
 
     return [
@@ -508,6 +525,12 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
   }
 
   buildPresentation(eventType: string, metadata?: Record<string, unknown>) {
+    if (eventType === ApplicationLogEventType.SIGNING_DOCUMENT_SIGNED) {
+      return {
+        title: formatSigningDocumentSignedTitle(metadata),
+        description: formatSigningDocumentSignedDescription(metadata),
+      };
+    }
     if (eventType === ApplicationLogEventType.APPLICATION_RESUBMITTED && metadata?.resubmit_changes) {
       const rc = metadata.resubmit_changes as { activity_summary?: string };
       if (typeof rc.activity_summary === "string" && rc.activity_summary.length > 0) {

@@ -75,6 +75,7 @@ Generated from `apps/api/src/lib/audit/visibility-matrix.ts`. Historical and DEV
 | `ITEM_REVIEWED_REJECTED` | ADMIN_ACTIVITY | LIVE | application_logs | no |
 | `KYC_APPROVED` | ORG_ACTIVITY | HISTORICAL_READER | onboarding_logs | no |
 | `LATE_CHARGE_APPROVED` | ADMIN_ACTIVITY | LIVE | note_events | no |
+| `LATE_CHARGE_WAIVED` | NOTE_TIMELINE | LIVE | note_events | yes |
 | `LEGAL_DOCUMENT_ACCEPTANCE` | LEGAL_ONLY | LIVE | legal_document_acceptances | no |
 | `LEGAL_DOCUMENT_CREATED` | LEGAL_ONLY | LIVE | legal_document_audit_logs | no |
 | `LEGAL_DOCUMENT_UPDATED` | LEGAL_ONLY | LIVE | legal_document_audit_logs | no |
@@ -91,8 +92,12 @@ Generated from `apps/api/src/lib/audit/visibility-matrix.ts`. Historical and DEV
 | `MEMBER_INVITED` | ORG_ACTIVITY | LIVE | onboarding_logs | no |
 | `MEMBER_REMOVED` | ORG_ACTIVITY | LIVE | onboarding_logs | no |
 | `MEMBER_ROLE_CHANGED` | ORG_ACTIVITY | LIVE | onboarding_logs | no |
+| `NOTE_ARREARS` | NOTE_TIMELINE | LIVE | note_events | yes |
 | `NOTE_CREATED_FROM_INVOICE` | NOTE_TIMELINE | LIVE | note_events | yes |
 | `NOTE_DEFAULT_MARKED` | NOTE_TIMELINE | LIVE | note_events | yes |
+| `NOTE_LATE` | NOTE_TIMELINE | LIVE | note_events | yes |
+| `NOTE_LETTER_SENT` | NOTE_TIMELINE | LIVE | note_events | yes |
+| `NOTE_OVERDUE` | NOTE_TIMELINE | LIVE | note_events | yes |
 | `ONBOARDING_AMENDMENT_REQUIRED` | ORG_ACTIVITY | LIVE | onboarding_logs | yes |
 | `ONBOARDING_APPROVED` | ORG_ACTIVITY | LIVE | onboarding_logs | yes |
 | `ONBOARDING_CANCELLED` | ORG_ACTIVITY | LIVE | onboarding_logs | yes |
@@ -121,6 +126,8 @@ Generated from `apps/api/src/lib/audit/visibility-matrix.ts`. Historical and DEV
 | `PAYMASTER_VERIFIED` | ADMIN_ACTIVITY | LIVE | application_logs | no |
 | `PAYMENT_APPROVED` | ADMIN_ACTIVITY | LIVE | note_events | no |
 | `PAYMENT_REJECTED` | ADMIN_ACTIVITY | LIVE | note_events | no |
+| `PERSON_PLATFORM_ACCESS_RESTORED` | ORG_ACTIVITY | LIVE | onboarding_logs | no |
+| `PERSON_PLATFORM_USER_LINKED` | ORG_ACTIVITY | LIVE | onboarding_logs | no |
 | `PLATFORM_FINANCE_SETTINGS_UPDATED` | SECURITY_ONLY | LIVE | security_logs | no |
 | `PRODUCT_CREATED` | ADMIN_ACTIVITY | LIVE | product_logs | no |
 | `PRODUCT_DELETED` | ADMIN_ACTIVITY | LIVE | product_logs | no |
@@ -158,6 +165,7 @@ Generated from `apps/api/src/lib/audit/visibility-matrix.ts`. Historical and DEV
 | `SETTLEMENT_TRUSTEE_LETTER_SUBMITTED` | ADMIN_ACTIVITY | LIVE | note_events | no |
 | `SHORAKA_CERTIFICATE_FETCHED` | ADMIN_ACTIVITY | LIVE | note_events | no |
 | `SHORAKA_ORDER_SUBMITTED` | ADMIN_ACTIVITY | LIVE | note_events | no |
+| `SIGNING_DOCUMENT_SIGNED` | APPLICATION_TIMELINE | LIVE | application_logs | yes |
 | `SIGNING_PACKAGE_COMPLETED` | APPLICATION_TIMELINE | LIVE | application_logs | yes |
 | `SIGNING_PACKAGE_CREATED` | ADMIN_ACTIVITY | LIVE | application_logs | no |
 | `SIGNING_PACKAGE_DECLINED` | APPLICATION_TIMELINE | LIVE | application_logs | yes |

@@ -13,6 +13,8 @@ describe("getActivityStatusToken", () => {
     expect(getActivityStatusToken("APPLICATION_SUBMITTED")).toBe("submitted");
     expect(getActivityStatusToken("ACTIVATE")).toBe("active");
     expect(getActivityStatusToken("APPLICATION_APPROVED")).toBe("success");
+    expect(getActivityStatusToken("SIGNING_DOCUMENT_SIGNED")).toBe("success");
+    expect(getActivityStatusToken("SIGNING_PACKAGE_COMPLETED")).toBe("success");
     expect(getActivityStatusToken("FAIL_FUNDING")).toBe("rejected");
     expect(getActivityStatusToken("APPLICATION_WITHDRAWN")).toBe("neutral");
     expect(getActivityStatusToken("NOTE_OVERDUE")).toBe("action");

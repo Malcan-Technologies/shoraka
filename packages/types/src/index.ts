@@ -580,6 +580,7 @@ export * from "./marketplace-note-view";
 export * from "./marketplace-industry";
 export * from "./prospectus-calendar";
 export * from "./signing-envelopes";
+export * from "./signing-activity";
 export * from "./acceptance-documents";
 export * from "./generated-documents";
 export * from "./workflow-document-row";

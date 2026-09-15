@@ -69,6 +69,27 @@ describe("ApplicationLogAdapter", () => {
       title: "Signing package sent",
       description: "The signing package was sent to all required signers.",
     });
+    expect(
+      adapter.buildPresentation("SIGNING_DOCUMENT_SIGNED", {
+        signer_name: "Ali",
+        document_name: "Facility Agreement",
+        role_label: "Issuer director",
+        execution_mode: "MANUAL",
+      })
+    ).toEqual({
+      title: "Ali Completed Signing",
+      description: "Ali signed Facility Agreement as Issuer director.",
+    });
+    expect(
+      adapter.buildPresentation("SIGNING_DOCUMENT_SIGNED", {
+        document_name: "Facility Agreement",
+        role_label: "Facility Agreement — signer 1 of 2",
+        execution_mode: "AUTOMATIC",
+      })
+    ).toEqual({
+      title: "CashSouk Completed Signing",
+      description: "Facility Agreement was signed automatically as Facility Agreement — signer 1 of 2.",
+    });
     expect(adapter.buildPresentation("SIGNING_PACKAGE_COMPLETED")).toEqual({
       title: "Signing package completed",
       description: "All required signers completed the signing package.",
@@ -98,6 +119,7 @@ describe("ApplicationLogAdapter", () => {
         "APPLICATION_PROCESSING_FEE_PAID",
         "FACILITY_FEE_PAID",
         "SIGNING_PACKAGE_SENT",
+        "SIGNING_DOCUMENT_SIGNED",
         "CONTRACT_OFFER_ACCEPTED",
         "INVOICE_OFFER_ACCEPTED",
       ])
@@ -171,6 +193,39 @@ describe("ApplicationLogAdapter", () => {
       applicationReference: "#APP_123",
       invoiceId: "invoice_456",
       invoiceNumber: "INV-001",
+    });
+  });
+
+  it("keeps envelope, facility, and invoice references on per-document signing events", () => {
+    const now = new Date();
+    const record: any = {
+      id: "log-sign",
+      user_id: null,
+      application_id: "app_123",
+      entity_id: "env_1",
+      event_type: "SIGNING_DOCUMENT_SIGNED",
+      remark: "Ali signed Facility Agreement as Issuer director.",
+      metadata: {
+        envelope_id: "env_1",
+        contract_id: "contract_456",
+        invoice_id: "invoice_456",
+        signer_name: "Ali",
+        document_name: "Facility Agreement",
+        role_label: "Issuer director",
+        execution_mode: "MANUAL",
+      },
+      created_at: now,
+    };
+
+    const unified = adapter.transform(record);
+    expect(unified.title).toBe("Ali Completed Signing");
+    expect(unified.description).toBe("Ali signed Facility Agreement as Issuer director.");
+    expect(unified.references).toEqual({
+      applicationId: "app_123",
+      applicationReference: "#APP_123",
+      envelopeId: "env_1",
+      contractId: "contract_456",
+      invoiceId: "invoice_456",
     });
   });
 
@@ -393,6 +448,7 @@ describe("ApplicationLogAdapter", () => {
     expect(adapter.getEventTypes()).toContain("APPLICATION_PROCESSING_FEE_PAID");
     expect(adapter.getEventTypes()).toContain("AMENDMENTS_SUBMITTED");
     expect(adapter.getEventTypes()).toContain("SIGNING_PACKAGE_COMPLETED");
+    expect(adapter.getEventTypes()).toContain("SIGNING_DOCUMENT_SIGNED");
     expect(adapter.getEventTypes()).toContain("SIGNING_PACKAGE_DECLINED");
     expect(adapter.getEventTypes()).toContain("SIGNING_PACKAGE_EXPIRED");
     expect(adapter.getEventTypes()).not.toContain("SIGNING_PACKAGE_CREATED");

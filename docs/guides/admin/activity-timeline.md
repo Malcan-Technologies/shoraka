@@ -101,7 +101,7 @@ The `ApplicationLogAdapter` in `apps/api/src/modules/activity/adapters/applicati
 
 All event types that can appear in `application_logs`. Add new mappings in `admin-activity-timeline.tsx` (`getEventLabel`) when introducing a new type.
 
-**Timeline display:** `SIGNING_PACKAGE_COMPLETED`, `SIGNING_PACKAGE_DECLINED`, and `SIGNING_PACKAGE_EXPIRED` are live user-visible timeline events. Terminal commercial success is still `CONTRACT_OFFER_ACCEPTED` / `INVOICE_OFFER_ACCEPTED`. There is no `TIMELINE_HIDDEN_EVENT_TYPES` filter.
+**Timeline display:** `SIGNING_DOCUMENT_SIGNED`, `SIGNING_PACKAGE_COMPLETED`, `SIGNING_PACKAGE_DECLINED`, and `SIGNING_PACKAGE_EXPIRED` are live user-visible timeline events. Terminal commercial success is still `CONTRACT_OFFER_ACCEPTED` / `INVOICE_OFFER_ACCEPTED`. There is no `TIMELINE_HIDDEN_EVENT_TYPES` filter.
 
 ### Application lifecycle
 
@@ -177,6 +177,7 @@ All event types that can appear in `application_logs`. Add new mappings in `admi
 |------------|--------|--------|-------------|
 | `SIGNING_PACKAGE_CREATED` | signing/service | ADMIN | Admin creates a draft signing envelope from approved authorised representatives |
 | `SIGNING_PACKAGE_SENT` | signing/service | ADMIN | Signing package sent to all signers |
+| `SIGNING_DOCUMENT_SIGNED` | signing/service | ISSUER (manual) / SYSTEM (automatic) | One document assignment first became SIGNED. Display-safe signer name and role only; no email or IC |
 | `SIGNING_PACKAGE_COMPLETED` | signing/service | ISSUER | Envelope rollup COMPLETED (user-visible; commercial success is still offer accepted) |
 | `SIGNING_PACKAGE_DECLINED` | signing/service | ISSUER | Signer declined the envelope |
 | `SIGNING_PACKAGE_EXPIRED` | signing/service | SYSTEM | Envelope `expires_at` elapsed while still active |

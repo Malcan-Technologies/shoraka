@@ -1,4 +1,4 @@
-import type { AdminContractActivityEvent } from "@cashsouk/types";
+import { formatSigningDocumentSignedTitle, type AdminContractActivityEvent } from "@cashsouk/types";
 import {
   buildAdminActivityCsv,
   mergeActivityCsvMetadata,
@@ -56,7 +56,13 @@ const EVENT_LABELS: Record<string, string> = {
   INVOICE_OFFER_REJECTED: "Invoice Offer Declined",
 };
 
-export function formatContractActivityEventLabel(eventType: string) {
+export function formatContractActivityEventLabel(
+  eventType: string,
+  metadata?: Record<string, unknown> | null
+) {
+  if (eventType === "SIGNING_DOCUMENT_SIGNED") {
+    return formatSigningDocumentSignedTitle(metadata);
+  }
   return (
     EVENT_LABELS[eventType] ??
     eventType
@@ -82,7 +88,7 @@ export function contractEventToActivityCsvRow(
       : null;
   return {
     createdAt: event.createdAt,
-    event: formatContractActivityEventLabel(event.eventType),
+    event: formatContractActivityEventLabel(event.eventType, event.metadata),
     eventType: event.eventType,
     actor: event.actorName?.trim() || "",
     actorUserId: event.actorUserId ?? "",

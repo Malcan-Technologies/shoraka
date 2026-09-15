@@ -15,10 +15,12 @@ import {
 } from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
+import { internalAuditContext } from "../../lib/audit";
 import type { SigningProvider } from "./provider/adapter";
 import type { SigningEnvelopeWithGraph } from "./mapper";
 import type { SigningRepository } from "./repository";
 import { readFrozenSignatureImage } from "./automatic-signers";
+import { markAssignmentSignedAndLog } from "./document-signed-activity";
 
 export const AUTO_SIGN_BACKOFF_MS = 2 * 60 * 1000;
 export const AUTO_SIGN_MAX_ATTEMPTS = 8;
@@ -248,10 +250,19 @@ export async function runAutomaticCountersign(input: {
             `Not every automatic placement for ${frozenAutomaticSignerLabel(nextSnapshot)} is complete.`
           );
         }
-        await input.repo.markAssignmentSigned(assignment.id);
+        const newlySigned = await markAssignmentSignedAndLog({
+          repo: input.repo,
+          parties: {
+            envelope: input.envelope,
+            assignment,
+            recipient,
+            document,
+          },
+          context: internalAuditContext(),
+        });
         assignment.status = "SIGNED";
         assignment.frozen_asset_snapshot = nextSnapshot;
-        markedSigned += 1;
+        if (newlySigned !== false) markedSigned += 1;
         logger.info(
           {
             envelopeId: input.envelope.id,

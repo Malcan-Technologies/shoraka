@@ -86,7 +86,7 @@ Playwright portal smoke lives under `apps/*/e2e`. The checks below are the durab
 | 7 | Application submit | `status` + `submitted_at` + `APPLICATION_SUBMITTED` in same tx | Issuer API | Application Submitted | timeline + actor |
 | 8 | Amendment/reject | review items + amendment logs | Admin/Issuer | amendment milestones | review events |
 | 9 | Offer send | offer status + `CONTRACT/INVOICE_OFFER_SENT` | Admin | offer received | timeline |
-| 10–14 | Signing sent/viewed/completed/declined/expired | envelope + recipient status | SYSTEM_JOB / webhook | sent/completed/declined/expired | envelope + `SIGNING_PACKAGE_*` |
+| 10–14 | Signing sent/viewed/completed/declined/expired | envelope + recipient status | SYSTEM_JOB / webhook | sent/completed/declined/expired | envelope + `SIGNING_PACKAGE_*` / `SIGNING_DOCUMENT_SIGNED` |
 | 15 | Fee payment success | `gateway_payments` + events | webhook | fee paid milestone | gateway events |
 | 16 | Duplicate payment webhook | webhook idempotency + payment row | WEBHOOK | no duplicate milestone | same payment, occurrence |
 | 17 | Facility fee paid | contract fee + `FACILITY_FEE_PAID` | webhook/API | fee paid | timeline + ledger |

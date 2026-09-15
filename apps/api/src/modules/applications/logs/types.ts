@@ -65,6 +65,8 @@ export enum ApplicationLogEventType {
   AMENDMENTS_SUBMITTED = "AMENDMENTS_SUBMITTED",
   SIGNING_PACKAGE_CREATED = "SIGNING_PACKAGE_CREATED",
   SIGNING_PACKAGE_SENT = "SIGNING_PACKAGE_SENT",
+  /** One signer completed one document assignment. Distinct from envelope rollup. */
+  SIGNING_DOCUMENT_SIGNED = "SIGNING_DOCUMENT_SIGNED",
   /** Envelope rollup COMPLETED. Distinct from CONTRACT/INVOICE_OFFER_ACCEPTED. */
   SIGNING_PACKAGE_COMPLETED = "SIGNING_PACKAGE_COMPLETED",
   /** Signer declined; distinct from an admin/system void. */

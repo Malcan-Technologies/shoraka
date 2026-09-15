@@ -4,7 +4,13 @@ import {
   runAutomaticCountersign,
   AUTO_SIGN_MAX_ATTEMPTS,
 } from "./automatic-countersign";
+import { logApplicationActivity } from "../applications/logs/service";
+import { ApplicationLogEventType } from "../applications/logs/types";
 import type { SigningEnvelopeWithGraph } from "./mapper";
+
+jest.mock("../applications/logs/service", () => ({
+  logApplicationActivity: jest.fn().mockResolvedValue(undefined),
+}));
 
 jest.mock("./automatic-signers", () => ({
   readFrozenSignatureImage: jest.fn(async () => ({
@@ -16,6 +22,8 @@ jest.mock("./automatic-signers", () => ({
     contentType: "image/png",
   })),
 }));
+
+const logActivity = logApplicationActivity as jest.MockedFunction<typeof logApplicationActivity>;
 
 describe("automatic countersign helpers", () => {
   it("redacts long hex from provider errors", () => {
@@ -109,6 +117,7 @@ function sharedPairEnvelope(manualStatus: "SIGNED" | "PENDING" = "SIGNED"): Sign
       },
       {
         id: "r-fa-1",
+        name: "Aisha Rahman",
         execution_mode: "AUTOMATIC",
         delivery_mode: "INTERNAL",
         email: "aisha@cashsouk.com",
@@ -144,6 +153,9 @@ function sharedPairEnvelope(manualStatus: "SIGNED" | "PENDING" = "SIGNED"): Sign
 }
 
 describe("runAutomaticCountersign shared Investor/Agent placements", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
   it("waits until every required manual assignment is signed", async () => {
     const autoSign = jest.fn().mockResolvedValue({ alreadySigned: false });
     const result = await runAutomaticCountersign({
@@ -208,6 +220,18 @@ describe("runAutomaticCountersign shared Investor/Agent placements", () => {
     expect(setAssignmentFrozenSnapshot).toHaveBeenCalledTimes(1);
     expect(result.markedSigned).toBe(1);
     expect(markAssignmentSigned).toHaveBeenCalledWith("a-fa-1");
+    expect(logActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: ApplicationLogEventType.SIGNING_DOCUMENT_SIGNED,
+        portal: null,
+        metadata: expect.objectContaining({
+          assignment_id: "a-fa-1",
+          execution_mode: "AUTOMATIC",
+          signer_name: "Aisha Rahman",
+        }),
+      })
+    );
+    expect(JSON.stringify(logActivity.mock.calls)).not.toMatch(/aisha@cashsouk\.com/i);
   });
 
   it("keeps the assignment pending when the grouped auto-sign call fails", async () => {
@@ -289,5 +313,52 @@ describe("runAutomaticCountersign shared Investor/Agent placements", () => {
       placements: Array<{ status: string }>;
     };
     expect(snapshot.placements.every((placement) => placement.status === "SIGNED")).toBe(true);
+    expect(logActivity).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not write a second activity row when automatic signing is retried", async () => {
+    const envelope = sharedPairEnvelope();
+    const autoSign = jest.fn().mockResolvedValue({ alreadySigned: true });
+    const setAssignmentFrozenSnapshot = jest.fn().mockImplementation(async (id: string, snapshot: unknown) => {
+      const row = envelope.assignments.find((assignment) => assignment.id === id);
+      if (row) row.frozen_asset_snapshot = snapshot as never;
+    });
+    const markAssignmentSigned = jest.fn().mockImplementation(async (id: string) => {
+      const row = envelope.assignments.find((assignment) => assignment.id === id);
+      if (!row || row.status === "SIGNED") return false;
+      row.status = "SIGNED";
+      return true;
+    });
+    const repo = {
+      markAssignmentSigned,
+      recordAutoSignAttempt: jest.fn().mockResolvedValue(undefined),
+      setAssignmentFrozenSnapshot,
+    };
+    const provider = {
+      name: "test",
+      autoSign,
+      getContractDetails: jest.fn(),
+    } as never;
+
+    const first = await runAutomaticCountersign({
+      envelope,
+      provider,
+      repo,
+      callbackUrl: null,
+      ignoreBackoff: true,
+      throwOnFailure: true,
+    });
+    const second = await runAutomaticCountersign({
+      envelope,
+      provider,
+      repo,
+      callbackUrl: null,
+      ignoreBackoff: true,
+      throwOnFailure: true,
+    });
+
+    expect(first.markedSigned).toBe(1);
+    expect(second.markedSigned).toBe(0);
+    expect(logActivity).toHaveBeenCalledTimes(1);
   });
 });

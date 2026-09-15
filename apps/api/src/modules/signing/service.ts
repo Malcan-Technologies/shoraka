@@ -167,31 +167,12 @@ import {
   readSigningCloudConfigFromEnv,
 } from "../signingcloud/signingcloud-api";
 
+import { signingProviderReferenceMetadata } from "./provider-reference-metadata";
+import { markAssignmentSignedAndLog } from "./document-signed-activity";
+
+
 const EXTERNAL_ACCESS_TOKEN_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const CLOSED_ENVELOPE_STATUSES = ["VOIDED", "DECLINED", "EXPIRED", "COMPLETED"] as const;
-
-function signingProviderReferenceMetadata(envelope: {
-  provider_ref?: unknown;
-  documents?: Array<{ provider_contract_ref?: string | null }>;
-}): Record<string, unknown> {
-  const contractRefs = (envelope.documents ?? [])
-    .map((document) => document.provider_contract_ref?.trim())
-    .filter((value): value is string => Boolean(value));
-  const envelopeRef =
-    typeof envelope.provider_ref === "string"
-      ? envelope.provider_ref.trim()
-      : envelope.provider_ref &&
-          typeof envelope.provider_ref === "object" &&
-          !Array.isArray(envelope.provider_ref) &&
-          typeof (envelope.provider_ref as { id?: unknown }).id === "string"
-        ? String((envelope.provider_ref as { id: string }).id)
-        : "";
-  const metadata: Record<string, unknown> = {};
-  if (contractRefs.length > 0) metadata.providerContractRefs = contractRefs;
-  const providerEnvelopeId = envelopeRef || (contractRefs.length === 1 ? contractRefs[0] : "");
-  if (providerEnvelopeId) metadata.providerEnvelopeId = providerEnvelopeId;
-  return metadata;
-}
 
 type RecipientSigningSessionMeta = {
   documentId: string;
@@ -2761,7 +2742,11 @@ export class SigningService {
         }
 
         if (providerStatus === "SIGNED" && assignment.status !== "SIGNED") {
-          await this.repo.markAssignmentSigned(assignment.id);
+          await markAssignmentSignedAndLog({
+            repo: this.repo,
+            parties: { envelope, assignment, recipient, document },
+            context: options?.context ?? internalAuditContext(),
+          });
           assignmentsChanged = true;
         } else if (providerStatus === "REJECTED" && assignment.status !== "DECLINED") {
           await this.repo.markAssignmentDeclined(assignment.id);
