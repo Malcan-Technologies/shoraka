@@ -3,7 +3,7 @@
  * WHY: One formula for dashboard on-time + prospectus Stage 7; avoid duplicated schedule math
  */
 
-import { NoteStatus } from "@prisma/client";
+import { NoteServicingStatus, NoteStatus } from "@prisma/client";
 
 /** Prospectus funded-history statuses (broader than dashboard ACTIVE+REPAID overview). */
 export const PROSPECTUS_FUNDED_HISTORY_STATUSES: readonly NoteStatus[] = [
@@ -14,12 +14,13 @@ export const PROSPECTUS_FUNDED_HISTORY_STATUSES: readonly NoteStatus[] = [
 ] as const;
 
 export const PROSPECTUS_FUNDED_HISTORY_STATUS_SET = new Set<string>(
-  PROSPECTUS_FUNDED_HISTORY_STATUSES
+  [...PROSPECTUS_FUNDED_HISTORY_STATUSES, "LATE"]
 );
 
 export type TrackRecordNoteRow = {
   id: string;
   status: NoteStatus | string;
+  servicing_status?: NoteServicingStatus | string | null;
   funded_amount: unknown;
 };
 
@@ -65,7 +66,10 @@ function isEligibleFundedHistoryNote(
   excludeNoteId?: string | null
 ): boolean {
   if (excludeNoteId && note.id === excludeNoteId) return false;
-  return PROSPECTUS_FUNDED_HISTORY_STATUS_SET.has(String(note.status));
+  return (
+    PROSPECTUS_FUNDED_HISTORY_STATUS_SET.has(String(note.status)) ||
+    note.servicing_status === NoteServicingStatus.LATE
+  );
 }
 
 /** Total Notes Funded — prospectus definition. */
@@ -97,13 +101,15 @@ export function computeProspectusSuccessfulRepaymentPercent(
   let repaid = 0;
   let arrears = 0;
   let defaulted = 0;
+  let late = 0;
   for (const note of notes) {
     if (excludeNoteId && note.id === excludeNoteId) continue;
     if (note.status === NoteStatus.REPAID) repaid += 1;
     else if (note.status === NoteStatus.ARREARS) arrears += 1;
     else if (note.status === NoteStatus.DEFAULTED) defaulted += 1;
+    else if (note.servicing_status === NoteServicingStatus.LATE) late += 1;
   }
-  const denominator = repaid + arrears + defaulted;
+  const denominator = repaid + arrears + defaulted + late;
   if (denominator === 0) return null;
   return Math.round((repaid / denominator) * 100);
 }

@@ -12,6 +12,7 @@ const PROSPECTUS_HISTORICAL_NOTE_STATUS_LABELS: Record<
 > = {
   ACTIVE: "Active",
   REPAID: "Repaid",
+  LATE: "Late",
   ARREARS: "In Arrears",
   DEFAULTED: "Defaulted",
 };

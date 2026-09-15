@@ -38,7 +38,7 @@ export interface ProspectusHistoricalNoteTableAudit {
     currentNoteExclusionRequired: true;
   };
   eligibility: {
-    statuses: readonly ["ACTIVE", "REPAID", "ARREARS", "DEFAULTED"];
+    statuses: readonly ["ACTIVE", "REPAID", "LATE", "ARREARS", "DEFAULTED"];
     sort: "updated_at DESC";
     rowLimit: 4;
   };

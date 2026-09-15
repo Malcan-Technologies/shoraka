@@ -60,7 +60,7 @@ export function buildProspectusIssuerTrackRecordFromMetrics(
         currentNoteExcluded: true,
       },
       eligibility: {
-        statuses: ["ACTIVE", "REPAID", "ARREARS", "DEFAULTED"],
+        statuses: ["ACTIVE", "REPAID", "LATE", "ARREARS", "DEFAULTED"],
       },
       snapshot: {
         isFrozen,

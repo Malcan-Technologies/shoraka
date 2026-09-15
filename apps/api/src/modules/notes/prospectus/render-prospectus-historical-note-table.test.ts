@@ -68,6 +68,7 @@ describe("prospectus Historical Note Table (Page 1 DATA STAGE 8)", () => {
     expect(formatProspectusHistoricalNoteStatus("ACTIVE")).toBe("Active");
     expect(formatProspectusHistoricalNoteStatus("REPAID")).toBe("Repaid");
     expect(formatProspectusHistoricalNoteStatus("ARREARS")).toBe("In Arrears");
+    expect(formatProspectusHistoricalNoteStatus("LATE")).toBe("Late");
     expect(formatProspectusHistoricalNoteStatus("DEFAULTED")).toBe("Defaulted");
   });
 
