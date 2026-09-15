@@ -3016,13 +3016,29 @@ export class NoteService {
     });
 
     // Phase 2: rebuild + generate final Prospectus HTML/PDF with real listing dates.
-    const finalization = await prospectusReviewService.generateFinalProspectusPdfForPublish({
-      noteId: id,
-      actor,
-      approvedSnapshot,
-      publicationId,
-      reviewId,
-    });
+    const finalization = await (async () => {
+      try {
+        return await prospectusReviewService.generateFinalProspectusPdfForPublish({
+          noteId: id,
+          actor,
+          approvedSnapshot,
+          publicationId,
+          reviewId,
+        });
+      } catch (error) {
+        // Ensure renderer/build issues don't bubble up as internal errors to Admin UI.
+        logger.error(
+          { err: error, noteId: id, correlationId: actor.correlationId },
+          "prospectus finalization failed during publish"
+        );
+        if (error instanceof AppError) throw error;
+        throw new AppError(
+          500,
+          "PROSPECTUS_FINALIZATION_FAILED",
+          "Unable to publish Note. The final Prospectus could not be generated. The Note was not published. Please try again."
+        );
+      }
+    })();
 
     // Phase 3: only after final PDF succeeds, mark Note/Prospectus as published for investors.
     const updated = await prisma.$transaction(async (tx) => {

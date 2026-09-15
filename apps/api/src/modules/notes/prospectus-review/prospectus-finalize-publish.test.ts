@@ -4,7 +4,11 @@
  */
 
 import { ProspectusReviewService } from "./prospectus-review.service";
-import { ProspectusReviewStatus, NoteStatus } from "@prisma/client";
+import { buildCompleteProspectusReviewDraft } from "./prospectus-review.demo-fixtures";
+import {
+  toProspectusPublicationContent,
+  type ProspectusReviewStoredContent,
+} from "./prospectus-review-content";
 
 import type { ProspectusApprovedSnapshot } from "./prospectus-approved-snapshot";
 
@@ -125,6 +129,55 @@ describe("prospectus finalization for publish", () => {
     expect(called.snapshotHash).toMatch(/^[a-f0-9]{64}$/);
     expect(result.updatedSnapshot.html.page1).toContain("LIST_DATE");
     expect(result.updatedSnapshot.html.page1).toContain("CLOSE_DATE");
+  });
+
+  it("passes resolved publication content into Page 1 builder during publish (regression)", async () => {
+    const draft: ProspectusReviewStoredContent = buildCompleteProspectusReviewDraft();
+    const expectedResolved = toProspectusPublicationContent(draft);
+
+    // The approved snapshot stores a frozen wrapper; publish-time finalization must
+    // pass `resolvedPublicationContent` into the page builders (so `keyInvestorHighlights` exists).
+    const approvedSnapshot = {
+      publication_content: {
+        resolvedPublicationContent: expectedResolved,
+      },
+      render_fingerprint: "fp",
+      note_identity: {},
+      page_1: {},
+      page_2: {},
+      publication_id: "pub",
+      content_version: 1,
+      calculated_at: new Date("2026-07-19T00:00:00.000Z").toISOString(),
+      html: { page1: "", page2: "", page3: "" },
+    } as unknown as ProspectusApprovedSnapshot;
+
+    (await import("../../../lib/prisma")).prisma.note.findUnique = jest
+      .fn()
+      .mockResolvedValue({
+        listing: {
+          opens_at: new Date("2026-08-01T00:00:00.000Z"),
+          closes_at: new Date("2026-08-15T00:00:00.000Z"),
+        },
+      });
+
+    const { buildProspectusPageOne } = await import("../prospectus/prospectus-page-one-mapper");
+
+    await service.generateFinalProspectusPdfForPublish({
+      noteId: "note-1",
+      actor: { userId: "a", correlationId: "corr" } as any,
+      approvedSnapshot,
+      publicationId: "pub-1",
+      reviewId: "rev-1",
+    });
+
+    const passedPage1Input = (buildProspectusPageOne as jest.Mock).mock.calls[0][0];
+    expect(passedPage1Input.publicationContent.keyInvestorHighlights).toBeDefined();
+    expect(passedPage1Input.publicationContent.keyInvestorHighlights).toHaveLength(
+      expectedResolved.keyInvestorHighlights.length
+    );
+    expect(passedPage1Input.publicationContent.keyInvestorHighlights).toEqual(
+      expectedResolved.keyInvestorHighlights
+    );
   });
 });
 

@@ -152,7 +152,9 @@ describe("publish-time Prospectus finalization ordering", () => {
       new Error("PDF generation failed")
     );
 
-    await expect(noteService.publish("note-1", actor)).rejects.toThrow("PDF generation failed");
+    await expect(noteService.publish("note-1", actor)).rejects.toThrow(
+      "Unable to publish Note. The final Prospectus could not be generated. The Note was not published. Please try again."
+    );
 
     // Phase 3 should never execute: no note status PUBLISHED update should occur.
     const publishedCalls = (prismaAny.note.updateMany.mock.calls ?? []).filter(
