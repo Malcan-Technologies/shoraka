@@ -61,3 +61,20 @@ Pass `contractId` or `invoiceId` from the envelope/preview target so invoice-onl
 Fails closed (`GENERATED_DOCUMENT_DATA_INCOMPLETE`) without offer send date, letter date, facility agreement date, issuer name, issuer registration number, financing limit, facility description, the authorised-representatives draft, or a named issuer representative. Missing live guarantors fail closed when guarantor rows exist.
 
 Product workflow: Financing type → Signing package → add **Facility Agreement** (defaults to `issuer_director`). Stored products that still list Offer Letter can be rewritten with `pnpm --filter @cashsouk/api migrate-signing-offer-letter-to-fa` (future envelopes only; existing envelopes are left unchanged).
+
+## Derived Facility Agreement Package (Admin Documents)
+
+Admin note detail **Documents** compiles a derivative PDF on each view/download. The signed `SigningDocument` (`signed_s3_key`, hash, completed envelope) is never overwritten.
+
+`GET /v1/admin/notes/:id/documents` lists the package; `GET /v1/admin/notes/:id/documents/facility-agreement-package` returns `Facility-Agreement-Package-<note-reference>.pdf`. Treat it as a compiled copy, not the digitally signed original.
+
+Assembler v1 page order:
+
+1. Signed FA through the unique `SCHEDULE 3 (LETTER OF OFFER)` divider page
+2. Letter of Offer regenerated from the current template and frozen offer/application data
+3. Remaining signed FA through the unique `Attachment (e-Certificate)` divider (inclusive)
+4. Every currently stored Shoraka / Tawarruq certificate for the note, in lifecycle then creation order
+
+Zero certificates is valid: the e-Certificate divider stays, with no extra pages. Missing, duplicated, or out-of-order dividers fail closed. Each compile writes `facility_agreement_package_evidence` (assembler version, signed-FA hash, LO template/output hashes, ordered certificate ids/hashes, output hash, actor, time).
+
+Today only issuer-disbursement Shoraka certificates exist. Later trade-order stages append more certificate pages to the same package. A future LO template change can change the compiled bytes; evidence retains the component hashes for that output.

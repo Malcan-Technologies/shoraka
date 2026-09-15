@@ -24,6 +24,19 @@ export const idParamSchema = z.object({
   id: z.string().min(1),
 });
 
+export const noteDocumentParamsSchema = z.object({
+  id: z.string().min(1),
+  documentId: z
+    .string()
+    .min(1)
+    .max(120)
+    .regex(/^[a-z0-9-]+$/, "Document id is invalid."),
+});
+
+export const noteDocumentQuerySchema = z.object({
+  disposition: z.enum(["inline", "attachment"]).default("inline"),
+});
+
 export const documentSigningPersonBodySchema = z.object({
   signingPersonId: z.string().trim().min(1),
 });

@@ -54,6 +54,7 @@ import {
 } from "@/notes/utils/note-settlement-header";
 import { NoteSettlementPayoutHeader } from "@/notes/components/note-settlement-payout-header";
 import { NoteTimelinePanel } from "@/notes/components/note-timeline-panel";
+import { NoteDocumentsPanel } from "@/notes/components/note-documents-panel";
 import { SettlementPanel } from "@/notes/components/settlement-panel";
 import { SourceApplicationPanel } from "@/notes/components/source-application-panel";
 import { IssuerPayoutCard } from "@/notes/components/issuer-payout-card";
@@ -352,6 +353,11 @@ export default function NoteDetailPage() {
       {
         id: "activity",
         label: "Activity",
+        statusToken: NOTE_REFERENCE_TAB_TOKEN,
+      },
+      {
+        id: "documents",
+        label: "Documents",
         statusToken: NOTE_REFERENCE_TAB_TOKEN,
       },
     ];
@@ -676,6 +682,10 @@ export default function NoteDetailPage() {
 
                       <AdminDetailTabPanel value="activity" preserveMount>
                         <NoteTimelinePanel note={note} />
+                      </AdminDetailTabPanel>
+
+                      <AdminDetailTabPanel value="documents" preserveMount>
+                        <NoteDocumentsPanel noteId={note.id} />
                       </AdminDetailTabPanel>
                     </AdminDetailTabs>
                   }

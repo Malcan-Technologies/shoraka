@@ -25,6 +25,7 @@ export const NOTE_DETAIL_TAB_IDS = [
   "late-payment",
   "ledger",
   "activity",
+  "documents",
 ] as const;
 
 export type NoteDetailTabId = (typeof NOTE_DETAIL_TAB_IDS)[number];
@@ -159,7 +160,7 @@ export function resolveNoteCampaignTabStatus(note: NoteDetail): SimpleTabStatus 
   return "not-started";
 }
 
-/** Ledger and Activity are always present and have no workflow status. */
+/** Ledger, Activity, and Documents are always present and have no workflow status. */
 export const NOTE_REFERENCE_TAB_TOKEN = "neutral" as const satisfies StatusToken;
 
 export type NoteDetailNextActionTone = "action" | "neutral";

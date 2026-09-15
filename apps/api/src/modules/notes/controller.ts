@@ -36,6 +36,8 @@ import {
   lateChargeSchema,
   lateChargeWaiverSchema,
   noteLetterParamsSchema,
+  noteDocumentParamsSchema,
+  noteDocumentQuerySchema,
   overdueLateChargeSchema,
   paymentReviewSchema,
   approvePaymentSchema,
@@ -338,6 +340,43 @@ adminNotesRouter.get(
       const { id } = idParamSchema.parse(req.params);
       const { prospectusReviewService } = await import("./prospectus-review/prospectus-review.service");
       send(res, await prospectusReviewService.preview(id, getActor(req, res, "ADMIN")));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+adminNotesRouter.get(
+  "/:id/documents",
+  requirePermission("notes.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const { noteDocumentsService } = await import("./documents/service");
+      send(res, await noteDocumentsService.getCatalog(id));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+adminNotesRouter.get(
+  "/:id/documents/:documentId",
+  requirePermission("notes.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id, documentId } = noteDocumentParamsSchema.parse(req.params);
+      const { disposition } = noteDocumentQuerySchema.parse(req.query);
+      const { noteDocumentsService } = await import("./documents/service");
+      const content = await noteDocumentsService.getContent(
+        id,
+        documentId,
+        getActor(req, res, "ADMIN")
+      );
+      const safeFilename = content.filename.replace(/"/g, "");
+      res.setHeader("Content-Type", content.contentType);
+      res.setHeader("Content-Disposition", `${disposition}; filename="${safeFilename}"`);
+      res.send(content.buffer);
     } catch (error) {
       next(error);
     }

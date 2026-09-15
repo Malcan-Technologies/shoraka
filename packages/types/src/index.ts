@@ -550,6 +550,7 @@ export * from "./signingcloud-legal-image";
 export * from "./issuer-company-seal";
 export * from "./official-document-version";
 export * from "./investment-note-certificate";
+export * from "./note-documents";
 export * from "./settlement-hibah-receipt";
 export * from "./investment-settlement-confirmation";
 export * from "./financing-tenure";
