@@ -3,7 +3,12 @@
  * WHY: Published prospectuses must not drift with live statuses/payments/window
  */
 
-export type ProspectusHistoricalNoteStatus = "ACTIVE" | "REPAID" | "ARREARS" | "DEFAULTED";
+export type ProspectusHistoricalNoteStatus =
+  | "ACTIVE"
+  | "REPAID"
+  | "LATE"
+  | "ARREARS"
+  | "DEFAULTED";
 
 export interface ProspectusPage1IssuerTrackRecordSnapshot {
   total_notes_funded: number | null;

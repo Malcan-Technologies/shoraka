@@ -99,7 +99,7 @@ function unavailableHistoricalTable(): ProspectusHistoricalNoteTable {
         currentNoteExclusionRequired: true,
       },
       eligibility: {
-        statuses: ["ACTIVE", "REPAID", "ARREARS", "DEFAULTED"],
+        statuses: ["ACTIVE", "REPAID", "LATE", "ARREARS", "DEFAULTED"],
         sort: "updated_at DESC",
         rowLimit: 4,
       },

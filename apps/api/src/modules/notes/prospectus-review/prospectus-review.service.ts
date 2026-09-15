@@ -35,7 +35,6 @@ import { toAdminFinancialComparisonTable, toAdminFrozenFinancialYears } from "..
 import { combineProspectusPagesHtml } from "../prospectus/combine-prospectus-pages-html";
 import {
   generateAndStoreProspectusPdf,
-  PROSPECTUS_PDF_STATUS_READY,
   type ProspectusPdfArtifact,
 } from "../prospectus/prospectus-pdf";
 import { buildProspectusPageOneHtml } from "../prospectus/prospectus-page-one.html";
@@ -938,7 +937,7 @@ export class ProspectusReviewService {
     // Rebuild Page 1 with real listing dates; other pages use the same frozen publication content.
     const page1Note = await loadProspectusPageOneNote(prisma, noteId);
     const page1Input = await mapProspectusPageOneDataToInput(page1Note);
-    page1Input.publicationContent = publication;
+    page1Input.publicationContent = publication as any;
     page1Input.trackRecordMode = "frozen_publication_snapshot";
     page1Input.page1TrackRecordSnapshot =
       approvedSnapshot.page_1 as typeof page1Input.page1TrackRecordSnapshot;
@@ -946,12 +945,12 @@ export class ProspectusReviewService {
 
     const page2Data = await loadProspectusPageTwoData(prisma, noteId);
     const page2Input = mapProspectusPageTwoDataToInput(page2Data);
-    page2Input.publicationContent = publication;
+    page2Input.publicationContent = publication as any;
     const page2 = buildProspectusPageTwo(page2Input);
 
     const page3Data = await loadProspectusPageThreeData(prisma, noteId);
     const page3Input = mapProspectusPageThreeDataToInput(page3Data);
-    page3Input.publicationContent = publication;
+    page3Input.publicationContent = publication as any;
     const page3 = buildProspectusPageThree(page3Input);
 
     const page1Html = buildProspectusPageOneHtml(page1);
