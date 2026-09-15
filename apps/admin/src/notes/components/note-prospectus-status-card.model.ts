@@ -35,7 +35,7 @@ export function resolveProspectusStatusCardBadgeToken(
 ): StatusToken {
   if (model.badgeLabel === "Draft") return "neutral";
   if (model.badgeLabel === "Ready for publish") return "active";
-  if (model.badgeLabel === "Approved") return "action";
+  if (model.badgeLabel === "Approved") return "success";
   if (model.badgeLabel === "Published") return "success";
   return "neutral";
 }

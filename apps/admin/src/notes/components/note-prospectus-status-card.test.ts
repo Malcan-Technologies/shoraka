@@ -151,7 +151,7 @@ describe("resolveProspectusStatusCard", () => {
     expect(model.viewAvailable).toBe(true);
     expect(model.emphasize).toBe(false);
     expect(model.badgeTone).toBe("success");
-    expect(resolveProspectusStatusCardBadgeToken(model)).toBe("action");
+    expect(resolveProspectusStatusCardBadgeToken(model)).toBe("success");
     expect(model.actionVariant).toBe("outline");
     expect(WORKFLOW_STATUS_BADGE.success.badgeClass).toMatch(/success/);
   });
