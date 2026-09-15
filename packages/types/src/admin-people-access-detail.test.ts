@@ -164,7 +164,7 @@ describe("Chng Yuen Zheng dual-role projection", () => {
         requestId: "EOD06934",
         stageLabel: "Identity documents submitted",
         url: "https://shoraka-trial.regtank.com/app/onboardingCorporate/COD05594/EOD06934",
-        actionLabel: "View Director onboarding",
+        actionLabel: "View onboarding",
       }),
       expect.objectContaining({
         kind: "shareholder",
@@ -172,7 +172,7 @@ describe("Chng Yuen Zheng dual-role projection", () => {
         requestId: "EOD06933",
         stageLabel: "Identity documents submitted",
         url: "https://shoraka-trial.regtank.com/app/onboardingCorporate/COD05594/EOD06933",
-        actionLabel: "View Shareholder onboarding",
+        actionLabel: "View onboarding",
       }),
     ]);
   });
@@ -517,8 +517,8 @@ describe("KYC tab onboarding vs AML tab screening URLs", () => {
       "https://shoraka-trial.regtank.com/app/onboardingCorporate/COD05594/EOD06933",
     ]);
     expect(records.map((record) => record.actionLabel)).toEqual([
-      "View Director onboarding",
-      "View Shareholder onboarding",
+      "View onboarding",
+      "View onboarding",
     ]);
     for (const record of records) {
       expect(record.url).not.toContain("/screen-kyc/");

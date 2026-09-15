@@ -42,6 +42,7 @@ import {
 import { resolveInvoiceOccupancyContractId } from "../../lib/standalone-holder-contract";
 import { assertFacilityIsEnabled } from "../applications/split-origination-guards";
 import { legalDocumentAcceptanceService } from "../legal-documents/acceptance-service";
+import { computeOrgProfileCompleteness } from "../organization-profile/service";
 import {
   generatePresignedUploadUrl,
   generatePresignedViewUrl,
@@ -3286,6 +3287,14 @@ export class NoteService {
     });
     if (!investorOrg)
       throw new AppError(403, "INVESTOR_ORG_FORBIDDEN", "Investor organization not accessible");
+
+    const completeness = await computeOrgProfileCompleteness("investor", input.investorOrganizationId);
+    if (!completeness.complete) {
+      throw new AppError(403, "PROFILE_INCOMPLETE", "Complete your profile before investing", {
+        missing: completeness.missing,
+        percent: completeness.percent,
+      });
+    }
 
     await legalDocumentAcceptanceService.assertNoPendingReacceptance(
       actor.userId,

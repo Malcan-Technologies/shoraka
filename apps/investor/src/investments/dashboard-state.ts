@@ -84,29 +84,53 @@ export type ApprovalPipelineStage = {
 
 export function approvalPipelineStages(input: {
   onboardingStatus: string;
-  amlApproved?: boolean | null;
+  depositReceived?: boolean | null;
 }): ApprovalPipelineStage[] {
-  const amlCurrent = input.onboardingStatus === "PENDING_AML";
-  const amlDone =
-    !amlCurrent &&
-    (input.amlApproved === true ||
-      input.onboardingStatus === "PENDING_APPROVAL" ||
-      input.onboardingStatus === "PENDING_FINAL_APPROVAL" ||
-      input.onboardingStatus === "PENDING_SSM_REVIEW");
+  const status = input.onboardingStatus as
+    | "PENDING"
+    | "IN_PROGRESS"
+    | "PENDING_APPROVAL"
+    | "PENDING_AMENDMENT"
+    | "PENDING_AML"
+    | "PENDING_SSM_REVIEW"
+    | "PENDING_FINAL_APPROVAL"
+    | "COMPLETED"
+    | "REJECTED";
+
+  const docsDone =
+    status === "PENDING_APPROVAL" ||
+    status === "PENDING_AML" ||
+    status === "PENDING_AMENDMENT" ||
+    status === "PENDING_SSM_REVIEW" ||
+    status === "PENDING_FINAL_APPROVAL" ||
+    status === "COMPLETED";
+
+  const amlStatus: ApprovalPipelineStageStatus =
+    status === "PENDING_AML"
+      ? "current"
+      : status === "PENDING_FINAL_APPROVAL" || status === "COMPLETED"
+        ? "done"
+        : "pending";
+
+  const finalStatus: ApprovalPipelineStageStatus =
+    status === "PENDING_FINAL_APPROVAL"
+      ? "current"
+      : status === "COMPLETED"
+        ? "done"
+        : "pending";
+
+  const walletStatus: ApprovalPipelineStageStatus =
+    status === "COMPLETED"
+      ? input.depositReceived === true
+        ? "done"
+        : "current"
+      : "pending";
 
   return [
-    { id: "documents", label: "Documents received", status: "done" },
-    {
-      id: "aml",
-      label: "AML screening",
-      status: amlCurrent ? "current" : amlDone ? "done" : "current",
-    },
-    {
-      id: "final",
-      label: "Final approval",
-      status: amlCurrent ? "pending" : "current",
-    },
-    { id: "wallet", label: "Wallet enabled", status: "pending" },
+    { id: "documents", label: "Documents received", status: docsDone ? "done" : "pending" },
+    { id: "aml", label: "AML screening", status: amlStatus },
+    { id: "final", label: "Final approval", status: finalStatus },
+    { id: "wallet", label: "Wallet enabled", status: walletStatus },
   ];
 }
 

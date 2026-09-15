@@ -2079,9 +2079,9 @@ export function SettlementPanel({
               <div>
                 <WorkflowStepTitle
                   complete={repaymentReceiptsSectionComplete}
-                  completeLabel="1. Repayment receipts complete"
+                  completeLabel="Repayment receipts complete"
                 >
-                  1. Repayment receipts
+                  Repayment receipts
                 </WorkflowStepTitle>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Record paymaster or issuer receipts and approve issuer payment advice. Once
@@ -2335,9 +2335,9 @@ export function SettlementPanel({
             <div>
               <WorkflowStepTitle
                 complete={Boolean(persistedPostedSettlement)}
-                completeLabel="2. Settlement complete"
+                completeLabel="Settlement complete"
               >
-                2. Settlement &amp; waterfall
+                Settlement &amp; waterfall
               </WorkflowStepTitle>
               {!persistedPostedSettlement ? (
                 <>
@@ -2715,9 +2715,9 @@ export function SettlementPanel({
                 <div className="flex flex-wrap items-center gap-2">
                   <WorkflowStepTitle
                     complete={settlementTrusteeWorkflowComplete}
-                    completeLabel="3. Trustee instruction complete"
+                    completeLabel="Trustee instruction complete"
                   >
-                    3. Trustee instruction
+                    Trustee instruction
                   </WorkflowStepTitle>
                   {settlementTrusteeWorkflowComplete ? null : (
                     <StatusBadge
@@ -2956,7 +2956,7 @@ export function SettlementPanel({
               </div>
             ) : (
               <div className="rounded-xl border border-border bg-muted/20 p-4">
-                <div className="text-sm font-medium">3. Trustee instruction</div>
+                <div className="text-sm font-medium">Trustee instruction</div>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Generate and submit the settlement trustee letter after the waterfall is posted.
                 </p>

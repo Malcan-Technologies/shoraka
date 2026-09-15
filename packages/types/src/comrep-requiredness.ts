@@ -18,6 +18,7 @@ import { isScIntegerWithoutDecimal } from "./comrep-normalization";
 import {
   OPERATOR_ADVISOR_TYPES,
   SC_COMPANY_TYPES,
+  SC_MALAYSIAN_STATES,
   SC_DESIGNATIONS,
   SC_GENDERS,
   SC_IDENTITY_PREFIXES,
@@ -77,6 +78,39 @@ export function isScPostcodeRequired(state: unknown): boolean {
   return trimToNull(state) !== SC_OUTSIDE_MALAYSIA;
 }
 
+function parseFiniteNumber(value: unknown): number | null {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value.replace(/,/g, ""));
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function nonNegativeNumberIssue(
+  value: unknown,
+  field: string,
+  label: string
+): ComrepFieldIssue | null {
+  const parsed = parseFiniteNumber(value);
+  if (parsed == null) return null; // numeric-ness is handled by requiredNumberIssue
+  if (parsed < 0) return { field, label, message: "Amount cannot be negative." };
+  return null;
+}
+
+function requiredStateIssue(
+  value: unknown,
+  field: string,
+  label: string
+): ComrepFieldIssue | null {
+  const text = trimToNull(value);
+  if (!text) return { field, label, message: `${label} is required.` };
+  if (!(SC_MALAYSIAN_STATES as readonly string[]).includes(text)) {
+    return { field, label, message: "Please select a valid state." };
+  }
+  return null;
+}
+
 export function requiredTextIssue(value: unknown, field: string, label: string): ComrepFieldIssue | null {
   if (!isBlank(value)) return null;
   return { field, label, message: `${label} is required.` };
@@ -123,10 +157,10 @@ export function optionalIdentityFormatIssue(
 
 function percentCapIssue(value: unknown, field: string, label: string): ComrepFieldIssue | null {
   if (typeof value === "number") {
-    if (!Number.isFinite(value) || value <= 100) return null;
+    if (!Number.isFinite(value) || (value >= 0 && value <= 100)) return null;
   } else if (typeof value === "string" && value.trim() !== "") {
     const parsed = Number(value.replace(/%/g, "").replace(/,/g, "").trim());
-    if (!Number.isFinite(parsed) || parsed <= 100) return null;
+    if (!Number.isFinite(parsed) || (parsed >= 0 && parsed <= 100)) return null;
   } else {
     return null;
   }
@@ -181,7 +215,13 @@ export function requiredPostcodeIssue(
   label: string
 ): ComrepFieldIssue | null {
   if (!isScPostcodeRequired(state)) return null;
-  return requiredTextIssue(postcode, field, label);
+  const missing = requiredTextIssue(postcode, field, label);
+  if (missing) return missing;
+  const text = typeof postcode === "string" ? postcode.trim() : String(postcode).trim();
+  if (!/^\d+$/.test(text)) {
+    return { field, label, message: "Postcode must contain numbers only." };
+  }
+  return null;
 }
 
 export function firstIssueMessage(issues: ComrepFieldIssue[]): string | null {
@@ -255,12 +295,25 @@ const SHARE_CAPITAL_INTEGER_KEYS = new Set([
 
 export function validateOperatorShareCapitalPatch(patch: Record<string, unknown>): ComrepFieldIssue[] {
   const issues: ComrepFieldIssue[] = [];
+  const NON_NEGATIVE_RM_KEYS = new Set([
+    "ordinaryAmount",
+    "preferenceAmount",
+    "othersAmount",
+    "totalPaidUpCapital",
+    "llpMembersCapitalAmount",
+    "llpMembersReservesAmount",
+    "llpSubordinatedLoansAmount",
+    "totalLlp",
+  ]);
   for (const [key, label] of Object.entries(SHARE_CAPITAL_PATCH_LABELS)) {
     if (!present(patch, key)) continue;
     if (SHARE_CAPITAL_INTEGER_KEYS.has(key)) {
       push(issues, requiredIntegerIssue(patch[key], key, label));
     } else {
       push(issues, requiredNumberIssue(patch[key], key, label));
+    }
+    if (NON_NEGATIVE_RM_KEYS.has(key)) {
+      push(issues, nonNegativeNumberIssue(patch[key], key, label));
     }
   }
   if (present(patch, "llpMembersReservesUnits") && !isBlank(patch.llpMembersReservesUnits)) {
@@ -293,7 +346,7 @@ function rejectClearedAddress(
     push(issues, requiredTextIssue(address.line1, `${key}.line1`, labels.line1));
   }
   if (present(address, "state")) {
-    push(issues, requiredTextIssue(address.state, `${key}.state`, labels.state));
+    push(issues, requiredStateIssue(address.state, `${key}.state`, labels.state));
   }
   if (present(address, "postalCode") || present(address, "state")) {
     const state = present(address, "state") ? address.state : undefined;
@@ -466,7 +519,7 @@ export function validateIssuerAddressForm(input: {
   );
   push(
     issues,
-    requiredTextIssue(
+    requiredStateIssue(
       input.registeredState,
       "registeredAddress.state",
       profileAddressCompletenessLabel("registered", "state")
@@ -491,7 +544,7 @@ export function validateIssuerAddressForm(input: {
   );
   push(
     issues,
-    requiredTextIssue(
+    requiredStateIssue(
       input.businessState,
       "businessAddress.state",
       profileAddressCompletenessLabel("business", "state")
@@ -518,7 +571,10 @@ export function validateInvestorPersonalForm(input: {
   const issues: ComrepFieldIssue[] = [];
   push(issues, requiredEnumIssue(input.gender, ["MALE", "FEMALE"], "gender", PROFILE_LABEL.gender));
   push(issues, requiredTextIssue(input.nationality, "nationality", PROFILE_LABEL.nationality));
-  push(issues, requiredTextIssue(input.state, "state", PROFILE_ADDRESS_FIELD_LABELS.state));
+  push(
+    issues,
+    requiredStateIssue(input.state, "state", PROFILE_ADDRESS_FIELD_LABELS.state)
+  );
   push(
     issues,
     requiredPostcodeIssue(
@@ -673,7 +729,7 @@ export function validateIssuerMasterPatch(
       if (present(address, "state") || present(address, "postalCode")) {
         push(
           issues,
-          requiredTextIssue(address.state, "residentialAddress.state", PROFILE_ADDRESS_FIELD_LABELS.state)
+          requiredStateIssue(address.state, "residentialAddress.state", PROFILE_ADDRESS_FIELD_LABELS.state)
         );
         push(
           issues,
@@ -698,17 +754,24 @@ export function validateOperatorShareCapital(
   if (kind === "SDN_BHD") {
     push(issues, requiredIntegerIssue(input.ordinaryUnits, "ordinaryUnits", "Ordinary (for Sdn Bhd) — No. of Shares"));
     push(issues, requiredNumberIssue(input.ordinaryAmount, "ordinaryAmount", "Ordinary (for Sdn Bhd) — Nominal Value (RM)"));
+    push(issues, nonNegativeNumberIssue(input.ordinaryAmount, "ordinaryAmount", "Ordinary (for Sdn Bhd) — Nominal Value (RM)"));
     push(issues, requiredIntegerIssue(input.preferenceUnits, "preferenceUnits", "Preference (for Sdn Bhd) — No. of Shares"));
     push(
       issues,
       requiredNumberIssue(input.preferenceAmount, "preferenceAmount", "Preference (for Sdn Bhd) — Nominal Value (RM)")
     );
+    push(
+      issues,
+      nonNegativeNumberIssue(input.preferenceAmount, "preferenceAmount", "Preference (for Sdn Bhd) — Nominal Value (RM)")
+    );
     push(issues, requiredIntegerIssue(input.othersUnits, "othersUnits", "Others (for Sdn Bhd) — No. of Shares"));
     push(issues, requiredNumberIssue(input.othersAmount, "othersAmount", "Others (for Sdn Bhd) — Nominal Value (RM)"));
+    push(issues, nonNegativeNumberIssue(input.othersAmount, "othersAmount", "Others (for Sdn Bhd) — Nominal Value (RM)"));
     push(
       issues,
       requiredIntegerIssue(input.totalPaidUpCapital, "totalPaidUpCapital", "Total paid up capital (for Sdn Bhd)")
     );
+    push(issues, nonNegativeNumberIssue(input.totalPaidUpCapital, "totalPaidUpCapital", "Total paid up capital (for Sdn Bhd)"));
   } else {
     push(
       issues,
@@ -717,6 +780,14 @@ export function validateOperatorShareCapital(
     push(
       issues,
       requiredNumberIssue(
+        input.llpMembersCapitalAmount,
+        "llpMembersCapitalAmount",
+        "Members' Capital — Nominal Value (RM)"
+      )
+    );
+    push(
+      issues,
+      nonNegativeNumberIssue(
         input.llpMembersCapitalAmount,
         "llpMembersCapitalAmount",
         "Members' Capital — Nominal Value (RM)"
@@ -740,8 +811,34 @@ export function validateOperatorShareCapital(
     );
     push(
       issues,
+      nonNegativeNumberIssue(
+        input.llpSubordinatedLoansAmount,
+        "llpSubordinatedLoansAmount",
+        "Subordinated Loans — Nominal Value (RM)"
+      )
+    );
+    push(
+      issues,
       requiredNumberIssue(input.totalLlp, "totalLlp", "Total Limited Liability Partnership")
     );
+    push(
+      issues,
+      nonNegativeNumberIssue(
+        input.totalLlp,
+        "totalLlp",
+        "Total Limited Liability Partnership"
+      )
+    );
+    if (present(input, "llpMembersReservesAmount")) {
+      push(
+        issues,
+        nonNegativeNumberIssue(
+          input.llpMembersReservesAmount,
+          "llpMembersReservesAmount",
+          "Members' Reserves — Nominal Value (RM)"
+        )
+      );
+    }
   }
   return issues;
 }
@@ -798,6 +895,14 @@ export function validateOperatorShareholder(input: {
   }
   push(issues, requiredNumberIssue(input.shareholdingUnits, "shareholdingUnits", "Shareholding Units (Unit)"));
   push(issues, requiredNumberIssue(input.shareholdingAmount, "shareholdingAmount", "Shareholding Amount (RM)"));
+  push(
+    issues,
+    nonNegativeNumberIssue(
+      input.shareholdingAmount,
+      "shareholdingAmount",
+      "Shareholding Amount (RM)"
+    )
+  );
   push(
     issues,
     requiredNumberIssue(input.shareholdingPercentage, "shareholdingPercentage", "Shareholding Percentage (%)")
@@ -1038,7 +1143,7 @@ export function validateIssuerPersonForm(input: {
     push(issues, requiredTextIssue(input.nationality, "nationality", nationalityLabel));
   }
   push(issues, requiredTextIssue(input.line1, "address.line1", addressLabel));
-  push(issues, requiredTextIssue(input.state, "address.state", stateLabel));
+  push(issues, requiredStateIssue(input.state, "address.state", stateLabel));
   push(issues, requiredPostcodeIssue(input.postalCode, input.state, "address.postalCode", postcodeLabel));
   if (shareholder) {
     push(issues, requiredEnumIssue(input.shareType, SC_SHARE_TYPES, "shareType", PROFILE_LABEL.typeOfShares));
@@ -1050,6 +1155,14 @@ export function validateIssuerPersonForm(input: {
     }
     push(issues, requiredNumberIssue(input.shareholdingUnits, "shareholdingUnits", PROFILE_LABEL.shareholdingUnits));
     push(issues, requiredNumberIssue(input.shareholdingAmount, "shareholdingAmount", PROFILE_LABEL.shareholdingAmount));
+    push(
+      issues,
+      nonNegativeNumberIssue(
+        input.shareholdingAmount,
+        "shareholdingAmount",
+        PROFILE_LABEL.shareholdingAmount
+      )
+    );
     push(
       issues,
       requiredNumberIssue(input.shareholdingPercentage, "shareholdingPercentage", PROFILE_LABEL.shareholdingPercentage)
@@ -1085,6 +1198,26 @@ export function validatePartyPatch(patch: Record<string, unknown>): ComrepFieldI
   push(issues, rejectClearedRequiredNumber(patch, "shareholdingUnits", PROFILE_LABEL.shareholdingUnits));
   push(issues, rejectClearedRequiredNumber(patch, "shareholdingAmount", PROFILE_LABEL.shareholdingAmount));
   push(issues, rejectClearedRequiredNumber(patch, "shareholdingPercentage", PROFILE_LABEL.shareholdingPercentage));
+  if (present(patch, "shareholdingAmount")) {
+    push(
+      issues,
+      nonNegativeNumberIssue(
+        patch.shareholdingAmount,
+        "shareholdingAmount",
+        PROFILE_LABEL.shareholdingAmount
+      )
+    );
+  }
+  if (present(patch, "shareholdingPercentage")) {
+    push(
+      issues,
+      percentCapIssue(
+        patch.shareholdingPercentage,
+        "shareholdingPercentage",
+        PROFILE_LABEL.shareholdingPercentage
+      )
+    );
+  }
   push(issues, rejectClearedRequiredEnum(patch, "designation", SC_DESIGNATIONS, PROFILE_LABEL.designation));
   push(issues, rejectClearedRequiredDate(patch, "appointmentDate", PROFILE_LABEL.appointmentDate));
   if (present(patch, "gender")) {
@@ -1097,7 +1230,7 @@ export function validatePartyPatch(patch: Record<string, unknown>): ComrepFieldI
       push(issues, requiredTextIssue(address.line1, "address.line1", "Address"));
     }
     if (present(address, "state")) {
-      push(issues, requiredTextIssue(address.state, "address.state", "State"));
+      push(issues, requiredStateIssue(address.state, "address.state", "State"));
     }
     if (present(address, "postalCode") || present(address, "state")) {
       push(

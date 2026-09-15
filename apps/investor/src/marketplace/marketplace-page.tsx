@@ -336,6 +336,25 @@ export function MarketplacePage() {
       closeInvestDialog();
     } catch (err) {
       const code = err && typeof err === "object" && "code" in err ? String(err.code) : "";
+      if (code === "PROFILE_INCOMPLETE") {
+        type ProfileIncompleteDetails = { missing?: Array<{ step?: string }> };
+        const details =
+          err && typeof err === "object" && "details" in err
+            ? (err as { details?: unknown }).details
+            : undefined;
+        const missing =
+          Array.isArray((details as ProfileIncompleteDetails | undefined)?.missing)
+            ? ((details as ProfileIncompleteDetails).missing ?? [])
+            : [];
+        const needsPeople =
+          missing.some((m) => m.step === "shareholders" || m.step === "board") &&
+          activeOrganization?.type === "COMPANY";
+        const focus = needsPeople ? "people" : "completeness";
+        toast.error("Complete your Profile before placing an investment.");
+        setIsConfirmDialogOpen(false);
+        router.push(`/profile?focus=${focus}`);
+        return;
+      }
       if (code === "LEGAL_REACCEPTANCE_REQUIRED") {
         toast.message(legalReacceptanceInterceptMessage("investor"));
         setIsConfirmDialogOpen(false);

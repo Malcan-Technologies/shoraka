@@ -682,6 +682,7 @@ export default function RmoProfilePage() {
                               shareCapital: { ...(cap ?? emptyCapital()), llpMembersReservesAmount: v },
                             })
                           }
+                          error={sectionErrors.llpMembersReservesAmount}
                         />
                       </ShareGroup>
                       <ShareGroup title={SC_ANNUAL_SHARE_CAPITAL.subordinatedLoans.label}>

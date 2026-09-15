@@ -277,7 +277,7 @@ function InvestorDashboardContent() {
               {dashboardState === "approval" && activeOrganization ? (
                 <InvestorDashboardApproval
                   onboardingStatus={activeOrganization.onboardingStatus}
-                  amlApproved={activeOrganization.amlApproved}
+                  depositReceived={activeOrganization.depositReceived}
                   submittedAt={activeOrganization.submittedAt}
                 />
               ) : null}

@@ -63,7 +63,7 @@ function baseNote(
     },
     invoice_snapshot: {
       details: { value: 625_000 },
-      offer_details: { risk_rating: "B" },
+      offer_details: { risk_rating: "SME-2" },
     },
     paymaster_snapshot: {
       name: "Paymaster Co",
@@ -785,9 +785,10 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       );
 
       const selected = page.soukscoreRatingScale.grades.filter((g) => g.isSelected);
-      expect(selected).toHaveLength(0);
-      expect(page.soukscoreRatingScale.selectedGrade).toBeNull();
-      expect(page.soukscoreRatingScale.missingRatingMessage).toBe("—");
+      expect(selected).toHaveLength(1);
+      expect(selected[0]?.grade).toBe("SME-2");
+      expect(page.soukscoreRatingScale.selectedGrade).toBe("SME-2");
+      expect(page.soukscoreRatingScale.missingRatingMessage).toBeNull();
       expect(page.soukscoreRatingScale).not.toHaveProperty("assessmentNote");
       expect(page.soukscoreRatingScale.grades[0]).not.toHaveProperty("riskLabel");
       expect(page.soukscoreRatingScale.grades[0]).not.toHaveProperty("definition");
@@ -834,7 +835,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
           liveCtosFinancials,
         })
       );
-      expect(page.soukscoreRatingScale.selectedGrade).toBeNull();
+      expect(page.soukscoreRatingScale.selectedGrade).toBe("SME-5");
 
       const liveInvoiceWouldBe = { offer_details: { risk_rating: "A" } };
       expect(liveInvoiceWouldBe.offer_details.risk_rating).toBe("A");

@@ -33,7 +33,7 @@ describe("issuer application company-details profile gate", () => {
   });
 
   it("does not treat Profile completeness as an application start or submit blocker", () => {
-    expect(editPage).toContain("You can continue with your application");
+    expect(editPage).toContain("Complete the remaining profile information before submitting your application");
     expect(editPage).toContain("showProfileIncompleteWarning");
     expect(newPage).not.toContain("contactPersonName");
     expect(newPage).not.toContain("profileCompleteness");

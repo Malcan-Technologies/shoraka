@@ -502,20 +502,78 @@ describe("investor company completeness is not issuer Person completeness", () =
     isSophisticatedInvestor: false,
   };
 
-  it("stays complete when a company-investor Person is missing issuer designation and share block", () => {
+  it("becomes incomplete when an ACTIVE company-person is missing required person fields", () => {
     const result = buildInvestorProfileCompleteness({
       organizationType: "COMPANY",
       corporate: completeCorporate,
+      people: [
+        {
+          partyKey: "p1",
+          name: "Alice",
+          entityType: "INDIVIDUAL",
+          isDirector: true,
+          isShareholder: false,
+          isBoard: false,
+          isManagement: false,
+          identityPrefix: "NRIC",
+          identityNumber: "800101011234",
+          dateOfBirth: "1980-01-01",
+          dateOfIncorporation: null,
+          gender: "MALE",
+          nationality: null,
+          countryOfIncorporation: null,
+          address: { line1: "10 Jalan C", state: "Selangor", postalCode: "47300" },
+          shareType: null,
+          shareTypeOther: null,
+          shareholdingUnits: null,
+          shareholdingAmount: null,
+          shareholdingPercentage: null,
+          designation: null,
+          designationOther: null,
+          appointmentDate: null,
+          kycOnboardingStatus: "APPROVED",
+        } as any,
+      ],
+    });
+    expect(result.complete).toBe(false);
+    expect(result.missing.some((item) => item.field === "nationality")).toBe(true);
+    expect(result.steps.some((step) => step.id === "shareholders" || step.id === "board")).toBe(true);
+  });
+
+  it("is complete when ACTIVE company-person required fields are filled", () => {
+    const result = buildInvestorProfileCompleteness({
+      organizationType: "COMPANY",
+      corporate: completeCorporate,
+      people: [
+        {
+          partyKey: "p1",
+          name: "Alice",
+          entityType: "INDIVIDUAL",
+          isDirector: true,
+          isShareholder: false,
+          isBoard: false,
+          isManagement: false,
+          identityPrefix: "NRIC",
+          identityNumber: "800101011234",
+          dateOfBirth: "1980-01-01",
+          dateOfIncorporation: null,
+          gender: "MALE",
+          nationality: "Malaysia",
+          countryOfIncorporation: null,
+          address: { line1: "10 Jalan C", state: "Selangor", postalCode: "47300" },
+          shareType: null,
+          shareTypeOther: null,
+          shareholdingUnits: null,
+          shareholdingAmount: null,
+          shareholdingPercentage: null,
+          designation: null,
+          designationOther: null,
+          appointmentDate: null,
+          kycOnboardingStatus: "APPROVED",
+        } as any,
+      ],
     });
     expect(result.complete).toBe(true);
-    expect(result.steps.some((step) => step.id === "shareholders" || step.id === "board")).toBe(false);
-    expect(result.missing.map((item) => item.field)).not.toEqual(
-      expect.arrayContaining(["designation", "shareType", "shareholdingUnits", "shareholdingAmount"])
-    );
-    expect(result.missing.some((item) => item.field === "campaignId")).toBe(false);
-    expect(result.missing.some((item) => item.field === "issuerId")).toBe(false);
-    expect(result.missing.some((item) => item.field === "relatedParty")).toBe(false);
-    expect(result.missing.some((item) => item.field === "investmentByRelatedParty")).toBe(false);
   });
 
   it("remains incomplete for genuine Investor Details identity gaps", () => {

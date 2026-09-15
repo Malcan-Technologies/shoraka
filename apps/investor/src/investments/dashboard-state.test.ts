@@ -105,13 +105,39 @@ describe("approvalPipelineStages", () => {
     expect(stages.find((stage) => stage.id === "final")?.status).toBe("pending");
   });
 
+  it("maps PENDING_APPROVAL to AML pending + final pending", () => {
+    const stages = approvalPipelineStages({ onboardingStatus: "PENDING_APPROVAL" });
+    expect(stages.find((stage) => stage.id === "documents")?.status).toBe("done");
+    expect(stages.find((stage) => stage.id === "aml")?.status).toBe("pending");
+    expect(stages.find((stage) => stage.id === "final")?.status).toBe("pending");
+    expect(stages.find((stage) => stage.id === "wallet")?.status).toBe("pending");
+  });
+
   it("marks final approval as current after AML", () => {
     const stages = approvalPipelineStages({
       onboardingStatus: "PENDING_FINAL_APPROVAL",
-      amlApproved: true,
     });
     expect(stages.find((stage) => stage.id === "aml")?.status).toBe("done");
     expect(stages.find((stage) => stage.id === "final")?.status).toBe("current");
     expect(stages.find((stage) => stage.id === "wallet")?.status).toBe("pending");
+  });
+
+  it("maps COMPLETED to wallet current when depositReceived is false", () => {
+    const stages = approvalPipelineStages({
+      onboardingStatus: "COMPLETED",
+      depositReceived: false,
+    });
+    expect(stages.find((stage) => stage.id === "documents")?.status).toBe("done");
+    expect(stages.find((stage) => stage.id === "aml")?.status).toBe("done");
+    expect(stages.find((stage) => stage.id === "final")?.status).toBe("done");
+    expect(stages.find((stage) => stage.id === "wallet")?.status).toBe("current");
+  });
+
+  it("maps COMPLETED to wallet done when depositReceived is true", () => {
+    const stages = approvalPipelineStages({
+      onboardingStatus: "COMPLETED",
+      depositReceived: true,
+    });
+    expect(stages.find((stage) => stage.id === "wallet")?.status).toBe("done");
   });
 });
