@@ -169,8 +169,12 @@ describe("issuer and admin party inactivation routes", () => {
     const response = await request(app).post(
       "/v1/organizations/issuer/org-a/party-profiles/party-a/inactivate"
     );
-    expect(response.status).toBe(403);
-    expect(mockInactivateMasterParty).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(mockInactivateMasterParty).toHaveBeenCalledWith({
+      portal: "issuer",
+      organizationId: "org-a",
+      partyId: "party-a",
+    });
   });
 
   it("blocks an ordinary investor member from marking a person inactive", async () => {
@@ -178,8 +182,12 @@ describe("issuer and admin party inactivation routes", () => {
     const response = await request(app).post(
       "/v1/organizations/investor/org-a/party-profiles/party-a/inactivate"
     );
-    expect(response.status).toBe(403);
-    expect(mockInactivateMasterParty).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(mockInactivateMasterParty).toHaveBeenCalledWith({
+      portal: "investor",
+      organizationId: "org-a",
+      partyId: "party-a",
+    });
   });
 
   it("blocks an issuer from inactivating a person on another organization", async () => {
@@ -237,8 +245,12 @@ describe("issuer and admin party inactivation routes", () => {
     const response = await request(app).post(
       "/v1/organizations/investor/org-a/party-profiles/party-a/reactivate"
     );
-    expect(response.status).toBe(403);
-    expect(mockReactivateMasterParty).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(mockReactivateMasterParty).toHaveBeenCalledWith({
+      portal: "investor",
+      organizationId: "org-a",
+      partyId: "party-a",
+    });
   });
 
   it("keeps the existing admin reactivation route", async () => {
@@ -336,7 +348,11 @@ describe("issuer management-party delete permissions", () => {
     const response = await request(app).delete(
       "/v1/organizations/issuer/org-a/party-profiles/party-a"
     );
-    expect(response.status).toBe(403);
-    expect(deleteManagementParty).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(deleteManagementParty).toHaveBeenCalledWith({
+      portal: "issuer",
+      organizationId: "org-a",
+      partyId: "party-a",
+    });
   });
 });

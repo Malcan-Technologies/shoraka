@@ -331,6 +331,12 @@ export default function ProfilePage() {
     return currentUserMember?.role === "ORGANIZATION_ADMIN";
   }, [activeOrganization, currentUser]);
 
+  const canEditOrganization = React.useMemo(() => {
+    if (!activeOrganization || !currentUser) return false;
+    if (activeOrganization.isOwner) return true;
+    return Boolean(activeOrganization.members?.find((m) => m.id === currentUser.userId));
+  }, [activeOrganization, currentUser]);
+
   const { invitations } = useOrganizationInvitations(activeOrganization?.id, {
     enabled: isCurrentUserAdmin,
   });
@@ -961,7 +967,7 @@ export default function ProfilePage() {
                 <div ref={companySectionRef}>
                 <IssuerCompanyDetailsCard
                   organizationId={activeOrganization.id}
-                  canEdit={isCurrentUserAdmin}
+                  canEdit={canEditOrganization}
                   org={{
                     name: activeOrganization.name,
                     registrationNumber: activeOrganization.registrationNumber,
@@ -982,7 +988,7 @@ export default function ProfilePage() {
               {!isPersonal && activeOrganization?.id ? (
                 <IssuerCompanySealCard
                   organizationId={activeOrganization.id}
-                  canEdit={isCurrentUserAdmin}
+                  canEdit={canEditOrganization}
                 />
               ) : null}
 
@@ -990,7 +996,7 @@ export default function ProfilePage() {
                 <div ref={aboutSectionRef}>
                   <AboutYourBusinessCard
                     organizationId={activeOrganization.id}
-                    canEdit={isCurrentUserAdmin}
+                    canEdit={canEditOrganization}
                   />
                 </div>
               )}
@@ -1006,7 +1012,7 @@ export default function ProfilePage() {
                         Ensure your primary address is up to date
                       </p>
                     </div>
-                    {!isEditingAddress && isCurrentUserAdmin ? (
+                    {!isEditingAddress && canEditOrganization ? (
                       <Button
                         variant="outline"
                         size="sm"
@@ -1048,7 +1054,7 @@ export default function ProfilePage() {
                     </div>
                     )}
 
-                    {isEditingAddress && isCurrentUserAdmin && (
+                    {isEditingAddress && canEditOrganization && (
                       <div className="flex justify-end gap-2 pt-4">
                         <Button
                           variant="outline"
@@ -1083,7 +1089,7 @@ export default function ProfilePage() {
                         Where your business operates and is registered
                       </p>
                     </div>
-                    {!isEditingAddresses && isCurrentUserAdmin ? (
+                    {!isEditingAddresses && canEditOrganization ? (
                       <Button
                         variant="outline"
                         size="sm"
@@ -1320,7 +1326,7 @@ export default function ProfilePage() {
                       )}
                     </div>
 
-                    {isEditingAddresses && isCurrentUserAdmin && (
+                    {isEditingAddresses && canEditOrganization && (
                       <div className="flex justify-end gap-2 pt-4">
                         <Button
                           variant="outline"
@@ -1357,7 +1363,7 @@ export default function ProfilePage() {
                         : "Main contact person for this company."}
                     </p>
                   </div>
-                  {!isEditingContactDetails && isCurrentUserAdmin ? (
+                  {!isEditingContactDetails && canEditOrganization ? (
                     <Button
                       variant="outline"
                       size="sm"
@@ -1535,7 +1541,7 @@ export default function ProfilePage() {
                       Where disbursements and payouts are sent
                     </p>
                   </div>
-                  {!isEditingBanking && isCurrentUserAdmin ? (
+                  {!isEditingBanking && canEditOrganization ? (
                     <Button
                       variant="outline"
                       size="sm"
@@ -1606,7 +1612,7 @@ export default function ProfilePage() {
                     )}
                   </div>
 
-                  {isEditingBanking && isCurrentUserAdmin && (
+                  {isEditingBanking && canEditOrganization && (
                     <div className="flex justify-end gap-2 pt-4">
                       <Button
                         variant="outline"
@@ -1640,8 +1646,9 @@ export default function ProfilePage() {
                     directorShareholderListSource={orgData?.directorShareholderListSource ?? null}
                     ctosDirectorShareholderWarning={orgData?.ctosDirectorShareholderWarning ?? null}
                     focusedMatchKey={focusedPersonKey}
-                    canEdit={isCurrentUserAdmin}
-                    canInactivate={isCurrentUserAdmin}
+                    canEdit={canEditOrganization}
+                    canInactivate={canEditOrganization}
+                    canManagePlatformAccess={isCurrentUserAdmin}
                     currentUserId={currentUser?.userId}
                     ownerUserId={activeOrganization.ownerId}
                     members={activeOrganization.members ?? []}

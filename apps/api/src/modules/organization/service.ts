@@ -776,10 +776,8 @@ export class OrganizationService {
     // Verify access
     const organization = await this.getOrganization(userId, organizationId, portalType);
 
-    // Only owner can complete onboarding
-    if (organization.owner_user_id !== userId) {
-      throw new AppError(403, "FORBIDDEN", "Only the organization owner can complete onboarding");
-    }
+    // completeOnboarding is an operational onboarding completion action.
+    // Organisation access is already verified by getOrganization() (Owner OR any member).
 
     // Check if already completed
     if (organization.onboarding_status === OnboardingStatus.COMPLETED) {
@@ -1055,14 +1053,8 @@ export class OrganizationService {
     // Verify access
     const organization = await this.getOrganization(userId, organizationId, portalType);
 
-    // Only owner or organization admins can update profile
-    const userMember = organization.members.find((m: { user_id: string; role: string }) => m.user_id === userId);
-    const canManageProfile =
-      organization.owner_user_id === userId || userMember?.role === OrganizationMemberRole.ORGANIZATION_ADMIN;
-
-    if (!canManageProfile) {
-      throw new AppError(403, "FORBIDDEN", "You do not have permission to update profile");
-    }
+    // updateOrganizationProfile is an operational profile update.
+    // Organisation access is already verified by getOrganization() (Owner OR any member).
 
     logger.info(
       { organizationId, portalType, userId, fields: Object.keys(input) },
@@ -2522,15 +2514,8 @@ export class OrganizationService {
     input: SendDirectorOnboardingInput
   ): Promise<{ requestId: string }> {
     const organization = await this.getOrganization(userId, organizationId, portalType);
-    const userMember = organization.members.find(
-      (m: { user_id: string; role: string }) => m.user_id === userId
-    );
-    const canManage =
-      organization.owner_user_id === userId ||
-      userMember?.role === OrganizationMemberRole.ORGANIZATION_ADMIN;
-    if (!canManage) {
-      throw new AppError(403, "FORBIDDEN", "You do not have permission to send director onboarding");
-    }
+    // sendDirectorCtosPartyOnboarding is an operational onboarding trigger.
+    // Organisation access is already verified by getOrganization() (Owner OR any member).
     assertOrgOnboardingCompletedForCompanyPartyActions(organization);
 
     const pk = resolvePartyLookupKey(input.partyKey);
@@ -3306,19 +3291,10 @@ export class OrganizationService {
     input: UpdateCorporateInfoInput
   ): Promise<{ success: boolean }> {
     // Verify access
-    const organization = await this.getOrganization(userId, organizationId, portalType);
+    await this.getOrganization(userId, organizationId, portalType);
 
-    // Only admins can update corporate info
-    const userMember = organization.members.find(
-      (m: { user_id: string; role: string }) => m.user_id === userId
-    );
-    const canManage =
-      organization.owner_user_id === userId ||
-      userMember?.role === OrganizationMemberRole.ORGANIZATION_ADMIN;
-
-    if (!canManage) {
-      throw new AppError(403, "FORBIDDEN", "You do not have permission to update corporate info");
-    }
+    // updateCorporateInfo is an operational profile update.
+    // Organisation access is already verified by getOrganization() (Owner OR any member).
 
     await this.repository.updateCorporateInfo(organizationId, portalType, input);
 
