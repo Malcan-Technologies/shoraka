@@ -214,6 +214,7 @@ export function OrganizationPeopleAccessDetail({
   const roleLine = adminPeopleAccessDetailRoleLine(row);
   const recordSource = adminPartyRecordSourceLabel(party?.origin);
   const overviewItems = buildAdminPeopleAccessOverviewItems(row);
+  const hasRecordSourceInOverview = overviewItems.some((item) => item.label === "Record source");
   const platformLabel = row.corporate ? "Not applicable" : row.platformAccess === "—" ? "No access" : row.platformAccess;
   const profileStatus = overviewItems.find((item) => item.label === "Profile Status")?.value ?? "Active profile";
 
@@ -407,7 +408,7 @@ export function OrganizationPeopleAccessDetail({
                     const items = grouped.get(title) ?? [];
                     if (items.length === 0) return null;
                     return (
-                      <div key={title} className="space-y-3">
+                      <div key={title} className="space-y-3 rounded-xl border p-4">
                         <p className="text-meta text-muted-foreground">{title}</p>
                         <ProfileFieldGrid>
                           {items.map((item) => {
@@ -428,7 +429,7 @@ export function OrganizationPeopleAccessDetail({
                 </div>
               );
             })()}
-            {recordSource ? (
+            {recordSource && !hasRecordSourceInOverview ? (
               <div className="space-y-1">
                 <p className="text-meta text-muted-foreground">Record information</p>
                 <ProfileReadField label="Record source" value={recordSource} />
@@ -442,7 +443,8 @@ export function OrganizationPeopleAccessDetail({
             <section className="space-y-4">
               <h2 className="text-card-title">{row.corporate ? "KYB Verification" : "KYC Verification"}</h2>
 
-              <div className="space-y-3">
+              <div className="space-y-3 rounded-xl border p-4">
+                <p className="text-meta text-muted-foreground">Verification details</p>
                 <div className="flex flex-wrap items-start gap-3">
                   <div className="space-y-1">
                     <p className="text-meta text-muted-foreground">Status</p>
@@ -503,52 +505,58 @@ export function OrganizationPeopleAccessDetail({
             <section className="space-y-4">
               <h2 className="text-card-title">AML Screening</h2>
 
-              <ProfileFieldGrid>
-                <div className="space-y-1">
-                  <p className="text-meta text-muted-foreground">Status</p>
-                  <AmlBadge person={person} />
-                </div>
-                <ProfileReadField
-                  label="Screening"
-                  value={row.corporate ? "Company screening" : "Person screening"}
-                />
-              </ProfileFieldGrid>
+              <div className="space-y-3 rounded-xl border p-4">
+                <p className="text-meta text-muted-foreground">Screening details</p>
 
-              {amlWaiting ? <p className="text-ui text-muted-foreground">{amlWaiting}</p> : null}
+                <ProfileFieldGrid>
+                  <div className="space-y-1">
+                    <p className="text-meta text-muted-foreground">Status</p>
+                    <AmlBadge person={person} />
+                  </div>
+                  <ProfileReadField
+                    label="Screening"
+                    value={row.corporate ? "Company screening" : "Person screening"}
+                  />
+                </ProfileFieldGrid>
 
-              <p className="text-meta text-muted-foreground">
-                {row.corporate
-                  ? "Company screening. This is not the organisation screening result."
-                  : "Person screening. This is not the organisation screening result."}
-              </p>
+                {amlWaiting ? <p className="text-ui text-muted-foreground">{amlWaiting}</p> : null}
 
-              {person?.screening?.id ? (
-                <ProfileReadField label="Screening reference ID" value={String(person.screening.id)} />
-              ) : null}
+                <p className="text-meta text-muted-foreground">
+                  {row.corporate
+                    ? "Company screening. This is not the organisation screening result."
+                    : "Person screening. This is not the organisation screening result."}
+                </p>
 
-              {person?.screening?.riskLevel ? (
-                <ProfileReadField label="Risk level" value={String(person.screening.riskLevel)} />
-              ) : null}
-              {person?.screening?.riskScore != null && String(person.screening.riskScore) !== "" ? (
-                <ProfileReadField label="Risk score" value={String(person.screening.riskScore)} />
-              ) : null}
+                {person?.screening?.id ? (
+                  <ProfileReadField label="Screening reference ID" value={String(person.screening.id)} />
+                ) : null}
 
-              {kycId && !row.corporate ? (
-                <ProfileReadField label="Related KYC ID" value={kycId} />
-              ) : null}
-              {kybId && row.corporate ? (
-                <ProfileReadField label="Related KYB ID" value={kybId} />
-              ) : null}
+                {person?.screening?.riskLevel ? (
+                  <ProfileReadField label="Risk level" value={String(person.screening.riskLevel)} />
+                ) : null}
+                {person?.screening?.riskScore != null && String(person.screening.riskScore) !== "" ? (
+                  <ProfileReadField label="Risk score" value={String(person.screening.riskScore)} />
+                ) : null}
+
+                {kycId && !row.corporate ? (
+                  <ProfileReadField label="Related KYC ID" value={kycId} />
+                ) : null}
+                {kybId && row.corporate ? (
+                  <ProfileReadField label="Related KYB ID" value={kybId} />
+                ) : null}
+              </div>
 
               {screeningResultUrl ? (
-                <ExternalRegTankLink href={screeningResultUrl}>View screening result</ExternalRegTankLink>
+                <div className="pt-1">
+                  <ExternalRegTankLink href={screeningResultUrl}>View screening result</ExternalRegTankLink>
+                </div>
               ) : null}
             </section>
           </TabsContent>
         ) : null}
 
         <TabsContent value="access" className="space-y-4 pt-4">
-          <section className="space-y-3">
+          <section className="space-y-3 rounded-xl border p-4">
             <h2 className="text-card-title">Platform Access</h2>
             <AccessBadge label={platformLabel} />
             {row.corporate ? (
@@ -556,7 +564,7 @@ export function OrganizationPeopleAccessDetail({
             ) : null}
           </section>
 
-          <section className="space-y-3">
+          <section className="space-y-3 rounded-xl border p-4">
             <p className="text-meta text-muted-foreground">Account</p>
             {row.userId ? (
               <ProfileFieldGrid>
@@ -625,54 +633,75 @@ export function OrganizationPeopleAccessDetail({
 
         {row.kind !== "platform_only" && showRegTank ? (
           <TabsContent value="regtank" className="space-y-4 pt-4">
-            <p className="text-meta text-muted-foreground">
-              External onboarding evidence. {verificationLabel} status is summarised on the {verificationLabel} tab.
-            </p>
-            {roleRecords.length > 0 ? (
-              <div className="space-y-3">
-                {roleRecords.map((record) => (
-                  <div key={`${record.kind}-${record.requestId}`} className="space-y-1 rounded-lg border p-3">
-                    <p className="text-ui font-medium">{record.title}</p>
-                    <ProfileReadField label="Onboarding reference" value={record.requestId} />
-                    <ProfileReadField label="Current stage" value={record.stageLabel} />
-                    {record.url ? (
-                      <ExternalRegTankLink href={record.url}>{record.actionLabel}</ExternalRegTankLink>
-                    ) : (
-                      <p className="text-meta text-muted-foreground">
-                        Open in RegTank is unavailable until the parent company onboarding reference is known.
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-ui text-muted-foreground">No RegTank onboarding evidence.</p>
-            )}
-            {!row.corporate && parentCod ? (
-              <div className="space-y-2">
-                <ProfileReadField label="Parent company onboarding" value={parentCod} />
-                {(() => {
-                  const url = getRegtankCorporateOnboardingUrl(parentCod);
-                  return url ? (
-                    <ExternalRegTankLink href={url}>View company onboarding</ExternalRegTankLink>
-                  ) : null;
-                })()}
-              </div>
-            ) : null}
-            {row.corporate && parentCod && parentCod !== person?.partyCorporateRequestId ? (
+            <div className="space-y-3">
               <p className="text-meta text-muted-foreground">
-                This company onboards as a shareholder of {parentCod}.
+                External onboarding evidence. {verificationLabel} status is summarised on the {verificationLabel} tab.
               </p>
-            ) : null}
-            {person?.onboarding?.updatedAt ? (
-              <ProfileReadField label="Last updated" value={person.onboarding.updatedAt} />
-            ) : null}
-            {person?.icFrontUrl ? (
-              <ExternalRegTankLink href={person.icFrontUrl}>View identity document (front)</ExternalRegTankLink>
-            ) : null}
-            {person?.icBackUrl ? (
-              <ExternalRegTankLink href={person.icBackUrl}>View identity document (back)</ExternalRegTankLink>
-            ) : null}
+
+              {roleRecords.length > 0 ? (
+                <section className="space-y-3 rounded-xl border p-4">
+                  <p className="text-meta text-muted-foreground">Onboarding evidence</p>
+                  <div className="space-y-3">
+                    {roleRecords.map((record) => (
+                      <div
+                        key={`${record.kind}-${record.requestId}`}
+                        className="space-y-1 rounded-lg border p-3"
+                      >
+                        <p className="text-ui font-medium">{record.title}</p>
+                        <ProfileReadField label="Onboarding reference" value={record.requestId} />
+                        <ProfileReadField label="Current stage" value={record.stageLabel} />
+                        {record.url ? (
+                          <ExternalRegTankLink href={record.url}>{record.actionLabel}</ExternalRegTankLink>
+                        ) : (
+                          <p className="text-meta text-muted-foreground">
+                            Open in RegTank is unavailable until the parent company onboarding reference is known.
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ) : (
+                <p className="text-ui text-muted-foreground">No RegTank onboarding evidence.</p>
+              )}
+
+              {!row.corporate && parentCod ? (
+                <section className="space-y-2 rounded-xl border p-4">
+                  <p className="text-meta text-muted-foreground">Parent organisation onboarding</p>
+                  <ProfileReadField label="Parent company onboarding" value={parentCod} />
+                  {(() => {
+                    const url = getRegtankCorporateOnboardingUrl(parentCod);
+                    return url ? <ExternalRegTankLink href={url}>View company onboarding</ExternalRegTankLink> : null;
+                  })()}
+                </section>
+              ) : null}
+
+              {row.corporate && parentCod && parentCod !== person?.partyCorporateRequestId ? (
+                <section className="rounded-xl border p-4">
+                  <p className="text-meta text-muted-foreground">
+                    This company onboards as a shareholder of {parentCod}.
+                  </p>
+                </section>
+              ) : null}
+
+              {person?.onboarding?.updatedAt ? (
+                <section className="rounded-xl border p-4">
+                  <ProfileReadField label="Last updated" value={person.onboarding.updatedAt} />
+                </section>
+              ) : null}
+
+              {person?.icFrontUrl || person?.icBackUrl ? (
+                <section className="space-y-2 rounded-xl border p-4">
+                  <p className="text-meta text-muted-foreground">Identity documents</p>
+                  {person?.icFrontUrl ? (
+                    <ExternalRegTankLink href={person.icFrontUrl}>View identity document (front)</ExternalRegTankLink>
+                  ) : null}
+                  {person?.icBackUrl ? (
+                    <ExternalRegTankLink href={person.icBackUrl}>View identity document (back)</ExternalRegTankLink>
+                  ) : null}
+                </section>
+              ) : null}
+            </div>
           </TabsContent>
         ) : null}
       </Tabs>

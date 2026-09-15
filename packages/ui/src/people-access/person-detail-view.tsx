@@ -142,10 +142,8 @@ export function PersonDetailView({
   const orgBase = `/v1/organizations/${portal}/${organizationId}`;
   const blockOnboarding = organizationOnboardingStatus !== "COMPLETED";
   const kycGroup = joinedPerson ? getKycGroup(joinedPerson.onboarding?.status ?? "") : "NOT_STARTED";
-  const hasVerifyLink = Boolean(joinedPerson?.onboarding?.verifyLink);
   const inProgressKyc = kycGroup === "IN_PROGRESS";
   const verificationId = corporate ? customerKybId(joinedPerson) : customerKycId(joinedPerson);
-  const showResendKycEmail = canEdit && !blockOnboarding && joinedPerson && inProgressKyc && hasVerifyLink;
   const showCreateKyc =
     canEdit &&
     !blockOnboarding &&
@@ -523,32 +521,34 @@ export function PersonDetailView({
         <TabsContent value="kyc" className="mt-6 space-y-4">
           <section className="space-y-4">
             <h2 className="text-card-title">{corporate ? "KYB Verification" : "KYC Verification"}</h2>
-            <ProfileFieldGrid>
-              <div className="flex items-start gap-2">
+            <div className="rounded-xl border p-4 space-y-3">
+              <ProfileFieldGrid>
                 <div className="flex items-start gap-2">
-                  <div className="space-y-1">
-                    <p className="text-meta text-muted-foreground">Status</p>
-                    {kycChip ? (
-                      <StatusBadge
-                        status={getRelatedPartyStatusToken(kycChip, "user")}
-                        label={`${corporate ? "KYB" : "KYC"} ${kycStatus}`}
-                      />
-                    ) : (
-                      <p className="text-ui text-muted-foreground">—</p>
-                    )}
+                  <div className="flex items-start gap-2">
+                    <div className="space-y-1">
+                      <p className="text-meta text-muted-foreground">Status</p>
+                      {kycChip ? (
+                        <StatusBadge
+                          status={getRelatedPartyStatusToken(kycChip, "user")}
+                          label={`${corporate ? "KYB" : "KYC"} ${kycStatus}`}
+                        />
+                      ) : (
+                        <p className="text-ui text-muted-foreground">—</p>
+                      )}
+                    </div>
                   </div>
+                  {showKycRefresh ? (
+                    <PartyStatusRefreshControl busy={refreshing} onRefresh={() => void refreshPartyStatus()} />
+                  ) : null}
                 </div>
-                {showKycRefresh ? (
-                  <PartyStatusRefreshControl busy={refreshing} onRefresh={() => void refreshPartyStatus()} />
+                {kycStage ? <ProfileReadField label="Current stage" value={kycStage} /> : null}
+                {verificationId ? (
+                  <ProfileReadField label={corporate ? "KYB ID" : "KYC ID"} value={verificationId} />
                 ) : null}
-              </div>
-              {kycStage ? <ProfileReadField label="Current Stage" value={kycStage} /> : null}
-              {verificationId ? (
-                <ProfileReadField label={corporate ? "KYB ID" : "KYC ID"} value={verificationId} />
-              ) : null}
-              {!corporate ? <ProfileReadField label="Person Email" value={personEmail || "—"} /> : null}
-              {approvedAt ? <ProfileReadField label="Approved date" value={approvedAt} /> : null}
-            </ProfileFieldGrid>
+                {!corporate ? <ProfileReadField label="Person Email" value={personEmail || "—"} /> : null}
+                {approvedAt ? <ProfileReadField label="Approved date" value={approvedAt} /> : null}
+              </ProfileFieldGrid>
+            </div>
             {showCreateKyc ? (
               <div className="space-y-3">
                 {!personEmail.trim() && !emailLocked ? (
@@ -593,37 +593,6 @@ export function PersonDetailView({
                 </Button>
               </div>
             ) : null}
-            {showResendKycEmail ? (
-              <div className="space-y-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={sendPending}
-                  onClick={async () => {
-                    setSendPending(true);
-                    try {
-                      const sendRes = await api.post(`${orgBase}/send-director-onboarding`, {
-                        partyKey: party.partyKey,
-                      });
-                      if (!sendRes.success) {
-                        toast.error(sendRes.error.message);
-                        return;
-                      }
-                      toast.success("Onboarding email resent");
-                      await invalidate();
-                    } finally {
-                      setSendPending(false);
-                    }
-                  }}
-                >
-                  Resend onboarding email
-                </Button>
-                <p className="text-meta text-muted-foreground">
-                  An onboarding request is already in progress. Resend uses the stored link and does not create a new
-                  request.
-                </p>
-              </div>
-            ) : null}
           </section>
         </TabsContent>
 
@@ -631,37 +600,39 @@ export function PersonDetailView({
           <section className="space-y-4">
             <h2 className="text-card-title">AML Screening</h2>
 
-            <ProfileFieldGrid>
-              <div className="flex items-start gap-2">
-                <div className="space-y-1">
-                  <p className="text-meta text-muted-foreground">Status</p>
-                  {amlChip ? (
-                    <StatusBadge
-                      status={getRelatedPartyStatusToken(amlChip, "user")}
-                      label={`AML ${amlStatus}`}
-                    />
-                  ) : (
-                    <p className="text-ui text-muted-foreground">—</p>
-                  )}
+            <div className="rounded-xl border p-4 space-y-3">
+              <ProfileFieldGrid>
+                <div className="flex items-start gap-2">
+                  <div className="space-y-1">
+                    <p className="text-meta text-muted-foreground">Status</p>
+                    {amlChip ? (
+                      <StatusBadge
+                        status={getRelatedPartyStatusToken(amlChip, "user")}
+                        label={`AML ${amlStatus}`}
+                      />
+                    ) : (
+                      <p className="text-ui text-muted-foreground">—</p>
+                    )}
+                  </div>
+                  {showAmlRefresh ? (
+                    <PartyStatusRefreshControl busy={refreshing} onRefresh={() => void refreshPartyStatus()} />
+                  ) : null}
                 </div>
-                {showAmlRefresh ? (
-                  <PartyStatusRefreshControl busy={refreshing} onRefresh={() => void refreshPartyStatus()} />
-                ) : null}
-              </div>
 
-              <ProfileReadField
-                label="Screening"
-                value={corporate ? "Company screening" : "Person screening"}
-              />
-
-              {verificationId ? (
                 <ProfileReadField
-                  label={corporate ? "Related KYB ID" : "Related KYC ID"}
-                  value={verificationId}
+                  label="Screening"
+                  value={corporate ? "Company screening" : "Person screening"}
                 />
-              ) : null}
-            </ProfileFieldGrid>
-            {amlWaiting ? <p className="text-ui text-muted-foreground">{amlWaiting}</p> : null}
+
+                {verificationId ? (
+                  <ProfileReadField
+                    label={corporate ? "Related KYB" : "Related KYC"}
+                    value={verificationId}
+                  />
+                ) : null}
+              </ProfileFieldGrid>
+              {amlWaiting ? <p className="text-ui text-muted-foreground">{amlWaiting}</p> : null}
+            </div>
           </section>
         </TabsContent>
 
