@@ -28,7 +28,7 @@ export function resolveNoteNotificationTitle(note: {
 }
 
 type BasicNotePayload = NotificationPayloads[typeof NotificationTypeIds.NOTE_PUBLISHED];
-type NewProductAlertPayload = NotificationPayloads[typeof NotificationTypeIds.NEW_PRODUCT_ALERT];
+type NewInvestmentOpportunityPayload = NotificationPayloads[typeof NotificationTypeIds.NEW_INVESTMENT_OPPORTUNITY];
 
 async function sendToIssuerOrg<T extends NotificationTypeId>(
   svc: NotificationService,
@@ -244,10 +244,9 @@ export async function notifyNotePublishedToInvestors(args: {
   noteId: string;
   noteTitle: string;
 }): Promise<void> {
-  const payload: NewProductAlertPayload = {
-    productName: args.noteTitle,
-    // Investor UI uses /investments/[id] where [id] is a note ID.
-    productId: args.noteId,
+  const payload: NewInvestmentOpportunityPayload = {
+    noteId: args.noteId,
+    noteTitle: args.noteTitle,
   };
 
   const idempotencyPrefix = `note:lifecycle:${args.noteId}:published:investor`;
@@ -257,18 +256,18 @@ export async function notifyNotePublishedToInvestors(args: {
     const results = await sendTypedToUsersSafe(
       args.notificationService,
       recipients,
-      NotificationTypeIds.NEW_PRODUCT_ALERT,
+      NotificationTypeIds.NEW_INVESTMENT_OPPORTUNITY,
       payload,
       (userId) => `${idempotencyPrefix}:user:${userId}`
     );
 
     await args.notificationService.logTypedSystemBatch(
-      NotificationTypeIds.NEW_PRODUCT_ALERT,
+      NotificationTypeIds.NEW_INVESTMENT_OPPORTUNITY,
       payload,
       results,
       {
         idempotencyKey: systemNotificationLogKey(
-          NotificationTypeIds.NEW_PRODUCT_ALERT,
+          NotificationTypeIds.NEW_INVESTMENT_OPPORTUNITY,
           idempotencyPrefix
         ),
       }

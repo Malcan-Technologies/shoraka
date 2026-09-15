@@ -130,19 +130,19 @@ describe("notifyNotePublishedToInvestors", () => {
     expect(sendTyped).toHaveBeenCalledTimes(2);
     expect(sendTyped).toHaveBeenCalledWith(
       "IV1",
-      NotificationTypeIds.NEW_PRODUCT_ALERT,
-      { productName: "T1", productId: "note-1" },
+      NotificationTypeIds.NEW_INVESTMENT_OPPORTUNITY,
+      { noteId: "note-1", noteTitle: "T1" },
       "note:lifecycle:note-1:published:investor:user:IV1"
     );
 
     expect(logTypedSystemBatch).toHaveBeenCalledTimes(1);
     expect(logTypedSystemBatch).toHaveBeenCalledWith(
-      NotificationTypeIds.NEW_PRODUCT_ALERT,
-      { productName: "T1", productId: "note-1" },
+      NotificationTypeIds.NEW_INVESTMENT_OPPORTUNITY,
+      { noteId: "note-1", noteTitle: "T1" },
       [{ id: "n1" }, { id: "n1" }],
       {
         idempotencyKey:
-          "system-log:new_product_alert:note:lifecycle:note-1:published:investor",
+          "system-log:new_investment_opportunity:note:lifecycle:note-1:published:investor",
       }
     );
   });
