@@ -11,6 +11,8 @@ import {
   extractSigningUrlFromManualSigningResponse,
   getContractFileData,
   getContractDetailsData,
+  uploadSignerStampImage,
+  autoSignContract,
   type SigningCloudEnvConfig,
 } from "../../signingcloud/signingcloud-api";
 import type {
@@ -21,6 +23,9 @@ import type {
   ProviderContractDetails,
   ProviderSignerDetail,
   ProviderSignerStatus,
+  UploadSignerStampInput,
+  AutoSignInput,
+  AutoSignResult,
 } from "./adapter";
 import { normalizeSigningEmail } from "@cashsouk/types";
 import { logger } from "../../../lib/logger";
@@ -176,6 +181,7 @@ export class SigningCloudProvider implements SigningProvider {
       contractName: input.contractName,
       signers: input.signers.map((s) => ({
         email: s.email,
+        automatic: s.executionMode === "AUTOMATIC",
         signsetJson:
           s.signset != null
             ? typeof s.signset === "string"
@@ -226,5 +232,41 @@ export class SigningCloudProvider implements SigningProvider {
       contractnum: input.providerRef,
     });
     return parseSigningCloudContractDetails(raw);
+  }
+
+  async uploadSignerStamp(input: UploadSignerStampInput): Promise<void> {
+    const cfg = requireConfig();
+    const accessToken = await getSigningCloudAccessToken(cfg);
+    await uploadSignerStampImage({
+      cfg,
+      accessToken,
+      signerEmail: normalizeSigningEmail(input.signerEmail),
+      imageBytes: input.imageBytes,
+      contentType: input.contentType,
+    });
+  }
+
+  /**
+   * alreadySigned means this signer already completed the grouped automatic-sign
+   * request. Treat it as reconciliation for every placement owned by that signer,
+   * not as proof that a later individual field was signed.
+   */
+  async autoSign(input: AutoSignInput): Promise<AutoSignResult> {
+    const cfg = requireConfig();
+    const accessToken = await getSigningCloudAccessToken(cfg);
+    const result = await autoSignContract({
+      cfg,
+      accessToken,
+      contractnum: input.providerRef,
+      signerEmail: normalizeSigningEmail(input.signerEmail),
+      keyword: input.keyword,
+      dateKeyword: input.dateKeyword,
+      dateFormat: input.dateFormat,
+      signatureImageBytes: input.signatureImageBytes,
+      widthPx: input.widthPx,
+      heightPx: input.heightPx,
+      callbackUrl: input.callbackUrl ?? null,
+    });
+    return { alreadySigned: result.alreadySigned };
   }
 }

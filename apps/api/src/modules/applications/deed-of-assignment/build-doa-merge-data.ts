@@ -10,8 +10,8 @@ import {
   getIssuerAuthorizedParty,
   getLoAuthorizedPartiesFromAcceptance,
   getOfferAcceptanceFromOfferDetails,
+  signingDesignationFromCapacity,
   type AuthorizedRepresentative,
-  type AuthorizedRepresentativeCapacity,
 } from "@cashsouk/types";
 
 type JsonRecord = Record<string, unknown>;
@@ -24,21 +24,19 @@ function asString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function formatDesignation(capacity: AuthorizedRepresentativeCapacity | string): string {
-  if (capacity === "director") return "Director";
-  if (capacity === "authorised_signatory") return "Authorised Signatory";
-  return asString(capacity);
-}
-
 function mapSignatory(rep: AuthorizedRepresentative): {
   name: string;
   identity_number: string;
   designation: string;
+  witness_name: string;
+  witness_designation: string;
 } {
   return {
     name: asString(rep.name),
     identity_number: asString(rep.ic_number),
-    designation: formatDesignation(rep.capacity),
+    designation: signingDesignationFromCapacity(rep.capacity),
+    witness_name: "",
+    witness_designation: "",
   };
 }
 
@@ -117,6 +115,10 @@ export function buildDeedOfAssignmentMergeData(
     assignor_email: asString(contact?.email),
     assignor_contact_number:
       asString(contact?.contact) || asString(input.issuerOrganization.phone_number),
+    ssp_1_name: "",
+    ssp_1_designation: "",
+    ssp_2_name: "",
+    ssp_2_designation: "",
     assignor_signatories,
     trust_bank_name: trust.bank_name,
     trust_account_name: trust.account_name,

@@ -7,7 +7,9 @@
 import * as React from "react";
 import { Progress, StatusBadge, type StatusToken } from "@cashsouk/ui";
 import {
+  automaticSigningProgressBadge,
   computeSigningEnvelopeProgress,
+  isRemindableSigningRecipient,
   type SigningAssignmentDto,
   type SigningAssignmentStatus,
   type SigningEnvelopeDto,
@@ -146,14 +148,22 @@ export function SigningProgressMatrix({
                     const recipient = recipientById.get(assignment.recipient_id);
                     if (!recipient) return null;
 
-                    const meta = STATUS_META[assignment.status];
+                    const isAutomatic = recipient.execution_mode === "AUTOMATIC";
+                    const meta = isAutomatic
+                      ? {
+                          ...automaticSigningProgressBadge(assignment.status),
+                          Icon: STATUS_META[assignment.status].Icon,
+                        }
+                      : STATUS_META[assignment.status];
                     const StatusIcon = meta.Icon;
                     const isSigned = assignment.status === "SIGNED";
                     const canRemind =
+                      !isAutomatic &&
                       showRemindActions &&
                       onRemind != null &&
-                      !isSigned &&
-                      assignment.status !== "DECLINED";
+                      isRemindableSigningRecipient(recipient) &&
+                      assignment.status !== "DECLINED" &&
+                      !isSigned;
 
                     return (
                       <li

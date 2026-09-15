@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import type {
   OperatorAdvisorDto,
   OperatorCompanyStampFields,
+  OperatorDocumentExecutionSlotDto,
   OperatorFinancialStatementDto,
   OperatorInterestDto,
   OperatorOfficerDto,
@@ -14,18 +15,26 @@ import type {
   ScCompanyType,
 } from "@cashsouk/types";
 import {
+  documentExecutionBindingIssues,
+  emptyDocumentExecutionSlots,
+  executionRoleSigningRole,
+  isAutomaticSignerProviderReady,
+  isOperatorDocumentRepresentativeRole,
   legacyAuthorisedSignatoryNameFromSigningPeople,
   normalizeScIdentityNumber,
   normalizeScRegistrationNumber,
+  OPERATOR_DOCUMENT_EXECUTION_ROLE_LABELS,
+  type OperatorDocumentExecutionRole,
 } from "@cashsouk/types";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
-import { generatePresignedUploadUrl } from "../../lib/s3/client";
+import { generatePresignedUploadUrl, generatePresignedViewUrl } from "../../lib/s3/client";
 import { decimalToString, parseDateInput, toIsoDate } from "../organization-profile/serialize";
 import { parseDocumentAuthorisationConfig } from "../notes/document-authorisation/config";
 import type {
   OperatorAdvisorInput,
   OperatorCompanyStampPatchInput,
+  OperatorDocumentExecutionBindingsPutInput,
   OperatorFinancialStatementInput,
   OperatorInterestInput,
   OperatorOfficerInput,
@@ -34,6 +43,13 @@ import type {
   OperatorSigningPersonCreateInput,
   OperatorSigningPersonUpdateInput,
 } from "../organization-profile/schemas";
+import {
+  assertOperatorSignatureS3Key,
+  assertOperatorSignatureUploadDeclared,
+  confirmOperatorSignatureObject,
+  OPERATOR_SIGNING_SIGNATURE_S3_PREFIX,
+  type ConfirmedOperatorSignature,
+} from "./signature-asset";
 
 const SINGLETON = "cashsouk";
 
@@ -45,6 +61,7 @@ const PROFILE_INCLUDE = {
   interests: { orderBy: { created_at: "asc" as const } },
   financial_statements: { orderBy: { financial_year_end: "desc" as const } },
   signing_people: { include: { officer: true }, orderBy: { created_at: "asc" as const } },
+  document_execution_bindings: { orderBy: [{ role_key: "asc" as const }, { slot_index: "asc" as const }] },
 };
 
 function holderIdentityNumber(
@@ -188,17 +205,46 @@ function serializeSigningPerson(row: {
   id: string;
   officer_id: string;
   roles: OperatorSigningRole[];
+  signing_email: string | null;
   signature_s3_key: string | null;
   signature_file_name: string | null;
   signature_content_type: string | null;
+  signature_sha256: string | null;
+  signature_width_px: number | null;
+  signature_height_px: number | null;
+  signature_byte_size: number | null;
+  signature_confirmed_at: Date | null;
   active: boolean;
   officer: {
     name: string | null;
     person_kind: OperatorOfficerDto["personKind"];
     designation: OperatorOfficerDto["designation"];
     designation_other: string | null;
+    identity_number: string | null;
   };
 }): OperatorSigningPersonDto {
+  const signature = row.signature_s3_key
+    ? {
+        s3Key: row.signature_s3_key,
+        ...(row.signature_file_name ? { fileName: row.signature_file_name } : {}),
+        ...(row.signature_content_type ? { contentType: row.signature_content_type } : {}),
+        ...(row.signature_sha256 ? { sha256: row.signature_sha256 } : {}),
+        ...(row.signature_width_px != null ? { widthPx: row.signature_width_px } : {}),
+        ...(row.signature_height_px != null ? { heightPx: row.signature_height_px } : {}),
+        ...(row.signature_byte_size != null ? { byteSize: row.signature_byte_size } : {}),
+        ...(row.signature_confirmed_at
+          ? { confirmedAt: row.signature_confirmed_at.toISOString() }
+          : {}),
+      }
+    : null;
+  const readyInput = {
+    active: row.active,
+    roles: row.roles,
+    signingEmail: row.signing_email,
+    signatureS3Key: row.signature_s3_key,
+    signatureSha256: row.signature_sha256,
+    signatureConfirmedAt: row.signature_confirmed_at?.toISOString() ?? null,
+  };
   return {
     id: row.id,
     officerId: row.officer_id,
@@ -206,16 +252,37 @@ function serializeSigningPerson(row: {
     personKind: row.officer.person_kind,
     designation: row.officer.designation,
     designationOther: row.officer.designation_other,
+    identityNumber: row.officer.identity_number,
     roles: row.roles,
-    signature: row.signature_s3_key
-      ? {
-          s3Key: row.signature_s3_key,
-          ...(row.signature_file_name ? { fileName: row.signature_file_name } : {}),
-          ...(row.signature_content_type ? { contentType: row.signature_content_type } : {}),
-        }
-      : null,
+    signingEmail: row.signing_email,
+    signature,
+    signatureProviderReady: isAutomaticSignerProviderReady(readyInput),
+    witnessProviderReady: isAutomaticSignerProviderReady({
+      ...readyInput,
+      requiredRole: "WITNESS",
+    }),
     active: row.active,
   };
+}
+
+function serializeDocumentExecutionSlots(
+  bindings: Array<{
+    role_key: OperatorDocumentExecutionRole;
+    slot_index: number;
+    signing_person_id: string;
+  }>
+): OperatorDocumentExecutionSlotDto[] {
+  const byKey = new Map(
+    bindings.map((row) => [`${row.role_key}:${row.slot_index}`, row] as const)
+  );
+  return emptyDocumentExecutionSlots().map((slot) => {
+    const row = byKey.get(`${slot.roleKey}:${slot.slotIndex}`);
+    if (!row) return slot;
+    return {
+      ...slot,
+      signingPersonId: row.signing_person_id,
+    };
+  });
 }
 
 function companyStampFromConfig(value: unknown): OperatorCompanyStampFields | null {
@@ -390,6 +457,7 @@ export async function getOrCreateOperatorProfile(): Promise<OperatorProfileDto> 
     interests: row.interests.map(serializeInterest),
     financialStatements: row.financial_statements.map(serializeFinancial),
     signingPeople: row.signing_people.map(serializeSigningPerson),
+    documentExecutionSlots: serializeDocumentExecutionSlots(row.document_execution_bindings),
     companyStamp: companyStampFromConfig(finance?.document_authorisation_config),
     updatedAt: row.updated_at.toISOString(),
   };
@@ -804,22 +872,67 @@ async function syncLegacyAuthorisedSignatoryName(): Promise<void> {
   await patchDocumentAuthorisationConfig({ authorisedSignatoryName: name });
 }
 
+function uniqueConstraintTarget(error: unknown): string {
+  if (!error || typeof error !== "object" || !("meta" in error)) return "";
+  const target = (error as { meta?: { target?: unknown } }).meta?.target;
+  if (typeof target === "string") return target;
+  if (Array.isArray(target)) return target.map(String).join(",");
+  return "";
+}
+
+export function rethrowSigningPersonUniqueConflict(error: unknown): never {
+  const isUnique =
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code: unknown }).code === "P2002";
+  if (!isUnique) throw error;
+  if (uniqueConstraintTarget(error).includes("signing_email")) {
+    throw new AppError(
+      409,
+      "SIGNING_EMAIL_TAKEN",
+      "This signing email is already used by another person"
+    );
+  }
+  throw new AppError(
+    409,
+    "SIGNING_PERSON_EXISTS",
+    "This person already has a signing configuration"
+  );
+}
+
 function signatureData(signature: OperatorSigningPersonCreateInput["signature"]): {
   signature_s3_key: string | null;
   signature_file_name: string | null;
   signature_content_type: string | null;
+  signature_sha256: string | null;
+  signature_width_px: number | null;
+  signature_height_px: number | null;
+  signature_byte_size: number | null;
+  signature_confirmed_at: Date | null;
 } {
   if (!signature?.s3Key) {
     return {
       signature_s3_key: null,
       signature_file_name: null,
       signature_content_type: null,
+      signature_sha256: null,
+      signature_width_px: null,
+      signature_height_px: null,
+      signature_byte_size: null,
+      signature_confirmed_at: null,
     };
   }
+  assertOperatorSignatureS3Key(signature.s3Key);
   return {
     signature_s3_key: signature.s3Key,
     signature_file_name: signature.fileName ?? null,
     signature_content_type: signature.contentType ?? null,
+    signature_sha256: null,
+    signature_width_px: null,
+    signature_height_px: null,
+    signature_byte_size: null,
+    signature_confirmed_at: null,
   };
 }
 
@@ -837,19 +950,13 @@ export async function createSigningPerson(
         operator_profile_id: current.id,
         officer_id: officer.id,
         roles: input.roles,
+        signing_email: input.signingEmail ?? null,
         active: input.active ?? true,
         ...signatureData(input.signature),
       },
     });
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      throw new AppError(
-        409,
-        "SIGNING_PERSON_EXISTS",
-        "This person already has a signing configuration"
-      );
-    }
-    throw error;
+    rethrowSigningPersonUniqueConflict(error);
   }
   await syncLegacyAuthorisedSignatoryName();
   return getOrCreateOperatorProfile();
@@ -870,16 +977,276 @@ export async function updateSigningPerson(
             signature_s3_key: null,
             signature_file_name: null,
             signature_content_type: null,
+            signature_sha256: null,
+            signature_width_px: null,
+            signature_height_px: null,
+            signature_byte_size: null,
+            signature_confirmed_at: null,
           };
+  try {
+    await prisma.operatorSigningPerson.update({
+      where: { id },
+      data: {
+        ...(input.roles ? { roles: input.roles } : {}),
+        ...(input.signingEmail === undefined ? {} : { signing_email: input.signingEmail }),
+        ...(input.active === undefined ? {} : { active: input.active }),
+        ...signaturePatch,
+      },
+    });
+  } catch (error) {
+    rethrowSigningPersonUniqueConflict(error);
+  }
+  await syncLegacyAuthorisedSignatoryName();
+  return getOrCreateOperatorProfile();
+}
+
+export async function confirmSigningSignatureObject(
+  s3Key: string
+): Promise<ConfirmedOperatorSignature> {
+  return confirmOperatorSignatureObject(s3Key);
+}
+
+export async function confirmSigningPersonSignature(
+  id: string,
+  s3Key: string
+): Promise<OperatorProfileDto> {
+  const row = await prisma.operatorSigningPerson.findUnique({ where: { id } });
+  if (!row) throw new AppError(404, "NOT_FOUND", "Signing person not found");
+  if (!row.signature_s3_key) {
+    throw new AppError(
+      400,
+      "VALIDATION_ERROR",
+      "Upload a signature for this person before confirming it"
+    );
+  }
+  if (s3Key !== row.signature_s3_key) {
+    throw new AppError(
+      400,
+      "VALIDATION_ERROR",
+      "Confirm the signature that is currently stored for this person"
+    );
+  }
+  const confirmed = await confirmOperatorSignatureObject(s3Key);
   await prisma.operatorSigningPerson.update({
     where: { id },
     data: {
-      ...(input.roles ? { roles: input.roles } : {}),
-      ...(input.active === undefined ? {} : { active: input.active }),
-      ...signaturePatch,
+      signature_sha256: confirmed.sha256,
+      signature_width_px: confirmed.widthPx,
+      signature_height_px: confirmed.heightPx,
+      signature_byte_size: confirmed.byteSize,
+      signature_content_type: confirmed.contentType,
+      signature_confirmed_at: new Date(confirmed.confirmedAt),
     },
   });
-  await syncLegacyAuthorisedSignatoryName();
+  return getOrCreateOperatorProfile();
+}
+
+export async function getSigningPersonSignaturePreview(
+  id: string
+): Promise<{ viewUrl: string; expiresIn: number } | { viewUrl: null; expiresIn: null }> {
+  const row = await prisma.operatorSigningPerson.findUnique({
+    where: { id },
+    select: { signature_s3_key: true },
+  });
+  if (!row) throw new AppError(404, "NOT_FOUND", "Signing person not found");
+  const key = row.signature_s3_key?.trim();
+  if (!key) return { viewUrl: null, expiresIn: null };
+  const data = await generatePresignedViewUrl({ key });
+  return { viewUrl: data.viewUrl, expiresIn: data.expiresIn };
+}
+
+type BindingPerson = {
+  id: string;
+  active: boolean;
+  roles: OperatorSigningRole[];
+  signing_email: string | null;
+  signature_s3_key: string | null;
+  signature_sha256: string | null;
+  signature_confirmed_at: Date | null;
+  officerName: string | null;
+  designation: string | null;
+  identityNumber: string | null;
+};
+
+export function assertEligibleDocumentExecutionPerson(
+  person: BindingPerson | undefined,
+  requiredRole: "AUTHORISED_SIGNATORY" | "WITNESS" = "AUTHORISED_SIGNATORY"
+): asserts person is BindingPerson {
+  if (!person) throw new AppError(404, "NOT_FOUND", "Signing person not found");
+  if (!person.active || !person.roles.includes(requiredRole)) {
+    const needed =
+      requiredRole === "WITNESS" ? "an active Witness" : "an active Authorised Signatory";
+    throw new AppError(
+      400,
+      "VALIDATION_ERROR",
+      person.active
+        ? requiredRole === "WITNESS"
+          ? "Authorised Signatories cannot be assigned to witness roles unless they are also a Witness"
+          : "Witness-only people cannot be assigned to authorised representative roles"
+        : `Assign ${needed}`
+    );
+  }
+  if (
+    !isAutomaticSignerProviderReady({
+      active: person.active,
+      roles: person.roles,
+      signingEmail: person.signing_email,
+      signatureS3Key: person.signature_s3_key,
+      signatureSha256: person.signature_sha256,
+      signatureConfirmedAt: person.signature_confirmed_at?.toISOString() ?? null,
+      requiredRole,
+    })
+  ) {
+    throw new AppError(
+      400,
+      "SIGNING_AUTOMATIC_SIGNER_NOT_READY",
+      requiredRole === "WITNESS"
+        ? "Assign a Witness with a signing email and confirmed signature"
+        : "Assign an Authorised Signatory with a signing email and confirmed signature"
+    );
+  }
+}
+
+export function buildDocumentExecutionBindingRows(input: {
+  operatorProfileId: string;
+  bindings: OperatorDocumentExecutionBindingsPutInput["bindings"];
+  people: BindingPerson[];
+}): Array<{
+  operator_profile_id: string;
+  role_key: OperatorDocumentExecutionRole;
+  slot_index: number;
+  signing_person_id: string;
+}> {
+  const byId = new Map(input.people.map((person) => [person.id, person]));
+  const rows: Array<{
+    operator_profile_id: string;
+    role_key: OperatorDocumentExecutionRole;
+    slot_index: number;
+    signing_person_id: string;
+  }> = [];
+  const byRole = new Map<
+    OperatorDocumentExecutionRole,
+    Array<(typeof input.bindings)[number]>
+  >();
+  for (const binding of input.bindings) {
+    const list = byRole.get(binding.roleKey) ?? [];
+    list.push(binding);
+    byRole.set(binding.roleKey, list);
+  }
+  for (const [roleKey, group] of byRole) {
+    if (!isOperatorDocumentRepresentativeRole(roleKey)) continue;
+    const bound = group.filter((row) => Boolean(row.signingPersonId));
+    if (bound.length === 1) {
+      throw new AppError(
+        400,
+        "SIGNING_AUTOMATIC_ROLE_UNBOUND",
+        `${OPERATOR_DOCUMENT_EXECUTION_ROLE_LABELS[roleKey]} needs both representatives before it can be saved.`
+      );
+    }
+  }
+  for (const binding of input.bindings) {
+    if (!binding.signingPersonId) continue;
+    const person = byId.get(binding.signingPersonId);
+    assertEligibleDocumentExecutionPerson(person, executionRoleSigningRole(binding.roleKey));
+    rows.push({
+      operator_profile_id: input.operatorProfileId,
+      role_key: binding.roleKey,
+      slot_index: binding.slotIndex,
+      signing_person_id: person.id,
+    });
+  }
+  const issues = documentExecutionBindingIssues({
+    requiredSlots: input.bindings
+      .filter((row) => Boolean(row.signingPersonId))
+      .map((row) => ({ roleKey: row.roleKey, slotIndex: row.slotIndex })),
+    bindings: input.bindings.map((row) => {
+      const person = row.signingPersonId ? byId.get(row.signingPersonId) : undefined;
+      return {
+        roleKey: row.roleKey,
+        slotIndex: row.slotIndex,
+        signingPersonId: row.signingPersonId,
+        signingEmail: person?.signing_email ?? null,
+        officerName: person?.officerName ?? null,
+        designation: person?.designation ?? null,
+        identityNumber: person?.identityNumber ?? null,
+        providerReady: person
+          ? isAutomaticSignerProviderReady({
+              active: person.active,
+              roles: person.roles,
+              signingEmail: person.signing_email,
+              signatureS3Key: person.signature_s3_key,
+              signatureSha256: person.signature_sha256,
+              signatureConfirmedAt: person.signature_confirmed_at?.toISOString() ?? null,
+              requiredRole: executionRoleSigningRole(row.roleKey),
+            })
+          : false,
+      };
+    }),
+  });
+  const blocking = issues.find(
+    (issue) =>
+      issue.code === "DOCUMENT_EXECUTION_DUPLICATE_SIGNER" ||
+      issue.code === "DOCUMENT_EXECUTION_EMAIL_COLLISION" ||
+      issue.code === "SIGNING_AUTOMATIC_SIGNER_NOT_READY" ||
+      issue.code === "SIGNING_AUTOMATIC_IDENTITY_MISSING"
+  );
+  if (blocking) {
+    throw new AppError(400, blocking.code, blocking.message);
+  }
+  return rows;
+}
+
+export async function putDocumentExecutionBindings(
+  input: OperatorDocumentExecutionBindingsPutInput
+): Promise<OperatorProfileDto> {
+  const current = await getOrCreateOperatorProfile();
+  const people = await prisma.operatorSigningPerson.findMany({
+    where: { operator_profile_id: current.id },
+    select: {
+      id: true,
+      active: true,
+      roles: true,
+      signing_email: true,
+      signature_s3_key: true,
+      signature_sha256: true,
+      signature_confirmed_at: true,
+      officer: {
+        select: {
+          name: true,
+          designation: true,
+          designation_other: true,
+          identity_number: true,
+        },
+      },
+    },
+  });
+  const rows = buildDocumentExecutionBindingRows({
+    operatorProfileId: current.id,
+    bindings: input.bindings,
+    people: people.map((person) => ({
+      id: person.id,
+      active: person.active,
+      roles: person.roles,
+      signing_email: person.signing_email,
+      signature_s3_key: person.signature_s3_key,
+      signature_sha256: person.signature_sha256,
+      signature_confirmed_at: person.signature_confirmed_at,
+      officerName: person.officer.name,
+      designation:
+        person.officer.designation === "OTHERS"
+          ? person.officer.designation_other
+          : person.officer.designation,
+      identityNumber: person.officer.identity_number,
+    })),
+  });
+  await prisma.$transaction(async (tx) => {
+    await tx.operatorDocumentExecutionBinding.deleteMany({
+      where: { operator_profile_id: current.id },
+    });
+    if (rows.length > 0) {
+      await tx.operatorDocumentExecutionBinding.createMany({ data: rows });
+    }
+  });
   return getOrCreateOperatorProfile();
 }
 
@@ -904,10 +1271,13 @@ export async function requestOperatorSigningImageUploadUrl(input: {
 }): Promise<{ uploadUrl: string; s3Key: string; expiresIn: number }> {
   const extension = imageExtensionForContentType(input.contentType);
   const date = new Date().toISOString().split("T")[0];
+  if (input.kind === "signature") {
+    assertOperatorSignatureUploadDeclared(input.contentType, input.fileSize);
+  }
   const folder =
     input.kind === "company_stamp"
       ? "platform-finance/document-stamps/certificate"
-      : "operator-profile/signing-signatures";
+      : OPERATOR_SIGNING_SIGNATURE_S3_PREFIX;
   const key = `${folder}/v1-${date}-${randomUUID()}.${extension}`;
   const { uploadUrl, key: s3Key, expiresIn } = await generatePresignedUploadUrl({
     key,

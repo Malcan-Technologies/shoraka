@@ -546,6 +546,8 @@ export * from "./issuer-dashboard";
 export * from "./reports";
 export * from "./report-periods";
 export * from "./company-stamp-image";
+export * from "./signingcloud-legal-image";
+export * from "./issuer-company-seal";
 export * from "./official-document-version";
 export * from "./investment-note-certificate";
 export * from "./settlement-hibah-receipt";
@@ -628,6 +630,7 @@ export * from "./organisation-profile-tabs";
 export * from "./director-shareholder-single-status-display";
 export * from "./issuer-shareholder-threshold";
 export * from "./operator-profile";
+export * from "./operator-document-execution";
 export * from "./support";
 export {
   ADMIN_PERMISSIONS,

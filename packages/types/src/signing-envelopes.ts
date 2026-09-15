@@ -63,6 +63,10 @@ export type SigningAction = "SIGN" | "UPLOAD" | "VIEW";
 
 export type SigningAssignmentStatus = "PENDING" | "SENT" | "VIEWED" | "SIGNED" | "DECLINED";
 
+export type SigningExecutionMode = "MANUAL" | "AUTOMATIC";
+
+export type SigningDeliveryMode = "EMAIL" | "INTERNAL";
+
 export type SigningDocumentFileType = "pdf" | "excel";
 
 /** Stable role keys used in signing templates. Extend this registry to add new roles. */
@@ -674,6 +678,8 @@ export interface PlannedRecipient {
   ic_number: string | null;
   routing_order: number;
   kyc_required: boolean;
+  execution_mode?: SigningExecutionMode;
+  delivery_mode?: SigningDeliveryMode;
 }
 
 export interface PlannedDocument {
@@ -693,6 +699,7 @@ export interface PlannedAssignment {
   recipient_ref: string;
   required: boolean;
   action: SigningAction;
+  frozen_asset_snapshot?: Record<string, unknown>;
 }
 
 export interface EnvelopePlan {
@@ -833,6 +840,9 @@ export interface SigningAssignmentDto {
   action: SigningAction;
   status: SigningAssignmentStatus;
   signed_at: string | null;
+  /** Present for automatic CashSouk assignments after a failed countersign attempt. */
+  auto_sign_error?: string | null;
+  auto_sign_attempt_count?: number;
 }
 
 export interface SigningDocumentDto {
@@ -850,6 +860,21 @@ export interface SigningDocumentDto {
   supporting_doc_step_key?: string | null;
 }
 
+export const SIGNING_ENVELOPE_SEND_PHASES = [
+  "IDLE",
+  "PREPARING",
+  "DELIVERING",
+  "SENT",
+  "FAILED",
+] as const;
+export type SigningEnvelopeSendPhase = (typeof SIGNING_ENVELOPE_SEND_PHASES)[number];
+
+export function signingEnvelopeSendInProgress(
+  phase: SigningEnvelopeSendPhase | null | undefined
+): boolean {
+  return phase === "PREPARING" || phase === "DELIVERING";
+}
+
 export interface SigningRecipientDto {
   id: string;
   role_key: string;
@@ -861,6 +886,10 @@ export interface SigningRecipientDto {
   kyc_status: SigningKycStatus;
   completed_at: string | null;
   viewed_at: string | null;
+  /** MANUAL (default) signs on the hosted page; AUTOMATIC is CashSouk countersign. */
+  execution_mode?: SigningExecutionMode;
+  /** EMAIL (default) gets a signing link; INTERNAL never receives signer mail. */
+  delivery_mode?: SigningDeliveryMode;
   /** Present for issuer/admin views after send — tracks invitation email delivery. */
   email_delivery_status?: "sent" | "failed" | null;
   /** Guarantors only: when they accepted the current published warning statement. */
@@ -880,6 +909,12 @@ export interface SigningEnvelopeDto {
   documents: SigningDocumentDto[];
   recipients: SigningRecipientDto[];
   assignments: SigningAssignmentDto[];
+  /** Durable send phase stored on the envelope. */
+  send_phase?: SigningEnvelopeSendPhase;
+  /** True while PREPARING or DELIVERING. */
+  send_in_progress?: boolean;
+  /** Last send or invitation-delivery failure. */
+  send_error?: string | null;
 }
 
 export type ExternalSigningWarningStatus = "not_opened" | "opened" | "accepted";
@@ -980,6 +1015,30 @@ export interface SigningEnvelopeProgress {
   percent: number;
   by_recipient: SigningProgressGroup[];
   by_document: SigningProgressGroup[];
+}
+
+export function isAutomaticSigningRecipient(
+  recipient: Pick<SigningRecipientDto, "execution_mode"> | { execution_mode?: string | null }
+): boolean {
+  return recipient.execution_mode === "AUTOMATIC";
+}
+
+export function isRemindableSigningRecipient(
+  recipient: Pick<SigningRecipientDto, "execution_mode" | "delivery_mode" | "status">
+): boolean {
+  if (isAutomaticSigningRecipient(recipient) || recipient.delivery_mode === "INTERNAL") {
+    return false;
+  }
+  return recipient.status !== "SIGNED" && recipient.status !== "DECLINED";
+}
+
+export function automaticSigningProgressBadge(status: SigningAssignmentStatus): {
+  label: string;
+  status: "submitted" | "success" | "rejected" | "neutral";
+} {
+  if (status === "SIGNED") return { label: "Signed by CashSouk", status: "success" };
+  if (status === "DECLINED") return { label: "Declined", status: "rejected" };
+  return { label: "Waiting for CashSouk", status: "submitted" };
 }
 
 export function computeSigningEnvelopeProgress(

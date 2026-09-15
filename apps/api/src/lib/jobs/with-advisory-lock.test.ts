@@ -1,6 +1,10 @@
 import { PrismaClient } from "@prisma/client";
 import { prisma } from "../prisma";
-import { closeAdvisoryLockPool, withAdvisoryLock } from "./with-advisory-lock";
+import {
+  closeAdvisoryLockPool,
+  withAdvisoryLock,
+  withAdvisoryLockPair,
+} from "./with-advisory-lock";
 
 const describeIntegration = process.env.DATABASE_URL ? describe : describe.skip;
 
@@ -71,5 +75,30 @@ describeIntegration("withAdvisoryLock", () => {
     await expect(withAdvisoryLock(9_999_004, async () => "ok", failingPool)).rejects.toThrow(
       "db unavailable"
     );
+  });
+});
+
+describe("withAdvisoryLockPair", () => {
+  it("runs work when the pair lock is acquired and skips when it is not", async () => {
+    const query = jest
+      .fn()
+      .mockResolvedValueOnce({ rows: [{ acquired: true }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ acquired: false }] });
+    const release = jest.fn();
+    const pool = {
+      connect: jest.fn().mockResolvedValue({ query, release }),
+    };
+
+    const first = await withAdvisoryLockPair(9_001_010, 42, async () => "claimed", pool);
+    expect(first).toBe("claimed");
+    expect(query).toHaveBeenCalledWith(
+      "SELECT pg_try_advisory_lock($1, $2) AS acquired",
+      [9_001_010, 42]
+    );
+    expect(query).toHaveBeenCalledWith("SELECT pg_advisory_unlock($1, $2)", [9_001_010, 42]);
+
+    const skipped = await withAdvisoryLockPair(9_001_010, 42, async () => "inner", pool);
+    expect(skipped).toBeNull();
   });
 });

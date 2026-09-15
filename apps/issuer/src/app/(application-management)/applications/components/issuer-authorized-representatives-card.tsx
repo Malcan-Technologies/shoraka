@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from "@/lib/utils";
 import { applicationFlowAmendmentTargetSurfaceClassName } from "@/app/(application-flow)/applications/components/form-control";
 import type { IssuerDirectorOption } from "./issuer-directors";
@@ -25,6 +26,9 @@ type IssuerAuthorizedRepresentativesCardProps = {
   directors: IssuerDirectorOption[];
   selectedMatchKeys: string[];
   onChange: (matchKeys: string[]) => void;
+  showSealApplier?: boolean;
+  sealApplierMatchKey?: string | null;
+  onSealApplierChange?: (matchKey: string | null) => void;
   readOnly?: boolean;
   isLoading?: boolean;
   highlighted?: boolean;
@@ -36,6 +40,9 @@ export function IssuerAuthorizedRepresentativesCard({
   directors,
   selectedMatchKeys,
   onChange,
+  showSealApplier = false,
+  sealApplierMatchKey = null,
+  onSealApplierChange,
   readOnly = false,
   isLoading = false,
   highlighted = false,
@@ -45,15 +52,26 @@ export function IssuerAuthorizedRepresentativesCard({
   const availableToAdd = directors.filter((director) => !usedKeys.has(director.matchKey));
   const canAdd = !readOnly && availableToAdd.length > 0;
   const rows = selectedMatchKeys.length > 0 ? selectedMatchKeys : [""];
+  const selectedDirectors = selectedMatchKeys
+    .map((key) => directors.find((director) => director.matchKey === key))
+    .filter((director): director is IssuerDirectorOption => Boolean(director));
 
   const updateRow = (index: number, matchKey: string) => {
+    const previous = rows[index];
     const next = [...rows];
     next[index] = matchKey;
     onChange(next.filter(Boolean));
+    if (previous && previous === sealApplierMatchKey && previous !== matchKey) {
+      onSealApplierChange?.(null);
+    }
   };
 
   const removeRow = (index: number) => {
+    const removed = rows[index];
     onChange(rows.filter((_, rowIndex) => rowIndex !== index).filter(Boolean));
+    if (removed && removed === sealApplierMatchKey) {
+      onSealApplierChange?.(null);
+    }
   };
 
   const addRow = () => {
@@ -168,6 +186,32 @@ export function IssuerAuthorizedRepresentativesCard({
             >
               Add director
             </Button>
+          ) : null}
+          {showSealApplier && selectedDirectors.length > 0 ? (
+            <div className="space-y-2 border-t border-border pt-3">
+              <p className="text-ui font-medium text-foreground">Applies company seal</p>
+              <p className="text-meta text-muted-foreground">
+                Choose one director to apply the organisation seal on the Facility Agreement and
+                Deed of Assignment.
+              </p>
+              <RadioGroup
+                value={sealApplierMatchKey ?? ""}
+                onValueChange={(value) => onSealApplierChange?.(value || null)}
+                disabled={readOnly}
+                className="space-y-2"
+                aria-label="Applies company seal"
+              >
+                {selectedDirectors.map((director) => (
+                  <label
+                    key={director.matchKey}
+                    className="flex items-center gap-2 text-ui text-foreground"
+                  >
+                    <RadioGroupItem value={director.matchKey} />
+                    <span>{director.name}</span>
+                  </label>
+                ))}
+              </RadioGroup>
+            </div>
           ) : null}
         </div>
       )}

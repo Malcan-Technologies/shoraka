@@ -96,11 +96,15 @@ describe("buildDeedOfAssignmentMergeData", () => {
         name: "Ali Bin Abu",
         identity_number: "820508105871",
         designation: "Director",
+        witness_name: "",
+        witness_designation: "",
       },
       {
         name: "Siti Binti Ahmad",
         identity_number: "900101015555",
         designation: "Authorised Signatory",
+        witness_name: "",
+        witness_designation: "",
       },
     ]);
     expect(data.trust_bank_name).toBe("Demo Trustee Bank");
@@ -198,6 +202,8 @@ describe("buildDeedOfAssignmentMergeData", () => {
         name: "Ali Bin Abu",
         identity_number: "820508105871",
         designation: "Director",
+        witness_name: "",
+        witness_designation: "",
       },
     ]);
   });
@@ -262,11 +268,15 @@ describe("buildDeedOfAssignmentMergeData", () => {
         name: "Ali Bin Abu",
         identity_number: "820508105871",
         designation: "Director",
+        witness_name: "",
+        witness_designation: "",
       },
       {
         name: "Siti Binti Ahmad",
         identity_number: "900101015555",
         designation: "Authorised Signatory",
+        witness_name: "",
+        witness_designation: "",
       },
     ]);
     expect(data).not.toHaveProperty("transaction_documents");

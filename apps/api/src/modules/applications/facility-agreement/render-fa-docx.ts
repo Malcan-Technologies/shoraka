@@ -4,6 +4,8 @@ import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
 import type { FacilityAgreementMergeData } from "./fa-merge.types";
 import { buildFacilityAgreementRenderPayload } from "./build-fa-render-payload";
+import { splitFacilityAgreementXmlAtSchedule4 } from "./fa-document-xml";
+import { solidifySignatureLinesInXml } from "../../generated-documents/solid-signature-lines";
 
 const TEMPLATE_FILENAME = "arf-facility-agreement.docx";
 
@@ -39,5 +41,15 @@ export function renderFacilityAgreementDocx(data: FacilityAgreementMergeData): B
     },
   });
   doc.render(buildFacilityAgreementRenderPayload(data) as Record<string, unknown>);
-  return doc.getZip().generate({ type: "nodebuffer", compression: "DEFLATE" }) as Buffer;
+  const zipAfter = doc.getZip();
+  const documentXml = zipAfter.file("word/document.xml")?.asText();
+  if (!documentXml) {
+    throw new Error("Generated Facility Agreement is missing word/document.xml");
+  }
+  const { before, fromSchedule4 } = splitFacilityAgreementXmlAtSchedule4(documentXml);
+  zipAfter.file("word/document.xml", solidifySignatureLinesInXml(before) + fromSchedule4);
+  return zipAfter.generate({
+    type: "nodebuffer",
+    compression: "DEFLATE",
+  }) as Buffer;
 }

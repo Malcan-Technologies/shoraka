@@ -2,6 +2,12 @@ import path from "path";
 import { createRequire } from "module";
 import type { SigningCloudSignField } from "./jsg-signing-signsets";
 import {
+  dateFieldFromLine,
+  findSignerDateLabel,
+  fitDateFieldBetweenSignatures,
+  fitSignFieldAbovePrintedLine,
+  isSignatureStrokeGlyphRun,
+  isSignatureStrokeLine,
   matchSignersToNamedSlots,
   signatureFieldFromLine,
 } from "../../signing/signature-field-geometry";
@@ -29,6 +35,7 @@ export type JsgSignatureSlot = {
   left: number;
   height: number;
   width: number;
+  extraFields?: SigningCloudSignField[];
 };
 
 export class JsgSigningLayoutError extends Error {
@@ -45,6 +52,7 @@ const COLUMN_GAP = 40;
 const SAME_COLUMN_X = 50;
 const LINE_SEARCH_BELOW = 55;
 const LINE_SEARCH_ABOVE = 50;
+const DATE_SEARCH_BELOW = 130;
 
 type PdfjsUtil = { transform: (m1: number[], m2: number[]) => number[] };
 
@@ -130,7 +138,20 @@ function splitColumnClusters(cluster: JsgPdfTextItem[]): JsgPdfTextItem[][] {
     const prev = last?.[last.length - 1];
     const gap = prev ? item.x - (prev.x + prev.width) : 0;
     const crossesGutter = Boolean(prev && prev.x < pageCenter - 20 && item.x > pageCenter + 20);
-    if (!last || !prev || gap >= COLUMN_GAP || crossesGutter) {
+    // Deed of Assignment SSP: the first underscore sits on the company-name
+    // baseline. After space glyphs are dropped, that gap is < COLUMN_GAP.
+    const strokeBoundary = Boolean(
+      prev && isSignatureStrokeLine(prev.text) !== isSignatureStrokeLine(item.text)
+    );
+    // DoA assignor/witness signature lines share a table row. The gutter is
+    // narrower than COLUMN_GAP, so a gap between two stroke runs is a column.
+    const strokeRunBoundary = Boolean(
+      prev &&
+        isSignatureStrokeGlyphRun(prev.text) &&
+        isSignatureStrokeGlyphRun(item.text) &&
+        gap > 1.5
+    );
+    if (!last || !prev || gap >= COLUMN_GAP || crossesGutter || strokeBoundary || strokeRunBoundary) {
       groups.push([item]);
     } else {
       last.push(item);
@@ -281,15 +302,20 @@ export function collectJsgSignatureSlots(items: JsgPdfTextItem[]): JsgSignatureS
   const executionLines = lines.filter(
     (line) => line.pageindex >= window.start && line.pageindex < window.end
   );
-  const slots: JsgSignatureSlot[] = [];
+  const located: Array<
+    JsgSignatureSlot & { strokeX: number; strokeYTop: number; printedYTop: number }
+  > = [];
 
   for (const line of executionLines) {
     if (compactLineText(line.text).toLowerCase() !== "signature of guarantor") continue;
     const stroke = dotsAbove(line, executionLines) ?? line;
-    slots.push({
+    located.push({
       kind: "individual",
       name: individualNameFromLabel(line, executionLines),
       ...fieldFromSignatureLine(stroke),
+      strokeX: stroke.x,
+      strokeYTop: stroke.yTop,
+      printedYTop: line.yTop,
     });
   }
 
@@ -297,14 +323,74 @@ export function collectJsgSignatureSlots(items: JsgPdfTextItem[]): JsgSignatureS
     if (!isUnderscoreLine(line.text)) continue;
     const below = lineBelow(line, executionLines);
     if (!below || isWitnessOrOperatorLabel(below.text)) continue;
-    slots.push({
+    located.push({
       kind: "corporate",
       name: compactLineText(below.text),
       ...fieldFromSignatureLine(line),
+      strokeX: line.x,
+      strokeYTop: line.yTop,
+      printedYTop: below.yTop,
     });
   }
 
-  return slots.sort((a, b) => a.pageindex - b.pageindex || a.top - b.top || a.left - b.left);
+  located.sort((a, b) => a.pageindex - b.pageindex || a.strokeYTop - b.strokeYTop || a.left - b.left);
+
+  const slots: JsgSignatureSlot[] = [];
+  let previousBottom: number | undefined;
+  for (let index = 0; index < located.length; index += 1) {
+    const current = located[index];
+    if (!current) continue;
+    const next = located[index + 1];
+    const dateLine = findSignerDateLabel(
+      { pageindex: current.pageindex, x: current.strokeX, yTop: current.strokeYTop },
+      executionLines,
+      {
+        sameColumnDelta: SAME_COLUMN_X,
+        maxBelow: DATE_SEARCH_BELOW,
+        beforeYTop:
+          next && next.pageindex === current.pageindex ? next.strokeYTop : undefined,
+      }
+    );
+    if (!dateLine) {
+      throw new JsgSigningLayoutError(
+        `JSG PDF is missing a Date line for "${current.name || "a guarantor"}".`
+      );
+    }
+    const samePagePrevious =
+      previousBottom != null && slots[slots.length - 1]?.pageindex === current.pageindex
+        ? previousBottom
+        : undefined;
+    const signField = fitSignFieldAbovePrintedLine(
+      {
+        fieldtype: "sign",
+        pageindex: current.pageindex,
+        top: current.top,
+        left: current.left,
+        height: current.height,
+        width: current.width,
+      },
+      current.printedYTop,
+      samePagePrevious
+    );
+    const dateField = fitDateFieldBetweenSignatures(
+      dateFieldFromLine(dateLine),
+      signField,
+      undefined
+    );
+    slots.push({
+      kind: current.kind,
+      name: current.name,
+      pageindex: signField.pageindex,
+      top: signField.top,
+      left: signField.left,
+      height: signField.height,
+      width: signField.width,
+      extraFields: [dateField],
+    });
+    previousBottom = dateField.top + dateField.height;
+  }
+
+  return slots;
 }
 
 export function matchJsgSignersToSlots(

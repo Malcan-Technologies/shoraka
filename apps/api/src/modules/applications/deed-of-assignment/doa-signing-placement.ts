@@ -8,6 +8,16 @@ import type { SigningCloudSignField } from "../joint-several-guarantee/jsg-signi
 import {
   matchSignersToNamedSlots,
   signatureFieldFromLine,
+  findSignerDesignationLabel,
+  textFieldFromLine,
+  sealFieldFromLabel,
+  attachPrimarySealField,
+  asLayoutDetectedSigners,
+  namesFromLayoutDetectedSigners,
+  isAutomaticSigningKeywordLine,
+  isSignatureStrokeLine,
+  isCompanyStampLabel,
+  type LayoutDetectedSigner,
 } from "../../signing/signature-field-geometry";
 
 export class DoaSigningLayoutError extends Error {
@@ -26,6 +36,12 @@ export type DoaSignatureSlot = {
   left: number;
   height: number;
   width: number;
+  extraFields?: SigningCloudSignField[];
+};
+
+export type DoaPlacementOptions = {
+  includeTextField?: boolean;
+  includeSeal?: boolean;
 };
 
 const SAME_COLUMN_X = 50;
@@ -35,8 +51,8 @@ function compactLineText(text: string): string {
   return text.replace(/\s+/g, " ").trim();
 }
 
-function isDotsLine(text: string): boolean {
-  return /^\.{8,}$/.test(text.replace(/\s+/g, ""));
+function isAssignorStroke(text: string): boolean {
+  return isSignatureStrokeLine(text);
 }
 
 function sameColumn(a: { x: number }, b: { x: number }): boolean {
@@ -85,7 +101,8 @@ function lineBelow(line: JsgPdfLine, lines: JsgPdfLine[]): JsgPdfLine | undefine
         candidate.pageindex === line.pageindex &&
         sameColumn(candidate, line) &&
         candidate.yTop > line.yTop &&
-        candidate.yTop - line.yTop <= LINE_SEARCH_BELOW
+        candidate.yTop - line.yTop <= LINE_SEARCH_BELOW &&
+        !isAutomaticSigningKeywordLine(candidate.text)
     )
     .sort((a, b) => a.yTop - b.yTop)[0];
 }
@@ -134,8 +151,11 @@ function isAssignorNameLabel(text: string): boolean {
   return /^name\s*:/i.test(value);
 }
 
-/** CA slots on ASSIGNOR dotted lines only — never SSP, witness, stamp, or schedules. */
-export function collectDoaAssignorSignatureSlots(items: JsgPdfTextItem[]): DoaSignatureSlot[] {
+/** CA slots on ASSIGNOR signature lines only — never SSP, witness, stamp, or schedules. */
+export function collectDoaAssignorSignatureSlots(
+  items: JsgPdfTextItem[],
+  options: Pick<DoaPlacementOptions, "includeTextField"> = {}
+): DoaSignatureSlot[] {
   const lines = linesFromJsgPdfItems(items);
   const executionLines = assignorExecutionLines(lines);
   if (executionLines.length === 0) {
@@ -144,20 +164,43 @@ export function collectDoaAssignorSignatureSlots(items: JsgPdfTextItem[]): DoaSi
   const slots: DoaSignatureSlot[] = [];
 
   for (const line of executionLines) {
-    if (!isDotsLine(line.text)) continue;
+    if (!isAssignorStroke(line.text)) continue;
     const below = lineBelow(line, executionLines);
     if (!below) continue;
     if (/^\[witness\]/i.test(compactLineText(below.text))) continue;
     if (!isAssignorNameLabel(below.text)) continue;
     const name = nameFromAssignorLabel(below, executionLines);
     if (!name) continue;
+    const extraFields: SigningCloudSignField[] = [];
+    if (options.includeTextField) {
+      const designationLine = findSignerDesignationLabel(
+        { pageindex: line.pageindex, x: line.x, yTop: line.yTop },
+        executionLines,
+        { sameColumnDelta: SAME_COLUMN_X, maxBelow: LINE_SEARCH_BELOW * 2.4 }
+      );
+      if (!designationLine) {
+        throw new DoaSigningLayoutError(
+          `Deed of Assignment PDF is missing a Designation line for "${name}".`
+        );
+      }
+      extraFields.push(textFieldFromLine(designationLine));
+    }
     slots.push({
       name,
       ...fieldFromSignatureLine(line),
+      ...(extraFields.length > 0 ? { extraFields } : {}),
     });
   }
 
   return slots.sort((a, b) => a.pageindex - b.pageindex || a.top - b.top || a.left - b.left);
+}
+
+export function findDoaAssignorCompanyStampLine(
+  items: JsgPdfTextItem[]
+): JsgPdfLine | undefined {
+  return assignorExecutionLines(linesFromJsgPdfItems(items)).find((line) =>
+    isCompanyStampLabel(line.text)
+  );
 }
 
 export function matchDoaSignersToSlots(
@@ -181,13 +224,30 @@ export function matchDoaSignersToSlots(
 
 export async function buildDoaSigningCloudSignsetsFromPdf(
   pdfBuffer: Buffer,
-  signerNames: string[]
+  signers: string[] | LayoutDetectedSigner[],
+  options: DoaPlacementOptions = {}
 ): Promise<SigningCloudSignField[][]> {
+  const signerNames = namesFromLayoutDetectedSigners(signers);
   if (signerNames.length === 0) return [];
   try {
     const items = await extractPdfTextItems(pdfBuffer);
-    const slots = collectDoaAssignorSignatureSlots(items);
-    return matchDoaSignersToSlots(signerNames, slots);
+    const slots = collectDoaAssignorSignatureSlots(items, {
+      includeTextField: options.includeTextField,
+    });
+    const signsets = matchDoaSignersToSlots(signerNames, slots);
+    if (!options.includeSeal) return signsets;
+    const page = items[0]
+      ? { pageWidth: items[0].pageWidth, pageHeight: items[0].pageHeight }
+      : {};
+    const stampLine = findDoaAssignorCompanyStampLine(items);
+    const preferredOrigins = stampLine ? [sealFieldFromLabel(stampLine)] : [];
+    return attachPrimarySealField(
+      signsets,
+      asLayoutDetectedSigners(signers),
+      page,
+      (message) => new DoaSigningLayoutError(message),
+      preferredOrigins
+    );
   } catch (err) {
     if (err instanceof DoaSigningLayoutError) throw err;
     const detail = err instanceof Error ? err.message : String(err);

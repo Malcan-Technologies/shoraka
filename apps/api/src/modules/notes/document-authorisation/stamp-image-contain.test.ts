@@ -4,7 +4,6 @@ import {
   MAX_STAMP_HEIGHT_EMU,
   MAX_STAMP_WIDTH_EMU,
   fitStampImageForDocx,
-  maxStampPixelBox,
   pngWithPhysForExtent,
   readPngSize,
   stampExtentEmuFromPixels,
@@ -18,24 +17,20 @@ function rgbaPng(width: number, height: number): Buffer {
 }
 
 describe("fitStampImageForDocx", () => {
-  it("contains a large square bitmap inside the 96 DPI cell box", () => {
+  it("keeps a large square bitmap and caps the drawing with wp:extent", () => {
     const fitted = fitStampImageForDocx(rgbaPng(800, 800), "image/png");
     const size = readPngSize(fitted.bytes);
-    const box = maxStampPixelBox();
-    expect(size).toEqual({ width: box.height, height: box.height });
+    expect(size).toEqual({ width: 800, height: 800 });
     expect(fitted.extent.cy).toBe(MAX_STAMP_HEIGHT_EMU);
     expect(fitted.extent.cx).toBe(MAX_STAMP_HEIGHT_EMU);
     expect(fitted.contentType).toBe("image/png");
     expect(fitted.bytes.includes(Buffer.from("pHYs"))).toBe(true);
   });
 
-  it("contains a wide screenshot without growing past the cell width", () => {
+  it("keeps a wide screenshot and contains it with wp:extent", () => {
     const fitted = fitStampImageForDocx(rgbaPng(1600, 400), "image/png");
     const size = readPngSize(fitted.bytes);
-    const box = maxStampPixelBox();
-    expect(size).not.toBeNull();
-    expect(size!.width).toBeLessThanOrEqual(box.width);
-    expect(size!.height).toBeLessThanOrEqual(box.height);
+    expect(size).toEqual({ width: 1600, height: 400 });
     expect(fitted.extent.cx).toBe(MAX_STAMP_WIDTH_EMU);
     expect(fitted.extent.cy).toBeLessThan(MAX_STAMP_HEIGHT_EMU);
     expect(fitted.extent.cx / fitted.extent.cy).toBeCloseTo(1600 / 400, 5);
@@ -48,17 +43,12 @@ describe("fitStampImageForDocx", () => {
     expect(fitted.extent).toEqual(stampExtentEmuFromPixels(2, 1));
   });
 
-  it("re-encodes a large JPEG as a contained PNG", () => {
+  it("keeps a large JPEG and contains it with wp:extent", () => {
     const pixels = Buffer.alloc(400 * 200 * 4, 160);
     for (let i = 3; i < pixels.length; i += 4) pixels[i] = 255;
     const jpeg = encodeJpeg({ data: pixels, width: 400, height: 200 }, 80).data;
     const fitted = fitStampImageForDocx(Buffer.from(jpeg), "image/jpeg");
-    const size = readPngSize(fitted.bytes);
-    const box = maxStampPixelBox();
-    expect(fitted.contentType).toBe("image/png");
-    expect(size).not.toBeNull();
-    expect(size!.width).toBeLessThanOrEqual(box.width);
-    expect(size!.height).toBeLessThanOrEqual(box.height);
+    expect(fitted.contentType).toBe("image/jpeg");
     expect(fitted.extent.cx).toBe(MAX_STAMP_WIDTH_EMU);
   });
 });

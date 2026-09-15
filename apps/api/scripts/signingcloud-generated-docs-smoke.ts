@@ -52,6 +52,7 @@ loadEnv({ path: path.join(__dirname, "../.env") });
 const requireFromScript = createRequire(__filename);
 
 type SmokeField = {
+  fieldtype?: string;
   pageindex?: number;
   top?: number;
   left?: number;
@@ -124,10 +125,30 @@ function printFieldGeometry(label: string, signerNames: string[], signsets: Smok
     const name = signerNames[index] ?? `signer-${index + 1}`;
     for (const field of fields) {
       console.log(
-        `  ${name}: page=${field.pageindex} top=${field.top} left=${field.left} width=${field.width} height=${field.height}`
+        `  ${name}: type=${field.fieldtype ?? "sign"} page=${field.pageindex} top=${field.top} left=${field.left} width=${field.width} height=${field.height}`
       );
     }
   });
+}
+
+function assertSignsetsMatchDocument(
+  key: SmokeDoc["key"],
+  label: string,
+  signsets: SmokeField[][],
+  signerCount: number
+): void {
+  if (signsets.length !== signerCount) {
+    throw new Error(`${label} signset count ${signsets.length} does not match signer count ${signerCount}`);
+  }
+  const expected = key === "doa" ? ["sign"] : ["sign", "signdate"];
+  for (const fields of signsets) {
+    const types = fields.map((field) => field.fieldtype ?? "");
+    if (types.join(",") !== expected.join(",")) {
+      throw new Error(
+        `${label} expected ${expected.join("+")} per signer, got ${types.join("+") || "(empty)"}`
+      );
+    }
+  }
 }
 
 async function overlayExecutionPages(
@@ -175,10 +196,17 @@ async function rasterizePdfPages(
 ): Promise<void> {
   if (overlays.length === 0) return;
   const { chromium } = await import("playwright");
+  let browser: Awaited<ReturnType<typeof chromium.launch>>;
+  try {
+    browser = await chromium.launch();
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    console.log(`Skipping overlay rasterize (${detail.split("\n")[0] ?? "Playwright unavailable"}).`);
+    return;
+  }
   const pdfjsRoot = path.dirname(requireFromScript.resolve("pdfjs-dist/package.json"));
   const pdfJs = fs.readFileSync(path.join(pdfjsRoot, "legacy/build/pdf.min.js"), "utf8");
   const worker = fs.readFileSync(path.join(pdfjsRoot, "legacy/build/pdf.worker.min.js"), "utf8");
-  const browser = await chromium.launch();
   try {
     for (const overlay of overlays) {
       const page = await browser.newPage({ viewport: { width: 900, height: 1300 } });
@@ -492,11 +520,7 @@ async function main(): Promise<void> {
   const uploaded: SmokeDoc[] = [];
   for (const job of jobs) {
     const summary = summarizeFields(job.signsets);
-    if (job.signsets.length !== job.signerNames.length) {
-      throw new Error(
-        `${job.label} signset count ${job.signsets.length} does not match signer count ${job.signerNames.length}`
-      );
-    }
+    assertSignsetsMatchDocument(job.key, job.label, job.signsets, job.signerNames.length);
     const signers = buildDocumentProviderSigners(
       job.signsets.map((signset) => ({ email: signerEmail, signset }))
     );

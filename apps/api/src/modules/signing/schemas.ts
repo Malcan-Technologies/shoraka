@@ -61,4 +61,9 @@ export const envelopeIdParamsSchema = z.object({
   id: z.string().trim().min(1),
 });
 
+export const autoSignRetryParamsSchema = z.object({
+  id: z.string().trim().min(1),
+  assignmentId: z.string().trim().min(1),
+});
+
 export type SendAdminSigningPackageBody = z.infer<typeof sendAdminSigningPackageSchema>;

@@ -1,0 +1,17 @@
+{
+  "amount": 10000,
+  "amount_due": 10000,
+  "amount_paid": 0,
+  "attempts": 0,
+  "created_at": 1782056902,
+  "currency": "MYR",
+  "entity": "order",
+  "id": "order_T4KuKP8eNvfkMZ",
+  "notes": {
+    "expected_name": "John Doe",
+    "purpose": "M0_spike"
+  },
+  "offer_id": null,
+  "receipt": "m0-spike-1782056901430",
+  "status": "created"
+}

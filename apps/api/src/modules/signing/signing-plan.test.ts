@@ -12,6 +12,8 @@ import {
   computeSigningEnvelopeProgress,
   findUnsignedSigningAssignmentForRecipient,
   normalizeSigningEmail,
+  automaticSigningProgressBadge,
+  isRemindableSigningRecipient,
   rollupDocumentStatus,
   rollupRecipientStatus,
   rollupEnvelopeStatus,
@@ -723,6 +725,12 @@ describe("status roll-up", () => {
     ).toBe("PARTIALLY_SIGNED");
     expect(rollupDocumentStatus([{ status: "SENT", required: true }])).toBe("PENDING");
     expect(rollupDocumentStatus([{ status: "SIGNED", required: false }])).toBe("PENDING");
+    expect(
+      rollupDocumentStatus([
+        { status: "SIGNED", required: true },
+        { status: "SENT", required: true },
+      ])
+    ).toBe("PARTIALLY_SIGNED");
   });
 
   it("rolls a recipient up, prioritising DECLINED then full completion", () => {
@@ -753,6 +761,38 @@ describe("status roll-up", () => {
       ])
     ).toBe("IN_PROGRESS");
     expect(rollupEnvelopeStatus([{ status: "SENT", required: true }])).toBe("SENT");
+  });
+});
+
+describe("automatic signing progress labels", () => {
+  it("shows waiting-on-CashSouk until the automatic assignment is signed", () => {
+    expect(automaticSigningProgressBadge("PENDING")).toEqual({
+      label: "Waiting for CashSouk",
+      status: "submitted",
+    });
+    expect(automaticSigningProgressBadge("SENT").label).toBe("Waiting for CashSouk");
+    expect(automaticSigningProgressBadge("VIEWED").status).toBe("submitted");
+    expect(automaticSigningProgressBadge("SIGNED")).toEqual({
+      label: "Signed by CashSouk",
+      status: "success",
+    });
+  });
+
+  it("does not treat automatic or internal recipients as remindable", () => {
+    expect(
+      isRemindableSigningRecipient({
+        execution_mode: "AUTOMATIC",
+        delivery_mode: "INTERNAL",
+        status: "SENT",
+      })
+    ).toBe(false);
+    expect(
+      isRemindableSigningRecipient({
+        execution_mode: "MANUAL",
+        delivery_mode: "EMAIL",
+        status: "SENT",
+      })
+    ).toBe(true);
   });
 });
 

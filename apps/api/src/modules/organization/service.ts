@@ -1,4 +1,5 @@
 import { OrganizationRepository, OrganizationWithMembers } from "./repository";
+import { requireOrganizationOwnerOrAdmin } from "./org-rbac";
 import {
   CreateOrganizationInput,
   AddMemberInput,
@@ -258,22 +259,6 @@ function organizationInvitationExpiresAt(from = new Date()): Date {
   const expiresAt = new Date(from.getTime());
   expiresAt.setDate(expiresAt.getDate() + ORGANIZATION_INVITATION_TTL_DAYS);
   return expiresAt;
-}
-
-function requireOrganizationOwnerOrAdmin(
-  organization: OrganizationWithMembers,
-  userId: string,
-  message: string
-): void {
-  const userMember = organization.members.find(
-    (m: { user_id: string; role: string }) => m.user_id === userId
-  );
-  const canManage =
-    organization.owner_user_id === userId ||
-    userMember?.role === OrganizationMemberRole.ORGANIZATION_ADMIN;
-  if (!canManage) {
-    throw new AppError(403, "FORBIDDEN", message);
-  }
 }
 
 export class OrganizationService {

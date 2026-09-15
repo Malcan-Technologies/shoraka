@@ -1,6 +1,8 @@
+import { ISSUER_SEAL_APPLIER_REQUIRED_MESSAGE } from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
 import { submitOfferAcceptanceBodySchema } from "./schemas";
 import {
+  assertAuthorizedPartiesValid,
   assertGuarantorAuthorizedPartiesValid,
   assertIssuerAuthorizedPartiesValid,
   directorPoolFromPeople,
@@ -34,6 +36,7 @@ const issuerParty = (
     ic_number: string;
     capacity: "director" | "authorised_signatory";
     person_match_key: string;
+    applies_company_seal?: boolean;
   }>
 ) =>
   ({
@@ -170,6 +173,95 @@ describe("assertIssuerAuthorizedPartiesValid", () => {
       ic_number: "820508105871",
       person_match_key: "820508105871",
     });
+  });
+
+  it("does not require a seal applier by default", () => {
+    expect(() =>
+      assertIssuerAuthorizedPartiesValid(
+        [
+          issuerParty([
+            {
+              name: "Ali Bin Abu",
+              email: "ali@co.my",
+              ic_number: "820508105871",
+              capacity: "director",
+              person_match_key: "820508105871",
+            },
+          ]),
+        ],
+        pool
+      )
+    ).not.toThrow();
+  });
+
+  it("requires exactly one seal applier when requireSealApplier is true", () => {
+    try {
+      assertIssuerAuthorizedPartiesValid(
+        [
+          issuerParty([
+            {
+              name: "Ali Bin Abu",
+              email: "ali@co.my",
+              ic_number: "820508105871",
+              capacity: "director",
+              person_match_key: "820508105871",
+            },
+          ]),
+        ],
+        pool,
+        { requireSealApplier: true }
+      );
+      fail("expected throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(AppError);
+      expect((error as AppError).code).toBe("AUTHORIZED_PARTIES_INVALID");
+      expect((error as AppError).message).toBe(ISSUER_SEAL_APPLIER_REQUIRED_MESSAGE);
+    }
+  });
+
+  it("accepts a single seal applier when requireSealApplier is true", () => {
+    expect(() =>
+      assertIssuerAuthorizedPartiesValid(
+        [
+          issuerParty([
+            {
+              name: "Ali Bin Abu",
+              email: "ali@co.my",
+              ic_number: "820508105871",
+              capacity: "director",
+              person_match_key: "820508105871",
+              applies_company_seal: true,
+            },
+          ]),
+        ],
+        pool,
+        { requireSealApplier: true }
+      )
+    ).not.toThrow();
+  });
+});
+
+describe("assertAuthorizedPartiesValid", () => {
+  const pool = directorPoolFromPeople([ALI]);
+
+  it("keeps requireSealApplier off unless callers pass it", () => {
+    expect(() =>
+      assertAuthorizedPartiesValid(
+        [
+          issuerParty([
+            {
+              name: "Ali Bin Abu",
+              email: "ali@co.my",
+              ic_number: "820508105871",
+              capacity: "director",
+              person_match_key: "820508105871",
+            },
+          ]),
+        ],
+        pool,
+        []
+      )
+    ).not.toThrow();
   });
 });
 
@@ -402,6 +494,22 @@ describe("submitOfferAcceptanceBodySchema", () => {
       authorized_parties: { parties: [] },
     });
     expect(result.success).toBe(false);
+  });
+
+  it("keeps applies_company_seal on the issuer representative", () => {
+    const parsed = submitOfferAcceptanceBodySchema.parse({
+      authorized_parties: {
+        parties: [
+          {
+            ...issuerBody,
+            representatives: [{ ...issuerBody.representatives[0]!, applies_company_seal: true }],
+          },
+        ],
+      },
+    });
+    expect(parsed.authorized_parties.parties[0]?.representatives[0]?.applies_company_seal).toBe(
+      true
+    );
   });
 
   it("rejects duplicate party keys", () => {

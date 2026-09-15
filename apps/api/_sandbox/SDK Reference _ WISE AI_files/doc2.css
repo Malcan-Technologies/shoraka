@@ -1,0 +1,59 @@
+
+
+body{
+max-width: 1024px !important;
+    margin: 0 auto !important;
+}
+
+.navbar-top-area {
+    margin-bottom: 0;
+    position: fixed;
+    top: 0;
+    left: 0;
+    font-size: 14px;
+    min-width: 1280px;
+    float: left;
+    width: 100%;
+    border: 0;
+    background: #073a4f;
+}
+
+
+.navbar-content {
+    background-color: transparent;
+    max-width: 1920px;
+    margin: 0 auto;
+    border: 0
+}
+
+.navbar-brand-area {
+    width: 110px;
+    background: url(../sdk/image/wise-ai-logo-retina-new.png) 50% no-repeat;
+    margin-left: 20px;
+    margin-right: 95px;
+    padding-left: 0;
+    padding-right: 0;
+    height: 55px;
+    margin-top: 0;
+    display: inline-block;
+    background-size: 110px 35px
+}
+
+.documents-content,
+ .documents-content-sub{
+
+     padding-top: 100px;
+     padding-bottom: 40px;
+   /* margin-left: 330px;
+    padding: 40px 138px 0;
+
+    background-color: #f9fbfd;
+*/
+}
+
+.img-appendix{
+  width: 100%;
+  text-align:center;
+  /*max-width: 400px;*/
+  height: auto;
+}

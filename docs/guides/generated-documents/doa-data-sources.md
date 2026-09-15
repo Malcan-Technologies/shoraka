@@ -4,7 +4,7 @@ What [`buildDeedOfAssignmentMergeData`](../../apps/api/src/modules/applications/
 
 Requires `contract_offer_sent`. Generated at facility-offer time.
 
-SigningCloud recipients are the configured **issuer_director** assignor signatories only. SSP, witnesses, stamps, and wet-ink execution lines stay untagged in Word. CA signature boxes sit on each assignor signature line in the ASSIGNOR execution block. Current fixture PDFs place two assignor CA boxes on page 10 (SSP, witness, and stamp lines are not selected).
+SigningCloud recipients are the configured **issuer_director** assignor signatories only. CashSouk **SSP** has two authorised representatives (name and designation merged from frozen Shoraka people). One CashSouk **assignor witness** (name and designation) is repeated across every assignor row. The configured CashSouk company stamp is embedded as an image in the SSP block before SigningCloud receives the document — it is not a SigningCloud `seal` field. CA signature boxes sit on each assignor signature line. There is no per-signer Date line, so Deed of Assignment signsets stay signature-only (including SSP and the assignor witness).
 
 ## Filled from platform data
 
@@ -17,7 +17,8 @@ SigningCloud recipients are the configured **issuer_director** assignor signator
 | `assignor_business_postal_address` | COD `addresses.business` only |
 | `assignor_email` | `application.company_details.contact_person.email` |
 | `assignor_contact_number` | `contact_person.contact`, else org `phone_number` |
-| `assignor_signatories[]` | All issuer authorised representatives (`Director` / `Authorised Signatory`). One execution block per person. |
+| `assignor_signatories[]` | All issuer authorised representatives (`Director` / `Authorised Signatory`). One execution block per person, each with the frozen CashSouk assignor-witness name and designation. |
+| `ssp_1_name` / `ssp_1_designation` / `ssp_2_*` | Frozen Shoraka SSP authorised representatives. Empty tags stay visible until a signing preview or envelope freeze fills them. |
 | `trust_bank_name`, `trust_account_name`, `trust_account_number`, `trust_swift_code` | `PlatformFinanceSetting.ledger_bucket_accounts_config.REPAYMENT_POOL` (`bankName`, `accountName`/`displayName`, `accountNumber`, `swiftCode`) |
 
 ## Schedules (not merged)

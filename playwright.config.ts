@@ -68,6 +68,12 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
       timeout: 120000,
     },
+    {
+      command: "pnpm --filter @cashsouk/admin dev",
+      url: "http://localhost:3003",
+      reuseExistingServer: !process.env.CI,
+      timeout: 120000,
+    },
   ],
 });
 

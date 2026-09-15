@@ -72,6 +72,10 @@ describe("renderJsgDocx", () => {
     expect(plain).toContain("{facility_description}");
     expect(plain).toContain("{issuer_business_address}");
     expect(plain).toContain("Signature of Witness");
+    expect(plain).toContain("{witness_name}");
+    expect(plain).toContain("{witness_nric}");
+    expect(plain).toContain("{operator_1_name}");
+    expect(plain).toContain("{operator_2_designation}");
     expect(plain).toContain("OPERATOR");
     expect(xml).not.toContain("{@page_break}");
     expect(xml).toContain("<w:cantSplit/>");
@@ -82,7 +86,21 @@ describe("renderJsgDocx", () => {
     expect(operatorXmlSlice).toContain("in the presence of:-");
     expect(operatorXmlSlice).toContain("<w:tab");
     expect((operatorXmlSlice.match(/Signature of Witness/g) ?? []).length).toBe(1);
-    expect((operatorXmlSlice.match(/\.{8,}/g) ?? []).length).toBeGreaterThanOrEqual(2);
+    expect((operatorXmlSlice.match(/\.{8,}/g) ?? []).length).toBeGreaterThanOrEqual(3);
+    expect((operatorXmlSlice.match(/Date:\s*_{8,}/g) ?? []).length).toBe(0);
+    const operatorName1 = paragraphContaining(operatorXmlSlice, "{operator_1_name}");
+    const operatorName2 = paragraphContaining(operatorXmlSlice, "{operator_2_name}");
+    const operatorDesignation1 = paragraphContaining(operatorXmlSlice, "{operator_1_designation}");
+    const operatorDesignation2 = paragraphContaining(operatorXmlSlice, "{operator_2_designation}");
+    expect(operatorName1).toContain('w:left="3600"');
+    expect(operatorName2).toContain('w:left="3600"');
+    expect(operatorName1).toContain('w:line="276"');
+    expect(operatorName2).toContain('w:line="276"');
+    expect(operatorDesignation1).toContain('w:line="276"');
+    expect(operatorDesignation2).toContain('w:line="276"');
+    expect(operatorName1).not.toContain("<w:b/>");
+    expect(operatorName2).not.toContain("<w:b/>");
+    expect(operatorDesignation2).not.toContain("MS Mincho");
 
     const linePara = paragraphContaining(xml, "{line}");
     expect(linePara).toContain('<w:numId w:val="20"/>');
@@ -118,6 +136,8 @@ describe("renderJsgDocx", () => {
     expect((plain.match(/Signature of Guarantor/g) ?? []).length).toBe(4);
     expect((plain.match(/Signature of Witness/g) ?? []).length).toBeGreaterThanOrEqual(4);
     expect(plain).toContain("OPERATOR");
+    expect(plain).toContain("Aisha Rahman");
+    expect(plain).toContain("Chloe Lim");
     expect(plain).not.toContain("{#guarantors_individual}");
     expect(plain).not.toContain("[Issuer");
 
@@ -128,6 +148,27 @@ describe("renderJsgDocx", () => {
     expect(firstAli).toBeGreaterThanOrEqual(0);
     expect(firstSiti).toBeGreaterThan(firstAli);
     expect(execXml.slice(firstAli, firstSiti)).not.toContain('<w:br w:type="page"/>');
+  });
+
+  it("connects standalone underscore strokes and leaves dotted and Date lines untouched", () => {
+    const xml = renderedXml(createJsgFixture());
+    const runs = [...xml.matchAll(/<w:r\b[\s\S]*?<\/w:r>/g)].map((match) => match[0]);
+    const underscoreRuns = runs.filter((run) => /^_{8,}$/.test(wordPlainText(run).trim()));
+    const dottedRuns = runs.filter((run) => /^\.{8,}$/.test(wordPlainText(run).trim()));
+    const dateRuns = runs.filter((run) => /^Date:\s*_{8,}$/i.test(wordPlainText(run).trim()));
+
+    expect(dottedRuns.length).toBeGreaterThan(0);
+    expect(dottedRuns.every((run) => !run.includes('<w:spacing w:val="-40"/>'))).toBe(true);
+    expect(dateRuns.length).toBeGreaterThan(0);
+    expect(dateRuns.every((run) => !run.includes('<w:spacing w:val="-40"/>'))).toBe(true);
+    expect(
+      underscoreRuns.every(
+        (run) =>
+          run.includes('<w:spacing w:val="-40"/>') &&
+          !run.includes('w:val="FFFFFF"') &&
+          !run.includes("<w:u ")
+      )
+    ).toBe(true);
   });
 
   it("prints merge tags when scalars are empty", () => {

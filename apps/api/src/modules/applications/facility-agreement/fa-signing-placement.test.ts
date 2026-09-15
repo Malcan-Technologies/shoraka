@@ -5,6 +5,12 @@ import {
   matchFaSignersToSlots,
   type FaSignatureSlot,
 } from "./fa-signing-placement";
+import {
+  attachPrimarySealField,
+  LAYOUT_DETECTED_DATE_FIELD,
+  LAYOUT_DETECTED_PRINTED_LINE_GAP,
+  signatureFieldsOverlap,
+} from "../../signing/signature-field-geometry";
 import { previewFieldsFromSignsets } from "../../signing/preview-signature-stamp";
 import type { JsgPdfTextItem } from "../joint-several-guarantee/jsg-signing-placement";
 import { createFacilityAgreementFixture } from "./fa-fixture";
@@ -38,20 +44,34 @@ function issuerExecutionItems(signerCount: 1 | 2): JsgPdfTextItem[] {
   const items: JsgPdfTextItem[] = [
     item(8, 80, 268, "INVESTOR"),
     item(8, 173, 94, "______________________________", 140),
-    item(8, 189, 94, "Name : Platform Investor"),
+    item(8, 189, 94, "Name :"),
+    item(8, 205, 94, "Designation :"),
+    item(8, 221, 94, "Date :", 40),
+    item(8, 251, 94, "______________________________", 140),
+    item(8, 266, 94, "Name :"),
+    item(8, 282, 94, "Designation :"),
+    item(8, 298, 94, "Date :", 40),
     item(9, 80, 268, "AGENT"),
     item(9, 173, 94, "______________________________", 140),
-    item(9, 189, 94, "Name : CashSouk Agent"),
+    item(9, 189, 94, "Name :"),
+    item(9, 205, 94, "Designation :"),
+    item(9, 221, 94, "Date :", 40),
+    item(9, 251, 94, "______________________________", 140),
+    item(9, 266, 94, "Name :"),
+    item(9, 282, 94, "Designation :"),
+    item(9, 298, 94, "Date :", 40),
     item(10, 80, 268, "ISSUER"),
     item(10, 173, 94, "______________________________", 140),
     item(10, 189, 94, "Name : Ali Bin Abu"),
     item(10, 205, 94, "Designation : Director"),
+    item(10, 221, 94, "Date :", 40),
   ];
   if (signerCount === 2) {
     items.push(
       item(10, 251, 94, "______________________________", 140),
       item(10, 266, 94, "Name : Siti Binti Ahmad"),
-      item(10, 282, 94, "Designation : Authorised Signatory")
+      item(10, 282, 94, "Designation : Authorised Signatory"),
+      item(10, 298, 94, "Date :", 40)
     );
   }
   items.push(
@@ -94,13 +114,20 @@ describe("collectFaIssuerSignatureSlots", () => {
       item(10, 80, 268, "ISSUER"),
       item(10, 173, 94, "______________________________", 140),
       item(10, 189, 94, "Name : Ali Bin Abu"),
+      item(10, 205, 94, "Designation : Director"),
+      item(10, 221, 94, "Date :", 40),
       item(10, 173, 360, "______________________________", 140),
       item(10, 189, 360, "Name of Witness:"),
       item(10, 205, 360, "NRIC:"),
+      item(10, 221, 360, "Date :", 40),
       item(10, 251, 94, "______________________________", 140),
       item(10, 266, 94, "Name : Siti Binti Ahmad"),
+      item(10, 282, 94, "Designation : Authorised Signatory"),
+      item(10, 298, 94, "Date :", 40),
       item(10, 251, 360, "______________________________", 140),
       item(10, 266, 360, "Name of Witness:"),
+      item(10, 282, 360, "NRIC:"),
+      item(10, 298, 360, "Date :", 40),
       item(11, 80, 268, "SCHEDULE 1"),
     ];
     const slots = collectFaIssuerSignatureSlots(items);
@@ -108,6 +135,45 @@ describe("collectFaIssuerSignatureSlots", () => {
     expect(slots[0]?.left).toBe(94);
     expect(slots[1]?.left).toBe(94);
     expect(slots[0]?.top).toBeLessThan(slots[1]?.top ?? 0);
+  });
+
+  it("fails when an issuer block has no Date line", () => {
+    const items = issuerExecutionItems(1).filter((entry) => !/^Date\s*:/i.test(entry.text));
+    expect(() => collectFaIssuerSignatureSlots(items)).toThrow(/missing a Date line/);
+  });
+
+  it("keeps issuer signature and date boxes clear of Name and Designation", () => {
+    const slots = collectFaIssuerSignatureSlots(issuerExecutionItems(2));
+    const gap = LAYOUT_DETECTED_PRINTED_LINE_GAP;
+    const ali = slots[0]!;
+    const siti = slots[1]!;
+    const aliDate = ali.extraFields?.find((field) => field.fieldtype === "signdate");
+    const sitiDate = siti.extraFields?.find((field) => field.fieldtype === "signdate");
+    expect(aliDate).toBeDefined();
+    expect(sitiDate).toBeDefined();
+    expect(ali.top + ali.height + gap).toBeLessThanOrEqual(189);
+    expect(aliDate!.top).toBe(
+      221 - LAYOUT_DETECTED_DATE_FIELD.height + LAYOUT_DETECTED_DATE_FIELD.topOffset
+    );
+    expect(siti.top + siti.height + gap).toBeLessThanOrEqual(266);
+    expect(sitiDate!.top).toBe(
+      298 - LAYOUT_DETECTED_DATE_FIELD.height + LAYOUT_DETECTED_DATE_FIELD.topOffset
+    );
+    expect(ali.top + ali.height).toBeLessThanOrEqual(siti.top);
+    expect(aliDate!.top + aliDate!.height).toBeLessThanOrEqual(siti.top);
+    expect(
+      signatureFieldsOverlap(
+        {
+          fieldtype: "sign",
+          pageindex: ali.pageindex,
+          top: ali.top,
+          left: ali.left,
+          height: ali.height,
+          width: ali.width,
+        },
+        aliDate!
+      )
+    ).toBe(false);
   });
 });
 
@@ -122,6 +188,11 @@ describe("matchFaSignersToSlots", () => {
       top: slots[0]?.top,
       left: slots[0]?.left,
     });
+    expect(signsets[0]?.[1]).toMatchObject({
+      fieldtype: "signdate",
+      pageindex: slots[0]?.pageindex,
+    });
+    expect(signsets[0]?.[1]?.width).toBe((signsets[0]?.[1]?.height ?? 0) * 5);
   });
 
   it("places two signers and keeps preview coordinates identical to send signsets", () => {
@@ -129,6 +200,9 @@ describe("matchFaSignersToSlots", () => {
     const names = ["Ali Bin Abu", "Siti Binti Ahmad"];
     const signsets = matchFaSignersToSlots(names, slots);
     expect(signsets).toHaveLength(2);
+    expect(signsets.every((fields) => fields.map((field) => field.fieldtype).join(",") === "sign,signdate")).toBe(
+      true
+    );
     const preview = previewFieldsFromSignsets(names, signsets);
     expect(preview.map((field) => [field.pageindex, field.top, field.left, field.width, field.height])).toEqual(
       signsets.map((fields) => {
@@ -146,6 +220,55 @@ describe("matchFaSignersToSlots", () => {
   it("fails when geometry has no issuer lines", () => {
     const empty: FaSignatureSlot[] = [];
     expect(() => matchFaSignersToSlots(["Ali Bin Abu"], empty)).toThrow(/missing issuer signature lines/);
+  });
+});
+
+describe("FA mixed SigningCloud fields", () => {
+  it("adds a textfield on each issuer Designation line when requested", () => {
+    const slots = collectFaIssuerSignatureSlots(issuerExecutionItems(2), { includeTextField: true });
+    expect(slots.every((slot) => slot.extraFields?.some((field) => field.fieldtype === "textfield"))).toBe(
+      true
+    );
+    const signsets = matchFaSignersToSlots(["Ali Bin Abu", "Siti Binti Ahmad"], slots);
+    expect(
+      signsets.every((fields) => fields.map((field) => field.fieldtype).join(",") === "sign,signdate,textfield")
+    ).toBe(true);
+    for (const fields of signsets) {
+      const sign = fields.find((field) => field.fieldtype === "sign")!;
+      const date = fields.find((field) => field.fieldtype === "signdate")!;
+      const text = fields.find((field) => field.fieldtype === "textfield")!;
+      expect(signatureFieldsOverlap(sign, date)).toBe(false);
+      expect(signatureFieldsOverlap(date, text)).toBe(false);
+      expect(signatureFieldsOverlap(sign, text)).toBe(false);
+    }
+  });
+
+  it("fails when a Designation line is missing and textfields are required", () => {
+    const items = issuerExecutionItems(1).filter((entry) => !/^Designation\s*:/i.test(entry.text));
+    expect(() => collectFaIssuerSignatureSlots(items, { includeTextField: true })).toThrow(
+      /missing a Designation line/
+    );
+  });
+
+  it("places one seal on the primary applier only", async () => {
+    const slots = collectFaIssuerSignatureSlots(issuerExecutionItems(2), { includeTextField: true });
+    const signsets = matchFaSignersToSlots(["Ali Bin Abu", "Siti Binti Ahmad"], slots);
+    const withSeal = attachPrimarySealField(
+      signsets,
+      [
+        { name: "Ali Bin Abu" },
+        { name: "Siti Binti Ahmad", appliesCompanySeal: true },
+      ],
+      { pageWidth: 595, pageHeight: 842 },
+      (message) => new FaSigningLayoutError(message)
+    );
+    expect(withSeal[0]?.map((field) => field.fieldtype)).toEqual(["sign", "signdate", "textfield"]);
+    expect(withSeal[1]?.map((field) => field.fieldtype)).toEqual([
+      "sign",
+      "signdate",
+      "textfield",
+      "seal",
+    ]);
   });
 });
 
@@ -171,6 +294,8 @@ describe("buildFaSigningCloudSignsetsFromPdf", () => {
     const twoNames = ["Ali Bin Abu", "Siti Binti Ahmad"];
     const twoSignsets = await buildFaSigningCloudSignsetsFromPdf(twoSignerPdf, twoNames);
     expect(twoSignsets).toHaveLength(2);
+    expect(twoSignsets.every((fields) => fields.length === 2)).toBe(true);
+    expect(twoSignsets.flat().filter((field) => field.fieldtype === "signdate")).toHaveLength(2);
     const twoPreview = previewFieldsFromSignsets(twoNames, twoSignsets);
     expect(
       twoPreview.map((field) => [field.pageindex, field.top, field.left, field.width, field.height])
@@ -188,5 +313,21 @@ describe("buildFaSigningCloudSignsetsFromPdf", () => {
     expect((oneSignsets[0]?.[0]?.left ?? 0) + (oneSignsets[0]?.[0]?.width ?? 0)).toBeLessThanOrEqual(595);
     expect(twoSignsets[0]?.[0]?.left).toBe(twoSignsets[1]?.[0]?.left);
     expect(twoSignsets[0]?.[0]?.top).not.toBe(twoSignsets[1]?.[0]?.top);
+
+    const withSeal = await buildFaSigningCloudSignsetsFromPdf(
+      twoSignerPdf,
+      [
+        { name: twoNames[0]!, appliesCompanySeal: false },
+        { name: twoNames[1]!, appliesCompanySeal: true },
+      ],
+      { includeTextField: true, includeSeal: true }
+    );
+    expect(withSeal.flat().filter((field) => field.fieldtype === "seal")).toHaveLength(1);
+    expect(withSeal[1]?.map((field) => field.fieldtype)).toEqual([
+      "sign",
+      "signdate",
+      "textfield",
+      "seal",
+    ]);
   }, 120_000);
 });

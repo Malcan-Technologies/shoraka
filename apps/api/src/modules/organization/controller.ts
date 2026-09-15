@@ -15,8 +15,17 @@ import {
   patchCtosPartyEmailSchema,
   recoverUnresolvedIdentitySchema,
   sendDirectorOnboardingSchema,
+  issuerCompanySealUploadUrlBodySchema,
+  issuerCompanySealConfirmBodySchema,
   PortalType,
 } from "./schemas";
+import {
+  confirmIssuerCompanySeal,
+  getIssuerCompanySeal,
+  getIssuerCompanySealPreview,
+  removeIssuerCompanySeal,
+  requestIssuerCompanySealUploadUrl,
+} from "./company-seal";
 import { requireAuth } from "../../lib/auth/middleware";
 import { parseAboutYourBusiness } from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
@@ -1292,6 +1301,58 @@ export function createOrganizationRouter(): Router {
         success: true,
         data: latest,
       });
+    } catch (error) {
+      next(error);
+    }
+  });
+  router.get("/issuer/:id/company-seal", requireAuth, async (req, res, next) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = organizationIdParamSchema.parse(req.params);
+      const data = await getIssuerCompanySeal(userId, id);
+      res.json({ success: true, data, correlationId: res.locals.correlationId });
+    } catch (error) {
+      next(error);
+    }
+  });
+  router.get("/issuer/:id/company-seal/preview", requireAuth, async (req, res, next) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = organizationIdParamSchema.parse(req.params);
+      const data = await getIssuerCompanySealPreview(userId, id);
+      res.json({ success: true, data, correlationId: res.locals.correlationId });
+    } catch (error) {
+      next(error);
+    }
+  });
+  router.post("/issuer/:id/company-seal/upload-url", requireAuth, async (req, res, next) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = organizationIdParamSchema.parse(req.params);
+      const input = issuerCompanySealUploadUrlBodySchema.parse(req.body);
+      const data = await requestIssuerCompanySealUploadUrl(userId, id, input);
+      res.json({ success: true, data, correlationId: res.locals.correlationId });
+    } catch (error) {
+      next(error);
+    }
+  });
+  router.post("/issuer/:id/company-seal/confirm", requireAuth, async (req, res, next) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = organizationIdParamSchema.parse(req.params);
+      const input = issuerCompanySealConfirmBodySchema.parse(req.body);
+      const data = await confirmIssuerCompanySeal(userId, id, input);
+      res.json({ success: true, data, correlationId: res.locals.correlationId });
+    } catch (error) {
+      next(error);
+    }
+  });
+  router.delete("/issuer/:id/company-seal", requireAuth, async (req, res, next) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = organizationIdParamSchema.parse(req.params);
+      const data = await removeIssuerCompanySeal(userId, id);
+      res.json({ success: true, data, correlationId: res.locals.correlationId });
     } catch (error) {
       next(error);
     }

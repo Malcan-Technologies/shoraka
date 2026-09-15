@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import { Pool, type PoolClient } from "pg";
 import { logger } from "../logger";
 
@@ -12,7 +13,8 @@ export const JOB_LOCK_KEYS = {
   INVESTMENT_NOTE_CERTIFICATE_RETRY: 9_001_007,
   SETTLEMENT_HIBAH_RECEIPT_RETRY: 9_001_008,
   INVESTMENT_SETTLEMENT_CONFIRMATION_RETRY: 9_001_009,
-  NOTE_SERVICING_STATUS: 9_001_010,
+  SIGNING_ENVELOPE_SEND: 9_001_010,
+  NOTE_SERVICING_STATUS: 9_001_011,
 } as const;
 
 type AdvisoryLockClient = Pick<PoolClient, "query"> & {
@@ -55,29 +57,82 @@ export async function withAdvisoryLock<T>(
     }
 
     let callbackError: unknown;
+    let result: T | undefined;
     try {
-      return await fn();
+      result = await fn();
     } catch (error) {
       callbackError = error;
-      throw error;
-    } finally {
-      try {
-        await client.query("SELECT pg_advisory_unlock($1)", [lockKey]);
-      } catch (unlockError) {
-        destroyClient = true;
-        logger.error(
-          {
-            lockKey,
-            error: unlockError instanceof Error ? unlockError.message : String(unlockError),
-          },
-          "Failed to release advisory lock"
-        );
-
-        if (!callbackError) {
-          throw unlockError;
-        }
-      }
     }
+    try {
+      await client.query("SELECT pg_advisory_unlock($1)", [lockKey]);
+    } catch (unlockError) {
+      destroyClient = true;
+      logger.error(
+        {
+          lockKey,
+          error: unlockError instanceof Error ? unlockError.message : String(unlockError),
+        },
+        "Failed to release advisory lock"
+      );
+      if (!callbackError) callbackError = unlockError;
+    }
+    if (callbackError) throw callbackError;
+    return result as T;
+  } finally {
+    client.release(destroyClient);
+  }
+}
+
+export function advisoryLockKeyFromId(id: string): number {
+  return createHash("sha256").update(id).digest().readInt32BE(0);
+}
+
+/**
+ * Two-key advisory lock so per-envelope send work is exclusive across API tasks.
+ */
+export async function withAdvisoryLockPair<T>(
+  key1: number,
+  key2: number,
+  fn: () => Promise<T>,
+  pool: AdvisoryLockPool = advisoryLockPool
+): Promise<T | null> {
+  const client = await pool.connect();
+  let destroyClient = false;
+  try {
+    const lockResult = await client.query<{ acquired: boolean }>(
+      "SELECT pg_try_advisory_lock($1, $2) AS acquired",
+      [key1, key2]
+    );
+    const acquired = lockResult.rows[0]?.acquired === true;
+
+    if (!acquired) {
+      logger.info({ key1, key2 }, "Advisory lock pair not acquired — skipping");
+      return null;
+    }
+
+    let callbackError: unknown;
+    let result: T | undefined;
+    try {
+      result = await fn();
+    } catch (error) {
+      callbackError = error;
+    }
+    try {
+      await client.query("SELECT pg_advisory_unlock($1, $2)", [key1, key2]);
+    } catch (unlockError) {
+      destroyClient = true;
+      logger.error(
+        {
+          key1,
+          key2,
+          error: unlockError instanceof Error ? unlockError.message : String(unlockError),
+        },
+        "Failed to release advisory lock pair"
+      );
+      if (!callbackError) callbackError = unlockError;
+    }
+    if (callbackError) throw callbackError;
+    return result as T;
   } finally {
     client.release(destroyClient);
   }

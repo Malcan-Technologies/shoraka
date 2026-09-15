@@ -2,12 +2,14 @@ jest.mock("../prisma", () => ({
   prisma: {
     signingEnvelope: { findMany: jest.fn(), findFirst: jest.fn() },
     signingRecipient: { findMany: jest.fn() },
+    signingAssignment: { findMany: jest.fn() },
   },
 }));
 
 jest.mock("../../modules/signing/service", () => ({
   signingService: {
     syncEnvelopeFromProvider: jest.fn(),
+    continueEnvelopeSend: jest.fn(),
   },
 }));
 
@@ -29,13 +31,16 @@ describe("runSigningReconcileJob", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (prisma.signingRecipient.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma.signingAssignment.findMany as jest.Mock).mockResolvedValue([]);
     (signingService.syncEnvelopeFromProvider as jest.Mock).mockResolvedValue(undefined);
+    (signingService.continueEnvelopeSend as jest.Mock).mockResolvedValue(undefined);
   });
 
   it("selects missing-PDF and OFFER_SENT envelopes, dedupes overlap, and reports honest finalize results", async () => {
     (prisma.signingEnvelope.findMany as jest.Mock)
       .mockResolvedValueOnce([{ id: "env-pdf" }, { id: "env-both" }])
-      .mockResolvedValueOnce([{ id: "env-contract" }, { id: "env-invoice" }, { id: "env-both" }]);
+      .mockResolvedValueOnce([{ id: "env-contract" }, { id: "env-invoice" }, { id: "env-both" }])
+      .mockResolvedValueOnce([]);
     (prisma.signingEnvelope.findFirst as jest.Mock).mockImplementation(
       async ({ where }: { where: { id: string } }) => {
         if (where.id === "env-contract") return null;

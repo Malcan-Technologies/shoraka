@@ -162,7 +162,7 @@ describe("review refresh policies", () => {
     expect(getReviewListRefreshPolicy().refetchInterval).toBe(60_000);
   });
 
-  it("polls signing envelopes only while SENT or IN_PROGRESS", () => {
+  it("polls signing envelopes only while SENT, IN_PROGRESS, or a draft is still sending", () => {
     expect(getLiveSigningEnvelopeRefetchInterval([{ status: "DRAFT" }])).toBe(false);
     expect(getLiveSigningEnvelopeRefetchInterval([{ status: "COMPLETED" }])).toBe(false);
     expect(getLiveSigningEnvelopeRefetchInterval([{ status: "SENT" }])).toBe(15_000);
@@ -170,5 +170,8 @@ describe("review refresh policies", () => {
     expect(
       getLiveSigningEnvelopeRefetchInterval([{ status: "DRAFT" }, { status: "SENT" }])
     ).toBe(15_000);
+    expect(
+      getLiveSigningEnvelopeRefetchInterval([{ status: "DRAFT", send_in_progress: true }])
+    ).toBe(2_000);
   });
 });

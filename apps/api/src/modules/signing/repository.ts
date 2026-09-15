@@ -2,10 +2,37 @@
  * Prisma access for the signing envelope graph (envelope + documents + recipients + assignments).
  */
 import { prisma } from "../../lib/prisma";
-import type { EnvelopePlan } from "@cashsouk/types";
+import { Prisma } from "@prisma/client";
+import type { EnvelopePlan, OperatorDocumentExecutionRole } from "@cashsouk/types";
+import { operatorOfficerDesignationLabel } from "@cashsouk/types";
 import type { SigningEnvelopeWithGraph } from "./mapper";
 import { hashSigningAccessToken } from "./token";
 import { AppError } from "../../lib/http/error-handler";
+import { parseDocumentAuthorisationConfig } from "../notes/document-authorisation/config";
+
+export type OperatorExecutionBindingRecord = {
+  roleKey: OperatorDocumentExecutionRole;
+  slotIndex: number;
+  signingPersonId: string;
+  officerName: string | null;
+  designation: string | null;
+  identityNumber: string | null;
+  signingEmail: string | null;
+  active: boolean;
+  roles: readonly string[];
+  signatureS3Key: string | null;
+  signatureSha256: string | null;
+  signatureConfirmedAt: Date | null;
+  signatureWidthPx: number | null;
+  signatureHeightPx: number | null;
+  signatureByteSize: number | null;
+};
+
+export type OperatorCompanyStampRecord = {
+  s3Key: string;
+  fileName: string | null;
+  contentType: string | null;
+};
 
 /** Statuses that block creating another envelope for the same contract/invoice. */
 const ACTIVE_ENVELOPE_STATUSES = ["DRAFT", "SENT", "IN_PROGRESS"] as const;
@@ -181,21 +208,26 @@ export class SigningRepository {
             routing_order: r.routing_order,
             status: "PENDING",
             kyc_required: r.kyc_required !== false,
+            execution_mode: r.execution_mode === "AUTOMATIC" ? "AUTOMATIC" : "MANUAL",
+            delivery_mode: r.delivery_mode === "INTERNAL" ? "INTERNAL" : "EMAIL",
           },
         });
         recipientIdByRef.set(r.ref, created.id);
       }
 
-      if (plan.assignments.length > 0) {
-        await tx.signingAssignment.createMany({
-          data: plan.assignments.map((a) => ({
+      for (const a of plan.assignments) {
+        await tx.signingAssignment.create({
+          data: {
             envelope_id: envelope.id,
             document_id: documentIdByRef.get(a.document_ref)!,
             recipient_id: recipientIdByRef.get(a.recipient_ref)!,
             required: a.required,
             action: a.action,
-            status: "PENDING" as const,
-          })),
+            status: "PENDING",
+            ...(a.frozen_asset_snapshot
+              ? { frozen_asset_snapshot: a.frozen_asset_snapshot as Prisma.InputJsonValue }
+              : {}),
+          },
         });
       }
 
@@ -331,6 +363,20 @@ export class SigningRepository {
     });
   }
 
+  async patchEnvelopeMetadata(
+    envelopeId: string,
+    patch: (current: unknown) => Prisma.InputJsonValue | Record<string, unknown>
+  ): Promise<void> {
+    const current = await prisma.signingEnvelope.findUnique({
+      where: { id: envelopeId },
+      select: { metadata: true },
+    });
+    await prisma.signingEnvelope.update({
+      where: { id: envelopeId },
+      data: { metadata: patch(current?.metadata ?? null) as Prisma.InputJsonValue },
+    });
+  }
+
   async markEnvelopeSent(envelopeId: string, expiresAt?: Date | null): Promise<void> {
     await prisma.$transaction([
       prisma.signingEnvelope.update({
@@ -338,6 +384,8 @@ export class SigningRepository {
         data: {
           status: "SENT",
           sent_at: new Date(),
+          send_phase: "SENT",
+          send_error: null,
           ...(expiresAt ? { expires_at: expiresAt } : {}),
         },
       }),
@@ -346,6 +394,47 @@ export class SigningRepository {
         data: { status: "SENT", sent_at: new Date() },
       }),
     ]);
+  }
+
+  async setEnvelopeSendState(
+    envelopeId: string,
+    input: {
+      phase: "IDLE" | "PREPARING" | "DELIVERING" | "SENT" | "FAILED";
+      error?: string | null;
+      incrementAttempt?: boolean;
+    }
+  ): Promise<void> {
+    await prisma.signingEnvelope.update({
+      where: { id: envelopeId },
+      data: {
+        send_phase: input.phase,
+        send_error: input.error === undefined ? undefined : input.error,
+        send_started_at: input.phase === "PREPARING" || input.phase === "DELIVERING" ? new Date() : undefined,
+        ...(input.incrementAttempt ? { send_attempt_count: { increment: 1 } } : {}),
+      },
+    });
+  }
+
+  async findStaleSendEnvelopeIds(staleBefore: Date): Promise<string[]> {
+    const rows = await prisma.signingEnvelope.findMany({
+      where: {
+        status: "DRAFT",
+        send_phase: { in: ["PREPARING", "DELIVERING"] },
+        OR: [{ send_started_at: { lt: staleBefore } }, { send_started_at: null }],
+      },
+      select: { id: true },
+    });
+    return rows.map((row) => row.id);
+  }
+
+  async setAssignmentFrozenSnapshot(
+    assignmentId: string,
+    snapshot: Prisma.InputJsonValue
+  ): Promise<void> {
+    await prisma.signingAssignment.update({
+      where: { id: assignmentId },
+      data: { frozen_asset_snapshot: snapshot },
+    });
   }
 
   async markAssignmentSigned(assignmentId: string): Promise<void> {
@@ -527,6 +616,100 @@ export class SigningRepository {
       where: { id: recipientId },
       data: { last_reminder_at: new Date() },
     });
+  }
+
+  async findOperatorDocumentExecutionBindings(): Promise<OperatorExecutionBindingRecord[]> {
+    const profile = await prisma.operatorProfile.findUnique({
+      where: { singleton_key: "cashsouk" },
+      include: {
+        document_execution_bindings: {
+          include: {
+            signing_person: { include: { officer: true } },
+          },
+        },
+      },
+    });
+    if (!profile) return [];
+    return profile.document_execution_bindings.map((row) => ({
+      roleKey: row.role_key,
+      slotIndex: row.slot_index,
+      signingPersonId: row.signing_person_id,
+      officerName: row.signing_person.officer.name,
+      designation: operatorOfficerDesignationLabel({
+        designation: row.signing_person.officer.designation,
+        designationOther: row.signing_person.officer.designation_other,
+      }),
+      identityNumber: row.signing_person.officer.identity_number,
+      signingEmail: row.signing_person.signing_email,
+      active: row.signing_person.active,
+      roles: row.signing_person.roles,
+      signatureS3Key: row.signing_person.signature_s3_key,
+      signatureSha256: row.signing_person.signature_sha256,
+      signatureConfirmedAt: row.signing_person.signature_confirmed_at,
+      signatureWidthPx: row.signing_person.signature_width_px,
+      signatureHeightPx: row.signing_person.signature_height_px,
+      signatureByteSize: row.signing_person.signature_byte_size,
+    }));
+  }
+
+  async findOperatorCompanyStamp(): Promise<OperatorCompanyStampRecord | null> {
+    const settings = await prisma.platformFinanceSetting.findUnique({
+      where: { key: "DEFAULT" },
+      select: { document_authorisation_config: true },
+    });
+    const stamp = parseDocumentAuthorisationConfig(settings?.document_authorisation_config)
+      .certificateCompanyStamp;
+    const s3Key = stamp?.s3Key?.trim();
+    if (!s3Key) return null;
+    return {
+      s3Key,
+      fileName: stamp?.fileName?.trim() || null,
+      contentType: stamp?.contentType?.trim() || null,
+    };
+  }
+
+  async findActiveIssuerCompanySeal(organizationId: string) {
+    return prisma.issuerOrganizationCompanySeal.findFirst({
+      where: { issuer_organization_id: organizationId, superseded_at: null },
+    });
+  }
+
+  async findIssuerCompanySealById(id: string) {
+    return prisma.issuerOrganizationCompanySeal.findUnique({ where: { id } });
+  }
+
+  async setAssignmentFrozenCompanySeal(assignmentId: string, sealId: string): Promise<void> {
+    await prisma.signingAssignment.update({
+      where: { id: assignmentId },
+      data: { frozen_company_seal_id: sealId },
+    });
+  }
+
+  async recordAutoSignAttempt(
+    assignmentId: string,
+    input: { error: string | null; increment: boolean }
+  ): Promise<void> {
+    await prisma.signingAssignment.update({
+      where: { id: assignmentId },
+      data: {
+        last_auto_sign_at: new Date(),
+        last_auto_sign_error: input.error,
+        ...(input.increment ? { auto_sign_attempt_count: { increment: 1 } } : {}),
+      },
+    });
+  }
+
+  async findEnvelopeIdsWithPendingAutomaticAssignments(): Promise<string[]> {
+    const rows = await prisma.signingAssignment.findMany({
+      where: {
+        status: { notIn: ["SIGNED", "DECLINED"] },
+        recipient: { execution_mode: "AUTOMATIC" },
+        envelope: { status: { in: ["SENT", "IN_PROGRESS"] } },
+      },
+      select: { envelope_id: true },
+      distinct: ["envelope_id"],
+    });
+    return rows.map((row) => row.envelope_id);
   }
 }
 

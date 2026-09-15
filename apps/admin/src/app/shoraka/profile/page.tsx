@@ -1220,6 +1220,7 @@ export default function RmoProfilePage() {
               api={api}
               onProfileChange={(data) => {
                 queryClient.setQueryData(["admin", "operator-profile"], data);
+                void queryClient.invalidateQueries({ queryKey: ["admin", "signing"] });
                 setDraft(data);
               }}
             />

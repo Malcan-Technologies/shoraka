@@ -1,5 +1,9 @@
 import type { AuthorizedPartiesSnapshot } from "@cashsouk/types";
-import { nextIssuerRepMatchKeys } from "./build-issuer-envelope-bindings";
+import {
+  buildIssuerAuthorizedPartiesSubmitPayload,
+  nextIssuerRepMatchKeys,
+  nextIssuerSealApplierMatchKey,
+} from "./build-issuer-envelope-bindings";
 
 const SAMPLE_IC = "820508105871";
 const SITI_IC = "900101015555";
@@ -78,3 +82,83 @@ describe("nextIssuerRepMatchKeys", () => {
     ).toBeNull();
   });
 });
+
+describe("buildIssuerAuthorizedPartiesSubmitPayload", () => {
+  it("sets applies_company_seal on exactly one selected director", () => {
+    const payload = buildIssuerAuthorizedPartiesSubmitPayload(
+      directors,
+      [SAMPLE_IC, SITI_IC],
+      SITI_IC
+    );
+    const reps = payload.parties[0]?.representatives ?? [];
+    expect(reps.map((rep) => rep.applies_company_seal)).toEqual([undefined, true]);
+    expect(reps.filter((rep) => rep.applies_company_seal === true)).toHaveLength(1);
+  });
+
+  it("omits applies_company_seal when no applier is selected", () => {
+    const payload = buildIssuerAuthorizedPartiesSubmitPayload(directors, [SAMPLE_IC]);
+    expect(payload.parties[0]?.representatives[0]?.applies_company_seal).toBeUndefined();
+  });
+});
+
+describe("nextIssuerSealApplierMatchKey", () => {
+  it("does not auto-select an applier when the snapshot has none", () => {
+    expect(
+      nextIssuerSealApplierMatchKey({
+        snapshot: null,
+        directors,
+        selectedMatchKeys: [SITI_IC],
+        currentKey: null,
+        dirty: false,
+      })
+    ).toBeNull();
+  });
+
+  it("uses the snapshot applier when that director is still selected", () => {
+    const withSeal: AuthorizedPartiesSnapshot = {
+      ...snapshot,
+      parties: [
+        {
+          ...snapshot.parties[0]!,
+          representatives: [
+            { ...snapshot.parties[0]!.representatives[0]!, applies_company_seal: true },
+          ],
+        },
+      ],
+    };
+    expect(
+      nextIssuerSealApplierMatchKey({
+        snapshot: withSeal,
+        directors,
+        selectedMatchKeys: [SAMPLE_IC, SITI_IC],
+        currentKey: SAMPLE_IC,
+        dirty: false,
+      })
+    ).toBe(SITI_IC);
+  });
+
+  it("clears the applier when that director is removed from the selection", () => {
+    expect(
+      nextIssuerSealApplierMatchKey({
+        snapshot: null,
+        directors,
+        selectedMatchKeys: [SAMPLE_IC],
+        currentKey: SITI_IC,
+        dirty: true,
+      })
+    ).toBeNull();
+  });
+
+  it("keeps a user-chosen applier while that director stays selected", () => {
+    expect(
+      nextIssuerSealApplierMatchKey({
+        snapshot: null,
+        directors,
+        selectedMatchKeys: [SAMPLE_IC, SITI_IC],
+        currentKey: SITI_IC,
+        dirty: true,
+      })
+    ).toBe(SITI_IC);
+  });
+});
+

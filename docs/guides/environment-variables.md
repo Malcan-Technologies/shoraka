@@ -107,27 +107,50 @@ Issuer director CTOS RegTank onboarding: after a successful RegTank create call,
 
 Server-only. All SigningCloud settings use the `SC_*` prefix. Encrypted callbacks authenticate with the provider MAC (`data` + `mac`); plaintext callbacks require the `x-signingcloud-secret` header (`SC_WEBHOOK_SECRET`). Production startup (`assertSigningProductionConfig`) also requires `API_PUBLIC_URL` (webhook/`callUrl`) and `ISSUER_URL` (hosted return/`backUrl`).
 
-| Variable                 | Description                                      | Example (Dev)           | Example (Prod)                  |
-| ------------------------ | ------------------------------------------------ | ----------------------- | ------------------------------- |
-| `SC_BASE_URL`            | SigningCloud API base URL                        | From tenant dashboard   | Secrets Manager (`BACKEND_ENV`) |
-| `SC_API_KEY`             | SigningCloud API key                             | From tenant dashboard   | Secrets Manager (`BACKEND_ENV`) |
-| `SC_API_SECRET`          | SigningCloud API secret                          | From tenant dashboard   | Secrets Manager (`BACKEND_ENV`) |
-| `SC_WEBHOOK_SECRET`      | Shared secret for plaintext webhook callbacks    | Local shared value      | Secrets Manager (`BACKEND_ENV`) |
-| `API_PUBLIC_URL`         | Public API URL (webhook/`callUrl`)               | `http://localhost:4000` | Secrets Manager (`BACKEND_ENV`) |
-| `ISSUER_URL`             | Issuer origin for signing emails and `backUrl`   | `http://localhost:3001` | Secrets Manager (`BACKEND_ENV`) |
-| `SC_ACCESS_TOKEN_TTL_MS` | In-memory access-token cache TTL (minimum 60000) | `1500000` (default 25m) | Optional override               |
+| Variable                 | Description                                      | Example (Dev)              | Example (Prod)                  |
+| ------------------------ | ------------------------------------------------ | -------------------------- | ------------------------------- |
+| `SC_BASE_URL`            | SigningCloud API base URL                        | From tenant dashboard      | Secrets Manager (`BACKEND_ENV`) |
+| `SC_API_KEY`             | SigningCloud API key                             | From tenant dashboard      | Secrets Manager (`BACKEND_ENV`) |
+| `SC_API_SECRET`          | SigningCloud API secret                          | From tenant dashboard      | Secrets Manager (`BACKEND_ENV`) |
+| `SC_WEBHOOK_SECRET`      | Shared secret for plaintext webhook callbacks    | Local shared value         | Secrets Manager (`BACKEND_ENV`) |
+| `API_PUBLIC_URL`         | Public API URL (webhook/`callUrl`)               | `http://localhost:4000`    | Secrets Manager (`BACKEND_ENV`) |
+| `ISSUER_URL`             | Issuer origin for signing emails and `backUrl`   | `http://localhost:3001`    | Secrets Manager (`BACKEND_ENV`) |
+| `SC_ACCESS_TOKEN_TTL_MS` | In-memory access-token cache TTL (minimum 60000) | `1500000` (default 25m)    | Optional override               |
+| `SC_ENABLE_SEAL_FIELD`   | Emit SigningCloud `fieldtype: "seal"` on FA/DoA  | `false` (local workaround) | Unset (enabled)                 |
+
+FA/DOA designation is merged from authorised-representative capacity (Director / Authorised Signatory). CashSouk delayed `/signature/auto` countersign always runs. Issuer organisation-seal fields are emitted unless `SC_ENABLE_SEAL_FIELD=false` (case-insensitive). Unset or any other value keeps seal fields, freeze, and stamp upload on. Existing envelopes that already froze a seal still upload that stamp at session start.
 
 Disposable FA/JSG/DOA sandbox smoke (one verified sandbox email reused for every field):
 
 `SIGNINGCLOUD_SMOKE_SIGNER_EMAIL=… pnpm --filter @cashsouk/api signingcloud:generated-docs-smoke`
 
-| Variable                                                      | Description                                                           |
-| ------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `SIGNINGCLOUD_SMOKE_LAYOUT_ONLY=1`                            | Render fixture PDFs and overlay PNGs only (no upload)                 |
-| `SIGNINGCLOUD_SMOKE_SKIP_SIGN=1`                              | Upload disposable contracts, write gitignored session URLs, then exit |
-| `SIGNINGCLOUD_SMOKE_INSPECT_HOSTED=1`                         | Screenshot hosted cover + execution pages after upload                |
-| `SIGNINGCLOUD_SMOKE_INSPECT_ONLY=1`                           | Re-screenshot saved gitignored sessions                               |
-| `SIGNINGCLOUD_SMOKE_VERIFY_REFS=fa:<ref>,jsg:<ref>,doa:<ref>` | Poll provider status and hash signed `%PDF` bytes after CA signing    |
+Mixed fields / keyword proof (Gotenberg; live upload optional):
+
+`pnpm --filter @cashsouk/api signingcloud:mixed-signing-smoke`
+
+Full sequence (issuer signs, optional company seal, then CashSouk auto-sign):
+
+`SIGNINGCLOUD_SMOKE_SIGNER_EMAIL=… SIGNINGCLOUD_SMOKE_AUTO_EMAIL=… SIGNINGCLOUD_SMOKE_AUTO_EMAIL_2=… pnpm --filter @cashsouk/api signingcloud:full-flow-smoke`
+
+The mixed smoke stamps one hidden signature keyword (and a date keyword when the role has a Date line) per automatic signer. Sibling markers are `CASHSOUK_<DOC>_<PERSON>_SIGN` and `CASHSOUK_<DOC>_<PERSON>_DATE` so neither is a substring of the other. Shared FA Investor/Agent pairs reuse the same keyword pair across both lines. Already-uploaded sandbox contracts still using unsuffixed sign keywords must be regenerated before `/signature/auto`. Optional live upload registers each automatic email once. Optional `SIGNINGCLOUD_SMOKE_AUTO=1` then calls `/signature/auto` once per signer with `signkeyword` and `datekeyword` (`dd/MM/yyyy`). The automatic signature image is a transparent visual fixture with handwritten-style test text, not the production operator signature.
+
+The full-flow smoke uses the production order on FA, JSG, and DoA with a reduced fixture so two automatic sandbox emails are enough: one issuer/guarantor/assignor signs the CA fields, one witness line, and both CashSouk representative pairs. FA/DoA also register a company-seal field and upload a stamp before the hosted session unless `SC_ENABLE_SEAL_FIELD=false`. After manuals are SIGNED, each CashSouk email is auto-signed once. Automatic dates use `datekeyword`, not coordinate `signdate` fields. JSG Operator attorneys and the operator witness have signature keywords only (no Date line). Lines are round-robin’d across `SIGNINGCLOUD_SMOKE_AUTO_EMAIL` and `SIGNINGCLOUD_SMOKE_AUTO_EMAIL_2` (or `SIGNINGCLOUD_SMOKE_AUTO_EMAILS`). Session URLs are written to `apps/api/tmp/signingcloud-smoke/full-flow-sessions.txt`. After `SIGNINGCLOUD_SMOKE_SKIP_SIGN=1`, sign those URLs and resume with `SIGNINGCLOUD_SMOKE_CONTINUE=1`. A CONTINUE run cannot fix a contract that already stacked too many keywords on one signer — re-upload first. Keyword changes (`_SIGN` / `_DATE` siblings) also require a fresh contract. The automatic signature image is a transparent visual fixture. Restrict documents with `SIGNINGCLOUD_SMOKE_DOCS=fa`.
+
+| Variable                                                      | Description                                                                        |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `SIGNINGCLOUD_SMOKE_LAYOUT_ONLY=1`                            | Render fixture PDFs and overlay PNGs only (no upload)                              |
+| `SIGNINGCLOUD_SMOKE_SKIP_SIGN=1`                              | Upload disposable contracts, write gitignored session URLs, then exit              |
+| `SIGNINGCLOUD_SMOKE_INSPECT_HOSTED=1`                         | Screenshot hosted cover + execution pages after upload                             |
+| `SIGNINGCLOUD_SMOKE_INSPECT_ONLY=1`                           | Re-screenshot saved gitignored sessions                                            |
+| `SIGNINGCLOUD_SMOKE_VERIFY_REFS=fa:<ref>,jsg:<ref>,doa:<ref>` | Poll provider status and hash signed `%PDF` bytes after CA signing                 |
+| `SIGNINGCLOUD_SMOKE_SIGNER_EMAIL`                             | Manual issuer signer email for live upload                                         |
+| `SIGNINGCLOUD_SMOKE_AUTO_EMAIL`                               | First automatic CashSouk sandbox email                                             |
+| `SIGNINGCLOUD_SMOKE_AUTO_EMAIL_2`                             | Second automatic CashSouk sandbox email                                            |
+| `SIGNINGCLOUD_SMOKE_AUTO_EMAILS`                              | Optional comma-separated automatic pool (alternative to numbered vars)             |
+| `SIGNINGCLOUD_SMOKE_WITNESS_EMAIL`                            | Extra automatic email appended to the pool if not already listed                   |
+| `SIGNINGCLOUD_SMOKE_AUTO=1`                                   | After mixed-smoke upload, run `/signature/auto` once per automatic signer          |
+| `SIGNINGCLOUD_SMOKE_CONTINUE=1`                               | Resume full-flow smoke: wait for manuals, auto-sign, download signed PDFs          |
+| `SIGNINGCLOUD_SMOKE_DOCS`                                     | Full-flow documents to run (`fa,jsg,doa` by default)                               |
 
 Do not commit session URLs, access codes, or overlay captures.
 

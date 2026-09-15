@@ -14,6 +14,7 @@ import {
 import { logger } from "../../lib/logger";
 import { validateSigningRedirectUrl } from "../../lib/signing/redirect-url";
 import { SIGNING_CLOUD_STACKED_SIGN_FIELD } from "../signing/signature-field-geometry";
+import { SigningCloudProviderError, signingCloudProviderError } from "./signingcloud-errors";
 
 const SIGNINGCLOUD_HTTP_TIMEOUT_MS = 25_000;
 
@@ -82,6 +83,14 @@ export function readSigningCloudConfigFromEnv(): SigningCloudEnvConfig | null {
   return { baseUrl, apiKey, apiSecret };
 }
 
+/**
+ * Organisation-seal fields (`fieldtype: "seal"`) stay on unless explicitly disabled.
+ * Set SC_ENABLE_SEAL_FIELD=false while SigningCloud's seal type is unavailable.
+ */
+export function isSigningCloudSealFieldEnabled(): boolean {
+  return process.env.SC_ENABLE_SEAL_FIELD?.trim().toLowerCase() !== "false";
+}
+
 function buildSignsetJsonString(): string {
   return JSON.stringify([{ ...SIGNATURE_FIELD, pageindex: 1 }]);
 }
@@ -102,10 +111,57 @@ function defaultSignsetForSignerIndex(index: number): string {
   ]);
 }
 
+export function assertAutomaticSignsetJson(signsetJson: string | undefined): string {
+  if (!signsetJson?.trim()) {
+    throw signingCloudProviderError("Missing signature attribute in signset", 1);
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(signsetJson);
+  } catch {
+    throw signingCloudProviderError("Missing signature attribute in signset", 1);
+  }
+  const hasSignature =
+    Array.isArray(parsed) &&
+    parsed.some(
+      (row) => row && typeof row === "object" && (row as { fieldtype?: unknown }).fieldtype === "sign"
+    );
+  if (!hasSignature) {
+    throw signingCloudProviderError("Missing signature attribute in signset", 1);
+  }
+  return integerSignsetJson(signsetJson);
+}
+
+const SIGNSET_INT_KEYS = ["top", "left", "width", "height", "pageindex"] as const;
+
+/** SigningCloud file2 returns HTTP 404 with an empty body when coordinates are not integers. */
+export function integerSignsetJson(signsetJson: string): string {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(signsetJson);
+  } catch {
+    return signsetJson;
+  }
+  if (!Array.isArray(parsed)) return signsetJson;
+  return JSON.stringify(
+    parsed.map((row) => {
+      if (!row || typeof row !== "object") return row;
+      const next: Record<string, unknown> = { ...(row as Record<string, unknown>) };
+      for (const key of SIGNSET_INT_KEYS) {
+        const value = next[key];
+        if (typeof value === "number" && Number.isFinite(value)) next[key] = Math.round(value);
+      }
+      return next;
+    })
+  );
+}
+
 export interface MultiSignerUploadSigner {
   email: string;
   /** Pre-serialized SigningCloud signset JSON string; falls back to a stacked default. */
   signsetJson?: string;
+  /** Coordinate boxes for automatic countersigners. Empty arrays are rejected by file2. */
+  automatic?: boolean;
 }
 
 /**
@@ -135,7 +191,11 @@ export async function uploadPdfToSigningCloudMultiSigner(params: {
         email: s.email,
         authtype: "0",
         caprovide: "1",
-        signset: s.signsetJson ?? defaultSignsetForSignerIndex(index),
+        signset: integerSignsetJson(
+          s.automatic
+            ? assertAutomaticSignsetJson(s.signsetJson)
+            : (s.signsetJson ?? defaultSignsetForSignerIndex(index))
+        ),
       })),
     },
     uploadFileHash,
@@ -416,6 +476,149 @@ export function pdfBufferFromStream(stream: Readable): Promise<Buffer> {
     stream.on("end", () => resolve(Buffer.concat(chunks)));
     stream.on("error", reject);
   });
+}
+
+function assertSigningCloudCall(body: SigningCloudEncryptedResponse): void {
+  if (body.result === 0) return;
+  throw signingCloudProviderError(body.message ?? "", body.result);
+}
+
+async function postEncryptedSignServer(params: {
+  cfg: SigningCloudEnvConfig;
+  accessToken: string;
+  path: string;
+  payload: Record<string, unknown>;
+  formFields?: Record<string, string>;
+}): Promise<Record<string, unknown>> {
+  const { cfg, accessToken, path, payload, formFields } = params;
+  const { data, mac } = encryptPayload(JSON.stringify(payload), cfg.apiSecret);
+  // Keyword params must be readable before the encrypted `data` blob. Staging
+  // rejects `/signature/auto` unless signkeyword/scSignkeyword are HTTP params;
+  // putting them after a large signimg hex causes "signkeyword is mandatory".
+  const formBody = new URLSearchParams();
+  if (formFields) {
+    for (const [key, value] of Object.entries(formFields)) {
+      formBody.append(key, value);
+    }
+  }
+  formBody.append("accesstoken", accessToken);
+  formBody.append("data", data);
+  formBody.append("mac", mac);
+  const query = formFields ? `?${new URLSearchParams(formFields).toString()}` : "";
+  const res = await signingCloudFetch(`${cfg.baseUrl}${path}${query}`, {
+    method: "POST",
+    body: formBody.toString(),
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+  });
+  const body = await readSigningCloudEncryptedResponse(res);
+  assertSigningCloudCall(body);
+  if (!body.data || !body.mac) return {};
+  return decryptSigningCloudResponse<Record<string, unknown>>(body, cfg.apiSecret);
+}
+
+export async function uploadSignerStampImage(params: {
+  cfg: SigningCloudEnvConfig;
+  accessToken: string;
+  signerEmail: string;
+  imageBytes: Buffer;
+  contentType: "image/png" | "image/jpeg";
+}): Promise<Record<string, unknown>> {
+  const { cfg, accessToken, signerEmail, imageBytes, contentType } = params;
+  if (imageBytes.length === 0) {
+    throw signingCloudProviderError("Stamp image is empty");
+  }
+  return postEncryptedSignServer({
+    cfg,
+    accessToken,
+    path: "/signserver/v1/user/stampimg",
+    payload: {
+      email: signerEmail,
+      img: imageBytes.toString("hex"),
+      imgtype: contentType === "image/png" ? "png" : "jpg",
+    },
+  });
+}
+
+export async function autoSignContract(params: {
+  cfg: SigningCloudEnvConfig;
+  accessToken: string;
+  contractnum: string;
+  signerEmail: string;
+  keyword: string;
+  dateKeyword?: string | null;
+  dateFormat?: string | null;
+  signatureImageBytes: Buffer;
+  widthPx: number;
+  heightPx: number;
+  callbackUrl?: string | null;
+}): Promise<{ alreadySigned: boolean; raw: Record<string, unknown> | null }> {
+  const {
+    cfg,
+    accessToken,
+    contractnum,
+    signerEmail,
+    keyword,
+    dateKeyword,
+    dateFormat,
+    signatureImageBytes,
+    widthPx,
+    heightPx,
+    callbackUrl,
+  } = params;
+  if (!keyword.trim()) {
+    throw signingCloudProviderError("keyword not found");
+  }
+  if (signatureImageBytes.length === 0) {
+    throw signingCloudProviderError("missing signature image");
+  }
+  const signKeyword = keyword.trim();
+  const dateKey = dateKeyword?.trim() || "";
+  const signerInfo: Record<string, unknown> = {
+    email: signerEmail,
+    keyword: signKeyword,
+    signkeyword: signKeyword,
+    scSignkeyword: signKeyword,
+  };
+  const payload: Record<string, unknown> = {
+    contractnum,
+    signerInfo,
+    keyword: signKeyword,
+    signkeyword: signKeyword,
+    scSignkeyword: signKeyword,
+    signimg: signatureImageBytes.toString("hex"),
+    imgwidth: widthPx,
+    imgheight: heightPx,
+  };
+  const formFields: Record<string, string> = {
+    keyword: signKeyword,
+    signkeyword: signKeyword,
+    scSignkeyword: signKeyword,
+  };
+  if (dateKey) {
+    const format = dateFormat?.trim() || "dd/MM/yyyy";
+    signerInfo.datekeyword = dateKey;
+    payload.datekeyword = dateKey;
+    payload.dateformat = format;
+    signerInfo.dateformat = format;
+    formFields.datekeyword = dateKey;
+    formFields.dateformat = format;
+  }
+  if (callbackUrl?.trim()) payload.callUrl = callbackUrl.trim();
+  try {
+    const raw = await postEncryptedSignServer({
+      cfg,
+      accessToken,
+      path: "/signserver/v1/contract/signature/auto",
+      payload,
+      formFields,
+    });
+    return { alreadySigned: false, raw };
+  } catch (error) {
+    if (error instanceof SigningCloudProviderError && error.code === "ALREADY_SIGNED") {
+      return { alreadySigned: true, raw: null };
+    }
+    throw error;
+  }
 }
 
 export { PDF_PAGE_HEIGHT_PT, SIGNATURE_FIELD };

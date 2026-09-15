@@ -5,6 +5,9 @@ import Docxtemplater from "docxtemplater";
 import type { DeedOfAssignmentMergeData } from "./doa-merge.types";
 import { buildDeedOfAssignmentRenderPayload } from "./build-doa-render-payload";
 
+import { applySspStampToDocx } from "../../notes/document-authorisation/docx-stamp-image";
+import { solidifySignatureLinesInDocx } from "../../generated-documents/solid-signature-lines";
+
 const TEMPLATE_FILENAME = "arf-deed-of-assignment.docx";
 
 export function resolveDeedOfAssignmentTemplatePath(): string {
@@ -25,7 +28,10 @@ export function readDeedOfAssignmentTemplateBytes(): Buffer {
   return fs.readFileSync(resolveDeedOfAssignmentTemplatePath());
 }
 
-export function renderDeedOfAssignmentDocx(data: DeedOfAssignmentMergeData): Buffer {
+export function renderDeedOfAssignmentDocx(
+  data: DeedOfAssignmentMergeData,
+  stamp?: { bytes: Buffer; contentType?: string | null } | null
+): Buffer {
   const content = readDeedOfAssignmentTemplateBytes();
   const zip = new PizZip(content);
   const doc = new Docxtemplater(zip, {
@@ -39,5 +45,6 @@ export function renderDeedOfAssignmentDocx(data: DeedOfAssignmentMergeData): Buf
     },
   });
   doc.render(buildDeedOfAssignmentRenderPayload(data) as Record<string, unknown>);
-  return doc.getZip().generate({ type: "nodebuffer", compression: "DEFLATE" }) as Buffer;
+  const rendered = doc.getZip().generate({ type: "nodebuffer", compression: "DEFLATE" }) as Buffer;
+  return applySspStampToDocx(solidifySignatureLinesInDocx(rendered), stamp ?? null);
 }

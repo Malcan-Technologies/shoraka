@@ -8,6 +8,8 @@ const PLACEHOLDER_SIGNATORY: DeedOfAssignmentSignatory = {
   name: "",
   identity_number: "",
   designation: "",
+  witness_name: "",
+  witness_designation: "",
 };
 
 function visibleSignatory(row: DeedOfAssignmentSignatory): DeedOfAssignmentSignatory {

@@ -23,12 +23,14 @@ import {
   numberToWords,
 } from "./lo-format";
 import {
+  DEFAULT_ACCEPTANCE_DEADLINE,
   DEFAULT_SIGNING_DEADLINE,
   FINANCING_TENURE_MAX_DAYS,
   documentCanonicalReference,
   getLoAuthorizedPartiesFromAcceptance,
   getOfferAcceptanceFromOfferDetails,
   readInvoiceSubLimitPerInvoiceRmFromWorkflow,
+  resolveAcceptanceDeadlineFromWorkflow,
   resolveSigningDeadlineFromWorkflow,
   type FinancingStructureType,
 } from "@cashsouk/types";
@@ -180,16 +182,10 @@ export function buildFacilityLoMergeData(input: BuildFacilityLoMergeInput): Cont
       : null;
 
   const acceptance = getOfferAcceptanceFromOfferDetails(input.contract.offer_details);
-  const acceptanceExpires = asString(acceptance?.acceptance_expires_at);
-  let offerValidityPhrase = "";
-  if (acceptanceExpires && sentAt) {
-    const start = new Date(sentAt).getTime();
-    const end = new Date(acceptanceExpires).getTime();
-    if (Number.isFinite(start) && Number.isFinite(end) && end >= start) {
-      const days = Math.max(1, Math.round((end - start) / (24 * 60 * 60 * 1000)));
-      offerValidityPhrase = daysPhrase(days);
-    }
-  }
+  const acceptanceDays =
+    resolveAcceptanceDeadlineFromWorkflow(input.productWorkflow)?.days ??
+    DEFAULT_ACCEPTANCE_DEADLINE.days;
+  const offerValidityPhrase = daysPhrase(acceptanceDays);
 
   const signingDays =
     resolveSigningDeadlineFromWorkflow(input.productWorkflow)?.days ?? DEFAULT_SIGNING_DEADLINE.days;

@@ -272,6 +272,7 @@ describe("AdminService sendInvoiceOffer product rules", () => {
           status: ApplicationStatus.INVOICE_PENDING,
           contract_id: "contract-1",
           financing_structure: { structure_type: "existing_contract" },
+          contract: { status: "APPROVED" },
           invoices: [{ id: "inv-1", details }],
           application_review_items: [
             { item_type: "invoice", item_id: "invoice_details:0:INV-1", status: "APPROVED" },

@@ -1,6 +1,7 @@
 import PizZip from "pizzip";
 import { createFacilityAgreementFixture } from "./fa-fixture";
 import type { FacilityAgreementMergeData } from "./fa-merge.types";
+import { splitFacilityAgreementXmlAtSchedule4 } from "./fa-document-xml";
 import {
   readFacilityAgreementTemplateBytes,
   renderFacilityAgreementDocx,
@@ -92,10 +93,34 @@ describe("renderFacilityAgreementDocx", () => {
     expect(plain).toContain("{#guarantors_individual}");
     expect(plain).toContain("{#guarantors_corporate}");
     expect(plain).toContain("{#issuer_signatories}");
+    expect(plain).toContain("{investor_1_name}");
+    expect(plain).toContain("{investor_1_designation}");
+    expect(plain).toContain("{investor_2_name}");
+    expect(plain).toContain("{agent_1_name}");
+    expect(plain).toContain("{agent_2_designation}");
+    expect(plain).toContain("{witness_name}");
+    expect(plain).toContain("{witness_nric}");
     expect(plain).toContain("INVESTOR");
     expect(plain).toContain("AGENT");
     expect(plain).toContain("ISSUER");
     expect(plain).toContain("Name of Witness:");
+    const investorXml = xml.indexOf(">INVESTOR</w:t>");
+    const agentXml = xml.indexOf(">AGENT</w:t>");
+    const issuerXml = xml.indexOf(">ISSUER</w:t>");
+    expect(investorXml).toBeGreaterThan(-1);
+    expect(agentXml).toBeGreaterThan(investorXml);
+    expect(issuerXml).toBeGreaterThan(agentXml);
+    const investorPlain = wordPlainText(xml.slice(investorXml, agentXml));
+    const agentPlain = wordPlainText(xml.slice(agentXml, issuerXml));
+    expect(investorPlain).toContain("SIGNED BY authorised representatives of");
+    expect(investorPlain).toContain("SHORAKA SUYULA PLATFORM SDN. BHD.");
+    expect(investorPlain).toContain("Investor Agreement signed with");
+    expect(investorPlain).toContain("{investor_1_name}");
+    expect(investorPlain).toContain("{investor_2_designation}");
+    expect(agentPlain).toContain("SIGNED BY");
+    expect(agentPlain).toContain("for and on behalf of:");
+    expect(agentPlain).toContain("{agent_1_name}");
+    expect(agentPlain).toContain("{agent_2_designation}");
     const issuerText = xml.indexOf(">ISSUER</w:t>");
     expect(issuerText).toBeGreaterThan(-1);
     const issuerPara = xml.lastIndexOf("<w:p ", issuerText);
@@ -105,6 +130,8 @@ describe("renderFacilityAgreementDocx", () => {
     const issuerBlockEnd = xml.indexOf("{/issuer_signatories}");
     expect(xml.slice(issuerPara, issuerBlockEnd)).not.toContain("leftBrace");
     expect(xml.slice(issuerPara, issuerBlockEnd)).not.toContain("<w:drawing");
+    expect(xml.slice(issuerPara, issuerBlockEnd)).not.toContain("Courier New");
+    expect(xml.slice(issuerPara, issuerBlockEnd)).not.toContain("<w:pBdr>");
     const loopStart = xml.indexOf("{#issuer_signatories}");
     const loopEnd = xml.indexOf("{/issuer_signatories}");
     const tableInLoop = xml.indexOf("<w:tbl", loopStart);
@@ -115,6 +142,30 @@ describe("renderFacilityAgreementDocx", () => {
     expect(runContaining(xml, "{facility_agreement_date}")).toContain('w:val="yellow"');
     expect(runContaining(xml, "{issuer_name}")).toContain('w:val="yellow"');
     expect(runContaining(xml, "{financing_limit_rm}")).toContain('w:val="yellow"');
+    expect(runContaining(xml, "{investor_1_name}")).toMatch(/<w:t>\{investor_1_name\}<\/w:t>/);
+    expect(runContaining(xml, "{agent_1_designation}")).toMatch(/<w:t>\{agent_1_designation\}<\/w:t>/);
+    expect(runContaining(xml, "{investor_1_name}")).not.toMatch(/<w:t xml:space="preserve"> \{/);
+    const investorNamePara = [...xml.matchAll(/<w:p\b[\s\S]*?<\/w:p>/g)].find((row) =>
+      row[0].includes("{investor_1_designation}")
+    )?.[0];
+    const agentNamePara = [...xml.matchAll(/<w:p\b[\s\S]*?<\/w:p>/g)].find((row) =>
+      row[0].includes("{agent_1_designation}")
+    )?.[0];
+    expect(investorNamePara).toContain('w:ind w:left="6120"');
+    expect(investorNamePara).toContain('w:hanging="1080"');
+    expect(investorNamePara).toContain('w:jc w:val="left"');
+    expect(agentNamePara).toContain('w:ind w:left="6840"');
+    expect(agentNamePara).toContain('w:hanging="1080"');
+    expect(agentNamePara).toContain('w:jc w:val="left"');
+    const investorSlice = xml.slice(investorXml, agentXml);
+    const mixedStrokePara = [...investorSlice.matchAll(/<w:p\b[\s\S]*?<\/w:p>/g)].find(
+      (row) => row[0].includes("Shoraka Suyula Platform Sdn. Bhd.") && row[0].includes("_________")
+    )?.[0];
+    expect(mixedStrokePara).toBeTruthy();
+    expect(mixedStrokePara).not.toContain("Courier New");
+    expect(mixedStrokePara).not.toContain("<w:pBdr>");
+    expect(investorPlain).toContain("Shoraka Suyula Platform Sdn. Bhd.");
+    expect(investorSlice).not.toContain("<w:tbl");
   });
 
   it("renders fixture values and keeps empty tags visible", () => {
@@ -131,9 +182,24 @@ describe("renderFacilityAgreementDocx", () => {
     expect(plain).toContain("Siti Binti Ahmad");
     expect(plain).toContain("HOLDCO ONE SDN. BHD.");
     expect(plain).toContain("Name of Witness:");
+    expect(plain).toContain("Aisha Rahman");
+    expect(plain).toContain("Chloe Lim");
     expect(plain).toContain("As prescribed in the Letter of Offer");
     expect(plain).not.toContain("{drawdown_fee}");
     expect(plain).not.toContain("{#issuer_signatories}");
+  });
+
+  it("connects underscore signature strokes without hiding the glyphs", () => {
+    const xml = renderedXml(createFacilityAgreementFixture());
+    const { before } = splitFacilityAgreementXmlAtSchedule4(xml);
+    const underscoreRuns = [...before.matchAll(/<w:r\b[\s\S]*?<\/w:r>/g)]
+      .map((match) => match[0])
+      .filter((run) => /^_{8,}$/.test(wordPlainText(run).trim()));
+
+    expect(underscoreRuns.length).toBeGreaterThan(0);
+    expect(underscoreRuns.every((run) => run.includes('<w:spacing w:val="-40"/>'))).toBe(true);
+    expect(underscoreRuns.some((run) => run.includes('w:val="FFFFFF"'))).toBe(false);
+    expect(underscoreRuns.some((run) => run.includes("<w:u "))).toBe(false);
   });
 
   it("prints merge tags when scalars are empty", () => {
@@ -184,5 +250,22 @@ describe("renderFacilityAgreementDocx", () => {
     );
     expect(renderedSchedules).toContain("[ISSUER NAME]");
     expect(renderedSchedules).toContain("Issuer : [●]");
+  });
+
+  it("does not restyle Schedules 4 to 9 signature strokes", () => {
+    const template = new PizZip(readFacilityAgreementTemplateBytes()).file("word/document.xml")
+      ?.asText() ?? "";
+    const rendered = renderedXml(createFacilityAgreementFixture());
+    const templateSchedules = splitFacilityAgreementXmlAtSchedule4(template).fromSchedule4;
+    const renderedSchedules = splitFacilityAgreementXmlAtSchedule4(rendered).fromSchedule4;
+
+    expect((renderedSchedules.match(/<w:spacing w:val="-40"\/>/g) ?? []).length).toBe(
+      (templateSchedules.match(/<w:spacing w:val="-40"\/>/g) ?? []).length
+    );
+    expect((renderedSchedules.match(/<w:jc w:val="both"\/>/g) ?? []).length).toBe(
+      (templateSchedules.match(/<w:jc w:val="both"\/>/g) ?? []).length
+    );
+    expect(renderedSchedules).toContain('<w:jc w:val="both"/>');
+    expect(renderedSchedules).not.toContain('<w:jc w:val="left"/>');
   });
 });

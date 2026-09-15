@@ -39,6 +39,24 @@ import {
   postedBindingsMatchApprovedSnapshot,
   resolveLiveApplicationGuarantorId,
   snapshotSignerBindings,
+  parseFrozenAutomaticSignerSnapshot,
+  isAutomaticSigningRecipient,
+  documentExecutionRolesForPackageKey,
+  documentKindForPackageKey,
+  configuredSlotsForDocumentKeys,
+  documentExecutionBindingIssues,
+  executionRepeatCountsFromAuthorizedParties,
+  executionRoleSigningRole,
+  repeatCountsFromFrozenPeople,
+  signingPackageReadinessFromBindingIssues,
+  isAutomaticSignerProviderReady,
+  signingPackageRequiresDoaStamp,
+  signingPackageRequiresIssuerSeal,
+  issuerSealApplierIssue,
+  SHORAKA_SIGNING_ASSIGNMENTS_HREF,
+  type AuthorizedPartiesSnapshot,
+  type SigningPackageReadinessDto,
+  type SigningPackageReadinessIssue,
   type ExternalSigningSessionDto,
   type RecipientBinding,
   type RecipientEkycSession,
@@ -47,6 +65,8 @@ import {
   type SigningPackageOfferKind,
   type SigningTemplateConfig,
   type OfferAcceptanceDetails,
+  type EnvelopePlan,
+  type DocumentExecutionRepeatCounts,
 } from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
 import { assertSigningDeadlineOpen, signingDeadlinePatchOnSend } from "../../lib/phase-deadlines";
@@ -87,6 +107,7 @@ import {
 import {
   buildWetInkPreviewFields,
   previewFieldsFromSignsets,
+  plannedRecipientsForDocument,
   signerNamesForPlannedDocument,
   signingDocumentPreviewFilename,
   stampWetInkSignatureFields,
@@ -103,6 +124,33 @@ import {
 } from "./repository";
 import { mapSigningEnvelopeToDto, mapSigningEnvelopeToDtoWithEkyc, type SigningEnvelopeWithGraph } from "./mapper";
 import { buildDocumentProviderSigners } from "./provider-signers";
+import { readEnvelopeSendState } from "./envelope-send-state";
+import {
+  advisoryLockKeyFromId,
+  JOB_LOCK_KEYS,
+  withAdvisoryLockPair,
+} from "../../lib/jobs/with-advisory-lock";
+import { layoutSignersFromNamedRecipients } from "./layout-detected-signers";
+import {
+  namesFromLayoutDetectedSigners,
+  type LayoutDetectedSigner,
+} from "./signature-field-geometry";
+import {
+  AutomaticSigningKeywordError,
+  buildAutomaticSigningCloudSignsetsFromPdf,
+  ensureAutomaticSigningKeywords,
+} from "./automatic-signing-keywords";
+import {
+  assertEnvelopeHasRequiredAutomaticRoles,
+  automaticSignsetForSnapshot,
+  freezeIssuerSealForDocument,
+  frozenExecutionContextFromEnvelope,
+  frozenExecutionContextFromPlan,
+  injectAutomaticExecutionRoles,
+  reuploadAssignmentCompanySeal,
+  verifyAutomaticAssignmentSnapshots,
+} from "./automatic-signers";
+import { runAutomaticCountersign } from "./automatic-countersign";
 import { SigningCloudProvider } from "./provider/signingcloud-adapter";
 import type { SigningProvider } from "./provider/adapter";
 import {
@@ -113,6 +161,11 @@ import {
 import { generateSigningAccessToken } from "./token";
 import { buildSigningReturnUrl, validateSigningRedirectUrl } from "../../lib/signing/redirect-url";
 import { legalExternalAcceptanceService } from "../legal-documents/external-acceptance-service";
+import { assertIssuerSealReadyForPackage } from "../applications/authorized-parties";
+import {
+  isSigningCloudSealFieldEnabled,
+  readSigningCloudConfigFromEnv,
+} from "../signingcloud/signingcloud-api";
 
 const EXTERNAL_ACCESS_TOKEN_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const CLOSED_ENVELOPE_STATUSES = ["VOIDED", "DECLINED", "EXPIRED", "COMPLETED"] as const;
@@ -309,6 +362,11 @@ export interface CreateAndSendAdminEnvelopeInput {
   contractId?: string | null;
   invoiceId?: string | null;
   context?: AuditRequestContext | null;
+  /**
+   * When false, validate and return immediately while Gotenberg / SigningCloud
+   * continue. Admin HTTP send uses this so the tunnel does not drop the request.
+   */
+  waitForProvider?: boolean;
 }
 
 export class SigningService {
@@ -926,6 +984,22 @@ export class SigningService {
     }
   }
 
+  private async injectPlanAutomaticRoles(
+    plan: EnvelopePlan,
+    authorizedParties?: AuthorizedPartiesSnapshot | null
+  ) {
+    const documentKeys = plan.documents.map((document) => document.key);
+    if (configuredSlotsForDocumentKeys(documentKeys).length === 0) return plan;
+    const [bindings, companyStamp] = await Promise.all([
+      this.repo.findOperatorDocumentExecutionBindings(),
+      this.repo.findOperatorCompanyStamp(),
+    ]);
+    return injectAutomaticExecutionRoles(plan, bindings, {
+      repeats: executionRepeatCountsFromAuthorizedParties(authorizedParties),
+      companyStamp,
+    });
+  }
+
   async createDraftEnvelope(input: CreateDraftEnvelopeInput): Promise<SigningEnvelopeDto> {
     const template = parseSigningTemplateConfig(input.templateConfig);
 
@@ -942,6 +1016,17 @@ export class SigningService {
     const plan = buildEnvelopePlanFromTemplate(template, input.bindings, {
       issuerUploadS3Keys: input.issuerUploadS3Keys,
     });
+    let authorizedParties: AuthorizedPartiesSnapshot | null = null;
+    if (input.contractId || input.invoiceId) {
+      const application = await this.requireApplicationContext(input.applicationId);
+      const offerDetails = input.contractId
+        ? application.contract?.offer_details
+        : application.invoices.find((item) => item.id === input.invoiceId)?.offer_details;
+      const acceptance = getOfferAcceptanceFromOfferDetails(offerDetails);
+      authorizedParties =
+        acceptance?.authorized_parties ?? getLoAuthorizedPartiesFromAcceptance(acceptance);
+    }
+    const envelopePlan = await this.injectPlanAutomaticRoles(plan, authorizedParties);
     const envelope = await this.repo.createFromPlan({
       application_id: input.applicationId,
       contract_id: input.contractId ?? null,
@@ -950,7 +1035,7 @@ export class SigningService {
       title: input.title,
       created_by_user_id: input.createdByUserId ?? null,
       expires_at: input.expiresAt ?? null,
-      plan,
+      plan: envelopePlan,
     });
     return await mapSigningEnvelopeToDtoWithEkyc(envelope);
   }
@@ -986,6 +1071,7 @@ export class SigningService {
           userId: input.userId,
           portal: ActivityPortal.ADMIN,
           context: input.context,
+          waitForProvider: input.waitForProvider,
         });
       }
       throw new AppError(
@@ -1071,7 +1157,101 @@ export class SigningService {
       userId: input.userId,
       portal: ActivityPortal.ADMIN,
       context: input.context,
+      waitForProvider: input.waitForProvider,
     });
+  }
+
+  async getSigningPackageReadiness(applicationId: string): Promise<SigningPackageReadinessDto> {
+    const application = await this.requireApplicationContext(applicationId);
+    const workflow = await this.getProductWorkflowForApplication(application);
+    const packageKind: SigningPackageOfferKind = application.contract_id ? "contract" : "invoice";
+    const template = this.readSigningTemplateFromWorkflow(workflow, packageKind);
+    const documentKeys = template.documents.map((document) => document.key);
+    const requiredSlots = configuredSlotsForDocumentKeys(documentKeys);
+    const issues: SigningPackageReadinessIssue[] = [];
+
+    if (requiredSlots.length > 0) {
+      const [bindings, companyStamp] = await Promise.all([
+        this.repo.findOperatorDocumentExecutionBindings(),
+        this.repo.findOperatorCompanyStamp(),
+      ]);
+      const byKey = new Map(
+        bindings.map((row) => [`${row.roleKey}:${row.slotIndex}`, row] as const)
+      );
+      issues.push(
+        ...signingPackageReadinessFromBindingIssues(
+          documentExecutionBindingIssues({
+            requiredSlots,
+            companyStampReady: signingPackageRequiresDoaStamp(documentKeys)
+              ? Boolean(companyStamp?.s3Key)
+              : undefined,
+            bindings: requiredSlots.map((slot) => {
+              const row = byKey.get(`${slot.roleKey}:${slot.slotIndex}`);
+              return {
+                roleKey: slot.roleKey,
+                slotIndex: slot.slotIndex,
+                signingPersonId: row?.signingPersonId ?? null,
+                signingEmail: row?.signingEmail ?? null,
+                officerName: row?.officerName ?? null,
+                designation: row?.designation ?? null,
+                identityNumber: row?.identityNumber ?? null,
+                providerReady: row
+                  ? isAutomaticSignerProviderReady({
+                      active: row.active,
+                      roles: row.roles,
+                      signingEmail: row.signingEmail,
+                      signatureS3Key: row.signatureS3Key,
+                      signatureSha256: row.signatureSha256,
+                      signatureConfirmedAt: row.signatureConfirmedAt?.toISOString() ?? null,
+                      requiredRole: executionRoleSigningRole(slot.roleKey),
+                    })
+                  : false,
+              };
+            }),
+          })
+        ).issues
+      );
+    }
+
+    if (isSigningCloudSealFieldEnabled() && signingPackageRequiresIssuerSeal(documentKeys)) {
+      const offerDetails = application.contract_id
+        ? application.contract?.offer_details
+        : application.invoices[0]?.offer_details;
+      const authorizedParties =
+        getOfferAcceptanceFromOfferDetails(offerDetails)?.authorized_parties ??
+        getLoAuthorizedPartiesFromAcceptance(getOfferAcceptanceFromOfferDetails(offerDetails));
+      const applierIssue = issuerSealApplierIssue(authorizedParties?.parties ?? [], true);
+      if (applierIssue) {
+        issues.push({
+          code: "SIGNING_SEAL_APPLIER_MISSING",
+          message: applierIssue,
+        });
+      }
+      const seal = await this.repo.findActiveIssuerCompanySeal(application.issuer_organization_id);
+      if (!seal) {
+        issues.push({
+          code: "ISSUER_COMPANY_SEAL_REQUIRED",
+          message: "Upload a company seal in Issuer Profile before sending this signing package.",
+        });
+      }
+    }
+
+    if (!readSigningCloudConfigFromEnv()) {
+      issues.push({
+        code: "SIGNING_PROVIDER_NOT_CONFIGURED",
+        message: "SigningCloud is not configured for this environment.",
+      });
+    }
+
+    if (issues.some((issue) => issue.href === undefined && issue.code.startsWith("SIGNING_AUTOMATIC"))) {
+      for (const issue of issues) {
+        if (issue.code.startsWith("SIGNING_AUTOMATIC") || issue.code.startsWith("DOCUMENT_EXECUTION")) {
+          issue.href = SHORAKA_SIGNING_ASSIGNMENTS_HREF;
+        }
+      }
+    }
+
+    return { ready: issues.length === 0, issues };
   }
 
   async getEnvelope(id: string): Promise<SigningEnvelopeDto> {
@@ -1157,7 +1337,10 @@ export class SigningService {
     const snapshot =
       acceptance?.authorized_parties ?? getLoAuthorizedPartiesFromAcceptance(acceptance);
     const bindings = snapshotSignerBindings(snapshot, template.roles);
-    const plan = buildEnvelopePlanFromTemplate(template, bindings);
+    let plan = buildEnvelopePlanFromTemplate(template, bindings);
+    if (documentExecutionRolesForPackageKey(document.key).length > 0) {
+      plan = await this.injectPlanAutomaticRoles(plan, snapshot);
+    }
     const signerNames = signerNamesForPlannedDocument(plan, document.key);
     const filename = signingDocumentPreviewFilename(document.name);
 
@@ -1197,6 +1380,7 @@ export class SigningService {
       );
     }
 
+    const execution = frozenExecutionContextFromPlan(plan);
     const generated = await generatedDocumentsService.generateDocument({
       applicationId: application.id,
       typeKey,
@@ -1205,14 +1389,66 @@ export class SigningService {
       asAdmin: true,
       contractId,
       invoiceId,
+      execution,
     });
+    const planned = plannedRecipientsForDocument(plan, document.key);
+    const manuals = planned.filter((recipient) => recipient.execution_mode !== "AUTOMATIC");
+    const autos = planned.filter((recipient) => recipient.execution_mode === "AUTOMATIC");
+    let pdfBuffer = generated.buffer;
+    const automaticRepeats = repeatCountsFromFrozenPeople(execution.people);
+    if (autos.length > 0) {
+      try {
+        pdfBuffer = await ensureAutomaticSigningKeywords(
+          pdfBuffer,
+          document.key,
+          automaticRepeats,
+          execution.people.filter(
+            (person) => documentKindForPackageKey(document.key) === person.documentKind
+          )
+        );
+      } catch (err) {
+        if (err instanceof AutomaticSigningKeywordError) {
+          throw new AppError(500, "SIGNING_LAYOUT_ERROR", err.message);
+        }
+        throw err;
+      }
+    }
+    const manualSignsets = this.usesLayoutDetectedSignatureFields(typeKey)
+      ? manuals.length === 0
+        ? []
+        : await this.signsetsForTemplatePdf(
+            typeKey,
+            pdfBuffer,
+            layoutSignersFromNamedRecipients(
+              manuals.map((recipient) => ({ name: recipient.name, email: recipient.email })),
+              snapshot
+            )
+          )
+      : [];
+    const automaticBySlot =
+      autos.length > 0
+        ? await this.automaticSignsetsForTemplatePdf(document.key, pdfBuffer, automaticRepeats)
+        : new Map();
+    const automaticSignsets = autos.map((recipient) => {
+      const assignment = plan.assignments.find(
+        (row) => row.document_ref === document.key && row.recipient_ref === recipient.ref
+      );
+      const snapshot = parseFrozenAutomaticSignerSnapshot(assignment?.frozen_asset_snapshot);
+      const signset = snapshot ? automaticSignsetForSnapshot(snapshot, automaticBySlot) : [];
+      if (!signset.length) {
+        throw new AppError(
+          500,
+          "SIGNING_LAYOUT_ERROR",
+          `Could not place a SigningCloud signature field for ${recipient.role_label}.`
+        );
+      }
+      return signset as Awaited<ReturnType<SigningService["signsetsForTemplatePdf"]>>[number];
+    });
+    const previewNames = [...manuals, ...autos].map((recipient) => recipient.name);
     const fields = this.usesLayoutDetectedSignatureFields(typeKey)
-      ? previewFieldsFromSignsets(
-          signerNames,
-          await this.signsetsForTemplatePdf(typeKey, generated.buffer, signerNames)
-        )
-      : buildWetInkPreviewFields(signerNames, countPdfPages(generated.buffer));
-    const stamped = await stampWetInkSignatureFields(generated.buffer, fields);
+      ? previewFieldsFromSignsets(previewNames, [...manualSignsets, ...automaticSignsets])
+      : buildWetInkPreviewFields(signerNames, countPdfPages(pdfBuffer));
+    const stamped = await stampWetInkSignatureFields(pdfBuffer, fields);
     return { buffer: stamped, filename };
   }
 
@@ -1499,16 +1735,48 @@ export class SigningService {
     return envelope;
   }
 
+  private assertProviderSignerEmailsForEnvelope(envelope: SigningEnvelopeWithGraph): void {
+    const recipientById = new Map(envelope.recipients.map((row) => [row.id, row]));
+    for (const document of envelope.documents) {
+      const rows = envelope.assignments
+        .filter((assignment) => assignment.document_id === document.id)
+        .map((assignment) => {
+          const recipient = recipientById.get(assignment.recipient_id);
+          if (!recipient) return null;
+          return {
+            email: recipient.email,
+            executionMode:
+              recipient.execution_mode === "AUTOMATIC" ? ("AUTOMATIC" as const) : ("MANUAL" as const),
+          };
+        })
+        .filter((row): row is NonNullable<typeof row> => row != null);
+      try {
+        buildDocumentProviderSigners(rows);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new AppError(
+          400,
+          error instanceof AppError ? error.code : "SIGNING_BINDINGS_INVALID",
+          `Cannot send "${document.name}": ${message}`
+        );
+      }
+    }
+  }
+
   async sendEnvelope(
     id: string,
-    actor?: { userId: string; portal: ActivityPortal; context?: AuditRequestContext | null }
+    actor?: {
+      userId: string;
+      portal: ActivityPortal;
+      context?: AuditRequestContext | null;
+      waitForProvider?: boolean;
+    }
   ): Promise<SigningEnvelopeDto> {
     const envelope = await this.requireEnvelope(id);
     if (envelope.status !== "DRAFT") {
       throw new AppError(409, "SIGNING_ENVELOPE_NOT_DRAFT", "Only draft envelopes can be sent.");
     }
 
-    const recipientById = new Map(envelope.recipients.map((r) => [r.id, r]));
     const application = await this.requireApplicationContext(envelope.application_id);
     await this.assertOfferAcceptanceAllowsSigning(
       application,
@@ -1537,15 +1805,116 @@ export class SigningService {
     this.assertBindingsMatchApprovedSnapshot(
       sendOfferDetails,
       template,
-      envelope.recipients.map((recipient) => ({
-        role_key: recipient.role_key,
-        name: recipient.name,
-        email: recipient.email,
-        ic_number: recipient.ic_number,
-        application_guarantor_id: recipient.application_guarantor_id ?? null,
-      }))
+      envelope.recipients
+        .filter((recipient) => !isAutomaticSigningRecipient(recipient))
+        .map((recipient) => ({
+          role_key: recipient.role_key,
+          name: recipient.name,
+          email: recipient.email,
+          ic_number: recipient.ic_number,
+          application_guarantor_id: recipient.application_guarantor_id ?? null,
+        }))
     );
+    const authorizedParties =
+      getOfferAcceptanceFromOfferDetails(sendOfferDetails)?.authorized_parties ??
+      getLoAuthorizedPartiesFromAcceptance(getOfferAcceptanceFromOfferDetails(sendOfferDetails));
+    assertEnvelopeHasRequiredAutomaticRoles(envelope);
+    if (envelope.recipients.some((recipient) => recipient.execution_mode === "AUTOMATIC")) {
+      await verifyAutomaticAssignmentSnapshots(envelope);
+    }
+    await assertIssuerSealReadyForPackage(
+      application.issuer_organization_id,
+      authorizedParties?.parties ?? [],
+      envelope.documents
+        .map((document) => document.template_ref)
+        .filter((key): key is string => Boolean(key))
+    );
+    this.assertProviderSignerEmailsForEnvelope(envelope);
 
+    if (actor?.waitForProvider === false) {
+      const sendState = readEnvelopeSendState(envelope);
+      if (sendState.inProgress) {
+        return this.getEnvelope(id);
+      }
+      const claimed = await withAdvisoryLockPair(
+        JOB_LOCK_KEYS.SIGNING_ENVELOPE_SEND,
+        advisoryLockKeyFromId(id),
+        async () => {
+          const latest = await this.requireEnvelope(id);
+          if (latest.status !== "DRAFT") return this.getEnvelope(id);
+          if (readEnvelopeSendState(latest).inProgress) return this.getEnvelope(id);
+          await this.repo.setEnvelopeSendState(id, {
+            phase: "PREPARING",
+            error: null,
+            incrementAttempt: true,
+          });
+          return null;
+        }
+      );
+      if (claimed) return claimed;
+      void this.continueEnvelopeSend(id, actor).catch(async (error) => {
+        const message =
+          error instanceof AppError
+            ? error.message
+            : error instanceof Error
+              ? error.message
+              : "Failed to send signing links.";
+        logger.error({ err: error, envelopeId: id }, "Background signing package send failed");
+        await this.repo.setEnvelopeSendState(id, { phase: "FAILED", error: message });
+      });
+      return this.getEnvelope(id);
+    }
+
+    return this.continueEnvelopeSend(id, actor);
+  }
+
+  async continueEnvelopeSend(
+    id: string,
+    actor?: {
+      userId: string;
+      portal: ActivityPortal;
+      context?: AuditRequestContext | null;
+      waitForProvider?: boolean;
+    }
+  ): Promise<SigningEnvelopeDto> {
+    const envelope = await this.requireEnvelope(id);
+    if (envelope.status !== "DRAFT" && envelope.send_phase !== "DELIVERING") {
+      return this.getEnvelope(id);
+    }
+    if (envelope.status !== "DRAFT") {
+      throw new AppError(409, "SIGNING_ENVELOPE_NOT_DRAFT", "Only draft envelopes can be sent.");
+    }
+    if (envelope.send_phase !== "PREPARING" && envelope.send_phase !== "DELIVERING") {
+      await this.repo.setEnvelopeSendState(id, {
+        phase: "PREPARING",
+        error: null,
+        incrementAttempt: true,
+      });
+    }
+
+    const recipientById = new Map(envelope.recipients.map((r) => [r.id, r]));
+    const application = await this.requireApplicationContext(envelope.application_id);
+    const workflow = await this.getProductWorkflowForApplication(application);
+    const sendOfferDetails = envelope.contract_id
+      ? (
+          await prisma.contract.findUnique({
+            where: { id: envelope.contract_id },
+            select: { offer_details: true },
+          })
+        )?.offer_details
+      : envelope.invoice_id
+        ? (
+            await prisma.invoice.findUnique({
+              where: { id: envelope.invoice_id },
+              select: { offer_details: true },
+            })
+          )?.offer_details
+        : null;
+    const authorizedParties =
+      getOfferAcceptanceFromOfferDetails(sendOfferDetails)?.authorized_parties ??
+      getLoAuthorizedPartiesFromAcceptance(getOfferAcceptanceFromOfferDetails(sendOfferDetails));
+
+    if (envelope.send_phase !== "DELIVERING") {
     for (const document of [...envelope.documents].sort((a, b) => a.order - b.order)) {
       if (document.provider_contract_ref) {
         continue;
@@ -1581,7 +1950,11 @@ export class SigningService {
           docAssignments,
           recipientById,
           actor?.userId ?? envelope.created_by_user_id ?? "",
-          actor?.portal !== ActivityPortal.ISSUER
+          actor?.portal !== ActivityPortal.ISSUER,
+          getOfferAcceptanceFromOfferDetails(sendOfferDetails)?.authorized_parties ??
+            getLoAuthorizedPartiesFromAcceptance(
+              getOfferAcceptanceFromOfferDetails(sendOfferDetails)
+            )
         );
         unsignedS3Key = materialized.s3Key;
         signsetsByAssignmentId = materialized.signsetsByAssignmentId;
@@ -1603,13 +1976,25 @@ export class SigningService {
 
       const pdfBuffer = await getS3ObjectBuffer(unsignedS3Key);
       const orderedAssignments = this.orderDocumentAssignments(docAssignments, recipientById);
+      await freezeIssuerSealForDocument({
+        document,
+        assignments: orderedAssignments,
+        authorizedParties,
+        issuerOrganizationId: application.issuer_organization_id,
+        repo: this.repo,
+      });
       const signers = buildDocumentProviderSigners(
         orderedAssignments.map(({ assignment, recipient }) => ({
           email: recipient.email,
           signset: signsetsByAssignmentId.get(assignment.id) ?? assignment.signset ?? undefined,
+          executionMode: recipient.execution_mode === "AUTOMATIC" ? "AUTOMATIC" : "MANUAL",
         }))
       );
 
+      logger.info(
+        { envelopeId: envelope.id, documentId: document.id, documentName: document.name },
+        "Registering signing document with the provider"
+      );
       let providerRef: string;
       try {
         ({ providerRef } = await this.provider.createDocumentContract({
@@ -1638,6 +2023,8 @@ export class SigningService {
       await this.repo.markDocumentSent(document.id, providerRef);
       document.provider_contract_ref = providerRef;
     }
+    await this.repo.setEnvelopeSendState(id, { phase: "DELIVERING", error: null });
+    }
 
     const expiresAt = new Date(Date.now() + EXTERNAL_ACCESS_TOKEN_TTL_MS);
     const nowIso = new Date().toISOString();
@@ -1647,23 +2034,13 @@ export class SigningService {
       (typeof deadlinePatch.signing_expires_at === "string" && deadlinePatch.signing_expires_at
         ? deadlinePatch.signing_expires_at
         : currentAcceptance?.signing_expires_at) ?? null;
-    await this.repo.markEnvelopeSent(
-      id,
-      typeof signingExpiresAt === "string" ? new Date(signingExpiresAt) : undefined
-    );
-    await this.markOfferAcceptanceSigningInProgress(envelope, deadlinePatch);
-    const logUserId = actor?.userId ?? envelope.created_by_user_id ?? null;
-    await this.logSigningPackageActivity({
-      userId: logUserId,
-      applicationId: envelope.application_id,
-      eventType: ApplicationLogEventType.SIGNING_PACKAGE_SENT,
-      envelope,
-      portal: actor?.portal ?? (logUserId ? ActivityPortal.ADMIN : null),
-      context: actor?.context,
-    });
 
     let allEmailsDelivered = true;
+    let emailError: string | null = null;
     for (const recipient of envelope.recipients) {
+      if (recipient.delivery_mode === "INTERNAL" || recipient.execution_mode === "AUTOMATIC") {
+        continue;
+      }
       const accessToken = generateSigningAccessToken();
       await this.repo.setRecipientAccessToken(recipient.id, accessToken, expiresAt);
       const delivered = await this.sendSigningEmail({
@@ -1678,15 +2055,33 @@ export class SigningService {
         delivered ? "sent" : "failed",
         delivered ? null : "Email delivery failed"
       );
-      if (!delivered) allEmailsDelivered = false;
+      if (!delivered) {
+        allEmailsDelivered = false;
+        emailError = "One or more signing invitation emails failed. Retry delivery.";
+      }
     }
 
+    await this.repo.markEnvelopeSent(
+      id,
+      typeof signingExpiresAt === "string" ? new Date(signingExpiresAt) : undefined
+    );
     if (!allEmailsDelivered) {
+      await this.repo.setEnvelopeSendState(id, { phase: "SENT", error: emailError });
       logger.warn(
         { envelopeId: envelope.id },
-        "One or more signing invitation emails failed after the package was sent; use remind to retry"
+        "One or more signing invitation emails failed after the package was sent; retry delivery"
       );
     }
+    await this.markOfferAcceptanceSigningInProgress(envelope, deadlinePatch);
+    const logUserId = actor?.userId ?? envelope.created_by_user_id ?? null;
+    await this.logSigningPackageActivity({
+      userId: logUserId,
+      applicationId: envelope.application_id,
+      eventType: ApplicationLogEventType.SIGNING_PACKAGE_SENT,
+      envelope,
+      portal: actor?.portal ?? (logUserId ? ActivityPortal.ADMIN : null),
+      context: actor?.context,
+    });
     return this.getEnvelope(id);
   }
 
@@ -1805,17 +2200,21 @@ export class SigningService {
   private async signsetsForTemplatePdf(
     typeKey: string,
     pdfBuffer: Buffer,
-    signerNames: string[]
+    signers: string[] | LayoutDetectedSigner[]
   ) {
+    const signerNames = namesFromLayoutDetectedSigners(signers);
+    // Designation is printed in the PDF. Unused SigningCloud textfield slots make
+    // hosted Sign fail when the signer already has a saved text value.
+    const options = { includeSeal: isSigningCloudSealFieldEnabled() };
     try {
       if (typeKey === "arf_joint_several_guarantee") {
         return await buildJsgSigningCloudSignsetsFromPdf(pdfBuffer, signerNames);
       }
       if (typeKey === "arf_facility_agreement") {
-        return await buildFaSigningCloudSignsetsFromPdf(pdfBuffer, signerNames);
+        return await buildFaSigningCloudSignsetsFromPdf(pdfBuffer, signers, options);
       }
       if (typeKey === "arf_deed_of_assignment") {
-        return await buildDoaSigningCloudSignsetsFromPdf(pdfBuffer, signerNames);
+        return await buildDoaSigningCloudSignsetsFromPdf(pdfBuffer, signers, options);
       }
       return buildStackedSigningCloudSignsets(signerNames.length, countPdfPages(pdfBuffer));
     } catch (err) {
@@ -1830,13 +2229,29 @@ export class SigningService {
     }
   }
 
+  private async automaticSignsetsForTemplatePdf(
+    documentKey: string,
+    pdfBuffer: Buffer,
+    repeats?: DocumentExecutionRepeatCounts | null
+  ) {
+    try {
+      return await buildAutomaticSigningCloudSignsetsFromPdf(pdfBuffer, documentKey, repeats);
+    } catch (err) {
+      if (err instanceof AutomaticSigningKeywordError) {
+        throw new AppError(500, "SIGNING_LAYOUT_ERROR", err.message);
+      }
+      throw err;
+    }
+  }
+
   private async materializeTemplateSigningDocument(
     envelope: SigningEnvelopeWithGraph,
     document: SigningEnvelopeWithGraph["documents"][number],
     docAssignments: SigningEnvelopeWithGraph["assignments"],
     recipientById: Map<string, SigningEnvelopeWithGraph["recipients"][number]>,
     createdByUserId: string,
-    asAdmin: boolean
+    asAdmin: boolean,
+    authorizedParties?: AuthorizedPartiesSnapshot | null
   ): Promise<{ s3Key: string; signsetsByAssignmentId: Map<string, unknown> }> {
     const typeKey = SIGNING_PACKAGE_GENERATED_DOCUMENT_TYPES[document.template_ref ?? ""];
     const orderedAssignments = this.orderDocumentAssignments(docAssignments, recipientById);
@@ -1868,6 +2283,7 @@ export class SigningService {
         asAdmin,
         contractId: envelope.contract_id,
         invoiceId: envelope.invoice_id,
+        execution: frozenExecutionContextFromEnvelope(envelope),
       });
       pdfBuffer = generated.buffer;
       s3Key = `applications/${envelope.application_id}/signing/${envelope.id}/unsigned/${document.id}.pdf`;
@@ -1879,20 +2295,82 @@ export class SigningService {
       await this.repo.setDocumentUnsignedS3Key(document.id, s3Key);
     }
 
+    const execution = frozenExecutionContextFromEnvelope(envelope);
+    const automaticRepeats = repeatCountsFromFrozenPeople(execution.people);
+    const automaticRoles = documentExecutionRolesForPackageKey(document.template_ref ?? "");
+    if (automaticRoles.length > 0 && document.template_ref) {
+      try {
+        pdfBuffer = await ensureAutomaticSigningKeywords(
+          pdfBuffer,
+          document.template_ref,
+          automaticRepeats,
+          execution.people.filter(
+            (person) => documentKindForPackageKey(document.template_ref ?? "") === person.documentKind
+          )
+        );
+      } catch (err) {
+        if (err instanceof AutomaticSigningKeywordError) {
+          throw new AppError(500, "SIGNING_LAYOUT_ERROR", err.message);
+        }
+        throw err;
+      }
+      await putS3ObjectBuffer({
+        key: s3Key,
+        body: pdfBuffer,
+        contentType: "application/pdf",
+      });
+    }
+
     const signsetsByAssignmentId = new Map<string, unknown>();
     if (typeKey) {
-      const signerNames = orderedAssignments.map(({ recipient }) => recipient.name);
-      const signsets = await this.signsetsForTemplatePdf(typeKey, pdfBuffer, signerNames);
-      if (signsets.length !== orderedAssignments.length) {
+      const layoutAssignments = orderedAssignments.filter(
+        ({ recipient }) => recipient.execution_mode !== "AUTOMATIC"
+      );
+      const signers = layoutSignersFromNamedRecipients(
+        layoutAssignments.map(({ recipient }) => ({
+          name: recipient.name,
+          email: recipient.email,
+        })),
+        authorizedParties
+      );
+      const signsets =
+        layoutAssignments.length === 0
+          ? []
+          : await this.signsetsForTemplatePdf(typeKey, pdfBuffer, signers);
+      if (signsets.length !== layoutAssignments.length) {
         throw new AppError(
           500,
           "SIGNING_LAYOUT_ERROR",
           `${document.name} signature layout does not match signer count.`
         );
       }
-      for (let index = 0; index < orderedAssignments.length; index += 1) {
+      for (let index = 0; index < layoutAssignments.length; index += 1) {
         const signset = signsets[index];
-        const { assignment } = orderedAssignments[index];
+        const { assignment } = layoutAssignments[index];
+        signsetsByAssignmentId.set(assignment.id, signset);
+        await this.repo.setAssignmentSignset(assignment.id, signset);
+      }
+      const automaticBySlot =
+        automaticRoles.length > 0 && document.template_ref
+          ? await this.automaticSignsetsForTemplatePdf(
+              document.template_ref,
+              pdfBuffer,
+              automaticRepeats
+            )
+          : new Map();
+      for (const { assignment, recipient } of orderedAssignments) {
+        if (recipient.execution_mode !== "AUTOMATIC") continue;
+        const snapshot = parseFrozenAutomaticSignerSnapshot(assignment.frozen_asset_snapshot);
+        const signset = snapshot
+          ? automaticSignsetForSnapshot(snapshot, automaticBySlot)
+          : [];
+        if (!signset?.length) {
+          throw new AppError(
+            500,
+            "SIGNING_LAYOUT_ERROR",
+            `Could not place a SigningCloud signature field for ${recipient.role_label}.`
+          );
+        }
         signsetsByAssignmentId.set(assignment.id, signset);
         await this.repo.setAssignmentSignset(assignment.id, signset);
       }
@@ -1953,6 +2431,13 @@ export class SigningService {
     if (!document || !recipient) {
       throw new AppError(404, "SIGNING_ASSIGNMENT_NOT_FOUND", "Document or recipient not found.");
     }
+    if (recipient.execution_mode === "AUTOMATIC") {
+      throw new AppError(
+        409,
+        "SIGNING_RECIPIENT_AUTOMATIC",
+        "CashSouk countersigners do not use a hosted signing link."
+      );
+    }
     this.assertExternalEnvelopeOpen(envelope);
     await this.assertRecipientCanSign(recipient);
     await this.repo.markRecipientViewedIfUnset(recipient.id);
@@ -1971,6 +2456,12 @@ export class SigningService {
     if (!document.provider_contract_ref) {
       throw new AppError(409, "SIGNING_DOCUMENT_NOT_SENT", "This document has not been sent yet.");
     }
+    await reuploadAssignmentCompanySeal({
+      assignment,
+      signerEmail: recipient.email,
+      provider: this.provider,
+      repo: this.repo,
+    });
     const callbackUrl = buildSigningCloudCallbackUrl();
     if (!callbackUrl) {
       logger.warn(
@@ -2245,14 +2736,16 @@ export class SigningService {
         if (assignment.document_id !== document.id || assignment.action !== "SIGN") continue;
         const recipient = envelope.recipients.find((r) => r.id === assignment.recipient_id);
         if (!recipient) continue;
+        if (isAutomaticSigningRecipient(recipient)) continue;
 
-        const providerStatus = statusByEmail.get(normalizeSigningEmail(recipient.email));
+        const signerEmail = normalizeSigningEmail(recipient.email);
+        const providerStatus = statusByEmail.get(signerEmail);
         if (!providerStatus) {
           logger.warn(
             {
               envelopeId,
               documentId: document.id,
-              recipientEmail: normalizeSigningEmail(recipient.email),
+              recipientEmail: signerEmail,
               providerEmails: [...statusByEmail.keys()],
             },
             "SigningCloud detail has no matching signer email for assignment"
@@ -2261,7 +2754,7 @@ export class SigningService {
         }
 
         const providerSigner = details.signers.find(
-          (signer) => normalizeSigningEmail(signer.email) === normalizeSigningEmail(recipient.email)
+          (signer) => normalizeSigningEmail(signer.email) === signerEmail
         );
         if (providerSigner?.viewedAt) {
           await this.repo.markRecipientViewedIfUnset(recipient.id, providerSigner.viewedAt);
@@ -2276,6 +2769,15 @@ export class SigningService {
         }
       }
     }
+
+    envelope = await this.requireEnvelope(envelopeId);
+    const countersign = await runAutomaticCountersign({
+      envelope,
+      provider: this.provider,
+      repo: this.repo,
+      callbackUrl: buildSigningCloudCallbackUrl(),
+    });
+    if (countersign.markedSigned > 0) assignmentsChanged = true;
 
     if (assignmentsChanged) {
       await this.rollupEnvelope(envelopeId, options);
@@ -2520,6 +3022,99 @@ export class SigningService {
     return true;
   }
 
+  async retryAutomaticAssignment(envelopeId: string, assignmentId: string): Promise<SigningEnvelopeDto> {
+    const envelope = await this.requireEnvelope(envelopeId);
+    if (envelope.status !== "SENT" && envelope.status !== "IN_PROGRESS") {
+      throw new AppError(
+        409,
+        "SIGNING_ENVELOPE_NOT_SENT",
+        "Automatic signing can only be retried on an open sent package."
+      );
+    }
+    const assignment = envelope.assignments.find((row) => row.id === assignmentId);
+    const recipient = envelope.recipients.find((row) => row.id === assignment?.recipient_id);
+    if (!assignment || !recipient) {
+      throw new AppError(404, "SIGNING_ASSIGNMENT_NOT_FOUND", "Assignment not found.");
+    }
+    if (recipient.execution_mode !== "AUTOMATIC") {
+      throw new AppError(
+        409,
+        "SIGNING_ASSIGNMENT_NOT_AUTOMATIC",
+        "Only CashSouk countersigners can be retried this way."
+      );
+    }
+    if (assignment.status === "SIGNED") {
+      throw new AppError(409, "SIGNING_ASSIGNMENT_COMPLETE", "This signing step is already complete.");
+    }
+    await runAutomaticCountersign({
+      envelope,
+      provider: this.provider,
+      repo: this.repo,
+      callbackUrl: buildSigningCloudCallbackUrl(),
+      assignmentId,
+      ignoreBackoff: true,
+      throwOnFailure: true,
+    });
+    await this.syncEnvelopeFromProvider(envelopeId);
+    return this.getEnvelope(envelopeId);
+  }
+
+  async retryEnvelopeDelivery(
+    envelopeId: string,
+    actor?: {
+      userId: string;
+      portal: ActivityPortal;
+      context?: AuditRequestContext | null;
+    }
+  ): Promise<SigningEnvelopeDto> {
+    const envelope = await this.requireEnvelope(envelopeId);
+    if (envelope.status === "DRAFT") {
+      return this.sendEnvelope(envelopeId, {
+        userId: actor?.userId ?? envelope.created_by_user_id ?? "",
+        portal: actor?.portal ?? ActivityPortal.ADMIN,
+        context: actor?.context,
+        waitForProvider: false,
+      });
+    }
+    if (isClosedEnvelopeStatus(envelope.status)) {
+      throw new AppError(409, "SIGNING_ENVELOPE_CLOSED", "This signing package is closed.");
+    }
+    const expiresAt = new Date(Date.now() + EXTERNAL_ACCESS_TOKEN_TTL_MS);
+    let allDelivered = true;
+    for (const recipient of envelope.recipients) {
+      if (recipient.delivery_mode === "INTERNAL" || recipient.execution_mode === "AUTOMATIC") {
+        continue;
+      }
+      const metadata = recipient.metadata as Record<string, unknown> | null;
+      const delivery = metadata?.email_delivery;
+      const status =
+        delivery && typeof delivery === "object"
+          ? (delivery as Record<string, unknown>).status
+          : null;
+      if (status === "sent") continue;
+      const accessToken = generateSigningAccessToken();
+      await this.repo.setRecipientAccessToken(recipient.id, accessToken, expiresAt);
+      const delivered = await this.sendSigningEmail({
+        envelope,
+        recipientEmail: recipient.email,
+        recipientName: recipient.name,
+        accessToken,
+        isReminder: true,
+      });
+      await this.repo.setRecipientEmailDeliveryStatus(
+        recipient.id,
+        delivered ? "sent" : "failed",
+        delivered ? null : "Email delivery failed"
+      );
+      if (!delivered) allDelivered = false;
+    }
+    await this.repo.setEnvelopeSendState(envelopeId, {
+      phase: "SENT",
+      error: allDelivered ? null : "One or more signing invitation emails failed. Retry delivery.",
+    });
+    return this.getEnvelope(envelopeId);
+  }
+
   async remindRecipient(
     envelopeId: string,
     recipientId: string,
@@ -2532,6 +3127,9 @@ export class SigningService {
     const recipient = envelope.recipients.find((r) => r.id === recipientId);
     if (!recipient) {
       throw new AppError(404, "SIGNING_RECIPIENT_NOT_FOUND", "Recipient not found.");
+    }
+    if (recipient.execution_mode === "AUTOMATIC" || recipient.delivery_mode === "INTERNAL") {
+      throw new AppError(409, "SIGNING_RECIPIENT_AUTOMATIC", "CashSouk countersigners are not emailed.");
     }
     if (recipient.status === "SIGNED" || recipient.status === "DECLINED") {
       throw new AppError(409, "SIGNING_RECIPIENT_CLOSED", "This recipient has already finished signing.");

@@ -14,6 +14,13 @@ export const AUTHORIZED_PARTY_ISSUER_KEY = "issuer" as const;
 
 export type AuthorizedRepresentativeCapacity = "director" | "authorised_signatory";
 
+/** Printed FA/DOA Designation line — merged into the PDF, not a SigningCloud textfield. */
+export function signingDesignationFromCapacity(
+  capacity: AuthorizedRepresentativeCapacity
+): string {
+  return capacity === "authorised_signatory" ? "Authorised Signatory" : "Director";
+}
+
 export type AuthorizedRepresentative = {
   name: string;
   email: string;
@@ -21,6 +28,8 @@ export type AuthorizedRepresentative = {
   capacity: AuthorizedRepresentativeCapacity;
   /** SSM/CTOS people matchKey — required for issuer directors. */
   person_match_key?: string;
+  /** Issuer only: exactly one selected representative applies the organisation seal on FA/DOA. */
+  applies_company_seal?: boolean;
 };
 
 export type AuthorizedPartyIssuer = {
@@ -99,6 +108,9 @@ function parseRepresentative(value: unknown): AuthorizedRepresentative | null {
   };
   if (typeof root.person_match_key === "string" && root.person_match_key.trim()) {
     representative.person_match_key = root.person_match_key.trim();
+  }
+  if (root.applies_company_seal === true) {
+    representative.applies_company_seal = true;
   }
   return representative;
 }
@@ -223,7 +235,25 @@ function serializeRepresentative(rep: AuthorizedRepresentative): AuthorizedRepre
     capacity: rep.capacity,
   };
   if (rep.person_match_key) out.person_match_key = rep.person_match_key;
+  if (rep.applies_company_seal === true) out.applies_company_seal = true;
   return out;
+}
+
+export const ISSUER_SEAL_APPLIER_REQUIRED_MESSAGE =
+  "Select exactly one issuer representative to apply the company seal.";
+
+export function issuerSealApplierCount(parties: readonly AuthorizedParty[]): number {
+  const issuer = parties.find((party) => party.entity_kind === "ISSUER");
+  if (!issuer) return 0;
+  return issuer.representatives.filter((rep) => rep.applies_company_seal === true).length;
+}
+
+export function issuerSealApplierIssue(
+  parties: readonly AuthorizedParty[],
+  required: boolean
+): string | null {
+  if (!required) return null;
+  return issuerSealApplierCount(parties) === 1 ? null : ISSUER_SEAL_APPLIER_REQUIRED_MESSAGE;
 }
 
 export function getIssuerAuthorizedParty(
@@ -474,12 +504,13 @@ export type AuthorizedPartyReadOnlyBlock = {
   review_item_id: string;
   title: string;
   entity_kind: AuthorizedParty["entity_kind"];
-  representatives: Array<{
-    name: string;
-    email: string;
-    ic_number: string;
-    capacity_label: string;
-  }>;
+    representatives: Array<{
+      name: string;
+      email: string;
+      ic_number: string;
+      capacity_label: string;
+      applies_company_seal?: boolean;
+    }>;
 };
 
 export function authorizedPartyReadOnlyBlocks(
@@ -503,6 +534,7 @@ export function authorizedPartyReadOnlyBlocks(
       email: rep.email,
       ic_number: rep.ic_number,
       capacity_label: authorizedRepresentativeCapacityLabel(rep.capacity),
+      ...(rep.applies_company_seal === true ? { applies_company_seal: true } : {}),
     })),
   }));
 }
@@ -666,6 +698,7 @@ function representativeFingerprint(rep: AuthorizedRepresentative): string {
     normalizeSigningIcNumber(rep.ic_number),
     rep.capacity,
     rep.person_match_key ?? "",
+    rep.applies_company_seal === true ? "seal" : "",
   ].join("|");
 }
 

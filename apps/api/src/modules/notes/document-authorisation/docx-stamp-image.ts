@@ -3,6 +3,7 @@ import { fitStampImageForDocx, type StampExtentEmu, type StampMaxBoundsEmu } fro
 
 export const COMPANY_STAMP_IMAGE_PLACEHOLDER = "§COMPANY_STAMP_IMAGE§";
 export const SIGNATURE_IMAGE_PLACEHOLDER = "§SIGNATURE_IMAGE§";
+export const SSP_COMPANY_STAMP_IMAGE_PLACEHOLDER = "§SSP_COMPANY_STAMP_IMAGE§";
 export const COMPANY_STAMP_UNDERSCORE_FALLBACK = "________________________";
 export {
   stampExtentEmu,
@@ -20,6 +21,7 @@ const A14_NS = "http://schemas.microsoft.com/office/drawing/2010/main";
 /** Same id Word uses on wp:docPr / pic:cNvPr. LibreOffice rejects pic:cNvPr id="0". */
 const STAMP_DRAWING_ID = 91001;
 const SIGNATURE_DRAWING_ID = 91002;
+const SSP_STAMP_DRAWING_ID = 91003;
 
 export type AuthorisationImageSizing = "default" | "compact";
 
@@ -159,6 +161,7 @@ function applyPlaceholderImageToDocx(
     image: StampImageInput | null | undefined;
     mediaBaseName: string;
     drawing: { id: number; docPrName: string; picName: string };
+    emptyFallback?: string;
   },
   sizing: AuthorisationImageSizing = "default"
 ): Buffer {
@@ -170,8 +173,9 @@ function applyPlaceholderImageToDocx(
     return docx;
   }
 
+  const emptyFallback = input.emptyFallback ?? COMPANY_STAMP_UNDERSCORE_FALLBACK;
   if (!input.image || input.image.bytes.length === 0) {
-    documentXml = documentXml.split(input.placeholder).join(COMPANY_STAMP_UNDERSCORE_FALLBACK);
+    documentXml = documentXml.split(input.placeholder).join(emptyFallback);
     zip.file("word/document.xml", documentXml);
     return zip.generate({ type: "nodebuffer", compression: "DEFLATE" }) as Buffer;
   }
@@ -235,6 +239,20 @@ export function applySignatureImageToDocx(
     image: signature,
     mediaBaseName: "signing-signature",
     drawing: { id: SIGNATURE_DRAWING_ID, docPrName: "Signature", picName: "signing-signature" },
+  }, options?.sizing ?? "default");
+}
+
+export function applySspStampToDocx(
+  docx: Buffer,
+  stamp: StampImageInput | null | undefined,
+  options?: { sizing?: AuthorisationImageSizing }
+): Buffer {
+  return applyPlaceholderImageToDocx(docx, {
+    placeholder: SSP_COMPANY_STAMP_IMAGE_PLACEHOLDER,
+    image: stamp,
+    mediaBaseName: "ssp-company-stamp",
+    drawing: { id: SSP_STAMP_DRAWING_ID, docPrName: "SspCompanyStamp", picName: "ssp-company-stamp" },
+    emptyFallback: "",
   }, options?.sizing ?? "default");
 }
 

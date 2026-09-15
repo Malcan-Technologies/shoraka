@@ -43,8 +43,10 @@ export function guarantorsFromApplication(rows: unknown): ApplicationGuarantorRo
 
 export function buildIssuerAuthorizedPartiesSubmitPayload(
   directors: IssuerDirectorOption[],
-  selectedMatchKeys: string[]
+  selectedMatchKeys: string[],
+  sealApplierMatchKey?: string | null
 ): AuthorizedPartiesSubmitPayload {
+  const applierKey = sealApplierMatchKey?.trim() || "";
   const representatives = selectedMatchKeys.flatMap((key) => {
     const director = directors.find((item) => item.matchKey === key);
     if (!director) return [];
@@ -55,6 +57,9 @@ export function buildIssuerAuthorizedPartiesSubmitPayload(
         ic_number: director.ic_number ?? "",
         capacity: "director" as const,
         person_match_key: director.matchKey,
+        ...(applierKey && director.matchKey === applierKey
+          ? { applies_company_seal: true as const }
+          : {}),
       },
     ];
   });
@@ -109,5 +114,36 @@ export function nextIssuerRepMatchKeys(input: {
     return sameMatchKeys(input.currentKeys, fallback) ? null : fallback;
   }
   return null;
+}
+
+export function issuerSealApplierMatchKeyFromSnapshot(
+  snapshot: AuthorizedPartiesSnapshot | null | undefined,
+  directors: IssuerDirectorOption[]
+): string | null {
+  const party = getIssuerAuthorizedParty(snapshot);
+  const applier = party?.representatives.find((rep) => rep.applies_company_seal === true);
+  if (!applier) return null;
+  const byKey = directors.find((item) => item.matchKey === applier.person_match_key);
+  const byEmail = directors.find(
+    (item) => item.email.trim().toLowerCase() === applier.email.trim().toLowerCase()
+  );
+  return byKey?.matchKey ?? byEmail?.matchKey ?? null;
+}
+
+/** Next Step 1 seal-applier key among currently selected directors. */
+export function nextIssuerSealApplierMatchKey(input: {
+  snapshot: AuthorizedPartiesSnapshot | null | undefined;
+  directors: IssuerDirectorOption[];
+  selectedMatchKeys: string[];
+  currentKey: string | null;
+  dirty: boolean;
+}): string | null {
+  const selected = input.selectedMatchKeys.filter(Boolean);
+  const current =
+    input.currentKey && selected.includes(input.currentKey) ? input.currentKey : null;
+  if (input.dirty) return current;
+  const fromSnapshot = issuerSealApplierMatchKeyFromSnapshot(input.snapshot, input.directors);
+  if (fromSnapshot && selected.includes(fromSnapshot)) return fromSnapshot;
+  return current;
 }
 

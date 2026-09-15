@@ -214,12 +214,6 @@ export function MarketplacePage() {
   );
 
   useEffect(() => {
-    if (currentPage !== effectivePage) {
-      setCurrentPage(effectivePage);
-    }
-  }, [currentPage, effectivePage]);
-
-  useEffect(() => {
     const params = new URLSearchParams();
     const trimmedSearch = search.trim();
     if (trimmedSearch) params.set("q", trimmedSearch);

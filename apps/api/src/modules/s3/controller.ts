@@ -1,5 +1,8 @@
 import { Request, Response, NextFunction, Router } from "express";
 import { UserRole } from "@prisma/client";
+import {
+  parseIssuerOrganizationIdFromCompanySealKey,
+} from "@cashsouk/types";
 import { 
   generatePresignedDownloadUrl, 
   generatePresignedViewUrl 
@@ -9,6 +12,10 @@ import { requireAuth } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
 import { applicationService } from "../applications/service";
+import { OrganizationService } from "../organization/service";
+import { OPERATOR_SIGNING_SIGNATURE_S3_PREFIX } from "../operator-profile/signature-asset";
+
+const organizationService = new OrganizationService();
 
 /**
  * Extract applicationId from keys shaped like applications/{applicationId}/…
@@ -20,24 +27,45 @@ export function parseApplicationIdFromS3Key(s3Key: string): string | null {
   return applicationId || null;
 }
 
-async function assertCanAccessS3Key(req: Request, s3Key: string): Promise<void> {
-  const applicationId = parseApplicationIdFromS3Key(s3Key);
-  if (!applicationId) {
-    // Non-application keys (products/, site docs, etc.) stay on auth-only for this route.
-    return;
-  }
+export function isOperatorSigningSignatureS3Key(key: string): boolean {
+  const trimmed = key.trim();
+  return (
+    trimmed.startsWith(`${OPERATOR_SIGNING_SIGNATURE_S3_PREFIX}/`) &&
+    !trimmed.includes("..") &&
+    trimmed !== `${OPERATOR_SIGNING_SIGNATURE_S3_PREFIX}/`
+  );
+}
 
+async function assertCanAccessS3Key(req: Request, s3Key: string): Promise<void> {
   const userId = req.user?.user_id;
   if (!userId) {
     throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
   }
-
   const isAdmin = Boolean(req.user?.roles?.includes(UserRole.ADMIN));
-  await applicationService.assertCanAccessApplicationDocuments({
-    applicationId,
-    userId,
-    asAdmin: isAdmin,
-  });
+
+  const applicationId = parseApplicationIdFromS3Key(s3Key);
+  if (applicationId) {
+    await applicationService.assertCanAccessApplicationDocuments({
+      applicationId,
+      userId,
+      asAdmin: isAdmin,
+    });
+    return;
+  }
+
+  const issuerOrganizationId = parseIssuerOrganizationIdFromCompanySealKey(s3Key);
+  if (issuerOrganizationId) {
+    if (isAdmin) return;
+    await organizationService.getOrganization(userId, issuerOrganizationId, "issuer");
+    return;
+  }
+
+  if (isOperatorSigningSignatureS3Key(s3Key)) {
+    if (!isAdmin) {
+      throw new AppError(403, "FORBIDDEN", "You do not have access to this file");
+    }
+    return;
+  }
 }
 
 /**

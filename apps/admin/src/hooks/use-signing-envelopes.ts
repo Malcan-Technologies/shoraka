@@ -6,7 +6,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createApiClient, getLiveSigningEnvelopeRefetchInterval, useAuthToken } from "@cashsouk/config";
-import type { SigningEnvelopeDto } from "@cashsouk/types";
+import type { SigningEnvelopeDto, SigningPackageReadinessDto } from "@cashsouk/types";
 import { applicationsKeys } from "@/applications/query-keys";
 import { applicationLogsKeys } from "./use-application-logs";
 import {
@@ -20,6 +20,8 @@ export const signingKeys = {
   all: ["admin", "signing"] as const,
   byApplication: (applicationId: string) =>
     [...signingKeys.all, "application", applicationId] as const,
+  readiness: (applicationId: string) =>
+    [...signingKeys.byApplication(applicationId), "readiness"] as const,
 };
 
 function invalidateAfterSigningMutation(
@@ -32,6 +34,7 @@ function invalidateAfterSigningMutation(
   });
   void queryClient.invalidateQueries({ queryKey: applicationLogsKeys.list(applicationId) });
   void queryClient.invalidateQueries({ queryKey: signingKeys.byApplication(applicationId) });
+  void queryClient.invalidateQueries({ queryKey: signingKeys.readiness(applicationId) });
   void queryClient.invalidateQueries({ queryKey: applicationsKeys.detail(applicationId) });
 }
 
@@ -49,6 +52,21 @@ export function useAdminSigningEnvelopes(applicationId: string) {
     enabled: !!applicationId,
     refetchInterval: (query) => getLiveSigningEnvelopeRefetchInterval(query.state.data),
     refetchIntervalInBackground: false,
+  });
+}
+
+export function useAdminSigningPackageReadiness(applicationId: string, enabled = true) {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+
+  return useQuery({
+    queryKey: signingKeys.readiness(applicationId),
+    queryFn: async (): Promise<SigningPackageReadinessDto> => {
+      const response = await apiClient.getAdminSigningPackageReadiness(applicationId);
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+    enabled: !!applicationId && enabled,
   });
 }
 
@@ -135,6 +153,46 @@ export function useRemindSigningRecipient(applicationId: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: signingKeys.byApplication(applicationId) });
+    },
+  });
+}
+
+export function useRetryAutomaticSigningAssignment(applicationId: string) {
+  const { getAccessToken } = useAuthToken();
+  const queryClient = useQueryClient();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+
+  return useMutation({
+    mutationFn: async (vars: {
+      envelopeId: string;
+      assignmentId: string;
+    }): Promise<SigningEnvelopeDto> => {
+      const response = await apiClient.retryAutomaticSigningAssignment(
+        vars.envelopeId,
+        vars.assignmentId
+      );
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+    onSuccess: () => {
+      invalidateAfterSigningMutation(queryClient, applicationId);
+    },
+  });
+}
+
+export function useRetrySigningEnvelopeDelivery(applicationId: string) {
+  const { getAccessToken } = useAuthToken();
+  const queryClient = useQueryClient();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+
+  return useMutation({
+    mutationFn: async (envelopeId: string): Promise<SigningEnvelopeDto> => {
+      const response = await apiClient.retrySigningEnvelopeDelivery(envelopeId);
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+    onSuccess: () => {
+      invalidateAfterSigningMutation(queryClient, applicationId);
     },
   });
 }

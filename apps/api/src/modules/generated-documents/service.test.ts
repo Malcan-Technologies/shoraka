@@ -32,6 +32,9 @@ jest.mock("../../lib/prisma", () => ({
     },
   },
 }));
+jest.mock("../signing/automatic-signers", () => ({
+  readConfirmedLegalImage: jest.fn(),
+}));
 
 import { AppError } from "../../lib/http/error-handler";
 import {
@@ -55,6 +58,7 @@ import { createJsgFixture } from "../applications/joint-several-guarantee/jsg-fi
 import { createDeedOfAssignmentFixture } from "../applications/deed-of-assignment/doa-fixture";
 import { createFacilityAgreementFixture } from "../applications/facility-agreement/fa-fixture";
 import { prisma } from "../../lib/prisma";
+import { readConfirmedLegalImage } from "../signing/automatic-signers";
 
 describe("workflowDeclaresGeneratedDocumentType", () => {
   const workflow = [
@@ -749,6 +753,118 @@ describe("GeneratedDocumentsService.generateDocument", () => {
     expect(result.contentType).toBe("application/pdf");
     expect(buildDoaMerge.buildDeedOfAssignmentMergeData).toHaveBeenCalledWith(
       expect.objectContaining({ offerKind: "invoice" })
+    );
+    expect(prisma.generatedDocumentEvidence.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          document_type: "arf_deed_of_assignment",
+          invoice_id: "inv_1",
+        }),
+      })
+    );
+  });
+
+  it("applies frozen JSG execution while targeting an invoice offer", async () => {
+    productRepository.findByBaseAndVersion.mockResolvedValue({
+      workflow: jsgWorkflow,
+    } as never);
+    applicationRepository.findById.mockResolvedValue({
+      ...baseApplication,
+      contract: {
+        ...baseApplication.contract,
+        offer_details: null,
+      },
+      invoices: [
+        {
+          id: "inv_1",
+          display_reference: "INV-ARF-202608-0N5",
+          offer_details: {
+            offered_amount: 180000,
+            platform_fee_rate_percent: 1.5,
+            sent_at: "2026-08-20T00:00:00.000Z",
+            offer_acceptance: baseApplication.contract.offer_details.offer_acceptance,
+          },
+        },
+      ],
+    } as never);
+
+    const result = await service.generateDocument({
+      applicationId,
+      typeKey: "arf_joint_several_guarantee",
+      format: "pdf",
+      userId,
+      invoiceId: "inv_1",
+      execution: { people: [], companyStamp: null },
+    });
+
+    expect(result.contentType).toBe("application/pdf");
+    expect(buildJsgMerge.buildJsgMergeData).toHaveBeenCalledWith(
+      expect.objectContaining({ offerKind: "invoice" })
+    );
+    expect(prisma.generatedDocumentEvidence.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          document_type: "arf_joint_several_guarantee",
+          invoice_id: "inv_1",
+        }),
+      })
+    );
+  });
+
+  it("passes frozen company stamp bytes into Deed of Assignment for an invoice offer", async () => {
+    productRepository.findByBaseAndVersion.mockResolvedValue({
+      workflow: doaWorkflow,
+    } as never);
+    applicationRepository.findById.mockResolvedValue({
+      ...baseApplication,
+      contract: {
+        ...baseApplication.contract,
+        offer_details: null,
+      },
+      invoices: [
+        {
+          id: "inv_1",
+          display_reference: "INV-ARF-202608-0N5",
+          offer_details: {
+            offered_amount: 180000,
+            platform_fee_rate_percent: 1.5,
+            sent_at: "2026-08-20T00:00:00.000Z",
+            offer_acceptance: baseApplication.contract.offer_details.offer_acceptance,
+          },
+        },
+      ],
+    } as never);
+    const stampBytes = Buffer.from("stamp-bytes");
+    (readConfirmedLegalImage as jest.Mock).mockResolvedValue({
+      bytes: stampBytes,
+      contentType: "image/png",
+    });
+
+    const result = await service.generateDocument({
+      applicationId,
+      typeKey: "arf_deed_of_assignment",
+      format: "pdf",
+      userId,
+      invoiceId: "inv_1",
+      execution: {
+        people: [],
+        companyStamp: {
+          s3Key: "operator-profile/company-stamps/ssp.png",
+          sha256: "aa".repeat(32),
+          contentType: "image/png",
+          fileName: "stamp.png",
+          widthPx: 80,
+          heightPx: 80,
+          byteSize: stampBytes.length,
+        },
+      },
+    });
+
+    expect(result.contentType).toBe("application/pdf");
+    expect(readConfirmedLegalImage).toHaveBeenCalledWith("operator-profile/company-stamps/ssp.png");
+    expect(renderDoa.renderDeedOfAssignmentDocx).toHaveBeenCalledWith(
+      expect.anything(),
+      { bytes: stampBytes, contentType: "image/png" }
     );
     expect(prisma.generatedDocumentEvidence.create).toHaveBeenCalledWith(
       expect.objectContaining({

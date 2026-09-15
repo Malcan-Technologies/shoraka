@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>eKYC QR sandbox</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 0;
+        padding: 1.25rem;
+        background: #f8fafc;
+        color: #0f172a;
+      }
+      h1 {
+        font-size: 1.25rem;
+        margin: 0 0 0.25rem;
+      }
+      .muted {
+        color: #64748b;
+        font-size: 0.875rem;
+      }
+      .panel {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 0.75rem;
+        padding: 1rem;
+        margin: 1rem 0;
+        max-width: 36rem;
+      }
+      label {
+        display: block;
+        font-size: 0.875rem;
+        font-weight: 600;
+        margin-bottom: 0.35rem;
+      }
+      input,
+      select,
+      button {
+        font: inherit;
+      }
+      input,
+      select {
+        width: 100%;
+        padding: 0.5rem 0.65rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 0.5rem;
+        box-sizing: border-box;
+        margin-bottom: 0.75rem;
+      }
+      button {
+        background: #0f172a;
+        color: #fff;
+        border: 0;
+        border-radius: 0.5rem;
+        padding: 0.55rem 1rem;
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.5;
+      }
+      #qr-wrap {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.5rem 0;
+      }
+      #qr-wrap canvas {
+        border: 1px solid #e2e8f0;
+        border-radius: 0.5rem;
+      }
+      #capture-url {
+        font-size: 0.75rem;
+        word-break: break-all;
+        color: #475569;
+        background: #f1f5f9;
+        padding: 0.5rem;
+        border-radius: 0.375rem;
+        width: 100%;
+        box-sizing: border-box;
+      }
+      pre {
+        background: #0f172a;
+        color: #e2e8f0;
+        padding: 0.75rem;
+        border-radius: 0.5rem;
+        overflow: auto;
+        font-size: 0.75rem;
+        max-height: 280px;
+      }
+      .warn {
+        background: #fffbeb;
+        border: 1px solid #fcd34d;
+        color: #92400e;
+        padding: 0.65rem 0.75rem;
+        border-radius: 0.5rem;
+        font-size: 0.875rem;
+        margin-top: 0.75rem;
+      }
+      .status.ok {
+        color: #15803d;
+      }
+      .status.error {
+        color: #b91c1c;
+      }
+      a {
+        color: #2563eb;
+      }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  </head>
+  <body>
+    <h1>eKYC QR flow</h1>
+    <p class="muted">
+      Desktop shows a QR code → phone opens capture page → result is submitted back. Matches the
+      SigningCloud recommended flow.
+      <a href="/">Embedded flow</a>
+    </p>
+
+    <div class="panel">
+      <label for="email">Signer email</label>
+      <input id="email" type="email" value="khai.kit@malcan.io" />
+
+      <label for="docType">Document type</label>
+      <select id="docType">
+        <option value="mykad" selected>mykad</option>
+        <option value="passport">passport</option>
+      </select>
+
+      <button id="startBtn" type="button">Generate QR code</button>
+      <div id="sessionStatus" class="muted"></div>
+
+      <div id="qr-wrap" hidden>
+        <canvas id="qr"></canvas>
+        <div id="capture-url"></div>
+        <p class="muted">Scan with your phone, complete capture, then wait here for the result.</p>
+      </div>
+
+      <div class="warn">
+        Phones cannot open <code>localhost</code>. Set <code>EKYC_MOCK_PUBLIC_URL</code> in
+        <code>.env</code> to your LAN IP (e.g. <code>http://192.168.x.x:4099</code>) or an ngrok URL
+        before generating the QR.
+      </div>
+    </div>
+
+    <div class="panel">
+      <strong>Desktop status</strong>
+      <pre id="result">Waiting for QR session…</pre>
+    </div>
+
+    <script>
+      const emailInput = document.getElementById("email");
+      const docTypeInput = document.getElementById("docType");
+      const startBtn = document.getElementById("startBtn");
+      const sessionStatus = document.getElementById("sessionStatus");
+      const qrWrap = document.getElementById("qr-wrap");
+      const captureUrlEl = document.getElementById("capture-url");
+      const resultEl = document.getElementById("result");
+      const qrCanvas = document.getElementById("qr");
+
+      let session = null;
+      let pollTimer = null;
+
+      function logResult(value) {
+        resultEl.textContent =
+          typeof value === "string" ? value : JSON.stringify(value, null, 2);
+      }
+
+      function setStatus(text, kind) {
+        sessionStatus.textContent = text;
+        sessionStatus.className = "muted status " + (kind || "");
+      }
+
+      async function fetchSession() {
+        const email = emailInput.value.trim();
+        const docType = docTypeInput.value;
+        const res = await fetch(
+          "/api/ekyc/session?email=" +
+            encodeURIComponent(email) +
+            "&docType=" +
+            encodeURIComponent(docType) +
+            "&mode=qr"
+        );
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.error || "Failed to create session");
+        return body;
+      }
+
+      async function pollStatus() {
+        if (!session?.token) return;
+        const res = await fetch("/api/ekyc/status?token=" + encodeURIComponent(session.token));
+        const body = await res.json();
+        if (!res.ok) return;
+
+        if (body.status === "pending") {
+          setStatus("Waiting for mobile capture…", "");
+          return;
+        }
+
+        clearInterval(pollTimer);
+        pollTimer = null;
+        startBtn.disabled = false;
+        logResult(body);
+        setStatus(body.status === "submitted" ? "Mobile capture complete." : "Capture received.", "ok");
+      }
+
+      async function startQrFlow() {
+        startBtn.disabled = true;
+        if (pollTimer) clearInterval(pollTimer);
+        setStatus("Requesting token from SigningCloud…", "");
+        qrWrap.hidden = true;
+
+        try {
+          session = await fetchSession();
+          captureUrlEl.textContent = session.captureUrl;
+
+          await QRCode.toCanvas(qrCanvas, session.captureUrl, { width: 240, margin: 2 });
+          qrWrap.hidden = false;
+          logResult({ status: "pending", captureUrl: session.captureUrl, token: session.token });
+          setStatus("Scan the QR code with your phone.", "ok");
+
+          pollTimer = setInterval(pollStatus, 2000);
+          pollStatus();
+        } catch (err) {
+          setStatus(String(err), "error");
+          logResult(String(err));
+          startBtn.disabled = false;
+        }
+      }
+
+      startBtn.addEventListener("click", startQrFlow);
+    </script>
+  </body>
+</html>

@@ -20,6 +20,10 @@ import {
   serializeAuthorizedPartiesSnapshot,
   stampAuthorizedPartiesSnapshot,
   summarizeAuthorizedParties,
+  issuerSealApplierCount,
+  issuerSealApplierIssue,
+  ISSUER_SEAL_APPLIER_REQUIRED_MESSAGE,
+  signingDesignationFromCapacity,
   type AuthorizedPartiesSnapshot,
 } from "./authorized-parties";
 
@@ -704,5 +708,59 @@ describe("offerAcceptanceFreezesAuthorizedParties", () => {
     expect(offerAcceptanceFreezesAuthorizedParties("PENDING_ADMIN_REVIEW")).toBe(false);
     expect(offerAcceptanceFreezesAuthorizedParties("CHANGES_REQUESTED")).toBe(false);
     expect(offerAcceptanceFreezesAuthorizedParties(null)).toBe(false);
+  });
+});
+
+describe("issuer company-seal applier", () => {
+  it("parses and round-trips the selected issuer seal applier", () => {
+    const snapshot = parseAuthorizedPartiesSnapshot({
+      submitted_by_user_id: "user_1",
+      submitted_at: "2026-09-11T00:00:00.000Z",
+      parties: [
+        {
+          key: "issuer",
+          entity_kind: "ISSUER",
+          representatives: [
+            {
+              name: "Ali Bin Abu",
+              email: "ali@co.my",
+              ic_number: "820508105871",
+              capacity: "director",
+              person_match_key: "820508105871",
+              applies_company_seal: true,
+            },
+            {
+              name: "Siti",
+              email: "siti@co.my",
+              ic_number: "880101015555",
+              capacity: "director",
+              person_match_key: "880101015555",
+              applies_company_seal: false,
+            },
+          ],
+        },
+      ],
+    });
+    expect(snapshot?.parties[0]?.representatives[0]?.applies_company_seal).toBe(true);
+    expect(snapshot?.parties[0]?.representatives[1]?.applies_company_seal).toBeUndefined();
+    expect(issuerSealApplierCount(snapshot!.parties)).toBe(1);
+    expect(issuerSealApplierIssue(snapshot!.parties, true)).toBeNull();
+    expect(serializeAuthorizedPartiesSnapshot(snapshot!).parties[0]?.representatives[0]?.applies_company_seal).toBe(
+      true
+    );
+  });
+
+  it("requires exactly one seal applier when FA or DOA is in the package", () => {
+    expect(issuerSealApplierIssue(ISSUER_SNAPSHOT.parties, true)).toBe(
+      ISSUER_SEAL_APPLIER_REQUIRED_MESSAGE
+    );
+    expect(issuerSealApplierIssue(ISSUER_SNAPSHOT.parties, false)).toBeNull();
+  });
+});
+
+describe("signingDesignationFromCapacity", () => {
+  it("prints Director and Authorised Signatory for FA/DOA merge", () => {
+    expect(signingDesignationFromCapacity("director")).toBe("Director");
+    expect(signingDesignationFromCapacity("authorised_signatory")).toBe("Authorised Signatory");
   });
 });

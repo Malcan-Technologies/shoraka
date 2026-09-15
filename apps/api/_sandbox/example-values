@@ -1,0 +1,26 @@
+{
+  "data": {
+    "createtime": "2026-03-19T15:38:21+08:00",
+    "previewurl": "https://stg-env.signingcloud.com/signserver/sdkApiserver.action/contractInfo!toViewPage.action?code=9451EA561FF0541B765093FE22CF14DF5CFE33A5F31A711A4799ECDDF43F639DF56483A686E9A4B75B4FBED2B21BA877DB3F803CEE7E3229921A272D52731B49A0B578",
+    "addressee": [
+      {
+        "email": "p2p.dev@shorakagroup.com",
+        "signstate": 0,
+        "authtype": 0
+      }
+    ],
+    "contractnumber": "9236AFA2348791C3106ABBCC9D2EAEF2",
+    "state": 1,
+    "logs": [
+      {
+        "time": "2026-03-19T15:38:22+08:00",
+        "event": "Created",
+        "operator": "p2p.dev@shorakagroup.com"
+      }
+    ]
+  },
+  "dataType": "contract_detail",
+  "accountNumber": "43037678"
+}
+
+

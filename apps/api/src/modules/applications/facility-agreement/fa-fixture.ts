@@ -21,6 +21,14 @@ export function createFacilityAgreementFixture(): FacilityAgreementMergeData {
     issuer_bank_account_number: "1234567890",
     issuer_bank_account_name: "DEMO ISSUER SDN. BHD.",
     issuer_bank_swift: "MBBEMYKL",
+    investor_1_name: "Aisha Rahman",
+    investor_1_designation: "Chief Executive Officer",
+    investor_2_name: "Ben Tan",
+    investor_2_designation: "Director",
+    agent_1_name: "Aisha Rahman",
+    agent_1_designation: "Chief Executive Officer",
+    agent_2_name: "Ben Tan",
+    agent_2_designation: "Director",
     guarantors_individual: [
       {
         name: "Ali Bin Abu",
@@ -38,8 +46,18 @@ export function createFacilityAgreementFixture(): FacilityAgreementMergeData {
       },
     ],
     issuer_signatories: [
-      { name: "Ali Bin Abu", designation: "Director" },
-      { name: "Siti Binti Ahmad", designation: "Authorised Signatory" },
+      {
+        name: "Ali Bin Abu",
+        designation: "Director",
+        witness_name: "Chloe Lim",
+        witness_nric: "850101015555",
+      },
+      {
+        name: "Siti Binti Ahmad",
+        designation: "Authorised Signatory",
+        witness_name: "Chloe Lim",
+        witness_nric: "850101015555",
+      },
     ],
   };
 }
