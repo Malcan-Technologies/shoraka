@@ -6,14 +6,19 @@
 export type ProspectusReviewStatusRaw =
   | "DRAFT"
   | "READY_FOR_REVIEW"
+  | "READY_FOR_PUBLISH"
   | "APPROVED"
   | "SUPERSEDED"
   | "PUBLISHED";
 
 /** Active workflow statuses written by the simplified flow. */
-export type ProspectusWorkflowStatus = "DRAFT" | "APPROVED" | "PUBLISHED";
+export type ProspectusWorkflowStatus = "DRAFT" | "READY_FOR_PUBLISH" | "APPROVED" | "PUBLISHED";
 
-export type ProspectusDisplayStatus = "Draft" | "Approved" | "Published";
+export type ProspectusDisplayStatus =
+  | "Draft"
+  | "Ready for publish"
+  | "Approved"
+  | "Published";
 
 /**
  * Prospectus lock/display: the note completed marketplace publish and was not unpublished.
@@ -37,6 +42,7 @@ export function normalizeProspectusWorkflowStatus(
 ): ProspectusWorkflowStatus {
   if (raw === "PUBLISHED") return "PUBLISHED";
   if (raw === "APPROVED") return "APPROVED";
+  if (raw === "READY_FOR_PUBLISH") return "READY_FOR_PUBLISH";
   return "DRAFT";
 }
 
@@ -52,7 +58,9 @@ export function getProspectusDisplayStatus(input: {
   const workflow = normalizeProspectusWorkflowStatus(input.reviewStatus);
   if (workflow === "PUBLISHED" && input.notePublished) return "Published";
   if (workflow === "APPROVED" && input.notePublished) return "Published";
+  if (workflow === "READY_FOR_PUBLISH" && input.notePublished) return "Published";
   if (workflow === "APPROVED") return "Approved";
+  if (workflow === "READY_FOR_PUBLISH") return "Ready for publish";
   return "Draft";
 }
 

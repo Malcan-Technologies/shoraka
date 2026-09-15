@@ -152,6 +152,26 @@ describe("resolveProspectusStatusCard", () => {
     expect(WORKFLOW_STATUS_BADGE.success.badgeClass).toMatch(/success/);
   });
 
+  it("READY_FOR_PUBLISH uses neutral card, success badge, Open Review, and hides View PDF", () => {
+    const model = resolveProspectusStatusCard(
+      baseNote({
+        prospectus: {
+          status: "READY_FOR_PUBLISH",
+          displayStatus: "Ready for publish",
+          contentVersion: 1,
+          lastSavedAt: null,
+          approvedAt: new Date().toISOString(),
+          publishedAt: null,
+        },
+      })
+    );
+    expect(model.phase).toBe("ready");
+    expect(model.heading).toBe("Ready for publish");
+    expect(model.badgeLabel).toBe("Ready for publish");
+    expect(model.workspaceLabel).toBe("Open Review");
+    expect(model.viewAvailable).toBe(false);
+  });
+
   it("Published uses neutral card, green success badge, View PDF, and Open Review", () => {
     const model = resolveProspectusStatusCard(
       baseNote({
@@ -348,8 +368,8 @@ describe("backend publication gate remains in API (unchanged by this UI work)", 
       path.join(__dirname, "../../../../api/src/modules/notes/service.ts"),
       "utf8"
     );
-    expect(publishService).toContain("Approve the Prospectus before publishing this Note.");
+    expect(publishService).toContain("Prospectus must be ready for publish before publishing this Note.");
     expect(publishService).toContain("getApprovedSnapshotForPublish");
-    expect(publishService).toContain("structuredClone(approvedSnapshot)");
+    expect(publishService).toContain("generateFinalProspectusPdfForPublish");
   });
 });

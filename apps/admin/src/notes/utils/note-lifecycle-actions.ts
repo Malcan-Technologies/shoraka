@@ -235,7 +235,8 @@ export function isNoteFeatureEligible(note: NoteDetail): boolean {
 
 export function buildNoteLifecycleActionPlan(note: NoteDetail): NoteLifecycleActionPlan {
   const publishableListingStatuses = ["NOT_LISTED", "DRAFT", "UNPUBLISHED"];
-  const prospectusApproved = note.prospectus?.status === "APPROVED";
+  const prospectusApproved =
+    note.prospectus?.status === "APPROVED" || note.prospectus?.status === "READY_FOR_PUBLISH";
   const baseCanPublish =
     note.status === "DRAFT" &&
     note.fundingStatus === "NOT_OPEN" &&
@@ -280,7 +281,7 @@ export function buildNoteLifecycleActionPlan(note: NoteDetail): NoteLifecycleAct
       key: "publish",
       label: "Publish to Marketplace",
       variant: "default",
-      helper: "Prospectus approved. Publish when you are ready to list this Note.",
+      helper: "Prospectus is ready for publish. Publish to set the listing period and generate the final Prospectus.",
     };
   } else if (canCloseFunding) {
     primary = {

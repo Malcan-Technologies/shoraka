@@ -139,8 +139,17 @@ export async function loadProspectusNoteIdentityFreeze(noteId: string): Promise<
     marc_snapshot: marcSnapshot,
   };
 
+  // Listing opens/closes are intentionally written during Note publish.
+  // Exclude them from drift/fingerprint protection so publish-time finalization
+  // (injecting listing dates into Page 1) does not fail fingerprint checks.
+  const fingerprintNoteIdentity = {
+    ...noteIdentity,
+    listing_opens_at: null,
+    listing_closes_at: null,
+  };
+
   const fingerprintSource = {
-    note_identity: noteIdentity,
+    note_identity: fingerprintNoteIdentity,
     financial_statements: application?.financial_statements ?? null,
     ctos_financials: ctosReport?.financials_json ?? null,
   };

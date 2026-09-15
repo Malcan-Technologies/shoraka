@@ -3,7 +3,7 @@
  * WHY: Direct approve, change-based invalidation, complete freeze at approve, copy-only publish
  */
 
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import {
   NoteStatus,
   Prisma,
@@ -36,6 +36,7 @@ import { combineProspectusPagesHtml } from "../prospectus/combine-prospectus-pag
 import {
   generateAndStoreProspectusPdf,
   PROSPECTUS_PDF_STATUS_READY,
+  type ProspectusPdfArtifact,
 } from "../prospectus/prospectus-pdf";
 import { buildProspectusPageOneHtml } from "../prospectus/prospectus-page-one.html";
 import {
@@ -281,6 +282,7 @@ async function reopenProspectusDraftAfterUnpublish(
   if (!review) return null;
   if (
     review.status !== ProspectusReviewStatus.APPROVED &&
+    review.status !== ProspectusReviewStatus.READY_FOR_PUBLISH &&
     review.status !== ProspectusReviewStatus.PUBLISHED
   ) {
     return review;
@@ -356,7 +358,11 @@ export class ProspectusReviewService {
     if (!this.noteRequiresProspectusReview(note)) return;
 
     const review = note.prospectus_review;
-    if (!review || review.status !== ProspectusReviewStatus.APPROVED) {
+    if (
+      !review ||
+      (review.status !== ProspectusReviewStatus.APPROVED &&
+        review.status !== ProspectusReviewStatus.READY_FOR_PUBLISH)
+    ) {
       throw new AppError(409, "PROSPECTUS_REVIEW_REQUIRED", PUBLISH_BLOCKED);
     }
     const snapshot = parseApprovedSnapshot(review.approved_snapshot);
@@ -398,16 +404,9 @@ export class ProspectusReviewService {
         pdf_storage_key: true,
       },
     });
-    if (
-      !publication ||
-      publication.pdf_generation_status !== PROSPECTUS_PDF_STATUS_READY ||
-      !publication.pdf_storage_key
-    ) {
-      throw new AppError(
-        409,
-        "PROSPECTUS_PDF_REQUIRED",
-        "Approved Prospectus PDF is missing; re-approve to generate the PDF before publish"
-      );
+    // Final investor PDF is generated during Note publish after listing opens/closes timestamps exist.
+    if (!publication) {
+      throw new AppError(404, "PROSPECTUS_PDF_UNAVAILABLE", "Prospectus publication missing");
     }
     return {
       snapshot,
@@ -509,7 +508,8 @@ export class ProspectusReviewService {
 
     // Source drift while APPROVED → invalidate to Draft.
     if (
-      review.status === ProspectusReviewStatus.APPROVED &&
+      (review.status === ProspectusReviewStatus.APPROVED ||
+        review.status === ProspectusReviewStatus.READY_FOR_PUBLISH) &&
       !isNoteListed(note) &&
       review.approved_content &&
       review.approved_snapshot &&
@@ -562,7 +562,8 @@ export class ProspectusReviewService {
     // Use saved draft/approved officer content so Admin Issuer Profile matches Preview.
     if (!page2Input.isPublished) {
       const contentForProfile =
-        workflow === "APPROVED" && mapped.approvedContent != null
+        (workflow === "APPROVED" || workflow === "READY_FOR_PUBLISH") &&
+        mapped.approvedContent != null
           ? mapped.approvedContent
           : mapped.draftContent;
       page2Input.publicationContent = toProspectusPublicationContent(contentForProfile);
@@ -684,13 +685,21 @@ export class ProspectusReviewService {
 
     const before = mapReview(current);
 
-    // APPROVED + identical content → keep APPROVED (no version bump needed for noop).
-    if (current.status === ProspectusReviewStatus.APPROVED && !contentChanged) {
+    // APPROVED/READY_FOR_PUBLISH + identical content → keep (no version bump needed for noop).
+    if (
+      (current.status === ProspectusReviewStatus.APPROVED ||
+        current.status === ProspectusReviewStatus.READY_FOR_PUBLISH) &&
+      !contentChanged
+    ) {
       return mapReview(current);
     }
 
     const updated = await prisma.$transaction(async (tx) => {
-      if (current!.status === ProspectusReviewStatus.APPROVED && contentChanged) {
+      if (
+        (current!.status === ProspectusReviewStatus.APPROVED ||
+          current!.status === ProspectusReviewStatus.READY_FOR_PUBLISH) &&
+        contentChanged
+      ) {
         const row = await clearApprovalEligibility(tx, noteId, actor.userId, draftToStore);
         await logProspectusAction(
           tx,
@@ -756,7 +765,10 @@ export class ProspectusReviewService {
       });
     }
 
-    if (current.status === ProspectusReviewStatus.APPROVED) {
+    if (
+      current.status === ProspectusReviewStatus.APPROVED ||
+      current.status === ProspectusReviewStatus.READY_FOR_PUBLISH
+    ) {
       throw new AppError(409, "PROSPECTUS_REVIEW_ALREADY_APPROVED", "Prospectus is already approved");
     }
 
@@ -831,14 +843,6 @@ export class ProspectusReviewService {
       page5: buildProspectusPageFiveHtml(),
     });
 
-    // PDF from exact frozen HTML — before APPROVED status; publish never regenerates.
-    const pdfArtifact = await generateAndStoreProspectusPdf({
-      noteId,
-      publicationId,
-      snapshotHash: approvedSnapshot.render_fingerprint,
-      html: approvedSnapshot.html,
-    });
-
     const before = mapReview(current);
     const updated = await prisma.$transaction(async (tx) => {
       await tx.noteProspectusPublication.create({
@@ -851,23 +855,15 @@ export class ProspectusReviewService {
           render_fingerprint: approvedSnapshot.render_fingerprint,
           approved_by_user_id: actor.userId,
           approved_at: now,
-          pdf_storage_bucket: pdfArtifact.storageBucket,
-          pdf_storage_key: pdfArtifact.storageKey,
-          pdf_content_type: pdfArtifact.contentType,
-          pdf_size_bytes: pdfArtifact.sizeBytes,
-          pdf_sha256: pdfArtifact.sha256,
-          pdf_generated_at: pdfArtifact.generatedAt,
-          pdf_generation_status: pdfArtifact.generationStatus,
-          pdf_generation_error: null,
-          pdf_snapshot_hash: pdfArtifact.snapshotHash,
-          pdf_page_count: pdfArtifact.pageCount,
+          // Final investor PDF is generated during Note publish,
+          // after listing opens/closes timestamps exist.
         },
       });
 
       const row = await tx.noteProspectusReview.update({
         where: { note_id: noteId },
         data: {
-          status: ProspectusReviewStatus.APPROVED,
+          status: ProspectusReviewStatus.READY_FOR_PUBLISH,
           draft_content: approvedClone as unknown as Prisma.InputJsonValue,
           approved_content: approvedClone as unknown as Prisma.InputJsonValue,
           approved_snapshot: approvedSnapshot as unknown as Prisma.InputJsonValue,
@@ -902,6 +898,99 @@ export class ProspectusReviewService {
   }
 
   /**
+   * Final investor PDF generation during Note publish.
+   * Listing opens/closes are written during publish; we rebuild Page 1 HTML with real dates.
+   *
+   * NOTE: This intentionally does not mark the Prospectus as PUBLISHED; caller persists and flips states.
+   */
+  async generateFinalProspectusPdfForPublish(input: {
+    noteId: string;
+    actor: ActorContext;
+    approvedSnapshot: ProspectusApprovedSnapshot;
+    publicationId: string;
+    reviewId: string;
+  }): Promise<{
+    updatedSnapshot: ProspectusApprovedSnapshot;
+    pdfArtifact: ProspectusPdfArtifact;
+  }> {
+    const { noteId, actor, approvedSnapshot, publicationId, reviewId } = input;
+
+    const note = await prisma.note.findUnique({
+      where: { id: noteId },
+      select: {
+        listing: { select: { opens_at: true, closes_at: true } },
+      },
+    });
+    if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+
+    const opensAt = note.listing?.opens_at;
+    const closesAt = note.listing?.closes_at;
+    if (!opensAt || !closesAt) {
+      throw new AppError(
+        409,
+        "PROSPECTUS_FINALIZATION_MISSING_LISTING_DATES",
+        "Listing opens_at/closes_at must exist before final Prospectus PDF generation"
+      );
+    }
+
+    const publication = approvedSnapshot.publication_content;
+
+    // Rebuild Page 1 with real listing dates; other pages use the same frozen publication content.
+    const page1Note = await loadProspectusPageOneNote(prisma, noteId);
+    const page1Input = await mapProspectusPageOneDataToInput(page1Note);
+    page1Input.publicationContent = publication;
+    page1Input.trackRecordMode = "frozen_publication_snapshot";
+    page1Input.page1TrackRecordSnapshot =
+      approvedSnapshot.page_1 as typeof page1Input.page1TrackRecordSnapshot;
+    const page1 = buildProspectusPageOne(page1Input);
+
+    const page2Data = await loadProspectusPageTwoData(prisma, noteId);
+    const page2Input = mapProspectusPageTwoDataToInput(page2Data);
+    page2Input.publicationContent = publication;
+    const page2 = buildProspectusPageTwo(page2Input);
+
+    const page3Data = await loadProspectusPageThreeData(prisma, noteId);
+    const page3Input = mapProspectusPageThreeDataToInput(page3Data);
+    page3Input.publicationContent = publication;
+    const page3 = buildProspectusPageThree(page3Input);
+
+    const page1Html = buildProspectusPageOneHtml(page1);
+    const page2Html = buildProspectusPageTwoHtml(page2);
+    const page3Html = buildProspectusPageThreeHtml(page3);
+    const updatedSnapshot = withApprovedSnapshotHtml(approvedSnapshot, {
+      page1: page1Html,
+      page2: page2Html,
+      page3: page3Html,
+      page4: buildProspectusPageFourHtml(),
+      page5: buildProspectusPageFiveHtml(),
+    });
+    updatedSnapshot.note_identity = {
+      ...(updatedSnapshot.note_identity ?? {}),
+      listing_opens_at: opensAt.toISOString(),
+      listing_closes_at: closesAt.toISOString(),
+    };
+
+    // SnapshotHash must be unique per final listing dates so S3 keys don't collide across retries.
+    const listingSalt = `${opensAt.toISOString()}|${closesAt.toISOString()}`;
+    const finalSnapshotHash = createHash("sha256")
+      .update(`${updatedSnapshot.render_fingerprint}|${listingSalt}`)
+      .digest("hex");
+
+    const pdfArtifact = await generateAndStoreProspectusPdf({
+      noteId,
+      publicationId,
+      snapshotHash: finalSnapshotHash,
+      html: updatedSnapshot.html,
+    });
+
+    // Persist-only actions remain in caller. Return artifacts for DB updates.
+    void reviewId; // kept for future audit correlation
+    void actor; // caller logs publish action
+
+    return { updatedSnapshot, pdfArtifact };
+  }
+
+  /**
    * Read-only preview from saved review content (draft or approved).
    * Does not create/update review rows, snapshots, or audit save events.
    */
@@ -921,14 +1010,15 @@ export class ProspectusReviewService {
 
     const status = mapReview(review).status;
     const useApproved =
-      normalizeProspectusWorkflowStatus(status) === "APPROVED" &&
+      (normalizeProspectusWorkflowStatus(status) === "APPROVED" ||
+        normalizeProspectusWorkflowStatus(status) === "READY_FOR_PUBLISH") &&
       review.approved_content != null;
     const content = useApproved
       ? asStoredContent(review.approved_content)
       : asStoredContent(review.draft_content);
     const sourceLabel = useApproved ? ("approved" as const) : ("draft" as const);
     const bannerText = useApproved
-      ? "Approved Prospectus Preview — not yet published"
+      ? "Prospectus content is ready for publish — not yet published"
       : "Draft Prospectus — not yet approved";
 
     return this.renderPreviewHtml(noteId, content, {
@@ -1053,7 +1143,12 @@ export class ProspectusReviewService {
     noteId: string
   ): Promise<ProspectusFrozenPublicationContent | null> {
     const review = await prisma.noteProspectusReview.findUnique({ where: { note_id: noteId } });
-    if (!review || review.status !== ProspectusReviewStatus.APPROVED || !review.approved_content) {
+    if (
+      !review ||
+      (review.status !== ProspectusReviewStatus.APPROVED &&
+        review.status !== ProspectusReviewStatus.READY_FOR_PUBLISH) ||
+      !review.approved_content
+    ) {
       return null;
     }
     const snapshot = parseApprovedSnapshot(review.approved_snapshot);
