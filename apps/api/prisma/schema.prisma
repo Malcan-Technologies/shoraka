@@ -2878,6 +2878,7 @@ enum NoteStatus {
 enum ProspectusReviewStatus {
   DRAFT
   READY_FOR_REVIEW
+  READY_FOR_PUBLISH
   APPROVED
   SUPERSEDED
   PUBLISHED

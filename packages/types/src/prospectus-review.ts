@@ -3,6 +3,7 @@
 export type ProspectusReviewStatus =
   | "DRAFT"
   | "READY_FOR_REVIEW"
+  | "READY_FOR_PUBLISH"
   | "APPROVED"
   | "SUPERSEDED"
   | "PUBLISHED";

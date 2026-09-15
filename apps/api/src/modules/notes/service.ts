@@ -2981,15 +2981,10 @@ export class NoteService {
     const { prospectusReviewService } = await import(
       "./prospectus-review/prospectus-review.service"
     );
-    // Exact approved freeze only — no Page 1/2/3 rebuild at publish.
     const { snapshot: approvedSnapshot, publicationId, reviewId } =
       await prospectusReviewService.getApprovedSnapshotForPublish(id);
-    const prospectusSnapshot = structuredClone(approvedSnapshot) as unknown as Record<
-      string,
-      unknown
-    >;
-
-    const updated = await prisma.$transaction(async (tx) => {
+    // Phase 1: write listing opens/closes first (final Prospectus PDF remains unavailable to investors).
+    await prisma.$transaction(async (tx) => {
       await assertSourceFacilityEnabled(tx, note.source_contract_id);
       const stateUpdate = await tx.note.updateMany({
         where: {
@@ -3005,11 +3000,12 @@ export class NoteService {
           },
         },
         data: {
-          status: NoteStatus.PUBLISHED,
-          listing_status: NoteListingStatus.PUBLISHED,
-          funding_status: NoteFundingStatus.OPEN,
-          published_at: now,
-          prospectus_snapshot: prospectusSnapshot as unknown as Prisma.InputJsonValue,
+          listing: {
+            upsert: {
+              create: { opens_at: now, closes_at: closesAt },
+              update: { opens_at: now, closes_at: closesAt },
+            },
+          },
         },
       });
       if (stateUpdate.count !== 1) {
@@ -3019,12 +3015,42 @@ export class NoteService {
           "Only draft or unpublished notes can be published"
         );
       }
+    });
+
+    // Phase 2: rebuild + generate final Prospectus HTML/PDF with real listing dates.
+    const finalization = await prospectusReviewService.generateFinalProspectusPdfForPublish({
+      noteId: id,
+      actor,
+      approvedSnapshot,
+      publicationId,
+      reviewId,
+    });
+
+    // Phase 3: only after final PDF succeeds, mark Note/Prospectus as published for investors.
+    const updated = await prisma.$transaction(async (tx) => {
+      const stateUpdate = await tx.note.updateMany({
+        where: {
+          id,
+          status: NoteStatus.DRAFT,
+          funding_status: NoteFundingStatus.NOT_OPEN,
+        },
+        data: {
+          status: NoteStatus.PUBLISHED,
+          listing_status: NoteListingStatus.PUBLISHED,
+          funding_status: NoteFundingStatus.OPEN,
+          published_at: now,
+          prospectus_snapshot: finalization.updatedSnapshot as unknown as Prisma.InputJsonValue,
+        },
+      });
+      if (stateUpdate.count !== 1) {
+        throw new AppError(409, "NOTE_NOT_PUBLISHABLE", "Only draft notes can be published");
+      }
 
       const reviewUpdate = await tx.noteProspectusReview.updateMany({
         where: {
           id: reviewId,
           note_id: id,
-          status: ProspectusReviewStatus.APPROVED,
+          status: ProspectusReviewStatus.READY_FOR_PUBLISH,
           approved_publication_id: publicationId,
         },
         data: { status: ProspectusReviewStatus.PUBLISHED },
@@ -3033,7 +3059,7 @@ export class NoteService {
         throw new AppError(
           409,
           "PROSPECTUS_REVIEW_REQUIRED",
-          "Approve the Prospectus before publishing this Note."
+          "Prospectus must be ready for publish before publishing this Note."
         );
       }
 
@@ -3042,13 +3068,26 @@ export class NoteService {
           id: publicationId,
           note_id: id,
         },
-        data: { published_at: now },
+        data: {
+          snapshot: finalization.updatedSnapshot as unknown as Prisma.InputJsonValue,
+          published_at: now,
+          pdf_storage_bucket: finalization.pdfArtifact.storageBucket,
+          pdf_storage_key: finalization.pdfArtifact.storageKey,
+          pdf_content_type: finalization.pdfArtifact.contentType,
+          pdf_size_bytes: finalization.pdfArtifact.sizeBytes,
+          pdf_sha256: finalization.pdfArtifact.sha256,
+          pdf_generated_at: finalization.pdfArtifact.generatedAt,
+          pdf_generation_status: finalization.pdfArtifact.generationStatus,
+          pdf_generation_error: null,
+          pdf_snapshot_hash: finalization.pdfArtifact.snapshotHash,
+          pdf_page_count: finalization.pdfArtifact.pageCount,
+        },
       });
       if (publicationUpdate.count !== 1) {
         throw new AppError(
           409,
           "PROSPECTUS_REVIEW_REQUIRED",
-          "Approve the Prospectus before publishing this Note."
+          "Prospectus publication update failed"
         );
       }
 
