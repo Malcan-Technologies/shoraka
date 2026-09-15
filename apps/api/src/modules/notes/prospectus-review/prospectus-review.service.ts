@@ -933,11 +933,15 @@ export class ProspectusReviewService {
     }
 
     const publication = approvedSnapshot.publication_content;
+    // Approved snapshots store a frozen wrapper around resolved publication content.
+    // Page builders expect the resolved publication shape (e.g. `keyInvestorHighlights`).
+    const publicationContent =
+      (publication as any)?.resolvedPublicationContent ?? (publication as any);
 
     // Rebuild Page 1 with real listing dates; other pages use the same frozen publication content.
     const page1Note = await loadProspectusPageOneNote(prisma, noteId);
     const page1Input = await mapProspectusPageOneDataToInput(page1Note);
-    page1Input.publicationContent = publication as any;
+    page1Input.publicationContent = publicationContent as any;
     page1Input.trackRecordMode = "frozen_publication_snapshot";
     page1Input.page1TrackRecordSnapshot =
       approvedSnapshot.page_1 as typeof page1Input.page1TrackRecordSnapshot;
@@ -945,12 +949,12 @@ export class ProspectusReviewService {
 
     const page2Data = await loadProspectusPageTwoData(prisma, noteId);
     const page2Input = mapProspectusPageTwoDataToInput(page2Data);
-    page2Input.publicationContent = publication as any;
+    page2Input.publicationContent = publicationContent as any;
     const page2 = buildProspectusPageTwo(page2Input);
 
     const page3Data = await loadProspectusPageThreeData(prisma, noteId);
     const page3Input = mapProspectusPageThreeDataToInput(page3Data);
-    page3Input.publicationContent = publication as any;
+    page3Input.publicationContent = publicationContent as any;
     const page3 = buildProspectusPageThree(page3Input);
 
     const page1Html = buildProspectusPageOneHtml(page1);
