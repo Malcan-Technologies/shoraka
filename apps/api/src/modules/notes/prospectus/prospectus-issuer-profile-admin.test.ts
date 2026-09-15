@@ -3,6 +3,7 @@ import {
   toAdminIssuerProfileRows,
 } from "./prospectus-issuer-profile";
 import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-issuer-profile.types";
+import { buildNoteIssuerSnapshot } from "../note-issuer-snapshot";
 
 describe("toAdminIssuerProfileRows", () => {
   it("maps separate Industry and Company Size investor-visible fields", () => {
@@ -41,5 +42,32 @@ describe("toAdminIssuerProfileRows", () => {
       PROSPECTUS_DATA_NOT_AVAILABLE
     );
     expect(rows.some((r) => r.label === "Industry | Company Size")).toBe(false);
+  });
+
+  it("uses issuer_snapshot.country (built from country_of_incorporation) for Registered Country", () => {
+    const noteIssuerSnapshot = buildNoteIssuerSnapshot({
+      organization: {
+        id: "org-1",
+        name: "ABC Engineering Sdn Bhd",
+        type: "ISSUER",
+        registration_number: "201401012345",
+        country: null,
+        country_of_incorporation: " Malaysia ",
+        corporate_onboarding_data: { basicInfo: { industry: "Construction" } },
+      },
+      businessDetails: null,
+    });
+
+    const profile = buildProspectusIssuerProfile({
+      issuerSnapshot: {
+        country: noteIssuerSnapshot.country,
+      },
+      officerCompanySize: "Medium",
+    });
+
+    const rows = toAdminIssuerProfileRows(profile);
+    expect(rows.find((r) => r.label === "Registered Country")?.value).toBe(
+      "Registered in Malaysia"
+    );
   });
 });

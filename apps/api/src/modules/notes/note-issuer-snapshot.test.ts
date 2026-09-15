@@ -27,7 +27,7 @@ describe("note issuer snapshot (Note create freeze for Page 2 Stage 1)", () => {
     expect(snapshot.registration_number).not.toBe("ignored-alias");
   });
 
-  it("writes country from IssuerOrganization.country", () => {
+  it("writes country from IssuerOrganization.country when country_of_incorporation is missing", () => {
     const snapshot = buildNoteIssuerSnapshot({
       organization: {
         id: "org-1",
@@ -43,6 +43,44 @@ describe("note issuer snapshot (Note create freeze for Page 2 Stage 1)", () => {
     });
 
     expect(snapshot.country).toBe("Malaysia");
+  });
+
+  it("prefers country_of_incorporation over country when building snapshot.country", () => {
+    const snapshot = buildNoteIssuerSnapshot({
+      organization: {
+        id: "org-1",
+        name: "ABC Engineering Sdn Bhd",
+        type: "ISSUER",
+        registration_number: "201401012345",
+        country: "Malaysia",
+        country_of_incorporation: "Thailand",
+        corporate_onboarding_data: {
+          addresses: { business: { country: "Singapore" } },
+        },
+      },
+      businessDetails: null,
+    });
+
+    expect(snapshot.country).toBe("Thailand");
+  });
+
+  it("writes snapshot.country from country_of_incorporation when IssuerOrganization.country is missing", () => {
+    const snapshot = buildNoteIssuerSnapshot({
+      organization: {
+        id: "org-1",
+        name: "ABC Engineering Sdn Bhd",
+        type: "ISSUER",
+        registration_number: "201401012345",
+        country: null,
+        country_of_incorporation: " Singapore ",
+        corporate_onboarding_data: {
+          addresses: { business: { country: "Singapore" } },
+        },
+      },
+      businessDetails: null,
+    });
+
+    expect(snapshot.country).toBe("Singapore");
   });
 
   it("prefers COD whatDoesCompanyDo over application business_details", () => {
@@ -120,5 +158,22 @@ describe("note issuer snapshot (Note create freeze for Page 2 Stage 1)", () => {
       country: null,
       business_description: null,
     });
+  });
+
+  it("keeps snapshot.country null when both country and country_of_incorporation are missing", () => {
+    const snapshot = buildNoteIssuerSnapshot({
+      organization: {
+        id: "org-1",
+        name: "ABC Engineering Sdn Bhd",
+        type: "ISSUER",
+        registration_number: null,
+        country: null,
+        country_of_incorporation: null,
+        corporate_onboarding_data: { basicInfo: { industry: "Construction" } },
+      },
+      businessDetails: null,
+    });
+
+    expect(snapshot.country).toBe(null);
   });
 });
