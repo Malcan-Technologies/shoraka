@@ -409,12 +409,11 @@ describe("renderInvestmentNoteCertificateDocx", () => {
     const pageBreakIdx = xml.indexOf('<w:br w:type="page"/>');
     expect(pageBreakIdx).toBeGreaterThanOrEqual(0);
 
-    // Regression: the template must not insert an extra large spacer paragraph after the
-    // certificate->schedule page break, otherwise the schedule heading can be pushed onto
-    // a third page by Gotenberg/LibreOffice pagination.
-    const spacerParaIdx = xml.indexOf('w14:paraId="49424597"');
-    expect(spacerParaIdx).toBeGreaterThanOrEqual(0);
-    expect(xml.slice(spacerParaIdx, spacerParaIdx + 200)).toContain('<w:spacing w:after="20"/>');
+    // Regression: after the explicit certificate->schedule page break, there must not be
+    // leftover empty paragraphs that consume vertical space and cause LibreOffice/Gotenberg
+    // to push the investor schedule to a later page.
+    expect(xml).not.toContain('w14:paraId="49424597"');
+    expect(xml).not.toContain('w14:paraId="77E93925"');
 
     // There may be other "INVESTOR SCHEDULE" text earlier in the XML; ensure
     // we find the heading that comes after the inserted page break.

@@ -24,6 +24,7 @@ import {
   peopleAccessAmlChipPresentation,
   peopleAccessKycChipPresentation,
   peopleAccessPlatformLabel,
+  peopleAccessPlatformBadgeStatus,
   issuerPersonCompletenessInputFromParty,
   issuerPersonCompletenessSummary,
   PERSON_EMAIL_HELP,
@@ -129,23 +130,20 @@ export function PersonDetailView({
 
   const party = parties.find((row) => row.id === partyId) ?? null;
   const joinedPerson = party ? people.find((row) => Boolean(matchPersonToParty(row, [party]))) ?? null : null;
-  const { active, inactive: inactiveRows } = buildPeopleAccessRows({
+  const { active } = buildPeopleAccessRows({
     parties,
     people,
     members,
     invitations,
     ownerUserId: ownerUserId ?? null,
   });
-  const row = [...active, ...inactiveRows].find((item) => item.partyId === partyId);
   const inactive = party?.membershipStatus === "MASTER_INACTIVE";
   const corporate = party?.entityType === "CORPORATE";
   const orgBase = `/v1/organizations/${portal}/${organizationId}`;
   const blockOnboarding = organizationOnboardingStatus !== "COMPLETED";
   const kycGroup = joinedPerson ? getKycGroup(joinedPerson.onboarding?.status ?? "") : "NOT_STARTED";
-  const hasVerifyLink = Boolean(joinedPerson?.onboarding?.verifyLink);
   const inProgressKyc = kycGroup === "IN_PROGRESS";
   const verificationId = corporate ? customerKybId(joinedPerson) : customerKycId(joinedPerson);
-  const showResendKycEmail = canEdit && !blockOnboarding && joinedPerson && inProgressKyc && hasVerifyLink;
   const showCreateKyc =
     canEdit &&
     !blockOnboarding &&
@@ -159,6 +157,8 @@ export function PersonDetailView({
   });
   const personEmail = customerPersonEmail({ party, person: joinedPerson });
   const accountEmail = customerAccountEmail(party);
+  const linkedMember =
+    party?.userId ? members.find((m) => m.id === party.userId) ?? null : null;
   const showKycRefresh =
     canEdit &&
     !inactive &&
@@ -186,6 +186,7 @@ export function PersonDetailView({
         status: party.platformAccess.status,
       })
     : "No access";
+  const accessBadgeStatus = peopleAccessPlatformBadgeStatus(accessLabel);
   const kycStatus = customerProcessStatusLabel({
     kind: corporate ? "kyb" : "kyc",
     person: joinedPerson,
@@ -520,32 +521,34 @@ export function PersonDetailView({
         <TabsContent value="kyc" className="mt-6 space-y-4">
           <section className="space-y-4">
             <h2 className="text-card-title">{corporate ? "KYB Verification" : "KYC Verification"}</h2>
-            <ProfileFieldGrid>
-              <div className="flex items-start gap-2">
+            <div className="rounded-xl border p-4 space-y-3">
+              <ProfileFieldGrid>
                 <div className="flex items-start gap-2">
-                  <div className="space-y-1">
-                    <p className="text-meta text-muted-foreground">Status</p>
-                    {kycChip ? (
-                      <StatusBadge
-                        status={getRelatedPartyStatusToken(kycChip, "user")}
-                        label={`${corporate ? "KYB" : "KYC"} ${kycStatus}`}
-                      />
-                    ) : (
-                      <p className="text-ui text-muted-foreground">—</p>
-                    )}
+                  <div className="flex items-start gap-2">
+                    <div className="space-y-1">
+                      <p className="text-meta text-muted-foreground">Status</p>
+                      {kycChip ? (
+                        <StatusBadge
+                          status={getRelatedPartyStatusToken(kycChip, "user")}
+                          label={`${corporate ? "KYB" : "KYC"} ${kycStatus}`}
+                        />
+                      ) : (
+                        <p className="text-ui text-muted-foreground">—</p>
+                      )}
+                    </div>
                   </div>
+                  {showKycRefresh ? (
+                    <PartyStatusRefreshControl busy={refreshing} onRefresh={() => void refreshPartyStatus()} />
+                  ) : null}
                 </div>
-                {showKycRefresh ? (
-                  <PartyStatusRefreshControl busy={refreshing} onRefresh={() => void refreshPartyStatus()} />
+                {kycStage ? <ProfileReadField label="Current stage" value={kycStage} /> : null}
+                {verificationId ? (
+                  <ProfileReadField label={corporate ? "KYB ID" : "KYC ID"} value={verificationId} />
                 ) : null}
-              </div>
-              {kycStage ? <ProfileReadField label="Current Stage" value={kycStage} /> : null}
-              {verificationId ? (
-                <ProfileReadField label={corporate ? "KYB ID" : "KYC ID"} value={verificationId} />
-              ) : null}
-              {!corporate ? <ProfileReadField label="Person Email" value={personEmail || "—"} /> : null}
-              {approvedAt ? <ProfileReadField label="Approved date" value={approvedAt} /> : null}
-            </ProfileFieldGrid>
+                {!corporate ? <ProfileReadField label="Person Email" value={personEmail || "—"} /> : null}
+                {approvedAt ? <ProfileReadField label="Approved date" value={approvedAt} /> : null}
+              </ProfileFieldGrid>
+            </div>
             {showCreateKyc ? (
               <div className="space-y-3">
                 {!personEmail.trim() && !emailLocked ? (
@@ -590,59 +593,46 @@ export function PersonDetailView({
                 </Button>
               </div>
             ) : null}
-            {showResendKycEmail ? (
-              <div className="space-y-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={sendPending}
-                  onClick={async () => {
-                    setSendPending(true);
-                    try {
-                      const sendRes = await api.post(`${orgBase}/send-director-onboarding`, {
-                        partyKey: party.partyKey,
-                      });
-                      if (!sendRes.success) {
-                        toast.error(sendRes.error.message);
-                        return;
-                      }
-                      toast.success("Onboarding email resent");
-                      await invalidate();
-                    } finally {
-                      setSendPending(false);
-                    }
-                  }}
-                >
-                  Resend onboarding email
-                </Button>
-                <p className="text-meta text-muted-foreground">
-                  An onboarding request is already in progress. Resend uses the stored link and does not create a new
-                  request.
-                </p>
-              </div>
-            ) : null}
           </section>
         </TabsContent>
 
         <TabsContent value="aml" className="mt-6">
           <section className="space-y-4">
             <h2 className="text-card-title">AML Screening</h2>
-            <ProfileFieldGrid>
-              <div className="flex items-start gap-2">
-                <div className="space-y-1">
-                  <p className="text-meta text-muted-foreground">Status</p>
-                  {amlChip ? (
-                    <StatusBadge status={getRelatedPartyStatusToken(amlChip, "user")} label={`AML ${amlStatus}`} />
-                  ) : (
-                    <p className="text-ui text-muted-foreground">—</p>
-                  )}
+
+            <div className="rounded-xl border p-4 space-y-3">
+              <ProfileFieldGrid>
+                <div className="flex items-start gap-2">
+                  <div className="space-y-1">
+                    <p className="text-meta text-muted-foreground">Status</p>
+                    {amlChip ? (
+                      <StatusBadge
+                        status={getRelatedPartyStatusToken(amlChip, "user")}
+                        label={`AML ${amlStatus}`}
+                      />
+                    ) : (
+                      <p className="text-ui text-muted-foreground">—</p>
+                    )}
+                  </div>
+                  {showAmlRefresh ? (
+                    <PartyStatusRefreshControl busy={refreshing} onRefresh={() => void refreshPartyStatus()} />
+                  ) : null}
                 </div>
-                {showAmlRefresh ? (
-                  <PartyStatusRefreshControl busy={refreshing} onRefresh={() => void refreshPartyStatus()} />
+
+                <ProfileReadField
+                  label="Screening"
+                  value={corporate ? "Company screening" : "Person screening"}
+                />
+
+                {verificationId ? (
+                  <ProfileReadField
+                    label={corporate ? "Related KYB" : "Related KYC"}
+                    value={verificationId}
+                  />
                 ) : null}
-              </div>
-            </ProfileFieldGrid>
-            {amlWaiting ? <p className="text-ui text-muted-foreground">{amlWaiting}</p> : null}
+              </ProfileFieldGrid>
+              {amlWaiting ? <p className="text-ui text-muted-foreground">{amlWaiting}</p> : null}
+            </div>
           </section>
         </TabsContent>
 
@@ -650,12 +640,18 @@ export function PersonDetailView({
           <TabsContent value="access" className="mt-6 space-y-4">
             <section className="space-y-4">
               <h2 className="text-card-title">Platform Access</h2>
+              {accessBadgeStatus ? (
+                <StatusBadge status={accessBadgeStatus} label={accessLabel} />
+              ) : (
+                <p className="text-ui text-muted-foreground">—</p>
+              )}
+              <p className="text-meta text-muted-foreground">Account</p>
               {accessLabel === "No access" || accessLabel === "Invitation expired" ? (
                 <>
-                  <ProfileReadField
-                    label="Access"
-                    value={accessLabel === "No access" ? "No CashSouk account" : accessLabel}
-                  />
+                  <ProfileFieldGrid>
+                    <ProfileReadField label="Access" value={accessLabel} />
+                    <ProfileReadField label="Account" value="No platform account" />
+                  </ProfileFieldGrid>
                   <p className="text-ui text-muted-foreground">
                     {accessLabel === "No access"
                       ? "This person does not currently have access to this organisation."
@@ -672,8 +668,9 @@ export function PersonDetailView({
                 <>
                   <ProfileFieldGrid>
                     <ProfileReadField label="Access" value="Invitation sent" />
+                    <ProfileReadField label="Account" value="No platform account" />
                     <ProfileReadField
-                      label="Account Email"
+                      label="Invitation email"
                       value={
                         invitations.find((item) => item.id === party.platformAccess.invitationId)?.email || "—"
                       }
@@ -717,8 +714,16 @@ export function PersonDetailView({
                   <ProfileFieldGrid>
                     <ProfileReadField label="Access" value={accessLabel} />
                     <ProfileReadField
+                      label="Account"
+                      value={
+                        linkedMember
+                          ? `${linkedMember.firstName} ${linkedMember.lastName}`.trim() || accountEmail || "—"
+                          : accountEmail || "—"
+                      }
+                    />
+                    <ProfileReadField
                       label="Account Email"
-                      value={accountEmail || row?.accountEmail || "—"}
+                      value={accountEmail || "—"}
                     />
                   </ProfileFieldGrid>
                   {canEdit && accessLabel !== "Owner" && party.userId !== currentUserId ? (

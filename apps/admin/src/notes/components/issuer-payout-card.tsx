@@ -650,9 +650,9 @@ export function IssuerPayoutCard({
           <div className="flex flex-wrap items-center gap-2">
             <WorkflowStepTitle
               complete={tawarruqTone === "success"}
-              completeLabel="1. Tawarruq complete"
+              completeLabel="Tawarruq complete"
             >
-              1. Tawarruq transaction
+              Tawarruq transaction
             </WorkflowStepTitle>
             {tawarruqTone === "success" ? null : shorakaStateQuery.isPending ? (
               <StatusBadge label="Checking…" status="neutral" />
@@ -917,11 +917,11 @@ export function IssuerPayoutCard({
             complete={payoutComplete}
             completeLabel={
               kind === "DISBURSEMENT"
-                ? "2. Trustee instruction complete"
+                ? "Trustee instruction complete"
                 : "Trustee instruction complete"
             }
           >
-            {kind === "DISBURSEMENT" ? "2. Trustee instruction" : "Trustee instruction"}
+            {kind === "DISBURSEMENT" ? "Trustee instruction" : "Trustee instruction"}
           </WorkflowStepTitle>
           {payoutComplete ? null : (
             <StatusBadge

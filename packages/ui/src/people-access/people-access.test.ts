@@ -47,7 +47,8 @@ describe("People & Access customer UI", () => {
 
   it("does not create a second KYC request while IN_PROGRESS", () => {
     expect(detail).toContain("!inProgressKyc");
-    expect(detail).toContain("An onboarding request is already in progress");
+    expect(detail).not.toContain("Resend onboarding email");
+    expect(detail).not.toContain("An onboarding request is already in progress");
     expect(section).toContain('!== "IN_PROGRESS"');
   });
 

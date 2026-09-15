@@ -5,7 +5,7 @@
 import type { ApplicationPersonRow } from "./application-people-display";
 import {
   getRegtankCorporateOnboardingUrl,
-  getRegtankCorporatePersonOnboardingUrl,
+  getRegtankColumnDisplayRows,
   getRegtankKycResultUrl,
   getRegtankKybResultUrl,
   getRegtankLivenessUrl,
@@ -194,7 +194,17 @@ export function buildAdminPersonRegTankRoleRecords(params: {
 }): AdminPersonRegTankRoleRecord[] {
   const person = params.person;
   if (!person) return [];
-  const parentCod = trimId(person.parentCorporateRequestId);
+
+  // CRITICAL: Reuse the exact same onboarding URL routing as the Application Review Financial table.
+  // That table uses `getRegtankColumnDisplayRows()` → `getRegtankOnboardingViewLinks()`.
+  const onboardingRows = getRegtankColumnDisplayRows(person).filter(
+    (r) => r.kind === "onboarding"
+  );
+  const resolveOnboardingUrl = (requestId: string): string | null => {
+    const hit = onboardingRows.find((r) => r.requestId === requestId);
+    return hit?.url ?? null;
+  };
+
   const directorEod = trimId(person.directorEodRequestId);
   const shareholderEod = trimId(person.shareholderEodRequestId);
   const ownCod = trimId(person.partyCorporateRequestId);
@@ -208,7 +218,7 @@ export function buildAdminPersonRegTankRoleRecords(params: {
         title: "Corporate shareholder",
         requestId: ownCod,
         stageLabel: personStage,
-        url: getRegtankCorporateOnboardingUrl(ownCod),
+        url: resolveOnboardingUrl(ownCod) ?? getRegtankCorporateOnboardingUrl(ownCod),
         actionLabel: "View onboarding",
       });
     }
@@ -219,35 +229,31 @@ export function buildAdminPersonRegTankRoleRecords(params: {
     kind: "director" | "shareholder",
     title: string,
     eod: string,
-    actionLabel: string
   ) => {
     if (!eod) return;
     const roleStatus = roleOnboardingStatusFromCorporateEntities(params.corporateEntities, eod);
-    const url = parentCod
-      ? getRegtankCorporatePersonOnboardingUrl(parentCod, eod)
-      : eod.startsWith("LD")
-        ? getRegtankLivenessUrl(eod)
-        : null;
+    // URL reuse (no second URL builder): resolved via Application Review Financial onboarding rows.
+    const url = resolveOnboardingUrl(eod);
     records.push({
       kind,
       title,
       requestId: eod,
       stageLabel: adminOnboardingStageLabel(roleStatus ?? person.onboarding?.status),
       url,
-      actionLabel: url ? (eod.startsWith("LD") ? "View onboarding" : actionLabel) : "Open in RegTank",
+      actionLabel: "View onboarding",
     });
   };
 
   if (directorEod && directorEod === shareholderEod) {
-    pushPerson("director", "Director and shareholder", directorEod, "View onboarding");
+    pushPerson("director", "Director and shareholder", directorEod);
     return records;
   }
   if (directorEod) {
-    pushPerson("director", "Director", directorEod, "View Director onboarding");
+    pushPerson("director", "Director", directorEod);
   }
   if (shareholderEod) {
     const share = person.sharePercentage != null ? ` · ${person.sharePercentage}%` : "";
-    pushPerson("shareholder", `Shareholder${share}`, shareholderEod, "View Shareholder onboarding");
+    pushPerson("shareholder", `Shareholder${share}`, shareholderEod);
   }
   if (records.length === 0) {
     const ld = collectPartyRegTankRefreshIds(person).individualOnboardingRequestId;
@@ -257,7 +263,7 @@ export function buildAdminPersonRegTankRoleRecords(params: {
         title: "Individual onboarding",
         requestId: ld,
         stageLabel: personStage,
-        url: getRegtankLivenessUrl(ld),
+        url: resolveOnboardingUrl(ld) ?? getRegtankLivenessUrl(ld),
         actionLabel: "View onboarding",
       });
     }

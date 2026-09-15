@@ -169,7 +169,7 @@ describe("Admin organisation tabs", () => {
     expect(detail).toContain('value="kyc"');
     expect(detail).toContain('value="aml"');
     expect(detail).toContain("verificationLabel");
-    expect(detail).toContain("Business verification (KYB). Individual KYC is not required.");
+    expect(detail).toContain("KYB Verification");
     expect(screening).toContain("KYC/AML Screening Result");
     expect(screening).not.toContain("KYB/AML Screening Result");
     expect(screening).not.toContain("Organisation Screening Result");
