@@ -72,6 +72,7 @@ export function PersonDetailView({
   ownerUserId,
   currentUserId,
   canEdit,
+  canManagePlatformAccess,
   canInactivate = false,
   canReactivate = canEdit,
   onBack,
@@ -87,6 +88,7 @@ export function PersonDetailView({
   ownerUserId?: string | null;
   currentUserId?: string | null;
   canEdit: boolean;
+  canManagePlatformAccess: boolean;
   canInactivate?: boolean;
   canReactivate?: boolean;
   onBack: () => void;
@@ -657,7 +659,7 @@ export function PersonDetailView({
                       ? "This person does not currently have access to this organisation."
                       : "The previous invitation expired before it was accepted."}
                   </p>
-                  {canEdit ? (
+                  {canManagePlatformAccess ? (
                     <Button type="button" onClick={() => setInviteOpen(true)}>
                       Invite user
                     </Button>
@@ -676,7 +678,7 @@ export function PersonDetailView({
                       }
                     />
                   </ProfileFieldGrid>
-                  {canEdit ? (
+                  {canManagePlatformAccess ? (
                     <div className="flex flex-wrap gap-2">
                       <Button
                         type="button"
@@ -726,7 +728,7 @@ export function PersonDetailView({
                       value={accountEmail || "—"}
                     />
                   </ProfileFieldGrid>
-                  {canEdit && accessLabel !== "Owner" && party.userId !== currentUserId ? (
+                  {canManagePlatformAccess && accessLabel !== "Owner" && party.userId !== currentUserId ? (
                     <div className="flex flex-wrap gap-2">
                       {accessLabel === "User" ? (
                         <Button

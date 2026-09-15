@@ -51,6 +51,12 @@ export default function InvestorPersonDetailPage() {
     return activeOrganization.members?.find((member) => member.id === currentUser.userId)?.role === "ORGANIZATION_ADMIN";
   }, [activeOrganization, currentUser]);
 
+  const canEditCompanyPerson = React.useMemo(() => {
+    if (!activeOrganization || !currentUser) return false;
+    if (activeOrganization.isOwner) return true;
+    return Boolean(activeOrganization.members?.find((member) => member.id === currentUser.userId));
+  }, [activeOrganization, currentUser]);
+
   const { invitations } = useOrganizationInvitations(activeOrganization?.id, {
     enabled: isCurrentUserAdmin,
   });
@@ -72,8 +78,9 @@ export default function InvestorPersonDetailPage() {
           invitations={invitations}
           ownerUserId={activeOrganization.ownerId}
           currentUserId={currentUser?.userId}
-          canEdit={isCurrentUserAdmin}
-          canInactivate={isCurrentUserAdmin && activeOrganization.type === "COMPANY"}
+          canEdit={canEditCompanyPerson}
+          canInactivate={canEditCompanyPerson && activeOrganization.type === "COMPANY"}
+          canManagePlatformAccess={isCurrentUserAdmin}
           onBack={() => router.push("/profile?tab=people")}
           onChanged={async () => {
             await queryClient.invalidateQueries({ queryKey: ["organization-detail", activeOrganization.id] });

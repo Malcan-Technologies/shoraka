@@ -237,7 +237,7 @@ test.describe("Investor profile-completeness banner placement", () => {
       matchKey: "dir_pending_1",
       onboarding: { status: "IN_PROGRESS" },
       screening: { status: null },
-    } as any,
+  },
   ];
 
   const directorApproved = [
@@ -248,7 +248,7 @@ test.describe("Investor profile-completeness banner placement", () => {
       matchKey: "dir_approved_1",
       onboarding: { status: "APPROVED" },
       screening: { status: null },
-    } as any,
+  },
   ];
 
   test("corporate investor: red only (yellow hidden)", async ({ page }) => {
