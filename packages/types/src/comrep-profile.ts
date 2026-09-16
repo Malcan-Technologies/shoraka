@@ -379,9 +379,9 @@ export function formatScPurposeOfFundRaisingDisplay(
   if (purpose !== "OTHERS") return label;
   const otherText = trimmedPurposeText(other);
   // Display rule:
-  // - OTHERS + actual custom value → display ONLY the custom value
+  // - OTHERS + actual custom value → prefix with "Others: …"
   // - OTHERS + empty custom value → preserve fallback label ("Others")
-  return otherText ? otherText : label;
+  return otherText ? `${label}: ${otherText}` : label;
 }
 
 /**

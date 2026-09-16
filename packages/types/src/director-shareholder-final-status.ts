@@ -57,8 +57,13 @@ const IN_PROGRESS = new Set([
 const APPROVED_DONE = new Set(["APPROVED", "AML_APPROVED", "CLEAR"]);
 
 export type DirectorShareholderStatusPerson = {
-  onboarding?: { status?: string | null } | null;
-  screening?: { status?: string | null } | null;
+  onboarding?: { status?: string | null; id?: string | null } | null;
+  screening?: { status?: string | null; id?: string | null } | null;
+  /**
+   * Optional KYC-screening request id stored separately.
+   * Used to detect the KYC reference needed for AML progression.
+   */
+  screeningRequestId?: string | null;
 };
 
 /**
@@ -67,12 +72,41 @@ export type DirectorShareholderStatusPerson = {
 export function getDirectorShareholderEffectiveStatus(
   person: DirectorShareholderStatusPerson
 ): { source: DirectorShareholderEffectiveStatusSource; value: string } {
-  const aml = normalizeRawStatus(person.screening?.status);
-  if (aml && !isKycOnboardingNotStartedToken(aml)) return { source: "AML", value: aml };
+  const idCandidates = [
+    person.screening?.id,
+    person.screeningRequestId,
+    person.onboarding?.id,
+  ]
+    .map((v) => String(v ?? "").trim())
+    .filter(Boolean);
+
+  const hasKycIdRef = idCandidates.some((id) => id.toUpperCase().startsWith("KYC"));
+  const hasKyBIdRef = idCandidates.some((id) => id.toUpperCase().startsWith("KYB"));
+
   const onboarding = normalizeRawStatus(person.onboarding?.status);
+  const aml = normalizeRawStatus(person.screening?.status);
+
+  const onboardingInPlay = Boolean(onboarding) && !isKycOnboardingNotStartedToken(onboarding);
+  const approvedCompleteWithId = onboarding === "APPROVED" && (hasKycIdRef || hasKyBIdRef);
+
+  // AML must not be shown as the effective status until KYC is truly complete:
+  // APPROVED + KYC id/reference exists.
+  if (aml && !isKycOnboardingNotStartedToken(aml)) {
+    if (onboardingInPlay && !approvedCompleteWithId) {
+      // Ignore AML until KYC is complete.
+    } else {
+      return { source: "AML", value: aml };
+    }
+  }
+
+  const approvedButNoId = onboarding === "APPROVED" && !(hasKycIdRef || hasKyBIdRef);
   return {
     source: "ONBOARDING",
-    value: isKycOnboardingNotStartedToken(onboarding) ? "" : onboarding,
+    value: isKycOnboardingNotStartedToken(onboarding)
+      ? ""
+      : approvedButNoId
+        ? "IN_PROGRESS"
+        : onboarding,
   };
 }
 
@@ -138,9 +172,23 @@ export function getFinalStatusLabel(
     options?.displayMode === "kyc_only"
       ? {
           source: "ONBOARDING" as const,
-          value: isKycOnboardingNotStartedToken(person.onboarding?.status)
-            ? ""
-            : normalizeRawStatus(person.onboarding?.status),
+          value: (() => {
+            const idCandidates = [
+              person.screening?.id,
+              person.screeningRequestId,
+              person.onboarding?.id,
+            ]
+              .map((v) => String(v ?? "").trim())
+              .filter(Boolean);
+
+            const hasKycIdRef = idCandidates.some((id) => id.toUpperCase().startsWith("KYC"));
+            const hasKyBIdRef = idCandidates.some((id) => id.toUpperCase().startsWith("KYB"));
+
+            const onboarding = normalizeRawStatus(person.onboarding?.status);
+            if (isKycOnboardingNotStartedToken(onboarding)) return "";
+            if (onboarding === "APPROVED" && !(hasKycIdRef || hasKyBIdRef)) return "IN_PROGRESS";
+            return onboarding;
+          })(),
         }
       : getDirectorShareholderEffectiveStatus(person);
   return labelFromEffective(effective);

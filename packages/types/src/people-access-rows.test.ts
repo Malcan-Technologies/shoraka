@@ -121,19 +121,82 @@ describe("peopleAccessKycLabel / peopleAccessAmlLabel", () => {
     expect(peopleAccessKycLabel({ ...eligible, onboarding: { status: "WAIT_FOR_APPROVAL" } })).toBe(
       "Pending approval"
     );
-    expect(peopleAccessKycLabel({ ...eligible, onboarding: { status: "APPROVED" } })).toBe("Approved");
+    expect(
+      peopleAccessKycLabel({
+        ...eligible,
+        onboarding: { status: "APPROVED" },
+        screening: { status: "PENDING", id: "KYC1" },
+      })
+    ).toBe("Approved");
     expect(peopleAccessKycLabel({ ...eligible, onboarding: { status: "REJECTED" } })).toBe("Rejected");
     expect(peopleAccessKycLabel({ ...eligible, onboarding: { status: "EXPIRED" } })).toBe("Expired");
   });
 
-  it("maps AML independently of KYC", () => {
-    const kycApproved = { ...eligible, onboarding: { status: "APPROVED" }, screening: { status: "PENDING" } };
+  it("does NOT show AML until KYC is approved + KYC id exists", () => {
+    const kycApprovedNoId = { ...eligible, onboarding: { status: "APPROVED" }, screening: { status: "PENDING" } };
+    expect(peopleAccessKycLabel(kycApprovedNoId)).toBe("In progress");
+    expect(peopleAccessAmlLabel(kycApprovedNoId)).toBe("Not started");
+
+    const kycApproved = { ...eligible, onboarding: { status: "APPROVED" }, screening: { status: "PENDING", id: "KYC1" } };
     expect(peopleAccessKycLabel(kycApproved)).toBe("Approved");
     expect(peopleAccessAmlLabel(kycApproved)).toBe("Pending");
     expect(peopleAccessAmlLabel({ ...eligible, screening: { status: "NOT_STARTED" } })).toBe("Not started");
-    expect(peopleAccessAmlLabel({ ...eligible, screening: { status: "CLEAR" } })).toBe("Approved");
-    expect(peopleAccessAmlLabel({ ...eligible, screening: { status: "FAILED" } })).toBe("Rejected");
-    expect(peopleAccessAmlLabel({ ...eligible, screening: { status: "UNDER_REVIEW" } })).toBe("Pending");
+
+    expect(
+      peopleAccessAmlLabel({
+        ...eligible,
+        onboarding: { status: "APPROVED" },
+        screening: { status: "CLEAR", id: "KYC1" },
+      })
+    ).toBe("Approved");
+    expect(
+      peopleAccessAmlLabel({
+        ...eligible,
+        onboarding: { status: "APPROVED" },
+        screening: { status: "FAILED", id: "KYC1" },
+      })
+    ).toBe("Rejected");
+    expect(
+      peopleAccessAmlLabel({
+        ...eligible,
+        onboarding: { status: "APPROVED" },
+        screening: { status: "UNDER_REVIEW", id: "KYC1" },
+      })
+    ).toBe("Pending");
+  });
+
+  it("matches semantic progression for Director vs Shareholder (RegTank INDIVIDUAL)", () => {
+    const director = person({ matchKey: "d1", roles: ["DIRECTOR"] });
+    const shareholder = person({ matchKey: "s1", roles: ["SHAREHOLDER"], sharePercentage: 10 });
+    const directorAndShareholder = person({
+      matchKey: "x1",
+      roles: ["DIRECTOR", "SHAREHOLDER"],
+      sharePercentage: 10,
+    });
+
+    for (const p of [director, shareholder, directorAndShareholder]) {
+      expect(peopleAccessKycLabel({ ...p, onboarding: { status: "WAIT_FOR_APPROVAL" } })).toBe(
+        "Pending approval"
+      );
+      expect(peopleAccessAmlLabel({ ...p, onboarding: { status: "WAIT_FOR_APPROVAL" }, screening: { status: "PENDING" } })).toBe(
+        "Not started"
+      );
+
+      const kycApprovedPendingAml = {
+        ...p,
+        onboarding: { status: "APPROVED" },
+        screening: { status: "PENDING", id: "KYC1" },
+      };
+      expect(peopleAccessKycLabel(kycApprovedPendingAml)).toBe("Approved");
+      expect(peopleAccessAmlLabel(kycApprovedPendingAml)).toBe("Pending");
+
+      const amlApproved = {
+        ...p,
+        onboarding: { status: "APPROVED" },
+        screening: { status: "CLEAR", id: "KYC1" },
+      };
+      expect(peopleAccessAmlLabel(amlApproved)).toBe("Approved");
+    }
   });
 
   it("does not show Not started when no KYC is expected", () => {
@@ -170,14 +233,18 @@ describe("peopleAccessKycChipPresentation / peopleAccessAmlChipPresentation", ()
     expect(
       peopleAccessKycChipPresentation({ ...eligible, onboarding: { status: "WAIT_FOR_APPROVAL" } })?.label
     ).toBe("Pending Review");
-    expect(peopleAccessKycChipPresentation({ ...eligible, onboarding: { status: "APPROVED" } })?.label).toBe(
-      "Approved"
-    );
+    expect(
+      peopleAccessKycChipPresentation({
+        ...eligible,
+        onboarding: { status: "APPROVED" },
+        screening: { status: "NOT_STARTED", id: "KYC1" },
+      })?.label
+    ).toBe("Approved");
     expect(
       peopleAccessAmlChipPresentation({
         ...eligible,
         onboarding: { status: "APPROVED" },
-        screening: { status: "PENDING" },
+        screening: { status: "PENDING", id: "KYC1" },
       })?.label
     ).toBe("Pending Review");
     expect(
@@ -190,6 +257,7 @@ describe("peopleAccessKycChipPresentation / peopleAccessAmlChipPresentation", ()
           sharePercentage: 50,
         }),
         onboarding: { status: "APPROVED" },
+        screening: { status: "NOT_STARTED", id: "KYB1" },
       })?.label
     ).toBe("Approved");
   });
@@ -213,7 +281,7 @@ describe("buildPeopleAccessRows", () => {
           roles: ["SHAREHOLDER"],
           sharePercentage: 10,
           onboarding: { status: "APPROVED" },
-          screening: { status: "CLEAR" },
+          screening: { status: "CLEAR", id: "KYC1" },
         }),
       ],
       members: [],

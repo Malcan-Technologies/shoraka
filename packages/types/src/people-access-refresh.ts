@@ -87,8 +87,9 @@ export function partyHasRegTankRefreshIds(ids: PartyRegTankRefreshIds): boolean 
 
 /** Approved / Completed — hide the compact refresh control for that process. */
 export function isPartyRegTankProcessTerminal(status: string | null | undefined): boolean {
-  const label = getFinalStatusLabel({ onboarding: { status } }).label;
-  return label === "Approved" || label === "Completed";
+  const s = String(status ?? "").trim().toUpperCase();
+  if (!s) return false;
+  return s === "APPROVED" || s === "COMPLETED" || s === "AML_APPROVED" || s === "CLEAR";
 }
 
 export function partyKycRefreshIds(ids: PartyRegTankRefreshIds): string[] {

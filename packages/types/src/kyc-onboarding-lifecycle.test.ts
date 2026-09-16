@@ -61,8 +61,17 @@ describe("People KYC badge labels", () => {
 
   it("shows Approved when KYC is approved", () => {
     expect(
-      getFinalStatusLabel({ onboarding: { status: "APPROVED" } }, { displayMode: "kyc_only" }).label
+      getFinalStatusLabel(
+        { onboarding: { status: "APPROVED" }, screening: { id: "KYC1", status: "NOT_STARTED" } },
+        { displayMode: "kyc_only" }
+      ).label
     ).toBe("Approved");
+  });
+
+  it("does NOT show Approved when onboarding is APPROVED but KYC id/reference is missing", () => {
+    expect(
+      getFinalStatusLabel({ onboarding: { status: "APPROVED" } }, { displayMode: "kyc_only" }).label
+    ).toBe("In Progress");
   });
 
   it("keeps AML Not Started when only KYC has a placeholder", () => {

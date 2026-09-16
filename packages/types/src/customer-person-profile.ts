@@ -238,7 +238,9 @@ export function customerAmlWaitingCopy(params: {
   amlLabel: string;
 }): string | null {
   if (params.corporate) return null;
-  const kycApproved = isPersonKycApproved(params.person?.onboarding?.status);
+  const kycApproved =
+    isPersonKycApproved(params.person?.onboarding?.status) &&
+    Boolean(params.person && collectPartyRegTankRefreshIds(params.person).kycId);
   const amlGroup = getAmlGroup(params.person?.screening?.status ?? "");
   if (!kycApproved && (amlGroup === "NOT_STARTED" || params.amlLabel === "Not started" || params.amlLabel === "—")) {
     return "AML screening will begin after KYC approval.";
@@ -247,7 +249,9 @@ export function customerAmlWaitingCopy(params: {
 }
 
 export function customerApprovedAt(person: ApplicationPersonRow | null | undefined): string {
-  if (!isPersonKycApproved(person?.onboarding?.status)) return "";
+  const kycApproved =
+    isPersonKycApproved(person?.onboarding?.status) && Boolean(person && collectPartyRegTankRefreshIds(person).kycId);
+  if (!kycApproved) return "";
   return formatCustomerProfileDate(person?.onboarding?.updatedAt);
 }
 

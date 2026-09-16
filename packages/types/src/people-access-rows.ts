@@ -14,6 +14,7 @@ import type { OrganizationPartyProfileDto } from "./organization-party-profile";
 import {
   peopleAccessShowsCorporateAmlChip,
   peopleAccessShowsCorporateKycChip,
+  collectPartyRegTankRefreshIds,
 } from "./people-access-refresh";
 import {
   isMemberWithoutCompanyRole,
@@ -168,7 +169,11 @@ export function peopleAccessPlatformLabel(input: {
 
 export function peopleAccessKycLabel(person: ApplicationPersonRow | null | undefined): PeopleAccessKycLabel {
   if (!person || !requiresOnboardingEmail(person)) return "—";
-  return kycGroupToPeopleAccessLabel(getKycGroup(person.onboarding?.status ?? ""));
+  const group = getKycGroup(person.onboarding?.status ?? "");
+  if (group === "APPROVED" && !collectPartyRegTankRefreshIds(person).kycId) {
+    return kycGroupToPeopleAccessLabel("IN_PROGRESS");
+  }
+  return kycGroupToPeopleAccessLabel(group);
 }
 
 /** Corporate KYB onboarding — never an individual KYC status. */
@@ -202,6 +207,10 @@ function kycGroupToPeopleAccessLabel(group: ReturnType<typeof getKycGroup>): Peo
 
 export function peopleAccessAmlLabel(person: ApplicationPersonRow | null | undefined): PeopleAccessAmlLabel {
   if (!person || !requiresOnboardingEmail(person)) return "—";
+  const kycComplete =
+    getKycGroup(person.onboarding?.status ?? "") === "APPROVED" &&
+    Boolean(collectPartyRegTankRefreshIds(person).kycId);
+  if (!kycComplete) return "Not started";
   const group = getAmlGroup(person.screening?.status ?? "");
   switch (group) {
     case "NOT_STARTED":
@@ -240,7 +249,11 @@ export function peopleAccessAmlChipPresentation(
     return getFinalStatusLabel({ screening: person.screening });
   }
   if (peopleAccessAmlLabel(person) === "—") return null;
-  return getFinalStatusLabel({ screening: person.screening });
+  const kycComplete =
+    getKycGroup(person.onboarding?.status ?? "") === "APPROVED" &&
+    Boolean(collectPartyRegTankRefreshIds(person).kycId);
+  if (!kycComplete) return getFinalStatusLabel({ onboarding: { status: "NOT_STARTED" } }, { displayMode: "kyc_only" });
+  return getFinalStatusLabel(person);
 }
 
 function memberDisplayName(member: PeopleAccessMember): string {
