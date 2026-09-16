@@ -41,12 +41,28 @@ export function extractRegTankScreeningPatch(
   const patch: Record<string, unknown> = {
     requestId: id,
     status,
-    provider: "REGTANK",
+    // `/v3/kyc/query` is the Acuris KYC endpoint in this flow.
+    // Persist the provider label to match webhook-normalized screening objects.
+    provider: "ACURIS",
     updatedAt: new Date().toISOString(),
   };
   if (isRecord(row)) {
-    if (row.riskLevel != null) patch.riskLevel = row.riskLevel;
-    if (row.riskScore != null) patch.riskScore = row.riskScore;
+    // Actual `/v3/kyc/query` response shape (your KYC00196 example):
+    // {
+    //   requestId, messageStatus, status,
+    //   individualRiskScore: { level, score, ... }
+    // }
+    const irs = row.individualRiskScore;
+    if (isRecord(irs)) {
+      if (irs.level != null) patch.riskLevel = irs.level;
+      if (irs.score != null) patch.riskScore = irs.score;
+    }
+
+    // Backward-compatible: support older/alternative shapes if present.
+    if (patch.riskLevel === undefined && row.riskLevel != null) patch.riskLevel = row.riskLevel;
+    if (patch.riskScore === undefined && row.riskScore != null) patch.riskScore = row.riskScore;
+
+    // Webhook-like field name for AML messaging state.
     if (row.messageStatus != null) patch.messageStatus = row.messageStatus;
   }
   return patch;

@@ -132,4 +132,34 @@ describe("email-only supplement merge", () => {
     expect(getCtosPartySupplementPipelineStatus(afterSend)).toBe("IN_PROGRESS");
     expect(getCtosPartySupplementRequestId(afterSend)).toBe("LD80084");
   });
+
+  it("preserves existing riskLevel/riskScore when screening patch omits them", () => {
+    const base = mergeCtosPartySupplementDocument(null, {
+      onboarding: {
+        requestId: "LD86455",
+        status: "APPROVED",
+      },
+      screening: {
+        requestId: "KYC00196",
+        status: "APPROVED",
+        provider: "ACURIS",
+        riskLevel: "Low Risk",
+        riskScore: "1.0",
+        messageStatus: "DONE",
+      },
+    });
+
+    const after = mergeCtosPartySupplementDocument(base, {
+      screening: {
+        requestId: "KYC00196",
+        status: "APPROVED",
+        provider: "ACURIS",
+        messageStatus: "DONE",
+        // riskLevel/riskScore intentionally omitted
+      },
+    });
+
+    expect(after.screening?.riskLevel).toBe("Low Risk");
+    expect(after.screening?.riskScore).toBe("1.0");
+  });
 });
