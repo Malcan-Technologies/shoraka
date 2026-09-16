@@ -216,6 +216,10 @@ describe("customer person Profile mapping", () => {
     expect(formatCustomerProfileDate("2026-09-10")).toBe("10 Sep 2026");
   });
 
+  it("formats DOB date-only calendar values without shifting", () => {
+    expect(formatCustomerProfileDate("1989-11-14")).toBe("14 Nov 1989");
+  });
+
   it("does not include CTOS evidence in customer Overview", () => {
     const sections = buildCustomerPersonOverviewSections({
       party: party({

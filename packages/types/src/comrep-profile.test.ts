@@ -464,6 +464,46 @@ describe("investor personal completeness [07000]", () => {
     expect(result.missing.some((m) => m.field === "address.line1")).toBe(false);
   });
 
+  it("keeps investor profile incomplete when dateOfBirth is missing", () => {
+    const result = buildInvestorProfileCompleteness({
+      organizationType: "PERSONAL",
+      personal: {
+        name: "Ali Bin Abu",
+        identityPrefix: "NRIC",
+        identityNumber: "800101011234",
+        dateOfBirth: null,
+        gender: "MALE",
+        state: "Selangor",
+        postalCode: "47300",
+        nationality: "Malaysia",
+        scInvestorCategory: "RETAIL",
+        isSophisticatedInvestor: false,
+      },
+    });
+    expect(result.complete).toBe(false);
+    expect(result.missing.some((m) => m.field === "dateOfBirth")).toBe(true);
+  });
+
+  it("recognizes a saved dateOfBirth value for investor profile completeness", () => {
+    const result = buildInvestorProfileCompleteness({
+      organizationType: "PERSONAL",
+      personal: {
+        name: "Ali Bin Abu",
+        identityPrefix: "NRIC",
+        identityNumber: "800101011234",
+        dateOfBirth: "1989-11-14",
+        gender: "MALE",
+        state: "Selangor",
+        postalCode: "47300",
+        nationality: "Malaysia",
+        scInvestorCategory: "RETAIL",
+        isSophisticatedInvestor: false,
+      },
+    });
+    expect(result.complete).toBe(true);
+    expect(result.missing.some((m) => m.field === "dateOfBirth")).toBe(false);
+  });
+
   it("does not require company-only incorporation fields on a personal investor", () => {
     const result = buildInvestorProfileCompleteness({
       organizationType: "PERSONAL",

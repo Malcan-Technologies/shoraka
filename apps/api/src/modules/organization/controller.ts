@@ -466,7 +466,14 @@ async function getOrganization(
         country: org.country || null,
         idIssuingCountry: org.id_issuing_country || null,
         gender: org.gender || null,
-        dateOfBirth: org.date_of_birth || null,
+        // `date_of_birth` is a date-only calendar field.
+        // Returning a raw JS `Date` (or using `toISOString()`/UTC) is timezone-sensitive and can shift the calendar day.
+        // Preserve the stored calendar date by extracting local `YYYY-MM-DD`.
+        dateOfBirth: org.date_of_birth
+          ? `${org.date_of_birth.getFullYear()}-${String(org.date_of_birth.getMonth() + 1).padStart(2, "0")}-${String(
+              org.date_of_birth.getDate()
+            ).padStart(2, "0")}`
+          : null,
         documentType: org.document_type || null,
         documentNumber: org.document_number || null,
         // Editable profile fields
