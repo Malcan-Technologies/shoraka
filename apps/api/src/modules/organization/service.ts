@@ -2948,7 +2948,80 @@ export class OrganizationService {
           );
         }
 
-        const mergedSend = mergeCtosPartySupplementDocument(lockedRoot, {
+        // RegTank may reuse an existing onboarding record for the same email.
+        // In that case, immediately sync the latest provider status so the UI
+        // doesn't show a stale "IN_PROGRESS / Not Started" state until manual refresh.
+        let regtankPipelineStatusFromProvider: string | null = null;
+        let screeningPatchFromProvider: Record<string, unknown> | null = null;
+
+        const extractRegTankStatusLocal = (body: unknown): string => {
+          const row = Array.isArray(body) ? body[0] : body;
+          if (typeof row !== "object" || row === null) return "";
+          const r = row as Record<string, unknown>;
+          if (typeof r.status === "string" && r.status.trim()) return r.status.trim();
+          for (const key of ["corporateIndividualRequest", "corporateOnboardingRequest", "corporateRequest"]) {
+            const nested = r[key];
+            if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+              const nr = nested as Record<string, unknown>;
+              if (typeof nr.status === "string" && nr.status.trim()) return nr.status.trim();
+            }
+          }
+          return "";
+        };
+
+        const extractRegTankScreeningPatchLocal = (body: unknown, providerRequestId: string) => {
+          const status = extractRegTankStatusLocal(body);
+          const id = providerRequestId.trim();
+          if (!status || !id) return null;
+          const row = Array.isArray(body) ? body[0] : body;
+          const patch: Record<string, unknown> = {
+            requestId: id,
+            status,
+            provider: "REGTANK",
+            updatedAt: new Date().toISOString(),
+          };
+          if (row && typeof row === "object" && !Array.isArray(row)) {
+            const r = row as Record<string, unknown>;
+            if (r.riskLevel != null) patch.riskLevel = r.riskLevel;
+            if (r.riskScore != null) patch.riskScore = r.riskScore;
+            if (r.messageStatus != null) patch.messageStatus = r.messageStatus;
+          }
+          return patch;
+        };
+
+        if (requestId) {
+          try {
+            const onboardingDetails = await regTankApi.queryOnboardingDetails(requestId);
+            const providerStatus = extractRegTankStatusLocal(onboardingDetails);
+            regtankPipelineStatusFromProvider = providerStatus || null;
+
+            // For individual onboarding, RegTank typically returns `kycId` at root level.
+            const detailsRecord = onboardingDetails && typeof onboardingDetails === "object" ? (onboardingDetails as Record<string, unknown>) : null;
+            const kycIdRaw =
+              (detailsRecord?.kycId as unknown) ??
+              (detailsRecord?.kyc_id as unknown) ??
+              (detailsRecord?.kycID as unknown);
+            const kycId = typeof kycIdRaw === "string" ? kycIdRaw.trim() : "";
+
+            if (kycId) {
+              const kycBody = await regTankApi.queryKYCStatus(kycId);
+              screeningPatchFromProvider = extractRegTankScreeningPatchLocal(kycBody, kycId);
+            }
+          } catch (syncErr) {
+            // Best-effort: don't block onboarding send; UI will recover via manual refresh.
+            logger.warn(
+              {
+                organizationId,
+                partyKey: pk,
+                requestId,
+                error: syncErr instanceof Error ? syncErr.message : String(syncErr),
+              },
+              "Failed to immediately sync RegTank status after onboarding send"
+            );
+          }
+        }
+
+        let mergedSend = mergeCtosPartySupplementDocument(lockedRoot, {
           onboarding: {
             email: lockedEmail,
             status: "IN_PROGRESS",
@@ -2961,6 +3034,15 @@ export class OrganizationService {
             sendTimestamps: [...sendHistory, nowIso],
           },
         });
+
+        if (regtankPipelineStatusFromProvider || screeningPatchFromProvider) {
+          mergedSend = mergeCtosPartySupplementDocument(mergedSend, {
+            ...(regtankPipelineStatusFromProvider
+              ? { regtankPipelineStatus: regtankPipelineStatusFromProvider }
+              : {}),
+            ...(screeningPatchFromProvider ? { screening: screeningPatchFromProvider } : {}),
+          });
+        }
         await upsertCtosPartySupplementOnboardingJson(
           portalType,
           organizationId,

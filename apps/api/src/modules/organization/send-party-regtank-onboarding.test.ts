@@ -7,6 +7,8 @@ import { mergeCtosPartySupplementDocument, planPersonEmailWrite, isCurrentCtosPa
 const mockCreateIndividualOnboarding = jest.fn();
 const mockRenewIndividualOnboardingToken = jest.fn();
 const mockRestartOnboarding = jest.fn();
+const mockQueryOnboardingDetails = jest.fn();
+const mockQueryKYCStatus = jest.fn();
 const mockSendOnboardingEmail = jest.fn();
 const mockPartyFindFirst = jest.fn();
 const mockSupplementFindFirst = jest.fn();
@@ -103,6 +105,8 @@ jest.mock("../regtank/api-client", () => ({
     createIndividualOnboarding: (...args: unknown[]) => mockCreateIndividualOnboarding(...args),
     renewIndividualOnboardingToken: (...args: unknown[]) => mockRenewIndividualOnboardingToken(...args),
     restartOnboarding: (...args: unknown[]) => mockRestartOnboarding(...args),
+    queryOnboardingDetails: (...args: unknown[]) => mockQueryOnboardingDetails(...args),
+    queryKYCStatus: (...args: unknown[]) => mockQueryKYCStatus(...args),
   })),
 }));
 
@@ -214,6 +218,12 @@ describe("Person RegTank send resend and replacement", () => {
       expiredIn: 86400,
       timestamp: "2026-09-10T12:00:00.000Z",
     });
+    mockQueryOnboardingDetails.mockResolvedValue({
+      status: "IN_PROGRESS",
+    });
+    mockQueryKYCStatus.mockResolvedValue({
+      status: "IN_PROGRESS",
+    });
     mockSendOnboardingEmail.mockResolvedValue(undefined);
     mockIssuerFindUnique.mockResolvedValue({ director_kyc_status: null });
     mockPartyFindFirst.mockResolvedValue(partyMaster());
@@ -246,6 +256,50 @@ describe("Person RegTank send resend and replacement", () => {
     expect(mockSendOnboardingEmail).toHaveBeenCalledWith({
       to: "ali@example.com",
       verifyLink: "https://verify.example/new",
+    });
+  });
+
+  it("auto-syncs provider status when RegTank reuses an existing requestId for the same email", async () => {
+    mockCreateIndividualOnboarding.mockResolvedValueOnce({
+      requestId: "LD-EXISTING",
+      verifyLink: "https://verify.example/existing",
+      expiredIn: 3600,
+      timestamp: "2026-09-10T00:00:00.000Z",
+    });
+    mockQueryOnboardingDetails.mockResolvedValueOnce({
+      status: "APPROVED",
+      kycId: "KYC00196",
+    });
+    mockQueryKYCStatus.mockResolvedValueOnce({
+      status: "APPROVED",
+      riskLevel: "LOW",
+    });
+
+    const result = await service.sendDirectorCtosPartyOnboarding("user-1", "org-1", "issuer", {
+      partyKey: generatedKey,
+    });
+
+    expect(result.requestId).toBe("LD-EXISTING");
+    expect(mockCreateIndividualOnboarding).toHaveBeenCalledTimes(1);
+    expect(mockQueryOnboardingDetails).toHaveBeenCalledWith("LD-EXISTING");
+    expect(mockQueryKYCStatus).toHaveBeenCalledWith("KYC00196");
+    expect(mockSupplementCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          onboarding_json: expect.objectContaining({
+            requestId: "LD-EXISTING",
+            status: "APPROVED",
+            screening: expect.objectContaining({
+              requestId: "KYC00196",
+              status: "APPROVED",
+            }),
+          }),
+        }),
+      })
+    );
+    expect(mockSendOnboardingEmail).toHaveBeenCalledWith({
+      to: "ali@example.com",
+      verifyLink: "https://verify.example/existing",
     });
   });
 
