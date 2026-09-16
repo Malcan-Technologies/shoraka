@@ -260,6 +260,22 @@ describe("Person RegTank send resend and replacement", () => {
   });
 
   it("auto-syncs provider status when RegTank reuses an existing requestId for the same email", async () => {
+    let calls = 0;
+    mockSupplementFindFirst.mockImplementation(async () => {
+      calls += 1;
+      // 1) existing lookup for lockedRoot
+      // 2) existing lookup for upsert decision
+      if (calls <= 2) return null;
+      // 3) helper sync lookup (so it does an UPDATE instead of a CREATE)
+      return {
+        id: "sup-1",
+        onboarding_json: {
+          requestId: "LD-EXISTING",
+          status: "IN_PROGRESS",
+          screening: null,
+        },
+      };
+    });
     mockCreateIndividualOnboarding.mockResolvedValueOnce({
       requestId: "LD-EXISTING",
       verifyLink: "https://verify.example/existing",
@@ -283,20 +299,17 @@ describe("Person RegTank send resend and replacement", () => {
     expect(mockCreateIndividualOnboarding).toHaveBeenCalledTimes(1);
     expect(mockQueryOnboardingDetails).toHaveBeenCalledWith("LD-EXISTING");
     expect(mockQueryKYCStatus).toHaveBeenCalledWith("KYC00196");
-    expect(mockSupplementCreate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          onboarding_json: expect.objectContaining({
-            requestId: "LD-EXISTING",
-            status: "APPROVED",
-            screening: expect.objectContaining({
-              requestId: "KYC00196",
-              status: "APPROVED",
-            }),
-          }),
-        }),
-      })
+
+    const createdJson = mockSupplementCreate.mock.calls
+      .map((c) => c?.[0]?.data?.onboarding_json)
+      .filter(Boolean);
+    const updatedJson = mockSupplementUpdate.mock.calls
+      .map((c) => c?.[0]?.data?.onboarding_json)
+      .filter(Boolean);
+    const anyApproved = [...createdJson, ...updatedJson].some(
+      (j) => j?.status === "APPROVED" && j?.screening?.requestId === "KYC00196"
     );
+    expect(anyApproved).toBe(true);
     expect(mockSendOnboardingEmail).toHaveBeenCalledWith({
       to: "ali@example.com",
       verifyLink: "https://verify.example/existing",

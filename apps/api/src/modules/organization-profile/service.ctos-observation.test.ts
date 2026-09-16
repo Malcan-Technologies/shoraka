@@ -41,6 +41,27 @@ jest.mock("../../lib/prisma", () => ({
   },
 }));
 
+const mockCreateIndividualOnboarding = jest.fn();
+const mockRenewIndividualOnboardingToken = jest.fn();
+const mockRestartOnboarding = jest.fn();
+const mockQueryOnboardingDetails = jest.fn();
+const mockQueryKYCStatus = jest.fn();
+const mockQueryKYBStatus = jest.fn();
+
+jest.mock("../regtank/api-client", () => ({
+  RegTankAPIClient: jest.fn().mockImplementation(() => ({
+    createIndividualOnboarding: (...args: unknown[]) => mockCreateIndividualOnboarding(...args),
+    renewIndividualOnboardingToken: (...args: unknown[]) => mockRenewIndividualOnboardingToken(...args),
+    restartOnboarding: (...args: unknown[]) => mockRestartOnboarding(...args),
+    queryOnboardingDetails: (...args: unknown[]) => mockQueryOnboardingDetails(...args),
+    queryKYCStatus: (...args: unknown[]) => mockQueryKYCStatus(...args),
+    queryKYBStatus: (...args: unknown[]) => mockQueryKYBStatus(...args),
+    // corporate/entity onboarding query methods may be invoked depending on party type
+    getCorporateOnboardingDetails: jest.fn(),
+    getEntityOnboardingDetails: jest.fn(),
+  })),
+}));
+
 import { OrganizationPartyMembershipStatus, OrganizationPartyOrigin, Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import {
@@ -2216,6 +2237,140 @@ describe("user-added master parties", () => {
     expect(result.reviewRequired).toBe(false);
     expect(result.party.membershipStatus).toBe("MASTER_ACTIVE");
     expect(result.party.mismatches).toHaveLength(0);
+  });
+
+  it("reactivate syncs stale local CTOS onboarding when RegTank returns APPROVED (KYC also approved)", async () => {
+    const partyKey = "user:550e8400-e29b-41d4-a716-446655440000";
+    mockCtosFindFirst.mockResolvedValue(null);
+    issuerOrg.corporate_entities = null;
+
+    // Existing stale CTOS supplement for this later-added People & Access person.
+    (prisma.ctosPartySupplement.findFirst as jest.Mock).mockResolvedValue({
+      id: "sup-1",
+      onboarding_json: {
+        requestId: "LD-STale",
+        status: "IN_PROGRESS",
+        screening: { requestId: "KYC00196", status: "PENDING" },
+      },
+    });
+
+    mockQueryOnboardingDetails.mockResolvedValue({ status: "APPROVED" });
+    mockQueryKYCStatus.mockResolvedValue({ status: "APPROVED" });
+
+    parties.push(
+      row({
+        id: "p-reactivate-approved-sync",
+        party_key: partyKey,
+        identity_number: partyKey,
+        name: "Stale Person",
+        is_director: false,
+        is_shareholder: true,
+        membership_status: OrganizationPartyMembershipStatus.MASTER_INACTIVE,
+        origin: "USER_ADDED",
+        external_observation: { name: "Stale", shareholdingPercentage: 88 },
+      })
+    );
+
+    const result = await reactivateMasterParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-reactivate-approved-sync",
+    });
+
+    expect(result.reviewRequired).toBe(false);
+    expect(result.party.membershipStatus).toBe("MASTER_ACTIVE");
+
+    expect(prisma.ctosPartySupplement.update).toHaveBeenCalled();
+    const updatePayload = (prisma.ctosPartySupplement.update as jest.Mock).mock.calls[0]?.[0]?.data
+      ?.onboarding_json;
+    expect(updatePayload).toEqual(
+      expect.objectContaining({
+        status: "APPROVED",
+        screening: expect.objectContaining({
+          requestId: "KYC00196",
+          status: "APPROVED",
+        }),
+      })
+    );
+
+    // Reactivate must not create/restart/resend onboarding.
+    expect(mockCreateIndividualOnboarding).not.toHaveBeenCalled();
+    expect(mockRenewIndividualOnboardingToken).not.toHaveBeenCalled();
+    expect(mockRestartOnboarding).not.toHaveBeenCalled();
+  });
+
+  it("reactivate sync refreshes screening even if local onboarding status was already terminal-ish", async () => {
+    const partyKey = "user:550e8400-e29b-41d4-a716-446655441111";
+    mockCtosFindFirst.mockResolvedValue(null);
+    issuerOrg.corporate_entities = null;
+
+    (prisma.ctosPartySupplement.findFirst as jest.Mock).mockResolvedValue({
+      id: "sup-2",
+      onboarding_json: {
+        requestId: "LD-AlreadySubmitted",
+        status: "APPROVED",
+        screening: { requestId: "KYC00196", status: "PENDING" },
+      },
+    });
+
+    mockQueryOnboardingDetails.mockResolvedValue({ status: "APPROVED" });
+    mockQueryKYCStatus.mockResolvedValue({ status: "APPROVED" });
+
+    parties.push(
+      row({
+        id: "p-reactivate-screening-sync",
+        party_key: partyKey,
+        identity_number: partyKey,
+        name: "Screening Stale",
+        membership_status: OrganizationPartyMembershipStatus.MASTER_INACTIVE,
+        origin: "USER_ADDED",
+      })
+    );
+
+    await reactivateMasterParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-reactivate-screening-sync",
+    });
+
+    expect(mockQueryKYCStatus).toHaveBeenCalledWith("KYC00196");
+  });
+
+  it("RegTank sync failure does not block reactivateMasterParty", async () => {
+    const partyKey = "user:550e8400-e29b-41d4-a716-446655442222";
+    mockCtosFindFirst.mockResolvedValue(null);
+    issuerOrg.corporate_entities = null;
+
+    (prisma.ctosPartySupplement.findFirst as jest.Mock).mockResolvedValue({
+      id: "sup-3",
+      onboarding_json: {
+        requestId: "LD-Stale2",
+        status: "IN_PROGRESS",
+        screening: { requestId: "KYC00196", status: "PENDING" },
+      },
+    });
+
+    mockQueryOnboardingDetails.mockRejectedValue(new Error("RegTank unavailable"));
+
+    parties.push(
+      row({
+        id: "p-reactivate-sync-failure",
+        party_key: partyKey,
+        identity_number: partyKey,
+        name: "Sync Fails",
+        membership_status: OrganizationPartyMembershipStatus.MASTER_INACTIVE,
+        origin: "USER_ADDED",
+      })
+    );
+
+    const result = await reactivateMasterParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-reactivate-sync-failure",
+    });
+
+    expect(result.reviewRequired).toBe(false);
+    expect(result.party.membershipStatus).toBe("MASTER_ACTIVE");
   });
 
   it("keeps Director+Shareholder as a single person evidence during reactivation", async () => {
