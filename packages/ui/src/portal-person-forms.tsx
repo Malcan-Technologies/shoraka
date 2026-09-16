@@ -1312,7 +1312,8 @@ function SelectField({
   return (
     <div className="space-y-2">
       <ComRepFieldLabel label={label} required={required} optional={!required} help={help} />
-      <Select value={value || undefined} onValueChange={onChange}>
+      {/* Keep Select controlled for the full component lifetime. */}
+      <Select value={value} onValueChange={onChange}>
         <SelectTrigger className="h-10 text-ui">
           <SelectValue placeholder="Select" />
         </SelectTrigger>

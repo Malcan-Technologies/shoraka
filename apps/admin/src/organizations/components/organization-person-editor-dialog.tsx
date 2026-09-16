@@ -277,7 +277,7 @@ export function OrganizationPersonEditorDialog({
             <div className="space-y-1.5">
               <ComRepFieldLabel label={copy.identityPrefix.label} />
               <Select
-                value={values.identityPrefix || undefined}
+                value={values.identityPrefix}
                 onValueChange={(identityPrefix) => {
                   set("identityPrefix", identityPrefix);
                   set(
@@ -377,7 +377,7 @@ export function OrganizationPersonEditorDialog({
               <div className="space-y-1.5">
                 <ComRepFieldLabel label={copy.nationality.label} help={copy.nationality.help} required />
                 <Select
-                  value={values.countryOfIncorporation || undefined}
+                  value={values.countryOfIncorporation}
                   onValueChange={(countryOfIncorporation) => set("countryOfIncorporation", countryOfIncorporation)}
                 >
                   <SelectTrigger className="h-10 text-ui">
@@ -397,7 +397,7 @@ export function OrganizationPersonEditorDialog({
             <>
               <div className="space-y-1.5">
                 <ComRepFieldLabel label={copy.gender.label} help={copy.gender.help} required />
-                <Select value={values.gender || undefined} onValueChange={(gender) => set("gender", gender)}>
+                <Select value={values.gender} onValueChange={(gender) => set("gender", gender)}>
                   <SelectTrigger className="h-10 text-ui">
                     <SelectValue placeholder="Select" />
                   </SelectTrigger>
@@ -421,7 +421,7 @@ export function OrganizationPersonEditorDialog({
               <div className="space-y-1.5">
                 <ComRepFieldLabel label={copy.nationality.label} help={copy.nationality.help} required />
                 <Select
-                  value={values.nationality || undefined}
+                  value={values.nationality}
                   onValueChange={(nationality) => set("nationality", nationality)}
                 >
                   <SelectTrigger className="h-10 text-ui">
@@ -454,7 +454,7 @@ export function OrganizationPersonEditorDialog({
           />
           <div className="space-y-1.5">
             <ComRepFieldLabel label={copy.addressState.label} help={copy.addressState.help} required />
-            <Select value={values.state || undefined} onValueChange={(state) => set("state", state)}>
+            <Select value={values.state} onValueChange={(state) => set("state", state)}>
               <SelectTrigger className="h-10 text-ui">
                 <SelectValue placeholder="Select" />
               </SelectTrigger>
@@ -483,7 +483,7 @@ export function OrganizationPersonEditorDialog({
             <>
               <div className="space-y-1.5">
                 <ComRepFieldLabel label={PROFILE_LABEL.typeOfShares} required />
-                <Select value={values.shareType || undefined} onValueChange={(shareType) => set("shareType", shareType)}>
+                <Select value={values.shareType} onValueChange={(shareType) => set("shareType", shareType)}>
                   <SelectTrigger className="h-10 text-ui">
                     <SelectValue placeholder="Select" />
                   </SelectTrigger>
@@ -541,7 +541,7 @@ export function OrganizationPersonEditorDialog({
               <div className="space-y-1.5">
                 <ComRepFieldLabel label={PROFILE_LABEL.designation} required />
                 <Select
-                  value={values.designation || undefined}
+                  value={values.designation}
                   onValueChange={(designation) => set("designation", designation)}
                 >
                   <SelectTrigger className="h-10 text-ui">

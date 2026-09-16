@@ -69,4 +69,8 @@ describe("PartyFillEmptyForm lock and officer fields", () => {
     expect(source).toContain("identityPrefixEmpty");
     expect(source).toContain("if (identityNumberEmpty && form.identityNumber) data.identityNumber = form.identityNumber");
   });
+
+  it("keeps Select components controlled (no `value || undefined`)", () => {
+    expect(source).not.toContain("value={value || undefined}");
+  });
 });
