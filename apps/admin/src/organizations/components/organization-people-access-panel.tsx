@@ -187,7 +187,9 @@ export function OrganizationPeopleAccessPanel({
       canManage={canManage}
       canViewAccounts={canViewAccounts}
       canManageUsers={canManageUsers}
-      applyIssuerComrep={portal === "issuer"}
+      // Admin People & Access should behave identically for COMPANY organisations
+      // regardless of whether the current portal is issuer or investor.
+      applyIssuerComrep={org.type === "COMPANY"}
       onEdit={selected.party ? () => setEditingPartyId(selected.party!.id) : undefined}
       onAdopt={selected.party ? () => peopleMutations.adopt.mutate(selected.party!.id) : undefined}
       onInactivate={selected.party ? () => peopleMutations.inactivate.mutate(selected.party!.id) : undefined}

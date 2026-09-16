@@ -57,6 +57,11 @@ describe("Admin People & Access surface", () => {
     expect(detail).not.toContain('portal === "issuer" && isIssuerShareholderOnlyBelowMinimum');
   });
 
+  it("does not use a portal split for company-comrep completeness on this surface", () => {
+    expect(panel).not.toContain('applyIssuerComrep={portal === "issuer"}');
+    expect(panel).toContain('applyIssuerComrep={org.type === "COMPANY"}');
+  });
+
   it("does not invent Admin invite, role-change, send KYC, or ownership-transfer actions", () => {
     expect(panel).not.toContain("Invite user");
     expect(panel).not.toContain("Transfer ownership");
@@ -112,6 +117,7 @@ describe("Admin organisation tabs", () => {
     expect(page).toContain('label: "People & Access"');
     expect(page).toContain('label: "Organisation"');
     expect(page).toContain('label: "Linked Records"');
+    expect(page).toContain("const canShowPeopleTab = isOrgPeopleTabAvailable(org?.type);");
     expect(page).toContain("isOrgPeopleTabAvailable");
     expect(page).toContain("OrganizationPeopleAccessPanel");
     expect(page).not.toContain("OrganizationPeoplePanel");
