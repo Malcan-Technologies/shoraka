@@ -9,7 +9,6 @@ import {
   filterVisiblePeopleRows,
   isMissingGovernmentIdPerson,
 } from "./application-people-display";
-import { getAmlGroup } from "./director-shareholder-single-status-display";
 import { resolvePartyCtosComparison } from "./party-ctos-comparison";
 import {
   isBlockedPersonIdentityConflict,
@@ -21,7 +20,7 @@ import type { OrganizationPartyProfileDto } from "./organization-party-profile";
 import {
   formatPeopleAccessCompanyRoleLine,
   matchPersonToParty,
-  peopleAccessAmlLabel,
+  peopleAccessAmlLabelForEntity,
   peopleAccessCompanyRolesFromParty,
   peopleAccessCompanyRolesFromPerson,
   peopleAccessCorporateKybLabel,
@@ -115,34 +114,11 @@ export function adminPeopleAccessCtosBadgeStatus(
   return null;
 }
 
-function amlFromScreening(status: string | null | undefined): PeopleAccessAmlLabel {
-  const group = getAmlGroup(status ?? "");
-  switch (group) {
-    case "NOT_STARTED":
-      return "Not started";
-    case "IN_PROGRESS":
-    case "UNDER_REVIEW":
-      return "Pending";
-    case "APPROVED":
-      return "Approved";
-    case "REJECTED":
-      return "Rejected";
-    default:
-      return "Pending";
-  }
-}
-
 export function adminPeopleAccessAmlLabel(params: {
   person: ApplicationPersonRow | null | undefined;
   entityType?: string | null;
 }): PeopleAccessAmlLabel {
-  const entityType = params.entityType || params.person?.entityType;
-  if (entityType === "CORPORATE") {
-    const status = params.person?.screening?.status;
-    if (!status || !String(status).trim()) return "—";
-    return amlFromScreening(status);
-  }
-  return peopleAccessAmlLabel(params.person);
+  return peopleAccessAmlLabelForEntity(params);
 }
 
 function memberDisplayName(member: PeopleAccessMember): string {
@@ -206,7 +182,7 @@ function kycCell(params: {
   platformOnly: boolean;
 }): PeopleAccessKycLabel {
   if (params.platformOnly) return "—";
-  if (params.corporate) return peopleAccessCorporateKybLabel(params.person);
+  if (params.corporate) return peopleAccessCorporateKybLabel(params.person, "CORPORATE");
   return peopleAccessKycLabel(params.person);
 }
 

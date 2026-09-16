@@ -12,8 +12,10 @@ import { getAmlGroup, getKycGroup } from "./director-shareholder-single-status-d
 import { findExistingPartyForIdentityKey } from "./organization-party-key";
 import type { OrganizationPartyProfileDto } from "./organization-party-profile";
 import {
+  peopleAccessIsCorporateEntity,
   peopleAccessShowsCorporateAmlChip,
   peopleAccessShowsCorporateKycChip,
+  peopleAccessStatusEntityType,
 } from "./people-access-refresh";
 import {
   isMemberWithoutCompanyRole,
@@ -174,9 +176,11 @@ export function peopleAccessKycLabel(person: ApplicationPersonRow | null | undef
 
 /** Corporate KYB onboarding — never an individual KYC status. */
 export function peopleAccessCorporateKybLabel(
-  person: ApplicationPersonRow | null | undefined
+  person: ApplicationPersonRow | null | undefined,
+  entityType?: string | null
 ): PeopleAccessKycLabel {
-  if (!person || person.entityType !== "CORPORATE") return "—";
+  if (!person) return "—";
+  if (!peopleAccessIsCorporateEntity(entityType ?? person.entityType)) return "—";
   const raw = person.onboarding?.status ?? "";
   if (!String(raw).trim()) return "—";
   return kycGroupToPeopleAccessLabel(getKycGroup(raw));
@@ -205,7 +209,10 @@ export function peopleAccessAmlLabel(person: ApplicationPersonRow | null | undef
   if (!person || !requiresOnboardingEmail(person)) return "—";
   const kycComplete = getKycGroup(person.onboarding?.status ?? "") === "APPROVED";
   if (!kycComplete) return "Not started";
-  const group = getAmlGroup(person.screening?.status ?? "");
+  return amlGroupToPeopleAccessLabel(getAmlGroup(person.screening?.status ?? ""));
+}
+
+function amlGroupToPeopleAccessLabel(group: ReturnType<typeof getAmlGroup>): PeopleAccessAmlLabel {
   switch (group) {
     case "NOT_STARTED":
       return "Not started";
@@ -221,13 +228,51 @@ export function peopleAccessAmlLabel(person: ApplicationPersonRow | null | undef
   }
 }
 
+/**
+ * Admin People & Access AML mapping.
+ * Corporate: `screening.status` only. Individual: AML stays Not started until KYC is approved.
+ */
+export function peopleAccessAmlLabelForEntity(params: {
+  person: ApplicationPersonRow | null | undefined;
+  entityType?: string | null;
+}): PeopleAccessAmlLabel {
+  const entityType = peopleAccessStatusEntityType(params);
+  if (peopleAccessIsCorporateEntity(entityType)) {
+    const status = params.person?.screening?.status;
+    if (!status || !String(status).trim()) return "—";
+    return amlGroupToPeopleAccessLabel(getAmlGroup(status));
+  }
+  return peopleAccessAmlLabel(params.person);
+}
+
+export type PeopleAccessChipOptions = {
+  entityType?: string | null;
+};
+
+export function peopleAccessChipOptionsFromRow(row: {
+  corporate?: boolean;
+  party?: { entityType?: string | null } | null;
+  person?: { entityType?: string | null } | null;
+}): PeopleAccessChipOptions {
+  if (
+    row.corporate ||
+    peopleAccessIsCorporateEntity(row.party?.entityType) ||
+    peopleAccessIsCorporateEntity(row.person?.entityType)
+  ) {
+    return { entityType: "CORPORATE" };
+  }
+  return { entityType: peopleAccessStatusEntityType(row) };
+}
+
 /** Same labels as onboarding review (`getFinalStatusLabel`). Null when the column is not applicable. */
 export function peopleAccessKycChipPresentation(
-  person: ApplicationPersonRow | null | undefined
+  person: ApplicationPersonRow | null | undefined,
+  options?: PeopleAccessChipOptions
 ): DirectorShareholderFinalStatusPresentation | null {
   if (!person) return null;
-  if (person.entityType === "CORPORATE") {
-    if (!peopleAccessShowsCorporateKycChip(person)) return null;
+  const entityType = peopleAccessStatusEntityType({ entityType: options?.entityType, person });
+  if (peopleAccessIsCorporateEntity(entityType)) {
+    if (!peopleAccessShowsCorporateKycChip(person, entityType)) return null;
     return getFinalStatusLabel(person, { displayMode: "kyc_only" });
   }
   if (peopleAccessKycLabel(person) === "—") return null;
@@ -235,11 +280,13 @@ export function peopleAccessKycChipPresentation(
 }
 
 export function peopleAccessAmlChipPresentation(
-  person: ApplicationPersonRow | null | undefined
+  person: ApplicationPersonRow | null | undefined,
+  options?: PeopleAccessChipOptions
 ): DirectorShareholderFinalStatusPresentation | null {
   if (!person) return null;
-  if (person.entityType === "CORPORATE") {
-    if (!peopleAccessShowsCorporateAmlChip(person)) return null;
+  const entityType = peopleAccessStatusEntityType({ entityType: options?.entityType, person });
+  if (peopleAccessIsCorporateEntity(entityType)) {
+    if (!peopleAccessShowsCorporateAmlChip(person, entityType)) return null;
     return getFinalStatusLabel({ screening: person.screening });
   }
   if (peopleAccessAmlLabel(person) === "—") return null;
@@ -280,6 +327,8 @@ function companyPersonRow(params: {
   const { party, person, ownerUserId, members } = params;
   const companyRoles = peopleAccessCompanyRolesFromParty(party);
   const member = party.userId ? members.find((row) => row.id === party.userId) ?? null : null;
+  const entityType = peopleAccessStatusEntityType({ party, person });
+  const corporate = peopleAccessIsCorporateEntity(entityType);
   return {
     key: `party:${party.id}`,
     kind: "company_person",
@@ -291,8 +340,8 @@ function companyPersonRow(params: {
       userId: party.userId,
       status: party.platformAccess.status,
     }),
-    kyc: peopleAccessKycLabel(person),
-    aml: peopleAccessAmlLabel(person),
+    kyc: corporate ? peopleAccessCorporateKybLabel(person, entityType) : peopleAccessKycLabel(person),
+    aml: peopleAccessAmlLabelForEntity({ person, entityType }),
     partyId: party.id,
     partyKey: party.partyKey,
     userId: party.userId,
@@ -369,6 +418,8 @@ function unscopedInviteRow(invitation: PeopleAccessInvitation, now: Date): Peopl
 
 function peopleOnlyRow(person: ApplicationPersonRow): PeopleAccessRow {
   const companyRoles = peopleAccessCompanyRolesFromPerson(person);
+  const entityType = person.entityType;
+  const corporate = peopleAccessIsCorporateEntity(entityType);
   return {
     key: `people:${person.matchKey}`,
     kind: "people_only",
@@ -376,8 +427,8 @@ function peopleOnlyRow(person: ApplicationPersonRow): PeopleAccessRow {
     companyRoles,
     companyRoleLine: formatPeopleAccessCompanyRoleLine(companyRoles),
     platformAccess: "No access",
-    kyc: peopleAccessKycLabel(person),
-    aml: peopleAccessAmlLabel(person),
+    kyc: corporate ? peopleAccessCorporateKybLabel(person, entityType) : peopleAccessKycLabel(person),
+    aml: peopleAccessAmlLabelForEntity({ person, entityType }),
     partyId: null,
     partyKey: person.matchKey || null,
     userId: null,

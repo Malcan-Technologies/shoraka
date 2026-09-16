@@ -140,20 +140,39 @@ export function shouldShowPartyAmlRefresh(params: {
   return !isPartyRegTankProcessTerminal(params.person.screening?.status);
 }
 
+export function peopleAccessIsCorporateEntity(
+  entityType: string | null | undefined
+): boolean {
+  return String(entityType ?? "").trim().toUpperCase() === "CORPORATE";
+}
+
+/** Party entity type wins so Investor/Admin chips match for the same company person. */
+export function peopleAccessStatusEntityType(params: {
+  entityType?: string | null;
+  party?: { entityType?: string | null } | null;
+  person?: { entityType?: string | null } | null;
+}): string | null {
+  return params.entityType ?? params.party?.entityType ?? params.person?.entityType ?? null;
+}
+
 /** Corporate People & Access KYC/KYB column — individuals still use `peopleAccessKycLabel`. */
 export function peopleAccessShowsCorporateKycChip(
-  person: ApplicationPersonRow | null | undefined
+  person: ApplicationPersonRow | null | undefined,
+  entityType?: string | null
 ): boolean {
-  if (!person || person.entityType !== "CORPORATE") return false;
+  if (!person) return false;
+  if (!peopleAccessIsCorporateEntity(entityType ?? person.entityType)) return false;
   const label = getFinalStatusLabel(person, { displayMode: "kyc_only" }).label;
   if (label !== "Not Started") return true;
   return partyKycRefreshIds(collectPartyRegTankRefreshIds(person)).length > 0;
 }
 
 export function peopleAccessShowsCorporateAmlChip(
-  person: ApplicationPersonRow | null | undefined
+  person: ApplicationPersonRow | null | undefined,
+  entityType?: string | null
 ): boolean {
-  if (!person || person.entityType !== "CORPORATE") return false;
+  if (!person) return false;
+  if (!peopleAccessIsCorporateEntity(entityType ?? person.entityType)) return false;
   const label = getFinalStatusLabel({ screening: person.screening }).label;
   if (label !== "Not Started") return true;
   return partyAmlRefreshIds(collectPartyRegTankRefreshIds(person)).length > 0;

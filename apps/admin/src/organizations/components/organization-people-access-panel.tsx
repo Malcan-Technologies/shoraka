@@ -15,6 +15,7 @@ import {
   isIssuerShareholderOnlyBelowMinimum,
   observedPartyBlockedByIdentityConflict,
   peopleAccessAmlChipPresentation,
+  peopleAccessChipOptionsFromRow,
   peopleAccessKycChipPresentation,
   peopleAccessPlatformBadgeStatus,
   issuerPersonCompletenessInputFromParty,
@@ -371,8 +372,8 @@ function PeopleAccessTableRow({
   onReactivate: () => void;
   onEditMember: () => void;
 }) {
-  const kycPresentation = peopleAccessKycChipPresentation(row.person);
-  const amlPresentation = peopleAccessAmlChipPresentation(row.person);
+  const kycPresentation = peopleAccessKycChipPresentation(row.person, peopleAccessChipOptionsFromRow(row));
+  const amlPresentation = peopleAccessAmlChipPresentation(row.person, peopleAccessChipOptionsFromRow(row));
   const accessStatus = row.platformAccess === "—" ? null : peopleAccessPlatformBadgeStatus(row.platformAccess);
   const ctosStatus = adminPeopleAccessCtosBadgeStatus(row.ctos);
   const needsAction = adminPeopleAccessRowNeedsAttention(row);
@@ -438,7 +439,11 @@ function PeopleAccessTableRow({
         {kycPresentation ? (
           <div className="flex flex-col items-start gap-0.5">
             <span className="text-meta text-muted-foreground">
-              {relatedPartyVerificationCaption(row.person?.entityType ?? row.party?.entityType)}
+              {relatedPartyVerificationCaption(
+                peopleAccessChipOptionsFromRow(row).entityType === "CORPORATE"
+                  ? "CORPORATE"
+                  : row.person?.entityType ?? row.party?.entityType
+              )}
             </span>
             <StatusBadge
               status={getRelatedPartyStatusToken(kycPresentation, "admin")}

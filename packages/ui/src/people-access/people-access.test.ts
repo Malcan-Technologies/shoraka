@@ -58,6 +58,10 @@ describe("People & Access customer UI", () => {
     expect(section).toContain("PartyStatusRefreshControl");
     expect(section).toContain("refreshPartyRegTankStatus");
     expect(section).toContain("relatedPartyVerificationCaption");
+    expect(section).toContain("peopleAccessKycChipPresentation");
+    expect(section).toContain("peopleAccessAmlChipPresentation");
+    expect(section).toContain("peopleAccessChipOptionsFromRow");
+    expect(detail).toContain("peopleAccessChipOptionsFromRow");
     expect(detail).toContain("refreshPartyRegTankStatus");
     expect(detail).toContain("PartyStatusRefreshControl");
     expect(detail).not.toContain("refresh-aml");
