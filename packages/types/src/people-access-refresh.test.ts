@@ -36,6 +36,27 @@ describe("later-added People & Access refresh visibility", () => {
     expect(shouldShowPartyAmlRefresh(params)).toBe(true);
   });
 
+  it("later-added individual DJKYC pending → refresh visible", () => {
+    const row = person({
+      onboarding: { status: "WAIT_FOR_APPROVAL", id: "LD1001" },
+      screening: { status: "PENDING", id: "DJKYC1001" },
+      requestId: "LD1001",
+      screeningRequestId: "DJKYC1001",
+    });
+
+    const ids = collectPartyRegTankRefreshIds(row);
+    expect(ids.kycId).toBe("DJKYC1001");
+
+    const params = {
+      person: row,
+      origin: "USER_ADDED" as const,
+      partyKey: "user:jamie",
+      kind: "company_person",
+    };
+    expect(shouldShowPartyKycRefresh(params)).toBe(true);
+    expect(shouldShowPartyAmlRefresh(params)).toBe(true);
+  });
+
   it("later-added individual approved → refresh hidden", () => {
     const row = person({
       onboarding: { status: "APPROVED", id: "LD1001" },

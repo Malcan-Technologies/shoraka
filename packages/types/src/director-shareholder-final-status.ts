@@ -8,6 +8,7 @@
 
 import { isKycOnboardingNotStartedToken } from "./kyc-onboarding-lifecycle";
 import { normalizeRawStatus } from "./status-normalization";
+import { isIndividualKycReference } from "./regtank-individual-kyc-reference";
 
 export type DirectorShareholderFinalStatusTone =
   | "success"
@@ -80,7 +81,7 @@ export function getDirectorShareholderEffectiveStatus(
     .map((v) => String(v ?? "").trim())
     .filter(Boolean);
 
-  const hasKycIdRef = idCandidates.some((id) => id.toUpperCase().startsWith("KYC"));
+  const hasKycIdRef = idCandidates.some((id) => isIndividualKycReference(id));
   const hasKyBIdRef = idCandidates.some((id) => id.toUpperCase().startsWith("KYB"));
 
   const onboarding = normalizeRawStatus(person.onboarding?.status);
@@ -181,7 +182,7 @@ export function getFinalStatusLabel(
               .map((v) => String(v ?? "").trim())
               .filter(Boolean);
 
-            const hasKycIdRef = idCandidates.some((id) => id.toUpperCase().startsWith("KYC"));
+            const hasKycIdRef = idCandidates.some((id) => isIndividualKycReference(id));
             const hasKyBIdRef = idCandidates.some((id) => id.toUpperCase().startsWith("KYB"));
 
             const onboarding = normalizeRawStatus(person.onboarding?.status);

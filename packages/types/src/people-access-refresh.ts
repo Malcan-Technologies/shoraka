@@ -5,6 +5,7 @@
 import type { ApplicationPersonRow } from "./application-people-display";
 import { getFinalStatusLabel } from "./director-shareholder-final-status";
 import { isGeneratedUserPartyKey } from "./organization-party-key";
+import { isIndividualKycReference } from "./regtank-individual-kyc-reference";
 
 export type PartyRegTankRefreshIds = {
   individualOnboardingRequestId: string | null;
@@ -70,7 +71,14 @@ export function collectPartyRegTankRefreshIds(
       [person.partyCorporateRequestId, onboardingId, requestId],
       "COD"
     ),
-    kycId: firstPrefixed([screeningId, onboardingId], "KYC"),
+    kycId: (() => {
+      // Individual KYC can be returned as "KYC..." (Acuris) or "DJKYC..." (Dow Jones).
+      for (const candidate of [screeningId, onboardingId]) {
+        const id = trimId(candidate);
+        if (isIndividualKycReference(id)) return id;
+      }
+      return null;
+    })(),
     kybId: firstPrefixed([screeningId, onboardingId], "KYB"),
   };
 }
