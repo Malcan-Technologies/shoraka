@@ -36,6 +36,7 @@ import {
   PROFILE_ADDRESS_FIELD_LABELS,
   PROFILE_HELP,
   PROFILE_LABEL,
+  isAboutYourBusinessFieldRequired,
 } from "@cashsouk/types";
 import { ComRepFieldLabel, YesNoRadioDisplay } from "@cashsouk/ui";
 import {
@@ -290,6 +291,8 @@ export function OrganizationProfilePanel({
     ...missingFieldKeys(org.profileCompleteness, "company"),
     ...missingFieldKeys(org.profileCompleteness, "identity"),
   ]);
+  const aboutActivitiesRequired = isAboutYourBusinessFieldRequired("whatDoesCompanyDo");
+  const aboutCustomersRequired = isAboutYourBusinessFieldRequired("mainCustomers");
   const companyTypeLabel = displayScCompanyTypeLabel(org.scCompanyType, basic?.entityType);
   const investorCategoryScope = {
     organizationType: (org.type === "COMPANY" ? "COMPANY" : "PERSONAL") as "PERSONAL" | "COMPANY",
@@ -636,20 +639,22 @@ export function OrganizationProfilePanel({
             {editingSection === "about" ? (
               <>
                 <EditableField
-                  label="Company Activities"
+                  label={PROFILE_LABEL.companyActivities}
                   value={draft.whatDoesCompanyDo}
                   onChange={(whatDoesCompanyDo) =>
                     setDraft((current) => ({ ...current, whatDoesCompanyDo }))
                   }
                   multiline
                   maxLength={ABOUT_YOUR_BUSINESS_LIMITS.whatDoesCompanyDo}
+                  required={aboutActivitiesRequired}
                 />
                 <EditableField
-                  label="Who Are Your Main Customers?"
+                  label={PROFILE_LABEL.mainCustomers}
                   value={draft.mainCustomers}
                   onChange={(mainCustomers) => setDraft((current) => ({ ...current, mainCustomers }))}
                   multiline
                   maxLength={ABOUT_YOUR_BUSINESS_LIMITS.mainCustomers}
+                  required={aboutCustomersRequired}
                 />
                 <EditableYesNo
                   label="Does Any Single Customer Make Up More Than 50% of Your Revenue?"
@@ -671,13 +676,13 @@ export function OrganizationProfilePanel({
             ) : (
               <>
                 <ReadField
-                  label="Company Activities"
+                  label={PROFILE_LABEL.companyActivities}
                   value={draft.whatDoesCompanyDo}
                   missing={requiredFieldKeys.has("companyActivities")}
                   multiline
                 />
                 <ReadField
-                  label="Who Are Your Main Customers?"
+                  label={PROFILE_LABEL.mainCustomers}
                   value={draft.mainCustomers}
                   multiline
                 />
