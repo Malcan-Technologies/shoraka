@@ -484,14 +484,22 @@ describe("AML states", () => {
     expect(
       adminAmlWaitingCopy({
         corporate: false,
-        person: person({ matchKey: "1", onboarding: { status: "APPROVED" }, screening: { status: "CLEAR" } }),
+        person: person({
+          matchKey: "1",
+          onboarding: { status: "APPROVED", id: "KYC001" },
+          screening: { status: "CLEAR" },
+        }),
         amlLabel: "Approved",
       })
     ).toBeNull();
     expect(
       adminAmlWaitingCopy({
         corporate: false,
-        person: person({ matchKey: "1", onboarding: { status: "APPROVED" }, screening: { status: "FAILED" } }),
+        person: person({
+          matchKey: "1",
+          onboarding: { status: "APPROVED", id: "KYC001" },
+          screening: { status: "FAILED" },
+        }),
         amlLabel: "Rejected",
       })
     ).toBeNull();

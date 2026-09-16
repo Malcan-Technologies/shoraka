@@ -19,6 +19,7 @@ import { isKycOnboardingNotStartedToken } from "./kyc-onboarding-lifecycle";
 import { normalizeRawStatus } from "./status-normalization";
 import { isReadyOnboardingStatus } from "./onboarding-readiness";
 import { displayGovernmentIdentityNumber } from "./organization-party-key";
+import { isIndividualKycReference } from "./regtank-individual-kyc-reference";
 
 /** How issuer/investor director-shareholder `people[]` was built (org list + detail APIs). */
 export type DirectorShareholderListSource = "ONBOARDING" | "CTOS" | "CTOS_EMPTY";
@@ -235,7 +236,7 @@ function isPersonOnboardingRequestId(id: string): boolean {
 }
 
 function isScreeningRequestId(id: string): boolean {
-  return id.startsWith("KYC") || id.startsWith("KYB");
+  return isIndividualKycReference(id) || id.startsWith("KYB");
 }
 
 /** Organization-level company COD (header Open in RegTank). */
@@ -268,7 +269,7 @@ export function getRegtankLivenessUrl(requestId: string | null | undefined): str
 
 export function getRegtankKycResultUrl(kycId: string | null | undefined): string | null {
   const id = trimRegtankId(kycId);
-  if (!id || !id.startsWith("KYC")) return null;
+  if (!id || !isIndividualKycReference(id)) return null;
   return `${getRegtankClientPortalBaseUrl()}/app/screen-kyc/result/${encodeURIComponent(id)}`;
 }
 
@@ -283,7 +284,7 @@ export function getRegtankScreeningLink(
 ): string | null {
   const id = trimRegtankId(person.screeningRequestId) || trimRegtankId(person.requestId);
   if (!id || !isScreeningRequestId(id)) return null;
-  if (id.startsWith("KYC")) return getRegtankKycResultUrl(id);
+  if (isIndividualKycReference(id)) return getRegtankKycResultUrl(id);
   const suffix = kybScreeningHasRisk(person.screening) ? "/riskAssessment" : "";
   const base = getRegtankKybResultUrl(id);
   return base ? `${base}${suffix}` : null;

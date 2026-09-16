@@ -47,6 +47,12 @@ describe("RegTank portal URL helpers", () => {
     );
   });
 
+  it("builds DJKYC URL without /scoring", () => {
+    expect(getRegtankScreeningLink({ screeningRequestId: "DJKYC1", requestId: "DJKYC1", screening: null })).toBe(
+      "https://shoraka-trial.regtank.com/app/screen-kyc/result/DJKYC1"
+    );
+  });
+
   it("builds KYB URL with riskAssessment only when risk is present", () => {
     expect(getRegtankScreeningLink({ screeningRequestId: "KYB1", requestId: "KYB1", screening: null })).toBe(
       "https://shoraka-trial.regtank.com/app/screen-kyb/result/KYB1"
@@ -93,6 +99,9 @@ describe("RegTank portal URL helpers", () => {
     expect(getRegtankScreeningLink({ screeningRequestId: "KYC00184", requestId: "KYC00184" })).toBe(
       "https://shoraka-trial.regtank.com/app/screen-kyc/result/KYC00184"
     );
+    expect(getRegtankScreeningLink({ screeningRequestId: "DJKYC00184", requestId: "DJKYC00184" })).toBe(
+      "https://shoraka-trial.regtank.com/app/screen-kyc/result/DJKYC00184"
+    );
     expect(getRegtankScreeningLink({ screeningRequestId: "KYB00105", requestId: "KYB00105" })).toBe(
       "https://shoraka-trial.regtank.com/app/screen-kyb/result/KYB00105"
     );
@@ -101,6 +110,9 @@ describe("RegTank portal URL helpers", () => {
     );
     expect(getRegtankKycResultUrl("KYC00184")).toBe(
       "https://shoraka-trial.regtank.com/app/screen-kyc/result/KYC00184"
+    );
+    expect(getRegtankKycResultUrl("DJKYC00184")).toBe(
+      "https://shoraka-trial.regtank.com/app/screen-kyc/result/DJKYC00184"
     );
     expect(getRegtankKybResultUrl("KYB00105")).toBe(
       "https://shoraka-trial.regtank.com/app/screen-kyb/result/KYB00105"

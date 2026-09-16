@@ -128,7 +128,7 @@ describe("buildAdminPeopleAccessRows", () => {
           matchKey: "IC1",
           name: "Mary Lim",
           onboarding: { status: "APPROVED" },
-          screening: { status: "WAIT_FOR_APPROVAL" },
+          screening: { status: "WAIT_FOR_APPROVAL", id: "KYC1" },
         }),
       ],
       members: [],

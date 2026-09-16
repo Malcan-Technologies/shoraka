@@ -39,10 +39,16 @@ export function resolvePurposeOfFinancing(purposeSnapshot: unknown): string | nu
     }
     return legacy;
   }
-  return formatScPurposeOfFundRaisingDisplay(
+  const sc = formatScPurposeOfFundRaisingDisplay(
     record?.sc_purpose_of_fund_raising,
     record?.sc_purpose_other
   );
+  if (sc && String(record?.sc_purpose_of_fund_raising ?? "").toUpperCase() === "OTHERS") {
+    // Notes purpose display keeps only the custom value (legacy `financing_for` does this too).
+    const m = sc.match(/^Others\s*:\s*(.*)$/i);
+    if (m) return (m[1]?.trim() ?? "") || SC_FUND_RAISING_PURPOSE_LABELS.OTHERS;
+  }
+  return sc;
 }
 
 /** Frozen `notes.contract_snapshot.contract_details.description`. */

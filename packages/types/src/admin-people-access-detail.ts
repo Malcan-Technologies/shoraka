@@ -314,7 +314,8 @@ export function adminAmlWaitingCopy(params: {
     }
     return null;
   }
-  const kycApproved = isPersonKycApproved(params.person?.onboarding?.status);
+  const kycApproved =
+    isPersonKycApproved(params.person?.onboarding?.status) && Boolean(personRegTankKycId(params.person));
   const amlGroup = getAmlGroup(params.person?.screening?.status ?? "");
   if (
     !kycApproved &&
@@ -344,8 +345,13 @@ export function adminProfileCompletenessHint(params: {
     isShareholder: params.row.party.isShareholder,
     kycOnboardingStatus: params.row.person?.onboarding?.status ?? null,
   });
-  if (deferred) return PERSON_KYC_REQUIRED_BEFORE_PROFILE_COMPLETION;
-  if (params.kycApproved && params.missingCount > 0) {
+
+  const person = params.row.person;
+  const kycApprovedWithId =
+    params.kycApproved && Boolean(personRegTankKycId(person));
+  const deferredWithId = deferred || (isPersonKycApproved(person?.onboarding?.status) && !kycApprovedWithId);
+  if (deferredWithId) return PERSON_KYC_REQUIRED_BEFORE_PROFILE_COMPLETION;
+  if (kycApprovedWithId && params.missingCount > 0) {
     return `${params.missingCount} profile ${params.missingCount === 1 ? "field remains" : "fields remain"} — use Complete profile.`;
   }
   return null;
