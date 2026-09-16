@@ -4,7 +4,7 @@ import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import { firstIssueMessage, humanizeApiValidationMessage, isProfileValidationError, issuesByField, profileValidationErrorFromApi, PROFILE_LABEL, scAppendixASelectValues, validateInvestorCorporateForm } from "@cashsouk/types";
+import { firstIssueMessage, formatCustomerProfileDate, humanizeApiValidationMessage, isProfileValidationError, issuesByField, profileValidationErrorFromApi, PROFILE_LABEL, scAppendixASelectValues, validateInvestorCorporateForm } from "@cashsouk/types";
 import { ComRepFieldLabel, ProfileFieldGrid, ProfileReadField } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,9 +21,9 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 function formatDate(value: string | Date | null | undefined): string {
   if (!value) return "—";
-  const date = typeof value === "string" ? new Date(value) : value;
-  if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  if (typeof value === "string") return formatCustomerProfileDate(value) || "—";
+  if (Number.isNaN(value.getTime())) return "—";
+  return value.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
 function toDateInput(value: string | Date | null | undefined): string {
