@@ -752,8 +752,20 @@ export function PeopleAccessSection({
                   partyKey: res.data.partyKey,
                 });
                 if (!sendRes.success) {
-                  toast.success("Person added");
-                  toast.error(sendRes.error.message);
+                  const email = String(data.email ?? "").trim();
+                  toast.error(
+                    sendRes.error.message
+                      ? `${sendRes.error.message} Person added, but RegTank onboarding link was not created. Please retry via "Send onboarding".`
+                      : 'Person added, but RegTank onboarding link was not created. Please retry via "Send onboarding".'
+                  );
+                  // Open the retry dialog so the user isn't left with a stuck onboarding state.
+                  setOnboardKey(res.data.partyKey);
+                  if (email) {
+                    setDraftEmails((current) => ({
+                      ...current,
+                      [res.data.partyKey]: email,
+                    }));
+                  }
                 } else {
                   toast.success("Person added and onboarding link sent");
                 }
