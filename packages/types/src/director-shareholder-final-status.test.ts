@@ -22,23 +22,23 @@ describe("director/shareholder final status: individual KYC ref semantics", () =
       { onboarding: { status: "APPROVED", id: null } },
       { displayMode: "kyc_only" }
     ).label;
-    expect(label).toBe("In Progress");
+    expect(label).toBe("Approved");
   });
 
-  it("COMPLETED + KYC... → Approved (kyc_only)", () => {
+  it("COMPLETED + KYC... → Completed (kyc_only)", () => {
     const label = getFinalStatusLabel(
       { onboarding: { status: "COMPLETED", id: "KYC00185" } },
       { displayMode: "kyc_only" }
     ).label;
-    expect(label).toBe("Approved");
+    expect(label).toBe("Completed");
   });
 
-  it("COMPLETED without KYC ref → In Progress (kyc_only)", () => {
+  it("COMPLETED without KYC ref → Completed (kyc_only)", () => {
     const label = getFinalStatusLabel(
       { onboarding: { status: "COMPLETED", id: null } },
       { displayMode: "kyc_only" }
     ).label;
-    expect(label).toBe("In Progress");
+    expect(label).toBe("Completed");
   });
 
   it("WAIT_FOR_APPROVAL + any KYC ref → Pending Review (kyc_only)", () => {

@@ -8,7 +8,6 @@
 
 import { isKycOnboardingNotStartedToken } from "./kyc-onboarding-lifecycle";
 import { normalizeRawStatus } from "./status-normalization";
-import { isIndividualKycReference } from "./regtank-individual-kyc-reference";
 
 export type DirectorShareholderFinalStatusTone =
   | "success"
@@ -73,41 +72,24 @@ export type DirectorShareholderStatusPerson = {
 export function getDirectorShareholderEffectiveStatus(
   person: DirectorShareholderStatusPerson
 ): { source: DirectorShareholderEffectiveStatusSource; value: string } {
-  const idCandidates = [
-    person.screening?.id,
-    person.screeningRequestId,
-    person.onboarding?.id,
-  ]
-    .map((v) => String(v ?? "").trim())
-    .filter(Boolean);
-
-  const hasKycIdRef = idCandidates.some((id) => isIndividualKycReference(id));
-  const hasKyBIdRef = idCandidates.some((id) => id.toUpperCase().startsWith("KYB"));
-
   const onboarding = normalizeRawStatus(person.onboarding?.status);
   const aml = normalizeRawStatus(person.screening?.status);
 
   const onboardingInPlay = Boolean(onboarding) && !isKycOnboardingNotStartedToken(onboarding);
-  const approvedCompleteWithId = onboarding === "APPROVED" && (hasKycIdRef || hasKyBIdRef);
+  const kycApproved = onboarding === "APPROVED";
 
   // AML must not be shown as the effective status until KYC is truly complete:
-  // APPROVED + KYC id/reference exists.
+  // APPROVED onboarding stage.
   if (aml && !isKycOnboardingNotStartedToken(aml)) {
-    if (onboardingInPlay && !approvedCompleteWithId) {
-      // Ignore AML until KYC is complete.
-    } else {
-      return { source: "AML", value: aml };
-    }
+    if (onboardingInPlay && !kycApproved) return { source: "ONBOARDING", value: onboarding };
+    return { source: "AML", value: aml };
   }
 
-  const approvedButNoId = onboarding === "APPROVED" && !(hasKycIdRef || hasKyBIdRef);
   return {
     source: "ONBOARDING",
     value: isKycOnboardingNotStartedToken(onboarding)
       ? ""
-      : approvedButNoId
-        ? "IN_PROGRESS"
-        : onboarding,
+      : onboarding,
   };
 }
 
@@ -174,25 +156,8 @@ export function getFinalStatusLabel(
       ? {
           source: "ONBOARDING" as const,
           value: (() => {
-            const idCandidates = [
-              person.screening?.id,
-              person.screeningRequestId,
-              person.onboarding?.id,
-            ]
-              .map((v) => String(v ?? "").trim())
-              .filter(Boolean);
-
-            const hasKycIdRef = idCandidates.some((id) => isIndividualKycReference(id));
-            const hasKyBIdRef = idCandidates.some((id) => id.toUpperCase().startsWith("KYB"));
-
             const onboarding = normalizeRawStatus(person.onboarding?.status);
             if (isKycOnboardingNotStartedToken(onboarding)) return "";
-            if (onboarding === "APPROVED" && !(hasKycIdRef || hasKyBIdRef)) return "IN_PROGRESS";
-            // KYC-only badge must not treat `COMPLETED` as a standalone KYC terminal.
-            // Only claim KYC complete when a KYC/DJKYC reference exists.
-            if (onboarding === "COMPLETED") {
-              return hasKycIdRef || hasKyBIdRef ? "APPROVED" : "IN_PROGRESS";
-            }
             return onboarding;
           })(),
         }

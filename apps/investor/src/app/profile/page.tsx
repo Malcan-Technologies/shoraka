@@ -1780,8 +1780,8 @@ export default function ProfilePage() {
                     directorShareholderListSource={orgData?.directorShareholderListSource ?? null}
                     ctosDirectorShareholderWarning={orgData?.ctosDirectorShareholderWarning ?? null}
                     focusedMatchKey={focusedPersonKey}
-                    canEdit={canEditOrganization}
-                    canInactivate={canEditOrganization}
+                    canEdit={isCurrentUserAdmin}
+                    canInactivate={isCurrentUserAdmin}
                     canManagePlatformAccess={isCurrentUserAdmin}
                     currentUserId={currentUser?.userId}
                     ownerUserId={activeOrganization.ownerId}
