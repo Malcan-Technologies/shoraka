@@ -188,6 +188,11 @@ export function getFinalStatusLabel(
             const onboarding = normalizeRawStatus(person.onboarding?.status);
             if (isKycOnboardingNotStartedToken(onboarding)) return "";
             if (onboarding === "APPROVED" && !(hasKycIdRef || hasKyBIdRef)) return "IN_PROGRESS";
+            // KYC-only badge must not treat `COMPLETED` as a standalone KYC terminal.
+            // Only claim KYC complete when a KYC/DJKYC reference exists.
+            if (onboarding === "COMPLETED") {
+              return hasKycIdRef || hasKyBIdRef ? "APPROVED" : "IN_PROGRESS";
+            }
             return onboarding;
           })(),
         }
