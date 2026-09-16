@@ -90,6 +90,10 @@ export function InvestorProfileCompletenessBanner({
             remaining={remaining}
             sections={sections}
             onSectionClick={(section) => {
+              if (section.id === "people") {
+                window.location.assign("/profile?tab=people");
+                return;
+              }
               if (!section.href) return;
               const id = section.href.slice(1);
               document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });

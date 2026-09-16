@@ -989,6 +989,7 @@ export const INVESTOR_COMPANY_UI_SECTIONS: Array<{
   href: string;
 }> = [
   { id: "company", label: "Company Details", href: "#profile-company" },
+  { id: "people", label: "People & Access", href: "#profile-people" },
   { id: "addresses", label: "Business Address", href: "#profile-addresses" },
   { id: "contact", label: "Account owner", href: "#profile-contact" },
   { id: "classification", label: "Investor classification", href: "#profile-classification" },
@@ -998,6 +999,19 @@ export function investorUiSectionForMissing(
   item: ProfileMissingItem,
   organizationType: "PERSONAL" | "COMPANY"
 ): ProfileUiSectionId {
+  // Shareholders/board are presented in the People & Access tab.
+  if (item.step === "shareholders" || item.step === "board") return "people";
+
+  // Person-in-charge/account-owner style fields (shared naming with issuer).
+  if (
+    item.field === "contactPersonEmail" ||
+    item.field === "contactPersonPhone" ||
+    item.field === "contactPersonName" ||
+    item.field === "contactPersonPosition"
+  ) {
+    return "contact";
+  }
+
   if (item.field === "state" || item.field === "postalCode") return "addresses";
   if (item.field === "businessState" || item.field === "businessPostalCode") return "addresses";
   if (item.field === "scInvestorCategory" || item.field === "isSophisticatedInvestor") {
@@ -1014,7 +1028,9 @@ export function investorUiSectionForMissing(
   ) {
     return "company";
   }
-  return "personal";
+
+  // Ensure every missing item contributes to the visible breakdown.
+  return organizationType === "COMPANY" ? "company" : "personal";
 }
 
 export function groupInvestorMissingByProfileSection(
