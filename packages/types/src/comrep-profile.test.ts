@@ -592,10 +592,11 @@ describe("investor company completeness is not issuer Person completeness", () =
     expect(result.missing.map((item) => item.field)).not.toContain("dateOfBirth");
   });
 
-  it("does not list People as an Investor ComRep completeness section", () => {
+  it("lists People & Access as an Investor ComRep completeness section for COMPANY", () => {
     const rows = groupInvestorMissingByProfileSection([], "COMPANY");
     expect(rows.map((row) => row.id)).toEqual([
       "company",
+      "people",
       "addresses",
       "contact",
       "classification",
@@ -1076,6 +1077,40 @@ describe("profile UI section grouping", () => {
     );
     expect(rows.find((row) => row.id === "personal")?.missingCount).toBe(1);
     expect(rows.find((row) => row.id === "addresses")?.missingCount).toBe(1);
+  });
+
+  it("groups investor corporate board/shareholder missing items onto People & Access", () => {
+    const director = {
+      partyKey: "950829083430",
+      name: "Nur Aina Farisha Binti Salleh",
+      entityType: "INDIVIDUAL" as const,
+      isDirector: true,
+      isShareholder: false,
+      isBoard: false,
+      isManagement: false,
+      identityPrefix: "NRIC" as const,
+      identityNumber: "950829083430",
+      dateOfBirth: null,
+      dateOfIncorporation: null,
+      gender: null,
+      nationality: null,
+      countryOfIncorporation: null,
+      address: { line1: "1 Jalan A", state: "Selangor", postalCode: "47800" },
+      shareType: null,
+      shareTypeOther: null,
+      shareholdingUnits: null,
+      shareholdingAmount: null,
+      shareholdingPercentage: null,
+      designation: null,
+      designationOther: null,
+      appointmentDate: null,
+    };
+
+    const directorMissing = computeIssuerPersonCompleteness(director);
+    const rows = groupInvestorMissingByProfileSection(directorMissing, "COMPANY");
+    const peopleRow = rows.find((row) => row.id === "people");
+    expect(peopleRow?.missingCount).toBe(directorMissing.length);
+    expect(rows.reduce((sum, r) => sum + r.missingCount, 0)).toBe(directorMissing.length);
   });
 
   it("groups SC ComRep investor type onto classification", () => {
