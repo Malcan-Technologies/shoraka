@@ -35,6 +35,9 @@ type CorporatePatch = {
   annualRevenue?: string | number | null;
   tinNumber?: string | null;
   businessName?: string | null;
+  aboutYourBusiness?: {
+    mainCustomers?: string | null;
+  } | null;
   contactPerson?: {
     name?: string | null;
     position?: string | null;
@@ -258,6 +261,21 @@ export function buildOrganizationProfileAuditEvidence(input: {
         nextContact[key] ?? null
       );
     }
+  }
+
+  const prevAbout = isPlainObjectRecord(previousCorporate.aboutYourBusiness)
+    ? previousCorporate.aboutYourBusiness
+    : {};
+  const nextAbout = isPlainObjectRecord(nextCorporate.aboutYourBusiness) ? nextCorporate.aboutYourBusiness : {};
+  if (!patch || patch.aboutYourBusiness !== undefined) {
+    recordIfChanged(
+      previousValues,
+      nextValues,
+      updatedFields,
+      "corporateOnboardingData.aboutYourBusiness.mainCustomers",
+      nestedString(prevAbout, "mainCustomers"),
+      nestedString(nextAbout, "mainCustomers")
+    );
   }
 
   if (input.bankFieldsChanged) {
