@@ -206,7 +206,9 @@ function InvestorDashboardContent() {
 
   const displayName = getGreetingName();
   const isRejected = dashboardState === "rejected";
-  const showCompleteness = dashboardState === "new" || dashboardState === "active";
+  // Profile completeness is independent of the "dashboard step" gating.
+  // The banner is driven solely by the backend completeness result.
+  const showCompleteness = activeOrganization?.onboardingStatus === "COMPLETED";
 
   return (
     <>
@@ -270,6 +272,9 @@ function InvestorDashboardContent() {
                 <InvestorProfileCompletenessBanner
                   organizationId={activeOrganization?.id}
                   onboarded
+                  organizationType={
+                    activeOrganization?.type === "PERSONAL" ? "PERSONAL" : "COMPANY"
+                  }
                 />
               ) : null}
 

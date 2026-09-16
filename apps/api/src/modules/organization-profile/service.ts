@@ -1198,6 +1198,13 @@ export async function patchOrgMasterProfile(params: {
       patch.countryOfIncorporation
     );
   }
+  if (patch.scCompanyType !== undefined) {
+    data.sc_company_type = applyScalar(
+      "scCompanyType",
+      investor.sc_company_type as ScCompanyType | null,
+      patch.scCompanyType
+    );
+  }
   if (patch.isSophisticatedInvestor !== undefined || patch.scInvestorCategory !== undefined) {
     const organizationType: "PERSONAL" | "COMPANY" =
       investor.type === "COMPANY" ? "COMPANY" : "PERSONAL";

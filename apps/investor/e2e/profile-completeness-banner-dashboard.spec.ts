@@ -27,7 +27,12 @@ async function login(page: Page) {
 
 function mockInvestorDashboardApis(
   page: Page,
-  opts: { orgId: string; orgType: "PERSONAL" | "COMPANY"; people?: unknown[] }
+    opts: {
+    orgId: string;
+    orgType: "PERSONAL" | "COMPANY";
+    people?: unknown[];
+    depositReceived?: boolean;
+  }
 ) {
   const emptyPortfolio = {
     success: true,
@@ -105,7 +110,7 @@ function mockInvestorDashboardApis(
               type: opts.orgType,
               onboardingStatus: "COMPLETED",
               tncAccepted: true,
-              depositReceived: true,
+              depositReceived: opts.depositReceived ?? true,
               submittedAt: new Date().toISOString(),
               people: opts.people ?? [],
               firstName: "Test",
@@ -119,15 +124,33 @@ function mockInvestorDashboardApis(
   });
 }
 
-function mockInvestorProfileCompleteness(page: Page, opts: {
-  orgId: string;
-  orgType: "PERSONAL" | "COMPANY";
-  complete: boolean;
-}) {
-  const missingItem =
+function mockInvestorProfileCompleteness(
+  page: Page,
+  opts: {
+    orgId: string;
+    orgType: "PERSONAL" | "COMPANY";
+    complete: boolean;
+    percent?: number;
+    missingCount?: number;
+  }
+) {
+  const percent = opts.percent ?? (opts.complete ? 100 : 40);
+  const missingCount = opts.missingCount ?? (opts.complete ? 0 : 1);
+
+  const missingItemBase =
     opts.orgType === "COMPANY"
       ? { step: "identity", field: "name", label: "Company name" }
       : { step: "identity", field: "gender", label: "Gender" };
+
+  const userMissing =
+    opts.complete
+      ? []
+      : Array.from({ length: missingCount }, (_, i) => ({
+          ...missingItemBase,
+          // Ensure items have distinct `label` values to avoid accidental de-duping in the UI.
+          label: `${missingItemBase.label} ${i + 1}`,
+          field: missingItemBase.field,
+        }));
 
   page.route(`${API_URL}/v1/organizations/investor/${opts.orgId}/profile-completeness**`, async (route) => {
     await route.fulfill({
@@ -140,12 +163,12 @@ function mockInvestorProfileCompleteness(page: Page, opts: {
           portal: "investor",
           organizationType: opts.orgType,
           complete: opts.complete,
-          percent: opts.complete ? 100 : 40,
+          percent,
           steps: [],
           missing: [],
           userComplete: opts.complete,
-          userPercent: opts.complete ? 100 : 40,
-          userMissing: opts.complete ? [] : [missingItem],
+          userPercent: percent,
+          userMissing,
         },
       }),
     });
@@ -191,6 +214,45 @@ test.describe("Investor profile-completeness banner placement", () => {
     expect(bannerBox).not.toBeNull();
     expect(mainBox).not.toBeNull();
     expect(bannerBox!.y).toBeLessThan(mainBox!.y);
+  });
+
+  test("incomplete personal investor: banner visible in deposit/onboarding flow and matches backend percent/items", async ({
+    page,
+  }) => {
+    await page.unroute(`${API_URL}/v1/organizations/investor`);
+    await mockInvestorDashboardApis(page, {
+      orgId: "org_incomplete_personal",
+      orgType: "PERSONAL",
+      depositReceived: false,
+    });
+    await page.unroute(
+      `${API_URL}/v1/organizations/investor/org_incomplete_personal/profile-completeness**`
+    );
+    await mockInvestorProfileCompleteness(page, {
+      orgId: "org_incomplete_personal",
+      orgType: "PERSONAL",
+      complete: false,
+      percent: 92,
+      missingCount: 2,
+    });
+
+    await page.reload();
+
+    const banner = page.getByText("Complete your profile").first();
+    await expect(banner).toBeVisible();
+
+    // Exact copy is part of the requirement (same backend completeness result as `/profile`).
+    await expect(page.getByText("92% complete")).toBeVisible();
+    await expect(page.getByText("2 items remaining")).toBeVisible();
+
+    const heading = page.getByRole("heading", { name: /Set up your investor account/i });
+    await expect(heading).toBeVisible();
+
+    const bannerBox = await banner.boundingBox();
+    const headingBox = await heading.boundingBox();
+    expect(bannerBox).not.toBeNull();
+    expect(headingBox).not.toBeNull();
+    expect(bannerBox!.y).toBeLessThan(headingBox!.y);
   });
 
   test("complete investor: banner hidden", async ({ page }) => {
@@ -292,6 +354,42 @@ test.describe("Investor profile-completeness banner placement", () => {
     const yellowBanner = page.getByText("Complete your profile").first();
     await expect(yellowBanner).toBeVisible();
     await expect(page.getByText("Complete your profile")).toHaveCount(1);
+    await expect(page.getByRole("link", { name: /Complete profile/i })).toHaveAttribute(
+      "href",
+      "/profile?focus=completeness"
+    );
+  });
+
+  test("incomplete corporate investor: banner visible in deposit/onboarding flow and matches backend percent/items", async ({
+    page,
+  }) => {
+    await page.unroute(`${API_URL}/v1/organizations/investor`);
+    await mockInvestorDashboardApis(page, {
+      orgId: "org_incomplete_company_deposit",
+      orgType: "COMPANY",
+      people: directorApproved,
+      depositReceived: false,
+    });
+
+    await page.unroute(
+      `${API_URL}/v1/organizations/investor/org_incomplete_company_deposit/profile-completeness**`
+    );
+    await mockInvestorProfileCompleteness(page, {
+      orgId: "org_incomplete_company_deposit",
+      orgType: "COMPANY",
+      complete: false,
+      percent: 80,
+      missingCount: 3,
+    });
+
+    await page.reload();
+
+    const banner = page.getByText("Complete your profile").first();
+    await expect(banner).toBeVisible();
+
+    await expect(page.getByText("80% complete")).toBeVisible();
+    await expect(page.getByText("3 items remaining")).toBeVisible();
+
     await expect(page.getByRole("link", { name: /Complete profile/i })).toHaveAttribute(
       "href",
       "/profile?focus=completeness"
