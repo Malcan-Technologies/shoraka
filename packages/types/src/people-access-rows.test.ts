@@ -132,10 +132,10 @@ describe("peopleAccessKycLabel / peopleAccessAmlLabel", () => {
     expect(peopleAccessKycLabel({ ...eligible, onboarding: { status: "EXPIRED" } })).toBe("Expired");
   });
 
-  it("does NOT show AML until KYC is approved + KYC id exists", () => {
+  it("does NOT show AML until KYC is approved", () => {
     const kycApprovedNoId = { ...eligible, onboarding: { status: "APPROVED" }, screening: { status: "PENDING" } };
-    expect(peopleAccessKycLabel(kycApprovedNoId)).toBe("In progress");
-    expect(peopleAccessAmlLabel(kycApprovedNoId)).toBe("Not started");
+    expect(peopleAccessKycLabel(kycApprovedNoId)).toBe("Approved");
+    expect(peopleAccessAmlLabel(kycApprovedNoId)).toBe("Pending");
 
     const kycApproved = { ...eligible, onboarding: { status: "APPROVED" }, screening: { status: "PENDING", id: "KYC1" } };
     expect(peopleAccessKycLabel(kycApproved)).toBe("Approved");

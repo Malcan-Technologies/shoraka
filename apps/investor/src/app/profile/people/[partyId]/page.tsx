@@ -79,7 +79,7 @@ export default function InvestorPersonDetailPage() {
           ownerUserId={activeOrganization.ownerId}
           currentUserId={currentUser?.userId}
           canEdit={canEditCompanyPerson}
-          canInactivate={canEditCompanyPerson && activeOrganization.type === "COMPANY"}
+          canInactivate={isCurrentUserAdmin && activeOrganization.type === "COMPANY"}
           canManagePlatformAccess={isCurrentUserAdmin}
           onBack={() => router.push("/profile?tab=people")}
           onChanged={async () => {
