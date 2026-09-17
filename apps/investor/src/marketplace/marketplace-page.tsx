@@ -271,7 +271,7 @@ export function MarketplacePage() {
     );
   }
 
-  function openInvestDialog(note: MarketplaceNote) {
+  async function openInvestDialog(note: MarketplaceNote) {
     if (!note.investable) return;
 
     // Enforce profile completeness before entering the Invest flow.
@@ -281,13 +281,34 @@ export function MarketplacePage() {
       toast.message("Checking your profile completeness...");
       return;
     }
-    if (profileCompletenessQuery.data) {
-      const user = userFacingCompleteness(profileCompletenessQuery.data);
+
+    // Do not allow Invest flow when we can't confidently confirm completeness.
+    // If the query errored, attempt a one-shot refetch on click (so user can retry
+    // without leaving the page).
+    let completenessResult = profileCompletenessQuery.data;
+    if (profileCompletenessQuery.isError || !profileCompletenessQuery.data) {
+      try {
+        completenessResult = (await profileCompletenessQuery.refetch()).data;
+      } catch {
+        completenessResult = undefined;
+      }
+    }
+
+    if (!completenessResult) {
+      toast.error("Could not verify your profile completeness. Please try again.");
+      return;
+    }
+
+    try {
+      const user = userFacingCompleteness(completenessResult);
       if (!user.complete) {
         toast.error("Complete your Profile before placing an investment.");
         router.push("/profile?focus=completeness");
         return;
       }
+    } catch {
+      toast.error("Could not verify your profile completeness. Please try again.");
+      return;
     }
 
     setActiveNote(note);

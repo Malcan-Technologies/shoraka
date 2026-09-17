@@ -416,6 +416,160 @@ test.describe("Investor marketplace: profile completeness gate", () => {
     expect(createInvestmentCalled).toBe(false);
   });
 
+  test("completeness query error → Invest modal does not open", async ({ page }) => {
+    await page.unroute(`${API_URL}/v1/organizations/investor**`);
+    await page.unroute(`${API_URL}/v1/organizations/investor/org_gate_personal/profile-completeness**`);
+
+    mockInvestorOrganizationProviderApis(page, {
+      orgId: "org_gate_personal",
+      orgType: "PERSONAL",
+      depositReceived: false,
+      onboardingStatus: "COMPLETED",
+    });
+    mockInvestorPortfolioApis(page);
+
+    // Make the completeness query fail.
+    page.route(`${API_URL}/v1/organizations/investor/org_gate_personal/profile-completeness**`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: false,
+          correlationId: "e2e",
+          error: { code: "TEST_ERROR", message: "Completeness unavailable" },
+        }),
+      });
+    });
+
+    await page.reload();
+    await page.goto("/marketplace");
+
+    let createInvestmentCalled = false;
+    page.route(`${API_URL}/v1/marketplace/notes/**/investments`, async (route) => {
+      createInvestmentCalled = true;
+      await route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: false,
+          correlationId: "e2e",
+          error: { code: "UNEXPECTED_CALL", message: "should not be called" },
+        }),
+      });
+    });
+
+    await page.getByRole("button", { name: /Invest/i }).first().click();
+
+    await expect(page.getByRole("heading", { name: /Invest/i })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Review investment/i })).toHaveCount(0);
+    expect(createInvestmentCalled).toBe(false);
+  });
+
+  test("undefined/no completeness data → Invest modal does not open", async ({ page }) => {
+    await page.unroute(`${API_URL}/v1/organizations/investor**`);
+    await page.unroute(`${API_URL}/v1/organizations/investor/org_gate_personal/profile-completeness**`);
+
+    mockInvestorOrganizationProviderApis(page, {
+      orgId: "org_gate_personal",
+      orgType: "PERSONAL",
+      depositReceived: false,
+      onboardingStatus: "COMPLETED",
+    });
+    mockInvestorPortfolioApis(page);
+
+    // Return success=true but with no `data` field.
+    page.route(`${API_URL}/v1/organizations/investor/org_gate_personal/profile-completeness**`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          correlationId: "e2e",
+        }),
+      });
+    });
+
+    await page.reload();
+    await page.goto("/marketplace");
+
+    let createInvestmentCalled = false;
+    page.route(`${API_URL}/v1/marketplace/notes/**/investments`, async (route) => {
+      createInvestmentCalled = true;
+      await route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: false,
+          correlationId: "e2e",
+          error: { code: "UNEXPECTED_CALL", message: "should not be called" },
+        }),
+      });
+    });
+
+    await page.getByRole("button", { name: /Invest/i }).first().click();
+
+    await expect(page.getByRole("heading", { name: /Invest/i })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Review investment/i })).toHaveCount(0);
+    expect(createInvestmentCalled).toBe(false);
+  });
+
+  test("retry/success afterward → Invest can proceed if complete", async ({ page }) => {
+    await page.unroute(`${API_URL}/v1/organizations/investor**`);
+    await page.unroute(`${API_URL}/v1/organizations/investor/org_gate_personal/profile-completeness**`);
+
+    mockInvestorOrganizationProviderApis(page, {
+      orgId: "org_gate_personal",
+      orgType: "PERSONAL",
+      depositReceived: false,
+      onboardingStatus: "COMPLETED",
+    });
+    mockInvestorPortfolioApis(page);
+
+    let completenessAttempt = 0;
+    page.route(`${API_URL}/v1/organizations/investor/org_gate_personal/profile-completeness**`, async (route) => {
+      completenessAttempt += 1;
+
+      if (completenessAttempt === 1) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            success: false,
+            correlationId: "e2e",
+            error: { code: "TEST_ERROR", message: "Completeness temporarily unavailable" },
+          }),
+        });
+        return;
+      }
+
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          correlationId: "e2e",
+          data: {
+            portal: "investor",
+            organizationType: "PERSONAL",
+            complete: true,
+            percent: 100,
+            steps: [],
+            missing: [],
+            userComplete: true,
+            userPercent: 100,
+            userMissing: [],
+          },
+        }),
+      });
+    });
+
+    await page.reload();
+    await page.goto("/marketplace");
+
+    await page.getByRole("button", { name: /Invest/i }).first().click();
+    await expect(page.getByRole("button", { name: /Review investment/i })).toBeVisible();
+  });
+
   test("complete Investor → Invest flow opens normally", async ({ page }) => {
     await page.unroute(`${API_URL}/v1/organizations/investor/org_gate_personal/profile-completeness**`);
     mockInvestorProfileCompletenessApis(page, {
