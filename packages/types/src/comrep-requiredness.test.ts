@@ -1,5 +1,6 @@
 import {
   identityFormatIssue,
+  personalInvestorIdentityFormatKind,
   optionalEmailIssue,
   requiredEmailIssue,
   requiredEnumIssue,
@@ -7,6 +8,7 @@ import {
   requiredPhoneIssue,
   requiredPostcodeIssue,
   requiredTextIssue,
+  validateInvestorPersonalForm,
   validateIssuerAddressForm,
   validateIssuerCompanyForm,
   validateIssuerContactPersonForm,
@@ -190,6 +192,55 @@ describe("ComRep requiredness", () => {
       "LLP"
     );
     expect(issues).toHaveLength(0);
+  });
+
+  it("maps Driving License to the same 12-digit NRIC helper as NRIC/MyKad", () => {
+    expect(personalInvestorIdentityFormatKind("DRIVER_LICENSE")).toBe("NRIC");
+    expect(personalInvestorIdentityFormatKind("DRIVING_LICENSE")).toBe("NRIC");
+    expect(personalInvestorIdentityFormatKind("NATIONAL_ID")).toBe("NRIC");
+    expect(personalInvestorIdentityFormatKind("NRIC")).toBe("NRIC");
+    expect(personalInvestorIdentityFormatKind("PASSPORT")).toBe("PASSPORT");
+  });
+
+  it("rejects stored Driving License values that are not 12 digits", () => {
+    expect(
+      identityFormatIssue(
+        "a0000000000&*",
+        personalInvestorIdentityFormatKind("DRIVER_LICENSE"),
+        "identityNumber",
+        "Identity Number"
+      )?.message
+    ).toMatch(/exactly 12 digits/);
+  });
+
+  it("validateInvestorPersonalForm rejects invalid Driving License and accepts 12 digits / passport", () => {
+    const base = {
+      gender: "MALE",
+      nationality: "Malaysia",
+      state: "Johor",
+      postalCode: "80000",
+    };
+    expect(
+      validateInvestorPersonalForm({
+        ...base,
+        identityNumber: "a0000000000&*",
+        identityKind: "NRIC",
+      }).some((issue) => issue.field === "identityNumber")
+    ).toBe(true);
+    expect(
+      validateInvestorPersonalForm({
+        ...base,
+        identityNumber: "800101011234",
+        identityKind: "NRIC",
+      }).some((issue) => issue.field === "identityNumber")
+    ).toBe(false);
+    expect(
+      validateInvestorPersonalForm({
+        ...base,
+        identityNumber: "AB-12 34",
+        identityKind: "PASSPORT",
+      }).some((issue) => issue.field === "identityNumber")
+    ).toBe(false);
   });
 
   it("rejects NRIC with dashes and enforces exactly 12 digits", () => {

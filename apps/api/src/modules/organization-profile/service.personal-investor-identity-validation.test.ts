@@ -36,6 +36,13 @@ describe("Personal Investor identityNumber validation by document_type", () => {
   it("treats Driving License as 12 digits digits-only", () => {
     expect(
       validatePersonalInvestorIdentityNumberByDocumentType({
+        documentType: "DRIVER_LICENSE",
+        identityNumber: "800101011234",
+      })
+    ).toBe("800101011234");
+
+    expect(
+      validatePersonalInvestorIdentityNumberByDocumentType({
         documentType: "DRIVING_LICENSE",
         identityNumber: "800101011234",
       })
@@ -43,7 +50,14 @@ describe("Personal Investor identityNumber validation by document_type", () => {
 
     expect(() =>
       validatePersonalInvestorIdentityNumberByDocumentType({
-        documentType: "DRIVING_LICENSE",
+        documentType: "DRIVER_LICENSE",
+        identityNumber: "a0000000000&*",
+      })
+    ).toThrow(/exactly 12 digits/i);
+
+    expect(() =>
+      validatePersonalInvestorIdentityNumberByDocumentType({
+        documentType: "DRIVER_LICENSE",
         identityNumber: "80010101123",
       })
     ).toThrow(/exactly 12 digits/i);

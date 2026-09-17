@@ -343,4 +343,47 @@ describe("buildSectionPayload", () => {
       nationality: "Singaporean",
     });
   });
+
+  it("includes non-empty invalid identityNumber even when unchanged (backend re-validates)", () => {
+    const invalid = "a0000000000&*";
+    const org = companyOrg({
+      portal: "investor",
+      type: "PERSONAL",
+      documentType: "DRIVER_LICENSE",
+      documentNumber: invalid,
+    });
+    const draft = buildDraft(org);
+
+    const payload = buildSectionPayload(org, draft, "personal");
+    expect(payload).toMatchObject({
+      identityNumber: invalid,
+    });
+  });
+
+  it("omits valid unchanged identityNumber to preserve provenance", () => {
+    const org = companyOrg({
+      portal: "investor",
+      type: "PERSONAL",
+      documentType: "DRIVER_LICENSE",
+      documentNumber: "800101011234",
+    });
+    const draft = buildDraft(org);
+    draft.nationality = "Singaporean";
+
+    const payload = buildSectionPayload(org, draft, "personal");
+    expect(payload).toMatchObject({ nationality: "Singaporean" });
+    expect(payload).not.toHaveProperty("identityNumber");
+  });
+
+  it("does not include an unchanged passport number for backend 12-digit checks", () => {
+    const org = companyOrg({
+      portal: "investor",
+      type: "PERSONAL",
+      documentType: "PASSPORT",
+      documentNumber: "AB-12 34",
+    });
+    const draft = buildDraft(org);
+
+    expect(buildSectionPayload(org, draft, "personal")).not.toHaveProperty("identityNumber");
+  });
 });

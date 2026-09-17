@@ -46,6 +46,7 @@ import {
   typeOfInvestorValidationMessage,
   valuesEqualForMismatch,
 } from "./comrep-profile";
+import { personalInvestorIdentityFormatKind } from "./comrep-requiredness";
 import {
   ISSUER_PROFILE_BALANCE_SHEET_KEYS,
   ISSUER_PROFILE_PNL_KEYS,
@@ -560,6 +561,44 @@ describe("investor personal completeness [07000]", () => {
     });
     expect(missing.complete).toBe(false);
     expect(missing.missing.map((m) => m.field)).toContain("identityNumber");
+  });
+
+  it("Driving License invalid stored value → completeness incomplete", () => {
+    const missing = buildInvestorProfileCompleteness({
+      organizationType: "PERSONAL",
+      personal: {
+        name: "Ali Bin Abu",
+        identityPrefix: personalInvestorIdentityFormatKind("DRIVER_LICENSE"),
+        identityNumber: "a0000000000&*",
+        dateOfBirth: "1980-01-01",
+        gender: "MALE",
+        state: "Selangor",
+        postalCode: "47300",
+        nationality: "Malaysia",
+        scInvestorCategory: "RETAIL",
+        isSophisticatedInvestor: false,
+      },
+    });
+    expect(missing.missing.map((m) => m.field)).toContain("identityNumber");
+  });
+
+  it("Passport remains unaffected by the 12-digit identity rule", () => {
+    const result = buildInvestorProfileCompleteness({
+      organizationType: "PERSONAL",
+      personal: {
+        name: "Ali Bin Abu",
+        identityPrefix: personalInvestorIdentityFormatKind("PASSPORT"),
+        identityNumber: "AB-12 34",
+        dateOfBirth: "1980-01-01",
+        gender: "MALE",
+        state: "Selangor",
+        postalCode: "47300",
+        nationality: "Malaysia",
+        scInvestorCategory: "RETAIL",
+        isSophisticatedInvestor: false,
+      },
+    });
+    expect(result.missing.map((m) => m.field)).not.toContain("identityNumber");
   });
 
   it("recognizes a saved dateOfBirth value for investor profile completeness", () => {
