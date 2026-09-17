@@ -1728,6 +1728,16 @@ function issuerPersonRequiredFields(party: IssuerPersonCompletenessInput): Issue
   return fields;
 }
 
+// Debug-only helper for production diagnostics. Intentionally returns only
+// the "required-field -> filled boolean" comparison (no raw values).
+export type IssuerPersonRequiredFieldDebug = IssuerPersonRequiredField;
+
+export function issuerPersonRequiredFieldsForDebug(
+  party: IssuerPersonCompletenessInput
+): IssuerPersonRequiredFieldDebug[] {
+  return issuerPersonRequiredFields(party);
+}
+
 export function issuerPersonCompletenessInputFromParty(party: {
   partyKey: string;
   name: string | null | undefined;
