@@ -53,6 +53,9 @@ import {
   isMinimalOnboardingPersonCreate,
   parseCtosPartySupplement,
   isLaterAddedCompanyPerson,
+  issuerPersonCompletenessSummary,
+  issuerPersonRequiredFieldsForDebug,
+  groupPeopleMissingByParty,
 } from "@cashsouk/types";
 import { prisma } from "../../lib/prisma";
 import { logger } from "../../lib/logger";
@@ -88,6 +91,10 @@ import {
 } from "./serialize";
 
 type Portal = "issuer" | "investor";
+
+const PEOPLE_COMPLETENESS_DEBUG_PREFIX = "[PEOPLE_COMPLETENESS_DEBUG]";
+const PEOPLE_COMPLETENESS_DEBUG_ENABLED =
+  process.env.PEOPLE_COMPLETENESS_DEBUG === "1" || process.env.PEOPLE_COMPLETENESS_DEBUG === "true";
 
 const USER_LOCKED_ORG_FIELDS = new Set(["name"]);
 /** Shared master fields the investor/issuer may change even when already filled.
@@ -897,7 +904,64 @@ export async function computeOrgProfileCompleteness(
         };
       });
 
-    return buildIssuerProfileCompleteness({
+    if (PEOPLE_COMPLETENESS_DEBUG_ENABLED) {
+      for (const person of people) {
+        const requiredFields = issuerPersonRequiredFieldsForDebug(person);
+        const missingSummary = issuerPersonCompletenessSummary(person);
+
+        // Sensitive values are not logged; we only log the filled/missing booleans.
+        const present: Record<string, boolean> = {};
+        const filled = new Map(requiredFields.map((f) => [f.field, f.filled]));
+        const addPresent = (property: string, field: string) => {
+          if (!filled.has(field)) return;
+          present[property] = Boolean(filled.get(field));
+        };
+        addPresent("identityPrefixPresent", "identityPrefix");
+        addPresent("identityNumberPresent", "identityNumber");
+        addPresent("dateOfBirthPresent", "dateOfBirth");
+        addPresent("genderPresent", "gender");
+        addPresent("nationalityPresent", "nationality");
+        addPresent("addressLine1Present", "address.line1");
+        addPresent("statePresent", "address.state");
+        addPresent("postalCodePresent", "address.postalCode");
+
+        const missingItems = missingSummary.missingItems;
+        logger.info(
+          {
+            portal: "issuer",
+            organizationId,
+            partyId: person.partyKey,
+            partyKey: person.partyKey,
+            personName: person.name ?? null,
+            roles: {
+              isDirector: person.isDirector,
+              isBoard: person.isBoard,
+              isManagement: person.isManagement,
+              isShareholder: person.isShareholder,
+            },
+            entityType: person.entityType,
+            requiredFields: requiredFields.map((f) => ({
+              step: f.step,
+              field: f.field,
+              label: f.label,
+              filled: f.filled,
+            })),
+            present,
+            missingCount: missingSummary.missingCount,
+            missingFields: missingItems.map((m) => m.field),
+            missingLabels: missingItems.map((m) => m.label),
+            missingItems: missingItems.map((m) => ({
+              step: m.step,
+              field: m.field,
+              label: m.label,
+            })),
+          },
+          `${PEOPLE_COMPLETENESS_DEBUG_PREFIX} peopleCompletenessPerson`
+        );
+      }
+    }
+
+    const completeness = buildIssuerProfileCompleteness({
       company: {
         name,
         registrationNumber: roc,
@@ -918,6 +982,34 @@ export async function computeOrgProfileCompleteness(
       people,
       financials: issuerFinancialsFromYearBlock(year),
     });
+
+    if (PEOPLE_COMPLETENESS_DEBUG_ENABLED) {
+      const peopleMissing = completeness.missing.filter((item) => item.step === "shareholders" || item.step === "board");
+      const groupedByParty = groupPeopleMissingByParty(peopleMissing).map((g) => ({
+        partyId: g.partyKey || null,
+        partyName: g.partyName ?? null,
+        missing: g.items.map((m) => ({ step: m.step, field: m.field, label: m.label })),
+      }));
+
+      logger.info(
+        {
+          portal: "issuer",
+          organizationId,
+          peopleMissingCount: peopleMissing.length,
+          missing: peopleMissing.map((m) => ({
+            partyId: m.partyKey ?? null,
+            partyName: m.partyName ?? null,
+            step: m.step,
+            field: m.field,
+            label: m.label,
+          })),
+          groupedByParty,
+        },
+        `${PEOPLE_COMPLETENESS_DEBUG_PREFIX} peopleCompletenessOrgSummary`
+      );
+    }
+
+    return completeness;
   }
 
   const org = await prisma.investorOrganization.findUnique({
@@ -979,7 +1071,64 @@ export async function computeOrgProfileCompleteness(
           kycOnboardingStatus: kycByPartyKey.get(p.party_key) ?? null,
         };
       });
-    return buildInvestorProfileCompleteness({
+
+    if (PEOPLE_COMPLETENESS_DEBUG_ENABLED) {
+      for (const person of people) {
+        const requiredFields = issuerPersonRequiredFieldsForDebug(person);
+        const missingSummary = issuerPersonCompletenessSummary(person);
+
+        const present: Record<string, boolean> = {};
+        const filled = new Map(requiredFields.map((f) => [f.field, f.filled]));
+        const addPresent = (property: string, field: string) => {
+          if (!filled.has(field)) return;
+          present[property] = Boolean(filled.get(field));
+        };
+        addPresent("identityPrefixPresent", "identityPrefix");
+        addPresent("identityNumberPresent", "identityNumber");
+        addPresent("dateOfBirthPresent", "dateOfBirth");
+        addPresent("genderPresent", "gender");
+        addPresent("nationalityPresent", "nationality");
+        addPresent("addressLine1Present", "address.line1");
+        addPresent("statePresent", "address.state");
+        addPresent("postalCodePresent", "address.postalCode");
+
+        const missingItems = missingSummary.missingItems;
+        logger.info(
+          {
+            portal: "investor",
+            organizationId,
+            partyId: person.partyKey,
+            partyKey: person.partyKey,
+            personName: person.name ?? null,
+            roles: {
+              isDirector: person.isDirector,
+              isBoard: person.isBoard,
+              isManagement: person.isManagement,
+              isShareholder: person.isShareholder,
+            },
+            entityType: person.entityType,
+            requiredFields: requiredFields.map((f) => ({
+              step: f.step,
+              field: f.field,
+              label: f.label,
+              filled: f.filled,
+            })),
+            present,
+            missingCount: missingSummary.missingCount,
+            missingFields: missingItems.map((m) => m.field),
+            missingLabels: missingItems.map((m) => m.label),
+            missingItems: missingItems.map((m) => ({
+              step: m.step,
+              field: m.field,
+              label: m.label,
+            })),
+          },
+          `${PEOPLE_COMPLETENESS_DEBUG_PREFIX} peopleCompletenessPerson`
+        );
+      }
+    }
+
+    const completeness = buildInvestorProfileCompleteness({
       organizationType: "COMPANY",
       corporate: {
         name: org.name,
@@ -995,6 +1144,34 @@ export async function computeOrgProfileCompleteness(
       },
       people,
     });
+
+    if (PEOPLE_COMPLETENESS_DEBUG_ENABLED) {
+      const peopleMissing = completeness.missing.filter((item) => item.step === "shareholders" || item.step === "board");
+      const groupedByParty = groupPeopleMissingByParty(peopleMissing).map((g) => ({
+        partyId: g.partyKey || null,
+        partyName: g.partyName ?? null,
+        missing: g.items.map((m) => ({ step: m.step, field: m.field, label: m.label })),
+      }));
+
+      logger.info(
+        {
+          portal: "investor",
+          organizationId,
+          peopleMissingCount: peopleMissing.length,
+          missing: peopleMissing.map((m) => ({
+            partyId: m.partyKey ?? null,
+            partyName: m.partyName ?? null,
+            step: m.step,
+            field: m.field,
+            label: m.label,
+          })),
+          groupedByParty,
+        },
+        `${PEOPLE_COMPLETENESS_DEBUG_PREFIX} peopleCompletenessOrgSummary`
+      );
+    }
+
+    return completeness;
   }
   return buildInvestorProfileCompleteness({
     organizationType: "PERSONAL",
@@ -1419,11 +1596,13 @@ export async function patchPartyProfile(params: {
     throw new AppError(400, "VALIDATION_ERROR", appliedSemantics.issues[0] ?? "Enter a valid value.");
   }
   if (p.salutation !== undefined || (entityType === "CORPORATE" && p.identityPrefix !== undefined)) {
-    data.salutation = apply(
-      "salutation",
-      row.salutation,
-      appliedSemantics?.salutation ?? p.salutation ?? row.salutation
-    );
+    // If the editor explicitly sends `salutation: null`, that must mean "clear existing".
+    // Using `?? row.salutation` would treat `null` as "no change" and preserve stale values.
+    const salutationIncoming =
+      p.salutation !== undefined
+        ? appliedSemantics?.salutation ?? p.salutation
+        : appliedSemantics?.salutation;
+    data.salutation = apply("salutation", row.salutation, salutationIncoming);
   }
   if (p.identityPrefix !== undefined || entityType === "CORPORATE") {
     if (p.identityPrefix !== undefined || (entityType === "CORPORATE" && appliedSemantics)) {

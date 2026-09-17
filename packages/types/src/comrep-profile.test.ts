@@ -1417,6 +1417,57 @@ describe("people completeness by actual role", () => {
     expect(missing.some((item) => item.field === "designation")).toBe(false);
   });
 
+  it("issuer company: director-only people should not fail the People & Access gate", () => {
+    const completeness = buildIssuerProfileCompleteness({
+      company: {
+        name: "Acme Sdn Bhd",
+        registrationNumber: "1234567A",
+        organizationId: "org_1",
+        dateOfIncorporation: "2020-01-01",
+        dateOfCommencement: "2020-02-01",
+        countryOfIncorporation: "Malaysia",
+        scCompanyType: "PRIVATE_LIMITED",
+        registeredAddress: { line1: "1 Jalan R", state: "Selangor", postalCode: "40000", line2: null, city: null, country: null },
+        businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "41000", line2: null, city: null, country: null },
+        ...FILLED_CONTACT,
+        ...FILLED_ABOUT,
+      },
+      shareholders: [],
+      board: [],
+      people: [
+        {
+          partyKey: "repro_director_1",
+          name: "Nur Aina Farisha Binti Salleh",
+          entityType: "INDIVIDUAL",
+          isDirector: true,
+          isShareholder: false,
+          isBoard: false,
+          isManagement: false,
+          identityPrefix: "NRIC",
+          identityNumber: "950829083430",
+          dateOfBirth: "1980-01-01",
+          dateOfIncorporation: null,
+          gender: "FEMALE",
+          nationality: "Malaysia",
+          countryOfIncorporation: null,
+          address: { line1: "1 Jalan A", state: "Selangor", postalCode: "47800", line2: null, city: null, country: null },
+          shareType: null,
+          shareTypeOther: null,
+          shareholdingUnits: null,
+          shareholdingAmount: null,
+          shareholdingPercentage: null,
+          designation: null,
+          designationOther: null,
+          appointmentDate: null,
+        },
+      ],
+      financials: null,
+    });
+
+    expect(completeness.missing).toHaveLength(0);
+    expect(completeness.complete).toBe(true);
+  });
+
   it("issuerPersonCompletenessSummary derives missingCount and missingFields from the same rules", () => {
     const person = {
       partyKey: "950829083430",
