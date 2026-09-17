@@ -492,6 +492,7 @@ export function OrganizationPeoplePanel({
         title={editingParty?.name || "Person"}
         description="Update this person’s details on the company profile."
         initial={editingParty ? partyToEditorValues(editingParty) : null}
+        fieldSources={editingParty?.fieldSources}
         isSaving={peopleMutations.patchParty.isPending}
         enforceIssuerShareholderMinimum
         onSave={async (values) => {

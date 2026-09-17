@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import type { ApplicationPersonRow, OrganizationPartyProfileDto } from "@cashsouk/types";
+import type { ApplicationPersonRow, OrganizationPartyProfileDto, ProfileFieldSources } from "@cashsouk/types";
 import {
   firstIssueMessage,
   isIssuerOfficerRole,
@@ -49,6 +49,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
+import { computePartyEditorProvenanceLockFlags } from "../utils/party-editor-provenance-lock";
 
 export type PartyEditorValues = {
   name: string;
@@ -170,6 +172,7 @@ export function OrganizationPersonEditorDialog({
   title,
   description,
   initial,
+  fieldSources,
   isSaving,
   onSave,
   enforceIssuerShareholderMinimum = true,
@@ -180,6 +183,7 @@ export function OrganizationPersonEditorDialog({
   title: string;
   description: string;
   initial?: PartyEditorValues | null;
+  fieldSources?: ProfileFieldSources;
   isSaving: boolean;
   onSave: (values: PartyEditorValues) => Promise<void>;
   enforceIssuerShareholderMinimum?: boolean;
@@ -209,6 +213,20 @@ export function OrganizationPersonEditorDialog({
     !showOfficer &&
     !String(values.identityNumber ?? "").trim();
 
+  const lockFlags = computePartyEditorProvenanceLockFlags({
+    fieldSources,
+    values: {
+      salutation: values.salutation,
+      gender: values.gender,
+      dateOfBirth: values.dateOfBirth,
+      nationality: values.nationality,
+      identityPrefix: values.identityPrefix,
+      identityNumber: values.identityNumber,
+      dateOfIncorporation: values.dateOfIncorporation,
+      countryOfIncorporation: values.countryOfIncorporation,
+    },
+  });
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto rounded-2xl sm:max-w-2xl">
@@ -230,6 +248,7 @@ export function OrganizationPersonEditorDialog({
             <Field
               label={copy.salutation.label}
               value={values.salutation}
+              disabled={lockFlags.salutationLocked}
               onChange={(salutation) => set("salutation", salutation)}
               help={copy.salutation.help}
             />
@@ -290,7 +309,7 @@ export function OrganizationPersonEditorDialog({
                   );
                 }}
               >
-                <SelectTrigger className="h-10 text-ui">
+                <SelectTrigger className="h-10 text-ui" disabled={lockFlags.identityPrefixLocked}>
                   <SelectValue placeholder="Select" />
                 </SelectTrigger>
                 <SelectContent>
@@ -307,6 +326,7 @@ export function OrganizationPersonEditorDialog({
           <Field
             label={copy.identity.label}
             value={values.identityNumber}
+            disabled={lockFlags.identityNumberLocked}
             onChange={(identityNumber) =>
               set(
                 "identityNumber",
@@ -374,6 +394,7 @@ export function OrganizationPersonEditorDialog({
                 value={values.dateOfIncorporation}
                 onChange={(dateOfIncorporation) => set("dateOfIncorporation", dateOfIncorporation)}
                 required
+                disabled={lockFlags.dateOfIncorporationLocked}
               />
               <div className="space-y-1.5">
                 <ComRepFieldLabel label={copy.nationality.label} help={copy.nationality.help} required />
@@ -381,7 +402,10 @@ export function OrganizationPersonEditorDialog({
                   value={values.countryOfIncorporation}
                   onValueChange={(countryOfIncorporation) => set("countryOfIncorporation", countryOfIncorporation)}
                 >
-                  <SelectTrigger className="h-10 text-ui">
+                <SelectTrigger
+                  className="h-10 text-ui"
+                  disabled={lockFlags.countryOfIncorporationLocked}
+                >
                     <SelectValue placeholder="Select" />
                   </SelectTrigger>
                   <SelectContent className="max-h-72">
@@ -399,7 +423,7 @@ export function OrganizationPersonEditorDialog({
               <div className="space-y-1.5">
                 <ComRepFieldLabel label={copy.gender.label} help={copy.gender.help} required />
                 <Select value={values.gender} onValueChange={(gender) => set("gender", gender)}>
-                  <SelectTrigger className="h-10 text-ui">
+                  <SelectTrigger className="h-10 text-ui" disabled={lockFlags.genderLocked}>
                     <SelectValue placeholder="Select" />
                   </SelectTrigger>
                   <SelectContent>
@@ -418,6 +442,7 @@ export function OrganizationPersonEditorDialog({
                 onChange={(dateOfBirth) => set("dateOfBirth", dateOfBirth)}
                 help={copy.dateOfBirth.help}
                 required
+                disabled={lockFlags.dateOfBirthLocked}
               />
               <div className="space-y-1.5">
                 <ComRepFieldLabel label={copy.nationality.label} help={copy.nationality.help} required />
@@ -425,7 +450,7 @@ export function OrganizationPersonEditorDialog({
                   value={values.nationality}
                   onValueChange={(nationality) => set("nationality", nationality)}
                 >
-                  <SelectTrigger className="h-10 text-ui">
+                  <SelectTrigger className="h-10 text-ui" disabled={lockFlags.nationalityLocked}>
                     <SelectValue placeholder="Select" />
                   </SelectTrigger>
                   <SelectContent className="max-h-72">
@@ -665,6 +690,7 @@ function Field({
   label,
   value,
   onChange,
+  disabled,
   type = "text",
   help,
   required = false,
@@ -675,6 +701,7 @@ function Field({
   label: string;
   value: string;
   onChange: (value: string) => void;
+  disabled?: boolean;
   type?: "text" | "date";
   help?: string;
   required?: boolean;
@@ -691,6 +718,7 @@ function Field({
         value={value}
         maxLength={maxLength}
         inputMode={inputMode}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
         aria-invalid={Boolean(error)}
         aria-required={required}

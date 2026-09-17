@@ -305,6 +305,13 @@ export function OrganizationProfilePanel({
     documentNumber: org.documentNumber,
     profileFieldSources: org.profileFieldSources,
   });
+
+  const isRegTankLockedDateOfBirth =
+    org.profileFieldSources?.dateOfBirth?.source === "REGTANK" && Boolean(org.dateOfBirth);
+  const isRegTankLockedGender =
+    org.profileFieldSources?.gender?.source === "REGTANK" && Boolean(org.gender);
+  const isRegTankLockedNationality =
+    org.profileFieldSources?.nationality?.source === "REGTANK" && Boolean(org.nationality);
   const aboutActivitiesRequired = isAboutYourBusinessFieldRequired("whatDoesCompanyDo");
   const aboutCustomersRequired = isAboutYourBusinessFieldRequired("mainCustomers");
   const companyTypeLabel = displayScCompanyTypeLabel(org.scCompanyType, basic?.entityType);
@@ -883,6 +890,7 @@ export function OrganizationProfilePanel({
                       label={PROFILE_LABEL.fullName}
                       value={draft.name}
                       onChange={(name) => setDraft((current) => ({ ...current, name }))}
+                      required
                     />
                   ) : null}
                   <EditableField
@@ -910,7 +918,7 @@ export function OrganizationProfilePanel({
                       label={PROFILE_LABEL.identityNumber}
                       value={draft.identityNumber}
                       onChange={(identityNumber) => setDraft((current) => ({ ...current, identityNumber }))}
-                      required={identityNumberRequiredMissing}
+                      required
                       help={PROFILE_HELP.identityNumberNric}
                       error={fieldErrors.identityNumber}
                     />
@@ -927,6 +935,8 @@ export function OrganizationProfilePanel({
                     label="Gender"
                     value={draft.gender}
                     onChange={(gender) => setDraft((current) => ({ ...current, gender }))}
+                    disabled={isRegTankLockedGender}
+                    required
                     options={SC_GENDERS.filter(
                       (value) => org.type === "COMPANY" || value !== "NOT_APPLICABLE"
                     ).map((value) => ({ value, label: SC_GENDER_LABELS[value] }))}
@@ -935,12 +945,15 @@ export function OrganizationProfilePanel({
                     label={PROFILE_LABEL.dateOfBirth}
                     value={draft.dateOfBirth}
                     onChange={(dateOfBirth) => setDraft((current) => ({ ...current, dateOfBirth }))}
-                    required={requiredFieldKeys.has("dateOfBirth")}
+                    required
+                    disabled={isRegTankLockedDateOfBirth}
                   />
                   <EditableField
                     label={PROFILE_LABEL.nationality}
                     value={draft.nationality}
                     onChange={(nationality) => setDraft((current) => ({ ...current, nationality }))}
+                    disabled={isRegTankLockedNationality}
+                    required
                   />
                   <ReadField label="Country" value={org.country} />
                 </>
@@ -1014,6 +1027,7 @@ export function OrganizationProfilePanel({
                       setDraft((current) => ({ ...current, residentialState }))
                     }
                     options={SC_MALAYSIAN_STATES.map((state) => ({ value: state, label: state }))}
+                    required
                   />
                   <EditableField
                     label={PROFILE_ADDRESS_FIELD_LABELS.postcode}
@@ -1027,6 +1041,7 @@ export function OrganizationProfilePanel({
                         ),
                       }))
                     }
+                    required={draft.residentialState !== "Outside Malaysia"}
                     error={fieldErrors.postalCode}
                   />
                 </>

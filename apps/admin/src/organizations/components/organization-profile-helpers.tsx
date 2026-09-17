@@ -176,6 +176,7 @@ export function EditableField({
   optional,
   error,
   inputMode,
+  disabled = false,
 }: {
   label: string;
   value: string;
@@ -189,6 +190,7 @@ export function EditableField({
   optional?: boolean;
   error?: string;
   inputMode?: "numeric" | "decimal" | "email" | "tel" | "text";
+  disabled?: boolean;
 }) {
   const fieldId = id ?? label.toLowerCase().replace(/\s+/g, "-");
   const showOptional = optional ?? !required;
@@ -208,6 +210,7 @@ export function EditableField({
           value={value}
           maxLength={maxLength}
           onChange={(event) => onChange(event.target.value)}
+          disabled={disabled}
           rows={5}
           aria-invalid={Boolean(error)}
           aria-required={required}
@@ -220,6 +223,7 @@ export function EditableField({
           maxLength={maxLength}
           inputMode={inputMode}
           onChange={(event) => onChange(event.target.value)}
+          disabled={disabled}
           aria-invalid={Boolean(error)}
           aria-required={required}
         />
@@ -269,6 +273,7 @@ export function EditableDateField({
   id,
   help,
   required = false,
+  disabled = false,
 }: {
   label: string;
   value: string;
@@ -276,6 +281,7 @@ export function EditableDateField({
   id?: string;
   help?: string;
   required?: boolean;
+  disabled?: boolean;
 }) {
   const fieldId = id ?? label.toLowerCase().replace(/\s+/g, "-");
   return (
@@ -287,6 +293,7 @@ export function EditableDateField({
         type="date"
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        disabled={disabled}
         aria-required={required}
       />
     </div>

@@ -1134,6 +1134,169 @@ async function main() {
     logger.info("⏭️  Skipping Yuen Zheng Chng (already exists)");
   }
 
+  // ---------------------------------------------------------------------------
+  // Seed a personal investor specifically for profile edit/locking rules
+  // ---------------------------------------------------------------------------
+  logger.info("🌱 Seeding personal investor edit/locking fixture (Personal Investor Edit Test)...");
+
+  const editTestEmail = "personal.investor.edit.test@example.com";
+  const editTestOrgName = "Personal Investor Edit Test";
+
+  const existingEditTestUser = await prisma.user.findUnique({ where: { email: editTestEmail } });
+  if (existingEditTestUser) {
+    logger.info(`⏭️  Skipping Personal Investor Edit Test (user email already exists: ${editTestEmail})`);
+  } else {
+    const editTestUserId = await generateUniqueUserId();
+    const editTestUser = await prisma.user.create({
+      data: {
+        user_id: editTestUserId,
+        first_name: "Personal",
+        last_name: "Investor",
+        email: editTestEmail,
+        cognito_sub: `seed_personal_investor_edit_test_${Date.now()}`,
+        cognito_username: editTestEmail,
+        roles: [UserRole.INVESTOR],
+        // Any non-empty value marks "investor onboarding completed" for investor portal login.
+        investor_account: ["PERSONAL"],
+        issuer_account: [],
+      },
+    });
+
+    // Use a deterministic document_number so REGTANK lock can be asserted reliably in tests.
+    const editTestDocNumber = "800101011235";
+    const editTestDob = new Date("1990-01-01T00:00:00.000Z");
+
+    // Create the org with completed onboarding flags so it can access the investor portal.
+    const editTestOrg = await prisma.investorOrganization.create({
+      data: {
+        owner_user_id: editTestUser.user_id,
+        type: OrganizationType.PERSONAL,
+        name: editTestOrgName,
+        onboarding_status: "COMPLETED",
+        onboarded_at: new Date(2026, 0, 12, 9, 2, 50, 950),
+        first_name: "Personal",
+        last_name: "Investor",
+        nationality: "MY",
+        country: "MY",
+        id_issuing_country: "MY",
+        // Manual fields expected to be editable in the personal investor profile editor.
+        gender: "MALE",
+        date_of_birth: editTestDob,
+        address: "BU 4/5, Bandar Utama, 47800 Petaling Jaya, Selangor",
+        document_type: "IDENTITY",
+        document_number: editTestDocNumber,
+        phone_number: "+60123456789",
+        kyc_id: "KYC00087",
+        onboarding_approved: true,
+        aml_approved: true,
+        tnc_accepted: true,
+        ssm_approved: true,
+        deposit_received: false,
+        is_sophisticated_investor: false,
+        admin_approved_at: new Date(2026, 0, 12, 9, 2, 50, 950),
+        bank_account_details: {
+          content: [
+            { cn: false, fieldName: "Bank", fieldType: "picklist", fieldValue: "Maybank / Malayan Banking Berhad" },
+            { cn: false, fieldName: "Bank account number", fieldType: "number", fieldValue: "123456780" },
+            { cn: false, fieldName: "Account type", fieldType: "picklist", fieldValue: "Savings" },
+          ],
+          displayArea: "Bank Account Details",
+        },
+        wealth_declaration: {
+          content: [
+            { cn: false, fieldName: "Employment status", fieldType: "picklist", fieldValue: "Employed" },
+            { cn: false, fieldName: "Employer", fieldType: "text", fieldValue: "Example Employer" },
+            { cn: false, fieldName: "Industry", fieldType: "picklist", fieldValue: "Information & Communication Technology (ICT)" },
+            { cn: false, fieldName: "If others", fieldType: "text", fieldValue: "" },
+            { cn: false, fieldName: "Job title", fieldType: "text", fieldValue: "QA Engineer" },
+            { cn: false, fieldName: "Annual income range", fieldType: "picklist", fieldValue: "Above RM500,001" },
+            { cn: false, fieldName: "Source of funds", fieldType: "multi-checkbox", fieldValue: ["Employment Income"] },
+          ],
+          displayArea: "Wealth Declaration",
+        },
+        compliance_declaration: {
+          content: [
+            { cn: false, fieldName: "Asset and Income", fieldType: "header", fieldValue: "" },
+            { cn: false, alias: "Do you meet either of the following criteria:", fieldName: "Do you meet either of the following criteria: (Net Assets)", fieldType: "picklist", fieldValue: "No" },
+            { cn: false, alias: "In the preceding twelve months, have you:", fieldName: "In the preceding twelve months, have you: (Annual Income)", fieldType: "picklist", fieldValue: "No" },
+            { cn: false, fieldName: "Are you a tax resident of Malaysia?", fieldType: "picklist", fieldValue: "Yes" },
+            { cn: false, fieldName: "Do you belong to any of these groups of people?", fieldType: "picklist", fieldValue: "No" },
+          ],
+          displayArea: "Compliance Declarations",
+        },
+        document_info: {
+          countryCode: "SG",
+          documentType: "Identity",
+          backDocumentUrl: "https://media-onboarding.regtank.com/prod/userportal/Client-00391/LD72411-R02/profile/back/e69e0210-2d14-48f2-84c4-ad5ead3a11fb.png",
+          frontDocumentUrl: "https://media-onboarding.regtank.com/prod/userportal/Client-00391/LD72411-R02/profile/front/2c083615-6483-449a-8cb7-61cb042c48c6.jpeg",
+        },
+        liveness_check_info: {
+          selfieUrl: "https://media-onboarding.regtank.com/prod/userportal/Client-00391/LD72411-R02/live-face/99e37a95-e3bc-4211-bd73-dcfa8de9a515.jpeg",
+          confidence: 85.3,
+          documentUrl: "https://media-onboarding.regtank.com/prod/userportal/Client-00391/LD72411-R02/profile/front/2c083615-6483-449a-8cb7-61cb042c48c6.jpeg",
+          verifyStatus: "LIVENESS_PASSED",
+          selfieVideoUrl: "https://media-onboarding.regtank.com/prod/userportal/Client-00391/LD72411-R02/live-face/c1a63023-cd7f-452f-8296-4a46563b53d7.mp4",
+        },
+        kyc_response: {
+          tags: [],
+          status: "Approved",
+          assignee: "",
+          systemId: "KYC00087",
+          requestId: "KYC00087",
+          riskLevel: "Low Risk",
+          riskScore: "1.0",
+          timestamp: "2026-01-12T08:59:34.958+00:00",
+          referenceId: "",
+          onboardingId: "LD72411-R02",
+          messageStatus: "DONE",
+          possibleMatchCount: 0,
+          blacklistedMatchCount: 0,
+        },
+        // Lock expectations for the personal investor profile editor:
+        // - DOB editable: USER source
+        // - Gender/Nationality editable: unset source (neither USER nor ADMIN nor REGTANK)
+        // - Identity number locked: REGTANK source
+        profile_field_sources: {
+          dateOfBirth: { source: "USER", updatedAt: "2026-01-12T00:00:00.000Z" },
+          identityNumber: { source: "REGTANK", updatedAt: "2026-01-12T00:00:00.000Z" },
+        },
+      },
+    });
+
+    await prisma.onboardingLog.createMany({
+      data: [
+        {
+          user_id: editTestUser.user_id,
+          investor_organization_id: editTestOrg.id,
+          organization_name: editTestOrg.name ?? editTestOrgName,
+          event_type: "ONBOARDING_STARTED",
+          role: UserRole.INVESTOR,
+          portal: "investor",
+          ip_address: "175.139.42.88",
+          device_type: "Desktop",
+          metadata: { portalType: "investor", organizationType: "PERSONAL" },
+          created_at: new Date(2026, 0, 12, 8, 54, 20),
+        },
+        {
+          user_id: editTestUser.user_id,
+          investor_organization_id: editTestOrg.id,
+          organization_name: editTestOrg.name ?? editTestOrgName,
+          event_type: "FINAL_APPROVAL_COMPLETED",
+          role: UserRole.INVESTOR,
+          portal: "investor",
+          ip_address: "175.139.42.88",
+          device_type: "Desktop",
+          metadata: { final_status: "COMPLETED", approvedBy: adminUser.user_id },
+          created_at: new Date(2026, 0, 12, 9, 2, 50),
+        },
+      ],
+    });
+
+    logger.info(
+      `✅ Personal Investor Edit Test seeded: ${editTestEmail} (org=${editTestOrg.id})`
+    );
+  }
+
   // Seed "tested" investor company organization with full corporate data
   const testedCompanyEmail = "ivan.chew@malcan.io";
   let testedUser = await prisma.user.findUnique({

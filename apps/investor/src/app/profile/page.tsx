@@ -25,7 +25,7 @@ import {
   MALAYSIAN_BANKS,
 } from "@cashsouk/config";
 import type { ApplicationPersonRow } from "@cashsouk/types";
-import { filterVisiblePeopleRows, SC_GENDER_LABELS, SC_INDIVIDUAL_GENDERS, SC_MALAYSIAN_STATES, PROFILE_ADDRESS_FIELD_LABELS, PROFILE_ADDRESS_HELP, PROFILE_HELP, PROFILE_LABEL, firstIssueMessage, formatCalendarDate, humanizeApiValidationMessage, isScPostcodeRequired, isValidProfilePhone, restrictScPostcodeInput, scAppendixASelectValues, storedProfilePhone, toCalendarDateInput, userFacingCompleteness, validateInvestorPersonalForm, type ScGender } from "@cashsouk/types";
+import { filterVisiblePeopleRows, SC_GENDER_LABELS, SC_INDIVIDUAL_GENDERS, SC_MALAYSIAN_STATES, PROFILE_ADDRESS_FIELD_LABELS, PROFILE_ADDRESS_HELP, PROFILE_HELP, PROFILE_LABEL, firstIssueMessage, formatCalendarDate, humanizeApiValidationMessage, isScPostcodeRequired, isValidProfilePhone, restrictScPostcodeInput, scAppendixASelectValues, storedProfilePhone, toCalendarDateInput, userFacingCompleteness, validateInvestorPersonalForm, type ProfileFieldSources, type ScGender } from "@cashsouk/types";
 import { useAuth } from "../../lib/auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccountDocuments } from "../../hooks/use-account-documents";
@@ -381,6 +381,7 @@ export default function ProfilePage() {
   const [gender, setGender] = React.useState("");
   const [nationality, setNationality] = React.useState("");
   const [dateOfBirth, setDateOfBirth] = React.useState("");
+  const [identityNumber, setIdentityNumber] = React.useState("");
   const [residentialState, setResidentialState] = React.useState("");
   const [residentialPostalCode, setResidentialPostalCode] = React.useState("");
 
@@ -424,6 +425,7 @@ export default function ProfilePage() {
         dateOfBirth: string | null;
         documentType: string | null;
         documentNumber: string | null;
+        profileFieldSources?: ProfileFieldSources;
         scInvestorCategory?: string | null;
         dateOfIncorporation?: string | null;
         countryOfIncorporation?: string | null;
@@ -506,6 +508,19 @@ export default function ProfilePage() {
       .map((item) => item.field)
   );
 
+  const profileFieldSources = orgData?.profileFieldSources ?? ({} as ProfileFieldSources);
+  const isRegTankLockedDateOfBirth =
+    profileFieldSources.dateOfBirth?.source === "REGTANK" && Boolean(orgData?.dateOfBirth);
+  const isRegTankLockedGender =
+    profileFieldSources.gender?.source === "REGTANK" && Boolean(orgData?.gender);
+  const isRegTankLockedNationality =
+    profileFieldSources.nationality?.source === "REGTANK" && Boolean(orgData?.nationality);
+  const isRegTankLockedIdentityNumber =
+    profileFieldSources.identityNumber?.source === "REGTANK" && Boolean(orgData?.documentNumber?.trim());
+  const isRegTankLockedIdentityPrefix =
+    profileFieldSources.identityPrefix?.source === "REGTANK" && Boolean(orgData?.documentType?.trim());
+  const isIdentityNumberEditable = !isRegTankLockedIdentityNumber || !Boolean(orgData?.documentNumber?.trim());
+
   const isCompanyOrg = activeOrganization?.type === "COMPANY";
   const urlTab = profileTabFromSearchParam(searchParams.get("tab"), Boolean(isCompanyOrg));
   const focusDirectors =
@@ -574,6 +589,7 @@ export default function ProfilePage() {
       setGender(orgData.gender ?? "");
       setNationality(orgData.nationality ?? "");
       setDateOfBirth(toCalendarDateInput(orgData.dateOfBirth ?? ""));
+      setIdentityNumber(orgData.documentNumber ?? "");
       setResidentialState(orgData.residentialAddress?.state ?? "");
       setResidentialPostalCode(orgData.residentialAddress?.postalCode ?? "");
 
@@ -663,11 +679,30 @@ export default function ProfilePage() {
           return;
         }
 
-        const master: Record<string, unknown> = {
-          gender,
-          nationality: nationality.trim(),
-          dateOfBirth: dob,
-        };
+        const master: Record<string, unknown> = {};
+        if (!isRegTankLockedGender) {
+          master.gender = gender;
+        }
+        if (!isRegTankLockedNationality) {
+          master.nationality = nationality.trim();
+        }
+        if (!isRegTankLockedDateOfBirth) {
+          master.dateOfBirth = dob;
+        }
+
+        const identityNumberTrimmed = identityNumber.trim();
+        const identityNumberCurrent = orgData?.documentNumber ?? "";
+        const identityNumberChanged = identityNumberTrimmed !== identityNumberCurrent;
+        const identityNumberRegTankLocked =
+          orgData?.profileFieldSources?.identityNumber?.source === "REGTANK" &&
+          identityNumberCurrent.trim().length > 0;
+        if (!identityNumberRegTankLocked && identityNumberChanged) {
+          master.identityNumber = identityNumberTrimmed.length > 0 ? identityNumberTrimmed : null;
+        }
+        if (Object.keys(master).length === 0) {
+          toast.error("No profile changes to save");
+          return;
+        }
         setIsSavingMasterProfile(true);
         try {
           const masterRes = await apiClient.patchMasterProfile(
@@ -777,6 +812,7 @@ export default function ProfilePage() {
       setGender(orgData.gender ?? "");
       setNationality(orgData.nationality ?? "");
       setDateOfBirth(toCalendarDateInput(orgData.dateOfBirth ?? ""));
+      setIdentityNumber(orgData.documentNumber ?? "");
       setResidentialState(orgData.residentialAddress?.state ?? "");
       setResidentialPostalCode(orgData.residentialAddress?.postalCode ?? "");
     }
@@ -1015,16 +1051,41 @@ export default function ProfilePage() {
                         label={PROFILE_LABEL.identityPrefix}
                         value={formatDocumentType(orgData?.documentType)}
                         missing={missingFieldKeys.has("identityPrefix")}
-                        locked={!missingFieldKeys.has("identityPrefix")}
+                        locked={isRegTankLockedIdentityPrefix}
                         required
                       />
-                      <ProfileReadField
-                        label={PROFILE_LABEL.identityNumber}
-                        value={orgData?.documentNumber ?? undefined}
-                        missing={missingFieldKeys.has("identityNumber")}
-                        locked={!missingFieldKeys.has("identityNumber")}
-                        required
-                      />
+                      {isEditingPersonalDetails ? (
+                        isIdentityNumberEditable ? (
+                          <div className="space-y-2">
+                            <ComRepFieldLabel
+                              label={PROFILE_LABEL.identityNumber}
+                              required={missingFieldKeys.has("identityNumber")}
+                            />
+                            <Input
+                              className="h-11 text-ui"
+                              value={identityNumber}
+                              onChange={(e) => setIdentityNumber(e.target.value)}
+                              disabled={isRegTankLockedIdentityNumber}
+                            />
+                          </div>
+                        ) : (
+                          <ProfileReadField
+                            label={PROFILE_LABEL.identityNumber}
+                            value={orgData?.documentNumber ?? undefined}
+                            missing={missingFieldKeys.has("identityNumber")}
+                            locked={isRegTankLockedIdentityNumber}
+                            required
+                          />
+                        )
+                      ) : (
+                        <ProfileReadField
+                          label={PROFILE_LABEL.identityNumber}
+                          value={orgData?.documentNumber ?? undefined}
+                          missing={missingFieldKeys.has("identityNumber")}
+                          locked={isRegTankLockedIdentityNumber}
+                          required
+                        />
+                      )}
                       {isEditingPersonalDetails ? (
                         <div className="space-y-2">
                           <ComRepFieldLabel label={PROFILE_LABEL.dateOfBirth} required />
@@ -1034,6 +1095,7 @@ export default function ProfilePage() {
                             value={dateOfBirth}
                             onChange={(e) => setDateOfBirth(e.target.value)}
                             aria-required
+                            disabled={isRegTankLockedDateOfBirth}
                           />
                         </div>
                       ) : (
@@ -1041,6 +1103,7 @@ export default function ProfilePage() {
                           label={PROFILE_LABEL.dateOfBirth}
                           value={formatProfileDate(orgData?.dateOfBirth)}
                           missing={missingFieldKeys.has("dateOfBirth")}
+                          locked={isRegTankLockedDateOfBirth}
                           required
                         />
                       )}
@@ -1050,7 +1113,11 @@ export default function ProfilePage() {
                             label={PROFILE_LABEL.gender}
                             required
                           />
-                          <Select value={gender || undefined} onValueChange={setGender}>
+                          <Select
+                            value={gender || undefined}
+                            onValueChange={setGender}
+                            disabled={isRegTankLockedGender}
+                          >
                             <SelectTrigger className="h-11 text-ui">
                               <SelectValue placeholder="Select" />
                             </SelectTrigger>
@@ -1068,6 +1135,7 @@ export default function ProfilePage() {
                           label={PROFILE_LABEL.gender}
                           value={formatGender(orgData?.gender)}
                           missing={missingFieldKeys.has("gender")}
+                          locked={isRegTankLockedGender}
                           required
                         />
                       )}
@@ -1077,7 +1145,11 @@ export default function ProfilePage() {
                             label={PROFILE_LABEL.nationality}
                             required
                           />
-                          <Select value={nationality || undefined} onValueChange={setNationality}>
+                          <Select
+                            value={nationality || undefined}
+                            onValueChange={setNationality}
+                            disabled={isRegTankLockedNationality}
+                          >
                             <SelectTrigger className="h-11 text-ui">
                               <SelectValue placeholder="Select" />
                             </SelectTrigger>
@@ -1095,6 +1167,7 @@ export default function ProfilePage() {
                           label={PROFILE_LABEL.nationality}
                           value={orgData?.nationality}
                           missing={missingFieldKeys.has("nationality")}
+                          locked={isRegTankLockedNationality}
                           required
                         />
                       )}
