@@ -41,8 +41,9 @@ export function personIdentityDisplay(params: {
   matchKey?: string | null;
   kycOnboardingStatus?: string | null;
 }): { value: string; pending: boolean; governmentId: string | null } {
+  // Identity Number display must never fall back to partyKey/matchKey.
+  // When identityNumber is missing, we show the existing pending/not-available states.
   const governmentId = displayGovernmentIdentityNumber({
-    partyKey: params.partyKey ?? params.matchKey,
     identityNumber: params.identityNumber,
   });
   if (governmentId) {

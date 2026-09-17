@@ -100,6 +100,7 @@ import { isIdentityNumberEditable } from "@/organizations/utils/identity-editabi
 import { OrganizationFinancialsPanel } from "./organization-financials-panel";
 import { OrganizationMarcCard } from "./organization-marc-card";
 import { OrganizationPicCard } from "./organization-pic-card";
+import { IssuerCompanySealAdminCard } from "./issuer-company-seal-card";
 import {
   addressesEqual,
   buildDraft,
@@ -648,6 +649,10 @@ export function OrganizationProfilePanel({
         </Card>
       ) : null}
 
+      {portal === "issuer" && org.type === "COMPANY" ? (
+        <IssuerCompanySealAdminCard org={org} organizationId={organizationId} />
+      ) : null}
+
       {showAbout ? (
         <Card id="profile-about" className="rounded-2xl">
           <AdminDetailCardHeader
@@ -917,7 +922,17 @@ export function OrganizationProfilePanel({
                     <EditableField
                       label={PROFILE_LABEL.identityNumber}
                       value={draft.identityNumber}
-                      onChange={(identityNumber) => setDraft((current) => ({ ...current, identityNumber }))}
+                      onChange={(identityNumber) => {
+                        const dt = String(org.documentType ?? "").toUpperCase();
+                        if (dt.includes("PASSPORT")) {
+                          setDraft((current) => ({ ...current, identityNumber }));
+                          return;
+                        }
+                        setDraft((current) => ({
+                          ...current,
+                          identityNumber: identityNumber.replace(/\D/g, "").slice(0, 12),
+                        }));
+                      }}
                       required
                       help={PROFILE_HELP.identityNumberNric}
                       error={fieldErrors.identityNumber}

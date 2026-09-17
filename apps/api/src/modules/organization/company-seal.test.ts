@@ -59,6 +59,11 @@ const adminOrg = {
   members: [{ user_id: USER, role: "ORGANIZATION_ADMIN" }],
 };
 
+const nonMemberOrg = {
+  owner_user_id: "owner_1",
+  members: [],
+};
+
 const confirmedImage = {
   sha256: "abc",
   byteSize: 120,
@@ -202,6 +207,16 @@ describe("getIssuerCompanySeal", () => {
     (prisma.issuerOrganizationCompanySeal.findFirst as jest.Mock).mockResolvedValue(null);
     await expect(getIssuerCompanySeal(USER, ORG)).resolves.toEqual({ seal: null });
   });
+
+  it("allows platform Admin (organizations.view) to read active seal without org membership", async () => {
+    getOrganization.mockResolvedValue(memberOrg);
+    (prisma.issuerOrganizationCompanySeal.findFirst as jest.Mock).mockResolvedValue(sealRow("seal_1"));
+
+    const result = await getIssuerCompanySeal(USER, ORG, { canViewOrganizations: true });
+
+    expect(result.seal).toMatchObject({ id: "seal_1", fileName: "seal.png" });
+    expect(getOrganization).not.toHaveBeenCalled();
+  });
 });
 
 describe("getIssuerCompanySealPreview", () => {
@@ -230,20 +245,46 @@ describe("getIssuerCompanySealPreview", () => {
       expiresIn: null,
     });
   });
+
+  it("allows platform Admin (organizations.view) to preview without org membership", async () => {
+    (prisma.issuerOrganizationCompanySeal.findFirst as jest.Mock).mockResolvedValue(sealRow("seal_1"));
+
+    const result = await getIssuerCompanySealPreview(USER, ORG, { canViewOrganizations: true });
+
+    expect(result).toEqual({ viewUrl: "https://s3.example/view", expiresIn: 900 });
+    expect(generatePresignedViewUrl).toHaveBeenCalledWith({
+      key: expect.stringContaining(issuerCompanySealS3Prefix(ORG)),
+    });
+    expect(getOrganization).not.toHaveBeenCalled();
+  });
 });
 
-describe("company-seal RBAC", () => {
+describe("platform Admin (organizations.view only) company seal RBAC", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (generatePresignedUploadUrl as jest.Mock).mockResolvedValue({
-      uploadUrl: "https://s3.example/upload",
-      key: "ignored",
+    (prisma.issuerOrganizationCompanySeal.findFirst as jest.Mock).mockResolvedValue(
+      sealRow("seal_1")
+    );
+    (generatePresignedViewUrl as jest.Mock).mockResolvedValue({
+      viewUrl: "https://s3.example/view",
       expiresIn: 900,
     });
   });
 
-  it("forbids a member from requesting an upload URL", async () => {
-    getOrganization.mockResolvedValue(memberOrg);
+  it("allows GET but rejects upload/confirm/remove", async () => {
+    getOrganization.mockResolvedValue(nonMemberOrg);
+
+    // GET company seal -> allowed via organizations.view override
+    await expect(
+      getIssuerCompanySeal(USER, ORG, { canViewOrganizations: true })
+    ).resolves.toMatchObject({ seal: { id: "seal_1" } });
+
+    // GET preview -> allowed via organizations.view override
+    await expect(
+      getIssuerCompanySealPreview(USER, ORG, { canViewOrganizations: true })
+    ).resolves.toEqual({ viewUrl: "https://s3.example/view", expiresIn: 900 });
+
+    // request upload url -> rejected without organizations.manage
     await expect(
       requestIssuerCompanySealUploadUrl(USER, ORG, {
         fileName: "seal.png",
@@ -256,6 +297,44 @@ describe("company-seal RBAC", () => {
       message: COMPANY_SEAL_MANAGE_FORBIDDEN_MESSAGE,
     });
     expect(generatePresignedUploadUrl).not.toHaveBeenCalled();
+
+    // confirm upload -> rejected without organizations.manage
+    await expect(
+      confirmIssuerCompanySeal(USER, ORG, {
+        s3Key: `${issuerCompanySealS3Prefix(ORG)}v1-a.png`,
+        fileName: "seal.png",
+      })
+    ).rejects.toMatchObject({ statusCode: 403, code: "FORBIDDEN" });
+    expect(confirmSigningCloudLegalImageFromS3).not.toHaveBeenCalled();
+
+    // remove seal -> rejected without organizations.manage
+    await expect(removeIssuerCompanySeal(USER, ORG)).rejects.toMatchObject({
+      statusCode: 403,
+      code: "FORBIDDEN",
+    });
+    expect(prisma.issuerOrganizationCompanySeal.updateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("company-seal RBAC", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (generatePresignedUploadUrl as jest.Mock).mockResolvedValue({
+      uploadUrl: "https://s3.example/upload",
+      key: "ignored",
+      expiresIn: 900,
+    });
+  });
+
+  it("lets a member request an upload URL", async () => {
+    getOrganization.mockResolvedValue(memberOrg);
+    await expect(
+      requestIssuerCompanySealUploadUrl(USER, ORG, {
+        fileName: "seal.png",
+        contentType: "image/png",
+        fileSize: 120,
+      })
+    ).resolves.toMatchObject({ uploadUrl: "https://s3.example/upload", expiresIn: 900 });
   });
 
   it("lets an organisation admin request an upload URL", async () => {
@@ -269,8 +348,124 @@ describe("company-seal RBAC", () => {
     ).resolves.toMatchObject({ uploadUrl: "https://s3.example/upload", expiresIn: 900 });
   });
 
-  it("forbids a member from confirming a seal", async () => {
+  it("lets an organisation owner request an upload URL", async () => {
+    getOrganization.mockResolvedValue(ownerOrg);
+    await expect(
+      requestIssuerCompanySealUploadUrl(USER, ORG, {
+        fileName: "seal.png",
+        contentType: "image/png",
+        fileSize: 120,
+      })
+    ).resolves.toMatchObject({ uploadUrl: "https://s3.example/upload", expiresIn: 900 });
+  });
+
+  it("allows platform Admin (organizations.manage) to request upload without org membership", async () => {
     getOrganization.mockResolvedValue(memberOrg);
+
+    await expect(
+      requestIssuerCompanySealUploadUrl(
+        USER,
+        ORG,
+        {
+          fileName: "seal.png",
+          contentType: "image/png",
+          fileSize: 120,
+        },
+        { canManageOrganizations: true }
+      )
+    ).resolves.toMatchObject({ uploadUrl: "https://s3.example/upload" });
+
+    expect(getOrganization).not.toHaveBeenCalled();
+    expect(generatePresignedUploadUrl).toHaveBeenCalled();
+  });
+
+  it("lets a member confirming a seal", async () => {
+    getOrganization.mockResolvedValue(memberOrg);
+    (confirmSigningCloudLegalImageFromS3 as jest.Mock).mockResolvedValue(confirmedImage);
+
+    const created = { ...sealRow("new"), superseded_at: null };
+    const updateMany = jest.fn().mockResolvedValue({ count: 1 });
+    const create = jest.fn().mockResolvedValue(created);
+
+    (prisma.$transaction as jest.Mock).mockImplementation(async (fn: (tx: unknown) => unknown) =>
+      fn({
+        issuerOrganizationCompanySeal: { updateMany, create },
+      })
+    );
+
+    const result = await confirmIssuerCompanySeal(USER, ORG, {
+      s3Key: `${issuerCompanySealS3Prefix(ORG)}v1-a.png`,
+      fileName: "seal.png",
+    });
+
+    expect(result.seal.id).toBe("new");
+    expect(confirmSigningCloudLegalImageFromS3).toHaveBeenCalled();
+  });
+
+  it("allows platform Admin (organizations.manage) to confirm a seal without org membership", async () => {
+    getOrganization.mockResolvedValue(memberOrg);
+    (confirmSigningCloudLegalImageFromS3 as jest.Mock).mockResolvedValue(confirmedImage);
+
+    const created = { ...sealRow("new"), superseded_at: null };
+    const updateMany = jest.fn().mockResolvedValue({ count: 1 });
+    const create = jest.fn().mockResolvedValue(created);
+
+    (prisma.$transaction as jest.Mock).mockImplementation(async (fn: (tx: unknown) => unknown) =>
+      fn({
+        issuerOrganizationCompanySeal: { updateMany, create },
+      })
+    );
+
+    const result = await confirmIssuerCompanySeal(
+      USER,
+      ORG,
+      {
+        s3Key: `${issuerCompanySealS3Prefix(ORG)}v1-a.png`,
+        fileName: "seal.png",
+      },
+      { canManageOrganizations: true }
+    );
+
+    expect(result.seal.id).toBe("new");
+    expect(getOrganization).not.toHaveBeenCalled();
+    expect(confirmSigningCloudLegalImageFromS3).toHaveBeenCalled();
+  });
+
+  it("lets a member removing a seal", async () => {
+    getOrganization.mockResolvedValue(memberOrg);
+    (prisma.issuerOrganizationCompanySeal.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+
+    await expect(removeIssuerCompanySeal(USER, ORG)).resolves.toEqual({ seal: null });
+    expect(prisma.issuerOrganizationCompanySeal.updateMany).toHaveBeenCalled();
+  });
+
+  it("allows platform Admin (organizations.manage) to remove a seal without org membership", async () => {
+    getOrganization.mockResolvedValue(memberOrg);
+    (prisma.issuerOrganizationCompanySeal.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+
+    await expect(
+      removeIssuerCompanySeal(USER, ORG, { canManageOrganizations: true })
+    ).resolves.toEqual({ seal: null });
+
+    expect(getOrganization).not.toHaveBeenCalled();
+    expect(prisma.issuerOrganizationCompanySeal.updateMany).toHaveBeenCalled();
+  });
+
+  it("rejects non-members from managing a seal (upload/confirm/remove)", async () => {
+    getOrganization.mockResolvedValue(nonMemberOrg);
+
+    await expect(
+      requestIssuerCompanySealUploadUrl(USER, ORG, {
+        fileName: "seal.png",
+        contentType: "image/png",
+        fileSize: 120,
+      })
+    ).rejects.toMatchObject({
+      statusCode: 403,
+      code: "FORBIDDEN",
+      message: COMPANY_SEAL_MANAGE_FORBIDDEN_MESSAGE,
+    });
+
     await expect(
       confirmIssuerCompanySeal(USER, ORG, {
         s3Key: `${issuerCompanySealS3Prefix(ORG)}v1-a.png`,
@@ -278,14 +473,12 @@ describe("company-seal RBAC", () => {
       })
     ).rejects.toMatchObject({ statusCode: 403, code: "FORBIDDEN" });
     expect(confirmSigningCloudLegalImageFromS3).not.toHaveBeenCalled();
-  });
 
-  it("forbids a member from removing a seal", async () => {
-    getOrganization.mockResolvedValue(memberOrg);
     await expect(removeIssuerCompanySeal(USER, ORG)).rejects.toMatchObject({
       statusCode: 403,
       code: "FORBIDDEN",
     });
+    expect(prisma.issuerOrganizationCompanySeal.updateMany).not.toHaveBeenCalled();
   });
 });
 

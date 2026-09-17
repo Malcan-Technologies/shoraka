@@ -1310,7 +1310,8 @@ export function createOrganizationRouter(): Router {
     try {
       const userId = getUserId(req);
       const { id } = organizationIdParamSchema.parse(req.params);
-      const data = await getIssuerCompanySeal(userId, id);
+      const canViewOrganizations = Boolean(req.adminPermissions?.includes("organizations.view"));
+      const data = await getIssuerCompanySeal(userId, id, { canViewOrganizations });
       res.json({ success: true, data, correlationId: res.locals.correlationId });
     } catch (error) {
       next(error);
@@ -1320,7 +1321,8 @@ export function createOrganizationRouter(): Router {
     try {
       const userId = getUserId(req);
       const { id } = organizationIdParamSchema.parse(req.params);
-      const data = await getIssuerCompanySealPreview(userId, id);
+      const canViewOrganizations = Boolean(req.adminPermissions?.includes("organizations.view"));
+      const data = await getIssuerCompanySealPreview(userId, id, { canViewOrganizations });
       res.json({ success: true, data, correlationId: res.locals.correlationId });
     } catch (error) {
       next(error);
@@ -1331,7 +1333,10 @@ export function createOrganizationRouter(): Router {
       const userId = getUserId(req);
       const { id } = organizationIdParamSchema.parse(req.params);
       const input = issuerCompanySealUploadUrlBodySchema.parse(req.body);
-      const data = await requestIssuerCompanySealUploadUrl(userId, id, input);
+      const canManageOrganizations = Boolean(req.adminPermissions?.includes("organizations.manage"));
+      const data = await requestIssuerCompanySealUploadUrl(userId, id, input, {
+        canManageOrganizations,
+      });
       res.json({ success: true, data, correlationId: res.locals.correlationId });
     } catch (error) {
       next(error);
@@ -1342,7 +1347,10 @@ export function createOrganizationRouter(): Router {
       const userId = getUserId(req);
       const { id } = organizationIdParamSchema.parse(req.params);
       const input = issuerCompanySealConfirmBodySchema.parse(req.body);
-      const data = await confirmIssuerCompanySeal(userId, id, input);
+      const canManageOrganizations = Boolean(req.adminPermissions?.includes("organizations.manage"));
+      const data = await confirmIssuerCompanySeal(userId, id, input, {
+        canManageOrganizations,
+      });
       res.json({ success: true, data, correlationId: res.locals.correlationId });
     } catch (error) {
       next(error);
@@ -1352,7 +1360,8 @@ export function createOrganizationRouter(): Router {
     try {
       const userId = getUserId(req);
       const { id } = organizationIdParamSchema.parse(req.params);
-      const data = await removeIssuerCompanySeal(userId, id);
+      const canManageOrganizations = Boolean(req.adminPermissions?.includes("organizations.manage"));
+      const data = await removeIssuerCompanySeal(userId, id, { canManageOrganizations });
       res.json({ success: true, data, correlationId: res.locals.correlationId });
     } catch (error) {
       next(error);

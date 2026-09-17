@@ -25,6 +25,6 @@ describe("signingIcFromPerson", () => {
         matchKey: "820508105871",
         identityNumber: null,
       })
-    ).toBe("820508105871");
+    ).toBe("");
   });
 });

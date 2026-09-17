@@ -102,6 +102,28 @@ describe("customer person Profile mapping", () => {
     expect(customerIdentityNumber({ party: party(), person: row })).not.toBe("EOD06934");
   });
 
+  it("does not use IC-looking matchKey as Identity Number when canonical identityNumber is missing", () => {
+    const IC = "820508105871";
+    const row = person({
+      matchKey: IC,
+      identityNumber: null,
+      onboarding: { status: "APPROVED", id: "KYC00185", updatedAt: "2026-09-10T00:00:00.000Z" },
+    });
+    expect(customerIdentityNumber({ party: party({ identityNumber: null }), person: row })).not.toBe(IC);
+    expect(customerIdentityNumber({ party: party({ identityNumber: null }), person: row })).toBe("Not available");
+  });
+
+  it("does not use partyKey as Identity Number when canonical identityNumber is missing", () => {
+    const partyKey = "820508105871";
+    const row = person({
+      identityNumber: null,
+      onboarding: { status: "APPROVED", id: "KYC00185", updatedAt: "2026-09-10T00:00:00.000Z" },
+    });
+    const p = party({ partyKey, identityNumber: null });
+    expect(customerIdentityNumber({ party: p, person: row })).not.toBe(partyKey);
+    expect(customerIdentityNumber({ party: p, person: row })).toBe("Not available");
+  });
+
   it("does not display EOD, COD, LD, KYC, or KYB identifiers as Identity Number", () => {
     expect(isInternalOnboardingRequestId("EOD06934")).toBe(true);
     expect(isInternalOnboardingRequestId("COD05594")).toBe(true);

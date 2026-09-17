@@ -380,7 +380,7 @@ export function PortalPeopleSection({
                         const roles = (person.roles ?? []).map((role) => role.toUpperCase());
                         setAddInitial({
                           name: person.name ?? "",
-                          identityNumber: person.matchKey,
+                          identityNumber: person.identityNumber ?? "",
                           email: person.email ?? "",
                           entityType: person.entityType,
                           isDirector: roles.includes("DIRECTOR"),

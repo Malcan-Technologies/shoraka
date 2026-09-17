@@ -18,7 +18,6 @@ import {
   formatPartySharePercent,
   type OrganizationPartyProfileDto,
 } from "./organization-party-profile";
-import { displayGovernmentIdentityNumber } from "./organization-party-key";
 import { collectPartyRegTankRefreshIds } from "./people-access-refresh";
 import {
   formatPeopleAccessCompanyRoleLine,
@@ -107,15 +106,14 @@ export function customerIdentityNumber(params: {
   const party = params.party ?? null;
   const person = params.person ?? null;
   const rawIdentity = party ? party.identityNumber : person?.identityNumber;
-  const rawKey = party ? party.partyKey : person?.matchKey;
   const identityNumber = rawIdentity && !isInternalOnboardingRequestId(rawIdentity) ? rawIdentity : null;
-  const partyKey = rawKey && !isInternalOnboardingRequestId(rawKey) ? rawKey : null;
-  const displayed = displayGovernmentIdentityNumber({ identityNumber, partyKey });
-  if (displayed && !isInternalOnboardingRequestId(displayed)) return displayed;
+
+  // Identity Number must always come from the canonical `identityNumber` field only.
+  // Never use party_key/matchKey as a fallback identity number display value.
+  if (identityNumber) return identityNumber;
+
   return personIdentityDisplay({
-    identityNumber,
-    partyKey,
-    matchKey: person?.matchKey && !isInternalOnboardingRequestId(person.matchKey) ? person.matchKey : null,
+    identityNumber: null,
     kycOnboardingStatus: person?.onboarding?.status,
   }).value;
 }

@@ -192,15 +192,31 @@ describe("ComRep requiredness", () => {
     expect(issues).toHaveLength(0);
   });
 
-  it("rejects NRIC/ROC with dashes and does not strip Passport the same way", () => {
+  it("rejects NRIC with dashes and enforces exactly 12 digits", () => {
+    expect(identityFormatIssue("800101011234", "NRIC", "identityNumber", "IC/Passport number")).toBeNull();
     expect(identityFormatIssue("800101-01-1234", "NRIC", "identityNumber", "IC/Passport number")?.message).toMatch(
-      /dashes/
+      /exactly 12 digits/
     );
     expect(identityFormatIssue("1234567-A", "ROC", "registrationNumber", "Issuer ROC")?.message).toMatch(
       /dashes/
     );
     expect(identityFormatIssue("A1234567", "PASSPORT", "identityNumber", "IC/Passport number")).toBeNull();
     expect(identityFormatIssue("AB-12 34", "PASSPORT", "identityNumber", "IC/Passport number")).toBeNull();
+  });
+
+  it("rejects NRIC with wrong length or non-digits", () => {
+    expect(identityFormatIssue("80010101123", "NRIC", "identityNumber", "IC/Passport number")?.message).toMatch(
+      /exactly 12 digits/
+    );
+    expect(identityFormatIssue("8001010112345", "NRIC", "identityNumber", "IC/Passport number")?.message).toMatch(
+      /exactly 12 digits/
+    );
+    expect(identityFormatIssue("80010101123X", "NRIC", "identityNumber", "IC/Passport number")?.message).toMatch(
+      /exactly 12 digits/
+    );
+    expect(identityFormatIssue("80010101 1234", "NRIC", "identityNumber", "IC/Passport number")?.message).toMatch(
+      /exactly 12 digits/
+    );
   });
 
   it("rejects share-count decimals where SC requires integer without decimal points", () => {

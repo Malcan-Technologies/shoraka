@@ -235,6 +235,20 @@ export function identityFormatIssue(
   if (blank) return blank;
   if (kind === "PASSPORT") return null;
   const raw = typeof value === "string" ? value.trim() : String(value);
+
+  if (kind === "NRIC") {
+    // NRIC/MyKad: exactly 12 digits only (no spaces/dashes/special chars).
+    if (!/^\d{12}$/.test(raw)) {
+      return {
+        field,
+        label,
+        message: `${label} must be exactly 12 digits.`,
+      };
+    }
+    return null;
+  }
+
+  // ROC/BRN: allow letters + digits but must not include dashes/spaces/special characters.
   if (/[^A-Za-z0-9]/.test(raw)) {
     return {
       field,

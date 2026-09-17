@@ -21,6 +21,7 @@ import {
   getIndividualWaitForApprovalUpdate,
 } from "./helpers/individual-onboarding-transition";
 import { assertIssuerOnboardingFeePaid } from "../payment/onboarding-fee-service";
+import { ISSUER_COMPANY_SEAL_REQUIRED_MESSAGE } from "../applications/authorized-parties";
 import {
   asJson,
   parseFieldSources,
@@ -1468,6 +1469,17 @@ export class RegTankService {
 
     if (portalType === "issuer") {
       await assertIssuerOnboardingFeePaid(prisma, organizationId);
+      const activeSeal = await prisma.issuerOrganizationCompanySeal.findFirst({
+        where: { issuer_organization_id: organizationId, superseded_at: null },
+        select: { id: true },
+      });
+      if (!activeSeal) {
+        throw new AppError(
+          400,
+          "ISSUER_COMPANY_SEAL_REQUIRED",
+          ISSUER_COMPANY_SEAL_REQUIRED_MESSAGE
+        );
+      }
     }
 
     if (portalType === "investor" && !organization.tnc_accepted) {

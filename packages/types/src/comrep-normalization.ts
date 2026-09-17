@@ -14,7 +14,8 @@ export function normalizeScRegistrationNumber(
 
 export function normalizeScNric(value: string | null | undefined): string | null {
   if (value == null) return null;
-  const normalized = value.replace(/[^A-Za-z0-9]/g, "");
+  // NRIC/MyKad: digits only (no spaces/dashes/special), preserve other non-digits removal.
+  const normalized = value.replace(/\D/g, "");
   return normalized.length > 0 ? normalized : null;
 }
 
@@ -24,6 +25,8 @@ export function restrictScIdentityInput(
   value: string
 ): string {
   if (kind === "PASSPORT") return value;
+  if (kind === "NRIC") return value.replace(/\D/g, "");
+  // ROC/BRN: keep alphanumeric, strip dashes/spaces/special.
   return value.replace(/[^A-Za-z0-9]/g, "");
 }
 

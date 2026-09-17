@@ -23,7 +23,8 @@ describe("Shoraka Profile Signing & Authorisation", () => {
     expect(section).toContain("profile.companyStamp?.s3Key");
     expect(section).toContain("patchOperatorCompanyStamp");
     expect(section).toContain("requestOperatorCompanyStampUploadUrl");
-    expect(section).toContain("companyStampDeclaredFileRejection");
+    expect(section).toContain("signingCloudLegalImageDeclaredFileRejection");
+    expect(section).toContain("signingCloudLegalImageDimensionRejection");
     expect(section).toContain("Replace");
     expect(section).toContain("Upload");
     expect(section).toContain("Shoraka company stamp preview");
@@ -54,6 +55,8 @@ describe("Shoraka Profile Signing & Authorisation", () => {
     expect(section).toContain("requestOperatorSigningSignatureUploadUrl");
     expect(section).toContain("signingCloudLegalImageDeclaredFileRejection");
     expect(section).not.toContain("personSignatureDeclaredFileRejection");
+    // Upload-to-S3 is not the final validated state; confirmation happens on save.
+    expect(section).not.toContain('toast.success("Signature uploaded")');
     expect(section).toContain("roles.includes(role)");
     expect(section).toContain("Select at least one signing role");
     expect(section).toContain("Inactive");

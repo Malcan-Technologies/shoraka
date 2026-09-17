@@ -1,7 +1,6 @@
 import { randomUUID } from "crypto";
 import { Prisma } from "@prisma/client";
 import {
-  COMPANY_SEAL_MANAGE_FORBIDDEN_MESSAGE,
   isIssuerCompanySealS3Key,
   issuerCompanySealS3Prefix,
   type IssuerCompanySealDto,
@@ -11,7 +10,6 @@ import { prisma } from "../../lib/prisma";
 import { generatePresignedUploadUrl, generatePresignedViewUrl } from "../../lib/s3/client";
 import { confirmSigningCloudLegalImageFromS3 } from "../../lib/signingcloud/legal-image";
 import { OrganizationService } from "./service";
-import { requireOrganizationOwnerOrAdmin } from "./org-rbac";
 import type { IssuerCompanySealConfirmInput, IssuerCompanySealUploadUrlInput } from "./schemas";
 
 const organizationService = new OrganizationService();
@@ -19,7 +17,8 @@ const organizationService = new OrganizationService();
 const SEAL_IN_USE_MESSAGE =
   "This company seal is still used on a signing package and cannot be removed.";
 
-export { COMPANY_SEAL_MANAGE_FORBIDDEN_MESSAGE };
+export const COMPANY_SEAL_MANAGE_FORBIDDEN_MESSAGE =
+  "Only the organisation owner or an organisation member can manage the company seal.";
 
 type CompanySealRow = {
   id: string;
@@ -75,16 +74,33 @@ async function loadIssuerOrganization(userId: string, organizationId: string) {
   return organizationService.getOrganization(userId, organizationId, "issuer");
 }
 
-async function requireSealManager(userId: string, organizationId: string) {
+async function requireSealManager(
+  userId: string,
+  organizationId: string,
+  options?: { canManageOrganizations?: boolean }
+) {
+  // Platform Admin override path:
+  // If caller has `organizations.manage`, allow managing seals for any issuer organisation
+  // without requiring issuer org membership.
+  if (options?.canManageOrganizations) return;
+
   const organization = await loadIssuerOrganization(userId, organizationId);
-  requireOrganizationOwnerOrAdmin(organization, userId, COMPANY_SEAL_MANAGE_FORBIDDEN_MESSAGE);
+  const isOwner = organization.owner_user_id === userId;
+  const isMember = organization.members.some((m) => m.user_id === userId);
+
+  if (!isOwner && !isMember) {
+    throw new AppError(403, "FORBIDDEN", COMPANY_SEAL_MANAGE_FORBIDDEN_MESSAGE);
+  }
 }
 
 export async function getIssuerCompanySeal(
   userId: string,
-  organizationId: string
+  organizationId: string,
+  options?: { canViewOrganizations?: boolean }
 ): Promise<{ seal: IssuerCompanySealDto | null }> {
-  await loadIssuerOrganization(userId, organizationId);
+  if (!options?.canViewOrganizations) {
+    await loadIssuerOrganization(userId, organizationId);
+  }
   const row = await prisma.issuerOrganizationCompanySeal.findFirst({
     where: { issuer_organization_id: organizationId, superseded_at: null },
   });
@@ -93,9 +109,12 @@ export async function getIssuerCompanySeal(
 
 export async function getIssuerCompanySealPreview(
   userId: string,
-  organizationId: string
+  organizationId: string,
+  options?: { canViewOrganizations?: boolean }
 ): Promise<{ viewUrl: string; expiresIn: number } | { viewUrl: null; expiresIn: null }> {
-  await loadIssuerOrganization(userId, organizationId);
+  if (!options?.canViewOrganizations) {
+    await loadIssuerOrganization(userId, organizationId);
+  }
   const row = await prisma.issuerOrganizationCompanySeal.findFirst({
     where: { issuer_organization_id: organizationId, superseded_at: null },
     select: { s3_key: true },
@@ -108,9 +127,12 @@ export async function getIssuerCompanySealPreview(
 export async function requestIssuerCompanySealUploadUrl(
   userId: string,
   organizationId: string,
-  input: IssuerCompanySealUploadUrlInput
+  input: IssuerCompanySealUploadUrlInput,
+  options?: { canManageOrganizations?: boolean }
 ): Promise<{ uploadUrl: string; s3Key: string; expiresIn: number }> {
-  await requireSealManager(userId, organizationId);
+  await requireSealManager(userId, organizationId, {
+    canManageOrganizations: options?.canManageOrganizations,
+  });
   const date = new Date().toISOString().split("T")[0];
   const key = `${issuerCompanySealS3Prefix(organizationId)}v1-${date}-${randomUUID()}.${sealExtension(input.contentType)}`;
   const { uploadUrl, key: s3Key, expiresIn } = await generatePresignedUploadUrl({
@@ -124,9 +146,12 @@ export async function requestIssuerCompanySealUploadUrl(
 export async function confirmIssuerCompanySeal(
   userId: string,
   organizationId: string,
-  input: IssuerCompanySealConfirmInput
+  input: IssuerCompanySealConfirmInput,
+  options?: { canManageOrganizations?: boolean }
 ): Promise<{ seal: IssuerCompanySealDto }> {
-  await requireSealManager(userId, organizationId);
+  await requireSealManager(userId, organizationId, {
+    canManageOrganizations: options?.canManageOrganizations,
+  });
   requireIssuerCompanySealS3Key(organizationId, input.s3Key);
   const confirmed = await confirmSigningCloudLegalImageFromS3(input.s3Key);
   const now = new Date();
@@ -169,9 +194,12 @@ export async function confirmIssuerCompanySeal(
 
 export async function removeIssuerCompanySeal(
   userId: string,
-  organizationId: string
+  organizationId: string,
+  options?: { canManageOrganizations?: boolean }
 ): Promise<{ seal: null }> {
-  await requireSealManager(userId, organizationId);
+  await requireSealManager(userId, organizationId, {
+    canManageOrganizations: options?.canManageOrganizations,
+  });
   try {
     const updated = await prisma.issuerOrganizationCompanySeal.updateMany({
       where: { issuer_organization_id: organizationId, superseded_at: null },
