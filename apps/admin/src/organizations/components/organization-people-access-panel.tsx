@@ -142,10 +142,16 @@ export function OrganizationPeopleAccessPanel({
 
   const editingParty = org.partyProfiles?.find((party) => party.id === editingPartyId) ?? null;
   const editingRow = allRows.find((row) => row.party?.id === editingPartyId) ?? null;
+  const editingEmailLocked = isPersonEmailLifecycleLocked({
+    onboardingStatus: editingRow?.person?.onboarding?.status,
+    screeningStatus: editingRow?.person?.screening?.status,
+  });
   const editingMember = org.members.find((member) => member.userId === editingMemberUserId) ?? null;
 
   const saveParty = async (values: PartyEditorValues, partyId: string) => {
-    const payload = buildPartyPatchPayloadFromEditorValues(values);
+    const payload = buildPartyPatchPayloadFromEditorValues(values, {
+      includeEmail: !editingEmailLocked,
+    });
     await peopleMutations.patchParty.mutateAsync({ partyId, data: payload });
     setEditingPartyId(null);
   };
@@ -304,10 +310,7 @@ export function OrganizationPeopleAccessPanel({
         fieldSources={editingParty?.fieldSources}
         isSaving={peopleMutations.patchParty.isPending}
         enforceIssuerShareholderMinimum
-        emailLocked={isPersonEmailLifecycleLocked({
-          onboardingStatus: editingRow?.person?.onboarding?.status,
-          screeningStatus: editingRow?.person?.screening?.status,
-        })}
+        emailLocked={editingEmailLocked}
         accountEmail={editingParty?.linkedUser?.email ?? (editingRow?.userId ? editingRow.accountEmail : null)}
         onSave={async (values) => {
           if (!editingParty) return;

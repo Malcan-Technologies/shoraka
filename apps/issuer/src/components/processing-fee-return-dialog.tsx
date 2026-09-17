@@ -181,6 +181,7 @@ export function ProcessingFeeReturnDialog({
             status={fee?.status}
             amount={fee?.amount}
             onTryAgain={onDismissToRetry}
+            onLeave={resolved.showLeaveForNow ? onLeaveForNow : undefined}
             showTryAgain={resolved.showPayRetry || submitFailed}
             title={resolved.title}
             description={resolved.description}

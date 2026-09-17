@@ -122,6 +122,13 @@ describe("planPersonEmailWrite", () => {
         supplementRoot: { status: "WAIT_FOR_APPROVAL", requestId: "req-1" },
       }).action
     ).toBe("reject");
+    expect(
+      planPersonEmailWrite({
+        currentMasterEmail: null,
+        incomingEmail: "new@acme.test",
+        onboardingStatus: "PENDING_APPROVAL",
+      }).action
+    ).toBe("reject");
   });
 
   it("persists post-KYC and AML-terminal edits without resetting those pipelines", () => {

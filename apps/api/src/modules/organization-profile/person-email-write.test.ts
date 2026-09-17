@@ -34,6 +34,7 @@ jest.mock("../../lib/prisma", () => ({
 import { writeOrganizationPartyEmail } from "./person-email";
 
 const generatedKey = "user:550e8400-e29b-41d4-a716-446655440000";
+const legacyKey = "900101-14-5678";
 
 const tx = {
   organizationPartyProfile: { update: (...args: unknown[]) => mockPartyUpdate(...args) },
@@ -127,6 +128,37 @@ describe("writeOrganizationPartyEmail", () => {
     expect(snapshot.screening?.status).toBe("CLEAR");
     expect(snapshot.screening?.requestId).toBe("aml-1");
     expect(mockUserUpdate).not.toHaveBeenCalled();
+  });
+
+  it("rejects a write when legacy KYC is awaiting approval without a supplement", async () => {
+    mockPartyFindFirst.mockResolvedValue({
+      id: "party-1",
+      party_key: legacyKey,
+      email: "old@acme.test",
+    });
+    mockIssuerFindUnique.mockResolvedValue({
+      director_kyc_status: {
+        directors: [
+          {
+            governmentIdNumber: legacyKey,
+            kycStatus: "WAIT_FOR_APPROVAL",
+          },
+        ],
+      },
+    });
+
+    await expect(
+      writeOrganizationPartyEmail({
+        portal: "issuer",
+        organizationId: "org-1",
+        partyKey: legacyKey,
+        email: "new@acme.test",
+      })
+    ).rejects.toMatchObject({
+      code: "DIRECTOR_SHAREHOLDER_NOT_EDITABLE",
+    });
+    expect(mockTransaction).not.toHaveBeenCalled();
+    expect(mockPartyUpdate).not.toHaveBeenCalled();
   });
 
   it("does not write a partial master when the supplement snapshot fails", async () => {

@@ -91,5 +91,14 @@ describe("buildPartyPatchPayloadFromEditorValues", () => {
     expect(payload).not.toHaveProperty("designation");
     expect(payload).not.toHaveProperty("appointmentDate");
   });
+
+  it("omits Person Email when the lifecycle lock disables that field", () => {
+    const payload = buildPartyPatchPayloadFromEditorValues(
+      makeValues({ email: "legacy@example.com" }),
+      { includeEmail: false }
+    );
+
+    expect(payload).not.toHaveProperty("email");
+  });
 });
 

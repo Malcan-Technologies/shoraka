@@ -176,6 +176,7 @@ describe("processing fee return dialog states", () => {
     const refunding = confirmingView({ status: "REFUND_INITIATED", elapsedMs: 5_000 });
     expect(refunding.phase).toBe("failed");
     expect(refunding.showPayRetry).toBe(false);
+    expect(refunding.showLeaveForNow).toBe(true);
     expect(refunding.description).toMatch(/do not pay again/i);
   });
 

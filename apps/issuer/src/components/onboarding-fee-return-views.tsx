@@ -208,17 +208,21 @@ export function OnboardingFeeFailureView({
   status,
   amount,
   onTryAgain,
+  onLeave,
   title,
   description,
   showTryAgain = true,
+  leaveLabel = "Leave for now",
 }: {
   reason: FailureReason;
   status?: GatewayPaymentStatus;
   amount?: number;
   onTryAgain: () => void;
+  onLeave?: () => void;
   title?: string;
   description?: string;
   showTryAgain?: boolean;
+  leaveLabel?: string;
 }) {
   const copy = title && description ? { title, description } : failureCopy(reason, status);
 
@@ -242,6 +246,16 @@ export function OnboardingFeeFailureView({
           >
             <ArrowPathIcon className="h-4 w-4" />
             Try again
+          </Button>
+        ) : null}
+        {onLeave ? (
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-4 h-11 w-full rounded-xl"
+            onClick={onLeave}
+          >
+            {leaveLabel}
           </Button>
         ) : null}
       </CardContent>

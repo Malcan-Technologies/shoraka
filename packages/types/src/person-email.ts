@@ -98,6 +98,8 @@ export function planPersonEmailWrite(params: {
   incomingEmail: unknown;
   supplementRoot?: unknown;
   legacyKycApproved?: boolean;
+  onboardingStatus?: string | null;
+  screeningStatus?: string | null;
   fillEmptyOnly?: boolean;
 }): PersonEmailWritePlan {
   const current = normalizePersonEmail(params.currentMasterEmail);
@@ -109,7 +111,13 @@ export function planPersonEmailWrite(params: {
     return { action: "noop", email: current };
   }
 
-  if (isPersonEmailLifecycleLocked({ supplementRoot: params.supplementRoot })) {
+  if (
+    isPersonEmailLifecycleLocked({
+      supplementRoot: params.supplementRoot,
+      onboardingStatus: params.onboardingStatus,
+      screeningStatus: params.screeningStatus,
+    })
+  ) {
     return {
       action: "reject",
       code: "DIRECTOR_SHAREHOLDER_NOT_EDITABLE",
@@ -121,6 +129,8 @@ export function planPersonEmailWrite(params: {
   const persistWithoutReset = isPersonEmailPostCompletionWrite({
     supplementRoot: params.supplementRoot,
     legacyKycApproved: params.legacyKycApproved,
+    onboardingStatus: params.onboardingStatus,
+    screeningStatus: params.screeningStatus,
   });
   const reset = pipeline && !persistWithoutReset;
   return {

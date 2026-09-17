@@ -192,6 +192,7 @@ export function deriveProcessingFeeReturnDialogView(input: {
       title: "Payment cannot be retried yet",
       description:
         "A previous payment is still being reversed. Do not pay again. Please wait or contact support.",
+      showLeaveForNow: true,
     });
   }
 

@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import {
+  getDirectorKycPartyRecord,
   isLegacyCtosPartyKycApproved,
   mergeCtosPartySupplementDocument,
   planPersonEmailWrite,
@@ -60,10 +61,13 @@ export async function writeOrganizationPartyEmail(params: {
 
   const existing = await findPartySupplement(params.portal, params.organizationId, params.partyKey);
   const directorKycStatus = await loadDirectorKycStatus(params.portal, params.organizationId);
+  const legacyKycRecord = getDirectorKycPartyRecord(params.partyKey, directorKycStatus);
   const plan = planPersonEmailWrite({
     currentMasterEmail: party.email,
     incomingEmail: params.email,
     supplementRoot: existing?.onboarding_json,
+    onboardingStatus:
+      legacyKycRecord?.kycStatus == null ? null : String(legacyKycRecord.kycStatus),
     legacyKycApproved: isLegacyCtosPartyKycApproved(params.partyKey, directorKycStatus),
     fillEmptyOnly: params.fillEmptyOnly,
   });
