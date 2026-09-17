@@ -19,6 +19,8 @@ import {
   type AuthorizedPartyIndividualGuarantor,
   type AuthorizedRepresentative,
 } from "@cashsouk/types";
+
+export { ISSUER_COMPANY_SEAL_REQUIRED_MESSAGE };
 import { AppError } from "../../lib/http/error-handler";
 import { isSigningCloudSealFieldEnabled } from "../signingcloud/signingcloud-api";
 import { prisma } from "../../lib/prisma";
