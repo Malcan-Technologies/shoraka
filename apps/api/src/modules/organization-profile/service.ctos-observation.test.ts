@@ -517,6 +517,7 @@ describe("CTOS master party observation", () => {
         id: "p-a",
         party_key: "800101011234",
         identity_number: "800101011234",
+        field_sources: { identityNumber: { source: "REGTANK", updatedAt: "2026-01-01T00:00:00.000Z" } },
       })
     );
     await expect(
@@ -1646,8 +1647,8 @@ describe("user-added master parties", () => {
     expect(updated.isShareholder).toBe(false);
     expect(updated.designation).toBe("OTHERS");
     expect(updated.designationOther).toBe("CEO");
-    expect(updated.appointmentDate).toBe("2020-01-01T00:00:00.000Z");
-    expect(updated.resignationDate).toBe("2021-01-01T00:00:00.000Z");
+    expect(updated.appointmentDate).toBe("2020-01-01");
+    expect(updated.resignationDate).toBe("2021-01-01");
   });
 
   it("rejects adopting a <5% issuer shareholder-only external party", async () => {

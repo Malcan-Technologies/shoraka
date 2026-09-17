@@ -117,6 +117,16 @@ export const orgMasterPatchSchema = z
     scInvestorCategory: z.enum(SC_INVESTOR_CATEGORIES).optional().nullable(),
     isSophisticatedInvestor: z.boolean().optional(),
     dateOfBirth: optionalDate,
+    /**
+     * Identity/document fields for PERSONAL investor orgs.
+     * These map to `document_type` / `document_number` columns.
+     */
+    identityNumber: optionalText,
+    /**
+     * Back-compat alias for `identityNumber` used by some callers.
+     * Prefer `identityNumber` going forward.
+     */
+    documentNumber: optionalText,
     residentialAddress: addressPatchSchema.optional().nullable(),
     phoneNumber: optionalText,
     name: optionalText,

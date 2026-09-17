@@ -1,5 +1,7 @@
 import {
+  EXPECTED_PERIOD_RETURN_UP_TO_TOOLTIP,
   NOTE_TIMING_FROM_DISBURSEMENT_TOOLTIP,
+  PORTFOLIO_NET_RETURN_RATE_TOOLTIP,
   resolveNoteTimingDisplay,
   type NoteListItem,
   type NoteSettlementPoolSummary,
@@ -327,13 +329,28 @@ describe("maturity display", () => {
 
 describe("card copy", () => {
   it("leads with invested amount and expected return", () => {
-    expect(investmentCardHeadline(note())).toBe("RM 50000 invested · 12.5% p.a.");
+    expect(investmentCardHeadline(note())).toBe("RM 50000 invested · 12.5% net p.a.");
+  });
+
+  it("labels live portfolio rates as net so they are not confused with marketplace gross", () => {
+    expect(getInvestmentReturnDisplay(note())).toEqual({
+      ratePercent: 12.5,
+      label: "Net p.a.",
+      tooltip: PORTFOLIO_NET_RETURN_RATE_TOOLTIP,
+    });
+    expect(
+      getInvestmentReturnDisplay(note({ tenureDays: 90, maturityDate: null }))
+    ).toEqual({
+      ratePercent: 12.5,
+      label: "Up to net p.a.",
+      tooltip: EXPECTED_PERIOD_RETURN_UP_TO_TOOLTIP,
+    });
   });
 
   it("labels pre-settlement tenure profit as an upper-bound estimate", () => {
     expect(
       investmentCardHeadline(note({ tenureDays: 90, maturityDate: null }))
-    ).toBe("RM 50000 invested · Up to RM 6250");
+    ).toBe("RM 50000 invested · Up to RM 6250 net");
     expect(
       investmentCardHeadline(
         note({
@@ -348,7 +365,7 @@ describe("card copy", () => {
           },
         })
       )
-    ).toBe("RM 50000 invested · 10% p.a. actual");
+    ).toBe("RM 50000 invested · 10% net p.a. actual");
   });
 
   it("labels completed notes as actual even when no profit was received", () => {
@@ -364,13 +381,13 @@ describe("card copy", () => {
     });
     expect(getInvestmentReturnDisplay(settledAtPar)).toEqual({
       ratePercent: 0,
-      label: "p.a. actual",
+      label: "Net p.a. actual",
       tooltip: actualReturnRateTooltip(settledAtPar),
     });
-    expect(investmentCardHeadline(settledAtPar)).toBe("RM 50000 invested · 0% p.a. actual");
+    expect(investmentCardHeadline(settledAtPar)).toBe("RM 50000 invested · 0% net p.a. actual");
   });
 
-  it("explains that p.a. is annualized and shows the period profit rate", () => {
+  it("explains that net p.a. is annualized and shows the period profit rate", () => {
     const settled = note({
       status: "REPAID" as NoteListItem["status"],
       servicingStatus: "SETTLED" as NoteListItem["servicingStatus"],
@@ -383,7 +400,7 @@ describe("card copy", () => {
     });
     expect(periodProfitRatePercent(settled)).toBeCloseTo(1.64384, 4);
     expect(actualReturnRateTooltip(settled)).toBe(
-      "p.a. means per annum (annualized). Actual profit on this note was 1.6%."
+      "Net p.a. is the annualised return after the service fee. Actual profit on this note was 1.6%."
     );
     expect(getInvestmentReturnDisplay(settled).tooltip).toBe(actualReturnRateTooltip(settled));
   });

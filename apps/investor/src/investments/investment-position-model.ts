@@ -9,6 +9,8 @@ import {
   isTenureBackedNote,
   malaysiaCalendarDaysRemaining,
   NOTE_TIMING_PAST_MATURITY_TOOLTIP,
+  PORTFOLIO_NET_RETURN_RATE_TOOLTIP,
+  EXPECTED_PERIOD_RETURN_UP_TO_TOOLTIP,
   resolveNoteGracePeriodDays,
   resolveNoteTimingDisplay,
   shouldLabelExpectedReturnAsUpTo,
@@ -243,9 +245,11 @@ export function investmentMaturityKpiExtra(
 
 export { resolveNoteGracePeriodDays };
 
+export type InvestmentReturnLabel = "Net p.a. actual" | "Up to net p.a." | "Net p.a.";
+
 export type InvestmentReturnDisplay = {
   ratePercent: number;
-  label: "p.a. actual" | "Up to" | "p.a.";
+  label: InvestmentReturnLabel;
   tooltip?: string;
 };
 
@@ -257,7 +261,7 @@ export function periodProfitRatePercent(note: NoteListItem): number | null {
 
 export function actualReturnRateTooltip(note: NoteListItem): string {
   const periodLabel = formatInvestorReturnRatePercent(periodProfitRatePercent(note) ?? 0);
-  return `p.a. means per annum (annualized). Actual profit on this note was ${periodLabel}.`;
+  return `Net p.a. is the annualised return after the service fee. Actual profit on this note was ${periodLabel}.`;
 }
 
 export function getInvestmentReturnDisplay(note: NoteListItem): InvestmentReturnDisplay {
@@ -265,26 +269,34 @@ export function getInvestmentReturnDisplay(note: NoteListItem): InvestmentReturn
   if (isInvestorInvestmentCompleted(note)) {
     return {
       ratePercent: facts.actualReturn ?? 0,
-      label: "p.a. actual",
+      label: "Net p.a. actual",
       tooltip: actualReturnRateTooltip(note),
     };
   }
   if (facts.expectedReturnIsEstimate) {
-    return { ratePercent: facts.expectedReturn, label: "Up to" };
+    return {
+      ratePercent: facts.expectedReturn,
+      label: "Up to net p.a.",
+      tooltip: EXPECTED_PERIOD_RETURN_UP_TO_TOOLTIP,
+    };
   }
-  return { ratePercent: facts.expectedReturn, label: "p.a." };
+  return {
+    ratePercent: facts.expectedReturn,
+    label: "Net p.a.",
+    tooltip: PORTFOLIO_NET_RETURN_RATE_TOOLTIP,
+  };
 }
 
 export function investmentCardHeadline(note: NoteListItem): string {
   const facts = getInvestmentPositionFacts(note);
   const display = getInvestmentReturnDisplay(note);
-  if (display.label === "p.a. actual") {
-    return `${formatCurrency(facts.invested)} invested · ${formatInvestorReturnRatePercent(display.ratePercent)} p.a. actual`;
+  if (display.label === "Net p.a. actual") {
+    return `${formatCurrency(facts.invested)} invested · ${formatInvestorReturnRatePercent(display.ratePercent)} net p.a. actual`;
   }
-  if (display.label === "Up to" && facts.expectedProfit > 0.005) {
-    return `${formatCurrency(facts.invested)} invested · Up to ${formatCurrency(facts.expectedProfit)}`;
+  if (display.label === "Up to net p.a." && facts.expectedProfit > 0.005) {
+    return `${formatCurrency(facts.invested)} invested · Up to ${formatCurrency(facts.expectedProfit)} net`;
   }
-  return `${formatCurrency(facts.invested)} invested · ${formatInvestorReturnRatePercent(display.ratePercent)} p.a.`;
+  return `${formatCurrency(facts.invested)} invested · ${formatInvestorReturnRatePercent(display.ratePercent)} net p.a.`;
 }
 
 export function investmentCardMeta(note: NoteListItem): string {

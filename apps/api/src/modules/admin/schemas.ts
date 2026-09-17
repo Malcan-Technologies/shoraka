@@ -330,6 +330,8 @@ export const updateAdminOrganizationProfileSchema = z
     firstName: z.string().min(1).max(100).optional().nullable(),
     lastName: z.string().min(1).max(100).optional().nullable(),
     middleName: z.string().max(100).optional().nullable(),
+    // Personal investor identity/document fields (master profile).
+    identityNumber: z.string().max(500).optional().nullable(),
     bankAccountDetails: bankAccountDetailsSchema.optional().nullable(),
     corporateOnboardingData: z
       .object({

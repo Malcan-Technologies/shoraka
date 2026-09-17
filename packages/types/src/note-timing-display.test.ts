@@ -10,6 +10,7 @@ import {
   joinNoteTimingExtra,
   resolveIssuerInvoiceNoteTiming,
   MARKETPLACE_RETURN_RATE_TOOLTIP,
+  PORTFOLIO_NET_RETURN_RATE_TOOLTIP,
   NOTE_TIMING_ACTIVATED_TOOLTIP,
   NOTE_TIMING_FROM_DISBURSEMENT_TOOLTIP,
   NOTE_TIMING_GRACE_TOOLTIP,
@@ -243,6 +244,7 @@ describe("return and grace tooltips", () => {
     expect(EXPECTED_PERIOD_RETURN_UP_TO_TOOLTIP).toMatch(/Early settlement/);
     expect(EXPECTED_PERIOD_RETURN_UP_TO_TOOLTIP).toMatch(/ceiling/);
     expect(MARKETPLACE_RETURN_RATE_TOOLTIP).toMatch(/before the service fee/);
+    expect(PORTFOLIO_NET_RETURN_RATE_TOOLTIP).toMatch(/after the service fee/);
     expect(NOTE_TIMING_GRACE_TOOLTIP).toMatch(/grace window/);
     expect(NOTE_TIMING_PAST_MATURITY_TOOLTIP).toMatch(/issuer/);
   });

@@ -636,10 +636,20 @@ export function PartyFillEmptyForm({
   const corporate = party.entityType === "CORPORATE";
   const copy = monthlyIssuerPersonCopy({ shareholder: party.isShareholder, officer });
   const prefixOptions = SC_IDENTITY_PREFIXES.filter((key) => copy.includeRocPrefix || key !== "ROC");
-  const identityNumberEmpty = !String(party.identityNumber ?? "").trim();
-  const identityPrefixEmpty = !String(party.identityPrefix ?? "").trim();
   const identityTypeLabel =
     (party.identityPrefix && SC_IDENTITY_PREFIX_LABELS[party.identityPrefix]) || party.identityPrefix || "";
+
+  const isRegTankSource = (field: string): boolean =>
+    party.fieldSources[field]?.source === "REGTANK";
+
+  const identityPrefixLocked = isRegTankSource("identityPrefix");
+  const identityNumberLocked = isRegTankSource("identityNumber");
+  const dateOfBirthLocked = isRegTankSource("dateOfBirth");
+  const genderLocked = isRegTankSource("gender");
+  const nationalityLocked = isRegTankSource("nationality");
+  const salutationLocked = isRegTankSource("salutation");
+  const dateOfIncorporationLocked = isRegTankSource("dateOfIncorporation");
+  const countryOfIncorporationLocked = isRegTankSource("countryOfIncorporation");
 
   return (
     <form
@@ -651,16 +661,18 @@ export function PartyFillEmptyForm({
 
           if (section === "details") {
             if (!corporate) {
-              if (identityPrefixEmpty) data.identityPrefix = form.identityPrefix || null;
-              if (identityNumberEmpty) data.identityNumber = form.identityNumber || null;
-              if (!party.salutation) data.salutation = form.salutation || null;
-              if (!party.gender) data.gender = form.gender || null;
-              if (!party.nationality) data.nationality = form.nationality || null;
-              if (!party.dateOfBirth) data.dateOfBirth = form.dateOfBirth || null;
+              if (!identityPrefixLocked) data.identityPrefix = form.identityPrefix || null;
+              if (!identityNumberLocked) data.identityNumber = form.identityNumber || null;
+              if (!salutationLocked) data.salutation = form.salutation || null;
+              if (!genderLocked) data.gender = form.gender || null;
+              if (!nationalityLocked) data.nationality = form.nationality || null;
+              if (!dateOfBirthLocked) data.dateOfBirth = form.dateOfBirth || null;
             } else {
-              if (identityNumberEmpty) data.identityNumber = form.identityNumber || null;
-              if (!party.dateOfIncorporation) data.dateOfIncorporation = form.dateOfIncorporation || null;
-              if (!party.countryOfIncorporation) data.countryOfIncorporation = form.countryOfIncorporation || null;
+              if (!identityNumberLocked) data.identityNumber = form.identityNumber || null;
+              if (!dateOfIncorporationLocked)
+                data.dateOfIncorporation = form.dateOfIncorporation || null;
+              if (!countryOfIncorporationLocked)
+                data.countryOfIncorporation = form.countryOfIncorporation || null;
             }
           }
 
@@ -727,8 +739,8 @@ export function PartyFillEmptyForm({
         const issues = validateIssuerPersonForm({
           entityType: party.entityType,
           name: party.name,
-          identityPrefix: identityPrefixEmpty ? form.identityPrefix : party.identityPrefix,
-          identityNumber: identityNumberEmpty ? form.identityNumber : party.identityNumber,
+          identityPrefix: !identityPrefixLocked ? form.identityPrefix : party.identityPrefix,
+          identityNumber: !identityNumberLocked ? form.identityNumber : party.identityNumber,
           dateOfBirth: form.dateOfBirth || party.dateOfBirth,
           dateOfIncorporation: form.dateOfIncorporation || party.dateOfIncorporation,
           gender: form.gender || party.gender,
@@ -768,21 +780,22 @@ export function PartyFillEmptyForm({
             postalCode: form.postalCode || null,
           },
         };
-        if (identityPrefixEmpty && form.identityPrefix) data.identityPrefix = form.identityPrefix;
-        if (identityNumberEmpty && form.identityNumber) data.identityNumber = form.identityNumber;
-        if (!party.salutation && form.salutation) data.salutation = form.salutation;
-        if (corporate && party.gender !== "NOT_APPLICABLE") {
-          data.gender = "NOT_APPLICABLE";
-        } else if (!party.gender && form.gender) {
-          data.gender = form.gender;
+        if (!corporate && !identityPrefixLocked) data.identityPrefix = form.identityPrefix || null;
+        if (!identityNumberLocked) data.identityNumber = form.identityNumber || null;
+        if (!corporate && !salutationLocked) data.salutation = form.salutation || null;
+        if (corporate) {
+          if (party.gender !== "NOT_APPLICABLE") {
+            data.gender = "NOT_APPLICABLE";
+          }
+        } else if (!genderLocked) {
+          data.gender = form.gender || null;
         }
-        if (!party.nationality && form.nationality) data.nationality = form.nationality;
-        if (!party.dateOfBirth && form.dateOfBirth) data.dateOfBirth = form.dateOfBirth;
-        if (!party.dateOfIncorporation && form.dateOfIncorporation) {
-          data.dateOfIncorporation = form.dateOfIncorporation;
-        }
-        if (!party.countryOfIncorporation && form.countryOfIncorporation) {
-          data.countryOfIncorporation = form.countryOfIncorporation;
+        if (!corporate && !nationalityLocked) data.nationality = form.nationality || null;
+        if (!corporate && !dateOfBirthLocked) data.dateOfBirth = form.dateOfBirth || null;
+        if (corporate) {
+          if (!dateOfIncorporationLocked) data.dateOfIncorporation = form.dateOfIncorporation || null;
+          if (!countryOfIncorporationLocked)
+            data.countryOfIncorporation = form.countryOfIncorporation || null;
         }
         if (party.isShareholder) {
           data.shareType = form.shareType || null;
@@ -840,92 +853,119 @@ export function PartyFillEmptyForm({
             locked
           />
 
-          {!identityNumberEmpty && !identityPrefixEmpty ? (
-            <>
-              <ProfileReadField label={CUSTOMER_PERSON_LABEL.identityType} value={identityTypeLabel} locked />
-              <ProfileReadField
-                label={corporate ? CUSTOMER_PERSON_LABEL.companyRegistrationNumber : CUSTOMER_PERSON_LABEL.identityNumber}
-                value={party.identityNumber}
-                locked
-                help={copy.identity.help}
-              />
-            </>
-          ) : (
-            <>
-              {identityPrefixEmpty && !corporate ? (
-            <SelectField
-              label={CUSTOMER_PERSON_LABEL.identityType}
-              value={form.identityPrefix}
-              onChange={(value) =>
-                setForm({
-                  ...form,
-                  identityPrefix: value,
-                  identityNumber: restrictScIdentityInput(
-                    value === "PASSPORT" ? "PASSPORT" : "NRIC",
-                    form.identityNumber
-                  ),
-                })
-              }
-              options={prefixOptions.map((key) => ({
-                value: key,
-                label: SC_IDENTITY_PREFIX_LABELS[key as keyof typeof SC_IDENTITY_PREFIX_LABELS] ?? key,
-              }))}
-              required
-              error={fieldErrors.identityPrefix}
-            />
-          ) : (
-            <ProfileReadField
-              label={CUSTOMER_PERSON_LABEL.identityType}
-              value={identityTypeLabel || (corporate ? "ROC" : "")}
-              locked
-            />
-          )}
-          {identityNumberEmpty ? (
-            <TextField
-              label={corporate ? CUSTOMER_PERSON_LABEL.companyRegistrationNumber : CUSTOMER_PERSON_LABEL.identityNumber}
-              value={form.identityNumber}
-              onChange={(value) =>
-                setForm({
-                  ...form,
-                  identityNumber: restrictScIdentityInput(
-                    corporate ? "ROC" : form.identityPrefix === "PASSPORT" ? "PASSPORT" : "NRIC",
-                    value
-                  ),
-                })
-              }
-              required
-              help={copy.identity.help}
-              error={fieldErrors.identityNumber}
-              maxLength={500}
-            />
-          ) : (
-            <ProfileReadField
-              label={corporate ? CUSTOMER_PERSON_LABEL.companyRegistrationNumber : CUSTOMER_PERSON_LABEL.identityNumber}
-              value={party.identityNumber}
-              locked
-              help={copy.identity.help}
-            />
-          )}
-        </>
-          )}
+          <>
+            {!corporate ? (
+              <>
+                {identityPrefixLocked ? (
+                  <ProfileReadField
+                    label={CUSTOMER_PERSON_LABEL.identityType}
+                    value={identityTypeLabel}
+                    locked
+                  />
+                ) : (
+                  <SelectField
+                    label={CUSTOMER_PERSON_LABEL.identityType}
+                    value={form.identityPrefix}
+                    onChange={(value) =>
+                      setForm({
+                        ...form,
+                        identityPrefix: value,
+                        identityNumber: restrictScIdentityInput(
+                          value === "PASSPORT" ? "PASSPORT" : "NRIC",
+                          form.identityNumber
+                        ),
+                      })
+                    }
+                    options={prefixOptions.map((key) => ({
+                      value: key,
+                      label:
+                        SC_IDENTITY_PREFIX_LABELS[key as keyof typeof SC_IDENTITY_PREFIX_LABELS] ??
+                        key,
+                    }))}
+                    required
+                    error={fieldErrors.identityPrefix}
+                  />
+                )}
+                {identityNumberLocked ? (
+                  <ProfileReadField
+                    label={CUSTOMER_PERSON_LABEL.identityNumber}
+                    value={party.identityNumber}
+                    locked
+                    help={copy.identity.help}
+                  />
+                ) : (
+                  <TextField
+                    label={CUSTOMER_PERSON_LABEL.identityNumber}
+                    value={form.identityNumber}
+                    onChange={(value) =>
+                      setForm({
+                        ...form,
+                        identityNumber: restrictScIdentityInput(
+                          form.identityPrefix === "PASSPORT" ? "PASSPORT" : "NRIC",
+                          value
+                        ),
+                      })
+                    }
+                    required
+                    help={copy.identity.help}
+                    error={fieldErrors.identityNumber}
+                    maxLength={500}
+                  />
+                )}
+              </>
+            ) : (
+              <>
+                <ProfileReadField
+                  label={CUSTOMER_PERSON_LABEL.identityType}
+                  value={identityTypeLabel || "ROC"}
+                  locked
+                />
+                {identityNumberLocked ? (
+                  <ProfileReadField
+                    label={CUSTOMER_PERSON_LABEL.companyRegistrationNumber}
+                    value={party.identityNumber}
+                    locked
+                    help={copy.identity.help}
+                  />
+                ) : (
+                  <TextField
+                    label={CUSTOMER_PERSON_LABEL.companyRegistrationNumber}
+                    value={form.identityNumber}
+                    onChange={(value) =>
+                      setForm({
+                        ...form,
+                        identityNumber: restrictScIdentityInput("ROC", value),
+                      })
+                    }
+                    required
+                    help={copy.identity.help}
+                    error={fieldErrors.identityNumber}
+                    maxLength={500}
+                  />
+                )}
+              </>
+            )}
+          </>
         </>
       )}
       {(!section || section === "details") && (
         <>
-          {!corporate && !party.salutation ? (
-        <TextField
-          label={CUSTOMER_PERSON_LABEL.salutation}
-          value={form.salutation}
-          onChange={(value) => setForm({ ...form, salutation: value })}
-        />
-          ) : !corporate && party.salutation ? (
-            <ProfileReadField
-              label={CUSTOMER_PERSON_LABEL.salutation}
-              value={party.salutation}
-              locked
-            />
+          {!corporate ? (
+            salutationLocked ? (
+              <ProfileReadField
+                label={CUSTOMER_PERSON_LABEL.salutation}
+                value={party.salutation}
+                locked
+              />
+            ) : (
+              <TextField
+                label={CUSTOMER_PERSON_LABEL.salutation}
+                value={form.salutation}
+                onChange={(value) => setForm({ ...form, salutation: value })}
+              />
+            )
           ) : null}
-          {!corporate && !party.gender ? (
+          {!corporate && !genderLocked ? (
             <SelectField
               label={CUSTOMER_PERSON_LABEL.gender}
               value={form.gender}
@@ -937,14 +977,16 @@ export function PartyFillEmptyForm({
               required
               error={fieldErrors.gender}
             />
-          ) : !corporate && party.gender ? (
+          ) : !corporate && genderLocked ? (
             <ProfileReadField
               label={CUSTOMER_PERSON_LABEL.gender}
-              value={SC_GENDER_LABELS[party.gender as keyof typeof SC_GENDER_LABELS] ?? party.gender}
+              value={
+                SC_GENDER_LABELS[party.gender as keyof typeof SC_GENDER_LABELS] ?? party.gender
+              }
               locked
             />
           ) : null}
-          {!corporate && !party.dateOfBirth ? (
+          {!corporate && !dateOfBirthLocked ? (
             <DateField
               label={CUSTOMER_PERSON_LABEL.dateOfBirth}
               value={form.dateOfBirth}
@@ -952,14 +994,14 @@ export function PartyFillEmptyForm({
               required
               error={fieldErrors.dateOfBirth}
             />
-          ) : !corporate && party.dateOfBirth ? (
+          ) : !corporate && dateOfBirthLocked ? (
             <ProfileReadField
               label={CUSTOMER_PERSON_LABEL.dateOfBirth}
               value={formatCustomerProfileDate(party.dateOfBirth)}
               locked
             />
           ) : null}
-          {!corporate && !party.nationality ? (
+          {!corporate && !nationalityLocked ? (
             <CountryField
               label={CUSTOMER_PERSON_LABEL.nationality}
               value={form.nationality}
@@ -967,14 +1009,14 @@ export function PartyFillEmptyForm({
               required
               error={fieldErrors.nationality}
             />
-          ) : !corporate && party.nationality ? (
+          ) : !corporate && nationalityLocked ? (
             <ProfileReadField
               label={CUSTOMER_PERSON_LABEL.nationality}
               value={formatCustomerCountryName(party.nationality)}
               locked
             />
           ) : null}
-          {corporate && !party.dateOfIncorporation ? (
+          {corporate && !dateOfIncorporationLocked ? (
             <DateField
               label={CUSTOMER_PERSON_LABEL.dateOfIncorporation}
               value={form.dateOfIncorporation}
@@ -982,14 +1024,14 @@ export function PartyFillEmptyForm({
               required
               error={fieldErrors.dateOfIncorporation}
             />
-          ) : corporate && party.dateOfIncorporation ? (
+          ) : corporate && dateOfIncorporationLocked ? (
             <ProfileReadField
               label={CUSTOMER_PERSON_LABEL.dateOfIncorporation}
               value={formatCustomerProfileDate(party.dateOfIncorporation)}
               locked
             />
           ) : null}
-          {corporate && !party.countryOfIncorporation ? (
+          {corporate && !countryOfIncorporationLocked ? (
             <CountryField
               label={CUSTOMER_PERSON_LABEL.countryOfIncorporation}
               value={form.countryOfIncorporation}
@@ -997,7 +1039,7 @@ export function PartyFillEmptyForm({
               required
               error={fieldErrors.countryOfIncorporation}
             />
-          ) : corporate && party.countryOfIncorporation ? (
+          ) : corporate && countryOfIncorporationLocked ? (
             <ProfileReadField
               label={CUSTOMER_PERSON_LABEL.countryOfIncorporation}
               value={formatCustomerCountryName(party.countryOfIncorporation)}

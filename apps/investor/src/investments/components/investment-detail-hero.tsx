@@ -120,8 +120,7 @@ export function InvestmentDetailHero({
               <p className="text-ui leading-6 text-foreground">
                 {formatCurrency(note.targetAmount)} target ·{" "}
                 {facts.expectedReturnIsEstimate ? "Up to " : ""}
-                {formatInvestorReturnRatePercent(facts.expectedReturn)}
-                {facts.expectedReturnIsEstimate ? "" : " p.a."}
+                {formatInvestorReturnRatePercent(facts.expectedReturn)} net p.a.
               </p>
             )}
           </div>
