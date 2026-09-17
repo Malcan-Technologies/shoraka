@@ -106,10 +106,14 @@ export function planPersonEmailWrite(params: {
 }): PersonEmailWritePlan {
   const current = normalizePersonEmail(params.currentMasterEmail);
   const incoming = normalizePersonEmail(params.incomingEmail);
+  const snapshotEmail = normalizePersonEmail(
+    parseCtosPartySupplement(params.supplementRoot).email
+  );
   if (params.fillEmptyOnly && current) {
     return { action: "noop", email: current };
   }
-  if (incoming === current) {
+  const snapshotNeedsSync = snapshotEmail !== null && snapshotEmail !== incoming;
+  if (incoming === current && !snapshotNeedsSync) {
     return { action: "noop", email: current };
   }
 
@@ -134,7 +138,8 @@ export function planPersonEmailWrite(params: {
     onboardingStatus: params.onboardingStatus,
     screeningStatus: params.screeningStatus,
   });
-  const reset = pipeline && !persistWithoutReset;
+  const pipelineEmail = snapshotEmail ?? current;
+  const reset = pipeline && incoming !== pipelineEmail && !persistWithoutReset;
   return {
     action: "write",
     email: incoming,

@@ -113,6 +113,44 @@ describe("planPersonEmailWrite", () => {
     expect(plan).toEqual({ action: "noop", email: "keep@acme.test" });
   });
 
+  it("clears a stale snapshot when the master is already empty", () => {
+    expect(
+      planPersonEmailWrite({
+        currentMasterEmail: null,
+        incomingEmail: null,
+        supplementRoot: {
+          email: "legacy@acme.test",
+          status: "APPROVED",
+          requestId: "req-approved",
+        },
+      })
+    ).toEqual({
+      action: "write",
+      email: null,
+      pipelineReset: false,
+      screeningReset: false,
+      snapshotSupplement: true,
+    });
+  });
+
+  it("seeds the master from the matching snapshot without resetting its active pipeline", () => {
+    expect(
+      planPersonEmailWrite({
+        currentMasterEmail: null,
+        incomingEmail: "legacy@acme.test",
+        supplementRoot: {
+          email: "legacy@acme.test",
+          status: "IN_PROGRESS",
+          requestId: "req-live",
+        },
+      })
+    ).toMatchObject({
+      action: "write",
+      pipelineReset: false,
+      screeningReset: false,
+    });
+  });
+
   it("resets local pipeline/screening on IN_PROGRESS email change", () => {
     const plan = planPersonEmailWrite({
       currentMasterEmail: "old@acme.test",
