@@ -78,23 +78,31 @@ export function NotesTable({
   onCreateNote,
   canCreate,
 }: NotesTableProps) {
-  const totalPages = Math.ceil(totalNotes / pageSize);
-  const startIndex = (currentPage - 1) * pageSize + 1;
-  const endIndex = Math.min(currentPage * pageSize, totalNotes);
+  const invoiceCount = readyInvoices.length;
+  const invoicesOnThisPageCount = currentPage === 1 ? invoiceCount : 0;
+  const totalEntries = totalNotes + invoiceCount;
+  const notePages = Math.ceil(totalNotes / pageSize);
+  const totalPages = notePages > 0 ? notePages : invoiceCount > 0 ? 1 : 0;
+  const noteOffset = (currentPage - 1) * pageSize;
+  const startIndex =
+    totalEntries === 0 ? 0 : noteOffset + 1 + invoiceCount - invoicesOnThisPageCount;
+  const endIndex = invoiceCount + Math.min(currentPage * pageSize, totalNotes);
   const registryRows = React.useMemo<NotesSortRow[]>(
     () => [
-      ...readyInvoices.map((invoice) => ({
-        key: invoice.invoiceId,
-        kind: "invoice" as const,
-        invoice,
-      })),
+      ...(currentPage === 1
+        ? readyInvoices.map((invoice) => ({
+            key: invoice.invoiceId,
+            kind: "invoice" as const,
+            invoice,
+          }))
+        : []),
       ...notes.map((note) => ({
         key: note.id,
         kind: "note" as const,
         note,
       })),
     ],
-    [notes, readyInvoices]
+    [currentPage, notes, readyInvoices]
   );
   const { sortedRows, sortColumn, sortDirection, onSort } = useTableSort(
     registryRows,
@@ -185,13 +193,13 @@ export function NotesTable({
           </TableBody>
         </Table>
       </div>
-      {!loading && totalNotes > 0 && (
+      {!loading && totalEntries > 0 && (
         <TablePagination
           currentPage={currentPage}
           totalPages={totalPages}
           startIndex={startIndex}
           endIndex={endIndex}
-          totalItems={totalNotes}
+          totalItems={totalEntries}
           onPageChange={onPageChange}
         />
       )}

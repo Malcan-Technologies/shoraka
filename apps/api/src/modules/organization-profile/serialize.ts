@@ -7,6 +7,7 @@ import type {
   ProfileValueSource,
 } from "@cashsouk/types";
 import {
+  calendarDateKey,
   comrepCalendarDateKey,
   isMasterFieldEmpty,
   mergeCodContactPersonMaster,
@@ -28,7 +29,7 @@ export function decimalToString(value: Prisma.Decimal | number | string | null |
 
 export function toIsoDate(value: Date | null | undefined): string | null {
   if (!value) return null;
-  return value.toISOString();
+  return calendarDateKey(value);
 }
 
 export function parseDateInput(value: unknown): Date | null {

@@ -6,7 +6,7 @@ tags:
   - admin
   - operations
 order: 11
-updated: 2026-09-08
+updated: 2026-09-17
 ---
 
 ## Purpose
@@ -22,7 +22,8 @@ This document describes the admin application review workflow for issuer financi
 5. When amendments are issued, the application enters **Amendment requested** until the issuer updates only the flagged areas and resubmits. A new review cycle begins. The portal may surface a comparison of changes.
 6. After prerequisite sections are approved, the reviewer sends facility and/or invoice offers where the product requires them.
 7. The issuer accepts, signs, or rejects each offer in the issuer portal. Invoice offers on an approved facility are confirmed with an emailed verification code, not a new signature.
-8. The application reaches **approved** or **completed** when all required offers are accepted or signed, or it closes on **rejected** or **withdrawn**.
+8. For facility and standalone invoice offers, approve acceptance documents and authorised representatives, complete Shoraka signing assignments, then **Send signing links**. The signing runbook is in **Issuer Application Review Guide**.
+9. The application reaches **approved** or **completed** when all required offers are accepted or signed, or it closes on **rejected** or **withdrawn**. After that, create and publish the note from **Notes** (see **Note Money Flow and Servicing Guide**).
 
 ## Review Scope by Tab
 
@@ -175,7 +176,8 @@ Invoice-only products omit facility stages and move from **invoice pending** to 
 - **Facility pending** or **Invoice pending**: prerequisite review is sufficiently complete. Validate data and typically send offers for the active stage.
 - **Amendment requested**: issuer must address remarks and resubmit.
 - **Resubmitted**: issuer returned the application. Perform a full pass against outstanding remarks and current data.
-- **Facility sent** or **Invoices sent**: offers are with the issuer pending response (subject to any expiry rules configured for the product).
+- **Facility sent**, **Invoices sent**, or **Offer Sent**: offers are with the issuer pending response (subject to any expiry rules configured for the product).
+- **Signing Pending**: acceptance documents and representatives are in. Send signing links from Offer Acceptance after Shoraka assignments are complete, or wait for outstanding signers. The issuer Applications filter does not list Signing Pending.
 - **Approved** or **Completed**: required offer outcomes are satisfied.
 - **Withdrawn** or **Rejected**: the application is closed and does not advance further on that record.
 
@@ -236,3 +238,4 @@ The Paymasters register lists identity and Verified / Unverified status. It is n
 - Use invoice offers for invoice-level commercial approval and facility offers for facility-level approval.
 - Do not send offers until upstream sections are approved and the relevant tab is unlocked.
 - After issuer acceptance or signature, verify accepted terms in the portal before treating the commercial outcome as final for downstream handoff.
+- For facility and standalone invoice signing, follow the runbook in **Issuer Application Review Guide** (acceptance documents → Shoraka assignments → **Send signing links**). Then create the note from **Notes**.

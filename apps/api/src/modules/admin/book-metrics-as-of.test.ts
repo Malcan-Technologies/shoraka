@@ -1,4 +1,4 @@
-import { NoteStatus } from "@prisma/client";
+import { NoteFundingStatus, NoteListingStatus, NoteStatus } from "@prisma/client";
 import { bookMetricsAsOfFilters, bookMetricsDueSoonWindow } from "./book-metrics-as-of";
 
 const cutoff = new Date("2026-01-01T16:00:00.000Z");
@@ -7,8 +7,23 @@ describe("bookMetricsAsOfFilters", () => {
   it("keeps live outstanding as ACTIVE notes only", () => {
     expect(bookMetricsAsOfFilters().outstanding).toEqual({ status: NoteStatus.ACTIVE });
     expect(bookMetricsAsOfFilters().inFunding).toEqual({
-      status: { in: [NoteStatus.PUBLISHED, NoteStatus.FUNDING] },
+      status: NoteStatus.PUBLISHED,
+      funding_status: NoteFundingStatus.OPEN,
+      listing_status: NoteListingStatus.PUBLISHED,
     });
+  });
+
+  it("counts live in-funding only as notes open on the investor marketplace", () => {
+    const liveInFunding = bookMetricsAsOfFilters().inFunding;
+    expect(liveInFunding).toEqual({
+      status: NoteStatus.PUBLISHED,
+      funding_status: NoteFundingStatus.OPEN,
+      listing_status: NoteListingStatus.PUBLISHED,
+    });
+    expect(JSON.stringify(liveInFunding)).not.toContain("FUNDING");
+    expect(liveInFunding).not.toEqual(
+      expect.objectContaining({ status: { in: expect.arrayContaining([NoteStatus.FUNDING]) } })
+    );
   });
 
   it("includes notes repaid after Malaysia midnight in the closed-day outstanding book", () => {

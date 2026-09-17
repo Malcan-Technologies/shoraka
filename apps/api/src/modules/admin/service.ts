@@ -86,6 +86,7 @@ import {
   type OnboardingStatusEnum,
   type UserDetailResponse,
   parseAboutYourBusiness,
+  calendarDateKey,
 } from "@cashsouk/types";
 import {
   ADMIN_PERMISSIONS,
@@ -3288,7 +3289,7 @@ export class AdminService {
       idIssuingCountry: org.id_issuing_country,
       gender: org.gender,
       address: org.address,
-      dateOfBirth: org.date_of_birth?.toISOString() ?? null,
+      dateOfBirth: calendarDateKey(org.date_of_birth),
       phoneNumber: org.phone_number,
       documentType: org.document_type,
       documentNumber: org.document_number,
@@ -3473,8 +3474,8 @@ export class AdminService {
         role: m.role,
         createdAt: m.created_at.toISOString(),
       })),
-      dateOfIncorporation: org.date_of_incorporation?.toISOString() ?? null,
-      dateOfCommencement: org.date_of_commencement?.toISOString() ?? null,
+      dateOfIncorporation: calendarDateKey(org.date_of_incorporation),
+      dateOfCommencement: calendarDateKey(org.date_of_commencement),
       countryOfIncorporation: org.country_of_incorporation ?? null,
       scCompanyType: org.sc_company_type ?? null,
       companyCategory: org.company_category ?? null,

@@ -33,7 +33,6 @@ import { useAcceptInvoiceOffer, useRejectContractOffer, useRejectInvoiceOffer, u
 import { SupportingDocumentsStep } from "@/app/(application-flow)/applications/steps/supporting-documents-step";
 import { SupportingDocumentsSkeleton } from "@/app/(application-flow)/applications/components/supporting-documents-skeleton";
 import { AcceptanceDocumentChangesRequestedBanner } from "@/app/(application-flow)/applications/components/amendments/acceptance-document-change-callout";
-import { format } from "date-fns";
 import { formatCurrency } from "@cashsouk/config";
 import {
   ArrowDownTrayIcon,
@@ -70,6 +69,7 @@ import {
   isSignedContractOfferLetterAvailable,
   isSignedInvoiceOfferLetterAvailable,
   utilisationOfferAcceptBlockedReason,
+  formatCalendarDate,
   type Application,
   type UtilisationOfferConsentId,
 } from "@cashsouk/types";
@@ -178,9 +178,7 @@ type ApplicationWithOfferRelations = Application & {
 
 function formatDateOrDash(value: string | null | undefined): string {
   if (!value) return "—";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "—";
-  return format(d, "d MMM yyyy");
+  return formatCalendarDate(value) || "—";
 }
 
 function getApiErrorDetails(

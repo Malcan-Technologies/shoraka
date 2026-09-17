@@ -25,7 +25,7 @@ import {
   MALAYSIAN_BANKS,
 } from "@cashsouk/config";
 import type { ApplicationPersonRow } from "@cashsouk/types";
-import { filterVisiblePeopleRows, SC_GENDER_LABELS, SC_INDIVIDUAL_GENDERS, SC_MALAYSIAN_STATES, PROFILE_ADDRESS_FIELD_LABELS, PROFILE_ADDRESS_HELP, PROFILE_HELP, PROFILE_LABEL, firstIssueMessage, formatCustomerProfileDate, humanizeApiValidationMessage, isScPostcodeRequired, isValidProfilePhone, restrictScPostcodeInput, scAppendixASelectValues, storedProfilePhone, userFacingCompleteness, validateInvestorPersonalForm, type ScGender } from "@cashsouk/types";
+import { filterVisiblePeopleRows, SC_GENDER_LABELS, SC_INDIVIDUAL_GENDERS, SC_MALAYSIAN_STATES, PROFILE_ADDRESS_FIELD_LABELS, PROFILE_ADDRESS_HELP, PROFILE_HELP, PROFILE_LABEL, firstIssueMessage, formatCalendarDate, humanizeApiValidationMessage, isScPostcodeRequired, isValidProfilePhone, restrictScPostcodeInput, scAppendixASelectValues, storedProfilePhone, toCalendarDateInput, userFacingCompleteness, validateInvestorPersonalForm, type ScGender } from "@cashsouk/types";
 import { useAuth } from "../../lib/auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccountDocuments } from "../../hooks/use-account-documents";
@@ -57,7 +57,6 @@ import {
   PROFILE_TAB_PEOPLE,
   type ProfileTab,
 } from "@/app/profile/profile-tabs";
-import { toDateInputValue } from "./date-input";
 import {
   UserIcon,
   BuildingOffice2Icon,
@@ -141,9 +140,9 @@ function formatDocumentType(type: string | null | undefined): string {
 }
 
 function formatProfileDate(value: string | null | undefined): string {
-  // `value` is date-only (`YYYY-MM-DD`) from the API; using `new Date(value)` is timezone-sensitive
-  // and can shift by one day. Reuse the shared formatter that slices the date portion.
-  return formatCustomerProfileDate(value) || "—";
+  // API may send YYYY-MM-DD or a leftover ISO instant. Never use `new Date(value)` —
+  // date-only strings are UTC midnight and shift a day in western TZs.
+  return formatCalendarDate(value) || "—";
 }
 
 function formatGender(value: string | null | undefined): string {
@@ -574,7 +573,7 @@ export default function ProfilePage() {
       setAddress(orgData.address || "");
       setGender(orgData.gender ?? "");
       setNationality(orgData.nationality ?? "");
-      setDateOfBirth(toDateInputValue(orgData.dateOfBirth ?? ""));
+      setDateOfBirth(toCalendarDateInput(orgData.dateOfBirth ?? ""));
       setResidentialState(orgData.residentialAddress?.state ?? "");
       setResidentialPostalCode(orgData.residentialAddress?.postalCode ?? "");
 
@@ -777,7 +776,7 @@ export default function ProfilePage() {
       setAddress(orgData.address || "");
       setGender(orgData.gender ?? "");
       setNationality(orgData.nationality ?? "");
-      setDateOfBirth(toDateInputValue(orgData.dateOfBirth ?? ""));
+      setDateOfBirth(toCalendarDateInput(orgData.dateOfBirth ?? ""));
       setResidentialState(orgData.residentialAddress?.state ?? "");
       setResidentialPostalCode(orgData.residentialAddress?.postalCode ?? "");
     }

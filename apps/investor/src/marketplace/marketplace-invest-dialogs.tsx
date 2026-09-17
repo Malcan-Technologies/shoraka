@@ -185,7 +185,7 @@ export function MarketplaceInvestDialog({
                 label={marketplaceReturnRateLabel(note)}
                 tooltip={MARKETPLACE_RETURN_RATE_TOOLTIP}
               />
-              <InvestFact value={formatRiskScore(note.riskScore)} label="Score" />
+              <InvestFact value={formatRiskScore(note.riskScore)} label="Grade" />
               <InvestFact
                 value={note.timing.compactValue}
                 label={note.timing.compactLabel}

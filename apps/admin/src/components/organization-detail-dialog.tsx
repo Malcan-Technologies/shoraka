@@ -36,7 +36,7 @@ import {
   useOrganizationDetail,
   useUpdateSophisticatedStatus,
 } from "@/hooks/use-organization-detail";
-import { formatOrganizationReference, getRegtankCorporateOnboardingUrl, toTitleCase, type PortalType } from "@cashsouk/types";
+import { formatCalendarDate, formatOrganizationReference, getRegtankCorporateOnboardingUrl, toTitleCase, type PortalType } from "@cashsouk/types";
 import { format } from "date-fns";
 import {
   UserIcon,
@@ -1011,7 +1011,7 @@ export function OrganizationDetailDialog({
                       <DetailRow label="Gender" value={org.gender} />
                       <DetailRow
                         label="Date of Birth"
-                        value={org.dateOfBirth ? format(new Date(org.dateOfBirth), "PP") : null}
+                        value={org.dateOfBirth ? formatCalendarDate(org.dateOfBirth) || null : null}
                       />
                       <DetailRow label="Nationality" value={org.nationality} />
                       <DetailRow label="Country" value={org.country} />

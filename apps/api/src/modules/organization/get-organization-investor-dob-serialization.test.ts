@@ -37,22 +37,7 @@ describe("GET /v1/organizations/investor/:id DOB serialization", () => {
   let app: express.Application;
   const organizationId = "cinvestor0001";
 
-  beforeEach(() => {
-    jest.clearAllMocks();
-    app = express();
-    app.use(express.json());
-    app.use("/v1/organizations", createOrganizationRouter());
-    app.use((err: Error & { statusCode?: number; code?: string }, _req: Request, res: Response, _next: NextFunction) => {
-      res.status(err.statusCode || 500).json({
-        success: false,
-        error: { code: err.code, message: err.message },
-      });
-    });
-
-    // Simulate a stored DOB representing the calendar date 1989-11-14.
-    // Using the local Date constructor avoids any timezone shifting in the test itself.
-    const storedDob = new Date(1989, 10, 14);
-
+  function mockOrg(storedDob: Date) {
     mockGetOrganization.mockResolvedValue({
       id: organizationId,
       owner_user_id: "owner-1",
@@ -76,7 +61,6 @@ describe("GET /v1/organizations/investor/:id DOB serialization", () => {
       corporate_entities: null,
       director_kyc_status: null,
       director_aml_status: null,
-      director_kyc_status: null,
       regtank_onboarding: null,
       date_of_birth: storedDob,
       gender: "MALE",
@@ -85,25 +69,43 @@ describe("GET /v1/organizations/investor/:id DOB serialization", () => {
       id_issuing_country: null,
       document_type: null,
       document_number: null,
-      // editable fields below are used only if present; keep them null.
       residential_address: null,
     });
+  }
 
+  beforeEach(() => {
+    jest.clearAllMocks();
+    app = express();
+    app.use(express.json());
+    app.use("/v1/organizations", createOrganizationRouter());
+    app.use((err: Error & { statusCode?: number; code?: string }, _req: Request, res: Response, _next: NextFunction) => {
+      res.status(err.statusCode || 500).json({
+        success: false,
+        error: { code: err.code, message: err.message },
+      });
+    });
     mockGetInvestorPartyListExtras.mockResolvedValue(null);
   });
 
-  it("returns dateOfBirth as date-only YYYY-MM-DD without timezone shifting", async () => {
+  async function expectCivilDob() {
     const res = await request(app).get(`/v1/organizations/investor/${organizationId}`);
     if (res.status !== 200) {
       throw new Error(`Unexpected ${res.status}: ${JSON.stringify(res.body)}`);
     }
-    expect(res.status).toBe(200);
     expect(res.body?.success).toBe(true);
     expect(res.body?.data?.dateOfBirth).toBe("1989-11-14");
-
-    // Guard against accidental ISO datetime responses like "...T...Z".
     expect(String(res.body?.data?.dateOfBirth ?? "")).not.toMatch(/T|Z/);
     expect(String(res.body?.data?.dateOfBirth ?? "")).not.toMatch(/1989-11-13/);
+  }
+
+  it("returns YYYY-MM-DD for a Prisma UTC-midnight DateTime", async () => {
+    mockOrg(new Date("1989-11-14T00:00:00.000Z"));
+    await expectCivilDob();
+  });
+
+  it("returns the Malaysia civil day when MYT midnight was stored as the previous UTC evening", async () => {
+    mockOrg(new Date("1989-11-13T16:00:00.000Z"));
+    await expectCivilDob();
   });
 });
 

@@ -18,6 +18,8 @@ import {
   INVESTOR_DIRECTOR_SHAREHOLDER_ALERT_COPY,
 } from "@cashsouk/ui";
 import {
+  MARC_RATING_METHODOLOGIES_URL,
+  MARC_RATING_SYMBOLS_AND_DEFINITIONS_URL,
   MARC_SME_GRADES,
   isNoteMoneyAmount,
   filterVisiblePeopleRows,
@@ -570,6 +572,28 @@ export function MarketplacePage() {
             ) : null}
           </section>
         ) : null}
+
+        <p className="text-meta leading-relaxed text-muted-foreground">
+          Grades follow the MARC SME scale. See MARC&apos;s{" "}
+          <a
+            href={MARC_RATING_METHODOLOGIES_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2 hover:text-foreground"
+          >
+            rating methodologies
+          </a>{" "}
+          and{" "}
+          <a
+            href={MARC_RATING_SYMBOLS_AND_DEFINITIONS_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2 hover:text-foreground"
+          >
+            rating symbols and definitions
+          </a>
+          .
+        </p>
       </PageShell>
 
       <MarketplaceInvestDialog

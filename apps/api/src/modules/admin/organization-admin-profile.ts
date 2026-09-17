@@ -12,6 +12,7 @@ import {
   persistOrganizationUpdateAndOnboardingLogs,
 } from "../../lib/audit";
 import { patchOrgMasterProfile, type OrgMasterPatch } from "../organization-profile/service";
+import { toIsoDate } from "../organization-profile/serialize";
 import { buildOrganizationProfileAuditEvidence } from "./organization-profile-audit";
 
 const MASTER_ONLY_KEYS = [
@@ -254,7 +255,7 @@ export async function updateAdminOrganizationProfile(params: {
       firstName: org.first_name,
       lastName: org.last_name,
       middleName: org.middle_name,
-      dateOfBirth: org.date_of_birth ? org.date_of_birth.toISOString().slice(0, 10) : null,
+      dateOfBirth: toIsoDate(org.date_of_birth),
       corporateOnboardingData: org.corporate_onboarding_data,
       bankAccountDetails: org.bank_account_details,
     },
@@ -268,9 +269,7 @@ export async function updateAdminOrganizationProfile(params: {
       dateOfBirth:
         operational.dateOfBirth !== undefined
           ? operational.dateOfBirth
-          : org.date_of_birth
-            ? org.date_of_birth.toISOString().slice(0, 10)
-            : null,
+          : toIsoDate(org.date_of_birth),
       corporateOnboardingData:
         (updateData.corporate_onboarding_data as unknown) ?? org.corporate_onboarding_data,
       bankAccountDetails:

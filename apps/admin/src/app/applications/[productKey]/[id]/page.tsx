@@ -990,7 +990,7 @@ export default function DynamicApplicationDetailPage() {
                   statusLabel={facilityInForceNoInvoices ? "Facility approved" : undefined}
                 />
 
-                <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_minmax(380px,440px)]">
+                <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_minmax(380px,440px)]">
                   <div className="min-w-0 space-y-6">
                     <ApplicationReviewTabs
                     sections={reviewSections}

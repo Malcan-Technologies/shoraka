@@ -28,6 +28,7 @@ import {
   CUSTOMER_PERSON_LABEL,
   formatCustomerProfileDate,
   formatCustomerCountryName,
+  toCalendarDateInput,
   SC_MONTHLY_PERSON_KIND_LABELS,
   SC_SHARE_TYPE_LABELS,
   SC_SHARE_TYPES,
@@ -613,8 +614,8 @@ export function PartyFillEmptyForm({
     email: party.email ?? "",
     gender: party.gender ?? "",
     nationality: party.nationality ?? "",
-    dateOfBirth: party.dateOfBirth?.slice(0, 10) ?? "",
-    dateOfIncorporation: party.dateOfIncorporation?.slice(0, 10) ?? "",
+    dateOfBirth: toCalendarDateInput(party.dateOfBirth),
+    dateOfIncorporation: toCalendarDateInput(party.dateOfIncorporation),
     countryOfIncorporation: party.countryOfIncorporation ?? "",
     line1: party.address?.line1 ?? "",
     line2: party.address?.line2 ?? "",
@@ -627,8 +628,8 @@ export function PartyFillEmptyForm({
     shareholdingPercentage: party.shareholdingPercentage ?? "",
     designation: party.designation ?? "",
     designationOther: party.designationOther ?? "",
-    appointmentDate: party.appointmentDate?.slice(0, 10) ?? "",
-    resignationDate: party.resignationDate?.slice(0, 10) ?? "",
+    appointmentDate: toCalendarDateInput(party.appointmentDate),
+    resignationDate: toCalendarDateInput(party.resignationDate),
   });
   const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
   const officer = isIssuerOfficerRole(party);

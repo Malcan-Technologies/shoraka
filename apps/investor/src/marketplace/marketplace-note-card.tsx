@@ -2,11 +2,9 @@
 
 import { DocumentTextIcon } from "@heroicons/react/24/outline";
 import {
-  formatCompactMarketplaceAmountPair,
   formatInvestorReturnRatePercent,
   marketplaceAmountTitle,
   marketplaceCardDaysLeftLabel,
-  marketplaceCardRateLabel,
   marketplaceCardTenureLabel,
   marketplaceInvestorSummary,
 } from "@cashsouk/types";
@@ -17,7 +15,10 @@ import { cn } from "@/lib/utils";
 import { MarketplaceFailedFundingTooltip } from "./marketplace-failed-funding-tooltip";
 import { MarketplaceNoteIdentity } from "./marketplace-note-identity";
 import {
+  marketplaceAdvertisedGrossReturnLabel,
+  marketplaceExactFundedGoalLabel,
   marketplaceFundingBarClasses,
+  marketplaceFundingProgressCaption,
   marketplaceInvestActionLabel,
   type FeaturedMarketplaceTag,
   type MarketplaceNote,
@@ -38,7 +39,7 @@ function MarketplaceNoteMetrics({
   return (
     <div className="grid grid-cols-2 items-start gap-x-4 gap-y-1 border-t border-border pt-4">
       <div className="flex min-h-5 items-center gap-1 text-meta font-semibold uppercase tracking-wider text-muted-foreground">
-        {marketplaceCardRateLabel(note)}
+        {marketplaceAdvertisedGrossReturnLabel(note)}
         <MarketplaceReturnRateTooltip />
       </div>
       <div className="flex min-h-5 items-center gap-1 text-meta font-semibold uppercase tracking-wider text-muted-foreground">
@@ -69,14 +70,12 @@ function MarketplaceNoteFunding({ note }: { note: MarketplaceNote }) {
       />
       <div className="mt-2 flex flex-wrap justify-between gap-2 text-meta tabular-nums text-muted-foreground">
         <span className="inline-flex items-center gap-1 font-semibold text-foreground">
-          {note.fundingPercent}% funded
+          {marketplaceFundingProgressCaption(note)}
           {note.listingKind === "open" ? (
             <MarketplaceFailedFundingTooltip minimumPercent={note.minimumFundingPercent} />
           ) : null}
         </span>
-        <span title={marketplaceAmountTitle(note)}>
-          {formatCompactMarketplaceAmountPair(note.fundedAmount, note.goalAmount)}
-        </span>
+        <span title={marketplaceAmountTitle(note)}>{marketplaceExactFundedGoalLabel(note)}</span>
         <span>{marketplaceCardDaysLeftLabel(note)}</span>
       </div>
       <p className="mt-2 text-ui text-muted-foreground">{marketplaceInvestorSummary(note)}</p>

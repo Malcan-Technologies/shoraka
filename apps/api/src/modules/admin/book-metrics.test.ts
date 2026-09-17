@@ -10,7 +10,7 @@ jest.mock("../../lib/prisma", () => ({
   },
 }));
 
-import { NoteSettlementStatus, NoteStatus } from "@prisma/client";
+import { NoteFundingStatus, NoteListingStatus, NoteSettlementStatus, NoteStatus } from "@prisma/client";
 import { addMytCalendarDays, mytCalendarParts, mytStartOfDayUtc } from "@cashsouk/types";
 import { AdminRepository } from "./repository";
 
@@ -70,7 +70,11 @@ describe("AdminRepository.getBookMetrics", () => {
       select: expect.any(Object),
     });
     expect(mockNoteAggregate).toHaveBeenCalledWith({
-      where: { status: { in: [NoteStatus.PUBLISHED, NoteStatus.FUNDING] } },
+      where: {
+        status: NoteStatus.PUBLISHED,
+        funding_status: NoteFundingStatus.OPEN,
+        listing_status: NoteListingStatus.PUBLISHED,
+      },
       _sum: { funded_amount: true },
       _count: true,
     });

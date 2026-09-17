@@ -7,6 +7,7 @@
 import {
   NoteFundingStatus,
   NoteInvestmentStatus,
+  NoteListingStatus,
   NoteServicingStatus,
   NoteSettlementStatus,
   NoteStatus,
@@ -243,7 +244,11 @@ async function main() {
 
   const book = await repo.getBookMetrics();
   const inFunding = await prisma.note.aggregate({
-    where: { status: { in: [NoteStatus.PUBLISHED, NoteStatus.FUNDING] } },
+    where: {
+      status: NoteStatus.PUBLISHED,
+      funding_status: NoteFundingStatus.OPEN,
+      listing_status: NoteListingStatus.PUBLISHED,
+    },
     _sum: { funded_amount: true },
     _count: true,
   });

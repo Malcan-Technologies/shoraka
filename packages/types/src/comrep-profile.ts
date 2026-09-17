@@ -1,3 +1,4 @@
+import { calendarDateKey, parseCalendarDate } from "./calendar-date";
 import { normalizeProfilePhone } from "./profile-phone";
 import { FINANCIAL_FIELD_LABELS } from "./financial-field-labels";
 import {
@@ -1298,12 +1299,7 @@ function hasValidPhoneValue(value: unknown): boolean {
 }
 
 function hasDate(value: unknown): boolean {
-  if (value instanceof Date) return !Number.isNaN(value.getTime());
-  if (typeof value !== "string") return false;
-  const trimmed = value.trim();
-  if (!trimmed) return false;
-  const parsed = new Date(trimmed);
-  return !Number.isNaN(parsed.getTime());
+  return calendarDateKey(value) != null;
 }
 
 function hasNumber(value: unknown): boolean {
@@ -2264,36 +2260,18 @@ export interface IssuerOrgFinancialSummary {
   years: Array<{ year: string; block: Record<string, unknown> }>;
 }
 
-const ISO_DATE_RE = /^(\d{4})-(\d{2})-(\d{2})/;
-const DMY_DATE_RE = /^(\d{2})[-/](\d{2})[-/](\d{4})$/;
 const DECIMAL_RE = /^-?\d+(\.\d+)?$/;
 
 /**
  * CTOS appoint/resign strings are DD-MM-YYYY. Do not use `new Date("01-12-2001")`
- * (JS treats that as 12 January).
+ * (JS treats that as 12 January). Civil days use Asia/Kuala_Lumpur.
  */
 export function parseComrepCalendarDate(value: unknown): Date | null {
-  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  const iso = trimmed.match(ISO_DATE_RE);
-  if (iso) {
-    const d = new Date(`${iso[1]}-${iso[2]}-${iso[3]}T00:00:00.000Z`);
-    return Number.isNaN(d.getTime()) ? null : d;
-  }
-  const dmy = trimmed.match(DMY_DATE_RE);
-  if (dmy) {
-    const d = new Date(`${dmy[3]}-${dmy[2]}-${dmy[1]}T00:00:00.000Z`);
-    return Number.isNaN(d.getTime()) ? null : d;
-  }
-  return null;
+  return parseCalendarDate(value);
 }
 
 export function comrepCalendarDateKey(value: unknown): string | null {
-  const d = parseComrepCalendarDate(value);
-  if (!d) return null;
-  return d.toISOString().slice(0, 10);
+  return calendarDateKey(value);
 }
 
 export function asComparableNumber(value: unknown): number | null {

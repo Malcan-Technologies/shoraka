@@ -246,7 +246,9 @@ function NoteRow({ note, onViewDetails }: NoteRowProps) {
       <TableCell className="min-w-0 overflow-hidden truncate">{formatCurrency(note.settlementAmount)}</TableCell>
       <TableCell className="min-w-0 overflow-hidden">
         <div className="flex min-w-0 items-center justify-between gap-2">
-          <span className="shrink-0 font-medium">{note.fundingPercent.toFixed(1)}%</span>
+          <span className="shrink-0 font-medium tabular-nums">
+            {note.fundingPercent.toFixed(1)}% funded
+          </span>
           <span
             className={cn(
               "truncate text-xs",
@@ -262,14 +264,17 @@ function NoteRow({ note, onViewDetails }: NoteRowProps) {
           thresholdPercent={note.minimumFundingPercent}
           fillClassName={getNoteFundingIndicatorClass(note)}
           trackClassName={getNoteFundingProgressClass(note)}
+          aria-label={`${note.fundingPercent.toFixed(1)}% funded. ${note.minimumFundingPercent}% minimum required for funding to succeed.`}
         />
         <div
           className={cn(
-            "truncate text-xs",
+            "truncate text-xs tabular-nums",
             getNoteFundingAccentClass(note) ?? "text-muted-foreground"
           )}
+          title={`${formatCurrency(note.fundedAmount)} of ${formatCurrency(note.targetAmount)} · ${note.minimumFundingPercent}% min threshold`}
         >
-          {formatCurrency(note.fundedAmount)} funded
+          {formatCurrency(note.fundedAmount, { decimals: 0 })} of{" "}
+          {formatCurrency(note.targetAmount, { decimals: 0 })} · {note.minimumFundingPercent}% min
         </div>
       </TableCell>
       <TableCell className="min-w-0 overflow-hidden">

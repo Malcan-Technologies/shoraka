@@ -18,6 +18,12 @@ export const MARC_SME_GRADES = [
 
 export type MarcSmeGrade = (typeof MARC_SME_GRADES)[number];
 
+/** Official MARC Ratings pages for SME methodology and grade definitions. */
+export const MARC_RATING_METHODOLOGIES_URL =
+  "https://www.marc.com.my/group/marc-ratings/rating-methodologies/";
+export const MARC_RATING_SYMBOLS_AND_DEFINITIONS_URL =
+  "https://www.marc.com.my/group/marc-ratings/rating-symbols-and-definitions/";
+
 /**
  * CashSouk visual grouping for the Page 2 scale.
  * `label` is a CashSouk band name, not official MARC Risk Profile wording.

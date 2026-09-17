@@ -214,6 +214,8 @@ describe("customer person Profile mapping", () => {
     expect(fields.get("Nationality")).toBe("Malaysia");
     expect(fields.has("Nationality / Country")).toBe(false);
     expect(formatCustomerProfileDate("2026-09-10")).toBe("10 Sep 2026");
+    expect(formatCustomerProfileDate("1989-11-14T00:00:00.000Z")).toBe("14 Nov 1989");
+    expect(formatCustomerProfileDate("1989-11-13T16:00:00.000Z")).toBe("14 Nov 1989");
   });
 
   it("formats DOB date-only calendar values without shifting", () => {

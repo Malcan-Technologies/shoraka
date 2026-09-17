@@ -66,6 +66,25 @@ describe("RegTank portal URL helpers", () => {
     ).toBe("https://shoraka-trial.regtank.com/app/screen-kyb/result/KYB1/riskAssessment");
   });
 
+  it("does not nest a standalone LD id under the parent company COD", () => {
+    expect(getRegtankCorporatePersonOnboardingUrl("COD05614", "LD86403")).toBeNull();
+
+    const links = getRegtankOnboardingViewLinks({
+      entityType: "INDIVIDUAL",
+      parentCorporateRequestId: "COD05614",
+      directorEodRequestId: "LD86403",
+      shareholderEodRequestId: null,
+      partyCorporateRequestId: null,
+    });
+    expect(links).toEqual([
+      {
+        label: "View",
+        requestId: "LD86403",
+        url: "https://shoraka-trial.regtank.com/app/liveness/LD86403?archived=false",
+      },
+    ]);
+  });
+
   it("does not use a KYC id as the people-table onboarding View URL", () => {
     const links = getRegtankOnboardingViewLinks({
       entityType: "INDIVIDUAL",

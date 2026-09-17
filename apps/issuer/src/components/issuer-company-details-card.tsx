@@ -9,6 +9,7 @@ import {
   SC_COMPANY_TYPES,
   displayScCompanyTypeLabel,
   firstIssueMessage,
+  formatCalendarDate,
   humanizeApiValidationMessage,
   isProfileValidationError,
   issuesByField,
@@ -17,6 +18,7 @@ import {
   profileValidationErrorFromApi,
   scAppendixASelectValues,
   storedProfilePhone,
+  toCalendarDateInput,
   validateIssuerCompanyForm,
 } from "@cashsouk/types";
 import { ComRepFieldLabel, ProfileFieldGrid, ProfilePhoneInput, ProfileReadField } from "@cashsouk/ui";
@@ -35,15 +37,11 @@ import { displayProfileValue, ProfileCard, ProfileEditToggle } from "./profile-c
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 function formatDate(value: string | Date | null | undefined): string {
-  if (!value) return "";
-  const date = typeof value === "string" ? new Date(value) : value;
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  return formatCalendarDate(value);
 }
 
 function toDateInput(value: string | Date | null | undefined): string {
-  if (!value) return "";
-  return String(value).slice(0, 10);
+  return toCalendarDateInput(value);
 }
 
 export type IssuerCompanyDetailsOrg = {

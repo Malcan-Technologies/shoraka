@@ -133,7 +133,7 @@ export function InvestmentDetailHero({
               tooltip={returnDisplay.tooltip}
               valueClassName="text-foreground"
             />
-            <InvestmentKpiBox value={riskScore} label="Score" valueClassName="text-foreground" />
+            <InvestmentKpiBox value={riskScore} label="Grade" valueClassName="text-foreground" />
             <InvestmentKpiBox
               value={maturity.value}
               label={maturity.unit ?? "Maturity"}

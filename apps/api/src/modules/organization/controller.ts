@@ -27,7 +27,7 @@ import {
   requestIssuerCompanySealUploadUrl,
 } from "./company-seal";
 import { requireAuth } from "../../lib/auth/middleware";
-import { parseAboutYourBusiness } from "@cashsouk/types";
+import { calendarDateKey, parseAboutYourBusiness } from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
 import { AMLSyncService } from "../regtank/aml-sync-service";
 import { buildAdminPeopleList } from "../admin/build-people-list";
@@ -466,14 +466,8 @@ async function getOrganization(
         country: org.country || null,
         idIssuingCountry: org.id_issuing_country || null,
         gender: org.gender || null,
-        // `date_of_birth` is a date-only calendar field.
-        // Returning a raw JS `Date` (or using `toISOString()`/UTC) is timezone-sensitive and can shift the calendar day.
-        // Preserve the stored calendar date by extracting local `YYYY-MM-DD`.
-        dateOfBirth: org.date_of_birth
-          ? `${org.date_of_birth.getFullYear()}-${String(org.date_of_birth.getMonth() + 1).padStart(2, "0")}-${String(
-              org.date_of_birth.getDate()
-            ).padStart(2, "0")}`
-          : null,
+        // Calendar DOB: never toISOString() or Date JSON. Use Malaysia civil day.
+        dateOfBirth: calendarDateKey(org.date_of_birth),
         documentType: org.document_type || null,
         documentNumber: org.document_number || null,
         // Editable profile fields
@@ -668,8 +662,8 @@ async function getOrganization(
           directorShareholderListSource: companyPartyBuild?.listSource,
           ctosDirectorShareholderWarning: companyPartyBuild?.ctosDirectorShareholderWarning ?? null,
         }),
-        dateOfIncorporation: org.date_of_incorporation ?? null,
-        dateOfCommencement: org.date_of_commencement ?? null,
+        dateOfIncorporation: calendarDateKey(org.date_of_incorporation),
+        dateOfCommencement: calendarDateKey(org.date_of_commencement),
         countryOfIncorporation: org.country_of_incorporation ?? null,
         scCompanyType: org.sc_company_type ?? null,
         companyCategory: org.company_category ?? null,

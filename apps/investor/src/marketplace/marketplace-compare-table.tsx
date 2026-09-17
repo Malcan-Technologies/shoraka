@@ -2,11 +2,9 @@
 
 import { DocumentTextIcon } from "@heroicons/react/24/outline";
 import {
-  formatCompactMarketplaceAmountPair,
   formatInvestorReturnRatePercent,
   marketplaceAmountTitle,
   marketplaceCardDaysLeftLabel,
-  marketplaceCardRateLabel,
   marketplaceCardTenureLabel,
   marketplaceInvestorSummary,
 } from "@cashsouk/types";
@@ -16,13 +14,16 @@ import { MarketplaceReturnRateTooltip } from "@/investments/components/investmen
 import { MarketplaceFailedFundingTooltip } from "./marketplace-failed-funding-tooltip";
 import { MarketplaceNoteIdentity } from "./marketplace-note-identity";
 import {
+  marketplaceAdvertisedGrossReturnLabel,
+  marketplaceExactFundedGoalLabel,
   marketplaceFundingBarClasses,
+  marketplaceFundingProgressCaption,
   marketplaceInvestActionLabel,
   type MarketplaceNote,
 } from "./marketplace-note-model";
 
 const COMPARE_COLUMNS =
-  "lg:grid-cols-[minmax(14rem,2fr)_7rem_7.5rem_5.5rem_minmax(12rem,1.25fr)_minmax(8.75rem,9.5rem)]";
+  "lg:grid-cols-[minmax(14rem,2fr)_8.5rem_7.5rem_5.5rem_minmax(13rem,1.35fr)_minmax(8.75rem,9.5rem)]";
 
 function CompareFundingCell({ note }: { note: MarketplaceNote }) {
   const bar = marketplaceFundingBarClasses(note);
@@ -38,14 +39,12 @@ function CompareFundingCell({ note }: { note: MarketplaceNote }) {
       />
       <div className="mt-1.5 flex flex-wrap justify-between gap-2 text-meta tabular-nums text-muted-foreground">
         <span className="inline-flex items-center gap-1 font-semibold text-foreground">
-          {note.fundingPercent}% funded
+          {marketplaceFundingProgressCaption(note)}
           {note.listingKind === "open" ? (
             <MarketplaceFailedFundingTooltip minimumPercent={note.minimumFundingPercent} />
           ) : null}
         </span>
-        <span title={marketplaceAmountTitle(note)}>
-          {formatCompactMarketplaceAmountPair(note.fundedAmount, note.goalAmount)}
-        </span>
+        <span title={marketplaceAmountTitle(note)}>{marketplaceExactFundedGoalLabel(note)}</span>
       </div>
       <p className="mt-2 text-ui text-muted-foreground">{marketplaceInvestorSummary(note)}</p>
     </div>
@@ -116,7 +115,7 @@ export function MarketplaceCompareTable({
             />
             <div className="grid grid-cols-2 items-start gap-x-4 gap-y-1 border-t border-border pt-4">
               <div className="flex min-h-5 items-center gap-1 text-meta font-semibold uppercase tracking-wider text-muted-foreground">
-                {marketplaceCardRateLabel(note)}
+                {marketplaceAdvertisedGrossReturnLabel(note)}
                 <MarketplaceReturnRateTooltip />
               </div>
               <div className="flex min-h-5 items-center gap-1 text-meta font-semibold uppercase tracking-wider text-muted-foreground">
@@ -156,7 +155,7 @@ export function MarketplaceCompareTable({
           )}
         >
           <div role="columnheader">Note</div>
-          <div role="columnheader">Rate</div>
+          <div role="columnheader">Gross p.a.</div>
           <div role="columnheader">Tenure</div>
           <div role="columnheader">Grade</div>
           <div role="columnheader">Funding</div>
@@ -181,7 +180,7 @@ export function MarketplaceCompareTable({
                 {formatInvestorReturnRatePercent(note.annualReturn)}
               </p>
               <p className="mt-0.5 inline-flex items-center gap-1 text-meta text-muted-foreground">
-                {marketplaceCardRateLabel(note)}
+                {marketplaceAdvertisedGrossReturnLabel(note)}
                 <MarketplaceReturnRateTooltip />
               </p>
             </div>

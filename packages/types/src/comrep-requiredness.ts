@@ -15,6 +15,7 @@ import {
   profileFinancialFieldLabel,
 } from "./profile-field-copy";
 import { isScIntegerWithoutDecimal } from "./comrep-normalization";
+import { calendarDateKey, isValidCalendarDateKey } from "./calendar-date";
 import {
   OPERATOR_ADVISOR_TYPES,
   SC_COMPANY_TYPES,
@@ -55,15 +56,7 @@ export function isValidEmail(value: string): boolean {
 }
 
 export function isValidIsoDate(value: string): boolean {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
-  if (!match) return false;
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  return (
-    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
-  );
+  return isValidCalendarDateKey(value);
 }
 
 export function isValidNumberValue(value: unknown): boolean {
@@ -168,18 +161,14 @@ function percentCapIssue(value: unknown, field: string, label: string): ComrepFi
 }
 
 export function requiredDateIssue(value: unknown, field: string, label: string): ComrepFieldIssue | null {
-  const text =
-    value instanceof Date && !Number.isNaN(value.getTime())
-      ? value.toISOString().slice(0, 10)
-      : trimToNull(value);
-  if (!text) return { field, label, message: `${label} is required.` };
-  if (!isValidIsoDate(text) && Number.isNaN(new Date(text).getTime())) {
-    return { field, label, message: `${label} must be a valid date.` };
-  }
-  if (/^\d{4}-\d{2}-\d{2}$/.test(text) && !isValidIsoDate(text)) {
-    return { field, label, message: `${label} must be a valid date.` };
-  }
-  return null;
+  if (calendarDateKey(value)) return null;
+  const empty =
+    value == null ||
+    value === "" ||
+    (typeof value === "string" && value.trim() === "") ||
+    (value instanceof Date && Number.isNaN(value.getTime()));
+  if (empty) return { field, label, message: `${label} is required.` };
+  return { field, label, message: `${label} must be a valid date.` };
 }
 
 export function requiredEnumIssue(

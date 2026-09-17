@@ -101,6 +101,23 @@ describe("RegTank person onboarding links", () => {
     ]);
   });
 
+  it("opens later-added director LD on liveness even when the org has a parent COD", () => {
+    const links = getRegtankOnboardingViewLinks(
+      person({
+        parentCorporateRequestId: "COD05614",
+        directorEodRequestId: "LD86403",
+      })
+    );
+    expect(links).toEqual([
+      {
+        label: "View",
+        url: `${BASE}/app/liveness/LD86403?archived=false`,
+        requestId: "LD86403",
+      },
+    ]);
+    expect(getRegtankCorporatePersonOnboardingUrl("COD05614", "LD86403")).toBeNull();
+  });
+
   it("keeps organization-level company Open in RegTank on the COD URL", () => {
     expect(getRegtankCorporateOnboardingUrl("COD05463")).toBe(
       `${BASE}/app/onboardingCorporate/COD05463?archived=false`

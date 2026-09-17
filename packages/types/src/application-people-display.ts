@@ -8,7 +8,6 @@
 
 import {
   getDirectorShareholderDisplayRows,
-  isCtosIndividualKycEligibleRow,
   normalizeDirectorShareholderIdKey,
   type DirectorShareholderDisplayRow,
   type GetDirectorShareholderDisplayRowsInput,
@@ -231,8 +230,18 @@ function isCorporateRequestId(id: string): boolean {
   return id.startsWith("COD");
 }
 
+/** Standalone individual onboarding (Person Send / later-added directors). */
+function isStandaloneIndividualRequestId(id: string): boolean {
+  return id.startsWith("LD");
+}
+
+/** Related-party child of a company COD session. */
+function isCorporateRelatedPartyRequestId(id: string): boolean {
+  return id.startsWith("EOD");
+}
+
 function isPersonOnboardingRequestId(id: string): boolean {
-  return id.startsWith("EOD") || id.startsWith("LD");
+  return isStandaloneIndividualRequestId(id) || isCorporateRelatedPartyRequestId(id);
 }
 
 function isScreeningRequestId(id: string): boolean {
@@ -247,14 +256,14 @@ export function getRegtankCorporateOnboardingUrl(corporateRequestId: string | nu
   return `${base}/app/onboardingCorporate/${encodeURIComponent(id)}?archived=false`;
 }
 
-/** Corporate director/shareholder child of a COD session. */
+/** Corporate director/shareholder child of a COD session. `LD*` is never nested here. */
 export function getRegtankCorporatePersonOnboardingUrl(
   corporateRequestId: string | null | undefined,
   personRequestId: string | null | undefined
 ): string | null {
   const cod = trimRegtankId(corporateRequestId);
   const eod = trimRegtankId(personRequestId);
-  if (!cod || !eod || !isCorporateRequestId(cod) || !isPersonOnboardingRequestId(eod)) return null;
+  if (!cod || !eod || !isCorporateRequestId(cod) || !isCorporateRelatedPartyRequestId(eod)) return null;
   const base = getRegtankClientPortalBaseUrl();
   return `${base}/app/onboardingCorporate/${encodeURIComponent(cod)}/${encodeURIComponent(eod)}`;
 }
@@ -290,9 +299,29 @@ export function getRegtankScreeningLink(
   return base ? `${base}${suffix}` : null;
 }
 
+function personOnboardingPortalLink(
+  label: string,
+  requestId: string,
+  parentCod: string
+): RegtankPortalLink | null {
+  if (!requestId || !isPersonOnboardingRequestId(requestId)) return null;
+  if (isStandaloneIndividualRequestId(requestId)) {
+    const url = getRegtankLivenessUrl(requestId);
+    if (!url) return null;
+    return { label, url, requestId };
+  }
+  if (parentCod && isCorporateRequestId(parentCod)) {
+    const url = getRegtankCorporatePersonOnboardingUrl(parentCod, requestId);
+    if (!url) return null;
+    return { label, url, requestId };
+  }
+  return { label, url: null, requestId };
+}
+
 /**
  * Admin people-table onboarding View links.
  * Dual-role rows with two EODs return both. {@link getRegtankColumnDisplayRows} lists each id plus screening.
+ * Later-added directors (`LD*`) always use liveness, even when the org has a parent COD.
  */
 export function getRegtankOnboardingViewLinks(
   person: Pick<
@@ -314,38 +343,29 @@ export function getRegtankOnboardingViewLinks(
   const parentCod = trimRegtankId(person.parentCorporateRequestId);
   const directorEod = trimRegtankId(person.directorEodRequestId);
   const shareholderEod = trimRegtankId(person.shareholderEodRequestId);
-  const directorOk = Boolean(directorEod && isPersonOnboardingRequestId(directorEod));
-  const shareholderOk = Boolean(shareholderEod && isPersonOnboardingRequestId(shareholderEod));
 
-  if (parentCod && isCorporateRequestId(parentCod)) {
-    if (directorOk && shareholderOk && directorEod !== shareholderEod) {
-      const directorUrl = getRegtankCorporatePersonOnboardingUrl(parentCod, directorEod);
-      const shareholderUrl = getRegtankCorporatePersonOnboardingUrl(parentCod, shareholderEod);
-      const links: RegtankPortalLink[] = [];
-      if (directorUrl) links.push({ label: "Director", url: directorUrl, requestId: directorEod });
-      if (shareholderUrl) links.push({ label: "Shareholder", url: shareholderUrl, requestId: shareholderEod });
-      return links;
-    }
-    const eod = directorOk ? directorEod : shareholderOk ? shareholderEod : "";
-    const url = getRegtankCorporatePersonOnboardingUrl(parentCod, eod);
-    if (!url || !eod) return [];
-    return [{ label: "View", url, requestId: eod }];
+  if (directorEod && shareholderEod && directorEod !== shareholderEod) {
+    const links: RegtankPortalLink[] = [];
+    const directorLink = personOnboardingPortalLink("Director", directorEod, parentCod);
+    const shareholderLink = personOnboardingPortalLink("Shareholder", shareholderEod, parentCod);
+    if (directorLink) links.push(directorLink);
+    if (shareholderLink) links.push(shareholderLink);
+    return links;
   }
 
-  const ldId = [directorEod, shareholderEod].find((id) => id.startsWith("LD")) ?? "";
-  const liveness = getRegtankLivenessUrl(ldId);
-  if (liveness && ldId) {
-    return [{ label: "View", url: liveness, requestId: ldId }];
+  const id = directorEod || shareholderEod;
+  const link = personOnboardingPortalLink("View", id, parentCod);
+  if (!link) return [];
+  if (link.url == null) {
+    const orphanLabel =
+      id === directorEod && id !== shareholderEod
+        ? "Director"
+        : id === shareholderEod && id !== directorEod
+          ? "Shareholder"
+          : "View";
+    return [{ ...link, label: orphanLabel }];
   }
-
-  const orphanEods = [directorEod, shareholderEod].filter(
-    (id, index, all) => id.startsWith("EOD") && all.indexOf(id) === index
-  );
-  return orphanEods.map((id) => ({
-    label: id === directorEod && id !== shareholderEod ? "Director" : id === shareholderEod && id !== directorEod ? "Shareholder" : "View",
-    url: null,
-    requestId: id,
-  }));
+  return [link];
 }
 
 export type RegtankColumnDisplayRow = {

@@ -31,6 +31,7 @@ import { formatPeopleRolesLineTitleCaseWithoutShare } from "./application-people
 import { isPersonKycApproved, personIdentityDisplay } from "./person-onboarding-display";
 import { PROFILE_ADDRESS_FIELD_LABELS, PROFILE_LABEL, formatProfileRmAmount } from "./profile-field-copy";
 import { adminOnboardingStageLabel } from "./admin-people-access-detail";
+import { formatCalendarDate } from "./calendar-date";
 
 export const CUSTOMER_PERSON_LABEL = {
   fullName: PROFILE_LABEL.fullName,
@@ -64,23 +65,13 @@ export const CUSTOMER_PERSON_LABEL = {
   personKind: "Board / Management",
 } as const;
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
-
 export function isInternalOnboardingRequestId(value: string | null | undefined): boolean {
   const id = String(value ?? "").trim().toUpperCase();
   return /^(KYC|KYB|EOD|COD|LD)\d/.test(id);
 }
 
 export function formatCustomerProfileDate(value: string | null | undefined): string {
-  const raw = String(value ?? "").trim();
-  if (!raw) return "";
-  const iso = raw.slice(0, 10);
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
-  if (!match) return iso;
-  const day = Number(match[3]);
-  const month = Number(match[2]) - 1;
-  if (month < 0 || month > 11 || day < 1 || day > 31) return iso;
-  return `${day} ${MONTHS[month]} ${match[1]}`;
+  return formatCalendarDate(value);
 }
 
 export function formatCustomerCountryName(value: string | null | undefined): string {

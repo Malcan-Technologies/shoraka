@@ -6,7 +6,7 @@ tags:
   - admin
   - onboarding
 order: 5
-updated: 2026-04-28
+updated: 2026-09-17
 ---
 
 ## Purpose
@@ -15,10 +15,8 @@ Use this guide to understand what issuers and investors experience during onboar
 
 ## Account Types
 
-Both issuer and investor portals support two onboarding paths:
-
-- Individual account: one person completes identity checks, declarations, and account setup.
-- Company account: the business completes KYB checks and provides company, director, shareholder, and controller information where required.
+- **Issuer:** company accounts only. Personal issuer accounts are not available.
+- **Investor:** personal or company. A person can hold both and switch organisations in the sidebar.
 
 ## Issuer Onboarding
 
@@ -26,15 +24,17 @@ Issuers are SMEs or businesses that want to raise financing using an invoice or 
 
 High-level issuer flow:
 
-1. Issuer signs up or signs in.
-2. Issuer pays the RM 150 onboarding fee before starting the onboarding flow.
-3. Issuer chooses individual or company onboarding.
-4. Issuer completes eKYC/KYB, business, director, shareholder, and declaration steps as required.
-5. Admin reviews the submission and supporting checks.
-6. Admin approves, requests follow-up, or rejects the onboarding.
-7. Once approved, the issuer can create financing applications.
+1. Issuer signs up or signs in and creates the company organisation.
+2. Issuer accepts the legal documents, then pays the RM 150 onboarding fee in the portal checkout.
+3. Issuer completes company verification (eKYB) with CashSouk’s verification partner.
+4. Admin reviews the submission and supporting checks.
+5. Admin approves, requests follow-up, or rejects the onboarding.
+6. Once approved, required directors and shareholders finish their own checks from **Organisation → People & Access**. Adding a person can start RegTank AML; if AML is stuck and no RegTank record exists, investigate before treating the party as screened.
+7. The issuer can create financing applications only after the organisation is approved and required people plus Complete Profile fields are done.
 
-Issuer financing applications have a separate RM 50 application fee, paid by FPX on the first submission. Resubmitting after an amendment request does not charge the fee again.
+Issuer financing applications have a separate RM 50 application processing fee, paid once at first submission through the portal payment checkout. Resubmitting after an amendment request does not charge the fee again.
+
+The pay button is currently labelled **Pay with FPX**. Checkout opens CashSouk’s payment gateway (Malaysian online banking / FPX). The checkout window is branded by the gateway provider (currently Curlec / Razorpay). Do not tell issuers a second payment method exists unless the live screen shows one.
 
 ## Investor Onboarding
 
@@ -57,7 +57,7 @@ For issuer onboarding, verify:
 - eKYC/KYB status,
 - directors, shareholders, and controllers where applicable,
 - SSM and business details where applicable,
-- fee receipt status once payment gateway support is available,
+- fee receipt status on the live payment record,
 - admin approval and rejection reasons.
 
 For investor onboarding, verify:
@@ -70,8 +70,8 @@ For investor onboarding, verify:
 
 ## Important Distinctions
 
-- Issuer onboarding fee: RM 150, paid before issuer onboarding begins.
-- Issuer application fee: RM 50, paid by FPX on the first submission of each financing application.
+- Issuer onboarding fee: RM 150, paid in portal checkout before company verification continues.
+- Issuer application processing fee: RM 50, paid in portal checkout on the first submission of each financing application.
 - Investor onboarding fee: none.
 - Investor activation deposit: minimum RM 100 after onboarding approval. This deposit can be used for investments.
 - Application fees, onboarding fees, and investor deposits must not be mixed with note repayment or investor settlement accounting.

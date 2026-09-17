@@ -1,0 +1,16 @@
+---
+description: Group new Plain Help Center articles into existing folders; confirm before creating a new group.
+alwaysApply: true
+---
+
+# Plain Help Center groups
+
+When creating or updating customer articles in Plain (`help.cashsouk.com`, `hc_01M1KAJMZ5MYD7WEJQRBG779FZ`), set `helpCenterArticleGroupId`. Do not leave articles ungrouped.
+
+Use these groups only:
+
+- **Getting Started** (`hcag_01M1NDKM9177X4CG0HKF88N3ZX`) — shared by issuers and investors
+- **For Issuers** (`hcag_01M1KCAJ0A844SZN8K9C3M4X88`) — issuer-only flows
+- **For Investors** (`hcag_01M1KCAJA4EQ495A1P0SNNQSZ6`) — investor-only flows
+
+If an article does not fit any of the three, propose a new group and **wait for confirmation** before creating it. An article can belong to only one group.

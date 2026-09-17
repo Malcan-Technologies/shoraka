@@ -21,7 +21,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import type { AdminOrganizationAddressInput } from "@cashsouk/types";
-import { PROFILE_ADDRESS_FIELD_LABELS, restrictScPostcodeInput } from "@cashsouk/types";
+import { formatCalendarDate, PROFILE_ADDRESS_FIELD_LABELS, restrictScPostcodeInput } from "@cashsouk/types";
 
 export function DetailRow({
   label,
@@ -332,11 +332,7 @@ export function EditableSelect({
 }
 
 export function formatMasterDate(value: string | null | undefined): string | null {
-  if (!value) return null;
-  const iso = value.slice(0, 10);
-  const parsed = new Date(`${iso}T00:00:00`);
-  if (Number.isNaN(parsed.getTime())) return iso;
-  return parsed.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  return formatCalendarDate(value) || null;
 }
 
 export function EditableYesNo({

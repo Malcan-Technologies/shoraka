@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { format } from "date-fns";
 import { toast } from "sonner";
 import { BANK_ACCOUNT_TYPES, MALAYSIAN_BANKS, malaysianBankLabel } from "@cashsouk/config";
 import {
@@ -20,6 +19,7 @@ import {
   typeOfInvestorValidationMessage,
   SC_MALAYSIAN_STATES,
   displayScCompanyTypeLabel,
+  formatCalendarDate,
   firstIssueMessage,
   humanizeApiValidationMessage,
   isProfileValidationError,
@@ -940,7 +940,7 @@ export function OrganizationProfilePanel({
                   />
                   <ReadField
                     label={PROFILE_LABEL.dateOfBirth}
-                    value={org.dateOfBirth ? format(new Date(org.dateOfBirth), "PP") : null}
+                    value={org.dateOfBirth ? formatCalendarDate(org.dateOfBirth) || null : null}
                     missing={requiredFieldKeys.has("dateOfBirth")}
                   />
                   <ReadField

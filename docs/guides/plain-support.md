@@ -10,11 +10,13 @@ Admin help stays in-repo (`packages/help-content`) and is rendered by the admin 
 
 ## Managing customer articles
 
-Issuer and investor Help Center content is authored directly in Plain, not in `packages/help-content`. Keep articles in these groups:
+Issuer and investor Help Center content is authored directly in Plain, not in `packages/help-content`. Keep articles in these groups. Do not leave articles ungrouped. An article can belong to only one group.
 
 - **Getting Started** — guidance shared by issuers and investors
 - **For Issuers** — issuer onboarding, applications, financing, and repayment
 - **For Investors** — investor onboarding, cash, investments, and settlement
+
+If a new article does not fit any of these three, confirm with the team before creating another group.
 
 Use the Plain dashboard or Help Center API to create and update articles. Published articles are available to Plain AI; drafts are not.
 

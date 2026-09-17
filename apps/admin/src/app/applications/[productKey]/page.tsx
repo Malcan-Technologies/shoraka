@@ -20,10 +20,12 @@ const DEFAULT_STATUS_FILTERS = [
   "UNDER_REVIEW",
   "RESUBMITTED",
   "CONTRACT_PENDING",
+  "CONTRACT_SENT",
   "CONTRACT_ACCEPTED",
   "INVOICE_ACCEPTED",
   "SIGNING_PENDING",
   "INVOICE_PENDING",
+  "INVOICES_SENT",
 ];
 
 export default function DynamicApplicationsPage() {

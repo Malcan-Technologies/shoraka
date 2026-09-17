@@ -5,7 +5,7 @@ category: Application Review
 tags:
   - admin
 order: 10
-updated: 2026-09-06
+updated: 2026-09-17
 ---
 
 ## Purpose
@@ -15,13 +15,14 @@ Use this guide when reviewing issuer financing applications in the admin portal.
 ## Flow at a Glance
 
 1. The issuer selects a product and creates a draft application.
-2. The issuer completes the application wizard and submits the application. A RM 50 application fee will be required at submission after payment gateway support is ready.
+2. The issuer completes the application wizard and submits. A RM 50 application processing fee is collected in portal checkout at first submission.
 3. Admin reviews the financial, company, business, document, facility or customer, and invoice sections that are required for the selected product.
 4. Admin either approves sections, rejects sections, or adds amendment remarks.
 5. If amendments are sent, the issuer edits only the flagged areas and resubmits for the next review cycle.
 6. Once prerequisites are approved, admin sends facility or invoice offers where applicable.
 7. The issuer accepts, signs, or rejects each offer. Invoice offers on an approved facility use an emailed verification code instead of a new signature.
-8. The application is complete when all required offers are accepted or signed.
+8. For facility and standalone invoice offers, admin approves acceptance documents and authorised representatives, then **Send signing links** after Shoraka signing assignments are complete.
+9. After required offers are signed or accepted, create and publish the note from **Notes**. Funding, disbursement, and settlement are in **Note Money Flow and Servicing Guide**.
 
 ## What Admins Review
 
@@ -116,6 +117,20 @@ Before you send a facility-linked invoice offer, check that the people who signe
 
 Issuers can download an **application summary** PDF from the application and later from the note. It includes application details, your remarks and requested changes, and the application history. It is not an offer letter.
 
+## Offer signing runbook (facility and standalone invoice)
+
+Invoice-under-facility offers skip this runbook and use the emailed verification code instead.
+
+1. **Issuer uploads acceptance documents** named on the product. Typical ARF set: **Letter of Offer**, **Board Resolution**, and **Notice of Assignment**. Who uploads: the issuer on the offer. Who approves: admin on Offer Acceptance / Documents.
+2. **Issuer names authorised representatives** for the issuer and any company guarantors. Individual guarantors sign in their own name.
+3. **Admin reviews and approves** those documents and representative lists. Until both are approved, the signing package stays locked.
+4. **Signing package becomes Ready / Approved for signing.** **Send signing links** stays disabled until CashSouk signing assignments are complete.
+5. **Assign Shoraka signers** under **Shoraka → Profile → Signing & Authorisation** before sending. Organisation roles (Director, Board, Management) are not signing roles. Signing roles are **Authorised Signatory** and **Witness**. Bind people to the document execution slots the package needs (Facility Agreement, Joint and Several Guarantee, Deed of Assignment). Incomplete two-person pairs or missing witnesses block send. The panel lists the blocking issues and links to those assignments.
+6. Click **Send signing links**. Named issuer representatives receive the signing email. There is no issuer control to resend the package.
+7. Track signer status until the package is complete. Application **Signing Pending** means CashSouk still owns the send, or signers have not finished. The issuer card in that wait often shows **We're reviewing this** / filter **Under Review**, and the offer screen can say **Waiting for CashSouk to send signing links**. After links go out, the issuer card returns to **Waiting for your response** (filter **Offer Received**) with **Review offer**. Admin may show **Offer Sent**.
+
+Do not treat **Funded** as disbursed. After signing, listing → funding close → activation → trustee disbursement is in **Note Money Flow and Servicing Guide**.
+
 ## Status Guide
 
 - Draft: issuer is still preparing the application.
@@ -123,7 +138,8 @@ Issuers can download an **application summary** PDF from the application and lat
 - Facility Pending or Invoice Pending: the relevant offer stage is unlocked.
 - Amendment Requested: issuer must address admin remarks and resubmit.
 - Resubmitted: issuer has returned the application for another review cycle.
-- Facility Sent or Invoices Sent: issuer must accept, sign, or reject the offer. For an invoice on an approved facility, acceptance uses an emailed verification code rather than a new signature.
+- Facility Sent, Invoices Sent, or **Offer Sent**: issuer must accept, sign, or reject. For an invoice on an approved facility, acceptance uses an emailed verification code rather than a new signature.
+- **Signing Pending**: acceptance documents are in, and CashSouk must send signing links or signers must finish. Do not expect the issuer Applications filter to contain a **Signing Pending** option — that label is admin-side.
 - Approved or Completed: required offers have been resolved.
 - Withdrawn or Rejected: the application is no longer progressing.
 
@@ -136,5 +152,5 @@ Issuers can download an **application summary** PDF from the application and lat
 - Check guarantor AML status before relying on guarantor support.
 - Use invoice offers for invoice-level approval and facility offers for facility-level approval.
 - Do not send offers until upstream sections are approved and the relevant tab is unlocked.
-- Do not treat application fees as investor funding or note repayment activity. Issuer onboarding fees are RM 150 before onboarding. Issuer application fees are RM 50 at financing application submission after payment gateway support is ready.
+- Do not treat application fees as investor funding or note repayment activity. Issuer onboarding fees are RM 150 in portal checkout before verification continues. Issuer application processing fees are RM 50 in portal checkout at first financing-application submission.
 - Review accepted terms carefully before any future note creation or financing instrument is prepared.

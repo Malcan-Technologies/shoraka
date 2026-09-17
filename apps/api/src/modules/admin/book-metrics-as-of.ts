@@ -1,4 +1,4 @@
-import { NoteServicingStatus, NoteStatus } from "@prisma/client";
+import { NoteFundingStatus, NoteListingStatus, NoteServicingStatus, NoteStatus } from "@prisma/client";
 import { addMytCalendarDays, mytCalendarParts, mytStartOfDayUtc } from "@cashsouk/types";
 
 export function bookMetricsDueSoonWindow(now: Date, asOfCutoff?: Date) {
@@ -20,7 +20,11 @@ export function bookMetricsAsOfFilters(asOfCutoff?: Date) {
           { OR: [{ activated_at: null }, { activated_at: { gte: asOfCutoff } }] },
         ],
       }
-    : { status: { in: [NoteStatus.PUBLISHED, NoteStatus.FUNDING] } };
+    : {
+        status: NoteStatus.PUBLISHED,
+        funding_status: NoteFundingStatus.OPEN,
+        listing_status: NoteListingStatus.PUBLISHED,
+      };
   if (!asOfCutoff) {
     return {
       outstanding: { status: NoteStatus.ACTIVE },

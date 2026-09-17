@@ -19,13 +19,13 @@ import {
   personIdentityDisplay,
   type ApplicationPersonRow,
   type OrganizationPartyProfileDto,
+  formatCalendarDate,
 } from "@cashsouk/types";
 import { ProfileFieldGrid, ProfileReadField } from "./components/profile-read-field";
 import { StatusBadge } from "./components/status-badge";
 
 function formatDate(value: string | null | undefined): string {
-  if (!value) return "";
-  return value.slice(0, 10);
+  return formatCalendarDate(value);
 }
 
 function isPresent(value: unknown): boolean {

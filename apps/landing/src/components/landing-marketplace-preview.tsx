@@ -160,7 +160,7 @@ export function LandingMarketplacePreview({
                               )}
                             />
                           </div>
-                          <div className="mt-1 text-xs text-muted-foreground">Score</div>
+                          <div className="mt-1 text-xs text-muted-foreground">Grade</div>
                         </div>
                       </div>
 

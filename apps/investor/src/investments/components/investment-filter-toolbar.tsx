@@ -124,12 +124,12 @@ export function InvestmentFilterToolbar({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-64 p-0">
           <div className="p-1">
-            <DropdownMenuLabel>Risk score</DropdownMenuLabel>
+            <DropdownMenuLabel>Grade</DropdownMenuLabel>
             <DropdownMenuRadioGroup
               value={filters.risk}
               onValueChange={(risk) => onChange({ ...filters, risk })}
             >
-              <DropdownMenuRadioItem value="all">All risk scores</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="all">All grades</DropdownMenuRadioItem>
               {MARC_SME_GRADES.map((grade) => (
                 <DropdownMenuRadioItem key={grade} value={grade}>
                   {grade}

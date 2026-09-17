@@ -9,6 +9,7 @@ import {
   parseDateInput,
   preserveFilledCodMasterFacts,
   preserveFilledOrgIdentityFields,
+  toIsoDate,
 } from "./serialize";
 
 describe("fillEmptyMaster / mergeEmptyAddress", () => {
@@ -58,6 +59,14 @@ describe("CTOS date parsing", () => {
   it("treats CTOS appoint strings as DD-MM-YYYY", () => {
     const parsed = parseDateInput("01-12-2001");
     expect(parsed?.toISOString().slice(0, 10)).toBe("2001-12-01");
+  });
+});
+
+describe("toIsoDate calendar serialize", () => {
+  it("emits the Malaysia civil day, not a UTC ISO prefix", () => {
+    expect(toIsoDate(new Date("1989-11-14T00:00:00.000Z"))).toBe("1989-11-14");
+    expect(toIsoDate(new Date("1989-11-13T16:00:00.000Z"))).toBe("1989-11-14");
+    expect(toIsoDate(null)).toBeNull();
   });
 });
 

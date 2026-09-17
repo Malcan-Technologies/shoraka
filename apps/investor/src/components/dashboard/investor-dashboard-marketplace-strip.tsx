@@ -9,8 +9,12 @@ import {
   type NoteListItem,
 } from "@cashsouk/types";
 import { InvestNowButton } from "@/components/invest-now-button";
+import { MarketplaceReturnRateTooltip } from "@/investments/components/investment-return-breakdown";
 import {
+  marketplaceAdvertisedGrossReturnLabel,
+  marketplaceExactFundedGoalLabel,
   marketplaceFundingBarClasses,
+  marketplaceFundingProgressCaption,
   marketplaceListingUrgency,
   marketplaceNoteHeadline,
   toMarketplaceNote,
@@ -30,7 +34,7 @@ export function InvestorDashboardMarketplaceStrip({
   const strip = notes.slice(0, STRIP_LIMIT);
   const countLabel = `${totalCount} ${totalCount === 1 ? "note" : "notes"} open`;
   const fundingLabel =
-    seekingFunding != null ? ` · ${formatCurrency(seekingFunding)} seeking funding` : "";
+    seekingFunding != null ? ` · ${formatCurrency(seekingFunding, { decimals: 0 })} seeking funding` : "";
 
   return (
     <section>
@@ -85,7 +89,10 @@ function MarketplaceStripCard({ note }: { note: NoteListItem }) {
         </div>
         <div className="mt-4 flex gap-5">
           <div>
-            <p className="text-meta text-muted-foreground">Expected return</p>
+            <p className="flex min-h-5 items-center gap-1 text-meta text-muted-foreground">
+              {marketplaceAdvertisedGrossReturnLabel(market)}
+              <MarketplaceReturnRateTooltip />
+            </p>
             <p className="text-lg font-bold tabular-nums tracking-tight text-primary">
               {formatInvestorReturnRatePercent(market.annualReturn)}
             </p>
@@ -98,11 +105,11 @@ function MarketplaceStripCard({ note }: { note: NoteListItem }) {
           </div>
         </div>
         <div className="mt-4">
-          <div className="flex justify-between text-meta tabular-nums text-muted-foreground">
-            <span>
-              {formatCurrency(market.fundedAmount)} of {formatCurrency(market.goalAmount)}
+          <div className="flex flex-wrap justify-between gap-2 text-meta tabular-nums text-muted-foreground">
+            <span>{marketplaceExactFundedGoalLabel(market)}</span>
+            <span className="font-semibold text-foreground">
+              {marketplaceFundingProgressCaption(market)}
             </span>
-            <span className="font-semibold text-foreground">{market.fundingPercent}%</span>
           </div>
           <FundingProgress
             className="mt-1.5"

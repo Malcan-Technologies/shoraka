@@ -18,6 +18,7 @@ import {
   type ScIdentityPrefix,
 } from "./comrep-profile";
 import { PROFILE_LABEL } from "./profile-field-copy";
+import { formatCalendarDate } from "./calendar-date";
 import { normalizeRawStatus } from "./status-normalization";
 import { collectPartyRegTankRefreshIds } from "./people-access-refresh";
 import {
@@ -413,10 +414,13 @@ export function buildAdminPeopleAccessOverviewItems(row: AdminPeopleAccessRow): 
     });
   }
   if (!corporate && isPresent(party?.dateOfBirth)) {
-    items.push({ label: PROFILE_LABEL.dateOfBirth, value: String(party?.dateOfBirth).slice(0, 10) });
+    items.push({ label: PROFILE_LABEL.dateOfBirth, value: formatCalendarDate(party?.dateOfBirth) });
   }
   if (corporate && isPresent(party?.dateOfIncorporation)) {
-    items.push({ label: PROFILE_LABEL.dateOfIncorporation, value: String(party?.dateOfIncorporation).slice(0, 10) });
+    items.push({
+      label: PROFILE_LABEL.dateOfIncorporation,
+      value: formatCalendarDate(party?.dateOfIncorporation),
+    });
   }
   if (row.kind === "platform_only") {
     items.push({

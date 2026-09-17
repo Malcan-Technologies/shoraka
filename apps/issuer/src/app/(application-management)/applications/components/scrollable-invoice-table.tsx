@@ -13,7 +13,6 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { format } from "date-fns";
 import { EllipsisVerticalIcon, ArrowDownTrayIcon } from "@heroicons/react/24/outline";
 import {
   formatCurrency,
@@ -21,7 +20,7 @@ import {
   badgeKeyToStatusToken,
 } from "@cashsouk/config";
 import { StatusBadge } from "@cashsouk/ui";
-import type { WithdrawReason } from "@cashsouk/types";
+import { formatCalendarDate, type WithdrawReason } from "@cashsouk/types";
 import { shouldShowIssuerReviewOfferCta, getOfferPhaseDeadlineDisplay, getIssuerOfferActionCtaFromOfferDetails } from "@/lib/offer-utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -63,7 +62,7 @@ const PROFIT_RATE_HEADER_TOOLTIP =
 
 /** Min widths (px) for scrollable columns; extra space is shared across them. */
 const COL_MIN = {
-  invoiceNumber: 132,
+  invoiceNumber: 224,
   maturity: 124,
   invoiceValue: 132,
   appliedFinancing: 132,
@@ -302,7 +301,7 @@ function InvoiceDocumentCell({
 
 function formatDate(date: string | Date | null | undefined): string {
   if (date == null) return "—";
-  return format(new Date(date), "d MMM yyyy");
+  return formatCalendarDate(date) || "—";
 }
 
 export type ScrollableInvoiceTableProps = {
@@ -391,7 +390,7 @@ export function ScrollableInvoiceTable({
               className={cn(
                 CELL,
                 INV_TABLE_HEADER_BG,
-                "whitespace-nowrap text-sm font-semibold text-foreground"
+                "min-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold text-foreground"
               )}
             >
               Invoice Number
@@ -400,7 +399,7 @@ export function ScrollableInvoiceTable({
               className={cn(
                 CELL,
                 INV_TABLE_HEADER_BG,
-                "whitespace-nowrap text-sm font-semibold text-foreground"
+                "min-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold text-foreground"
               )}
             >
               Maturity Date
@@ -539,17 +538,19 @@ export function ScrollableInvoiceTable({
                       CELL,
                       INV_TABLE_ROW_BG,
                       INV_TABLE_ROW_HOVER,
-                      "align-middle text-left whitespace-nowrap text-foreground"
+                      "min-w-0 overflow-hidden align-middle text-left text-foreground"
                     )}
                   >
-                    {inv.number}
+                    <span className="block truncate" title={inv.number}>
+                      {inv.number}
+                    </span>
                   </TableCell>
                   <TableCell
                     className={cn(
                       CELL,
                       INV_TABLE_ROW_BG,
                       INV_TABLE_ROW_HOVER,
-                      "align-middle text-left whitespace-nowrap text-foreground"
+                      "min-w-0 overflow-hidden align-middle text-left whitespace-nowrap text-foreground"
                     )}
                   >
                     {formatDate(inv.maturityDate)}

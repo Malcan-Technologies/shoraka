@@ -202,6 +202,30 @@ export function marketplaceFundedGoalLabel(note: MarketplaceNote): string {
   return `${formatCurrency(note.fundedAmount, { decimals: 0 })} / ${formatCurrency(note.goalAmount, { decimals: 0 })}`;
 }
 
+/** Exact funded/target amounts for marketplace and dashboard. Do not compact to k/m. */
+export function marketplaceExactFundedGoalLabel(
+  note: Pick<MarketplaceNote, "fundedAmount" | "goalAmount">
+): string {
+  return `${formatCurrency(note.fundedAmount, { decimals: 0 })} of ${formatCurrency(note.goalAmount, { decimals: 0 })}`;
+}
+
+export function marketplaceFundingProgressCaption(
+  note: Pick<MarketplaceNote, "fundingPercent" | "minimumFundingPercent" | "listingKind">
+): string {
+  const progress =
+    note.listingKind === "failed"
+      ? `${note.fundingPercent}% raised`
+      : `${note.fundingPercent}% funded`;
+  return `${progress} · ${note.minimumFundingPercent}% min`;
+}
+
+/** Advertised listing rate: annualized gross before service fee. Portfolio shows net. */
+export function marketplaceAdvertisedGrossReturnLabel(
+  note: Pick<MarketplaceNote, "timing">
+): string {
+  return note.timing.isTenureNote ? "Up to gross p.a." : "Gross p.a.";
+}
+
 export function marketplaceFundingSummary(note: MarketplaceNote): string {
   if (note.goalAmount <= 0) return "Funding target not published";
   if (note.listingKind === "failed") {

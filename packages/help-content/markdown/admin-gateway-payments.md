@@ -8,7 +8,7 @@ tags:
   - gateway
   - payments
 order: 25
-updated: 2026-08-27
+updated: 2026-09-17
 ---
 
 ## Open Gateway Payments
@@ -60,7 +60,7 @@ Click **Clear** to remove active filters and search.
 
 **Late Payment Charges** are separately billed late charges when they did not fit into the issuer residual on settlement.
 
-- The issuer pays via FPX. This does **not** block investor settlement. Investor principal and profit still follow the dates and worked example in **Note Money Flow and Servicing Guide**.
+- The issuer pays through the portal payment checkout. The button is currently labelled **Pay with FPX**. Checkout opens CashSouk’s payment gateway for Malaysian online banking (FPX). The checkout window is branded by the gateway provider (currently Curlec / Razorpay). That branding does not mean a second payment method is available. This payment does **not** block investor settlement. Investor principal and profit still follow the dates and worked example in **Note Money Flow and Servicing Guide**.
 - The issuer portal shows the shortfall as **Action required**.
 - Use purpose **Late Payment Charges** to find these rows.
 - Status **Needs attention** means the payment is held for review (for example a name check). **Paid** is still in progress; **Completed** is the final success.

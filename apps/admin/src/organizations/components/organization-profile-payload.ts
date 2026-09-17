@@ -11,7 +11,7 @@ import type {
   ScInvestorCategory,
   UpdateAdminOrganizationProfileInput,
 } from "@cashsouk/types";
-import { parseAboutYourBusiness, SC_GENDERS } from "@cashsouk/types";
+import { parseAboutYourBusiness, SC_GENDERS, toCalendarDateInput } from "@cashsouk/types";
 
 function asBankAccountDetails(data: unknown): BankAccountDetails | null {
   if (typeof data !== "object" || data === null) return null;
@@ -156,11 +156,6 @@ export const SECTION_LABEL: Record<EditableSection, string> = {
   classification: "investor classification",
 };
 
-function toDateInput(value: string | null | undefined): string {
-  if (!value) return "";
-  return value.slice(0, 10);
-}
-
 function asScGender(value: string | null | undefined): string {
   const raw = (value ?? "").trim().toUpperCase();
   if (raw === "M" || raw === "MALE") return "MALE";
@@ -219,9 +214,9 @@ export function buildDraft(org: OrganizationDetailResponse): OrgProfileDraft {
     mainCustomers: about.mainCustomers,
     singleCustomerOver50Revenue: about.singleCustomerOver50Revenue,
     accountingSoftware: about.accountingSoftware,
-    dateOfIncorporation: toDateInput(org.dateOfIncorporation),
-    dateOfCommencement: toDateInput(org.dateOfCommencement),
-    dateOfBirth: toDateInput(org.dateOfBirth),
+    dateOfIncorporation: toCalendarDateInput(org.dateOfIncorporation),
+    dateOfCommencement: toCalendarDateInput(org.dateOfCommencement),
+    dateOfBirth: toCalendarDateInput(org.dateOfBirth),
     countryOfIncorporation: org.countryOfIncorporation ?? "",
     scCompanyType: org.scCompanyType ?? "",
     scInvestorCategory: org.scInvestorCategory ?? "",

@@ -551,6 +551,24 @@ describe("KYC tab onboarding vs AML tab screening URLs", () => {
     ]);
   });
 
+  it("uses liveness for a later-added LD director even when the org COD is stamped", () => {
+    const records = buildAdminPersonRegTankRoleRecords({
+      person: person({
+        matchKey: "1",
+        roles: ["DIRECTOR"],
+        directorEodRequestId: "LD86403",
+        parentCorporateRequestId: "COD05614",
+      }),
+    });
+    expect(records).toEqual([
+      expect.objectContaining({
+        url: "https://shoraka-trial.regtank.com/app/liveness/LD86403?archived=false",
+        actionLabel: "View onboarding",
+      }),
+    ]);
+    expect(records[0]?.url).not.toContain("/onboardingCorporate/");
+  });
+
   it("opens AML screening results only when a KYC or KYB id exists", () => {
     expect(adminPersonAmlScreeningResultUrl(row().person)).toBeNull();
     expect(

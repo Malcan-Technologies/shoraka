@@ -9,19 +9,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ComRepFieldLabel, ProfilePhoneInput } from "@cashsouk/ui";
-import { scAppendixASelectValues, type OperatorProfileDto } from "@cashsouk/types";
+import { formatCalendarDate, scAppendixASelectValues, toCalendarDateInput, type OperatorProfileDto } from "@cashsouk/types";
 
 export function toDateInput(value: string | null | undefined): string {
-  if (!value) return "";
-  return value.slice(0, 10);
+  return toCalendarDateInput(value);
 }
 
 export function formatProfileDate(value: string | null | undefined): string | null {
-  if (!value) return null;
-  const iso = value.slice(0, 10);
-  const parsed = new Date(`${iso}T00:00:00`);
-  if (Number.isNaN(parsed.getTime())) return iso;
-  return parsed.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  return formatCalendarDate(value) || null;
 }
 
 export function financialYearLabel(value: string | null | undefined): string | null {

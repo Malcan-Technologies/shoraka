@@ -15,6 +15,8 @@ import {
   DEFAULT_MARKETPLACE_VIEW,
   MARKETPLACE_SORT_OPTIONS,
   MARKETPLACE_TENURE_FILTER_LABELS,
+  MARC_RATING_METHODOLOGIES_URL,
+  MARC_RATING_SYMBOLS_AND_DEFINITIONS_URL,
   MARC_SME_GRADES,
   marketplaceHasActiveFilters,
   marketplaceNoteMatchesFilters,
@@ -478,9 +480,26 @@ export function PublicMarketplaceBrowser({
         ) : null}
 
         <p className="mt-5 max-w-3xl text-meta leading-relaxed text-muted-foreground">
-          Grades follow the MARC SME scale. Profit rates are indicative and shown before fees;
-          funding progress updates live. Capital is at risk — read the prospectus for each note
-          before investing.
+          Grades follow the MARC SME scale. See MARC&apos;s{" "}
+          <a
+            href={MARC_RATING_METHODOLOGIES_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2 hover:text-foreground"
+          >
+            rating methodologies
+          </a>{" "}
+          and{" "}
+          <a
+            href={MARC_RATING_SYMBOLS_AND_DEFINITIONS_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2 hover:text-foreground"
+          >
+            rating symbols and definitions
+          </a>
+          . Profit rates are indicative and shown before fees; funding progress updates live.
+          Capital is at risk — read the prospectus for each note before investing.
         </p>
       </section>
     </div>
