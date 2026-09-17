@@ -1529,14 +1529,6 @@ export async function patchPartyProfile(params: {
       }
     }
   }
-  if (p.isShareholder === false && row.is_shareholder === true) {
-    // Admin can remove the Shareholder role, but shareholder-only fields must not linger.
-    data.share_type = null;
-    data.share_type_other = null;
-    data.shareholding_units = null;
-    data.shareholding_amount = null;
-    data.shareholding_percentage = null;
-  }
   if (p.shareType !== undefined) data.share_type = apply("shareType", row.share_type, p.shareType);
   if (p.shareType !== undefined || p.shareTypeOther !== undefined) {
     data.share_type_other = apply(
