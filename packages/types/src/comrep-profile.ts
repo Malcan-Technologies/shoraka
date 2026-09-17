@@ -1984,16 +1984,20 @@ export function buildIssuerProfileCompleteness(input: {
         ...input.shareholders.flatMap(computeShareholderCompleteness),
         ...input.board.flatMap(computeBoardCompleteness),
       ]);
-  const hasShareholder =
+  // People & Access completeness is satisfied as soon as there is any master person row
+  // (director/shareholder/board/management). Requiring only "isShareholder" causes
+  // director-only companies to be flagged incomplete even when all editable director
+  // fields are filled.
+  const hasAnyPeople =
     input.people != null
-      ? input.people.some((party) => party.isShareholder)
-      : input.shareholders.length > 0;
+      ? input.people.length > 0
+      : input.shareholders.length > 0 || input.board.length > 0;
   const shareholderMissing = peopleMissing.filter((item) => item.step === "shareholders");
   const boardMissing = peopleMissing.filter((item) => item.step === "board");
   const peopleRequired = input.people
     ? input.people.reduce((total, party) => total + countIssuerPersonRequiredFields(party), 0)
     : null;
-  const shareholderStepMissing = hasShareholder
+  const shareholderStepMissing = hasAnyPeople
     ? peopleRequired != null
       ? peopleMissing
       : shareholderMissing
@@ -2001,11 +2005,11 @@ export function buildIssuerProfileCompleteness(input: {
         {
           step: "shareholders" as const,
           field: "shareholders",
-          label: "At least one shareholder",
+          label: "At least one person in People & Access",
           owner: "USER" as const,
         },
       ];
-  const shareholderFieldCount = hasShareholder
+  const shareholderFieldCount = hasAnyPeople
     ? peopleRequired ?? input.shareholders.length * 14
     : 1;
   const boardFieldCount =

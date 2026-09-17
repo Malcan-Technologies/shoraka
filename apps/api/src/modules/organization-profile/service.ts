@@ -1419,11 +1419,13 @@ export async function patchPartyProfile(params: {
     throw new AppError(400, "VALIDATION_ERROR", appliedSemantics.issues[0] ?? "Enter a valid value.");
   }
   if (p.salutation !== undefined || (entityType === "CORPORATE" && p.identityPrefix !== undefined)) {
-    data.salutation = apply(
-      "salutation",
-      row.salutation,
-      appliedSemantics?.salutation ?? p.salutation ?? row.salutation
-    );
+    // If the editor explicitly sends `salutation: null`, that must mean "clear existing".
+    // Using `?? row.salutation` would treat `null` as "no change" and preserve stale values.
+    const salutationIncoming =
+      p.salutation !== undefined
+        ? appliedSemantics?.salutation ?? p.salutation
+        : appliedSemantics?.salutation;
+    data.salutation = apply("salutation", row.salutation, salutationIncoming);
   }
   if (p.identityPrefix !== undefined || entityType === "CORPORATE") {
     if (p.identityPrefix !== undefined || (entityType === "CORPORATE" && appliedSemantics)) {
@@ -1526,6 +1528,14 @@ export async function patchPartyProfile(params: {
         data.is_management = true;
       }
     }
+  }
+  if (p.isShareholder === false && row.is_shareholder === true) {
+    // Admin can remove the Shareholder role, but shareholder-only fields must not linger.
+    data.share_type = null;
+    data.share_type_other = null;
+    data.shareholding_units = null;
+    data.shareholding_amount = null;
+    data.shareholding_percentage = null;
   }
   if (p.shareType !== undefined) data.share_type = apply("shareType", row.share_type, p.shareType);
   if (p.shareType !== undefined || p.shareTypeOther !== undefined) {

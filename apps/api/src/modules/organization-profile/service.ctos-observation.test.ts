@@ -1578,6 +1578,154 @@ describe("user-added master parties", () => {
     expect(Number(parties.find((p) => p.id === "p-edit")?.shareholding_percentage)).toBe(10);
   });
 
+  it("clears shareholder-only fields when Admin removes Shareholder role", async () => {
+    parties.push(
+      row({
+        id: "p-share-clear",
+        party_key: "770101011112",
+        identity_number: "770101011112",
+        is_shareholder: true,
+        share_type: "ORDINARY",
+        share_type_other: "SHOULD_CLEAR",
+        shareholding_units: new Prisma.Decimal("2"),
+        shareholding_amount: new Prisma.Decimal("2000"),
+        shareholding_percentage: new Prisma.Decimal("10"),
+      })
+    );
+
+    const updated = await patchPartyProfile({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-share-clear",
+      source: "ADMIN",
+      patch: { isShareholder: false },
+    });
+
+    expect(updated.isShareholder).toBe(false);
+    expect(updated.shareType).toBeNull();
+    expect(updated.shareTypeOther).toBeNull();
+    expect(updated.shareholdingUnits).toBeNull();
+    expect(updated.shareholdingAmount).toBeNull();
+    expect(updated.shareholdingPercentage).toBeNull();
+  });
+
+  it("re-adding Shareholder later does not silently rehydrate old values", async () => {
+    parties.push(
+      row({
+        id: "p-share-readd",
+        party_key: "770101011113",
+        identity_number: "770101011113",
+        is_shareholder: true,
+        share_type: "ORDINARY",
+        share_type_other: null,
+        shareholding_units: new Prisma.Decimal("2"),
+        shareholding_amount: new Prisma.Decimal("2000"),
+        shareholding_percentage: new Prisma.Decimal("10"),
+      })
+    );
+
+    await patchPartyProfile({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-share-readd",
+      source: "ADMIN",
+      patch: { isShareholder: false },
+    });
+
+    const updated = await patchPartyProfile({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-share-readd",
+      source: "ADMIN",
+      patch: {
+        isShareholder: true,
+        shareholdingPercentage: "12",
+        shareholdingUnits: "3",
+        shareholdingAmount: "3000",
+        shareType: "ORDINARY",
+        shareTypeOther: null,
+      },
+    });
+
+    expect(updated.isShareholder).toBe(true);
+    expect(updated.shareType).toBe("ORDINARY");
+    expect(updated.shareholdingUnits).toBe("3");
+    expect(updated.shareholdingAmount).toBe("3000");
+    expect(updated.shareholdingPercentage).toBe("12");
+  });
+
+  it("clears optional salutation when explicitly set to null", async () => {
+    parties.push(
+      row({
+        id: "p-salutation-clear",
+        party_key: "770101011114",
+        identity_number: "770101011114",
+        salutation: "Test",
+      })
+    );
+
+    const updated = await patchPartyProfile({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-salutation-clear",
+      source: "ADMIN",
+      patch: { salutation: null },
+    });
+
+    expect(updated.salutation).toBeNull();
+  });
+
+  it("keeps existing non-empty salutation when patched with a value", async () => {
+    parties.push(
+      row({
+        id: "p-salutation-keep",
+        party_key: "770101011115",
+        identity_number: "770101011115",
+        salutation: "Old",
+      })
+    );
+
+    const updated = await patchPartyProfile({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-salutation-keep",
+      source: "ADMIN",
+      patch: { salutation: "Puan" },
+    });
+
+    expect(updated.salutation).toBe("Puan");
+  });
+
+  it("removing Shareholder role does not affect director-only fields", async () => {
+    parties.push(
+      row({
+        id: "p-director-only",
+        party_key: "770101011116",
+        identity_number: "770101011116",
+        is_shareholder: true,
+        is_director: true,
+        designation: "OTHERS",
+        designation_other: "CEO",
+        appointment_date: new Date("2020-01-01"),
+        resignation_date: new Date("2021-01-01"),
+      })
+    );
+
+    const updated = await patchPartyProfile({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-director-only",
+      source: "ADMIN",
+      patch: { isShareholder: false },
+    });
+
+    expect(updated.isShareholder).toBe(false);
+    expect(updated.designation).toBe("OTHERS");
+    expect(updated.designationOther).toBe("CEO");
+    expect(updated.appointmentDate).toBe("2020-01-01T00:00:00.000Z");
+    expect(updated.resignationDate).toBe("2021-01-01T00:00:00.000Z");
+  });
+
   it("rejects adopting a <5% issuer shareholder-only external party", async () => {
     parties.push(
       row({
