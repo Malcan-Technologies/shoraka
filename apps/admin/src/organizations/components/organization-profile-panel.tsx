@@ -96,6 +96,7 @@ import {
 import { ADMIN_ORG_ADDRESS_FIELD_LABELS } from "@/organizations/utils/admin-org-display";
 import { missingFieldKeys } from "@/organizations/utils/organization-profile-overview";
 import { formatAdminIdentityDisplay } from "@/organizations/utils/identity-display";
+import { isIdentityNumberEditable } from "@/organizations/utils/identity-editability";
 import { OrganizationFinancialsPanel } from "./organization-financials-panel";
 import { OrganizationMarcCard } from "./organization-marc-card";
 import { OrganizationPicCard } from "./organization-pic-card";
@@ -298,6 +299,11 @@ export function OrganizationProfilePanel({
     documentType: org.documentType,
     documentNumber: org.documentNumber,
     identityNumberRequiredMissing,
+  });
+  const identityNumberEditable = isIdentityNumberEditable({
+    portal,
+    documentNumber: org.documentNumber,
+    profileFieldSources: org.profileFieldSources,
   });
   const aboutActivitiesRequired = isAboutYourBusinessFieldRequired("whatDoesCompanyDo");
   const aboutCustomersRequired = isAboutYourBusinessFieldRequired("mainCustomers");
@@ -899,13 +905,24 @@ export function OrganizationProfilePanel({
                     value={identityDisplay.identityPrefixValue}
                     missing={identityPrefixRequiredMissing}
                   />
-                  <ReadField
-                    label={PROFILE_LABEL.identityNumber}
-                    value={identityDisplay.identityNumberValue}
-                    missing={identityNumberRequiredMissing}
-                    help={PROFILE_HELP.identityNumberNric}
-                    required
-                  />
+                  {identityNumberEditable ? (
+                    <EditableField
+                      label={PROFILE_LABEL.identityNumber}
+                      value={draft.identityNumber}
+                      onChange={(identityNumber) => setDraft((current) => ({ ...current, identityNumber }))}
+                      required={identityNumberRequiredMissing}
+                      help={PROFILE_HELP.identityNumberNric}
+                      error={fieldErrors.identityNumber}
+                    />
+                  ) : (
+                    <ReadField
+                      label={PROFILE_LABEL.identityNumber}
+                      value={identityDisplay.identityNumberValue}
+                      missing={identityNumberRequiredMissing}
+                      help={PROFILE_HELP.identityNumberNric}
+                      required
+                    />
+                  )}
                   <EditableSelect
                     label="Gender"
                     value={draft.gender}

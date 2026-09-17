@@ -173,7 +173,7 @@ function summarizeProfileStepsForDebug(
   );
 }
 
-const USER_LOCKED_ORG_FIELDS = new Set(["name", "dateOfBirth", "gender", "nationality"]);
+const USER_LOCKED_ORG_FIELDS = new Set(["name", "dateOfBirth", "gender", "nationality", "identityNumber"]);
 /** Shared master fields the investor/issuer may change even when already filled.
  * When `fillEmptyOnly: true`, other USER writes are treated as "fill empties only".
  * DOB + gender must be overwrite-able for the Personal Investor profile editor.
@@ -1766,6 +1766,14 @@ export async function patchOrgMasterProfile(params: {
       "dateOfBirth",
       investor.date_of_birth as Date | null,
       parseDateInput(patch.dateOfBirth)
+    );
+  }
+  const identityNumberIncoming = patch.identityNumber ?? patch.documentNumber;
+  if (identityNumberIncoming !== undefined) {
+    data.document_number = applyScalar(
+      "identityNumber",
+      investor.document_number as string | null,
+      identityNumberIncoming
     );
   }
   if (patch.phoneNumber !== undefined) {

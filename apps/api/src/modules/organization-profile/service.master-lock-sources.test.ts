@@ -1,5 +1,6 @@
 import { OrganizationType } from "@prisma/client";
 import { patchOrgMasterProfile } from "./service";
+import { buildInvestorProfileCompleteness } from "@cashsouk/types";
 
 const mockIssuerFindUnique = jest.fn();
 const mockIssuerUpdate = jest.fn();
@@ -22,6 +23,7 @@ jest.mock("../../lib/prisma", () => ({
 function personalOrg(params: {
   portal: "issuer" | "investor";
   dateOfBirth: Date | null;
+  documentNumber: string | null;
   profileFieldSources: Record<string, unknown>;
 }) {
   return {
@@ -31,6 +33,8 @@ function personalOrg(params: {
     date_of_birth: params.dateOfBirth,
     gender: "MALE",
     nationality: "MALAYSIA",
+    document_type: "DRIVER_LICENSE",
+    document_number: params.documentNumber,
     profile_field_sources: params.profileFieldSources,
     corporate_onboarding_data: null,
     residential_address: null,
@@ -55,7 +59,8 @@ describe("master-profile lock decisions by profile_field_sources.source", () => 
     mockInvestorUpdate.mockResolvedValue({});
   });
 
-  const portals: Array<"issuer" | "investor"> = ["issuer", "investor"];
+  // Identity/document number editor is only implemented for the Personal Investor portal.
+  const portals: Array<"issuer" | "investor"> = ["investor"];
 
   it.each(portals)("locks RegTank DOB for USER patch (%s portal)", async (portal) => {
     const row = personalOrg({
@@ -130,5 +135,126 @@ describe("master-profile lock decisions by profile_field_sources.source", () => 
     const updateCall = portal === "issuer" ? mockIssuerUpdate.mock.calls[0]?.[0] : mockInvestorUpdate.mock.calls[0]?.[0];
     expect(updateCall?.data?.date_of_birth).toEqual(new Date("1991-01-01T00:00:00.000Z"));
   });
+
+  it.each(portals)(
+    "allows ADMIN identityNumber edits when RegTank source but identityNumber is missing (%s portal)",
+    async (portal) => {
+      const nextIdentity = "800101011234";
+      const row = personalOrg({
+        portal,
+        dateOfBirth: new Date("1990-01-01T00:00:00.000Z"),
+        documentNumber: null,
+        profileFieldSources: {
+          identityNumber: { source: "REGTANK", updatedAt: "2026-01-01T00:00:00.000Z" },
+        },
+      });
+
+      if (portal === "issuer") mockIssuerFindUnique.mockResolvedValue(row);
+      else mockInvestorFindUnique.mockResolvedValue(row);
+
+      const before = buildInvestorProfileCompleteness({
+        organizationType: "PERSONAL",
+        personal: {
+          name: "Org Name",
+          identityPrefix: "NRIC",
+          identityNumber: null,
+          dateOfBirth: "1990-01-01",
+          gender: "MALE",
+          state: "Selangor",
+          postalCode: "47300",
+          nationality: "Malaysia",
+          scInvestorCategory: "RETAIL",
+          isSophisticatedInvestor: false,
+        },
+      });
+      expect(before.missing.some((m) => m.field === "identityNumber")).toBe(true);
+
+      await patchOrgMasterProfile({
+        portal,
+        organizationId: "org-1",
+        actorUserId: "admin-1",
+        source: "ADMIN",
+        patch: { identityNumber: nextIdentity, documentNumber: undefined } as any,
+      });
+
+      const updateCall =
+        portal === "issuer" ? mockIssuerUpdate.mock.calls[0]?.[0] : mockInvestorUpdate.mock.calls[0]?.[0];
+      expect(updateCall?.data?.document_number).toEqual(nextIdentity);
+      expect((updateCall?.data?.profile_field_sources as any)?.identityNumber?.source).toBe("ADMIN");
+
+      const after = buildInvestorProfileCompleteness({
+        organizationType: "PERSONAL",
+        personal: {
+          name: "Org Name",
+          identityPrefix: "NRIC",
+          identityNumber: nextIdentity,
+          dateOfBirth: "1990-01-01",
+          gender: "MALE",
+          state: "Selangor",
+          postalCode: "47300",
+          nationality: "Malaysia",
+          scInvestorCategory: "RETAIL",
+          isSophisticatedInvestor: false,
+        },
+      });
+      expect(after.missing.some((m) => m.field === "identityNumber")).toBe(false);
+    }
+  );
+
+  it.each(portals)(
+    "rejects ADMIN identityNumber edits when RegTank source and identityNumber is already present (%s portal)",
+    async (portal) => {
+      const row = personalOrg({
+        portal,
+        dateOfBirth: new Date("1990-01-01T00:00:00.000Z"),
+        documentNumber: "800101011234",
+        profileFieldSources: {
+          identityNumber: { source: "REGTANK", updatedAt: "2026-01-01T00:00:00.000Z" },
+        },
+      });
+
+      if (portal === "issuer") mockIssuerFindUnique.mockResolvedValue(row);
+      else mockInvestorFindUnique.mockResolvedValue(row);
+
+      await expect(
+        patchOrgMasterProfile({
+          portal,
+          organizationId: "org-1",
+          actorUserId: "admin-1",
+          source: "ADMIN",
+          patch: { identityNumber: "800101011999" } as any,
+        })
+      ).rejects.toMatchObject({ statusCode: 403, code: "FIELD_NOT_EDITABLE" });
+    }
+  );
+
+  it.each(portals)(
+    "allows ADMIN identityNumber edits when source is USER (%s portal)",
+    async (portal) => {
+      const row = personalOrg({
+        portal,
+        dateOfBirth: new Date("1990-01-01T00:00:00.000Z"),
+        documentNumber: "800101011234",
+        profileFieldSources: {
+          identityNumber: { source: "USER", updatedAt: "2026-01-01T00:00:00.000Z" },
+        },
+      });
+
+      if (portal === "issuer") mockIssuerFindUnique.mockResolvedValue(row);
+      else mockInvestorFindUnique.mockResolvedValue(row);
+
+      await patchOrgMasterProfile({
+        portal,
+        organizationId: "org-1",
+        actorUserId: "admin-1",
+        source: "ADMIN",
+        patch: { identityNumber: "800101011999" } as any,
+      });
+
+      const updateCall =
+        portal === "issuer" ? mockIssuerUpdate.mock.calls[0]?.[0] : mockInvestorUpdate.mock.calls[0]?.[0];
+      expect(updateCall?.data?.document_number).toEqual("800101011999");
+    }
+  );
 });
 

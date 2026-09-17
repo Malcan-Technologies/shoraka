@@ -131,6 +131,7 @@ export type OrgProfileDraft = {
   isSophisticatedInvestor: boolean | null;
   gender: string;
   nationality: string;
+  identityNumber: string;
   residentialState: string;
   residentialPostalCode: string;
 };
@@ -226,6 +227,7 @@ export function buildDraft(org: OrganizationDetailResponse): OrgProfileDraft {
         : null,
     gender: asScGender(org.gender),
     nationality: org.nationality ?? "",
+    identityNumber: org.documentNumber ?? "",
     residentialState: org.residentialAddress?.state ?? "",
     residentialPostalCode: org.residentialAddress?.postalCode ?? "",
   };
@@ -405,6 +407,9 @@ export function buildSectionPayload(
     }
     if (emptyToNull(draft.nationality) !== emptyToNull(original.nationality)) {
       payload.nationality = emptyToNull(draft.nationality);
+    }
+    if (org.type !== "COMPANY" && emptyToNull(draft.identityNumber) !== emptyToNull(original.identityNumber)) {
+      payload.identityNumber = emptyToNull(draft.identityNumber);
     }
     return payload;
   }
