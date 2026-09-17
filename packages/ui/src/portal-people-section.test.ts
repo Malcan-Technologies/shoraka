@@ -42,6 +42,8 @@ describe("PortalPeopleSection", () => {
   it("people-only rows reuse add/merge instead of creating a second editor", () => {
     expect(source).toContain("setAddInitial");
     expect(source).toContain("onView={() => setViewPeopleOnlyKey(person.matchKey)}");
+    expect(source).not.toContain("identityNumber: person.matchKey");
+    expect(source).toContain("identityNumber: person.identityNumber");
   });
 
   it("shows how many profile fields are missing and uses KYB for company shareholders", () => {

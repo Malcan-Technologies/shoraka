@@ -574,7 +574,7 @@ export function PeopleAccessSection({
                             const roles = (row.person?.roles ?? []).map((role) => role.toUpperCase());
                             setAddInitial({
                               name: row.person?.name ?? "",
-                              identityNumber: row.partyKey ?? "",
+                          identityNumber: row.person?.identityNumber ?? "",
                               email: row.personEmail ?? "",
                               entityType: row.person?.entityType,
                               isDirector: roles.includes("DIRECTOR"),

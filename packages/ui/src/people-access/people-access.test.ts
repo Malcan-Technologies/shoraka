@@ -45,6 +45,11 @@ describe("People & Access customer UI", () => {
     expect(detail).not.toContain("party.email || joinedPerson?.email");
   });
 
+  it("does not seed Identity Number from internal partyKey when adopting people-only rows", () => {
+    expect(section).not.toContain("identityNumber: row.partyKey");
+    expect(section).toContain("identityNumber: row.person?.identityNumber");
+  });
+
   it("does not create a second KYC request while IN_PROGRESS", () => {
     expect(detail).toContain("!inProgressKyc");
     expect(detail).not.toContain("Resend onboarding email");
