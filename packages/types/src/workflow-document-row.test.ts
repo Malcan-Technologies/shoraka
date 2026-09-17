@@ -3,7 +3,6 @@ import {
   isPrimarySignedOfferDocument,
   isSignedContractOfferLetterAvailable,
   isSignedInvoiceOfferLetterAvailable,
-  isSigningPackagePreviewDocument,
   listGeneratedDocumentTypesForContext,
   parseGeneratedDocumentTypeKey,
   pickPrimarySignedOfferDocument,
@@ -69,24 +68,6 @@ describe("generated document catalog", () => {
     expect(parseGeneratedDocumentTypeKey("arf_deed_of_assignment")).toBe(DOA_KEY);
     expect(parseGeneratedDocumentTypeKey("arf_facility_agreement")).toBe(FA_KEY);
     expect(parseGeneratedDocumentTypeKey("arf_contract_facility_loo")).toBeUndefined();
-  });
-
-  it("marks generated signing-package documents as previewable", () => {
-    expect(
-      isSigningPackagePreviewDocument({ key: "deed_of_assignment", source: "TEMPLATE" })
-    ).toBe(true);
-    expect(
-      isSigningPackagePreviewDocument({ key: "guarantor_agreement", source: "TEMPLATE" })
-    ).toBe(true);
-    expect(
-      isSigningPackagePreviewDocument({ key: "facility_agreement", source: "TEMPLATE" })
-    ).toBe(true);
-    expect(
-      isSigningPackagePreviewDocument({ key: "offer_letter", source: "GENERATED_OFFER_LETTER" })
-    ).toBe(true);
-    expect(
-      isSigningPackagePreviewDocument({ key: "board_resolution", source: "ISSUER_UPLOAD" })
-    ).toBe(false);
   });
 
   it("prefers a signed Facility Agreement over a legacy Offer Letter", () => {

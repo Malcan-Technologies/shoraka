@@ -13,7 +13,7 @@ import * as React from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { ChevronDownIcon, ArrowDownTrayIcon, EyeIcon } from "@heroicons/react/24/outline";
+import { ChevronDownIcon } from "@heroicons/react/24/outline";
 import { SigningProgressMatrix } from "./signing-progress-matrix";
 import {
   useAdminSigningEnvelopes,
@@ -30,7 +30,6 @@ import {
   envelopesForSelectedInvoice,
   resolveAcceptanceOfferDetails,
 } from "./signing-envelope-scope";
-import { useAdminSigningDocumentPreview } from "@/hooks/use-admin-signing-document-preview";
 import {
   computeSigningEnvelopeProgress,
   computePhaseDeadlineExpiresAt,
@@ -42,13 +41,10 @@ import {
   isInvoiceOnlyFinancingStructure,
   isRemindableSigningRecipient,
   resolveSigningDeadlineFromWorkflow,
-  resolveSigningTemplateFromWorkflow,
-  isSigningPackagePreviewDocument,
   DEFAULT_SIGNING_DEADLINE,
   SHORAKA_SIGNING_ASSIGNMENTS_HREF,
   type SigningEnvelopeDto,
   type SigningEnvelopeStatus,
-  type SigningTemplateDocument,
   toTitleCase,
 } from "@cashsouk/types";
 import { StatusBadge } from "@cashsouk/ui";
@@ -172,8 +168,6 @@ export function SigningEnvelopePanel({
   const remindMutation = useRemindSigningRecipient(applicationId);
   const retryAutoSignMutation = useRetryAutomaticSigningAssignment(applicationId);
   const retryDeliveryMutation = useRetrySigningEnvelopeDelivery(applicationId);
-  const { previewPendingKey, handlePreview, handleDownload } =
-    useAdminSigningDocumentPreview(applicationId);
   const extendContractMutation = useExtendContractSigningDeadline();
   const extendInvoiceMutation = useExtendInvoiceSigningDeadline();
   const [historyOpen, setHistoryOpen] = React.useState(false);
@@ -399,13 +393,6 @@ export function SigningEnvelopePanel({
         acceptance?.status === "APPROVED_FOR_SIGNING" &&
         !signingClockPast));
 
-  const previewDocuments = React.useMemo(() => {
-    const template = resolveSigningTemplateFromWorkflow(workflow);
-    return template.documents.filter((document) => isSigningPackagePreviewDocument(document));
-  }, [workflow]);
-
-  const showDocumentPreview = acceptance != null && previewDocuments.length > 0;
-
   const body = (
     <div className="space-y-4">
       {signingDeadlineDisplay ? (
@@ -450,16 +437,6 @@ export function SigningEnvelopePanel({
 
       {showOfferAcceptanceSummary && !acceptancePresentation ? (
         <p className="text-sm text-muted-foreground">{noOfferYetHint}</p>
-      ) : null}
-
-      {showDocumentPreview ? (
-        <SigningDocumentPreviewList
-          documents={previewDocuments}
-          invoiceId={isInvoiceOnly ? invoiceIdForExtend : null}
-          pendingKey={previewPendingKey}
-          onPreview={handlePreview}
-          onDownload={handleDownload}
-        />
       ) : null}
 
       {showSigningAssignmentNotice ? (
@@ -639,68 +616,6 @@ export function SigningEnvelopePanel({
       </CardHeader>
       <CardContent>{body}</CardContent>
     </Card>
-  );
-}
-
-function SigningDocumentPreviewList({
-  documents,
-  invoiceId,
-  pendingKey,
-  onPreview,
-  onDownload,
-}: {
-  documents: SigningTemplateDocument[];
-  invoiceId?: string | null;
-  pendingKey: string | null;
-  onPreview: (documentKey: string, extras?: { invoiceId?: string | null }) => void;
-  onDownload: (documentKey: string, extras?: { invoiceId?: string | null }) => void;
-}) {
-  return (
-    <div className="space-y-2 rounded-lg border border-border p-3">
-      <div>
-        <p className="text-sm font-medium text-foreground">Preview documents</p>
-        <p className="text-meta text-muted-foreground">
-          Merged PDFs with signature boxes. Not sent to signers.
-        </p>
-      </div>
-      <ul className="space-y-2">
-        {documents.map((document) => {
-          const pending = pendingKey === document.key;
-          return (
-            <li
-              key={document.key}
-              className="flex flex-wrap items-center justify-between gap-2"
-            >
-              <span className="min-w-0 truncate text-sm text-foreground">{document.name}</span>
-              <div className="flex shrink-0 items-center gap-1.5">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="rounded-lg gap-1.5"
-                  disabled={pending}
-                  onClick={() => onPreview(document.key, { invoiceId })}
-                >
-                  <EyeIcon className="h-4 w-4 shrink-0" />
-                  {pending ? "Opening…" : "Preview"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="rounded-lg gap-1.5"
-                  disabled={pending}
-                  onClick={() => onDownload(document.key, { invoiceId })}
-                >
-                  <ArrowDownTrayIcon className="h-4 w-4 shrink-0" />
-                  Download
-                </Button>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
   );
 }
 

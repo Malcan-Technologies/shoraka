@@ -477,7 +477,15 @@ export class GeneratedDocumentsService {
     );
 
     const invoiceOnly = financingStructureType === "invoice_only";
-    const resolvedInvoiceId = invoiceId ?? (invoiceOnly ? firstInvoiceIdWithOffer(application) : null);
+    const resolvedInvoiceId =
+      invoiceId ??
+      (invoiceOnly
+        ? firstInvoiceIdWithOffer(
+            application as {
+              invoices?: Array<{ id?: unknown; offer_details?: unknown }> | null;
+            }
+          )
+        : null);
     if (invoiceOnly && !resolvedInvoiceId) {
       throw new AppError(
         400,

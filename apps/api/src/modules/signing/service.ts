@@ -23,7 +23,6 @@ import {
   normalizeSigningEmail,
   EXTERNAL_SIGNING_DOCUMENT_QUERY,
   SIGNING_PACKAGE_GENERATED_DOCUMENT_TYPES,
-  isSigningPackagePreviewDocument,
   pickPrimarySignedOfferDocument,
   type AssignmentStatusInput,
   ApplicationStatus,
@@ -84,7 +83,6 @@ import { assertRequiredAcceptanceDocumentsPresent } from "../applications/suppor
 import {
   generateContractOfferLetterBuffer,
   generateInvoiceOfferLetterBuffer,
-  invoiceOfferLetterKindForContract,
   type OfferLetterSignatory,
 } from "../applications/offer-letter-pdf";
 import { generatedDocumentsService } from "../generated-documents/service";
@@ -104,14 +102,6 @@ import {
   buildDoaSigningCloudSignsetsFromPdf,
   DoaSigningLayoutError,
 } from "../applications/deed-of-assignment/doa-signing-placement";
-import {
-  buildWetInkPreviewFields,
-  previewFieldsFromSignsets,
-  plannedRecipientsForDocument,
-  signerNamesForPlannedDocument,
-  signingDocumentPreviewFilename,
-  stampWetInkSignatureFields,
-} from "./preview-signature-stamp";
 import { applicationService } from "../applications/service";
 import { logApplicationActivity } from "../applications/logs/service";
 import { ActivityPortal, ApplicationLogEventType } from "../applications/logs/types";
@@ -145,7 +135,6 @@ import {
   automaticSignsetForSnapshot,
   freezeIssuerSealForDocument,
   frozenExecutionContextFromEnvelope,
-  frozenExecutionContextFromPlan,
   injectAutomaticExecutionRoles,
   reuploadAssignmentCompanySeal,
   verifyAutomaticAssignmentSnapshots,
@@ -496,38 +485,6 @@ export class SigningService {
     const invoice = application.invoices.find((item) => item.status === InvoiceStatus.OFFER_SENT);
     if (invoice) return { contractId: null, invoiceId: invoice.id };
     throw new AppError(400, "INVALID_STATE", "No pending offer is available for signing.");
-  }
-
-  /** Preview can run after send, so do not require the offer to still be OFFER_SENT. */
-  private resolvePreviewOfferTarget(input: {
-    application: SigningApplicationContext;
-    contractId?: string | null;
-    invoiceId?: string | null;
-  }): { contractId: string | null; invoiceId: string | null } {
-    const { application, contractId, invoiceId } = input;
-    if (contractId && invoiceId) {
-      throw new AppError(400, "VALIDATION_ERROR", "Choose either a facility or invoice offer, not both.");
-    }
-    if (invoiceId) {
-      const invoice = application.invoices.find((item) => item.id === invoiceId);
-      if (!invoice) {
-        throw new AppError(404, "INVOICE_NOT_FOUND", "Invoice not found on this application.");
-      }
-      return { contractId: null, invoiceId };
-    }
-    if (contractId) {
-      if (application.contract_id !== contractId || !application.contract) {
-        throw new AppError(400, "INVALID_STATE", "Facility offer is not available for preview.");
-      }
-      return { contractId, invoiceId: null };
-    }
-    if (application.contract?.id && application.contract.offer_details != null) {
-      return { contractId: application.contract.id, invoiceId: null };
-    }
-    const invoice =
-      application.invoices.find((item) => item.offer_details != null) ?? application.invoices[0];
-    if (invoice) return { contractId: null, invoiceId: invoice.id };
-    throw new AppError(400, "INVALID_STATE", "No offer is available to preview signing documents.");
   }
 
   private async validateAndNormalizeIssuerBindings(
@@ -1265,175 +1222,6 @@ export class SigningService {
   }
 
   /**
-   * Merged unsigned PDF for a signing-package document, with wet-ink signature
-   * boxes drawn where SigningCloud would place CA fields. Does not create an envelope.
-   */
-  async previewSigningDocument(input: {
-    applicationId: string;
-    documentKey: string;
-    userId: string;
-    contractId?: string | null;
-    invoiceId?: string | null;
-  }): Promise<{ buffer: Buffer; filename: string }> {
-    const application = await this.requireApplicationContext(input.applicationId);
-    if (!this.applicationHasOfferSent(application)) {
-      throw new AppError(
-        400,
-        "INVALID_STATE",
-        "An offer must be sent before previewing signing documents."
-      );
-    }
-    const { contractId, invoiceId } = this.resolvePreviewOfferTarget({
-      application,
-      contractId: input.contractId,
-      invoiceId: input.invoiceId,
-    });
-    if (invoiceId) {
-      const invoice = application.invoices.find((item) => item.id === invoiceId);
-      if (invoice?.contract_id) {
-        throw new AppError(
-          400,
-          "CONTRACT_LINKED_INVOICE_NO_PACKAGE",
-          "Contract-linked invoice offers do not use a signing package."
-        );
-      }
-    }
-
-    const workflow = await this.getProductWorkflowForApplication(application);
-    const packageKind: SigningPackageOfferKind = contractId ? "contract" : "invoice";
-    const template = this.readSigningTemplateFromWorkflow(workflow, packageKind);
-    const document = template.documents.find((item) => item.key === input.documentKey);
-    if (!document || !isSigningPackagePreviewDocument(document)) {
-      throw new AppError(
-        404,
-        "SIGNING_DOCUMENT_NOT_FOUND",
-        "That document is not a generated signing-package preview."
-      );
-    }
-
-    const offerDetails = contractId
-      ? application.contract?.offer_details
-      : application.invoices.find((item) => item.id === invoiceId)?.offer_details;
-    const acceptance = getOfferAcceptanceFromOfferDetails(offerDetails);
-    const snapshot =
-      acceptance?.authorized_parties ?? getLoAuthorizedPartiesFromAcceptance(acceptance);
-    const bindings = snapshotSignerBindings(snapshot, template.roles);
-    let plan = buildEnvelopePlanFromTemplate(template, bindings);
-    if (documentExecutionRolesForPackageKey(document.key).length > 0) {
-      plan = await this.injectPlanAutomaticRoles(plan, snapshot);
-    }
-    const signerNames = signerNamesForPlannedDocument(plan, document.key);
-    const filename = signingDocumentPreviewFilename(document.name);
-
-    if (document.source === "GENERATED_OFFER_LETTER") {
-      const signatories: OfferLetterSignatory[] = signerNames.map((name) => ({ name }));
-      if (invoiceId) {
-        const invoice = application.invoices.find((item) => item.id === invoiceId);
-        if (!invoice?.offer_details || typeof invoice.offer_details !== "object") {
-          throw new AppError(400, "INVALID_STATE", "Invoice offer details are not available.");
-        }
-        const generated = await generateInvoiceOfferLetterBuffer(
-          invoice.display_reference,
-          invoice.offer_details as Record<string, unknown>,
-          signatories,
-          invoiceOfferLetterKindForContract(invoice.contract_id)
-        );
-        return { buffer: generated.pdfBuffer, filename };
-      }
-      const contract = application.contract;
-      if (!contract?.offer_details || typeof contract.offer_details !== "object") {
-        throw new AppError(400, "INVALID_STATE", "Facility offer details are not available.");
-      }
-      const generated = await generateContractOfferLetterBuffer(
-        contract.display_reference,
-        contract.offer_details as Record<string, unknown>,
-        signatories
-      );
-      return { buffer: generated.pdfBuffer, filename };
-    }
-
-    const typeKey = SIGNING_PACKAGE_GENERATED_DOCUMENT_TYPES[document.key];
-    if (!typeKey) {
-      throw new AppError(
-        422,
-        "SIGNING_DOCUMENT_NOT_SUPPORTED",
-        `Document "${document.name}" is not supported yet.`
-      );
-    }
-
-    const execution = frozenExecutionContextFromPlan(plan);
-    const generated = await generatedDocumentsService.generateDocument({
-      applicationId: application.id,
-      typeKey,
-      format: "pdf",
-      userId: input.userId,
-      asAdmin: true,
-      contractId,
-      invoiceId,
-      execution,
-    });
-    const planned = plannedRecipientsForDocument(plan, document.key);
-    const manuals = planned.filter((recipient) => recipient.execution_mode !== "AUTOMATIC");
-    const autos = planned.filter((recipient) => recipient.execution_mode === "AUTOMATIC");
-    let pdfBuffer = generated.buffer;
-    const automaticRepeats = repeatCountsFromFrozenPeople(execution.people);
-    if (autos.length > 0) {
-      try {
-        pdfBuffer = await ensureAutomaticSigningKeywords(
-          pdfBuffer,
-          document.key,
-          automaticRepeats,
-          execution.people.filter(
-            (person) => documentKindForPackageKey(document.key) === person.documentKind
-          )
-        );
-      } catch (err) {
-        if (err instanceof AutomaticSigningKeywordError) {
-          throw new AppError(500, "SIGNING_LAYOUT_ERROR", err.message);
-        }
-        throw err;
-      }
-    }
-    const manualSignsets = this.usesLayoutDetectedSignatureFields(typeKey)
-      ? manuals.length === 0
-        ? []
-        : await this.signsetsForTemplatePdf(
-            typeKey,
-            pdfBuffer,
-            layoutSignersFromNamedRecipients(
-              manuals.map((recipient) => ({ name: recipient.name, email: recipient.email })),
-              snapshot
-            )
-          )
-      : [];
-    const automaticBySlot =
-      autos.length > 0
-        ? await this.automaticSignsetsForTemplatePdf(document.key, pdfBuffer, automaticRepeats)
-        : new Map();
-    const automaticSignsets = autos.map((recipient) => {
-      const assignment = plan.assignments.find(
-        (row) => row.document_ref === document.key && row.recipient_ref === recipient.ref
-      );
-      const snapshot = parseFrozenAutomaticSignerSnapshot(assignment?.frozen_asset_snapshot);
-      const signset = snapshot ? automaticSignsetForSnapshot(snapshot, automaticBySlot) : [];
-      if (!signset.length) {
-        throw new AppError(
-          500,
-          "SIGNING_LAYOUT_ERROR",
-          `Could not place a SigningCloud signature field for ${recipient.role_label}.`
-        );
-      }
-      return signset as Awaited<ReturnType<SigningService["signsetsForTemplatePdf"]>>[number];
-    });
-    const previewNames = [...manuals, ...autos].map((recipient) => recipient.name);
-    const fields = this.usesLayoutDetectedSignatureFields(typeKey)
-      ? previewFieldsFromSignsets(previewNames, [...manualSignsets, ...automaticSignsets])
-      : buildWetInkPreviewFields(signerNames, countPdfPages(pdfBuffer));
-    const stamped = await stampWetInkSignatureFields(pdfBuffer, fields);
-    return { buffer: stamped, filename };
-  }
-
-  /**
    * Resolve a signed PDF for an envelope document after authz.
    * S3 keys stay server-side — clients pass documentId only.
    */
@@ -2168,14 +1956,6 @@ export class SigningService {
     await putS3ObjectBuffer({ key: s3Key, body: generated.pdfBuffer, contentType: "application/pdf" });
     await this.repo.setDocumentUnsignedS3Key(documentId, s3Key);
     return { s3Key, signsetsByAssignmentId };
-  }
-
-  private usesLayoutDetectedSignatureFields(typeKey: string): boolean {
-    return (
-      typeKey === "arf_joint_several_guarantee" ||
-      typeKey === "arf_facility_agreement" ||
-      typeKey === "arf_deed_of_assignment"
-    );
   }
 
   private async signsetsForTemplatePdf(

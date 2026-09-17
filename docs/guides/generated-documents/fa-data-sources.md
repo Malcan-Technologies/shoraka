@@ -29,7 +29,7 @@ SigningCloud must enable `signdate` and `seal` on the CashSouk tenant before pro
 | `issuer_bank_swift` | Stored SWIFT on the org, else exact picklist value or short label from [`MALAYSIAN_BANKS`](../../packages/types/src/malaysian-banks.ts) |
 | `guarantors_individual` / `guarantors_corporate` | Live application guarantors + authorised-parties snapshot |
 | `issuer_signatories` | Issuer authorised representatives (`Director` / `Authorised Signatory`). Each row also receives the frozen CashSouk issuer-witness name and NRIC. |
-| `investor_1_name` / `investor_1_designation` / `investor_2_*` / `agent_*` | Frozen Shoraka authorised representatives for those execution roles. Empty tags stay visible until a signing preview or envelope freeze fills them. |
+| `investor_1_name` / `investor_1_designation` / `investor_2_*` / `agent_*` | Frozen Shoraka authorised representatives for those execution roles. Empty tags stay visible until envelope freeze fills them. |
 
 ## Visible tags (not collected yet)
 
@@ -56,7 +56,7 @@ Filled when admin sends the signing package if the frozen product includes **Fac
 
 `GET /v1/applications/:id/generated-documents/arf_facility_agreement`
 
-Pass `contractId` or `invoiceId` from the envelope/preview target so invoice-only holder contracts do not pick a missing facility offer.
+Pass `contractId` or `invoiceId` from the envelope target so invoice-only holder contracts do not pick a missing facility offer.
 
 Fails closed (`GENERATED_DOCUMENT_DATA_INCOMPLETE`) without offer send date, letter date, facility agreement date, issuer name, issuer registration number, financing limit, facility description, the authorised-representatives draft, or a named issuer representative. Missing live guarantors fail closed when guarantor rows exist.
 

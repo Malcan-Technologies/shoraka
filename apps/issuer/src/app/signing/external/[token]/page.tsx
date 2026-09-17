@@ -1,14 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import { createApiClient } from "@cashsouk/config";
 import {
   EXTERNAL_SIGNING_DOCUMENT_QUERY,
-  findUnsignedSigningAssignmentForRecipient,
+  listSigningDocumentsForRecipient,
   type ExternalSigningSessionDto,
 } from "@cashsouk/types";
+import { SigningDocumentMenu } from "../signing-document-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,7 +40,7 @@ function pendingConfirmStorageKey(returnSessionId: string): string {
   return `signing:pendingConfirm:${returnSessionId}`;
 }
 
-type Step = "access-code" | "ekyc" | "warning" | "sign" | "done" | "closed";
+type Step = "access-code" | "ekyc" | "warning" | "menu" | "sign" | "done" | "closed";
 
 function getErrorMessage(response: unknown, fallback: string): string {
   if (
@@ -76,6 +77,7 @@ function isClosedPackageResponse(response: unknown): boolean {
 export default function ExternalSigningPage() {
   const params = useParams<{ token: string }>();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const token = params.token;
   const preferredDocumentId = searchParams.get(EXTERNAL_SIGNING_DOCUMENT_QUERY)?.trim() || null;
   const apiClient = React.useMemo(() => createApiClient(API_URL), []);
@@ -87,11 +89,7 @@ export default function ExternalSigningPage() {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [ekycCaptureUrl, setEkycCaptureUrl] = React.useState<string | null>(null);
   const [ekycStatus, setEkycStatus] = React.useState<string>("pending");
-  /** Document just signed (optimistic return); excluded from "more to sign" until webhook catches up. */
-  const [justSigned, setJustSigned] = React.useState<{
-    documentId: string;
-    documentName: string;
-  } | null>(null);
+  const [selectedDocumentId, setSelectedDocumentId] = React.useState<string | null>(null);
   const [warningChecked, setWarningChecked] = React.useState(false);
   const [warningOpening, setWarningOpening] = React.useState(false);
   const returnHandledRef = React.useRef(false);
@@ -100,48 +98,56 @@ export default function ExternalSigningPage() {
   const MAX_EKYC_START_FAILURES = 3;
 
   const applySession = React.useCallback(
-    (
-      data: ExternalSigningSessionDto,
-      opts?: { preferDone?: boolean; signedDoc?: { documentId: string; documentName: string } | null }
-    ) => {
+    (data: ExternalSigningSessionDto) => {
       setSession(data);
       setError(null);
 
       if (data.package_closed) {
-        setJustSigned(null);
+        setSelectedDocumentId(null);
         setStep("closed");
         return;
       }
 
       if (!data.access_verified) {
+        setSelectedDocumentId(null);
         setStep("access-code");
         return;
       }
 
       if (data.kyc_required && data.kyc_status !== "VERIFIED") {
+        setSelectedDocumentId(null);
         setStep("ekyc");
         return;
       }
 
       if (data.warning?.required && data.warning.status !== "accepted") {
         if (data.warning.status === "not_opened") setWarningChecked(false);
+        setSelectedDocumentId(null);
         setStep("warning");
         return;
       }
 
-      const pending = findUnsignedSigningAssignmentForRecipient(
-        data.envelope,
-        data.recipient_id,
-        preferredDocumentId
-      );
-      if (opts?.preferDone || !pending) {
-        if (opts?.signedDoc) setJustSigned(opts.signedDoc);
+      const documents = listSigningDocumentsForRecipient(data.envelope, data.recipient_id);
+      const unsigned = documents.filter((item) => item.assignment.status !== "SIGNED");
+      if (documents.length === 0 || unsigned.length === 0) {
+        setSelectedDocumentId(null);
         setStep("done");
         return;
       }
 
-      setJustSigned(null);
-      setStep("sign");
+      const preferredUnsigned =
+        preferredDocumentId &&
+        unsigned.some((item) => item.document.id === preferredDocumentId)
+          ? preferredDocumentId
+          : null;
+      if (preferredUnsigned) {
+        setSelectedDocumentId(preferredUnsigned);
+        setStep("sign");
+        return;
+      }
+
+      setSelectedDocumentId(null);
+      setStep("menu");
     },
     [preferredDocumentId]
   );
@@ -208,27 +214,22 @@ export default function ExternalSigningPage() {
     (item) => item.id === session.recipient_id
   );
 
-  const pendingAssignment =
+  const recipientDocuments =
     session && session.recipient_id
-      ? findUnsignedSigningAssignmentForRecipient(
-          session.envelope,
-          session.recipient_id,
-          preferredDocumentId
-        )
-      : null;
-
-  // While webhook lags, the doc we just signed still looks unsigned — ignore it for Continue.
-  const hasMoreToSign = Boolean(
-    session && justSigned
-      ? session.envelope.assignments.some(
-          (a) =>
-            a.action === "SIGN" &&
-            a.status !== "SIGNED" &&
-            a.recipient_id === session.recipient_id &&
-            a.document_id !== justSigned.documentId
-        )
-      : pendingAssignment
-  );
+      ? listSigningDocumentsForRecipient(session.envelope, session.recipient_id)
+      : [];
+  const selectedDocument = selectedDocumentId
+    ? recipientDocuments.find(
+        (item) =>
+          item.document.id === selectedDocumentId &&
+          item.assignment.status !== "SIGNED" &&
+          item.assignment.status !== "DECLINED"
+      ) ?? null
+    : null;
+  const signedCount = recipientDocuments.filter((item) => item.assignment.status === "SIGNED").length;
+  const remainingCount = recipientDocuments.filter(
+    (item) => item.assignment.status !== "SIGNED" && item.assignment.status !== "DECLINED"
+  ).length;
 
   const isGuarantor = recipient?.role_key === "guarantor";
 
@@ -381,12 +382,12 @@ export default function ExternalSigningPage() {
   };
 
   const startSigning = async () => {
-    if (!pendingAssignment) return;
+    if (!selectedDocument) return;
     setIsSubmitting(true);
     setError(null);
     try {
       const response = await apiClient.startExternalEnvelopeSigning(token, {
-        documentId: pendingAssignment.document.id,
+        documentId: selectedDocument.document.id,
       });
       if (response.success && response.data.signingUrl) {
         const returnSessionId = response.data.returnSessionId;
@@ -394,8 +395,8 @@ export default function ExternalSigningPage() {
           sessionStorage.setItem(
             pendingConfirmStorageKey(returnSessionId),
             JSON.stringify({
-              documentId: pendingAssignment.document.id,
-              documentName: pendingAssignment.document.name,
+              documentId: selectedDocument.document.id,
+              documentName: selectedDocument.document.name,
             })
           );
           sessionStorage.setItem(`${TOKEN_FOR_RETURN_PREFIX}${returnSessionId}`, token);
@@ -413,16 +414,19 @@ export default function ExternalSigningPage() {
     }
   };
 
-  const continueAfterSigned = () => {
-    setJustSigned(null);
-    fetchSession()
-      .then((data) => {
-        if (data) applySession(data);
-        else loadSession().catch(() => undefined);
-      })
-      .catch(() => {
-        loadSession().catch(() => undefined);
-      });
+  const selectDocument = (documentId: string) => {
+    setError(null);
+    setSelectedDocumentId(documentId);
+    setStep("sign");
+  };
+
+  const goBackToMenu = () => {
+    setError(null);
+    setSelectedDocumentId(null);
+    setStep("menu");
+    if (preferredDocumentId) {
+      router.replace(`/signing/external/${encodeURIComponent(token)}`);
+    }
   };
 
   const stepIcon =
@@ -449,9 +453,11 @@ export default function ExternalSigningPage() {
             ? "Signing package closed"
             : step === "done"
               ? "You've signed"
-              : pendingAssignment
-                ? "Ready to sign"
-                : "Signing complete";
+              : step === "menu"
+                ? "Documents to sign"
+                : selectedDocument
+                  ? "Ready to sign"
+                  : "Signing complete";
 
   const stepDescription =
     step === "access-code"
@@ -465,12 +471,14 @@ export default function ExternalSigningPage() {
           : step === "closed"
             ? "This signing package is complete or no longer available."
             : step === "done"
-              ? justSigned
-                ? `${justSigned.documentName} has been signed.`
-                : "There are no pending documents for you to sign."
-              : recipient
-                ? `You are signing as ${recipient.name} (${recipient.email}).`
-                : "Secure signing link";
+              ? "There are no pending documents for you to sign."
+              : step === "menu"
+                ? remainingCount === recipientDocuments.length
+                  ? "Choose a document to sign."
+                  : `${signedCount} of ${recipientDocuments.length} signed. Choose the next document.`
+                : recipient
+                  ? `You are signing as ${recipient.name} (${recipient.email}).`
+                  : "Secure signing link";
 
   return (
     <main className="flex min-h-screen items-start justify-center bg-background px-4 py-10 sm:items-center">
@@ -669,41 +677,21 @@ export default function ExternalSigningPage() {
                   You can close this page.
                 </div>
               ) : step === "done" ? (
-                <>
-                  <div className="rounded-xl border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
-                    {hasMoreToSign
-                      ? "You still have another document to sign in this package."
-                      : "You can close this page."}
-                  </div>
-                  {hasMoreToSign ? (
-                    <Button
-                      type="button"
-                      className="h-11 w-full rounded-xl"
-                      onClick={continueAfterSigned}
-                    >
-                      Continue
-                    </Button>
-                  ) : null}
-                </>
-              ) : !pendingAssignment ? (
+                <div className="rounded-xl border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
+                  You can close this page.
+                </div>
+              ) : step === "menu" ? (
+                <SigningDocumentMenu items={recipientDocuments} onSelect={selectDocument} />
+              ) : !selectedDocument ? (
                 <div className="rounded-xl border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
                   There are no pending documents for you to sign. You can close this page.
                 </div>
               ) : (
                 <>
                   <div className="rounded-xl border border-border bg-muted/20 p-4">
-                    <p className="font-medium text-foreground">{pendingAssignment.document.name}</p>
+                    <p className="font-medium text-foreground">{selectedDocument.document.name}</p>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      {/* Document stays PENDING until every required signer finishes; show this recipient's assignment. */}
-                      Your status:{" "}
-                      {(
-                        session?.envelope.assignments.find(
-                          (a) =>
-                            a.document_id === pendingAssignment.document.id &&
-                            a.recipient_id === session.recipient_id &&
-                            a.action === "SIGN"
-                        )?.status ?? "PENDING"
-                      ).replace(/_/g, " ")}
+                      Your status: {selectedDocument.assignment.status.replace(/_/g, " ")}
                     </p>
                   </div>
                   <p className="text-sm text-muted-foreground">
@@ -718,6 +706,15 @@ export default function ExternalSigningPage() {
                     }}
                   >
                     {isSubmitting ? "Opening signing portal..." : "Sign document"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-11 w-full rounded-xl"
+                    disabled={isSubmitting}
+                    onClick={goBackToMenu}
+                  >
+                    Back to documents
                   </Button>
                 </>
               )}

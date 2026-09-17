@@ -105,6 +105,31 @@ test.describe("External signing page", () => {
     await expect(page.getByText(/signing link is not available/i)).toBeVisible();
   });
 
+  test("lists documents so the signer can choose which to sign", async ({ page }) => {
+    const session = envelopeSession({
+      assignmentStatuses: [
+        { documentId: "doc-doa", name: "Deed of Assignment", status: "PENDING" },
+        { documentId: "doc-fa", name: "Facility Agreement", status: "PENDING" },
+      ],
+    });
+    await page.route("**/v1/signing/external/**", async (route) => {
+      await route.fulfill(jsonOk(session));
+    });
+
+    await page.goto("/signing/external/ext-token");
+
+    await expect(page.getByRole("button", { name: /Deed of Assignment/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Facility Agreement/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /sign document/i })).toHaveCount(0);
+
+    await page.getByRole("button", { name: /Facility Agreement/i }).click();
+    await expect(page.getByRole("button", { name: /sign document/i })).toBeVisible();
+
+    await page.getByRole("button", { name: /back to documents/i }).click();
+    await expect(page.getByRole("button", { name: /Deed of Assignment/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /sign document/i })).toHaveCount(0);
+  });
+
   test("opens the requested document when one recipient has several unsigned", async ({ page }) => {
     const session = envelopeSession({
       assignmentStatuses: [
@@ -165,7 +190,7 @@ test.describe("Signing return confirmation", () => {
     await expect(page.getByRole("button", { name: /check again/i })).toBeVisible();
   });
 
-  test("continues to the next document after one signature is confirmed", async ({ page }) => {
+  test("returns to the document menu after one signature is confirmed", async ({ page }) => {
     const nextDocument = envelopeSession({
       assignmentStatuses: [
         { documentId: "doc-fa", name: "Facility Agreement", status: "SIGNED" },
@@ -190,6 +215,11 @@ test.describe("Signing return confirmation", () => {
     await page.goto("/signing/return?rs=rs-e2e");
 
     await expect(page).toHaveURL(/\/signing\/external\/ext-token/);
+    await expect(page.getByText(/Facility Agreement/i)).toBeVisible();
     await expect(page.getByText(/Joint and Several Guarantee/i)).toBeVisible();
+    await expect(page.getByText("Signed", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Joint and Several Guarantee/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Facility Agreement/i })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /sign document/i })).toHaveCount(0);
   });
 });

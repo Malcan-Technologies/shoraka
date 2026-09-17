@@ -51,6 +51,39 @@ describe("directorPoolFromPeople", () => {
     expect(pool.map((entry) => entry.email)).toEqual(["ali@co.my", "siti@co.my"]);
     expect(pool[0]?.icNumber).toBe("820508105871");
   });
+
+  it("uses identityNumber when matchKey is a generated user key", () => {
+    const pool = directorPoolFromPeople([
+      {
+        matchKey: "user:abc",
+        identityNumber: "820508105871",
+        name: "Normal Director",
+        email: "sec.practitioner@proton.me",
+        roles: ["DIRECTOR"],
+      },
+    ]);
+    expect(pool).toEqual([
+      {
+        matchKey: "user:abc",
+        name: "Normal Director",
+        email: "sec.practitioner@proton.me",
+        icNumber: "820508105871",
+      },
+    ]);
+  });
+
+  it("does not treat a generated user key as IC", () => {
+    const pool = directorPoolFromPeople([
+      {
+        matchKey: "user:abc",
+        identityNumber: null,
+        name: "Normal Director",
+        email: "sec.practitioner@proton.me",
+        roles: ["DIRECTOR"],
+      },
+    ]);
+    expect(pool[0]?.icNumber).toBe("");
+  });
 });
 
 describe("assertIssuerAuthorizedPartiesValid", () => {

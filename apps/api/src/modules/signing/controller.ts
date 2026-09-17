@@ -11,8 +11,6 @@ import { ActivityPortal } from "../applications/logs/types";
 import { AUDIT_PORTAL, auditContextFromRequest } from "../../lib/audit";
 import {
   sendAdminSigningPackageSchema,
-  previewSigningDocumentParamsSchema,
-  previewSigningDocumentQuerySchema,
   voidEnvelopeSchema,
   startExternalSigningSchema,
   confirmExternalSignedSchema,
@@ -349,23 +347,6 @@ async function getAdminSigningPackageReadiness(req: Request, res: Response, next
   }
 }
 
-async function getAdminSigningDocumentPreview(req: Request, res: Response, next: NextFunction) {
-  try {
-    const { applicationId, documentKey } = previewSigningDocumentParamsSchema.parse(req.params);
-    const query = previewSigningDocumentQuerySchema.parse(req.query);
-    const { buffer, filename } = await signingService.previewSigningDocument({
-      applicationId,
-      documentKey,
-      userId: getUserId(req),
-      contractId: query.contractId ?? null,
-      invoiceId: query.invoiceId ?? null,
-    });
-    await sendSignedDocument(res, buffer, filename, query.disposition);
-  } catch (e) {
-    next(e);
-  }
-}
-
 export function createSigningAdminRouter(): Router {
   const router = Router();
   router.post("/applications/:applicationId/envelopes/send", sendAdminSigningPackage);
@@ -396,11 +377,6 @@ export function createSigningAdminRouter(): Router {
     "/applications/:applicationId/documents/:documentId/signed",
     requirePermission("applications.view"),
     getAdminSignedDocument
-  );
-  router.get(
-    "/applications/:applicationId/documents/:documentKey/preview",
-    requirePermission("applications.view"),
-    getAdminSigningDocumentPreview
   );
   return router;
 }

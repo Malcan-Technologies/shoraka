@@ -18,7 +18,7 @@ SigningCloud recipients are the configured **issuer_director** assignor signator
 | `assignor_email` | `application.company_details.contact_person.email` |
 | `assignor_contact_number` | `contact_person.contact`, else org `phone_number` |
 | `assignor_signatories[]` | All issuer authorised representatives (`Director` / `Authorised Signatory`). One execution block per person, each with the frozen CashSouk assignor-witness name and designation. |
-| `ssp_1_name` / `ssp_1_designation` / `ssp_2_*` | Frozen Shoraka SSP authorised representatives. Empty tags stay visible until a signing preview or envelope freeze fills them. |
+| `ssp_1_name` / `ssp_1_designation` / `ssp_2_*` | Frozen Shoraka SSP authorised representatives. Empty tags stay visible until envelope freeze fills them. |
 | `trust_bank_name`, `trust_account_name`, `trust_account_number`, `trust_swift_code` | `PlatformFinanceSetting.ledger_bucket_accounts_config.REPAYMENT_POOL` (`bankName`, `accountName`/`displayName`, `accountNumber`, `swiftCode`) |
 
 ## Schedules (not merged)
