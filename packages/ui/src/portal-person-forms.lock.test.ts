@@ -64,10 +64,13 @@ describe("PartyFillEmptyForm lock and officer fields", () => {
     expect(source).toContain('label="Address line 2"');
   });
 
-  it("lets later edit fill empty identity prefix and number", () => {
-    expect(source).toContain("identityNumberEmpty");
-    expect(source).toContain("identityPrefixEmpty");
-    expect(source).toContain("if (identityNumberEmpty && form.identityNumber) data.identityNumber = form.identityNumber");
+  it("allows editing identity fields unless they are RegTank-sourced", () => {
+    expect(source).toContain("identityNumberLocked");
+    expect(source).toContain("identityPrefixLocked");
+    expect(source).toContain("if (!identityNumberLocked) data.identityNumber = form.identityNumber || null");
+    expect(source).toContain(
+      "if (!corporate && !identityPrefixLocked) data.identityPrefix = form.identityPrefix || null"
+    );
   });
 
   it("keeps Select components controlled (no `value || undefined`)", () => {
