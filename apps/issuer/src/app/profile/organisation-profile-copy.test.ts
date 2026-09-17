@@ -52,4 +52,10 @@ describe("Issuer organisation profile copy", () => {
     expect(company).not.toContain("text-destructive\">*</");
     expect(company).not.toContain("Please fill up");
   });
+
+  it("deep-links Organisation to the company seal card", () => {
+    expect(profile).toContain('searchParams.get("focus") === "seal"');
+    expect(profile).toContain("profile-company-seal");
+    expect(profile).toContain("canEdit={isCurrentUserAdmin}");
+  });
 });

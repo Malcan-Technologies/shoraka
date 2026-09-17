@@ -28,6 +28,9 @@ describe("issuer Offer tab redesign contracts", () => {
     expect(panelSource).toContain('documentStorage="acceptance_documents"');
     expect(panelSource).toContain("AcceptanceDocumentChangesRequestedBanner");
     expect(panelSource).toContain("IssuerAuthorizedRepresentativesCard");
+    expect(panelSource).toContain("issuerOfferRepsBlocker");
+    expect(panelSource).toContain("sealStatus={issuerSealStatus}");
+    expect(panelSource).not.toContain("disabled={isSubmittingAcceptance || isSavingPartyDraft || !issuerRepsReady}");
     expect(panelSource).toContain("saveContractAuthorizedPartiesDraft");
     expect(panelSource).toContain("saveInvoiceAuthorizedPartiesDraft");
     expect(panelSource).toContain("generatedDocumentInvoiceId");

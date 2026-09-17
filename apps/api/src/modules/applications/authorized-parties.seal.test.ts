@@ -6,13 +6,12 @@ jest.mock("../../lib/prisma", () => ({
   },
 }));
 
-import { ISSUER_SEAL_APPLIER_REQUIRED_MESSAGE } from "@cashsouk/types";
+import { ISSUER_COMPANY_SEAL_REQUIRED_MESSAGE, ISSUER_SEAL_APPLIER_REQUIRED_MESSAGE } from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
 import { prisma } from "../../lib/prisma";
 import {
   assertIssuerSealReadyForPackage,
   assertIssuerSealRequirements,
-  ISSUER_COMPANY_SEAL_REQUIRED_MESSAGE,
 } from "./authorized-parties";
 
 const ORG = "org_1";

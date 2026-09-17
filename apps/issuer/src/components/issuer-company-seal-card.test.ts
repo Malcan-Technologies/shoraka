@@ -9,5 +9,7 @@ describe("IssuerCompanySealCard", () => {
     expect(source).toContain("issuer-company-seal-preview");
     expect(source).not.toContain("useS3ViewUrl");
     expect(source).not.toContain("seal.s3Key");
+    expect(source).toContain("COMPANY_SEAL_MANAGE_FORBIDDEN_MESSAGE");
+    expect(source).toContain("canEdit");
   });
 });
