@@ -11,6 +11,7 @@ const mockRestartOnboarding = jest.fn();
 
 const mockFindInvestorOrganizationById = jest.fn();
 const mockFindIssuerOrganizationById = jest.fn();
+const mockFindIssuerCompanySeal = jest.fn();
 
 const mockUserFindUnique = jest.fn();
 const mockOnboardingLogCreate = jest.fn().mockResolvedValue(undefined);
@@ -68,6 +69,9 @@ jest.mock("../../lib/prisma", () => ({
     gatewayPayment: {
       findFirst: jest.fn().mockResolvedValue(null),
     },
+    issuerOrganizationCompanySeal: {
+      findFirst: (...args: unknown[]) => mockFindIssuerCompanySeal(...args),
+    },
     $transaction: (...args: unknown[]) => mockPrismaTransaction(...args),
   },
 }));
@@ -123,6 +127,7 @@ describe("RegTankService.startCorporateOnboarding company auto-regeneration", ()
 
     mockFindByOrganizationId.mockResolvedValue(null);
     mockCreateOnboarding.mockResolvedValue({});
+    mockFindIssuerCompanySeal.mockResolvedValue({ id: "seal_active_1" });
 
     mockUserFindUnique.mockResolvedValue({
       user_id: "USR01",
@@ -696,6 +701,76 @@ describe("RegTankService.startCorporateOnboarding company auto-regeneration", ()
     ).rejects.toBeInstanceOf(AppError);
     expect(mockTxUpdate).not.toHaveBeenCalled();
     expect(mockTxCreate).not.toHaveBeenCalled();
+  });
+
+  it("blocks issuer corporate onboarding when issuer company seal is missing", async () => {
+    mockFindInvestorOrganizationById.mockResolvedValue(null);
+    mockFindIssuerOrganizationById.mockResolvedValue({
+      ...makeCompanyOrg(),
+      id: "org-issuer-company-1",
+      owner_user_id: "USR01",
+      onboarding_fee_paid_at: new Date(),
+    });
+    mockFindIssuerCompanySeal.mockResolvedValue(null);
+
+    const service = new RegTankService();
+    await expect(
+      service.startCorporateOnboarding(
+        makeReq(),
+        "USR01",
+        "org-issuer-company-1",
+        "issuer",
+        "Issuer Company Org"
+      )
+    ).rejects.toMatchObject<AppError>({
+      statusCode: 400,
+      code: "ISSUER_COMPANY_SEAL_REQUIRED",
+    });
+
+    expect(mockCreateCorporateOnboarding).not.toHaveBeenCalled();
+    expect(mockFindByOrganizationId).not.toHaveBeenCalled();
+  });
+
+  it("allows issuer corporate onboarding when issuer company seal exists and re-checks it across reloads", async () => {
+    mockFindInvestorOrganizationById.mockResolvedValue(null);
+    mockFindIssuerOrganizationById.mockResolvedValue({
+      ...makeCompanyOrg(),
+      id: "org-issuer-company-1",
+      owner_user_id: "USR01",
+      onboarding_fee_paid_at: new Date(),
+    });
+
+    mockFindIssuerCompanySeal
+      .mockResolvedValueOnce({ id: "seal_active_1" })
+      .mockResolvedValueOnce({ id: "seal_active_2" });
+
+    // No existing onboarding rows → service creates a new COD request.
+    mockFindByOrganizationId.mockResolvedValue(null);
+
+    const service = new RegTankService();
+    const first = await service.startCorporateOnboarding(
+      makeReq(),
+      "USR01",
+      "org-issuer-company-1",
+      "issuer",
+      "Issuer Company Org"
+    );
+    const second = await service.startCorporateOnboarding(
+      makeReq(),
+      "USR01",
+      "org-issuer-company-1",
+      "issuer",
+      "Issuer Company Org"
+    );
+
+    expect(first.requestId).toBe("COD0002");
+    expect(second.requestId).toBe("COD0002");
+    expect(mockCreateCorporateOnboarding).toHaveBeenCalledTimes(2);
+
+    expect(mockFindIssuerCompanySeal).toHaveBeenCalledWith({
+      where: { issuer_organization_id: "org-issuer-company-1", superseded_at: null },
+      select: { id: true },
+    });
   });
 
   it("personal onboarding behavior remains unchanged", async () => {

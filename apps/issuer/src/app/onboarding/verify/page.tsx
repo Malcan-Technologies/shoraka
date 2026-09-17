@@ -2,12 +2,27 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useOrganization } from "@cashsouk/config";
+import { useQuery } from "@tanstack/react-query";
+import { createApiClient, useAuthToken, useOrganization } from "@cashsouk/config";
 import { IdentityVerifyStep, OnboardingLayout } from "@cashsouk/ui";
+import { IssuerCompanySealCard } from "@/components/issuer-company-seal-card";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 export default function OnboardingVerifyPage() {
   const router = useRouter();
+  const { getAccessToken } = useAuthToken();
   const { activeOrganization, startCorporateOnboarding, refreshOrganizations } = useOrganization();
+  const sealQuery = useQuery({
+    queryKey: ["issuer-company-seal", activeOrganization?.id],
+    enabled: Boolean(activeOrganization?.id),
+    queryFn: async () => {
+      const api = createApiClient(API_URL, getAccessToken);
+      const res = await api.getIssuerCompanySeal(activeOrganization!.id);
+      if (!res.success) throw new Error(res.error.message);
+      return res.data.seal;
+    },
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,6 +37,17 @@ export default function OnboardingVerifyPage() {
     setError(null);
 
     try {
+      if (sealQuery.isLoading) {
+        setIsLoading(false);
+        setError("Loading company seal…");
+        return;
+      }
+      if (!sealQuery.data) {
+        setIsLoading(false);
+        setError("Please upload a company seal in Issuer Profile before continuing onboarding.");
+        return;
+      }
+
       const org = activeOrganization;
       const companyName = org.name?.trim() ?? "";
       const { verifyLink } = await startCorporateOnboarding(org.id, companyName);
@@ -52,6 +78,10 @@ export default function OnboardingVerifyPage() {
       title="Onboarding"
       description="Complete company verification (eKYB) with our verification partner."
     >
+      <IssuerCompanySealCard
+        organizationId={activeOrganization.id}
+        canEdit={activeOrganization.isOwner}
+      />
       <IdentityVerifyStep
         onContinue={handleContinue}
         isLoading={isLoading}
