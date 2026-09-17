@@ -12,6 +12,8 @@
  * String unions here must stay in sync with the Prisma enums in apps/api/prisma/schema.prisma.
  */
 
+import { displayGovernmentIdentityNumber } from "./organization-party-key";
+
 export type SigningEnvelopeStatus =
   | "DRAFT"
   | "SENT"
@@ -717,6 +719,22 @@ export function normalizeSigningIcNumber(ic: string): string {
 
 export function isValidSigningIcNumber(ic: string | null | undefined): boolean {
   return normalizeSigningIcNumber(String(ic ?? "")).length === 12;
+}
+
+/**
+ * Signing IC from a canonical people[] row. Uses identityNumber, then matchKey
+ * only when that key is a real government ID (never `user:{uuid}`).
+ */
+export function signingIcFromPerson(person: {
+  matchKey?: string | null;
+  identityNumber?: string | null;
+}): string {
+  const displayed = displayGovernmentIdentityNumber({
+    partyKey: person.matchKey,
+    identityNumber: person.identityNumber,
+  });
+  const normalized = normalizeSigningIcNumber(displayed ?? "");
+  return normalized.length === 12 ? normalized : "";
 }
 
 /** Issuer directors must have IC bound at offer time; third parties can declare IC when opening the link. */

@@ -121,7 +121,7 @@ import { IndividualGuarantorRepresentativesCard } from "./individual-guarantor-r
 import { AuthorizedPartyTypeGroup } from "./authorized-party-type-group";
 import {
   areIssuerDirectorSelectionsReady,
-  issuerDirectorsFromOrganization,
+  issuerDirectorsFromPeople,
 } from "./issuer-directors";
 import {
   guarantorsFromApplication,
@@ -348,15 +348,9 @@ export function OfferReviewPanel({
   const { data: corporateEntities, isFetched: isCorporateEntitiesFetched } = useCorporateEntities(
     useSigningStepper ? issuerOrganizationId : undefined
   );
-  const directorSourceOrganization = React.useMemo(() => {
-    if (corporateEntities?.people?.length) {
-      return { ...activeOrganization, people: corporateEntities.people };
-    }
-    return activeOrganization;
-  }, [activeOrganization, corporateEntities?.people]);
   const issuerDirectors = React.useMemo(
-    () => issuerDirectorsFromOrganization(directorSourceOrganization),
-    [directorSourceOrganization]
+    () => issuerDirectorsFromPeople(corporateEntities?.people),
+    [corporateEntities?.people]
   );
   const guarantorRows = React.useMemo(
     () => guarantorsFromApplication(applicationRecord?.application_guarantors),

@@ -10,5 +10,8 @@ describe("OfferReviewPanel signing package states", () => {
     expect(source).toContain("The signing package is being prepared.");
     expect(source).toContain("Invitation emails are being sent.");
     expect(source).toContain("CashSouk can retry delivery from the admin portal.");
+    expect(source).toContain("issuerDirectorsFromPeople(corporateEntities?.people)");
+    expect(source).not.toContain("directorSourceOrganization");
+    expect(source).not.toContain("issuerDirectorsFromOrganization");
   });
 });

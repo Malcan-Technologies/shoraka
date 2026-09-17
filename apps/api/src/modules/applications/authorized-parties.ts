@@ -10,6 +10,7 @@ import {
   normalizeSigningEmail,
   normalizeSigningIcNumber,
   resolveSigningTemplateFromWorkflow,
+  signingIcFromPerson,
   signingPackageRequiresIssuerSeal,
   type ApplicationPersonRow,
   type AuthorizedParty,
@@ -21,7 +22,7 @@ import { AppError } from "../../lib/http/error-handler";
 import { isSigningCloudSealFieldEnabled } from "../signingcloud/signingcloud-api";
 import { prisma } from "../../lib/prisma";
 import { OrganizationService } from "../organization/service";
-import { buildAdminPeopleList } from "../admin/build-people-list";
+import { buildDirectorShareholderPeopleListWithMaster } from "../organization-profile/load-master-parties-for-people";
 
 export type IssuerDirectorPoolEntry = {
   matchKey: string;
@@ -31,21 +32,27 @@ export type IssuerDirectorPoolEntry = {
 };
 
 export function directorPoolFromPeople(
-  people: Array<Pick<ApplicationPersonRow, "matchKey" | "name" | "email" | "roles">>
+  people: Array<
+    Pick<ApplicationPersonRow, "matchKey" | "name" | "email" | "roles"> &
+      Partial<Pick<ApplicationPersonRow, "identityNumber" | "entityType">>
+  >
 ): IssuerDirectorPoolEntry[] {
   const pool: IssuerDirectorPoolEntry[] = [];
   for (const person of people) {
+    if (person.entityType === "CORPORATE") continue;
     if (!person.roles?.some((role) => role.toUpperCase() === "DIRECTOR")) continue;
     const matchKey = String(person.matchKey ?? "").trim();
     const email = normalizeSigningEmail(String(person.email ?? ""));
     const name = String(person.name ?? "").trim();
     if (!matchKey || !email) continue;
-    const icFromKey = normalizeSigningIcNumber(matchKey);
     pool.push({
       matchKey,
       name,
       email,
-      icNumber: icFromKey.length === 12 ? icFromKey : "",
+      icNumber: signingIcFromPerson({
+        matchKey,
+        identityNumber: person.identityNumber,
+      }),
     });
   }
   return pool;
@@ -63,14 +70,14 @@ export async function loadIssuerDirectorPool(
   }
   const organizationService = new OrganizationService();
   const extras = await organizationService.getIssuerPartyListExtras(issuerOrganizationId);
-  const people = buildAdminPeopleList({
+  const partyBuild = await buildDirectorShareholderPeopleListWithMaster("issuer", issuerOrganizationId, {
     ctos: extras.latestOrganizationCtosCompanyJson ?? null,
     issuerDirectorKycStatus: org.director_kyc_status ?? null,
     issuerDirectorAmlStatus: org.director_aml_status ?? null,
     ctosPartySupplements: extras.ctosPartySupplements,
     corporateEntities: org.corporate_entities ?? null,
   });
-  return directorPoolFromPeople(people);
+  return directorPoolFromPeople(partyBuild.people);
 }
 
 function requireMatchingIssuerDirector(
