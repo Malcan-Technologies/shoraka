@@ -1013,8 +1013,17 @@ export default function ProfilePage() {
                       />
                       <ProfileReadField
                         label={PROFILE_LABEL.identityNumber}
-                        value={`${formatDocumentType(orgData?.documentType)} ${orgData?.documentNumber || ""}`.trim()}
-                        locked
+                        label={PROFILE_LABEL.identityPrefix}
+                        value={formatDocumentType(orgData?.documentType)}
+                        missing={missingFieldKeys.has("identityPrefix")}
+                        locked={!missingFieldKeys.has("identityPrefix")}
+                        required
+                      />
+                      <ProfileReadField
+                        label={PROFILE_LABEL.identityNumber}
+                        value={orgData?.documentNumber ?? undefined}
+                        missing={missingFieldKeys.has("identityNumber")}
+                        locked={!missingFieldKeys.has("identityNumber")}
                         required
                       />
                       {isEditingPersonalDetails ? (
