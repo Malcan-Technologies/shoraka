@@ -42,4 +42,26 @@ describe("buildOrganizationProfileAuditEvidence", () => {
     expect(evidence.previousValues).toEqual({});
     expect(evidence.nextValues).toEqual({});
   });
+
+  it("records aboutYourBusiness.mainCustomers changes (needed to persist operational onboarding updates)", () => {
+    const evidence = buildOrganizationProfileAuditEvidence({
+      previous: {
+        corporateOnboardingData: { aboutYourBusiness: { mainCustomers: "Old buyers" } },
+      },
+      next: {
+        corporateOnboardingData: { aboutYourBusiness: { mainCustomers: "New buyers" } },
+      },
+      corporatePatch: { aboutYourBusiness: { mainCustomers: "New buyers" } },
+    });
+
+    expect(evidence.updatedFields).toEqual([
+      "corporateOnboardingData.aboutYourBusiness.mainCustomers",
+    ]);
+    expect(evidence.previousValues).toEqual({
+      "corporateOnboardingData.aboutYourBusiness.mainCustomers": "Old buyers",
+    });
+    expect(evidence.nextValues).toEqual({
+      "corporateOnboardingData.aboutYourBusiness.mainCustomers": "New buyers",
+    });
+  });
 });

@@ -348,6 +348,7 @@ model InvestorOrganization {
   sc_investor_category          ScInvestorCategory?
   date_of_incorporation         DateTime?
   country_of_incorporation      String?
+  sc_company_type               ScCompanyType?
   residential_address           Json?
   profile_field_sources         Json                             @default("{}")
   /// Set when the first CTOS or RegTank director/shareholder snapshot has been applied.

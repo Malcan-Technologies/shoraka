@@ -23,6 +23,7 @@ import {
   normalizeDirectorShareholderIdKey,
   normalizeDirectorShareholderPartyEmail,
   peopleAccessAmlChipPresentation,
+  peopleAccessChipOptionsFromRow,
   peopleAccessKycChipPresentation,
   peopleAccessPlatformBadgeStatus,
   PERSON_EMAIL_HELP,
@@ -116,14 +117,18 @@ function PeopleAccessKycStatus({
   onRefresh?: () => void;
 }) {
   const person = row.person;
-  const presentation = peopleAccessKycChipPresentation(person);
+  const presentation = peopleAccessKycChipPresentation(person, peopleAccessChipOptionsFromRow(row));
   if (!presentation || !person) {
     return <span className="text-ui text-muted-foreground">—</span>;
   }
   const showRefresh = Boolean(canEdit && onRefresh && shouldShowPartyKycRefresh(refreshParams(row)));
   return (
     <div className="flex flex-col items-start gap-0.5">
-      <span className="text-meta text-muted-foreground">{relatedPartyVerificationCaption(person.entityType)}</span>
+      <span className="text-meta text-muted-foreground">
+        {relatedPartyVerificationCaption(
+          peopleAccessChipOptionsFromRow(row).entityType === "CORPORATE" ? "CORPORATE" : person.entityType
+        )}
+      </span>
       <div className="flex items-center gap-1">
         <StatusBadge
           size="sm"
@@ -148,7 +153,7 @@ function PeopleAccessAmlStatus({
   onRefresh?: () => void;
 }) {
   const person = row.person;
-  const presentation = peopleAccessAmlChipPresentation(person);
+  const presentation = peopleAccessAmlChipPresentation(person, peopleAccessChipOptionsFromRow(row));
   if (!presentation || !person) {
     return <span className="text-ui text-muted-foreground">—</span>;
   }
@@ -747,8 +752,20 @@ export function PeopleAccessSection({
                   partyKey: res.data.partyKey,
                 });
                 if (!sendRes.success) {
-                  toast.success("Person added");
-                  toast.error(sendRes.error.message);
+                  const email = String(data.email ?? "").trim();
+                  toast.error(
+                    sendRes.error.message
+                      ? `${sendRes.error.message} Person added, but RegTank onboarding link was not created. Please retry via "Send onboarding".`
+                      : 'Person added, but RegTank onboarding link was not created. Please retry via "Send onboarding".'
+                  );
+                  // Open the retry dialog so the user isn't left with a stuck onboarding state.
+                  setOnboardKey(res.data.partyKey);
+                  if (email) {
+                    setDraftEmails((current) => ({
+                      ...current,
+                      [res.data.partyKey]: email,
+                    }));
+                  }
                 } else {
                   toast.success("Person added and onboarding link sent");
                 }

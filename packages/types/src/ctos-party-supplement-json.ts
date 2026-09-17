@@ -138,11 +138,21 @@ function toCleanScreening(patch: Record<string, unknown>): CleanScreening | null
   const requestId = String(patch.requestId ?? "").trim();
   const statusRaw = String(patch.status ?? "").trim();
   if (!requestId || !statusRaw) return null;
+
+  // Important: "missing" risk fields must NOT overwrite existing DB values.
+  // We detect presence via `hasOwnProperty` so absent fields don't turn into `null`.
+  const hasRiskLevel = Object.prototype.hasOwnProperty.call(patch, "riskLevel");
+  const hasRiskScore = Object.prototype.hasOwnProperty.call(patch, "riskScore");
+
   return {
     requestId,
     status: normalizeRawStatus(statusRaw) || statusRaw,
-    riskLevel: patch.riskLevel != null ? String(patch.riskLevel).trim() || null : null,
-    riskScore: parseRiskScore(patch.riskScore),
+    riskLevel: hasRiskLevel
+      ? patch.riskLevel != null
+        ? String(patch.riskLevel).trim() || null
+        : null
+      : undefined,
+    riskScore: hasRiskScore ? parseRiskScore(patch.riskScore) : undefined,
     provider: typeof patch.provider === "string" ? patch.provider.trim() || undefined : undefined,
     updatedAt: typeof patch.updatedAt === "string" ? patch.updatedAt.trim() || undefined : undefined,
     messageStatus: parseMessageStatus(patch.messageStatus),
@@ -234,7 +244,20 @@ export function mergeCtosPartySupplementDocument(
     base.screening = null;
   } else if (patch.screening && isObject(patch.screening)) {
     const next = toCleanScreening(patch.screening);
-    base.screening = next;
+    if (!next) {
+      base.screening = null;
+    } else if (base.screening) {
+      // Merge defined keys only, so "absent" fields in the patch don't overwrite existing DB values.
+      const merged: CleanScreening = { ...base.screening };
+      for (const [k, v] of Object.entries(next)) {
+        if (v !== undefined) {
+          (merged as Record<string, unknown>)[k] = v;
+        }
+      }
+      base.screening = merged;
+    } else {
+      base.screening = next;
+    }
   }
 
   if (!base.requestId.trim() && base.screening?.requestId) {

@@ -51,8 +51,11 @@ import {
   resolvePersonPlatformAccess,
   isInitialCorporateOnboardingStatus,
   isMinimalOnboardingPersonCreate,
+  parseCtosPartySupplement,
+  isLaterAddedCompanyPerson,
 } from "@cashsouk/types";
 import { prisma } from "../../lib/prisma";
+import { logger } from "../../lib/logger";
 import { AppError } from "../../lib/http/error-handler";
 import {
   buildDirectorShareholderPeopleList,
@@ -1195,6 +1198,13 @@ export async function patchOrgMasterProfile(params: {
       patch.countryOfIncorporation
     );
   }
+  if (patch.scCompanyType !== undefined) {
+    data.sc_company_type = applyScalar(
+      "scCompanyType",
+      investor.sc_company_type as ScCompanyType | null,
+      patch.scCompanyType
+    );
+  }
   if (patch.isSophisticatedInvestor !== undefined || patch.scInvestorCategory !== undefined) {
     const organizationType: "PERSONAL" | "COMPANY" =
       investor.type === "COMPANY" ? "COMPANY" : "PERSONAL";
@@ -2280,6 +2290,67 @@ export async function reactivateMasterParty(params: {
     where: { id: row.id },
     data: { membership_status: OrganizationPartyMembershipStatus.MASTER_ACTIVE },
   });
+
+  // Best-effort: if the provider onboarding/KYC completed while the person was inactive,
+  // re-sync the latest RegTank onboarding + screening state into the CTOS party supplement.
+  // This must never block reactivation.
+  if (isLaterAddedCompanyPerson({ origin: row.origin, partyKey: row.party_key })) {
+    try {
+      const supplement = await prisma.ctosPartySupplement.findFirst({
+        where:
+          params.portal === "issuer"
+            ? { issuer_organization_id: params.organizationId, party_key: row.party_key }
+            : { investor_organization_id: params.organizationId, party_key: row.party_key },
+        select: { onboarding_json: true },
+      });
+
+      const parsed = supplement ? parseCtosPartySupplement(supplement.onboarding_json) : null;
+      const onboardingRequestId = parsed?.requestId?.trim() ? parsed.requestId.trim() : "";
+
+      const screeningRequestId = parsed?.screening?.requestId?.trim() ? parsed.screening.requestId.trim() : "";
+      const kycId =
+        screeningRequestId.startsWith("KYC") || screeningRequestId.startsWith("DJKYC")
+          ? screeningRequestId
+          : null;
+      const kybId = screeningRequestId.startsWith("KYB") ? screeningRequestId : null;
+
+      const individualOnboardingRequestId = onboardingRequestId.startsWith("LD") ? onboardingRequestId : null;
+      const entityOnboardingRequestId = onboardingRequestId.startsWith("EOD") ? onboardingRequestId : null;
+      const corporateOnboardingRequestId = onboardingRequestId.startsWith("COD") ? onboardingRequestId : null;
+
+      if (
+        individualOnboardingRequestId ||
+        entityOnboardingRequestId ||
+        corporateOnboardingRequestId ||
+        kycId ||
+        kybId
+      ) {
+        const { syncCtosPartyRegTankStatus } = await import("./regtank-party-sync");
+        await syncCtosPartyRegTankStatus({
+          portal: params.portal,
+          organizationId: params.organizationId,
+          partyKey: row.party_key,
+          individualOnboardingRequestId,
+          entityOnboardingRequestId,
+          corporateOnboardingRequestId,
+          kycId,
+          kybId,
+        });
+      }
+    } catch (syncErr) {
+      logger.warn(
+        {
+          portal: params.portal,
+          organizationId: params.organizationId,
+          partyId: row.id,
+          partyKey: row.party_key,
+          error: syncErr instanceof Error ? syncErr.message : String(syncErr),
+        },
+        "Best-effort RegTank sync after reactivateMasterParty failed (non-blocking)"
+      );
+    }
+  }
+
   return { party: serializeParty(updated), reviewRequired: false };
 }
 

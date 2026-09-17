@@ -32,6 +32,7 @@ import {
   PROFILE_LABEL,
   observedPartyBlockedByIdentityConflict,
   peopleAccessAmlChipPresentation,
+  peopleAccessChipOptionsFromRow,
   peopleAccessKycChipPresentation,
   peopleAccessPlatformBadgeStatus,
   personRegTankKycId,
@@ -66,8 +67,8 @@ function AccessBadge({ label }: { label: string }) {
   return <StatusBadge status={status} label={label} size="sm" />;
 }
 
-function KycBadge({ person }: { person: AdminPeopleAccessRow["person"] }) {
-  const presentation = peopleAccessKycChipPresentation(person);
+function KycBadge({ person, entityType }: { person: AdminPeopleAccessRow["person"]; entityType?: string | null }) {
+  const presentation = peopleAccessKycChipPresentation(person, { entityType });
   if (!presentation) return <span className="text-ui text-muted-foreground">—</span>;
   return (
     <StatusBadge
@@ -78,8 +79,8 @@ function KycBadge({ person }: { person: AdminPeopleAccessRow["person"] }) {
   );
 }
 
-function AmlBadge({ person }: { person: AdminPeopleAccessRow["person"] }) {
-  const presentation = peopleAccessAmlChipPresentation(person);
+function AmlBadge({ person, entityType }: { person: AdminPeopleAccessRow["person"]; entityType?: string | null }) {
+  const presentation = peopleAccessAmlChipPresentation(person, { entityType });
   if (!presentation) return <span className="text-ui text-muted-foreground">—</span>;
   return (
     <StatusBadge
@@ -218,8 +219,8 @@ export function OrganizationPeopleAccessDetail({
   const platformLabel = row.corporate ? "Not applicable" : row.platformAccess === "—" ? "No access" : row.platformAccess;
   const profileStatus = overviewItems.find((item) => item.label === "Profile Status")?.value ?? "Active profile";
 
-  const kycPresentation = peopleAccessKycChipPresentation(person);
-  const amlPresentation = peopleAccessAmlChipPresentation(person);
+  const kycPresentation = peopleAccessKycChipPresentation(person, peopleAccessChipOptionsFromRow(row));
+  const amlPresentation = peopleAccessAmlChipPresentation(person, peopleAccessChipOptionsFromRow(row));
 
   const defaultSection =
     showCtos && (row.observed || row.ctos === "Differs" || row.ctos === "Not found" || row.identityConflict)
@@ -448,7 +449,7 @@ export function OrganizationPeopleAccessDetail({
                 <div className="flex flex-wrap items-start gap-3">
                   <div className="space-y-1">
                     <p className="text-meta text-muted-foreground">Status</p>
-                    <KycBadge person={person} />
+                    <KycBadge person={person} entityType={peopleAccessChipOptionsFromRow(row).entityType} />
                   </div>
                 </div>
 
@@ -511,7 +512,7 @@ export function OrganizationPeopleAccessDetail({
                 <ProfileFieldGrid>
                   <div className="space-y-1">
                     <p className="text-meta text-muted-foreground">Status</p>
-                    <AmlBadge person={person} />
+                    <AmlBadge person={person} entityType={peopleAccessChipOptionsFromRow(row).entityType} />
                   </div>
                   <ProfileReadField
                     label="Screening"

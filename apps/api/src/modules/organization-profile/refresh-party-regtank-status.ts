@@ -26,8 +26,8 @@ import {
 } from "../regtank/helpers/regtank-refresh-lock";
 import {
   RegTankRefreshClient,
-  RegTankRefreshSession,
 } from "../regtank/helpers/regtank-refresh-session";
+import { syncCtosPartyRegTankStatus } from "./regtank-party-sync";
 
 export const PARTY_STATUS_REFRESHED_MESSAGE = "Status refreshed.";
 export const PARTY_STATUS_REFRESH_FAILED_MESSAGE =
@@ -193,104 +193,21 @@ export async function refreshPartyRegTankStatus(
 
   const lockKey = `party-regtank:${organizationId}:${partyId}`;
   const locked = await runExclusiveOnboardingRefresh(lockKey, async () => {
-    const client = deps.regTankClient ?? new RegTankAPIClient();
-    const session = new RegTankRefreshSession(client);
-    const results: Array<{ source: string; body: unknown } | { source: string; failed: true }> = [];
+    const regTankClient = deps.regTankClient ?? new RegTankAPIClient();
+    const result = await syncCtosPartyRegTankStatus({
+      portal,
+      organizationId,
+      partyKey: party.party_key,
+      individualOnboardingRequestId: kycActive ? ids.individualOnboardingRequestId : null,
+      entityOnboardingRequestId: kycActive ? ids.entityOnboardingRequestId : null,
+      corporateOnboardingRequestId: kycActive ? ids.corporateOnboardingRequestId : null,
+      kycId: amlActive ? ids.kycId : null,
+      kybId: amlActive ? ids.kybId : null,
+      regTankClient,
+    });
 
-    if (kycActive && ids.individualOnboardingRequestId) {
-      results.push(
-        await queryStatus(
-          () => session.queryOnboardingDetails(ids.individualOnboardingRequestId!),
-          "INDIVIDUAL_ONBOARDING"
-        )
-      );
-    }
-    if (kycActive && ids.entityOnboardingRequestId) {
-      results.push(
-        await queryStatus(
-          () => session.getEntityOnboardingDetails(ids.entityOnboardingRequestId!),
-          "ENTITY_ONBOARDING"
-        )
-      );
-    }
-    if (kycActive && ids.corporateOnboardingRequestId) {
-      results.push(
-        await queryStatus(
-          () => session.getCorporateOnboardingDetails(ids.corporateOnboardingRequestId!),
-          "CORPORATE_ONBOARDING"
-        )
-      );
-    }
-    if (amlActive && ids.kycId) {
-      results.push(await queryStatus(() => session.queryKYCStatus(ids.kycId!), "KYC"));
-    }
-    if (amlActive && ids.kybId) {
-      results.push(await queryStatus(() => session.queryKYBStatus(ids.kybId!), "KYB"));
-    }
-
-    const failed = results.filter((row): row is { source: string; failed: true } => "failed" in row);
-    const succeeded = results.filter(
-      (row): row is { source: string; body: unknown } => "body" in row
-    );
-    if (succeeded.length === 0) {
+    if (result.refreshedSources.length === 0) {
       throw new AppError(502, "PROVIDER_REFRESH_FAILED", PARTY_STATUS_REFRESH_FAILED_MESSAGE);
-    }
-
-    let onboardingStatus: string | undefined;
-    for (const row of succeeded) {
-      if (
-        row.source === "INDIVIDUAL_ONBOARDING" ||
-        row.source === "ENTITY_ONBOARDING" ||
-        row.source === "CORPORATE_ONBOARDING"
-      ) {
-        const next = extractRegTankStatus(row.body);
-        if (next) onboardingStatus = next;
-      }
-    }
-
-    let screeningPatch: Record<string, unknown> | null = null;
-    for (const row of succeeded) {
-      if (row.source === "KYC" || row.source === "KYB") {
-        const requestId = row.source === "KYC" ? ids.kycId : ids.kybId;
-        const next = extractRegTankScreeningPatch(row.body, requestId ?? "");
-        if (next) screeningPatch = next;
-      }
-    }
-
-    if (onboardingStatus || screeningPatch) {
-      const supplementWhere =
-        portal === "issuer"
-          ? { issuer_organization_id: organizationId, party_key: party.party_key }
-          : { investor_organization_id: organizationId, party_key: party.party_key };
-      const existing = await prisma.ctosPartySupplement.findFirst({ where: supplementWhere });
-      const patch: Parameters<typeof mergeCtosPartySupplementDocument>[1] = {};
-      if (onboardingStatus) patch.regtankPipelineStatus = onboardingStatus;
-      if (screeningPatch) patch.screening = screeningPatch;
-      if (!existing) {
-        const requestId =
-          ids.individualOnboardingRequestId ||
-          ids.entityOnboardingRequestId ||
-          ids.corporateOnboardingRequestId ||
-          ids.kycId ||
-          ids.kybId;
-        if (requestId) patch.onboarding = { requestId };
-      }
-      const merged = mergeCtosPartySupplementDocument(existing?.onboarding_json, patch);
-      if (existing) {
-        await prisma.ctosPartySupplement.update({
-          where: { id: existing.id },
-          data: { onboarding_json: merged as Prisma.InputJsonValue },
-        });
-      } else {
-        await prisma.ctosPartySupplement.create({
-          data: {
-            issuer_organization_id: portal === "issuer" ? organizationId : null,
-            investor_organization_id: portal === "investor" ? organizationId : null,
-            party_key: party.party_key,
-            onboarding_json: merged as Prisma.InputJsonValue,
-          },
-        });
-      }
     }
 
     logger.info(
@@ -298,15 +215,14 @@ export async function refreshPartyRegTankStatus(
         organizationId,
         partyId,
         portal,
-        refreshedSources: succeeded.map((row) => row.source),
-        partialFailures: failed.map((row) => row.source),
+        refreshedSources: result.refreshedSources,
       },
       "Party RegTank status refreshed"
     );
 
     return {
       message: PARTY_STATUS_REFRESHED_MESSAGE,
-      refreshedSources: succeeded.map((row) => row.source),
+      refreshedSources: result.refreshedSources,
     };
   });
 

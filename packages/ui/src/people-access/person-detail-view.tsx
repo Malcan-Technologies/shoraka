@@ -22,6 +22,7 @@ import {
   isPersonEmailLifecycleLocked,
   matchPersonToParty,
   peopleAccessAmlChipPresentation,
+  peopleAccessChipOptionsFromRow,
   peopleAccessKycChipPresentation,
   peopleAccessPlatformLabel,
   peopleAccessPlatformBadgeStatus,
@@ -189,13 +190,16 @@ export function PersonDetailView({
       })
     : "No access";
   const accessBadgeStatus = peopleAccessPlatformBadgeStatus(accessLabel);
-  const kycStatus = customerProcessStatusLabel({
-    kind: corporate ? "kyb" : "kyc",
-    person: joinedPerson,
-  });
-  const amlStatus = customerProcessStatusLabel({ kind: "aml", person: joinedPerson });
-  const kycChip = peopleAccessKycChipPresentation(joinedPerson);
-  const amlChip = peopleAccessAmlChipPresentation(joinedPerson);
+  const chipOptions = peopleAccessChipOptionsFromRow({ party, person: joinedPerson });
+  const kycChip = peopleAccessKycChipPresentation(joinedPerson, chipOptions);
+  const amlChip = peopleAccessAmlChipPresentation(joinedPerson, chipOptions);
+  const kycStatus =
+    kycChip?.label ??
+    customerProcessStatusLabel({
+      kind: corporate ? "kyb" : "kyc",
+      person: joinedPerson,
+    });
+  const amlStatus = amlChip?.label ?? customerProcessStatusLabel({ kind: "aml", person: joinedPerson });
   const kycStage = customerKycCurrentStage({ person: joinedPerson, statusLabel: kycStatus });
   const approvedAt = customerApprovedAt(joinedPerson);
   const amlWaiting = customerAmlWaitingCopy({

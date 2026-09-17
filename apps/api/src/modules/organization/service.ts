@@ -80,6 +80,7 @@ import {
 } from "@cashsouk/types";
 import { buildDirectorShareholderPeopleListWithMaster } from "../organization-profile/load-master-parties-for-people";
 import { writeOrganizationPartyEmail } from "../organization-profile/person-email";
+import { syncCtosPartyRegTankStatus } from "../organization-profile/regtank-party-sync";
 import { RegTankAPIClient } from "../regtank/api-client";
 import { ensureRegTankFormId } from "../regtank/form-id";
 import type { RegTankIndividualOnboardingRequest } from "../regtank/types";
@@ -2948,7 +2949,7 @@ export class OrganizationService {
           );
         }
 
-        const mergedSend = mergeCtosPartySupplementDocument(lockedRoot, {
+        let mergedSend = mergeCtosPartySupplementDocument(lockedRoot, {
           onboarding: {
             email: lockedEmail,
             status: "IN_PROGRESS",
@@ -2980,6 +2981,30 @@ export class OrganizationService {
     );
 
     const { requestId, verifyLink } = sendOutcome;
+    if (sendOutcome.kind === "create") {
+      try {
+        await syncCtosPartyRegTankStatus({
+          portal: portalType as "issuer" | "investor",
+          organizationId,
+          partyKey: pk,
+          individualOnboardingRequestId: requestId,
+          entityOnboardingRequestId: null,
+          corporateOnboardingRequestId: null,
+          kycId: null,
+          kybId: null,
+        });
+      } catch (syncErr) {
+        logger.warn(
+          {
+            organizationId,
+            partyKey: pk,
+            requestId,
+            error: syncErr instanceof Error ? syncErr.message : String(syncErr),
+          },
+          "Best-effort post-create RegTank party sync failed"
+        );
+      }
+    }
     const sesKindLabel =
       sendOutcome.kind === "resend"
         ? "resent"

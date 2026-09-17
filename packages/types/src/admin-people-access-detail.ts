@@ -30,6 +30,7 @@ import { resolvePartyCtosComparison } from "./party-ctos-comparison";
 import { displayGovernmentIdentityNumber } from "./organization-party-key";
 import {
   peopleAccessAmlChipPresentation,
+  peopleAccessChipOptionsFromRow,
   peopleAccessAmlLabel,
   peopleAccessKycChipPresentation,
   peopleAccessKycLabel,
@@ -440,11 +441,12 @@ export function adminPeopleAccessVerificationLabel(corporate: boolean): "KYC" | 
 }
 
 export function adminPeopleAccessKycOrKybLabel(row: AdminPeopleAccessRow): string {
-  return peopleAccessKycChipPresentation(row.person)?.label ?? peopleAccessKycLabel(row.person);
+  const options = peopleAccessChipOptionsFromRow(row);
+  return peopleAccessKycChipPresentation(row.person, options)?.label ?? peopleAccessKycLabel(row.person);
 }
 
 export function adminPeopleAccessAmlDisplayLabel(row: AdminPeopleAccessRow): string {
-  const presentation = peopleAccessAmlChipPresentation(row.person);
+  const presentation = peopleAccessAmlChipPresentation(row.person, peopleAccessChipOptionsFromRow(row));
   if (presentation) return presentation.label;
   if (row.corporate) return "Not Started";
   return peopleAccessAmlLabel(row.person);

@@ -5,6 +5,8 @@ import {
   buildPeopleAccessRows,
   filterPeopleAccessRows,
   peopleAccessAmlLabel,
+  peopleAccessAmlLabelForEntity,
+  peopleAccessChipOptionsFromRow,
   peopleAccessCorporateKybLabel,
   peopleAccessKycChipPresentation,
   peopleAccessAmlChipPresentation,
@@ -261,6 +263,48 @@ describe("peopleAccessKycChipPresentation / peopleAccessAmlChipPresentation", ()
       })?.label
     ).toBe("Approved");
   });
+
+  it("matches Admin corporate mapping: KYC from onboarding, AML from screening", () => {
+    const corp = person({
+      matchKey: "ROC1",
+      name: "Orion Crest Holdings",
+      entityType: "CORPORATE",
+      roles: ["SHAREHOLDER"],
+      sharePercentage: 50,
+      onboarding: { status: "APPROVED", id: "COD1" },
+      screening: { status: "IN_PROGRESS", id: "KYB1" },
+    });
+    expect(peopleAccessKycChipPresentation(corp)?.label).toBe("Approved");
+    expect(peopleAccessAmlChipPresentation(corp)?.label).toBe("In Progress");
+    expect(
+      peopleAccessAmlChipPresentation({ ...corp, screening: { status: "APPROVED", id: "KYB1" } })?.label
+    ).toBe("Approved");
+  });
+
+  it("uses the company party entity type so AML is not gated on individual KYC", () => {
+    const personRow = person({
+      matchKey: "ROC1",
+      name: "Orion Crest Holdings",
+      entityType: "INDIVIDUAL",
+      roles: ["SHAREHOLDER"],
+      sharePercentage: 50,
+      onboarding: { status: "WAIT_FOR_APPROVAL" },
+      screening: { status: "IN_PROGRESS", id: "KYB1" },
+    });
+    expect(peopleAccessAmlChipPresentation(personRow)?.label).toBe("Not Started");
+    expect(peopleAccessKycChipPresentation(personRow, { entityType: "CORPORATE" })?.label).toBe(
+      "Pending Review"
+    );
+    expect(peopleAccessAmlChipPresentation(personRow, { entityType: "CORPORATE" })?.label).toBe(
+      "In Progress"
+    );
+    expect(
+      peopleAccessKycChipPresentation(
+        { ...personRow, onboarding: { status: "APPROVED" } },
+        { entityType: "CORPORATE" }
+      )?.label
+    ).toBe("Approved");
+  });
 });
 
 describe("buildPeopleAccessRows", () => {
@@ -299,6 +343,45 @@ describe("buildPeopleAccessRows", () => {
       aml: "Approved",
       partyId: "party-mary",
     });
+  });
+
+  it("maps corporate company-person KYC/AML like Admin (onboarding + screening)", () => {
+    const holding = party({
+      id: "corp-1",
+      partyKey: "ROC1",
+      name: "Orion Crest Holdings",
+      identityNumber: "ROC1",
+      entityType: "CORPORATE",
+      isShareholder: true,
+      shareholdingPercentage: "50",
+    });
+    const { active } = buildPeopleAccessRows({
+      parties: [holding],
+      people: [
+        person({
+          matchKey: "ROC1",
+          name: "Orion Crest Holdings",
+          entityType: "CORPORATE",
+          roles: ["SHAREHOLDER"],
+          sharePercentage: 50,
+          onboarding: { status: "APPROVED", id: "COD1" },
+          screening: { status: "IN_PROGRESS", id: "KYB1" },
+        }),
+      ],
+      members: [],
+      invitations: [],
+      ownerUserId: "owner",
+      now,
+    });
+    const row = active[0]!;
+    expect(row.kyc).toBe("Approved");
+    expect(row.aml).toBe("Pending");
+    expect(peopleAccessAmlLabelForEntity({ person: row.person, entityType: row.party?.entityType })).toBe(
+      "Pending"
+    );
+    const chips = peopleAccessChipOptionsFromRow(row);
+    expect(peopleAccessKycChipPresentation(row.person, chips)?.label).toBe("Approved");
+    expect(peopleAccessAmlChipPresentation(row.person, chips)?.label).toBe("In Progress");
   });
 
   it("shows a platform user without a company role once, with KYC/AML —", () => {

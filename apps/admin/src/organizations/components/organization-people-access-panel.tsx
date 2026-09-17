@@ -15,6 +15,7 @@ import {
   isIssuerShareholderOnlyBelowMinimum,
   observedPartyBlockedByIdentityConflict,
   peopleAccessAmlChipPresentation,
+  peopleAccessChipOptionsFromRow,
   peopleAccessKycChipPresentation,
   peopleAccessPlatformBadgeStatus,
   issuerPersonCompletenessInputFromParty,
@@ -55,6 +56,7 @@ import {
   partyToEditorValues,
   type PartyEditorValues,
 } from "./organization-person-editor-dialog";
+import { buildPartyPatchPayloadFromEditorValues } from "./party-patch-payload";
 import { adminMayInactivateMasterParty } from "@/organizations/utils/organization-profile-overview";
 
 const FILTER_LABEL: Record<AdminPeopleAccessFilter, string> = {
@@ -141,41 +143,7 @@ export function OrganizationPeopleAccessPanel({
   const editingMember = org.members.find((member) => member.userId === editingMemberUserId) ?? null;
 
   const saveParty = async (values: PartyEditorValues, partyId: string) => {
-    const payload: Record<string, unknown> = {
-      name: values.name.trim(),
-      identityPrefix: values.entityType === "CORPORATE" ? "ROC" : values.identityPrefix || null,
-      identityNumber: values.identityNumber.trim() || null,
-      entityType: values.entityType,
-      isDirector: values.isDirector,
-      isShareholder: values.isShareholder,
-      isBoard: values.isBoard,
-      isManagement: values.isManagement,
-      gender: values.entityType === "CORPORATE" ? "NOT_APPLICABLE" : values.gender || null,
-      salutation: values.entityType === "CORPORATE" ? null : values.salutation.trim() || null,
-      nationality: values.nationality.trim() || null,
-      countryOfIncorporation: values.countryOfIncorporation.trim() || null,
-      dateOfBirth: values.dateOfBirth || null,
-      dateOfIncorporation: values.dateOfIncorporation || null,
-      address:
-        values.line1 || values.line2 || values.state || values.postalCode
-          ? {
-              line1: values.line1.trim() || null,
-              line2: values.line2.trim() || null,
-              state: values.state || null,
-              postalCode: values.postalCode.trim() || null,
-            }
-          : null,
-      shareholdingPercentage: values.shareholdingPercentage.trim() || null,
-      shareType: values.shareType || null,
-      shareTypeOther: values.shareType === "OTHERS" ? values.shareTypeOther.trim() || null : null,
-      shareholdingUnits: values.shareholdingUnits.trim() || null,
-      shareholdingAmount: values.shareholdingAmount.trim() || null,
-      designation: values.designation || null,
-      designationOther: values.designation === "OTHERS" ? values.designationOther.trim() || null : null,
-      appointmentDate: values.appointmentDate || null,
-      resignationDate: values.resignationDate || null,
-      email: values.email.trim() || null,
-    };
+    const payload = buildPartyPatchPayloadFromEditorValues(values);
     await peopleMutations.patchParty.mutateAsync({ partyId, data: payload });
     setEditingPartyId(null);
   };
@@ -371,8 +339,8 @@ function PeopleAccessTableRow({
   onReactivate: () => void;
   onEditMember: () => void;
 }) {
-  const kycPresentation = peopleAccessKycChipPresentation(row.person);
-  const amlPresentation = peopleAccessAmlChipPresentation(row.person);
+  const kycPresentation = peopleAccessKycChipPresentation(row.person, peopleAccessChipOptionsFromRow(row));
+  const amlPresentation = peopleAccessAmlChipPresentation(row.person, peopleAccessChipOptionsFromRow(row));
   const accessStatus = row.platformAccess === "—" ? null : peopleAccessPlatformBadgeStatus(row.platformAccess);
   const ctosStatus = adminPeopleAccessCtosBadgeStatus(row.ctos);
   const needsAction = adminPeopleAccessRowNeedsAttention(row);
@@ -438,7 +406,11 @@ function PeopleAccessTableRow({
         {kycPresentation ? (
           <div className="flex flex-col items-start gap-0.5">
             <span className="text-meta text-muted-foreground">
-              {relatedPartyVerificationCaption(row.person?.entityType ?? row.party?.entityType)}
+              {relatedPartyVerificationCaption(
+                peopleAccessChipOptionsFromRow(row).entityType === "CORPORATE"
+                  ? "CORPORATE"
+                  : row.person?.entityType ?? row.party?.entityType
+              )}
             </span>
             <StatusBadge
               status={getRelatedPartyStatusToken(kycPresentation, "admin")}
