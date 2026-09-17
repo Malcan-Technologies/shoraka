@@ -225,6 +225,17 @@ export function issuesByField(issues: ComrepFieldIssue[]): Record<string, string
   return map;
 }
 
+/**
+ * Personal Investor `document_type` → identity format kind.
+ * Passport keeps free-text behaviour. NRIC/MyKad/Identity and Driving License
+ * (`DRIVER_LICENSE` / `DRIVING_LICENSE`) share the 12-digit digits-only NRIC rule.
+ */
+export function personalInvestorIdentityFormatKind(
+  documentType: string | null | undefined
+): "NRIC" | "PASSPORT" {
+  return String(documentType ?? "").toUpperCase().includes("PASSPORT") ? "PASSPORT" : "NRIC";
+}
+
 export function identityFormatIssue(
   value: unknown,
   kind: "NRIC" | "ROC" | "PASSPORT",
@@ -570,6 +581,8 @@ export function validateInvestorPersonalForm(input: {
   nationality?: unknown;
   state?: unknown;
   postalCode?: unknown;
+  identityNumber?: unknown;
+  identityKind?: "NRIC" | "PASSPORT";
 }): ComrepFieldIssue[] {
   const issues: ComrepFieldIssue[] = [];
   push(issues, requiredEnumIssue(input.gender, ["MALE", "FEMALE"], "gender", PROFILE_LABEL.gender));
@@ -587,6 +600,17 @@ export function validateInvestorPersonalForm(input: {
       PROFILE_ADDRESS_FIELD_LABELS.postcode
     )
   );
+  if (input.identityNumber !== undefined && trimToNull(input.identityNumber)) {
+    push(
+      issues,
+      identityFormatIssue(
+        input.identityNumber,
+        input.identityKind ?? "NRIC",
+        "identityNumber",
+        PROFILE_LABEL.identityNumber
+      )
+    );
+  }
   return issues;
 }
 

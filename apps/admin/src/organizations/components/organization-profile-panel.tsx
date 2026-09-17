@@ -27,6 +27,7 @@ import {
   restrictScPostcodeInput,
   shouldShowOrganizationPersonalKycCard,
   validateInvestorPersonalForm,
+  personalInvestorIdentityFormatKind,
   validateIssuerAddressForm,
   validateIssuerCompanyForm,
   type OrganizationDetailResponse,
@@ -194,11 +195,22 @@ export function OrganizationProfilePanel({
       }
     }
     if (editingSection === "personal" && portal === "investor" && org.type !== "COMPANY") {
+      const identityNumberEditableForSave = isIdentityNumberEditable({
+        portal,
+        documentNumber: org.documentNumber,
+        profileFieldSources: org.profileFieldSources,
+      });
       const issues = validateInvestorPersonalForm({
         gender: draft.gender,
         nationality: draft.nationality,
         state: draft.residentialState,
         postalCode: draft.residentialPostalCode,
+        ...(identityNumberEditableForSave
+          ? {
+              identityNumber: draft.identityNumber,
+              identityKind: personalInvestorIdentityFormatKind(org.documentType),
+            }
+          : {}),
       });
       if (issues.length > 0) {
         setFieldErrors(issuesByField(issues));

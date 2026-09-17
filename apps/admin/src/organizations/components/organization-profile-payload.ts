@@ -11,7 +11,7 @@ import type {
   ScInvestorCategory,
   UpdateAdminOrganizationProfileInput,
 } from "@cashsouk/types";
-import { parseAboutYourBusiness, SC_GENDERS, toCalendarDateInput } from "@cashsouk/types";
+import { parseAboutYourBusiness, SC_GENDERS, toCalendarDateInput, identityFormatIssue, personalInvestorIdentityFormatKind, PROFILE_LABEL } from "@cashsouk/types";
 
 function asBankAccountDetails(data: unknown): BankAccountDetails | null {
   if (typeof data !== "object" || data === null) return null;
@@ -408,8 +408,31 @@ export function buildSectionPayload(
     if (emptyToNull(draft.nationality) !== emptyToNull(original.nationality)) {
       payload.nationality = emptyToNull(draft.nationality);
     }
-    if (org.type !== "COMPANY" && emptyToNull(draft.identityNumber) !== emptyToNull(original.identityNumber)) {
-      payload.identityNumber = emptyToNull(draft.identityNumber);
+    if (org.type !== "COMPANY") {
+      // Submit identityNumber when it changed, or when a legacy invalid 12-digit
+      // value is still on the form, so the backend can reject it. Valid unchanged
+      // values are omitted to preserve provenance (avoid re-stamping ADMIN).
+      const draftIdentityNumber = emptyToNull(draft.identityNumber);
+      const originalIdentityNumber = emptyToNull(original.identityNumber);
+      const identityChanged = draftIdentityNumber !== originalIdentityNumber;
+      const identityLocked =
+        org.profileFieldSources?.identityNumber?.source === "REGTANK" &&
+        originalIdentityNumber !== null;
+      const twelveDigitInvalid =
+        personalInvestorIdentityFormatKind(org.documentType) === "NRIC" &&
+        draftIdentityNumber !== null &&
+        identityFormatIssue(
+          draftIdentityNumber,
+          "NRIC",
+          "identityNumber",
+          PROFILE_LABEL.identityNumber
+        ) != null;
+
+      if (identityChanged) {
+        payload.identityNumber = draftIdentityNumber;
+      } else if (!identityLocked && twelveDigitInvalid) {
+        payload.identityNumber = draftIdentityNumber;
+      }
     }
     return payload;
   }

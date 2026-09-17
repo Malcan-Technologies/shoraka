@@ -25,7 +25,7 @@ import {
   MALAYSIAN_BANKS,
 } from "@cashsouk/config";
 import type { ApplicationPersonRow } from "@cashsouk/types";
-import { filterVisiblePeopleRows, SC_GENDER_LABELS, SC_INDIVIDUAL_GENDERS, SC_MALAYSIAN_STATES, PROFILE_ADDRESS_FIELD_LABELS, PROFILE_ADDRESS_HELP, PROFILE_HELP, PROFILE_LABEL, firstIssueMessage, formatCalendarDate, humanizeApiValidationMessage, isScPostcodeRequired, isValidProfilePhone, restrictScPostcodeInput, scAppendixASelectValues, storedProfilePhone, toCalendarDateInput, userFacingCompleteness, validateInvestorPersonalForm, type ProfileFieldSources, type ScGender } from "@cashsouk/types";
+import { filterVisiblePeopleRows, SC_GENDER_LABELS, SC_INDIVIDUAL_GENDERS, SC_MALAYSIAN_STATES, PROFILE_ADDRESS_FIELD_LABELS, PROFILE_ADDRESS_HELP, PROFILE_HELP, PROFILE_LABEL, firstIssueMessage, formatCalendarDate, humanizeApiValidationMessage, isScPostcodeRequired, isValidProfilePhone, personalInvestorIdentityFormatKind, restrictScPostcodeInput, scAppendixASelectValues, storedProfilePhone, toCalendarDateInput, userFacingCompleteness, validateInvestorPersonalForm, type ProfileFieldSources, type ScGender } from "@cashsouk/types";
 import { useAuth } from "../../lib/auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccountDocuments } from "../../hooks/use-account-documents";
@@ -662,11 +662,24 @@ export default function ProfilePage() {
 
     if (activeOrganization.type === "PERSONAL") {
       if (isEditingPersonalDetails) {
+        const identityNumberTrimmed = identityNumber.trim();
+        const identityNumberCurrent = orgData?.documentNumber ?? "";
+        const identityNumberChanged = identityNumberTrimmed !== identityNumberCurrent;
+        const identityNumberRegTankLocked =
+          orgData?.profileFieldSources?.identityNumber?.source === "REGTANK" &&
+          identityNumberCurrent.trim().length > 0;
+
         const issues = validateInvestorPersonalForm({
           gender,
           nationality,
           state: residentialState,
           postalCode: residentialPostalCode,
+          ...(!identityNumberRegTankLocked
+            ? {
+                identityNumber,
+                identityKind: personalInvestorIdentityFormatKind(orgData?.documentType),
+              }
+            : {}),
         });
         if (issues.length > 0) {
           toast.error(firstIssueMessage(issues));
@@ -690,20 +703,7 @@ export default function ProfilePage() {
           master.dateOfBirth = dob;
         }
 
-        const identityNumberTrimmed = identityNumber.trim();
-        const identityNumberCurrent = orgData?.documentNumber ?? "";
-        const identityNumberChanged = identityNumberTrimmed !== identityNumberCurrent;
-        const identityNumberRegTankLocked =
-          orgData?.profileFieldSources?.identityNumber?.source === "REGTANK" &&
-          identityNumberCurrent.trim().length > 0;
         if (!identityNumberRegTankLocked && identityNumberChanged) {
-          const dt = String(orgData?.documentType ?? "").toUpperCase();
-          if (!dt.includes("PASSPORT") && identityNumberTrimmed.length > 0) {
-            if (!/^\d{12}$/.test(identityNumberTrimmed)) {
-              toast.error("Enter a valid 12-digit IC number.");
-              return;
-            }
-          }
           master.identityNumber = identityNumberTrimmed.length > 0 ? identityNumberTrimmed : null;
         }
         if (Object.keys(master).length === 0) {

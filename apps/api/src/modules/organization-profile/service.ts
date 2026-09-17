@@ -44,6 +44,7 @@ import {
   isIssuerShareholderOnlyBelowMinimum,
   issuerActiveShareholderFlags,
   identityFormatIssue,
+  personalInvestorIdentityFormatKind,
     asIssuerContactPerson,
     asIssuerPersonInCharge,
   isIssuerOfficerRole,
@@ -1438,7 +1439,7 @@ export async function computeOrgProfileCompleteness(
     organizationType: "PERSONAL",
     personal: {
       name,
-      identityPrefix: org.document_type?.toUpperCase().includes("PASSPORT") ? "PASSPORT" : "NRIC",
+      identityPrefix: personalInvestorIdentityFormatKind(org.document_type),
       identityNumber: org.document_number,
       dateOfBirth: org.date_of_birth,
       gender: mapStoredGender(org.gender),
@@ -1466,8 +1467,7 @@ export async function computeOrgProfileCompleteness(
     ];
 
     const mappedGender = mapStoredGender(org.gender);
-    const identityPrefix =
-      org.document_type?.toUpperCase().includes("PASSPORT") ? "PASSPORT" : "NRIC";
+    const identityPrefix = personalInvestorIdentityFormatKind(org.document_type);
 
     const present = {
       namePresent: hasTextForCompletenessDebug(name),
@@ -1528,14 +1528,15 @@ export function validatePersonalInvestorIdentityNumberByDocumentType(params: {
   if (identityNumber === null || identityNumber === undefined) return identityNumber;
 
   const trimmed = typeof identityNumber === "string" ? identityNumber.trim() : String(identityNumber);
+  const kind = personalInvestorIdentityFormatKind(documentType);
 
   // Passport: preserve existing behavior (no digits-only enforcement).
-  if (String(documentType ?? "").toUpperCase().includes("PASSPORT")) {
+  if (kind === "PASSPORT") {
     return trimmed;
   }
 
   // NRIC/MyKad and Driving License: exactly 12 digits, digits-only.
-  const issue = identityFormatIssue(trimmed, "NRIC", "identityNumber", "IC/Passport number");
+  const issue = identityFormatIssue(trimmed, "NRIC", "identityNumber", PROFILE_LABEL.identityNumber);
   if (issue) {
     throw new AppError(400, "VALIDATION_ERROR", issue.message);
   }
