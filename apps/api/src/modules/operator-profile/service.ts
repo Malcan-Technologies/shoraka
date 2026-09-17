@@ -31,6 +31,7 @@ import { AppError } from "../../lib/http/error-handler";
 import { generatePresignedUploadUrl, generatePresignedViewUrl } from "../../lib/s3/client";
 import { decimalToString, parseDateInput, toIsoDate } from "../organization-profile/serialize";
 import { parseDocumentAuthorisationConfig } from "../notes/document-authorisation/config";
+import { confirmSigningCloudLegalImageFromS3 } from "../../lib/images/confirm-legal-image";
 import type {
   OperatorAdvisorInput,
   OperatorCompanyStampPatchInput,
@@ -1253,6 +1254,8 @@ export async function putDocumentExecutionBindings(
 export async function patchOperatorCompanyStamp(
   input: OperatorCompanyStampPatchInput
 ): Promise<OperatorProfileDto> {
+  // Enforce SigningCloud legal-image rules (max 300×300px, max 500KB) before saving.
+  await confirmSigningCloudLegalImageFromS3(input.s3Key);
   await patchDocumentAuthorisationConfig({
     certificateCompanyStamp: {
       s3Key: input.s3Key,

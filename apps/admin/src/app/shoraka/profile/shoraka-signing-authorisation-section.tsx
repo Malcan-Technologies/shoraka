@@ -14,7 +14,6 @@ import {
   SC_ANNUAL_PERSON_KIND_LABELS,
   SC_DESIGNATION_LABELS,
   allDocumentExecutionSlots,
-  companyStampDeclaredFileRejection,
   documentExecutionBindingIssues,
   documentExecutionSlotLabel,
   documentKindForExecutionRole,
@@ -22,6 +21,7 @@ import {
   isOperatorDocumentRepresentativeRole,
   operatorOfficerDesignationLabel,
   profileValidationErrorFromApi,
+  signingCloudLegalImageDimensionRejection,
   signingCloudLegalImageDeclaredFileRejection,
   type OperatorDocumentExecutionRole,
   type OperatorDocumentExecutionSlotDto,
@@ -54,6 +54,22 @@ import { cn } from "@/lib/utils";
 import { uploadFileToS3 } from "@/lib/upload-file-to-s3";
 
 const UNASSIGNED_PERSON = "unassigned";
+
+async function getImageDimensions(file: File): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve({ width: img.naturalWidth, height: img.naturalHeight });
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Invalid image"));
+    };
+    img.src = url;
+  });
+}
 
 function personKindLabel(person: Pick<OperatorSigningPersonDto, "personKind" | "designation" | "designationOther">) {
   const designation =
@@ -202,9 +218,21 @@ export function ShorakaSigningAuthorisationSection({
   };
 
   const uploadStamp = async (file: File) => {
-    const rejection = companyStampDeclaredFileRejection(file.type, file.size);
+    // Shoraka (SigningCloud) stamp must follow the same legal-image rules as seals/signatures.
+    const rejection = signingCloudLegalImageDeclaredFileRejection(file.type, file.size);
     if (rejection) {
       toast.error(rejection);
+      return;
+    }
+    try {
+      const { width, height } = await getImageDimensions(file);
+      const dimensionRejection = signingCloudLegalImageDimensionRejection(width, height);
+      if (dimensionRejection) {
+        toast.error(dimensionRejection);
+        return;
+      }
+    } catch {
+      toast.error("Upload a valid PNG or JPG image.");
       return;
     }
     setUploading(true);
@@ -252,7 +280,6 @@ export function ShorakaSigningAuthorisationSection({
         fileName: file.name,
         contentType: file.type,
       });
-      toast.success("Signature uploaded");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to upload signature");
     } finally {
