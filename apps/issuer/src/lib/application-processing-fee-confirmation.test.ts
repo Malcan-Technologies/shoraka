@@ -23,6 +23,7 @@ import {
   resolvePendingProcessingFeeResumeFeeId,
   resolveProcessingFeeReturnDestination,
   resolveProcessingFeeReturnIds,
+  shouldReconcileProcessingFeeDetail,
 } from "./application-processing-fee-confirmation";
 
 function confirmingView(
@@ -97,6 +98,18 @@ describe("processing fee confirmation timeout", () => {
         elapsedMs: Date.now() - started,
       })
     ).toBe(PROCESSING_FEE_SLOW_POLL_MS);
+  });
+});
+
+describe("processing fee detail reconciliation", () => {
+  it("uses fee detail after payment reaches a reconcilable status", () => {
+    expect(shouldReconcileProcessingFeeDetail("PAID", false)).toBe(true);
+    expect(shouldReconcileProcessingFeeDetail("NAME_CHECK_PENDING", false)).toBe(true);
+  });
+
+  it("uses fee detail for explicit confirmation polling but not an idle created order", () => {
+    expect(shouldReconcileProcessingFeeDetail("CREATED", true)).toBe(true);
+    expect(shouldReconcileProcessingFeeDetail("CREATED", false)).toBe(false);
   });
 });
 

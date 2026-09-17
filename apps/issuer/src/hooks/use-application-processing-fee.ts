@@ -7,6 +7,7 @@ import type { ApplicationProcessingFeeResponse } from "@cashsouk/types";
 import {
   processingFeeConfirmPollIntervalMs,
   processingFeeConfirmQueryRefresh,
+  shouldReconcileProcessingFeeDetail,
 } from "@/lib/application-processing-fee-confirmation";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -58,18 +59,37 @@ export function useApplicationProcessingFeeOrder(
 ) {
   const apiClient = useApplicationProcessingFeeApiClient();
   const pollStartedAtRef = useRef<number | null>(null);
+  const knownFeeRef = useRef<{
+    applicationId: string;
+    feeId: string;
+    status: ApplicationProcessingFeeResponse["status"];
+  } | null>(null);
 
   return useQuery({
     queryKey: [...applicationProcessingFeeKeys.all, "order", applicationId] as const,
     enabled: Boolean(applicationId && enabled),
     queryFn: async () => {
       if (!applicationId) throw new Error("Application ID is required");
-      const response = await apiClient.createApplicationProcessingFee(applicationId);
+      const knownFee =
+        knownFeeRef.current?.applicationId === applicationId ? knownFeeRef.current : null;
+      const response =
+        knownFee &&
+        shouldReconcileProcessingFeeDetail(
+          knownFee.status,
+          options?.pollWhileConfirming === true
+        )
+          ? await apiClient.getApplicationProcessingFee(applicationId, knownFee.feeId)
+          : await apiClient.createApplicationProcessingFee(applicationId);
       if (!response.success) {
         const error = new Error(response.error.message) as Error & { code?: string };
         error.code = response.error.code;
         throw error;
       }
+      knownFeeRef.current = {
+        applicationId,
+        feeId: response.data.id,
+        status: response.data.status,
+      };
       return response.data;
     },
     staleTime: options?.pollWhileConfirming ? 0 : 30_000,
@@ -87,7 +107,10 @@ export function useApplicationProcessingFeeOrder(
         return 5_000;
       }
       const status = query.state.data?.status;
-      const confirming = Boolean(options?.pollWhileConfirming) || status === "PAID";
+      const confirming = shouldReconcileProcessingFeeDetail(
+        status,
+        options?.pollWhileConfirming === true
+      );
       if (!confirming) {
         pollStartedAtRef.current = null;
         return false;

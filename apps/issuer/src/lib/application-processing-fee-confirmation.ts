@@ -48,6 +48,13 @@ export function isProcessingFeeConfirmDelayed(elapsedMs: number): boolean {
   return elapsedMs >= PROCESSING_FEE_CONFIRM_TIMEOUT_MS;
 }
 
+export function shouldReconcileProcessingFeeDetail(
+  status: GatewayPaymentStatus | null | undefined,
+  pollWhileConfirming: boolean
+): boolean {
+  return pollWhileConfirming || status === "PAID" || status === "NAME_CHECK_PENDING";
+}
+
 export function shouldStopProcessingFeeConfirmPoll(
   status: GatewayPaymentStatus | null | undefined
 ): boolean {
