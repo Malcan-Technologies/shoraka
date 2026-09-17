@@ -2430,7 +2430,8 @@ export class NoteService {
         actor.userId,
         issuerOrgId,
         "ISSUER",
-        "NEW_UTILISATION"
+        "NEW_UTILISATION",
+        { bypassOrgMembershipCheck: true }
       );
     }
 
@@ -2463,7 +2464,8 @@ export class NoteService {
       actor.userId,
       source.issuer_organization_id,
       "ISSUER",
-      "NEW_UTILISATION"
+      "NEW_UTILISATION",
+      { bypassOrgMembershipCheck: true }
     );
 
     if (source.status !== ApplicationStatus.COMPLETED) {

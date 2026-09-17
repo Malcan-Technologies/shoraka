@@ -807,6 +807,168 @@ describe("legal document acceptance service", () => {
     ).resolves.toBeUndefined();
   });
 
+  it("bypasses org membership for admin reacceptance checks when org exists and no pending reacceptance", async () => {
+    (prisma.issuerOrganization.findFirst as jest.Mock).mockImplementation(
+      (args: { where: { id: string; OR?: unknown } }) => {
+        // When membership/ownership check is applied, it will use an `OR` clause.
+        if (args.where.OR) return null;
+        return {
+          id: "org1",
+          owner_user_id: "owner1",
+          tnc_accepted: true,
+          onboarding_status: "COMPLETED",
+        };
+      }
+    );
+
+    // No published reacceptance versions => no pending documents.
+    jest
+      .spyOn(legalDocumentRepository, "findPublishedReacceptanceByTypeAndAudiences")
+      .mockResolvedValue(null);
+    jest.spyOn(legalDocumentRepository, "findPublishedByTypeAndAudiences").mockResolvedValue(null);
+    (prisma.legalDocumentAcceptance.findFirst as jest.Mock).mockResolvedValue(null);
+
+    await expect(
+      legalDocumentAcceptanceService.assertNoPendingReacceptance(
+        "admin1",
+        "org1",
+        "ISSUER",
+        "NEW_UTILISATION",
+        { bypassOrgMembershipCheck: true }
+      )
+    ).resolves.toBeUndefined();
+  });
+
+  it("still fails when admin bypass is enabled but issuer organization does not exist", async () => {
+    (prisma.issuerOrganization.findFirst as jest.Mock).mockResolvedValue(null);
+    jest
+      .spyOn(legalDocumentRepository, "findPublishedReacceptanceByTypeAndAudiences")
+      .mockResolvedValue(null);
+    jest.spyOn(legalDocumentRepository, "findPublishedByTypeAndAudiences").mockResolvedValue(null);
+    (prisma.legalDocumentAcceptance.findFirst as jest.Mock).mockResolvedValue(null);
+
+    await expect(
+      legalDocumentAcceptanceService.assertNoPendingReacceptance(
+        "admin1",
+        "missing-org",
+        "ISSUER",
+        "NEW_UTILISATION",
+        { bypassOrgMembershipCheck: true }
+      )
+    ).rejects.toMatchObject({
+      code: "NOT_FOUND",
+      message: "Organization not found",
+    });
+  });
+
+  it("does not bypass org membership for self-service when non-member (admin bypass disabled)", async () => {
+    (prisma.issuerOrganization.findFirst as jest.Mock).mockImplementation(
+      (args: { where: { id: string; OR?: unknown } }) => {
+        if (args.where.OR) return null;
+        return {
+          id: "org1",
+          owner_user_id: "owner1",
+          tnc_accepted: true,
+          onboarding_status: "COMPLETED",
+        };
+      }
+    );
+
+    await expect(
+      legalDocumentAcceptanceService.assertNoPendingReacceptance(
+        "admin1",
+        "org1",
+        "ISSUER",
+        "NEW_UTILISATION"
+      )
+    ).rejects.toMatchObject({
+      code: "NOT_FOUND",
+      message: "Organization not found",
+    });
+  });
+
+  it("blocks admin reacceptance when there is pending reacceptance and bypass is enabled", async () => {
+    (prisma.issuerOrganization.findFirst as jest.Mock).mockImplementation(
+      (args: { where: { id: string; OR?: unknown } }) => {
+        if (args.where.OR) return null;
+        return {
+          id: "org1",
+          owner_user_id: "owner1",
+          tnc_accepted: true,
+          onboarding_status: "COMPLETED",
+        };
+      }
+    );
+
+    jest
+      .spyOn(legalDocumentRepository, "findPublishedReacceptanceByTypeAndAudiences")
+      .mockResolvedValue(
+        publishedVersion({
+          id: "doc-v2",
+          version: 2,
+          reacceptance_required: true,
+          legal_document: {
+            id: "ld1",
+            type: "ISSUER_AGREEMENT",
+            title: "Issuer Agreement",
+            description: null,
+            audience: "ISSUER",
+            required_for_onboarding: true,
+            public_visibility: false,
+            created_at: new Date(),
+            updated_at: new Date(),
+          },
+        }) as never
+      );
+
+    (prisma.legalDocumentAcceptance.findFirst as jest.Mock).mockResolvedValue(null);
+    jest.spyOn(legalDocumentRepository, "findPublishedByTypeAndAudiences").mockResolvedValue(null);
+
+    await expect(
+      legalDocumentAcceptanceService.assertNoPendingReacceptance(
+        "admin1",
+        "org1",
+        "ISSUER",
+        "NEW_UTILISATION",
+        { bypassOrgMembershipCheck: true }
+      )
+    ).rejects.toMatchObject({
+      code: "LEGAL_REACCEPTANCE_REQUIRED",
+      message:
+        "Accept the latest legal documents before starting a new financing transaction.",
+    });
+  });
+
+  it("allows admin reacceptance when bypass is enabled and no pending reacceptance exists", async () => {
+    (prisma.issuerOrganization.findFirst as jest.Mock).mockImplementation(
+      (args: { where: { id: string; OR?: unknown } }) => {
+        if (args.where.OR) return null;
+        return {
+          id: "org1",
+          owner_user_id: "owner1",
+          tnc_accepted: true,
+          onboarding_status: "COMPLETED",
+        };
+      }
+    );
+
+    jest
+      .spyOn(legalDocumentRepository, "findPublishedReacceptanceByTypeAndAudiences")
+      .mockResolvedValue(null);
+    jest.spyOn(legalDocumentRepository, "findPublishedByTypeAndAudiences").mockResolvedValue(null);
+    (prisma.legalDocumentAcceptance.findFirst as jest.Mock).mockResolvedValue(null);
+
+    await expect(
+      legalDocumentAcceptanceService.assertNoPendingReacceptance(
+        "admin1",
+        "org1",
+        "ISSUER",
+        "NEW_UTILISATION",
+        { bypassOrgMembershipCheck: true }
+      )
+    ).resolves.toBeUndefined();
+  });
+
   it("publish does not reset tnc_accepted", async () => {
     jest.spyOn(legalDocumentRepository, "findVersionById").mockResolvedValue(
       publishedVersion({

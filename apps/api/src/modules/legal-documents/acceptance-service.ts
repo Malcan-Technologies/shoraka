@@ -121,17 +121,20 @@ function isOrganizationOnboardingComplete(org: Pick<OrgAccessRow, "onboarding_st
 async function assertOrgAccess(
   userId: string,
   organizationId: string,
-  audience: LegalAcceptanceAudience
+  audience: LegalAcceptanceAudience,
+  options?: { bypassOrgMembershipCheck?: boolean }
 ): Promise<OrgAccessRow> {
   if (audience === "ISSUER") {
     const org = await prisma.issuerOrganization.findFirst({
-      where: {
-        id: organizationId,
-        OR: [
-          { owner_user_id: userId },
-          { members: { some: { user_id: userId } } },
-        ],
-      },
+      where: options?.bypassOrgMembershipCheck
+        ? { id: organizationId }
+        : {
+            id: organizationId,
+            OR: [
+              { owner_user_id: userId },
+              { members: { some: { user_id: userId } } },
+            ],
+          },
       select: {
         id: true,
         owner_user_id: true,
@@ -149,11 +152,16 @@ async function assertOrgAccess(
 
   const org = await prisma.investorOrganization.findFirst({
     where: {
-      id: organizationId,
-      OR: [
-        { owner_user_id: userId },
-        { members: { some: { user_id: userId } } },
-      ],
+      ...(options?.bypassOrgMembershipCheck ? { id: organizationId } : {}),
+      ...(options?.bypassOrgMembershipCheck
+        ? {}
+        : {
+            id: organizationId,
+            OR: [
+              { owner_user_id: userId },
+              { members: { some: { user_id: userId } } },
+            ],
+          }),
     },
     select: {
       id: true,
@@ -267,9 +275,10 @@ export class LegalDocumentAcceptanceService {
   async getRequiredDocuments(
     userId: string,
     organizationId: string,
-    audience: LegalAcceptanceAudience
+    audience: LegalAcceptanceAudience,
+    options?: { bypassOrgMembershipCheck?: boolean }
   ): Promise<LegalAcceptanceStatusResponse> {
-    await assertOrgAccess(userId, organizationId, audience);
+    await assertOrgAccess(userId, organizationId, audience, options);
 
     const requiredTypes = getRequiredLegalTypesForAudience(audience);
     const allowedAudiences = audiencesForRole(audience);
@@ -304,9 +313,10 @@ export class LegalDocumentAcceptanceService {
   async getPendingReacceptanceDocuments(
     userId: string,
     organizationId: string,
-    audience: LegalAcceptanceAudience
+    audience: LegalAcceptanceAudience,
+    options?: { bypassOrgMembershipCheck?: boolean }
   ): Promise<PendingLegalDocumentResponse[]> {
-    const org = await assertOrgAccess(userId, organizationId, audience);
+    const org = await assertOrgAccess(userId, organizationId, audience, options);
     // Incomplete / in-progress orgs use onboarding acceptance, not re-acceptance.
     if (!isOrganizationOnboardingComplete(org) || !org.tnc_accepted) {
       return [];
@@ -336,13 +346,14 @@ export class LegalDocumentAcceptanceService {
   async getComplianceStatus(
     userId: string,
     organizationId: string,
-    audience: LegalAcceptanceAudience
+    audience: LegalAcceptanceAudience,
+    options?: { bypassOrgMembershipCheck?: boolean }
   ): Promise<LegalComplianceStatus> {
-    const org = await assertOrgAccess(userId, organizationId, audience);
+    const org = await assertOrgAccess(userId, organizationId, audience, options);
     const isOrganisationOwner = org.owner_user_id === userId;
     const onboardingComplete = isOrganizationOnboardingComplete(org);
     const pendingDocuments = onboardingComplete
-      ? await this.getPendingReacceptanceDocuments(userId, organizationId, audience)
+      ? await this.getPendingReacceptanceDocuments(userId, organizationId, audience, options)
       : [];
 
     const hasPendingReacceptance = pendingDocuments.length > 0;
@@ -373,9 +384,10 @@ export class LegalDocumentAcceptanceService {
     userId: string,
     organizationId: string,
     audience: LegalAcceptanceAudience,
-    action: LegalBlockedAction
+    action: LegalBlockedAction,
+    options?: { bypassOrgMembershipCheck?: boolean }
   ) {
-    const compliance = await this.getComplianceStatus(userId, organizationId, audience);
+    const compliance = await this.getComplianceStatus(userId, organizationId, audience, options);
     if (!compliance.hasPendingReacceptance) return;
     if (!compliance.blockedActions.includes(action)) return;
 
