@@ -44,21 +44,6 @@ export function formatSignedTransactionAmount(direction: "IN" | "OUT", amount: n
   return `${prefix}${formatCurrency(amount)}`;
 }
 
-export function splitSignedTransactionAmount(direction: "IN" | "OUT", amount: number) {
-  const sign = isIncomingDirection(direction) ? "+" : "-";
-  return {
-    prefix: `${sign}RM `,
-    digits: formatCurrency(amount, { includeSymbol: false }),
-  };
-}
-
-export function splitBalanceAmount(amount: number) {
-  return {
-    prefix: "RM ",
-    digits: formatCurrency(amount, { includeSymbol: false }),
-  };
-}
-
 function formatEnumLabel(value: string) {
   return value
     .replace(/_/g, " ")

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { getUserPortalStatusToken } from "@cashsouk/config";
+import { formatCurrency, getUserPortalStatusToken } from "@cashsouk/config";
 import { ListToolbar, ListToolbarFilterTrigger, StatusBadge, type FilterChip } from "@cashsouk/ui";
 import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 import { Button } from "@/components/ui/button";
@@ -21,14 +21,13 @@ import {
   TRANSACTION_TYPE_FILTER_OPTIONS,
 } from "./transactions.types";
 import {
+  formatSignedTransactionAmount,
   formatTransactionDateTime,
   getTransactionAmountToneClassName,
-  splitBalanceAmount,
-  splitSignedTransactionAmount,
 } from "./transaction-utils";
 
 const DESKTOP_TABLE =
-  "hidden lg:grid lg:grid-cols-[minmax(0,1fr)_10rem_12rem_12rem_auto] lg:gap-x-6";
+  "hidden lg:grid lg:grid-cols-[minmax(0,1fr)_auto_auto_auto_auto] lg:gap-x-6";
 
 const DESKTOP_ROW = "col-span-full grid grid-cols-subgrid [grid-column:1/-1]";
 
@@ -40,37 +39,6 @@ function TableCell({
   className?: string;
 }) {
   return <div className={className}>{children}</div>;
-}
-
-function MoneyTableCell({
-  prefix,
-  digits,
-  className,
-  toneClassName,
-}: {
-  prefix: string;
-  digits: string;
-  className?: string;
-  toneClassName?: string;
-}) {
-  return (
-    <TableCell className={cn("font-medium tabular-nums", className)}>
-      <div className={cn("flex w-full min-w-0 items-baseline", toneClassName)}>
-        <span className="shrink-0">{prefix}</span>
-        <span className="ml-auto text-right">{digits}</span>
-      </div>
-    </TableCell>
-  );
-}
-
-function MoneyHeaderCell({ label }: { label: string }) {
-  return (
-    <TableCell>
-      <div className="flex w-full min-w-0 items-baseline">
-        <span className="shrink-0">{label}</span>
-      </div>
-    </TableCell>
-  );
 }
 
 function TransactionStatusBadge({
@@ -154,12 +122,18 @@ function DesktopTransactionRow({ tx }: { tx: Transaction }) {
       <TableCell className="self-center">
         <TransactionStatusBadge tx={tx} />
       </TableCell>
-      <MoneyTableCell
-        {...splitSignedTransactionAmount(tx.direction, tx.amount)}
-        toneClassName={amountToneClassName}
-      />
-      <MoneyTableCell {...splitBalanceAmount(tx.balance)} />
-      <TableCell className="pr-6 text-right text-sm tabular-nums text-muted-foreground whitespace-nowrap">
+      <TableCell
+        className={cn(
+          "self-center whitespace-nowrap text-right font-medium tabular-nums",
+          amountToneClassName
+        )}
+      >
+        {formatSignedTransactionAmount(tx.direction, tx.amount)}
+      </TableCell>
+      <TableCell className="self-center whitespace-nowrap text-right font-medium tabular-nums">
+        {formatCurrency(tx.balance)}
+      </TableCell>
+      <TableCell className="self-center pr-6 text-right text-sm tabular-nums text-muted-foreground whitespace-nowrap">
         {formatTransactionDateTime(tx.postedAt)}
       </TableCell>
     </div>
@@ -167,8 +141,6 @@ function DesktopTransactionRow({ tx }: { tx: Transaction }) {
 }
 
 function MobileTransactionRow({ tx }: { tx: Transaction }) {
-  const amount = splitSignedTransactionAmount(tx.direction, tx.amount);
-  const balance = splitBalanceAmount(tx.balance);
   const amountToneClassName = getTransactionAmountToneClassName(tx.direction);
 
   return (
@@ -180,15 +152,11 @@ function MobileTransactionRow({ tx }: { tx: Transaction }) {
           <TransactionContextSubtitle context={tx.context} />
         </div>
         <div className={cn("shrink-0 font-medium tabular-nums", amountToneClassName)}>
-          <span>{amount.prefix}</span>
-          <span>{amount.digits}</span>
+          {formatSignedTransactionAmount(tx.direction, tx.amount)}
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-        <span className="tabular-nums">
-          {balance.prefix}
-          {balance.digits}
-        </span>
+        <span className="tabular-nums">{formatCurrency(tx.balance)}</span>
         <span className="whitespace-nowrap">{formatTransactionDateTime(tx.postedAt)}</span>
       </div>
     </div>
@@ -326,9 +294,9 @@ export function TransactionsTable({
           >
             <TableCell className="min-w-0 pl-6">Transaction</TableCell>
             <TableCell>Status</TableCell>
-            <MoneyHeaderCell label="Amount" />
-            <MoneyHeaderCell label="Balance" />
-            <TableCell className="pr-6 whitespace-nowrap">Time</TableCell>
+            <TableCell className="text-right">Amount</TableCell>
+            <TableCell className="text-right">Balance</TableCell>
+            <TableCell className="pr-6 text-right whitespace-nowrap">Time</TableCell>
           </div>
 
           {transactions.length > 0 ? (

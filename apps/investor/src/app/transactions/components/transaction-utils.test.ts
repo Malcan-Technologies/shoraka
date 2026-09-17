@@ -1,5 +1,9 @@
 import type { InvestorBalanceActivityEntry } from "@cashsouk/types";
-import { mapActivityEntryToTransaction, mapActivitySourceToType } from "./transaction-utils";
+import {
+  formatSignedTransactionAmount,
+  mapActivityEntryToTransaction,
+  mapActivitySourceToType,
+} from "./transaction-utils";
 
 jest.mock("@cashsouk/config", () => ({
   formatCurrency: (value: number) => `RM ${value}`,
@@ -22,6 +26,13 @@ function entry(
     ...partial,
   };
 }
+
+describe("formatSignedTransactionAmount", () => {
+  it("keeps the sign, symbol, and digits in one string", () => {
+    expect(formatSignedTransactionAmount("IN", 22000)).toBe("+RM 22000");
+    expect(formatSignedTransactionAmount("OUT", 100)).toBe("-RM 100");
+  });
+});
 
 describe("mapActivitySourceToType", () => {
   it("maps wallet sources to table types", () => {
