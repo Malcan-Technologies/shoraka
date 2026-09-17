@@ -2424,16 +2424,6 @@ export class NoteService {
       throw new AppError(409, "INVOICE_NOT_APPROVED", "Only approved invoices can become notes");
     }
 
-    const issuerOrgId = invoice.application.issuer_organization_id;
-    if (issuerOrgId) {
-      await legalDocumentAcceptanceService.assertNoPendingReacceptance(
-        actor.userId,
-        issuerOrgId,
-        "ISSUER",
-        "NEW_UTILISATION"
-      );
-    }
-
     return this.createFromInvoiceSource({
       application: invoice.application,
       invoice,
@@ -2458,13 +2448,6 @@ export class NoteService {
     });
 
     if (!source) throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
-
-    await legalDocumentAcceptanceService.assertNoPendingReacceptance(
-      actor.userId,
-      source.issuer_organization_id,
-      "ISSUER",
-      "NEW_UTILISATION"
-    );
 
     if (source.status !== ApplicationStatus.COMPLETED) {
       throw new AppError(
