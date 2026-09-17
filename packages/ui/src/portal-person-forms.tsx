@@ -640,7 +640,7 @@ export function PartyFillEmptyForm({
     (party.identityPrefix && SC_IDENTITY_PREFIX_LABELS[party.identityPrefix]) || party.identityPrefix || "";
 
   const isRegTankSource = (field: string): boolean =>
-    Boolean((party.fieldSources as Record<string, unknown> | undefined)?.[field as never]?.source === "REGTANK");
+    party.fieldSources[field]?.source === "REGTANK";
 
   const identityPrefixLocked = isRegTankSource("identityPrefix");
   const identityNumberLocked = isRegTankSource("identityNumber");
