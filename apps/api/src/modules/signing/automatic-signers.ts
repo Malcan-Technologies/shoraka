@@ -306,22 +306,6 @@ export async function injectAutomaticExecutionRoles(
   return { ...plan, recipients, assignments };
 }
 
-export function frozenExecutionContextFromPlan(plan: EnvelopePlan): FrozenDocumentExecutionContext {
-  const people: FrozenAutomaticSignerSnapshot[] = [];
-  const seen = new Set<string>();
-  let companyStamp: FrozenAutomaticCompanyStamp | null = null;
-  for (const assignment of plan.assignments) {
-    const snapshot = parseFrozenAutomaticSignerSnapshot(assignment.frozen_asset_snapshot);
-    if (!snapshot) continue;
-    if (snapshot.companyStamp) companyStamp = snapshot.companyStamp;
-    const key = `${snapshot.documentKind}:${snapshot.signingPersonId}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    people.push(snapshot);
-  }
-  return { people, companyStamp };
-}
-
 export function frozenExecutionContextFromEnvelope(
   envelope: SigningEnvelopeWithGraph
 ): FrozenDocumentExecutionContext {

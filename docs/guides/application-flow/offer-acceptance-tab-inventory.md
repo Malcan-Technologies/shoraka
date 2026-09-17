@@ -202,7 +202,6 @@ Visible when workflow has acceptance docs **and** (inherited **or** `isOfferAcce
 
 - **Signing-clock line** — `acceptance.status === "SIGNING_IN_PROGRESS"` — `getOfferPhaseDeadlineDisplay` — Signing package.
 - **Extend signing deadline** — `canManage` and clock urgency `past` — confirm: new window from workflow days (`DEFAULT_SIGNING_DEADLINE` fallback); `useExtendContractSigningDeadline` or `useExtendInvoiceSigningDeadline` (invoice_only needs invoice id) — Signing package.
-- **Preview documents** — acceptance exists and workflow preview docs — Preview / Download drafts (`useAdminSigningDocumentPreview`); “Not sent to signers.”; invoiceId for invoice_only — Signing package.
 - **Loading** — `useAdminSigningEnvelopes` `isLoading` — “Loading…” — Signing package.
 - **Empty envelopes** — copy by phase: no offer / locked until docs+reps approved / completed but no package / approved for signing / generic; **Send signing links** if `APPROVED_FOR_SIGNING`, clock not past, no blocking envelope, `canManage`, invoice id if invoice_only — `useSendAdminSigningPackage` — Signing package.
 - **Voided-then-resend strip** — envelopes exist and `canSendSigningLinks` — Signing package.

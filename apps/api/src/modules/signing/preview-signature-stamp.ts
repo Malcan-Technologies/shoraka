@@ -77,15 +77,6 @@ export function previewFieldsFromSignsets(
   });
 }
 
-function sanitizePreviewFilenameToken(name: string): string {
-  const token = name.replace(/[^\w]+/g, "-").replace(/^-+|-+$/g, "");
-  return token || "document";
-}
-
-export function signingDocumentPreviewFilename(documentName: string): string {
-  return `Preview-${sanitizePreviewFilenameToken(documentName)}.pdf`;
-}
-
 /**
  * Draw non-interactive signature rectangles on an existing PDF.
  * SigningCloud `top` is measured from the top of the page; pdf-lib uses bottom-left origin.

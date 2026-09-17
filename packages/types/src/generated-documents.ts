@@ -201,12 +201,3 @@ export function pickPrimarySignedOfferDocument<T extends SignedOfferDocumentLike
     signed[0]
   );
 }
-
-/** True when a signing-package document can be previewed as a merged unsigned PDF. */
-export function isSigningPackagePreviewDocument(input: {
-  key: string;
-  source: string;
-}): boolean {
-  if (input.source === "GENERATED_OFFER_LETTER") return true;
-  return Boolean(SIGNING_PACKAGE_GENERATED_DOCUMENT_TYPES[input.key]);
-}

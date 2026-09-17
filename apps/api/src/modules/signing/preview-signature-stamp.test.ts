@@ -3,18 +3,9 @@ import {
   buildWetInkPreviewFields,
   previewFieldsFromSignsets,
   signerNamesForPlannedDocument,
-  signingDocumentPreviewFilename,
   stampWetInkSignatureFields,
 } from "./preview-signature-stamp";
 import { buildEnvelopePlanFromTemplate } from "@cashsouk/types";
-
-describe("signingDocumentPreviewFilename", () => {
-  it("builds a stable PDF filename", () => {
-    expect(signingDocumentPreviewFilename("Deed of Assignment")).toBe(
-      "Preview-Deed-of-Assignment.pdf"
-    );
-  });
-});
 
 describe("signerNamesForPlannedDocument", () => {
   it("returns names in routing order for one document", () => {
