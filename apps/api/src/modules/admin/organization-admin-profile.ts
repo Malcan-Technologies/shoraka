@@ -27,6 +27,7 @@ const MASTER_ONLY_KEYS = [
   "residentialAddress",
   "gender",
   "nationality",
+  "identityNumber",
 ] as const;
 
 export function extractMasterProfilePatch(

@@ -657,6 +657,8 @@ export interface OrganizationDetailResponse {
   // Document info
   documentType: string | null;
   documentNumber: string | null;
+  // Master-profile field sources (used for source-based locking in Admin UI).
+  profileFieldSources?: import("./comrep-profile").ProfileFieldSources;
   kycId: string | null;
 
   // JSON fields (form content)
@@ -890,6 +892,8 @@ export interface UpdateAdminOrganizationProfileInput {
   residentialAddress?: AdminOrganizationAddressInput | null;
   gender?: import("./comrep-profile").ScGender | null;
   nationality?: string | null;
+  // Personal investor identity/document field (master profile).
+  identityNumber?: string | null;
 }
 
 // Onboarding Applications Types (Admin Approval Queue)

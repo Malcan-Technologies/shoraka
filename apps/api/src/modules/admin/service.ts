@@ -67,6 +67,7 @@ import { sendTypedToUsersSafe } from "../notification/send-typed-safe";
 import { listOrganizationLinkedRecords, productIdFromFinancingType } from "./organization-linked-records";
 import { sumApprovedFacilityAmount } from "./organization-header-metrics";
 import { updateAdminOrganizationProfile } from "./organization-admin-profile";
+import { parseFieldSources } from "../organization-profile/serialize";
 import {
   assertAcceptanceDocumentChangeRequestAllowed,
   assertAuthorizedRepresentativeChangeRequestAllowed,
@@ -3077,6 +3078,7 @@ export class AdminService {
     phoneNumber: string | null;
     documentType: string | null;
     documentNumber: string | null;
+    profileFieldSources?: import("@cashsouk/types").ProfileFieldSources;
     kycId: string | null;
     bankAccountDetails: Record<string, unknown> | null;
     wealthDeclaration: Record<string, unknown> | null;
@@ -3293,6 +3295,7 @@ export class AdminService {
       phoneNumber: org.phone_number,
       documentType: org.document_type,
       documentNumber: org.document_number,
+      profileFieldSources: parseFieldSources(org.profile_field_sources),
       kycId: org.kyc_id,
       bankAccountDetails: org.bank_account_details as Record<string, unknown> | null,
       wealthDeclaration: org.wealth_declaration as Record<string, unknown> | null,
