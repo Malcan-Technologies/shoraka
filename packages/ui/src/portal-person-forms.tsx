@@ -642,14 +642,17 @@ export function PartyFillEmptyForm({
   const isRegTankSource = (field: string): boolean =>
     party.fieldSources[field]?.source === "REGTANK";
 
-  const identityPrefixLocked = isRegTankSource("identityPrefix");
-  const identityNumberLocked = isRegTankSource("identityNumber");
-  const dateOfBirthLocked = isRegTankSource("dateOfBirth");
-  const genderLocked = isRegTankSource("gender");
-  const nationalityLocked = isRegTankSource("nationality");
-  const salutationLocked = isRegTankSource("salutation");
-  const dateOfIncorporationLocked = isRegTankSource("dateOfIncorporation");
-  const countryOfIncorporationLocked = isRegTankSource("countryOfIncorporation");
+  // Keep UI consistent with backend lock decisions:
+  // - REGTANK provenance only locks when the stored value is non-empty.
+  const identityPrefixLocked = isRegTankSource("identityPrefix") && Boolean(party.identityPrefix?.trim());
+  const identityNumberLocked = isRegTankSource("identityNumber") && Boolean(party.identityNumber?.trim());
+  const dateOfBirthLocked = isRegTankSource("dateOfBirth") && Boolean(party.dateOfBirth);
+  const genderLocked = isRegTankSource("gender") && Boolean(party.gender);
+  const nationalityLocked = isRegTankSource("nationality") && Boolean(party.nationality?.trim());
+  const salutationLocked = isRegTankSource("salutation") && Boolean(party.salutation?.trim());
+  const dateOfIncorporationLocked = isRegTankSource("dateOfIncorporation") && Boolean(party.dateOfIncorporation);
+  const countryOfIncorporationLocked =
+    isRegTankSource("countryOfIncorporation") && Boolean(party.countryOfIncorporation?.trim());
 
   return (
     <form

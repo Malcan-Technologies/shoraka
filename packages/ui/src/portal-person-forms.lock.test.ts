@@ -73,6 +73,19 @@ describe("PartyFillEmptyForm lock and officer fields", () => {
     );
   });
 
+  it("applies RegTank lock only when the stored value is non-empty", () => {
+    expect(source).toContain('const identityPrefixLocked = isRegTankSource("identityPrefix") && Boolean(party.identityPrefix?.trim');
+    expect(source).toContain('const identityNumberLocked = isRegTankSource("identityNumber") && Boolean(party.identityNumber?.trim');
+    expect(source).toContain('const dateOfBirthLocked = isRegTankSource("dateOfBirth") && Boolean(party.dateOfBirth');
+    expect(source).toContain('const nationalityLocked = isRegTankSource("nationality") && Boolean(party.nationality?.trim');
+    expect(source).toContain('const salutationLocked = isRegTankSource("salutation") && Boolean(party.salutation?.trim');
+    expect(source).toContain('const dateOfIncorporationLocked = isRegTankSource("dateOfIncorporation") && Boolean(party.dateOfIncorporation');
+    expect(source).toContain('const countryOfIncorporationLocked');
+    expect(source).toContain(
+      'isRegTankSource("countryOfIncorporation") && Boolean(party.countryOfIncorporation?.trim'
+    );
+  });
+
   it("keeps Select components controlled (no `value || undefined`)", () => {
     expect(source).not.toContain("value={value || undefined}");
   });
