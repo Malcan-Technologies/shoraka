@@ -95,6 +95,7 @@ import {
 } from "./organization-profile-helpers";
 import { ADMIN_ORG_ADDRESS_FIELD_LABELS } from "@/organizations/utils/admin-org-display";
 import { missingFieldKeys } from "@/organizations/utils/organization-profile-overview";
+import { formatAdminIdentityDisplay } from "@/organizations/utils/identity-display";
 import { OrganizationFinancialsPanel } from "./organization-financials-panel";
 import { OrganizationMarcCard } from "./organization-marc-card";
 import { OrganizationPicCard } from "./organization-pic-card";
@@ -291,6 +292,13 @@ export function OrganizationProfilePanel({
     ...missingFieldKeys(org.profileCompleteness, "company"),
     ...missingFieldKeys(org.profileCompleteness, "identity"),
   ]);
+  const identityNumberRequiredMissing = requiredFieldKeys.has("identityNumber");
+  const identityPrefixRequiredMissing = requiredFieldKeys.has("identityPrefix");
+  const identityDisplay = formatAdminIdentityDisplay({
+    documentType: org.documentType,
+    documentNumber: org.documentNumber,
+    identityNumberRequiredMissing,
+  });
   const aboutActivitiesRequired = isAboutYourBusinessFieldRequired("whatDoesCompanyDo");
   const aboutCustomersRequired = isAboutYourBusinessFieldRequired("mainCustomers");
   const companyTypeLabel = displayScCompanyTypeLabel(org.scCompanyType, basic?.entityType);
@@ -887,11 +895,14 @@ export function OrganizationProfilePanel({
                     onChange={(middleName) => setDraft((current) => ({ ...current, middleName }))}
                   />
                   <ReadField
+                    label={PROFILE_LABEL.identityPrefix}
+                    value={identityDisplay.identityPrefixValue}
+                    missing={identityPrefixRequiredMissing}
+                  />
+                  <ReadField
                     label={PROFILE_LABEL.identityNumber}
-                    value={[org.documentType, org.documentNumber].filter(Boolean).join(" · ") || null}
-                    missing={
-                      requiredFieldKeys.has("identityNumber") || requiredFieldKeys.has("identityPrefix")
-                    }
+                    value={identityDisplay.identityNumberValue}
+                    missing={identityNumberRequiredMissing}
                     help={PROFILE_HELP.identityNumberNric}
                     required
                   />
@@ -925,11 +936,14 @@ export function OrganizationProfilePanel({
                   <ReadField label="Last Name" value={org.lastName} />
                   <ReadField label="Middle Name" value={org.middleName} />
                   <ReadField
+                    label={PROFILE_LABEL.identityPrefix}
+                    value={identityDisplay.identityPrefixValue}
+                    missing={identityPrefixRequiredMissing}
+                  />
+                  <ReadField
                     label={PROFILE_LABEL.identityNumber}
-                    value={[org.documentType, org.documentNumber].filter(Boolean).join(" · ") || null}
-                    missing={
-                      requiredFieldKeys.has("identityNumber") || requiredFieldKeys.has("identityPrefix")
-                    }
+                    value={identityDisplay.identityNumberValue}
+                    missing={identityNumberRequiredMissing}
                     help={PROFILE_HELP.identityNumberNric}
                     required
                   />

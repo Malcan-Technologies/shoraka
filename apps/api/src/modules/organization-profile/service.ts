@@ -55,6 +55,13 @@ import {
   isLaterAddedCompanyPerson,
   issuerPersonCompletenessSummary,
   issuerPersonRequiredFieldsForDebug,
+  PROFILE_ADDRESS_FIELD_LABELS,
+  PROFILE_LABEL,
+  profileAddressCompletenessLabel,
+  normalizeProfilePhone,
+  resolveIssuerComrepEmail,
+  resolveIssuerComrepPhone,
+  resolveIssuerProfileContactPerson,
   groupPeopleMissingByParty,
 } from "@cashsouk/types";
 import { prisma } from "../../lib/prisma";
@@ -95,6 +102,76 @@ type Portal = "issuer" | "investor";
 const PEOPLE_COMPLETENESS_DEBUG_PREFIX = "[PEOPLE_COMPLETENESS_DEBUG]";
 const PEOPLE_COMPLETENESS_DEBUG_ENABLED =
   process.env.PEOPLE_COMPLETENESS_DEBUG === "1" || process.env.PEOPLE_COMPLETENESS_DEBUG === "true";
+
+const PROFILE_COMPLETENESS_DEBUG_PREFIX = "[PROFILE_COMPLETENESS_DEBUG]";
+const PROFILE_COMPLETENESS_DEBUG_ENABLED =
+  PEOPLE_COMPLETENESS_DEBUG_ENABLED ||
+  process.env.PROFILE_COMPLETENESS_DEBUG === "1" ||
+  process.env.PROFILE_COMPLETENESS_DEBUG === "true";
+
+function hasTextForCompletenessDebug(value: unknown): boolean {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function hasDateForCompletenessDebug(value: unknown): boolean {
+  if (value instanceof Date) return !Number.isNaN(value.getTime());
+  if (typeof value !== "string") return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  const parsed = new Date(trimmed);
+  return !Number.isNaN(parsed.getTime());
+}
+
+function hasRequiredPostcodeValueForCompletenessDebug(
+  postalCode: string | null | undefined,
+  state: string | null | undefined
+): boolean {
+  if (typeof state === "string" && state.trim() === "Outside Malaysia") return true;
+  return hasTextForCompletenessDebug(postalCode);
+}
+
+function hasValidEmailForCompletenessDebug(value: unknown): boolean {
+  return (
+    typeof value === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
+  );
+}
+
+function hasValidPhoneForCompletenessDebug(value: unknown): boolean {
+  if (!hasTextForCompletenessDebug(value)) return false;
+  const normalized = normalizeProfilePhone(String(value).trim());
+  return normalized != null;
+}
+
+function stripMissingStepItemsForDebug(items: Array<{ field: string; label: string }>): {
+  missingFields: string[];
+  missingLabels: string[];
+} {
+  return {
+    missingFields: items.map((m) => m.field),
+    missingLabels: items.map((m) => m.label),
+  };
+}
+
+function summarizeProfileStepsForDebug(
+  steps: Array<{ id: string; missing: Array<{ field: string; label: string }> }>
+): Record<
+  string,
+  {
+    missingCount: number;
+    missingFields: string[];
+    missingLabels: string[];
+  }
+> {
+  return Object.fromEntries(
+    steps.map((step) => [
+      step.id,
+      {
+        missingCount: step.missing.length,
+        ...stripMissingStepItemsForDebug(step.missing),
+      },
+    ])
+  );
+}
 
 const USER_LOCKED_ORG_FIELDS = new Set(["name"]);
 /** Shared master fields the investor/issuer may change even when already filled.
@@ -983,6 +1060,104 @@ export async function computeOrgProfileCompleteness(
       financials: issuerFinancialsFromYearBlock(year),
     });
 
+    if (PROFILE_COMPLETENESS_DEBUG_ENABLED) {
+      const registeredAddress = pickCodAddress(org.corporate_onboarding_data, "registered");
+      const businessAddress = pickCodAddress(org.corporate_onboarding_data, "business");
+      const contactPerson = asIssuerContactPerson(cod?.contactPerson);
+      const personInCharge = asIssuerPersonInCharge(cod?.personInCharge);
+      const resolvedContact = resolveIssuerProfileContactPerson(contactPerson, personInCharge);
+      const contactEmail = resolveIssuerComrepEmail(contactPerson, personInCharge);
+      const contactPhone = resolveIssuerComrepPhone(contactPerson, personInCharge);
+
+      const mainMissing = completeness.missing.filter((m) => m.step === "company");
+      const mainRequired = [
+        { field: "name", label: PROFILE_LABEL.companyName },
+        { field: "registrationNumber", label: PROFILE_LABEL.companyRegistrationNumber },
+        { field: "dateOfIncorporation", label: PROFILE_LABEL.dateOfIncorporation },
+        { field: "dateOfCommencement", label: PROFILE_LABEL.dateBusinessCommenced },
+        { field: "countryOfIncorporation", label: PROFILE_LABEL.countryOfIncorporation },
+        { field: "scCompanyType", label: PROFILE_LABEL.typeOfCompany },
+        {
+          field: "registeredAddress.line1",
+          label: profileAddressCompletenessLabel("registered", "line1"),
+        },
+        {
+          field: "registeredAddress.state",
+          label: profileAddressCompletenessLabel("registered", "state"),
+        },
+        {
+          field: "registeredAddress.postalCode",
+          label: profileAddressCompletenessLabel("registered", "postcode"),
+        },
+        {
+          field: "businessAddress.line1",
+          label: profileAddressCompletenessLabel("business", "line1"),
+        },
+        {
+          field: "businessAddress.state",
+          label: profileAddressCompletenessLabel("business", "state"),
+        },
+        {
+          field: "businessAddress.postalCode",
+          label: profileAddressCompletenessLabel("business", "postcode"),
+        },
+        { field: "contactPersonName", label: PROFILE_LABEL.fullName },
+        { field: "contactPersonPosition", label: PROFILE_LABEL.position },
+        { field: "contactPersonPhone", label: PROFILE_LABEL.phone },
+        { field: "contactPersonEmail", label: PROFILE_LABEL.personEmail },
+        { field: "companyActivities", label: PROFILE_LABEL.companyActivities },
+        { field: "mainCustomers", label: PROFILE_LABEL.mainCustomers },
+      ];
+
+      const present = {
+        companyNamePresent: hasTextForCompletenessDebug(name),
+        registrationNumberPresent: hasTextForCompletenessDebug(roc),
+        dateOfIncorporationPresent: hasDateForCompletenessDebug(org.date_of_incorporation),
+        dateOfCommencementPresent: hasDateForCompletenessDebug(org.date_of_commencement),
+        countryOfIncorporationPresent: hasTextForCompletenessDebug(org.country_of_incorporation),
+        companyTypePresent: hasTextForCompletenessDebug(org.sc_company_type),
+        registeredAddressLine1Present: hasTextForCompletenessDebug(registeredAddress?.line1),
+        registeredAddressStatePresent: hasTextForCompletenessDebug(registeredAddress?.state),
+        registeredAddressPostalCodePresent: hasRequiredPostcodeValueForCompletenessDebug(
+          registeredAddress?.postalCode,
+          registeredAddress?.state
+        ),
+        businessAddressLine1Present: hasTextForCompletenessDebug(businessAddress?.line1),
+        businessAddressStatePresent: hasTextForCompletenessDebug(businessAddress?.state),
+        businessAddressPostalCodePresent: hasRequiredPostcodeValueForCompletenessDebug(
+          businessAddress?.postalCode,
+          businessAddress?.state
+        ),
+        contactPersonNamePresent: hasTextForCompletenessDebug(resolvedContact.name),
+        contactPersonPositionPresent: hasTextForCompletenessDebug(resolvedContact.position),
+        contactPersonPhonePresent: hasValidPhoneForCompletenessDebug(contactPhone),
+        contactPersonEmailPresent: hasValidEmailForCompletenessDebug(contactEmail),
+        companyActivitiesPresent: hasTextForCompletenessDebug(cod?.aboutYourBusiness?.whatDoesCompanyDo),
+        mainCustomersPresent: hasTextForCompletenessDebug(cod?.aboutYourBusiness?.mainCustomers),
+      };
+
+      const sections = summarizeProfileStepsForDebug(completeness.steps);
+      const { missingFields, missingLabels } = stripMissingStepItemsForDebug(mainMissing);
+
+      logger.info(
+        {
+          portal: "issuer",
+          organizationId,
+          organizationType: completeness.organizationType,
+          percent: completeness.percent,
+          missingCount: completeness.missing.length,
+          sections,
+          mainProfile: {
+            required: mainRequired.map((r) => ({ field: r.field, label: r.label })),
+            present,
+            missingFields,
+            missingLabels,
+          },
+        },
+        `${PROFILE_COMPLETENESS_DEBUG_PREFIX} orgProfileCompleteness`
+      );
+    }
+
     if (PEOPLE_COMPLETENESS_DEBUG_ENABLED) {
       const peopleMissing = completeness.missing.filter((item) => item.step === "shareholders" || item.step === "board");
       const groupedByParty = groupPeopleMissingByParty(peopleMissing).map((g) => ({
@@ -1145,6 +1320,60 @@ export async function computeOrgProfileCompleteness(
       people,
     });
 
+    if (PROFILE_COMPLETENESS_DEBUG_ENABLED) {
+      const mainMissing = completeness.missing.filter((m) => m.step === "identity");
+      const mainRequired = [
+        { field: "name", label: PROFILE_LABEL.companyName },
+        { field: "registrationNumber", label: PROFILE_LABEL.companyRegistrationNumber },
+        { field: "identityPrefix", label: PROFILE_LABEL.identityPrefix },
+        { field: "dateOfIncorporation", label: PROFILE_LABEL.dateOfIncorporation },
+        { field: "countryOfIncorporation", label: PROFILE_LABEL.countryOfIncorporation },
+        { field: "gender", label: PROFILE_LABEL.gender },
+        { field: "businessState", label: PROFILE_ADDRESS_FIELD_LABELS.state },
+        { field: "businessPostalCode", label: PROFILE_ADDRESS_FIELD_LABELS.postcode },
+        { field: "scInvestorCategory", label: PROFILE_LABEL.typeOfInvestor },
+        { field: "isSophisticatedInvestor", label: PROFILE_LABEL.sophisticatedInvestor },
+      ];
+
+      const present = {
+        companyNamePresent: hasTextForCompletenessDebug(org.name),
+        registrationNumberPresent: hasTextForCompletenessDebug(org.registration_number),
+        identityPrefixPresent: hasTextForCompletenessDebug("ROC"),
+        dateOfIncorporationPresent: hasDateForCompletenessDebug(org.date_of_incorporation),
+        countryOfIncorporationPresent: hasTextForCompletenessDebug(org.country_of_incorporation),
+        genderPresent: true, // Corporate investors are explicitly mapped to NOT_APPLICABLE in completeness.
+        businessStatePresent: hasTextForCompletenessDebug(business?.state),
+        businessPostalCodePresent: hasRequiredPostcodeValueForCompletenessDebug(
+          business?.postalCode,
+          business?.state
+        ),
+        scInvestorCategoryPresent: scInvestorCategory != null,
+        isSophisticatedInvestorPresent:
+          org.is_sophisticated_investor === true || org.is_sophisticated_investor === false,
+      };
+
+      const sections = summarizeProfileStepsForDebug(completeness.steps);
+      const { missingFields, missingLabels } = stripMissingStepItemsForDebug(mainMissing);
+
+      logger.info(
+        {
+          portal: "investor",
+          organizationId,
+          organizationType: completeness.organizationType,
+          percent: completeness.percent,
+          missingCount: completeness.missing.length,
+          sections,
+          mainProfile: {
+            required: mainRequired.map((r) => ({ field: r.field, label: r.label })),
+            present,
+            missingFields,
+            missingLabels,
+          },
+        },
+        `${PROFILE_COMPLETENESS_DEBUG_PREFIX} orgProfileCompleteness`
+      );
+    }
+
     if (PEOPLE_COMPLETENESS_DEBUG_ENABLED) {
       const peopleMissing = completeness.missing.filter((item) => item.step === "shareholders" || item.step === "board");
       const groupedByParty = groupPeopleMissingByParty(peopleMissing).map((g) => ({
@@ -1173,7 +1402,7 @@ export async function computeOrgProfileCompleteness(
 
     return completeness;
   }
-  return buildInvestorProfileCompleteness({
+  const completeness = buildInvestorProfileCompleteness({
     organizationType: "PERSONAL",
     personal: {
       name,
@@ -1188,6 +1417,67 @@ export async function computeOrgProfileCompleteness(
       isSophisticatedInvestor: org.is_sophisticated_investor,
     },
   });
+
+  if (PROFILE_COMPLETENESS_DEBUG_ENABLED) {
+    const mainMissing = completeness.missing.filter((m) => m.step === "identity");
+    const mainRequired = [
+      { field: "name", label: PROFILE_LABEL.fullName },
+      { field: "identityPrefix", label: PROFILE_LABEL.identityPrefix },
+      { field: "identityNumber", label: PROFILE_LABEL.identityNumber },
+      { field: "dateOfBirth", label: PROFILE_LABEL.dateOfBirth },
+      { field: "gender", label: PROFILE_LABEL.gender },
+      { field: "state", label: PROFILE_ADDRESS_FIELD_LABELS.state },
+      { field: "postalCode", label: PROFILE_ADDRESS_FIELD_LABELS.postcode },
+      { field: "nationality", label: PROFILE_LABEL.nationality },
+      { field: "scInvestorCategory", label: PROFILE_LABEL.typeOfInvestor },
+      { field: "isSophisticatedInvestor", label: PROFILE_LABEL.sophisticatedInvestor },
+    ];
+
+    const mappedGender = mapStoredGender(org.gender);
+    const identityPrefix =
+      org.document_type?.toUpperCase().includes("PASSPORT") ? "PASSPORT" : "NRIC";
+
+    const present = {
+      namePresent: hasTextForCompletenessDebug(name),
+      identityPrefixPresent: hasTextForCompletenessDebug(identityPrefix),
+      identityNumberPresent: hasTextForCompletenessDebug(org.document_number),
+      dateOfBirthPresent: hasDateForCompletenessDebug(org.date_of_birth),
+      genderPresent: mappedGender != null && mappedGender !== "NOT_APPLICABLE",
+      nationalityPresent: hasTextForCompletenessDebug(org.nationality),
+      addressLine1Present: hasTextForCompletenessDebug(residential?.line1),
+      statePresent: hasTextForCompletenessDebug(residential?.state),
+      postalCodePresent: hasRequiredPostcodeValueForCompletenessDebug(
+        residential?.postalCode,
+        residential?.state
+      ),
+      scInvestorCategoryPresent: scInvestorCategory != null,
+      isSophisticatedInvestorPresent:
+        org.is_sophisticated_investor === true || org.is_sophisticated_investor === false,
+    };
+
+    const sections = summarizeProfileStepsForDebug(completeness.steps);
+    const { missingFields, missingLabels } = stripMissingStepItemsForDebug(mainMissing);
+
+    logger.info(
+      {
+        portal: "investor",
+        organizationId,
+        organizationType: completeness.organizationType,
+        percent: completeness.percent,
+        missingCount: completeness.missing.length,
+        sections,
+        mainProfile: {
+          required: mainRequired.map((r) => ({ field: r.field, label: r.label })),
+          present,
+          missingFields,
+          missingLabels,
+        },
+      },
+      `${PROFILE_COMPLETENESS_DEBUG_PREFIX} orgProfileCompleteness`
+    );
+  }
+
+  return completeness;
 }
 
 function mapStoredGender(value: string | null | undefined): ScGender | null {
