@@ -11,6 +11,7 @@ import {
   buildEnvelopePlanFromTemplate,
   computeSigningEnvelopeProgress,
   findUnsignedSigningAssignmentForRecipient,
+  listSigningDocumentsForRecipient,
   normalizeSigningEmail,
   automaticSigningProgressBadge,
   isRemindableSigningRecipient,
@@ -868,6 +869,16 @@ describe("findUnsignedSigningAssignmentForRecipient", () => {
     expect(findUnsignedSigningAssignmentForRecipient(envelope, "missing")).toBeNull();
   });
 
+  it("lists this recipient's SIGN documents in document order", () => {
+    const listed = listSigningDocumentsForRecipient(envelope, "r2");
+    expect(listed.map((item) => item.document.id)).toEqual(["d1"]);
+    expect(listed[0]?.assignment.recipient_id).toBe("r2");
+  });
+
+  it("returns an empty list when the recipient has no SIGN assignments", () => {
+    expect(listSigningDocumentsForRecipient(envelope, "missing")).toEqual([]);
+  });
+
   it("prefers the requested unsigned document when one recipient signs several", () => {
     const multiDoc: Pick<SigningEnvelopeDto, "documents" | "recipients" | "assignments"> = {
       documents: [
@@ -931,5 +942,71 @@ describe("findUnsignedSigningAssignmentForRecipient", () => {
         "fa"
       )?.document.id
     ).toBe("doa");
+  });
+
+  it("keeps signed documents in the recipient menu list", () => {
+    const listed = listSigningDocumentsForRecipient(
+      {
+        documents: [
+          {
+            id: "doa",
+            name: "Deed of Assignment",
+            description: null,
+            source: "TEMPLATE",
+            template_ref: "deed_of_assignment",
+            order: 1,
+            required: true,
+            status: "PENDING",
+            has_signed_pdf: false,
+          },
+          {
+            id: "fa",
+            name: "Facility Agreement",
+            description: null,
+            source: "TEMPLATE",
+            template_ref: "facility_agreement",
+            order: 2,
+            required: true,
+            status: "COMPLETED",
+            has_signed_pdf: false,
+          },
+        ],
+        assignments: [
+          {
+            id: "a-doa",
+            document_id: "doa",
+            recipient_id: "r1",
+            required: true,
+            action: "SIGN",
+            status: "PENDING",
+            signed_at: null,
+          },
+          {
+            id: "a-fa",
+            document_id: "fa",
+            recipient_id: "r1",
+            required: true,
+            action: "SIGN",
+            status: "SIGNED",
+            signed_at: "2026-09-01T01:00:00.000Z",
+          },
+          {
+            id: "a-view",
+            document_id: "doa",
+            recipient_id: "r1",
+            required: false,
+            action: "VIEW",
+            status: "PENDING",
+            signed_at: null,
+          },
+        ],
+      },
+      "r1"
+    );
+
+    expect(listed.map((item) => [item.document.id, item.assignment.status])).toEqual([
+      ["doa", "PENDING"],
+      ["fa", "SIGNED"],
+    ]);
   });
 });

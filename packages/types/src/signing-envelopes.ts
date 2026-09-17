@@ -981,6 +981,28 @@ export function normalizeSigningEmail(email: string): string {
 /** Query param on `/signing/external/:token` to open a specific unsigned document. */
 export const EXTERNAL_SIGNING_DOCUMENT_QUERY = "document";
 
+export interface RecipientSigningDocument {
+  document: SigningDocumentDto;
+  assignment: SigningAssignmentDto;
+}
+
+/** This recipient's SIGN documents, in document order (signed and unsigned). */
+export function listSigningDocumentsForRecipient(
+  envelope: Pick<SigningEnvelopeDto, "documents" | "assignments">,
+  recipientId: string
+): RecipientSigningDocument[] {
+  const documentById = new Map(envelope.documents.map((document) => [document.id, document]));
+
+  return envelope.assignments
+    .filter((assignment) => assignment.action === "SIGN" && assignment.recipient_id === recipientId)
+    .reduce<RecipientSigningDocument[]>((rows, assignment) => {
+      const document = documentById.get(assignment.document_id);
+      if (document) rows.push({ document, assignment });
+      return rows;
+    }, [])
+    .sort((left, right) => left.document.order - right.document.order);
+}
+
 /** Next unsigned assignment for a recipient (document order, not routing order). */
 export function findUnsignedSigningAssignmentForRecipient(
   envelope: Pick<SigningEnvelopeDto, "documents" | "recipients" | "assignments">,
@@ -990,30 +1012,17 @@ export function findUnsignedSigningAssignmentForRecipient(
   const recipient = envelope.recipients.find((item) => item.id === recipientId);
   if (!recipient) return null;
 
-  const documentById = new Map(envelope.documents.map((document) => [document.id, document]));
-
-  const pendingAssignments = envelope.assignments
-    .filter((assignment) => {
-      if (assignment.action !== "SIGN" || assignment.status === "SIGNED") return false;
-      return assignment.recipient_id === recipientId;
-    })
-    .sort((left, right) => {
-      const leftOrder = documentById.get(left.document_id)?.order ?? 0;
-      const rightOrder = documentById.get(right.document_id)?.order ?? 0;
-      return leftOrder - rightOrder;
-    });
+  const unsigned = listSigningDocumentsForRecipient(envelope, recipientId).filter(
+    (item) => item.assignment.status !== "SIGNED"
+  );
 
   const preferredId = preferredDocumentId?.trim() || null;
-  const assignment =
-    (preferredId
-      ? pendingAssignments.find((item) => item.document_id === preferredId)
-      : undefined) ?? pendingAssignments[0];
-  if (!assignment) return null;
+  const match =
+    (preferredId ? unsigned.find((item) => item.document.id === preferredId) : undefined) ??
+    unsigned[0];
+  if (!match) return null;
 
-  const document = documentById.get(assignment.document_id);
-  if (!document) return null;
-
-  return { document, recipient };
+  return { document: match.document, recipient };
 }
 
 // ---------------------------------------------------------------------------

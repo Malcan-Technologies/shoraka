@@ -133,7 +133,7 @@ Signers complete the flow at `/signing/external/[token]`:
 6. On normal revisit of the signing link: page calls `POST /v1/signing/external/:token/sync-from-provider` (Detail sync only; return never auto-marks SIGNED)
 7. Issuer **Refresh** calls `POST /v1/signing/envelopes/:id/sync-from-provider` (same Detail sync) before refetching envelopes
 8. SigningCloud webhook (when it arrives) runs the same Detail sync path (stores signed PDF when the document is complete)
-9. Continue if more docs remain for that recipient; envelope COMPLETED / VOIDED / DECLINED / EXPIRED → closed package page
+9. Return to the document menu if more docs remain for that recipient; envelope COMPLETED / VOIDED / DECLINED / EXPIRED → closed package page
 
 **Status source of truth:** our DB **assignment** statuses (not document status). Document stays `PENDING` until every required signer on that document is `SIGNED`. Updated from SigningCloud Detail (`signstate`: 0 pending / 1 signed / 2 rejected) on return, revisit, Refresh, and webhook. Webhook alone is not required for progress.
 

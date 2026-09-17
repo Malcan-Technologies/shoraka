@@ -113,6 +113,7 @@ function SigningReturnContent() {
       const hasMoreToSign =
         !data.package_closed &&
         Boolean(findUnsignedSigningAssignmentForRecipient(data.envelope, data.recipient_id));
+      // Send remaining work to the document menu, not the next document in order.
       if (hasMoreToSign && storedToken) {
         router.replace(`/signing/external/${encodeURIComponent(storedToken)}`);
         return;
