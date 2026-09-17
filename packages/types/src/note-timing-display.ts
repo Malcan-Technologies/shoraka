@@ -22,6 +22,9 @@ export const EXPECTED_PERIOD_RETURN_UP_TO_TOOLTIP =
 export const MARKETPLACE_RETURN_RATE_TOOLTIP =
   "Advertised return is the annualised gross rate before the service fee, if the note runs its full tenure. Early settlement pays for fewer days. After the 7-day grace, profit can continue until the invoice-minus-principal ceiling.";
 
+export const PORTFOLIO_NET_RETURN_RATE_TOOLTIP =
+  "This is the annualised net rate after the service fee. Marketplace shows advertised gross p.a. before that fee.";
+
 export const NOTE_TIMING_GRACE_TOOLTIP =
   "The note has reached maturity. If repayment clears during this grace window, profit stays at the maturity date and no late charges apply.";
 

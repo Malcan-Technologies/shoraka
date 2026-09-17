@@ -35,8 +35,8 @@ export function NoteCard({ note }: { note: NoteListItem }) {
           <div>
             <div className="text-muted-foreground">
               {shouldLabelExpectedReturnAsUpTo({ tenureDays: note.tenureDays })
-                ? "Up to"
-                : "Profit rate"}
+                ? "Up to net p.a."
+                : "Net p.a."}
             </div>
             <div className="font-semibold">
               {formatInvestorReturnRatePercent(note.profitRatePercent)}
