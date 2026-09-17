@@ -2446,7 +2446,7 @@ export class RegTankService {
               updateData as unknown as Record<string, unknown>
             ),
             profile_field_sources: asJson(nextSources),
-          } as typeof updateData,
+          } as unknown as typeof updateData,
         });
 
         logger.info(
