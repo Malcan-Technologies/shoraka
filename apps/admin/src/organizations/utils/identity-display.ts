@@ -1,5 +1,25 @@
 import { PROFILE_REQUIRED_EMPTY_LABEL } from "@cashsouk/types";
 
+function formatAdminDocumentType(type: string | null | undefined): string | null {
+  if (!type) return null;
+  const trimmed = type.trim();
+  if (!trimmed) return null;
+
+  const upper = trimmed.toUpperCase();
+  // Keep admin display human-friendly while preserving unknown values safely.
+  switch (upper) {
+    case "DRIVER_LICENSE":
+      return "Driving License";
+    case "NRIC":
+      return "NRIC";
+    case "PASSPORT":
+      return "Passport";
+    default:
+      // Preserve original casing; only normalize the separator.
+      return trimmed.replace(/_/g, " ");
+  }
+}
+
 export function formatAdminIdentityDisplay(params: {
   documentType: string | null;
   documentNumber: string | null;
@@ -8,7 +28,7 @@ export function formatAdminIdentityDisplay(params: {
   identityPrefixValue: string | null;
   identityNumberValue: string | null;
 } {
-  const identityPrefixValue = params.documentType;
+  const identityPrefixValue = formatAdminDocumentType(params.documentType);
 
   const rawNumber = params.documentNumber;
   const identityNumberEmpty =
