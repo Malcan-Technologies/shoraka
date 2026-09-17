@@ -65,7 +65,7 @@ export function isPersonEmailPostCompletionWrite(params: {
   onboardingStatus?: string | null;
   screeningStatus?: string | null;
 }): boolean {
-  if (params.legacyKycApproved) return true;
+  if (params.legacyKycApproved && !hasPersonOnboardingPipeline(params.supplementRoot)) return true;
   if (isCtosPartySupplementApprovalLocked(params.supplementRoot)) return true;
   const kycGroup = getKycGroup(personOnboardingStatus(params));
   const amlGroup = getAmlGroup(personScreeningStatus(params));

@@ -85,6 +85,18 @@ export async function loadIssuerDirectorPool(
 export const AUTHORIZED_REPRESENTATIVE_PROFILE_CHANGED_MESSAGE =
   "An approved issuer representative's Person Email or profile eligibility changed after approval. Request a change to Authorised representatives, then ask the issuer to review and resubmit only that section before creating the signing package.";
 
+export function issuerRepresentativesHaveProfileKeys(
+  snapshot: AuthorizedPartiesSnapshot
+): boolean {
+  return snapshot.parties.some(
+    (party) =>
+      party.entity_kind === "ISSUER" &&
+      party.representatives.some((representative) =>
+        Boolean(representative.person_match_key?.trim())
+      )
+  );
+}
+
 export function approvedIssuerRepresentativesAreCurrent(
   snapshot: AuthorizedPartiesSnapshot,
   pool: IssuerDirectorPoolEntry[]

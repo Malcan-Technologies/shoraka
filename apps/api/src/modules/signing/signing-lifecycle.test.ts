@@ -21,6 +21,14 @@ jest.mock("../applications/service", () => ({
   },
 }));
 
+jest.mock("../applications/authorized-parties", () => {
+  const actual = jest.requireActual("../applications/authorized-parties") as Record<string, unknown>;
+  return {
+    ...actual,
+    loadIssuerDirectorPool: jest.fn(),
+  };
+});
+
 jest.mock("../ekyc/service", () => ({
   resolveSigningKycStatus: jest.fn().mockResolvedValue("VERIFIED"),
   resolveSigningKycStatusMap: jest.fn().mockResolvedValue(new Map()),
@@ -92,6 +100,7 @@ import { getS3ObjectBuffer, putS3ObjectBuffer } from "../../lib/s3/client";
 import { readS3ObjectBytes, confirmLegalImageBytes } from "../../lib/legal-images";
 import { sendEmail } from "../../lib/email/ses-client";
 import { generatedDocumentsService } from "../generated-documents/service";
+import { loadIssuerDirectorPool } from "../applications/authorized-parties";
 import { applicationService } from "../applications/service";
 import { ApplicationLogEventType, ActivityPortal } from "../applications/logs/types";
 import { logApplicationActivity } from "../applications/logs/service";
@@ -103,6 +112,7 @@ import type { SigningEnvelopeWithGraph } from "./mapper";
 
 const logActivity = logApplicationActivity as jest.MockedFunction<typeof logApplicationActivity>;
 const finalizeOffer = applicationService.finalizeOfferAfterEnvelopeCompletion as jest.Mock;
+const loadPool = loadIssuerDirectorPool as jest.MockedFunction<typeof loadIssuerDirectorPool>;
 const getS3 = getS3ObjectBuffer as jest.Mock;
 const generateDocument = generatedDocumentsService.generateDocument as jest.Mock;
 const readLegalImage = readS3ObjectBytes as jest.Mock;
@@ -170,6 +180,7 @@ function approvedIssuerOfferDetails() {
                 email: "signer@example.com",
                 ic_number: "820508105871",
                 capacity: "director",
+                person_match_key: "820508105871",
                 applies_company_seal: true,
               },
             ],
@@ -457,6 +468,14 @@ describe("signing lifecycle", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    loadPool.mockResolvedValue([
+      {
+        matchKey: "820508105871",
+        name: "Ali Bin Abu",
+        email: "signer@example.com",
+        icNumber: "820508105871",
+      },
+    ]);
     delete process.env.ISSUER_URL;
     (prisma.contract.findUnique as jest.Mock).mockResolvedValue({ offer_details: {} });
     (prisma.invoice.findUnique as jest.Mock).mockResolvedValue(null);
@@ -718,6 +737,58 @@ describe("signing lifecycle", () => {
       error: null,
       incrementAttempt: true,
     });
+  });
+
+  it("revalidates approved representative profiles before retrying a draft send", async () => {
+    const envelope = baseEnvelope({
+      status: "DRAFT",
+      sent_at: null,
+      recipients: [recipientRow()],
+    });
+    (prisma.contract.findUnique as jest.Mock).mockResolvedValue({
+      offer_details: approvedIssuerOfferDetails(),
+    });
+    loadPool.mockResolvedValue([
+      {
+        matchKey: "820508105871",
+        name: "Ali Bin Abu",
+        email: "new-person@example.com",
+        icNumber: "820508105871",
+      },
+    ]);
+    const createDocumentContract = jest.fn();
+    const service = createService(
+      {
+        findById: jest.fn().mockResolvedValue(envelope),
+        findApplicationContext: jest.fn().mockResolvedValue({
+          id: "app-1",
+          status: "CONTRACT_SENT",
+          issuer_organization_id: "org-1",
+          contract_id: "contract-1",
+          product_id: "p1",
+          product_version: 1,
+          invoices: [],
+          issuer_organization: { owner_user_id: "issuer-1" },
+          supporting_documents: [],
+        }),
+      },
+      {
+        name: "test",
+        createDocumentContract,
+        getContractDetails: jest.fn(),
+        fetchSignedDocument: jest.fn(),
+        startSignerSession: jest.fn(),
+      }
+    );
+    stubSendPrerequisites(service);
+
+    await expect(
+      service.sendEnvelope("env-1", { userId: "admin-1", portal: "ADMIN" as never })
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      code: "AUTHORIZED_REPRESENTATIVE_PROFILE_CHANGED",
+    });
+    expect(createDocumentContract).not.toHaveBeenCalled();
   });
 
   it("rejects send when a CashSouk automatic email matches a manual signer", async () => {

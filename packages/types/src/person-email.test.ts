@@ -171,6 +171,14 @@ describe("planPersonEmailWrite", () => {
         onboardingStatus: "APPROVED",
       })
     ).toMatchObject({ action: "write", pipelineReset: true, screeningReset: true });
+    expect(
+      planPersonEmailWrite({
+        currentMasterEmail: "old@acme.test",
+        incomingEmail: "new@acme.test",
+        supplementRoot: { email: "old@acme.test", status: "IN_PROGRESS", requestId: "req-live" },
+        legacyKycApproved: true,
+      })
+    ).toMatchObject({ action: "write", pipelineReset: true, screeningReset: true });
   });
 
   it("rejects create/patch writes while WAIT_FOR_APPROVAL even if master email is empty", () => {

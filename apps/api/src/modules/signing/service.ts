@@ -153,6 +153,7 @@ import {
   approvedIssuerRepresentativesAreCurrent,
   assertApprovedIssuerRepresentativesCurrent,
   assertIssuerSealReadyForPackage,
+  issuerRepresentativesHaveProfileKeys,
   loadIssuerDirectorPool,
   type IssuerDirectorPoolEntry,
 } from "../applications/authorized-parties";
@@ -569,6 +570,15 @@ export class SigningService {
       });
     }
     return normalized;
+  }
+
+  private async assertAuthorizedPartyProfilesCurrent(
+    application: SigningApplicationContext,
+    authorizedParties: AuthorizedPartiesSnapshot | null | undefined
+  ): Promise<void> {
+    if (!authorizedParties || !issuerRepresentativesHaveProfileKeys(authorizedParties)) return;
+    const issuerDirectorPool = await loadIssuerDirectorPool(application.issuer_organization_id);
+    assertApprovedIssuerRepresentativesCurrent(authorizedParties, issuerDirectorPool);
   }
 
   private async assertAcceptanceDocumentsReady(
@@ -1174,14 +1184,7 @@ export class SigningService {
 
     const approvedParties =
       getOfferAcceptanceFromOfferDetails(offerDetails)?.authorized_parties ?? null;
-    const hasTrackedIssuerRepresentative = approvedParties?.parties.some(
-      (party) =>
-        party.entity_kind === "ISSUER" &&
-        party.representatives.some((representative) =>
-          Boolean(representative.person_match_key?.trim())
-        )
-    );
-    if (approvedParties && hasTrackedIssuerRepresentative) {
+    if (approvedParties && issuerRepresentativesHaveProfileKeys(approvedParties)) {
       const issuerDirectorPool = await loadIssuerDirectorPool(application.issuer_organization_id);
       if (!approvedIssuerRepresentativesAreCurrent(approvedParties, issuerDirectorPool)) {
         issues.push({
@@ -1604,6 +1607,7 @@ export class SigningService {
     const authorizedParties =
       getOfferAcceptanceFromOfferDetails(sendOfferDetails)?.authorized_parties ??
       getLoAuthorizedPartiesFromAcceptance(getOfferAcceptanceFromOfferDetails(sendOfferDetails));
+    await this.assertAuthorizedPartyProfilesCurrent(application, authorizedParties);
     assertEnvelopeHasRequiredAutomaticRoles(envelope);
     if (envelope.recipients.some((recipient) => recipient.execution_mode === "AUTOMATIC")) {
       await verifyAutomaticAssignmentSnapshots(envelope);
@@ -1699,6 +1703,7 @@ export class SigningService {
     const authorizedParties =
       getOfferAcceptanceFromOfferDetails(sendOfferDetails)?.authorized_parties ??
       getLoAuthorizedPartiesFromAcceptance(getOfferAcceptanceFromOfferDetails(sendOfferDetails));
+    await this.assertAuthorizedPartyProfilesCurrent(application, authorizedParties);
 
     if (envelope.send_phase !== "DELIVERING") {
     for (const document of [...envelope.documents].sort((a, b) => a.order - b.order)) {
