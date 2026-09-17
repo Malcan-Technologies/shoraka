@@ -2,12 +2,11 @@
  * Party-scoped RegTank refresh for later-added People & Access rows.
  * Does not refresh the parent organisation COD, CTOS source-of-truth, or adopt/structure.
  */
-import { OrganizationMemberRole, OrganizationType, Prisma } from "@prisma/client";
+import { OrganizationMemberRole, OrganizationType } from "@prisma/client";
 import {
   collectPartyRegTankRefreshIds,
   isLaterAddedCompanyPerson,
   isPartyRegTankProcessTerminal,
-  mergeCtosPartySupplementDocument,
   partyAmlRefreshIds,
   partyHasRegTankRefreshIds,
   partyKeyMatchesLookup,
@@ -19,9 +18,8 @@ import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
 import { OrganizationService } from "../organization/service";
 import { RegTankAPIClient } from "../regtank/api-client";
-import { isRegTankRateLimited, REGTANK_RATE_LIMITED_CODE } from "../regtank/helpers/regtank-rate-limit";
+import { REGTANK_RATE_LIMITED_CODE } from "../regtank/helpers/regtank-rate-limit";
 import {
-  REFRESH_IN_PROGRESS_CODE,
   runExclusiveOnboardingRefresh,
 } from "../regtank/helpers/regtank-refresh-lock";
 import {
@@ -96,36 +94,6 @@ function findPersonForParty(
       partyKeyMatchesLookup(row.matchKey, partyKey) ||
       (identityNumber != null && partyKeyMatchesLookup(row.matchKey, identityNumber))
   );
-}
-
-function friendlyRateLimitError(): AppError {
-  return new AppError(429, REGTANK_RATE_LIMITED_CODE, PARTY_STATUS_REFRESH_RECENTLY_MESSAGE);
-}
-
-function rethrowControlError(error: unknown): void {
-  if (error instanceof AppError && error.code === REFRESH_IN_PROGRESS_CODE) {
-    throw new AppError(429, REGTANK_RATE_LIMITED_CODE, PARTY_STATUS_REFRESH_RECENTLY_MESSAGE);
-  }
-  if (isRegTankRateLimited(error)) {
-    throw friendlyRateLimitError();
-  }
-}
-
-async function queryStatus(
-  load: () => Promise<unknown>,
-  source: string
-): Promise<{ source: string; body: unknown } | { source: string; failed: true }> {
-  try {
-    const body = await load();
-    return { source, body };
-  } catch (error) {
-    rethrowControlError(error);
-    logger.warn(
-      { source, error: error instanceof Error ? error.message : "provider_error" },
-      "Party RegTank refresh query failed"
-    );
-    return { source, failed: true };
-  }
 }
 
 export async function refreshPartyRegTankStatus(
