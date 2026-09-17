@@ -81,7 +81,7 @@ export type OfferAcceptanceDetails = {
   /** Issuer and guarantor authorised representatives declared at Step 1. */
   authorized_parties?: AuthorizedPartiesSnapshot;
   /**
-   * Contract-LO only: in-progress representatives saved before Documents / LO download.
+   * In-progress representatives saved before Documents / LO download.
    * Cleared when Step 1 submit promotes the payload to `authorized_parties`.
    */
   authorized_parties_draft?: AuthorizedPartiesSnapshot;

@@ -49,7 +49,7 @@ export function createGeneratedDocumentApplicationRouter(): Router {
     try {
       const { id } = applicationIdParamSchema.parse(req.params);
       const { type } = generatedDocumentTypeParamSchema.parse(req.params);
-      const { format } = generatedDocumentFormatQuerySchema.parse(req.query);
+      const { format, invoiceId, contractId } = generatedDocumentFormatQuerySchema.parse(req.query);
       const userId = getUserId(req);
 
       const result = await generatedDocumentsService.generateDocument({
@@ -58,6 +58,8 @@ export function createGeneratedDocumentApplicationRouter(): Router {
         format,
         userId,
         asAdmin: isAdmin(req),
+        invoiceId,
+        contractId,
       });
 
       res.setHeader("Content-Type", result.contentType);
@@ -83,7 +85,7 @@ export function createAdminGeneratedDocumentApplicationRouter(): Router {
     try {
       const { id } = applicationIdParamSchema.parse(req.params);
       const { type } = generatedDocumentTypeParamSchema.parse(req.params);
-      const { format } = generatedDocumentFormatQuerySchema.parse(req.query);
+      const { format, invoiceId, contractId } = generatedDocumentFormatQuerySchema.parse(req.query);
       const userId = getUserId(req);
 
       const result = await generatedDocumentsService.generateDocument({
@@ -92,6 +94,8 @@ export function createAdminGeneratedDocumentApplicationRouter(): Router {
         format,
         userId,
         asAdmin: true,
+        invoiceId,
+        contractId,
       });
 
       res.setHeader("Content-Type", result.contentType);

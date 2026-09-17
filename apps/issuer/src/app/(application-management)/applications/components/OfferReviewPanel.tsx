@@ -1084,36 +1084,43 @@ export function OfferReviewPanel({
       toast.error(ISSUER_SEAL_APPLIER_REQUIRED_MESSAGE);
       return;
     }
-    if (type === "contract") {
-      const authorizedPartiesPayload = buildAuthorizedPartiesSubmitPayload({
-        directors: issuerDirectors,
-        selectedMatchKeys: issuerRepMatchKeys,
-        guarantors: guarantorRows,
-        drafts: guarantorDrafts,
-        sealApplierMatchKey: requiresIssuerSeal ? sealApplierMatchKey : null,
-      });
-      setIsSavingPartyDraft(true);
-      try {
-        const response = await apiClient.saveContractAuthorizedPartiesDraft(applicationId, {
-          authorized_parties: authorizedPartiesPayload,
-        });
-        if (!response?.success) {
-          const err = getApiErrorDetails(
-            response ?? { success: false },
-            "Could not save authorised representatives"
-          );
-          toast.error(err.message);
-          return;
-        }
-        await invalidateOfferAcceptanceQueries();
-      } catch (error) {
-        toast.error(
-          error instanceof Error ? error.message : "Could not save authorised representatives"
+    if (type === "invoice" && !invoice?.id) {
+      toast.error("Invoice ID is missing. Please refresh and try again.");
+      return;
+    }
+    const authorizedPartiesPayload = buildAuthorizedPartiesSubmitPayload({
+      directors: issuerDirectors,
+      selectedMatchKeys: issuerRepMatchKeys,
+      guarantors: guarantorRows,
+      drafts: guarantorDrafts,
+      sealApplierMatchKey: requiresIssuerSeal ? sealApplierMatchKey : null,
+    });
+    setIsSavingPartyDraft(true);
+    try {
+      const response =
+        type === "contract"
+          ? await apiClient.saveContractAuthorizedPartiesDraft(applicationId, {
+              authorized_parties: authorizedPartiesPayload,
+            })
+          : await apiClient.saveInvoiceAuthorizedPartiesDraft(applicationId, invoice!.id, {
+              authorized_parties: authorizedPartiesPayload,
+            });
+      if (!response?.success) {
+        const err = getApiErrorDetails(
+          response ?? { success: false },
+          "Could not save authorised representatives"
         );
+        toast.error(err.message);
         return;
-      } finally {
-        setIsSavingPartyDraft(false);
       }
+      await invalidateOfferAcceptanceQueries();
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Could not save authorised representatives"
+      );
+      return;
+    } finally {
+      setIsSavingPartyDraft(false);
     }
     // Unpin and set the viewed step here. After the first Continue, peopleStepConfirmed
     // is already true so currentSigningStepId does not change — the auto-advance effect
@@ -1130,6 +1137,7 @@ export function OfferReviewPanel({
     guarantorRows,
     hasPostDocs,
     invalidateOfferAcceptanceQueries,
+    invoice?.id,
     issuerDirectors,
     issuerRepMatchKeys,
     requiresIssuerSeal,
@@ -1828,6 +1836,7 @@ export function OfferReviewPanel({
                   isAcceptanceChangeMode={isAcceptanceChangesRequested}
                   amendmentRemarks={acceptanceChangeRemarks}
                   flaggedItems={acceptanceFlaggedItems}
+                  generatedDocumentInvoiceId={type === "invoice" ? invoice?.id : undefined}
                 />
               ) : null}
               {!packageSent && !isLoadingFrozenProductWorkflow && !postDocsReady ? (

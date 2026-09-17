@@ -283,7 +283,7 @@ Typical: invoice on a facility whose contract envelope is already complete (`res
 
 - **Card + description** (everyone named must sign) — Representatives.
 - **Changes requested banner** — `CHANGES_REQUESTED` with flagged parties/docs — `AcceptanceDocumentChangesRequestedBanner` — Representatives / Documents.
-- **Issuer directors card** — select director (name/email/IC read-only from profile); Add director / Remove; empty “No directors…”; loading “Loading directors…”; highlighted + remark when flagged; read-only if package sent, not Step-1-editable, or changes requested and this list not flagged — `saveContractAuthorizedPartiesDraft` on Continue (contract only) — Representatives.
+- **Issuer directors card** — select director (name/email/IC read-only from profile); Add director / Remove; empty “No directors…”; loading “Loading directors…”; highlighted + remark when flagged; read-only if package sent, not Step-1-editable, or changes requested and this list not flagged — `saveContractAuthorizedPartiesDraft` / `saveInvoiceAuthorizedPartiesDraft` on Continue — Representatives.
 - **Corporate guarantors** — name, email, IC; Add/Remove representative — Representatives.
 - **Individual guarantors** — name, IC, email from application (display; no edit handler) — Representatives.
 - **Continue** — has post-docs and not people-only resubmit; gates `areIssuerDirectorSelectionsReady` + `areGuarantorPartiesReady` — Documents.

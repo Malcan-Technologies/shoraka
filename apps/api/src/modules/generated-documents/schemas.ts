@@ -7,6 +7,8 @@ export const generatedDocumentTypeParamSchema = z.object({
 
 export const generatedDocumentFormatQuerySchema = z.object({
   format: z.enum(["pdf", "docx"]).optional().default("pdf"),
+  invoiceId: z.string().cuid().optional(),
+  contractId: z.string().cuid().optional(),
 });
 
 export const generatedDocumentTypesQuerySchema = z.object({

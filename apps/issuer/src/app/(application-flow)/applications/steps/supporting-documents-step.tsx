@@ -341,6 +341,7 @@ export function SupportingDocumentsStep({
   isAcceptanceChangeMode = false,
   /** sideBySide = application flow page; stacked = narrow hosts (e.g. Review Offer modal). */
   documentRowLayout = "sideBySide",
+  generatedDocumentInvoiceId,
 }: {
   applicationId: string;
   stepConfig?: WorkflowSupportingStepConfig;
@@ -353,6 +354,8 @@ export function SupportingDocumentsStep({
   flaggedSections?: Set<string>;
   flaggedItems?: Map<string, Set<string>>;
   documentRowLayout?: "sideBySide" | "stacked";
+  /** Invoice offer id so generated Letter of Offer reads that invoice's representatives. */
+  generatedDocumentInvoiceId?: string | null;
 }) {
   const isStackedLayout = documentRowLayout === "stacked";
   const devTools = useDevTools();
@@ -534,6 +537,7 @@ export function SupportingDocumentsStep({
           applicationId,
           typeKey: generatedType,
           getAccessToken,
+          invoiceId: generatedDocumentInvoiceId,
         });
         return;
       }
@@ -562,7 +566,7 @@ export function SupportingDocumentsStep({
         toast.error("Could not download template");
       }
     },
-    [applicationId, getAccessToken]
+    [applicationId, generatedDocumentInvoiceId, getAccessToken]
   );
 
   const handleDownloadUploadedFile = React.useCallback(

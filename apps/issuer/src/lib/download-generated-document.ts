@@ -13,6 +13,7 @@ export async function downloadGeneratedDocument(input: {
   typeKey: string;
   getAccessToken: () => Promise<string | null>;
   format?: "pdf" | "docx";
+  invoiceId?: string | null;
 }): Promise<boolean> {
   const token = await input.getAccessToken();
   if (!token) {
@@ -21,9 +22,12 @@ export async function downloadGeneratedDocument(input: {
   }
 
   const format = input.format ?? "pdf";
+  const params = new URLSearchParams({ format });
+  const invoiceId = input.invoiceId?.trim();
+  if (invoiceId) params.set("invoiceId", invoiceId);
   const url = `${API_URL}/v1/applications/${input.applicationId}/generated-documents/${encodeURIComponent(
     input.typeKey
-  )}?format=${format}`;
+  )}?${params.toString()}`;
 
   try {
     const resp = await fetch(url, {

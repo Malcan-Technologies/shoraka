@@ -493,6 +493,37 @@ describe("GeneratedDocumentsService.generateDocument", () => {
     );
   });
 
+  it("rejects invoice_only LO when authorised representatives are missing on the invoice", async () => {
+    applicationRepository.findById.mockResolvedValue({
+      ...baseApplication,
+      financing_structure: { structure_type: "invoice_only" },
+      invoices: [
+        {
+          id: "inv_1",
+          display_reference: "INV-ARF-202608-0N5",
+          offer_details: {
+            offered_amount: 36000,
+            sent_at: "2026-08-20T00:00:00.000Z",
+            offer_acceptance: { status: "PENDING_ISSUER" },
+          },
+        },
+      ],
+    } as never);
+
+    await expect(
+      service.generateDocument({
+        applicationId,
+        typeKey: "arf_contract_facility_lo",
+        format: "pdf",
+        userId,
+        invoiceId: "inv_1",
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      code: "GENERATED_DOCUMENT_DATA_INCOMPLETE",
+    });
+  });
+
   it("rejects invoice_only when the invoice offer is missing", async () => {
     applicationRepository.findById.mockResolvedValue({
       ...baseApplication,

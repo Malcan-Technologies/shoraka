@@ -28,6 +28,30 @@ describe("downloadGeneratedDocument", () => {
     );
   });
 
+  it("includes invoiceId when downloading an invoice Letter of Offer", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      json: async () => ({
+        error: { message: "Letter of Offer cannot be generated." },
+      }),
+    }) as typeof fetch;
+
+    const ok = await downloadGeneratedDocument({
+      applicationId: "app_1",
+      typeKey: "arf_contract_facility_lo",
+      getAccessToken: async () => "token",
+      invoiceId: "inv_1",
+    });
+
+    expect(ok).toBe(false);
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "/v1/applications/app_1/generated-documents/arf_contract_facility_lo?format=pdf&invoiceId=inv_1"
+      ),
+      expect.objectContaining({ headers: { Authorization: "Bearer token" } })
+    );
+  });
+
   it("returns false when not authenticated", async () => {
     const fetchMock = jest.fn();
     global.fetch = fetchMock as typeof fetch;

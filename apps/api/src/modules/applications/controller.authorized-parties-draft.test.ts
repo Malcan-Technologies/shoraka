@@ -1,5 +1,5 @@
 /**
- * POST /v1/applications/:id/offers/contracts/acceptance/authorized-parties-draft
+ * POST authorised-parties drafts before Letter of Offer download.
  */
 
 import request from "supertest";
@@ -18,6 +18,7 @@ jest.mock("../../lib/auth/middleware", () => ({
 }));
 
 const APP_ID = "clh8x7y6z5w4v3u2t1s0r9q";
+const INVOICE_ID = "clh8x7y6z5w4v3u2t1s0in1";
 const BODY = {
   authorized_parties: {
     parties: [
@@ -38,33 +39,38 @@ const BODY = {
   },
 };
 
+function mountApp(): express.Application {
+  const app = express();
+  app.use(express.json());
+  app.use("/v1/applications", createApplicationRouter());
+  app.use(
+    (
+      err: Error & { statusCode?: number; code?: string },
+      _req: Request,
+      res: Response,
+      _next: NextFunction
+    ) => {
+      if (err instanceof ZodError) {
+        res.status(400).json({
+          success: false,
+          error: { code: "VALIDATION_ERROR", message: err.message },
+        });
+        return;
+      }
+      res.status(err.statusCode || 500).json({
+        success: false,
+        error: { code: err.code ?? "ERROR", message: err.message },
+      });
+    }
+  );
+  return app;
+}
+
 describe("POST contract authorised-parties draft", () => {
   let app: express.Application;
 
   beforeEach(() => {
-    app = express();
-    app.use(express.json());
-    app.use("/v1/applications", createApplicationRouter());
-    app.use(
-      (
-        err: Error & { statusCode?: number; code?: string },
-        _req: Request,
-        res: Response,
-        _next: NextFunction
-      ) => {
-        if (err instanceof ZodError) {
-          res.status(400).json({
-            success: false,
-            error: { code: "VALIDATION_ERROR", message: err.message },
-          });
-          return;
-        }
-        res.status(err.statusCode || 500).json({
-          success: false,
-          error: { code: err.code ?? "ERROR", message: err.message },
-        });
-      }
-    );
+    app = mountApp();
     jest.clearAllMocks();
   });
 
@@ -101,5 +107,36 @@ describe("POST contract authorised-parties draft", () => {
 
     expect(response.status).toBe(400);
     expect(response.body.error.code).toBe("INVALID_STATE");
+  });
+});
+
+describe("POST invoice authorised-parties draft", () => {
+  let app: express.Application;
+
+  beforeEach(() => {
+    app = mountApp();
+    jest.clearAllMocks();
+  });
+
+  it("saves the draft without calling final acceptance submit", async () => {
+    (applicationService.saveInvoiceAuthorizedPartiesDraft as jest.Mock).mockResolvedValue({
+      id: APP_ID,
+    });
+
+    const response = await request(app)
+      .post(
+        `/v1/applications/${APP_ID}/offers/invoices/${INVOICE_ID}/acceptance/authorized-parties-draft`
+      )
+      .send(BODY);
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+    expect(applicationService.saveInvoiceAuthorizedPartiesDraft).toHaveBeenCalledWith(
+      APP_ID,
+      INVOICE_ID,
+      "user-issuer-1",
+      BODY.authorized_parties
+    );
+    expect(applicationService.submitInvoiceOfferAcceptance).not.toHaveBeenCalled();
   });
 });

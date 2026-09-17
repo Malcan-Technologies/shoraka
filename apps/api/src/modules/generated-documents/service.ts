@@ -497,7 +497,7 @@ export class GeneratedDocumentsService {
     const target = this.resolveOfferDocumentTarget(
       application,
       contract,
-      invoiceOnly ? null : contractId,
+      resolvedInvoiceId ? null : invoiceOnly ? null : contractId,
       resolvedInvoiceId
     );
 

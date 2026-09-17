@@ -2704,10 +2704,6 @@ export class ApplicationService {
     );
   }
 
-  /**
-   * Persist authorised-representative drafts on a contract offer without changing
-   * acceptance status. Required before Letter of Offer download.
-   */
   private assertFacilityOfferApplication(application: { financing_structure?: unknown }): void {
     if (isInvoiceOnlyFinancingStructure(application.financing_structure)) {
       throw new AppError(
@@ -2716,6 +2712,78 @@ export class ApplicationService {
         "Standalone invoice applications do not have facility offers."
       );
     }
+  }
+
+  private async requireOfferAcceptanceWorkflow(application: Application) {
+    const workflow = await this.getProductWorkflowForApplication(application);
+    if (!workflowUsesOfferAcceptanceFlow(workflow)) {
+      throw new AppError(
+        400,
+        "INVALID_STATE",
+        "This product does not use the offer acceptance flow."
+      );
+    }
+    return workflow;
+  }
+
+  private async stampAuthorizedPartiesDraftForApplication(
+    application: Application,
+    userId: string,
+    authorizedPartiesPayload: AuthorizedPartiesSubmitPayload,
+    workflow: unknown
+  ): Promise<{
+    draft: AuthorizedPartiesSnapshot;
+    guarantors: ReturnType<typeof applicationGuarantorsForParties>;
+  }> {
+    const directorPool = await loadIssuerDirectorPool(application.issuer_organization_id);
+    const guarantors = applicationGuarantorsForParties(
+      (application as { application_guarantors?: unknown }).application_guarantors
+    );
+    await assertAuthorizedPartiesForOffer(
+      authorizedPartiesPayload.parties,
+      directorPool,
+      guarantors,
+      { issuerOrganizationId: application.issuer_organization_id, workflow }
+    );
+    return {
+      draft: stampAuthorizedPartiesSnapshot({
+        parties: authorizedPartiesPayload.parties,
+        submittedByUserId: userId,
+        submittedAt: new Date().toISOString(),
+      }),
+      guarantors,
+    };
+  }
+
+  private async assertAuthorizedPartiesDraftMaySave(
+    tx: Prisma.TransactionClient,
+    applicationId: string,
+    acceptance: ReturnType<typeof getOfferAcceptanceFromOfferDetails>,
+    draft: AuthorizedPartiesSnapshot,
+    guarantors: ReturnType<typeof applicationGuarantorsForParties>
+  ): Promise<void> {
+    if (!offerAcceptanceIsStep1Editable(acceptance?.status)) {
+      throw new AppError(
+        400,
+        "INVALID_STATE",
+        "Offer acceptance has already been submitted or is not editable."
+      );
+    }
+    assertAcceptanceDeadlineOpen(acceptance);
+    if (acceptance?.status !== "CHANGES_REQUESTED") return;
+    const partyReviewItems = await tx.applicationReviewItem.findMany({
+      where: {
+        application_id: applicationId,
+        item_type: AUTHORIZED_REPRESENTATIVES_ITEM_TYPE,
+      },
+      select: { item_type: true, item_id: true, status: true },
+    });
+    assertUnflaggedAuthorizedPartiesUnchanged(
+      acceptance.authorized_parties,
+      draft.parties,
+      collectFlaggedAuthorizedRepresentativeItemIds(partyReviewItems),
+      guarantors
+    );
   }
 
   async saveContractAuthorizedPartiesDraft(
@@ -2732,32 +2800,13 @@ export class ApplicationService {
     if (!application.contract_id) {
       throw new AppError(400, "INVALID_STATE", "Application has no facility");
     }
-    const workflow = await this.getProductWorkflowForApplication(application);
-    if (!workflowUsesOfferAcceptanceFlow(workflow)) {
-      throw new AppError(
-        400,
-        "INVALID_STATE",
-        "This product does not use the offer acceptance flow."
-      );
-    }
-
-    const directorPool = await loadIssuerDirectorPool(application.issuer_organization_id);
-    const guarantors = applicationGuarantorsForParties(
-      (application as { application_guarantors?: unknown }).application_guarantors
+    const workflow = await this.requireOfferAcceptanceWorkflow(application);
+    const { draft, guarantors } = await this.stampAuthorizedPartiesDraftForApplication(
+      application,
+      userId,
+      authorizedPartiesPayload,
+      workflow
     );
-    await assertAuthorizedPartiesForOffer(
-      authorizedPartiesPayload.parties,
-      directorPool,
-      guarantors,
-      { issuerOrganizationId: application.issuer_organization_id, workflow }
-    );
-
-    const now = new Date().toISOString();
-    const draft = stampAuthorizedPartiesSnapshot({
-      parties: authorizedPartiesPayload.parties,
-      submittedByUserId: userId,
-      submittedAt: now,
-    });
     const contractId = application.contract_id;
 
     await prisma.$transaction(async (tx) => {
@@ -2773,35 +2822,84 @@ export class ApplicationService {
         throw new AppError(400, "INVALID_STATE", "Facility has no offer details");
       }
       const acceptance = getOfferAcceptanceFromOfferDetails(offer);
-      if (!offerAcceptanceIsStep1Editable(acceptance?.status)) {
-        throw new AppError(
-          400,
-          "INVALID_STATE",
-          "Offer acceptance has already been submitted or is not editable."
-        );
-      }
-      assertAcceptanceDeadlineOpen(acceptance);
-      if (acceptance?.status === "CHANGES_REQUESTED") {
-        const partyReviewItems = await tx.applicationReviewItem.findMany({
-          where: {
-            application_id: applicationId,
-            item_type: AUTHORIZED_REPRESENTATIVES_ITEM_TYPE,
-          },
-          select: { item_type: true, item_id: true, status: true },
-        });
-        assertUnflaggedAuthorizedPartiesUnchanged(
-          acceptance.authorized_parties,
-          draft.parties,
-          collectFlaggedAuthorizedRepresentativeItemIds(partyReviewItems),
-          guarantors
-        );
-      }
+      await this.assertAuthorizedPartiesDraftMaySave(
+        tx,
+        applicationId,
+        acceptance,
+        draft,
+        guarantors
+      );
       const updatedOffer = patchOfferAcceptance(offer, {
         status: acceptance?.status ?? "PENDING_ISSUER",
         authorized_parties_draft: draft,
       });
       await tx.contract.update({
         where: { id: contractId },
+        data: { offer_details: updatedOffer as Prisma.InputJsonValue },
+      });
+    });
+
+    return this.repository.findById(applicationId) as Promise<Application>;
+  }
+
+  async saveInvoiceAuthorizedPartiesDraft(
+    applicationId: string,
+    invoiceId: string,
+    userId: string,
+    authorizedPartiesPayload: AuthorizedPartiesSubmitPayload
+  ): Promise<Application> {
+    await this.verifyApplicationAccess(applicationId, userId);
+    const application = await this.repository.findById(applicationId);
+    if (!application) {
+      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    }
+    const invoices =
+      (application as { invoices?: { id: string; contract_id?: string | null }[] }).invoices ?? [];
+    const invoice = invoices.find((item) => item.id === invoiceId);
+    if (!invoice) {
+      throw new AppError(404, "NOT_FOUND", "Invoice not found");
+    }
+    if (invoice.contract_id) {
+      throw new AppError(
+        400,
+        "CONTRACT_LINKED_INVOICE_NO_PACKAGE",
+        "Contract-linked invoice offers do not use the offer acceptance flow."
+      );
+    }
+    const workflow = await this.requireOfferAcceptanceWorkflow(application);
+    const { draft, guarantors } = await this.stampAuthorizedPartiesDraftForApplication(
+      application,
+      userId,
+      authorizedPartiesPayload,
+      workflow
+    );
+
+    await prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<
+        { status: string; offer_details: Prisma.JsonValue | null }[]
+      >`SELECT status, offer_details FROM invoices WHERE id = ${invoiceId} AND application_id = ${applicationId} FOR UPDATE`;
+      const row = locked[0];
+      if (!row || row.status !== "OFFER_SENT") {
+        throw new AppError(400, "INVALID_STATE", "No pending invoice offer to update");
+      }
+      const offer = (row.offer_details as Record<string, unknown> | null) ?? null;
+      if (!offer) {
+        throw new AppError(400, "INVALID_STATE", "Invoice has no offer details");
+      }
+      const acceptance = getOfferAcceptanceFromOfferDetails(offer);
+      await this.assertAuthorizedPartiesDraftMaySave(
+        tx,
+        applicationId,
+        acceptance,
+        draft,
+        guarantors
+      );
+      const updatedOffer = patchOfferAcceptance(offer, {
+        status: acceptance?.status ?? "PENDING_ISSUER",
+        authorized_parties_draft: draft,
+      });
+      await tx.invoice.update({
+        where: { id: invoiceId },
         data: { offer_details: updatedOffer as Prisma.InputJsonValue },
       });
     });
@@ -3079,6 +3177,7 @@ export class ApplicationService {
           productVersion,
         }),
         authorized_parties: authorizedParties,
+        authorized_parties_draft: null,
         submitted_at: now,
         reviewed_at: nextStatus === "APPROVED_FOR_SIGNING" ? now : null,
         reviewed_by_user_id: nextStatus === "APPROVED_FOR_SIGNING" ? userId : null,

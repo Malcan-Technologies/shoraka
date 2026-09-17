@@ -536,6 +536,26 @@ export function createApplicationRouter(): Router {
     }
   );
   router.post(
+    "/:id/offers/invoices/:invoiceId/acceptance/authorized-parties-draft",
+    requireAuth,
+    async (req, res, next) => {
+      try {
+        const { id, invoiceId } = invoiceOfferParamsSchema.parse(req.params);
+        const { authorized_parties } = submitOfferAcceptanceBodySchema.parse(req.body ?? {});
+        const userId = getUserId(req);
+        const data = await applicationService.saveInvoiceAuthorizedPartiesDraft(
+          id,
+          invoiceId,
+          userId,
+          authorized_parties
+        );
+        res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
+      } catch (e) {
+        next(e);
+      }
+    }
+  );
+  router.post(
     "/:id/offers/invoices/:invoiceId/acceptance",
     requireAuth,
     async (req, res, next) => {
