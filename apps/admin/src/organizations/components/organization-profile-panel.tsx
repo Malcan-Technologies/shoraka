@@ -305,6 +305,13 @@ export function OrganizationProfilePanel({
     documentNumber: org.documentNumber,
     profileFieldSources: org.profileFieldSources,
   });
+
+  const isRegTankLockedDateOfBirth =
+    org.profileFieldSources?.dateOfBirth?.source === "REGTANK" && Boolean(org.dateOfBirth);
+  const isRegTankLockedGender =
+    org.profileFieldSources?.gender?.source === "REGTANK" && Boolean(org.gender);
+  const isRegTankLockedNationality =
+    org.profileFieldSources?.nationality?.source === "REGTANK" && Boolean(org.nationality);
   const aboutActivitiesRequired = isAboutYourBusinessFieldRequired("whatDoesCompanyDo");
   const aboutCustomersRequired = isAboutYourBusinessFieldRequired("mainCustomers");
   const companyTypeLabel = displayScCompanyTypeLabel(org.scCompanyType, basic?.entityType);
@@ -927,6 +934,7 @@ export function OrganizationProfilePanel({
                     label="Gender"
                     value={draft.gender}
                     onChange={(gender) => setDraft((current) => ({ ...current, gender }))}
+                    disabled={isRegTankLockedGender}
                     options={SC_GENDERS.filter(
                       (value) => org.type === "COMPANY" || value !== "NOT_APPLICABLE"
                     ).map((value) => ({ value, label: SC_GENDER_LABELS[value] }))}
@@ -936,11 +944,13 @@ export function OrganizationProfilePanel({
                     value={draft.dateOfBirth}
                     onChange={(dateOfBirth) => setDraft((current) => ({ ...current, dateOfBirth }))}
                     required={requiredFieldKeys.has("dateOfBirth")}
+                    disabled={isRegTankLockedDateOfBirth}
                   />
                   <EditableField
                     label={PROFILE_LABEL.nationality}
                     value={draft.nationality}
                     onChange={(nationality) => setDraft((current) => ({ ...current, nationality }))}
+                    disabled={isRegTankLockedNationality}
                   />
                   <ReadField label="Country" value={org.country} />
                 </>

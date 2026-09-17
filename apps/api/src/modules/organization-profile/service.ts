@@ -185,6 +185,7 @@ const USER_OVERWRITE_ORG_FIELDS = new Set([
   "dateOfBirth",
   "gender",
   "nationality",
+  "identityNumber",
 ]);
 /** Verified identity fields stay locked once filled. ComRep collection fields may be corrected. */
 const USER_LOCKED_PARTY_FIELDS = new Set([
