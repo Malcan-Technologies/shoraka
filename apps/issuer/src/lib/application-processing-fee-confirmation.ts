@@ -308,6 +308,40 @@ export function deriveProcessingFeePayStepModel(input: {
   };
 }
 
+/** Idempotent create/load is safe; skip it only while a specific fee is being confirmed. */
+export function shouldLoadProcessingFeeOrder(
+  resumeFeeId: string | null | undefined
+): boolean {
+  return !resumeFeeId;
+}
+
+export function resolveProcessingFeeCheckoutOrder<T>(input: {
+  resumeFeeId?: string | null;
+  savedFee?: T | null;
+  liveOrder?: T | null;
+}): T | null {
+  if (input.resumeFeeId) return input.savedFee ?? null;
+  return input.liveOrder ?? null;
+}
+
+export function isProcessingFeePayBlockedOnLiveOrder(input: {
+  resumeFeeId?: string | null;
+  liveOrder?: unknown;
+}): boolean {
+  return !input.resumeFeeId && input.liveOrder == null;
+}
+
+export function isProcessingFeeAmountLoading(input: {
+  resumeFeeId?: string | null;
+  liveOrder?: unknown;
+  isOrderLoading: boolean;
+  payState: ProcessingFeePayStepState;
+}): boolean {
+  if (input.payState !== "ready-to-pay") return false;
+  if (input.resumeFeeId) return false;
+  return input.liveOrder == null && input.isOrderLoading;
+}
+
 export type ProcessingFeeReturnCloseAction = "retry-payment" | "leave-for-now";
 
 export function resolveProcessingFeeReturnDestination(input: {
@@ -398,6 +432,23 @@ export function clearProcessingFeeAwaitingConfirmation(
     ...pending,
     awaitingConfirmation: false,
   };
+}
+
+/** Clear a checkout that was marked in-flight but abandoned (modal dismiss or thrown open). */
+export function releaseAbandonedProcessingFeeCheckout(
+  pending: ProcessingFeePendingConfirmation | null | undefined,
+  applicationId: string,
+  markedFeeId: string | null
+): ProcessingFeePendingConfirmation | null {
+  if (
+    !pending ||
+    !markedFeeId ||
+    pending.applicationId !== applicationId ||
+    pending.feeId !== markedFeeId
+  ) {
+    return pending ?? null;
+  }
+  return clearProcessingFeeAwaitingConfirmation(pending);
 }
 
 export function isProcessingFeeAwaitingConfirmation(

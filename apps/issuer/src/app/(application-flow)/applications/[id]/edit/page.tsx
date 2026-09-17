@@ -2078,7 +2078,7 @@ function EditApplicationPageBody() {
         <div className="max-w-7xl mx-auto w-full px-2 sm:px-4 pt-4 sm:pt-6 relative">
           {useWizardContentShell ? (
             <ApplicationFlowBlockedStepSkeleton />
-          ) : isProcessingFeeFlow ? (
+          ) : isPostFeeReturnFlow ? (
             <ApplicationFlowBlockedStepSkeleton />
           ) : (
             <>

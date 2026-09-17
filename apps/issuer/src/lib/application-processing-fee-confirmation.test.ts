@@ -12,17 +12,22 @@ import {
   deriveProcessingFeePayStepModel,
   deriveProcessingFeeReturnDialogView,
   isInFlightProcessingFeeStatus,
+  isProcessingFeeAmountLoading,
   isProcessingFeeAwaitingConfirmation,
   isProcessingFeeConfirmDelayed,
+  isProcessingFeePayBlockedOnLiveOrder,
   isRetryableUnpaidProcessingFeeStatus,
   isTerminalProcessingFeeStatus,
   markProcessingFeeAwaitingConfirmation,
   nextProcessingFeeReturnPinState,
+  releaseAbandonedProcessingFeeCheckout,
   processingFeeConfirmPollIntervalMs,
   processingFeeConfirmQueryRefresh,
   resolvePendingProcessingFeeResumeFeeId,
+  resolveProcessingFeeCheckoutOrder,
   resolveProcessingFeeReturnDestination,
   resolveProcessingFeeReturnIds,
+  shouldLoadProcessingFeeOrder,
   shouldReconcileProcessingFeeDetail,
 } from "./application-processing-fee-confirmation";
 
@@ -399,6 +404,225 @@ describe("processing fee pay step and navigation safety", () => {
     expect(
       nextProcessingFeeReturnPinState(dismissed, null, "app_1", pending.feeId ?? null)
     ).toEqual(dismissed);
+  });
+
+  it("clears awaiting confirmation for an abandoned checkout of the same CREATED order", () => {
+    const pending = markProcessingFeeAwaitingConfirmation(
+      {
+        applicationId: "app_1",
+        returnTo: "/applications/app_1/edit?continue=processingFee",
+        declarationsSaved: true,
+      },
+      "fee_1"
+    );
+
+    const released = releaseAbandonedProcessingFeeCheckout(pending, "app_1", "fee_1");
+    expect(released?.awaitingConfirmation).toBe(false);
+    expect(released?.feeId).toBe("fee_1");
+    expect(
+      deriveProcessingFeePayStepModel({
+        status: "CREATED",
+        awaitingConfirmation: released?.awaitingConfirmation,
+      })
+    ).toMatchObject({ state: "ready-to-pay", showPayCta: true, ctaLabel: "Pay with FPX" });
+
+    expect(releaseAbandonedProcessingFeeCheckout(pending, "app_1", "fee_other")).toBe(pending);
+    expect(releaseAbandonedProcessingFeeCheckout(pending, "app_2", "fee_1")).toBe(pending);
+    expect(releaseAbandonedProcessingFeeCheckout(null, "app_1", "fee_1")).toBeNull();
+  });
+
+  it("restores the pay step after retry without treating continue=processingFee as an overlay", () => {
+    const retryTo = resolveProcessingFeeReturnDestination({
+      action: "retry-payment",
+      applicationId: "app_1",
+    });
+    expect(retryTo).toBe("/applications/app_1/edit?continue=processingFee");
+    expect(retryTo).not.toMatch(/processingFeeReturn/);
+    expect(
+      resolveProcessingFeeReturnDestination({
+        action: "leave-for-now",
+        applicationId: "app_1",
+      })
+    ).toBe(PROCESSING_FEE_LEAVE_FOR_NOW_PATH);
+
+    const afterUnpaidRetry = clearProcessingFeeAwaitingConfirmation(
+      markProcessingFeeAwaitingConfirmation(
+        {
+          applicationId: "app_1",
+          returnTo: retryTo,
+          declarationsSaved: true,
+        },
+        "fee_failed"
+      )
+    );
+    expect(isProcessingFeeAwaitingConfirmation(afterUnpaidRetry, "app_1")).toBe(false);
+    expect(
+      deriveProcessingFeePayStepModel({
+        status: "FAILED",
+        awaitingConfirmation: afterUnpaidRetry.awaitingConfirmation,
+      })
+    ).toMatchObject({ state: "ready-to-pay", showPayCta: true, ctaLabel: "Pay with FPX" });
+    expect(
+      deriveProcessingFeePayStepModel({
+        status: "EXPIRED",
+        awaitingConfirmation: false,
+      })
+    ).toMatchObject({ state: "ready-to-pay", showPayCta: true });
+    expect(
+      deriveProcessingFeePayStepModel({
+        status: "REFUNDED",
+        awaitingConfirmation: false,
+      })
+    ).toMatchObject({ state: "ready-to-pay", showPayCta: true });
+
+    expect(
+      deriveProcessingFeePayStepModel({
+        status: "COMPLETED",
+        awaitingConfirmation: false,
+      })
+    ).toMatchObject({ state: "paid", showPayCta: false, ctaLabel: null });
+    expect(
+      deriveProcessingFeePayStepModel({
+        status: "PAID",
+        awaitingConfirmation: false,
+      })
+    ).toMatchObject({ state: "confirming", showPayCta: false });
+    expect(
+      deriveProcessingFeePayStepModel({
+        status: "CREATED",
+        awaitingConfirmation: true,
+      })
+    ).toMatchObject({ state: "confirming", showPayCta: false });
+  });
+
+  it("create/loads after retry instead of checking out the submit-time snapshot", () => {
+    const snapshot = { id: "fee_stale", status: "CREATED" as const };
+    const liveReplacement = { id: "fee_fresh", status: "CREATED" as const };
+    const afterRetry = clearProcessingFeeAwaitingConfirmation(
+      markProcessingFeeAwaitingConfirmation(
+        {
+          applicationId: "app_1",
+          returnTo: "/applications/app_1/edit?continue=processingFee",
+          declarationsSaved: true,
+        },
+        "fee_stale"
+      )
+    );
+    const resumeFeeId = resolvePendingProcessingFeeResumeFeeId(afterRetry, "app_1");
+
+    expect(resumeFeeId).toBeNull();
+    expect(shouldLoadProcessingFeeOrder(resumeFeeId)).toBe(true);
+    expect(
+      isProcessingFeePayBlockedOnLiveOrder({
+        resumeFeeId,
+        liveOrder: undefined,
+      })
+    ).toBe(true);
+    expect(
+      resolveProcessingFeeCheckoutOrder({
+        resumeFeeId,
+        savedFee: null,
+        liveOrder: undefined,
+      })
+    ).toBeNull();
+    expect(
+      resolveProcessingFeeCheckoutOrder({
+        resumeFeeId,
+        savedFee: null,
+        liveOrder: undefined,
+      }) ?? snapshot
+    ).toEqual(snapshot);
+    expect(
+      isProcessingFeeAmountLoading({
+        resumeFeeId,
+        liveOrder: undefined,
+        isOrderLoading: true,
+        payState: "ready-to-pay",
+      })
+    ).toBe(true);
+
+    expect(
+      resolveProcessingFeeCheckoutOrder({
+        resumeFeeId,
+        savedFee: null,
+        liveOrder: liveReplacement,
+      })
+    ).toEqual(liveReplacement);
+    expect(
+      isProcessingFeePayBlockedOnLiveOrder({
+        resumeFeeId,
+        liveOrder: liveReplacement,
+      })
+    ).toBe(false);
+    expect(
+      isProcessingFeeAmountLoading({
+        resumeFeeId,
+        liveOrder: liveReplacement,
+        isOrderLoading: false,
+        payState: "ready-to-pay",
+      })
+    ).toBe(false);
+  });
+
+  it("reuses a live CREATED order after abandoned checkout and never checks out a snapshot", () => {
+    const liveCreated = { id: "fee_1", status: "CREATED" as const };
+    const snapshot = { id: "fee_1", status: "CREATED" as const };
+    const pending = markProcessingFeeAwaitingConfirmation(
+      {
+        applicationId: "app_1",
+        returnTo: "/applications/app_1/edit?continue=processingFee",
+        declarationsSaved: true,
+      },
+      "fee_1"
+    );
+
+    expect(shouldLoadProcessingFeeOrder(pending.feeId)).toBe(false);
+    expect(
+      resolveProcessingFeeCheckoutOrder({
+        resumeFeeId: pending.feeId,
+        savedFee: liveCreated,
+        liveOrder: undefined,
+      })
+    ).toEqual(liveCreated);
+
+    const released = releaseAbandonedProcessingFeeCheckout(pending, "app_1", "fee_1");
+    const resumeFeeId = resolvePendingProcessingFeeResumeFeeId(released, "app_1");
+    expect(shouldLoadProcessingFeeOrder(resumeFeeId)).toBe(true);
+    expect(
+      resolveProcessingFeeCheckoutOrder({
+        resumeFeeId,
+        savedFee: null,
+        liveOrder: liveCreated,
+      })
+    ).toEqual(liveCreated);
+    expect(
+      resolveProcessingFeeCheckoutOrder({
+        resumeFeeId,
+        savedFee: snapshot,
+        liveOrder: liveCreated,
+      })?.id
+    ).toBe("fee_1");
+    expect(
+      isProcessingFeePayBlockedOnLiveOrder({
+        resumeFeeId,
+        liveOrder: liveCreated,
+      })
+    ).toBe(false);
+    expect(shouldLoadProcessingFeeOrder("fee_confirming")).toBe(false);
+    expect(
+      isProcessingFeePayBlockedOnLiveOrder({
+        resumeFeeId: "fee_confirming",
+        liveOrder: undefined,
+      })
+    ).toBe(false);
+    expect(
+      isProcessingFeeAmountLoading({
+        resumeFeeId: "fee_confirming",
+        liveOrder: undefined,
+        isOrderLoading: true,
+        payState: "confirming",
+      })
+    ).toBe(false);
   });
 });
 
