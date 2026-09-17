@@ -1855,6 +1855,7 @@ export class AdminRepository {
     phone_number: string | null;
     document_type: string | null;
     document_number: string | null;
+    profile_field_sources: unknown;
     kyc_id: string | null;
     bank_account_details: unknown;
     wealth_declaration: unknown;
