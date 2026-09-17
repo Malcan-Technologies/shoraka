@@ -387,6 +387,9 @@ export function buildAdminPeopleAccessOverviewItems(row: AdminPeopleAccessRow): 
   if (!corporate && isPresent(row.personEmail)) {
     items.push({ label: PROFILE_LABEL.personEmail, value: String(row.personEmail) });
   }
+  if (!corporate && row.userId && isPresent(row.accountEmail)) {
+    items.push({ label: PROFILE_LABEL.accountEmail, value: String(row.accountEmail) });
+  }
   const identityNumber = displayGovernmentIdentityNumber({
     partyKey: party?.partyKey ?? person?.matchKey,
     identityNumber: party?.identityNumber ?? person?.identityNumber,

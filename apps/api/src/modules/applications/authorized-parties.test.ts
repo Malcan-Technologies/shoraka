@@ -52,6 +52,11 @@ describe("directorPoolFromPeople", () => {
     expect(pool[0]?.icNumber).toBe("820508105871");
   });
 
+  it("uses the current Person Email for a new authorised-representative pool", () => {
+    const pool = directorPoolFromPeople([{ ...ALI, email: "new-person@co.my" }]);
+    expect(pool.map((entry) => entry.email)).toEqual(["new-person@co.my"]);
+  });
+
   it("uses identityNumber when matchKey is a generated user key", () => {
     const pool = directorPoolFromPeople([
       {

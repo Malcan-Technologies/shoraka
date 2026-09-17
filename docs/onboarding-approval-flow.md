@@ -343,6 +343,7 @@ Backend endpoints:
 
 - Save email:
   - `PATCH /v1/organizations/:portal(investor|issuer)/:id/ctos-party-email`
+  - Person Email is independent of Account Email (`User` / Cognito). Owner/admin and CashSouk admin may edit it after KYC/AML completion without restarting those checks. It stays locked while the live KYC request is awaiting approval. Send/resend stays on the existing onboarding gates.
 - Send director onboarding link:
   - `POST /v1/organizations/:portal(investor|issuer)/:id/send-director-onboarding`
 

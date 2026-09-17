@@ -433,6 +433,8 @@ export function PersonDetailView({
                             <PartyFillEmptyForm
                               party={party}
                               emailLocked={emailLocked}
+                              displayedEmail={personEmail}
+                              accountEmail={accountEmail}
                               section={sectionId}
                               hideSectionHeading
                               onCancel={() => setEditingSection(null)}
@@ -471,6 +473,8 @@ export function PersonDetailView({
                   <PartyFillEmptyForm
                     party={party}
                     emailLocked={emailLocked}
+                    displayedEmail={personEmail}
+                    accountEmail={accountEmail}
                     section={editingSection}
                     onCancel={() => setEditingSection(null)}
                     onSave={async (data) => {

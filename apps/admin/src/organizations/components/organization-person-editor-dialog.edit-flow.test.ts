@@ -17,5 +17,11 @@ describe("OrganizationPersonEditorDialog edit flow", () => {
     expect(window).toContain("setFieldErrors");
     expect(window).not.toContain("setValues");
   });
-});
 
+  it("hydrates Person Email from the displayed master-or-legacy helper", () => {
+    expect(source).toContain("displayedPersonEmail");
+    expect(source).toContain("personEmail: extras?.personEmail");
+    expect(source).toContain("PROFILE_LABEL.accountEmail");
+    expect(source).toContain("emailLocked");
+  });
+});

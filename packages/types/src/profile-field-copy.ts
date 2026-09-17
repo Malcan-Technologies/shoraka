@@ -90,8 +90,9 @@ export const PROFILE_HELP = {
   companyPhone:
     "General company phone for payments and receipts. Fundraising contact phone is under Person in Charge.",
   personEmail:
-    "Email used for this person’s onboarding and contact. Changing it does not change Account Email.",
-  accountEmail: "Login email for the linked CashSouk account. Changing Person Email does not change this.",
+    "Used for this person’s signing, onboarding, and person-specific mail. Changing it does not change Account Email or restart completed KYC or AML.",
+  accountEmail:
+    "Login and security email for the linked CashSouk account. Read-only here. Changing Person Email does not change this.",
   resignationDate: "Leave this blank if this person has not resigned.",
   shareApplicationAccount: "Amounts received for shares applied for but not yet issued.",
   currentBorrowings: "Current liabilities that are borrowings.",

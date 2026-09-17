@@ -16,9 +16,8 @@ import { normalizeRawStatus } from "./status-normalization";
 /**
  * Same protected/review set as personal org auto-restart exclusion:
  * WAIT_FOR_APPROVAL, LIVENESS_PASSED, PENDING_APPROVAL, APPROVED, REJECTED, COMPLETED.
- * Email lock stays on isPersonEmailLifecycleLocked / canManageDirectorShareholder
- * (WAIT_FOR_APPROVAL + APPROVED + AML terminal). This list is Send-only, including
- * missing-link RESTART.
+ * This list is Send/resend-only, including missing-link RESTART. Person Email
+ * editability is separate (`isPersonEmailLifecycleLocked` / `planPersonEmailWrite`).
  */
 const PERSON_ONBOARDING_STATUSES_BLOCK_NORMAL_SEND = new Set([
   "WAIT_FOR_APPROVAL",

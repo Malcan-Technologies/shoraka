@@ -327,7 +327,7 @@ Not a Prisma relation: **JSON document** on org. Built/updated heavily in **`cod
 
 | Step | API | File |
 |------|-----|------|
-| Save email | `PATCH /v1/organizations/:portal/:id/ctos-party-email` | `apps/api/src/modules/organization/controller.ts` → **`OrganizationService.upsertCtosPartyEmail`** |
+| Save email | `PATCH /v1/organizations/:portal/:id/ctos-party-email` | `apps/api/src/modules/organization/controller.ts` → **`OrganizationService.upsertCtosPartyEmail`**. Person Email is not Account Email; post-KYC/AML edits persist without reset. Send/resend stays gated. |
 | Send / restart | `POST .../send-director-onboarding` (route name in controller) | **`OrganizationService.sendDirectorCtosPartyOnboarding`** |
 
 SES: **`sendOnboardingEmail`** from **`apps/api/src/lib/email/ses.ts`** after RegTank returns `verifyLink`. Rate limits / cooldown tracked in **`onboarding_json`** (`lastSentAt`, `sendTimestamps`).

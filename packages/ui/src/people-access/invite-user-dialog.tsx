@@ -32,6 +32,13 @@ export type InviteUserPersonOption = {
   linkedLoginEmail: string;
 };
 
+export function inviteDeliveryEmail(person: InviteUserPersonOption): string {
+  if (person.restoreExistingLink) {
+    return (person.linkedLoginEmail || person.personEmail).trim();
+  }
+  return person.personEmail.trim();
+}
+
 export function inviteableCompanyPeople(rows: PeopleAccessRow[]): InviteUserPersonOption[] {
   return rows
     .filter((row) => row.kind === "company_person" && row.partyId && row.party?.entityType !== "CORPORATE")
@@ -83,11 +90,7 @@ export function InviteUserDialog({
       setMode("existing");
       setPartyId(initialPartyId);
       const person = people.find((row) => row.partyId === initialPartyId);
-      setEmail(
-        person?.restoreExistingLink
-          ? person.linkedLoginEmail || person.personEmail
-          : person?.personEmail ?? ""
-      );
+      if (person) setEmail(inviteDeliveryEmail(person));
       return;
     }
     setMode(people.length > 0 ? "existing" : "other");
@@ -99,11 +102,7 @@ export function InviteUserDialog({
       setEmail("");
       return;
     }
-    setEmail(
-      selected.restoreExistingLink
-        ? selected.linkedLoginEmail || selected.personEmail
-        : selected.personEmail
-    );
+    setEmail(inviteDeliveryEmail(selected));
   }, [mode, open, selected]);
 
   const handleCopy = async () => {

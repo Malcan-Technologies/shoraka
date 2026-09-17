@@ -21,6 +21,7 @@ import {
   issuerPersonCompletenessInputFromParty,
   issuerPersonCompletenessSummary,
   relatedPartyVerificationCaption,
+  isPersonEmailLifecycleLocked,
   type AdminPeopleAccessFilter,
   type AdminPeopleAccessRow,
   type PeopleAccessMember,
@@ -140,6 +141,7 @@ export function OrganizationPeopleAccessPanel({
   }, [allRows, onSelectedKeyChange, selectedKey]);
 
   const editingParty = org.partyProfiles?.find((party) => party.id === editingPartyId) ?? null;
+  const editingRow = allRows.find((row) => row.party?.id === editingPartyId) ?? null;
   const editingMember = org.members.find((member) => member.userId === editingMemberUserId) ?? null;
 
   const saveParty = async (values: PartyEditorValues, partyId: string) => {
@@ -294,10 +296,19 @@ export function OrganizationPeopleAccessPanel({
         }}
         title={editingParty?.name || "Person"}
         description="Update this person’s details on the company profile."
-        initial={editingParty ? partyToEditorValues(editingParty) : null}
+        initial={
+          editingParty
+            ? partyToEditorValues(editingParty, { personEmail: editingRow?.personEmail })
+            : null
+        }
         fieldSources={editingParty?.fieldSources}
         isSaving={peopleMutations.patchParty.isPending}
         enforceIssuerShareholderMinimum
+        emailLocked={isPersonEmailLifecycleLocked({
+          onboardingStatus: editingRow?.person?.onboarding?.status,
+          screeningStatus: editingRow?.person?.screening?.status,
+        })}
+        accountEmail={editingParty?.linkedUser?.email ?? (editingRow?.userId ? editingRow.accountEmail : null)}
         onSave={async (values) => {
           if (!editingParty) return;
           await saveParty(values, editingParty.id);

@@ -4,9 +4,12 @@ const mockSupplementFindFirst = jest.fn();
 const mockSupplementCreate = jest.fn();
 const mockSupplementUpdate = jest.fn();
 const mockIssuerFindUnique = jest.fn();
+const mockUserUpdate = jest.fn();
+const mockTransaction = jest.fn();
 
 jest.mock("../../lib/prisma", () => ({
   prisma: {
+    $transaction: (...args: unknown[]) => mockTransaction(...args),
     organizationPartyProfile: {
       findFirst: (...args: unknown[]) => mockPartyFindFirst(...args),
       update: (...args: unknown[]) => mockPartyUpdate(...args),
@@ -22,6 +25,9 @@ jest.mock("../../lib/prisma", () => ({
     investorOrganization: {
       findUnique: jest.fn(),
     },
+    user: {
+      update: (...args: unknown[]) => mockUserUpdate(...args),
+    },
   },
 }));
 
@@ -29,9 +35,19 @@ import { writeOrganizationPartyEmail } from "./person-email";
 
 const generatedKey = "user:550e8400-e29b-41d4-a716-446655440000";
 
-describe("writeOrganizationPartyEmail generated-key lookup", () => {
+const tx = {
+  organizationPartyProfile: { update: (...args: unknown[]) => mockPartyUpdate(...args) },
+  ctosPartySupplement: {
+    create: (...args: unknown[]) => mockSupplementCreate(...args),
+    update: (...args: unknown[]) => mockSupplementUpdate(...args),
+  },
+  user: { update: (...args: unknown[]) => mockUserUpdate(...args) },
+};
+
+describe("writeOrganizationPartyEmail", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockTransaction.mockImplementation(async (fn: (client: typeof tx) => unknown) => fn(tx));
     mockIssuerFindUnique.mockResolvedValue({ director_kyc_status: null });
     mockPartyFindFirst.mockResolvedValue({
       id: "party-1",
@@ -69,5 +85,78 @@ describe("writeOrganizationPartyEmail generated-key lookup", () => {
         data: expect.objectContaining({ party_key: generatedKey }),
       })
     );
+    expect(mockTransaction).toHaveBeenCalled();
+  });
+
+  it("persists an approved post-KYC Person Email without resetting KYC/AML or User email", async () => {
+    mockPartyFindFirst.mockResolvedValue({
+      id: "party-1",
+      party_key: generatedKey,
+      email: "old@acme.test",
+    });
+    mockSupplementFindFirst.mockResolvedValue({
+      id: "sup-1",
+      onboarding_json: {
+        email: "old@acme.test",
+        status: "APPROVED",
+        requestId: "LD-APPROVED",
+        screening: { status: "CLEAR", requestId: "aml-1" },
+      },
+    });
+
+    const result = await writeOrganizationPartyEmail({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyKey: generatedKey,
+      email: "new@acme.test",
+    });
+
+    expect(result.email).toBe("new@acme.test");
+    expect(mockPartyUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { email: "new@acme.test" } })
+    );
+    const snapshot = mockSupplementUpdate.mock.calls[0]?.[0].data.onboarding_json as {
+      email?: string;
+      status?: string;
+      requestId?: string;
+      screening?: { status?: string; requestId?: string } | null;
+    };
+    expect(snapshot.email).toBe("new@acme.test");
+    expect(snapshot.status).toBe("APPROVED");
+    expect(snapshot.requestId).toBe("LD-APPROVED");
+    expect(snapshot.screening?.status).toBe("CLEAR");
+    expect(snapshot.screening?.requestId).toBe("aml-1");
+    expect(mockUserUpdate).not.toHaveBeenCalled();
+  });
+
+  it("does not write a partial master when the supplement snapshot fails", async () => {
+    mockPartyFindFirst.mockResolvedValue({
+      id: "party-1",
+      party_key: generatedKey,
+      email: "old@acme.test",
+    });
+    mockSupplementFindFirst.mockResolvedValue({
+      id: "sup-1",
+      onboarding_json: { email: "old@acme.test", status: "IN_PROGRESS", requestId: "LD-1" },
+    });
+    mockSupplementUpdate.mockRejectedValue(new Error("snapshot failed"));
+    mockTransaction.mockImplementation(async (fn: (client: typeof tx) => unknown) => {
+      try {
+        return await fn(tx);
+      } catch (error) {
+        mockPartyUpdate.mockClear();
+        throw error;
+      }
+    });
+
+    await expect(
+      writeOrganizationPartyEmail({
+        portal: "issuer",
+        organizationId: "org-1",
+        partyKey: generatedKey,
+        email: "new@acme.test",
+      })
+    ).rejects.toThrow("snapshot failed");
+    expect(mockPartyUpdate).not.toHaveBeenCalled();
   });
 });

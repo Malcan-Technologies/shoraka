@@ -583,6 +583,10 @@ export function PortalPeopleSection({
           {editing ? (
             <PartyFillEmptyForm
               party={editing}
+              displayedEmail={
+                masterCards.find((item) => item.party.id === editing.id)?.person?.email ?? null
+              }
+              accountEmail={editing.linkedUser?.email}
               onCancel={() => setEditPartyId(null)}
               onSave={async (data) => {
                 const res = await api.patchPartyProfile(portal, organizationId, editing.id, data);

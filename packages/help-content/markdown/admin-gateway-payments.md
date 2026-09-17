@@ -52,6 +52,12 @@ Open **Filters** to choose:
 - Gateway account
 - Purpose
 
+Status options:
+
+- **Open exceptions** — investor deposits that are **Needs attention** (`HELD`) or **Name check pending**. The dashboard and sidebar Gateway Payments links open this list. The badge count matches this list.
+- **Needs attention** — `HELD` only (any purpose). Held refunds, wallet reversal failures, and currency mismatches.
+- **Name check pending** — `NAME_CHECK_PENDING` only. Manual approve or reject for name review.
+
 Click **Clear** to remove active filters and search.
 
 ---
@@ -63,7 +69,7 @@ Click **Clear** to remove active filters and search.
 - The issuer pays through the portal payment checkout. The button is currently labelled **Pay with FPX**. Checkout opens CashSouk’s payment gateway for Malaysian online banking (FPX). The checkout window is branded by the gateway provider (currently Curlec / Razorpay). That branding does not mean a second payment method is available. This payment does **not** block investor settlement. Investor principal and profit still follow the dates and worked example in **Note Money Flow and Servicing Guide**.
 - The issuer portal shows the shortfall as **Action required**.
 - Use purpose **Late Payment Charges** to find these rows.
-- Status **Needs attention** means the payment is held for review (for example a name check). **Paid** is still in progress; **Completed** is the final success.
+- Status **Needs attention** means the payment is held (`HELD`) for review (for example a failed refund). **Open exceptions** is the combined investor-deposit queue of **Needs attention** plus **Name check pending**. **Paid** is still in progress; **Completed** is the final success.
 
 ---
 

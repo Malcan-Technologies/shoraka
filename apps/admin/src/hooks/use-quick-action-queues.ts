@@ -11,6 +11,7 @@ import {
   DocumentTextIcon,
   ExclamationTriangleIcon,
 } from "@heroicons/react/24/outline";
+import { ADMIN_GATEWAY_PAYMENTS_EXCEPTIONS_HREF } from "@cashsouk/config";
 import {
   activeProductPendingActionTotal,
   buildApplicationSidebarGroups,
@@ -233,7 +234,7 @@ export function useQuickActionQueues({ loading = false }: { loading?: boolean } 
         description: "Review payment status, refunds, and name checks",
         count: gatewayPaymentExceptionsCount,
         countLabel: "open",
-        href: "/finance/gateway-payments",
+        href: ADMIN_GATEWAY_PAYMENTS_EXCEPTIONS_HREF,
         icon: BanknotesIcon,
         variant: urgencyVariant(gatewayPaymentExceptionsCount, 5, 0),
         isLoading: loading || isGatewayPaymentExceptionsLoading,

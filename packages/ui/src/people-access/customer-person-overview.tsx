@@ -102,7 +102,7 @@ export function CustomerPartyProfileOverview({
       CUSTOMER_PERSON_LABEL.resignationDate,
     ]);
 
-    const contactLabels = new Set<string>([CUSTOMER_PERSON_LABEL.personEmail]);
+    const contactLabels = new Set<string>([CUSTOMER_PERSON_LABEL.personEmail, CUSTOMER_PERSON_LABEL.accountEmail]);
     const addressLabels = new Set<string>([
       CUSTOMER_PERSON_LABEL.address,
       CUSTOMER_PERSON_LABEL.addressLine2,

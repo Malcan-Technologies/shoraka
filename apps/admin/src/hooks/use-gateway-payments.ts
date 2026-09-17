@@ -5,6 +5,7 @@ import { createApiClient } from "@cashsouk/config";
 import type {
   CurlecGatewayAccount,
   GatewayPaymentDetailDto,
+  GatewayPaymentListFilter,
   GatewayPaymentListResponse,
   GatewayPaymentPendingCountResponse,
 } from "@cashsouk/types";
@@ -50,7 +51,7 @@ export function useGatewayPayments(params?: {
   purpose?: string;
   contractId?: string;
   noteId?: string;
-  filter?: "needs_attention" | "review" | "refunding" | "refunded" | "completed";
+  filter?: GatewayPaymentListFilter;
   search?: string;
 }) {
   const apiClient = useGatewayPaymentsApiClient();

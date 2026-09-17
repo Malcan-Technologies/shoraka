@@ -1,9 +1,12 @@
 import {
+  displayedPersonEmail,
   hasPersonOnboardingPipeline,
   isPersonEmailLifecycleLocked,
+  isPersonEmailPostCompletionWrite,
   normalizePersonEmail,
   planPersonEmailWrite,
 } from "./person-email";
+import { isPersonOnboardingStatusBlockedForNormalSend } from "./person-regtank-send";
 
 describe("normalizePersonEmail", () => {
   it("trims and lowercases", () => {
@@ -17,6 +20,23 @@ describe("normalizePersonEmail", () => {
   });
 });
 
+describe("displayedPersonEmail", () => {
+  it("prefers the party master over a legacy people-row email", () => {
+    expect(
+      displayedPersonEmail({ partyEmail: "master@acme.test", personEmail: "legacy@acme.test" })
+    ).toBe("master@acme.test");
+  });
+
+  it("hydrates from the legacy displayed email when the master is empty", () => {
+    expect(displayedPersonEmail({ partyEmail: null, personEmail: " legacy@acme.test " })).toBe(
+      "legacy@acme.test"
+    );
+    expect(displayedPersonEmail({ partyEmail: "  ", personEmail: "legacy@acme.test" })).toBe(
+      "legacy@acme.test"
+    );
+  });
+});
+
 describe("isPersonEmailLifecycleLocked", () => {
   it("is editable before send and during IN_PROGRESS", () => {
     expect(isPersonEmailLifecycleLocked({ supplementRoot: null })).toBe(false);
@@ -27,7 +47,7 @@ describe("isPersonEmailLifecycleLocked", () => {
     ).toBe(false);
   });
 
-  it("locks WAIT_FOR_APPROVAL, KYC APPROVED, and AML terminal statuses", () => {
+  it("locks only while KYC is awaiting approval", () => {
     expect(
       isPersonEmailLifecycleLocked({
         supplementRoot: { status: "WAIT_FOR_APPROVAL", requestId: "req-1" },
@@ -35,20 +55,23 @@ describe("isPersonEmailLifecycleLocked", () => {
     ).toBe(true);
     expect(
       isPersonEmailLifecycleLocked({
-        supplementRoot: { status: "APPROVED", requestId: "req-1" },
+        onboardingStatus: "PENDING_APPROVAL",
       })
     ).toBe(true);
+  });
+
+  it("stays editable after KYC approval, AML terminal, or legacy approved", () => {
+    expect(
+      isPersonEmailLifecycleLocked({
+        supplementRoot: { status: "APPROVED", requestId: "req-1" },
+      })
+    ).toBe(false);
     expect(
       isPersonEmailLifecycleLocked({
         supplementRoot: { status: "IN_PROGRESS", screening: { status: "CLEAR", requestId: "aml-1" } },
       })
-    ).toBe(true);
-    expect(
-      isPersonEmailLifecycleLocked({
-        supplementRoot: { status: "IN_PROGRESS", screening: { status: "REJECTED", requestId: "aml-1" } },
-      })
-    ).toBe(true);
-    expect(isPersonEmailLifecycleLocked({ legacyKycApproved: true })).toBe(true);
+    ).toBe(false);
+    expect(isPersonEmailLifecycleLocked({ legacyKycApproved: true })).toBe(false);
   });
 });
 
@@ -101,21 +124,42 @@ describe("planPersonEmailWrite", () => {
     ).toBe("reject");
   });
 
-  it("rejects Person Email writes when KYC is APPROVED or AML is terminal", () => {
-    expect(
-      planPersonEmailWrite({
-        currentMasterEmail: "old@acme.test",
-        incomingEmail: "new@acme.test",
-        supplementRoot: { status: "APPROVED", requestId: "req-1" },
-      }).action
-    ).toBe("reject");
+  it("persists post-KYC and AML-terminal edits without resetting those pipelines", () => {
+    const approved = planPersonEmailWrite({
+      currentMasterEmail: "old@acme.test",
+      incomingEmail: "new@acme.test",
+      supplementRoot: { status: "APPROVED", requestId: "req-1", screening: { status: "CLEAR" } },
+    });
+    expect(approved).toMatchObject({
+      action: "write",
+      email: "new@acme.test",
+      pipelineReset: false,
+      screeningReset: false,
+      snapshotSupplement: true,
+    });
     expect(
       planPersonEmailWrite({
         currentMasterEmail: "old@acme.test",
         incomingEmail: "new@acme.test",
         supplementRoot: { status: "IN_PROGRESS", screening: { status: "CLEAR", requestId: "aml-1" } },
-      }).action
-    ).toBe("reject");
+      })
+    ).toMatchObject({ action: "write", pipelineReset: false, screeningReset: false });
+    expect(
+      planPersonEmailWrite({
+        currentMasterEmail: "old@acme.test",
+        incomingEmail: "new@acme.test",
+        legacyKycApproved: true,
+      })
+    ).toMatchObject({ action: "write", pipelineReset: false, screeningReset: false });
+  });
+});
+
+describe("editability is split from onboarding send/resend", () => {
+  it("keeps send blocked after approval while Person Email stays writable", () => {
+    expect(isPersonOnboardingStatusBlockedForNormalSend("APPROVED")).toBe(true);
+    expect(isPersonOnboardingStatusBlockedForNormalSend("WAIT_FOR_APPROVAL")).toBe(true);
+    expect(isPersonEmailLifecycleLocked({ onboardingStatus: "APPROVED" })).toBe(false);
+    expect(isPersonEmailPostCompletionWrite({ onboardingStatus: "APPROVED" })).toBe(true);
   });
 });
 

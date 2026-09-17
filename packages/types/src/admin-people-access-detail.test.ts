@@ -263,6 +263,7 @@ describe("overview items", () => {
     const items = buildAdminPeopleAccessOverviewItems(
       row({
         accountEmail: "login@example.com",
+        userId: "U1",
         party: party({
           id: "p1",
           partyKey: "021116101341",
@@ -272,6 +273,7 @@ describe("overview items", () => {
       })
     );
     expect(items.find((item) => item.label === "Person Email")?.value).toBe("max.chng@truestack.my");
+    expect(items.find((item) => item.label === "Account Email")?.value).toBe("login@example.com");
     expect(items.find((item) => item.label === "Platform Access")?.value).not.toBe("login@example.com");
   });
 

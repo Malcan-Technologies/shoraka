@@ -30,6 +30,7 @@ import {
   ChartBarSquareIcon,
 } from "@heroicons/react/24/outline";
 
+import { ADMIN_GATEWAY_PAYMENTS_EXCEPTIONS_HREF } from "@cashsouk/config";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Sidebar,
@@ -253,7 +254,7 @@ const gatewayItems: Array<{
 }> = [
   {
     title: "Gateway Payments",
-    url: "/finance/gateway-payments",
+    url: ADMIN_GATEWAY_PAYMENTS_EXCEPTIONS_HREF,
     badgeKey: "gatewayPaymentExceptions",
     permission: "gatewayPayments",
   },
@@ -281,6 +282,15 @@ const navSettings = [
   { title: "Roles", url: "/settings/roles", icon: ShieldCheckIcon },
 ] as const;
 
+function sidebarPath(url: string): string {
+  return url.split("?")[0] ?? url;
+}
+
+function isSidebarPathActive(pathname: string, url: string): boolean {
+  const path = sidebarPath(url);
+  return pathname === path || pathname.startsWith(`${path}/`);
+}
+
 function FinanceCollapsibleGroup({
   title,
   icon: Icon,
@@ -299,9 +309,7 @@ function FinanceCollapsibleGroup({
     if (!item.badgeKey) return sum;
     return sum + (badges[item.badgeKey] || 0);
   }, 0);
-  const pathActive = visibleItems.some(
-    (item) => pathname === item.url || pathname.startsWith(`${item.url}/`)
-  );
+  const pathActive = visibleItems.some((item) => isSidebarPathActive(pathname, item.url));
   const forceOpen = pathActive || parentBadge > 0;
   const [open, setOpen] = React.useState(forceOpen);
 
@@ -345,7 +353,7 @@ function FinanceCollapsibleGroup({
                   <SidebarMenuSubButton
                     asChild
                     size="sm"
-                    isActive={pathname === item.url || pathname.startsWith(`${item.url}/`)}
+                    isActive={isSidebarPathActive(pathname, item.url)}
                   >
                     <Link href={item.url}>
                       <span>{item.title}</span>

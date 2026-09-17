@@ -10,6 +10,7 @@ import {
   SC_MONTHLY_BOARD,
   SC_MONTHLY_PERSON_KIND_LABELS,
   SC_SHARE_TYPE_LABELS,
+  displayedPersonEmail,
   formatPartyRoleLine,
   getFinalStatusLabel,
   getRelatedPartyStatusToken,
@@ -98,7 +99,10 @@ export function buildPartyProfileDetailItems(params: {
     matchKey: person?.matchKey,
     kycOnboardingStatus: person?.onboarding?.status,
   });
-  const personEmail = party?.email || person?.email || "";
+  const personEmail = displayedPersonEmail({
+    partyEmail: party?.email,
+    personEmail: person?.email,
+  });
   const loginEmail = party?.linkedUser?.email || "";
   const name = party?.name || person?.name || "";
   const roles = party

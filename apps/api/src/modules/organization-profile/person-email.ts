@@ -41,7 +41,8 @@ async function findPartySupplement(portal: Portal, organizationId: string, party
 
 /**
  * Single Person Email write path: OrganizationPartyProfile.email is master,
- * supplement email is a snapshot. Applies original RegTank lock/reset rules.
+ * supplement email is a snapshot. Never writes User/Cognito email.
+ * Master + snapshot persist atomically. Post-KYC/AML writes do not reset those pipelines.
  */
 export async function writeOrganizationPartyEmail(params: {
   portal: Portal;
@@ -74,37 +75,36 @@ export async function writeOrganizationPartyEmail(params: {
     throw new AppError(400, plan.code, plan.message);
   }
 
-  const updated = await prisma.organizationPartyProfile.update({
-    where: { id: party.id },
-    data: { email: plan.email },
-    select: { email: true, party_key: true },
-  });
-
-  if (plan.snapshotSupplement && (existing || plan.email)) {
-    if (!existing && isLegacyCtosPartyKycApproved(params.partyKey, directorKycStatus)) {
-      return { email: updated.email };
-    }
-    const merged = mergeCtosPartySupplementDocument(existing?.onboarding_json, {
-      onboarding: plan.email ? { email: plan.email } : undefined,
-      pipelineReset: plan.pipelineReset,
-      screeningReset: plan.screeningReset,
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.organizationPartyProfile.update({
+      where: { id: party.id },
+      data: { email: plan.email },
+      select: { email: true, party_key: true },
     });
-    if (existing) {
-      await prisma.ctosPartySupplement.update({
-        where: { id: existing.id },
-        data: { onboarding_json: merged as Prisma.InputJsonValue },
-      });
-    } else if (plan.email) {
-      await prisma.ctosPartySupplement.create({
-        data: {
-          issuer_organization_id: params.portal === "issuer" ? params.organizationId : null,
-          investor_organization_id: params.portal === "investor" ? params.organizationId : null,
-          party_key: params.partyKey,
-          onboarding_json: merged as Prisma.InputJsonValue,
-        },
-      });
-    }
-  }
 
-  return { email: updated.email };
+    if (plan.snapshotSupplement && (existing || plan.email)) {
+      const merged = mergeCtosPartySupplementDocument(existing?.onboarding_json, {
+        onboarding: plan.email ? { email: plan.email } : undefined,
+        pipelineReset: plan.pipelineReset,
+        screeningReset: plan.screeningReset,
+      });
+      if (existing) {
+        await tx.ctosPartySupplement.update({
+          where: { id: existing.id },
+          data: { onboarding_json: merged as Prisma.InputJsonValue },
+        });
+      } else if (plan.email) {
+        await tx.ctosPartySupplement.create({
+          data: {
+            issuer_organization_id: params.portal === "issuer" ? params.organizationId : null,
+            investor_organization_id: params.portal === "investor" ? params.organizationId : null,
+            party_key: params.partyKey,
+            onboarding_json: merged as Prisma.InputJsonValue,
+          },
+        });
+      }
+    }
+
+    return { email: updated.email };
+  });
 }

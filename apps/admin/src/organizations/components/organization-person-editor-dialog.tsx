@@ -4,6 +4,7 @@ import * as React from "react";
 import { toast } from "sonner";
 import type { ApplicationPersonRow, OrganizationPartyProfileDto, ProfileFieldSources } from "@cashsouk/types";
 import {
+  displayedPersonEmail,
   firstIssueMessage,
   isIssuerOfficerRole,
   isProfileValidationError,
@@ -114,7 +115,10 @@ const emptyValues: PartyEditorValues = {
   email: "",
 };
 
-export function partyToEditorValues(party: OrganizationPartyProfileDto): PartyEditorValues {
+export function partyToEditorValues(
+  party: OrganizationPartyProfileDto,
+  extras?: { personEmail?: string | null }
+): PartyEditorValues {
   return {
     name: party.name ?? "",
     salutation: party.salutation ?? "",
@@ -143,7 +147,7 @@ export function partyToEditorValues(party: OrganizationPartyProfileDto): PartyEd
     designationOther: party.designationOther ?? "",
     appointmentDate: toCalendarDateInput(party.appointmentDate),
     resignationDate: toCalendarDateInput(party.resignationDate),
-    email: party.email ?? "",
+    email: displayedPersonEmail({ partyEmail: party.email, personEmail: extras?.personEmail }),
   };
 }
 
@@ -177,6 +181,8 @@ export function OrganizationPersonEditorDialog({
   onSave,
   enforceIssuerShareholderMinimum = true,
   mode = "edit",
+  emailLocked = false,
+  accountEmail,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -188,6 +194,8 @@ export function OrganizationPersonEditorDialog({
   onSave: (values: PartyEditorValues) => Promise<void>;
   enforceIssuerShareholderMinimum?: boolean;
   mode?: "create" | "edit";
+  emailLocked?: boolean;
+  accountEmail?: string | null;
 }) {
   const [values, setValues] = React.useState<PartyEditorValues>(initial ?? emptyValues);
   const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
@@ -347,11 +355,23 @@ export function OrganizationPersonEditorDialog({
             value={values.email}
             onChange={(email) => set("email", email)}
             required={minimalOnboardingAdd}
+            disabled={emailLocked}
             help={PERSON_EMAIL_HELP}
             error={fieldErrors.email}
             maxLength={255}
             inputMode="email"
           />
+          {String(accountEmail ?? "").trim() ? (
+            <Field
+              label={PROFILE_LABEL.accountEmail}
+              value={String(accountEmail).trim()}
+              onChange={() => {
+                /* Account Email is read-only */
+              }}
+              disabled
+              help={PROFILE_HELP.accountEmail}
+            />
+          ) : null}
           <fieldset className="space-y-2 sm:col-span-2">
             <legend className="text-ui">Roles</legend>
             {(

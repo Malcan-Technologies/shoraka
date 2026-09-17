@@ -5,6 +5,7 @@ import type { AdminPermission } from "@cashsouk/types";
 import { AppError, errorHandler } from "../../lib/http/error-handler";
 import { gatewayPaymentsAdminRouter } from "./admin-controller";
 import { gatewayReconAdminRouter } from "./recon-controller";
+import { listGatewayPayments } from "./admin-service";
 
 jest.mock("./admin-service", () => ({
   listGatewayPayments: jest.fn(async () => ({ items: [], total: 0, page: 1, pageSize: 20 })),
@@ -70,6 +71,15 @@ describe("gateway payment admin RBAC", () => {
     const listResponse = await request(app).get("/admin/gateway-payments");
     expect(listResponse.status).toBe(200);
     expect(listResponse.body.success).toBe(true);
+
+    const exceptionsListResponse = await request(app).get(
+      "/admin/gateway-payments?filter=exceptions"
+    );
+    expect(exceptionsListResponse.status).toBe(200);
+    expect(exceptionsListResponse.body.success).toBe(true);
+    expect(listGatewayPayments).toHaveBeenCalledWith(
+      expect.objectContaining({ filter: "exceptions" })
+    );
 
     const detailResponse = await request(app).get("/admin/gateway-payments/pay_test");
     expect(detailResponse.status).toBe(200);

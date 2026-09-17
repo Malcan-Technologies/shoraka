@@ -12,7 +12,9 @@ import {
 import {
   approveNameCheck,
   getGatewayPaymentDetail,
+  getGatewayPaymentsExceptionCount,
   initiateCompletedDepositRefund,
+  listGatewayPayments,
   rejectNameCheck,
   retryHeldDepositRefund,
 } from "./admin-service";
@@ -333,5 +335,127 @@ describeIntegration("admin gateway payments refunds", () => {
 
     expect(detail.status).toBe(GatewayPaymentStatus.REFUND_INITIATED);
     expect(mockRefundPayment).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps exceptions list total equal to pending-count for mixed purposes and statuses", async () => {
+    if (!migrated) return;
+
+    const marker = `exc-parity-${Date.now()}`;
+    const rows: Array<{
+      purpose: GatewayPaymentPurpose;
+      status: GatewayPaymentStatus;
+      organization_type: GatewayOrganizationType;
+    }> = [
+      {
+        purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT,
+        status: GatewayPaymentStatus.HELD,
+        organization_type: GatewayOrganizationType.INVESTOR,
+      },
+      {
+        purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT,
+        status: GatewayPaymentStatus.NAME_CHECK_PENDING,
+        organization_type: GatewayOrganizationType.INVESTOR,
+      },
+      {
+        purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT,
+        status: GatewayPaymentStatus.COMPLETED,
+        organization_type: GatewayOrganizationType.INVESTOR,
+      },
+      {
+        purpose: GatewayPaymentPurpose.FACILITY_FEE,
+        status: GatewayPaymentStatus.HELD,
+        organization_type: GatewayOrganizationType.ISSUER,
+      },
+      {
+        purpose: GatewayPaymentPurpose.FACILITY_FEE,
+        status: GatewayPaymentStatus.NAME_CHECK_PENDING,
+        organization_type: GatewayOrganizationType.ISSUER,
+      },
+    ];
+
+    const created: Array<{
+      id: string;
+      purpose: GatewayPaymentPurpose;
+      status: GatewayPaymentStatus;
+    }> = [];
+    for (const [index, row] of rows.entries()) {
+      const payment = await prisma.gatewayPayment.create({
+        data: {
+          purpose: row.purpose,
+          organization_type: row.organization_type,
+          gatewayAccount:
+            row.purpose === GatewayPaymentPurpose.INVESTOR_DEPOSIT
+              ? CurlecGatewayAccount.INVESTOR_POOL
+              : CurlecGatewayAccount.OPERATING,
+          investor_organization_id:
+            row.organization_type === GatewayOrganizationType.INVESTOR ? orgId : null,
+          amount: new Prisma.Decimal("25.000000"),
+          currency: "MYR",
+          status: row.status,
+          payer_name: marker,
+          curlec_order_id: `order_${marker}_${index}`,
+          curlec_payment_id: `pay_${marker}_${index}`,
+          idempotency_key: `${marker}:${index}`,
+        },
+      });
+      createdPaymentIds.push(payment.id);
+      created.push(payment);
+    }
+
+    const [count, listed] = await Promise.all([
+      getGatewayPaymentsExceptionCount(prisma),
+      listGatewayPayments({ page: 1, pageSize: 100, filter: "exceptions" }, prisma),
+    ]);
+    expect(listed.total).toBe(count.count);
+    expect(
+      listed.items.every(
+        (item) =>
+          item.purpose === GatewayPaymentPurpose.INVESTOR_DEPOSIT &&
+          (item.status === GatewayPaymentStatus.HELD ||
+            item.status === GatewayPaymentStatus.NAME_CHECK_PENDING)
+      )
+    ).toBe(true);
+
+    const scoped = await listGatewayPayments(
+      { page: 1, pageSize: 20, filter: "exceptions", search: marker },
+      prisma
+    );
+    expect(scoped.total).toBe(2);
+    expect(scoped.items.map((item) => item.status).sort()).toEqual([
+      GatewayPaymentStatus.HELD,
+      GatewayPaymentStatus.NAME_CHECK_PENDING,
+    ]);
+    expect(scoped.items.every((item) => item.purpose === GatewayPaymentPurpose.INVESTOR_DEPOSIT)).toBe(
+      true
+    );
+    expect(scoped.items.map((item) => item.id).sort()).toEqual(
+      created
+        .filter(
+          (row) =>
+            row.purpose === GatewayPaymentPurpose.INVESTOR_DEPOSIT &&
+            (row.status === GatewayPaymentStatus.HELD ||
+              row.status === GatewayPaymentStatus.NAME_CHECK_PENDING)
+        )
+        .map((row) => row.id)
+        .sort()
+    );
+
+    const needsAttention = await listGatewayPayments(
+      { page: 1, pageSize: 20, filter: "needs_attention", search: marker },
+      prisma
+    );
+    expect(needsAttention.items.every((item) => item.status === GatewayPaymentStatus.HELD)).toBe(true);
+    expect(needsAttention.items.some((item) => item.purpose === GatewayPaymentPurpose.FACILITY_FEE)).toBe(
+      true
+    );
+
+    const review = await listGatewayPayments(
+      { page: 1, pageSize: 20, filter: "review", search: marker },
+      prisma
+    );
+    expect(review.items.every((item) => item.status === GatewayPaymentStatus.NAME_CHECK_PENDING)).toBe(
+      true
+    );
+    expect(review.items.some((item) => item.purpose === GatewayPaymentPurpose.FACILITY_FEE)).toBe(true);
   });
 });

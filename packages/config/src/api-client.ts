@@ -148,6 +148,7 @@ import type {
   ShorakaWithdrawalState,
   ShorakaSubmitOrderStateResponse,
   GatewayPaymentDetailDto,
+  GatewayPaymentListFilter,
   GatewayPaymentListResponse,
   GatewayPaymentPendingCountResponse,
   GatewayPaymentReceiptDto,
@@ -2000,7 +2001,7 @@ export class ApiClient {
     contractId?: string;
     noteId?: string;
     organizationType?: string;
-    filter?: "needs_attention" | "review" | "refunding" | "refunded" | "completed";
+    filter?: GatewayPaymentListFilter;
     search?: string;
   }): Promise<ApiResponse<GatewayPaymentListResponse> | ApiError> {
     const search = new URLSearchParams();
