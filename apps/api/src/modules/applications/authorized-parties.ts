@@ -85,18 +85,6 @@ export async function loadIssuerDirectorPool(
 export const AUTHORIZED_REPRESENTATIVE_PROFILE_CHANGED_MESSAGE =
   "An approved issuer representative's Person Email or profile eligibility changed after approval. Request a change to Authorised representatives, then ask the issuer to review and resubmit only that section before creating the signing package.";
 
-export function issuerRepresentativesHaveProfileKeys(
-  snapshot: AuthorizedPartiesSnapshot
-): boolean {
-  return snapshot.parties.some(
-    (party) =>
-      party.entity_kind === "ISSUER" &&
-      party.representatives.some((representative) =>
-        Boolean(representative.person_match_key?.trim())
-      )
-  );
-}
-
 export function approvedIssuerRepresentativesAreCurrent(
   snapshot: AuthorizedPartiesSnapshot,
   pool: IssuerDirectorPoolEntry[]
@@ -106,9 +94,17 @@ export function approvedIssuerRepresentativesAreCurrent(
   const byMatchKey = new Map(pool.map((entry) => [entry.matchKey, entry]));
   return issuer.representatives.every((representative) => {
     const matchKey = representative.person_match_key?.trim() ?? "";
-    if (!matchKey) return true;
-    const current = byMatchKey.get(matchKey);
-    return Boolean(current && current.email === normalizeSigningEmail(representative.email));
+    const icNumber = normalizeSigningIcNumber(representative.ic_number);
+    const email = normalizeSigningEmail(representative.email);
+    if (!matchKey && !isValidSigningIcNumber(icNumber)) return false;
+    const current = matchKey
+      ? byMatchKey.get(matchKey)
+      : pool.find((entry) => entry.icNumber === icNumber);
+    return Boolean(
+      current &&
+        current.email === email &&
+        (!isValidSigningIcNumber(icNumber) || current.icNumber === icNumber)
+    );
   });
 }
 

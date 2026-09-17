@@ -20,4 +20,10 @@ describe("application processing fee confirming surface", () => {
     expect(source).toContain("resolvePendingProcessingFeeResumeFeeId");
     expect(source).toContain("!resumeFeeId &&");
   });
+
+  it("marks a launched checkout as awaiting confirmation", () => {
+    expect(source).toContain("markProcessingFeeAwaitingConfirmation");
+    expect(source).toContain("clearProcessingFeeAwaitingConfirmation");
+    expect(source).not.toContain("awaitingConfirmation: false");
+  });
 });

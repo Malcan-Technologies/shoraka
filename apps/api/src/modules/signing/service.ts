@@ -153,7 +153,6 @@ import {
   approvedIssuerRepresentativesAreCurrent,
   assertApprovedIssuerRepresentativesCurrent,
   assertIssuerSealReadyForPackage,
-  issuerRepresentativesHaveProfileKeys,
   loadIssuerDirectorPool,
   type IssuerDirectorPoolEntry,
 } from "../applications/authorized-parties";
@@ -576,7 +575,7 @@ export class SigningService {
     application: SigningApplicationContext,
     authorizedParties: AuthorizedPartiesSnapshot | null | undefined
   ): Promise<void> {
-    if (!authorizedParties || !issuerRepresentativesHaveProfileKeys(authorizedParties)) return;
+    if (!authorizedParties) return;
     const issuerDirectorPool = await loadIssuerDirectorPool(application.issuer_organization_id);
     assertApprovedIssuerRepresentativesCurrent(authorizedParties, issuerDirectorPool);
   }
@@ -1184,7 +1183,7 @@ export class SigningService {
 
     const approvedParties =
       getOfferAcceptanceFromOfferDetails(offerDetails)?.authorized_parties ?? null;
-    if (approvedParties && issuerRepresentativesHaveProfileKeys(approvedParties)) {
+    if (approvedParties) {
       const issuerDirectorPool = await loadIssuerDirectorPool(application.issuer_organization_id);
       if (!approvedIssuerRepresentativesAreCurrent(approvedParties, issuerDirectorPool)) {
         issues.push({

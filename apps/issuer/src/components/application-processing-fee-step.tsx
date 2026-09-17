@@ -24,8 +24,10 @@ import {
 import { buildApplicationEditReturnTo } from "@/lib/application-processing-fee-routes";
 import {
   PROCESSING_FEE_CONFIRMING_COPY,
+  clearProcessingFeeAwaitingConfirmation,
   deriveProcessingFeePayStepModel,
   isProcessingFeeAwaitingConfirmation,
+  markProcessingFeeAwaitingConfirmation,
   resolvePendingProcessingFeeResumeFeeId,
 } from "@/lib/application-processing-fee-confirmation";
 import {
@@ -95,6 +97,7 @@ export function ApplicationProcessingFeeStep({
 
     checkoutOpenInFlightRef.current = true;
     setIsOpeningCheckout(true);
+    let markedFeeId: string | null = null;
 
     try {
       const checkoutContact = await resolvePortalCheckoutPayer({
@@ -130,13 +133,17 @@ export function ApplicationProcessingFeeStep({
       }
 
       const returnTo = buildApplicationEditReturnTo(applicationId);
-      storeIssuerPendingSubmitAfterFee({
-        applicationId,
-        returnTo,
-        declarationsSaved: true,
-        feeId: resolvedFee.id,
-        awaitingConfirmation: false,
-      });
+      storeIssuerPendingSubmitAfterFee(
+        markProcessingFeeAwaitingConfirmation(
+          {
+            applicationId,
+            returnTo,
+            declarationsSaved: true,
+          },
+          resolvedFee.id
+        )
+      );
+      markedFeeId = resolvedFee.id;
 
       const callbackUrl = buildApplicationProcessingFeeCallbackUrl(resolvedFee.id, returnTo);
 
@@ -152,6 +159,14 @@ export function ApplicationProcessingFeeStep({
         onDismiss: () => setIsOpeningCheckout(false),
       });
     } catch (err) {
+      const current = readIssuerPendingSubmitAfterFee();
+      if (
+        markedFeeId &&
+        current?.applicationId === applicationId &&
+        current.feeId === markedFeeId
+      ) {
+        storeIssuerPendingSubmitAfterFee(clearProcessingFeeAwaitingConfirmation(current));
+      }
       if (isIssuerFeeCaptureMismatchHeldError(err)) {
         setError(null);
         return;

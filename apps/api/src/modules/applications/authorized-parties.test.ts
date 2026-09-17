@@ -39,7 +39,7 @@ const issuerParty = (
     email: string;
     ic_number: string;
     capacity: "director" | "authorised_signatory";
-    person_match_key: string;
+    person_match_key?: string;
     applies_company_seal?: boolean;
   }>
 ) =>
@@ -133,6 +133,35 @@ describe("assertApprovedIssuerRepresentativesCurrent", () => {
 
   it("requires representative review when the approved person is no longer eligible", () => {
     expect(() => assertApprovedIssuerRepresentativesCurrent(snapshot, [])).toThrow(
+      expect.objectContaining({
+        code: "AUTHORIZED_REPRESENTATIVE_PROFILE_CHANGED",
+      })
+    );
+  });
+
+  it("revalidates a legacy snapshot without person_match_key by IC and email", () => {
+    const legacySnapshot: AuthorizedPartiesSnapshot = {
+      ...snapshot,
+      parties: [
+        issuerParty([
+          {
+            name: "Ali Bin Abu",
+            email: "ali@co.my",
+            ic_number: "820508105871",
+            capacity: "director",
+          },
+        ]),
+      ],
+    };
+    expect(() =>
+      assertApprovedIssuerRepresentativesCurrent(legacySnapshot, directorPoolFromPeople([ALI]))
+    ).not.toThrow();
+    expect(() =>
+      assertApprovedIssuerRepresentativesCurrent(
+        legacySnapshot,
+        directorPoolFromPeople([{ ...ALI, email: "new@co.my" }])
+      )
+    ).toThrow(
       expect.objectContaining({
         code: "AUTHORIZED_REPRESENTATIVE_PROFILE_CHANGED",
       })
