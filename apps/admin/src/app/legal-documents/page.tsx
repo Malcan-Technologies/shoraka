@@ -1482,6 +1482,17 @@ export default function LegalDocumentsPage() {
                 This version will become live for the users it applies to.
               </DialogDescription>
             </DialogHeader>
+            {selectedDefinition && selectedVersion ? (
+              <div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm space-y-1">
+                <p>
+                  <span className="font-medium">Publishing:</span>{" "}
+                  {legalDocumentDisplayName(selectedDefinition.type)} (v{selectedVersion.version})
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  PDF file: {selectedVersion.fileName}
+                </p>
+              </div>
+            ) : null}
             <div className="py-4">
               <ReacceptanceOptions
                 name="row-reacceptance"

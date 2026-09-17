@@ -12,6 +12,7 @@ import {
 } from "../../lib/s3/client";
 import {
   assertStoredLegalPdf,
+  assertLegalDocumentKeyMatchesTypeAndVersion,
   isLegalDocumentS3Key,
   sanitizeS3KeyForLog,
 } from "../../lib/s3/legal-document-object";
@@ -287,9 +288,14 @@ export class LegalDocumentService {
       throw new AppError(404, "NOT_FOUND", "Legal document not found");
     }
 
-    if (!isLegalDocumentS3Key(input.s3Key)) {
-      throw new AppError(400, "VALIDATION_ERROR", "Invalid S3 key for legal document");
-    }
+    const latestVersion = await legalDocumentRepository.getLatestVersionNumber(legalDocumentId);
+    const newVersion = latestVersion + 1;
+
+    assertLegalDocumentKeyMatchesTypeAndVersion({
+      s3Key: input.s3Key,
+      legalDocumentType: document.type,
+      expectedVersion: newVersion,
+    });
 
     let verified: { fileHash: string; fileSize: number };
     try {
@@ -301,9 +307,6 @@ export class LegalDocumentService {
       await this.tryDeleteUnreferencedUpload(input.s3Key, "create-hash-or-validation-failed");
       throw error;
     }
-
-    const latestVersion = await legalDocumentRepository.getLatestVersionNumber(legalDocumentId);
-    const newVersion = latestVersion + 1;
 
     let version: VersionWithDocument;
     try {
@@ -451,9 +454,12 @@ export class LegalDocumentService {
         "Only draft versions can have their PDF replaced in place"
       );
     }
-    if (!isLegalDocumentS3Key(input.s3Key)) {
-      throw new AppError(400, "VALIDATION_ERROR", "Invalid S3 key for legal document");
-    }
+
+    assertLegalDocumentKeyMatchesTypeAndVersion({
+      s3Key: input.s3Key,
+      legalDocumentType: existing.legal_document.type,
+      expectedVersion: existing.version,
+    });
 
     let verified: { fileHash: string; fileSize: number };
     try {

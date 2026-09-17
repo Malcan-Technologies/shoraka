@@ -8,6 +8,74 @@ export const LEGAL_DOCUMENT_S3_PREFIX = "legal-documents/";
 export const LEGAL_PDF_MAX_BYTES = 10 * 1024 * 1024;
 const PDF_MAGIC = Buffer.from("%PDF");
 
+// generateLegalDocumentKey() format:
+//   legal-documents/{typeSlug}/v{version}-{date}-{cuid}.{ext}
+// where:
+//   typeSlug = params.type.toLowerCase().replace(/_/g, "-")
+//   date     = YYYY-MM-DD
+//   cuid     = our internal base36 "cuid" string (letters+digits)
+const LEGAL_DOCUMENT_KEY_RE = /^legal-documents\/([a-z0-9-]+)\/v(\d+)-(\d{4}-\d{2}-\d{2})-([a-z0-9]+)\.([a-z0-9]+)$/i;
+
+function typeSlugFromLegalDocumentType(type: string): string {
+  return type.toLowerCase().replace(/_/g, "-");
+}
+
+export function parseLegalDocumentKey(key: string):
+  | { typeSlug: string; version: number; date: string; cuid: string; extension: string }
+  | null {
+  const match = key.match(LEGAL_DOCUMENT_KEY_RE);
+  if (!match) return null;
+  const [, typeSlugRaw, versionRaw, date, cuid, extensionRaw] = match;
+  const version = Number(versionRaw);
+  if (!Number.isFinite(version) || version <= 0) return null;
+
+  return {
+    typeSlug: typeSlugRaw.toLowerCase(),
+    version,
+    date,
+    cuid,
+    extension: extensionRaw.toLowerCase(),
+  };
+}
+
+export function assertLegalDocumentKeyMatchesTypeAndVersion(params: {
+  s3Key: string;
+  legalDocumentType: string;
+  expectedVersion: number;
+}) {
+  const { s3Key, legalDocumentType, expectedVersion } = params;
+
+  if (!isLegalDocumentS3Key(s3Key)) {
+    throw new AppError(400, "VALIDATION_ERROR", "Invalid S3 key for legal document");
+  }
+
+  const parsed = parseLegalDocumentKey(s3Key);
+  if (!parsed || parsed.extension !== "pdf") {
+    throw new AppError(
+      400,
+      "INVALID_LEGAL_DOCUMENT_S3_KEY_FORMAT",
+      "Invalid legal document S3 key format"
+    );
+  }
+
+  const expectedTypeSlug = typeSlugFromLegalDocumentType(legalDocumentType);
+  if (parsed.typeSlug !== expectedTypeSlug) {
+    throw new AppError(
+      400,
+      "LEGAL_DOCUMENT_KEY_TYPE_MISMATCH",
+      "Legal document S3 key type does not match the target definition"
+    );
+  }
+
+  if (parsed.version !== expectedVersion) {
+    throw new AppError(
+      400,
+      "LEGAL_DOCUMENT_KEY_VERSION_MISMATCH",
+      "Legal document S3 key version does not match the target version"
+    );
+  }
+}
+
 /** Log-safe S3 key: prefix + last path segment only. */
 export function sanitizeS3KeyForLog(key: string): string {
   const parts = key.split("/").filter(Boolean);
