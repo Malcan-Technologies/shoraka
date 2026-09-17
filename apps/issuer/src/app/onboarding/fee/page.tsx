@@ -50,6 +50,7 @@ export default function OnboardingFeePage() {
   const { setTitle } = useHeader();
   const { getAccessToken } = useAuthToken();
   const { activeOrganization, isLoading: orgLoading } = useOrganization();
+  const apiClient = createApiClient(API_URL, getAccessToken);
   const createFee = useCreateIssuerOnboardingFeeMutation();
   const [confirmedFee, setConfirmedFee] = useState<IssuerOnboardingFeeResponse | null>(null);
   const [isOpeningCheckout, setIsOpeningCheckout] = useState(false);
@@ -73,12 +74,32 @@ export default function OnboardingFeePage() {
     queryKey: ["issuer-company-seal", activeOrganization?.id],
     enabled: Boolean(activeOrganization?.id),
     queryFn: async () => {
-      const api = createApiClient(API_URL, getAccessToken);
-      const res = await api.getIssuerCompanySeal(activeOrganization!.id);
+      const res = await apiClient.getIssuerCompanySeal(activeOrganization!.id);
       if (!res.success) throw new Error(res.error.message);
       return res.data.seal;
     },
   });
+
+  const { data: currentUser } = useQuery({
+    queryKey: ["current-user"],
+    queryFn: async () => {
+      const result = await apiClient.get<{
+        userId: string;
+        user: {
+          first_name: string | null;
+          last_name: string | null;
+        };
+      }>("/v1/auth/me");
+      if (!result.success) throw new Error(result.error.message);
+      return result.data;
+    },
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const canEditCompanySeal = Boolean(
+    activeOrganization?.isOwner ||
+      activeOrganization?.members?.find((m) => m.id === currentUser?.userId)
+  );
 
   useEffect(() => {
     setTitle("Onboarding");
@@ -361,7 +382,7 @@ export default function OnboardingFeePage() {
               <div className="w-full pt-2">
                 <IssuerCompanySealCard
                   organizationId={activeOrganization.id}
-                  canEdit={activeOrganization.isOwner}
+                  canEdit={canEditCompanySeal}
                 />
               </div>
             ) : null}

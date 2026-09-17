@@ -1,7 +1,6 @@
 import { randomUUID } from "crypto";
 import { Prisma } from "@prisma/client";
 import {
-  COMPANY_SEAL_MANAGE_FORBIDDEN_MESSAGE,
   isIssuerCompanySealS3Key,
   issuerCompanySealS3Prefix,
   type IssuerCompanySealDto,
@@ -11,7 +10,6 @@ import { prisma } from "../../lib/prisma";
 import { generatePresignedUploadUrl, generatePresignedViewUrl } from "../../lib/s3/client";
 import { confirmSigningCloudLegalImageFromS3 } from "../../lib/signingcloud/legal-image";
 import { OrganizationService } from "./service";
-import { requireOrganizationOwnerOrAdmin } from "./org-rbac";
 import type { IssuerCompanySealConfirmInput, IssuerCompanySealUploadUrlInput } from "./schemas";
 
 const organizationService = new OrganizationService();
@@ -19,7 +17,8 @@ const organizationService = new OrganizationService();
 const SEAL_IN_USE_MESSAGE =
   "This company seal is still used on a signing package and cannot be removed.";
 
-export { COMPANY_SEAL_MANAGE_FORBIDDEN_MESSAGE };
+export const COMPANY_SEAL_MANAGE_FORBIDDEN_MESSAGE =
+  "Only the organisation owner or an organisation member can manage the company seal.";
 
 type CompanySealRow = {
   id: string;
@@ -86,7 +85,12 @@ async function requireSealManager(
   if (options?.canManageOrganizations) return;
 
   const organization = await loadIssuerOrganization(userId, organizationId);
-  requireOrganizationOwnerOrAdmin(organization, userId, COMPANY_SEAL_MANAGE_FORBIDDEN_MESSAGE);
+  const isOwner = organization.owner_user_id === userId;
+  const isMember = organization.members.some((m) => m.user_id === userId);
+
+  if (!isOwner && !isMember) {
+    throw new AppError(403, "FORBIDDEN", COMPANY_SEAL_MANAGE_FORBIDDEN_MESSAGE);
+  }
 }
 
 export async function getIssuerCompanySeal(
