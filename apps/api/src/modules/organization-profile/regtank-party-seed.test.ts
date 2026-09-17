@@ -64,18 +64,30 @@ describe("planRegTankPersonSeed", () => {
     const planned = planRegTankPersonSeed({
       current: current({
         identity_number: "880101011111",
+        identity_prefix: "PASSPORT",
         gender: "FEMALE",
+        date_of_birth: new Date("1999-01-01T00:00:00.000Z"),
+        nationality: "SINGAPORE",
+        salutation: "Mr",
         field_sources: {
           name: { source: "USER", updatedAt: "2026-09-01T00:00:00.000Z" },
           identityNumber: { source: "CTOS", updatedAt: "2026-09-01T00:00:00.000Z" },
+          identityPrefix: { source: "CTOS", updatedAt: "2026-09-01T00:00:00.000Z" },
+          dateOfBirth: { source: "USER", updatedAt: "2026-09-01T00:00:00.000Z" },
+          nationality: { source: "ADMIN", updatedAt: "2026-09-01T00:00:00.000Z" },
           gender: { source: "ADMIN", updatedAt: "2026-09-01T00:00:00.000Z" },
+          salutation: { source: "USER", updatedAt: "2026-09-01T00:00:00.000Z" },
         },
       }),
       seed,
       otherRows: [],
     });
     expect(planned.data.identity_number).toBeUndefined();
+    expect(planned.data.identity_prefix).toBeUndefined();
     expect(planned.data.gender).toBeUndefined();
+    expect(planned.data.date_of_birth).toBeUndefined();
+    expect(planned.data.nationality).toBeUndefined();
+    expect(planned.data.salutation).toBeUndefined();
     expect(planned.sources.identityNumber?.source).toBe("CTOS");
   });
 
