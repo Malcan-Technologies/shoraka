@@ -14,6 +14,7 @@ import {
   signingIcFromPerson,
   signingPackageRequiresIssuerSeal,
   type ApplicationPersonRow,
+  type AuthorizedPartiesSnapshot,
   type AuthorizedParty,
   type AuthorizedPartyCorporateGuarantor,
   type AuthorizedPartyIndividualGuarantor,
@@ -79,6 +80,37 @@ export async function loadIssuerDirectorPool(
     corporateEntities: org.corporate_entities ?? null,
   });
   return directorPoolFromPeople(partyBuild.people);
+}
+
+export const AUTHORIZED_REPRESENTATIVE_PROFILE_CHANGED_MESSAGE =
+  "An approved issuer representative's Person Email or profile eligibility changed after approval. Request a change to Authorised representatives, then ask the issuer to review and resubmit only that section before creating the signing package.";
+
+export function approvedIssuerRepresentativesAreCurrent(
+  snapshot: AuthorizedPartiesSnapshot,
+  pool: IssuerDirectorPoolEntry[]
+): boolean {
+  const issuer = snapshot.parties.find((party) => party.entity_kind === "ISSUER");
+  if (!issuer) return true;
+  const byMatchKey = new Map(pool.map((entry) => [entry.matchKey, entry]));
+  return issuer.representatives.every((representative) => {
+    const matchKey = representative.person_match_key?.trim() ?? "";
+    if (!matchKey) return true;
+    const current = byMatchKey.get(matchKey);
+    return Boolean(current && current.email === normalizeSigningEmail(representative.email));
+  });
+}
+
+export function assertApprovedIssuerRepresentativesCurrent(
+  snapshot: AuthorizedPartiesSnapshot,
+  pool: IssuerDirectorPoolEntry[]
+): void {
+  if (!approvedIssuerRepresentativesAreCurrent(snapshot, pool)) {
+    throw new AppError(
+      409,
+      "AUTHORIZED_REPRESENTATIVE_PROFILE_CHANGED",
+      AUTHORIZED_REPRESENTATIVE_PROFILE_CHANGED_MESSAGE
+    );
+  }
 }
 
 function requireMatchingIssuerDirector(

@@ -1,7 +1,11 @@
-import { ISSUER_SEAL_APPLIER_REQUIRED_MESSAGE } from "@cashsouk/types";
+import {
+  ISSUER_SEAL_APPLIER_REQUIRED_MESSAGE,
+  type AuthorizedPartiesSnapshot,
+} from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
 import { submitOfferAcceptanceBodySchema } from "./schemas";
 import {
+  assertApprovedIssuerRepresentativesCurrent,
   assertAuthorizedPartiesValid,
   assertGuarantorAuthorizedPartiesValid,
   assertIssuerAuthorizedPartiesValid,
@@ -88,6 +92,51 @@ describe("directorPoolFromPeople", () => {
       },
     ]);
     expect(pool[0]?.icNumber).toBe("");
+  });
+});
+
+describe("assertApprovedIssuerRepresentativesCurrent", () => {
+  const snapshot: AuthorizedPartiesSnapshot = {
+    submitted_by_user_id: "user-1",
+    submitted_at: "2026-09-17T00:00:00.000Z",
+    parties: [
+      issuerParty([
+        {
+          name: "Ali Bin Abu",
+          email: "ali@co.my",
+          ic_number: "820508105871",
+          capacity: "director",
+          person_match_key: "820508105871",
+        },
+      ]),
+    ],
+  };
+
+  it("accepts an approved representative whose Person Email is unchanged", () => {
+    expect(() =>
+      assertApprovedIssuerRepresentativesCurrent(snapshot, directorPoolFromPeople([ALI]))
+    ).not.toThrow();
+  });
+
+  it("requires representative review when Person Email changed after approval", () => {
+    expect(() =>
+      assertApprovedIssuerRepresentativesCurrent(
+        snapshot,
+        directorPoolFromPeople([{ ...ALI, email: "new@co.my" }])
+      )
+    ).toThrow(
+      expect.objectContaining({
+        code: "AUTHORIZED_REPRESENTATIVE_PROFILE_CHANGED",
+      })
+    );
+  });
+
+  it("requires representative review when the approved person is no longer eligible", () => {
+    expect(() => assertApprovedIssuerRepresentativesCurrent(snapshot, [])).toThrow(
+      expect.objectContaining({
+        code: "AUTHORIZED_REPRESENTATIVE_PROFILE_CHANGED",
+      })
+    );
   });
 });
 

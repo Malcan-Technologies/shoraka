@@ -2,9 +2,20 @@ jest.mock("../../lib/prisma", () => ({
   prisma: {},
 }));
 
+jest.mock("../applications/authorized-parties", () => {
+  const actual = jest.requireActual("../applications/authorized-parties") as Record<string, unknown>;
+  return {
+    ...actual,
+    loadIssuerDirectorPool: jest.fn(),
+  };
+});
+
 import { InvoiceStatus } from "@cashsouk/types";
+import { loadIssuerDirectorPool } from "../applications/authorized-parties";
 import { SigningService } from "./service";
 import type { SigningRepository } from "./repository";
+
+const loadPool = loadIssuerDirectorPool as jest.MockedFunction<typeof loadIssuerDirectorPool>;
 
 const FA_WORKFLOW = [
   {
@@ -39,6 +50,7 @@ const invoiceOfferWithSealApplier = {
               email: "ali@co.my",
               ic_number: "820508105871",
               capacity: "director",
+              person_match_key: "820508105871",
               applies_company_seal: true,
             },
           ],
@@ -66,6 +78,15 @@ describe("getSigningPackageReadiness", () => {
 
   beforeEach(() => {
     delete process.env.SC_ENABLE_SEAL_FIELD;
+    loadPool.mockReset();
+    loadPool.mockResolvedValue([
+      {
+        matchKey: "820508105871",
+        name: "Ali Bin Abu",
+        email: "ali@co.my",
+        icNumber: "820508105871",
+      },
+    ]);
   });
 
   afterEach(() => {
@@ -145,5 +166,41 @@ describe("getSigningPackageReadiness", () => {
     const readiness = await service.getSigningPackageReadiness("app-1");
 
     expect(readiness.issues.map((issue) => issue.code)).toContain("SIGNING_SEAL_APPLIER_MISSING");
+  });
+
+  it("flags an approved representative whose Person Email changed", async () => {
+    loadPool.mockResolvedValue([
+      {
+        matchKey: "820508105871",
+        name: "Ali Bin Abu",
+        email: "new@co.my",
+        icNumber: "820508105871",
+      },
+    ]);
+    const service = createService({
+      findApplicationContext: jest.fn().mockResolvedValue({
+        id: "app-1",
+        issuer_organization_id: "org-1",
+        financing_structure: { structure_type: "invoice_only" },
+        contract_id: "holder-1",
+        contract: { id: "holder-1", offer_details: {} },
+        invoices: [
+          {
+            id: "inv-1",
+            status: InvoiceStatus.OFFER_SENT,
+            offer_details: invoiceOfferWithSealApplier,
+          },
+        ],
+      }),
+    });
+    jest
+      .spyOn(service as never, "getProductWorkflowForApplication")
+      .mockResolvedValue(FA_WORKFLOW as never);
+
+    const readiness = await service.getSigningPackageReadiness("app-1");
+
+    expect(readiness.issues.map((issue) => issue.code)).toContain(
+      "AUTHORIZED_REPRESENTATIVE_PROFILE_CHANGED"
+    );
   });
 });

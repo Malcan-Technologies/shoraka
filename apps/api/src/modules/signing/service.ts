@@ -149,8 +149,12 @@ import { generateSigningAccessToken } from "./token";
 import { buildSigningReturnUrl, validateSigningRedirectUrl } from "../../lib/signing/redirect-url";
 import { legalExternalAcceptanceService } from "../legal-documents/external-acceptance-service";
 import {
+  AUTHORIZED_REPRESENTATIVE_PROFILE_CHANGED_MESSAGE,
+  approvedIssuerRepresentativesAreCurrent,
+  assertApprovedIssuerRepresentativesCurrent,
   assertIssuerSealReadyForPackage,
   loadIssuerDirectorPool,
+  type IssuerDirectorPoolEntry,
 } from "../applications/authorized-parties";
 import { resolveSigningPackageOfferSource } from "./signing-package-offer";
 import {
@@ -491,11 +495,14 @@ export class SigningService {
   private async validateAndNormalizeIssuerBindings(
     application: SigningApplicationContext,
     template: SigningTemplateConfig,
-    bindings: RecipientBinding[]
+    bindings: RecipientBinding[],
+    issuerDirectorPool?: IssuerDirectorPoolEntry[]
   ): Promise<RecipientBinding[]> {
     // Same people[] as the authorised-representative dropdown (includes company-profile directors).
+    const pool =
+      issuerDirectorPool ?? (await loadIssuerDirectorPool(application.issuer_organization_id));
     const directorEmails = new Set(
-      (await loadIssuerDirectorPool(application.issuer_organization_id)).map((entry) => entry.email)
+      pool.map((entry) => entry.email)
     );
     const roleByKey = new Map(template.roles.map((role) => [role.key, role]));
     const applicationGuarantors = application.application_guarantors;
@@ -1041,10 +1048,13 @@ export class SigningService {
         "Authorised representatives must be approved before sending the signing package."
       );
     }
+    const issuerDirectorPool = await loadIssuerDirectorPool(application.issuer_organization_id);
+    assertApprovedIssuerRepresentativesCurrent(snapshot, issuerDirectorPool);
     const bindings = await this.validateAndNormalizeIssuerBindings(
       application,
       template,
-      snapshotBindings
+      snapshotBindings,
+      issuerDirectorPool
     );
     this.assertBindingsMatchApprovedSnapshot(offerDetails, template, bindings);
     const issuerUploadS3Keys = resolveIssuerUploadS3Keys(
@@ -1158,6 +1168,25 @@ export class SigningService {
         issues.push({
           code: "ISSUER_COMPANY_SEAL_REQUIRED",
           message: "Upload a company seal in Issuer Profile before sending this signing package.",
+        });
+      }
+    }
+
+    const approvedParties =
+      getOfferAcceptanceFromOfferDetails(offerDetails)?.authorized_parties ?? null;
+    const hasTrackedIssuerRepresentative = approvedParties?.parties.some(
+      (party) =>
+        party.entity_kind === "ISSUER" &&
+        party.representatives.some((representative) =>
+          Boolean(representative.person_match_key?.trim())
+        )
+    );
+    if (approvedParties && hasTrackedIssuerRepresentative) {
+      const issuerDirectorPool = await loadIssuerDirectorPool(application.issuer_organization_id);
+      if (!approvedIssuerRepresentativesAreCurrent(approvedParties, issuerDirectorPool)) {
+        issues.push({
+          code: "AUTHORIZED_REPRESENTATIVE_PROFILE_CHANGED",
+          message: AUTHORIZED_REPRESENTATIVE_PROFILE_CHANGED_MESSAGE,
         });
       }
     }

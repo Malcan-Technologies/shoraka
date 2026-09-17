@@ -4,7 +4,7 @@ import { isDraftPartyOnboardingRequestId } from "./kyc-onboarding-lifecycle";
 import { normalizeRawStatus } from "./status-normalization";
 
 export const PERSON_EMAIL_HELP =
-  "Used for signing, onboarding, person-specific OTPs, and person-specific business mail. This is not the login email.";
+  "Used for signing, onboarding, person-specific OTPs, and person-specific business mail. This is not the login email. Warning: changing it may require the person to complete KYC identity verification again and may require authorised representatives to be reviewed again before a new signing package can be created.";
 
 export function normalizePersonEmail(value: unknown): string | null {
   const trimmed = String(value ?? "").trim().toLowerCase();
@@ -33,7 +33,8 @@ function personOnboardingStatus(params: {
   onboardingStatus?: string | null;
 }): string {
   const parsed = parseCtosPartySupplement(params.supplementRoot);
-  return normalizeRawStatus(params.onboardingStatus ?? parsed.status);
+  const supplementStatus = normalizeRawStatus(parsed.status);
+  return supplementStatus || normalizeRawStatus(params.onboardingStatus);
 }
 
 function personScreeningStatus(params: {
@@ -41,7 +42,8 @@ function personScreeningStatus(params: {
   screeningStatus?: string | null;
 }): string {
   const parsed = parseCtosPartySupplement(params.supplementRoot);
-  return normalizeRawStatus(params.screeningStatus ?? parsed.screening?.status);
+  const supplementStatus = normalizeRawStatus(parsed.screening?.status);
+  return supplementStatus || normalizeRawStatus(params.screeningStatus);
 }
 
 /**

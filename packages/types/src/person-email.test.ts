@@ -58,12 +58,25 @@ describe("isPersonEmailLifecycleLocked", () => {
         onboardingStatus: "PENDING_APPROVAL",
       })
     ).toBe(true);
+    expect(
+      isPersonEmailLifecycleLocked({
+        supplementRoot: { status: "WAIT_FOR_APPROVAL", requestId: "req-live" },
+        onboardingStatus: "IN_PROGRESS",
+      })
+    ).toBe(true);
+    expect(
+      isPersonEmailLifecycleLocked({
+        supplementRoot: { status: " " },
+        onboardingStatus: "PENDING_APPROVAL",
+      })
+    ).toBe(true);
   });
 
   it("stays editable after KYC approval, AML terminal, or legacy approved", () => {
     expect(
       isPersonEmailLifecycleLocked({
         supplementRoot: { status: "APPROVED", requestId: "req-1" },
+        onboardingStatus: "PENDING_APPROVAL",
       })
     ).toBe(false);
     expect(
@@ -112,6 +125,14 @@ describe("planPersonEmailWrite", () => {
       pipelineReset: true,
       screeningReset: true,
     });
+    expect(
+      planPersonEmailWrite({
+        currentMasterEmail: "old@acme.test",
+        incomingEmail: "new@acme.test",
+        supplementRoot: { email: "old@acme.test", status: "IN_PROGRESS", requestId: "req-live" },
+        onboardingStatus: "APPROVED",
+      })
+    ).toMatchObject({ action: "write", pipelineReset: true, screeningReset: true });
   });
 
   it("rejects create/patch writes while WAIT_FOR_APPROVAL even if master email is empty", () => {
@@ -149,6 +170,7 @@ describe("planPersonEmailWrite", () => {
         currentMasterEmail: "old@acme.test",
         incomingEmail: "new@acme.test",
         supplementRoot: { status: "IN_PROGRESS", screening: { status: "CLEAR", requestId: "aml-1" } },
+        screeningStatus: "IN_PROGRESS",
       })
     ).toMatchObject({ action: "write", pipelineReset: false, screeningReset: false });
     expect(
