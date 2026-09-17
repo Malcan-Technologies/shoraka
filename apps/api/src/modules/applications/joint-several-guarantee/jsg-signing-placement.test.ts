@@ -158,6 +158,47 @@ describe("collectJsgSignatureSlots", () => {
     expect(slots[0]?.top).toBeLessThan(slots[1]?.top ?? 0);
   });
 
+  it("joins a wrapped Full Name onto one execution-line name", () => {
+    const firstLine = '!@#$%^&*()_+{}|:"<>?-=[]\\;\',./';
+    const wrapped = `${firstLine} <h1>1</h1> <a hreft=#>`;
+    const items = [
+      item(1, 80, 200, "EXECUTION PAGE"),
+      item(1, 120, 99, "....................", 120),
+      item(1, 136, 99, "Signature of Guarantor"),
+      item(1, 152, 99, `Full Name: ${firstLine}`, 220),
+      item(1, 164, 99, "<h1>1</h1> <a hreft=#>", 140),
+      item(1, 176, 99, "NRIC No.: 123456789012", 160),
+      item(1, 188, 99, "Date: ________________", 160),
+      item(1, 220, 99, "....................", 120),
+      item(1, 236, 99, "Signature of Guarantor"),
+      item(1, 252, 99, "Full Name: Kau Khai Kit 2", 140),
+      item(1, 268, 99, "Date: ________________", 160),
+      item(2, 80, 200, "OPERATOR"),
+    ];
+    const slots = collectJsgSignatureSlots(items);
+    expect(slots.map((slot) => slot.name)).toEqual([wrapped, "Kau Khai Kit 2"]);
+  });
+
+  it("does not treat the next guarantor heading as part of a wrapped name", () => {
+    const items = [
+      item(1, 80, 200, "EXECUTION PAGE"),
+      item(1, 120, 99, "....................", 120),
+      item(1, 136, 99, "Signature of Guarantor"),
+      item(1, 152, 99, "Full Name: Tan Sri Dato'", 140),
+      item(1, 164, 99, "Ahmad Bin Abdullah", 140),
+      item(1, 176, 99, "Date: ________________", 160),
+      item(1, 200, 94, "The Guarantor(s)"),
+      item(1, 216, 94, "Siti Binti Ahmad"),
+      item(1, 232, 99, "....................", 120),
+      item(1, 248, 99, "Signature of Guarantor"),
+      item(1, 264, 99, "Full Name: Siti Binti Ahmad", 140),
+      item(1, 280, 99, "Date: ________________", 160),
+      item(2, 80, 200, "OPERATOR"),
+    ];
+    const slots = collectJsgSignatureSlots(items);
+    expect(slots.map((slot) => slot.name)).toEqual(["Tan Sri Dato' Ahmad Bin Abdullah", "Siti Binti Ahmad"]);
+  });
+
   it("fails when a guarantor block has no Date line", () => {
     const items = packedExecutionItems().filter((entry) => !/^Date\s*:/i.test(entry.text));
     expect(() => collectJsgSignatureSlots(items)).toThrow(/missing a Date line/);
@@ -196,6 +237,22 @@ describe("matchJsgSignersToSlots", () => {
     expect(slots).toHaveLength(2);
     const signsets = matchJsgSignersToSlots(["Kau Khai Kit", "Kau Khai Kit"], slots);
     expect(signsets[0]?.[0]?.top).not.toBe(signsets[1]?.[0]?.top);
+  });
+
+  it("places a signer whose Full Name wrapped onto the next PDF line", () => {
+    const firstLine = '!@#$%^&*()_+{}|:"<>?-=[]\\;\',./';
+    const wrapped = `${firstLine} <h1>1</h1> <a hreft=#>`;
+    const items = [
+      item(1, 80, 200, "EXECUTION PAGE"),
+      item(1, 120, 99, "....................", 120),
+      item(1, 136, 99, "Signature of Guarantor"),
+      item(1, 152, 99, `Full Name: ${firstLine}`, 220),
+      item(1, 164, 99, "<h1>1</h1> <a hreft=#>", 140),
+      item(1, 176, 99, "Date: ________________", 160),
+      item(2, 80, 200, "OPERATOR"),
+    ];
+    const slots = collectJsgSignatureSlots(items);
+    expect(() => matchJsgSignersToSlots([wrapped], slots)).not.toThrow();
   });
 
   it("fails closed when a signer has no execution line", () => {

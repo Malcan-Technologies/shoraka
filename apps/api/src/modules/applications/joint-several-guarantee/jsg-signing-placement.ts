@@ -264,21 +264,6 @@ function fieldFromSignatureLine(line: JsgPdfLine): Pick<
   };
 }
 
-function individualNameFromLabel(label: JsgPdfLine, lines: JsgPdfLine[]): string {
-  const fullName = lines
-    .filter(
-      (candidate) =>
-        candidate.pageindex === label.pageindex &&
-        sameColumn(candidate, label) &&
-        candidate.yTop > label.yTop &&
-        candidate.yTop - label.yTop <= LINE_SEARCH_BELOW * 1.4
-    )
-    .sort((a, b) => a.yTop - b.yTop)
-    .map((candidate) => compactLineText(candidate.text).match(/^Full Name:\s*(.*)$/i)?.[1]?.trim())
-    .find((name) => name && name.length > 0);
-  return fullName ?? "";
-}
-
 function isWitnessOrOperatorLabel(text: string): boolean {
   const value = compactLineText(text).toLowerCase();
   return (
@@ -289,6 +274,50 @@ function isWitnessOrOperatorLabel(text: string): boolean {
     value.startsWith("designation") ||
     value.startsWith("date:")
   );
+}
+
+function isNameContinuationStop(text: string): boolean {
+  const value = compactLineText(text);
+  if (!value) return true;
+  if (isDotsLine(text) || isUnderscoreLine(text)) return true;
+  if (isWitnessOrOperatorLabel(text)) return true;
+  if (/^full name:/i.test(value) || /^signature of /i.test(value)) return true;
+  const lower = value.toLowerCase();
+  return (
+    lower === "the guarantor(s)" ||
+    lower.startsWith("for and on behalf of") ||
+    lower === "operator" ||
+    lower === "schedule 1" ||
+    lower === "execution page"
+  );
+}
+
+/** Printed name under Signature of Guarantor, including wrapped Full Name lines. */
+function individualNameFromLabel(label: JsgPdfLine, lines: JsgPdfLine[]): string {
+  const nearby = lines
+    .filter(
+      (candidate) =>
+        candidate.pageindex === label.pageindex &&
+        sameColumn(candidate, label) &&
+        candidate.yTop > label.yTop
+    )
+    .sort((a, b) => a.yTop - b.yTop);
+
+  const fullNameLine = nearby.find((candidate) =>
+    /^Full Name:/i.test(compactLineText(candidate.text))
+  );
+  if (!fullNameLine) return "";
+
+  const remainder = compactLineText(fullNameLine.text).match(/^Full Name:\s*(.*)$/i)?.[1]?.trim();
+  const parts: string[] = remainder ? [remainder] : [];
+  for (const candidate of nearby) {
+    if (candidate.yTop <= fullNameLine.yTop) continue;
+    if (candidate.yTop - fullNameLine.yTop > LINE_SEARCH_BELOW * 1.4) break;
+    const text = compactLineText(candidate.text);
+    if (isNameContinuationStop(text)) break;
+    parts.push(text);
+  }
+  return compactLineText(parts.join(" "));
 }
 
 /** CA slots on individual dotted lines and corporate underscores, never Operator/Schedule 1. */
