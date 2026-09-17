@@ -7,6 +7,7 @@ import {
   isGuarantorAuthorizedParty,
   isValidSigningIcNumber,
   issuerSealApplierIssue,
+  ISSUER_COMPANY_SEAL_REQUIRED_MESSAGE,
   normalizeSigningEmail,
   normalizeSigningIcNumber,
   resolveSigningTemplateFromWorkflow,
@@ -347,9 +348,6 @@ export function assertAuthorizedPartiesValid(
   assertIssuerAuthorizedPartiesValid(parties, pool, options);
   assertGuarantorAuthorizedPartiesValid(parties, guarantors);
 }
-
-export const ISSUER_COMPANY_SEAL_REQUIRED_MESSAGE =
-  "Upload a company seal in Issuer Profile before submitting this offer.";
 
 export async function assertIssuerSealReadyForPackage(
   organizationId: string,

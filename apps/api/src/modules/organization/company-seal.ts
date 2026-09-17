@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { Prisma } from "@prisma/client";
 import {
+  COMPANY_SEAL_MANAGE_FORBIDDEN_MESSAGE,
   isIssuerCompanySealS3Key,
   issuerCompanySealS3Prefix,
   type IssuerCompanySealDto,
@@ -18,8 +19,7 @@ const organizationService = new OrganizationService();
 const SEAL_IN_USE_MESSAGE =
   "This company seal is still used on a signing package and cannot be removed.";
 
-export const COMPANY_SEAL_MANAGE_FORBIDDEN_MESSAGE =
-  "Only the organisation owner or an organisation admin can manage the company seal.";
+export { COMPANY_SEAL_MANAGE_FORBIDDEN_MESSAGE };
 
 type CompanySealRow = {
   id: string;

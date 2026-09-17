@@ -114,7 +114,7 @@ export default function ExternalSigningPage() {
         return;
       }
 
-      if (data.kyc_required && data.kyc_status !== "VERIFIED") {
+      if (data.kyc_status === "PENDING" || data.kyc_status === "FAILED") {
         setSelectedDocumentId(null);
         setStep("ekyc");
         return;

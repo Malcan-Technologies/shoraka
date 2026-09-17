@@ -11,8 +11,9 @@ describe("Issuer People & Access", () => {
   it("uses the shared People & Access table for company organisations", () => {
     expect(profile).toContain("PeopleAccessSection");
     expect(profile).toContain('portal="issuer"');
-    expect(profile).toContain("canEdit={isCurrentUserAdmin}");
-    expect(profile).toContain("canInactivate={isCurrentUserAdmin}");
+    expect(profile).toContain("canManagePlatformAccess={isCurrentUserAdmin}");
+    expect(profile).toContain("canEdit={canEditOrganization}");
+    expect(profile).toContain("canInactivate={canEditOrganization}");
     expect(profile).not.toContain("IssuerPeopleSection");
     expect(profile).not.toContain("PortalPeopleSection");
   });

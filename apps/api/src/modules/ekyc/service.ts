@@ -19,6 +19,9 @@ import {
   submitSigningCloudEkycResult,
 } from "./signingcloud-ekyc";
 
+/** Flip to `true` to skip MyKad eKYC on signing links. Keep `false` in commits. */
+const SKIP_SIGNING_EKYC = false;
+
 /** SigningCloud eKYC is MyKad-only in CashSouk. */
 const EKYC_DOC_TYPE = "mykad";
 
@@ -153,6 +156,7 @@ export async function assertProvidedIcCompatibleWithEmailEkyc(
   email: string,
   providedIc: string
 ): Promise<void> {
+  if (SKIP_SIGNING_EKYC) return;
   const record = await prisma.signingCloudEkyc.findUnique({
     where: { email: normalizeEkycEmail(email) },
     select: { status: true, confirmed_ic_number: true },
@@ -176,7 +180,7 @@ export async function resolveSigningKycStatus(input: {
   email: string;
   icNumber: string | null | undefined;
 }): Promise<SigningKycStatus> {
-  if (!input.kycRequired) return "NOT_REQUIRED";
+  if (SKIP_SIGNING_EKYC || !input.kycRequired) return "NOT_REQUIRED";
   const record = await prisma.signingCloudEkyc.findUnique({
     where: { email: normalizeEkycEmail(input.email) },
     select: { status: true, confirmed_ic_number: true },
@@ -189,6 +193,12 @@ export async function resolveSigningKycStatusMap(
   recipients: Array<{ id: string; email: string; ic_number: string | null; kyc_required: boolean }>
 ): Promise<Map<string, SigningKycStatus>> {
   const result = new Map<string, SigningKycStatus>();
+  if (SKIP_SIGNING_EKYC) {
+    for (const recipient of recipients) {
+      result.set(recipient.id, "NOT_REQUIRED");
+    }
+    return result;
+  }
   const emails = [
     ...new Set(
       recipients.filter((r) => r.kyc_required).map((r) => normalizeEkycEmail(r.email))

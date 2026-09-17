@@ -16,6 +16,7 @@ Related docs:
 | Same email, different org / envelope | **No** — if `signingcloud_ekyc.status = verified` and IC matches |
 | Same email, new IC bound on envelope | **Blocked** — verified email IC is authoritative; mistyped IC is rejected (does not overwrite) |
 | Role with `kyc_required: false` | **No** — skipped entirely |
+| `SKIP_SIGNING_EKYC` in `ekyc/service.ts` | **No** — local testing only |
 
 Each envelope recipient still has its own signing link and IC access-code gate. Only **MyKad eKYC** is shared via email.
 
@@ -88,7 +89,7 @@ Runs `20260707170000_restore_shared_signingcloud_ekyc` (recreates/alters `signin
 
 | Area | Path |
 |------|------|
-| eKYC service | `apps/api/src/modules/ekyc/service.ts` |
+| eKYC service | `apps/api/src/modules/ekyc/service.ts` (`SKIP_SIGNING_EKYC`) |
 | Status resolver | `resolveSigningKycStatus`, `resolveSigningKycStatusMap` |
 | Signing gate | `apps/api/src/modules/signing/service.ts` (`assertRecipientCanSign`) |
 | Guarantor warning | `apps/api/src/modules/legal-documents/external-acceptance-service.ts` |

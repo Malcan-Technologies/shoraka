@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { PhotoIcon, TrashIcon } from "@heroicons/react/24/outline";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import {
+  COMPANY_SEAL_MANAGE_FORBIDDEN_MESSAGE,
   SIGNINGCLOUD_LEGAL_IMAGE_DIMENSION_MESSAGE,
   SIGNINGCLOUD_LEGAL_IMAGE_TOO_LARGE_MESSAGE,
   SIGNINGCLOUD_LEGAL_IMAGE_UNSUPPORTED_TYPE_MESSAGE,
@@ -184,7 +185,11 @@ export function IssuerCompanySealCard({
           }
         />
       ) : (
-        <p className="text-ui text-muted-foreground">No company seal uploaded.</p>
+        <EmptyState
+          icon={<PhotoIcon className="h-6 w-6" aria-hidden />}
+          title="No company seal yet"
+          message={COMPANY_SEAL_MANAGE_FORBIDDEN_MESSAGE}
+        />
       )}
       <ConfirmDialog
         open={removeOpen}

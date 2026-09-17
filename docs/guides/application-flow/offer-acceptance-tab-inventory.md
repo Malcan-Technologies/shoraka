@@ -286,9 +286,9 @@ Typical: invoice on a facility whose contract envelope is already complete (`res
 - **Issuer directors card** — select director (name/email/IC read-only from profile); Add director / Remove; empty “No directors…”; loading “Loading directors…”; highlighted + remark when flagged; read-only if package sent, not Step-1-editable, or changes requested and this list not flagged — `saveContractAuthorizedPartiesDraft` / `saveInvoiceAuthorizedPartiesDraft` on Continue — Representatives.
 - **Corporate guarantors** — name, email, IC; Add/Remove representative — Representatives.
 - **Individual guarantors** — name, IC, email from application (display; no edit handler) — Representatives.
-- **Continue** — has post-docs and not people-only resubmit; gates `areIssuerDirectorSelectionsReady` + `areGuarantorPartiesReady` — Documents.
-- **Submit for review** — no post-docs **or** people-only resubmit (flagged parties, zero flagged docs) — `submitContractOfferAcceptance` / `submitInvoiceOfferAcceptance` — CashSouk review.
-- **Incomplete helper** — Complete issuer and every guarantor before continuing — Representatives.
+- **Continue** — has post-docs and not people-only resubmit; clickable unless a draft save is in flight or company-seal status is still loading. `goToDocumentsStep` toasts the first blocker (directors, guarantors, seal applier, missing seal file / Owner-Admin). Missing seal links to `/profile?focus=seal`. Disabled clicks are not used for those validations. — Documents.
+- **Submit for review** — no post-docs **or** people-only resubmit (flagged parties, zero flagged docs) — `submitContractOfferAcceptance` / `submitInvoiceOfferAcceptance`; same visible blockers as Continue. — CashSouk review.
+- **Incomplete helper** — destructive copy for the first blocker, including seal-on-file / Owner-Admin with Organisation deep-link — Representatives.
 
 #### Documents (`SupportingDocumentsStep`, `documentStorage="acceptance_documents"`)
 

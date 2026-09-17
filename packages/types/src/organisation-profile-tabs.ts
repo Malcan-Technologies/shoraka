@@ -31,6 +31,7 @@ export type OrganisationProfileTab = CompanyOrganisationTab;
 export const PROFILE_BANKING_HREF = `${PROFILE_PATH}?tab=${PROFILE_TAB_BANKING}`;
 export const PROFILE_PEOPLE_HREF = `${PROFILE_PATH}?tab=${PROFILE_TAB_PEOPLE}`;
 export const PROFILE_DOCUMENTS_HREF = `${PROFILE_PATH}?tab=${PROFILE_TAB_DOCUMENTS}`;
+export const PROFILE_COMPANY_SEAL_HREF = `${PROFILE_PATH}?focus=seal`;
 
 export function organisationProfileTabs(isCompany: boolean): readonly OrganisationProfileTab[] {
   return isCompany ? COMPANY_ORGANISATION_TABS : PERSONAL_ORGANISATION_TABS;

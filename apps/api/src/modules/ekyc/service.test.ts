@@ -454,6 +454,18 @@ describe("resolveSigningKycStatus", () => {
 
     expect(status).toBe("VERIFIED");
   });
+
+  it("returns NOT_REQUIRED when kyc is not required", async () => {
+    const { resolveSigningKycStatus } = await import("./service");
+    const status = await resolveSigningKycStatus({
+      kycRequired: false,
+      email: "director@malcan.io",
+      icNumber: "820508105871",
+    });
+
+    expect(status).toBe("NOT_REQUIRED");
+    expect(mockFindUnique).not.toHaveBeenCalled();
+  });
 });
 
 describe("EkycService.createExternalSignerSession", () => {

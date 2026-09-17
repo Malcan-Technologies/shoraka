@@ -1338,7 +1338,7 @@ export class SigningService {
       envelope: envelopeDto,
       recipient_id: recipient.id,
       access_verified: recipient.access_code_verified_at != null,
-      kyc_required: recipient.kyc_required,
+      kyc_required: kyc_status === "NOT_REQUIRED" ? false : recipient.kyc_required,
       kyc_status,
       package_closed: packageClosed,
       warning: await legalExternalAcceptanceService.getWarningForSigningRecipient(recipient),

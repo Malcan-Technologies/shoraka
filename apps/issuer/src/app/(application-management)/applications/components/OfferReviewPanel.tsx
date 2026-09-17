@@ -63,7 +63,7 @@ import {
   computeIndicativeAmountPayable,
   computeIndicativeUtilisationProfit,
   isRemindableSigningRecipient,
-  ISSUER_SEAL_APPLIER_REQUIRED_MESSAGE,
+  canManageIssuerCompanySeal,
   resolveSigningTemplateFromWorkflow,
   signingPackageRequiresIssuerSeal,
   isSignedContractOfferLetterAvailable,
@@ -135,6 +135,12 @@ import {
   EMPTY_CORPORATE_REP,
   nextGuarantorPartyDrafts,
 } from "./guarantor-authorized-parties";
+import {
+  ISSUER_COMPANY_SEAL_STATUS_ERROR_MESSAGE,
+  issuerOfferRepsBlocker,
+  type IssuerCompanySealUiStatus,
+  type IssuerOfferRepsBlocker,
+} from "./issuer-offer-reps-blocker";
 import { resolveIssuerFacilityFeeBalance } from "@/lib/facility-enabled";
 import { FacilityFeeBalanceSummary } from "@/components/financing/facility-fee-status";
 
@@ -214,6 +220,31 @@ function getApiErrorDetails(
     code: null,
     message: fallback,
   };
+}
+
+function OfferRepsBlockerText({
+  blocker,
+  id,
+}: {
+  blocker: IssuerOfferRepsBlocker;
+  id: string;
+}) {
+  return (
+    <p
+      id={id}
+      className={cn("text-ui", blocker.pending ? "text-muted-foreground" : "text-destructive")}
+    >
+      {blocker.message}
+      {blocker.href && blocker.linkLabel ? (
+        <>
+          {" "}
+          <Link href={blocker.href} className="font-medium underline underline-offset-2">
+            {blocker.linkLabel}
+          </Link>
+        </>
+      ) : null}
+    </p>
+  );
 }
 
 function findActiveSigningEnvelope(
@@ -302,6 +333,47 @@ export function OfferReviewPanel({
     () => workflowUsesOfferAcceptanceFlow(frozenProductWorkflow?.workflow),
     [frozenProductWorkflow]
   );
+  const { data: currentUser } = useQuery({
+    queryKey: ["current-user"],
+    queryFn: async () => {
+      const result = await apiClient.get<{ userId: string }>("/v1/auth/me");
+      if (!result.success) {
+        throw new Error(getApiErrorDetails(result, "Failed to load account").message);
+      }
+      return result.data;
+    },
+    staleTime: 1000 * 60 * 5,
+  });
+  const canManageSeal = canManageIssuerCompanySeal(activeOrganization, currentUser?.userId);
+  const issuerSealQuery = useQuery({
+    queryKey: ["issuer-company-seal", issuerOrganizationId],
+    queryFn: async () => {
+      if (!issuerOrganizationId) return null;
+      const response = await apiClient.getIssuerCompanySeal(issuerOrganizationId);
+      if (!response.success) {
+        throw new Error(
+          getApiErrorDetails(response, ISSUER_COMPANY_SEAL_STATUS_ERROR_MESSAGE).message
+        );
+      }
+      return response.data.seal;
+    },
+    enabled: Boolean(issuerOrganizationId) && requiresIssuerSeal && usesAcceptanceFlow,
+  });
+  const issuerSealStatus = React.useMemo((): IssuerCompanySealUiStatus => {
+    if (!requiresIssuerSeal || !usesAcceptanceFlow) return "idle";
+    if (!issuerOrganizationId) return "error";
+    if (issuerSealQuery.isLoading || issuerSealQuery.isPending) return "loading";
+    if (issuerSealQuery.isError) return "error";
+    return issuerSealQuery.data ? "uploaded" : "missing";
+  }, [
+    issuerOrganizationId,
+    issuerSealQuery.data,
+    issuerSealQuery.isError,
+    issuerSealQuery.isLoading,
+    issuerSealQuery.isPending,
+    requiresIssuerSeal,
+    usesAcceptanceFlow,
+  ]);
   const [isSubmittingAcceptance, setIsSubmittingAcceptance] = React.useState(false);
   const [isSavingPartyDraft, setIsSavingPartyDraft] = React.useState(false);
   const invoiceContractId =
@@ -1005,16 +1077,16 @@ export function OfferReviewPanel({
       const saved = await ensurePostApplicationDocumentsSaved();
       if (!saved) return;
     }
-    if (!areIssuerDirectorSelectionsReady(issuerDirectors, issuerRepMatchKeys)) {
-      toast.error("Select at least one director to represent the issuer company.");
-      return;
-    }
-    if (!areGuarantorPartiesReady(guarantorRows, guarantorDrafts)) {
-      toast.error("Complete authorised representatives for every guarantor.");
-      return;
-    }
-    if (requiresIssuerSeal && !sealApplierMatchKey) {
-      toast.error(ISSUER_SEAL_APPLIER_REQUIRED_MESSAGE);
+    const repsBlocker = issuerOfferRepsBlocker({
+      directorsReady: areIssuerDirectorSelectionsReady(issuerDirectors, issuerRepMatchKeys),
+      guarantorsReady: areGuarantorPartiesReady(guarantorRows, guarantorDrafts),
+      requiresIssuerSeal,
+      hasSealApplier: Boolean(sealApplierMatchKey),
+      sealStatus: issuerSealStatus,
+      canManageSeal,
+    });
+    if (repsBlocker) {
+      if (!repsBlocker.pending) toast.error(repsBlocker.message);
       return;
     }
     const authorizedPartiesPayload = buildAuthorizedPartiesSubmitPayload({
@@ -1066,22 +1138,24 @@ export function OfferReviewPanel({
     isPhaseDeadlinePast,
     issuerDirectors,
     issuerRepMatchKeys,
+    issuerSealStatus,
+    canManageSeal,
     requiresIssuerSeal,
     sealApplierMatchKey,
     type,
   ]);
 
   const goToDocumentsStep = React.useCallback(async () => {
-    if (!areIssuerDirectorSelectionsReady(issuerDirectors, issuerRepMatchKeys)) {
-      toast.error("Select at least one director to represent the issuer company.");
-      return;
-    }
-    if (!areGuarantorPartiesReady(guarantorRows, guarantorDrafts)) {
-      toast.error("Complete authorised representatives for every guarantor.");
-      return;
-    }
-    if (requiresIssuerSeal && !sealApplierMatchKey) {
-      toast.error(ISSUER_SEAL_APPLIER_REQUIRED_MESSAGE);
+    const repsBlocker = issuerOfferRepsBlocker({
+      directorsReady: areIssuerDirectorSelectionsReady(issuerDirectors, issuerRepMatchKeys),
+      guarantorsReady: areGuarantorPartiesReady(guarantorRows, guarantorDrafts),
+      requiresIssuerSeal,
+      hasSealApplier: Boolean(sealApplierMatchKey),
+      sealStatus: issuerSealStatus,
+      canManageSeal,
+    });
+    if (repsBlocker) {
+      if (!repsBlocker.pending) toast.error(repsBlocker.message);
       return;
     }
     if (type === "invoice" && !invoice?.id) {
@@ -1140,6 +1214,8 @@ export function OfferReviewPanel({
     invoice?.id,
     issuerDirectors,
     issuerRepMatchKeys,
+    issuerSealStatus,
+    canManageSeal,
     requiresIssuerSeal,
     sealApplierMatchKey,
     type,
@@ -1311,12 +1387,17 @@ export function OfferReviewPanel({
     usesAcceptanceFlow && offerAcceptanceAllowsSigning(acceptanceStatus);
   const postDocsReady =
     signingPhaseSkipsUploadGate || !hasPostDocs || postDocsState.areAllFilesUploaded;
-  const missingSealApplier = requiresIssuerSeal && !sealApplierMatchKey;
-  const issuerRepsReady =
-    !usesAcceptanceFlow ||
-    (areIssuerDirectorSelectionsReady(issuerDirectors, issuerRepMatchKeys) &&
-      areGuarantorPartiesReady(guarantorRows, guarantorDrafts) &&
-      !missingSealApplier);
+  const issuerRepsBlocker = usesAcceptanceFlow
+    ? issuerOfferRepsBlocker({
+        directorsReady: areIssuerDirectorSelectionsReady(issuerDirectors, issuerRepMatchKeys),
+        guarantorsReady: areGuarantorPartiesReady(guarantorRows, guarantorDrafts),
+        requiresIssuerSeal,
+        hasSealApplier: Boolean(sealApplierMatchKey),
+        sealStatus: issuerSealStatus,
+        canManageSeal,
+      })
+    : null;
+  const issuerRepsActionLocked = Boolean(issuerRepsBlocker?.pending);
   const canSubmitFromRepresentatives =
     usesAcceptanceFlow &&
     (!hasPostDocs ||
@@ -1665,6 +1746,9 @@ export function OfferReviewPanel({
                     issuerSealApplierDirtyRef.current = true;
                     setSealApplierMatchKey(matchKey);
                   }}
+                  sealStatus={issuerSealStatus}
+                  sealFileName={issuerSealQuery.data?.fileName ?? null}
+                  canManageSeal={canManageSeal}
                   readOnly={isStep1PartyCardReadOnly(AUTHORIZED_REPRESENTATIVES_ISSUER_ITEM_ID)}
                   highlighted={flaggedPartyItemIds.has(AUTHORIZED_REPRESENTATIVES_ISSUER_ITEM_ID)}
                   remark={partyRemarkByItemId.get(AUTHORIZED_REPRESENTATIVES_ISSUER_ITEM_ID) ?? null}
@@ -1752,12 +1836,13 @@ export function OfferReviewPanel({
               {!packageSent && !isLoadingFrozenProductWorkflow && canSubmitFromRepresentatives ? (
                 <Button
                   className="h-11 w-full rounded-xl"
-                  disabled={isSubmittingAcceptance || !issuerRepsReady}
+                  aria-describedby={issuerRepsBlocker ? "issuer-reps-submit-hint" : undefined}
+                  disabled={isSubmittingAcceptance || issuerRepsActionLocked}
                   onClick={() => {
                     void submitOfferAcceptance();
                   }}
                 >
-                  Submit for review
+                  {isSubmittingAcceptance ? "Submitting…" : "Submit for review"}
                 </Button>
               ) : null}
               {!packageSent &&
@@ -1766,23 +1851,27 @@ export function OfferReviewPanel({
               !canSubmitFromRepresentatives ? (
                 <Button
                   className="h-11 w-full rounded-xl"
-                  disabled={isSubmittingAcceptance || isSavingPartyDraft || !issuerRepsReady}
+                  aria-describedby={issuerRepsBlocker ? "issuer-reps-continue-hint" : undefined}
+                  disabled={isSubmittingAcceptance || isSavingPartyDraft || issuerRepsActionLocked}
                   onClick={() => {
                     void goToDocumentsStep();
                   }}
                 >
-                  Continue
+                  {isSavingPartyDraft ? "Saving…" : "Continue"}
                 </Button>
               ) : null}
               {!packageSent &&
               !isLoadingFrozenProductWorkflow &&
-              !issuerRepsReady &&
-              isCorporateEntitiesFetched ? (
-                <p className="text-ui text-muted-foreground">
-                  {missingSealApplier
-                    ? ISSUER_SEAL_APPLIER_REQUIRED_MESSAGE
-                    : "Complete authorised representatives for the issuer and every guarantor before continuing."}
-                </p>
+              issuerRepsBlocker &&
+              (isCorporateEntitiesFetched || issuerRepsBlocker.pending) ? (
+                <OfferRepsBlockerText
+                  id={
+                    canSubmitFromRepresentatives
+                      ? "issuer-reps-submit-hint"
+                      : "issuer-reps-continue-hint"
+                  }
+                  blocker={issuerRepsBlocker}
+                />
               ) : null}
             </CardContent>
           </Card>
@@ -1848,12 +1937,13 @@ export function OfferReviewPanel({
                 usesAcceptanceFlow && displaySigningStepId === "documents" ? (
                     <Button
                       className="h-11 w-full rounded-xl"
-                      disabled={isSubmittingAcceptance || !issuerRepsReady}
+                      aria-describedby={issuerRepsBlocker ? "issuer-docs-submit-hint" : undefined}
+                      disabled={isSubmittingAcceptance || issuerRepsActionLocked}
                       onClick={() => {
                         void submitOfferAcceptance();
                       }}
                     >
-                      Submit for review
+                      {isSubmittingAcceptance ? "Submitting…" : "Submit for review"}
                     </Button>
                 ) : null
               ) : null}
@@ -1862,13 +1952,8 @@ export function OfferReviewPanel({
               !packageSent &&
               !isLoadingFrozenProductWorkflow &&
               postDocsReady &&
-              !issuerRepsReady &&
-              isCorporateEntitiesFetched ? (
-                <p className="text-ui text-muted-foreground">
-                  {missingSealApplier
-                    ? ISSUER_SEAL_APPLIER_REQUIRED_MESSAGE
-                    : "Complete authorised representatives for the issuer and every guarantor before submitting."}
-                </p>
+              issuerRepsBlocker ? (
+                <OfferRepsBlockerText id="issuer-docs-submit-hint" blocker={issuerRepsBlocker} />
               ) : null}
             </CardContent>
           </Card>

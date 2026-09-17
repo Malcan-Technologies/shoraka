@@ -504,6 +504,7 @@ export default function ProfilePage() {
   const focusCompany = searchParams.get("focus") === "company";
   const focusAddresses = searchParams.get("focus") === "addresses";
   const focusFinancials = searchParams.get("focus") === "financials";
+  const focusSeal = searchParams.get("focus") === "seal";
   const focusedPersonKey = searchParams.get("person");
   const contactSectionRef = React.useRef<HTMLDivElement>(null);
   const aboutSectionRef = React.useRef<HTMLDivElement>(null);
@@ -556,6 +557,18 @@ export default function ProfilePage() {
     }, 200);
     return () => window.clearTimeout(t);
   }, [focusCompany, focusAddresses, focusFinancials, orgData, activeOrganization?.id]);
+
+  React.useEffect(() => {
+    if (!focusSeal) return;
+    setActiveTab(PROFILE_TAB_PROFILE);
+    const t = window.setTimeout(() => {
+      document.getElementById("profile-company-seal")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 200);
+    return () => window.clearTimeout(t);
+  }, [focusSeal, orgData, activeOrganization?.id]);
 
   // Initialize form values when orgData loads
   React.useEffect(() => {
@@ -988,7 +1001,7 @@ export default function ProfilePage() {
               {!isPersonal && activeOrganization?.id ? (
                 <IssuerCompanySealCard
                   organizationId={activeOrganization.id}
-                  canEdit={canEditOrganization}
+                  canEdit={isCurrentUserAdmin}
                 />
               ) : null}
 
