@@ -517,6 +517,7 @@ describe("CTOS master party observation", () => {
         id: "p-a",
         party_key: "800101011234",
         identity_number: "800101011234",
+        field_sources: { identityNumber: { source: "REGTANK", updatedAt: "2026-01-01T00:00:00.000Z" } },
       })
     );
     await expect(

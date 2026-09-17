@@ -173,7 +173,7 @@ function summarizeProfileStepsForDebug(
   );
 }
 
-const USER_LOCKED_ORG_FIELDS = new Set(["name"]);
+const USER_LOCKED_ORG_FIELDS = new Set(["name", "dateOfBirth", "gender", "nationality"]);
 /** Shared master fields the investor/issuer may change even when already filled.
  * When `fillEmptyOnly: true`, other USER writes are treated as "fill empties only".
  * DOB + gender must be overwrite-able for the Personal Investor profile editor.
@@ -184,9 +184,20 @@ const USER_OVERWRITE_ORG_FIELDS = new Set([
   "phoneNumber",
   "dateOfBirth",
   "gender",
+  "nationality",
 ]);
 /** Verified identity fields stay locked once filled. ComRep collection fields may be corrected. */
-const USER_LOCKED_PARTY_FIELDS = new Set(["name", "identityNumber", "identityPrefix"]);
+const USER_LOCKED_PARTY_FIELDS = new Set([
+  "name",
+  "identityNumber",
+  "identityPrefix",
+  "dateOfBirth",
+  "gender",
+  "nationality",
+  "salutation",
+  "dateOfIncorporation",
+  "countryOfIncorporation",
+]);
 const USER_OVERWRITE_PARTY_FIELDS = new Set([
   "shareholdingPercentage",
   "shareholdingUnits",
@@ -197,18 +208,26 @@ const USER_OVERWRITE_PARTY_FIELDS = new Set([
   "designationOther",
   "appointmentDate",
   "resignationDate",
+  "identityNumber",
+  "identityPrefix",
+  "dateOfBirth",
+  "dateOfIncorporation",
+  "gender",
+  "nationality",
+  "countryOfIncorporation",
+  "salutation",
   "address",
 ]);
 
-function assertUserMayWriteLockedField(params: {
-  source: ProfileValueSource;
+function assertMayWriteRegTankLockedField(params: {
   field: string;
   current: unknown;
   incoming: unknown;
   locked: Set<string>;
+  sources: ProfileFieldSources;
 }): void {
-  if (params.source !== "USER") return;
   if (!params.locked.has(params.field)) return;
+  if (params.sources[params.field]?.source !== "REGTANK") return;
   if (isMasterFieldEmpty(params.current)) return;
   if (valuesEqualForMismatch(params.current, params.incoming)) return;
   throw new AppError(
@@ -1507,12 +1526,12 @@ export async function patchOrgMasterProfile(params: {
 
   const applyScalar = <T,>(field: string, current: T, incoming: T | undefined): T => {
     if (incoming === undefined) return current;
-    assertUserMayWriteLockedField({
-      source,
+    assertMayWriteRegTankLockedField({
       field,
       current,
       incoming,
       locked: USER_LOCKED_ORG_FIELDS,
+      sources: nextSources,
     });
     if (fillEmptyOnly && !USER_OVERWRITE_ORG_FIELDS.has(field)) {
       const result = fillEmptyMaster({
@@ -1826,12 +1845,12 @@ export async function patchPartyProfile(params: {
   let sources = parseFieldSources(row.field_sources);
   const apply = <T,>(field: string, current: T, incoming: T | undefined): T => {
     if (incoming === undefined) return current;
-    assertUserMayWriteLockedField({
-      source: params.source,
+    assertMayWriteRegTankLockedField({
       field,
       current,
       incoming,
       locked: USER_LOCKED_PARTY_FIELDS,
+      sources,
     });
     if (params.fillEmptyOnly && !USER_OVERWRITE_PARTY_FIELDS.has(field)) {
       const result = fillEmptyMaster({

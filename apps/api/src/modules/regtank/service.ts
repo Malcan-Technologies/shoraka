@@ -15,13 +15,18 @@ import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { OrganizationRepository } from "../organization/repository";
 import { getRegTankConfig } from "../../config/regtank";
 import { advanceOnboardingStatusFromFlags } from "../onboarding/utils/advance-onboarding-status";
-import { appliesRegTankSophisticatedStatus, normalizeRawStatus } from "@cashsouk/types";
+import { appliesRegTankSophisticatedStatus, isMasterFieldEmpty, normalizeRawStatus } from "@cashsouk/types";
 import {
   decideIndividualApprovedOutcome,
   getIndividualWaitForApprovalUpdate,
 } from "./helpers/individual-onboarding-transition";
 import { assertIssuerOnboardingFeePaid } from "../payment/onboarding-fee-service";
-import { preserveFilledOrgIdentityFields } from "../organization-profile/serialize";
+import {
+  asJson,
+  parseFieldSources,
+  preserveFilledOrgIdentityFields,
+  stampSource,
+} from "../organization-profile/serialize";
 import {
   auditContextFromRequest,
   createOnboardingLogRow,
@@ -2287,6 +2292,7 @@ export class RegTankService {
             id: true,
             name: true,
             type: true,
+            profile_field_sources: true,
             owner_user_id: true,
             is_sophisticated_investor: true,
             sophisticated_investor_reason: true,
@@ -2310,11 +2316,27 @@ export class RegTankService {
           throw new Error(`Investor organization ${organizationId} not found`);
         }
 
+        const existingSourcesBase = parseFieldSources(
+          (org as { profile_field_sources?: unknown }).profile_field_sources
+        );
+        let nextSources = { ...existingSourcesBase };
+        // Stamp provenance only for fields RegTank filled into empty CashSouk master fields.
+        if (dateOfBirth != null && isMasterFieldEmpty(org.date_of_birth)) {
+          nextSources = stampSource(nextSources, "dateOfBirth", "REGTANK");
+        }
+        if (gender != null && isMasterFieldEmpty(org.gender)) {
+          nextSources = stampSource(nextSources, "gender", "REGTANK");
+        }
+        if (nationality != null && isMasterFieldEmpty(org.nationality)) {
+          nextSources = stampSource(nextSources, "nationality", "REGTANK");
+        }
+
         const identityUpdate = preserveFilledOrgIdentityFields(
           org as unknown as Record<string, unknown>,
           updateData as unknown as Record<string, unknown>
         );
         const investorUpdate: Record<string, unknown> = { ...identityUpdate };
+        investorUpdate.profile_field_sources = asJson(nextSources);
 
         if (appliesRegTankSophisticatedStatus(org.type)) {
           const sophisticatedResult = this.determineSophisticatedInvestorStatus(
@@ -2394,6 +2416,7 @@ export class RegTankService {
             document_type: true,
             document_number: true,
             phone_number: true,
+            profile_field_sources: true,
           },
         });
 
@@ -2401,12 +2424,29 @@ export class RegTankService {
           throw new Error(`Issuer organization ${organizationId} not found`);
         }
 
+        const existingSourcesBase = parseFieldSources(
+          (orgExists as { profile_field_sources?: unknown }).profile_field_sources
+        );
+        let nextSources = { ...existingSourcesBase };
+        if (dateOfBirth != null && isMasterFieldEmpty(orgExists.date_of_birth)) {
+          nextSources = stampSource(nextSources, "dateOfBirth", "REGTANK");
+        }
+        if (gender != null && isMasterFieldEmpty(orgExists.gender)) {
+          nextSources = stampSource(nextSources, "gender", "REGTANK");
+        }
+        if (nationality != null && isMasterFieldEmpty(orgExists.nationality)) {
+          nextSources = stampSource(nextSources, "nationality", "REGTANK");
+        }
+
         const updated = await prisma.issuerOrganization.update({
           where: { id: organizationId },
-          data: preserveFilledOrgIdentityFields(
-            orgExists as unknown as Record<string, unknown>,
-            updateData as unknown as Record<string, unknown>
-          ) as typeof updateData,
+          data: {
+            ...preserveFilledOrgIdentityFields(
+              orgExists as unknown as Record<string, unknown>,
+              updateData as unknown as Record<string, unknown>
+            ),
+            profile_field_sources: asJson(nextSources),
+          } as typeof updateData,
         });
 
         logger.info(
