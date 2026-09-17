@@ -17,6 +17,7 @@ import { ConfirmDialog, EmptyState } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { usePermissions } from "@/hooks/use-permissions";
 import { uploadFileToS3 } from "@/lib/upload-file-to-s3";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -68,12 +69,16 @@ export function IssuerCompanySealAdminCard({
   const api = React.useMemo(() => createApiClient(API_URL, getAccessToken), [getAccessToken]);
   const queryClient = useQueryClient();
   const { data: currentUser } = useCurrentUser();
+  const { can } = usePermissions();
 
   const currentUserId = currentUser?.user?.id ?? null;
   const isOwner = org.owner.userId === currentUserId;
   const member = org.members.find((m) => m.userId === currentUserId) ?? null;
-  const canView = Boolean(isOwner || member);
-  const canManage = Boolean(isOwner || member?.role === "ORGANIZATION_ADMIN");
+  const canViewViaPermission = can("organizations.view");
+  const canManageViaPermission = can("organizations.manage");
+
+  const canView = canViewViaPermission || Boolean(isOwner || member);
+  const canManage = canManageViaPermission || Boolean(isOwner || member?.role === "ORGANIZATION_ADMIN");
 
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
   const [removeOpen, setRemoveOpen] = React.useState(false);

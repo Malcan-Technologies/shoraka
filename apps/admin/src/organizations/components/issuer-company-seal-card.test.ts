@@ -12,10 +12,12 @@ describe("Issuer company seal admin card", () => {
     expect(card).toContain("deleteIssuerCompanySeal");
   });
 
-  it("gates manage actions by org ownership or ORGANIZATION_ADMIN membership", () => {
+  it("gates view/manage actions via organizations.view/manage permissions", () => {
     expect(card).toContain("ORGANIZATION_ADMIN");
     expect(card).toContain("org.owner.userId");
     expect(card).toContain("org.members.find");
+    expect(card).toContain('can("organizations.view")');
+    expect(card).toContain('can("organizations.manage")');
   });
 });
 

@@ -75,16 +75,28 @@ async function loadIssuerOrganization(userId: string, organizationId: string) {
   return organizationService.getOrganization(userId, organizationId, "issuer");
 }
 
-async function requireSealManager(userId: string, organizationId: string) {
+async function requireSealManager(
+  userId: string,
+  organizationId: string,
+  options?: { canManageOrganizations?: boolean }
+) {
+  // Platform Admin override path:
+  // If caller has `organizations.manage`, allow managing seals for any issuer organisation
+  // without requiring issuer org membership.
+  if (options?.canManageOrganizations) return;
+
   const organization = await loadIssuerOrganization(userId, organizationId);
   requireOrganizationOwnerOrAdmin(organization, userId, COMPANY_SEAL_MANAGE_FORBIDDEN_MESSAGE);
 }
 
 export async function getIssuerCompanySeal(
   userId: string,
-  organizationId: string
+  organizationId: string,
+  options?: { canViewOrganizations?: boolean }
 ): Promise<{ seal: IssuerCompanySealDto | null }> {
-  await loadIssuerOrganization(userId, organizationId);
+  if (!options?.canViewOrganizations) {
+    await loadIssuerOrganization(userId, organizationId);
+  }
   const row = await prisma.issuerOrganizationCompanySeal.findFirst({
     where: { issuer_organization_id: organizationId, superseded_at: null },
   });
@@ -93,9 +105,12 @@ export async function getIssuerCompanySeal(
 
 export async function getIssuerCompanySealPreview(
   userId: string,
-  organizationId: string
+  organizationId: string,
+  options?: { canViewOrganizations?: boolean }
 ): Promise<{ viewUrl: string; expiresIn: number } | { viewUrl: null; expiresIn: null }> {
-  await loadIssuerOrganization(userId, organizationId);
+  if (!options?.canViewOrganizations) {
+    await loadIssuerOrganization(userId, organizationId);
+  }
   const row = await prisma.issuerOrganizationCompanySeal.findFirst({
     where: { issuer_organization_id: organizationId, superseded_at: null },
     select: { s3_key: true },
@@ -108,9 +123,12 @@ export async function getIssuerCompanySealPreview(
 export async function requestIssuerCompanySealUploadUrl(
   userId: string,
   organizationId: string,
-  input: IssuerCompanySealUploadUrlInput
+  input: IssuerCompanySealUploadUrlInput,
+  options?: { canManageOrganizations?: boolean }
 ): Promise<{ uploadUrl: string; s3Key: string; expiresIn: number }> {
-  await requireSealManager(userId, organizationId);
+  await requireSealManager(userId, organizationId, {
+    canManageOrganizations: options?.canManageOrganizations,
+  });
   const date = new Date().toISOString().split("T")[0];
   const key = `${issuerCompanySealS3Prefix(organizationId)}v1-${date}-${randomUUID()}.${sealExtension(input.contentType)}`;
   const { uploadUrl, key: s3Key, expiresIn } = await generatePresignedUploadUrl({
@@ -124,9 +142,12 @@ export async function requestIssuerCompanySealUploadUrl(
 export async function confirmIssuerCompanySeal(
   userId: string,
   organizationId: string,
-  input: IssuerCompanySealConfirmInput
+  input: IssuerCompanySealConfirmInput,
+  options?: { canManageOrganizations?: boolean }
 ): Promise<{ seal: IssuerCompanySealDto }> {
-  await requireSealManager(userId, organizationId);
+  await requireSealManager(userId, organizationId, {
+    canManageOrganizations: options?.canManageOrganizations,
+  });
   requireIssuerCompanySealS3Key(organizationId, input.s3Key);
   const confirmed = await confirmSigningCloudLegalImageFromS3(input.s3Key);
   const now = new Date();
@@ -169,9 +190,12 @@ export async function confirmIssuerCompanySeal(
 
 export async function removeIssuerCompanySeal(
   userId: string,
-  organizationId: string
+  organizationId: string,
+  options?: { canManageOrganizations?: boolean }
 ): Promise<{ seal: null }> {
-  await requireSealManager(userId, organizationId);
+  await requireSealManager(userId, organizationId, {
+    canManageOrganizations: options?.canManageOrganizations,
+  });
   try {
     const updated = await prisma.issuerOrganizationCompanySeal.updateMany({
       where: { issuer_organization_id: organizationId, superseded_at: null },
