@@ -2396,9 +2396,6 @@ export class OrganizationService {
         "Party email can only be saved for individuals eligible for onboarding under CTOS rules"
       );
     }
-    if (isLegacyCtosPartyKycApproved(partyKey, entitiesForParty.directorKycStatus)) {
-      return { success: true };
-    }
     await writeOrganizationPartyEmail({
       portal: portalType,
       organizationId,

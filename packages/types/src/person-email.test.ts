@@ -117,6 +117,46 @@ describe("planPersonEmailWrite", () => {
       }).action
     ).toBe("reject");
   });
+
+  it("writes null to master email when incoming email is blank", () => {
+    const plan = planPersonEmailWrite({
+      currentMasterEmail: "old@acme.test",
+      incomingEmail: "   ",
+      supplementRoot: { status: "IN_PROGRESS", requestId: "req-1" },
+    });
+    expect(plan).toEqual({
+      action: "write",
+      email: null,
+      pipelineReset: true,
+      screeningReset: true,
+      snapshotSupplement: true,
+    });
+  });
+
+  it("returns KYC_ALREADY_APPROVED when locked by legacyKycApproved", () => {
+    const plan = planPersonEmailWrite({
+      currentMasterEmail: "old@acme.test",
+      incomingEmail: "new@acme.test",
+      legacyKycApproved: true,
+      supplementRoot: { status: "IN_PROGRESS", requestId: "req-1" },
+    });
+    expect(plan).toMatchObject({
+      action: "reject",
+      code: "KYC_ALREADY_APPROVED",
+    });
+  });
+
+  it("returns DIRECTOR_SHAREHOLDER_NOT_EDITABLE when locked by AML terminal but not KYC-approval", () => {
+    const plan = planPersonEmailWrite({
+      currentMasterEmail: "old@acme.test",
+      incomingEmail: "new@acme.test",
+      supplementRoot: { status: "IN_PROGRESS", screening: { status: "REJECTED", requestId: "aml-1" } },
+    });
+    expect(plan).toMatchObject({
+      action: "reject",
+      code: "DIRECTOR_SHAREHOLDER_NOT_EDITABLE",
+    });
+  });
 });
 
 describe("hasPersonOnboardingPipeline", () => {
