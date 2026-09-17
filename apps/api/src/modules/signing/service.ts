@@ -77,8 +77,6 @@ import { OrganizationRepository } from "../organization/repository";
 import { patchOfferAcceptance } from "../applications/offer-acceptance";
 import { prisma } from "../../lib/prisma";
 import { Prisma } from "@prisma/client";
-import { OrganizationService } from "../organization/service";
-import { buildAdminPeopleList } from "../admin/build-people-list";
 import { assertRequiredAcceptanceDocumentsPresent } from "../applications/supporting-docs-workflow";
 import {
   generateContractOfferLetterBuffer,
@@ -150,7 +148,10 @@ import {
 import { generateSigningAccessToken } from "./token";
 import { buildSigningReturnUrl, validateSigningRedirectUrl } from "../../lib/signing/redirect-url";
 import { legalExternalAcceptanceService } from "../legal-documents/external-acceptance-service";
-import { assertIssuerSealReadyForPackage } from "../applications/authorized-parties";
+import {
+  assertIssuerSealReadyForPackage,
+  loadIssuerDirectorPool,
+} from "../applications/authorized-parties";
 import { resolveSigningPackageOfferSource } from "./signing-package-offer";
 import {
   isSigningCloudSealFieldEnabled,
@@ -345,8 +346,7 @@ export class SigningService {
     private readonly repo: SigningRepository = signingRepository,
     private readonly provider: SigningProvider = new SigningCloudProvider(),
     private readonly productRepository: ProductRepository = new ProductRepository(),
-    private readonly organizationRepository: OrganizationRepository = new OrganizationRepository(),
-    private readonly organizationService: OrganizationService = new OrganizationService()
+    private readonly organizationRepository: OrganizationRepository = new OrganizationRepository()
   ) {}
 
   private async requireApplicationContext(
@@ -493,24 +493,9 @@ export class SigningService {
     template: SigningTemplateConfig,
     bindings: RecipientBinding[]
   ): Promise<RecipientBinding[]> {
-    const extras = await this.organizationService.getIssuerPartyListExtras(
-      application.issuer_organization_id
-    );
-    const people = buildAdminPeopleList({
-      ctos: extras.latestOrganizationCtosCompanyJson ?? null,
-      issuerDirectorKycStatus: application.issuer_organization.director_kyc_status ?? null,
-      issuerDirectorAmlStatus: application.issuer_organization.director_aml_status ?? null,
-      ctosPartySupplements: extras.ctosPartySupplements.map((row) => ({
-        party_key: row.partyKey,
-        onboarding_json: row.onboardingJson,
-      })),
-      corporateEntities: application.issuer_organization.corporate_entities ?? null,
-    });
+    // Same people[] as the authorised-representative dropdown (includes company-profile directors).
     const directorEmails = new Set(
-      people
-        .filter((person) => person.roles.some((role) => role.toUpperCase() === "DIRECTOR"))
-        .map((person) => String(person.email ?? "").trim().toLowerCase())
-        .filter(Boolean)
+      (await loadIssuerDirectorPool(application.issuer_organization_id)).map((entry) => entry.email)
     );
     const roleByKey = new Map(template.roles.map((role) => [role.key, role]));
     const applicationGuarantors = application.application_guarantors;
@@ -522,7 +507,7 @@ export class SigningService {
         continue;
       }
       if (role.key === "issuer_director" || role.source_hint === "issuer_director") {
-        const email = binding.email.trim().toLowerCase();
+        const email = normalizeSigningEmail(binding.email);
         if (!directorEmails.has(email)) {
           throw new AppError(
             400,
