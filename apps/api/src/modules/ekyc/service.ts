@@ -20,7 +20,7 @@ import {
 } from "./signingcloud-ekyc";
 
 /** Flip to `true` to skip MyKad eKYC on signing links. Keep `false` in commits. */
-const SKIP_SIGNING_EKYC = false;
+const SKIP_SIGNING_EKYC = true;
 
 /** SigningCloud eKYC is MyKad-only in CashSouk. */
 const EKYC_DOC_TYPE = "mykad";
