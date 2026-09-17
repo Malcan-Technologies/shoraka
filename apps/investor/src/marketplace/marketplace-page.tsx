@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { formatCurrency, useOrganization } from "@cashsouk/config";
+import { createApiClient, formatCurrency, useAuthToken, useOrganization } from "@cashsouk/config";
+import { useQuery } from "@tanstack/react-query";
 import {
   EmptyState,
   LoadingState,
@@ -20,6 +21,7 @@ import {
   MARC_SME_GRADES,
   isNoteMoneyAmount,
   filterVisiblePeopleRows,
+  userFacingCompleteness,
   type MarketplaceListingFilter,
 } from "@cashsouk/types";
 import { Button } from "@/components/ui/button";
@@ -57,6 +59,8 @@ import {
 } from "./marketplace-note-model";
 
 const MARKETPLACE_PAGE_SIZE_OPTIONS = [10, 25, 50];
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 function parseMarketplaceListPageParam(value: string | null): number {
   if (!value) return 1;
@@ -121,6 +125,20 @@ export function MarketplacePage() {
   const commitInvestment = useCommitInvestment();
   const openMarketplaceProspectus = useOpenMarketplaceProspectus();
   const availableBalance = Number(portfolio?.availableBalance ?? 0);
+  const { getAccessToken } = useAuthToken();
+
+  const profileCompletenessQuery = useQuery({
+    queryKey: ["investor", "profile-completeness", activeOrganization?.id],
+    // Must run before entering the Invest flow; do not gate on "onboarded"
+    // because backend PROFILE_INCOMPLETE is independent of deposit/onboarding status.
+    enabled: Boolean(activeOrganization?.id),
+    queryFn: async () => {
+      const apiClient = createApiClient(API_URL, getAccessToken);
+      const res = await apiClient.getProfileCompleteness("investor", activeOrganization!.id);
+      if (!res.success) throw new Error(res.error.message);
+      return res.data;
+    },
+  });
 
   const initialFilters = filtersFromSearchParams(searchParams);
   const [search, setSearch] = useState(initialFilters.search);
@@ -255,6 +273,23 @@ export function MarketplacePage() {
 
   function openInvestDialog(note: MarketplaceNote) {
     if (!note.investable) return;
+
+    // Enforce profile completeness before entering the Invest flow.
+    // This uses the existing backend completeness result; commit-time handling
+    // (PROFILE_INCOMPLETE) is still kept as a defensive fallback.
+    if (profileCompletenessQuery.isLoading) {
+      toast.message("Checking your profile completeness...");
+      return;
+    }
+    if (profileCompletenessQuery.data) {
+      const user = userFacingCompleteness(profileCompletenessQuery.data);
+      if (!user.complete) {
+        toast.error("Complete your Profile before placing an investment.");
+        router.push("/profile?focus=completeness");
+        return;
+      }
+    }
+
     setActiveNote(note);
     setInvestmentAmount(formatDefaultCommitAmount(note.minInvestment));
     setAgreedToTerms(true);
