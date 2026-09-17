@@ -151,6 +151,7 @@ import { generateSigningAccessToken } from "./token";
 import { buildSigningReturnUrl, validateSigningRedirectUrl } from "../../lib/signing/redirect-url";
 import { legalExternalAcceptanceService } from "../legal-documents/external-acceptance-service";
 import { assertIssuerSealReadyForPackage } from "../applications/authorized-parties";
+import { resolveSigningPackageOfferSource } from "./signing-package-offer";
 import {
   isSigningCloudSealFieldEnabled,
   readSigningCloudConfigFromEnv,
@@ -1102,7 +1103,12 @@ export class SigningService {
   async getSigningPackageReadiness(applicationId: string): Promise<SigningPackageReadinessDto> {
     const application = await this.requireApplicationContext(applicationId);
     const workflow = await this.getProductWorkflowForApplication(application);
-    const packageKind: SigningPackageOfferKind = application.contract_id ? "contract" : "invoice";
+    const { packageKind, offerDetails } = resolveSigningPackageOfferSource({
+      financingStructure: application.financing_structure,
+      contractId: application.contract_id,
+      contractOfferDetails: application.contract?.offer_details,
+      invoices: application.invoices,
+    });
     const template = this.readSigningTemplateFromWorkflow(workflow, packageKind);
     const documentKeys = template.documents.map((document) => document.key);
     const requiredSlots = configuredSlotsForDocumentKeys(documentKeys);
@@ -1152,9 +1158,6 @@ export class SigningService {
     }
 
     if (isSigningCloudSealFieldEnabled() && signingPackageRequiresIssuerSeal(documentKeys)) {
-      const offerDetails = application.contract_id
-        ? application.contract?.offer_details
-        : application.invoices[0]?.offer_details;
       const authorizedParties =
         getOfferAcceptanceFromOfferDetails(offerDetails)?.authorized_parties ??
         getLoAuthorizedPartiesFromAcceptance(getOfferAcceptanceFromOfferDetails(offerDetails));
