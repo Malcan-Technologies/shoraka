@@ -1012,7 +1012,6 @@ export default function ProfilePage() {
                         required
                       />
                       <ProfileReadField
-                        label={PROFILE_LABEL.identityNumber}
                         label={PROFILE_LABEL.identityPrefix}
                         value={formatDocumentType(orgData?.documentType)}
                         missing={missingFieldKeys.has("identityPrefix")}
