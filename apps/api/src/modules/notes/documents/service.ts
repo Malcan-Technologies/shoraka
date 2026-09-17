@@ -193,6 +193,7 @@ export class NoteDocumentsService {
           financing_type: true,
           product_version: true,
           contract: { select: { id: true, offer_details: true } },
+          invoices: { select: { offer_details: true } },
         },
       }),
       note.prospectus_review?.approved_publication_id
@@ -293,12 +294,18 @@ export class NoteDocumentsService {
       financing_type: unknown;
       product_version: number;
       contract: { id: string; offer_details: unknown } | null;
+      invoices?: Array<{ offer_details?: unknown }> | null;
     } | null
   ): Promise<NoteDocumentCatalogSnapshot["letterOfOffer"]> {
-    if (!application?.contract) {
+    if (!application) {
       return { hasContract: false, offerSent: false, declaredOnProduct: false };
     }
-    const offerSent = offerHasSentAt(application.contract.offer_details);
+    const offerSent =
+      offerHasSentAt(application.contract?.offer_details) ||
+      (application.invoices ?? []).some((invoice) => offerHasSentAt(invoice.offer_details));
+    if (!application.contract) {
+      return { hasContract: false, offerSent, declaredOnProduct: false };
+    }
     const productId = productIdFromFinancingType(application.financing_type);
     if (!productId) {
       return { hasContract: true, offerSent, declaredOnProduct: false };
@@ -357,6 +364,8 @@ export class NoteDocumentsService {
       format: "pdf",
       userId: actor.userId,
       asAdmin: true,
+      invoiceId: note.source_invoice_id,
+      contractId: note.source_invoice_id ? null : note.source_contract_id,
     });
     return {
       buffer: generated.buffer,

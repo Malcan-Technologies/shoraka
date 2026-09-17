@@ -34,7 +34,7 @@ In `packages/types/src/generated-documents.ts`:
 - `version: 1` on first ship
 - `label`, `description` — admin dropdown
 - `allowedContexts` — one or more of `acceptance_documents`, `supporting_documents`, `guarantor_agreement` (business-details upload row), `signing_packages`
-- `requires` — e.g. `contract_offer_sent` when offer must be sent first
+- `requires` — e.g. `offer_sent` when a facility or invoice offer must be sent first
 
 Update `GeneratedDocumentTypeKey` union when adding the first key of a new slug.
 

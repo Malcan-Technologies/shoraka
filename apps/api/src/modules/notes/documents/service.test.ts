@@ -104,6 +104,13 @@ describe("NoteDocumentsService content guards", () => {
     ).composePackage(snapshotBase, { userId: "A0001" });
 
     expect(content.filename).toBe("Facility-Agreement-Package-NOTE-001.pdf");
+    expect(mockGenerateDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        typeKey: "arf_contract_facility_lo",
+        contractId: "c1",
+        invoiceId: null,
+      })
+    );
     expect(update).not.toHaveBeenCalled();
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({

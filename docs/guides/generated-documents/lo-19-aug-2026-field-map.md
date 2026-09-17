@@ -5,7 +5,7 @@ Verification map for the tagged production template:
 - Untagged source: `apps/api/src/modules/applications/templates/01 LO (Clean Copy) 19 August 2026.docx`
 - Tagged merge file: `apps/api/src/modules/applications/templates/arf-contract-facility-lo.docx`
 - Rebuild script: `apps/api/scripts/retag-lo-template.ts` (`pnpm --filter @cashsouk/api retag-lo-template`)
-- Catalog: `arf_contract_facility_lo` **version 13**
+- Catalog: `arf_contract_facility_lo` **version 14**
 - Builder: `buildFacilityLoMergeData`
 - Demo + production both call `renderFacilityLoDocx` on that same tagged file
 - Required commercial / party data fails generation (`GENERATED_DOCUMENT_DATA_INCOMPLETE`) instead of issuing a letter with blank slots
@@ -42,18 +42,18 @@ Already shared (no separate “demo template”):
 | Merge key | Template location | Status | Data source | Notes |
 |-----------|-------------------|--------|-------------|-------|
 | `issuer_id` | Header — Issuer ID | `EXISTS` | `IssuerOrganization.display_reference` (`ISS-{YYYYMM}-{XXX}`) | Empty (visible `{issuer_id}`) when historical rows have no allocated ref. Never the org CUID. |
-| `our_reference` | Header — Our Reference | `EXISTS` | `Contract.display_reference` (`CON-{PRODUCT}-{YYYYMM}-{XXX}`) | Empty (visible `{our_reference}`) when unset. Never `Contract.id`. |
-| `letter_date` | Header Date; MoA “DATED …”; acknowledgement “dated …” | `DERIVE` | `offer_details.sent_at` → `formatLetterDate` | Required |
+| `our_reference` | Header — Our Reference | `EXISTS` | Facility: `Contract.display_reference` (`CON-…`). Invoice: `Invoice.display_reference` (`INV-…`) | Empty (visible `{our_reference}`) when unset. Never a CUID. |
+| `letter_date` | Header Date; MoA “DATED …”; acknowledgement “dated …” | `DERIVE` | Selected offer `sent_at` → `formatLetterDate` | Required |
 | `issuer_name` | Addressee; ISSUER row; MoA; acks; behalf line | `EXISTS` | `IssuerOrganization.name` | |
 | `issuer_registration_number` | Addressee; MoA; behalf “Company No.” | `EXISTS` | Org `registration_number`, else COD `basicInfo.ssmRegistrationNumber` / `ssmRegisterNumber` | |
 | `issuer_address` | Addressee; MoA | `EXISTS` | COD registered address; fallback `org.address` | |
 | `attention_name` | Attention | `EXISTS` | `company_details.contact_person.name` | |
 | `attention_position` | Attention | `EXISTS` | `company_details.contact_person.position` | |
-| `financing_limit_rm` | Main FINANCING LIMIT; Schedule A Part A; MoA | `EXISTS` | `offered_facility` else `approved_facility` → `formatRmAmount` | `formatRmAmount` already prefixes `RM` |
+| `financing_limit_rm` | Main FINANCING LIMIT; Schedule A Part A; MoA | `EXISTS` | Facility: `offered_facility` else `approved_facility`. Invoice: `offered_amount` | `formatRmAmount` already prefixes `RM` |
 | `tenure_days` | Main TENURE “Up to N days” | `LEGAL_DEFAULT` | `FINANCING_TENURE_MAX_DAYS` (180) | |
 | `max_invoice_tenure_days` | Schedule A Part A + Part B “up to N” | `LEGAL_DEFAULT` | same 180 | |
 | `sub_limit_per_invoice_rm` | Schedule A Part A Sub-Limit per Invoice | `EXISTS` | Frozen product `invoice_details.sub_limit_per_invoice_rm` | Required when the product declares this LO. Legacy versions must be backfilled. |
-| `part_b_financing_amount_rm` | Schedule A Part B Financing Amount | `EXISTS` | Same value as sub-limit | |
+| `part_b_financing_amount_rm` | Schedule A Part B Financing Amount | `EXISTS` | Facility: same as sub-limit. Invoice: `offered_amount` | Part B is ticked for `invoice_only` |
 | `part_a_checkbox` / `part_b_checkbox` | Schedule A Facility Type | `DERIVE` | `readFinancingStructureType` | `new_contract` → Part A `☒`; `invoice_only` / `existing_contract` → Part B `☒` |
 | `finance_documents_guarantors[]` | Finance Documents list | `EXISTS` | Ordered `application_guarantors` | Individual `{line}`; corporate company/registration `{line}` plus nested `{rep_line}` (name + NRIC). Entities `i. ii. iii.`; reps under a company `a. b. c.`. Empty list → `[INSERT NAME] (NRIC No. [INSERT])` |
 | `guarantors_individual[]` | One acknowledgement page each | `EXISTS` | Live individual rows | `{@page_break}` after every page except the last (and after the last when a corporate block follows) |
@@ -115,6 +115,6 @@ Already shared (no separate “demo template”):
 | Missing `sent_at`, registration, draft, or sub-limit | HTTP 400 `GENERATED_DOCUMENT_DATA_INCOMPLETE` — required fields do not download as blanks |
 
 1. `docker compose -f docker-compose.gotenberg.yml up -d` and set `GOTENBERG_URL` if testing PDF.
-2. Save authorised representatives (Continue) so the contract offer stores `authorized_parties_draft`.
+2. Save authorised representatives (Continue) so the **selected** offer stores `authorized_parties_draft` (facility or invoice).
 3. Issuer/admin download `.docx` / `.pdf`, or Admin → `/demos/contract-lo`.
-4. Spot-check letterhead, Part A tick, MoA amount (single `RM`), blank MoA signatory line, RM150 fees, both validity clauses, Finance Documents nesting, and guarantor pagination.
+4. Spot-check letterhead, Part A tick (facility) or Part B tick (invoice-only), MoA amount (single `RM`), blank MoA signatory line, RM150 fees, both validity clauses, Finance Documents nesting, and guarantor pagination.

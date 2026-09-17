@@ -113,7 +113,10 @@ export function facilityLoCheckboxGlyphs(
   return { part_a_checkbox: FACILITY_LO_CHECKBOX_UNTICKED, part_b_checkbox: FACILITY_LO_CHECKBOX_UNTICKED };
 }
 
+export type FacilityLoOfferKind = "contract" | "invoice";
+
 export type BuildFacilityLoMergeInput = {
+  offerKind?: FacilityLoOfferKind;
   contract: {
     id: string;
     display_reference?: string | null;
@@ -122,6 +125,11 @@ export type BuildFacilityLoMergeInput = {
     customer_details?: unknown;
     issuer_organization_id: string;
   };
+  invoice?: {
+    id: string;
+    display_reference?: unknown;
+    offer_details?: unknown;
+  } | null;
   issuerOrganization: {
     id: string;
     display_reference?: string | null;
@@ -163,7 +171,10 @@ export function buildFacilityLoMergeData(input: BuildFacilityLoMergeInput): Cont
     ...facilityLoCheckboxGlyphs(input.financingStructureType),
   };
 
-  const offer = asRecord(input.contract.offer_details);
+  const offerKind = input.offerKind ?? "contract";
+  const offerDetails =
+    offerKind === "invoice" ? input.invoice?.offer_details : input.contract.offer_details;
+  const offer = asRecord(offerDetails);
   const contractDetails = asRecord(input.contract.contract_details);
   const customer = asRecord(input.contract.customer_details);
   const company = asRecord(input.application?.company_details);
@@ -171,7 +182,9 @@ export function buildFacilityLoMergeData(input: BuildFacilityLoMergeInput): Cont
 
   const offeredFacility = asNumber(offer?.offered_facility);
   const approvedFacility = asNumber(contractDetails?.approved_facility);
-  const facilityAmount = offeredFacility ?? approvedFacility;
+  const offeredAmount = asNumber(offer?.offered_amount);
+  const facilityAmount =
+    offerKind === "invoice" ? offeredAmount : (offeredFacility ?? approvedFacility);
 
   const sentAt = asString(offer?.sent_at);
   const letterDate = sentAt ? formatLetterDate(sentAt) : "";
@@ -181,7 +194,7 @@ export function buildFacilityLoMergeData(input: BuildFacilityLoMergeInput): Cont
       ? Math.floor(input.gracePeriodDaysDefault)
       : null;
 
-  const acceptance = getOfferAcceptanceFromOfferDetails(input.contract.offer_details);
+  const acceptance = getOfferAcceptanceFromOfferDetails(offerDetails);
   const acceptanceDays =
     resolveAcceptanceDeadlineFromWorkflow(input.productWorkflow)?.days ??
     DEFAULT_ACCEPTANCE_DEADLINE.days;
@@ -194,6 +207,9 @@ export function buildFacilityLoMergeData(input: BuildFacilityLoMergeInput): Cont
 
   const subLimitRm = readInvoiceSubLimitPerInvoiceRmFromWorkflow(input.productWorkflow);
   const subLimitFormatted = formatRmAmount(subLimitRm ?? undefined);
+  const invoiceAmountFormatted = formatRmAmount(offeredAmount ?? undefined);
+  const partBFormatted =
+    offerKind === "invoice" ? invoiceAmountFormatted || subLimitFormatted : subLimitFormatted;
 
   const authorizedParties = getLoAuthorizedPartiesFromAcceptance(acceptance);
   const liveGuarantors = input.application?.application_guarantors;
@@ -208,10 +224,16 @@ export function buildFacilityLoMergeData(input: BuildFacilityLoMergeInput): Cont
       displayReference: input.issuerOrganization.display_reference,
       id: input.issuerOrganization.id,
     }),
-    our_reference: documentCanonicalReference({
-      displayReference: input.contract.display_reference,
-      id: input.contract.id,
-    }),
+    our_reference:
+      offerKind === "invoice"
+        ? documentCanonicalReference({
+            displayReference: asString(input.invoice?.display_reference),
+            id: asString(input.invoice?.id),
+          })
+        : documentCanonicalReference({
+            displayReference: input.contract.display_reference,
+            id: input.contract.id,
+          }),
     letter_date: letterDate,
     issuer_name: asString(input.issuerOrganization.name),
     issuer_registration_number: resolveIssuerRegistrationNumber(input.issuerOrganization),
@@ -220,7 +242,7 @@ export function buildFacilityLoMergeData(input: BuildFacilityLoMergeInput): Cont
     attention_position: asString(contact?.position),
     financing_limit_rm: formatRmAmount(facilityAmount ?? undefined),
     sub_limit_per_invoice_rm: subLimitFormatted,
-    part_b_financing_amount_rm: subLimitFormatted,
+    part_b_financing_amount_rm: partBFormatted,
     offer_validity_phrase: offerValidityPhrase,
     guarantors_individual: individuals,
     guarantors_corporate: corporates,
