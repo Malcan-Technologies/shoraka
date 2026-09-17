@@ -1772,7 +1772,10 @@ export async function patchOrgMasterProfile(params: {
       parseDateInput(patch.dateOfBirth)
     );
   }
-  const identityNumberIncoming = patch.identityNumber ?? patch.documentNumber;
+  // Important: `identityNumber: null` is an explicit "clear" coming from Admin UI.
+  // `??` would treat `null` as "missing" and accidentally skip the DB update.
+  const identityNumberIncoming =
+    patch.identityNumber !== undefined ? patch.identityNumber : patch.documentNumber;
   if (identityNumberIncoming !== undefined) {
     data.document_number = applyScalar(
       "identityNumber",
