@@ -371,6 +371,7 @@ describe("GeneratedDocumentsService.generateDocument", () => {
     expect(convertPdf.convertDocxToPdf).toHaveBeenCalled();
     expect(buildMerge.buildFacilityLoMergeData).toHaveBeenCalledWith(
       expect.objectContaining({
+        offerKind: "contract",
         contract: expect.objectContaining({ display_reference: "CON-ARF-202608-K71" }),
         issuerOrganization: expect.objectContaining({ display_reference: "ISS-202608-DK3" }),
       })
@@ -395,13 +396,108 @@ describe("GeneratedDocumentsService.generateDocument", () => {
     });
   });
 
-  it("rejects when contract offer_details is missing", async () => {
+  it("rejects when no offer has been sent", async () => {
     applicationRepository.findById.mockResolvedValue({
       ...baseApplication,
       contract: {
         ...baseApplication.contract,
         offer_details: null,
       },
+      invoices: [],
+    } as never);
+
+    await expect(
+      service.generateDocument({
+        applicationId,
+        typeKey: "arf_contract_facility_lo",
+        format: "pdf",
+        userId,
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      code: "GENERATED_DOCUMENT_REQUIRES_NOT_MET",
+    });
+  });
+
+  it("returns LO PDF for a standalone invoice offer", async () => {
+    applicationRepository.findById.mockResolvedValue({
+      ...baseApplication,
+      financing_structure: { structure_type: "invoice_only" },
+      contract: {
+        ...baseApplication.contract,
+        offer_details: null,
+      },
+      invoices: [
+        {
+          id: "inv_1",
+          display_reference: "INV-ARF-202608-0N5",
+          offer_details: {
+            offered_amount: 36000,
+            sent_at: "2026-08-20T00:00:00.000Z",
+            offer_acceptance: baseApplication.contract.offer_details.offer_acceptance,
+          },
+        },
+      ],
+    } as never);
+
+    const result = await service.generateDocument({
+      applicationId,
+      typeKey: "arf_contract_facility_lo",
+      format: "pdf",
+      userId,
+    });
+
+    expect(result.contentType).toBe("application/pdf");
+    expect(buildMerge.buildFacilityLoMergeData).toHaveBeenCalledWith(
+      expect.objectContaining({
+        offerKind: "invoice",
+        invoice: expect.objectContaining({ id: "inv_1" }),
+      })
+    );
+    expect(prisma.generatedDocumentEvidence.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          document_type: "arf_contract_facility_lo",
+          invoice_id: "inv_1",
+        }),
+      })
+    );
+  });
+
+  it("uses the invoice offer on invoice_only even if a holder contract offer leaked", async () => {
+    applicationRepository.findById.mockResolvedValue({
+      ...baseApplication,
+      financing_structure: { structure_type: "invoice_only" },
+      invoices: [
+        {
+          id: "inv_1",
+          display_reference: "INV-ARF-202608-0N5",
+          offer_details: {
+            offered_amount: 36000,
+            sent_at: "2026-08-20T00:00:00.000Z",
+            offer_acceptance: baseApplication.contract.offer_details.offer_acceptance,
+          },
+        },
+      ],
+    } as never);
+
+    await service.generateDocument({
+      applicationId,
+      typeKey: "arf_contract_facility_lo",
+      format: "pdf",
+      userId,
+    });
+
+    expect(buildMerge.buildFacilityLoMergeData).toHaveBeenCalledWith(
+      expect.objectContaining({ offerKind: "invoice" })
+    );
+  });
+
+  it("rejects invoice_only when the invoice offer is missing", async () => {
+    applicationRepository.findById.mockResolvedValue({
+      ...baseApplication,
+      financing_structure: { structure_type: "invoice_only" },
+      invoices: [],
     } as never);
 
     await expect(

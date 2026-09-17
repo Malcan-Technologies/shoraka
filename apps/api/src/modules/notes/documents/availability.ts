@@ -66,7 +66,7 @@ export function letterOfOfferAvailability(input: {
       false,
       "generated",
       "Generated now",
-      "The Letter of Offer can be generated after the facility offer is sent."
+      "The Letter of Offer can be generated after the offer is sent."
     );
   }
   if (!input.declaredOnProduct) {

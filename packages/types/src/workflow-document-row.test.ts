@@ -57,6 +57,7 @@ describe("generated document catalog", () => {
     expect(types[0]?.label).toContain("Joint and Several Guarantee");
     expect(types[1]?.label).toContain("Deed of Assignment");
     expect(types[2]?.label).toContain("Facility Agreement");
+    expect(GENERATED_DOCUMENT_TYPES[LO_KEY].requires).toEqual(["offer_sent"]);
     expect(GENERATED_DOCUMENT_TYPES[JSG_KEY].requires).toEqual(["offer_sent"]);
     expect(GENERATED_DOCUMENT_TYPES[DOA_KEY].requires).toEqual(["offer_sent"]);
     expect(GENERATED_DOCUMENT_TYPES[FA_KEY].requires).toEqual(["offer_sent"]);

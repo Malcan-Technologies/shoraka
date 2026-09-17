@@ -155,6 +155,17 @@ function invoiceOfferDetailsPresent(application: {
   return (application.invoices ?? []).some((invoice) => offerDetailsPresent(invoice.offer_details));
 }
 
+function firstInvoiceIdWithOffer(application: {
+  invoices?: Array<{ id?: unknown; offer_details?: unknown }> | null;
+}): string | null {
+  for (const invoice of application.invoices ?? []) {
+    if (typeof invoice.id === "string" && offerDetailsPresent(invoice.offer_details)) {
+      return invoice.id;
+    }
+  }
+  return null;
+}
+
 function assertRequiresMet(
   requires: GeneratedDocumentRequires[],
   application: {
@@ -329,7 +340,9 @@ export class GeneratedDocumentsService {
           typeDef,
           input.format,
           workflow,
-          input.userId
+          input.userId,
+          input.contractId,
+          input.invoiceId
         );
       case "arf_joint_several_guarantee":
         return this.generateArfJointSeveralGuarantee(
@@ -436,7 +449,9 @@ export class GeneratedDocumentsService {
     typeDef: GeneratedDocumentTypeDefinition,
     format: GeneratedDocumentFormat,
     productWorkflow: unknown[],
-    createdByUserId: string
+    createdByUserId: string,
+    contractId?: string | null,
+    invoiceId?: string | null
   ): Promise<GeneratedDocumentResult> {
     const contract = this.requireContractForGenerate(
       application,
@@ -461,7 +476,25 @@ export class GeneratedDocumentsService {
       contract
     );
 
+    const invoiceOnly = financingStructureType === "invoice_only";
+    const resolvedInvoiceId = invoiceId ?? (invoiceOnly ? firstInvoiceIdWithOffer(application) : null);
+    if (invoiceOnly && !resolvedInvoiceId) {
+      throw new AppError(
+        400,
+        "GENERATED_DOCUMENT_REQUIRES_NOT_MET",
+        "Invoice offer has not been sent yet."
+      );
+    }
+
+    const target = this.resolveOfferDocumentTarget(
+      application,
+      contract,
+      invoiceOnly ? null : contractId,
+      resolvedInvoiceId
+    );
+
     const mergeData = buildFacilityLoMergeData({
+      offerKind: target.offerKind,
       contract: {
         id: String(contract.id),
         display_reference:
@@ -471,6 +504,7 @@ export class GeneratedDocumentsService {
         offer_details: contract.offer_details,
         customer_details: contract.customer_details,
       },
+      invoice: target.invoice,
       issuerOrganization: {
         id: issuerOrganization.id,
         display_reference: issuerOrganization.display_reference,
@@ -493,9 +527,9 @@ export class GeneratedDocumentsService {
     const liveGuarantorCount = Array.isArray(liveGuarantors) ? liveGuarantors.length : 0;
     assertFacilityLoMergeReady({
       mergeData,
-      sentAt: readOfferSentAt(contract.offer_details),
+      sentAt: readOfferSentAt(target.offerDetails),
       authorizedParties: getLoAuthorizedPartiesFromAcceptance(
-        getOfferAcceptanceFromOfferDetails(contract.offer_details)
+        getOfferAcceptanceFromOfferDetails(target.offerDetails)
       ),
       liveGuarantorCount,
     });
@@ -503,6 +537,7 @@ export class GeneratedDocumentsService {
     return this.finalizeGeneratedDocument({
       applicationId: application!.id,
       contractId: typeof contract.id === "string" ? contract.id : null,
+      invoiceId: target.invoice?.id ?? null,
       typeDef,
       format,
       createdByUserId,

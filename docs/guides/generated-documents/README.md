@@ -40,7 +40,7 @@ Details: [add-a-placeholder.md](./add-a-placeholder.md).
    - Facility Agreement: Signing package → add **Facility Agreement** (CA-signed issuer execution; replaces the e-sign Offer Letter).
    - Joint and Several Guarantee: Signing package → add **Guarantor Agreement** (CA-signed when admin sends signing links).
    - Deed of Assignment: Signing package → add **Deed of Assignment** (CA-signed by assignor `issuer_director` only).
-2. Admin sends contract offer on an application using that product version.
+2. Admin sends the facility offer or standalone invoice offer on an application using that product version.
 3. Issuer downloads the LO from Review Offer / acceptance → **Download template**, completes offline, uploads.
 4. After authorised representatives are saved, admin sends the signing package. Facility Agreement, Guarantor Agreement, and Deed of Assignment are filled from their templates and uploaded to SigningCloud.
 
@@ -52,7 +52,7 @@ Details: [add-a-placeholder.md](./add-a-placeholder.md).
 | `GET /v1/applications/:id/generated-documents/:type?format=pdf\|docx` | Issuer (org member) or admin | Generate and download |
 | `GET /v1/admin/applications/:id/generated-documents/:type?format=` | Admin | Same generate path |
 
-Gates: frozen product must declare the type (LO: acceptance row; FA: signing-package Facility Agreement; JSG: signing-package Guarantor Agreement; Deed: signing-package Deed of Assignment); `requires` must be met (LO/JSG/Deed: contract `offer_details`; FA: contract **or** invoice offer).
+Gates: frozen product must declare the type (LO: acceptance row; FA: signing-package Facility Agreement; JSG: signing-package Guarantor Agreement; Deed: signing-package Deed of Assignment); `requires` must be met (`offer_sent`: contract facility offer **or** invoice offer). Invoice-only apps ignore a leftover holder facility offer and fill from the invoice.
 
 Demo (merge iteration only): `GET/POST /v1/admin/demos/contract-lo/*` — same tagged `.docx` + `renderFacilityLoDocx` as production; not wired to Send Offer or signing.
 
@@ -86,7 +86,7 @@ Build history (vertical slices): [implementation-slices.md](./implementation-sli
 
 - CMS upload of generated Word templates
 - Auto-generate on Send Offer
-- Invoice LO (standalone invoice offers use the Facility Agreement for e-sign)
+- Separate invoice-only Word template (the same LO ticks Schedule A Part B for `invoice_only`)
 - PDFKit offer letters / SigningCloud `GENERATED_OFFER_LETTER` (kept only for in-flight envelopes; new packages use Facility Agreement, JSG, and Deed of Assignment on the signing path)
 - Trustee/prospectus generators in this pipeline
 - Side-by-side historical `.docx` versions per deploy (until a type must support old forms after upgrade)

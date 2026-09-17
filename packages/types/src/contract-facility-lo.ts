@@ -1,6 +1,7 @@
 /**
- * Merge payload for ARF-i contract facility Letter of Offer (LO).
+ * Merge payload for ARF-i Letter of Offer (LO).
  * Shared by admin demo and production generate (`arf_contract_facility_lo`).
+ * Facility offers fill Part A; standalone invoice offers fill Part B.
  */
 
 export const FACILITY_LO_CHECKBOX_TICKED = "☒";
