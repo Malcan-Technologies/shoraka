@@ -83,14 +83,18 @@ jest.mock("../../lib/s3/client", () => ({
   deleteS3Object: jest.fn(async () => undefined),
 }));
 
-jest.mock("../../lib/s3/legal-document-object", () => ({
-  isLegalDocumentS3Key: jest.fn((key: string) => String(key).startsWith("legal-documents/")),
-  sanitizeS3KeyForLog: jest.fn((key: string) => key),
-  assertStoredLegalPdf: jest.fn(async ({ claimedFileSize }) => ({
-    fileHash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-    fileSize: claimedFileSize ?? 100,
-  })),
-}));
+jest.mock("../../lib/s3/legal-document-object", () => {
+  const actual = jest.requireActual("../../lib/s3/legal-document-object");
+  return {
+    ...actual,
+    isLegalDocumentS3Key: jest.fn((key: string) => String(key).startsWith("legal-documents/")),
+    sanitizeS3KeyForLog: jest.fn((key: string) => key),
+    assertStoredLegalPdf: jest.fn(async ({ claimedFileSize }) => ({
+      fileHash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      fileSize: claimedFileSize ?? 100,
+    })),
+  };
+});
 
 jest.mock("../../lib/logger", () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() },
@@ -899,7 +903,7 @@ describe("legal document acceptance service", () => {
         published_at: null,
         published_by: null,
         file_name: "fixed.pdf",
-        s3_key: "legal-documents/new-key.pdf",
+        s3_key: "legal-documents/pdpa-notice-and-consent/v2-2026-01-01-cuid.pdf",
         file_hash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       }) as never
     );
@@ -908,7 +912,7 @@ describe("legal document acceptance service", () => {
     const replaced = await legalDocumentService.replaceDraftFile(
       "ver2",
       {
-        s3Key: "legal-documents/new-key.pdf",
+        s3Key: "legal-documents/pdpa-notice-and-consent/v2-2026-01-01-cuid.pdf",
         fileName: "fixed.pdf",
         contentType: "application/pdf",
         fileSize: 1200,
@@ -918,13 +922,13 @@ describe("legal document acceptance service", () => {
     );
 
     expect(assertStoredLegalPdf).toHaveBeenCalledWith({
-      s3Key: "legal-documents/new-key.pdf",
+      s3Key: "legal-documents/pdpa-notice-and-consent/v2-2026-01-01-cuid.pdf",
       claimedFileSize: 1200,
     });
     expect(legalDocumentRepository.replaceDraftFile).toHaveBeenCalledWith(
       "ver2",
       expect.objectContaining({
-        s3Key: "legal-documents/new-key.pdf",
+        s3Key: "legal-documents/pdpa-notice-and-consent/v2-2026-01-01-cuid.pdf",
         fileHash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         fileSize: 1200,
       })
@@ -936,6 +940,90 @@ describe("legal document acceptance service", () => {
     expect(replaced.fileHash).toBe(
       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     );
+  });
+
+  it("rejects replaceDraftFile when s3Key belongs to the wrong legal document type", async () => {
+    jest.spyOn(legalDocumentRepository, "findVersionById").mockResolvedValue(
+      publishedVersion({
+        id: "ver2",
+        version: 2,
+        status: "DRAFT",
+        file_name: "old.pdf",
+        s3_key: "legal-documents/pdpa-notice-and-consent/v2-2026-01-01-cuid.pdf",
+      }) as never
+    );
+
+    await expect(
+      legalDocumentService.replaceDraftFile(
+        "ver2",
+        {
+          s3Key: "legal-documents/terms-of-use/v2-2026-01-01-cuid.pdf",
+          fileName: "fixed.pdf",
+          contentType: "application/pdf",
+          fileSize: 1200,
+        },
+        "admin1",
+        mockReq
+      )
+    ).rejects.toMatchObject({ code: "LEGAL_DOCUMENT_KEY_TYPE_MISMATCH" });
+
+    expect(legalDocumentRepository.replaceDraftFile).not.toHaveBeenCalled();
+  });
+
+  it("rejects replaceDraftFile when s3Key belongs to the wrong legal document version", async () => {
+    jest.spyOn(legalDocumentRepository, "findVersionById").mockResolvedValue(
+      publishedVersion({
+        id: "ver2",
+        version: 2,
+        status: "DRAFT",
+        file_name: "old.pdf",
+        s3_key: "legal-documents/pdpa-notice-and-consent/v2-2026-01-01-cuid.pdf",
+      }) as never
+    );
+
+    await expect(
+      legalDocumentService.replaceDraftFile(
+        "ver2",
+        {
+          s3Key: "legal-documents/pdpa-notice-and-consent/v3-2026-01-01-cuid.pdf",
+          fileName: "fixed.pdf",
+          contentType: "application/pdf",
+          fileSize: 1200,
+        },
+        "admin1",
+        mockReq
+      )
+    ).rejects.toMatchObject({ code: "LEGAL_DOCUMENT_KEY_VERSION_MISMATCH" });
+
+    expect(legalDocumentRepository.replaceDraftFile).not.toHaveBeenCalled();
+  });
+
+  it("rejects replaceDraftFile when s3Key is malformed", async () => {
+    jest.spyOn(legalDocumentRepository, "findVersionById").mockResolvedValue(
+      publishedVersion({
+        id: "ver2",
+        version: 2,
+        status: "DRAFT",
+        file_name: "old.pdf",
+        s3_key: "legal-documents/pdpa-notice-and-consent/v2-2026-01-01-cuid.pdf",
+      }) as never
+    );
+
+    await expect(
+      legalDocumentService.replaceDraftFile(
+        "ver2",
+        {
+          s3Key: "legal-documents/pdpa-notice-and-consent/not-a-version.pdf",
+          fileName: "fixed.pdf",
+          contentType: "application/pdf",
+          fileSize: 1200,
+        },
+        "admin1",
+        mockReq
+      )
+    ).rejects.toMatchObject({ code: "INVALID_LEGAL_DOCUMENT_S3_KEY_FORMAT" });
+
+    expect(legalDocumentRepository.replaceDraftFile).not.toHaveBeenCalled();
   });
 
   it("does not delete old S3 object when draft replace hash validation fails", async () => {
@@ -959,7 +1047,7 @@ describe("legal document acceptance service", () => {
       legalDocumentService.replaceDraftFile(
         "ver2",
         {
-          s3Key: "legal-documents/new-key.pdf",
+          s3Key: "legal-documents/pdpa-notice-and-consent/v2-2026-01-01-cuid.pdf",
           fileName: "fixed.pdf",
           contentType: "application/pdf",
           fileSize: 1200,
@@ -970,7 +1058,9 @@ describe("legal document acceptance service", () => {
     ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
 
     expect(replaceSpy).not.toHaveBeenCalled();
-    expect(deleteS3Object).toHaveBeenCalledWith("legal-documents/new-key.pdf");
+    expect(deleteS3Object).toHaveBeenCalledWith(
+      "legal-documents/pdpa-notice-and-consent/v2-2026-01-01-cuid.pdf"
+    );
     expect(deleteS3Object).not.toHaveBeenCalledWith("legal-documents/old-key.pdf");
   });
 
@@ -996,14 +1086,14 @@ describe("legal document acceptance service", () => {
         published_at: null,
         published_by: null,
         file_hash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        s3_key: "legal-documents/new.pdf",
+        s3_key: "legal-documents/terms-of-use/v1-2026-01-01-cuid.pdf",
       }) as never
     );
 
     const created = await legalDocumentService.createDraftVersion(
       "ld1",
       {
-        s3Key: "legal-documents/new.pdf",
+        s3Key: "legal-documents/terms-of-use/v1-2026-01-01-cuid.pdf",
         fileName: "terms.pdf",
         contentType: "application/pdf",
         fileSize: 500,
@@ -1023,6 +1113,108 @@ describe("legal document acceptance service", () => {
       "admin1"
     );
     expect(created.fileHash).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it("rejects createDraftVersion when s3Key belongs to the wrong legal document type", async () => {
+    jest.spyOn(legalDocumentRepository, "findById").mockResolvedValue({
+      id: "ld1",
+      type: "TERMS_OF_USE",
+      title: "Terms",
+      description: null,
+      audience: "BOTH",
+      required_for_onboarding: true,
+      public_visibility: true,
+      show_in_account: false,
+      created_at: new Date(),
+      updated_at: new Date(),
+    } as never);
+    jest.spyOn(legalDocumentRepository, "getLatestVersionNumber").mockResolvedValue(0);
+
+    await expect(
+      legalDocumentService.createDraftVersion(
+        "ld1",
+        {
+          s3Key: "legal-documents/pdpa-notice-and-consent/v1-2026-01-01-cuid.pdf",
+          fileName: "terms.pdf",
+          contentType: "application/pdf",
+          fileSize: 500,
+        },
+        "admin1",
+        mockReq
+      )
+    ).rejects.toMatchObject({
+      code: "LEGAL_DOCUMENT_KEY_TYPE_MISMATCH",
+    });
+
+    expect(legalDocumentRepository.createVersion).not.toHaveBeenCalled();
+  });
+
+  it("rejects createDraftVersion when s3Key belongs to the wrong legal document version", async () => {
+    jest.spyOn(legalDocumentRepository, "findById").mockResolvedValue({
+      id: "ld1",
+      type: "TERMS_OF_USE",
+      title: "Terms",
+      description: null,
+      audience: "BOTH",
+      required_for_onboarding: true,
+      public_visibility: true,
+      show_in_account: false,
+      created_at: new Date(),
+      updated_at: new Date(),
+    } as never);
+    jest.spyOn(legalDocumentRepository, "getLatestVersionNumber").mockResolvedValue(0);
+
+    await expect(
+      legalDocumentService.createDraftVersion(
+        "ld1",
+        {
+          s3Key: "legal-documents/terms-of-use/v2-2026-01-01-cuid.pdf",
+          fileName: "terms.pdf",
+          contentType: "application/pdf",
+          fileSize: 500,
+        },
+        "admin1",
+        mockReq
+      )
+    ).rejects.toMatchObject({
+      code: "LEGAL_DOCUMENT_KEY_VERSION_MISMATCH",
+    });
+
+    expect(legalDocumentRepository.createVersion).not.toHaveBeenCalled();
+  });
+
+  it("rejects createDraftVersion when s3Key is malformed", async () => {
+    jest.spyOn(legalDocumentRepository, "findById").mockResolvedValue({
+      id: "ld1",
+      type: "TERMS_OF_USE",
+      title: "Terms",
+      description: null,
+      audience: "BOTH",
+      required_for_onboarding: true,
+      public_visibility: true,
+      show_in_account: false,
+      created_at: new Date(),
+      updated_at: new Date(),
+    } as never);
+    jest.spyOn(legalDocumentRepository, "getLatestVersionNumber").mockResolvedValue(0);
+
+    await expect(
+      legalDocumentService.createDraftVersion(
+        "ld1",
+        {
+          s3Key: "legal-documents/terms-of-use/not-a-version.pdf",
+          fileName: "terms.pdf",
+          contentType: "application/pdf",
+          fileSize: 500,
+        },
+        "admin1",
+        mockReq
+      )
+    ).rejects.toMatchObject({
+      code: "INVALID_LEGAL_DOCUMENT_S3_KEY_FORMAT",
+    });
+
+    expect(legalDocumentRepository.createVersion).not.toHaveBeenCalled();
   });
 
   it("rejects publish without file hash", async () => {
@@ -1046,7 +1238,7 @@ describe("legal document acceptance service", () => {
         id: "ver2",
         version: 2,
         status: "DRAFT",
-        s3_key: "legal-documents/same.pdf",
+        s3_key: "legal-documents/pdpa-notice-and-consent/v2-2026-01-01-cuid.pdf",
       }) as never
     );
     jest.spyOn(legalDocumentRepository, "replaceDraftFile").mockResolvedValue(
@@ -1054,7 +1246,7 @@ describe("legal document acceptance service", () => {
         id: "ver2",
         version: 2,
         status: "DRAFT",
-        s3_key: "legal-documents/same.pdf",
+        s3_key: "legal-documents/pdpa-notice-and-consent/v2-2026-01-01-cuid.pdf",
         file_hash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       }) as never
     );
@@ -1064,7 +1256,7 @@ describe("legal document acceptance service", () => {
     await legalDocumentService.replaceDraftFile(
       "ver2",
       {
-        s3Key: "legal-documents/same.pdf",
+        s3Key: "legal-documents/pdpa-notice-and-consent/v2-2026-01-01-cuid.pdf",
         fileName: "same.pdf",
         contentType: "application/pdf",
         fileSize: 100,
@@ -1088,7 +1280,7 @@ describe("legal document acceptance service", () => {
       legalDocumentService.replaceDraftFile(
         "ver2",
         {
-          s3Key: "legal-documents/new.pdf",
+          s3Key: "legal-documents/pdpa-notice-and-consent/v2-2026-01-01-cuid.pdf",
           fileName: "n.pdf",
           contentType: "application/pdf",
           fileSize: 10,
@@ -1114,7 +1306,7 @@ describe("legal document acceptance service", () => {
         id: "ver2",
         version: 2,
         status: "DRAFT",
-        s3_key: "legal-documents/new-key.pdf",
+        s3_key: "legal-documents/pdpa-notice-and-consent/v2-2026-01-01-cuid.pdf",
         file_name: "fixed.pdf",
         file_hash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       }) as never
@@ -1125,7 +1317,7 @@ describe("legal document acceptance service", () => {
     const replaced = await legalDocumentService.replaceDraftFile(
       "ver2",
       {
-        s3Key: "legal-documents/new-key.pdf",
+        s3Key: "legal-documents/pdpa-notice-and-consent/v2-2026-01-01-cuid.pdf",
         fileName: "fixed.pdf",
         contentType: "application/pdf",
         fileSize: 1200,
