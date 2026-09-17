@@ -130,6 +130,42 @@ describe("writeOrganizationPartyEmail", () => {
     expect(mockUserUpdate).not.toHaveBeenCalled();
   });
 
+  it("clears the supplement snapshot when the master Person Email is cleared", async () => {
+    mockPartyFindFirst.mockResolvedValue({
+      id: "party-1",
+      party_key: generatedKey,
+      email: "old@acme.test",
+    });
+    mockSupplementFindFirst.mockResolvedValue({
+      id: "sup-1",
+      onboarding_json: {
+        email: "old@acme.test",
+        status: "APPROVED",
+        requestId: "LD-APPROVED",
+        screening: null,
+      },
+    });
+
+    const result = await writeOrganizationPartyEmail({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyKey: generatedKey,
+      email: null,
+    });
+
+    expect(result.email).toBeNull();
+    expect(mockPartyUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { email: null } })
+    );
+    const snapshot = mockSupplementUpdate.mock.calls[0]?.[0].data.onboarding_json as Record<
+      string,
+      unknown
+    >;
+    expect(snapshot).not.toHaveProperty("email");
+    expect(snapshot.status).toBe("APPROVED");
+    expect(snapshot.requestId).toBe("LD-APPROVED");
+  });
+
   it("rejects a write when legacy KYC is awaiting approval without a supplement", async () => {
     mockPartyFindFirst.mockResolvedValue({
       id: "party-1",

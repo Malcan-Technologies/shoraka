@@ -8,6 +8,7 @@ import {
   PROCESSING_FEE_SLOW_POLL_AFTER_MS,
   PROCESSING_FEE_SLOW_POLL_MS,
   clearProcessingFeeAwaitingConfirmation,
+  dismissProcessingFeeReturnPinState,
   deriveProcessingFeePayStepModel,
   deriveProcessingFeeReturnDialogView,
   isInFlightProcessingFeeStatus,
@@ -266,7 +267,7 @@ describe("processing fee pay step and navigation safety", () => {
     expect(clearProcessingFeeAwaitingConfirmation(pending).awaitingConfirmation).toBe(false);
   });
 
-  it("pins the return ids until a safe dismiss, then drops them so the dialog cannot reopen", () => {
+  it("keeps the dismissed return identity until a different URL payment arrives", () => {
     const pinned = nextProcessingFeeReturnPinState(
       { pinnedFeeId: null, pinnedApplicationId: null, dismissed: false },
       "fee_1",
@@ -277,7 +278,12 @@ describe("processing fee pay step and navigation safety", () => {
       applicationId: "app_1",
     });
 
-    const dismissed = { ...pinned, dismissed: true };
+    const dismissed = dismissProcessingFeeReturnPinState(pinned);
+    expect(dismissed).toMatchObject({
+      pinnedFeeId: "fee_1",
+      pinnedApplicationId: "app_1",
+      dismissed: true,
+    });
     expect(resolveProcessingFeeReturnIds(dismissed)).toEqual({
       feeId: null,
       applicationId: null,
@@ -370,7 +376,7 @@ describe("processing fee pay step and navigation safety", () => {
     ).toMatchObject({ state: "ready-to-pay", showPayCta: true, ctaLabel: "Pay with FPX" });
 
     const afterRetry = clearProcessingFeeAwaitingConfirmation(pending);
-    const dismissed = { ...resumed, dismissed: true };
+    const dismissed = dismissProcessingFeeReturnPinState(resumed);
     expect(isProcessingFeeAwaitingConfirmation(afterRetry, "app_1")).toBe(false);
     expect(resolvePendingProcessingFeeResumeFeeId(afterRetry, "app_1")).toBeNull();
     expect(resolveProcessingFeeReturnIds(dismissed)).toEqual({

@@ -13,6 +13,7 @@ import {
 } from "@/lib/application-processing-fee-routes";
 import {
   clearProcessingFeeAwaitingConfirmation,
+  dismissProcessingFeeReturnPinState,
   markProcessingFeeAwaitingConfirmation,
   nextProcessingFeeReturnPinState,
   resolvePendingProcessingFeeResumeFeeId,
@@ -78,7 +79,7 @@ export function ProcessingFeeReturnListener({
     if (current) {
       storeIssuerPendingSubmitAfterFee(clearProcessingFeeAwaitingConfirmation(current));
     }
-    setPinState((prev) => ({ ...prev, dismissed: true, pinnedFeeId: null, pinnedApplicationId: null }));
+    setPinState(dismissProcessingFeeReturnPinState);
     router.replace(
       resolveProcessingFeeReturnDestination({
         action: "retry-payment",
@@ -96,7 +97,7 @@ export function ProcessingFeeReturnListener({
     } else if (current) {
       storeIssuerPendingSubmitAfterFee({ ...current, awaitingConfirmation: true });
     }
-    setPinState((prev) => ({ ...prev, dismissed: true, pinnedFeeId: null, pinnedApplicationId: null }));
+    setPinState(dismissProcessingFeeReturnPinState);
     router.replace(
       resolveProcessingFeeReturnDestination({
         action: "leave-for-now",

@@ -88,7 +88,7 @@ export async function writeOrganizationPartyEmail(params: {
 
     if (plan.snapshotSupplement && (existing || plan.email)) {
       const merged = mergeCtosPartySupplementDocument(existing?.onboarding_json, {
-        onboarding: plan.email ? { email: plan.email } : undefined,
+        onboarding: { email: plan.email },
         pipelineReset: plan.pipelineReset,
         screeningReset: plan.screeningReset,
       });

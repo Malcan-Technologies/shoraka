@@ -320,6 +320,12 @@ export type ProcessingFeeReturnPinState = {
   dismissed: boolean;
 };
 
+export function dismissProcessingFeeReturnPinState(
+  current: ProcessingFeeReturnPinState
+): ProcessingFeeReturnPinState {
+  return { ...current, dismissed: true };
+}
+
 export function nextProcessingFeeReturnPinState(
   current: ProcessingFeeReturnPinState,
   urlFeeId: string | null,
