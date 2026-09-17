@@ -63,6 +63,10 @@ export function CustomerPartyProfileOverview({
   if (requiredMissing.has(PROFILE_LABEL.shareholdingPercentage)) {
     requiredMissing.add(CUSTOMER_PERSON_LABEL.shareholding);
   }
+  // Completeness uses "Identity Prefix" while the UI surfaces it as "Identity Type".
+  if (requiredMissing.has(PROFILE_LABEL.identityPrefix)) {
+    requiredMissing.add(CUSTOMER_PERSON_LABEL.identityType);
+  }
 
   const sectionIdForMissingLabel = (label: string): "details" | "role" | "contact" | "address" | null => {
     // These map the shared completeness “missing item labels” onto the Profile section that displays them.
