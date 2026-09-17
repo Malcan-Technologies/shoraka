@@ -1126,6 +1126,7 @@ export interface IssuerCompanyCompletenessInput {
   name: string | null | undefined;
   registrationNumber: string | null | undefined;
   organizationId: string | null | undefined;
+  hasActiveCompanySeal?: boolean | null | undefined;
   dateOfIncorporation: string | Date | null | undefined;
   dateOfCommencement: string | Date | null | undefined;
   countryOfIncorporation: string | null | undefined;
@@ -1413,7 +1414,7 @@ function withUserFacingCompleteness(
  * customers because the issuer application company-details step cannot continue
  * without them on Profile. Issuer ID (if any) is not counted.
  */
-export const ISSUER_COMPANY_COMPLETENESS_FIELD_COUNT = 18;
+export const ISSUER_COMPANY_COMPLETENESS_FIELD_COUNT = 19;
 
 export function computeIssuerCompanyCompleteness(
   input: IssuerCompanyCompletenessInput
@@ -1484,6 +1485,9 @@ export function computeIssuerCompanyCompleteness(
   }
   if (!hasText(input.mainCustomers)) {
     pushMissing(missing, step, "mainCustomers", PROFILE_LABEL.mainCustomers);
+  }
+  if (input.hasActiveCompanySeal !== true) {
+    pushMissing(missing, step, "companySeal", PROFILE_LABEL.companySeal);
   }
   return missing;
 }
