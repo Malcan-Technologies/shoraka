@@ -25,7 +25,7 @@ import {
   MALAYSIAN_BANKS,
 } from "@cashsouk/config";
 import type { ApplicationPersonRow } from "@cashsouk/types";
-import { filterVisiblePeopleRows, SC_GENDER_LABELS, SC_INDIVIDUAL_GENDERS, SC_MALAYSIAN_STATES, PROFILE_ADDRESS_FIELD_LABELS, PROFILE_ADDRESS_HELP, PROFILE_HELP, PROFILE_LABEL, firstIssueMessage, formatCalendarDate, humanizeApiValidationMessage, isScPostcodeRequired, isValidProfilePhone, restrictScPostcodeInput, scAppendixASelectValues, storedProfilePhone, toCalendarDateInput, userFacingCompleteness, validateInvestorPersonalForm, type ScGender } from "@cashsouk/types";
+import { filterVisiblePeopleRows, SC_GENDER_LABELS, SC_INDIVIDUAL_GENDERS, SC_MALAYSIAN_STATES, PROFILE_ADDRESS_FIELD_LABELS, PROFILE_ADDRESS_HELP, PROFILE_HELP, PROFILE_LABEL, firstIssueMessage, formatCalendarDate, humanizeApiValidationMessage, isScPostcodeRequired, isValidProfilePhone, restrictScPostcodeInput, scAppendixASelectValues, storedProfilePhone, toCalendarDateInput, userFacingCompleteness, validateInvestorPersonalForm, type ProfileFieldSources, type ScGender } from "@cashsouk/types";
 import { useAuth } from "../../lib/auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccountDocuments } from "../../hooks/use-account-documents";
@@ -381,6 +381,7 @@ export default function ProfilePage() {
   const [gender, setGender] = React.useState("");
   const [nationality, setNationality] = React.useState("");
   const [dateOfBirth, setDateOfBirth] = React.useState("");
+  const [identityNumber, setIdentityNumber] = React.useState("");
   const [residentialState, setResidentialState] = React.useState("");
   const [residentialPostalCode, setResidentialPostalCode] = React.useState("");
 
@@ -424,6 +425,7 @@ export default function ProfilePage() {
         dateOfBirth: string | null;
         documentType: string | null;
         documentNumber: string | null;
+        profileFieldSources?: ProfileFieldSources;
         scInvestorCategory?: string | null;
         dateOfIncorporation?: string | null;
         countryOfIncorporation?: string | null;
@@ -574,6 +576,7 @@ export default function ProfilePage() {
       setGender(orgData.gender ?? "");
       setNationality(orgData.nationality ?? "");
       setDateOfBirth(toCalendarDateInput(orgData.dateOfBirth ?? ""));
+      setIdentityNumber(orgData.documentNumber ?? "");
       setResidentialState(orgData.residentialAddress?.state ?? "");
       setResidentialPostalCode(orgData.residentialAddress?.postalCode ?? "");
 
@@ -668,6 +671,16 @@ export default function ProfilePage() {
           nationality: nationality.trim(),
           dateOfBirth: dob,
         };
+
+        const identityNumberTrimmed = identityNumber.trim();
+        const identityNumberCurrent = orgData?.documentNumber ?? "";
+        const identityNumberChanged = identityNumberTrimmed !== identityNumberCurrent;
+        const identityNumberRegTankLocked =
+          orgData?.profileFieldSources?.identityNumber?.source === "REGTANK" &&
+          identityNumberCurrent.trim().length > 0;
+        if (!identityNumberRegTankLocked && identityNumberChanged) {
+          master.identityNumber = identityNumberTrimmed.length > 0 ? identityNumberTrimmed : null;
+        }
         setIsSavingMasterProfile(true);
         try {
           const masterRes = await apiClient.patchMasterProfile(
@@ -777,6 +790,7 @@ export default function ProfilePage() {
       setGender(orgData.gender ?? "");
       setNationality(orgData.nationality ?? "");
       setDateOfBirth(toCalendarDateInput(orgData.dateOfBirth ?? ""));
+      setIdentityNumber(orgData.documentNumber ?? "");
       setResidentialState(orgData.residentialAddress?.state ?? "");
       setResidentialPostalCode(orgData.residentialAddress?.postalCode ?? "");
     }
