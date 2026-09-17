@@ -153,7 +153,9 @@ export function personToEditorValues(person: ApplicationPersonRow): PartyEditorV
   return {
     ...emptyValues,
     name: person.name ?? "",
-    identityNumber: person.matchKey ?? "",
+    // Identity number is the canonical government ID from the resolved person.
+    // Never fall back to matchKey (stable party_key) because it is not a government ID.
+    identityNumber: person.identityNumber ?? "",
     identityPrefix: corporate ? "ROC" : "NRIC",
     entityType: person.entityType,
     isDirector: roles.includes("DIRECTOR"),

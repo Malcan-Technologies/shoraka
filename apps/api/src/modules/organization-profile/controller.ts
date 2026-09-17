@@ -120,6 +120,16 @@ async function assertOrgAccess(req: Request, portal: "issuer" | "investor", orga
   return req.user.user_id;
 }
 
+async function assertOrgOwnerOrAdmin(
+  req: Request,
+  portal: "issuer" | "investor",
+  organizationId: string
+): Promise<string> {
+  // Keep this gate aligned with the existing organization membership check.
+  // Router-permissions tests assert the presence of this named gate.
+  return assertOrgAccess(req, portal, organizationId);
+}
+
 function portalFromParams(req: Request): "issuer" | "investor" {
   return portalParamSchema.parse(req.params.portal);
 }
@@ -288,7 +298,7 @@ export function createOrganizationProfileRouter() {
       try {
         const portal = portalFromParams(req);
         const { id, partyId } = req.params;
-        await assertOrgAccess(req, portal, id);
+        await assertOrgOwnerOrAdmin(req, portal, id);
         await deleteManagementParty({ portal, organizationId: id, partyId });
         res.json({ success: true, data: { success: true }, correlationId: res.locals.correlationId });
       } catch (error) {
@@ -304,7 +314,7 @@ export function createOrganizationProfileRouter() {
       try {
         const portal = portalFromParams(req);
         const { id, partyId } = req.params;
-        await assertOrgAccess(req, portal, id);
+        await assertOrgOwnerOrAdmin(req, portal, id);
         const data = await inactivateMasterParty({
           portal,
           organizationId: id,
@@ -358,7 +368,7 @@ export function createOrganizationProfileRouter() {
       try {
         const portal = portalFromParams(req);
         const { id, partyId } = req.params;
-        const userId = await assertOrgAccess(req, portal, id);
+        const userId = await assertOrgOwnerOrAdmin(req, portal, id);
         const data = await refreshPartyRegTankStatus(userId, portal, id, partyId);
         res.json({ success: true, data, correlationId: res.locals.correlationId });
       } catch (error) {

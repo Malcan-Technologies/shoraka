@@ -697,6 +697,13 @@ export default function ProfilePage() {
           orgData?.profileFieldSources?.identityNumber?.source === "REGTANK" &&
           identityNumberCurrent.trim().length > 0;
         if (!identityNumberRegTankLocked && identityNumberChanged) {
+          const dt = String(orgData?.documentType ?? "").toUpperCase();
+          if (!dt.includes("PASSPORT") && identityNumberTrimmed.length > 0) {
+            if (!/^\d{12}$/.test(identityNumberTrimmed)) {
+              toast.error("Enter a valid 12-digit IC number.");
+              return;
+            }
+          }
           master.identityNumber = identityNumberTrimmed.length > 0 ? identityNumberTrimmed : null;
         }
         if (Object.keys(master).length === 0) {
@@ -1064,7 +1071,16 @@ export default function ProfilePage() {
                             <Input
                               className="h-11 text-ui"
                               value={identityNumber}
-                              onChange={(e) => setIdentityNumber(e.target.value)}
+                              onChange={(e) => {
+                                const raw = e.target.value;
+                                const dt = String(orgData?.documentType ?? "").toUpperCase();
+                                // NRIC/MyKad + Driving License: digits-only (no spaces/dashes/special).
+                                if (dt.includes("PASSPORT")) {
+                                  setIdentityNumber(raw);
+                                  return;
+                                }
+                                setIdentityNumber(raw.replace(/\D/g, "").slice(0, 12));
+                              }}
                               disabled={isRegTankLockedIdentityNumber}
                             />
                           </div>

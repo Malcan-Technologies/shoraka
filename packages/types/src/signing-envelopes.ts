@@ -12,8 +12,6 @@
  * String unions here must stay in sync with the Prisma enums in apps/api/prisma/schema.prisma.
  */
 
-import { displayGovernmentIdentityNumber } from "./organization-party-key";
-
 export type SigningEnvelopeStatus =
   | "DRAFT"
   | "SENT"
@@ -729,11 +727,10 @@ export function signingIcFromPerson(person: {
   matchKey?: string | null;
   identityNumber?: string | null;
 }): string {
-  const displayed = displayGovernmentIdentityNumber({
-    partyKey: person.matchKey,
-    identityNumber: person.identityNumber,
-  });
-  const normalized = normalizeSigningIcNumber(displayed ?? "");
+  // Signing IC must come only from the canonical identity-number field.
+  // If it's missing/invalid, return "missing" (empty string) to follow the
+  // existing signing validation path.
+  const normalized = normalizeSigningIcNumber(String(person.identityNumber ?? ""));
   return normalized.length === 12 ? normalized : "";
 }
 

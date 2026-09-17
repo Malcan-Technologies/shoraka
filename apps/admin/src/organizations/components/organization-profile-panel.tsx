@@ -917,7 +917,17 @@ export function OrganizationProfilePanel({
                     <EditableField
                       label={PROFILE_LABEL.identityNumber}
                       value={draft.identityNumber}
-                      onChange={(identityNumber) => setDraft((current) => ({ ...current, identityNumber }))}
+                      onChange={(identityNumber) => {
+                        const dt = String(org.documentType ?? "").toUpperCase();
+                        if (dt.includes("PASSPORT")) {
+                          setDraft((current) => ({ ...current, identityNumber }));
+                          return;
+                        }
+                        setDraft((current) => ({
+                          ...current,
+                          identityNumber: identityNumber.replace(/\D/g, "").slice(0, 12),
+                        }));
+                      }}
                       required
                       help={PROFILE_HELP.identityNumberNric}
                       error={fieldErrors.identityNumber}

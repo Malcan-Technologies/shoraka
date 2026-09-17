@@ -43,6 +43,7 @@ import {
   issuerShareholdingThresholdIssue,
   isIssuerShareholderOnlyBelowMinimum,
   issuerActiveShareholderFlags,
+  identityFormatIssue,
     asIssuerContactPerson,
     asIssuerPersonInCharge,
   isIssuerOfficerRole,
@@ -1511,6 +1512,28 @@ function mapStoredGender(value: string | null | undefined): ScGender | null {
   return null;
 }
 
+export function validatePersonalInvestorIdentityNumberByDocumentType(params: {
+  documentType: string | null | undefined;
+  identityNumber: string | null | undefined;
+}): string | null | undefined {
+  const { documentType, identityNumber } = params;
+  if (identityNumber === null || identityNumber === undefined) return identityNumber;
+
+  const trimmed = typeof identityNumber === "string" ? identityNumber.trim() : String(identityNumber);
+
+  // Passport: preserve existing behavior (no digits-only enforcement).
+  if (String(documentType ?? "").toUpperCase().includes("PASSPORT")) {
+    return trimmed;
+  }
+
+  // NRIC/MyKad and Driving License: exactly 12 digits, digits-only.
+  const issue = identityFormatIssue(trimmed, "NRIC", "identityNumber", "IC/Passport number");
+  if (issue) {
+    throw new AppError(400, "VALIDATION_ERROR", issue.message);
+  }
+  return trimmed;
+}
+
 export type OrgMasterPatch = OrgMasterPatchInput;
 
 export async function patchOrgMasterProfile(params: {
@@ -1777,10 +1800,14 @@ export async function patchOrgMasterProfile(params: {
   const identityNumberIncoming =
     patch.identityNumber !== undefined ? patch.identityNumber : patch.documentNumber;
   if (identityNumberIncoming !== undefined) {
+    const validated = validatePersonalInvestorIdentityNumberByDocumentType({
+      documentType: investor.document_type,
+      identityNumber: identityNumberIncoming,
+    });
     data.document_number = applyScalar(
       "identityNumber",
       investor.document_number as string | null,
-      identityNumberIncoming
+      validated
     );
   }
   if (patch.phoneNumber !== undefined) {
@@ -2592,7 +2619,7 @@ function mapMasterPartySeed(row: {
   };
 }
 
-function evidenceObservationFromResolvedPerson(person: {
+export function evidenceObservationFromResolvedPerson(person: {
   matchKey: string;
   name: string | null;
   entityType: "INDIVIDUAL" | "CORPORATE";
@@ -2613,7 +2640,9 @@ function evidenceObservationFromResolvedPerson(person: {
   const hasShareholderRole = roles.includes("SHAREHOLDER") || Boolean(candidate?.isShareholder);
   return {
     name: person.name ?? candidate?.name ?? null,
-    identityNumber: person.identityNumber ?? candidate?.identityNumber ?? person.matchKey ?? null,
+    // Identity number must come from the canonical identity-number field only.
+    // Do not synthesize identityNumber from matchKey (stable party_key).
+    identityNumber: person.identityNumber ?? candidate?.identityNumber ?? null,
     entityType: person.entityType,
     isDirector: hasDirectorRole,
     isShareholder: hasShareholderRole,

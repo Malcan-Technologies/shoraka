@@ -102,7 +102,7 @@ describe("secondary-onboarding identity and postcode input restrictions", () => 
   it("CASE B: NRIC strips dashes/spaces and still allows letters; passport is not stripped", () => {
     expect(restrictScIdentityInput("NRIC", "950829-08-3430")).toBe("950829083430");
     expect(restrictScIdentityInput("NRIC", "950829083430")).toBe("950829083430");
-    expect(restrictScIdentityInput("NRIC", "800101A")).toBe("800101A");
+    expect(restrictScIdentityInput("NRIC", "800101A")).toBe("800101");
     expect(restrictScIdentityInput("PASSPORT", "AB-12 34")).toBe("AB-12 34");
   });
 

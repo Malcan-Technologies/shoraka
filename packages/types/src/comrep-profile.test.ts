@@ -488,6 +488,26 @@ describe("investor personal completeness [07000]", () => {
     expect(result.missing.some((m) => m.field === "dateOfBirth")).toBe(true);
   });
 
+  it("treats non-12-digit (or punctuated) NRIC as missing", () => {
+    const missing = buildInvestorProfileCompleteness({
+      organizationType: "PERSONAL",
+      personal: {
+        name: "Ali Bin Abu",
+        identityPrefix: "NRIC",
+        identityNumber: "800101-01-1234",
+        dateOfBirth: "1980-01-01",
+        gender: "MALE",
+        state: "Selangor",
+        postalCode: "47300",
+        nationality: "Malaysia",
+        scInvestorCategory: "RETAIL",
+        isSophisticatedInvestor: false,
+      },
+    });
+    expect(missing.complete).toBe(false);
+    expect(missing.missing.map((m) => m.field)).toContain("identityNumber");
+  });
+
   it("recognizes a saved dateOfBirth value for investor profile completeness", () => {
     const result = buildInvestorProfileCompleteness({
       organizationType: "PERSONAL",
