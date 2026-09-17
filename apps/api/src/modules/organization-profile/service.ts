@@ -956,6 +956,7 @@ export async function computeOrgProfileCompleteness(
           partyKey: p.party_key,
           name: p.name,
           entityType: p.entity_type,
+          salutation: p.salutation,
           isDirector: p.is_director,
           isShareholder: p.is_shareholder,
           isBoard: p.is_board,
@@ -987,6 +988,8 @@ export async function computeOrgProfileCompleteness(
         return {
           partyKey: p.party_key,
           name: p.name,
+          entityType: p.entity_type,
+          salutation: p.salutation,
           personKind: (p.is_management && !p.is_board ? "MANAGEMENT" : "BOARD") as ScPersonKind,
           identityPrefix: p.identity_prefix,
           identityNumber: p.identity_number,

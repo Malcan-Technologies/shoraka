@@ -7,6 +7,7 @@ import {
   computeIssuerPersonCompleteness,
   issuerPersonCompletenessSummary,
   computeShareholderCompleteness,
+  computeBoardCompleteness,
   displayScCompanyTypeLabel,
   ISSUER_COMPANY_COMPLETENESS_FIELD_COUNT,
   mapRegTankEntityTypeToScCompanyType,
@@ -384,6 +385,7 @@ describe("issuer profile completeness", () => {
           partyKey: "800101011234",
           name: "Ali",
           entityType: "INDIVIDUAL",
+          salutation: "Mr",
           identityPrefix: "NRIC",
           identityNumber: "800101011234",
           dateOfBirth: "1980-01-01",
@@ -403,7 +405,9 @@ describe("issuer profile completeness", () => {
         {
           partyKey: "800101011234",
           name: "Ali",
+          entityType: "INDIVIDUAL",
           personKind: "BOARD",
+          salutation: "Mr",
           identityPrefix: "NRIC",
           identityNumber: "800101011234",
           gender: "MALE",
@@ -702,6 +706,7 @@ describe("shareholder identity prefix vs entity type", () => {
       partyKey: "1",
       name: "Ali",
       entityType: "INDIVIDUAL",
+      salutation: "Mr",
       identityPrefix: "ROC",
       identityNumber: "800101011234",
       dateOfBirth: "1980-01-01",
@@ -722,6 +727,7 @@ describe("shareholder identity prefix vs entity type", () => {
       partyKey: "2",
       name: "HoldCo",
       entityType: "CORPORATE",
+      salutation: null,
       identityPrefix: "NRIC",
       identityNumber: "1234567A",
       dateOfBirth: null,
@@ -737,6 +743,106 @@ describe("shareholder identity prefix vs entity type", () => {
       shareholdingPercentage: 10,
     });
     expect(company.map((item) => item.field)).toContain("identityPrefix");
+  });
+});
+
+describe("salutation completeness", () => {
+  const completeIndividualShareholder = {
+    partyKey: "sh_ind_1",
+    name: "Ali Shareholder",
+    entityType: "INDIVIDUAL" as const,
+    salutation: "Mr",
+    identityPrefix: "NRIC" as const,
+    identityNumber: "800101011234",
+    dateOfBirth: "1980-01-01",
+    dateOfIncorporation: null,
+    gender: "MALE" as const,
+    nationality: "Malaysia",
+    countryOfIncorporation: null,
+    address: { line1: "10 Jalan B", state: "Selangor", postalCode: "40000" },
+    shareType: "ORDINARY" as const,
+    shareTypeOther: null,
+    shareholdingUnits: 10,
+    shareholdingAmount: 10,
+    shareholdingPercentage: 25,
+  };
+
+  const completeCorporateShareholder = {
+    partyKey: "sh_co_1",
+    name: "HoldCo",
+    entityType: "CORPORATE" as const,
+    salutation: null,
+    identityPrefix: "ROC" as const,
+    identityNumber: "201001234567",
+    dateOfBirth: null,
+    dateOfIncorporation: "2010-01-01",
+    gender: "NOT_APPLICABLE" as const,
+    nationality: null,
+    countryOfIncorporation: "Malaysia",
+    address: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
+    shareType: "ORDINARY" as const,
+    shareTypeOther: null,
+    shareholdingUnits: 10,
+    shareholdingAmount: 10,
+    shareholdingPercentage: 25,
+  };
+
+  it("requires individual shareholder salutation", () => {
+    const missing = computeShareholderCompleteness({
+      ...completeIndividualShareholder,
+      salutation: null,
+    });
+    expect(missing.map((m) => m.field)).toContain("salutation");
+  });
+
+  it("does not require corporate shareholder salutation", () => {
+    const missing = computeShareholderCompleteness({
+      ...completeCorporateShareholder,
+      salutation: null,
+    });
+    expect(missing.map((m) => m.field)).not.toContain("salutation");
+  });
+
+  it("requires individual board/management salutation", () => {
+    const missing = computeBoardCompleteness({
+      partyKey: "bd_ind_1",
+      name: "Nur Aina",
+      entityType: "INDIVIDUAL",
+      salutation: null,
+      personKind: "BOARD" as const,
+      identityPrefix: "NRIC" as const,
+      identityNumber: "950829083430",
+      gender: "FEMALE" as const,
+      dateOfBirth: "1980-01-01",
+      nationality: "Malaysia",
+      address: { line1: "1 Jalan A", state: "Selangor", postalCode: "47800" },
+      designation: "DIRECTOR_EXECUTIVE" as const,
+      designationOther: null,
+      appointmentDate: "2020-01-15",
+      requireOfficerFields: true,
+    });
+    expect(missing.map((m) => m.field)).toContain("salutation");
+  });
+
+  it("does not require corporate/non-individual board/management salutation", () => {
+    const missing = computeBoardCompleteness({
+      partyKey: "bd_co_1",
+      name: "HoldCo",
+      entityType: "CORPORATE",
+      salutation: null,
+      personKind: "BOARD" as const,
+      identityPrefix: "ROC" as const,
+      identityNumber: "201001234567",
+      gender: "NOT_APPLICABLE" as const,
+      dateOfBirth: null,
+      nationality: null,
+      address: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
+      designation: null,
+      designationOther: null,
+      appointmentDate: null,
+      requireOfficerFields: true,
+    });
+    expect(missing.map((m) => m.field)).not.toContain("salutation");
   });
 });
 
@@ -1296,6 +1402,7 @@ describe("issuer profile financial editor keys", () => {
           partyKey: "800101011234",
           name: "Ali",
           entityType: "INDIVIDUAL",
+          salutation: "Mr",
           identityPrefix: "NRIC",
           identityNumber: "800101011234",
           dateOfBirth: "1980-01-01",
@@ -1415,6 +1522,7 @@ describe("people completeness by actual role", () => {
     ]);
     expect(missing).toHaveLength(3);
     expect(missing.some((item) => item.field === "designation")).toBe(false);
+    expect(missing.some((item) => item.field === "appointmentDate")).toBe(false);
   });
 
   it("issuer company: director-only people should not fail the People & Access gate", () => {
@@ -1723,6 +1831,66 @@ describe("people completeness by actual role", () => {
     });
     expect(missing.map((item) => item.field)).toContain("designation");
     expect(missing.map((item) => item.field)).not.toContain("shareType");
+  });
+
+  it("counts isBoard=true as board/management officer completeness", () => {
+    const missing = computeIssuerPersonCompleteness({
+      partyKey: "800101011235",
+      name: "Ali Board",
+      entityType: "INDIVIDUAL",
+      isDirector: false,
+      isShareholder: false,
+      isBoard: true,
+      isManagement: false,
+      identityPrefix: "NRIC",
+      identityNumber: "800101011235",
+      dateOfBirth: "1980-01-01",
+      dateOfIncorporation: null,
+      gender: "MALE",
+      nationality: "MALAYSIA",
+      countryOfIncorporation: null,
+      address: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
+      shareType: null,
+      shareTypeOther: null,
+      shareholdingUnits: null,
+      shareholdingAmount: null,
+      shareholdingPercentage: null,
+      designation: null,
+      designationOther: null,
+      appointmentDate: null,
+    });
+    expect(missing.map((item) => item.field)).toContain("designation");
+    expect(missing.map((item) => item.field)).toContain("appointmentDate");
+  });
+
+  it("counts isManagement=true as board/management officer completeness", () => {
+    const missing = computeIssuerPersonCompleteness({
+      partyKey: "800101011236",
+      name: "Ali Management",
+      entityType: "INDIVIDUAL",
+      isDirector: false,
+      isShareholder: false,
+      isBoard: false,
+      isManagement: true,
+      identityPrefix: "NRIC",
+      identityNumber: "800101011236",
+      dateOfBirth: "1980-01-01",
+      dateOfIncorporation: null,
+      gender: "MALE",
+      nationality: "MALAYSIA",
+      countryOfIncorporation: null,
+      address: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
+      shareType: null,
+      shareTypeOther: null,
+      shareholdingUnits: null,
+      shareholdingAmount: null,
+      shareholdingPercentage: null,
+      designation: null,
+      designationOther: null,
+      appointmentDate: null,
+    });
+    expect(missing.map((item) => item.field)).toContain("designation");
+    expect(missing.map((item) => item.field)).toContain("appointmentDate");
   });
 
   it("counts populated company email as filled (scenario B)", () => {

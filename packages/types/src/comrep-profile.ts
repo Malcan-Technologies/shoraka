@@ -1147,6 +1147,7 @@ export interface ShareholderCompletenessInput {
   partyKey: string;
   name: string | null | undefined;
   entityType: OrganizationPartyEntityType;
+  salutation: string | null | undefined;
   identityPrefix: ScIdentityPrefix | null | undefined;
   identityNumber: string | null | undefined;
   dateOfBirth: string | Date | null | undefined;
@@ -1165,6 +1166,8 @@ export interface ShareholderCompletenessInput {
 export interface BoardCompletenessInput {
   partyKey: string;
   name: string | null | undefined;
+  entityType: OrganizationPartyEntityType;
+  salutation: string | null | undefined;
   personKind: ScPersonKind | null | undefined;
   identityPrefix: ScIdentityPrefix | null | undefined;
   identityNumber: string | null | undefined;
@@ -1494,6 +1497,9 @@ export function computeShareholderCompleteness(
     pushMissing(missing, step, "entityType", "Shareholder Type", who);
   }
   if (!hasText(party.name)) pushMissing(missing, step, "name", PROFILE_LABEL.fullName, who);
+  if (party.entityType === "INDIVIDUAL" && !hasText(party.salutation)) {
+    pushMissing(missing, step, "salutation", PROFILE_LABEL.salutation, who);
+  }
   if (party.entityType === "CORPORATE") {
     if (party.identityPrefix !== "ROC") {
       pushMissing(missing, step, "identityPrefix", "Identity Prefix", who);
@@ -1561,6 +1567,9 @@ export function computeBoardCompleteness(party: BoardCompletenessInput): Profile
   const who = { partyKey: party.partyKey, partyName: party.name ?? null };
   const requireOfficerFields = party.requireOfficerFields !== false;
   if (!hasText(party.name)) pushMissing(missing, step, "name", PROFILE_LABEL.fullName, who);
+  if (party.entityType === "INDIVIDUAL" && !hasText(party.salutation)) {
+    pushMissing(missing, step, "salutation", PROFILE_LABEL.salutation, who);
+  }
   if (!hasText(party.identityPrefix) || party.identityPrefix === "ROC") {
     pushMissing(missing, step, "identityPrefix", PROFILE_LABEL.identityPrefix, who);
   }
