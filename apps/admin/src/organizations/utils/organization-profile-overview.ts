@@ -4,7 +4,7 @@ import type {
   OrganizationPartyProfileDto,
   ProfileMissingItem,
 } from "@cashsouk/types";
-import { findExistingPartyForIdentityKey } from "@cashsouk/types";
+import { findExistingPartyForIdentityKey, partyNeedsCtosAbsenceReview } from "@cashsouk/types";
 
 export type ProfileExternalReview = {
   mismatchCount: number;
@@ -14,7 +14,8 @@ export type ProfileExternalReview = {
 };
 
 export function countProfileExternalReview(
-  parties: OrganizationPartyProfileDto[] | null | undefined
+  parties: OrganizationPartyProfileDto[] | null | undefined,
+  latestCtos?: unknown
 ): ProfileExternalReview {
   const list = parties ?? [];
   let mismatchCount = 0;
@@ -26,7 +27,7 @@ export function countProfileExternalReview(
       continue;
     }
     mismatchCount += party.mismatches.length;
-    if (party.membershipStatus === "MASTER_ACTIVE" && party.absentFromLatestExternal) {
+    if (partyNeedsCtosAbsenceReview(party, latestCtos)) {
       absentCount += 1;
     }
   }
@@ -218,9 +219,11 @@ export function formatMismatchValue(field: string, value: unknown): string {
   return String(value);
 }
 
-export function latestCtosLabel(party: OrganizationPartyProfileDto): string {
+export function latestCtosLabel(party: OrganizationPartyProfileDto, latestCtos?: unknown): string {
   if (party.membershipStatus === "EXTERNAL_OBSERVED") return "New in latest CTOS information";
-  if (party.absentFromLatestExternal) return "Not found in latest CTOS information";
+  if (party.ctosExtractUnusable) return "No usable CTOS comparison";
+  if (partyNeedsCtosAbsenceReview(party, latestCtos)) return "Not found in latest CTOS information";
+  if (party.absentFromLatestExternal) return "Current profile";
   if (party.externalObservation) return "Matched";
   return "Not yet found";
 }

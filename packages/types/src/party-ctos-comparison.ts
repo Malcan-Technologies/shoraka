@@ -1,3 +1,4 @@
+import { isUnusableCtosCompanyExtract, partyNeedsCtosAbsenceReview } from "./ctos-company-extract";
 import type { OrganizationPartyProfileDto } from "./organization-party-profile";
 
 /**
@@ -6,7 +7,12 @@ import type { OrganizationPartyProfileDto } from "./organization-party-profile";
  *
  * It does NOT merely mean the record originally came from CTOS.
  */
-export type PartyCtosComparisonState = "MATCHED" | "DIFFERS" | "NOT_FOUND" | "NO_COMPARISON";
+export type PartyCtosComparisonState =
+  | "MATCHED"
+  | "DIFFERS"
+  | "NOT_FOUND"
+  | "ACKNOWLEDGED"
+  | "NO_COMPARISON";
 
 export type PartyCtosComparison = {
   state: PartyCtosComparisonState;
@@ -32,6 +38,12 @@ const NOT_FOUND: PartyCtosComparison = {
   tooltip: "This person was not found in the latest CTOS information",
 };
 
+const ACKNOWLEDGED: PartyCtosComparison = {
+  state: "ACKNOWLEDGED",
+  label: "Current profile",
+  tooltip: "Kept on the current profile. Review again if CTOS information changes.",
+};
+
 const NO_COMPARISON: PartyCtosComparison = {
   state: "NO_COMPARISON",
   label: "No CTOS comparison",
@@ -41,13 +53,24 @@ const NO_COMPARISON: PartyCtosComparison = {
 export function resolvePartyCtosComparison(
   party: Pick<
     OrganizationPartyProfileDto,
-    "membershipStatus" | "absentFromLatestExternal" | "externalObservation" | "mismatches"
-  > | null | undefined
+    | "membershipStatus"
+    | "absentFromLatestExternal"
+    | "externalObservation"
+    | "mismatches"
+    | "ctosAbsenceAckFingerprint"
+    | "ctosExtractUnusable"
+    | "ctosAbsenceReviewNeeded"
+  > | null | undefined,
+  latestCtos?: unknown
 ): PartyCtosComparison {
   if (!party || party.membershipStatus === "EXTERNAL_OBSERVED") {
     return NO_COMPARISON;
   }
   if (party.absentFromLatestExternal) {
+    if (party.ctosExtractUnusable || (latestCtos !== undefined && isUnusableCtosCompanyExtract(latestCtos))) {
+      return NO_COMPARISON;
+    }
+    if (!partyNeedsCtosAbsenceReview(party, latestCtos)) return ACKNOWLEDGED;
     return NOT_FOUND;
   }
   if ((party.mismatches?.length ?? 0) > 0) {

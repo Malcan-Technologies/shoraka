@@ -1047,6 +1047,24 @@ export function isAutomaticSigningRecipient(
   return recipient.execution_mode === "AUTOMATIC";
 }
 
+export function isShorakaSigningRecipient(
+  recipient:
+    | Pick<SigningRecipientDto, "execution_mode" | "delivery_mode">
+    | { execution_mode?: string | null; delivery_mode?: string | null }
+): boolean {
+  return recipient.execution_mode === "AUTOMATIC" || recipient.delivery_mode === "INTERNAL";
+}
+
+export function signingRecipientDisplayTitle(
+  recipient: Pick<SigningRecipientDto, "name" | "email" | "role_key" | "role_label" | "execution_mode">,
+  showEmail: boolean
+): string {
+  if (showEmail && !isAutomaticSigningRecipient(recipient)) return recipient.email;
+  const title = (recipient.role_label || recipient.role_key).trim();
+  if (title && title !== recipient.name.trim()) return title;
+  return "";
+}
+
 export function isRemindableSigningRecipient(
   recipient: Pick<SigningRecipientDto, "execution_mode" | "delivery_mode" | "status">
 ): boolean {

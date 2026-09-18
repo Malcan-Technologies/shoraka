@@ -38,6 +38,7 @@ export type AdminPeopleAccessCtosLabel =
   | "Matched"
   | "Differs"
   | "Not found"
+  | "Current"
   | "Observed only"
   | "—";
 
@@ -103,6 +104,7 @@ export function adminPeopleAccessCtosLabel(
   if (comparison.state === "MATCHED") return "Matched";
   if (comparison.state === "DIFFERS") return "Differs";
   if (comparison.state === "NOT_FOUND") return "Not found";
+  if (comparison.state === "ACKNOWLEDGED") return "Current";
   return "—";
 }
 

@@ -165,6 +165,16 @@ describe("mergeObservationResolutions", () => {
     expect(merged.identityConflict).toEqual(previous.identityConflict);
     expect(merged.shareholdingPercentage).toBe(40);
   });
+
+  it("preserves absence acknowledgement fingerprint across CTOS observation merges", () => {
+    const previous = {
+      name: "Ali",
+      absenceAcknowledgedExtractFingerprint: "800101011234",
+    };
+    const merged = mergeObservationResolutions(previous, { name: "ALI" });
+    expect(merged.absenceAcknowledgedExtractFingerprint).toBe("800101011234");
+    expect(merged.name).toBe("ALI");
+  });
 });
 
 describe("preserveFilledCodMasterFacts", () => {

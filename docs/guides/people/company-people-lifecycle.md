@@ -223,13 +223,15 @@ Important:
 - Master does not auto-overwrite.
 - If user-added person has generated key and no matchable identity, CTOS cannot reliably auto-match; observed row can appear separately.
 
-## 16) User-Added Person Missing from CTOS
+## 16) Person Missing from CTOS
 
-- Comparable active master parties absent from latest CTOS are marked `absent_from_latest_external=true`.
+- A blank / unusable CTOS company extract (no matchable directors or shareholders, often a wrong or missing SSM) warns and keeps current profile people. It does not mark everyone `absent_from_latest_external` and does not block Financial approve.
+- When latest CTOS is usable, comparable active master parties missing from that extract are marked `absent_from_latest_external=true`.
 - Person remains master unless explicitly inactivated.
-- Admin CTOS column shows “Not found”.
-- Customer action warning is not automatically shown if effective people remains usable.
-- Application submit gate is based on onboarding readiness of visible individuals, not CTOS presence alone.
+- Admin can **Leave as current profile**, which stores the current extract fingerprint on `external_observation`. CTOS review clears until the extract fingerprint changes.
+- Admin CTOS column shows “Not found” only while absence still needs review.
+- Finance `people[]` keeps master AML for operational master people even when CTOS keys miss or mismatch. KYC Approved is not treated as AML Approved.
+- Application submit / Financial approve is based on onboarding + AML of visible people, not CTOS presence.
 
 ## 17) Platform Access vs Company Person (Duplicate-looking Rows)
 

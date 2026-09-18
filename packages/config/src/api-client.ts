@@ -804,6 +804,17 @@ export class ApiClient {
     );
   }
 
+  async acknowledgeCtosAbsence(
+    portal: "investor" | "issuer",
+    organizationId: string,
+    partyId: string
+  ): Promise<ApiResponse<OrganizationPartyProfileDto> | ApiError> {
+    return this.post<OrganizationPartyProfileDto>(
+      `/v1/admin/organizations/${portal}/${organizationId}/party-profiles/${partyId}/acknowledge-ctos-absence`,
+      {}
+    );
+  }
+
   async adoptObservedParty(
     portal: "investor" | "issuer",
     organizationId: string,

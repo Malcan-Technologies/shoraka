@@ -48,7 +48,7 @@ import {
 } from "@/components/ui/table";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useOrganizationMasterPeople } from "@/organizations/hooks/use-organization-master-people";
-import { adminActionRowClass } from "@/lib/admin-status-token";
+import { ADMIN_ACTION_SURFACE_CLASS, adminActionRowClass } from "@/lib/admin-status-token";
 import { cn } from "@/lib/utils";
 import { OrganizationMemberEditDialog } from "./organization-member-edit-dialog";
 import { OrganizationPeopleAccessDetail } from "./organization-people-access-detail";
@@ -198,6 +198,9 @@ export function OrganizationPeopleAccessPanel({
               })
           : undefined
       }
+      onKeepAbsent={
+        selected.party ? () => peopleMutations.acknowledgeAbsence.mutate(selected.party!.id) : undefined
+      }
       onEditMember={selected.userId ? () => setEditingMemberUserId(selected.userId) : undefined}
     />
   ) : null;
@@ -233,6 +236,11 @@ export function OrganizationPeopleAccessPanel({
               aria-label="Search people"
             />
           </div>
+          {org.ctosDirectorShareholderWarning ? (
+            <div className={cn("mx-6 space-y-1 rounded-lg border p-3", ADMIN_ACTION_SURFACE_CLASS)}>
+              <p className="text-ui text-status-action-text">{org.ctosDirectorShareholderWarning}</p>
+            </div>
+          ) : null}
           {rows.length === 0 ? (
             <p className="px-6 py-8 text-ui text-muted-foreground">
               {allRows.length === 0

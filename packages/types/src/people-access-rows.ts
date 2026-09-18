@@ -294,7 +294,7 @@ export function peopleAccessAmlChipPresentation(
   if (!kycComplete) {
     return getFinalStatusLabel({ onboarding: { status: "NOT_STARTED" } }, { displayMode: "kyc_only" });
   }
-  return getFinalStatusLabel(person);
+  return getFinalStatusLabel({ screening: person.screening });
 }
 
 function memberDisplayName(member: PeopleAccessMember): string {

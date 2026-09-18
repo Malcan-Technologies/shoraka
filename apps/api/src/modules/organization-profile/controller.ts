@@ -12,6 +12,7 @@ import {
   getIssuerFinancialSummary,
   inactivateMasterParty,
   listPartyProfiles,
+  acknowledgeCtosAbsence,
   patchIssuerOrgFinancials,
   patchOrgMasterProfile,
   patchPartyProfile,
@@ -506,6 +507,26 @@ export function createAdminOrganizationProfileRouter() {
         organizationId: req.params.id,
         eventType: "MASTER_PARTY_MISMATCH_RESOLVED",
         metadata: { portal, partyId: req.params.partyId, action: input.action, field: input.field },
+      });
+      res.json({ success: true, data, correlationId: res.locals.correlationId });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/:portal/:id/party-profiles/:partyId/acknowledge-ctos-absence", requirePermission("organizations.manage"), async (req, res, next) => {
+    try {
+      const portal = portalFromParams(req);
+      const data = await acknowledgeCtosAbsence({
+        portal,
+        organizationId: req.params.id,
+        partyId: req.params.partyId,
+      });
+      await logMasterProfileAudit({
+        req,
+        organizationId: req.params.id,
+        eventType: "MASTER_PARTY_CTOS_ABSENCE_ACKNOWLEDGED",
+        metadata: { portal, partyId: req.params.partyId },
       });
       res.json({ success: true, data, correlationId: res.locals.correlationId });
     } catch (error) {

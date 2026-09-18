@@ -304,7 +304,9 @@ export function OrganizationPeoplePanel({
                         })
                     : undefined
                 }
-                onKeepAbsent={() => toast.success("Kept on the current profile")}
+                onKeepAbsent={
+                  item.party ? () => peopleMutations.acknowledgeAbsence.mutate(item.party!.id) : undefined
+                }
               />
             </div>
           ))}

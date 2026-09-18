@@ -22,7 +22,7 @@ function person(overrides: Partial<PeopleRolesRowInput> & Pick<PeopleRolesRowInp
 
 describe("CTOS empty-people copy", () => {
   it("names CTOS when the empty director/shareholder warning is from CTOS", () => {
-    expect(CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING).toContain("did not return usable");
+    expect(CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING).toContain("did not return a usable");
     expect(CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING).toContain("CTOS");
     expect(CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING).not.toContain("external information");
     expect(

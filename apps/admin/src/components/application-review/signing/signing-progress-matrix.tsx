@@ -10,10 +10,11 @@ import {
   automaticSigningProgressBadge,
   computeSigningEnvelopeProgress,
   isRemindableSigningRecipient,
+  isShorakaSigningRecipient,
+  signingRecipientDisplayTitle,
   type SigningAssignmentDto,
   type SigningAssignmentStatus,
   type SigningEnvelopeDto,
-  type SigningRecipientDto,
 } from "@cashsouk/types";
 import { getAdminStatusToken } from "@/lib/admin-status-token";
 import { Button } from "@/components/ui/button";
@@ -65,11 +66,6 @@ type SigningProgressMatrixProps = {
   onViewSignedDocument?: (documentId: string) => void;
   onDownloadSignedDocument?: (documentId: string, fileName?: string) => void;
 };
-
-function recipientLabel(recipient: SigningRecipientDto, showEmail: boolean): string {
-  if (showEmail) return recipient.email;
-  return recipient.role_label || recipient.role_key;
-}
 
 function SignedDocumentActions({
   documentId,
@@ -212,6 +208,7 @@ export function SigningProgressMatrix({
                   if (!recipient) return null;
 
                   const isAutomatic = recipient.execution_mode === "AUTOMATIC";
+                  const title = signingRecipientDisplayTitle(recipient, duplicateNames);
                   const automaticBadge = isAutomatic
                     ? automaticSigningProgressBadge(assignment.status)
                     : null;
@@ -230,52 +227,73 @@ export function SigningProgressMatrix({
                   const canRetry =
                     Boolean(autoSignError) && onRetryAutoSign != null && !isSigned;
 
+                  const badgeSize = compact ? "sm" : "default";
+
                   return (
                     <li
                       key={assignment.id}
-                      className={cn("flex items-start gap-3 sm:items-center", rowPad)}
+                      className={cn("flex min-w-0 flex-wrap items-start gap-x-3 gap-y-2", rowPad)}
                     >
-                      <div
-                        className={cn(
-                          "mt-0.5 flex shrink-0 items-center justify-center sm:mt-0",
-                          iconSize
-                        )}
-                      >
-                        {isSigned ? (
-                          <div
-                            className={cn(
-                              "flex items-center justify-center rounded-full bg-primary",
-                              iconSize
-                            )}
-                          >
-                            <CheckIcon className="h-4 w-4 text-primary-foreground" />
+                      <div className="flex min-w-52 flex-1 items-start gap-3">
+                        <div
+                          className={cn(
+                            "mt-0.5 flex shrink-0 items-center justify-center",
+                            iconSize
+                          )}
+                        >
+                          {isSigned ? (
+                            <div
+                              className={cn(
+                                "flex items-center justify-center rounded-full bg-primary",
+                                iconSize
+                              )}
+                            >
+                              <CheckIcon className="h-4 w-4 text-primary-foreground" />
+                            </div>
+                          ) : (
+                            <div
+                              className={cn(
+                                "flex items-center justify-center rounded-full border-2 border-border bg-background",
+                                iconSize
+                              )}
+                            >
+                              <StatusIcon className="h-4 w-4 text-muted-foreground" />
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex min-w-0 items-center gap-1.5">
+                            <p className="min-w-0 truncate text-sm font-medium text-foreground">
+                              {recipient.name}
+                            </p>
+                            {isShorakaSigningRecipient(recipient) ? (
+                              <StatusBadge
+                                label="Shoraka"
+                                status="submitted"
+                                showDot={false}
+                                size={badgeSize}
+                                className="shrink-0"
+                              />
+                            ) : null}
                           </div>
-                        ) : (
-                          <div
-                            className={cn(
-                              "flex items-center justify-center rounded-full border-2 border-border bg-background",
-                              iconSize
-                            )}
-                          >
-                            <StatusIcon className="h-4 w-4 text-muted-foreground" />
-                          </div>
-                        )}
+                          {title ? (
+                            <p className="truncate text-meta text-muted-foreground">{title}</p>
+                          ) : null}
+                          {recipient.warning_accepted_at ? (
+                            <p className="truncate text-meta text-muted-foreground">
+                              Warning accepted
+                            </p>
+                          ) : null}
+                          {autoSignError ? (
+                            <p className="break-words text-meta text-status-rejected-text">
+                              {autoSignError}
+                            </p>
+                          ) : null}
+                        </div>
                       </div>
 
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-foreground">{recipient.name}</p>
-                        <p className="text-meta text-muted-foreground">
-                          {recipientLabel(recipient, duplicateNames)}
-                        </p>
-                        {recipient.warning_accepted_at ? (
-                          <p className="text-meta text-muted-foreground">Warning accepted</p>
-                        ) : null}
-                        {autoSignError ? (
-                          <p className="text-meta text-status-rejected-text">{autoSignError}</p>
-                        ) : null}
-                      </div>
-
-                      <div className="flex shrink-0 flex-col items-end gap-1.5 sm:flex-row sm:items-center sm:gap-2">
+                      <div className="ml-auto flex min-w-0 max-w-full flex-wrap items-center justify-end gap-1.5">
                         <StatusBadge
                           label={automaticBadge?.label ?? meta.label}
                           status={
@@ -283,6 +301,8 @@ export function SigningProgressMatrix({
                               ? "action"
                               : (automaticBadge?.status ?? getAdminStatusToken(assignment.status))
                           }
+                          size={badgeSize}
+                          className="max-w-full"
                         />
                         {canRemind ? (
                           <Button
@@ -341,7 +361,9 @@ export function SigningProgressMatrix({
                   headerPad
                 )}
               >
-                <p className="min-w-0 flex-1 text-sm font-semibold text-foreground">{document.name}</p>
+                <p className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
+                  {document.name}
+                </p>
                 <div className="flex shrink-0 flex-wrap items-center gap-2">
                   {signedActions}
                   <span className="text-xs font-medium tabular-nums text-muted-foreground">
@@ -380,14 +402,14 @@ function CompletedDocumentGroup({
       <div className="overflow-hidden rounded-xl border border-border bg-background">
         <div
           className={cn(
-            "flex flex-wrap items-center gap-2 bg-muted/20",
+            "flex min-w-0 flex-wrap items-center gap-2 bg-muted/20",
             headerPad
           )}
         >
           <CollapsibleTrigger asChild>
             <button
               type="button"
-              className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left hover:opacity-90"
+              className="flex min-w-52 flex-1 items-center justify-between gap-3 text-left hover:opacity-90"
             >
               <div className="flex min-w-0 items-center gap-2">
                 <ChevronDownIcon
@@ -404,7 +426,7 @@ function CompletedDocumentGroup({
               </span>
             </button>
           </CollapsibleTrigger>
-          {signedActions}
+          {signedActions ? <div className="ml-auto shrink-0">{signedActions}</div> : null}
         </div>
         <CollapsibleContent>
           <div className="border-t border-border">{children}</div>

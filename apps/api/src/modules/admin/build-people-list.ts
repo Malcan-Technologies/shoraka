@@ -6,6 +6,8 @@ import {
   extractGovernmentId,
   filterVisiblePeopleRows,
   CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING,
+  pickPreferredDirectorShareholderOnboarding,
+  pickPreferredDirectorShareholderScreening,
   canonicalPartyIdentityKey,
   isGeneratedUserPartyKey,
   resolvePartyLookupKey,
@@ -619,8 +621,8 @@ function normalizeUnifiedPeopleRows(rows: ApplicationPersonRow[]): ApplicationPe
       roles: Array.from(roleSet),
       sharePercentage:
         existingShare != null && incomingShare != null ? Math.max(existingShare, incomingShare) : existingShare ?? incomingShare,
-      screening: { ...(existing.screening ?? {}), ...(row.screening ?? {}) },
-      onboarding: { ...(existing.onboarding ?? {}), ...(row.onboarding ?? {}) },
+      screening: pickPreferredDirectorShareholderScreening(existing.screening, row.screening),
+      onboarding: pickPreferredDirectorShareholderOnboarding(existing.onboarding, row.onboarding),
       requestId: existing.requestId ?? row.requestId ?? null,
       requestIdType: existing.requestIdType ?? row.requestIdType ?? null,
       directorEodRequestId: existing.directorEodRequestId || row.directorEodRequestId || null,
@@ -949,6 +951,19 @@ export function mergeMasterPartiesIntoPeopleList(params: {
         partyKey: party.partyKey,
         identityNumber: party.identityNumber,
       });
+      const bundle = supplementByKey.get(key);
+      const fromSupplement = bundle
+        ? personRowFromSupplement({
+            matchKey: key,
+            name: party.name,
+            entityType: party.entityType,
+            roles,
+            sharePercentage: share,
+            sup: bundle.sup,
+            supplementRaw: bundle.raw,
+            identityNumber: party.identityNumber,
+          })
+        : null;
       out[existingIndex] = {
         ...existing,
         name: params.preferMasterValues && masterName ? masterName : existing.name ?? party.name,
@@ -964,6 +979,17 @@ export function mergeMasterPartiesIntoPeopleList(params: {
             ? Array.from(roleSet)
             : existing.roles,
         sharePercentage: nextShare,
+        screening: pickPreferredDirectorShareholderScreening(existing.screening, fromSupplement?.screening),
+        onboarding: pickPreferredDirectorShareholderOnboarding(existing.onboarding, fromSupplement?.onboarding),
+        requestId: existing.requestId ?? fromSupplement?.requestId ?? null,
+        requestIdType: existing.requestIdType ?? fromSupplement?.requestIdType ?? null,
+        screeningRequestId: existing.screeningRequestId || fromSupplement?.screeningRequestId || null,
+        directorEodRequestId: existing.directorEodRequestId || fromSupplement?.directorEodRequestId || null,
+        shareholderEodRequestId:
+          existing.shareholderEodRequestId || fromSupplement?.shareholderEodRequestId || null,
+        partyCorporateRequestId:
+          existing.partyCorporateRequestId || fromSupplement?.partyCorporateRequestId || null,
+        status: existing.status || fromSupplement?.status || "",
       };
       continue;
     }

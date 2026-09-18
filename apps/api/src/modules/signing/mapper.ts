@@ -7,12 +7,14 @@ import type {
   SigningRecipient,
   SigningAssignment,
 } from "@prisma/client";
-import type {
-  SigningEnvelopeDto,
-  SigningDocumentDto,
-  SigningRecipientDto,
-  SigningAssignmentDto,
-  SigningKycStatus,
+import {
+  frozenAutomaticSignerLabel,
+  parseFrozenAutomaticSignerSnapshot,
+  type SigningEnvelopeDto,
+  type SigningDocumentDto,
+  type SigningRecipientDto,
+  type SigningAssignmentDto,
+  type SigningKycStatus,
 } from "@cashsouk/types";
 import { resolveSigningKycStatusMap } from "../ekyc/service";
 import { legalExternalAcceptanceService } from "../legal-documents/external-acceptance-service";
@@ -53,15 +55,29 @@ function readEmailDeliveryStatus(metadata: unknown): "sent" | "failed" | null {
   return status === "sent" || status === "failed" ? status : null;
 }
 
+function automaticRecipientRoleLabel(
+  recipient: SigningRecipient,
+  assignments: SigningAssignment[]
+): string {
+  if (recipient.execution_mode !== "AUTOMATIC") return recipient.role_label;
+  for (const assignment of assignments) {
+    if (assignment.recipient_id !== recipient.id) continue;
+    const snapshot = parseFrozenAutomaticSignerSnapshot(assignment.frozen_asset_snapshot);
+    if (snapshot) return frozenAutomaticSignerLabel(snapshot);
+  }
+  return recipient.role_label;
+}
+
 function mapRecipient(
   recipient: SigningRecipient,
+  assignments: SigningAssignment[],
   kycStatus: SigningKycStatus = "PENDING",
   warningAcceptedAt: string | null = null
 ): SigningRecipientDto {
   return {
     id: recipient.id,
     role_key: recipient.role_key,
-    role_label: recipient.role_label,
+    role_label: automaticRecipientRoleLabel(recipient, assignments),
     name: recipient.name,
     email: recipient.email,
     routing_order: recipient.routing_order,
@@ -105,7 +121,7 @@ export function mapSigningEnvelopeToDto(envelope: SigningEnvelopeWithGraph): Sig
     documents: [...envelope.documents].sort((a, b) => a.order - b.order).map(mapDocument),
     recipients: [...envelope.recipients]
       .sort((a, b) => a.routing_order - b.routing_order)
-      .map((recipient) => mapRecipient(recipient)),
+      .map((recipient) => mapRecipient(recipient, envelope.assignments)),
     assignments: envelope.assignments.map(mapAssignment),
     send_phase: send.phase,
     send_in_progress: send.inProgress,
@@ -130,6 +146,7 @@ export async function mapSigningEnvelopeToDtoWithEkyc(
       .map((recipient) =>
         mapRecipient(
           recipient,
+          envelope.assignments,
           kycMap.get(recipient.id) ?? "PENDING",
           warningAcceptedAt.get(recipient.id) ?? null
         )

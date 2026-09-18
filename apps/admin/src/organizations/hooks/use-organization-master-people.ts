@@ -43,6 +43,19 @@ export function useOrganizationMasterPeople(portal: PortalType, organizationId: 
     onError: (err: Error) => toast.error(humanizeApiValidationMessage(err.message)),
   });
 
+  const acknowledgeAbsence = useMutation({
+    mutationFn: async (partyId: string) => {
+      const res = await api.acknowledgeCtosAbsence(portal, organizationId, partyId);
+      if (!res.success) throw profileValidationErrorFromApi(res.error);
+      return res.data;
+    },
+    onSuccess: async () => {
+      await invalidate();
+      toast.success("Kept on the current profile");
+    },
+    onError: (err: Error) => toast.error(humanizeApiValidationMessage(err.message)),
+  });
+
   const inactivate = useMutation({
     mutationFn: async (partyId: string) => {
       const res = await api.inactivateMasterParty(portal, organizationId, partyId);
@@ -101,5 +114,5 @@ export function useOrganizationMasterPeople(portal: PortalType, organizationId: 
     onError: (err: Error) => toast.error(humanizeApiValidationMessage(err.message)),
   });
 
-  return { resolve, adopt, inactivate, reactivate, resolveIdentityConflict, patchParty };
+  return { resolve, adopt, acknowledgeAbsence, inactivate, reactivate, resolveIdentityConflict, patchParty };
 }

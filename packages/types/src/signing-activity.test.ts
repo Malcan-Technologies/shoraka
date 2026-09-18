@@ -3,6 +3,10 @@ import {
   formatSigningDocumentSignedTitle,
   isAutomaticSigningDocumentSigned,
 } from "./signing-activity";
+import {
+  isShorakaSigningRecipient,
+  signingRecipientDisplayTitle,
+} from "./signing-envelopes";
 
 describe("signing document signed copy", () => {
   const manual = {
@@ -40,6 +44,53 @@ describe("signing document signed copy", () => {
     expect(formatSigningDocumentSignedDescription({})).toBe("A signer completed a signing step.");
     expect(formatSigningDocumentSignedDescription({ execution_mode: "AUTOMATIC" })).toBe(
       "CashSouk signed automatically."
+    );
+  });
+});
+
+describe("signing recipient display title", () => {
+  it("keeps issuer role titles and hides a Shoraka name reused as the role label", () => {
+    expect(
+      signingRecipientDisplayTitle(
+        {
+          name: "Ivan Chew",
+          email: "ivan@issuer.my",
+          role_key: "guarantor",
+          role_label: "Guarantor",
+          execution_mode: "MANUAL",
+        },
+        false
+      )
+    ).toBe("Guarantor");
+    expect(
+      signingRecipientDisplayTitle(
+        {
+          name: "Max Cheng",
+          email: "max@cashsouk.com",
+          role_key: "FA",
+          role_label: "Max Cheng",
+          execution_mode: "AUTOMATIC",
+        },
+        false
+      )
+    ).toBe("");
+    expect(
+      signingRecipientDisplayTitle(
+        {
+          name: "Max Cheng",
+          email: "max@cashsouk.com",
+          role_key: "FA",
+          role_label: "Authorised Signatory",
+          execution_mode: "AUTOMATIC",
+        },
+        false
+      )
+    ).toBe("Authorised Signatory");
+    expect(
+      isShorakaSigningRecipient({ execution_mode: "AUTOMATIC", delivery_mode: "INTERNAL" })
+    ).toBe(true);
+    expect(isShorakaSigningRecipient({ execution_mode: "MANUAL", delivery_mode: "EMAIL" })).toBe(
+      false
     );
   });
 });

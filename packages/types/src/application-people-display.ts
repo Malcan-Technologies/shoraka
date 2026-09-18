@@ -16,6 +16,7 @@ import { issuerShareholdingMeetsMinimum } from "./issuer-shareholder-threshold";
 import { getCtosPartySupplementFlatRead } from "./ctos-party-supplement-json";
 import { isKycOnboardingNotStartedToken } from "./kyc-onboarding-lifecycle";
 import { normalizeRawStatus } from "./status-normalization";
+import { getKycGroup } from "./director-shareholder-single-status-display";
 import { isReadyOnboardingStatus } from "./onboarding-readiness";
 import { displayGovernmentIdentityNumber } from "./organization-party-key";
 import { isIndividualKycReference } from "./regtank-individual-kyc-reference";
@@ -24,11 +25,11 @@ import { isIndividualKycReference } from "./regtank-individual-kyc-reference";
 export type DirectorShareholderListSource = "ONBOARDING" | "CTOS" | "CTOS_EMPTY";
 
 export const CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING =
-  "CTOS did not return usable directors or shareholders. Showing the submitted onboarding data. Review this before continuing." as const;
+  "CTOS did not return a usable company record or any directors/shareholders. This can happen when the SSM / registration number is missing or incorrect. Showing the current profile people. This does not block financial approval." as const;
 
 /** Issuer/investor copy for the same empty-directors condition. Never names the provider. */
 export const CUSTOMER_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING =
-  "No directors or shareholders were found in the company information. Showing the details submitted during onboarding. Please add the required people before continuing." as const;
+  "No directors or shareholders were found in the company information. This can happen when the company registration number is missing or incorrect. Showing the details submitted during onboarding." as const;
 
 export const CUSTOMER_DIRECTOR_SHAREHOLDER_EMPTY_STATE =
   "No directors or shareholders were found in the company information." as const;
@@ -827,6 +828,65 @@ export function isDirectorShareholderAmlScreeningApproved(
     if (isAmlApprovedValue(legacy)) return true;
   }
   return false;
+}
+
+type DirectorShareholderScreeningSnapshot = NonNullable<ApplicationPersonRow["screening"]>;
+type DirectorShareholderOnboardingSnapshot = NonNullable<ApplicationPersonRow["onboarding"]>;
+
+function screeningHasStatus(
+  screening: ApplicationPersonRow["screening"] | undefined
+): screening is DirectorShareholderScreeningSnapshot {
+  return Boolean(screening?.status && String(screening.status).trim());
+}
+
+function onboardingHasRealStatus(
+  onboarding: ApplicationPersonRow["onboarding"] | undefined
+): onboarding is DirectorShareholderOnboardingSnapshot {
+  return Boolean(onboarding) && !isKycOnboardingNotStartedToken(onboarding?.status);
+}
+
+/** Prefer an approved AML snapshot, then any non-empty status, when merging duplicate people rows. */
+export function pickPreferredDirectorShareholderScreening(
+  a?: ApplicationPersonRow["screening"],
+  b?: ApplicationPersonRow["screening"]
+): ApplicationPersonRow["screening"] {
+  const aApproved = isDirectorShareholderAmlScreeningApproved(a);
+  const bApproved = isDirectorShareholderAmlScreeningApproved(b);
+  if (aApproved && !bApproved) return a ?? null;
+  if (bApproved && !aApproved) return b ?? null;
+  if (screeningHasStatus(a) && !screeningHasStatus(b)) return a;
+  if (screeningHasStatus(b) && !screeningHasStatus(a)) return b;
+  if (!a && !b) return null;
+  return {
+    status: a?.status || b?.status || null,
+    id: a?.id || b?.id || null,
+    riskLevel: a?.riskLevel ?? b?.riskLevel ?? null,
+    riskScore: a?.riskScore ?? b?.riskScore ?? null,
+  };
+}
+
+/** Prefer an approved KYC snapshot, then any ready status, then any non-placeholder status. */
+export function pickPreferredDirectorShareholderOnboarding(
+  a?: ApplicationPersonRow["onboarding"],
+  b?: ApplicationPersonRow["onboarding"]
+): ApplicationPersonRow["onboarding"] {
+  const aApproved = getKycGroup(a?.status ?? "") === "APPROVED";
+  const bApproved = getKycGroup(b?.status ?? "") === "APPROVED";
+  if (aApproved && !bApproved) return a ?? null;
+  if (bApproved && !aApproved) return b ?? null;
+  const aReady = isReadyOnboardingStatus(a?.status);
+  const bReady = isReadyOnboardingStatus(b?.status);
+  if (aReady && !bReady) return a ?? null;
+  if (bReady && !aReady) return b ?? null;
+  if (onboardingHasRealStatus(a) && !onboardingHasRealStatus(b)) return a;
+  if (onboardingHasRealStatus(b) && !onboardingHasRealStatus(a)) return b;
+  if (!a && !b) return null;
+  return {
+    status: a?.status || b?.status || null,
+    id: a?.id || b?.id || null,
+    verifyLink: a?.verifyLink || b?.verifyLink || null,
+    updatedAt: a?.updatedAt || b?.updatedAt || null,
+  };
 }
 
 /**

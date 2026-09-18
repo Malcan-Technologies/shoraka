@@ -132,6 +132,12 @@ describe("injectAutomaticExecutionRoles", () => {
       "auto:FA:sp-witness",
     ]);
     expect(autos.every((recipient) => recipient.delivery_mode === "INTERNAL")).toBe(true);
+    expect(autos.find((recipient) => recipient.ref === "auto:FA:sp-aisha")?.role_label).toBe(
+      "Authorised Signatory"
+    );
+    expect(autos.find((recipient) => recipient.ref === "auto:FA:sp-witness")?.role_label).toBe(
+      "Witness"
+    );
     const aisha = plan.assignments.find((assignment) => assignment.recipient_ref === "auto:FA:sp-aisha");
     expect(
       (aisha?.frozen_asset_snapshot as { placements: Array<{ keyword: string }>; signKeyword?: string }).placements.map(

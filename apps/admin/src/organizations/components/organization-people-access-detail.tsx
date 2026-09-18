@@ -35,6 +35,7 @@ import {
   peopleAccessChipOptionsFromRow,
   peopleAccessKycChipPresentation,
   peopleAccessPlatformBadgeStatus,
+  partyNeedsCtosAbsenceReview,
   personRegTankKycId,
   personRegTankKybId,
   readPersonIdentityConflict,
@@ -120,6 +121,7 @@ export function OrganizationPeopleAccessDetail({
   onUseExternal,
   onKeepOnboardingIdentity,
   onKeepCtosPerson,
+  onKeepAbsent,
   onEditMember,
 }: {
   row: AdminPeopleAccessRow;
@@ -136,6 +138,7 @@ export function OrganizationPeopleAccessDetail({
   onUseExternal?: (field: string) => void;
   onKeepOnboardingIdentity?: () => void;
   onKeepCtosPerson?: () => void;
+  onKeepAbsent?: () => void;
   onEditMember?: () => void;
 }) {
   const party = row.party;
@@ -627,6 +630,7 @@ export function OrganizationPeopleAccessDetail({
               onUseExternal={onUseExternal}
               onKeepOnboardingIdentity={onKeepOnboardingIdentity}
               onKeepCtosPerson={onKeepCtosPerson}
+              onKeepAbsent={onKeepAbsent}
               onInactivate={showInactivate ? onInactivate : undefined}
             />
           </TabsContent>
@@ -724,6 +728,7 @@ function CtosEvidence({
   onUseExternal,
   onKeepOnboardingIdentity,
   onKeepCtosPerson,
+  onKeepAbsent,
   onInactivate,
 }: {
   row: AdminPeopleAccessRow;
@@ -739,6 +744,7 @@ function CtosEvidence({
   onUseExternal?: (field: string) => void;
   onKeepOnboardingIdentity?: () => void;
   onKeepCtosPerson?: () => void;
+  onKeepAbsent?: () => void;
   onInactivate?: () => void;
 }) {
   if (row.kind === "people_only") {
@@ -815,7 +821,7 @@ function CtosEvidence({
         </div>
       ) : null}
 
-      {party?.absentFromLatestExternal && party.membershipStatus === "MASTER_ACTIVE" ? (
+      {party && partyNeedsCtosAbsenceReview(party) ? (
         <div className={cn("space-y-2 rounded-lg border p-3", ADMIN_ACTION_SURFACE_CLASS)}>
           <p className="flex items-center gap-1.5 text-ui text-status-action-text">
             <ExclamationTriangleIcon className="h-4 w-4" />
@@ -826,14 +832,14 @@ function CtosEvidence({
               type="button"
               className="h-10"
               variant="outline"
-              onClick={() =>
-                toast.message("This does not mark the CTOS absence as reviewed. The person remains on the current profile.")
-              }
+              onClick={onKeepAbsent}
+              disabled={!onKeepAbsent}
             >
               Leave as current profile
             </Button>
             <p className="text-meta text-muted-foreground">
-              This does not mark the CTOS absence as reviewed. The person remains on the current profile.
+              Keep this person on the current profile. You will be asked again if the latest CTOS information
+              changes.
             </p>
           </div>
           {onInactivate ? (

@@ -16,6 +16,7 @@ import {
   PERSON_COMPLETE_ONBOARDING_FIRST,
   shouldDeferOnboardingPersonComrep,
   isPersonKycApproved,
+  partyNeedsCtosAbsenceReview,
   personIdentityDisplay,
   type OrganizationPartyProfileDto,
 } from "@cashsouk/types";
@@ -244,7 +245,7 @@ export function OrganizationPersonCard({
         </div>
       ) : null}
 
-      {party?.absentFromLatestExternal && party.membershipStatus === "MASTER_ACTIVE" ? (
+      {party && partyNeedsCtosAbsenceReview(party) ? (
         <div className="space-y-2">
           <p className="flex items-center gap-1.5 text-ui text-status-action-text">
             <ExclamationTriangleIcon className="h-4 w-4" />

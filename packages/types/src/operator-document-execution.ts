@@ -3,6 +3,7 @@ import {
   type AuthorizedPartiesSnapshot,
 } from "./authorized-parties";
 import { FACILITY_AGREEMENT_SIGNING_DOCUMENT_KEY } from "./generated-documents";
+import { OPERATOR_SIGNING_ROLE_LABELS } from "./operator-profile";
 import {
   DEED_OF_ASSIGNMENT_TEMPLATE_KEY,
   GUARANTOR_AGREEMENT_TEMPLATE_KEY,
@@ -442,9 +443,20 @@ export function automaticSignerRef(
   return `auto:${documentKind}:${signingPersonId}`;
 }
 
+export function frozenAutomaticSignerName(
+  snapshot: Pick<FrozenAutomaticSignerSnapshot, "officerName">
+): string {
+  return snapshot.officerName.trim() || "CashSouk signatory";
+}
+
 export function frozenAutomaticSignerLabel(snapshot: FrozenAutomaticSignerSnapshot): string {
-  const name = snapshot.officerName.trim();
-  return name || "CashSouk signatory";
+  const roles = new Set(
+    snapshot.placements.map((placement) => executionRoleSigningRole(placement.roleKey))
+  );
+  const labels = (["AUTHORISED_SIGNATORY", "WITNESS"] as const)
+    .filter((role) => roles.has(role))
+    .map((role) => OPERATOR_SIGNING_ROLE_LABELS[role]);
+  return labels.join(", ") || OPERATOR_SIGNING_ROLE_LABELS.AUTHORISED_SIGNATORY;
 }
 
 export function placementsForConfiguredSlot(

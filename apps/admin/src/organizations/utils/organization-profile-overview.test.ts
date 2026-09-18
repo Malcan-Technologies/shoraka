@@ -87,6 +87,23 @@ describe("countProfileExternalReview", () => {
     expect(review.absentCount).toBe(1);
     expect(review.total).toBe(4);
   });
+
+  it("does not count blank CTOS absences or acknowledged absences", () => {
+    const blank = countProfileExternalReview(
+      [party({ id: "1", partyKey: "a", absentFromLatestExternal: true })],
+      { directors: [], shareholders: [] }
+    );
+    expect(blank.absentCount).toBe(0);
+    const acknowledged = countProfileExternalReview([
+      party({
+        id: "1",
+        partyKey: "a",
+        absentFromLatestExternal: true,
+        ctosAbsenceReviewNeeded: false,
+      }),
+    ]);
+    expect(acknowledged.absentCount).toBe(0);
+  });
 });
 
 describe("formatMasterPartyRoles", () => {
