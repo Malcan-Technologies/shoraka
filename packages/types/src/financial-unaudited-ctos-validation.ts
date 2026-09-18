@@ -3,8 +3,15 @@
  */
 
 import { addDays, addMonths, format, startOfDay, subYears } from "date-fns";
+import { mytCalendarParts } from "./deadline-config";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Local midnight of the Asia/Kuala_Lumpur civil day for `ref` — the business “today”. */
+function malaysiaCivilDay(ref: Date): Date {
+  const { year, month, day } = mytCalendarParts(ref);
+  return new Date(year, month - 1, day);
+}
 
 /** Stored under `financial_statements.questionnaire` (v2). */
 export type FinancialStatementsQuestionnaire = {
@@ -35,6 +42,7 @@ function parseIsoDateOnlyLocal(iso: string): Date | null {
 /**
  * Valid iff today < FYE and periodStart(FYE) <= today (period already started).
  * Equivalent: today < FYE < today + 12 months.
+ * `today` is the Malaysia civil day of `ref`, not the process timezone.
  */
 export function getFinancialYearEndValidationError(
   iso: string,
@@ -42,7 +50,7 @@ export function getFinancialYearEndValidationError(
 ): FinancialYearEndValidationError | null {
   const chosen = parseIsoDateOnlyLocal(iso);
   if (!chosen) return "invalid";
-  const today = startOfDay(ref);
+  const today = malaysiaCivilDay(ref);
   const fye = startOfDay(chosen);
   if (fye.getTime() <= today.getTime()) return "not_future";
   const periodStart = startOfDay(addDays(subYears(chosen, 1), 1));
@@ -60,7 +68,7 @@ export function isFinancialYearEndWithinAllowedWindow(iso: string, ref: Date = n
  * that `addYears` would clip, e.g. ref 2027-03-01 → max 2028-02-29).
  */
 export function getFinancialYearEndAllowedWindow(ref: Date = new Date()): { minIso: string; maxIso: string } {
-  const today = startOfDay(ref);
+  const today = malaysiaCivilDay(ref);
   const min = addDays(today, 1);
   const minIso = format(min, "yyyy-MM-dd");
   let candidate = addDays(today, 366);
@@ -150,7 +158,7 @@ export function isFinancialYearPeriodOpen(
   const start = startIso ? parseIsoDateOnlyLocal(startIso) : null;
   const end = endIso ? parseIsoDateOnlyLocal(endIso) : null;
   if (!start || !end) return false;
-  const today = startOfDay(ref).getTime();
+  const today = malaysiaCivilDay(ref).getTime();
   return startOfDay(start).getTime() <= today && today < startOfDay(end).getTime();
 }
 
@@ -168,7 +176,7 @@ export function formatFinancialFyPeriodDisplay(
   if (!s || !e) return "";
   let displayEnd = e;
   if (options?.clampEndTo && isFinancialYearPeriodOpen(questionnaire, fyEndYear, options.clampEndTo)) {
-    displayEnd = startOfDay(options.clampEndTo);
+    displayEnd = malaysiaCivilDay(options.clampEndTo);
   }
   return `${format(s, "d MMM yyyy")} – ${format(displayEnd, "d MMM yyyy")}`;
 }
@@ -195,7 +203,7 @@ export function getIssuerFinancialTabYears(
   if (!currentFYEnd) return [];
   const previousFYEnd = subYears(currentFYEnd, 1);
   const deadline = addMonths(previousFYEnd, 6);
-  const today = startOfDay(ref);
+  const today = malaysiaCivilDay(ref);
   const deadlineDay = startOfDay(deadline);
   const currentYear = currentFYEnd.getFullYear();
   const previousYear = previousFYEnd.getFullYear();
@@ -248,7 +256,7 @@ export function getFinancialYearEndComputationDetails(
     fye: questionnaire.financial_year_end,
     previousFYEndIso: previousFYEnd ? format(previousFYEnd, "yyyy-MM-dd") : "",
     deadlineIso: deadline ? format(deadline, "yyyy-MM-dd") : "",
-    todayIso: format(startOfDay(ref), "yyyy-MM-dd"),
+    todayIso: format(malaysiaCivilDay(ref), "yyyy-MM-dd"),
     years: getIssuerFinancialTabYears(questionnaire, ref),
   };
 }

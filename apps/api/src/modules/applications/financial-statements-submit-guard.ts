@@ -1,11 +1,32 @@
-import { getIssuerFinancialTabYears } from "@cashsouk/types";
+import { getIssuerFinancialTabYears, getStepKeyFromStepId } from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
 import { financialStatementsV2Schema } from "./schemas";
+
+export function isFinancialStatementsActiveWorkflowStep(workflow: unknown): boolean {
+  if (!Array.isArray(workflow)) return false;
+  for (const step of workflow) {
+    const stepId =
+      step && typeof step === "object" && "id" in step && typeof step.id === "string" ? step.id.trim() : "";
+    if (!stepId) continue;
+    if (getStepKeyFromStepId(stepId) === "financial_statements") return true;
+  }
+  return false;
+}
 
 /**
  * Initial SUBMIT only: stored financial_statements must still satisfy the live FYE window
  * and expected unaudited year keys. RESUBMIT must not call this.
  */
+export function assertFinancialStatementsReadyForInitialSubmitIfActive(
+  workflow: unknown,
+  financialStatements: unknown,
+  now: Date = new Date()
+): void {
+  if (!isFinancialStatementsActiveWorkflowStep(workflow)) return;
+  if (financialStatements == null) return;
+  assertFinancialStatementsReadyForInitialSubmit(financialStatements, now);
+}
+
 export function assertFinancialStatementsReadyForInitialSubmit(
   financialStatements: unknown,
   now: Date = new Date()

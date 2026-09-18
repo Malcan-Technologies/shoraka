@@ -6,7 +6,7 @@ This guide describes the **v2** Financial Statements step: questionnaire, per-ye
 
 ## Overview
 
-Issuers select **one** date: the **next financial year end** (`financial_year_end`, ISO `YYYY-MM-DD`). The issuer question is “What is your company's next financial year end?” Valid iff **today &lt; FYE** and **periodStart(FYE) ≤ today** (`periodStart = FYE − 1 year + 1 day`). Equivalent: **today &lt; FYE &lt; today + 12 months**. That bound means every generated tab is a period that has already started; the selected year is the in-progress YTD year and stays required.
+Issuers select **one** date: the **next financial year end** (`financial_year_end`, ISO `YYYY-MM-DD`). The issuer question is “What is your company's next financial year end?” Valid iff **today &lt; FYE** and **periodStart(FYE) ≤ today** (`periodStart = FYE − 1 year + 1 day`). Equivalent: **today &lt; FYE &lt; today + 12 months**. **Today** is the Malaysia civil day (`Asia/Kuala_Lumpur`) of the evaluation instant, so issuer UI and the UTC API agree. That bound means every generated tab is a period that has already started; the selected year is the in-progress YTD year and stays required.
 
 Open-year period **display** is clamped to today (`1 Jun 2026 – 18 Sep 2026 (as at today)`), with management-accounts copy. Stored `pldd` remains the FY end for that column. Closed years still show the full period.
 
@@ -63,7 +63,7 @@ Save path uses `financialStatementsV2Schema` (shared 12-month FYE window + exact
 
 **Amendment exception:** when status is `AMENDMENT_REQUESTED` and the issuer keeps the stored `financial_year_end`, save uses `financialStatementsV2StoredSchema` (shape only) and the already-stored year keys. Changing FYE on amendment still requires the live window and live expected years. Drafts and initial SUBMIT stay strict.
 
-Initial **SUBMIT** (not RESUBMIT) re-runs that schema and expected-year check when `financial_statements` is an active workflow step and a stored payload exists. Failure is `400 VALIDATION_ERROR` with `Financial Statements: <message>` so a pre-window draft (e.g. FYE 31 Dec 2027) cannot be submitted by skipping the step.
+Initial **SUBMIT** (not RESUBMIT) re-runs that schema and expected-year check when `financial_statements` is an active workflow step and a stored payload exists. The guard runs before paymaster linking so a rejected submit does not persist contract/paymaster writes. Failure is `400 VALIDATION_ERROR` with `Financial Statements: <message>` so a pre-window draft (e.g. FYE 31 Dec 2027) cannot be submitted by skipping the step.
 
 Org-history merge reads already-stored JSON with `financialStatementsV2StoredSchema` (shape only, no today-relative refine) so an FYE that has aged past today is still merged as-is.
 

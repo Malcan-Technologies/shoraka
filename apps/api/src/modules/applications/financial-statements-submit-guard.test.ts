@@ -1,7 +1,10 @@
 import { addDays, format, startOfDay } from "date-fns";
 import { FINANCIAL_YEAR_END_ERROR_MESSAGES, getIssuerFinancialTabYears } from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
-import { assertFinancialStatementsReadyForInitialSubmit } from "./financial-statements-submit-guard";
+import {
+  assertFinancialStatementsReadyForInitialSubmit,
+  assertFinancialStatementsReadyForInitialSubmitIfActive,
+} from "./financial-statements-submit-guard";
 
 const mockFindById = jest.fn();
 const mockUpdate = jest.fn();
@@ -75,6 +78,8 @@ jest.mock("../paymaster/service", () => ({
   linkPaymasterForApplicationSubmission: jest.fn().mockResolvedValue(undefined),
 }));
 
+import { prisma } from "../../lib/prisma";
+import { linkPaymasterForApplicationSubmission } from "../paymaster/service";
 import { ApplicationService } from "./service";
 
 function yearBlock(pldd: string) {
@@ -126,6 +131,20 @@ describe("assertFinancialStatementsReadyForInitialSubmit", () => {
     const valid = payloadForFye(format(addDays(startOfDay(new Date()), 120), "yyyy-MM-dd"));
     expect(() => assertFinancialStatementsReadyForInitialSubmit(valid)).not.toThrow();
   });
+
+  it("skips the workflow-gated assert when financial statements is not an active step", () => {
+    const stale = payloadForFye(format(addDays(startOfDay(new Date()), 400), "yyyy-MM-dd"));
+    expect(() =>
+      assertFinancialStatementsReadyForInitialSubmitIfActive([{ id: "company_details" }], stale)
+    ).not.toThrow();
+  });
+
+  it("still rejects a stale FYE when financial statements is an active step", () => {
+    const stale = payloadForFye(format(addDays(startOfDay(new Date()), 400), "yyyy-MM-dd"));
+    expect(() =>
+      assertFinancialStatementsReadyForInitialSubmitIfActive([{ id: "financial_statements_1" }], stale)
+    ).toThrow(AppError);
+  });
 });
 
 describe("ApplicationService.updateApplicationStatus — financial statements submit guard", () => {
@@ -133,6 +152,7 @@ describe("ApplicationService.updateApplicationStatus — financial statements su
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (prisma.application.findUnique as jest.Mock).mockResolvedValue(null);
     mockVerifyAccess.mockResolvedValue(undefined);
     (service as unknown as { verifyApplicationAccess: jest.Mock }).verifyApplicationAccess =
       mockVerifyAccess;
@@ -161,6 +181,32 @@ describe("ApplicationService.updateApplicationStatus — financial statements su
       code: "VALIDATION_ERROR",
       message: expect.stringContaining("Financial Statements:"),
     });
+    expect(mockUpdate).not.toHaveBeenCalled();
+    expect(linkPaymasterForApplicationSubmission).not.toHaveBeenCalled();
+    expect(prisma.application.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("rejects a stale FYE before paymaster linking when a contract exists", async () => {
+    const stale = payloadForFye(format(addDays(startOfDay(new Date()), 400), "yyyy-MM-dd"));
+    mockFindById.mockResolvedValue({
+      id: "app-1",
+      status: "DRAFT",
+      issuer_organization_id: "org_1",
+      financing_type: { product_id: "prod_1" },
+      financing_structure: {},
+      financial_statements: stale,
+      invoices: [],
+      contract: { id: "contract-1" },
+      contract_id: "contract-1",
+    });
+
+    await expect(service.updateApplicationStatus("app-1", "SUBMITTED", "user-1")).rejects.toMatchObject({
+      statusCode: 400,
+      code: "VALIDATION_ERROR",
+      message: expect.stringContaining("Financial Statements:"),
+    });
+    expect(linkPaymasterForApplicationSubmission).not.toHaveBeenCalled();
+    expect(prisma.application.findUnique).not.toHaveBeenCalled();
     expect(mockUpdate).not.toHaveBeenCalled();
   });
 

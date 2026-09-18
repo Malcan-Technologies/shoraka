@@ -184,7 +184,7 @@ import { getIssuerRecipientUserIdsForApplication } from "../notification/applica
 import { sendTypedToUsersSafe } from "../notification/send-typed-safe";
 import { parseGuarantorsFromBusinessDetails } from "../guarantors/utils";
 import { assertIssuerOrgDirectorShareholderOnboardingReady } from "./director-shareholder-onboarding-guard";
-import { assertFinancialStatementsReadyForInitialSubmit } from "./financial-statements-submit-guard";
+import { assertFinancialStatementsReadyForInitialSubmitIfActive } from "./financial-statements-submit-guard";
 import { assertIssuerProfileCompleteForSubmit } from "../organization-profile/service";
 import { buildAdminPeopleList } from "../admin/build-people-list";
 import {
@@ -2172,6 +2172,10 @@ export class ApplicationService {
         });
         submitProductWorkflow = frozenSubmitWorkflow as Prisma.JsonValue;
       }
+      assertFinancialStatementsReadyForInitialSubmitIfActive(
+        frozenSubmitWorkflow,
+        application.financial_statements
+      );
       const appFull = await prisma.application.findUnique({
         where: { id },
         include: {
@@ -2272,12 +2276,10 @@ export class ApplicationService {
               "Submit cleanup skipped: product workflow has no usable step ids"
             );
           } else {
-            if (
-              activeStepKeys.has("financial_statements") &&
-              application.financial_statements != null
-            ) {
-              assertFinancialStatementsReadyForInitialSubmit(application.financial_statements);
-            }
+            assertFinancialStatementsReadyForInitialSubmitIfActive(
+              workflow,
+              application.financial_statements
+            );
             for (const col of allStepColumns) {
               if (col === "financing_type") continue;
               if (!activeStepKeys.has(col)) {

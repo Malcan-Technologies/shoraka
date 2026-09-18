@@ -62,6 +62,19 @@ describe("getFinancialYearEndAllowedWindow", () => {
     });
     assertWindowMatchesValidation(ref);
   });
+
+  it("uses the Malaysia civil day when the process is still on the previous UTC date", () => {
+    // 19 Sep 2026 01:00 MYT = 18 Sep 2026 17:00 UTC
+    const ref = new Date("2026-09-18T17:00:00.000Z");
+    expect(getFinancialYearEndAllowedWindow(ref)).toEqual({
+      minIso: "2026-09-20",
+      maxIso: "2027-09-18",
+    });
+    expect(getFinancialYearEndValidationError("2027-09-18", ref)).toBeNull();
+    expect(getFinancialYearEndValidationError("2027-09-19", ref)).toBe("beyond_window");
+    expect(getFinancialYearEndValidationError("2026-09-19", ref)).toBe("not_future");
+    assertWindowMatchesValidation(ref);
+  });
 });
 
 describe("formatFinancialFyPeriodDisplay", () => {
