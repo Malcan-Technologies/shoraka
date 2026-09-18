@@ -217,6 +217,12 @@ export const identityConflictResolveSchema = z
   })
   .strict();
 
+export const acknowledgeCtosAbsenceSchema = z
+  .object({
+    reviewedExtractFingerprint: z.string().trim().min(1),
+  })
+  .strict();
+
 export const financialYearPatchSchema = z
   .object({
     year: z.string().regex(/^\d{4}$/),

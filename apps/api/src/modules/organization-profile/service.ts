@@ -2557,6 +2557,7 @@ export async function acknowledgeCtosAbsence(params: {
   portal: Portal;
   organizationId: string;
   partyId: string;
+  reviewedExtractFingerprint: string;
 }): Promise<OrganizationPartyProfileDto> {
   const row = await prisma.organizationPartyProfile.findFirst({
     where: { id: params.partyId, ...orgWhere(params.portal, params.organizationId) },
@@ -2574,6 +2575,13 @@ export async function acknowledgeCtosAbsence(params: {
     );
   }
   const fingerprint = ctosExtractFingerprint(latestCtos);
+  if (params.reviewedExtractFingerprint.trim() !== fingerprint) {
+    throw new AppError(
+      409,
+      "CTOS_EXTRACT_CHANGED",
+      "Latest CTOS information has changed. Refresh and review this person again."
+    );
+  }
   const observation =
     row.external_observation && typeof row.external_observation === "object" && !Array.isArray(row.external_observation)
       ? { ...(row.external_observation as Record<string, unknown>) }

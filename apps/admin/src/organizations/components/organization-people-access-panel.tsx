@@ -6,6 +6,7 @@ import { EllipsisHorizontalIcon, UsersIcon } from "@heroicons/react/24/outline";
 import type { OrganizationDetailResponse, PortalType } from "@cashsouk/types";
 import {
   ADMIN_PEOPLE_ACCESS_FILTERS,
+  ctosExtractFingerprint,
   adminPeopleAccessCtosBadgeStatus,
   adminPeopleAccessRowNeedsAttention,
   buildAdminPeopleAccessRows,
@@ -199,7 +200,13 @@ export function OrganizationPeopleAccessPanel({
           : undefined
       }
       onKeepAbsent={
-        selected.party ? () => peopleMutations.acknowledgeAbsence.mutate(selected.party!.id) : undefined
+        selected.party
+          ? () =>
+              peopleMutations.acknowledgeAbsence.mutate({
+                partyId: selected.party!.id,
+                reviewedExtractFingerprint: ctosExtractFingerprint(org.latestOrganizationCtosCompanyJson),
+              })
+          : undefined
       }
       onEditMember={selected.userId ? () => setEditingMemberUserId(selected.userId) : undefined}
     />

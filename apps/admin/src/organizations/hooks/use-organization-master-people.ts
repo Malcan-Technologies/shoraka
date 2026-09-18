@@ -44,8 +44,10 @@ export function useOrganizationMasterPeople(portal: PortalType, organizationId: 
   });
 
   const acknowledgeAbsence = useMutation({
-    mutationFn: async (partyId: string) => {
-      const res = await api.acknowledgeCtosAbsence(portal, organizationId, partyId);
+    mutationFn: async (input: { partyId: string; reviewedExtractFingerprint: string }) => {
+      const res = await api.acknowledgeCtosAbsence(portal, organizationId, input.partyId, {
+        reviewedExtractFingerprint: input.reviewedExtractFingerprint,
+      });
       if (!res.success) throw profileValidationErrorFromApi(res.error);
       return res.data;
     },

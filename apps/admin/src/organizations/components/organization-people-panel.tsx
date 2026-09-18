@@ -13,6 +13,7 @@ import {
   isPersonEmailLifecycleLocked,
   linkedPartyUserIds,
   optionalEmailIssue,
+  ctosExtractFingerprint,
   observedPartyBlockedByIdentityConflict,
   phoneFormatIssue,
   PROFILE_LABEL,
@@ -305,7 +306,13 @@ export function OrganizationPeoplePanel({
                     : undefined
                 }
                 onKeepAbsent={
-                  item.party ? () => peopleMutations.acknowledgeAbsence.mutate(item.party!.id) : undefined
+                  item.party
+                    ? () =>
+                        peopleMutations.acknowledgeAbsence.mutate({
+                          partyId: item.party!.id,
+                          reviewedExtractFingerprint: ctosExtractFingerprint(org.latestOrganizationCtosCompanyJson),
+                        })
+                    : undefined
                 }
               />
             </div>

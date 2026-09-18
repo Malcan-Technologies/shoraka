@@ -503,6 +503,7 @@ export function FinancialStatementsStep({
     string,
     FinancialStatementsPayload
   > | null>(null);
+  const preserveStoredYearsRef = React.useRef(false);
 
   // If the user navigates between applications without a full page refresh, this step component may keep its
   // local state. Reset it whenever `applicationId` changes so auto-prefill and form initialization rerun.
@@ -520,6 +521,7 @@ export function FinancialStatementsStep({
     setInitialPayloadSnapshot("");
     setSavedStoredFye(null);
     setSavedStoredFormsByYear(null);
+    preserveStoredYearsRef.current = false;
   }, [applicationId]);
 
   const onDataChangeRef = React.useRef(onDataChange);
@@ -635,8 +637,8 @@ export function FinancialStatementsStep({
   }, [fyeDateInput, readOnly, preserveStoredYears]);
 
   const storedYearsToShow = React.useMemo(
-    () => storedFinancialFormYears(savedStoredFormsByYear ?? formsByYear),
-    [savedStoredFormsByYear, formsByYear]
+    () => storedFinancialFormYears(savedStoredFormsByYear),
+    [savedStoredFormsByYear]
   );
 
   const liveYearsToShow = React.useMemo(() => {
@@ -672,15 +674,20 @@ export function FinancialStatementsStep({
     if (!questionnaireDto) return;
 
     if (preserveStoredYears) {
-      setFormsByYear((prev) =>
-        restorePreservedStoredYearForms({
-          snapshot: savedStoredFormsByYear,
-          yearsToShow,
-          prev,
-        })
-      );
+      const enteredPreserve = !preserveStoredYearsRef.current;
+      preserveStoredYearsRef.current = true;
+      if (enteredPreserve) {
+        setFormsByYear((prev) =>
+          restorePreservedStoredYearForms({
+            snapshot: savedStoredFormsByYear,
+            yearsToShow: storedYearsToShow,
+            prev,
+          })
+        );
+      }
       return;
     }
+    preserveStoredYearsRef.current = false;
 
     const built = prefillEnabled
       ? buildApplicationFinancialPrefillByYear({
@@ -741,6 +748,7 @@ export function FinancialStatementsStep({
     readOnly,
     preserveStoredYears,
     savedStoredFormsByYear,
+    storedYearsToShow,
     yearsToShow,
     questionnaireDto,
     prefillEnabled,

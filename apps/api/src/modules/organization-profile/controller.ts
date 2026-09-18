@@ -25,6 +25,7 @@ import { resolvePersonIdentityConflict } from "./regtank-party-seed";
 import {
   financialYearPatchSchema,
   identityConflictResolveSchema,
+  acknowledgeCtosAbsenceSchema,
   mismatchResolveSchema,
   orgMasterPatchSchema,
   partyPatchSchema,
@@ -517,10 +518,12 @@ export function createAdminOrganizationProfileRouter() {
   router.post("/:portal/:id/party-profiles/:partyId/acknowledge-ctos-absence", requirePermission("organizations.manage"), async (req, res, next) => {
     try {
       const portal = portalFromParams(req);
+      const input = acknowledgeCtosAbsenceSchema.parse(req.body);
       const data = await acknowledgeCtosAbsence({
         portal,
         organizationId: req.params.id,
         partyId: req.params.partyId,
+        reviewedExtractFingerprint: input.reviewedExtractFingerprint,
       });
       await logMasterProfileAudit({
         req,
