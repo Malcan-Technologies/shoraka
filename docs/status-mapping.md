@@ -74,7 +74,7 @@ Admin People & Access provides **Sync KYC/KYB and AML from RegTank** for every a
 
 The selected party is resolved from stored request IDs or discovered through parent COD → EOD/child COD using identity/SSM matching. The live KYC/KYB result is persisted to that party’s supplement. Ambiguous matches, provider failures, and persistence failures leave the previous snapshot unchanged.
 
-Application Financial review links incomplete related-party verification to the People & Access **Pending** filter. Financial approve still evaluates stored `people[]`; it never queries RegTank during approval.
+Application Financial review links incomplete related-party verification to the People & Access **Pending** filter, including unmatched `people_only` directors/shareholders so the nudge does not hide the blocking person. Financial approve still evaluates stored `people[]`; it never queries RegTank during approval.
 
 ---
 

@@ -647,6 +647,47 @@ describe("filterAdminPeopleAccessRows", () => {
     expect(pending.map((row) => row.partyId)).toEqual(["pending-aml"]);
   });
 
+  it("Pending includes unmatched people-only directors whose AML is missing", () => {
+    const { active } = buildAdminPeopleAccessRows({
+      parties: [
+        party({
+          id: "linked",
+          partyKey: "IC-LINKED",
+          identityNumber: "IC-LINKED",
+          isDirector: true,
+        }),
+      ],
+      people: [
+        person({
+          matchKey: "IC-LINKED",
+          name: "Linked Director",
+          onboarding: { status: "APPROVED" },
+          screening: { status: "APPROVED" },
+        }),
+        person({
+          matchKey: "IC-UNMATCHED",
+          name: "Unmatched Director",
+          roles: ["DIRECTOR"],
+          onboarding: { status: "APPROVED" },
+          screening: null,
+        }),
+      ],
+      members: [],
+      owner,
+    });
+    const unmatched = active.find((row) => row.kind === "people_only");
+    expect(unmatched).toMatchObject({
+      name: "Unmatched Director",
+      kyc: "Approved",
+      aml: "Not started",
+    });
+    const pending = filterAdminPeopleAccessRows(active, "pending", "");
+    expect(pending.some((row) => row.kind === "people_only" && row.name === "Unmatched Director")).toBe(
+      true
+    );
+    expect(pending.some((row) => row.partyId === "linked")).toBe(false);
+  });
+
   it("Inactive is MASTER_INACTIVE only", () => {
     const rows = filterAdminPeopleAccessRows(all, "inactive", "");
     expect(rows).toHaveLength(1);

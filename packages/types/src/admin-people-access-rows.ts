@@ -411,7 +411,7 @@ function pendingKyc(label: PeopleAccessKycLabel): boolean {
 }
 
 function needsRelatedPartyVerification(row: AdminPeopleAccessRow): boolean {
-  if (row.inactive || row.observed || !row.party) return false;
+  if (row.inactive || row.observed || row.kind === "platform_only") return false;
   const isDirectorOrShareholder =
     row.companyRoles.includes("Director") ||
     row.companyRoles.includes("Shareholder");
