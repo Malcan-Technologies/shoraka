@@ -630,7 +630,7 @@ export function OrganizationPeopleAccessDetail({
               onUseExternal={onUseExternal}
               onKeepOnboardingIdentity={onKeepOnboardingIdentity}
               onKeepCtosPerson={onKeepCtosPerson}
-              onKeepAbsent={onKeepAbsent}
+              onKeepAbsent={canManage ? onKeepAbsent : undefined}
               onInactivate={showInactivate ? onInactivate : undefined}
             />
           </TabsContent>
@@ -827,21 +827,17 @@ function CtosEvidence({
             <ExclamationTriangleIcon className="h-4 w-4" />
             This person was not found in the latest CTOS information.
           </p>
-          <div className="space-y-1">
-            <Button
-              type="button"
-              className="h-10"
-              variant="outline"
-              onClick={onKeepAbsent}
-              disabled={!onKeepAbsent}
-            >
-              Leave as current profile
-            </Button>
-            <p className="text-meta text-muted-foreground">
-              Keep this person on the current profile. You will be asked again if the latest CTOS information
-              changes.
-            </p>
-          </div>
+          {canManage && onKeepAbsent ? (
+            <div className="space-y-1">
+              <Button type="button" className="h-10" variant="outline" onClick={onKeepAbsent}>
+                Leave as current profile
+              </Button>
+              <p className="text-meta text-muted-foreground">
+                Keep this person on the current profile. You will be asked again if the latest CTOS information
+                changes.
+              </p>
+            </div>
+          ) : null}
           {onInactivate ? (
             <Button type="button" variant="outline" className="h-10" onClick={onInactivate}>
               Mark inactive

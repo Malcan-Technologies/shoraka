@@ -104,7 +104,8 @@ describe("Admin People & Access surface", () => {
     expect(detail).toContain("Leave as CTOS observation");
     expect(detail).toContain("This does not save a separate decision.");
     expect(detail).toContain("Leave as current profile");
-    expect(detail).toContain("onKeepAbsent");
+    expect(detail).toContain("canManage && onKeepAbsent");
+    expect(detail).toContain("onKeepAbsent={canManage ? onKeepAbsent : undefined}");
     expect(panel).toContain("acknowledgeAbsence");
     expect(hook).toContain("acknowledgeCtosAbsence");
     expect(detail).toContain("You will be asked again if the latest CTOS information");
