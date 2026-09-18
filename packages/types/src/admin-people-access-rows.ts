@@ -410,6 +410,15 @@ function pendingKyc(label: PeopleAccessKycLabel): boolean {
   return label === "In progress" || label === "Pending approval";
 }
 
+function needsRelatedPartyVerification(row: AdminPeopleAccessRow): boolean {
+  if (row.inactive || row.observed || !row.party) return false;
+  const isDirectorOrShareholder =
+    row.companyRoles.includes("Director") ||
+    row.companyRoles.includes("Shareholder");
+  if (!isDirectorOrShareholder) return false;
+  return row.kyc !== "Approved" || row.aml !== "Approved";
+}
+
 function needsCtosReview(row: AdminPeopleAccessRow): boolean {
   return (
     row.ctos === "Observed only" ||
@@ -424,6 +433,7 @@ export function adminPeopleAccessRowNeedsAttention(row: AdminPeopleAccessRow): b
     row.platformAccess === "Invitation sent" ||
     row.platformAccess === "Invitation expired" ||
     pendingKyc(row.kyc) ||
+    needsRelatedPartyVerification(row) ||
     needsCtosReview(row)
   );
 }

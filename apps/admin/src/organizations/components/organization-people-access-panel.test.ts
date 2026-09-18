@@ -70,6 +70,16 @@ describe("Admin People & Access surface", () => {
     expect(detail).not.toContain("Remove access");
   });
 
+  it("lets organization managers sync a current director or shareholder from RegTank", () => {
+    expect(panel).toContain("syncRegTankStatus");
+    expect(panel).toContain("Sync KYC/KYB and AML from RegTank");
+    expect(detail).toContain("Sync KYC/KYB and AML from RegTank");
+    expect(detail).toContain('party?.membershipStatus === "MASTER_ACTIVE"');
+    expect(hook).toContain("refreshAdminPartyRegTankStatus");
+    expect(hook).toContain("RegTank status synced");
+    expect(hook).toContain("applicationsKeys.all");
+  });
+
   it("presents person detail without raw internal codes or vague sheet copy", () => {
     expect(panel).toContain('className="sr-only"');
     expect(panel).not.toContain("Admin evidence and actions for this row.");

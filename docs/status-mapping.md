@@ -60,13 +60,21 @@ Normalized → **`screening.status`** via **`amlSanitizedStatus`**: **prefer `ra
 
 Normalized KYB string → **`onboarding.status`** on **CORPORATE** rows (same property name as individual KYC).
 
-### Supplements (full row when present)
+### Per-party supplements
 
 | Storage | Effect |
 |---------|--------|
-| `ctos_party_supplements` row for party key | **`people[]`** for that `matchKey` is built **only** from `onboarding_json` (via `parseCtosPartySupplement`) for **`requestId`**, **`onboarding.*`**, **`screening.*`**, **`email`** — issuer KYC/AML is not mixed in. If no supplement row exists for the key, issuer JSON is used. |
+| `ctos_party_supplements` row for party key | `onboarding_json` supplies the party-scoped onboarding and screening snapshot. During unified `people[]` construction, a matching supplement is merged with legacy issuer/investor JSON evidence using the shared preferred-snapshot rules. |
 
 Any value that ends up in `screening.status` / `onboarding.status` is still normalized and then passed through the same UI rules below.
+
+### Manual RegTank recovery
+
+Admin People & Access provides **Sync KYC/KYB and AML from RegTank** for every active company director/shareholder on issuer and investor profiles. The action remains available for locally approved people and after organization onboarding is complete.
+
+The selected party is resolved from stored request IDs or discovered through parent COD → EOD/child COD using identity/SSM matching. The live KYC/KYB result is persisted to that party’s supplement. Ambiguous matches, provider failures, and persistence failures leave the previous snapshot unchanged.
+
+Application Financial review links incomplete related-party verification to the People & Access **Pending** filter. Financial approve still evaluates stored `people[]`; it never queries RegTank during approval.
 
 ---
 
@@ -215,7 +223,7 @@ Only **one** normalized token is evaluated per row: **AML if present**, else **o
 | **Missing KYC/KYB** but AML present | **AML** only drives the label. |
 | **Both missing** | **Not Started**. |
 | **Unknown / unlisted non-empty token** on the effective source | **In Progress** (`info` tone; default branch). |
-| **Supplement replaces issuer for that party** | For that `matchKey`, screening/onboarding for the row come from parsed supplement JSON for those fields; issuer KYC/AML is not merged into those fields. |
+| **Supplement and legacy evidence both exist** | Shared preferred-snapshot rules merge matching screening/onboarding evidence: rejected/failed wins, then approved, then a non-empty status. |
 | **Admin org CTOS pull toast (“New update”)** | Shown when **`shouldNotifyIssuerDirectorShareholderAfterOrgCtosFromResolvedPeopleSnapshots`** is true — same **new individual** rules as **`runIssuerDirectorShareholderNotificationsAfterOrgCtosReportInsert`** (not merely “any new match key”). See `packages/types/src/issuer-director-shareholder-ctos-notification-diff.ts`. |
 
 ---

@@ -608,6 +608,45 @@ describe("filterAdminPeopleAccessRows", () => {
     expect(ctos.every((row) => row.ctos === "Observed only" || row.ctos === "Differs" || row.ctos === "Not found" || row.identityConflict)).toBe(true);
   });
 
+  it("Pending includes active directors with incomplete AML and excludes fully approved directors", () => {
+    const verificationRows = buildAdminPeopleAccessRows({
+      parties: [
+        party({
+          id: "pending-aml",
+          partyKey: "IC-PENDING",
+          identityNumber: "IC-PENDING",
+          isDirector: true,
+        }),
+        party({
+          id: "approved",
+          partyKey: "IC-APPROVED",
+          identityNumber: "IC-APPROVED",
+          isDirector: true,
+        }),
+      ],
+      people: [
+        person({
+          matchKey: "IC-PENDING",
+          onboarding: { status: "APPROVED" },
+          screening: null,
+        }),
+        person({
+          matchKey: "IC-APPROVED",
+          onboarding: { status: "APPROVED" },
+          screening: { status: "APPROVED" },
+        }),
+      ],
+      members: [],
+      owner,
+    }).active;
+    const pending = filterAdminPeopleAccessRows(
+      verificationRows,
+      "pending",
+      ""
+    );
+    expect(pending.map((row) => row.partyId)).toEqual(["pending-aml"]);
+  });
+
   it("Inactive is MASTER_INACTIVE only", () => {
     const rows = filterAdminPeopleAccessRows(all, "inactive", "");
     expect(rows).toHaveLength(1);

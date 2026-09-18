@@ -7,6 +7,8 @@ import {
   collectPartyRegTankRefreshIds,
   isLaterAddedCompanyPerson,
   isPartyRegTankProcessTerminal,
+  normalizeDirectorShareholderIdKey,
+  parseCtosPartySupplement,
   partyAmlRefreshIds,
   partyHasRegTankRefreshIds,
   partyKeyMatchesLookup,
@@ -18,14 +20,20 @@ import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
 import { OrganizationService } from "../organization/service";
 import { RegTankAPIClient } from "../regtank/api-client";
+import { extractGovernmentIdFromCorporateUserInfo } from "../regtank/helpers/extract-government-id";
+import {
+  extractBusinessNameFromCorpShareholderRow,
+  extractBusinessNumberFromCorpShareholderRow,
+} from "../regtank/helpers/business-shareholder-kyb-match";
 import { REGTANK_RATE_LIMITED_CODE } from "../regtank/helpers/regtank-rate-limit";
 import {
   runExclusiveOnboardingRefresh,
 } from "../regtank/helpers/regtank-refresh-lock";
 import {
+  RegTankRefreshSession,
   RegTankRefreshClient,
 } from "../regtank/helpers/regtank-refresh-session";
-import { syncCtosPartyRegTankStatus } from "./regtank-party-sync";
+import { extractRegTankStatus, syncCtosPartyRegTankStatus } from "./regtank-party-sync";
 
 export const PARTY_STATUS_REFRESHED_MESSAGE = "Status refreshed.";
 export const PARTY_STATUS_REFRESH_FAILED_MESSAGE =
@@ -45,43 +53,209 @@ export type RefreshPartyRegTankStatusResult = {
   refreshedSources: string[];
 };
 
+type RefreshIds = ReturnType<typeof collectPartyRegTankRefreshIds>;
+
+type DiscoveredRefreshIds = RefreshIds & {
+  confirmedScreeningAbsent?: boolean;
+};
+
+type AdminRefreshParty = {
+  id: string;
+  party_key: string;
+  origin: string | null;
+  membership_status: string;
+  identity_number: string | null;
+  entity_type: string;
+  name: string | null;
+  is_director: boolean;
+  is_shareholder: boolean;
+};
+
+type RegTankPartyCandidate = {
+  entityType: "INDIVIDUAL" | "CORPORATE";
+  name: string;
+  identityNumber: string | null;
+  onboardingRequestId: string | null;
+  screeningRequestId: string | null;
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-export function extractRegTankStatus(body: unknown): string {
-  const row = Array.isArray(body) ? body[0] : body;
-  if (!isRecord(row)) return "";
-  if (typeof row.status === "string" && row.status.trim()) return row.status.trim();
-  for (const key of ["corporateIndividualRequest", "corporateOnboardingRequest", "corporateRequest"]) {
-    const nested = row[key];
-    if (isRecord(nested) && typeof nested.status === "string" && nested.status.trim()) {
-      return nested.status.trim();
-    }
+function text(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function nestedRecord(value: unknown): Record<string, unknown> | null {
+  return isRecord(value) ? value : null;
+}
+
+function formFieldValue(source: unknown, fieldName: string): string {
+  const row = nestedRecord(source);
+  const formContent = nestedRecord(row?.formContent);
+  const content = nestedRecord(formContent?.content);
+  const fields = Array.isArray(content?.content)
+    ? content.content
+    : Array.isArray(formContent?.content)
+      ? formContent.content
+      : [];
+  const wanted = fieldName.toLowerCase();
+  for (const field of fields) {
+    const rec = nestedRecord(field);
+    if (text(rec?.fieldName).toLowerCase() === wanted) return text(rec?.fieldValue);
   }
   return "";
 }
 
-export function extractRegTankScreeningPatch(
-  body: unknown,
-  requestId: string
-): Record<string, unknown> | null {
-  const status = extractRegTankStatus(body);
-  const id = requestId.trim();
-  if (!status || !id) return null;
-  const row = Array.isArray(body) ? body[0] : body;
-  const patch: Record<string, unknown> = {
-    requestId: id,
-    status,
-    provider: "REGTANK",
-    updatedAt: new Date().toISOString(),
+function individualCandidate(row: Record<string, unknown>): RegTankPartyCandidate {
+  const userInfo = nestedRecord(row.corporateUserRequestInfo);
+  const firstName = formFieldValue(userInfo, "First Name");
+  const lastName = formFieldValue(userInfo, "Last Name");
+  const request = nestedRecord(row.corporateIndividualRequest);
+  const screening = nestedRecord(row.kycRequestInfo);
+  return {
+    entityType: "INDIVIDUAL",
+    name: `${firstName} ${lastName}`.trim() || text(userInfo?.fullName) || text(row.name),
+    identityNumber: extractGovernmentIdFromCorporateUserInfo(userInfo ?? {}) || null,
+    onboardingRequestId: text(request?.requestId) || text(row.requestId) || null,
+    screeningRequestId: text(screening?.kycId) || null,
   };
-  if (isRecord(row)) {
-    if (row.riskLevel != null) patch.riskLevel = row.riskLevel;
-    if (row.riskScore != null) patch.riskScore = row.riskScore;
-    if (row.messageStatus != null) patch.messageStatus = row.messageStatus;
+}
+
+function corporateCandidate(row: Record<string, unknown>): RegTankPartyCandidate {
+  const request = nestedRecord(row.corporateOnboardingRequest);
+  const screening = nestedRecord(row.kybRequestDto);
+  return {
+    entityType: "CORPORATE",
+    name:
+      extractBusinessNameFromCorpShareholderRow(row) ||
+      text(row.businessName) ||
+      text(row.companyName) ||
+      text(row.name),
+    identityNumber:
+      extractBusinessNumberFromCorpShareholderRow(row) ||
+      text(row.businessNumber) ||
+      text(row.registrationNumber) ||
+      null,
+    onboardingRequestId: text(request?.requestId) || text(row.requestId) || null,
+    screeningRequestId: text(screening?.kybId) || text(row.kybId) || null,
+  };
+}
+
+function listRegTankPartyCandidates(parentCod: unknown): RegTankPartyCandidate[] {
+  const root = nestedRecord(Array.isArray(parentCod) ? parentCod[0] : parentCod);
+  if (!root) return [];
+  const candidates: RegTankPartyCandidate[] = [];
+  for (const key of ["corpIndvDirectors", "corpIndvShareholders"] as const) {
+    const rows = root[key];
+    if (!Array.isArray(rows)) continue;
+    for (const row of rows) {
+      const rec = nestedRecord(row);
+      if (rec) candidates.push(individualCandidate(rec));
+    }
   }
-  return patch;
+  const corporateRows = root.corpBizShareholders;
+  if (Array.isArray(corporateRows)) {
+    for (const row of corporateRows) {
+      const rec = nestedRecord(row);
+      if (rec) candidates.push(corporateCandidate(rec));
+    }
+  }
+  return candidates;
+}
+
+function normalizedName(value: string | null): string {
+  return String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function matchingCandidates(
+  party: AdminRefreshParty,
+  candidates: RegTankPartyCandidate[]
+): RegTankPartyCandidate[] {
+  const entityType = party.entity_type === "CORPORATE" ? "CORPORATE" : "INDIVIDUAL";
+  const sameType = candidates.filter((candidate) => candidate.entityType === entityType);
+  const partyIdentity = normalizeDirectorShareholderIdKey(
+    party.identity_number || (!party.party_key.startsWith("user:") ? party.party_key : "")
+  );
+  if (partyIdentity) {
+    const identityMatches = sameType.filter(
+      (candidate) =>
+        normalizeDirectorShareholderIdKey(candidate.identityNumber) === partyIdentity
+    );
+    if (identityMatches.length > 0) return identityMatches;
+  }
+  const name = normalizedName(party.name);
+  if (!name) return [];
+  const nameMatches = sameType.filter((candidate) => normalizedName(candidate.name) === name);
+  if (nameMatches.length > 1 && !nameMatchesRepresentOneParty(nameMatches)) {
+    throw new AppError(
+      409,
+      "AMBIGUOUS_REGTANK_PARTY",
+      "More than one RegTank person matches this profile. Review the identity details before syncing."
+    );
+  }
+  return nameMatches;
+}
+
+function sharedNonemptyKey(values: Array<string | null>): string | null {
+  if (values.length === 0 || values.some((value) => !value)) return null;
+  const unique = new Set(values);
+  return unique.size === 1 ? values[0] : null;
+}
+
+/** Director + shareholder rows for one person may share one identity or one screening ID. */
+function nameMatchesRepresentOneParty(matches: RegTankPartyCandidate[]): boolean {
+  const identities = matches.map((candidate) =>
+    normalizeDirectorShareholderIdKey(candidate.identityNumber)
+  );
+  const presentIdentities = identities.filter((id): id is string => Boolean(id));
+  if (new Set(presentIdentities).size > 1) return false;
+  if (sharedNonemptyKey(identities)) return true;
+  return Boolean(
+    sharedNonemptyKey(matches.map((candidate) => text(candidate.screeningRequestId) || null))
+  );
+}
+
+function emptyRefreshIds(): RefreshIds {
+  return {
+    individualOnboardingRequestId: null,
+    entityOnboardingRequestId: null,
+    corporateOnboardingRequestId: null,
+    kycId: null,
+    kybId: null,
+  };
+}
+
+function idsFromSupplement(
+  raw: unknown,
+  entityType: string
+): RefreshIds {
+  const supplement = parseCtosPartySupplement(raw);
+  return collectPartyRegTankRefreshIds({
+    onboarding: { id: supplement.requestId, status: supplement.status },
+    screening: supplement.screening
+      ? { id: supplement.screening.requestId, status: supplement.screening.status }
+      : null,
+    requestId: supplement.requestId,
+    screeningRequestId: supplement.screening?.requestId ?? null,
+    directorEodRequestId: entityType === "CORPORATE" ? null : supplement.requestId,
+    shareholderEodRequestId: null,
+    partyCorporateRequestId: entityType === "CORPORATE" ? supplement.requestId : null,
+  });
+}
+
+function mergeRefreshIds(primary: RefreshIds, fallback: RefreshIds): RefreshIds {
+  return {
+    individualOnboardingRequestId:
+      primary.individualOnboardingRequestId ?? fallback.individualOnboardingRequestId,
+    entityOnboardingRequestId:
+      primary.entityOnboardingRequestId ?? fallback.entityOnboardingRequestId,
+    corporateOnboardingRequestId:
+      primary.corporateOnboardingRequestId ?? fallback.corporateOnboardingRequestId,
+    kycId: primary.kycId ?? fallback.kycId,
+    kybId: primary.kybId ?? fallback.kybId,
+  };
 }
 
 function findPersonForParty(
@@ -94,6 +268,228 @@ function findPersonForParty(
       partyKeyMatchesLookup(row.matchKey, partyKey) ||
       (identityNumber != null && partyKeyMatchesLookup(row.matchKey, identityNumber))
   );
+}
+
+function screeningIdFromDetails(
+  details: unknown,
+  entityType: "INDIVIDUAL" | "CORPORATE"
+): string | null {
+  const root = nestedRecord(Array.isArray(details) ? details[0] : details);
+  if (!root) return null;
+  if (entityType === "INDIVIDUAL") {
+    const request = nestedRecord(root.kycRequestInfo);
+    return text(request?.kycId) || text(root.kycId) || null;
+  }
+  const request = nestedRecord(root.kybRequestDto);
+  return text(request?.kybId) || text(root.kybId) || null;
+}
+
+function inspectChildScreening(
+  details: unknown,
+  entityType: "INDIVIDUAL" | "CORPORATE"
+): { kind: "id"; id: string } | { kind: "absent" } | { kind: "malformed" } {
+  if (!extractRegTankStatus(details)) return { kind: "malformed" };
+  const id = screeningIdFromDetails(details, entityType);
+  return id ? { kind: "id", id } : { kind: "absent" };
+}
+
+function providerRefreshFailed(): AppError {
+  return new AppError(
+    502,
+    "PROVIDER_REFRESH_FAILED",
+    PARTY_STATUS_REFRESH_FAILED_MESSAGE
+  );
+}
+
+async function discoverAdminRefreshIds(params: {
+  portal: Portal;
+  organizationId: string;
+  party: AdminRefreshParty;
+  session: RegTankRefreshSession;
+}): Promise<DiscoveredRefreshIds> {
+  const supplement = await prisma.ctosPartySupplement.findFirst({
+    where:
+      params.portal === "issuer"
+        ? {
+            issuer_organization_id: params.organizationId,
+            party_key: params.party.party_key,
+          }
+        : {
+            investor_organization_id: params.organizationId,
+            party_key: params.party.party_key,
+          },
+    select: { onboarding_json: true },
+  });
+  const stored = idsFromSupplement(
+    supplement?.onboarding_json,
+    params.party.entity_type
+  );
+  const laterAdded = isLaterAddedCompanyPerson({
+    origin: params.party.origin,
+    partyKey: params.party.party_key,
+  });
+  const hasPipeline = partyKycRefreshIds(stored).length > 0;
+  const hasScreening = partyAmlRefreshIds(stored).length > 0;
+  if (laterAdded && hasPipeline && hasScreening) return stored;
+
+  const onboarding = await prisma.regTankOnboarding.findFirst({
+    where: {
+      onboarding_type: "CORPORATE",
+      ...(params.portal === "issuer"
+        ? { issuer_organization_id: params.organizationId }
+        : { investor_organization_id: params.organizationId }),
+    },
+    orderBy: { created_at: "desc" },
+    select: { request_id: true },
+  });
+  const parentRequestId = text(onboarding?.request_id);
+  if (!parentRequestId) return stored;
+
+  const parentCod = await params.session.getCorporateOnboardingDetails(parentRequestId);
+  const matches = matchingCandidates(
+    params.party,
+    listRegTankPartyCandidates(parentCod)
+  );
+  if (matches.length === 0) return stored;
+
+  const discovered = emptyRefreshIds();
+  const onboardingIds = [
+    ...new Set(
+      matches
+        .map((candidate) => candidate.onboardingRequestId)
+        .filter((id): id is string => Boolean(id))
+    ),
+  ];
+  const parentScreeningIds = new Set(
+    matches
+      .map((candidate) => candidate.screeningRequestId)
+      .filter((id): id is string => Boolean(id))
+  );
+  const entityType =
+    params.party.entity_type === "CORPORATE" ? "CORPORATE" : "INDIVIDUAL";
+
+  if (entityType === "CORPORATE") {
+    discovered.corporateOnboardingRequestId = onboardingIds[0] ?? null;
+  } else {
+    discovered.entityOnboardingRequestId = onboardingIds[0] ?? null;
+  }
+
+  const childScreeningIds = new Set<string>();
+  let childMalformed = false;
+  let childConfirmedAbsent = onboardingIds.length > 0;
+  for (const requestId of onboardingIds) {
+    const details =
+      entityType === "CORPORATE"
+        ? await params.session.getCorporateOnboardingDetails(requestId)
+        : await params.session.getEntityOnboardingDetails(requestId);
+    const inspection = inspectChildScreening(details, entityType);
+    if (inspection.kind === "malformed") {
+      childMalformed = true;
+      childConfirmedAbsent = false;
+    } else if (inspection.kind === "id") {
+      childScreeningIds.add(inspection.id);
+      childConfirmedAbsent = false;
+    }
+  }
+
+  if (!laterAdded && (onboardingIds.length === 0 || childMalformed)) {
+    throw providerRefreshFailed();
+  }
+
+  const screeningIds = laterAdded
+    ? childScreeningIds.size > 0
+      ? childScreeningIds
+      : parentScreeningIds
+    : childScreeningIds;
+
+  if (screeningIds.size > 1) {
+    throw new AppError(
+      409,
+      "AMBIGUOUS_REGTANK_PARTY",
+      "Multiple RegTank screening records match this profile. Review the identity details before syncing."
+    );
+  }
+  const screeningId = [...screeningIds][0] ?? null;
+  if (entityType === "CORPORATE") {
+    discovered.kybId = screeningId;
+  } else {
+    discovered.kycId = screeningId;
+  }
+  if (laterAdded) return mergeRefreshIds(stored, discovered);
+  return {
+    ...discovered,
+    confirmedScreeningAbsent: screeningId == null && childConfirmedAbsent,
+  };
+}
+
+async function runPartyRegTankSync(params: {
+  portal: Portal;
+  organizationId: string;
+  partyId: string;
+  partyKey: string;
+  ids: DiscoveredRefreshIds | (() => Promise<DiscoveredRefreshIds>);
+  regTankClient?: RegTankRefreshClient;
+  session?: RegTankRefreshSession;
+  requirePersistence?: boolean;
+  requireCompleteRefresh?: boolean;
+}): Promise<RefreshPartyRegTankStatusResult> {
+  const lockKey = `party-regtank:${params.organizationId}:${params.partyId}`;
+  const locked = await runExclusiveOnboardingRefresh(lockKey, async () => {
+    const ids =
+      typeof params.ids === "function" ? await params.ids() : params.ids;
+    if (!partyHasRegTankRefreshIds(ids)) {
+      throw new AppError(
+        400,
+        "NO_REQUEST",
+        "This person has no matching RegTank record to refresh."
+      );
+    }
+    const regTankClient = params.regTankClient ?? new RegTankAPIClient();
+    const result = await syncCtosPartyRegTankStatus({
+      portal: params.portal,
+      organizationId: params.organizationId,
+      partyKey: params.partyKey,
+      individualOnboardingRequestId: ids.individualOnboardingRequestId,
+      entityOnboardingRequestId: ids.entityOnboardingRequestId,
+      corporateOnboardingRequestId: ids.corporateOnboardingRequestId,
+      kycId: ids.kycId,
+      kybId: ids.kybId,
+      clearScreening: ids.confirmedScreeningAbsent === true,
+      regTankClient,
+      session: params.session,
+      requirePersistence: params.requirePersistence,
+      requireCompleteRefresh: params.requireCompleteRefresh,
+    });
+
+    if (result.refreshedSources.length === 0) {
+      throw new AppError(
+        502,
+        "PROVIDER_REFRESH_FAILED",
+        PARTY_STATUS_REFRESH_FAILED_MESSAGE
+      );
+    }
+    logger.info(
+      {
+        organizationId: params.organizationId,
+        partyId: params.partyId,
+        portal: params.portal,
+        refreshedSources: result.refreshedSources,
+      },
+      "Party RegTank status refreshed"
+    );
+    return {
+      message: PARTY_STATUS_REFRESHED_MESSAGE,
+      refreshedSources: result.refreshedSources,
+    };
+  });
+  if (locked === "IN_PROGRESS") {
+    throw new AppError(
+      429,
+      REGTANK_RATE_LIMITED_CODE,
+      PARTY_STATUS_REFRESH_RECENTLY_MESSAGE
+    );
+  }
+  return locked;
 }
 
 export async function refreshPartyRegTankStatus(
@@ -159,43 +555,112 @@ export async function refreshPartyRegTankStatus(
     throw new AppError(400, "NO_REQUEST", "This person has no RegTank request to refresh.");
   }
 
-  const lockKey = `party-regtank:${organizationId}:${partyId}`;
-  const locked = await runExclusiveOnboardingRefresh(lockKey, async () => {
-    const regTankClient = deps.regTankClient ?? new RegTankAPIClient();
-    const result = await syncCtosPartyRegTankStatus({
-      portal,
-      organizationId,
-      partyKey: party.party_key,
-      individualOnboardingRequestId: kycActive ? ids.individualOnboardingRequestId : null,
-      entityOnboardingRequestId: kycActive ? ids.entityOnboardingRequestId : null,
-      corporateOnboardingRequestId: kycActive ? ids.corporateOnboardingRequestId : null,
+  return runPartyRegTankSync({
+    portal,
+    organizationId,
+    partyId,
+    partyKey: party.party_key,
+    ids: {
+      individualOnboardingRequestId: kycActive
+        ? ids.individualOnboardingRequestId
+        : null,
+      entityOnboardingRequestId: kycActive
+        ? ids.entityOnboardingRequestId
+        : null,
+      corporateOnboardingRequestId: kycActive
+        ? ids.corporateOnboardingRequestId
+        : null,
       kycId: amlActive ? ids.kycId : null,
       kybId: amlActive ? ids.kybId : null,
-      regTankClient,
-    });
-
-    if (result.refreshedSources.length === 0) {
-      throw new AppError(502, "PROVIDER_REFRESH_FAILED", PARTY_STATUS_REFRESH_FAILED_MESSAGE);
-    }
-
-    logger.info(
-      {
-        organizationId,
-        partyId,
-        portal,
-        refreshedSources: result.refreshedSources,
-      },
-      "Party RegTank status refreshed"
-    );
-
-    return {
-      message: PARTY_STATUS_REFRESHED_MESSAGE,
-      refreshedSources: result.refreshedSources,
-    };
+    },
+    regTankClient: deps.regTankClient,
   });
+}
 
-  if (locked === "IN_PROGRESS") {
-    throw new AppError(429, REGTANK_RATE_LIMITED_CODE, PARTY_STATUS_REFRESH_RECENTLY_MESSAGE);
+export async function refreshAdminPartyRegTankStatus(
+  portal: Portal,
+  organizationId: string,
+  partyId: string,
+  deps: Pick<RefreshPartyRegTankStatusDeps, "regTankClient"> = {}
+): Promise<RefreshPartyRegTankStatusResult> {
+  const party = await prisma.organizationPartyProfile.findFirst({
+    where:
+      portal === "issuer"
+        ? {
+            id: partyId,
+            issuer_organization_id: organizationId,
+            investor_organization_id: null,
+          }
+        : {
+            id: partyId,
+            investor_organization_id: organizationId,
+            issuer_organization_id: null,
+          },
+    select: {
+      id: true,
+      party_key: true,
+      origin: true,
+      membership_status: true,
+      identity_number: true,
+      entity_type: true,
+      name: true,
+      is_director: true,
+      is_shareholder: true,
+    },
+  });
+  if (!party) throw new AppError(404, "NOT_FOUND", "Party profile not found");
+  if (party.membership_status !== "MASTER_ACTIVE") {
+    throw new AppError(
+      400,
+      "NOT_ALLOWED",
+      "This person is not active on the company profile."
+    );
   }
-  return locked;
+  if (!party.is_director && !party.is_shareholder) {
+    throw new AppError(
+      400,
+      "NOT_ALLOWED",
+      "Only current directors and shareholders can be synced from RegTank."
+    );
+  }
+
+  const regTankClient = deps.regTankClient ?? new RegTankAPIClient();
+  const session = new RegTankRefreshSession(regTankClient);
+
+  return runPartyRegTankSync({
+    portal,
+    organizationId,
+    partyId,
+    partyKey: party.party_key,
+    ids: async () => {
+      try {
+        return await discoverAdminRefreshIds({
+          portal,
+          organizationId,
+          party,
+          session,
+        });
+      } catch (error) {
+        if (error instanceof AppError) throw error;
+        logger.warn(
+          {
+            organizationId,
+            partyId,
+            portal,
+            error: error instanceof Error ? error.message : String(error),
+          },
+          "Failed to discover RegTank party status identifiers"
+        );
+        throw new AppError(
+          502,
+          "PROVIDER_REFRESH_FAILED",
+          PARTY_STATUS_REFRESH_FAILED_MESSAGE
+        );
+      }
+    },
+    regTankClient,
+    session,
+    requirePersistence: true,
+    requireCompleteRefresh: true,
+  });
 }

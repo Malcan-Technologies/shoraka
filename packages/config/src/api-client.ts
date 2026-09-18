@@ -792,6 +792,17 @@ export class ApiClient {
     );
   }
 
+  async refreshAdminPartyRegTankStatus(
+    portal: "investor" | "issuer",
+    organizationId: string,
+    partyId: string
+  ): Promise<ApiResponse<{ message: string; refreshedSources: string[] }> | ApiError> {
+    return this.post<{ message: string; refreshedSources: string[] }>(
+      `/v1/admin/organizations/${portal}/${organizationId}/party-profiles/${partyId}/refresh-status`,
+      {}
+    );
+  }
+
   async resolvePartyMismatch(
     portal: "investor" | "issuer",
     organizationId: string,
