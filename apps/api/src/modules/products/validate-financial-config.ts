@@ -37,12 +37,9 @@ function stepIdStartsWith(step: unknown, prefix: string): boolean {
 
 /**
  * Mandatory step set: Financing Structure, Facility Details, Invoice Details.
- * Only applies when at least one of these steps is in the workflow.
- * When applicable: all three must be selected and in order.
+ * All three steps must be selected and in order.
  */
 function validateMandatoryWorkflowStepSet(workflow: unknown[]): void {
-  if (!Array.isArray(workflow) || workflow.length === 0) return;
-
   const fsIndex = workflow.findIndex((s) => stepIdStartsWith(s, "financing_structure"));
   const cdIndex = workflow.findIndex((s) => stepIdStartsWith(s, "contract_details"));
   const idIndex = workflow.findIndex((s) => stepIdStartsWith(s, "invoice_details"));
@@ -50,11 +47,6 @@ function validateMandatoryWorkflowStepSet(workflow: unknown[]): void {
   const hasFs = fsIndex >= 0;
   const hasCd = cdIndex >= 0;
   const hasId = idIndex >= 0;
-
-  /** Skip validation if none of these steps are in the workflow. */
-  if (!hasFs && !hasCd && !hasId) {
-    return;
-  }
 
   if (!hasFs || !hasCd || !hasId) {
     throw new AppError(
@@ -405,7 +397,7 @@ export function validateBusinessDetailsGuarantorAgreement(workflow: unknown[]): 
 export function validateFinancialConfig(params: {
   workflow?: unknown[];
 }): void {
-  if (params.workflow && params.workflow.length > 0) {
+  if (Array.isArray(params.workflow)) {
     validateMandatoryWorkflowStepSet(params.workflow);
     validateWorkflowFinancialConfig(params.workflow);
     validateInvoiceSubLimitForGeneratedLo(params.workflow);
