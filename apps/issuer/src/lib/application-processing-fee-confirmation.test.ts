@@ -20,6 +20,7 @@ import {
   isTerminalProcessingFeeStatus,
   markProcessingFeeAwaitingConfirmation,
   nextProcessingFeeReturnPinState,
+  processingFeePendingForApplication,
   releaseAbandonedProcessingFeeCheckout,
   processingFeeConfirmPollIntervalMs,
   processingFeeConfirmQueryRefresh,
@@ -283,6 +284,28 @@ describe("processing fee pay step and navigation safety", () => {
     expect(isProcessingFeeAwaitingConfirmation(pending, "app_1")).toBe(true);
     expect(pending.awaitingConfirmation).toBe(true);
     expect(clearProcessingFeeAwaitingConfirmation(pending).awaitingConfirmation).toBe(false);
+  });
+
+  it("does not reuse another application's pending return state", () => {
+    const pending = markProcessingFeeAwaitingConfirmation(
+      {
+        applicationId: "app_b",
+        returnTo: "/applications/app_b/edit?continue=processingFee",
+        declarationsSaved: true,
+      },
+      "fee_b"
+    );
+
+    expect(processingFeePendingForApplication(pending, "app_a")).toBeNull();
+    expect(processingFeePendingForApplication(pending, "app_b")).toBe(pending);
+    expect(
+      resolveProcessingFeeReturnDestination({
+        action: "retry-payment",
+        applicationId: "app_a",
+        pendingReturnTo:
+          processingFeePendingForApplication(pending, "app_a")?.returnTo,
+      })
+    ).toBe("/applications/app_a/edit?continue=processingFee");
   });
 
   it("keeps the dismissed return identity until a different URL payment arrives", () => {

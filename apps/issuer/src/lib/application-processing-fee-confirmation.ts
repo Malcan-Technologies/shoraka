@@ -414,6 +414,13 @@ export type ProcessingFeePendingConfirmation = {
   awaitingConfirmation?: boolean;
 };
 
+export function processingFeePendingForApplication(
+  pending: ProcessingFeePendingConfirmation | null | undefined,
+  applicationId: string
+): ProcessingFeePendingConfirmation | null {
+  return pending?.applicationId === applicationId ? pending : null;
+}
+
 export function markProcessingFeeAwaitingConfirmation(
   pending: ProcessingFeePendingConfirmation,
   feeId: string

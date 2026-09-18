@@ -16,6 +16,7 @@ import {
   dismissProcessingFeeReturnPinState,
   markProcessingFeeAwaitingConfirmation,
   nextProcessingFeeReturnPinState,
+  processingFeePendingForApplication,
   resolvePendingProcessingFeeResumeFeeId,
   resolveProcessingFeeReturnDestination,
   resolveProcessingFeeReturnIds,
@@ -59,7 +60,10 @@ export function ProcessingFeeReturnListener({
 
   React.useEffect(() => {
     if (!feeId || !applicationId) return;
-    const current = readIssuerPendingSubmitAfterFee();
+    const current = processingFeePendingForApplication(
+      readIssuerPendingSubmitAfterFee(),
+      applicationId
+    );
     storeIssuerPendingSubmitAfterFee(
       markProcessingFeeAwaitingConfirmation(
         {
@@ -75,27 +79,41 @@ export function ProcessingFeeReturnListener({
 
   const dismissToRetry = React.useCallback(() => {
     if (!applicationId) return;
-    const current = readIssuerPendingSubmitAfterFee();
+    const current = processingFeePendingForApplication(
+      readIssuerPendingSubmitAfterFee(),
+      applicationId
+    );
     if (current) {
       storeIssuerPendingSubmitAfterFee(clearProcessingFeeAwaitingConfirmation(current));
     }
+    const initial = processingFeePendingForApplication(pending, applicationId);
     setPinState(dismissProcessingFeeReturnPinState);
     router.replace(
       resolveProcessingFeeReturnDestination({
         action: "retry-payment",
         applicationId,
-        pendingReturnTo: current?.returnTo ?? pending?.returnTo,
+        pendingReturnTo: current?.returnTo ?? initial?.returnTo,
       })
     );
-  }, [applicationId, pending?.returnTo, router, setPinState]);
+  }, [applicationId, pending, router, setPinState]);
 
   const leaveForNow = React.useCallback(() => {
     if (!applicationId) return;
-    const current = readIssuerPendingSubmitAfterFee();
-    if (current && feeId) {
-      storeIssuerPendingSubmitAfterFee(markProcessingFeeAwaitingConfirmation(current, feeId));
-    } else if (current) {
-      storeIssuerPendingSubmitAfterFee({ ...current, awaitingConfirmation: true });
+    const current = processingFeePendingForApplication(
+      readIssuerPendingSubmitAfterFee(),
+      applicationId
+    );
+    if (feeId) {
+      storeIssuerPendingSubmitAfterFee(
+        markProcessingFeeAwaitingConfirmation(
+          current ?? {
+            applicationId,
+            returnTo: buildApplicationEditReturnTo(applicationId),
+            declarationsSaved: true,
+          },
+          feeId
+        )
+      );
     }
     setPinState(dismissProcessingFeeReturnPinState);
     router.replace(
