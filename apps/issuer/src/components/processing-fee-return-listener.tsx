@@ -6,6 +6,7 @@ import { ProcessingFeeReturnDialog } from "@/components/processing-fee-return-di
 import {
   readIssuerPendingSubmitAfterFee,
   storeIssuerPendingSubmitAfterFee,
+  type IssuerPendingSubmitAfterFee,
 } from "@/hooks/use-application-processing-fee";
 import {
   buildApplicationEditReturnTo,
@@ -31,7 +32,11 @@ export function ProcessingFeeReturnListener({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const pathApplicationId = parseApplicationIdFromEditPath(pathname);
-  const pending = readIssuerPendingSubmitAfterFee(pathApplicationId ?? undefined);
+  const [pending, setPending] = React.useState<IssuerPendingSubmitAfterFee | null>(null);
+
+  React.useEffect(() => {
+    setPending(readIssuerPendingSubmitAfterFee(pathApplicationId ?? undefined));
+  }, [pathApplicationId]);
 
   const urlFeeId = searchParams.get("processingFeeReturn");
   const urlApplicationId = pathApplicationId ?? pending?.applicationId ?? null;
@@ -41,8 +46,8 @@ export function ProcessingFeeReturnListener({
   );
 
   const [pinState, setPinState] = React.useState({
-    pinnedFeeId: urlFeeId ?? pendingResumeFeeId,
-    pinnedApplicationId: urlApplicationId,
+    pinnedFeeId: urlFeeId,
+    pinnedApplicationId: pathApplicationId,
     dismissed: false,
   });
 

@@ -7,6 +7,10 @@ describe("application processing fee confirming surface", () => {
     path.join(__dirname, "application-processing-fee-step.tsx"),
     "utf8"
   );
+  const returnListenerSource = fs.readFileSync(
+    path.join(__dirname, "processing-fee-return-listener.tsx"),
+    "utf8"
+  );
 
   it("exposes accessible status text for the spinner-only confirming state", () => {
     expect(source).toContain('role="status"');
@@ -74,6 +78,21 @@ describe("application processing fee confirming surface", () => {
     expect(source.slice(catchStart)).toContain(
       "persistReleasedFailedCheckout(markedFeeId)"
     );
+  });
+
+  it("hydrates before reading a persisted return from session storage", () => {
+    expect(returnListenerSource).toContain(
+      "useState<IssuerPendingSubmitAfterFee | null>(null)"
+    );
+    expect(returnListenerSource).toMatch(
+      /useEffect\(\(\) => \{\s*setPending\(readIssuerPendingSubmitAfterFee/
+    );
+    const pinInitializer = returnListenerSource.slice(
+      returnListenerSource.indexOf("const [pinState"),
+      returnListenerSource.indexOf("const nextPin")
+    );
+    expect(pinInitializer).toContain("pinnedFeeId: urlFeeId");
+    expect(pinInitializer).not.toContain("pendingResumeFeeId");
   });
 
   it("restores the pay step for continue=processingFee and overlays only on processingFeeReturn", () => {
