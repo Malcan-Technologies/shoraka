@@ -377,6 +377,7 @@ interface FinancialStatementsStepProps {
   applicationId: string;
   onDataChange?: (data: Record<string, unknown>) => void;
   readOnly?: boolean;
+  isAmendmentMode?: boolean;
 }
 
 function emptyQuestionnaireBlock(): FinancialStatementsPayload {
@@ -385,15 +386,14 @@ function emptyQuestionnaireBlock(): FinancialStatementsPayload {
 
 function buildV2ApiPayload(
   q: FinancialStatementsQuestionnaire,
-  forms: Record<string, FinancialStatementsPayload>
+  forms: Record<string, FinancialStatementsPayload>,
+  years: number[]
 ): {
   questionnaire: FinancialStatementsQuestionnaire;
   unaudited_by_year: Record<string, Record<string, unknown>>;
 } {
-  const ref = new Date();
-  const expected = getIssuerFinancialTabYears(q, ref);
   const unaudited_by_year: Record<string, Record<string, unknown>> = {};
-  for (const y of expected) {
+  for (const y of years) {
     const k = String(y);
     const form = forms[k] ?? emptyQuestionnaireBlock();
     const row = toApiPayload(form);
@@ -461,6 +461,7 @@ export function FinancialStatementsStep({
   applicationId,
   onDataChange,
   readOnly = false,
+  isAmendmentMode = false,
 }: FinancialStatementsStepProps) {
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
   const [autoPrefillApplied, setAutoPrefillApplied] = React.useState(false);
@@ -496,6 +497,7 @@ export function FinancialStatementsStep({
   const [hasSubmitted, setHasSubmitted] = React.useState(false);
   const [activeYearTab, setActiveYearTab] = React.useState("");
   const [initialPayloadSnapshot, setInitialPayloadSnapshot] = React.useState("");
+  const [savedStoredFye, setSavedStoredFye] = React.useState<string | null>(null);
 
   // If the user navigates between applications without a full page refresh, this step component may keep its
   // local state. Reset it whenever `applicationId` changes so auto-prefill and form initialization rerun.
@@ -511,6 +513,7 @@ export function FinancialStatementsStep({
     setFormsByYear({});
     setActiveYearTab("");
     setInitialPayloadSnapshot("");
+    setSavedStoredFye(null);
   }, [applicationId]);
 
   const onDataChangeRef = React.useRef(onDataChange);
@@ -531,17 +534,19 @@ export function FinancialStatementsStep({
       }
       setFormsByYear(map);
       const displayFye = qNorm?.financial_year_end ?? qShape?.financial_year_end;
+      setSavedStoredFye(qShape?.financial_year_end ?? qNorm?.financial_year_end ?? null);
       if (displayFye) {
         setFyeDateInput(isoToApplicationFlowDateDisplay(displayFye));
       }
-      if (qNorm) {
-        const built = buildV2ApiPayload(qNorm, map);
+      const snapshotQ = qNorm ?? qShape;
+      if (snapshotQ) {
+        const built = buildV2ApiPayload(snapshotQ, map, storedFinancialFormYears(map));
         setInitialPayloadSnapshot(JSON.stringify(built));
         console.log("Financial step loaded v2; years in payload:", Object.keys(saved.unaudited_by_year));
       } else {
         setInitialPayloadSnapshot(
           JSON.stringify({
-            questionnaire: qShape ?? { financial_year_end: "" },
+            questionnaire: { financial_year_end: "" },
             unaudited_by_year: map,
           })
         );
@@ -604,15 +609,21 @@ export function FinancialStatementsStep({
     setIsInitialized(true);
   }, [application, isInitialized, shouldAttemptAutoPrefill, orgLatestFinancialStatementsQuery.isLoading, orgLatestFinancialStatementsQuery.data]);
 
+  const preserveStoredYears =
+    isAmendmentMode &&
+    !readOnly &&
+    savedStoredFye != null &&
+    applicationFlowDateToIso(fyeDateInput) === savedStoredFye;
+
   const questionnaireDto = React.useMemo((): FinancialStatementsQuestionnaire | null => {
     const iso = applicationFlowDateToIso(fyeDateInput);
     if (!iso) return null;
-    if (readOnly) {
+    if (readOnly || preserveStoredYears) {
       return parseFinancialStatementsQuestionnaireShape({ financial_year_end: iso });
     }
     if (getApplicationFlowFinancialYearEndError(fyeDateInput) != null) return null;
     return { financial_year_end: iso };
-  }, [fyeDateInput, readOnly]);
+  }, [fyeDateInput, readOnly, preserveStoredYears]);
 
   const storedYearsToShow = React.useMemo(
     () => storedFinancialFormYears(formsByYear),
@@ -635,7 +646,7 @@ export function FinancialStatementsStep({
     return years;
   }, [questionnaireDto]);
 
-  const yearsToShow = readOnly ? storedYearsToShow : liveYearsToShow;
+  const yearsToShow = readOnly || preserveStoredYears ? storedYearsToShow : liveYearsToShow;
 
   const yearTabHasMissingRequiredFields = React.useCallback(
     (year: number) => {
@@ -749,8 +760,8 @@ export function FinancialStatementsStep({
     if (!questionnaireDto) {
       throw new Error("INVALID_QUESTIONNAIRE");
     }
-    return buildV2ApiPayload(questionnaireDto, formsByYear);
-  }, [questionnaireDto, formsByYear]);
+    return buildV2ApiPayload(questionnaireDto, formsByYear, yearsToShow);
+  }, [questionnaireDto, formsByYear, yearsToShow]);
 
   const hasPendingChanges = React.useMemo(() => {
     if (!isInitialized || readOnly) return false;
@@ -799,7 +810,8 @@ export function FinancialStatementsStep({
     );
   }, [yearsToShow, formsByYear, questionnaireDto]);
 
-  const questionsAnswered = getApplicationFlowFinancialYearEndError(fyeDateInput) === null;
+  const questionsAnswered =
+    preserveStoredYears || getApplicationFlowFinancialYearEndError(fyeDateInput) === null;
 
   /** Save enabled when questionnaire + all year rows are “filled”; submit applies strict validation. */
   const isValidForButton = readOnly || (questionsAnswered && allYearFormsFilled);
@@ -854,7 +866,7 @@ export function FinancialStatementsStep({
       toast.error("Please fix the highlighted fields");
       throw new Error("VALIDATION_REQUIRED");
     }
-    const payload = buildV2ApiPayload(questionnaireDto, formsByYear);
+    const payload = buildV2ApiPayload(questionnaireDto, formsByYear, yearsToShow);
     console.log("Saving financial v2 payload keys:", Object.keys(payload.unaudited_by_year));
     return payload;
   }, [questionnaireDto, allYearFormsValid, formsByYear, yearsToShow, fyeDateInput]);
@@ -900,7 +912,9 @@ export function FinancialStatementsStep({
 
   const showOverviewErrors = hasSubmitted && !readOnly;
   const fyeErrorCode =
-    readOnly || fyeDateInput.trim() === "" ? null : getApplicationFlowFinancialYearEndError(fyeDateInput);
+    readOnly || preserveStoredYears || fyeDateInput.trim() === ""
+      ? null
+      : getApplicationFlowFinancialYearEndError(fyeDateInput);
   const fyeFieldError = readOnly
     ? undefined
     : fyeDateInput.trim() === ""

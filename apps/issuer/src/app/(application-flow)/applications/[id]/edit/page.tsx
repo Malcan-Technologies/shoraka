@@ -1156,7 +1156,12 @@ function EditApplicationPageBody() {
 
     if (currentStepKey === "financial_statements") {
       return (
-        <FinancialStatementsStep applicationId={applicationId} onDataChange={handleDataChange} readOnly={stepReadOnly} />
+        <FinancialStatementsStep
+          applicationId={applicationId}
+          onDataChange={handleDataChange}
+          readOnly={stepReadOnly}
+          isAmendmentMode={isAmendmentModeEffective}
+        />
       );
     }
 

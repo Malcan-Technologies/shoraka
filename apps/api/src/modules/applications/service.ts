@@ -14,8 +14,8 @@ import {
   businessDetailsDataSchema,
   businessDetailsInheritedGuarantorsDataSchema,
   financialStatementsInputSchema,
-  financialStatementsV2Schema,
 } from "./schemas";
+import { parseFinancialStatementsForStepSave } from "./financial-statements-save";
 import { AppError } from "../../lib/http/error-handler";
 import { preserveLegacyAboutYourBusinessFields } from "./preserve-about-your-business";
 import {
@@ -138,7 +138,6 @@ import {
   buildStoredApplicationFinancialYearBlock,
   getFinancialYearEndComputationDetails,
   getFinancialYearEndValidationError,
-  getIssuerFinancialTabYears,
   issuerUnauditedPlddForFyEndYear,
   getReviewSectionPrerequisites,
   getStepKeyFromStepId,
@@ -1275,13 +1274,18 @@ export class ApplicationService {
         );
       }
 
-      const v2 = financialStatementsV2Schema.safeParse(payload);
-      if (!v2.success) {
-        const message = v2.error.errors.map((e) => e.message).join("; ");
-        throw new AppError(400, "VALIDATION_ERROR", message);
-      }
-      const { questionnaire, unaudited_by_year } = v2.data;
       const serverNow = new Date();
+      const parsed = parseFinancialStatementsForStepSave({
+        applicationStatus: application.status,
+        storedFinancialStatements: application.financial_statements,
+        payload,
+        now: serverNow,
+      });
+      if (!parsed.ok) {
+        throw new AppError(400, "VALIDATION_ERROR", parsed.message);
+      }
+      const { questionnaire, unaudited_by_year } = parsed.data;
+      const expectedYears = parsed.expectedYears;
       const dbg = getFinancialYearEndComputationDetails(questionnaire, serverNow);
       logger.debug(
         {
@@ -1290,11 +1294,11 @@ export class ApplicationService {
           deadlineIso: dbg.deadlineIso,
           todayIso: dbg.todayIso,
           years: dbg.years,
+          expectedYears,
           fyeValidation: getFinancialYearEndValidationError(questionnaire.financial_year_end, serverNow),
         },
         "Financial statements FYE computation"
       );
-      const expectedYears = getIssuerFinancialTabYears(questionnaire, serverNow);
       const actualKeys = Object.keys(unaudited_by_year).sort();
       const expectedStr = expectedYears.map((y) => String(y)).sort();
       if (

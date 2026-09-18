@@ -20,6 +20,18 @@ describe("resolveIssuerFinancialYearsToShow", () => {
     expect(years).not.toEqual([2020, 2021]);
   });
 
+  it("returns stored form years when amendment keeps the submitted FYE", () => {
+    expect(
+      resolveIssuerFinancialYearsToShow({
+        readOnly: false,
+        preserveStoredYears: true,
+        formsByYear: { "2026": {}, "2027": {} },
+        questionnaire: q,
+        ref,
+      })
+    ).toEqual([2026, 2027]);
+  });
+
   it("returns stored form years in readOnly without live window validation", () => {
     expect(
       resolveIssuerFinancialYearsToShow({

@@ -61,6 +61,8 @@ See `financialStatementsInputSchema` in `apps/api/src/modules/applications/schem
 
 Save path uses `financialStatementsV2Schema` (shared 12-month FYE window + exact error copy) and validates `unaudited_by_year` keys against `getIssuerFinancialTabYears(questionnaire, new Date())`, then normalizes **`pldd`** per FY column.
 
+**Amendment exception:** when status is `AMENDMENT_REQUESTED` and the issuer keeps the stored `financial_year_end`, save uses `financialStatementsV2StoredSchema` (shape only) and the already-stored year keys. Changing FYE on amendment still requires the live window and live expected years. Drafts and initial SUBMIT stay strict.
+
 Initial **SUBMIT** (not RESUBMIT) re-runs that schema and expected-year check when `financial_statements` is an active workflow step and a stored payload exists. Failure is `400 VALIDATION_ERROR` with `Financial Statements: <message>` so a pre-window draft (e.g. FYE 31 Dec 2027) cannot be submitted by skipping the step.
 
 Org-history merge reads already-stored JSON with `financialStatementsV2StoredSchema` (shape only, no today-relative refine) so an FYE that has aged past today is still merged as-is.

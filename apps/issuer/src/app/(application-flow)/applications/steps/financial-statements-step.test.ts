@@ -2,6 +2,7 @@ import { readFileSync } from "fs";
 import { join } from "path";
 
 const source = readFileSync(join(__dirname, "financial-statements-step.tsx"), "utf8");
+const editPageSource = readFileSync(join(__dirname, "../[id]/edit/page.tsx"), "utf8");
 
 const EXISTING_APPLICATION_FIELDS = [
   "pldd",
@@ -90,9 +91,19 @@ describe("issuer application Financial Statements step", () => {
   });
 
   it("keeps editable year tabs independent of formsByYear identity", () => {
-    expect(source).toContain("const yearsToShow = readOnly ? storedYearsToShow : liveYearsToShow");
+    expect(source).toContain(
+      "const yearsToShow = readOnly || preserveStoredYears ? storedYearsToShow : liveYearsToShow"
+    );
     expect(source).toContain("reuseUnchangedYearForms(prev, next)");
     expect(source).toContain("[questionnaireDto]");
+  });
+
+  it("keeps the stored FYE and year tabs when amendment does not change FYE", () => {
+    expect(source).toContain("isAmendmentMode = false");
+    expect(editPageSource).toContain("isAmendmentMode={isAmendmentModeEffective}");
+    expect(source).toContain("applicationFlowDateToIso(fyeDateInput) === savedStoredFye");
+    expect(source).toContain("buildV2ApiPayload(questionnaireDto, formsByYear, yearsToShow)");
+    expect(source).toContain("preserveStoredYears || getApplicationFlowFinancialYearEndError");
   });
 
   it("seeds new-application org FYE only from the live window, not shape-only history", () => {

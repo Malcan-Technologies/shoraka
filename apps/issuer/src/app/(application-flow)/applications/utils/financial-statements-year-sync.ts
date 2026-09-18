@@ -5,15 +5,17 @@ import {
 import { storedFinancialFormYears } from "./application-flow-dates";
 
 /**
- * Live FYE window drives editable tabs. Stored form keys are only used when readOnly.
+ * Live FYE window drives editable tabs. Stored form keys are used when readOnly
+ * or when amendment keeps the submitted FYE (which may now sit outside the window).
  */
 export function resolveIssuerFinancialYearsToShow(params: {
   readOnly: boolean;
+  preserveStoredYears?: boolean;
   formsByYear: Record<string, unknown> | null | undefined;
   questionnaire: FinancialStatementsQuestionnaire | null;
   ref?: Date;
 }): number[] {
-  if (params.readOnly) return storedFinancialFormYears(params.formsByYear);
+  if (params.readOnly || params.preserveStoredYears) return storedFinancialFormYears(params.formsByYear);
   if (!params.questionnaire) return [];
   return getIssuerFinancialTabYears(params.questionnaire, params.ref ?? new Date());
 }
