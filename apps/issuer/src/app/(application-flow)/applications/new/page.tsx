@@ -24,6 +24,7 @@ import { UnsavedChangesModal } from "@/components/unsaved-changes-modal";
 import { VersionMismatchModal } from "@/components/VersionMismatchModal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DirectorShareholderAlertCard } from "@/components/director-shareholder-alert-card";
+import { IssuerProfileCompletenessBanner } from "@/components/profile-completeness-banner";
 import { ProductList } from "../components/product-list";
 import { ProgressIndicator } from "../components/progress-indicator";
 import { FinancingTypeSkeleton } from "../components/financing-type-skeleton";
@@ -356,16 +357,24 @@ function NewApplicationPageBody() {
       {/* Main content */}
       <main className="flex-1 overflow-y-auto p-4">
         {activeOrganization.type === "COMPANY" ? (
-          <DirectorShareholderAlertCard
-            visiblePeople={visiblePeopleForDsAlert}
-            enabled={activeOrganization.onboardingStatus === "COMPLETED"}
-            stickyTop
-            className="mb-4"
-            onGoToProfile={(matchKey) => {
-              const personQuery = matchKey ? `&person=${encodeURIComponent(matchKey)}` : "";
-              requestNavigation(`/profile?focus=directors${personQuery}`);
-            }}
-          />
+          <>
+            <DirectorShareholderAlertCard
+              visiblePeople={visiblePeopleForDsAlert}
+              enabled={activeOrganization.onboardingStatus === "COMPLETED"}
+              stickyTop
+              className="mb-4"
+              onGoToProfile={(matchKey) => {
+                const personQuery = matchKey
+                  ? `&person=${encodeURIComponent(matchKey)}`
+                  : "";
+                requestNavigation(`/profile?focus=directors${personQuery}`);
+              }}
+            />
+            <IssuerProfileCompletenessBanner
+              organizationId={activeOrganization.id}
+              onboarded={activeOrganization.onboardingStatus === "COMPLETED"}
+            />
+          </>
         ) : null}
         <div className="max-w-7xl mx-auto w-full px-4 py-8">
           {/* Page Title */}
