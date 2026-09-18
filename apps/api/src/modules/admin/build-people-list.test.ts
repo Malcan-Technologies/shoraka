@@ -13,6 +13,7 @@ import {
   getFinalStatusLabel,
   isMissingGovernmentIdPerson,
   pickPreferredDirectorShareholderOnboarding,
+  pickPreferredDirectorShareholderScreening,
 } from "@cashsouk/types";
 
 describe("buildUnifiedPeople", () => {
@@ -1518,6 +1519,15 @@ describe("buildUnifiedPeople", () => {
     expect(kept?.status).toBe("APPROVED");
     expect(kept?.id).toBe("kyc-1");
     expect(kept?.verifyLink).toBe("https://verify.example");
+  });
+
+  it("does not let an approved AML snapshot hide a rejected duplicate", () => {
+    const kept = pickPreferredDirectorShareholderScreening(
+      { status: "APPROVED", id: "aml-dir" },
+      { status: "FAILED", id: "aml-sh" }
+    );
+    expect(kept?.status).toBe("FAILED");
+    expect(kept?.id).toBe("aml-sh");
   });
 
   it("prefers an approved KYC snapshot over a ready-but-not-approved one", () => {

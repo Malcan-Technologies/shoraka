@@ -228,7 +228,7 @@ Important:
 - A blank / unusable CTOS company extract (no matchable directors or shareholders, often a wrong or missing SSM) warns and keeps current profile people. It does not mark everyone `absent_from_latest_external` and does not block Financial approve.
 - When latest CTOS is usable, comparable active master parties missing from that extract are marked `absent_from_latest_external=true`.
 - Person remains master unless explicitly inactivated.
-- Admin can **Leave as current profile**, which stores the current extract fingerprint on `external_observation`. The request must send the fingerprint the admin reviewed; a mismatch with the latest extract is `409 CTOS_EXTRACT_CHANGED`. Absence review also compares the person's identity to the latest extract, so a stale `absent_from_latest_external` flag cannot acknowledge someone who has reappeared before observation finishes. CTOS review clears until the extract fingerprint changes.
+- Admin can **Leave as current profile**, which stores the current extract fingerprint on `external_observation`. The request must send the fingerprint the admin reviewed; a mismatch with the latest extract is `409 CTOS_EXTRACT_CHANGED`. When a usable latest extract is available, absence review is derived from that extract for directors/shareholders: a stale `absent_from_latest_external` flag cannot hide a new absence or acknowledge someone who has reappeared before observation finishes. Management-only people stay on the stored flag. CTOS review clears until the extract fingerprint changes.
 - Admin CTOS column shows “Not found” only while absence still needs review.
 - Finance `people[]` keeps master AML for operational master people even when CTOS keys miss or mismatch. KYC Approved is not treated as AML Approved.
 - Application submit / Financial approve is based on onboarding + AML of visible people, not CTOS presence.
@@ -299,6 +299,7 @@ Not currently enforced in reactivate:
 - Manual add does not auto-launch onboarding.
 - Individual onboarding/KYC send is via party onboarding send flow; requires actionable person + email + eligibility.
 - AML/KYB screening snapshots are stored in supplement `onboarding_json.screening` and/or org evidence JSON.
+- When duplicate people rows for the same identity are merged, a rejected/failed AML or KYC snapshot wins over an approved one so financial approval cannot hide a recorded rejection.
 - Inactivate/reactivate does not reset historical evidence automatically.
 - Reactivate does not restart onboarding; it reuses effective evidence comparison.
 

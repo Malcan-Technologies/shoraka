@@ -68,6 +68,37 @@ describe("ctos company extract", () => {
     ).toBe(true);
   });
 
+  it("asks for absence review when the stored flag is still present but the latest extract dropped the person", () => {
+    const latestCtos = {
+      directors: [{ nic_brno: "900101101234", name: "Other" }],
+      shareholders: [],
+    };
+    expect(
+      partyNeedsCtosAbsenceReview(
+        party({
+          partyKey: "800101011234",
+          identityNumber: "800101011234",
+          isDirector: true,
+          absentFromLatestExternal: false,
+        }),
+        latestCtos
+      )
+    ).toBe(true);
+    expect(
+      partyNeedsCtosAbsenceReview(
+        party({
+          partyKey: "800101011234",
+          identityNumber: "800101011234",
+          isDirector: false,
+          isShareholder: false,
+          isManagement: true,
+          absentFromLatestExternal: false,
+        }),
+        latestCtos
+      )
+    ).toBe(false);
+  });
+
   it("does not ask for absence review when the stale flag still says absent but the latest extract contains the person", () => {
     const latestCtos = {
       directors: [{ nic_brno: "800101-01-1234", name: "Jamie" }],

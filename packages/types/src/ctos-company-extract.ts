@@ -7,7 +7,7 @@
  */
 
 import { normalizeDirectorShareholderIdKey } from "./director-shareholder-display";
-import { partySeenInExternalKeys } from "./organization-party-key";
+import { isCtosComparableParty, partySeenInExternalKeys } from "./organization-party-key";
 import type { OrganizationPartyProfileDto } from "./organization-party-profile";
 
 export const CTOS_ABSENCE_ACK_FINGERPRINT_KEY = "absenceAcknowledgedExtractFingerprint";
@@ -137,14 +137,28 @@ export function partyNeedsCtosAbsenceReview(
     | "ctosExtractUnusable"
     | "ctosAbsenceReviewNeeded"
   > &
-    Partial<Pick<OrganizationPartyProfileDto, "partyKey" | "identityNumber">>,
+    Partial<
+      Pick<OrganizationPartyProfileDto, "partyKey" | "identityNumber" | "isDirector" | "isShareholder">
+    >,
   latestCtos?: unknown
 ): boolean {
   if (party.membershipStatus !== "MASTER_ACTIVE") return false;
-  if (!party.absentFromLatestExternal) return false;
   if (party.ctosExtractUnusable) return false;
   if (latestCtos !== undefined && isUnusableCtosCompanyExtract(latestCtos)) return false;
+
+  const comparable = isCtosComparableParty({
+    isDirector: Boolean(party.isDirector),
+    isShareholder: Boolean(party.isShareholder),
+  });
   if (latestCtos !== undefined && partyPresentInCtosExtract(party, latestCtos)) return false;
+  if (latestCtos !== undefined && comparable) {
+    const fingerprint = ctosExtractFingerprint(latestCtos);
+    const ack = partyCtosAbsenceAckFingerprint(party);
+    if (ack && ack === fingerprint) return false;
+    return true;
+  }
+
+  if (!party.absentFromLatestExternal) return false;
   if (party.ctosAbsenceReviewNeeded === false) return false;
   const fingerprint = latestCtos !== undefined ? ctosExtractFingerprint(latestCtos) : null;
   const ack = partyCtosAbsenceAckFingerprint(party);

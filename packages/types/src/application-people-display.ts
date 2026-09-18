@@ -16,7 +16,7 @@ import { issuerShareholdingMeetsMinimum } from "./issuer-shareholder-threshold";
 import { getCtosPartySupplementFlatRead } from "./ctos-party-supplement-json";
 import { isKycOnboardingNotStartedToken } from "./kyc-onboarding-lifecycle";
 import { normalizeRawStatus } from "./status-normalization";
-import { getKycGroup } from "./director-shareholder-single-status-display";
+import { getAmlGroup, getKycGroup } from "./director-shareholder-single-status-display";
 import { isReadyOnboardingStatus } from "./onboarding-readiness";
 import { displayGovernmentIdentityNumber } from "./organization-party-key";
 import { isIndividualKycReference } from "./regtank-individual-kyc-reference";
@@ -845,11 +845,15 @@ function onboardingHasRealStatus(
   return Boolean(onboarding) && !isKycOnboardingNotStartedToken(onboarding?.status);
 }
 
-/** Prefer an approved AML snapshot, then any non-empty status, when merging duplicate people rows. */
+/** Prefer a rejected AML snapshot, then approved, then any non-empty status, when merging duplicate people rows. */
 export function pickPreferredDirectorShareholderScreening(
   a?: ApplicationPersonRow["screening"],
   b?: ApplicationPersonRow["screening"]
 ): ApplicationPersonRow["screening"] {
+  const aRejected = getAmlGroup(a?.status ?? "") === "REJECTED";
+  const bRejected = getAmlGroup(b?.status ?? "") === "REJECTED";
+  if (aRejected && !bRejected) return a ?? null;
+  if (bRejected && !aRejected) return b ?? null;
   const aApproved = isDirectorShareholderAmlScreeningApproved(a);
   const bApproved = isDirectorShareholderAmlScreeningApproved(b);
   if (aApproved && !bApproved) return a ?? null;
@@ -865,11 +869,15 @@ export function pickPreferredDirectorShareholderScreening(
   };
 }
 
-/** Prefer an approved KYC snapshot, then any ready status, then any non-placeholder status. */
+/** Prefer a rejected KYC snapshot, then approved, then any ready status, then any non-placeholder status. */
 export function pickPreferredDirectorShareholderOnboarding(
   a?: ApplicationPersonRow["onboarding"],
   b?: ApplicationPersonRow["onboarding"]
 ): ApplicationPersonRow["onboarding"] {
+  const aRejected = getKycGroup(a?.status ?? "") === "REJECTED";
+  const bRejected = getKycGroup(b?.status ?? "") === "REJECTED";
+  if (aRejected && !bRejected) return a ?? null;
+  if (bRejected && !aRejected) return b ?? null;
   const aApproved = getKycGroup(a?.status ?? "") === "APPROVED";
   const bApproved = getKycGroup(b?.status ?? "") === "APPROVED";
   if (aApproved && !bApproved) return a ?? null;

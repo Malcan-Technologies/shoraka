@@ -427,6 +427,8 @@ export function serializeParty(
     ctosExtractUnusable,
     partyKey: row.party_key,
     identityNumber: row.identity_number,
+    isDirector: row.is_director,
+    isShareholder: row.is_shareholder,
   };
   return {
     id: row.id,

@@ -108,6 +108,11 @@ describe("countProfileExternalReview", () => {
       { directors: [{ nic_brno: "800101011234", name: "Jamie" }], shareholders: [] }
     );
     expect(reappeared.absentCount).toBe(0);
+    const stalePresent = countProfileExternalReview(
+      [party({ id: "1", partyKey: "800101011234", absentFromLatestExternal: false })],
+      { directors: [{ nic_brno: "900101101234", name: "Other" }], shareholders: [] }
+    );
+    expect(stalePresent.absentCount).toBe(1);
   });
 });
 

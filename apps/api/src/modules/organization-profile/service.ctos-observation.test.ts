@@ -2911,6 +2911,35 @@ describe("user-added master parties", () => {
     expect(parties.find((p) => p.id === "p-jamie")?.external_observation).toBeNull();
   });
 
+  it("persists the extract fingerprint when the stored flag is still present but the latest extract dropped the person", async () => {
+    const latestCtos = {
+      directors: [{ party_type: "I", nic_brno: "900101101234", name: "Other", position: "DO" }],
+      shareholders: [],
+    };
+    mockCtosFindFirst.mockResolvedValue({ company_json: latestCtos });
+    parties.push(
+      row({
+        id: "p-jamie",
+        party_key: "800101011234",
+        identity_number: "800101011234",
+        name: "Jamie",
+        is_director: true,
+        is_shareholder: false,
+        shareholding_percentage: null,
+        absent_from_latest_external: false,
+      })
+    );
+    const fingerprint = ctosExtractFingerprint(latestCtos);
+    const updated = await acknowledgeCtosAbsence({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-jamie",
+      reviewedExtractFingerprint: fingerprint,
+    });
+    expect(updated.ctosAbsenceAckFingerprint).toBe(fingerprint);
+    expect(updated.ctosAbsenceReviewNeeded).toBe(false);
+  });
+
   it("persists the extract fingerprint when the person is absent from a usable CTOS extract", async () => {
     const latestCtos = {
       directors: [{ party_type: "I", nic_brno: "900101101234", name: "Other", position: "DO" }],

@@ -2,6 +2,9 @@ import {
   CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING,
   CUSTOMER_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING,
   CUSTOMER_DIRECTOR_SHAREHOLDER_EMPTY_STATE,
+  peopleHasPendingDirectorShareholderAml,
+  pickPreferredDirectorShareholderOnboarding,
+  pickPreferredDirectorShareholderScreening,
   relatedPartyVerificationCaption,
   resolveCustomerDirectorShareholderEmptyWarning,
   resolveDirectorShareholderCtosEmptyWarning,
@@ -136,5 +139,26 @@ describe("resolveCustomerDirectorShareholderEmptyWarning", () => {
       })
     ).toBe(CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING);
     expect(CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING).toContain("CTOS");
+  });
+});
+
+describe("director/shareholder snapshot merge", () => {
+  it("does not let an approved AML snapshot hide a rejected duplicate", () => {
+    const kept = pickPreferredDirectorShareholderScreening(
+      { status: "APPROVED", id: "aml-dir" },
+      { status: "FAILED", id: "aml-sh" }
+    );
+    expect(kept?.status).toBe("FAILED");
+    expect(kept?.id).toBe("aml-sh");
+    expect(peopleHasPendingDirectorShareholderAml([{ screening: kept }])).toBe(true);
+  });
+
+  it("does not let an approved KYC snapshot hide a rejected duplicate", () => {
+    const kept = pickPreferredDirectorShareholderOnboarding(
+      { status: "APPROVED", id: "kyc-dir" },
+      { status: "REJECTED", id: "kyc-sh" }
+    );
+    expect(kept?.status).toBe("REJECTED");
+    expect(kept?.id).toBe("kyc-sh");
   });
 });
