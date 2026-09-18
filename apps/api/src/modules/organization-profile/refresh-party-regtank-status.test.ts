@@ -1109,6 +1109,92 @@ describe("refreshAdminPartyRegTankStatus", () => {
     expect(mockSupplementUpdate).not.toHaveBeenCalled();
   });
 
+  it("refuses a unique corporate name match when brn_ssm conflicts with the master", async () => {
+    mockPartyFindFirst.mockResolvedValue(
+      laterAddedParty({
+        party_key: "199501012345",
+        origin: "CTOS_PARTY",
+        identity_number: "199501012345",
+        entity_type: "CORPORATE",
+        name: "ABC Berhad",
+        is_director: false,
+        is_shareholder: true,
+      })
+    );
+    getCorporateOnboardingDetails.mockResolvedValue({
+      corpIndvDirectors: [],
+      corpIndvShareholders: [],
+      corpBizShareholders: [
+        {
+          name: "ABC Berhad",
+          brn_ssm: "7321984G",
+          corporateOnboardingRequest: { requestId: "COD-OTHER" },
+          kybRequestDto: { kybId: "KYB-OTHER" },
+          formContent: {
+            content: [{ fieldName: "% of Shares", fieldValue: "30" }],
+          },
+        },
+      ],
+    });
+
+    await expect(
+      refreshAdminPartyRegTankStatus("issuer", "org-1", "party-1", {
+        regTankClient,
+      })
+    ).rejects.toMatchObject({ code: "AMBIGUOUS_REGTANK_PARTY" });
+    expect(queryKYBStatus).not.toHaveBeenCalled();
+    expect(mockSupplementCreate).not.toHaveBeenCalled();
+    expect(mockSupplementUpdate).not.toHaveBeenCalled();
+  });
+
+  it("matches an identity from wrapped parent-COD form content", async () => {
+    getCorporateOnboardingDetails.mockImplementation(async (requestId: string) => {
+      if (requestId === "COD-PARENT") {
+        return {
+          corpIndvDirectors: [
+            {
+              corporateIndividualRequest: { requestId: "EOD06938" },
+              kycRequestInfo: { kycId: "KYC00189" },
+              corporateUserRequestInfo: {
+                firstName: "Ivan Chew",
+                lastName: "Ken Yoong",
+                formContent: {
+                  content: {
+                    content: [
+                      { fieldName: "First Name", fieldValue: "Ivan Chew" },
+                      { fieldName: "Last Name", fieldValue: "Ken Yoong" },
+                      { fieldName: "Government ID Number", fieldValue: "891114075601" },
+                    ],
+                  },
+                },
+              },
+            },
+          ],
+          corpIndvShareholders: [],
+          corpBizShareholders: [],
+        };
+      }
+      return { status: "APPROVED" };
+    });
+    getEntityOnboardingDetails.mockResolvedValue({
+      status: "APPROVED",
+      kycRequestInfo: { kycId: "KYC00189" },
+    });
+    queryKYCStatus.mockResolvedValue({ status: "APPROVED", messageStatus: "DONE" });
+
+    const result = await refreshAdminPartyRegTankStatus(
+      "issuer",
+      "org-1",
+      "party-1",
+      { regTankClient }
+    );
+
+    expect(getEntityOnboardingDetails).toHaveBeenCalledWith("EOD06938");
+    expect(queryKYCStatus).toHaveBeenCalledWith("KYC00189");
+    expect(result.refreshedSources).toEqual(["ENTITY_ONBOARDING", "KYC"]);
+    expect(mockSupplementCreate).toHaveBeenCalled();
+  });
+
   it("persists the preferred dual-role EOD status instead of the first request", async () => {
     getCorporateOnboardingDetails.mockImplementation(async (requestId: string) => {
       if (requestId === "COD-PARENT") {

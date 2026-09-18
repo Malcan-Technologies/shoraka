@@ -145,6 +145,8 @@ function corporateCandidate(row: Record<string, unknown>): RegTankPartyCandidate
       extractBusinessNumberFromCorpShareholderRow(row) ||
       text(row.businessNumber) ||
       text(row.registrationNumber) ||
+      text(row.brn_ssm) ||
+      text(row.companyRegistrationNumber) ||
       null,
     onboardingRequestId: text(request?.requestId) || text(row.requestId) || null,
     screeningRequestId: text(screening?.kybId) || text(row.kybId) || null,
