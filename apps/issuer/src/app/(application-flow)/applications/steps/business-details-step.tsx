@@ -56,11 +56,16 @@ import {
   ArrowDownTrayIcon,
   ChevronRightIcon,
   CloudArrowUpIcon,
+  DocumentDuplicateIcon,
   DocumentIcon,
   EyeIcon,
   TrashIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
+import {
+  formatIssuerAllowedTypesHint,
+  formatIssuerAllowedTypesLabel,
+} from "./supporting-documents-formats";
 import { CloudUpload, X, CheckCircle2 } from "lucide-react";
 import { useAuthToken } from "@cashsouk/config";
 import {
@@ -1014,9 +1019,11 @@ interface GuarantorCardFieldsProps {
   agreementDocumentTitle: string;
   agreementAllowMultiple: boolean;
   agreementAccept: string;
+  agreementAllowedTypes: string[];
   agreementTemplateS3Key?: string;
   agreementRequired: boolean;
   onDownloadAgreementTemplate: () => void | Promise<void>;
+  onDownloadAgreementFile: (s3Key: string) => void | Promise<void>;
   onSelectGuarantorAgreementFiles: (files: File[]) => void;
   onClearGuarantorAgreementFile: (clientId: string) => void;
   /** Hide upload, remove, and template actions (inherited facility guarantors). */
@@ -1033,9 +1040,11 @@ function GuarantorCardFields({
   agreementDocumentTitle,
   agreementAllowMultiple,
   agreementAccept,
+  agreementAllowedTypes,
   agreementTemplateS3Key,
   agreementRequired,
   onDownloadAgreementTemplate,
+  onDownloadAgreementFile,
   onSelectGuarantorAgreementFiles,
   onClearGuarantorAgreementFile,
   hideFileActions = false,
@@ -1045,6 +1054,7 @@ function GuarantorCardFields({
   const hasAgreementFiles = agreements.length > 0;
   const agreementInputId = `g-${index}-guarantor-agreement`;
   const agreementAddInputId = `g-${index}-guarantor-agreement-add`;
+  const agreementReplaceInputId = `g-${index}-guarantor-agreement-replace`;
   const handleNationalityChange = React.useCallback(
     (v: string) => {
       replaceGuarantorRow(index, (prev) => ({ ...prev, nationality: v }));
@@ -1355,9 +1365,24 @@ function GuarantorCardFields({
                   </>
                 ) : null}
               </h3>
-              <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
-                <DocumentIcon className="h-3 w-3 shrink-0 opacity-80" aria-hidden />
-                <span>{agreementAllowMultiple ? "Multiple files allowed" : "One file only"}</span>
+              <p className="mt-1 flex items-center gap-1 text-meta text-muted-foreground">
+                {agreementAllowMultiple ? (
+                  <>
+                    <DocumentDuplicateIcon
+                      className="h-3 w-3 shrink-0 opacity-80"
+                      aria-hidden
+                    />
+                    <span>Multiple files allowed</span>
+                  </>
+                ) : (
+                  <>
+                    <DocumentIcon className="h-3 w-3 shrink-0 opacity-80" aria-hidden />
+                    <span>One file only</span>
+                  </>
+                )}
+              </p>
+              <p className="text-meta text-muted-foreground">
+                {formatIssuerAllowedTypesHint(agreementAllowedTypes)}
               </p>
             </div>
           </div>
@@ -1365,35 +1390,43 @@ function GuarantorCardFields({
           <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:gap-3 lg:items-start">
             <div className="min-w-0 flex-1 flex flex-col gap-2 max-w-[min(100%,26rem)] lg:max-w-[min(100%,28rem)]">
               {hasAgreementFiles ? (
-                agreements.map((file) => (
-                  <FileDisplayBadge
-                    key={agreementFileKey(file)}
-                    fileName={file.file_name ?? "document.pdf"}
-                    truncate
-                    inlineChip
-                    size="sm"
-                    locked={readOnly}
-                    className="min-h-9 w-full"
-                    trailing={
-                      hideFileActions ? undefined : (
-                      <button
-                        type="button"
-                        disabled={readOnly}
-                        onClick={() => onClearGuarantorAgreementFile(agreementFileKey(file))}
-                        className={cn(
-                          "shrink-0 p-0.5",
-                          readOnly
-                            ? "text-muted-foreground opacity-50 cursor-not-allowed"
-                            : "text-muted-foreground hover:text-foreground cursor-pointer"
-                        )}
-                        aria-label={`Remove ${file.file_name ?? "file"}`}
-                      >
-                        <XMarkIcon className="h-3 w-3" />
-                      </button>
-                      )
-                    }
-                  />
-                ))
+                agreements.map((file) => {
+                  const fileS3Key = file.s3_key?.trim();
+                  return (
+                    <FileDisplayBadge
+                      key={agreementFileKey(file)}
+                      fileName={file.file_name ?? "document.pdf"}
+                      truncate
+                      inlineChip
+                      size="sm"
+                      locked={readOnly}
+                      className="min-h-9 w-full"
+                      trailing={
+                        !hideFileActions && !readOnly ? (
+                          <button
+                            type="button"
+                            onClick={() => onClearGuarantorAgreementFile(agreementFileKey(file))}
+                            className="shrink-0 p-0.5 text-muted-foreground hover:text-foreground cursor-pointer"
+                            aria-label={`Remove ${file.file_name ?? "file"}`}
+                          >
+                            <XMarkIcon className="h-3 w-3" />
+                          </button>
+                        ) : fileS3Key ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void onDownloadAgreementFile(fileS3Key);
+                            }}
+                            className="shrink-0 p-0.5 text-muted-foreground hover:text-foreground cursor-pointer"
+                            aria-label={`Download ${file.file_name ?? "file"}`}
+                          >
+                            <ArrowDownTrayIcon className="h-3 w-3" />
+                          </button>
+                        ) : undefined
+                      }
+                    />
+                  );
+                })
               ) : readOnly ? (
                 <span className="text-sm text-muted-foreground">—</span>
               ) : (
@@ -1447,6 +1480,27 @@ function GuarantorCardFields({
                     {agreementAllowMultiple ? "Upload files" : "Upload file"}
                   </span>
                 )
+              ) : null}
+
+              {!agreementAllowMultiple && hasAgreementFiles && !readOnly ? (
+                <label
+                  htmlFor={agreementReplaceInputId}
+                  className={cn(supportingDocActionLink, supportingDocUploadOn)}
+                >
+                  <CloudArrowUpIcon className="h-3.5 w-3.5 shrink-0" />
+                  Replace file
+                  <Input
+                    id={agreementReplaceInputId}
+                    type="file"
+                    accept={agreementAccept}
+                    className="hidden"
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files ?? []);
+                      e.currentTarget.value = "";
+                      if (files.length > 0) onSelectGuarantorAgreementFiles(files);
+                    }}
+                  />
+                </label>
               ) : null}
 
               {agreementAllowMultiple && hasAgreementFiles ? (
@@ -1711,6 +1765,33 @@ export function BusinessDetailsStep({
     }
   }, [getAccessToken, productGuarantorAgreementConfig]);
 
+  const downloadGuarantorAgreementFile = React.useCallback(
+    async (s3Key: string) => {
+      const key = s3Key.trim();
+      if (!key) return;
+      const token = await getAccessToken();
+      if (!token) {
+        toast.error("Authentication required");
+        return;
+      }
+      const resp = await fetch(`${API_URL}/v1/s3/download-url`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ s3Key: key }),
+      });
+      const j = await resp.json().catch(() => null);
+      if (j?.success && j.data?.downloadUrl) {
+        window.open(j.data.downloadUrl as string, "_blank");
+      } else {
+        toast.error("Could not download file");
+      }
+    },
+    [getAccessToken]
+  );
+
   const handleGuarantorAgreementFilesAt = React.useCallback(
     (index: number, files: File[]) => {
       if (inheritGuarantors || files.length === 0) return;
@@ -1718,10 +1799,9 @@ export function BusinessDetailsStep({
       const validFiles: Array<{ file: File; client_id: string }> = [];
       for (const file of files) {
         if (!issuerFileMatchesAllowedTypes(file, productGuarantorAgreementConfig.allowedTypes)) {
-          const label = productGuarantorAgreementConfig.allowedTypes.includes("excel")
-            ? "Excel"
-            : "PDF";
-          toast.error(`Please select a ${label} file`);
+          toast.error(
+            `This document accepts ${formatIssuerAllowedTypesLabel(productGuarantorAgreementConfig.allowedTypes)}`
+          );
           return;
         }
         if (file.size > 5 * 1024 * 1024) {
@@ -2749,9 +2829,11 @@ export function BusinessDetailsStep({
                   agreementDocumentTitle={productGuarantorAgreementConfig.title}
                   agreementAllowMultiple={productGuarantorAgreementConfig.allowMultiple}
                   agreementAccept={buildAcceptAttr(productGuarantorAgreementConfig.allowedTypes)}
+                  agreementAllowedTypes={productGuarantorAgreementConfig.allowedTypes}
                   agreementTemplateS3Key={productGuarantorAgreementConfig.template?.s3_key}
                   agreementRequired={!inheritGuarantors && requiresGuarantorAgreementUpload}
                   onDownloadAgreementTemplate={downloadGuarantorAgreementTemplate}
+                  onDownloadAgreementFile={downloadGuarantorAgreementFile}
                   onSelectGuarantorAgreementFiles={(files) =>
                     handleGuarantorAgreementFilesAt(index, files)
                   }
