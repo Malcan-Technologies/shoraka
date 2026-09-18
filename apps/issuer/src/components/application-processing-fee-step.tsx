@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@cashsouk/ui";
 import {
+  clearIssuerPendingSubmitAfterFee,
   normalizeProcessingFeeAmount,
   readIssuerPendingSubmitAfterFee,
   storeIssuerPendingSubmitAfterFee,
@@ -28,8 +29,10 @@ import {
   isProcessingFeeAmountLoading,
   isProcessingFeeAwaitingConfirmation,
   isProcessingFeePayBlockedOnLiveOrder,
+  isRetryableUnpaidProcessingFeeStatus,
   markProcessingFeeAwaitingConfirmation,
   releaseFailedProcessingFeeCheckoutLaunch,
+  releaseRetryableProcessingFeeConfirmation,
   resolvePendingProcessingFeeResumeFeeId,
   resolveProcessingFeeCheckoutOrder,
   shouldLoadProcessingFeeOrder,
@@ -59,32 +62,40 @@ export function ApplicationProcessingFeeStep({
   const pending = readIssuerPendingSubmitAfterFee(applicationId);
   const awaitingConfirmation = isProcessingFeeAwaitingConfirmation(pending, applicationId);
   const resumeFeeId = resolvePendingProcessingFeeResumeFeeId(pending, applicationId);
-  const feeOrderQuery = useApplicationProcessingFeeOrder(
-    applicationId,
-    shouldLoadProcessingFeeOrder(resumeFeeId),
-    {
-      pollWhileConfirming:
-        !resumeFeeId && (awaitingConfirmation || initialFee?.status === "PAID"),
-    }
-  );
   const savedFeeQuery = useApplicationProcessingFeeQuery(
     resumeFeeId ? applicationId : undefined,
     resumeFeeId ?? undefined,
     { pollUntilTerminal: Boolean(resumeFeeId) }
   );
+  const resumedFee =
+    savedFeeQuery.data?.id === resumeFeeId ? savedFeeQuery.data : undefined;
+  const retryableResumedFee = isRetryableUnpaidProcessingFeeStatus(resumedFee?.status);
+  const checkoutResumeFeeId = retryableResumedFee ? null : resumeFeeId;
+  const checkoutAwaitingConfirmation =
+    awaitingConfirmation && checkoutResumeFeeId != null;
+  const feeOrderQuery = useApplicationProcessingFeeOrder(
+    applicationId,
+    shouldLoadProcessingFeeOrder(checkoutResumeFeeId),
+    {
+      pollWhileConfirming:
+        !resumeFeeId && (awaitingConfirmation || initialFee?.status === "PAID"),
+    }
+  );
   const checkoutFee = resolveProcessingFeeCheckoutOrder({
-    resumeFeeId,
-    savedFee: savedFeeQuery.data,
+    resumeFeeId: checkoutResumeFeeId,
+    savedFee: resumedFee,
     liveOrder: feeOrderQuery.data,
   });
-  const resolvedFee = checkoutFee ?? initialFee ?? null;
+  const resolvedFee =
+    checkoutFee ?? (resumeFeeId ? resumedFee ?? null : initialFee ?? null);
   const waitingForLiveOrder = isProcessingFeePayBlockedOnLiveOrder({
-    resumeFeeId,
+    resumeFeeId: checkoutResumeFeeId,
     liveOrder: feeOrderQuery.data,
   });
   const [error, setError] = React.useState<string | null>(null);
   const [isOpeningCheckout, setIsOpeningCheckout] = React.useState(false);
   const checkoutOpenInFlightRef = React.useRef(false);
+  const completedFeeHandoffRef = React.useRef<string | null>(null);
 
   const persistReleasedFailedCheckout = (markedFeeId: string | null) => {
     const current = readIssuerPendingSubmitAfterFee(applicationId);
@@ -101,15 +112,39 @@ export function ApplicationProcessingFeeStep({
   const payModel = deriveProcessingFeePayStepModel({
     status: resolvedFee?.status,
     heldError: isIssuerFeeCaptureMismatchHeldError(feeOrderQuery.error),
-    awaitingConfirmation,
+    awaitingConfirmation: checkoutAwaitingConfirmation,
   });
 
   React.useEffect(() => {
-    if (resumeFeeId) return;
-    if (resolvedFee?.status === "COMPLETED") {
-      onFeeAlreadyPaid();
+    if (!resumeFeeId || !retryableResumedFee) return;
+    const current = readIssuerPendingSubmitAfterFee(applicationId);
+    const released = releaseRetryableProcessingFeeConfirmation(
+      current,
+      applicationId,
+      resumeFeeId,
+      resumedFee?.status
+    );
+    if (released && released !== current) {
+      storeIssuerPendingSubmitAfterFee(released);
     }
-  }, [onFeeAlreadyPaid, resolvedFee?.status, resumeFeeId]);
+  }, [applicationId, resumeFeeId, resumedFee?.status, retryableResumedFee]);
+
+  const handoffCompletedFee = React.useCallback(
+    (feeId: string) => {
+      const handoffKey = `${applicationId}:${feeId}`;
+      if (completedFeeHandoffRef.current === handoffKey) return;
+      completedFeeHandoffRef.current = handoffKey;
+      clearIssuerPendingSubmitAfterFee(applicationId);
+      onFeeAlreadyPaid();
+    },
+    [applicationId, onFeeAlreadyPaid]
+  );
+
+  React.useEffect(() => {
+    if (resolvedFee?.status === "COMPLETED") {
+      handoffCompletedFee(resolvedFee.id);
+    }
+  }, [handoffCompletedFee, resolvedFee?.id, resolvedFee?.status]);
 
   const handlePayFee = async () => {
     if (
@@ -136,10 +171,12 @@ export function ApplicationProcessingFeeStep({
         return;
       }
 
-      const liveOrder = resumeFeeId ? feeOrderQuery.data : (await feeOrderQuery.refetch()).data;
+      const liveOrder = checkoutResumeFeeId
+        ? feeOrderQuery.data
+        : (await feeOrderQuery.refetch()).data;
       const liveCheckoutFee = resolveProcessingFeeCheckoutOrder({
-        resumeFeeId,
-        savedFee: savedFeeQuery.data,
+        resumeFeeId: checkoutResumeFeeId,
+        savedFee: resumedFee,
         liveOrder,
       });
 
@@ -151,14 +188,14 @@ export function ApplicationProcessingFeeStep({
       setError(null);
 
       if (liveCheckoutFee.status === "COMPLETED") {
-        onFeeAlreadyPaid();
+        handoffCompletedFee(liveCheckoutFee.id);
         return;
       }
 
       if (
         !deriveProcessingFeePayStepModel({
           status: liveCheckoutFee.status,
-          awaitingConfirmation,
+          awaitingConfirmation: checkoutAwaitingConfirmation,
         }).showPayCta
       ) {
         return;
@@ -208,7 +245,7 @@ export function ApplicationProcessingFeeStep({
 
   const feeAmount = normalizeProcessingFeeAmount(resolvedFee?.amount);
   const isLoadingAmount = isProcessingFeeAmountLoading({
-    resumeFeeId,
+    resumeFeeId: checkoutResumeFeeId,
     liveOrder: feeOrderQuery.data,
     isOrderLoading: feeOrderQuery.isLoading || feeOrderQuery.isFetching,
     payState: payModel.state,

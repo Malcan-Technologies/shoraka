@@ -18,12 +18,13 @@ describe("application processing fee confirming surface", () => {
   it("polls saved fee detail instead of create/load while awaiting confirmation", () => {
     expect(source).toContain("useApplicationProcessingFeeQuery");
     expect(source).toContain("resolvePendingProcessingFeeResumeFeeId");
-    expect(source).toContain("shouldLoadProcessingFeeOrder(resumeFeeId)");
+    expect(source).toContain("shouldLoadProcessingFeeOrder(checkoutResumeFeeId)");
     expect(source).toContain("!resumeFeeId &&");
   });
 
   it("create/loads a live order after retry instead of paying the submit snapshot", () => {
-    expect(source).toContain("shouldLoadProcessingFeeOrder(resumeFeeId)");
+    expect(source).toContain("releaseRetryableProcessingFeeConfirmation");
+    expect(source).toContain("shouldLoadProcessingFeeOrder(checkoutResumeFeeId)");
     expect(source).toContain("resolveProcessingFeeCheckoutOrder");
     expect(source).toContain("isProcessingFeePayBlockedOnLiveOrder");
     expect(source).toContain("isProcessingFeeAmountLoading");
@@ -36,6 +37,25 @@ describe("application processing fee confirming surface", () => {
     );
     expect(source).not.toMatch(
       /openCurlecFpxCheckout\(\{[\s\S]*resolvedFee\.(curlecKeyId|curlecOrderId)/
+    );
+  });
+
+  it("hands resumed completion to submission once and clears only this application", () => {
+    expect(source).toContain("completedFeeHandoffRef");
+    expect(source).toContain("handoffCompletedFee(resolvedFee.id)");
+    expect(source).toContain("clearIssuerPendingSubmitAfterFee(applicationId)");
+    expect(source).not.toContain("if (resumeFeeId) return");
+    expect(source).not.toContain("clearIssuerPendingSubmitAfterFee()");
+  });
+
+  it("never selects a retryable terminal saved order for checkout", () => {
+    expect(source).toContain(
+      "const checkoutResumeFeeId = retryableResumedFee ? null : resumeFeeId"
+    );
+    expect(source).toContain("savedFeeQuery.data?.id === resumeFeeId");
+    expect(source).toContain("resumeFeeId: checkoutResumeFeeId");
+    expect(source).toMatch(
+      /const liveOrder = checkoutResumeFeeId[\s\S]*feeOrderQuery\.refetch\(\)/
     );
   });
 

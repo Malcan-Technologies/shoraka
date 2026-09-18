@@ -556,6 +556,24 @@ export function releaseFailedProcessingFeeCheckoutLaunch(
   return clearProcessingFeeAwaitingConfirmation(pending);
 }
 
+export function releaseRetryableProcessingFeeConfirmation(
+  pending: ProcessingFeePendingConfirmation | null | undefined,
+  applicationId: string,
+  feeId: string | null,
+  status: GatewayPaymentStatus | null | undefined
+): ProcessingFeePendingConfirmation | null {
+  if (
+    !pending ||
+    !feeId ||
+    pending.applicationId !== applicationId ||
+    pending.feeId !== feeId ||
+    !isRetryableUnpaidProcessingFeeStatus(status)
+  ) {
+    return pending ?? null;
+  }
+  return clearProcessingFeeAwaitingConfirmation(pending);
+}
+
 export function isProcessingFeeAwaitingConfirmation(
   pending: ProcessingFeePendingConfirmation | null | undefined,
   applicationId: string

@@ -24,6 +24,7 @@ import {
   processingFeePendingForApplication,
   readProcessingFeePendingStoreEntry,
   releaseFailedProcessingFeeCheckoutLaunch,
+  releaseRetryableProcessingFeeConfirmation,
   removeProcessingFeePendingStoreEntry,
   processingFeeConfirmPollIntervalMs,
   processingFeeConfirmQueryRefresh,
@@ -218,6 +219,23 @@ describe("processing fee return dialog states", () => {
 });
 
 describe("processing fee pay step and navigation safety", () => {
+  it.each([undefined, null])(
+    "keeps an awaiting persisted fee confirming while status is %s",
+    (status) => {
+      expect(
+        deriveProcessingFeePayStepModel({
+          status,
+          awaitingConfirmation: true,
+        })
+      ).toMatchObject({
+        state: "confirming",
+        showPayCta: false,
+        pollWhileConfirming: true,
+        ctaLabel: null,
+      });
+    }
+  );
+
   it("hides Pay with FPX for in-flight returned orders and PAID", () => {
     expect(
       deriveProcessingFeePayStepModel({
@@ -240,12 +258,15 @@ describe("processing fee pay step and navigation safety", () => {
   });
 
   it("shows Pay with FPX only after a retryable unpaid failure", () => {
-    expect(
-      deriveProcessingFeePayStepModel({ status: "FAILED", awaitingConfirmation: false }).ctaLabel
-    ).toBe("Pay with FPX");
-    expect(
-      deriveProcessingFeePayStepModel({ status: "REFUNDED" }).showPayCta
-    ).toBe(true);
+    for (const status of ["FAILED", "EXPIRED", "REFUNDED"] as GatewayPaymentStatus[]) {
+      expect(
+        deriveProcessingFeePayStepModel({ status, awaitingConfirmation: true })
+      ).toMatchObject({
+        state: "ready-to-pay",
+        showPayCta: true,
+        ctaLabel: "Pay with FPX",
+      });
+    }
     expect(
       deriveProcessingFeePayStepModel({
         status: "NAME_CHECK_PENDING",
@@ -488,6 +509,73 @@ describe("processing fee pay step and navigation safety", () => {
       pending
     );
     expect(releaseFailedProcessingFeeCheckoutLaunch(null, "app_1", "fee_1")).toBeNull();
+  });
+
+  it.each(["FAILED", "EXPIRED", "REFUNDED"] as GatewayPaymentStatus[])(
+    "releases only the matching application confirmation after %s",
+    (status) => {
+      const pending = markProcessingFeeAwaitingConfirmation(
+        {
+          applicationId: "app_1",
+          returnTo: "/applications/app_1/edit?continue=processingFee",
+          declarationsSaved: true,
+        },
+        "fee_1"
+      );
+
+      const released = releaseRetryableProcessingFeeConfirmation(
+        pending,
+        "app_1",
+        "fee_1",
+        status
+      );
+      expect(released).toMatchObject({
+        applicationId: "app_1",
+        feeId: "fee_1",
+        awaitingConfirmation: false,
+      });
+      expect(resolvePendingProcessingFeeResumeFeeId(released, "app_1")).toBeNull();
+      expect(shouldLoadProcessingFeeOrder(
+        resolvePendingProcessingFeeResumeFeeId(released, "app_1")
+      )).toBe(true);
+    }
+  );
+
+  it("retains confirmation for in-flight, completed, and mismatched fees", () => {
+    const pending = markProcessingFeeAwaitingConfirmation(
+      {
+        applicationId: "app_1",
+        returnTo: "/applications/app_1/edit?continue=processingFee",
+      },
+      "fee_1"
+    );
+
+    for (const status of ["CREATED", "PAID", "COMPLETED"] as GatewayPaymentStatus[]) {
+      expect(
+        releaseRetryableProcessingFeeConfirmation(
+          pending,
+          "app_1",
+          "fee_1",
+          status
+        )
+      ).toBe(pending);
+    }
+    expect(
+      releaseRetryableProcessingFeeConfirmation(
+        pending,
+        "app_2",
+        "fee_1",
+        "FAILED"
+      )
+    ).toBe(pending);
+    expect(
+      releaseRetryableProcessingFeeConfirmation(
+        pending,
+        "app_1",
+        "fee_2",
+        "FAILED"
+      )
+    ).toBe(pending);
   });
 
   it("restores the pay step after retry without treating continue=processingFee as an overlay", () => {
