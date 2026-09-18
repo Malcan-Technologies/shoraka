@@ -137,6 +137,7 @@ export function customerPersonEmail(params: {
 }): string {
   return displayedPersonEmail({
     partyEmail: params.party?.email,
+    partyEmailIsAuthoritative: Boolean(params.party?.fieldSources.email),
     personEmail: params.person?.email,
   });
 }

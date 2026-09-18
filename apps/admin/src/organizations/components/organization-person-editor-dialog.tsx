@@ -147,7 +147,11 @@ export function partyToEditorValues(
     designationOther: party.designationOther ?? "",
     appointmentDate: toCalendarDateInput(party.appointmentDate),
     resignationDate: toCalendarDateInput(party.resignationDate),
-    email: displayedPersonEmail({ partyEmail: party.email, personEmail: extras?.personEmail }),
+    email: displayedPersonEmail({
+      partyEmail: party.email,
+      partyEmailIsAuthoritative: Boolean(party.fieldSources.email),
+      personEmail: extras?.personEmail,
+    }),
   };
 }
 

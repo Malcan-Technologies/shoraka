@@ -7,6 +7,7 @@ import {
   type DirectorShareholderPeopleBuildResult,
   type MasterPartyPeopleSeed,
 } from "../admin/build-people-list";
+import { parseFieldSources } from "./serialize";
 
 type Portal = "issuer" | "investor";
 
@@ -54,6 +55,7 @@ export async function loadMasterPartiesForPeopleMerge(
       is_shareholder: true,
       shareholding_percentage: true,
       email: true,
+      field_sources: true,
       origin: true,
     },
   });
@@ -67,6 +69,7 @@ export async function loadMasterPartiesForPeopleMerge(
     isShareholder: row.is_shareholder,
     shareholdingPercentage: row.shareholding_percentage?.toString() ?? null,
     email: row.email,
+    emailIsAuthoritative: Boolean(parseFieldSources(row.field_sources).email),
     origin: row.origin ?? null,
   }));
 }

@@ -11,13 +11,16 @@ export function normalizePersonEmail(value: unknown): string | null {
   return trimmed || null;
 }
 
-/** Displayed Person Email: master first, then a legacy people-row email. Never User/Account Email. */
+/** Displayed Person Email: authoritative master first, then a legacy people-row email. */
 export function displayedPersonEmail(params: {
   partyEmail?: string | null;
+  partyEmailIsAuthoritative?: boolean;
   personEmail?: string | null;
 }): string {
   const party = String(params.partyEmail ?? "").trim();
-  if (party) return party;
+  if (party || params.partyEmailIsAuthoritative) {
+    return party;
+  }
   return String(params.personEmail ?? "").trim();
 }
 
@@ -98,6 +101,7 @@ export type PersonEmailWritePlan =
 export function planPersonEmailWrite(params: {
   currentMasterEmail: string | null | undefined;
   incomingEmail: unknown;
+  legacyPeopleEmail?: unknown;
   supplementRoot?: unknown;
   legacyKycApproved?: boolean;
   onboardingStatus?: string | null;
@@ -106,14 +110,20 @@ export function planPersonEmailWrite(params: {
 }): PersonEmailWritePlan {
   const current = normalizePersonEmail(params.currentMasterEmail);
   const incoming = normalizePersonEmail(params.incomingEmail);
+  const legacy = normalizePersonEmail(params.legacyPeopleEmail);
   const snapshotEmail = normalizePersonEmail(
     parseCtosPartySupplement(params.supplementRoot).email
   );
-  if (params.fillEmptyOnly && current) {
+  if (params.fillEmptyOnly && (current || !incoming)) {
     return { action: "noop", email: current };
   }
   const snapshotNeedsSync = snapshotEmail !== null && snapshotEmail !== incoming;
-  if (incoming === current && !snapshotNeedsSync) {
+  const legacyNeedsTombstone =
+    current === null &&
+    snapshotEmail === null &&
+    legacy !== null &&
+    incoming !== legacy;
+  if (incoming === current && !snapshotNeedsSync && !legacyNeedsTombstone) {
     return { action: "noop", email: current };
   }
 
@@ -138,7 +148,7 @@ export function planPersonEmailWrite(params: {
     onboardingStatus: params.onboardingStatus,
     screeningStatus: params.screeningStatus,
   });
-  const pipelineEmail = snapshotEmail ?? current;
+  const pipelineEmail = snapshotEmail ?? legacy ?? current;
   const reset = pipeline && incoming !== pipelineEmail && !persistWithoutReset;
   return {
     action: "write",

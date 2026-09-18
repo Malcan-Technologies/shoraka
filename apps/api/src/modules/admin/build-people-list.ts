@@ -833,6 +833,7 @@ export type MasterPartyPeopleSeed = {
   isShareholder: boolean;
   shareholdingPercentage: string | number | null;
   email?: string | null;
+  emailIsAuthoritative?: boolean;
   origin?: string | null;
 };
 
@@ -873,17 +874,23 @@ function applyMasterPersonEmail(
   masterParties?: MasterPartyPeopleSeed[] | null
 ): ApplicationPersonRow[] {
   if (!masterParties?.length) return people;
-  const byKey = new Map<string, string>();
+  const byKey = new Map<string, string | null>();
   for (const party of masterParties) {
     const key = operationalMatchKeyForMasterParty(party);
     const email = String(party.email ?? "").trim();
-    if (key && email) byKey.set(key, email);
+    if (key && (email || party.emailIsAuthoritative)) {
+      byKey.set(key, email || null);
+    }
   }
   if (byKey.size === 0) return people;
   return people.map((row) => {
     const key = resolvePartyLookupKey(row.matchKey);
-    const master = key ? byKey.get(key) : undefined;
-    return master ? { ...row, email: master } : row;
+    if (!key || !byKey.has(key)) return row;
+    const master = byKey.get(key);
+    if (master) return { ...row, email: master };
+    const cleared = { ...row };
+    delete cleared.email;
+    return cleared;
   });
 }
 

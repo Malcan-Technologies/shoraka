@@ -114,7 +114,14 @@ describe("writeOrganizationPartyEmail", () => {
 
     expect(result.email).toBe("new@acme.test");
     expect(mockPartyUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { email: "new@acme.test" } })
+      expect.objectContaining({
+        data: expect.objectContaining({
+          email: "new@acme.test",
+          field_sources: expect.objectContaining({
+            email: expect.objectContaining({ source: "SYSTEM" }),
+          }),
+        }),
+      })
     );
     const snapshot = mockSupplementUpdate.mock.calls[0]?.[0].data.onboarding_json as {
       email?: string;
@@ -155,7 +162,14 @@ describe("writeOrganizationPartyEmail", () => {
 
     expect(result.email).toBeNull();
     expect(mockPartyUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { email: null } })
+      expect.objectContaining({
+        data: expect.objectContaining({
+          email: null,
+          field_sources: expect.objectContaining({
+            email: expect.objectContaining({ source: "SYSTEM" }),
+          }),
+        }),
+      })
     );
     const snapshot = mockSupplementUpdate.mock.calls[0]?.[0].data.onboarding_json as Record<
       string,
@@ -186,7 +200,14 @@ describe("writeOrganizationPartyEmail", () => {
 
     expect(result.email).toBeNull();
     expect(mockPartyUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { email: null } })
+      expect.objectContaining({
+        data: expect.objectContaining({
+          email: null,
+          field_sources: expect.objectContaining({
+            email: expect.objectContaining({ source: "SYSTEM" }),
+          }),
+        }),
+      })
     );
     const snapshot = mockSupplementUpdate.mock.calls[0]?.[0].data.onboarding_json as Record<
       string,
@@ -195,6 +216,44 @@ describe("writeOrganizationPartyEmail", () => {
     expect(snapshot).not.toHaveProperty("email");
     expect(snapshot.status).toBe("APPROVED");
     expect(snapshot.requestId).toBe("LD-APPROVED");
+  });
+
+  it("records a tombstone when clearing an email sourced only from legacy KYC", async () => {
+    mockPartyFindFirst.mockResolvedValue({
+      id: "party-1",
+      party_key: legacyKey,
+      email: null,
+      field_sources: {},
+    });
+    mockIssuerFindUnique.mockResolvedValue({
+      director_kyc_status: {
+        directors: [
+          {
+            governmentIdNumber: legacyKey,
+            email: "legacy@acme.test",
+            kycStatus: "APPROVED",
+          },
+        ],
+      },
+    });
+
+    await writeOrganizationPartyEmail({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyKey: legacyKey,
+      email: null,
+    });
+
+    expect(mockPartyUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          email: null,
+          field_sources: expect.objectContaining({
+            email: expect.objectContaining({ source: "SYSTEM" }),
+          }),
+        }),
+      })
+    );
   });
 
   it("rejects a write when legacy KYC is awaiting approval without a supplement", async () => {

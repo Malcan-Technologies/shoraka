@@ -101,6 +101,7 @@ export function buildPartyProfileDetailItems(params: {
   });
   const personEmail = displayedPersonEmail({
     partyEmail: party?.email,
+    partyEmailIsAuthoritative: Boolean(party?.fieldSources.email),
     personEmail: person?.email,
   });
   const loginEmail = party?.linkedUser?.email || "";

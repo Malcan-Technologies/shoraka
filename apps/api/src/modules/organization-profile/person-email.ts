@@ -7,6 +7,7 @@ import {
 } from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
 import { prisma } from "../../lib/prisma";
+import { asJson, parseFieldSources, stampSource } from "./serialize";
 
 type Portal = "issuer" | "investor";
 
@@ -65,6 +66,7 @@ export async function writeOrganizationPartyEmail(params: {
   const plan = planPersonEmailWrite({
     currentMasterEmail: party.email,
     incomingEmail: params.email,
+    legacyPeopleEmail: legacyKycRecord?.email,
     supplementRoot: existing?.onboarding_json,
     onboardingStatus:
       legacyKycRecord?.kycStatus == null ? null : String(legacyKycRecord.kycStatus),
@@ -82,7 +84,12 @@ export async function writeOrganizationPartyEmail(params: {
   return prisma.$transaction(async (tx) => {
     const updated = await tx.organizationPartyProfile.update({
       where: { id: party.id },
-      data: { email: plan.email },
+      data: {
+        email: plan.email,
+        field_sources: asJson(
+          stampSource(parseFieldSources(party.field_sources), "email", "SYSTEM")
+        ),
+      },
       select: { email: true, party_key: true },
     });
 

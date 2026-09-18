@@ -27,13 +27,20 @@ describe("displayedPersonEmail", () => {
     ).toBe("master@acme.test");
   });
 
-  it("hydrates from the legacy displayed email when the master is empty", () => {
+  it("hydrates from the legacy displayed email before a master is established", () => {
     expect(displayedPersonEmail({ partyEmail: null, personEmail: " legacy@acme.test " })).toBe(
       "legacy@acme.test"
     );
-    expect(displayedPersonEmail({ partyEmail: "  ", personEmail: "legacy@acme.test" })).toBe(
-      "legacy@acme.test"
-    );
+  });
+
+  it("keeps a cleared master empty instead of reviving a legacy email", () => {
+    expect(
+      displayedPersonEmail({
+        partyEmail: null,
+        partyEmailIsAuthoritative: true,
+        personEmail: "legacy@acme.test",
+      })
+    ).toBe("");
   });
 });
 
@@ -130,6 +137,35 @@ describe("planPersonEmailWrite", () => {
       pipelineReset: false,
       screeningReset: false,
       snapshotSupplement: true,
+    });
+  });
+
+  it("writes a tombstone when clearing a legacy people-row fallback", () => {
+    expect(
+      planPersonEmailWrite({
+        currentMasterEmail: null,
+        incomingEmail: null,
+        legacyPeopleEmail: "legacy@acme.test",
+        legacyKycApproved: true,
+      })
+    ).toMatchObject({
+      action: "write",
+      email: null,
+      pipelineReset: false,
+    });
+  });
+
+  it("does not clear a legacy fallback while KYC is awaiting approval", () => {
+    expect(
+      planPersonEmailWrite({
+        currentMasterEmail: null,
+        incomingEmail: null,
+        legacyPeopleEmail: "legacy@acme.test",
+        onboardingStatus: "PENDING_APPROVAL",
+      })
+    ).toMatchObject({
+      action: "reject",
+      code: "DIRECTOR_SHAREHOLDER_NOT_EDITABLE",
     });
   });
 
