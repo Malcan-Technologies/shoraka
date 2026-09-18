@@ -324,6 +324,17 @@ function providerRefreshFailed(): AppError {
   );
 }
 
+function preferredStatusId(
+  snapshot: { status?: string | null; id?: string | null } | null | undefined,
+  fallbackStatus: string,
+  fallbackId: string
+): { status: string; id: string } {
+  return {
+    status: text(snapshot?.status) || fallbackStatus,
+    id: text(snapshot?.id) || fallbackId,
+  };
+}
+
 async function preferSingleOnboardingIds(
   session: RegTankRefreshSession,
   ids: RefreshIds
@@ -392,7 +403,11 @@ async function preferredScreeningId(params: {
     const patch = extractRegTankScreeningPatch(body, id);
     const status = text(patch?.status);
     if (!status) throw providerRefreshFailed();
-    preferred = pickPreferredDirectorShareholderScreening(preferred, { status, id });
+    preferred = preferredStatusId(
+      pickPreferredDirectorShareholderScreening(preferred, { status, id }),
+      status,
+      id
+    );
   }
   if (!preferred?.id) throw providerRefreshFailed();
   return preferred.id;
@@ -476,10 +491,14 @@ async function discoverAdminRefreshIds(params: {
         : await params.session.getEntityOnboardingDetails(requestId);
     const status = extractRegTankStatus(details);
     if (status) {
-      preferredOnboarding = pickPreferredDirectorShareholderOnboarding(preferredOnboarding, {
+      preferredOnboarding = preferredStatusId(
+        pickPreferredDirectorShareholderOnboarding(preferredOnboarding, {
+          status,
+          id: requestId,
+        }),
         status,
-        id: requestId,
-      });
+        requestId
+      );
     }
     const inspection = inspectChildScreening(details, entityType);
     if (inspection.kind === "malformed") {
