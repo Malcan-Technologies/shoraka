@@ -1462,17 +1462,29 @@ describe("buildUnifiedPeople", () => {
     expect(result.people.find((p) => p.matchKey === "900101101234")?.email).toBe("master@acme.test");
   });
 
-  it("keeps the existing people[].email fallback when OrganizationPartyProfile.email is empty", () => {
+  it("does not revive a legacy KYC email when OrganizationPartyProfile.email is cleared", () => {
     const result = buildDirectorShareholderPeopleList({
-      ctos: null,
-      issuerDirectorKycStatus: null,
+      ctos: {
+        directors: [
+          {
+            party_type: "I",
+            nic_brno: "900101101234",
+            name: "Sarah Tan",
+            position: "DO",
+          },
+        ],
+      },
+      issuerDirectorKycStatus: {
+        directors: [
+          {
+            governmentIdNumber: "900101101234",
+            kycStatus: "APPROVED",
+            email: "legacy-kyc@example.com",
+          },
+        ],
+      },
       issuerDirectorAmlStatus: null,
-      ctosPartySupplements: [
-        {
-          partyKey: "900101101234",
-          onboardingJson: { email: "supplement@example.com" },
-        },
-      ],
+      ctosPartySupplements: null,
       corporateEntities: null,
       masterParties: [
         {
@@ -1485,12 +1497,11 @@ describe("buildUnifiedPeople", () => {
           isShareholder: false,
           shareholdingPercentage: null,
           email: null,
+          emailIsAuthoritative: true,
         },
       ],
     });
-    expect(result.people.find((p) => p.matchKey === "900101101234")?.email).toBe(
-      "supplement@example.com"
-    );
+    expect(result.people.find((p) => p.matchKey === "900101101234")?.email).toBeUndefined();
   });
 
   it("CTOS-adopted person before Send onboarding keeps KYC Not Started for placeholder PENDING KYC", () => {

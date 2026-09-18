@@ -117,6 +117,17 @@ describe("email-only supplement merge", () => {
     expect(afterEmailChange.requestId).toBe("");
   });
 
+  it("removes the snapshot email when explicitly cleared", () => {
+    const cleared = mergeCtosPartySupplementDocument(
+      { email: "old@example.com", status: "APPROVED", requestId: "LD1", screening: null },
+      { onboarding: { email: null } }
+    );
+
+    expect(cleared).not.toHaveProperty("email");
+    expect(cleared.status).toBe("APPROVED");
+    expect(cleared.requestId).toBe("LD1");
+  });
+
   it("keeps In Progress when Send onboarding writes a real request", () => {
     const afterSend = mergeCtosPartySupplementDocument(
       { email: "a@example.com", status: "", requestId: "", screening: null },

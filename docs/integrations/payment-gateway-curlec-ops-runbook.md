@@ -43,7 +43,7 @@ Normal auto-refund path: `REFUND_INITIATED` → `REFUNDED` via Curlec Refund API
 
 When Curlec does not return a payer name, or the name is too ambiguous for automatic pass/fail, the deposit waits for manual review. The wallet is not credited until approved.
 
-1. Open **Admin → Finance → Gateway Payments** → filter **Needs attention** (or filter by `NAME_CHECK_PENDING`).
+1. Open **Admin → Finance → Gateway Payments**. Use filter **Name check pending** (`review`) for this status only, or **Open exceptions** (`filter=exceptions`) for investor deposits that are `NAME_CHECK_PENDING` or `HELD`. Dashboard and sidebar Gateway Payments links open **Open exceptions**.
 2. Compare payer name in Curlec dashboard against the investor account name.
 3. **Approve** → wallet credited, status `COMPLETED`.
 4. **Reject** → auto-refund initiated, status `REFUND_INITIATED` → `REFUNDED`.
@@ -52,7 +52,7 @@ When Curlec does not return a payer name, or the name is too ambiguous for autom
 
 If the Curlec Refund API or `refund.failed` webhook fails after a failed name check or amount mismatch:
 
-1. Open **Admin → Finance → Gateway Payments** → filter **Needs attention**.
+1. Open **Admin → Finance → Gateway Payments** → filter **Needs attention** (`HELD` only). **Open exceptions** also includes investor-deposit holds together with name-check review.
 2. Use **Retry auto-refund** on the payment detail page.
 
 If a post-credit refund already succeeded at Curlec but the local wallet debit failed (insufficient available balance):
@@ -148,7 +148,7 @@ Historical payments created before account separation were migrated to `OPERATIN
 
 | Screen | Path | Purpose |
 |---|---|---|
-| Gateway Payments | Admin → Finance → Gateway Payments | All payments, status, events, name-check actions, refunds |
+| Gateway Payments | Admin → Finance → Gateway Payments | All payments, status, events, name-check actions, refunds. Sidebar and dashboard open **Open exceptions** (`?filter=exceptions`: investor deposits in `HELD` or `NAME_CHECK_PENDING`). **Needs attention** is `HELD` only; **Name check pending** is `NAME_CHECK_PENDING` only. |
 | Reconciliation | Admin → Finance → Reconciliation | Daily runs, exceptions, manual trigger |
 | Gateway Fees | Admin → Settings → Platform Finance | Min/max deposit, onboarding fee, processing fee |
 

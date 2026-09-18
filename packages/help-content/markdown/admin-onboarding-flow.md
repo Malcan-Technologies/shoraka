@@ -29,12 +29,14 @@ High-level issuer flow:
 3. Issuer completes company verification (eKYB) with CashSouk’s verification partner.
 4. Admin reviews the submission and supporting checks.
 5. Admin approves, requests follow-up, or rejects the onboarding.
-6. Once approved, required directors and shareholders finish their own checks from **Organisation → People & Access**. Adding a person can start RegTank AML; if AML is stuck and no RegTank record exists, investigate before treating the party as screened.
+6. Once approved, required directors and shareholders finish their own checks from **Organisation → People & Access**. Adding a person can start RegTank AML; if AML is stuck and no RegTank record exists, investigate before treating the party as screened. Person Email is for signing and onboarding; Account Email is the linked login and stays read-only. After KYC/AML complete, Person Email can be corrected without restarting those checks.
 7. The issuer can create financing applications only after the organisation is approved and required people plus Complete Profile fields are done.
 
 Issuer financing applications have a separate RM 50 application processing fee, paid once at first submission through the portal payment checkout. Resubmitting after an amendment request does not charge the fee again.
 
 The pay button is currently labelled **Pay with FPX**. Checkout opens CashSouk’s payment gateway (Malaysian online banking / FPX). The checkout window is branded by the gateway provider (currently Curlec / Razorpay). Do not tell issuers a second payment method exists unless the live screen shows one.
+
+If confirmation takes longer than 20 seconds, the issuer sees **Still confirming your payment** and the portal keeps checking. Tell them not to pay again. They can leave and return to the same application; a new payment is offered only after the earlier attempt is confirmed as failed or expired.
 
 ## Investor Onboarding
 

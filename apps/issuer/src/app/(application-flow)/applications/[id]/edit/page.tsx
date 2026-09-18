@@ -1490,6 +1490,7 @@ function EditApplicationPageBody() {
       }
       isSubmittingRef.current = false;
       setIsSubmittingApplication(false);
+      throw error;
     }
   }, [finalizeApplicationSubmit]);
 
@@ -2078,7 +2079,7 @@ function EditApplicationPageBody() {
         <div className="max-w-7xl mx-auto w-full px-2 sm:px-4 pt-4 sm:pt-6 relative">
           {useWizardContentShell ? (
             <ApplicationFlowBlockedStepSkeleton />
-          ) : isProcessingFeeFlow ? (
+          ) : isPostFeeReturnFlow ? (
             <ApplicationFlowBlockedStepSkeleton />
           ) : (
             <>
@@ -2100,7 +2101,7 @@ function EditApplicationPageBody() {
                     setShowProcessingFeeStep(false);
                     setPendingProcessingFee(null);
                   }}
-                  onFeeAlreadyPaid={() => void handleFeeAlreadyPaid()}
+                  onFeeAlreadyPaid={handleFeeAlreadyPaid}
                 />
               ) : (
                 renderStepComponent()

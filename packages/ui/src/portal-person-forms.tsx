@@ -596,6 +596,8 @@ export function PartyFillEmptyForm({
   onSave,
   onCancel,
   emailLocked = false,
+  displayedEmail,
+  accountEmail,
   section,
   hideSectionHeading = false,
 }: {
@@ -603,6 +605,8 @@ export function PartyFillEmptyForm({
   onSave: (data: Record<string, unknown>) => Promise<void>;
   onCancel: () => void;
   emailLocked?: boolean;
+  displayedEmail?: string | null;
+  accountEmail?: string | null;
   section?: "details" | "role" | "contact" | "address";
   hideSectionHeading?: boolean;
 }) {
@@ -611,7 +615,7 @@ export function PartyFillEmptyForm({
     salutation: party.salutation ?? "",
     identityPrefix: String(party.identityPrefix || (party.entityType === "CORPORATE" ? "ROC" : "NRIC")),
     identityNumber: party.identityNumber ?? "",
-    email: party.email ?? "",
+    email: party.email?.trim() || displayedEmail?.trim() || "",
     gender: party.gender ?? "",
     nationality: party.nationality ?? "",
     dateOfBirth: toCalendarDateInput(party.dateOfBirth),
@@ -633,6 +637,7 @@ export function PartyFillEmptyForm({
   });
   const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
   const officer = isIssuerOfficerRole(party);
+  const linkedAccountEmail = String(accountEmail ?? party.linkedUser?.email ?? "").trim();
   const corporate = party.entityType === "CORPORATE";
   const copy = monthlyIssuerPersonCopy({ shareholder: party.isShareholder, officer });
   const prefixOptions = SC_IDENTITY_PREFIXES.filter((key) => copy.includeRocPrefix || key !== "ROC");
@@ -1161,7 +1166,7 @@ export function PartyFillEmptyForm({
           {emailLocked ? (
             <ProfileReadField
               label={CUSTOMER_PERSON_LABEL.personEmail}
-              value={party.email}
+              value={form.email || party.email}
               locked
               help={PERSON_EMAIL_HELP}
             />
@@ -1176,6 +1181,14 @@ export function PartyFillEmptyForm({
               required
             />
           )}
+          {linkedAccountEmail ? (
+            <ProfileReadField
+              label={CUSTOMER_PERSON_LABEL.accountEmail}
+              value={linkedAccountEmail}
+              locked
+              help={PROFILE_HELP.accountEmail}
+            />
+          ) : null}
         </>
       ) : null}
 

@@ -149,8 +149,12 @@ import { generateSigningAccessToken } from "./token";
 import { buildSigningReturnUrl, validateSigningRedirectUrl } from "../../lib/signing/redirect-url";
 import { legalExternalAcceptanceService } from "../legal-documents/external-acceptance-service";
 import {
+  AUTHORIZED_REPRESENTATIVE_PROFILE_CHANGED_MESSAGE,
+  approvedIssuerRepresentativesAreCurrent,
+  assertApprovedIssuerRepresentativesCurrent,
   assertIssuerSealReadyForPackage,
   loadIssuerDirectorPool,
+  type IssuerDirectorPoolEntry,
 } from "../applications/authorized-parties";
 import { resolveSigningPackageOfferSource } from "./signing-package-offer";
 import {
@@ -491,11 +495,14 @@ export class SigningService {
   private async validateAndNormalizeIssuerBindings(
     application: SigningApplicationContext,
     template: SigningTemplateConfig,
-    bindings: RecipientBinding[]
+    bindings: RecipientBinding[],
+    issuerDirectorPool?: IssuerDirectorPoolEntry[]
   ): Promise<RecipientBinding[]> {
     // Same people[] as the authorised-representative dropdown (includes company-profile directors).
+    const pool =
+      issuerDirectorPool ?? (await loadIssuerDirectorPool(application.issuer_organization_id));
     const directorEmails = new Set(
-      (await loadIssuerDirectorPool(application.issuer_organization_id)).map((entry) => entry.email)
+      pool.map((entry) => entry.email)
     );
     const roleByKey = new Map(template.roles.map((role) => [role.key, role]));
     const applicationGuarantors = application.application_guarantors;
@@ -564,6 +571,22 @@ export class SigningService {
     return normalized;
   }
 
+  private resolveAuthorizedPartiesSnapshot(
+    offerDetails: unknown
+  ): AuthorizedPartiesSnapshot | null {
+    const acceptance = getOfferAcceptanceFromOfferDetails(offerDetails);
+    return acceptance?.authorized_parties ?? getLoAuthorizedPartiesFromAcceptance(acceptance);
+  }
+
+  private async assertAuthorizedPartyProfilesCurrent(
+    application: SigningApplicationContext,
+    authorizedParties: AuthorizedPartiesSnapshot | null | undefined
+  ): Promise<void> {
+    if (!authorizedParties) return;
+    const issuerDirectorPool = await loadIssuerDirectorPool(application.issuer_organization_id);
+    assertApprovedIssuerRepresentativesCurrent(authorizedParties, issuerDirectorPool);
+  }
+
   private async assertAcceptanceDocumentsReady(
     application: SigningApplicationContext
   ): Promise<void> {
@@ -605,8 +628,7 @@ export class SigningService {
     applicationId: string,
     offerDetails: unknown
   ): Promise<string[]> {
-    const snapshot =
-      getOfferAcceptanceFromOfferDetails(offerDetails)?.authorized_parties ?? null;
+    const snapshot = this.resolveAuthorizedPartiesSnapshot(offerDetails);
     const partyKeys = collectAuthorizedRepresentativeReviewKeys(snapshot);
     if (partyKeys.length === 0) return [];
     const rows = await prisma.applicationReviewItem.findMany({
@@ -709,8 +731,7 @@ export class SigningService {
     template: SigningTemplateConfig,
     posted: RecipientBinding[]
   ): void {
-    const snapshot =
-      getOfferAcceptanceFromOfferDetails(offerDetails)?.authorized_parties ?? null;
+    const snapshot = this.resolveAuthorizedPartiesSnapshot(offerDetails);
     if (!snapshot) return;
     if (
       !postedBindingsMatchApprovedSnapshot({
@@ -946,9 +967,7 @@ export class SigningService {
       const offerDetails = input.contractId
         ? application.contract?.offer_details
         : application.invoices.find((item) => item.id === input.invoiceId)?.offer_details;
-      const acceptance = getOfferAcceptanceFromOfferDetails(offerDetails);
-      authorizedParties =
-        acceptance?.authorized_parties ?? getLoAuthorizedPartiesFromAcceptance(acceptance);
+      authorizedParties = this.resolveAuthorizedPartiesSnapshot(offerDetails);
     }
     const envelopePlan = await this.injectPlanAutomaticRoles(plan, authorizedParties);
     const envelope = await this.repo.createFromPlan({
@@ -1024,8 +1043,7 @@ export class SigningService {
             })
           )?.offer_details
         : null;
-    const snapshot =
-      getOfferAcceptanceFromOfferDetails(offerDetails)?.authorized_parties ?? null;
+    const snapshot = this.resolveAuthorizedPartiesSnapshot(offerDetails);
     if (!snapshot) {
       throw new AppError(
         400,
@@ -1041,10 +1059,13 @@ export class SigningService {
         "Authorised representatives must be approved before sending the signing package."
       );
     }
+    const issuerDirectorPool = await loadIssuerDirectorPool(application.issuer_organization_id);
+    assertApprovedIssuerRepresentativesCurrent(snapshot, issuerDirectorPool);
     const bindings = await this.validateAndNormalizeIssuerBindings(
       application,
       template,
-      snapshotBindings
+      snapshotBindings,
+      issuerDirectorPool
     );
     this.assertBindingsMatchApprovedSnapshot(offerDetails, template, bindings);
     const issuerUploadS3Keys = resolveIssuerUploadS3Keys(
@@ -1096,6 +1117,7 @@ export class SigningService {
     });
     const template = this.readSigningTemplateFromWorkflow(workflow, packageKind);
     const documentKeys = template.documents.map((document) => document.key);
+    const authorizedParties = this.resolveAuthorizedPartiesSnapshot(offerDetails);
     const requiredSlots = configuredSlotsForDocumentKeys(documentKeys);
     const issues: SigningPackageReadinessIssue[] = [];
 
@@ -1143,9 +1165,6 @@ export class SigningService {
     }
 
     if (isSigningCloudSealFieldEnabled() && signingPackageRequiresIssuerSeal(documentKeys)) {
-      const authorizedParties =
-        getOfferAcceptanceFromOfferDetails(offerDetails)?.authorized_parties ??
-        getLoAuthorizedPartiesFromAcceptance(getOfferAcceptanceFromOfferDetails(offerDetails));
       const applierIssue = issuerSealApplierIssue(authorizedParties?.parties ?? [], true);
       if (applierIssue) {
         issues.push({
@@ -1158,6 +1177,16 @@ export class SigningService {
         issues.push({
           code: "ISSUER_COMPANY_SEAL_REQUIRED",
           message: "Upload a company seal in Issuer Profile before sending this signing package.",
+        });
+      }
+    }
+
+    if (authorizedParties) {
+      const issuerDirectorPool = await loadIssuerDirectorPool(application.issuer_organization_id);
+      if (!approvedIssuerRepresentativesAreCurrent(authorizedParties, issuerDirectorPool)) {
+        issues.push({
+          code: "AUTHORIZED_REPRESENTATIVE_PROFILE_CHANGED",
+          message: AUTHORIZED_REPRESENTATIVE_PROFILE_CHANGED_MESSAGE,
         });
       }
     }
@@ -1572,9 +1601,8 @@ export class SigningService {
           application_guarantor_id: recipient.application_guarantor_id ?? null,
         }))
     );
-    const authorizedParties =
-      getOfferAcceptanceFromOfferDetails(sendOfferDetails)?.authorized_parties ??
-      getLoAuthorizedPartiesFromAcceptance(getOfferAcceptanceFromOfferDetails(sendOfferDetails));
+    const authorizedParties = this.resolveAuthorizedPartiesSnapshot(sendOfferDetails);
+    await this.assertAuthorizedPartyProfilesCurrent(application, authorizedParties);
     assertEnvelopeHasRequiredAutomaticRoles(envelope);
     if (envelope.recipients.some((recipient) => recipient.execution_mode === "AUTOMATIC")) {
       await verifyAutomaticAssignmentSnapshots(envelope);
@@ -1667,9 +1695,8 @@ export class SigningService {
             })
           )?.offer_details
         : null;
-    const authorizedParties =
-      getOfferAcceptanceFromOfferDetails(sendOfferDetails)?.authorized_parties ??
-      getLoAuthorizedPartiesFromAcceptance(getOfferAcceptanceFromOfferDetails(sendOfferDetails));
+    const authorizedParties = this.resolveAuthorizedPartiesSnapshot(sendOfferDetails);
+    await this.assertAuthorizedPartyProfilesCurrent(application, authorizedParties);
 
     if (envelope.send_phase !== "DELIVERING") {
     for (const document of [...envelope.documents].sort((a, b) => a.order - b.order)) {
@@ -1708,10 +1735,7 @@ export class SigningService {
           recipientById,
           actor?.userId ?? envelope.created_by_user_id ?? "",
           actor?.portal !== ActivityPortal.ISSUER,
-          getOfferAcceptanceFromOfferDetails(sendOfferDetails)?.authorized_parties ??
-            getLoAuthorizedPartiesFromAcceptance(
-              getOfferAcceptanceFromOfferDetails(sendOfferDetails)
-            )
+          this.resolveAuthorizedPartiesSnapshot(sendOfferDetails)
         );
         unsignedS3Key = materialized.s3Key;
         signsetsByAssignmentId = materialized.signsetsByAssignmentId;

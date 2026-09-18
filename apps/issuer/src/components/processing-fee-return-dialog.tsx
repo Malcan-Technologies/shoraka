@@ -10,10 +10,14 @@ import {
 } from "@/components/ui/dialog";
 import {
   clearIssuerPendingSubmitAfterFee,
-  isTerminalProcessingFeeStatus,
   useApplicationProcessingFeeQuery,
 } from "@/hooks/use-application-processing-fee";
 import { getApiMutationErrorCode } from "@/hooks/use-applications";
+import {
+  PROCESSING_FEE_CONFIRM_TIMEOUT_MS,
+  deriveProcessingFeeReturnDialogView,
+  type ProcessingFeeReturnInternalPhase,
+} from "@/lib/application-processing-fee-confirmation";
 import {
   ApplicationSubmittedSuccessView,
   ApplicationSubmittingView,
@@ -22,21 +26,14 @@ import {
   OnboardingFeeUnderReviewView,
 } from "@/components/onboarding-fee-return-views";
 
-const PAYMENT_CONFIRM_TIMEOUT_MS = 20_000;
 const SUCCESS_REDIRECT_DELAY_MS = 2_500;
-
-type DialogPhase =
-  | "confirming"
-  | "submitting"
-  | "submitted"
-  | "under-review"
-  | "failed";
 
 interface ProcessingFeeReturnDialogProps {
   applicationId: string;
   feeId: string;
   open: boolean;
   onDismissToRetry: () => void;
+  onLeaveForNow: () => void;
   onSubmitAfterPayment: () => Promise<void>;
 }
 
@@ -45,11 +42,12 @@ export function ProcessingFeeReturnDialog({
   feeId,
   open,
   onDismissToRetry,
+  onLeaveForNow,
   onSubmitAfterPayment,
 }: ProcessingFeeReturnDialogProps) {
   const router = useRouter();
-  const [pollTimedOut, setPollTimedOut] = React.useState(false);
-  const [phase, setPhase] = React.useState<DialogPhase>("confirming");
+  const [confirmDelayed, setConfirmDelayed] = React.useState(false);
+  const [phase, setPhase] = React.useState<ProcessingFeeReturnInternalPhase>("confirming");
   const [submitFailed, setSubmitFailed] = React.useState(false);
   const submitStartedRef = React.useRef(false);
 
@@ -59,21 +57,19 @@ export function ProcessingFeeReturnDialog({
   const fee = feeQuery.data;
   const refetchFee = feeQuery.refetch;
 
-  const hasDefinitiveSuccess = fee?.status === "COMPLETED";
-  const isUnderReview = fee?.status === "HELD";
-  const hasDefinitiveFailure =
-    fee != null && isTerminalProcessingFeeStatus(fee.status) && fee.status !== "COMPLETED";
+  const resolved = deriveProcessingFeeReturnDialogView({
+    elapsedMs: confirmDelayed ? PROCESSING_FEE_CONFIRM_TIMEOUT_MS : 0,
+    internalPhase: phase,
+    submitFailed,
+    status: fee?.status,
+    isQueryError: feeQuery.isError && fee == null,
+  });
 
-  const shouldRunTimeout =
-    open &&
-    phase === "confirming" &&
-    !hasDefinitiveSuccess &&
-    !hasDefinitiveFailure &&
-    !isUnderReview;
+  const shouldRunTimeout = open && resolved.shouldPoll;
 
   React.useEffect(() => {
     if (!open) {
-      setPollTimedOut(false);
+      setConfirmDelayed(false);
       setSubmitFailed(false);
       submitStartedRef.current = false;
       setPhase("confirming");
@@ -81,16 +77,20 @@ export function ProcessingFeeReturnDialog({
     }
 
     if (!shouldRunTimeout) {
-      setPollTimedOut(false);
       return;
     }
 
-    const timer = window.setTimeout(() => setPollTimedOut(true), PAYMENT_CONFIRM_TIMEOUT_MS);
+    if (confirmDelayed) return;
+
+    const timer = window.setTimeout(
+      () => setConfirmDelayed(true),
+      PROCESSING_FEE_CONFIRM_TIMEOUT_MS
+    );
     return () => window.clearTimeout(timer);
-  }, [open, feeId, shouldRunTimeout]);
+  }, [open, feeId, shouldRunTimeout, confirmDelayed]);
 
   React.useEffect(() => {
-    if (!open || phase !== "confirming" || !hasDefinitiveSuccess || submitStartedRef.current) {
+    if (!open || !resolved.shouldAutoSubmit || submitStartedRef.current) {
       return;
     }
 
@@ -100,12 +100,13 @@ export function ProcessingFeeReturnDialog({
     void (async () => {
       try {
         await onSubmitAfterPayment();
-        clearIssuerPendingSubmitAfterFee();
+        clearIssuerPendingSubmitAfterFee(applicationId);
         setPhase("submitted");
       } catch (error) {
         if (getApiMutationErrorCode(error) === "PROCESSING_FEE_REQUIRED") {
           submitStartedRef.current = false;
           setPhase("confirming");
+          setConfirmDelayed(false);
           void refetchFee();
           return;
         }
@@ -116,7 +117,7 @@ export function ProcessingFeeReturnDialog({
         submitStartedRef.current = false;
       }
     })();
-  }, [hasDefinitiveSuccess, onSubmitAfterPayment, open, phase, refetchFee]);
+  }, [applicationId, onSubmitAfterPayment, open, refetchFee, resolved.shouldAutoSubmit]);
 
   React.useEffect(() => {
     if (!open || phase !== "submitted") return;
@@ -128,41 +129,10 @@ export function ProcessingFeeReturnDialog({
     return () => window.clearTimeout(timer);
   }, [open, phase, router]);
 
-  const handleTryAgain = React.useCallback(() => {
-    onDismissToRetry();
-  }, [onDismissToRetry]);
-
-  const resolvedPhase: DialogPhase = React.useMemo(() => {
-    if (phase === "submitting" || phase === "submitted" || phase === "failed") return phase;
-    if (isUnderReview) return "under-review";
-    if (hasDefinitiveFailure) return "failed";
-    if (feeQuery.isError) return "failed";
-    if (pollTimedOut) return "failed";
-    return "confirming";
-  }, [feeQuery.isError, hasDefinitiveFailure, isUnderReview, phase, pollTimedOut]);
-
-  const failureReason = React.useMemo(() => {
-    if (hasDefinitiveFailure) return "failed" as const;
-    if (feeQuery.isError) return "error" as const;
-    if (pollTimedOut) return "timeout" as const;
-    return "failed" as const;
-  }, [feeQuery.isError, hasDefinitiveFailure, pollTimedOut]);
-
   React.useEffect(() => {
-    if (!open || resolvedPhase !== "failed" || submitFailed) return;
+    if (!open || resolved.phase !== "failed" || submitFailed || !resolved.showPayRetry) return;
     toast.error("Processing fee payment was not completed. Please try again.");
-  }, [open, resolvedPhase, submitFailed]);
-
-  const dialogTitle =
-    resolvedPhase === "confirming"
-      ? "Confirming your payment"
-      : resolvedPhase === "submitting"
-        ? "Submitting your application"
-        : resolvedPhase === "submitted"
-          ? "Application submitted"
-          : resolvedPhase === "under-review"
-            ? "Payment under review"
-            : "Payment not completed";
+  }, [open, resolved.phase, resolved.showPayRetry, submitFailed]);
 
   const handleDialogOpenChange = React.useCallback((nextOpen: boolean) => {
     if (!nextOpen) {
@@ -177,42 +147,44 @@ export function ProcessingFeeReturnDialog({
         aria-describedby={undefined}
         onPointerDownOutside={(event) => event.preventDefault()}
         onEscapeKeyDown={(event) => {
-          if (
-            resolvedPhase === "submitting" ||
-            resolvedPhase === "submitted" ||
-            resolvedPhase === "failed"
-          ) {
-            event.preventDefault();
-          }
+          event.preventDefault();
         }}
       >
-        <DialogTitle className="sr-only">{dialogTitle}</DialogTitle>
-        {resolvedPhase === "confirming" ? (
-          <OnboardingFeeConfirmingView onCancel={handleTryAgain} />
+        <DialogTitle className="sr-only">{resolved.dialogTitle}</DialogTitle>
+        {resolved.phase === "confirming" ? (
+          <OnboardingFeeConfirmingView
+            title={resolved.title}
+            description={resolved.description}
+          />
         ) : null}
-        {resolvedPhase === "submitting" ? <ApplicationSubmittingView /> : null}
-        {resolvedPhase === "submitted" ? (
+        {resolved.phase === "delayed" ? (
+          <OnboardingFeeConfirmingView
+            title={resolved.title}
+            description={resolved.description}
+            onLeave={resolved.showLeaveForNow ? onLeaveForNow : undefined}
+          />
+        ) : null}
+        {resolved.phase === "submitting" ? <ApplicationSubmittingView /> : null}
+        {resolved.phase === "submitted" ? (
           <ApplicationSubmittedSuccessView
             onContinue={() => {
               router.replace("/applications");
             }}
           />
         ) : null}
-        {resolvedPhase === "under-review" ? (
-          <OnboardingFeeUnderReviewView onContinue={handleTryAgain} />
+        {resolved.phase === "under-review" ? (
+          <OnboardingFeeUnderReviewView onContinue={onLeaveForNow} />
         ) : null}
-        {resolvedPhase === "failed" ? (
+        {resolved.phase === "failed" ? (
           <OnboardingFeeFailureView
-            reason={submitFailed ? "error" : failureReason}
+            reason={submitFailed ? "error" : resolved.failureReason}
             status={fee?.status}
             amount={fee?.amount}
-            onTryAgain={handleTryAgain}
-            title={submitFailed ? "Could not submit application" : undefined}
-            description={
-              submitFailed
-                ? "Your payment was received, but we could not submit the application. Please try again or contact support if this continues."
-                : undefined
-            }
+            onTryAgain={onDismissToRetry}
+            onLeave={resolved.showLeaveForNow ? onLeaveForNow : undefined}
+            showTryAgain={resolved.showPayRetry || submitFailed}
+            title={resolved.title}
+            description={resolved.description}
           />
         ) : null}
       </DialogContent>

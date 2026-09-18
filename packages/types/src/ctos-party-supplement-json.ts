@@ -172,8 +172,12 @@ function mergeOnboardingFields(
     const t = v.trim();
     return t || undefined;
   };
-  const e = str(patch.email);
-  if (e !== undefined) base.email = e;
+  if (patch.email === null || patch.email === "") {
+    base.email = undefined;
+  } else {
+    const e = str(patch.email);
+    if (e !== undefined) base.email = e;
+  }
   if (patch.verifyLink === "" || patch.verifyLink === null) {
     base.verifyLink = undefined;
   } else {

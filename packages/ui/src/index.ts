@@ -359,7 +359,7 @@ export type { PortalPeoplePortal } from "./portal-people-section";
 export { PeopleAccessSection } from "./people-access/people-access-section";
 export { PersonDetailView } from "./people-access/person-detail-view";
 export { CustomerPartyProfileOverview } from "./people-access/customer-person-overview";
-export { InviteUserDialog, inviteableCompanyPeople } from "./people-access/invite-user-dialog";
+export { InviteUserDialog, inviteableCompanyPeople, inviteDeliveryEmail } from "./people-access/invite-user-dialog";
 export { AddPersonForm, PartyFillEmptyForm } from "./portal-person-forms";
 export type { AddPersonInitial } from "./portal-person-forms";
 export { ProductNameWithIcon } from "./components/product-name-with-icon";

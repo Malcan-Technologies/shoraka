@@ -1,4 +1,4 @@
-import { PURPOSE_LABEL, STATUS_LABEL, statusToken, statusVariant } from "./gateway-payment-display";
+import { PURPOSE_LABEL, STATUS_LABEL, GATEWAY_PAYMENT_STATUS_FILTER_OPTIONS, statusToken, statusVariant } from "./gateway-payment-display";
 
 describe("gateway-payment-display", () => {
   it("uses detail-aligned status labels", () => {
@@ -43,5 +43,15 @@ describe("gateway-payment-display", () => {
     expect(PURPOSE_LABEL.APPLICATION_PROCESSING_FEE).toBe("Application Processing Fee");
     expect(PURPOSE_LABEL.FACILITY_FEE).toBe("Facility Fee");
     expect(PURPOSE_LABEL.EXCESS_LATE_CHARGES).toBe("Late Payment Charges");
+  });
+
+  it("labels Open exceptions separately from HELD Needs attention and Name check pending", () => {
+    expect(GATEWAY_PAYMENT_STATUS_FILTER_OPTIONS).toEqual(
+      expect.arrayContaining([
+        { value: "exceptions", label: "Open exceptions" },
+        { value: "needs_attention", label: "Needs attention" },
+        { value: "review", label: "Name check pending" },
+      ])
+    );
   });
 });

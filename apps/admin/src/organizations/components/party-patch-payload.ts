@@ -8,7 +8,10 @@ import type { PartyEditorValues } from "./organization-person-editor-dialog";
  * This must not include unsupported keys (e.g. `entityType`) because the backend
  * patch schema is `strict()`.
  */
-export function buildPartyPatchPayloadFromEditorValues(values: PartyEditorValues): Record<string, unknown> {
+export function buildPartyPatchPayloadFromEditorValues(
+  values: PartyEditorValues,
+  options?: { includeEmail?: boolean }
+): Record<string, unknown> {
   const corporate = values.entityType === "CORPORATE";
   const officer = !corporate && isIssuerOfficerRole(values);
   const showShare = corporate || values.isShareholder;
@@ -23,7 +26,6 @@ export function buildPartyPatchPayloadFromEditorValues(values: PartyEditorValues
     isManagement: corporate ? false : values.isManagement,
     gender: corporate ? "NOT_APPLICABLE" : values.gender || null,
     salutation: corporate ? null : values.salutation.trim() || null,
-    email: values.email.trim() || null,
     address: {
       line1: values.line1.trim() || null,
       line2: values.line2.trim() || null,
@@ -31,6 +33,10 @@ export function buildPartyPatchPayloadFromEditorValues(values: PartyEditorValues
       postalCode: values.postalCode.trim() || null,
     },
   };
+
+  if (options?.includeEmail !== false) {
+    payload.email = values.email.trim() || null;
+  }
 
   if (!corporate) {
     payload.dateOfBirth = values.dateOfBirth || null;

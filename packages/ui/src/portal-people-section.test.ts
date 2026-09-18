@@ -76,6 +76,12 @@ describe("PortalPeopleSection", () => {
     expect(source).toContain("canManagePlatform={canEdit}");
     expect(card).toContain("canManagePlatform");
   });
+
+  it("omits fallback Person Email from saves while KYC is awaiting approval", () => {
+    expect(source).toContain("const editingEmailLocked = isPersonEmailLifecycleLocked");
+    expect(source).toContain("emailLocked={editingEmailLocked}");
+    expect(source).toContain("!viewingEmailLocked");
+  });
 });
 
 describe("Person-scoped invite dialog", () => {

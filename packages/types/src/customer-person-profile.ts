@@ -27,6 +27,7 @@ import {
   peopleAccessKycLabel,
 } from "./people-access-rows";
 import { formatPeopleRolesLineTitleCaseWithoutShare } from "./application-people-display";
+import { displayedPersonEmail } from "./person-email";
 import { isPersonKycApproved, personIdentityDisplay } from "./person-onboarding-display";
 import { PROFILE_ADDRESS_FIELD_LABELS, PROFILE_LABEL, formatProfileRmAmount } from "./profile-field-copy";
 import { adminOnboardingStageLabel } from "./admin-people-access-detail";
@@ -132,10 +133,11 @@ export function customerPersonEmail(params: {
   party?: OrganizationPartyProfileDto | null;
   person?: ApplicationPersonRow | null;
 }): string {
-  const partyEmail = String(params.party?.email ?? "").trim();
-  if (partyEmail) return partyEmail;
-  if (params.party) return "";
-  return String(params.person?.email ?? "").trim();
+  return displayedPersonEmail({
+    partyEmail: params.party?.email,
+    partyEmailIsAuthoritative: Boolean(params.party?.fieldSources.email),
+    personEmail: params.person?.email,
+  });
 }
 
 export function customerAccountEmail(party: OrganizationPartyProfileDto | null | undefined): string {
@@ -358,6 +360,7 @@ export function buildCustomerPersonOverviewSections(params: {
   const contact: CustomerProfileField[] = [];
   if (!corporate) {
     push(contact, field(CUSTOMER_PERSON_LABEL.personEmail, customerPersonEmail({ party, person })));
+    push(contact, field(CUSTOMER_PERSON_LABEL.accountEmail, customerAccountEmail(party)));
   }
 
   const address: CustomerProfileField[] = [];

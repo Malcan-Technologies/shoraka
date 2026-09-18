@@ -1,5 +1,36 @@
 import type { GatewayPaymentStatus, NameCheckResult } from "./notes";
 
+export const GATEWAY_PAYMENT_LIST_FILTERS = [
+  "exceptions",
+  "needs_attention",
+  "review",
+  "refunding",
+  "refunded",
+  "completed",
+] as const;
+
+export type GatewayPaymentListFilter = (typeof GATEWAY_PAYMENT_LIST_FILTERS)[number];
+
+/** Combined ops queue: investor deposits waiting on hold or name-check review. */
+export const GATEWAY_PAYMENT_EXCEPTIONS_FILTER = "exceptions" satisfies GatewayPaymentListFilter;
+
+export const GATEWAY_PAYMENT_EXCEPTIONS_PURPOSE = "INVESTOR_DEPOSIT" as const;
+
+export const GATEWAY_PAYMENT_EXCEPTIONS_STATUSES = [
+  "HELD",
+  "NAME_CHECK_PENDING",
+] as const satisfies readonly GatewayPaymentStatus[];
+
+export function isGatewayPaymentException(payment: {
+  purpose: string;
+  status: string;
+}): boolean {
+  return (
+    payment.purpose === GATEWAY_PAYMENT_EXCEPTIONS_PURPOSE &&
+    (GATEWAY_PAYMENT_EXCEPTIONS_STATUSES as readonly string[]).includes(payment.status)
+  );
+}
+
 export type GatewayPaymentPurpose =
   | "INVESTOR_DEPOSIT"
   | "ISSUER_ONBOARDING_FEE"

@@ -1,5 +1,17 @@
+import { GATEWAY_PAYMENT_EXCEPTIONS_FILTER, type GatewayPaymentListFilter } from "@cashsouk/types";
 import { formatAuditDateTime } from "@/components/audit/audit-presentation";
 import { getAdminStatusToken } from "./admin-status-token";
+
+/** API `filter` values. Open exceptions is the combined investor-deposit queue. */
+export const GATEWAY_PAYMENT_STATUS_FILTER_OPTIONS = [
+  { value: "all", label: "All statuses" },
+  { value: GATEWAY_PAYMENT_EXCEPTIONS_FILTER, label: "Open exceptions" },
+  { value: "completed", label: "Completed" },
+  { value: "review", label: "Name check pending" },
+  { value: "refunding", label: "Refund pending" },
+  { value: "refunded", label: "Refunded" },
+  { value: "needs_attention", label: "Needs attention" },
+] as const satisfies ReadonlyArray<{ value: "all" | GatewayPaymentListFilter; label: string }>;
 
 export const STATUS_LABEL: Record<string, string> = {
   CREATED: "Awaiting payment",

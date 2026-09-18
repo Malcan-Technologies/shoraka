@@ -218,6 +218,53 @@ function collectDirectorAmlIndividualEntries(
   return [...dirs, ...sh];
 }
 
+export function getLegacyDirectorAmlPersonContext(
+  partyKeyRaw: string | null | undefined,
+  directorKycStatus: unknown,
+  directorAmlStatus: unknown
+): { email: string | null; screeningStatus: string | null } | null {
+  const strictKey = normalizeDirectorShareholderIdKey(partyKeyRaw);
+  if (!strictKey) return null;
+  const amlRoot =
+    directorAmlStatus && typeof directorAmlStatus === "object" && !Array.isArray(directorAmlStatus)
+      ? (directorAmlStatus as Record<string, unknown>)
+      : undefined;
+  const entries = collectDirectorAmlIndividualEntries(amlRoot);
+  const kycRoot =
+    directorKycStatus && typeof directorKycStatus === "object" && !Array.isArray(directorKycStatus)
+      ? (directorKycStatus as Record<string, unknown>)
+      : undefined;
+  const kyc = findLegacyKycPersonByStrictId(strictKey, kycRoot);
+  const direct = entries.find(
+    (entry) =>
+      normalizeDirectorShareholderIdKey(
+        String(entry.governmentIdNumber ?? entry.ic_lcno ?? "")
+      ) === strictKey
+  );
+  const kycId = String(kyc?.kycId ?? "").trim();
+  const byKycId = kycId
+    ? entries.find((entry) => String(entry.kycId ?? "").trim() === kycId)
+    : undefined;
+  const eodIds = [kyc?.eodRequestId, kyc?.shareholderEodRequestId]
+    .map((value) => String(value ?? "").trim())
+    .filter(Boolean);
+  const byEod = entries.find((entry) => {
+    const entryIds = [entry.eodRequestId, entry.shareholderEodRequestId].map((value) =>
+      String(value ?? "").trim()
+    );
+    return eodIds.some((id) => entryIds.includes(id));
+  });
+  const email =
+    String(direct?.email ?? "").trim() ||
+    String(byKycId?.email ?? "").trim() ||
+    null;
+  const screeningStatus =
+    [byEod, byKycId, direct]
+      .map((row) => (row ? issuerAmlRowScreeningRawForDisplay(row) : ""))
+      .find(Boolean) || null;
+  return email || screeningStatus ? { email, screeningStatus } : null;
+}
+
 /** Prefer RegTank `rawStatus` (KYB/KYC screening string) over bucketed `amlStatus` when present. */
 function issuerAmlRowScreeningRawForDisplay(row: Record<string, unknown>): string {
   const raw = String(row.rawStatus ?? "").trim();

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { GATEWAY_PAYMENT_LIST_FILTERS } from "@cashsouk/types";
 import {
   CurlecGatewayAccount,
   GatewayOrganizationType,
@@ -19,7 +20,7 @@ export const listGatewayPaymentsQuerySchema = z.object({
   contractId: z.string().min(1).optional(),
   noteId: z.string().min(1).optional(),
   organizationType: z.nativeEnum(GatewayOrganizationType).optional(),
-  filter: z.enum(["needs_attention", "review", "refunding", "refunded", "completed"]).optional(),
+  filter: z.enum(GATEWAY_PAYMENT_LIST_FILTERS).optional(),
   search: z.string().trim().optional(),
 });
 

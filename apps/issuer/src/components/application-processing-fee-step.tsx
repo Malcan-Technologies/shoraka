@@ -15,11 +15,28 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@cashsouk/ui";
 import {
+  clearIssuerPendingSubmitAfterFee,
   normalizeProcessingFeeAmount,
+  readIssuerPendingSubmitAfterFee,
   storeIssuerPendingSubmitAfterFee,
   useApplicationProcessingFeeOrder,
+  useApplicationProcessingFeeQuery,
 } from "@/hooks/use-application-processing-fee";
 import { buildApplicationEditReturnTo } from "@/lib/application-processing-fee-routes";
+import {
+  PROCESSING_FEE_CONFIRMING_COPY,
+  deriveProcessingFeePayStepModel,
+  isProcessingFeeAmountLoading,
+  isProcessingFeeAwaitingConfirmation,
+  isProcessingFeePayBlockedOnLiveOrder,
+  isRetryableUnpaidProcessingFeeStatus,
+  markProcessingFeeAwaitingConfirmation,
+  releaseFailedProcessingFeeCheckoutLaunch,
+  releaseRetryableProcessingFeeConfirmation,
+  resolvePendingProcessingFeeResumeFeeId,
+  resolveProcessingFeeCheckoutOrder,
+  shouldLoadProcessingFeeOrder,
+} from "@/lib/application-processing-fee-confirmation";
 import {
   isIssuerFeeCaptureMismatchHeldError,
   PaymentUnderReviewNotice,
@@ -31,7 +48,7 @@ interface ApplicationProcessingFeeStepProps {
   applicationId: string;
   initialFee?: ApplicationProcessingFeeResponse | null;
   onBack: () => void;
-  onFeeAlreadyPaid: () => void;
+  onFeeAlreadyPaid: () => void | Promise<void>;
 }
 
 export function ApplicationProcessingFeeStep({
@@ -42,30 +59,116 @@ export function ApplicationProcessingFeeStep({
 }: ApplicationProcessingFeeStepProps) {
   const { getAccessToken } = useAuthToken();
   const { activeOrganization } = useOrganization();
-  const feeOrderQuery = useApplicationProcessingFeeOrder(applicationId, !initialFee);
-  const resolvedFee = initialFee ?? feeOrderQuery.data ?? null;
+  const pending = readIssuerPendingSubmitAfterFee(applicationId);
+  const awaitingConfirmation = isProcessingFeeAwaitingConfirmation(pending, applicationId);
+  const resumeFeeId = resolvePendingProcessingFeeResumeFeeId(pending, applicationId);
+  const savedFeeQuery = useApplicationProcessingFeeQuery(
+    resumeFeeId ? applicationId : undefined,
+    resumeFeeId ?? undefined,
+    { pollUntilTerminal: Boolean(resumeFeeId) }
+  );
+  const resumedFee =
+    savedFeeQuery.data?.id === resumeFeeId ? savedFeeQuery.data : undefined;
+  const retryableResumedFee = isRetryableUnpaidProcessingFeeStatus(resumedFee?.status);
+  const checkoutResumeFeeId = retryableResumedFee ? null : resumeFeeId;
+  const checkoutAwaitingConfirmation =
+    awaitingConfirmation && checkoutResumeFeeId != null;
+  const feeOrderQuery = useApplicationProcessingFeeOrder(
+    applicationId,
+    shouldLoadProcessingFeeOrder(checkoutResumeFeeId),
+    {
+      pollWhileConfirming:
+        !resumeFeeId && (awaitingConfirmation || initialFee?.status === "PAID"),
+    }
+  );
+  const checkoutFee = resolveProcessingFeeCheckoutOrder({
+    resumeFeeId: checkoutResumeFeeId,
+    savedFee: resumedFee,
+    liveOrder: feeOrderQuery.data,
+  });
+  const resolvedFee =
+    checkoutFee ?? (resumeFeeId ? resumedFee ?? null : initialFee ?? null);
+  const waitingForLiveOrder = isProcessingFeePayBlockedOnLiveOrder({
+    resumeFeeId: checkoutResumeFeeId,
+    liveOrder: feeOrderQuery.data,
+  });
   const [error, setError] = React.useState<string | null>(null);
   const [isOpeningCheckout, setIsOpeningCheckout] = React.useState(false);
   const checkoutOpenInFlightRef = React.useRef(false);
+  const completedFeeHandoffRef = React.useRef<string | null>(null);
+  const completedFeeHandoffInFlightRef = React.useRef<string | null>(null);
 
-  const isUnderReview =
-    resolvedFee?.status === "HELD" ||
-    initialFee?.status === "HELD" ||
-    isIssuerFeeCaptureMismatchHeldError(feeOrderQuery.error);
+  const persistReleasedFailedCheckout = (markedFeeId: string | null) => {
+    const current = readIssuerPendingSubmitAfterFee(applicationId);
+    const released = releaseFailedProcessingFeeCheckoutLaunch(
+      current,
+      applicationId,
+      markedFeeId
+    );
+    if (released && released !== current) {
+      storeIssuerPendingSubmitAfterFee(released);
+    }
+  };
+
+  const payModel = deriveProcessingFeePayStepModel({
+    status: resolvedFee?.status,
+    heldError: isIssuerFeeCaptureMismatchHeldError(feeOrderQuery.error),
+    awaitingConfirmation: checkoutAwaitingConfirmation,
+  });
+
+  React.useEffect(() => {
+    if (!resumeFeeId || !retryableResumedFee) return;
+    const current = readIssuerPendingSubmitAfterFee(applicationId);
+    const released = releaseRetryableProcessingFeeConfirmation(
+      current,
+      applicationId,
+      resumeFeeId,
+      resumedFee?.status
+    );
+    if (released && released !== current) {
+      storeIssuerPendingSubmitAfterFee(released);
+    }
+  }, [applicationId, resumeFeeId, resumedFee?.status, retryableResumedFee]);
+
+  const handoffCompletedFee = React.useCallback(
+    async (feeId: string) => {
+      const handoffKey = `${applicationId}:${feeId}`;
+      if (
+        completedFeeHandoffRef.current === handoffKey ||
+        completedFeeHandoffInFlightRef.current === handoffKey
+      ) {
+        return;
+      }
+      completedFeeHandoffInFlightRef.current = handoffKey;
+      try {
+        await onFeeAlreadyPaid();
+        completedFeeHandoffRef.current = handoffKey;
+        clearIssuerPendingSubmitAfterFee(applicationId);
+      } catch {
+        completedFeeHandoffInFlightRef.current = null;
+      }
+    },
+    [applicationId, onFeeAlreadyPaid]
+  );
 
   React.useEffect(() => {
     if (resolvedFee?.status === "COMPLETED") {
-      onFeeAlreadyPaid();
+      void handoffCompletedFee(resolvedFee.id);
     }
-  }, [onFeeAlreadyPaid, resolvedFee?.status]);
+  }, [handoffCompletedFee, resolvedFee?.id, resolvedFee?.status]);
 
   const handlePayFee = async () => {
-    if (checkoutOpenInFlightRef.current || isOpeningCheckout || isUnderReview) {
+    if (
+      checkoutOpenInFlightRef.current ||
+      isOpeningCheckout ||
+      !payModel.showPayCta
+    ) {
       return;
     }
 
     checkoutOpenInFlightRef.current = true;
     setIsOpeningCheckout(true);
+    let markedFeeId: string | null = null;
 
     try {
       const checkoutContact = await resolvePortalCheckoutPayer({
@@ -79,43 +182,66 @@ export function ApplicationProcessingFeeStep({
         return;
       }
 
-      if (!resolvedFee) {
+      const liveOrder = checkoutResumeFeeId
+        ? feeOrderQuery.data
+        : (await feeOrderQuery.refetch()).data;
+      const liveCheckoutFee = resolveProcessingFeeCheckoutOrder({
+        resumeFeeId: checkoutResumeFeeId,
+        savedFee: resumedFee,
+        liveOrder,
+      });
+
+      if (!liveCheckoutFee) {
         setError("Could not load the processing fee amount. Please try again.");
         return;
       }
 
       setError(null);
 
-      if (resolvedFee.status === "COMPLETED") {
-        onFeeAlreadyPaid();
+      if (liveCheckoutFee.status === "COMPLETED") {
+        await handoffCompletedFee(liveCheckoutFee.id);
         return;
       }
 
-      if (resolvedFee.status === "HELD") {
+      if (
+        !deriveProcessingFeePayStepModel({
+          status: liveCheckoutFee.status,
+          awaitingConfirmation: checkoutAwaitingConfirmation,
+        }).showPayCta
+      ) {
         return;
       }
 
       const returnTo = buildApplicationEditReturnTo(applicationId);
-      storeIssuerPendingSubmitAfterFee({
-        applicationId,
-        returnTo,
-        declarationsSaved: true,
-      });
+      storeIssuerPendingSubmitAfterFee(
+        markProcessingFeeAwaitingConfirmation(
+          {
+            applicationId,
+            returnTo,
+            declarationsSaved: true,
+          },
+          liveCheckoutFee.id
+        )
+      );
+      markedFeeId = liveCheckoutFee.id;
 
-      const callbackUrl = buildApplicationProcessingFeeCallbackUrl(resolvedFee.id, returnTo);
+      const callbackUrl = buildApplicationProcessingFeeCallbackUrl(liveCheckoutFee.id, returnTo);
 
       await openCurlecFpxCheckout({
-        keyId: resolvedFee.curlecKeyId,
-        orderId: resolvedFee.curlecOrderId,
-        amountMyr: normalizeProcessingFeeAmount(resolvedFee.amount) ?? resolvedFee.amount,
+        keyId: liveCheckoutFee.curlecKeyId,
+        orderId: liveCheckoutFee.curlecOrderId,
+        amountMyr: normalizeProcessingFeeAmount(liveCheckoutFee.amount) ?? liveCheckoutFee.amount,
         callbackUrl,
         description: "Application processing fee",
         prefillName: checkoutContact.name ?? "Applicant",
         prefillEmail: checkoutContact.email,
         prefillContact: checkoutContact.contact,
-        onDismiss: () => setIsOpeningCheckout(false),
+        onDismiss: () => {
+          setIsOpeningCheckout(false);
+        },
       });
     } catch (err) {
+      persistReleasedFailedCheckout(markedFeeId);
       if (isIssuerFeeCaptureMismatchHeldError(err)) {
         setError(null);
         return;
@@ -129,31 +255,39 @@ export function ApplicationProcessingFeeStep({
   };
 
   const feeAmount = normalizeProcessingFeeAmount(resolvedFee?.amount);
-  const isLoadingAmount = !initialFee && feeOrderQuery.isLoading && !isUnderReview;
+  const isLoadingAmount = isProcessingFeeAmountLoading({
+    resumeFeeId: checkoutResumeFeeId,
+    liveOrder: feeOrderQuery.data,
+    isOrderLoading: feeOrderQuery.isLoading || feeOrderQuery.isFetching,
+    payState: payModel.state,
+  });
+  const loadError =
+    error ??
+    (waitingForLiveOrder &&
+    feeOrderQuery.isError &&
+    !isIssuerFeeCaptureMismatchHeldError(feeOrderQuery.error)
+      ? feeOrderQuery.error instanceof Error
+        ? feeOrderQuery.error.message
+        : "Could not load the processing fee amount. Please try again."
+      : null);
 
   return (
     <div className="mx-auto w-full max-w-xl space-y-6">
       <div className="text-center space-y-2">
-        <h2 className="text-xl font-semibold">
-          {isUnderReview ? "Processing fee" : "Pay processing fee"}
-        </h2>
-        <p className="text-ui text-muted-foreground">
-          {isUnderReview
-            ? "Your payment is being verified before the application can be submitted."
-            : "Your declarations have been saved. Complete this one-time fee to submit your application for review."}
-        </p>
+        <h2 className="text-xl font-semibold">{payModel.headline}</h2>
+        <p className="text-ui text-muted-foreground">{payModel.description}</p>
       </div>
 
-      {error && !isUnderReview ? (
+      {loadError && payModel.showPayCta ? (
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
           <div className="flex items-start gap-3">
             <ExclamationCircleIcon className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
-            <p className="text-sm text-destructive">{error}</p>
+            <p className="text-sm text-destructive">{loadError}</p>
           </div>
         </div>
       ) : null}
 
-      {isUnderReview ? <PaymentUnderReviewNotice /> : null}
+      {payModel.showUnderReview ? <PaymentUnderReviewNotice /> : null}
 
       <Card className="rounded-2xl shadow-sm">
         <CardHeader>
@@ -163,7 +297,7 @@ export function ApplicationProcessingFeeStep({
         <CardContent className="space-y-4">
           <div className="rounded-xl bg-muted/50 px-4 py-3 text-center">
             <p className="text-sm text-muted-foreground">
-              {isUnderReview ? "Fee amount" : "Amount due"}
+              {payModel.showPayCta ? "Amount due" : "Fee amount"}
             </p>
             {isLoadingAmount ? (
               <Skeleton className="mx-auto mt-2 h-9 w-32" />
@@ -173,25 +307,40 @@ export function ApplicationProcessingFeeStep({
               </p>
             )}
           </div>
-          {isUnderReview ? null : (
+          {payModel.state === "confirming" ? (
+            <div className="flex justify-center py-2" role="status" aria-live="polite">
+              <div
+                className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent"
+                aria-hidden
+              />
+              <span className="sr-only">{PROCESSING_FEE_CONFIRMING_COPY.title}</span>
+            </div>
+          ) : null}
+          {payModel.showPayCta ? (
             <Button
               type="button"
               variant="action"
               className="h-11 w-full rounded-xl"
-              disabled={isOpeningCheckout || isLoadingAmount || !resolvedFee}
+              disabled={
+                isOpeningCheckout ||
+                isLoadingAmount ||
+                (waitingForLiveOrder && !feeOrderQuery.isError)
+              }
               onClick={() => void handlePayFee()}
             >
               {isOpeningCheckout
                 ? "Opening checkout..."
                 : isLoadingAmount
                   ? "Loading fee..."
-                  : "Pay with FPX"}
+                  : payModel.ctaLabel}
             </Button>
-          )}
+          ) : null}
           <p className="text-center text-xs text-muted-foreground">
-            {isUnderReview
-              ? "No further payment is required while this fee is under review."
-              : "This fee is non-refundable. Resubmissions after an amendment request do not require another payment."}
+            {payModel.state === "confirming"
+              ? "Do not start another FPX payment while this one is confirming."
+              : payModel.showUnderReview
+                ? "No further payment is required while this fee is under review."
+                : "This fee is non-refundable. Resubmissions after an amendment request do not require another payment."}
           </p>
         </CardContent>
       </Card>

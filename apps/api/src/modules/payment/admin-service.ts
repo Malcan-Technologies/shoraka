@@ -16,6 +16,10 @@ import { recordGatewayPaymentEvent, mapGatewayPaymentEvent } from "./gateway-eve
 import { loadUserDisplayNameMap } from "../../lib/user-display-name";
 import { ListGatewayPaymentsQuery } from "./admin-schemas";
 import {
+  applyGatewayPaymentListFilter,
+  gatewayPaymentExceptionsWhere,
+} from "./gateway-payment-list-filter";
+import {
   initiateGatewayPaymentRefund,
   initiateInvestorDepositRefund,
   retryWalletReversalForConfirmedRefund,
@@ -121,23 +125,6 @@ function mapListItem(
   };
 }
 
-function resolveFilterStatuses(filter?: ListGatewayPaymentsQuery["filter"]) {
-  switch (filter) {
-    case "needs_attention":
-      return [GatewayPaymentStatus.HELD];
-    case "review":
-      return [GatewayPaymentStatus.NAME_CHECK_PENDING];
-    case "refunding":
-      return [GatewayPaymentStatus.REFUND_INITIATED];
-    case "refunded":
-      return [GatewayPaymentStatus.REFUNDED];
-    case "completed":
-      return [GatewayPaymentStatus.COMPLETED];
-    default:
-      return null;
-  }
-}
-
 async function getInvestorDepositOrThrow(
   db: PrismaClient,
   gatewayPaymentId: string
@@ -186,15 +173,7 @@ export async function listGatewayPayments(
   db: PrismaClient = defaultPrisma
 ) {
   const where: Prisma.GatewayPaymentWhereInput = {};
-  const filterStatuses = resolveFilterStatuses(query.filter);
-
-  if (filterStatuses) {
-    where.status = { in: filterStatuses };
-  } else if (query.status) {
-    where.status = query.status;
-  }
-
-  if (query.purpose) where.purpose = query.purpose;
+  applyGatewayPaymentListFilter(where, query);
   if (query.contractId) where.contract_id = query.contractId;
   if (query.noteId) where.note_id = query.noteId;
   if (query.organizationType) where.organization_type = query.organizationType;
@@ -227,12 +206,7 @@ export async function listGatewayPayments(
 
 export async function getGatewayPaymentsExceptionCount(db: PrismaClient = defaultPrisma) {
   const count = await db.gatewayPayment.count({
-    where: {
-      purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT,
-      status: {
-        in: [GatewayPaymentStatus.HELD, GatewayPaymentStatus.NAME_CHECK_PENDING],
-      },
-    },
+    where: gatewayPaymentExceptionsWhere(),
   });
 
   return { count };

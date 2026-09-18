@@ -13,6 +13,7 @@ import {
   computeIssuerPersonCompleteness,
   issuerPersonCompletenessInputFromParty,
   isMissingGovernmentIdPerson,
+  isPersonEmailLifecycleLocked,
   normalizeDirectorShareholderIdKey,
   normalizeDirectorShareholderPartyEmail,
   PERSON_EMAIL_HELP,
@@ -215,6 +216,16 @@ export function PortalPeopleSection({
     parties.find(
       (party) => party.id === editPartyId && party.membershipStatus === "MASTER_ACTIVE"
     ) ?? null;
+  const editingPerson =
+    masterCards.find((item) => item.party.id === editing?.id)?.person ?? null;
+  const editingEmailLocked = isPersonEmailLifecycleLocked({
+    onboardingStatus: editingPerson?.onboarding?.status,
+    screeningStatus: editingPerson?.screening?.status,
+  });
+  const viewingEmailLocked = isPersonEmailLifecycleLocked({
+    onboardingStatus: viewingPerson?.onboarding?.status,
+    screeningStatus: viewingPerson?.screening?.status,
+  });
   const inviteParty = parties.find((party) => party.id === invitePartyId) ?? null;
   const manageParty = parties.find((party) => party.id === managePartyId) ?? null;
   const onboardPerson =
@@ -519,7 +530,8 @@ export function PortalPeopleSection({
           {canEdit &&
           viewing &&
           viewing.entityType !== "CORPORATE" &&
-          viewing.membershipStatus === "MASTER_ACTIVE" ? (
+          viewing.membershipStatus === "MASTER_ACTIVE" &&
+          !viewingEmailLocked ? (
             <div className="space-y-2">
               <Label htmlFor="onboarding-email">Email</Label>
               <Input
@@ -583,6 +595,9 @@ export function PortalPeopleSection({
           {editing ? (
             <PartyFillEmptyForm
               party={editing}
+              emailLocked={editingEmailLocked}
+              displayedEmail={editingPerson?.email ?? null}
+              accountEmail={editing.linkedUser?.email}
               onCancel={() => setEditPartyId(null)}
               onSave={async (data) => {
                 const res = await api.patchPartyProfile(portal, organizationId, editing.id, data);

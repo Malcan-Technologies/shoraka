@@ -215,6 +215,19 @@ describe("customer person Profile mapping", () => {
         })
       )
     ).toBe("");
+    expect(customerPersonEmail({ party: party({ email: null }), person: person({ email: "legacy@acme.test" }) })).toBe(
+      "legacy@acme.test"
+    );
+    const linkedFields = fieldMap(buildCustomerPersonOverviewSections({ party: withUser, person: person() }));
+    expect(linkedFields.get("Person Email")).toBe("max.chng@truestack.my");
+    expect(linkedFields.get("Account Email")).toBe("login@example.com");
+    const unlinkedFields = fieldMap(
+      buildCustomerPersonOverviewSections({
+        party: party({ email: "max.chng@truestack.my", linkedUser: null }),
+        person: person(),
+      })
+    );
+    expect(unlinkedFields.has("Account Email")).toBe(false);
   });
 
   it("maps shareholding from master percentage and formats amount with RM", () => {

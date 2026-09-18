@@ -3,8 +3,25 @@
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ProcessingFeeReturnDialog } from "@/components/processing-fee-return-dialog";
-import { readIssuerPendingSubmitAfterFee } from "@/hooks/use-application-processing-fee";
-import { parseApplicationIdFromEditPath } from "@/lib/application-processing-fee-routes";
+import {
+  readIssuerPendingSubmitAfterFee,
+  storeIssuerPendingSubmitAfterFee,
+  type IssuerPendingSubmitAfterFee,
+} from "@/hooks/use-application-processing-fee";
+import {
+  buildApplicationEditReturnTo,
+  parseApplicationIdFromEditPath,
+} from "@/lib/application-processing-fee-routes";
+import {
+  clearProcessingFeeAwaitingConfirmation,
+  dismissProcessingFeeReturnPinState,
+  markProcessingFeeAwaitingConfirmation,
+  nextProcessingFeeReturnPinState,
+  processingFeePendingForApplication,
+  resolvePendingProcessingFeeResumeFeeId,
+  resolveProcessingFeeReturnDestination,
+  resolveProcessingFeeReturnIds,
+} from "@/lib/application-processing-fee-confirmation";
 
 export function ProcessingFeeReturnListener({
   onSubmitAfterPayment,
@@ -14,40 +31,103 @@ export function ProcessingFeeReturnListener({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const pending = readIssuerPendingSubmitAfterFee();
+  const pathApplicationId = parseApplicationIdFromEditPath(pathname);
+  const [pending, setPending] = React.useState<IssuerPendingSubmitAfterFee | null>(null);
+
+  React.useEffect(() => {
+    setPending(readIssuerPendingSubmitAfterFee(pathApplicationId ?? undefined));
+  }, [pathApplicationId]);
 
   const urlFeeId = searchParams.get("processingFeeReturn");
-  const urlApplicationId =
-    pending?.applicationId ?? parseApplicationIdFromEditPath(pathname) ?? null;
-
-  // Pin on first sight so wizard resume logic cannot strip the param before effects run.
-  const [pinnedFeeId, setPinnedFeeId] = React.useState<string | null>(urlFeeId);
-  const [pinnedApplicationId, setPinnedApplicationId] = React.useState<string | null>(
+  const urlApplicationId = pathApplicationId ?? pending?.applicationId ?? null;
+  const pendingResumeFeeId = resolvePendingProcessingFeeResumeFeeId(
+    pending,
     urlApplicationId
   );
-  const [dismissed, setDismissed] = React.useState(false);
 
-  if (!dismissed) {
-    if (urlFeeId && urlFeeId !== pinnedFeeId) {
-      setPinnedFeeId(urlFeeId);
-    }
-    if (urlApplicationId && urlApplicationId !== pinnedApplicationId) {
-      setPinnedApplicationId(urlApplicationId);
-    }
+  const [pinState, setPinState] = React.useState({
+    pinnedFeeId: urlFeeId,
+    pinnedApplicationId: pathApplicationId,
+    dismissed: false,
+  });
+
+  const nextPin = nextProcessingFeeReturnPinState(
+    pinState,
+    urlFeeId,
+    urlApplicationId,
+    pendingResumeFeeId
+  );
+  if (nextPin !== pinState) {
+    setPinState(nextPin);
   }
 
-  const feeId = dismissed ? null : pinnedFeeId;
-  const applicationId = dismissed ? null : pinnedApplicationId;
+  const { feeId, applicationId } = resolveProcessingFeeReturnIds(pinState);
+
+  React.useEffect(() => {
+    if (!feeId || !applicationId) return;
+    const current = processingFeePendingForApplication(
+      readIssuerPendingSubmitAfterFee(applicationId),
+      applicationId
+    );
+    storeIssuerPendingSubmitAfterFee(
+      markProcessingFeeAwaitingConfirmation(
+        {
+          applicationId,
+          returnTo: current?.returnTo ?? buildApplicationEditReturnTo(applicationId),
+          declarationsSaved: current?.declarationsSaved ?? true,
+          feeId: current?.feeId,
+        },
+        feeId
+      )
+    );
+  }, [applicationId, feeId]);
 
   const dismissToRetry = React.useCallback(() => {
     if (!applicationId) return;
-    setPinnedFeeId(null);
-    setPinnedApplicationId(null);
-    setDismissed(true);
-    const destination =
-      pending?.returnTo ?? `/applications/${applicationId}/edit?continue=processingFee`;
-    router.replace(destination);
-  }, [applicationId, pending?.returnTo, router]);
+    const current = processingFeePendingForApplication(
+      readIssuerPendingSubmitAfterFee(applicationId),
+      applicationId
+    );
+    if (current) {
+      storeIssuerPendingSubmitAfterFee(clearProcessingFeeAwaitingConfirmation(current));
+    }
+    const initial = processingFeePendingForApplication(pending, applicationId);
+    setPinState(dismissProcessingFeeReturnPinState);
+    router.replace(
+      resolveProcessingFeeReturnDestination({
+        action: "retry-payment",
+        applicationId,
+        pendingReturnTo: current?.returnTo ?? initial?.returnTo,
+      })
+    );
+  }, [applicationId, pending, router, setPinState]);
+
+  const leaveForNow = React.useCallback(() => {
+    if (!applicationId) return;
+    const current = processingFeePendingForApplication(
+      readIssuerPendingSubmitAfterFee(applicationId),
+      applicationId
+    );
+    if (feeId) {
+      storeIssuerPendingSubmitAfterFee(
+        markProcessingFeeAwaitingConfirmation(
+          current ?? {
+            applicationId,
+            returnTo: buildApplicationEditReturnTo(applicationId),
+            declarationsSaved: true,
+          },
+          feeId
+        )
+      );
+    }
+    setPinState(dismissProcessingFeeReturnPinState);
+    router.replace(
+      resolveProcessingFeeReturnDestination({
+        action: "leave-for-now",
+        applicationId,
+      })
+    );
+  }, [applicationId, feeId, router, setPinState]);
 
   const submitHandler = React.useCallback(async () => {
     if (!applicationId) {
@@ -66,6 +146,7 @@ export function ProcessingFeeReturnListener({
       feeId={feeId}
       open
       onDismissToRetry={dismissToRetry}
+      onLeaveForNow={leaveForNow}
       onSubmitAfterPayment={submitHandler}
     />
   );

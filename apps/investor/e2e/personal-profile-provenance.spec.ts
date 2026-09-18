@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { PrismaClient, OrganizationType } from "@prisma/client";
+import { PrismaClient, OrganizationType, type Prisma } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
@@ -58,6 +58,13 @@ async function seedPersonalInvestorOrg(args: {
   identityNumber: string | null;
 }) {
   const fixedNow = new Date("2026-09-17T00:00:00.000Z");
+  const profileFieldSources: Prisma.InputJsonValue = {
+    dateOfBirth: { source: "USER", updatedAt: fixedNow.toISOString() },
+    gender: { source: "USER", updatedAt: fixedNow.toISOString() },
+    nationality: { source: "USER", updatedAt: fixedNow.toISOString() },
+    identityPrefix: { source: args.identityPrefixSource, updatedAt: fixedNow.toISOString() },
+    identityNumber: { source: args.identityNumberSource, updatedAt: fixedNow.toISOString() },
+  };
 
   await prisma.investorOrganization.upsert({
     where: { id: args.orgId },
@@ -94,13 +101,7 @@ async function seedPersonalInvestorOrg(args: {
         country: "MY",
       },
 
-      profile_field_sources: {
-        dateOfBirth: { source: "USER", updatedAt: fixedNow.toISOString() },
-        gender: { source: "USER", updatedAt: fixedNow.toISOString() },
-        nationality: { source: "USER", updatedAt: fixedNow.toISOString() },
-        identityPrefix: { source: args.identityPrefixSource, updatedAt: fixedNow.toISOString() },
-        identityNumber: { source: args.identityNumberSource, updatedAt: fixedNow.toISOString() },
-      } as any,
+      profile_field_sources: profileFieldSources,
     },
     update: {
       owner_user_id: args.userId,
@@ -124,13 +125,7 @@ async function seedPersonalInvestorOrg(args: {
         country: "MY",
       },
 
-      profile_field_sources: {
-        dateOfBirth: { source: "USER", updatedAt: fixedNow.toISOString() },
-        gender: { source: "USER", updatedAt: fixedNow.toISOString() },
-        nationality: { source: "USER", updatedAt: fixedNow.toISOString() },
-        identityPrefix: { source: args.identityPrefixSource, updatedAt: fixedNow.toISOString() },
-        identityNumber: { source: args.identityNumberSource, updatedAt: fixedNow.toISOString() },
-      } as any,
+      profile_field_sources: profileFieldSources,
     },
   });
 }

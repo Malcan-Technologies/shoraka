@@ -10,6 +10,7 @@ import {
   humanizeApiValidationMessage,
   isMemberWithoutCompanyRole,
   isProfileValidationError,
+  isPersonEmailLifecycleLocked,
   linkedPartyUserIds,
   optionalEmailIssue,
   observedPartyBlockedByIdentityConflict,
@@ -121,6 +122,15 @@ export function OrganizationPeoplePanel({
     isMemberWithoutCompanyRole(member.userId, linkedUserIds)
   );
   const editingParty = org.partyProfiles?.find((party) => party.id === editingPartyId) ?? null;
+  const editingPerson =
+    unified.master.find((item) => item.party?.id === editingPartyId)?.person ??
+    unified.external.find((item) => item.party?.id === editingPartyId)?.person ??
+    unified.inactive.find((item) => item.party?.id === editingPartyId)?.person ??
+    null;
+  const editingEmailLocked = isPersonEmailLifecycleLocked({
+    onboardingStatus: editingPerson?.onboarding?.status,
+    screeningStatus: editingPerson?.screening?.status,
+  });
   const viewingParty = org.partyProfiles?.find((party) => party.id === viewingPartyId) ?? null;
   const viewingPerson =
     unified.master.find((item) => item.party?.id === viewingPartyId)?.person ??
@@ -204,7 +214,9 @@ export function OrganizationPeoplePanel({
   };
 
   const saveParty = async (values: PartyEditorValues, partyId: string) => {
-    const payload = buildPartyPatchPayloadFromEditorValues(values);
+    const payload = buildPartyPatchPayloadFromEditorValues(values, {
+      includeEmail: !editingEmailLocked,
+    });
     await peopleMutations.patchParty.mutateAsync({ partyId, data: payload });
     setEditingPartyId(null);
   };
@@ -491,10 +503,16 @@ export function OrganizationPeoplePanel({
         }}
         title={editingParty?.name || "Person"}
         description="Update this person’s details on the company profile."
-        initial={editingParty ? partyToEditorValues(editingParty) : null}
+        initial={
+          editingParty
+            ? partyToEditorValues(editingParty, { personEmail: editingPerson?.email })
+            : null
+        }
         fieldSources={editingParty?.fieldSources}
         isSaving={peopleMutations.patchParty.isPending}
         enforceIssuerShareholderMinimum
+        emailLocked={editingEmailLocked}
+        accountEmail={editingParty?.linkedUser?.email ?? null}
         onSave={async (values) => {
           if (!editingParty) return;
           await saveParty(values, editingParty.id);

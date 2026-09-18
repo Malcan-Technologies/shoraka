@@ -1,24 +1,27 @@
 import { isCtosPartySupplementApprovalLocked, parseCtosPartySupplement } from "./ctos-party-supplement-json";
+import { getAmlGroup, getKycGroup } from "./director-shareholder-single-status-display";
 import { isDraftPartyOnboardingRequestId } from "./kyc-onboarding-lifecycle";
 import { normalizeRawStatus } from "./status-normalization";
 
 export const PERSON_EMAIL_HELP =
-  "Used for onboarding, signing, and platform invitations for this person.";
-
-const AML_STATUSES_LOCK_EMAIL = new Set([
-  "REJECTED",
-  "FAILED",
-  "DECLINED",
-  "APPROVED",
-  "AML_APPROVED",
-  "CLEAR",
-]);
-
-const ONBOARDING_STATUSES_LOCK_EMAIL = new Set(["WAIT_FOR_APPROVAL", "APPROVED"]);
+  "Used for signing, onboarding, person-specific OTPs, and person-specific business mail. This is not the login email. Warning: changing it may require the person to complete KYC identity verification again and may require authorised representatives to be reviewed again before a new signing package can be created.";
 
 export function normalizePersonEmail(value: unknown): string | null {
   const trimmed = String(value ?? "").trim().toLowerCase();
   return trimmed || null;
+}
+
+/** Displayed Person Email: authoritative master first, then a legacy people-row email. */
+export function displayedPersonEmail(params: {
+  partyEmail?: string | null;
+  partyEmailIsAuthoritative?: boolean;
+  personEmail?: string | null;
+}): string {
+  const party = String(params.partyEmail ?? "").trim();
+  if (party || params.partyEmailIsAuthoritative) {
+    return party;
+  }
+  return String(params.personEmail ?? "").trim();
 }
 
 export function hasPersonOnboardingPipeline(supplementRoot: unknown): boolean {
@@ -28,25 +31,59 @@ export function hasPersonOnboardingPipeline(supplementRoot: unknown): boolean {
   return Boolean(liveRequest || (s.status ?? "").trim() || (s.sentAt ?? "").trim() || s.screening);
 }
 
+function personOnboardingStatus(params: {
+  supplementRoot?: unknown;
+  onboardingStatus?: string | null;
+}): string {
+  const parsed = parseCtosPartySupplement(params.supplementRoot);
+  const supplementStatus = normalizeRawStatus(parsed.status);
+  return supplementStatus || normalizeRawStatus(params.onboardingStatus);
+}
+
+function personScreeningStatus(params: {
+  supplementRoot?: unknown;
+  screeningStatus?: string | null;
+}): string {
+  const parsed = parseCtosPartySupplement(params.supplementRoot);
+  const supplementStatus = normalizeRawStatus(parsed.screening?.status);
+  return supplementStatus || normalizeRawStatus(params.screeningStatus);
+}
+
+/**
+ * Person Email edit lock. Separate from send/resend (`planPersonRegTankIndividualSend`
+ * / `canManageDirectorShareholder`). Locked only while KYC is awaiting approval.
+ */
 export function isPersonEmailLifecycleLocked(params: {
   supplementRoot?: unknown;
   legacyKycApproved?: boolean;
   onboardingStatus?: string | null;
   screeningStatus?: string | null;
 }): boolean {
-  if (params.legacyKycApproved) return true;
+  return getKycGroup(personOnboardingStatus(params)) === "PENDING_REVIEW";
+}
+
+export function isPersonEmailPostCompletionWrite(params: {
+  supplementRoot?: unknown;
+  legacyKycApproved?: boolean;
+  onboardingStatus?: string | null;
+  screeningStatus?: string | null;
+}): boolean {
+  if (params.legacyKycApproved && !hasPersonOnboardingPipeline(params.supplementRoot)) return true;
   if (isCtosPartySupplementApprovalLocked(params.supplementRoot)) return true;
-  const parsed = parseCtosPartySupplement(params.supplementRoot);
-  const onboarding = normalizeRawStatus(params.onboardingStatus ?? parsed.status);
-  const screening = normalizeRawStatus(params.screeningStatus ?? parsed.screening?.status);
-  if (screening && AML_STATUSES_LOCK_EMAIL.has(screening)) return true;
-  if (ONBOARDING_STATUSES_LOCK_EMAIL.has(onboarding)) return true;
-  return false;
+  const kycGroup = getKycGroup(personOnboardingStatus(params));
+  const amlGroup = getAmlGroup(personScreeningStatus(params));
+  return (
+    kycGroup === "APPROVED" ||
+    kycGroup === "REJECTED" ||
+    kycGroup === "EXPIRED" ||
+    amlGroup === "APPROVED" ||
+    amlGroup === "REJECTED"
+  );
 }
 
 export type PersonEmailWritePlan =
   | { action: "noop"; email: string | null }
-  | { action: "reject"; code: "KYC_ALREADY_APPROVED" | "DIRECTOR_SHAREHOLDER_NOT_EDITABLE"; message: string }
+  | { action: "reject"; code: "DIRECTOR_SHAREHOLDER_NOT_EDITABLE"; message: string }
   | {
       action: "write";
       email: string | null;
@@ -56,54 +93,68 @@ export type PersonEmailWritePlan =
     };
 
 /**
- * Canonical Person Email write decision. Empty master may be seeded; filled master
- * is not overwritten in fill-empty mode. Locked pipeline statuses cannot be bypassed.
+ * Canonical Person Email write decision.
+ * Editability is independent of onboarding send/resend. Empty master may be seeded;
+ * filled master is not overwritten in fill-empty mode. Pending-review KYC stays locked.
+ * Post-KYC / AML-terminal writes persist without resetting those pipelines.
  */
 export function planPersonEmailWrite(params: {
   currentMasterEmail: string | null | undefined;
   incomingEmail: unknown;
+  legacyPeopleEmail?: unknown;
   supplementRoot?: unknown;
   legacyKycApproved?: boolean;
+  onboardingStatus?: string | null;
+  screeningStatus?: string | null;
   fillEmptyOnly?: boolean;
 }): PersonEmailWritePlan {
   const current = normalizePersonEmail(params.currentMasterEmail);
   const incoming = normalizePersonEmail(params.incomingEmail);
-  if (params.fillEmptyOnly && current) {
+  const legacy = normalizePersonEmail(params.legacyPeopleEmail);
+  const snapshotEmail = normalizePersonEmail(
+    parseCtosPartySupplement(params.supplementRoot).email
+  );
+  if (params.fillEmptyOnly && (current || !incoming)) {
     return { action: "noop", email: current };
   }
-  if (incoming === current) {
+  const snapshotNeedsSync = snapshotEmail !== null && snapshotEmail !== incoming;
+  const legacyNeedsTombstone =
+    current === null &&
+    snapshotEmail === null &&
+    legacy !== null &&
+    incoming !== legacy;
+  if (incoming === current && !snapshotNeedsSync && !legacyNeedsTombstone) {
     return { action: "noop", email: current };
   }
 
-  const locked = isPersonEmailLifecycleLocked({
-    supplementRoot: params.supplementRoot,
-    legacyKycApproved: params.legacyKycApproved,
-  });
-  if (locked) {
-    if (
-      params.legacyKycApproved ||
-      isCtosPartySupplementApprovalLocked(params.supplementRoot)
-    ) {
-      return {
-        action: "reject",
-        code: "KYC_ALREADY_APPROVED",
-        message: "This person has already completed KYC. Email cannot be changed.",
-      };
-    }
+  if (
+    isPersonEmailLifecycleLocked({
+      supplementRoot: params.supplementRoot,
+      onboardingStatus: params.onboardingStatus,
+      screeningStatus: params.screeningStatus,
+    })
+  ) {
     return {
       action: "reject",
       code: "DIRECTOR_SHAREHOLDER_NOT_EDITABLE",
-      message: "Email cannot be edited at this stage",
+      message: "Email cannot be edited while onboarding is awaiting approval.",
     };
   }
 
   const pipeline = hasPersonOnboardingPipeline(params.supplementRoot);
-  const emailChanged = incoming !== current;
+  const persistWithoutReset = isPersonEmailPostCompletionWrite({
+    supplementRoot: params.supplementRoot,
+    legacyKycApproved: params.legacyKycApproved,
+    onboardingStatus: params.onboardingStatus,
+    screeningStatus: params.screeningStatus,
+  });
+  const pipelineEmail = snapshotEmail ?? legacy ?? current;
+  const reset = pipeline && incoming !== pipelineEmail && !persistWithoutReset;
   return {
     action: "write",
     email: incoming,
-    pipelineReset: emailChanged && pipeline,
-    screeningReset: emailChanged && pipeline,
+    pipelineReset: reset,
+    screeningReset: reset,
     snapshotSupplement: true,
   };
 }

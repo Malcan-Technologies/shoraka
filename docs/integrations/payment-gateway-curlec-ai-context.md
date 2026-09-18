@@ -579,6 +579,7 @@ Search AND-combined with status/account/purpose filters in `listGatewayPayments`
 | UI label | URL `filter=` | Statuses |
 |----------|---------------|----------|
 | All statuses | (omit) | — |
+| Open exceptions | `exceptions` | Investor deposits in `HELD` or `NAME_CHECK_PENDING` (same predicate as pending-count) |
 | Completed | `completed` | `COMPLETED` |
 | Name check pending | `review` | `NAME_CHECK_PENDING` only |
 | Refund pending | `refunding` | `REFUND_INITIATED` |

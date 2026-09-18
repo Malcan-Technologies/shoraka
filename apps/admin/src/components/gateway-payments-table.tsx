@@ -41,6 +41,7 @@ import {
   getGatewayAccountLabel,
 } from "@/lib/gateway-account";
 import {
+  GATEWAY_PAYMENT_STATUS_FILTER_OPTIONS,
   PURPOSE_LABEL,
   STATUS_LABEL,
   formatDate,
@@ -54,15 +55,7 @@ import { adminActionRowClass } from "@/lib/admin-status-token";
 
 const PAGE_SIZE = 20;
 
-/** API `filter` values — labels match detail page wording. */
-const STATUS_FILTER_OPTIONS = [
-  { value: "all", label: "All statuses" },
-  { value: "completed", label: "Completed" },
-  { value: "review", label: "Name check pending" },
-  { value: "refunding", label: "Refund pending" },
-  { value: "refunded", label: "Refunded" },
-  { value: "needs_attention", label: "Needs attention" },
-] as const;
+const STATUS_FILTER_OPTIONS = GATEWAY_PAYMENT_STATUS_FILTER_OPTIONS;
 
 const PURPOSE_FILTER_OPTIONS = [
   { value: "all", label: "All purposes" },

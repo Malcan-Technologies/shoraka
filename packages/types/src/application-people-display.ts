@@ -652,7 +652,7 @@ export function requiresOnboardingEmail(p: ApplicationPersonRow): boolean {
   return isDirector || (isShareholder && issuerShareholdingMeetsMinimum(share));
 }
 
-/** AML terminal: no resend/notify/email edit while cleared or hard-rejected. */
+/** AML terminal: no resend/notify while cleared or hard-rejected. Person Email edit is separate. */
 const AML_STATUSES_BLOCK_MANAGE = new Set([
   "REJECTED",
   "FAILED",
@@ -666,11 +666,12 @@ const AML_STATUSES_BLOCK_MANAGE = new Set([
 const ONBOARDING_STATUSES_BLOCK_MANAGE = new Set(["WAIT_FOR_APPROVAL", "APPROVED"]);
 
 /**
- * SECTION: Unified issuer + admin action gate (email edit, resend, notify, banner)
- * WHY: One rule: allow when onboarding is actionable (not WFA/APPROVED) and AML is not terminal (not cleared, not reject/fail/decline)
+ * SECTION: Unified issuer + admin send/resend/notify gate
+ * WHY: Allow when onboarding is actionable (not WFA/APPROVED) and AML is not terminal (not cleared, not reject/fail/decline)
  * INPUT: A single people row
- * OUTPUT: True when the issuer (or admin notify) may edit email, resend onboarding, or send a reminder
+ * OUTPUT: True when the issuer (or admin notify) may resend onboarding or send a reminder
  * WHERE USED: Issuer profile, admin table, API notify/resend guards, issuer banner (`hasActionableDirectorShareholder`)
+ * Person Email editability uses `isPersonEmailLifecycleLocked` / `planPersonEmailWrite`.
  */
 export function canManageDirectorShareholder(p: ApplicationPersonRow): boolean {
   if (!requiresOnboardingEmail(p)) return false;

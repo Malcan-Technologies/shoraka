@@ -485,6 +485,25 @@ describe("Person RegTank send resend and replacement", () => {
     ).toBe("reject");
   });
 
+  it("persists APPROVED Person Email changes without resetting KYC or AML", () => {
+    const plan = planPersonEmailWrite({
+      currentMasterEmail: "ali@example.com",
+      incomingEmail: "other@example.com",
+      supplementRoot: {
+        email: "ali@example.com",
+        status: "APPROVED",
+        requestId: "LD-CURRENT",
+        screening: { status: "CLEAR", requestId: "aml-1" },
+      },
+    });
+    expect(plan).toMatchObject({
+      action: "write",
+      email: "other@example.com",
+      pipelineReset: false,
+      screeningReset: false,
+    });
+  });
+
   it("renews an expired same-email link, keeps requestId, replaces token, and emails the new link", async () => {
     mockSupplementFindFirst.mockResolvedValue(
       inProgressSupplement({ verifyLinkExpiresAt: PAST_EXPIRY })

@@ -68,6 +68,7 @@ import {
   parseCtosPartySupplement,
   attachGovernmentIdToUnresolvedCorporateEntities,
   normalizePersonEmail,
+  requiresOnboardingEmail,
   resolvePartyLookupKey,
   partyKeyMatchesLookup,
   governmentIdNumberForOnboardingSend,
@@ -2366,7 +2367,7 @@ export class OrganizationService {
     const entitiesForParty = await this.getCorporateEntities(userId, organizationId, portalType);
     const peopleRows = filterVisiblePeopleRows(entitiesForParty.people ?? []);
     const personRow = peopleRows.find((p) => partyKeyMatchesLookup(p.matchKey, partyKey));
-    if (!personRow || !canManageDirectorShareholder(personRow)) {
+    if (!personRow || !requiresOnboardingEmail(personRow)) {
       throw new AppError(
         400,
         "DIRECTOR_SHAREHOLDER_NOT_EDITABLE",

@@ -1,3 +1,4 @@
+import { GATEWAY_PAYMENT_EXCEPTIONS_FILTER } from "@cashsouk/types";
 import { resolvePortalOrigin } from "./curlec-checkout";
 
 const DEFAULT_INVESTOR_PORTAL_URL = "http://localhost:3002";
@@ -7,6 +8,11 @@ const DEFAULT_HELP_CENTER_URL = "https://help.cashsouk.com";
 /** Plain-hosted Help Center for issuers and investors (admin keeps the in-app help). */
 export const HELP_CENTER_URL =
   process.env.NEXT_PUBLIC_HELP_CENTER_URL?.trim().replace(/\/$/, "") || DEFAULT_HELP_CENTER_URL;
+
+export const ADMIN_GATEWAY_PAYMENTS_PATH = "/finance/gateway-payments";
+
+export const ADMIN_GATEWAY_PAYMENTS_EXCEPTIONS_HREF =
+  `${ADMIN_GATEWAY_PAYMENTS_PATH}?filter=${GATEWAY_PAYMENT_EXCEPTIONS_FILTER}` as const;
 
 /** Investor marketplace note path, matching apps/investor `/investments/{noteId}`. */
 export function resolveInvestorPortalOrigin(investorPortalUrl?: string): string {

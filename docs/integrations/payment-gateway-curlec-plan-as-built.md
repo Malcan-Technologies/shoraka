@@ -181,7 +181,7 @@ Supporting changes:
 | `POST /v1/webhooks/curlec/investor-pool` | signature | Investor Pool merchant webhook ingress |
 | `GET /v1/admin/organizations/investor/:id/balance-activity` | ADMIN | Investor wallet activity (ledger + in-flight deposits) |
 | `GET /v1/admin/gateway-payments/:id` | ADMIN | Detail incl. events + name check |
-| `GET /v1/admin/gateway-payments/exceptions/pending-count` | ADMIN | Count of HELD + NAME_CHECK_PENDING |
+| `GET /v1/admin/gateway-payments/exceptions/pending-count` | ADMIN | Count of investor-deposit `HELD` + `NAME_CHECK_PENDING` (same predicate as `filter=exceptions`) |
 | `POST /v1/admin/gateway-payments/:id/name-check/approve` | ADMIN | Approve `NAME_CHECK_PENDING` → credit wallet |
 | `POST /v1/admin/gateway-payments/:id/name-check/reject` | ADMIN | Reject → auto-refund |
 | `POST /v1/admin/gateway-payments/:id/retry-refund` | ADMIN | Retry auto-refund for `HELD` |

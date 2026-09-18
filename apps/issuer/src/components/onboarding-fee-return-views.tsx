@@ -29,18 +29,28 @@ function StatusIcon({
 
 export function OnboardingFeeConfirmingView({
   onCancel,
+  onLeave,
+  leaveLabel = "Leave for now",
+  title = "Confirming your payment",
+  description = "We're checking with your bank. This usually takes a few seconds.",
 }: {
   onCancel?: () => void;
+  onLeave?: () => void;
+  leaveLabel?: string;
+  title?: string;
+  description?: string;
 }) {
   return (
     <Card className="mx-auto w-full max-w-md rounded-2xl border bg-card shadow-sm">
       <CardContent className="px-6 py-10 text-center">
         <div className="mx-auto h-12 w-12 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-        <h2 className="mt-6 text-lg font-semibold">Confirming your payment</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          We&apos;re checking with your bank. This usually takes a few seconds.
-        </p>
-        {onCancel ? (
+        <h2 className="mt-6 text-lg font-semibold">{title}</h2>
+        <p className="mt-2 text-sm text-muted-foreground">{description}</p>
+        {onLeave ? (
+          <Button type="button" variant="ghost" className="mt-6" onClick={onLeave}>
+            {leaveLabel}
+          </Button>
+        ) : onCancel ? (
           <Button type="button" variant="ghost" className="mt-6" onClick={onCancel}>
             Cancel
           </Button>
@@ -198,15 +208,21 @@ export function OnboardingFeeFailureView({
   status,
   amount,
   onTryAgain,
+  onLeave,
   title,
   description,
+  showTryAgain = true,
+  leaveLabel = "Leave for now",
 }: {
   reason: FailureReason;
   status?: GatewayPaymentStatus;
   amount?: number;
   onTryAgain: () => void;
+  onLeave?: () => void;
   title?: string;
   description?: string;
+  showTryAgain?: boolean;
+  leaveLabel?: string;
 }) {
   const copy = title && description ? { title, description } : failureCopy(reason, status);
 
@@ -221,15 +237,27 @@ export function OnboardingFeeFailureView({
           ) : null}
           <p className="text-sm text-muted-foreground">{copy.description}</p>
         </div>
-        <Button
-          type="button"
-          variant="action"
-          className="mt-8 h-11 w-full rounded-xl gap-2"
-          onClick={onTryAgain}
-        >
-          <ArrowPathIcon className="h-4 w-4" />
-          Try again
-        </Button>
+        {showTryAgain ? (
+          <Button
+            type="button"
+            variant="action"
+            className="mt-8 h-11 w-full rounded-xl gap-2"
+            onClick={onTryAgain}
+          >
+            <ArrowPathIcon className="h-4 w-4" />
+            Try again
+          </Button>
+        ) : null}
+        {onLeave ? (
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-4 h-11 w-full rounded-xl"
+            onClick={onLeave}
+          >
+            {leaveLabel}
+          </Button>
+        ) : null}
       </CardContent>
     </Card>
   );
