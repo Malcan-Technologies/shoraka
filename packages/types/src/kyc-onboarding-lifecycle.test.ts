@@ -173,4 +173,37 @@ describe("email-only supplement merge", () => {
     expect(after.screening?.riskLevel).toBe("Low Risk");
     expect(after.screening?.riskScore).toBe("1.0");
   });
+
+  it("drops previous screening risk evidence when the request ID changes", () => {
+    const base = mergeCtosPartySupplementDocument(null, {
+      onboarding: {
+        requestId: "EOD-STALE",
+        status: "APPROVED",
+      },
+      screening: {
+        requestId: "KYC-STALE",
+        status: "APPROVED",
+        provider: "ACURIS",
+        riskLevel: "LOW",
+        riskScore: 1,
+        messageStatus: "DONE",
+      },
+    });
+
+    const after = mergeCtosPartySupplementDocument(base, {
+      screening: {
+        requestId: "KYC00189",
+        status: "PENDING",
+        provider: "ACURIS",
+      },
+    });
+
+    expect(after.screening).toMatchObject({
+      requestId: "KYC00189",
+      status: "PENDING",
+    });
+    expect(after.screening?.riskLevel).toBeUndefined();
+    expect(after.screening?.riskScore).toBeUndefined();
+    expect(after.screening?.messageStatus).toBeUndefined();
+  });
 });

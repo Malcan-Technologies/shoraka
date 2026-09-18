@@ -448,11 +448,10 @@ async function discoverAdminRefreshIds(params: {
     throw providerRefreshFailed();
   }
 
-  const screeningIds = laterAdded
-    ? childScreeningIds.size > 0
-      ? childScreeningIds
-      : parentScreeningIds
-    : childScreeningIds;
+  const screeningIds =
+    laterAdded && childScreeningIds.size === 0 && !childConfirmedAbsent
+      ? parentScreeningIds
+      : childScreeningIds;
 
   const screeningId = await preferredScreeningId({
     session: params.session,
@@ -464,10 +463,20 @@ async function discoverAdminRefreshIds(params: {
   } else {
     discovered.kycId = screeningId;
   }
-  if (laterAdded) return mergeRefreshIds(stored, discovered);
+  const confirmedScreeningAbsent = screeningId == null && childConfirmedAbsent;
+  if (laterAdded) {
+    const merged = mergeRefreshIds(stored, discovered);
+    if (!confirmedScreeningAbsent) return merged;
+    return {
+      ...merged,
+      kycId: null,
+      kybId: null,
+      confirmedScreeningAbsent: true,
+    };
+  }
   return {
     ...discovered,
-    confirmedScreeningAbsent: screeningId == null && childConfirmedAbsent,
+    confirmedScreeningAbsent,
   };
 }
 

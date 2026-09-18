@@ -576,6 +576,66 @@ describe("refreshAdminPartyRegTankStatus", () => {
     expect(result.refreshedSources).toEqual(["INDIVIDUAL_ONBOARDING", "KYC"]);
   });
 
+  it("clears stale parent AML for a later-added person when the child confirms screening is absent", async () => {
+    mockPartyFindFirst.mockResolvedValue(
+      laterAddedParty({
+        party_key: "user:jamie",
+        origin: "USER_ADDED",
+        identity_number: "891114075601",
+        name: "Ivan Chew Ken Yoong",
+      })
+    );
+    mockSupplementFindFirst.mockResolvedValue(null);
+    getCorporateOnboardingDetails.mockImplementation(async (requestId: string) => {
+      if (requestId === "COD-PARENT") {
+        return {
+          corpIndvDirectors: [
+            {
+              corporateIndividualRequest: { requestId: "EOD06938" },
+              kycRequestInfo: { kycId: "KYC-PARENT-OLD" },
+              corporateUserRequestInfo: {
+                fullName: "Ivan Chew Ken Yoong",
+                formContent: {
+                  content: [
+                    { fieldName: "First Name", fieldValue: "Ivan Chew" },
+                    { fieldName: "Last Name", fieldValue: "Ken Yoong" },
+                    { fieldName: "Government ID Number", fieldValue: "891114075601" },
+                  ],
+                },
+              },
+            },
+          ],
+          corpIndvShareholders: [],
+          corpBizShareholders: [],
+        };
+      }
+      return { status: "APPROVED" };
+    });
+    getEntityOnboardingDetails.mockResolvedValue({ status: "IN_PROGRESS" });
+
+    const result = await refreshAdminPartyRegTankStatus(
+      "issuer",
+      "org-1",
+      "party-1",
+      { regTankClient }
+    );
+
+    expect(getEntityOnboardingDetails).toHaveBeenCalledWith("EOD06938");
+    expect(queryKYCStatus).not.toHaveBeenCalled();
+    expect(result.refreshedSources).toEqual(["ENTITY_ONBOARDING"]);
+    expect(mockSupplementCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          onboarding_json: expect.objectContaining({
+            requestId: "EOD06938",
+            status: "IN_PROGRESS",
+            screening: null,
+          }),
+        }),
+      })
+    );
+  });
+
   it("matches an original corporate shareholder by unique parent-COD name", async () => {
     mockPartyFindFirst.mockResolvedValue(
       laterAddedParty({

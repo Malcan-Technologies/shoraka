@@ -251,14 +251,20 @@ export function mergeCtosPartySupplementDocument(
     if (!next) {
       base.screening = null;
     } else if (base.screening) {
-      // Merge defined keys only, so "absent" fields in the patch don't overwrite existing DB values.
-      const merged: CleanScreening = { ...base.screening };
-      for (const [k, v] of Object.entries(next)) {
-        if (v !== undefined) {
-          (merged as Record<string, unknown>)[k] = v;
+      const nextId = next.requestId.trim();
+      const previousId = base.screening.requestId.trim();
+      if (nextId && previousId && nextId !== previousId) {
+        base.screening = next;
+      } else {
+        // Merge defined keys only, so "absent" fields in the patch don't overwrite existing DB values.
+        const merged: CleanScreening = { ...base.screening };
+        for (const [k, v] of Object.entries(next)) {
+          if (v !== undefined) {
+            (merged as Record<string, unknown>)[k] = v;
+          }
         }
+        base.screening = merged;
       }
-      base.screening = merged;
     } else {
       base.screening = next;
     }
