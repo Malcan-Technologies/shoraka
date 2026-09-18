@@ -267,7 +267,15 @@ describe("writeOrganizationPartyEmail", () => {
       field_sources: {},
     });
     mockIssuerFindUnique.mockResolvedValue({
-      director_kyc_status: null,
+      director_kyc_status: {
+        directors: [
+          {
+            governmentIdNumber: legacyKey,
+            email: "   ",
+            kycStatus: "APPROVED",
+          },
+        ],
+      },
       director_aml_status: {
         directors: [
           {

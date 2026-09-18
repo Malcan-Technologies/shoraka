@@ -100,7 +100,7 @@ export function ProcessingFeeReturnDialog({
     void (async () => {
       try {
         await onSubmitAfterPayment();
-        clearIssuerPendingSubmitAfterFee();
+        clearIssuerPendingSubmitAfterFee(applicationId);
         setPhase("submitted");
       } catch (error) {
         if (getApiMutationErrorCode(error) === "PROCESSING_FEE_REQUIRED") {
@@ -117,7 +117,7 @@ export function ProcessingFeeReturnDialog({
         submitStartedRef.current = false;
       }
     })();
-  }, [onSubmitAfterPayment, open, refetchFee, resolved.shouldAutoSubmit]);
+  }, [applicationId, onSubmitAfterPayment, open, refetchFee, resolved.shouldAutoSubmit]);
 
   React.useEffect(() => {
     if (!open || phase !== "submitted") return;

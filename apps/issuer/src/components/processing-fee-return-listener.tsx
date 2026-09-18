@@ -30,11 +30,11 @@ export function ProcessingFeeReturnListener({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const pending = readIssuerPendingSubmitAfterFee();
+  const pathApplicationId = parseApplicationIdFromEditPath(pathname);
+  const pending = readIssuerPendingSubmitAfterFee(pathApplicationId ?? undefined);
 
   const urlFeeId = searchParams.get("processingFeeReturn");
-  const urlApplicationId =
-    parseApplicationIdFromEditPath(pathname) ?? pending?.applicationId ?? null;
+  const urlApplicationId = pathApplicationId ?? pending?.applicationId ?? null;
   const pendingResumeFeeId = resolvePendingProcessingFeeResumeFeeId(
     pending,
     urlApplicationId
@@ -61,7 +61,7 @@ export function ProcessingFeeReturnListener({
   React.useEffect(() => {
     if (!feeId || !applicationId) return;
     const current = processingFeePendingForApplication(
-      readIssuerPendingSubmitAfterFee(),
+      readIssuerPendingSubmitAfterFee(applicationId),
       applicationId
     );
     storeIssuerPendingSubmitAfterFee(
@@ -80,7 +80,7 @@ export function ProcessingFeeReturnListener({
   const dismissToRetry = React.useCallback(() => {
     if (!applicationId) return;
     const current = processingFeePendingForApplication(
-      readIssuerPendingSubmitAfterFee(),
+      readIssuerPendingSubmitAfterFee(applicationId),
       applicationId
     );
     if (current) {
@@ -100,7 +100,7 @@ export function ProcessingFeeReturnListener({
   const leaveForNow = React.useCallback(() => {
     if (!applicationId) return;
     const current = processingFeePendingForApplication(
-      readIssuerPendingSubmitAfterFee(),
+      readIssuerPendingSubmitAfterFee(applicationId),
       applicationId
     );
     if (feeId) {

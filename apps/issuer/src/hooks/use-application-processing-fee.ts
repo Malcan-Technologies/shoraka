@@ -5,23 +5,21 @@ import { useRef } from "react";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import type { ApplicationProcessingFeeResponse } from "@cashsouk/types";
 import {
+  parseProcessingFeePendingStore,
   processingFeeConfirmPollIntervalMs,
   processingFeeConfirmQueryRefresh,
+  readProcessingFeePendingStoreEntry,
+  removeProcessingFeePendingStoreEntry,
   shouldReconcileProcessingFeeDetail,
+  upsertProcessingFeePendingStore,
+  type ProcessingFeePendingConfirmation,
 } from "@/lib/application-processing-fee-confirmation";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 export const ISSUER_PENDING_SUBMIT_AFTER_FEE_KEY = "issuerPendingSubmitAfterFee";
 
-export type IssuerPendingSubmitAfterFee = {
-  applicationId: string;
-  returnTo: string;
-  /** Set when declarations were persisted before leaving for FPX. */
-  declarationsSaved?: boolean;
-  feeId?: string;
-  awaitingConfirmation?: boolean;
-};
+export type IssuerPendingSubmitAfterFee = ProcessingFeePendingConfirmation;
 
 export { isTerminalProcessingFeeStatus } from "@/lib/application-processing-fee-confirmation";
 
@@ -184,23 +182,40 @@ export function useApplicationProcessingFeeQuery(
 
 export function storeIssuerPendingSubmitAfterFee(payload: IssuerPendingSubmitAfterFee) {
   if (typeof window === "undefined") return;
-  sessionStorage.setItem(ISSUER_PENDING_SUBMIT_AFTER_FEE_KEY, JSON.stringify(payload));
+  const current = parseProcessingFeePendingStore(
+    sessionStorage.getItem(ISSUER_PENDING_SUBMIT_AFTER_FEE_KEY)
+  );
+  sessionStorage.setItem(
+    ISSUER_PENDING_SUBMIT_AFTER_FEE_KEY,
+    JSON.stringify(upsertProcessingFeePendingStore(current, payload))
+  );
 }
 
-export function readIssuerPendingSubmitAfterFee(): IssuerPendingSubmitAfterFee | null {
+export function readIssuerPendingSubmitAfterFee(
+  applicationId?: string
+): IssuerPendingSubmitAfterFee | null {
   if (typeof window === "undefined") return null;
-  const raw = sessionStorage.getItem(ISSUER_PENDING_SUBMIT_AFTER_FEE_KEY);
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw) as IssuerPendingSubmitAfterFee;
-  } catch {
-    return null;
-  }
+  const store = parseProcessingFeePendingStore(
+    sessionStorage.getItem(ISSUER_PENDING_SUBMIT_AFTER_FEE_KEY)
+  );
+  return readProcessingFeePendingStoreEntry(store, applicationId);
 }
 
-export function clearIssuerPendingSubmitAfterFee() {
+export function clearIssuerPendingSubmitAfterFee(applicationId?: string) {
   if (typeof window === "undefined") return;
-  sessionStorage.removeItem(ISSUER_PENDING_SUBMIT_AFTER_FEE_KEY);
+  if (!applicationId) {
+    sessionStorage.removeItem(ISSUER_PENDING_SUBMIT_AFTER_FEE_KEY);
+    return;
+  }
+  const current = parseProcessingFeePendingStore(
+    sessionStorage.getItem(ISSUER_PENDING_SUBMIT_AFTER_FEE_KEY)
+  );
+  const next = removeProcessingFeePendingStoreEntry(current, applicationId);
+  if (Object.keys(next.entries).length === 0) {
+    sessionStorage.removeItem(ISSUER_PENDING_SUBMIT_AFTER_FEE_KEY);
+    return;
+  }
+  sessionStorage.setItem(ISSUER_PENDING_SUBMIT_AFTER_FEE_KEY, JSON.stringify(next));
 }
 
 /** Set by the edit-application page; invoked by the return listener after successful FPX payment. */

@@ -414,6 +414,104 @@ export type ProcessingFeePendingConfirmation = {
   awaitingConfirmation?: boolean;
 };
 
+type StoredProcessingFeePendingConfirmation = ProcessingFeePendingConfirmation & {
+  storedAt: number;
+};
+
+export type ProcessingFeePendingStore = {
+  version: 1;
+  entries: Record<string, StoredProcessingFeePendingConfirmation>;
+};
+
+function isProcessingFeePendingConfirmation(
+  value: unknown
+): value is ProcessingFeePendingConfirmation {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  return typeof record.applicationId === "string" && typeof record.returnTo === "string";
+}
+
+export function parseProcessingFeePendingStore(raw: string | null): ProcessingFeePendingStore {
+  const empty: ProcessingFeePendingStore = { version: 1, entries: {} };
+  if (!raw) return empty;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (isProcessingFeePendingConfirmation(parsed)) {
+      return {
+        version: 1,
+        entries: { [parsed.applicationId]: { ...parsed, storedAt: 0 } },
+      };
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return empty;
+    const record = parsed as Record<string, unknown>;
+    if (
+      record.version !== 1 ||
+      !record.entries ||
+      typeof record.entries !== "object" ||
+      Array.isArray(record.entries)
+    ) {
+      return empty;
+    }
+    const entries = Object.fromEntries(
+      Object.values(record.entries as Record<string, unknown>)
+        .filter(isProcessingFeePendingConfirmation)
+        .map((value) => [
+          value.applicationId,
+          {
+            ...value,
+            storedAt: Number((value as Record<string, unknown>).storedAt) || 0,
+          },
+        ])
+    );
+    return { version: 1, entries };
+  } catch {
+    return empty;
+  }
+}
+
+export function upsertProcessingFeePendingStore(
+  store: ProcessingFeePendingStore,
+  pending: ProcessingFeePendingConfirmation,
+  storedAt = Date.now()
+): ProcessingFeePendingStore {
+  const latestStoredAt = Object.values(store.entries).reduce(
+    (latest, entry) => Math.max(latest, entry.storedAt),
+    0
+  );
+  return {
+    version: 1,
+    entries: {
+      ...store.entries,
+      [pending.applicationId]: {
+        ...pending,
+        storedAt: Math.max(storedAt, latestStoredAt + 1),
+      },
+    },
+  };
+}
+
+export function removeProcessingFeePendingStoreEntry(
+  store: ProcessingFeePendingStore,
+  applicationId: string
+): ProcessingFeePendingStore {
+  const entries = { ...store.entries };
+  delete entries[applicationId];
+  return { version: 1, entries };
+}
+
+export function readProcessingFeePendingStoreEntry(
+  store: ProcessingFeePendingStore,
+  applicationId?: string
+): ProcessingFeePendingConfirmation | null {
+  if (applicationId) return store.entries[applicationId] ?? null;
+  return (
+    Object.values(store.entries).reduce<StoredProcessingFeePendingConfirmation | null>(
+      (latest, entry) => (!latest || entry.storedAt > latest.storedAt ? entry : latest),
+      null
+    ) ?? null
+  );
+}
+
 export function processingFeePendingForApplication(
   pending: ProcessingFeePendingConfirmation | null | undefined,
   applicationId: string

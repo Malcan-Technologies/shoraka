@@ -56,7 +56,7 @@ export function ApplicationProcessingFeeStep({
 }: ApplicationProcessingFeeStepProps) {
   const { getAccessToken } = useAuthToken();
   const { activeOrganization } = useOrganization();
-  const pending = readIssuerPendingSubmitAfterFee();
+  const pending = readIssuerPendingSubmitAfterFee(applicationId);
   const awaitingConfirmation = isProcessingFeeAwaitingConfirmation(pending, applicationId);
   const resumeFeeId = resolvePendingProcessingFeeResumeFeeId(pending, applicationId);
   const feeOrderQuery = useApplicationProcessingFeeOrder(
@@ -88,7 +88,7 @@ export function ApplicationProcessingFeeStep({
   const checkoutOpenInFlightRef = React.useRef(false);
 
   const persistReleasedAbandonedCheckout = (markedFeeId: string | null) => {
-    const current = readIssuerPendingSubmitAfterFee();
+    const current = readIssuerPendingSubmitAfterFee(applicationId);
     const released = releaseAbandonedProcessingFeeCheckout(
       current,
       applicationId,

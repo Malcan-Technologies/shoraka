@@ -20,8 +20,11 @@ import {
   isTerminalProcessingFeeStatus,
   markProcessingFeeAwaitingConfirmation,
   nextProcessingFeeReturnPinState,
+  parseProcessingFeePendingStore,
   processingFeePendingForApplication,
+  readProcessingFeePendingStoreEntry,
   releaseAbandonedProcessingFeeCheckout,
+  removeProcessingFeePendingStoreEntry,
   processingFeeConfirmPollIntervalMs,
   processingFeeConfirmQueryRefresh,
   resolvePendingProcessingFeeResumeFeeId,
@@ -30,6 +33,7 @@ import {
   resolveProcessingFeeReturnIds,
   shouldLoadProcessingFeeOrder,
   shouldReconcileProcessingFeeDetail,
+  upsertProcessingFeePendingStore,
 } from "./application-processing-fee-confirmation";
 
 function confirmingView(
@@ -306,6 +310,34 @@ describe("processing fee pay step and navigation safety", () => {
           processingFeePendingForApplication(pending, "app_a")?.returnTo,
       })
     ).toBe("/applications/app_a/edit?continue=processingFee");
+  });
+
+  it("persists pending confirmations independently by application", () => {
+    const legacy = parseProcessingFeePendingStore(
+      JSON.stringify({
+        applicationId: "app_b",
+        returnTo: "/applications/app_b/edit?continue=processingFee",
+        feeId: "fee_b",
+        awaitingConfirmation: true,
+      })
+    );
+    const withA = upsertProcessingFeePendingStore(
+      legacy,
+      {
+        applicationId: "app_a",
+        returnTo: "/applications/app_a/edit?continue=processingFee",
+        feeId: "fee_a",
+        awaitingConfirmation: true,
+      },
+      1
+    );
+
+    expect(readProcessingFeePendingStoreEntry(withA, "app_a")?.feeId).toBe("fee_a");
+    expect(readProcessingFeePendingStoreEntry(withA, "app_b")?.feeId).toBe("fee_b");
+
+    const withoutA = removeProcessingFeePendingStoreEntry(withA, "app_a");
+    expect(readProcessingFeePendingStoreEntry(withoutA, "app_a")).toBeNull();
+    expect(readProcessingFeePendingStoreEntry(withoutA)?.applicationId).toBe("app_b");
   });
 
   it("keeps the dismissed return identity until a different URL payment arrives", () => {

@@ -4,6 +4,7 @@ import {
   getLegacyDirectorAmlPersonContext,
   isLegacyCtosPartyKycApproved,
   mergeCtosPartySupplementDocument,
+  normalizePersonEmail,
   planPersonEmailWrite,
 } from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
@@ -81,7 +82,8 @@ export async function writeOrganizationPartyEmail(params: {
   const plan = planPersonEmailWrite({
     currentMasterEmail: party.email,
     incomingEmail: params.email,
-    legacyPeopleEmail: legacyKycRecord?.email ?? legacyAmlContext?.email,
+    legacyPeopleEmail:
+      normalizePersonEmail(legacyKycRecord?.email) ?? legacyAmlContext?.email,
     supplementRoot: existing?.onboarding_json,
     onboardingStatus:
       legacyKycRecord?.kycStatus == null ? null : String(legacyKycRecord.kycStatus),
