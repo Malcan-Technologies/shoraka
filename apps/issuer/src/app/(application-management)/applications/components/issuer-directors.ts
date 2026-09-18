@@ -30,15 +30,21 @@ export function issuerDirectorsFromPeople(
       return person.roles?.some((role) => role.toUpperCase() === "DIRECTOR");
     })
     .map((person) => {
+      const matchKey = String(person.matchKey ?? "").trim();
       const ic = signingIcFromPerson({
-        matchKey: person.matchKey,
+        matchKey,
         identityNumber: person.identityNumber,
       });
+      const normalizedIc = ic && ic.trim().length > 0 ? ic.trim() : null;
       return {
-        matchKey: String(person.matchKey ?? "").trim(),
+        matchKey,
         name: String(person.name ?? "").trim(),
         email: String(person.email ?? "").trim(),
-        ic_number: ic || null,
+        // Some legacy rows store the signing IC directly in `matchKey` even when `identityNumber` is missing.
+        // Preserve it if it already looks like a valid IC.
+        ic_number:
+          normalizedIc ??
+          (!person.identityNumber && isValidSigningIcNumber(matchKey) ? matchKey : null),
       };
     })
     .filter((person) => person.matchKey.length > 0 && person.name.length > 0);

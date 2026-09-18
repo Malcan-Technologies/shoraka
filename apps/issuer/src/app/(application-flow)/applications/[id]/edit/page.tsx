@@ -73,6 +73,11 @@ import { resolveIssuerFacilityGate } from "@/lib/facility-enabled";
 import { FACILITY_FEE_DRAWDOWN_BLOCKED_MESSAGE } from "@/lib/facility-fee-payment-ui";
 import { DirectorShareholderAlertCard } from "@/components/director-shareholder-alert-card";
 import { IssuerProfileCompletenessBanner } from "@/components/profile-completeness-banner";
+import { ProfileIncompleteChecklistModal } from "@/components/profile-incomplete-checklist-modal";
+import {
+  buildIssuerProfileIncompleteChecklistModel,
+  type IssuerProfileIncompleteChecklistModel,
+} from "@/lib/profile-incomplete-checklist";
 import { ProgressIndicator } from "../../components/progress-indicator";
 import {
   ApplicationFlowBlockedBackdrop,
@@ -775,6 +780,10 @@ function EditApplicationPageBody() {
   const [showProcessingFeeStep, setShowProcessingFeeStep] = React.useState(false);
   const [pendingProcessingFee, setPendingProcessingFee] =
     React.useState<ApplicationProcessingFeeResponse | null>(null);
+  const [profileIncompleteChecklistOpen, setProfileIncompleteChecklistOpen] =
+    React.useState(false);
+  const [profileIncompleteChecklistModel, setProfileIncompleteChecklistModel] =
+    React.useState<IssuerProfileIncompleteChecklistModel | null>(null);
   const submitAfterPaymentRef = React.useRef<(applicationId: string) => Promise<void>>(
     async () => {}
   );
@@ -1285,10 +1294,22 @@ function EditApplicationPageBody() {
         isSubmittingRef.current = false;
         setIsSubmittingApplication(false);
         setPostSubmitNavigationPending(false);
+        if (getApiMutationErrorCode(error) === "PROFILE_INCOMPLETE") {
+          const next = await profileCompletenessQuery.refetch();
+          const missing = next.data?.missing ?? profileCompletenessQuery.data?.missing ?? [];
+          const percent = next.data?.percent ?? profileCompletenessQuery.data?.percent ?? 0;
+          const complete = next.data?.complete ?? profileCompletenessQuery.data?.complete ?? false;
+
+          setProfileIncompleteChecklistModel(
+            buildIssuerProfileIncompleteChecklistModel({ complete, percent, missing })
+          );
+          setProfileIncompleteChecklistOpen(true);
+          return;
+        }
         throw error;
       }
     },
-    [applicationId, updateStatusMutation, versionBlocksNavigation]
+    [applicationId, updateStatusMutation, versionBlocksNavigation, profileCompletenessQuery]
   );
 
   submitAfterPaymentRef.current = submitApplicationAfterPaidFee;
@@ -1337,10 +1358,15 @@ function EditApplicationPageBody() {
       successPendingNav = true;
     } catch (error) {
       if (getApiMutationErrorCode(error) === "PROFILE_INCOMPLETE") {
-        const missing = profileCompletenessQuery.data?.missing ?? [];
-        const needsPeople = missing.some((m) => m.step === "shareholders" || m.step === "board");
-        toast.error("Complete your profile before submitting");
-        void safeNavigate(`/profile?focus=${needsPeople ? "directors" : "completeness"}`, { leavingPage: true });
+        const next = await profileCompletenessQuery.refetch();
+        const missing = next.data?.missing ?? profileCompletenessQuery.data?.missing ?? [];
+        const percent = next.data?.percent ?? profileCompletenessQuery.data?.percent ?? 0;
+        const complete = next.data?.complete ?? profileCompletenessQuery.data?.complete ?? false;
+
+        setProfileIncompleteChecklistModel(
+          buildIssuerProfileIncompleteChecklistModel({ complete, percent, missing })
+        );
+        setProfileIncompleteChecklistOpen(true);
         return;
       }
       const limitMessage = readProductLimitViolationMessage(error);
@@ -1429,12 +1455,15 @@ function EditApplicationPageBody() {
       holdSubmitting = true;
     } catch (error) {
       if (getApiMutationErrorCode(error) === "PROFILE_INCOMPLETE") {
-        const missing = profileCompletenessQuery.data?.missing ?? [];
-        const needsPeople = missing.some((m) => m.step === "shareholders" || m.step === "board");
-        toast.error("Complete your profile before submitting");
-        void safeNavigate(`/profile?focus=${needsPeople ? "directors" : "completeness"}`, {
-          leavingPage: true,
-        });
+        const next = await profileCompletenessQuery.refetch();
+        const missing = next.data?.missing ?? profileCompletenessQuery.data?.missing ?? [];
+        const percent = next.data?.percent ?? profileCompletenessQuery.data?.percent ?? 0;
+        const complete = next.data?.complete ?? profileCompletenessQuery.data?.complete ?? false;
+
+        setProfileIncompleteChecklistModel(
+          buildIssuerProfileIncompleteChecklistModel({ complete, percent, missing })
+        );
+        setProfileIncompleteChecklistOpen(true);
         return;
       }
       toast.error("Failed to prepare submission");
@@ -1466,9 +1495,15 @@ function EditApplicationPageBody() {
     }
     if (profileCompletenessQuery.data?.complete === false) {
       const missing = profileCompletenessQuery.data?.missing ?? [];
-      const needsPeople = missing.some((m) => m.step === "shareholders" || m.step === "board");
-      toast.error("Complete your profile before submitting");
-      void safeNavigate(`/profile?focus=${needsPeople ? "directors" : "completeness"}`, { leavingPage: true });
+      const percent = profileCompletenessQuery.data?.percent ?? 0;
+      setProfileIncompleteChecklistModel(
+        buildIssuerProfileIncompleteChecklistModel({
+          complete: false,
+          percent,
+          missing,
+        })
+      );
+      setProfileIncompleteChecklistOpen(true);
       return;
     }
     setSubmitConfirmOpen(true);
@@ -1482,6 +1517,20 @@ function EditApplicationPageBody() {
     try {
       await finalizeApplicationSubmit(false);
     } catch (error) {
+      if (getApiMutationErrorCode(error) === "PROFILE_INCOMPLETE") {
+        const next = await profileCompletenessQuery.refetch();
+        const missing = next.data?.missing ?? profileCompletenessQuery.data?.missing ?? [];
+        const percent = next.data?.percent ?? profileCompletenessQuery.data?.percent ?? 0;
+        const complete = next.data?.complete ?? profileCompletenessQuery.data?.complete ?? false;
+
+        setProfileIncompleteChecklistModel(
+          buildIssuerProfileIncompleteChecklistModel({ complete, percent, missing })
+        );
+        setProfileIncompleteChecklistOpen(true);
+        isSubmittingRef.current = false;
+        setIsSubmittingApplication(false);
+        return;
+      }
       if (getApiMutationErrorCode(error) === "PROCESSING_FEE_REQUIRED") {
         toast.info("We are still confirming your payment. Please wait a moment and try again.");
         setShowProcessingFeeStep(true);
@@ -1492,7 +1541,7 @@ function EditApplicationPageBody() {
       setIsSubmittingApplication(false);
       throw error;
     }
-  }, [finalizeApplicationSubmit]);
+  }, [finalizeApplicationSubmit, profileCompletenessQuery]);
 
 
 
@@ -2245,6 +2294,15 @@ function EditApplicationPageBody() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ProfileIncompleteChecklistModal
+        open={profileIncompleteChecklistOpen}
+        onOpenChange={setProfileIncompleteChecklistOpen}
+        model={profileIncompleteChecklistModel}
+        onProfileSectionClick={(href) => {
+          void safeNavigate(href, { leavingPage: true });
+        }}
+      />
 
       {/* Product Block Dialog - using standalone modal */}
       <VersionMismatchModal
