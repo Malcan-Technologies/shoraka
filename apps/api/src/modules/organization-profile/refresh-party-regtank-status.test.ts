@@ -813,6 +813,116 @@ describe("refreshAdminPartyRegTankStatus", () => {
     expect(mockSupplementUpdate).not.toHaveBeenCalled();
   });
 
+  it("refuses a unique name match when the live identity conflicts with the master", async () => {
+    mockPartyFindFirst.mockResolvedValue(
+      laterAddedParty({
+        party_key: "891114075601",
+        origin: "CTOS_PARTY",
+        identity_number: "891114075601",
+        name: "Ivan Chew Ken Yoong",
+      })
+    );
+    getCorporateOnboardingDetails.mockResolvedValue({
+      corpIndvDirectors: [
+        {
+          corporateIndividualRequest: { requestId: "EOD-OTHER" },
+          kycRequestInfo: { kycId: "KYC-OTHER" },
+          corporateUserRequestInfo: {
+            fullName: "Ivan Chew Ken Yoong",
+            formContent: {
+              content: [
+                { fieldName: "First Name", fieldValue: "Ivan Chew" },
+                { fieldName: "Last Name", fieldValue: "Ken Yoong" },
+                { fieldName: "Government ID Number", fieldValue: "900101011111" },
+              ],
+            },
+          },
+        },
+      ],
+      corpIndvShareholders: [],
+      corpBizShareholders: [],
+    });
+
+    await expect(
+      refreshAdminPartyRegTankStatus("issuer", "org-1", "party-1", {
+        regTankClient,
+      })
+    ).rejects.toMatchObject({ code: "AMBIGUOUS_REGTANK_PARTY" });
+    expect(getEntityOnboardingDetails).not.toHaveBeenCalled();
+    expect(queryKYCStatus).not.toHaveBeenCalled();
+    expect(mockSupplementCreate).not.toHaveBeenCalled();
+    expect(mockSupplementUpdate).not.toHaveBeenCalled();
+  });
+
+  it("persists the preferred dual-role EOD status instead of the first request", async () => {
+    getCorporateOnboardingDetails.mockImplementation(async (requestId: string) => {
+      if (requestId === "COD-PARENT") {
+        const person = {
+          corporateUserRequestInfo: {
+            fullName: "Ivan Chew Ken Yoong",
+            formContent: {
+              content: [
+                { fieldName: "First Name", fieldValue: "Ivan Chew" },
+                { fieldName: "Last Name", fieldValue: "Ken Yoong" },
+                { fieldName: "Government ID Number", fieldValue: "891114075601" },
+              ],
+            },
+          },
+        };
+        return {
+          corpIndvDirectors: [
+            { ...person, corporateIndividualRequest: { requestId: "EOD06938" } },
+          ],
+          corpIndvShareholders: [
+            {
+              ...person,
+              corporateIndividualRequest: { requestId: "EOD06939" },
+              kycRequestInfo: { kycId: "KYC00189" },
+            },
+          ],
+          corpBizShareholders: [],
+        };
+      }
+      return { status: "APPROVED" };
+    });
+    getEntityOnboardingDetails.mockImplementation(async (requestId: string) => {
+      if (requestId === "EOD06938") return { status: "APPROVED" };
+      if (requestId === "EOD06939") {
+        return { status: "REJECTED", kycRequestInfo: { kycId: "KYC00189" } };
+      }
+      return { status: "APPROVED" };
+    });
+    queryKYCStatus.mockResolvedValue({
+      status: "REJECTED",
+      messageStatus: "DONE",
+    });
+
+    const result = await refreshAdminPartyRegTankStatus(
+      "issuer",
+      "org-1",
+      "party-1",
+      { regTankClient }
+    );
+
+    expect(getEntityOnboardingDetails).toHaveBeenCalledWith("EOD06938");
+    expect(getEntityOnboardingDetails).toHaveBeenCalledWith("EOD06939");
+    expect(result.refreshedSources).toEqual(["ENTITY_ONBOARDING", "KYC"]);
+    expect(mockSupplementCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          onboarding_json: expect.objectContaining({
+            requestId: "EOD06939",
+            status: "REJECTED",
+            screening: expect.objectContaining({
+              requestId: "KYC00189",
+              status: "REJECTED",
+            }),
+          }),
+        }),
+      })
+    );
+  });
+
   it("fails instead of reporting success when the refreshed snapshot cannot be saved", async () => {
     mockSupplementCreate.mockRejectedValue(new Error("database unavailable"));
 

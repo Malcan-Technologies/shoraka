@@ -13,6 +13,7 @@ import {
   partyHasRegTankRefreshIds,
   partyKeyMatchesLookup,
   partyKycRefreshIds,
+  pickPreferredDirectorShareholderOnboarding,
   type ApplicationPersonRow,
 } from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
@@ -188,6 +189,19 @@ function matchingCandidates(
   const name = normalizedName(party.name);
   if (!name) return [];
   const nameMatches = sameType.filter((candidate) => normalizedName(candidate.name) === name);
+  if (
+    partyIdentity &&
+    nameMatches.some((candidate) => {
+      const candidateIdentity = normalizeDirectorShareholderIdKey(candidate.identityNumber);
+      return Boolean(candidateIdentity) && candidateIdentity !== partyIdentity;
+    })
+  ) {
+    throw new AppError(
+      409,
+      "AMBIGUOUS_REGTANK_PARTY",
+      "RegTank has a person with the same name but a different identity number. Review the identity details before syncing."
+    );
+  }
   if (nameMatches.length > 1 && !nameMatchesRepresentOneParty(nameMatches)) {
     throw new AppError(
       409,
@@ -368,20 +382,22 @@ async function discoverAdminRefreshIds(params: {
   const entityType =
     params.party.entity_type === "CORPORATE" ? "CORPORATE" : "INDIVIDUAL";
 
-  if (entityType === "CORPORATE") {
-    discovered.corporateOnboardingRequestId = onboardingIds[0] ?? null;
-  } else {
-    discovered.entityOnboardingRequestId = onboardingIds[0] ?? null;
-  }
-
   const childScreeningIds = new Set<string>();
   let childMalformed = false;
   let childConfirmedAbsent = onboardingIds.length > 0;
+  let preferredOnboarding: { status: string; id: string } | null = null;
   for (const requestId of onboardingIds) {
     const details =
       entityType === "CORPORATE"
         ? await params.session.getCorporateOnboardingDetails(requestId)
         : await params.session.getEntityOnboardingDetails(requestId);
+    const status = extractRegTankStatus(details);
+    if (status) {
+      preferredOnboarding = pickPreferredDirectorShareholderOnboarding(preferredOnboarding, {
+        status,
+        id: requestId,
+      });
+    }
     const inspection = inspectChildScreening(details, entityType);
     if (inspection.kind === "malformed") {
       childMalformed = true;
@@ -390,6 +406,13 @@ async function discoverAdminRefreshIds(params: {
       childScreeningIds.add(inspection.id);
       childConfirmedAbsent = false;
     }
+  }
+
+  const preferredRequestId = preferredOnboarding?.id ?? onboardingIds[0] ?? null;
+  if (entityType === "CORPORATE") {
+    discovered.corporateOnboardingRequestId = preferredRequestId;
+  } else {
+    discovered.entityOnboardingRequestId = preferredRequestId;
   }
 
   if (!laterAdded && (onboardingIds.length === 0 || childMalformed)) {

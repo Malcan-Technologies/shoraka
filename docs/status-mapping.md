@@ -72,7 +72,7 @@ Any value that ends up in `screening.status` / `onboarding.status` is still norm
 
 Admin People & Access provides **Sync KYC/KYB and AML from RegTank** for every active company director/shareholder on issuer and investor profiles. The action remains available for locally approved people and after organization onboarding is complete.
 
-The selected party is resolved from stored request IDs or discovered through parent COD → EOD/child COD using identity/SSM matching. The live KYC/KYB result is persisted to that party’s supplement. Ambiguous matches, provider failures, and persistence failures leave the previous snapshot unchanged.
+The selected party is resolved from stored request IDs or discovered through parent COD → EOD/child COD using identity/SSM matching. Unique-name fallback is refused when a live candidate supplies a different identity number. Distinct director and shareholder EODs are combined with the existing preferred-snapshot rules (rejected over approved) before persist. The live KYC/KYB result is written to that party’s supplement. Ambiguous matches, provider failures, and persistence failures leave the previous snapshot unchanged.
 
 Application Financial review links incomplete related-party verification to the People & Access **Pending** filter, including unmatched `people_only` directors/shareholders so the nudge does not hide the blocking person. Financial approve still evaluates stored `people[]`; it never queries RegTank during approval.
 
