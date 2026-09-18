@@ -539,8 +539,8 @@ export function clearProcessingFeeAwaitingConfirmation(
   };
 }
 
-/** Clear a checkout that was marked in-flight but abandoned (modal dismiss or thrown open). */
-export function releaseAbandonedProcessingFeeCheckout(
+/** Clear confirmation only when checkout initialization or opening throws. */
+export function releaseFailedProcessingFeeCheckoutLaunch(
   pending: ProcessingFeePendingConfirmation | null | undefined,
   applicationId: string,
   markedFeeId: string | null

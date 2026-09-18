@@ -29,7 +29,7 @@ import {
   isProcessingFeeAwaitingConfirmation,
   isProcessingFeePayBlockedOnLiveOrder,
   markProcessingFeeAwaitingConfirmation,
-  releaseAbandonedProcessingFeeCheckout,
+  releaseFailedProcessingFeeCheckoutLaunch,
   resolvePendingProcessingFeeResumeFeeId,
   resolveProcessingFeeCheckoutOrder,
   shouldLoadProcessingFeeOrder,
@@ -84,12 +84,11 @@ export function ApplicationProcessingFeeStep({
   });
   const [error, setError] = React.useState<string | null>(null);
   const [isOpeningCheckout, setIsOpeningCheckout] = React.useState(false);
-  const [, setAbandonedCheckoutTick] = React.useState(0);
   const checkoutOpenInFlightRef = React.useRef(false);
 
-  const persistReleasedAbandonedCheckout = (markedFeeId: string | null) => {
+  const persistReleasedFailedCheckout = (markedFeeId: string | null) => {
     const current = readIssuerPendingSubmitAfterFee(applicationId);
-    const released = releaseAbandonedProcessingFeeCheckout(
+    const released = releaseFailedProcessingFeeCheckoutLaunch(
       current,
       applicationId,
       markedFeeId
@@ -190,13 +189,11 @@ export function ApplicationProcessingFeeStep({
         prefillEmail: checkoutContact.email,
         prefillContact: checkoutContact.contact,
         onDismiss: () => {
-          persistReleasedAbandonedCheckout(markedFeeId);
           setIsOpeningCheckout(false);
-          setAbandonedCheckoutTick((tick) => tick + 1);
         },
       });
     } catch (err) {
-      persistReleasedAbandonedCheckout(markedFeeId);
+      persistReleasedFailedCheckout(markedFeeId);
       if (isIssuerFeeCaptureMismatchHeldError(err)) {
         setError(null);
         return;

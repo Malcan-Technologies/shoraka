@@ -23,7 +23,7 @@ import {
   parseProcessingFeePendingStore,
   processingFeePendingForApplication,
   readProcessingFeePendingStoreEntry,
-  releaseAbandonedProcessingFeeCheckout,
+  releaseFailedProcessingFeeCheckoutLaunch,
   removeProcessingFeePendingStoreEntry,
   processingFeeConfirmPollIntervalMs,
   processingFeeConfirmQueryRefresh,
@@ -461,7 +461,7 @@ describe("processing fee pay step and navigation safety", () => {
     ).toEqual(dismissed);
   });
 
-  it("clears awaiting confirmation for an abandoned checkout of the same CREATED order", () => {
+  it("clears awaiting confirmation after checkout launch fails for the same order", () => {
     const pending = markProcessingFeeAwaitingConfirmation(
       {
         applicationId: "app_1",
@@ -471,7 +471,7 @@ describe("processing fee pay step and navigation safety", () => {
       "fee_1"
     );
 
-    const released = releaseAbandonedProcessingFeeCheckout(pending, "app_1", "fee_1");
+    const released = releaseFailedProcessingFeeCheckoutLaunch(pending, "app_1", "fee_1");
     expect(released?.awaitingConfirmation).toBe(false);
     expect(released?.feeId).toBe("fee_1");
     expect(
@@ -481,9 +481,13 @@ describe("processing fee pay step and navigation safety", () => {
       })
     ).toMatchObject({ state: "ready-to-pay", showPayCta: true, ctaLabel: "Pay with FPX" });
 
-    expect(releaseAbandonedProcessingFeeCheckout(pending, "app_1", "fee_other")).toBe(pending);
-    expect(releaseAbandonedProcessingFeeCheckout(pending, "app_2", "fee_1")).toBe(pending);
-    expect(releaseAbandonedProcessingFeeCheckout(null, "app_1", "fee_1")).toBeNull();
+    expect(releaseFailedProcessingFeeCheckoutLaunch(pending, "app_1", "fee_other")).toBe(
+      pending
+    );
+    expect(releaseFailedProcessingFeeCheckoutLaunch(pending, "app_2", "fee_1")).toBe(
+      pending
+    );
+    expect(releaseFailedProcessingFeeCheckoutLaunch(null, "app_1", "fee_1")).toBeNull();
   });
 
   it("restores the pay step after retry without treating continue=processingFee as an overlay", () => {
@@ -619,7 +623,7 @@ describe("processing fee pay step and navigation safety", () => {
     ).toBe(false);
   });
 
-  it("reuses a live CREATED order after abandoned checkout and never checks out a snapshot", () => {
+  it("keeps a dismissed CREATED checkout in confirmation without offering another payment", () => {
     const liveCreated = { id: "fee_1", status: "CREATED" as const };
     const snapshot = { id: "fee_1", status: "CREATED" as const };
     const pending = markProcessingFeeAwaitingConfirmation(
@@ -640,14 +644,20 @@ describe("processing fee pay step and navigation safety", () => {
       })
     ).toEqual(liveCreated);
 
-    const released = releaseAbandonedProcessingFeeCheckout(pending, "app_1", "fee_1");
-    const resumeFeeId = resolvePendingProcessingFeeResumeFeeId(released, "app_1");
-    expect(shouldLoadProcessingFeeOrder(resumeFeeId)).toBe(true);
+    const resumeFeeId = resolvePendingProcessingFeeResumeFeeId(pending, "app_1");
+    expect(resumeFeeId).toBe("fee_1");
+    expect(shouldLoadProcessingFeeOrder(resumeFeeId)).toBe(false);
+    expect(
+      deriveProcessingFeePayStepModel({
+        status: "CREATED",
+        awaitingConfirmation: pending.awaitingConfirmation,
+      })
+    ).toMatchObject({ state: "confirming", showPayCta: false });
     expect(
       resolveProcessingFeeCheckoutOrder({
         resumeFeeId,
-        savedFee: null,
-        liveOrder: liveCreated,
+        savedFee: liveCreated,
+        liveOrder: undefined,
       })
     ).toEqual(liveCreated);
     expect(

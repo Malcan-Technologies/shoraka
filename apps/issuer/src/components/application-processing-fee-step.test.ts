@@ -41,18 +41,19 @@ describe("application processing fee confirming surface", () => {
 
   it("marks a launched checkout as awaiting confirmation", () => {
     expect(source).toContain("markProcessingFeeAwaitingConfirmation");
-    expect(source).toContain("releaseAbandonedProcessingFeeCheckout");
+    expect(source).toContain("releaseFailedProcessingFeeCheckoutLaunch");
     expect(source).not.toContain("awaitingConfirmation: false");
   });
 
-  it("releases awaiting confirmation on checkout dismiss, not only thrown errors", () => {
-    expect(source).toMatch(
-      /onDismiss:\s*\(\)\s*=>\s*\{[\s\S]*persistReleasedAbandonedCheckout\(markedFeeId\)/
+  it("keeps confirmation on dismiss and releases it only after a launch error", () => {
+    const onDismissStart = source.indexOf("onDismiss:");
+    const catchStart = source.indexOf("} catch (err)", onDismissStart);
+    const onDismissBlock = source.slice(onDismissStart, catchStart);
+    expect(onDismissBlock).toContain("setIsOpeningCheckout(false)");
+    expect(onDismissBlock).not.toContain("persistReleasedFailedCheckout");
+    expect(source.slice(catchStart)).toContain(
+      "persistReleasedFailedCheckout(markedFeeId)"
     );
-    expect(source).toMatch(
-      /catch\s*\(err\)\s*\{[\s\S]*persistReleasedAbandonedCheckout\(markedFeeId\)/
-    );
-    expect(source).not.toMatch(/onDismiss:\s*\(\)\s*=>\s*setIsOpeningCheckout\(false\)/);
   });
 
   it("restores the pay step for continue=processingFee and overlays only on processingFeeReturn", () => {
