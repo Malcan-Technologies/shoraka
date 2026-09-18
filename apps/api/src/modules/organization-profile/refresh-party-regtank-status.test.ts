@@ -490,6 +490,61 @@ describe("refreshAdminPartyRegTankStatus", () => {
     expect(mockSupplementUpdate).not.toHaveBeenCalled();
   });
 
+  it("fails without writing when a later-added dual-role child response is malformed", async () => {
+    mockPartyFindFirst.mockResolvedValue(
+      laterAddedParty({
+        party_key: "user:jamie",
+        origin: "USER_ADDED",
+        identity_number: "891114075601",
+        name: "Ivan Chew Ken Yoong",
+      })
+    );
+    mockSupplementFindFirst.mockResolvedValue(null);
+    getCorporateOnboardingDetails.mockImplementation(async (requestId: string) => {
+      if (requestId === "COD-PARENT") {
+        const person = {
+          corporateUserRequestInfo: {
+            fullName: "Ivan Chew Ken Yoong",
+            formContent: {
+              content: [
+                { fieldName: "First Name", fieldValue: "Ivan Chew" },
+                { fieldName: "Last Name", fieldValue: "Ken Yoong" },
+                { fieldName: "Government ID Number", fieldValue: "891114075601" },
+              ],
+            },
+          },
+        };
+        return {
+          corpIndvDirectors: [
+            { ...person, corporateIndividualRequest: { requestId: "EOD06938" } },
+          ],
+          corpIndvShareholders: [
+            { ...person, corporateIndividualRequest: { requestId: "EOD06939" } },
+          ],
+          corpBizShareholders: [],
+        };
+      }
+      return { status: "APPROVED" };
+    });
+    getEntityOnboardingDetails.mockImplementation(async (requestId: string) => {
+      if (requestId === "EOD06938") {
+        return { status: "APPROVED", kycRequestInfo: { kycId: "KYC00189" } };
+      }
+      return { message: "accepted" };
+    });
+
+    await expect(
+      refreshAdminPartyRegTankStatus("issuer", "org-1", "party-1", {
+        regTankClient,
+      })
+    ).rejects.toMatchObject({ code: "PROVIDER_REFRESH_FAILED" });
+    expect(getEntityOnboardingDetails).toHaveBeenCalledWith("EOD06938");
+    expect(getEntityOnboardingDetails).toHaveBeenCalledWith("EOD06939");
+    expect(queryKYCStatus).not.toHaveBeenCalled();
+    expect(mockSupplementCreate).not.toHaveBeenCalled();
+    expect(mockSupplementUpdate).not.toHaveBeenCalled();
+  });
+
   it("uses the child EOD screening ID when the parent COD still embeds a stale KYC", async () => {
     getCorporateOnboardingDetails.mockImplementation(async (requestId: string) => {
       if (requestId === "COD-PARENT") {

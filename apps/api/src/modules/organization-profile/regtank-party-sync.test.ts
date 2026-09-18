@@ -79,6 +79,21 @@ describe("extractRegTankScreeningPatch (RegTank /v3/kyc/query)", () => {
       })
     );
   });
+
+  it("labels Dow Jones screening IDs as DOWJONES", () => {
+    expect(extractRegTankScreeningPatch({ status: "Approved" }, "DJKYC08238")).toEqual(
+      expect.objectContaining({
+        requestId: "DJKYC08238",
+        provider: "DOWJONES",
+      })
+    );
+    expect(extractRegTankScreeningPatch({ status: "Pending" }, "DJKYB1001")).toEqual(
+      expect.objectContaining({
+        requestId: "DJKYB1001",
+        provider: "DOWJONES",
+      })
+    );
+  });
 });
 
 describe("syncCtosPartyRegTankStatus persistence", () => {

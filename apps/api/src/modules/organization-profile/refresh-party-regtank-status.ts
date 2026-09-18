@@ -444,7 +444,7 @@ async function discoverAdminRefreshIds(params: {
     discovered.entityOnboardingRequestId = preferredRequestId;
   }
 
-  if (!laterAdded && (onboardingIds.length === 0 || childMalformed)) {
+  if (childMalformed || (!laterAdded && onboardingIds.length === 0)) {
     throw providerRefreshFailed();
   }
 

@@ -30,6 +30,11 @@ export function extractRegTankStatus(body: unknown): string {
   return "";
 }
 
+function screeningProviderFromRequestId(requestId: string): "DOWJONES" | "ACURIS" {
+  const upper = requestId.trim().toUpperCase();
+  return upper.startsWith("DJKYC") || upper.startsWith("DJKYB") ? "DOWJONES" : "ACURIS";
+}
+
 export function extractRegTankScreeningPatch(
   body: unknown,
   requestId: string
@@ -41,9 +46,7 @@ export function extractRegTankScreeningPatch(
   const patch: Record<string, unknown> = {
     requestId: id,
     status,
-    // `/v3/kyc/query` is the Acuris KYC endpoint in this flow.
-    // Persist the provider label to match webhook-normalized screening objects.
-    provider: "ACURIS",
+    provider: screeningProviderFromRequestId(id),
     updatedAt: new Date().toISOString(),
   };
   if (isRecord(row)) {
