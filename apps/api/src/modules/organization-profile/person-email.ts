@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import {
   getDirectorKycPartyRecord,
+  getLegacyDirectorAmlPersonContext,
   isLegacyCtosPartyKycApproved,
   mergeCtosPartySupplementDocument,
   planPersonEmailWrite,
@@ -17,19 +18,28 @@ function orgWhere(portal: Portal, organizationId: string) {
     : { investor_organization_id: organizationId, issuer_organization_id: null };
 }
 
-async function loadDirectorKycStatus(portal: Portal, organizationId: string): Promise<unknown> {
+async function loadLegacyDirectorStatuses(
+  portal: Portal,
+  organizationId: string
+): Promise<{ kyc: unknown; aml: unknown }> {
   if (portal === "issuer") {
     const row = await prisma.issuerOrganization.findUnique({
       where: { id: organizationId },
-      select: { director_kyc_status: true },
+      select: { director_kyc_status: true, director_aml_status: true },
     });
-    return row?.director_kyc_status ?? null;
+    return {
+      kyc: row?.director_kyc_status ?? null,
+      aml: row?.director_aml_status ?? null,
+    };
   }
   const row = await prisma.investorOrganization.findUnique({
     where: { id: organizationId },
-    select: { director_kyc_status: true },
+    select: { director_kyc_status: true, director_aml_status: true },
   });
-  return row?.director_kyc_status ?? null;
+  return {
+    kyc: row?.director_kyc_status ?? null,
+    aml: row?.director_aml_status ?? null,
+  };
 }
 
 async function findPartySupplement(portal: Portal, organizationId: string, partyKey: string) {
@@ -61,16 +71,22 @@ export async function writeOrganizationPartyEmail(params: {
   }
 
   const existing = await findPartySupplement(params.portal, params.organizationId, params.partyKey);
-  const directorKycStatus = await loadDirectorKycStatus(params.portal, params.organizationId);
-  const legacyKycRecord = getDirectorKycPartyRecord(params.partyKey, directorKycStatus);
+  const legacyStatuses = await loadLegacyDirectorStatuses(params.portal, params.organizationId);
+  const legacyKycRecord = getDirectorKycPartyRecord(params.partyKey, legacyStatuses.kyc);
+  const legacyAmlContext = getLegacyDirectorAmlPersonContext(
+    params.partyKey,
+    legacyStatuses.kyc,
+    legacyStatuses.aml
+  );
   const plan = planPersonEmailWrite({
     currentMasterEmail: party.email,
     incomingEmail: params.email,
-    legacyPeopleEmail: legacyKycRecord?.email,
+    legacyPeopleEmail: legacyKycRecord?.email ?? legacyAmlContext?.email,
     supplementRoot: existing?.onboarding_json,
     onboardingStatus:
       legacyKycRecord?.kycStatus == null ? null : String(legacyKycRecord.kycStatus),
-    legacyKycApproved: isLegacyCtosPartyKycApproved(params.partyKey, directorKycStatus),
+    screeningStatus: legacyAmlContext?.screeningStatus,
+    legacyKycApproved: isLegacyCtosPartyKycApproved(params.partyKey, legacyStatuses.kyc),
     fillEmptyOnly: params.fillEmptyOnly,
   });
 

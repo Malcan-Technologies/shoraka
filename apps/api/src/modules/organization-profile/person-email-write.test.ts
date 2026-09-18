@@ -49,7 +49,10 @@ describe("writeOrganizationPartyEmail", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockTransaction.mockImplementation(async (fn: (client: typeof tx) => unknown) => fn(tx));
-    mockIssuerFindUnique.mockResolvedValue({ director_kyc_status: null });
+    mockIssuerFindUnique.mockResolvedValue({
+      director_kyc_status: null,
+      director_aml_status: null,
+    });
     mockPartyFindFirst.mockResolvedValue({
       id: "party-1",
       party_key: generatedKey,
@@ -254,6 +257,107 @@ describe("writeOrganizationPartyEmail", () => {
         }),
       })
     );
+  });
+
+  it("records a tombstone when clearing an email sourced only from legacy AML", async () => {
+    mockPartyFindFirst.mockResolvedValue({
+      id: "party-1",
+      party_key: legacyKey,
+      email: null,
+      field_sources: {},
+    });
+    mockIssuerFindUnique.mockResolvedValue({
+      director_kyc_status: null,
+      director_aml_status: {
+        directors: [
+          {
+            governmentIdNumber: legacyKey,
+            email: "legacy-aml@acme.test",
+            amlStatus: "APPROVED",
+          },
+        ],
+      },
+    });
+
+    await writeOrganizationPartyEmail({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyKey: legacyKey,
+      email: null,
+    });
+
+    expect(mockPartyUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          email: null,
+          field_sources: expect.objectContaining({
+            email: expect.objectContaining({ source: "SYSTEM" }),
+          }),
+        }),
+      })
+    );
+  });
+
+  it("preserves an active supplement when legacy AML is terminal", async () => {
+    mockPartyFindFirst.mockResolvedValue({
+      id: "party-1",
+      party_key: legacyKey,
+      email: "old@acme.test",
+      field_sources: {},
+    });
+    mockSupplementFindFirst.mockResolvedValue({
+      id: "sup-1",
+      onboarding_json: {
+        email: "old@acme.test",
+        status: "IN_PROGRESS",
+        requestId: "LD-ACTIVE",
+        verifyLink: "https://verify.example/active",
+      },
+    });
+    mockIssuerFindUnique.mockResolvedValue({
+      director_kyc_status: {
+        directors: [
+          {
+            governmentIdNumber: legacyKey,
+            kycId: "KYC-1",
+            kycStatus: "IN_PROGRESS",
+          },
+        ],
+      },
+      director_aml_status: {
+        directors: [
+          {
+            governmentIdNumber: legacyKey,
+            email: "",
+            rawStatus: "",
+          },
+          {
+            kycId: "KYC-1",
+            email: "old@acme.test",
+            rawStatus: "",
+            amlStatus: "APPROVED",
+          },
+        ],
+      },
+    });
+
+    await writeOrganizationPartyEmail({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyKey: legacyKey,
+      email: "new@acme.test",
+    });
+
+    const snapshot = mockSupplementUpdate.mock.calls[0]?.[0].data.onboarding_json as Record<
+      string,
+      unknown
+    >;
+    expect(snapshot).toMatchObject({
+      email: "new@acme.test",
+      status: "IN_PROGRESS",
+      requestId: "LD-ACTIVE",
+      verifyLink: "https://verify.example/active",
+    });
   });
 
   it("rejects a write when legacy KYC is awaiting approval without a supplement", async () => {
