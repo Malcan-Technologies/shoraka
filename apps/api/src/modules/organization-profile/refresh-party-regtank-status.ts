@@ -14,6 +14,7 @@ import {
   partyKeyMatchesLookup,
   partyKycRefreshIds,
   pickPreferredDirectorShareholderOnboarding,
+  pickPreferredDirectorShareholderScreening,
   type ApplicationPersonRow,
 } from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
@@ -34,7 +35,11 @@ import {
   RegTankRefreshSession,
   RegTankRefreshClient,
 } from "../regtank/helpers/regtank-refresh-session";
-import { extractRegTankStatus, syncCtosPartyRegTankStatus } from "./regtank-party-sync";
+import {
+  extractRegTankScreeningPatch,
+  extractRegTankStatus,
+  syncCtosPartyRegTankStatus,
+} from "./regtank-party-sync";
 
 export const PARTY_STATUS_REFRESHED_MESSAGE = "Status refreshed.";
 export const PARTY_STATUS_REFRESH_FAILED_MESSAGE =
@@ -111,13 +116,15 @@ function formFieldValue(source: unknown, fieldName: string): string {
 
 function individualCandidate(row: Record<string, unknown>): RegTankPartyCandidate {
   const userInfo = nestedRecord(row.corporateUserRequestInfo);
-  const firstName = formFieldValue(userInfo, "First Name");
-  const lastName = formFieldValue(userInfo, "Last Name");
+  const formName = `${formFieldValue(userInfo, "First Name")} ${formFieldValue(userInfo, "Last Name")}`.trim();
+  const directName = [text(userInfo?.firstName), text(userInfo?.middleName), text(userInfo?.lastName)]
+    .filter(Boolean)
+    .join(" ");
   const request = nestedRecord(row.corporateIndividualRequest);
   const screening = nestedRecord(row.kycRequestInfo);
   return {
     entityType: "INDIVIDUAL",
-    name: `${firstName} ${lastName}`.trim() || text(userInfo?.fullName) || text(row.name),
+    name: formName || text(userInfo?.fullName) || directName || text(row.name),
     identityNumber: extractGovernmentIdFromCorporateUserInfo(userInfo ?? {}) || null,
     onboardingRequestId: text(request?.requestId) || text(row.requestId) || null,
     screeningRequestId: text(screening?.kycId) || null,
@@ -315,6 +322,28 @@ function providerRefreshFailed(): AppError {
   );
 }
 
+async function preferredScreeningId(params: {
+  session: RegTankRefreshSession;
+  ids: Set<string>;
+  entityType: "INDIVIDUAL" | "CORPORATE";
+}): Promise<string | null> {
+  if (params.ids.size === 0) return null;
+  if (params.ids.size === 1) return [...params.ids][0] ?? null;
+  let preferred: { status: string; id: string } | null = null;
+  for (const id of params.ids) {
+    const body =
+      params.entityType === "CORPORATE"
+        ? await params.session.queryKYBStatus(id)
+        : await params.session.queryKYCStatus(id);
+    const patch = extractRegTankScreeningPatch(body, id);
+    const status = text(patch?.status);
+    if (!status) throw providerRefreshFailed();
+    preferred = pickPreferredDirectorShareholderScreening(preferred, { status, id });
+  }
+  if (!preferred?.id) throw providerRefreshFailed();
+  return preferred.id;
+}
+
 async function discoverAdminRefreshIds(params: {
   portal: Portal;
   organizationId: string;
@@ -425,14 +454,11 @@ async function discoverAdminRefreshIds(params: {
       : parentScreeningIds
     : childScreeningIds;
 
-  if (screeningIds.size > 1) {
-    throw new AppError(
-      409,
-      "AMBIGUOUS_REGTANK_PARTY",
-      "Multiple RegTank screening records match this profile. Review the identity details before syncing."
-    );
-  }
-  const screeningId = [...screeningIds][0] ?? null;
+  const screeningId = await preferredScreeningId({
+    session: params.session,
+    ids: screeningIds,
+    entityType,
+  });
   if (entityType === "CORPORATE") {
     discovered.kybId = screeningId;
   } else {

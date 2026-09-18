@@ -923,6 +923,139 @@ describe("refreshAdminPartyRegTankStatus", () => {
     );
   });
 
+  it("persists the preferred dual-role KYC when director and shareholder have distinct IDs", async () => {
+    getCorporateOnboardingDetails.mockImplementation(async (requestId: string) => {
+      if (requestId === "COD-PARENT") {
+        const person = {
+          corporateUserRequestInfo: {
+            fullName: "Ivan Chew Ken Yoong",
+            formContent: {
+              content: [
+                { fieldName: "First Name", fieldValue: "Ivan Chew" },
+                { fieldName: "Last Name", fieldValue: "Ken Yoong" },
+                { fieldName: "Government ID Number", fieldValue: "891114075601" },
+              ],
+            },
+          },
+        };
+        return {
+          corpIndvDirectors: [
+            {
+              ...person,
+              corporateIndividualRequest: { requestId: "EOD06938" },
+              kycRequestInfo: { kycId: "KYC-DIR" },
+            },
+          ],
+          corpIndvShareholders: [
+            {
+              ...person,
+              corporateIndividualRequest: { requestId: "EOD06939" },
+              kycRequestInfo: { kycId: "KYC-SH" },
+            },
+          ],
+          corpBizShareholders: [],
+        };
+      }
+      return { status: "APPROVED" };
+    });
+    getEntityOnboardingDetails.mockImplementation(async (requestId: string) => {
+      if (requestId === "EOD06938") {
+        return { status: "APPROVED", kycRequestInfo: { kycId: "KYC-DIR" } };
+      }
+      if (requestId === "EOD06939") {
+        return { status: "APPROVED", kycRequestInfo: { kycId: "KYC-SH" } };
+      }
+      return { status: "APPROVED" };
+    });
+    queryKYCStatus.mockImplementation(async (kycId: string) => {
+      if (kycId === "KYC-DIR") return { status: "APPROVED", messageStatus: "DONE" };
+      if (kycId === "KYC-SH") return { status: "REJECTED", messageStatus: "DONE" };
+      return { status: "PENDING" };
+    });
+
+    const result = await refreshAdminPartyRegTankStatus(
+      "issuer",
+      "org-1",
+      "party-1",
+      { regTankClient }
+    );
+
+    expect(queryKYCStatus).toHaveBeenCalledWith("KYC-DIR");
+    expect(queryKYCStatus).toHaveBeenCalledWith("KYC-SH");
+    expect(result.refreshedSources).toEqual(["ENTITY_ONBOARDING", "KYC"]);
+    expect(mockSupplementCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          onboarding_json: expect.objectContaining({
+            requestId: "EOD06938",
+            status: "APPROVED",
+            screening: expect.objectContaining({
+              requestId: "KYC-SH",
+              status: "REJECTED",
+            }),
+          }),
+        }),
+      })
+    );
+  });
+
+  it("matches an identity-less party from parent-COD firstName and lastName", async () => {
+    mockPartyFindFirst.mockResolvedValue(
+      laterAddedParty({
+        party_key: "user:alex",
+        origin: "USER_ADDED",
+        identity_number: null,
+        name: "Alex Tan",
+      })
+    );
+    mockSupplementFindFirst.mockResolvedValue(null);
+    getCorporateOnboardingDetails.mockImplementation(async (requestId: string) => {
+      if (requestId === "COD-PARENT") {
+        return {
+          corpIndvDirectors: [
+            {
+              corporateIndividualRequest: { requestId: "EOD-ALEX" },
+              corporateUserRequestInfo: {
+                firstName: "Alex",
+                lastName: "Tan",
+                formContent: { content: [] },
+              },
+            },
+          ],
+          corpIndvShareholders: [],
+          corpBizShareholders: [],
+        };
+      }
+      return { status: "APPROVED" };
+    });
+    getEntityOnboardingDetails.mockResolvedValue({
+      status: "APPROVED",
+      kycRequestInfo: { kycId: "KYC-ALEX" },
+    });
+    queryKYCStatus.mockResolvedValue({ status: "APPROVED", messageStatus: "DONE" });
+
+    const result = await refreshAdminPartyRegTankStatus(
+      "issuer",
+      "org-1",
+      "party-1",
+      { regTankClient }
+    );
+
+    expect(getEntityOnboardingDetails).toHaveBeenCalledWith("EOD-ALEX");
+    expect(queryKYCStatus).toHaveBeenCalledWith("KYC-ALEX");
+    expect(result.refreshedSources).toEqual(["ENTITY_ONBOARDING", "KYC"]);
+    expect(mockSupplementCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          onboarding_json: expect.objectContaining({
+            requestId: "EOD-ALEX",
+            screening: expect.objectContaining({ requestId: "KYC-ALEX" }),
+          }),
+        }),
+      })
+    );
+  });
+
   it("fails instead of reporting success when the refreshed snapshot cannot be saved", async () => {
     mockSupplementCreate.mockRejectedValue(new Error("database unavailable"));
 
