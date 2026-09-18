@@ -1490,6 +1490,7 @@ function EditApplicationPageBody() {
       }
       isSubmittingRef.current = false;
       setIsSubmittingApplication(false);
+      throw error;
     }
   }, [finalizeApplicationSubmit]);
 
@@ -2100,7 +2101,7 @@ function EditApplicationPageBody() {
                     setShowProcessingFeeStep(false);
                     setPendingProcessingFee(null);
                   }}
-                  onFeeAlreadyPaid={() => void handleFeeAlreadyPaid()}
+                  onFeeAlreadyPaid={handleFeeAlreadyPaid}
                 />
               ) : (
                 renderStepComponent()

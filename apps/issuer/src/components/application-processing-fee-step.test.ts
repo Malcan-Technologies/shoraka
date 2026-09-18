@@ -46,10 +46,20 @@ describe("application processing fee confirming surface", () => {
 
   it("hands resumed completion to submission once and clears only this application", () => {
     expect(source).toContain("completedFeeHandoffRef");
+    expect(source).toContain("completedFeeHandoffInFlightRef");
+    expect(source).toContain("await onFeeAlreadyPaid()");
     expect(source).toContain("handoffCompletedFee(resolvedFee.id)");
     expect(source).toContain("clearIssuerPendingSubmitAfterFee(applicationId)");
     expect(source).not.toContain("if (resumeFeeId) return");
     expect(source).not.toContain("clearIssuerPendingSubmitAfterFee()");
+    const handoff = source.slice(
+      source.indexOf("const handoffCompletedFee"),
+      source.indexOf("React.useEffect(() => {\n    if (resolvedFee?.status === \"COMPLETED\")")
+    );
+    expect(handoff.indexOf("await onFeeAlreadyPaid()")).toBeLessThan(
+      handoff.indexOf("clearIssuerPendingSubmitAfterFee(applicationId)")
+    );
+    expect(handoff).toContain("completedFeeHandoffInFlightRef.current = null");
   });
 
   it("never selects a retryable terminal saved order for checkout", () => {

@@ -571,6 +571,13 @@ export class SigningService {
     return normalized;
   }
 
+  private resolveAuthorizedPartiesSnapshot(
+    offerDetails: unknown
+  ): AuthorizedPartiesSnapshot | null {
+    const acceptance = getOfferAcceptanceFromOfferDetails(offerDetails);
+    return acceptance?.authorized_parties ?? getLoAuthorizedPartiesFromAcceptance(acceptance);
+  }
+
   private async assertAuthorizedPartyProfilesCurrent(
     application: SigningApplicationContext,
     authorizedParties: AuthorizedPartiesSnapshot | null | undefined
@@ -621,8 +628,7 @@ export class SigningService {
     applicationId: string,
     offerDetails: unknown
   ): Promise<string[]> {
-    const snapshot =
-      getOfferAcceptanceFromOfferDetails(offerDetails)?.authorized_parties ?? null;
+    const snapshot = this.resolveAuthorizedPartiesSnapshot(offerDetails);
     const partyKeys = collectAuthorizedRepresentativeReviewKeys(snapshot);
     if (partyKeys.length === 0) return [];
     const rows = await prisma.applicationReviewItem.findMany({
@@ -725,8 +731,7 @@ export class SigningService {
     template: SigningTemplateConfig,
     posted: RecipientBinding[]
   ): void {
-    const snapshot =
-      getOfferAcceptanceFromOfferDetails(offerDetails)?.authorized_parties ?? null;
+    const snapshot = this.resolveAuthorizedPartiesSnapshot(offerDetails);
     if (!snapshot) return;
     if (
       !postedBindingsMatchApprovedSnapshot({
@@ -962,9 +967,7 @@ export class SigningService {
       const offerDetails = input.contractId
         ? application.contract?.offer_details
         : application.invoices.find((item) => item.id === input.invoiceId)?.offer_details;
-      const acceptance = getOfferAcceptanceFromOfferDetails(offerDetails);
-      authorizedParties =
-        acceptance?.authorized_parties ?? getLoAuthorizedPartiesFromAcceptance(acceptance);
+      authorizedParties = this.resolveAuthorizedPartiesSnapshot(offerDetails);
     }
     const envelopePlan = await this.injectPlanAutomaticRoles(plan, authorizedParties);
     const envelope = await this.repo.createFromPlan({
@@ -1040,8 +1043,7 @@ export class SigningService {
             })
           )?.offer_details
         : null;
-    const snapshot =
-      getOfferAcceptanceFromOfferDetails(offerDetails)?.authorized_parties ?? null;
+    const snapshot = this.resolveAuthorizedPartiesSnapshot(offerDetails);
     if (!snapshot) {
       throw new AppError(
         400,
@@ -1115,6 +1117,7 @@ export class SigningService {
     });
     const template = this.readSigningTemplateFromWorkflow(workflow, packageKind);
     const documentKeys = template.documents.map((document) => document.key);
+    const authorizedParties = this.resolveAuthorizedPartiesSnapshot(offerDetails);
     const requiredSlots = configuredSlotsForDocumentKeys(documentKeys);
     const issues: SigningPackageReadinessIssue[] = [];
 
@@ -1162,9 +1165,6 @@ export class SigningService {
     }
 
     if (isSigningCloudSealFieldEnabled() && signingPackageRequiresIssuerSeal(documentKeys)) {
-      const authorizedParties =
-        getOfferAcceptanceFromOfferDetails(offerDetails)?.authorized_parties ??
-        getLoAuthorizedPartiesFromAcceptance(getOfferAcceptanceFromOfferDetails(offerDetails));
       const applierIssue = issuerSealApplierIssue(authorizedParties?.parties ?? [], true);
       if (applierIssue) {
         issues.push({
@@ -1181,11 +1181,9 @@ export class SigningService {
       }
     }
 
-    const approvedParties =
-      getOfferAcceptanceFromOfferDetails(offerDetails)?.authorized_parties ?? null;
-    if (approvedParties) {
+    if (authorizedParties) {
       const issuerDirectorPool = await loadIssuerDirectorPool(application.issuer_organization_id);
-      if (!approvedIssuerRepresentativesAreCurrent(approvedParties, issuerDirectorPool)) {
+      if (!approvedIssuerRepresentativesAreCurrent(authorizedParties, issuerDirectorPool)) {
         issues.push({
           code: "AUTHORIZED_REPRESENTATIVE_PROFILE_CHANGED",
           message: AUTHORIZED_REPRESENTATIVE_PROFILE_CHANGED_MESSAGE,
@@ -1603,9 +1601,7 @@ export class SigningService {
           application_guarantor_id: recipient.application_guarantor_id ?? null,
         }))
     );
-    const authorizedParties =
-      getOfferAcceptanceFromOfferDetails(sendOfferDetails)?.authorized_parties ??
-      getLoAuthorizedPartiesFromAcceptance(getOfferAcceptanceFromOfferDetails(sendOfferDetails));
+    const authorizedParties = this.resolveAuthorizedPartiesSnapshot(sendOfferDetails);
     await this.assertAuthorizedPartyProfilesCurrent(application, authorizedParties);
     assertEnvelopeHasRequiredAutomaticRoles(envelope);
     if (envelope.recipients.some((recipient) => recipient.execution_mode === "AUTOMATIC")) {
@@ -1699,9 +1695,7 @@ export class SigningService {
             })
           )?.offer_details
         : null;
-    const authorizedParties =
-      getOfferAcceptanceFromOfferDetails(sendOfferDetails)?.authorized_parties ??
-      getLoAuthorizedPartiesFromAcceptance(getOfferAcceptanceFromOfferDetails(sendOfferDetails));
+    const authorizedParties = this.resolveAuthorizedPartiesSnapshot(sendOfferDetails);
     await this.assertAuthorizedPartyProfilesCurrent(application, authorizedParties);
 
     if (envelope.send_phase !== "DELIVERING") {
@@ -1741,10 +1735,7 @@ export class SigningService {
           recipientById,
           actor?.userId ?? envelope.created_by_user_id ?? "",
           actor?.portal !== ActivityPortal.ISSUER,
-          getOfferAcceptanceFromOfferDetails(sendOfferDetails)?.authorized_parties ??
-            getLoAuthorizedPartiesFromAcceptance(
-              getOfferAcceptanceFromOfferDetails(sendOfferDetails)
-            )
+          this.resolveAuthorizedPartiesSnapshot(sendOfferDetails)
         );
         unsignedS3Key = materialized.s3Key;
         signsetsByAssignmentId = materialized.signsetsByAssignmentId;

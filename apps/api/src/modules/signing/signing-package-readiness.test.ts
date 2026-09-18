@@ -203,4 +203,46 @@ describe("getSigningPackageReadiness", () => {
       "AUTHORIZED_REPRESENTATIVE_PROFILE_CHANGED"
     );
   });
+
+  it("flags a draft-only approved snapshot whose Person Email changed", async () => {
+    loadPool.mockResolvedValue([
+      {
+        matchKey: "820508105871",
+        name: "Ali Bin Abu",
+        email: "new@co.my",
+        icNumber: "820508105871",
+      },
+    ]);
+    const draftOnlyOffer = {
+      offer_acceptance: {
+        status: "APPROVED_FOR_SIGNING" as const,
+        authorized_parties_draft: invoiceOfferWithSealApplier.offer_acceptance.authorized_parties,
+      },
+    };
+    const service = createService({
+      findApplicationContext: jest.fn().mockResolvedValue({
+        id: "app-1",
+        issuer_organization_id: "org-1",
+        financing_structure: { structure_type: "invoice_only" },
+        contract_id: "holder-1",
+        contract: { id: "holder-1", offer_details: {} },
+        invoices: [
+          {
+            id: "inv-1",
+            status: InvoiceStatus.OFFER_SENT,
+            offer_details: draftOnlyOffer,
+          },
+        ],
+      }),
+    });
+    jest
+      .spyOn(service as never, "getProductWorkflowForApplication")
+      .mockResolvedValue(FA_WORKFLOW as never);
+
+    const readiness = await service.getSigningPackageReadiness("app-1");
+
+    expect(readiness.issues.map((issue) => issue.code)).toContain(
+      "AUTHORIZED_REPRESENTATIVE_PROFILE_CHANGED"
+    );
+  });
 });

@@ -48,7 +48,7 @@ interface ApplicationProcessingFeeStepProps {
   applicationId: string;
   initialFee?: ApplicationProcessingFeeResponse | null;
   onBack: () => void;
-  onFeeAlreadyPaid: () => void;
+  onFeeAlreadyPaid: () => void | Promise<void>;
 }
 
 export function ApplicationProcessingFeeStep({
@@ -96,6 +96,7 @@ export function ApplicationProcessingFeeStep({
   const [isOpeningCheckout, setIsOpeningCheckout] = React.useState(false);
   const checkoutOpenInFlightRef = React.useRef(false);
   const completedFeeHandoffRef = React.useRef<string | null>(null);
+  const completedFeeHandoffInFlightRef = React.useRef<string | null>(null);
 
   const persistReleasedFailedCheckout = (markedFeeId: string | null) => {
     const current = readIssuerPendingSubmitAfterFee(applicationId);
@@ -130,19 +131,29 @@ export function ApplicationProcessingFeeStep({
   }, [applicationId, resumeFeeId, resumedFee?.status, retryableResumedFee]);
 
   const handoffCompletedFee = React.useCallback(
-    (feeId: string) => {
+    async (feeId: string) => {
       const handoffKey = `${applicationId}:${feeId}`;
-      if (completedFeeHandoffRef.current === handoffKey) return;
-      completedFeeHandoffRef.current = handoffKey;
-      clearIssuerPendingSubmitAfterFee(applicationId);
-      onFeeAlreadyPaid();
+      if (
+        completedFeeHandoffRef.current === handoffKey ||
+        completedFeeHandoffInFlightRef.current === handoffKey
+      ) {
+        return;
+      }
+      completedFeeHandoffInFlightRef.current = handoffKey;
+      try {
+        await onFeeAlreadyPaid();
+        completedFeeHandoffRef.current = handoffKey;
+        clearIssuerPendingSubmitAfterFee(applicationId);
+      } catch {
+        completedFeeHandoffInFlightRef.current = null;
+      }
     },
     [applicationId, onFeeAlreadyPaid]
   );
 
   React.useEffect(() => {
     if (resolvedFee?.status === "COMPLETED") {
-      handoffCompletedFee(resolvedFee.id);
+      void handoffCompletedFee(resolvedFee.id);
     }
   }, [handoffCompletedFee, resolvedFee?.id, resolvedFee?.status]);
 
@@ -188,7 +199,7 @@ export function ApplicationProcessingFeeStep({
       setError(null);
 
       if (liveCheckoutFee.status === "COMPLETED") {
-        handoffCompletedFee(liveCheckoutFee.id);
+        await handoffCompletedFee(liveCheckoutFee.id);
         return;
       }
 
