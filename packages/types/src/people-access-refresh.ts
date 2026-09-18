@@ -30,6 +30,11 @@ function firstPrefixed(
   return null;
 }
 
+function isCorporateKybReference(id: string): boolean {
+  const upper = id.toUpperCase();
+  return upper.startsWith("DJKYB") || upper.startsWith("KYB");
+}
+
 /**
  * Later-added company person: Add company person (`USER_ADDED`) or generated `user:` key.
  * Initial CTOS / RegTank onboarding parties are excluded.
@@ -79,7 +84,13 @@ export function collectPartyRegTankRefreshIds(
       }
       return null;
     })(),
-    kybId: firstPrefixed([screeningId, onboardingId], "KYB"),
+    kybId: (() => {
+      for (const candidate of [screeningId, onboardingId]) {
+        const id = trimId(candidate);
+        if (isCorporateKybReference(id)) return id;
+      }
+      return null;
+    })(),
   };
 }
 

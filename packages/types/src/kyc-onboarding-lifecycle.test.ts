@@ -206,4 +206,35 @@ describe("email-only supplement merge", () => {
     expect(after.screening?.riskScore).toBeUndefined();
     expect(after.screening?.messageStatus).toBeUndefined();
   });
+
+  it("drops previous onboarding verify metadata when the request ID changes", () => {
+    const base = mergeCtosPartySupplementDocument(null, {
+      onboarding: {
+        requestId: "LD1001",
+        status: "WAIT_FOR_APPROVAL",
+        verifyLink: "https://verify.example/ld1001",
+        verifyLinkExpiresAt: "2026-02-01T00:00:00.000Z",
+        referenceId: "ref-ld",
+        sentAt: "2026-01-01T00:00:00.000Z",
+        lastSentAt: "2026-01-02T00:00:00.000Z",
+        sendTimestamps: ["2026-01-01T00:00:00.000Z"],
+      },
+    });
+
+    const after = mergeCtosPartySupplementDocument(base, {
+      onboarding: {
+        requestId: "EOD06938",
+        status: "APPROVED",
+      },
+    });
+
+    expect(after.requestId).toBe("EOD06938");
+    expect(after.status).toBe("APPROVED");
+    expect(after.verifyLink).toBeUndefined();
+    expect(after.verifyLinkExpiresAt).toBeUndefined();
+    expect(after.referenceId).toBeUndefined();
+    expect(after.sentAt).toBeUndefined();
+    expect(after.lastSentAt).toBeUndefined();
+    expect(after.sendTimestamps).toBeUndefined();
+  });
 });

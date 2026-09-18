@@ -631,6 +631,71 @@ describe("refreshAdminPartyRegTankStatus", () => {
     expect(result.refreshedSources).toEqual(["INDIVIDUAL_ONBOARDING", "KYC"]);
   });
 
+  it("persists the preferred stored LD when discovery also finds an EOD", async () => {
+    mockPartyFindFirst.mockResolvedValue(
+      laterAddedParty({
+        party_key: "user:jamie",
+        origin: "USER_ADDED",
+        identity_number: "891114075601",
+        name: "Ivan Chew Ken Yoong",
+      })
+    );
+    mockSupplementFindFirst.mockResolvedValue({
+      id: "sup-later",
+      onboarding_json: mergeCtosPartySupplementDocument(null, {
+        onboarding: { requestId: "LD1001", status: "REJECTED" },
+      }),
+    });
+    getCorporateOnboardingDetails.mockImplementation(async (requestId: string) => {
+      if (requestId === "COD-PARENT") {
+        return {
+          corpIndvDirectors: [
+            {
+              corporateIndividualRequest: { requestId: "EOD06938" },
+              corporateUserRequestInfo: {
+                fullName: "Ivan Chew Ken Yoong",
+                formContent: {
+                  content: [
+                    { fieldName: "First Name", fieldValue: "Ivan Chew" },
+                    { fieldName: "Last Name", fieldValue: "Ken Yoong" },
+                    { fieldName: "Government ID Number", fieldValue: "891114075601" },
+                  ],
+                },
+              },
+            },
+          ],
+          corpIndvShareholders: [],
+          corpBizShareholders: [],
+        };
+      }
+      return { status: "APPROVED" };
+    });
+    getEntityOnboardingDetails.mockResolvedValue({ status: "APPROVED" });
+    queryOnboardingDetails.mockResolvedValue({ status: "REJECTED" });
+
+    const result = await refreshAdminPartyRegTankStatus(
+      "issuer",
+      "org-1",
+      "party-1",
+      { regTankClient }
+    );
+
+    expect(queryOnboardingDetails).toHaveBeenCalledWith("LD1001");
+    expect(getEntityOnboardingDetails).toHaveBeenCalledWith("EOD06938");
+    expect(result.refreshedSources).toEqual(["INDIVIDUAL_ONBOARDING"]);
+    expect(mockSupplementUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          onboarding_json: expect.objectContaining({
+            requestId: "LD1001",
+            status: "REJECTED",
+            screening: null,
+          }),
+        }),
+      })
+    );
+  });
+
   it("clears stale parent AML for a later-added person when the child confirms screening is absent", async () => {
     mockPartyFindFirst.mockResolvedValue(
       laterAddedParty({

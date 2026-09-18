@@ -200,7 +200,16 @@ function mergeOnboardingFields(
   const lsa = str(patch.lastSentAt);
   if (lsa !== undefined) base.lastSentAt = lsa;
   if (typeof patch.requestId === "string" && patch.requestId.trim()) {
-    base.requestId = patch.requestId.trim();
+    const nextId = patch.requestId.trim();
+    if (base.requestId && base.requestId !== nextId) {
+      base.verifyLink = undefined;
+      base.verifyLinkExpiresAt = undefined;
+      base.referenceId = undefined;
+      base.sentAt = undefined;
+      base.lastSentAt = undefined;
+      base.sendTimestamps = undefined;
+    }
+    base.requestId = nextId;
   }
   if (typeof patch.status === "string" && patch.status.trim()) {
     base.status = normalizeRawStatus(patch.status) || patch.status.trim();

@@ -322,6 +322,58 @@ function providerRefreshFailed(): AppError {
   );
 }
 
+async function preferSingleOnboardingIds(
+  session: RegTankRefreshSession,
+  ids: RefreshIds
+): Promise<RefreshIds> {
+  const candidates: Array<{
+    kind: "individual" | "entity" | "corporate";
+    requestId: string;
+  }> = [];
+  if (ids.individualOnboardingRequestId) {
+    candidates.push({ kind: "individual", requestId: ids.individualOnboardingRequestId });
+  }
+  if (ids.entityOnboardingRequestId) {
+    candidates.push({ kind: "entity", requestId: ids.entityOnboardingRequestId });
+  }
+  if (ids.corporateOnboardingRequestId) {
+    candidates.push({ kind: "corporate", requestId: ids.corporateOnboardingRequestId });
+  }
+  if (candidates.length <= 1) return ids;
+
+  let preferred: {
+    status: string;
+    id: string;
+    kind: "individual" | "entity" | "corporate";
+  } | null = null;
+  for (const candidate of candidates) {
+    const details =
+      candidate.kind === "individual"
+        ? await session.queryOnboardingDetails(candidate.requestId)
+        : candidate.kind === "corporate"
+          ? await session.getCorporateOnboardingDetails(candidate.requestId)
+          : await session.getEntityOnboardingDetails(candidate.requestId);
+    const status = extractRegTankStatus(details);
+    if (!status) throw providerRefreshFailed();
+    const picked = pickPreferredDirectorShareholderOnboarding(
+      preferred,
+      { status, id: candidate.requestId }
+    );
+    if (!picked?.id) throw providerRefreshFailed();
+    preferred = {
+      status: picked.status ?? status,
+      id: picked.id,
+      kind: picked.id === candidate.requestId ? candidate.kind : preferred!.kind,
+    };
+  }
+  return {
+    ...ids,
+    individualOnboardingRequestId: preferred?.kind === "individual" ? preferred.id : null,
+    entityOnboardingRequestId: preferred?.kind === "entity" ? preferred.id : null,
+    corporateOnboardingRequestId: preferred?.kind === "corporate" ? preferred.id : null,
+  };
+}
+
 async function preferredScreeningId(params: {
   session: RegTankRefreshSession;
   ids: Set<string>;
@@ -465,7 +517,10 @@ async function discoverAdminRefreshIds(params: {
   }
   const confirmedScreeningAbsent = screeningId == null && childConfirmedAbsent;
   if (laterAdded) {
-    const merged = mergeRefreshIds(stored, discovered);
+    const merged = await preferSingleOnboardingIds(
+      params.session,
+      mergeRefreshIds(stored, discovered)
+    );
     if (!confirmedScreeningAbsent) return merged;
     return {
       ...merged,

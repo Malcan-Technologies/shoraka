@@ -1,7 +1,10 @@
 import type { Prisma } from "@prisma/client";
 import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
-import { mergeCtosPartySupplementDocument } from "@cashsouk/types";
+import {
+  mergeCtosPartySupplementDocument,
+  pickPreferredDirectorShareholderOnboarding,
+} from "@cashsouk/types";
 import { RegTankAPIClient } from "../regtank/api-client";
 import { RegTankRefreshSession, RegTankRefreshClient } from "../regtank/helpers/regtank-refresh-session";
 import { AppError } from "../../lib/http/error-handler";
@@ -193,8 +196,14 @@ export async function syncCtosPartyRegTankStatus(
     if (individualDetails) {
       const next = extractRegTankStatus(individualDetails);
       if (next) {
-        regtankPipelineStatus = next;
-        pipelineRequestId = input.individualOnboardingRequestId;
+        const preferred = pickPreferredDirectorShareholderOnboarding(
+          pipelineRequestId && regtankPipelineStatus
+            ? { status: regtankPipelineStatus, id: pipelineRequestId }
+            : null,
+          { status: next, id: input.individualOnboardingRequestId }
+        );
+        regtankPipelineStatus = preferred?.status || next;
+        pipelineRequestId = preferred?.id || input.individualOnboardingRequestId;
         refreshedSources.push("INDIVIDUAL_ONBOARDING");
       } else if (input.requireCompleteRefresh) {
         throw new AppError(
@@ -213,8 +222,14 @@ export async function syncCtosPartyRegTankStatus(
     if (body) {
       const next = extractRegTankStatus(body);
       if (next) {
-        regtankPipelineStatus = next;
-        pipelineRequestId = input.entityOnboardingRequestId;
+        const preferred = pickPreferredDirectorShareholderOnboarding(
+          pipelineRequestId && regtankPipelineStatus
+            ? { status: regtankPipelineStatus, id: pipelineRequestId }
+            : null,
+          { status: next, id: input.entityOnboardingRequestId }
+        );
+        regtankPipelineStatus = preferred?.status || next;
+        pipelineRequestId = preferred?.id || input.entityOnboardingRequestId;
         refreshedSources.push("ENTITY_ONBOARDING");
       } else if (input.requireCompleteRefresh) {
         throw new AppError(
@@ -233,8 +248,14 @@ export async function syncCtosPartyRegTankStatus(
     if (body) {
       const next = extractRegTankStatus(body);
       if (next) {
-        regtankPipelineStatus = next;
-        pipelineRequestId = input.corporateOnboardingRequestId;
+        const preferred = pickPreferredDirectorShareholderOnboarding(
+          pipelineRequestId && regtankPipelineStatus
+            ? { status: regtankPipelineStatus, id: pipelineRequestId }
+            : null,
+          { status: next, id: input.corporateOnboardingRequestId }
+        );
+        regtankPipelineStatus = preferred?.status || next;
+        pipelineRequestId = preferred?.id || input.corporateOnboardingRequestId;
         refreshedSources.push("CORPORATE_ONBOARDING");
       } else if (input.requireCompleteRefresh) {
         throw new AppError(
