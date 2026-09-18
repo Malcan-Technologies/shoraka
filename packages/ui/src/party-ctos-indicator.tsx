@@ -32,11 +32,12 @@ const STATE_CLASS: Record<PartyCtosComparison["state"], string> = {
   MATCHED: "text-status-success-text",
   DIFFERS: "text-status-action-text",
   NOT_FOUND: "text-status-action-text",
+  ACKNOWLEDGED: "text-muted-foreground",
   NO_COMPARISON: "text-muted-foreground",
 };
 
 function CtosStateIcon({ state }: { state: PartyCtosComparison["state"] }) {
-  if (state === "MATCHED") {
+  if (state === "MATCHED" || state === "ACKNOWLEDGED") {
     return <CheckCircleIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />;
   }
   if (state === "DIFFERS") {
