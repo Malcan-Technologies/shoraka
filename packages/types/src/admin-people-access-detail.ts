@@ -285,7 +285,13 @@ export function adminPersonHasRegTankEvidence(person: ApplicationPersonRow | nul
 export function adminPersonHasCtosEvidence(row: AdminPeopleAccessRow): boolean {
   if (row.kind === "platform_only" || row.kind === "people_only") return false;
   if (row.observed || row.identityConflict) return true;
-  if (row.ctos === "Matched" || row.ctos === "Differs" || row.ctos === "Not found" || row.ctos === "Observed only") {
+  if (
+    row.ctos === "Matched" ||
+    row.ctos === "Differs" ||
+    row.ctos === "Not found" ||
+    row.ctos === "Current" ||
+    row.ctos === "Observed only"
+  ) {
     return true;
   }
   const party = row.party;

@@ -6,7 +6,7 @@
  */
 import {
   frozenAutomaticPlacementsComplete,
-  frozenAutomaticSignerLabel,
+  frozenAutomaticSignerName,
   isAutomaticSigningRecipient,
   parseFrozenAutomaticSignerSnapshot,
   pendingAutomaticPlacements,
@@ -230,7 +230,7 @@ export async function runAutomaticCountersign(input: {
       try {
         if (!nextSnapshot.signKeyword?.trim()) {
           throw new Error(
-            `The frozen CashSouk signatory for ${frozenAutomaticSignerLabel(nextSnapshot)} is missing a signature keyword.`
+            `The frozen CashSouk signatory for ${frozenAutomaticSignerName(nextSnapshot)} is missing a signature keyword.`
           );
         }
         nextSnapshot = await autoSignSigner({
@@ -247,7 +247,7 @@ export async function runAutomaticCountersign(input: {
         await input.repo.recordAutoSignAttempt(assignment.id, { error: null, increment: true });
         if (!frozenAutomaticPlacementsComplete(nextSnapshot)) {
           throw new Error(
-            `Not every automatic placement for ${frozenAutomaticSignerLabel(nextSnapshot)} is complete.`
+            `Not every automatic placement for ${frozenAutomaticSignerName(nextSnapshot)} is complete.`
           );
         }
         const newlySigned = await markAssignmentSignedAndLog({

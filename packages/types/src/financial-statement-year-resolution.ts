@@ -8,7 +8,7 @@ import {
   getAdminFinancialSummaryUserColumnYears,
   getFinancialYearPeriodEndIso,
   getLatestThreeCtosYears,
-  normalizeFinancialStatementsQuestionnaire,
+  parseFinancialStatementsQuestionnaireShape,
   type CtosFinancialYearRowInput,
   type FinancialStatementsQuestionnaire,
 } from "./financial-unaudited-ctos-validation";
@@ -123,12 +123,9 @@ export function parseCtosFinancialStatementRows(raw: unknown): CtosFinancialStat
   return rows;
 }
 
-function extractQuestionnaireAndUnaudited(
-  financialRaw: unknown,
-  ref: Date = new Date()
-): {
+function extractQuestionnaireAndUnaudited(financialRaw: unknown): {
   questionnaire: FinancialStatementsQuestionnaire | null;
-  /** Raw questionnaire FYE string when present (may fail normalize future-check). */
+  /** Raw questionnaire FYE string when present (shape-only; no today-relative check). */
   financialYearEndIso: string | null;
   unauditedByYear: Record<string, Record<string, unknown>>;
 } {
@@ -149,7 +146,7 @@ function extractQuestionnaireAndUnaudited(
   const fyeRaw =
     typeof qRec?.financial_year_end === "string" ? qRec.financial_year_end.trim() : null;
   const financialYearEndIso = isIsoDate(fyeRaw) ? fyeRaw : null;
-  const questionnaire = normalizeFinancialStatementsQuestionnaire(qRaw, ref);
+  const questionnaire = parseFinancialStatementsQuestionnaireShape(qRaw);
   return { questionnaire, financialYearEndIso, unauditedByYear };
 }
 
@@ -204,8 +201,7 @@ export function findMissingSsmExpectedUnauditedYears(input: {
 }): number[] {
   const ref = input.ref ?? new Date();
   const { questionnaire, unauditedByYear } = extractQuestionnaireAndUnaudited(
-    input.financialStatements,
-    ref
+    input.financialStatements
   );
   const ctosRows = parseCtosFinancialStatementRows(input.ctosFinancials);
   const ctosYearsWithData = new Set<number>();
@@ -253,7 +249,7 @@ export function buildNormalizedFinancialStatementYearSet(input: {
 }): NormalizedFinancialStatementYear[] {
   const ref = input.ref ?? new Date();
   const { questionnaire, financialYearEndIso, unauditedByYear } =
-    extractQuestionnaireAndUnaudited(input.financialStatements, ref);
+    extractQuestionnaireAndUnaudited(input.financialStatements);
   const ctosRows = parseCtosFinancialStatementRows(input.ctosFinancials);
   const byCtosYear = new Map<number, CtosFinancialStatementRow>();
   for (const row of ctosRows) {

@@ -38,6 +38,7 @@ export type AdminPeopleAccessCtosLabel =
   | "Matched"
   | "Differs"
   | "Not found"
+  | "Current"
   | "Observed only"
   | "—";
 
@@ -92,17 +93,19 @@ export function isAdminPeopleAccessFilter(value: string | null | undefined): val
 }
 
 export function adminPeopleAccessCtosLabel(
-  party: OrganizationPartyProfileDto | null | undefined
+  party: OrganizationPartyProfileDto | null | undefined,
+  latestCtos?: unknown
 ): AdminPeopleAccessCtosLabel {
   if (!party) return "—";
   if (party.membershipStatus === "EXTERNAL_OBSERVED") return "Observed only";
   if (isBlockedPersonIdentityConflict(readPersonIdentityConflict(party.externalObservation))) {
     return "Differs";
   }
-  const comparison = resolvePartyCtosComparison(party);
+  const comparison = resolvePartyCtosComparison(party, latestCtos);
   if (comparison.state === "MATCHED") return "Matched";
   if (comparison.state === "DIFFERS") return "Differs";
   if (comparison.state === "NOT_FOUND") return "Not found";
+  if (comparison.state === "ACKNOWLEDGED") return "Current";
   return "—";
 }
 
@@ -198,6 +201,7 @@ function toRow(params: {
   userId?: string | null;
   accountEmail?: string | null;
   personEmail?: string | null;
+  latestCtos?: unknown;
 }): AdminPeopleAccessRow {
   const observed = params.party?.membershipStatus === "EXTERNAL_OBSERVED";
   const inactive = params.party?.membershipStatus === "MASTER_INACTIVE";
@@ -237,7 +241,7 @@ function toRow(params: {
         }),
     kyc,
     aml,
-    ctos: platformOnly || peopleOnly ? "—" : adminPeopleAccessCtosLabel(params.party),
+    ctos: platformOnly || peopleOnly ? "—" : adminPeopleAccessCtosLabel(params.party, params.latestCtos),
     partyId: params.party?.id ?? null,
     partyKey: params.party?.partyKey ?? params.person?.matchKey ?? null,
     userId: params.userId ?? params.party?.userId ?? null,
@@ -261,6 +265,7 @@ export function buildAdminPeopleAccessRows(input: {
   members: PeopleAccessMember[];
   owner: AdminPeopleAccessOwner | null;
   now?: Date;
+  latestCtos?: unknown;
 }): { active: AdminPeopleAccessRow[]; inactive: AdminPeopleAccessRow[] } {
   const partyList = input.parties ?? [];
   const visiblePeople = filterVisiblePeopleRows(input.people ?? []);
@@ -284,6 +289,7 @@ export function buildAdminPeopleAccessRows(input: {
       ownerUserId,
       allParties: partyList,
       accountEmail: party.linkedUser?.email ?? member?.email ?? null,
+      latestCtos: input.latestCtos,
     });
   });
 
@@ -298,6 +304,7 @@ export function buildAdminPeopleAccessRows(input: {
       member: null,
       ownerUserId,
       allParties: partyList,
+      latestCtos: input.latestCtos,
     });
   });
 
@@ -389,6 +396,7 @@ export function buildAdminPeopleAccessRows(input: {
       ownerUserId,
       allParties: partyList,
       accountEmail: party.linkedUser?.email ?? member?.email ?? null,
+      latestCtos: input.latestCtos,
     });
   });
 

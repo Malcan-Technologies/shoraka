@@ -49,6 +49,16 @@ describe("director/shareholder final status: individual KYC ref semantics", () =
     expect(label).toBe("Pending Review");
   });
 
+  it("aml_first does not treat KYC Approved as AML Approved", () => {
+    expect(getFinalStatusLabel({ onboarding: { status: "APPROVED" } }).label).toBe("Not Started");
+    expect(
+      getFinalStatusLabel({
+        onboarding: { status: "APPROVED" },
+        screening: { status: "APPROVED" },
+      }).label
+    ).toBe("Approved");
+  });
+
   it("WAIT_FOR_APPROVAL + KYC... → Pending Review (kyc_only)", () => {
     const label = getFinalStatusLabel(
       { onboarding: { status: "WAIT_FOR_APPROVAL", id: "KYC00185" } },

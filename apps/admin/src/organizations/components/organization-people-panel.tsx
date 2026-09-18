@@ -13,6 +13,7 @@ import {
   isPersonEmailLifecycleLocked,
   linkedPartyUserIds,
   optionalEmailIssue,
+  ctosExtractFingerprint,
   observedPartyBlockedByIdentityConflict,
   phoneFormatIssue,
   PROFILE_LABEL,
@@ -269,6 +270,7 @@ export function OrganizationPeoplePanel({
                     canManage={canManage}
                     applyIssuerComrep={portal === "issuer"}
                     enforceIssuerShareholderMinimum
+                    latestCtos={org.latestOrganizationCtosCompanyJson}
                 onView={() => item.party && setViewingPartyId(item.party.id)}
                 onEdit={item.party ? () => setEditingPartyId(item.party!.id) : undefined}
                 onKeep={
@@ -304,7 +306,15 @@ export function OrganizationPeoplePanel({
                         })
                     : undefined
                 }
-                onKeepAbsent={() => toast.success("Kept on the current profile")}
+                onKeepAbsent={
+                  item.party
+                    ? () =>
+                        peopleMutations.acknowledgeAbsence.mutate({
+                          partyId: item.party!.id,
+                          reviewedExtractFingerprint: ctosExtractFingerprint(org.latestOrganizationCtosCompanyJson),
+                        })
+                    : undefined
+                }
               />
             </div>
           ))}

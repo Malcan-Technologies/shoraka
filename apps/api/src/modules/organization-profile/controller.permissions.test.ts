@@ -11,6 +11,7 @@ describe("admin organization profile router permissions", () => {
     );
     expect(source).toContain("resolve-mismatch\", requirePermission(\"organizations.manage\")");
     expect(source).toContain("/adopt\", requirePermission(\"organizations.manage\")");
+    expect(source).toContain("acknowledge-ctos-absence\", requirePermission(\"organizations.manage\")");
     expect(source).toContain("/inactivate\", requirePermission(\"organizations.manage\")");
     expect(source).toContain('router.patch("/:portal/:id/financials", requirePermission("organizations.manage")');
   });

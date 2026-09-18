@@ -16,6 +16,7 @@ import {
   PERSON_COMPLETE_ONBOARDING_FIRST,
   shouldDeferOnboardingPersonComrep,
   isPersonKycApproved,
+  partyNeedsCtosAbsenceReview,
   personIdentityDisplay,
   type OrganizationPartyProfileDto,
 } from "@cashsouk/types";
@@ -42,6 +43,7 @@ export function OrganizationPersonCard({
   conflictBlocksAdopt = false,
   enforceIssuerShareholderMinimum = true,
   applyIssuerComrep = true,
+  latestCtos,
 }: {
   item: UnifiedOrgPerson;
   canManage: boolean;
@@ -57,6 +59,7 @@ export function OrganizationPersonCard({
   conflictBlocksAdopt?: boolean;
   enforceIssuerShareholderMinimum?: boolean;
   applyIssuerComrep?: boolean;
+  latestCtos?: unknown;
 }) {
   const party = item.party;
   const person = item.person;
@@ -244,7 +247,7 @@ export function OrganizationPersonCard({
         </div>
       ) : null}
 
-      {party?.absentFromLatestExternal && party.membershipStatus === "MASTER_ACTIVE" ? (
+      {party && partyNeedsCtosAbsenceReview(party, latestCtos) ? (
         <div className="space-y-2">
           <p className="flex items-center gap-1.5 text-ui text-status-action-text">
             <ExclamationTriangleIcon className="h-4 w-4" />

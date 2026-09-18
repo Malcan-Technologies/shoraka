@@ -18,6 +18,12 @@ export interface OrganizationPartyProfileDto {
   membershipStatus: OrganizationPartyMembershipStatus;
   entityType: OrganizationPartyEntityType;
   absentFromLatestExternal: boolean;
+  /** Fingerprint of the CTOS extract acknowledged via Leave as current profile. */
+  ctosAbsenceAckFingerprint?: string | null;
+  /** Latest org CTOS extract has no matchable directors/shareholders. */
+  ctosExtractUnusable?: boolean;
+  /** Absence still needs CTOS review for this extract. */
+  ctosAbsenceReviewNeeded?: boolean;
   name: string | null;
   /** Person Email master. Not User.email and not an identity key. */
   email: string | null;

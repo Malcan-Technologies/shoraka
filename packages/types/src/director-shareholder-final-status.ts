@@ -85,6 +85,11 @@ export function getDirectorShareholderEffectiveStatus(
     return { source: "AML", value: aml };
   }
 
+  // KYC Approved with no AML yet is not verification-complete. Do not fall back to Approved.
+  if (kycApproved) {
+    return { source: "AML", value: "" };
+  }
+
   return {
     source: "ONBOARDING",
     value: isKycOnboardingNotStartedToken(onboarding)

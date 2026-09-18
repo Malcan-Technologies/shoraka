@@ -37,11 +37,7 @@ import {
   computeColumnMetrics,
   computeTurnoverGrowth,
   financialFormToBsPl,
-  formatFinancialFyPeriodDisplay,
-  getAdminFinancialSummaryUserColumnYears,
-  getLatestThreeCtosYearSlots,
   computeHasPendingDirectorShareholder,
-  normalizeFinancialStatementsQuestionnaire,
   normalizeDirectorShareholderIdKey,
   resolveCtosCurrentRatio,
   resolveCtosPatMarginPercent,
@@ -56,7 +52,6 @@ import {
   type ApplicationPersonRow,
   type ColumnComputedMetrics,
   type FinancialStatementsInput,
-  type FinancialStatementsQuestionnaire,
   type MarcAssessmentSnapshot,
 } from "@cashsouk/types";
 import { toast } from "sonner";
@@ -64,9 +59,41 @@ import { format, isValid, parse, parseISO } from "date-fns";
 import { useCreateApplicationCtosSubjectReport } from "@/hooks/use-admin-issuer-organization-ctos-mutations";
 import { usePermissions } from "@/hooks/use-permissions";
 import { formatDirectorShareholderReviewHint } from "@/lib/admin-director-shareholder-review-message";
+import {
+  adminFinancialSummaryColumns,
+  adminFyPeriodLines,
+  adminUnauditedYearPresentation,
+  extractQuestionnaireAndUnaudited,
+} from "@/lib/stored-unaudited-years";
+
+export { extractQuestionnaireAndUnaudited } from "@/lib/stored-unaudited-years";
 
 /** Year row placeholder when no year (em dash). */
 const HEADER_PLACEHOLDER = "\u2014";
+
+function AdminUnauditedYearHeading({
+  year,
+  questionnaire,
+}: {
+  year: number;
+  questionnaire: Parameters<typeof adminUnauditedYearPresentation>[0];
+}) {
+  const lines = adminFyPeriodLines(adminUnauditedYearPresentation(questionnaire, year).periodLine);
+  return (
+    <span className="flex flex-col items-end gap-0.5 text-right">
+      <span>{`FY${year}`}</span>
+      {lines.length > 0 ? (
+        <span className="text-meta font-normal leading-snug text-muted-foreground">
+          {lines.map((line) => (
+            <span key={line} className="block whitespace-nowrap">
+              {line}
+            </span>
+          ))}
+        </span>
+      ) : null}
+    </span>
+  );
+}
 
 type CtosFetchState = "not_pulled" | "no_records" | "has_data";
 
@@ -162,29 +189,6 @@ export function parseFinancialStatements(raw: unknown): Record<string, unknown> 
   return obj;
 }
 
-export function extractQuestionnaireAndUnaudited(financialRaw: unknown): {
-  questionnaire: FinancialStatementsQuestionnaire | null;
-  unauditedByYear: Record<string, Record<string, unknown>>;
-} {
-  if (!financialRaw || typeof financialRaw !== "object") {
-    return { questionnaire: null, unauditedByYear: {} };
-  }
-  const obj = financialRaw as Record<string, unknown>;
-  const qRaw = obj.questionnaire;
-  const byYear = obj.unaudited_by_year as Record<string, Record<string, unknown>> | undefined;
-  if (
-    qRaw &&
-    typeof qRaw === "object" &&
-    byYear &&
-    typeof byYear === "object" &&
-    !Array.isArray(byYear)
-  ) {
-    const questionnaire = normalizeFinancialStatementsQuestionnaire(qRaw);
-    return { questionnaire, unauditedByYear: byYear };
-  }
-  return { questionnaire: null, unauditedByYear: {} };
-}
-
 export function firstUnauditedYearFinancialBlock(raw: unknown): Record<string, unknown> {
   const { unauditedByYear } = extractQuestionnaireAndUnaudited(raw);
   const years = Object.keys(unauditedByYear).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
@@ -192,8 +196,6 @@ export function firstUnauditedYearFinancialBlock(raw: unknown): Record<string, u
   const block = unauditedByYear[years[0]];
   return block && typeof block === "object" ? (block as Record<string, unknown>) : {};
 }
-
-type ColumnSpec = { kind: "ctos"; year: number | null } | { kind: "unaudited"; year: number | null };
 
 function ctosFinToFs(r: CtosFinRow): Record<string, unknown> {
   const a = r.account;
@@ -320,29 +322,10 @@ export function ApplicationFinancialReviewContent({
     return m;
   }, [financialRows]);
 
-  const adminUserYears = React.useMemo(
-    () => getAdminFinancialSummaryUserColumnYears(financialQuestionnaire, new Date()),
-    [financialQuestionnaire]
+  const columns = React.useMemo(
+    () => adminFinancialSummaryColumns(financialRows, unauditedByYear),
+    [financialRows, unauditedByYear]
   );
-
-  const columns = React.useMemo((): ColumnSpec[] => {
-    const ctosSlotYears = getLatestThreeCtosYearSlots(financialRows);
-    const ctosYearSet = new Set<number>(
-      ctosSlotYears.filter((y): y is number => typeof y === "number")
-    );
-    const ctosPart: ColumnSpec[] = ctosSlotYears.map((year) => ({
-      kind: "ctos" as const,
-      year,
-    }));
-
-    const filteredAdminUserYears = adminUserYears.filter((year) => !ctosYearSet.has(year));
-    const unPart: ColumnSpec[] = filteredAdminUserYears.map((year) => ({
-      kind: "unaudited" as const,
-      year,
-    }));
-
-    return [...ctosPart, ...unPart];
-  }, [financialRows, adminUserYears]);
 
   const turnovers = React.useMemo(() => {
     return columns.map((spec) => {
@@ -676,11 +659,11 @@ export function ApplicationFinancialReviewContent({
     <>
       <ReviewFieldBlock
         title="Financial Summary"
-        titleTooltip="Past financial years come from the organization CTOS report. The latest financial year is entered by the issuer."
+        titleTooltip="Past financial years come from the organization CTOS report. Issuer columns are unaudited figures entered on the application. An open year is year-to-date as at today."
       >
         <div className={applicationTableWrapperClass}>
           <div className="overflow-x-auto">
-            <Table className="table-fixed w-full min-w-[760px] text-[15px]">
+            <Table className="table-fixed w-full min-w-[960px] text-[15px]">
               <TableHeader className={cn(applicationTableHeaderBgClass, "[&_tr]:border-b-border")}>
                 <TableRow className="hover:bg-transparent border-b border-border">
                   <TableHead
@@ -696,19 +679,17 @@ export function ApplicationFinancialReviewContent({
                       key={`yr-${i}-${spec.kind}-${spec.year ?? "dash"}`}
                       className={cn(
                         applicationTableHeaderClass,
-                        "w-[15.5%] align-middle text-right tabular-nums",
+                        "w-[15.5%] min-w-[8.5rem] align-middle text-right tabular-nums",
                         i < columns.length - 1 ? "border-r border-border" : "",
                         financialSummaryColumnShellClass(spec.kind, i, spec.year)
                       )}
                     >
                       <span className={spec.year != null ? "text-foreground" : "text-muted-foreground"}>
-                        {spec.kind === "unaudited" && spec.year != null && financialQuestionnaire ? (
-                          <span className="flex flex-col items-end gap-0.5">
-                            <span>{`FY${spec.year}`}</span>
-                            <span className="text-[11px] font-normal leading-tight text-muted-foreground">
-                              {formatFinancialFyPeriodDisplay(financialQuestionnaire, spec.year)}
-                            </span>
-                          </span>
+                        {spec.kind === "unaudited" && spec.year != null ? (
+                          <AdminUnauditedYearHeading
+                            year={spec.year}
+                            questionnaire={financialQuestionnaire}
+                          />
                         ) : spec.year != null ? (
                           String(spec.year)
                         ) : spec.kind === "ctos" ? (
@@ -741,7 +722,7 @@ export function ApplicationFinancialReviewContent({
                         <Badge
                           variant="outline"
                           className={cn(
-                            "shrink-0 font-normal text-[11px] leading-tight px-2.5 py-0.5 rounded-md shadow-none",
+                            "shrink-0 whitespace-nowrap font-normal text-[11px] leading-tight px-2.5 py-0.5 rounded-md shadow-none",
                             spec.kind === "ctos" && spec.year != null
                               ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100"
                               : spec.kind === "ctos"
@@ -815,7 +796,7 @@ export function ApplicationFinancialReviewContent({
       >
         <div className={applicationTableWrapperClass}>
           <div className="overflow-x-auto">
-            <Table className="table-fixed w-full min-w-[760px] text-[15px]">
+            <Table className="table-fixed w-full min-w-[960px] text-[15px]">
               <TableHeader className={cn(applicationTableHeaderBgClass, "[&_tr]:border-b-border")}>
                 <TableRow className="hover:bg-transparent border-b border-border">
                   <TableHead
@@ -831,18 +812,21 @@ export function ApplicationFinancialReviewContent({
                       key={`comrep-yr-${i}-${spec.kind}-${spec.year ?? "dash"}`}
                       className={cn(
                         applicationTableHeaderClass,
-                        "w-[15.5%] align-middle text-right tabular-nums",
+                        "w-[15.5%] min-w-[8.5rem] align-middle text-right tabular-nums",
                         i < columns.length - 1 ? "border-r border-border" : "",
                         financialSummaryColumnShellClass(spec.kind, i, spec.year)
                       )}
                     >
-                      {spec.kind === "unaudited" && spec.year != null
-                        ? `FY${spec.year}`
-                        : spec.kind === "ctos"
-                          ? spec.year != null
-                            ? String(spec.year)
-                            : "No year"
-                          : HEADER_PLACEHOLDER}
+                      {spec.kind === "unaudited" && spec.year != null ? (
+                        <AdminUnauditedYearHeading
+                          year={spec.year}
+                          questionnaire={financialQuestionnaire}
+                        />
+                      ) : spec.kind === "ctos" ? (
+                        spec.year != null ? String(spec.year) : "No year"
+                      ) : (
+                        HEADER_PLACEHOLDER
+                      )}
                     </TableHead>
                   ))}
                 </TableRow>

@@ -9,6 +9,7 @@ export interface StickyFormFooterProps
   primary?: React.ReactNode;
   saveState?: StickyFormFooterSaveState;
   saveStateLabel?: string;
+  hint?: string | null;
 }
 
 const SAVE_STATE_LABELS: Record<StickyFormFooterSaveState, string> = {
@@ -23,6 +24,7 @@ export function StickyFormFooter({
   primary,
   saveState = "idle",
   saveStateLabel,
+  hint,
   className,
   ...props
 }: StickyFormFooterProps) {
@@ -50,7 +52,12 @@ export function StickyFormFooter({
         >
           {label}
         </div>
-        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+        <div className="flex min-w-0 shrink-0 flex-wrap items-center justify-end gap-2">
+          {hint ? (
+            <p className="max-w-[12rem] text-right text-meta text-muted-foreground sm:max-w-none">
+              {hint}
+            </p>
+          ) : null}
           {primary}
         </div>
       </div>

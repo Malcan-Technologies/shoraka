@@ -10,10 +10,11 @@ import {
   automaticSigningProgressBadge,
   computeSigningEnvelopeProgress,
   isRemindableSigningRecipient,
+  isShorakaSigningRecipient,
+  signingRecipientDisplayTitle,
   type SigningAssignmentDto,
   type SigningAssignmentStatus,
   type SigningEnvelopeDto,
-  type SigningRecipientDto,
 } from "@cashsouk/types";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -63,11 +64,6 @@ type SigningProgressMatrixProps = {
   remindDisabled?: boolean;
   showRemindActions?: boolean;
 };
-
-function recipientLabel(recipient: SigningRecipientDto, showEmail: boolean): string {
-  if (showEmail) return recipient.email;
-  return recipient.role_label || recipient.role_key;
-}
 
 export function SigningProgressMatrix({
   envelope,
@@ -149,6 +145,7 @@ export function SigningProgressMatrix({
                     if (!recipient) return null;
 
                     const isAutomatic = recipient.execution_mode === "AUTOMATIC";
+                    const title = signingRecipientDisplayTitle(recipient, duplicateNames);
                     const meta = isAutomatic
                       ? {
                           ...automaticSigningProgressBadge(assignment.status),
@@ -168,32 +165,52 @@ export function SigningProgressMatrix({
                     return (
                       <li
                         key={assignment.id}
-                        className="flex items-start gap-3 px-4 py-3 sm:items-center"
+                        className="flex min-w-0 flex-wrap items-start gap-x-3 gap-y-2 px-4 py-3"
                       >
-                        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center sm:mt-0">
-                          {isSigned ? (
-                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary">
-                              <CheckIcon className="h-4 w-4 text-primary-foreground" />
+                        <div className="flex min-w-52 flex-1 items-start gap-3">
+                          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center">
+                            {isSigned ? (
+                              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary">
+                                <CheckIcon className="h-4 w-4 text-primary-foreground" />
+                              </div>
+                            ) : (
+                              <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-border bg-background">
+                                <StatusIcon className="h-4 w-4 text-muted-foreground" />
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            <div className="flex min-w-0 items-center gap-1.5">
+                              <p className="min-w-0 truncate text-sm font-medium text-foreground">
+                                {recipient.name}
+                              </p>
+                              {isShorakaSigningRecipient(recipient) ? (
+                                <StatusBadge
+                                  label="Shoraka"
+                                  status="submitted"
+                                  showDot={false}
+                                  className="shrink-0"
+                                />
+                              ) : null}
                             </div>
-                          ) : (
-                            <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-border bg-background">
-                              <StatusIcon className="h-4 w-4 text-muted-foreground" />
-                            </div>
-                          )}
+                            {title ? (
+                              <p className="truncate text-xs text-muted-foreground">{title}</p>
+                            ) : null}
+                            {recipient.warning_accepted_at ? (
+                              <p className="truncate text-xs text-muted-foreground">
+                                Warning accepted
+                              </p>
+                            ) : null}
+                          </div>
                         </div>
 
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-foreground">{recipient.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {recipientLabel(recipient, duplicateNames)}
-                          </p>
-                          {recipient.warning_accepted_at ? (
-                            <p className="text-xs text-muted-foreground">Warning accepted</p>
-                          ) : null}
-                        </div>
-
-                        <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
-                          <StatusBadge label={meta.label} status={meta.status} />
+                        <div className="ml-auto flex min-w-0 max-w-full flex-wrap items-center justify-end gap-2">
+                          <StatusBadge
+                            label={meta.label}
+                            status={meta.status}
+                            className="max-w-full"
+                          />
                           {canRemind ? (
                             <Button
                               type="button"

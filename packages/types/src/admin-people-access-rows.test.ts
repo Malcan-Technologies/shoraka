@@ -329,6 +329,26 @@ describe("buildAdminPeopleAccessRows", () => {
         })
       )
     ).toBe("Matched");
+    expect(
+      adminPeopleAccessCtosLabel(
+        party({
+          id: "p1",
+          partyKey: "a",
+          absentFromLatestExternal: true,
+          ctosAbsenceReviewNeeded: false,
+        })
+      )
+    ).toBe("Current");
+    expect(
+      adminPeopleAccessCtosLabel(
+        party({
+          id: "p1",
+          partyKey: "a",
+          absentFromLatestExternal: true,
+          ctosExtractUnusable: true,
+        })
+      )
+    ).toBe("—");
   });
 
   it("13–14. inactive rows keep platform access independently", () => {

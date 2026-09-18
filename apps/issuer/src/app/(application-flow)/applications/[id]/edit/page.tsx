@@ -813,9 +813,11 @@ function EditApplicationPageBody() {
 
   const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false);
   const [draftSavedVisible, setDraftSavedVisible] = React.useState(false);
+  const [stepSaveHint, setStepSaveHint] = React.useState<string | null>(null);
   React.useEffect(() => {
     setHasUnsavedChanges(false);
     setDraftSavedVisible(false);
+    setStepSaveHint(null);
     /** Keeps stepDataRef intact. The new step overwrites it when ready. Clearing it caused a race where Save ran before data loaded. */
   }, [stepFromUrl]);
 
@@ -1163,7 +1165,12 @@ function EditApplicationPageBody() {
 
     if (currentStepKey === "financial_statements") {
       return (
-        <FinancialStatementsStep applicationId={applicationId} onDataChange={handleDataChange} readOnly={stepReadOnly} />
+        <FinancialStatementsStep
+          applicationId={applicationId}
+          onDataChange={handleDataChange}
+          readOnly={stepReadOnly}
+          isAmendmentMode={isAmendmentModeEffective}
+        />
       );
     }
 
@@ -1586,6 +1593,12 @@ function EditApplicationPageBody() {
       setSelectedProductId(data.product_id as string);
     }
 
+    if (typeof data?.saveHint === "string" && data.saveHint.trim() !== "") {
+      setStepSaveHint(data.saveHint.trim());
+    } else {
+      setStepSaveHint(null);
+    }
+
     if (data?.isValid !== undefined) {
       setIsCurrentStepValid(data.isValid as boolean);
     } else if (data?.areAllFilesUploaded !== undefined) {
@@ -1712,6 +1725,7 @@ function EditApplicationPageBody() {
       // Remove frontend-only properties AFTER saveFunction completes
       if (dataToSave) {
         delete (dataToSave as Record<string, unknown>).isValid;
+        delete (dataToSave as Record<string, unknown>).saveHint;
         delete (dataToSave as Record<string, unknown>).isDeclarationConfirmed;
         delete (dataToSave as Record<string, unknown>).hasPendingChanges;
         delete (dataToSave as Record<string, unknown>).validationError;
@@ -2166,6 +2180,7 @@ function EditApplicationPageBody() {
           className="border-border"
           saveState={footerSaveState}
           saveStateLabel={footerSaveStateLabel}
+          hint={stepSaveHint}
           back={
             <Button
               variant="outline"
