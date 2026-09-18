@@ -425,6 +425,8 @@ export function serializeParty(
     externalObservation: observation,
     ctosAbsenceAckFingerprint,
     ctosExtractUnusable,
+    partyKey: row.party_key,
+    identityNumber: row.identity_number,
   };
   return {
     id: row.id,

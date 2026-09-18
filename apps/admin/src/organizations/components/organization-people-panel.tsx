@@ -270,6 +270,7 @@ export function OrganizationPeoplePanel({
                     canManage={canManage}
                     applyIssuerComrep={portal === "issuer"}
                     enforceIssuerShareholderMinimum
+                    latestCtos={org.latestOrganizationCtosCompanyJson}
                 onView={() => item.party && setViewingPartyId(item.party.id)}
                 onEdit={item.party ? () => setEditingPartyId(item.party!.id) : undefined}
                 onKeep={

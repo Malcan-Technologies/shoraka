@@ -2944,6 +2944,39 @@ describe("user-added master parties", () => {
     });
   });
 
+  it("refuses to acknowledge CTOS absence when the latest extract already contains the person", async () => {
+    const latestCtos = {
+      directors: [{ party_type: "I", nic_brno: "800101011234", name: "Jamie", position: "DO" }],
+      shareholders: [],
+    };
+    mockCtosFindFirst.mockResolvedValue({ company_json: latestCtos });
+    parties.push(
+      row({
+        id: "p-jamie",
+        party_key: "800101011234",
+        identity_number: "800101011234",
+        name: "Jamie",
+        is_director: true,
+        is_shareholder: false,
+        shareholding_percentage: null,
+        absent_from_latest_external: true,
+      })
+    );
+    await expect(
+      acknowledgeCtosAbsence({
+        portal: "issuer",
+        organizationId: "org-1",
+        partyId: "p-jamie",
+        reviewedExtractFingerprint: ctosExtractFingerprint(latestCtos),
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      code: "INVALID_PARTY_STATUS",
+    });
+    expect(mockPartyUpdate).not.toHaveBeenCalled();
+    expect(parties.find((p) => p.id === "p-jamie")?.external_observation).toBeNull();
+  });
+
   it("refuses to acknowledge CTOS absence when the reviewed extract fingerprint is stale", async () => {
     const latestCtos = {
       directors: [{ party_type: "I", nic_brno: "900101101234", name: "Other", position: "DO" }],

@@ -1,4 +1,8 @@
-import { isUnusableCtosCompanyExtract, partyNeedsCtosAbsenceReview } from "./ctos-company-extract";
+import {
+  isUnusableCtosCompanyExtract,
+  partyNeedsCtosAbsenceReview,
+  partyPresentInCtosExtract,
+} from "./ctos-company-extract";
 import type { OrganizationPartyProfileDto } from "./organization-party-profile";
 
 /**
@@ -51,7 +55,7 @@ const NO_COMPARISON: PartyCtosComparison = {
 };
 
 export function resolvePartyCtosComparison(
-  party: Pick<
+  party: (Pick<
     OrganizationPartyProfileDto,
     | "membershipStatus"
     | "absentFromLatestExternal"
@@ -60,13 +64,17 @@ export function resolvePartyCtosComparison(
     | "ctosAbsenceAckFingerprint"
     | "ctosExtractUnusable"
     | "ctosAbsenceReviewNeeded"
-  > | null | undefined,
+  > &
+    Partial<Pick<OrganizationPartyProfileDto, "partyKey" | "identityNumber">>) | null | undefined,
   latestCtos?: unknown
 ): PartyCtosComparison {
   if (!party || party.membershipStatus === "EXTERNAL_OBSERVED") {
     return NO_COMPARISON;
   }
-  if (party.absentFromLatestExternal) {
+  if (
+    party.absentFromLatestExternal &&
+    !(latestCtos !== undefined && partyPresentInCtosExtract(party, latestCtos))
+  ) {
     if (party.ctosExtractUnusable || (latestCtos !== undefined && isUnusableCtosCompanyExtract(latestCtos))) {
       return NO_COMPARISON;
     }

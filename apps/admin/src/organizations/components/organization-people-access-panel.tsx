@@ -125,8 +125,9 @@ export function OrganizationPeopleAccessPanel({
         people: org.people,
         members,
         owner: org.owner,
+        latestCtos: org.latestOrganizationCtosCompanyJson,
       }),
-    [members, org.owner, org.partyProfiles, org.people]
+    [members, org.owner, org.partyProfiles, org.people, org.latestOrganizationCtosCompanyJson]
   );
   const allRows = React.useMemo(() => [...built.active, ...built.inactive], [built]);
   const rows = React.useMemo(

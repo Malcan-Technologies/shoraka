@@ -7,6 +7,7 @@
  */
 
 import { normalizeDirectorShareholderIdKey } from "./director-shareholder-display";
+import { partySeenInExternalKeys } from "./organization-party-key";
 import type { OrganizationPartyProfileDto } from "./organization-party-profile";
 
 export const CTOS_ABSENCE_ACK_FINGERPRINT_KEY = "absenceAcknowledgedExtractFingerprint";
@@ -76,14 +77,32 @@ export function ctosCompanyRegistrationKey(ctos: unknown): string | null {
   return null;
 }
 
-/** Stable fingerprint of the latest related-party extract. Blank extracts share `unusable`. */
-export function ctosExtractFingerprint(ctos: unknown): string {
-  if (isUnusableCtosCompanyExtract(ctos)) return "unusable";
+/** Identity keys from latest related-party rows (same normalization as observation matching). */
+export function ctosExtractIdentityKeys(ctos: unknown): Set<string> {
   const keys = new Set<string>();
   for (const row of relatedPartyRows(ctos)) {
     const key = partyIdentityKey(row);
     if (key) keys.add(key);
   }
+  return keys;
+}
+
+/** True when this master person appears in the latest usable CTOS related-party lists. */
+export function partyPresentInCtosExtract(
+  party: Partial<Pick<OrganizationPartyProfileDto, "partyKey" | "identityNumber">>,
+  latestCtos: unknown
+): boolean {
+  if (isUnusableCtosCompanyExtract(latestCtos)) return false;
+  return partySeenInExternalKeys(
+    { partyKey: party.partyKey, identityNumber: party.identityNumber },
+    ctosExtractIdentityKeys(latestCtos)
+  );
+}
+
+/** Stable fingerprint of the latest related-party extract. Blank extracts share `unusable`. */
+export function ctosExtractFingerprint(ctos: unknown): string {
+  if (isUnusableCtosCompanyExtract(ctos)) return "unusable";
+  const keys = ctosExtractIdentityKeys(ctos);
   const registration = ctosCompanyRegistrationKey(ctos);
   if (registration) keys.add(`reg:${registration}`);
   return [...keys].sort().join("|");
@@ -117,13 +136,15 @@ export function partyNeedsCtosAbsenceReview(
     | "ctosAbsenceAckFingerprint"
     | "ctosExtractUnusable"
     | "ctosAbsenceReviewNeeded"
-  >,
+  > &
+    Partial<Pick<OrganizationPartyProfileDto, "partyKey" | "identityNumber">>,
   latestCtos?: unknown
 ): boolean {
   if (party.membershipStatus !== "MASTER_ACTIVE") return false;
   if (!party.absentFromLatestExternal) return false;
   if (party.ctosExtractUnusable) return false;
   if (latestCtos !== undefined && isUnusableCtosCompanyExtract(latestCtos)) return false;
+  if (latestCtos !== undefined && partyPresentInCtosExtract(party, latestCtos)) return false;
   if (party.ctosAbsenceReviewNeeded === false) return false;
   const fingerprint = latestCtos !== undefined ? ctosExtractFingerprint(latestCtos) : null;
   const ack = partyCtosAbsenceAckFingerprint(party);

@@ -67,4 +67,17 @@ describe("ctos company extract", () => {
       )
     ).toBe(true);
   });
+
+  it("does not ask for absence review when the stale flag still says absent but the latest extract contains the person", () => {
+    const latestCtos = {
+      directors: [{ nic_brno: "800101-01-1234", name: "Jamie" }],
+      shareholders: [],
+    };
+    expect(
+      partyNeedsCtosAbsenceReview(
+        party({ partyKey: "800101011234", identityNumber: "800101-01-1234" }),
+        latestCtos
+      )
+    ).toBe(false);
+  });
 });

@@ -821,7 +821,7 @@ function CtosEvidence({
         </div>
       ) : null}
 
-      {party && partyNeedsCtosAbsenceReview(party) ? (
+      {party && partyNeedsCtosAbsenceReview(party, org.latestOrganizationCtosCompanyJson) ? (
         <div className={cn("space-y-2 rounded-lg border p-3", ADMIN_ACTION_SURFACE_CLASS)}>
           <p className="flex items-center gap-1.5 text-ui text-status-action-text">
             <ExclamationTriangleIcon className="h-4 w-4" />
