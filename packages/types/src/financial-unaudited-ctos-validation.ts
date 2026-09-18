@@ -11,6 +11,15 @@ export type FinancialStatementsQuestionnaire = {
   financial_year_end: string;
 };
 
+export type FinancialYearEndValidationError = "invalid" | "not_future" | "beyond_window";
+
+/** Shared issuer/API copy for FYE picker and schema errors. */
+export const FINANCIAL_YEAR_END_ERROR_MESSAGES: Record<FinancialYearEndValidationError, string> = {
+  invalid: "Enter a valid date",
+  not_future: "Please select a future financial year end date.",
+  beyond_window: "Financial year end must be within the next 12 months.",
+};
+
 function parseIsoDateOnlyLocal(iso: string): Date | null {
   const t = iso.trim();
   if (!ISO_DATE.test(t)) return null;
@@ -24,20 +33,61 @@ function parseIsoDateOnlyLocal(iso: string): Date | null {
 }
 
 /**
- * True when the ISO calendar day is strictly after `ref`'s calendar day (local).
+ * Valid iff today < FYE and periodStart(FYE) <= today (period already started).
+ * Equivalent: today < FYE < today + 12 months.
  */
-export function isFinancialYearEndStrictlyAfterRef(iso: string, ref: Date = new Date()): boolean {
+export function getFinancialYearEndValidationError(
+  iso: string,
+  ref: Date = new Date()
+): FinancialYearEndValidationError | null {
   const chosen = parseIsoDateOnlyLocal(iso);
-  if (!chosen) return false;
-  return startOfDay(chosen).getTime() > startOfDay(ref).getTime();
+  if (!chosen) return "invalid";
+  const today = startOfDay(ref);
+  const fye = startOfDay(chosen);
+  if (fye.getTime() <= today.getTime()) return "not_future";
+  const periodStart = startOfDay(addDays(subYears(chosen, 1), 1));
+  if (periodStart.getTime() > today.getTime()) return "beyond_window";
+  return null;
+}
+
+export function isFinancialYearEndWithinAllowedWindow(iso: string, ref: Date = new Date()): boolean {
+  return getFinancialYearEndValidationError(iso, ref) === null;
 }
 
 /**
- * Parse stored questionnaire JSON. `financial_year_end` must be a valid ISO date strictly after `ref`.
+ * Inclusive calendar bounds for the next-FYE picker.
+ * min = tomorrow; max = last ISO day accepted by `getFinancialYearEndValidationError` (includes leap days
+ * that `addYears` would clip, e.g. ref 2027-03-01 → max 2028-02-29).
  */
-export function normalizeFinancialStatementsQuestionnaire(
-  raw: unknown,
-  ref: Date = new Date()
+export function getFinancialYearEndAllowedWindow(ref: Date = new Date()): { minIso: string; maxIso: string } {
+  const today = startOfDay(ref);
+  const min = addDays(today, 1);
+  const minIso = format(min, "yyyy-MM-dd");
+  let candidate = addDays(today, 366);
+  while (candidate.getTime() >= min.getTime()) {
+    const iso = format(candidate, "yyyy-MM-dd");
+    if (getFinancialYearEndValidationError(iso, ref) === null) {
+      return { minIso, maxIso: iso };
+    }
+    candidate = addDays(candidate, -1);
+  }
+  return { minIso, maxIso: minIso };
+}
+
+/**
+ * True when the ISO calendar day is strictly after `ref`'s calendar day (local).
+ * Routes through the window helper; `beyond_window` dates remain “after today”.
+ */
+export function isFinancialYearEndStrictlyAfterRef(iso: string, ref: Date = new Date()): boolean {
+  const err = getFinancialYearEndValidationError(iso, ref);
+  return err === null || err === "beyond_window";
+}
+
+/**
+ * Shape/ISO-validity only — no today-relative rule. For admin, prospectus, and org history reads.
+ */
+export function parseFinancialStatementsQuestionnaireShape(
+  raw: unknown
 ): FinancialStatementsQuestionnaire | null {
   if (raw == null || typeof raw !== "object" || Array.isArray(raw)) return null;
   const o = raw as Record<string, unknown>;
@@ -45,8 +95,20 @@ export function normalizeFinancialStatementsQuestionnaire(
   if (typeof financial_year_end !== "string") return null;
   if (!ISO_DATE.test(financial_year_end.trim())) return null;
   if (parseIsoDateOnlyLocal(financial_year_end) == null) return null;
-  if (!isFinancialYearEndStrictlyAfterRef(financial_year_end, ref)) return null;
   return { financial_year_end: financial_year_end.trim() };
+}
+
+/**
+ * Parse stored questionnaire JSON. `financial_year_end` must be a valid ISO date within the next-12-month window.
+ */
+export function normalizeFinancialStatementsQuestionnaire(
+  raw: unknown,
+  ref: Date = new Date()
+): FinancialStatementsQuestionnaire | null {
+  const parsed = parseFinancialStatementsQuestionnaireShape(raw);
+  if (!parsed) return null;
+  if (getFinancialYearEndValidationError(parsed.financial_year_end, ref) !== null) return null;
+  return parsed;
 }
 
 /** FY period end for a tab keyed by FY end calendar year (same month/day as selected FYE). */
@@ -77,10 +139,26 @@ export function getFinancialYearPeriodEndIso(
   return format(end, "yyyy-MM-dd");
 }
 
-/** Display line e.g. "1 Apr 2025 – 31 Mar 2026". */
+/** True when the period has started and the books have not closed (`periodStart <= ref < periodEnd`). */
+export function isFinancialYearPeriodOpen(
+  questionnaire: FinancialStatementsQuestionnaire,
+  fyEndYear: number,
+  ref: Date = new Date()
+): boolean {
+  const startIso = getFinancialYearPeriodStartIso(questionnaire, fyEndYear);
+  const endIso = getFinancialYearPeriodEndIso(questionnaire, fyEndYear);
+  const start = startIso ? parseIsoDateOnlyLocal(startIso) : null;
+  const end = endIso ? parseIsoDateOnlyLocal(endIso) : null;
+  if (!start || !end) return false;
+  const today = startOfDay(ref).getTime();
+  return startOfDay(start).getTime() <= today && today < startOfDay(end).getTime();
+}
+
+/** Display line e.g. "1 Apr 2025 – 31 Mar 2026". Pass `clampEndTo` to cap an open year at today. */
 export function formatFinancialFyPeriodDisplay(
   questionnaire: FinancialStatementsQuestionnaire,
-  fyEndYear: number
+  fyEndYear: number,
+  options?: { clampEndTo?: Date }
 ): string {
   const startIso = getFinancialYearPeriodStartIso(questionnaire, fyEndYear);
   const endIso = getFinancialYearPeriodEndIso(questionnaire, fyEndYear);
@@ -88,7 +166,11 @@ export function formatFinancialFyPeriodDisplay(
   const s = parseIsoDateOnlyLocal(startIso);
   const e = parseIsoDateOnlyLocal(endIso);
   if (!s || !e) return "";
-  return `${format(s, "d MMM yyyy")} – ${format(e, "d MMM yyyy")}`;
+  let displayEnd = e;
+  if (options?.clampEndTo && isFinancialYearPeriodOpen(questionnaire, fyEndYear, options.clampEndTo)) {
+    displayEnd = startOfDay(options.clampEndTo);
+  }
+  return `${format(s, "d MMM yyyy")} – ${format(displayEnd, "d MMM yyyy")}`;
 }
 
 /**
@@ -103,6 +185,7 @@ export function issuerUnauditedPlddForFyEndYear(
 
 /**
  * Tab years = FY end calendar years (1 or 2). Deadline = previous FY end + 6 calendar months (SSM audited window).
+ * Assumes `questionnaire.financial_year_end` is already within the allowed FYE window.
  */
 export function getIssuerFinancialTabYears(
   questionnaire: FinancialStatementsQuestionnaire,

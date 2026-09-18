@@ -19,6 +19,7 @@
 import * as React from "react";
 import { useApplication, useIssuerOrganizationLatestFinancialStatements } from "@/hooks/use-applications";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import { DateInput } from "@/app/(application-flow)/applications/components/date-input";
 import { cn } from "@/lib/utils";
 import {
@@ -46,12 +47,16 @@ import {
   FINANCIAL_FIELD_LABELS,
   applicationComrepFieldError,
   buildApplicationFinancialPrefillByYear,
+  FINANCIAL_YEAR_END_ERROR_MESSAGES,
   formatFinancialFyPeriodDisplay,
+  getFinancialYearEndAllowedWindow,
   getFinancialYearEndComputationDetails,
   getIssuerFinancialTabYears,
+  isFinancialYearPeriodOpen,
   issuerUnauditedPlddForFyEndYear,
   isPresentFinancialValue,
   normalizeFinancialStatementsQuestionnaire,
+  parseFinancialStatementsQuestionnaireShape,
   type FinancialStatementsQuestionnaire,
 } from "@cashsouk/types";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
@@ -62,10 +67,17 @@ import { toast } from "sonner";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 import {
   applicationFlowDateToIso,
+  getApplicationFlowFinancialYearEndError,
+  isFinancialYearEndDisplayDirtyAgainstSnapshot,
   isoToApplicationFlowDateDisplay,
-  isApplicationFlowDateStrictlyAfterToday,
-  isApplicationFlowDateValid,
+  newApplicationOrgPrefillFinancialYearEnd,
+  storedFinancialFormYears,
 } from "@/app/(application-flow)/applications/utils/application-flow-dates";
+import {
+  financialStatementsContinueHint,
+  resolveIssuerFinancialYearsToShow,
+  reuseUnchangedYearForms,
+} from "@/app/(application-flow)/applications/utils/financial-statements-year-sync";
 
 /** Dev auto-fill: ISO next FY end (not sent as this key). */
 export const FINANCIAL_DEV_YEAR_END_KEY = "__financial_year_end";
@@ -74,7 +86,7 @@ export const FINANCIAL_DEV_YEAR_END_KEY = "__financial_year_end";
  * Mock data for dev Auto Fill (money fields). FYE set by effect from key below.
  */
 export function generateMockData(): Record<string, unknown> {
-  const futureFye = format(addDays(startOfDay(new Date()), 400), "yyyy-MM-dd");
+  const futureFye = format(addDays(startOfDay(new Date()), 270), "yyyy-MM-dd");
   const plnpat = 120000.45;
   const plyear = 100000.25;
   return {
@@ -512,20 +524,24 @@ export function FinancialStatementsStep({
 
     if (isV2FinancialSaved(saved)) {
       const qNorm = normalizeFinancialStatementsQuestionnaire(saved.questionnaire);
+      const qShape = parseFinancialStatementsQuestionnaireShape(saved.questionnaire);
       const map: Record<string, FinancialStatementsPayload> = {};
       for (const [k, v] of Object.entries(saved.unaudited_by_year)) {
         map[k] = fromSaved(v);
       }
       setFormsByYear(map);
+      const displayFye = qNorm?.financial_year_end ?? qShape?.financial_year_end;
+      if (displayFye) {
+        setFyeDateInput(isoToApplicationFlowDateDisplay(displayFye));
+      }
       if (qNorm) {
-        setFyeDateInput(isoToApplicationFlowDateDisplay(qNorm.financial_year_end));
         const built = buildV2ApiPayload(qNorm, map);
         setInitialPayloadSnapshot(JSON.stringify(built));
         console.log("Financial step loaded v2; years in payload:", Object.keys(saved.unaudited_by_year));
       } else {
         setInitialPayloadSnapshot(
           JSON.stringify({
-            questionnaire: { financial_year_end: "" },
+            questionnaire: qShape ?? { financial_year_end: "" },
             unaudited_by_year: map,
           })
         );
@@ -547,7 +563,7 @@ export function FinancialStatementsStep({
       }
 
       // No financial_statements on the app yet: load CTOS + submitted same-FY history for prefill.
-      // Org JSON may still supply a future FYE date; year amounts are not copied from profile.
+      // Org JSON may seed FYE only when it is still inside the live window; year amounts are not copied from profile.
       if (shouldAttemptAutoPrefill) {
         if (orgLatestFinancialStatementsQuery.isLoading) return;
 
@@ -561,26 +577,19 @@ export function FinancialStatementsStep({
           latest?.financial_statements && isV2FinancialSaved(latest.financial_statements)
             ? latest.financial_statements
             : null;
-        const qNorm = orgSaved
-          ? normalizeFinancialStatementsQuestionnaire(orgSaved.questionnaire)
-          : null;
-
-        if (qNorm) {
-          setFyeDateInput(isoToApplicationFlowDateDisplay(qNorm.financial_year_end));
-          setInitialPayloadSnapshot(
-            JSON.stringify({
-              questionnaire: qNorm,
-              unaudited_by_year: {},
-            })
-          );
-        } else {
-          setInitialPayloadSnapshot(
-            JSON.stringify({
-              questionnaire: { financial_year_end: "" },
-              unaudited_by_year: {},
-            })
-          );
+        const prefillFye = orgSaved
+          ? newApplicationOrgPrefillFinancialYearEnd(orgSaved.questionnaire)
+          : "";
+        if (prefillFye) {
+          setFyeDateInput(isoToApplicationFlowDateDisplay(prefillFye));
         }
+
+        setInitialPayloadSnapshot(
+          JSON.stringify({
+            questionnaire: { financial_year_end: prefillFye },
+            unaudited_by_year: {},
+          })
+        );
       } else {
         setInitialPayloadSnapshot(
           JSON.stringify({
@@ -598,15 +607,26 @@ export function FinancialStatementsStep({
   const questionnaireDto = React.useMemo((): FinancialStatementsQuestionnaire | null => {
     const iso = applicationFlowDateToIso(fyeDateInput);
     if (!iso) return null;
-    if (!isApplicationFlowDateStrictlyAfterToday(fyeDateInput)) return null;
+    if (readOnly) {
+      return parseFinancialStatementsQuestionnaireShape({ financial_year_end: iso });
+    }
+    if (getApplicationFlowFinancialYearEndError(fyeDateInput) != null) return null;
     return { financial_year_end: iso };
-  }, [fyeDateInput]);
+  }, [fyeDateInput, readOnly]);
 
-  const yearsToShow = React.useMemo(() => {
-    if (!questionnaireDto) return [] as number[];
-    const ref = new Date();
-    const years = getIssuerFinancialTabYears(questionnaireDto, ref);
-    const dbg = getFinancialYearEndComputationDetails(questionnaireDto, ref);
+  const storedYearsToShow = React.useMemo(
+    () => storedFinancialFormYears(formsByYear),
+    [formsByYear]
+  );
+
+  const liveYearsToShow = React.useMemo(() => {
+    const years = resolveIssuerFinancialYearsToShow({
+      readOnly: false,
+      formsByYear: {},
+      questionnaire: questionnaireDto,
+    });
+    if (!questionnaireDto) return years;
+    const dbg = getFinancialYearEndComputationDetails(questionnaireDto, new Date());
     console.log("FYE selected:", dbg.fye);
     console.log("Previous FY End:", dbg.previousFYEndIso);
     console.log("Deadline:", dbg.deadlineIso);
@@ -614,6 +634,8 @@ export function FinancialStatementsStep({
     console.log("Years to show:", dbg.years);
     return years;
   }, [questionnaireDto]);
+
+  const yearsToShow = readOnly ? storedYearsToShow : liveYearsToShow;
 
   const yearTabHasMissingRequiredFields = React.useCallback(
     (year: number) => {
@@ -626,6 +648,7 @@ export function FinancialStatementsStep({
   );
 
   React.useEffect(() => {
+    if (readOnly) return;
     if (!questionnaireDto) return;
 
     const built = prefillEnabled
@@ -670,7 +693,7 @@ export function FinancialStatementsStep({
           next[k] = { ...emptyQuestionnaireBlock(), pldd: p };
         }
       }
-      return next;
+      return reuseUnchangedYearForms(prev, next);
     });
 
     if (built) {
@@ -683,7 +706,7 @@ export function FinancialStatementsStep({
         setAutoPrefillApplied(true);
       }
     }
-  }, [yearsToShow, questionnaireDto, prefillEnabled, prefillOrgFs, prefillCtos, prefillSubmittedByYear]);
+  }, [readOnly, yearsToShow, questionnaireDto, prefillEnabled, prefillOrgFs, prefillCtos, prefillSubmittedByYear]);
 
   React.useEffect(() => {
     const raw =
@@ -696,7 +719,7 @@ export function FinancialStatementsStep({
     const isoFromMock =
       typeof mock[devKey] === "string" && /^\d{4}-\d{2}-\d{2}$/.test(String(mock[devKey]).trim())
         ? String(mock[devKey]).trim()
-        : format(addDays(startOfDay(new Date()), 400), "yyyy-MM-dd");
+        : format(addDays(startOfDay(new Date()), 270), "yyyy-MM-dd");
 
     const merged: FinancialStatementsPayload = { ...DEFAULT_PAYLOAD };
     for (const k of Object.keys(DEFAULT_PAYLOAD) as (keyof FinancialStatementsPayload)[]) {
@@ -730,7 +753,7 @@ export function FinancialStatementsStep({
   }, [questionnaireDto, formsByYear]);
 
   const hasPendingChanges = React.useMemo(() => {
-    if (!isInitialized) return false;
+    if (!isInitialized || readOnly) return false;
     type InitialPayloadShape = {
       questionnaire?: unknown;
       unaudited_by_year?: Record<string, unknown>;
@@ -743,19 +766,8 @@ export function FinancialStatementsStep({
     }
 
     if (!questionnaireDto) {
-      const initQNorm = normalizeFinancialStatementsQuestionnaire(initialParsed?.questionnaire);
-      const initHasRealQ = initQNorm != null;
-
-      if (!initHasRealQ) {
-        const touched = fyeDateInput.trim() !== "";
-        console.log("Financial step pending (questionnaire draft):", touched);
-        return touched;
-      }
-
       const fyeIso = applicationFlowDateToIso(fyeDateInput);
-      const fyeOk = fyeIso != null && isApplicationFlowDateStrictlyAfterToday(fyeDateInput);
-      const same = fyeOk && fyeIso === initQNorm.financial_year_end;
-      const pending = !same;
+      const pending = isFinancialYearEndDisplayDirtyAgainstSnapshot(fyeIso, initialParsed?.questionnaire);
       console.log("Financial step pending (questionnaire vs loaded):", pending);
       return pending;
     }
@@ -768,7 +780,7 @@ export function FinancialStatementsStep({
     } catch {
       return true;
     }
-  }, [isInitialized, questionnaireDto, buildV2ApiPayloadInner, fyeDateInput, initialPayloadSnapshot]);
+  }, [isInitialized, readOnly, questionnaireDto, buildV2ApiPayloadInner, fyeDateInput, initialPayloadSnapshot]);
 
   /** Full validation: used by saveFunction and inline errors after submit (future date, turnover sign, etc.). */
   const allYearFormsValid = React.useMemo(() => {
@@ -787,11 +799,26 @@ export function FinancialStatementsStep({
     );
   }, [yearsToShow, formsByYear, questionnaireDto]);
 
-  const questionsAnswered =
-    applicationFlowDateToIso(fyeDateInput) != null && isApplicationFlowDateStrictlyAfterToday(fyeDateInput);
+  const questionsAnswered = getApplicationFlowFinancialYearEndError(fyeDateInput) === null;
 
   /** Save enabled when questionnaire + all year rows are “filled”; submit applies strict validation. */
   const isValidForButton = readOnly || (questionsAnswered && allYearFormsFilled);
+  const firstIncompleteYear =
+    questionsAnswered && questionnaireDto && !allYearFormsFilled
+      ? yearsToShow.find(
+          (y) =>
+            !yearFormFilledForSaveButton(
+              y,
+              questionnaireDto,
+              formsByYear[String(y)] ?? emptyQuestionnaireBlock()
+            )
+        )
+      : undefined;
+  const continueHint = financialStatementsContinueHint({
+    readOnly,
+    nextFinancialYearEndComplete: questionsAnswered,
+    firstIncompleteYear,
+  });
 
   React.useEffect(() => {
     if (yearsToShow.length === 0) return;
@@ -839,6 +866,7 @@ export function FinancialStatementsStep({
         hasPendingChanges: false,
         isValid: readOnly,
         saveFunction,
+        saveHint: null,
       });
       return;
     }
@@ -846,8 +874,9 @@ export function FinancialStatementsStep({
       hasPendingChanges,
       isValid: isValidForButton,
       saveFunction,
+      saveHint: continueHint,
     });
-  }, [hasPendingChanges, isValidForButton, isInitialized, saveFunction, readOnly]);
+  }, [hasPendingChanges, isValidForButton, isInitialized, saveFunction, readOnly, continueHint]);
 
   const updateFormYear = React.useCallback(
     (yearKey: string, field: keyof FinancialStatementsPayload, value: string) => {
@@ -866,20 +895,22 @@ export function FinancialStatementsStep({
 
   const getLabel = (key: keyof FinancialStatementsPayload) => FINANCIAL_FIELD_LABELS[key] ?? key;
 
-  const FYE_TOOLTIP =
-    "Select the next date your company’s financial year will end (must be in the future).";
+  const FYE_HELPER =
+    "The next date your books will close. It must be after today and within the next 12 months.";
 
   const showOverviewErrors = hasSubmitted && !readOnly;
-  const fyeFieldError =
-    fyeDateInput.trim() === ""
+  const fyeErrorCode =
+    readOnly || fyeDateInput.trim() === "" ? null : getApplicationFlowFinancialYearEndError(fyeDateInput);
+  const fyeFieldError = readOnly
+    ? undefined
+    : fyeDateInput.trim() === ""
       ? showOverviewErrors
         ? "Required"
         : undefined
-      : !isApplicationFlowDateValid(fyeDateInput)
-        ? "Enter a valid date"
-        : !isApplicationFlowDateStrictlyAfterToday(fyeDateInput)
-          ? "Please select a future financial year end date."
-          : undefined;
+      : fyeErrorCode
+        ? FINANCIAL_YEAR_END_ERROR_MESSAGES[fyeErrorCode]
+        : undefined;
+  const fyeWindow = readOnly ? null : getFinancialYearEndAllowedWindow(new Date());
 
   const renderYearBlock = (year: number) => {
     const yearKey = String(year);
@@ -888,13 +919,28 @@ export function FinancialStatementsStep({
     const yearErrors: YearBlockFieldErrors = showYearFieldErrors
       ? getYearBlockFieldErrors(form)
       : { money: {} };
+    const periodAsAt = new Date();
+    const yearIsOpen =
+      questionnaireDto != null && isFinancialYearPeriodOpen(questionnaireDto, year, periodAsAt);
     const periodLine =
-      questionnaireDto != null ? formatFinancialFyPeriodDisplay(questionnaireDto, year) : "";
+      questionnaireDto != null
+        ? formatFinancialFyPeriodDisplay(questionnaireDto, year, { clampEndTo: periodAsAt })
+        : "";
 
     return (
       <div key={yearKey} className={cn("border border-border rounded-xl p-4 md:p-6", yearBlockSectionStackClassName)}>
         {periodLine ? (
-          <p className="text-sm text-muted-foreground pb-4 border-b border-border mb-4">{periodLine}</p>
+          <div className="space-y-1 pb-4 border-b border-border mb-4">
+            <p className="text-sm text-muted-foreground">
+              {yearIsOpen ? `${periodLine} (as at today)` : periodLine}
+            </p>
+            {yearIsOpen ? (
+              <p className="text-meta text-muted-foreground">
+                Management accounts. This financial year has not closed — enter year-to-date figures as at
+                today.
+              </p>
+            ) : null}
+          </div>
         ) : null}
         <section className={cn(sectionWrapperClassName, yearBlockInnerSectionClassName)}>
           <h4 className={subsectionHeadingClassName}>Assets</h4>
@@ -1002,8 +1048,13 @@ export function FinancialStatementsStep({
         </section>
         <div className="border-t border-border pt-8">
           <div className="mb-6">
-            <h4 className={applicationFlowSectionTitleClassName}>Additional Financial Details</h4>
-            <p className="text-sm text-muted-foreground">For regulatory reporting</p>
+            <h4 className={applicationFlowSectionTitleClassName}>
+              Additional Financial Details{" "}
+              <span className="font-normal text-muted-foreground">(optional)</span>
+            </h4>
+            <p className="text-sm text-muted-foreground">
+              For regulatory reporting. Filling this in may strengthen your application.
+            </p>
             <div className={applicationFlowSectionDividerClassName} />
           </div>
           <section className={cn(sectionWrapperClassName, yearBlockInnerSectionClassName)}>
@@ -1110,7 +1161,7 @@ export function FinancialStatementsStep({
           <div className={overviewFormRowGridClassName}>
             <div className={fieldLabelWithTooltipRowClassName}>
               <Label htmlFor="fye-financial-year-end" className={labelClassName}>
-                What is the Financial Year End of your company?
+                What is your company&apos;s next financial year end?
               </Label>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -1119,7 +1170,7 @@ export function FinancialStatementsStep({
                   </span>
                 </TooltipTrigger>
                 <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
-                  {FYE_TOOLTIP}
+                  {FYE_HELPER}
                 </TooltipContent>
               </Tooltip>
             </div>
@@ -1132,9 +1183,13 @@ export function FinancialStatementsStep({
                 placeholder="Enter date"
                 className={withFieldError(inputClassName, Boolean(fyeFieldError))}
                 isInvalid={Boolean(fyeFieldError)}
+                minDate={fyeWindow?.minIso}
+                maxDate={fyeWindow?.maxIso}
               />
               {fyeFieldError ? (
                 <p className="text-xs text-destructive">{fyeFieldError}</p>
+              ) : !readOnly ? (
+                <p className="text-meta text-muted-foreground">{FYE_HELPER}</p>
               ) : null}
             </div>
           </div>
@@ -1153,15 +1208,15 @@ export function FinancialStatementsStep({
                 review before continuing.
               </p>
             ) : null}
-          {!questionnaireDto ? (
+          {!readOnly && !questionnaireDto ? (
             <div className={financialDetailsCenteredMessageBoxClassName}>
               <p className={financialDetailsCenteredMessageTextClassName}>
-                Select your financial year end above, then enter amounts here
+                Select your next financial year end above, then enter amounts here
               </p>
             </div>
           ) : null}
 
-          {questionnaireDto && yearsToShow.length >= 1 ? (
+          {(readOnly || questionnaireDto) && yearsToShow.length >= 1 ? (
             <div className="w-full">
               <Tabs
                 key={yearsToShow.join("-")}
@@ -1184,6 +1239,22 @@ export function FinancialStatementsStep({
                     </TabsTrigger>
                   ))}
                 </TabsList>
+                {firstIncompleteYear != null ? (
+                  <div className="mb-4 flex flex-wrap items-center gap-1">
+                    <p className="text-meta text-muted-foreground">
+                      {`Complete FY${firstIncompleteYear} to continue`}
+                    </p>
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="sm"
+                      className="h-auto px-1"
+                      onClick={() => setActiveYearTab(String(firstIncompleteYear))}
+                    >
+                      {`Go to FY${firstIncompleteYear}`}
+                    </Button>
+                  </div>
+                ) : null}
                 {yearsToShow.map((y) => (
                   <TabsContent key={y} value={String(y)} className="mt-0 focus-visible:outline-none">
                     {renderYearBlock(y)}

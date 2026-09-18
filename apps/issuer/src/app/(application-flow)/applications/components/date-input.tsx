@@ -32,6 +32,8 @@ interface DateInputProps {
   size?: DateInputSize;
   placeholder?: string;
   disabled?: boolean;
+  minDate?: string;
+  maxDate?: string;
 }
 
 /** Size presets for responsive DateInput */
@@ -64,6 +66,8 @@ export function DateInput({
   size = "default",
   placeholder,
   disabled,
+  minDate,
+  maxDate,
 }: DateInputProps) {
   const [open, setOpen] = React.useState(false);
   const preset = sizePresets[size];
@@ -186,6 +190,8 @@ export function DateInput({
           <CalendarPopover
             selected={isoSelected}
             defaultMonth={defaultCalendarMonth}
+            minDate={minDate}
+            maxDate={maxDate}
             onSelect={(iso) => {
               try {
                 const parsed = parseISO(iso);

@@ -1,10 +1,10 @@
-import { financialStatementsV2Schema } from "./schemas";
+import { financialStatementsV2StoredSchema } from "./schemas";
 import { mergeIssuerOrgFinancialStatementsFromApplication } from "./issuer-organization-financial-statements";
 
 const questionnaire = { financial_year_end: "2027-12-31" };
 
 function parseApplicationPayload(raw: unknown) {
-  const parsed = financialStatementsV2Schema.safeParse(raw);
+  const parsed = financialStatementsV2StoredSchema.safeParse(raw);
   expect(parsed.success).toBe(true);
   if (!parsed.success) throw new Error("expected valid application financials");
   return parsed.data;
@@ -233,5 +233,37 @@ describe("mergeIssuerOrgFinancialStatementsFromApplication", () => {
     expect(byYear["2024"].curlib_borrowing).toBe(55);
     expect(byYear["2024"].operating_cost).toBe(12);
     expect(byYear["2023"].turnover).toBe(9);
+  });
+
+  it("merges stored schema when the application FYE is already in the past", () => {
+    const pastQuestionnaire = { financial_year_end: "2020-12-31" };
+    const incomingRaw = {
+      questionnaire: pastQuestionnaire,
+      unaudited_by_year: {
+        "2020": {
+          pldd: "2020-12-31",
+          bsfatot: 1,
+          othass: 0,
+          bscatot: 0,
+          bsclbank: 0,
+          curlib: 2,
+          bsslltd: 0,
+          bsclstd: 0,
+          bsqpuc: 0,
+          turnover: 9,
+          plnpbt: 0,
+          plnpat: 0,
+          plnetdiv: 0,
+          plyear: 0,
+        },
+      },
+    };
+    const merged = mergeIssuerOrgFinancialStatementsFromApplication({
+      existing: { questionnaire: { financial_year_end: "2019-12-31" }, unaudited_by_year: {} },
+      incomingRaw,
+      incomingParsed: parseApplicationPayload(incomingRaw),
+    });
+    expect(merged.questionnaire).toEqual(pastQuestionnaire);
+    expect((merged.unaudited_by_year as Record<string, Record<string, unknown>>)["2020"].turnover).toBe(9);
   });
 });

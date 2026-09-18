@@ -20,7 +20,7 @@ Prefill is a convenience. It must not change admin review behavior or rewrite hi
 3. `IssuerOrganizationFinancialStatement`
    - Organisation-level history merged on submit/resubmit (one row per issuer org).
    - Not used to prefill a new application’s year amounts.
-   - May still supply a future `questionnaire.financial_year_end` for the FYE picker.
+   - May still supply `questionnaire.financial_year_end` for the FYE picker only if that date is still within the next-12-month window.
    - Issuer Profile shows this as read-only history.
 
 4. `CtosReport.financials_json`

@@ -4,11 +4,13 @@
 
 import { z } from "zod";
 import {
+  FINANCIAL_YEAR_END_ERROR_MESSAGES,
   GUARANTOR_COMPANY_RELATIONSHIPS,
   GUARANTOR_INDIVIDUAL_RELATIONSHIPS,
   SC_FUND_RAISING_PURPOSES,
   UTILISATION_OFFER_CONSENT_IDS,
   areUtilisationOfferConsentsComplete,
+  getFinancialYearEndValidationError,
   isRegtankIso3166Code,
   type GuarantorCompanyRelationship,
   type GuarantorIndividualRelationship,
@@ -217,18 +219,6 @@ export const businessDetailsInheritedGuarantorsDataSchema = businessDetailsObjec
 
 const isoDateOnly = /^\d{4}-\d{2}-\d{2}$/;
 
-/** Local calendar day: ISO YYYY-MM-DD must be strictly after today (next FY end). */
-function isoCalendarDateStrictlyAfterToday(iso: string): boolean {
-  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) return false;
-  const chosen = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-  if (Number.isNaN(chosen.getTime())) return false;
-  const t = new Date();
-  const today = new Date(t.getFullYear(), t.getMonth(), t.getDate());
-  const c = new Date(chosen.getFullYear(), chosen.getMonth(), chosen.getDate());
-  return c.getTime() > today.getTime();
-}
-
 /** Validates stored input fields for financial_statements step. Per-year block; no bsdd. */
 const numSchema = z.union([z.string(), z.number()]).optional().default(0);
 export const financialStatementsInputSchema = z.object({
@@ -263,19 +253,34 @@ export const financialStatementsInputSchema = z.object({
 
 export type FinancialStatementsStoredData = z.infer<typeof financialStatementsInputSchema>;
 
-export const financialStatementsQuestionnaireSchema = z.object({
-  financial_year_end: z
-    .string()
-    .regex(isoDateOnly, "Must be YYYY-MM-DD")
-    .refine(isoCalendarDateStrictlyAfterToday, "Please select a future financial year end date."),
+export const financialStatementsQuestionnaireShapeSchema = z.object({
+  financial_year_end: z.string().regex(isoDateOnly, "Must be YYYY-MM-DD"),
 });
+
+export const financialStatementsQuestionnaireSchema = financialStatementsQuestionnaireShapeSchema.superRefine(
+  (data, ctx) => {
+    const err = getFinancialYearEndValidationError(data.financial_year_end);
+    if (!err) return;
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["financial_year_end"],
+      message: FINANCIAL_YEAR_END_ERROR_MESSAGES[err],
+    });
+  }
+);
 
 export const financialStatementsV2Schema = z.object({
   questionnaire: financialStatementsQuestionnaireSchema,
   unaudited_by_year: z.record(z.string(), financialStatementsInputSchema),
 });
 
-export type FinancialStatementsV2Stored = z.infer<typeof financialStatementsV2Schema>;
+/** Same v2 shape without the today-relative FYE window — for already-stored JSON. */
+export const financialStatementsV2StoredSchema = z.object({
+  questionnaire: financialStatementsQuestionnaireShapeSchema,
+  unaudited_by_year: z.record(z.string(), financialStatementsInputSchema),
+});
+
+export type FinancialStatementsV2Stored = z.infer<typeof financialStatementsV2StoredSchema>;
 
 export const invoiceOfferParamsSchema = z.object({
   id: z.string().cuid(),

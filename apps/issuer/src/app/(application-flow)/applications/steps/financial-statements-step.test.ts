@@ -48,7 +48,8 @@ describe("issuer application Financial Statements step", () => {
 
   it("adds ComRep-only fields in a separate Additional Financial Details section", () => {
     expect(source).toContain("Additional Financial Details");
-    expect(source).toContain("For regulatory reporting");
+    expect(source).toContain("(optional)");
+    expect(source).toContain("For regulatory reporting. Filling this in may strengthen your application.");
     expect(source.indexOf("Profit and Loss")).toBeLessThan(source.indexOf("Additional Financial Details"));
     for (const key of COMREP_ONLY_FIELDS) {
       expect(source).toContain(`"${key}"`);
@@ -68,5 +69,48 @@ describe("issuer application Financial Statements step", () => {
     expect(source).not.toContain("autoPrefillMode");
     expect(source).toContain("fromSaved(resolved.fields)");
     expect(source).not.toContain("fromCtos");
+  });
+
+  it("renders stored years in readOnly without live FYE window validation", () => {
+    expect(source).toContain("storedFinancialFormYears(formsByYear)");
+    expect(source).toContain("if (readOnly) return;");
+    expect(source).toContain("if (!isInitialized || readOnly) return false");
+    expect(source).toContain("isFinancialYearEndDisplayDirtyAgainstSnapshot");
+    expect(source).toContain("parseFinancialStatementsQuestionnaireShape({ financial_year_end: iso })");
+    expect(source).toContain("const fyeWindow = readOnly ? null : getFinancialYearEndAllowedWindow(new Date())");
+    expect(source).toContain("qNorm?.financial_year_end ?? qShape?.financial_year_end");
+  });
+
+  it("labels the picker as next FYE and clamps open-year periods to today", () => {
+    expect(source).toContain("What is your company&apos;s next financial year end?");
+    expect(source).toContain("Management accounts. This financial year has not closed");
+    expect(source).toContain("clampEndTo: periodAsAt");
+    expect(source).toContain("(as at today)");
+    expect(source).toContain("Select your next financial year end above, then enter amounts here");
+  });
+
+  it("keeps editable year tabs independent of formsByYear identity", () => {
+    expect(source).toContain("const yearsToShow = readOnly ? storedYearsToShow : liveYearsToShow");
+    expect(source).toContain("reuseUnchangedYearForms(prev, next)");
+    expect(source).toContain("[questionnaireDto]");
+  });
+
+  it("seeds new-application org FYE only from the live window, not shape-only history", () => {
+    expect(source).toContain("newApplicationOrgPrefillFinancialYearEnd(orgSaved.questionnaire)");
+    expect(source).toContain("setPrefillCtos(latest?.ctos_financials ?? null)");
+    expect(source).toContain("setPrefillSubmittedByYear(latest?.submitted_by_year ?? {})");
+    expect(source).toContain("questionnaire: { financial_year_end: prefillFye }");
+    const orgPrefillStart = source.indexOf("Org JSON may seed FYE only when it is still inside the live window");
+    const orgPrefillEnd = source.indexOf("Financial step initialized (v2 saved / blank / auto-prefill attempted)");
+    expect(orgPrefillStart).toBeGreaterThan(-1);
+    expect(orgPrefillEnd).toBeGreaterThan(orgPrefillStart);
+    const orgPrefillBlock = source.slice(orgPrefillStart, orgPrefillEnd);
+    expect(orgPrefillBlock).not.toContain("parseFinancialStatementsQuestionnaireShape");
+    expect(orgPrefillBlock).not.toContain("qNorm?.financial_year_end ?? qShape?.financial_year_end");
+  });
+
+  it("reports a general continue hint for the first incomplete required year", () => {
+    expect(source).toContain("financialStatementsContinueHint");
+    expect(source).toContain("saveHint: continueHint");
   });
 });

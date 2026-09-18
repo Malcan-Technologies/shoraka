@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { logger } from "../../lib/logger";
-import { financialStatementsV2Schema, type FinancialStatementsV2Stored } from "./schemas";
+import { financialStatementsV2StoredSchema, type FinancialStatementsV2Stored } from "./schemas";
 
 type FinancialStatementClient = typeof prisma | Prisma.TransactionClient;
 
@@ -78,7 +78,7 @@ export async function upsertLatestOrganizationFinancialStatementsFromApplication
   if (!issuerOrganizationId) return;
   if (!financialStatements) return;
 
-  const parsed = financialStatementsV2Schema.safeParse(financialStatements);
+  const parsed = financialStatementsV2StoredSchema.safeParse(financialStatements);
   if (!parsed.success) {
     logger.warn(
       { applicationId, issuerOrganizationId, issues: parsed.error.issues },

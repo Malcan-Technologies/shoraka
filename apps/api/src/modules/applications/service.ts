@@ -137,6 +137,7 @@ import {
   applicationComrepFieldError,
   buildStoredApplicationFinancialYearBlock,
   getFinancialYearEndComputationDetails,
+  getFinancialYearEndValidationError,
   getIssuerFinancialTabYears,
   issuerUnauditedPlddForFyEndYear,
   getReviewSectionPrerequisites,
@@ -184,6 +185,7 @@ import { getIssuerRecipientUserIdsForApplication } from "../notification/applica
 import { sendTypedToUsersSafe } from "../notification/send-typed-safe";
 import { parseGuarantorsFromBusinessDetails } from "../guarantors/utils";
 import { assertIssuerOrgDirectorShareholderOnboardingReady } from "./director-shareholder-onboarding-guard";
+import { assertFinancialStatementsReadyForInitialSubmit } from "./financial-statements-submit-guard";
 import { assertIssuerProfileCompleteForSubmit } from "../organization-profile/service";
 import { buildAdminPeopleList } from "../admin/build-people-list";
 import {
@@ -1288,6 +1290,7 @@ export class ApplicationService {
           deadlineIso: dbg.deadlineIso,
           todayIso: dbg.todayIso,
           years: dbg.years,
+          fyeValidation: getFinancialYearEndValidationError(questionnaire.financial_year_end, serverNow),
         },
         "Financial statements FYE computation"
       );
@@ -2265,6 +2268,12 @@ export class ApplicationService {
               "Submit cleanup skipped: product workflow has no usable step ids"
             );
           } else {
+            if (
+              activeStepKeys.has("financial_statements") &&
+              application.financial_statements != null
+            ) {
+              assertFinancialStatementsReadyForInitialSubmit(application.financial_statements);
+            }
             for (const col of allStepColumns) {
               if (col === "financing_type") continue;
               if (!activeStepKeys.has(col)) {

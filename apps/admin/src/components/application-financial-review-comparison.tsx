@@ -28,6 +28,7 @@ import {
   reviewEmptyStateClass,
 } from "@/components/application-review/review-section-styles";
 import { extractQuestionnaireAndUnaudited } from "@/components/application-financial-review-content";
+import { adminFyPeriodLines, comparisonUnauditedGroupHeader } from "@/lib/stored-unaudited-years";
 import {
   Table,
   TableBody,
@@ -399,14 +400,16 @@ export function ApplicationFinancialReviewComparison({
     [isPathChanged, mockFinancialPayload]
   );
 
-  const beforeByYear = React.useMemo(
-    () => extractQuestionnaireAndUnaudited(effectiveBeforeApp.financial_statements).unauditedByYear,
+  const beforeExtracted = React.useMemo(
+    () => extractQuestionnaireAndUnaudited(effectiveBeforeApp.financial_statements),
     [effectiveBeforeApp.financial_statements]
   );
-  const afterByYear = React.useMemo(
-    () => extractQuestionnaireAndUnaudited(effectiveAfterApp.financial_statements).unauditedByYear,
+  const afterExtracted = React.useMemo(
+    () => extractQuestionnaireAndUnaudited(effectiveAfterApp.financial_statements),
     [effectiveAfterApp.financial_statements]
   );
+  const beforeByYear = beforeExtracted.unauditedByYear;
+  const afterByYear = afterExtracted.unauditedByYear;
   const beforeUnauditedKeys = React.useMemo(() => sortedUnauditedYearKeys(beforeByYear), [beforeByYear]);
   const afterUnauditedKeys = React.useMemo(() => sortedUnauditedYearKeys(afterByYear), [afterByYear]);
   const unauditedSlots = React.useMemo(
@@ -441,7 +444,12 @@ export function ApplicationFinancialReviewComparison({
                     >
                       <span className="sr-only">Financial metric</span>
                     </TableHead>
-                    {unauditedSlots.map((_, si) => (
+                    {unauditedSlots.map((slot, si) => {
+                      const header = comparisonUnauditedGroupHeader(slot, {
+                        before: beforeExtracted.questionnaire,
+                        after: afterExtracted.questionnaire,
+                      });
+                      return (
                       <TableHead
                         key={`g-${si}`}
                         colSpan={2}
@@ -450,11 +458,25 @@ export function ApplicationFinancialReviewComparison({
                           "border-r border-border text-center last:border-r-0"
                         )}
                       >
-                        <span className="font-semibold text-foreground">
-                          Unaudited {unauditedSlots.length > 1 ? `(${si + 1} of 2)` : ""}
+                        <span className="flex flex-col items-center gap-0.5 font-semibold text-foreground">
+                          <span>
+                            {header.year != null
+                              ? `FY${header.year}`
+                              : `Unaudited${unauditedSlots.length > 1 ? ` (${si + 1} of 2)` : ""}`}
+                          </span>
+                          {header.periodLine ? (
+                            <span className="text-meta font-normal leading-snug text-muted-foreground">
+                              {adminFyPeriodLines(header.periodLine).map((line) => (
+                                <span key={line} className="block whitespace-nowrap">
+                                  {line}
+                                </span>
+                              ))}
+                            </span>
+                          ) : null}
                         </span>
                       </TableHead>
-                    ))}
+                      );
+                    })}
                   </TableRow>
                   <TableRow className="hover:bg-transparent border-b border-border">
                     {unauditedSlots.flatMap((_, si) => [
@@ -564,7 +586,12 @@ export function ApplicationFinancialReviewComparison({
                     >
                       Field
                     </TableHead>
-                    {unauditedSlots.map((_, si) => (
+                    {unauditedSlots.map((slot, si) => {
+                      const header = comparisonUnauditedGroupHeader(slot, {
+                        before: beforeExtracted.questionnaire,
+                        after: afterExtracted.questionnaire,
+                      });
+                      return (
                       <TableHead
                         key={`comrep-g-${si}`}
                         colSpan={2}
@@ -573,9 +600,10 @@ export function ApplicationFinancialReviewComparison({
                           "border-r border-border text-center last:border-r-0"
                         )}
                       >
-                        Unaudited
+                        {header.year != null ? `FY${header.year}` : "Unaudited"}
                       </TableHead>
-                    ))}
+                      );
+                    })}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
