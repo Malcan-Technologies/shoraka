@@ -1,7 +1,10 @@
 import type { Prisma } from "@prisma/client";
 import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
-import { mergeCtosPartySupplementDocument } from "@cashsouk/types";
+import {
+  mergeCtosPartySupplementDocument,
+  pickPreferredDirectorShareholderOnboarding,
+} from "@cashsouk/types";
 import { RegTankAPIClient } from "../regtank/api-client";
 import { RegTankRefreshSession, RegTankRefreshClient } from "../regtank/helpers/regtank-refresh-session";
 import { AppError } from "../../lib/http/error-handler";
@@ -30,6 +33,11 @@ export function extractRegTankStatus(body: unknown): string {
   return "";
 }
 
+function screeningProviderFromRequestId(requestId: string): "DOWJONES" | "ACURIS" {
+  const upper = requestId.trim().toUpperCase();
+  return upper.startsWith("DJKYC") || upper.startsWith("DJKYB") ? "DOWJONES" : "ACURIS";
+}
+
 export function extractRegTankScreeningPatch(
   body: unknown,
   requestId: string
@@ -41,9 +49,7 @@ export function extractRegTankScreeningPatch(
   const patch: Record<string, unknown> = {
     requestId: id,
     status,
-    // `/v3/kyc/query` is the Acuris KYC endpoint in this flow.
-    // Persist the provider label to match webhook-normalized screening objects.
-    provider: "ACURIS",
+    provider: screeningProviderFromRequestId(id),
     updatedAt: new Date().toISOString(),
   };
   if (isRecord(row)) {
@@ -56,6 +62,12 @@ export function extractRegTankScreeningPatch(
     if (isRecord(irs)) {
       if (irs.level != null) patch.riskLevel = irs.level;
       if (irs.score != null) patch.riskScore = irs.score;
+    }
+
+    const crs = row.corporateRiskScore;
+    if (isRecord(crs)) {
+      if (patch.riskLevel === undefined && crs.level != null) patch.riskLevel = crs.level;
+      if (patch.riskScore === undefined && crs.score != null) patch.riskScore = crs.score;
     }
 
     // Backward-compatible: support older/alternative shapes if present.
@@ -82,7 +94,12 @@ export type SyncCtosPartyRegTankInput = {
   kycId: string | null;
   /** KYB screening id (usually "KYB..."). */
   kybId: string | null;
+  /** Live discovery confirmed the current child has no KYC/KYB identifier. */
+  clearScreening?: boolean;
   regTankClient?: RegTankRefreshClient;
+  session?: RegTankRefreshSession;
+  requirePersistence?: boolean;
+  requireCompleteRefresh?: boolean;
 };
 
 export type SyncCtosPartyRegTankResult = {
@@ -137,10 +154,11 @@ export async function syncCtosPartyRegTankStatus(
 ): Promise<SyncCtosPartyRegTankResult> {
   const { portal, organizationId, partyKey } = input;
   const regTankClient = input.regTankClient ?? new RegTankAPIClient();
-  const session = new RegTankRefreshSession(regTankClient);
+  const session = input.session ?? new RegTankRefreshSession(regTankClient);
 
   const refreshedSources: string[] = [];
   let regtankPipelineStatus: string | null = null;
+  let pipelineRequestId: string | null = null;
 
   // 1) Live onboarding pipeline status
   let individualDetails: unknown | null = null;
@@ -150,6 +168,13 @@ export async function syncCtosPartyRegTankStatus(
       return await load();
     } catch (error) {
       rethrowControlError(error);
+      if (input.requireCompleteRefresh) {
+        throw new AppError(
+          502,
+          "PROVIDER_REFRESH_FAILED",
+          "RegTank did not return a complete status for this person. The stored status was not changed."
+        );
+      }
       logger.warn(
         {
           portal,
@@ -171,8 +196,21 @@ export async function syncCtosPartyRegTankStatus(
     if (individualDetails) {
       const next = extractRegTankStatus(individualDetails);
       if (next) {
-        regtankPipelineStatus = next;
+        const preferred = pickPreferredDirectorShareholderOnboarding(
+          pipelineRequestId && regtankPipelineStatus
+            ? { status: regtankPipelineStatus, id: pipelineRequestId }
+            : null,
+          { status: next, id: input.individualOnboardingRequestId }
+        );
+        regtankPipelineStatus = preferred?.status || next;
+        pipelineRequestId = preferred?.id || input.individualOnboardingRequestId;
         refreshedSources.push("INDIVIDUAL_ONBOARDING");
+      } else if (input.requireCompleteRefresh) {
+        throw new AppError(
+          502,
+          "PROVIDER_REFRESH_FAILED",
+          "RegTank did not return an onboarding status for this person."
+        );
       }
     }
   }
@@ -184,8 +222,21 @@ export async function syncCtosPartyRegTankStatus(
     if (body) {
       const next = extractRegTankStatus(body);
       if (next) {
-        regtankPipelineStatus = next;
+        const preferred = pickPreferredDirectorShareholderOnboarding(
+          pipelineRequestId && regtankPipelineStatus
+            ? { status: regtankPipelineStatus, id: pipelineRequestId }
+            : null,
+          { status: next, id: input.entityOnboardingRequestId }
+        );
+        regtankPipelineStatus = preferred?.status || next;
+        pipelineRequestId = preferred?.id || input.entityOnboardingRequestId;
         refreshedSources.push("ENTITY_ONBOARDING");
+      } else if (input.requireCompleteRefresh) {
+        throw new AppError(
+          502,
+          "PROVIDER_REFRESH_FAILED",
+          "RegTank did not return an onboarding status for this person."
+        );
       }
     }
   }
@@ -197,8 +248,21 @@ export async function syncCtosPartyRegTankStatus(
     if (body) {
       const next = extractRegTankStatus(body);
       if (next) {
-        regtankPipelineStatus = next;
+        const preferred = pickPreferredDirectorShareholderOnboarding(
+          pipelineRequestId && regtankPipelineStatus
+            ? { status: regtankPipelineStatus, id: pipelineRequestId }
+            : null,
+          { status: next, id: input.corporateOnboardingRequestId }
+        );
+        regtankPipelineStatus = preferred?.status || next;
+        pipelineRequestId = preferred?.id || input.corporateOnboardingRequestId;
         refreshedSources.push("CORPORATE_ONBOARDING");
+      } else if (input.requireCompleteRefresh) {
+        throw new AppError(
+          502,
+          "PROVIDER_REFRESH_FAILED",
+          "RegTank did not return an onboarding status for this entity."
+        );
       }
     }
   }
@@ -217,6 +281,12 @@ export async function syncCtosPartyRegTankStatus(
       if (patch) {
         screeningPatch = patch;
         refreshedSources.push("KYC");
+      } else if (input.requireCompleteRefresh) {
+        throw new AppError(
+          502,
+          "PROVIDER_REFRESH_FAILED",
+          "RegTank did not return an AML screening status for this person."
+        );
       }
     }
   }
@@ -229,6 +299,12 @@ export async function syncCtosPartyRegTankStatus(
       if (patch) {
         screeningPatch = patch;
         refreshedSources.push("KYB");
+      } else if (input.requireCompleteRefresh) {
+        throw new AppError(
+          502,
+          "PROVIDER_REFRESH_FAILED",
+          "RegTank did not return an AML screening status for this entity."
+        );
       }
     }
   }
@@ -246,8 +322,12 @@ export async function syncCtosPartyRegTankStatus(
   );
 
   const patch: Parameters<typeof mergeCtosPartySupplementDocument>[1] = {};
-  if (regtankPipelineStatus) patch.regtankPipelineStatus = regtankPipelineStatus;
+  if (regtankPipelineStatus) {
+    patch.regtankPipelineStatus = regtankPipelineStatus;
+    if (pipelineRequestId) patch.onboarding = { requestId: pipelineRequestId };
+  }
   if (screeningPatch) patch.screening = screeningPatch;
+  else if (input.clearScreening) patch.screeningReset = true;
 
   const merged = mergeCtosPartySupplementDocument(onboardingJson, patch);
 
@@ -275,8 +355,15 @@ export async function syncCtosPartyRegTankStatus(
         partyKey,
         error: err instanceof Error ? err.message : String(err),
       },
-      "Failed to persist immediate RegTank party sync (non-blocking)"
+      "Failed to persist immediate RegTank party sync"
     );
+    if (input.requirePersistence) {
+      throw new AppError(
+        500,
+        "PERSISTENCE_FAILED",
+        "RegTank returned a status, but it could not be saved. Please try again."
+      );
+    }
   }
 
   return { refreshedSources };

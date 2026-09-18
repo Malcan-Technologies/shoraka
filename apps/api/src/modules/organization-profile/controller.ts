@@ -20,7 +20,10 @@ import {
   resolvePartyMismatch,
   seedMasterPartiesIfEmpty,
 } from "./service";
-import { refreshPartyRegTankStatus } from "./refresh-party-regtank-status";
+import {
+  refreshAdminPartyRegTankStatus,
+  refreshPartyRegTankStatus,
+} from "./refresh-party-regtank-status";
 import { resolvePersonIdentityConflict } from "./regtank-party-seed";
 import {
   financialYearPatchSchema,
@@ -29,6 +32,7 @@ import {
   mismatchResolveSchema,
   orgMasterPatchSchema,
   partyPatchSchema,
+  partyProfileRouteParamsSchema,
   createPartySchema,
   portalParamSchema,
 } from "./schemas";
@@ -422,6 +426,35 @@ export function createAdminOrganizationProfileRouter() {
       next(error);
     }
   });
+
+  router.post(
+    "/:portal/:id/party-profiles/:partyId/refresh-status",
+    requirePermission("organizations.manage"),
+    async (req, res, next) => {
+      try {
+        const portal = portalFromParams(req);
+        const { id, partyId } = partyProfileRouteParamsSchema.parse(req.params);
+        const data = await refreshAdminPartyRegTankStatus(portal, id, partyId);
+        await logMasterProfileAudit({
+          req,
+          organizationId: id,
+          eventType: "MASTER_PARTY_REGTANK_STATUS_REFRESHED",
+          metadata: {
+            portal,
+            partyId,
+            refreshedSources: data.refreshedSources,
+          },
+        });
+        res.json({
+          success: true,
+          data,
+          correlationId: res.locals.correlationId,
+        });
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
 
   router.patch("/:portal/:id/master-profile", requirePermission("organizations.manage"), async (req, res, next) => {
     try {

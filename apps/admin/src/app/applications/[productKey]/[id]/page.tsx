@@ -89,7 +89,7 @@ import {
   type ApplicationPersonRow,
   type ReviewItemType,
 } from "@cashsouk/types";
-import { orgHref } from "@/lib/admin-directory-hrefs";
+import { orgHref, orgPeopleAccessHref } from "@/lib/admin-directory-hrefs";
 import { ApplicationDetailHero } from "@/applications/application-detail-hero";
 import {
   applicationFinancingStructureLabel,
@@ -962,6 +962,16 @@ export default function DynamicApplicationDetailPage() {
                   directorPending={
                     !isFinalApplicationForAmlGate &&
                     computeHasPendingDirectorShareholder(applicationPeople)
+                  }
+                  directorPendingHref={
+                    can("organizations.view") &&
+                    app.issuer_organization_id
+                      ? orgPeopleAccessHref(
+                          "issuer",
+                          app.issuer_organization_id,
+                          { filter: "pending" }
+                        )
+                      : null
                   }
                   requestedAmount={requestedAmount}
                   ownerName={`${app.issuer_organization.owner.first_name} ${app.issuer_organization.owner.last_name}`}

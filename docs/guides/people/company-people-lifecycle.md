@@ -299,6 +299,10 @@ Not currently enforced in reactivate:
 - Manual add does not auto-launch onboarding.
 - Individual onboarding/KYC send is via party onboarding send flow; requires actionable person + email + eligibility.
 - AML/KYB screening snapshots are stored in supplement `onboarding_json.screening` and/or org evidence JSON.
+- Admin People & Access exposes one per-person **Sync KYC/KYB and AML from RegTank** action for active directors/shareholders on issuer and company-investor profiles. It works for initial CTOS/onboarding people and later-added people, including after organization onboarding completes.
+- The admin sync first uses stored request IDs, then can discover missing KYC/KYB IDs from the parent COD and selected person’s EOD/child COD. Identity/SSM matching wins; email is never used and ambiguous matches are rejected.
+- A successful admin sync must persist the normalized party snapshot to `ctos_party_supplements.onboarding_json`. Provider or persistence failure keeps the last known snapshot.
+- Financial approve remains offline from RegTank and reads the merged portal `people[]` snapshot. The application nudge opens the People & Access Pending filter; it does not bypass verification.
 - When duplicate people rows for the same identity are merged, a rejected/failed AML or KYC snapshot wins over an approved one so financial approval cannot hide a recorded rejection.
 - Inactivate/reactivate does not reset historical evidence automatically.
 - Reactivate does not restart onboarding; it reuses effective evidence comparison.

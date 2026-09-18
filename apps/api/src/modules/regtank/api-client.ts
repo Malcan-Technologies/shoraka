@@ -494,9 +494,13 @@ export class RegTankAPIClient {
    * Returns AML screening status, risk score, and message status
    */
   async queryKYCStatus(kycId: string): Promise<any> {
-    logger.debug({ kycId }, "Querying RegTank KYC status");
+    const id = kycId.trim();
+    const path = id.toUpperCase().startsWith("DJKYC")
+      ? `/v3/djkyc/query?requestId=${encodeURIComponent(id)}`
+      : `/v3/kyc/query?requestId=${encodeURIComponent(id)}`;
+    logger.debug({ kycId: id, path }, "Querying RegTank KYC status");
 
-    return this.makeRequest(`/v3/kyc/query?requestId=${kycId}`);
+    return this.makeRequest(path);
   }
 
   /**
@@ -505,9 +509,13 @@ export class RegTankAPIClient {
    * Returns AML screening status, risk score, and message status for business entities
    */
   async queryKYBStatus(kybId: string): Promise<any> {
-    logger.debug({ kybId }, "Querying RegTank KYB status");
+    const id = kybId.trim();
+    const path = id.toUpperCase().startsWith("DJKYB")
+      ? `/v3/djkyb/query?requestId=${encodeURIComponent(id)}`
+      : `/v3/kyb/query?requestId=${encodeURIComponent(id)}`;
+    logger.debug({ kybId: id, path }, "Querying RegTank KYB status");
 
-    return this.makeRequest(`/v3/kyb/query?requestId=${kybId}`);
+    return this.makeRequest(path);
   }
 
   /**

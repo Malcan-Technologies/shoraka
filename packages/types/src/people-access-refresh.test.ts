@@ -96,6 +96,32 @@ describe("later-added People & Access refresh visibility", () => {
     expect(shouldShowPartyAmlRefresh(params)).toBe(true);
   });
 
+  it("later-added corporate DJKYB pending → refresh visible", () => {
+    const row = person({
+      matchKey: "199501012345",
+      name: "ABC Berhad",
+      entityType: "CORPORATE",
+      roles: ["SHAREHOLDER"],
+      sharePercentage: 30,
+      onboarding: { status: "IN_PROGRESS", id: "COD2001" },
+      screening: { status: "PENDING", id: "DJKYB1001" },
+      partyCorporateRequestId: "COD2001",
+      screeningRequestId: "DJKYB1001",
+    });
+
+    const ids = collectPartyRegTankRefreshIds(row);
+    expect(ids.kybId).toBe("DJKYB1001");
+
+    const params = {
+      person: row,
+      origin: "USER_ADDED" as const,
+      partyKey: "199501012345",
+      kind: "company_person",
+    };
+    expect(shouldShowPartyKycRefresh(params)).toBe(true);
+    expect(shouldShowPartyAmlRefresh(params)).toBe(true);
+  });
+
   it("later-added corporate approved → refresh hidden", () => {
     const row = person({
       matchKey: "199501012345",

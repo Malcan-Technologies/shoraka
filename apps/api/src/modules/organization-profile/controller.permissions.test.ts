@@ -26,10 +26,13 @@ describe("admin organization profile router permissions", () => {
     expect(userRouter).toContain("refreshPartyRegTankStatus");
   });
 
-  it("does not expose party People & Access refresh on the admin organization profile router", () => {
+  it("requires organizations.manage for admin party People & Access refresh", () => {
     const adminRouter = source.slice(source.indexOf("export function createAdminOrganizationProfileRouter"));
-    expect(adminRouter).not.toContain("refreshPartyRegTankStatus");
-    expect(adminRouter).not.toContain("/refresh-status");
+    expect(adminRouter).toContain("refreshAdminPartyRegTankStatus");
+    expect(adminRouter).toContain(
+      '"/:portal/:id/party-profiles/:partyId/refresh-status"'
+    );
+    expect(adminRouter).toContain('requirePermission("organizations.manage")');
   });
 
   it("lets issuer owners and org admins inactivate via the same service without a hard delete", () => {

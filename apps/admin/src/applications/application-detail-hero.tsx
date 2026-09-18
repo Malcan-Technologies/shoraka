@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { format } from "date-fns";
 import { ArrowPathIcon, DocumentTextIcon, PencilSquareIcon, XCircleIcon } from "@heroicons/react/24/outline";
 import { StatusBadge } from "@cashsouk/ui";
@@ -29,6 +30,7 @@ export function ApplicationDetailHero({
   status,
   structureLabel,
   directorPending,
+  directorPendingHref,
   requestedAmount,
   ownerName,
   email,
@@ -57,6 +59,7 @@ export function ApplicationDetailHero({
   status: string;
   structureLabel: string;
   directorPending: boolean;
+  directorPendingHref?: string | null;
   requestedAmount: number;
   ownerName: string;
   email: string;
@@ -125,11 +128,21 @@ export function ApplicationDetailHero({
             <StatusBadge label={structureLabel} status="neutral" showDot={false} />
           ) : null}
           {directorPending ? (
-            <StatusBadge
-              label={ADMIN_DIRECTOR_SHAREHOLDER_PENDING_LABEL}
-              status="action"
-              title={ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT}
-            />
+            <span className="inline-flex items-center gap-2">
+              <StatusBadge
+                label={ADMIN_DIRECTOR_SHAREHOLDER_PENDING_LABEL}
+                status="action"
+                title={ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT}
+              />
+              {directorPendingHref ? (
+                <Link
+                  href={directorPendingHref}
+                  className="text-meta text-primary underline-offset-4 hover:underline"
+                >
+                  Review and sync
+                </Link>
+              ) : null}
+            </span>
           ) : null}
         </>
       }

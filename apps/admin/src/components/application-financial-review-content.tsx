@@ -11,7 +11,10 @@ import {
   reviewRowGridClass,
   reviewValueClass,
 } from "@/components/application-review/review-section-styles";
-import { orgHref } from "@/lib/admin-directory-hrefs";
+import {
+  orgHref,
+  orgPeopleAccessHref,
+} from "@/lib/admin-directory-hrefs";
 import Link from "next/link";
 import {
   Table,
@@ -291,6 +294,7 @@ export function ApplicationFinancialReviewContent({
   const issuerOrgId = issuerOrganizationId?.trim() ?? "";
   const { can } = usePermissions();
   const canManageFinancialCtos = can("applications.financial.manage");
+  const canViewOrganizations = can("organizations.view");
   const createSubjectReport = useCreateApplicationCtosSubjectReport(applicationId || undefined);
   const [subjectCtosFetchKey, setSubjectCtosFetchKey] = React.useState<string | null>(null);
 
@@ -887,8 +891,20 @@ export function ApplicationFinancialReviewContent({
         titleTooltip="The director and shareholder list comes from the organization CTOS report. Fetch again to get the latest list."
       >
         {hasPendingDirectorShareholder ? (
-          <div className="whitespace-pre-line rounded-xl border border-amber-300/60 bg-amber-50/70 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
-            {formatDirectorShareholderReviewHint(app.people)}
+          <div className="space-y-1.5 rounded-xl border border-amber-300/60 bg-amber-50/70 px-3 py-2 text-ui text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+            <p className="whitespace-pre-line">
+              {formatDirectorShareholderReviewHint(app.people)}
+            </p>
+            {issuerOrgId && canViewOrganizations ? (
+              <Link
+                href={orgPeopleAccessHref("issuer", issuerOrgId, {
+                  filter: "pending",
+                })}
+                className="inline-flex text-primary underline-offset-4 hover:underline"
+              >
+                Review and sync in People &amp; Access
+              </Link>
+            ) : null}
           </div>
         ) : null}
         <DirectorShareholderTable

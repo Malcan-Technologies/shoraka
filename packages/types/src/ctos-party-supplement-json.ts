@@ -172,6 +172,15 @@ function mergeOnboardingFields(
     const t = v.trim();
     return t || undefined;
   };
+  const nextRequestId = typeof patch.requestId === "string" ? patch.requestId.trim() : "";
+  if (nextRequestId && base.requestId && base.requestId !== nextRequestId) {
+    base.verifyLink = undefined;
+    base.verifyLinkExpiresAt = undefined;
+    base.referenceId = undefined;
+    base.sentAt = undefined;
+    base.lastSentAt = undefined;
+    base.sendTimestamps = undefined;
+  }
   if (patch.email === null || patch.email === "") {
     base.email = undefined;
   } else {
@@ -199,8 +208,8 @@ function mergeOnboardingFields(
   if (sa !== undefined) base.sentAt = sa;
   const lsa = str(patch.lastSentAt);
   if (lsa !== undefined) base.lastSentAt = lsa;
-  if (typeof patch.requestId === "string" && patch.requestId.trim()) {
-    base.requestId = patch.requestId.trim();
+  if (nextRequestId) {
+    base.requestId = nextRequestId;
   }
   if (typeof patch.status === "string" && patch.status.trim()) {
     base.status = normalizeRawStatus(patch.status) || patch.status.trim();
@@ -251,14 +260,20 @@ export function mergeCtosPartySupplementDocument(
     if (!next) {
       base.screening = null;
     } else if (base.screening) {
-      // Merge defined keys only, so "absent" fields in the patch don't overwrite existing DB values.
-      const merged: CleanScreening = { ...base.screening };
-      for (const [k, v] of Object.entries(next)) {
-        if (v !== undefined) {
-          (merged as Record<string, unknown>)[k] = v;
+      const nextId = next.requestId.trim();
+      const previousId = base.screening.requestId.trim();
+      if (nextId && previousId && nextId !== previousId) {
+        base.screening = next;
+      } else {
+        // Merge defined keys only, so "absent" fields in the patch don't overwrite existing DB values.
+        const merged: CleanScreening = { ...base.screening };
+        for (const [k, v] of Object.entries(next)) {
+          if (v !== undefined) {
+            (merged as Record<string, unknown>)[k] = v;
+          }
         }
+        base.screening = merged;
       }
-      base.screening = merged;
     } else {
       base.screening = next;
     }

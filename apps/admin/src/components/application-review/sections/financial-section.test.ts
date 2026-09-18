@@ -93,4 +93,15 @@ describe("admin application financial review extra ComRep section", () => {
     expect(comparison).toContain('title="Additional Financial Details"');
     expect(comparison).toContain("COMREP_ROW_LABELS");
   });
+
+  it("links incomplete related-party verification to the issuer Pending people filter", () => {
+    const content = fs.readFileSync(
+      path.join(__dirname, "../../application-financial-review-content.tsx"),
+      "utf8"
+    );
+    expect(content).toContain("orgPeopleAccessHref");
+    expect(content).toContain("Review and sync in People &amp; Access");
+    expect(content).toContain('filter: "pending"');
+    expect(content).toContain('can("organizations.view")');
+  });
 });

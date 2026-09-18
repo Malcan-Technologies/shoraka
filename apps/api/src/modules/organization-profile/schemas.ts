@@ -43,6 +43,11 @@ import {
   type ComrepFieldIssue,
 } from "@cashsouk/types";
 
+export const partyProfileRouteParamsSchema = z.object({
+  id: z.string().trim().min(1).max(100),
+  partyId: z.string().trim().min(1).max(100),
+});
+
 function addComrepIssues(ctx: z.RefinementCtx, issues: ComrepFieldIssue[]): void {
   for (const issue of issues) {
     ctx.addIssue({

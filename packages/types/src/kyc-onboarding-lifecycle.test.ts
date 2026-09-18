@@ -173,4 +173,105 @@ describe("email-only supplement merge", () => {
     expect(after.screening?.riskLevel).toBe("Low Risk");
     expect(after.screening?.riskScore).toBe("1.0");
   });
+
+  it("drops previous screening risk evidence when the request ID changes", () => {
+    const base = mergeCtosPartySupplementDocument(null, {
+      onboarding: {
+        requestId: "EOD-STALE",
+        status: "APPROVED",
+      },
+      screening: {
+        requestId: "KYC-STALE",
+        status: "APPROVED",
+        provider: "ACURIS",
+        riskLevel: "LOW",
+        riskScore: 1,
+        messageStatus: "DONE",
+      },
+    });
+
+    const after = mergeCtosPartySupplementDocument(base, {
+      screening: {
+        requestId: "KYC00189",
+        status: "PENDING",
+        provider: "ACURIS",
+      },
+    });
+
+    expect(after.screening).toMatchObject({
+      requestId: "KYC00189",
+      status: "PENDING",
+    });
+    expect(after.screening?.riskLevel).toBeUndefined();
+    expect(after.screening?.riskScore).toBeUndefined();
+    expect(after.screening?.messageStatus).toBeUndefined();
+  });
+
+  it("drops previous onboarding verify metadata when the request ID changes", () => {
+    const base = mergeCtosPartySupplementDocument(null, {
+      onboarding: {
+        requestId: "LD1001",
+        status: "WAIT_FOR_APPROVAL",
+        verifyLink: "https://verify.example/ld1001",
+        verifyLinkExpiresAt: "2026-02-01T00:00:00.000Z",
+        referenceId: "ref-ld",
+        sentAt: "2026-01-01T00:00:00.000Z",
+        lastSentAt: "2026-01-02T00:00:00.000Z",
+        sendTimestamps: ["2026-01-01T00:00:00.000Z"],
+      },
+    });
+
+    const after = mergeCtosPartySupplementDocument(base, {
+      onboarding: {
+        requestId: "EOD06938",
+        status: "APPROVED",
+      },
+    });
+
+    expect(after.requestId).toBe("EOD06938");
+    expect(after.status).toBe("APPROVED");
+    expect(after.verifyLink).toBeUndefined();
+    expect(after.verifyLinkExpiresAt).toBeUndefined();
+    expect(after.referenceId).toBeUndefined();
+    expect(after.sentAt).toBeUndefined();
+    expect(after.lastSentAt).toBeUndefined();
+    expect(after.sendTimestamps).toBeUndefined();
+  });
+
+  it("keeps replacement verify metadata supplied in the same onboarding ID change", () => {
+    const base = mergeCtosPartySupplementDocument(null, {
+      onboarding: {
+        requestId: "LD-CURRENT",
+        status: "IN_PROGRESS",
+        verifyLink: "https://verify.example/old",
+        verifyLinkExpiresAt: "2026-02-01T00:00:00.000Z",
+        referenceId: "ref-old",
+        sentAt: "2026-01-01T00:00:00.000Z",
+      },
+    });
+
+    const after = mergeCtosPartySupplementDocument(base, {
+      onboarding: {
+        requestId: "LD-NEW",
+        status: "IN_PROGRESS",
+        verifyLink: "https://verify.example/new",
+        verifyLinkExpiresAt: "2026-03-01T00:00:00.000Z",
+        referenceId: "ref-new",
+        sentAt: "2026-02-01T00:00:00.000Z",
+        lastSentAt: "2026-02-01T00:00:00.000Z",
+        sendTimestamps: ["2026-02-01T00:00:00.000Z"],
+      },
+    });
+
+    expect(after).toMatchObject({
+      requestId: "LD-NEW",
+      status: "IN_PROGRESS",
+      verifyLink: "https://verify.example/new",
+      verifyLinkExpiresAt: "2026-03-01T00:00:00.000Z",
+      referenceId: "ref-new",
+      sentAt: "2026-02-01T00:00:00.000Z",
+      lastSentAt: "2026-02-01T00:00:00.000Z",
+      sendTimestamps: ["2026-02-01T00:00:00.000Z"],
+    });
+  });
 });

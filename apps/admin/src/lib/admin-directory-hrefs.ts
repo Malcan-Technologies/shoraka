@@ -17,6 +17,16 @@ export function issuerMarcHref(organizationId: string): string {
   return `${orgHref("issuer", organizationId)}?tab=organization#marc-assessment`;
 }
 
+export function orgPeopleAccessHref(
+  portal: PortalType,
+  organizationId: string,
+  options: { filter?: "pending" } = {}
+): string {
+  const params = new URLSearchParams({ tab: "people" });
+  if (options.filter) params.set("filter", options.filter);
+  return `${orgHref(portal, organizationId)}?${params.toString()}#profile-people`;
+}
+
 export function applicationHref(productId: string, applicationId: string): string {
   return `/applications/${encodeURIComponent(productId)}/${encodeURIComponent(applicationId)}`;
 }
