@@ -244,6 +244,103 @@ describe("party profile lock decisions by field_sources.source", () => {
     expect((next.field_sources as any)?.identityNumber?.source).toBe("USER");
   });
 
+  it.each(portals)("rejects invalid NRIC (10 digits) when patching identityNumber (%s portal)", async (portal) => {
+    const row = baseParty({
+      dateOfBirth: new Date("1990-01-01T00:00:00.000Z"),
+      identityNumber: "800101011234",
+      fieldSources: {
+        identityNumber: { source: "USER", updatedAt: "2026-01-01T00:00:00.000Z" },
+      },
+    });
+    mockPartyFindFirst.mockResolvedValue(row);
+
+    await expect(
+      patchPartyProfile({
+        portal,
+        organizationId: "org-1",
+        partyId: "p-a",
+        source: "USER",
+        fillEmptyOnly: true,
+        patch: { identityNumber: "0000000000" }, // 10 digits
+      })
+    ).rejects.toThrow(/must be exactly 12 digits/i);
+  });
+
+  it.each(portals)("rejects invalid NRIC (letters/special chars) when patching identityNumber (%s portal)", async (portal) => {
+    const row = baseParty({
+      dateOfBirth: new Date("1990-01-01T00:00:00.000Z"),
+      identityNumber: "800101011234",
+      fieldSources: {
+        identityNumber: { source: "USER", updatedAt: "2026-01-01T00:00:00.000Z" },
+      },
+    });
+    mockPartyFindFirst.mockResolvedValue(row);
+
+    await expect(
+      patchPartyProfile({
+        portal,
+        organizationId: "org-1",
+        partyId: "p-a",
+        source: "USER",
+        fillEmptyOnly: true,
+        patch: { identityNumber: "a0000000000&*" }, // not digits-only
+      })
+    ).rejects.toThrow(/must be exactly 12 digits/i);
+  });
+
+  it.each(portals)("accepts valid 12-digit NRIC when patching identityNumber (%s portal)", async (portal) => {
+    const row = baseParty({
+      dateOfBirth: new Date("1990-01-01T00:00:00.000Z"),
+      identityNumber: "800101011234",
+      fieldSources: {
+        identityNumber: { source: "USER", updatedAt: "2026-01-01T00:00:00.000Z" },
+      },
+    });
+    mockPartyFindFirst.mockResolvedValue(row);
+    mockPartyUpdate.mockImplementation(async (args: any) => {
+      const data = args.data;
+      return {
+        ...row,
+        identity_number: data.identity_number,
+        field_sources: data.field_sources,
+      };
+    });
+
+    await patchPartyProfile({
+      portal,
+      organizationId: "org-1",
+      partyId: "p-a",
+      source: "USER",
+      fillEmptyOnly: true,
+      patch: { identityNumber: "800101011999" },
+    });
+
+    const next = mockPartyUpdate.mock.calls[0]?.[0]?.data;
+    expect(next.identity_number).toBe("800101011999");
+  });
+
+  it.each(portals)("ADMIN actor rejects invalid NRIC when patching identityNumber (%s portal)", async (portal) => {
+    const row = baseParty({
+      dateOfBirth: new Date("1990-01-01T00:00:00.000Z"),
+      identityNumber: "800101011234",
+      fieldSources: {
+        identityNumber: { source: "ADMIN", updatedAt: "2026-01-01T00:00:00.000Z" },
+      },
+    });
+    mockPartyFindFirst.mockResolvedValue(row);
+
+    await expect(
+      patchPartyProfile({
+        portal,
+        organizationId: "org-1",
+        partyId: "p-a",
+        source: "ADMIN",
+        fillEmptyOnly: true,
+        patch: { identityNumber: "0000000000" }, // 10 digits
+      })
+    ).rejects.toThrow(/must be exactly 12 digits/i);
+  });
+
   it.each(portals)(
     "allows REGTANK DOB edits when DOB value is empty (%s portal)",
     async (portal) => {

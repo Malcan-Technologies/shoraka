@@ -1955,6 +1955,27 @@ export async function patchPartyProfile(params: {
   if (appliedSemantics?.issues.length) {
     throw new AppError(400, "VALIDATION_ERROR", appliedSemantics.issues[0] ?? "Enter a valid value.");
   }
+  // Backend enforcement: SC NRIC/MyKad must be exactly 12 digits (digits only).
+  // applyPartyComrepSemantics(...) normalizes identityNumber (e.g. strips non-digits),
+  // so we must validate the *raw incoming* value here to avoid accepting invalid input.
+  if (p.identityNumber !== undefined || p.identityPrefix !== undefined) {
+    const rawIdentityNumber = p.identityNumber !== undefined ? p.identityNumber : row.identity_number;
+    const identityKind: "NRIC" | "ROC" | "PASSPORT" =
+      appliedSemantics?.identityPrefix === "PASSPORT"
+        ? "PASSPORT"
+        : appliedSemantics?.identityPrefix === "ROC"
+          ? "ROC"
+          : "NRIC";
+    const issue = identityFormatIssue(
+      rawIdentityNumber,
+      identityKind,
+      "identityNumber",
+      PROFILE_LABEL.identityNumber
+    );
+    if (issue) {
+      throw new AppError(400, "VALIDATION_ERROR", issue.message);
+    }
+  }
   if (p.salutation !== undefined || (entityType === "CORPORATE" && p.identityPrefix !== undefined)) {
     // If the editor explicitly sends `salutation: null`, that must mean "clear existing".
     // Using `?? row.salutation` would treat `null` as "no change" and preserve stale values.
