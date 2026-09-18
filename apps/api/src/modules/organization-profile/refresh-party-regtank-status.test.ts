@@ -696,6 +696,81 @@ describe("refreshAdminPartyRegTankStatus", () => {
     );
   });
 
+  it("persists the preferred discovered KYC when a later-added stored screening ID differs", async () => {
+    mockPartyFindFirst.mockResolvedValue(
+      laterAddedParty({
+        party_key: "user:jamie",
+        origin: "USER_ADDED",
+        identity_number: "891114075601",
+        name: "Ivan Chew Ken Yoong",
+      })
+    );
+    mockSupplementFindFirst.mockResolvedValue({
+      id: "sup-later",
+      onboarding_json: mergeCtosPartySupplementDocument(null, {
+        screening: { requestId: "KYC-STALE", status: "APPROVED" },
+      }),
+    });
+    getCorporateOnboardingDetails.mockImplementation(async (requestId: string) => {
+      if (requestId === "COD-PARENT") {
+        return {
+          corpIndvDirectors: [
+            {
+              corporateIndividualRequest: { requestId: "EOD06938" },
+              corporateUserRequestInfo: {
+                fullName: "Ivan Chew Ken Yoong",
+                formContent: {
+                  content: [
+                    { fieldName: "First Name", fieldValue: "Ivan Chew" },
+                    { fieldName: "Last Name", fieldValue: "Ken Yoong" },
+                    { fieldName: "Government ID Number", fieldValue: "891114075601" },
+                  ],
+                },
+              },
+            },
+          ],
+          corpIndvShareholders: [],
+          corpBizShareholders: [],
+        };
+      }
+      return { status: "APPROVED" };
+    });
+    getEntityOnboardingDetails.mockResolvedValue({
+      status: "APPROVED",
+      kycRequestInfo: { kycId: "KYC-NEW" },
+    });
+    queryKYCStatus.mockImplementation(async (kycId: string) => {
+      if (kycId === "KYC-STALE") return { status: "APPROVED", messageStatus: "DONE" };
+      if (kycId === "KYC-NEW") return { status: "REJECTED", messageStatus: "DONE" };
+      return { status: "PENDING" };
+    });
+
+    const result = await refreshAdminPartyRegTankStatus(
+      "issuer",
+      "org-1",
+      "party-1",
+      { regTankClient }
+    );
+
+    expect(queryKYCStatus).toHaveBeenCalledWith("KYC-STALE");
+    expect(queryKYCStatus).toHaveBeenCalledWith("KYC-NEW");
+    expect(result.refreshedSources).toEqual(["ENTITY_ONBOARDING", "KYC"]);
+    expect(mockSupplementUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          onboarding_json: expect.objectContaining({
+            requestId: "EOD06938",
+            status: "APPROVED",
+            screening: expect.objectContaining({
+              requestId: "KYC-NEW",
+              status: "REJECTED",
+            }),
+          }),
+        }),
+      })
+    );
+  });
+
   it("clears stale parent AML for a later-added person when the child confirms screening is absent", async () => {
     mockPartyFindFirst.mockResolvedValue(
       laterAddedParty({

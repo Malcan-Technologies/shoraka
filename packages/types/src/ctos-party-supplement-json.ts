@@ -172,6 +172,15 @@ function mergeOnboardingFields(
     const t = v.trim();
     return t || undefined;
   };
+  const nextRequestId = typeof patch.requestId === "string" ? patch.requestId.trim() : "";
+  if (nextRequestId && base.requestId && base.requestId !== nextRequestId) {
+    base.verifyLink = undefined;
+    base.verifyLinkExpiresAt = undefined;
+    base.referenceId = undefined;
+    base.sentAt = undefined;
+    base.lastSentAt = undefined;
+    base.sendTimestamps = undefined;
+  }
   if (patch.email === null || patch.email === "") {
     base.email = undefined;
   } else {
@@ -199,17 +208,8 @@ function mergeOnboardingFields(
   if (sa !== undefined) base.sentAt = sa;
   const lsa = str(patch.lastSentAt);
   if (lsa !== undefined) base.lastSentAt = lsa;
-  if (typeof patch.requestId === "string" && patch.requestId.trim()) {
-    const nextId = patch.requestId.trim();
-    if (base.requestId && base.requestId !== nextId) {
-      base.verifyLink = undefined;
-      base.verifyLinkExpiresAt = undefined;
-      base.referenceId = undefined;
-      base.sentAt = undefined;
-      base.lastSentAt = undefined;
-      base.sendTimestamps = undefined;
-    }
-    base.requestId = nextId;
+  if (nextRequestId) {
+    base.requestId = nextRequestId;
   }
   if (typeof patch.status === "string" && patch.status.trim()) {
     base.status = normalizeRawStatus(patch.status) || patch.status.trim();

@@ -521,12 +521,31 @@ async function discoverAdminRefreshIds(params: {
       params.session,
       mergeRefreshIds(stored, discovered)
     );
-    if (!confirmedScreeningAbsent) return merged;
+    if (confirmedScreeningAbsent) {
+      return {
+        ...merged,
+        kycId: null,
+        kybId: null,
+        confirmedScreeningAbsent: true,
+      };
+    }
+    const screeningUnion = new Set<string>();
+    if (entityType === "CORPORATE") {
+      if (stored.kybId) screeningUnion.add(stored.kybId);
+      if (discovered.kybId) screeningUnion.add(discovered.kybId);
+    } else {
+      if (stored.kycId) screeningUnion.add(stored.kycId);
+      if (discovered.kycId) screeningUnion.add(discovered.kycId);
+    }
+    const preferredKyc = await preferredScreeningId({
+      session: params.session,
+      ids: screeningUnion,
+      entityType,
+    });
     return {
       ...merged,
-      kycId: null,
-      kybId: null,
-      confirmedScreeningAbsent: true,
+      kycId: entityType === "CORPORATE" ? null : preferredKyc,
+      kybId: entityType === "CORPORATE" ? preferredKyc : null,
     };
   }
   return {
