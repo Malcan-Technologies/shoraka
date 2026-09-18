@@ -166,13 +166,13 @@ describe("mergeObservationResolutions", () => {
     expect(merged.shareholdingPercentage).toBe(40);
   });
 
-  it("preserves absence acknowledgement fingerprint across CTOS observation merges", () => {
+  it("drops absence acknowledgement when a later observation is merged", () => {
     const previous = {
       name: "Ali",
       absenceAcknowledgedExtractFingerprint: "800101011234",
     };
     const merged = mergeObservationResolutions(previous, { name: "ALI" });
-    expect(merged.absenceAcknowledgedExtractFingerprint).toBe("800101011234");
+    expect(merged.absenceAcknowledgedExtractFingerprint).toBeUndefined();
     expect(merged.name).toBe("ALI");
   });
 });

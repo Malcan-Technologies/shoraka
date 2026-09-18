@@ -9,7 +9,6 @@ import type {
 import {
   calendarDateKey,
   comrepCalendarDateKey,
-  CTOS_ABSENCE_ACK_FINGERPRINT_KEY,
   isMasterFieldEmpty,
   isUnusableCtosCompanyExtract,
   mergeCodContactPersonMaster,
@@ -210,10 +209,6 @@ export function mergeObservationResolutions(
   const conflict = parsePersonIdentityConflict(previous);
   if (conflict) {
     merged[PERSON_IDENTITY_CONFLICT_KEY] = conflict;
-  }
-  const ack = readCtosAbsenceAckFingerprint(previous);
-  if (ack) {
-    merged[CTOS_ABSENCE_ACK_FINGERPRINT_KEY] = ack;
   }
   return merged;
 }

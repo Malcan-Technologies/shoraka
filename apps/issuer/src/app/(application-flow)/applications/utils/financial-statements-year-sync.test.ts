@@ -2,6 +2,7 @@ import { getIssuerFinancialTabYears } from "@cashsouk/types";
 import {
   financialStatementsContinueHint,
   resolveIssuerFinancialYearsToShow,
+  restorePreservedStoredYearForms,
   reuseUnchangedYearForms,
 } from "./financial-statements-year-sync";
 
@@ -52,6 +53,23 @@ describe("resolveIssuerFinancialYearsToShow", () => {
         ref,
       })
     ).toEqual([]);
+  });
+});
+
+describe("restorePreservedStoredYearForms", () => {
+  it("restores snapshot rows after live years replaced the mutable map", () => {
+    const snapshot = {
+      "2026": { pldd: "2026-12-31", turnover: "10" },
+      "2027": { pldd: "2027-12-31", turnover: "20" },
+    };
+    const prev = { "2027": { pldd: "2027-03-31", turnover: "99" } };
+    expect(
+      restorePreservedStoredYearForms({
+        snapshot,
+        yearsToShow: [2026, 2027],
+        prev,
+      })
+    ).toEqual(snapshot);
   });
 });
 

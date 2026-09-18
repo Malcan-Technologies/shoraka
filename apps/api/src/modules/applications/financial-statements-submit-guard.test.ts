@@ -226,4 +226,15 @@ describe("ApplicationService.updateApplicationStatus — financial statements su
 
     await expect(service.updateApplicationStatus("app-1", "SUBMITTED", "user-1")).resolves.toBeTruthy();
   });
+
+  it("runs the FYE guard only once, before the paymaster findUnique", () => {
+    const { readFileSync } = require("fs") as typeof import("fs");
+    const { join } = require("path") as typeof import("path");
+    const source = readFileSync(join(__dirname, "service.ts"), "utf8");
+    const calls = source.match(/assertFinancialStatementsReadyForInitialSubmitIfActive\(/g) ?? [];
+    expect(calls).toHaveLength(1);
+    expect(source.indexOf("assertFinancialStatementsReadyForInitialSubmitIfActive(")).toBeLessThan(
+      source.indexOf("linkPaymasterForApplicationSubmission({")
+    );
+  });
 });

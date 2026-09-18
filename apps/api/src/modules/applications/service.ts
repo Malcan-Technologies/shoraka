@@ -2276,10 +2276,6 @@ export class ApplicationService {
               "Submit cleanup skipped: product workflow has no usable step ids"
             );
           } else {
-            assertFinancialStatementsReadyForInitialSubmitIfActive(
-              workflow,
-              application.financial_statements
-            );
             for (const col of allStepColumns) {
               if (col === "financing_type") continue;
               if (!activeStepKeys.has(col)) {

@@ -32,6 +32,21 @@ function yearRowUnchanged(prev: object, next: object): boolean {
   return true;
 }
 
+/** Restore amendment year rows from the initially loaded snapshot. */
+export function restorePreservedStoredYearForms<T extends object>(params: {
+  snapshot: Record<string, T> | null | undefined;
+  yearsToShow: number[];
+  prev: Record<string, T>;
+}): Record<string, T> {
+  const next: Record<string, T> = {};
+  for (const year of params.yearsToShow) {
+    const key = String(year);
+    const row = params.snapshot?.[key];
+    if (row) next[key] = { ...row };
+  }
+  return reuseUnchangedYearForms(params.prev, next);
+}
+
 /** Keep the previous forms map when year keys and field values (including pldd) are unchanged. */
 export function reuseUnchangedYearForms<T extends object>(
   prev: Record<string, T>,

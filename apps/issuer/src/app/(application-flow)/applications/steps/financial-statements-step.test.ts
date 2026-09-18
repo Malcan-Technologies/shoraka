@@ -73,7 +73,7 @@ describe("issuer application Financial Statements step", () => {
   });
 
   it("renders stored years in readOnly without live FYE window validation", () => {
-    expect(source).toContain("storedFinancialFormYears(formsByYear)");
+    expect(source).toContain("storedFinancialFormYears(savedStoredFormsByYear ?? formsByYear)");
     expect(source).toContain("if (readOnly) return;");
     expect(source).toContain("if (!isInitialized || readOnly) return false");
     expect(source).toContain("isFinancialYearEndDisplayDirtyAgainstSnapshot");
@@ -102,6 +102,8 @@ describe("issuer application Financial Statements step", () => {
     expect(source).toContain("isAmendmentMode = false");
     expect(editPageSource).toContain("isAmendmentMode={isAmendmentModeEffective}");
     expect(source).toContain("applicationFlowDateToIso(fyeDateInput) === savedStoredFye");
+    expect(source).toContain("restorePreservedStoredYearForms");
+    expect(source).toContain("setSavedStoredFormsByYear");
     expect(source).toContain("buildV2ApiPayload(questionnaireDto, formsByYear, yearsToShow)");
     expect(source).toContain("preserveStoredYears || getApplicationFlowFinancialYearEndError");
   });

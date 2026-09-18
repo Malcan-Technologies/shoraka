@@ -76,6 +76,7 @@ import {
 import {
   financialStatementsContinueHint,
   resolveIssuerFinancialYearsToShow,
+  restorePreservedStoredYearForms,
   reuseUnchangedYearForms,
 } from "@/app/(application-flow)/applications/utils/financial-statements-year-sync";
 
@@ -498,6 +499,10 @@ export function FinancialStatementsStep({
   const [activeYearTab, setActiveYearTab] = React.useState("");
   const [initialPayloadSnapshot, setInitialPayloadSnapshot] = React.useState("");
   const [savedStoredFye, setSavedStoredFye] = React.useState<string | null>(null);
+  const [savedStoredFormsByYear, setSavedStoredFormsByYear] = React.useState<Record<
+    string,
+    FinancialStatementsPayload
+  > | null>(null);
 
   // If the user navigates between applications without a full page refresh, this step component may keep its
   // local state. Reset it whenever `applicationId` changes so auto-prefill and form initialization rerun.
@@ -514,6 +519,7 @@ export function FinancialStatementsStep({
     setActiveYearTab("");
     setInitialPayloadSnapshot("");
     setSavedStoredFye(null);
+    setSavedStoredFormsByYear(null);
   }, [applicationId]);
 
   const onDataChangeRef = React.useRef(onDataChange);
@@ -533,6 +539,9 @@ export function FinancialStatementsStep({
         map[k] = fromSaved(v);
       }
       setFormsByYear(map);
+      setSavedStoredFormsByYear(
+        Object.fromEntries(Object.entries(map).map(([key, row]) => [key, { ...row }]))
+      );
       const displayFye = qNorm?.financial_year_end ?? qShape?.financial_year_end;
       setSavedStoredFye(qShape?.financial_year_end ?? qNorm?.financial_year_end ?? null);
       if (displayFye) {
@@ -626,8 +635,8 @@ export function FinancialStatementsStep({
   }, [fyeDateInput, readOnly, preserveStoredYears]);
 
   const storedYearsToShow = React.useMemo(
-    () => storedFinancialFormYears(formsByYear),
-    [formsByYear]
+    () => storedFinancialFormYears(savedStoredFormsByYear ?? formsByYear),
+    [savedStoredFormsByYear, formsByYear]
   );
 
   const liveYearsToShow = React.useMemo(() => {
@@ -661,6 +670,17 @@ export function FinancialStatementsStep({
   React.useEffect(() => {
     if (readOnly) return;
     if (!questionnaireDto) return;
+
+    if (preserveStoredYears) {
+      setFormsByYear((prev) =>
+        restorePreservedStoredYearForms({
+          snapshot: savedStoredFormsByYear,
+          yearsToShow,
+          prev,
+        })
+      );
+      return;
+    }
 
     const built = prefillEnabled
       ? buildApplicationFinancialPrefillByYear({
@@ -717,7 +737,17 @@ export function FinancialStatementsStep({
         setAutoPrefillApplied(true);
       }
     }
-  }, [readOnly, yearsToShow, questionnaireDto, prefillEnabled, prefillOrgFs, prefillCtos, prefillSubmittedByYear]);
+  }, [
+    readOnly,
+    preserveStoredYears,
+    savedStoredFormsByYear,
+    yearsToShow,
+    questionnaireDto,
+    prefillEnabled,
+    prefillOrgFs,
+    prefillCtos,
+    prefillSubmittedByYear,
+  ]);
 
   React.useEffect(() => {
     const raw =
