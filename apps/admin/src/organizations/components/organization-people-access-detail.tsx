@@ -619,6 +619,7 @@ export function OrganizationPeopleAccessDetail({
             <CtosEvidence
               row={row}
               party={party}
+              latestCtos={org.latestOrganizationCtosCompanyJson}
               canManage={canManage}
               canAdopt={canAdopt}
               belowMinimumShareholder={belowMinimumShareholder}
@@ -717,6 +718,7 @@ export function OrganizationPeopleAccessDetail({
 function CtosEvidence({
   row,
   party,
+  latestCtos,
   canManage,
   canAdopt,
   belowMinimumShareholder,
@@ -733,6 +735,7 @@ function CtosEvidence({
 }: {
   row: AdminPeopleAccessRow;
   party: OrganizationPartyProfileDto | null;
+  latestCtos?: unknown;
   canManage: boolean;
   canAdopt: boolean;
   belowMinimumShareholder: boolean;
@@ -821,7 +824,7 @@ function CtosEvidence({
         </div>
       ) : null}
 
-      {party && partyNeedsCtosAbsenceReview(party, org.latestOrganizationCtosCompanyJson) ? (
+      {party && partyNeedsCtosAbsenceReview(party, latestCtos) ? (
         <div className={cn("space-y-2 rounded-lg border p-3", ADMIN_ACTION_SURFACE_CLASS)}>
           <p className="flex items-center gap-1.5 text-ui text-status-action-text">
             <ExclamationTriangleIcon className="h-4 w-4" />
