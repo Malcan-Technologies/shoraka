@@ -209,6 +209,7 @@ import {
   assertExistingFacilityDrawdown,
 } from "./split-origination-guards";
 import { assertFacilityLinkedInvoiceAcceptFees } from "../../lib/facility-fee-collect-reservation";
+import { assertRequiredFinancialComrepFieldsPresentOrThrow } from "./financial-comrep-requiredness";
 
 function financialToNum(v: unknown): number {
   if (typeof v === "number" && !Number.isNaN(v)) return v;
@@ -245,6 +246,9 @@ function validateFinancialYearBlockOrThrow(raw: Record<string, unknown>): void {
       throw new AppError(400, "VALIDATION_ERROR", `${label} cannot be negative`);
     }
   }
+
+  assertRequiredFinancialComrepFieldsPresentOrThrow(raw);
+
   for (const key of APPLICATION_COMREP_DETAIL_KEYS) {
     const message = applicationComrepFieldError(key, raw[key]);
     if (message) {
