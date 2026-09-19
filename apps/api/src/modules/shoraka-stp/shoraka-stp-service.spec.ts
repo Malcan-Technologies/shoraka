@@ -1,4 +1,3 @@
-import { AppError } from "../../lib/http/error-handler";
 import { SHORAKA_PROVIDER_STATUSES, deriveOperationalStatus, normalizeProviderStatus, shorakaStpService } from "./shoraka-stp-service";
 
 import { prisma } from "../../lib/prisma";
@@ -171,7 +170,7 @@ describe("shoraka-stp cutoff window (submit-order)", () => {
     };
   }
 
-  it("rejects submit-order during unsafe window (23:30–00:29 MYT)", async () => {
+  it("rejects submit-order during unsafe window (23:30–00:00 MYT)", async () => {
     jest.useFakeTimers();
     // Malaysia = UTC+8, so 23:45 MYT = 15:45 UTC
     jest.setSystemTime(new Date("2026-05-21T15:45:00Z"));
@@ -243,7 +242,7 @@ describe("shoraka-stp cutoff window (submit-order)", () => {
     );
   });
 
-  it("allows submit-order after 00:30 MYT", async () => {
+  it("allows submit-order after 00:00 MYT", async () => {
     jest.useFakeTimers();
     // Malaysia 00:30 MYT = 16:30 UTC (previous day)
     jest.setSystemTime(new Date("2026-05-21T16:30:00Z"));
@@ -280,6 +279,48 @@ describe("shoraka-stp cutoff window (submit-order)", () => {
     await expect(shorakaStpService.submitOrderForWithdrawal("withdrawal-1")).resolves.toMatchObject({
       tradeOrder: expect.objectContaining({
         provider_order_id: "provider-order-2",
+        status: "Active",
+      }),
+    });
+  });
+
+  it("allows submit-order shortly after 00:00 MYT", async () => {
+    jest.useFakeTimers();
+    // Malaysia 00:15 MYT = 16:15 UTC (previous day)
+    jest.setSystemTime(new Date("2026-05-21T16:15:00Z"));
+
+    (prisma.withdrawalInstruction.findUnique as jest.Mock).mockResolvedValue(baseWithdrawalFixture());
+    (prisma.shorakaTradeOrder.findUnique as jest.Mock).mockResolvedValue(null);
+
+    (submitOrder as jest.Mock).mockResolvedValue({
+      response: { orderId: "provider-order-2-1", status: "Active" },
+    });
+
+    (prisma.shorakaTradeOrder.create as jest.Mock).mockResolvedValue({
+      id: "trade-order-2-1",
+      withdrawal_instruction_id: "withdrawal-1",
+      note_id: "note-1",
+      provider_order_id: "provider-order-2-1",
+      status: "Active",
+      idempotency_key: "idem-2-1",
+      submitted_at: new Date("2026-05-21T16:15:00Z"),
+      status_last_checked_at: null,
+      submit_request_payload: {},
+      submit_response_payload: {},
+      status_response_payload: {},
+      callback_payload: null,
+      callback_received_at: null,
+      certificate_s3_key: null,
+      certificate_file_sha256: null,
+      provider_certificate_id: null,
+      certificate_uploaded_at: null,
+      created_at: new Date("2026-05-21T16:15:00Z"),
+      updated_at: new Date("2026-05-21T16:15:00Z"),
+    });
+
+    await expect(shorakaStpService.submitOrderForWithdrawal("withdrawal-1")).resolves.toMatchObject({
+      tradeOrder: expect.objectContaining({
+        provider_order_id: "provider-order-2-1",
         status: "Active",
       }),
     });

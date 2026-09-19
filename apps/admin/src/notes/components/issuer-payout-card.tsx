@@ -258,8 +258,16 @@ export function IssuerPayoutCard({
   const queryShorakaStatus = useQueryShorakaStatus(withdrawal.id);
   const fetchShorakaCertificate = useFetchShorakaCertificate(withdrawal.id);
 
+  const formatMytTime = (d: Date): string =>
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Kuala_Lumpur",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    }).format(d);
+
   const shorakaUnsafeSubmitWindowMessage =
-    "Tawarruq orders cannot be submitted between 11:30 PM and 12:30 AM MYT because orders may remain Active and require cancellation. Please submit after 12:30 AM.";
+    "Tawarruq trading is unavailable from 11:30 PM to 12:00 AM. Please try again after 12:00 AM.";
   const isMalaysiaUnsafeShorakaSubmitWindow = (() => {
     const now = new Date();
     const parts = new Intl.DateTimeFormat("en-GB", {
@@ -270,7 +278,8 @@ export function IssuerPayoutCard({
     }).formatToParts(now);
     const hour = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
     const minute = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
-    return (hour === 23 && minute >= 30) || (hour === 0 && minute >= 0 && minute < 30);
+    // Block only between 11:30 PM (inclusive) and 12:00 AM (exclusive).
+    return hour === 23 && minute >= 30;
   })();
 
   const shorakaTradeOrder = shorakaStateQuery.data?.tradeOrder ?? null;
@@ -732,6 +741,13 @@ export function IssuerPayoutCard({
                         <DetailRow
                           label="Order date"
                           value={parsed.orderDate}
+                          valueClassName="font-medium"
+                        />
+                      ) : null}
+                      {tradeOrder.submitted_at ? (
+                        <DetailRow
+                          label="Order time"
+                          value={formatMytTime(new Date(tradeOrder.submitted_at))}
                           valueClassName="font-medium"
                         />
                       ) : null}
