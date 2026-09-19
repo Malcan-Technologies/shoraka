@@ -405,6 +405,9 @@ function buildV2ApiPayload(
 }
 
 const YEAR_MONEY_FIELDS: (keyof FinancialStatementsPayload)[] = [...APPLICATION_CORE_MONEY_KEYS];
+const COMREP_REQUIRED_DETAIL_KEYS: (keyof FinancialStatementsPayload)[] = (
+  APPLICATION_COMREP_DETAIL_KEYS as readonly string[]
+).filter((k) => !(APPLICATION_COMREP_OPTIONAL_KEYS as readonly string[]).includes(k)) as (keyof FinancialStatementsPayload)[];
 
 function yearPayloadHasMoney(form: FinancialStatementsPayload | undefined): boolean {
   if (!form) return false;
@@ -432,6 +435,12 @@ function getYearBlockFieldErrors(form: FinancialStatementsPayload): YearBlockFie
     const message = applicationComrepFieldError(k, form[k]);
     if (message) money[k] = message;
   }
+
+  for (const k of COMREP_REQUIRED_DETAIL_KEYS) {
+    if (!hasValue(form[k])) {
+      money[k] = "Required";
+    }
+  }
   return { money };
 }
 
@@ -453,6 +462,9 @@ function yearFormFilledForSaveButton(
   }
   const hasValue = (v: unknown) => String(v ?? "").trim() !== "";
   for (const k of YEAR_MONEY_FIELDS) {
+    if (!hasValue(form[k])) return false;
+  }
+  for (const k of COMREP_REQUIRED_DETAIL_KEYS) {
     if (!hasValue(form[k])) return false;
   }
   return true;
@@ -1086,6 +1098,17 @@ export function FinancialStatementsStep({
               errorMessage={yearErrors.money.plnetdiv}
             />
             <MoneyFieldRow
+              id={`${yearKey}-pl_minority`}
+              label={getLabel("pl_minority")}
+              value={form.pl_minority ?? ""}
+              onValueChange={(v) => updateFormYear(yearKey, "pl_minority", v)}
+              readOnly={readOnly}
+              allowNegative
+              showNegativeTooltip
+              hasError={Boolean(yearErrors.money.pl_minority)}
+              errorMessage={yearErrors.money.pl_minority}
+            />
+            <MoneyFieldRow
               id={`${yearKey}-plyear`}
               label={getLabel("plyear")}
               value={form.plyear ?? ""}
@@ -1101,8 +1124,7 @@ export function FinancialStatementsStep({
         <div className="border-t border-border pt-8">
           <div className="mb-6">
             <h4 className={applicationFlowSectionTitleClassName}>
-              Additional Financial Details{" "}
-              <span className="font-normal text-muted-foreground">(optional)</span>
+              ComRep Financial Details
             </h4>
             <p className="text-sm text-muted-foreground">
               For regulatory reporting. Filling this in may strengthen your application.
@@ -1110,7 +1132,7 @@ export function FinancialStatementsStep({
             <div className={applicationFlowSectionDividerClassName} />
           </div>
           <section className={cn(sectionWrapperClassName, yearBlockInnerSectionClassName)}>
-            <h4 className={subsectionHeadingClassName}>Liability breakdown</h4>
+            <h4 className={subsectionHeadingClassName}>Liability Breakdown</h4>
             <div className={stepFormRowGridClassName}>
               {(["curlib_borrowing", "curlib_non_borrowing", "ncl_loan", "ncl_non_loan"] as const).map(
                 (key) => (
@@ -1129,7 +1151,7 @@ export function FinancialStatementsStep({
             </div>
           </section>
           <section className={cn(sectionWrapperClassName, yearBlockInnerSectionClassName, "mt-8")}>
-            <h4 className={subsectionHeadingClassName}>Equity breakdown</h4>
+            <h4 className={subsectionHeadingClassName}>Equity Breakdown</h4>
             <div className={stepFormRowGridClassName}>
               {(
                 [
@@ -1142,7 +1164,15 @@ export function FinancialStatementsStep({
                 <MoneyFieldRow
                   key={`${yearKey}-${key}`}
                   id={`${yearKey}-${key}`}
-                  label={getLabel(key)}
+                  label={
+                    key === "equity_share_application"
+                      ? "Share Application Account (if applicable)"
+                      : key === "equity_share_premium"
+                        ? "Share Premium & Other Reserves (if applicable)"
+                        : key === "equity_minority"
+                          ? "Minority Interest (if applicable)"
+                          : getLabel(key)
+                  }
                   value={form[key] ?? ""}
                   onValueChange={(v) => updateFormYear(yearKey, key, v)}
                   readOnly={readOnly}
@@ -1174,22 +1204,6 @@ export function FinancialStatementsStep({
                   errorMessage={yearErrors.money[key]}
                 />
               ))}
-            </div>
-          </section>
-          <section className={cn(sectionWrapperClassName, yearBlockInnerSectionClassName, "mt-8")}>
-            <h4 className={subsectionHeadingClassName}>Profit and Loss extras</h4>
-            <div className={stepFormRowGridClassName}>
-              <MoneyFieldRow
-                id={`${yearKey}-pl_minority`}
-                label={getLabel("pl_minority")}
-                value={form.pl_minority ?? ""}
-                onValueChange={(v) => updateFormYear(yearKey, "pl_minority", v)}
-                readOnly={readOnly}
-                allowNegative
-                showNegativeTooltip
-                hasError={Boolean(yearErrors.money.pl_minority)}
-                errorMessage={yearErrors.money.pl_minority}
-              />
             </div>
           </section>
         </div>

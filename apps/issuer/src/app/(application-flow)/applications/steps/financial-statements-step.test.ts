@@ -47,16 +47,22 @@ describe("issuer application Financial Statements step", () => {
     expect(source).toContain("[...APPLICATION_CORE_MONEY_KEYS]");
   });
 
-  it("adds ComRep-only fields in a separate Additional Financial Details section", () => {
-    expect(source).toContain("Additional Financial Details");
-    expect(source).toContain("(optional)");
+  it("adds ComRep-only fields in a separate ComRep Financial Details section", () => {
+    expect(source).toContain("ComRep Financial Details");
     expect(source).toContain("For regulatory reporting. Filling this in may strengthen your application.");
-    expect(source.indexOf("Profit and Loss")).toBeLessThan(source.indexOf("Additional Financial Details"));
+    expect(source.indexOf("Profit and Loss")).toBeLessThan(source.indexOf("ComRep Financial Details"));
     for (const key of COMREP_ONLY_FIELDS) {
       expect(source).toContain(`"${key}"`);
       expect(EXISTING_APPLICATION_FIELDS).not.toContain(key);
     }
     expect(source).toContain("APPLICATION_COMREP_OPTIONAL_KEYS");
+  });
+
+  it("requires ComRep-required detail keys for validation/save", () => {
+    expect(source).toContain("COMREP_REQUIRED_DETAIL_KEYS");
+    expect(source).toContain('money[k] = "Required"');
+    expect(source).toContain("yearFormFilledForSaveButton");
+    expect(source).toContain("for (const k of COMREP_REQUIRED_DETAIL_KEYS");
   });
 
   it("does not use profile values as a year-amount prefill fallback", () => {
