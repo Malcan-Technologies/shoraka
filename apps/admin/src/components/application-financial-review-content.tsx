@@ -34,7 +34,6 @@ import {
 import { cn } from "@/lib/utils";
 import { DirectorShareholderTable } from "@/components/admin/director-shareholder-table";
 import { formatCurrency, formatNumber } from "@cashsouk/config";
-import { InfoTooltip } from "@cashsouk/ui";
 import {
   APPLICATION_COMREP_DETAIL_KEYS,
   FINANCIAL_FIELD_LABELS,
@@ -858,9 +857,6 @@ export function ApplicationFinancialReviewContent({
                     "equity_minority",
                   ]);
 
-                  const OPTIONAL_EQUITY_TOOLTIP_TEXT =
-                    "If this does not apply to you or there is no information to report, leave the field blank.";
-
                   const groups = [
                     {
                       title: "Liability Breakdown",
@@ -887,8 +883,10 @@ export function ApplicationFinancialReviewContent({
                     if (!OPTIONAL_EQUITY_KEYS.has(key)) return base;
                     return (
                       <div className="flex items-center gap-2">
-                        <span>{base} (if applicable)</span>
-                        <InfoTooltip content={OPTIONAL_EQUITY_TOOLTIP_TEXT} />
+                        <span>{base}</span>
+                        <span className="text-meta font-normal leading-snug text-muted-foreground">
+                          Optional
+                        </span>
                       </div>
                     );
                   };

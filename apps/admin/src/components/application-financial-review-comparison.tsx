@@ -21,7 +21,6 @@ import {
   type FinancialStatementsInput,
   type FinancialStatementsQuestionnaire,
 } from "@cashsouk/types";
-import { InfoTooltip } from "@cashsouk/ui";
 import { ReviewFieldBlock } from "@/components/application-review/review-field-block";
 import {
   comparisonSurfaceChangedAfterClass,
@@ -615,9 +614,6 @@ export function ApplicationFinancialReviewComparison({
                       "equity_minority",
                     ]);
 
-                    const OPTIONAL_EQUITY_TOOLTIP_TEXT =
-                      "If this does not apply to you or there is no information to report, leave the field blank.";
-
                     const liabilityKeys = ["curlib_borrowing", "curlib_non_borrowing", "ncl_loan", "ncl_non_loan"] as const;
                     const equityKeys = [
                       "equity_share_application",
@@ -636,8 +632,10 @@ export function ApplicationFinancialReviewComparison({
                       if (!OPTIONAL_EQUITY_KEYS.has(key)) return base;
                       return (
                         <div className="flex items-center gap-2">
-                          <span>{base} (if applicable)</span>
-                          <InfoTooltip content={OPTIONAL_EQUITY_TOOLTIP_TEXT} />
+                          <span>{base}</span>
+                          <span className="text-meta font-normal leading-snug text-muted-foreground">
+                            Optional
+                          </span>
                         </div>
                       );
                     };
