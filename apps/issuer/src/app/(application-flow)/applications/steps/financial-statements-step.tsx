@@ -1061,7 +1061,7 @@ export function FinancialStatementsStep({
           <div className={stepFormRowGridClassName}>
             <MoneyFieldRow
               id={`${yearKey}-bsqpuc`}
-              label={getLabel("bsqpuc")}
+              label="Paid-up Share Capital"
               value={form.bsqpuc ?? ""}
               onValueChange={(v) => updateFormYear(yearKey, "bsqpuc", v)}
               readOnly={readOnly}
@@ -1075,7 +1075,7 @@ export function FinancialStatementsStep({
           <div className={stepFormRowGridClassName}>
             <MoneyFieldRow
               id={`${yearKey}-turnover`}
-              label={getLabel("turnover")}
+              label="Revenue (Turnover)"
               value={form.turnover ?? ""}
               onValueChange={(v) => updateFormYear(yearKey, "turnover", v)}
               readOnly={readOnly}
