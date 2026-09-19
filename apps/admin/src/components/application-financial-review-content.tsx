@@ -332,6 +332,17 @@ export function ApplicationFinancialReviewContent({
     [financialRows, unauditedByYear]
   );
 
+  // For issuer-entered additional regulatory financial details, CTOS never provides values for these keys.
+  // So render only the issuer (unaudited) columns to avoid a misleading CTOS-vs-issuer comparison layout.
+  const issuerDetailColumnIndices = React.useMemo(() => {
+    const indices: number[] = [];
+    for (let i = 0; i < columns.length; i++) {
+      const spec = columns[i];
+      if (spec.kind === "unaudited" && spec.year != null) indices.push(i);
+    }
+    return indices;
+  }, [columns]);
+
   const turnovers = React.useMemo(() => {
     return columns.map((spec) => {
       if (spec.year == null) return { year: null as number | null, turnover: null as number | null };
@@ -685,7 +696,7 @@ export function ApplicationFinancialReviewContent({
                       className={cn(
                         applicationTableHeaderClass,
                         "w-[15.5%] min-w-[8.5rem] align-middle text-right tabular-nums",
-                        i < columns.length - 1 ? "border-r border-border" : "",
+                        i < issuerDetailColumnIndices.length - 1 ? "border-r border-border" : "",
                         financialSummaryColumnShellClass(spec.kind, i, spec.year)
                       )}
                     >
@@ -812,7 +823,9 @@ export function ApplicationFinancialReviewContent({
                   >
                     Field
                   </TableHead>
-                  {columns.map((spec, i) => (
+                  {issuerDetailColumnIndices.map((colIdx, i) => {
+                    const spec = columns[colIdx];
+                    return (
                     <TableHead
                       key={`comrep-yr-${i}-${spec.kind}-${spec.year ?? "dash"}`}
                       className={cn(
@@ -833,7 +846,8 @@ export function ApplicationFinancialReviewContent({
                         HEADER_PLACEHOLDER
                       )}
                     </TableHead>
-                  ))}
+                    );
+                  })}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -879,7 +893,7 @@ export function ApplicationFinancialReviewContent({
                     );
                   };
 
-                  const colSpan = 1 + columns.length;
+                  const colSpan = 1 + issuerDetailColumnIndices.length;
 
                   return groups.flatMap((group) => [
                     <TableRow key={`group-${group.title}`} className={applicationTableRowClass}>
@@ -897,12 +911,11 @@ export function ApplicationFinancialReviewContent({
                         >
                           {renderLabel(key)}
                         </TableCell>
-                        {columns.map((spec, ci) => {
-                          const fs = spec.year == null ? null : getFsCol(ci);
+                        {issuerDetailColumnIndices.map((colIdx, ci) => {
+                          const spec = columns[colIdx];
+                          const fs = getFsCol(colIdx);
                           let cellText = "—";
-                          if (spec.kind === "ctos") {
-                            cellText = spec.year == null ? "—" : "Not in CTOS extract";
-                          } else if (!fs || fs[key] == null || fs[key] === "") {
+                          if (!fs || fs[key] == null || fs[key] === "") {
                             cellText = "Not provided in issuer form";
                           } else {
                             cellText = formatCurrency(toNum(fs[key]), { decimals: 0 });
