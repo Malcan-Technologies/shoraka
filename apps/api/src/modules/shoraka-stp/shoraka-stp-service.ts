@@ -106,7 +106,7 @@ export function getMalaysiaCutoffWarning(now: Date): string | null {
 
   if (!inWindow) return null;
 
-  return "Tawarruq trading is unavailable from 11:30 PM to 12:00 AM MYT. Please try again after 12:00 AM.";
+  return "Tawarruq trading is unavailable from 11:30 PM to 12:00 AM. Please try again after 12:00 AM.";
 }
 
 async function resolveOwnershipForIssuerDisbursement(args: {

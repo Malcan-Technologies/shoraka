@@ -267,7 +267,7 @@ export function IssuerPayoutCard({
     }).format(d);
 
   const shorakaUnsafeSubmitWindowMessage =
-    "Tawarruq trading is unavailable from 11:30 PM to 12:00 AM MYT. Please try again after 12:00 AM.";
+    "Tawarruq trading is unavailable from 11:30 PM to 12:00 AM. Please try again after 12:00 AM.";
   const isMalaysiaUnsafeShorakaSubmitWindow = (() => {
     const now = new Date();
     const parts = new Intl.DateTimeFormat("en-GB", {
