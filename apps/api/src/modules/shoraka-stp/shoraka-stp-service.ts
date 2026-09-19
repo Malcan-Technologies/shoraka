@@ -101,8 +101,8 @@ export function getMalaysiaCutoffWarning(now: Date): string | null {
   const minute = Number(minuteStr);
 
   const inWindow =
-    // Block only between 11:30 PM (inclusive) and 12:30 AM (exclusive).
-    (hour === 23 && minute >= 30) || (hour === 0 && minute >= 0 && minute < 30);
+    // Block from 11:30 PM (inclusive) through 12:30 AM (inclusive).
+    (hour === 23 && minute >= 30) || (hour === 0 && minute >= 0 && minute <= 30);
 
   if (!inWindow) return null;
 

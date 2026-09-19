@@ -278,8 +278,8 @@ export function IssuerPayoutCard({
     }).formatToParts(now);
     const hour = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
     const minute = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
-    // Block only between 11:30 PM (inclusive) and 12:30 AM (exclusive).
-    return (hour === 23 && minute >= 30) || (hour === 0 && minute >= 0 && minute < 30);
+    // Block from 11:30 PM (inclusive) through 12:30 AM (inclusive).
+    return (hour === 23 && minute >= 30) || (hour === 0 && minute >= 0 && minute <= 30);
   })();
 
   const shorakaTradeOrder = shorakaStateQuery.data?.tradeOrder ?? null;
