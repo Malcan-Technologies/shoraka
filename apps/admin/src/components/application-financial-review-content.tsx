@@ -35,7 +35,6 @@ import { cn } from "@/lib/utils";
 import { DirectorShareholderTable } from "@/components/admin/director-shareholder-table";
 import { formatCurrency, formatNumber } from "@cashsouk/config";
 import {
-  APPLICATION_COMREP_DETAIL_KEYS,
   FINANCIAL_FIELD_LABELS,
   computeColumnMetrics,
   computeTurnoverGrowth,

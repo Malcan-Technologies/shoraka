@@ -88,7 +88,6 @@ describe("admin application financial review extra ComRep section", () => {
       "utf8"
     );
     expect(content).toContain('title="Additional Financial Details"');
-    expect(content).toContain("APPLICATION_COMREP_DETAIL_KEYS");
     expect(content).toContain("Liability Breakdown");
     expect(content).toContain("Equity Breakdown");
     expect(content).toContain("Profit & Loss");
