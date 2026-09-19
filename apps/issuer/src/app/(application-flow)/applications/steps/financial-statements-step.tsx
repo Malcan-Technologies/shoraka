@@ -287,6 +287,8 @@ const financialDetailsCenteredMessageTextClassName =
    ================================================================ */
 
 const NEGATIVE_TOOLTIP_TEXT = "Negative values are allowed for losses.\nExample: -5000.";
+const OPTIONAL_INFO_TOOLTIP_TEXT =
+  "If this does not apply to you or there is no information to report, leave the field blank.";
 
 /** Same placeholder style as contract-details money fields (`eg.` + formatted RM). */
 const FINANCIAL_MONEY_PLACEHOLDER = `eg. ${formatMoney(500000)}`;
@@ -363,7 +365,21 @@ function MoneyFieldRow({
     <>
       <Label htmlFor={id} className={labelCellClassName}>
         {label}
-        {optional ? <span className="font-normal text-muted-foreground"> (if applicable)</span> : null}
+        {optional ? (
+          <>
+            <span className="font-normal text-muted-foreground"> (if applicable)</span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className={fieldTooltipTriggerClassName}>
+                  <InformationCircleIcon className="h-4 w-4" />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
+                {OPTIONAL_INFO_TOOLTIP_TEXT}
+              </TooltipContent>
+            </Tooltip>
+          </>
+        ) : null}
       </Label>
       <div className="min-w-0">{wrappedInput}</div>
     </>
@@ -1123,20 +1139,7 @@ export function FinancialStatementsStep({
         </section>
         <div className="border-t border-border pt-8">
           <div className="mb-6">
-            <div className="flex items-center gap-2">
-              <h4 className={applicationFlowSectionTitleClassName}>ComRep Financial Details</h4>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className={fieldTooltipTriggerClassName}>
-                    <InformationCircleIcon className="h-4 w-4" />
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
-                  If this does not apply to you or there is no information to report, leave the field
-                  blank.
-                </TooltipContent>
-              </Tooltip>
-            </div>
+            <h4 className={applicationFlowSectionTitleClassName}>ComRep Financial Details</h4>
             <p className="text-sm text-muted-foreground">
               For regulatory reporting. Filling this in may strengthen your application.
             </p>
