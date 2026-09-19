@@ -8,7 +8,7 @@ describe("application financial review ROE hint", () => {
       "utf8"
     );
     expect(source).toContain(
-      'formulaHint: "CTOS: return_on_equity only. Issuer: PAT ÷ net worth from submitted lines."'
+      'formulaHint: "Profit After Tax ÷ Net Worth"'
     );
     expect(source).not.toMatch(
       /id: "return_of_equity"[\s\S]*?formulaHint:\s*"Profit after tax ÷ paid-up capital\."/

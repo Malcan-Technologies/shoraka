@@ -448,14 +448,23 @@ export function ApplicationFinancialReviewContent({
     { id: "othass", label: FINANCIAL_FIELD_LABELS.othass },
     { id: "bscatot", label: FINANCIAL_FIELD_LABELS.bscatot },
     { id: "bsclbank", label: FINANCIAL_FIELD_LABELS.bsclbank },
-    { id: "totass", label: COMPUTED_FIELD_LABELS.totass, formulaHint: "CTOS: totass only. Issuer: sum of entered asset lines when totass blank." },
+    {
+      id: "totass",
+      label: COMPUTED_FIELD_LABELS.totass,
+      formulaHint: "Calculated as Total Assets from issuer financial information when a total isn't provided.",
+    },
     { id: "curlib", label: FINANCIAL_FIELD_LABELS.curlib },
     { id: "bsslltd", label: FINANCIAL_FIELD_LABELS.bsslltd },
     { id: "bsclstd", label: FINANCIAL_FIELD_LABELS.bsclstd },
-    { id: "totlib", label: COMPUTED_FIELD_LABELS.totlib, formulaHint: "CTOS: totlib only. Issuer: sum of entered liability lines when totlib blank." },
-    { id: "networth", label: COMPUTED_FIELD_LABELS.networth, formulaHint: "CTOS: networth only. Issuer: total assets − total liabilities from entered lines." },
-    { id: "bsqpuc", label: FINANCIAL_FIELD_LABELS.bsqpuc },
-    { id: "turnover", label: FINANCIAL_FIELD_LABELS.turnover },
+    {
+      id: "totlib",
+      label: COMPUTED_FIELD_LABELS.totlib,
+      formulaHint:
+        "Calculated as Total Liabilities from issuer financial information when a total isn't provided.",
+    },
+    { id: "networth", label: COMPUTED_FIELD_LABELS.networth, formulaHint: "Total Assets − Total Liabilities" },
+    { id: "bsqpuc", label: "Paid-up Share Capital" },
+    { id: "turnover", label: "Revenue (Turnover)" },
     { id: "plnpbt", label: FINANCIAL_FIELD_LABELS.plnpbt },
     { id: "plnpat", label: FINANCIAL_FIELD_LABELS.plnpat },
     { id: "plnetdiv", label: FINANCIAL_FIELD_LABELS.plnetdiv },
@@ -463,27 +472,27 @@ export function ApplicationFinancialReviewContent({
     {
       id: "turnover_growth",
       label: COMPUTED_FIELD_LABELS.turnover_growth,
-      formulaHint: "CTOS: turnover_growth only. Issuer: (this year − prior) ÷ prior when years are consecutive.",
+      formulaHint: "Change in revenue compared with the previous financial year",
     },
     {
       id: "profit_margin",
       label: COMPUTED_FIELD_LABELS.profit_margin,
-      formulaHint: "PAT ÷ turnover (official CTOS PAT Margin XSL). Never CTOS profit_margin (PBT Margin).",
+      formulaHint: "Profit After Tax ÷ Revenue",
     },
     {
       id: "return_of_equity",
       label: COMPUTED_FIELD_LABELS.return_of_equity,
-      formulaHint: "CTOS: return_on_equity only. Issuer: PAT ÷ net worth from submitted lines.",
+      formulaHint: "Profit After Tax ÷ Net Worth",
     },
     {
       id: "currat",
       label: COMPUTED_FIELD_LABELS.currat,
-      formulaHint: "CTOS: currat only. Issuer: current assets ÷ current liabilities from submitted lines.",
+      formulaHint: "Current Assets ÷ Current Liabilities",
     },
     {
       id: "workcap",
       label: COMPUTED_FIELD_LABELS.workcap,
-      formulaHint: "CTOS: workcap only. Issuer: current assets − current liabilities from submitted lines.",
+      formulaHint: "Current Assets − Current Liabilities",
     },
   ];
 
