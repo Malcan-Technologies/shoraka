@@ -107,6 +107,8 @@ import {
   getNoteFundingIndicatorClass,
   getNoteFundingProgressClass,
   isNoteActiveLoan,
+  noteDisplayFundedAmount,
+  noteDisplayFundingPercent,
 } from "@/notes/utils/funding-progress";
 import {
   calendarDaysUntilMaturity,
@@ -524,9 +526,9 @@ export default function NoteDetailPage() {
                           type="button"
                           className="appearance-none bg-transparent p-0 text-inherit underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                           onClick={() => setActiveTab("campaign")}
-                          aria-label={`Open Campaign tab, ${note.investments.length} investor${note.investments.length === 1 ? "" : "s"}`}
+                          aria-label={`Open Campaign tab, ${note.investorCount} investor${note.investorCount === 1 ? "" : "s"}`}
                         >
-                          {note.investments.length}
+                          {note.investorCount}
                         </button>
                       }
                     />,
@@ -537,13 +539,13 @@ export default function NoteDetailPage() {
                     ) : (
                       <AdminMetricProgress
                         variant="hero"
-                        percent={note.fundingPercent}
+                        percent={noteDisplayFundingPercent(note)}
                         thresholdPercent={note.minimumFundingPercent}
                         leftLabel="Funded"
-                        leftValue={formatCurrency(note.fundedAmount)}
+                        leftValue={formatCurrency(noteDisplayFundedAmount(note))}
                         leftHint={`of ${formatCurrency(note.targetAmount)} target`}
                         rightLabel="Progress"
-                        rightValue={`${note.fundingPercent.toFixed(1)}%`}
+                        rightValue={`${noteDisplayFundingPercent(note).toFixed(1)}%`}
                         barClassName={getNoteFundingProgressClass(note)}
                         indicatorClassName={getNoteFundingIndicatorClass(note)}
                         accentClassName={getNoteFundingAccentClass(note)}

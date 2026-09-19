@@ -5,7 +5,8 @@ import { format } from "date-fns";
 import { UsersIcon } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import type { AdminInvestmentItem, NoteDetail } from "@cashsouk/types";
-import { formatOrganizationReference } from "@cashsouk/types";
+import { formatNoteInvestorCount, formatOrganizationReference } from "@cashsouk/types";
+import { noteDisplayFundedAmount } from "@/notes/utils/funding-progress";
 import { Skeleton, StatusBadge } from "@cashsouk/ui";
 import { AdminDetailCardHeader } from "@/components/admin-detail";
 import { Card, CardContent } from "@/components/ui/card";
@@ -77,7 +78,7 @@ export function NoteInvestorsPanel({ note }: NoteInvestorsPanelProps) {
             ? "Loading…"
             : totalCount === 0
               ? "No investor commitments yet"
-              : `${totalCount} investor${totalCount === 1 ? "" : "s"} · ${formatCurrency(note.fundedAmount)} funded`
+              : `${formatNoteInvestorCount(note.investorCount)} · ${formatCurrency(noteDisplayFundedAmount(note))} funded`
         }
       />
       <CardContent className="p-0">

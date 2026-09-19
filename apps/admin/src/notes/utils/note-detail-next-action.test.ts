@@ -9,7 +9,9 @@ import {
 } from "@cashsouk/types";
 import {
   findNoteDisbursementWithdrawal,
+  hasUnpaidIssuerResidual,
   isNoteDetailTabId,
+  isNoteSettlementLifecycleFinished,
   NOTE_REFERENCE_TAB_TOKEN,
   noteDetailTabStatusToken,
   noteLatePaymentTabStatusToken,
@@ -131,6 +133,26 @@ function issuerDisbursement(status: string): NoteDetail["withdrawals"][number] {
     withdrawalType: "ISSUER_DISBURSEMENT",
     status,
   } as unknown as NoteDetail["withdrawals"][number];
+}
+
+function postedSettlement(): NoteDetail["settlements"][number] {
+  return {
+    status: "POSTED",
+    investorPrincipal: 0,
+    investorProfitNet: 0,
+    tawidhInvestorAmount: 0,
+    serviceFeeAmount: 0,
+    tawidhAccountAmount: 0,
+    gharamahAmount: 0,
+    issuerResidualAmount: 0,
+  } as NoteDetail["settlements"][number];
+}
+
+function settledNote(overrides: Partial<NoteDetail> = {}): NoteDetail {
+  return servicingNote({
+    settlements: [postedSettlement()],
+    ...overrides,
+  });
 }
 
 /** Funded note that has cleared disbursement and started servicing. */
@@ -383,6 +405,19 @@ describe("note detail tab identity and dots", () => {
       resolveNoteCampaignTabStatus(baseNote({ prospectus: approvedProspectus }))
     ).toBe("needs-action");
     expect(resolveNoteCampaignTabStatus(servicingNote())).toBe("done");
+    expect(
+      resolveNoteCampaignTabStatus(
+        baseNote({
+          status: NoteStatus.FAILED_FUNDING,
+          listingStatus: NoteListingStatus.CLOSED,
+          fundingStatus: NoteFundingStatus.FAILED,
+          publishedAt: new Date().toISOString(),
+          prospectus: publishedProspectus,
+          fundedAmount: 400,
+          fundingPercent: 4.8,
+        })
+      )
+    ).toBe("done");
     expect(hasNoteLifecycleAdminAction(baseNote({ prospectus: approvedProspectus }))).toBe(true);
     expect(
       hasNoteLifecycleAdminAction(
@@ -402,6 +437,39 @@ describe("note detail tab identity and dots", () => {
         })
       )
     ).toBe("needs-action");
+  });
+
+  it("clears disbursement and servicing action after settlement is finished", () => {
+    const settled = settledNote({
+      withdrawals: [issuerDisbursement("DRAFT")],
+    });
+    expect(isNoteSettlementLifecycleFinished(settled)).toBe(true);
+    expect(resolveNoteDisbursementTabStatus(settled)).toBe("done");
+    expect(resolveNoteServicingTabStatus(settled)).toBe("done");
+    expect(resolveNoteDetailNextAction(settled).tone).toBe("neutral");
+  });
+
+  it("keeps servicing yellow when a settled note still has an unpaid residual", () => {
+    const residualOpen = servicingNote({
+      status: NoteStatus.REPAID,
+      servicingStatus: NoteServicingStatus.SETTLED,
+      settlements: [postedSettlement()],
+      withdrawals: [
+        issuerDisbursement("COMPLETED"),
+        {
+          id: "wd-residual",
+          withdrawalType: "ISSUER_RESIDUAL_RETURN",
+          status: "DRAFT",
+        } as NoteDetail["withdrawals"][number],
+      ],
+    });
+    expect(isNoteSettlementLifecycleFinished(residualOpen)).toBe(true);
+    expect(hasUnpaidIssuerResidual(residualOpen)).toBe(true);
+    expect(resolveNoteServicingTabStatus(residualOpen)).toBe("needs-action");
+    expect(resolveNoteDetailNextAction(residualOpen)).toMatchObject({
+      tabId: "servicing",
+      tone: "action",
+    });
   });
 
   it("derives the disbursement dot from the issuer payout instruction", () => {
@@ -575,7 +643,7 @@ describe("standalone vs contract-linked notes", () => {
     expect(pageSource).toContain("getNoteCommercialTermRows");
     expect(pageSource).toContain("@/notes/utils/note-commercial-terms");
     expect(pageSource).toContain('setActiveTab("campaign")');
-    expect(pageSource).toContain("note.investments.length");
+    expect(pageSource).toContain("note.investorCount");
     expect(pageSource).toContain("isNoteActiveLoan");
     expect(pageSource).toContain("Settlement amount");
     expect(pageSource).toContain("Payment due");

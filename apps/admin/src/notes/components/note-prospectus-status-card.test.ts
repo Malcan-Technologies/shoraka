@@ -224,6 +224,34 @@ describe("resolveProspectusStatusCard", () => {
     expect(model.workspaceLabel).not.toBe("Publish Note");
   });
 
+  it("closes the prospectus card after Fail Funding instead of keeping Published", () => {
+    const model = resolveProspectusStatusCard(
+      baseNote({
+        status: NoteStatus.FAILED_FUNDING,
+        listingStatus: NoteListingStatus.CLOSED,
+        fundingStatus: NoteFundingStatus.FAILED,
+        publishedAt: new Date().toISOString(),
+        prospectus: {
+          status: "PUBLISHED",
+          displayStatus: "Published",
+          contentVersion: 1,
+          lastSavedAt: null,
+          approvedAt: new Date().toISOString(),
+          publishedAt: new Date().toISOString(),
+        },
+      })
+    );
+    expect(model.phase).toBe("closed");
+    expect(model.badgeLabel).toBe("Closed");
+    expect(model.heading).toBe("Listing closed");
+    expect(model.description).toMatch(/no longer visible to investors/i);
+    expect(model.description).not.toMatch(/now visible to investors/i);
+    expect(model.emphasize).toBe(false);
+    expect(model.workspaceLabel).toBe("Open Review");
+    expect(model.viewAvailable).toBe(true);
+    expect(resolveProspectusStatusCardBadgeToken(model)).toBe("neutral");
+  });
+
   it("keeps Published after funding closes (status is FUNDING, not PUBLISHED)", () => {
     const model = resolveProspectusStatusCard(
       baseNote({

@@ -122,7 +122,7 @@ export function ContractReviewFields({
             <div className={reviewValueClass}>
               {typeof cd.value === "number" ? formatCurrency(cd.value) : formatReviewValue(cd.value)}
             </div>
-            <Label className={reviewLabelClass}>Contract Financing</Label>
+            <Label className={reviewLabelClass}>Requested Financing Amount</Label>
             <div className={reviewValueClass}>
               {typeof cd.financing === "number"
                 ? formatCurrency(cd.financing)

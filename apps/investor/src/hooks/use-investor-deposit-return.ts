@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useOrganization } from "@cashsouk/config";
 import { marketplaceKeys } from "@/investments/hooks/use-marketplace-notes";
 import {
-  isTerminalDepositStatus,
+  isDepositWalletSettled,
   useInvestorDepositQuery,
 } from "@/hooks/use-investor-deposit";
 
@@ -16,7 +16,7 @@ export function useInvestorDepositReturn(depositId: string) {
 
   useEffect(() => {
     const deposit = query.data;
-    if (!deposit || !isTerminalDepositStatus(deposit.status)) return;
+    if (!deposit || !isDepositWalletSettled(deposit.status)) return;
 
     queryClient.invalidateQueries({ queryKey: marketplaceKeys.portfolioRoot });
     queryClient.invalidateQueries({ queryKey: marketplaceKeys.portfolioHistoryRoot });

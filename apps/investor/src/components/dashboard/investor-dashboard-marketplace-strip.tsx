@@ -34,7 +34,7 @@ export function InvestorDashboardMarketplaceStrip({
   const strip = notes.slice(0, STRIP_LIMIT);
   const countLabel = `${totalCount} ${totalCount === 1 ? "note" : "notes"} open`;
   const fundingLabel =
-    seekingFunding != null ? ` · ${formatCurrency(seekingFunding, { decimals: 0 })} seeking funding` : "";
+    seekingFunding != null ? ` · ${formatCurrency(seekingFunding)} seeking funding` : "";
 
   return (
     <section>

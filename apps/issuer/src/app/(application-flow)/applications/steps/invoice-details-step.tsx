@@ -1415,8 +1415,8 @@ export default function InvoiceDetailsStep({
                     : "—"}
                 </div>
 
-                {/* ================= Contract Financing ================= */}
-                <div className={formLabelClassName}>Contract Financing</div>
+                {/* ================= Requested Financing Amount ================= */}
+                <div className={formLabelClassName}>Requested Financing Amount</div>
                 <div className={valueClassName}>
                   {application?.contract?.contract_details?.financing != null
                     ? `RM ${formatMoney(application.contract.contract_details.financing)}`

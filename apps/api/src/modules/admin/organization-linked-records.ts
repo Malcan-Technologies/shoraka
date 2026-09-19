@@ -6,6 +6,7 @@ import type {
 } from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
 import { prisma } from "../../lib/prisma";
+import { resolveRequestedFacility } from "../../lib/contract-facility";
 import { realFacilityContractWhere } from "../../lib/standalone-holder-contract";
 
 function isPlainObjectRecord(v: unknown): v is Record<string, unknown> {
@@ -43,8 +44,8 @@ export function requestedAmountFromApplication(app: {
   const contractDetails = isPlainObjectRecord(app.contract?.contract_details)
     ? app.contract.contract_details
     : null;
-  const amount = Number(contractDetails?.value ?? contractDetails?.approved_facility ?? 0);
-  return Number.isFinite(amount) && amount > 0 ? amount : null;
+  const amount = resolveRequestedFacility(contractDetails);
+  return amount > 0 ? amount : null;
 }
 
 export function productIdFromFinancingType(financingType: unknown): string | null {

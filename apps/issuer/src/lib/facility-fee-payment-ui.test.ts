@@ -5,6 +5,7 @@ import {
   facilityFeePollIntervalMs,
   hasFacilityFeeUpfrontOutstanding,
   isTerminalFacilityFeeStatus,
+  shouldShowIssuerFacilityFeePaymentCard,
   mapFacilityFeeOwnershipError,
   nextFacilityFeeReturnPinState,
   resolveFacilityFeeReturnPaymentId,
@@ -131,6 +132,45 @@ describe("facility fee return dialog view", () => {
     expect(view.creditedAmount).toBe(5_000);
     expect(view.outstanding).toBe(3_000);
     expect(view.progressPercent).toBe(63);
+  });
+});
+
+describe("issuer facility fee payment card visibility", () => {
+  it("hides the payment box after the upfront fee is collected", () => {
+    expect(
+      shouldShowIssuerFacilityFeePaymentCard({
+        contractStatus: "APPROVED",
+        outstanding: 0,
+      })
+    ).toBe(false);
+  });
+
+  it("keeps the box while an approved facility still has an outstanding upfront fee", () => {
+    expect(
+      shouldShowIssuerFacilityFeePaymentCard({
+        contractStatus: "APPROVED",
+        outstanding: 1500,
+      })
+    ).toBe(true);
+  });
+
+  it("does not show the box before the facility is approved", () => {
+    expect(
+      shouldShowIssuerFacilityFeePaymentCard({
+        contractStatus: "OFFER_SENT",
+        outstanding: 1500,
+      })
+    ).toBe(false);
+  });
+
+  it("keeps the box when a payment is held for review even if outstanding is already zero", () => {
+    expect(
+      shouldShowIssuerFacilityFeePaymentCard({
+        contractStatus: "APPROVED",
+        outstanding: 0,
+        held: true,
+      })
+    ).toBe(true);
   });
 });
 

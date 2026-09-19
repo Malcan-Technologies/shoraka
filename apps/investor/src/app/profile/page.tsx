@@ -25,7 +25,7 @@ import {
   MALAYSIAN_BANKS,
 } from "@cashsouk/config";
 import type { ApplicationPersonRow } from "@cashsouk/types";
-import { filterVisiblePeopleRows, SC_GENDER_LABELS, SC_INDIVIDUAL_GENDERS, SC_MALAYSIAN_STATES, PROFILE_ADDRESS_FIELD_LABELS, PROFILE_ADDRESS_HELP, PROFILE_HELP, PROFILE_LABEL, firstIssueMessage, formatCalendarDate, humanizeApiValidationMessage, isScPostcodeRequired, isValidProfilePhone, personalInvestorIdentityFormatKind, restrictScPostcodeInput, scAppendixASelectValues, storedProfilePhone, toCalendarDateInput, userFacingCompleteness, validateInvestorPersonalForm, type ProfileFieldSources, type ScGender } from "@cashsouk/types";
+import { filterVisiblePeopleRows, SC_GENDER_LABELS, SC_INDIVIDUAL_GENDERS, SC_MALAYSIAN_STATES, PROFILE_ADDRESS_FIELD_LABELS, PROFILE_ADDRESS_HELP, PROFILE_HELP, PROFILE_LABEL, formatCalendarDate, humanizeApiValidationMessage, isScPostcodeRequired, personalInvestorIdentityFormatKind, restrictScPostcodeInput, scAppendixASelectValues, storedProfilePhone, toCalendarDateInput, userFacingCompleteness, type ProfileFieldSources, type ScGender } from "@cashsouk/types";
 import { useAuth } from "../../lib/auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccountDocuments } from "../../hooks/use-account-documents";
@@ -33,6 +33,11 @@ import { useOrganizationInvitations } from "../../hooks/use-organization-invitat
 import { InvestorCompanyDetailsCard } from "../../components/investor-company-details-card";
 import { InvestorClassificationCard } from "../../components/investor-classification-card";
 import { InvestorProfileCompletenessBanner } from "../../components/profile-completeness-banner";
+import {
+  contactDetailsSaveError,
+  personalDetailsSaveError,
+  residentialAddressSaveError,
+} from "./profile-section-validation";
 import { toast } from "sonner";
 import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
@@ -624,9 +629,9 @@ export default function ProfilePage() {
       if (!activeOrganization?.id) throw new Error("No organization selected");
       return updateOrganizationProfile(activeOrganization.id, input);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["organization-detail", activeOrganization?.id] });
-      queryClient.invalidateQueries({ queryKey: ["investor", "profile-completeness", activeOrganization?.id] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["organization-detail", activeOrganization?.id] });
+      await queryClient.invalidateQueries({ queryKey: ["investor", "profile-completeness", activeOrganization?.id] });
       toast.success("Profile updated successfully");
       setIsEditingPersonalDetails(false);
       setIsEditingResidentialAddress(false);
@@ -649,14 +654,10 @@ export default function ProfilePage() {
 
   const handleSaveProfile = async () => {
     if (!activeOrganization) return;
-    if (phoneNumber && !isValidProfilePhone(phoneNumber)) {
-      toast.error("Enter a valid phone number.");
-      return;
-    }
 
-    const invalidateAfterSave = () => {
-      queryClient.invalidateQueries({ queryKey: ["organization-detail", activeOrganization.id] });
-      queryClient.invalidateQueries({ queryKey: ["investor", "profile-completeness", activeOrganization.id] });
+    const invalidateAfterSave = async () => {
+      await queryClient.invalidateQueries({ queryKey: ["organization-detail", activeOrganization.id] });
+      await queryClient.invalidateQueries({ queryKey: ["investor", "profile-completeness", activeOrganization.id] });
       toast.success("Profile updated successfully");
     };
 
@@ -669,29 +670,24 @@ export default function ProfilePage() {
           orgData?.profileFieldSources?.identityNumber?.source === "REGTANK" &&
           identityNumberCurrent.trim().length > 0;
 
-        const issues = validateInvestorPersonalForm({
+        const personalError = personalDetailsSaveError({
           gender,
           nationality,
-          state: residentialState,
-          postalCode: residentialPostalCode,
+          dateOfBirth,
           ...(!identityNumberRegTankLocked
             ? {
+                validateIdentity: true,
                 identityNumber,
                 identityKind: personalInvestorIdentityFormatKind(orgData?.documentType),
               }
             : {}),
         });
-        if (issues.length > 0) {
-          toast.error(firstIssueMessage(issues));
+        if (personalError) {
+          toast.error(personalError);
           return;
         }
 
         const dob = dateOfBirth.trim();
-        if (!dob || !/^\d{4}-\d{2}-\d{2}$/.test(dob)) {
-          toast.error("Enter a valid Date of Birth.");
-          return;
-        }
-
         const master: Record<string, unknown> = {};
         if (!isRegTankLockedGender) {
           master.gender = gender;
@@ -727,7 +723,7 @@ export default function ProfilePage() {
           setIsSavingMasterProfile(false);
         }
 
-        invalidateAfterSave();
+        await invalidateAfterSave();
         setIsEditingPersonalDetails(false);
         setIsEditingResidentialAddress(false);
         setIsEditingContactDetails(false);
@@ -735,17 +731,16 @@ export default function ProfilePage() {
       }
 
       if (isEditingResidentialAddress) {
-        if (!residentialState) {
-          toast.error("State is required.");
-          return;
-        }
-        const needsPostcode = isScPostcodeRequired(residentialState);
-        const postcode = residentialPostalCode.trim();
-        if (needsPostcode && !postcode) {
-          toast.error("Postcode is required.");
+        const addressError = residentialAddressSaveError({
+          state: residentialState,
+          postalCode: residentialPostalCode,
+        });
+        if (addressError) {
+          toast.error(addressError);
           return;
         }
 
+        const postcode = residentialPostalCode.trim();
         const master: Record<string, unknown> = {
           residentialAddress: {
             state: residentialState,
@@ -775,24 +770,17 @@ export default function ProfilePage() {
         });
         return;
       }
-
-      if (isEditingContactDetails) {
-        await updateProfileMutation.mutateAsync({
-          phoneNumber: storedProfilePhone(phoneNumber) || null,
-        });
-        return;
-      }
-
-      // If no recognized flag is active, do nothing.
-      return;
     }
 
-    // COMPANY organizations: only contact details are editable in this page.
     if (isEditingContactDetails) {
+      const contactError = contactDetailsSaveError(phoneNumber);
+      if (contactError) {
+        toast.error(contactError);
+        return;
+      }
       await updateProfileMutation.mutateAsync({
         phoneNumber: storedProfilePhone(phoneNumber) || null,
       });
-      return;
     }
   };
 

@@ -68,7 +68,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
-import { createApiClient, useAuthToken } from "@cashsouk/config";
+import { createApiClient, resolveRequestedFacility, useAuthToken } from "@cashsouk/config";
 import {
   computeHasPendingDirectorShareholder,
   formatApplicationReference,
@@ -927,8 +927,7 @@ export default function DynamicApplicationDetailPage() {
       );
     }
     if (app.contract?.contract_details) {
-      const cd = app.contract.contract_details as Record<string, unknown>;
-      return parseFloat(String(cd?.value ?? cd?.approved_facility ?? 0));
+      return resolveRequestedFacility(app.contract.contract_details as Record<string, unknown>);
     }
     return 0;
   }, [app]);

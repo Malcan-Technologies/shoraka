@@ -21,6 +21,7 @@ describe("application detail hero", () => {
     expect(heroSource).toContain('variant="destructive"');
     expect(heroSource).toContain("directorPendingHref");
     expect(heroSource).toContain("Review and sync");
+    expect(pageSource).toContain("resolveRequestedFacility");
     expect(pageSource).toContain("orgPeopleAccessHref");
     expect(pageSource).toContain('filter: "pending"');
   });

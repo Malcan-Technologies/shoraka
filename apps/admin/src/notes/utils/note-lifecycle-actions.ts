@@ -197,7 +197,7 @@ export function getNoteLifecycleTerminalFailure(
     return {
       label: "Funding failed",
       description:
-        "Marketplace did not reach the minimum funding threshold. Commitments must be released.",
+        "Marketplace did not reach the minimum funding threshold. Commitments have been released.",
       stageIndex: 1,
     };
   }

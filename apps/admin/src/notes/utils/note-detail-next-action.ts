@@ -14,6 +14,7 @@ import {
 } from "@/notes/utils/late-payment-workflow";
 import {
   isNoteLifecycleVisuallyComplete,
+  isSettlementWrappingUp,
   postedSettlementsNeedingTrusteeInstruction,
 } from "@/notes/utils/settlement-trustee-workflow";
 import type { SimpleTabStatus } from "@/notes/utils/workflow-status-tokens";
@@ -71,12 +72,30 @@ export function latePaymentPhaseNeedsAdminAction(phase: LatePaymentWorkflowPhase
   return phase === "late" || phase === "arrears" || phase === "default-eligible";
 }
 
+/** Settlement posted, residual closed, and trustee wrap-up finished — or REPAID/SETTLED + trustee done. */
+export function isNoteSettlementLifecycleFinished(note: NoteDetail): boolean {
+  if (isNoteLifecycleVisuallyComplete(note)) return true;
+  const hasPostedSettlement = note.settlements.some((settlement) => settlement.status === "POSTED");
+  if (!hasPostedSettlement || hasUnpaidIssuerResidual(note)) return false;
+  return !isSettlementWrappingUp(note);
+}
+
+export function hasUnpaidIssuerResidual(note: NoteDetail): boolean {
+  return (note.withdrawals ?? []).some(
+    (withdrawal) =>
+      withdrawal.withdrawalType === "ISSUER_RESIDUAL_RETURN" &&
+      withdrawal.status !== "COMPLETED" &&
+      withdrawal.status !== "CANCELLED"
+  );
+}
+
 /** Active issuer-disbursement instruction; cancelled attempts are ignored. */
 export function findNoteDisbursementWithdrawal(note: NoteDetail): WithdrawalInstruction | null {
   return findIssuerDisbursementWithdrawal(note);
 }
 
 export function resolveNoteDisbursementTabStatus(note: NoteDetail): SimpleTabStatus {
+  if (isNoteSettlementLifecycleFinished(note)) return "done";
   const withdrawal = findNoteDisbursementWithdrawal(note);
   if (!withdrawal) return "not-started";
   if (withdrawal.status === "COMPLETED") return "done";
@@ -85,7 +104,9 @@ export function resolveNoteDisbursementTabStatus(note: NoteDetail): SimpleTabSta
 }
 
 export function resolveNoteServicingTabStatus(note: NoteDetail): SimpleTabStatus {
-  if (isNoteLifecycleVisuallyComplete(note)) return "done";
+  if (isNoteSettlementLifecycleFinished(note)) {
+    return hasUnpaidIssuerResidual(note) ? "needs-action" : "done";
+  }
 
   const servicingNotStarted =
     note.servicingStatus === "NOT_STARTED" ||
@@ -139,6 +160,8 @@ function isCampaignComplete(note: NoteDetail): boolean {
   return (
     note.fundingStatus === "FUNDED" ||
     note.fundingStatus === "CLOSED" ||
+    note.fundingStatus === "FAILED" ||
+    note.status === "FAILED_FUNDING" ||
     note.status === "ACTIVE" ||
     note.status === "ARREARS" ||
     note.status === "DEFAULTED" ||
@@ -190,7 +213,18 @@ const NO_ACTION_REQUIRED: NoteDetailNextAction = {
  * both the next-action banner and the initially selected tab.
  */
 export function resolveNoteDetailNextAction(note: NoteDetail): NoteDetailNextAction {
-  if (isNoteLifecycleVisuallyComplete(note)) return NO_ACTION_REQUIRED;
+  if (isNoteSettlementLifecycleFinished(note)) {
+    if (hasUnpaidIssuerResidual(note)) {
+      return {
+        tabId: "servicing",
+        title: "Issuer residual refund outstanding",
+        description: "Settlement is posted. Complete the issuer residual refund from the Servicing tab.",
+        ctaLabel: "Open Servicing",
+        tone: "action",
+      };
+    }
+    return NO_ACTION_REQUIRED;
+  }
 
   if (noteProspectusNeedsReview(note)) {
     return {

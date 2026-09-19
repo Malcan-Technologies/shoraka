@@ -138,4 +138,23 @@ describe("dashboardNoteFromListItem", () => {
   it("copies investor count from the listed note", () => {
     expect(dashboardNoteFromListItem(note({ investorCount: 3 })).investorCount).toBe(3);
   });
+
+  it("zeros displayed raise after fail funding", () => {
+    const mapped = dashboardNoteFromListItem(
+      note({
+        status: "FAILED_FUNDING" as NoteListItem["status"],
+        fundingStatus: "FAILED" as NoteListItem["fundingStatus"],
+        fundedAmount: 400,
+        fundingPercent: 5,
+      })
+    );
+    expect(mapped.fundedAmount).toBe("0");
+    expect(mapped.fundingProgressPercent).toBe(0);
+  });
+
+  it("keeps the real raise on funded notes", () => {
+    const mapped = dashboardNoteFromListItem(note());
+    expect(mapped.fundedAmount).toBe("8000");
+    expect(mapped.fundingProgressPercent).toBe(100);
+  });
 });

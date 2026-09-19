@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useIssuerDashboard } from "@/hooks/use-issuer-dashboard";
 import { useIssuerNotes } from "@/notes/hooks/use-issuer-notes";
+import { issuerNoteDisplayFundingPercent } from "@/notes/lib/funding-display";
 import type {
   IssuerDashboardContract,
   IssuerDashboardInvoice,
@@ -239,7 +240,8 @@ function NoteRow({ note }: { note: NoteListItem }) {
             </span>
           </div>
           <p className="mt-0.5 truncate text-sm text-muted-foreground">
-            Target {formatCurrency(note.targetAmount)} · Funded {note.fundingPercent.toFixed(1)}%
+            Target {formatCurrency(note.targetAmount)} · Funded{" "}
+            {issuerNoteDisplayFundingPercent(note).toFixed(1)}%
           </p>
         </div>
         {lateChargesDue ? (

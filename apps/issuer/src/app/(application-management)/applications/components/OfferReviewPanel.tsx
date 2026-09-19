@@ -120,7 +120,7 @@ import { CorporateGuarantorRepresentativesCard } from "./corporate-guarantor-rep
 import { IndividualGuarantorRepresentativesCard } from "./individual-guarantor-representatives-card";
 import { AuthorizedPartyTypeGroup } from "./authorized-party-type-group";
 import {
-  areIssuerDirectorSelectionsReady,
+  issuerDirectorSelectionIssue,
   issuerDirectorsFromPeople,
 } from "./issuer-directors";
 import {
@@ -149,6 +149,9 @@ const CONTRACT_FACILITY_FEE_RATE_TOOLTIP =
 
 const CONTRACT_FACILITY_FEE_CAP_TOOLTIP =
   "Amount already collected toward the facility fee, against the facility fee cap. Collection timing is at Shoraka's discretion.";
+
+const CONTRACT_FACILITY_FEE_UPFRONT_TOOLTIP =
+  "Amount you must pay through the payment gateway after accepting this offer. Any remaining facility fee is collected on later drawdowns.";
 
 export type OfferReviewPanelProps = {
   type: "contract" | "invoice";
@@ -814,6 +817,18 @@ export function OfferReviewPanel({
       ? offeredFacilityNumber * (facilityFeeRatePercentNumber / 100)
       : null;
 
+  const parsedFacilityFeeUpfrontCollect =
+    od?.facility_fee_upfront_collect_amount != null
+      ? Number(od.facility_fee_upfront_collect_amount)
+      : null;
+  const facilityFeeUpfrontCollectNumber =
+    type === "contract" &&
+    parsedFacilityFeeUpfrontCollect != null &&
+    Number.isFinite(parsedFacilityFeeUpfrontCollect) &&
+    parsedFacilityFeeUpfrontCollect > 0
+      ? parsedFacilityFeeUpfrontCollect
+      : null;
+
   const contractOfferFeeBalance =
     type === "contract" && offeredFacilityNumber != null && facilityFeeRatePercentNumber != null
       ? resolveIssuerFacilityFeeBalance({
@@ -1078,7 +1093,7 @@ export function OfferReviewPanel({
       if (!saved) return;
     }
     const repsBlocker = issuerOfferRepsBlocker({
-      directorsReady: areIssuerDirectorSelectionsReady(issuerDirectors, issuerRepMatchKeys),
+      directorIssue: issuerDirectorSelectionIssue(issuerDirectors, issuerRepMatchKeys),
       guarantorsReady: areGuarantorPartiesReady(guarantorRows, guarantorDrafts),
       requiresIssuerSeal,
       hasSealApplier: Boolean(sealApplierMatchKey),
@@ -1147,7 +1162,7 @@ export function OfferReviewPanel({
 
   const goToDocumentsStep = React.useCallback(async () => {
     const repsBlocker = issuerOfferRepsBlocker({
-      directorsReady: areIssuerDirectorSelectionsReady(issuerDirectors, issuerRepMatchKeys),
+      directorIssue: issuerDirectorSelectionIssue(issuerDirectors, issuerRepMatchKeys),
       guarantorsReady: areGuarantorPartiesReady(guarantorRows, guarantorDrafts),
       requiresIssuerSeal,
       hasSealApplier: Boolean(sealApplierMatchKey),
@@ -1389,7 +1404,7 @@ export function OfferReviewPanel({
     signingPhaseSkipsUploadGate || !hasPostDocs || postDocsState.areAllFilesUploaded;
   const issuerRepsBlocker = usesAcceptanceFlow
     ? issuerOfferRepsBlocker({
-        directorsReady: areIssuerDirectorSelectionsReady(issuerDirectors, issuerRepMatchKeys),
+        directorIssue: issuerDirectorSelectionIssue(issuerDirectors, issuerRepMatchKeys),
         guarantorsReady: areGuarantorPartiesReady(guarantorRows, guarantorDrafts),
         requiresIssuerSeal,
         hasSealApplier: Boolean(sealApplierMatchKey),
@@ -2272,9 +2287,11 @@ export function OfferReviewPanel({
                     label: "Facility fee",
                     value: formatCurrency(maximumFacilityFeeNumber),
                     hint:
-                      facilityFeeRatePercentNumber != null
-                        ? `${facilityFeeRatePercentNumber}% — owed on acceptance`
-                        : undefined,
+                      facilityFeeUpfrontCollectNumber != null
+                        ? `${formatCurrency(facilityFeeUpfrontCollectNumber)} payable after acceptance`
+                        : facilityFeeRatePercentNumber != null
+                          ? `${facilityFeeRatePercentNumber}% — owed on acceptance`
+                          : undefined,
                   },
                 ]
               : []),
@@ -2321,6 +2338,20 @@ export function OfferReviewPanel({
               }
               value={facilityFeeRatePercentNumber != null ? `${facilityFeeRatePercentNumber}%` : "—"}
             />
+            {facilityFeeUpfrontCollectNumber != null ? (
+              <OfferTermsDlRow
+                label={
+                  <span className="inline-flex items-center gap-1">
+                    Pay upfront
+                    <InfoTooltip
+                      content={CONTRACT_FACILITY_FEE_UPFRONT_TOOLTIP}
+                      iconClassName="h-3.5 w-3.5 shrink-0"
+                    />
+                  </span>
+                }
+                value={formatCurrency(facilityFeeUpfrontCollectNumber)}
+              />
+            ) : null}
             {contractOfferFeeBalance ? (
               <FacilityFeeBalanceSummary
                 balance={contractOfferFeeBalance}

@@ -5,7 +5,7 @@ category: Application Review
 tags:
   - admin
 order: 10
-updated: 2026-09-17
+updated: 2026-09-19
 ---
 
 ## Purpose
@@ -122,7 +122,7 @@ Issuers can download an **application summary** PDF from the application and lat
 Invoice-under-facility offers skip this runbook and use the emailed verification code instead.
 
 1. **Issuer uploads acceptance documents** named on the product. Typical ARF set: **Letter of Offer**, **Board Resolution**, and **Notice of Assignment**. Who uploads: the issuer on the offer. Who approves: admin on Offer Acceptance / Documents.
-2. **Issuer names authorised representatives** for the issuer and any company guarantors. Individual guarantors sign in their own name.
+2. **Issuer names authorised representatives** for the issuer and any company guarantors. Individual guarantors sign in their own name. Issuer director email is the People & Access **Person Email**, not the login email. CTOS/RegTank directors can have a blank Person Email; Continue then tells the issuer to add it on People & Access. If an issuer is stuck, confirm that field on the director person record rather than asking them to re-select the director.
 3. **Admin reviews and approves** those documents and representative lists. Until both are approved, the signing package stays locked.
 4. **Signing package becomes Ready / Approved for signing.** **Send signing links** stays disabled until CashSouk signing assignments are complete.
 5. **Assign Shoraka signers** under **Shoraka → Profile → Signing & Authorisation** before sending. Organisation roles (Director, Board, Management) are not signing roles. Signing roles are **Authorised Signatory** and **Witness**. Bind people to the document execution slots the package needs (Facility Agreement, Joint and Several Guarantee, Deed of Assignment). Incomplete two-person pairs or missing witnesses block send. The panel lists the blocking issues and links to those assignments.

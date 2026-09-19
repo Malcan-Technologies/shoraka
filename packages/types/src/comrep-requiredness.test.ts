@@ -9,6 +9,7 @@ import {
   requiredPostcodeIssue,
   requiredTextIssue,
   validateInvestorPersonalForm,
+  validateInvestorResidentialAddressForm,
   validateIssuerAddressForm,
   validateIssuerCompanyForm,
   validateIssuerContactPersonForm,
@@ -217,8 +218,6 @@ describe("ComRep requiredness", () => {
     const base = {
       gender: "MALE",
       nationality: "Malaysia",
-      state: "Johor",
-      postalCode: "80000",
     };
     expect(
       validateInvestorPersonalForm({
@@ -241,6 +240,35 @@ describe("ComRep requiredness", () => {
         identityKind: "PASSPORT",
       }).some((issue) => issue.field === "identityNumber")
     ).toBe(false);
+  });
+
+  it("validateInvestorPersonalForm ignores empty residential State and Postcode", () => {
+    const issues = validateInvestorPersonalForm({
+      gender: "FEMALE",
+      nationality: "Malaysia",
+    });
+    expect(issues.map((issue) => issue.field)).toEqual([]);
+  });
+
+  it("validateInvestorResidentialAddressForm requires State and Malaysian postcode", () => {
+    expect(
+      validateInvestorResidentialAddressForm({ state: "", postalCode: "" }).map((issue) => issue.field)
+    ).toEqual(["state", "postalCode"]);
+    expect(
+      validateInvestorResidentialAddressForm({ state: "Selangor", postalCode: "" }).map((issue) => issue.message)
+    ).toEqual(["Postcode is required."]);
+    expect(
+      validateInvestorResidentialAddressForm({
+        state: "Outside Malaysia",
+        postalCode: "",
+      })
+    ).toEqual([]);
+    expect(
+      validateInvestorResidentialAddressForm({
+        state: "Johor",
+        postalCode: "80000",
+      })
+    ).toEqual([]);
   });
 
   it("rejects NRIC with dashes and enforces exactly 12 digits", () => {

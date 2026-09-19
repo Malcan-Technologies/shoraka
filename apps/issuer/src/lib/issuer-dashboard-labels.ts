@@ -1,5 +1,9 @@
 import { InvoiceStatus } from "@cashsouk/types";
 import type { UserPortalStatusToken } from "@cashsouk/config";
+import {
+  issuerNoteDisplayFundedAmount,
+  issuerNoteDisplayFundingPercent,
+} from "@/notes/lib/funding-display";
 import type { IssuerDashboardNote } from "@/types/issuer-dashboard";
 
 /**
@@ -273,17 +277,33 @@ export const resolveInvoiceCardBadge = resolveIssuerInvoiceDashboardBadge;
 
 export type InvoiceCardBadgeKind = IssuerFinancingStatusKind;
 
+function dashboardNoteFundingIdentity(note: IssuerDashboardNote) {
+  return { status: note.noteStatus, fundingStatus: note.fundingStatus };
+}
+
 export function resolveFundingProgressPercent(note: IssuerDashboardNote | null): number {
   if (!note || note.fundingProgressPercent == null) return 0;
-  return note.fundingProgressPercent;
+  return issuerNoteDisplayFundingPercent({
+    ...dashboardNoteFundingIdentity(note),
+    fundingPercent: note.fundingProgressPercent,
+  });
+}
+
+export function resolveFundingDisplayFundedAmount(note: IssuerDashboardNote | null): number {
+  if (!note) return 0;
+  const amount = Number(String(note.fundedAmount).replace(/,/g, ""));
+  return issuerNoteDisplayFundedAmount({
+    ...dashboardNoteFundingIdentity(note),
+    fundedAmount: Number.isFinite(amount) ? amount : 0,
+  });
 }
 
 export function resolveFundingStatusText(note: IssuerDashboardNote | null): string {
   if (!note) return "Funding status (Not yet started)";
 
   const fs = norm(note.fundingStatus);
-  const pct = note.fundingProgressPercent;
-  const fundedRm = parseMoneyRm(note.fundedAmount);
+  const pct = resolveFundingProgressPercent(note);
+  const fundedRm = parseMoneyRm(String(resolveFundingDisplayFundedAmount(note)));
   const minReached = minFundingReached(note);
   const fundedBackend = backendSaysFunded(note);
 

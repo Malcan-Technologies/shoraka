@@ -14,6 +14,7 @@ export function FinancingAttentionCardLayout({
   headline,
   customer,
   amount,
+  amountCaption,
   meta,
   detail,
   hint,
@@ -29,6 +30,7 @@ export function FinancingAttentionCardLayout({
   headline: string;
   customer: string;
   amount: string;
+  amountCaption?: string | null;
   meta: string;
   detail: string | null;
   hint: string | null;
@@ -51,7 +53,12 @@ export function FinancingAttentionCardLayout({
         <p className="truncate text-ui text-muted-foreground" title={customer}>
           {customer}
         </p>
-        <p className="mt-1 text-section-title tabular-nums tracking-tight">{amount}</p>
+        {amountCaption ? (
+          <p className="mt-1 text-ui text-muted-foreground">{amountCaption}</p>
+        ) : null}
+        <p className={cn("tabular-nums tracking-tight text-section-title", amountCaption ? "mt-0.5" : "mt-1")}>
+          {amount}
+        </p>
         <p className="mt-3 min-w-0 break-all text-ui text-muted-foreground" title={meta}>
           {meta}
         </p>

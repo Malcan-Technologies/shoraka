@@ -182,7 +182,7 @@ function summarizeProfileStepsForDebug(
 const USER_LOCKED_ORG_FIELDS = new Set(["name", "dateOfBirth", "gender", "nationality", "identityNumber"]);
 /** Shared master fields the investor/issuer may change even when already filled.
  * When `fillEmptyOnly: true`, other USER writes are treated as "fill empties only".
- * DOB + gender must be overwrite-able for the Personal Investor profile editor.
+ * DOB, gender, and residential address must be overwrite-able for the Personal Investor profile editor.
  */
 const USER_OVERWRITE_ORG_FIELDS = new Set([
   "scInvestorCategory",
@@ -192,6 +192,7 @@ const USER_OVERWRITE_ORG_FIELDS = new Set([
   "gender",
   "nationality",
   "identityNumber",
+  "residentialAddress",
 ]);
 /** Verified identity fields stay locked once filled. ComRep collection fields may be corrected. */
 const USER_LOCKED_PARTY_FIELDS = new Set([
@@ -1622,7 +1623,7 @@ export async function patchOrgMasterProfile(params: {
     incoming: ProfileAddress | null | undefined
   ): unknown => {
     if (incoming === undefined) return current;
-    if (fillEmptyOnly) {
+    if (fillEmptyOnly && !USER_OVERWRITE_ORG_FIELDS.has(field)) {
       const result = mergeEmptyAddress({
         master: current,
         incoming,

@@ -254,6 +254,18 @@ describe("lifecycle stage completion dates", () => {
     expect(getNoteLifecycleStageIndex(complete)).toBe(6);
   });
 
+  it("uses past-tense release copy after Fail Funding", () => {
+    const failed = note({
+      status: NoteStatus.FAILED_FUNDING,
+      listingStatus: NoteListingStatus.CLOSED,
+      fundingStatus: NoteFundingStatus.FAILED,
+    });
+    const terminal = getNoteLifecycleTerminalFailure(failed, 1);
+    expect(terminal?.label).toBe("Funding failed");
+    expect(terminal?.description).toContain("Commitments have been released.");
+    expect(terminal?.description).not.toContain("must be released");
+  });
+
   it("marks defaulted on Settlement when settlement work has started", () => {
     const defaulted = note({
       status: NoteStatus.DEFAULTED,

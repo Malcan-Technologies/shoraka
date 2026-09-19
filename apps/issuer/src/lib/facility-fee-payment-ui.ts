@@ -40,6 +40,18 @@ export function hasFacilityFeeUpfrontOutstanding(value: unknown): boolean {
   return readFacilityFeeUpfrontOutstanding(value) > 0;
 }
 
+export function shouldShowIssuerFacilityFeePaymentCard(input: {
+  contractStatus?: string | null;
+  outstanding?: unknown;
+  held?: boolean;
+}): boolean {
+  if (String(input.contractStatus ?? "").trim().toUpperCase() !== "APPROVED") {
+    return false;
+  }
+  if (input.held) return true;
+  return hasFacilityFeeUpfrontOutstanding(input.outstanding);
+}
+
 export type FacilityFeePaymentCardState = "none" | "due" | "partial" | "complete" | "held";
 
 export type FacilityFeePaymentCardModel = {

@@ -14,6 +14,19 @@ export function isNoteFundingFailed(note: NoteFundingFields) {
   return note.status === "FAILED_FUNDING" || note.fundingStatus === "FAILED";
 }
 
+/** After fail-funding, commitments are released; do not keep showing the pre-fail raise. */
+export function noteDisplayFundedAmount(
+  note: NoteFundingFields & { fundedAmount: number }
+): number {
+  return isNoteFundingFailed(note) ? 0 : note.fundedAmount;
+}
+
+export function noteDisplayFundingPercent(
+  note: NoteFundingFields & { fundingPercent: number }
+): number {
+  return isNoteFundingFailed(note) ? 0 : note.fundingPercent;
+}
+
 /** Funding window has ended (successful close or failed close). */
 export function isNoteFundingComplete(note: NoteFundingFields) {
   return (
@@ -69,6 +82,7 @@ export function getNoteFundingAccentClass(note: NoteFundingFields) {
  * (FUNDED is yellow on disbursement queues).
  */
 export function getNoteFundingStatusToken(note: NoteFundingFields): StatusToken {
+  if (isNoteFundingFailed(note)) return "rejected";
   if (isNoteFundingOpen(note.fundingStatus)) return "submitted";
   if (note.fundingStatus === "FUNDED" || note.fundingStatus === "CLOSED") {
     return "success";
@@ -77,6 +91,7 @@ export function getNoteFundingStatusToken(note: NoteFundingFields): StatusToken 
 }
 
 export function getNoteFundingStatusLabel(note: NoteFundingFields) {
+  if (isNoteFundingFailed(note)) return "Funding Failed";
   if (isNoteFundingOpen(note.fundingStatus)) return "Funding Open";
   if (note.fundingStatus === "CLOSED" || note.fundingStatus === "FUNDED") {
     return "Funding Closed";

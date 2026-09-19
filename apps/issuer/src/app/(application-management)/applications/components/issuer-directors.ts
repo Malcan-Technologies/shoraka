@@ -51,18 +51,32 @@ export function issuerDirectorsFromPeople(
   return dedupeIssuerDirectors(fromPeople);
 }
 
+export type IssuerDirectorSelectionIssue =
+  | { kind: "none_selected" }
+  | { kind: "missing_email" }
+  | { kind: "missing_ic" };
+
+export function issuerDirectorSelectionIssue(
+  directors: IssuerDirectorOption[],
+  selectedMatchKeys: string[]
+): IssuerDirectorSelectionIssue | null {
+  const keys = selectedMatchKeys.map((key) => key.trim()).filter(Boolean);
+  if (keys.length === 0) return { kind: "none_selected" };
+
+  for (const key of keys) {
+    const director = directors.find((item) => item.matchKey === key);
+    if (!director) return { kind: "none_selected" };
+    if (!director.email.trim()) return { kind: "missing_email" };
+    if (!director.ic_number || !isValidSigningIcNumber(director.ic_number)) {
+      return { kind: "missing_ic" };
+    }
+  }
+  return null;
+}
+
 export function areIssuerDirectorSelectionsReady(
   directors: IssuerDirectorOption[],
   selectedMatchKeys: string[]
 ): boolean {
-  if (selectedMatchKeys.length === 0) return false;
-  return selectedMatchKeys.every((key) => {
-    const director = directors.find((item) => item.matchKey === key);
-    return Boolean(
-      director &&
-        director.email.trim() &&
-        director.ic_number &&
-        isValidSigningIcNumber(director.ic_number)
-    );
-  });
+  return issuerDirectorSelectionIssue(directors, selectedMatchKeys) === null;
 }

@@ -83,6 +83,10 @@ import {
   type NoteSettlementPoolSummary,
 } from "@cashsouk/types";
 import {
+  issuerNoteDisplayFundedAmount,
+  issuerNoteDisplayFundingRatio,
+} from "@/notes/lib/funding-display";
+import {
   ISSUER_SETTLEMENT_PAYOUT_INTRO,
   issuerSettlementAllocationLines,
   issuerSettlementProfitAccrualPeriod,
@@ -440,7 +444,8 @@ export default function IssuerNoteDetailPage() {
   const receiptCap = getIssuerReceiptCap(note);
   const remainingCapacity = getIssuerRemainingReceiptCapacity(note);
   const activeLateFeesInSettlement = getActiveSettlementLateFees(note);
-  const fundingRatio = note.targetAmount > 0 ? (note.fundedAmount / note.targetAmount) * 100 : 0;
+  const displayFundedAmount = issuerNoteDisplayFundedAmount(note);
+  const fundingRatio = issuerNoteDisplayFundingRatio(note);
   const fundingProgress = Math.min(Math.max(fundingRatio, 0), 100);
   const progressClassName = getFundingProgressClass(note.fundingStatus);
   const instructionEntries = Object.entries(instructions ?? {});
@@ -644,7 +649,7 @@ export default function IssuerNoteDetailPage() {
               <div>
                 <div className="text-xs text-muted-foreground">Funded Amount</div>
                 <div className="mt-1 text-xl font-semibold">
-                  {formatCurrency(note.fundedAmount)}
+                  {formatCurrency(displayFundedAmount)}
                 </div>
               </div>
               <div>

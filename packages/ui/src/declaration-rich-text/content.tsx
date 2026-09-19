@@ -18,7 +18,7 @@ export function DeclarationHtmlContent({ html, className }: DeclarationHtmlConte
   return (
     <div
       className={cn(
-        "min-w-0 text-sm md:text-base leading-6 text-foreground",
+        "min-w-0 text-sm md:text-base leading-6 text-foreground text-justify",
         "[&_p]:mb-2 last:[&_p]:mb-0",
         "[&_strong]:font-semibold [&_b]:font-semibold",
         "[&_em]:italic [&_i]:italic",

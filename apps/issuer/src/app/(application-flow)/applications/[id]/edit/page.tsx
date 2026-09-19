@@ -55,6 +55,8 @@ import {
   APPLICATION_STEP_KEYS_WITH_UI,
   STEP_KEY_DISPLAY,
   enforceDeclarationsLastAndDropReview,
+  APPLICATION_RESUBMIT_NEXT_STEP_COPY,
+  APPLICATION_RESUBMIT_REVIEW_COPY,
   FACILITY_ONLY_SUBMIT_COPY,
   INHERITED_FACILITY_GUARANTORS_STEP_DESCRIPTION,
   filterWorkflowStepsForOrigination,
@@ -2009,6 +2011,16 @@ function EditApplicationPageBody() {
     !isAmendmentModeEffective ||
     (amendmentContextStatus === "done" && isStructureResolved);
 
+  const processingFeeConfirmCopy = showProcessingFeeInConfirm
+    ? `Before your application is sent for review, you will need to pay a one-time application processing fee${
+        processingFeeAmount != null
+          ? ` of ${formatCurrency(processingFeeAmount)}`
+          : processingFeeOrderQuery.isLoading
+            ? " (loading amount…)"
+            : ""
+      } via FPX. This fee is non-refundable. If we request changes later, resubmitting does not require another payment.`
+    : null;
+
   const isStepRouteReady =
     !useBlockedFlowBackdrop &&
     hasStepQuery &&
@@ -2265,32 +2277,17 @@ function EditApplicationPageBody() {
               {isAmendmentModeEffective ? "Confirm resubmission" : "Confirm submission"}
             </DialogTitle>
             <DialogDescription asChild>
-              <div className="space-y-3 pt-1 text-ui leading-7 text-muted-foreground">
-                <p>
-                  Please review everything you have entered across all steps of this application. Make sure
-                  all information is complete and accurate before you continue. Incorrect or incomplete details
-                  may delay review or affect the outcome of your application.
-                </p>
-                <p>
-                  {isAmendmentModeEffective
-                    ? "When you resubmit, our team will review your updated application."
-                    : "After you submit, you will not be able to edit this application unless we request changes."}
-                </p>
-                {isFacilityOnlyJourney ? <p>{FACILITY_ONLY_SUBMIT_COPY}</p> : null}
-                {showProfileIncompleteWarning ? <p>{profileIncompleteWarning}</p> : null}
-                {showProcessingFeeInConfirm ? (
+              <div className="space-y-3 pt-1 text-ui leading-7 text-muted-foreground text-pretty">
+                <p>{APPLICATION_RESUBMIT_REVIEW_COPY}</p>
+                <p>{APPLICATION_RESUBMIT_NEXT_STEP_COPY}</p>
+                {processingFeeConfirmCopy ? (
                   <p>
-                    Before your application is sent for review, you will need to pay a one-time
-                    application processing fee
-                    {processingFeeAmount != null
-                      ? ` of ${formatCurrency(processingFeeAmount)}`
-                      : processingFeeOrderQuery.isLoading
-                        ? " (loading amount…)"
-                        : ""}{" "}
-                    via FPX. This fee is non-refundable. If we request changes later, resubmitting
-                    does not require another payment.
+                    {FACILITY_ONLY_SUBMIT_COPY} {processingFeeConfirmCopy}
                   </p>
+                ) : isFacilityOnlyJourney ? (
+                  <p>{FACILITY_ONLY_SUBMIT_COPY}</p>
                 ) : null}
+                {showProfileIncompleteWarning ? <p>{profileIncompleteWarning}</p> : null}
               </div>
             </DialogDescription>
           </DialogHeader>

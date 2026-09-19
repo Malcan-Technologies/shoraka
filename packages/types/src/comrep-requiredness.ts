@@ -579,27 +579,12 @@ export function validateIssuerAddressForm(input: {
 export function validateInvestorPersonalForm(input: {
   gender?: unknown;
   nationality?: unknown;
-  state?: unknown;
-  postalCode?: unknown;
   identityNumber?: unknown;
   identityKind?: "NRIC" | "PASSPORT";
 }): ComrepFieldIssue[] {
   const issues: ComrepFieldIssue[] = [];
   push(issues, requiredEnumIssue(input.gender, ["MALE", "FEMALE"], "gender", PROFILE_LABEL.gender));
   push(issues, requiredTextIssue(input.nationality, "nationality", PROFILE_LABEL.nationality));
-  push(
-    issues,
-    requiredStateIssue(input.state, "state", PROFILE_ADDRESS_FIELD_LABELS.state)
-  );
-  push(
-    issues,
-    requiredPostcodeIssue(
-      input.postalCode,
-      input.state,
-      "postalCode",
-      PROFILE_ADDRESS_FIELD_LABELS.postcode
-    )
-  );
   if (input.identityNumber !== undefined && trimToNull(input.identityNumber)) {
     push(
       issues,
@@ -611,6 +596,24 @@ export function validateInvestorPersonalForm(input: {
       )
     );
   }
+  return issues;
+}
+
+export function validateInvestorResidentialAddressForm(input: {
+  state?: unknown;
+  postalCode?: unknown;
+}): ComrepFieldIssue[] {
+  const issues: ComrepFieldIssue[] = [];
+  push(issues, requiredStateIssue(input.state, "state", PROFILE_ADDRESS_FIELD_LABELS.state));
+  push(
+    issues,
+    requiredPostcodeIssue(
+      input.postalCode,
+      input.state,
+      "postalCode",
+      PROFILE_ADDRESS_FIELD_LABELS.postcode
+    )
+  );
   return issues;
 }
 

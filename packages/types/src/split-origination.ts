@@ -483,8 +483,14 @@ export const OPENING_APPLICATION_COPY = {
     "This is the product your application will use. You will choose your financing goal on the next screen.",
 } as const;
 
+export const APPLICATION_RESUBMIT_REVIEW_COPY =
+  "Please review your updated information and ensure all details are complete and accurate.";
+
+export const APPLICATION_RESUBMIT_NEXT_STEP_COPY =
+  "Once resubmitted, your updated application will be sent to our team for review.";
+
 export const FACILITY_ONLY_SUBMIT_COPY =
-  "This application is for a facility only. After CashSouk approves it, Finance an invoice will appear on the facility so you can request financing for an invoice.";
+  "This application is for facility approval only. If approved, the “Finance an Invoice” option will become available, allowing you to submit invoices for financing.";
 
 export const INHERITED_FACILITY_GUARANTORS_STEP_DESCRIPTION =
   "Tell us why you are raising funds. Guarantors are taken from the approved facility.";

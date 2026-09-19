@@ -13,6 +13,8 @@ import {
 } from "@/notes/utils/workflow-status-tokens";
 import type { WorkflowStatusTone } from "@/notes/utils/workflow-status-tokens";
 import {
+  hasUnpaidIssuerResidual,
+  isNoteSettlementLifecycleFinished,
   noteDetailTabStatusToken,
   resolveNoteServicingTabStatus,
 } from "@/notes/utils/note-detail-next-action";
@@ -109,7 +111,16 @@ export function resolveDisbursementStageStatusToken(input: {
     | null;
 }): StatusToken {
   const { note, disbursementWithdrawal, investmentNoteCertificate } = input;
-  if (!disbursementWithdrawal) return "neutral";
+  if (!disbursementWithdrawal) {
+    return isNoteSettlementLifecycleFinished(note) ? "success" : "neutral";
+  }
+
+  const certificateFailed =
+    investmentNoteCertificate?.status === "FAILED" ||
+    investmentNoteCertificate?.reviewVersion?.status === "FAILED";
+  if (isNoteSettlementLifecycleFinished(note)) {
+    return certificateFailed ? "rejected" : "success";
+  }
 
   const tokens: StatusToken[] = [];
 
@@ -151,6 +162,20 @@ export function resolveServicingStageStatusToken(input: {
 
   // Preserve existing neutral/not-started behavior until servicing is actually relevant.
   if (baseSimple === "not-started") return baseToken;
+
+  if (isNoteSettlementLifecycleFinished(note)) {
+    const hibahFailed =
+      settlementHibahReceipt?.status === "FAILED" ||
+      settlementHibahReceipt?.reviewVersion?.status === "FAILED";
+    const confirmationsFailed =
+      (investmentSettlementConfirmations?.failedCount ?? 0) > 0 ||
+      investmentSettlementConfirmations?.confirmations.some(
+        (row) => row.reviewVersion?.status === "FAILED"
+      );
+    if (hibahFailed || confirmationsFailed) return "rejected";
+    if (hasUnpaidIssuerResidual(note)) return "action";
+    return "success";
+  }
 
   const tokens: StatusToken[] = [baseToken];
 
