@@ -651,7 +651,10 @@ export function ApplicationFinancialReviewComparison({
 
                     return groups.flatMap((group) => [
                       <TableRow key={`group-${group.title}`} className={applicationTableRowClass}>
-                        <TableCell colSpan={colSpan} className={cn(applicationTableCellClass, "bg-muted/20 font-medium")}>
+                        <TableCell
+                          colSpan={colSpan}
+                          className={cn(applicationTableCellClass, "bg-muted/10 font-semibold text-foreground py-2")}
+                        >
                           {group.title}
                         </TableCell>
                       </TableRow>,
