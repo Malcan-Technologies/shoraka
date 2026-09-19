@@ -87,7 +87,7 @@ export function normalizeProviderStatus(raw: unknown): ShorakaProviderStatus {
 }
 
 export function getMalaysiaCutoffWarning(now: Date): string | null {
-  // Malaysia time (MYT): daily maintenance/cutoff around 23:30 - 00:00
+  // Malaysia time (MYT): daily maintenance/cutoff around 23:30 - 00:30
   const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Asia/Kuala_Lumpur",
     hour: "2-digit",
@@ -101,12 +101,12 @@ export function getMalaysiaCutoffWarning(now: Date): string | null {
   const minute = Number(minuteStr);
 
   const inWindow =
-    // Block only between 11:30 PM (inclusive) and 12:00 AM (exclusive).
-    hour === 23 && minute >= 30;
+    // Block only between 11:30 PM (inclusive) and 12:30 AM (exclusive).
+    (hour === 23 && minute >= 30) || (hour === 0 && minute >= 0 && minute < 30);
 
   if (!inWindow) return null;
 
-  return "Tawarruq trading is unavailable from 11:30 PM to 12:00 AM. Please try again after 12:00 AM.";
+  return "Tawarruq trading is unavailable from 11:30 PM to 12:30 AM. Please try again after 12:30 AM.";
 }
 
 async function resolveOwnershipForIssuerDisbursement(args: {
