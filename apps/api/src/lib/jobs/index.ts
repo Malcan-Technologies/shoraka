@@ -14,6 +14,8 @@ import { runSettlementHibahReceiptRetryJob } from "./settlement-hibah-receipt-re
 import { runInvestmentSettlementConfirmationRetryJob } from "./investment-settlement-confirmation-retry";
 import { runNoteServicingStatusJob } from "./note-servicing-status";
 import { JOB_LOCK_KEYS, withAdvisoryLock } from "./with-advisory-lock";
+import { shorakaStpService } from "../../modules/shoraka-stp/shoraka-stp-service";
+import { runShorakaTawarruqStatusPollerJob } from "./shoraka-tawarruq-status-poller";
 
 const notificationService = new NotificationService();
 
@@ -41,6 +43,18 @@ export function initJobs() {
     } catch (error) {
       logger.error({ error }, "Failed to run CTOS KYB retry job");
     }
+  });
+
+  // Shoraka Tawarruq fallback polling: refresh provider status for any orders still in-progress.
+  // Primary flow remains webhooks; this job only acts as a safety-net when callbacks are delayed/missed.
+  cron.schedule("*/5 * * * *", async () => {
+    await withAdvisoryLock(JOB_LOCK_KEYS.SHORAKA_TAWARRUQ_STATUS_POLLER, async () => {
+      try {
+        await runShorakaTawarruqStatusPollerJob(shorakaStpService);
+      } catch (error) {
+        logger.error({ error }, "Failed to run Shoraka Tawarruq status poller job");
+      }
+    });
   });
 
   // Note listing expiry: auto-close marketplace listings past their scheduled close time.
