@@ -1139,7 +1139,7 @@ export function FinancialStatementsStep({
         </section>
         <div className="border-t border-border pt-8">
           <div className="mb-6">
-            <h4 className={applicationFlowSectionTitleClassName}>ComRep Financial Details</h4>
+            <h4 className={applicationFlowSectionTitleClassName}>Additional Financial Details</h4>
             <p className="text-sm text-muted-foreground">
               For regulatory reporting. Filling this in may strengthen your application.
             </p>

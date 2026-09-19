@@ -34,6 +34,7 @@ import {
 import { cn } from "@/lib/utils";
 import { DirectorShareholderTable } from "@/components/admin/director-shareholder-table";
 import { formatCurrency, formatNumber } from "@cashsouk/config";
+import { InfoTooltip } from "@cashsouk/ui";
 import {
   APPLICATION_COMREP_DETAIL_KEYS,
   FINANCIAL_FIELD_LABELS,
@@ -796,7 +797,7 @@ export function ApplicationFinancialReviewContent({
 
       <ReviewFieldBlock
         title="Additional Financial Details"
-        titleTooltip="ComRep reporting fields entered by the issuer. These are separate from the financing statement lines above and are not in CTOS extracts."
+        titleTooltip="Regulatory reporting fields entered by the issuer. These are separate from the financing statement lines above and are not in CTOS extracts."
       >
         <div className={applicationTableWrapperClass}>
           <div className="overflow-x-auto">
@@ -836,50 +837,102 @@ export function ApplicationFinancialReviewContent({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {APPLICATION_COMREP_DETAIL_KEYS.map((key) => (
-                  <TableRow key={key} className={applicationTableRowClass}>
-                    <TableCell
-                      className={cn(
-                        applicationTableCellClass,
-                        "border-r border-border bg-muted/20 font-medium text-foreground"
-                      )}
-                    >
-                      {FINANCIAL_FIELD_LABELS[key] ?? key}
-                    </TableCell>
-                    {columns.map((spec, ci) => {
-                      const fs = spec.year == null ? null : getFsCol(ci);
-                      let cellText = "—";
-                      if (spec.kind === "ctos") {
-                        cellText = spec.year == null ? "—" : "Not in CTOS extract";
-                      } else if (!fs || fs[key] == null || fs[key] === "") {
-                        cellText = "Not provided in issuer form";
-                      } else {
-                        cellText = formatCurrency(toNum(fs[key]), { decimals: 0 });
-                      }
-                      const muted =
-                        cellText === "—" ||
-                        cellText === "Not provided in issuer form" ||
-                        cellText === "Not in CTOS extract";
-                      return (
+                {(() => {
+                  const OPTIONAL_EQUITY_KEYS = new Set([
+                    "equity_share_application",
+                    "equity_share_premium",
+                    "equity_minority",
+                  ]);
+
+                  const OPTIONAL_EQUITY_TOOLTIP_TEXT =
+                    "If this does not apply to you or there is no information to report, leave the field blank.";
+
+                  const groups = [
+                    {
+                      title: "Liability Breakdown",
+                      keys: ["curlib_borrowing", "curlib_non_borrowing", "ncl_loan", "ncl_non_loan"] as const,
+                    },
+                    {
+                      title: "Equity Breakdown",
+                      keys: [
+                        "equity_share_application",
+                        "equity_share_premium",
+                        "equity_accumulated_profit",
+                        "equity_minority",
+                      ] as const,
+                    },
+                    { title: "Profit & Loss", keys: ["pl_minority"] as const },
+                    {
+                      title: "Costs",
+                      keys: ["operating_cost", "admin_cost", "interest_cost", "other_cost"] as const,
+                    },
+                  ];
+
+                  const renderLabel = (key: string) => {
+                    const base = FINANCIAL_FIELD_LABELS[key] ?? key;
+                    if (!OPTIONAL_EQUITY_KEYS.has(key)) return base;
+                    return (
+                      <div className="flex items-center gap-2">
+                        <span>{base} (if applicable)</span>
+                        <InfoTooltip content={OPTIONAL_EQUITY_TOOLTIP_TEXT} />
+                      </div>
+                    );
+                  };
+
+                  const colSpan = 1 + columns.length;
+
+                  return groups.flatMap((group) => [
+                    <TableRow key={`group-${group.title}`} className={applicationTableRowClass}>
+                      <TableCell colSpan={colSpan} className={cn(applicationTableCellClass, "bg-muted/20 font-medium")}>
+                        {group.title}
+                      </TableCell>
+                    </TableRow>,
+                    ...group.keys.map((key) => (
+                      <TableRow key={key} className={applicationTableRowClass}>
                         <TableCell
-                          key={`comrep-${spec.kind}-${spec.year ?? "x"}-${ci}-${key}`}
                           className={cn(
                             applicationTableCellClass,
-                            "border-r border-border text-right tabular-nums last:border-r-0",
-                            financialSummaryColumnShellClass(spec.kind, ci, spec.year),
-                            !muted && "text-foreground"
+                            "border-r border-border bg-muted/20 font-medium text-foreground"
                           )}
                         >
-                          {muted ? (
-                            <span className="text-muted-foreground">{cellText}</span>
-                          ) : (
-                            <span className="tabular-nums">{cellText}</span>
-                          )}
+                          {renderLabel(key)}
                         </TableCell>
-                      );
-                    })}
-                  </TableRow>
-                ))}
+                        {columns.map((spec, ci) => {
+                          const fs = spec.year == null ? null : getFsCol(ci);
+                          let cellText = "—";
+                          if (spec.kind === "ctos") {
+                            cellText = spec.year == null ? "—" : "Not in CTOS extract";
+                          } else if (!fs || fs[key] == null || fs[key] === "") {
+                            cellText = "Not provided in issuer form";
+                          } else {
+                            cellText = formatCurrency(toNum(fs[key]), { decimals: 0 });
+                          }
+                          const muted =
+                            cellText === "—" ||
+                            cellText === "Not provided in issuer form" ||
+                            cellText === "Not in CTOS extract";
+                          return (
+                            <TableCell
+                              key={`comrep-${spec.kind}-${spec.year ?? "x"}-${ci}-${key}`}
+                              className={cn(
+                                applicationTableCellClass,
+                                "border-r border-border text-right tabular-nums last:border-r-0",
+                                financialSummaryColumnShellClass(spec.kind, ci, spec.year),
+                                !muted && "text-foreground"
+                              )}
+                            >
+                              {muted ? (
+                                <span className="text-muted-foreground">{cellText}</span>
+                              ) : (
+                                <span className="tabular-nums">{cellText}</span>
+                              )}
+                            </TableCell>
+                          );
+                        })}
+                      </TableRow>
+                    )),
+                  ]);
+                })()}
               </TableBody>
             </Table>
           </div>
