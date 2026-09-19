@@ -1361,6 +1361,11 @@ function EditApplicationPageBody() {
       }
 
       await persistDeclarationsStep(declarationsPayload);
+      if (currentStepKey === "declarations") {
+        // Declarations were persisted successfully; clear dirty state so the payment redirect
+        // (Curlec/FPX callback / navigation) does not trigger the browser "Leave site?" warning.
+        setHasUnsavedChanges(false);
+      }
       await finalizeApplicationSubmit(wasAmendmentResubmit);
       successPendingNav = true;
     } catch (error) {
@@ -1436,6 +1441,10 @@ function EditApplicationPageBody() {
       }
 
       await persistDeclarationsStep(declarationsPayload);
+      if (currentStepKey === "declarations") {
+        // Only clear after the declarations save succeeds; on failure we must keep warning protection.
+        setHasUnsavedChanges(false);
+      }
 
       if (requiresProcessingFee) {
         try {
