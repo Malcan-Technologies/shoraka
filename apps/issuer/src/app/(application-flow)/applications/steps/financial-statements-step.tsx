@@ -1123,9 +1123,20 @@ export function FinancialStatementsStep({
         </section>
         <div className="border-t border-border pt-8">
           <div className="mb-6">
-            <h4 className={applicationFlowSectionTitleClassName}>
-              ComRep Financial Details
-            </h4>
+            <div className="flex items-center gap-2">
+              <h4 className={applicationFlowSectionTitleClassName}>ComRep Financial Details</h4>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className={fieldTooltipTriggerClassName}>
+                    <InformationCircleIcon className="h-4 w-4" />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
+                  If this does not apply to you or there is no information to report, leave the field
+                  blank.
+                </TooltipContent>
+              </Tooltip>
+            </div>
             <p className="text-sm text-muted-foreground">
               For regulatory reporting. Filling this in may strengthen your application.
             </p>
