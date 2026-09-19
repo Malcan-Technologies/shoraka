@@ -1061,7 +1061,7 @@ export function FinancialStatementsStep({
           <div className={stepFormRowGridClassName}>
             <MoneyFieldRow
               id={`${yearKey}-bsqpuc`}
-              label={getLabel("bsqpuc")}
+              label="Paid-up Share Capital"
               value={form.bsqpuc ?? ""}
               onValueChange={(v) => updateFormYear(yearKey, "bsqpuc", v)}
               readOnly={readOnly}
@@ -1075,7 +1075,7 @@ export function FinancialStatementsStep({
           <div className={stepFormRowGridClassName}>
             <MoneyFieldRow
               id={`${yearKey}-turnover`}
-              label={getLabel("turnover")}
+              label="Revenue (Turnover)"
               value={form.turnover ?? ""}
               onValueChange={(v) => updateFormYear(yearKey, "turnover", v)}
               readOnly={readOnly}
@@ -1139,7 +1139,7 @@ export function FinancialStatementsStep({
         </section>
         <div className="border-t border-border pt-8">
           <div className="mb-6">
-            <h4 className={applicationFlowSectionTitleClassName}>ComRep Financial Details</h4>
+            <h4 className={applicationFlowSectionTitleClassName}>Additional Financial Details</h4>
             <p className="text-sm text-muted-foreground">
               For regulatory reporting. Filling this in may strengthen your application.
             </p>
@@ -1180,11 +1180,11 @@ export function FinancialStatementsStep({
                   id={`${yearKey}-${key}`}
                   label={
                     key === "equity_share_application"
-                      ? "Share Application Account (if applicable)"
+                      ? "Share Application Account"
                       : key === "equity_share_premium"
-                        ? "Share Premium & Other Reserves (if applicable)"
+                        ? "Share Premium & Other Reserves"
                         : key === "equity_minority"
-                          ? "Minority Interest (if applicable)"
+                          ? "Minority Interest"
                           : getLabel(key)
                   }
                   value={form[key] ?? ""}

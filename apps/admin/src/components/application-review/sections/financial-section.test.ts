@@ -89,7 +89,10 @@ describe("admin application financial review extra ComRep section", () => {
     );
     expect(content).toContain('title="Additional Financial Details"');
     expect(content).toContain("APPLICATION_COMREP_DETAIL_KEYS");
-    expect(content.indexOf('id: "curlib"')).toBeLessThan(content.indexOf("APPLICATION_COMREP_DETAIL_KEYS.map"));
+    expect(content).toContain("Liability Breakdown");
+    expect(content).toContain("Equity Breakdown");
+    expect(content).toContain("Profit & Loss");
+    expect(content).toContain("Costs");
     expect(comparison).toContain('title="Additional Financial Details"');
     expect(comparison).toContain("COMREP_ROW_LABELS");
   });
