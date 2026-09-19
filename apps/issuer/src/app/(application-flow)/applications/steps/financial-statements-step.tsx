@@ -1180,11 +1180,11 @@ export function FinancialStatementsStep({
                   id={`${yearKey}-${key}`}
                   label={
                     key === "equity_share_application"
-                      ? "Share Application Account"
+                      ? "Share Application Account "
                       : key === "equity_share_premium"
-                        ? "Share Premium & Other Reserves"
+                        ? "Share Premium & Other Reserves "
                         : key === "equity_minority"
-                          ? "Minority Interest"
+                          ? "Minority Interest "
                           : getLabel(key)
                   }
                   value={form[key] ?? ""}
