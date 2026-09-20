@@ -108,7 +108,10 @@ export function WorkingAreaPreviewApproval({
         <ul className="overflow-hidden rounded-xl border" aria-label="Prospectus page readiness">
           {pageSteps.map((pageStep) => {
             const pageMissing = missingByPage[pageStep]?.length ?? 0;
-            const readiness = pageReadinessLabel(pageStep, pageMissing, totalMissing);
+            let readiness = pageReadinessLabel(pageStep, pageMissing, totalMissing);
+            if (marcEvaluationPending && (pageStep === 1 || pageStep === 3)) {
+              readiness = { text: "MARC evaluation pending", tone: "missing" };
+            }
             const status = stepStatuses[pageStep];
             return (
               <li key={pageStep} className="border-b last:border-b-0">

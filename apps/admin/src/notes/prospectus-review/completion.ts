@@ -246,13 +246,22 @@ export function getProspectusStepStatuses(
   draft: import("@cashsouk/types").ProspectusReviewStoredContent,
   options?: ProspectusCompletionOptions
 ): Partial<Record<ProspectusWorkflowStepId, ProspectusStepStatus>> {
+  const hasMarcAssessmentKey =
+    options != null && Object.prototype.hasOwnProperty.call(options, "hasMarcAssessment");
+  const marcEvaluationPending =
+    hasMarcAssessmentKey && options?.hasMarcAssessment === undefined;
+
   const missing = buildProspectusMissingRequiredFields(draft, options);
 
   return {
     0: pageStatusFromMissing(missing, 0),
-    1: pageStatusFromMissing(missing, 1),
+    1: marcEvaluationPending ? ("required" as const) : pageStatusFromMissing(missing, 1),
     2: pageStatusFromMissing(missing, 2),
-    ...(missing.length === 0 ? { 3: "complete" as const } : {}),
+    ...(missing.length === 0
+      ? marcEvaluationPending
+        ? { 3: "required" as const }
+        : { 3: "complete" as const }
+      : undefined),
   };
 }
 
@@ -457,6 +466,14 @@ export function formatProspectusPageCompletionLabel(
   options?: ProspectusCompletionOptions
 ): string | undefined {
   if (pageStep === 3) return undefined;
+
+  const hasMarcAssessmentKey =
+    options != null && Object.prototype.hasOwnProperty.call(options, "hasMarcAssessment");
+  const marcEvaluationPending =
+    hasMarcAssessmentKey && options?.hasMarcAssessment === undefined;
+
+  if (pageStep === 1 && marcEvaluationPending) return "MARC evaluation pending";
+
   const missingOnPage = buildProspectusMissingRequiredFields(draft, options).filter(
     (item) => item.pageStep === pageStep
   );

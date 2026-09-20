@@ -143,10 +143,18 @@ export function WorkingAreaPageTwo({
   const financialMissing = countMissingForTab(draft, "financial", completionOptions);
   const creditMissing = countMissingForTab(draft, "credit_invoice", completionOptions);
   const invoiceFactsMissing = deedOfAssignment ? 0 : 1;
-  const creditInsightsMissing =
+  const marcEvaluationPending =
+    Object.prototype.hasOwnProperty.call(completionOptions ?? {}, "hasMarcAssessment") &&
+    completionOptions?.hasMarcAssessment === undefined;
+
+  const creditInsightsMissingCore =
     (draft.page2.creditInsights.litigationCheckOptionKey ? 0 : 1) +
     (draft.page2.creditInsights.ccrisStatusOptionKey ? 0 : 1) +
     (completionOptions?.hasMarcAssessment === false ? 1 : 0);
+
+  // When MARC is still being evaluated we must not label this section as "Complete".
+  // Keep MARC out of the missing rules, but show a neutral/unlabelled state instead.
+  const creditInsightsMissing = creditInsightsMissingCore > 0 ? creditInsightsMissingCore : undefined;
 
   const updateFinancialOverride = (fyeKey: string, field: string, value: string) => {
     updateDraft((prev) => ({
@@ -193,8 +201,14 @@ export function WorkingAreaPageTwo({
             id: "credit_invoice",
             label: "Credit & Invoice",
             missingCount: creditMissing,
+            optional: marcEvaluationPending && creditMissing === 0,
           },
-          { id: "risk", label: "Risk Information", missingCount: 0 },
+          {
+            id: "risk",
+            label: "Risk Information",
+            missingCount: 0,
+            optional: marcEvaluationPending,
+          },
         ]}
       />
 

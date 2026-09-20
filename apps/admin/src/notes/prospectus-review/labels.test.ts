@@ -334,6 +334,14 @@ describe("prospectus review completion readiness", () => {
 
     expect(isProspectusDraftReadyToSubmit(draft, { hasMarcAssessment: undefined })).toBe(false);
     expect(isProspectusDraftReadyToSubmit(draft, { hasMarcAssessment: true })).toBe(true);
+
+    // Step/card completion indicators must not show "Complete" while MARC is still pending.
+    expect(getProspectusStepStatuses(draft, { hasMarcAssessment: undefined })[1]).toBe("required");
+    expect(getProspectusStepStatuses(draft, { hasMarcAssessment: undefined })[3]).toBe("required");
+
+    // Once MARC is confirmed complete, normal "Complete" indicators resume.
+    expect(getProspectusStepStatuses(draft, { hasMarcAssessment: true })[1]).toBe("complete");
+    expect(getProspectusStepStatuses(draft, { hasMarcAssessment: true })[3]).toBe("complete");
   });
 });
 
