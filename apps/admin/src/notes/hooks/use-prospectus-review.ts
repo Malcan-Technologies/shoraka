@@ -11,6 +11,39 @@ import { notesKeys } from "../query-keys";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
+type ApiErrorShape = {
+  code?: string;
+  message?: string;
+  details?: unknown;
+};
+
+/**
+ * Prospectus Review validation errors return:
+ *   { success: false, error: { message, details } }
+ * where `details` is typically an array of field-level errors: { path, message }.
+ *
+ * This helper extracts the first useful detail.message (deterministic) and
+ * falls back to the top-level error.message if details are missing/unknown.
+ */
+export function prospectusReviewErrorMessage(error: ApiErrorShape | undefined): string {
+  const details = error?.details;
+
+  const firstDetailMessage = (() => {
+    if (!details) return null;
+    if (Array.isArray(details)) {
+      for (const d of details) {
+        if (d && typeof d === "object") {
+          const msg = (d as { message?: unknown }).message;
+          if (typeof msg === "string" && msg.trim()) return msg.trim();
+        }
+      }
+    }
+    return null;
+  })();
+
+  return firstDetailMessage ?? error?.message ?? "Request failed";
+}
+
 function prospectusReviewKey(noteId: string) {
   return [...notesKeys.detail(noteId), "prospectus-review"] as const;
 }
@@ -54,7 +87,7 @@ export function useSaveProspectusReviewDraft(noteId: string) {
         if (res.error.code === "CONFLICT") {
           throw new ProspectusReviewConflictError(res.error.message);
         }
-        throw new Error(res.error.message);
+        throw new Error(prospectusReviewErrorMessage(res.error as ApiErrorShape));
       }
       return res.data;
     },
@@ -108,7 +141,7 @@ export function useApproveProspectusReview(noteId: string) {
   return useMutation({
     mutationFn: async (input?: SaveProspectusReviewDraftInput) => {
       const res = await apiClient.approveAdminProspectusReview(noteId, input);
-      if (!res.success) throw new Error(res.error.message);
+      if (!res.success) throw new Error(prospectusReviewErrorMessage(res.error as ApiErrorShape));
       return res.data;
     },
     onSuccess: (review: ProspectusReviewDetail) => {
@@ -140,7 +173,7 @@ export function useProspectusReviewPreview(noteId: string, enabled: boolean) {
     refetchOnWindowFocus: false,
     queryFn: async () => {
       const res = await apiClient.getAdminProspectusReviewPreview(noteId);
-      if (!res.success) throw new Error(res.error.message);
+      if (!res.success) throw new Error(prospectusReviewErrorMessage(res.error as ApiErrorShape));
       return res.data;
     },
   });
@@ -156,7 +189,7 @@ export function usePreviewProspectusReview(noteId: string) {
   return useMutation({
     mutationFn: async (input: SaveProspectusReviewDraftInput) => {
       const res = await apiClient.postAdminProspectusReviewPreview(noteId, input);
-      if (!res.success) throw new Error(res.error.message);
+      if (!res.success) throw new Error(prospectusReviewErrorMessage(res.error as ApiErrorShape));
       return res.data;
     },
   });
