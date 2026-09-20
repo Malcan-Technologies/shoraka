@@ -58,8 +58,11 @@ export const prospectusReviewStoredContentSchema = z
           z
             .object({
               key: z.string(),
-              title: z.string().max(HIGHLIGHT_TITLE_MAX).optional().default(""),
-              description: z.string().max(HIGHLIGHT_DESCRIPTION_MAX).optional().default(""),
+              // Do NOT default empty strings here.
+              // Admin intentional blanks (title: "" / description: "") must remain authoritative.
+              // Missing fields should be treated as "not provided" so backend can apply recommendations.
+              title: z.string().max(HIGHLIGHT_TITLE_MAX).optional(),
+              description: z.string().max(HIGHLIGHT_DESCRIPTION_MAX).optional(),
               // Legacy catalogue fields accepted for parse only.
               optionKey: nullableOptionKey,
               isVisible: z.boolean().optional(),
