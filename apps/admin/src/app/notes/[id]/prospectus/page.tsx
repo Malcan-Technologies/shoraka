@@ -217,6 +217,8 @@ function ProspectusReviewPageInner() {
         toast.error("This review was updated elsewhere. Refresh and try again.");
         void refetch();
         setDirty(false);
+        setLivePreviewHtml(null);
+        setPreviewOpen(false);
         return false;
       }
       toast.error(e instanceof Error ? e.message : "Save failed");
@@ -252,14 +254,16 @@ function ProspectusReviewPageInner() {
     approveInFlightRef.current = true;
 
     try {
+      let expectedUpdatedAtForApprove: string | undefined;
       if (approveDialogDirty) {
         setApprovePhase("saving");
         try {
-          await saveDraft.mutateAsync({
+          const saved = await saveDraft.mutateAsync({
             draftContent: draft,
             expectedUpdatedAt: data.review.updatedAt,
           });
           setDirty(false);
+          expectedUpdatedAtForApprove = saved.updatedAt;
         } catch (e) {
           if (e instanceof ProspectusReviewConflictError) {
             toast.error("This review was updated elsewhere. Refresh and try again.");
@@ -269,13 +273,29 @@ function ProspectusReviewPageInner() {
           toast.error(e instanceof Error ? e.message : "Save failed");
           return;
         }
+      } else {
+        expectedUpdatedAtForApprove = data.review.updatedAt;
       }
 
       setApprovePhase("approving");
       // Approve the saved review only — never pass unsaved draftContent here.
-      await approve.mutateAsync(undefined);
-      setApproveDialogOpen(false);
-      toast.success("Prospectus approved — Note is eligible for publication");
+      try {
+        await approve.mutateAsync({ expectedUpdatedAt: expectedUpdatedAtForApprove } as any);
+        setApproveDialogOpen(false);
+        toast.success("Prospectus approved — Note is eligible for publication");
+      } catch (e) {
+        if (e instanceof ProspectusReviewConflictError) {
+          toast.error(
+            "This Prospectus was updated by another user. Please review the latest version before approving."
+          );
+          void refetch();
+          setDirty(false);
+          setLivePreviewHtml(null);
+          setPreviewOpen(false);
+          return;
+        }
+        throw e;
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Approve failed");
     } finally {
@@ -409,7 +429,7 @@ function ProspectusReviewPageInner() {
   const usingLivePreview = livePreviewHtml != null;
   const previewStatusLabel = usingLivePreview
     ? ("Live preview" as const)
-    : status === "APPROVED" || status === "PUBLISHED"
+    : status === "APPROVED" || status === "READY_FOR_PUBLISH" || status === "PUBLISHED"
       ? ("Approved preview" as const)
       : ("Draft preview" as const);
   const previewHtml = usingLivePreview
@@ -439,6 +459,9 @@ function ProspectusReviewPageInner() {
     draft,
     completionOptions
   ).length;
+  const marcEvaluationPending =
+    Object.prototype.hasOwnProperty.call(completionOptions, "hasMarcAssessment") &&
+    completionOptions.hasMarcAssessment === undefined;
 
   const stepNav = (
     <nav aria-label="Prospectus review steps" className="space-y-4">
@@ -541,6 +564,7 @@ function ProspectusReviewPageInner() {
                   approveBusy ||
                   approve.isPending ||
                   requiredMissingCount > 0 ||
+                  marcEvaluationPending ||
                   saveDraft.isPending
                 }
                 title={

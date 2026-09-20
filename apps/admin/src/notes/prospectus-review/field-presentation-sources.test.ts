@@ -43,9 +43,9 @@ describe("prospectus field presentation — hidden sources", () => {
   });
 
   it("keeps Page 3 admin overview as separate Industry and Company Size fields", () => {
-    expect(pageThreeCoverage).toContain('label: "Industry"');
+    expect(pageThreeCoverage).toContain('label: "Sector"');
     expect(pageThreeCoverage).toContain('label: "Company Size"');
-    expect(pageThreeCoverage).toContain('label: "Risk Grade"');
+    expect(pageThreeCoverage).toContain('label: "Risk Rating"');
     expect(pageThreeCoverage).toContain('label: "Paymaster"');
     expect(pageThreeCoverage).not.toContain('label: "Paymaster Grading"');
     expect(pageThreeCoverage).not.toContain('label: "Confidence Grading"');

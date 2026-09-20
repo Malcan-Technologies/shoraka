@@ -20,6 +20,33 @@ function hasOption(value: string | null | undefined): boolean {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+/**
+ * Frontend numeric parsing must match backend `parseProspectusFinancialNumber`.
+ * Absent/empty/invalid → null.
+ */
+function parseProspectusFinancialNumber(value: unknown): number | null {
+  if (value == null) return null;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const parsed = Number(trimmed.replace(/,/g, ""));
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function isValidRequiredOverrideNumber(
+  field: (typeof PAGE_TWO_OVERRIDE_FIELDS)[number],
+  value: unknown
+): boolean {
+  const n = parseProspectusFinancialNumber(value);
+  if (n == null) return false;
+  if (n < 0) return false;
+  if (field === "receivablesDays") return Number.isInteger(n);
+  return true;
+}
+
 function hasHighlightCopy(value: { title?: string; description?: string; key?: string }): boolean {
   if (value.key === "shariah") return true;
   return hasOption(value.title) && hasOption(value.description);
@@ -82,7 +109,7 @@ function pageTwoOverridesComplete(
       {};
     return PAGE_TWO_OVERRIDE_FIELDS.every((field) => {
       const value = row[field];
-      return value != null && value !== "";
+      return isValidRequiredOverrideNumber(field, value);
     });
   });
 }
@@ -192,7 +219,15 @@ export function isProspectusDraftReadyToSubmit(
   draft: import("@cashsouk/types").ProspectusReviewStoredContent,
   options?: ProspectusCompletionOptions
 ): boolean {
-  return buildProspectusMissingRequiredFields(draft, options).length === 0;
+  const missingCount = buildProspectusMissingRequiredFields(draft, options).length;
+  // `hasMarcAssessment: undefined` means the UI has not finished evaluating MARC completeness.
+  // In that state we must not allow final approval, even though MARC is not counted as "missing".
+  const hasMarcAssessmentKey =
+    options != null && Object.prototype.hasOwnProperty.call(options, "hasMarcAssessment");
+  const marcEvaluationPending =
+    hasMarcAssessmentKey && options?.hasMarcAssessment === undefined;
+
+  return missingCount === 0 && !marcEvaluationPending;
 }
 
 export function statusForCompletionItem(item: ProspectusCompletionItem): ProspectusStepStatus {
@@ -211,13 +246,22 @@ export function getProspectusStepStatuses(
   draft: import("@cashsouk/types").ProspectusReviewStoredContent,
   options?: ProspectusCompletionOptions
 ): Partial<Record<ProspectusWorkflowStepId, ProspectusStepStatus>> {
+  const hasMarcAssessmentKey =
+    options != null && Object.prototype.hasOwnProperty.call(options, "hasMarcAssessment");
+  const marcEvaluationPending =
+    hasMarcAssessmentKey && options?.hasMarcAssessment === undefined;
+
   const missing = buildProspectusMissingRequiredFields(draft, options);
 
   return {
     0: pageStatusFromMissing(missing, 0),
-    1: pageStatusFromMissing(missing, 1),
+    1: marcEvaluationPending ? ("required" as const) : pageStatusFromMissing(missing, 1),
     2: pageStatusFromMissing(missing, 2),
-    ...(missing.length === 0 ? { 3: "complete" as const } : {}),
+    ...(missing.length === 0
+      ? marcEvaluationPending
+        ? { 3: "required" as const }
+        : { 3: "complete" as const }
+      : undefined),
   };
 }
 
@@ -319,7 +363,7 @@ export function buildProspectusMissingRequiredFields(
       {};
     for (const field of PAGE_TWO_OVERRIDE_FIELDS) {
       const value = overrideRow[field];
-      if (value == null || value === "") {
+      if (!isValidRequiredOverrideNumber(field, value)) {
         missing.push({
           pageStep: 1,
           section: "Financial Comparison",
@@ -422,6 +466,14 @@ export function formatProspectusPageCompletionLabel(
   options?: ProspectusCompletionOptions
 ): string | undefined {
   if (pageStep === 3) return undefined;
+
+  const hasMarcAssessmentKey =
+    options != null && Object.prototype.hasOwnProperty.call(options, "hasMarcAssessment");
+  const marcEvaluationPending =
+    hasMarcAssessmentKey && options?.hasMarcAssessment === undefined;
+
+  if (pageStep === 1 && marcEvaluationPending) return "MARC evaluation pending";
+
   const missingOnPage = buildProspectusMissingRequiredFields(draft, options).filter(
     (item) => item.pageStep === pageStep
   );

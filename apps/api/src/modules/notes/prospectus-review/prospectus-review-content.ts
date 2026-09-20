@@ -180,8 +180,22 @@ export function normalizeHighlightSelections(
       };
     }
     const recommended = recommendations[key as ProspectusHighlightKey];
-    const title = trimCopy(existing?.title) || recommended.title;
-    const description = trimCopy(existing?.description) || recommended.description;
+    // Preserve explicit empty strings saved by Admin (title: "" / description: "").
+    // Only fall back to recommendations when the value is truly missing/undefined.
+    const rawTitle: unknown = (existing as any)?.title;
+    const rawDescription: unknown = (existing as any)?.description;
+    const hasLegacyBlanksMarker =
+      (existing as any)?.optionKey != null || (existing as any)?.isVisible != null;
+
+    const title =
+      rawTitle === undefined || (rawTitle === "" && hasLegacyBlanksMarker)
+        ? recommended.title
+        : trimCopy(rawTitle);
+    const description =
+      rawDescription === undefined ||
+      (rawDescription === "" && hasLegacyBlanksMarker)
+        ? recommended.description
+        : trimCopy(rawDescription);
     return { key, title, description };
   });
 

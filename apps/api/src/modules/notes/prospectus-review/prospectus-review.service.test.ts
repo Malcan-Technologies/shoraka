@@ -6,12 +6,14 @@ import {
   PROSPECTUS_FIXED_PAYMENT_BASIS,
   PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT,
   PROSPECTUS_FIXED_SHARIAH_PRINCIPLE,
+  MARC_ASSESSMENT_REQUIRED_MESSAGE,
 } from "@cashsouk/types";
 import { buildCompleteProspectusReviewDraft } from "./prospectus-review.demo-fixtures";
 import {
   cloneReviewContent,
   emptyProspectusReviewContent,
   normalizeHighlightSelections,
+  normalizeProspectusReviewSelections,
   stripLegacyPaymentBasisShariahKeys,
   toProspectusPublicationContent,
   type ProspectusReviewStoredContent,
@@ -54,6 +56,164 @@ describe("prospectus review content", () => {
       key: "shariah",
       title: PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT.title,
       description: PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT.description,
+    });
+  });
+
+  it("normalizes missing highlight fields but preserves explicitly blank values", () => {
+    const recommendationInput = {
+      paymasterSnapshot: { name: "KKR", entity_type: "Government Agency" },
+      riskRating: "SME-3",
+      profitRatePercent: 12,
+      listingOpensAt: "2025-05-15T00:00:00.000Z",
+      maturityDate: "2025-09-12T00:00:00.000Z",
+    };
+
+    const base = emptyProspectusReviewContent(recommendationInput);
+    const editableKeys = ["paymaster", "issuer_fundamentals", "return"] as const;
+
+    const recommended = Object.fromEntries(
+      base.page1.keyInvestorHighlights
+        .filter((h) => (editableKeys as readonly string[]).includes(h.key))
+        .map((h) => [h.key, { title: h.title, description: h.description }])
+    ) as Record<string, { title: string; description: string }>;
+
+    const missingDraft = cloneReviewContent(base);
+    for (const key of editableKeys) {
+      const hit = (missingDraft.page1.keyInvestorHighlights as any).find(
+        (h: any) => h.key === key
+      );
+      delete hit.title;
+      delete hit.description;
+    }
+
+    const normalizedMissing = normalizeHighlightSelections(
+      missingDraft as any,
+      recommendationInput
+    );
+    for (const key of editableKeys) {
+      const hit = normalizedMissing.page1.keyInvestorHighlights.find((h) => h.key === key)!;
+      expect(hit.title).toBe(recommended[key].title);
+      expect(hit.description).toBe(recommended[key].description);
+    }
+
+    // Missing title should regenerate, but explicitly blank description must remain blank.
+    const missingTitleDraft = cloneReviewContent(base);
+    for (const key of editableKeys) {
+      const hit = (missingTitleDraft.page1.keyInvestorHighlights as any).find(
+        (h: any) => h.key === key
+      );
+      hit.description = "";
+      delete hit.title;
+    }
+    const normalizedMissingTitle = normalizeHighlightSelections(
+      missingTitleDraft as any,
+      recommendationInput
+    );
+    for (const key of editableKeys) {
+      const hit = normalizedMissingTitle.page1.keyInvestorHighlights.find((h) => h.key === key)!;
+      expect(hit.title).toBe(recommended[key].title);
+      expect(hit.description).toBe("");
+    }
+
+    // Missing description should regenerate, but explicitly blank title must remain blank.
+    const missingDescriptionDraft = cloneReviewContent(base);
+    for (const key of editableKeys) {
+      const hit = (missingDescriptionDraft.page1.keyInvestorHighlights as any).find(
+        (h: any) => h.key === key
+      );
+      hit.title = "";
+      delete hit.description;
+    }
+    const normalizedMissingDescription = normalizeHighlightSelections(
+      missingDescriptionDraft as any,
+      recommendationInput
+    );
+    for (const key of editableKeys) {
+      const hit = normalizedMissingDescription.page1.keyInvestorHighlights.find((h) => h.key === key)!;
+      expect(hit.title).toBe("");
+      expect(hit.description).toBe(recommended[key].description);
+    }
+
+    const clearedDraft = cloneReviewContent(base);
+    for (const key of editableKeys) {
+      const hit = (clearedDraft.page1.keyInvestorHighlights as any).find(
+        (h: any) => h.key === key
+      );
+      hit.title = "";
+      hit.description = "";
+    }
+
+    // Clearing Shariah should be ignored (Shariah remains fixed/read-only).
+    const shariahHit = (clearedDraft.page1.keyInvestorHighlights as any).find(
+      (h: any) => h.key === "shariah"
+    );
+    shariahHit.title = "";
+    shariahHit.description = "";
+
+    const normalizedCleared = normalizeHighlightSelections(
+      clearedDraft as any,
+      recommendationInput
+    );
+    for (const key of editableKeys) {
+      const hit = normalizedCleared.page1.keyInvestorHighlights.find((h) => h.key === key)!;
+      expect(hit.title).toBe("");
+      expect(hit.description).toBe("");
+    }
+    expect(
+      normalizedCleared.page1.keyInvestorHighlights.find((h) => h.key === "shariah")
+    ).toEqual({
+      key: "shariah",
+      title: PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT.title,
+      description: PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT.description,
+    });
+
+    // normalizeProspectusReviewSelections is what Save Draft + GET/load paths use.
+    const normalizedForStorage = normalizeProspectusReviewSelections(
+      clearedDraft as any,
+      recommendationInput
+    );
+    for (const key of editableKeys) {
+      const hit = normalizedForStorage.page1.keyInvestorHighlights.find((h) => h.key === key)!;
+      expect(hit.title).toBe("");
+      expect(hit.description).toBe("");
+    }
+  });
+
+  it("publication conversion preserves explicitly blank highlight copy and keeps Shariah fixed", () => {
+    const recommendationInput = {
+      paymasterSnapshot: { name: "KKR", entity_type: "Government Agency" },
+      riskRating: "SME-3",
+      profitRatePercent: 12,
+      listingOpensAt: "2025-05-15T00:00:00.000Z",
+      maturityDate: "2025-09-12T00:00:00.000Z",
+    };
+
+    const clearedDraft = emptyProspectusReviewContent(recommendationInput);
+    const editableKeys = ["paymaster", "issuer_fundamentals", "return"] as const;
+
+    for (const key of editableKeys) {
+      const hit = clearedDraft.page1.keyInvestorHighlights.find((h) => h.key === key)!;
+      hit.title = "";
+      hit.description = "";
+    }
+
+    // Attempt to clear Shariah anyway; resolver should keep fixed template copy.
+    const shariahHit = clearedDraft.page1.keyInvestorHighlights.find((h) => h.key === "shariah")!;
+    shariahHit.title = "";
+    shariahHit.description = "";
+
+    const publication = toProspectusPublicationContent(clearedDraft);
+    for (const key of editableKeys) {
+      const hit = publication.keyInvestorHighlights.find((h) => h.key === key)!;
+      expect(hit.title).toBe("");
+      expect(hit.description).toBe("");
+    }
+    const shariahPub = publication.keyInvestorHighlights.find((h) => h.key === "shariah")!;
+    expect(shariahPub).toMatchObject({
+      key: "shariah",
+      title: PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT.title,
+      description: PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT.description,
+      isVisible: true,
     });
   });
 
@@ -138,6 +298,25 @@ describe("prospectus review content", () => {
     ).toBe(true);
     draft.page2.issuerProfile = { companySize: "Large" };
     expect(validateApprovalContent(draft)).toEqual([]);
+  });
+
+  it("requires MARC assessment before approval when hasMarcAssessment is false", () => {
+    const draft = completeSelectableDraft();
+    const errors = validateApprovalContent(draft, {
+      incomeStatementYears: ["2022", "2023", "2024"],
+      hasMarcAssessment: false,
+    });
+    expect(errors.some((e) => e.message === MARC_ASSESSMENT_REQUIRED_MESSAGE)).toBe(true);
+  });
+
+  it("does not require MARC assessment before approval when hasMarcAssessment is undefined", () => {
+    const draft = completeSelectableDraft();
+    const errors = validateApprovalContent(draft, {
+      incomeStatementYears: ["2022", "2023", "2024"],
+      hasMarcAssessment: undefined,
+    });
+    expect(errors.some((e) => e.message === MARC_ASSESSMENT_REQUIRED_MESSAGE)).toBe(false);
+    expect(errors).toEqual([]);
   });
 
   it("requires Deed of Assignment before approval and does not require gradings", () => {

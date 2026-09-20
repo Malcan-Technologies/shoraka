@@ -10,6 +10,7 @@ import type { ProspectusReviewStoredContent } from "@cashsouk/types";
 import {
   buildProspectusMissingRequiredFields,
   getProspectusStepStatuses,
+  isProspectusDraftReadyToSubmit,
   type ProspectusCompletionOptions,
   type ProspectusStepStatus,
 } from "@/notes/prospectus-review/completion";
@@ -77,7 +78,13 @@ export function WorkingAreaPreviewApproval({
       : getProspectusStepStatuses(draft, completionOptions);
   const missing = buildProspectusMissingRequiredFields(draft, completionOptions);
   const totalMissing = missing.length;
-  const isReady = totalMissing === 0;
+  const isReady = isProspectusDraftReadyToSubmit(draft, completionOptions);
+
+  const hasMarcAssessmentKey =
+    completionOptions != null &&
+    Object.prototype.hasOwnProperty.call(completionOptions, "hasMarcAssessment");
+  const marcEvaluationPending =
+    hasMarcAssessmentKey && completionOptions?.hasMarcAssessment === undefined;
 
   const missingByPage = missing.reduce<
     Record<ProspectusWorkflowStepId, typeof missing>
@@ -101,7 +108,10 @@ export function WorkingAreaPreviewApproval({
         <ul className="overflow-hidden rounded-xl border" aria-label="Prospectus page readiness">
           {pageSteps.map((pageStep) => {
             const pageMissing = missingByPage[pageStep]?.length ?? 0;
-            const readiness = pageReadinessLabel(pageStep, pageMissing, totalMissing);
+            let readiness = pageReadinessLabel(pageStep, pageMissing, totalMissing);
+            if (marcEvaluationPending && (pageStep === 1 || pageStep === 3)) {
+              readiness = { text: "MARC evaluation pending", tone: "missing" };
+            }
             const status = stepStatuses[pageStep];
             return (
               <li key={pageStep} className="border-b last:border-b-0">
@@ -179,7 +189,7 @@ export function WorkingAreaPreviewApproval({
               ))}
           </ul>
         </ProspectusSectionShell>
-      ) : (
+      ) : isReady ? (
         <div
           className="flex gap-3 rounded-xl border border-emerald-200 bg-emerald-50/80 px-4 py-3 dark:border-emerald-900 dark:bg-emerald-950/40"
           role="status"
@@ -198,6 +208,23 @@ export function WorkingAreaPreviewApproval({
             </p>
           </div>
         </div>
+      ) : (
+        <div
+          className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 dark:border-amber-900 dark:bg-amber-950/40"
+          role="status"
+          data-prospectus-ready-state="unavailable"
+        >
+          <ExclamationTriangleIcon
+            className="mt-0.5 h-5 w-5 shrink-0 text-amber-700 dark:text-amber-400"
+            aria-hidden
+          />
+          <div className="space-y-0.5 text-sm">
+            <p className="font-medium text-amber-900 dark:text-amber-100">
+              Approval unavailable
+            </p>
+            <p className="text-amber-800 dark:text-amber-200">MARC assessment is still being evaluated.</p>
+          </div>
+        </div>
       )}
 
       <div
@@ -214,9 +241,13 @@ export function WorkingAreaPreviewApproval({
         ) : (
           <>
             <p className="text-sm font-semibold text-foreground">Approval unavailable</p>
-            <p className="text-sm text-muted-foreground">
-              {totalMissing} required field{totalMissing === 1 ? "" : "s"} are still missing.
-            </p>
+            {marcEvaluationPending ? (
+              <p className="text-sm text-muted-foreground">MARC assessment is still being evaluated.</p>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                {totalMissing} required field{totalMissing === 1 ? "" : "s"} are still missing.
+              </p>
+            )}
           </>
         )}
       </div>
