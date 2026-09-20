@@ -217,6 +217,8 @@ function ProspectusReviewPageInner() {
         toast.error("This review was updated elsewhere. Refresh and try again.");
         void refetch();
         setDirty(false);
+        setLivePreviewHtml(null);
+        setPreviewOpen(false);
         return false;
       }
       toast.error(e instanceof Error ? e.message : "Save failed");
