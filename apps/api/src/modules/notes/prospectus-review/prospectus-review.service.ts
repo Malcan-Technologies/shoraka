@@ -740,7 +740,12 @@ export class ProspectusReviewService {
     return mapReview(updated);
   }
 
-  async approve(noteId: string, actor: ActorContext, rawDraft?: unknown) {
+  async approve(
+    noteId: string,
+    actor: ActorContext,
+    rawDraft?: unknown,
+    expectedUpdatedAt?: string
+  ) {
     const note = await prisma.note.findUnique({
       where: { id: noteId },
       select: {
@@ -761,6 +766,19 @@ export class ProspectusReviewService {
 
     let current = await prisma.noteProspectusReview.findUnique({ where: { note_id: noteId } });
     if (!current) throw new AppError(404, "PROSPECTUS_REVIEW_NOT_FOUND", "Prospectus review not found");
+
+    // Optimistic concurrency: clean-approve and dirty-approve must only succeed
+    // when approving the same review version the Admin has loaded.
+    if (expectedUpdatedAt) {
+      const expected = new Date(expectedUpdatedAt);
+      if (current.updated_at.getTime() !== expected.getTime()) {
+        throw new AppError(
+          409,
+          "CONFLICT",
+          "Prospectus review was updated by another user. Reload and try again."
+        );
+      }
+    }
 
     if (current.status === ProspectusReviewStatus.PUBLISHED) {
       await prisma.$transaction(async (tx) => {
@@ -784,6 +802,17 @@ export class ProspectusReviewService {
       current = await prisma.noteProspectusReview.findUniqueOrThrow({
         where: { note_id: noteId },
       });
+      // If caller provided expectedUpdatedAt, it must still match after the internal save.
+      if (expectedUpdatedAt) {
+        const expected = new Date(expectedUpdatedAt);
+        if (current.updated_at.getTime() !== expected.getTime()) {
+          throw new AppError(
+            409,
+            "CONFLICT",
+            "Prospectus review was updated by another user. Reload and try again."
+          );
+        }
+      }
     }
 
     const parsed = saveProspectusReviewDraftSchema.shape.draftContent.parse(

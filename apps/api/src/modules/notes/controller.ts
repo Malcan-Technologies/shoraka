@@ -317,6 +317,10 @@ adminNotesRouter.post(
     try {
       const { id } = idParamSchema.parse(req.params);
       const { prospectusReviewService } = await import("./prospectus-review/prospectus-review.service");
+      const expectedUpdatedAt =
+        req.body?.expectedUpdatedAt != null
+          ? z.string().datetime().parse(req.body.expectedUpdatedAt)
+          : undefined;
       // Optional draftContent in body is saved before approve when present.
       const draftPayload =
         req.body?.draftContent != null
@@ -324,7 +328,12 @@ adminNotesRouter.post(
           : undefined;
       send(
         res,
-        await prospectusReviewService.approve(id, getActor(req, res, "ADMIN"), draftPayload)
+        await prospectusReviewService.approve(
+          id,
+          getActor(req, res, "ADMIN"),
+          draftPayload,
+          expectedUpdatedAt
+        )
       );
     } catch (error) {
       next(error);

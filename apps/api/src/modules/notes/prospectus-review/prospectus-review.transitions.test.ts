@@ -252,6 +252,75 @@ describe("prospectus workflow transitions", () => {
     });
   });
 
+  it("clean approve succeeds when expectedUpdatedAt matches DB", async () => {
+    const X = new Date("2026-07-19T10:00:00.000Z");
+    const rowX = baseRow({ updated_at: X });
+    mockFindUnique.mockResolvedValue(rowX);
+    mockUpdate.mockResolvedValue({
+      ...rowX,
+      status: ProspectusReviewStatus.READY_FOR_PUBLISH,
+      content_version: 2,
+      approved_publication_id: "pub-1",
+      render_fingerprint: "fp-1",
+    });
+
+    const result = await service.approve("note-1", actor, undefined, X.toISOString());
+    expect(result.status).toBe("READY_FOR_PUBLISH");
+    expect(mockPublicationCreate).toHaveBeenCalled();
+  });
+
+  it("clean approve rejects when expectedUpdatedAt is stale", async () => {
+    const X = new Date("2026-07-19T10:00:00.000Z");
+    const Y = new Date("2026-07-19T10:05:00.000Z");
+    const rowY = baseRow({ updated_at: Y });
+    mockFindUnique.mockResolvedValue(rowY);
+
+    await expect(
+      service.approve("note-1", actor, undefined, X.toISOString())
+    ).rejects.toMatchObject({
+      code: "CONFLICT",
+      statusCode: 409,
+    });
+
+    // Must not proceed to snapshot/publish.
+    expect(mockPublicationCreate).not.toHaveBeenCalled();
+    expect(mockTransaction).not.toHaveBeenCalled();
+  });
+
+  it("dirty approve succeeds when expectedUpdatedAt matches post-save DB", async () => {
+    const Y = new Date("2026-07-19T10:05:00.000Z");
+    const rowY = baseRow({ updated_at: Y });
+    mockFindUnique.mockResolvedValue(rowY);
+    mockUpdate.mockResolvedValue({
+      ...rowY,
+      status: ProspectusReviewStatus.READY_FOR_PUBLISH,
+      content_version: 2,
+      approved_publication_id: "pub-1",
+      render_fingerprint: "fp-1",
+    });
+
+    const result = await service.approve("note-1", actor, undefined, Y.toISOString());
+    expect(result.status).toBe("READY_FOR_PUBLISH");
+    expect(mockPublicationCreate).toHaveBeenCalled();
+  });
+
+  it("dirty approve rejects when DB advances again before approve", async () => {
+    const Y = new Date("2026-07-19T10:05:00.000Z");
+    const Z = new Date("2026-07-19T10:10:00.000Z");
+    const rowZ = baseRow({ updated_at: Z });
+    mockFindUnique.mockResolvedValue(rowZ);
+
+    await expect(
+      service.approve("note-1", actor, undefined, Y.toISOString())
+    ).rejects.toMatchObject({
+      code: "CONFLICT",
+      statusCode: 409,
+    });
+
+    expect(mockPublicationCreate).not.toHaveBeenCalled();
+    expect(mockTransaction).not.toHaveBeenCalled();
+  });
+
   it("approves directly from DRAFT without submit", async () => {
     const row = baseRow();
     mockFindUnique.mockResolvedValue(row);

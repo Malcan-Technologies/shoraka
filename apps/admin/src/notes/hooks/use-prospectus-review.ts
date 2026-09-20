@@ -139,9 +139,14 @@ export function useApproveProspectusReview(noteId: string) {
   const apiClient = createApiClient(API_URL, getAccessToken);
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input?: SaveProspectusReviewDraftInput) => {
-      const res = await apiClient.approveAdminProspectusReview(noteId, input);
-      if (!res.success) throw new Error(prospectusReviewErrorMessage(res.error as ApiErrorShape));
+    mutationFn: async (input?: Partial<SaveProspectusReviewDraftInput>) => {
+      const res = await apiClient.approveAdminProspectusReview(noteId, input as any);
+      if (!res.success) {
+        if (res.error.code === "CONFLICT") {
+          throw new ProspectusReviewConflictError(res.error.message);
+        }
+        throw new Error(prospectusReviewErrorMessage(res.error as ApiErrorShape));
+      }
       return res.data;
     },
     onSuccess: (review: ProspectusReviewDetail) => {
