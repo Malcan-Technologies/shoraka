@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
+import { prospectusReviewErrorMessage } from "./prospectus-review-error-utils";
 import type {
   ProspectusReviewDetail,
   ProspectusReviewGetResponse,
@@ -16,33 +17,6 @@ type ApiErrorShape = {
   message?: string;
   details?: unknown;
 };
-
-/**
- * Prospectus Review validation errors return:
- *   { success: false, error: { message, details } }
- * where `details` is typically an array of field-level errors: { path, message }.
- *
- * This helper extracts the first useful detail.message (deterministic) and
- * falls back to the top-level error.message if details are missing/unknown.
- */
-export function prospectusReviewErrorMessage(error: ApiErrorShape | undefined): string {
-  const details = error?.details;
-
-  const firstDetailMessage = (() => {
-    if (!details) return null;
-    if (Array.isArray(details)) {
-      for (const d of details) {
-        if (d && typeof d === "object") {
-          const msg = (d as { message?: unknown }).message;
-          if (typeof msg === "string" && msg.trim()) return msg.trim();
-        }
-      }
-    }
-    return null;
-  })();
-
-  return firstDetailMessage ?? error?.message ?? "Request failed";
-}
 
 function prospectusReviewKey(noteId: string) {
   return [...notesKeys.detail(noteId), "prospectus-review"] as const;
