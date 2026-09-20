@@ -439,6 +439,9 @@ function ProspectusReviewPageInner() {
     draft,
     completionOptions
   ).length;
+  const marcEvaluationPending =
+    Object.prototype.hasOwnProperty.call(completionOptions, "hasMarcAssessment") &&
+    completionOptions.hasMarcAssessment === undefined;
 
   const stepNav = (
     <nav aria-label="Prospectus review steps" className="space-y-4">
@@ -541,6 +544,7 @@ function ProspectusReviewPageInner() {
                   approveBusy ||
                   approve.isPending ||
                   requiredMissingCount > 0 ||
+                  marcEvaluationPending ||
                   saveDraft.isPending
                 }
                 title={

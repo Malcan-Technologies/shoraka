@@ -331,6 +331,9 @@ describe("prospectus review completion readiness", () => {
     expect(buildProspectusMissingRequiredFields(draft)).toHaveLength(0);
     expect(buildProspectusMissingRequiredFields(draft, { hasMarcAssessment: undefined })).toHaveLength(0);
     expect(buildProspectusMissingRequiredFields(draft, { hasMarcAssessment: true })).toHaveLength(0);
+
+    expect(isProspectusDraftReadyToSubmit(draft, { hasMarcAssessment: undefined })).toBe(false);
+    expect(isProspectusDraftReadyToSubmit(draft, { hasMarcAssessment: true })).toBe(true);
   });
 });
 

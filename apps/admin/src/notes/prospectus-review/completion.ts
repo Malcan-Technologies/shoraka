@@ -219,7 +219,15 @@ export function isProspectusDraftReadyToSubmit(
   draft: import("@cashsouk/types").ProspectusReviewStoredContent,
   options?: ProspectusCompletionOptions
 ): boolean {
-  return buildProspectusMissingRequiredFields(draft, options).length === 0;
+  const missingCount = buildProspectusMissingRequiredFields(draft, options).length;
+  // `hasMarcAssessment: undefined` means the UI has not finished evaluating MARC completeness.
+  // In that state we must not allow final approval, even though MARC is not counted as "missing".
+  const hasMarcAssessmentKey =
+    options != null && Object.prototype.hasOwnProperty.call(options, "hasMarcAssessment");
+  const marcEvaluationPending =
+    hasMarcAssessmentKey && options?.hasMarcAssessment === undefined;
+
+  return missingCount === 0 && !marcEvaluationPending;
 }
 
 export function statusForCompletionItem(item: ProspectusCompletionItem): ProspectusStepStatus {
