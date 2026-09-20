@@ -13,6 +13,7 @@ import {
 import {
   buildProspectusHighlightRecommendations,
   isMarcSmeGrade,
+  isCompleteIssuerMarcAssessment,
   isNoteProspectusPublished,
   normalizeProspectusWorkflowStatus,
   type ProspectusAboutInvoiceRecommendationInput,
@@ -56,6 +57,7 @@ import {
   mapProspectusPageThreeDataToInput,
 } from "../prospectus/prospectus-page-three-mapper";
 import { loadProspectusPageThreeData } from "../prospectus/prospectus-page-three-prisma";
+import { resolveMarcSnapshotForProspectus } from "../prospectus/prospectus-marc-snapshot";
 import { getActiveProspectusCatalogues } from "./prospectus-option-catalogues";
 import { mergePublicationContentIntoSnapshot } from "./prospectus-frozen-publication";
 import {
@@ -741,7 +743,12 @@ export class ProspectusReviewService {
   async approve(noteId: string, actor: ActorContext, rawDraft?: unknown) {
     const note = await prisma.note.findUnique({
       where: { id: noteId },
-      select: { status: true, published_at: true },
+      select: {
+        status: true,
+        published_at: true,
+        issuer_organization_id: true,
+        prospectus_snapshot: true,
+      },
     });
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
     if (isNoteListed(note)) {
@@ -797,10 +804,27 @@ export class ProspectusReviewService {
     page3Input.publicationContent = publication;
     const page3 = buildProspectusPageThree(page3Input);
     // Approval uses real financial years only — never padded display placeholders.
+    const incomeStatementYears = page3.incomeStatement.years
+      .filter((year) => !year.isPlaceholder)
+      .map((year) => String(year.year));
+
+    let hasMarcAssessment: boolean | undefined = undefined;
+    try {
+      const marcSnapshot = await resolveMarcSnapshotForProspectus({
+        status: note.status,
+        published_at: note.published_at,
+        prospectus_snapshot: note.prospectus_snapshot,
+        issuer_organization_id: note.issuer_organization_id,
+      });
+      hasMarcAssessment = isCompleteIssuerMarcAssessment(marcSnapshot ?? null);
+    } catch {
+      // Mirror frontend semantics: undefined = not evaluated yet (do not enforce).
+      hasMarcAssessment = undefined;
+    }
+
     const errors = validateApprovalContent(approvedClone, {
-      incomeStatementYears: page3.incomeStatement.years
-        .filter((year) => !year.isPlaceholder)
-        .map((year) => String(year.year)),
+      incomeStatementYears,
+      hasMarcAssessment,
     });
     if (errors.length > 0) {
       throw new AppError(422, "PROSPECTUS_REVIEW_INVALID", "Approval validation failed", {

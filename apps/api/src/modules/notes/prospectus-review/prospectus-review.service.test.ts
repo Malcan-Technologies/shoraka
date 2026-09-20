@@ -6,6 +6,7 @@ import {
   PROSPECTUS_FIXED_PAYMENT_BASIS,
   PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT,
   PROSPECTUS_FIXED_SHARIAH_PRINCIPLE,
+  MARC_ASSESSMENT_REQUIRED_MESSAGE,
 } from "@cashsouk/types";
 import { buildCompleteProspectusReviewDraft } from "./prospectus-review.demo-fixtures";
 import {
@@ -297,6 +298,25 @@ describe("prospectus review content", () => {
     ).toBe(true);
     draft.page2.issuerProfile = { companySize: "Large" };
     expect(validateApprovalContent(draft)).toEqual([]);
+  });
+
+  it("requires MARC assessment before approval when hasMarcAssessment is false", () => {
+    const draft = completeSelectableDraft();
+    const errors = validateApprovalContent(draft, {
+      incomeStatementYears: ["2022", "2023", "2024"],
+      hasMarcAssessment: false,
+    });
+    expect(errors.some((e) => e.message === MARC_ASSESSMENT_REQUIRED_MESSAGE)).toBe(true);
+  });
+
+  it("does not require MARC assessment before approval when hasMarcAssessment is undefined", () => {
+    const draft = completeSelectableDraft();
+    const errors = validateApprovalContent(draft, {
+      incomeStatementYears: ["2022", "2023", "2024"],
+      hasMarcAssessment: undefined,
+    });
+    expect(errors.some((e) => e.message === MARC_ASSESSMENT_REQUIRED_MESSAGE)).toBe(false);
+    expect(errors).toEqual([]);
   });
 
   it("requires Deed of Assignment before approval and does not require gradings", () => {
