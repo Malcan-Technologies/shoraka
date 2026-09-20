@@ -1048,10 +1048,20 @@ export class ProspectusReviewService {
       ? "Prospectus content is ready for publish — not yet published"
       : "Draft Prospectus — not yet approved";
 
+    // IMPORTANT: When previewing approved content, we must render Page 1 from the
+    // same frozen Page 1 snapshot used at final publish-time. Otherwise, the
+    // current/unpublished Note can cause Page 1 issuer track record/historical
+    // notes to be re-calculated from live data, diverging from the frozen snapshot.
+    const approvedSnapshot = useApproved
+      ? parseApprovedSnapshot(review.approved_snapshot)
+      : null;
+    const frozenPage1Snapshot = approvedSnapshot?.page_1 ?? null;
+
     return this.renderPreviewHtml(noteId, content, {
       status,
       previewSource: sourceLabel,
       bannerText,
+      frozenPage1Snapshot,
     });
   }
 
@@ -1115,6 +1125,14 @@ export class ProspectusReviewService {
       status: ProspectusReviewStatus | string;
       previewSource: "draft" | "approved" | "unsaved";
       bannerText: string;
+      /**
+       * When previewing approved content, force Page 1 to use the frozen approved
+       * Page 1 track record snapshot (publish-time parity).
+       *
+       * When null/undefined, we preserve existing behavior (draft/live preview uses
+       * Note-derived live unpublished preview track record).
+       */
+      frozenPage1Snapshot?: unknown | null;
     }
   ) {
     const publication = toProspectusPublicationContent(content);
@@ -1122,6 +1140,12 @@ export class ProspectusReviewService {
 
     const page1Note = await loadProspectusPageOneNote(prisma, noteId);
     const page1Input = await mapProspectusPageOneDataToInput(page1Note);
+
+    // Approved preview: force frozen Page 1 track record snapshot to match final PDF.
+    if (meta.frozenPage1Snapshot) {
+      page1Input.trackRecordMode = "frozen_publication_snapshot";
+      page1Input.page1TrackRecordSnapshot = meta.frozenPage1Snapshot as any;
+    }
     page1Input.publicationContent = publication;
     const page1 = buildProspectusPageOne(page1Input);
 
