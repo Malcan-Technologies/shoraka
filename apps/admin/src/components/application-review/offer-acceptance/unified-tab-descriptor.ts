@@ -58,9 +58,13 @@ export function deriveMergedSectionStatus(statuses: readonly string[]): string {
 }
 
 export function resolveReviewTabStatus(
-  tab: Pick<ReviewTabDescriptor, "reviewSection" | "mergedSections">,
+  tab: Pick<ReviewTabDescriptor, "id" | "reviewSection" | "mergedSections" | "kind">,
   sectionMap: ReadonlyMap<string, string>
 ): string {
+  if (tab.id === OFFER_ACCEPTANCE_TAB_ID) {
+    const synthetic = sectionMap.get(OFFER_ACCEPTANCE_TAB_ID);
+    if (synthetic) return synthetic;
+  }
   if (tab.mergedSections && tab.mergedSections.length > 0) {
     return deriveMergedSectionStatus(
       tab.mergedSections.map((section) => sectionMap.get(section) ?? "PENDING")

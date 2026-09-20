@@ -50,6 +50,9 @@ import { getEffectiveReviewTabDescriptors } from "@/lib/effective-review-tab-des
 import {
   canManageReviewSection,
   collapseOfferAcceptanceDescriptors,
+  buildOfferAcceptanceStageModel,
+  deriveMergedSectionStatus,
+  OFFER_ACCEPTANCE_TAB_ID,
   isOfferAcceptanceTabDescriptor,
   resolveSectionActionLock,
   type SectionActionLockMap,
@@ -86,6 +89,8 @@ import {
   readInvoiceProductRules,
   readContractProductRules,
   readProductLimitViolationMessage,
+  workflowHasAcceptanceDocuments,
+  workflowHasSigningPackage,
   type ApplicationPersonRow,
   type ReviewItemType,
 } from "@cashsouk/types";
@@ -706,6 +711,101 @@ export default function DynamicApplicationDetailPage() {
     tabPrerequisitesFromApi,
   ]);
 
+  const offerAcceptanceDotStatus = React.useMemo((): string | null => {
+    if (!app) return null;
+    const unifiedTab = liveTabDescriptors.find(isOfferAcceptanceTabDescriptor);
+    if (!unifiedTab?.mergedSections?.length) return null;
+
+    const mergedStatuses = unifiedTab.mergedSections.map(
+      (section) => sectionStatusMap.get(section) ?? "PENDING"
+    );
+    const mergedStatus = deriveMergedSectionStatus(mergedStatuses);
+
+    // Only fix the incorrect green state when all merged sections look approved,
+    // but Offer & acceptance workflow stages are not yet complete.
+    if (mergedStatus !== "APPROVED") return mergedStatus;
+
+    const reviewItems =
+      (app.application_review_items as { item_type: string; item_id: string; status: string }[]) ??
+      [];
+    const invoices = (app.invoices ?? []).map((inv) => ({
+      id: inv.id,
+      status: inv.status,
+      offer_details: inv.offer_details,
+      contract_id: inv.contract_id,
+      details: inv.details,
+    }));
+
+    const structureTypeForStage =
+      (app?.financing_structure as { structure_type?: string } | null | undefined)?.structure_type ??
+      "new_contract";
+    const inherited = structureTypeForStage === "existing_contract" ? app.inherited_acceptance ?? null : null;
+    const isInheritedAcceptance = structureTypeForStage === "existing_contract" && inherited != null;
+    const sourceRef =
+      app.inherited_guarantors?.source_display_reference ??
+      (inherited as { source_display_reference?: string | null } | null)?.source_display_reference ??
+      null;
+
+    const hasAcceptanceDocumentsSection =
+      reviewProductWorkflow != null
+        ? workflowHasAcceptanceDocuments(reviewProductWorkflow)
+        : Boolean(unifiedTab.mergedSections?.includes("acceptance_documents"));
+
+    const hasSigningPackage =
+      reviewProductWorkflow != null
+        ? workflowHasSigningPackage(reviewProductWorkflow)
+        : Boolean(unifiedTab.mergedSections?.includes("acceptance_documents"));
+
+    const stageModel = buildOfferAcceptanceStageModel({
+      structureType: structureTypeForStage,
+      contractStatus: app.contract?.status,
+      contractDetails: app.contract?.contract_details,
+      contractOfferDetails: app.contract?.offer_details,
+      invoices,
+      selectedInvoiceId: null,
+      sectionStatuses: sectionStatusMap,
+      reviewItems,
+      signingEnvelopes,
+      sectionLocks: sectionActionLocks,
+      applicationWithdrawn: app.status === "WITHDRAWN",
+      hasAcceptanceDocumentsSection,
+      hasSigningPackage,
+      sourceApplicationDisplayReference: sourceRef,
+      canManageSigning: canAppManage && !isInheritedAcceptance,
+    });
+
+    const workflowStages = stageModel.stages.filter((s) => s.kind !== "reference");
+    const offerAcceptanceComplete = workflowStages.every((s) => s.tone === "done");
+    const hasRejected = workflowStages.some((s) => s.tag === "Rejected");
+    const hasDeclined = workflowStages.some((s) => s.tag === "Declined");
+    const hasExpired = workflowStages.some((s) => s.tag === "Expired");
+
+    if (hasRejected) return "REJECTED";
+    if (hasDeclined) return "DECLINED";
+    if (hasExpired) return "OFFER_EXPIRED";
+    return offerAcceptanceComplete ? "APPROVED" : "OFFER_SENT";
+  }, [
+    app,
+    canAppManage,
+    liveTabDescriptors,
+    reviewProductWorkflow,
+    sectionActionLocks,
+    sectionStatusMap,
+    signingEnvelopes,
+  ]);
+
+  const reviewSectionsForDots = React.useMemo(() => {
+    if (!offerAcceptanceDotStatus) return reviewSections;
+    if (reviewSections.some((s) => s.section === OFFER_ACCEPTANCE_TAB_ID)) return reviewSections;
+    return [
+      ...reviewSections,
+      {
+        section: OFFER_ACCEPTANCE_TAB_ID,
+        status: offerAcceptanceDotStatus,
+      },
+    ];
+  }, [offerAcceptanceDotStatus, reviewSections]);
+
   const handleApproveSection = (section: string) => {
     setNoteDialog({ open: true, action: "approve", section: section as ReviewSectionId });
   };
@@ -1002,7 +1102,7 @@ export default function DynamicApplicationDetailPage() {
                 <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_minmax(380px,440px)]">
                   <div className="min-w-0 space-y-6">
                     <ApplicationReviewTabs
-                    sections={reviewSections}
+                    sections={reviewSectionsForDots}
                     tabDescriptors={liveTabDescriptors}
                     defaultTabId={defaultReviewTabId}
                     tabValue={activeReviewTabId}
