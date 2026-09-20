@@ -11,6 +11,7 @@ import {
   buildProspectusHighlightRecommendations,
 } from "@cashsouk/types";
 import { emptyProspectusReviewContent } from "./prospectus-review-content";
+import { normalizeProspectusReviewSelections } from "./prospectus-review-content";
 import type { ProspectusReviewStoredContent } from "./prospectus-review-content";
 import { ProspectusReviewService } from "./prospectus-review.service";
 
@@ -44,7 +45,7 @@ const mockBuildPageOne = jest.fn(
 
 const mockBuildPageOneHtml = jest.fn(
   (page: { _echo?: string }) =>
-    `<html><body data-prospectus-page="prospectus-page-one"><p>${page._echo ?? ""}</p><p data-shariah>${(page as any)._shariahEcho ?? ""}</p></body></html>`
+    `<html><body><section class="page prospectus-page-one" data-page="prospectus-page-one"><p>${(page as any)._echo ?? ""}</p><p data-shariah>${(page as any)._shariahEcho ?? ""}</p></section></body></html>`
 );
 
 jest.mock("../../../lib/prisma", () => ({
@@ -100,7 +101,7 @@ jest.mock("../prospectus/prospectus-page-two-mapper", () => ({
 }));
 
 jest.mock("../prospectus/prospectus-page-two.html", () => ({
-  buildProspectusPageTwoHtml: jest.fn(() => "<p>p2</p>"),
+  buildProspectusPageTwoHtml: jest.fn(() => `<html><body><section class="page prospectus-page-two" data-page="prospectus-page-two"><p>p2</p></section></body></html>`),
 }));
 
 jest.mock("../prospectus/prospectus-page-three-prisma", () => ({
@@ -113,12 +114,12 @@ jest.mock("../prospectus/prospectus-page-three-mapper", () => ({
 }));
 
 jest.mock("../prospectus/prospectus-page-three.html", () => ({
-  buildProspectusPageThreeHtml: jest.fn(() => "<p>p3</p>"),
+  buildProspectusPageThreeHtml: jest.fn(() => `<html><body><section class="page prospectus-page-three" data-page="prospectus-page-three"><p>p3</p></section></body></html>`),
 }));
 
 jest.mock("../prospectus/prospectus-marc-appendix.html", () => ({
-  buildProspectusPageFourHtml: jest.fn(() => "<p>p4</p>"),
-  buildProspectusPageFiveHtml: jest.fn(() => "<p>p5</p>"),
+  buildProspectusPageFourHtml: jest.fn(() => `<html><body><section class="page prospectus-page-four" data-page="prospectus-page-four"><p>p4</p></section></body></html>`),
+  buildProspectusPageFiveHtml: jest.fn(() => `<html><body><section class="page prospectus-page-five" data-page="prospectus-page-five"><p>p5</p></section></body></html>`),
 }));
 
 // Simplify admin DTO projections; they aren’t needed for highlight assertions.
@@ -209,7 +210,7 @@ describe("Prospectus Review — highlight blank preservation flow", () => {
           published_at: null,
           title: "Note title",
           paymaster_snapshot: recommendationInput.paymasterSnapshot,
-          invoice_snapshot: {},
+          invoice_snapshot: { offer_details: { risk_rating: recommendationInput.riskRating } },
           purpose_snapshot: {},
           contract_snapshot: {},
           profit_rate_percent: recommendationInput.profitRatePercent,
@@ -232,7 +233,7 @@ describe("Prospectus Review — highlight blank preservation flow", () => {
     });
 
     mockUpdate.mockImplementation(async (args: any) => {
-      const data = args?.[0]?.data ?? {};
+      const data = args?.data ?? {};
       if (data?.draft_content !== undefined) {
         storedDraftContent = data.draft_content as unknown as ProspectusReviewStoredContent;
       }
@@ -297,7 +298,24 @@ describe("Prospectus Review — highlight blank preservation flow", () => {
 
     const service = new ProspectusReviewService();
 
+    const localNormalized = normalizeProspectusReviewSelections(
+      draftWithBlanks as any,
+      recommendationInput
+    );
+    for (const key of ["paymaster", "issuer_fundamentals", "return"] as const) {
+      const hit = localNormalized.page1.keyInvestorHighlights.find((h) => h.key === key)!;
+      expect(hit.title).toBe("");
+      expect(hit.description).toBe("");
+    }
+
     await service.saveDraft(noteId, { draftContent: draftWithBlanks }, actor as any);
+
+    // Ensure our in-test "persistence" layer captured the explicit blanks.
+    for (const key of ["paymaster", "issuer_fundamentals", "return"] as const) {
+      const hit = highlightFromKey(storedDraftContent, key);
+      expect(hit.title).toBe("");
+      expect(hit.description).toBe("");
+    }
 
     // GET load
     const get = await service.getOrCreateReview(noteId, actor as any);
@@ -317,7 +335,7 @@ describe("Prospectus Review — highlight blank preservation flow", () => {
 
     // Preview uses publication conversion, so it must also preserve blanks.
     const preview = await service.preview(noteId, actor as any);
-    expect(preview.html.page1).toContain('data-prospectus-page="prospectus-page-one"');
+    expect(preview.html.page1).toContain('section class="page prospectus-page-one"');
 
     // Explicitly blank fields should not revert to recommendations.
     expect(preview.html.page1).not.toContain(recommended.paymaster.title);
@@ -340,6 +358,12 @@ describe("Prospectus Review — highlight blank preservation flow", () => {
 
     const service = new ProspectusReviewService();
     await service.saveDraft(noteId, { draftContent: missingDraft }, actor as any);
+
+    for (const key of ["paymaster", "issuer_fundamentals", "return"] as const) {
+      const hit = highlightFromKey(storedDraftContent, key);
+      expect(hit.title).toBe((recommended as any)[key].title);
+      expect(hit.description).toBe((recommended as any)[key].description);
+    }
 
     const get = await service.getOrCreateReview(noteId, actor as any);
     for (const key of ["paymaster", "issuer_fundamentals", "return"] as const) {
@@ -370,6 +394,12 @@ describe("Prospectus Review — highlight blank preservation flow", () => {
 
     const service = new ProspectusReviewService();
     await service.saveDraft(noteId, { draftContent: legacyDraft }, actor as any);
+
+    for (const key of ["paymaster", "issuer_fundamentals", "return"] as const) {
+      const hit = highlightFromKey(storedDraftContent, key);
+      expect(hit.title).toBe((recommended as any)[key].title);
+      expect(hit.description).toBe((recommended as any)[key].description);
+    }
 
     const get = await service.getOrCreateReview(noteId, actor as any);
     for (const key of ["paymaster", "issuer_fundamentals", "return"] as const) {
