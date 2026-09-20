@@ -215,9 +215,9 @@ export function buildPageThreeAdminOverviewRows(
     ? offerDetails.risk_rating
     : DATA_NOT_AVAILABLE;
   return [
-    { label: "Industry", value: industry },
+    { label: "Sector", value: industry },
     { label: "Company Size", value: companySize },
-    { label: "Risk Grade", value: riskRating },
+    { label: "Risk Rating", value: riskRating },
     { label: "Paymaster", value: textOrDna(note.paymasterName ?? paymaster?.name) },
   ];
 }

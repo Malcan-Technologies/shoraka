@@ -185,12 +185,12 @@ describe("page three coverage verification", () => {
       companySize: "Medium",
     });
     expect(rows.map((r) => r.label)).toEqual([
-      "Industry",
+      "Sector",
       "Company Size",
-      "Risk Grade",
+      "Risk Rating",
       "Paymaster",
     ]);
-    expect(rows.find((r) => r.label === "Industry")?.value).toBe("Construction");
+    expect(rows.find((r) => r.label === "Sector")?.value).toBe("Construction");
     expect(rows.find((r) => r.label === "Company Size")?.value).toBe("Medium");
     expect(rows.some((r) => r.value.includes("|"))).toBe(false);
   });
