@@ -485,16 +485,10 @@ export function WorkingAreaPageTwo({
                       <tr
                         key={band.key}
                         className={`border-b last:border-0 ${
-                          assignedBandKey === band.key ? "bg-status-success-bg/10" : ""
-                        }`}
-                        style={
                           assignedBandKey === band.key
-                            ? {
-                                outline: `2px solid ${band.color}`,
-                                outlineOffset: "-2px",
-                              }
-                            : undefined
-                        }
+                            ? "bg-status-success-bg/10 ring-1 ring-status-success-bg/60"
+                            : ""
+                        }`}
                       >
                         <td className="px-3 py-2 font-semibold tabular-nums">
                           <div className="flex flex-wrap items-center gap-2">
