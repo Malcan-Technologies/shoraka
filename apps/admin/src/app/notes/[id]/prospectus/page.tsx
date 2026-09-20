@@ -409,7 +409,7 @@ function ProspectusReviewPageInner() {
   const usingLivePreview = livePreviewHtml != null;
   const previewStatusLabel = usingLivePreview
     ? ("Live preview" as const)
-    : status === "APPROVED" || status === "PUBLISHED"
+    : status === "APPROVED" || status === "READY_FOR_PUBLISH" || status === "PUBLISHED"
       ? ("Approved preview" as const)
       : ("Draft preview" as const);
   const previewHtml = usingLivePreview
