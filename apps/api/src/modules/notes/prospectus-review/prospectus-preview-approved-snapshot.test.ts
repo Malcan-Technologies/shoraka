@@ -45,6 +45,10 @@ const mockGenerateAndStoreProspectusPdf = jest.fn(async () => ({
 // Track what snapshot/mode render is using (echoed into HTML).
 let liveSnapshotTag = "Y";
 let frozenSnapshotTag = "X";
+let liveTurnoverTag = 12;
+let frozenTurnoverTag = 10;
+let liveBscatotTag = 22;
+let frozenBscatotTag = 20;
 
 function modeAndTagHtml(mode: string, tag: string) {
   return `<p data-mode="${mode}" data-snap="${tag}"></p>`;
@@ -78,8 +82,28 @@ jest.mock("../prospectus/prospectus-page-one.html", () => ({
 }));
 
 jest.mock("../prospectus/prospectus-page-two-mapper", () => ({
-  mapProspectusPageTwoDataToInput: () => ({}),
-  buildProspectusPageTwo: () => ({}),
+  mapProspectusPageTwoDataToInput: () => ({
+    noteId: "note-1",
+    isPublished: false,
+    financialMode: "live_unpublished_preview",
+    frozenFinancialComparison: null,
+    liveCtosFinancials: { turnover: liveTurnoverTag, bscatot: liveBscatotTag },
+    liveFinancialStatements: {},
+    issuerSnapshot: {},
+    invoiceSnapshot: {},
+    paymasterSnapshot: {},
+  }),
+  buildProspectusPageTwo: (pageInput: any) => {
+    const financialMode = pageInput.financialMode;
+    const source =
+      financialMode === "frozen_publication_snapshot"
+        ? pageInput.frozenFinancialComparison?.selected_years?.[0]?.raw_financials
+        : pageInput.liveCtosFinancials;
+    return {
+      _financialMode: financialMode,
+      _turnover: source?.turnover,
+    };
+  },
 }));
 jest.mock("../prospectus/prospectus-page-two-prisma", () => ({
   loadProspectusPageTwoData: jest.fn(async () => ({})),
@@ -89,8 +113,28 @@ jest.mock("../prospectus/prospectus-page-two.html", () => ({
 }));
 
 jest.mock("../prospectus/prospectus-page-three-mapper", () => ({
-  mapProspectusPageThreeDataToInput: () => ({}),
-  buildProspectusPageThree: () => ({}),
+  mapProspectusPageThreeDataToInput: () => ({
+    noteId: "note-1",
+    isPublished: false,
+    financialMode: "live_unpublished_preview",
+    frozenFinancialComparison: null,
+    liveCtosFinancials: { turnover: liveTurnoverTag, bscatot: liveBscatotTag },
+    liveFinancialStatements: {},
+    issuerSnapshot: {},
+    invoiceSnapshot: {},
+    paymasterSnapshot: {},
+  }),
+  buildProspectusPageThree: (pageInput: any) => {
+    const financialMode = pageInput.financialMode;
+    const source =
+      financialMode === "frozen_publication_snapshot"
+        ? pageInput.frozenFinancialComparison?.selected_years?.[0]?.raw_financials
+        : pageInput.liveCtosFinancials;
+    return {
+      _financialMode: financialMode,
+      _bscatot: source?.bscatot,
+    };
+  },
 }));
 jest.mock("../prospectus/prospectus-page-three-prisma", () => ({
   loadProspectusPageThreeData: jest.fn(async () => ({})),
@@ -131,6 +175,10 @@ describe("prospectus approved preview uses frozen Page 1 snapshot", () => {
     jest.clearAllMocks();
     liveSnapshotTag = "Y";
     frozenSnapshotTag = "X";
+    liveTurnoverTag = 12;
+    frozenTurnoverTag = 10;
+    liveBscatotTag = 22;
+    frozenBscatotTag = 20;
 
     mockLoadPageOneNote.mockResolvedValue({ id: "note-1" });
 
@@ -148,6 +196,14 @@ describe("prospectus approved preview uses frozen Page 1 snapshot", () => {
     mockBuildProspectusPageOneHtml.mockImplementation((page: any) =>
       modeAndTagHtml(page._mode, page._tag)
     );
+
+    mockBuildProspectusPageTwoHtml.mockImplementation((page: any) => {
+      return `<p data-mode="${page._financialMode}" data-turnover="${page._turnover}"></p>`;
+    });
+
+    mockBuildProspectusPageThreeHtml.mockImplementation((page: any) => {
+      return `<p data-mode="${page._financialMode}" data-bscatot="${page._bscatot}"></p>`;
+    });
 
     // preview() selects note id only
     mockNoteFindUnique.mockImplementation((query: any) => {
@@ -184,7 +240,16 @@ describe("prospectus approved preview uses frozen Page 1 snapshot", () => {
     render_fingerprint: "fp-1",
     calculated_at: new Date().toISOString(),
     page_1: { tag: page1Tag },
-    page_2: {},
+    page_2: {
+      financial_comparison: {
+        selected_years: [
+          {
+            year: 2025,
+            raw_financials: { turnover: frozenTurnoverTag, bscatot: frozenBscatotTag },
+          },
+        ],
+      },
+    },
     publication_content: {},
     note_identity: {},
     html: { page1: "p1", page2: "p2", page3: "p3" },
@@ -234,6 +299,11 @@ describe("prospectus approved preview uses frozen Page 1 snapshot", () => {
 
     expect(result.html.page1).toContain('data-mode="live_unpublished_preview"');
     expect(result.html.page1).toContain('data-snap="Y"');
+    // DRAFT preview must keep Page 2/3 LIVE (no frozen financial override).
+    expect(result.html.page2).toContain('data-mode="live_unpublished_preview"');
+    expect(result.html.page2).toContain('data-turnover="12"');
+    expect(result.html.page3).toContain('data-mode="live_unpublished_preview"');
+    expect(result.html.page3).toContain('data-bscatot="22"');
   });
 
   it("draft live preview (POST) remains live/unpublished (no frozen override)", async () => {
@@ -270,6 +340,11 @@ describe("prospectus approved preview uses frozen Page 1 snapshot", () => {
 
     expect(result.html.page1).toContain('data-mode="frozen_publication_snapshot"');
     expect(result.html.page1).toContain('data-snap="X"');
+    // Approved preview must also switch Page 2/3 to FROZEN using approved_snapshot.page_2.financial_comparison.
+    expect(result.html.page2).toContain('data-mode="frozen_publication_snapshot"');
+    expect(result.html.page2).toContain('data-turnover="10"');
+    expect(result.html.page3).toContain('data-mode="frozen_publication_snapshot"');
+    expect(result.html.page3).toContain('data-bscatot="20"');
   });
 
   it("approved preview remains on frozen X even if live unpublished track record later changes to Y", async () => {

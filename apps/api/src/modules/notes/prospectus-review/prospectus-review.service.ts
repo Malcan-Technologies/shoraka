@@ -1085,12 +1085,18 @@ export class ProspectusReviewService {
       ? parseApprovedSnapshot(review.approved_snapshot)
       : null;
     const frozenPage1Snapshot = approvedSnapshot?.page_1 ?? null;
+    // Page 2/3 are derived from the shared Stage 4A financial comparison freeze.
+    // During APPROVED/READY_FOR_PUBLISH Preview, we must use the frozen approved
+    // financial data even when the Note itself is not yet published.
+    const frozenFinancialComparisonFromApprovedSnapshot =
+      (approvedSnapshot as any)?.page_2?.financial_comparison ?? null;
 
     return this.renderPreviewHtml(noteId, content, {
       status,
       previewSource: sourceLabel,
       bannerText,
       frozenPage1Snapshot,
+      frozenFinancialComparisonFromApprovedSnapshot,
     });
   }
 
@@ -1162,6 +1168,12 @@ export class ProspectusReviewService {
        * Note-derived live unpublished preview track record).
        */
       frozenPage1Snapshot?: unknown | null;
+      /**
+       * Only set for APPROVED/READY_FOR_PUBLISH preview when an approved_snapshot exists.
+       * Forces Page 2/3 to use the approved frozen financial data (Stage 4A) instead of
+       * rebuilding from LIVE application/CTOS financials.
+       */
+      frozenFinancialComparisonFromApprovedSnapshot?: unknown | null;
     }
   ) {
     const publication = toProspectusPublicationContent(content);
@@ -1181,11 +1193,29 @@ export class ProspectusReviewService {
     const page2Data = await loadProspectusPageTwoData(prisma, noteId);
     const page2Input = mapProspectusPageTwoDataToInput(page2Data);
     page2Input.publicationContent = publication;
+
+    if (
+      meta.frozenFinancialComparisonFromApprovedSnapshot != null &&
+      page2Input.financialMode === "live_unpublished_preview"
+    ) {
+      page2Input.financialMode = "frozen_publication_snapshot";
+      page2Input.frozenFinancialComparison =
+        meta.frozenFinancialComparisonFromApprovedSnapshot as any;
+    }
     const page2 = buildProspectusPageTwo(page2Input);
 
     const page3Data = await loadProspectusPageThreeData(prisma, noteId);
     const page3Input = mapProspectusPageThreeDataToInput(page3Data);
     page3Input.publicationContent = publication;
+
+    if (
+      meta.frozenFinancialComparisonFromApprovedSnapshot != null &&
+      page3Input.financialMode === "live_unpublished_preview"
+    ) {
+      page3Input.financialMode = "frozen_publication_snapshot";
+      page3Input.frozenFinancialComparison =
+        meta.frozenFinancialComparisonFromApprovedSnapshot as any;
+    }
     const page3 = buildProspectusPageThree(page3Input);
 
     const page1Html = buildProspectusPageOneHtml(page1);
