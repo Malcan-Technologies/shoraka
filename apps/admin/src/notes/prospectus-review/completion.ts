@@ -20,6 +20,33 @@ function hasOption(value: string | null | undefined): boolean {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+/**
+ * Frontend numeric parsing must match backend `parseProspectusFinancialNumber`.
+ * Absent/empty/invalid → null.
+ */
+function parseProspectusFinancialNumber(value: unknown): number | null {
+  if (value == null) return null;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const parsed = Number(trimmed.replace(/,/g, ""));
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function isValidRequiredOverrideNumber(
+  field: (typeof PAGE_TWO_OVERRIDE_FIELDS)[number],
+  value: unknown
+): boolean {
+  const n = parseProspectusFinancialNumber(value);
+  if (n == null) return false;
+  if (n < 0) return false;
+  if (field === "receivablesDays") return Number.isInteger(n);
+  return true;
+}
+
 function hasHighlightCopy(value: { title?: string; description?: string; key?: string }): boolean {
   if (value.key === "shariah") return true;
   return hasOption(value.title) && hasOption(value.description);
@@ -82,7 +109,7 @@ function pageTwoOverridesComplete(
       {};
     return PAGE_TWO_OVERRIDE_FIELDS.every((field) => {
       const value = row[field];
-      return value != null && value !== "";
+      return isValidRequiredOverrideNumber(field, value);
     });
   });
 }
@@ -319,7 +346,7 @@ export function buildProspectusMissingRequiredFields(
       {};
     for (const field of PAGE_TWO_OVERRIDE_FIELDS) {
       const value = overrideRow[field];
-      if (value == null || value === "") {
+      if (!isValidRequiredOverrideNumber(field, value)) {
         missing.push({
           pageStep: 1,
           section: "Financial Comparison",
