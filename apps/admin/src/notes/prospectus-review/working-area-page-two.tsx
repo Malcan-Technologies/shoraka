@@ -486,7 +486,7 @@ export function WorkingAreaPageTwo({
                         key={band.key}
                         className={`border-b last:border-0 ${
                           assignedBandKey === band.key
-                            ? "bg-status-success-bg/10 ring-1 ring-status-success-bg/60"
+                            ? "bg-status-success-bg/20 ring-2 ring-status-success-bg/80"
                             : ""
                         }`}
                       >
