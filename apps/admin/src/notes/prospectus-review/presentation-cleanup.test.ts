@@ -73,7 +73,7 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageTwo).not.toContain("MARC Paymaster Grading");
     expect(pageTwo).not.toContain("MARC Confidence Grading");
     expect(pageTwo).toContain("ProspectusMarcAssessmentSummary");
-    expect(marcSummary).toContain("MARC Credit Assessment");
+    expect(marcSummary).toContain("MARC Data");
     expect(marcSummary).toContain("Manage MARC Assessment");
     expect(marcSummary).toContain("data-prospectus-marc-assessment");
     expect(pageTwo).toContain("Litigation Check");

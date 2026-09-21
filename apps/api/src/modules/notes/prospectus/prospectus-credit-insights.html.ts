@@ -17,9 +17,9 @@ function escapeHtml(value: string): string {
 
 export function buildProspectusCreditInsightsHtml(data: ProspectusCreditInsights): string {
   const lines = [
-    `MARC Credit Grade: ${escapeHtml(data.marcCreditGrade)}`,
-    `MARC Credit Score: ${escapeHtml(data.marcCreditScore)}`,
-    `Probability of Default: ${escapeHtml(data.probabilityOfDefault)}`,
+    `MARC Data Credit Grade: ${escapeHtml(data.marcCreditGrade)}`,
+    `MARC Data Credit Score: ${escapeHtml(data.marcCreditScore)}`,
+    `MARC Data Probability of Default: ${escapeHtml(data.probabilityOfDefault)}`,
     `Litigation Check: ${escapeHtml(data.litigationCheck)}`,
     `CCRIS Status: ${escapeHtml(data.ccrisStatus)}`,
   ];

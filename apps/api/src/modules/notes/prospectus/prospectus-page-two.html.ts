@@ -177,9 +177,9 @@ ${PROSPECTUS_DOCUMENT_CSS}
       <div data-stage="5">
         <h2>${escapeHtml(s5.sectionHeading)}</h2>
         <div class="ratings">
-          ${ratingRow("MARC Credit Grade", s5.marcCreditGrade)}
-          ${ratingRow("MARC Credit Score", s5.marcCreditScore)}
-          ${ratingRow("Probability of Default", s5.probabilityOfDefault)}
+          ${ratingRow("MARC Data Credit Grade", s5.marcCreditGrade)}
+          ${ratingRow("MARC Data Credit Score", s5.marcCreditScore)}
+          ${ratingRow("MARC Data Probability of Default", s5.probabilityOfDefault)}
           ${ratingRow("Litigation Check", s5.litigationCheck)}
           ${ratingRow("CCRIS Status", s5.ccrisStatus)}
         </div>
