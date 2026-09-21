@@ -1,18 +1,14 @@
+import { escapeHtml } from "../html-escape";
 import { sendEmail } from "./ses-client";
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
 
 /**
  * Sends the RegTank individual onboarding verify link via AWS SES (fallback if RegTank does not email).
  * Uses the same SES client config as {@link sendEmail} (EMAIL_FROM, SES_REGION, default AWS credentials).
  */
-export async function sendOnboardingEmail(params: { to: string; verifyLink: string }): Promise<void> {
+export async function sendOnboardingEmail(params: {
+  to: string;
+  verifyLink: string;
+}): Promise<void> {
   const { to, verifyLink } = params;
   const safe = escapeHtml(verifyLink);
   await sendEmail({

@@ -57,12 +57,16 @@ export async function createApp(): Promise<Application> {
   assertSigningProductionConfig();
   const app = express();
 
-  // Helmet security headers
-  // Disable CSP for API server - CSP is for HTML pages, not JSON APIs
-  // The frontends have their own CSP configurations
+  // Helmet security headers for JSON responses. CSP stays off — it applies to HTML
+  // documents; portals set their own CSP including frame-ancestors.
+  const isProduction = process.env.NODE_ENV === "production";
   app.use(
     helmet({
-      contentSecurityPolicy: false, // API doesn't serve HTML, CSP not needed
+      contentSecurityPolicy: false,
+      frameguard: { action: "sameorigin" },
+      noSniff: true,
+      referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+      hsts: isProduction ? { maxAge: 31536000, includeSubDomains: true } : false,
     })
   );
 

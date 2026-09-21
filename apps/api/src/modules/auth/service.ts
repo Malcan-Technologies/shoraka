@@ -26,6 +26,8 @@ import { getEnv } from "../../config/env";
 import { NotificationService } from "../notification/service";
 import { NotificationTypeIds } from "../notification/registry";
 import { resolveAdminAccess } from "../../lib/auth/rbac";
+import { AccessTokenRevocationService } from "./token-revocation.service";
+import { signOutCognitoUserGlobally } from "../../lib/auth/cognito-global-signout";
 
 const cognitoClient = new CognitoIdentityProviderClient({
   region: process.env.COGNITO_REGION || "ap-southeast-5",
@@ -53,10 +55,12 @@ function computeSecretHash(username: string): string {
 export class AuthService {
   private repository: AuthRepository;
   private notificationService: NotificationService;
+  private tokenRevocation: AccessTokenRevocationService;
 
   constructor() {
     this.repository = new AuthRepository();
     this.notificationService = new NotificationService();
+    this.tokenRevocation = new AccessTokenRevocationService();
   }
 
   /**
@@ -380,6 +384,48 @@ export class AuthService {
     return { success: true, cancelled: true };
   }
 
+  async invalidateCurrentAccessToken(params: {
+    jti?: string;
+    exp?: number;
+    userId: string;
+    cognitoSub?: string;
+  }): Promise<void> {
+    try {
+      await this.tokenRevocation.revokeCurrentToken({
+        jti: params.jti,
+        userId: params.userId,
+        exp: params.exp,
+      });
+    } catch (error) {
+      logger.error(
+        {
+          userId: params.userId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        "Failed to record revoked access token"
+      );
+      throw new AppError(
+        503,
+        "SERVICE_UNAVAILABLE",
+        "Authentication service temporarily unavailable"
+      );
+    }
+
+    if (params.cognitoSub) {
+      try {
+        await signOutCognitoUserGlobally(params.cognitoSub);
+      } catch (error) {
+        logger.warn(
+          {
+            userId: params.userId,
+            error: error instanceof Error ? error.message : String(error),
+          },
+          "Cognito global sign-out failed after local token revocation"
+        );
+      }
+    }
+  }
+
   /**
    * Logout user and revoke session
    */
@@ -425,6 +471,13 @@ export class AuthService {
     if (session) {
       await this.repository.revokeSession(session.id);
     }
+
+    await this.invalidateCurrentAccessToken({
+      jti: req.accessTokenJti,
+      exp: req.accessTokenExp,
+      userId,
+      cognitoSub: req.cognitoSub,
+    });
 
     // Create access log
     await this.repository.createAccessLog({

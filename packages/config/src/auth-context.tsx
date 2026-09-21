@@ -2,7 +2,10 @@
 
 import { createContext, useContext, useState, useCallback, ReactNode, useEffect } from "react";
 import { fetchAuthSession, signOut as amplifySignOut } from "aws-amplify/auth";
-import { tokenRefreshService } from "./token-refresh-service";
+import {
+  resolveAccessTokenWithCookieFallback,
+  tokenRefreshService,
+} from "./token-refresh-service";
 
 interface AuthContextType {
   accessToken: string | null;
@@ -30,42 +33,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * Flow:
    * 1. Try Amplify's fetchAuthSession first
    * 2. If token expired/missing, attempt manual refresh via tokenRefreshService
-   * 3. Fallback to reading directly from cookies
+   * 3. Fallback to reading directly from cookies, including when Amplify throws
    * 4. Update state and return token
    */
   const getAccessToken = useCallback(async (): Promise<string | null> => {
-    try {
-      // Try Amplify first
-      const session = await fetchAuthSession();
-      let token = session.tokens?.accessToken?.toString() || null;
+    const token = await resolveAccessTokenWithCookieFallback({
+      fetchSessionToken: async () => {
+        const session = await fetchAuthSession();
+        return session.tokens?.accessToken?.toString() || null;
+      },
+      refreshToken: () => tokenRefreshService.refreshToken(),
+      readTokenFromCookies: () => tokenRefreshService.readTokenFromCookies(),
+      isTokenExpired: (value) => tokenRefreshService.isTokenExpired(value),
+    });
 
-      // If no token or token is expired, try manual refresh
-      if (!token || tokenRefreshService.isTokenExpired(token)) {
-        // eslint-disable-next-line no-console
-        console.log("[AuthProvider] Token expired or missing, attempting refresh...");
-        token = await tokenRefreshService.refreshToken();
-
-        // If still no token, try reading directly from cookies as last resort
-        if (!token) {
-          token = tokenRefreshService.readTokenFromCookies();
-        }
-      }
-
-      if (token) {
-        setAccessTokenState(token);
-        setIsAuthenticated(true);
-        return token;
-      } else {
-        setAccessTokenState(null);
-        setIsAuthenticated(false);
-        return null;
-      }
-    } catch (error) {
-      console.error("[AuthProvider] Failed to get access token:", error);
-      setAccessTokenState(null);
-      setIsAuthenticated(false);
-      return null;
+    if (token) {
+      setAccessTokenState(token);
+      setIsAuthenticated(true);
+      return token;
     }
+
+    setAccessTokenState(null);
+    setIsAuthenticated(false);
+    return null;
   }, []);
 
   /**

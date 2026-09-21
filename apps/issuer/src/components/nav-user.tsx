@@ -20,8 +20,9 @@ import {
   useSidebar,
 } from "@cashsouk/ui";
 import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "sonner";
 import { logout } from "../lib/auth";
-import { createApiClient, useAuthToken } from "@cashsouk/config";
+import { CognitoLogoutError, createApiClient, useAuthToken } from "@cashsouk/config";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 const INVESTOR_URL = process.env.NEXT_PUBLIC_INVESTOR_URL || "http://localhost:3002";
@@ -72,7 +73,16 @@ export function NavUser({ variant = "sidebar" }: NavUserProps) {
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
-    await logout(signOut, getAccessToken);
+    try {
+      await logout(signOut, getAccessToken);
+    } catch (error) {
+      toast.error(
+        error instanceof CognitoLogoutError
+          ? error.message
+          : "Unable to complete logout. Please try again."
+      );
+      setIsLoggingOut(false);
+    }
   };
 
   const handleSwitchPortal = () => {

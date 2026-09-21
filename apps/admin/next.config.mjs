@@ -2,6 +2,10 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { DEV_TUNNEL_ORIGINS } from "../../packages/config/dev-tunnel-origins.cjs";
 import { NEXT_DEV_EXPERIMENTAL } from "../../packages/config/next-dev-experimental.cjs";
+import {
+  CSP_FRAME_ANCESTORS,
+  getSecurityHeaders,
+} from "../../packages/config/security-headers.cjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const monorepoRoot = path.join(/* turbopackIgnore: true */ __dirname, "../..");
@@ -77,8 +81,10 @@ const nextConfig = {
               "connect-src 'self' https://*.amazoncognito.com https://*.auth.ap-southeast-5.amazoncognito.com https://auth.cashsouk.com https://api.cashsouk.com https://*.s3.ap-southeast-5.amazonaws.com https://*.truestack.my http://localhost:4000 http://localhost:3000",
               "frame-src 'self' https://*.amazoncognito.com https://*.auth.ap-southeast-5.amazoncognito.com https://auth.cashsouk.com",
               "form-action 'self' https://*.amazoncognito.com https://*.auth.ap-southeast-5.amazoncognito.com https://auth.cashsouk.com",
+              CSP_FRAME_ANCESTORS,
             ].join("; "),
           },
+          ...getSecurityHeaders(),
         ],
       },
     ];

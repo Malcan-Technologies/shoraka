@@ -1,3 +1,5 @@
+import { parseCookieHeader, readCognitoAccessTokenFromCookieMap } from "./cookie-pair";
+
 /**
  * Centralized Token Refresh Service
  *
@@ -58,21 +60,13 @@ class TokenRefreshService {
    */
   hasRefreshToken(): boolean {
     try {
-      const cookies = document.cookie.split(";");
       const clientId = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID;
-
       if (!clientId) {
         return false;
       }
 
-      // Find LastAuthUser cookie - if this exists, user has a session
-      // The refresh token is httpOnly so we can't check it directly,
-      // but if LastAuthUser is set, refresh token was set at the same time during login
-      const lastAuthUserCookie = cookies.find((c) =>
-        c.trim().startsWith(`CognitoIdentityServiceProvider.${clientId}.LastAuthUser=`)
-      );
-
-      return !!lastAuthUserCookie;
+      const cookies = parseCookieHeader(document.cookie);
+      return Boolean(cookies[`CognitoIdentityServiceProvider.${clientId}.LastAuthUser`]);
     } catch {
       return false;
     }
@@ -84,34 +78,12 @@ class TokenRefreshService {
    */
   readTokenFromCookies(): string | null {
     try {
-      const cookies = document.cookie.split(";");
       const clientId = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID;
-
       if (!clientId) {
         return null;
       }
 
-      // Find LastAuthUser cookie to get the user ID
-      const lastAuthUserCookie = cookies.find((c) =>
-        c.trim().startsWith(`CognitoIdentityServiceProvider.${clientId}.LastAuthUser=`)
-      );
-
-      if (!lastAuthUserCookie) {
-        return null;
-      }
-
-      const userId = lastAuthUserCookie.split("=")[1].trim();
-
-      // Find access token cookie
-      const accessTokenCookie = cookies.find((c) =>
-        c.trim().startsWith(`CognitoIdentityServiceProvider.${clientId}.${userId}.accessToken=`)
-      );
-
-      if (!accessTokenCookie) {
-        return null;
-      }
-
-      return accessTokenCookie.split("=")[1].trim();
+      return readCognitoAccessTokenFromCookieMap(parseCookieHeader(document.cookie), clientId);
     } catch (error) {
       console.error("[TokenRefreshService] Error reading token from cookies:", error);
       return null;
@@ -203,6 +175,39 @@ class TokenRefreshService {
       console.error("[TokenRefreshService] Token refresh error:", error);
       return null;
     }
+  }
+}
+
+function readCookieTokenSafely(readTokenFromCookies: () => string | null): string | null {
+  try {
+    return readTokenFromCookies();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Resolve a portal access token, falling back to the Amplify cookie when
+ * fetchAuthSession throws or returns empty. Cookie reads must not throw
+ * (SSR / non-browser).
+ */
+export async function resolveAccessTokenWithCookieFallback(options: {
+  fetchSessionToken: () => Promise<string | null>;
+  refreshToken: () => Promise<string | null>;
+  readTokenFromCookies: () => string | null;
+  isTokenExpired: (token: string) => boolean;
+}): Promise<string | null> {
+  try {
+    let token = await options.fetchSessionToken();
+    if (!token || options.isTokenExpired(token)) {
+      token = await options.refreshToken();
+      if (!token) {
+        token = readCookieTokenSafely(options.readTokenFromCookies);
+      }
+    }
+    return token;
+  } catch {
+    return readCookieTokenSafely(options.readTokenFromCookies);
   }
 }
 

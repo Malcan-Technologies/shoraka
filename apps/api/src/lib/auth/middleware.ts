@@ -1,11 +1,22 @@
 import { Request, Response, NextFunction } from "express";
 import { AppError } from "../http/error-handler";
 import { Admin, AdminRoleConfig, User, UserRole } from "@prisma/client";
-import { FULL_ACCESS_ADMIN_ROLE_KEYS, type AdminPermission, type AdminRoleKey } from "@cashsouk/types";
+import {
+  FULL_ACCESS_ADMIN_ROLE_KEYS,
+  type AdminPermission,
+  type AdminRoleKey,
+} from "@cashsouk/types";
 import { prisma } from "../prisma";
+import { logger } from "../logger";
 import { verifyCognitoAccessToken } from "./cognito-jwt-verifier";
 import { resolveAdminAccess } from "./rbac";
-import { fillActiveRoleFromRequiredRoles, requestedRoleFromRequest, resolveActiveRole } from "./request-active-role";
+import {
+  fillActiveRoleFromRequiredRoles,
+  requestedRoleFromRequest,
+  resolveActiveRole,
+} from "./request-active-role";
+import { accessTokenRevocationService } from "../../modules/auth/token-revocation.service";
+import { isAccessTokenIssuedBeforePasswordChange } from "./access-token-password-change";
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -18,6 +29,8 @@ declare global {
       adminRoleName?: string;
       cognitoSub?: string;
       activeRole?: UserRole;
+      accessTokenJti?: string;
+      accessTokenExp?: number;
     }
   }
 }
@@ -58,6 +71,28 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
       );
     }
 
+    const jti = typeof cognitoPayload.jti === "string" ? cognitoPayload.jti : undefined;
+    const exp = typeof cognitoPayload.exp === "number" ? cognitoPayload.exp : undefined;
+
+    let revoked = false;
+    try {
+      revoked = await accessTokenRevocationService.isRevoked(jti);
+    } catch (error) {
+      logger.error(
+        { error: error instanceof Error ? error.message : String(error) },
+        "Failed to check access token revocation status"
+      );
+      throw new AppError(
+        503,
+        "SERVICE_UNAVAILABLE",
+        "Authentication service temporarily unavailable"
+      );
+    }
+
+    if (revoked) {
+      throw new AppError(401, "UNAUTHORIZED", "Token has been revoked");
+    }
+
     // Find user by Cognito sub (user ID from Cognito)
     const user = await prisma.user.findUnique({
       where: { cognito_sub: cognitoPayload.sub },
@@ -67,9 +102,16 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
       throw new AppError(401, "UNAUTHORIZED", "User not found in database");
     }
 
+    const tokenIat = typeof cognitoPayload.iat === "number" ? cognitoPayload.iat : undefined;
+    if (isAccessTokenIssuedBeforePasswordChange(tokenIat, user.password_changed_at)) {
+      throw new AppError(401, "UNAUTHORIZED", "Invalid or expired token");
+    }
+
     // Set user and cognito sub on request
     req.user = user;
     req.cognitoSub = cognitoPayload.sub;
+    req.accessTokenJti = jti;
+    req.accessTokenExp = exp;
     req.activeRole = resolveActiveRole(user.roles, requestedRoleFromRequest(req));
 
     if (user.roles.includes(UserRole.ADMIN)) {
@@ -130,12 +172,24 @@ export function requireRole(...roles: UserRole[]) {
 
     // For INVESTOR/ISSUER roles, also check onboarding completion (array length > 0)
     if (roles.includes(UserRole.INVESTOR) && req.user.investor_account.length === 0) {
-      next(new AppError(403, "FORBIDDEN", "Investor onboarding must be completed to access this resource"));
+      next(
+        new AppError(
+          403,
+          "FORBIDDEN",
+          "Investor onboarding must be completed to access this resource"
+        )
+      );
       return;
     }
 
     if (roles.includes(UserRole.ISSUER) && req.user.issuer_account.length === 0) {
-      next(new AppError(403, "FORBIDDEN", "Issuer onboarding must be completed to access this resource"));
+      next(
+        new AppError(
+          403,
+          "FORBIDDEN",
+          "Issuer onboarding must be completed to access this resource"
+        )
+      );
       return;
     }
 

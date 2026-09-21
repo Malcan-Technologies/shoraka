@@ -78,7 +78,7 @@ interface UserData {
 interface MeResponse {
   user: UserData;
   activeRole: string | null;
-   permissions: string[];
+  permissions: string[];
   roleKey: string | null;
   roleName: string | null;
   sessions: {
@@ -300,7 +300,7 @@ export default function AccountPage() {
 
   return (
     <>
-            <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className={cn(portalContentMaxWidthClassName, "space-y-6 px-2 py-8 md:px-4")}>
           <AdminPageHeader
             title="Account"
@@ -324,11 +324,7 @@ export default function AccountPage() {
                 <Label className="text-base font-medium">Admin Role</Label>
                 <div className="flex flex-wrap gap-2">
                   {adminRoleDisplay ? (
-                    <Badge
-                      variant="outline"
-                      className="border"
-                      style={adminRoleDisplay.badgeStyle}
-                    >
+                    <Badge variant="outline" className="border" style={adminRoleDisplay.badgeStyle}>
                       {adminRoleDisplay.name}
                     </Badge>
                   ) : (
@@ -555,7 +551,8 @@ export default function AccountPage() {
                   </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Set up or manage your authenticator during Cognito sign-in. 2FA cannot be disabled.
+                  Set up or manage your authenticator during Cognito sign-in. 2FA cannot be
+                  disabled.
                 </p>
               </div>
 
@@ -573,10 +570,15 @@ export default function AccountPage() {
                         <div className="flex items-center gap-4">
                           <ComputerDesktopIcon className="h-4 w-4 text-muted-foreground shrink-0" />
                           <div className="min-w-0">
-                            <p className="text-sm truncate font-medium" title={login.device || "Unknown Device"}>
+                            <p
+                              className="text-sm truncate font-medium"
+                              title={login.device || "Unknown Device"}
+                            >
                               {login.device || "Unknown Device"}
                             </p>
-                            <p className="text-xs text-muted-foreground">IP: {login.ip || "Unknown"}</p>
+                            <p className="text-xs text-muted-foreground">
+                              IP: {login.ip || "Unknown"}
+                            </p>
                           </div>
                         </div>
                         <div className="text-right shrink-0">
@@ -612,7 +614,9 @@ export default function AccountPage() {
                 </div>
                 <div>
                   <CardTitle className="text-xl">Marketing Notifications</CardTitle>
-                  <CardDescription>Manage your marketing and promotional preferences</CardDescription>
+                  <CardDescription>
+                    Manage your marketing and promotional preferences
+                  </CardDescription>
                 </div>
               </div>
             </CardHeader>
