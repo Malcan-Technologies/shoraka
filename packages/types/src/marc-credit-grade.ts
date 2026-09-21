@@ -60,7 +60,8 @@ export const MARC_SME_BANDS = [
     // Slightly stronger (darker) yellow than the previous Moderate Risk.
     // Kept yellow-leaning to preserve the overall visual style with white text.
     // Keep it stronger than original, but closer to a clean yellow (less muddy/gold).
-    color: "#e0b133",
+    // SME Moderate Risk yellow (traffic-light style; clean yellow).
+    color: "#f2c94c",
   },
   {
     key: "d",
