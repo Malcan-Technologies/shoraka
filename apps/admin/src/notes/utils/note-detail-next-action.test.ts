@@ -578,7 +578,7 @@ describe("standalone vs contract-linked notes", () => {
     });
   });
 
-  it("shows Facility instead of Paymaster on the admin notes table", () => {
+  it("nests Facility under the note identity instead of Paymaster", () => {
     const tableSource = fs.readFileSync(
       path.join(__dirname, "../components/notes-table.tsx"),
       "utf8"
@@ -587,14 +587,15 @@ describe("standalone vs contract-linked notes", () => {
       path.join(__dirname, "../components/notes-table-row.tsx"),
       "utf8"
     );
-    expect(tableSource).toContain(">Facility</TableHead>");
+    expect(tableSource).not.toContain(">Facility</TableHead>");
     expect(tableSource).not.toContain(">Paymaster</TableHead>");
+    expect(rowSource).toContain("FacilityInline");
     expect(rowSource).toContain("resolveNoteFacilityLink");
     expect(rowSource).toContain("note.sourceContractId");
     expect(rowSource).toContain("invoice.contractId");
   });
 
-  it("keeps prospectus as its own notes-table column with a checkmark", () => {
+  it("nests the prospectus checkmark in the note identity cell", () => {
     const tableSource = fs.readFileSync(
       path.join(__dirname, "../components/notes-table.tsx"),
       "utf8"
@@ -603,10 +604,41 @@ describe("standalone vs contract-linked notes", () => {
       path.join(__dirname, "../components/notes-table-row.tsx"),
       "utf8"
     );
-    expect(tableSource).toContain(">Prospectus</TableHead>");
+    expect(tableSource).not.toContain(">Prospectus</TableHead>");
     expect(rowSource).toContain("CheckIcon");
-    expect(rowSource).toContain("ProspectusCell");
+    expect(rowSource).toContain("ProspectusCheck");
     expect(rowSource).not.toContain("label={formatProspectusListBadge");
+  });
+
+  it("sizes the notes-table risk chip so SME-10 padding is not clipped", () => {
+    const tableSource = fs.readFileSync(
+      path.join(__dirname, "../components/notes-table.tsx"),
+      "utf8"
+    );
+    const rowSource = fs.readFileSync(
+      path.join(__dirname, "../components/notes-table-row.tsx"),
+      "utf8"
+    );
+    expect(tableSource).toContain("<TableHead className=\"truncate\">Risk</TableHead>");
+    expect(rowSource).toContain("NOTES_TABLE_RISK_BADGE_CLASS");
+    expect(rowSource).toContain("min-w-[6rem]");
+    expect(rowSource).toContain("overflow-visible");
+    expect(rowSource).not.toContain("SoukscoreRiskRatingBadge riskRating={note.riskRating} />");
+  });
+
+  it("omits the 80% funding-threshold marker from the notes table", () => {
+    const rowSource = fs.readFileSync(
+      path.join(__dirname, "../components/notes-table-row.tsx"),
+      "utf8"
+    );
+    expect(rowSource).toContain("thresholdPercent={0}");
+    expect(rowSource).toContain("% funded");
+    expect(rowSource).not.toContain("thresholdPercent={note.minimumFundingPercent}");
+    expect(rowSource).not.toContain("noteDisplayFundedAmount");
+    expect(rowSource).toContain("NOTES_TABLE_ACTIONS_CELL_CLASS");
+    expect(rowSource).toContain("text-center");
+    expect(rowSource).toContain("NOTES_TABLE_STATUS_BADGE_CLASS");
+    expect(rowSource).toContain("min-w-[13rem]");
   });
 
   it("hides the source rail Contract row only when standalone", () => {
@@ -702,6 +734,8 @@ describe("standalone vs contract-linked notes", () => {
     expect(headerSource).toContain("heroSummaryClusterClass");
     expect(headerSource).toContain("summaryCards && summaryCards.length > 0");
     expect(headerSource).toContain("overflow-hidden rounded-2xl border shadow-sm md:shadow");
+    expect(headerSource).toContain("xl:flex-row xl:items-start xl:justify-between xl:gap-8");
+    expect(headerSource).toContain("break-words text-section-title");
     expect(progressSource).toContain('variant?: "panel" | "hero"');
   });
 

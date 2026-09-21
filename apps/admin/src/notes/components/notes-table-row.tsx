@@ -6,6 +6,7 @@ import {
   NoteStatusBadge,
   FundingProgress,
   SoukscoreRiskRatingBadge,
+  STATUS_BADGE_COMPACT_CLASS,
   StatusBadge,
   getNoteDerivedStatusToken,
 } from "@cashsouk/ui";
@@ -22,12 +23,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { TableCell, TableRow } from "@/components/ui/table";
-import { formatNoteStatus } from "@/notes/utils/format-note-status";
 import {
-  getNoteFundingAccentClass,
   getNoteFundingIndicatorClass,
   getNoteFundingProgressClass,
-  noteDisplayFundedAmount,
   noteDisplayFundingPercent,
 } from "@/notes/utils/funding-progress";
 import {
@@ -42,6 +40,18 @@ import { CheckIcon } from "@heroicons/react/24/solid";
 import { adminActionRowClass, adminRejectedRowClass } from "@/lib/admin-status-token";
 import { cn } from "@/lib/utils";
 import { resolveNoteFacilityLink } from "@/notes/utils/note-source-linkage";
+
+/** Overrides SoukscoreRiskRatingBadge truncate so SME-10 padding is not clipped. */
+const NOTES_TABLE_RISK_BADGE_CLASS = cn(
+  STATUS_BADGE_COMPACT_CLASS,
+  "max-w-none shrink-0 overflow-visible text-clip"
+);
+
+/** Overrides NoteStatusBadge truncate so long labels stay fully visible. */
+const NOTES_TABLE_STATUS_BADGE_CLASS = "max-w-none shrink-0 overflow-visible whitespace-nowrap";
+
+const NOTES_TABLE_ACTIONS_CELL_CLASS =
+  "overflow-visible whitespace-nowrap text-center last:pr-2";
 
 type NotesTableRowProps =
   | {
@@ -123,29 +133,20 @@ function MaturityCell({
   );
 }
 
-function SettlementRegistryCell({ note }: { note: NoteListItem }) {
-  if (!isNoteSettlementPosted(note)) {
-    return <span className="text-muted-foreground">—</span>;
-  }
-  return <StatusBadge label="Settled" status="success" className="max-w-full truncate" />;
-}
-
-function TrusteeInstructionCell({ note }: { note: NoteListItem }) {
+function TrusteeCell({ note }: { note: NoteListItem }) {
   const state = resolveSettlementTrusteeRegistryState(note.settlementSummary);
-  const label = settlementTrusteeRegistryLabel(state);
-  if (!label) {
-    return <span className="text-muted-foreground">—</span>;
+  const trusteeLabel = settlementTrusteeRegistryLabel(state);
+  if (trusteeLabel) {
+    const status =
+      state === "complete" ? "success" : state === "submitted" ? "submitted" : "action";
+    return (
+      <StatusBadge label={trusteeLabel} status={status} size="sm" title={trusteeLabel} />
+    );
   }
-  const status =
-    state === "complete" ? "success" : state === "submitted" ? "submitted" : "action";
-  return (
-    <StatusBadge
-      label={label}
-      status={status}
-      title={label}
-      className="max-w-full truncate"
-    />
-  );
+  if (isNoteSettlementPosted(note)) {
+    return <StatusBadge label="Settled" status="success" size="sm" />;
+  }
+  return <span className="text-muted-foreground">—</span>;
 }
 
 function noteRowNeedsAdminAction(note: NoteListItem): boolean {
@@ -167,28 +168,19 @@ function hasProspectusIndicator(note: NoteListItem): boolean {
   );
 }
 
-function ProspectusCell({ note }: { note?: NoteListItem }) {
-  if (!note || !hasProspectusIndicator(note) || !note.prospectus) {
-    return (
-      <TableCell className="min-w-0 overflow-hidden">
-        <span className="text-muted-foreground">—</span>
-      </TableCell>
-    );
-  }
-
+function ProspectusCheck({ note }: { note: NoteListItem }) {
+  if (!hasProspectusIndicator(note) || !note.prospectus) return null;
   const label = formatProspectusListBadge(note.prospectus.displayStatus);
   return (
-    <TableCell className="min-w-0 overflow-hidden">
-      <CheckIcon
-        className="size-4 shrink-0 text-status-success-text"
-        title={label}
-        aria-label={label}
-      />
-    </TableCell>
+    <CheckIcon
+      className="size-4 shrink-0 text-status-success-text"
+      title={label}
+      aria-label={label}
+    />
   );
 }
 
-function FacilityCell({
+function FacilityInline({
   contractId,
   displayReference,
 }: {
@@ -196,102 +188,91 @@ function FacilityCell({
   displayReference?: string | null;
 }) {
   const facility = resolveNoteFacilityLink({ contractId, displayReference });
-  if (!facility) {
-    return (
-      <TableCell className="min-w-0 overflow-hidden">
-        <span className="text-muted-foreground">—</span>
-      </TableCell>
-    );
-  }
+  if (!facility) return null;
   return (
-    <TableCell className="min-w-0 overflow-hidden" title={facility.label}>
+    <>
+      <span className="shrink-0">·</span>
       <Link
         href={facility.href}
-        className="block truncate font-mono text-xs font-medium text-primary underline-offset-4 hover:underline"
+        title={facility.label}
+        className="truncate font-mono font-medium text-primary underline-offset-4 hover:underline"
       >
         {facility.label}
       </Link>
+    </>
+  );
+}
+
+function NoteIdentityCell({ note }: { note: NoteListItem }) {
+  const issuer = note.issuerName ?? "Unknown issuer";
+  return (
+    <TableCell className="min-w-0 overflow-hidden">
+      <div className="flex min-w-0 items-center gap-1.5">
+        <div className="min-w-0 truncate font-mono text-xs" title={note.noteReference}>
+          {note.noteReference}
+        </div>
+        {note.isFeatured ? (
+          <StatusBadge label="Featured" status="active" size="sm" showDot={false} />
+        ) : null}
+      </div>
+      <div className="flex min-w-0 items-center gap-1.5">
+        <div className="min-w-0 truncate font-medium" title={note.title}>
+          {note.title}
+        </div>
+        <ProspectusCheck note={note} />
+      </div>
+      <div className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+        <span className="truncate" title={issuer}>
+          {issuer}
+        </span>
+        <FacilityInline
+          contractId={note.sourceContractId}
+          displayReference={note.sourceContractDisplayReference}
+        />
+      </div>
+    </TableCell>
+  );
+}
+
+function RiskCell({ riskRating }: { riskRating: string | null | undefined }) {
+  return (
+    <TableCell className="min-w-[6rem]">
+      <SoukscoreRiskRatingBadge riskRating={riskRating} className={NOTES_TABLE_RISK_BADGE_CLASS} />
     </TableCell>
   );
 }
 
 function NoteRow({ note, onViewDetails }: NoteRowProps) {
-  const fundedAmount = noteDisplayFundedAmount(note);
   const fundingPercent = noteDisplayFundingPercent(note);
   const fundingProgress = Math.min(Math.max(fundingPercent, 0), 100);
   const settlementPosted = isNoteSettlementPosted(note);
+  const daysPastDue = note.daysPastDue && note.daysPastDue > 0 ? note.daysPastDue : null;
   return (
     <TableRow className={noteRowHighlightClass(note)}>
-      <TableCell className="min-w-0 overflow-hidden" title={note.noteReference}>
-        <div className="truncate font-mono text-xs">{note.noteReference}</div>
-        {note.isFeatured ? (
-          <StatusBadge
-            label="Featured"
-            status="active"
-            showDot={false}
-            className="mt-1 shrink-0"
-          />
-        ) : null}
+      <NoteIdentityCell note={note} />
+      <RiskCell riskRating={note.riskRating} />
+      <TableCell className="min-w-0 overflow-hidden truncate">
+        {formatCurrency(note.settlementAmount)}
       </TableCell>
       <TableCell className="min-w-0 overflow-hidden">
-        <div className="truncate font-medium" title={note.title}>{note.title}</div>
-        <div className="truncate text-xs text-muted-foreground" title={note.issuerName ?? "Unknown issuer"}>
-          {note.issuerName ?? "Unknown issuer"}
-        </div>
-      </TableCell>
-      <ProspectusCell note={note} />
-      <TableCell className="min-w-0 overflow-hidden">
-        <SoukscoreRiskRatingBadge riskRating={note.riskRating} />
-      </TableCell>
-      <FacilityCell
-        contractId={note.sourceContractId}
-        displayReference={note.sourceContractDisplayReference}
-      />
-      <TableCell className="min-w-0 overflow-hidden truncate">{formatCurrency(note.settlementAmount)}</TableCell>
-      <TableCell className="min-w-0 overflow-hidden">
-        <div className="flex min-w-0 items-center justify-between gap-2">
-          <span className="shrink-0 font-medium tabular-nums">
-            {fundingPercent.toFixed(1)}% funded
-          </span>
-          <span
-            className={cn(
-              "truncate text-xs",
-              getNoteFundingAccentClass(note) ?? "text-muted-foreground"
-            )}
-          >
-            {formatNoteStatus(note.fundingStatus)}
-          </span>
-        </div>
+        <div className="font-medium tabular-nums">{fundingPercent.toFixed(1)}% funded</div>
         <FundingProgress
-          className="mt-2"
+          className="mt-1.5"
           percent={fundingProgress}
-          thresholdPercent={note.minimumFundingPercent}
+          thresholdPercent={0}
           fillClassName={getNoteFundingIndicatorClass(note)}
           trackClassName={getNoteFundingProgressClass(note)}
           aria-label={`${fundingPercent.toFixed(1)}% funded. ${note.minimumFundingPercent}% minimum required for funding to succeed.`}
         />
-        <div
-          className={cn(
-            "truncate text-xs tabular-nums",
-            getNoteFundingAccentClass(note) ?? "text-muted-foreground"
-          )}
-          title={`${formatCurrency(fundedAmount)} of ${formatCurrency(note.targetAmount)} · ${note.minimumFundingPercent}% min threshold`}
-        >
-          {formatCurrency(fundedAmount)} of {formatCurrency(note.targetAmount)} ·{" "}
-          {note.minimumFundingPercent}% min
-        </div>
+      </TableCell>
+      <TableCell className="min-w-[13rem] overflow-visible">
+        <NoteStatusBadge note={note} marker="dot" className={NOTES_TABLE_STATUS_BADGE_CLASS} />
+        {daysPastDue ? (
+          <div className="mt-0.5 tabular-nums text-xs text-muted-foreground">{daysPastDue} DPD</div>
+        ) : null}
       </TableCell>
       <TableCell className="min-w-0 overflow-hidden">
-        <NoteStatusBadge note={note} marker="dot" />
-      </TableCell>
-      <TableCell className="min-w-0 overflow-hidden tabular-nums">
-        {note.daysPastDue && note.daysPastDue > 0 ? note.daysPastDue : "—"}
-      </TableCell>
-      <TableCell className="min-w-0 overflow-hidden">
-        <SettlementRegistryCell note={note} />
-      </TableCell>
-      <TableCell className="min-w-0 overflow-hidden">
-        <TrusteeInstructionCell note={note} />
+        <TrusteeCell note={note} />
       </TableCell>
       <MaturityCell
         maturityDate={note.maturityDate}
@@ -299,7 +280,7 @@ function NoteRow({ note, onViewDetails }: NoteRowProps) {
         highlightCountdown={!settlementPosted}
         settled={settlementPosted}
       />
-      <TableCell className="whitespace-nowrap">
+      <TableCell className={NOTES_TABLE_ACTIONS_CELL_CLASS}>
         <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => onViewDetails(note)}>
           <EyeIcon className="h-4 w-4 mr-1" />
           View
@@ -325,55 +306,59 @@ function ReadyInvoiceRow({
     businessNumber: invoice.invoiceNumber,
     id: invoice.invoiceId,
   });
+  const issuer = formatNamedEntityDisplay(
+    invoice.issuerName,
+    invoice.issuerOrganizationDisplayReference
+  );
   return (
     <TableRow className={adminActionRowClass(true)}>
-      <TableCell className="min-w-0 overflow-hidden truncate font-mono text-xs" title={invoiceLabel}>
-        {invoiceLabel}
-      </TableCell>
       <TableCell className="min-w-0 overflow-hidden">
-        <div className="truncate font-medium" title={invoiceLabel}>Approved invoice ready for note</div>
-        <div className="truncate text-xs text-muted-foreground" title={invoice.issuerName ?? invoice.issuerOrganizationDisplayReference ?? invoice.issuerOrganizationId}>
-          {formatNamedEntityDisplay(invoice.issuerName, invoice.issuerOrganizationDisplayReference)}
+        <div className="truncate font-mono text-xs" title={invoiceLabel}>
+          {invoiceLabel}
+        </div>
+        <div className="truncate font-medium" title="Approved invoice ready for note">
+          Approved invoice ready for note
+        </div>
+        <div className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+          <span
+            className="truncate"
+            title={
+              invoice.issuerName ??
+              invoice.issuerOrganizationDisplayReference ??
+              invoice.issuerOrganizationId
+            }
+          >
+            {issuer}
+          </span>
+          <FacilityInline
+            contractId={invoice.contractId}
+            displayReference={invoice.contractDisplayReference}
+          />
         </div>
       </TableCell>
-      <ProspectusCell />
-      <TableCell className="min-w-0 overflow-hidden">
-        <SoukscoreRiskRatingBadge riskRating={invoice.riskRating} />
-      </TableCell>
-      <FacilityCell
-        contractId={invoice.contractId}
-        displayReference={invoice.contractDisplayReference}
-      />
+      <RiskCell riskRating={invoice.riskRating} />
       <TableCell className="min-w-0 overflow-hidden truncate">
         {formatCurrency(invoice.invoiceAmount)}
       </TableCell>
       <TableCell className="min-w-0 overflow-hidden">
         <div className="truncate text-sm text-muted-foreground">Not listed</div>
-        <div className="mt-2 h-2 rounded-full bg-muted" />
-        <div className="truncate text-xs text-muted-foreground">
-          Profit {invoice.profitRatePercent == null ? "-" : `${invoice.profitRatePercent}%`}
-        </div>
+        <div className="mt-1.5 h-2 rounded-full bg-muted" />
       </TableCell>
-      <TableCell className="min-w-0 overflow-hidden">
-        <StatusBadge label="Ready" status="action" className="max-w-full truncate" />
-      </TableCell>
-      <TableCell className="min-w-0 overflow-hidden">
-        <span className="text-muted-foreground">—</span>
-      </TableCell>
-      <TableCell className="min-w-0 overflow-hidden">
-        <span className="text-muted-foreground">-</span>
+      <TableCell className="min-w-[13rem] overflow-visible">
+        <StatusBadge label="Ready" status="action" size="sm" className="max-w-none whitespace-nowrap" />
       </TableCell>
       <TableCell className="min-w-0 overflow-hidden">
         <span className="text-muted-foreground">—</span>
       </TableCell>
       <MaturityCell maturityDate={invoice.maturityDate} invoiceDue />
-      <TableCell className="whitespace-nowrap">
+      <TableCell className={NOTES_TABLE_ACTIONS_CELL_CLASS}>
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
               <span className={!canCreate ? "inline-flex cursor-not-allowed" : "inline-flex"}>
                 <Button
                   size="sm"
+                  className="h-8 px-2.5"
                   onClick={() => onCreateNote(invoice)}
                   disabled={creatingInvoiceId === invoice.invoiceId || !canCreate}
                 >
@@ -407,4 +392,3 @@ export function NotesTableRow(props: NotesTableRowProps) {
 
   return <NoteRow note={props.note} onViewDetails={props.onViewDetails} />;
 }
-

@@ -25,15 +25,14 @@ export function AdminEntitySummaryCard({
       )}
     >
       <div
-        className={cn("truncate text-meta", accentClassName ?? "text-muted-foreground")}
+        className={cn("break-words text-meta", accentClassName ?? "text-muted-foreground")}
         title={label}
       >
         {label}
       </div>
       <div
         className={cn(
-          "mt-1 min-w-0 text-section-title tabular-nums tracking-tight",
-          (typeof value === "string" || typeof value === "number") && "truncate",
+          "mt-1 min-w-0 break-words text-section-title tabular-nums tracking-tight",
           accentClassName
         )}
       >
@@ -42,7 +41,7 @@ export function AdminEntitySummaryCard({
       <div
         aria-hidden={hint ? undefined : true}
         className={cn(
-          "mt-1 min-h-[1rem] truncate text-meta",
+          "mt-1 min-h-[1rem] break-words text-meta",
           hint ? accentClassName || "text-muted-foreground" : "text-transparent"
         )}
       >

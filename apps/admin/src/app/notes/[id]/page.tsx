@@ -168,7 +168,7 @@ function PageSkeleton() {
       <Skeleton className="h-8 w-24" />
       <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
         <div className="p-6 md:p-8">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div className="flex items-start gap-3">
               <Skeleton className="h-12 w-12 rounded-xl" />
               <div className="space-y-2">

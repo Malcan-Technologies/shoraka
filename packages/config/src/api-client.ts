@@ -236,6 +236,7 @@ type AdminApplicationDetail = Application &
       id?: string;
       contract_details?: Record<string, unknown> | null;
       customer_details?: Record<string, unknown> | null;
+      offer_details?: unknown;
       status?: string;
       invoices?: Array<{
         id: string;

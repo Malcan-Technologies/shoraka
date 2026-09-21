@@ -32,11 +32,11 @@ export function NoteSettlementPayoutHeader({
           ) : null}
         </div>
       </div>
-      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {model.rows.map((row) => (
           <div key={row.label} className="min-w-0">
-            <p className="text-meta text-muted-foreground">{row.label}</p>
-            <p className="mt-0.5 text-ui font-semibold tabular-nums text-foreground">{row.value}</p>
+            <p className="break-words text-meta text-muted-foreground">{row.label}</p>
+            <p className="mt-0.5 break-words text-ui font-semibold tabular-nums text-foreground">{row.value}</p>
           </div>
         ))}
       </div>
