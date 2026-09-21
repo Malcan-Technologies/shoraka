@@ -28,6 +28,7 @@ import { NotificationTypeIds } from "../notification/registry";
 import { resolveAdminAccess } from "../../lib/auth/rbac";
 import { AccessTokenRevocationService } from "./token-revocation.service";
 import { signOutCognitoUserGlobally } from "../../lib/auth/cognito-global-signout";
+import { revokeAndClearCurrentRefreshTokenCookie } from "../../lib/auth/refresh-token-cookie";
 
 const cognitoClient = new CognitoIdentityProviderClient({
   region: process.env.COGNITO_REGION || "ap-southeast-5",
@@ -431,6 +432,7 @@ export class AuthService {
    */
   async logout(
     req: Request,
+    res: Response,
     userId: string,
     activeRole?: UserRole
   ): Promise<{
@@ -478,6 +480,8 @@ export class AuthService {
       userId,
       cognitoSub: req.cognitoSub,
     });
+
+    await revokeAndClearCurrentRefreshTokenCookie(req, res);
 
     // Create access log
     await this.repository.createAccessLog({

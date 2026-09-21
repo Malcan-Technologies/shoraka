@@ -3,6 +3,7 @@ const mockSignOut = jest.fn();
 const mockFindActiveSession = jest.fn();
 const mockRevokeSession = jest.fn();
 const mockCreateAccessLog = jest.fn();
+const mockRevokeRefreshCookie = jest.fn();
 
 jest.mock("./token-revocation.service", () => ({
   AccessTokenRevocationService: jest.fn().mockImplementation(() => ({
@@ -17,6 +18,10 @@ jest.mock("./token-revocation.service", () => ({
 
 jest.mock("../../lib/auth/cognito-global-signout", () => ({
   signOutCognitoUserGlobally: (...args: unknown[]) => mockSignOut(...args),
+}));
+
+jest.mock("../../lib/auth/refresh-token-cookie", () => ({
+  revokeAndClearCurrentRefreshTokenCookie: (...args: unknown[]) => mockRevokeRefreshCookie(...args),
 }));
 
 jest.mock("./repository", () => ({
@@ -48,8 +53,9 @@ jest.mock("../../config/env", () => ({
   getEnv: async () => ({ FRONTEND_URL: "https://www.cashsouk.test" }),
 }));
 
-import { Request } from "express";
+import { Request, Response } from "express";
 import { AuthService } from "./service";
+import { AppError } from "../../lib/http/error-handler";
 
 describe("AuthService logout token invalidation", () => {
   const service = new AuthService();
@@ -60,18 +66,28 @@ describe("AuthService logout token invalidation", () => {
     mockCreateAccessLog.mockResolvedValue({});
     mockRevokeCurrentToken.mockResolvedValue(undefined);
     mockSignOut.mockResolvedValue(undefined);
+    mockRevokeRefreshCookie.mockResolvedValue(undefined);
   });
 
-  it("records the current jti and globally signs out of Cognito", async () => {
-    const req = {
+  function logoutReq(): Request {
+    return {
       accessTokenJti: "jti-1",
       accessTokenExp: 1_700_000_000,
       cognitoSub: "cognito-sub-1",
       headers: {},
       get: () => undefined,
     } as unknown as Request;
+  }
 
-    await service.logout(req, "ABCDE");
+  function logoutRes(): Response {
+    return { clearCookie: jest.fn() } as unknown as Response;
+  }
+
+  it("records the current jti and globally signs out of Cognito", async () => {
+    const req = logoutReq();
+    const res = logoutRes();
+
+    await service.logout(req, res, "ABCDE");
 
     expect(mockRevokeCurrentToken).toHaveBeenCalledWith({
       jti: "jti-1",
@@ -79,23 +95,50 @@ describe("AuthService logout token invalidation", () => {
       exp: 1_700_000_000,
     });
     expect(mockSignOut).toHaveBeenCalledWith("cognito-sub-1");
+    expect(mockRevokeRefreshCookie).toHaveBeenCalledWith(req, res);
+  });
+
+  it("persists the jti before Cognito refresh-token revocation", async () => {
+    const order: string[] = [];
+    mockRevokeCurrentToken.mockImplementation(async () => {
+      order.push("local");
+    });
+    mockSignOut.mockImplementation(async () => {
+      order.push("global");
+    });
+    mockRevokeRefreshCookie.mockImplementation(async () => {
+      order.push("refresh");
+    });
+
+    await service.logout(logoutReq(), logoutRes(), "ABCDE");
+
+    expect(order).toEqual(["local", "global", "refresh"]);
   });
 
   it("does not report successful logout when local revocation fails", async () => {
     mockRevokeCurrentToken.mockRejectedValue(new Error("write failed"));
-    const req = {
-      accessTokenJti: "jti-1",
-      accessTokenExp: 1_700_000_000,
-      cognitoSub: "cognito-sub-1",
-      headers: {},
-      get: () => undefined,
-    } as unknown as Request;
+    const req = logoutReq();
+    const res = logoutRes();
 
-    await expect(service.logout(req, "ABCDE")).rejects.toMatchObject({
+    await expect(service.logout(req, res, "ABCDE")).rejects.toMatchObject({
       statusCode: 503,
       code: "SERVICE_UNAVAILABLE",
     });
     expect(mockSignOut).not.toHaveBeenCalled();
+    expect(mockRevokeRefreshCookie).not.toHaveBeenCalled();
+    expect(mockCreateAccessLog).not.toHaveBeenCalled();
+  });
+
+  it("fails logout with 503 when refresh-token revocation fails", async () => {
+    mockRevokeRefreshCookie.mockRejectedValue(
+      new AppError(503, "SERVICE_UNAVAILABLE", "Authentication service temporarily unavailable")
+    );
+
+    await expect(service.logout(logoutReq(), logoutRes(), "ABCDE")).rejects.toMatchObject({
+      statusCode: 503,
+      code: "SERVICE_UNAVAILABLE",
+    });
+    expect(mockRevokeCurrentToken).toHaveBeenCalled();
     expect(mockCreateAccessLog).not.toHaveBeenCalled();
   });
 

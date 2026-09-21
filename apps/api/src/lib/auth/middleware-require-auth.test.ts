@@ -110,6 +110,57 @@ describe("requireAuth password_changed_at", () => {
     });
   });
 
+  it("rejects a refreshed JWT with a new iat when auth_time is at or before password_changed_at", async () => {
+    mockVerify.mockResolvedValue({
+      sub: "cognito-sub-1",
+      jti: "jti-refreshed-pre-change",
+      exp: 1_700_000_000,
+      iat: passwordChangedAtSeconds + 120,
+      auth_time: passwordChangedAtSeconds - 30,
+    });
+    const next = jest.fn() as NextFunction;
+    await requireAuth(mockReq(), {} as Response, next);
+    const err = (next as jest.Mock).mock.calls[0][0] as {
+      statusCode: number;
+      code: string;
+      message: string;
+    };
+    expect(err.statusCode).toBe(401);
+    expect(err.code).toBe("UNAUTHORIZED");
+    expect(err.message).toBe("Invalid or expired token");
+    expect(err.message).not.toMatch(/password_changed_at|auth_time|iat|2024-01-15/i);
+  });
+
+  it("rejects a refreshed JWT whose auth_time is the password-change second even with a newer iat", async () => {
+    mockVerify.mockResolvedValue({
+      sub: "cognito-sub-1",
+      jti: "jti-refreshed-same-second",
+      exp: 1_700_000_000,
+      iat: passwordChangedAtSeconds + 5,
+      auth_time: passwordChangedAtSeconds,
+    });
+    const next = jest.fn() as NextFunction;
+    await requireAuth(mockReq(), {} as Response, next);
+    const err = (next as jest.Mock).mock.calls[0][0] as { statusCode: number; code: string };
+    expect(err.statusCode).toBe(401);
+    expect(err.code).toBe("UNAUTHORIZED");
+  });
+
+  it("accepts a fresh login whose auth_time is after the password change second", async () => {
+    mockVerify.mockResolvedValue({
+      sub: "cognito-sub-1",
+      jti: "jti-fresh-login",
+      exp: 1_700_000_000,
+      iat: passwordChangedAtSeconds + 1,
+      auth_time: passwordChangedAtSeconds + 1,
+    });
+    const req = mockReq();
+    const next = jest.fn() as NextFunction;
+    await requireAuth(req, {} as Response, next);
+    expect(next).toHaveBeenCalledWith();
+    expect(req.user).toBeDefined();
+  });
+
   it("rejects a token issued before password_changed_at even when the jti is not denylisted", async () => {
     mockVerify.mockResolvedValue({
       sub: "cognito-sub-1",
@@ -178,6 +229,32 @@ describe("requireAuth password_changed_at", () => {
       sub: "cognito-sub-1",
       jti: "jti-1",
       exp: 1_700_000_000,
+    });
+    const next = jest.fn() as NextFunction;
+    await requireAuth(mockReq(), {} as Response, next);
+    expect(next).toHaveBeenCalledWith();
+  });
+
+  it("falls back to iat when auth_time is absent and still rejects a pre-change token", async () => {
+    mockVerify.mockResolvedValue({
+      sub: "cognito-sub-1",
+      jti: "jti-iat-fallback",
+      exp: 1_700_000_000,
+      iat: passwordChangedAtSeconds - 1,
+    });
+    const next = jest.fn() as NextFunction;
+    await requireAuth(mockReq(), {} as Response, next);
+    const err = (next as jest.Mock).mock.calls[0][0] as { statusCode: number; code: string };
+    expect(err.statusCode).toBe(401);
+    expect(err.code).toBe("UNAUTHORIZED");
+  });
+
+  it("falls back to iat when auth_time is absent and accepts a post-change token", async () => {
+    mockVerify.mockResolvedValue({
+      sub: "cognito-sub-1",
+      jti: "jti-iat-fallback-fresh",
+      exp: 1_700_000_000,
+      iat: passwordChangedAtSeconds + 1,
     });
     const next = jest.fn() as NextFunction;
     await requireAuth(mockReq(), {} as Response, next);

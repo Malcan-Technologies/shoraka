@@ -4,6 +4,7 @@ const mockIsRevoked = jest.fn();
 const mockInvalidate = jest.fn();
 const mockSignOut = jest.fn();
 const mockCreateAccessLog = jest.fn();
+const mockRevokeRefreshCookie = jest.fn();
 
 jest.mock("../../lib/auth/cognito-jwt-verifier", () => ({
   verifyCognitoAccessToken: (...args: unknown[]) => mockVerify(...args),
@@ -30,6 +31,10 @@ jest.mock("./service", () => ({
 
 jest.mock("../../lib/auth/cognito-global-signout", () => ({
   signOutCognitoUserGlobally: (...args: unknown[]) => mockSignOut(...args),
+}));
+
+jest.mock("../../lib/auth/refresh-token-cookie", () => ({
+  revokeAndClearCurrentRefreshTokenCookie: (...args: unknown[]) => mockRevokeRefreshCookie(...args),
 }));
 
 jest.mock("../../lib/audit", () => ({
@@ -62,7 +67,7 @@ jest.mock("./repository", () => ({
 
 import express from "express";
 import request from "supertest";
-import { errorHandler } from "../../lib/http/error-handler";
+import { AppError, errorHandler } from "../../lib/http/error-handler";
 import router from "./cognito.routes";
 
 function logoutApp() {
@@ -89,6 +94,7 @@ describe("GET /logout token revocation", () => {
     mockInvalidate.mockResolvedValue(undefined);
     mockSignOut.mockResolvedValue(undefined);
     mockCreateAccessLog.mockResolvedValue({});
+    mockRevokeRefreshCookie.mockResolvedValue(undefined);
   });
 
   it("revokes a live token before returning success", async () => {
@@ -104,7 +110,28 @@ describe("GET /logout token revocation", () => {
       userId: "ABCDE",
       cognitoSub: "cognito-sub-1",
     });
+    expect(mockRevokeRefreshCookie).toHaveBeenCalled();
     expect(mockCreateAccessLog).toHaveBeenCalled();
+  });
+
+  it("persists the jti before refresh-token revocation on a live token", async () => {
+    const order: string[] = [];
+    mockInvalidate.mockImplementation(async () => {
+      order.push("jti");
+    });
+    mockRevokeRefreshCookie.mockImplementation(async () => {
+      order.push("refresh");
+    });
+    mockCreateAccessLog.mockImplementation(async () => {
+      order.push("log");
+    });
+
+    const res = await request(logoutApp())
+      .get("/logout")
+      .set("Authorization", "Bearer live-token");
+
+    expect(res.status).toBe(200);
+    expect(order).toEqual(["jti", "refresh", "log"]);
   });
 
   it("is inert when the same jti is already revoked", async () => {
@@ -120,6 +147,7 @@ describe("GET /logout token revocation", () => {
     expect(mockInvalidate).not.toHaveBeenCalled();
     expect(mockSignOut).not.toHaveBeenCalled();
     expect(mockCreateAccessLog).not.toHaveBeenCalled();
+    expect(mockRevokeRefreshCookie).toHaveBeenCalled();
   });
 
   it("returns 503 when local revocation cannot be persisted", async () => {
@@ -134,6 +162,7 @@ describe("GET /logout token revocation", () => {
     expect(res.body.error.code).toBe("SERVICE_UNAVAILABLE");
     expect(res.body.error.message).not.toMatch(/write failed/i);
     expect(mockSignOut).not.toHaveBeenCalled();
+    expect(mockRevokeRefreshCookie).not.toHaveBeenCalled();
     expect(mockCreateAccessLog).not.toHaveBeenCalled();
   });
 
@@ -149,6 +178,7 @@ describe("GET /logout token revocation", () => {
     expect(res.body.error.message).not.toMatch(/relation/i);
     expect(mockInvalidate).not.toHaveBeenCalled();
     expect(mockSignOut).not.toHaveBeenCalled();
+    expect(mockRevokeRefreshCookie).not.toHaveBeenCalled();
   });
 
   it("treats an invalid or expired token as a successful logout", async () => {
@@ -163,5 +193,51 @@ describe("GET /logout token revocation", () => {
     expect(mockIsRevoked).not.toHaveBeenCalled();
     expect(mockInvalidate).not.toHaveBeenCalled();
     expect(mockSignOut).not.toHaveBeenCalled();
+    expect(mockRevokeRefreshCookie).toHaveBeenCalled();
+  });
+
+  it("returns 503 when refresh-token revocation fails after an expired access token", async () => {
+    mockVerify.mockRejectedValue(new Error("Token verification failed"));
+    mockRevokeRefreshCookie.mockRejectedValue(
+      new AppError(503, "SERVICE_UNAVAILABLE", "Authentication service temporarily unavailable")
+    );
+
+    const res = await request(logoutApp())
+      .get("/logout")
+      .set("Authorization", "Bearer expired-token");
+
+    expect(res.status).toBe(503);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error.code).toBe("SERVICE_UNAVAILABLE");
+    expect(res.body.error.message).toBe("Authentication service temporarily unavailable");
+    expect(mockInvalidate).not.toHaveBeenCalled();
+    expect(mockSignOut).not.toHaveBeenCalled();
+  });
+
+  it("returns 503 and skips the access log when refresh-token revocation fails after a live token", async () => {
+    mockRevokeRefreshCookie.mockRejectedValue(
+      new AppError(503, "SERVICE_UNAVAILABLE", "Authentication service temporarily unavailable")
+    );
+
+    const res = await request(logoutApp())
+      .get("/logout")
+      .set("Authorization", "Bearer live-token");
+
+    expect(res.status).toBe(503);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error.code).toBe("SERVICE_UNAVAILABLE");
+    expect(mockInvalidate).toHaveBeenCalled();
+    expect(mockCreateAccessLog).not.toHaveBeenCalled();
+  });
+
+  it("still revokes the current refresh cookie when no access token is sent", async () => {
+    const res = await request(logoutApp()).get("/logout");
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(mockVerify).not.toHaveBeenCalled();
+    expect(mockInvalidate).not.toHaveBeenCalled();
+    expect(mockSignOut).not.toHaveBeenCalled();
+    expect(mockRevokeRefreshCookie).toHaveBeenCalled();
   });
 });

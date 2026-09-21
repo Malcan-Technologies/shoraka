@@ -22,6 +22,7 @@ import { accessTokenRevocationService } from "./token-revocation.service";
 import { AdminService } from "../admin/service";
 import { auditContextFromRequest, createAccessLogRow } from "../../lib/audit";
 import { signOutCognitoUserGlobally } from "../../lib/auth/cognito-global-signout";
+import { revokeAndClearCurrentRefreshTokenCookie } from "../../lib/auth/refresh-token-cookie";
 
 const router = Router();
 const authService = new AuthService();
@@ -961,6 +962,7 @@ router.get("/logout", async (req: Request, res: Response, next: NextFunction) =>
 
   const portal = detectInitiatingPortal(req);
   let userId: string | undefined;
+  let pendingAccessLogUser: { user_id: string; roles: UserRole[] } | undefined;
 
   if (!token) {
     logger.warn({ correlationId }, "No token provided for logout - access log will not be created");
@@ -997,34 +999,7 @@ router.get("/logout", async (req: Request, res: Response, next: NextFunction) =>
               userId: user.user_id,
               cognitoSub,
             });
-
-            const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
-            try {
-              await createAccessLogRow({
-                userId: user.user_id,
-                eventType: "LOGOUT",
-                portal: portal,
-                ipAddress,
-                userAgent,
-                deviceInfo,
-                deviceType,
-                success: true,
-                metadata: {
-                  roles: user.roles,
-                  portal,
-                },
-                context: auditContextFromRequest(req),
-              });
-              logger.info(
-                { correlationId, userId: user.user_id, portal },
-                "Logout access log created"
-              );
-            } catch (error) {
-              logger.warn(
-                { correlationId, error: error instanceof Error ? error.message : String(error) },
-                "Failed to create logout access log"
-              );
-            }
+            pendingAccessLogUser = user;
           } else if (cognitoSub) {
             await signOutCognitoUserGlobally(cognitoSub);
           }
@@ -1045,6 +1020,51 @@ router.get("/logout", async (req: Request, res: Response, next: NextFunction) =>
           )
         );
       }
+    }
+  }
+
+  try {
+    await revokeAndClearCurrentRefreshTokenCookie(req, res);
+  } catch (error) {
+    if (error instanceof AppError) {
+      return next(error);
+    }
+    logger.error(
+      { correlationId, error: error instanceof Error ? error.message : String(error) },
+      "Logout refresh token revocation failed"
+    );
+    return next(
+      new AppError(503, "SERVICE_UNAVAILABLE", "Authentication service temporarily unavailable")
+    );
+  }
+
+  if (pendingAccessLogUser) {
+    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
+    try {
+      await createAccessLogRow({
+        userId: pendingAccessLogUser.user_id,
+        eventType: "LOGOUT",
+        portal: portal,
+        ipAddress,
+        userAgent,
+        deviceInfo,
+        deviceType,
+        success: true,
+        metadata: {
+          roles: pendingAccessLogUser.roles,
+          portal,
+        },
+        context: auditContextFromRequest(req),
+      });
+      logger.info(
+        { correlationId, userId: pendingAccessLogUser.user_id, portal },
+        "Logout access log created"
+      );
+    } catch (error) {
+      logger.warn(
+        { correlationId, error: error instanceof Error ? error.message : String(error) },
+        "Failed to create logout access log"
+      );
     }
   }
 

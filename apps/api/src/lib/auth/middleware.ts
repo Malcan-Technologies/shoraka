@@ -16,7 +16,10 @@ import {
   resolveActiveRole,
 } from "./request-active-role";
 import { accessTokenRevocationService } from "../../modules/auth/token-revocation.service";
-import { isAccessTokenIssuedBeforePasswordChange } from "./access-token-password-change";
+import {
+  isAccessTokenIssuedBeforePasswordChange,
+  resolveAccessTokenAuthTimeSeconds,
+} from "./access-token-password-change";
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -102,8 +105,11 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
       throw new AppError(401, "UNAUTHORIZED", "User not found in database");
     }
 
-    const tokenIat = typeof cognitoPayload.iat === "number" ? cognitoPayload.iat : undefined;
-    if (isAccessTokenIssuedBeforePasswordChange(tokenIat, user.password_changed_at)) {
+    const tokenAuthTime = resolveAccessTokenAuthTimeSeconds(
+      cognitoPayload.auth_time,
+      cognitoPayload.iat
+    );
+    if (isAccessTokenIssuedBeforePasswordChange(tokenAuthTime, user.password_changed_at)) {
       throw new AppError(401, "UNAUTHORIZED", "Invalid or expired token");
     }
 

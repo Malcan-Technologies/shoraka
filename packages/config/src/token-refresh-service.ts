@@ -187,9 +187,9 @@ function readCookieTokenSafely(readTokenFromCookies: () => string | null): strin
 }
 
 /**
- * Resolve a portal access token, falling back to the Amplify cookie when
- * fetchAuthSession throws or returns empty. Cookie reads must not throw
- * (SSR / non-browser).
+ * Resolve a portal access token. When fetchAuthSession throws or returns an
+ * empty/expired token, backend refresh is attempted before falling back to the
+ * Amplify cookie. Cookie reads must not throw (SSR / non-browser).
  */
 export async function resolveAccessTokenWithCookieFallback(options: {
   fetchSessionToken: () => Promise<string | null>;
@@ -197,18 +197,27 @@ export async function resolveAccessTokenWithCookieFallback(options: {
   readTokenFromCookies: () => string | null;
   isTokenExpired: (token: string) => boolean;
 }): Promise<string | null> {
+  let token: string | null = null;
   try {
-    let token = await options.fetchSessionToken();
-    if (!token || options.isTokenExpired(token)) {
-      token = await options.refreshToken();
-      if (!token) {
-        token = readCookieTokenSafely(options.readTokenFromCookies);
-      }
-    }
-    return token;
+    token = await options.fetchSessionToken();
   } catch {
-    return readCookieTokenSafely(options.readTokenFromCookies);
+    token = null;
   }
+
+  if (token && !options.isTokenExpired(token)) {
+    return token;
+  }
+
+  try {
+    const refreshed = await options.refreshToken();
+    if (refreshed) {
+      return refreshed;
+    }
+  } catch {
+    // Backend refresh unavailable; fall through to cookie.
+  }
+
+  return readCookieTokenSafely(options.readTokenFromCookies);
 }
 
 // Export singleton instance
