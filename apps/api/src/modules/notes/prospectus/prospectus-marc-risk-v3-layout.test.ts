@@ -76,8 +76,8 @@ describe("prospectus MARC risk rating V3 visual contract", () => {
     expect(scale.match(/class="grade marc /g)?.length).toBe(5);
     expect(PROSPECTUS_DOCUMENT_CSS).toContain(".risk-scale{display:grid;grid-template-columns:repeat(5,1fr)");
     expect(PROSPECTUS_DOCUMENT_CSS).toContain(".grade.marc.a{background:#22b83f}");
-    expect(PROSPECTUS_DOCUMENT_CSS).toContain(".grade.marc.b{background:#8ed657}");
-    expect(PROSPECTUS_DOCUMENT_CSS).toContain(".grade.marc.c{background:#dca82a}");
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain(".grade.marc.b{background:#89d450}");
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain(".grade.marc.c{background:#e0b133}");
     expect(PROSPECTUS_DOCUMENT_CSS).toContain(".grade.marc.d{background:#f5964f}");
     expect(PROSPECTUS_DOCUMENT_CSS).toContain(".grade.marc.e{background:#ce201d}");
     expect(PROSPECTUS_DOCUMENT_CSS).toMatch(/\.grade\.marc\{[\s\S]*min-width:61px/);

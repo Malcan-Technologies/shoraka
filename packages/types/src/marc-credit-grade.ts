@@ -47,7 +47,8 @@ export const MARC_SME_BANDS = [
     compactRangeLabel: "SME-3–4",
     label: "Low Risk",
     groupedExplanation: "Strong credit strength; low repayment risk.",
-    color: "#8ed657",
+    // SME Low Risk green: subtle darkening for slightly stronger differentiation.
+    color: "#89d450",
   },
   {
     key: "c",
@@ -58,7 +59,8 @@ export const MARC_SME_BANDS = [
     groupedExplanation: "Moderate credit strength; moderate repayment risk.",
     // Slightly stronger (darker) yellow than the previous Moderate Risk.
     // Kept yellow-leaning to preserve the overall visual style with white text.
-    color: "#dca82a",
+    // Keep it stronger than original, but closer to a clean yellow (less muddy/gold).
+    color: "#e0b133",
   },
   {
     key: "d",

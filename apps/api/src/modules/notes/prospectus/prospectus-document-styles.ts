@@ -329,8 +329,8 @@ table{width:100%;border-collapse:collapse;font-size:8px}th{background:var(--pros
   text-overflow:clip;
 }
 .grade.marc.a{background:#22b83f}
-.grade.marc.b{background:#8ed657}
-.grade.marc.c{background:#dca82a}
+.grade.marc.b{background:#89d450}
+.grade.marc.c{background:#e0b133}
 .grade.marc.d{background:#f5964f}
 .grade.marc.e{background:#ce201d}
 .credit-insights-note{display:block;font-size:7px;margin-top:8px;font-style:italic;line-height:1.3;color:var(--prospectus-muted)}
