@@ -2,10 +2,14 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { formatCurrency, getUserPortalStatusToken } from "@cashsouk/config";
+import { createApiClient, formatCurrency, getUserPortalStatusToken, useAuthToken } from "@cashsouk/config";
 import { ListToolbar, ListToolbarFilterTrigger, StatusBadge, type FilterChip } from "@cashsouk/ui";
 import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 import { Button } from "@/components/ui/button";
+import { useMutation } from "@tanstack/react-query";
+import { toast } from "sonner";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -81,6 +85,79 @@ function TransactionContextSubtitle({ context }: { context: TransactionContext }
   );
 }
 
+function DepositReceiptActions({ gatewayPaymentId }: { gatewayPaymentId: string }) {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = React.useMemo(
+    () => createApiClient(API_URL, getAccessToken),
+    [getAccessToken]
+  );
+
+  const receiptPdfQuery = useMutation({
+    mutationFn: async ({ mode }: { mode: "view" | "download" }) => {
+      const response = await apiClient.get<{
+        url: string | null;
+        expiresIn: number | null;
+        fileName: string | null;
+        mode: "view" | "download";
+        hasPdf: boolean;
+        receiptStatus: string | null;
+      }>(`/v1/investor/deposits/${gatewayPaymentId}/receipt/pdf?mode=${mode}`);
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+  });
+
+  async function openReceipt(mode: "view" | "download") {
+    try {
+      const data = await receiptPdfQuery.mutateAsync({ mode });
+      if (!data.url) {
+        const status = data.receiptStatus ? ` (${data.receiptStatus})` : "";
+        toast.info(`Receipt is not available yet${status}.`);
+        return;
+      }
+
+      if (mode === "view") {
+        window.open(data.url, "_blank", "noopener,noreferrer");
+        return;
+      }
+
+      const anchor = document.createElement("a");
+      anchor.href = data.url;
+      if (data.fileName) anchor.download = data.fileName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not open receipt");
+    }
+  }
+
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-8 rounded-xl"
+        disabled={receiptPdfQuery.isPending}
+        onClick={() => void openReceipt("view")}
+      >
+        View receipt
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-8 rounded-xl"
+        disabled={receiptPdfQuery.isPending}
+        onClick={() => void openReceipt("download")}
+      >
+        Download
+      </Button>
+    </div>
+  );
+}
+
 export interface TransactionFilters {
   type: TransactionType | "all";
   timeRange: "all" | "7d" | "30d" | "90d";
@@ -118,6 +195,9 @@ function DesktopTransactionRow({ tx }: { tx: Transaction }) {
       <TableCell className="min-w-0 pl-6">
         <p className="font-medium">{tx.title}</p>
         <TransactionContextSubtitle context={tx.context} />
+        {tx.type === "Deposit" && tx.receiptGatewayPaymentId ? (
+          <DepositReceiptActions gatewayPaymentId={tx.receiptGatewayPaymentId} />
+        ) : null}
       </TableCell>
       <TableCell className="self-center">
         <TransactionStatusBadge tx={tx} />
@@ -150,6 +230,9 @@ function MobileTransactionRow({ tx }: { tx: Transaction }) {
           <p className="font-medium">{tx.title}</p>
           <TransactionStatusBadge tx={tx} showEmpty={false} />
           <TransactionContextSubtitle context={tx.context} />
+          {tx.type === "Deposit" && tx.receiptGatewayPaymentId ? (
+            <DepositReceiptActions gatewayPaymentId={tx.receiptGatewayPaymentId} />
+          ) : null}
         </div>
         <div className={cn("shrink-0 font-medium tabular-nums", amountToneClassName)}>
           {formatSignedTransactionAmount(tx.direction, tx.amount)}

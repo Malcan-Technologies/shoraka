@@ -5,11 +5,14 @@ import { AppError } from "../../lib/http/error-handler";
 import {
   createInvestorDepositSchema,
   investorDepositIdParamSchema,
+  gatewayPaymentIdParamSchema,
+  gatewayPaymentReceiptModeQuerySchema,
 } from "./deposit-schemas";
 import {
   createInvestorDeposit,
   getInvestorDeposit,
   getInvestorDepositLimits,
+  getInvestorGatewayPaymentReceiptPdfUrl,
 } from "./deposit-service";
 
 function getActor(req: Request, res: Response) {
@@ -53,6 +56,19 @@ investorDepositsRouter.get("/limits", async (_req: Request, res: Response, next:
     next(error);
   }
 });
+
+investorDepositsRouter.get(
+  "/:gatewayPaymentId/receipt/pdf",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { gatewayPaymentId } = gatewayPaymentIdParamSchema.parse(req.params);
+      const { mode } = gatewayPaymentReceiptModeQuerySchema.parse(req.query);
+      send(res, await getInvestorGatewayPaymentReceiptPdfUrl(getActor(req, res), gatewayPaymentId, mode));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 investorDepositsRouter.get("/:id", async (req: Request, res: Response, next: NextFunction) => {
   try {

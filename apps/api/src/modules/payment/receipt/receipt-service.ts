@@ -38,7 +38,7 @@ type OrgForReceiptPayer = {
   last_name?: string | null;
   phone_number?: string | null;
   corporate_onboarding_data?: unknown;
-  owner?: { email?: string | null; phone?: string | null } | null;
+  owner?: { user_id?: string | null; email?: string | null; phone?: string | null } | null;
 };
 
 function buildCompanyName(org: {
@@ -78,8 +78,10 @@ function buildPayerIdentity(org: OrgForReceiptPayer | null | undefined): {
       payerCompanyName: buildCompanyName(org),
     };
   }
+  // For PERSONAL investors, receipts should show the platform's short user id
+  // (the 5-character identifier shown in "My account"), not the IVT-/ISS- display reference.
   return {
-    payerUniqueId: trimOrNull(org.display_reference),
+    payerUniqueId: trimOrNull(org.owner?.user_id ?? null),
     payerRegistrationNumber: null,
     payerCompanyName: null,
   };

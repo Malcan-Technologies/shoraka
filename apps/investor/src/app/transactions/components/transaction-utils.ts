@@ -2,6 +2,7 @@ import { formatCurrency } from "@cashsouk/config";
 import type { InvestorBalanceActivityEntry } from "@cashsouk/types";
 import {
   formatNoteReferenceDisplay,
+  gatewayPaymentIdFromMetadata,
   investorActivityDepositDetail,
   investorActivityStatusDetail,
   investorActivityStatusDisplay,
@@ -130,6 +131,9 @@ export function mapActivityEntryToTransaction(
 ): Transaction {
   const type = mapActivitySourceToType(entry.source, entry.metadata);
   const status = investorActivityStatusDisplay(entry.source, entry.related ?? null, entry.metadata);
+
+  const receiptGatewayPaymentId = gatewayPaymentIdFromMetadata(entry.metadata);
+
   return {
     id: entry.id,
     type,
@@ -140,5 +144,6 @@ export function mapActivityEntryToTransaction(
     status,
     balance: runningBalance ?? 0,
     postedAt: entry.postedAt,
+    receiptGatewayPaymentId,
   };
 }

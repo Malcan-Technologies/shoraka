@@ -553,14 +553,14 @@ describe("generateGatewayPaymentReceipt", () => {
           phone_number: "012",
           legal_name_on_id: "Ali Bin Abu",
           corporate_onboarding_data: null,
-          owner: { email: "inv@example.com", phone: "012" },
+          owner: { user_id: "ABCDE", email: "inv@example.com", phone: "012" },
         },
       },
     });
 
     await generateGatewayPaymentReceipt("pay_1", db as never);
     const html = (renderReceiptHtmlToPdfBuffer as jest.Mock).mock.calls[0][0] as string;
-    expect(html).toContain("ALI BIN ABU (IVT-202608-A12)");
+    expect(html).toContain("ALI BIN ABU (ABCDE)");
     expect(html).not.toContain("Display Name");
     expect(html).not.toContain(">Company<");
     expect(html).not.toContain("Unique ID");

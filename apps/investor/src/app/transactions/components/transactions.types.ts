@@ -21,6 +21,8 @@ export interface Transaction {
   type: TransactionType;
   /** First-glance label, e.g. "Investment committed". */
   title: string;
+  /** Gateway payment id used to fetch a gateway payment receipt (if available). */
+  receiptGatewayPaymentId?: string | null;
   direction: "IN" | "OUT";
   amount: number;
   context: TransactionContext;
