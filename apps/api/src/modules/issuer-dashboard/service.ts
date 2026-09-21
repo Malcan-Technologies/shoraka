@@ -12,7 +12,7 @@ import {
   GatewayPaymentPurpose,
   GatewayPaymentStatus,
 } from "@prisma/client";
-import { countNoteInvestors, resolveFacilityFeeBalance, type IssuerDashboardBook } from "@cashsouk/types";
+import { countNoteInvestors, resolveFacilityFeeBalance, roundNoteMoney, type IssuerDashboardBook } from "@cashsouk/types";
 import { facilityFeeUpfrontDto } from "../../lib/facility-fee-upfront-guard";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
@@ -60,9 +60,8 @@ function jsonForModal(value: unknown): unknown {
 function fundingProgressPercent(funded: unknown, target: unknown): number | null {
   const t = decimalToNumber(target);
   if (t <= 0) return null;
-  const f = decimalToNumber(funded);
-  const pct = (f / t) * 100;
-  return Math.max(0, Math.min(100, Math.round(pct * 100) / 100));
+  const pct = (decimalToNumber(funded) / t) * 100;
+  return Math.max(0, Math.min(100, roundNoteMoney(pct, 2)));
 }
 
 export type IssuerDashboardNoteDto = {

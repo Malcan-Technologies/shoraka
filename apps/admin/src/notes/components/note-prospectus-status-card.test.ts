@@ -348,6 +348,8 @@ describe("Admin Note Detail prospectus UI cleanup", () => {
     expect(campaignSource).toContain("buildInvestorCampaignUrl");
     expect(campaignSource).toContain("View live campaign");
     expect(campaignSource).not.toContain("rounded-xl border px-4 py-3");
+    expect(campaignSource).not.toContain("sm:flex-row sm:items-center sm:justify-between");
+    expect(campaignSource).toContain("whitespace-nowrap");
   });
 
   it("maps card emphasis and button variant from status model; Approved and Published get success badge tone", () => {

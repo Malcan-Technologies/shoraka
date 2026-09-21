@@ -22,6 +22,7 @@ import { formatCurrency } from "@cashsouk/config";
 import {
   isNoteSettlementPosted,
   NOTE_MATURITY_PENDING_VALUE,
+  formatNoteFundingPercent,
   resolveNoteTimingDisplay,
   resolveProductImageS3KeyFromWorkflow,
   type NoteDetail,
@@ -31,6 +32,7 @@ import { productName } from "@/app/settings/products/product-utils";
 import { useNoteDetail } from "@/notes/hooks/use-note-detail";
 import {
   useCloseNoteFunding,
+  useExtendNoteListing,
   useFailNoteFunding,
   usePauseNoteListing,
   usePublishNote,
@@ -40,6 +42,7 @@ import {
 } from "@/notes/hooks/use-notes";
 import { LedgerPanel } from "@/notes/components/ledger-panel";
 import { NoteCampaignActions } from "@/notes/components/note-campaign-actions";
+import { NoteExtendCampaignDialog } from "@/notes/components/note-extend-campaign-dialog";
 import { NoteFacilityFeeWaiverPanel } from "@/notes/components/note-facility-fee-waiver-panel";
 import { NoteLifecycleCard } from "@/notes/components/note-lifecycle-card";
 import {
@@ -96,6 +99,8 @@ import {
   type NoteDetailTabId,
 } from "@/notes/utils/note-detail-next-action";
 import { type NoteLifecycleAction } from "@/notes/utils/note-lifecycle-actions";
+
+type NoteConfirmableAction = Exclude<NoteLifecycleAction, "extendListing">;
 import { getNoteHeaderPurposeRows } from "@/notes/utils/note-header-purposes";
 import { resolveNoteSourceLinkage } from "@/notes/utils/note-source-linkage";
 import { RequirePermission } from "@/components/require-permission";
@@ -195,7 +200,7 @@ function PageSkeleton() {
 }
 
 const noteActionCopy: Record<
-  NoteLifecycleAction,
+  NoteConfirmableAction,
   {
     title: string;
     description: string;
@@ -264,6 +269,7 @@ export default function NoteDetailPage() {
   const unpublishNote = useUnpublishNote();
   const pauseListing = usePauseNoteListing();
   const resumeListing = useResumeNoteListing();
+  const extendListing = useExtendNoteListing();
   const closeFunding = useCloseNoteFunding();
   const failFunding = useFailNoteFunding();
   const updateNoteFeatured = useUpdateNoteFeatured();
@@ -271,7 +277,8 @@ export default function NoteDetailPage() {
   const { data: investmentNoteCertificate } = useAdminInvestmentNoteCertificate(noteId);
   const { data: investmentSettlementConfirmations } = useAdminInvestmentSettlementConfirmations(noteId);
   const { data: settlementHibahReceipt } = useAdminSettlementHibahReceipt(noteId);
-  const [pendingAction, setPendingAction] = React.useState<NoteLifecycleAction | null>(null);
+  const [pendingAction, setPendingAction] = React.useState<NoteConfirmableAction | null>(null);
+  const [extendOpen, setExtendOpen] = React.useState(false);
   const [featuredEnabled, setFeaturedEnabled] = React.useState(false);
 
   const lifecyclePending = React.useMemo(
@@ -280,6 +287,7 @@ export default function NoteDetailPage() {
       unpublish: unpublishNote.isPending,
       pauseListing: pauseListing.isPending,
       resumeListing: resumeListing.isPending,
+      extendListing: extendListing.isPending,
       closeFunding: closeFunding.isPending,
       failFunding: failFunding.isPending,
     }),
@@ -288,6 +296,7 @@ export default function NoteDetailPage() {
       unpublishNote.isPending,
       pauseListing.isPending,
       resumeListing.isPending,
+      extendListing.isPending,
       closeFunding.isPending,
       failFunding.isPending,
     ]
@@ -374,7 +383,7 @@ export default function NoteDetailPage() {
   const runConfirmedAction = async () => {
     if (!note || !pendingAction) return;
     const copy = noteActionCopy[pendingAction];
-    const actions: Record<NoteLifecycleAction, () => Promise<unknown>> = {
+    const actions: Record<NoteConfirmableAction, () => Promise<unknown>> = {
       publish: () => publishNote.mutateAsync(note.id),
       unpublish: () => unpublishNote.mutateAsync(note.id),
       pauseListing: () => pauseListing.mutateAsync(note.id),
@@ -545,7 +554,7 @@ export default function NoteDetailPage() {
                         leftValue={formatCurrency(noteDisplayFundedAmount(note))}
                         leftHint={`of ${formatCurrency(note.targetAmount)} target`}
                         rightLabel="Progress"
-                        rightValue={`${noteDisplayFundingPercent(note).toFixed(1)}%`}
+                        rightValue={formatNoteFundingPercent(noteDisplayFundingPercent(note))}
                         barClassName={getNoteFundingProgressClass(note)}
                         indicatorClassName={getNoteFundingIndicatorClass(note)}
                         accentClassName={getNoteFundingAccentClass(note)}
@@ -592,7 +601,13 @@ export default function NoteDetailPage() {
                           <NoteCampaignActions
                             note={note}
                             pending={lifecyclePending}
-                            onRequestAction={(action) => setPendingAction(action)}
+                            onRequestAction={(action) => {
+                              if (action === "extendListing") {
+                                setExtendOpen(true);
+                                return;
+                              }
+                              setPendingAction(action);
+                            }}
                             canManage={canManage}
                             featuredEnabled={featuredEnabled}
                             featuredPending={updateNoteFeatured.isPending}
@@ -731,6 +746,25 @@ export default function NoteDetailPage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+        {note ? (
+          <NoteExtendCampaignDialog
+            note={note}
+            open={extendOpen}
+            onOpenChange={(open) => {
+              if (!open && !extendListing.isPending) setExtendOpen(false);
+            }}
+            pending={extendListing.isPending}
+            onConfirm={async ({ closesAt, reason }) => {
+              try {
+                await extendListing.mutateAsync({ id: note.id, closesAt, reason });
+                toast.success("Campaign extended");
+                setExtendOpen(false);
+              } catch (err) {
+                toast.error(err instanceof Error ? err.message : "Action failed");
+              }
+            }}
+          />
+        ) : null}
       </>
     </RequirePermission>
   );

@@ -71,6 +71,23 @@ describe("notification coverage templates", () => {
     expect(investorActive.portal).toBe("investor");
   });
 
+  it("renders campaign-extended copy with the Malaysia closing datetime", () => {
+    const closesAt = "2026-10-10T00:00:00.000Z";
+    const issuer = NOTIFICATION_TEMPLATES[NotificationTypeIds.NOTE_CAMPAIGN_EXTENDED_ISSUER];
+    expect(issuer.title).toBe("Campaign extended");
+    expect(issuer.portal).toBe("issuer");
+    expect(issuer.message({ noteId: "n1", noteTitle: "Trade note", closesAt })).toBe(
+      'The funding period for "Trade note" has been extended to 10 Oct 2026, 08:00.'
+    );
+
+    const investor = NOTIFICATION_TEMPLATES[NotificationTypeIds.NOTE_CAMPAIGN_EXTENDED_INVESTOR];
+    expect(investor.title).toBe("Listing deadline extended");
+    expect(investor.portal).toBe("investor");
+    expect(investor.message({ noteId: "n1", noteTitle: "Trade note", closesAt })).toBe(
+      'The listing deadline for "Trade note" has been extended to 10 Oct 2026, 08:00. Your commitment stays in place.'
+    );
+  });
+
   it("renders investor deposit copy", () => {
     const failed = NOTIFICATION_TEMPLATES[NotificationTypeIds.DEPOSIT_NAME_CHECK_REJECTED];
     expect(failed.title).toBe("Deposit Verification Failed");

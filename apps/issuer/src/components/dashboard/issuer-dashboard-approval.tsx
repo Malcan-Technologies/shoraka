@@ -111,14 +111,20 @@ export function IssuerDashboardApproval({
           <p className="mt-1 text-ui text-muted-foreground">
             Have these to hand and your first application takes minutes.
           </p>
-          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <ul className="mt-4 divide-y divide-border">
             {READY_ITEMS.map((item) => (
-              <div key={item.title} className="rounded-xl border border-border p-4">
-                <p className="text-ui font-medium">{item.title}</p>
-                <p className="mt-1.5 text-ui leading-6 text-muted-foreground">{item.body}</p>
-              </div>
+              <li key={item.title} className="flex items-start gap-3 py-3.5 first:pt-1 last:pb-0">
+                <span
+                  className="mt-0.5 h-4 w-4 shrink-0 rounded-[2px] border-2 border-muted-foreground/40"
+                  aria-hidden
+                />
+                <div className="min-w-0">
+                  <p className="text-ui font-medium">{item.title}</p>
+                  <p className="mt-1 text-ui leading-6 text-muted-foreground">{item.body}</p>
+                </div>
+              </li>
             ))}
-          </div>
+          </ul>
         </CardContent>
       </Card>
     </div>

@@ -38,11 +38,12 @@ import {
   expectedServicingTransitionNotificationKeys,
   resolveNoteNotificationTitle,
   notifyNotePublishedToInvestors,
+  notifyNoteCampaignExtended,
 } from "./note-lifecycle-notifications";
 import { NotificationTypeIds } from "./registry";
 import { NotificationService } from "./service";
 import { prisma } from "../../lib/prisma";
-import { NoteServicingStatus } from "@prisma/client";
+import { NoteInvestmentStatus, NoteServicingStatus } from "@prisma/client";
 
 describe("resolveNoteNotificationTitle", () => {
   it("uses title then reference then fallback", () => {
@@ -143,6 +144,106 @@ describe("notifyNotePublishedToInvestors", () => {
       {
         idempotencyKey:
           "system-log:new_investment_opportunity:note:lifecycle:note-1:published:investor",
+      }
+    );
+  });
+});
+
+describe("notifyNoteCampaignExtended", () => {
+  const closesAt = new Date("2026-10-10T00:00:00.000Z");
+  const payload = {
+    noteId: "note-1",
+    noteTitle: "T1",
+    closesAt: closesAt.toISOString(),
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (prisma.issuerOrganization.findUnique as jest.Mock).mockResolvedValue({
+      owner_user_id: "UOWN",
+    });
+    (prisma.investorOrganization.findUnique as jest.Mock).mockResolvedValue({
+      owner_user_id: "INVOWN",
+    });
+    (prisma.organizationMember.findMany as jest.Mock).mockImplementation(
+      async (args: {
+        where: { issuer_organization_id?: string; investor_organization_id?: string };
+      }) => {
+        if (args.where.issuer_organization_id) {
+          return [{ user_id: "UM1" }];
+        }
+        return [{ user_id: "IVM1" }];
+      }
+    );
+    (prisma.noteInvestment.findMany as jest.Mock).mockResolvedValue([
+      { investor_organization_id: "inv-org-1" },
+    ]);
+  });
+
+  it("notifies issuer members and committed investor orgs", async () => {
+    const notificationService = {
+      sendTyped,
+      logTypedSystemBatch,
+    } as unknown as NotificationService;
+
+    await notifyNoteCampaignExtended({
+      notificationService,
+      noteId: "note-1",
+      issuerOrganizationId: "iss-1",
+      noteTitle: "T1",
+      closesAt,
+    });
+
+    expect(prisma.noteInvestment.findMany).toHaveBeenCalledWith({
+      where: { note_id: "note-1", status: { in: [NoteInvestmentStatus.COMMITTED] } },
+      select: { investor_organization_id: true },
+      distinct: ["investor_organization_id"],
+    });
+
+    const issuerPrefix =
+      "note:lifecycle:note-1:campaign_extended:2026-10-10T00:00:00.000Z:issuer";
+    const investorPrefix =
+      "note:lifecycle:note-1:campaign_extended:2026-10-10T00:00:00.000Z:investor";
+
+    expect(sendTyped).toHaveBeenCalledWith(
+      "UOWN",
+      NotificationTypeIds.NOTE_CAMPAIGN_EXTENDED_ISSUER,
+      payload,
+      `${issuerPrefix}:user:UOWN`
+    );
+    expect(sendTyped).toHaveBeenCalledWith(
+      "UM1",
+      NotificationTypeIds.NOTE_CAMPAIGN_EXTENDED_ISSUER,
+      payload,
+      `${issuerPrefix}:user:UM1`
+    );
+    expect(sendTyped).toHaveBeenCalledWith(
+      "INVOWN",
+      NotificationTypeIds.NOTE_CAMPAIGN_EXTENDED_INVESTOR,
+      payload,
+      `${investorPrefix}:investor-org:inv-org-1:user:INVOWN`
+    );
+    expect(sendTyped).toHaveBeenCalledWith(
+      "IVM1",
+      NotificationTypeIds.NOTE_CAMPAIGN_EXTENDED_INVESTOR,
+      payload,
+      `${investorPrefix}:investor-org:inv-org-1:user:IVM1`
+    );
+
+    expect(logTypedSystemBatch).toHaveBeenCalledWith(
+      NotificationTypeIds.NOTE_CAMPAIGN_EXTENDED_ISSUER,
+      payload,
+      [{ id: "n1" }, { id: "n1" }],
+      {
+        idempotencyKey: `system-log:note_campaign_extended_issuer:${issuerPrefix}`,
+      }
+    );
+    expect(logTypedSystemBatch).toHaveBeenCalledWith(
+      NotificationTypeIds.NOTE_CAMPAIGN_EXTENDED_INVESTOR,
+      payload,
+      [{ id: "n1" }, { id: "n1" }],
+      {
+        idempotencyKey: `system-log:note_campaign_extended_investor:${investorPrefix}`,
       }
     );
   });

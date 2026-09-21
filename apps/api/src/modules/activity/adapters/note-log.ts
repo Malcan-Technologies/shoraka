@@ -35,6 +35,7 @@ const ISSUER_ONLY_EVENT_TYPES = [
   "PUBLISH",
   "PAUSE_LISTING",
   "RESUME_LISTING",
+  "EXTEND_LISTING",
   "CLOSE_FUNDING",
   "ISSUER_PAYMENT_SUBMITTED",
   "NOTE_OVERDUE",
@@ -138,6 +139,13 @@ export class NoteLogAdapter implements AuditLogAdapter<NoteActivityRecord> {
           description: noteLabel
             ? `${this.capitalize(noteLabel)} is open for investment again.`
             : "The campaign is open for investment again.",
+        };
+      case "EXTEND_LISTING":
+        return {
+          title: "Campaign Extended",
+          description: noteLabel
+            ? `${this.capitalize(noteLabel)} funding period was extended. Investors who already committed keep the Prospectus they acknowledged.`
+            : "The campaign funding period was extended. Investors who already committed keep the Prospectus they acknowledged.",
         };
       case "CLOSE_FUNDING":
         return {

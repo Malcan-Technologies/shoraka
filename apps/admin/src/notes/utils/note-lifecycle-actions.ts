@@ -1,4 +1,10 @@
-import type { NoteDetail, WithdrawalInstruction } from "@cashsouk/types";
+import {
+  formatMytDateTime,
+  formatNoteFundingPercent,
+  isNoteFullyFunded,
+  type NoteDetail,
+  type WithdrawalInstruction,
+} from "@cashsouk/types";
 import {
   isNoteLifecycleVisuallyComplete,
   isSettlementWrappingUp,
@@ -28,6 +34,7 @@ export type NoteLifecycleAction =
   | "unpublish"
   | "pauseListing"
   | "resumeListing"
+  | "extendListing"
   | "closeFunding"
   | "failFunding";
 
@@ -252,6 +259,8 @@ export function buildNoteLifecycleActionPlan(note: NoteDetail): NoteLifecycleAct
   const canResumeListing = isListingPaused;
   const canCloseFunding = isFundingOpen && meetsMinimumFunding;
   const canFailFunding = isFundingOpen && !meetsMinimumFunding;
+  const canExtendListing =
+    isFundingOpen && !isNoteFullyFunded(note.fundedAmount, note.targetAmount);
 
   let primary: NoteLifecycleActionConfig | null = null;
   const secondary: NoteLifecycleActionConfig[] = [];
@@ -275,6 +284,16 @@ export function buildNoteLifecycleActionPlan(note: NoteDetail): NoteLifecycleAct
     }
   };
 
+  const pushExtendCampaign = () => {
+    if (!canExtendListing) return;
+    secondary.push({
+      key: "extendListing",
+      label: "Extend campaign",
+      variant: "outline",
+      helper: "Moves the listing close to a later date and issues a new Prospectus with the updated Closing Date.",
+    });
+  };
+
   // Draft prospectus: next action lives on NoteProspectusStatusCard (not here).
   if (canPublish) {
     primary = {
@@ -288,12 +307,13 @@ export function buildNoteLifecycleActionPlan(note: NoteDetail): NoteLifecycleAct
       key: "closeFunding",
       label: "Close Funding",
       variant: "default",
-      helper: `Minimum funding reached (${note.fundingPercent.toFixed(1)}% of target). Closing locks allocations and activates servicing in a single step.`,
+      helper: `Minimum funding reached (${formatNoteFundingPercent(note.fundingPercent)} of target). Closing locks allocations and activates servicing in a single step.`,
     };
     if (canUnpublish) {
       secondary.push({ key: "unpublish", label: "Unpublish", variant: "outline" });
     }
     pushPauseOrResume();
+    pushExtendCampaign();
   } else if (note.status === "ACTIVE" || note.servicingStatus !== "NOT_STARTED") {
     contextHelper = "Servicing is active. Manage receipts and settlement in the Servicing tab.";
   } else if (note.status === "PUBLISHED" || note.status === "FUNDING") {
@@ -309,7 +329,7 @@ export function buildNoteLifecycleActionPlan(note: NoteDetail): NoteLifecycleAct
     } else {
       contextHelper = isFundingOpen
         ? canFailFunding
-          ? `Awaiting investor commitments. Minimum ${note.minimumFundingPercent}% not yet met (currently ${note.fundingPercent.toFixed(1)}%).`
+          ? `Awaiting investor commitments. Minimum ${note.minimumFundingPercent}% not yet met (currently ${formatNoteFundingPercent(note.fundingPercent)}).`
           : "Awaiting investor commitments."
         : "Awaiting funding to open.";
     }
@@ -331,6 +351,7 @@ export function buildNoteLifecycleActionPlan(note: NoteDetail): NoteLifecycleAct
         helper: "Hides the listing from investors. Existing commitments are held; funds are not returned.",
       });
     }
+    pushExtendCampaign();
   }
 
   return {
@@ -386,14 +407,8 @@ export function getNoteListingAutoCloseInfo(note: NoteDetail): NoteListingAutoCl
   const days = Math.floor(absMs / 86_400_000);
   const hours = Math.floor((absMs % 86_400_000) / 3_600_000);
   const overdue = diffMs <= 0;
-  const formatted = new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  }).format(closesAt);
+  const formatted = formatMytDateTime(closesAt);
+  if (!formatted) return null;
   const fundingRemaining = Math.max(note.targetAmount - note.fundedAmount, 0);
   const fullyFunded = note.targetAmount > 0 && fundingRemaining < 0.01;
   let relative: string;

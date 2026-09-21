@@ -10,15 +10,18 @@ import {
   StatusBadge,
   getNoteDerivedStatusToken,
 } from "@cashsouk/ui";
-import { resolveNoteTimingDisplay, type EligibleNoteInvoice, type NoteListItem } from "@cashsouk/types";
 import {
   formatInvoiceReference,
   formatNamedEntityDisplay,
+  formatNoteFundingPercent,
   formatProspectusListBadge,
   isNoteSettlementPosted,
+  resolveNoteTimingDisplay,
   resolveSettlementTrusteeRegistryState,
   settlementTrusteeRegistryLabel,
   settlementTrusteeRegistryNeedsAdminAction,
+  type EligibleNoteInvoice,
+  type NoteListItem,
 } from "@cashsouk/types";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -255,14 +258,14 @@ function NoteRow({ note, onViewDetails }: NoteRowProps) {
         {formatCurrency(note.settlementAmount)}
       </TableCell>
       <TableCell className="min-w-0 overflow-hidden">
-        <div className="font-medium tabular-nums">{fundingPercent.toFixed(1)}% funded</div>
+        <div className="font-medium tabular-nums">{formatNoteFundingPercent(fundingPercent)} funded</div>
         <FundingProgress
           className="mt-1.5"
           percent={fundingProgress}
           thresholdPercent={0}
           fillClassName={getNoteFundingIndicatorClass(note)}
           trackClassName={getNoteFundingProgressClass(note)}
-          aria-label={`${fundingPercent.toFixed(1)}% funded. ${note.minimumFundingPercent}% minimum required for funding to succeed.`}
+          aria-label={`${formatNoteFundingPercent(fundingPercent)} funded. ${note.minimumFundingPercent}% minimum required for funding to succeed.`}
         />
       </TableCell>
       <TableCell className="min-w-[13rem] overflow-visible">

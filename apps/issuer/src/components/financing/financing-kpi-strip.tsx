@@ -29,14 +29,14 @@ export function FinancingKpiTile({
         {labelExtra}
       </div>
       <div className="mt-1 flex min-w-0 items-center gap-2">
-        <p
+        <div
           className={cn(
             "min-w-0 truncate text-xl font-semibold tabular-nums tracking-tight leading-7 text-foreground sm:text-[1.35rem] sm:leading-8",
             valueClassName
           )}
         >
           {value}
-        </p>
+        </div>
         {trailing}
       </div>
     </div>

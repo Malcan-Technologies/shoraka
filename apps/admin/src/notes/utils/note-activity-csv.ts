@@ -16,6 +16,7 @@ const EVENT_LABELS: Record<string, string> = {
   NOTE_UNPUBLISHED: "Unpublished from Marketplace",
   PAUSE_LISTING: "Campaign Paused",
   RESUME_LISTING: "Campaign Resumed",
+  EXTEND_LISTING: "Campaign Extended",
   UNPUBLISH: "Unpublished from Marketplace",
   PROSPECTUS_REVIEW_APPROVE: "Prospectus Approved",
   PROSPECTUS_REVIEW_CREATE: "Prospectus Review Created",

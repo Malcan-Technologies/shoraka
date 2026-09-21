@@ -11,6 +11,7 @@ import {
   getNoteLifecycleStageCompletedAt,
   getNoteLifecycleStageIndex,
   getNoteLifecycleTerminalFailure,
+  getNoteListingAutoCloseInfo,
   hasNoteLifecycleAdminAction,
   isNoteFeatureEligible,
   isNoteSettlementStageCurrent,
@@ -68,6 +69,7 @@ describe("published listing lifecycle actions", () => {
     expect(plan.secondary).toEqual([
       expect.objectContaining({ key: "failFunding", variant: "secondary" }),
       expect.objectContaining({ key: "pauseListing", variant: "outline" }),
+      expect.objectContaining({ key: "extendListing", variant: "outline" }),
     ]);
     expect(plan.contextHelper).toContain("Awaiting investor commitments");
     expect(hasNoteLifecycleAdminAction(published)).toBe(false);
@@ -85,6 +87,7 @@ describe("published listing lifecycle actions", () => {
     expect(plan.isListingLive).toBe(true);
     expect(plan.isListingPaused).toBe(false);
     expect(plan.secondary.some((action) => action.key === "pauseListing")).toBe(true);
+    expect(plan.secondary.some((action) => action.key === "extendListing")).toBe(true);
     expect(plan.secondary.some((action) => action.key === "unpublish")).toBe(false);
   });
 
@@ -102,6 +105,7 @@ describe("published listing lifecycle actions", () => {
     expect(plan.primary?.key).toBe("resumeListing");
     expect(plan.secondary).toEqual([
       expect.objectContaining({ key: "failFunding", variant: "secondary" }),
+      expect.objectContaining({ key: "extendListing", variant: "outline" }),
     ]);
     expect(plan.contextHelper).toContain("funds have not been returned");
     expect(hasNoteLifecycleAdminAction(paused)).toBe(false);
@@ -119,6 +123,7 @@ describe("published listing lifecycle actions", () => {
     expect(plan.primary?.key).toBe("closeFunding");
     expect(plan.secondary).toEqual([
       expect.objectContaining({ key: "pauseListing", variant: "outline" }),
+      expect.objectContaining({ key: "extendListing", variant: "outline" }),
     ]);
     expect(plan.secondary.some((action) => action.key === "failFunding")).toBe(false);
     expect(hasNoteLifecycleAdminAction(funded)).toBe(true);
@@ -137,6 +142,7 @@ describe("published listing lifecycle actions", () => {
     expect(plan.primary?.key).toBe("closeFunding");
     expect(plan.secondary).toEqual([
       expect.objectContaining({ key: "resumeListing", variant: "outline" }),
+      expect.objectContaining({ key: "extendListing", variant: "outline" }),
     ]);
     expect(hasNoteLifecycleAdminAction(pausedFunded)).toBe(true);
   });
@@ -163,7 +169,21 @@ describe("published listing lifecycle actions", () => {
     const plan = buildNoteLifecycleActionPlan(empty);
 
     expect(plan.secondary.some((action) => action.key === "unpublish")).toBe(true);
+    expect(plan.secondary.some((action) => action.key === "extendListing")).toBe(true);
     expect(plan.secondary.some((action) => action.key === "pauseListing")).toBe(false);
+  });
+
+  it("hides Extend campaign when the note is fully funded", () => {
+    const fullyFunded = note({
+      ...publishedOpen,
+      fundingPercent: 100,
+      fundedAmount: 100_000,
+      targetAmount: 100_000,
+      investments: [{ id: "inv-1" }] as never,
+    });
+    const plan = buildNoteLifecycleActionPlan(fullyFunded);
+    expect(plan.primary?.key).toBe("closeFunding");
+    expect(plan.secondary.some((action) => action.key === "extendListing")).toBe(false);
   });
 
   it("does not offer Publish after unpublish until the prospectus is re-approved", () => {
@@ -298,5 +318,55 @@ describe("lifecycle stage completion dates", () => {
     expect(getNoteLifecycleStageCompletedAt(detail, "FUNDED")).toBe("2026-02-02T00:00:00.000Z");
     expect(getNoteLifecycleStageCompletedAt(detail, "DISBURSEMENT")).toBeNull();
     expect(getNoteLifecycleStageCompletedAt(detail, "REPAID")).toBeNull();
+  });
+});
+
+describe("getNoteListingAutoCloseInfo", () => {
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it("formats the closing instant in Malaysia time, not the host timezone", () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date("2026-09-08T16:00:00.000Z"));
+    const info = getNoteListingAutoCloseInfo(
+      note({
+        listing: { closesAt: "2026-09-08T16:30:00.000Z" } as NoteDetail["listing"],
+      })
+    );
+
+    expect(info?.formatted).toBe("9 Sept 2026, 00:30");
+    expect(info?.relative).toBe("less than an hour");
+    expect(info?.overdue).toBe(false);
+    expect(info?.label).toBe("Auto-closes in less than an hour (9 Sept 2026, 00:30)");
+  });
+
+  it("keeps relative duration instant-based across a Malaysia calendar boundary", () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date("2026-09-08T15:30:00.000Z"));
+    const info = getNoteListingAutoCloseInfo(
+      note({
+        listing: { closesAt: "2026-09-09T16:30:00.000Z" } as NoteDetail["listing"],
+      })
+    );
+
+    expect(info?.formatted).toBe("10 Sept 2026, 00:30");
+    expect(info?.relative).toBe("1 day");
+    expect(info?.label).toBe("Auto-closes in 1 day (10 Sept 2026, 00:30)");
+  });
+
+  it("keeps overdue relative wording and Malaysia absolute time", () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date("2026-09-08T16:00:00.000Z"));
+    const info = getNoteListingAutoCloseInfo(
+      note({
+        listing: { closesAt: "2026-09-07T16:00:00.000Z" } as NoteDetail["listing"],
+      })
+    );
+
+    expect(info?.formatted).toBe("8 Sept 2026, 00:00");
+    expect(info?.relative).toBe("1 day");
+    expect(info?.overdue).toBe(true);
+    expect(info?.label).toBe("Listing past auto-close (1 day ago, 8 Sept 2026, 00:00)");
   });
 });

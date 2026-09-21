@@ -632,7 +632,7 @@ describe("standalone vs contract-linked notes", () => {
       "utf8"
     );
     expect(rowSource).toContain("thresholdPercent={0}");
-    expect(rowSource).toContain("% funded");
+    expect(rowSource).toContain("formatNoteFundingPercent(fundingPercent)} funded");
     expect(rowSource).not.toContain("thresholdPercent={note.minimumFundingPercent}");
     expect(rowSource).not.toContain("noteDisplayFundedAmount");
     expect(rowSource).toContain("NOTES_TABLE_ACTIONS_CELL_CLASS");
@@ -676,6 +676,7 @@ describe("standalone vs contract-linked notes", () => {
     expect(pageSource).toContain("@/notes/utils/note-commercial-terms");
     expect(pageSource).toContain('setActiveTab("campaign")');
     expect(pageSource).toContain("note.investorCount");
+    expect(pageSource).toContain("formatNoteFundingPercent");
     expect(pageSource).toContain("isNoteActiveLoan");
     expect(pageSource).toContain("Settlement amount");
     expect(pageSource).toContain("Payment due");

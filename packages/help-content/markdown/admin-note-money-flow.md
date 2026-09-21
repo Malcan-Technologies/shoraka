@@ -7,7 +7,7 @@ tags:
   - notes
   - finance
 order: 20
-updated: 2026-09-09
+updated: 2026-09-21
 ---
 
 ## Overview
@@ -132,15 +132,16 @@ When a note is published, it becomes available in the investor marketplace. Inve
 - **Unpublish** removes a note from the marketplace before investor commitments exist. The prospectus returns to Draft with previous fields kept; it must be reviewed and approved again before republish. Pause (with commitments) does not change the prospectus.
 - **Close Funding** ends funding for a successfully funded note. Investments are confirmed, the disbursement ledger is posted, and a draft Issuer Disbursement withdrawal is created. The note moves to the Funded stage and waits for disbursement on the **Disbursement** tab.
 - **Fail Funding** closes an open note that did not meet the minimum funding threshold.
+- **Extend campaign** moves the listing close (`closes_at`) to a later Malaysia datetime while funding is still open and the note is not fully funded. A reason is required. The marketplace countdown updates immediately, a new Prospectus publication is issued with the new Closing Date, and investors who already committed keep the Prospectus they acknowledged. Manual close or fail still overrides the schedule. You cannot extend a fully funded listing — close funding instead.
 
 ### Auto-close rules
 
 Two automatic triggers can close funding without admin intervention:
 
 - **Fully funded**: as soon as commitments reach 100% of the target amount, the note is auto-closed inline on the same investor request (the hourly cron is a safety net).
-- **Listing expired (marketplace listing duration)**: an hourly cron picks up any published note whose `closes_at` has elapsed. If the note has reached the minimum funding threshold, it is auto-closed. Otherwise it is auto-failed and investor commitments are released.
+- **Listing expired (marketplace listing duration)**: an hourly cron picks up any published note whose `closes_at` has elapsed. If the note has reached the minimum funding threshold, it is auto-closed. Otherwise it is auto-failed and investor commitments are released. **Extend campaign** only changes that `closes_at`; it does not skip the hourly job.
 
-Closing funding (manual or automatic) never auto-activates the note. The note stays in the Funded/Disbursement stages until the disbursement to the issuer is paid out and marked complete. The lifecycle card on the note page displays a countdown banner so admins can see how much time is left in the funding window.
+Closing funding (manual or automatic) never auto-activates the note. The note stays in the Funded/Disbursement stages until the disbursement to the issuer is paid out and marked complete. The campaign card on the note page displays a countdown so admins can see how much time is left in the funding window.
 
 ## Issuer Disbursement
 

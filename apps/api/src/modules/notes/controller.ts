@@ -61,6 +61,7 @@ import {
   requestDocumentStampUploadUrlSchema,
   requestIssuerPaymentEvidenceUploadUrlSchema,
   waiveNoteFacilityFeeCollectionSchema,
+  extendNoteListingSchema,
   disbursementValueDateBodySchema,
 } from "./schemas";
 
@@ -791,6 +792,27 @@ adminNotesRouter.post(
   } catch (error) {
     next(error);
   }
+  }
+);
+
+adminNotesRouter.post(
+  "/:id/listing/extend",
+  requirePermission("notes.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const input = extendNoteListingSchema.parse(req.body);
+      send(
+        res,
+        await noteService.extendListing(
+          id,
+          { closesAt: new Date(input.closesAt), reason: input.reason },
+          getActor(req, res, "ADMIN")
+        )
+      );
+    } catch (error) {
+      next(error);
+    }
   }
 );
 

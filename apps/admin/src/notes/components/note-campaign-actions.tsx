@@ -6,6 +6,7 @@ import {
   ArrowRightCircleIcon,
   ArrowTopRightOnSquareIcon,
   ArrowUturnLeftIcon,
+  CalendarDaysIcon,
   ClockIcon,
   ExclamationTriangleIcon,
   GlobeAltIcon,
@@ -33,6 +34,7 @@ const ACTION_ICONS: Record<NoteLifecycleAction, ComponentType<{ className?: stri
   unpublish: ArrowUturnLeftIcon,
   pauseListing: PauseIcon,
   resumeListing: PlayIcon,
+  extendListing: CalendarDaysIcon,
   closeFunding: ArrowRightCircleIcon,
   failFunding: ExclamationTriangleIcon,
 };
@@ -87,7 +89,7 @@ export function NoteCampaignActions({
   return (
     <Card className="rounded-2xl">
       <CardHeader className="space-y-1">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
               <StarIcon className="h-4 w-4" aria-hidden />
@@ -109,7 +111,7 @@ export function NoteCampaignActions({
             featuredSwitch
           )}
         </div>
-        <p className="text-ui text-muted-foreground pl-12">
+        <p className="text-ui text-muted-foreground pl-12 text-pretty">
           {featureEligible
             ? "Pin this note on the investor marketplace."
             : "Featured listings are only available while the note is published and open for funding."}
@@ -139,7 +141,7 @@ export function NoteCampaignActions({
           {autoClose ? (
             <div
               className={cn(
-                "flex flex-wrap items-center gap-2 text-ui",
+                "flex items-start gap-2 text-ui",
                 autoClose.fullyFunded
                   ? "text-status-success-text"
                   : autoClose.overdue
@@ -147,19 +149,28 @@ export function NoteCampaignActions({
                     : "text-muted-foreground"
               )}
             >
-              <ClockIcon className="h-4 w-4 shrink-0" />
+              <ClockIcon className="mt-0.5 h-4 w-4 shrink-0" />
               <div className="min-w-0 flex-1">
                 <div
                   className={cn(
-                    "font-medium",
+                    "font-medium text-pretty",
                     autoClose.fullyFunded ? "text-status-success-text" : "text-foreground"
                   )}
                 >
-                  {autoClose.label}
+                  {autoClose.fullyFunded ? (
+                    autoClose.label
+                  ) : (
+                    <>
+                      {autoClose.overdue
+                        ? `Listing past auto-close (${autoClose.relative} ago)`
+                        : `Auto-closes in ${autoClose.relative}`}{" "}
+                      <span className="whitespace-nowrap">({autoClose.formatted})</span>
+                    </>
+                  )}
                 </div>
                 <div
                   className={cn(
-                    "text-meta",
+                    "text-meta text-pretty",
                     autoClose.fullyFunded ? "text-status-success-text/80" : "text-muted-foreground"
                   )}
                 >
@@ -174,16 +185,16 @@ export function NoteCampaignActions({
           ) : null}
 
           {primary || secondary.length > 0 ? (
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0 flex-1">
+            <div className="flex flex-col gap-3">
+              <div className="min-w-0">
                 <div className="text-meta uppercase tracking-wider text-muted-foreground">
                   {primary ? "Next Step" : "Actions"}
                 </div>
-                <div className="mt-1 text-ui font-medium">
+                <div className="mt-1 text-ui font-medium text-pretty">
                   {primary ? primary.label : contextHelper ?? "No forward action available"}
                 </div>
                 {primary?.helper ? (
-                  <p className="mt-1 text-meta text-muted-foreground">{primary.helper}</p>
+                  <p className="mt-1 text-meta text-muted-foreground text-pretty">{primary.helper}</p>
                 ) : null}
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -196,7 +207,7 @@ export function NoteCampaignActions({
                       variant={action.variant}
                       onClick={() => onRequestAction(action.key)}
                       disabled={anyPending || !canManage}
-                      className="gap-1.5"
+                      className="shrink-0 gap-1.5"
                     >
                       <Icon className="h-4 w-4" />
                       {action.label}
@@ -227,7 +238,7 @@ export function NoteCampaignActions({
                         variant={primary.variant}
                         onClick={() => onRequestAction(primary.key)}
                         disabled={anyPending || pending[primary.key] || !canManage}
-                        className="gap-1.5"
+                        className="shrink-0 gap-1.5"
                       >
                         {pending[primary.key] ? (
                           <ArrowPathIcon className="h-4 w-4 animate-spin" />

@@ -5,8 +5,11 @@ import {
   computeMarketplaceCommitBounds,
   isNoteMoneyAmount,
   maxFundedBeforeMarketplaceCommit,
+  formatNoteFundingPercent,
   meetsMinimumFunding,
+  noteFundingPercentFromAmounts,
   NOTE_MONEY_TOLERANCE,
+  roundNoteFundingPercent,
   normalizeNoteCapacityAmount,
 } from "@cashsouk/types";
 
@@ -56,6 +59,16 @@ describe("note money helpers", () => {
     expect(split.totalInvestment).toBe(180);
     expect(split.reservedInvestment).toBe(30);
     expect(split.confirmedInvestment).toBe(150);
+  });
+
+  it("rounds note funding and allocation percentages to one decimal place", () => {
+    expect(noteFundingPercentFromAmounts(1.67, 100)).toBe(1.7);
+    expect(noteFundingPercentFromAmounts(79.95, 100)).toBe(80);
+    expect(noteFundingPercentFromAmounts(99.95, 100)).toBe(100);
+    expect(formatNoteFundingPercent(1.67)).toBe("1.7%");
+    expect(formatNoteFundingPercent(80)).toBe("80.0%");
+    expect(roundNoteFundingPercent(Number.NaN)).toBe(0);
+    expect(noteFundingPercentFromAmounts(50, 0)).toBe(0);
   });
 
   it("allocates profit cents so lines sum to the pool total", () => {

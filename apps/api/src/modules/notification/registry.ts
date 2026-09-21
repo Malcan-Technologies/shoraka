@@ -1,6 +1,11 @@
 import { PortalType } from "../../lib/http/url-utils";
 import { PortalContext } from "../../lib/http/portal-context";
-import { formatApplicationNotificationRef, formatPhaseDeadlineDateDDMMYYYY, formatWithdrawalReference } from "@cashsouk/types";
+import {
+  formatApplicationNotificationRef,
+  formatMytDateTime,
+  formatPhaseDeadlineDateDDMMYYYY,
+  formatWithdrawalReference,
+} from "@cashsouk/types";
 
 /**
  * Registry of all system notification types to ensure type safety
@@ -45,6 +50,8 @@ export const NotificationTypeIds = {
 
   // Note lifecycle
   NOTE_PUBLISHED: "note_published",
+  NOTE_CAMPAIGN_EXTENDED_ISSUER: "note_campaign_extended_issuer",
+  NOTE_CAMPAIGN_EXTENDED_INVESTOR: "note_campaign_extended_investor",
   NOTE_FUNDING_SUCCEEDED: "note_funding_succeeded",
   NOTE_FUNDING_FAILED_ISSUER: "note_funding_failed_issuer",
   NOTE_FUNDING_FAILED_INVESTOR: "note_funding_failed_investor",
@@ -208,6 +215,16 @@ export interface NotificationPayloads {
     noteId: string;
     noteTitle: string;
   };
+  [NotificationTypeIds.NOTE_CAMPAIGN_EXTENDED_ISSUER]: {
+    noteId: string;
+    noteTitle: string;
+    closesAt: string;
+  };
+  [NotificationTypeIds.NOTE_CAMPAIGN_EXTENDED_INVESTOR]: {
+    noteId: string;
+    noteTitle: string;
+    closesAt: string;
+  };
   [NotificationTypeIds.NOTE_FUNDING_SUCCEEDED]: {
     noteId: string;
     noteTitle: string;
@@ -362,6 +379,10 @@ function formatDateDDMMYYYY(value: string | Date): string {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const year = date.getFullYear();
   return `${day}/${month}/${year}`;
+}
+
+function formatCampaignCloseLabel(closesAt: string): string {
+  return formatMytDateTime(closesAt) ?? "a later date";
 }
 
 /**
@@ -558,6 +579,20 @@ export const NOTIFICATION_TEMPLATES: {
       `Your note "${data.noteTitle}" has been published to the marketplace for investor funding.`,
     linkPath: (data) => `/notes/${data.noteId}`,
     portal: "issuer",
+  },
+  [NotificationTypeIds.NOTE_CAMPAIGN_EXTENDED_ISSUER]: {
+    title: "Campaign extended",
+    message: (data) =>
+      `The funding period for "${data.noteTitle}" has been extended to ${formatCampaignCloseLabel(data.closesAt)}.`,
+    linkPath: (data) => `/notes/${data.noteId}`,
+    portal: "issuer",
+  },
+  [NotificationTypeIds.NOTE_CAMPAIGN_EXTENDED_INVESTOR]: {
+    title: "Listing deadline extended",
+    message: (data) =>
+      `The listing deadline for "${data.noteTitle}" has been extended to ${formatCampaignCloseLabel(data.closesAt)}. Your commitment stays in place.`,
+    linkPath: (data) => `/investments/${data.noteId}`,
+    portal: "investor",
   },
   [NotificationTypeIds.NOTE_FUNDING_SUCCEEDED]: {
     title: "Funding closed successfully",

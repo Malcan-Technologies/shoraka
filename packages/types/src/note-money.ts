@@ -13,6 +13,9 @@ export const NOTE_MONEY_TOLERANCE = 0.005;
 /** Standard investor-facing money precision (MYR). */
 export const NOTE_MONEY_DECIMALS = 2;
 
+/** Note funding and allocation percentages display to one decimal place. */
+export const NOTE_FUNDING_PERCENT_DECIMALS = 1;
+
 /** Platform floor for a single marketplace commit ticket. */
 export const MARKETPLACE_MIN_COMMIT_MYR = 100;
 
@@ -87,6 +90,26 @@ export function computeMarketplaceCommitBounds(
     maxCommit,
     investable,
   };
+}
+
+/** Round a note funding or allocation percentage to the shared display precision. */
+export function roundNoteFundingPercent(percent: number): number {
+  if (!Number.isFinite(percent)) return 0;
+  return roundNoteMoney(percent, NOTE_FUNDING_PERCENT_DECIMALS);
+}
+
+/** Funded / target as a 0–100 percentage, rounded to one decimal place. */
+export function noteFundingPercentFromAmounts(
+  fundedAmount: number,
+  targetAmount: number
+): number {
+  if (!(targetAmount > 0) || !Number.isFinite(fundedAmount)) return 0;
+  return Math.max(0, Math.min(100, roundNoteFundingPercent((fundedAmount / targetAmount) * 100)));
+}
+
+/** `1.67` → `1.7%`, `80` → `80.0%`. */
+export function formatNoteFundingPercent(percent: number): string {
+  return `${roundNoteFundingPercent(percent).toFixed(NOTE_FUNDING_PERCENT_DECIMALS)}%`;
 }
 
 /** Whether funded amount meets the minimum funding threshold (with half-cent tolerance). */

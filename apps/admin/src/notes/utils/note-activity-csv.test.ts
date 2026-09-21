@@ -21,6 +21,7 @@ describe("formatNoteActivityEventLabel", () => {
   it("maps known types and rewrites Shoraka to Tawarruq", () => {
     expect(formatNoteActivityEventLabel("NOTE_PUBLISHED")).toBe("Note Published");
     expect(formatNoteActivityEventLabel("PAUSE_LISTING")).toBe("Campaign Paused");
+    expect(formatNoteActivityEventLabel("EXTEND_LISTING")).toBe("Campaign Extended");
     expect(formatNoteActivityEventLabel("FAIL_FUNDING")).toBe("Funding Unsuccessful");
     expect(formatNoteActivityEventLabel("PROSPECTUS_REVIEW_APPROVE")).toBe("Prospectus Approved");
     expect(formatNoteActivityEventLabel("PROSPECTUS_APPROVAL_INVALIDATED_UNPUBLISH")).toBe(

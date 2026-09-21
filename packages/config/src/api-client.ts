@@ -1685,6 +1685,13 @@ export class ApiClient {
     return this.post<NoteDetail>(`/v1/admin/notes/${id}/listing/resume`, {});
   }
 
+  async extendAdminNoteListing(
+    id: string,
+    input: { closesAt: string; reason: string }
+  ): Promise<ApiResponse<NoteDetail> | ApiError> {
+    return this.post<NoteDetail>(`/v1/admin/notes/${id}/listing/extend`, input);
+  }
+
   async closeAdminNoteFunding(id: string): Promise<ApiResponse<NoteDetail> | ApiError> {
     return this.post<NoteDetail>(`/v1/admin/notes/${id}/funding/close`, {});
   }

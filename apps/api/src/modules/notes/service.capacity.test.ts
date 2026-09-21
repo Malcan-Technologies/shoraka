@@ -99,6 +99,23 @@ describe("NoteService capacity", () => {
     (prisma.$transaction as jest.Mock).mockImplementation(
       async (fn: (tx: Record<string, unknown>) => Promise<unknown>) =>
         fn({
+          $queryRaw: jest.fn(async (strings: TemplateStringsArray) => {
+            const sql = Array.from(strings).join(" ");
+            if (sql.includes("FROM notes")) {
+              return [
+                {
+                  status: NoteStatus.PUBLISHED,
+                  funding_status: NoteFundingStatus.OPEN,
+                  funded_amount: 10_000,
+                  target_amount: 100_000,
+                },
+              ];
+            }
+            if (sql.includes("FROM note_listings")) {
+              return [{ closes_at: new Date("2026-09-25T00:00:00.000Z") }];
+            }
+            return [];
+          }),
           noteInvestment: {
             findMany: jest.fn().mockResolvedValue([]),
             updateMany: jest.fn(),

@@ -961,11 +961,12 @@ export class ProspectusReviewService {
     approvedSnapshot: ProspectusApprovedSnapshot;
     publicationId: string;
     reviewId: string;
+    listingDates?: { opensAt: Date; closesAt: Date };
   }): Promise<{
     updatedSnapshot: ProspectusApprovedSnapshot;
     pdfArtifact: ProspectusPdfArtifact;
   }> {
-    const { noteId, actor, approvedSnapshot, publicationId, reviewId } = input;
+    const { noteId, actor, approvedSnapshot, publicationId, reviewId, listingDates } = input;
 
     const note = await prisma.note.findUnique({
       where: { id: noteId },
@@ -975,8 +976,8 @@ export class ProspectusReviewService {
     });
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
 
-    const opensAt = note.listing?.opens_at;
-    const closesAt = note.listing?.closes_at;
+    const opensAt = listingDates?.opensAt ?? note.listing?.opens_at;
+    const closesAt = listingDates?.closesAt ?? note.listing?.closes_at;
     if (!opensAt || !closesAt) {
       throw new AppError(
         409,
@@ -993,6 +994,12 @@ export class ProspectusReviewService {
 
     // Rebuild Page 1 with real listing dates; other pages use the same frozen publication content.
     const page1Note = await loadProspectusPageOneNote(prisma, noteId);
+    if (listingDates) {
+      page1Note.listing = {
+        opens_at: listingDates.opensAt,
+        closes_at: listingDates.closesAt,
+      };
+    }
     const page1Input = await mapProspectusPageOneDataToInput(page1Note);
     page1Input.publicationContent = publicationContent as any;
     page1Input.trackRecordMode = "frozen_publication_snapshot";
@@ -1020,6 +1027,7 @@ export class ProspectusReviewService {
       page4: buildProspectusPageFourHtml(),
       page5: buildProspectusPageFiveHtml(),
     });
+    updatedSnapshot.publication_id = publicationId;
     updatedSnapshot.note_identity = {
       ...(updatedSnapshot.note_identity ?? {}),
       listing_opens_at: opensAt.toISOString(),

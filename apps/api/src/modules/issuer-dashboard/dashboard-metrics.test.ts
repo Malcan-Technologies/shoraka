@@ -170,6 +170,48 @@ describe("computeFundingProgress", () => {
     expect(rows[1]).toMatchObject({ noteId: "note-2", status: "funded", percent: 100 });
   });
 
+  it("rounds open-campaign funding to two decimal places", () => {
+    const now = new Date("2026-09-09T02:00:00.000Z");
+    const rows = computeFundingProgress(
+      [
+        note({
+          status: "PUBLISHED",
+          fundingStatus: "OPEN",
+          fundedAmount: 1.67,
+          targetAmount: 100,
+          listingClosesAt: new Date("2026-09-16T00:00:00.000Z"),
+        }),
+      ],
+      now
+    );
+    expect(rows[0]?.percent).toBe(1.67);
+  });
+
+  it("does not round 79.95% or 99.95% up to threshold values", () => {
+    const now = new Date("2026-09-09T02:00:00.000Z");
+    const rows = computeFundingProgress(
+      [
+        note({
+          status: "PUBLISHED",
+          fundingStatus: "OPEN",
+          fundedAmount: 79.95,
+          targetAmount: 100,
+        }),
+        note({
+          id: "note-2",
+          noteReference: "NOTE-2",
+          status: "FUNDING",
+          fundingStatus: "FUNDED",
+          fundedAmount: 99.95,
+          targetAmount: 100,
+        }),
+      ],
+      now
+    );
+    expect(rows.find((row) => row.noteId === "note-1")?.percent).toBe(79.95);
+    expect(rows.find((row) => row.noteId === "note-2")?.percent).toBe(99.95);
+  });
+
   it("carries a non-default minimum funding threshold", () => {
     const now = new Date("2026-09-09T02:00:00.000Z");
     const rows = computeFundingProgress(

@@ -6,7 +6,7 @@ tags:
   - admin
   - notifications
 order: 19
-updated: 2026-08-26
+updated: 2026-09-21
 ---
 
 ## What notifications are
@@ -45,7 +45,7 @@ Issuers hear from CashSouk when:
 - A director or shareholder still needs to finish onboarding
 - An upfront facility fee is due or has been paid
 - Late payment charges are due or have been received
-- A note is published, funded, fails to fund, becomes active, is repaid, is due soon, becomes overdue or late, falls into arrears, or is marked in default
+- A note is published, its campaign is extended, funded, fails to fund, becomes active, is repaid, is due soon, becomes overdue or late, falls into arrears, or is marked in default
 - A withdrawal has been submitted to the trustee
 - CashSouk sends a general announcement
 
@@ -56,7 +56,7 @@ Investors hear from CashSouk when:
 - Their account is approved or rejected
 - Their password is changed
 - A director or shareholder still needs to finish onboarding
-- A note they reserved fails to fund, becomes active, records a repayment, posts a settlement, becomes late, falls into arrears, or is marked in default
+- A note they reserved has its listing deadline extended, fails to fund, becomes active, records a repayment, posts a settlement, becomes late, falls into arrears, or is marked in default
 - A withdrawal has been submitted to the trustee
 - CashSouk announces a new product or sends a general announcement
 

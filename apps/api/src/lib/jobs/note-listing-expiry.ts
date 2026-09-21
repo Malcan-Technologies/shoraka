@@ -91,12 +91,21 @@ export async function runNoteListingExpiryJob(): Promise<NoteListingExpiryResult
     );
 
     try {
+      const isFullyFunded = isNoteFullyFunded(fundedAmount, targetAmount);
       if (meetsMinimum) {
-        await noteService.closeFunding(note.id, actor);
-        result.notesAutoFunded.push(note.id);
+        const updated = isFullyFunded
+          ? await noteService.closeFunding(note.id, actor)
+          : await noteService.closeFunding(note.id, actor, { expiredAsOf: now });
+        if (updated.fundingStatus === NoteFundingStatus.FUNDED) {
+          result.notesAutoFunded.push(note.id);
+        } else if (updated.fundingStatus === NoteFundingStatus.FAILED) {
+          result.notesAutoFailed.push(note.id);
+        }
       } else {
-        await noteService.failFunding(note.id, actor);
-        result.notesAutoFailed.push(note.id);
+        const updated = await noteService.failFunding(note.id, actor, { expiredAsOf: now });
+        if (updated.fundingStatus === NoteFundingStatus.FAILED) {
+          result.notesAutoFailed.push(note.id);
+        }
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
