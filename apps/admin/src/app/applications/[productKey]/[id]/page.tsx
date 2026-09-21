@@ -783,7 +783,12 @@ export default function DynamicApplicationDetailPage() {
     if (hasRejected) return "REJECTED";
     if (hasDeclined) return "DECLINED";
     if (hasExpired) return "OFFER_EXPIRED";
-    return offerAcceptanceComplete ? "APPROVED" : "OFFER_SENT";
+    if (offerAcceptanceComplete) return "APPROVED";
+    // When section merging marks the tab as approved (e.g. inherited facility),
+    // the workflow can still be awaiting an admin invoice review action.
+    // Use the admin-action token so the top-tab dot is yellow.
+    if (stageModel.currentStageId === "invoice_review") return "INVOICE_PENDING";
+    return "OFFER_SENT";
   }, [
     app,
     canAppManage,
