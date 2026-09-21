@@ -11,6 +11,7 @@ import {
   TableCellsIcon,
 } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
+import { StatusBadge } from "@cashsouk/ui";
 import {
   MARKETPLACE_MIN_COMMIT_MYR,
   PROSPECTUS_COMPANY_SIZE_VALUES,
@@ -133,6 +134,12 @@ export function WorkingAreaPageTwo({
     draft.page2.invoicePaymaster?.deedOfAssignment
   );
   const risk = resolveMarcNoteRiskPresentation(noteRiskRating);
+  const assignedBandKey =
+    risk.isAvailable
+      ? MARC_SME_BANDS.find((band) =>
+          (band.grades as readonly string[]).includes(risk.grade)
+        )?.key ?? null
+      : null;
 
   const filteredIssuerRows = issuerProfileRows.filter((r) => r.label !== ISSUER_EDITABLE_LABEL);
   const filteredInvoiceRows = invoicePaymasterRows.filter(
@@ -475,19 +482,37 @@ export function WorkingAreaPageTwo({
                   </thead>
                   <tbody>
                     {MARC_SME_BANDS.map((band) => (
-                      <tr key={band.key} className="border-b last:border-0">
+                      <tr
+                        key={band.key}
+                        className={`border-b last:border-0 ${
+                          assignedBandKey === band.key
+                            ? "bg-status-success-bg/40 border border-status-success-text/20"
+                            : ""
+                        }`}
+                      >
                         <td className="px-3 py-2 font-semibold tabular-nums">
-                          <span
-                            className="inline-flex min-w-[5.5rem] items-center justify-center rounded-md px-2 py-1 text-xs font-extrabold"
-                            style={{
-                              backgroundColor: band.color,
-                              color: CASHSCOUK_RISK_GRADE_LETTER_COLOR,
-                            }}
-                            data-grade-color={band.color}
-                            data-grade-letter-color={CASHSCOUK_RISK_GRADE_LETTER_COLOR}
-                          >
-                            {band.rangeLabel}
-                          </span>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span
+                              className="inline-flex min-w-[5.5rem] items-center justify-center rounded-md px-2 py-1 text-xs font-extrabold"
+                              style={{
+                                backgroundColor: band.color,
+                                color: CASHSCOUK_RISK_GRADE_LETTER_COLOR,
+                              }}
+                              data-grade-color={band.color}
+                              data-grade-letter-color={CASHSCOUK_RISK_GRADE_LETTER_COLOR}
+                            >
+                              {band.rangeLabel}
+                            </span>
+                            {assignedBandKey === band.key ? (
+                              <StatusBadge
+                                label="Assigned"
+                                status="success"
+                                marker="check"
+                                size="sm"
+                                showDot={false}
+                              />
+                            ) : null}
+                          </div>
                         </td>
                         <td className="px-3 py-2">{band.label}</td>
                         <td className="px-3 py-2 text-muted-foreground">

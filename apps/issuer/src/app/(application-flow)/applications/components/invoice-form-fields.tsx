@@ -506,7 +506,7 @@ export function InvoiceFormFields({
           <FieldError message={fieldErrors?.sustainability_category} />
         </div>
 
-        <LabelWithTooltip htmlFor={`invoice-document-${invoice.id}`} label="Document" alignTop />
+        <LabelWithTooltip htmlFor={`invoice-document-${invoice.id}`} label="Upload invoice" alignTop />
         <div className="space-y-1 self-start">
           <FileUploadArea
             onFileSelect={(file) => onFileSelect?.(file)}

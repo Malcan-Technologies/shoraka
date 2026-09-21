@@ -125,16 +125,16 @@ export function UtilisationFeeTotalsSummary({
   });
   return (
     <div className={cn("space-y-2", className)}>
-      <p className="text-sm font-medium text-foreground">Fee totals</p>
+      <p className="text-sm font-medium text-foreground">Simulated fees</p>
       <div className="grid gap-3 sm:grid-cols-2">
         <UtilisationFeeTotalsColumn
-          title="At full funding"
+          title="At 100% funding"
           totals={totals.full}
           exceeds={totals.exceedsAtFull}
           showFacilityFee={collectEnabled}
         />
         <UtilisationFeeTotalsColumn
-          title={`At ${totals.minimumPercent}% minimum`}
+          title={`At ${totals.minimumPercent}% funding`}
           totals={totals.minimum}
           exceeds={totals.exceedsAtMinimum}
           showFacilityFee={collectEnabled}
