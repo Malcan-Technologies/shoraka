@@ -11,7 +11,6 @@ import {
   formatProspectusMyrMillions,
   parseProspectusFinancialNumber,
 } from "./prospectus-financial-comparison-metrics";
-import { yearManualInputs } from "./prospectus-financial-manual-inputs";
 import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
   PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_AUDIT,
@@ -38,12 +37,11 @@ function moneyMillionsOrDna(value: number | string | null | undefined): string {
 function valueForRow(
   key: ProspectusPageThreeIncomeStatementRowKey,
   raw: Record<string, unknown>,
-  year: number,
-  input: ProspectusPageThreeIncomeStatementInput,
+  _year: number,
+  _input: ProspectusPageThreeIncomeStatementInput,
   isPlaceholder: boolean
 ): string {
   if (isPlaceholder) return PROSPECTUS_DATA_NOT_AVAILABLE;
-  const manual = yearManualInputs(input.prospectusFinancialInputs?.years, year);
 
   switch (key) {
     case "revenue":
@@ -53,7 +51,7 @@ function valueForRow(
     case "ebitda":
       return moneyMillionsOrDna(fieldFromRaw(raw, "ebitda"));
     case "ebit":
-      return moneyMillionsOrDna(manual?.ebit);
+      return moneyMillionsOrDna(fieldFromRaw(raw, "ebit"));
     case "profit_before_tax":
       return moneyMillionsOrDna(fieldFromRaw(raw, "plnpbt"));
     case "profit_after_tax":

@@ -236,6 +236,8 @@ export interface ProspectusFrozenFinancialRaw {
   turnover: number | null;
   plnpbt: number | null;
   plnpat: number | null;
+  /** Profit Before Tax + Interest Cost */
+  ebit: number | null;
   grossProfit: number | null;
   ebitda: number | null;
   bscatot: number | null;
@@ -244,13 +246,19 @@ export interface ProspectusFrozenFinancialRaw {
   othass: number | null;
   bsclbank: number | null;
   cashAndBank: number | null;
+  costOfSales: number | null;
   tradeReceivables: number | null;
+  receivablesDays: number | null;
   tradePayables: number | null;
+  payablesDays: number | null;
   bsslltd: number | null;
   bsclstd: number | null;
   bsqpuc: number | null;
+  /** Cash & Bank + Trade Receivables ÷ Current Liabilities */
+  quickRatio: number | null;
   operatingCashFlow: number | null;
   freeCashFlow: number | null;
+  annualDebtService: number | null;
   /** Net Worth — ROE fallback denominator (never Paid-Up Capital). */
   networth: number | null;
   totass: number | null;
@@ -260,6 +268,13 @@ export interface ProspectusFrozenFinancialRaw {
   currat: number | null;
   /** Official CTOS Gearing Ratio — Page 3 Debt / Equity prefers this when present. */
   gear: number | null;
+
+  /** Net Debt / Equity = (Borrowings - Cash) / Total Equity */
+  netDebtEquity: number | null;
+  /** Interest Coverage = EBIT / Interest Cost */
+  interestCoverage: number | null;
+  /** DSCR = EBITDA / Annual Debt Service */
+  dscr: number | null;
 }
 
 export interface ProspectusFrozenFinancialYear {

@@ -188,7 +188,8 @@ describe("prospectus Page 3 balance sheet (DATA STAGE 3)", () => {
     expect(row(data, "cash_and_bank")?.values).toEqual(["0.9", "1.1", "1.4"]);
     expect(row(data, "trade_receivables")?.values).toEqual(["2.8", "3.1", "3.2"]);
     expect(row(data, "total_equity")?.values).toEqual(["4.5", "5", "5.6"]);
-    expect(row(data, "quick_ratio")?.values).toEqual(["1.11x", "1.18x", "1.26x"]);
+    // Quick Ratio is now system-derived from (Cash & Bank + Trade Receivables) / Current Liabilities.
+    expect(row(data, "quick_ratio")?.values).toEqual(["1.28x", "1.35x", "1.35x"]);
     expect(formatProspectusMyrMillions(900_000)).toBe("0.9");
     expect(PROSPECTUS_PAGE_THREE_BALANCE_SHEET_AUDIT.cashAndBank.storageUnit).toBe(
       "full_myr"

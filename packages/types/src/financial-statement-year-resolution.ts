@@ -49,8 +49,10 @@ const ACCOUNT_KEYS = [
   "tradeReceivables",
   "totass",
   "curlib",
+  "curlib_borrowing",
   "bsslltd",
   "bsclstd",
+  "ncl_loan",
   "tradePayables",
   "totlib",
   "bsqpuc",
@@ -70,6 +72,9 @@ const ACCOUNT_KEYS = [
   "gear",
   "operatingCashFlow",
   "freeCashFlow",
+  "costOfSales",
+  "annualDebtService",
+  "interest_cost",
 ] as const;
 
 function asRecord(value: unknown): Record<string, unknown> | null {

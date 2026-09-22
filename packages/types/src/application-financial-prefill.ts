@@ -11,6 +11,7 @@ import {
   APPLICATION_COMREP_DETAIL_KEYS,
   APPLICATION_COMREP_NEGATIVE_ALLOWED_KEYS,
   APPLICATION_CORE_MONEY_KEYS,
+  APPLICATION_EXTRA_ISSUER_RAW_MONEY_KEYS,
   FINANCIAL_FIELD_LABELS,
   type ApplicationComrepDetailKey,
 } from "./financial-field-labels";
@@ -237,6 +238,10 @@ export function buildStoredApplicationFinancialYearBlock(
     pldd: String(raw.pldd ?? ""),
   };
   for (const key of APPLICATION_CORE_MONEY_KEYS) {
+    out[key] = toStoredFinancialNumber(raw[key]);
+  }
+  for (const key of APPLICATION_EXTRA_ISSUER_RAW_MONEY_KEYS) {
+    if (!isPresentFinancialValue(raw[key])) continue;
     out[key] = toStoredFinancialNumber(raw[key]);
   }
   for (const key of APPLICATION_COMREP_DETAIL_KEYS) {

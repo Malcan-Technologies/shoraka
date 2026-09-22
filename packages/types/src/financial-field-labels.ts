@@ -38,6 +38,8 @@ export const FINANCIAL_FIELD_LABELS: Record<string, string> = {
   admin_cost: "Administrative Costs",
   interest_cost: "Interest Costs",
   other_cost: "Other Costs",
+  costOfSales: "Cost of Sales",
+  annualDebtService: "Annual Debt Service",
   pl_minority: "Minority Interest",
 };
 
@@ -96,6 +98,19 @@ export const APPLICATION_CORE_MONEY_KEYS = [
   "operatingCashFlow",
   "freeCashFlow",
 ] as const;
+
+/**
+ * Additional issuer raw inputs required for certain system-calculated financial metrics.
+ * Keep these out of APPLICATION_CORE_MONEY_KEYS to avoid making them mandatory via
+ * shared core default/validation behaviour.
+ */
+export const APPLICATION_EXTRA_ISSUER_RAW_MONEY_KEYS = [
+  "costOfSales",
+  "annualDebtService",
+] as const;
+
+export type ApplicationExtraIssuerRawMoneyKey =
+  (typeof APPLICATION_EXTRA_ISSUER_RAW_MONEY_KEYS)[number];
 
 export type ApplicationCoreMoneyKey = (typeof APPLICATION_CORE_MONEY_KEYS)[number];
 

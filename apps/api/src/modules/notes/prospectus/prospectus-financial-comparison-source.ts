@@ -10,6 +10,13 @@ import {
   formatMissingSsmUnauditedYearsOpsWarning,
   computeColumnMetrics,
   financialFormToBsPl,
+  computeEbit,
+  computeQuickRatio,
+  computeInterestCoverage,
+  computeReceivablesDays,
+  computePayablesDays,
+  computeNetDebtEquity,
+  computeDscr,
   resolveFinancialStatementSourceFooter,
   selectLatestNormalizedFinancialStatementYears,
 } from "@cashsouk/types";
@@ -78,6 +85,11 @@ export function buildProspectusFinancialComparisonSource(
     "cashAndBank",
     "tradeReceivables",
     "tradePayables",
+    "costOfSales",
+    "annualDebtService",
+    "interest_cost",
+    "curlib_borrowing",
+    "ncl_loan",
     "operatingCashFlow",
     "freeCashFlow",
   ] as const;
@@ -133,6 +145,23 @@ export function buildProspectusFinancialComparisonSource(
       rawFinancials.gear =
         metrics.networth === 0 ? null : metrics.totlib / metrics.networth;
     }
+
+    // Derived issuer metrics for both CTOS-audited and unaudited management years.
+    // These feed Admin / Prospectus read-only display.
+    const fs = rawFinancials as any;
+    const ebit = computeEbit(fs.plnpbt, fs.interest_cost);
+    rawFinancials.ebit = ebit;
+    rawFinancials.quickRatio = computeQuickRatio(fs.cashAndBank, fs.tradeReceivables, fs.curlib);
+    rawFinancials.interestCoverage = computeInterestCoverage(ebit, fs.interest_cost);
+    rawFinancials.receivablesDays = computeReceivablesDays(fs.tradeReceivables, fs.turnover);
+    rawFinancials.payablesDays = computePayablesDays(fs.tradePayables, fs.costOfSales);
+    rawFinancials.netDebtEquity = computeNetDebtEquity({
+      curlib_borrowing: fs.curlib_borrowing,
+      ncl_loan: fs.ncl_loan,
+      cashAndBank: fs.cashAndBank,
+      networth: fs.networth,
+    });
+    rawFinancials.dscr = computeDscr(fs.ebitda, fs.annualDebtService);
 
     return {
       year: year.year,

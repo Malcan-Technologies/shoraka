@@ -209,3 +209,98 @@ export function financialFormToBsPl(fs: FinancialStatementsInput) {
     },
   };
 }
+
+/**
+ * EBIT = Profit Before Tax + Interest Cost
+ * Returns null when either input is missing or interest cost is not calculable.
+ */
+export function computeEbit(plnpbt: number | null | undefined, interest_cost: number | null | undefined): number | null {
+  if (!isFiniteNumber(plnpbt) || !isFiniteNumber(interest_cost)) return null;
+  return plnpbt + interest_cost;
+}
+
+/**
+ * Quick Ratio = (Cash & Bank + Trade Receivables) / Current Liabilities
+ * Missing inputs never default to 0.
+ */
+export function computeQuickRatio(
+  cashAndBank: number | null | undefined,
+  tradeReceivables: number | null | undefined,
+  curlib: number | null | undefined
+): number | null {
+  if (!isFiniteNumber(cashAndBank) || !isFiniteNumber(tradeReceivables) || !isFiniteNumber(curlib)) return null;
+  if (curlib === 0) return null;
+  return (cashAndBank + tradeReceivables) / curlib;
+}
+
+/**
+ * Interest Coverage = EBIT / Interest Cost
+ * Returns null when interest cost is missing or zero.
+ */
+export function computeInterestCoverage(
+  ebit: number | null | undefined,
+  interest_cost: number | null | undefined
+): number | null {
+  if (!isFiniteNumber(ebit) || !isFiniteNumber(interest_cost)) return null;
+  if (interest_cost === 0) return null;
+  return ebit / interest_cost;
+}
+
+/**
+ * Receivables Days = Trade Receivables / Revenue × 365
+ * Returns null when turnover is missing or zero.
+ */
+export function computeReceivablesDays(
+  tradeReceivables: number | null | undefined,
+  turnover: number | null | undefined
+): number | null {
+  if (!isFiniteNumber(tradeReceivables) || !isFiniteNumber(turnover)) return null;
+  if (turnover === 0) return null;
+  return (tradeReceivables / turnover) * 365;
+}
+
+/**
+ * Payables Days = Trade Payables / Cost of Sales × 365
+ * Returns null when costOfSales is missing or zero.
+ */
+export function computePayablesDays(
+  tradePayables: number | null | undefined,
+  costOfSales: number | null | undefined
+): number | null {
+  if (!isFiniteNumber(tradePayables) || !isFiniteNumber(costOfSales)) return null;
+  if (costOfSales === 0) return null;
+  return (tradePayables / costOfSales) * 365;
+}
+
+/**
+ * Net Debt / Equity =
+ *   (Current Borrowings + Non-current Loans - Cash & Bank) / Total Equity
+ *
+ * Uses `networth` (Total Equity) denominator.
+ */
+export function computeNetDebtEquity(params: {
+  curlib_borrowing: number | null | undefined;
+  ncl_loan: number | null | undefined;
+  cashAndBank: number | null | undefined;
+  networth: number | null | undefined;
+}): number | null {
+  const { curlib_borrowing, ncl_loan, cashAndBank, networth } = params;
+  if (!isFiniteNumber(curlib_borrowing) || !isFiniteNumber(ncl_loan) || !isFiniteNumber(cashAndBank) || !isFiniteNumber(networth)) {
+    return null;
+  }
+  if (networth === 0) return null;
+  return (curlib_borrowing + ncl_loan - cashAndBank) / networth;
+}
+
+/**
+ * DSCR = EBITDA / Annual Debt Service
+ * Returns null when annualDebtService is missing or zero.
+ */
+export function computeDscr(
+  ebitda: number | null | undefined,
+  annualDebtService: number | null | undefined
+): number | null {
+  if (!isFiniteNumber(ebitda) || !isFiniteNumber(annualDebtService)) return null;
+  if (annualDebtService === 0) return null;
+  return ebitda / annualDebtService;
+}

@@ -44,6 +44,7 @@ import {
   APPLICATION_COMREP_NEGATIVE_ALLOWED_KEYS,
   APPLICATION_COMREP_OPTIONAL_KEYS,
   APPLICATION_CORE_MONEY_KEYS,
+  APPLICATION_EXTRA_ISSUER_RAW_MONEY_KEYS,
   FINANCIAL_FIELD_LABELS,
   applicationComrepFieldError,
   buildApplicationFinancialPrefillByYear,
@@ -104,6 +105,7 @@ export function generateMockData(): Record<string, unknown> {
     bsqpuc: formatMoney(100000.44),
     tradePayables: formatMoney(75000.22),
     turnover: formatMoney(1200000.56),
+    costOfSales: formatMoney(680000.12),
     grossProfit: formatMoney(620000.12),
     ebitda: formatMoney(510000.34),
     plnpbt: formatMoney(150000.22),
@@ -112,6 +114,7 @@ export function generateMockData(): Record<string, unknown> {
     plyear: formatMoney(plyear),
     operatingCashFlow: formatMoney(300000.99),
     freeCashFlow: formatMoney(240000.88),
+    annualDebtService: formatMoney(220000.55),
   };
 }
 
@@ -134,6 +137,7 @@ interface FinancialStatementsPayload {
   bsqpuc: string;
   tradePayables: string;
   turnover: string;
+  costOfSales: string;
   grossProfit: string;
   ebitda: string;
   plnpbt: string;
@@ -142,6 +146,7 @@ interface FinancialStatementsPayload {
   plyear: string;
   operatingCashFlow: string;
   freeCashFlow: string;
+  annualDebtService: string;
   curlib_borrowing: string;
   curlib_non_borrowing: string;
   ncl_loan: string;
@@ -171,6 +176,7 @@ const DEFAULT_PAYLOAD: FinancialStatementsPayload = {
   bsqpuc: "",
   tradePayables: "",
   turnover: "",
+  costOfSales: "",
   grossProfit: "",
   ebitda: "",
   plnpbt: "",
@@ -179,6 +185,7 @@ const DEFAULT_PAYLOAD: FinancialStatementsPayload = {
   plyear: "",
   operatingCashFlow: "",
   freeCashFlow: "",
+  annualDebtService: "",
   curlib_borrowing: "",
   curlib_non_borrowing: "",
   ncl_loan: "",
@@ -242,6 +249,9 @@ function toApiPayload(form: FinancialStatementsPayload): Record<string, unknown>
   const out: Record<string, unknown> = {};
   out.pldd = String(form.pldd ?? "").trim();
   for (const k of APPLICATION_CORE_MONEY_KEYS) {
+    out[k] = parseMoney(form[k] ?? "");
+  }
+  for (const k of APPLICATION_EXTRA_ISSUER_RAW_MONEY_KEYS) {
     out[k] = parseMoney(form[k] ?? "");
   }
   for (const k of APPLICATION_COMREP_DETAIL_KEYS) {
@@ -442,7 +452,10 @@ function buildV2ApiPayload(
   return { questionnaire: q, unaudited_by_year };
 }
 
-const YEAR_MONEY_FIELDS: (keyof FinancialStatementsPayload)[] = [...APPLICATION_CORE_MONEY_KEYS];
+const YEAR_MONEY_FIELDS: (keyof FinancialStatementsPayload)[] = [
+  ...APPLICATION_CORE_MONEY_KEYS,
+  ...APPLICATION_EXTRA_ISSUER_RAW_MONEY_KEYS,
+];
 const COMREP_REQUIRED_DETAIL_KEYS: (keyof FinancialStatementsPayload)[] = (
   APPLICATION_COMREP_DETAIL_KEYS as readonly string[]
 ).filter((k) => !(APPLICATION_COMREP_OPTIONAL_KEYS as readonly string[]).includes(k)) as (keyof FinancialStatementsPayload)[];
@@ -1118,6 +1131,15 @@ export function FinancialStatementsStep({
               errorMessage={yearErrors.money.grossProfit}
             />
             <MoneyFieldRow
+              id={`${yearKey}-costOfSales`}
+              label={getLabel("costOfSales")}
+              value={form.costOfSales ?? ""}
+              onValueChange={(v) => updateFormYear(yearKey, "costOfSales", v)}
+              readOnly={readOnly}
+              hasError={Boolean(yearErrors.money.costOfSales)}
+              errorMessage={yearErrors.money.costOfSales}
+            />
+            <MoneyFieldRow
               id={`${yearKey}-plnpbt`}
               label={getLabel("plnpbt")}
               value={form.plnpbt ?? ""}
@@ -1290,6 +1312,20 @@ export function FinancialStatementsStep({
                 showNegativeTooltip
                 hasError={Boolean(yearErrors.money.freeCashFlow)}
                 errorMessage={yearErrors.money.freeCashFlow}
+              />
+            </div>
+          </section>
+          <section className={cn(sectionWrapperClassName, yearBlockInnerSectionClassName, "mt-8")}>
+            <h4 className={subsectionHeadingClassName}>Debt / Financing</h4>
+            <div className={stepFormRowGridClassName}>
+              <MoneyFieldRow
+                id={`${yearKey}-annualDebtService`}
+                label={getLabel("annualDebtService")}
+                value={form.annualDebtService ?? ""}
+                onValueChange={(v) => updateFormYear(yearKey, "annualDebtService", v)}
+                readOnly={readOnly}
+                hasError={Boolean(yearErrors.money.annualDebtService)}
+                errorMessage={yearErrors.money.annualDebtService}
               />
             </div>
           </section>
