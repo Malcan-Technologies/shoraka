@@ -62,18 +62,11 @@ export type ProspectusCompletionOptions = {
   hasMarcAssessment?: boolean;
 };
 
-const PAGE_THREE_OFFICER_FINANCIAL_FIELDS = [
-  "ebit",
-  "quickRatio",
-  "payablesDays",
-] as const;
+// These metrics are now system-derived (Stage 4A → Admin read-only).
+const PAGE_THREE_OFFICER_FINANCIAL_FIELDS = [] as const;
 
-const PAGE_TWO_OVERRIDE_FIELDS = [
-  "netDebtEquity",
-  "interestCoverage",
-  "dscr",
-  "receivablesDays",
-] as const;
+// These metrics are now system-derived (Stage 4A → Admin read-only).
+const PAGE_TWO_OVERRIDE_FIELDS = [] as const;
 
 function pageThreeOfficerFieldsComplete(
   draft: import("@cashsouk/types").ProspectusReviewStoredContent,

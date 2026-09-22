@@ -1,7 +1,6 @@
 import { formatCurrency } from "@cashsouk/config";
 import {
   resolveCtosCurrentRatio,
-  resolveCtosGearingRatio,
   resolveCtosPatMarginPercent,
   resolveCtosReturnOnAssetsPercent,
   resolveCtosReturnOnEquityPercent,
@@ -82,15 +81,6 @@ function formatDays(value: number | null): string {
   if (value == null || !Number.isFinite(value)) return DATA_NOT_AVAILABLE;
   if (Number.isInteger(value)) return String(value);
   return value.toFixed(2).replace(/\.?0+$/, "");
-}
-
-function manualDisplay(
-  value: string | number | null | undefined,
-  kind: "money" | "ratio"
-): string {
-  const n = parseNumber(value);
-  if (n == null) return DATA_NOT_AVAILABLE;
-  return kind === "money" ? formatMoney(n) : `${n}`;
 }
 
 type Page2FinancialOverrides =
@@ -228,16 +218,17 @@ export type PageThreeManualYears = Record<string, PageThreeManualYear | undefine
 /** Final resolved Income Statement values for one year (derived + officer-entered). */
 export function buildIncomeStatementResolvedRows(
   yearRaw: Record<string, unknown>,
-  manual: PageThreeManualYear | undefined
+  _manual: PageThreeManualYear | undefined
 ): CoreTermRow[] {
   const revenue = parseNumber(yearRaw.turnover);
   const pat = parseNumber(yearRaw.plnpat);
   const pbt = parseNumber(yearRaw.plnpbt);
   return [
     { label: "Revenue", value: formatMoney(revenue) },
+    { label: "Cost of Sales", value: formatMoney(parseNumber(yearRaw.costOfSales)) },
     { label: "Gross Profit", value: formatMoney(parseNumber(yearRaw.grossProfit)) },
     { label: "EBITDA", value: formatMoney(parseNumber(yearRaw.ebitda)) },
-    { label: "EBIT", value: manualDisplay(manual?.ebit, "money") },
+    { label: "EBIT", value: formatMoney(parseNumber(yearRaw.ebit)) },
     { label: "Profit Before Tax", value: formatMoney(pbt) },
     { label: "Profit After Tax", value: formatMoney(pat) },
     {
@@ -253,7 +244,7 @@ export function buildIncomeStatementResolvedRows(
 /** Final resolved Balance Sheet & Liquidity values including Total Liabilities. */
 export function buildBalanceSheetResolvedRows(
   yearRaw: Record<string, unknown>,
-  manual: PageThreeManualYear | undefined
+  _manual: PageThreeManualYear | undefined
 ): CoreTermRow[] {
   const currentAssets = parseNumber(yearRaw.bscatot);
   const currentLiabilities = parseNumber(yearRaw.curlib);
@@ -265,6 +256,7 @@ export function buildBalanceSheetResolvedRows(
   return [
     { label: "Cash & Bank", value: formatMoney(parseNumber(yearRaw.cashAndBank)) },
     { label: "Trade Receivables", value: formatMoney(parseNumber(yearRaw.tradeReceivables)) },
+    { label: "Trade Payables", value: formatMoney(parseNumber(yearRaw.tradePayables)) },
     { label: "Current Assets", value: formatMoney(currentAssets) },
     { label: "Total Assets", value: formatMoney(totalAssets) },
     { label: "Current Liabilities", value: formatMoney(currentLiabilities) },
@@ -278,34 +270,31 @@ export function buildBalanceSheetResolvedRows(
         })
       ),
     },
-    { label: "Quick Ratio", value: manualDisplay(manual?.quickRatio, "ratio") },
+    { label: "Quick Ratio", value: formatMultiple(parseNumber(yearRaw.quickRatio)) },
   ];
 }
 
 /** Final resolved Cash Flow, Coverage & Efficiency values. */
 export function buildCoverageResolvedRows(
   yearRaw: Record<string, unknown>,
-  manual: PageThreeManualYear | undefined,
-  page2Override?: Partial<
+  _manual: PageThreeManualYear | undefined,
+  _page2Override?: Partial<
     Record<(typeof PAGE_TWO_OFFICER_FINANCIAL_METRICS)[number]["key"], string | number | null>
   >
 ): CoreTermRow[] {
-  const interestCoverage = parseNumber(page2Override?.interestCoverage);
-  const dscr = parseNumber(page2Override?.dscr);
-  const receivablesDays = parseNumber(page2Override?.receivablesDays);
+  // System-derived metrics from Stage 4A raw fields (do not use officer overrides).
+  const interestCoverage = parseNumber(yearRaw.interestCoverage);
+  const dscr = parseNumber(yearRaw.dscr);
+  const receivablesDays = parseNumber(yearRaw.receivablesDays);
   return [
+    { label: "Operating Cash Flow", value: formatMoney(parseNumber(yearRaw.operatingCashFlow)) },
+    { label: "Free Cash Flow", value: formatMoney(parseNumber(yearRaw.freeCashFlow)) },
     { label: "Interest Coverage", value: formatMultiple(interestCoverage) },
+    { label: "Annual Debt Service", value: formatMoney(parseNumber(yearRaw.annualDebtService)) },
     { label: "DSCR", value: formatMultiple(dscr) },
     {
       label: "Debt / Equity",
-      // CTOS ENQWS v5.11.0 Financial Highlights XSL — gear | totlib/networth (x)
-      value: formatMultiple(
-        resolveCtosGearingRatio({
-          gear: parseNumber(yearRaw.gear),
-          totlib: parseNumber(yearRaw.totlib),
-          networth: parseNumber(yearRaw.networth),
-        })
-      ),
+      value: formatMultiple(parseNumber(yearRaw.netDebtEquity)),
     },
     {
       label: "Return on Equity",
@@ -329,13 +318,11 @@ export function buildCoverageResolvedRows(
     {
       label: "Receivables Days",
       value:
-        receivablesDays != null && Number.isInteger(receivablesDays)
-          ? formatDays(receivablesDays)
-          : DATA_NOT_AVAILABLE,
+        receivablesDays != null ? formatDays(receivablesDays) : DATA_NOT_AVAILABLE,
     },
     {
       label: "Payables Days",
-      value: formatDays(parseNumber(manual?.payablesDays)),
+      value: formatDays(parseNumber(yearRaw.payablesDays)),
     },
     {
       label: "Asset Turnover",

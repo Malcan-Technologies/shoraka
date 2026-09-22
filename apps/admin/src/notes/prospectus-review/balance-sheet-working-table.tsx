@@ -6,9 +6,8 @@ import {
   type FinancialRowMode,
 } from "./shared-financial-working-table";
 
-const OFFICER: Record<string, { field: string; kind: "money" | "ratio" }> = {
-  "Quick Ratio": { field: "quickRatio", kind: "ratio" },
-};
+// Quick Ratio is system-derived (Stage 4A). Keep it read-only in Admin.
+const OFFICER: Record<string, { field: string; kind: "money" | "ratio" }> = {};
 
 type Props = {
   table: FinancialMetricTableModel;

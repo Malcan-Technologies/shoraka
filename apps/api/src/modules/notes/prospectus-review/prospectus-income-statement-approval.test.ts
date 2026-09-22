@@ -13,7 +13,7 @@ describe("prospectus Income Statement approval validation", () => {
     expect(validateApprovalContent(draft)).toEqual([]);
   });
 
-  it("requires only EBIT for each displayed year", () => {
+  it("does not require retired Income Statement officer financial fields", () => {
     const draft = buildCompleteProspectusReviewDraft();
     draft.page3.manualFinancialInputs = {
       years: {
@@ -38,19 +38,12 @@ describe("prospectus Income Statement approval validation", () => {
       incomeStatementYears: ["2022", "2023", "2024"],
     });
     expect(
-      errors.some((e) => e.path === "page3.manualFinancialInputs.years.2022.ebit")
-    ).toBe(true);
-    expect(
-      errors.some((e) => e.path === "page3.manualFinancialInputs.years.2024.ebit")
-    ).toBe(true);
-    expect(errors.some((e) => e.path === "page3.manualFinancialInputs.years.2023.ebit")).toBe(
-      false
-    );
-    expect(
       errors.some(
         (e) => e.path === "page3.manualFinancialInputs.years.2022.grossProfit"
       )
     ).toBe(false);
+    // With retired officer keys, approval should not block on missing Page 3 income officer values.
+    expect(errors).toEqual([]);
   });
 
   it("accepts zero and negative officer money values", () => {

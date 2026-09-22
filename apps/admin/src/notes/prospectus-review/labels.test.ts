@@ -190,7 +190,8 @@ describe("prospectus review completion readiness", () => {
     });
     expect(withIncomeYears.find((i) => i.id === "financials")?.required).toBe(true);
     expect(withIncomeYears.find((i) => i.id === "page3Paymaster")).toBeUndefined();
-    expect(withIncomeYears.find((i) => i.id === "financials")?.complete).toBe(false);
+    // Retired officer override metrics are no longer required for completion.
+    expect(withIncomeYears.find((i) => i.id === "financials")?.complete).toBe(true);
   });
 
   it("uses Complete / Required / Optional without progression icon symbols", () => {
@@ -243,8 +244,9 @@ describe("prospectus review completion readiness", () => {
     });
     expect(missing.some((m) => m.section === "Paymaster Track Record")).toBe(false);
     expect(missing.some((m) => m.field === "Company Size")).toBe(true);
-    expect(missing.some((m) => m.section === "Financial Comparison")).toBe(true);
-    expect(missing.some((m) => m.year === "FY2024")).toBe(true);
+    expect(missing.some((m) => m.section === "Financial Comparison")).toBe(false);
+    // Financial comparison officer fields are retired; missing-year counters should no longer be driven by them.
+    expect(missing.some((m) => m.year === "FY2024")).toBe(false);
     expect(missing.every((m) => m.pageStep === 0 || m.pageStep === 1 || m.pageStep === 2)).toBe(
       true
     );
@@ -306,11 +308,11 @@ describe("prospectus review completion readiness", () => {
     expect(page3Missing.some((m) => m.field === "Paymaster Grading")).toBe(false);
     expect(page3Missing.some((m) => m.field === "Confidence Grading")).toBe(false);
     expect(page3Missing.filter((m) => m.tabId === "overview")).toHaveLength(0);
-    expect(countMissingForTab(draft, "income", { incomeStatementYears: years })).toBe(3);
-    expect(countMissingForTab(draft, "balance", { incomeStatementYears: years })).toBe(3);
-    expect(countMissingForTab(draft, "coverage", { incomeStatementYears: years })).toBe(3);
+    expect(countMissingForTab(draft, "income", { incomeStatementYears: years })).toBe(0);
+    expect(countMissingForTab(draft, "balance", { incomeStatementYears: years })).toBe(0);
+    expect(countMissingForTab(draft, "coverage", { incomeStatementYears: years })).toBe(0);
     expect(countMissingForTab(draft, "takeaways", { incomeStatementYears: years })).toBe(0);
-    expect(page3Missing).toHaveLength(3 + 3 + 3);
+    expect(page3Missing).toHaveLength(0);
   });
 
   it("treats a missing issuer MARC assessment as one Credit Insights blocker", () => {

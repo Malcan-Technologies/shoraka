@@ -1,62 +1,25 @@
 "use client";
 
 import type { FinancialMetricTableModel } from "./financial-metric-table";
-import { PAGE_TWO_OFFICER_FINANCIAL_METRICS } from "./page-two-coverage";
 import {
   ProspectusSharedFinancialWorkingTable,
   type FinancialRowMode,
 } from "./shared-financial-working-table";
-import {
-  FINANCIAL_CELL_PLACEHOLDERS,
-  PAGE_TWO_FINANCIAL_PLACEHOLDERS,
-} from "./working-area-placeholders";
-
-const OFFICER_BY_LABEL = new Map<string, (typeof PAGE_TWO_OFFICER_FINANCIAL_METRICS)[number]>(
-  PAGE_TWO_OFFICER_FINANCIAL_METRICS.map((m) => [m.label, m])
-);
+// Page 2 override metrics are system-derived and rendered read-only in Admin.
 
 type Props = {
   table: FinancialMetricTableModel;
-  overrides:
-    | Record<
-        string,
-        Partial<
-          Record<
-            (typeof PAGE_TWO_OFFICER_FINANCIAL_METRICS)[number]["key"],
-            string | number | null | undefined
-          >
-        >
-      >
-    | null
-    | undefined;
+  // Legacy shape kept for backwards compatibility, but Admin no longer edits these values.
+  overrides: unknown;
   disabled: boolean;
   onChange: (fyeKey: string, field: string, value: string) => void;
 };
 
 function resolveRow(metric: string): FinancialRowMode {
-  const officer = OFFICER_BY_LABEL.get(metric);
-  if (!officer) return { mode: "readonly" };
-  const kind =
-    officer.key === "receivablesDays"
-      ? "days"
-      : officer.key === "netDebtEquity"
-        ? "ratio"
-        : "ratio";
-  const full = PAGE_TWO_FINANCIAL_PLACEHOLDERS[officer.key];
-  const cell =
-    officer.key === "receivablesDays"
-      ? FINANCIAL_CELL_PLACEHOLDERS.days
-      : officer.key === "netDebtEquity"
-        ? FINANCIAL_CELL_PLACEHOLDERS.ratio
-        : "e.g. 12.1";
-  return {
-    mode: "editable",
-    field: officer.key,
-    kind,
-    yearKeyForHeader: (headerKey) => headerKey,
-    cellPlaceholder: cell,
-    fullPlaceholder: full,
-  };
+  void metric;
+  // These Page 2 override metrics are system-derived and should not be edited in Admin.
+  // Keep Admin read-only even if legacy override state exists in saved drafts.
+  return { mode: "readonly" };
 }
 
 /**
@@ -64,7 +27,7 @@ function resolveRow(metric: string): FinancialRowMode {
  */
 export function ProspectusFinancialComparisonWorkingTable({
   table,
-  overrides,
+  overrides: _overrides,
   disabled,
   onChange,
 }: Props) {
@@ -72,13 +35,7 @@ export function ProspectusFinancialComparisonWorkingTable({
     <ProspectusSharedFinancialWorkingTable
       table={table}
       resolveRow={resolveRow}
-      getEditableValue={(yearKey, field) => {
-        const yearOverride =
-          overrides?.[yearKey] ??
-          overrides?.[yearKey.slice(0, 4)] ??
-          overrides?.[`${yearKey.slice(0, 4)}-12-31`];
-        return yearOverride?.[field as keyof NonNullable<typeof yearOverride>];
-      }}
+      getEditableValue={() => null}
       onChange={onChange}
       disabled={disabled}
     />

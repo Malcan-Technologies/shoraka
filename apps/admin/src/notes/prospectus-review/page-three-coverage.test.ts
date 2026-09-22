@@ -125,8 +125,8 @@ const yearRaw: import("@cashsouk/types").ProspectusFrozenFinancialRaw = {
   tradePayables: 12_000,
   grossProfit: 300_000,
   ebitda: 200_000,
-  costOfSales: null,
-  annualDebtService: null,
+  costOfSales: 680_000,
+  annualDebtService: 1_000_000,
   totass: 1_000_000,
   totlib: 250_000,
   networth: 500_000,
@@ -134,15 +134,15 @@ const yearRaw: import("@cashsouk/types").ProspectusFrozenFinancialRaw = {
   return_on_equity: null,
   currat: null,
   gear: null,
-  ebit: null,
-  quickRatio: null,
+  ebit: 180_000,
+  quickRatio: 1.25,
   interestCoverage: null,
   receivablesDays: null,
   payablesDays: null,
-  netDebtEquity: null,
+  netDebtEquity: 0.5,
   dscr: null,
-  operatingCashFlow: null,
-  freeCashFlow: null,
+  operatingCashFlow: 1_400_000,
+  freeCashFlow: 1_100_000,
 };
 
 function frozenYear(
@@ -251,6 +251,7 @@ describe("page three coverage verification", () => {
     expect(table.yearHeaders).toHaveLength(3);
     expect(table.rows.map((r) => r.metric)).toEqual([
       "Revenue",
+      "Cost of Sales",
       "Gross Profit",
       "EBITDA",
       "EBIT",
@@ -267,6 +268,7 @@ describe("page three coverage verification", () => {
     expect(table.rows.map((r) => r.metric)).toEqual([
       "Cash & Bank",
       "Trade Receivables",
+      "Trade Payables",
       "Current Assets",
       "Total Assets",
       "Current Liabilities",
@@ -378,7 +380,10 @@ describe("page three coverage verification", () => {
       }
     );
     expect(table.rows.map((r) => r.metric)).toEqual([
+      "Operating Cash Flow",
+      "Free Cash Flow",
       "Interest Coverage",
+      "Annual Debt Service",
       "DSCR",
       "Debt / Equity",
       "Return on Equity",
@@ -387,13 +392,20 @@ describe("page three coverage verification", () => {
       "Payables Days",
       "Asset Turnover",
     ]);
-    expect(table.rows).toHaveLength(8);
+    expect(table.rows).toHaveLength(11);
     expect(table.rows.every((r) => r.trend == null)).toBe(true);
     const fy2024 = 2;
-    expect(table.rows.find((r) => r.metric === "Operating Cash Flow")).toBeUndefined();
-    expect(table.rows.find((r) => r.metric === "Free Cash Flow")).toBeUndefined();
+    expect(table.rows.find((r) => r.metric === "Operating Cash Flow")?.values[fy2024]).toBe(
+      "RM 1,400,000.00"
+    );
+    expect(table.rows.find((r) => r.metric === "Free Cash Flow")?.values[fy2024]).toBe(
+      "RM 1,100,000.00"
+    );
     expect(table.rows.find((r) => r.metric === "Interest Coverage")?.values[fy2024]).toBe(
       "12.1x"
+    );
+    expect(table.rows.find((r) => r.metric === "Annual Debt Service")?.values[fy2024]).toBe(
+      "RM 1,000,000.00"
     );
     expect(table.rows.find((r) => r.metric === "DSCR")?.values[fy2024]).toBe("1.42x");
     // CTOS ENQWS v5.11.0: plnpat/totass*100 = 100000/1000000*100 = 10
@@ -407,7 +419,7 @@ describe("page three coverage verification", () => {
   });
 
   it("prefers official CTOS gear for Debt / Equity when present", () => {
-    const withGear = [frozenYear(2024, { ...yearRaw, gear: 4.4 })];
+    const withGear = [frozenYear(2024, { ...yearRaw, gear: 4.4, netDebtEquity: 4.4 })];
     const table = buildPageThreeCoverageTable(withGear, undefined, undefined);
     expect(table.rows.find((r) => r.metric === "Debt / Equity")?.values[0]).toBe("4.4x");
   });
@@ -454,8 +466,8 @@ describe("page three coverage verification", () => {
   it("keeps single-year resolved helpers for Total Liabilities parity", () => {
     const rows = buildBalanceSheetResolvedRows({ ...yearRaw }, { quickRatio: 1.25 });
     expect(rows.find((r) => r.label === "Total Liabilities")?.value).toContain("250,000");
-    expect(buildIncomeStatementResolvedRows({ ...yearRaw }, undefined)).toHaveLength(7);
-    expect(buildCoverageResolvedRows({ ...yearRaw }, undefined)).toHaveLength(8);
+    expect(buildIncomeStatementResolvedRows({ ...yearRaw }, undefined)).toHaveLength(8);
+    expect(buildCoverageResolvedRows({ ...yearRaw }, undefined)).toHaveLength(11);
   });
 
   it("uses direct CTOS return_on_equity only for ROE (no PAT/networth fallback)", () => {

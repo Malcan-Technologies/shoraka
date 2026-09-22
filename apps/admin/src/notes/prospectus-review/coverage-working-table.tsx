@@ -9,11 +9,9 @@ import {
 const OFFICER: Record<
   string,
   { field: string; kind: "money" | "ratio" | "percent" | "days" }
-> = {
-  "Payables Days": { field: "payablesDays", kind: "days" },
-};
+> = {};
 
-const REUSED = new Set(["Interest Coverage", "DSCR", "Receivables Days"]);
+const REUSED = new Set<string>();
 
 type Props = {
   table: FinancialMetricTableModel;

@@ -6,9 +6,8 @@ import {
   type FinancialRowMode,
 } from "./shared-financial-working-table";
 
-const OFFICER: Record<string, { field: string; kind: "money" }> = {
-  EBIT: { field: "ebit", kind: "money" },
-};
+// EBIT is system-derived (Stage 4A). Keep it read-only in Admin.
+const OFFICER: Record<string, { field: string; kind: "money" }> = {};
 
 type Props = {
   table: FinancialMetricTableModel;
