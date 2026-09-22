@@ -703,7 +703,7 @@ describe("RegTankService.startCorporateOnboarding company auto-regeneration", ()
     expect(mockTxCreate).not.toHaveBeenCalled();
   });
 
-  it("blocks issuer corporate onboarding when issuer company seal is missing", async () => {
+  it("allows issuer corporate onboarding when issuer company seal is missing", async () => {
     mockFindInvestorOrganizationById.mockResolvedValue(null);
     mockFindIssuerOrganizationById.mockResolvedValue({
       ...makeCompanyOrg(),
@@ -711,27 +711,21 @@ describe("RegTankService.startCorporateOnboarding company auto-regeneration", ()
       owner_user_id: "USR01",
       onboarding_fee_paid_at: new Date(),
     });
-    mockFindIssuerCompanySeal.mockResolvedValue(null);
 
     const service = new RegTankService();
-    await expect(
-      service.startCorporateOnboarding(
-        makeReq(),
-        "USR01",
-        "org-issuer-company-1",
-        "issuer",
-        "Issuer Company Org"
-      )
-    ).rejects.toMatchObject<AppError>({
-      statusCode: 400,
-      code: "ISSUER_COMPANY_SEAL_REQUIRED",
-    });
+    const result = await service.startCorporateOnboarding(
+      makeReq(),
+      "USR01",
+      "org-issuer-company-1",
+      "issuer",
+      "Issuer Company Org"
+    );
 
-    expect(mockCreateCorporateOnboarding).not.toHaveBeenCalled();
-    expect(mockFindByOrganizationId).not.toHaveBeenCalled();
+    expect(result.requestId).toBe("COD0002");
+    expect(mockCreateCorporateOnboarding).toHaveBeenCalledTimes(1);
   });
 
-  it("allows issuer corporate onboarding when issuer company seal exists and re-checks it across reloads", async () => {
+  it("allows issuer corporate onboarding regardless of issuer company seal presence", async () => {
     mockFindInvestorOrganizationById.mockResolvedValue(null);
     mockFindIssuerOrganizationById.mockResolvedValue({
       ...makeCompanyOrg(),
@@ -739,10 +733,6 @@ describe("RegTankService.startCorporateOnboarding company auto-regeneration", ()
       owner_user_id: "USR01",
       onboarding_fee_paid_at: new Date(),
     });
-
-    mockFindIssuerCompanySeal
-      .mockResolvedValueOnce({ id: "seal_active_1" })
-      .mockResolvedValueOnce({ id: "seal_active_2" });
 
     // No existing onboarding rows → service creates a new COD request.
     mockFindByOrganizationId.mockResolvedValue(null);
@@ -766,11 +756,6 @@ describe("RegTankService.startCorporateOnboarding company auto-regeneration", ()
     expect(first.requestId).toBe("COD0002");
     expect(second.requestId).toBe("COD0002");
     expect(mockCreateCorporateOnboarding).toHaveBeenCalledTimes(2);
-
-    expect(mockFindIssuerCompanySeal).toHaveBeenCalledWith({
-      where: { issuer_organization_id: "org-issuer-company-1", superseded_at: null },
-      select: { id: true },
-    });
   });
 
   it("personal onboarding behavior remains unchanged", async () => {

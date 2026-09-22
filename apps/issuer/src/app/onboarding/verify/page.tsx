@@ -39,11 +39,6 @@ export default function OnboardingVerifyPage() {
         router.replace("/onboarding/terms");
         return;
       }
-      if (/company seal/i.test(message)) {
-        setError("Please upload a company seal in Issuer Profile before continuing onboarding.");
-        setIsLoading(false);
-        return;
-      }
       setError(message);
       setIsLoading(false);
     }
