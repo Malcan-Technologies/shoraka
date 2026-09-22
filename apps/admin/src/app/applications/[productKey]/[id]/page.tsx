@@ -208,9 +208,26 @@ export default function DynamicApplicationDetailPage() {
   const addPendingAmendment = useAddPendingAmendment();
   const approveItem = useApproveReviewItem();
   const rejectItem = useRejectReviewItem();
+  const REVIEWABLE_STATUSES = [
+    "SUBMITTED",
+    "UNDER_REVIEW",
+    "CONTRACT_PENDING",
+    "CONTRACT_SENT",
+    "CONTRACT_ACCEPTED",
+    "INVOICE_ACCEPTED",
+    "SIGNING_PENDING",
+    "INVOICE_PENDING",
+    "INVOICES_SENT",
+    "RESUBMITTED",
+    "AMENDMENT_REQUESTED",
+    "OFFER_EXPIRED",
+  ];
+  const isReviewable = !!app && REVIEWABLE_STATUSES.includes(app.status);
   const requestAmendmentReviewItem = useRequestAmendmentReviewItem();
   const addSectionComment = useAddSectionComment();
-  const { data: pendingAmendments = [] } = useListPendingAmendments(applicationId);
+  const { data: pendingAmendments = [] } = useListPendingAmendments(applicationId, {
+    enabled: isReviewable,
+  });
   const removePendingAmendment = useRemovePendingAmendment();
   const submitAmendmentRequest = useSubmitAmendmentRequest();
   const sendContractOffer = useSendContractOffer();
@@ -229,22 +246,6 @@ export default function DynamicApplicationDetailPage() {
     | { open: boolean; action: "approve"; section: ReviewSectionId }
     | { open: boolean; action: "approve"; itemType: ReviewItemType; itemId: string }
   >({ open: false, action: "reject", section: "financial" });
-
-  const REVIEWABLE_STATUSES = [
-    "SUBMITTED",
-    "UNDER_REVIEW",
-    "CONTRACT_PENDING",
-    "CONTRACT_SENT",
-    "CONTRACT_ACCEPTED",
-    "INVOICE_ACCEPTED",
-    "SIGNING_PENDING",
-    "INVOICE_PENDING",
-    "INVOICES_SENT",
-    "RESUBMITTED",
-    "AMENDMENT_REQUESTED",
-    "OFFER_EXPIRED",
-  ];
-  const isReviewable = !!app && REVIEWABLE_STATUSES.includes(app.status);
   const isFinalApplicationForAmlGate = ["COMPLETED", "REJECTED", "WITHDRAWN", "ARCHIVED"].includes(
     String(app?.status ?? "")
   );

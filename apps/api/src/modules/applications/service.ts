@@ -92,6 +92,7 @@ import { linkPaymasterForApplicationSubmission } from "../paymaster/service";
 import { prisma } from "../../lib/prisma";
 import { loadUserDisplayNameMap } from "../../lib/user-display-name";
 import { logApplicationActivity } from "./logs/service";
+import { logApplicationFlowEvent, logApplicationStepAction, safeServerErrorMessage } from "./application-flow-logger";
 import {
   ActivityPortal,
   ApplicationLogEventType,
@@ -849,6 +850,30 @@ export class ApplicationService {
     userId: string,
     logContext?: IssuerActivityLogContext
   ): Promise<Application> {
+    const startMs = Date.now();
+    const correlationId = logContext?.context?.correlationId ?? null;
+    logApplicationFlowEvent({
+      level: "info",
+      event: "APPLICATION_CREATED_STARTED",
+      result: "STARTED",
+      correlationId,
+      applicationId: null,
+      applicationReference: null,
+      productId: input.productId,
+      productCode: null,
+      productVersion: null,
+      issuerOrganizationId: input.issuerOrganizationId,
+      userId,
+      action: "CREATE",
+      applicationStatus: null,
+      previousStatus: null,
+      downstreamIntegration: null,
+      validationRule: null,
+      endpoint: null,
+      method: null,
+      durationMs: null,
+    });
+
     await legalDocumentAcceptanceService.assertNoPendingReacceptance(
       userId,
       input.issuerOrganizationId,
@@ -881,55 +906,110 @@ export class ApplicationService {
       );
     }
 
-    return prisma.$transaction(async (tx) => {
-      const created = await tx.application.create({
-        data: {
-          issuer_organization_id: input.issuerOrganizationId,
-          product_version: product.version,
-          financing_type: withSplitOriginationMarker({
-            product_id: input.productId,
-            product_code: productCode,
-          }) as Prisma.InputJsonValue,
-          status: "DRAFT",
-          last_completed_step: 1,
-        },
+    try {
+      const created = await prisma.$transaction(async (tx) => {
+        const row = await tx.application.create({
+          data: {
+            issuer_organization_id: input.issuerOrganizationId,
+            product_version: product.version,
+            financing_type: withSplitOriginationMarker({
+              product_id: input.productId,
+              product_code: productCode,
+            }) as Prisma.InputJsonValue,
+            status: "DRAFT",
+            last_completed_step: 1,
+          },
+        });
+
+        await allocateDisplayReference(
+          {
+            moduleCode: "APP",
+            productCode,
+            referenceDate: row.created_at,
+            entityType: "application",
+            entityId: row.id,
+            tx,
+          },
+          async (persistTx, reference) => {
+            await persistTx.application.update({
+              where: { id: row.id },
+              data: { display_reference: reference },
+            });
+          }
+        );
+
+        await logApplicationActivity(
+          {
+            userId,
+            applicationId: row.id,
+            eventType: ApplicationLogEventType.APPLICATION_CREATED,
+            reviewCycle: 1,
+            portal: ActivityPortal.ISSUER,
+            ipAddress: logContext?.ipAddress,
+            userAgent: logContext?.userAgent,
+            context: logContext?.context,
+          },
+          tx
+        );
+
+        return tx.application.findUniqueOrThrow({
+          where: { id: row.id },
+        });
       });
 
-      await allocateDisplayReference(
-        {
-          moduleCode: "APP",
-          productCode,
-          referenceDate: created.created_at,
-          entityType: "application",
-          entityId: created.id,
-          tx,
-        },
-        async (persistTx, reference) => {
-          await persistTx.application.update({
-            where: { id: created.id },
-            data: { display_reference: reference },
-          });
-        }
-      );
-
-      await logApplicationActivity(
-        {
-          userId,
-          applicationId: created.id,
-          eventType: ApplicationLogEventType.APPLICATION_CREATED,
-          reviewCycle: 1,
-          portal: ActivityPortal.ISSUER,
-          ipAddress: logContext?.ipAddress,
-          userAgent: logContext?.userAgent,
-          context: logContext?.context,
-        },
-        tx
-      );
-
-      return tx.application.findUniqueOrThrow({
-        where: { id: created.id },
+      logApplicationFlowEvent({
+        level: "info",
+        event: "APPLICATION_CREATED_SUCCESS",
+        result: "SUCCESS",
+        correlationId,
+        applicationId: created.id,
+        applicationReference: (created as unknown as { display_reference?: string | null })
+          .display_reference ?? null,
+        productId: input.productId,
+        productCode: productCode,
+        productVersion: product.version,
+        issuerOrganizationId: input.issuerOrganizationId,
+        userId,
+        action: "CREATE",
+        applicationStatus: created.status as string | null,
+        previousStatus: null,
+        downstreamIntegration: null,
+        validationRule: null,
+        endpoint: null,
+        method: null,
+        durationMs: Date.now() - startMs,
       });
-    });
+
+      return created;
+    } catch (err) {
+      const errorStack = err instanceof Error ? err.stack ?? null : null;
+      logApplicationFlowEvent({
+        level: "error",
+        event: "APPLICATION_CREATED_FAILED",
+        result: "FAILED",
+        correlationId,
+        applicationId: null,
+        applicationReference: null,
+        productId: input.productId,
+        productCode,
+        productVersion: product.version,
+        issuerOrganizationId: input.issuerOrganizationId,
+        userId,
+        action: "CREATE",
+        applicationStatus: null,
+        previousStatus: null,
+        downstreamIntegration: null,
+        validationRule: null,
+        endpoint: null,
+        method: null,
+        durationMs: Date.now() - startMs,
+        errorCode: err instanceof AppError ? err.code : "UNEXPECTED_ERROR",
+        errorType: err instanceof Error ? err.name : "UnknownError",
+        safeErrorMessage: safeServerErrorMessage(err),
+        errorStack,
+      });
+      throw err;
+    }
   }
 
   /**
@@ -1141,26 +1221,121 @@ export class ApplicationService {
     userId: string,
     logContext?: IssuerActivityLogContext
   ) {
+    const startMs = Date.now();
     await this.verifyApplicationAccess(applicationId, userId);
     const application = await this.repository.findById(applicationId);
     if (!application) {
       throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
     }
-    if ((application as any).status !== "AMENDMENT_REQUESTED") {
-      throw new AppError(
-        400,
-        "INVALID_STATE",
-        "Resubmit allowed only in AMENDMENT_REQUESTED state"
-      );
-    }
-    await assertIssuerOrgDirectorShareholderOnboardingReady(application.issuer_organization_id);
-    await assertIssuerProfileCompleteForSubmit(application.issuer_organization_id);
-    const result = await amendmentResubmitApplication(
-      applicationId,
+
+    const correlationId = logContext?.context?.correlationId ?? null;
+    const financingType = application.financing_type as unknown as
+      | { product_id?: string; product_code?: string }
+      | null;
+    const productId = financingType?.product_id ?? null;
+    const productCode = financingType?.product_code ?? null;
+    const productVersion =
+      (application as unknown as { product_version?: number | null }).product_version ?? null;
+    const applicationReference = (application as unknown as { display_reference?: string | null })
+      .display_reference ?? null;
+
+    logApplicationFlowEvent({
+      level: "info",
+      event: "APPLICATION_STATUS_ACTION_STARTED",
+      result: "STARTED",
+      correlationId,
+      applicationId: applicationId,
+      applicationReference,
+      productId,
+      productCode,
+      productVersion,
+      issuerOrganizationId: application.issuer_organization_id,
       userId,
-      this.repository,
-      logContext
-    );
+      action: "RESUBMITTED",
+      applicationStatus: "RESUBMITTED",
+      previousStatus: "AMENDMENT_REQUESTED",
+      downstreamIntegration: null,
+      validationRule: null,
+      endpoint: null,
+      method: null,
+      durationMs: null,
+    });
+    let result: any;
+    try {
+      if ((application as any).status !== "AMENDMENT_REQUESTED") {
+        throw new AppError(
+          400,
+          "INVALID_STATE",
+          "Resubmit allowed only in AMENDMENT_REQUESTED state"
+        );
+      }
+      await assertIssuerOrgDirectorShareholderOnboardingReady(application.issuer_organization_id);
+      await assertIssuerProfileCompleteForSubmit(application.issuer_organization_id);
+      result = await amendmentResubmitApplication(
+        applicationId,
+        userId,
+        this.repository,
+        logContext
+      );
+    } catch (err) {
+      const durationMs = Date.now() - startMs;
+      const isAppError = err instanceof AppError;
+      const isUserFailure = isAppError && err.statusCode >= 400 && err.statusCode < 500;
+      if (isUserFailure) {
+        logApplicationFlowEvent({
+          level: "warn",
+          event: "APPLICATION_STATUS_VALIDATION_FAILED",
+          result: "VALIDATION_FAILED",
+          correlationId,
+          applicationId,
+          applicationReference,
+          productId,
+          productCode,
+          productVersion,
+          issuerOrganizationId: application.issuer_organization_id,
+          userId,
+          action: "RESUBMITTED",
+          applicationStatus: "RESUBMITTED",
+          previousStatus: "AMENDMENT_REQUESTED",
+          durationMs,
+          endpoint: null,
+          method: null,
+          downstreamIntegration: null,
+          validationRule: null,
+          errorCode: err.code,
+          errorType: err.name,
+          safeErrorMessage: err.message,
+        });
+      } else {
+        const errorStack = err instanceof Error ? err.stack ?? null : null;
+        logApplicationFlowEvent({
+          level: "error",
+          event: "APPLICATION_STATUS_ACTION_FAILED",
+          result: "FAILED",
+          correlationId,
+          applicationId,
+          applicationReference,
+          productId,
+          productCode,
+          productVersion,
+          issuerOrganizationId: application.issuer_organization_id,
+          userId,
+          action: "RESUBMITTED",
+          applicationStatus: "RESUBMITTED",
+          previousStatus: "AMENDMENT_REQUESTED",
+          durationMs,
+          endpoint: null,
+          method: null,
+          downstreamIntegration: null,
+          validationRule: null,
+          errorCode: isAppError ? (err as AppError).code : "UNEXPECTED_ERROR",
+          errorType: err instanceof Error ? err.name : "UnknownError",
+          safeErrorMessage: safeServerErrorMessage(err),
+          errorStack,
+        });
+      }
+      throw err;
+    }
 
     try {
       await this.sendIssuerNotification(
@@ -1181,6 +1356,28 @@ export class ApplicationService {
       );
     }
 
+    logApplicationFlowEvent({
+      level: "info",
+      event: "APPLICATION_STATUS_ACTION_SUCCESS",
+      result: "SUCCESS",
+      correlationId,
+      applicationId,
+      applicationReference,
+      productId,
+      productCode,
+      productVersion,
+      issuerOrganizationId: application.issuer_organization_id,
+      userId,
+      action: "RESUBMITTED",
+      applicationStatus: "RESUBMITTED",
+      previousStatus: "AMENDMENT_REQUESTED",
+      durationMs: Date.now() - startMs,
+      endpoint: null,
+      method: null,
+      downstreamIntegration: null,
+      validationRule: null,
+    });
+
     return result;
   }
 
@@ -1190,7 +1387,11 @@ export class ApplicationService {
   async updateStep(
     id: string,
     input: UpdateApplicationStepInput,
-    userId: string
+    userId: string,
+    options?: {
+      logContext?: IssuerActivityLogContext;
+      request?: { method: string; endpoint: string };
+    }
   ): Promise<Application> {
     await this.verifyApplicationAccess(id, userId);
 
@@ -1200,15 +1401,357 @@ export class ApplicationService {
     }
 
     const fieldName = this.getFieldNameForStepId(input.stepId);
-    await this.verifyApplicationStepEditable(application, fieldName);
-    if (!fieldName) {
-      // For steps like contract_details and invoice_details that manage their own saves,
-      // just update the last_completed_step without saving data to Application
+    const startMs = Date.now();
+    let validationRule: string | null = null;
+    const stepKey = getStepKeyFromStepId(input.stepId);
+    const action = input.forceRewindToStep !== undefined ? "REWIND" : "SAVE_AND_CONTINUE";
+    const applicationStatus = (application as unknown as { status?: string | null }).status ?? null;
+    const previousStatus = applicationStatus;
+    const financingType = application.financing_type as unknown as
+      | { product_id?: string; product_code?: string }
+      | null;
+    const productId = financingType?.product_id ?? null;
+    const productCode = financingType?.product_code ?? null;
+    const productVersion =
+      (application as unknown as { product_version?: number | null }).product_version ?? null;
+    const applicationReference = (application as unknown as { display_reference?: string | null })
+      .display_reference ?? null;
+    const nextStepNumberCandidate =
+      typeof input.forceRewindToStep === "number" ? input.forceRewindToStep + 1 : input.stepNumber + 1;
+    validationRule = fieldName ? `${stepKey ?? "unknown"}_STEP_SAVE` : "STEP_PROGRESS_UPDATE";
+
+    logApplicationStepAction({
+      level: "info",
+      event: "APPLICATION_STEP_ACTION_STARTED",
+      result: "STARTED",
+      logContext: options?.logContext,
+      applicationId: id,
+      applicationReference,
+      productId,
+      productCode,
+      productVersion,
+      issuerOrganizationId: application.issuer_organization_id,
+      userId,
+      configuredStepId: input.stepId,
+      stepKey,
+      stepName: stepKey,
+      action,
+      validationRule,
+      applicationStatus,
+      previousStatus,
+      nextStepNumber: nextStepNumberCandidate,
+      endpoint: options?.request?.endpoint ?? null,
+      method: options?.request?.method ?? null,
+    });
+
+    try {
+      await this.verifyApplicationStepEditable(application, fieldName);
+      if (!fieldName) {
+        // For steps like contract_details and invoice_details that manage their own saves,
+        // just update the last_completed_step without saving data to Application
+        const updateData: Prisma.ApplicationUpdateInput = {
+          updated_at: new Date(),
+        };
+
+        // Do not modify last_completed_step during amendment mode
+        if ((application as any).status !== "AMENDMENT_REQUESTED") {
+          if (input.forceRewindToStep !== undefined) {
+            updateData.last_completed_step = input.forceRewindToStep;
+          } else {
+            updateData.last_completed_step = Math.max(
+              application.last_completed_step,
+              input.stepNumber
+            );
+          }
+        }
+
+        const updated = await this.repository.update(id, updateData);
+        logApplicationStepAction({
+          level: "info",
+          event: "APPLICATION_STEP_ACTION_SUCCESS",
+          result: "SUCCESS",
+          logContext: options?.logContext,
+          applicationId: id,
+          applicationReference,
+          productId,
+          productCode,
+          productVersion,
+          issuerOrganizationId: application.issuer_organization_id,
+          userId,
+          configuredStepId: input.stepId,
+          stepKey,
+          stepName: stepKey,
+          action,
+          applicationStatus,
+          previousStatus,
+          nextStepNumber: nextStepNumberCandidate,
+          durationMs: Date.now() - startMs,
+          endpoint: options?.request?.endpoint ?? null,
+          method: options?.request?.method ?? null,
+        });
+        return updated;
+      }
+
+      /** Enforce amendment boundaries: only flagged sections/items can be updated. */
+      if ((application as any).status === "AMENDMENT_REQUESTED") {
+        const { allowedSections } = await getAmendmentAllowedSections(id);
+        if (!allowedSections.has(fieldName)) {
+          throw new AppError(
+            403,
+            "AMENDMENT_LOCKED",
+            "This section is locked during amendment review"
+          );
+        }
+      }
+
+      if (fieldName === "company_details") {
+        validationRule = "COMPANY_DETAILS_VALIDATION";
+        this.validateCompanyDetailsData(input.data as Record<string, unknown>);
+      }
+
+      let dataToStore: Prisma.InputJsonValue = input.data as Prisma.InputJsonValue;
+
+      if (fieldName === "business_details") {
+        validationRule = "BUSINESS_DETAILS_SCHEMA";
+        const inheritGuarantors = isInheritedFacilityGuarantorReview(
+          readFinancingStructureType(application.financing_structure)
+        );
+        const payload = inheritGuarantors
+          ? { ...(input.data as Record<string, unknown>), guarantors: [] }
+          : input.data;
+        const result = inheritGuarantors
+          ? businessDetailsInheritedGuarantorsDataSchema.safeParse(payload)
+          : businessDetailsDataSchema.safeParse(payload);
+        if (!result.success) {
+          const message = result.error.errors.map((e) => e.message).join("; ");
+          throw new AppError(400, "VALIDATION_ERROR", message);
+        }
+        const { guarantors: _guarantors, ...businessDetailsWithoutGuarantors } = result.data;
+        dataToStore = preserveLegacyAboutYourBusinessFields(
+          businessDetailsWithoutGuarantors as Record<string, unknown>,
+          input.data,
+          application.business_details
+        ) as Prisma.InputJsonValue;
+      }
+
+      if (fieldName === "financial_statements") {
+        validationRule = "FINANCIAL_STATEMENTS_FYE_RULES";
+        const payload = input.data as Record<string, unknown>;
+        if (
+          !payload ||
+          typeof payload !== "object" ||
+          payload.questionnaire == null ||
+          typeof payload.questionnaire !== "object"
+        ) {
+          throw new AppError(
+            400,
+            "VALIDATION_ERROR",
+            "financial_statements must be v2: questionnaire and unaudited_by_year are required"
+          );
+        }
+
+        const serverNow = new Date();
+        const parsed = parseFinancialStatementsForStepSave({
+          applicationStatus: application.status,
+          storedFinancialStatements: application.financial_statements,
+          payload,
+          now: serverNow,
+        });
+        if (!parsed.ok) {
+          throw new AppError(400, "VALIDATION_ERROR", parsed.message);
+        }
+        const { questionnaire, unaudited_by_year } = parsed.data;
+        const expectedYears = parsed.expectedYears;
+        const dbg = getFinancialYearEndComputationDetails(questionnaire, serverNow);
+        logger.debug(
+          {
+            fye: dbg.fye,
+            previousFYEndIso: dbg.previousFYEndIso,
+            deadlineIso: dbg.deadlineIso,
+            todayIso: dbg.todayIso,
+            years: dbg.years,
+            expectedYears,
+            fyeValidation: getFinancialYearEndValidationError(
+              questionnaire.financial_year_end,
+              serverNow
+            ),
+          },
+          "Financial statements FYE computation"
+        );
+        const actualKeys = Object.keys(unaudited_by_year).sort();
+        const expectedStr = expectedYears.map((y) => String(y)).sort();
+        if (
+          actualKeys.length !== expectedStr.length ||
+          actualKeys.some((k, i) => k !== expectedStr[i])
+        ) {
+          throw new AppError(
+            400,
+            "VALIDATION_ERROR",
+            `Unaudited years must match FYE rules: expected ${expectedStr.join(", ") || "(none)"}`
+          );
+        }
+
+        const normalizedByYear: Record<string, Prisma.InputJsonValue> = {};
+        for (const y of expectedYears) {
+          const key = String(y);
+          const blockResult = financialStatementsInputSchema.safeParse(unaudited_by_year[key]);
+          if (!blockResult.success) {
+            const message = blockResult.error.errors.map((e) => e.message).join("; ");
+            throw new AppError(400, "VALIDATION_ERROR", `${key}: ${message}`);
+          }
+          const expectedPldd = issuerUnauditedPlddForFyEndYear(y, questionnaire);
+          if (blockResult.data.pldd !== expectedPldd) {
+            throw new AppError(
+              400,
+              "VALIDATION_ERROR",
+              `${key}: pldd must equal FY end date for that column`
+            );
+          }
+          const block = { ...blockResult.data, pldd: expectedPldd };
+          validateFinancialYearBlockOrThrow(block);
+          normalizedByYear[key] = normalizeFinancialYearBlock(
+            block as Record<string, unknown>
+          );
+        }
+
+        dataToStore = {
+          questionnaire,
+          unaudited_by_year: normalizedByYear,
+        } as Prisma.InputJsonValue;
+      }
+
+      /** financing_type stores only product_id; product_version lives in application.product_version column. */
+      if (fieldName === "financing_type") {
+        validationRule = "FINANCING_TYPE_UPDATE";
+        const financingData = input.data as Record<string, unknown>;
+        const productId = financingData?.product_id as string | undefined;
+        dataToStore = productId
+          ? (preserveSplitOriginationMarker(
+              { product_id: productId },
+              application.financing_type
+            ) as Prisma.InputJsonValue)
+          : dataToStore;
+      }
+
+      if (fieldName === "supporting_documents") {
+        validationRule = "SUPPORTING_DOCUMENTS_EDIT_RULES";
+        const structureType = readFinancingStructureType(application.financing_structure);
+        if (structureType === "existing_contract") {
+          const workflow = await this.getProductWorkflowForApplication(application);
+          const locked = getFacilityLockedCategoriesFromWorkflow(workflow);
+          if (locked.length > 0) {
+            const origin = application.contract_id
+              ? await loadInheritedSupportingDocumentsForExistingContract(prisma, {
+                  contractId: application.contract_id,
+                  originatingApplicationId:
+                    (application as { contract?: { originating_application_id?: string | null } })
+                      .contract?.originating_application_id ?? null,
+                })
+              : null;
+            if (
+              facilityLockedSupportingDocumentsChanged(
+                input.data,
+                origin?.supporting_documents,
+                locked
+              )
+            ) {
+              throw new AppError(
+                403,
+                "EDIT_NOT_ALLOWED",
+                FACILITY_LOCKED_SUPPORTING_DOCUMENTS_MESSAGE
+              );
+            }
+            dataToStore = stripFacilityLockedSupportingDocuments(
+              input.data,
+              locked
+            ) as Prisma.InputJsonValue;
+          }
+        }
+      }
+
       const updateData: Prisma.ApplicationUpdateInput = {
+        [fieldName]: dataToStore,
         updated_at: new Date(),
       };
 
-      // Do not modify last_completed_step during amendment mode
+      /** When financing_type is updated, snapshot product_version from product table. */
+      if (fieldName === "financing_type") {
+        const financingData = input.data as any;
+        const newProductId = financingData?.product_id as string | undefined;
+        if (newProductId) {
+          const product = await this.productRepository.findById(newProductId);
+          if (!product) {
+            throw new AppError(404, "PRODUCT_NOT_FOUND", "Product not found");
+          }
+          (updateData as any).product_version = product.version;
+        }
+      }
+
+      // Special handling for financing_structure: branch reset + link/unlink contract
+      if (fieldName === "financing_structure") {
+        validationRule = "FINANCING_STRUCTURE_UPDATE_RULES";
+        const structureData = input.data as {
+          structure_type?: string;
+          existing_contract_id?: string | null;
+        };
+        const prevStructure = application.financing_structure as {
+          structure_type?: string;
+          existing_contract_id?: string | null;
+        } | null;
+        const nextType = structureData?.structure_type;
+        const prevType = prevStructure?.structure_type;
+        const structureBranchChanged =
+          Boolean(nextType) &&
+          (prevType !== nextType ||
+            (nextType === "existing_contract" &&
+              (prevStructure?.existing_contract_id ?? null) !==
+                (structureData?.existing_contract_id ?? null)));
+
+        if (structureBranchChanged) {
+          await this.resetFinancingStructureBranchData(application);
+        }
+
+        if (
+          structureData?.structure_type === "existing_contract" &&
+          structureData?.existing_contract_id
+        ) {
+          const contract = await this.contractRepository.findById(
+            structureData.existing_contract_id
+          );
+
+          if (!contract) {
+            throw new AppError(
+              404,
+              "CONTRACT_NOT_FOUND",
+              "The selected facility does not exist."
+            );
+          }
+
+          assertExistingFacilityDrawdown(
+            {
+              financing_type: application.financing_type,
+              financing_structure: structureData,
+              issuer_organization_id: application.issuer_organization_id,
+              contract_id: structureData.existing_contract_id,
+            },
+            contract
+          );
+
+          updateData.contract = { connect: { id: structureData.existing_contract_id } };
+          await prisma.applicationGuarantor.deleteMany({ where: { application_id: id } });
+        } else if (
+          structureData?.structure_type === "invoice_only" ||
+          structureData?.structure_type === "new_contract"
+        ) {
+          // Branch reset already removed a draft holder contract; disconnect covers approved links.
+          if (application.contract_id) {
+            updateData.contract = { disconnect: true };
+          }
+        }
+      }
+
+      // Update last_completed_step if this is a new step
+      // Do not update last_completed_step when in amendment mode
       if ((application as any).status !== "AMENDMENT_REQUESTED") {
         if (input.forceRewindToStep !== undefined) {
           updateData.last_completed_step = input.forceRewindToStep;
@@ -1220,311 +1763,218 @@ export class ApplicationService {
         }
       }
 
-      return this.repository.update(id, updateData);
-    }
-
-    /** Enforce amendment boundaries: only flagged sections/items can be updated. */
-    if ((application as any).status === "AMENDMENT_REQUESTED") {
-      const { allowedSections } = await getAmendmentAllowedSections(id);
-      if (!allowedSections.has(fieldName)) {
-        throw new AppError(
-          403,
-          "AMENDMENT_LOCKED",
-          "This section is locked during amendment review"
-        );
-      }
-    }
-
-    if (fieldName === "company_details") {
-      this.validateCompanyDetailsData(input.data as Record<string, unknown>);
-    }
-
-    let dataToStore: Prisma.InputJsonValue = input.data as Prisma.InputJsonValue;
-
-    if (fieldName === "business_details") {
-      const inheritGuarantors = isInheritedFacilityGuarantorReview(
-        readFinancingStructureType(application.financing_structure)
-      );
-      const payload = inheritGuarantors
-        ? { ...(input.data as Record<string, unknown>), guarantors: [] }
-        : input.data;
-      const result = inheritGuarantors
-        ? businessDetailsInheritedGuarantorsDataSchema.safeParse(payload)
-        : businessDetailsDataSchema.safeParse(payload);
-      if (!result.success) {
-        const message = result.error.errors.map((e) => e.message).join("; ");
-        throw new AppError(400, "VALIDATION_ERROR", message);
-      }
-      const { guarantors: _guarantors, ...businessDetailsWithoutGuarantors } = result.data;
-      dataToStore = preserveLegacyAboutYourBusinessFields(
-        businessDetailsWithoutGuarantors as Record<string, unknown>,
-        input.data,
-        application.business_details
-      ) as Prisma.InputJsonValue;
-    }
-
-    if (fieldName === "financial_statements") {
-      const payload = input.data as Record<string, unknown>;
-      if (
-        !payload ||
-        typeof payload !== "object" ||
-        payload.questionnaire == null ||
-        typeof payload.questionnaire !== "object"
-      ) {
-        throw new AppError(
-          400,
-          "VALIDATION_ERROR",
-          "financial_statements must be v2: questionnaire and unaudited_by_year are required"
-        );
-      }
-
-      const serverNow = new Date();
-      const parsed = parseFinancialStatementsForStepSave({
-        applicationStatus: application.status,
-        storedFinancialStatements: application.financial_statements,
-        payload,
-        now: serverNow,
-      });
-      if (!parsed.ok) {
-        throw new AppError(400, "VALIDATION_ERROR", parsed.message);
-      }
-      const { questionnaire, unaudited_by_year } = parsed.data;
-      const expectedYears = parsed.expectedYears;
-      const dbg = getFinancialYearEndComputationDetails(questionnaire, serverNow);
-      logger.debug(
-        {
-          fye: dbg.fye,
-          previousFYEndIso: dbg.previousFYEndIso,
-          deadlineIso: dbg.deadlineIso,
-          todayIso: dbg.todayIso,
-          years: dbg.years,
-          expectedYears,
-          fyeValidation: getFinancialYearEndValidationError(questionnaire.financial_year_end, serverNow),
-        },
-        "Financial statements FYE computation"
-      );
-      const actualKeys = Object.keys(unaudited_by_year).sort();
-      const expectedStr = expectedYears.map((y) => String(y)).sort();
-      if (
-        actualKeys.length !== expectedStr.length ||
-        actualKeys.some((k, i) => k !== expectedStr[i])
-      ) {
-        throw new AppError(
-          400,
-          "VALIDATION_ERROR",
-          `Unaudited years must match FYE rules: expected ${expectedStr.join(", ") || "(none)"}`
-        );
-      }
-
-      const normalizedByYear: Record<string, Prisma.InputJsonValue> = {};
-      for (const y of expectedYears) {
-        const key = String(y);
-        const blockResult = financialStatementsInputSchema.safeParse(unaudited_by_year[key]);
-        if (!blockResult.success) {
-          const message = blockResult.error.errors.map((e) => e.message).join("; ");
-          throw new AppError(400, "VALIDATION_ERROR", `${key}: ${message}`);
-        }
-        const expectedPldd = issuerUnauditedPlddForFyEndYear(y, questionnaire);
-        if (blockResult.data.pldd !== expectedPldd) {
-          throw new AppError(
-            400,
-            "VALIDATION_ERROR",
-            `${key}: pldd must equal FY end date for that column`
+      if (fieldName === "acceptance_documents") {
+        validationRule = "ACCEPTANCE_DOCUMENTS_EDIT_RULES";
+        if (this.resolveOfferAcceptancePhase(application) === "CHANGES_REQUESTED") {
+          const changedIndices = findChangedAcceptanceDocumentIndices(
+            (application as { acceptance_documents?: unknown }).acceptance_documents,
+            input.data
           );
-        }
-        const block = { ...blockResult.data, pldd: expectedPldd };
-        validateFinancialYearBlockOrThrow(block);
-        normalizedByYear[key] = normalizeFinancialYearBlock(block as Record<string, unknown>);
-      }
-
-      dataToStore = {
-        questionnaire,
-        unaudited_by_year: normalizedByYear,
-      } as Prisma.InputJsonValue;
-    }
-
-    /** financing_type stores only product_id; product_version lives in application.product_version column. */
-    if (fieldName === "financing_type") {
-      const financingData = input.data as Record<string, unknown>;
-      const productId = financingData?.product_id as string | undefined;
-      dataToStore = productId
-        ? (preserveSplitOriginationMarker(
-            { product_id: productId },
-            application.financing_type
-          ) as Prisma.InputJsonValue)
-        : dataToStore;
-    }
-
-    if (fieldName === "supporting_documents") {
-      const structureType = readFinancingStructureType(application.financing_structure);
-      if (structureType === "existing_contract") {
-        const workflow = await this.getProductWorkflowForApplication(application);
-        const locked = getFacilityLockedCategoriesFromWorkflow(workflow);
-        if (locked.length > 0) {
-          const origin = application.contract_id
-            ? await loadInheritedSupportingDocumentsForExistingContract(prisma, {
-                contractId: application.contract_id,
-                originatingApplicationId:
-                  (application as { contract?: { originating_application_id?: string | null } })
-                    .contract?.originating_application_id ?? null,
-              })
-            : null;
-          if (
-            facilityLockedSupportingDocumentsChanged(
-              input.data,
-              origin?.supporting_documents,
-              locked
-            )
-          ) {
-            throw new AppError(
-              403,
-              "EDIT_NOT_ALLOWED",
-              FACILITY_LOCKED_SUPPORTING_DOCUMENTS_MESSAGE
-            );
+          const flagged = this.getFlaggedAcceptanceDocumentIndices(application);
+          for (const idx of changedIndices) {
+            assertAcceptanceDocumentIndexEditableInChangesRequested(idx, flagged);
           }
-          dataToStore = stripFacilityLockedSupportingDocuments(
-            input.data,
-            locked
-          ) as Prisma.InputJsonValue;
         }
-      }
-    }
-
-    const updateData: Prisma.ApplicationUpdateInput = {
-      [fieldName]: dataToStore,
-      updated_at: new Date(),
-    };
-
-    /** When financing_type is updated, snapshot product_version from product table. */
-    if (fieldName === "financing_type") {
-      const financingData = input.data as any;
-      const newProductId = financingData?.product_id as string | undefined;
-      if (newProductId) {
-        const product = await this.productRepository.findById(newProductId);
-        if (!product) {
-          throw new AppError(404, "PRODUCT_NOT_FOUND", "Product not found");
-        }
-        (updateData as any).product_version = product.version;
-      }
-    }
-
-    // Special handling for financing_structure: branch reset + link/unlink contract
-    if (fieldName === "financing_structure") {
-      const structureData = input.data as {
-        structure_type?: string;
-        existing_contract_id?: string | null;
-      };
-      const prevStructure = application.financing_structure as {
-        structure_type?: string;
-        existing_contract_id?: string | null;
-      } | null;
-      const nextType = structureData?.structure_type;
-      const prevType = prevStructure?.structure_type;
-      const structureBranchChanged =
-        Boolean(nextType) &&
-        (prevType !== nextType ||
-          (nextType === "existing_contract" &&
-            (prevStructure?.existing_contract_id ?? null) !==
-              (structureData?.existing_contract_id ?? null)));
-
-      if (structureBranchChanged) {
-        await this.resetFinancingStructureBranchData(application);
-      }
-
-      if (
-        structureData?.structure_type === "existing_contract" &&
-        structureData?.existing_contract_id
-      ) {
-        const contract = await this.contractRepository.findById(structureData.existing_contract_id);
-
-        if (!contract) {
-          throw new AppError(404, "CONTRACT_NOT_FOUND", "The selected facility does not exist.");
-        }
-
-        assertExistingFacilityDrawdown(
-          {
-            financing_type: application.financing_type,
-            financing_structure: structureData,
-            issuer_organization_id: application.issuer_organization_id,
-            contract_id: structureData.existing_contract_id,
-          },
-          contract
-        );
-
-        updateData.contract = { connect: { id: structureData.existing_contract_id } };
-        await prisma.applicationGuarantor.deleteMany({ where: { application_id: id } });
-      } else if (
-        structureData?.structure_type === "invoice_only" ||
-        structureData?.structure_type === "new_contract"
-      ) {
-        // Branch reset already removed a draft holder contract; disconnect covers approved links.
-        if (application.contract_id) {
-          updateData.contract = { disconnect: true };
-        }
-      }
-    }
-
-    // Update last_completed_step if this is a new step
-    // Do not update last_completed_step when in amendment mode
-    if ((application as any).status !== "AMENDMENT_REQUESTED") {
-      if (input.forceRewindToStep !== undefined) {
-        updateData.last_completed_step = input.forceRewindToStep;
-      } else {
-        updateData.last_completed_step = Math.max(
-          application.last_completed_step,
-          input.stepNumber
-        );
-      }
-    }
-
-    if (fieldName === "acceptance_documents") {
-      if (this.resolveOfferAcceptancePhase(application) === "CHANGES_REQUESTED") {
-        const changedIndices = findChangedAcceptanceDocumentIndices(
-          (application as { acceptance_documents?: unknown }).acceptance_documents,
-          input.data
-        );
-        const flagged = this.getFlaggedAcceptanceDocumentIndices(application);
-        for (const idx of changedIndices) {
-          assertAcceptanceDocumentIndexEditableInChangesRequested(idx, flagged);
-        }
-      }
-      return this.repository.update(id, updateData);
-    }
-
-    if (fieldName === "supporting_documents") {
-      const existingKeys = this.extractS3KeysFromSupportingDocuments(
-        application.supporting_documents
-      );
-      const incomingKeys = this.extractS3KeysFromSupportingDocuments(input.data);
-      const newKeys = [...incomingKeys].filter((k) => !existingKeys.has(k));
-
-      try {
-        return await this.repository.update(id, updateData);
-      } catch (err) {
-        await this.deleteOrphanS3Keys(newKeys);
-        throw err;
-      }
-    }
-
-    if (fieldName === "business_details") {
-      const inheritGuarantors = isInheritedFacilityGuarantorReview(
-        readFinancingStructureType(application.financing_structure)
-      );
-      return prisma.$transaction(async (tx) => {
-        const updated = await tx.application.update({
-          where: { id },
-          data: updateData,
+        const updated = await this.repository.update(id, updateData);
+        logApplicationStepAction({
+          level: "info",
+          event: "APPLICATION_STEP_ACTION_SUCCESS",
+          result: "SUCCESS",
+          logContext: options?.logContext,
+          applicationId: id,
+          applicationReference,
+          productId,
+          productCode,
+          productVersion,
+          issuerOrganizationId: application.issuer_organization_id,
+          userId,
+          configuredStepId: input.stepId,
+          stepKey,
+          stepName: stepKey,
+          action,
+          applicationStatus,
+          previousStatus,
+          nextStepNumber: nextStepNumberCandidate,
+          durationMs: Date.now() - startMs,
+          endpoint: options?.request?.endpoint ?? null,
+          method: options?.request?.method ?? null,
         });
-        if (inheritGuarantors) {
-          await tx.applicationGuarantor.deleteMany({ where: { application_id: id } });
-        } else {
-          await this.syncApplicationGuarantors(tx, id, input.data);
-        }
-        return updated as Application;
-      });
-    }
+        return updated;
+      }
 
-    return this.repository.update(id, updateData);
+      if (fieldName === "supporting_documents") {
+        const existingKeys = this.extractS3KeysFromSupportingDocuments(
+          application.supporting_documents
+        );
+        const incomingKeys = this.extractS3KeysFromSupportingDocuments(input.data);
+        const newKeys = [...incomingKeys].filter((k) => !existingKeys.has(k));
+
+        try {
+          const updated = await this.repository.update(id, updateData);
+          logApplicationStepAction({
+            level: "info",
+            event: "APPLICATION_STEP_ACTION_SUCCESS",
+            result: "SUCCESS",
+            logContext: options?.logContext,
+            applicationId: id,
+            applicationReference,
+            productId,
+            productCode,
+            productVersion,
+            issuerOrganizationId: application.issuer_organization_id,
+            userId,
+            configuredStepId: input.stepId,
+            stepKey,
+            stepName: stepKey,
+            action,
+            applicationStatus,
+            previousStatus,
+            nextStepNumber: nextStepNumberCandidate,
+            durationMs: Date.now() - startMs,
+            endpoint: options?.request?.endpoint ?? null,
+            method: options?.request?.method ?? null,
+          });
+          return updated;
+        } catch (err) {
+          await this.deleteOrphanS3Keys(newKeys);
+          throw err;
+        }
+      }
+
+      if (fieldName === "business_details") {
+        const inheritGuarantors = isInheritedFacilityGuarantorReview(
+          readFinancingStructureType(application.financing_structure)
+        );
+        const updated = await prisma.$transaction(async (tx) => {
+          const row = await tx.application.update({
+            where: { id },
+            data: updateData,
+          });
+          if (inheritGuarantors) {
+            await tx.applicationGuarantor.deleteMany({ where: { application_id: id } });
+          } else {
+            await this.syncApplicationGuarantors(tx, id, input.data);
+          }
+          return row as Application;
+        });
+        logApplicationStepAction({
+          level: "info",
+          event: "APPLICATION_STEP_ACTION_SUCCESS",
+          result: "SUCCESS",
+          logContext: options?.logContext,
+          applicationId: id,
+          applicationReference,
+          productId,
+          productCode,
+          productVersion,
+          issuerOrganizationId: application.issuer_organization_id,
+          userId,
+          configuredStepId: input.stepId,
+          stepKey,
+          stepName: stepKey,
+          action,
+          applicationStatus,
+          previousStatus,
+          nextStepNumber: nextStepNumberCandidate,
+          durationMs: Date.now() - startMs,
+          endpoint: options?.request?.endpoint ?? null,
+          method: options?.request?.method ?? null,
+        });
+        return updated;
+      }
+
+      const updated = await this.repository.update(id, updateData);
+      logApplicationStepAction({
+        level: "info",
+        event: "APPLICATION_STEP_ACTION_SUCCESS",
+        result: "SUCCESS",
+        logContext: options?.logContext,
+        applicationId: id,
+        applicationReference,
+        productId,
+        productCode,
+        productVersion,
+        issuerOrganizationId: application.issuer_organization_id,
+        userId,
+        configuredStepId: input.stepId,
+        stepKey,
+        stepName: stepKey,
+        action,
+        applicationStatus,
+        previousStatus,
+        nextStepNumber: nextStepNumberCandidate,
+        durationMs: Date.now() - startMs,
+        endpoint: options?.request?.endpoint ?? null,
+        method: options?.request?.method ?? null,
+      });
+      return updated;
+    } catch (err) {
+      const durationMs = Date.now() - startMs;
+      const isAppError = err instanceof AppError;
+      const isUserFailure =
+        isAppError && err.statusCode >= 400 && err.statusCode < 500;
+
+      if (isUserFailure) {
+        logApplicationStepAction({
+          level: "warn",
+          event: "APPLICATION_STEP_VALIDATION_FAILED",
+          result: "VALIDATION_FAILED",
+          logContext: options?.logContext,
+          applicationId: id,
+          applicationReference,
+          productId,
+          productCode,
+          productVersion,
+          issuerOrganizationId: application.issuer_organization_id,
+          userId,
+          configuredStepId: input.stepId,
+          stepKey,
+          stepName: stepKey,
+          action,
+          validationRule,
+          applicationStatus,
+          previousStatus,
+          nextStepNumber: nextStepNumberCandidate,
+          durationMs,
+          endpoint: options?.request?.endpoint ?? null,
+          method: options?.request?.method ?? null,
+          errorCode: err.code,
+          errorType: err.name,
+          safeErrorMessage: err.message,
+        });
+      } else {
+        const errorStack = err instanceof Error ? err.stack ?? null : null;
+        logApplicationStepAction({
+          level: "error",
+          event: isAppError ? "APPLICATION_STEP_ACTION_FAILED" : "APPLICATION_STEP_ACTION_FAILED",
+          result: "FAILED",
+          logContext: options?.logContext,
+          applicationId: id,
+          applicationReference,
+          productId,
+          productCode,
+          productVersion,
+          issuerOrganizationId: application.issuer_organization_id,
+          userId,
+          configuredStepId: input.stepId,
+          stepKey,
+          stepName: stepKey,
+          action,
+          validationRule,
+          applicationStatus,
+          previousStatus,
+          nextStepNumber: nextStepNumberCandidate,
+          durationMs,
+          endpoint: options?.request?.endpoint ?? null,
+          method: options?.request?.method ?? null,
+          errorCode: isAppError ? err.code : "UNEXPECTED_ERROR",
+          errorType: err instanceof Error ? err.name : "UnknownError",
+          safeErrorMessage: safeServerErrorMessage(err),
+          errorStack,
+        });
+      }
+      throw err;
+    }
   }
 
   /**
@@ -1854,7 +2304,8 @@ export class ApplicationService {
    * Request presigned URL for uploading application document.
    * Access and amendment checks performed here; S3 logic delegated to documents service.
    */
-  async requestUploadUrl(params: {
+  async requestUploadUrl(
+    params: {
     applicationId: string;
     fileName: string;
     contentType: string;
@@ -1865,9 +2316,67 @@ export class ApplicationService {
     acceptanceDocIndex?: number;
     guarantorAgreementUpload?: boolean;
     userId: string;
-  }): Promise<{ uploadUrl: string; s3Key: string; expiresIn: number }> {
+  },
+    options?: {
+      logContext?: IssuerActivityLogContext;
+      request?: { method: string; endpoint: string };
+    }
+  ): Promise<{ uploadUrl: string; s3Key: string; expiresIn: number }> {
     await this.verifyApplicationAccess(params.applicationId, params.userId);
     const application = await this.repository.findById(params.applicationId);
+    if (!application) {
+      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    }
+    const startMs = Date.now();
+    const correlationId = options?.logContext?.context?.correlationId ?? null;
+    const applicationStatus = (application as { status?: string } | null)?.status ?? null;
+    const financingType = (application?.financing_type as unknown as
+      | { product_id?: string; product_code?: string }
+      | null) ?? null;
+    const productId = financingType?.product_id ?? null;
+    const productCode = financingType?.product_code ?? null;
+    const productVersion =
+      (application as unknown as { product_version?: number | null }).product_version ?? null;
+    const applicationReference = (application as unknown as { display_reference?: string | null })
+      .display_reference ?? null;
+    const stepKey =
+      params.acceptanceDocIndex !== undefined
+        ? "acceptance_documents"
+        : params.supportingDocCategoryKey !== undefined && params.supportingDocIndex !== undefined
+          ? "supporting_documents"
+          : params.guarantorAgreementUpload === true
+            ? "business_details"
+            : null;
+    const validationRule = "UPLOAD_URL_RESOLUTION";
+    const action = "UPLOAD_URL";
+
+    logApplicationStepAction({
+      level: "info",
+      event: "APPLICATION_STEP_ACTION_STARTED",
+      result: "STARTED",
+      logContext: options?.logContext,
+      correlationId,
+      applicationId: params.applicationId,
+      applicationReference,
+      productId,
+      productCode,
+      productVersion,
+      issuerOrganizationId: application?.issuer_organization_id ?? null,
+      userId: params.userId,
+      configuredStepId: null,
+      stepKey,
+      stepName: stepKey,
+      action,
+      validationRule,
+      applicationStatus,
+      previousStatus: applicationStatus,
+      nextStepNumber: null,
+      durationMs: null,
+      endpoint: options?.request?.endpoint ?? null,
+      method: options?.request?.method ?? null,
+    });
+
+    try {
     const isSupportingDocsWorkflowUpload =
       params.supportingDocCategoryKey !== undefined && params.supportingDocIndex !== undefined;
     const isAcceptanceDocUpload = params.acceptanceDocIndex !== undefined;
@@ -1957,13 +2466,109 @@ export class ApplicationService {
       "Application supporting-doc upload URL resolution"
     );
 
-    return requestPresignedUploadUrl({
+    const uploadResult = await requestPresignedUploadUrl({
       applicationId: params.applicationId,
       fileName: params.fileName,
       contentType: params.contentType,
       fileSize: params.fileSize,
       existingS3Key: params.existingS3Key,
     });
+
+    logApplicationStepAction({
+      level: "info",
+      event: "APPLICATION_STEP_ACTION_SUCCESS",
+      result: "SUCCESS",
+      logContext: options?.logContext,
+      correlationId,
+      applicationId: params.applicationId,
+      applicationReference,
+      productId,
+      productCode,
+      productVersion,
+      issuerOrganizationId: application.issuer_organization_id,
+      userId: params.userId,
+      configuredStepId: null,
+      stepKey,
+      stepName: stepKey,
+      action,
+      validationRule,
+      applicationStatus,
+      previousStatus: applicationStatus,
+      nextStepNumber: null,
+      durationMs: Date.now() - startMs,
+      endpoint: options?.request?.endpoint ?? null,
+      method: options?.request?.method ?? null,
+    });
+
+    return uploadResult;
+    } catch (err) {
+      const durationMs = Date.now() - startMs;
+      const isAppError = err instanceof AppError;
+      const isUserFailure = isAppError && err.statusCode >= 400 && err.statusCode < 500;
+
+      if (isUserFailure) {
+        logApplicationStepAction({
+          level: "warn",
+          event: "APPLICATION_STEP_VALIDATION_FAILED",
+          result: "VALIDATION_FAILED",
+          logContext: options?.logContext,
+          correlationId,
+          applicationId: params.applicationId,
+          applicationReference,
+          productId,
+          productCode,
+          productVersion,
+          issuerOrganizationId: application.issuer_organization_id,
+          userId: params.userId,
+          configuredStepId: null,
+          stepKey,
+          stepName: stepKey,
+          action,
+          validationRule,
+          applicationStatus,
+          previousStatus: applicationStatus,
+          nextStepNumber: null,
+          durationMs,
+          endpoint: options?.request?.endpoint ?? null,
+          method: options?.request?.method ?? null,
+          errorCode: err.code,
+          errorType: err.name,
+          safeErrorMessage: err.message,
+        });
+      } else {
+        const errorStack = err instanceof Error ? err.stack ?? null : null;
+        logApplicationStepAction({
+          level: "error",
+          event: "APPLICATION_STEP_ACTION_FAILED",
+          result: "FAILED",
+          logContext: options?.logContext,
+          correlationId,
+          applicationId: params.applicationId,
+          applicationReference,
+          productId,
+          productCode,
+          productVersion,
+          issuerOrganizationId: application.issuer_organization_id,
+          userId: params.userId,
+          configuredStepId: null,
+          stepKey,
+          stepName: stepKey,
+          action,
+          validationRule,
+          applicationStatus,
+          previousStatus: applicationStatus,
+          nextStepNumber: null,
+          durationMs,
+          endpoint: options?.request?.endpoint ?? null,
+          method: options?.request?.method ?? null,
+          errorCode: isAppError ? err.code : "UNEXPECTED_ERROR",
+          errorType: err instanceof Error ? err.name : "UnknownError",
+          safeErrorMessage: safeServerErrorMessage(err),
+          errorStack,
+        });
+      }
+      throw err;
+    }
   }
 
   /**
@@ -1971,12 +2576,63 @@ export class ApplicationService {
    * Access and amendment checks performed here; S3 deletion delegated to documents service.
    * Post-offer supporting-doc removals are allowed while signing prep is unlocked (NAV-03/04).
    */
-  async deleteDocument(applicationId: string, s3Key: string, userId: string): Promise<void> {
+  async deleteDocument(
+    applicationId: string,
+    s3Key: string,
+    userId: string,
+    options?: {
+      logContext?: IssuerActivityLogContext;
+      request?: { method: string; endpoint: string };
+    }
+  ): Promise<void> {
     await this.verifyApplicationAccess(applicationId, userId);
     const application = await this.repository.findById(applicationId);
     if (!application) {
       throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
     }
+
+    const startMs = Date.now();
+    const correlationId = options?.logContext?.context?.correlationId ?? null;
+    const action = "DELETE_DOCUMENT";
+    const validationRule = "DELETE_DOCUMENT_RULES";
+    const applicationStatus = (application as { status?: string }).status ?? null;
+    const financingType = application.financing_type as unknown as
+      | { product_id?: string; product_code?: string }
+      | null;
+    const productId = financingType?.product_id ?? null;
+    const productCode = financingType?.product_code ?? null;
+    const productVersion = (application as unknown as { product_version?: number | null })
+      .product_version ?? null;
+    const applicationReference = (application as unknown as { display_reference?: string | null })
+      .display_reference ?? null;
+
+    logApplicationStepAction({
+      level: "info",
+      event: "APPLICATION_STEP_ACTION_STARTED",
+      result: "STARTED",
+      logContext: options?.logContext,
+      correlationId,
+      applicationId,
+      applicationReference,
+      productId,
+      productCode,
+      productVersion,
+      issuerOrganizationId: application.issuer_organization_id,
+      userId,
+      configuredStepId: null,
+      stepKey: null,
+      stepName: null,
+      action,
+      validationRule,
+      applicationStatus,
+      previousStatus: applicationStatus,
+      nextStepNumber: null,
+      durationMs: null,
+      endpoint: options?.request?.endpoint ?? null,
+      method: options?.request?.method ?? null,
+    });
+
+    try {
 
     if (readFinancingStructureType(application.financing_structure) === "existing_contract") {
       const workflow = await this.getProductWorkflowForApplication(application);
@@ -2050,10 +2706,128 @@ export class ApplicationService {
         { applicationId, s3Key },
         "Skipped application document S3 delete: AMENDMENT_REQUESTED (preserve for compare/audit)"
       );
+      logApplicationStepAction({
+        level: "info",
+        event: "APPLICATION_STEP_ACTION_SUCCESS",
+        result: "SUCCESS",
+        logContext: options?.logContext,
+        correlationId,
+        applicationId,
+        applicationReference,
+        productId,
+        productCode,
+        productVersion,
+        issuerOrganizationId: application.issuer_organization_id,
+        userId,
+        configuredStepId: null,
+        stepKey: null,
+        stepName: null,
+        action,
+        validationRule,
+        applicationStatus,
+        previousStatus: applicationStatus,
+        nextStepNumber: null,
+        durationMs: Date.now() - startMs,
+        endpoint: options?.request?.endpoint ?? null,
+        method: options?.request?.method ?? null,
+      });
       return;
     }
 
     await deleteDocumentFromS3(s3Key);
+
+    logApplicationStepAction({
+      level: "info",
+      event: "APPLICATION_STEP_ACTION_SUCCESS",
+      result: "SUCCESS",
+      logContext: options?.logContext,
+      correlationId,
+      applicationId,
+      applicationReference,
+      productId,
+      productCode,
+      productVersion,
+      issuerOrganizationId: application.issuer_organization_id,
+      userId,
+      configuredStepId: null,
+      stepKey: null,
+      stepName: null,
+      action,
+      validationRule,
+      applicationStatus,
+      previousStatus: applicationStatus,
+      nextStepNumber: null,
+      durationMs: Date.now() - startMs,
+      endpoint: options?.request?.endpoint ?? null,
+      method: options?.request?.method ?? null,
+    });
+    } catch (err) {
+      const durationMs = Date.now() - startMs;
+      const isAppError = err instanceof AppError;
+      const isUserFailure = isAppError && err.statusCode >= 400 && err.statusCode < 500;
+      if (isUserFailure) {
+        logApplicationStepAction({
+          level: "warn",
+          event: "APPLICATION_STEP_VALIDATION_FAILED",
+          result: "VALIDATION_FAILED",
+          logContext: options?.logContext,
+          correlationId,
+          applicationId,
+          applicationReference,
+          productId,
+          productCode,
+          productVersion,
+          issuerOrganizationId: application.issuer_organization_id,
+          userId,
+          configuredStepId: null,
+          stepKey: null,
+          stepName: null,
+          action,
+          validationRule,
+          applicationStatus,
+          previousStatus: applicationStatus,
+          nextStepNumber: null,
+          durationMs,
+          endpoint: options?.request?.endpoint ?? null,
+          method: options?.request?.method ?? null,
+          errorCode: err.code,
+          errorType: err.name,
+          safeErrorMessage: err.message,
+        });
+      } else {
+        const errorStack = err instanceof Error ? err.stack ?? null : null;
+        logApplicationStepAction({
+          level: "error",
+          event: "APPLICATION_STEP_ACTION_FAILED",
+          result: "FAILED",
+          logContext: options?.logContext,
+          correlationId,
+          applicationId,
+          applicationReference,
+          productId,
+          productCode,
+          productVersion,
+          issuerOrganizationId: application.issuer_organization_id,
+          userId,
+          configuredStepId: null,
+          stepKey: null,
+          stepName: null,
+          action,
+          validationRule,
+          applicationStatus,
+          previousStatus: applicationStatus,
+          nextStepNumber: null,
+          durationMs,
+          endpoint: options?.request?.endpoint ?? null,
+          method: options?.request?.method ?? null,
+          errorCode: isAppError ? err.code : "UNEXPECTED_ERROR",
+          errorType: err instanceof Error ? err.name : "UnknownError",
+          safeErrorMessage: safeServerErrorMessage(err),
+          errorStack,
+        });
+      }
+      throw err;
+    }
   }
 
   /**
@@ -2063,7 +2837,8 @@ export class ApplicationService {
     id: string,
     status: string,
     userId: string,
-    logContext?: IssuerActivityLogContext
+    logContext?: IssuerActivityLogContext,
+    options?: { request?: { method: string; endpoint: string } }
   ): Promise<Application> {
     await this.verifyApplicationAccess(id, userId);
 
@@ -2073,8 +2848,49 @@ export class ApplicationService {
     }
     this.verifyApplicationEditable(application);
 
+    const startMs = Date.now();
+    let validationRule: string | null = null;
+    let downstreamIntegration: string | null = null;
+    const previousStatus = application.status as string;
+    const financingType = application.financing_type as unknown as
+      | { product_id?: string; product_code?: string }
+      | null;
+    const productId = financingType?.product_id ?? null;
+    const productCode = financingType?.product_code ?? null;
+    const productVersion =
+      (application as unknown as { product_version?: number | null }).product_version ?? null;
+    const applicationReference = (application as unknown as { display_reference?: string | null })
+      .display_reference ?? null;
+
+    logApplicationFlowEvent({
+      level: "info",
+      event: "APPLICATION_STATUS_ACTION_STARTED",
+      result: "STARTED",
+      correlationId: logContext?.context?.correlationId ?? null,
+      applicationId: id,
+      applicationReference,
+      productId,
+      productCode,
+      productVersion,
+      issuerOrganizationId: application.issuer_organization_id,
+      userId,
+      configuredStepId: null,
+      stepKey: null,
+      stepName: null,
+      action: status,
+      validationRule,
+      applicationStatus: status,
+      previousStatus,
+      downstreamIntegration,
+      endpoint: options?.request?.endpoint ?? null,
+      method: options?.request?.method ?? null,
+      durationMs: null,
+    });
+
+    try {
     const currentStatus = application.status as string;
     if (status === "SUBMITTED" && currentStatus === "DRAFT") {
+      validationRule = "NO_PENDING_REACCEPTANCE";
       await legalDocumentAcceptanceService.assertNoPendingReacceptance(
         userId,
         application.issuer_organization_id,
@@ -2142,6 +2958,7 @@ export class ApplicationService {
           throw new AppError(400, "FACILITY_GUARANTORS_REQUIRED", FACILITY_GUARANTORS_REQUIRED);
         }
       }
+      validationRule = "APPLICATION_PROCESSING_FEE_PAID";
       await assertApplicationProcessingFeePaid(id);
 
       const financingTypeSubmit = application.financing_type as
@@ -2156,11 +2973,13 @@ export class ApplicationService {
           readFinancingStructureType(application.financing_structure) === "existing_contract"
             ? getFacilityLockedCategoriesFromWorkflow(frozenSubmitWorkflow)
             : [];
+        validationRule = "REQUIRED_SUPPORTING_DOCUMENTS_PRESENT";
         assertRequiredSupportingDocumentsPresent(
           frozenSubmitWorkflow,
           application.supporting_documents,
           { skipCategoryKeys }
         );
+        validationRule = "PRODUCT_RULES_ON_SUBMIT";
         assertProductRulesForSubmit(frozenSubmitWorkflow, {
           invoices: (application as { invoices?: Array<{
             status?: string | null;
@@ -2176,6 +2995,7 @@ export class ApplicationService {
         });
         submitProductWorkflow = frozenSubmitWorkflow as Prisma.JsonValue;
       }
+      validationRule = "FINANCIAL_STATEMENTS_READY_FOR_SUBMIT";
       assertFinancialStatementsReadyForInitialSubmitIfActive(
         frozenSubmitWorkflow,
         application.financial_statements
@@ -2190,6 +3010,7 @@ export class ApplicationService {
         },
       });
       if (appFull?.contract_id) {
+        downstreamIntegration = "PAYMASTER_LINK";
         const linkedContract = await linkPaymasterForApplicationSubmission({
           contractId: appFull.contract_id,
           issuerOrganizationId: application.issuer_organization_id,
@@ -2232,14 +3053,38 @@ export class ApplicationService {
 
     // Resubmit flow is handled by dedicated resubmitApplication method to keep behavior deterministic.
     if (currentStatus === "AMENDMENT_REQUESTED" && status === "RESUBMITTED") {
+      validationRule = "RESUBMIT_FLOW";
       const res = await this.resubmitApplication(id, userId, logContext);
+      logApplicationFlowEvent({
+        level: "info",
+        event: "APPLICATION_STATUS_ACTION_SUCCESS",
+        result: "SUCCESS",
+        correlationId: logContext?.context?.correlationId ?? null,
+        applicationId: id,
+        applicationReference,
+        productId,
+        productCode,
+        productVersion,
+        issuerOrganizationId: application.issuer_organization_id,
+        userId,
+        action: status,
+        applicationStatus: status,
+        previousStatus,
+        durationMs: Date.now() - startMs,
+        endpoint: options?.request?.endpoint ?? null,
+        method: options?.request?.method ?? null,
+        downstreamIntegration,
+        validationRule,
+      });
       // return updated application
       return res as any;
     }
 
     // If submitting, perform cleanup of unused steps
     if (status === "SUBMITTED") {
+      validationRule = "ISSUER_ORG_DIRECTOR_SHAREHOLDER_ONBOARDING_READY";
       await assertIssuerOrgDirectorShareholderOnboardingReady(application.issuer_organization_id);
+      validationRule = "ISSUER_PROFILE_COMPLETE_FOR_SUBMIT";
       await assertIssuerProfileCompleteForSubmit(application.issuer_organization_id);
       // Get product to find active steps
       const financingType = application.financing_type as any;
@@ -2379,6 +3224,7 @@ export class ApplicationService {
         ? null
         : application.contract_id;
       if (capacityContractId) {
+        downstreamIntegration = "CONTRACT_CAPACITY_CHANGE";
         await applyContractCapacityChange(capacityContractId, prisma, persistSubmittedApplication, {
           assertWrite: true,
         });
@@ -2404,10 +3250,114 @@ export class ApplicationService {
         );
       }
 
+      logApplicationFlowEvent({
+        level: "info",
+        event: "APPLICATION_STATUS_ACTION_SUCCESS",
+        result: "SUCCESS",
+        correlationId: logContext?.context?.correlationId ?? null,
+        applicationId: id,
+        applicationReference,
+        productId,
+        productCode,
+        productVersion,
+        issuerOrganizationId: application.issuer_organization_id,
+        userId,
+        action: status,
+        applicationStatus: status,
+        previousStatus,
+        durationMs: Date.now() - startMs,
+        endpoint: options?.request?.endpoint ?? null,
+        method: options?.request?.method ?? null,
+        downstreamIntegration,
+        validationRule,
+      });
+
       return submitted;
     }
 
+    logApplicationFlowEvent({
+      level: "info",
+      event: "APPLICATION_STATUS_ACTION_SUCCESS",
+      result: "SUCCESS",
+      correlationId: logContext?.context?.correlationId ?? null,
+      applicationId: id,
+      applicationReference,
+      productId,
+      productCode,
+      productVersion,
+      issuerOrganizationId: application.issuer_organization_id,
+      userId,
+      action: status,
+      applicationStatus: status,
+      previousStatus,
+      durationMs: Date.now() - startMs,
+      endpoint: options?.request?.endpoint ?? null,
+      method: options?.request?.method ?? null,
+      downstreamIntegration,
+      validationRule,
+    });
+
     return this.repository.update(id, updateData);
+    } catch (err) {
+      const durationMs = Date.now() - startMs;
+      const isAppError = err instanceof AppError;
+      const isUserFailure = isAppError && err.statusCode >= 400 && err.statusCode < 500;
+
+      if (isUserFailure) {
+        logApplicationFlowEvent({
+          level: "warn",
+          event: "APPLICATION_STATUS_VALIDATION_FAILED",
+          result: "VALIDATION_FAILED",
+          correlationId: logContext?.context?.correlationId ?? null,
+          applicationId: id,
+          applicationReference,
+          productId,
+          productCode,
+          productVersion,
+          issuerOrganizationId: application.issuer_organization_id,
+          userId,
+          action: status,
+          applicationStatus: status,
+          previousStatus,
+          durationMs,
+          endpoint: options?.request?.endpoint ?? null,
+          method: options?.request?.method ?? null,
+          downstreamIntegration,
+          validationRule,
+          errorCode: err.code,
+          errorType: err.name,
+          safeErrorMessage: err.message,
+        });
+      } else {
+        const errorStack = err instanceof Error ? err.stack ?? null : null;
+        logApplicationFlowEvent({
+          level: "error",
+          event: "APPLICATION_STATUS_ACTION_FAILED",
+          result: "FAILED",
+          correlationId: logContext?.context?.correlationId ?? null,
+          applicationId: id,
+          applicationReference,
+          productId,
+          productCode,
+          productVersion,
+          issuerOrganizationId: application.issuer_organization_id,
+          userId,
+          action: status,
+          applicationStatus: status,
+          previousStatus,
+          durationMs,
+          endpoint: options?.request?.endpoint ?? null,
+          method: options?.request?.method ?? null,
+          downstreamIntegration,
+          validationRule,
+          errorCode: isAppError ? err.code : "UNEXPECTED_ERROR",
+          errorType: err instanceof Error ? err.name : "UnknownError",
+          safeErrorMessage: safeServerErrorMessage(err),
+          errorStack,
+        });
+      }
+      throw err;
+    }
   }
 
   /**

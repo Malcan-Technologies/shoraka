@@ -99,7 +99,10 @@ async function updateApplicationStep(req: Request, res: Response, next: NextFunc
     const { id } = applicationIdParamSchema.parse(req.params);
     const input = updateApplicationStepSchema.parse(req.body);
     const userId = getUserId(req);
-    const application = await applicationService.updateStep(id, input, userId);
+    const application = await applicationService.updateStep(id, input, userId, {
+      logContext: issuerActivityFromRequest(req, res),
+      request: { method: req.method, endpoint: req.path },
+    });
 
     res.json({
       success: true,
@@ -223,18 +226,24 @@ async function requestUploadUrl(req: Request, res: Response, next: NextFunction)
     const input = requestUploadUrlSchema.parse(req.body);
     const userId = getUserId(req);
 
-    const result = await applicationService.requestUploadUrl({
-      applicationId: id,
-      fileName: input.fileName,
-      contentType: input.contentType,
-      fileSize: input.fileSize,
-      existingS3Key: input.existingS3Key,
-      supportingDocCategoryKey: input.supportingDocCategoryKey,
-      supportingDocIndex: input.supportingDocIndex,
-      acceptanceDocIndex: input.acceptanceDocIndex,
-      guarantorAgreementUpload: input.guarantorAgreementUpload,
-      userId,
-    });
+    const result = await applicationService.requestUploadUrl(
+      {
+        applicationId: id,
+        fileName: input.fileName,
+        contentType: input.contentType,
+        fileSize: input.fileSize,
+        existingS3Key: input.existingS3Key,
+        supportingDocCategoryKey: input.supportingDocCategoryKey,
+        supportingDocIndex: input.supportingDocIndex,
+        acceptanceDocIndex: input.acceptanceDocIndex,
+        guarantorAgreementUpload: input.guarantorAgreementUpload,
+        userId,
+      },
+      {
+        logContext: issuerActivityFromRequest(req, res),
+        request: { method: req.method, endpoint: req.path },
+      }
+    );
 
     res.json({
       success: true,
@@ -260,7 +269,10 @@ async function deleteDocument(req: Request, res: Response, next: NextFunction) {
     const input = deleteDocumentSchema.parse(req.body);
     const userId = getUserId(req);
 
-    await applicationService.deleteDocument(id, input.s3Key, userId);
+    await applicationService.deleteDocument(id, input.s3Key, userId, {
+      logContext: issuerActivityFromRequest(req, res),
+      request: { method: req.method, endpoint: req.path },
+    });
 
     res.json({
       success: true,
@@ -290,7 +302,8 @@ async function updateApplicationStatus(req: Request, res: Response, next: NextFu
       id,
       status,
       userId,
-      issuerActivityFromRequest(req, res)
+      issuerActivityFromRequest(req, res),
+      { request: { method: req.method, endpoint: req.path } }
     );
 
     res.json({

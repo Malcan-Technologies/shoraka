@@ -621,9 +621,13 @@ export function useAddPendingAmendment() {
   });
 }
 
-export function useListPendingAmendments(applicationId: string) {
+export function useListPendingAmendments(
+  applicationId: string,
+  options?: { enabled?: boolean }
+) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
+  const enabled = options?.enabled ?? !!applicationId;
 
   return useQuery({
     queryKey: pendingAmendmentKeys.list(applicationId),
@@ -636,7 +640,7 @@ export function useListPendingAmendments(applicationId: string) {
       }
       return response.data ?? [];
     },
-    enabled: !!applicationId,
+    enabled,
   });
 }
 
