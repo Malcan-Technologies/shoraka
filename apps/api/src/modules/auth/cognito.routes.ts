@@ -23,6 +23,11 @@ import { AdminService } from "../admin/service";
 import { auditContextFromRequest, createAccessLogRow } from "../../lib/audit";
 import { signOutCognitoUserGlobally } from "../../lib/auth/cognito-global-signout";
 import { revokeAndClearCurrentRefreshTokenCookie } from "../../lib/auth/refresh-token-cookie";
+import {
+  ACCESS_TOKEN_MAX_AGE_MS,
+  REFRESH_TOKEN_MAX_AGE_MS,
+  cognitoCookieOptions,
+} from "../../lib/auth/cognito-session-cookies";
 
 const router = Router();
 const authService = new AuthService();
@@ -769,43 +774,28 @@ router.get("/callback", async (req: Request, res: Response) => {
     // Fallback to localhost for development if not set
     const cookieDomain =
       env.COOKIE_DOMAIN || (env.NODE_ENV === "production" ? ".cashsouk.com" : "localhost");
-    const isSecure = env.NODE_ENV === "production";
 
-    // Set access token cookie (Amplify format)
-    res.cookie(`CognitoIdentityServiceProvider.${env.COGNITO_CLIENT_ID}.LastAuthUser`, cognitoId, {
-      httpOnly: false, // Amplify needs to read this
-      secure: isSecure,
-      sameSite: "lax",
-      domain: cookieDomain,
-      path: "/",
-      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-    });
+    // Access and ID cookies stay readable so Amplify can attach the Bearer token.
+    // The refresh cookie is HttpOnly. Its 60-minute maxAge is an idle cutoff and
+    // is reset on successful refresh; Cognito refresh-token expiry is 30 days
+    // from sign-in and is not extended by rotation.
+    res.cookie(
+      `CognitoIdentityServiceProvider.${env.COGNITO_CLIENT_ID}.LastAuthUser`,
+      cognitoId,
+      cognitoCookieOptions(false, REFRESH_TOKEN_MAX_AGE_MS)
+    );
 
     res.cookie(
       `CognitoIdentityServiceProvider.${env.COGNITO_CLIENT_ID}.${cognitoId}.accessToken`,
       tokenSet.access_token,
-      {
-        httpOnly: false, // Amplify needs to read this
-        secure: isSecure,
-        sameSite: "lax",
-        domain: cookieDomain,
-        path: "/",
-        maxAge: 60 * 60 * 1000, // 1 hour (access token expiry)
-      }
+      cognitoCookieOptions(false, ACCESS_TOKEN_MAX_AGE_MS)
     );
 
     if (tokenSet.id_token) {
       res.cookie(
         `CognitoIdentityServiceProvider.${env.COGNITO_CLIENT_ID}.${cognitoId}.idToken`,
         tokenSet.id_token,
-        {
-          httpOnly: false, // Amplify needs to read this
-          secure: isSecure,
-          sameSite: "lax",
-          domain: cookieDomain,
-          path: "/",
-          maxAge: 60 * 60 * 1000, // 1 hour
-        }
+        cognitoCookieOptions(false, ACCESS_TOKEN_MAX_AGE_MS)
       );
     }
 
@@ -813,29 +803,14 @@ router.get("/callback", async (req: Request, res: Response) => {
       res.cookie(
         `CognitoIdentityServiceProvider.${env.COGNITO_CLIENT_ID}.${cognitoId}.refreshToken`,
         tokenSet.refresh_token,
-        {
-          httpOnly: true, // SECURITY: Refresh tokens must be httpOnly to prevent XSS exfiltration
-          secure: isSecure,
-          sameSite: "lax",
-          domain: cookieDomain,
-          path: "/",
-          maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-        }
+        cognitoCookieOptions(true, REFRESH_TOKEN_MAX_AGE_MS)
       );
     }
 
-    // Set clock drift cookie (Amplify uses this)
     res.cookie(
       `CognitoIdentityServiceProvider.${env.COGNITO_CLIENT_ID}.${cognitoId}.clockDrift`,
       "0",
-      {
-        httpOnly: false,
-        secure: isSecure,
-        sameSite: "lax",
-        domain: cookieDomain,
-        path: "/",
-        maxAge: 30 * 24 * 60 * 60 * 1000,
-      }
+      cognitoCookieOptions(false, REFRESH_TOKEN_MAX_AGE_MS)
     );
 
     logger.info(

@@ -18,9 +18,9 @@ The CashSouk platform uses AWS Cognito and AWS Amplify for authentication. The s
 
 | Token Type | Purpose | Lifetime |
 |------------|---------|----------|
-| **Access Token** | Short-lived JWT used for API authentication | 1 hour |
-| **ID Token** | Short-lived JWT containing user profile information | 1 hour |
-| **Refresh Token** | Long-lived token used to obtain new access/ID tokens | 30 days |
+| **Access Token** | Short-lived JWT used for API authentication | 15 minutes |
+| **ID Token** | Short-lived JWT containing user profile information | 15 minutes |
+| **Refresh Token** | Obtains new access/ID tokens. Cognito lifetime is 30 days from sign-in; rotation replaces the value and does not extend expiry. The HttpOnly refresh cookie is 60 minutes and is reset on successful refresh. | Cognito: 30 days; cookie: 60 minutes |
 
 ## Authentication Flow
 
@@ -46,15 +46,15 @@ User → Portal → Cognito Hosted UI → Backend Callback → Landing Callback 
 
 ### 2. Token Storage
 
-All tokens are stored in **cookies** (not HTTP-only, so Amplify can read them):
+Access and ID tokens are stored in cookies that JavaScript can read, so Amplify can send the Bearer token. The refresh token cookie is `HttpOnly`.
 
 | Cookie Name | Purpose | Expiry |
 |-------------|---------|--------|
-| `CognitoIdentityServiceProvider.{clientId}.LastAuthUser` | Stores Cognito user ID | 30 days |
-| `CognitoIdentityServiceProvider.{clientId}.{userId}.accessToken` | Access token for API calls | 1 hour |
-| `CognitoIdentityServiceProvider.{clientId}.{userId}.idToken` | ID token with user profile | 1 hour |
-| `CognitoIdentityServiceProvider.{clientId}.{userId}.refreshToken` | Refresh token for obtaining new tokens | 30 days |
-| `CognitoIdentityServiceProvider.{clientId}.{userId}.clockDrift` | Clock drift adjustment for Amplify | 30 days |
+| `CognitoIdentityServiceProvider.{clientId}.LastAuthUser` | Stores Cognito user ID | 60 minutes, reset on refresh |
+| `CognitoIdentityServiceProvider.{clientId}.{userId}.accessToken` | Access token for API calls | 15 minutes |
+| `CognitoIdentityServiceProvider.{clientId}.{userId}.idToken` | ID token with user profile | 15 minutes |
+| `CognitoIdentityServiceProvider.{clientId}.{userId}.refreshToken` | HttpOnly refresh token for obtaining new tokens | 60 minutes, reset on successful refresh (idle cutoff; Cognito token lasts 30 days from sign-in) |
+| `CognitoIdentityServiceProvider.{clientId}.{userId}.clockDrift` | Clock drift adjustment for Amplify | 60 minutes, reset on refresh |
 
 **Cookie Configuration:**
 - **Domain**: `.cashsouk.com` (production) or `localhost` (development)
@@ -223,9 +223,9 @@ The system detects the requested role from:
 
 ### Token Storage
 
-- **Cookies vs Memory**: All tokens stored in cookies (not HTTP-only) so Amplify can manage them
+- **Cookies vs Memory**: Access and ID tokens are readable by the portal so Amplify can send them as Bearer tokens. The refresh token cookie is `HttpOnly`.
 - **Security**: Cookies use `secure: true` (HTTPS only) and `sameSite: lax` in production
-- **Refresh Token**: Long-lived (30 days) but only used for token refresh, never sent to API
+- **Refresh Token**: Cognito lifetime is 30 days from sign-in (rotation does not extend it). The HttpOnly refresh cookie is 60 minutes and is reset on successful refresh.
 
 ### Password Security
 
@@ -242,7 +242,7 @@ The system detects the requested role from:
 
 ### Session Security
 
-- Access tokens expire after 1 hour
+- Access tokens expire after 15 minutes
 - Automatic refresh via refresh token
 - Logout clears all tokens and Cognito session
 - Cross-site request protection via `sameSite: lax`

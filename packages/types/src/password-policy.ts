@@ -41,6 +41,7 @@ const COMMON_PASSWORDS = new Set([
   "iloveyou1",
   "passw0rd",
   "passw0rd!",
+  "p@ssw0rd",
   "changeme",
   "changeme1",
   "changeme1!",

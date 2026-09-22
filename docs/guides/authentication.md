@@ -292,9 +292,10 @@ The token refresh mechanism is triggered by multiple events to ensure seamless a
 
 ### Token Lifecycle
 
-- **Access Token**: 60 minutes (short-lived, used for API authentication via Bearer token)
-- **ID Token**: 60 minutes (short-lived, contains user profile information)
-- **Refresh Token**: 30 days (long-lived, used to obtain new access/ID tokens)
+- **Access Token**: 15 minutes (short-lived, used for API authentication via Bearer token)
+- **ID Token**: 15 minutes (short-lived, contains user profile information)
+- **Refresh Token (Cognito)**: 30 days from sign-in; rotation replaces the value and does not extend expiry
+- **Refresh cookie**: 60 minutes, HttpOnly, reset on each successful refresh (idle cutoff)
 - **Refresh Buffer**: 5 minutes (refresh triggers 5 minutes before expiry)
 
 ### How It Works
@@ -308,7 +309,7 @@ The token refresh mechanism is triggered by multiple events to ensure seamless a
    ↓
 4. AuthProvider monitors token expiry via background interval
    ↓
-5. When token nears expiry (55 min), frontend calls /v1/auth/refresh-token
+5. When token nears expiry (about 10 minutes), frontend calls /v1/auth/refresh-token
    ↓
 6. Backend reads refresh token from cookies (secure)
    ↓
@@ -320,7 +321,7 @@ The token refresh mechanism is triggered by multiple events to ensure seamless a
    ↓
 10. User remains authenticated seamlessly
    ↓
-11. After 30 days, refresh token expires → user must login again
+11. If no refresh happens for 60 minutes, the refresh cookie expires and the user must login again. Cognito's refresh token itself lasts 30 days from sign-in.
 ```
 
 ### Technical Implementation
@@ -361,7 +362,7 @@ Three useEffect hooks manage token freshness:
 | **Multiple Tabs** | All tabs share cookies; refresh in one tab updates all tabs |
 | **Password Change** | Backend revokes all sessions; next refresh attempt fails → user logged out |
 | **Laptop Sleep > 60min** | Visibility change on wake triggers refresh before any API call |
-| **Refresh Token Expired** | After 30 days, user must login again (expected behavior) |
+| **Refresh cookie expired** | After 60 minutes without a successful refresh, the HttpOnly cookie expires and the user must login again (expected idle cutoff) |
 
 ### Cookie Format
 
@@ -416,7 +417,7 @@ Backend logs (structured JSON via Pino):
 - **Access/ID tokens are readable** by Amplify (httpOnly: false) for session management
 - **Backend validates** all refresh requests
 - **Token rotation supported** - backend updates refresh token if Cognito returns new one
-- Access tokens have short expiry (60 min) to limit exposure if compromised
+- Access tokens have short expiry (15 min) to limit exposure if compromised
 - In production, cookies use `secure` flag (HTTPS only) and proper `domain` scope
 - Backend validates all tokens with Cognito on every request
 

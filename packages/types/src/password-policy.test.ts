@@ -27,6 +27,9 @@ describe("password policy", () => {
     expect(meetsPasswordPolicy("NoSymbol1")).toBe(false);
     expect(isCommonPassword("Password1!")).toBe(true);
     expect(meetsPasswordPolicy("Password1!")).toBe(false);
+    expect(isCommonPassword("P@ssw0rd")).toBe(true);
+    expect(meetsPasswordPolicy("P@ssw0rd")).toBe(false);
     expect(passwordPolicyIssue("Password1!")).toBe(PASSWORD_POLICY_MESSAGE);
+    expect(passwordPolicyIssue("P@ssw0rd")).toBe(PASSWORD_POLICY_MESSAGE);
   });
 });
