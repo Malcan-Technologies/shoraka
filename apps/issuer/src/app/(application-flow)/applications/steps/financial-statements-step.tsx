@@ -44,6 +44,7 @@ import {
   APPLICATION_COMREP_NEGATIVE_ALLOWED_KEYS,
   APPLICATION_COMREP_OPTIONAL_KEYS,
   APPLICATION_CORE_MONEY_KEYS,
+  APPLICATION_CORE_MONEY_REQUIRED_KEYS,
   APPLICATION_EXTRA_ISSUER_RAW_MONEY_KEYS,
   FINANCIAL_FIELD_LABELS,
   applicationComrepFieldError,
@@ -108,6 +109,7 @@ export function generateMockData(): Record<string, unknown> {
     costOfSales: formatMoney(680000.12),
     grossProfit: formatMoney(620000.12),
     ebitda: formatMoney(510000.34),
+    netOperatingIncome: formatMoney(480000.25),
     plnpbt: formatMoney(150000.22),
     plnpat: formatMoney(plnpat),
     plnetdiv: formatMoney(50000.77),
@@ -140,6 +142,7 @@ interface FinancialStatementsPayload {
   costOfSales: string;
   grossProfit: string;
   ebitda: string;
+  netOperatingIncome: string;
   plnpbt: string;
   plnpat: string;
   plnetdiv: string;
@@ -179,6 +182,7 @@ const DEFAULT_PAYLOAD: FinancialStatementsPayload = {
   costOfSales: "",
   grossProfit: "",
   ebitda: "",
+  netOperatingIncome: "",
   plnpbt: "",
   plnpat: "",
   plnetdiv: "",
@@ -248,11 +252,19 @@ function fromSaved(saved: unknown): FinancialStatementsPayload {
 function toApiPayload(form: FinancialStatementsPayload): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   out.pldd = String(form.pldd ?? "").trim();
+  const requiredCore = new Set<string>(APPLICATION_CORE_MONEY_REQUIRED_KEYS as readonly string[]);
   for (const k of APPLICATION_CORE_MONEY_KEYS) {
-    out[k] = parseMoney(form[k] ?? "");
+    const raw = form[k] ?? "";
+    const s = String(raw).trim();
+    // Optional money fields must remain absent when blank so stage 4A can return DNA/blank.
+    if (!s && !requiredCore.has(k)) continue;
+    out[k] = parseMoney(raw);
   }
   for (const k of APPLICATION_EXTRA_ISSUER_RAW_MONEY_KEYS) {
-    out[k] = parseMoney(form[k] ?? "");
+    const raw = form[k] ?? "";
+    const s = String(raw).trim();
+    if (!s) continue;
+    out[k] = parseMoney(raw);
   }
   for (const k of APPLICATION_COMREP_DETAIL_KEYS) {
     const raw = String(form[k] ?? "").trim();
@@ -453,8 +465,7 @@ function buildV2ApiPayload(
 }
 
 const YEAR_MONEY_FIELDS: (keyof FinancialStatementsPayload)[] = [
-  ...APPLICATION_CORE_MONEY_KEYS,
-  ...APPLICATION_EXTRA_ISSUER_RAW_MONEY_KEYS,
+  ...(APPLICATION_CORE_MONEY_REQUIRED_KEYS as readonly (keyof FinancialStatementsPayload)[]),
 ];
 const COMREP_REQUIRED_DETAIL_KEYS: (keyof FinancialStatementsPayload)[] = (
   APPLICATION_COMREP_DETAIL_KEYS as readonly string[]
@@ -1007,6 +1018,8 @@ export function FinancialStatementsStep({
   );
 
   const getLabel = (key: keyof FinancialStatementsPayload) => FINANCIAL_FIELD_LABELS[key] ?? key;
+  const isMoneyFieldOptional = (key: keyof FinancialStatementsPayload) =>
+    !(APPLICATION_CORE_MONEY_REQUIRED_KEYS as readonly string[]).includes(String(key));
 
   const FYE_HELPER =
     "The next date your books will close. It must be after today and within the next 12 months.";
@@ -1070,6 +1083,7 @@ export function FinancialStatementsStep({
                 value={form[key] ?? ""}
                 onValueChange={(v) => updateFormYear(yearKey, key, v)}
                 readOnly={readOnly}
+                optional={isMoneyFieldOptional(key)}
                 hasError={Boolean(yearErrors.money[key])}
                 errorMessage={yearErrors.money[key]}
               />
@@ -1087,6 +1101,7 @@ export function FinancialStatementsStep({
                 value={form[key] ?? ""}
                 onValueChange={(v) => updateFormYear(yearKey, key, v)}
                 readOnly={readOnly}
+                optional={isMoneyFieldOptional(key)}
                 hasError={Boolean(yearErrors.money[key])}
                 errorMessage={yearErrors.money[key]}
               />
@@ -1127,6 +1142,7 @@ export function FinancialStatementsStep({
               readOnly={readOnly}
               allowNegative
               showNegativeTooltip
+              optional={isMoneyFieldOptional("grossProfit")}
               hasError={Boolean(yearErrors.money.grossProfit)}
               errorMessage={yearErrors.money.grossProfit}
             />
@@ -1136,6 +1152,7 @@ export function FinancialStatementsStep({
               value={form.costOfSales ?? ""}
               onValueChange={(v) => updateFormYear(yearKey, "costOfSales", v)}
               readOnly={readOnly}
+              optional={isMoneyFieldOptional("costOfSales")}
               hasError={Boolean(yearErrors.money.costOfSales)}
               errorMessage={yearErrors.money.costOfSales}
             />
@@ -1169,8 +1186,21 @@ export function FinancialStatementsStep({
               readOnly={readOnly}
               allowNegative
               showNegativeTooltip
+              optional={isMoneyFieldOptional("ebitda")}
               hasError={Boolean(yearErrors.money.ebitda)}
               errorMessage={yearErrors.money.ebitda}
+            />
+            <MoneyFieldRow
+              id={`${yearKey}-netOperatingIncome`}
+              label={getLabel("netOperatingIncome")}
+              value={form.netOperatingIncome ?? ""}
+              onValueChange={(v) => updateFormYear(yearKey, "netOperatingIncome", v)}
+              readOnly={readOnly}
+              allowNegative
+              showNegativeTooltip
+              optional={isMoneyFieldOptional("netOperatingIncome")}
+              hasError={Boolean(yearErrors.money.netOperatingIncome)}
+              errorMessage={yearErrors.money.netOperatingIncome}
             />
             <MoneyFieldRow
               id={`${yearKey}-plnetdiv`}
@@ -1297,6 +1327,7 @@ export function FinancialStatementsStep({
                 value={form.operatingCashFlow ?? ""}
                 onValueChange={(v) => updateFormYear(yearKey, "operatingCashFlow", v)}
                 readOnly={readOnly}
+                optional={isMoneyFieldOptional("operatingCashFlow")}
                 allowNegative
                 showNegativeTooltip
                 hasError={Boolean(yearErrors.money.operatingCashFlow)}
@@ -1308,6 +1339,7 @@ export function FinancialStatementsStep({
                 value={form.freeCashFlow ?? ""}
                 onValueChange={(v) => updateFormYear(yearKey, "freeCashFlow", v)}
                 readOnly={readOnly}
+                optional={isMoneyFieldOptional("freeCashFlow")}
                 allowNegative
                 showNegativeTooltip
                 hasError={Boolean(yearErrors.money.freeCashFlow)}
@@ -1324,6 +1356,7 @@ export function FinancialStatementsStep({
                 value={form.annualDebtService ?? ""}
                 onValueChange={(v) => updateFormYear(yearKey, "annualDebtService", v)}
                 readOnly={readOnly}
+                optional={isMoneyFieldOptional("annualDebtService")}
                 hasError={Boolean(yearErrors.money.annualDebtService)}
                 errorMessage={yearErrors.money.annualDebtService}
               />

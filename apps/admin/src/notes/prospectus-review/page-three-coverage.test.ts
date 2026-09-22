@@ -125,6 +125,7 @@ const yearRaw: import("@cashsouk/types").ProspectusFrozenFinancialRaw = {
   tradePayables: 12_000,
   grossProfit: 300_000,
   ebitda: 200_000,
+  netOperatingIncome: null,
   costOfSales: 680_000,
   annualDebtService: 1_000_000,
   totass: 1_000_000,
@@ -293,6 +294,7 @@ describe("page three coverage verification", () => {
         plnpat: null,
         grossProfit: null,
         ebitda: null,
+        netOperatingIncome: null,
         ebit: null,
         bscatot: 400_000,
         bsfatot: null,
@@ -419,7 +421,8 @@ describe("page three coverage verification", () => {
   });
 
   it("prefers official CTOS gear for Debt / Equity when present", () => {
-    const withGear = [frozenYear(2024, { ...yearRaw, gear: 4.4, netDebtEquity: 4.4 })];
+    // netDebtEquity is an unrelated metric; Debt / Equity must follow CTOS gear.
+    const withGear = [frozenYear(2024, { ...yearRaw, gear: 4.4, netDebtEquity: 1.1 })];
     const table = buildPageThreeCoverageTable(withGear, undefined, undefined);
     expect(table.rows.find((r) => r.metric === "Debt / Equity")?.values[0]).toBe("4.4x");
   });
@@ -535,6 +538,7 @@ describe("page three coverage verification", () => {
       plnpat: null,
       grossProfit: null,
       ebitda: null,
+      netOperatingIncome: null,
       ebit: null,
       bscatot: null,
       bsfatot: null,

@@ -240,6 +240,8 @@ export interface ProspectusFrozenFinancialRaw {
   ebit: number | null;
   grossProfit: number | null;
   ebitda: number | null;
+  /** Net Operating Income (SoukScore DSCR numerator). */
+  netOperatingIncome: number | null;
   bscatot: number | null;
   curlib: number | null;
   bsfatot: number | null;
@@ -273,7 +275,7 @@ export interface ProspectusFrozenFinancialRaw {
   netDebtEquity: number | null;
   /** Interest Coverage = EBIT / Interest Cost */
   interestCoverage: number | null;
-  /** DSCR = EBITDA / Annual Debt Service */
+  /** DSCR = Net Operating Income / Annual Debt Service */
   dscr: number | null;
 }
 

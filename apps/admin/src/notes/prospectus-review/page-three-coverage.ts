@@ -1,5 +1,6 @@
 import { formatCurrency } from "@cashsouk/config";
 import {
+  resolveCtosGearingRatio,
   resolveCtosCurrentRatio,
   resolveCtosPatMarginPercent,
   resolveCtosReturnOnAssetsPercent,
@@ -294,7 +295,13 @@ export function buildCoverageResolvedRows(
     { label: "DSCR", value: formatMultiple(dscr) },
     {
       label: "Debt / Equity",
-      value: formatMultiple(parseNumber(yearRaw.netDebtEquity)),
+      value: formatMultiple(
+        resolveCtosGearingRatio({
+          gear: parseNumber(yearRaw.gear),
+          totlib: parseNumber(yearRaw.totlib),
+          networth: parseNumber(yearRaw.networth),
+        })
+      ),
     },
     {
       label: "Return on Equity",

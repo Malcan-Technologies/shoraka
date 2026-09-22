@@ -87,6 +87,7 @@ export function buildProspectusFinancialComparisonSource(
     "tradePayables",
     "costOfSales",
     "annualDebtService",
+    "netOperatingIncome",
     "interest_cost",
     "curlib_borrowing",
     "ncl_loan",
@@ -111,7 +112,9 @@ export function buildProspectusFinancialComparisonSource(
       ? unauditedByYearMaybe
       : ({} as Record<string, unknown>);
 
-  const years: ProspectusFinancialComparisonYear[] = selected.map((year) => {
+  const years: ProspectusFinancialComparisonYear[] = [];
+  for (let i = 0; i < selected.length; i += 1) {
+    const year = selected[i]!;
     // Stage 4A rawFinancials feed both Page 2 and Page 3.
     // CTOS audited years already have totals/ratios; unaudited management years only have core lines.
     const rawFinancials: Record<string, unknown> = { ...year.rawFinancials };
@@ -153,7 +156,16 @@ export function buildProspectusFinancialComparisonSource(
     rawFinancials.ebit = ebit;
     rawFinancials.quickRatio = computeQuickRatio(fs.cashAndBank, fs.tradeReceivables, fs.curlib);
     rawFinancials.interestCoverage = computeInterestCoverage(ebit, fs.interest_cost);
-    rawFinancials.receivablesDays = computeReceivablesDays(fs.tradeReceivables, fs.turnover);
+    // Receivables Days follows SoukScore: Average AR from consecutive FYs.
+    // If we cannot establish Beginning AR from the immediately prior consecutive FY, return null.
+    const priorYearRaw =
+      years[i - 1]?.year === year.year - 1 ? (years[i - 1]?.rawFinancials as any) : null;
+    const beginningAr = priorYearRaw?.tradeReceivables ?? null;
+    rawFinancials.receivablesDays = computeReceivablesDays(
+      beginningAr,
+      fs.tradeReceivables,
+      fs.turnover
+    );
     rawFinancials.payablesDays = computePayablesDays(fs.tradePayables, fs.costOfSales);
     rawFinancials.netDebtEquity = computeNetDebtEquity({
       curlib_borrowing: fs.curlib_borrowing,
@@ -161,17 +173,17 @@ export function buildProspectusFinancialComparisonSource(
       cashAndBank: fs.cashAndBank,
       networth: fs.networth,
     });
-    rawFinancials.dscr = computeDscr(fs.ebitda, fs.annualDebtService);
+    rawFinancials.dscr = computeDscr(fs.netOperatingIncome, fs.annualDebtService);
 
-    return {
+    years.push({
       year: year.year,
       yearLabel: formatProspectusFinancialYearLabel(year.year),
       financialYearEndIso: year.financialYearEndIso,
       financialYearEndLabel: formatProspectusFinancialYearEndLabel(year.financialYearEndIso),
       recordSource: year.recordSource,
       rawFinancials,
-    };
-  });
+    });
+  }
 
   const missingSsmUnauditedYears = findMissingSsmExpectedUnauditedYears({
     financialStatements: input.financialStatements,

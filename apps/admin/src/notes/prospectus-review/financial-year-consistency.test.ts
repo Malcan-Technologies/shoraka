@@ -23,6 +23,7 @@ function emptyRaw(): ProspectusFrozenFinancialYear["raw"] {
     ebit: null,
     grossProfit: null,
     ebitda: null,
+    netOperatingIncome: null,
     bscatot: null,
     bsfatot: null,
     othass: null,

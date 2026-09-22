@@ -132,10 +132,10 @@ describe("prospectus Page 3 trends (DATA STAGE 5)", () => {
     );
     const days = data.trends.find((t) => t.metricKey === "receivables_days");
     expect(days).toMatchObject({
-      direction: "down",
-      consistency: "consistent",
-      interpretation: "favourable",
-      approved: true,
+      direction: "unavailable",
+      consistency: "unavailable",
+      interpretation: "unavailable",
+      approved: false,
     });
   });
 

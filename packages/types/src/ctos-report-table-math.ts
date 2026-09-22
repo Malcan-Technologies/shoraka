@@ -247,16 +247,20 @@ export function computeInterestCoverage(
 }
 
 /**
- * Receivables Days = Trade Receivables / Revenue × 365
- * Returns null when turnover is missing or zero.
+ * Receivables Days = Average Accounts Receivable / Revenue × 365
+ * Average AR = (Beginning AR + Ending AR) / 2
+ *
+ * Returns null when either beginning/ending AR is missing or when turnover is missing/zero.
  */
 export function computeReceivablesDays(
-  tradeReceivables: number | null | undefined,
+  beginningAr: number | null | undefined,
+  endingAr: number | null | undefined,
   turnover: number | null | undefined
 ): number | null {
-  if (!isFiniteNumber(tradeReceivables) || !isFiniteNumber(turnover)) return null;
+  if (!isFiniteNumber(beginningAr) || !isFiniteNumber(endingAr) || !isFiniteNumber(turnover)) return null;
   if (turnover === 0) return null;
-  return (tradeReceivables / turnover) * 365;
+  const averageAr = (beginningAr + endingAr) / 2;
+  return (averageAr / turnover) * 365;
 }
 
 /**
@@ -293,14 +297,14 @@ export function computeNetDebtEquity(params: {
 }
 
 /**
- * DSCR = EBITDA / Annual Debt Service
- * Returns null when annualDebtService is missing or zero.
+ * DSCR = Net Operating Income / Annual Debt Service
+ * Returns null when netOperatingIncome is missing or when annualDebtService is missing/zero.
  */
 export function computeDscr(
-  ebitda: number | null | undefined,
+  netOperatingIncome: number | null | undefined,
   annualDebtService: number | null | undefined
 ): number | null {
-  if (!isFiniteNumber(ebitda) || !isFiniteNumber(annualDebtService)) return null;
+  if (!isFiniteNumber(netOperatingIncome) || !isFiniteNumber(annualDebtService)) return null;
   if (annualDebtService === 0) return null;
-  return ebitda / annualDebtService;
+  return netOperatingIncome / annualDebtService;
 }

@@ -36,6 +36,7 @@ const ACCOUNT_KEYS = [
   "gear",
   "grossProfit",
   "ebitda",
+  "netOperatingIncome",
   "operatingCashFlow",
   "freeCashFlow",
   "interest_cost",

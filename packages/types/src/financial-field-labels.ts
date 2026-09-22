@@ -23,6 +23,7 @@ export const FINANCIAL_FIELD_LABELS: Record<string, string> = {
   plnpat: "Profit / (Loss) After Tax",
   plnetdiv: "Net Dividend",
   plyear: "Profit and Loss of the Year",
+  netOperatingIncome: "Net Operating Income",
   gear: "Gearing Ratio",
   operatingCashFlow: "Operating Cash Flow",
   freeCashFlow: "Free Cash Flow",
@@ -100,6 +101,27 @@ export const APPLICATION_CORE_MONEY_KEYS = [
 ] as const;
 
 /**
+ * Issuer Financial Statements step Save & Continue required fields.
+ * IMPORTANT: Do not rely on APPLICATION_CORE_MONEY_KEYS to infer requiredness.
+ * This list preserves the original required set from origin/main.
+ */
+export const APPLICATION_CORE_MONEY_REQUIRED_KEYS = [
+  "bsfatot",
+  "othass",
+  "bscatot",
+  "bsclbank",
+  "curlib",
+  "bsslltd",
+  "bsclstd",
+  "bsqpuc",
+  "turnover",
+  "plnpbt",
+  "plnpat",
+  "plnetdiv",
+  "plyear",
+] as const;
+
+/**
  * Additional issuer raw inputs required for certain system-calculated financial metrics.
  * Keep these out of APPLICATION_CORE_MONEY_KEYS to avoid making them mandatory via
  * shared core default/validation behaviour.
@@ -107,6 +129,7 @@ export const APPLICATION_CORE_MONEY_KEYS = [
 export const APPLICATION_EXTRA_ISSUER_RAW_MONEY_KEYS = [
   "costOfSales",
   "annualDebtService",
+  "netOperatingIncome",
 ] as const;
 
 export type ApplicationExtraIssuerRawMoneyKey =

@@ -32,9 +32,10 @@ function row(
 
 function sourceFromYears(
   years: Record<string, Record<string, unknown>>,
-  financialYearEnd = "2024-12-31"
+  financialYearEnd = "2024-12-31",
+  options?: { issuerOverlay?: boolean }
 ) {
-  return financialSourceFromYearBlocks(years, { financialYearEnd });
+  return financialSourceFromYearBlocks(years, { financialYearEnd, issuerOverlay: options?.issuerOverlay });
 }
 
 describe("prospectus Page 3 coverage/efficiency", () => {
@@ -121,6 +122,10 @@ describe("prospectus Page 3 coverage/efficiency", () => {
           gear: 4.4,
           totlib: 1,
           networth: 1,
+          // netDebtEquity is computed from borrowings/cash; ensure it differs.
+          curlib_borrowing: 10,
+          ncl_loan: 0,
+          cashAndBank: 0,
           plnpat: 8,
           totass: 100,
           profit_margin: 99,
@@ -156,14 +161,23 @@ describe("prospectus Page 3 coverage/efficiency", () => {
     const data = buildProspectusPageThreeCoverageEfficiency({
       financialSource: sourceFromYears(
         {
+          "2023": {
+            plnpbt: 1_200_000,
+            plnpat: 1_200_000,
+            interest_cost: 108_108.10810810811, // => interest coverage ~ 12.1x
+            netOperatingIncome: 1_420_000, // => DSCR 1.42x (NOI/annualDebtService)
+            annualDebtService: 1_000_000,
+            turnover: 10_000_000,
+            tradeReceivables: 2_027_397.26, // Beginning AR for FY2024
+          },
           "2024": {
             plnpbt: 1_200_000,
             plnpat: 1_200_000,
             interest_cost: 108_108.10810810811, // => interest coverage ~ 12.1x
-            ebitda: 1_420_000,
-            annualDebtService: 1_000_000, // => DSCR 1.42x
+            netOperatingIncome: 1_420_000, // => DSCR 1.42x (NOI/annualDebtService)
+            annualDebtService: 1_000_000,
             turnover: 10_000_000,
-            tradeReceivables: 2_027_397.26, // => receivables days 74
+            tradeReceivables: 2_027_397.26, // Ending AR for FY2024
           },
         },
         "2024-12-31",
@@ -171,9 +185,11 @@ describe("prospectus Page 3 coverage/efficiency", () => {
       ),
     });
 
-    expect(row(data, "interest_coverage")?.values[0]).toBe("12.1x");
-    expect(row(data, "dscr")?.values[0]).toBe("1.42x");
-    expect(row(data, "receivables_days")?.values[0]).toBe("74");
+    // FY2023 lacks prior consecutive year in this fixture.
+    expect(row(data, "receivables_days")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(row(data, "interest_coverage")?.values[1]).toBe("12.1x");
+    expect(row(data, "dscr")?.values[1]).toBe("1.42x");
+    expect(row(data, "receivables_days")?.values[1]).toBe("74");
   });
 
   it("uses resolveCtosReturnOnEquityPercent (direct return_on_equity only) and matches Page 2", () => {

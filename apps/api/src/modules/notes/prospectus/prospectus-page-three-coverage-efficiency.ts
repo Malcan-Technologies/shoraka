@@ -112,8 +112,8 @@ export function numericValueForCoverageRow(
     case "dscr":
       return fieldFromRaw(raw, "dscr");
     case "debt_equity":
-      // Prefer Stage 4A system-derived Net Debt / Equity; fall back to CTOS gearing when missing.
-      return fieldFromRaw(raw, "netDebtEquity") ?? resolveCtosGearingRatio(account);
+      // Debt / Equity follows CTOS gearing (gear first, else totlib/networth).
+      return resolveCtosGearingRatio(account);
     case "return_on_assets":
       // CTOS ENQWS v5.11.0 Financial Highlights XSL — plnpat/totass*100 (percent points).
       return resolveCtosReturnOnAssetsPercent(account);
@@ -170,7 +170,7 @@ function valueForRow(
       );
     case "debt_equity":
       return formatProspectusFinancialMultiple(
-        fieldFromRaw(raw, "netDebtEquity") ?? resolveCtosGearingRatio(account)
+        resolveCtosGearingRatio(account)
       );
     case "return_on_assets":
       return formatProspectusFinancialPercentFromPoints(

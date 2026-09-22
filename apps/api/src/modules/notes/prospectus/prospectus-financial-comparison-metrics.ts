@@ -292,6 +292,7 @@ const FROZEN_RAW_KEYS = [
   "ebit",
   "grossProfit",
   "ebitda",
+  "netOperatingIncome",
   "bscatot",
   "curlib",
   "bsfatot",
