@@ -2,7 +2,9 @@
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import type { GatewayPaymentStatus } from "@cashsouk/types";
+import { isDepositWalletSettled } from "./investor-deposit-status";
+
+export { isDepositWalletSettled, isTerminalDepositStatus } from "./investor-deposit-status";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 const DEPOSIT_INTENT_STORAGE_PREFIX = "investor-deposit-intent";
@@ -17,20 +19,6 @@ type ApiErrorPayload = {
   message: string;
   details?: unknown;
 };
-
-const TERMINAL_DEPOSIT_STATUSES = new Set<GatewayPaymentStatus>([
-  "COMPLETED",
-  "HELD",
-  "NAME_CHECK_PENDING",
-  "FAILED",
-  "EXPIRED",
-  "REFUNDED",
-  "REFUND_INITIATED",
-]);
-
-export function isTerminalDepositStatus(status: GatewayPaymentStatus): boolean {
-  return TERMINAL_DEPOSIT_STATUSES.has(status);
-}
 
 export const investorDepositKeys = {
   all: ["investor-deposit"] as const,
@@ -160,7 +148,7 @@ export function useInvestorDepositQuery(
     refetchInterval: (query) => {
       if (!options?.pollUntilTerminal) return false;
       const status = query.state.data?.status;
-      if (status && isTerminalDepositStatus(status)) return false;
+      if (status && isDepositWalletSettled(status)) return false;
       return 2000;
     },
   });

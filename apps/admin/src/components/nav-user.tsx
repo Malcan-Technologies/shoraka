@@ -21,8 +21,9 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Skeleton } from "@cashsouk/ui";
+import { toast } from "sonner";
 import { logout } from "../lib/auth";
-import { useAuthToken } from "@cashsouk/config";
+import { CognitoLogoutError, useAuthToken } from "@cashsouk/config";
 import { useCurrentUser } from "../hooks/use-current-user";
 
 type NavUserProps = {
@@ -56,7 +57,16 @@ export function NavUser({ variant = "sidebar" }: NavUserProps) {
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
-    await logout(signOut, getAccessToken);
+    try {
+      await logout(signOut, getAccessToken);
+    } catch (error) {
+      toast.error(
+        error instanceof CognitoLogoutError
+          ? error.message
+          : "Unable to complete logout. Please try again."
+      );
+      setIsLoggingOut(false);
+    }
   };
 
   const menuContent = (

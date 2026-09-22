@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
+import { prospectusReviewErrorMessage } from "./prospectus-review-error-utils";
 import type {
   ProspectusReviewDetail,
   ProspectusReviewGetResponse,
@@ -10,6 +11,12 @@ import type {
 import { notesKeys } from "../query-keys";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
+type ApiErrorShape = {
+  code?: string;
+  message?: string;
+  details?: unknown;
+};
 
 function prospectusReviewKey(noteId: string) {
   return [...notesKeys.detail(noteId), "prospectus-review"] as const;
@@ -54,7 +61,7 @@ export function useSaveProspectusReviewDraft(noteId: string) {
         if (res.error.code === "CONFLICT") {
           throw new ProspectusReviewConflictError(res.error.message);
         }
-        throw new Error(res.error.message);
+        throw new Error(prospectusReviewErrorMessage(res.error as ApiErrorShape));
       }
       return res.data;
     },
@@ -106,9 +113,14 @@ export function useApproveProspectusReview(noteId: string) {
   const apiClient = createApiClient(API_URL, getAccessToken);
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input?: SaveProspectusReviewDraftInput) => {
-      const res = await apiClient.approveAdminProspectusReview(noteId, input);
-      if (!res.success) throw new Error(res.error.message);
+    mutationFn: async (input?: Partial<SaveProspectusReviewDraftInput>) => {
+      const res = await apiClient.approveAdminProspectusReview(noteId, input as any);
+      if (!res.success) {
+        if (res.error.code === "CONFLICT") {
+          throw new ProspectusReviewConflictError(res.error.message);
+        }
+        throw new Error(prospectusReviewErrorMessage(res.error as ApiErrorShape));
+      }
       return res.data;
     },
     onSuccess: (review: ProspectusReviewDetail) => {
@@ -140,7 +152,7 @@ export function useProspectusReviewPreview(noteId: string, enabled: boolean) {
     refetchOnWindowFocus: false,
     queryFn: async () => {
       const res = await apiClient.getAdminProspectusReviewPreview(noteId);
-      if (!res.success) throw new Error(res.error.message);
+      if (!res.success) throw new Error(prospectusReviewErrorMessage(res.error as ApiErrorShape));
       return res.data;
     },
   });
@@ -156,7 +168,7 @@ export function usePreviewProspectusReview(noteId: string) {
   return useMutation({
     mutationFn: async (input: SaveProspectusReviewDraftInput) => {
       const res = await apiClient.postAdminProspectusReviewPreview(noteId, input);
-      if (!res.success) throw new Error(res.error.message);
+      if (!res.success) throw new Error(prospectusReviewErrorMessage(res.error as ApiErrorShape));
       return res.data;
     },
   });

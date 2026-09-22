@@ -152,11 +152,34 @@ describe("resolveReviewTabStatus", () => {
     expect(
       resolveReviewTabStatus(
         {
+          id: "some_unified",
+          reviewSection: "contract_details",
+          mergedSections: ["contract_details", "invoice_details", "acceptance_documents"],
+          kind: "offer_acceptance",
+        },
+        map
+      )
+    ).toBe("PENDING");
+  });
+
+  it("prefers synthetic offer_acceptance dot status when present", () => {
+    const map = new Map([
+      ["contract_details", "APPROVED"],
+      ["invoice_details", "APPROVED"],
+      ["acceptance_documents", "APPROVED"],
+      ["offer_acceptance", "OFFER_SENT"],
+    ]);
+
+    expect(
+      resolveReviewTabStatus(
+        {
+          id: OFFER_ACCEPTANCE_TAB_ID,
+          kind: OFFER_ACCEPTANCE_TAB_KIND,
           reviewSection: "contract_details",
           mergedSections: ["contract_details", "invoice_details", "acceptance_documents"],
         },
         map
       )
-    ).toBe("PENDING");
+    ).toBe("OFFER_SENT");
   });
 });

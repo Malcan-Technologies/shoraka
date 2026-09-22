@@ -3,7 +3,11 @@
 import * as React from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowTopRightOnSquareIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
+import {
+  ArrowPathIcon,
+  ArrowTopRightOnSquareIcon,
+  ExclamationTriangleIcon,
+} from "@heroicons/react/24/outline";
 import {
   IDENTITY_CONFLICT_ADMIN_BODY,
   IDENTITY_CONFLICT_ADMIN_TITLE,
@@ -35,6 +39,7 @@ import {
   peopleAccessChipOptionsFromRow,
   peopleAccessKycChipPresentation,
   peopleAccessPlatformBadgeStatus,
+  partyNeedsCtosAbsenceReview,
   personRegTankKycId,
   personRegTankKybId,
   readPersonIdentityConflict,
@@ -120,6 +125,9 @@ export function OrganizationPeopleAccessDetail({
   onUseExternal,
   onKeepOnboardingIdentity,
   onKeepCtosPerson,
+  onKeepAbsent,
+  onSyncRegTank,
+  isSyncingRegTank = false,
   onEditMember,
 }: {
   row: AdminPeopleAccessRow;
@@ -136,6 +144,9 @@ export function OrganizationPeopleAccessDetail({
   onUseExternal?: (field: string) => void;
   onKeepOnboardingIdentity?: () => void;
   onKeepCtosPerson?: () => void;
+  onKeepAbsent?: () => void;
+  onSyncRegTank?: () => void;
+  isSyncingRegTank?: boolean;
   onEditMember?: () => void;
 }) {
   const party = row.party;
@@ -191,6 +202,11 @@ export function OrganizationPeopleAccessDetail({
     canManage && !row.observed && !row.inactive && Boolean(onEdit) && row.kind !== "people_only" && row.kind !== "platform_only";
   const showInactivate = canManage && Boolean(onInactivate) && adminMayInactivateMasterParty(party);
   const showReactivate = canManage && row.inactive && Boolean(onReactivate) && row.kind !== "people_only";
+  const showSyncRegTank =
+    canManage &&
+    Boolean(onSyncRegTank) &&
+    party?.membershipStatus === "MASTER_ACTIVE" &&
+    (party.isDirector || party.isShareholder);
   const showCtos = adminPersonHasCtosEvidence(row);
   const roleRecords = buildAdminPersonRegTankRoleRecords({
     person: person
@@ -308,6 +324,25 @@ export function OrganizationPeopleAccessDetail({
           {showReactivate ? (
             <Button type="button" variant="outline" size="sm" onClick={onReactivate}>
               Reactivate
+            </Button>
+          ) : null}
+          {showSyncRegTank ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isSyncingRegTank}
+              aria-busy={isSyncingRegTank || undefined}
+              onClick={onSyncRegTank}
+              className="gap-2"
+            >
+              <ArrowPathIcon
+                className={cn("h-4 w-4", isSyncingRegTank && "animate-spin")}
+                aria-hidden
+              />
+              {isSyncingRegTank
+                ? "Syncing from RegTank"
+                : "Sync KYC/KYB and AML from RegTank"}
             </Button>
           ) : null}
           {row.kind === "platform_only" && canManageUsers && orgMember && onEditMember ? (
@@ -616,6 +651,7 @@ export function OrganizationPeopleAccessDetail({
             <CtosEvidence
               row={row}
               party={party}
+              latestCtos={org.latestOrganizationCtosCompanyJson}
               canManage={canManage}
               canAdopt={canAdopt}
               belowMinimumShareholder={belowMinimumShareholder}
@@ -627,6 +663,7 @@ export function OrganizationPeopleAccessDetail({
               onUseExternal={onUseExternal}
               onKeepOnboardingIdentity={onKeepOnboardingIdentity}
               onKeepCtosPerson={onKeepCtosPerson}
+              onKeepAbsent={canManage ? onKeepAbsent : undefined}
               onInactivate={showInactivate ? onInactivate : undefined}
             />
           </TabsContent>
@@ -713,6 +750,7 @@ export function OrganizationPeopleAccessDetail({
 function CtosEvidence({
   row,
   party,
+  latestCtos,
   canManage,
   canAdopt,
   belowMinimumShareholder,
@@ -724,10 +762,12 @@ function CtosEvidence({
   onUseExternal,
   onKeepOnboardingIdentity,
   onKeepCtosPerson,
+  onKeepAbsent,
   onInactivate,
 }: {
   row: AdminPeopleAccessRow;
   party: OrganizationPartyProfileDto | null;
+  latestCtos?: unknown;
   canManage: boolean;
   canAdopt: boolean;
   belowMinimumShareholder: boolean;
@@ -739,6 +779,7 @@ function CtosEvidence({
   onUseExternal?: (field: string) => void;
   onKeepOnboardingIdentity?: () => void;
   onKeepCtosPerson?: () => void;
+  onKeepAbsent?: () => void;
   onInactivate?: () => void;
 }) {
   if (row.kind === "people_only") {
@@ -815,27 +856,23 @@ function CtosEvidence({
         </div>
       ) : null}
 
-      {party?.absentFromLatestExternal && party.membershipStatus === "MASTER_ACTIVE" ? (
+      {party && partyNeedsCtosAbsenceReview(party, latestCtos) ? (
         <div className={cn("space-y-2 rounded-lg border p-3", ADMIN_ACTION_SURFACE_CLASS)}>
           <p className="flex items-center gap-1.5 text-ui text-status-action-text">
             <ExclamationTriangleIcon className="h-4 w-4" />
             This person was not found in the latest CTOS information.
           </p>
-          <div className="space-y-1">
-            <Button
-              type="button"
-              className="h-10"
-              variant="outline"
-              onClick={() =>
-                toast.message("This does not mark the CTOS absence as reviewed. The person remains on the current profile.")
-              }
-            >
-              Leave as current profile
-            </Button>
-            <p className="text-meta text-muted-foreground">
-              This does not mark the CTOS absence as reviewed. The person remains on the current profile.
-            </p>
-          </div>
+          {canManage && onKeepAbsent ? (
+            <div className="space-y-1">
+              <Button type="button" className="h-10" variant="outline" onClick={onKeepAbsent}>
+                Leave as current profile
+              </Button>
+              <p className="text-meta text-muted-foreground">
+                Keep this person on the current profile. You will be asked again if the latest CTOS information
+                changes.
+              </p>
+            </div>
+          ) : null}
           {onInactivate ? (
             <Button type="button" variant="outline" className="h-10" onClick={onInactivate}>
               Mark inactive

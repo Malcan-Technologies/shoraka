@@ -223,13 +223,15 @@ Important:
 - Master does not auto-overwrite.
 - If user-added person has generated key and no matchable identity, CTOS cannot reliably auto-match; observed row can appear separately.
 
-## 16) User-Added Person Missing from CTOS
+## 16) Person Missing from CTOS
 
-- Comparable active master parties absent from latest CTOS are marked `absent_from_latest_external=true`.
+- A blank / unusable CTOS company extract (no matchable directors or shareholders, often a wrong or missing SSM) warns and keeps current profile people. It does not mark everyone `absent_from_latest_external` and does not block Financial approve.
+- When latest CTOS is usable, comparable active master parties missing from that extract are marked `absent_from_latest_external=true`.
 - Person remains master unless explicitly inactivated.
-- Admin CTOS column shows “Not found”.
-- Customer action warning is not automatically shown if effective people remains usable.
-- Application submit gate is based on onboarding readiness of visible individuals, not CTOS presence alone.
+- Admin can **Leave as current profile**, which stores the current extract fingerprint on `external_observation`. The request must send the fingerprint the admin reviewed; a mismatch with the latest extract is `409 CTOS_EXTRACT_CHANGED`. When a usable latest extract is available, absence review is derived from that extract for directors/shareholders: a stale `absent_from_latest_external` flag cannot hide a new absence or acknowledge someone who has reappeared before observation finishes. Management-only people stay on the stored flag. CTOS review clears until the extract fingerprint changes.
+- Admin CTOS column shows “Not found” only while absence still needs review.
+- Finance `people[]` keeps master AML for operational master people even when CTOS keys miss or mismatch. KYC Approved is not treated as AML Approved.
+- Application submit / Financial approve is based on onboarding + AML of visible people, not CTOS presence.
 
 ## 17) Platform Access vs Company Person (Duplicate-looking Rows)
 
@@ -297,6 +299,11 @@ Not currently enforced in reactivate:
 - Manual add does not auto-launch onboarding.
 - Individual onboarding/KYC send is via party onboarding send flow; requires actionable person + email + eligibility.
 - AML/KYB screening snapshots are stored in supplement `onboarding_json.screening` and/or org evidence JSON.
+- Admin People & Access exposes one per-person **Sync KYC/KYB and AML from RegTank** action for active directors/shareholders on issuer and company-investor profiles. It works for initial CTOS/onboarding people and later-added people, including after organization onboarding completes.
+- The admin sync first uses stored request IDs, then can discover missing KYC/KYB IDs from the parent COD and selected person’s EOD/child COD. Identity/SSM matching wins; email is never used and ambiguous matches are rejected.
+- A successful admin sync must persist the normalized party snapshot to `ctos_party_supplements.onboarding_json`. Provider or persistence failure keeps the last known snapshot.
+- Financial approve remains offline from RegTank and reads the merged portal `people[]` snapshot. The application nudge opens the People & Access Pending filter; it does not bypass verification.
+- When duplicate people rows for the same identity are merged, a rejected/failed AML or KYC snapshot wins over an approved one so financial approval cannot hide a recorded rejection.
 - Inactivate/reactivate does not reset historical evidence automatically.
 - Reactivate does not restart onboarding; it reuses effective evidence comparison.
 

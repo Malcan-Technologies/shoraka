@@ -11,5 +11,5 @@ export function AdminProductIdentity({
   imageS3Key?: string | null;
 }) {
   if (!name?.trim() && !imageS3Key?.trim()) return null;
-  return <ProductCatalogName name={name} imageS3Key={imageS3Key} size="xs" />;
+  return <ProductCatalogName name={name} imageS3Key={imageS3Key} size="xs" wrap />;
 }

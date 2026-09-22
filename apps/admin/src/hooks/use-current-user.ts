@@ -1,7 +1,17 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { createApiClient, useAuthToken } from "@cashsouk/config";
+import {
+  AuthMeRequestError,
+  AUTH_SESSION_UNAVAILABLE_MESSAGE,
+  authMeRetryDelayMs,
+  classifyAuthMeResult,
+  createApiClient,
+  createFixedAccessTokenGetter,
+  shouldRetryAuthMeFailure,
+  useAuthToken,
+  waitForHydratedAccessToken,
+} from "@cashsouk/config";
 import type { AdminPermission, AdminRoleKey, UserRole } from "@cashsouk/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -48,19 +58,34 @@ export function useCurrentUser() {
 
   return useQuery({
     queryKey: CURRENT_USER_QUERY_KEY,
-    queryFn: async () => {
-      const apiClient = createApiClient(API_URL, getAccessToken);
-      const result = await apiClient.get<MeResponse>("/v1/auth/me");
+    queryFn: async ({ signal }) => {
+      const token = await waitForHydratedAccessToken({
+        getAccessToken,
+        isCancelled: () => signal.aborted,
+      });
+      if (!token) {
+        throw new AuthMeRequestError({ status: "unauthenticated" });
+      }
 
+      const apiClient = createApiClient(API_URL, createFixedAccessTokenGetter(token));
+      const result = await apiClient.get<MeResponse>("/v1/auth/me");
+      const classified = classifyAuthMeResult(result);
+      if (classified.status !== "authenticated") {
+        throw new AuthMeRequestError(classified);
+      }
       if (!result.success) {
-        throw new Error(result.error.message);
+        throw new AuthMeRequestError({
+          status: "retryable",
+          message: AUTH_SESSION_UNAVAILABLE_MESSAGE,
+        });
       }
 
       return result.data;
     },
     staleTime: 5 * 60 * 1000, // Consider fresh for 5 minutes
     gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
-    retry: 1,
+    retry: shouldRetryAuthMeFailure,
+    retryDelay: authMeRetryDelayMs,
     refetchOnMount: false, // Don't refetch if data is fresh
     refetchOnWindowFocus: false,
   });

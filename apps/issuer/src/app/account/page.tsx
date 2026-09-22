@@ -30,7 +30,13 @@ import {
   BellIcon,
 } from "@heroicons/react/24/outline";
 import { ChangePasswordDialog } from "../../components/change-password-dialog";
-import { NotificationPreferences, PageShell, PortalBadge, RequiredBadge, VerifiedBadge } from "@cashsouk/ui";
+import {
+  NotificationPreferences,
+  PageShell,
+  PortalBadge,
+  RequiredBadge,
+  VerifiedBadge,
+} from "@cashsouk/ui";
 import { formatDistanceToNow } from "date-fns";
 import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
 import { CopyableField } from "@cashsouk/ui/copyable-field";
@@ -115,10 +121,7 @@ export default function AccountPage() {
   const [changePasswordOpen, setChangePasswordOpen] = React.useState(false);
 
   useEffect(() => {
-    if (
-      activeOrganization &&
-      !canAccessApplicantAccount(activeOrganization.onboardingStatus)
-    ) {
+    if (activeOrganization && !canAccessApplicantAccount(activeOrganization.onboardingStatus)) {
       router.replace("/");
     }
   }, [activeOrganization, router]);
@@ -273,8 +276,8 @@ export default function AccountPage() {
                     <RequiredBadge />
                   </div>
                   <p className="text-ui leading-5 text-muted-foreground">
-                    Set up or manage your authenticator during Cognito sign-in. 2FA cannot be
-                    turned off.
+                    Set up or manage your authenticator during Cognito sign-in. 2FA cannot be turned
+                    off.
                   </p>
                 </div>
 
@@ -334,9 +337,7 @@ export default function AccountPage() {
                   </div>
                   <div>
                     <CardTitle className="text-xl">Marketing emails</CardTitle>
-                    <CardDescription>
-                      Choose which promotional messages you receive
-                    </CardDescription>
+                    <CardDescription>Choose which promotional messages you receive</CardDescription>
                   </div>
                 </div>
               </CardHeader>

@@ -22,6 +22,7 @@ import { countProfileExternalReview } from "@/organizations/utils/organization-p
 export function OrganizationProfileOverviewCard({
   completeness,
   parties,
+  latestCtos,
   portal,
   organizationType,
   onCompleteProfile,
@@ -30,6 +31,7 @@ export function OrganizationProfileOverviewCard({
 }: {
   completeness: ComrepProfileCompleteness | null | undefined;
   parties: OrganizationPartyProfileDto[] | null | undefined;
+  latestCtos?: unknown;
   portal: "issuer" | "investor";
   organizationType: "PERSONAL" | "COMPANY";
   onCompleteProfile?: () => void;
@@ -39,7 +41,7 @@ export function OrganizationProfileOverviewCard({
   const percent = completeness?.percent ?? 0;
   const missingCount = completeness?.missing.length ?? 0;
   const complete = completeness?.complete ?? false;
-  const review = countProfileExternalReview(parties);
+  const review = countProfileExternalReview(parties, latestCtos);
   const needsAttention = !complete || review.total > 0;
   const sections =
     portal === "issuer"

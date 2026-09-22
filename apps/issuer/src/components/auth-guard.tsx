@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { AuthSessionUnavailableCard } from "@cashsouk/ui";
 import { useAuth } from "../lib/auth";
 import { isPublicIssuerPath } from "../lib/public-routes";
 
@@ -14,7 +15,7 @@ import { isPublicIssuerPath } from "../lib/public-routes";
  */
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, sessionUnavailable, retrySessionCheck } = useAuth();
 
   // OAuth callback must remain reachable without a portal session.
   const shouldSkipAuthGuard = isPublicIssuerPath(pathname);
@@ -22,6 +23,10 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   // Skip auth guard for callback page
   if (shouldSkipAuthGuard) {
     return <>{children}</>;
+  }
+
+  if (sessionUnavailable) {
+    return <AuthSessionUnavailableCard onRetry={retrySessionCheck} />;
   }
 
   // Show loading while checking authentication

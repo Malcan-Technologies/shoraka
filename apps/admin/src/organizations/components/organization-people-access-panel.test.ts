@@ -70,6 +70,16 @@ describe("Admin People & Access surface", () => {
     expect(detail).not.toContain("Remove access");
   });
 
+  it("lets organization managers sync a current director or shareholder from RegTank", () => {
+    expect(panel).toContain("syncRegTankStatus");
+    expect(panel).toContain("Sync KYC/KYB and AML from RegTank");
+    expect(detail).toContain("Sync KYC/KYB and AML from RegTank");
+    expect(detail).toContain('party?.membershipStatus === "MASTER_ACTIVE"');
+    expect(hook).toContain("refreshAdminPartyRegTankStatus");
+    expect(hook).toContain("RegTank status synced");
+    expect(hook).toContain("applicationsKeys.all");
+  });
+
   it("presents person detail without raw internal codes or vague sheet copy", () => {
     expect(panel).toContain('className="sr-only"');
     expect(panel).not.toContain("Admin evidence and actions for this row.");
@@ -104,7 +114,16 @@ describe("Admin People & Access surface", () => {
     expect(detail).toContain("Leave as CTOS observation");
     expect(detail).toContain("This does not save a separate decision.");
     expect(detail).toContain("Leave as current profile");
-    expect(detail).toContain("This does not mark the CTOS absence as reviewed.");
+    expect(detail).toContain("latestCtos={org.latestOrganizationCtosCompanyJson}");
+    expect(detail).toContain("partyNeedsCtosAbsenceReview(party, latestCtos)");
+    expect(panel).toContain("latestCtos: org.latestOrganizationCtosCompanyJson");
+    expect(detail).toContain("canManage && onKeepAbsent");
+    expect(detail).toContain("onKeepAbsent={canManage ? onKeepAbsent : undefined}");
+    expect(panel).toContain("acknowledgeAbsence");
+    expect(panel).toContain("reviewedExtractFingerprint: ctosExtractFingerprint(org.latestOrganizationCtosCompanyJson)");
+    expect(hook).toContain("acknowledgeCtosAbsence");
+    expect(hook).toContain("reviewedExtractFingerprint: input.reviewedExtractFingerprint");
+    expect(detail).toContain("You will be asked again if the latest CTOS information");
     expect(detail).toContain("This person was not found in the latest CTOS information.");
     expect(detail).toContain(
       "Inactive on the current company profile. This is not the same as removing platform access."

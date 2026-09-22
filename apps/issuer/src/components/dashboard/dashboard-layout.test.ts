@@ -33,6 +33,9 @@ describe("issuer dashboard layout", () => {
     expect(onboardingSource).toContain("What unlocks when you finish");
     expect(approvalSource).toContain("We are verifying your business");
     expect(approvalSource).toContain("Get ready to apply");
+    expect(approvalSource).toContain("<ul className=\"mt-4 divide-y divide-border\">");
+    expect(approvalSource).toContain("An unpaid invoice");
+    expect(approvalSource).not.toContain("sm:grid-cols-2");
     expect(newSource).toContain("Turn an unpaid invoice into cash");
     expect(activeSource).toContain("WhereThingsStandCard");
     expect(activeSource).toContain("IssuerDashboardFundingProgress");

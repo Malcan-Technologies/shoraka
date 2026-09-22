@@ -8,6 +8,7 @@ import {
   normalizeProspectusDeedOfAssignment,
   PROSPECTUS_ABOUT_INVOICE_ITEM_IDS,
   PROSPECTUS_HIGHLIGHT_KEYS,
+  MARC_ASSESSMENT_REQUIRED_MESSAGE,
 } from "@cashsouk/types";
 import { parseProspectusFinancialNumber } from "../prospectus/prospectus-financial-comparison-metrics";
 import {
@@ -58,8 +59,11 @@ export const prospectusReviewStoredContentSchema = z
           z
             .object({
               key: z.string(),
-              title: z.string().max(HIGHLIGHT_TITLE_MAX).optional().default(""),
-              description: z.string().max(HIGHLIGHT_DESCRIPTION_MAX).optional().default(""),
+              // Do NOT default empty strings here.
+              // Admin intentional blanks (title: "" / description: "") must remain authoritative.
+              // Missing fields should be treated as "not provided" so backend can apply recommendations.
+              title: z.string().max(HIGHLIGHT_TITLE_MAX).optional(),
+              description: z.string().max(HIGHLIGHT_DESCRIPTION_MAX).optional(),
               // Legacy catalogue fields accepted for parse only.
               optionKey: nullableOptionKey,
               isVisible: z.boolean().optional(),
@@ -466,6 +470,13 @@ export type ValidateApprovalContentOptions = {
    * and Page 2 Interest Coverage / DSCR / Receivables Days overrides are required for each year.
    */
   incomeStatementYears?: readonly string[];
+  /**
+   * MARC availability/completeness gate for Credit Insights readiness.
+   * - undefined = not evaluated yet (do not enforce)
+   * - false = MARC assessment required before approving
+   * - true = MARC is usable
+   */
+  hasMarcAssessment?: boolean;
 };
 
 function isPresentManualNumber(value: unknown): boolean {
@@ -479,6 +490,13 @@ export function validateApprovalContent(
   options?: ValidateApprovalContentOptions
 ): ProspectusReviewFieldError[] {
   const errors = validateDraftContent(content);
+
+  if (options?.hasMarcAssessment === false) {
+    errors.push({
+      path: "page2.marcAssessment",
+      message: MARC_ASSESSMENT_REQUIRED_MESSAGE,
+    });
+  }
 
   for (const key of PROSPECTUS_HIGHLIGHT_KEYS) {
     const hit = content.page1.keyInvestorHighlights.find((h) => h.key === key);

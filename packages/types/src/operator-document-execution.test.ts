@@ -15,6 +15,8 @@ import {
   emptyDocumentExecutionSlots,
   executionRoleHasSignDate,
   executionRoleSigningRole,
+  frozenAutomaticSignerLabel,
+  frozenAutomaticSignerName,
   frozenExecutionMergePerson,
   frozenPersonForRole,
   isAutomaticSignerProviderReady,
@@ -477,5 +479,57 @@ describe("operator document execution roles", () => {
         placements: snapshot.placements,
       })?.signingPersonId
     ).toBe("sp-1");
+  });
+});
+
+describe("frozen automatic signer labels", () => {
+  const snapshot = {
+    documentKind: "FA" as const,
+    signingPersonId: "sp-1",
+    officerName: "Aisha Rahman",
+    designation: "Chief Executive Officer",
+    identityNumber: "800101011234",
+    signingEmail: "aisha@cashsouk.com",
+    signatureS3Key: "operator-profile/signing-signatures/a.png",
+    signatureSha256: "abc123",
+    signatureWidthPx: 80,
+    signatureHeightPx: 40,
+    signatureByteSize: 1200,
+    signKeyword: "CASHSOUK_FA_SP1_SIGN",
+    placements: [] as Array<{
+      roleKey: "FA_INVESTOR" | "FA_ISSUER_WITNESS";
+      slotIndex: number;
+      keyword: string;
+      status: "PENDING";
+    }>,
+  };
+
+  it("uses authorised signatory or witness, not the officer designation", () => {
+    expect(frozenAutomaticSignerName(snapshot)).toBe("Aisha Rahman");
+    expect(
+      frozenAutomaticSignerLabel({
+        ...snapshot,
+        placements: [
+          { roleKey: "FA_INVESTOR", slotIndex: 1, keyword: "k", status: "PENDING" },
+        ],
+      })
+    ).toBe("Authorised Signatory");
+    expect(
+      frozenAutomaticSignerLabel({
+        ...snapshot,
+        placements: [
+          { roleKey: "FA_ISSUER_WITNESS", slotIndex: 1, keyword: "k", status: "PENDING" },
+        ],
+      })
+    ).toBe("Witness");
+    expect(
+      frozenAutomaticSignerLabel({
+        ...snapshot,
+        placements: [
+          { roleKey: "FA_INVESTOR", slotIndex: 1, keyword: "k1", status: "PENDING" },
+          { roleKey: "FA_ISSUER_WITNESS", slotIndex: 1, keyword: "k2", status: "PENDING" },
+        ],
+      })
+    ).toBe("Authorised Signatory, Witness");
   });
 });

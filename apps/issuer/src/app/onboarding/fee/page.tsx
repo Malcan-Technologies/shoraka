@@ -2,11 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   buildIssuerOnboardingFeeCallbackUrl,
-  createApiClient,
   getOnboardingStepperSteps,
   openCurlecFpxCheckout,
   resolvePortalCheckoutPayer,
@@ -28,7 +26,6 @@ import {
 import { ExclamationCircleIcon } from "@heroicons/react/24/solid";
 import { isAwaitingCompanyTnc } from "@/lib/issuer-onboarding-flow";
 import { ISSUER_ONBOARDING_FEE_RETURN_TO } from "@/lib/issuer-onboarding-fee-routes";
-import { IssuerCompanySealCard } from "@/components/issuer-company-seal-card";
 import {
   storeIssuerPendingOnboarding,
   useCreateIssuerOnboardingFeeMutation,
@@ -50,7 +47,6 @@ export default function OnboardingFeePage() {
   const { setTitle } = useHeader();
   const { getAccessToken } = useAuthToken();
   const { activeOrganization, isLoading: orgLoading } = useOrganization();
-  const apiClient = createApiClient(API_URL, getAccessToken);
   const createFee = useCreateIssuerOnboardingFeeMutation();
   const [confirmedFee, setConfirmedFee] = useState<IssuerOnboardingFeeResponse | null>(null);
   const [isOpeningCheckout, setIsOpeningCheckout] = useState(false);
@@ -69,37 +65,6 @@ export default function OnboardingFeePage() {
   const steps = activeOrganization
     ? getOnboardingStepperSteps(activeOrganization, "issuer", "fee")
     : [];
-
-  const sealQuery = useQuery({
-    queryKey: ["issuer-company-seal", activeOrganization?.id],
-    enabled: Boolean(activeOrganization?.id),
-    queryFn: async () => {
-      const res = await apiClient.getIssuerCompanySeal(activeOrganization!.id);
-      if (!res.success) throw new Error(res.error.message);
-      return res.data.seal;
-    },
-  });
-
-  const { data: currentUser } = useQuery({
-    queryKey: ["current-user"],
-    queryFn: async () => {
-      const result = await apiClient.get<{
-        userId: string;
-        user: {
-          first_name: string | null;
-          last_name: string | null;
-        };
-      }>("/v1/auth/me");
-      if (!result.success) throw new Error(result.error.message);
-      return result.data;
-    },
-    staleTime: 1000 * 60 * 5,
-  });
-
-  const canEditCompanySeal = Boolean(
-    activeOrganization?.isOwner ||
-      activeOrganization?.members?.find((m) => m.id === currentUser?.userId)
-  );
 
   useEffect(() => {
     setTitle("Onboarding");
@@ -127,13 +92,7 @@ export default function OnboardingFeePage() {
       !requiresRepayment &&
       (statusQuery.data?.latestPayment?.status === "COMPLETED" || statusQuery.data?.isPaid)
     ) {
-      if (sealQuery.isLoading) return;
-      if (sealQuery.data) {
-        router.replace("/onboarding/verify");
-        return;
-      }
-      setIsBootstrapping(false);
-      setError("Please upload a company seal in Issuer Profile to continue onboarding.");
+      router.replace("/onboarding/verify");
       return;
     }
 
@@ -146,8 +105,6 @@ export default function OnboardingFeePage() {
     router,
     statusQuery,
     suppressBootstrap,
-    sealQuery.isLoading,
-    sealQuery.data,
   ]);
 
   if (orgLoading || isBootstrapping) {
@@ -230,13 +187,7 @@ export default function OnboardingFeePage() {
       setConfirmedFee(fee);
 
       if (fee.status === "COMPLETED") {
-        const updatedSeal = await sealQuery.refetch();
-        if (updatedSeal.data) {
-          router.replace("/onboarding/verify");
-          return;
-        }
-        setError("Please upload a company seal in Issuer Profile to continue onboarding.");
-        setIsBootstrapping(false);
+        router.replace("/onboarding/verify");
         return;
       }
 
@@ -377,15 +328,6 @@ export default function OnboardingFeePage() {
                 </p>
               </CardContent>
             </Card>
-
-            {sealQuery.isLoading ? null : !sealQuery.data ? (
-              <div className="w-full pt-2">
-                <IssuerCompanySealCard
-                  organizationId={activeOrganization.id}
-                  canEdit={canEditCompanySeal}
-                />
-              </div>
-            ) : null}
           </div>
         </div>
       </div>

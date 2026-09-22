@@ -87,7 +87,7 @@ export function normalizeProviderStatus(raw: unknown): ShorakaProviderStatus {
 }
 
 export function getMalaysiaCutoffWarning(now: Date): string | null {
-  // Malaysia time: daily maintenance/cutoff around 23:30 - 00:30
+  // Malaysia time (MYT): daily maintenance/cutoff around 23:30 - 00:30
   const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Asia/Kuala_Lumpur",
     hour: "2-digit",
@@ -101,12 +101,12 @@ export function getMalaysiaCutoffWarning(now: Date): string | null {
   const minute = Number(minuteStr);
 
   const inWindow =
-    (hour === 23 && minute >= 30) ||
-    (hour === 0 && minute >= 0 && minute < 30);
+    // Block from 11:30 PM (inclusive) through 12:30 AM (inclusive).
+    (hour === 23 && minute >= 30) || (hour === 0 && minute >= 0 && minute <= 30);
 
   if (!inWindow) return null;
 
-  return "Shoraka orders cannot be submitted between 11:30 PM and 12:30 AM MYT because orders may remain Active and require cancellation. Please submit after 12:30 AM.";
+  return "Tawarruq trading is unavailable from 11:30 PM to 12:30 AM. Please try again after 12:30 AM.";
 }
 
 async function resolveOwnershipForIssuerDisbursement(args: {
@@ -479,7 +479,7 @@ export class ShorakaStpService {
     });
 
     const values: ShorakaSubmitOrderValues = {
-      product_type: "FINANCING",
+      product_type: "ACCOUNTS RECEIVABLE FINANCING",
       commodity_type: "000-COPPER",
       ownership,
       value_date: valueDateDDMMYYYY(now),

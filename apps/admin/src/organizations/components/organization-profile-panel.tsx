@@ -27,6 +27,7 @@ import {
   restrictScPostcodeInput,
   shouldShowOrganizationPersonalKycCard,
   validateInvestorPersonalForm,
+  validateInvestorResidentialAddressForm,
   personalInvestorIdentityFormatKind,
   validateIssuerAddressForm,
   validateIssuerCompanyForm,
@@ -194,6 +195,17 @@ export function OrganizationProfilePanel({
         return;
       }
     }
+    if (editingSection === "addresses" && portal === "investor" && org.type !== "COMPANY") {
+      const issues = validateInvestorResidentialAddressForm({
+        state: draft.residentialState,
+        postalCode: draft.residentialPostalCode,
+      });
+      if (issues.length > 0) {
+        setFieldErrors(issuesByField(issues));
+        toast.error(firstIssueMessage(issues));
+        return;
+      }
+    }
     if (editingSection === "personal" && portal === "investor" && org.type !== "COMPANY") {
       const identityNumberEditableForSave = isIdentityNumberEditable({
         portal,
@@ -203,8 +215,6 @@ export function OrganizationProfilePanel({
       const issues = validateInvestorPersonalForm({
         gender: draft.gender,
         nationality: draft.nationality,
-        state: draft.residentialState,
-        postalCode: draft.residentialPostalCode,
         ...(identityNumberEditableForSave
           ? {
               identityNumber: draft.identityNumber,

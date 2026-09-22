@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { humanizeApiValidationMessage, profileValidationErrorFromApi, type PortalType } from "@cashsouk/types";
+import { applicationsKeys } from "@/applications/query-keys";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -41,6 +42,44 @@ export function useOrganizationMasterPeople(portal: PortalType, organizationId: 
       toast.success("Person added to the current profile");
     },
     onError: (err: Error) => toast.error(humanizeApiValidationMessage(err.message)),
+  });
+
+  const acknowledgeAbsence = useMutation({
+    mutationFn: async (input: { partyId: string; reviewedExtractFingerprint: string }) => {
+      const res = await api.acknowledgeCtosAbsence(portal, organizationId, input.partyId, {
+        reviewedExtractFingerprint: input.reviewedExtractFingerprint,
+      });
+      if (!res.success) throw profileValidationErrorFromApi(res.error);
+      return res.data;
+    },
+    onSuccess: async () => {
+      await invalidate();
+      toast.success("Kept on the current profile");
+    },
+    onError: (err: Error) => toast.error(humanizeApiValidationMessage(err.message)),
+  });
+
+  const syncRegTankStatus = useMutation({
+    mutationFn: async (partyId: string) => {
+      const res = await api.refreshAdminPartyRegTankStatus(
+        portal,
+        organizationId,
+        partyId
+      );
+      if (!res.success) throw profileValidationErrorFromApi(res.error);
+      return res.data;
+    },
+    onSuccess: async (data) => {
+      await Promise.all([
+        invalidate(),
+        queryClient.invalidateQueries({ queryKey: applicationsKeys.all }),
+      ]);
+      toast.success("RegTank status synced", {
+        description: data.message,
+      });
+    },
+    onError: (err: Error) =>
+      toast.error(humanizeApiValidationMessage(err.message)),
   });
 
   const inactivate = useMutation({
@@ -101,5 +140,14 @@ export function useOrganizationMasterPeople(portal: PortalType, organizationId: 
     onError: (err: Error) => toast.error(humanizeApiValidationMessage(err.message)),
   });
 
-  return { resolve, adopt, inactivate, reactivate, resolveIdentityConflict, patchParty };
+  return {
+    resolve,
+    adopt,
+    acknowledgeAbsence,
+    syncRegTankStatus,
+    inactivate,
+    reactivate,
+    resolveIdentityConflict,
+    patchParty,
+  };
 }

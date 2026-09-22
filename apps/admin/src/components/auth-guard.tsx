@@ -2,11 +2,12 @@
 
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
+import { AuthSessionUnavailableCard } from "@cashsouk/ui";
 import { useAuth } from "../lib/auth";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { isAuthenticated, hasAdminRole } = useAuth();
+  const { isAuthenticated, hasAdminRole, sessionUnavailable, retrySessionCheck } = useAuth();
 
   const skipGuard = pathname === "/callback";
 
@@ -16,6 +17,10 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (skipGuard) {
     return <>{children}</>;
+  }
+
+  if (sessionUnavailable) {
+    return <AuthSessionUnavailableCard onRetry={retrySessionCheck} />;
   }
 
   // Show loading state while checking authentication

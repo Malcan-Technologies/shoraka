@@ -231,6 +231,7 @@ export const EVENT_CATALOGUE: Record<string, EventCatalogueEntry> = {
   PUBLISH: entry(EVENT_LAYER.NOTE_TIMELINE, "note_events", USER),
   PAUSE_LISTING: entry(EVENT_LAYER.NOTE_TIMELINE, "note_events", USER),
   RESUME_LISTING: entry(EVENT_LAYER.NOTE_TIMELINE, "note_events", USER),
+  EXTEND_LISTING: entry(EVENT_LAYER.NOTE_TIMELINE, "note_events", USER),
   CLOSE_FUNDING: entry(EVENT_LAYER.NOTE_TIMELINE, "note_events", USER),
   ISSUER_PAYMENT_SUBMITTED: entry(EVENT_LAYER.NOTE_TIMELINE, "note_events", USER),
   INVESTMENT_COMMITTED: entry(EVENT_LAYER.NOTE_TIMELINE, "note_events", USER),

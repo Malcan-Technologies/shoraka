@@ -16,9 +16,9 @@ This document describes the complete authentication system using AWS Cognito and
 
 ### Token Types
 
-- **Access Token**: Short-lived JWT (1 hour) used for API authentication
-- **ID Token**: Short-lived JWT (1 hour) containing user profile information
-- **Refresh Token**: Long-lived token (30 days) used to obtain new access/ID tokens
+- **Access Token**: Short-lived JWT (15 minutes) used for API authentication
+- **ID Token**: Short-lived JWT (15 minutes) containing user profile information
+- **Refresh Token**: Cognito lifetime is 30 days from sign-in (rotation replaces the value, does not extend expiry). Used to obtain new access/ID tokens. The HttpOnly refresh cookie is 60 minutes and is reset on successful refresh.
 
 ## Authentication Flow
 
@@ -49,15 +49,15 @@ User → Portal → Cognito Hosted UI → Backend Callback → Landing Callback 
 
 ### 2. Token Storage
 
-All tokens are stored in **cookies** (not HTTP-only, so Amplify can read them):
+Access and ID tokens are stored in cookies that JavaScript can read. The refresh token cookie is `HttpOnly`.
 
 - **Domain**: `.cashsouk.com` (production) or `localhost` (development)
 - **Secure**: `true` in production (HTTPS only)
 - **SameSite**: `lax` (allows cross-site redirects)
 - **Expiry**:
-  - Access/ID tokens: 1 hour
-  - Refresh token: 30 days
-  - LastAuthUser: 30 days
+  - Access/ID tokens: 15 minutes
+  - Refresh token cookie: 60 minutes, reset on successful refresh (idle cutoff). Cognito refresh token: 30 days from sign-in; rotation does not extend expiry.
+  - LastAuthUser: 60 minutes, reset on refresh
 
 ### 3. Automatic Token Refresh
 
@@ -260,7 +260,7 @@ Email change is a **two-step process** for security:
 
 1. Login to any portal
 2. Open browser DevTools → Application → Cookies
-3. Note the access token cookie expiry (1 hour)
+3. Note the access token cookie expiry (15 minutes)
 4. Wait for token to expire OR manually expire it:
    - Edit cookie expiry to past date
    - Refresh page
@@ -394,9 +394,9 @@ Email change is a **two-step process** for security:
 
 ### Token Storage
 
-- **Cookies vs Memory**: All tokens stored in cookies (not HTTP-only) so Amplify can manage them
+- **Cookies vs Memory**: Access and ID tokens are readable by the portal so Amplify can send them as Bearer tokens. The refresh token cookie is `HttpOnly`.
 - **Security**: Cookies use `secure: true` (HTTPS only) and `sameSite: lax` in production
-- **Refresh Token**: Long-lived (30 days) but only used for token refresh, never sent to API
+- **Refresh Token**: Cognito lifetime is 30 days from sign-in (rotation does not extend it). The HttpOnly refresh cookie is 60 minutes and is reset on successful refresh.
 
 ### Password Security
 
@@ -413,7 +413,7 @@ Email change is a **two-step process** for security:
 
 ### Session Security
 
-- Access tokens expire after 1 hour
+- Access tokens expire after 15 minutes
 - Automatic refresh via refresh token
 - Logout clears all tokens and Cognito session
 - Cross-site request protection via `sameSite: lax`

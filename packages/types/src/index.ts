@@ -129,7 +129,7 @@ export interface Activity {
   category: ActivityCategory;
   domain: ActivityDomain;
   event_type: string; // Displayed as "Event" in UI
-  activity: string;   // Backward-compatible alias for title.
+  activity: string; // Backward-compatible alias for title.
   title: string;
   description: string;
   metadata: JsonValue | null;
@@ -503,6 +503,7 @@ export interface InvoiceOfferDetails {
   sustainability_category?: import("./comrep-profile").ScSustainabilityCategory;
 }
 
+export * from "./password-policy";
 export * from "./deadline-config";
 export * from "./invoice-offer-risk-rating";
 export * from "./activity-config";
@@ -617,6 +618,7 @@ export * from "./profile-phone";
 export * from "./api-validation-message";
 export * from "./sc-appendix-a-countries";
 export * from "./organization-party-profile";
+export * from "./ctos-company-extract";
 export * from "./customer-person-profile";
 export * from "./organization-party-key";
 export * from "./onboarding-person-create";

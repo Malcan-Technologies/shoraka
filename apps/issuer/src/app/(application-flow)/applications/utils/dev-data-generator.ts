@@ -76,7 +76,7 @@ export function generateContractData(): Record<string, unknown> {
  */
 export function generateFinancialData(): Record<string, unknown> {
   const today = new Date();
-  const fyeIso = format(addDays(startOfDay(today), 400), "yyyy-MM-dd");
+  const fyeIso = format(addDays(startOfDay(today), 270), "yyyy-MM-dd");
   const qDev = { financial_year_end: fyeIso };
   const tabYears = getIssuerFinancialTabYears(qDev, today);
   const turnover = randomDecimal(500000, 5000000);

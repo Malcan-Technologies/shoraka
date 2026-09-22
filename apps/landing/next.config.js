@@ -2,6 +2,10 @@
 const { DEV_TUNNEL_ORIGINS } = require("../../packages/config/dev-tunnel-origins.cjs");
 const { NEXT_DEV_EXPERIMENTAL } = require("../../packages/config/next-dev-experimental.cjs");
 const { PLAIN_CSP } = require("../../packages/config/plain-csp-origins.cjs");
+const {
+  CSP_FRAME_ANCESTORS,
+  getSecurityHeaders,
+} = require("../../packages/config/security-headers.cjs");
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -42,8 +46,10 @@ const nextConfig = {
               `connect-src 'self' https://*.amazoncognito.com https://cognito-idp.ap-southeast-5.amazonaws.com https://*.auth.ap-southeast-5.amazoncognito.com https://auth.cashsouk.com https://api.cashsouk.com https://*.truestack.my http://localhost:4000 http://localhost:3000 ${PLAIN_CSP.connect}`,
               "frame-src 'self' https://*.amazoncognito.com https://*.auth.ap-southeast-5.amazoncognito.com https://auth.cashsouk.com",
               "form-action 'self' https://*.amazoncognito.com https://*.auth.ap-southeast-5.amazoncognito.com https://auth.cashsouk.com",
+              CSP_FRAME_ANCESTORS,
             ].join("; "),
           },
+          ...getSecurityHeaders(),
         ],
       },
     ];

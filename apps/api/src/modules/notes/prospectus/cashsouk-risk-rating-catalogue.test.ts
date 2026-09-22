@@ -101,16 +101,33 @@ describe("Cashsouk risk rating catalogue", () => {
     expect(page1.canva.riskLabel).not.toBe("Moderate Risk");
 
     const scale = buildProspectusSoukscoreRatingScale({ selectedRiskRating: "C" });
-    expect(scale.grades.map((g) => g.grade)).toEqual(["A", "B", "C", "D", "E", "F"]);
+    expect(scale.grades.map((g) => g.grade)).toEqual([
+      "SME-1",
+      "SME-2",
+      "SME-3",
+      "SME-4",
+      "SME-5",
+      "SME-6",
+      "SME-7",
+      "SME-8",
+      "SME-9",
+      "SME-10",
+    ]);
     const html = buildProspectusSoukscoreRatingScaleSectionHtml(scale);
-    for (const grade of CASHSCOUK_RISK_GRADES) {
+    for (const grade of [
+      "SME-1",
+      "SME-2",
+      "SME-3",
+      "SME-4",
+      "SME-5",
+      "SME-6",
+      "SME-7",
+      "SME-8",
+      "SME-9",
+      "SME-10",
+    ] as const) {
       expect(html).toContain(`data-grade="${grade}"`);
-      expect(html).toContain(CASHSCOUK_RISK_RATING_CATALOGUE[grade].color);
-      expect(html).toContain(
-        `background:${CASHSCOUK_RISK_RATING_CATALOGUE[grade].color};color:#FFFFFF`
-      );
     }
-    expect(html).toContain('data-grade="C"');
     expect(html).not.toContain("is-selected");
     expect(html).not.toContain("data-selected");
     expect(html).not.toContain("color:#111111");

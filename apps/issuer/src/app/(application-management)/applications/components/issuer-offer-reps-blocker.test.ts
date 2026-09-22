@@ -5,17 +5,21 @@ import {
   ISSUER_COMPANY_SEAL_VIEW_LINK_LABEL,
   ISSUER_SEAL_APPLIER_REQUIRED_MESSAGE,
   PROFILE_COMPANY_SEAL_HREF,
+  PROFILE_PEOPLE_HREF,
 } from "@cashsouk/types";
 import {
   GUARANTOR_PARTIES_REQUIRED_MESSAGE,
   ISSUER_COMPANY_SEAL_STATUS_ERROR_MESSAGE,
   ISSUER_COMPANY_SEAL_STATUS_LOADING_MESSAGE,
+  ISSUER_DIRECTOR_IC_REQUIRED_MESSAGE,
+  ISSUER_DIRECTOR_PERSON_EMAIL_REQUIRED_MESSAGE,
   ISSUER_DIRECTORS_REQUIRED_MESSAGE,
   issuerOfferRepsBlocker,
+  PROFILE_PEOPLE_ACCESS_LINK_LABEL,
 } from "./issuer-offer-reps-blocker";
 
 const ready = {
-  directorsReady: true,
+  directorIssue: null,
   guarantorsReady: true,
   requiresIssuerSeal: true,
   hasSealApplier: true,
@@ -40,9 +44,23 @@ describe("issuerOfferRepsBlocker", () => {
   });
 
   it("names the first incomplete representatives field", () => {
-    expect(issuerOfferRepsBlocker({ ...ready, directorsReady: false })?.message).toBe(
-      ISSUER_DIRECTORS_REQUIRED_MESSAGE
-    );
+    expect(
+      issuerOfferRepsBlocker({ ...ready, directorIssue: { kind: "none_selected" } })?.message
+    ).toBe(ISSUER_DIRECTORS_REQUIRED_MESSAGE);
+    expect(
+      issuerOfferRepsBlocker({ ...ready, directorIssue: { kind: "missing_email" } })
+    ).toEqual({
+      message: ISSUER_DIRECTOR_PERSON_EMAIL_REQUIRED_MESSAGE,
+      href: PROFILE_PEOPLE_HREF,
+      linkLabel: PROFILE_PEOPLE_ACCESS_LINK_LABEL,
+    });
+    expect(
+      issuerOfferRepsBlocker({ ...ready, directorIssue: { kind: "missing_ic" } })
+    ).toEqual({
+      message: ISSUER_DIRECTOR_IC_REQUIRED_MESSAGE,
+      href: PROFILE_PEOPLE_HREF,
+      linkLabel: PROFILE_PEOPLE_ACCESS_LINK_LABEL,
+    });
     expect(issuerOfferRepsBlocker({ ...ready, guarantorsReady: false })?.message).toBe(
       GUARANTOR_PARTIES_REQUIRED_MESSAGE
     );

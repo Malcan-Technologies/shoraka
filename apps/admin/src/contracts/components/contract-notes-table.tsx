@@ -12,7 +12,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { resolveContractNoteStatusBadge } from "@/contracts/utils/contract-note-status";
+import {
+  contractNoteDisplayFundedAmount,
+  resolveContractNoteStatusBadge,
+} from "@/contracts/utils/contract-note-status";
 import { adminActionRowClass } from "@/lib/admin-status-token";
 import { cn } from "@/lib/utils";
 
@@ -44,6 +47,7 @@ export function ContractNotesTable({ notes }: { notes: AdminContractNoteSummary[
       <TableBody>
         {notes.map((note) => {
           const status = resolveContractNoteStatusBadge(note);
+          const fundedAmount = contractNoteDisplayFundedAmount(note);
           const sourceInvoiceLabel = note.sourceInvoiceId
             ? formatInvoiceReference({
                 displayReference: note.sourceInvoiceDisplayReference,
@@ -71,9 +75,9 @@ export function ContractNotesTable({ notes }: { notes: AdminContractNoteSummary[
               </TableCell>
               <TableCell className="text-right tabular-nums">
                 <p className="font-medium">{formatCurrency(note.targetAmount)}</p>
-                {note.fundedAmount > 0 && note.fundedAmount !== note.targetAmount ? (
+                {fundedAmount > 0 && fundedAmount !== note.targetAmount ? (
                   <p className="text-meta text-muted-foreground">
-                    Funded {formatCurrency(note.fundedAmount)}
+                    Funded {formatCurrency(fundedAmount)}
                   </p>
                 ) : null}
                 {note.invoiceFaceAmount != null ? (

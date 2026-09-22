@@ -4,6 +4,7 @@ import * as React from "react";
 import { Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { parseCookieHeader } from "@cashsouk/config";
 
 const INVESTOR_URL = process.env.NEXT_PUBLIC_INVESTOR_URL || "http://localhost:3002";
 const ISSUER_URL = process.env.NEXT_PUBLIC_ISSUER_URL || "http://localhost:3001";
@@ -39,15 +40,7 @@ function CallbackPageContent() {
           return;
         }
 
-        // Get all cookies
-        const cookies = document.cookie.split(";").reduce(
-          (acc, cookie) => {
-            const [key, value] = cookie.trim().split("=");
-            acc[key] = value;
-            return acc;
-          },
-          {} as Record<string, string>
-        );
+        const cookies = parseCookieHeader(document.cookie);
 
         // Find the LastAuthUser cookie to get the cognito user ID
         const lastAuthUserKey = `CognitoIdentityServiceProvider.${clientId}.LastAuthUser`;

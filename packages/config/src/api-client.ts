@@ -236,6 +236,7 @@ type AdminApplicationDetail = Application &
       id?: string;
       contract_details?: Record<string, unknown> | null;
       customer_details?: Record<string, unknown> | null;
+      offer_details?: unknown;
       status?: string;
       invoices?: Array<{
         id: string;
@@ -792,6 +793,17 @@ export class ApiClient {
     );
   }
 
+  async refreshAdminPartyRegTankStatus(
+    portal: "investor" | "issuer",
+    organizationId: string,
+    partyId: string
+  ): Promise<ApiResponse<{ message: string; refreshedSources: string[] }> | ApiError> {
+    return this.post<{ message: string; refreshedSources: string[] }>(
+      `/v1/admin/organizations/${portal}/${organizationId}/party-profiles/${partyId}/refresh-status`,
+      {}
+    );
+  }
+
   async resolvePartyMismatch(
     portal: "investor" | "issuer",
     organizationId: string,
@@ -800,6 +812,18 @@ export class ApiClient {
   ): Promise<ApiResponse<OrganizationPartyProfileDto> | ApiError> {
     return this.post<OrganizationPartyProfileDto>(
       `/v1/admin/organizations/${portal}/${organizationId}/party-profiles/${partyId}/resolve-mismatch`,
+      input
+    );
+  }
+
+  async acknowledgeCtosAbsence(
+    portal: "investor" | "issuer",
+    organizationId: string,
+    partyId: string,
+    input: { reviewedExtractFingerprint: string }
+  ): Promise<ApiResponse<OrganizationPartyProfileDto> | ApiError> {
+    return this.post<OrganizationPartyProfileDto>(
+      `/v1/admin/organizations/${portal}/${organizationId}/party-profiles/${partyId}/acknowledge-ctos-absence`,
       input
     );
   }
@@ -1659,6 +1683,13 @@ export class ApiClient {
 
   async resumeAdminNoteListing(id: string): Promise<ApiResponse<NoteDetail> | ApiError> {
     return this.post<NoteDetail>(`/v1/admin/notes/${id}/listing/resume`, {});
+  }
+
+  async extendAdminNoteListing(
+    id: string,
+    input: { closesAt: string; reason: string }
+  ): Promise<ApiResponse<NoteDetail> | ApiError> {
+    return this.post<NoteDetail>(`/v1/admin/notes/${id}/listing/extend`, input);
   }
 
   async closeAdminNoteFunding(id: string): Promise<ApiResponse<NoteDetail> | ApiError> {

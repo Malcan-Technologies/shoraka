@@ -257,7 +257,18 @@ describe("prospectus boss-review alignment", () => {
       const grades = SAMPLE_PROSPECTUS_PAGE_TWO.soukscoreRatingScale.grades.map(
         (g) => g.grade
       );
-      expect(grades).toEqual(["A", "B", "C", "D", "E", "F"]);
+      expect(grades).toEqual([
+        "SME-1",
+        "SME-2",
+        "SME-3",
+        "SME-4",
+        "SME-5",
+        "SME-6",
+        "SME-7",
+        "SME-8",
+        "SME-9",
+        "SME-10",
+      ]);
       expect(grades).not.toContain("A-");
     });
   });

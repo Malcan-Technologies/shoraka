@@ -99,6 +99,7 @@ describe("Person identity card CTOS indicator", () => {
   it("keeps CTOS comparison for Admin and hides it on customer identity cards", () => {
     expect(ctos).toContain("It does NOT merely mean the record originally came from CTOS");
     expect(ctos).toContain("aria-label={comparison.tooltip}");
+    expect(ctos).toContain("ACKNOWLEDGED:");
     expect(card).not.toContain("PartyCtosIndicator");
   });
 

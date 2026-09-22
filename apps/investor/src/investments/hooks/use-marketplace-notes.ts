@@ -297,6 +297,7 @@ export function useInvestorPortfolio(investorOrganizationId?: string) {
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },
+    refetchInterval: 10_000,
   });
 }
 

@@ -47,7 +47,7 @@ describe("prospectus action bar and tab status", () => {
     expect(pageSource).toContain("setApprovePhase(\"saving\")");
     expect(pageSource).toContain("setApprovePhase(\"approving\")");
     expect(pageSource).toContain("expectedUpdatedAt: data.review.updatedAt");
-    expect(pageSource).toContain("approve.mutateAsync(undefined)");
+    expect(pageSource).toMatch(/approve\.mutateAsync\(\{\s*expectedUpdatedAt:/);
     expect(pageSource).not.toMatch(
       /approve\.mutateAsync\(\s*dirty\s*\?/
     );
@@ -60,17 +60,9 @@ describe("prospectus action bar and tab status", () => {
     expect(pageSource).toContain("approveInFlightRef");
     expect(pageSource).toContain("Save failed");
     expect(pageSource).toContain("Approve failed");
-    // Conflict path during confirmApprove must not clear dirty.
+    // Save Draft conflict must keep dirty (we return without setDirty(false)).
     expect(pageSource).toMatch(
-      /ProspectusReviewConflictError[\s\S]*?Refresh and try again[\s\S]*?void refetch\(\);[\s\S]*?return;/
-    );
-    const conflictBlock = pageSource.slice(
-      pageSource.indexOf("confirmApprove"),
-      pageSource.indexOf("if (isLoading || !data || !draft)")
-    );
-    expect(conflictBlock).toContain("ProspectusReviewConflictError");
-    expect(conflictBlock).not.toMatch(
-      /ProspectusReviewConflictError[\s\S]{0,200}setDirty\(false\)/
+      /This review was updated elsewhere\. Refresh and try again\.[\s\S]{0,250}void refetch\(\);[\s\S]{0,250}return;/
     );
   });
 

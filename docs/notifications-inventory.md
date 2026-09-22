@@ -139,6 +139,7 @@ They are not always the same. This register lists all three.
 | NTF-NTE-003 | Note Funding Did Not Complete | `note_funding_failed_issuer` | Funding Unsuccessful | Funding fail | Issuer organisation members | Issuer | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | Paired with investor type |
 | NTF-NTE-004 | Note Is Active | `note_active_issuer` | Note active | Note activated | Issuer organisation members | Issuer | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | — |
 | NTF-NTE-005 | Note Repaid | `note_repaid_issuer` | Note repaid | Note fully repaid | Issuer organisation members | Issuer | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | Investors get Settlement Posted instead |
+| NTF-NTE-006 | Campaign extended | `note_campaign_extended_issuer` | Campaign extended | Admin extends a live listing close | Issuer organisation members | Issuer | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | Paired with investor type |
 
 ### Investments
 
@@ -147,6 +148,7 @@ They are not always the same. This register lists all three.
 | NTF-CMT-001 | Commitment Released | `note_funding_failed_investor` | Funding Unsuccessful | Same funding fail | Members of investing organisations | Investor | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | Paired with issuer type |
 | NTF-CMT-002 | Investment Is Active | `note_active_investor` | Note active | Same activation | Investors on the Note | Investor | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | — |
 | NTF-CMT-003 | Investment Committed | `investment_committed` | Investment committed | Investor commits to a Note | Acting investor | Investor | Automatic | Yes | Yes | Yes | In-app; email off in seed (Admin can enable) | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | — |
+| NTF-CMT-004 | Listing deadline extended | `note_campaign_extended_investor` | Listing deadline extended | Same listing extend | Members of investing organisations with a reserved commitment | Investor | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | Paired with issuer type |
 
 ### Payments
 

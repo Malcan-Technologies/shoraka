@@ -50,6 +50,9 @@ import { getEffectiveReviewTabDescriptors } from "@/lib/effective-review-tab-des
 import {
   canManageReviewSection,
   collapseOfferAcceptanceDescriptors,
+  buildOfferAcceptanceStageModel,
+  deriveMergedSectionStatus,
+  OFFER_ACCEPTANCE_TAB_ID,
   isOfferAcceptanceTabDescriptor,
   resolveSectionActionLock,
   type SectionActionLockMap,
@@ -68,7 +71,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
-import { createApiClient, useAuthToken } from "@cashsouk/config";
+import { createApiClient, resolveRequestedFacility, useAuthToken } from "@cashsouk/config";
 import {
   computeHasPendingDirectorShareholder,
   formatApplicationReference,
@@ -86,10 +89,12 @@ import {
   readInvoiceProductRules,
   readContractProductRules,
   readProductLimitViolationMessage,
+  workflowHasAcceptanceDocuments,
+  workflowHasSigningPackage,
   type ApplicationPersonRow,
   type ReviewItemType,
 } from "@cashsouk/types";
-import { orgHref } from "@/lib/admin-directory-hrefs";
+import { orgHref, orgPeopleAccessHref } from "@/lib/admin-directory-hrefs";
 import { ApplicationDetailHero } from "@/applications/application-detail-hero";
 import {
   applicationFinancingStructureLabel,
@@ -706,6 +711,116 @@ export default function DynamicApplicationDetailPage() {
     tabPrerequisitesFromApi,
   ]);
 
+  const offerAcceptanceDotStatus = React.useMemo((): string | null => {
+    if (!app) return null;
+    const unifiedTab = liveTabDescriptors.find(isOfferAcceptanceTabDescriptor);
+    if (!unifiedTab?.mergedSections?.length) return null;
+
+    const mergedStatuses = unifiedTab.mergedSections.map(
+      (section) => sectionStatusMap.get(section) ?? "PENDING"
+    );
+    const mergedStatus = deriveMergedSectionStatus(mergedStatuses);
+
+    const reviewItems =
+      (app.application_review_items as { item_type: string; item_id: string; status: string }[]) ??
+      [];
+    const invoices = (app.invoices ?? []).map((inv) => ({
+      id: inv.id,
+      status: inv.status,
+      offer_details: inv.offer_details,
+      contract_id: inv.contract_id,
+      details: inv.details,
+    }));
+
+    const structureTypeForStage =
+      (app?.financing_structure as { structure_type?: string } | null | undefined)?.structure_type ??
+      "new_contract";
+    const inherited = structureTypeForStage === "existing_contract" ? app.inherited_acceptance ?? null : null;
+    const isInheritedAcceptance = structureTypeForStage === "existing_contract" && inherited != null;
+    const sourceRef =
+      app.inherited_guarantors?.source_display_reference ??
+      (inherited as { source_display_reference?: string | null } | null)?.source_display_reference ??
+      null;
+
+    const hasAcceptanceDocumentsSection =
+      reviewProductWorkflow != null
+        ? workflowHasAcceptanceDocuments(reviewProductWorkflow)
+        : Boolean(unifiedTab.mergedSections?.includes("acceptance_documents"));
+
+    const hasSigningPackage =
+      reviewProductWorkflow != null
+        ? workflowHasSigningPackage(reviewProductWorkflow)
+        : Boolean(unifiedTab.mergedSections?.includes("acceptance_documents"));
+
+    const stageModel = buildOfferAcceptanceStageModel({
+      structureType: structureTypeForStage,
+      contractStatus: app.contract?.status,
+      contractDetails: app.contract?.contract_details,
+      contractOfferDetails: app.contract?.offer_details,
+      invoices,
+      selectedInvoiceId: null,
+      sectionStatuses: sectionStatusMap,
+      reviewItems,
+      signingEnvelopes,
+      sectionLocks: sectionActionLocks,
+      applicationWithdrawn: app.status === "WITHDRAWN",
+      hasAcceptanceDocumentsSection,
+      hasSigningPackage,
+      sourceApplicationDisplayReference: sourceRef,
+      canManageSigning: canAppManage && !isInheritedAcceptance,
+    });
+
+    const workflowStages = stageModel.stages.filter((s) => s.kind !== "reference");
+    const offerAcceptanceComplete = workflowStages.every((s) => s.tone === "done");
+    const hasRejected = workflowStages.some((s) => s.tag === "Rejected");
+    const hasDeclined = workflowStages.some((s) => s.tag === "Declined");
+    const hasExpired = workflowStages.some((s) => s.tag === "Expired");
+
+    if (hasRejected) return "REJECTED";
+    if (hasDeclined) return "DECLINED";
+    if (hasExpired) return "OFFER_EXPIRED";
+    if (offerAcceptanceComplete) return "APPROVED";
+    const currentStage = stageModel.stages.find((s) => s.id === stageModel.currentStageId);
+    const tone = currentStage?.tone;
+
+    // The Offer & acceptance stage badge chrome is tone-driven:
+    // - tone=action   => Yellow/amber (StatusBadge status="action")
+    // - tone=wait     => Blue (StatusBadge status="submitted")
+    // - tone=locked   => Grey/neutral (StatusBadge status="neutral")
+    //
+    // Keep the tab dot aligned to the same color family by mapping tone → an
+    // existing status token with the matching presentation group.
+    if (tone === "action") return "OFFER_SENT";
+    if (tone === "wait") {
+      // Facility vs invoice only affects which "pending" token exists.
+      return stageModel.offerType === "facility" ? "CONTRACT_PENDING" : "INVOICE_PENDING";
+    }
+    if (tone === "locked") return "PENDING";
+
+    // Fallback: preserve original merged-section status behavior for any unexpected tone.
+    return mergedStatus;
+  }, [
+    app,
+    canAppManage,
+    liveTabDescriptors,
+    reviewProductWorkflow,
+    sectionActionLocks,
+    sectionStatusMap,
+    signingEnvelopes,
+  ]);
+
+  const reviewSectionsForDots = React.useMemo(() => {
+    if (!offerAcceptanceDotStatus) return reviewSections;
+    if (reviewSections.some((s) => s.section === OFFER_ACCEPTANCE_TAB_ID)) return reviewSections;
+    return [
+      ...reviewSections,
+      {
+        section: OFFER_ACCEPTANCE_TAB_ID,
+        status: offerAcceptanceDotStatus,
+      },
+    ];
+  }, [offerAcceptanceDotStatus, reviewSections]);
+
   const handleApproveSection = (section: string) => {
     setNoteDialog({ open: true, action: "approve", section: section as ReviewSectionId });
   };
@@ -927,8 +1042,7 @@ export default function DynamicApplicationDetailPage() {
       );
     }
     if (app.contract?.contract_details) {
-      const cd = app.contract.contract_details as Record<string, unknown>;
-      return parseFloat(String(cd?.value ?? cd?.approved_facility ?? 0));
+      return resolveRequestedFacility(app.contract.contract_details as Record<string, unknown>);
     }
     return 0;
   }, [app]);
@@ -963,6 +1077,16 @@ export default function DynamicApplicationDetailPage() {
                     !isFinalApplicationForAmlGate &&
                     computeHasPendingDirectorShareholder(applicationPeople)
                   }
+                  directorPendingHref={
+                    can("organizations.view") &&
+                    app.issuer_organization_id
+                      ? orgPeopleAccessHref(
+                          "issuer",
+                          app.issuer_organization_id,
+                          { filter: "pending" }
+                        )
+                      : null
+                  }
                   requestedAmount={requestedAmount}
                   ownerName={`${app.issuer_organization.owner.first_name} ${app.issuer_organization.owner.last_name}`}
                   email={app.issuer_organization.owner.email}
@@ -993,7 +1117,7 @@ export default function DynamicApplicationDetailPage() {
                 <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_minmax(380px,440px)]">
                   <div className="min-w-0 space-y-6">
                     <ApplicationReviewTabs
-                    sections={reviewSections}
+                    sections={reviewSectionsForDots}
                     tabDescriptors={liveTabDescriptors}
                     defaultTabId={defaultReviewTabId}
                     tabValue={activeReviewTabId}

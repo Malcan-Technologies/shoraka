@@ -38,6 +38,7 @@ import { IssuerFinancialsCard } from "../../components/issuer-financials-card";
 import { toast } from "sonner";
 import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
+import { FeeReceiptActions } from "@/components/fee-receipt-actions";
 import {
   PageShell,
   PeopleAccessSection,
@@ -56,6 +57,7 @@ import {
   issuerFieldChromeClassName,
   issuerFieldFocusWithinOpenClassName,
 } from "@/lib/issuer-input-chrome";
+import { useIssuerOnboardingFeeStatusQuery } from "@/hooks/use-issuer-onboarding-fee";
 import {
   UserIcon,
   BuildingOffice2Icon,
@@ -284,6 +286,8 @@ export default function ProfilePage() {
     organizations,
     updateOrganizationProfile,
   } = useOrganization();
+
+  const feeStatusQuery = useIssuerOnboardingFeeStatusQuery(activeOrganization?.id);
 
   const visiblePeopleForDsAlert = React.useMemo(
     () => filterVisiblePeopleRows(activeOrganization?.people ?? []),
@@ -975,6 +979,20 @@ export default function ProfilePage() {
                   </div>
                 </div>
               )}
+
+              {feeStatusQuery.data?.latestPayment?.status === "COMPLETED" &&
+              feeStatusQuery.data?.latestPayment?.id ? (
+                <div>
+                  <p className="text-sm font-semibold">Onboarding Fee Receipt</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    View or download your receipt for this payment.
+                  </p>
+                  <FeeReceiptActions
+                    endpoint={`/v1/issuer/onboarding-fee/${feeStatusQuery.data.latestPayment.id}/receipt/pdf`}
+                    receiptActionLabel="onboarding fee receipt"
+                  />
+                </div>
+              ) : null}
 
               {!isPersonal && activeOrganization?.id ? (
                 <div ref={companySectionRef}>

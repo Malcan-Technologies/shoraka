@@ -1,5 +1,8 @@
 import {
   financingKindToStatusToken,
+  resolveFundingDisplayFundedAmount,
+  resolveFundingProgressPercent,
+  resolveFundingStatusText,
   resolveIssuerContractDashboardBadge,
   resolveIssuerInvoiceDashboardBadge,
 } from "./issuer-dashboard-labels";
@@ -126,5 +129,115 @@ describe("resolveIssuerInvoiceDashboardBadge pending listing", () => {
         "APPROVED"
       )
     ).toBe("pending_listing");
+  });
+});
+
+describe("fail-funding invoice display", () => {
+  const note = (overrides: Partial<IssuerDashboardNote>): IssuerDashboardNote => ({
+    id: "n1",
+    noteReference: "N-1",
+    noteStatus: "ACTIVE",
+    listingStatus: "PUBLISHED",
+    noteListingStatus: "PUBLISHED",
+    fundingStatus: "FUNDED",
+    servicingStatus: "CURRENT",
+    targetAmount: "8333.33",
+    fundedAmount: "400",
+    fundingProgressPercent: 5,
+    minimumFundingPercent: "80",
+    fundingDeadline: null,
+    maturityDate: null,
+    marketplaceStatusLabel: null,
+    investorCount: 1,
+    disbursementBreakdown: null,
+    ...overrides,
+  });
+
+  it("zeros progress so fail-funded copy is Funding did not complete", () => {
+    const failed = note({
+      noteStatus: "FAILED_FUNDING",
+      fundingStatus: "FAILED",
+      servicingStatus: "NOT_STARTED",
+    });
+    expect(resolveFundingProgressPercent(failed)).toBe(0);
+    expect(resolveFundingDisplayFundedAmount(failed)).toBe(0);
+    expect(resolveFundingStatusText(failed)).toBe("Funding did not complete");
+  });
+
+  it("also zeros when note status is FAILED_FUNDING but funding status is CLOSED", () => {
+    const failed = note({
+      noteStatus: "FAILED_FUNDING",
+      fundingStatus: "CLOSED",
+      servicingStatus: "NOT_STARTED",
+    });
+    expect(resolveFundingProgressPercent(failed)).toBe(0);
+    expect(resolveFundingStatusText(failed)).toBe("Funding did not complete");
+  });
+
+  it("keeps the real raise on open, funded, and repaid notes", () => {
+    expect(
+      resolveFundingStatusText(
+        note({
+          noteStatus: "PUBLISHED",
+          fundingStatus: "OPEN",
+          servicingStatus: "NOT_STARTED",
+        })
+      )
+    ).toBe("Funding status 5% funded (RM 400.00)");
+    expect(
+      resolveFundingProgressPercent(
+        note({
+          noteStatus: "ACTIVE",
+          fundingStatus: "FUNDED",
+          fundedAmount: "8000",
+          fundingProgressPercent: 100,
+        })
+      )
+    ).toBe(100);
+    expect(
+      resolveFundingDisplayFundedAmount(
+        note({
+          noteStatus: "ACTIVE",
+          fundingStatus: "FUNDED",
+          fundedAmount: "8000",
+          fundingProgressPercent: 100,
+        })
+      )
+    ).toBe(8000);
+    expect(
+      resolveFundingStatusText(
+        note({
+          noteStatus: "ACTIVE",
+          fundingStatus: "FUNDED",
+          fundedAmount: "8000",
+          fundingProgressPercent: 100,
+        })
+      )
+    ).toBe("Funding status 100% funded (RM 8,000.00)");
+    expect(
+      resolveFundingStatusText(
+        note({
+          noteStatus: "REPAID",
+          fundingStatus: "FUNDED",
+          servicingStatus: "SETTLED",
+          fundedAmount: "8000",
+          fundingProgressPercent: 100,
+        })
+      )
+    ).toBe("Funding status 100% funded (RM 8,000.00)");
+  });
+
+  it("keeps the real raise on defaulted notes that did fund", () => {
+    expect(
+      resolveFundingStatusText(
+        note({
+          noteStatus: "DEFAULTED",
+          fundingStatus: "FUNDED",
+          servicingStatus: "DEFAULTED",
+          fundedAmount: "8000",
+          fundingProgressPercent: 100,
+        })
+      )
+    ).toBe("Funding status 100% funded (RM 8,000.00)");
   });
 });

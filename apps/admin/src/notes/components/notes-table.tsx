@@ -37,12 +37,14 @@ interface NotesTableProps {
   canCreate?: boolean;
 }
 
+const NOTES_TABLE_COLUMN_COUNT = 8;
+
 function TableSkeleton() {
   return (
     <>
       {Array.from({ length: 5 }).map((_, index) => (
         <TableRow key={index}>
-          {Array.from({ length: 13 }).map((__, cellIndex) => (
+          {Array.from({ length: NOTES_TABLE_COLUMN_COUNT }).map((__, cellIndex) => (
             <TableCell key={cellIndex}>
               <Skeleton className="h-5 w-24" />
             </TableCell>
@@ -112,32 +114,24 @@ export function NotesTable({
   return (
     <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
       <div className="w-full overflow-x-auto">
-        <Table className="w-full min-w-[80rem] table-fixed">
+        <Table className="w-full min-w-[72rem] table-fixed">
           <colgroup>
+            <col className="w-[24%]" />
             <col className="w-[8%]" />
-            <col className="w-[11%]" />
-            <col className="w-[7%]" />
-            <col className="w-[6%]" />
-            <col className="w-[8%]" />
-            <col className="w-[8%]" />
-            <col className="w-[8%]" />
-            <col className="w-[8%]" />
-            <col className="w-[8%]" />
-            <col className="w-[9%]" />
-            <col className="w-[6%]" />
-            <col className="w-[8%]" />
+            <col className="w-[10%]" />
+            <col className="w-[12%]" />
+            <col className="w-[16%]" />
+            <col className="w-[10%]" />
+            <col className="w-[10%]" />
             <col className="w-[10%]" />
           </colgroup>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
-              <TableHead className="truncate">Reference</TableHead>
-              <TableHead className="truncate">Note / Invoice</TableHead>
-              <TableHead className="truncate" title="Approved or published prospectus">Prospectus</TableHead>
+              <TableHead className="truncate">Note</TableHead>
               <TableHead className="truncate">Risk</TableHead>
-              <TableHead className="truncate">Facility</TableHead>
               <SortableTableHead
                 column="settlementAmt"
-                label="Settlement amt"
+                label="Amount"
                 title="Invoice settlement amount"
                 activeColumn={sortColumn}
                 direction={sortDirection}
@@ -150,11 +144,9 @@ export function NotesTable({
                 direction={sortDirection}
                 onSort={onSort}
               />
-              <TableHead className="truncate">Status</TableHead>
-              <TableHead className="truncate">DPD</TableHead>
-              <TableHead className="truncate">Settlement</TableHead>
+              <TableHead className="min-w-[13rem] truncate">Status</TableHead>
               <TableHead className="truncate" title="Settlement trustee instruction after posting">
-                Trustee instruction
+                Trustee
               </TableHead>
               <SortableTableHead
                 column="maturity"
@@ -163,7 +155,7 @@ export function NotesTable({
                 direction={sortDirection}
                 onSort={onSort}
               />
-              <TableHead className="whitespace-nowrap">Actions</TableHead>
+              <TableHead className="text-center whitespace-nowrap last:pr-2">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -171,7 +163,7 @@ export function NotesTable({
               <TableSkeleton />
             ) : sortedRows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={13} className="py-10 text-center text-muted-foreground">
+                <TableCell colSpan={NOTES_TABLE_COLUMN_COUNT} className="py-10 text-center text-muted-foreground">
                   No approved invoices or notes found
                 </TableCell>
               </TableRow>

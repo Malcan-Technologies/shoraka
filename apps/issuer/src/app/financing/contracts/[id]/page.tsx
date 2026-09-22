@@ -66,6 +66,7 @@ import { resolveIssuerFacilityFeeBalance, resolveIssuerFacilityGate } from "@/li
 import { FacilityFeeReturnListener } from "@/components/facility-fee-return-listener";
 import { FacilityFeeDrawdownBlockedNotice } from "@/components/financing/facility-fee-drawdown-blocked";
 import { FacilityFeePaymentCard } from "@/components/financing/facility-fee-payment-card";
+import { shouldShowIssuerFacilityFeePaymentCard } from "@/lib/facility-fee-payment-ui";
 import {
   FacilityDisabledBanner,
   FacilityFeeBalanceSummary,
@@ -386,7 +387,10 @@ function ContractDetailsPageContent() {
         </CardContent>
       </Card>
 
-      {row.contractStatus === "APPROVED" && row.facilityFeeUpfrontAmount != null ? (
+      {shouldShowIssuerFacilityFeePaymentCard({
+        contractStatus: row.contractStatus,
+        outstanding: row.facilityFeeUpfrontOutstanding,
+      }) && row.facilityFeeUpfrontAmount != null ? (
         <FacilityFeePaymentCard
           contractId={contractId}
           upfrontAmount={row.facilityFeeUpfrontAmount}

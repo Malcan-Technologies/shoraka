@@ -305,6 +305,17 @@ describe("peopleAccessKycChipPresentation / peopleAccessAmlChipPresentation", ()
       )?.label
     ).toBe("Approved");
   });
+
+  it("does not show AML Approved from KYC Approved when screening is empty", () => {
+    const eligible = person({ matchKey: "p1", roles: ["DIRECTOR"] });
+    expect(
+      peopleAccessAmlChipPresentation({
+        ...eligible,
+        onboarding: { status: "APPROVED" },
+        screening: null,
+      })?.label
+    ).toBe("Not Started");
+  });
 });
 
 describe("buildPeopleAccessRows", () => {

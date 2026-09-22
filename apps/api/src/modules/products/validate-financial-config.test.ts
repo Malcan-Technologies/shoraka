@@ -41,6 +41,153 @@ describe("validateWorkflowFinancialConfig financing ratio cap", () => {
   });
 });
 
+describe("validateFinancialConfig mandatory workflow step set (Financing Structure / Facility Details / Invoice Details)", () => {
+  const mandatoryMessage =
+    "Financing Structure, Facility Details, and Invoice Details must all be selected and appear in the correct order.";
+
+  it("rejects Financing Type + Declarations only", () => {
+    const workflow = [{ id: "financing_type", config: {} }, { id: "declarations", config: {} }];
+    expect(() => validateFinancialConfig({ workflow })).toThrow(AppError);
+    try {
+      validateFinancialConfig({ workflow });
+    } catch (err) {
+      expect(err).toMatchObject({
+        statusCode: 400,
+        code: "VALIDATION_ERROR",
+        message: mandatoryMessage,
+      });
+    }
+  });
+
+  it("rejects only Financing Structure", () => {
+    const workflow = [{ id: "financing_structure", config: {} }, { id: "declarations", config: {} }];
+    expect(() => validateFinancialConfig({ workflow })).toThrow(AppError);
+    try {
+      validateFinancialConfig({ workflow });
+    } catch (err) {
+      expect(err).toMatchObject({ statusCode: 400, code: "VALIDATION_ERROR", message: mandatoryMessage });
+    }
+  });
+
+  it("rejects only Facility Details (contract_details)", () => {
+    const workflow = [
+      { id: "contract_details", config: {} },
+      { id: "declarations", config: {} },
+    ];
+    expect(() => validateFinancialConfig({ workflow })).toThrow(AppError);
+    try {
+      validateFinancialConfig({ workflow });
+    } catch (err) {
+      expect(err).toMatchObject({ statusCode: 400, code: "VALIDATION_ERROR", message: mandatoryMessage });
+    }
+  });
+
+  it("rejects only Invoice Details", () => {
+    const workflow = [{ id: "invoice_details", config: {} }, { id: "declarations", config: {} }];
+    expect(() => validateFinancialConfig({ workflow })).toThrow(AppError);
+    try {
+      validateFinancialConfig({ workflow });
+    } catch (err) {
+      expect(err).toMatchObject({ statusCode: 400, code: "VALIDATION_ERROR", message: mandatoryMessage });
+    }
+  });
+
+  it("rejects only Financing Structure + Facility Details (missing Invoice Details)", () => {
+    const workflow = [
+      { id: "financing_structure", config: {} },
+      { id: "contract_details", config: {} },
+      { id: "declarations", config: {} },
+    ];
+    expect(() => validateFinancialConfig({ workflow })).toThrow(AppError);
+    try {
+      validateFinancialConfig({ workflow });
+    } catch (err) {
+      expect(err).toMatchObject({ statusCode: 400, code: "VALIDATION_ERROR", message: mandatoryMessage });
+    }
+  });
+
+  it("rejects all 3 present but wrong order", () => {
+    const workflow = [
+      { id: "invoice_details", config: {} },
+      { id: "financing_structure", config: {} },
+      { id: "contract_details", config: {} },
+      { id: "declarations", config: {} },
+    ];
+    expect(() => validateFinancialConfig({ workflow })).toThrow(AppError);
+    try {
+      validateFinancialConfig({ workflow });
+    } catch (err) {
+      expect(err).toMatchObject({ statusCode: 400, code: "VALIDATION_ERROR", message: mandatoryMessage });
+    }
+  });
+
+  it("accepts all 3 present in correct order", () => {
+    const workflow = [
+      { id: "financing_structure", config: {} },
+      { id: "contract_details", config: {} },
+      { id: "invoice_details", config: {} },
+      { id: "declarations", config: {} },
+    ];
+    expect(() => validateFinancialConfig({ workflow })).not.toThrow();
+  });
+
+  it("existing complete products still pass", () => {
+    const workflow = [
+      {
+        id: "financing_type",
+        config: {
+          acceptance_documents: [
+            { name: "Letter of Offer", generated_document_type: "arf_contract_facility_lo" },
+          ],
+          acceptance_deadline: { days: 7, reminders: [{ days_before_expiry: 1 }] },
+          signing_deadline: { days: 14, reminders: [{ days_before_expiry: 3 }] },
+        },
+      },
+      { id: "financing_structure", config: {} },
+      { id: "contract_details", config: {} },
+      { id: "invoice_details", config: { sub_limit_per_invoice_rm: 1000000 } },
+    ];
+    expect(() => validateFinancialConfig({ workflow })).not.toThrow();
+  });
+
+  it("rejects an empty workflow (must contain the mandatory trio)", () => {
+    expect(() => validateFinancialConfig({ workflow: [] })).toThrow(AppError);
+    try {
+      validateFinancialConfig({ workflow: [] });
+    } catch (err) {
+      expect(err).toMatchObject({ statusCode: 400, code: "VALIDATION_ERROR", message: mandatoryMessage });
+    }
+  });
+
+  it("rejects Financing Structure + Invoice Details only (missing Facility Details)", () => {
+    const workflow = [
+      { id: "financing_structure", config: {} },
+      { id: "invoice_details", config: {} },
+      { id: "declarations", config: {} },
+    ];
+    expect(() => validateFinancialConfig({ workflow })).toThrow(AppError);
+    try {
+      validateFinancialConfig({ workflow });
+    } catch (err) {
+      expect(err).toMatchObject({ statusCode: 400, code: "VALIDATION_ERROR", message: mandatoryMessage });
+    }
+  });
+
+  it("rejects Facility Details + Invoice Details only (missing Financing Structure)", () => {
+    const workflow = [
+      { id: "contract_details", config: {} },
+      { id: "invoice_details", config: {} },
+      { id: "declarations", config: {} },
+    ];
+    expect(() => validateFinancialConfig({ workflow })).toThrow(AppError);
+    try {
+      validateFinancialConfig({ workflow });
+    } catch (err) {
+      expect(err).toMatchObject({ statusCode: 400, code: "VALIDATION_ERROR", message: mandatoryMessage });
+    }
+  });
+});
+
 describe("validateFinancialConfig invoice sub-limit", () => {
   function loWorkflow(invoiceConfig: Record<string, unknown>) {
     return [

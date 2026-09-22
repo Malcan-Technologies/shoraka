@@ -17,6 +17,7 @@ import {
   executionRoleSigningRole,
   expandedPlacementsForRole,
   frozenAutomaticSignerLabel,
+  frozenAutomaticSignerName,
   getIssuerAuthorizedParty,
   isAutomaticSignerProviderReady,
   isOperatorDocumentWitnessRole,
@@ -358,7 +359,7 @@ export async function verifyAutomaticAssignmentSnapshots(
       throw new AppError(
         409,
         "SIGNING_AUTOMATIC_SNAPSHOT_MISSING",
-        `The frozen CashSouk signatory for ${recipient.role_label} is missing.`
+        `The frozen CashSouk signatory for ${recipient.name} is missing.`
       );
     }
     await readFrozenSignatureImage(snapshot);
@@ -373,7 +374,7 @@ export async function readFrozenSignatureImage(
     throw new AppError(
       409,
       "SIGNING_AUTOMATIC_SIGNATURE_MISMATCH",
-      `The CashSouk signature for ${frozenAutomaticSignerLabel(snapshot)} no longer matches the frozen image.`
+      `The CashSouk signature for ${frozenAutomaticSignerName(snapshot)} no longer matches the frozen image.`
     );
   }
   return image;

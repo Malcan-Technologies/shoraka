@@ -67,6 +67,16 @@ describe("NoteLogAdapter", () => {
     });
 
     expect(
+      adapter.buildPresentation("EXTEND_LISTING", {
+        noteReference: "NOTE-001",
+      })
+    ).toEqual({
+      title: "Campaign Extended",
+      description:
+        "Note NOTE-001 funding period was extended. Investors who already committed keep the Prospectus they acknowledged.",
+    });
+
+    expect(
       adapter.buildPresentation("SETTLEMENT_POSTED", {
         noteTitle: "Bridge Note",
       })

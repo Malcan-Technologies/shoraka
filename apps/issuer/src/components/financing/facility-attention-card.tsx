@@ -11,6 +11,7 @@ import {
 } from "./utils";
 import { FinancingAttentionCardLayout } from "./financing-attention-card-layout";
 import {
+  facilityAttentionAmountCaption,
   facilityAttentionAmountValue,
   facilityAttentionDetail,
   facilityAttentionMeta,
@@ -42,6 +43,7 @@ export function FacilityAttentionCard({
       headline={action.headline}
       customer={displayCell(row.customerName)}
       amount={formatMoney(facilityAttentionAmountValue(row))}
+      amountCaption={facilityAttentionAmountCaption(row)}
       meta={facilityAttentionMeta(row)}
       detail={facilityAttentionDetail(row)}
       hint={action.hint}

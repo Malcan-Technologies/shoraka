@@ -15,9 +15,20 @@ describe("getFinalStatusToken", () => {
   });
 
   it("maps verified, rejected, expired, and not started", () => {
+    expect(
+      getFinalStatusToken(getFinalStatusLabel({ onboarding: { status: "APPROVED" } }, { displayMode: "kyc_only" }).tone)
+    ).toBe("success");
     expect(getFinalStatusToken(getFinalStatusLabel({ onboarding: { status: "APPROVED" } }).tone)).toBe(
-      "success"
+      "neutral"
     );
+    expect(
+      getFinalStatusToken(
+        getFinalStatusLabel({
+          onboarding: { status: "APPROVED" },
+          screening: { status: "APPROVED" },
+        }).tone
+      )
+    ).toBe("success");
     expect(
       getFinalStatusToken(getFinalStatusLabel({ screening: { status: "REJECTED" } }).tone)
     ).toBe("rejected");
@@ -57,7 +68,19 @@ describe("getRelatedPartyStatusToken", () => {
       getRelatedPartyStatusToken(getFinalStatusLabel({ onboarding: { status: "FAILED" } }), "user")
     ).toBe("rejected");
     expect(
-      getRelatedPartyStatusToken(getFinalStatusLabel({ onboarding: { status: "APPROVED" } }), "admin")
+      getRelatedPartyStatusToken(
+        getFinalStatusLabel({ onboarding: { status: "APPROVED" } }, { displayMode: "kyc_only" }),
+        "admin"
+      )
+    ).toBe("success");
+    expect(
+      getRelatedPartyStatusToken(
+        getFinalStatusLabel({
+          onboarding: { status: "APPROVED" },
+          screening: { status: "APPROVED" },
+        }),
+        "admin"
+      )
     ).toBe("success");
   });
 

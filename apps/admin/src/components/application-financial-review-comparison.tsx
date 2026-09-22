@@ -28,6 +28,7 @@ import {
   reviewEmptyStateClass,
 } from "@/components/application-review/review-section-styles";
 import { extractQuestionnaireAndUnaudited } from "@/components/application-financial-review-content";
+import { adminFyPeriodLines, comparisonUnauditedGroupHeader } from "@/lib/stored-unaudited-years";
 import {
   Table,
   TableBody,
@@ -399,14 +400,16 @@ export function ApplicationFinancialReviewComparison({
     [isPathChanged, mockFinancialPayload]
   );
 
-  const beforeByYear = React.useMemo(
-    () => extractQuestionnaireAndUnaudited(effectiveBeforeApp.financial_statements).unauditedByYear,
+  const beforeExtracted = React.useMemo(
+    () => extractQuestionnaireAndUnaudited(effectiveBeforeApp.financial_statements),
     [effectiveBeforeApp.financial_statements]
   );
-  const afterByYear = React.useMemo(
-    () => extractQuestionnaireAndUnaudited(effectiveAfterApp.financial_statements).unauditedByYear,
+  const afterExtracted = React.useMemo(
+    () => extractQuestionnaireAndUnaudited(effectiveAfterApp.financial_statements),
     [effectiveAfterApp.financial_statements]
   );
+  const beforeByYear = beforeExtracted.unauditedByYear;
+  const afterByYear = afterExtracted.unauditedByYear;
   const beforeUnauditedKeys = React.useMemo(() => sortedUnauditedYearKeys(beforeByYear), [beforeByYear]);
   const afterUnauditedKeys = React.useMemo(() => sortedUnauditedYearKeys(afterByYear), [afterByYear]);
   const unauditedSlots = React.useMemo(
@@ -441,7 +444,12 @@ export function ApplicationFinancialReviewComparison({
                     >
                       <span className="sr-only">Financial metric</span>
                     </TableHead>
-                    {unauditedSlots.map((_, si) => (
+                    {unauditedSlots.map((slot, si) => {
+                      const header = comparisonUnauditedGroupHeader(slot, {
+                        before: beforeExtracted.questionnaire,
+                        after: afterExtracted.questionnaire,
+                      });
+                      return (
                       <TableHead
                         key={`g-${si}`}
                         colSpan={2}
@@ -450,11 +458,25 @@ export function ApplicationFinancialReviewComparison({
                           "border-r border-border text-center last:border-r-0"
                         )}
                       >
-                        <span className="font-semibold text-foreground">
-                          Unaudited {unauditedSlots.length > 1 ? `(${si + 1} of 2)` : ""}
+                        <span className="flex flex-col items-center gap-0.5 font-semibold text-foreground">
+                          <span>
+                            {header.year != null
+                              ? `FY${header.year}`
+                              : `Unaudited${unauditedSlots.length > 1 ? ` (${si + 1} of 2)` : ""}`}
+                          </span>
+                          {header.periodLine ? (
+                            <span className="text-meta font-normal leading-snug text-muted-foreground">
+                              {adminFyPeriodLines(header.periodLine).map((line) => (
+                                <span key={line} className="block whitespace-nowrap">
+                                  {line}
+                                </span>
+                              ))}
+                            </span>
+                          ) : null}
                         </span>
                       </TableHead>
-                    ))}
+                      );
+                    })}
                   </TableRow>
                   <TableRow className="hover:bg-transparent border-b border-border">
                     {unauditedSlots.flatMap((_, si) => [
@@ -564,7 +586,12 @@ export function ApplicationFinancialReviewComparison({
                     >
                       Field
                     </TableHead>
-                    {unauditedSlots.map((_, si) => (
+                    {unauditedSlots.map((slot, si) => {
+                      const header = comparisonUnauditedGroupHeader(slot, {
+                        before: beforeExtracted.questionnaire,
+                        after: afterExtracted.questionnaire,
+                      });
+                      return (
                       <TableHead
                         key={`comrep-g-${si}`}
                         colSpan={2}
@@ -573,57 +600,112 @@ export function ApplicationFinancialReviewComparison({
                           "border-r border-border text-center last:border-r-0"
                         )}
                       >
-                        Unaudited
+                        {header.year != null ? `FY${header.year}` : "Unaudited"}
                       </TableHead>
-                    ))}
+                      );
+                    })}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {COMREP_ROW_LABELS.map((row) => (
-                    <TableRow key={row.id} className={applicationTableRowClass}>
-                      <TableCell
-                        className={cn(
-                          applicationTableCellClass,
-                          "border-r border-border bg-muted/20 font-medium text-foreground"
-                        )}
-                      >
-                        {row.label}
-                      </TableCell>
-                      {unauditedSlots.flatMap((slot, si) => {
-                        const beforeFs = slot.beforeYear
-                          ? (beforeByYear[slot.beforeYear] as Record<string, unknown> | undefined) ??
-                            null
-                          : null;
-                        const afterFs = slot.afterYear
-                          ? (afterByYear[slot.afterYear] as Record<string, unknown> | undefined) ?? null
-                          : null;
-                        const b = formatIssuerFinancialCell(row.id, beforeFs);
-                        const a = formatIssuerFinancialCell(row.id, afterFs);
-                        const differs = financialCellsDiffer(b, a);
-                        return [
-                          <TableCell
-                            key={`${si}-comrep-b`}
-                            className={cn(
-                              applicationTableCellClass,
-                              "border-r border-border text-right tabular-nums text-muted-foreground"
-                            )}
-                          >
-                            {b}
-                          </TableCell>,
-                          <TableCell
-                            key={`${si}-comrep-a`}
-                            className={cn(
-                              applicationTableCellClass,
-                              "border-r border-border text-right tabular-nums text-foreground last:border-r-0",
-                              differs && cn(comparisonSurfaceChangedAfterClass, "rounded-none")
-                            )}
-                          >
-                            {a}
-                          </TableCell>,
-                        ];
-                      })}
-                    </TableRow>
-                  ))}
+                  {(() => {
+                    const OPTIONAL_EQUITY_KEYS = new Set([
+                      "equity_share_application",
+                      "equity_share_premium",
+                      "equity_minority",
+                    ]);
+
+                    const liabilityKeys = ["curlib_borrowing", "curlib_non_borrowing", "ncl_loan", "ncl_non_loan"] as const;
+                    const equityKeys = [
+                      "equity_share_application",
+                      "equity_share_premium",
+                      "equity_accumulated_profit",
+                      "equity_minority",
+                    ] as const;
+                    const pnlKeys = ["pl_minority"] as const;
+                    const costKeys = ["operating_cost", "admin_cost", "interest_cost", "other_cost"] as const;
+
+                    const getBaseLabel = (key: string) =>
+                      (COMREP_ROW_LABELS.find((r) => r.id === key)?.label ?? key) as string;
+
+                    const renderLabel = (key: string) => {
+                      const base = getBaseLabel(key);
+                      if (!OPTIONAL_EQUITY_KEYS.has(key)) return base;
+                      return (
+                        <div className="flex items-center gap-2">
+                          <span>{base}</span>
+                          <span className="text-meta font-normal leading-snug text-muted-foreground">
+                            Optional
+                          </span>
+                        </div>
+                      );
+                    };
+
+                    const colSpan = 1 + unauditedSlots.length * 2;
+
+                    const groups: Array<{ title: string; keys: readonly string[] }> = [
+                      { title: "Liability Breakdown", keys: liabilityKeys },
+                      { title: "Equity Breakdown", keys: equityKeys },
+                      { title: "Profit & Loss", keys: pnlKeys },
+                      { title: "Costs", keys: costKeys },
+                    ];
+
+                    return groups.flatMap((group) => [
+                      <TableRow key={`group-${group.title}`} className={applicationTableRowClass}>
+                        <TableCell
+                          colSpan={colSpan}
+                          className={cn(applicationTableCellClass, "bg-muted/10 font-semibold text-foreground py-2")}
+                        >
+                          {group.title}
+                        </TableCell>
+                      </TableRow>,
+                      ...group.keys.map((key) => {
+                        return (
+                          <TableRow key={key} className={applicationTableRowClass}>
+                            <TableCell
+                              className={cn(
+                                applicationTableCellClass,
+                                "border-r border-border bg-muted/20 font-medium text-foreground"
+                              )}
+                            >
+                              {renderLabel(key)}
+                            </TableCell>
+                            {unauditedSlots.flatMap((slot, si) => {
+                              const beforeFs = slot.beforeYear
+                                ? (beforeByYear[slot.beforeYear] as Record<string, unknown> | undefined) ?? null
+                                : null;
+                              const afterFs = slot.afterYear
+                                ? (afterByYear[slot.afterYear] as Record<string, unknown> | undefined) ?? null
+                                : null;
+                              const b = formatIssuerFinancialCell(key, beforeFs);
+                              const a = formatIssuerFinancialCell(key, afterFs);
+                              const differs = financialCellsDiffer(b, a);
+                              return [
+                                <TableCell
+                                  key={`${si}-comrep-b`}
+                                  className={cn(
+                                    applicationTableCellClass,
+                                    "border-r border-border text-right tabular-nums text-muted-foreground"
+                                  )}
+                                >
+                                  {b}
+                                </TableCell>,
+                                <TableCell
+                                  key={`${si}-comrep-a`}
+                                  className={cn(
+                                    applicationTableCellClass,
+                                    "border-r border-border text-right tabular-nums text-foreground last:border-r-0",
+                                    differs && cn(comparisonSurfaceChangedAfterClass, "rounded-none")
+                                  )}
+                                >
+                                  {a}
+                                </TableCell>,
+                              ];
+                            })}
+                          </TableRow>
+                        );
+                      }),
+                    ]);
+                  })()}
                 </TableBody>
               </Table>
             </div>

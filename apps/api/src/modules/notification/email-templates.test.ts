@@ -217,6 +217,30 @@ describe("buildNotificationEmail portal URLs", () => {
       expect(adminEmail.text).toContain(`${ADMIN}/account`);
     });
 
+    it("escapes invoice numbers and HTML payloads in the HTML body only", () => {
+      const payload = `<img src=x onerror=alert(1)>`;
+      const email = buildNotificationEmail(
+        fakeNotification({
+          title: `Invoice ${payload} INV-001`,
+          message: `<script>alert("xss")</script> Pay now`,
+          link_path: `/invoices?n=${payload}`,
+          metadata: { portal: "investor" },
+        }),
+        { first_name: `<b>Ada</b>`, email: "ada@example.com" } as User
+      );
+
+      expect(email.html).toContain("Invoice &lt;img src=x onerror=alert(1)&gt; INV-001");
+      expect(email.html).toContain("&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt; Pay now");
+      expect(email.html).toContain("Hello &lt;b&gt;Ada&lt;/b&gt;");
+      expect(email.html).toContain(
+        `href="${INVESTOR}/invoices?n=&lt;img src=x onerror=alert(1)&gt;"`
+      );
+      expect(email.html).not.toContain(payload);
+      expect(email.text).toContain(`Invoice ${payload} INV-001`);
+      expect(email.text).toContain(`<script>alert("xss")</script> Pay now`);
+      expect(email.text).toContain("Hello <b>Ada</b>,");
+    });
+
     it("does not hardcode a portal on PASSWORD_CHANGED or SYSTEM_ANNOUNCEMENT templates", () => {
       const password = getNotificationContent(NotificationTypeIds.PASSWORD_CHANGED, {
         changedAt: new Date("2026-08-27T00:00:00.000Z"),

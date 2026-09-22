@@ -21,6 +21,16 @@ describe("Admin Personal investor edit: completeness requiredness wording", () =
     expect(panel).not.toContain('required={requiredFieldKeys.has("dateOfBirth")}');
   });
 
+  it("validates State on Residential Address save, not Personal Details save", () => {
+    expect(panel).toContain("validateInvestorResidentialAddressForm({");
+    expect(panel).toMatch(
+      /validateInvestorPersonalForm\(\{[\s\S]*gender: draft\.gender,[\s\S]*nationality: draft\.nationality,/
+    );
+    expect(panel).not.toMatch(
+      /validateInvestorPersonalForm\(\{[\s\S]*state: draft\.residentialState/
+    );
+  });
+
   it("keeps postcode conditional requiredness: optional only when State is Outside Malaysia", () => {
     expect(panel).toContain(
       'required={draft.residentialState !== "Outside Malaysia"}'

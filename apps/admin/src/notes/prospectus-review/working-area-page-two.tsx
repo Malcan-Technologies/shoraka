@@ -11,6 +11,7 @@ import {
   TableCellsIcon,
 } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
+import { StatusBadge } from "@cashsouk/ui";
 import {
   MARKETPLACE_MIN_COMMIT_MYR,
   PROSPECTUS_COMPANY_SIZE_VALUES,
@@ -133,6 +134,12 @@ export function WorkingAreaPageTwo({
     draft.page2.invoicePaymaster?.deedOfAssignment
   );
   const risk = resolveMarcNoteRiskPresentation(noteRiskRating);
+  const assignedBandKey =
+    risk.isAvailable
+      ? MARC_SME_BANDS.find((band) =>
+          (band.grades as readonly string[]).includes(risk.grade)
+        )?.key ?? null
+      : null;
 
   const filteredIssuerRows = issuerProfileRows.filter((r) => r.label !== ISSUER_EDITABLE_LABEL);
   const filteredInvoiceRows = invoicePaymasterRows.filter(
@@ -143,10 +150,18 @@ export function WorkingAreaPageTwo({
   const financialMissing = countMissingForTab(draft, "financial", completionOptions);
   const creditMissing = countMissingForTab(draft, "credit_invoice", completionOptions);
   const invoiceFactsMissing = deedOfAssignment ? 0 : 1;
-  const creditInsightsMissing =
+  const marcEvaluationPending =
+    Object.prototype.hasOwnProperty.call(completionOptions ?? {}, "hasMarcAssessment") &&
+    completionOptions?.hasMarcAssessment === undefined;
+
+  const creditInsightsMissingCore =
     (draft.page2.creditInsights.litigationCheckOptionKey ? 0 : 1) +
     (draft.page2.creditInsights.ccrisStatusOptionKey ? 0 : 1) +
     (completionOptions?.hasMarcAssessment === false ? 1 : 0);
+
+  // When MARC is still being evaluated we must not label this section as "Complete".
+  // Keep MARC out of the missing rules, but show a neutral/unlabelled state instead.
+  const creditInsightsMissing = creditInsightsMissingCore > 0 ? creditInsightsMissingCore : undefined;
 
   const updateFinancialOverride = (fyeKey: string, field: string, value: string) => {
     updateDraft((prev) => ({
@@ -193,8 +208,14 @@ export function WorkingAreaPageTwo({
             id: "credit_invoice",
             label: "Credit & Invoice",
             missingCount: creditMissing,
+            optional: marcEvaluationPending && creditMissing === 0,
           },
-          { id: "risk", label: "Risk Information", missingCount: 0 },
+          {
+            id: "risk",
+            label: "Risk Information",
+            missingCount: 0,
+            optional: marcEvaluationPending,
+          },
         ]}
       />
 
@@ -461,19 +482,37 @@ export function WorkingAreaPageTwo({
                   </thead>
                   <tbody>
                     {MARC_SME_BANDS.map((band) => (
-                      <tr key={band.key} className="border-b last:border-0">
+                      <tr
+                        key={band.key}
+                        className={`border-b last:border-0 ${
+                          assignedBandKey === band.key
+                            ? "bg-status-success-bg/40 border border-status-success-text/20"
+                            : ""
+                        }`}
+                      >
                         <td className="px-3 py-2 font-semibold tabular-nums">
-                          <span
-                            className="inline-flex min-w-[5.5rem] items-center justify-center rounded-md px-2 py-1 text-xs font-extrabold"
-                            style={{
-                              backgroundColor: band.color,
-                              color: CASHSCOUK_RISK_GRADE_LETTER_COLOR,
-                            }}
-                            data-grade-color={band.color}
-                            data-grade-letter-color={CASHSCOUK_RISK_GRADE_LETTER_COLOR}
-                          >
-                            {band.rangeLabel}
-                          </span>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span
+                              className="inline-flex min-w-[5.5rem] items-center justify-center rounded-md px-2 py-1 text-xs font-extrabold"
+                              style={{
+                                backgroundColor: band.color,
+                                color: CASHSCOUK_RISK_GRADE_LETTER_COLOR,
+                              }}
+                              data-grade-color={band.color}
+                              data-grade-letter-color={CASHSCOUK_RISK_GRADE_LETTER_COLOR}
+                            >
+                              {band.rangeLabel}
+                            </span>
+                            {assignedBandKey === band.key ? (
+                              <StatusBadge
+                                label="Assigned"
+                                status="success"
+                                marker="check"
+                                size="sm"
+                                showDot={false}
+                              />
+                            ) : null}
+                          </div>
                         </td>
                         <td className="px-3 py-2">{band.label}</td>
                         <td className="px-3 py-2 text-muted-foreground">

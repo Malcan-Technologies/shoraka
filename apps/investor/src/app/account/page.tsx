@@ -30,7 +30,15 @@ import {
   BellIcon,
 } from "@heroicons/react/24/outline";
 import { ChangePasswordDialog } from "../../components/change-password-dialog";
-import { NotificationPreferences, PageShell, PortalBadge, RequiredBadge, portalContentMaxWidthClassName, VerifiedBadge, useHeader } from "@cashsouk/ui";
+import {
+  NotificationPreferences,
+  PageShell,
+  PortalBadge,
+  RequiredBadge,
+  portalContentMaxWidthClassName,
+  VerifiedBadge,
+  useHeader,
+} from "@cashsouk/ui";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
@@ -116,10 +124,7 @@ export default function AccountPage() {
   }, [setTitle]);
 
   useEffect(() => {
-    if (
-      activeOrganization &&
-      !canAccessApplicantAccount(activeOrganization.onboardingStatus)
-    ) {
+    if (activeOrganization && !canAccessApplicantAccount(activeOrganization.onboardingStatus)) {
       router.replace("/");
     }
   }, [activeOrganization, router]);

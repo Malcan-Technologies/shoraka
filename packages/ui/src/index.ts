@@ -20,6 +20,7 @@ export {
   CardContent,
   CardFooter,
 } from "./components/card";
+export { AuthSessionUnavailableCard } from "./components/auth-session-unavailable-card";
 export { Logo } from "./components/logo";
 export { Skeleton } from "./components/skeleton";
 export { Avatar, AvatarImage, AvatarFallback } from "./components/avatar";

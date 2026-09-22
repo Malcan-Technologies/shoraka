@@ -129,6 +129,61 @@ describe("prospectus finalization for publish", () => {
     expect(called.snapshotHash).toMatch(/^[a-f0-9]{64}$/);
     expect(result.updatedSnapshot.html.page1).toContain("LIST_DATE");
     expect(result.updatedSnapshot.html.page1).toContain("CLOSE_DATE");
+    expect(result.updatedSnapshot.note_identity.listing_opens_at).toBe("2026-08-01T00:00:00.000Z");
+    expect(result.updatedSnapshot.note_identity.listing_closes_at).toBe("2026-08-15T00:00:00.000Z");
+    expect(result.updatedSnapshot.publication_id).toBe("pub-1");
+  });
+
+  it("uses listingDates override instead of persisted listing dates", async () => {
+    const { prisma } = await import("../../../lib/prisma");
+    (prisma.note.findUnique as jest.Mock).mockResolvedValue({
+      listing: {
+        opens_at: new Date("2026-08-01T00:00:00.000Z"),
+        closes_at: new Date("2026-08-15T00:00:00.000Z"),
+      },
+    });
+
+    const approvedSnapshot = {
+      publication_content: {},
+      render_fingerprint: "fp",
+      note_identity: {},
+      page_1: {},
+      page_2: {},
+      publication_id: "pub",
+      content_version: 1,
+      calculated_at: "2026-07-19T00:00:00.000Z",
+      html: { page1: "", page2: "", page3: "" },
+    } as unknown as ProspectusApprovedSnapshot;
+
+    const opensAt = new Date("2026-08-01T00:00:00.000Z");
+    const closesAt = new Date("2026-09-30T08:00:00.000Z");
+    const { mapProspectusPageOneDataToInput } = await import("../prospectus/prospectus-page-one-mapper");
+    const { generateAndStoreProspectusPdf } = await import("../prospectus/prospectus-pdf");
+
+    const result = await service.generateFinalProspectusPdfForPublish({
+      noteId: "note-1",
+      actor: { userId: "a" },
+      approvedSnapshot,
+      publicationId: "pub-new",
+      reviewId: "rev-1",
+      listingDates: { opensAt, closesAt },
+    });
+
+    expect(mapProspectusPageOneDataToInput).toHaveBeenCalledWith(
+      expect.objectContaining({
+        listing: { opens_at: opensAt, closes_at: closesAt },
+      })
+    );
+    expect(result.updatedSnapshot.note_identity.listing_closes_at).toBe(closesAt.toISOString());
+    expect(result.updatedSnapshot.publication_id).toBe("pub-new");
+    const called = (generateAndStoreProspectusPdf as jest.Mock).mock.calls[0][0];
+    expect(called.publicationId).toBe("pub-new");
+    expect(called.snapshotHash).not.toBe(
+      require("node:crypto")
+        .createHash("sha256")
+        .update("fp|2026-08-01T00:00:00.000Z|2026-08-15T00:00:00.000Z")
+        .digest("hex")
+    );
   });
 
   it("passes resolved publication content into Page 1 builder during publish (regression)", async () => {

@@ -21,6 +21,7 @@ import {
   ISSUER_COMPANY_SEAL_UPLOAD_LINK_LABEL,
   ISSUER_COMPANY_SEAL_VIEW_LINK_LABEL,
   PROFILE_COMPANY_SEAL_HREF,
+  PROFILE_PEOPLE_HREF,
 } from "@cashsouk/types";
 import type { IssuerDirectorOption } from "./issuer-directors";
 import {
@@ -30,6 +31,8 @@ import {
 } from "./authorized-rep-fields";
 import {
   ISSUER_COMPANY_SEAL_STATUS_ERROR_MESSAGE,
+  ISSUER_DIRECTOR_PERSON_EMAIL_FIELD_HINT,
+  PROFILE_PEOPLE_ACCESS_LINK_LABEL,
   type IssuerCompanySealUiStatus,
 } from "./issuer-offer-reps-blocker";
 
@@ -170,11 +173,23 @@ export function IssuerAuthorizedRepresentativesCard({
                   <Input
                     id={emailFieldId}
                     value={selected?.email ?? ""}
+                    placeholder="Add Person Email on People & Access"
                     readOnly
                     disabled
                     tabIndex={-1}
                     className="rounded-xl bg-muted text-ui select-none"
                   />
+                  {selected && !selected.email.trim() ? (
+                    <p className="text-meta text-destructive">
+                      {ISSUER_DIRECTOR_PERSON_EMAIL_FIELD_HINT}{" "}
+                      <Link
+                        href={PROFILE_PEOPLE_HREF}
+                        className="font-medium underline underline-offset-2"
+                      >
+                        {PROFILE_PEOPLE_ACCESS_LINK_LABEL}
+                      </Link>
+                    </p>
+                  ) : null}
                 </div>
                 <AuthorizedRepIcField id={icFieldId} value={selected?.ic_number ?? ""} readOnly />
                 {!readOnly ? (

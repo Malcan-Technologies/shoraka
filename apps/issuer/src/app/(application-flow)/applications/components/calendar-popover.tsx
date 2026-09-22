@@ -12,6 +12,7 @@ import {
   format,
   isSameMonth,
   isSameDay,
+  isValid,
   parseISO,
 } from "date-fns";
 import {
@@ -32,27 +33,46 @@ export function CalendarPopover({
   selected,
   onSelect,
   defaultMonth,
+  minDate,
+  maxDate,
 }: {
   selected?: string;
   onSelect: (iso: string) => void;
   defaultMonth?: Date;
+  minDate?: string;
+  maxDate?: string;
 }) {
   const initialMonth = React.useMemo(() => {
-    if (selected) return parseISO(selected);
-    if (defaultMonth) return defaultMonth;
-    return new Date();
-  }, [selected, defaultMonth]);
+    let month = selected ? parseISO(selected) : defaultMonth ?? new Date();
+    if (!isValid(month)) month = new Date();
+    const boundMin = minDate && /^\d{4}-\d{2}-\d{2}$/.test(minDate) ? parseISO(minDate) : null;
+    const boundMax = maxDate && /^\d{4}-\d{2}-\d{2}$/.test(maxDate) ? parseISO(maxDate) : null;
+    if (boundMin && boundMax && isValid(boundMin) && isValid(boundMax)) {
+      if (month.getTime() > boundMax.getTime()) month = boundMax;
+      if (month.getTime() < boundMin.getTime()) month = boundMin;
+    }
+    return month;
+  }, [selected, defaultMonth, minDate, maxDate]);
 
   const [currentMonth, setCurrentMonth] = React.useState<Date>(initialMonth);
 
   React.useEffect(() => {
-    if (selected) setCurrentMonth(parseISO(selected));
-  }, [selected]);
+    setCurrentMonth(initialMonth);
+  }, [initialMonth]);
 
   const nowY = new Date().getFullYear();
   const viewY = currentMonth.getFullYear();
-  const yearMin = Math.min(nowY - 30, viewY);
-  const yearMax = Math.max(nowY + 5, viewY);
+  const boundMinYear =
+    minDate && /^\d{4}-\d{2}-\d{2}$/.test(minDate) && isValid(parseISO(minDate))
+      ? parseISO(minDate).getFullYear()
+      : null;
+  const boundMaxYear =
+    maxDate && /^\d{4}-\d{2}-\d{2}$/.test(maxDate) && isValid(parseISO(maxDate))
+      ? parseISO(maxDate).getFullYear()
+      : null;
+  const hasYearBounds = boundMinYear != null && boundMaxYear != null;
+  const yearMin = hasYearBounds ? boundMinYear : Math.min(nowY - 30, viewY);
+  const yearMax = hasYearBounds ? boundMaxYear : Math.max(nowY + 5, viewY);
   const yearOptions = React.useMemo(() => {
     const out: number[] = [];
     for (let y = yearMin; y <= yearMax; y++) out.push(y);
@@ -153,17 +173,26 @@ export function CalendarPopover({
                 const iso = format(day, "yyyy-MM-dd");
                 const isCurrentMonth = isSameMonth(day, currentMonth);
                 const isSelected = selected ? isSameDay(parseISO(selected), day) : false;
+                const outOfRange = Boolean(
+                  (minDate && iso < minDate) || (maxDate && iso > maxDate)
+                );
                 return (
                   <button
                     key={iso}
                     type="button"
-                    onClick={() => onSelect(iso)}
+                    disabled={outOfRange}
+                    aria-disabled={outOfRange || undefined}
+                    onClick={() => {
+                      if (!outOfRange) onSelect(iso);
+                    }}
                     className={`h-7 w-7 rounded text-meta font-medium ${
-                      isSelected
-                        ? "bg-primary text-primary-foreground"
-                        : isCurrentMonth
-                          ? "text-foreground"
-                          : "text-muted-foreground/40"
+                      outOfRange
+                        ? "cursor-not-allowed text-muted-foreground opacity-40"
+                        : isSelected
+                          ? "bg-primary text-primary-foreground"
+                          : isCurrentMonth
+                            ? "text-foreground"
+                            : "text-muted-foreground/40"
                     }`}
                   >
                     {format(day, "d")}

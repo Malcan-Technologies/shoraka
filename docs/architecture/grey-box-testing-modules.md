@@ -48,7 +48,7 @@ Onboarding is a **status machine** on the organisation (`PENDING` → … → `C
 
 ## Module 1 — Authentication and session
 
-**What it is.** Login and signup go through AWS Cognito Hosted UI (`auth.cashsouk.com`), then the API callback at `/v1/auth/cognito/callback` (also `/api/auth/...`). Portals keep Cognito tokens (access ~1 hour, refresh ~30 days). After that, every API call is Bearer JWT. The API looks up the user by Cognito `sub`.
+**What it is.** Login and signup go through AWS Cognito Hosted UI (`auth.cashsouk.com`), then the API callback at `/v1/auth/cognito/callback` (also `/api/auth/...`). Portals keep Cognito tokens (access/ID 15 minutes; HttpOnly refresh cookie 60 minutes, reset on successful refresh; Cognito refresh token 30 days from sign-in, rotation does not extend expiry). After that, every API call is Bearer JWT. The API looks up the user by Cognito `sub`.
 
 **Useful endpoints.** `/v1/auth/me`, `/v1/auth/logout`, `/v1/auth/refresh-token`, `/v1/auth/profile`, password and email-verify routes, `/v1/auth/sync-user` (unauthenticated body: Cognito sub + email + roles).
 

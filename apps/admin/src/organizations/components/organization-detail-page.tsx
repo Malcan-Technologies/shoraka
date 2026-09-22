@@ -412,6 +412,7 @@ export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
                           <OrganizationProfileOverviewCard
                             completeness={org.profileCompleteness}
                             parties={org.partyProfiles}
+                            latestCtos={org.latestOrganizationCtosCompanyJson}
                             portal={portal}
                             organizationType={org.type === "COMPANY" ? "COMPANY" : "PERSONAL"}
                             onCompleteProfile={() => {

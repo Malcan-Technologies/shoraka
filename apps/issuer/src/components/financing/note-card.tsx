@@ -43,6 +43,10 @@ import {
   issuerCampaignDaysLeftLabel,
 } from "./marketplace-campaign";
 import { isIssuerNoteActionable, isIssuerNoteInArrears } from "@/lib/issuer-financing-actionable";
+import {
+  issuerNoteDisplayFundedAmount,
+  issuerNoteDisplayFundingPercent,
+} from "@/notes/lib/funding-display";
 import { FacilityTiedLink } from "./facility-tied-link";
 
 function daysPastMaturity(maturityDate: string | null | undefined): number | null {
@@ -105,7 +109,8 @@ function SettlementSummaryBlock({ note }: { note: NoteListItem }) {
 }
 
 export function DashboardNoteCard({ note }: { note: NoteListItem }) {
-  const progress = Math.max(0, Math.min(100, note.fundingPercent));
+  const displayFundedAmount = issuerNoteDisplayFundedAmount(note);
+  const progress = Math.max(0, Math.min(100, issuerNoteDisplayFundingPercent(note)));
   const noteRef = displayCell(note.noteReference);
   const donutTone = financingDonutTone(note);
   const inArrears = isIssuerNoteInArrears(note);
@@ -177,7 +182,7 @@ export function DashboardNoteCard({ note }: { note: NoteListItem }) {
 
           <div className="min-w-0 flex-1 space-y-3">
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-              <FinancingKpiTile label="Funded" value={formatMoney(note.fundedAmount)} />
+              <FinancingKpiTile label="Funded" value={formatMoney(displayFundedAmount)} />
               <FinancingKpiTile label="Target" value={formatMoney(note.targetAmount)} />
               <FinancingKpiTile
                 label="Risk"
@@ -197,7 +202,7 @@ export function DashboardNoteCard({ note }: { note: NoteListItem }) {
               <MarketplaceCampaignFacts note={note} />
             ) : (
               <InvestorCommitmentLine
-                fundedAmount={note.fundedAmount}
+                fundedAmount={displayFundedAmount}
                 investorCount={note.investorCount}
               />
             )}

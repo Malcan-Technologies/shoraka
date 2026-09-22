@@ -6,25 +6,31 @@ import { verifyCognitoAccessToken } from "../../lib/auth/cognito-jwt-verifier";
 import { prisma } from "../../lib/prisma";
 import { logger } from "../../lib/logger";
 import { getEnv } from "../../config/env";
-import { detectInitiatingPortal, detectRoleFromRequest, parseKnownPortal } from "../../lib/role-detector";
+import {
+  detectInitiatingPortal,
+  detectRoleFromRequest,
+  parseKnownPortal,
+} from "../../lib/role-detector";
 import { UserRole } from "@prisma/client";
 import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { AppError } from "../../lib/http/error-handler";
-import {
-  CognitoIdentityProviderClient,
-  AdminUserGlobalSignOutCommand,
-} from "@aws-sdk/client-cognito-identity-provider";
 import { encryptOAuthState, decryptOAuthState, createOAuthState } from "../../lib/auth/oauth-state";
 import { classifyAccessAuthEvent } from "../../lib/auth/access-auth-audit";
 import { AuthRepository } from "./repository";
+import { AuthService } from "./service";
+import { accessTokenRevocationService } from "./token-revocation.service";
 import { AdminService } from "../admin/service";
 import { auditContextFromRequest, createAccessLogRow } from "../../lib/audit";
+import { signOutCognitoUserGlobally } from "../../lib/auth/cognito-global-signout";
+import { revokeAndClearCurrentRefreshTokenCookie } from "../../lib/auth/refresh-token-cookie";
+import {
+  ACCESS_TOKEN_MAX_AGE_MS,
+  REFRESH_TOKEN_MAX_AGE_MS,
+  cognitoCookieOptions,
+} from "../../lib/auth/cognito-session-cookies";
 
 const router = Router();
-
-const cognitoClient = new CognitoIdentityProviderClient({
-  region: process.env.COGNITO_REGION || "ap-southeast-5",
-});
+const authService = new AuthService();
 
 function generateCorrelationId(): string {
   return `req_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -768,43 +774,28 @@ router.get("/callback", async (req: Request, res: Response) => {
     // Fallback to localhost for development if not set
     const cookieDomain =
       env.COOKIE_DOMAIN || (env.NODE_ENV === "production" ? ".cashsouk.com" : "localhost");
-    const isSecure = env.NODE_ENV === "production";
 
-    // Set access token cookie (Amplify format)
-    res.cookie(`CognitoIdentityServiceProvider.${env.COGNITO_CLIENT_ID}.LastAuthUser`, cognitoId, {
-      httpOnly: false, // Amplify needs to read this
-      secure: isSecure,
-      sameSite: "lax",
-      domain: cookieDomain,
-      path: "/",
-      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-    });
+    // Access and ID cookies stay readable so Amplify can attach the Bearer token.
+    // The refresh cookie is HttpOnly. Its 60-minute maxAge is an idle cutoff and
+    // is reset on successful refresh; Cognito refresh-token expiry is 30 days
+    // from sign-in and is not extended by rotation.
+    res.cookie(
+      `CognitoIdentityServiceProvider.${env.COGNITO_CLIENT_ID}.LastAuthUser`,
+      cognitoId,
+      cognitoCookieOptions(false, REFRESH_TOKEN_MAX_AGE_MS)
+    );
 
     res.cookie(
       `CognitoIdentityServiceProvider.${env.COGNITO_CLIENT_ID}.${cognitoId}.accessToken`,
       tokenSet.access_token,
-      {
-        httpOnly: false, // Amplify needs to read this
-        secure: isSecure,
-        sameSite: "lax",
-        domain: cookieDomain,
-        path: "/",
-        maxAge: 60 * 60 * 1000, // 1 hour (access token expiry)
-      }
+      cognitoCookieOptions(false, ACCESS_TOKEN_MAX_AGE_MS)
     );
 
     if (tokenSet.id_token) {
       res.cookie(
         `CognitoIdentityServiceProvider.${env.COGNITO_CLIENT_ID}.${cognitoId}.idToken`,
         tokenSet.id_token,
-        {
-          httpOnly: false, // Amplify needs to read this
-          secure: isSecure,
-          sameSite: "lax",
-          domain: cookieDomain,
-          path: "/",
-          maxAge: 60 * 60 * 1000, // 1 hour
-        }
+        cognitoCookieOptions(false, ACCESS_TOKEN_MAX_AGE_MS)
       );
     }
 
@@ -812,29 +803,14 @@ router.get("/callback", async (req: Request, res: Response) => {
       res.cookie(
         `CognitoIdentityServiceProvider.${env.COGNITO_CLIENT_ID}.${cognitoId}.refreshToken`,
         tokenSet.refresh_token,
-        {
-          httpOnly: true, // SECURITY: Refresh tokens must be httpOnly to prevent XSS exfiltration
-          secure: isSecure,
-          sameSite: "lax",
-          domain: cookieDomain,
-          path: "/",
-          maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-        }
+        cognitoCookieOptions(true, REFRESH_TOKEN_MAX_AGE_MS)
       );
     }
 
-    // Set clock drift cookie (Amplify uses this)
     res.cookie(
       `CognitoIdentityServiceProvider.${env.COGNITO_CLIENT_ID}.${cognitoId}.clockDrift`,
       "0",
-      {
-        httpOnly: false,
-        secure: isSecure,
-        sameSite: "lax",
-        domain: cookieDomain,
-        path: "/",
-        maxAge: 30 * 24 * 60 * 60 * 1000,
-      }
+      cognitoCookieOptions(false, REFRESH_TOKEN_MAX_AGE_MS)
     );
 
     logger.info(
@@ -952,103 +928,121 @@ router.get("/callback", async (req: Request, res: Response) => {
   }
 });
 
-router.get("/logout", async (req: Request, res: Response) => {
+router.get("/logout", async (req: Request, res: Response, next: NextFunction) => {
   const correlationId = generateCorrelationId();
   logger.info({ correlationId }, "Logout requested");
 
-  // Try to extract user info from Cognito access token
-  // Access token can be sent via:
-  // 1. Authorization header (preferred) - stored in Amplify
-  // 2. Query parameter ?token= (fallback for browser redirects)
   const authHeader = req.headers.authorization;
-  const tokenFromHeader = authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : undefined;
-  const tokenFromQuery = req.query.token as string | undefined;
-  const token = tokenFromHeader || tokenFromQuery;
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : undefined;
 
-  let cognitoSub: string | undefined;
   const portal = detectInitiatingPortal(req);
   let userId: string | undefined;
+  let pendingAccessLogUser: { user_id: string; roles: UserRole[] } | undefined;
 
-  if (token) {
+  if (!token) {
+    logger.warn({ correlationId }, "No token provided for logout - access log will not be created");
+  } else {
+    let cognitoPayload: Awaited<ReturnType<typeof verifyCognitoAccessToken>> | undefined;
     try {
-      // Verify Cognito access token
-      const cognitoPayload = await verifyCognitoAccessToken(token);
-      cognitoSub = cognitoPayload.sub;
-
-      // Get user from database
-      const user = await prisma.user.findUnique({
-        where: { cognito_sub: cognitoPayload.sub },
-        select: { user_id: true, roles: true },
-      });
-
-      if (user) {
-        userId = user.user_id;
-        const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
-
-        // Create access log before signing out
-        await createAccessLogRow({
-          userId: user.user_id,
-          eventType: "LOGOUT",
-          portal: portal,
-          ipAddress,
-          userAgent,
-          deviceInfo,
-          deviceType,
-          success: true,
-          metadata: {
-            roles: user.roles,
-            portal,
-          },
-          context: auditContextFromRequest(req),
-        });
-
-        logger.info({ correlationId, userId: user.user_id, portal }, "Logout access log created");
-      }
+      cognitoPayload = await verifyCognitoAccessToken(token);
     } catch (error) {
-      // If token is invalid/expired, log warning but continue with logout
       logger.warn(
         { correlationId, error: error instanceof Error ? error.message : String(error) },
-        "Failed to create logout access log - token invalid or expired"
+        "Failed to verify logout token - token invalid or expired"
       );
     }
-  } else {
-    logger.warn({ correlationId }, "No token provided for logout - access log will not be created");
+
+    if (cognitoPayload) {
+      const jti = typeof cognitoPayload.jti === "string" ? cognitoPayload.jti : undefined;
+      const exp = typeof cognitoPayload.exp === "number" ? cognitoPayload.exp : undefined;
+      const cognitoSub = cognitoPayload.sub;
+
+      try {
+        if (await accessTokenRevocationService.isRevoked(jti)) {
+          logger.info({ correlationId }, "Logout token already revoked");
+        } else {
+          const user = await prisma.user.findUnique({
+            where: { cognito_sub: cognitoPayload.sub },
+            select: { user_id: true, roles: true },
+          });
+
+          if (user) {
+            userId = user.user_id;
+            await authService.invalidateCurrentAccessToken({
+              jti,
+              exp,
+              userId: user.user_id,
+              cognitoSub,
+            });
+            pendingAccessLogUser = user;
+          } else if (cognitoSub) {
+            await signOutCognitoUserGlobally(cognitoSub);
+          }
+        }
+      } catch (error) {
+        if (error instanceof AppError) {
+          return next(error);
+        }
+        logger.error(
+          { correlationId, error: error instanceof Error ? error.message : String(error) },
+          "Logout token revocation failed"
+        );
+        return next(
+          new AppError(
+            503,
+            "SERVICE_UNAVAILABLE",
+            "Authentication service temporarily unavailable"
+          )
+        );
+      }
+    }
   }
 
-  // Note: Amplify handles token clearing on the frontend
-  // We don't need to clear cookies here as Amplify manages session storage
+  try {
+    await revokeAndClearCurrentRefreshTokenCookie(req, res);
+  } catch (error) {
+    if (error instanceof AppError) {
+      return next(error);
+    }
+    logger.error(
+      { correlationId, error: error instanceof Error ? error.message : String(error) },
+      "Logout refresh token revocation failed"
+    );
+    return next(
+      new AppError(503, "SERVICE_UNAVAILABLE", "Authentication service temporarily unavailable")
+    );
+  }
 
-  // Sign out from Cognito using AdminUserGlobalSignOut
-  // This revokes all tokens and signs out the user from all devices
-  // According to AWS docs: https://docs.aws.amazon.com/cognito/latest/developerguide/logout-endpoint.html
-  if (cognitoSub) {
+  if (pendingAccessLogUser) {
+    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
     try {
-      const config = getCognitoConfig();
-      const command = new AdminUserGlobalSignOutCommand({
-        UserPoolId: config.userPoolId,
-        Username: cognitoSub,
+      await createAccessLogRow({
+        userId: pendingAccessLogUser.user_id,
+        eventType: "LOGOUT",
+        portal: portal,
+        ipAddress,
+        userAgent,
+        deviceInfo,
+        deviceType,
+        success: true,
+        metadata: {
+          roles: pendingAccessLogUser.roles,
+          portal,
+        },
+        context: auditContextFromRequest(req),
       });
-
-      await cognitoClient.send(command);
       logger.info(
-        { correlationId, cognitoSub },
-        "User signed out from Cognito successfully via AdminUserGlobalSignOut"
+        { correlationId, userId: pendingAccessLogUser.user_id, portal },
+        "Logout access log created"
       );
     } catch (error) {
-      // Log error but don't fail - Cognito sign out is best effort
-      // The redirect to Cognito logout URL will still handle client-side logout
       logger.warn(
-        {
-          correlationId,
-          cognitoSub,
-          error: error instanceof Error ? error.message : String(error),
-        },
-        "Failed to sign out from Cognito via AdminUserGlobalSignOut - continuing with logout redirect"
+        { correlationId, error: error instanceof Error ? error.message : String(error) },
+        "Failed to create logout access log"
       );
     }
   }
 
-  // Destroy express session
   req.session.destroy((err) => {
     if (err) {
       logger.error({ correlationId, error: err }, "Failed to destroy session");
@@ -1057,12 +1051,6 @@ router.get("/logout", async (req: Request, res: Response) => {
     }
   });
 
-  // Note: Amplify handles token clearing on the frontend
-  // We don't need to clear cookies here as Amplify manages session storage
-  // Backend only handles access logging and Cognito session revocation
-  // Frontend will handle the redirect to Cognito logout URL
-
-  // Return success response - let frontend handle redirect
   logger.info({ correlationId, userId, portal }, "Logout completed - returning success");
   return res.json({
     success: true,

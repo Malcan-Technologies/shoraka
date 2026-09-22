@@ -2,6 +2,8 @@ import {
   computeMarketplaceCommitBounds,
   marketplaceListingKind,
   meetsMinimumFunding,
+  noteFundingPercentFromAmounts,
+  roundNoteFundingPercent,
   resolveMarketplaceListingDaysLeft,
   type MarketplaceListingKind,
 } from "@cashsouk/types";
@@ -63,10 +65,8 @@ export function buildIssuerMarketplaceCampaign(
   const progress = note.fundingProgressPercent;
   const fundingPercent =
     progress != null && Number.isFinite(progress)
-      ? Math.max(0, Math.min(100, progress))
-      : targetAmount > 0
-        ? Math.min(100, (fundedAmount / targetAmount) * 100)
-        : 0;
+      ? roundNoteFundingPercent(Math.max(0, Math.min(100, progress)))
+      : noteFundingPercentFromAmounts(fundedAmount, targetAmount);
   const closesAt = note.fundingDeadline ?? note.listingClosesAt ?? null;
   const { remainingCapacity } = computeMarketplaceCommitBounds(targetAmount, fundedAmount);
 

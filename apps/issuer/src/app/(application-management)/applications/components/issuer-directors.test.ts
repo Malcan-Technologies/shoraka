@@ -3,6 +3,7 @@ import path from "node:path";
 import type { ApplicationPersonRow } from "@cashsouk/types";
 import {
   areIssuerDirectorSelectionsReady,
+  issuerDirectorSelectionIssue,
   issuerDirectorsFromPeople,
 } from "./issuer-directors";
 
@@ -78,7 +79,7 @@ describe("issuerDirectorsFromPeople", () => {
   });
 });
 
-describe("areIssuerDirectorSelectionsReady", () => {
+describe("issuerDirectorSelectionIssue", () => {
   it("requires a 12-digit IC on the selected people[] director", () => {
     const directors = issuerDirectorsFromPeople([
       person({
@@ -88,6 +89,37 @@ describe("areIssuerDirectorSelectionsReady", () => {
         email: "sec.practitioner@proton.me",
       }),
     ]);
+    expect(issuerDirectorSelectionIssue(directors, ["user:abc"])).toEqual({
+      kind: "missing_ic",
+    });
     expect(areIssuerDirectorSelectionsReady(directors, ["user:abc"])).toBe(false);
+  });
+
+  it("names a blank Person Email instead of treating the director as unselected", () => {
+    const directors = issuerDirectorsFromPeople([
+      person({
+        matchKey: "911118075495",
+        name: "Lim Tze Yang",
+        identityNumber: "911118075495",
+        email: "",
+      }),
+    ]);
+    expect(issuerDirectorSelectionIssue(directors, ["911118075495"])).toEqual({
+      kind: "missing_email",
+    });
+    expect(areIssuerDirectorSelectionsReady(directors, ["911118075495"])).toBe(false);
+  });
+
+  it("reports no selection when the dropdown is empty", () => {
+    const directors = issuerDirectorsFromPeople([
+      person({
+        matchKey: "911118075495",
+        name: "Lim Tze Yang",
+        identityNumber: "911118075495",
+      }),
+    ]);
+    expect(issuerDirectorSelectionIssue(directors, [])).toEqual({
+      kind: "none_selected",
+    });
   });
 });

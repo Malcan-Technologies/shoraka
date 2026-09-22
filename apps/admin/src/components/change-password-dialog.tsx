@@ -23,7 +23,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { createApiClient, useAuthToken } from "@cashsouk/config";
+import { CognitoLogoutError, createApiClient, useAuthToken } from "@cashsouk/config";
+import { meetsPasswordPolicy, PASSWORD_POLICY_MESSAGE } from "@cashsouk/types";
 import { EyeIcon, EyeSlashIcon } from "@heroicons/react/24/outline";
 import { logout } from "@/lib/auth";
 
@@ -34,11 +35,8 @@ const changePasswordSchema = z
     currentPassword: z.string().min(1, "Current password is required"),
     newPassword: z
       .string()
-      .min(8, "Password must be at least 8 characters")
-      .regex(
-        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
-        "Password must contain uppercase, lowercase, and number"
-      ),
+      .min(8, PASSWORD_POLICY_MESSAGE)
+      .refine(meetsPasswordPolicy, PASSWORD_POLICY_MESSAGE),
     confirmPassword: z.string().min(1, "Please confirm your password"),
   })
   .refine((data) => data.newPassword === data.confirmPassword, {
@@ -97,8 +95,14 @@ export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialo
         onOpenChange(false);
 
         // Wait a moment for user to read the message, then logout
-        setTimeout(async () => {
-          await logout(signOut, getAccessToken);
+        setTimeout(() => {
+          void logout(signOut, getAccessToken).catch((error: unknown) => {
+            toast.error(
+              error instanceof CognitoLogoutError
+                ? error.message
+                : "Unable to complete logout. Please try again."
+            );
+          });
         }, 2000);
       } else {
         toast.success("Password changed successfully", {
@@ -130,7 +134,8 @@ export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialo
           <DialogTitle>Change Password</DialogTitle>
           <DialogDescription className="text-[15px]">
             Enter your current password and choose a new password. Your new password must be at
-            least 8 characters and contain uppercase, lowercase, and a number.
+            least 8 characters and contain uppercase, lowercase, a number, and a symbol. Common
+            passwords are not allowed.
           </DialogDescription>
         </DialogHeader>
 

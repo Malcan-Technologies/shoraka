@@ -11,7 +11,10 @@ import {
   reviewRowGridClass,
   reviewValueClass,
 } from "@/components/application-review/review-section-styles";
-import { orgHref } from "@/lib/admin-directory-hrefs";
+import {
+  orgHref,
+  orgPeopleAccessHref,
+} from "@/lib/admin-directory-hrefs";
 import Link from "next/link";
 import {
   Table,
@@ -32,16 +35,11 @@ import { cn } from "@/lib/utils";
 import { DirectorShareholderTable } from "@/components/admin/director-shareholder-table";
 import { formatCurrency, formatNumber } from "@cashsouk/config";
 import {
-  APPLICATION_COMREP_DETAIL_KEYS,
   FINANCIAL_FIELD_LABELS,
   computeColumnMetrics,
   computeTurnoverGrowth,
   financialFormToBsPl,
-  formatFinancialFyPeriodDisplay,
-  getAdminFinancialSummaryUserColumnYears,
-  getLatestThreeCtosYearSlots,
   computeHasPendingDirectorShareholder,
-  normalizeFinancialStatementsQuestionnaire,
   normalizeDirectorShareholderIdKey,
   resolveCtosCurrentRatio,
   resolveCtosPatMarginPercent,
@@ -56,7 +54,6 @@ import {
   type ApplicationPersonRow,
   type ColumnComputedMetrics,
   type FinancialStatementsInput,
-  type FinancialStatementsQuestionnaire,
   type MarcAssessmentSnapshot,
 } from "@cashsouk/types";
 import { toast } from "sonner";
@@ -64,9 +61,41 @@ import { format, isValid, parse, parseISO } from "date-fns";
 import { useCreateApplicationCtosSubjectReport } from "@/hooks/use-admin-issuer-organization-ctos-mutations";
 import { usePermissions } from "@/hooks/use-permissions";
 import { formatDirectorShareholderReviewHint } from "@/lib/admin-director-shareholder-review-message";
+import {
+  adminFinancialSummaryColumns,
+  adminFyPeriodLines,
+  adminUnauditedYearPresentation,
+  extractQuestionnaireAndUnaudited,
+} from "@/lib/stored-unaudited-years";
+
+export { extractQuestionnaireAndUnaudited } from "@/lib/stored-unaudited-years";
 
 /** Year row placeholder when no year (em dash). */
 const HEADER_PLACEHOLDER = "\u2014";
+
+function AdminUnauditedYearHeading({
+  year,
+  questionnaire,
+}: {
+  year: number;
+  questionnaire: Parameters<typeof adminUnauditedYearPresentation>[0];
+}) {
+  const lines = adminFyPeriodLines(adminUnauditedYearPresentation(questionnaire, year).periodLine);
+  return (
+    <span className="flex flex-col items-end gap-0.5 text-right">
+      <span>{`FY${year}`}</span>
+      {lines.length > 0 ? (
+        <span className="text-meta font-normal leading-snug text-muted-foreground">
+          {lines.map((line) => (
+            <span key={line} className="block whitespace-nowrap">
+              {line}
+            </span>
+          ))}
+        </span>
+      ) : null}
+    </span>
+  );
+}
 
 type CtosFetchState = "not_pulled" | "no_records" | "has_data";
 
@@ -162,29 +191,6 @@ export function parseFinancialStatements(raw: unknown): Record<string, unknown> 
   return obj;
 }
 
-export function extractQuestionnaireAndUnaudited(financialRaw: unknown): {
-  questionnaire: FinancialStatementsQuestionnaire | null;
-  unauditedByYear: Record<string, Record<string, unknown>>;
-} {
-  if (!financialRaw || typeof financialRaw !== "object") {
-    return { questionnaire: null, unauditedByYear: {} };
-  }
-  const obj = financialRaw as Record<string, unknown>;
-  const qRaw = obj.questionnaire;
-  const byYear = obj.unaudited_by_year as Record<string, Record<string, unknown>> | undefined;
-  if (
-    qRaw &&
-    typeof qRaw === "object" &&
-    byYear &&
-    typeof byYear === "object" &&
-    !Array.isArray(byYear)
-  ) {
-    const questionnaire = normalizeFinancialStatementsQuestionnaire(qRaw);
-    return { questionnaire, unauditedByYear: byYear };
-  }
-  return { questionnaire: null, unauditedByYear: {} };
-}
-
 export function firstUnauditedYearFinancialBlock(raw: unknown): Record<string, unknown> {
   const { unauditedByYear } = extractQuestionnaireAndUnaudited(raw);
   const years = Object.keys(unauditedByYear).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
@@ -192,8 +198,6 @@ export function firstUnauditedYearFinancialBlock(raw: unknown): Record<string, u
   const block = unauditedByYear[years[0]];
   return block && typeof block === "object" ? (block as Record<string, unknown>) : {};
 }
-
-type ColumnSpec = { kind: "ctos"; year: number | null } | { kind: "unaudited"; year: number | null };
 
 function ctosFinToFs(r: CtosFinRow): Record<string, unknown> {
   const a = r.account;
@@ -289,6 +293,7 @@ export function ApplicationFinancialReviewContent({
   const issuerOrgId = issuerOrganizationId?.trim() ?? "";
   const { can } = usePermissions();
   const canManageFinancialCtos = can("applications.financial.manage");
+  const canViewOrganizations = can("organizations.view");
   const createSubjectReport = useCreateApplicationCtosSubjectReport(applicationId || undefined);
   const [subjectCtosFetchKey, setSubjectCtosFetchKey] = React.useState<string | null>(null);
 
@@ -320,29 +325,21 @@ export function ApplicationFinancialReviewContent({
     return m;
   }, [financialRows]);
 
-  const adminUserYears = React.useMemo(
-    () => getAdminFinancialSummaryUserColumnYears(financialQuestionnaire, new Date()),
-    [financialQuestionnaire]
+  const columns = React.useMemo(
+    () => adminFinancialSummaryColumns(financialRows, unauditedByYear),
+    [financialRows, unauditedByYear]
   );
 
-  const columns = React.useMemo((): ColumnSpec[] => {
-    const ctosSlotYears = getLatestThreeCtosYearSlots(financialRows);
-    const ctosYearSet = new Set<number>(
-      ctosSlotYears.filter((y): y is number => typeof y === "number")
-    );
-    const ctosPart: ColumnSpec[] = ctosSlotYears.map((year) => ({
-      kind: "ctos" as const,
-      year,
-    }));
-
-    const filteredAdminUserYears = adminUserYears.filter((year) => !ctosYearSet.has(year));
-    const unPart: ColumnSpec[] = filteredAdminUserYears.map((year) => ({
-      kind: "unaudited" as const,
-      year,
-    }));
-
-    return [...ctosPart, ...unPart];
-  }, [financialRows, adminUserYears]);
+  // For issuer-entered additional regulatory financial details, CTOS never provides values for these keys.
+  // So render only the issuer (unaudited) columns to avoid a misleading CTOS-vs-issuer comparison layout.
+  const issuerDetailColumnIndices = React.useMemo(() => {
+    const indices: number[] = [];
+    for (let i = 0; i < columns.length; i++) {
+      const spec = columns[i];
+      if (spec.kind === "unaudited" && spec.year != null) indices.push(i);
+    }
+    return indices;
+  }, [columns]);
 
   const turnovers = React.useMemo(() => {
     return columns.map((spec) => {
@@ -450,14 +447,23 @@ export function ApplicationFinancialReviewContent({
     { id: "othass", label: FINANCIAL_FIELD_LABELS.othass },
     { id: "bscatot", label: FINANCIAL_FIELD_LABELS.bscatot },
     { id: "bsclbank", label: FINANCIAL_FIELD_LABELS.bsclbank },
-    { id: "totass", label: COMPUTED_FIELD_LABELS.totass, formulaHint: "CTOS: totass only. Issuer: sum of entered asset lines when totass blank." },
+    {
+      id: "totass",
+      label: COMPUTED_FIELD_LABELS.totass,
+      formulaHint: "Calculated as Total Assets from issuer financial information when a total isn't provided.",
+    },
     { id: "curlib", label: FINANCIAL_FIELD_LABELS.curlib },
     { id: "bsslltd", label: FINANCIAL_FIELD_LABELS.bsslltd },
     { id: "bsclstd", label: FINANCIAL_FIELD_LABELS.bsclstd },
-    { id: "totlib", label: COMPUTED_FIELD_LABELS.totlib, formulaHint: "CTOS: totlib only. Issuer: sum of entered liability lines when totlib blank." },
-    { id: "networth", label: COMPUTED_FIELD_LABELS.networth, formulaHint: "CTOS: networth only. Issuer: total assets − total liabilities from entered lines." },
-    { id: "bsqpuc", label: FINANCIAL_FIELD_LABELS.bsqpuc },
-    { id: "turnover", label: FINANCIAL_FIELD_LABELS.turnover },
+    {
+      id: "totlib",
+      label: COMPUTED_FIELD_LABELS.totlib,
+      formulaHint:
+        "Calculated as Total Liabilities from issuer financial information when a total isn't provided.",
+    },
+    { id: "networth", label: COMPUTED_FIELD_LABELS.networth, formulaHint: "Total Assets − Total Liabilities" },
+    { id: "bsqpuc", label: "Paid-up Share Capital" },
+    { id: "turnover", label: "Revenue (Turnover)" },
     { id: "plnpbt", label: FINANCIAL_FIELD_LABELS.plnpbt },
     { id: "plnpat", label: FINANCIAL_FIELD_LABELS.plnpat },
     { id: "plnetdiv", label: FINANCIAL_FIELD_LABELS.plnetdiv },
@@ -465,27 +471,27 @@ export function ApplicationFinancialReviewContent({
     {
       id: "turnover_growth",
       label: COMPUTED_FIELD_LABELS.turnover_growth,
-      formulaHint: "CTOS: turnover_growth only. Issuer: (this year − prior) ÷ prior when years are consecutive.",
+      formulaHint: "Change in revenue compared with the previous financial year",
     },
     {
       id: "profit_margin",
       label: COMPUTED_FIELD_LABELS.profit_margin,
-      formulaHint: "PAT ÷ turnover (official CTOS PAT Margin XSL). Never CTOS profit_margin (PBT Margin).",
+      formulaHint: "Profit After Tax ÷ Revenue",
     },
     {
       id: "return_of_equity",
       label: COMPUTED_FIELD_LABELS.return_of_equity,
-      formulaHint: "CTOS: return_on_equity only. Issuer: PAT ÷ net worth from submitted lines.",
+      formulaHint: "Profit After Tax ÷ Net Worth",
     },
     {
       id: "currat",
       label: COMPUTED_FIELD_LABELS.currat,
-      formulaHint: "CTOS: currat only. Issuer: current assets ÷ current liabilities from submitted lines.",
+      formulaHint: "Current Assets ÷ Current Liabilities",
     },
     {
       id: "workcap",
       label: COMPUTED_FIELD_LABELS.workcap,
-      formulaHint: "CTOS: workcap only. Issuer: current assets − current liabilities from submitted lines.",
+      formulaHint: "Current Assets − Current Liabilities",
     },
   ];
 
@@ -676,11 +682,11 @@ export function ApplicationFinancialReviewContent({
     <>
       <ReviewFieldBlock
         title="Financial Summary"
-        titleTooltip="Past financial years come from the organization CTOS report. The latest financial year is entered by the issuer."
+        titleTooltip="Past financial years come from the organization CTOS report. Issuer columns are unaudited figures entered on the application. An open year is year-to-date as at today."
       >
         <div className={applicationTableWrapperClass}>
           <div className="overflow-x-auto">
-            <Table className="table-fixed w-full min-w-[760px] text-[15px]">
+            <Table className="table-fixed w-full min-w-[960px] text-[15px]">
               <TableHeader className={cn(applicationTableHeaderBgClass, "[&_tr]:border-b-border")}>
                 <TableRow className="hover:bg-transparent border-b border-border">
                   <TableHead
@@ -696,19 +702,17 @@ export function ApplicationFinancialReviewContent({
                       key={`yr-${i}-${spec.kind}-${spec.year ?? "dash"}`}
                       className={cn(
                         applicationTableHeaderClass,
-                        "w-[15.5%] align-middle text-right tabular-nums",
-                        i < columns.length - 1 ? "border-r border-border" : "",
+                        "w-[15.5%] min-w-[8.5rem] align-middle text-right tabular-nums",
+                        i < issuerDetailColumnIndices.length - 1 ? "border-r border-border" : "",
                         financialSummaryColumnShellClass(spec.kind, i, spec.year)
                       )}
                     >
                       <span className={spec.year != null ? "text-foreground" : "text-muted-foreground"}>
-                        {spec.kind === "unaudited" && spec.year != null && financialQuestionnaire ? (
-                          <span className="flex flex-col items-end gap-0.5">
-                            <span>{`FY${spec.year}`}</span>
-                            <span className="text-[11px] font-normal leading-tight text-muted-foreground">
-                              {formatFinancialFyPeriodDisplay(financialQuestionnaire, spec.year)}
-                            </span>
-                          </span>
+                        {spec.kind === "unaudited" && spec.year != null ? (
+                          <AdminUnauditedYearHeading
+                            year={spec.year}
+                            questionnaire={financialQuestionnaire}
+                          />
                         ) : spec.year != null ? (
                           String(spec.year)
                         ) : spec.kind === "ctos" ? (
@@ -741,7 +745,7 @@ export function ApplicationFinancialReviewContent({
                         <Badge
                           variant="outline"
                           className={cn(
-                            "shrink-0 font-normal text-[11px] leading-tight px-2.5 py-0.5 rounded-md shadow-none",
+                            "shrink-0 whitespace-nowrap font-normal text-[11px] leading-tight px-2.5 py-0.5 rounded-md shadow-none",
                             spec.kind === "ctos" && spec.year != null
                               ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100"
                               : spec.kind === "ctos"
@@ -811,11 +815,11 @@ export function ApplicationFinancialReviewContent({
 
       <ReviewFieldBlock
         title="Additional Financial Details"
-        titleTooltip="ComRep reporting fields entered by the issuer. These are separate from the financing statement lines above and are not in CTOS extracts."
+        titleTooltip="Regulatory reporting fields entered by the issuer. These are separate from the financing statement lines above and are not in CTOS extracts."
       >
         <div className={applicationTableWrapperClass}>
           <div className="overflow-x-auto">
-            <Table className="table-fixed w-full min-w-[760px] text-[15px]">
+            <Table className="table-fixed w-full min-w-[960px] text-[15px]">
               <TableHeader className={cn(applicationTableHeaderBgClass, "[&_tr]:border-b-border")}>
                 <TableRow className="hover:bg-transparent border-b border-border">
                   <TableHead
@@ -826,72 +830,131 @@ export function ApplicationFinancialReviewContent({
                   >
                     Field
                   </TableHead>
-                  {columns.map((spec, i) => (
+                  {issuerDetailColumnIndices.map((colIdx, i) => {
+                    const spec = columns[colIdx];
+                    return (
                     <TableHead
                       key={`comrep-yr-${i}-${spec.kind}-${spec.year ?? "dash"}`}
                       className={cn(
                         applicationTableHeaderClass,
-                        "w-[15.5%] align-middle text-right tabular-nums",
+                        "w-[15.5%] min-w-[8.5rem] align-middle text-right tabular-nums",
                         i < columns.length - 1 ? "border-r border-border" : "",
                         financialSummaryColumnShellClass(spec.kind, i, spec.year)
                       )}
                     >
-                      {spec.kind === "unaudited" && spec.year != null
-                        ? `FY${spec.year}`
-                        : spec.kind === "ctos"
-                          ? spec.year != null
-                            ? String(spec.year)
-                            : "No year"
-                          : HEADER_PLACEHOLDER}
+                      {spec.kind === "unaudited" && spec.year != null ? (
+                        <AdminUnauditedYearHeading
+                          year={spec.year}
+                          questionnaire={financialQuestionnaire}
+                        />
+                      ) : spec.kind === "ctos" ? (
+                        spec.year != null ? String(spec.year) : "No year"
+                      ) : (
+                        HEADER_PLACEHOLDER
+                      )}
                     </TableHead>
-                  ))}
+                    );
+                  })}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {APPLICATION_COMREP_DETAIL_KEYS.map((key) => (
-                  <TableRow key={key} className={applicationTableRowClass}>
-                    <TableCell
-                      className={cn(
-                        applicationTableCellClass,
-                        "border-r border-border bg-muted/20 font-medium text-foreground"
-                      )}
-                    >
-                      {FINANCIAL_FIELD_LABELS[key] ?? key}
-                    </TableCell>
-                    {columns.map((spec, ci) => {
-                      const fs = spec.year == null ? null : getFsCol(ci);
-                      let cellText = "—";
-                      if (spec.kind === "ctos") {
-                        cellText = spec.year == null ? "—" : "Not in CTOS extract";
-                      } else if (!fs || fs[key] == null || fs[key] === "") {
-                        cellText = "Not provided in issuer form";
-                      } else {
-                        cellText = formatCurrency(toNum(fs[key]), { decimals: 0 });
-                      }
-                      const muted =
-                        cellText === "—" ||
-                        cellText === "Not provided in issuer form" ||
-                        cellText === "Not in CTOS extract";
-                      return (
+                {(() => {
+                  const OPTIONAL_EQUITY_KEYS = new Set([
+                    "equity_share_application",
+                    "equity_share_premium",
+                    "equity_minority",
+                  ]);
+
+                  const groups = [
+                    {
+                      title: "Liability Breakdown",
+                      keys: ["curlib_borrowing", "curlib_non_borrowing", "ncl_loan", "ncl_non_loan"] as const,
+                    },
+                    {
+                      title: "Equity Breakdown",
+                      keys: [
+                        "equity_share_application",
+                        "equity_share_premium",
+                        "equity_accumulated_profit",
+                        "equity_minority",
+                      ] as const,
+                    },
+                    { title: "Profit & Loss", keys: ["pl_minority"] as const },
+                    {
+                      title: "Costs",
+                      keys: ["operating_cost", "admin_cost", "interest_cost", "other_cost"] as const,
+                    },
+                  ];
+
+                  const renderLabel = (key: string) => {
+                    const base = FINANCIAL_FIELD_LABELS[key] ?? key;
+                    if (!OPTIONAL_EQUITY_KEYS.has(key)) return base;
+                    return (
+                      <div className="flex items-center gap-2">
+                        <span>{base}</span>
+                        <span className="text-meta font-normal leading-snug text-muted-foreground">
+                          Optional
+                        </span>
+                      </div>
+                    );
+                  };
+
+                  const colSpan = 1 + issuerDetailColumnIndices.length;
+
+                  return groups.flatMap((group) => [
+                    <TableRow key={`group-${group.title}`} className={applicationTableRowClass}>
+                      <TableCell
+                        colSpan={colSpan}
+                        className={cn(applicationTableCellClass, "bg-muted/10 font-semibold text-foreground py-2")}
+                      >
+                        {group.title}
+                      </TableCell>
+                    </TableRow>,
+                    ...group.keys.map((key) => (
+                      <TableRow key={key} className={applicationTableRowClass}>
                         <TableCell
-                          key={`comrep-${spec.kind}-${spec.year ?? "x"}-${ci}-${key}`}
                           className={cn(
                             applicationTableCellClass,
-                            "border-r border-border text-right tabular-nums last:border-r-0",
-                            financialSummaryColumnShellClass(spec.kind, ci, spec.year),
-                            !muted && "text-foreground"
+                            "border-r border-border bg-muted/20 font-medium text-foreground"
                           )}
                         >
-                          {muted ? (
-                            <span className="text-muted-foreground">{cellText}</span>
-                          ) : (
-                            <span className="tabular-nums">{cellText}</span>
-                          )}
+                          {renderLabel(key)}
                         </TableCell>
-                      );
-                    })}
-                  </TableRow>
-                ))}
+                        {issuerDetailColumnIndices.map((colIdx, ci) => {
+                          const spec = columns[colIdx];
+                          const fs = getFsCol(colIdx);
+                          let cellText = "—";
+                          if (!fs || fs[key] == null || fs[key] === "") {
+                            cellText = "Not provided in issuer form";
+                          } else {
+                            cellText = formatCurrency(toNum(fs[key]), { decimals: 0 });
+                          }
+                          const muted =
+                            cellText === "—" ||
+                            cellText === "Not provided in issuer form" ||
+                            cellText === "Not in CTOS extract";
+                          return (
+                            <TableCell
+                              key={`comrep-${spec.kind}-${spec.year ?? "x"}-${ci}-${key}`}
+                              className={cn(
+                                applicationTableCellClass,
+                                "border-r border-border text-right tabular-nums last:border-r-0",
+                                financialSummaryColumnShellClass(spec.kind, ci, spec.year),
+                                !muted && "text-foreground"
+                              )}
+                            >
+                              {muted ? (
+                                <span className="text-muted-foreground">{cellText}</span>
+                              ) : (
+                                <span className="tabular-nums">{cellText}</span>
+                              )}
+                            </TableCell>
+                          );
+                        })}
+                      </TableRow>
+                    )),
+                  ]);
+                })()}
               </TableBody>
             </Table>
           </div>
@@ -903,8 +966,20 @@ export function ApplicationFinancialReviewContent({
         titleTooltip="The director and shareholder list comes from the organization CTOS report. Fetch again to get the latest list."
       >
         {hasPendingDirectorShareholder ? (
-          <div className="whitespace-pre-line rounded-xl border border-amber-300/60 bg-amber-50/70 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
-            {formatDirectorShareholderReviewHint(app.people)}
+          <div className="space-y-1.5 rounded-xl border border-amber-300/60 bg-amber-50/70 px-3 py-2 text-ui text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+            <p className="whitespace-pre-line">
+              {formatDirectorShareholderReviewHint(app.people)}
+            </p>
+            {issuerOrgId && canViewOrganizations ? (
+              <Link
+                href={orgPeopleAccessHref("issuer", issuerOrgId, {
+                  filter: "pending",
+                })}
+                className="inline-flex text-primary underline-offset-4 hover:underline"
+              >
+                Review and sync in People &amp; Access
+              </Link>
+            ) : null}
           </div>
         ) : null}
         <DirectorShareholderTable

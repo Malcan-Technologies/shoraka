@@ -7,7 +7,14 @@
  */
 
 import { buildUnifiedPeople, buildDirectorShareholderPeopleList, mergeMasterPartiesIntoPeopleList } from "./build-people-list";
-import { CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING, getFinalStatusLabel, isMissingGovernmentIdPerson } from "@cashsouk/types";
+import {
+  CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING,
+  computeHasPendingDirectorShareholder,
+  getFinalStatusLabel,
+  isMissingGovernmentIdPerson,
+  pickPreferredDirectorShareholderOnboarding,
+  pickPreferredDirectorShareholderScreening,
+} from "@cashsouk/types";
 
 describe("buildUnifiedPeople", () => {
   it("merges director + shareholder into one person row", () => {
@@ -1359,6 +1366,186 @@ describe("buildUnifiedPeople", () => {
     expect(people[0]?.screening?.status).toBe("APPROVED");
   });
 
+  it("existing-row merge prefers ready supplement KYC over placeholder CTOS onboarding", () => {
+    const people = mergeMasterPartiesIntoPeopleList({
+      people: [
+        {
+          matchKey: "800101011234",
+          name: "Jamie",
+          entityType: "INDIVIDUAL",
+          roles: ["DIRECTOR"],
+          sharePercentage: null,
+          status: "",
+          action: null,
+          screening: { status: "NOT_STARTED" },
+          onboarding: { status: "NOT_STARTED", id: null },
+          requestId: null,
+          requestIdType: null,
+          icFrontUrl: null,
+          icBackUrl: null,
+          email: "",
+        },
+      ],
+      masterParties: [
+        {
+          partyKey: "800101011234",
+          membershipStatus: "MASTER_ACTIVE",
+          entityType: "INDIVIDUAL",
+          name: "Jamie",
+          identityNumber: "800101011234",
+          isDirector: true,
+          isShareholder: false,
+          shareholdingPercentage: null,
+        },
+      ],
+      ctosPartySupplements: [
+        {
+          partyKey: "800101011234",
+          onboardingJson: {
+            status: "APPROVED",
+            requestId: "EOD1",
+            screening: { status: "APPROVED", requestId: "KYC1" },
+          },
+        },
+      ],
+    });
+    expect(people).toHaveLength(1);
+    expect(people[0]?.onboarding?.status).toBe("APPROVED");
+    expect(people[0]?.screening?.status).toBe("APPROVED");
+    expect(computeHasPendingDirectorShareholder(people)).toBe(false);
+  });
+
+  it("existing-row merge prefers WAIT_FOR_APPROVAL supplement KYC over placeholder CTOS onboarding", () => {
+    const people = mergeMasterPartiesIntoPeopleList({
+      people: [
+        {
+          matchKey: "800101011234",
+          name: "Jamie",
+          entityType: "INDIVIDUAL",
+          roles: ["DIRECTOR"],
+          sharePercentage: null,
+          status: "",
+          action: null,
+          screening: { status: "APPROVED" },
+          onboarding: { status: "REQUIRED", id: null },
+          requestId: null,
+          requestIdType: null,
+          icFrontUrl: null,
+          icBackUrl: null,
+          email: "",
+        },
+      ],
+      masterParties: [
+        {
+          partyKey: "800101011234",
+          membershipStatus: "MASTER_ACTIVE",
+          entityType: "INDIVIDUAL",
+          name: "Jamie",
+          identityNumber: "800101011234",
+          isDirector: true,
+          isShareholder: false,
+          shareholdingPercentage: null,
+        },
+      ],
+      ctosPartySupplements: [
+        {
+          partyKey: "800101011234",
+          onboardingJson: {
+            status: "WAIT_FOR_APPROVAL",
+            requestId: "EOD2",
+            screening: { status: "APPROVED", requestId: "KYC2" },
+          },
+        },
+      ],
+    });
+    expect(people[0]?.onboarding?.status).toBe("WAIT_FOR_APPROVAL");
+    expect(computeHasPendingDirectorShareholder(people)).toBe(false);
+  });
+
+  it("existing-row merge keeps approved master KYC when the supplement is a placeholder", () => {
+    const people = mergeMasterPartiesIntoPeopleList({
+      people: [
+        {
+          matchKey: "800101011234",
+          name: "Jamie",
+          entityType: "INDIVIDUAL",
+          roles: ["DIRECTOR"],
+          sharePercentage: null,
+          status: "APPROVED",
+          action: null,
+          screening: { status: "APPROVED" },
+          onboarding: { status: "APPROVED", id: "kyc-keep" },
+          requestId: "KYC-KEEP",
+          requestIdType: null,
+          icFrontUrl: null,
+          icBackUrl: null,
+          email: "jamie@example.com",
+        },
+      ],
+      masterParties: [
+        {
+          partyKey: "800101011234",
+          membershipStatus: "MASTER_ACTIVE",
+          entityType: "INDIVIDUAL",
+          name: "Jamie",
+          identityNumber: "800101011234",
+          isDirector: true,
+          isShareholder: false,
+          shareholdingPercentage: null,
+        },
+      ],
+      ctosPartySupplements: [
+        {
+          partyKey: "800101011234",
+          onboardingJson: {
+            status: "NOT_STARTED",
+            requestId: "draft-1",
+            screening: { status: "NOT_STARTED" },
+          },
+        },
+      ],
+    });
+    expect(people[0]?.onboarding?.status).toBe("APPROVED");
+    expect(people[0]?.onboarding?.id).toBe("kyc-keep");
+    expect(people[0]?.screening?.status).toBe("APPROVED");
+    expect(computeHasPendingDirectorShareholder(people)).toBe(false);
+  });
+
+  it("does not let empty onboarding fields overwrite a ready snapshot", () => {
+    const kept = pickPreferredDirectorShareholderOnboarding(
+      { status: "APPROVED", id: "kyc-1", verifyLink: "https://verify.example" },
+      { status: null, id: null }
+    );
+    expect(kept?.status).toBe("APPROVED");
+    expect(kept?.id).toBe("kyc-1");
+    expect(kept?.verifyLink).toBe("https://verify.example");
+  });
+
+  it("does not let an approved AML snapshot hide a rejected duplicate", () => {
+    const kept = pickPreferredDirectorShareholderScreening(
+      { status: "APPROVED", id: "aml-dir" },
+      { status: "FAILED", id: "aml-sh" }
+    );
+    expect(kept?.status).toBe("FAILED");
+    expect(kept?.id).toBe("aml-sh");
+  });
+
+  it("prefers an approved KYC snapshot over a ready-but-not-approved one", () => {
+    const fromSupplement = pickPreferredDirectorShareholderOnboarding(
+      { status: "WAIT_FOR_APPROVAL", id: "kyc-wfa" },
+      { status: "APPROVED", id: "kyc-approved" }
+    );
+    expect(fromSupplement?.status).toBe("APPROVED");
+    expect(fromSupplement?.id).toBe("kyc-approved");
+
+    const existingApproved = pickPreferredDirectorShareholderOnboarding(
+      { status: "APPROVED", id: "kyc-keep" },
+      { status: "WAIT_FOR_APPROVAL", id: "kyc-incoming" }
+    );
+    expect(existingApproved?.status).toBe("APPROVED");
+    expect(existingApproved?.id).toBe("kyc-keep");
+  });
+
   it("manual person before Send onboarding keeps KYC Not Started even with an email-only supplement", () => {
     const result = buildDirectorShareholderPeopleList({
       ctos: null,
@@ -1737,7 +1924,7 @@ describe("initial corporate onboarding CTOS source of truth", () => {
       corporateEntities: bobCe,
     });
     expect(result.listSource).toBe("CTOS_EMPTY");
-    expect(result.ctosDirectorShareholderWarning).toContain("did not return usable");
+    expect(result.ctosDirectorShareholderWarning).toContain("did not return a usable");
     expect(result.people.some((p) => p.name === "Bob")).toBe(true);
   });
 
@@ -2072,5 +2259,72 @@ describe("initial corporate onboarding CTOS source of truth", () => {
     expect(result.people[0]?.entityType).toBe("CORPORATE");
     expect(result.people[0]?.matchKey).toBe("13570K");
     expect(result.people[0]?.sharePercentage).toBe(40);
+  });
+
+  it("keeps master AML on CTOS-seeded people missing from a usable CTOS extract", () => {
+    const result = buildDirectorShareholderPeopleList({
+      initialCorporateOnboarding: false,
+      ctos: { directors: [jamieDirector] },
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      corporateEntities: null,
+      ctosPartySupplements: [
+        {
+          partyKey: "891114075601",
+          onboardingJson: {
+            status: "APPROVED",
+            screening: { status: "APPROVED", requestId: "KYC1" },
+          },
+        },
+      ],
+      masterParties: [
+        {
+          partyKey: "891114075601",
+          membershipStatus: "MASTER_ACTIVE",
+          entityType: "INDIVIDUAL",
+          name: "Ivan",
+          identityNumber: "891114075601",
+          isDirector: true,
+          isShareholder: false,
+          shareholdingPercentage: null,
+          origin: "CTOS_PARTY",
+        },
+      ],
+    });
+    const ivan = result.people.find((p) => p.matchKey === "891114075601");
+    expect(ivan).toBeDefined();
+    expect(ivan?.screening?.status).toBe("APPROVED");
+  });
+
+  it("attaches supplement AML onto a CTOS row that has no screening", () => {
+    const result = buildDirectorShareholderPeopleList({
+      ctos: { directors: [jamieDirector] },
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      corporateEntities: null,
+      ctosPartySupplements: [
+        {
+          partyKey: "800101011234",
+          onboardingJson: {
+            status: "APPROVED",
+            screening: { status: "APPROVED", requestId: "KYC2" },
+          },
+        },
+      ],
+      masterParties: [
+        {
+          partyKey: "800101011234",
+          membershipStatus: "MASTER_ACTIVE",
+          entityType: "INDIVIDUAL",
+          name: "Jamie",
+          identityNumber: "800101011234",
+          isDirector: true,
+          isShareholder: false,
+          shareholdingPercentage: null,
+          origin: "CTOS_PARTY",
+        },
+      ],
+    });
+    expect(result.people.find((p) => p.matchKey === "800101011234")?.screening?.status).toBe("APPROVED");
   });
 });

@@ -8,6 +8,8 @@ import {
   isNoteFundingComplete,
   isNoteFundingFailed,
   isNoteFundingOpen,
+  noteDisplayFundedAmount,
+  noteDisplayFundingPercent,
 } from "./funding-progress";
 
 describe("note funding progress colours", () => {
@@ -90,6 +92,9 @@ describe("note funding progress colours", () => {
     expect(getNoteFundingStatusToken({ fundingStatus: "FUNDED" })).toBe("success");
     expect(getNoteFundingStatusToken({ fundingStatus: "CLOSED" })).toBe("success");
     expect(getNoteFundingStatusToken({ fundingStatus: "FAILED" })).toBe("rejected");
+    expect(
+      getNoteFundingStatusToken({ status: "FAILED_FUNDING", fundingStatus: "CLOSED" })
+    ).toBe("rejected");
     expect(getNoteFundingStatusToken({ fundingStatus: "NOT_OPEN" })).toBe("neutral");
   });
 
@@ -97,7 +102,32 @@ describe("note funding progress colours", () => {
     expect(getNoteFundingStatusLabel({ fundingStatus: "OPEN" })).toBe("Funding Open");
     expect(getNoteFundingStatusLabel({ fundingStatus: "FUNDED" })).toBe("Funding Closed");
     expect(getNoteFundingStatusLabel({ fundingStatus: "CLOSED" })).toBe("Funding Closed");
-    expect(getNoteFundingStatusLabel({ fundingStatus: "FAILED" })).toBe("FAILED");
+    expect(getNoteFundingStatusLabel({ fundingStatus: "FAILED" })).toBe("Funding Failed");
+    expect(getNoteFundingStatusLabel({ status: "FAILED_FUNDING", fundingStatus: "CLOSED" })).toBe(
+      "Funding Failed"
+    );
+  });
+
+  it("zeros displayed funded amount and percent after fail funding", () => {
+    expect(
+      noteDisplayFundedAmount({ fundingStatus: "FAILED", fundedAmount: 400 })
+    ).toBe(0);
+    expect(
+      noteDisplayFundingPercent({ fundingStatus: "FAILED", fundingPercent: 4.8 })
+    ).toBe(0);
+    expect(
+      noteDisplayFundedAmount({
+        status: "FAILED_FUNDING",
+        fundingStatus: "CLOSED",
+        fundedAmount: 400,
+      })
+    ).toBe(0);
+    expect(
+      noteDisplayFundedAmount({ fundingStatus: "OPEN", fundedAmount: 400 })
+    ).toBe(400);
+    expect(
+      noteDisplayFundingPercent({ fundingStatus: "OPEN", fundingPercent: 4.8 })
+    ).toBe(4.8);
   });
 
   it("treats only servicing-or-later statuses as a live funded loan", () => {

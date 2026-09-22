@@ -199,14 +199,14 @@ export function marketplaceDaysLeftLabel(note: MarketplaceNote): string {
 }
 
 export function marketplaceFundedGoalLabel(note: MarketplaceNote): string {
-  return `${formatCurrency(note.fundedAmount, { decimals: 0 })} / ${formatCurrency(note.goalAmount, { decimals: 0 })}`;
+  return `${formatCurrency(note.fundedAmount)} / ${formatCurrency(note.goalAmount)}`;
 }
 
-/** Exact funded/target amounts for marketplace and dashboard. Do not compact to k/m. */
+/** Exact funded/target amounts for marketplace and dashboard. Keep sen — do not round to ringgit. */
 export function marketplaceExactFundedGoalLabel(
   note: Pick<MarketplaceNote, "fundedAmount" | "goalAmount">
 ): string {
-  return `${formatCurrency(note.fundedAmount, { decimals: 0 })} of ${formatCurrency(note.goalAmount, { decimals: 0 })}`;
+  return `${formatCurrency(note.fundedAmount)} of ${formatCurrency(note.goalAmount)}`;
 }
 
 export function marketplaceFundingProgressCaption(

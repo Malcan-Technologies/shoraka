@@ -19,14 +19,20 @@ export function adminHeroTintModifierClass(
   return tone ? adminHeroTintClass(tone) : null;
 }
 
-/** Width of the hero top-right rail (KPI wells + actions). Must not shrink-wrap to a button. */
+/**
+ * Width of the hero top-right rail (KPI wells + actions).
+ * Side-by-side only from `xl` so identity (title, financing type) stays readable
+ * next to the admin sidebar. Multi-card rails cap at ~half width instead of
+ * reserving 20rem per well, which crushed labels at laptop widths.
+ */
 export function heroAsideClusterClass(cardCount: number): string {
   const n = Math.min(Math.max(cardCount, 1), HERO_SUMMARY_CARD_LIMIT);
   return cn(
-    "flex w-full shrink-0 flex-col gap-3",
-    n <= 1 && "lg:min-w-[20rem] lg:w-auto",
-    n === 2 && "lg:w-[41rem] lg:max-w-[min(41rem,calc(100%-12rem))]",
-    n >= 3 && "lg:w-[62rem] lg:max-w-[min(62rem,calc(100%-12rem))]"
+    "flex w-full flex-col gap-3",
+    n <= 1 && "xl:w-[20rem] xl:shrink-0",
+    n >= 2 && "min-w-0 xl:shrink-0",
+    n === 2 && "xl:w-[min(28rem,48%)]",
+    n >= 3 && "xl:w-[min(36rem,52%)]"
   );
 }
 
@@ -35,6 +41,10 @@ export function heroSummaryClusterClass(count: number): string {
   const n = Math.max(0, Math.min(count, HERO_SUMMARY_CARD_LIMIT));
   return cn(
     "grid w-full items-stretch gap-3",
-    n <= 1 ? "grid-cols-1 lg:min-w-[20rem]" : n === 2 ? "grid-cols-2" : "grid-cols-1 sm:grid-cols-3"
+    n <= 1
+      ? "grid-cols-1"
+      : n === 2
+        ? "grid-cols-1 sm:grid-cols-2"
+        : "grid-cols-1 md:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3"
   );
 }

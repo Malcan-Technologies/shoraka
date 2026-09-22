@@ -102,6 +102,7 @@ const ACTIVITY_STATUS_BY_EVENT: Record<string, ActivityStatusToken> = {
   PUBLISH: "submitted",
   PAUSE_LISTING: "neutral",
   RESUME_LISTING: "submitted",
+  EXTEND_LISTING: "submitted",
   CLOSE_FUNDING: "submitted",
   NOTE_FACILITY_FEE_COLLECTION_WAIVED: "neutral",
   FAIL_FUNDING: "rejected",

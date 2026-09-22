@@ -2,7 +2,7 @@ import { isNoteProspectusPublished, type NoteDetail } from "@cashsouk/types";
 import type { WorkflowStatusTone } from "@/notes/utils/workflow-status-tokens";
 import type { StatusToken } from "@cashsouk/ui";
 
-export type ProspectusNoteDetailPhase = "draft" | "ready" | "approved" | "published";
+export type ProspectusNoteDetailPhase = "draft" | "ready" | "approved" | "published" | "closed";
 
 export type ProspectusStatusCardActionVariant = "default" | "outline";
 
@@ -10,7 +10,7 @@ export type ProspectusStatusCardModel = {
   phase: ProspectusNoteDetailPhase;
   heading: string;
   description: string;
-  badgeLabel: "Draft" | "Ready for publish" | "Approved" | "Published";
+  badgeLabel: "Draft" | "Ready for publish" | "Approved" | "Published" | "Closed";
   /** Opens the prospectus working area (`/notes/:id/prospectus`). */
   workspaceLabel: string;
   /** Frozen PDF exists after approval; opens in a new tab. */
@@ -37,6 +37,7 @@ export function resolveProspectusStatusCardBadgeToken(
   if (model.badgeLabel === "Ready for publish") return "active";
   if (model.badgeLabel === "Approved") return "success";
   if (model.badgeLabel === "Published") return "success";
+  if (model.badgeLabel === "Closed") return "neutral";
   return "neutral";
 }
 
@@ -48,6 +49,22 @@ export function resolveProspectusStatusCard(note: NoteDetail): ProspectusStatusC
   });
   const workflow = note.prospectus?.status;
   const display = note.prospectus?.displayStatus;
+  const fundingFailed = note.status === "FAILED_FUNDING" || note.fundingStatus === "FAILED";
+
+  if (fundingFailed) {
+    return {
+      phase: "closed",
+      heading: "Listing closed",
+      description:
+        "Funding failed. This listing is no longer visible to investors. Commitments have been released.",
+      badgeLabel: "Closed",
+      workspaceLabel: "Open Review",
+      viewAvailable: notePublished || Boolean(note.publishedAt) || display === "Published",
+      emphasize: false,
+      badgeTone: "neutral",
+      actionVariant: "outline",
+    };
+  }
 
   if (notePublished || display === "Published") {
     return {

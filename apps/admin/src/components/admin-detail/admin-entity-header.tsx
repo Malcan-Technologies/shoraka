@@ -126,13 +126,13 @@ function EntityIdentity({
         {eyebrow ? (
           <p className="text-meta uppercase tracking-wider text-muted-foreground">{eyebrow}</p>
         ) : null}
-        <h1 className="truncate text-section-title" title={title}>
+        <h1 className="break-words text-section-title" title={title}>
           {title}
         </h1>
         {subtitle ? (
           <p className="break-words text-ui text-muted-foreground">{subtitle}</p>
         ) : null}
-        {identityExtra ? <div className="pt-0.5">{identityExtra}</div> : null}
+        {identityExtra ? <div className="min-w-0 pt-0.5">{identityExtra}</div> : null}
         {contextRows && contextRows.length > 0 ? <EntityContextRows rows={contextRows} /> : null}
         {chips ? <div className="flex flex-wrap items-center gap-2 pt-1">{chips}</div> : null}
       </div>
@@ -162,7 +162,7 @@ function EntityTitleRow({
   | "actions"
 > & { compact?: boolean }) {
   return (
-    <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+    <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
       <EntityIdentity
         eyebrow={eyebrow}
         title={title}
@@ -174,7 +174,7 @@ function EntityTitleRow({
         compact={compact}
       />
       {actions ? (
-        <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end lg:pt-1">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end xl:pt-1">
           {actions}
         </div>
       ) : null}
@@ -201,12 +201,11 @@ function EntityMetricsStrip({ metrics }: { metrics: AdminEntityHeaderMetric[] })
   return (
     <dl className="flex flex-wrap justify-start gap-x-10 gap-y-3">
       {metrics.map((metric) => (
-        <div key={metric.label} className="min-w-0 shrink-0">
+        <div key={metric.label} className="min-w-0 max-w-full sm:max-w-[14rem]">
           <dt className="text-meta text-muted-foreground">{metric.label}</dt>
           <dd
             className={cn(
-              "mt-0.5 min-w-0 text-body font-semibold tabular-nums tracking-tight",
-              typeof metric.value === "string" && "truncate",
+              "mt-0.5 min-w-0 break-words text-body font-semibold tabular-nums tracking-tight",
               metric.accentClassName
             )}
           >
@@ -215,8 +214,7 @@ function EntityMetricsStrip({ metrics }: { metrics: AdminEntityHeaderMetric[] })
           {metric.hint ? (
             <div
               className={cn(
-                "mt-0.5 min-w-0 text-meta",
-                typeof metric.hint === "string" && "truncate",
+                "mt-0.5 min-w-0 break-words text-meta",
                 metric.accentClassName || "text-muted-foreground"
               )}
             >
@@ -284,8 +282,8 @@ export function AdminEntityHeader({
             <div aria-hidden className={cn("pointer-events-none absolute inset-0", ADMIN_HERO_PATTERN_CLASS)} />
           ) : null}
           <div className="relative space-y-6 p-6 md:p-8">
-            <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-start lg:justify-between lg:gap-8">
-              <div className="min-w-0 flex-1">{identity}</div>
+            <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-start xl:justify-between xl:gap-8">
+              <div className="min-w-0 flex-1 xl:min-w-[16rem]">{identity}</div>
               {(summaryCards && summaryCards.length > 0) || actions ? (
                 <div
                   className={heroAsideClusterClass(
@@ -296,7 +294,7 @@ export function AdminEntityHeader({
                     <EntitySummaryCards cards={summaryCards} />
                   ) : null}
                   {actions ? (
-                    <div className="flex w-full flex-wrap items-center gap-2 lg:justify-end">
+                    <div className="flex w-full flex-wrap items-center gap-2 xl:justify-end">
                       {actions}
                     </div>
                   ) : null}

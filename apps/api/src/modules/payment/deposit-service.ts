@@ -3,6 +3,7 @@ import {
   GatewayPayment,
   GatewayPaymentEventType,
   GatewayPaymentPurpose,
+  GatewayPaymentReceiptStatus,
   GatewayPaymentStatus,
   InvestorBalanceTransactionSource,
   InvestorOrganization,
@@ -21,6 +22,7 @@ import { CreateInvestorDepositInput } from "./deposit-schemas";
 import { createGatewayOrder, mapGatewayPaymentResponse } from "./gateway-order-service";
 import { recordGatewayPaymentEvent, recordGatewayPaymentCompletedIfAbsent } from "./gateway-events";
 import { assertTransition } from "./state";
+import { generatePresignedDownloadUrl, generatePresignedViewUrl } from "../../lib/s3/client";
 
 export type ActorContext = {
   userId: string;
@@ -239,6 +241,76 @@ export async function getInvestorDeposit(
 
   const synced = await syncDepositFromCurlec(payment, db);
   return mapDepositResponse(synced);
+}
+
+export async function getInvestorGatewayPaymentReceiptPdfUrl(
+  actor: ActorContext,
+  gatewayPaymentId: string,
+  mode: "view" | "download",
+  db: PrismaClient = defaultPrisma
+): Promise<{
+  url: string | null;
+  expiresIn: number | null;
+  fileName: string | null;
+  mode: "view" | "download";
+  hasPdf: boolean;
+  receiptStatus: GatewayPaymentReceiptStatus | null;
+}> {
+  const payment = await db.gatewayPayment.findFirst({
+    where: {
+      id: gatewayPaymentId,
+      purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT,
+    },
+    select: { investor_organization_id: true },
+  });
+
+  if (!payment?.investor_organization_id) {
+    throw new AppError(404, "DEPOSIT_NOT_FOUND", "Deposit not found");
+  }
+
+  // Ownership validation: ensure the logged-in investor can access the investor org.
+  await assertInvestorOrgAccess(db, actor, payment.investor_organization_id);
+
+  const receipt = await db.gatewayPaymentReceipt.findUnique({
+    where: { gateway_payment_id: gatewayPaymentId },
+  });
+
+  if (!receipt?.pdf_s3_key) {
+    return {
+      url: null,
+      expiresIn: null,
+      fileName: receipt?.receipt_number ? `${receipt.receipt_number}.pdf` : null,
+      mode,
+      hasPdf: false,
+      receiptStatus: receipt?.status ?? null,
+    };
+  }
+
+  const fileName = `${receipt.receipt_number}.pdf`;
+  if (mode === "download") {
+    const result = await generatePresignedDownloadUrl({
+      key: receipt.pdf_s3_key,
+      fileName,
+    });
+    return {
+      url: result.downloadUrl,
+      expiresIn: result.expiresIn,
+      fileName,
+      mode,
+      hasPdf: true,
+      receiptStatus: receipt.status,
+    };
+  }
+
+  const result = await generatePresignedViewUrl({ key: receipt.pdf_s3_key });
+  return {
+    url: result.viewUrl,
+    expiresIn: result.expiresIn,
+    fileName,
+    mode,
+    hasPdf: true,
+    receiptStatus: receipt.status,
+  };
 }
 
 function resolveCompanyExpectedName(org: InvestorOrganization): string | null {

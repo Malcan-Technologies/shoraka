@@ -6,7 +6,7 @@ tags:
   - admin
   - onboarding
 order: 5
-updated: 2026-09-17
+updated: 2026-09-19
 ---
 
 ## Purpose
@@ -29,7 +29,7 @@ High-level issuer flow:
 3. Issuer completes company verification (eKYB) with CashSouk’s verification partner.
 4. Admin reviews the submission and supporting checks.
 5. Admin approves, requests follow-up, or rejects the onboarding.
-6. Once approved, required directors and shareholders finish their own checks from **Organisation → People & Access**. Adding a person can start RegTank AML; if AML is stuck and no RegTank record exists, investigate before treating the party as screened. Person Email is for signing and onboarding; Account Email is the linked login and stays read-only. After KYC/AML complete, Person Email can be corrected without restarting those checks.
+6. Once approved, required directors and shareholders finish their own checks from **Organisation → People & Access**. Adding a person can start RegTank AML; if AML is stuck and no RegTank record exists, investigate before treating the party as screened. Person Email is for signing and onboarding; Account Email is the linked login and stays read-only. After KYC/AML complete, Person Email can be corrected without restarting those checks. CTOS/RegTank-imported directors can still have a blank Person Email; that blocks offer Continue until someone adds it on People & Access.
 7. The issuer can create financing applications only after the organisation is approved and required people plus Complete Profile fields are done.
 
 Issuer financing applications have a separate RM 50 application processing fee, paid once at first submission through the portal payment checkout. Resubmitting after an amendment request does not charge the fee again.

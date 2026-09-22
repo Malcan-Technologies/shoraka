@@ -46,6 +46,34 @@ describe("resolvePartyCtosComparison", () => {
     ).toBe("NOT_FOUND");
   });
 
+  it("does not treat a stale absence flag as not-found when the latest extract contains the person", () => {
+    expect(
+      resolvePartyCtosComparison(
+        {
+          ...base,
+          partyKey: "800101011234",
+          absentFromLatestExternal: true,
+          externalObservation: { name: "Jamie" },
+        },
+        { directors: [{ nic_brno: "800101011234", name: "Jamie" }], shareholders: [] }
+      ).state
+    ).toBe("MATCHED");
+  });
+
+  it("shows not-found when the stored flag is still present but the latest extract dropped the person", () => {
+    expect(
+      resolvePartyCtosComparison(
+        {
+          ...base,
+          partyKey: "800101011234",
+          isDirector: true,
+          absentFromLatestExternal: false,
+        },
+        { directors: [{ nic_brno: "900101101234", name: "Other" }], shareholders: [] }
+      ).state
+    ).toBe("NOT_FOUND");
+  });
+
   it("does not treat observed-but-not-adopted people as matched", () => {
     expect(
       resolvePartyCtosComparison({

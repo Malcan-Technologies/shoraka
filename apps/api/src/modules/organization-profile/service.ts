@@ -53,6 +53,10 @@ import {
   resolvePersonPlatformAccess,
   isInitialCorporateOnboardingStatus,
   isMinimalOnboardingPersonCreate,
+  isUnusableCtosCompanyExtract,
+  ctosExtractFingerprint,
+  partyNeedsCtosAbsenceReview,
+  CTOS_ABSENCE_ACK_FINGERPRINT_KEY,
   parseCtosPartySupplement,
   isLaterAddedCompanyPerson,
   issuerPersonCompletenessSummary,
@@ -178,7 +182,7 @@ function summarizeProfileStepsForDebug(
 const USER_LOCKED_ORG_FIELDS = new Set(["name", "dateOfBirth", "gender", "nationality", "identityNumber"]);
 /** Shared master fields the investor/issuer may change even when already filled.
  * When `fillEmptyOnly: true`, other USER writes are treated as "fill empties only".
- * DOB + gender must be overwrite-able for the Personal Investor profile editor.
+ * DOB, gender, and residential address must be overwrite-able for the Personal Investor profile editor.
  */
 const USER_OVERWRITE_ORG_FIELDS = new Set([
   "scInvestorCategory",
@@ -188,6 +192,7 @@ const USER_OVERWRITE_ORG_FIELDS = new Set([
   "gender",
   "nationality",
   "identityNumber",
+  "residentialAddress",
 ]);
 /** Verified identity fields stay locked once filled. ComRep collection fields may be corrected. */
 const USER_LOCKED_PARTY_FIELDS = new Set([
@@ -238,6 +243,21 @@ function assertMayWriteRegTankLockedField(params: {
     "FIELD_NOT_EDITABLE",
     "This field is locked because it was verified during onboarding."
   );
+}
+
+async function loadLatestCtosCompanyJson(
+  portal: Portal,
+  organizationId: string
+): Promise<unknown | null> {
+  const report = await prisma.ctosReport.findFirst({
+    where:
+      portal === "issuer"
+        ? { issuer_organization_id: organizationId, subject_ref: null }
+        : { investor_organization_id: organizationId, subject_ref: null },
+    orderBy: { fetched_at: "desc" },
+    select: { company_json: true },
+  });
+  return report?.company_json ?? null;
 }
 
 function orgWhere(portal: Portal, organizationId: string) {
@@ -796,6 +816,18 @@ export async function observeExternalCtosParties(
     if (idx >= 0) existing[idx] = updated;
   }
 
+  if (isUnusableCtosCompanyExtract(companyJson) || snapshot.size === 0) {
+    for (const row of existing) {
+      if (!row.absent_from_latest_external) continue;
+      if (row.membership_status === OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED) continue;
+      await prisma.organizationPartyProfile.update({
+        where: { id: row.id },
+        data: { absent_from_latest_external: false },
+      });
+    }
+    return;
+  }
+
   for (const row of existing) {
     if (row.membership_status === OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED) continue;
     if (partySeenInExternalKeys(row, seen)) continue;
@@ -834,7 +866,7 @@ export async function listPartyProfiles(
     portal === "issuer"
       ? { issuer_organization_id: organizationId }
       : { investor_organization_id: organizationId };
-  const [members, issuerInvites, investorInvites] = await Promise.all([
+  const [members, issuerInvites, investorInvites, latestCtos] = await Promise.all([
     prisma.organizationMember.findMany({
       where: memberWhere,
       select: { user_id: true, role: true },
@@ -861,6 +893,7 @@ export async function listPartyProfiles(
           },
         })
       : Promise.resolve([]),
+    loadLatestCtosCompanyJson(portal, organizationId),
   ]);
   const invitations = [...issuerInvites, ...investorInvites].map((row) => ({
     id: row.id,
@@ -873,7 +906,7 @@ export async function listPartyProfiles(
     role: member.role,
   }));
   return rows.map((row) => {
-    const dto = serializeParty(row);
+    const dto = serializeParty(row, latestCtos);
     return {
       ...dto,
       platformAccess: resolvePersonPlatformAccess({
@@ -1590,7 +1623,7 @@ export async function patchOrgMasterProfile(params: {
     incoming: ProfileAddress | null | undefined
   ): unknown => {
     if (incoming === undefined) return current;
-    if (fillEmptyOnly) {
+    if (fillEmptyOnly && !USER_OVERWRITE_ORG_FIELDS.has(field)) {
       const result = mergeEmptyAddress({
         master: current,
         incoming,
@@ -1954,6 +1987,27 @@ export async function patchPartyProfile(params: {
     : null;
   if (appliedSemantics?.issues.length) {
     throw new AppError(400, "VALIDATION_ERROR", appliedSemantics.issues[0] ?? "Enter a valid value.");
+  }
+  // Backend enforcement: SC NRIC/MyKad must be exactly 12 digits (digits only).
+  // applyPartyComrepSemantics(...) normalizes identityNumber (e.g. strips non-digits),
+  // so we must validate the *raw incoming* value here to avoid accepting invalid input.
+  if (p.identityNumber !== undefined || p.identityPrefix !== undefined) {
+    const rawIdentityNumber = p.identityNumber !== undefined ? p.identityNumber : row.identity_number;
+    const identityKind: "NRIC" | "ROC" | "PASSPORT" =
+      appliedSemantics?.identityPrefix === "PASSPORT"
+        ? "PASSPORT"
+        : appliedSemantics?.identityPrefix === "ROC"
+          ? "ROC"
+          : "NRIC";
+    const issue = identityFormatIssue(
+      rawIdentityNumber,
+      identityKind,
+      "identityNumber",
+      PROFILE_LABEL.identityNumber
+    );
+    if (issue) {
+      throw new AppError(400, "VALIDATION_ERROR", issue.message);
+    }
   }
   if (p.salutation !== undefined || (entityType === "CORPORATE" && p.identityPrefix !== undefined)) {
     // If the editor explicitly sends `salutation: null`, that must mean "clear existing".
@@ -2519,6 +2573,47 @@ export async function resolvePartyMismatch(params: {
     patch: { [patchKey]: incoming as never },
   });
   return reactivateIfReviewResolved(updated);
+}
+
+export async function acknowledgeCtosAbsence(params: {
+  portal: Portal;
+  organizationId: string;
+  partyId: string;
+  reviewedExtractFingerprint: string;
+}): Promise<OrganizationPartyProfileDto> {
+  const row = await prisma.organizationPartyProfile.findFirst({
+    where: { id: params.partyId, ...orgWhere(params.portal, params.organizationId) },
+  });
+  if (!row) throw new AppError(404, "NOT_FOUND", "Party profile not found");
+  if (row.membership_status !== OrganizationPartyMembershipStatus.MASTER_ACTIVE) {
+    throw new AppError(400, "INVALID_PARTY_STATUS", "Only current profile people can be kept after a CTOS absence.");
+  }
+  const latestCtos = await loadLatestCtosCompanyJson(params.portal, params.organizationId);
+  if (!partyNeedsCtosAbsenceReview(serializeParty(row, latestCtos), latestCtos)) {
+    throw new AppError(
+      400,
+      "INVALID_PARTY_STATUS",
+      "This person does not need a CTOS absence acknowledgement."
+    );
+  }
+  const fingerprint = ctosExtractFingerprint(latestCtos);
+  if (params.reviewedExtractFingerprint.trim() !== fingerprint) {
+    throw new AppError(
+      409,
+      "CTOS_EXTRACT_CHANGED",
+      "Latest CTOS information has changed. Refresh and review this person again."
+    );
+  }
+  const observation =
+    row.external_observation && typeof row.external_observation === "object" && !Array.isArray(row.external_observation)
+      ? { ...(row.external_observation as Record<string, unknown>) }
+      : {};
+  observation[CTOS_ABSENCE_ACK_FINGERPRINT_KEY] = fingerprint;
+  const updated = await prisma.organizationPartyProfile.update({
+    where: { id: row.id },
+    data: { external_observation: asJson(observation) },
+  });
+  return serializeParty(updated, latestCtos);
 }
 
 export async function adoptObservedParty(params: {

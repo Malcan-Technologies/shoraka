@@ -21,6 +21,9 @@ import {
   NO_APPROVED_FACILITY_COPY,
   preserveSplitOriginationMarker,
   previewDualLimits,
+  APPLICATION_RESUBMIT_NEXT_STEP_COPY,
+  APPLICATION_RESUBMIT_REVIEW_COPY,
+  FACILITY_ONLY_SUBMIT_COPY,
   REQUESTED_FACILITY_BELOW_CONTRACT_COPY,
   resolveInitialFinancingGoal,
   shouldOmitInvoiceDetails,
@@ -379,5 +382,18 @@ describe("dual-limit preview and capacity copy", () => {
     expect(isEditableReservedInvoiceStatus("SUBMITTED")).toBe(true);
     expect(isEditableReservedInvoiceStatus("OFFER_SENT")).toBe(false);
     expect(isReservedCapacityInvoiceStatus("DRAFT")).toBe(false);
+  });
+});
+
+describe("issuer application submit copy", () => {
+  it("uses the resubmit and facility-only wording from UAT", () => {
+    expect(APPLICATION_RESUBMIT_REVIEW_COPY).toBe(
+      "Please review your updated information and ensure all details are complete and accurate."
+    );
+    expect(APPLICATION_RESUBMIT_NEXT_STEP_COPY).toBe(
+      "Once resubmitted, your updated application will be sent to our team for review."
+    );
+    expect(FACILITY_ONLY_SUBMIT_COPY).toContain("facility approval only");
+    expect(FACILITY_ONLY_SUBMIT_COPY).toContain("“Finance an Invoice”");
   });
 });

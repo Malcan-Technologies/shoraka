@@ -13,6 +13,7 @@ import {
 import {
   buildProspectusHighlightRecommendations,
   isMarcSmeGrade,
+  isCompleteIssuerMarcAssessment,
   isNoteProspectusPublished,
   normalizeProspectusWorkflowStatus,
   type ProspectusAboutInvoiceRecommendationInput,
@@ -56,6 +57,7 @@ import {
   mapProspectusPageThreeDataToInput,
 } from "../prospectus/prospectus-page-three-mapper";
 import { loadProspectusPageThreeData } from "../prospectus/prospectus-page-three-prisma";
+import { resolveMarcSnapshotForProspectus } from "../prospectus/prospectus-marc-snapshot";
 import { getActiveProspectusCatalogues } from "./prospectus-option-catalogues";
 import { mergePublicationContentIntoSnapshot } from "./prospectus-frozen-publication";
 import {
@@ -738,10 +740,20 @@ export class ProspectusReviewService {
     return mapReview(updated);
   }
 
-  async approve(noteId: string, actor: ActorContext, rawDraft?: unknown) {
+  async approve(
+    noteId: string,
+    actor: ActorContext,
+    rawDraft?: unknown,
+    expectedUpdatedAt?: string
+  ) {
     const note = await prisma.note.findUnique({
       where: { id: noteId },
-      select: { status: true, published_at: true },
+      select: {
+        status: true,
+        published_at: true,
+        issuer_organization_id: true,
+        prospectus_snapshot: true,
+      },
     });
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
     if (isNoteListed(note)) {
@@ -754,6 +766,19 @@ export class ProspectusReviewService {
 
     let current = await prisma.noteProspectusReview.findUnique({ where: { note_id: noteId } });
     if (!current) throw new AppError(404, "PROSPECTUS_REVIEW_NOT_FOUND", "Prospectus review not found");
+
+    // Optimistic concurrency: clean-approve and dirty-approve must only succeed
+    // when approving the same review version the Admin has loaded.
+    if (expectedUpdatedAt) {
+      const expected = new Date(expectedUpdatedAt);
+      if (current.updated_at.getTime() !== expected.getTime()) {
+        throw new AppError(
+          409,
+          "CONFLICT",
+          "Prospectus review was updated by another user. Reload and try again."
+        );
+      }
+    }
 
     if (current.status === ProspectusReviewStatus.PUBLISHED) {
       await prisma.$transaction(async (tx) => {
@@ -777,6 +802,17 @@ export class ProspectusReviewService {
       current = await prisma.noteProspectusReview.findUniqueOrThrow({
         where: { note_id: noteId },
       });
+      // If caller provided expectedUpdatedAt, it must still match after the internal save.
+      if (expectedUpdatedAt) {
+        const expected = new Date(expectedUpdatedAt);
+        if (current.updated_at.getTime() !== expected.getTime()) {
+          throw new AppError(
+            409,
+            "CONFLICT",
+            "Prospectus review was updated by another user. Reload and try again."
+          );
+        }
+      }
     }
 
     const parsed = saveProspectusReviewDraftSchema.shape.draftContent.parse(
@@ -797,10 +833,27 @@ export class ProspectusReviewService {
     page3Input.publicationContent = publication;
     const page3 = buildProspectusPageThree(page3Input);
     // Approval uses real financial years only — never padded display placeholders.
+    const incomeStatementYears = page3.incomeStatement.years
+      .filter((year) => !year.isPlaceholder)
+      .map((year) => String(year.year));
+
+    let hasMarcAssessment: boolean | undefined = undefined;
+    try {
+      const marcSnapshot = await resolveMarcSnapshotForProspectus({
+        status: note.status,
+        published_at: note.published_at,
+        prospectus_snapshot: note.prospectus_snapshot,
+        issuer_organization_id: note.issuer_organization_id,
+      });
+      hasMarcAssessment = isCompleteIssuerMarcAssessment(marcSnapshot ?? null);
+    } catch {
+      // Mirror frontend semantics: undefined = not evaluated yet (do not enforce).
+      hasMarcAssessment = undefined;
+    }
+
     const errors = validateApprovalContent(approvedClone, {
-      incomeStatementYears: page3.incomeStatement.years
-        .filter((year) => !year.isPlaceholder)
-        .map((year) => String(year.year)),
+      incomeStatementYears,
+      hasMarcAssessment,
     });
     if (errors.length > 0) {
       throw new AppError(422, "PROSPECTUS_REVIEW_INVALID", "Approval validation failed", {
@@ -908,11 +961,12 @@ export class ProspectusReviewService {
     approvedSnapshot: ProspectusApprovedSnapshot;
     publicationId: string;
     reviewId: string;
+    listingDates?: { opensAt: Date; closesAt: Date };
   }): Promise<{
     updatedSnapshot: ProspectusApprovedSnapshot;
     pdfArtifact: ProspectusPdfArtifact;
   }> {
-    const { noteId, actor, approvedSnapshot, publicationId, reviewId } = input;
+    const { noteId, actor, approvedSnapshot, publicationId, reviewId, listingDates } = input;
 
     const note = await prisma.note.findUnique({
       where: { id: noteId },
@@ -922,8 +976,8 @@ export class ProspectusReviewService {
     });
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
 
-    const opensAt = note.listing?.opens_at;
-    const closesAt = note.listing?.closes_at;
+    const opensAt = listingDates?.opensAt ?? note.listing?.opens_at;
+    const closesAt = listingDates?.closesAt ?? note.listing?.closes_at;
     if (!opensAt || !closesAt) {
       throw new AppError(
         409,
@@ -940,6 +994,12 @@ export class ProspectusReviewService {
 
     // Rebuild Page 1 with real listing dates; other pages use the same frozen publication content.
     const page1Note = await loadProspectusPageOneNote(prisma, noteId);
+    if (listingDates) {
+      page1Note.listing = {
+        opens_at: listingDates.opensAt,
+        closes_at: listingDates.closesAt,
+      };
+    }
     const page1Input = await mapProspectusPageOneDataToInput(page1Note);
     page1Input.publicationContent = publicationContent as any;
     page1Input.trackRecordMode = "frozen_publication_snapshot";
@@ -967,6 +1027,7 @@ export class ProspectusReviewService {
       page4: buildProspectusPageFourHtml(),
       page5: buildProspectusPageFiveHtml(),
     });
+    updatedSnapshot.publication_id = publicationId;
     updatedSnapshot.note_identity = {
       ...(updatedSnapshot.note_identity ?? {}),
       listing_opens_at: opensAt.toISOString(),
@@ -1024,10 +1085,26 @@ export class ProspectusReviewService {
       ? "Prospectus content is ready for publish — not yet published"
       : "Draft Prospectus — not yet approved";
 
+    // IMPORTANT: When previewing approved content, we must render Page 1 from the
+    // same frozen Page 1 snapshot used at final publish-time. Otherwise, the
+    // current/unpublished Note can cause Page 1 issuer track record/historical
+    // notes to be re-calculated from live data, diverging from the frozen snapshot.
+    const approvedSnapshot = useApproved
+      ? parseApprovedSnapshot(review.approved_snapshot)
+      : null;
+    const frozenPage1Snapshot = approvedSnapshot?.page_1 ?? null;
+    // Page 2/3 are derived from the shared Stage 4A financial comparison freeze.
+    // During APPROVED/READY_FOR_PUBLISH Preview, we must use the frozen approved
+    // financial data even when the Note itself is not yet published.
+    const frozenFinancialComparisonFromApprovedSnapshot =
+      (approvedSnapshot as any)?.page_2?.financial_comparison ?? null;
+
     return this.renderPreviewHtml(noteId, content, {
       status,
       previewSource: sourceLabel,
       bannerText,
+      frozenPage1Snapshot,
+      frozenFinancialComparisonFromApprovedSnapshot,
     });
   }
 
@@ -1091,6 +1168,20 @@ export class ProspectusReviewService {
       status: ProspectusReviewStatus | string;
       previewSource: "draft" | "approved" | "unsaved";
       bannerText: string;
+      /**
+       * When previewing approved content, force Page 1 to use the frozen approved
+       * Page 1 track record snapshot (publish-time parity).
+       *
+       * When null/undefined, we preserve existing behavior (draft/live preview uses
+       * Note-derived live unpublished preview track record).
+       */
+      frozenPage1Snapshot?: unknown | null;
+      /**
+       * Only set for APPROVED/READY_FOR_PUBLISH preview when an approved_snapshot exists.
+       * Forces Page 2/3 to use the approved frozen financial data (Stage 4A) instead of
+       * rebuilding from LIVE application/CTOS financials.
+       */
+      frozenFinancialComparisonFromApprovedSnapshot?: unknown | null;
     }
   ) {
     const publication = toProspectusPublicationContent(content);
@@ -1098,17 +1189,41 @@ export class ProspectusReviewService {
 
     const page1Note = await loadProspectusPageOneNote(prisma, noteId);
     const page1Input = await mapProspectusPageOneDataToInput(page1Note);
+
+    // Approved preview: force frozen Page 1 track record snapshot to match final PDF.
+    if (meta.frozenPage1Snapshot) {
+      page1Input.trackRecordMode = "frozen_publication_snapshot";
+      page1Input.page1TrackRecordSnapshot = meta.frozenPage1Snapshot as any;
+    }
     page1Input.publicationContent = publication;
     const page1 = buildProspectusPageOne(page1Input);
 
     const page2Data = await loadProspectusPageTwoData(prisma, noteId);
     const page2Input = mapProspectusPageTwoDataToInput(page2Data);
     page2Input.publicationContent = publication;
+
+    if (
+      meta.frozenFinancialComparisonFromApprovedSnapshot != null &&
+      page2Input.financialMode === "live_unpublished_preview"
+    ) {
+      page2Input.financialMode = "frozen_publication_snapshot";
+      page2Input.frozenFinancialComparison =
+        meta.frozenFinancialComparisonFromApprovedSnapshot as any;
+    }
     const page2 = buildProspectusPageTwo(page2Input);
 
     const page3Data = await loadProspectusPageThreeData(prisma, noteId);
     const page3Input = mapProspectusPageThreeDataToInput(page3Data);
     page3Input.publicationContent = publication;
+
+    if (
+      meta.frozenFinancialComparisonFromApprovedSnapshot != null &&
+      page3Input.financialMode === "live_unpublished_preview"
+    ) {
+      page3Input.financialMode = "frozen_publication_snapshot";
+      page3Input.frozenFinancialComparison =
+        meta.frozenFinancialComparisonFromApprovedSnapshot as any;
+    }
     const page3 = buildProspectusPageThree(page3Input);
 
     const page1Html = buildProspectusPageOneHtml(page1);

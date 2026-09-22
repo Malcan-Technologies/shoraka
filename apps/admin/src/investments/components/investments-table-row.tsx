@@ -2,7 +2,7 @@ import * as React from "react";
 import { format } from "date-fns";
 import { formatCurrency } from "@cashsouk/config";
 import type { AdminInvestmentItem } from "@cashsouk/types";
-import { formatOrganizationReference } from "@cashsouk/types";
+import { formatNoteFundingPercent, formatOrganizationReference } from "@cashsouk/types";
 import { StatusBadge } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { TableCell, TableRow } from "@/components/ui/table";
@@ -83,7 +83,7 @@ export function InvestmentsTableRow({ investment, onViewNote }: InvestmentsTable
         {formatCurrency(investment.amount)}
       </TableCell>
       <TableCell className="min-w-0 overflow-hidden truncate tabular-nums text-right">
-        {investment.allocationPercent.toFixed(2)}%
+        {formatNoteFundingPercent(investment.allocationPercent)}
       </TableCell>
       <TableCell className="min-w-0 overflow-hidden">
         <InvestmentStatusBadge status={investment.status} />

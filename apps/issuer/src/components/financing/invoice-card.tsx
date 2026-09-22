@@ -9,6 +9,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import type { IssuerDashboardInvoice } from "@/types/issuer-dashboard";
 import { asInvoiceForModal } from "@/types/issuer-dashboard";
 import {
+  resolveFundingDisplayFundedAmount,
+  resolveFundingProgressPercent,
   resolveFundingStatusText,
   resolveIssuerInvoiceDashboardBadge,
 } from "@/lib/issuer-dashboard-labels";
@@ -283,7 +285,7 @@ export function DashboardInvoiceCard({
               <FinancingDonut
                 size="lg"
                 centerLabel="Funded"
-                percent={row.note.fundingProgressPercent}
+                percent={resolveFundingProgressPercent(row.note)}
                 tone={financingDonutTone(row.note)}
               />
             ) : (
@@ -304,7 +306,7 @@ export function DashboardInvoiceCard({
                 <p className="text-ui leading-5 text-muted-foreground">{fundingLabel}</p>
                 {row.note ? (
                   <InvestorCommitmentLine
-                    fundedAmount={row.note.fundedAmount}
+                    fundedAmount={resolveFundingDisplayFundedAmount(row.note)}
                     investorCount={row.note.investorCount}
                   />
                 ) : null}

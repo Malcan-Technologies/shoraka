@@ -118,3 +118,102 @@ describe("invoice face-value payload and validation", () => {
     ).toBe(true);
   });
 });
+
+describe("mandatory workflow step set (Financing Structure / Facility Details / Invoice Details)", () => {
+  const mandatoryError =
+    "Workflow: Financing Structure, Facility Details, and Invoice Details must all be selected and appear in the correct order.";
+
+  const declarations = {
+    id: "declarations",
+    config: { declarations: [{ text: "I agree" }] },
+  };
+
+  const validFinancingType = {
+    id: "financing_type",
+    config: {
+      name: "Financing Type",
+      category: "category",
+      description: "description",
+      // `getRequiredStepErrors` treats `s3_key` as image availability.
+      s3_key: "img/some.png",
+    },
+  };
+
+  it("rejects Financing Type + Declarations only", () => {
+    const steps = [validFinancingType, declarations];
+    expect(getRequiredStepErrors(steps)).toContain(mandatoryError);
+  });
+
+  it("rejects only Financing Structure", () => {
+    const steps = [{ id: "financing_structure", config: {} }, declarations];
+    expect(getRequiredStepErrors(steps)).toContain(mandatoryError);
+  });
+
+  it("rejects only Facility Details (contract_details)", () => {
+    const steps = [
+      { id: "contract_details", config: { min_contract_months: 12 } },
+      declarations,
+    ];
+    expect(getRequiredStepErrors(steps)).toContain(mandatoryError);
+  });
+
+  it("rejects only Invoice Details", () => {
+    const steps = [{ id: "invoice_details", config: {} }, declarations];
+    expect(getRequiredStepErrors(steps)).toContain(mandatoryError);
+  });
+
+  it("rejects only Financing Structure + Facility Details (missing Invoice Details)", () => {
+    const steps = [
+      { id: "financing_structure", config: {} },
+      { id: "contract_details", config: { min_contract_months: 12 } },
+      declarations,
+    ];
+    expect(getRequiredStepErrors(steps)).toContain(mandatoryError);
+  });
+
+  it("rejects all 3 present but wrong order", () => {
+    const steps = [
+      { id: "invoice_details", config: {} },
+      { id: "financing_structure", config: {} },
+      { id: "contract_details", config: { min_contract_months: 12 } },
+      declarations,
+    ];
+    expect(getRequiredStepErrors(steps)).toContain(mandatoryError);
+  });
+
+  it("accepts all 3 present in correct order", () => {
+    const steps = [
+      { id: "financing_structure", config: {} },
+      { id: "contract_details", config: { min_contract_months: 12 } },
+      { id: "invoice_details", config: {} },
+      declarations,
+    ];
+    expect(getRequiredStepErrors(steps)).toEqual([]);
+  });
+
+  it("existing complete products still pass", () => {
+    expect(getRequiredStepErrors(invoiceProductSteps({}))).toEqual([]);
+  });
+
+  it("rejects an empty workflow (must contain the mandatory trio)", () => {
+    expect(getRequiredStepErrors([])).toContain(mandatoryError);
+  });
+
+  it("rejects Financing Structure + Invoice Details only (missing Facility Details)", () => {
+    const steps = [
+      { id: "financing_structure", config: {} },
+      { id: "invoice_details", config: {} },
+      declarations,
+    ];
+    expect(getRequiredStepErrors(steps)).toContain(mandatoryError);
+  });
+
+  it("rejects Facility Details + Invoice Details only (missing Financing Structure)", () => {
+    const steps = [
+      { id: "contract_details", config: { min_contract_months: 12 } },
+      { id: "invoice_details", config: {} },
+      declarations,
+    ];
+    expect(getRequiredStepErrors(steps)).toContain(mandatoryError);
+  });
+});

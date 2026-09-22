@@ -326,6 +326,25 @@ export function useResumeNoteListing() {
   return useNoteListingVisibilityAction("resume");
 }
 
+export function useExtendNoteListing() {
+  const apiClient = useNotesApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: string; closesAt: string; reason: string }) => {
+      const response = await apiClient.extendAdminNoteListing(input.id, {
+        closesAt: input.closesAt,
+        reason: input.reason,
+      });
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+    onSuccess: (note) => {
+      invalidateAdminRegistries(queryClient);
+      queryClient.invalidateQueries({ queryKey: notesKeys.detail(note.id) });
+    },
+  });
+}
+
 function useNoteAction(action: "close" | "fail") {
   const apiClient = useNotesApiClient();
   const queryClient = useQueryClient();

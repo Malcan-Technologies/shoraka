@@ -17,6 +17,7 @@ export function useNoteDetail(noteId?: string) {
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },
+    refetchInterval: (query) => (query.state.data?.fundingStatus === "OPEN" ? 5000 : false),
   });
 }
 

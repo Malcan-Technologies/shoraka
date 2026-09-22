@@ -22,6 +22,7 @@ import {
   WithdrawalStatus,
   WithdrawalType,
 } from "@prisma/client";
+import { randomBytes } from "node:crypto";
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
@@ -144,6 +145,7 @@ import {
   notifyNotePaymentRejected,
   notifyNotePublished,
   notifyNotePublishedToInvestors,
+  notifyNoteCampaignExtended,
   notifyNoteSettlementPosted,
   notifyIssuerDisbursementCompleted,
   notifyNoteActiveInvestors,
@@ -485,6 +487,57 @@ function toNumber(value: unknown): number {
     return Number.isFinite(parsed) ? parsed : 0;
   }
   return 0;
+}
+
+/**
+ * Shared serialization point for campaign extend and listing expiry close/fail.
+ * Lock order is always notes then note_listings so concurrent paths cannot deadlock.
+ */
+async function lockNoteAndListingForUpdate(
+  tx: Prisma.TransactionClient,
+  noteId: string
+): Promise<{
+  status: NoteStatus;
+  funding_status: NoteFundingStatus;
+  funded_amount: unknown;
+  target_amount: unknown;
+  closes_at: Date | null;
+} | null> {
+  const notes = await tx.$queryRaw<
+    Array<{
+      status: NoteStatus;
+      funding_status: NoteFundingStatus;
+      funded_amount: unknown;
+      target_amount: unknown;
+    }>
+  >`SELECT status, funding_status, funded_amount, target_amount FROM notes WHERE id = ${noteId} FOR UPDATE`;
+  const note = notes[0];
+  if (!note) return null;
+  const listings = await tx.$queryRaw<
+    Array<{ closes_at: Date | null }>
+  >`SELECT closes_at FROM note_listings WHERE note_id = ${noteId} FOR UPDATE`;
+  return { ...note, closes_at: listings[0]?.closes_at ?? null };
+}
+
+/** True when an expiry-job candidate was extended after candidate selection. Fully funded never skips. */
+async function shouldSkipListingExpiryAction(
+  tx: Prisma.TransactionClient,
+  params: {
+    noteId: string;
+    expiredAsOf?: Date;
+  }
+): Promise<boolean> {
+  const locked = await lockNoteAndListingForUpdate(tx, params.noteId);
+  if (!params.expiredAsOf) return false;
+  if (
+    locked &&
+    isNoteFullyFunded(toNumber(locked.funded_amount), toNumber(locked.target_amount))
+  ) {
+    return false;
+  }
+  return Boolean(
+    locked?.closes_at && locked.closes_at.getTime() > params.expiredAsOf.getTime()
+  );
 }
 
 function letterOutstandingTotal(note: {
@@ -3317,6 +3370,241 @@ export class NoteService {
     return await mapNoteDetail(updated);
   }
 
+  async extendListing(
+    id: string,
+    input: { closesAt: Date; reason: string },
+    actor: ActorContext
+  ) {
+    const reason = input.reason.trim();
+    if (!reason) {
+      throw new AppError(400, "REASON_REQUIRED", "A reason is required to extend the campaign");
+    }
+    const newClosesAt = input.closesAt;
+    if (!(newClosesAt instanceof Date) || Number.isNaN(newClosesAt.getTime())) {
+      throw new AppError(400, "INVALID_CLOSES_AT", "closesAt must be a valid ISO datetime");
+    }
+
+    const note = await noteRepository.findById(id);
+    if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+    if (note.status !== NoteStatus.PUBLISHED || note.funding_status !== NoteFundingStatus.OPEN) {
+      throw new AppError(
+        409,
+        "NOTE_LISTING_NOT_EXTENDABLE",
+        "Only published notes that are still open for funding can be extended"
+      );
+    }
+    const currentOpensAt = note.listing?.opens_at ?? null;
+    const currentClosesAt = note.listing?.closes_at ?? null;
+    if (!currentOpensAt || !currentClosesAt) {
+      throw new AppError(
+        409,
+        "NOTE_LISTING_MISSING",
+        "Listing opens_at/closes_at must exist before the campaign can be extended"
+      );
+    }
+    if (isNoteFullyFunded(toNumber(note.funded_amount), toNumber(note.target_amount))) {
+      throw new AppError(
+        409,
+        "NOTE_FULLY_FUNDED",
+        "Fully funded notes cannot have their campaign extended"
+      );
+    }
+
+    const now = new Date();
+    if (newClosesAt.getTime() <= now.getTime() || newClosesAt.getTime() <= currentClosesAt.getTime()) {
+      throw new AppError(
+        422,
+        "NOTE_LISTING_CLOSE_NOT_LATER",
+        "New closing date must be after the current time and the current closing date"
+      );
+    }
+    if (note.maturity_date && newClosesAt.getTime() >= note.maturity_date.getTime()) {
+      throw new AppError(
+        422,
+        "NOTE_LISTING_CLOSE_AFTER_MATURITY",
+        "New closing date must be before the note's maturity date"
+      );
+    }
+
+    const [{ prospectusReviewService }, { parseApprovedSnapshot }] = await Promise.all([
+      import("./prospectus-review/prospectus-review.service"),
+      import("./prospectus-review/prospectus-approved-snapshot"),
+    ]);
+    const review = await prisma.noteProspectusReview.findUnique({ where: { note_id: id } });
+    if (!review || review.status !== ProspectusReviewStatus.PUBLISHED) {
+      throw new AppError(
+        409,
+        "PROSPECTUS_REVIEW_REQUIRED",
+        "A published Prospectus is required before the campaign can be extended"
+      );
+    }
+    const approvedSnapshot = parseApprovedSnapshot(review.approved_snapshot);
+    if (!approvedSnapshot || !review.approved_publication_id) {
+      throw new AppError(
+        409,
+        "PROSPECTUS_REVIEW_REQUIRED",
+        "A published Prospectus snapshot is required before the campaign can be extended"
+      );
+    }
+    const currentPublication = await prisma.noteProspectusPublication.findUnique({
+      where: { id: review.approved_publication_id },
+    });
+    if (!currentPublication) {
+      throw new AppError(404, "PROSPECTUS_PDF_UNAVAILABLE", "Prospectus publication missing");
+    }
+
+    const newPublicationId = `pub_${randomBytes(16).toString("hex")}`;
+    const nextContentVersion = review.content_version + 1;
+    const finalization = await (async () => {
+      try {
+        return await prospectusReviewService.generateFinalProspectusPdfForPublish({
+          noteId: id,
+          actor,
+          approvedSnapshot,
+          publicationId: newPublicationId,
+          reviewId: review.id,
+          listingDates: { opensAt: currentOpensAt, closesAt: newClosesAt },
+        });
+      } catch (error) {
+        logger.error(
+          { err: error, noteId: id, correlationId: actor.correlationId },
+          "prospectus finalization failed during campaign extend"
+        );
+        throw new AppError(
+          500,
+          "PROSPECTUS_FINALIZATION_FAILED",
+          "Unable to extend the campaign. The updated Prospectus could not be generated. The listing was not changed. Please try again."
+        );
+      }
+    })();
+    finalization.updatedSnapshot.content_version = nextContentVersion;
+    finalization.updatedSnapshot.publication_id = newPublicationId;
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const locked = await lockNoteAndListingForUpdate(tx, id);
+      if (
+        !locked ||
+        locked.status !== NoteStatus.PUBLISHED ||
+        locked.funding_status !== NoteFundingStatus.OPEN
+      ) {
+        throw new AppError(
+          409,
+          "NOTE_LISTING_NOT_EXTENDABLE",
+          "Only published notes that are still open for funding can be extended"
+        );
+      }
+      if (isNoteFullyFunded(toNumber(locked.funded_amount), toNumber(locked.target_amount))) {
+        throw new AppError(
+          409,
+          "NOTE_FULLY_FUNDED",
+          "Fully funded notes cannot have their campaign extended"
+        );
+      }
+      const persistNow = new Date();
+      if (
+        newClosesAt.getTime() <= persistNow.getTime() ||
+        !locked.closes_at ||
+        newClosesAt.getTime() <= locked.closes_at.getTime()
+      ) {
+        throw new AppError(
+          422,
+          "NOTE_LISTING_CLOSE_NOT_LATER",
+          "New closing date must be after the current time and the current closing date"
+        );
+      }
+
+      const stateUpdate = await tx.note.updateMany({
+        where: {
+          id,
+          status: NoteStatus.PUBLISHED,
+          funding_status: NoteFundingStatus.OPEN,
+        },
+        data: {
+          prospectus_snapshot: finalization.updatedSnapshot as unknown as Prisma.InputJsonValue,
+        },
+      });
+      if (stateUpdate.count !== 1) {
+        throw new AppError(
+          409,
+          "NOTE_LISTING_NOT_EXTENDABLE",
+          "Only published notes that are still open for funding can be extended"
+        );
+      }
+
+      const listingUpdate = await tx.noteListing.updateMany({
+        where: { note_id: id, closes_at: currentClosesAt },
+        data: { closes_at: newClosesAt },
+      });
+      if (listingUpdate.count !== 1) {
+        throw new AppError(
+          409,
+          "NOTE_LISTING_NOT_EXTENDABLE",
+          "Listing closing date changed before the extension could be saved"
+        );
+      }
+
+      await tx.noteProspectusPublication.create({
+        data: {
+          id: newPublicationId,
+          note_id: id,
+          prospectus_review_id: review.id,
+          content_version: nextContentVersion,
+          snapshot: finalization.updatedSnapshot as unknown as Prisma.InputJsonValue,
+          render_fingerprint: finalization.updatedSnapshot.render_fingerprint,
+          approved_by_user_id: currentPublication.approved_by_user_id,
+          approved_at: currentPublication.approved_at,
+          published_at: now,
+          pdf_storage_bucket: finalization.pdfArtifact.storageBucket,
+          pdf_storage_key: finalization.pdfArtifact.storageKey,
+          pdf_content_type: finalization.pdfArtifact.contentType,
+          pdf_size_bytes: finalization.pdfArtifact.sizeBytes,
+          pdf_sha256: finalization.pdfArtifact.sha256,
+          pdf_generated_at: finalization.pdfArtifact.generatedAt,
+          pdf_generation_status: finalization.pdfArtifact.generationStatus,
+          pdf_generation_error: null,
+          pdf_snapshot_hash: finalization.pdfArtifact.snapshotHash,
+          pdf_page_count: finalization.pdfArtifact.pageCount,
+        },
+      });
+
+      await tx.noteProspectusReview.update({
+        where: { id: review.id },
+        data: {
+          approved_publication_id: newPublicationId,
+          content_version: nextContentVersion,
+          approved_snapshot: finalization.updatedSnapshot as unknown as Prisma.InputJsonValue,
+          render_fingerprint: finalization.updatedSnapshot.render_fingerprint,
+        },
+      });
+
+      const result = await tx.note.findUniqueOrThrow({ where: { id }, include: noteInclude });
+      await this.logAdminAction(
+        tx,
+        id,
+        "EXTEND_LISTING",
+        actor,
+        mapNoteListItem(note),
+        mapNoteListItem(result),
+        {
+          reason,
+          previousClosesAt: currentClosesAt.toISOString(),
+          newClosesAt: newClosesAt.toISOString(),
+          previousPublicationId: currentPublication.id,
+          newPublicationId,
+        }
+      );
+      return result;
+    });
+    await notifyNoteCampaignExtended({
+      notificationService: this.notificationService,
+      noteId: id,
+      issuerOrganizationId: updated.issuer_organization_id,
+      noteTitle: resolveNoteNotificationTitle(updated),
+      closesAt: newClosesAt,
+    });
+    return await mapNoteDetail(updated);
+  }
+
   async createInvestment(
     noteId: string,
     input: z.infer<typeof createInvestmentSchema>,
@@ -3625,7 +3913,7 @@ export class NoteService {
     return await mapNoteDetail(updated);
   }
 
-  async closeFunding(id: string, actor: ActorContext) {
+  async closeFunding(id: string, actor: ActorContext, options?: { expiredAsOf?: Date }) {
     const note = await noteRepository.findById(id);
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
     if (note.status !== NoteStatus.PUBLISHED || note.funding_status !== NoteFundingStatus.OPEN) {
@@ -3638,7 +3926,10 @@ export class NoteService {
     const targetAmount = toNumber(note.target_amount);
     const fundedAmount = toNumber(note.funded_amount);
     if (compareFacilityAmounts(fundedAmount, 0) <= 0) {
-      return this.failFunding(id, actor, { forceZeroFunded: true });
+      return this.failFunding(id, actor, {
+        forceZeroFunded: true,
+        ...(options?.expiredAsOf ? { expiredAsOf: options.expiredAsOf } : {}),
+      });
     }
     if (
       !meetsMinimumFunding(
@@ -3661,6 +3952,17 @@ export class NoteService {
     const updated = await prisma.$transaction(async (tx) => {
       if (note.source_contract_id) {
         await lockContractRow(tx, note.source_contract_id);
+      }
+      if (
+        await shouldSkipListingExpiryAction(tx, {
+          noteId: id,
+          expiredAsOf: options?.expiredAsOf,
+        })
+      ) {
+        return {
+          applied: false as const,
+          note: await tx.note.findUniqueOrThrow({ where: { id }, include: noteInclude }),
+        };
       }
       const stateUpdate = await tx.note.updateMany({
         where: { id, status: NoteStatus.PUBLISHED, funding_status: NoteFundingStatus.OPEN },
@@ -3860,18 +4162,25 @@ export class NoteService {
         },
         { assertProposed: true, skipLock: true }
       );
-      return result;
+      return { applied: true as const, note: result };
     });
+    if (!updated.applied) {
+      return await mapNoteDetail(updated.note);
+    }
     await notifyNoteFundingSucceeded({
       notificationService: this.notificationService,
       noteId: id,
-      issuerOrganizationId: updated.issuer_organization_id,
-      noteTitle: resolveNoteNotificationTitle(updated),
+      issuerOrganizationId: updated.note.issuer_organization_id,
+      noteTitle: resolveNoteNotificationTitle(updated.note),
     });
-    return await mapNoteDetail(updated);
+    return await mapNoteDetail(updated.note);
   }
 
-  async failFunding(id: string, actor: ActorContext, options?: { forceZeroFunded?: boolean }) {
+  async failFunding(
+    id: string,
+    actor: ActorContext,
+    options?: { forceZeroFunded?: boolean; expiredAsOf?: Date }
+  ) {
     const now = new Date();
     const note = await noteRepository.findById(id);
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
@@ -3907,6 +4216,17 @@ export class NoteService {
     const updated = await prisma.$transaction(async (tx) => {
       if (note.source_contract_id) {
         await lockContractRow(tx, note.source_contract_id);
+      }
+      if (
+        await shouldSkipListingExpiryAction(tx, {
+          noteId: id,
+          expiredAsOf: options?.expiredAsOf,
+        })
+      ) {
+        return {
+          applied: false as const,
+          note: await tx.note.findUniqueOrThrow({ where: { id }, include: noteInclude }),
+        };
       }
       const releasedCommitments = await tx.noteInvestment.findMany({
         where: { note_id: id, status: NoteInvestmentStatus.COMMITTED },
@@ -3971,16 +4291,19 @@ export class NoteService {
         },
         { assertProposed: true, skipLock: Boolean(note.source_contract_id) }
       );
-      return result;
+      return { applied: true as const, note: result };
     });
+    if (!updated.applied) {
+      return await mapNoteDetail(updated.note);
+    }
     await notifyNoteFundingFailed({
       notificationService: this.notificationService,
       noteId: id,
-      issuerOrganizationId: updated.issuer_organization_id,
-      noteTitle: resolveNoteNotificationTitle(updated),
+      issuerOrganizationId: updated.note.issuer_organization_id,
+      noteTitle: resolveNoteNotificationTitle(updated.note),
       failedInvestorOrganizationIds,
     });
-    return await mapNoteDetail(updated);
+    return await mapNoteDetail(updated.note);
   }
 
   async activate(

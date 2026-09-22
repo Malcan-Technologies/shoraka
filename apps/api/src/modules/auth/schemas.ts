@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { UserRole } from "@prisma/client";
+import { meetsPasswordPolicy, PASSWORD_POLICY_MESSAGE } from "@cashsouk/types";
 
 /**
  * Schema for sync-user endpoint
@@ -72,7 +73,10 @@ export const createAdminUserSchema = z.object({
   email: z.string().email("Invalid email format"),
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
-  tempPassword: z.string().min(8, "Password must be at least 8 characters"),
+  tempPassword: z
+    .string()
+    .min(8, PASSWORD_POLICY_MESSAGE)
+    .refine(meetsPasswordPolicy, PASSWORD_POLICY_MESSAGE),
 });
 
 export type CreateAdminUserInput = z.infer<typeof createAdminUserSchema>;
@@ -107,11 +111,8 @@ export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, "Current password is required"),
   newPassword: z
     .string()
-    .min(8, "New password must be at least 8 characters")
-    .regex(
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
-      "Password must contain at least one uppercase letter, one lowercase letter, and one number"
-    ),
+    .min(8, PASSWORD_POLICY_MESSAGE)
+    .refine(meetsPasswordPolicy, PASSWORD_POLICY_MESSAGE),
 });
 
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;

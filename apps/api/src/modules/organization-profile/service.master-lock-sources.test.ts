@@ -113,6 +113,33 @@ describe("master-profile lock decisions by profile_field_sources.source", () => 
     expect(updateCall?.data?.date_of_birth).toEqual(new Date("1991-01-01T00:00:00.000Z"));
   });
 
+  it("allows USER to overwrite an already-filled residential State", async () => {
+    const row = personalOrg({
+      portal: "investor",
+      dateOfBirth: new Date("1990-01-01T00:00:00.000Z"),
+      documentNumber: "800101011234",
+      profileFieldSources: {},
+    });
+    row.residential_address = { state: "Sarawak", postalCode: "12345" };
+    mockInvestorFindUnique.mockResolvedValue(row);
+
+    await patchOrgMasterProfile({
+      portal: "investor",
+      organizationId: "org-1",
+      actorUserId: "user-1",
+      source: "USER",
+      fillEmptyOnly: true,
+      patch: { residentialAddress: { state: "Selangor", postalCode: "47800" } },
+    });
+
+    expect(mockInvestorUpdate.mock.calls[0]?.[0]?.data?.residential_address).toEqual(
+      expect.objectContaining({
+        state: "Selangor",
+        postalCode: "47800",
+      })
+    );
+  });
+
   it.each(portals)("allows USER DOB edits when field source is ADMIN (%s portal)", async (portal) => {
     const row = personalOrg({
       portal,

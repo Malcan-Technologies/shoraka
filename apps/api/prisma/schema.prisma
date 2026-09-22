@@ -43,6 +43,7 @@ model User {
   security_logs                    SecurityLog[]
   notification_preferences         UserNotificationPreference[]
   sessions                         UserSession[]
+  revoked_access_tokens            RevokedAccessToken[]
   authored_review_remarks          ApplicationReviewRemark[]
   signingcloud_ekyc                SigningCloudEkyc[]
   organization_party_profiles      OrganizationPartyProfile[]
@@ -167,6 +168,18 @@ model UserSession {
   @@index([expires_at])
   @@index([user_id, active_role])
   @@map("user_sessions")
+}
+
+model RevokedAccessToken {
+  jti        String   @id
+  user_id    String   @db.VarChar(5)
+  expires_at DateTime
+  created_at DateTime @default(now())
+  user       User     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  @@index([expires_at])
+  @@index([user_id])
+  @@map("revoked_access_tokens")
 }
 
 model AdminRoleConfig {

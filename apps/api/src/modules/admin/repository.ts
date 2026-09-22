@@ -2492,9 +2492,8 @@ export class AdminRepository {
           return sum + (invoiceValue * financingRatio) / 100;
         }, 0);
       } else if (app.contract?.contract_details) {
-        // Fallback to contract value if no invoices
         const contractDetails = app.contract.contract_details as Record<string, unknown> | null;
-        requestedAmount = Number(contractDetails?.value ?? contractDetails?.approved_facility ?? 0);
+        requestedAmount = resolveRequestedFacility(contractDetails);
       }
 
       const financingType = app.financing_type as Record<string, unknown> | null;

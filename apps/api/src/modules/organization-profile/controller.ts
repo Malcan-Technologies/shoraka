@@ -12,6 +12,7 @@ import {
   getIssuerFinancialSummary,
   inactivateMasterParty,
   listPartyProfiles,
+  acknowledgeCtosAbsence,
   patchIssuerOrgFinancials,
   patchOrgMasterProfile,
   patchPartyProfile,
@@ -19,14 +20,19 @@ import {
   resolvePartyMismatch,
   seedMasterPartiesIfEmpty,
 } from "./service";
-import { refreshPartyRegTankStatus } from "./refresh-party-regtank-status";
+import {
+  refreshAdminPartyRegTankStatus,
+  refreshPartyRegTankStatus,
+} from "./refresh-party-regtank-status";
 import { resolvePersonIdentityConflict } from "./regtank-party-seed";
 import {
   financialYearPatchSchema,
   identityConflictResolveSchema,
+  acknowledgeCtosAbsenceSchema,
   mismatchResolveSchema,
   orgMasterPatchSchema,
   partyPatchSchema,
+  partyProfileRouteParamsSchema,
   createPartySchema,
   portalParamSchema,
 } from "./schemas";
@@ -421,6 +427,35 @@ export function createAdminOrganizationProfileRouter() {
     }
   });
 
+  router.post(
+    "/:portal/:id/party-profiles/:partyId/refresh-status",
+    requirePermission("organizations.manage"),
+    async (req, res, next) => {
+      try {
+        const portal = portalFromParams(req);
+        const { id, partyId } = partyProfileRouteParamsSchema.parse(req.params);
+        const data = await refreshAdminPartyRegTankStatus(portal, id, partyId);
+        await logMasterProfileAudit({
+          req,
+          organizationId: id,
+          eventType: "MASTER_PARTY_REGTANK_STATUS_REFRESHED",
+          metadata: {
+            portal,
+            partyId,
+            refreshedSources: data.refreshedSources,
+          },
+        });
+        res.json({
+          success: true,
+          data,
+          correlationId: res.locals.correlationId,
+        });
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+
   router.patch("/:portal/:id/master-profile", requirePermission("organizations.manage"), async (req, res, next) => {
     try {
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
@@ -506,6 +541,28 @@ export function createAdminOrganizationProfileRouter() {
         organizationId: req.params.id,
         eventType: "MASTER_PARTY_MISMATCH_RESOLVED",
         metadata: { portal, partyId: req.params.partyId, action: input.action, field: input.field },
+      });
+      res.json({ success: true, data, correlationId: res.locals.correlationId });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/:portal/:id/party-profiles/:partyId/acknowledge-ctos-absence", requirePermission("organizations.manage"), async (req, res, next) => {
+    try {
+      const portal = portalFromParams(req);
+      const input = acknowledgeCtosAbsenceSchema.parse(req.body);
+      const data = await acknowledgeCtosAbsence({
+        portal,
+        organizationId: req.params.id,
+        partyId: req.params.partyId,
+        reviewedExtractFingerprint: input.reviewedExtractFingerprint,
+      });
+      await logMasterProfileAudit({
+        req,
+        organizationId: req.params.id,
+        eventType: "MASTER_PARTY_CTOS_ABSENCE_ACKNOWLEDGED",
+        metadata: { portal, partyId: req.params.partyId },
       });
       res.json({ success: true, data, correlationId: res.locals.correlationId });
     } catch (error) {

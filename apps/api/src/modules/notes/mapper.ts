@@ -13,6 +13,7 @@ import {
   resolveProductImageS3KeyFromSnapshot,
   resolvePurposeOfFinancing,
   mapExcessLateChargesDto,
+  noteFundingPercentFromAmounts,
   roundNoteMoney,
   toMarketplacePublicNote,
   type IssuerResidualPayoutListStatus,
@@ -570,8 +571,7 @@ export function mapNoteListItem(note: NoteWithRelations) {
   const targetAmount = moneyToNumber(note.target_amount);
   const fundedAmount = moneyToNumber(note.funded_amount);
   const invoiceAmount = resolveInvoiceAmount(note);
-  const fundingPercent =
-    targetAmount > 0 ? roundNoteMoney((fundedAmount / targetAmount) * 100, 1) : 0;
+  const fundingPercent = noteFundingPercentFromAmounts(fundedAmount, targetAmount);
   const settlementSummary = resolveSettlementSummary(note);
 
   return {

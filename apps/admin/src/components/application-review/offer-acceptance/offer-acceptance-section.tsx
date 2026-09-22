@@ -482,7 +482,10 @@ export function OfferAcceptanceSection(
   const showInvoiceStages = structureType !== "new_contract";
   const workflowStages = stageModel.stages.filter((stage) => !isReferenceOfferAcceptanceStage(stage));
   const lastWorkflowStageId = workflowStages[workflowStages.length - 1]?.id ?? null;
-  const nextAction = selectedIsOther ? null : stageModel.nextAction;
+  const offerAcceptanceWorkflowComplete =
+    workflowStages.length > 0 && workflowStages.every((stage) => stage.tone === "done");
+  const nextAction =
+    selectedIsOther || offerAcceptanceWorkflowComplete ? null : stageModel.nextAction;
 
   return (
     <div className="space-y-4">

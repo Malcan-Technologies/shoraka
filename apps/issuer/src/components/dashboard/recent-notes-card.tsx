@@ -5,6 +5,7 @@ import { ArrowRightIcon } from "@heroicons/react/24/outline";
 import { Card, NoteStatusBadge, isNoteFullySettled } from "@cashsouk/ui";
 import { formatCurrency } from "@cashsouk/config";
 import { useIssuerNotes } from "@/notes/hooks/use-issuer-notes";
+import { issuerNoteDisplayFundingPercent } from "@/notes/lib/funding-display";
 import { RecentSectionHeader } from "@/components/dashboard/recent-section-header";
 
 const MAX_ROWS = 4;
@@ -46,7 +47,7 @@ export function RecentNotesCard() {
                     </div>
                     <p className="mt-0.5 truncate text-sm text-muted-foreground">
                       Target {formatCurrency(note.targetAmount)} · Funded{" "}
-                      {note.fundingPercent.toFixed(1)}%
+                      {issuerNoteDisplayFundingPercent(note).toFixed(1)}%
                     </p>
                   </div>
                   <NoteStatusBadge note={note} className="shrink-0" />

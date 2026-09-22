@@ -177,7 +177,7 @@ export function buildBusinessDetails(): Record<string, unknown> {
 /** financial_statements: v2 questionnaire + unaudited_by_year (numbers per field). */
 export function buildFinancialStatements(): Record<string, unknown> {
   const today = new Date();
-  const fye = new Date(today.getTime() + 400 * 24 * 60 * 60 * 1000);
+  const fye = new Date(today.getTime() + 270 * 24 * 60 * 60 * 1000);
   const fyeIso = formatDate(fye);
   const q = { financial_year_end: fyeIso };
   const tabYears = getIssuerFinancialTabYears(q, today);

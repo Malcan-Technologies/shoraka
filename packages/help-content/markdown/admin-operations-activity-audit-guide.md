@@ -8,7 +8,7 @@ tags:
   - audit
   - notifications
 order: 29
-updated: 2026-09-09
+updated: 2026-09-21
 ---
 
 This guide lists the Activity records, Admin logs, notifications, and direct emails available in the current platform.
@@ -139,6 +139,7 @@ Signing Package Declined is when the signer declined. Signing Package Voided is 
 | Note Unpublished | Note → Activity | Not customer visible | None | None |
 | Campaign Paused | Note → Activity | Activity | None | None |
 | Campaign Resumed | Note → Activity | Activity | None | None |
+| Campaign Extended | Note → Activity | Activity + Notification | Campaign extended / Listing deadline extended | Follows Admin notification settings |
 | Funding Closed | Note → Activity | Activity + Notification | Funding Closed Successfully | Follows Admin notification settings |
 | Funding Unsuccessful | Note → Activity | Activity + Notification | Note Funding Did Not Complete | Follows Admin notification settings |
 | Note Activated | Note → Activity | Activity + Notification | Note Is Active | Follows Admin notification settings |
@@ -420,6 +421,8 @@ Settings → Notifications may use a different name from the customer inbox titl
 | Signing Deadline Extended | Issuer owner and organisation admins | Facility or invoice signing deadline extended | Follows Admin notification settings |
 | Facility Disabled | Issuer owner and organisation admins | Facility disabled | Follows Admin notification settings |
 | Note Published | Issuer organisation members | Note published | Follows Admin notification settings |
+| Campaign Extended | Issuer organisation members | Campaign extended | Follows Admin notification settings |
+| Listing Deadline Extended | Investors who had committed | Listing deadline extended | Follows Admin notification settings |
 | Funding Closed Successfully | Issuer organisation members | Funding closed successfully | Follows Admin notification settings |
 | Note Funding Did Not Complete | Issuer organisation members | Funding did not complete | Follows Admin notification settings |
 | Commitment Released | Investors who had committed | Funding did not complete | Follows Admin notification settings |

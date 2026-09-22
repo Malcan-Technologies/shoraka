@@ -44,6 +44,7 @@ export function ProductNameWithIcon({
   imageUrl,
   empty = "\u2014",
   size = "xs",
+  wrap = false,
   className,
   iconClassName,
 }: {
@@ -52,6 +53,8 @@ export function ProductNameWithIcon({
   imageUrl?: string | null;
   empty?: string;
   size?: "xs" | "sm" | "md";
+  /** Wrap the name instead of ellipsizing. Use in heroes where the full financing type must stay visible. */
+  wrap?: boolean;
   className?: string;
   iconClassName?: string;
 }) {
@@ -65,7 +68,8 @@ export function ProductNameWithIcon({
   return (
     <span
       className={cn(
-        "inline-flex min-w-0 items-center align-middle text-ui leading-6 text-foreground",
+        "min-w-0 align-middle text-ui leading-6 text-foreground",
+        wrap ? "flex max-w-full items-start" : "inline-flex items-center",
         size === "xs" ? "gap-1.5" : "gap-2",
         className
       )}
@@ -83,7 +87,7 @@ export function ProductNameWithIcon({
         />
       )}
       {label ? (
-        <span className="min-w-0 truncate" title={label}>
+        <span className={cn("min-w-0", wrap ? "break-words" : "truncate")} title={label}>
           {label}
         </span>
       ) : (

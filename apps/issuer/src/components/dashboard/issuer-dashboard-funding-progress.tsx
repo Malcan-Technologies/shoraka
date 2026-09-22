@@ -50,6 +50,8 @@ function FundingNoteCard({ item }: { item: IssuerBookFundingProgress }) {
     id: item.noteId,
   });
   const showProgress = item.status === "open" || item.status === "funded" || item.status === "failed";
+  const displayFundedAmount = item.status === "failed" ? 0 : item.fundedAmount;
+  const displayPercent = item.status === "failed" ? 0 : item.percent;
 
   return (
     <Card
@@ -77,11 +79,11 @@ function FundingNoteCard({ item }: { item: IssuerBookFundingProgress }) {
                 item.status === "failed" && "text-status-rejected-text"
               )}
             >
-              {Math.round(item.percent)}%
+              {Math.round(displayPercent)}%
             </p>
             <p className="text-meta tabular-nums text-muted-foreground">
-              {formatCurrency(item.fundedAmount, { decimals: 0 })} /{" "}
-              {formatCurrency(item.targetAmount, { decimals: 0, includeSymbol: false })}
+              {formatCurrency(displayFundedAmount)} /{" "}
+              {formatCurrency(item.targetAmount, { includeSymbol: false })}
             </p>
           </div>
         ) : null}
@@ -99,7 +101,7 @@ function FundingNoteCard({ item }: { item: IssuerBookFundingProgress }) {
       {showProgress ? (
         <FundingProgress
           className="mt-4"
-          percent={item.percent}
+          percent={displayPercent}
           thresholdPercent={item.minimumFundingPercent}
           fillClassName={cn(
             item.status === "funded" && "bg-status-success-text",
@@ -147,13 +149,13 @@ export function IssuerDashboardFundingProgress({
             <div>
               <p className="text-meta text-muted-foreground">Raised across open notes</p>
               <p className="mt-0.5 text-body font-semibold tabular-nums">
-                {formatCurrency(raised, { decimals: 0 })}
+                {formatCurrency(raised)}
               </p>
             </div>
             <div>
               <p className="text-meta text-muted-foreground">Still to raise</p>
               <p className="mt-0.5 text-body font-semibold tabular-nums">
-                {formatCurrency(stillToRaise, { decimals: 0 })}
+                {formatCurrency(stillToRaise)}
               </p>
             </div>
           </div>

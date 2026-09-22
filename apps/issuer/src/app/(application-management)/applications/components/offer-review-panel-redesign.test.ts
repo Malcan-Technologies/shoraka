@@ -64,6 +64,16 @@ describe("issuer Offer tab redesign contracts", () => {
     expect(panelSource).toContain("SupportingDocumentsStep");
   });
 
+  it("shows the gateway collect amount only when it is greater than zero", () => {
+    expect(panelSource).toContain("facility_fee_upfront_collect_amount");
+    expect(panelSource).toMatch(
+      /parsedFacilityFeeUpfrontCollect != null &&\s*Number\.isFinite\(parsedFacilityFeeUpfrontCollect\) &&\s*parsedFacilityFeeUpfrontCollect > 0/
+    );
+    expect(panelSource).toContain("payable after acceptance");
+    expect(panelSource).toContain("% — owed on acceptance");
+    expect(panelSource).toContain("Pay upfront");
+  });
+
   it("moves the offer switcher to a chip row without changing selection inclusion", () => {
     expect(pageSource).toContain("Offers awaiting your response");
     expect(pageSource).toContain("pendingOfferCount > 1");

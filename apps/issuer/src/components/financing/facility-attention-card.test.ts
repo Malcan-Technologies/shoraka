@@ -8,6 +8,7 @@ jest.mock("@cashsouk/config", () => ({
 
 import type { IssuerDashboardContract } from "@/types/issuer-dashboard";
 import {
+  facilityAttentionAmountCaption,
   facilityAttentionDetail,
   facilityAttentionMeta,
   getFacilityAttentionAction,
@@ -105,6 +106,20 @@ describe("getFacilityAttentionAction", () => {
 });
 
 describe("facility attention copy", () => {
+  it("labels the hero as approved facility when the accepted line is present", () => {
+    expect(facilityAttentionAmountCaption(contract({ approvedFacilityAmount: "150000" }))).toBe(
+      "Approved facility"
+    );
+    expect(
+      facilityAttentionAmountCaption(
+        contract({
+          approvedFacilityAmount: null,
+          contractForModal: { status: "OFFER_SENT", offer_details: { offered_facility: 150000 } },
+        })
+      )
+    ).toBe("Offered facility");
+  });
+
   it("joins reference and title, and names utilisation plus invoice count", () => {
     expect(facilityAttentionMeta(contract())).toContain("CON-ARF-1");
     expect(facilityAttentionDetail(contract())).toBe("20% used · 2 invoices");

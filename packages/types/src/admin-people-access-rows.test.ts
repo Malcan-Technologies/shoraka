@@ -329,6 +329,26 @@ describe("buildAdminPeopleAccessRows", () => {
         })
       )
     ).toBe("Matched");
+    expect(
+      adminPeopleAccessCtosLabel(
+        party({
+          id: "p1",
+          partyKey: "a",
+          absentFromLatestExternal: true,
+          ctosAbsenceReviewNeeded: false,
+        })
+      )
+    ).toBe("Current");
+    expect(
+      adminPeopleAccessCtosLabel(
+        party({
+          id: "p1",
+          partyKey: "a",
+          absentFromLatestExternal: true,
+          ctosExtractUnusable: true,
+        })
+      )
+    ).toBe("—");
   });
 
   it("13–14. inactive rows keep platform access independently", () => {
@@ -586,6 +606,86 @@ describe("filterAdminPeopleAccessRows", () => {
     expect(pending.some((row) => row.ctos === "Observed only")).toBe(true);
     expect(pending.some((row) => row.ctos === "Differs")).toBe(true);
     expect(ctos.every((row) => row.ctos === "Observed only" || row.ctos === "Differs" || row.ctos === "Not found" || row.identityConflict)).toBe(true);
+  });
+
+  it("Pending includes active directors with incomplete AML and excludes fully approved directors", () => {
+    const verificationRows = buildAdminPeopleAccessRows({
+      parties: [
+        party({
+          id: "pending-aml",
+          partyKey: "IC-PENDING",
+          identityNumber: "IC-PENDING",
+          isDirector: true,
+        }),
+        party({
+          id: "approved",
+          partyKey: "IC-APPROVED",
+          identityNumber: "IC-APPROVED",
+          isDirector: true,
+        }),
+      ],
+      people: [
+        person({
+          matchKey: "IC-PENDING",
+          onboarding: { status: "APPROVED" },
+          screening: null,
+        }),
+        person({
+          matchKey: "IC-APPROVED",
+          onboarding: { status: "APPROVED" },
+          screening: { status: "APPROVED" },
+        }),
+      ],
+      members: [],
+      owner,
+    }).active;
+    const pending = filterAdminPeopleAccessRows(
+      verificationRows,
+      "pending",
+      ""
+    );
+    expect(pending.map((row) => row.partyId)).toEqual(["pending-aml"]);
+  });
+
+  it("Pending includes unmatched people-only directors whose AML is missing", () => {
+    const { active } = buildAdminPeopleAccessRows({
+      parties: [
+        party({
+          id: "linked",
+          partyKey: "IC-LINKED",
+          identityNumber: "IC-LINKED",
+          isDirector: true,
+        }),
+      ],
+      people: [
+        person({
+          matchKey: "IC-LINKED",
+          name: "Linked Director",
+          onboarding: { status: "APPROVED" },
+          screening: { status: "APPROVED" },
+        }),
+        person({
+          matchKey: "IC-UNMATCHED",
+          name: "Unmatched Director",
+          roles: ["DIRECTOR"],
+          onboarding: { status: "APPROVED" },
+          screening: null,
+        }),
+      ],
+      members: [],
+      owner,
+    });
+    const unmatched = active.find((row) => row.kind === "people_only");
+    expect(unmatched).toMatchObject({
+      name: "Unmatched Director",
+      kyc: "Approved",
+      aml: "Not started",
+    });
+    const pending = filterAdminPeopleAccessRows(active, "pending", "");
+    expect(pending.some((row) => row.kind === "people_only" && row.name === "Unmatched Director")).toBe(
+      true
+    );
+    expect(pending.some((row) => row.partyId === "linked")).toBe(false);
   });
 
   it("Inactive is MASTER_INACTIVE only", () => {

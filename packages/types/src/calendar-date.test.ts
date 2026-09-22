@@ -2,8 +2,11 @@ import {
   CASHSOUK_TIMEZONE,
   calendarDateKey,
   formatCalendarDate,
+  malaysiaDateTimeLocalToIso,
   parseCalendarDate,
+  parseMalaysiaDateTimeLocal,
   toCalendarDateInput,
+  toMalaysiaDateTimeLocalInput,
 } from "./calendar-date";
 
 describe("calendar dates (Asia/Kuala_Lumpur)", () => {
@@ -62,5 +65,28 @@ describe("calendar dates (Asia/Kuala_Lumpur)", () => {
   it("normalizes persist writes to UTC midnight of the Malaysia civil day", () => {
     expect(parseCalendarDate("1989-11-14")?.toISOString()).toBe("1989-11-14T00:00:00.000Z");
     expect(parseCalendarDate("14/11/1989")?.toISOString()).toBe("1989-11-14T00:00:00.000Z");
+  });
+});
+
+describe("Malaysia datetime-local (Asia/Kuala_Lumpur)", () => {
+  it("converts KL wall time to UTC ISO", () => {
+    expect(malaysiaDateTimeLocalToIso("2026-09-22T16:30")).toBe("2026-09-22T08:30:00.000Z");
+    expect(parseMalaysiaDateTimeLocal("2026-09-22T00:00")?.toISOString()).toBe(
+      "2026-09-21T16:00:00.000Z"
+    );
+  });
+
+  it("round-trips an instant through the datetime-local input value", () => {
+    const iso = "2026-09-22T08:30:00.000Z";
+    expect(toMalaysiaDateTimeLocalInput(iso)).toBe("2026-09-22T16:30");
+    expect(malaysiaDateTimeLocalToIso(toMalaysiaDateTimeLocalInput(iso))).toBe(iso);
+  });
+
+  it("rejects invalid civil days and clock values", () => {
+    expect(parseMalaysiaDateTimeLocal("2026-02-31T10:00")).toBeNull();
+    expect(parseMalaysiaDateTimeLocal("2026-09-22T24:00")).toBeNull();
+    expect(parseMalaysiaDateTimeLocal("not-a-datetime")).toBeNull();
+    expect(malaysiaDateTimeLocalToIso("")).toBeNull();
+    expect(toMalaysiaDateTimeLocalInput(null)).toBe("");
   });
 });

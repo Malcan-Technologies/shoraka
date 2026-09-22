@@ -2,10 +2,15 @@
 
 import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { EllipsisHorizontalIcon, UsersIcon } from "@heroicons/react/24/outline";
+import {
+  ArrowPathIcon,
+  EllipsisHorizontalIcon,
+  UsersIcon,
+} from "@heroicons/react/24/outline";
 import type { OrganizationDetailResponse, PortalType } from "@cashsouk/types";
 import {
   ADMIN_PEOPLE_ACCESS_FILTERS,
+  ctosExtractFingerprint,
   adminPeopleAccessCtosBadgeStatus,
   adminPeopleAccessRowNeedsAttention,
   buildAdminPeopleAccessRows,
@@ -48,7 +53,7 @@ import {
 } from "@/components/ui/table";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useOrganizationMasterPeople } from "@/organizations/hooks/use-organization-master-people";
-import { adminActionRowClass } from "@/lib/admin-status-token";
+import { ADMIN_ACTION_SURFACE_CLASS, adminActionRowClass } from "@/lib/admin-status-token";
 import { cn } from "@/lib/utils";
 import { OrganizationMemberEditDialog } from "./organization-member-edit-dialog";
 import { OrganizationPeopleAccessDetail } from "./organization-people-access-detail";
@@ -124,8 +129,9 @@ export function OrganizationPeopleAccessPanel({
         people: org.people,
         members,
         owner: org.owner,
+        latestCtos: org.latestOrganizationCtosCompanyJson,
       }),
-    [members, org.owner, org.partyProfiles, org.people]
+    [members, org.owner, org.partyProfiles, org.people, org.latestOrganizationCtosCompanyJson]
   );
   const allRows = React.useMemo(() => [...built.active, ...built.inactive], [built]);
   const rows = React.useMemo(
@@ -198,6 +204,25 @@ export function OrganizationPeopleAccessPanel({
               })
           : undefined
       }
+      onKeepAbsent={
+        selected.party
+          ? () =>
+              peopleMutations.acknowledgeAbsence.mutate({
+                partyId: selected.party!.id,
+                reviewedExtractFingerprint: ctosExtractFingerprint(org.latestOrganizationCtosCompanyJson),
+              })
+          : undefined
+      }
+      onSyncRegTank={
+        selected.party
+          ? () =>
+              peopleMutations.syncRegTankStatus.mutate(selected.party!.id)
+          : undefined
+      }
+      isSyncingRegTank={
+        peopleMutations.syncRegTankStatus.isPending &&
+        peopleMutations.syncRegTankStatus.variables === selected.party?.id
+      }
       onEditMember={selected.userId ? () => setEditingMemberUserId(selected.userId) : undefined}
     />
   ) : null;
@@ -233,6 +258,11 @@ export function OrganizationPeopleAccessPanel({
               aria-label="Search people"
             />
           </div>
+          {org.ctosDirectorShareholderWarning ? (
+            <div className={cn("mx-6 space-y-1 rounded-lg border p-3", ADMIN_ACTION_SURFACE_CLASS)}>
+              <p className="text-ui text-status-action-text">{org.ctosDirectorShareholderWarning}</p>
+            </div>
+          ) : null}
           {rows.length === 0 ? (
             <p className="px-6 py-8 text-ui text-muted-foreground">
               {allRows.length === 0
@@ -267,6 +297,15 @@ export function OrganizationPeopleAccessPanel({
                       onAdopt={() => row.party && peopleMutations.adopt.mutate(row.party.id)}
                       onInactivate={() => row.party && peopleMutations.inactivate.mutate(row.party.id)}
                       onReactivate={() => row.party && peopleMutations.reactivate.mutate(row.party.id)}
+                      onSyncRegTank={() =>
+                        row.party &&
+                        peopleMutations.syncRegTankStatus.mutate(row.party.id)
+                      }
+                      isSyncingRegTank={
+                        peopleMutations.syncRegTankStatus.isPending &&
+                        peopleMutations.syncRegTankStatus.variables ===
+                          row.party?.id
+                      }
                       onEditMember={() => row.userId && setEditingMemberUserId(row.userId)}
                     />
                   ))}
@@ -340,6 +379,8 @@ function PeopleAccessTableRow({
   onAdopt,
   onInactivate,
   onReactivate,
+  onSyncRegTank,
+  isSyncingRegTank,
   onEditMember,
 }: {
   row: AdminPeopleAccessRow;
@@ -352,6 +393,8 @@ function PeopleAccessTableRow({
   onAdopt: () => void;
   onInactivate: () => void;
   onReactivate: () => void;
+  onSyncRegTank: () => void;
+  isSyncingRegTank: boolean;
   onEditMember: () => void;
 }) {
   const kycPresentation = peopleAccessKycChipPresentation(row.person, peopleAccessChipOptionsFromRow(row));
@@ -387,6 +430,10 @@ function PeopleAccessTableRow({
   const showEdit = canManage && !row.observed && !row.inactive && row.kind !== "people_only" && row.kind !== "platform_only";
   const showInactivate = canManage && adminMayInactivateMasterParty(party);
   const showReactivate = canManage && row.inactive && row.kind !== "people_only";
+  const showSyncRegTank =
+    canManage &&
+    party?.membershipStatus === "MASTER_ACTIVE" &&
+    (party.isDirector || party.isShareholder);
   const showMemberEdit =
     row.kind === "platform_only" &&
     canManageUsers &&
@@ -469,6 +516,18 @@ function PeopleAccessTableRow({
             {showEdit ? <DropdownMenuItem onClick={onEdit}>Edit</DropdownMenuItem> : null}
             {showInactivate ? <DropdownMenuItem onClick={onInactivate}>Mark inactive</DropdownMenuItem> : null}
             {showReactivate ? <DropdownMenuItem onClick={onReactivate}>Reactivate</DropdownMenuItem> : null}
+            {showSyncRegTank ? (
+              <DropdownMenuItem
+                disabled={isSyncingRegTank}
+                onClick={onSyncRegTank}
+              >
+                <ArrowPathIcon
+                  className={cn("mr-2 h-4 w-4", isSyncingRegTank && "animate-spin")}
+                  aria-hidden
+                />
+                Sync KYC/KYB and AML from RegTank
+              </DropdownMenuItem>
+            ) : null}
             {showMemberEdit ? <DropdownMenuItem onClick={onEditMember}>Edit name and phone</DropdownMenuItem> : null}
           </DropdownMenuContent>
         </DropdownMenu>

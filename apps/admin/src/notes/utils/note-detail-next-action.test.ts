@@ -9,7 +9,9 @@ import {
 } from "@cashsouk/types";
 import {
   findNoteDisbursementWithdrawal,
+  hasUnpaidIssuerResidual,
   isNoteDetailTabId,
+  isNoteSettlementLifecycleFinished,
   NOTE_REFERENCE_TAB_TOKEN,
   noteDetailTabStatusToken,
   noteLatePaymentTabStatusToken,
@@ -131,6 +133,26 @@ function issuerDisbursement(status: string): NoteDetail["withdrawals"][number] {
     withdrawalType: "ISSUER_DISBURSEMENT",
     status,
   } as unknown as NoteDetail["withdrawals"][number];
+}
+
+function postedSettlement(): NoteDetail["settlements"][number] {
+  return {
+    status: "POSTED",
+    investorPrincipal: 0,
+    investorProfitNet: 0,
+    tawidhInvestorAmount: 0,
+    serviceFeeAmount: 0,
+    tawidhAccountAmount: 0,
+    gharamahAmount: 0,
+    issuerResidualAmount: 0,
+  } as NoteDetail["settlements"][number];
+}
+
+function settledNote(overrides: Partial<NoteDetail> = {}): NoteDetail {
+  return servicingNote({
+    settlements: [postedSettlement()],
+    ...overrides,
+  });
 }
 
 /** Funded note that has cleared disbursement and started servicing. */
@@ -383,6 +405,19 @@ describe("note detail tab identity and dots", () => {
       resolveNoteCampaignTabStatus(baseNote({ prospectus: approvedProspectus }))
     ).toBe("needs-action");
     expect(resolveNoteCampaignTabStatus(servicingNote())).toBe("done");
+    expect(
+      resolveNoteCampaignTabStatus(
+        baseNote({
+          status: NoteStatus.FAILED_FUNDING,
+          listingStatus: NoteListingStatus.CLOSED,
+          fundingStatus: NoteFundingStatus.FAILED,
+          publishedAt: new Date().toISOString(),
+          prospectus: publishedProspectus,
+          fundedAmount: 400,
+          fundingPercent: 4.8,
+        })
+      )
+    ).toBe("done");
     expect(hasNoteLifecycleAdminAction(baseNote({ prospectus: approvedProspectus }))).toBe(true);
     expect(
       hasNoteLifecycleAdminAction(
@@ -402,6 +437,39 @@ describe("note detail tab identity and dots", () => {
         })
       )
     ).toBe("needs-action");
+  });
+
+  it("clears disbursement and servicing action after settlement is finished", () => {
+    const settled = settledNote({
+      withdrawals: [issuerDisbursement("DRAFT")],
+    });
+    expect(isNoteSettlementLifecycleFinished(settled)).toBe(true);
+    expect(resolveNoteDisbursementTabStatus(settled)).toBe("done");
+    expect(resolveNoteServicingTabStatus(settled)).toBe("done");
+    expect(resolveNoteDetailNextAction(settled).tone).toBe("neutral");
+  });
+
+  it("keeps servicing yellow when a settled note still has an unpaid residual", () => {
+    const residualOpen = servicingNote({
+      status: NoteStatus.REPAID,
+      servicingStatus: NoteServicingStatus.SETTLED,
+      settlements: [postedSettlement()],
+      withdrawals: [
+        issuerDisbursement("COMPLETED"),
+        {
+          id: "wd-residual",
+          withdrawalType: "ISSUER_RESIDUAL_RETURN",
+          status: "DRAFT",
+        } as NoteDetail["withdrawals"][number],
+      ],
+    });
+    expect(isNoteSettlementLifecycleFinished(residualOpen)).toBe(true);
+    expect(hasUnpaidIssuerResidual(residualOpen)).toBe(true);
+    expect(resolveNoteServicingTabStatus(residualOpen)).toBe("needs-action");
+    expect(resolveNoteDetailNextAction(residualOpen)).toMatchObject({
+      tabId: "servicing",
+      tone: "action",
+    });
   });
 
   it("derives the disbursement dot from the issuer payout instruction", () => {
@@ -510,7 +578,7 @@ describe("standalone vs contract-linked notes", () => {
     });
   });
 
-  it("shows Facility instead of Paymaster on the admin notes table", () => {
+  it("nests Facility under the note identity instead of Paymaster", () => {
     const tableSource = fs.readFileSync(
       path.join(__dirname, "../components/notes-table.tsx"),
       "utf8"
@@ -519,14 +587,15 @@ describe("standalone vs contract-linked notes", () => {
       path.join(__dirname, "../components/notes-table-row.tsx"),
       "utf8"
     );
-    expect(tableSource).toContain(">Facility</TableHead>");
+    expect(tableSource).not.toContain(">Facility</TableHead>");
     expect(tableSource).not.toContain(">Paymaster</TableHead>");
+    expect(rowSource).toContain("FacilityInline");
     expect(rowSource).toContain("resolveNoteFacilityLink");
     expect(rowSource).toContain("note.sourceContractId");
     expect(rowSource).toContain("invoice.contractId");
   });
 
-  it("keeps prospectus as its own notes-table column with a checkmark", () => {
+  it("nests the prospectus checkmark in the note identity cell", () => {
     const tableSource = fs.readFileSync(
       path.join(__dirname, "../components/notes-table.tsx"),
       "utf8"
@@ -535,10 +604,41 @@ describe("standalone vs contract-linked notes", () => {
       path.join(__dirname, "../components/notes-table-row.tsx"),
       "utf8"
     );
-    expect(tableSource).toContain(">Prospectus</TableHead>");
+    expect(tableSource).not.toContain(">Prospectus</TableHead>");
     expect(rowSource).toContain("CheckIcon");
-    expect(rowSource).toContain("ProspectusCell");
+    expect(rowSource).toContain("ProspectusCheck");
     expect(rowSource).not.toContain("label={formatProspectusListBadge");
+  });
+
+  it("sizes the notes-table risk chip so SME-10 padding is not clipped", () => {
+    const tableSource = fs.readFileSync(
+      path.join(__dirname, "../components/notes-table.tsx"),
+      "utf8"
+    );
+    const rowSource = fs.readFileSync(
+      path.join(__dirname, "../components/notes-table-row.tsx"),
+      "utf8"
+    );
+    expect(tableSource).toContain("<TableHead className=\"truncate\">Risk</TableHead>");
+    expect(rowSource).toContain("NOTES_TABLE_RISK_BADGE_CLASS");
+    expect(rowSource).toContain("min-w-[6rem]");
+    expect(rowSource).toContain("overflow-visible");
+    expect(rowSource).not.toContain("SoukscoreRiskRatingBadge riskRating={note.riskRating} />");
+  });
+
+  it("omits the 80% funding-threshold marker from the notes table", () => {
+    const rowSource = fs.readFileSync(
+      path.join(__dirname, "../components/notes-table-row.tsx"),
+      "utf8"
+    );
+    expect(rowSource).toContain("thresholdPercent={0}");
+    expect(rowSource).toContain("formatNoteFundingPercent(fundingPercent)} funded");
+    expect(rowSource).not.toContain("thresholdPercent={note.minimumFundingPercent}");
+    expect(rowSource).not.toContain("noteDisplayFundedAmount");
+    expect(rowSource).toContain("NOTES_TABLE_ACTIONS_CELL_CLASS");
+    expect(rowSource).toContain("text-center");
+    expect(rowSource).toContain("NOTES_TABLE_STATUS_BADGE_CLASS");
+    expect(rowSource).toContain("min-w-[13rem]");
   });
 
   it("hides the source rail Contract row only when standalone", () => {
@@ -575,7 +675,8 @@ describe("standalone vs contract-linked notes", () => {
     expect(pageSource).toContain("getNoteCommercialTermRows");
     expect(pageSource).toContain("@/notes/utils/note-commercial-terms");
     expect(pageSource).toContain('setActiveTab("campaign")');
-    expect(pageSource).toContain("note.investments.length");
+    expect(pageSource).toContain("note.investorCount");
+    expect(pageSource).toContain("formatNoteFundingPercent");
     expect(pageSource).toContain("isNoteActiveLoan");
     expect(pageSource).toContain("Settlement amount");
     expect(pageSource).toContain("Payment due");
@@ -634,6 +735,8 @@ describe("standalone vs contract-linked notes", () => {
     expect(headerSource).toContain("heroSummaryClusterClass");
     expect(headerSource).toContain("summaryCards && summaryCards.length > 0");
     expect(headerSource).toContain("overflow-hidden rounded-2xl border shadow-sm md:shadow");
+    expect(headerSource).toContain("xl:flex-row xl:items-start xl:justify-between xl:gap-8");
+    expect(headerSource).toContain("break-words text-section-title");
     expect(progressSource).toContain('variant?: "panel" | "hero"');
   });
 

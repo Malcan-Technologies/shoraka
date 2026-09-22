@@ -37,6 +37,24 @@ describe("buildIssuerMarketplaceCampaign", () => {
     expect(campaign.thresholdReached).toBe(false);
   });
 
+  it("rounds amount-derived funding to one decimal place", () => {
+    const campaign = buildIssuerMarketplaceCampaign({
+      ...raisingNote,
+      fundedAmount: "1.67",
+      targetAmount: "100",
+      fundingProgressPercent: null,
+    });
+    expect(campaign.fundingPercent).toBe(1.7);
+  });
+
+  it("display-rounds a 2 d.p. DTO progress to one decimal place", () => {
+    const campaign = buildIssuerMarketplaceCampaign({
+      ...raisingNote,
+      fundingProgressPercent: 1.67,
+    });
+    expect(campaign.fundingPercent).toBe(1.7);
+  });
+
   it("treats a funded closed listing as not raising", () => {
     const campaign = buildIssuerMarketplaceCampaign({
       ...raisingNote,

@@ -1,7 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { AdminContractNoteSummary } from "@cashsouk/types";
-import { resolveContractNoteStatusBadge } from "./contract-note-status";
+import {
+  contractNoteDisplayFundedAmount,
+  resolveContractNoteStatusBadge,
+} from "./contract-note-status";
 
 function note(status: string): AdminContractNoteSummary {
   return {
@@ -50,7 +53,18 @@ describe("ContractNotesTable action row", () => {
     expect(tableSource).toContain("odd:bg-muted/40 hover:bg-muted");
     expect(tableSource).toContain("cn(");
     expect(tableSource).toContain("formatCurrency(note.targetAmount)");
+    expect(tableSource).toContain("contractNoteDisplayFundedAmount(note)");
     expect(tableSource).toContain("Financing / allocation");
     expect(tableSource).toContain("invoiceFaceAmount");
+  });
+});
+
+describe("contractNoteDisplayFundedAmount", () => {
+  it("zeros the funded line after fail funding and keeps a live partial raise", () => {
+    expect(
+      contractNoteDisplayFundedAmount({ status: "FAILED_FUNDING", fundedAmount: 400 })
+    ).toBe(0);
+    expect(contractNoteDisplayFundedAmount({ status: "FUNDING", fundedAmount: 400 })).toBe(400);
+    expect(contractNoteDisplayFundedAmount({ status: "ACTIVE", fundedAmount: 8000 })).toBe(8000);
   });
 });

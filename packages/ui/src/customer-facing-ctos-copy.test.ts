@@ -97,7 +97,7 @@ describe("customer issuer/investor CTOS copy", () => {
     expect(adminSource).toContain("latest CTOS information");
     expect(adminSource).toContain("CTOS matched");
     expect(adminSource).toContain("CTOS differs");
-    expect(adminSource).toContain("CTOS did not return usable directors or shareholders");
+    expect(adminSource).toContain("CTOS did not return a usable company record");
     expect(adminSource).toContain("resolveDirectorShareholderCtosEmptyWarning");
   });
 });

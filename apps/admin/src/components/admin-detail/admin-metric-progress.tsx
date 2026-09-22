@@ -58,13 +58,13 @@ export function AdminMetricProgress({
     >
       <div className="grid grid-cols-2 items-start gap-x-3 gap-y-1">
         <div className="min-w-0">
-          <div className={cn("text-meta", accentClassName ?? "text-muted-foreground")}>
+          <div className={cn("break-words text-meta", accentClassName ?? "text-muted-foreground")}>
             {leftLabel}
           </div>
           <div className={cn(valueClass, accentClassName)}>{leftValue}</div>
         </div>
         <div className="min-w-0 text-right">
-          <div className={cn("text-meta", accentClassName ?? "text-muted-foreground")}>
+          <div className={cn("break-words text-meta", accentClassName ?? "text-muted-foreground")}>
             {rightLabel}
           </div>
           <div className={cn(valueClass, accentClassName)}>{rightValue}</div>

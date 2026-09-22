@@ -125,3 +125,16 @@ export function facilityAttentionAmountValue(row: IssuerDashboardContract): unkn
     | undefined;
   return offerDetails?.offered_facility ?? offerDetails?.requested_facility ?? null;
 }
+
+export function facilityAttentionAmountCaption(row: IssuerDashboardContract): string | null {
+  if (row.approvedFacilityAmount != null && String(row.approvedFacilityAmount).trim() !== "") {
+    return "Approved facility";
+  }
+  const offerDetails = asContractForModal(row.contractForModal)?.offer_details as
+    | Record<string, unknown>
+    | null
+    | undefined;
+  if (offerDetails?.offered_facility != null) return "Offered facility";
+  if (offerDetails?.requested_facility != null) return "Requested facility";
+  return null;
+}

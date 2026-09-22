@@ -230,6 +230,72 @@ export async function notifyNotePublished(args: {
   }
 }
 
+/** After admin extends a live listing — issuer organisation plus committed investors. */
+export async function notifyNoteCampaignExtended(args: {
+  notificationService: NotificationService;
+  noteId: string;
+  issuerOrganizationId: string;
+  noteTitle: string;
+  closesAt: Date;
+}): Promise<void> {
+  const closesAt = args.closesAt.toISOString();
+  const payload = {
+    noteId: args.noteId,
+    noteTitle: args.noteTitle,
+    closesAt,
+  };
+  const stamp = closesAt;
+  const issuerPrefix = `note:lifecycle:${args.noteId}:campaign_extended:${stamp}:issuer`;
+  const investorPrefix = `note:lifecycle:${args.noteId}:campaign_extended:${stamp}:investor`;
+
+  try {
+    const results = await sendToIssuerOrg(
+      args.notificationService,
+      args.issuerOrganizationId,
+      NotificationTypeIds.NOTE_CAMPAIGN_EXTENDED_ISSUER,
+      payload,
+      issuerPrefix
+    );
+    await args.notificationService.logTypedSystemBatch(
+      NotificationTypeIds.NOTE_CAMPAIGN_EXTENDED_ISSUER,
+      payload,
+      results,
+      {
+        idempotencyKey: systemNotificationLogKey(
+          NotificationTypeIds.NOTE_CAMPAIGN_EXTENDED_ISSUER,
+          issuerPrefix
+        ),
+      }
+    );
+  } catch (err) {
+    logLifecycleError("campaign_extended_issuer", args.noteId, err);
+  }
+
+  try {
+    const results = await sendToInvestorsOnNote(
+      args.notificationService,
+      args.noteId,
+      [NoteInvestmentStatus.COMMITTED],
+      NotificationTypeIds.NOTE_CAMPAIGN_EXTENDED_INVESTOR,
+      payload,
+      investorPrefix
+    );
+    await args.notificationService.logTypedSystemBatch(
+      NotificationTypeIds.NOTE_CAMPAIGN_EXTENDED_INVESTOR,
+      payload,
+      results,
+      {
+        idempotencyKey: systemNotificationLogKey(
+          NotificationTypeIds.NOTE_CAMPAIGN_EXTENDED_INVESTOR,
+          investorPrefix
+        ),
+      }
+    );
+  } catch (err) {
+    logLifecycleError("campaign_extended_investor", args.noteId, err);
+  }
+}
+
 async function listInvestorRoleUserIds(): Promise<string[]> {
   const rows = await prisma.user.findMany({
     where: { roles: { has: "INVESTOR" } },

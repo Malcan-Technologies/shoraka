@@ -1,5 +1,6 @@
 import { OrganizationMemberRole } from "@prisma/client";
 import { type AdminRoleKey, SUPER_ADMIN_ROLE_TEMPLATE } from "@cashsouk/types";
+import { escapeHtml } from "../html-escape";
 
 interface AdminInvitationRoleCopy {
   key: AdminRoleKey;
@@ -34,6 +35,10 @@ export function adminInvitationTemplate(
   const roleLabel = role.name.trim() || formatRoleLabel(role.key);
   const roleDescription = formatRoleDescription(role);
   const inviterText = inviterName ? ` by ${inviterName}` : "";
+  const safeRoleLabel = escapeHtml(roleLabel);
+  const safeRoleDescription = escapeHtml(roleDescription);
+  const safeInviterText = inviterName ? ` by ${escapeHtml(inviterName)}` : "";
+  const safeInviteLink = escapeHtml(inviteLink);
 
   const subject = `You've been invited to join CashSouk as ${roleLabel}`;
 
@@ -61,15 +66,15 @@ export function adminInvitationTemplate(
           <!-- Content -->
           <tr>
             <td style="padding: 40px;">
-              <h2 style="margin: 0 0 16px; font-size: 24px; font-weight: 600; color: #1a1a1a;">You've been invited${inviterText}!</h2>
+              <h2 style="margin: 0 0 16px; font-size: 24px; font-weight: 600; color: #1a1a1a;">You've been invited${safeInviterText}!</h2>
 
               <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: #333;">
-                You have been invited to join CashSouk as a <strong>${roleLabel}</strong>.
+                You have been invited to join CashSouk as a <strong>${safeRoleLabel}</strong>.
               </p>
 
               <div style="background-color: #fafafa; border-left: 4px solid #8A0304; padding: 16px; margin: 24px 0; border-radius: 4px;">
-                <p style="margin: 0 0 8px; font-size: 14px; font-weight: 600; color: #1a1a1a;">Role: ${roleLabel}</p>
-                <p style="margin: 0; font-size: 14px; line-height: 1.5; color: #666;">${roleDescription}</p>
+                <p style="margin: 0 0 8px; font-size: 14px; font-weight: 600; color: #1a1a1a;">Role: ${safeRoleLabel}</p>
+                <p style="margin: 0; font-size: 14px; line-height: 1.5; color: #666;">${safeRoleDescription}</p>
               </div>
 
               <p style="margin: 0 0 32px; font-size: 16px; line-height: 1.6; color: #333;">
@@ -80,14 +85,14 @@ export function adminInvitationTemplate(
               <table role="presentation" style="width: 100%; border-collapse: collapse;">
                 <tr>
                   <td align="center" style="padding: 0;">
-                    <a href="${inviteLink}" style="display: inline-block; padding: 14px 32px; background-color: #8A0304; color: #ffffff; text-decoration: none; border-radius: 8px; font-size: 16px; font-weight: 600; box-shadow: 0 10px 20px -10px rgba(138, 3, 4, 0.35);">Accept Invitation</a>
+                    <a href="${safeInviteLink}" style="display: inline-block; padding: 14px 32px; background-color: #8A0304; color: #ffffff; text-decoration: none; border-radius: 8px; font-size: 16px; font-weight: 600; box-shadow: 0 10px 20px -10px rgba(138, 3, 4, 0.35);">Accept Invitation</a>
                   </td>
                 </tr>
               </table>
 
               <p style="margin: 32px 0 0; font-size: 14px; line-height: 1.6; color: #666;">
                 If the button doesn't work, copy and paste this link into your browser:<br>
-                <a href="${inviteLink}" style="color: #CE2922; word-break: break-all;">${inviteLink}</a>
+                <a href="${safeInviteLink}" style="color: #CE2922; word-break: break-all;">${safeInviteLink}</a>
               </p>
             </td>
           </tr>
@@ -158,6 +163,12 @@ export function organizationInvitationTemplate(
   const roleDescription = orgRoleDescriptions[role];
   const inviterText = inviterName ? ` by ${inviterName}` : "";
   const portalLabel = portalType === "investor" ? "Investor" : "Issuer";
+  const safeInviterText = inviterName ? ` by ${escapeHtml(inviterName)}` : "";
+  const safeOrganizationName = escapeHtml(organizationName);
+  const safeRoleLabel = escapeHtml(roleLabel);
+  const safeRoleDescription = escapeHtml(roleDescription);
+  const safeInviteLink = escapeHtml(inviteLink);
+  const safePortalLabel = escapeHtml(portalLabel);
 
   const subject = `You've been invited to join ${organizationName} on CashSouk`;
 
@@ -185,15 +196,15 @@ export function organizationInvitationTemplate(
           <!-- Content -->
           <tr>
             <td style="padding: 40px;">
-              <h2 style="margin: 0 0 16px; font-size: 24px; font-weight: 600; color: #1a1a1a;">You've been invited${inviterText}!</h2>
+              <h2 style="margin: 0 0 16px; font-size: 24px; font-weight: 600; color: #1a1a1a;">You've been invited${safeInviterText}!</h2>
 
               <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: #333;">
-                You have been invited to join <strong>${organizationName}</strong> as a <strong>${roleLabel}</strong> on the CashSouk ${portalLabel} Portal.
+                You have been invited to join <strong>${safeOrganizationName}</strong> as a <strong>${safeRoleLabel}</strong> on the CashSouk ${safePortalLabel} Portal.
               </p>
 
               <div style="background-color: #fafafa; border-left: 4px solid #8A0304; padding: 16px; margin: 24px 0; border-radius: 4px;">
-                <p style="margin: 0 0 8px; font-size: 14px; font-weight: 600; color: #1a1a1a;">Role: ${roleLabel}</p>
-                <p style="margin: 0; font-size: 14px; line-height: 1.5; color: #666;">${roleDescription}</p>
+                <p style="margin: 0 0 8px; font-size: 14px; font-weight: 600; color: #1a1a1a;">Role: ${safeRoleLabel}</p>
+                <p style="margin: 0; font-size: 14px; line-height: 1.5; color: #666;">${safeRoleDescription}</p>
               </div>
 
               <p style="margin: 0 0 32px; font-size: 16px; line-height: 1.6; color: #333;">
@@ -204,14 +215,14 @@ export function organizationInvitationTemplate(
               <table role="presentation" style="width: 100%; border-collapse: collapse;">
                 <tr>
                   <td align="center" style="padding: 0;">
-                    <a href="${inviteLink}" style="display: inline-block; padding: 14px 32px; background-color: #8A0304; color: #ffffff; text-decoration: none; border-radius: 8px; font-size: 16px; font-weight: 600; box-shadow: 0 10px 20px -10px rgba(138, 3, 4, 0.35);">Accept Invitation</a>
+                    <a href="${safeInviteLink}" style="display: inline-block; padding: 14px 32px; background-color: #8A0304; color: #ffffff; text-decoration: none; border-radius: 8px; font-size: 16px; font-weight: 600; box-shadow: 0 10px 20px -10px rgba(138, 3, 4, 0.35);">Accept Invitation</a>
                   </td>
                 </tr>
               </table>
 
               <p style="margin: 32px 0 0; font-size: 14px; line-height: 1.6; color: #666;">
                 If the button doesn't work, copy and paste this link into your browser:<br>
-                <a href="${inviteLink}" style="color: #CE2922; word-break: break-all;">${inviteLink}</a>
+                <a href="${safeInviteLink}" style="color: #CE2922; word-break: break-all;">${safeInviteLink}</a>
               </p>
             </td>
           </tr>

@@ -271,6 +271,11 @@ export const waiveNoteFacilityFeeCollectionSchema = z.object({
   reason: z.string().trim().min(1).max(1000),
 });
 
+export const extendNoteListingSchema = z.object({
+  closesAt: z.string().datetime(),
+  reason: z.string().trim().min(1).max(1000),
+});
+
 export const trusteeLetterConfigSchema = z
   .object({
     trusteeName: z.string().optional(),

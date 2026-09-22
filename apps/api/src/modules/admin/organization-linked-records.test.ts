@@ -34,13 +34,13 @@ describe("requestedAmountFromApplication", () => {
     expect(amount).toBe(1200);
   });
 
-  it("falls back to contract value when there are no invoices", () => {
+  it("uses requested facility, not contract face, when there are no invoices", () => {
     expect(
       requestedAmountFromApplication({
         invoices: [],
-        contract: { contract_details: { approved_facility: 25000 } },
+        contract: { contract_details: { financing: 150000, value: 250000, approved_facility: 150000 } },
       })
-    ).toBe(25000);
+    ).toBe(150000);
   });
 });
 

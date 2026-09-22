@@ -55,6 +55,8 @@ import {
   APPLICATION_STEP_KEYS_WITH_UI,
   STEP_KEY_DISPLAY,
   enforceDeclarationsLastAndDropReview,
+  APPLICATION_RESUBMIT_NEXT_STEP_COPY,
+  APPLICATION_RESUBMIT_REVIEW_COPY,
   FACILITY_ONLY_SUBMIT_COPY,
   INHERITED_FACILITY_GUARANTORS_STEP_DESCRIPTION,
   filterWorkflowStepsForOrigination,
@@ -73,6 +75,11 @@ import { resolveIssuerFacilityGate } from "@/lib/facility-enabled";
 import { FACILITY_FEE_DRAWDOWN_BLOCKED_MESSAGE } from "@/lib/facility-fee-payment-ui";
 import { DirectorShareholderAlertCard } from "@/components/director-shareholder-alert-card";
 import { IssuerProfileCompletenessBanner } from "@/components/profile-completeness-banner";
+import { ProfileIncompleteChecklistModal } from "@/components/profile-incomplete-checklist-modal";
+import {
+  buildIssuerProfileIncompleteChecklistModel,
+  type IssuerProfileIncompleteChecklistModel,
+} from "@/lib/profile-incomplete-checklist";
 import { ProgressIndicator } from "../../components/progress-indicator";
 import {
   ApplicationFlowBlockedBackdrop,
@@ -775,6 +782,10 @@ function EditApplicationPageBody() {
   const [showProcessingFeeStep, setShowProcessingFeeStep] = React.useState(false);
   const [pendingProcessingFee, setPendingProcessingFee] =
     React.useState<ApplicationProcessingFeeResponse | null>(null);
+  const [profileIncompleteChecklistOpen, setProfileIncompleteChecklistOpen] =
+    React.useState(false);
+  const [profileIncompleteChecklistModel, setProfileIncompleteChecklistModel] =
+    React.useState<IssuerProfileIncompleteChecklistModel | null>(null);
   const submitAfterPaymentRef = React.useRef<(applicationId: string) => Promise<void>>(
     async () => {}
   );
@@ -804,9 +815,11 @@ function EditApplicationPageBody() {
 
   const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false);
   const [draftSavedVisible, setDraftSavedVisible] = React.useState(false);
+  const [stepSaveHint, setStepSaveHint] = React.useState<string | null>(null);
   React.useEffect(() => {
     setHasUnsavedChanges(false);
     setDraftSavedVisible(false);
+    setStepSaveHint(null);
     /** Keeps stepDataRef intact. The new step overwrites it when ready. Clearing it caused a race where Save ran before data loaded. */
   }, [stepFromUrl]);
 
@@ -1154,7 +1167,12 @@ function EditApplicationPageBody() {
 
     if (currentStepKey === "financial_statements") {
       return (
-        <FinancialStatementsStep applicationId={applicationId} onDataChange={handleDataChange} readOnly={stepReadOnly} />
+        <FinancialStatementsStep
+          applicationId={applicationId}
+          onDataChange={handleDataChange}
+          readOnly={stepReadOnly}
+          isAmendmentMode={isAmendmentModeEffective}
+        />
       );
     }
 
@@ -1285,10 +1303,22 @@ function EditApplicationPageBody() {
         isSubmittingRef.current = false;
         setIsSubmittingApplication(false);
         setPostSubmitNavigationPending(false);
+        if (getApiMutationErrorCode(error) === "PROFILE_INCOMPLETE") {
+          const next = await profileCompletenessQuery.refetch();
+          const missing = next.data?.missing ?? profileCompletenessQuery.data?.missing ?? [];
+          const percent = next.data?.percent ?? profileCompletenessQuery.data?.percent ?? 0;
+          const complete = next.data?.complete ?? profileCompletenessQuery.data?.complete ?? false;
+
+          setProfileIncompleteChecklistModel(
+            buildIssuerProfileIncompleteChecklistModel({ complete, percent, missing })
+          );
+          setProfileIncompleteChecklistOpen(true);
+          return;
+        }
         throw error;
       }
     },
-    [applicationId, updateStatusMutation, versionBlocksNavigation]
+    [applicationId, updateStatusMutation, versionBlocksNavigation, profileCompletenessQuery]
   );
 
   submitAfterPaymentRef.current = submitApplicationAfterPaidFee;
@@ -1333,14 +1363,24 @@ function EditApplicationPageBody() {
       }
 
       await persistDeclarationsStep(declarationsPayload);
+      if (currentStepKey === "declarations") {
+        // Declarations were persisted successfully; clear dirty state so the payment redirect
+        // (Curlec/FPX callback / navigation) does not trigger the browser "Leave site?" warning.
+        setHasUnsavedChanges(false);
+      }
       await finalizeApplicationSubmit(wasAmendmentResubmit);
       successPendingNav = true;
     } catch (error) {
       if (getApiMutationErrorCode(error) === "PROFILE_INCOMPLETE") {
-        const missing = profileCompletenessQuery.data?.missing ?? [];
-        const needsPeople = missing.some((m) => m.step === "shareholders" || m.step === "board");
-        toast.error("Complete your profile before submitting");
-        void safeNavigate(`/profile?focus=${needsPeople ? "directors" : "completeness"}`, { leavingPage: true });
+        const next = await profileCompletenessQuery.refetch();
+        const missing = next.data?.missing ?? profileCompletenessQuery.data?.missing ?? [];
+        const percent = next.data?.percent ?? profileCompletenessQuery.data?.percent ?? 0;
+        const complete = next.data?.complete ?? profileCompletenessQuery.data?.complete ?? false;
+
+        setProfileIncompleteChecklistModel(
+          buildIssuerProfileIncompleteChecklistModel({ complete, percent, missing })
+        );
+        setProfileIncompleteChecklistOpen(true);
         return;
       }
       const limitMessage = readProductLimitViolationMessage(error);
@@ -1403,6 +1443,10 @@ function EditApplicationPageBody() {
       }
 
       await persistDeclarationsStep(declarationsPayload);
+      if (currentStepKey === "declarations") {
+        // Only clear after the declarations save succeeds; on failure we must keep warning protection.
+        setHasUnsavedChanges(false);
+      }
 
       if (requiresProcessingFee) {
         try {
@@ -1429,12 +1473,15 @@ function EditApplicationPageBody() {
       holdSubmitting = true;
     } catch (error) {
       if (getApiMutationErrorCode(error) === "PROFILE_INCOMPLETE") {
-        const missing = profileCompletenessQuery.data?.missing ?? [];
-        const needsPeople = missing.some((m) => m.step === "shareholders" || m.step === "board");
-        toast.error("Complete your profile before submitting");
-        void safeNavigate(`/profile?focus=${needsPeople ? "directors" : "completeness"}`, {
-          leavingPage: true,
-        });
+        const next = await profileCompletenessQuery.refetch();
+        const missing = next.data?.missing ?? profileCompletenessQuery.data?.missing ?? [];
+        const percent = next.data?.percent ?? profileCompletenessQuery.data?.percent ?? 0;
+        const complete = next.data?.complete ?? profileCompletenessQuery.data?.complete ?? false;
+
+        setProfileIncompleteChecklistModel(
+          buildIssuerProfileIncompleteChecklistModel({ complete, percent, missing })
+        );
+        setProfileIncompleteChecklistOpen(true);
         return;
       }
       toast.error("Failed to prepare submission");
@@ -1466,9 +1513,15 @@ function EditApplicationPageBody() {
     }
     if (profileCompletenessQuery.data?.complete === false) {
       const missing = profileCompletenessQuery.data?.missing ?? [];
-      const needsPeople = missing.some((m) => m.step === "shareholders" || m.step === "board");
-      toast.error("Complete your profile before submitting");
-      void safeNavigate(`/profile?focus=${needsPeople ? "directors" : "completeness"}`, { leavingPage: true });
+      const percent = profileCompletenessQuery.data?.percent ?? 0;
+      setProfileIncompleteChecklistModel(
+        buildIssuerProfileIncompleteChecklistModel({
+          complete: false,
+          percent,
+          missing,
+        })
+      );
+      setProfileIncompleteChecklistOpen(true);
       return;
     }
     setSubmitConfirmOpen(true);
@@ -1482,6 +1535,20 @@ function EditApplicationPageBody() {
     try {
       await finalizeApplicationSubmit(false);
     } catch (error) {
+      if (getApiMutationErrorCode(error) === "PROFILE_INCOMPLETE") {
+        const next = await profileCompletenessQuery.refetch();
+        const missing = next.data?.missing ?? profileCompletenessQuery.data?.missing ?? [];
+        const percent = next.data?.percent ?? profileCompletenessQuery.data?.percent ?? 0;
+        const complete = next.data?.complete ?? profileCompletenessQuery.data?.complete ?? false;
+
+        setProfileIncompleteChecklistModel(
+          buildIssuerProfileIncompleteChecklistModel({ complete, percent, missing })
+        );
+        setProfileIncompleteChecklistOpen(true);
+        isSubmittingRef.current = false;
+        setIsSubmittingApplication(false);
+        return;
+      }
       if (getApiMutationErrorCode(error) === "PROCESSING_FEE_REQUIRED") {
         toast.info("We are still confirming your payment. Please wait a moment and try again.");
         setShowProcessingFeeStep(true);
@@ -1492,7 +1559,7 @@ function EditApplicationPageBody() {
       setIsSubmittingApplication(false);
       throw error;
     }
-  }, [finalizeApplicationSubmit]);
+  }, [finalizeApplicationSubmit, profileCompletenessQuery]);
 
 
 
@@ -1535,6 +1602,12 @@ function EditApplicationPageBody() {
 
     if (data && (data.product_id as string | undefined)) {
       setSelectedProductId(data.product_id as string);
+    }
+
+    if (typeof data?.saveHint === "string" && data.saveHint.trim() !== "") {
+      setStepSaveHint(data.saveHint.trim());
+    } else {
+      setStepSaveHint(null);
     }
 
     if (data?.isValid !== undefined) {
@@ -1663,6 +1736,7 @@ function EditApplicationPageBody() {
       // Remove frontend-only properties AFTER saveFunction completes
       if (dataToSave) {
         delete (dataToSave as Record<string, unknown>).isValid;
+        delete (dataToSave as Record<string, unknown>).saveHint;
         delete (dataToSave as Record<string, unknown>).isDeclarationConfirmed;
         delete (dataToSave as Record<string, unknown>).hasPendingChanges;
         delete (dataToSave as Record<string, unknown>).validationError;
@@ -1937,6 +2011,16 @@ function EditApplicationPageBody() {
     !isAmendmentModeEffective ||
     (amendmentContextStatus === "done" && isStructureResolved);
 
+  const processingFeeConfirmCopy = showProcessingFeeInConfirm
+    ? `Before your application is sent for review, you will need to pay a one-time application processing fee${
+        processingFeeAmount != null
+          ? ` of ${formatCurrency(processingFeeAmount)}`
+          : processingFeeOrderQuery.isLoading
+            ? " (loading amount…)"
+            : ""
+      } via FPX. This fee is non-refundable. If we request changes later, resubmitting does not require another payment.`
+    : null;
+
   const isStepRouteReady =
     !useBlockedFlowBackdrop &&
     hasStepQuery &&
@@ -2117,6 +2201,7 @@ function EditApplicationPageBody() {
           className="border-border"
           saveState={footerSaveState}
           saveStateLabel={footerSaveStateLabel}
+          hint={stepSaveHint}
           back={
             <Button
               variant="outline"
@@ -2192,32 +2277,17 @@ function EditApplicationPageBody() {
               {isAmendmentModeEffective ? "Confirm resubmission" : "Confirm submission"}
             </DialogTitle>
             <DialogDescription asChild>
-              <div className="space-y-3 pt-1 text-ui leading-7 text-muted-foreground">
-                <p>
-                  Please review everything you have entered across all steps of this application. Make sure
-                  all information is complete and accurate before you continue. Incorrect or incomplete details
-                  may delay review or affect the outcome of your application.
-                </p>
-                <p>
-                  {isAmendmentModeEffective
-                    ? "When you resubmit, our team will review your updated application."
-                    : "After you submit, you will not be able to edit this application unless we request changes."}
-                </p>
-                {isFacilityOnlyJourney ? <p>{FACILITY_ONLY_SUBMIT_COPY}</p> : null}
-                {showProfileIncompleteWarning ? <p>{profileIncompleteWarning}</p> : null}
-                {showProcessingFeeInConfirm ? (
+              <div className="space-y-3 pt-1 text-ui leading-7 text-muted-foreground text-pretty">
+                <p>{APPLICATION_RESUBMIT_REVIEW_COPY}</p>
+                <p>{APPLICATION_RESUBMIT_NEXT_STEP_COPY}</p>
+                {processingFeeConfirmCopy ? (
                   <p>
-                    Before your application is sent for review, you will need to pay a one-time
-                    application processing fee
-                    {processingFeeAmount != null
-                      ? ` of ${formatCurrency(processingFeeAmount)}`
-                      : processingFeeOrderQuery.isLoading
-                        ? " (loading amount…)"
-                        : ""}{" "}
-                    via FPX. This fee is non-refundable. If we request changes later, resubmitting
-                    does not require another payment.
+                    {FACILITY_ONLY_SUBMIT_COPY} {processingFeeConfirmCopy}
                   </p>
+                ) : isFacilityOnlyJourney ? (
+                  <p>{FACILITY_ONLY_SUBMIT_COPY}</p>
                 ) : null}
+                {showProfileIncompleteWarning ? <p>{profileIncompleteWarning}</p> : null}
               </div>
             </DialogDescription>
           </DialogHeader>
@@ -2245,6 +2315,15 @@ function EditApplicationPageBody() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ProfileIncompleteChecklistModal
+        open={profileIncompleteChecklistOpen}
+        onOpenChange={setProfileIncompleteChecklistOpen}
+        model={profileIncompleteChecklistModel}
+        onProfileSectionClick={(href) => {
+          void safeNavigate(href, { leavingPage: true });
+        }}
+      />
 
       {/* Product Block Dialog - using standalone modal */}
       <VersionMismatchModal

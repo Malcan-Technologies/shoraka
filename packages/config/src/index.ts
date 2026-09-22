@@ -1,6 +1,10 @@
 export * from "./api-client";
 export { parseContentDispositionFilename } from "./content-disposition-filename";
 export * from "./detect-client-portal";
+export * from "./cognito-portal-logout";
+export * from "./cookie-pair";
+export * from "./auth-session-check";
+export * from "./use-portal-auth-session";
 export * from "./auth-context";
 export * from "./date-ranges";
 export * from "./bank-account-details";

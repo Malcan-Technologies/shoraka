@@ -2,6 +2,10 @@ import { formatInvoiceReference, formatNoteReference, type NoteListItem } from "
 import type { IssuerDashboardInvoice, IssuerDashboardNote } from "@/types/issuer-dashboard";
 import { resolveIssuerInvoiceDashboardBadge } from "@/lib/issuer-dashboard-labels";
 import {
+  issuerNoteDisplayFundedAmount,
+  issuerNoteDisplayFundingPercent,
+} from "@/notes/lib/funding-display";
+import {
   matchesInvoiceSubmissionPreset,
   type InvoiceFinancingListFiltersState,
 } from "./filters";
@@ -102,8 +106,8 @@ export function dashboardNoteFromListItem(note: NoteListItem): IssuerDashboardNo
     fundingStatus: String(note.fundingStatus),
     servicingStatus: String(note.servicingStatus),
     targetAmount: String(note.targetAmount),
-    fundedAmount: String(note.fundedAmount),
-    fundingProgressPercent: note.fundingPercent,
+    fundedAmount: String(issuerNoteDisplayFundedAmount(note)),
+    fundingProgressPercent: issuerNoteDisplayFundingPercent(note),
     minimumFundingPercent: String(note.minimumFundingPercent),
     fundingDeadline: note.listingClosesAt,
     maturityDate: note.maturityDate,

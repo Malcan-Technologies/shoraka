@@ -2,6 +2,7 @@ import type { AdminContractNoteSummary } from "@cashsouk/types";
 import type { StatusToken } from "@cashsouk/ui";
 import { getAdminStatusToken } from "@/lib/admin-status-token";
 import { formatNoteStatus } from "@/notes/utils/format-note-status";
+import { noteDisplayFundedAmount } from "@/notes/utils/funding-progress";
 
 export type ContractNoteStatusBadge = {
   label: string;
@@ -21,4 +22,15 @@ export function resolveContractNoteStatusBadge(
     label: formatNoteStatus(note.status),
     token: getAdminStatusToken(note.status),
   };
+}
+
+/** Contract note summaries omit fundingStatus; Fail Funding still sets status FAILED_FUNDING. */
+export function contractNoteDisplayFundedAmount(
+  note: Pick<AdminContractNoteSummary, "status" | "fundedAmount">
+): number {
+  return noteDisplayFundedAmount({
+    status: note.status,
+    fundingStatus: "",
+    fundedAmount: note.fundedAmount,
+  });
 }

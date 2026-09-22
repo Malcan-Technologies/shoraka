@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { AuthSessionUnavailableCard } from "@cashsouk/ui";
 import { useAuth } from "../lib/auth";
 
 /**
@@ -13,7 +14,7 @@ import { useAuth } from "../lib/auth";
  */
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, sessionUnavailable, retrySessionCheck } = useAuth();
 
   // Skip auth guard for callback page - it handles its own auth flow
   const shouldSkipAuthGuard = pathname === "/callback";
@@ -21,6 +22,10 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   // Skip auth guard for callback page
   if (shouldSkipAuthGuard) {
     return <>{children}</>;
+  }
+
+  if (sessionUnavailable) {
+    return <AuthSessionUnavailableCard onRetry={retrySessionCheck} />;
   }
 
   // Show loading while checking authentication

@@ -10,11 +10,14 @@ import {
   calendarDateKey,
   comrepCalendarDateKey,
   isMasterFieldEmpty,
+  isUnusableCtosCompanyExtract,
   mergeCodContactPersonMaster,
   normalizeDirectorShareholderIdKey,
   parseComrepCalendarDate,
   parsePersonIdentityConflict,
+  partyNeedsCtosAbsenceReview,
   PERSON_IDENTITY_CONFLICT_KEY,
+  readCtosAbsenceAckFingerprint,
   valuesEqualForMismatch,
 } from "@cashsouk/types";
 
@@ -406,13 +409,27 @@ export function serializeParty(
       first_name: string;
       last_name: string;
     } | null;
-  }
+  },
+  latestCtos?: unknown
 ): OrganizationPartyProfileDto {
   const fieldSources = parseFieldSources(row.field_sources);
   const observation =
     row.external_observation && typeof row.external_observation === "object" && !Array.isArray(row.external_observation)
       ? (row.external_observation as Record<string, unknown>)
       : null;
+  const ctosAbsenceAckFingerprint = readCtosAbsenceAckFingerprint(observation);
+  const ctosExtractUnusable = latestCtos !== undefined ? isUnusableCtosCompanyExtract(latestCtos) : false;
+  const draft = {
+    membershipStatus: row.membership_status,
+    absentFromLatestExternal: row.absent_from_latest_external,
+    externalObservation: observation,
+    ctosAbsenceAckFingerprint,
+    ctosExtractUnusable,
+    partyKey: row.party_key,
+    identityNumber: row.identity_number,
+    isDirector: row.is_director,
+    isShareholder: row.is_shareholder,
+  };
   return {
     id: row.id,
     partyKey: row.party_key,
@@ -420,6 +437,9 @@ export function serializeParty(
     membershipStatus: row.membership_status,
     entityType: row.entity_type,
     absentFromLatestExternal: row.absent_from_latest_external,
+    ctosAbsenceAckFingerprint,
+    ctosExtractUnusable,
+    ctosAbsenceReviewNeeded: partyNeedsCtosAbsenceReview(draft, latestCtos),
     name: row.name,
     email: row.email ?? null,
     salutation: row.salutation,

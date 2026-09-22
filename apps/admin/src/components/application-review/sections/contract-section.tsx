@@ -600,7 +600,7 @@ export function ContractSection({
                 changed={isPathChanged("contract")}
               />
               <ComparisonFieldRow
-                label="Contract Financing"
+                label="Requested Financing Amount"
                 before={
                   typeof bCd?.financing === "number"
                     ? formatCurrency(bCd.financing)

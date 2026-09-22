@@ -826,7 +826,7 @@ export default function InvoiceDetailsStep({
         if (!hasValue) errors.value = "Invoice value is required";
         if (!hasDate) errors.maturity_date = "Maturity date is required";
         if (!hasTenure) errors.financing_tenure_days = "Financing tenure is required";
-        if (!hasDocument) errors.document = "Document is required";
+        if (!hasDocument) errors.document = "Invoice document is required";
       }
       if (hasSubmitted) {
         if (!inv.campaign_sector) errors.campaign_sector = "Campaign Sector is required";
@@ -1415,8 +1415,8 @@ export default function InvoiceDetailsStep({
                     : "—"}
                 </div>
 
-                {/* ================= Contract Financing ================= */}
-                <div className={formLabelClassName}>Contract Financing</div>
+                {/* ================= Requested Financing Amount ================= */}
+                <div className={formLabelClassName}>Requested Financing Amount</div>
                 <div className={valueClassName}>
                   {application?.contract?.contract_details?.financing != null
                     ? `RM ${formatMoney(application.contract.contract_details.financing)}`

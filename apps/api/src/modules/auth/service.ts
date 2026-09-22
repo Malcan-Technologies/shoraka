@@ -26,6 +26,14 @@ import { getEnv } from "../../config/env";
 import { NotificationService } from "../notification/service";
 import { NotificationTypeIds } from "../notification/registry";
 import { resolveAdminAccess } from "../../lib/auth/rbac";
+import { AccessTokenRevocationService } from "./token-revocation.service";
+import { signOutCognitoUserGlobally } from "../../lib/auth/cognito-global-signout";
+import { revokeAndClearCurrentRefreshTokenCookie } from "../../lib/auth/refresh-token-cookie";
+import {
+  ACCESS_TOKEN_MAX_AGE_MS,
+  REFRESH_TOKEN_MAX_AGE_MS,
+  cognitoCookieOptions,
+} from "../../lib/auth/cognito-session-cookies";
 
 const cognitoClient = new CognitoIdentityProviderClient({
   region: process.env.COGNITO_REGION || "ap-southeast-5",
@@ -53,10 +61,12 @@ function computeSecretHash(username: string): string {
 export class AuthService {
   private repository: AuthRepository;
   private notificationService: NotificationService;
+  private tokenRevocation: AccessTokenRevocationService;
 
   constructor() {
     this.repository = new AuthRepository();
     this.notificationService = new NotificationService();
+    this.tokenRevocation = new AccessTokenRevocationService();
   }
 
   /**
@@ -380,11 +390,54 @@ export class AuthService {
     return { success: true, cancelled: true };
   }
 
+  async invalidateCurrentAccessToken(params: {
+    jti?: string;
+    exp?: number;
+    userId: string;
+    cognitoSub?: string;
+  }): Promise<void> {
+    try {
+      await this.tokenRevocation.revokeCurrentToken({
+        jti: params.jti,
+        userId: params.userId,
+        exp: params.exp,
+      });
+    } catch (error) {
+      logger.error(
+        {
+          userId: params.userId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        "Failed to record revoked access token"
+      );
+      throw new AppError(
+        503,
+        "SERVICE_UNAVAILABLE",
+        "Authentication service temporarily unavailable"
+      );
+    }
+
+    if (params.cognitoSub) {
+      try {
+        await signOutCognitoUserGlobally(params.cognitoSub);
+      } catch (error) {
+        logger.warn(
+          {
+            userId: params.userId,
+            error: error instanceof Error ? error.message : String(error),
+          },
+          "Cognito global sign-out failed after local token revocation"
+        );
+      }
+    }
+  }
+
   /**
    * Logout user and revoke session
    */
   async logout(
     req: Request,
+    res: Response,
     userId: string,
     activeRole?: UserRole
   ): Promise<{
@@ -425,6 +478,15 @@ export class AuthService {
     if (session) {
       await this.repository.revokeSession(session.id);
     }
+
+    await this.invalidateCurrentAccessToken({
+      jti: req.accessTokenJti,
+      exp: req.accessTokenExp,
+      userId,
+      cognitoSub: req.cognitoSub,
+    });
+
+    await revokeAndClearCurrentRefreshTokenCookie(req, res);
 
     // Create access log
     await this.repository.createAccessLog({
@@ -648,56 +710,38 @@ export class AuthService {
       expires_in: number;
     };
 
-    // Update cookies with new tokens
-    // Use COOKIE_DOMAIN from env (AWS Secrets Manager in production)
-    // Fallback to localhost for development if not set
-    const cookieDomain =
-      env.COOKIE_DOMAIN || (env.NODE_ENV === "production" ? ".cashsouk.com" : "localhost");
-    const isSecure = env.NODE_ENV === "production";
-
-    // Set new access token
     res.cookie(
       `CognitoIdentityServiceProvider.${clientId}.${lastAuthUser}.accessToken`,
       tokens.access_token,
-      {
-        httpOnly: false, // Amplify needs to read this
-        secure: isSecure,
-        sameSite: "lax",
-        domain: cookieDomain,
-        path: "/",
-        maxAge: 60 * 60 * 1000, // 1 hour
-      }
+      cognitoCookieOptions(false, ACCESS_TOKEN_MAX_AGE_MS)
     );
 
-    // Set new ID token
     if (tokens.id_token) {
       res.cookie(
         `CognitoIdentityServiceProvider.${clientId}.${lastAuthUser}.idToken`,
         tokens.id_token,
-        {
-          httpOnly: false,
-          secure: isSecure,
-          sameSite: "lax",
-          domain: cookieDomain,
-          path: "/",
-          maxAge: 60 * 60 * 1000,
-        }
+        cognitoCookieOptions(false, ACCESS_TOKEN_MAX_AGE_MS)
       );
     }
 
-    // Update refresh token if Cognito returned a new one (token rotation)
+    // Rotation returns a new refresh-token value. Store it and reset the 60-minute
+    // HttpOnly cookie. Cognito expiry is unchanged: the new token lasts only the
+    // remainder of the original 30-day RefreshTokenValidity from sign-in.
     if (tokens.refresh_token) {
       res.cookie(
         `CognitoIdentityServiceProvider.${clientId}.${lastAuthUser}.refreshToken`,
         tokens.refresh_token,
-        {
-          httpOnly: true, // SECURITY: Refresh tokens must be httpOnly to prevent XSS exfiltration
-          secure: isSecure,
-          sameSite: "lax",
-          domain: cookieDomain,
-          path: "/",
-          maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-        }
+        cognitoCookieOptions(true, REFRESH_TOKEN_MAX_AGE_MS)
+      );
+      res.cookie(
+        `CognitoIdentityServiceProvider.${clientId}.LastAuthUser`,
+        lastAuthUser,
+        cognitoCookieOptions(false, REFRESH_TOKEN_MAX_AGE_MS)
+      );
+      res.cookie(
+        `CognitoIdentityServiceProvider.${clientId}.${lastAuthUser}.clockDrift`,
+        "0",
+        cognitoCookieOptions(false, REFRESH_TOKEN_MAX_AGE_MS)
       );
     }
 
