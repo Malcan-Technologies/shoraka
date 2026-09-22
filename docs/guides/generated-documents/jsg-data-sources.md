@@ -1,6 +1,6 @@
 # ARF Joint and Several Guarantee — data sources
 
-What [`buildJsgMergeData`](../../apps/api/src/modules/applications/joint-several-guarantee/build-jsg-merge-data.ts) does for production generate (`arf_joint_several_guarantee` **v5**).
+What [`buildJsgMergeData`](../../apps/api/src/modules/applications/joint-several-guarantee/build-jsg-merge-data.ts) does for production generate (`arf_joint_several_guarantee` **v1**).
 
 Requires `contract_offer_sent`. Recital A needs the Letter of Offer date and contract reference.
 

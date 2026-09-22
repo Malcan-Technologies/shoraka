@@ -1,6 +1,6 @@
 # ARF Facility Agreement — data sources
 
-What [`buildFacilityAgreementMergeData`](../../apps/api/src/modules/applications/facility-agreement/build-fa-merge-data.ts) does for production generate (`arf_facility_agreement` **v13**).
+What [`buildFacilityAgreementMergeData`](../../apps/api/src/modules/applications/facility-agreement/build-fa-merge-data.ts) does for production generate (`arf_facility_agreement` **v1**).
 
 Requires `offer_sent` (contract facility offer **or** standalone invoice offer). Generated when admin previews or sends the signing package if the frozen product includes **Facility Agreement**. Replaces the e-sign Offer Letter; the Step 1 `arf_contract_facility_lo` download/upload is unchanged.
 

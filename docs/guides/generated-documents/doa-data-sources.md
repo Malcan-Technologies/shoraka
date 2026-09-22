@@ -1,6 +1,6 @@
 # ARF Deed of Assignment — data sources
 
-What [`buildDeedOfAssignmentMergeData`](../../apps/api/src/modules/applications/deed-of-assignment/build-doa-merge-data.ts) does for production generate (`arf_deed_of_assignment` **v9**).
+What [`buildDeedOfAssignmentMergeData`](../../apps/api/src/modules/applications/deed-of-assignment/build-doa-merge-data.ts) does for production generate (`arf_deed_of_assignment` **v1**).
 
 Requires `contract_offer_sent`. Generated at facility-offer time.
 
