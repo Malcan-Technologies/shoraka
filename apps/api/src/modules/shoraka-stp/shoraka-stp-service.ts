@@ -479,7 +479,7 @@ export class ShorakaStpService {
     });
 
     const values: ShorakaSubmitOrderValues = {
-      product_type: "FINANCING",
+      product_type: "ACCOUNTS RECEIVABLE FINANCING",
       commodity_type: "000-COPPER",
       ownership,
       value_date: valueDateDDMMYYYY(now),
