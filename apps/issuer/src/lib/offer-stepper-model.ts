@@ -46,7 +46,7 @@ function directAcceptPipeline(): PipelineStepDef[] {
   return [
     REVIEW_TERMS,
     { id: "confirm_accept", label: "Confirm & accept", hint: "Consents + OTP" },
-    { id: "listed", label: "Listed to investors", hint: "CashSouk lists the note" },
+    { id: "listed", label: "Publish to Marketplace", hint: "CashSouk lists the note" },
   ];
 }
 

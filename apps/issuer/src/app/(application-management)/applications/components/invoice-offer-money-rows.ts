@@ -41,7 +41,7 @@ function facilityFeeHint(feeDisplay: InvoiceFeeDisplay): string | null {
 function netHint(feeDisplay: InvoiceFeeDisplay): string | null {
   if (feeDisplay.phase === "charged") return "Based on actual funded amount";
   if (feeDisplay.mode === "schedule") {
-    return "Estimated at full funding. Final uses actual funded.";
+    return "Estimated at full funding";
   }
   return "Estimated until funding closes";
 }
@@ -61,7 +61,7 @@ export function buildInvoiceOfferMoneyRows(input: {
       label: formatFeeRateLabel("Drawdown fee", feeDisplay.platformFeeRatePercent),
       hint:
         feeDisplay.phase !== "charged" && feeDisplay.estimatedFromOfferedAmount
-          ? "Estimated from offered amount. Final uses actual funded."
+          ? "Estimated from offered amount"
           : null,
       amount: feeDisplay.platformFeeAmount,
       kind: "deduction",

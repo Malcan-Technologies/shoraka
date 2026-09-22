@@ -9,7 +9,7 @@ const signingBase = {
 };
 
 describe("buildHorizontalOfferSteps — direct accept", () => {
-  it("shows Review terms, Confirm & accept, Listed to investors with accept current", () => {
+  it("shows Review terms, Confirm & accept, Publish to Marketplace with accept current", () => {
     const steps = buildHorizontalOfferSteps({
       kind: "direct_accept",
       offerType: "invoice",
@@ -22,6 +22,11 @@ describe("buildHorizontalOfferSteps — direct accept", () => {
       "review_terms",
       "confirm_accept",
       "listed",
+    ]);
+    expect(steps.map((step) => step.label)).toEqual([
+      "Review terms",
+      "Confirm & accept",
+      "Publish to Marketplace",
     ]);
     expect(steps.map((step) => step.status)).toEqual(["completed", "current", "pending"]);
     expect(steps.every((step) => step.clickable === false)).toBe(true);

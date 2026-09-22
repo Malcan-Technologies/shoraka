@@ -265,8 +265,8 @@ Offer tab mounts only if `hasOffer` (review CTA, facility offer, invoice `OFFER_
 
 Typical: invoice on a facility whose contract envelope is already complete (`resolveReviewOfferModalMode`).
 
-- **Offer terms card** — `InvoiceOfferTerms`: number, value, due date, tenure from disbursement, profit rate, risk, financing margin, indicative profit/payable (tooltips), money table via `buildInvoiceOfferMoneyRows` (requested, approved, drawdown fee, facility fee if linked, extra fees, net disbursement), Accept by footer — Review terms.
-- **`UtilisationOfferTerms`** — Read terms dialog; if `canAccept`: two consents + full-authorisation dialog (Required/Confirmed); locked while OTP open — Confirm & accept.
+- **Offer terms card** — `InvoiceOfferTerms`: number, value, approved financing, due date, tenure from disbursement with “Invoice matures {date}”, profit rate, risk, financing margin, indicative profit/payable (tooltips), money table via `buildInvoiceOfferMoneyRows` (requested, approved, drawdown fee, facility fee if linked, extra fees, net disbursement), Accept by footer — Review terms.
+- **`UtilisationOfferTerms`** — heading Confirm and accept with no extra intro; Read terms dialog; if `canAccept`: two consents + full-authorisation dialog (Required/Confirmed); locked while OTP open — Confirm & accept.
 - **Blocked copy** — `modalMode.blockedMessage` or “Finish facility signing first…”; Accept disabled; toast “Cannot accept yet” — Confirm & accept.
 - **Download offer letter / Download application summary** — `ApplicationSummaryDownloadButton` → `getApplicationSummaryPdfBlob` — Review terms. Summary button is **only** on this direct-accept card, not the signing-flow sidebar.
 - **Reject Offer** — enters decline form — Confirm & accept.

@@ -41,6 +41,8 @@ describe("issuer Offer tab redesign contracts", () => {
     expect(panelSource).toContain("Back to applications");
     expect(panelSource).toContain("ApplicationSummaryDownloadButton");
     expect(panelSource).toContain('modalMode.ui === "accept_decline"');
+    expect(panelSource).toContain("rateHint");
+    expect(panelSource).not.toContain("No signing package is required");
     expect(panelSource).not.toContain("OfferAcceptanceSubmittedSuccessView");
     expect(panelSource).not.toContain("SigningProgressStepper");
     expect(panelSource).not.toContain('mode === "inline"');

@@ -3,6 +3,8 @@ jest.mock("@cashsouk/ui", () => ({
     value == null || value === "" ? fallback : String(value),
 }));
 
+import * as fs from "fs";
+import * as path from "path";
 import type { InvoiceFeeDisplay } from "@/lib/facility-fee-display";
 import { buildInvoiceOfferMoneyRows, formatFeeRateLabel } from "./invoice-offer-money-rows";
 
@@ -86,6 +88,7 @@ describe("buildInvoiceOfferMoneyRows", () => {
     const byKey = Object.fromEntries(rows.map((row) => [row.key, row]));
 
     expect(byKey.platform.label).toBe("Drawdown fee (3%)");
+    expect(byKey.platform.hint).toBe("Estimated from offered amount");
     expect(byKey.facility.label).toBe("Facility fee");
     expect(byKey.facility.hint).toBe("Exact collection amount");
     expect(byKey.facility.amount).toBe(800);
@@ -93,7 +96,7 @@ describe("buildInvoiceOfferMoneyRows", () => {
     expect(byKey["extra-0"].amount).toBe(500);
     expect(byKey["extra-1"].label).toBe("Arrangement (1%)");
     expect(byKey["extra-1"].amount).toBe(1_000);
-    expect(byKey.net.hint).toBe("Estimated at full funding. Final uses actual funded.");
+    expect(byKey.net.hint).toBe("Estimated at full funding");
   });
 
   it("omits facility fee on invoice-only offers but keeps extra lines", () => {
@@ -118,5 +121,17 @@ describe("buildInvoiceOfferMoneyRows", () => {
       "net",
     ]);
     expect(rows.find((row) => row.key === "net")?.amount).toBe(19750);
+  });
+});
+
+describe("InvoiceOfferTerms copy", () => {
+  const source = fs.readFileSync(path.join(__dirname, "invoice-offer-terms.tsx"), "utf8");
+
+  it("names invoice maturity on the tenure tile and repeats approved financing in the invoice column", () => {
+    expect(source).toContain("Invoice matures ${maturityDate}");
+    expect(source).toContain('label="Approved financing"');
+    expect(source.indexOf('label="Invoice value"')).toBeLessThan(source.indexOf('label="Approved financing"'));
+    expect(source.indexOf('label="Approved financing"')).toBeLessThan(source.indexOf('label="Invoice due date"'));
+    expect(source).not.toContain("`Matures ${maturityDate}`");
   });
 });

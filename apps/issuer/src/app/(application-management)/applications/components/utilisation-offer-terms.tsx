@@ -101,16 +101,6 @@ export function UtilisationOfferTerms({
                           : "border-status-action-text/30 bg-status-action-bg"
                       )}
                     >
-                      <StatusBadge
-                        label={fullAuthorisationConfirmed ? "Confirmed" : "Required"}
-                        status={fullAuthorisationConfirmed ? "success" : "action"}
-                        showDot={false}
-                      />
-                      {fullAuthorisationConfirmed ? (
-                        <p className="text-ui text-foreground">
-                          {UTILISATION_FULL_AUTHORISATION_CONFIRMED_LABEL}
-                        </p>
-                      ) : null}
                       <Button
                         type="button"
                         size="sm"
@@ -123,6 +113,16 @@ export function UtilisationOfferTerms({
                           ? UTILISATION_FULL_AUTHORISATION_READ_AGAIN
                           : UTILISATION_FULL_AUTHORISATION_READ_LINK}
                       </Button>
+                      <StatusBadge
+                        label={fullAuthorisationConfirmed ? "Confirmed" : "Required"}
+                        status={fullAuthorisationConfirmed ? "success" : "action"}
+                        showDot={false}
+                      />
+                      {fullAuthorisationConfirmed ? (
+                        <p className="text-ui text-foreground">
+                          {UTILISATION_FULL_AUTHORISATION_CONFIRMED_LABEL}
+                        </p>
+                      ) : null}
                     </div>
                   ) : null}
                 </div>

@@ -126,7 +126,7 @@ export function InvoiceOfferTerms({
       key: "tenure",
       label: "Financing tenure",
       value: formatFinancingTenureFromDisbursement(financingTenureDays),
-      hint: maturityDate ? `Matures ${maturityDate}` : undefined,
+      hint: maturityDate ? `Invoice matures ${maturityDate}` : undefined,
     });
   }
   if (indicativeProfit != null) {
@@ -176,6 +176,9 @@ export function InvoiceOfferTerms({
             label="Invoice value"
             value={invoiceValue != null ? formatCurrency(invoiceValue) : "—"}
           />
+          {approvedFinancing != null ? (
+            <OfferTermsDlRow label="Approved financing" value={formatCurrency(approvedFinancing)} />
+          ) : null}
           {maturityDate ? <OfferTermsDlRow label="Invoice due date" value={maturityDate} /> : null}
           {financingMarginPercent != null && Number.isFinite(financingMarginPercent) ? (
             <OfferTermsDlRow label="Financing margin" value={`${financingMarginPercent}%`} />

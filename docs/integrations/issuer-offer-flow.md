@@ -88,7 +88,7 @@ Application detail hosts the offer in-page (`?tab=offer`; auto-opens when `showR
 **Horizontal stepper** (not a sidebar):
 
 - Signing / acceptance: Review terms → Representatives → Documents (if workflow) → CashSouk review → Signing → Facility in force / Offer complete
-- Direct accept (contract-linked invoice): Review terms → Confirm & accept → Listed to investors
+- Direct accept (contract-linked invoice): Review terms → Confirm & accept → Publish to Marketplace
 
 Terms stay on the page; the panel below the stepper is the current state (reps, documents, waiting, signing, expired, decline). Direct OTP is the only remaining dialog (utilisation consents stay in-page and lock while OTP is open). **Back to applications** leaves the tab; pending acceptance uploads prompt **Unsaved changes** (Discard / Stay) and discard the local draft if confirmed.
 

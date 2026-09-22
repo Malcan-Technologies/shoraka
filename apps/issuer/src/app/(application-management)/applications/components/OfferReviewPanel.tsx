@@ -2164,20 +2164,24 @@ export function OfferReviewPanel({
               />
             </span>
           }
-          value={linkedFacilityFeeRatePercent != null ? `${linkedFacilityFeeRatePercent}%` : "—"}
+          value={
+            <span>
+              {linkedFacilityFeeRatePercent != null ? `${linkedFacilityFeeRatePercent}%` : "—"}
+              {linkedFacilityFeeBalance ? (
+                <FacilityFeeBalanceSummary
+                  balance={linkedFacilityFeeBalance}
+                  rateHint
+                  owedLabelExtra={
+                    <InfoTooltip
+                      content={CONTRACT_FACILITY_FEE_CAP_TOOLTIP}
+                      iconClassName="h-3.5 w-3.5 shrink-0"
+                    />
+                  }
+                />
+              ) : null}
+            </span>
+          }
         />
-        {linkedFacilityFeeBalance ? (
-          <FacilityFeeBalanceSummary
-            balance={linkedFacilityFeeBalance}
-            stacked
-            owedLabelExtra={
-              <InfoTooltip
-                content={CONTRACT_FACILITY_FEE_CAP_TOOLTIP}
-                iconClassName="h-3.5 w-3.5 shrink-0"
-              />
-            }
-          />
-        ) : null}
       </OfferTermsDlColumn>
     ) : null;
 
@@ -2279,7 +2283,23 @@ export function OfferReviewPanel({
                   />
                 </span>
               }
-              value={facilityFeeRatePercentNumber != null ? `${facilityFeeRatePercentNumber}%` : "—"}
+              value={
+                <span>
+                  {facilityFeeRatePercentNumber != null ? `${facilityFeeRatePercentNumber}%` : "—"}
+                  {contractOfferFeeBalance ? (
+                    <FacilityFeeBalanceSummary
+                      balance={contractOfferFeeBalance}
+                      rateHint
+                      owedLabelExtra={
+                        <InfoTooltip
+                          content={CONTRACT_FACILITY_FEE_CAP_TOOLTIP}
+                          iconClassName="h-3.5 w-3.5 shrink-0"
+                        />
+                      }
+                    />
+                  ) : null}
+                </span>
+              }
             />
             {facilityFeeUpfrontCollectNumber != null ? (
               <OfferTermsDlRow
@@ -2295,18 +2315,7 @@ export function OfferReviewPanel({
                 value={formatCurrency(facilityFeeUpfrontCollectNumber)}
               />
             ) : null}
-            {contractOfferFeeBalance ? (
-              <FacilityFeeBalanceSummary
-                balance={contractOfferFeeBalance}
-                stacked
-                owedLabelExtra={
-                  <InfoTooltip
-                    content={CONTRACT_FACILITY_FEE_CAP_TOOLTIP}
-                    iconClassName="h-3.5 w-3.5 shrink-0"
-                  />
-                }
-              />
-            ) : (
+            {contractOfferFeeBalance ? null : (
               <OfferTermsDlRow
                 label={
                   <span className="inline-flex items-center gap-1">
@@ -2379,14 +2388,7 @@ export function OfferReviewPanel({
       <div className="space-y-5">
         {canDirectAccept ? (
           <>
-            <div>
-              <h3 className="text-lg font-semibold">Confirm and accept</h3>
-              <p className="mt-1.5 max-w-[70ch] text-ui leading-6 text-muted-foreground">
-                No signing package is required for this drawdown — your facility agreement already
-                covers it. Confirm the utilisation below, then accept. Accepting authorises CashSouk
-                to list this note to investors.
-              </p>
-            </div>
+            <h3 className="text-lg font-semibold">Confirm and accept</h3>
             <UtilisationOfferTerms
               showConsents
               consentsLocked={acceptOfferConfirmOpen}
