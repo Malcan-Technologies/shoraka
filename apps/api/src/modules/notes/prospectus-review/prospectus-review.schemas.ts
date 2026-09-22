@@ -595,6 +595,7 @@ export function validateApprovalContent(
         }
       }
       for (const field of PROSPECTUS_BALANCE_SHEET_OFFICER_FIELD_KEYS) {
+        if (field === "totalEquity") continue;
         if (!isPresentManualNumber(row?.[field])) {
           errors.push({
             path: `page3.manualFinancialInputs.years.${year}.${field}`,

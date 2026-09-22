@@ -9,7 +9,6 @@ import {
 const OFFICER: Record<string, { field: string; kind: "money" | "ratio" }> = {
   "Cash & Bank": { field: "cashAndBank", kind: "money" },
   "Trade Receivables": { field: "tradeReceivables", kind: "money" },
-  "Total Equity": { field: "totalEquity", kind: "money" },
   "Quick Ratio": { field: "quickRatio", kind: "ratio" },
 };
 

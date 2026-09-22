@@ -257,6 +257,7 @@ export function buildBalanceSheetResolvedRows(
 ): CoreTermRow[] {
   const currentAssets = parseNumber(yearRaw.bscatot);
   const currentLiabilities = parseNumber(yearRaw.curlib);
+  const netWorth = parseNumber(yearRaw.networth);
   // CTOS ENQWS v5.11.0 — direct totass / totlib / currat only (no component reconstruction).
   const totalAssets = resolveCtosTotalAssets({ totass: parseNumber(yearRaw.totass) });
   const totalLiabilities = resolveCtosTotalLiabilities({ totlib: parseNumber(yearRaw.totlib) });
@@ -268,7 +269,7 @@ export function buildBalanceSheetResolvedRows(
     { label: "Total Assets", value: formatMoney(totalAssets) },
     { label: "Current Liabilities", value: formatMoney(currentLiabilities) },
     { label: "Total Liabilities", value: formatMoney(totalLiabilities) },
-    { label: "Total Equity", value: manualDisplay(manual?.totalEquity, "money") },
+    { label: "Total Equity", value: formatMoney(netWorth) },
     {
       label: "Current Ratio",
       value: formatMultiple(

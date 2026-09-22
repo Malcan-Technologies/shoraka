@@ -53,7 +53,9 @@ function valueForRow(
     case "trade_receivables":
       return moneyMillionsOrDna(manual?.tradeReceivables);
     case "total_equity":
-      return moneyMillionsOrDna(manual?.totalEquity);
+      // System-derived net worth (totass - totlib) for unaudited years too.
+      // Prospectus freezes Stage 4A derived totals/ratios for this row.
+      return moneyMillionsOrDna(fieldFromRaw(raw, "networth"));
     case "quick_ratio": {
       const parsed = parseProspectusFinancialNumber(manual?.quickRatio);
       if (parsed == null) return PROSPECTUS_DATA_NOT_AVAILABLE;

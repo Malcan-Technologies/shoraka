@@ -68,7 +68,6 @@ const PAGE_THREE_OFFICER_FINANCIAL_FIELDS = [
   "ebit",
   "cashAndBank",
   "tradeReceivables",
-  "totalEquity",
   "quickRatio",
   "payablesDays",
 ] as const;

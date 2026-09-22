@@ -8,6 +8,8 @@ import {
   findMissingSsmExpectedUnauditedYears,
   formatFinancialYearEndDisplayLabel,
   formatMissingSsmUnauditedYearsOpsWarning,
+  computeColumnMetrics,
+  financialFormToBsPl,
   resolveFinancialStatementSourceFooter,
   selectLatestNormalizedFinancialStatementYears,
 } from "@cashsouk/types";
@@ -70,14 +72,40 @@ export function buildProspectusFinancialComparisonSource(
     PROSPECTUS_FINANCIAL_COMPARISON_MAX_YEARS
   );
 
-  const years: ProspectusFinancialComparisonYear[] = selected.map((year) => ({
-    year: year.year,
-    yearLabel: formatProspectusFinancialYearLabel(year.year),
-    financialYearEndIso: year.financialYearEndIso,
-    financialYearEndLabel: formatProspectusFinancialYearEndLabel(year.financialYearEndIso),
-    recordSource: year.recordSource,
-    rawFinancials: { ...year.rawFinancials },
-  }));
+  const years: ProspectusFinancialComparisonYear[] = selected.map((year) => {
+    // Stage 4A rawFinancials feed both Page 2 and Page 3.
+    // CTOS audited years already have totals/ratios; unaudited management years only have core lines.
+    const rawFinancials: Record<string, unknown> = { ...year.rawFinancials };
+
+    if (year.recordSource === "unaudited_management") {
+      const fsInput = rawFinancials as any;
+      const { bs, pl } = financialFormToBsPl(fsInput);
+      const metrics = computeColumnMetrics(bs, pl, null);
+
+      // Provide Prospectus-ready derived fields for unaudited management years.
+      // These are consumed by CTOS-style resolvers during Page 2/3 rendering.
+      rawFinancials.totass = metrics.totass;
+      rawFinancials.totlib = metrics.totlib;
+      rawFinancials.networth = metrics.networth;
+      rawFinancials.currat = metrics.currat;
+      // Prospectus expects return_on_equity in percent-points form.
+      rawFinancials.return_on_equity =
+        metrics.return_of_equity == null ? null : metrics.return_of_equity * 100;
+
+      // Debt / Equity prefers `gear` when present, but can fall back to totlib/networth.
+      rawFinancials.gear =
+        metrics.networth === 0 ? null : metrics.totlib / metrics.networth;
+    }
+
+    return {
+      year: year.year,
+      yearLabel: formatProspectusFinancialYearLabel(year.year),
+      financialYearEndIso: year.financialYearEndIso,
+      financialYearEndLabel: formatProspectusFinancialYearEndLabel(year.financialYearEndIso),
+      recordSource: year.recordSource,
+      rawFinancials,
+    };
+  });
 
   const missingSsmUnauditedYears = findMissingSsmExpectedUnauditedYears({
     financialStatements: input.financialStatements,

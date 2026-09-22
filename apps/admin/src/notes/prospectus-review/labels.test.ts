@@ -307,10 +307,10 @@ describe("prospectus review completion readiness", () => {
     expect(page3Missing.some((m) => m.field === "Confidence Grading")).toBe(false);
     expect(page3Missing.filter((m) => m.tabId === "overview")).toHaveLength(0);
     expect(countMissingForTab(draft, "income", { incomeStatementYears: years })).toBe(9);
-    expect(countMissingForTab(draft, "balance", { incomeStatementYears: years })).toBe(12);
+    expect(countMissingForTab(draft, "balance", { incomeStatementYears: years })).toBe(9);
     expect(countMissingForTab(draft, "coverage", { incomeStatementYears: years })).toBe(3);
     expect(countMissingForTab(draft, "takeaways", { incomeStatementYears: years })).toBe(0);
-    expect(page3Missing).toHaveLength(9 + 12 + 3);
+    expect(page3Missing).toHaveLength(9 + 9 + 3);
   });
 
   it("treats a missing issuer MARC assessment as one Credit Insights blocker", () => {
