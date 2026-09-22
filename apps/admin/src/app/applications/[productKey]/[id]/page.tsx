@@ -788,8 +788,9 @@ export default function DynamicApplicationDetailPage() {
 
     const currentStage = stageModel.stages.find((s) => s.id === stageModel.currentStageId);
     if (stageModel.currentStageId === "issuer_response" && currentStage?.tone === "wait") {
-      // Issuer-only wait: admin should see a Blue "waiting on others" dot.
-      return "OFFER_SENT";
+      // Issuer-only wait: the tab-dot token must resolve to the Blue "waiting/pending"
+      // presentation group (admin_action) rather than the amber issuer_action group (OFFER_SENT).
+      return stageModel.offerType === "facility" ? "CONTRACT_PENDING" : "INVOICE_PENDING";
     }
 
     // Fallback: preserve original merged-section status behavior for uncertain cases.
