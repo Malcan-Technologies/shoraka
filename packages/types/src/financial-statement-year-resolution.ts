@@ -45,10 +45,13 @@ const ACCOUNT_KEYS = [
   "othass",
   "bscatot",
   "bsclbank",
+  "cashAndBank",
+  "tradeReceivables",
   "totass",
   "curlib",
   "bsslltd",
   "bsclstd",
+  "tradePayables",
   "totlib",
   "bsqpuc",
   "turnover",
@@ -56,6 +59,8 @@ const ACCOUNT_KEYS = [
   "plnpat",
   "plnetdiv",
   "plyear",
+  "grossProfit",
+  "ebitda",
   "networth",
   "turnover_growth",
   "profit_margin",
@@ -63,6 +68,8 @@ const ACCOUNT_KEYS = [
   "currat",
   "workcap",
   "gear",
+  "operatingCashFlow",
+  "freeCashFlow",
 ] as const;
 
 function asRecord(value: unknown): Record<string, unknown> | null {

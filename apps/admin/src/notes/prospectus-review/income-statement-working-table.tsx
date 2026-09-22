@@ -7,8 +7,6 @@ import {
 } from "./shared-financial-working-table";
 
 const OFFICER: Record<string, { field: string; kind: "money" }> = {
-  "Gross Profit": { field: "grossProfit", kind: "money" },
-  EBITDA: { field: "ebitda", kind: "money" },
   EBIT: { field: "ebit", kind: "money" },
 };
 

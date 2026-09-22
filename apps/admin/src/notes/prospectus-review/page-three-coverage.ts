@@ -235,8 +235,8 @@ export function buildIncomeStatementResolvedRows(
   const pbt = parseNumber(yearRaw.plnpbt);
   return [
     { label: "Revenue", value: formatMoney(revenue) },
-    { label: "Gross Profit", value: manualDisplay(manual?.grossProfit, "money") },
-    { label: "EBITDA", value: manualDisplay(manual?.ebitda, "money") },
+    { label: "Gross Profit", value: formatMoney(parseNumber(yearRaw.grossProfit)) },
+    { label: "EBITDA", value: formatMoney(parseNumber(yearRaw.ebitda)) },
     { label: "EBIT", value: manualDisplay(manual?.ebit, "money") },
     { label: "Profit Before Tax", value: formatMoney(pbt) },
     { label: "Profit After Tax", value: formatMoney(pat) },
@@ -263,8 +263,8 @@ export function buildBalanceSheetResolvedRows(
   const totalLiabilities = resolveCtosTotalLiabilities({ totlib: parseNumber(yearRaw.totlib) });
 
   return [
-    { label: "Cash & Bank", value: manualDisplay(manual?.cashAndBank, "money") },
-    { label: "Trade Receivables", value: manualDisplay(manual?.tradeReceivables, "money") },
+    { label: "Cash & Bank", value: formatMoney(parseNumber(yearRaw.cashAndBank)) },
+    { label: "Trade Receivables", value: formatMoney(parseNumber(yearRaw.tradeReceivables)) },
     { label: "Current Assets", value: formatMoney(currentAssets) },
     { label: "Total Assets", value: formatMoney(totalAssets) },
     { label: "Current Liabilities", value: formatMoney(currentLiabilities) },

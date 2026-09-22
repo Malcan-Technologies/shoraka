@@ -49,9 +49,9 @@ function valueForRow(
     case "revenue":
       return moneyMillionsOrDna(fieldFromRaw(raw, "turnover"));
     case "gross_profit":
-      return moneyMillionsOrDna(manual?.grossProfit);
+      return moneyMillionsOrDna(fieldFromRaw(raw, "grossProfit"));
     case "ebitda":
-      return moneyMillionsOrDna(manual?.ebitda);
+      return moneyMillionsOrDna(fieldFromRaw(raw, "ebitda"));
     case "ebit":
       return moneyMillionsOrDna(manual?.ebit);
     case "profit_before_tax":

@@ -116,10 +116,15 @@ const yearRaw: import("@cashsouk/types").ProspectusFrozenFinancialRaw = {
   bsfatot: 200_000,
   othass: 50_000,
   bsclbank: 25_000,
+  cashAndBank: 10_000,
+  tradeReceivables: 15_000,
   curlib: 150_000,
   bsslltd: 80_000,
   bsclstd: 20_000,
   bsqpuc: 500_000,
+  tradePayables: 12_000,
+  grossProfit: 300_000,
+  ebitda: 200_000,
   totass: 1_000_000,
   totlib: 250_000,
   networth: 500_000,
@@ -127,6 +132,8 @@ const yearRaw: import("@cashsouk/types").ProspectusFrozenFinancialRaw = {
   return_on_equity: null,
   currat: null,
   gear: null,
+  operatingCashFlow: null,
+  freeCashFlow: null,
 };
 
 function frozenYear(
@@ -468,9 +475,9 @@ describe("page three coverage verification", () => {
       "2024-12-31",
     ]);
     expect(table.rows.find((r) => r.metric === "Gross Profit")?.values).toEqual([
-      "—",
-      "—",
-      "—",
+      "RM 300,000.00",
+      "RM 300,000.00",
+      "RM 300,000.00",
     ]);
   });
 

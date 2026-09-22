@@ -13,7 +13,7 @@ describe("prospectus Balance Sheet approval validation", () => {
     expect(validateApprovalContent(draft)).toEqual([]);
   });
 
-  it("requires Cash & Bank, Trade Receivables, Total Equity, and Quick Ratio for each year", () => {
+  it("requires only Quick Ratio for each year", () => {
     const draft = buildCompleteProspectusReviewDraft();
     draft.page3.manualFinancialInputs = {
       years: {
@@ -38,13 +38,13 @@ describe("prospectus Balance Sheet approval validation", () => {
       incomeStatementYears: ["2022", "2023", "2024"],
     });
     expect(
-      errors.some((e) => e.path === "page3.manualFinancialInputs.years.2022.cashAndBank")
+      errors.some((e) => e.path === "page3.manualFinancialInputs.years.2022.quickRatio")
     ).toBe(true);
     expect(
       errors.some((e) => e.path === "page3.manualFinancialInputs.years.2024.quickRatio")
     ).toBe(true);
     expect(
-      errors.some((e) => e.path === "page3.manualFinancialInputs.years.2023.cashAndBank")
+      errors.some((e) => e.path === "page3.manualFinancialInputs.years.2023.quickRatio")
     ).toBe(false);
   });
 

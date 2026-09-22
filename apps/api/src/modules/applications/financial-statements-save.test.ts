@@ -12,15 +12,22 @@ function yearBlock(pldd: string) {
     othass: 0,
     bscatot: 0,
     bsclbank: 0,
+    cashAndBank: 3,
+    tradeReceivables: 4,
     curlib: 0,
     bsslltd: 0,
     bsclstd: 0,
     bsqpuc: 0,
+    tradePayables: 5,
     turnover: 10,
     plnpbt: 0,
     plnpat: 0,
     plnetdiv: 0,
     plyear: 0,
+    grossProfit: 1,
+    ebitda: 2,
+    operatingCashFlow: 6,
+    freeCashFlow: 7,
   };
 }
 
@@ -116,5 +123,28 @@ describe("parseFinancialStatementsForStepSave", () => {
       now,
     });
     expect(result).toMatchObject({ ok: true, expectedYears: liveYears });
+  });
+
+  it("keeps the 7 new canonical issuer raw fields in stored normalized output", () => {
+    const stored = payloadForFye(staleFye, staleYears);
+    const result = parseFinancialStatementsForStepSave({
+      applicationStatus: "AMENDMENT_REQUESTED",
+      storedFinancialStatements: stored,
+      payload: stored,
+      now,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const byYear = result.data.unaudited_by_year as Record<string, Record<string, unknown>>;
+    const someYear = String(staleYears[0]);
+    const block = byYear[someYear];
+    expect(block.grossProfit).toBe(1);
+    expect(block.ebitda).toBe(2);
+    expect(block.cashAndBank).toBe(3);
+    expect(block.tradeReceivables).toBe(4);
+    expect(block.tradePayables).toBe(5);
+    expect(block.operatingCashFlow).toBe(6);
+    expect(block.freeCashFlow).toBe(7);
   });
 });

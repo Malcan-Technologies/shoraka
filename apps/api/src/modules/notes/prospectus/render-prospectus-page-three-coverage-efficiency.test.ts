@@ -78,6 +78,8 @@ describe("prospectus Page 3 coverage/efficiency", () => {
         totlib: 250_000,
         networth: 500_000,
         bsqpuc: 2_000_000,
+        operatingCashFlow: 1_400_000,
+        freeCashFlow: 1_100_000,
       },
     });
     const data = buildProspectusPageThreeCoverageEfficiency({
@@ -85,8 +87,9 @@ describe("prospectus Page 3 coverage/efficiency", () => {
       prospectusFinancialInputs: {
         years: {
           "2024": {
-            operatingCashFlow: 1_400_000,
-            freeCashFlow: 1_100_000,
+            // Officer values must not override Stage 4A raw issuer values.
+            operatingCashFlow: 1,
+            freeCashFlow: 1,
             debtEquity: 99,
             returnOnAssets: 99,
             payablesDays: 48,
@@ -250,12 +253,20 @@ describe("prospectus Page 3 coverage/efficiency", () => {
     expect(row(empty, "interest_coverage")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
 
     const zero = buildProspectusPageThreeCoverageEfficiency({
-      financialSource: source,
+      financialSource: sourceFromYears({
+        "2024": {
+          plnpat: 0,
+          networth: 2_000_000,
+          totass: 1_000_000,
+          turnover: 0,
+          totlib: 0,
+          operatingCashFlow: 0,
+          freeCashFlow: 0,
+        },
+      }),
       prospectusFinancialInputs: {
         years: {
           "2024": {
-            operatingCashFlow: 0,
-            freeCashFlow: 0,
             payablesDays: 0,
           },
         },

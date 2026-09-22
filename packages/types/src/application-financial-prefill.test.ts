@@ -83,15 +83,22 @@ describe("application financial prefill", () => {
       "othass",
       "bscatot",
       "bsclbank",
+      "cashAndBank",
+      "tradeReceivables",
       "curlib",
       "bsslltd",
       "bsclstd",
       "bsqpuc",
+      "tradePayables",
       "turnover",
+      "grossProfit",
+      "ebitda",
       "plnpbt",
       "plnpat",
       "plnetdiv",
       "plyear",
+      "operatingCashFlow",
+      "freeCashFlow",
     ]);
     for (const key of APPLICATION_COMREP_DETAIL_KEYS) {
       expect(APPLICATION_CORE_MONEY_KEYS).not.toContain(key);

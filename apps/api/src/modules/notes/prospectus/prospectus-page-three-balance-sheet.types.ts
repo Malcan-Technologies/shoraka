@@ -72,19 +72,19 @@ export interface ProspectusPageThreeBalanceSheetAudit {
   };
   cashAndBank: {
     status: "officer_entered";
-    source: "page3.manualFinancialInputs.years.{year}.cashAndBank";
+    source: "stage_4a.rawFinancials.cashAndBank";
     bsclbankRejected: true;
     storageUnit: "full_myr";
     formatter: "formatProspectusMyrMillions";
-    requiredForApproval: true;
+    requiredForApproval: false;
   };
   tradeReceivables: {
     status: "officer_entered";
-    source: "page3.manualFinancialInputs.years.{year}.tradeReceivables";
+    source: "stage_4a.rawFinancials.tradeReceivables";
     rawKeyAvailable: false;
     storageUnit: "full_myr";
     formatter: "formatProspectusMyrMillions";
-    requiredForApproval: true;
+    requiredForApproval: false;
   };
   currentAssets: {
     rawKey: "bscatot";
@@ -120,12 +120,12 @@ export interface ProspectusPageThreeBalanceSheetAudit {
   };
   totalEquity: {
     status: "officer_entered";
-    source: "page3.manualFinancialInputs.years.{year}.totalEquity";
+    source: "stage_4a.rawFinancials.networth";
     bsqpucIsPaidUpCapital: true;
     relabelAllowed: false;
     storageUnit: "full_myr";
     formatter: "formatProspectusMyrMillions";
-    requiredForApproval: true;
+    requiredForApproval: false;
   };
   currentRatio: {
     calculator: "resolveCtosCurrentRatio";
@@ -157,19 +157,19 @@ export const PROSPECTUS_PAGE_THREE_BALANCE_SHEET_AUDIT: ProspectusPageThreeBalan
     },
     cashAndBank: {
       status: "officer_entered",
-      source: "page3.manualFinancialInputs.years.{year}.cashAndBank",
+      source: "stage_4a.rawFinancials.cashAndBank",
       bsclbankRejected: true,
       storageUnit: "full_myr",
       formatter: "formatProspectusMyrMillions",
-      requiredForApproval: true,
+      requiredForApproval: false,
     },
     tradeReceivables: {
       status: "officer_entered",
-      source: "page3.manualFinancialInputs.years.{year}.tradeReceivables",
+      source: "stage_4a.rawFinancials.tradeReceivables",
       rawKeyAvailable: false,
       storageUnit: "full_myr",
       formatter: "formatProspectusMyrMillions",
-      requiredForApproval: true,
+      requiredForApproval: false,
     },
     currentAssets: {
       rawKey: "bscatot",
@@ -205,12 +205,12 @@ export const PROSPECTUS_PAGE_THREE_BALANCE_SHEET_AUDIT: ProspectusPageThreeBalan
     },
     totalEquity: {
       status: "officer_entered",
-      source: "page3.manualFinancialInputs.years.{year}.totalEquity",
+      source: "stage_4a.rawFinancials.networth",
       bsqpucIsPaidUpCapital: true,
       relabelAllowed: false,
       storageUnit: "full_myr",
       formatter: "formatProspectusMyrMillions",
-      requiredForApproval: true,
+      requiredForApproval: false,
     },
     currentRatio: {
       calculator: "resolveCtosCurrentRatio",
@@ -290,16 +290,16 @@ export const PROSPECTUS_PAGE_THREE_BALANCE_SHEET_FIELD_SOURCES: Record<
   },
   cash_and_bank: {
     label: "Cash & Bank",
-    canonicalSource: "page3.manualFinancialInputs.years.{year}.cashAndBank",
-    availability: "officer",
+    canonicalSource: "rawFinancials.cashAndBank",
+    availability: "stored",
     surface: "canva",
     possibleAlternatives: "bsclbank — rejected (Non-Current Assets)",
     notes: "Full MYR storage; formatProspectusMyrMillions display.",
   },
   trade_receivables: {
     label: "Trade Receivables",
-    canonicalSource: "page3.manualFinancialInputs.years.{year}.tradeReceivables",
-    availability: "officer",
+    canonicalSource: "rawFinancials.tradeReceivables",
+    availability: "stored",
     surface: "canva",
     possibleAlternatives: "none",
     notes: "Full MYR storage; formatProspectusMyrMillions display.",
@@ -338,8 +338,8 @@ export const PROSPECTUS_PAGE_THREE_BALANCE_SHEET_FIELD_SOURCES: Record<
   },
   total_equity: {
     label: "Total Equity",
-    canonicalSource: "page3.manualFinancialInputs.years.{year}.totalEquity",
-    availability: "officer",
+    canonicalSource: "rawFinancials.networth",
+    availability: "stored",
     surface: "canva",
     possibleAlternatives: "bsqpuc (Paid-Up Capital) — not relabelled",
     notes: "Full MYR storage; formatProspectusMyrMillions display.",

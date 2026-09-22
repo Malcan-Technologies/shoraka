@@ -96,15 +96,22 @@ export function generateMockData(): Record<string, unknown> {
     othass: formatMoney(100000.88),
     bscatot: formatMoney(200000.5),
     bsclbank: formatMoney(50000.33),
+    cashAndBank: formatMoney(25000.11),
+    tradeReceivables: formatMoney(125000.77),
     curlib: formatMoney(150000.67),
     bsslltd: formatMoney(80000.99),
     bsclstd: formatMoney(20000.11),
     bsqpuc: formatMoney(100000.44),
+    tradePayables: formatMoney(75000.22),
     turnover: formatMoney(1200000.56),
+    grossProfit: formatMoney(620000.12),
+    ebitda: formatMoney(510000.34),
     plnpbt: formatMoney(150000.22),
     plnpat: formatMoney(plnpat),
     plnetdiv: formatMoney(50000.77),
     plyear: formatMoney(plyear),
+    operatingCashFlow: formatMoney(300000.99),
+    freeCashFlow: formatMoney(240000.88),
   };
 }
 
@@ -119,15 +126,22 @@ interface FinancialStatementsPayload {
   othass: string;
   bscatot: string;
   bsclbank: string;
+  cashAndBank: string;
+  tradeReceivables: string;
   curlib: string;
   bsslltd: string;
   bsclstd: string;
   bsqpuc: string;
+  tradePayables: string;
   turnover: string;
+  grossProfit: string;
+  ebitda: string;
   plnpbt: string;
   plnpat: string;
   plnetdiv: string;
   plyear: string;
+  operatingCashFlow: string;
+  freeCashFlow: string;
   curlib_borrowing: string;
   curlib_non_borrowing: string;
   ncl_loan: string;
@@ -149,15 +163,22 @@ const DEFAULT_PAYLOAD: FinancialStatementsPayload = {
   othass: "",
   bscatot: "",
   bsclbank: "",
+  cashAndBank: "",
+  tradeReceivables: "",
   curlib: "",
   bsslltd: "",
   bsclstd: "",
   bsqpuc: "",
+  tradePayables: "",
   turnover: "",
+  grossProfit: "",
+  ebitda: "",
   plnpbt: "",
   plnpat: "",
   plnetdiv: "",
   plyear: "",
+  operatingCashFlow: "",
+  freeCashFlow: "",
   curlib_borrowing: "",
   curlib_non_borrowing: "",
   ncl_loan: "",
@@ -1026,7 +1047,9 @@ export function FinancialStatementsStep({
         <section className={cn(sectionWrapperClassName, yearBlockInnerSectionClassName)}>
           <h4 className={subsectionHeadingClassName}>Assets</h4>
           <div className={stepFormRowGridClassName}>
-            {(["bsfatot", "othass", "bscatot", "bsclbank"] as const).map((key) => (
+            {(
+              ["bsfatot", "othass", "bscatot", "bsclbank", "cashAndBank", "tradeReceivables"] as const
+            ).map((key) => (
               <MoneyFieldRow
                 key={`${yearKey}-${key}`}
                 id={`${yearKey}-${key}`}
@@ -1043,7 +1066,7 @@ export function FinancialStatementsStep({
         <section className={cn(sectionWrapperClassName, yearBlockInnerSectionClassName)}>
           <h4 className={subsectionHeadingClassName}>Liabilities</h4>
           <div className={stepFormRowGridClassName}>
-            {(["curlib", "bsslltd", "bsclstd"] as const).map((key) => (
+            {(["curlib", "bsslltd", "bsclstd", "tradePayables"] as const).map((key) => (
               <MoneyFieldRow
                 key={`${yearKey}-${key}`}
                 id={`${yearKey}-${key}`}
@@ -1084,6 +1107,17 @@ export function FinancialStatementsStep({
               errorMessage={yearErrors.money.turnover}
             />
             <MoneyFieldRow
+              id={`${yearKey}-grossProfit`}
+              label={getLabel("grossProfit")}
+              value={form.grossProfit ?? ""}
+              onValueChange={(v) => updateFormYear(yearKey, "grossProfit", v)}
+              readOnly={readOnly}
+              allowNegative
+              showNegativeTooltip
+              hasError={Boolean(yearErrors.money.grossProfit)}
+              errorMessage={yearErrors.money.grossProfit}
+            />
+            <MoneyFieldRow
               id={`${yearKey}-plnpbt`}
               label={getLabel("plnpbt")}
               value={form.plnpbt ?? ""}
@@ -1104,6 +1138,17 @@ export function FinancialStatementsStep({
               showNegativeTooltip
               hasError={Boolean(yearErrors.money.plnpat)}
               errorMessage={yearErrors.money.plnpat}
+            />
+            <MoneyFieldRow
+              id={`${yearKey}-ebitda`}
+              label={getLabel("ebitda")}
+              value={form.ebitda ?? ""}
+              onValueChange={(v) => updateFormYear(yearKey, "ebitda", v)}
+              readOnly={readOnly}
+              allowNegative
+              showNegativeTooltip
+              hasError={Boolean(yearErrors.money.ebitda)}
+              errorMessage={yearErrors.money.ebitda}
             />
             <MoneyFieldRow
               id={`${yearKey}-plnetdiv`}
@@ -1219,6 +1264,33 @@ export function FinancialStatementsStep({
                   errorMessage={yearErrors.money[key]}
                 />
               ))}
+            </div>
+          </section>
+          <section className={cn(sectionWrapperClassName, yearBlockInnerSectionClassName, "mt-8")}>
+            <h4 className={subsectionHeadingClassName}>Cash Flow</h4>
+            <div className={stepFormRowGridClassName}>
+              <MoneyFieldRow
+                id={`${yearKey}-operatingCashFlow`}
+                label={getLabel("operatingCashFlow")}
+                value={form.operatingCashFlow ?? ""}
+                onValueChange={(v) => updateFormYear(yearKey, "operatingCashFlow", v)}
+                readOnly={readOnly}
+                allowNegative
+                showNegativeTooltip
+                hasError={Boolean(yearErrors.money.operatingCashFlow)}
+                errorMessage={yearErrors.money.operatingCashFlow}
+              />
+              <MoneyFieldRow
+                id={`${yearKey}-freeCashFlow`}
+                label={getLabel("freeCashFlow")}
+                value={form.freeCashFlow ?? ""}
+                onValueChange={(v) => updateFormYear(yearKey, "freeCashFlow", v)}
+                readOnly={readOnly}
+                allowNegative
+                showNegativeTooltip
+                hasError={Boolean(yearErrors.money.freeCashFlow)}
+                errorMessage={yearErrors.money.freeCashFlow}
+              />
             </div>
           </section>
         </div>

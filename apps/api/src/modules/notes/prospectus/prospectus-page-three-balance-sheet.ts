@@ -49,9 +49,9 @@ function valueForRow(
 
   switch (key) {
     case "cash_and_bank":
-      return moneyMillionsOrDna(manual?.cashAndBank);
+      return moneyMillionsOrDna(fieldFromRaw(raw, "cashAndBank"));
     case "trade_receivables":
-      return moneyMillionsOrDna(manual?.tradeReceivables);
+      return moneyMillionsOrDna(fieldFromRaw(raw, "tradeReceivables"));
     case "total_equity":
       // System-derived net worth (totass - totlib) for unaudited years too.
       // Prospectus freezes Stage 4A derived totals/ratios for this row.

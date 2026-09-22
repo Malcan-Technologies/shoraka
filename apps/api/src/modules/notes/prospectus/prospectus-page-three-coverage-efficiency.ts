@@ -107,9 +107,9 @@ export function numericValueForCoverageRow(
 
   switch (key) {
     case "operating_cash_flow":
-      return parseProspectusFinancialNumber(manual?.operatingCashFlow);
+      return fieldFromRaw(raw, "operatingCashFlow");
     case "free_cash_flow":
-      return parseProspectusFinancialNumber(manual?.freeCashFlow);
+      return fieldFromRaw(raw, "freeCashFlow");
     case "interest_coverage": {
       const override = resolveYearOverride(
         year,
@@ -175,9 +175,9 @@ function valueForRow(
 
   switch (key) {
     case "operating_cash_flow":
-      return moneyMillionsOrDna(manual?.operatingCashFlow);
+      return moneyMillionsOrDna(fieldFromRaw(raw, "operatingCashFlow"));
     case "free_cash_flow":
-      return moneyMillionsOrDna(manual?.freeCashFlow);
+      return moneyMillionsOrDna(fieldFromRaw(raw, "freeCashFlow"));
     case "interest_coverage":
       return page2MultipleOrDna(year, input.page2FinancialOverrides, "interestCoverage");
     case "dscr":

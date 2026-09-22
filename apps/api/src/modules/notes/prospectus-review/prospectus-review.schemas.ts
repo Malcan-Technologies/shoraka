@@ -585,9 +585,9 @@ export function validateApprovalContent(
     for (const year of financialYears) {
       const row = yearsBag[year] as Record<string, unknown> | undefined;
       for (const field of PROSPECTUS_INCOME_STATEMENT_OFFICER_FIELD_KEYS) {
+        if (field === ("grossProfit" as any) || field === ("ebitda" as any)) continue;
         if (!isPresentManualNumber(row?.[field])) {
-          const label =
-            field === "grossProfit" ? "Gross Profit" : field === "ebitda" ? "EBITDA" : "EBIT";
+          const label = field === ("ebit" as any) ? "EBIT" : String(field);
           errors.push({
             path: `page3.manualFinancialInputs.years.${year}.${field}`,
             message: `${label} is required for FY${year} before approving the Prospectus.`,
@@ -595,7 +595,7 @@ export function validateApprovalContent(
         }
       }
       for (const field of PROSPECTUS_BALANCE_SHEET_OFFICER_FIELD_KEYS) {
-        if (field === "totalEquity") continue;
+        if (field === "totalEquity" || field === "cashAndBank" || field === "tradeReceivables") continue;
         if (!isPresentManualNumber(row?.[field])) {
           errors.push({
             path: `page3.manualFinancialInputs.years.${year}.${field}`,

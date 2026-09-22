@@ -154,7 +154,7 @@ describe("prospectus Page 3 income statement (DATA STAGE 2)", () => {
       }),
     });
     expect(row(polluted, "gross_profit")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-    expect(row(polluted, "ebitda")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(row(polluted, "ebitda")?.values[0]).toBe(formatProspectusMyrMillions(888));
     expect(row(polluted, "ebit")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
     expect(PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_AUDIT.grossProfit.generatedCalculationAllowed).toBe(
       false
@@ -163,12 +163,35 @@ describe("prospectus Page 3 income statement (DATA STAGE 2)", () => {
 
   it("fills Gross Profit, EBITDA, and EBIT from full-MYR storage as MYR millions", () => {
     const data = buildProspectusPageThreeIncomeStatement({
-      financialSource: SAMPLE_PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_SOURCE,
+      financialSource: sourceFromYears({
+        "2022": {
+          turnover: 13_900_000,
+          plnpbt: 1_400_000,
+          plnpat: 1_200_000,
+          grossProfit: 2_100_000,
+          ebitda: 1_600_000,
+        },
+        "2023": {
+          turnover: 16_200_000,
+          plnpbt: 1_700_000,
+          plnpat: 1_500_000,
+          grossProfit: 2_400_000,
+          ebitda: 1_850_000,
+        },
+        "2024": {
+          turnover: 18_600_000,
+          plnpbt: 2_000_000,
+          plnpat: 1_800_000,
+          grossProfit: -50_000,
+          ebitda: 2_100_000,
+        },
+      }),
       prospectusFinancialInputs: {
         years: {
-          "2022": { grossProfit: 2_100_000, ebitda: 1_600_000, ebit: 1_450_000 },
-          "2023": { grossProfit: 2_400_000, ebitda: 1_850_000, ebit: 0 },
-          "2024": { grossProfit: -50_000, ebitda: 2_100_000, ebit: 1_950_000 },
+          // These officer values must not override Stage 4A raw issuer values.
+          "2022": { grossProfit: 0, ebitda: 0, ebit: 1_450_000 },
+          "2023": { grossProfit: 0, ebitda: 0, ebit: 0 },
+          "2024": { grossProfit: 0, ebitda: 0, ebit: 1_950_000 },
         },
       },
     });

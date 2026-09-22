@@ -236,14 +236,21 @@ export interface ProspectusFrozenFinancialRaw {
   turnover: number | null;
   plnpbt: number | null;
   plnpat: number | null;
+  grossProfit: number | null;
+  ebitda: number | null;
   bscatot: number | null;
   curlib: number | null;
   bsfatot: number | null;
   othass: number | null;
   bsclbank: number | null;
+  cashAndBank: number | null;
+  tradeReceivables: number | null;
+  tradePayables: number | null;
   bsslltd: number | null;
   bsclstd: number | null;
   bsqpuc: number | null;
+  operatingCashFlow: number | null;
+  freeCashFlow: number | null;
   /** Net Worth — ROE fallback denominator (never Paid-Up Capital). */
   networth: number | null;
   totass: number | null;

@@ -12,12 +12,15 @@ const ACCOUNT_KEYS = [
   "othass",
   "bscatot",
   "bsclbank",
+  "cashAndBank",
   "totass",
   "curlib",
   "bsslltd",
   "bsclstd",
+  "tradePayables",
   "totlib",
   "bsqpuc",
+  "tradeReceivables",
   "turnover",
   "plnpbt",
   "plnpat",
@@ -30,6 +33,10 @@ const ACCOUNT_KEYS = [
   "currat",
   "workcap",
   "gear",
+  "grossProfit",
+  "ebitda",
+  "operatingCashFlow",
+  "freeCashFlow",
 ] as const;
 
 function toAccount(raw: Record<string, unknown>): Record<string, number | null> {

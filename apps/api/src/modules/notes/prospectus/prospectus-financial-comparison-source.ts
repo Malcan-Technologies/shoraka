@@ -72,10 +72,47 @@ export function buildProspectusFinancialComparisonSource(
     PROSPECTUS_FINANCIAL_COMPARISON_MAX_YEARS
   );
 
+  const overlayKeys = [
+    "grossProfit",
+    "ebitda",
+    "cashAndBank",
+    "tradeReceivables",
+    "tradePayables",
+    "operatingCashFlow",
+    "freeCashFlow",
+  ] as const;
+
+  // For CTOS/audited year selection, Stage 4A normally prefers CTOS raw fields.
+  // For Prospectus-only missing raw facts, overlay issuer-submitted unaudited values (when present)
+  // so Prospectus can always read canonical issuer raw inputs.
+  const unauditedByYearMaybe =
+    input.financialStatements &&
+    typeof input.financialStatements === "object" &&
+    "unaudited_by_year" in input.financialStatements
+      ? (input.financialStatements as any)["unaudited_by_year"]
+      : undefined;
+
+  const unauditedByYear: Record<string, unknown> =
+    unauditedByYearMaybe &&
+    typeof unauditedByYearMaybe === "object" &&
+    !Array.isArray(unauditedByYearMaybe)
+      ? unauditedByYearMaybe
+      : ({} as Record<string, unknown>);
+
   const years: ProspectusFinancialComparisonYear[] = selected.map((year) => {
     // Stage 4A rawFinancials feed both Page 2 and Page 3.
     // CTOS audited years already have totals/ratios; unaudited management years only have core lines.
     const rawFinancials: Record<string, unknown> = { ...year.rawFinancials };
+
+    // Overlay issuer submitted raw fields (if available) for the selected FY.
+    const fyKey = String(year.year);
+    const storedBlock = unauditedByYear[fyKey];
+    if (storedBlock && typeof storedBlock === "object" && !Array.isArray(storedBlock)) {
+      for (const k of overlayKeys) {
+        const v = (storedBlock as Record<string, unknown>)[k];
+        if (v != null && v !== "") rawFinancials[k] = v;
+      }
+    }
 
     if (year.recordSource === "unaudited_management") {
       const fsInput = rawFinancials as any;

@@ -289,14 +289,19 @@ const FROZEN_RAW_KEYS = [
   "turnover",
   "plnpbt",
   "plnpat",
+  "grossProfit",
+  "ebitda",
   "bscatot",
   "curlib",
   "bsfatot",
   "othass",
   "bsclbank",
+  "cashAndBank",
+  "tradeReceivables",
   "bsslltd",
   "bsclstd",
   "bsqpuc",
+  "tradePayables",
   "networth",
   "totass",
   "totlib",
@@ -304,6 +309,8 @@ const FROZEN_RAW_KEYS = [
   "return_on_equity",
   "currat",
   "gear",
+  "operatingCashFlow",
+  "freeCashFlow",
 ] as const;
 
 function toFrozenRaw(raw: Record<string, unknown>): ProspectusFrozenFinancialRaw {
