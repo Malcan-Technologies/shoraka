@@ -780,20 +780,24 @@ export default function DynamicApplicationDetailPage() {
     if (hasDeclined) return "DECLINED";
     if (hasExpired) return "OFFER_EXPIRED";
     if (offerAcceptanceComplete) return "APPROVED";
-    if (stageModel.currentStageId === "invoice_review") return "INVOICE_PENDING";
-    if (stageModel.currentStageId === "send_offer") {
-      return stageModel.offerType === "facility" ? "CONTRACT_PENDING" : "INVOICE_PENDING";
-    }
-    if (stageModel.currentStageId === "signing_package") return "SIGNING_PENDING";
-
     const currentStage = stageModel.stages.find((s) => s.id === stageModel.currentStageId);
-    if (stageModel.currentStageId === "issuer_response" && currentStage?.tone === "wait") {
-      // Issuer-only wait: the tab-dot token must resolve to the Blue "waiting/pending"
-      // presentation group (admin_action) rather than the amber issuer_action group (OFFER_SENT).
+    const tone = currentStage?.tone;
+
+    // The Offer & acceptance stage badge chrome is tone-driven:
+    // - tone=action   => Yellow/amber (StatusBadge status="action")
+    // - tone=wait     => Blue (StatusBadge status="submitted")
+    // - tone=locked   => Grey/neutral (StatusBadge status="neutral")
+    //
+    // Keep the tab dot aligned to the same color family by mapping tone → an
+    // existing status token with the matching presentation group.
+    if (tone === "action") return "OFFER_SENT";
+    if (tone === "wait") {
+      // Facility vs invoice only affects which "pending" token exists.
       return stageModel.offerType === "facility" ? "CONTRACT_PENDING" : "INVOICE_PENDING";
     }
+    if (tone === "locked") return "PENDING";
 
-    // Fallback: preserve original merged-section status behavior for uncertain cases.
+    // Fallback: preserve original merged-section status behavior for any unexpected tone.
     return mergedStatus;
   }, [
     app,
