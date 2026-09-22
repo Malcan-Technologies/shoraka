@@ -2,6 +2,7 @@ import {
   buildFaSigningCloudSignsetsFromPdf,
   collectFaIssuerSignatureSlots,
   FaSigningLayoutError,
+  findFaIssuerCompanyStampLine,
   matchFaSignersToSlots,
   type FaSignatureSlot,
 } from "./fa-signing-placement";
@@ -9,10 +10,11 @@ import {
   attachPrimarySealField,
   LAYOUT_DETECTED_DATE_FIELD,
   LAYOUT_DETECTED_PRINTED_LINE_GAP,
+  sealFieldFromLabel,
   signatureFieldsOverlap,
 } from "../../signing/signature-field-geometry";
 import { previewFieldsFromSignsets } from "../../signing/preview-signature-stamp";
-import type { JsgPdfTextItem } from "../joint-several-guarantee/jsg-signing-placement";
+import { extractPdfTextItems, type JsgPdfTextItem } from "../joint-several-guarantee/jsg-signing-placement";
 import { createFacilityAgreementFixture } from "./fa-fixture";
 import { renderFacilityAgreementDocx } from "./render-fa-docx";
 import {
@@ -20,6 +22,10 @@ import {
   DocxToPdfError,
   resolveGotenbergUrl,
 } from "../letter-of-offer/convert-docx-to-pdf";
+import {
+  LONG_PERSON_NAME,
+  withLongFacilityAgreementStrings,
+} from "../../generated-documents/long-merge-strings";
 
 function item(
   pageindex: number,
@@ -75,6 +81,7 @@ function issuerExecutionItems(signerCount: 1 | 2): JsgPdfTextItem[] {
     );
   }
   items.push(
+    item(10, 312, 94, "Issuer's company stamp:", 110),
     item(10, 330, 94, "______________________________", 140),
     item(10, 346, 94, "Name of Witness"),
     item(11, 80, 268, "SCHEDULE 1"),
@@ -135,6 +142,51 @@ describe("collectFaIssuerSignatureSlots", () => {
     expect(slots[0]?.left).toBe(94);
     expect(slots[1]?.left).toBe(94);
     expect(slots[0]?.top).toBeLessThan(slots[1]?.top ?? 0);
+  });
+
+  it("joins a wrapped issuer Name that pdfjs glued to Name of Witness", () => {
+    const longName = LONG_PERSON_NAME;
+    const items: JsgPdfTextItem[] = [
+      item(9, 80, 268, "AGENT"),
+      item(10, 80, 268, "ISSUER"),
+      item(10, 191.8, 77.5, "________________________", 105),
+      item(10, 191.8, 303.2, "______________________", 97),
+      item(
+        10,
+        205.4,
+        77.5,
+        "Name : Tunku Puan Sri Datin Seri Wan Name of Witness : Tunku Puan Sri Datin Seri",
+        428
+      ),
+      item(10, 218.6, 137, "Nur Aisyah binti Tengku Abdul", 134),
+      item(10, 218.6, 389.7, "Wan Nur Aisyah binti", 93),
+      item(10, 231.8, 137, "Rahman", 38),
+      item(10, 231.8, 389.7, "Tengku Abdul Rahman", 102),
+      item(10, 245.2, 77.5, "Designation: Deputy Chairman – Non-", 170),
+      item(10, 245.2, 303.2, "NRIC : 900101-14-5678 / Passport", 181),
+      item(10, 284.9, 77.5, "Date :", 57),
+      item(10, 284.9, 303.2, "Date :", 57),
+      item(10, 444.5, 77.5, "________________________", 105),
+      item(10, 444.5, 303.2, "______________________", 97),
+      item(
+        10,
+        458.1,
+        77.5,
+        "Name : Tunku Puan Sri Datin Seri Wan Name of Witness : Tunku Puan Sri Datin Seri",
+        428
+      ),
+      item(10, 471.3, 137, "Nur Aisyah binti Tengku Abdul", 134),
+      item(10, 471.3, 389.7, "Wan Nur Aisyah binti", 93),
+      item(10, 484.5, 137, "Rahman", 38),
+      item(10, 484.5, 389.7, "Tengku Abdul Rahman", 102),
+      item(10, 497.9, 77.5, "Designation: Deputy Chairman – Non-", 170),
+      item(10, 537.6, 77.5, "Date :", 57),
+      item(10, 537.6, 303.2, "Date :", 57),
+      item(11, 80, 268, "SCHEDULE 1"),
+    ];
+    const slots = collectFaIssuerSignatureSlots(items);
+    expect(slots.map((slot) => slot.name)).toEqual([longName, longName]);
+    expect(() => matchFaSignersToSlots([longName, longName], slots)).not.toThrow();
   });
 
   it("fails when an issuer block has no Date line", () => {
@@ -250,9 +302,15 @@ describe("FA mixed SigningCloud fields", () => {
     );
   });
 
-  it("places one seal on the primary applier only", async () => {
-    const slots = collectFaIssuerSignatureSlots(issuerExecutionItems(2), { includeTextField: true });
+  it("places one seal on the Issuer's company stamp line after the last signer", async () => {
+    const items = issuerExecutionItems(2);
+    const slots = collectFaIssuerSignatureSlots(items, { includeTextField: true });
+    const stampLine = findFaIssuerCompanyStampLine(items);
+    expect(items.filter((entry) => /company stamp/i.test(entry.text))).toHaveLength(1);
+    expect(stampLine?.text).toBe("Issuer's company stamp:");
+    expect(stampLine?.yTop).toBeGreaterThan(slots[1]?.top ?? 0);
     const signsets = matchFaSignersToSlots(["Ali Bin Abu", "Siti Binti Ahmad"], slots);
+    const stamp = sealFieldFromLabel(stampLine!);
     const withSeal = attachPrimarySealField(
       signsets,
       [
@@ -260,7 +318,8 @@ describe("FA mixed SigningCloud fields", () => {
         { name: "Siti Binti Ahmad", appliesCompanySeal: true },
       ],
       { pageWidth: 595, pageHeight: 842 },
-      (message) => new FaSigningLayoutError(message)
+      (message) => new FaSigningLayoutError(message),
+      [{ left: stamp.left, top: stamp.top, pageindex: stamp.pageindex }]
     );
     expect(withSeal[0]?.map((field) => field.fieldtype)).toEqual(["sign", "signdate", "textfield"]);
     expect(withSeal[1]?.map((field) => field.fieldtype)).toEqual([
@@ -269,6 +328,12 @@ describe("FA mixed SigningCloud fields", () => {
       "textfield",
       "seal",
     ]);
+    const seal = withSeal[1]?.find((field) => field.fieldtype === "seal");
+    const sign = withSeal[1]?.find((field) => field.fieldtype === "sign");
+    expect(seal?.left).toBe(stamp.left);
+    expect(seal?.top).toBeGreaterThanOrEqual(stamp.top);
+    expect(seal?.top).toBeGreaterThan((sign?.top ?? 0) + (sign?.height ?? 0));
+    expect(seal?.top).not.toBe(sign?.top);
   });
 });
 
@@ -292,6 +357,8 @@ describe("buildFaSigningCloudSignsetsFromPdf", () => {
     }
 
     const twoNames = ["Ali Bin Abu", "Siti Binti Ahmad"];
+    const twoItems = await extractPdfTextItems(twoSignerPdf);
+    expect(twoItems.filter((entry) => /issuer'?s\s+company\s+stamp/i.test(entry.text))).toHaveLength(1);
     const twoSignsets = await buildFaSigningCloudSignsetsFromPdf(twoSignerPdf, twoNames);
     expect(twoSignsets).toHaveLength(2);
     expect(twoSignsets.every((fields) => fields.length === 2)).toBe(true);
@@ -329,5 +396,26 @@ describe("buildFaSigningCloudSignsetsFromPdf", () => {
       "textfield",
       "seal",
     ]);
+    const seal = withSeal[1]?.find((field) => field.fieldtype === "seal");
+    const sign = withSeal[1]?.find((field) => field.fieldtype === "sign");
+    expect(seal?.top).toBeGreaterThan((sign?.top ?? 0) + (sign?.height ?? 0));
+  }, 120_000);
+
+  it("places issuer CA fields when Gotenberg wraps a long issuer Name", async () => {
+    if (!resolveGotenbergUrl()) return;
+    const data = withLongFacilityAgreementStrings(createFacilityAgreementFixture());
+    let pdf: Buffer;
+    try {
+      pdf = await convertDocxToPdf(renderFacilityAgreementDocx(data));
+    } catch (err) {
+      if (err instanceof DocxToPdfError && err.code === "GOTENBERG_UNAVAILABLE") return;
+      throw err;
+    }
+    const names = data.issuer_signatories.map((row) => row.name);
+    const signsets = await buildFaSigningCloudSignsetsFromPdf(pdf, names);
+    expect(signsets).toHaveLength(2);
+    expect(signsets.every((fields) => fields.map((field) => field.fieldtype).join(",") === "sign,signdate")).toBe(
+      true
+    );
   }, 120_000);
 });

@@ -13,6 +13,10 @@ import {
   isSignerNameLabel,
   isSignerNricLabel,
   isUnderscoreSignatureStroke,
+  joinWrappedSignerName,
+  signerNameRemainder,
+  isIssuerWitnessNameLabel,
+  witnessColumnOriginFromNameLine,
   LAYOUT_DETECTED_DATE_FIELD,
   LAYOUT_DETECTED_PRINTED_LINE_GAP,
   LAYOUT_DETECTED_SEAL_FIELD,
@@ -197,6 +201,76 @@ describe("signer detail labels", () => {
   });
 });
 
+describe("wrapped signer names", () => {
+  it("cuts a glued witness column off a Name remainder", () => {
+    expect(
+      signerNameRemainder(
+        "Name : Tunku Puan Sri Datin Seri Wan Name of Witness : Tunku Puan Sri Datin Seri"
+      )
+    ).toBe("Tunku Puan Sri Datin Seri Wan");
+    expect(
+      signerNameRemainder("Name : Tunku Puan Sri Datin Seri Wan Name : Tunku Puan Sri Datin Seri Wan")
+    ).toBe("Tunku Puan Sri Datin Seri Wan");
+    expect(signerNameRemainder("Full Name : Tunku Puan Sri Datin Seri Wan Nur")).toBe(
+      "Tunku Puan Sri Datin Seri Wan Nur"
+    );
+    expect(signerNameRemainder("Name : Ali Bin Abu")).toBe("Ali Bin Abu");
+  });
+
+  it("shifts a glued Name of Witness line onto the witness column", () => {
+    expect(
+      isIssuerWitnessNameLabel(
+        "Name : Tunku Puan Sri Datin Seri Wan Name of Witness : Tunku Puan Sri Datin Seri"
+      )
+    ).toBe(true);
+    expect(isIssuerWitnessNameLabel("Name of Witness:")).toBe(true);
+    expect(isIssuerWitnessNameLabel("Name : Ali Bin Abu")).toBe(false);
+    expect(
+      witnessColumnOriginFromNameLine({
+        x: 77.5,
+        text: "Name : Tunku Puan Sri Datin Seri Wan Name of Witness : Tunku Puan Sri Datin Seri",
+        pageWidth: 595,
+      })?.x
+    ).toBe(297.5);
+    expect(
+      witnessColumnOriginFromNameLine({
+        x: 360,
+        text: "Name of Witness:",
+        pageWidth: 595,
+      })?.x
+    ).toBe(360);
+  });
+
+  it("joins hanging-indent wrap lines and ignores the witness column", () => {
+    const lines = [
+      {
+        pageindex: 10,
+        x: 77.5,
+        yTop: 205.4,
+        text: "Name : Tunku Puan Sri Datin Seri Wan Name of Witness : Tunku Puan Sri Datin Seri",
+        pageWidth: 595,
+      },
+      { pageindex: 10, x: 137, yTop: 218.6, text: "Nur Aisyah binti Tengku Abdul", pageWidth: 595 },
+      { pageindex: 10, x: 389.7, yTop: 218.6, text: "Wan Nur Aisyah binti", pageWidth: 595 },
+      { pageindex: 10, x: 137, yTop: 231.8, text: "Rahman", pageWidth: 595 },
+      { pageindex: 10, x: 389.7, yTop: 231.8, text: "Tengku Abdul Rahman", pageWidth: 595 },
+      {
+        pageindex: 10,
+        x: 77.5,
+        yTop: 245.2,
+        text: "Designation: Deputy Chairman – Non-",
+        pageWidth: 595,
+      },
+    ];
+    expect(
+      joinWrappedSignerName(lines[0]!, lines, {
+        maxBelow: 77,
+        isStop: (text) => /^designation/i.test(text),
+      })
+    ).toBe("Tunku Puan Sri Datin Seri Wan Nur Aisyah binti Tengku Abdul Rahman");
+  });
+});
+
 describe("signatureFieldsOverlap", () => {
   it("detects overlapping rectangles on the same page", () => {
     const a = signatureFieldFromLine({ pageindex: 1, x: 90, yTop: 200, width: 140 });
@@ -353,6 +427,7 @@ describe("textFieldFromLine", () => {
 describe("sealFieldFromLabel", () => {
   it("sits the seal to the right of a blank Company Stamp label", () => {
     expect(isCompanyStampLabel("Company Stamp:")).toBe(true);
+    expect(isCompanyStampLabel("Issuer's company stamp:")).toBe(true);
     const field = sealFieldFromLabel({
       pageindex: 10,
       x: 78,
@@ -366,6 +441,17 @@ describe("sealFieldFromLabel", () => {
     expect(field.left).toBe(78 + 90 + LAYOUT_DETECTED_SEAL_FIELD.gap);
     expect(field.width).toBe(LAYOUT_DETECTED_SEAL_FIELD.width);
     expect(field.height).toBe(LAYOUT_DETECTED_SEAL_FIELD.height);
+    const issuerStamp = sealFieldFromLabel({
+      pageindex: 44,
+      x: 77.5,
+      yTop: 298.3,
+      width: 110,
+      pageWidth: 595,
+      pageHeight: 842,
+      text: "Issuer's company stamp:",
+    });
+    expect(issuerStamp.left).toBe(Math.round(77.5 + 110 + LAYOUT_DETECTED_SEAL_FIELD.gap));
+    expect(issuerStamp.top).toBeGreaterThan(250);
   });
 });
 

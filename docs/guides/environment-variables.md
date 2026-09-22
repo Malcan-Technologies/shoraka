@@ -124,6 +124,16 @@ Disposable FA/JSG/DOA sandbox smoke (one verified sandbox email reused for every
 
 `SIGNINGCLOUD_SMOKE_SIGNER_EMAIL=… pnpm --filter @cashsouk/api signingcloud:generated-docs-smoke`
 
+Same smoke with wrap-test long names/addresses/designations (session files under `apps/api/tmp/signingcloud-wrap-smoke/`):
+
+`SIGNINGCLOUD_SMOKE_SIGNER_EMAIL=… SIGNINGCLOUD_SMOKE_AUTO_EMAIL=… SIGNINGCLOUD_SMOKE_AUTO_EMAIL_2=… pnpm --filter @cashsouk/api signingcloud:generated-docs-wrap-smoke`
+
+After the issuer signs those hosted CA fields:
+
+`pnpm --filter @cashsouk/api signingcloud:generated-docs-wrap-smoke-auto`
+
+Wrap-smoke auto-sign needs the upload run to have stamped CashSouk keywords (the two `SIGNINGCLOUD_SMOKE_AUTO_EMAIL*` vars). CA-only wrap-smoke contracts cannot be auto-signed — re-upload first. FA/DoA include one company-seal field unless `SC_ENABLE_SEAL_FIELD=false`; DoA also embeds the SSP stamp. Same CONTINUE flag works on wrap-smoke: `SIGNINGCLOUD_SMOKE_CONTINUE=1 pnpm --filter @cashsouk/api signingcloud:generated-docs-wrap-smoke`.
+
 Mixed fields / keyword proof (Gotenberg; live upload optional):
 
 `pnpm --filter @cashsouk/api signingcloud:mixed-signing-smoke`
@@ -149,7 +159,7 @@ The full-flow smoke uses the production order on FA, JSG, and DoA with a reduced
 | `SIGNINGCLOUD_SMOKE_AUTO_EMAILS`                              | Optional comma-separated automatic pool (alternative to numbered vars)             |
 | `SIGNINGCLOUD_SMOKE_WITNESS_EMAIL`                            | Extra automatic email appended to the pool if not already listed                   |
 | `SIGNINGCLOUD_SMOKE_AUTO=1`                                   | After mixed-smoke upload, run `/signature/auto` once per automatic signer          |
-| `SIGNINGCLOUD_SMOKE_CONTINUE=1`                               | Resume full-flow smoke: wait for manuals, auto-sign, download signed PDFs          |
+| `SIGNINGCLOUD_SMOKE_CONTINUE=1`                               | Resume wrap-smoke or full-flow: auto-sign after manuals, download signed PDFs      |
 | `SIGNINGCLOUD_SMOKE_DOCS`                                     | Full-flow documents to run (`fa,jsg,doa` by default)                               |
 
 Do not commit session URLs, access codes, or overlay captures.

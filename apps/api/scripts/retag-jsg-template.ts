@@ -3,10 +3,14 @@
  * Rebuild `arf-joint-several-guarantee.docx` from the 16 July 2026 clean JSG:
  * rewrite merge slots to docxtemplater tags and replace the two hardcoded
  * execution blocks + Schedule 1 with loops (individuals, corporate blocks).
- * Individual and corporate execution blocks flow onto shared pages. The
+ * Individual guarantors share one “The Guarantor(s)” heading. Each corporate
+ * guarantor starts on its own page (signatories stay on that page unless they
+ * overflow). A page break keeps EXECUTION PAGE off the OPERATOR page. Schedule 1
+ * still starts on its own page.
  * OPERATOR page is copied from the clean JSG then normalised (both attorneys
- * share the right-column Name/NRIC/Designation style, witness stroke is
- * extractable period-dots, no Date lines). Schedule 1 still starts on its own page.
+ * share hanging Name/NRIC/Designation so wrapped values stay in the right
+ * column, witness stroke is extractable period-dots, no Date lines). Schedule 1
+ * still starts on its own page.
  *
  * Usage: pnpm --filter @cashsouk/api retag-jsg-template
  */
@@ -14,6 +18,13 @@
 import fs from "fs";
 import path from "path";
 import PizZip from "pizzip";
+import {
+  colonTabTwipsForLabel,
+  hangingValueIndentXml,
+  JSG_OPERATOR_COLON_TWIPS,
+  JSG_OPERATOR_LABEL_LEFT_TWIPS,
+  paragraphPinsJsgOperatorValueWrap,
+} from "../src/modules/generated-documents/hanging-execution-label";
 
 const TEMPLATES_DIR = path.resolve(__dirname, "../src/modules/applications/templates");
 const CLEAN_COPY = path.join(TEMPLATES_DIR, "Clean - JSG (16 July 2026).docx");
@@ -134,6 +145,18 @@ function makePara(
   return `<w:p><w:pPr><w:spacing w:line="360" w:lineRule="auto"/><w:jc w:val="${jc}"/>${rPr}</w:pPr>${runsFromTemplatedText(text, rPr)}</w:p>`;
 }
 
+function tableHangingLabelParagraph(label: string, tag: string): string {
+  const rPr = bodyRpr();
+  const runs = [
+    textRun(label, rPr),
+    `<w:r>${rPr}<w:tab/></w:r>`,
+    textRun(":", rPr),
+    textRun(" ", rPr),
+    textRun(`{${tag}}`, rprWithYellow(rPr)),
+  ];
+  return `<w:p><w:pPr><w:spacing w:after="0" w:line="360" w:lineRule="auto"/>${hangingValueIndentXml(colonTabTwipsForLabel(label), 0)}${rPr}</w:pPr>${runs.join("")}</w:p>`;
+}
+
 function listItemPara(text: string, ilvl: "0" | "1"): string {
   const rPr = bodyRpr();
   const left = ilvl === "0" ? "885" : "1900";
@@ -184,8 +207,8 @@ function individualExecutionTable(): string {
     [emptyParas(2), emptyParas(2)],
     dottedSignatureRow(),
     [makePara("Signature of Guarantor"), makePara("Signature of Witness")],
-    [makePara("Full Name: {name}"), makePara("Full Name: {witness_name}")],
-    [makePara("NRIC No.: {nric}"), makePara("NRIC No.: {witness_nric}")],
+    [tableHangingLabelParagraph("Full Name", "name"), tableHangingLabelParagraph("Full Name", "witness_name")],
+    [tableHangingLabelParagraph("NRIC No.", "nric"), tableHangingLabelParagraph("NRIC No.", "witness_nric")],
     [makePara("Date: ________________"), makePara("Date: ________________")],
   ]);
 }
@@ -225,12 +248,13 @@ function executionGuarantorsXml(): string {
     ),
     emptyParas(1),
     makePara("{#has_individual_guarantors}"),
-    makePara("{#guarantors_individual}"),
     makePara("The Guarantor(s)", { bold: true }),
     emptyParas(1),
+    makePara("{#guarantors_individual}"),
     individualExecutionTable(),
     emptyParas(1),
     makePara("{/guarantors_individual}"),
+    makePara("{@individuals_page_break}"),
     makePara("{/has_individual_guarantors}"),
     makePara("{#has_corporate_guarantor}"),
     makePara("{#corporate_guarantor_pages}"),
@@ -242,6 +266,7 @@ function executionGuarantorsXml(): string {
     individualExecutionTable(),
     emptyParas(1),
     makePara("{/signatories}"),
+    makePara("{@page_break}"),
     makePara("{/corporate_guarantor_pages}"),
     makePara("{/has_corporate_guarantor}"),
   ].join("");
@@ -302,13 +327,19 @@ function rewriteParagraphContaining(
   return xml.slice(0, start) + rewriteParagraphText(pXml, next) + xml.slice(end);
 }
 
-/** Same pPr as the attorney dotted strokes: right column, 9pt Arial, 1.15 line. */
-const OPERATOR_DETAIL_PPR =
-  '<w:pPr><w:spacing w:line="276" w:lineRule="auto"/><w:ind w:left="3600" w:firstLine="936"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial"/><w:sz w:val="18"/></w:rPr></w:pPr>';
-
-function rewriteOperatorDetailParagraph(pXml: string, next: string): string {
+/** Same 9pt Arial / 1.15 line as the attorney dotted strokes, hanging wrap. */
+function operatorHangingLabelParagraph(pXml: string, label: string, tag: string): string {
   const open = pXml.match(/^<w:p\b[^>]*>/)?.[0] ?? "<w:p>";
-  return `${open}${OPERATOR_DETAIL_PPR}${runsFromTemplatedText(next, bodyRpr())}</w:p>`;
+  const rPr = bodyRpr();
+  const pPr = `<w:pPr><w:spacing w:after="0" w:line="276" w:lineRule="auto"/>${hangingValueIndentXml(JSG_OPERATOR_COLON_TWIPS, JSG_OPERATOR_LABEL_LEFT_TWIPS)}${rPr}</w:pPr>`;
+  const runs = [
+    textRun(label, rPr),
+    `<w:r>${rPr}<w:tab/></w:r>`,
+    textRun(":", rPr),
+    textRun(" ", rPr),
+    textRun(`{${tag}}`, rprWithYellow(rPr)),
+  ];
+  return `${open}${pPr}${runs.join("")}</w:p>`;
 }
 
 function tagOperatorExecution(xml: string): string {
@@ -319,15 +350,15 @@ function tagOperatorExecution(xml: string): string {
     const compact = compactParagraphText(paragraphPlainText(pXml)).replace(/\s+/g, " ").trim();
     if (/^name\s*:?\s*$/i.test(compact) && nameCount < 2) {
       nameCount += 1;
-      return rewriteOperatorDetailParagraph(pXml, `Name: {operator_${nameCount}_name}`);
+      return operatorHangingLabelParagraph(pXml, "Name", `operator_${nameCount}_name`);
     }
     if (/^nric(?:\s*no\.?)?\s*:?\s*$/i.test(compact) && nricCount < 2) {
       nricCount += 1;
-      return rewriteOperatorDetailParagraph(pXml, `NRIC No.: {operator_${nricCount}_nric}`);
+      return operatorHangingLabelParagraph(pXml, "NRIC No.", `operator_${nricCount}_nric`);
     }
     if (/^designation\s*:?\s*$/i.test(compact) && designationCount < 2) {
       designationCount += 1;
-      return rewriteOperatorDetailParagraph(pXml, `Designation: {operator_${designationCount}_designation}`);
+      return operatorHangingLabelParagraph(pXml, "Designation", `operator_${designationCount}_designation`);
     }
     return pXml;
   });
@@ -363,7 +394,7 @@ function paragraphAroundTag(xml: string, tag: string): string {
 /**
  * Clean JSG stores the first attorney Name with leading spaces (no w:ind) and
  * mismatched rPr (bold vs not, Mincho hanging Designation). Detail lines are
- * rewritten to the dotted-stroke column. The witness stroke is a justified
+ * rewritten to hanging right-column labels. The witness stroke is a justified
  * ellipsis that PDF text extraction often misses. The template has no Date.
  */
 function normalizeOperatorExecution(xml: string): string {
@@ -404,8 +435,14 @@ function operatorLayoutIssues(xml: string): string[] {
       issues.push(`OPERATOR page is missing ${tag}`);
       continue;
     }
-    if (!para.includes('w:left="3600"') || !para.includes('w:firstLine="936"')) {
-      issues.push(`${tag} is missing the right-column indent`);
+    if (!paragraphPinsJsgOperatorValueWrap(para)) {
+      issues.push(`${tag} is missing the hanging right-column wrap`);
+    }
+    if (!para.includes('w:jc w:val="left"')) {
+      issues.push(`${tag} must be left-aligned so wrap stays under the value`);
+    }
+    if (para.includes("w:firstLine=")) {
+      issues.push(`${tag} must not use first-line indent (wrap jumps left)`);
     }
     if (!para.includes('w:line="276"')) {
       issues.push(`${tag} is missing the attorney line spacing`);
@@ -523,11 +560,13 @@ function requiredTagsPresent(xml: string): string[] {
     "{nric}",
     "{witness_name}",
     "{witness_nric}",
+    "{@individuals_page_break}",
     "{#has_corporate_guarantor}",
     "{#corporate_guarantor_pages}",
     "{company_name}",
     "{company_ssm}",
     "{#signatories}",
+    "{@page_break}",
     "{operator_1_name}",
     "{operator_1_nric}",
     "{operator_1_designation}",

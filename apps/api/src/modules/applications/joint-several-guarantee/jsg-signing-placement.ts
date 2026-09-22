@@ -8,6 +8,8 @@ import {
   fitSignFieldAbovePrintedLine,
   isSignatureStrokeGlyphRun,
   isSignatureStrokeLine,
+  joinWrappedSignerName,
+  LAYOUT_DETECTED_DATE_FIELD,
   matchSignersToNamedSlots,
   signatureFieldFromLine,
 } from "../../signing/signature-field-geometry";
@@ -48,11 +50,12 @@ export class JsgSigningLayoutError extends Error {
 }
 
 const Y_LINE_TOLERANCE = 3;
-const COLUMN_GAP = 40;
+/** Witness column in FA/DoA/JSG tables starts ~303pt. Letter page-centre is 306pt. */
+const EXECUTION_COLUMN_SPLIT_X = 290;
 const SAME_COLUMN_X = 50;
 const LINE_SEARCH_BELOW = 55;
 const LINE_SEARCH_ABOVE = 50;
-const DATE_SEARCH_BELOW = 130;
+const DATE_SEARCH_BELOW = LAYOUT_DETECTED_DATE_FIELD.maxBelow;
 
 type PdfjsUtil = { transform: (m1: number[], m2: number[]) => number[] };
 
@@ -131,27 +134,30 @@ function joinClusterText(cluster: JsgPdfTextItem[]): string {
 
 function splitColumnClusters(cluster: JsgPdfTextItem[]): JsgPdfTextItem[][] {
   const sorted = [...cluster].sort((a, b) => a.x - b.x);
-  const pageCenter = (sorted[0]?.pageWidth ?? 595) / 2;
   const groups: JsgPdfTextItem[][] = [];
   for (const item of sorted) {
     const last = groups[groups.length - 1];
     const prev = last?.[last.length - 1];
     const gap = prev ? item.x - (prev.x + prev.width) : 0;
-    const crossesGutter = Boolean(prev && prev.x < pageCenter - 20 && item.x > pageCenter + 20);
+    // Split left vs witness at the table gutter, not pageWidth/2 (Letter centre
+    // is 306pt and would swallow a 303pt witness Name into the assignor line).
+    const crossesGutter = Boolean(
+      prev && prev.x < EXECUTION_COLUMN_SPLIT_X && item.x >= EXECUTION_COLUMN_SPLIT_X
+    );
     // Deed of Assignment SSP: the first underscore sits on the company-name
-    // baseline. After space glyphs are dropped, that gap is < COLUMN_GAP.
+    // baseline. After space glyphs are dropped, keep text and stroke apart.
     const strokeBoundary = Boolean(
       prev && isSignatureStrokeLine(prev.text) !== isSignatureStrokeLine(item.text)
     );
-    // DoA assignor/witness signature lines share a table row. The gutter is
-    // narrower than COLUMN_GAP, so a gap between two stroke runs is a column.
+    // DoA assignor/witness signature lines share a table row. The gutter can be
+    // narrower than the hanging-tab gap, so two stroke runs are a column split.
     const strokeRunBoundary = Boolean(
       prev &&
         isSignatureStrokeGlyphRun(prev.text) &&
         isSignatureStrokeGlyphRun(item.text) &&
         gap > 1.5
     );
-    if (!last || !prev || gap >= COLUMN_GAP || crossesGutter || strokeBoundary || strokeRunBoundary) {
+    if (!last || !prev || crossesGutter || strokeBoundary || strokeRunBoundary) {
       groups.push([item]);
     } else {
       last.push(item);
@@ -264,12 +270,16 @@ function fieldFromSignatureLine(line: JsgPdfLine): Pick<
   };
 }
 
+function isFullNameLabel(text: string): boolean {
+  return /^full\s+name(\s*:.*)?$/i.test(compactLineText(text));
+}
+
 function isWitnessOrOperatorLabel(text: string): boolean {
   const value = compactLineText(text).toLowerCase();
   return (
     value === "signature of witness" ||
-    value === "name:" ||
-    value === "full name:" ||
+    /^name(\s*:.*)?$/.test(value) ||
+    isFullNameLabel(text) ||
     value.startsWith("nric") ||
     value.startsWith("designation") ||
     value.startsWith("date:")
@@ -281,7 +291,7 @@ function isNameContinuationStop(text: string): boolean {
   if (!value) return true;
   if (isDotsLine(text) || isUnderscoreLine(text)) return true;
   if (isWitnessOrOperatorLabel(text)) return true;
-  if (/^full name:/i.test(value) || /^signature of /i.test(value)) return true;
+  if (/^signature of /i.test(value)) return true;
   const lower = value.toLowerCase();
   return (
     lower === "the guarantor(s)" ||
@@ -303,21 +313,13 @@ function individualNameFromLabel(label: JsgPdfLine, lines: JsgPdfLine[]): string
     )
     .sort((a, b) => a.yTop - b.yTop);
 
-  const fullNameLine = nearby.find((candidate) =>
-    /^Full Name:/i.test(compactLineText(candidate.text))
-  );
+  const fullNameLine = nearby.find((candidate) => isFullNameLabel(candidate.text));
   if (!fullNameLine) return "";
 
-  const remainder = compactLineText(fullNameLine.text).match(/^Full Name:\s*(.*)$/i)?.[1]?.trim();
-  const parts: string[] = remainder ? [remainder] : [];
-  for (const candidate of nearby) {
-    if (candidate.yTop <= fullNameLine.yTop) continue;
-    if (candidate.yTop - fullNameLine.yTop > LINE_SEARCH_BELOW * 1.4) break;
-    const text = compactLineText(candidate.text);
-    if (isNameContinuationStop(text)) break;
-    parts.push(text);
-  }
-  return compactLineText(parts.join(" "));
+  return joinWrappedSignerName(fullNameLine, lines, {
+    maxBelow: LINE_SEARCH_BELOW * 1.4,
+    isStop: isNameContinuationStop,
+  });
 }
 
 /** CA slots on individual dotted lines and corporate underscores, never Operator/Schedule 1. */

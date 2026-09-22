@@ -11,6 +11,7 @@ import { createFacilityAgreementFixture } from "../applications/facility-agreeme
 import { renderFacilityAgreementDocx } from "../applications/facility-agreement/render-fa-docx";
 import { createJsgFixture } from "../applications/joint-several-guarantee/jsg-fixture";
 import { renderJsgDocx } from "../applications/joint-several-guarantee/render-jsg-docx";
+import { withLongFacilityAgreementStrings, withLongJsgStrings } from "../generated-documents/long-merge-strings";
 import {
   convertDocxToPdf,
   DocxToPdfError,
@@ -113,6 +114,38 @@ describe("automatic signing keywords", () => {
     ]);
     expect(anchors[0]!.date!.x).toBeGreaterThan(94);
     expect(anchors[0]!.date!.x).toBeLessThan(94 + 140);
+  });
+
+  it("anchors issuer-witness strokes when pdfjs glued Name and Name of Witness", () => {
+    const glued =
+      "Name : Tunku Puan Sri Datin Seri Wan Name of Witness : Tunku Puan Sri Datin Seri";
+    const anchors = findAutomaticKeywordAnchors(
+      [
+        item(44, 10, 72, "IN WITNESS WHEREOF the parties hereto have caused this Agreement"),
+        item(44, 40, 268, "AGENT"),
+        item(44, 82, 72, "ISSUER"),
+        item(44, 191.8, 77.5, "________________________", 105),
+        item(44, 191.8, 303.1, "______________________", 97),
+        item(44, 205.4, 77.5, glued, 428),
+        item(44, 284.9, 77.5, "Date :", 57),
+        item(44, 284.9, 303.1, "Date :", 57),
+        item(44, 444.5, 77.5, "________________________", 105),
+        item(44, 444.5, 303.1, "______________________", 97),
+        item(44, 458.1, 77.5, glued, 428),
+        item(44, 537.6, 77.5, "Date :", 57),
+        item(44, 537.6, 303.1, "Date :", 57),
+        item(45, 82, 263, "SCHEDULE 1"),
+      ],
+      [
+        { roleKey: "FA_ISSUER_WITNESS", slotIndex: 1 },
+        { roleKey: "FA_ISSUER_WITNESS", slotIndex: 2 },
+      ]
+    );
+    expect(anchors.map((anchor) => [anchor.slotIndex, Number(anchor.yTop.toFixed(1)), Number(anchor.x.toFixed(1))])).toEqual([
+      [1, 191.8, 303.1],
+      [2, 444.5, 303.1],
+    ]);
+    expect(anchors.map((anchor) => Number(anchor.date?.yTop.toFixed(1)))).toEqual([284.9, 537.6]);
   });
 
   it("places automatic date keywords in the Name/Designation value column, not on Date", () => {
@@ -450,6 +483,26 @@ describe("automatic signing keywords", () => {
     expect(anchors.map((anchor) => anchor.date?.yTop)).toEqual([undefined, undefined, undefined]);
   });
 
+  it("finds the guarantor-witness Date after wrapped Full Name and NRIC", () => {
+    const anchors = findAutomaticKeywordAnchors(
+      [
+        item(12, 80, 268, "EXECUTION PAGE"),
+        item(12, 189, 325, "..............................................................", 160),
+        item(12, 205, 325, "Signature of Witness"),
+        item(12, 221, 325, "Full Name : Tunku Puan Sri Datin Seri Wan Nur", 200),
+        item(12, 237, 325, "Aisyah binti Tengku Abdul Rahman", 160),
+        item(12, 253, 325, "NRIC No. : 900101-14-5678 / Passport", 170),
+        item(12, 269, 325, "No. 1234567890123456", 140),
+        item(12, 300, 325, "Date: ________________", 104),
+        item(13, 80, 283, "OPERATOR"),
+      ],
+      [{ roleKey: "JSG_GUARANTOR_WITNESS", slotIndex: 1 }]
+    );
+    expect(anchors).toHaveLength(1);
+    expect(anchors[0]?.date?.yTop).toBe(300);
+    expect(Math.round(anchors[0]?.date?.yTop ?? 0) - 189).toBeGreaterThan(105);
+  });
+
   it("reports missing and duplicate keywords", () => {
     const investor = {
       signKeyword: "CASHSOUK_FA_PFAINVESTOR1_SIGN",
@@ -710,6 +763,36 @@ describe("automatic signing keywords", () => {
     }
   }, 120_000);
 
+  it("stamps issuer-witness keywords on a wrap-test Facility Agreement PDF", async () => {
+    if (!resolveGotenbergUrl()) return;
+    let pdf: Buffer;
+    try {
+      pdf = await convertDocxToPdf(
+        renderFacilityAgreementDocx(withLongFacilityAgreementStrings(createFacilityAgreementFixture()))
+      );
+    } catch (err) {
+      if (err instanceof DocxToPdfError && err.code === "GOTENBERG_UNAVAILABLE") return;
+      throw err;
+    }
+    const repeats = { issuerSignatoryCount: 2 };
+    const owners = defaultAutomaticKeywordOwners("facility_agreement", repeats);
+    const stamped = await ensureAutomaticSigningKeywords(pdf, "facility_agreement", repeats, owners);
+    const text = (await extractPdfTextItems(stamped)).map((row) => row.text).join("\n");
+    for (const owner of owners) {
+      expect(keywordCount(text, owner.signKeyword)).toBe(owner.placements.length);
+      if (owner.dateKeyword) {
+        expect(keywordCount(text, owner.dateKeyword)).toBe(owner.placements.length);
+      }
+    }
+    const automatic = await buildAutomaticSigningCloudSignsetsFromPdf(
+      stamped,
+      "facility_agreement",
+      repeats
+    );
+    expect(automatic.get("FA_ISSUER_WITNESS:1")?.map((field) => field.fieldtype)).toEqual(["sign"]);
+    expect(automatic.get("FA_ISSUER_WITNESS:2")?.map((field) => field.fieldtype)).toEqual(["sign"]);
+  }, 120_000);
+
   it("stamps Operator and operator-witness signatures, and guarantor-witness dates, on a JSG PDF", async () => {
     if (!resolveGotenbergUrl()) return;
     const fixture = createJsgFixture();
@@ -745,6 +828,41 @@ describe("automatic signing keywords", () => {
     expect(automatic.get("JSG_OPERATOR:2")?.map((field) => field.fieldtype)).toEqual(["sign"]);
     expect(automatic.get("JSG_OPERATOR_WITNESS:1")?.map((field) => field.fieldtype)).toEqual(["sign"]);
     expect(automatic.get("JSG_GUARANTOR_WITNESS:1")?.map((field) => field.fieldtype)).toEqual(["sign"]);
+  }, 120_000);
+
+  it("stamps guarantor-witness dates on a wrap-test JSG PDF", async () => {
+    if (!resolveGotenbergUrl()) return;
+    const fixture = withLongJsgStrings(createJsgFixture());
+    const names = [
+      ...fixture.guarantors_individual.map((row) => row.name),
+      ...fixture.guarantors_corporate.flatMap((row) => row.signatories.map((signatory) => signatory.name)),
+    ].filter(Boolean);
+    let pdf: Buffer;
+    try {
+      pdf = await convertDocxToPdf(renderJsgDocx(fixture));
+    } catch (err) {
+      if (err instanceof DocxToPdfError && err.code === "GOTENBERG_UNAVAILABLE") return;
+      throw err;
+    }
+    const repeats = { jsgGuarantorSignatureCount: names.length };
+    const owners = defaultAutomaticKeywordOwners("guarantor_agreement", repeats);
+    const stamped = await ensureAutomaticSigningKeywords(pdf, "guarantor_agreement", repeats, owners);
+    const text = (await extractPdfTextItems(stamped)).map((row) => row.text).join("\n");
+    for (const owner of owners) {
+      expect(keywordCount(text, owner.signKeyword)).toBe(owner.placements.length);
+      const dateExpected = owner.placements.filter((placement) =>
+        executionRoleHasSignDate(placement.roleKey)
+      ).length;
+      if (owner.dateKeyword) expect(keywordCount(text, owner.dateKeyword)).toBe(dateExpected);
+      else expect(dateExpected).toBe(0);
+    }
+    const automatic = await buildAutomaticSigningCloudSignsetsFromPdf(
+      stamped,
+      "guarantor_agreement",
+      repeats
+    );
+    expect(names).toHaveLength(4);
+    expect(automatic.get("JSG_GUARANTOR_WITNESS:4")?.map((field) => field.fieldtype)).toEqual(["sign"]);
   }, 120_000);
 
   it("stamps both SSP keywords without hiding a single assignor signature line", async () => {

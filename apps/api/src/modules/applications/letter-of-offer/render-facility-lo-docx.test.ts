@@ -7,6 +7,11 @@ import {
   resolveFacilityLoTemplatePath,
 } from "./render-facility-lo-docx";
 import type { ContractFacilityLoMergeData } from "./facility-lo-merge.types";
+import {
+  LO_ATTENTION_POSITION_LEFT_TWIPS,
+  LO_ATTENTION_WRAP_LEFT_TWIPS,
+  paragraphPinsHangingValueWrap,
+} from "../../generated-documents/hanging-execution-label";
 
 function renderedXml(data: ContractFacilityLoMergeData): string {
   const zip = new PizZip(renderFacilityLoDocx(data));
@@ -113,6 +118,16 @@ describe("renderFacilityLoDocx", () => {
     expect(runContaining(xml, "{issuer_name}")).toContain('w:val="yellow"');
     expect(runContaining(xml, "{left_nric}")).toContain('w:val="yellow"');
     expect(runContaining(xml, "{nric}")).toContain('w:val="yellow"');
+    expect(
+      paragraphPinsHangingValueWrap(
+        paragraphContaining(xml, "{attention_name}"),
+        LO_ATTENTION_WRAP_LEFT_TWIPS,
+        LO_ATTENTION_WRAP_LEFT_TWIPS
+      )
+    ).toBe(true);
+    const attentionPosition = paragraphContaining(xml, "{attention_position}");
+    expect(attentionPosition).toContain(`w:left="${LO_ATTENTION_POSITION_LEFT_TWIPS}"`);
+    expect(attentionPosition).not.toContain("w:firstLine=");
   });
 
   it("renders a non-empty docx zip with substituted values and a Part A tick", () => {

@@ -51,6 +51,8 @@ export const LAYOUT_DETECTED_DATE_FIELD = {
   topOffset: 4,
   minTop: 24,
   minLeft: 20,
+  /** Stroke → Date. Wrapped Name/NRIC can sit ~111pt below the witness stroke. */
+  maxBelow: 130,
 } as const;
 
 /** Keep CA boxes off the next printed signer-detail line (Name / Designation / NRIC). */
@@ -152,8 +154,89 @@ export function isSignerNameLabel(text: string): boolean {
   return /^((full\s+)?name)(\s*:.*)?$/i.test(value);
 }
 
+const EXECUTION_COLUMN_GUTTER = 20;
+
+export type WrappedSignerNameLine = {
+  pageindex: number;
+  x: number;
+  yTop: number;
+  text: string;
+  pageWidth?: number;
+};
+
+/**
+ * Value after Name / Full Name, cutting a glued witness column that pdfjs
+ * sometimes joins when the two-column gutter is narrower than 40pt.
+ */
+export function signerNameRemainder(text: string): string {
+  const value = text.replace(/\s+/g, " ").trim();
+  const match = value.match(/^(?:full\s+)?name\s*:\s*(.*)$/i);
+  if (!match) return "";
+  const remainder = (match[1] ?? "").trim();
+  const glued = remainder.match(
+    /^(.*?)\s+(?:name of witness|full name|name|nric(?:\s*\/\s*passport)?(?:\s*no\.?)?|designation|date)\s*:/i
+  );
+  return (glued?.[1] ?? remainder).trim();
+}
+
+export function isIssuerWitnessNameLabel(text: string): boolean {
+  return /\bname of witness(\s*:)?/i.test(text.replace(/\s+/g, " ").trim());
+}
+
+/**
+ * pdfjs sometimes joins issuer Name and Name of Witness when the gutter is
+ * under 40pt. Stroke search must start in the witness column, not at the
+ * glued line’s left-column x.
+ */
+export function witnessColumnOriginFromNameLine<T extends { x: number; text: string; pageWidth?: number }>(
+  line: T
+): T | undefined {
+  if (!isIssuerWitnessNameLabel(line.text)) return undefined;
+  const value = line.text.replace(/\s+/g, " ").trim();
+  const pageWidth = line.pageWidth ?? LAYOUT_DETECTED_SIGN_FIELD.defaultPageWidth;
+  const pageCenter = pageWidth / 2;
+  if (/^name of witness/i.test(value) || line.x > pageCenter - EXECUTION_COLUMN_GUTTER) {
+    return line;
+  }
+  return { ...line, x: pageCenter };
+}
+
+/** Keep hanging-indent wraps in the same table column (left vs witness). */
+export function sameExecutionColumn(
+  origin: { x: number; pageWidth?: number },
+  candidate: { x: number }
+): boolean {
+  const pageCenter = (origin.pageWidth ?? LAYOUT_DETECTED_SIGN_FIELD.defaultPageWidth) / 2;
+  if (origin.x < pageCenter) return candidate.x < pageCenter - EXECUTION_COLUMN_GUTTER;
+  return candidate.x > pageCenter + EXECUTION_COLUMN_GUTTER;
+}
+
+export function joinWrappedSignerName<T extends WrappedSignerNameLine>(
+  label: T,
+  lines: readonly T[],
+  options: { maxBelow: number; isStop: (text: string) => boolean }
+): string {
+  const remainder = signerNameRemainder(label.text);
+  const parts: string[] = remainder ? [remainder] : [];
+  const nearby = lines
+    .filter(
+      (candidate) =>
+        candidate.pageindex === label.pageindex &&
+        sameExecutionColumn(label, candidate) &&
+        candidate.yTop > label.yTop &&
+        candidate.yTop - label.yTop <= options.maxBelow
+    )
+    .sort((a, b) => a.yTop - b.yTop);
+  for (const candidate of nearby) {
+    const text = candidate.text.replace(/\s+/g, " ").trim();
+    if (options.isStop(text)) break;
+    if (text) parts.push(text);
+  }
+  return parts.join(" ").replace(/\s+/g, " ").trim();
+}
+
 export function isCompanyStampLabel(text: string): boolean {
-  return /^company\s+stamp\s*:?/i.test(text.replace(/\s+/g, " ").trim());
+  return /^(issuer'?s\s+)?company\s+stamp\s*:?/i.test(text.replace(/\s+/g, " ").trim());
 }
 
 export type DateLabelAnchor = {
@@ -378,7 +461,7 @@ export function sealFieldFromLabel(line: SignatureLineGeometry): SigningCloudSig
   const pageHeight = positivePageSize(line.pageHeight, LAYOUT_DETECTED_SIGN_FIELD.defaultPageHeight);
   const preferredLeft = labelValueLeft(
     line,
-    /^company\s+stamp\s*:/i,
+    /^(issuer'?s\s+)?company\s+stamp\s*:?/i,
     LAYOUT_DETECTED_SEAL_FIELD.gap
   );
   const maxLeft = Math.max(LAYOUT_DETECTED_SEAL_FIELD.minLeft, Math.floor(pageWidth - width));

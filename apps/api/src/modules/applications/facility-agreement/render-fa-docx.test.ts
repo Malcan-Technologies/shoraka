@@ -7,6 +7,13 @@ import {
   renderFacilityAgreementDocx,
   resolveFacilityAgreementTemplatePath,
 } from "./render-fa-docx";
+import {
+  FA_ISSUER_SIGNATORY_COLON_TWIPS,
+  FA_ISSUER_WITNESS_COLON_TWIPS,
+  paragraphContaining,
+  paragraphPinsFaExecutionValueWrap,
+  paragraphPinsTableHangingLabelWrap,
+} from "../../generated-documents/hanging-execution-label";
 
 function renderedXml(data: FacilityAgreementMergeData): string {
   const zip = new PizZip(renderFacilityAgreementDocx(data));
@@ -92,6 +99,7 @@ describe("renderFacilityAgreementDocx", () => {
     expect(plain).toContain("{financing_limit_rm}");
     expect(plain).toContain("{#guarantors_individual}");
     expect(plain).toContain("{#guarantors_corporate}");
+    expect(plain).toContain("{#issuer_signatory_pages}");
     expect(plain).toContain("{#issuer_signatories}");
     expect(plain).toContain("{investor_1_name}");
     expect(plain).toContain("{investor_1_designation}");
@@ -138,6 +146,16 @@ describe("renderFacilityAgreementDocx", () => {
     expect(loopStart).toBeGreaterThan(-1);
     expect(tableInLoop).toBeGreaterThan(loopStart);
     expect(tableInLoop).toBeLessThan(loopEnd);
+    expect(xml).toContain("{#issuer_signatory_pages}");
+    expect(xml).toContain("{@page_break}");
+    const issuerTable = xml.slice(tableInLoop, xml.indexOf("</w:tbl>", tableInLoop));
+    expect(issuerTable).not.toContain("Issuer's company stamp:");
+    expect((issuerTable.match(/<w:tr\b/g) ?? []).length).toBe(6);
+    const pagesLoopEnd = xml.indexOf("{/issuer_signatory_pages}");
+    expect(pagesLoopEnd).toBeGreaterThan(loopEnd);
+    const afterPages = xml.slice(pagesLoopEnd, xml.indexOf("SCHEDULE 1", pagesLoopEnd));
+    expect(afterPages).toContain("Issuer's company stamp:");
+    expect((afterPages.match(/Issuer's company stamp:/g) ?? []).length).toBe(1);
     expect(xml).toContain('<w:br w:type="page"/>');
     expect(runContaining(xml, "{facility_agreement_date}")).toContain('w:val="yellow"');
     expect(runContaining(xml, "{issuer_name}")).toContain('w:val="yellow"');
@@ -151,12 +169,36 @@ describe("renderFacilityAgreementDocx", () => {
     const agentNamePara = [...xml.matchAll(/<w:p\b[\s\S]*?<\/w:p>/g)].find((row) =>
       row[0].includes("{agent_1_designation}")
     )?.[0];
-    expect(investorNamePara).toContain('w:ind w:left="6120"');
-    expect(investorNamePara).toContain('w:hanging="1080"');
-    expect(investorNamePara).toContain('w:jc w:val="left"');
-    expect(agentNamePara).toContain('w:ind w:left="6840"');
-    expect(agentNamePara).toContain('w:hanging="1080"');
-    expect(agentNamePara).toContain('w:jc w:val="left"');
+    expect(paragraphPinsFaExecutionValueWrap(investorNamePara ?? "")).toBe(true);
+    expect(paragraphPinsFaExecutionValueWrap(agentNamePara ?? "")).toBe(true);
+    expect(
+      paragraphPinsTableHangingLabelWrap(
+        paragraphContaining(xml, "{witness_name}"),
+        "Name of Witness",
+        FA_ISSUER_WITNESS_COLON_TWIPS
+      )
+    ).toBe(true);
+    expect(
+      paragraphPinsTableHangingLabelWrap(
+        paragraphContaining(xml, "{witness_nric}"),
+        "NRIC",
+        FA_ISSUER_WITNESS_COLON_TWIPS
+      )
+    ).toBe(true);
+    expect(
+      paragraphPinsTableHangingLabelWrap(
+        paragraphContaining(xml, "{designation}"),
+        "Designation",
+        FA_ISSUER_SIGNATORY_COLON_TWIPS
+      )
+    ).toBe(true);
+    expect(
+      paragraphPinsTableHangingLabelWrap(
+        paragraphContaining(xml, "{name}"),
+        "Name",
+        FA_ISSUER_SIGNATORY_COLON_TWIPS
+      )
+    ).toBe(true);
     const investorSlice = xml.slice(investorXml, agentXml);
     const mixedStrokePara = [...investorSlice.matchAll(/<w:p\b[\s\S]*?<\/w:p>/g)].find(
       (row) => row[0].includes("Shoraka Suyula Platform Sdn. Bhd.") && row[0].includes("_________")
@@ -187,6 +229,33 @@ describe("renderFacilityAgreementDocx", () => {
     expect(plain).toContain("As prescribed in the Letter of Offer");
     expect(plain).not.toContain("{drawdown_fee}");
     expect(plain).not.toContain("{#issuer_signatories}");
+    expect(plain).not.toContain("{#issuer_signatory_pages}");
+    expect(plain).not.toContain("{@page_break}");
+  });
+
+  it("keeps two issuer pairs on one page and page-breaks after every two", () => {
+    const two = renderedXml(createFacilityAgreementFixture());
+    const twoIssuerAt = two.indexOf(">ISSUER</w:t>");
+    const twoIssuer = two.slice(twoIssuerAt, two.indexOf("SCHEDULE 1", twoIssuerAt));
+    expect((twoIssuer.match(/<w:br w:type="page"\/>/g) ?? []).length).toBe(1);
+    expect((wordPlainText(twoIssuer).match(/Issuer's company stamp:/g) ?? []).length).toBe(1);
+
+    const fourData = createFacilityAgreementFixture();
+    fourData.issuer_signatories = [0, 1, 2, 3].map((index) => ({
+      name: `Issuer Signer ${index}`,
+      designation: "Director",
+      witness_name: "Chloe Lim",
+      witness_nric: "850101015555",
+    }));
+    const four = renderedXml(fourData);
+    const fourIssuerAt = four.indexOf(">ISSUER</w:t>");
+    const fourIssuer = four.slice(fourIssuerAt, four.indexOf("SCHEDULE 1", fourIssuerAt));
+    expect(wordPlainText(fourIssuer)).toContain("Issuer Signer 0");
+    expect(wordPlainText(fourIssuer)).toContain("Issuer Signer 3");
+    expect((fourIssuer.match(/<w:br w:type="page"\/>/g) ?? []).length).toBe(2);
+    const fourPlain = wordPlainText(fourIssuer);
+    expect((fourPlain.match(/Issuer's company stamp:/g) ?? []).length).toBe(1);
+    expect(fourPlain.indexOf("Issuer's company stamp:")).toBeGreaterThan(fourPlain.lastIndexOf("Issuer Signer 3"));
   });
 
   it("connects underscore signature strokes without hiding the glyphs", () => {

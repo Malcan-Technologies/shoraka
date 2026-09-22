@@ -2,6 +2,7 @@ import type { JsgMergeData } from "./jsg-merge.types";
 import { JSG_MERGE_KEYS } from "./jsg-merge.types";
 import {
   deriveFinanceDocumentsGuarantors,
+  FACILITY_LO_PAGE_BREAK_XML,
   LO_MERGE_PLACEHOLDER_NAME,
   PLACEHOLDER_FINANCE_DOCUMENT_PARTY,
   visibleMergeScalar,
@@ -57,14 +58,14 @@ function buildJsgCorporateBlocks(
     });
 }
 
-/** Docxtemplater payload: yellow value tags stay visible when empty; execution blocks flow. */
+/** Docxtemplater payload: yellow value tags stay visible when empty. */
 export function buildJsgRenderPayload(data: JsgMergeData): JsgRenderPayload {
-  const corporate_guarantor_pages = buildJsgCorporateBlocks(
+  const companies = buildJsgCorporateBlocks(
     data.guarantors_corporate,
     data.guarantor_witness_name,
     data.guarantor_witness_nric
   );
-  const hasCorporate = corporate_guarantor_pages.length > 0;
+  const hasCorporate = companies.length > 0;
 
   const guarantors = data.guarantors_individual.map((guarantor) =>
     withGuarantorWitness(
@@ -84,6 +85,11 @@ export function buildJsgRenderPayload(data: JsgMergeData): JsgRenderPayload {
     scalars[key] = visibleMergeScalar(key, data[key]);
   }
 
+  const corporate_guarantor_pages = companies.map((company, index, all) => ({
+    ...company,
+    page_break: index < all.length - 1 ? FACILITY_LO_PAGE_BREAK_XML : "",
+  }));
+
   return {
     ...data,
     ...scalars,
@@ -92,5 +98,7 @@ export function buildJsgRenderPayload(data: JsgMergeData): JsgRenderPayload {
     corporate_guarantor_pages,
     has_individual_guarantors: guarantors.length > 0,
     has_corporate_guarantor: hasCorporate,
+    individuals_page_break:
+      guarantors.length > 0 && hasCorporate ? FACILITY_LO_PAGE_BREAK_XML : "",
   };
 }

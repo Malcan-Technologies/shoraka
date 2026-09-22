@@ -302,6 +302,30 @@ describe("SigningCloud mixed signing smoke contract", () => {
   });
 });
 
+describe("SigningCloud wrap-smoke auto-sign", () => {
+  const wrap = source("../../../scripts/signingcloud-generated-docs-wrap-smoke.ts");
+  const auto = source("../../../scripts/signingcloud-generated-docs-wrap-smoke-auto.ts");
+  const helper = source("../../../scripts/lib/signingcloud-smoke-auto-sign.ts");
+
+  it("stamps keywords on wrap-smoke upload and auto-signs from saved layout", () => {
+    expect(wrap).toContain("ensureAutomaticSigningKeywords");
+    expect(wrap).toContain("SIGNINGCLOUD_SMOKE_AUTO_EMAIL");
+    expect(wrap).toContain("SIGNINGCLOUD_SMOKE_CONTINUE");
+    expect(wrap).toContain("generated-docs-wrap-smoke-auto");
+    expect(wrap).toContain("uploadSignerStamp");
+    expect(wrap).toContain("isSigningCloudSealFieldEnabled");
+    expect(wrap).toContain("ssp-company-stamp.png");
+    expect(wrap).toContain("includeSeal");
+    expect(wrap).toContain("appliesCompanySeal");
+    expect(wrap).toContain("groupAutomaticPlacements");
+    expect(helper).toContain("automaticSignerKeywordPair");
+    expect(helper).toContain("dateFormat");
+    expect(auto).toContain("completeAfterManuals");
+    expect(auto).toContain("signingcloud-wrap-smoke");
+    expect(auto).toContain("auto-sign");
+  });
+});
+
 describe("SigningCloud full-flow smoke contract", () => {
   const smoke = source("../../../scripts/signingcloud-full-flow-smoke.ts");
 

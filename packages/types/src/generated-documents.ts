@@ -43,7 +43,7 @@ export const GENERATED_DOCUMENT_TYPES: Record<
 > = {
   arf_contract_facility_lo: {
     key: "arf_contract_facility_lo",
-    version: 14,
+    version: 15,
     label: "ARF Letter of Offer (LO)",
     description:
       "Letter of Offer filled from the facility offer (Schedule A Part A) or standalone invoice offer (Part B).",
@@ -52,7 +52,7 @@ export const GENERATED_DOCUMENT_TYPES: Record<
   },
   arf_joint_several_guarantee: {
     key: "arf_joint_several_guarantee",
-    version: 2,
+    version: 5,
     label: "ARF Joint and Several Guarantee (JSG)",
     description:
       "CA-signed joint and several guarantee generated from the facility or invoice offer.",
@@ -61,7 +61,7 @@ export const GENERATED_DOCUMENT_TYPES: Record<
   },
   arf_deed_of_assignment: {
     key: "arf_deed_of_assignment",
-    version: 3,
+    version: 9,
     label: "ARF Deed of Assignment",
     description:
       "CA-signed deed of assignment generated from the facility or invoice offer.",
@@ -70,7 +70,7 @@ export const GENERATED_DOCUMENT_TYPES: Record<
   },
   arf_facility_agreement: {
     key: "arf_facility_agreement",
-    version: 8,
+    version: 13,
     label: "ARF Facility Agreement",
     description:
       "CA-signed facility agreement that replaces the signing-package Offer Letter.",

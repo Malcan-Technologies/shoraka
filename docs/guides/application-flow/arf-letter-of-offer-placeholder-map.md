@@ -2,7 +2,7 @@
 
 Editable fill map for the contract facility LO.
 
-**Current tagged template:** 19 August 2026 LO (`arf_contract_facility_lo` **v14**, per-guarantor acknowledgement pages). Facility offers fill Part A; standalone invoice offers fill Part B.  
+**Current tagged template:** 19 August 2026 LO (`arf_contract_facility_lo` **v15**, per-guarantor acknowledgement pages). Facility offers fill Part A; standalone invoice offers fill Part B.  
 **Verification / FLAG list:** [lo-19-aug-2026-field-map.md](../generated-documents/lo-19-aug-2026-field-map.md)  
 **Working index:** [lo-data-sources.md](../generated-documents/lo-data-sources.md)
 

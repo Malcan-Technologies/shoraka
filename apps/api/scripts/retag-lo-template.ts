@@ -2,6 +2,7 @@
 /**
  * Rebuild `arf-contract-facility-lo.docx` from the 19 August 2026 clean copy:
  * rewrite placeholders to docxtemplater tags and graft branded headers/footers.
+ * Attention name uses hanging indent so a long contact name wraps under the value.
  *
  * Usage: pnpm --filter @cashsouk/api retag-lo-template
  */
@@ -9,6 +10,12 @@
 import fs from "fs";
 import path from "path";
 import PizZip from "pizzip";
+import {
+  LO_ATTENTION_POSITION_LEFT_TWIPS,
+  LO_ATTENTION_WRAP_LEFT_TWIPS,
+  paragraphContaining,
+  paragraphPinsHangingValueWrap,
+} from "../src/modules/generated-documents/hanging-execution-label";
 
 const TEMPLATES_DIR = path.resolve(__dirname, "../src/modules/applications/templates");
 const CLEAN_COPY = path.join(TEMPLATES_DIR, "01 LO (Clean Copy) 19 August 2026.docx");
@@ -325,6 +332,45 @@ function flattenAndReplace(xml: string): string {
   });
 }
 
+function pinAttentionWrap(xml: string): string {
+  return xml.replace(/<w:p\b[\s\S]*?<\/w:p>/g, (pXml) => {
+    const text = paragraphPlainText(pXml);
+    if (text.includes("{attention_name}")) {
+      return hangingAttentionNameParagraph(pXml);
+    }
+    if (text.includes("{attention_position}") && !text.includes("{attention_name}")) {
+      return indentAttentionPositionParagraph(pXml);
+    }
+    return pXml;
+  });
+}
+
+function hangingAttentionNameParagraph(pXml: string): string {
+  const open = pXml.match(/^<w:p\b[^>]*>/)?.[0] ?? "<w:p>";
+  const rPr = firstRunRpr(pXml);
+  const pPr = `<w:pPr><w:tabs><w:tab w:val="left" w:pos="${LO_ATTENTION_WRAP_LEFT_TWIPS}"/></w:tabs><w:ind w:left="${LO_ATTENTION_WRAP_LEFT_TWIPS}" w:hanging="${LO_ATTENTION_WRAP_LEFT_TWIPS}"/><w:jc w:val="left"/>${rPr}</w:pPr>`;
+  const runs = [
+    textRun("Attention :", rPr),
+    `<w:r>${rPr}<w:tab/></w:r>`,
+    textRun("{attention_name}", rprWithYellow(rPr)),
+  ];
+  return `${open}${pPr}${runs.join("")}</w:p>`;
+}
+
+function indentAttentionPositionParagraph(pXml: string): string {
+  const open = pXml.match(/^<w:p\b[^>]*>/)?.[0] ?? "<w:p>";
+  const existing = pXml.match(/<w:pPr\b[\s\S]*?<\/w:pPr>/)?.[0] ?? "<w:pPr></w:pPr>";
+  let pPr = existing
+    .replace(/<w:ind\b[^/]*\/>/g, "")
+    .replace(/<w:jc\b[^/]*\/>/g, "");
+  pPr = pPr.replace(
+    "<w:pPr>",
+    `<w:pPr><w:ind w:left="${LO_ATTENTION_POSITION_LEFT_TWIPS}"/><w:jc w:val="left"/>`
+  );
+  const rPr = firstRunRpr(pXml);
+  return `${open}${pPr}${runsFromTemplatedText("{attention_position}", rPr)}</w:p>`;
+}
+
 function paragraphStartContaining(xml: string, needle: string): number {
   const idx = xml.indexOf(needle);
   if (idx < 0) throw new Error(`Could not find ${JSON.stringify(needle)} in document.xml`);
@@ -541,6 +587,38 @@ function requiredTagsPresent(xml: string): string[] {
   return required.filter((tag) => !xml.includes(tag));
 }
 
+function assertAttentionWrap(documentXml: string): void {
+  if (
+    !paragraphPinsHangingValueWrap(
+      paragraphContaining(documentXml, "{attention_name}"),
+      LO_ATTENTION_WRAP_LEFT_TWIPS,
+      LO_ATTENTION_WRAP_LEFT_TWIPS
+    )
+  ) {
+    throw new Error("Attention name must hang-wrap under the value column");
+  }
+  const attentionPosition = paragraphContaining(documentXml, "{attention_position}");
+  if (!attentionPosition.includes(`w:left="${LO_ATTENTION_POSITION_LEFT_TWIPS}"`)) {
+    throw new Error("Attention position must indent wrapped lines with the first line");
+  }
+  if (attentionPosition.includes("w:firstLine=")) {
+    throw new Error("Attention position must not use first-line indent");
+  }
+}
+
+function pinAttentionWrapOnTaggedFile(): void {
+  const zip = new PizZip(fs.readFileSync(TAGGED_CURRENT));
+  let documentXml = zip.file("word/document.xml")?.asText();
+  if (!documentXml) throw new Error("Tagged LO is missing word/document.xml");
+  documentXml = pinAttentionWrap(documentXml);
+  documentXml = ensureYellowOnValueTagRuns(documentXml);
+  assertAttentionWrap(documentXml);
+  zip.file("word/document.xml", documentXml);
+  const bytes = zip.generate({ type: "nodebuffer", compression: "DEFLATE" }) as Buffer;
+  fs.writeFileSync(OUTPUT, bytes);
+  console.log(`Pinned attention wrap on ${OUTPUT} bytes=${bytes.length}`);
+}
+
 function main(): void {
   if (!fs.existsSync(CLEAN_COPY)) {
     throw new Error(`Clean copy not found: ${CLEAN_COPY}`);
@@ -549,8 +627,13 @@ function main(): void {
     throw new Error(`Current tagged file not found: ${TAGGED_CURRENT}`);
   }
 
-  const cleanZip = new PizZip(fs.readFileSync(CLEAN_COPY));
   const taggedZip = new PizZip(fs.readFileSync(TAGGED_CURRENT));
+  if (!taggedZip.file("word/header2.xml")) {
+    pinAttentionWrapOnTaggedFile();
+    return;
+  }
+
+  const cleanZip = new PizZip(fs.readFileSync(CLEAN_COPY));
 
   let documentXml = cleanZip.file("word/document.xml")?.asText();
   if (!documentXml) throw new Error("Clean copy is missing word/document.xml");
@@ -559,6 +642,7 @@ function main(): void {
   documentXml = tagCheckboxes(documentXml);
   documentXml = rebuildFinanceDocumentsList(documentXml);
   documentXml = flattenAndReplace(documentXml);
+  documentXml = pinAttentionWrap(documentXml);
   documentXml = rebuildAcknowledgements(documentXml);
   documentXml = ensureYellowOnValueTagRuns(documentXml);
   documentXml = graftSectPr(documentXml);
@@ -584,6 +668,7 @@ function main(): void {
   if (leftovers.length > 0) {
     throw new Error(`Leftover placeholders in document.xml: ${leftovers.join(", ")}`);
   }
+  assertAttentionWrap(documentXml);
 
   const rels = cleanZip.file("word/_rels/document.xml.rels")?.asText();
   if (!rels) throw new Error("Clean copy is missing word/_rels/document.xml.rels");
