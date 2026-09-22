@@ -28,7 +28,6 @@ import {
 import { ExclamationCircleIcon } from "@heroicons/react/24/solid";
 import { isAwaitingCompanyTnc } from "@/lib/issuer-onboarding-flow";
 import { ISSUER_ONBOARDING_FEE_RETURN_TO } from "@/lib/issuer-onboarding-fee-routes";
-import { IssuerCompanySealCard } from "@/components/issuer-company-seal-card";
 import {
   storeIssuerPendingOnboarding,
   useCreateIssuerOnboardingFeeMutation,
@@ -79,27 +78,6 @@ export default function OnboardingFeePage() {
       return res.data.seal;
     },
   });
-
-  const { data: currentUser } = useQuery({
-    queryKey: ["current-user"],
-    queryFn: async () => {
-      const result = await apiClient.get<{
-        userId: string;
-        user: {
-          first_name: string | null;
-          last_name: string | null;
-        };
-      }>("/v1/auth/me");
-      if (!result.success) throw new Error(result.error.message);
-      return result.data;
-    },
-    staleTime: 1000 * 60 * 5,
-  });
-
-  const canEditCompanySeal = Boolean(
-    activeOrganization?.isOwner ||
-      activeOrganization?.members?.find((m) => m.id === currentUser?.userId)
-  );
 
   useEffect(() => {
     setTitle("Onboarding");
@@ -377,15 +355,6 @@ export default function OnboardingFeePage() {
                 </p>
               </CardContent>
             </Card>
-
-            {sealQuery.isLoading ? null : !sealQuery.data ? (
-              <div className="w-full pt-2">
-                <IssuerCompanySealCard
-                  organizationId={activeOrganization.id}
-                  canEdit={canEditCompanySeal}
-                />
-              </div>
-            ) : null}
           </div>
         </div>
       </div>
