@@ -217,7 +217,8 @@ describe("utilisation consent checkboxes", () => {
     expect(termsSource).not.toMatch(/htmlFor=\{inputId\}/);
     expect(termsSource).toContain("consentsLocked");
     expect(termsSource).toContain("UTILISATION_FULL_AUTHORISATION_READ_LINK");
-    expect(termsSource).toContain("UTILISATION_FULL_AUTHORISATION_REQUIRED_HINT");
+    expect(termsSource).not.toContain("UTILISATION_FULL_AUTHORISATION_REQUIRED_HINT");
+    expect(termsSource).toContain("flex flex-wrap items-center gap-2");
     expect(termsSource).toContain("status-action-bg");
     expect(termsSource).toContain("confirmUtilisationFullAuthorisation");
     expect(termsSource).toContain("UTILISATION_OFFER_TERMS_READ_LINK");
