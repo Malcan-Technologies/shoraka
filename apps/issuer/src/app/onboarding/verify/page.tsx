@@ -6,6 +6,8 @@ import { useQuery } from "@tanstack/react-query";
 import { createApiClient, useAuthToken, useOrganization } from "@cashsouk/config";
 import { IdentityVerifyStep, OnboardingLayout } from "@cashsouk/ui";
 import { IssuerCompanySealCard } from "@/components/issuer-company-seal-card";
+import { FeeReceiptActions } from "@/components/fee-receipt-actions";
+import { useIssuerOnboardingFeeStatusQuery } from "@/hooks/use-issuer-onboarding-fee";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -23,6 +25,8 @@ export default function OnboardingVerifyPage() {
       return res.data.seal;
     },
   });
+
+  const feeStatusQuery = useIssuerOnboardingFeeStatusQuery(activeOrganization?.id);
 
   const { data: currentUser } = useQuery({
     queryKey: ["current-user"],
@@ -104,6 +108,21 @@ export default function OnboardingVerifyPage() {
         organizationId={activeOrganization.id}
         canEdit={canEditCompanySeal}
       />
+
+      {feeStatusQuery.data?.latestPayment?.status === "COMPLETED" &&
+      feeStatusQuery.data?.latestPayment?.id ? (
+        <div className="mt-6">
+          <p className="text-sm font-semibold">Onboarding Fee Receipt</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            View or download your receipt for this payment.
+          </p>
+          <FeeReceiptActions
+            endpoint={`/v1/issuer/onboarding-fee/${feeStatusQuery.data.latestPayment.id}/receipt/pdf`}
+            receiptActionLabel="onboarding fee receipt"
+          />
+        </div>
+      ) : null}
+
       <IdentityVerifyStep
         onContinue={handleContinue}
         isLoading={isLoading}

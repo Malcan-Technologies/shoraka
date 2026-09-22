@@ -8,6 +8,8 @@ import {
   createApplicationProcessingFee,
   getApplicationProcessingFee,
 } from "./processing-fee-service";
+import { gatewayPaymentReceiptModeQuerySchema } from "./deposit-schemas";
+import { getIssuerApplicationProcessingFeeReceiptPdfUrl } from "./receipt/issuer-receipt-service";
 
 function getActor(req: Request, res: Response) {
   if (!req.user?.user_id) {
@@ -49,6 +51,30 @@ applicationProcessingFeeRouter.get(
         req.params
       );
       send(res, await getApplicationProcessingFee(getActor(req, res), applicationId, feePaymentId));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+applicationProcessingFeeRouter.get(
+  "/:feePaymentId/receipt/pdf",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { applicationId, feePaymentId } = applicationProcessingFeeIdParamsSchema.parse(
+        req.params
+      );
+      const { mode } = gatewayPaymentReceiptModeQuerySchema.parse(req.query);
+
+      send(
+        res,
+        await getIssuerApplicationProcessingFeeReceiptPdfUrl(
+          getActor(req, res),
+          applicationId,
+          feePaymentId,
+          mode
+        )
+      );
     } catch (error) {
       next(error);
     }
