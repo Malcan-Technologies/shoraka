@@ -102,7 +102,6 @@ import { isIdentityNumberEditable } from "@/organizations/utils/identity-editabi
 import { OrganizationFinancialsPanel } from "./organization-financials-panel";
 import { OrganizationMarcCard } from "./organization-marc-card";
 import { OrganizationPicCard } from "./organization-pic-card";
-import { IssuerCompanySealAdminCard } from "./issuer-company-seal-card";
 import {
   addressesEqual,
   buildDraft,
@@ -669,10 +668,6 @@ export function OrganizationProfilePanel({
             </div>
           </CardContent>
         </Card>
-      ) : null}
-
-      {portal === "issuer" && org.type === "COMPANY" ? (
-        <IssuerCompanySealAdminCard org={org} organizationId={organizationId} />
       ) : null}
 
       {showAbout ? (

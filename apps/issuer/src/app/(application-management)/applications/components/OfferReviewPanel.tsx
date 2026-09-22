@@ -63,7 +63,6 @@ import {
   computeIndicativeAmountPayable,
   computeIndicativeUtilisationProfit,
   isRemindableSigningRecipient,
-  canManageIssuerCompanySeal,
   resolveSigningTemplateFromWorkflow,
   signingPackageRequiresIssuerSeal,
   isSignedContractOfferLetterAvailable,
@@ -136,9 +135,7 @@ import {
   nextGuarantorPartyDrafts,
 } from "./guarantor-authorized-parties";
 import {
-  ISSUER_COMPANY_SEAL_STATUS_ERROR_MESSAGE,
   issuerOfferRepsBlocker,
-  type IssuerCompanySealUiStatus,
   type IssuerOfferRepsBlocker,
 } from "./issuer-offer-reps-blocker";
 import { resolveIssuerFacilityFeeBalance } from "@/lib/facility-enabled";
@@ -336,47 +333,6 @@ export function OfferReviewPanel({
     () => workflowUsesOfferAcceptanceFlow(frozenProductWorkflow?.workflow),
     [frozenProductWorkflow]
   );
-  const { data: currentUser } = useQuery({
-    queryKey: ["current-user"],
-    queryFn: async () => {
-      const result = await apiClient.get<{ userId: string }>("/v1/auth/me");
-      if (!result.success) {
-        throw new Error(getApiErrorDetails(result, "Failed to load account").message);
-      }
-      return result.data;
-    },
-    staleTime: 1000 * 60 * 5,
-  });
-  const canManageSeal = canManageIssuerCompanySeal(activeOrganization, currentUser?.userId);
-  const issuerSealQuery = useQuery({
-    queryKey: ["issuer-company-seal", issuerOrganizationId],
-    queryFn: async () => {
-      if (!issuerOrganizationId) return null;
-      const response = await apiClient.getIssuerCompanySeal(issuerOrganizationId);
-      if (!response.success) {
-        throw new Error(
-          getApiErrorDetails(response, ISSUER_COMPANY_SEAL_STATUS_ERROR_MESSAGE).message
-        );
-      }
-      return response.data.seal;
-    },
-    enabled: Boolean(issuerOrganizationId) && requiresIssuerSeal && usesAcceptanceFlow,
-  });
-  const issuerSealStatus = React.useMemo((): IssuerCompanySealUiStatus => {
-    if (!requiresIssuerSeal || !usesAcceptanceFlow) return "idle";
-    if (!issuerOrganizationId) return "error";
-    if (issuerSealQuery.isLoading || issuerSealQuery.isPending) return "loading";
-    if (issuerSealQuery.isError) return "error";
-    return issuerSealQuery.data ? "uploaded" : "missing";
-  }, [
-    issuerOrganizationId,
-    issuerSealQuery.data,
-    issuerSealQuery.isError,
-    issuerSealQuery.isLoading,
-    issuerSealQuery.isPending,
-    requiresIssuerSeal,
-    usesAcceptanceFlow,
-  ]);
   const [isSubmittingAcceptance, setIsSubmittingAcceptance] = React.useState(false);
   const [isSavingPartyDraft, setIsSavingPartyDraft] = React.useState(false);
   const invoiceContractId =
@@ -1097,8 +1053,6 @@ export function OfferReviewPanel({
       guarantorsReady: areGuarantorPartiesReady(guarantorRows, guarantorDrafts),
       requiresIssuerSeal,
       hasSealApplier: Boolean(sealApplierMatchKey),
-      sealStatus: issuerSealStatus,
-      canManageSeal,
     });
     if (repsBlocker) {
       if (!repsBlocker.pending) toast.error(repsBlocker.message);
@@ -1153,8 +1107,6 @@ export function OfferReviewPanel({
     isPhaseDeadlinePast,
     issuerDirectors,
     issuerRepMatchKeys,
-    issuerSealStatus,
-    canManageSeal,
     requiresIssuerSeal,
     sealApplierMatchKey,
     type,
@@ -1166,8 +1118,6 @@ export function OfferReviewPanel({
       guarantorsReady: areGuarantorPartiesReady(guarantorRows, guarantorDrafts),
       requiresIssuerSeal,
       hasSealApplier: Boolean(sealApplierMatchKey),
-      sealStatus: issuerSealStatus,
-      canManageSeal,
     });
     if (repsBlocker) {
       if (!repsBlocker.pending) toast.error(repsBlocker.message);
@@ -1229,8 +1179,6 @@ export function OfferReviewPanel({
     invoice?.id,
     issuerDirectors,
     issuerRepMatchKeys,
-    issuerSealStatus,
-    canManageSeal,
     requiresIssuerSeal,
     sealApplierMatchKey,
     type,
@@ -1408,8 +1356,6 @@ export function OfferReviewPanel({
         guarantorsReady: areGuarantorPartiesReady(guarantorRows, guarantorDrafts),
         requiresIssuerSeal,
         hasSealApplier: Boolean(sealApplierMatchKey),
-        sealStatus: issuerSealStatus,
-        canManageSeal,
       })
     : null;
   const issuerRepsActionLocked = Boolean(issuerRepsBlocker?.pending);
@@ -1761,9 +1707,6 @@ export function OfferReviewPanel({
                     issuerSealApplierDirtyRef.current = true;
                     setSealApplierMatchKey(matchKey);
                   }}
-                  sealStatus={issuerSealStatus}
-                  sealFileName={issuerSealQuery.data?.fileName ?? null}
-                  canManageSeal={canManageSeal}
                   readOnly={isStep1PartyCardReadOnly(AUTHORIZED_REPRESENTATIVES_ISSUER_ITEM_ID)}
                   highlighted={flaggedPartyItemIds.has(AUTHORIZED_REPRESENTATIVES_ISSUER_ITEM_ID)}
                   remark={partyRemarkByItemId.get(AUTHORIZED_REPRESENTATIVES_ISSUER_ITEM_ID) ?? null}

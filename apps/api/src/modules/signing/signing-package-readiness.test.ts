@@ -64,11 +64,6 @@ function createService(repo: Partial<SigningRepository>) {
   return new SigningService({
     findOperatorDocumentExecutionBindings: jest.fn().mockResolvedValue([]),
     findOperatorCompanyStamp: jest.fn().mockResolvedValue(null),
-    findActiveIssuerCompanySeal: jest.fn().mockResolvedValue({
-      id: "seal_1",
-      s3_key: "issuer-organizations/org-1/company-seals/a.png",
-      sha256: "abc",
-    }),
     ...repo,
   } as SigningRepository);
 }

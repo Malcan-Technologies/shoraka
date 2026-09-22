@@ -40,10 +40,6 @@ export function ApplicationAttentionCard({
   const statusLabel = applicationCardStatusLabel(application);
   const displayId = formatApplicationDisplayId(application.id, application.displayReference);
   const kind = attentionKindFromApplicationType(application.type);
-  const ctaLabel =
-    action.kind === "reviewOffer" && action.buttonVariant === "default"
-      ? "Review offer"
-      : action.label;
 
   return (
     <article
@@ -80,7 +76,7 @@ export function ApplicationAttentionCard({
 
         <div className="mt-auto pt-6">
           <Button size="lg" variant={action.buttonVariant} className="w-full" asChild>
-            <Link href={action.href}>{ctaLabel}</Link>
+            <Link href={action.href}>{action.label}</Link>
           </Button>
         </div>
       </div>

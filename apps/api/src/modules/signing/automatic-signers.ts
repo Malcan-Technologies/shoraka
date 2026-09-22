@@ -1,7 +1,6 @@
 /**
- * CashSouk automatic roles: inject at plan time, freeze signatures, and freeze
- * the issuer company seal on FA/DoA when SC_ENABLE_SEAL_FIELD is enabled. Stamp
- * upload happens when the selected manual signer opens their session.
+ * CashSouk automatic roles: inject at plan time and freeze signatures for
+ * automatic FA/JSG/DoA signers.
  */
 import {
   automaticContractKeywordLimitIssue,
@@ -18,15 +17,12 @@ import {
   expandedPlacementsForRole,
   frozenAutomaticSignerLabel,
   frozenAutomaticSignerName,
-  getIssuerAuthorizedParty,
   isAutomaticSignerProviderReady,
   isOperatorDocumentWitnessRole,
   normalizeSigningEmail,
   parseFrozenAutomaticSignerSnapshot,
   signingPackageRequiresDoaStamp,
-  signingPackageRequiresIssuerSeal,
   SIGNINGCLOUD_LEGAL_IMAGE_MAX_BYTES,
-  type AuthorizedPartiesSnapshot,
   type DocumentExecutionRepeatCounts,
   type EnvelopePlan,
   type FrozenAutomaticCompanyStamp,
@@ -37,13 +33,10 @@ import {
 } from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
 import { confirmLegalImageBytes, readS3ObjectBytes } from "../../lib/legal-images";
-import { isSigningCloudSealFieldEnabled } from "../signingcloud/signingcloud-api";
-import type { SigningProvider } from "./provider/adapter";
 import type { SigningEnvelopeWithGraph } from "./mapper";
 import type {
   OperatorCompanyStampRecord,
   OperatorExecutionBindingRecord,
-  SigningRepository,
 } from "./repository";
 
 const AUTOMATIC_ROUTING_ORDER_BASE = 1000;
@@ -378,106 +371,6 @@ export async function readFrozenSignatureImage(
     );
   }
   return image;
-}
-
-function sealApplierEmail(snapshot: AuthorizedPartiesSnapshot | null | undefined): string | null {
-  const issuer = getIssuerAuthorizedParty(snapshot);
-  const appliers = (issuer?.representatives ?? []).filter(
-    (representative) => representative.applies_company_seal === true
-  );
-  if (appliers.length !== 1) return null;
-  return normalizeSigningEmail(appliers[0]?.email ?? "");
-}
-
-export async function freezeIssuerSealForDocument(input: {
-  document: SigningEnvelopeWithGraph["documents"][number];
-  assignments: Array<{
-    assignment: SigningEnvelopeWithGraph["assignments"][number];
-    recipient: SigningEnvelopeWithGraph["recipients"][number];
-  }>;
-  authorizedParties: AuthorizedPartiesSnapshot | null | undefined;
-  issuerOrganizationId: string;
-  repo: Pick<SigningRepository, "findActiveIssuerCompanySeal" | "setAssignmentFrozenCompanySeal">;
-}): Promise<void> {
-  const documentKey = input.document.template_ref ?? "";
-  if (!isSigningCloudSealFieldEnabled() || !signingPackageRequiresIssuerSeal([documentKey])) {
-    return;
-  }
-
-  const applierEmail = sealApplierEmail(input.authorizedParties);
-  const applier = input.assignments.find(
-    ({ recipient }) =>
-      recipient.execution_mode !== "AUTOMATIC" &&
-      normalizeSigningEmail(recipient.email) === applierEmail
-  );
-  if (!applierEmail || !applier) {
-    throw new AppError(
-      400,
-      "SIGNING_SEAL_APPLIER_MISSING",
-      "Select exactly one issuer representative to apply the company seal."
-    );
-  }
-
-  const seal = await input.repo.findActiveIssuerCompanySeal(input.issuerOrganizationId);
-  if (!seal) {
-    throw new AppError(
-      400,
-      "ISSUER_COMPANY_SEAL_REQUIRED",
-      "Upload a company seal in Issuer Profile before sending this signing package."
-    );
-  }
-
-  const image = await readConfirmedLegalImage(seal.s3_key);
-  if (image.sha256 !== seal.sha256.trim().toLowerCase()) {
-    throw new AppError(
-      409,
-      "SIGNING_SEAL_MISMATCH",
-      "The issuer company seal no longer matches the confirmed image."
-    );
-  }
-  await input.repo.setAssignmentFrozenCompanySeal(applier.assignment.id, seal.id);
-}
-
-/** @deprecated Use freezeIssuerSealForDocument — stamp upload is deferred to session start. */
-export async function registerIssuerSealForDocument(input: {
-  document: SigningEnvelopeWithGraph["documents"][number];
-  assignments: Array<{
-    assignment: SigningEnvelopeWithGraph["assignments"][number];
-    recipient: SigningEnvelopeWithGraph["recipients"][number];
-  }>;
-  authorizedParties: AuthorizedPartiesSnapshot | null | undefined;
-  issuerOrganizationId: string;
-  provider: SigningProvider;
-  repo: Pick<SigningRepository, "findActiveIssuerCompanySeal" | "setAssignmentFrozenCompanySeal">;
-}): Promise<void> {
-  await freezeIssuerSealForDocument(input);
-}
-
-export async function reuploadAssignmentCompanySeal(input: {
-  assignment: SigningEnvelopeWithGraph["assignments"][number];
-  signerEmail: string;
-  provider: SigningProvider;
-  repo: Pick<SigningRepository, "findIssuerCompanySealById">;
-}): Promise<void> {
-  const sealId = input.assignment.frozen_company_seal_id;
-  if (!sealId) return;
-  const seal = await input.repo.findIssuerCompanySealById(sealId);
-  if (!seal) {
-    throw new AppError(409, "ISSUER_COMPANY_SEAL_REQUIRED", "The frozen company seal is no longer available.");
-  }
-  const image = await readConfirmedLegalImage(seal.s3_key);
-  if (image.sha256 !== seal.sha256.trim().toLowerCase()) {
-    throw new AppError(
-      409,
-      "SIGNING_SEAL_MISMATCH",
-      "The frozen company seal no longer matches the confirmed image."
-    );
-  }
-  await input.provider.uploadSignerStamp({
-    signerEmail: input.signerEmail,
-    imageBytes: image.bytes,
-    contentType: image.contentType,
-  });
 }
 
 export function automaticSignsetForSnapshot(

@@ -131,10 +131,8 @@ import {
 import {
   assertEnvelopeHasRequiredAutomaticRoles,
   automaticSignsetForSnapshot,
-  freezeIssuerSealForDocument,
   frozenExecutionContextFromEnvelope,
   injectAutomaticExecutionRoles,
-  reuploadAssignmentCompanySeal,
   verifyAutomaticAssignmentSnapshots,
 } from "./automatic-signers";
 import { runAutomaticCountersign } from "./automatic-countersign";
@@ -1172,13 +1170,6 @@ export class SigningService {
           message: applierIssue,
         });
       }
-      const seal = await this.repo.findActiveIssuerCompanySeal(application.issuer_organization_id);
-      if (!seal) {
-        issues.push({
-          code: "ISSUER_COMPANY_SEAL_REQUIRED",
-          message: "Upload a company seal in Issuer Profile before sending this signing package.",
-        });
-      }
     }
 
     if (authorizedParties) {
@@ -1757,13 +1748,6 @@ export class SigningService {
 
       const pdfBuffer = await getS3ObjectBuffer(unsignedS3Key);
       const orderedAssignments = this.orderDocumentAssignments(docAssignments, recipientById);
-      await freezeIssuerSealForDocument({
-        document,
-        assignments: orderedAssignments,
-        authorizedParties,
-        issuerOrganizationId: application.issuer_organization_id,
-        repo: this.repo,
-      });
       const signers = buildDocumentProviderSigners(
         orderedAssignments.map(({ assignment, recipient }) => ({
           email: recipient.email,
@@ -2229,12 +2213,6 @@ export class SigningService {
     if (!document.provider_contract_ref) {
       throw new AppError(409, "SIGNING_DOCUMENT_NOT_SENT", "This document has not been sent yet.");
     }
-    await reuploadAssignmentCompanySeal({
-      assignment,
-      signerEmail: recipient.email,
-      provider: this.provider,
-      repo: this.repo,
-    });
     const callbackUrl = buildSigningCloudCallbackUrl();
     if (!callbackUrl) {
       logger.warn(

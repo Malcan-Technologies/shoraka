@@ -287,17 +287,17 @@ describe("getApplicationCardPrimaryAction", () => {
     const action = getApplicationCardPrimaryAction(makeApp());
     expect(action.kind).toBe("reviewOffer");
     expect(action.href).toBe("/applications/app_1?tab=offer");
-    expect(action.label).toBe("Review Invoice Offer");
+    expect(action.label).toBe("Review offer");
   });
 
-  it("uses facility wording for contract offers", () => {
+  it("uses Review offer for contract offers", () => {
     const action = getApplicationCardPrimaryAction(
       makeApp({ type: "Facility financing", contractId: "ctr_1", contractStatus: "OFFER_SENT" })
     );
-    expect(action.label).toBe("Review Facility Offer");
+    expect(action.label).toBe("Review offer");
   });
 
-  it("keeps invoice wording when invoice_only still has a leftover holder OFFER_SENT", () => {
+  it("keeps invoice scope when invoice_only still has a leftover holder OFFER_SENT", () => {
     const action = getApplicationCardPrimaryAction(
       makeApp({
         type: "Invoice financing",
@@ -313,11 +313,11 @@ describe("getApplicationCardPrimaryAction", () => {
         ],
       })
     );
-    expect(action.label).toBe("Review Invoice Offer");
+    expect(action.label).toBe("Review offer");
     expect(action.offerScope).toBe("invoice");
   });
 
-  it("uses invoice wording on a facility application once the facility offer is done", () => {
+  it("uses invoice scope on a facility application once the facility offer is done", () => {
     const action = getApplicationCardPrimaryAction(
       makeApp({
         type: "Facility financing",
@@ -334,7 +334,7 @@ describe("getApplicationCardPrimaryAction", () => {
         ],
       })
     );
-    expect(action.label).toBe("Review Invoice Offer");
+    expect(action.label).toBe("Review offer");
     expect(action.offerScope).toBe("invoice");
   });
 
@@ -367,7 +367,7 @@ describe("applicationAttentionHeadline", () => {
       applicationAttentionHeadline({
         ...base,
         kind: "reviewOffer",
-        label: "Review Invoice Offer",
+        label: "Review offer",
         buttonVariant: "default",
         offerScope: "invoice",
       })
@@ -376,7 +376,7 @@ describe("applicationAttentionHeadline", () => {
       applicationAttentionHeadline({
         ...base,
         kind: "reviewOffer",
-        label: "Review Facility Offer",
+        label: "Review offer",
         buttonVariant: "default",
         offerScope: "contract",
       })

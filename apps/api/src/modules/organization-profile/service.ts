@@ -1096,19 +1096,11 @@ export async function computeOrgProfileCompleteness(
       }
     }
 
-    const hasActiveCompanySeal = Boolean(
-      await prisma.issuerOrganizationCompanySeal.findFirst({
-        where: { issuer_organization_id: organizationId, superseded_at: null },
-        select: { id: true },
-      })
-    );
-
     const completeness = buildIssuerProfileCompleteness({
       company: {
         name,
         registrationNumber: roc,
         organizationId: org.id,
-        hasActiveCompanySeal,
         dateOfIncorporation: org.date_of_incorporation,
         dateOfCommencement: org.date_of_commencement,
         countryOfIncorporation: org.country_of_incorporation,

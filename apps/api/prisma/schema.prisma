@@ -453,7 +453,6 @@ model IssuerOrganization {
   paymaster_links              IssuerPaymasterLink[]
   marc_assessments             IssuerOrganizationMarcAssessment[]
   assignment_notices           PaymasterAssignmentNotice[]
-  company_seals                IssuerOrganizationCompanySeal[]
 
   @@index([owner_user_id])
   @@index([owner_user_id, type])
@@ -660,28 +659,6 @@ model OperatorSigningPerson {
   @@index([operator_profile_id])
   @@index([signing_email])
   @@map("operator_signing_people")
-}
-
-/// Versioned issuer organisation seal. Superseded rows stay for historical envelopes.
-model IssuerOrganizationCompanySeal {
-  id                  String            @id @default(cuid())
-  issuer_organization_id String
-  s3_key              String            @unique
-  original_file_name  String
-  content_type        String
-  byte_size           Int
-  sha256              String
-  width_px            Int
-  height_px           Int
-  transparency_mode   SigningCloudImageTransparency
-  uploaded_by_user_id String            @db.VarChar(5)
-  created_at          DateTime          @default(now())
-  superseded_at       DateTime?
-  issuer_organization IssuerOrganization @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
-  signing_assignments SigningAssignment[]
-
-  @@index([issuer_organization_id, superseded_at])
-  @@map("issuer_organization_company_seals")
 }
 
 /// One row per automatic CashSouk representative or witness slot.
@@ -1242,9 +1219,8 @@ model SigningAssignment {
   action                   SigningAction           @default(SIGN)
   /// Per-signer signature field placement for this document (SigningCloud signset).
   signset                  Json?
-  /// Frozen automatic-signer or issuer-seal snapshot for this assignment.
+  /// Frozen automatic-signer snapshot for this assignment.
   frozen_asset_snapshot    Json?
-  frozen_company_seal_id   String?
   auto_sign_attempt_count  Int                     @default(0)
   last_auto_sign_error     String?
   last_auto_sign_at        DateTime?
@@ -1257,13 +1233,11 @@ model SigningAssignment {
   envelope      SigningEnvelope                 @relation(fields: [envelope_id], references: [id], onDelete: Cascade)
   document      SigningDocument                 @relation(fields: [document_id], references: [id], onDelete: Cascade)
   recipient     SigningRecipient                @relation(fields: [recipient_id], references: [id], onDelete: Cascade)
-  company_seal  IssuerOrganizationCompanySeal?  @relation(fields: [frozen_company_seal_id], references: [id], onDelete: Restrict)
 
   @@unique([document_id, recipient_id])
   @@index([envelope_id])
   @@index([document_id])
   @@index([recipient_id])
-  @@index([frozen_company_seal_id])
   @@map("signing_assignments")
 }
 

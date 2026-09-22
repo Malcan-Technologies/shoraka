@@ -12,7 +12,6 @@ import {
 
 export const PROFILE_LABEL = {
   companyName: "Company Name",
-  companySeal: "Company seal",
   fullName: "Full Name",
   investorName: "Investor Name",
   companyRegistrationNumber: "Company Registration Number",

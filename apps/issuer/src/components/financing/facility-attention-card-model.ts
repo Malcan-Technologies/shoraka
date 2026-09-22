@@ -29,7 +29,7 @@ export function getFacilityAttentionAction(row: IssuerDashboardContract): Facili
           ? "Update requested changes"
           : "Review this offer",
       href: financingOfferHref(row.applicationId),
-      label: cta.buttonVariant === "makeAmendments" ? cta.label : "Review offer",
+      label: cta.label,
       hint: cta.hint ?? OFFER_REVIEW_ON_APPLICATION_HINT,
       buttonVariant: cta.buttonVariant === "makeAmendments" ? "outline" : "default",
     };

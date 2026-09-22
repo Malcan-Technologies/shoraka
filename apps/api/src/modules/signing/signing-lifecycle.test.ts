@@ -7,7 +7,6 @@ jest.mock("../../lib/prisma", () => ({
     invoice: { findUnique: jest.fn(), update: jest.fn() },
     signingDocument: { findFirst: jest.fn() },
     signingRecipient: { update: jest.fn() },
-    issuerOrganizationCompanySeal: { findFirst: jest.fn() },
   },
 }));
 
@@ -417,7 +416,6 @@ function assignmentRow(
     signed_at: null,
     signset: null,
     frozen_asset_snapshot: null,
-    frozen_company_seal_id: null,
     auto_sign_attempt_count: 0,
     last_auto_sign_error: null,
     last_auto_sign_at: null,
@@ -432,11 +430,6 @@ function createService(repo: Partial<SigningRepository>, provider?: Partial<Sign
     {
       setEnvelopeSendState: jest.fn().mockResolvedValue(undefined),
       setAssignmentFrozenSnapshot: jest.fn().mockResolvedValue(undefined),
-      findActiveIssuerCompanySeal: jest.fn().mockResolvedValue({
-        id: "seal_1",
-        s3_key: "issuer-organizations/org-1/company-seals/a.png",
-        sha256: AUTO_SIGN_HASH,
-      }),
       ...repo,
     } as SigningRepository,
     (provider ?? {
@@ -479,9 +472,6 @@ describe("signing lifecycle", () => {
     delete process.env.ISSUER_URL;
     (prisma.contract.findUnique as jest.Mock).mockResolvedValue({ offer_details: {} });
     (prisma.invoice.findUnique as jest.Mock).mockResolvedValue(null);
-    (prisma.issuerOrganizationCompanySeal.findFirst as jest.Mock).mockResolvedValue({
-      id: "seal_1",
-    });
     readLegalImage.mockResolvedValue(Buffer.from("png-bytes"));
     confirmLegalImage.mockReturnValue({
       sha256: AUTO_SIGN_HASH,
@@ -617,22 +607,14 @@ describe("signing lifecycle", () => {
       setAssignmentSignset,
       setRecipientAccessToken: jest.fn().mockResolvedValue(undefined),
       setRecipientEmailDeliveryStatus: jest.fn().mockResolvedValue(undefined),
-      findActiveIssuerCompanySeal: jest.fn().mockResolvedValue({
-        id: "seal_1",
-        s3_key: "issuer-orgs/org-1/company-seal.png",
-        sha256: AUTO_SIGN_HASH,
-      }),
-      setAssignmentFrozenCompanySeal: jest.fn().mockResolvedValue(undefined),
     };
     const createDocumentContract = jest.fn().mockResolvedValue({ providerRef: "sc-new" });
-    const uploadSignerStamp = jest.fn().mockResolvedValue(undefined);
     const service = createService(repo, {
       name: "test",
       createDocumentContract,
       getContractDetails: jest.fn(),
       fetchSignedDocument: jest.fn(),
       startSignerSession: jest.fn(),
-      uploadSignerStamp,
     });
     stubSendPrerequisites(service);
     getS3.mockResolvedValue(Buffer.from("%PDF-cached"));
@@ -701,12 +683,6 @@ describe("signing lifecycle", () => {
       setAssignmentSignset: jest.fn().mockResolvedValue(undefined),
       setRecipientAccessToken: jest.fn().mockResolvedValue(undefined),
       setRecipientEmailDeliveryStatus: jest.fn().mockResolvedValue(undefined),
-      findActiveIssuerCompanySeal: jest.fn().mockResolvedValue({
-        id: "seal_1",
-        s3_key: "issuer-orgs/org-1/company-seal.png",
-        sha256: AUTO_SIGN_HASH,
-      }),
-      setAssignmentFrozenCompanySeal: jest.fn().mockResolvedValue(undefined),
     };
     const createDocumentContract = jest.fn().mockImplementation(
       () => new Promise<{ providerRef: string }>(() => undefined)
@@ -717,7 +693,6 @@ describe("signing lifecycle", () => {
       getContractDetails: jest.fn(),
       fetchSignedDocument: jest.fn(),
       startSignerSession: jest.fn(),
-      uploadSignerStamp: jest.fn().mockResolvedValue(undefined),
     });
     stubSendPrerequisites(service);
     getS3.mockResolvedValue(Buffer.from("%PDF-cached"));

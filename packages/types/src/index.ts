@@ -548,7 +548,6 @@ export * from "./reports";
 export * from "./report-periods";
 export * from "./company-stamp-image";
 export * from "./signingcloud-legal-image";
-export * from "./issuer-company-seal";
 export * from "./official-document-version";
 export * from "./investment-note-certificate";
 export * from "./note-documents";

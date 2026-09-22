@@ -66,13 +66,13 @@ export type IssuerOfferActionCta = {
 };
 
 /**
- * Card / row CTA copy for the Review Offer modal entry point.
- * CHANGES_REQUESTED keeps the same modal but labels the task as requested document
- * and representative-list updates.
+ * Card / row CTA copy for the Review offer entry point.
+ * CHANGES_REQUESTED keeps the same screen but labels the task as requested
+ * document and representative-list updates.
  */
 export function getIssuerOfferActionCta(
   acceptanceStatus?: string | null,
-  options?: { scope?: "contract" | "invoice" }
+  _options?: { scope?: "contract" | "invoice" }
 ): IssuerOfferActionCta {
   const phase = String(acceptanceStatus ?? "").toUpperCase();
   if (phase === "CHANGES_REQUESTED") {
@@ -83,9 +83,8 @@ export function getIssuerOfferActionCta(
       isAcceptanceChangesRequested: true,
     };
   }
-  const scope = options?.scope ?? "invoice";
   return {
-    label: scope === "contract" ? "Review Facility Offer" : "Review Invoice Offer",
+    label: "Review offer",
     hint: null,
     buttonVariant: "reviewOffer",
     isAcceptanceChangesRequested: false,

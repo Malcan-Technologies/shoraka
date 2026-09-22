@@ -181,7 +181,6 @@ import type {
   OperatorDocumentExecutionBindingInput,
   SigningPackageReadinessDto,
   OperatorSignatureConfirmDto,
-  IssuerCompanySealDto,
   PartyMismatchResolveInput,
 } from "@cashsouk/types";
 import { parseContentDispositionFilename } from "./content-disposition-filename";
@@ -699,38 +698,6 @@ export class ApiClient {
       `/v1/organizations/${portal}/${organizationId}/party-profiles/${partyId}/inactivate`,
       {}
     );
-  }
-
-  async getIssuerCompanySeal(
-    organizationId: string
-  ): Promise<ApiResponse<{ seal: IssuerCompanySealDto | null }> | ApiError> {
-    return this.get(`/v1/organizations/issuer/${organizationId}/company-seal`);
-  }
-
-  async requestIssuerCompanySealUploadUrl(
-    organizationId: string,
-    data: { fileName: string; contentType: string; fileSize: number }
-  ): Promise<ApiResponse<{ uploadUrl: string; s3Key: string; expiresIn: number }> | ApiError> {
-    return this.post(`/v1/organizations/issuer/${organizationId}/company-seal/upload-url`, data);
-  }
-
-  async confirmIssuerCompanySeal(
-    organizationId: string,
-    data: { s3Key: string; fileName: string }
-  ): Promise<ApiResponse<{ seal: IssuerCompanySealDto }> | ApiError> {
-    return this.post(`/v1/organizations/issuer/${organizationId}/company-seal/confirm`, data);
-  }
-
-  async deleteIssuerCompanySeal(
-    organizationId: string
-  ): Promise<ApiResponse<{ seal: null }> | ApiError> {
-    return this.delete(`/v1/organizations/issuer/${organizationId}/company-seal`);
-  }
-
-  async getIssuerCompanySealPreview(
-    organizationId: string
-  ): Promise<ApiResponse<{ viewUrl: string | null; expiresIn: number | null }> | ApiError> {
-    return this.get(`/v1/organizations/issuer/${organizationId}/company-seal/preview`);
   }
 
   async reactivatePartyProfile(

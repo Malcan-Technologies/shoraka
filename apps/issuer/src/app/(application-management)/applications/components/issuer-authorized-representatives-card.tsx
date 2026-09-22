@@ -16,11 +16,6 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from "@/lib/utils";
 import { applicationFlowAmendmentTargetSurfaceClassName } from "@/app/(application-flow)/applications/components/form-control";
 import {
-  ISSUER_COMPANY_SEAL_OWNER_ADMIN_REQUIRED_MESSAGE,
-  ISSUER_COMPANY_SEAL_REQUIRED_MESSAGE,
-  ISSUER_COMPANY_SEAL_UPLOAD_LINK_LABEL,
-  ISSUER_COMPANY_SEAL_VIEW_LINK_LABEL,
-  PROFILE_COMPANY_SEAL_HREF,
   PROFILE_PEOPLE_HREF,
 } from "@cashsouk/types";
 import type { IssuerDirectorOption } from "./issuer-directors";
@@ -30,10 +25,8 @@ import {
   authorizedRepRowGridReadOnlyClass,
 } from "./authorized-rep-fields";
 import {
-  ISSUER_COMPANY_SEAL_STATUS_ERROR_MESSAGE,
   ISSUER_DIRECTOR_PERSON_EMAIL_FIELD_HINT,
   PROFILE_PEOPLE_ACCESS_LINK_LABEL,
-  type IssuerCompanySealUiStatus,
 } from "./issuer-offer-reps-blocker";
 
 type IssuerAuthorizedRepresentativesCardProps = {
@@ -44,9 +37,6 @@ type IssuerAuthorizedRepresentativesCardProps = {
   showSealApplier?: boolean;
   sealApplierMatchKey?: string | null;
   onSealApplierChange?: (matchKey: string | null) => void;
-  sealStatus?: IssuerCompanySealUiStatus;
-  sealFileName?: string | null;
-  canManageSeal?: boolean;
   readOnly?: boolean;
   isLoading?: boolean;
   highlighted?: boolean;
@@ -61,9 +51,6 @@ export function IssuerAuthorizedRepresentativesCard({
   showSealApplier = false,
   sealApplierMatchKey = null,
   onSealApplierChange,
-  sealStatus = "idle",
-  sealFileName = null,
-  canManageSeal = false,
   readOnly = false,
   isLoading = false,
   highlighted = false,
@@ -248,64 +235,6 @@ export function IssuerAuthorizedRepresentativesCard({
           ) : null}
         </div>
       )}
-      {showSealApplier ? (
-        <IssuerCompanySealFileStatus
-          status={sealStatus}
-          fileName={sealFileName}
-          canManageSeal={canManageSeal}
-        />
-      ) : null}
     </div>
-  );
-}
-
-function IssuerCompanySealFileStatus({
-  status,
-  fileName,
-  canManageSeal,
-}: {
-  status: IssuerCompanySealUiStatus;
-  fileName: string | null;
-  canManageSeal: boolean;
-}) {
-  if (status === "idle") return null;
-  if (status === "loading") {
-    return <p className="text-meta text-muted-foreground">Checking company seal…</p>;
-  }
-  if (status === "uploaded") {
-    return (
-      <p className="text-meta text-muted-foreground">
-        {fileName?.trim()
-          ? `Company seal on file: ${fileName.trim()}`
-          : "Company seal is on file in Organisation."}
-      </p>
-    );
-  }
-  const missing = status === "missing";
-  const message = missing
-    ? canManageSeal
-      ? ISSUER_COMPANY_SEAL_REQUIRED_MESSAGE
-      : ISSUER_COMPANY_SEAL_OWNER_ADMIN_REQUIRED_MESSAGE
-    : ISSUER_COMPANY_SEAL_STATUS_ERROR_MESSAGE;
-  const linkLabel = missing
-    ? canManageSeal
-      ? ISSUER_COMPANY_SEAL_UPLOAD_LINK_LABEL
-      : ISSUER_COMPANY_SEAL_VIEW_LINK_LABEL
-    : null;
-  return (
-    <p className="text-ui text-destructive">
-      {message}
-      {linkLabel ? (
-        <>
-          {" "}
-          <Link
-            href={PROFILE_COMPANY_SEAL_HREF}
-            className="font-medium underline underline-offset-2"
-          >
-            {linkLabel}
-          </Link>
-        </>
-      ) : null}
-    </p>
   );
 }

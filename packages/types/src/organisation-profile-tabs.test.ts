@@ -3,7 +3,6 @@ import {
   organisationProfileTabFromSearchParam,
   organisationProfileTabs,
   PROFILE_BANKING_HREF,
-  PROFILE_COMPANY_SEAL_HREF,
   PROFILE_PEOPLE_HREF,
   PROFILE_TAB_PEOPLE,
 } from "./organisation-profile-tabs";
@@ -16,7 +15,6 @@ describe("organisation profile tabs", () => {
     expect(organisationProfileTabFromSearchParam("people", true)).toBe(PROFILE_TAB_PEOPLE);
     expect(PROFILE_BANKING_HREF).toBe("/profile?tab=banking");
     expect(PROFILE_PEOPLE_HREF).toBe("/profile?tab=people");
-    expect(PROFILE_COMPANY_SEAL_HREF).toBe("/profile?focus=seal");
   });
 
   it("treats issuer as company-only (never a personal-issuer tab set)", () => {
