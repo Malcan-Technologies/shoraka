@@ -721,10 +721,6 @@ export default function DynamicApplicationDetailPage() {
     );
     const mergedStatus = deriveMergedSectionStatus(mergedStatuses);
 
-    // Only fix the incorrect green state when all merged sections look approved,
-    // but Offer & acceptance workflow stages are not yet complete.
-    if (mergedStatus !== "APPROVED") return mergedStatus;
-
     const reviewItems =
       (app.application_review_items as { item_type: string; item_id: string; status: string }[]) ??
       [];
@@ -783,7 +779,21 @@ export default function DynamicApplicationDetailPage() {
     if (hasRejected) return "REJECTED";
     if (hasDeclined) return "DECLINED";
     if (hasExpired) return "OFFER_EXPIRED";
-    return offerAcceptanceComplete ? "APPROVED" : "OFFER_SENT";
+    if (offerAcceptanceComplete) return "APPROVED";
+    if (stageModel.currentStageId === "invoice_review") return "INVOICE_PENDING";
+    if (stageModel.currentStageId === "send_offer") {
+      return stageModel.offerType === "facility" ? "CONTRACT_PENDING" : "INVOICE_PENDING";
+    }
+    if (stageModel.currentStageId === "signing_package") return "SIGNING_PENDING";
+
+    const currentStage = stageModel.stages.find((s) => s.id === stageModel.currentStageId);
+    if (stageModel.currentStageId === "issuer_response" && currentStage?.tone === "wait") {
+      // Issuer-only wait: admin should see a Blue "waiting on others" dot.
+      return "OFFER_SENT";
+    }
+
+    // Fallback: preserve original merged-section status behavior for uncertain cases.
+    return mergedStatus;
   }, [
     app,
     canAppManage,

@@ -26,6 +26,7 @@ import { openPdfBlob } from "@/lib/open-pdf-blob";
 import { Button } from "@/components/ui/button";
 import { ApplicationSummaryDownloadButton } from "@/components/application-summary-download-button";
 import { Badge } from "@/components/ui/badge";
+import { FeeReceiptActions } from "@/components/fee-receipt-actions";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,6 +43,7 @@ import {
 } from "@/lib/issuer-layout";
 import { DirectorShareholderAlertCard } from "@/components/director-shareholder-alert-card";
 import { areDirectorShareholdersReadyForApplicationSubmit } from "@/lib/director-shareholder-onboarding-ui";
+import { useApplicationProcessingFeeOrder } from "@/hooks/use-application-processing-fee";
 import {
   useApplication,
   useCancelApplication,
@@ -88,6 +90,11 @@ function ApplicationDetailPageBody() {
   const application = React.useMemo(
     () => (rawApplication ? prepareApplication(rawApplication as ApiApplication) : null),
     [rawApplication]
+  );
+
+  const processingFeeOrderQuery = useApplicationProcessingFeeOrder(
+    applicationId,
+    Boolean(application && application.status !== "draft")
   );
 
   const { data: logs, isLoading: logsLoading } = useApplicationLogs(
@@ -623,6 +630,20 @@ function ApplicationDetailPageBody() {
           </>
         }
       />
+
+      {processingFeeOrderQuery.data?.status === "COMPLETED" &&
+      processingFeeOrderQuery.data.id ? (
+        <div className="mt-4">
+          <p className="text-sm font-semibold">Application Fee Receipt</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            View or download your receipt for this payment.
+          </p>
+          <FeeReceiptActions
+            endpoint={`/v1/applications/${applicationId}/processing-fee/${processingFeeOrderQuery.data.id}/receipt/pdf`}
+            receiptActionLabel="application fee receipt"
+          />
+        </div>
+      ) : null}
 
       <Tabs
         value={activeTab}

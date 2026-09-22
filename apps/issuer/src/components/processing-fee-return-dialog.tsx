@@ -25,6 +25,7 @@ import {
   OnboardingFeeFailureView,
   OnboardingFeeUnderReviewView,
 } from "@/components/onboarding-fee-return-views";
+import { FeeReceiptActions } from "@/components/fee-receipt-actions";
 
 const SUCCESS_REDIRECT_DELAY_MS = 2_500;
 
@@ -166,11 +167,17 @@ export function ProcessingFeeReturnDialog({
         ) : null}
         {resolved.phase === "submitting" ? <ApplicationSubmittingView /> : null}
         {resolved.phase === "submitted" ? (
-          <ApplicationSubmittedSuccessView
-            onContinue={() => {
-              router.replace("/applications");
-            }}
-          />
+          <>
+            <ApplicationSubmittedSuccessView
+              onContinue={() => {
+                router.replace("/applications");
+              }}
+            />
+            <FeeReceiptActions
+              endpoint={`/v1/applications/${applicationId}/processing-fee/${feeId}/receipt/pdf`}
+              receiptActionLabel="application fee receipt"
+            />
+          </>
         ) : null}
         {resolved.phase === "under-review" ? (
           <OnboardingFeeUnderReviewView onContinue={onLeaveForNow} />

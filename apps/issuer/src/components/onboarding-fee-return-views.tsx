@@ -10,6 +10,7 @@ import { formatCurrency } from "@cashsouk/config";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@cashsouk/ui";
 import { PaymentUnderReviewNotice } from "@/components/payment-under-review-notice";
+import { FeeReceiptActions } from "@/components/fee-receipt-actions";
 
 function StatusIcon({
   icon: Icon,
@@ -137,7 +138,13 @@ export function OfferAcceptanceSubmittedSuccessView({
   );
 }
 
-export function OnboardingFeeSuccessView({ amount }: { amount: number }) {
+export function OnboardingFeeSuccessView({
+  amount,
+  feeId,
+}: {
+  amount: number;
+  feeId: string;
+}) {
   return (
     <Card className="mx-auto w-full max-w-md rounded-2xl border bg-card shadow-sm">
       <CardContent className="px-6 py-10 text-center">
@@ -148,6 +155,11 @@ export function OnboardingFeeSuccessView({ amount }: { amount: number }) {
           <p className="text-3xl font-bold text-primary">{formatCurrency(amount)}</p>
           <p className="text-sm text-muted-foreground">has been received.</p>
         </div>
+
+        <FeeReceiptActions
+          endpoint={`/v1/issuer/onboarding-fee/${feeId}/receipt/pdf`}
+          receiptActionLabel="onboarding fee receipt"
+        />
       </CardContent>
     </Card>
   );

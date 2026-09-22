@@ -213,7 +213,9 @@ export function OnboardingFeeReturnDialog({
           <OnboardingFeeConfirmingView onCancel={handleTryAgain} />
         ) : null}
         {phase === "starting-ekyc" ? <OnboardingFeeStartingEkycView /> : null}
-        {phase === "success" && fee ? <OnboardingFeeSuccessView amount={fee.amount} /> : null}
+        {phase === "success" && fee ? (
+          <OnboardingFeeSuccessView amount={fee.amount} feeId={fee.id} />
+        ) : null}
         {phase === "under-review" ? (
           <OnboardingFeeUnderReviewView onContinue={handleTryAgain} />
         ) : null}

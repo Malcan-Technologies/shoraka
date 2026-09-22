@@ -54,7 +54,7 @@ export function ProspectusMarcAssessmentSummary({
 
   return (
     <div className="space-y-3" data-prospectus-marc-assessment>
-      <h4 className="text-sm font-semibold text-foreground">MARC Credit Assessment</h4>
+      <h4 className="text-sm font-semibold text-foreground">MARC Data</h4>
       {loading ? (
         <p className="text-sm text-muted-foreground">Loading MARC assessment…</p>
       ) : !usable ? (
@@ -72,8 +72,8 @@ export function ProspectusMarcAssessmentSummary({
                 {MARC_ASSESSMENT_REQUIRED_MESSAGE}
               </p>
               <p className="text-xs leading-relaxed text-muted-foreground">
-                MARC Credit Grade, Score, and Probability of Default are read from the issuer
-                organization assessment.
+                MARC Data Credit Grade, MARC Data Credit Score, and MARC Data Probability of
+                Default are read from the issuer organization assessment.
               </p>
             </div>
           </div>
@@ -90,13 +90,16 @@ export function ProspectusMarcAssessmentSummary({
       ) : (
         <div className="space-y-3">
           <ProspectusInfoGrid columns={3}>
-            <ProspectusReadOnlyField label="Credit Grade" value={assessment!.creditGrade ?? "—"} />
             <ProspectusReadOnlyField
-              label="Credit Score"
+              label="MARC Data Credit Grade"
+              value={assessment!.creditGrade ?? "—"}
+            />
+            <ProspectusReadOnlyField
+              label="MARC Data Credit Score"
               value={formatMarcScore(assessment!.creditScore)}
             />
             <ProspectusReadOnlyField
-              label="Probability of Default"
+              label="MARC Data Probability of Default"
               value={formatMarcPd(assessment!.probabilityOfDefault)}
             />
             <ProspectusReadOnlyField

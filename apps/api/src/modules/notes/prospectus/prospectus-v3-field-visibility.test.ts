@@ -19,7 +19,7 @@ describe("prospectus V3 field visibility", () => {
     const html = buildProspectusPageTwoHtml(SAMPLE_PROSPECTUS_PAGE_TWO);
     expect(html).not.toContain("Paymaster Rating");
     expect(html).not.toContain("Confidence Grading");
-    expect(html).toContain("MARC Credit Grade");
+    expect(html).toContain("MARC Data Credit Grade");
   });
 
   it("Page 3 omits Paymaster Grading and Confidence Grading and omits OCF/FCF/Trend", () => {

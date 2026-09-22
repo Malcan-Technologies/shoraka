@@ -7,11 +7,13 @@ import {
   issuerOnboardingFeeIdParamSchema,
   issuerOnboardingFeeStatusParamSchema,
 } from "./onboarding-fee-schemas";
+import { gatewayPaymentReceiptModeQuerySchema } from "./deposit-schemas";
 import {
   createIssuerOnboardingFee,
   getIssuerOnboardingFee,
   getIssuerOnboardingFeeStatus,
 } from "./onboarding-fee-service";
+import { getIssuerOnboardingFeeReceiptPdfUrl } from "./receipt/issuer-receipt-service";
 
 function getActor(req: Request, res: Response) {
   if (!req.user?.user_id) {
@@ -67,3 +69,16 @@ issuerOnboardingFeeRouter.get("/:id", async (req: Request, res: Response, next: 
     next(error);
   }
 });
+
+issuerOnboardingFeeRouter.get(
+  "/:id/receipt/pdf",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = issuerOnboardingFeeIdParamSchema.parse(req.params);
+      const { mode } = gatewayPaymentReceiptModeQuerySchema.parse(req.query);
+      send(res, await getIssuerOnboardingFeeReceiptPdfUrl(getActor(req, res), id, mode));
+    } catch (error) {
+      next(error);
+    }
+  }
+);

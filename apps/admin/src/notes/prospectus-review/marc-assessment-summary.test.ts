@@ -19,10 +19,10 @@ describe("Prospectus MARC assessment summary", () => {
   });
 
   it("renders a read-only org MARC summary with a manage action, not officer inputs", () => {
-    expect(source).toContain("MARC Credit Assessment");
-    expect(source).toContain('label="Credit Grade"');
-    expect(source).toContain('label="Credit Score"');
-    expect(source).toContain('label="Probability of Default"');
+    expect(source).toContain("MARC Data");
+    expect(source).toContain('label="MARC Data Credit Grade"');
+    expect(source).toContain('label="MARC Data Credit Score"');
+    expect(source).toContain('label="MARC Data Probability of Default"');
     expect(source).toContain('label="Report"');
     expect(source).toContain('label="Last Updated"');
     expect(source).toContain("View Report");
