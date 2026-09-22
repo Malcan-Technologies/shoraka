@@ -2,53 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
-import { createApiClient, useAuthToken, useOrganization } from "@cashsouk/config";
+import { useOrganization } from "@cashsouk/config";
 import { IdentityVerifyStep, OnboardingLayout } from "@cashsouk/ui";
-import { IssuerCompanySealCard } from "@/components/issuer-company-seal-card";
-import { FeeReceiptActions } from "@/components/fee-receipt-actions";
-import { useIssuerOnboardingFeeStatusQuery } from "@/hooks/use-issuer-onboarding-fee";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 export default function OnboardingVerifyPage() {
   const router = useRouter();
-  const { getAccessToken } = useAuthToken();
   const { activeOrganization, startCorporateOnboarding, refreshOrganizations } = useOrganization();
-  const apiClient = createApiClient(API_URL, getAccessToken);
-  const sealQuery = useQuery({
-    queryKey: ["issuer-company-seal", activeOrganization?.id],
-    enabled: Boolean(activeOrganization?.id),
-    queryFn: async () => {
-      const res = await apiClient.getIssuerCompanySeal(activeOrganization!.id);
-      if (!res.success) throw new Error(res.error.message);
-      return res.data.seal;
-    },
-  });
-
-  const feeStatusQuery = useIssuerOnboardingFeeStatusQuery(activeOrganization?.id);
-
-  const { data: currentUser } = useQuery({
-    queryKey: ["current-user"],
-    queryFn: async () => {
-      const result = await apiClient.get<{
-        userId: string;
-        user: {
-          first_name: string | null;
-          last_name: string | null;
-        };
-      }>("/v1/auth/me");
-      if (!result.success) throw new Error(result.error.message);
-      return result.data;
-    },
-    staleTime: 1000 * 60 * 5,
-    enabled: Boolean(activeOrganization),
-  });
-
-  const canEditCompanySeal = Boolean(
-    activeOrganization?.isOwner ||
-      activeOrganization?.members?.find((m) => m.id === currentUser?.userId)
-  );
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -63,17 +23,6 @@ export default function OnboardingVerifyPage() {
     setError(null);
 
     try {
-      if (sealQuery.isLoading) {
-        setIsLoading(false);
-        setError("Loading company seal…");
-        return;
-      }
-      if (!sealQuery.data) {
-        setIsLoading(false);
-        setError("Please upload a company seal in Issuer Profile before continuing onboarding.");
-        return;
-      }
-
       const org = activeOrganization;
       const companyName = org.name?.trim() ?? "";
       const { verifyLink } = await startCorporateOnboarding(org.id, companyName);
@@ -90,6 +39,11 @@ export default function OnboardingVerifyPage() {
         router.replace("/onboarding/terms");
         return;
       }
+      if (/company seal/i.test(message)) {
+        setError("Please upload a company seal in Issuer Profile before continuing onboarding.");
+        setIsLoading(false);
+        return;
+      }
       setError(message);
       setIsLoading(false);
     }
@@ -104,25 +58,6 @@ export default function OnboardingVerifyPage() {
       title="Onboarding"
       description="Complete company verification (eKYB) with our verification partner."
     >
-      <IssuerCompanySealCard
-        organizationId={activeOrganization.id}
-        canEdit={canEditCompanySeal}
-      />
-
-      {feeStatusQuery.data?.latestPayment?.status === "COMPLETED" &&
-      feeStatusQuery.data?.latestPayment?.id ? (
-        <div className="mt-6">
-          <p className="text-sm font-semibold">Onboarding Fee Receipt</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            View or download your receipt for this payment.
-          </p>
-          <FeeReceiptActions
-            endpoint={`/v1/issuer/onboarding-fee/${feeStatusQuery.data.latestPayment.id}/receipt/pdf`}
-            receiptActionLabel="onboarding fee receipt"
-          />
-        </div>
-      ) : null}
-
       <IdentityVerifyStep
         onContinue={handleContinue}
         isLoading={isLoading}
