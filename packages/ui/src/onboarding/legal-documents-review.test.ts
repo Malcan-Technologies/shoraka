@@ -1,4 +1,8 @@
-import { LEGAL_DOCUMENT_CHECKBOX_WORDING } from "@cashsouk/types";
+import {
+  GUARANTOR_WARNING_STATEMENT_CHECKBOXES,
+  LEGAL_DOCUMENT_CHECKBOX_WORDING,
+  legalDocumentCheckboxItems,
+} from "@cashsouk/types";
 import { legalChecklistStatusLabel } from "./legal-document-checklist";
 import {
   legalDocumentCheckboxWording,
@@ -79,8 +83,15 @@ describe("legal documents review modes and copy", () => {
     expect(legalDocumentCheckboxWording("INVESTOR_AGREEMENT")).toBe(
       "I have read and agree to this agreement."
     );
-    expect(legalDocumentCheckboxWording("GUARANTOR_WARNING_STATEMENT")).toBe(
-      "I have read and understood this warning statement."
+    expect(legalDocumentCheckboxItems("GUARANTOR_WARNING_STATEMENT")).toEqual([
+      GUARANTOR_WARNING_STATEMENT_CHECKBOXES[0],
+      GUARANTOR_WARNING_STATEMENT_CHECKBOXES[1],
+    ]);
+    expect(legalDocumentCheckboxWording("GUARANTOR_WARNING_STATEMENT")).toContain(
+      "By proceeding to act as guarantor"
+    );
+    expect(legalDocumentCheckboxWording("GUARANTOR_WARNING_STATEMENT")).toContain(
+      "joint and several guarantor"
     );
     expect(LEGAL_DOCUMENT_CHECKBOX_WORDING.RISK_STATEMENT).toBe(
       legalDocumentCheckboxWording("RISK_STATEMENT")

@@ -1,5 +1,8 @@
 import { test, expect, type Page } from "@playwright/test";
-import type { ExternalSigningSessionDto } from "@cashsouk/types";
+import {
+  GUARANTOR_WARNING_STATEMENT_CHECKBOXES,
+  type ExternalSigningSessionDto,
+} from "@cashsouk/types";
 
 function envelopeSession(input: {
   assignmentStatuses: Array<{ documentId: string; name: string; status: "PENDING" | "SIGNED" }>;
@@ -145,6 +148,54 @@ test.describe("External signing page", () => {
 
     await expect(page.getByText("Facility Agreement")).toBeVisible();
     await expect(page.getByRole("button", { name: /sign/i })).toBeVisible();
+  });
+
+  test("guarantor warning requires both acknowledgement checkboxes", async ({ page }) => {
+    const session = envelopeSession({
+      assignmentStatuses: [
+        { documentId: "doc-jsg", name: "Joint and Several Guarantee", status: "PENDING" },
+      ],
+    });
+    session.envelope.recipients[0] = {
+      ...session.envelope.recipients[0]!,
+      role_key: "guarantor",
+      role_label: "Guarantor",
+      name: "Siti Binti Ahmad",
+      email: "siti@example.com",
+    };
+    session.warning = {
+      required: true,
+      status: "opened",
+      legal_document_version_id: "ver-1",
+      title: "Guarantor Warning Statement",
+      checkbox_wordings: [...GUARANTOR_WARNING_STATEMENT_CHECKBOXES],
+    };
+
+    await page.route("**/v1/signing/external/**", async (route) => {
+      await route.fulfill(jsonOk(session));
+    });
+
+    await page.goto("/signing/external/ext-token");
+
+    await expect(page.getByRole("heading", { name: "Guarantor Warning Statement" })).toBeVisible();
+    await expect(
+      page.getByText("I have read and understood this warning statement.")
+    ).toHaveCount(0);
+    await expect(
+      page.getByLabel(GUARANTOR_WARNING_STATEMENT_CHECKBOXES[0], { exact: true })
+    ).toBeVisible();
+    await expect(
+      page.getByLabel(GUARANTOR_WARNING_STATEMENT_CHECKBOXES[1], { exact: true })
+    ).toBeVisible();
+
+    const continueButton = page.getByRole("button", { name: /^continue$/i });
+    await expect(continueButton).toBeDisabled();
+
+    await page.getByLabel(GUARANTOR_WARNING_STATEMENT_CHECKBOXES[0], { exact: true }).click();
+    await expect(continueButton).toBeDisabled();
+
+    await page.getByLabel(GUARANTOR_WARNING_STATEMENT_CHECKBOXES[1], { exact: true }).click();
+    await expect(continueButton).toBeEnabled();
   });
 });
 
