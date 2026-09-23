@@ -493,6 +493,40 @@ describe("GeneratedDocumentsService.generateDocument", () => {
     );
   });
 
+  it("ignores invoiceId on a facility application and merges the contract offer", async () => {
+    applicationRepository.findById.mockResolvedValue({
+      ...baseApplication,
+      financing_structure: { structure_type: "new_contract" },
+      invoices: [
+        {
+          id: "inv_1",
+          display_reference: "INV-ARF-202608-0N5",
+          offer_details: {
+            offered_amount: 36000,
+            sent_at: "2026-08-20T00:00:00.000Z",
+          },
+        },
+      ],
+    } as never);
+
+    await service.generateDocument({
+      applicationId,
+      typeKey: "arf_contract_facility_lo",
+      format: "pdf",
+      userId,
+      invoiceId: "inv_1",
+      contractId: null,
+    });
+
+    expect(buildMerge.buildFacilityLoMergeData).toHaveBeenCalledWith(
+      expect.objectContaining({
+        offerKind: "contract",
+        invoice: null,
+        contract: expect.objectContaining({ offer_details: baseApplication.contract.offer_details }),
+      })
+    );
+  });
+
   it("rejects invoice_only LO when authorised representatives are missing on the invoice", async () => {
     applicationRepository.findById.mockResolvedValue({
       ...baseApplication,

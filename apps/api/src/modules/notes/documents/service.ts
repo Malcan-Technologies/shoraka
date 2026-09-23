@@ -1,4 +1,3 @@
-import { createHash } from "crypto";
 import {
   NoteInvestmentCertificateAudience,
   NoteInvestmentCertificateStatus,
@@ -32,15 +31,16 @@ import {
 import { sortShorakaCertificates, type ShorakaCertificateOrderInput } from "./certificate-order";
 import { buildNoteDocumentCatalog, type NoteDocumentCatalogSnapshot } from "./catalog";
 import {
-  composeFacilityAgreementPackage,
-  FACILITY_AGREEMENT_PACKAGE_ASSEMBLER_VERSION,
-  FaPackageAnchorError,
-} from "./facility-agreement-package";
+  assembleAndRecordFacilityAgreementPackage,
+  loadShorakaCertificatePdfs,
+  sha256Hex,
+} from "./compile-facility-agreement-package";
 import {
   facilityAgreementPackageFilename,
   safeNoteDocumentFilename,
   shorakaCertificateFilename,
 } from "./filenames";
+import { letterOfOfferGenerateTarget } from "./lo-generate-target";
 
 export type NoteDocumentContent = {
   buffer: Buffer;
@@ -49,10 +49,6 @@ export type NoteDocumentContent = {
 };
 
 type NoteDocumentsActor = { userId: string };
-
-function sha256Hex(buffer: Buffer): string {
-  return createHash("sha256").update(buffer).digest("hex");
-}
 
 function productIdFromFinancingType(financingType: unknown): string | null {
   if (!financingType || typeof financingType !== "object" || Array.isArray(financingType)) {
@@ -380,14 +376,25 @@ export class NoteDocumentsService {
     actor: NoteDocumentsActor
   ): Promise<NoteDocumentContent & { templateSha256: string; outputSha256: string }> {
     const note = await this.requireNote(snapshot.noteId);
+    const invoice = note.source_invoice_id
+      ? await this.db.invoice.findUnique({
+          where: { id: note.source_invoice_id },
+          select: { contract_id: true },
+        })
+      : null;
+    const target = letterOfOfferGenerateTarget({
+      sourceInvoiceId: note.source_invoice_id,
+      sourceContractId: note.source_contract_id,
+      invoiceContractId: invoice?.contract_id,
+    });
     const generated = await generatedDocumentsService.generateDocument({
       applicationId: note.source_application_id,
       typeKey: "arf_contract_facility_lo",
       format: "pdf",
       userId: actor.userId,
       asAdmin: true,
-      invoiceId: note.source_invoice_id,
-      contractId: note.source_invoice_id ? null : note.source_contract_id,
+      invoiceId: target.invoiceId,
+      contractId: target.contractId,
     });
     return {
       buffer: generated.buffer,
@@ -417,52 +424,29 @@ export class NoteDocumentsService {
       "The signed Facility Agreement is not available."
     );
     const letter = await this.generateLetterOfOffer(snapshot, actor);
-    const certificates: Array<{ id: string; buffer: Buffer; sha256: string }> = [];
-    for (const row of snapshot.shoraka) {
-      const key = row.certificate_s3_key?.trim();
-      if (!key) continue;
-      const buffer = await loadPdfFromKey(key, "A Shoraka certificate could not be loaded.");
-      certificates.push({
-        id: row.id,
-        buffer,
-        sha256: row.certificate_file_sha256?.trim() || sha256Hex(buffer),
-      });
-    }
-
-    let composed;
-    try {
-      composed = await composeFacilityAgreementPackage({
-        signedFaPdf,
-        letterOfOfferPdf: letter.buffer,
-        certificatePdfs: certificates.map((certificate) => certificate.buffer),
-        title: `Facility Agreement Package ${snapshot.noteReference} (compiled copy)`,
-      });
-    } catch (error) {
-      if (error instanceof FaPackageAnchorError) {
-        throw new AppError(409, error.code, error.message);
-      }
-      throw error;
-    }
-
-    await this.db.facilityAgreementPackageEvidence.create({
-      data: {
-        note_id: snapshot.noteId,
-        application_id: note.source_application_id,
-        contract_id: note.source_contract_id,
-        invoice_id: note.source_invoice_id,
-        assembler_version: FACILITY_AGREEMENT_PACKAGE_ASSEMBLER_VERSION,
-        signed_fa_sha256: signedFa.signed_file_sha256?.trim() || sha256Hex(signedFaPdf),
-        lo_template_sha256: letter.templateSha256,
-        lo_output_sha256: letter.outputSha256,
-        certificate_ids: certificates.map((certificate) => certificate.id),
-        certificate_hashes: certificates.map((certificate) => certificate.sha256),
-        output_sha256: sha256Hex(composed.bytes),
-        created_by_user_id: actor.userId,
+    const certificates = await loadShorakaCertificatePdfs(snapshot.shoraka, (key) =>
+      loadPdfFromKey(key, "A Shoraka certificate could not be loaded.")
+    );
+    const composed = await assembleAndRecordFacilityAgreementPackage({
+      db: this.db,
+      signedFaPdf,
+      signedFaSha256: signedFa.signed_file_sha256?.trim() || sha256Hex(signedFaPdf),
+      letterOfOfferPdf: letter.buffer,
+      loTemplateSha256: letter.templateSha256,
+      loOutputSha256: letter.outputSha256,
+      certificates,
+      title: `Facility Agreement Package ${snapshot.noteReference} (compiled copy)`,
+      evidence: {
+        noteId: snapshot.noteId,
+        applicationId: note.source_application_id,
+        contractId: note.source_contract_id,
+        invoiceId: note.source_invoice_id,
+        createdByUserId: actor.userId,
       },
     });
 
     return {
-      buffer: composed.bytes,
+      buffer: composed.buffer,
       filename: facilityAgreementPackageFilename(snapshot.noteReference),
       contentType: "application/pdf",
     };

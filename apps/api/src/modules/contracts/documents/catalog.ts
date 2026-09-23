@@ -5,6 +5,7 @@ import {
   type FacilityDocumentCatalogItem,
 } from "@cashsouk/types";
 import {
+  facilityAgreementPackageAvailability,
   letterOfOfferAvailability,
   signingDocumentAvailability,
   underlyingContractAvailability,
@@ -14,6 +15,8 @@ import type {
   NoteSigningDocumentLike,
   NoteSigningEnvelopeLike,
 } from "../../notes/documents/envelope";
+import type { ShorakaCertificateOrderInput } from "../../notes/documents/certificate-order";
+import { facilityAgreementPackageFilename } from "../../notes/documents/filenames";
 import { safeFacilityDocumentFilename } from "./filenames";
 
 export type FacilityUnderlyingContract = {
@@ -24,6 +27,7 @@ export type FacilityUnderlyingContract = {
 export type FacilityDocumentCatalogSnapshot = {
   facilityId: string;
   facilityReference: string;
+  originatingApplicationId: string | null;
   underlyingContract: FacilityUnderlyingContract | null;
   envelope: NoteSigningEnvelopeLike | null;
   jsg: NoteSigningDocumentLike | null;
@@ -34,6 +38,8 @@ export type FacilityDocumentCatalogSnapshot = {
     offerSent: boolean;
     declaredOnProduct: boolean;
   };
+  shoraka: ShorakaCertificateOrderInput[];
+  faPackageGeneratedAt: string | null;
 };
 
 function row(
@@ -48,13 +54,17 @@ export function buildFacilityDocumentCatalog(
   const ref = snapshot.facilityReference;
   const underlying = underlyingContractAvailability(Boolean(snapshot.underlyingContract));
   const lo = letterOfOfferAvailability(snapshot.letterOfOffer);
-  const fa = signingDocumentAvailability({
+  const signedFa = signingDocumentAvailability({
     envelope: snapshot.envelope,
     document: snapshot.facilityAgreement,
     description: ADMIN_DOCUMENT_DESCRIPTIONS.facilityAgreement,
     includedLabel: "Facility Agreement",
     missingFromPackageMessage:
       "This facility's completed signing package does not include a Facility Agreement.",
+  });
+  const faPackage = facilityAgreementPackageAvailability({
+    signedFaAvailable: signedFa.available,
+    letterOfOfferAvailable: lo.available,
   });
   const jsg = signingDocumentAvailability({
     envelope: snapshot.envelope,
@@ -91,9 +101,10 @@ export function buildFacilityDocumentCatalog(
     row({
       id: FACILITY_DOCUMENT_FIXED_IDS.facilityAgreement,
       group: "facility-agreement",
-      title: "Facility Agreement",
-      filename: fa.available ? safeFacilityDocumentFilename(ref, "FA") : null,
-      ...fa,
+      title: "Facility Agreement Package",
+      filename: faPackage.available ? facilityAgreementPackageFilename(ref) : null,
+      generatedAt: snapshot.faPackageGeneratedAt,
+      ...faPackage,
     }),
     row({
       id: FACILITY_DOCUMENT_FIXED_IDS.jsg,

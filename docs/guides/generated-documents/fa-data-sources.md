@@ -63,17 +63,20 @@ Product workflow: Financing type → Signing package → add **Facility Agreemen
 
 ## Derived Facility Agreement Package (Admin Documents)
 
-Admin note detail **Documents** compiles a derivative PDF on each view/download. The signed `SigningDocument` (`signed_s3_key`, hash, completed envelope) is never overwritten.
+Admin **note** and **facility** Documents tabs compile a derivative PDF on each view/download. The signed `SigningDocument` (`signed_s3_key`, hash, completed envelope) is never overwritten.
 
-`GET /v1/admin/notes/:id/documents` lists the package; `GET /v1/admin/notes/:id/documents/facility-agreement-package` returns `Facility-Agreement-Package-<note-reference>.pdf`. Treat it as a compiled copy, not the digitally signed original. The signed Facility Agreement original is listed on Admin facility detail Documents (`GET /v1/admin/contracts/:id/documents/facility-agreement`).
+- Note: `GET /v1/admin/notes/:id/documents` lists the package; `GET /v1/admin/notes/:id/documents/facility-agreement-package` returns `Facility-Agreement-Package-<note-reference>.pdf`. Certificates are that note’s stored Shoraka / Tawarruq files.
+- Facility: `GET /v1/admin/contracts/:id/documents` lists the same package under id `facility-agreement`; `GET /v1/admin/contracts/:id/documents/facility-agreement` returns `Facility-Agreement-Package-<facility-reference>.pdf`. Certificates are every uploaded Shoraka / Tawarruq file on notes with `source_contract_id` equal to this facility, in the same lifecycle-then-creation order as the note tab.
+
+Treat the download as a compiled copy, not the digitally signed original.
 
 Assembler v1 page order:
 
 1. Signed FA through the unique `SCHEDULE 3 (LETTER OF OFFER)` divider page
-2. Letter of Offer regenerated from the current template and frozen offer/application data
+2. Letter of Offer regenerated from the current template and the **facility** offer (authorised representatives live on that offer; facility-linked invoice offers do not stamp `offer_acceptance`)
 3. Remaining signed FA through the unique `Attachment (e-Certificate)` divider (inclusive)
-4. Every currently stored Shoraka / Tawarruq certificate for the note, in lifecycle then creation order
+4. Currently stored Shoraka / Tawarruq certificates (note: that note; facility: all child notes)
 
-Zero certificates is valid: the e-Certificate divider stays, with no extra pages. Missing, duplicated, or out-of-order dividers fail closed. Each compile writes `facility_agreement_package_evidence` (assembler version, signed-FA hash, LO template/output hashes, ordered certificate ids/hashes, output hash, actor, time).
+Zero certificates is valid: the e-Certificate divider stays, with no extra pages. Missing, duplicated, or out-of-order dividers fail closed. Each compile writes `facility_agreement_package_evidence` (assembler version, signed-FA hash, LO template/output hashes, ordered certificate ids/hashes, output hash, actor, time). Facility compiles store `note_id` null.
 
 Today only issuer-disbursement Shoraka certificates exist. Later trade-order stages append more certificate pages to the same package. A future LO template change can change the compiled bytes; evidence retains the component hashes for that output.
