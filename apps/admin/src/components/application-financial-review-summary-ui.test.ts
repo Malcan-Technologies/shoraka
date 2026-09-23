@@ -83,6 +83,14 @@ describe("Admin Financial Summary table UI", () => {
     expect(ratiosSlice).not.toContain('"ebit"');
   });
 
+  it("renders dependency-aware EBIT helper text", () => {
+    const source = readFileSync(tablePath, "utf8");
+    expect(source).toContain('case "ebit"');
+    expect(source).toContain('Missing required financial inputs');
+    expect(source).toContain('Missing: Profit / Loss Before Tax');
+    expect(source).toContain('Missing: Interest Costs');
+  });
+
   it("calculated metrics display Cannot calculate and show helper text for turnover growth / receivables days", () => {
     const source = readFileSync(tablePath, "utf8");
     expect(source).toContain("Cannot calculate");

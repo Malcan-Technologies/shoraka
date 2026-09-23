@@ -1222,6 +1222,14 @@ export function ApplicationFinancialReviewContent({
     const fs = specCol.kind === "ctos" ? getFsCol(colIdx) : null;
 
     switch (rowId) {
+      case "ebit": {
+        // EBIT = PBT + Interest Costs. We never ask Admin to type EBIT directly.
+        const pbt = resolvedByYear.get(year)?.fields.plnpbt?.value ?? null;
+        const interestCosts = resolvedByYear.get(year)?.fields.interest_cost?.value ?? null;
+        if (pbt == null && interestCosts == null) return "Missing required financial inputs";
+        if (pbt == null) return "Missing: Profit / Loss Before Tax";
+        return "Missing: Interest Costs";
+      }
       case "turnover_growth": {
         if (specCol.kind === "ctos" && fs && ctosFlatNumericPresent(fs, "turnover_growth")) return null;
         const targetTurnover = turnoverByYear.get(year) ?? null;
@@ -1273,14 +1281,14 @@ export function ApplicationFinancialReviewContent({
         if (cashAndBank == null) return "Missing: Cash & Bank";
         if (tradeReceivables == null) return "Missing: Trade Receivables";
         if (curlib == null) return "Missing: Current Liabilities";
-        return "Missing: Quick Ratio";
+        return "Missing required financial inputs";
       }
       case "currat": {
         const currentAssets = resolvedByYear.get(year)?.fields.bscatot?.value ?? null;
         const currentLiabilities = resolvedByYear.get(year)?.fields.curlib?.value ?? null;
         if (currentAssets == null) return "Missing: Current Assets";
         if (currentLiabilities == null) return "Missing: Current Liabilities";
-        return "Missing: Current Ratio";
+        return "Missing required financial inputs";
       }
       case "return_of_equity": {
         const pat = resolvedByYear.get(year)?.fields.plnpat?.value ?? null;

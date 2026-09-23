@@ -498,7 +498,7 @@ describe("page three coverage verification", () => {
     );
     const missingRoe = missingFlat.find((r) => r.label === "Return on Equity");
     expect(missingRoe?.value).toBe("Cannot calculate");
-    expect(missingRoe?.hint).toBe("Missing: Return on Equity");
+    expect(missingRoe?.hint).toBe("Missing required financial inputs");
   });
 
   it("uses direct CTOS currat only for Current Ratio (no CA÷CL fallback)", () => {
@@ -514,7 +514,36 @@ describe("page three coverage verification", () => {
     );
     const currentRatioMissing = missingCurrat.find((r) => r.label === "Current Ratio");
     expect(currentRatioMissing?.value).toBe("Cannot calculate");
-    expect(currentRatioMissing?.hint).toBe("Missing: Current Ratio");
+    expect(currentRatioMissing?.hint).toBe("Missing required financial inputs");
+  });
+
+  it("builds EBIT helper text from dependency presence (PBT + Interest Costs)", () => {
+    // PBT exists -> missing Interest Costs.
+    const missingInterestCosts = buildIncomeStatementResolvedRows(
+      { ...yearRaw, ebit: null, plnpbt: 120_000, plnpat: 100_000 },
+      undefined
+    );
+    expect(missingInterestCosts.find((r) => r.label === "EBIT")?.hint).toBe(
+      "Missing: Interest Costs"
+    );
+
+    // Interest Costs exists -> missing PBT (PBT missing but PAT still exists).
+    const missingPbt = buildIncomeStatementResolvedRows(
+      { ...yearRaw, ebit: null, plnpbt: null, plnpat: 100_000 },
+      undefined
+    );
+    expect(missingPbt.find((r) => r.label === "EBIT")?.hint).toBe(
+      "Missing: Profit / Loss Before Tax"
+    );
+
+    // Both missing -> required financial inputs.
+    const missingBoth = buildIncomeStatementResolvedRows(
+      { ...yearRaw, ebit: null, plnpbt: null, plnpat: null },
+      undefined
+    );
+    expect(missingBoth.find((r) => r.label === "EBIT")?.hint).toBe(
+      "Missing required financial inputs"
+    );
   });
 
   it("uses frozen year order without independent Application selection", () => {

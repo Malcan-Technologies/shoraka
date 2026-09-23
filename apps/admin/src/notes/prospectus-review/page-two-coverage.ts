@@ -280,9 +280,21 @@ export function buildPageTwoFinancialComparisonTable(
           const hint = (() => {
             switch (key) {
               case "roe":
-                return "Missing: Return on Equity";
+                return (() => {
+                  const pat = raw.plnpat;
+                  const netWorth = raw.networth;
+                  if (pat == null) return "Missing: Profit / Loss After Tax";
+                  if (netWorth == null) return "Missing: Total Equity / Net Worth";
+                  return "Missing required financial inputs";
+                })();
               case "currentRatio":
-                return "Missing: Current Ratio";
+                return (() => {
+                  const currentAssets = raw.bscatot;
+                  const currentLiabilities = raw.curlib;
+                  if (currentAssets == null) return "Missing: Current Assets";
+                  if (currentLiabilities == null) return "Missing: Current Liabilities";
+                  return "Missing required financial inputs";
+                })();
               case "netDebtEquity":
                 return "Missing: Net Debt / Equity";
               case "interestCoverage":

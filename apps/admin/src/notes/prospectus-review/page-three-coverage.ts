@@ -235,11 +235,11 @@ export function buildIncomeStatementResolvedRows(
   const ebitValue = formatMoney(ebit);
   const ebitHint =
     ebitValue === DATA_NOT_AVAILABLE
-      ? pat != null
+      ? pbt != null
         ? "Missing: Interest Costs"
-        : pbt != null
-          ? "Missing: Interest Costs"
-          : "Missing: Profit / Loss Before Tax"
+        : pat != null
+          ? "Missing: Profit / Loss Before Tax"
+          : "Missing required financial inputs"
       : null;
 
   const netProfitMarginPoints = resolveCtosPatMarginPercent({ plnpat: pat, turnover: revenue });
@@ -310,7 +310,7 @@ export function buildBalanceSheetResolvedRows(
         ? "Missing: Current Assets"
         : currentLiabilities == null
           ? "Missing: Current Liabilities"
-          : "Missing: Current Ratio"
+          : "Missing required financial inputs"
       : null;
 
   const quickRatioValue = formatMultiple(rawQuickRatio);
@@ -322,7 +322,7 @@ export function buildBalanceSheetResolvedRows(
           ? "Missing: Trade Receivables"
           : currentLiabilities == null
             ? "Missing: Current Liabilities"
-            : "Missing: Quick Ratio"
+            : "Missing required financial inputs"
       : null;
 
   return [
@@ -369,17 +369,20 @@ export function buildCoverageResolvedRows(
   >
 ): Array<{ label: string; value: string; hint?: string | null }> {
   // System-derived metrics from Stage 4A raw fields (do not use officer overrides).
+  const plnpbt = parseNumber(yearRaw.plnpbt);
+  const plnpat = parseNumber(yearRaw.plnpat);
   const interestCoverage = parseNumber(yearRaw.interestCoverage);
   const dscr = parseNumber(yearRaw.dscr);
   const receivablesDays = parseNumber(yearRaw.receivablesDays);
 
-  const ebit = parseNumber(yearRaw.ebit);
   const interestCoverageValue = formatMultiple(interestCoverage);
   const interestCoverageHint =
     interestCoverageValue === DATA_NOT_AVAILABLE
-      ? ebit != null
-        ? "Missing: Interest Costs"
-        : "Missing: EBIT"
+      ? plnpbt == null
+        ? plnpat == null
+          ? "Missing required financial inputs"
+          : "Missing: Profit / Loss Before Tax"
+        : "Missing: Interest Costs"
       : null;
 
   const annualDebtService = parseNumber(yearRaw.annualDebtService);
@@ -409,7 +412,16 @@ export function buildCoverageResolvedRows(
     return_on_equity: parseNumber(yearRaw.return_on_equity),
   });
   const roeValue = formatPercentFromPoints(roePoints);
-  const roeHint = roeValue === DATA_NOT_AVAILABLE ? "Missing: Return on Equity" : null;
+  const roeHint =
+    roeValue === DATA_NOT_AVAILABLE
+      ? plnpat == null && networth == null
+        ? "Missing required financial inputs"
+        : plnpat == null
+          ? "Missing: Profit / Loss After Tax"
+          : networth == null
+            ? "Missing: Total Equity / Net Worth"
+            : "Missing required financial inputs"
+      : null;
 
   const roaValue = formatPercentFromPoints(
     resolveCtosReturnOnAssetsPercent({

@@ -388,13 +388,35 @@ function ProspectusReviewPageInner() {
         const hint = (() => {
           switch (r.metric) {
             case "ROE (%)":
-              return "Missing: Return on Equity";
+              return (() => {
+                const pat = frozen.raw.plnpat;
+                const netWorth = frozen.raw.networth;
+                if (pat == null) return "Missing: Profit / Loss After Tax";
+                if (netWorth == null) return "Missing: Total Equity / Net Worth";
+                return "Missing required financial inputs";
+              })();
             case "Current Ratio (x)":
-              return "Missing: Current Ratio";
+              return (() => {
+                const currentAssets = frozen.raw.bscatot;
+                const currentLiabilities = frozen.raw.curlib;
+                if (currentAssets == null) return "Missing: Current Assets";
+                if (currentLiabilities == null) return "Missing: Current Liabilities";
+                return "Missing required financial inputs";
+              })();
             case "Net Debt / Equity (x)":
               return "Missing: Net Debt / Equity";
             case "Interest Coverage (x)":
-              return frozen.raw.ebit != null ? "Missing: Interest Costs" : "Missing: EBIT";
+              return (() => {
+                // Interest Coverage = EBIT ÷ Interest Costs, and EBIT = PBT + Interest Costs.
+                // When system values are missing, infer which dependency is absent.
+                const pbt = frozen.raw.plnpbt;
+                const pat = frozen.raw.plnpat;
+                if (pbt == null) {
+                  if (pat == null) return "Missing required financial inputs";
+                  return "Missing: Profit / Loss Before Tax";
+                }
+                return "Missing: Interest Costs";
+              })();
             case "DSCR (x)":
               return frozen.raw.annualDebtService == null
                 ? "Missing: Annual Debt Service"
