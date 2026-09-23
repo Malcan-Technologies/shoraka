@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { type AdminFinancialReviewColumn, isAdminEditableRawFinancialKey } from "@cashsouk/types";
 import { ADMIN_EDITABLE_RAW_FINANCIAL_KEYS } from "@cashsouk/types";
+import { ChevronDownIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -147,6 +148,14 @@ export function AdminEditFinancialStatementDialog({
     byKey: Record<string, RawFieldState>;
     inputs: Record<string, string>;
   } | null>(null);
+  const [openSections, setOpenSections] = React.useState<Record<string, boolean>>({
+    Assets: true,
+    Liabilities: true,
+    "Profit & Loss": true,
+    Equity: false,
+    Costs: false,
+    "Cash Flow / Debt": false,
+  });
 
   React.useEffect(() => {
     if (!open) return;
@@ -176,6 +185,14 @@ export function AdminEditFinancialStatementDialog({
     }
 
     setFieldState({ byKey, inputs });
+    setOpenSections({
+      Assets: true,
+      Liabilities: true,
+      "Profit & Loss": true,
+      Equity: false,
+      Costs: false,
+      "Cash Flow / Debt": false,
+    });
   }, [open, resolvedColumn, calendarYear]);
 
   const onSave = React.useCallback(async () => {
@@ -263,60 +280,85 @@ export function AdminEditFinancialStatementDialog({
         {fieldState ? (
           <div className="space-y-4">
             <div className="max-h-[55vh] overflow-y-auto rounded-xl border p-3">
-              <div className="space-y-5">
+              <div className="space-y-4">
                 {MODAL_GROUPS.map((g) => {
                   const keys = g.keys.filter((k) => fieldState.byKey[k] != null);
                   if (keys.length === 0) return null;
+                  const isOpen = openSections[g.title] ?? true;
 
                   return (
-                    <div key={g.title} className="space-y-3">
-                      <div className="text-sm font-semibold text-foreground">{g.title}</div>
-                      <div className="h-px bg-border/60" />
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        {keys.map((key) => {
-                          const meta = fieldState.byKey[key]!;
-                          const inputDisabled = disabled || meta.readOnly || saving;
+                    <div key={g.title} className="space-y-2">
+                      <button
+                        type="button"
+                        className="w-full flex items-center gap-2 rounded-md border border-border/60 bg-muted/20 px-2.5 py-2 hover:bg-muted/30"
+                        aria-expanded={isOpen}
+                        onClick={() =>
+                          setOpenSections((prev) => ({ ...prev, [g.title]: !isOpen }))
+                        }
+                      >
+                        {isOpen ? (
+                          <ChevronDownIcon className="h-4 w-4" aria-hidden />
+                        ) : (
+                          <ChevronRightIcon className="h-4 w-4" aria-hidden />
+                        )}
+                        <span className="text-sm font-semibold text-foreground">{g.title}</span>
+                      </button>
 
-                          const helperText =
-                            meta.source === "ctos" && meta.readOnly
-                              ? "From CTOS"
-                              : meta.source === "ctos" && !meta.readOnly
-                                ? "Not provided by CTOS"
-                                : meta.editedByAdmin && meta.source === "admin_input"
-                                  ? "Admin Input"
-                                  : meta.source === "user_input" && meta.editedByAdmin
-                                    ? "Edited by Admin"
-                                    : undefined;
+                      {isOpen ? (
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          {keys.map((key) => {
+                            const meta = fieldState.byKey[key]!;
+                            const inputDisabled = disabled || meta.readOnly || saving;
 
-                          return (
-                            <div key={key} className="space-y-1">
-                              <Label htmlFor={`edit-fs-${key}`} className="text-meta font-normal leading-snug">
-                                {meta.label}
-                              </Label>
-                              {helperText ? (
-                                <div className="text-[11px] text-muted-foreground">{helperText}</div>
-                              ) : null}
-                              <Input
-                                id={`edit-fs-${key}`}
-                                inputMode="decimal"
-                                type="number"
-                                step="any"
-                                placeholder="—"
-                                value={fieldState.inputs[key] ?? ""}
-                                disabled={inputDisabled}
-                                onChange={(e) => {
-                                  if (meta.readOnly) return;
-                                  const next = e.target.value;
-                                  setFieldState((prev) => {
-                                    if (!prev) return prev;
-                                    return { ...prev, inputs: { ...prev.inputs, [key]: next } };
-                                  });
-                                }}
-                              />
-                            </div>
-                          );
-                        })}
+                            const helperText =
+                              meta.source === "ctos" && meta.readOnly
+                                ? "From CTOS"
+                                : meta.source === "ctos" && !meta.readOnly
+                                  ? "Not provided by CTOS"
+                                  : meta.editedByAdmin && meta.source === "admin_input"
+                                    ? "Admin Input"
+                                    : meta.source === "user_input" && meta.editedByAdmin
+                                      ? "Edited by Admin"
+                                      : undefined;
+
+                            return (
+                              <div key={key} className="space-y-1">
+                                <Label
+                                  htmlFor={`edit-fs-${key}`}
+                                  className="text-meta font-normal leading-snug"
+                                >
+                                  {meta.label}
+                                </Label>
+                                {helperText ? (
+                                  <div className="text-[11px] text-muted-foreground">
+                                    {helperText}
+                                  </div>
+                                ) : null}
+                                <Input
+                                  id={`edit-fs-${key}`}
+                                  inputMode="decimal"
+                                  type="number"
+                                  step="any"
+                                  placeholder="—"
+                                  value={fieldState.inputs[key] ?? ""}
+                                  disabled={inputDisabled}
+                                  onChange={(e) => {
+                                    if (meta.readOnly) return;
+                                    const next = e.target.value;
+                                    setFieldState((prev) => {
+                                      if (!prev) return prev;
+                                      return {
+                                        ...prev,
+                                        inputs: { ...prev.inputs, [key]: next },
+                                      };
+                                    });
+                                  }}
+                                />
+                              </div>
+                            );
+                          })}
                       </div>
+                      ) : null}
                     </div>
                   );
                 })}

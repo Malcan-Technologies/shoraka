@@ -13,7 +13,7 @@ describe("application financial review Turnover Growth rendering", () => {
     expect(source).toContain('case "turnover_growth"');
     expect(source).toContain("computeTurnoverGrowth({");
     expect(source).toContain("turnoverByYear.get(specCol.year - 1)");
-    expect(source).toContain("Previous FY revenue unavailable");
+    expect(source).toContain("Previous financial year Revenue unavailable");
   });
 
   it("removes CTOS/User Input/Admin Input source badges from the Year header", () => {
@@ -53,6 +53,10 @@ describe("application financial review Turnover Growth rendering", () => {
     expect(source).toContain("Add statement");
     expect(source).not.toContain("Edit Financial Statement");
     expect(source).not.toContain("+ Add Financial Statement");
+
+    // Add statement uses the same neutral Button styling as edit (no default red/accent treatment).
+    expect(source).toContain('title="Add financial statement"');
+    expect(source).not.toContain('text-primary hover:underline cursor-pointer');
 
     // Date range still derived for unaudited FY columns.
     expect(source).toContain("adminFyPeriodLines");

@@ -27,6 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ChevronDownIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -131,6 +132,14 @@ export function AdminAddFinancialStatementDialog({
   const [statementType, setStatementType] =
     React.useState<AdminFinancialStatementStatementType>("AUDITED");
   const [values, setValues] = React.useState<Record<string, string>>({});
+  const [openSections, setOpenSections] = React.useState<Record<string, boolean>>({
+    Assets: true,
+    Liabilities: true,
+    "Profit & Loss": true,
+    Equity: false,
+    Costs: false,
+    "Cash Flow / Debt": false,
+  });
 
   const FORM_KEYS = React.useMemo(() => {
     const keys = [
@@ -146,6 +155,14 @@ export function AdminAddFinancialStatementDialog({
     setSaving(false);
     setStatementType("AUDITED");
     setValues({});
+    setOpenSections({
+      Assets: true,
+      Liabilities: true,
+      "Profit & Loss": true,
+      Equity: false,
+      Costs: false,
+      "Cash Flow / Debt": false,
+    });
   }, [open, calendarYear]);
 
   const yearLabel = calendarYear != null ? `FY${calendarYear}` : "FY";
@@ -234,38 +251,57 @@ export function AdminAddFinancialStatementDialog({
           </div>
 
           <div className="max-h-[55vh] overflow-y-auto rounded-xl border p-3">
-            <div className="space-y-5">
+            <div className="space-y-4">
               {ADD_MODAL_CATEGORIES.map((cat) => {
                 const keys = cat.keys.filter((k) =>
                   FORM_KEYS.includes(k as (typeof FORM_KEYS)[number])
                 );
                 if (keys.length === 0) return null;
+                const isOpen = openSections[cat.title] ?? true;
 
                 return (
-                  <div key={cat.title} className="space-y-3">
-                    <div className="text-sm font-semibold text-foreground">{cat.title}</div>
-                    <div className="h-px bg-border/60" />
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {keys.map((key) => (
-                        <div key={key} className="space-y-1">
-                          <Label htmlFor={`admin-fs-${key}`} className="text-meta">
-                            {UI_FIELD_LABELS[key] ?? (FINANCIAL_FIELD_LABELS as Record<string, string>)[key] ?? key}
-                          </Label>
-                          <Input
-                            id={`admin-fs-${key}`}
-                            inputMode="decimal"
-                            type="number"
-                            step="any"
-                            placeholder="—"
-                            value={values[key] ?? ""}
-                            disabled={disabled || saving}
-                            onChange={(e) =>
-                              setValues((prev) => ({ ...prev, [key]: e.target.value }))
-                            }
-                          />
-                        </div>
-                      ))}
-                    </div>
+                  <div key={cat.title} className="space-y-2">
+                    <button
+                      type="button"
+                      className="w-full flex items-center gap-2 rounded-md border border-border/60 bg-muted/20 px-2.5 py-2 hover:bg-muted/30"
+                      aria-expanded={isOpen}
+                      onClick={() =>
+                        setOpenSections((prev) => ({ ...prev, [cat.title]: !isOpen }))
+                      }
+                    >
+                      {isOpen ? (
+                        <ChevronDownIcon className="h-4 w-4" aria-hidden />
+                      ) : (
+                        <ChevronRightIcon className="h-4 w-4" aria-hidden />
+                      )}
+                      <span className="text-sm font-semibold text-foreground">{cat.title}</span>
+                    </button>
+
+                    {isOpen ? (
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {keys.map((key) => (
+                          <div key={key} className="space-y-1">
+                            <Label htmlFor={`admin-fs-${key}`} className="text-meta">
+                              {UI_FIELD_LABELS[key] ??
+                                (FINANCIAL_FIELD_LABELS as Record<string, string>)[key] ??
+                                key}
+                            </Label>
+                            <Input
+                              id={`admin-fs-${key}`}
+                              inputMode="decimal"
+                              type="number"
+                              step="any"
+                              placeholder="—"
+                              value={values[key] ?? ""}
+                              disabled={disabled || saving}
+                              onChange={(e) =>
+                                setValues((prev) => ({ ...prev, [key]: e.target.value }))
+                              }
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 );
               })}

@@ -640,7 +640,7 @@ export function ApplicationFinancialReviewContent({
     tradeReceivables: { label: "Trade Receivables" },
     totass: {
       label: "Total Assets",
-      formulaHint: "Calculated as Total Assets from issuer financial information when a total isn't provided.",
+      formulaHint: "Sum of asset figures",
       isTotal: true,
     },
     curlib: { label: "Current Liabilities" },
@@ -653,7 +653,7 @@ export function ApplicationFinancialReviewContent({
     tradePayables: { label: "Trade Payables" },
     totlib: {
       label: "Total Liabilities",
-      formulaHint: "Calculated as Total Liabilities from issuer financial information when a total isn't provided.",
+      formulaHint: "Sum of liability figures",
       isTotal: true,
     },
     bsqpuc: { label: "Paid-up Share Capital" },
@@ -683,10 +683,10 @@ export function ApplicationFinancialReviewContent({
     operatingCashFlow: { label: "Operating Cash Flow" },
     freeCashFlow: { label: "Free Cash Flow" },
     annualDebtService: { label: "Annual Debt Service" },
-    ebit: { label: "EBIT", formulaHint: "Profit / (Loss) Before Tax + Interest Costs" },
+    ebit: { label: "EBIT", formulaHint: "Profit / Loss Before Tax + Interest Costs" },
     turnover_growth: {
       label: "Turnover Growth",
-      formulaHint: "Change in revenue compared with the previous FY",
+      formulaHint: "Change in Revenue compared with the previous financial year",
     },
     profit_margin: {
       label: "Net Profit Margin / PAT Margin",
@@ -703,7 +703,7 @@ export function ApplicationFinancialReviewContent({
     },
     return_of_equity: {
       label: "Return on Equity (ROE)",
-      formulaHint: "Profit After Tax ÷ Net Worth",
+      formulaHint: "Profit After Tax ÷ Total Equity",
     },
     roa: {
       label: "Return on Assets (ROA)",
@@ -715,15 +715,15 @@ export function ApplicationFinancialReviewContent({
     },
     gear: {
       label: "Debt / Equity",
-      formulaHint: "Gearing Ratio (Debt ÷ Equity) as a multiple (x)",
+      formulaHint: "Total Liabilities ÷ Net Worth",
     },
     debtEquityPercent: {
       label: "Gearing",
-      formulaHint: "Debt-to-Equity as a percentage",
+      formulaHint: "Total Liabilities ÷ Net Worth",
     },
     netDebtEquity: {
       label: "Net Debt / Equity",
-      formulaHint: "(Borrowings − Cash) ÷ Total Equity",
+      formulaHint: "(Current Borrowings + Non-current Loans − Cash & Bank) ÷ Net Worth",
     },
     interestCoverage: {
       label: "Interest Coverage",
@@ -936,8 +936,13 @@ export function ApplicationFinancialReviewContent({
                 ? toNum(fs.return_on_equity)
                 : null,
           });
-          if (percent == null) return "Not available";
-          return formatNumber(percent, 2) + "%";
+          if (percent != null) return formatNumber(percent, 2) + "%";
+
+          // Fallback to the agreed issuer formula when CTOS finished metric is missing.
+          const pat = resolvedByYear.get(specCol.year)?.fields.plnpat?.value ?? null;
+          const netWorthVal = resolvedByYear.get(specCol.year)?.fields.networth?.value ?? null;
+          if (pat == null || netWorthVal == null || netWorthVal === 0) return "Not available";
+          return `${formatNumber((pat / netWorthVal) * 100, 2)}%`;
         }
         if (!computed || computed.return_of_equity == null) return "Not available";
         return formatNumber(computed.return_of_equity * 100, 2) + "%";
@@ -948,8 +953,19 @@ export function ApplicationFinancialReviewContent({
           const n = resolveCtosCurrentRatio({
             currat: fs && ctosFlatNumericPresent(fs, "currat") ? toNum(fs.currat) : null,
           });
-          if (n == null) return "Not available";
-          return formatNumber(n, 2);
+          if (n != null) return formatNumber(n, 2);
+
+          // Fallback to the agreed issuer formula when CTOS finished metric is missing.
+          const currentAssets = resolvedByYear.get(specCol.year)?.fields.bscatot?.value ?? null;
+          const currentLiabilities = resolvedByYear.get(specCol.year)?.fields.curlib?.value ?? null;
+          if (
+            currentAssets == null ||
+            currentLiabilities == null ||
+            currentLiabilities === 0
+          ) {
+            return "Not available";
+          }
+          return formatNumber(currentAssets / currentLiabilities, 2);
         }
         if (!computed || computed.currat == null) return "Not available";
         return formatNumber(computed.currat, 2);
@@ -957,8 +973,15 @@ export function ApplicationFinancialReviewContent({
       case "workcap": {
         if (ctosColumnMissing(colIdx)) return "Not available";
         if (specCol.kind === "ctos") {
-          if (!fs || !ctosFlatNumericPresent(fs, "workcap")) return "Not available";
-          return formatCurrency(toNum(fs.workcap), { decimals: 0 });
+          if (fs && ctosFlatNumericPresent(fs, "workcap")) {
+            return formatCurrency(toNum(fs.workcap), { decimals: 0 });
+          }
+
+          // Fallback to the agreed issuer formula when CTOS finished metric is missing.
+          const currentAssets = resolvedByYear.get(specCol.year)?.fields.bscatot?.value ?? null;
+          const currentLiabilities = resolvedByYear.get(specCol.year)?.fields.curlib?.value ?? null;
+          if (currentAssets == null || currentLiabilities == null) return "Not available";
+          return formatCurrency(currentAssets - currentLiabilities, { decimals: 0 });
         }
         if (!computed) return "Not available";
         return formatCurrency(computed.workcap, { decimals: 0 });
@@ -1081,10 +1104,8 @@ export function ApplicationFinancialReviewContent({
       }
       case "dscr": {
         const netOperatingIncome = resolvedByYear.get(specCol.year)?.fields.netOperatingIncome?.value ?? null;
-        const ebitda = resolvedByYear.get(specCol.year)?.fields.ebitda?.value ?? null;
         const annualDebtService = resolvedByYear.get(specCol.year)?.fields.annualDebtService?.value ?? null;
-        const numerator = typeof netOperatingIncome === "number" ? netOperatingIncome : ebitda;
-        const v = computeDscr(numerator, annualDebtService);
+        const v = computeDscr(netOperatingIncome, annualDebtService);
         return v == null ? "Not available" : `${formatNumber(v, 2)}x`;
       }
       default: {
@@ -1112,8 +1133,8 @@ export function ApplicationFinancialReviewContent({
         const targetTurnover = turnoverByYear.get(year) ?? null;
         const priorTurnover = turnoverByYear.get(year - 1) ?? null;
         if (targetTurnover == null) return "Revenue unavailable";
-        if (priorTurnover == null) return "Previous FY revenue unavailable";
-        return "Unable to calculate";
+        if (priorTurnover == null) return "Previous financial year Revenue unavailable";
+        return "Turnover growth unavailable";
       }
       case "receivablesDays": {
         const ending = resolvedByYear.get(year)?.fields.tradeReceivables?.value ?? null;
@@ -1126,7 +1147,8 @@ export function ApplicationFinancialReviewContent({
           turnover,
         });
         if (!reason) return null;
-        return reason.replace(/^Unable to calculate\s*—\s*/, "");
+        const cleaned = reason.replace(/^Unable to calculate\s*—\s*/, "");
+        return cleaned.replace(/^previous year /i, "Previous financial year ");
       }
       default:
         return null;
@@ -1138,7 +1160,7 @@ export function ApplicationFinancialReviewContent({
     text === "Not available" ||
     text === "Missing in CTOS extract" ||
     text === "Field empty in CTOS" ||
-    text.startsWith("Unable to calculate");
+    false;
 
   return (
     <>
@@ -1183,23 +1205,28 @@ export function ApplicationFinancialReviewContent({
                         ) : null}
 
                         {spec.kind === "admin_fallback_placeholder" && spec.year != null ? (
-                          <button
+                          <Button
                             type="button"
-                            className="inline-flex items-center gap-1 whitespace-nowrap text-primary hover:underline cursor-pointer"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-1.5 py-0 whitespace-nowrap hover:underline"
+                            title="Add financial statement"
                             onClick={() => {
                               setAddFinancialStatementYear(spec.year);
                               setAddFinancialStatementOpen(true);
                             }}
                           >
-                            <PlusIcon className="h-4 w-4" aria-hidden />
-                            <span className="text-[13px] font-normal">Add statement</span>
-                          </button>
+                            <span className="flex items-center gap-1">
+                              <PlusIcon className="h-4 w-4" aria-hidden />
+                              <span className="whitespace-nowrap text-[13px] font-normal">Add statement</span>
+                            </span>
+                          </Button>
                         ) : spec.kind !== "admin_fallback_placeholder" && spec.year != null ? (
                           <Button
                             type="button"
                             variant="ghost"
                             size="sm"
-                            className="h-7 px-1.5 py-0 whitespace-nowrap"
+                            className="h-7 px-1.5 py-0 whitespace-nowrap hover:underline"
                             title="Edit financial statement"
                             onClick={() => {
                               setEditFinancialStatementYear(spec.year as number);

@@ -87,9 +87,36 @@ describe("Admin Financial Summary table UI", () => {
     const source = readFileSync(tablePath, "utf8");
     expect(source).toContain('return "Not available"');
     expect(source).toContain('case "turnover_growth"');
-    expect(source).toContain("Previous FY revenue unavailable");
+    expect(source).toContain("Previous financial year Revenue unavailable");
     expect(source).toContain("getCalculatedHelperText");
     expect(source).toContain("receivablesDaysUnavailableReason");
+  });
+
+  it("standardizes receivables-days helper to use 'Previous financial year' wording", () => {
+    const source = readFileSync(tablePath, "utf8");
+    expect(source).toContain('replace(/^previous year /i, "Previous financial year ");');
+  });
+
+  it("CTOS fallback computes Current Ratio / Working Capital / ROE from raw components when CTOS finished metric is missing", () => {
+    const source = readFileSync(tablePath, "utf8");
+
+    // Current Ratio fallback: bscatot ÷ curlib
+    expect(source).toContain("fields.bscatot");
+    expect(source).toContain("fields.curlib");
+    expect(source).toContain("currentAssets / currentLiabilities");
+
+    // Working Capital fallback: bscatot − curlib
+    expect(source).toContain("currentAssets - currentLiabilities");
+
+    // ROE fallback: PAT ÷ net worth × 100
+    expect(source).toContain("(pat / netWorthVal) * 100");
+    expect(source).toContain(")}%");
+  });
+
+  it("DSCR uses only Net Operating Income (no ebitda fallback)", () => {
+    const source = readFileSync(tablePath, "utf8");
+    expect(source).toContain("computeDscr(netOperatingIncome, annualDebtService)");
+    expect(source).not.toContain("typeof netOperatingIncome === \"number\" ? netOperatingIncome : ebitda");
   });
 
   it("suppresses source badges and cell-level edit for calculated rows", () => {
@@ -194,6 +221,48 @@ describe("Admin Financial Summary table UI", () => {
       expect(addSource).toContain(l);
       expect(editSource).toContain(l);
     }
+  });
+
+  it("Add modal categories are collapsible by category with correct default expanded/collapsed state", () => {
+    const source = readFileSync(addModalPath, "utf8");
+    expect(source).toContain("ChevronDownIcon");
+    expect(source).toContain("ChevronRightIcon");
+    expect(source).toContain("aria-expanded={isOpen}");
+    expect(source).toContain("[cat.title]: !isOpen");
+
+    // Default collapse state per requirements.
+    expect(source).toContain("Assets: true");
+    expect(source).toContain("Liabilities: true");
+    expect(source).toContain('"Profit & Loss": true');
+    expect(source).toContain("Equity: false");
+    expect(source).toContain("Costs: false");
+    expect(source).toContain('"Cash Flow / Debt": false');
+
+    // Calculated fields must remain excluded from editable raw inputs.
+    expect(source).not.toContain("turnover_growth");
+    expect(source).not.toContain("receivablesDays");
+    expect(source).not.toContain("profit_margin");
+  });
+
+  it("Edit modal categories are collapsible by category with correct default expanded/collapsed state", () => {
+    const source = readFileSync(modalPath, "utf8");
+    expect(source).toContain("ChevronDownIcon");
+    expect(source).toContain("ChevronRightIcon");
+    expect(source).toContain("aria-expanded={isOpen}");
+    expect(source).toContain("[g.title]: !isOpen");
+
+    // Default collapse state per requirements.
+    expect(source).toContain("Assets: true");
+    expect(source).toContain("Liabilities: true");
+    expect(source).toContain('"Profit & Loss": true');
+    expect(source).toContain("Equity: false");
+    expect(source).toContain("Costs: false");
+    expect(source).toContain('"Cash Flow / Debt": false');
+
+    // Calculated fields must remain excluded from editable raw inputs.
+    expect(source).not.toContain("turnover_growth");
+    expect(source).not.toContain("receivablesDays");
+    expect(source).not.toContain("profit_margin");
   });
 });
 
