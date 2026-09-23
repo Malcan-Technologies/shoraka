@@ -328,11 +328,11 @@ describe("page three coverage verification", () => {
       }),
     ];
     const table = buildPageThreeBalanceSheetTable(incomplete, undefined);
-    expect(table.rows.find((r) => r.metric === "Total Assets")?.values[0]).toBe("Cannot calculate");
+    expect(table.rows.find((r) => r.metric === "Total Assets")?.values[0]).toBe("—");
     expect(table.rows.find((r) => r.metric === "Current Assets")?.values[0]).toContain(
       "400,000"
     );
-    expect(table.rows.find((r) => r.metric === "Total Liabilities")?.values[0]).toBe("Cannot calculate");
+    expect(table.rows.find((r) => r.metric === "Total Liabilities")?.values[0]).toBe("—");
   });
 
   it("prefers flat totass / totlib when present; missing flat totals show —", () => {
@@ -360,8 +360,8 @@ describe("page three coverage verification", () => {
       }),
     ];
     const dna = buildPageThreeBalanceSheetTable(missingFlat, undefined);
-    expect(dna.rows.find((r) => r.metric === "Total Assets")?.values[0]).toBe("Cannot calculate");
-    expect(dna.rows.find((r) => r.metric === "Total Liabilities")?.values[0]).toBe("Cannot calculate");
+    expect(dna.rows.find((r) => r.metric === "Total Assets")?.values[0]).toBe("—");
+    expect(dna.rows.find((r) => r.metric === "Total Liabilities")?.values[0]).toBe("—");
   });
 
   it("builds Coverage table with Page 2 reuse, CTOS system rows, and DNA trend", () => {
@@ -459,106 +459,106 @@ describe("page three coverage verification", () => {
       },
       undefined
     );
-    expect(table.rows.find((r) => r.metric === "Interest Coverage")?.values[0]).toBe("Cannot calculate");
-    expect(table.rows.find((r) => r.metric === "Receivables Days")?.values[0]).toBe("Cannot calculate");
+    expect(table.rows.find((r) => r.metric === "Interest Coverage")?.values[0]).toBe("—");
+    expect(table.rows.find((r) => r.metric === "Receivables Days")?.values[0]).toBe("—");
     expect(table.rows.find((r) => r.metric === "Interest Coverage")?.cellHints?.[0]).toBe(
-      "Missing: Interest Costs"
+      null
     );
     expect(table.rows.find((r) => r.metric === "Receivables Days")?.cellHints?.[0]).toBe(
-      "Missing: previous financial year Trade Receivables"
+      null
     );
   });
 
-  it("adds dependency-aware hints for calculated DNA metrics on Page 3", () => {
+  it("renders unavailable calculated DNA metrics as `—` (no diagnostic hints)", () => {
     const dnaRoa = buildCoverageResolvedRows(
       { ...yearRaw, plnpat: null },
       undefined,
       undefined
     ).find((r) => r.label === "Return on Assets");
-    expect(dnaRoa?.value).toBe("Cannot calculate");
-    expect(dnaRoa?.hint).toBe("Missing: Profit / Loss After Tax");
+    expect(dnaRoa?.value).toBe("—");
+    expect(dnaRoa?.hint).toBeNull();
 
     const dnaRoaTotAssets = buildCoverageResolvedRows(
       { ...yearRaw, totass: null },
       undefined,
       undefined
     ).find((r) => r.label === "Return on Assets");
-    expect(dnaRoaTotAssets?.value).toBe("Cannot calculate");
-    expect(dnaRoaTotAssets?.hint).toBe("Missing: Total Assets");
+    expect(dnaRoaTotAssets?.value).toBe("—");
+    expect(dnaRoaTotAssets?.hint).toBeNull();
 
     const dnaAssetTurnoverMissingRevenue = buildCoverageResolvedRows(
       { ...yearRaw, turnover: null },
       undefined,
       undefined
     ).find((r) => r.label === "Asset Turnover");
-    expect(dnaAssetTurnoverMissingRevenue?.value).toBe("Cannot calculate");
-    expect(dnaAssetTurnoverMissingRevenue?.hint).toBe("Missing: Revenue / Turnover");
+    expect(dnaAssetTurnoverMissingRevenue?.value).toBe("—");
+    expect(dnaAssetTurnoverMissingRevenue?.hint).toBeNull();
 
     const dnaAssetTurnoverMissingAssets = buildCoverageResolvedRows(
       { ...yearRaw, totass: null },
       undefined,
       undefined
     ).find((r) => r.label === "Asset Turnover");
-    expect(dnaAssetTurnoverMissingAssets?.value).toBe("Cannot calculate");
-    expect(dnaAssetTurnoverMissingAssets?.hint).toBe("Missing: Total Assets");
+    expect(dnaAssetTurnoverMissingAssets?.value).toBe("—");
+    expect(dnaAssetTurnoverMissingAssets?.hint).toBeNull();
 
     const dnaDebtEqMissingLiabilities = buildCoverageResolvedRows(
       { ...yearRaw, totlib: null },
       undefined,
       undefined
     ).find((r) => r.label === "Debt / Equity");
-    expect(dnaDebtEqMissingLiabilities?.value).toBe("Cannot calculate");
-    expect(dnaDebtEqMissingLiabilities?.hint).toBe("Missing: Total Liabilities");
+    expect(dnaDebtEqMissingLiabilities?.value).toBe("—");
+    expect(dnaDebtEqMissingLiabilities?.hint).toBeNull();
 
     const dnaPayablesMissingCost = buildCoverageResolvedRows(
       { ...yearRaw, costOfSales: null },
       undefined,
       undefined
     ).find((r) => r.label === "Payables Days");
-    expect(dnaPayablesMissingCost?.value).toBe("Cannot calculate");
-    expect(dnaPayablesMissingCost?.hint).toBe("Missing: Cost of Sales");
+    expect(dnaPayablesMissingCost?.value).toBe("—");
+    expect(dnaPayablesMissingCost?.hint).toBeNull();
 
     const dnaDscrMissingNoi = buildCoverageResolvedRows(
       { ...yearRaw, netOperatingIncome: null, dscr: null },
       undefined,
       undefined
     ).find((r) => r.label === "DSCR");
-    expect(dnaDscrMissingNoi?.value).toBe("Cannot calculate");
-    expect(dnaDscrMissingNoi?.hint).toBe("Missing: Net Operating Income");
+    expect(dnaDscrMissingNoi?.value).toBe("—");
+    expect(dnaDscrMissingNoi?.hint).toBeNull();
 
     const dnaReceivablesMissingEndingTradeReceivables = buildCoverageResolvedRows(
       { ...yearRaw, tradeReceivables: null, receivablesDays: null },
       undefined,
       { tradeReceivables: 14_000 } as Record<string, unknown>
     ).find((r) => r.label === "Receivables Days");
-    expect(dnaReceivablesMissingEndingTradeReceivables?.value).toBe("Cannot calculate");
-    expect(dnaReceivablesMissingEndingTradeReceivables?.hint).toBe("Missing: Trade Receivables");
+    expect(dnaReceivablesMissingEndingTradeReceivables?.value).toBe("—");
+    expect(dnaReceivablesMissingEndingTradeReceivables?.hint).toBeNull();
   });
 
-  it("Payables Days: dependency-aware missing hints (frozen raw)", () => {
+  it("Payables Days: unavailable values render as `—` (no diagnostic hints)", () => {
     const missingTradePayables = buildCoverageResolvedRows(
       { ...yearRaw, tradePayables: null },
       undefined,
       undefined
     ).find((r) => r.label === "Payables Days");
-    expect(missingTradePayables?.value).toBe("Cannot calculate");
-    expect(missingTradePayables?.hint).toBe("Missing: Trade Payables");
+    expect(missingTradePayables?.value).toBe("—");
+    expect(missingTradePayables?.hint).toBeNull();
 
     const missingCostOfSales = buildCoverageResolvedRows(
       { ...yearRaw, costOfSales: null },
       undefined,
       undefined
     ).find((r) => r.label === "Payables Days");
-    expect(missingCostOfSales?.value).toBe("Cannot calculate");
-    expect(missingCostOfSales?.hint).toBe("Missing: Cost of Sales");
+    expect(missingCostOfSales?.value).toBe("—");
+    expect(missingCostOfSales?.hint).toBeNull();
 
     const invalidZeroDenominator = buildCoverageResolvedRows(
       { ...yearRaw, costOfSales: 0 },
       undefined,
       undefined
     ).find((r) => r.label === "Payables Days");
-    expect(invalidZeroDenominator?.value).toBe("Cannot calculate");
-    expect(invalidZeroDenominator?.hint).toBe("Invalid: Cost of Sales is zero");
+    expect(invalidZeroDenominator?.value).toBe("—");
+    expect(invalidZeroDenominator?.hint).toBeNull();
   });
 
   it("keeps single-year resolved helpers for Total Liabilities parity", () => {
@@ -589,8 +589,8 @@ describe("page three coverage verification", () => {
       undefined
     );
     const missingRoe = missingFlat.find((r) => r.label === "Return on Equity");
-    expect(missingRoe?.value).toBe("Cannot calculate");
-    expect(missingRoe?.hint).toBe("Missing financial inputs");
+    expect(missingRoe?.value).toBe("—");
+    expect(missingRoe?.hint).toBeNull();
   });
 
   it("uses direct CTOS currat only for Current Ratio (no CA÷CL fallback)", () => {
@@ -605,37 +605,16 @@ describe("page three coverage verification", () => {
       undefined
     );
     const currentRatioMissing = missingCurrat.find((r) => r.label === "Current Ratio");
-    expect(currentRatioMissing?.value).toBe("Cannot calculate");
-    expect(currentRatioMissing?.hint).toBe("Missing financial inputs");
+    expect(currentRatioMissing?.value).toBe("—");
+    expect(currentRatioMissing?.hint).toBeNull();
   });
 
-  it("builds EBIT helper text from dependency presence (PBT + Interest Costs)", () => {
-    // PBT exists -> missing Interest Costs.
-    const missingInterestCosts = buildIncomeStatementResolvedRows(
+  it("does not return diagnostic EBIT helper hints in Prospectus tables", () => {
+    const rows = buildIncomeStatementResolvedRows(
       { ...yearRaw, ebit: null, plnpbt: 120_000, plnpat: 100_000 },
       undefined
     );
-    expect(missingInterestCosts.find((r) => r.label === "EBIT")?.hint).toBe(
-      "Missing: Interest Costs"
-    );
-
-    // Interest Costs exists -> missing PBT (PBT missing but PAT still exists).
-    const missingPbt = buildIncomeStatementResolvedRows(
-      { ...yearRaw, ebit: null, plnpbt: null, interest_cost: 25_000, plnpat: 100_000 },
-      undefined
-    );
-    expect(missingPbt.find((r) => r.label === "EBIT")?.hint).toBe(
-      "Missing: Profit / Loss Before Tax"
-    );
-
-    // Both missing -> required financial inputs.
-    const missingBoth = buildIncomeStatementResolvedRows(
-      { ...yearRaw, ebit: null, plnpbt: null, plnpat: null },
-      undefined
-    );
-    expect(missingBoth.find((r) => r.label === "EBIT")?.hint).toBe(
-      "Missing financial inputs"
-    );
+    expect(rows.find((r) => r.label === "EBIT")?.hint).toBeNull();
   });
 
   it("uses frozen year order without independent Application selection", () => {
@@ -718,6 +697,30 @@ describe("page three coverage verification", () => {
     expect(income.yearHeaders[0]?.isPlaceholder).toBe(true);
     const gp = income.rows.find((r) => r.metric === "Gross Profit");
     expect(gp?.values[0]).toBe("—");
+  });
+
+  it("does not render diagnostic helper text in Prospectus tables", () => {
+    const income = buildPageThreeIncomeStatementTable(sampleFrozenYears, undefined);
+    const balance = buildPageThreeBalanceSheetTable(sampleFrozenYears, undefined);
+    const coverage = buildPageThreeCoverageTable(sampleFrozenYears, undefined);
+
+    const forbidden = [
+      "Cannot calculate",
+      "Missing: ",
+      "Missing financial inputs",
+      "Invalid: ",
+      "Missing: Return on Equity",
+      "Missing: Current Ratio",
+      "Missing: Net Debt / Equity",
+      "Missing: DSCR",
+      "Missing: Interest Coverage",
+      "Missing: Asset Turnover",
+      "Missing: Return on Assets",
+      "Missing: Payables Days",
+    ] as const;
+
+    const serialized = JSON.stringify({ income, balance, coverage });
+    for (const s of forbidden) expect(serialized).not.toContain(s);
   });
 
   it("Income, Balance, and Coverage share the same frozen year headers", () => {

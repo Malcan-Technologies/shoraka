@@ -190,7 +190,7 @@ export function ProspectusSharedFinancialWorkingTable({
                         key={`${row.metric}-${header.key}`}
                         className={cn(
                           "whitespace-normal text-sm tabular-nums text-foreground",
-                          row.values[index] === "Cannot calculate" && "bg-muted/20"
+                          row.values[index] === "—" && "bg-background"
                         )}
                         title={
                           header.isPlaceholder
@@ -206,27 +206,17 @@ export function ProspectusSharedFinancialWorkingTable({
                           <div className="flex flex-col items-start gap-0.5">
                             {(() => {
                               const cellText = row.values[index] ?? "—";
-                              const isCalculatedMissing = cellText === "Cannot calculate";
                               const isRawMissing = cellText === "—";
 
                               return (
                                 <>
                                   <span
                                     className={cn(
-                                      isCalculatedMissing
-                                        ? "text-amber-800 dark:text-amber-300"
-                                        : isRawMissing
-                                          ? "text-muted-foreground"
-                                          : undefined
+                                      isRawMissing ? "text-muted-foreground" : undefined
                                     )}
                                   >
                                     {cellText}
                                   </span>
-                                  {cellText === "Cannot calculate" && row.cellHints?.[index] ? (
-                                    <span className="max-w-[9.5rem] break-words text-left text-[11px] font-normal leading-snug text-amber-700 dark:text-amber-400">
-                                      {row.cellHints[index]}
-                                    </span>
-                                  ) : null}
                                 </>
                               );
                             })()}

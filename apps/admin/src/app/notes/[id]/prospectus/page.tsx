@@ -73,10 +73,6 @@ import {
 } from "@/notes/prospectus-review/core-terms";
 import { mergeOfficerOverridesIntoFinancialTable } from "@/notes/prospectus-review/page-two-coverage";
 import {
-  getProspectusPageTwoCalculatedMissingHint,
-  type ProspectusPageTwoCalculatedMetric,
-} from "@/notes/prospectus-review/prospectus-page-two-missing-hints";
-import {
   buildPageThreeAdminOverviewRows,
   buildPageThreeBalanceSheetTable,
   buildPageThreeCoverageTable,
@@ -388,21 +384,10 @@ function ProspectusReviewPageInner() {
         const rawValue = frozen.raw[rawKey] as number | null;
         if (rawValue != null) continue; // present -> keep API-formatted value
 
-        // Calculated-metric missing helper text.
-        const prevTradeReceivables =
-          r.metric === "Receivables Days"
-            ? frozenByCalendarYear.get(String(Number(calendarYear) - 1))?.raw.tradeReceivables ??
-              null
-            : null;
-
-        const hint = getProspectusPageTwoCalculatedMissingHint({
-          metric: r.metric as ProspectusPageTwoCalculatedMetric,
-          frozenRaw: frozen.raw,
-          prevTradeReceivables,
-        });
-
-        values[i] = "Cannot calculate";
-        cellHints[i] = hint;
+        // Prospectus is presentation-only: if the resolved value is unavailable, show `—`.
+        // Do not surface diagnostic missing-field helper text in Prospectus.
+        values[i] = "—";
+        cellHints[i] = null;
       }
 
       return { ...r, values, cellHints };

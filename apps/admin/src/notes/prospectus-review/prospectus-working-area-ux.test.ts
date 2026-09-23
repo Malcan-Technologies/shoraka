@@ -25,8 +25,9 @@ describe("Prospectus working area UX cleanup (presentation-only)", () => {
   it("standardizes missing calculated helper wrapping + avoids cramped cells", () => {
     const sharedSource = readFileSync(sharedTablePath, "utf8");
     expect(sharedSource).toContain("whitespace-normal text-sm tabular-nums");
-    expect(sharedSource).toContain("max-w-[9.5rem]");
-    expect(sharedSource).toContain("break-words");
+    // Prospectus is presentation-only: unavailable values render as `—` and we keep
+    // the cell content left-aligned with stable vertical spacing.
+    expect(sharedSource).toContain("flex flex-col items-start gap-0.5");
     // Prospectus presentation is left-aligned throughout FY columns.
     expect(sharedSource).not.toContain("text-right");
     expect(sharedSource).not.toContain("items-end");

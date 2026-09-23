@@ -273,80 +273,8 @@ export function buildPageTwoFinancialComparisonTable(
         const isCalculatedMissing = calculatedKeys.has(key) && rawValue === DATA_NOT_AVAILABLE;
 
         if (isCalculatedMissing) {
-          values.push("Cannot calculate");
-          const prevYear = years[i - 1];
-          const prevRaw = prevYear ? byYear[prevYear] ?? {} : {};
-
-          const hint = (() => {
-            switch (key) {
-              case "roe":
-                return (() => {
-                  const pat = raw.plnpat;
-                  const netWorth = raw.networth;
-                  if (pat == null) return "Missing: Profit / Loss After Tax";
-                  if (netWorth == null) return "Missing: Total Equity / Net Worth";
-                  if (netWorth === 0) return "Invalid: Total Equity / Net Worth is zero";
-                  return "Missing financial inputs";
-                })();
-              case "currentRatio":
-                return (() => {
-                  const currentAssets = raw.bscatot;
-                  const currentLiabilities = raw.curlib;
-                  if (currentAssets == null) return "Missing: Current Assets";
-                  if (currentLiabilities == null) return "Missing: Current Liabilities";
-                  if (currentLiabilities === 0) return "Invalid: Current Liabilities is zero";
-                  return "Missing financial inputs";
-                })();
-              case "netDebtEquity":
-                return (() => {
-                  const curlibBorrowing = raw.curlib_borrowing;
-                  const nclLoan = raw.ncl_loan;
-                  const cashAndBank = raw.cashAndBank;
-                  const networth = raw.networth;
-                  if (curlibBorrowing == null) return "Missing: Current Borrowings";
-                  if (nclLoan == null) return "Missing: Non-current Loans";
-                  if (cashAndBank == null) return "Missing: Cash & Bank";
-                  if (networth == null) return "Missing: Total Equity / Net Worth";
-                  if (networth === 0) return "Invalid: Total Equity / Net Worth is zero";
-                  return "Missing financial inputs";
-                })();
-              case "interestCoverage":
-                return (() => {
-                  const interestCosts = raw.interest_cost;
-                  const pbt = raw.plnpbt;
-                  if (interestCosts == null) return "Missing: Interest Costs";
-                  if (interestCosts === 0) return "Invalid: Interest Costs is zero";
-                  if (pbt == null) return "Missing: Profit / Loss Before Tax";
-                  return "Missing financial inputs";
-                })();
-              case "dscr":
-                return (() => {
-                  const annualDebtService = raw.annualDebtService;
-                  const netOperatingIncome = raw.netOperatingIncome;
-                  if (annualDebtService == null) return "Missing: Annual Debt Service";
-                  if (annualDebtService === 0) return "Invalid: Annual Debt Service is zero";
-                  if (netOperatingIncome == null) return "Missing: Net Operating Income";
-                  return "Missing financial inputs";
-                })();
-              case "receivablesDays":
-                return (() => {
-                  const priorTradeReceivables = prevRaw.tradeReceivables;
-                  const endingTradeReceivables = raw.tradeReceivables;
-                  const turnover = raw.turnover;
-                  if (priorTradeReceivables == null) {
-                    return "Missing: previous financial year Trade Receivables";
-                  }
-                  if (endingTradeReceivables == null) return "Missing: Trade Receivables";
-                  if (turnover == null) return "Missing: Revenue / Turnover";
-                  if (turnover === 0) return "Invalid: Revenue / Turnover is zero";
-                  return "Missing financial inputs";
-                })();
-              default:
-                return "Missing: Calculated metric";
-            }
-          })();
-
-          cellHints.push(hint);
+          values.push(DATA_NOT_AVAILABLE);
+          cellHints.push(null);
         } else {
           values.push(rawValue);
           cellHints.push(null);

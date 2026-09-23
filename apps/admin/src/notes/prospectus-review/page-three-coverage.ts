@@ -230,48 +230,26 @@ export function buildIncomeStatementResolvedRows(
   const revenue = parseNumber(yearRaw.turnover);
   const pat = parseNumber(yearRaw.plnpat);
   const pbt = parseNumber(yearRaw.plnpbt);
-  const interestCosts = parseNumber(yearRaw.interest_cost);
   const ebit = parseNumber(yearRaw.ebit);
 
   const ebitValue = formatMoney(ebit);
-  const ebitHint =
-    ebitValue === DATA_NOT_AVAILABLE
-      ? pbt != null
-        ? interestCosts == null
-          ? "Missing: Interest Costs"
-          : "Missing financial inputs"
-        : interestCosts == null
-          ? "Missing financial inputs"
-          : "Missing: Profit / Loss Before Tax"
-      : null;
 
   const netProfitMarginPoints = resolveCtosPatMarginPercent({ plnpat: pat, turnover: revenue });
   const netProfitMarginValue = formatPercentFromPoints(netProfitMarginPoints);
-  const netProfitMarginHint =
-    netProfitMarginValue === DATA_NOT_AVAILABLE
-      ? pat == null
-        ? "Missing: Profit / Loss After Tax"
-        : revenue == null
-          ? "Missing: Revenue / Turnover"
-          : revenue === 0
-            ? "Invalid: Revenue / Turnover is zero"
-            : "Missing financial inputs"
-      : null;
 
   return [
     { label: "Revenue", value: formatMoney(revenue) },
     { label: "Cost of Sales", value: formatMoney(parseNumber(yearRaw.costOfSales)) },
     { label: "Gross Profit", value: formatMoney(parseNumber(yearRaw.grossProfit)) },
     { label: "EBITDA", value: formatMoney(parseNumber(yearRaw.ebitda)) },
-    { label: "EBIT", value: ebitValue === DATA_NOT_AVAILABLE ? "Cannot calculate" : ebitValue, hint: ebitValue === DATA_NOT_AVAILABLE ? ebitHint : null },
+    { label: "EBIT", value: ebitValue, hint: null },
     { label: "Profit Before Tax", value: formatMoney(pbt) },
     { label: "Profit After Tax", value: formatMoney(pat) },
     {
       label: "Net Profit Margin",
       // CTOS ENQWS v5.11.0 Financial Highlights XSL — PAT Margin (never profit_margin / PBT).
-      value:
-        netProfitMarginValue === DATA_NOT_AVAILABLE ? "Cannot calculate" : netProfitMarginValue,
-      hint: netProfitMarginValue === DATA_NOT_AVAILABLE ? netProfitMarginHint : null,
+      value: netProfitMarginValue,
+      hint: null,
     },
   ];
 }
@@ -294,45 +272,18 @@ export function buildBalanceSheetResolvedRows(
   const totalLiabilities = resolveCtosTotalLiabilities({ totlib: rawTotalLiabilities });
 
   const totalAssetsValue = formatMoney(totalAssets);
-  const totalAssetsHint = totalAssetsValue === DATA_NOT_AVAILABLE ? "Missing: Total Assets" : null;
 
   const totalLiabilitiesValue = formatMoney(totalLiabilities);
-  const totalLiabilitiesHint =
-    totalLiabilitiesValue === DATA_NOT_AVAILABLE ? "Missing: Total Liabilities" : null;
 
   const netWorthValue = formatMoney(netWorth);
-  const netWorthHint =
-    netWorthValue === DATA_NOT_AVAILABLE ? "Missing: Total Equity / Net Worth" : null;
 
   const currRatioValue = formatMultiple(
     resolveCtosCurrentRatio({
       currat: rawCurrat,
     })
   );
-  const currRatioHint =
-    currRatioValue === DATA_NOT_AVAILABLE
-      ? currentAssets == null
-        ? "Missing: Current Assets"
-        : currentLiabilities == null
-          ? "Missing: Current Liabilities"
-          : currentLiabilities === 0
-            ? "Invalid: Current Liabilities is zero"
-            : "Missing financial inputs"
-      : null;
 
   const quickRatioValue = formatMultiple(rawQuickRatio);
-  const quickRatioHint =
-    quickRatioValue === DATA_NOT_AVAILABLE
-      ? parseNumber(yearRaw.cashAndBank) == null
-        ? "Missing: Cash & Bank"
-        : parseNumber(yearRaw.tradeReceivables) == null
-          ? "Missing: Trade Receivables"
-          : currentLiabilities == null
-            ? "Missing: Current Liabilities"
-          : currentLiabilities === 0
-            ? "Invalid: Current Liabilities is zero"
-            : "Missing financial inputs"
-      : null;
 
   return [
     { label: "Cash & Bank", value: formatMoney(parseNumber(yearRaw.cashAndBank)) },
@@ -341,29 +292,29 @@ export function buildBalanceSheetResolvedRows(
     { label: "Current Assets", value: formatMoney(currentAssets) },
     {
       label: "Total Assets",
-      value: totalAssetsValue === DATA_NOT_AVAILABLE ? "Cannot calculate" : totalAssetsValue,
-      hint: totalAssetsValue === DATA_NOT_AVAILABLE ? totalAssetsHint : null,
+      value: totalAssetsValue,
+      hint: null,
     },
     { label: "Current Liabilities", value: formatMoney(currentLiabilities) },
     {
       label: "Total Liabilities",
-      value: totalLiabilitiesValue === DATA_NOT_AVAILABLE ? "Cannot calculate" : totalLiabilitiesValue,
-      hint: totalLiabilitiesValue === DATA_NOT_AVAILABLE ? totalLiabilitiesHint : null,
+      value: totalLiabilitiesValue,
+      hint: null,
     },
     {
       label: "Total Equity",
-      value: netWorthValue === DATA_NOT_AVAILABLE ? "Cannot calculate" : netWorthValue,
-      hint: netWorthValue === DATA_NOT_AVAILABLE ? netWorthHint : null,
+      value: netWorthValue,
+      hint: null,
     },
     {
       label: "Current Ratio",
-      value: currRatioValue === DATA_NOT_AVAILABLE ? "Cannot calculate" : currRatioValue,
-      hint: currRatioValue === DATA_NOT_AVAILABLE ? currRatioHint : null,
+      value: currRatioValue,
+      hint: null,
     },
     {
       label: "Quick Ratio",
-      value: quickRatioValue === DATA_NOT_AVAILABLE ? "Cannot calculate" : quickRatioValue,
-      hint: quickRatioValue === DATA_NOT_AVAILABLE ? quickRatioHint : null,
+      value: quickRatioValue,
+      hint: null,
     },
   ];
 }
@@ -372,74 +323,31 @@ export function buildBalanceSheetResolvedRows(
 export function buildCoverageResolvedRows(
   yearRaw: Record<string, unknown>,
   _manual: PageThreeManualYear | undefined,
-  prevYearRaw: Record<string, unknown> | undefined,
+  _prevYearRaw: Record<string, unknown> | undefined,
   _page2Override?: Partial<
     Record<(typeof PAGE_TWO_OFFICER_FINANCIAL_METRICS)[number]["key"], string | number | null>
   >
 ): Array<{ label: string; value: string; hint?: string | null }> {
   // System-derived metrics from Stage 4A raw fields (do not use officer overrides).
-  const plnpbt = parseNumber(yearRaw.plnpbt);
-  const plnpat = parseNumber(yearRaw.plnpat);
-  const interestCosts = parseNumber(yearRaw.interest_cost);
   const interestCoverage = parseNumber(yearRaw.interestCoverage);
   const dscr = parseNumber(yearRaw.dscr);
   const receivablesDays = parseNumber(yearRaw.receivablesDays);
 
   const interestCoverageValue = formatMultiple(interestCoverage);
-  const interestCoverageHint =
-    interestCoverageValue === DATA_NOT_AVAILABLE
-      ? interestCosts == null
-        ? "Missing: Interest Costs"
-        : interestCosts === 0
-          ? "Invalid: Interest Costs is zero"
-          : plnpbt == null
-            ? "Missing: Profit / Loss Before Tax"
-            : "Missing financial inputs"
-      : null;
 
   const annualDebtService = parseNumber(yearRaw.annualDebtService);
   const dscrValue = formatMultiple(dscr);
-  const dscrHint =
-    dscrValue === DATA_NOT_AVAILABLE
-      ? annualDebtService == null
-        ? "Missing: Annual Debt Service"
-        : annualDebtService === 0
-          ? "Invalid: Annual Debt Service is zero"
-          : parseNumber(yearRaw.netOperatingIncome) == null
-            ? "Missing: Net Operating Income"
-            : "Missing financial inputs"
-      : null;
 
   const totlib = parseNumber(yearRaw.totlib);
   const networth = parseNumber(yearRaw.networth);
   const gear = parseNumber(yearRaw.gear);
   const debtEqRatio = resolveCtosGearingRatio({ gear, totlib, networth });
   const debtEqValue = formatMultiple(debtEqRatio);
-  const debtEqHint =
-    debtEqValue === DATA_NOT_AVAILABLE
-      ? networth == null
-        ? "Missing: Total Equity / Net Worth"
-        : totlib == null
-          ? "Missing: Total Liabilities"
-          : networth === 0
-            ? "Invalid: Total Equity / Net Worth is zero"
-            : "Missing financial inputs"
-      : null;
 
   const roePoints = resolveCtosReturnOnEquityPercent({
     return_on_equity: parseNumber(yearRaw.return_on_equity),
   });
   const roeValue = formatPercentFromPoints(roePoints);
-  const roeHint =
-    roeValue === DATA_NOT_AVAILABLE
-      ? plnpat == null && networth == null
-        ? "Missing financial inputs"
-        : plnpat == null
-          ? "Missing: Profit / Loss After Tax"
-          : networth == null
-            ? "Missing: Total Equity / Net Worth"
-            : "Missing financial inputs"
-      : null;
 
   const roaValue = formatPercentFromPoints(
     resolveCtosReturnOnAssetsPercent({
@@ -447,16 +355,6 @@ export function buildCoverageResolvedRows(
       totass: parseNumber(yearRaw.totass),
     })
   );
-  const roaHint =
-    roaValue === DATA_NOT_AVAILABLE
-      ? parseNumber(yearRaw.plnpat) == null
-        ? "Missing: Profit / Loss After Tax"
-        : parseNumber(yearRaw.totass) == null
-          ? "Missing: Total Assets"
-          : parseNumber(yearRaw.totass) === 0
-            ? "Invalid: Total Assets is zero"
-          : "Missing financial inputs"
-      : null;
 
   const turnover = parseNumber(yearRaw.turnover);
   const totass = parseNumber(yearRaw.totass);
@@ -466,93 +364,58 @@ export function buildCoverageResolvedRows(
       totass,
     })
   );
-  const assetTurnoverHint =
-    assetTurnoverValue === DATA_NOT_AVAILABLE
-      ? turnover == null
-        ? "Missing: Revenue / Turnover"
-        : totass == null
-          ? "Missing: Total Assets"
-          : totass === 0
-            ? "Invalid: Total Assets is zero"
-          : "Missing financial inputs"
-      : null;
 
   const receivablesDaysValue =
     receivablesDays != null ? formatDays(receivablesDays) : DATA_NOT_AVAILABLE;
-  const prevTradeReceivables = prevYearRaw ? parseNumber(prevYearRaw.tradeReceivables) : null;
-  const receivablesDaysHint =
-    receivablesDaysValue === DATA_NOT_AVAILABLE
-      ? prevTradeReceivables == null
-        ? "Missing: previous financial year Trade Receivables"
-        : parseNumber(yearRaw.tradeReceivables) == null
-          ? "Missing: Trade Receivables"
-          : turnover == null
-            ? "Missing: Revenue / Turnover"
-            : turnover === 0
-              ? "Invalid: Revenue / Turnover is zero"
-              : "Missing financial inputs"
-      : null;
 
   const payablesDaysValue = formatDays(parseNumber(yearRaw.payablesDays));
-  const tradePayables = parseNumber(yearRaw.tradePayables);
-  const costOfSales = parseNumber(yearRaw.costOfSales);
-  const payablesDaysHint =
-    payablesDaysValue === DATA_NOT_AVAILABLE
-      ? tradePayables == null
-        ? "Missing: Trade Payables"
-        : costOfSales == null
-          ? "Missing: Cost of Sales"
-          : costOfSales === 0
-            ? "Invalid: Cost of Sales is zero"
-            : "Missing financial inputs"
-      : null;
 
   return [
     { label: "Operating Cash Flow", value: formatMoney(parseNumber(yearRaw.operatingCashFlow)) },
     { label: "Free Cash Flow", value: formatMoney(parseNumber(yearRaw.freeCashFlow)) },
     {
       label: "Interest Coverage",
-      value: interestCoverageValue === DATA_NOT_AVAILABLE ? "Cannot calculate" : interestCoverageValue,
-      hint: interestCoverageValue === DATA_NOT_AVAILABLE ? interestCoverageHint : null,
+      value: interestCoverageValue,
+      hint: null,
     },
     { label: "Annual Debt Service", value: formatMoney(annualDebtService) },
     {
       label: "DSCR",
-      value: dscrValue === DATA_NOT_AVAILABLE ? "Cannot calculate" : dscrValue,
-      hint: dscrValue === DATA_NOT_AVAILABLE ? dscrHint : null,
+      value: dscrValue,
+      hint: null,
     },
     {
       label: "Debt / Equity",
-      value: debtEqValue === DATA_NOT_AVAILABLE ? "Cannot calculate" : debtEqValue,
-      hint: debtEqValue === DATA_NOT_AVAILABLE ? debtEqHint : null,
+      value: debtEqValue,
+      hint: null,
     },
     {
       label: "Return on Equity",
       // CTOS ENQWS v5.11.0 Financial Highlights XSL — direct r:return_on_equity only.
-      value: roeValue === DATA_NOT_AVAILABLE ? "Cannot calculate" : roeValue,
-      hint: roeValue === DATA_NOT_AVAILABLE ? roeHint : null,
+      value: roeValue,
+      hint: null,
     },
     {
       label: "Return on Assets",
       // CTOS ENQWS v5.11.0 Financial Highlights XSL — plnpat/totass*100
-      value: roaValue === DATA_NOT_AVAILABLE ? "Cannot calculate" : roaValue,
-      hint: roaValue === DATA_NOT_AVAILABLE ? roaHint : null,
+      value: roaValue,
+      hint: null,
     },
     {
       label: "Receivables Days",
-      value: receivablesDaysValue === DATA_NOT_AVAILABLE ? "Cannot calculate" : receivablesDaysValue,
-      hint: receivablesDaysValue === DATA_NOT_AVAILABLE ? receivablesDaysHint : null,
+      value: receivablesDaysValue,
+      hint: null,
     },
     {
       label: "Payables Days",
-      value: payablesDaysValue === DATA_NOT_AVAILABLE ? "Cannot calculate" : payablesDaysValue,
-      hint: payablesDaysValue === DATA_NOT_AVAILABLE ? payablesDaysHint : null,
+      value: payablesDaysValue,
+      hint: null,
     },
     {
       label: "Asset Turnover",
       // CTOS ENQWS v5.11.0 Financial Highlights XSL — turnover/totass
-      value: assetTurnoverValue === DATA_NOT_AVAILABLE ? "Cannot calculate" : assetTurnoverValue,
-      hint: assetTurnoverValue === DATA_NOT_AVAILABLE ? assetTurnoverHint : null,
+      value: assetTurnoverValue,
+      hint: null,
     },
   ];
 }

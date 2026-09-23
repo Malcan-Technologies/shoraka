@@ -190,10 +190,28 @@ describe("page two coverage verification", () => {
     expect(
       table.rows
         .find((r) => r.metric === "Net Debt / Equity (x)")
-        ?.values.every((v) => v === "Cannot calculate")
+        ?.values.every((v) => v === "—")
     ).toBe(true);
     const netDebtRow = table.rows.find((r) => r.metric === "Net Debt / Equity (x)");
-    expect(netDebtRow?.cellHints?.every((h) => h === "Missing: Current Borrowings")).toBe(true);
+    expect(netDebtRow?.cellHints?.every((h) => h == null)).toBe(true);
     expect(table.rows.every((r) => r.trend == null)).toBe(true);
+
+    // Guard: Prospectus presentation-only must not include diagnostic missing reasons.
+    const forbidden = [
+      "Cannot calculate",
+      "Missing: ",
+      "Missing financial inputs",
+      "Invalid: ",
+      "Missing: Return on Equity",
+      "Missing: Current Ratio",
+      "Missing: Net Debt / Equity",
+      "Missing: DSCR",
+      "Missing: Interest Coverage",
+      "Missing: Asset Turnover",
+      "Missing: Return on Assets",
+      "Missing: Payables Days",
+    ] as const;
+    const serialized = JSON.stringify(table);
+    for (const s of forbidden) expect(serialized).not.toContain(s);
   });
 });
