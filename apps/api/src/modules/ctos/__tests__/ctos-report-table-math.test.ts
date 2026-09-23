@@ -6,6 +6,13 @@ import {
   computeTotalLiabilities,
   computeWorkingCapital,
   computeCurrentRatio,
+  computeQuickRatio,
+  computeReceivablesDays,
+  computePayablesDays,
+  computeEbit,
+  computeInterestCoverage,
+  computeDscr,
+  computeNetDebtEquity,
   resolveFinancialSummaryIssuerReturnOnEquityRatio,
   computeColumnMetrics,
   financialFormToBsPl,
@@ -200,6 +207,42 @@ describe("computeWorkingCapital (issuer only)", () => {
   it("returns null when either side missing", () => {
     expect(computeWorkingCapital(null, 50)).toBeNull();
     expect(computeWorkingCapital(200, null)).toBeNull();
+  });
+});
+
+describe("Key calculated metrics (numeric examples)", () => {
+  it("Quick Ratio = (Cash & Bank + Trade Receivables) ÷ Current Liabilities", () => {
+    expect(computeQuickRatio(100, 50, 100)).toBeCloseTo(1.5);
+    expect(computeQuickRatio(100, 50, 0)).toBeNull();
+  });
+
+  it("Receivables Days = Average Trade Receivables ÷ Revenue × 365", () => {
+    // Average AR = (400 + 600) / 2 = 500; days = 500 / 1000 * 365 = 182.5
+    expect(computeReceivablesDays(400, 600, 1000)).toBeCloseTo(182.5);
+    expect(computeReceivablesDays(null, 600, 1000)).toBeNull();
+  });
+
+  it("Payables Days = Trade Payables ÷ Cost of Sales × 365", () => {
+    // 200 / 800 * 365 = 91.25
+    expect(computePayablesDays(200, 800)).toBeCloseTo(91.25);
+    expect(computePayablesDays(200, 0)).toBeNull();
+  });
+
+  it("EBIT = PBT + Interest Costs; Interest Coverage = EBIT ÷ Interest Costs", () => {
+    expect(computeEbit(800, 200)).toBe(1000);
+    expect(computeInterestCoverage(1000, 200)).toBeCloseTo(5);
+    expect(computeInterestCoverage(1000, 0)).toBeNull();
+  });
+
+  it("DSCR = Net Operating Income ÷ Annual Debt Service", () => {
+    expect(computeDscr(600, 200)).toBeCloseTo(3);
+    expect(computeDscr(600, 0)).toBeNull();
+  });
+
+  it("Net Debt / Equity = (Current Borrowings + Non-current Loans − Cash & Bank) ÷ Net Worth", () => {
+    // (100 + 300 − 200) / 400 = 0.5
+    expect(computeNetDebtEquity({ curlib_borrowing: 100, ncl_loan: 300, cashAndBank: 200, networth: 400 })).toBeCloseTo(0.5);
+    expect(computeNetDebtEquity({ curlib_borrowing: 100, ncl_loan: 300, cashAndBank: 200, networth: 0 })).toBeNull();
   });
 });
 

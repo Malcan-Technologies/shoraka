@@ -39,6 +39,8 @@ import {
   computeColumnMetrics,
   computeEbit,
   computeInterestCoverage,
+  computeCurrentRatio,
+  computeNetWorth,
   computeTotalAssets,
   computeTotalLiabilities,
   computeNetDebtEquity,
@@ -46,11 +48,11 @@ import {
   computeQuickRatio,
   computeReceivablesDays,
   computeDscr,
+  computeWorkingCapital,
   computeTurnoverGrowth,
   financialFormToBsPl,
   computeHasPendingDirectorShareholder,
   normalizeDirectorShareholderIdKey,
-  resolveCtosDebtToEquityPercent,
   resolveCtosCurrentRatio,
   resolveCtosGearingRatio,
   resolveCtosReturnOnAssetsPercent,
@@ -898,7 +900,7 @@ export function ApplicationFinancialReviewContent({
             non_current_liabilities: yearFields?.bsclstd?.value ?? null,
           });
           if (totass == null || totlib == null) return "Not available";
-          const n = totass - totlib;
+          const n = computeNetWorth(totass, totlib);
           return n === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(n, { decimals: 0 });
         }
         if (!computed) return "Not available";
@@ -990,8 +992,11 @@ export function ApplicationFinancialReviewContent({
           // Fallback to the agreed issuer formula when CTOS finished metric is missing.
           const pat = resolvedByYear.get(specCol.year)?.fields.plnpat?.value ?? null;
           const netWorthVal = resolvedByYear.get(specCol.year)?.fields.networth?.value ?? null;
-          if (pat == null || netWorthVal == null || netWorthVal === 0) return "Not available";
-          return `${formatNumber((pat / netWorthVal) * 100, 2)}%`;
+          const roeRatio = resolveFinancialSummaryIssuerReturnOnEquityRatio({
+            plnpat: pat,
+            netWorth: netWorthVal,
+          });
+          return roeRatio == null ? "Not available" : `${formatNumber(roeRatio * 100, 2)}%`;
         }
         if (!computed || computed.return_of_equity == null) return "Not available";
         return formatNumber(computed.return_of_equity * 100, 2) + "%";
@@ -1007,14 +1012,8 @@ export function ApplicationFinancialReviewContent({
           // Fallback to the agreed issuer formula when CTOS finished metric is missing.
           const currentAssets = resolvedByYear.get(specCol.year)?.fields.bscatot?.value ?? null;
           const currentLiabilities = resolvedByYear.get(specCol.year)?.fields.curlib?.value ?? null;
-          if (
-            currentAssets == null ||
-            currentLiabilities == null ||
-            currentLiabilities === 0
-          ) {
-            return "Not available";
-          }
-          return formatNumber(currentAssets / currentLiabilities, 2);
+          const ratio = computeCurrentRatio(currentAssets, currentLiabilities);
+          return ratio == null ? "Not available" : formatNumber(ratio, 2);
         }
         if (!computed || computed.currat == null) return "Not available";
         return formatNumber(computed.currat, 2);
@@ -1029,8 +1028,8 @@ export function ApplicationFinancialReviewContent({
           // Fallback to the agreed issuer formula when CTOS finished metric is missing.
           const currentAssets = resolvedByYear.get(specCol.year)?.fields.bscatot?.value ?? null;
           const currentLiabilities = resolvedByYear.get(specCol.year)?.fields.curlib?.value ?? null;
-          if (currentAssets == null || currentLiabilities == null) return "Not available";
-          return formatCurrency(currentAssets - currentLiabilities, { decimals: 0 });
+          const wc = computeWorkingCapital(currentAssets, currentLiabilities);
+          return wc == null ? "Not available" : formatCurrency(wc, { decimals: 0 });
         }
         if (!computed) return "Not available";
         if (computed.workcap == null) return "Not available";
@@ -1115,17 +1114,18 @@ export function ApplicationFinancialReviewContent({
       case "debtEquityPercent": {
         if (specCol.kind === "ctos") {
           const row = byYear.get(specCol.year);
-          const v = resolveCtosDebtToEquityPercent({
+          const v = resolveCtosGearingRatio({
+            gear: row?.account.gear ?? null,
             totlib: row?.account.totlib ?? null,
             networth: row?.account.networth ?? null,
           });
-          return v == null ? "Not available" : `${formatNumber(v, 2)}%`;
+          return v == null ? "Not available" : `${formatNumber(v, 2)}x`;
         }
         if (!computed) return "Not available";
         if (computed.networth == null || computed.totlib == null) return "Not available";
         if (computed.networth === 0) return "Not available";
-        const v = (computed.totlib / computed.networth) * 100;
-        return `${formatNumber(v, 2)}%`;
+        const v = computed.totlib / computed.networth;
+        return `${formatNumber(v, 2)}x`;
       }
       case "netDebtEquity": {
         const curlibBorrowing =

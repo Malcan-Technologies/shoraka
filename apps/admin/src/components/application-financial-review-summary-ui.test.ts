@@ -103,14 +103,14 @@ describe("Admin Financial Summary table UI", () => {
     // Current Ratio fallback: bscatot ÷ curlib
     expect(source).toContain("fields.bscatot");
     expect(source).toContain("fields.curlib");
-    expect(source).toContain("currentAssets / currentLiabilities");
+    expect(source).toContain("computeCurrentRatio(currentAssets, currentLiabilities)");
 
     // Working Capital fallback: bscatot − curlib
-    expect(source).toContain("currentAssets - currentLiabilities");
+    expect(source).toContain("computeWorkingCapital(currentAssets, currentLiabilities)");
 
     // ROE fallback: PAT ÷ net worth × 100
-    expect(source).toContain("(pat / netWorthVal) * 100");
-    expect(source).toContain(")}%");
+    expect(source).toContain("resolveFinancialSummaryIssuerReturnOnEquityRatio({");
+    expect(source).toContain("roeRatio * 100");
   });
 
   it("DSCR uses only Net Operating Income (no ebitda fallback)", () => {
@@ -131,11 +131,11 @@ describe("Admin Financial Summary table UI", () => {
     // Fallback formula when finished metric is absent.
     expect(source).toContain("fields.bscatot");
     expect(source).toContain("fields.curlib");
-    expect(source).toContain("return formatNumber(currentAssets / currentLiabilities, 2);");
+    expect(source).toContain("computeCurrentRatio(currentAssets, currentLiabilities)");
+    expect(source).toContain('return ratio == null ? "Not available" : formatNumber(ratio, 2);');
 
     // Unavailable rules for fallback.
-    expect(source).toContain("currentAssets == null ||");
-    expect(source).toContain("currentLiabilities === 0");
+    expect(source).toContain('ratio == null ? "Not available"');
   });
 
   it("CTOS priority for Working Capital: use finished workcap when present, otherwise fallback to bscatot − curlib", () => {
@@ -146,12 +146,13 @@ describe("Admin Financial Summary table UI", () => {
     expect(source).toContain('return formatCurrency(toNum(fs.workcap), { decimals: 0 });');
 
     // Fallback formula when finished metric is absent.
-    expect(source).toContain("return formatCurrency(currentAssets - currentLiabilities, { decimals: 0 });");
+    expect(source).toContain("computeWorkingCapital(currentAssets, currentLiabilities)");
+    expect(source).toContain('wc == null ? "Not available" : formatCurrency(wc, { decimals: 0 });');
     expect(source).toContain("fields.bscatot");
     expect(source).toContain("fields.curlib");
 
     // Unavailable rules for fallback.
-    expect(source).toContain("if (currentAssets == null || currentLiabilities == null) return \"Not available\";");
+    expect(source).toContain('wc == null ? "Not available"');
   });
 
   it("CTOS priority for ROE: use finished return_on_equity when present, otherwise fallback to plnpat ÷ networth × 100", () => {
@@ -163,14 +164,12 @@ describe("Admin Financial Summary table UI", () => {
     expect(idxIfFinished).toBeGreaterThan(idxResolve);
 
     // Fallback formula when finished metric is absent.
-    expect(source).toContain("const pat = resolvedByYear.get(specCol.year)?.fields.plnpat?.value ?? null;");
-    expect(source).toContain("const netWorthVal = resolvedByYear.get(specCol.year)?.fields.networth?.value ?? null;");
-    expect(source).toContain("return `${formatNumber((pat / netWorthVal) * 100, 2)}%`;");
+    expect(source).toContain("resolveFinancialSummaryIssuerReturnOnEquityRatio({");
+    expect(source).toContain("roeRatio == null ? \"Not available\" :");
+    expect(source).toContain("roeRatio * 100");
 
     // Unavailable rules for fallback.
-    expect(source).toContain(
-      "if (pat == null || netWorthVal == null || netWorthVal === 0) return \"Not available\";"
-    );
+    expect(source).toContain('roeRatio == null ? "Not available"');
   });
 
   it("CTOS priority for Total Assets / Total Liabilities / Total Equity: fallback to component sums when CTOS finished fields are missing", () => {
@@ -190,7 +189,7 @@ describe("Admin Financial Summary table UI", () => {
     expect(source).toContain("non_current_liabilities: yearFields?.bsclstd?.value");
 
     // Total Equity fallback is Total Assets − Total Liabilities.
-    expect(source).toContain("const n = totass - totlib;");
+    expect(source).toContain("computeNetWorth(totass, totlib)");
   });
 
   it("suppresses source badges and cell-level edit for calculated rows", () => {
