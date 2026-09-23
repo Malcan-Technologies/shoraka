@@ -1,33 +1,37 @@
 import {
   formatFinancialFyPeriodDisplay,
-  getLatestThreeCtosYearSlots,
   isFinancialYearPeriodOpen,
   parseFinancialStatementsQuestionnaireShape,
+  resolveAdminFinancialReviewColumns,
   type CtosFinancialYearRowInput,
   type FinancialStatementsQuestionnaire,
 } from "@cashsouk/types";
 
 export type AdminFinancialSummaryColumn = {
-  kind: "ctos" | "unaudited";
+  kind: "ctos" | "unaudited" | "admin_input" | "admin_fallback_placeholder" | "empty";
   year: number | null;
+  statementType?: string;
 };
 
-/** Three CTOS slots, then stored issuer years that do not overlap those CTOS years. */
+/** Chronological FY columns. One column per year. CTOS wins a duplicate FY. No empty pad slots. */
 export function adminFinancialSummaryColumns(
   ctosRows: CtosFinancialYearRowInput[] | null | undefined,
-  unauditedByYear: Record<string, unknown> | null | undefined
+  unauditedByYear: Record<string, unknown> | null | undefined,
+  adminInputByYear: Record<string, unknown> | null | undefined,
+  eligibleAdminInputYears: number[]
 ): AdminFinancialSummaryColumn[] {
-  const ctosSlotYears = getLatestThreeCtosYearSlots(ctosRows ?? []);
-  const ctosYearSet = new Set(
-    ctosSlotYears.filter((year): year is number => typeof year === "number")
-  );
-  const unaudited = storedUnauditedYears(unauditedByYear)
-    .filter((year) => !ctosYearSet.has(year))
-    .map((year) => ({ kind: "unaudited" as const, year }));
-  return [
-    ...ctosSlotYears.map((year) => ({ kind: "ctos" as const, year })),
-    ...unaudited,
-  ];
+  return resolveAdminFinancialReviewColumns({
+    financialStatements: {
+      unaudited_by_year: unauditedByYear ?? {},
+      admin_input_by_year: adminInputByYear ?? {},
+    },
+    ctosFinancials: ctosRows ?? [],
+    eligibleAdminInputYears,
+  }).map((column) => ({
+    kind: column.kind,
+    year: column.year,
+    statementType: column.statementType,
+  }));
 }
 
 /** Numeric FY keys from stored `unaudited_by_year`, oldest → newest. */
@@ -64,6 +68,30 @@ export function extractQuestionnaireAndUnaudited(financialRaw: unknown): {
     return { questionnaire, unauditedByYear: byYear };
   }
   return { questionnaire: null, unauditedByYear: {} };
+}
+
+export function extractQuestionnaireUnauditedAndAdminInput(financialRaw: unknown): {
+  questionnaire: FinancialStatementsQuestionnaire | null;
+  unauditedByYear: Record<string, Record<string, unknown>>;
+  adminInputByYear: Record<string, Record<string, unknown>>;
+} {
+  if (!financialRaw || typeof financialRaw !== "object") {
+    return { questionnaire: null, unauditedByYear: {}, adminInputByYear: {} };
+  }
+  const obj = financialRaw as Record<string, unknown>;
+  const extracted = extractQuestionnaireAndUnaudited(obj);
+  const adminInputByYearRaw = obj.admin_input_by_year as
+    | Record<string, Record<string, unknown>>
+    | undefined;
+  const adminInputByYear =
+    adminInputByYearRaw && typeof adminInputByYearRaw === "object" && !Array.isArray(adminInputByYearRaw)
+      ? adminInputByYearRaw
+      : {};
+  return {
+    questionnaire: extracted.questionnaire,
+    unauditedByYear: extracted.unauditedByYear,
+    adminInputByYear,
+  };
 }
 
 /** Split a period for narrow admin headers so dates do not wrap mid-token. */

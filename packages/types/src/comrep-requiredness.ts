@@ -1060,8 +1060,8 @@ export const OPERATOR_FINANCIAL_REQUIRED_FIELDS = [
   ["paidUpCapital", "Paid-up Capital"],
   ["shareApplicationAccount", "Share Application Account"],
   ["sharePremiumAndReserves", "Share Premium & Other Reserves"],
-  ["accumulatedProfitCarriedForward", "Accumulated Profit / (Loss)"],
-  ["equityMinorityInterest", "Minority Interest"],
+  ["accumulatedProfitCarriedForward", "Accumulated Profit / Loss"],
+  ["equityMinorityInterest", "Equity Minority Interest"],
   ["totalLiabilities", "Total Liabilities"],
   ["nonCurrentLiabilities", "Non-current Liabilities"],
   ["currentLiabilities", "Current Liabilities"],
@@ -1082,7 +1082,7 @@ export const OPERATOR_FINANCIAL_REQUIRED_FIELDS = [
   ["profitBeforeTax", "Profit / (Loss) Before Tax"],
   ["taxation", "Taxation"],
   ["profitAfterTax", "Profit / (Loss) After Tax"],
-  ["pnlMinorityInterest", "Minority Interest"],
+  ["pnlMinorityInterest", "P&L Minority Interest"],
   ["netDividend", "Net Dividend"],
 ] as const;
 

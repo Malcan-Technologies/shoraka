@@ -281,7 +281,7 @@ function formatIssuerFinancialCell(rowId: string, fs: Record<string, unknown> | 
     case "bsclbank":
       return formatCurrency(toNum(fs.bsclbank), { decimals: 0 });
     case "totass":
-      return formatCurrency(computed.totass, { decimals: 0 });
+      return computed.totass == null ? "—" : formatCurrency(computed.totass, { decimals: 0 });
     case "curlib":
       return formatCurrency(toNum(fs.curlib), { decimals: 0 });
     case "bsslltd":
@@ -289,9 +289,9 @@ function formatIssuerFinancialCell(rowId: string, fs: Record<string, unknown> | 
     case "bsclstd":
       return formatCurrency(toNum(fs.bsclstd), { decimals: 0 });
     case "totlib":
-      return formatCurrency(computed.totlib, { decimals: 0 });
+      return computed.totlib == null ? "—" : formatCurrency(computed.totlib, { decimals: 0 });
     case "networth":
-      return formatCurrency(computed.networth, { decimals: 0 });
+      return computed.networth == null ? "—" : formatCurrency(computed.networth, { decimals: 0 });
     case "bsqpuc":
       return formatCurrency(toNum(fs.bsqpuc), { decimals: 0 });
     case "turnover":
@@ -318,7 +318,7 @@ function formatIssuerFinancialCell(rowId: string, fs: Record<string, unknown> | 
     case "currat":
       return computed.currat == null ? "—" : formatNumber(computed.currat, 2);
     case "workcap":
-      return formatCurrency(computed.workcap, { decimals: 0 });
+      return computed.workcap == null ? "—" : formatCurrency(computed.workcap, { decimals: 0 });
     default:
       if ((APPLICATION_COMREP_DETAIL_KEYS as readonly string[]).includes(rowId)) {
         if (!fs || fs[rowId] == null || fs[rowId] === "") return "—";

@@ -1,6 +1,7 @@
 "use client";
 
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -12,6 +13,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { FinancialMetricTableModel } from "./financial-metric-table";
 import { FINANCIAL_CELL_PLACEHOLDERS, FINANCIAL_PLACEHOLDERS } from "./working-area-placeholders";
+import { StatusBadge } from "@cashsouk/ui";
 
 export type FinancialInputKind = "money" | "ratio" | "percent" | "days";
 
@@ -35,6 +37,7 @@ type Props = {
   resolveRow: (metric: string) => FinancialRowMode;
   getEditableValue: (yearKey: string, field: string) => string | number | null | undefined;
   onChange: (yearKey: string, field: string, value: string) => void;
+  onAddPlaceholderYear?: (calendarYear: number) => void;
   disabled: boolean;
   emptyMessage?: string;
 };
@@ -57,6 +60,7 @@ export function ProspectusSharedFinancialWorkingTable({
   resolveRow,
   getEditableValue,
   onChange,
+  onAddPlaceholderYear,
   disabled,
   emptyMessage = "No financial years available",
 }: Props) {
@@ -65,20 +69,62 @@ export function ProspectusSharedFinancialWorkingTable({
 
   return (
     <div className="min-w-0 max-w-full overflow-x-auto rounded-xl border">
-      <Table className="min-w-[36rem]">
+      <Table className="min-w-[48rem]">
         <TableHeader>
           <TableRow className="hover:bg-transparent">
-            <TableHead className="sticky left-0 z-10 min-w-[11rem] bg-background text-sm font-semibold text-foreground">
+            <TableHead className="sticky left-0 z-10 min-w-[13rem] bg-background py-3 text-sm font-semibold text-foreground">
               Financial Metric
             </TableHead>
             {headers.map((header) => (
               <TableHead
                 key={header.key}
-                className="min-w-[8rem] whitespace-nowrap text-sm font-semibold text-foreground"
+                className="min-w-[9rem] whitespace-nowrap bg-muted/10 py-3 text-left text-sm font-semibold text-foreground"
               >
-                <div>{header.yearLabel}</div>
-                <div className="mt-0.5 text-xs font-normal text-muted-foreground">
-                  {header.fyeLabel}
+                <div className="flex h-full min-w-0 flex-col items-start justify-center gap-1.5 px-1">
+                  <div className="min-w-0">
+                    <div className="leading-snug">{header.yearLabel}</div>
+                    <div className="text-xs font-normal leading-snug text-muted-foreground">
+                      {header.fyeLabel}
+                    </div>
+                    {!header.isPlaceholder ? (
+                      <div className="mt-1 flex flex-wrap items-center gap-1 pb-1">
+                        {header.sourceType ? (
+                          <StatusBadge
+                            size="sm"
+                            status={
+                              header.sourceType === "CTOS"
+                                ? "success"
+                                : header.sourceType === "ADMIN_INPUT"
+                                  ? "action"
+                                  : "neutral"
+                            }
+                            label={
+                              header.sourceType === "CTOS"
+                                ? "CTOS"
+                                : header.sourceType === "ISSUER_INPUT"
+                                  ? "User Input"
+                                  : "Admin Input"
+                            }
+                            showDot={false}
+                          />
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {header.isPlaceholder && header.adminFallbackEligible && !disabled && onAddPlaceholderYear ? (
+                    <Button
+                      type="button"
+                      className="h-8 shrink-0 px-2 text-meta font-normal"
+                      variant="outline"
+                      onClick={() => {
+                        const y = header.yearLabel.replace(/^FY/, "");
+                        if (/^\d{4}$/.test(y)) onAddPlaceholderYear(Number(y));
+                      }}
+                    >
+                      + Add
+                    </Button>
+                  ) : null}
                 </div>
               </TableHead>
             ))}
@@ -142,7 +188,10 @@ export function ProspectusSharedFinancialWorkingTable({
                     return (
                       <TableCell
                         key={`${row.metric}-${header.key}`}
-                        className="whitespace-nowrap bg-muted/30 text-sm tabular-nums text-foreground"
+                        className={cn(
+                          "whitespace-normal text-sm tabular-nums text-foreground",
+                          row.values[index] === "—" && "bg-background"
+                        )}
                         title={
                           header.isPlaceholder
                             ? "No financial record for this year"
@@ -151,7 +200,28 @@ export function ProspectusSharedFinancialWorkingTable({
                               : undefined
                         }
                       >
-                        {header.isPlaceholder ? "—" : (row.values[index] ?? "—")}
+                        {header.isPlaceholder ? (
+                          "—"
+                        ) : (
+                          <div className="flex flex-col items-start gap-0.5">
+                            {(() => {
+                              const cellText = row.values[index] ?? "—";
+                              const isRawMissing = cellText === "—";
+
+                              return (
+                                <>
+                                  <span
+                                    className={cn(
+                                      isRawMissing ? "text-muted-foreground" : undefined
+                                    )}
+                                  >
+                                    {cellText}
+                                  </span>
+                                </>
+                              );
+                            })()}
+                          </div>
+                        )}
                       </TableCell>
                     );
                   })}

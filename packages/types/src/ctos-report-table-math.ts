@@ -32,33 +32,39 @@ function isFiniteNumber(value: number | null | undefined): value is number {
 
 /**
  * Issuer Total assets: use reported total if present; otherwise sum the four asset lines.
- * Missing components default to 0. Not for CTOS columns.
+ * Missing components -> null (Not available). Not for CTOS columns.
  */
-export function computeTotalAssets(input: TotalAssetsInput): number {
+export function computeTotalAssets(input: TotalAssetsInput): number | null {
   if (isFiniteNumber(input.total_assets)) {
     return input.total_assets;
   }
-  return (
-    (input.fixed_assets ?? 0) +
-    (input.other_assets ?? 0) +
-    (input.current_assets ?? 0) +
-    (input.non_current_assets ?? 0)
-  );
+  if (
+    !isFiniteNumber(input.fixed_assets) ||
+    !isFiniteNumber(input.other_assets) ||
+    !isFiniteNumber(input.current_assets) ||
+    !isFiniteNumber(input.non_current_assets)
+  ) {
+    return null;
+  }
+  return input.fixed_assets + input.other_assets + input.current_assets + input.non_current_assets;
 }
 
 /**
  * Issuer Total liabilities: use reported total if present; else sum liability lines.
- * Missing components default to 0. Not for CTOS columns.
+ * Missing components -> null (Not available). Not for CTOS columns.
  */
-export function computeTotalLiabilities(input: TotalLiabilitiesInput): number {
+export function computeTotalLiabilities(input: TotalLiabilitiesInput): number | null {
   if (isFiniteNumber(input.total_liabilities)) {
     return input.total_liabilities;
   }
-  return (
-    (input.current_liabilities ?? 0) +
-    (input.long_term_liabilities ?? 0) +
-    (input.non_current_liabilities ?? 0)
-  );
+  if (
+    !isFiniteNumber(input.current_liabilities) ||
+    !isFiniteNumber(input.long_term_liabilities) ||
+    !isFiniteNumber(input.non_current_liabilities)
+  ) {
+    return null;
+  }
+  return input.current_liabilities + input.long_term_liabilities + input.non_current_liabilities;
 }
 
 /**
@@ -102,10 +108,16 @@ export function computeCurrentRatio(currentAssets: number | null, currentLiabili
 }
 
 /**
- * Working capital: current assets minus current liabilities (uses zero when a side is missing).
+ * Working capital: current assets minus current liabilities.
+ * Missing inputs -> null (Not available).
  */
-export function computeWorkingCapital(currentAssets: number | null, currentLiabilities: number | null): number {
-  return (currentAssets ?? 0) - (currentLiabilities ?? 0);
+export function computeWorkingCapital(
+  currentAssets: number | null,
+  currentLiabilities: number | null
+): number | null {
+  if (currentAssets == null || currentLiabilities == null) return null;
+  if (!isFiniteNumber(currentAssets) || !isFiniteNumber(currentLiabilities)) return null;
+  return currentAssets - currentLiabilities;
 }
 
 /**
@@ -136,13 +148,13 @@ export function computeTurnoverGrowth(i: TurnoverGrowthInput): number | null {
 }
 
 export interface ColumnComputedMetrics {
-  totass: number;
-  totlib: number;
-  networth: number;
+  totass: number | null;
+  totlib: number | null;
+  networth: number | null;
   profit_margin: number | null;
   return_of_equity: number | null;
   currat: number | null;
-  workcap: number;
+  workcap: number | null;
   turnover_growth: number | null;
 }
 
@@ -168,7 +180,7 @@ export function computeColumnMetrics(
 ): ColumnComputedMetrics {
   const totass = computeTotalAssets(bs);
   const totlib = computeTotalLiabilities(bs);
-  const networth = computeNetWorth(totass, totlib);
+  const networth = totass == null || totlib == null ? null : computeNetWorth(totass, totlib);
   // ROE denominator: prefer explicit Net Worth on `equity`; else totass − totlib. Never Paid-Up Capital.
   const roeEquity =
     bs.equity != null && Number.isFinite(bs.equity) ? bs.equity : networth;
@@ -208,4 +220,103 @@ export function financialFormToBsPl(fs: FinancialStatementsInput) {
       revenue: n(fs.turnover),
     },
   };
+}
+
+/**
+ * EBIT = Profit Before Tax + Interest Cost
+ * Returns null when either input is missing or interest cost is not calculable.
+ */
+export function computeEbit(plnpbt: number | null | undefined, interest_cost: number | null | undefined): number | null {
+  if (!isFiniteNumber(plnpbt) || !isFiniteNumber(interest_cost)) return null;
+  return plnpbt + interest_cost;
+}
+
+/**
+ * Quick Ratio = (Cash & Bank + Trade Receivables) / Current Liabilities
+ * Missing inputs never default to 0.
+ */
+export function computeQuickRatio(
+  cashAndBank: number | null | undefined,
+  tradeReceivables: number | null | undefined,
+  curlib: number | null | undefined
+): number | null {
+  if (!isFiniteNumber(cashAndBank) || !isFiniteNumber(tradeReceivables) || !isFiniteNumber(curlib)) return null;
+  if (curlib === 0) return null;
+  return (cashAndBank + tradeReceivables) / curlib;
+}
+
+/**
+ * Interest Coverage = EBIT / Interest Cost
+ * Returns null when interest cost is missing or zero.
+ */
+export function computeInterestCoverage(
+  ebit: number | null | undefined,
+  interest_cost: number | null | undefined
+): number | null {
+  if (!isFiniteNumber(ebit) || !isFiniteNumber(interest_cost)) return null;
+  if (interest_cost === 0) return null;
+  return ebit / interest_cost;
+}
+
+/**
+ * Receivables Days = Average Accounts Receivable / Revenue × 365
+ * Average AR = (Beginning AR + Ending AR) / 2
+ *
+ * Returns null when either beginning/ending AR is missing or when turnover is missing/zero.
+ */
+export function computeReceivablesDays(
+  beginningAr: number | null | undefined,
+  endingAr: number | null | undefined,
+  turnover: number | null | undefined
+): number | null {
+  if (!isFiniteNumber(beginningAr) || !isFiniteNumber(endingAr) || !isFiniteNumber(turnover)) return null;
+  if (turnover === 0) return null;
+  const averageAr = (beginningAr + endingAr) / 2;
+  return (averageAr / turnover) * 365;
+}
+
+/**
+ * Payables Days = Trade Payables / Cost of Sales × 365
+ * Returns null when costOfSales is missing or zero.
+ */
+export function computePayablesDays(
+  tradePayables: number | null | undefined,
+  costOfSales: number | null | undefined
+): number | null {
+  if (!isFiniteNumber(tradePayables) || !isFiniteNumber(costOfSales)) return null;
+  if (costOfSales === 0) return null;
+  return (tradePayables / costOfSales) * 365;
+}
+
+/**
+ * Net Debt / Equity =
+ *   (Current Borrowings + Non-current Loans - Cash & Bank) / Total Equity
+ *
+ * Uses `networth` (Total Equity) denominator.
+ */
+export function computeNetDebtEquity(params: {
+  curlib_borrowing: number | null | undefined;
+  ncl_loan: number | null | undefined;
+  cashAndBank: number | null | undefined;
+  networth: number | null | undefined;
+}): number | null {
+  const { curlib_borrowing, ncl_loan, cashAndBank, networth } = params;
+  if (!isFiniteNumber(curlib_borrowing) || !isFiniteNumber(ncl_loan) || !isFiniteNumber(cashAndBank) || !isFiniteNumber(networth)) {
+    return null;
+  }
+  if (networth === 0) return null;
+  return (curlib_borrowing + ncl_loan - cashAndBank) / networth;
+}
+
+/**
+ * DSCR = Net Operating Income / Annual Debt Service
+ * Returns null when netOperatingIncome is missing or when annualDebtService is missing/zero.
+ */
+export function computeDscr(
+  netOperatingIncome: number | null | undefined,
+  annualDebtService: number | null | undefined
+): number | null {
+  if (!isFiniteNumber(netOperatingIncome) || !isFiniteNumber(annualDebtService)) return null;
+  if (annualDebtService === 0) return null;
+  return netOperatingIncome / annualDebtService;
 }

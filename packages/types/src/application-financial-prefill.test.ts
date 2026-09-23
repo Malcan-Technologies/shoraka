@@ -1,4 +1,5 @@
 import {
+  indexResolvedApplicationFinancials,
   APPLICATION_FINANCIAL_PREFILL_KEYS,
   applicationComrepFieldError,
   buildApplicationFinancialPrefillByYear,
@@ -65,8 +66,12 @@ const SUBMITTED_ADDITIONAL_DETAILS: Record<string, number> = {
   pl_minority: 23,
 };
 
-function expectAdditionalDetailsBlank(fields: Record<string, unknown> | null | undefined) {
+function expectAdditionalDetailsBlank(
+  fields: Record<string, unknown> | null | undefined,
+  exceptions: string[] = []
+) {
   for (const key of APPLICATION_COMREP_DETAIL_KEYS) {
+    if (exceptions.includes(key)) continue;
     expect(fields?.[key]).toBeUndefined();
   }
 }
@@ -83,15 +88,22 @@ describe("application financial prefill", () => {
       "othass",
       "bscatot",
       "bsclbank",
+      "cashAndBank",
+      "tradeReceivables",
       "curlib",
       "bsslltd",
       "bsclstd",
       "bsqpuc",
+      "tradePayables",
       "turnover",
+      "grossProfit",
+      "ebitda",
       "plnpbt",
       "plnpat",
       "plnetdiv",
       "plyear",
+      "operatingCashFlow",
+      "freeCashFlow",
     ]);
     for (const key of APPLICATION_COMREP_DETAIL_KEYS) {
       expect(APPLICATION_CORE_MONEY_KEYS).not.toContain(key);
@@ -128,7 +140,16 @@ describe("application financial prefill", () => {
           ...SUBMITTED_ADDITIONAL_DETAILS,
         },
       },
-      ctosFinancials: [ctosRow(2026, { turnover: 850, curlib: 70 })],
+      ctosFinancials: [
+        ctosRow(2026, {
+          turnover: 850,
+          curlib: 70,
+          bsqres: 111_000,
+          bsqupro: 222_000,
+          bsqmint: 333_000,
+          plminin: 444_000,
+        }),
+      ],
       ref: twoTabRefFy2027,
     });
     expect(result.tabYears).toEqual([2026, 2027]);
@@ -138,8 +159,65 @@ describe("application financial prefill", () => {
       expect.objectContaining({ turnover: 850, curlib: 70 })
     );
     expect(result.years["2026"]?.fields?.bsfatot).toBeUndefined();
-    expectAdditionalDetailsBlank(result.years["2026"]?.fields);
+    expect(result.years["2026"]?.fields?.equity_share_premium).toBe(111_000);
+    expect(result.years["2026"]?.fields?.equity_accumulated_profit).toBe(222_000);
+    expect(result.years["2026"]?.fields?.equity_minority).toBe(333_000);
+    expect(result.years["2026"]?.fields?.pl_minority).toBe(444_000);
+    expectAdditionalDetailsBlank(result.years["2026"]?.fields, [
+      "equity_share_premium",
+      "equity_accumulated_profit",
+      "equity_minority",
+      "pl_minority",
+    ]);
     expect(result.years["2027"]).toEqual({ year: 2027, source: "blank", fields: null });
+  });
+
+  it("previous FY + CTOS exists → preserves zero and negative ComRep extras", () => {
+    const result = buildApplicationFinancialPrefillByYear({
+      questionnaire: { financial_year_end: fye2027 },
+      orgFinancialStatements: orgStatements(
+        { "2026": { turnover: 900, bsfatot: 50, ...SUBMITTED_ADDITIONAL_DETAILS } },
+        fye2027
+      ),
+      submittedByYear: {
+        "2026": {
+          turnover: 700,
+          bsfatot: 99,
+          curlib: 80,
+          ...SUBMITTED_ADDITIONAL_DETAILS,
+        },
+      },
+      ctosFinancials: [
+        ctosRow(2026, {
+          turnover: 850,
+          curlib: 70,
+          // 0 is a real CTOS value and must not be treated as missing.
+          bsqres: 0,
+          bsqupro: 0,
+          bsqmint: 0,
+          // Negative CTOS P&L minority interest must survive prefill.
+          plminin: -8975580,
+        }),
+      ],
+      ref: twoTabRefFy2027,
+    });
+
+    expect(result.tabYears).toEqual([2026, 2027]);
+    expect(result.inProgressYear).toBe(2027);
+    expect(result.years["2026"]?.source).toBe("ctos");
+
+    const fields = result.years["2026"]?.fields;
+    expect(fields?.equity_share_premium).toBe(0);
+    expect(fields?.equity_accumulated_profit).toBe(0);
+    expect(fields?.equity_minority).toBe(0);
+    expect(fields?.pl_minority).toBe(-8975580);
+
+    expectAdditionalDetailsBlank(fields, [
+      "equity_share_premium",
+      "equity_accumulated_profit",
+      "equity_minority",
+      "pl_minority",
+    ]);
   });
 
   it("previous FY + no CTOS + same-FY submitted revision → core and Additional Financial Details prefill", () => {
@@ -316,13 +394,31 @@ describe("application financial prefill", () => {
           ...SUBMITTED_ADDITIONAL_DETAILS,
         },
       },
-      ctosFinancials: [ctosRow(2026, { turnover: 180, curlib: 70 })],
+      ctosFinancials: [
+        ctosRow(2026, {
+          turnover: 180,
+          curlib: 70,
+          bsqres: 101_000,
+          bsqupro: 202_000,
+          bsqmint: 303_000,
+          plminin: 404_000,
+        }),
+      ],
     });
     expect(resolved.source).toBe("ctos");
     expect(resolved.fields?.turnover).toBe(180);
     expect(resolved.fields?.curlib).toBe(70);
     expect(resolved.fields?.bsfatot).toBeUndefined();
-    expectAdditionalDetailsBlank(resolved.fields);
+    expect(resolved.fields?.equity_share_premium).toBe(101_000);
+    expect(resolved.fields?.equity_accumulated_profit).toBe(202_000);
+    expect(resolved.fields?.equity_minority).toBe(303_000);
+    expect(resolved.fields?.pl_minority).toBe(404_000);
+    expectAdditionalDetailsBlank(resolved.fields, [
+      "equity_share_premium",
+      "equity_accumulated_profit",
+      "equity_minority",
+      "pl_minority",
+    ]);
   });
 
   it("CASE F — issuer may replace a CTOS-prefilled historical value", () => {
@@ -499,6 +595,39 @@ describe("application financial prefill", () => {
       ctosFinancials: [],
     });
     expect(resolved).toEqual({ year: 2025, source: "blank", fields: null });
+  });
+
+  it("prefills an Admin-supplied CTOS gap without labeling it as CTOS", () => {
+    const indexed = indexResolvedApplicationFinancials([
+      {
+        financialStatements: {
+          unaudited_by_year: { "2026": { turnover: 700, cashAndBank: 1 } },
+          admin_field_overrides: {
+            "2026": {
+              cashAndBank: {
+                value: 500000,
+                baseSource: "ctos",
+                action: "add_missing_ctos_field",
+                updated_by_user_id: "admin",
+                updated_at: "2026-01-01T00:00:00.000Z",
+              },
+            },
+          },
+        },
+      },
+    ]);
+    const resolved = resolveApplicationFinancialYearPrefill({
+      year: 2026,
+      inProgressYear: 2027,
+      ctosFinancials: [ctosRow(2026, { turnover: 850, curlib: 70 })],
+      submittedByYear: indexed.submittedByYear,
+      adminSupplementsByYear: indexed.adminSupplementsByYear,
+    });
+    expect(resolved.fields?.turnover).toBe(850);
+    expect(resolved.fields?.cashAndBank).toBe(500000);
+    expect(resolved.fieldSources?.turnover).toBe("ctos");
+    expect(resolved.fieldSources?.cashAndBank).toBe("previous_admin");
+    expect(resolved.fields?.cashAndBank).not.toBe(1);
   });
 });
 

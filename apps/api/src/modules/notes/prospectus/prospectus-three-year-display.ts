@@ -65,6 +65,7 @@ function placeholderYear(
       : PROSPECTUS_DATA_NOT_AVAILABLE,
     // Display-only slot — never treated as a real CTOS/unaudited record.
     recordSource: "unaudited_management",
+    statementType: "MANAGEMENT_ACCOUNTS",
     rawFinancials: {},
     isPlaceholder: true,
   };
@@ -104,8 +105,13 @@ export function buildProspectusThreeYearDisplaySet(
 export function withProspectusThreeYearDisplay(
   source: ProspectusFinancialComparisonSource
 ): ProspectusFinancialComparisonSource {
+  const eligible = new Set(source.adminFallbackEligibleYears ?? []);
   return {
     ...source,
-    years: buildProspectusThreeYearDisplaySet(source.years),
+    years: buildProspectusThreeYearDisplaySet(source.years).map((y) =>
+      y.isPlaceholder
+        ? { ...y, adminFallbackEligible: eligible.has(y.year) }
+        : y
+    ),
   };
 }

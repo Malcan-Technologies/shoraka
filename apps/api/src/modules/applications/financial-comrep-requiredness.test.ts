@@ -65,7 +65,7 @@ describe("Financial Statements — ComRep requiredness enforcement", () => {
         ...validRequiredBlock(),
         equity_accumulated_profit: "",
       })
-    ).toThrow("Accumulated Profit / (Loss) is required.");
+    ).toThrow("Accumulated Profit / Loss is required.");
   });
 
   it("blank Operating/Administrative/Interest/Other Costs → blocked", () => {
@@ -101,7 +101,7 @@ describe("Financial Statements — ComRep requiredness enforcement", () => {
         ...validRequiredBlock(),
         pl_minority: "",
       })
-    ).toThrow("Minority Interest is required.");
+    ).toThrow("P&L Minority Interest is required.");
   });
 
   it("Share Application Account / Share Premium / Balance Sheet Minority Interest remain optional (blank allowed)", () => {

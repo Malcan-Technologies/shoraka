@@ -4,6 +4,7 @@ import {
   adminUnauditedYearPresentation,
   comparisonUnauditedGroupHeader,
   extractQuestionnaireAndUnaudited,
+  extractQuestionnaireUnauditedAndAdminInput,
   storedUnauditedYears,
 } from "./stored-unaudited-years";
 
@@ -138,25 +139,25 @@ describe("comparisonUnauditedGroupHeader", () => {
 
 describe("adminFinancialSummaryColumns", () => {
   const stored = { "2026": { turnover: 1 }, "2027": { turnover: 2 } };
+  const adminStored = {};
+  const eligible: number[] = [];
 
-  it("keeps three empty CTOS slots and both stored issuer years when nothing is fetched", () => {
-    expect(adminFinancialSummaryColumns([], stored)).toEqual([
-      { kind: "ctos", year: null },
-      { kind: "ctos", year: null },
-      { kind: "ctos", year: null },
+  it("shows stored issuer years chronologically without empty CTOS pads", () => {
+    expect(adminFinancialSummaryColumns([], stored, adminStored, eligible)).toEqual([
       { kind: "unaudited", year: 2026 },
       { kind: "unaudited", year: 2027 },
     ]);
   });
 
-  it("pads fewer than three CTOS years on the left and keeps non-overlapping issuer years", () => {
+  it("sorts CTOS and non-overlapping issuer years chronologically", () => {
     expect(
       adminFinancialSummaryColumns(
         [{ financial_year: 2024 }, { financial_year: 2025 }],
-        stored
+        stored,
+        adminStored,
+        eligible
       )
     ).toEqual([
-      { kind: "ctos", year: null },
       { kind: "ctos", year: 2024 },
       { kind: "ctos", year: 2025 },
       { kind: "unaudited", year: 2026 },
@@ -168,7 +169,9 @@ describe("adminFinancialSummaryColumns", () => {
     expect(
       adminFinancialSummaryColumns(
         [{ financial_year: 2024 }, { financial_year: 2025 }, { financial_year: 2026 }],
-        stored
+        stored,
+        adminStored,
+        eligible
       )
     ).toEqual([
       { kind: "ctos", year: 2024 },
@@ -182,12 +185,71 @@ describe("adminFinancialSummaryColumns", () => {
     expect(
       adminFinancialSummaryColumns(
         [{ financial_year: 2025 }, { financial_year: 2026 }, { financial_year: 2027 }],
-        stored
+        stored,
+        adminStored,
+        eligible
       )
     ).toEqual([
       { kind: "ctos", year: 2025 },
       { kind: "ctos", year: 2026 },
       { kind: "ctos", year: 2027 },
     ]);
+  });
+
+  it("places a missing FY placeholder in chronological position", () => {
+    const issuerOnly = { "2026": { turnover: 1 } };
+    const eligibleMissing = [2025];
+    expect(
+      adminFinancialSummaryColumns(
+        [{ financial_year: 2023 }, { financial_year: 2024 }],
+        issuerOnly,
+        {},
+        eligibleMissing
+      )
+    ).toEqual([
+      { kind: "ctos", year: 2023 },
+      { kind: "ctos", year: 2024 },
+      { kind: "admin_fallback_placeholder", year: 2025 },
+      { kind: "unaudited", year: 2026 },
+    ]);
+  });
+
+  it("places stored admin_input_by_year in chronological position", () => {
+    const issuerOnly = { "2026": { turnover: 1 } };
+    const adminInput = {
+      "2025": { turnover: 999, statementType: "AUDITED" },
+    };
+    expect(
+      adminFinancialSummaryColumns(
+        [{ financial_year: 2023 }, { financial_year: 2024 }],
+        issuerOnly,
+        adminInput,
+        []
+      )
+    ).toEqual([
+      { kind: "ctos", year: 2023 },
+      { kind: "ctos", year: 2024 },
+      { kind: "admin_input", year: 2025, statementType: "AUDITED" },
+      { kind: "unaudited", year: 2026 },
+    ]);
+  });
+});
+
+describe("extractQuestionnaireUnauditedAndAdminInput", () => {
+  it("extracts admin_input_by_year alongside unaudited_by_year", () => {
+    const extracted = extractQuestionnaireUnauditedAndAdminInput({
+      questionnaire: { financial_year_end: "2020-12-31" },
+      unaudited_by_year: {
+        "2020": { turnover: 2 },
+      },
+      admin_input_by_year: {
+        "2025": { turnover: 999, statementType: "AUDITED" },
+      },
+    });
+    expect(extracted.questionnaire).toEqual({ financial_year_end: "2020-12-31" });
+    expect(extracted.unauditedByYear).toEqual({ "2020": { turnover: 2 } });
+    expect(extracted.adminInputByYear).toEqual({
+      "2025": { turnover: 999, statementType: "AUDITED" },
+    });
   });
 });

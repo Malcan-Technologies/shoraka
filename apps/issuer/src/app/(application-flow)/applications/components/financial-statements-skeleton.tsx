@@ -24,14 +24,14 @@ const rowGridClassName =
 export function FinancialStatementsSkeleton() {
   return (
     <div className={`${formOuterClassName} mt-1`}>
-      {/* Assets (4 fields) */}
+      {/* Assets (6 fields) */}
       <section className={`${sectionWrapperClassName} space-y-5`}>
         <div>
           <Skeleton className="h-6 w-[80px]" />
           <div className="mt-2 h-px bg-border" />
         </div>
         <div className={rowGridClassName}>
-          {[1, 2, 3, 4].map((i) => (
+          {[1, 2, 3, 4, 5, 6].map((i) => (
             <React.Fragment key={i}>
               <Skeleton className="h-5 w-[180px]" />
               <Skeleton className="h-11 w-full rounded-md border border-input shadow-sm" />
@@ -40,14 +40,14 @@ export function FinancialStatementsSkeleton() {
         </div>
       </section>
 
-      {/* Liabilities (3 fields) */}
+      {/* Liabilities (4 fields) */}
       <section className={`${sectionWrapperClassName} space-y-5`}>
         <div>
           <Skeleton className="h-6 w-[100px]" />
           <div className="mt-2 h-px bg-border" />
         </div>
         <div className={rowGridClassName}>
-          {[1, 2, 3].map((i) => (
+          {[1, 2, 3, 4].map((i) => (
             <React.Fragment key={i}>
               <Skeleton className="h-5 w-[180px]" />
               <Skeleton className="h-11 w-full rounded-md border border-input shadow-sm" />
@@ -69,13 +69,14 @@ export function FinancialStatementsSkeleton() {
       </section>
 
       {/* Profit and Loss */}
+      {/* Profit and Loss */}
       <section className={`${sectionWrapperClassName} space-y-5`}>
         <div>
           <Skeleton className="h-6 w-[140px]" />
           <div className="mt-2 h-px bg-border" />
         </div>
         <div className={rowGridClassName}>
-          {[1, 2, 3, 4, 5, 6].map((i) => (
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => (
             <React.Fragment key={i}>
               <Skeleton className="h-5 w-[180px]" />
               <Skeleton className="h-11 w-full rounded-md border border-input shadow-sm" />

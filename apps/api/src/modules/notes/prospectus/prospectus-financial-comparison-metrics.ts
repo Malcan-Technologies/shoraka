@@ -168,10 +168,11 @@ function officerMetricValue(
   }
 }
 
+void officerMetricValue;
+
 function metricValueForYear(
   key: ProspectusFinancialComparisonMetricKey,
-  raw: Record<string, unknown>,
-  override: ProspectusFinancialComparisonYearOfficerOverride | null
+  raw: Record<string, unknown>
 ): string {
   switch (key) {
     case "revenue": {
@@ -211,8 +212,23 @@ function metricValueForYear(
     case "interestCoverage":
     case "dscr":
     case "receivablesDays": {
-      const officer = officerMetricValue(key, override);
-      return officer ?? PROSPECTUS_DATA_NOT_AVAILABLE;
+      switch (key) {
+        case "netDebtEquity":
+          return formatProspectusFinancialMultiple(fieldFromRaw(raw, "netDebtEquity"));
+        case "interestCoverage":
+          return formatProspectusFinancialMultiple(
+            fieldFromRaw(raw, "interestCoverage")
+          );
+        case "dscr":
+          return formatProspectusFinancialMultiple(fieldFromRaw(raw, "dscr"));
+        case "receivablesDays": {
+          return formatReceivablesDays(fieldFromRaw(raw, "receivablesDays"));
+        }
+        default: {
+          const _exhaustive: never = key;
+          return _exhaustive;
+        }
+      }
     }
     default: {
       const _exhaustive: never = key;
@@ -237,8 +253,7 @@ export function buildProspectusFinancialComparisonMetrics(
           ? PROSPECTUS_DATA_NOT_AVAILABLE
           : metricValueForYear(
               key,
-              year.rawFinancials,
-              resolveYearOverride(year, input.officerOverrides)
+              year.rawFinancials
             )
       ),
     }));
@@ -289,21 +304,38 @@ const FROZEN_RAW_KEYS = [
   "turnover",
   "plnpbt",
   "plnpat",
+  "ebit",
+  "grossProfit",
+  "ebitda",
+  "netOperatingIncome",
   "bscatot",
   "curlib",
   "bsfatot",
+  "quickRatio",
   "othass",
   "bsclbank",
+  "cashAndBank",
+  "tradeReceivables",
+  "receivablesDays",
   "bsslltd",
   "bsclstd",
   "bsqpuc",
+  "tradePayables",
+  "payablesDays",
+  "costOfSales",
   "networth",
   "totass",
   "totlib",
   "profit_margin",
   "return_on_equity",
+  "netDebtEquity",
   "currat",
   "gear",
+  "operatingCashFlow",
+  "freeCashFlow",
+  "annualDebtService",
+  "interestCoverage",
+  "dscr",
 ] as const;
 
 function toFrozenRaw(raw: Record<string, unknown>): ProspectusFrozenFinancialRaw {
@@ -326,8 +358,15 @@ export function toAdminFrozenFinancialYears(
     calendarYear: year.year,
     label: year.yearLabel,
     fyeLabel: year.financialYearEndLabel,
-    sourceType: year.recordSource === "ctos_audited" ? "CTOS" : "UNAUDITED",
+    sourceType:
+      year.recordSource === "ctos_audited"
+        ? "CTOS"
+        : year.recordSource === "unaudited_management"
+          ? "ISSUER_INPUT"
+          : "ADMIN_INPUT",
+    statementType: year.statementType,
     raw: toFrozenRaw(year.rawFinancials),
     isPlaceholder: year.isPlaceholder === true,
+    adminFallbackEligible: year.adminFallbackEligible === true,
   }));
 }

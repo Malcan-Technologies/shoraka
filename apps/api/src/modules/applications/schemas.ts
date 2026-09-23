@@ -221,21 +221,32 @@ const isoDateOnly = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Validates stored input fields for financial_statements step. Per-year block; no bsdd. */
 const numSchema = z.union([z.string(), z.number()]).optional().default(0);
+const optionalNumSchema = z.union([z.string(), z.number()]).optional();
 export const financialStatementsInputSchema = z.object({
   pldd: z.union([z.literal(""), z.string().regex(isoDateOnly, "Must be YYYY-MM-DD")]),
   bsfatot: numSchema,
   othass: numSchema,
   bscatot: numSchema,
   bsclbank: numSchema,
+  cashAndBank: optionalNumSchema,
+  tradeReceivables: optionalNumSchema,
   curlib: numSchema,
   bsslltd: numSchema,
   bsclstd: numSchema,
   bsqpuc: numSchema,
+  tradePayables: optionalNumSchema,
   turnover: numSchema,
+  costOfSales: optionalNumSchema,
+  grossProfit: optionalNumSchema,
+  ebitda: optionalNumSchema,
+  netOperatingIncome: optionalNumSchema,
   plnpbt: numSchema,
   plnpat: numSchema,
   plnetdiv: numSchema,
   plyear: numSchema,
+  operatingCashFlow: optionalNumSchema,
+  freeCashFlow: optionalNumSchema,
+  annualDebtService: optionalNumSchema,
   curlib_borrowing: z.union([z.string(), z.number()]).optional(),
   curlib_non_borrowing: z.union([z.string(), z.number()]).optional(),
   ncl_loan: z.union([z.string(), z.number()]).optional(),

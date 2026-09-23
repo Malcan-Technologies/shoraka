@@ -60,14 +60,8 @@ describe("prospectus financial comparison overrides", () => {
       },
     };
     const errors = validateApprovalContent(draft, { incomeStatementYears: DISPLAYED_YEARS });
-    expect(
-      errors.some(
-        (e) =>
-          e.path === "page2.financialComparison.overrides.2022.netDebtEquity" &&
-          e.message ===
-            "Net Debt / Equity (x) is required for FY2022 before approving the Prospectus."
-      )
-    ).toBe(true);
+    // Page 2 override metrics are retired; approval no longer blocks on them.
+    expect(errors).toEqual([]);
   });
 
   it("blocks approval when Interest Coverage is missing for a displayed year", () => {
@@ -90,14 +84,7 @@ describe("prospectus financial comparison overrides", () => {
       },
     };
     const errors = validateApprovalContent(draft, { incomeStatementYears: DISPLAYED_YEARS });
-    expect(
-      errors.some(
-        (e) =>
-          e.path === "page2.financialComparison.overrides.2022.interestCoverage" &&
-          e.message.includes("Interest Coverage") &&
-          e.message.includes("FY2022")
-      )
-    ).toBe(true);
+    expect(errors).toEqual([]);
   });
 
   it("blocks approval when DSCR is missing for a displayed year", () => {
@@ -120,13 +107,7 @@ describe("prospectus financial comparison overrides", () => {
       },
     };
     const errors = validateApprovalContent(draft, { incomeStatementYears: DISPLAYED_YEARS });
-    expect(
-      errors.some(
-        (e) =>
-          e.path === "page2.financialComparison.overrides.2022.dscr" &&
-          e.message.includes("DSCR")
-      )
-    ).toBe(true);
+    expect(errors).toEqual([]);
   });
 
   it("blocks approval when Receivables Days is missing for a displayed year", () => {
@@ -149,43 +130,14 @@ describe("prospectus financial comparison overrides", () => {
       },
     };
     const errors = validateApprovalContent(draft, { incomeStatementYears: DISPLAYED_YEARS });
-    expect(
-      errors.some(
-        (e) =>
-          e.path === "page2.financialComparison.overrides.2022.receivablesDays" &&
-          e.message.includes("Receivables Days")
-      )
-    ).toBe(true);
+    expect(errors).toEqual([]);
   });
 
   it("requires Net Debt / Equity and the three Coverage-reused fields for every displayed year", () => {
     const draft = buildCompleteProspectusReviewDraft();
     draft.page2.financialComparison = { overrides: {} };
     const errors = validateApprovalContent(draft, { incomeStatementYears: DISPLAYED_YEARS });
-    for (const year of DISPLAYED_YEARS) {
-      for (const field of [
-        "netDebtEquity",
-        "interestCoverage",
-        "dscr",
-        "receivablesDays",
-      ] as const) {
-        expect(
-          errors.some((e) => e.path === `page2.financialComparison.overrides.${year}.${field}`)
-        ).toBe(true);
-      }
-    }
-    expect(
-      errors.some((e) => e.path.includes("page3.manualFinancialInputs") && e.path.includes("dscr"))
-    ).toBe(false);
-    expect(
-      errors.some(
-        (e) =>
-          e.path.includes("page3.manualFinancialInputs") && e.path.includes("netDebtEquity")
-      )
-    ).toBe(false);
-    expect(
-      errors.some((e) => e.path.includes("page3.manualFinancialInputs.years") && e.path.includes("interestCoverage"))
-    ).toBe(false);
+    expect(errors).toEqual([]);
   });
 
   it("accepts zero Net Debt / Equity, Interest Coverage, DSCR, and Receivables Days", () => {
@@ -254,36 +206,45 @@ describe("prospectus financial comparison overrides", () => {
     ).toEqual([]);
   });
 
-  it("Page 3 Coverage reuses the same Page 2 override values as read-only", () => {
+  it("Page 3 Coverage renders Interest Coverage / DSCR / Receivables Days from Stage 4A system values", () => {
+    // Choose inputs that make the derived metrics deterministic.
+    // interestCoverage = EBIT / interest_cost
+    // EBIT = plnpbt + interest_cost
+    // With interest_cost=100_000 and target IC=12.1 => EBIT=1_210_000 => plnpbt=1_110_000
     const source = financialSourceFromYearBlocks({
-      "2024": { plnpat: 1_200_000, bsqpuc: 2_000_000, turnover: 10_000_000 },
-    });
-    const overrides = {
-      "2024-12-31": {
-        interestCoverage: 12.1,
-        dscr: 1.42,
-        receivablesDays: 74,
+      "2023": {
+        // Needed to establish Beginning AR for FY2024 Receivables Days.
+        tradeReceivables: 2_027_397.26,
+        turnover: 10_000_000,
       },
-    };
+      "2024": {
+        plnpbt: 1_110_000,
+        interest_cost: 100_000,
+        ebitda: 1_420_000,
+        annualDebtService: 1_000_000,
+        turnover: 10_000_000,
+        tradeReceivables: 2_027_397.26,
+        // Also set payablesDays inputs for Payables Days renderers to have a complete raw bag.
+        tradePayables: 48_000,
+        costOfSales: 365_000,
+        // Required by other rows in this table.
+        operatingCashFlow: 1_400_000,
+        freeCashFlow: 1_100_000,
+        netDebtEquity: 0.5,
+      },
+    });
+
     const page3 = buildProspectusPageThreeCoverageEfficiency({
       financialSource: source,
-      page2FinancialOverrides: overrides,
-      prospectusFinancialInputs: {
-        years: {
-          "2024": {
-            operatingCashFlow: 1,
-            freeCashFlow: 1,
-            debtEquity: 1,
-            returnOnAssets: 1,
-            payablesDays: 1,
-            assetTurnover: 1,
-          },
-        },
-      },
+      // Legacy overrides should be ignored for these system-derived rows.
+      page2FinancialOverrides: null,
+      prospectusFinancialInputs: { years: {} } as any,
     });
-    expect(page3.rows.find((r) => r.key === "interest_coverage")?.values[0]).toBe("12.1x");
-    expect(page3.rows.find((r) => r.key === "dscr")?.values[0]).toBe("1.42x");
-    expect(page3.rows.find((r) => r.key === "receivables_days")?.values[0]).toBe("74");
+
+    // FY2024 is the second displayed year (FY2023 is first).
+    expect(page3.rows.find((r) => r.key === "interest_coverage")?.values[1]).toBe("12.1x");
+    expect(page3.rows.find((r) => r.key === "dscr")?.values[1]).toBe("1.42x");
+    expect(page3.rows.find((r) => r.key === "receivables_days")?.values[1]).toBe("74");
   });
 
   it("changing a reused override changes the draft fingerprint (invalidates Approved)", () => {

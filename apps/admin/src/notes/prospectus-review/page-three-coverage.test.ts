@@ -116,10 +116,18 @@ const yearRaw: import("@cashsouk/types").ProspectusFrozenFinancialRaw = {
   bsfatot: 200_000,
   othass: 50_000,
   bsclbank: 25_000,
+  cashAndBank: 10_000,
+  tradeReceivables: 15_000,
   curlib: 150_000,
   bsslltd: 80_000,
   bsclstd: 20_000,
   bsqpuc: 500_000,
+  tradePayables: 12_000,
+  grossProfit: 300_000,
+  ebitda: 200_000,
+  netOperatingIncome: null,
+  costOfSales: 680_000,
+  annualDebtService: 1_000_000,
   totass: 1_000_000,
   totlib: 250_000,
   networth: 500_000,
@@ -127,6 +135,15 @@ const yearRaw: import("@cashsouk/types").ProspectusFrozenFinancialRaw = {
   return_on_equity: null,
   currat: null,
   gear: null,
+  ebit: 180_000,
+  quickRatio: 1.25,
+  interestCoverage: null,
+  receivablesDays: null,
+  payablesDays: null,
+  netDebtEquity: 0.5,
+  dscr: null,
+  operatingCashFlow: 1_400_000,
+  freeCashFlow: 1_100_000,
 };
 
 function frozenYear(
@@ -138,12 +155,23 @@ function frozenYear(
     calendarYear,
     label: `FY${calendarYear}`,
     fyeLabel: `31 Dec ${calendarYear}`,
-    sourceType: "UNAUDITED",
+    sourceType: "CTOS",
+    statementType: "NOT_AUDITED",
     raw: { ...raw },
   };
 }
 
-const sampleFrozenYears = [frozenYear(2022), frozenYear(2023), frozenYear(2024)];
+const sampleFrozenYears = [
+  frozenYear(2022),
+  frozenYear(2023),
+  frozenYear(2024, {
+    ...yearRaw,
+    interestCoverage: 12.1,
+    dscr: 1.42,
+    receivablesDays: 74,
+    payablesDays: 48,
+  }),
+];
 
 describe("page three coverage verification", () => {
   it("builds Financial Summary with title, DNA subtitle, and selected years", () => {
@@ -225,6 +253,7 @@ describe("page three coverage verification", () => {
     expect(table.yearHeaders).toHaveLength(3);
     expect(table.rows.map((r) => r.metric)).toEqual([
       "Revenue",
+      "Cost of Sales",
       "Gross Profit",
       "EBITDA",
       "EBIT",
@@ -241,6 +270,7 @@ describe("page three coverage verification", () => {
     expect(table.rows.map((r) => r.metric)).toEqual([
       "Cash & Bank",
       "Trade Receivables",
+      "Trade Payables",
       "Current Assets",
       "Total Assets",
       "Current Liabilities",
@@ -263,14 +293,23 @@ describe("page three coverage verification", () => {
         turnover: null,
         plnpbt: null,
         plnpat: null,
+        grossProfit: null,
+        ebitda: null,
+        netOperatingIncome: null,
+        ebit: null,
         bscatot: 400_000,
         bsfatot: null,
         othass: null,
         bsclbank: null,
+        cashAndBank: null,
+        tradeReceivables: null,
         curlib: 150_000,
         bsslltd: null,
         bsclstd: null,
+        tradePayables: null,
         bsqpuc: null,
+        costOfSales: null,
+        annualDebtService: null,
         totass: null,
         totlib: null,
         networth: null,
@@ -278,6 +317,14 @@ describe("page three coverage verification", () => {
         return_on_equity: null,
         currat: null,
         gear: null,
+        quickRatio: null,
+        interestCoverage: null,
+        receivablesDays: null,
+        payablesDays: null,
+        netDebtEquity: null,
+        dscr: null,
+        operatingCashFlow: null,
+        freeCashFlow: null,
       }),
     ];
     const table = buildPageThreeBalanceSheetTable(incomplete, undefined);
@@ -336,7 +383,10 @@ describe("page three coverage verification", () => {
       }
     );
     expect(table.rows.map((r) => r.metric)).toEqual([
+      "Operating Cash Flow",
+      "Free Cash Flow",
       "Interest Coverage",
+      "Annual Debt Service",
       "DSCR",
       "Debt / Equity",
       "Return on Equity",
@@ -345,13 +395,20 @@ describe("page three coverage verification", () => {
       "Payables Days",
       "Asset Turnover",
     ]);
-    expect(table.rows).toHaveLength(8);
+    expect(table.rows).toHaveLength(11);
     expect(table.rows.every((r) => r.trend == null)).toBe(true);
     const fy2024 = 2;
-    expect(table.rows.find((r) => r.metric === "Operating Cash Flow")).toBeUndefined();
-    expect(table.rows.find((r) => r.metric === "Free Cash Flow")).toBeUndefined();
+    expect(table.rows.find((r) => r.metric === "Operating Cash Flow")?.values[fy2024]).toBe(
+      "RM 1,400,000.00"
+    );
+    expect(table.rows.find((r) => r.metric === "Free Cash Flow")?.values[fy2024]).toBe(
+      "RM 1,100,000.00"
+    );
     expect(table.rows.find((r) => r.metric === "Interest Coverage")?.values[fy2024]).toBe(
       "12.1x"
+    );
+    expect(table.rows.find((r) => r.metric === "Annual Debt Service")?.values[fy2024]).toBe(
+      "RM 1,000,000.00"
     );
     expect(table.rows.find((r) => r.metric === "DSCR")?.values[fy2024]).toBe("1.42x");
     // CTOS ENQWS v5.11.0: plnpat/totass*100 = 100000/1000000*100 = 10
@@ -365,7 +422,8 @@ describe("page three coverage verification", () => {
   });
 
   it("prefers official CTOS gear for Debt / Equity when present", () => {
-    const withGear = [frozenYear(2024, { ...yearRaw, gear: 4.4 })];
+    // netDebtEquity is an unrelated metric; Debt / Equity must follow CTOS gear.
+    const withGear = [frozenYear(2024, { ...yearRaw, gear: 4.4, netDebtEquity: 1.1 })];
     const table = buildPageThreeCoverageTable(withGear, undefined, undefined);
     expect(table.rows.find((r) => r.metric === "Debt / Equity")?.values[0]).toBe("4.4x");
   });
@@ -401,24 +459,119 @@ describe("page three coverage verification", () => {
       },
       undefined
     );
-    expect(table.rows.find((r) => r.metric === "Interest Coverage")?.values[0]).toBe(
-      "—"
+    expect(table.rows.find((r) => r.metric === "Interest Coverage")?.values[0]).toBe("—");
+    expect(table.rows.find((r) => r.metric === "Receivables Days")?.values[0]).toBe("—");
+    expect(table.rows.find((r) => r.metric === "Interest Coverage")?.cellHints?.[0]).toBe(
+      null
     );
-    expect(table.rows.find((r) => r.metric === "Receivables Days")?.values[0]).toBe(
-      "—"
+    expect(table.rows.find((r) => r.metric === "Receivables Days")?.cellHints?.[0]).toBe(
+      null
     );
+  });
+
+  it("renders unavailable calculated DNA metrics as `—` (no diagnostic hints)", () => {
+    const dnaRoa = buildCoverageResolvedRows(
+      { ...yearRaw, plnpat: null },
+      undefined,
+      undefined
+    ).find((r) => r.label === "Return on Assets");
+    expect(dnaRoa?.value).toBe("—");
+    expect(dnaRoa?.hint).toBeNull();
+
+    const dnaRoaTotAssets = buildCoverageResolvedRows(
+      { ...yearRaw, totass: null },
+      undefined,
+      undefined
+    ).find((r) => r.label === "Return on Assets");
+    expect(dnaRoaTotAssets?.value).toBe("—");
+    expect(dnaRoaTotAssets?.hint).toBeNull();
+
+    const dnaAssetTurnoverMissingRevenue = buildCoverageResolvedRows(
+      { ...yearRaw, turnover: null },
+      undefined,
+      undefined
+    ).find((r) => r.label === "Asset Turnover");
+    expect(dnaAssetTurnoverMissingRevenue?.value).toBe("—");
+    expect(dnaAssetTurnoverMissingRevenue?.hint).toBeNull();
+
+    const dnaAssetTurnoverMissingAssets = buildCoverageResolvedRows(
+      { ...yearRaw, totass: null },
+      undefined,
+      undefined
+    ).find((r) => r.label === "Asset Turnover");
+    expect(dnaAssetTurnoverMissingAssets?.value).toBe("—");
+    expect(dnaAssetTurnoverMissingAssets?.hint).toBeNull();
+
+    const dnaDebtEqMissingLiabilities = buildCoverageResolvedRows(
+      { ...yearRaw, totlib: null },
+      undefined,
+      undefined
+    ).find((r) => r.label === "Debt / Equity");
+    expect(dnaDebtEqMissingLiabilities?.value).toBe("—");
+    expect(dnaDebtEqMissingLiabilities?.hint).toBeNull();
+
+    const dnaPayablesMissingCost = buildCoverageResolvedRows(
+      { ...yearRaw, costOfSales: null },
+      undefined,
+      undefined
+    ).find((r) => r.label === "Payables Days");
+    expect(dnaPayablesMissingCost?.value).toBe("—");
+    expect(dnaPayablesMissingCost?.hint).toBeNull();
+
+    const dnaDscrMissingNoi = buildCoverageResolvedRows(
+      { ...yearRaw, netOperatingIncome: null, dscr: null },
+      undefined,
+      undefined
+    ).find((r) => r.label === "DSCR");
+    expect(dnaDscrMissingNoi?.value).toBe("—");
+    expect(dnaDscrMissingNoi?.hint).toBeNull();
+
+    const dnaReceivablesMissingEndingTradeReceivables = buildCoverageResolvedRows(
+      { ...yearRaw, tradeReceivables: null, receivablesDays: null },
+      undefined,
+      { tradeReceivables: 14_000 } as Record<string, unknown>
+    ).find((r) => r.label === "Receivables Days");
+    expect(dnaReceivablesMissingEndingTradeReceivables?.value).toBe("—");
+    expect(dnaReceivablesMissingEndingTradeReceivables?.hint).toBeNull();
+  });
+
+  it("Payables Days: unavailable values render as `—` (no diagnostic hints)", () => {
+    const missingTradePayables = buildCoverageResolvedRows(
+      { ...yearRaw, tradePayables: null },
+      undefined,
+      undefined
+    ).find((r) => r.label === "Payables Days");
+    expect(missingTradePayables?.value).toBe("—");
+    expect(missingTradePayables?.hint).toBeNull();
+
+    const missingCostOfSales = buildCoverageResolvedRows(
+      { ...yearRaw, costOfSales: null },
+      undefined,
+      undefined
+    ).find((r) => r.label === "Payables Days");
+    expect(missingCostOfSales?.value).toBe("—");
+    expect(missingCostOfSales?.hint).toBeNull();
+
+    const invalidZeroDenominator = buildCoverageResolvedRows(
+      { ...yearRaw, costOfSales: 0 },
+      undefined,
+      undefined
+    ).find((r) => r.label === "Payables Days");
+    expect(invalidZeroDenominator?.value).toBe("—");
+    expect(invalidZeroDenominator?.hint).toBeNull();
   });
 
   it("keeps single-year resolved helpers for Total Liabilities parity", () => {
     const rows = buildBalanceSheetResolvedRows({ ...yearRaw }, { quickRatio: 1.25 });
     expect(rows.find((r) => r.label === "Total Liabilities")?.value).toContain("250,000");
-    expect(buildIncomeStatementResolvedRows({ ...yearRaw }, undefined)).toHaveLength(7);
-    expect(buildCoverageResolvedRows({ ...yearRaw }, undefined)).toHaveLength(8);
+    expect(buildIncomeStatementResolvedRows({ ...yearRaw }, undefined)).toHaveLength(8);
+    expect(buildCoverageResolvedRows({ ...yearRaw }, undefined, undefined)).toHaveLength(11);
   });
 
   it("uses direct CTOS return_on_equity only for ROE (no PAT/networth fallback)", () => {
     const rows = buildCoverageResolvedRows(
       { ...yearRaw, return_on_equity: 15.2, plnpat: 1, bsqpuc: 100 },
+      undefined,
       undefined
     );
     expect(rows.find((r) => r.label === "Return on Equity")?.value).toBe("15.2%");
@@ -432,9 +585,12 @@ describe("page three coverage verification", () => {
         totass: 1_000_000,
         totlib: 250_000,
       },
+      undefined,
       undefined
     );
-    expect(missingFlat.find((r) => r.label === "Return on Equity")?.value).toBe("—");
+    const missingRoe = missingFlat.find((r) => r.label === "Return on Equity");
+    expect(missingRoe?.value).toBe("—");
+    expect(missingRoe?.hint).toBeNull();
   });
 
   it("uses direct CTOS currat only for Current Ratio (no CA÷CL fallback)", () => {
@@ -448,7 +604,17 @@ describe("page three coverage verification", () => {
       { ...yearRaw, currat: null, bscatot: 400_000, curlib: 200_000 },
       undefined
     );
-    expect(missingCurrat.find((r) => r.label === "Current Ratio")?.value).toBe("—");
+    const currentRatioMissing = missingCurrat.find((r) => r.label === "Current Ratio");
+    expect(currentRatioMissing?.value).toBe("—");
+    expect(currentRatioMissing?.hint).toBeNull();
+  });
+
+  it("does not return diagnostic EBIT helper hints in Prospectus tables", () => {
+    const rows = buildIncomeStatementResolvedRows(
+      { ...yearRaw, ebit: null, plnpbt: 120_000, plnpat: 100_000 },
+      undefined
+    );
+    expect(rows.find((r) => r.label === "EBIT")?.hint).toBeNull();
   });
 
   it("uses frozen year order without independent Application selection", () => {
@@ -468,9 +634,9 @@ describe("page three coverage verification", () => {
       "2024-12-31",
     ]);
     expect(table.rows.find((r) => r.metric === "Gross Profit")?.values).toEqual([
-      "—",
-      "—",
-      "—",
+      "RM 300,000.00",
+      "RM 300,000.00",
+      "RM 300,000.00",
     ]);
   });
 
@@ -479,14 +645,24 @@ describe("page three coverage verification", () => {
       turnover: null,
       plnpbt: null,
       plnpat: null,
+      grossProfit: null,
+      ebitda: null,
+      netOperatingIncome: null,
+      ebit: null,
       bscatot: null,
       bsfatot: null,
       othass: null,
       bsclbank: null,
+      cashAndBank: null,
+      costOfSales: null,
       curlib: null,
       bsslltd: null,
       bsclstd: null,
       bsqpuc: null,
+      tradeReceivables: null,
+      tradePayables: null,
+      receivablesDays: null,
+      payablesDays: null,
       totass: null,
       totlib: null,
       networth: null,
@@ -494,6 +670,13 @@ describe("page three coverage verification", () => {
       return_on_equity: null,
       currat: null,
       gear: null,
+      quickRatio: null,
+      annualDebtService: null,
+      interestCoverage: null,
+      netDebtEquity: null,
+      dscr: null,
+      operatingCashFlow: null,
+      freeCashFlow: null,
     };
     const years = [
       { ...frozenYear(2024, empty), isPlaceholder: true },
@@ -514,6 +697,30 @@ describe("page three coverage verification", () => {
     expect(income.yearHeaders[0]?.isPlaceholder).toBe(true);
     const gp = income.rows.find((r) => r.metric === "Gross Profit");
     expect(gp?.values[0]).toBe("—");
+  });
+
+  it("does not render diagnostic helper text in Prospectus tables", () => {
+    const income = buildPageThreeIncomeStatementTable(sampleFrozenYears, undefined);
+    const balance = buildPageThreeBalanceSheetTable(sampleFrozenYears, undefined);
+    const coverage = buildPageThreeCoverageTable(sampleFrozenYears, undefined);
+
+    const forbidden = [
+      "Cannot calculate",
+      "Missing: ",
+      "Missing financial inputs",
+      "Invalid: ",
+      "Missing: Return on Equity",
+      "Missing: Current Ratio",
+      "Missing: Net Debt / Equity",
+      "Missing: DSCR",
+      "Missing: Interest Coverage",
+      "Missing: Asset Turnover",
+      "Missing: Return on Assets",
+      "Missing: Payables Days",
+    ] as const;
+
+    const serialized = JSON.stringify({ income, balance, coverage });
+    for (const s of forbidden) expect(serialized).not.toContain(s);
   });
 
   it("Income, Balance, and Coverage share the same frozen year headers", () => {

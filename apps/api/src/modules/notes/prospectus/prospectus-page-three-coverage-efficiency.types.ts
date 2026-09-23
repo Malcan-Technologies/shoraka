@@ -67,17 +67,17 @@ export interface ProspectusPageThreeCoverageEfficiencyAudit {
   };
   operatingCashFlow: {
     status: "officer_entered";
-    source: "page3.manualFinancialInputs.years.{year}.operatingCashFlow";
+    source: "stage_4a.rawFinancials.operatingCashFlow";
     storageUnit: "full_myr";
     formatter: "formatProspectusMyrMillions";
-    requiredForApproval: true;
+    requiredForApproval: false;
   };
   freeCashFlow: {
     status: "officer_entered";
-    source: "page3.manualFinancialInputs.years.{year}.freeCashFlow";
+    source: "stage_4a.rawFinancials.freeCashFlow";
     storageUnit: "full_myr";
     formatter: "formatProspectusMyrMillions";
-    requiredForApproval: true;
+    requiredForApproval: false;
   };
   interestCoverage: {
     status: "reused_from_page_2";
@@ -157,17 +157,17 @@ export const PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_AUDIT: ProspectusPageThre
     },
     operatingCashFlow: {
       status: "officer_entered",
-      source: "page3.manualFinancialInputs.years.{year}.operatingCashFlow",
+      source: "stage_4a.rawFinancials.operatingCashFlow",
       storageUnit: "full_myr",
       formatter: "formatProspectusMyrMillions",
-      requiredForApproval: true,
+      requiredForApproval: false,
     },
     freeCashFlow: {
       status: "officer_entered",
-      source: "page3.manualFinancialInputs.years.{year}.freeCashFlow",
+      source: "stage_4a.rawFinancials.freeCashFlow",
       storageUnit: "full_myr",
       formatter: "formatProspectusMyrMillions",
-      requiredForApproval: true,
+      requiredForApproval: false,
     },
     interestCoverage: {
       status: "reused_from_page_2",
@@ -311,7 +311,7 @@ export const PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_FIELD_SOURCES: Record<
   },
   operating_cash_flow: {
     label: "Operating Cash Flow",
-    canonicalSource: "page3.manualFinancialInputs.years.{year}.operatingCashFlow",
+    canonicalSource: "rawFinancials.operatingCashFlow",
     availability: "officer",
     surface: "canva",
     possibleAlternatives: "PAT/depreciation/WC identities — not used",
@@ -319,7 +319,7 @@ export const PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_FIELD_SOURCES: Record<
   },
   free_cash_flow: {
     label: "Free Cash Flow",
-    canonicalSource: "page3.manualFinancialInputs.years.{year}.freeCashFlow",
+    canonicalSource: "rawFinancials.freeCashFlow",
     availability: "officer",
     surface: "canva",
     possibleAlternatives: "OCF − capex — not used",

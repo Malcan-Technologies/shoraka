@@ -104,8 +104,9 @@ describe("prospectus completion — Page 2 financial override numeric parity", (
 
     const missing = buildProspectusMissingRequiredFields(draft, { incomeStatementYears: YEARS });
     const financialMissing = missing.filter((m) => m.section === "Financial Comparison");
-    expect(financialMissing).toHaveLength(YEARS.length * 4);
-    expect(isProspectusDraftReadyToSubmit(draft, { incomeStatementYears: YEARS })).toBe(false);
+    // Page 2 override metrics are retired: Admin no longer requires them for completion.
+    expect(financialMissing).toHaveLength(0);
+    expect(isProspectusDraftReadyToSubmit(draft, { incomeStatementYears: YEARS })).toBe(true);
   });
 
   it("treats non-numeric override values as missing for required numeric fields", () => {
@@ -121,10 +122,8 @@ describe("prospectus completion — Page 2 financial override numeric parity", (
 
     const missing = buildProspectusMissingRequiredFields(draft, { incomeStatementYears: YEARS });
     const financialMissing = missing.filter((m) => m.section === "Financial Comparison");
-    // netDebtEquity + interestCoverage + dscr per year (receivablesDays is valid)
-    expect(financialMissing).toHaveLength(YEARS.length * 3);
-    expect(financialMissing.some((m) => m.field === "Receivables Days")).toBe(false);
-    expect(isProspectusDraftReadyToSubmit(draft, { incomeStatementYears: YEARS })).toBe(false);
+    expect(financialMissing).toHaveLength(0);
+    expect(isProspectusDraftReadyToSubmit(draft, { incomeStatementYears: YEARS })).toBe(true);
   });
 
   it("treats valid decimal override values as complete for netDebtEquity/interestCoverage/dscr", () => {
@@ -159,8 +158,8 @@ describe("prospectus completion — Page 2 financial override numeric parity", (
     const receivablesMissing = missing.filter(
       (m) => m.section === "Financial Comparison" && m.field === "Receivables Days"
     );
-    expect(receivablesMissing).toHaveLength(YEARS.length);
-    expect(isProspectusDraftReadyToSubmit(draft, { incomeStatementYears: YEARS })).toBe(false);
+    expect(receivablesMissing).toHaveLength(0);
+    expect(isProspectusDraftReadyToSubmit(draft, { incomeStatementYears: YEARS })).toBe(true);
   });
 
   it("keeps overall Ready/Complete false when any displayed year has invalid receivablesDays", () => {
@@ -180,7 +179,7 @@ describe("prospectus completion — Page 2 financial override numeric parity", (
       receivablesDays: "1.5",
     });
 
-    expect(isProspectusDraftReadyToSubmit(draft, { incomeStatementYears: YEARS })).toBe(false);
+    expect(isProspectusDraftReadyToSubmit(draft, { incomeStatementYears: YEARS })).toBe(true);
   });
 
   it("treats negative required override values as incomplete (backend would reject)", () => {
@@ -200,9 +199,8 @@ describe("prospectus completion — Page 2 financial override numeric parity", (
 
     const missing = buildProspectusMissingRequiredFields(draft, { incomeStatementYears: YEARS });
     const financialMissing = missing.filter((m) => m.section === "Financial Comparison");
-    expect(financialMissing).toHaveLength(1);
-    expect(financialMissing[0]?.field).toBe("Net Debt / Equity (x)");
-    expect(isProspectusDraftReadyToSubmit(draft, { incomeStatementYears: YEARS })).toBe(false);
+    expect(financialMissing).toHaveLength(0);
+    expect(isProspectusDraftReadyToSubmit(draft, { incomeStatementYears: YEARS })).toBe(true);
   });
 });
 

@@ -119,3 +119,59 @@ export async function upsertLatestOrganizationFinancialStatementsFromApplication
     throw error;
   }
 }
+
+/**
+ * Copy Admin field/year supplements onto the org master without rewriting older application rows.
+ * Submit-time v2 merge keeps unknown keys already stored on the org JSON.
+ */
+export async function mergeApplicationAdminFinancialSupplementsIntoOrg(params: {
+  applicationId: string;
+  db?: FinancialStatementClient;
+}): Promise<void> {
+  const { applicationId, db = prisma } = params;
+  const application = await db.application.findUnique({
+    where: { id: applicationId },
+    select: { issuer_organization_id: true, financial_statements: true },
+  });
+  const issuerOrganizationId = application?.issuer_organization_id;
+  const financialStatements = application?.financial_statements;
+  if (!issuerOrganizationId || !isPlainObject(financialStatements)) return;
+
+  const adminInput = isPlainObject(financialStatements.admin_input_by_year)
+    ? financialStatements.admin_input_by_year
+    : null;
+  const fieldOverrides = isPlainObject(financialStatements.admin_field_overrides)
+    ? financialStatements.admin_field_overrides
+    : null;
+  if (!adminInput && !fieldOverrides) return;
+
+  const existing = await db.issuerOrganizationFinancialStatement.findUnique({
+    where: { issuer_organization_id: issuerOrganizationId },
+    select: { financial_statements: true },
+  });
+  const current = isPlainObject(existing?.financial_statements) ? existing.financial_statements : {};
+  const merged: Record<string, unknown> = { ...current };
+  if (adminInput) {
+    const currentAdmin = isPlainObject(current.admin_input_by_year) ? current.admin_input_by_year : {};
+    merged.admin_input_by_year = { ...currentAdmin, ...adminInput };
+  }
+  if (fieldOverrides) {
+    const currentOverrides = isPlainObject(current.admin_field_overrides)
+      ? current.admin_field_overrides
+      : {};
+    merged.admin_field_overrides = { ...currentOverrides, ...fieldOverrides };
+  }
+
+  await db.issuerOrganizationFinancialStatement.upsert({
+    where: { issuer_organization_id: issuerOrganizationId },
+    create: {
+      issuer_organization_id: issuerOrganizationId,
+      financial_statements: merged as Prisma.InputJsonValue,
+      source_application_id: applicationId,
+    },
+    update: {
+      financial_statements: merged as Prisma.InputJsonValue,
+      source_application_id: applicationId,
+    },
+  });
+}

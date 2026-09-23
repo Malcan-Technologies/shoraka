@@ -415,23 +415,13 @@ const COVERAGE_OFFICER_LABELS: Record<
   payablesDays: "Payables Days",
 };
 
-/** Page 2 Financial Comparison officer overrides required per displayed year at Approve. */
-const PAGE_TWO_FINANCIAL_OVERRIDE_REQUIRED_FIELDS = [
-  "netDebtEquity",
-  "interestCoverage",
-  "dscr",
-  "receivablesDays",
-] as const;
+/** Page 2 financial comparison overrides are no longer required for approval. */
+const PAGE_TWO_FINANCIAL_OVERRIDE_REQUIRED_FIELDS = [] as const;
 
-const PAGE_TWO_FINANCIAL_OVERRIDE_REQUIRED_LABELS: Record<
+const PAGE_TWO_FINANCIAL_OVERRIDE_REQUIRED_LABELS = {} as Record<
   (typeof PAGE_TWO_FINANCIAL_OVERRIDE_REQUIRED_FIELDS)[number],
   string
-> = {
-  netDebtEquity: "Net Debt / Equity (x)",
-  interestCoverage: "Interest Coverage (x)",
-  dscr: "DSCR (x)",
-  receivablesDays: "Receivables Days",
-};
+>;
 
 type Page2FinancialOverrideRow = {
   netDebtEquity?: unknown;
@@ -585,9 +575,14 @@ export function validateApprovalContent(
     for (const year of financialYears) {
       const row = yearsBag[year] as Record<string, unknown> | undefined;
       for (const field of PROSPECTUS_INCOME_STATEMENT_OFFICER_FIELD_KEYS) {
+        if (
+          field === ("grossProfit" as any) ||
+          field === ("ebitda" as any) ||
+          field === ("ebit" as any)
+        )
+          continue;
         if (!isPresentManualNumber(row?.[field])) {
-          const label =
-            field === "grossProfit" ? "Gross Profit" : field === "ebitda" ? "EBITDA" : "EBIT";
+          const label = field === ("ebit" as any) ? "EBIT" : String(field);
           errors.push({
             path: `page3.manualFinancialInputs.years.${year}.${field}`,
             message: `${label} is required for FY${year} before approving the Prospectus.`,
@@ -595,6 +590,13 @@ export function validateApprovalContent(
         }
       }
       for (const field of PROSPECTUS_BALANCE_SHEET_OFFICER_FIELD_KEYS) {
+        if (
+          field === "totalEquity" ||
+          field === "cashAndBank" ||
+          field === "tradeReceivables" ||
+          field === "quickRatio"
+        )
+          continue;
         if (!isPresentManualNumber(row?.[field])) {
           errors.push({
             path: `page3.manualFinancialInputs.years.${year}.${field}`,
@@ -603,6 +605,7 @@ export function validateApprovalContent(
         }
       }
       for (const field of PROSPECTUS_COVERAGE_OFFICER_FIELD_KEYS) {
+        if (!row) continue; // Only validate coverage fields for years where officer provided a manual row.
         if (!isPresentManualNumber(row?.[field])) {
           errors.push({
             path: `page3.manualFinancialInputs.years.${year}.${field}`,

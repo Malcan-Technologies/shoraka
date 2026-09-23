@@ -4,6 +4,7 @@ import * as React from "react";
 import {
   APPLICATION_COMREP_DETAIL_KEYS,
   APPLICATION_CORE_MONEY_KEYS,
+  APPLICATION_EXTRA_ISSUER_RAW_MONEY_KEYS,
   FINANCIAL_FIELD_LABELS,
   ISSUER_PROFILE_BALANCE_SHEET_KEYS,
   ISSUER_PROFILE_PNL_KEYS,
@@ -206,7 +207,7 @@ export function ProfileFinancialYearDetails({
       <div className="space-y-3">
         <h4 className="text-ui font-medium text-foreground">Financial statements</h4>
         <ProfileFieldGrid>
-          {APPLICATION_CORE_MONEY_KEYS.map((key) => (
+          {[...APPLICATION_CORE_MONEY_KEYS, ...APPLICATION_EXTRA_ISSUER_RAW_MONEY_KEYS].map((key) => (
             <ProfileReadField
               key={key}
               label={FINANCIAL_FIELD_LABELS[key] ?? key}

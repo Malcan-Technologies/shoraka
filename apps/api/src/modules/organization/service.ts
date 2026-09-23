@@ -3252,6 +3252,7 @@ export class OrganizationService {
     financial_statements: unknown | null;
     ctos_financials: unknown | null;
     submitted_by_year: Record<string, Record<string, unknown>>;
+    admin_supplements_by_year: Record<string, Record<string, unknown>>;
     source_application_id: string | null;
     source_application_revision_id: string | null;
     updated_at: Date | null;
@@ -3297,7 +3298,8 @@ export class OrganizationService {
     return {
       financial_statements: latest?.financial_statements ?? null,
       ctos_financials: ctos?.financials_json ?? null,
-      submitted_by_year: submittedByYear,
+      submitted_by_year: submittedByYear.submittedByYear,
+      admin_supplements_by_year: submittedByYear.adminSupplementsByYear,
       source_application_id: latest?.source_application_id ?? null,
       source_application_revision_id: latest?.source_application_revision_id ?? null,
       updated_at: latest?.updated_at ?? null,

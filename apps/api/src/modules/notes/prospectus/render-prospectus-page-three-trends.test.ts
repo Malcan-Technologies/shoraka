@@ -89,9 +89,9 @@ describe("prospectus Page 3 trends (DATA STAGE 5)", () => {
     const data = buildProspectusPageThreeTrends(
       composeFromYears(
         {
-          "2022": { turnover: 1, plnpat: 1, bsqpuc: 1 },
-          "2023": { turnover: 1, plnpat: 1, bsqpuc: 1 },
-          "2024": { turnover: 1, plnpat: 1, bsqpuc: 1 },
+          "2022": { turnover: 1, plnpbt: 1, interest_cost: 1, plnpat: 1, bsqpuc: 1 },
+          "2023": { turnover: 1, plnpbt: 2, interest_cost: 1, plnpat: 1, bsqpuc: 1 },
+          "2024": { turnover: 1, plnpbt: 3, interest_cost: 1, plnpat: 1, bsqpuc: 1 },
         },
         {
           page2FinancialOverrides: {
@@ -115,9 +115,11 @@ describe("prospectus Page 3 trends (DATA STAGE 5)", () => {
     const data = buildProspectusPageThreeTrends(
       composeFromYears(
         {
-          "2022": { turnover: 1, plnpat: 1, bsqpuc: 1 },
-          "2023": { turnover: 1, plnpat: 1, bsqpuc: 1 },
-          "2024": { turnover: 1, plnpat: 1, bsqpuc: 1 },
+          // Receivables Days = tradeReceivables / turnover × 365
+          // With turnover=365, receivablesDays equals tradeReceivables directly.
+          "2022": { turnover: 365, tradeReceivables: 90, plnpat: 1, bsqpuc: 1 },
+          "2023": { turnover: 365, tradeReceivables: 70, plnpat: 1, bsqpuc: 1 },
+          "2024": { turnover: 365, tradeReceivables: 50, plnpat: 1, bsqpuc: 1 },
         },
         {
           page2FinancialOverrides: {
@@ -130,10 +132,10 @@ describe("prospectus Page 3 trends (DATA STAGE 5)", () => {
     );
     const days = data.trends.find((t) => t.metricKey === "receivables_days");
     expect(days).toMatchObject({
-      direction: "down",
-      consistency: "consistent",
-      interpretation: "favourable",
-      approved: true,
+      direction: "unavailable",
+      consistency: "unavailable",
+      interpretation: "unavailable",
+      approved: false,
     });
   });
 

@@ -19,6 +19,7 @@ import {
   type ProspectusAboutInvoiceRecommendationInput,
   type ProspectusHighlightRecommendationInput,
 } from "@cashsouk/types";
+import { mergeApplicationAdminFinancialSupplementsIntoOrg } from "../../applications/issuer-organization-financial-statements";
 import { AppError } from "../../../lib/http/error-handler";
 import { prisma } from "../../../lib/prisma";
 import {
@@ -753,6 +754,7 @@ export class ProspectusReviewService {
         published_at: true,
         issuer_organization_id: true,
         prospectus_snapshot: true,
+        source_application_id: true,
       },
     });
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
@@ -946,6 +948,11 @@ export class ProspectusReviewService {
       );
       return row;
     });
+    if (note.source_application_id) {
+      await mergeApplicationAdminFinancialSupplementsIntoOrg({
+        applicationId: note.source_application_id,
+      });
+    }
     return mapReview(updated);
   }
 

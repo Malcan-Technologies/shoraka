@@ -99,7 +99,10 @@ async function updateApplicationStep(req: Request, res: Response, next: NextFunc
     const { id } = applicationIdParamSchema.parse(req.params);
     const input = updateApplicationStepSchema.parse(req.body);
     const userId = getUserId(req);
-    const application = await applicationService.updateStep(id, input, userId);
+    const application = await applicationService.updateStep(id, input, userId, {
+      logContext: issuerActivityFromRequest(req, res),
+      request: { method: req.method, endpoint: req.path },
+    });
 
     res.json({
       success: true,
@@ -223,18 +226,24 @@ async function requestUploadUrl(req: Request, res: Response, next: NextFunction)
     const input = requestUploadUrlSchema.parse(req.body);
     const userId = getUserId(req);
 
-    const result = await applicationService.requestUploadUrl({
-      applicationId: id,
-      fileName: input.fileName,
-      contentType: input.contentType,
-      fileSize: input.fileSize,
-      existingS3Key: input.existingS3Key,
-      supportingDocCategoryKey: input.supportingDocCategoryKey,
-      supportingDocIndex: input.supportingDocIndex,
-      acceptanceDocIndex: input.acceptanceDocIndex,
-      guarantorAgreementUpload: input.guarantorAgreementUpload,
-      userId,
-    });
+    const result = await applicationService.requestUploadUrl(
+      {
+        applicationId: id,
+        fileName: input.fileName,
+        contentType: input.contentType,
+        fileSize: input.fileSize,
+        existingS3Key: input.existingS3Key,
+        supportingDocCategoryKey: input.supportingDocCategoryKey,
+        supportingDocIndex: input.supportingDocIndex,
+        acceptanceDocIndex: input.acceptanceDocIndex,
+        guarantorAgreementUpload: input.guarantorAgreementUpload,
+        userId,
+      },
+      {
+        logContext: issuerActivityFromRequest(req, res),
+        request: { method: req.method, endpoint: req.path },
+      }
+    );
 
     res.json({
       success: true,
@@ -260,7 +269,10 @@ async function deleteDocument(req: Request, res: Response, next: NextFunction) {
     const input = deleteDocumentSchema.parse(req.body);
     const userId = getUserId(req);
 
-    await applicationService.deleteDocument(id, input.s3Key, userId);
+    await applicationService.deleteDocument(id, input.s3Key, userId, {
+      logContext: issuerActivityFromRequest(req, res),
+      request: { method: req.method, endpoint: req.path },
+    });
 
     res.json({
       success: true,
@@ -276,6 +288,78 @@ const updateStatusSchema = z.object({
   status: z.enum(["DRAFT", "SUBMITTED", "RESUBMITTED"]),
 });
 
+const adminFinancialStatementFallbackUpsertSchema = z.object({
+  financialYear: z.number().int().min(1900).max(9999),
+  statementType: z.enum(["AUDITED", "NOT_AUDITED"]),
+  rawFinancialInputs: z.record(z.unknown()),
+});
+
+const adminFinancialFieldUpsertSchema = z.object({
+  financialYear: z.number().int().min(1900).max(9999),
+  fieldKey: z.string().min(1),
+  value: z.number().finite(),
+  remark: z.string().max(500).optional(),
+});
+
+/**
+ * Admin fallback for missing historical FY financial statements.
+ * PATCH /v1/applications/:id/admin-financial-statements/fallback
+ */
+async function upsertAdminFinancialField(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = applicationIdParamSchema.parse(req.params);
+    const userId = getUserId(req);
+    const asAdmin = Boolean(req.user?.roles?.includes(UserRole.ADMIN));
+    if (!asAdmin) {
+      throw new AppError(403, "FORBIDDEN", "Admin privileges required");
+    }
+    const input = adminFinancialFieldUpsertSchema.parse(req.body);
+    const result = await applicationService.upsertAdminFinancialField({
+      applicationId: id,
+      userId,
+      financialYear: input.financialYear,
+      fieldKey: input.fieldKey,
+      value: input.value,
+      remark: input.remark,
+    });
+    res.json({
+      success: true,
+      data: result,
+      correlationId: res.locals.correlationId || "unknown",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function upsertAdminFinancialStatementFallback(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = applicationIdParamSchema.parse(req.params);
+    const userId = getUserId(req);
+    const asAdmin = Boolean(req.user?.roles?.includes(UserRole.ADMIN));
+    if (!asAdmin) {
+      throw new AppError(403, "FORBIDDEN", "Admin privileges required");
+    }
+
+    const input = adminFinancialStatementFallbackUpsertSchema.parse(req.body);
+    const result = await applicationService.upsertAdminFinancialStatementFallbackYear({
+      applicationId: id,
+      userId,
+      financialYear: input.financialYear,
+      statementType: input.statementType,
+      rawFinancialInputs: input.rawFinancialInputs,
+    });
+
+    res.json({
+      success: true,
+      data: result,
+      correlationId: res.locals.correlationId || "unknown",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 /**
  * Update application status
  * PATCH /v1/applications/:id/status
@@ -290,7 +374,8 @@ async function updateApplicationStatus(req: Request, res: Response, next: NextFu
       id,
       status,
       userId,
-      issuerActivityFromRequest(req, res)
+      issuerActivityFromRequest(req, res),
+      { request: { method: req.method, endpoint: req.path } }
     );
 
     res.json({
@@ -655,6 +740,16 @@ export function createApplicationRouter(): Router {
   router.get("/:id/summary-pdf", requireAuth, getApplicationSummaryPdf);
   router.delete("/:id/document", requireAuth, deleteDocument);
   router.patch("/:id/step", requireAuth, updateApplicationStep);
+  router.patch(
+    "/:id/admin-financial-statements/fallback",
+    requireAuth,
+    upsertAdminFinancialStatementFallback
+  );
+  router.patch(
+    "/:id/admin-financial-statements/field",
+    requireAuth,
+    upsertAdminFinancialField
+  );
   router.patch("/:id/status", requireAuth, updateApplicationStatus);
 router.get("/:id/amendment-context", requireAuth, async function getAmendmentContext(req, res, next) {
   try {

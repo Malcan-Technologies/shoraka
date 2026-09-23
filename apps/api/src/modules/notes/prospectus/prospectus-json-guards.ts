@@ -263,7 +263,9 @@ function parsePage2FinancialYear(value: unknown): ProspectusPage2FinancialYearSn
       : null;
   const recordSourceRaw = row.record_source;
   const recordSource =
-    recordSourceRaw === "ctos_audited" || recordSourceRaw === "unaudited_management"
+    recordSourceRaw === "ctos_audited" ||
+    recordSourceRaw === "unaudited_management" ||
+    recordSourceRaw === "admin_input"
       ? recordSourceRaw
       : null;
 

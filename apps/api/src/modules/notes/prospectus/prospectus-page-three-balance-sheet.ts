@@ -13,7 +13,7 @@ import {
   formatProspectusMyrMillions,
   parseProspectusFinancialNumber,
 } from "./prospectus-financial-comparison-metrics";
-import { yearManualInputs } from "./prospectus-financial-manual-inputs";
+// Quick Ratio / other non-CTOS rows are fully system-derived from Stage 4A rawFinancials.
 import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
   PROSPECTUS_PAGE_THREE_BALANCE_SHEET_AUDIT,
@@ -40,22 +40,23 @@ function moneyMillionsOrDna(value: number | string | null | undefined): string {
 function valueForRow(
   key: ProspectusPageThreeBalanceSheetRowKey,
   raw: Record<string, unknown>,
-  year: number,
-  input: ProspectusPageThreeBalanceSheetInput,
+  _year: number,
+  _input: ProspectusPageThreeBalanceSheetInput,
   isPlaceholder: boolean
 ): string {
   if (isPlaceholder) return PROSPECTUS_DATA_NOT_AVAILABLE;
-  const manual = yearManualInputs(input.prospectusFinancialInputs?.years, year);
 
   switch (key) {
     case "cash_and_bank":
-      return moneyMillionsOrDna(manual?.cashAndBank);
+      return moneyMillionsOrDna(fieldFromRaw(raw, "cashAndBank"));
     case "trade_receivables":
-      return moneyMillionsOrDna(manual?.tradeReceivables);
+      return moneyMillionsOrDna(fieldFromRaw(raw, "tradeReceivables"));
     case "total_equity":
-      return moneyMillionsOrDna(manual?.totalEquity);
+      // System-derived net worth (totass - totlib) for unaudited years too.
+      // Prospectus freezes Stage 4A derived totals/ratios for this row.
+      return moneyMillionsOrDna(fieldFromRaw(raw, "networth"));
     case "quick_ratio": {
-      const parsed = parseProspectusFinancialNumber(manual?.quickRatio);
+      const parsed = fieldFromRaw(raw, "quickRatio");
       if (parsed == null) return PROSPECTUS_DATA_NOT_AVAILABLE;
       return formatProspectusFinancialMultiple(parsed);
     }

@@ -230,20 +230,42 @@ export interface ProspectusFinancialComparisonAdminTable {
  * Single frozen financial-year record for Admin Page 2 + Page 3 working tables.
  * Same Stage 4A year selection and raw fields used at approve/publish freeze.
  */
-export type ProspectusFrozenFinancialSourceType = "CTOS" | "UNAUDITED";
+export type ProspectusFrozenFinancialSourceType = "CTOS" | "ISSUER_INPUT" | "ADMIN_INPUT";
+
+export type ProspectusFrozenFinancialStatementType =
+  | "AUDITED"
+  | "NOT_AUDITED"
+  | "MANAGEMENT_ACCOUNTS";
 
 export interface ProspectusFrozenFinancialRaw {
   turnover: number | null;
   plnpbt: number | null;
   plnpat: number | null;
+  /** Profit Before Tax + Interest Cost */
+  ebit: number | null;
+  grossProfit: number | null;
+  ebitda: number | null;
+  /** Net Operating Income (SoukScore DSCR numerator). */
+  netOperatingIncome: number | null;
   bscatot: number | null;
   curlib: number | null;
   bsfatot: number | null;
   othass: number | null;
   bsclbank: number | null;
+  cashAndBank: number | null;
+  costOfSales: number | null;
+  tradeReceivables: number | null;
+  receivablesDays: number | null;
+  tradePayables: number | null;
+  payablesDays: number | null;
   bsslltd: number | null;
   bsclstd: number | null;
   bsqpuc: number | null;
+  /** Cash & Bank + Trade Receivables ÷ Current Liabilities */
+  quickRatio: number | null;
+  operatingCashFlow: number | null;
+  freeCashFlow: number | null;
+  annualDebtService: number | null;
   /** Net Worth — ROE fallback denominator (never Paid-Up Capital). */
   networth: number | null;
   totass: number | null;
@@ -253,6 +275,13 @@ export interface ProspectusFrozenFinancialRaw {
   currat: number | null;
   /** Official CTOS Gearing Ratio — Page 3 Debt / Equity prefers this when present. */
   gear: number | null;
+
+  /** Net Debt / Equity = (Borrowings - Cash) / Total Equity */
+  netDebtEquity: number | null;
+  /** Interest Coverage = EBIT / Interest Cost */
+  interestCoverage: number | null;
+  /** DSCR = Net Operating Income / Annual Debt Service */
+  dscr: number | null;
 }
 
 export interface ProspectusFrozenFinancialYear {
@@ -263,9 +292,15 @@ export interface ProspectusFrozenFinancialYear {
   /** Financial year-end display (e.g. 31 Dec 2024). */
   fyeLabel: string;
   sourceType: ProspectusFrozenFinancialSourceType;
+  statementType: ProspectusFrozenFinancialStatementType;
   raw: ProspectusFrozenFinancialRaw;
   /** Display-only column with no real financial record — not officer-editable. */
   isPlaceholder?: boolean;
+  /**
+   * If this column is a placeholder and the app considers the missing FY eligible,
+   * Admin can add an `admin_input_by_year` fallback for it.
+   */
+  adminFallbackEligible?: boolean;
 }
 
 export interface ProspectusReviewGetResponse {

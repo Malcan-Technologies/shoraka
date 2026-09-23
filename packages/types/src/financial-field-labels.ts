@@ -13,25 +13,35 @@ export const FINANCIAL_FIELD_LABELS: Record<string, string> = {
   bsslltd: "Long-term Liabilities",
   bsclstd: "Non-current Liabilities",
   bsqpuc: "Share Capital",
+  grossProfit: "Gross Profit",
+  ebitda: "EBITDA",
+  cashAndBank: "Cash & Bank",
+  tradeReceivables: "Trade Receivables",
+  tradePayables: "Trade Payables",
   turnover: "Revenue & Other Income",
   plnpbt: "Profit / (Loss) Before Tax",
   plnpat: "Profit / (Loss) After Tax",
   plnetdiv: "Net Dividend",
   plyear: "Profit and Loss of the Year",
+  netOperatingIncome: "Net Operating Income",
   gear: "Gearing Ratio",
+  operatingCashFlow: "Operating Cash Flow",
+  freeCashFlow: "Free Cash Flow",
   curlib_borrowing: "Current Borrowings",
   curlib_non_borrowing: "Other Current Liabilities",
   ncl_loan: "Non-current Loans",
   ncl_non_loan: "Other Non-current Liabilities",
   equity_share_application: "Share Application Account",
   equity_share_premium: "Share Premium & Other Reserves",
-  equity_accumulated_profit: "Accumulated Profit / (Loss)",
-  equity_minority: "Minority Interest",
+  equity_accumulated_profit: "Accumulated Profit / Loss",
+  equity_minority: "Equity Minority Interest",
   operating_cost: "Operating Costs",
   admin_cost: "Administrative Costs",
   interest_cost: "Interest Costs",
   other_cost: "Other Costs",
-  pl_minority: "Minority Interest",
+  costOfSales: "Cost of Sales",
+  annualDebtService: "Annual Debt Service",
+  pl_minority: "P&L Minority Interest",
 };
 
 /** Profile editor keys. Internal names are legacy; labels above are the SC wording. */
@@ -72,6 +82,34 @@ export const APPLICATION_CORE_MONEY_KEYS = [
   "othass",
   "bscatot",
   "bsclbank",
+  "cashAndBank",
+  "tradeReceivables",
+  "curlib",
+  "bsslltd",
+  "bsclstd",
+  "bsqpuc",
+  "tradePayables",
+  "turnover",
+  "grossProfit",
+  "ebitda",
+  "plnpbt",
+  "plnpat",
+  "plnetdiv",
+  "plyear",
+  "operatingCashFlow",
+  "freeCashFlow",
+] as const;
+
+/**
+ * Issuer Financial Statements step Save & Continue required fields.
+ * IMPORTANT: Do not rely on APPLICATION_CORE_MONEY_KEYS to infer requiredness.
+ * This list preserves the original required set from origin/main.
+ */
+export const APPLICATION_CORE_MONEY_REQUIRED_KEYS = [
+  "bsfatot",
+  "othass",
+  "bscatot",
+  "bsclbank",
   "curlib",
   "bsslltd",
   "bsclstd",
@@ -82,6 +120,20 @@ export const APPLICATION_CORE_MONEY_KEYS = [
   "plnetdiv",
   "plyear",
 ] as const;
+
+/**
+ * Additional issuer raw inputs required for certain system-calculated financial metrics.
+ * Keep these out of APPLICATION_CORE_MONEY_KEYS to avoid making them mandatory via
+ * shared core default/validation behaviour.
+ */
+export const APPLICATION_EXTRA_ISSUER_RAW_MONEY_KEYS = [
+  "costOfSales",
+  "annualDebtService",
+  "netOperatingIncome",
+] as const;
+
+export type ApplicationExtraIssuerRawMoneyKey =
+  (typeof APPLICATION_EXTRA_ISSUER_RAW_MONEY_KEYS)[number];
 
 export type ApplicationCoreMoneyKey = (typeof APPLICATION_CORE_MONEY_KEYS)[number];
 

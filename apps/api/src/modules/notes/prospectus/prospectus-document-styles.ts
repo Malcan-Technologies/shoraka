@@ -328,11 +328,11 @@ table{width:100%;border-collapse:collapse;font-size:8px}th{background:var(--pros
   overflow:visible;
   text-overflow:clip;
 }
-.grade.marc.a{background:#22b83f}
-.grade.marc.b{background:#89d450}
-.grade.marc.c{background:#f2c94c}
-.grade.marc.d{background:#f5964f}
-.grade.marc.e{background:#ce201d}
+.grade.marc.a{background:#15B512}
+.grade.marc.b{background:#58B83F}
+.grade.marc.c{background:#F0C419}
+.grade.marc.d{background:#E98324}
+.grade.marc.e{background:#B51215}
 .credit-insights-note{display:block;font-size:7px;margin-top:8px;font-style:italic;line-height:1.3;color:var(--prospectus-muted)}
 .ratings div{display:grid;grid-template-columns:1fr 110px;gap:8px;align-items:center;margin:5px 0;position:relative}.ratings div:before{content:"";width:17px;height:17px;background:#e3bfc0;border-radius:3px;position:absolute;left:0}.ratings span{font-weight:700;padding-left:22px}.ratings b{background:#d8d8d8;text-align:center;padding:5px;border-radius:4px;font-weight:500}.ratings .good{color:#21a43b}
 .work-list p{display:flex;align-items:flex-start;gap:10px;font-size:9px;margin-bottom:9px}.work-list .icon{flex:none;width:var(--prospectus-icon-work);height:var(--prospectus-icon-work);padding:4px;box-sizing:border-box}

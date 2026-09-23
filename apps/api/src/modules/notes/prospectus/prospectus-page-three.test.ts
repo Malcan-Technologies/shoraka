@@ -407,13 +407,19 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
 
     it("maps confirmed income, balance sheet, and ROE; sample fills unsupported gaps only", () => {
       const page = SAMPLE_PROSPECTUS_PAGE_THREE;
-      expect(row(page.incomeStatement.rows, "gross_profit")?.[0]).toBe("2.1");
-      expect(row(page.incomeStatement.rows, "ebitda")?.[0]).toBe("1.6");
-      expect(row(page.incomeStatement.rows, "ebit")?.[0]).toBe("1.4");
+      expect(row(page.incomeStatement.rows, "gross_profit")?.[0]).toBe(
+        PROSPECTUS_DATA_NOT_AVAILABLE
+      );
+      expect(row(page.incomeStatement.rows, "ebitda")?.[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+      expect(row(page.incomeStatement.rows, "ebit")?.[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
       expect(row(page.incomeStatement.rows, "profit_before_tax")?.[0]).toBe("1.4");
       expect(row(page.balanceSheet.rows, "total_assets")?.[0]).toBe("8.1");
-      expect(row(page.balanceSheet.rows, "cash_and_bank")?.[0]).toBe("0.9");
-      expect(row(page.balanceSheet.rows, "quick_ratio")?.[0]).toBe("1.11x");
+      expect(row(page.balanceSheet.rows, "cash_and_bank")?.[0]).toBe(
+        PROSPECTUS_DATA_NOT_AVAILABLE
+      );
+      expect(row(page.balanceSheet.rows, "quick_ratio")?.[0]).toBe(
+        PROSPECTUS_DATA_NOT_AVAILABLE
+      );
       expect(row(page.coverageEfficiency.rows, "return_on_equity")?.[0]).toBe("60%");
       expect(row(page.coverageEfficiency.rows, "dscr")?.[0]).toBe(
         PROSPECTUS_DATA_NOT_AVAILABLE

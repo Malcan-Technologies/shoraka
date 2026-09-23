@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { buildProspectusFinancialComparisonSource } from "./prospectus-financial-comparison-source";
+import { financialSourceFromYearBlocks } from "./prospectus-financial-comparison-test-helpers";
 import {
   buildProspectusFinancialComparisonMetrics,
   formatProspectusFinancialMultiple,
@@ -138,11 +139,17 @@ describe("prospectus Page 2 Financial Comparison Metrics (DATA STAGE 4B)", () =>
       },
     });
     expect(row(withOverrides, "revenue")?.values[2]).toBe("18.6");
-    expect(row(withOverrides, "netDebtEquity")?.values[2]).toBe("0.45x");
-    expect(row(withOverrides, "interestCoverage")?.values[2]).toBe("3.2x");
-    expect(row(withOverrides, "dscr")?.values[2]).toBe("1.5x");
-    expect(row(withOverrides, "receivablesDays")?.values[2]).toBe("42");
-    expect(row(withOverrides, "interestCoverage")?.values[1]).toBe("2.1x");
+    expect(row(withOverrides, "netDebtEquity")?.values[2]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(row(withOverrides, "interestCoverage")?.values[2]).toBe(
+      PROSPECTUS_DATA_NOT_AVAILABLE
+    );
+    expect(row(withOverrides, "dscr")?.values[2]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(row(withOverrides, "receivablesDays")?.values[2]).toBe(
+      PROSPECTUS_DATA_NOT_AVAILABLE
+    );
+    expect(row(withOverrides, "interestCoverage")?.values[1]).toBe(
+      PROSPECTUS_DATA_NOT_AVAILABLE
+    );
     expect(row(withOverrides, "netDebtEquity")?.values[1]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
   });
 
@@ -162,10 +169,10 @@ describe("prospectus Page 2 Financial Comparison Metrics (DATA STAGE 4B)", () =>
       source: { ...SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_METRICS_SOURCE, years: yearsDesc },
       officerOverrides: overrides,
     });
-    expect(row(asc, "netDebtEquity")?.values[0]).toBe("0.1x");
-    expect(row(asc, "netDebtEquity")?.values[2]).toBe("0.9x");
-    expect(row(desc, "netDebtEquity")?.values[0]).toBe("0.9x");
-    expect(row(desc, "netDebtEquity")?.values[2]).toBe("0.1x");
+    expect(row(asc, "netDebtEquity")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(row(asc, "netDebtEquity")?.values[2]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(row(desc, "netDebtEquity")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(row(desc, "netDebtEquity")?.values[2]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
 
     const without2022 = buildProspectusFinancialComparisonMetrics({
       source: {
@@ -176,7 +183,7 @@ describe("prospectus Page 2 Financial Comparison Metrics (DATA STAGE 4B)", () =>
     });
     expect(row(without2022, "netDebtEquity")?.values).toEqual([
       PROSPECTUS_DATA_NOT_AVAILABLE,
-      "0.9x",
+      PROSPECTUS_DATA_NOT_AVAILABLE,
     ]);
     // Hidden-year override is not assigned to another year
     expect(
@@ -198,8 +205,231 @@ describe("prospectus Page 2 Financial Comparison Metrics (DATA STAGE 4B)", () =>
       "2024-12-31",
     ]);
     expect(table.rows.find((r) => r.metric === "Revenue")?.values[0]).toBe("13.9");
-    expect(table.rows.find((r) => r.metric === "DSCR (x)")?.values[2]).toBe("1.25x");
+    expect(table.rows.find((r) => r.metric === "DSCR (x)")?.values[2]).toBe(
+      PROSPECTUS_DATA_NOT_AVAILABLE
+    );
     expect(table.sourceFooter).toBe(metrics.sourceFooter);
+  });
+
+  it("uses Stage 4A calculated values for interestCoverage/receivablesDays/dscr/netDebtEquity and ignores officerOverrides", () => {
+    const source = financialSourceFromYearBlocks({
+      "2022": {
+        plnpbt: 1_200_000,
+        interest_cost: 108_108.10810810811,
+        tradeReceivables: 2_027_397.26,
+        turnover: 10_000_000,
+        ebitda: 1_420_000,
+        netOperatingIncome: 1_420_000,
+        annualDebtService: 1_000_000,
+        curlib_borrowing: 300_000,
+        ncl_loan: 400_000,
+        cashAndBank: 100_000,
+        networth: 500_000,
+      },
+      "2023": {
+        plnpbt: 1_200_000,
+        interest_cost: 108_108.10810810811,
+        tradeReceivables: 2_027_397.26,
+        turnover: 10_000_000,
+        ebitda: 1_420_000,
+        netOperatingIncome: 1_420_000,
+        annualDebtService: 1_000_000,
+        curlib_borrowing: 320_000,
+        ncl_loan: 420_000,
+        cashAndBank: 120_000,
+        networth: 520_000,
+      },
+      "2024": {
+        plnpbt: 1_200_000,
+        interest_cost: 108_108.10810810811,
+        tradeReceivables: 2_027_397.26,
+        turnover: 10_000_000,
+        ebitda: 1_420_000,
+        netOperatingIncome: 1_420_000,
+        annualDebtService: 1_000_000,
+        curlib_borrowing: 340_000,
+        ncl_loan: 440_000,
+        cashAndBank: 140_000,
+        networth: 540_000,
+      },
+    });
+
+    const idx2024 = source.years.findIndex((y) => y.year === 2024);
+    expect(idx2024).toBeGreaterThanOrEqual(0);
+    const y2024 = source.years[idx2024]!;
+
+    expect(y2024.rawFinancials.interestCoverage).not.toBeNull();
+    expect(y2024.rawFinancials.receivablesDays).not.toBeNull();
+    expect(y2024.rawFinancials.dscr).not.toBeNull();
+    expect(y2024.rawFinancials.netDebtEquity).not.toBeNull();
+
+    const expectedInterestCoverage = formatProspectusFinancialMultiple(
+      y2024.rawFinancials.interestCoverage as number
+    );
+    const expectedDscr = formatProspectusFinancialMultiple(
+      y2024.rawFinancials.dscr as number
+    );
+    const expectedNetDebtEquity = formatProspectusFinancialMultiple(
+      y2024.rawFinancials.netDebtEquity as number
+    );
+    const expectedReceivablesDays = String(
+      Math.trunc(y2024.rawFinancials.receivablesDays as number)
+    );
+
+    const withOverrides = buildProspectusFinancialComparisonMetrics({
+      source,
+      officerOverrides: {
+        [y2024.financialYearEndIso]: {
+          netDebtEquity: 0.45,
+          interestCoverage: 3.2,
+          dscr: 1.5,
+          receivablesDays: 42,
+        },
+      },
+    });
+
+    expect(row(withOverrides, "interestCoverage")?.values[idx2024]).toBe(
+      expectedInterestCoverage
+    );
+    expect(row(withOverrides, "receivablesDays")?.values[idx2024]).toBe(
+      expectedReceivablesDays
+    );
+    expect(row(withOverrides, "dscr")?.values[idx2024]).toBe(expectedDscr);
+    expect(row(withOverrides, "netDebtEquity")?.values[idx2024]).toBe(
+      expectedNetDebtEquity
+    );
+  });
+
+  it("renders PROSPECTUS_DATA_NOT_AVAILABLE when Stage 4A derived metrics are missing (even if officerOverrides provide values)", () => {
+    const source = financialSourceFromYearBlocks({
+      "2022": {
+        plnpbt: 1_200_000,
+        interest_cost: 108_108.10810810811,
+        tradeReceivables: 2_027_397.26,
+        turnover: 10_000_000,
+        ebitda: 1_420_000,
+        netOperatingIncome: 1_420_000,
+        annualDebtService: 1_000_000,
+        curlib_borrowing: 300_000,
+        ncl_loan: 400_000,
+        cashAndBank: 100_000,
+        networth: 500_000,
+      },
+      "2023": {
+        plnpbt: 1_200_000,
+        interest_cost: 108_108.10810810811,
+        tradeReceivables: 2_027_397.26,
+        turnover: 10_000_000,
+        ebitda: 1_420_000,
+        netOperatingIncome: 1_420_000,
+        annualDebtService: 1_000_000,
+        curlib_borrowing: 320_000,
+        ncl_loan: 420_000,
+        cashAndBank: 120_000,
+        networth: 520_000,
+      },
+      "2024": {
+        plnpbt: 1_200_000,
+        interest_cost: null,
+        tradeReceivables: null,
+        turnover: 10_000_000,
+        ebitda: 1_420_000,
+        netOperatingIncome: 1_420_000,
+        annualDebtService: null,
+        curlib_borrowing: null,
+        ncl_loan: null,
+        cashAndBank: null,
+        networth: 540_000,
+      },
+    });
+
+    const idx2024 = source.years.findIndex((y) => y.year === 2024);
+    const y2024 = source.years[idx2024]!;
+
+    expect(y2024.rawFinancials.interestCoverage).toBeNull();
+    expect(y2024.rawFinancials.receivablesDays).toBeNull();
+    expect(y2024.rawFinancials.dscr).toBeNull();
+    expect(y2024.rawFinancials.netDebtEquity).toBeNull();
+
+    const withOverrides = buildProspectusFinancialComparisonMetrics({
+      source,
+      officerOverrides: {
+        [y2024.financialYearEndIso]: {
+          netDebtEquity: 0.45,
+          interestCoverage: 3.2,
+          dscr: 1.5,
+          receivablesDays: 42,
+        },
+      },
+    });
+
+    expect(row(withOverrides, "interestCoverage")?.values[idx2024]).toBe(
+      PROSPECTUS_DATA_NOT_AVAILABLE
+    );
+    expect(row(withOverrides, "receivablesDays")?.values[idx2024]).toBe(
+      PROSPECTUS_DATA_NOT_AVAILABLE
+    );
+    expect(row(withOverrides, "dscr")?.values[idx2024]).toBe(
+      PROSPECTUS_DATA_NOT_AVAILABLE
+    );
+    expect(row(withOverrides, "netDebtEquity")?.values[idx2024]).toBe(
+      PROSPECTUS_DATA_NOT_AVAILABLE
+    );
+  });
+
+  it("DSCR uses Net Operating Income only (no EBITDA fallback)", () => {
+    const source = financialSourceFromYearBlocks({
+      "2022": {
+        plnpbt: 1_200_000,
+        interest_cost: 100_000,
+        turnover: 10_000_000,
+        ebitda: 1_420_000,
+        // netOperatingIncome intentionally missing (null)
+        netOperatingIncome: null,
+        annualDebtService: 1_000_000,
+        tradeReceivables: 2_000_000,
+        curlib_borrowing: 300_000,
+        ncl_loan: 400_000,
+        cashAndBank: 100_000,
+        networth: 500_000,
+      },
+      "2023": {
+        plnpbt: 1_200_000,
+        interest_cost: 100_000,
+        turnover: 10_000_000,
+        ebitda: 1_420_000,
+        netOperatingIncome: null,
+        annualDebtService: 1_000_000,
+        tradeReceivables: 2_000_000,
+        curlib_borrowing: 300_000,
+        ncl_loan: 400_000,
+        cashAndBank: 100_000,
+        networth: 500_000,
+      },
+      "2024": {
+        plnpbt: 1_200_000,
+        interest_cost: 100_000,
+        turnover: 10_000_000,
+        ebitda: 1_420_000,
+        netOperatingIncome: null,
+        annualDebtService: 1_000_000,
+        tradeReceivables: 2_000_000,
+        curlib_borrowing: 300_000,
+        ncl_loan: 400_000,
+        cashAndBank: 100_000,
+        networth: 500_000,
+      },
+    });
+
+    const idx2024 = source.years.findIndex((y) => y.year === 2024);
+    expect(idx2024).toBeGreaterThanOrEqual(0);
+    const y2024 = source.years[idx2024]!;
+    // CTOS flattening represents missing values as "" (not null).
+    expect(typeof y2024.rawFinancials.netOperatingIncome).not.toBe("number");
+    expect(y2024.rawFinancials.dscr).toBeNull();
+
+    const metrics = buildProspectusFinancialComparisonMetrics({ source });
+    expect(row(metrics, "dscr")?.values[idx2024]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
   });
 
   it("Admin frozen years expose the same Stage 4A raw records for Page 3", () => {

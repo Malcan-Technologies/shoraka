@@ -149,7 +149,19 @@ function metricForYear(
     case "interestCoverage":
     case "dscr":
     case "receivablesDays":
-      return DATA_NOT_AVAILABLE;
+      if (key === "receivablesDays") {
+        const days = parseMoney(raw.receivablesDays);
+        return days == null ? DATA_NOT_AVAILABLE : String(Math.trunc(days));
+      }
+      return formatMultiple(
+        parseMoney(
+          key === "netDebtEquity"
+            ? raw.netDebtEquity
+            : key === "interestCoverage"
+              ? raw.interestCoverage
+              : raw.dscr
+        )
+      );
     default:
       return DATA_NOT_AVAILABLE;
   }
@@ -195,39 +207,9 @@ export function mergeOfficerOverridesIntoFinancialTable(
     | undefined
 ): FinancialMetricTableModel & { sourceFooter?: string } {
   if (!overrides) return table;
-  const labelToKey = new Map<string, OfficerFinancialOverrideKey>(
-    PAGE_TWO_OFFICER_FINANCIAL_METRICS.map((m) => [m.label, m.key])
-  );
-  return {
-    ...table,
-    rows: table.rows.map((row) => {
-      const key = labelToKey.get(row.metric);
-      if (!key) return row;
-      return {
-        ...row,
-        values: table.yearHeaders.map((header, index) => {
-          // Prefer stable FYE ISO key; accept legacy calendar-year keys.
-          const yearOverride =
-            overrides[header.key] ??
-            overrides[header.key.slice(0, 4)] ??
-            overrides[`${header.key.slice(0, 4)}-12-31`];
-          const raw = yearOverride?.[key];
-          const n =
-            typeof raw === "number" && Number.isFinite(raw)
-              ? raw
-              : typeof raw === "string" && raw.trim() !== ""
-                ? Number(raw.replace(/,/g, ""))
-                : null;
-          if (n == null || !Number.isFinite(n)) return row.values[index] ?? DATA_NOT_AVAILABLE;
-          if (key === "receivablesDays") {
-            if (!Number.isInteger(n)) return row.values[index] ?? DATA_NOT_AVAILABLE;
-            return String(Math.trunc(n));
-          }
-          return formatMultiple(n);
-        }),
-      };
-    }),
-  };
+  // These metrics are now system-derived from Stage 4A raw fields.
+  // Ignore legacy/entered override values so they never replace canonical calculations.
+  return table;
 }
 
 /**
@@ -265,16 +247,42 @@ export function buildPageTwoFinancialComparisonTable(
     byYear[year] = asRecord(unaudited[year]) ?? {};
   }
 
+  const calculatedKeys = new Set<Parameters<typeof metricForYear>[0]>([
+    "roe",
+    "currentRatio",
+    "netDebtEquity",
+    "interestCoverage",
+    "dscr",
+    "receivablesDays",
+  ]);
+
   return {
     yearHeaders: years.map((year) => ({
       key: year,
       yearLabel: `FY${year}`,
       fyeLabel: formatFyeLabel(fyeIso, year),
     })),
-    rows: PAGE_TWO_METRICS.map(({ label, key }) => ({
-      metric: label,
-      values: years.map((year) => metricForYear(key, byYear[year] ?? {})),
-    })),
+    rows: PAGE_TWO_METRICS.map(({ label, key }) => {
+      const values: string[] = [];
+      const cellHints: Array<string | null> = [];
+
+      for (let i = 0; i < years.length; i++) {
+        const year = years[i]!;
+        const raw = byYear[year] ?? {};
+        const rawValue = metricForYear(key, raw);
+        const isCalculatedMissing = calculatedKeys.has(key) && rawValue === DATA_NOT_AVAILABLE;
+
+        if (isCalculatedMissing) {
+          values.push(DATA_NOT_AVAILABLE);
+          cellHints.push(null);
+        } else {
+          values.push(rawValue);
+          cellHints.push(null);
+        }
+      }
+
+      return { metric: label, values, cellHints };
+    }),
   };
 }
 

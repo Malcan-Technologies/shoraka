@@ -1,7 +1,7 @@
 import { formatCurrency } from "@cashsouk/config";
 import {
-  resolveCtosCurrentRatio,
   resolveCtosGearingRatio,
+  resolveCtosCurrentRatio,
   resolveCtosPatMarginPercent,
   resolveCtosReturnOnAssetsPercent,
   resolveCtosReturnOnEquityPercent,
@@ -84,15 +84,6 @@ function formatDays(value: number | null): string {
   return value.toFixed(2).replace(/\.?0+$/, "");
 }
 
-function manualDisplay(
-  value: string | number | null | undefined,
-  kind: "money" | "ratio"
-): string {
-  const n = parseNumber(value);
-  if (n == null) return DATA_NOT_AVAILABLE;
-  return kind === "money" ? formatMoney(n) : `${n}`;
-}
-
 type Page2FinancialOverrides =
   | Record<
       string,
@@ -123,12 +114,18 @@ export function selectPageThreeYears(frozenYears: ProspectusFrozenFinancialYear[
 function yearHeadersFromFrozen(
   frozenYears: ProspectusFrozenFinancialYear[]
 ): FinancialMetricTableModel["yearHeaders"] {
-  return frozenYears.map((year) => ({
+  return frozenYears.map((year) => {
+    const isPlaceholder = year.isPlaceholder === true;
+    return {
     key: year.financialYearEndIso,
     yearLabel: year.label,
     fyeLabel: year.fyeLabel,
-    isPlaceholder: year.isPlaceholder === true,
-  }));
+    isPlaceholder,
+    adminFallbackEligible: year.adminFallbackEligible === true,
+    sourceType: isPlaceholder ? undefined : year.sourceType,
+    statementType: isPlaceholder ? undefined : year.statementType,
+  };
+  });
 }
 
 function rawAsRecord(raw: ProspectusFrozenFinancialRaw): Record<string, unknown> {
@@ -228,24 +225,31 @@ export type PageThreeManualYears = Record<string, PageThreeManualYear | undefine
 /** Final resolved Income Statement values for one year (derived + officer-entered). */
 export function buildIncomeStatementResolvedRows(
   yearRaw: Record<string, unknown>,
-  manual: PageThreeManualYear | undefined
-): CoreTermRow[] {
+  _manual: PageThreeManualYear | undefined
+): Array<{ label: string; value: string; hint?: string | null }> {
   const revenue = parseNumber(yearRaw.turnover);
   const pat = parseNumber(yearRaw.plnpat);
   const pbt = parseNumber(yearRaw.plnpbt);
+  const ebit = parseNumber(yearRaw.ebit);
+
+  const ebitValue = formatMoney(ebit);
+
+  const netProfitMarginPoints = resolveCtosPatMarginPercent({ plnpat: pat, turnover: revenue });
+  const netProfitMarginValue = formatPercentFromPoints(netProfitMarginPoints);
+
   return [
     { label: "Revenue", value: formatMoney(revenue) },
-    { label: "Gross Profit", value: manualDisplay(manual?.grossProfit, "money") },
-    { label: "EBITDA", value: manualDisplay(manual?.ebitda, "money") },
-    { label: "EBIT", value: manualDisplay(manual?.ebit, "money") },
+    { label: "Cost of Sales", value: formatMoney(parseNumber(yearRaw.costOfSales)) },
+    { label: "Gross Profit", value: formatMoney(parseNumber(yearRaw.grossProfit)) },
+    { label: "EBITDA", value: formatMoney(parseNumber(yearRaw.ebitda)) },
+    { label: "EBIT", value: ebitValue, hint: null },
     { label: "Profit Before Tax", value: formatMoney(pbt) },
     { label: "Profit After Tax", value: formatMoney(pat) },
     {
       label: "Net Profit Margin",
       // CTOS ENQWS v5.11.0 Financial Highlights XSL — PAT Margin (never profit_margin / PBT).
-      value: formatPercentFromPoints(
-        resolveCtosPatMarginPercent({ plnpat: pat, turnover: revenue })
-      ),
+      value: netProfitMarginValue,
+      hint: null,
     },
   ];
 }
@@ -253,98 +257,165 @@ export function buildIncomeStatementResolvedRows(
 /** Final resolved Balance Sheet & Liquidity values including Total Liabilities. */
 export function buildBalanceSheetResolvedRows(
   yearRaw: Record<string, unknown>,
-  manual: PageThreeManualYear | undefined
-): CoreTermRow[] {
+  _manual: PageThreeManualYear | undefined
+): Array<{ label: string; value: string; hint?: string | null }> {
   const currentAssets = parseNumber(yearRaw.bscatot);
   const currentLiabilities = parseNumber(yearRaw.curlib);
+  const netWorth = parseNumber(yearRaw.networth);
   // CTOS ENQWS v5.11.0 — direct totass / totlib / currat only (no component reconstruction).
-  const totalAssets = resolveCtosTotalAssets({ totass: parseNumber(yearRaw.totass) });
-  const totalLiabilities = resolveCtosTotalLiabilities({ totlib: parseNumber(yearRaw.totlib) });
+  const rawTotalAssets = parseNumber(yearRaw.totass);
+  const rawTotalLiabilities = parseNumber(yearRaw.totlib);
+  const rawCurrat = parseNumber(yearRaw.currat);
+  const rawQuickRatio = parseNumber(yearRaw.quickRatio);
+
+  const totalAssets = resolveCtosTotalAssets({ totass: rawTotalAssets });
+  const totalLiabilities = resolveCtosTotalLiabilities({ totlib: rawTotalLiabilities });
+
+  const totalAssetsValue = formatMoney(totalAssets);
+
+  const totalLiabilitiesValue = formatMoney(totalLiabilities);
+
+  const netWorthValue = formatMoney(netWorth);
+
+  const currRatioValue = formatMultiple(
+    resolveCtosCurrentRatio({
+      currat: rawCurrat,
+    })
+  );
+
+  const quickRatioValue = formatMultiple(rawQuickRatio);
 
   return [
-    { label: "Cash & Bank", value: manualDisplay(manual?.cashAndBank, "money") },
-    { label: "Trade Receivables", value: manualDisplay(manual?.tradeReceivables, "money") },
+    { label: "Cash & Bank", value: formatMoney(parseNumber(yearRaw.cashAndBank)) },
+    { label: "Trade Receivables", value: formatMoney(parseNumber(yearRaw.tradeReceivables)) },
+    { label: "Trade Payables", value: formatMoney(parseNumber(yearRaw.tradePayables)) },
     { label: "Current Assets", value: formatMoney(currentAssets) },
-    { label: "Total Assets", value: formatMoney(totalAssets) },
+    {
+      label: "Total Assets",
+      value: totalAssetsValue,
+      hint: null,
+    },
     { label: "Current Liabilities", value: formatMoney(currentLiabilities) },
-    { label: "Total Liabilities", value: formatMoney(totalLiabilities) },
-    { label: "Total Equity", value: manualDisplay(manual?.totalEquity, "money") },
+    {
+      label: "Total Liabilities",
+      value: totalLiabilitiesValue,
+      hint: null,
+    },
+    {
+      label: "Total Equity",
+      value: netWorthValue,
+      hint: null,
+    },
     {
       label: "Current Ratio",
-      value: formatMultiple(
-        resolveCtosCurrentRatio({
-          currat: parseNumber(yearRaw.currat),
-        })
-      ),
+      value: currRatioValue,
+      hint: null,
     },
-    { label: "Quick Ratio", value: manualDisplay(manual?.quickRatio, "ratio") },
+    {
+      label: "Quick Ratio",
+      value: quickRatioValue,
+      hint: null,
+    },
   ];
 }
 
 /** Final resolved Cash Flow, Coverage & Efficiency values. */
 export function buildCoverageResolvedRows(
   yearRaw: Record<string, unknown>,
-  manual: PageThreeManualYear | undefined,
-  page2Override?: Partial<
+  _manual: PageThreeManualYear | undefined,
+  _prevYearRaw: Record<string, unknown> | undefined,
+  _page2Override?: Partial<
     Record<(typeof PAGE_TWO_OFFICER_FINANCIAL_METRICS)[number]["key"], string | number | null>
   >
-): CoreTermRow[] {
-  const interestCoverage = parseNumber(page2Override?.interestCoverage);
-  const dscr = parseNumber(page2Override?.dscr);
-  const receivablesDays = parseNumber(page2Override?.receivablesDays);
+): Array<{ label: string; value: string; hint?: string | null }> {
+  // System-derived metrics from Stage 4A raw fields (do not use officer overrides).
+  const interestCoverage = parseNumber(yearRaw.interestCoverage);
+  const dscr = parseNumber(yearRaw.dscr);
+  const receivablesDays = parseNumber(yearRaw.receivablesDays);
+
+  const interestCoverageValue = formatMultiple(interestCoverage);
+
+  const annualDebtService = parseNumber(yearRaw.annualDebtService);
+  const dscrValue = formatMultiple(dscr);
+
+  const totlib = parseNumber(yearRaw.totlib);
+  const networth = parseNumber(yearRaw.networth);
+  const gear = parseNumber(yearRaw.gear);
+  const debtEqRatio = resolveCtosGearingRatio({ gear, totlib, networth });
+  const debtEqValue = formatMultiple(debtEqRatio);
+
+  const roePoints = resolveCtosReturnOnEquityPercent({
+    return_on_equity: parseNumber(yearRaw.return_on_equity),
+  });
+  const roeValue = formatPercentFromPoints(roePoints);
+
+  const roaValue = formatPercentFromPoints(
+    resolveCtosReturnOnAssetsPercent({
+      plnpat: parseNumber(yearRaw.plnpat),
+      totass: parseNumber(yearRaw.totass),
+    })
+  );
+
+  const turnover = parseNumber(yearRaw.turnover);
+  const totass = parseNumber(yearRaw.totass);
+  const assetTurnoverValue = formatMultiple(
+    resolveCtosTotalAssetTurnover({
+      turnover,
+      totass,
+    })
+  );
+
+  const receivablesDaysValue =
+    receivablesDays != null ? formatDays(receivablesDays) : DATA_NOT_AVAILABLE;
+
+  const payablesDaysValue = formatDays(parseNumber(yearRaw.payablesDays));
+
   return [
-    { label: "Interest Coverage", value: formatMultiple(interestCoverage) },
-    { label: "DSCR", value: formatMultiple(dscr) },
+    { label: "Operating Cash Flow", value: formatMoney(parseNumber(yearRaw.operatingCashFlow)) },
+    { label: "Free Cash Flow", value: formatMoney(parseNumber(yearRaw.freeCashFlow)) },
+    {
+      label: "Interest Coverage",
+      value: interestCoverageValue,
+      hint: null,
+    },
+    { label: "Annual Debt Service", value: formatMoney(annualDebtService) },
+    {
+      label: "DSCR",
+      value: dscrValue,
+      hint: null,
+    },
     {
       label: "Debt / Equity",
-      // CTOS ENQWS v5.11.0 Financial Highlights XSL — gear | totlib/networth (x)
-      value: formatMultiple(
-        resolveCtosGearingRatio({
-          gear: parseNumber(yearRaw.gear),
-          totlib: parseNumber(yearRaw.totlib),
-          networth: parseNumber(yearRaw.networth),
-        })
-      ),
+      value: debtEqValue,
+      hint: null,
     },
     {
       label: "Return on Equity",
       // CTOS ENQWS v5.11.0 Financial Highlights XSL — direct r:return_on_equity only.
-      value: formatPercentFromPoints(
-        resolveCtosReturnOnEquityPercent({
-          return_on_equity: parseNumber(yearRaw.return_on_equity),
-        })
-      ),
+      value: roeValue,
+      hint: null,
     },
     {
       label: "Return on Assets",
       // CTOS ENQWS v5.11.0 Financial Highlights XSL — plnpat/totass*100
-      value: formatPercentFromPoints(
-        resolveCtosReturnOnAssetsPercent({
-          plnpat: parseNumber(yearRaw.plnpat),
-          totass: parseNumber(yearRaw.totass),
-        })
-      ),
+      value: roaValue,
+      hint: null,
     },
     {
       label: "Receivables Days",
-      value:
-        receivablesDays != null && Number.isInteger(receivablesDays)
-          ? formatDays(receivablesDays)
-          : DATA_NOT_AVAILABLE,
+      value: receivablesDaysValue,
+      hint: null,
     },
     {
       label: "Payables Days",
-      value: formatDays(parseNumber(manual?.payablesDays)),
+      value: payablesDaysValue,
+      hint: null,
     },
     {
       label: "Asset Turnover",
       // CTOS ENQWS v5.11.0 Financial Highlights XSL — turnover/totass
-      value: formatMultiple(
-        resolveCtosTotalAssetTurnover({
-          turnover: parseNumber(yearRaw.turnover),
-          totass: parseNumber(yearRaw.totass),
-        })
-      ),
+      value: assetTurnoverValue,
+      hint: null,
     },
   ];
 }
@@ -355,25 +426,28 @@ function pivotYearRows(
   buildRows: (
     yearRaw: Record<string, unknown>,
     manual: PageThreeManualYear | undefined,
-    year: string
-  ) => CoreTermRow[],
+    year: string,
+    prevYearRaw?: Record<string, unknown>
+  ) => Array<{ label: string; value: string; hint?: string | null }>,
   withTrend = false
 ): FinancialMetricTableModel {
   const yearHeaders = yearHeadersFromFrozen(frozenYears);
-  const perYear = frozenYears.map((year) => {
+  const perYear = frozenYears.map((year, idx) => {
     const calendarYear = String(year.calendarYear);
     if (year.isPlaceholder) {
       // Display-only column — never resolve metrics or officer manuals.
-      return buildRows({}, undefined, calendarYear).map((row) => ({
+      return buildRows({}, undefined, calendarYear, undefined).map((row) => ({
         ...row,
         value: DATA_NOT_AVAILABLE,
+        hint: null,
       }));
     }
     const manual =
       manualYears?.[calendarYear] ??
       manualYears?.[year.financialYearEndIso] ??
       undefined;
-    return buildRows(rawAsRecord(year.raw), manual, calendarYear);
+    const prevYearRaw = idx > 0 ? rawAsRecord(frozenYears[idx - 1]?.raw) ?? undefined : undefined;
+    return buildRows(rawAsRecord(year.raw), manual, calendarYear, prevYearRaw);
   });
   const metrics = perYear[0]?.map((row) => row.label) ?? [];
 
@@ -384,6 +458,9 @@ function pivotYearRows(
       values: yearHeaders.map((_, yearIndex) => {
         const value = perYear[yearIndex]?.[metricIndex]?.value;
         return value ?? DATA_NOT_AVAILABLE;
+      }),
+      cellHints: yearHeaders.map((_, yearIndex) => {
+        return perYear[yearIndex]?.[metricIndex]?.hint ?? null;
       }),
       ...(withTrend ? { trend: DATA_NOT_AVAILABLE } : {}),
     })),
@@ -417,8 +494,8 @@ export function buildPageThreeCoverageTable(
   const table = pivotYearRows(
     frozenYears,
     manualYears,
-    (yearRaw, manual, year) =>
-      buildCoverageResolvedRows(yearRaw, manual, page2OverrideForYear(page2Overrides, year)),
+    (yearRaw, manual, year, prevYearRaw) =>
+      buildCoverageResolvedRows(yearRaw, manual, prevYearRaw, page2OverrideForYear(page2Overrides, year)),
     false
   );
   return table;

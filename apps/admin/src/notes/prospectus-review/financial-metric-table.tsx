@@ -15,11 +15,23 @@ export type FinancialYearHeader = {
   fyeLabel: string;
   /** Display-only column — not officer-editable. */
   isPlaceholder?: boolean;
+  /** Placeholder-only: whether Admin can add an Admin-entered FY record here. */
+  adminFallbackEligible?: boolean;
+  /** Source badge for Admin financial-year provenance. */
+  sourceType?: "CTOS" | "ISSUER_INPUT" | "ADMIN_INPUT";
+  /** Statement type badge for Admin financial-year provenance. */
+  statementType?: "AUDITED" | "NOT_AUDITED" | "MANAGEMENT_ACCOUNTS";
 };
 
 export type FinancialMetricTableRow = {
   metric: string;
   values: string[];
+  /**
+   * Per-cell hint for calculated-metric failures.
+   * Aligned 1:1 with `values` (same length as `yearHeaders`).
+   * Rendered only when the cell value is "Cannot calculate".
+   */
+  cellHints?: Array<string | null>;
   trend?: string;
 };
 

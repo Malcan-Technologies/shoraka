@@ -32,9 +32,10 @@ function row(
 
 function sourceFromYears(
   years: Record<string, Record<string, unknown>>,
-  financialYearEnd = "2024-12-31"
+  financialYearEnd = "2024-12-31",
+  options?: { issuerOverlay?: boolean }
 ) {
-  return financialSourceFromYearBlocks(years, { financialYearEnd });
+  return financialSourceFromYearBlocks(years, { financialYearEnd, issuerOverlay: options?.issuerOverlay });
 }
 
 describe("prospectus Page 3 coverage/efficiency", () => {
@@ -78,6 +79,10 @@ describe("prospectus Page 3 coverage/efficiency", () => {
         totlib: 250_000,
         networth: 500_000,
         bsqpuc: 2_000_000,
+        tradePayables: 48_000,
+        costOfSales: 365_000,
+        operatingCashFlow: 1_400_000,
+        freeCashFlow: 1_100_000,
       },
     });
     const data = buildProspectusPageThreeCoverageEfficiency({
@@ -85,8 +90,9 @@ describe("prospectus Page 3 coverage/efficiency", () => {
       prospectusFinancialInputs: {
         years: {
           "2024": {
-            operatingCashFlow: 1_400_000,
-            freeCashFlow: 1_100_000,
+            // Officer values must not override Stage 4A raw issuer values.
+            operatingCashFlow: 1,
+            freeCashFlow: 1,
             debtEquity: 99,
             returnOnAssets: 99,
             payablesDays: 48,
@@ -116,6 +122,10 @@ describe("prospectus Page 3 coverage/efficiency", () => {
           gear: 4.4,
           totlib: 1,
           networth: 1,
+          // netDebtEquity is computed from borrowings/cash; ensure it differs.
+          curlib_borrowing: 10,
+          ncl_loan: 0,
+          cashAndBank: 0,
           plnpat: 8,
           totass: 100,
           profit_margin: 99,
@@ -148,47 +158,40 @@ describe("prospectus Page 3 coverage/efficiency", () => {
   });
 
   it("reuses Page 2 Interest Coverage, DSCR, and Receivables Days", () => {
-    const source = sourceFromYears({
-      "2024": { plnpat: 1_200_000, bsqpuc: 2_000_000, turnover: 10_000_000 },
-    });
-    const overrides = {
-      "2024-12-31": {
-        interestCoverage: 12.1,
-        dscr: 1.42,
-        receivablesDays: 74,
-      },
-    };
-    const page2 = buildProspectusFinancialComparisonMetrics({
-      source,
-      officerOverrides: overrides,
-    });
-    const page3 = buildProspectusPageThreeCoverageEfficiency({
-      financialSource: source,
-      page2FinancialOverrides: overrides,
-      prospectusFinancialInputs: {
-        years: {
+    const data = buildProspectusPageThreeCoverageEfficiency({
+      financialSource: sourceFromYears(
+        {
+          "2023": {
+            plnpbt: 1_200_000,
+            plnpat: 1_200_000,
+            interest_cost: 108_108.10810810811, // => interest coverage ~ 12.1x
+            ebitda: 1_420_000, // => DSCR 1.42x (fallback when CTOS lacks NOI)
+            netOperatingIncome: 1_420_000,
+            annualDebtService: 1_000_000,
+            turnover: 10_000_000,
+            tradeReceivables: 2_027_397.26, // Beginning AR for FY2024
+          },
           "2024": {
-            // Must be ignored — removed Page 3 duplicates
-            interestCoverage: 99,
-            dscr: 99,
-            receivablesDays: 99,
-          } as Record<string, number>,
+            plnpbt: 1_200_000,
+            plnpat: 1_200_000,
+            interest_cost: 108_108.10810810811, // => interest coverage ~ 12.1x
+            ebitda: 1_420_000, // => DSCR 1.42x (fallback when CTOS lacks NOI)
+            netOperatingIncome: 1_420_000,
+            annualDebtService: 1_000_000,
+            turnover: 10_000_000,
+            tradeReceivables: 2_027_397.26, // Ending AR for FY2024
+          },
         },
-      },
+        "2024-12-31",
+        { issuerOverlay: true }
+      ),
     });
 
-    expect(row(page3, "interest_coverage")?.values[0]).toBe(
-      page2.rows.find((r) => r.key === "interestCoverage")?.values[0]
-    );
-    expect(row(page3, "dscr")?.values[0]).toBe(
-      page2.rows.find((r) => r.key === "dscr")?.values[0]
-    );
-    expect(row(page3, "receivables_days")?.values[0]).toBe(
-      page2.rows.find((r) => r.key === "receivablesDays")?.values[0]
-    );
-    expect(row(page3, "interest_coverage")?.values[0]).toBe("12.1x");
-    expect(row(page3, "dscr")?.values[0]).toBe("1.42x");
-    expect(row(page3, "receivables_days")?.values[0]).toBe("74");
+    // FY2023 lacks prior consecutive year in this fixture.
+    expect(row(data, "receivables_days")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(row(data, "interest_coverage")?.values[1]).toBe("12.1x");
+    expect(row(data, "dscr")?.values[1]).toBe("1.42x");
+    expect(row(data, "receivables_days")?.values[1]).toBe("74");
   });
 
   it("uses resolveCtosReturnOnEquityPercent (direct return_on_equity only) and matches Page 2", () => {
@@ -250,26 +253,24 @@ describe("prospectus Page 3 coverage/efficiency", () => {
     expect(row(empty, "interest_coverage")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
 
     const zero = buildProspectusPageThreeCoverageEfficiency({
-      financialSource: source,
-      prospectusFinancialInputs: {
-        years: {
-          "2024": {
-            operatingCashFlow: 0,
-            freeCashFlow: 0,
-            payablesDays: 0,
-          },
+      financialSource: sourceFromYears({
+        "2024": {
+          plnpat: 0,
+          networth: 2_000_000,
+          totass: 1_000_000,
+          turnover: 0,
+          totlib: 0,
+          operatingCashFlow: 0,
+          freeCashFlow: 0,
         },
-      },
-      page2FinancialOverrides: {
-        "2024": { interestCoverage: 0, dscr: 0, receivablesDays: 0 },
-      },
+      }),
     });
     expect(row(zero, "operating_cash_flow")?.values[0]).toBe("0");
     expect(row(zero, "debt_equity")?.values[0]).toBe("0x");
     expect(row(zero, "return_on_assets")?.values[0]).toBe("0%");
     expect(row(zero, "asset_turnover")?.values[0]).toBe("0x");
-    expect(row(zero, "interest_coverage")?.values[0]).toBe("0x");
-    expect(row(zero, "receivables_days")?.values[0]).toBe("0");
+    expect(row(zero, "interest_coverage")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(row(zero, "receivables_days")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
   });
 
   it("does not invent formulas or write Application/CTOS lookups in the module", () => {

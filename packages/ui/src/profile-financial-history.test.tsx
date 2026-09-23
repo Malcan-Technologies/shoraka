@@ -7,6 +7,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import {
   APPLICATION_COMREP_DETAIL_KEYS,
   APPLICATION_CORE_MONEY_KEYS,
+  APPLICATION_EXTRA_ISSUER_RAW_MONEY_KEYS,
   FINANCIAL_FIELD_LABELS,
   formatProfileRmAmount,
 } from "@cashsouk/types";
@@ -40,7 +41,10 @@ const fy2027Block: Record<string, unknown> = {
   admin_cost: 11,
   interest_cost: 2,
   other_cost: 1,
-  pl_minority: 0.5,
+  // Fixture includes a negative P&L minority interest; ensure formatting survives.
+  pl_minority: -8975580,
+  costOfSales: 140,
+  annualDebtService: 220,
 };
 
 const years = [
@@ -96,6 +100,10 @@ describe("ProfileFinancialYearDetails", () => {
     expect(html).toContain("Additional financial details");
     expect(html).toContain("For regulatory reporting");
     for (const key of APPLICATION_CORE_MONEY_KEYS) {
+      expect(htmlHasText(html, FINANCIAL_FIELD_LABELS[key] ?? key)).toBe(true);
+      expect(html).toContain(formatProfileRmAmount(fy2027Block[key]));
+    }
+    for (const key of APPLICATION_EXTRA_ISSUER_RAW_MONEY_KEYS) {
       expect(htmlHasText(html, FINANCIAL_FIELD_LABELS[key] ?? key)).toBe(true);
       expect(html).toContain(formatProfileRmAmount(fy2027Block[key]));
     }

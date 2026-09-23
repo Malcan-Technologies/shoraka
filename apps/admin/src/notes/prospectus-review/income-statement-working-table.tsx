@@ -6,11 +6,8 @@ import {
   type FinancialRowMode,
 } from "./shared-financial-working-table";
 
-const OFFICER: Record<string, { field: string; kind: "money" }> = {
-  "Gross Profit": { field: "grossProfit", kind: "money" },
-  EBITDA: { field: "ebitda", kind: "money" },
-  EBIT: { field: "ebit", kind: "money" },
-};
+// EBIT is system-derived (Stage 4A). Keep it read-only in Admin.
+const OFFICER: Record<string, { field: string; kind: "money" }> = {};
 
 type Props = {
   table: FinancialMetricTableModel;
@@ -18,6 +15,7 @@ type Props = {
   manualYears: Record<string, Record<string, string | number | null | undefined> | undefined>;
   disabled: boolean;
   onChange: (year: string, field: string, value: string) => void;
+  onAddPlaceholderYear?: (calendarYear: number) => void;
 };
 
 export function ProspectusIncomeStatementWorkingTable({
@@ -26,6 +24,7 @@ export function ProspectusIncomeStatementWorkingTable({
   manualYears,
   disabled,
   onChange,
+  onAddPlaceholderYear,
 }: Props) {
   const resolveRow = (metric: string): FinancialRowMode => {
     const officer = OFFICER[metric];
@@ -45,6 +44,7 @@ export function ProspectusIncomeStatementWorkingTable({
       resolveRow={resolveRow}
       getEditableValue={(yearKey, field) => manualYears[yearKey]?.[field]}
       onChange={onChange}
+      onAddPlaceholderYear={onAddPlaceholderYear}
       disabled={disabled}
       emptyMessage="—"
     />

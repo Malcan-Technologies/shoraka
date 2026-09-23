@@ -22,13 +22,22 @@ export type CtosFinancialStatementRow = CtosFinancialYearRowInput & {
   account?: Record<string, number | null | undefined>;
 };
 
-export type FinancialStatementRecordSource = "ctos_audited" | "unaudited_management";
+export type FinancialStatementRecordSource =
+  | "ctos_audited"
+  | "unaudited_management"
+  | "admin_input";
+
+export type FinancialStatementStatementType =
+  | "AUDITED"
+  | "NOT_AUDITED"
+  | "MANAGEMENT_ACCOUNTS";
 
 export type NormalizedFinancialStatementYear = {
   year: number;
   /** Stable override / column key — FYE ISO when known. */
   financialYearEndIso: string;
   recordSource: FinancialStatementRecordSource;
+  statementType: FinancialStatementStatementType;
   /** Flat fields matching unaudited_by_year / Admin ctosFinToFs. */
   rawFinancials: Record<string, unknown>;
 };
@@ -45,10 +54,15 @@ const ACCOUNT_KEYS = [
   "othass",
   "bscatot",
   "bsclbank",
+  "cashAndBank",
+  "tradeReceivables",
   "totass",
   "curlib",
+  "curlib_borrowing",
   "bsslltd",
   "bsclstd",
+  "ncl_loan",
+  "tradePayables",
   "totlib",
   "bsqpuc",
   "turnover",
@@ -56,6 +70,8 @@ const ACCOUNT_KEYS = [
   "plnpat",
   "plnetdiv",
   "plyear",
+  "grossProfit",
+  "ebitda",
   "networth",
   "turnover_growth",
   "profit_margin",
@@ -63,6 +79,30 @@ const ACCOUNT_KEYS = [
   "currat",
   "workcap",
   "gear",
+  "operatingCashFlow",
+  "freeCashFlow",
+  "netOperatingIncome",
+  "costOfSales",
+  "annualDebtService",
+  "interest_cost",
+] as const;
+
+/**
+ * CTOS provides ComRep extras (ENQWS numeric tags) but the normalized year record
+ * must use the CashSouk raw keys that Admin/Prospectus already expect.
+ */
+const CTOS_COMREP_EXTRA_RAW_KEY_MAP: Record<string, string> = {
+  bsqres: "equity_share_premium",
+  bsqupro: "equity_accumulated_profit",
+  bsqmint: "equity_minority",
+  plminin: "pl_minority",
+};
+
+const CTOS_COMREP_EXTRA_CASHSOUK_KEYS = [
+  "equity_share_premium",
+  "equity_accumulated_profit",
+  "equity_minority",
+  "pl_minority",
 ] as const;
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -87,6 +127,11 @@ export function ctosFinancialRowToFsFields(row: CtosFinancialStatementRow): Reco
   for (const key of ACCOUNT_KEYS) {
     const v = account[key];
     out[key] = v != null ? v : "";
+  }
+  // Preserve CTOS ComRep extras that are not part of the core ACCOUNT_KEYS list.
+  for (const [ctosKey, cashSoukKey] of Object.entries(CTOS_COMREP_EXTRA_RAW_KEY_MAP)) {
+    const v = account[ctosKey];
+    out[cashSoukKey] = v != null ? v : "";
   }
   return out;
 }
@@ -128,13 +173,20 @@ function extractQuestionnaireAndUnaudited(financialRaw: unknown): {
   /** Raw questionnaire FYE string when present (shape-only; no today-relative check). */
   financialYearEndIso: string | null;
   unauditedByYear: Record<string, Record<string, unknown>>;
+  adminInputByYear: Record<string, Record<string, unknown>>;
 } {
   const root = asRecord(financialRaw);
   if (!root) {
-    return { questionnaire: null, financialYearEndIso: null, unauditedByYear: {} };
+    return {
+      questionnaire: null,
+      financialYearEndIso: null,
+      unauditedByYear: {},
+      adminInputByYear: {},
+    };
   }
   const qRaw = root.questionnaire;
   const byYear = asRecord(root.unaudited_by_year);
+  const adminByYear = asRecord((root as Record<string, unknown>).admin_input_by_year);
   const unauditedByYear: Record<string, Record<string, unknown>> = {};
   if (byYear) {
     for (const [key, value] of Object.entries(byYear)) {
@@ -142,12 +194,20 @@ function extractQuestionnaireAndUnaudited(financialRaw: unknown): {
       if (yearRec) unauditedByYear[key] = yearRec;
     }
   }
+  const adminInputByYear: Record<string, Record<string, unknown>> = {};
+  if (adminByYear) {
+    for (const [key, value] of Object.entries(adminByYear)) {
+      const yearRec = asRecord(value);
+      if (!yearRec) continue;
+      adminInputByYear[key] = yearRec;
+    }
+  }
   const qRec = asRecord(qRaw);
   const fyeRaw =
     typeof qRec?.financial_year_end === "string" ? qRec.financial_year_end.trim() : null;
   const financialYearEndIso = isIsoDate(fyeRaw) ? fyeRaw : null;
   const questionnaire = parseFinancialStatementsQuestionnaireShape(qRaw);
-  return { questionnaire, financialYearEndIso, unauditedByYear };
+  return { questionnaire, financialYearEndIso, unauditedByYear, adminInputByYear };
 }
 
 function resolveFinancialYearEndIso(input: {
@@ -178,6 +238,17 @@ function resolveFinancialYearEndIso(input: {
 /** True when a year block has at least one finite numeric line item (0 counts). */
 export function financialYearBlockHasActualData(raw: Record<string, unknown>): boolean {
   for (const key of ACCOUNT_KEYS) {
+    const v = raw[key];
+    if (typeof v === "number" && Number.isFinite(v)) return true;
+    if (typeof v === "string") {
+      const trimmed = v.trim();
+      if (!trimmed) continue;
+      const n = Number(trimmed.replace(/,/g, ""));
+      if (Number.isFinite(n)) return true;
+    }
+  }
+  // Also consider CTOS ComRep extras so years aren't dropped when only those are present.
+  for (const key of CTOS_COMREP_EXTRA_CASHSOUK_KEYS) {
     const v = raw[key];
     if (typeof v === "number" && Number.isFinite(v)) return true;
     if (typeof v === "string") {
@@ -248,7 +319,7 @@ export function buildNormalizedFinancialStatementYearSet(input: {
   ref?: Date;
 }): NormalizedFinancialStatementYear[] {
   const ref = input.ref ?? new Date();
-  const { questionnaire, financialYearEndIso, unauditedByYear } =
+  const { questionnaire, financialYearEndIso, unauditedByYear, adminInputByYear } =
     extractQuestionnaireAndUnaudited(input.financialStatements);
   const ctosRows = parseCtosFinancialStatementRows(input.ctosFinancials);
   const byCtosYear = new Map<number, CtosFinancialStatementRow>();
@@ -276,6 +347,7 @@ export function buildNormalizedFinancialStatementYearSet(input: {
         financialYearEndIso,
       }),
       recordSource: "ctos_audited",
+      statementType: "AUDITED",
       rawFinancials,
     });
   }
@@ -285,8 +357,34 @@ export function buildNormalizedFinancialStatementYearSet(input: {
     if (ctosYearSet.has(year)) continue;
     // Do not invent SSM-expected years: require a stored block with actual line items.
     const stored = unauditedByYear[String(year)];
-    if (!stored || !financialYearBlockHasActualData(stored)) continue;
-    const rawFinancials = { ...stored };
+    if (stored && financialYearBlockHasActualData(stored)) {
+      const rawFinancials = { ...stored };
+      available.push({
+        year,
+        financialYearEndIso: resolveFinancialYearEndIso({
+          year,
+          rawFinancials,
+          questionnaire,
+          financialYearEndIso,
+        }),
+        recordSource: "unaudited_management",
+        statementType: "MANAGEMENT_ACCOUNTS",
+        rawFinancials,
+      });
+      continue;
+    }
+
+    const adminStored = adminInputByYear[String(year)];
+    if (!adminStored || !financialYearBlockHasActualData(adminStored)) continue;
+    const statementTypeRaw = (adminStored as Record<string, unknown>).statementType;
+    const statementType: FinancialStatementStatementType =
+      statementTypeRaw === "AUDITED" ||
+      statementTypeRaw === "NOT_AUDITED" ||
+      statementTypeRaw === "MANAGEMENT_ACCOUNTS"
+        ? (statementTypeRaw as FinancialStatementStatementType)
+        : "NOT_AUDITED";
+
+    const rawFinancials = { ...adminStored };
     available.push({
       year,
       financialYearEndIso: resolveFinancialYearEndIso({
@@ -295,12 +393,51 @@ export function buildNormalizedFinancialStatementYearSet(input: {
         questionnaire,
         financialYearEndIso,
       }),
-      recordSource: "unaudited_management",
+      recordSource: "admin_input",
+      statementType,
       rawFinancials,
     });
   }
 
   return available.sort((a, b) => a.year - b.year);
+}
+
+/**
+ * Returns which missing FYs inside the existing issuer/Admin tab window are eligible for
+ * Admin to add as an `admin_input_by_year` fallback.
+ *
+ * Eligibility is data-driven:
+ * - FY must be inside the existing issuer/Admin tab window (12-month + 6-month logic).
+ * - FY must not already have CTOS actual data.
+ * - FY must not already have issuer stored unaudited actual data.
+ */
+export function getEligibleAdminInputYears(input: {
+  financialStatements?: unknown;
+  ctosFinancials?: unknown;
+  ref?: Date;
+}): number[] {
+  const ref = input.ref ?? new Date();
+  const { questionnaire, unauditedByYear } = extractQuestionnaireAndUnaudited(input.financialStatements);
+  const ctosRows = parseCtosFinancialStatementRows(input.ctosFinancials);
+  const ctosYearsWithData = new Set<number>();
+
+  for (const row of ctosRows) {
+    if (row.financial_year == null || !Number.isFinite(row.financial_year)) continue;
+    if (financialYearBlockHasActualData(ctosFinancialRowToFsFields(row))) {
+      ctosYearsWithData.add(row.financial_year);
+    }
+  }
+
+  const eligible: number[] = [];
+  for (const year of getAdminFinancialSummaryUserColumnYears(questionnaire, ref)) {
+    if (ctosYearsWithData.has(year)) continue;
+    const storedIssuer = unauditedByYear[String(year)];
+    if (storedIssuer && financialYearBlockHasActualData(storedIssuer)) continue;
+    eligible.push(year);
+  }
+
+  // Return ascending years for stability.
+  return eligible.sort((a, b) => a - b);
 }
 
 /**

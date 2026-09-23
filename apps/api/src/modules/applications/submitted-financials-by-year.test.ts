@@ -10,14 +10,16 @@ const sixMonth = readFileSync(
 );
 
 describe("loadLatestSubmittedFinancialsByYear", () => {
-  it("reads submitted revisions for the same issuer organisation, newest first", () => {
+  it("reads submitted revisions and live non-draft application financials, newest first", () => {
     expect(source).toContain("application: { issuer_organization_id: issuerOrganizationId }");
     expect(source).toContain('orderBy: [{ submitted_at: "desc" }, { created_at: "desc" }]');
     expect(source).toContain("indexLatestSubmittedFinancialsByYear");
-    expect(source).not.toContain("prisma.application.findMany");
+    expect(source).toContain("indexResolvedApplicationFinancials");
+    expect(source).toContain("prisma.application.findMany");
+    expect(source).toContain('status: { not: "DRAFT" }');
     expect(source).not.toContain("issuerOrganizationFinancialStatement");
     expect(source).toContain("select: { snapshot: true }");
-    expect(source).not.toContain("financial_statements: true");
+    expect(source).toContain("financial_statements: true");
   });
 
   it("does not change the CTOS parser or 6-month tab helper", () => {

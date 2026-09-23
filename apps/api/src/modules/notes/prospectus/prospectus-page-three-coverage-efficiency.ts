@@ -20,7 +20,6 @@ import {
 } from "./prospectus-financial-comparison-metrics";
 import type { ProspectusFinancialComparisonYearOfficerOverride } from "./prospectus-financial-comparison-metrics.types";
 import type { ProspectusFinancialComparisonYear } from "./prospectus-financial-comparison-source.types";
-import { yearManualInputs } from "./prospectus-financial-manual-inputs";
 import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types";
 import {
   PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_AUDIT,
@@ -78,7 +77,6 @@ function page2ReceivablesDaysOrDna(
   );
   const n = parseProspectusFinancialNumber(override?.receivablesDays);
   if (n == null) return PROSPECTUS_DATA_NOT_AVAILABLE;
-  if (!Number.isInteger(n)) return PROSPECTUS_DATA_NOT_AVAILABLE;
   return formatProspectusFinancialDays(n);
 }
 
@@ -96,60 +94,33 @@ export function numericValueForCoverageRow(
   key: ProspectusPageThreeCoverageEfficiencyRowKey,
   raw: Record<string, unknown>,
   year: ProspectusFinancialComparisonYear,
-  input: Pick<
+  _input: Pick<
     ProspectusPageThreeCoverageEfficiencyInput,
     "prospectusFinancialInputs" | "page2FinancialOverrides"
   >
 ): number | null {
   if (year.isPlaceholder) return null;
-  const manual = yearManualInputs(input.prospectusFinancialInputs?.years, year.year);
   const account = highlightAccount(raw);
 
   switch (key) {
     case "operating_cash_flow":
-      return parseProspectusFinancialNumber(manual?.operatingCashFlow);
+      return fieldFromRaw(raw, "operatingCashFlow");
     case "free_cash_flow":
-      return parseProspectusFinancialNumber(manual?.freeCashFlow);
-    case "interest_coverage": {
-      const override = resolveYearOverride(
-        year,
-        input.page2FinancialOverrides as
-          | Record<string, ProspectusFinancialComparisonYearOfficerOverride>
-          | null
-          | undefined
-      );
-      return parseProspectusFinancialNumber(override?.interestCoverage);
-    }
-    case "dscr": {
-      const override = resolveYearOverride(
-        year,
-        input.page2FinancialOverrides as
-          | Record<string, ProspectusFinancialComparisonYearOfficerOverride>
-          | null
-          | undefined
-      );
-      return parseProspectusFinancialNumber(override?.dscr);
-    }
+      return fieldFromRaw(raw, "freeCashFlow");
+    case "interest_coverage":
+      return fieldFromRaw(raw, "interestCoverage");
+    case "dscr":
+      return fieldFromRaw(raw, "dscr");
     case "debt_equity":
-      // CTOS ENQWS v5.11.0 Financial Highlights XSL — gear or totlib/networth (x).
+      // Debt / Equity follows CTOS gearing (gear first, else totlib/networth).
       return resolveCtosGearingRatio(account);
     case "return_on_assets":
       // CTOS ENQWS v5.11.0 Financial Highlights XSL — plnpat/totass*100 (percent points).
       return resolveCtosReturnOnAssetsPercent(account);
-    case "receivables_days": {
-      const override = resolveYearOverride(
-        year,
-        input.page2FinancialOverrides as
-          | Record<string, ProspectusFinancialComparisonYearOfficerOverride>
-          | null
-          | undefined
-      );
-      const n = parseProspectusFinancialNumber(override?.receivablesDays);
-      if (n == null || !Number.isInteger(n)) return null;
-      return n;
-    }
+    case "receivables_days":
+      return fieldFromRaw(raw, "receivablesDays");
     case "payables_days":
-      return parseProspectusFinancialNumber(manual?.payablesDays);
+      return fieldFromRaw(raw, "payablesDays");
     case "asset_turnover":
       // CTOS ENQWS v5.11.0 Financial Highlights XSL — turnover/totass (x).
       return resolveCtosTotalAssetTurnover(account);
@@ -167,33 +138,55 @@ function valueForRow(
   key: ProspectusPageThreeCoverageEfficiencyRowKey,
   raw: Record<string, unknown>,
   year: ProspectusFinancialComparisonYear,
-  input: ProspectusPageThreeCoverageEfficiencyInput
+  _input: ProspectusPageThreeCoverageEfficiencyInput
 ): string {
   if (year.isPlaceholder) return PROSPECTUS_DATA_NOT_AVAILABLE;
-  const manual = yearManualInputs(input.prospectusFinancialInputs?.years, year.year);
   const account = highlightAccount(raw);
 
   switch (key) {
     case "operating_cash_flow":
-      return moneyMillionsOrDna(manual?.operatingCashFlow);
+      return moneyMillionsOrDna(fieldFromRaw(raw, "operatingCashFlow"));
     case "free_cash_flow":
-      return moneyMillionsOrDna(manual?.freeCashFlow);
+      return moneyMillionsOrDna(fieldFromRaw(raw, "freeCashFlow"));
     case "interest_coverage":
-      return page2MultipleOrDna(year, input.page2FinancialOverrides, "interestCoverage");
+      return page2MultipleOrDna(
+        year,
+        {
+          [year.financialYearEndIso]: {
+            interestCoverage: fieldFromRaw(raw, "interestCoverage"),
+          },
+        } as any,
+        "interestCoverage"
+      );
     case "dscr":
-      return page2MultipleOrDna(year, input.page2FinancialOverrides, "dscr");
+      return page2MultipleOrDna(
+        year,
+        {
+          [year.financialYearEndIso]: {
+            dscr: fieldFromRaw(raw, "dscr"),
+          },
+        } as any,
+        "dscr"
+      );
     case "debt_equity":
-      return formatProspectusFinancialMultiple(resolveCtosGearingRatio(account));
+      return formatProspectusFinancialMultiple(
+        resolveCtosGearingRatio(account)
+      );
     case "return_on_assets":
       return formatProspectusFinancialPercentFromPoints(
         resolveCtosReturnOnAssetsPercent(account)
       );
     case "receivables_days":
-      return page2ReceivablesDaysOrDna(year, input.page2FinancialOverrides);
-    case "payables_days":
-      return formatProspectusFinancialDays(
-        parseProspectusFinancialNumber(manual?.payablesDays)
+      return page2ReceivablesDaysOrDna(
+        year,
+        {
+          [year.financialYearEndIso]: {
+            receivablesDays: fieldFromRaw(raw, "receivablesDays"),
+          },
+        } as any
       );
+    case "payables_days":
+      return formatProspectusFinancialDays(fieldFromRaw(raw, "payablesDays"));
     case "asset_turnover":
       return formatProspectusFinancialMultiple(resolveCtosTotalAssetTurnover(account));
     case "return_on_equity": {

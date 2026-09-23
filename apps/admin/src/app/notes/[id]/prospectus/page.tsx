@@ -77,8 +77,10 @@ import {
   buildPageThreeBalanceSheetTable,
   buildPageThreeCoverageTable,
   buildPageThreeIncomeStatementTable,
-  selectYearsFromPageTwoFinancialTable,
+    selectYearsFromPageTwoFinancialTable,
+    calendarYearFromFinancialHeaderKey,
 } from "@/notes/prospectus-review/page-three-coverage";
+import { AdminAddFinancialStatementDialog } from "@/notes/prospectus-review/admin-add-financial-statement-dialog";
 import { ProspectusPreviewSheet } from "@/notes/prospectus-review/preview-sheet";
 import { ProspectusStatusBadge } from "@/notes/prospectus-review/status-badge";
 import { getProspectusActionVisibility } from "@/notes/prospectus-review/action-visibility";
@@ -101,6 +103,7 @@ function ProspectusReviewPageInner() {
   const { data, isLoading, error, refetch } = useProspectusReview(noteId);
   const { data: note } = useNoteDetail(noteId);
   const issuerOrganizationId = note?.issuerOrganizationId ?? null;
+  const applicationId = note?.sourceApplicationId ?? null;
   const {
     data: marcAssessment,
     isFetched: marcFetched,
@@ -132,6 +135,8 @@ function ProspectusReviewPageInner() {
   const [approvePhase, setApprovePhase] = React.useState<ProspectusApprovePhase>("idle");
   /** Snapshot dirty flag when the approve dialog opens so copy stays stable. */
   const [approveDialogDirty, setApproveDialogDirty] = React.useState(false);
+  const [addFinancialStatementOpen, setAddFinancialStatementOpen] = React.useState(false);
+  const [addFinancialStatementYear, setAddFinancialStatementYear] = React.useState<number | null>(null);
   const stepPanelRef = React.useRef<HTMLDivElement>(null);
   const approveInFlightRef = React.useRef(false);
   const livePreview = usePreviewProspectusReview(noteId);
@@ -304,6 +309,93 @@ function ProspectusReviewPageInner() {
     }
   };
 
+  // Memoized Page 2 table enrichment (FY source badges + calculated-missing hints).
+  // Must be declared before the loading/error early-returns so Hook order stays stable.
+  const pageTwoFinancialTable =
+    data?.financialComparison?.table != null
+      ? mergeOfficerOverridesIntoFinancialTable(
+          data.financialComparison.table,
+          draft?.page2.financialComparison?.overrides
+        )
+      : { yearHeaders: [], rows: [] };
+
+  const financialComparisonOpsWarning = data?.financialComparison?.opsWarning
+    ? {
+        title: "Missing expected financial year",
+        description: data.financialComparison.opsWarning,
+      }
+    : null;
+
+  /**
+   * Page 2 + Page 3 share the same frozen Stage 4A years from the review payload.
+   * Do not load live Application financial_statements for Prospectus working tables.
+   */
+  const frozenFinancialYears = data?.financialComparison?.years ?? [];
+
+  const frozenByCalendarYear = React.useMemo(() => {
+    const m = new Map<string, (typeof frozenFinancialYears)[number]>();
+    for (const y of frozenFinancialYears) {
+      m.set(String(y.calendarYear), y);
+    }
+    return m;
+  }, [frozenFinancialYears]);
+
+  const enhancedPageTwoFinancialTable = React.useMemo(() => {
+    // Page 2 table comes from API with display strings only.
+    // For UI consistency we enrich it with FY source badges and calculated-missing semantics.
+    const yearHeaders = pageTwoFinancialTable.yearHeaders.map((h) => {
+      const calendarYear = calendarYearFromFinancialHeaderKey(h.key);
+      const frozen = frozenByCalendarYear.get(calendarYear);
+      return {
+        ...h,
+        sourceType: frozen?.sourceType,
+        statementType: frozen?.statementType,
+      };
+    });
+
+    const metricToRawKey: Record<string, keyof (typeof frozenFinancialYears)[number]["raw"]> = {
+      "ROE (%)": "return_on_equity",
+      "Current Ratio (x)": "currat",
+      "Net Debt / Equity (x)": "netDebtEquity",
+      "Interest Coverage (x)": "interestCoverage",
+      "DSCR (x)": "dscr",
+      "Receivables Days": "receivablesDays",
+    };
+
+    const calculatedMetricNames = new Set(Object.keys(metricToRawKey));
+
+    const rows = pageTwoFinancialTable.rows.map((r) => {
+      const values = [...r.values];
+      const cellHints: Array<string | null> = new Array(yearHeaders.length).fill(null);
+
+      if (!calculatedMetricNames.has(r.metric)) {
+        return { ...r, values, cellHints };
+      }
+
+      const rawKey = metricToRawKey[r.metric]!;
+
+      for (let i = 0; i < yearHeaders.length; i++) {
+        const header = yearHeaders[i]!;
+        if (header.isPlaceholder) continue;
+        const calendarYear = calendarYearFromFinancialHeaderKey(header.key);
+        const frozen = frozenByCalendarYear.get(calendarYear);
+        if (!frozen) continue;
+
+        const rawValue = frozen.raw[rawKey] as number | null;
+        if (rawValue != null) continue; // present -> keep API-formatted value
+
+        // Prospectus is presentation-only: if the resolved value is unavailable, show `—`.
+        // Do not surface diagnostic missing-field helper text in Prospectus.
+        values[i] = "—";
+        cellHints[i] = null;
+      }
+
+      return { ...r, values, cellHints };
+    });
+
+    return { ...pageTwoFinancialTable, yearHeaders, rows };
+  }, [pageTwoFinancialTable, frozenByCalendarYear, frozenFinancialYears]);
+
   if (isLoading || !data || !draft) {
     return (
       <div className="space-y-6 px-4 py-10 md:px-6 md:py-12">
@@ -348,23 +440,6 @@ function ProspectusReviewPageInner() {
     }
     return row;
   });
-  const pageTwoFinancialTable = data?.financialComparison?.table
-    ? mergeOfficerOverridesIntoFinancialTable(
-        data.financialComparison.table,
-        draft.page2.financialComparison?.overrides
-      )
-    : { yearHeaders: [], rows: [] };
-  const financialComparisonOpsWarning = data?.financialComparison?.opsWarning
-    ? {
-        title: "Missing expected financial year",
-        description: data.financialComparison.opsWarning,
-      }
-    : null;
-  /**
-   * Page 2 + Page 3 share the same frozen Stage 4A years from the review payload.
-   * Do not load live Application financial_statements for Prospectus working tables.
-   */
-  const frozenFinancialYears = data?.financialComparison?.years ?? [];
   // Officer/approval years exclude Prospectus display placeholders.
   const realFrozenFinancialYears = frozenFinancialYears.filter((year) => !year.isPlaceholder);
   const incomeStatementYearKeys =
@@ -616,7 +691,7 @@ function ProspectusReviewPageInner() {
         </Button>
       </div>
 <div className="flex-1 overflow-y-auto">
-        <div className="w-full space-y-6 px-4 py-10 md:px-6 md:py-12 lg:px-8">
+        <div className="w-full space-y-7 px-4 py-10 md:px-6 md:py-12 lg:px-8">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex min-w-0 items-start gap-3">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10">
@@ -638,26 +713,26 @@ function ProspectusReviewPageInner() {
           </div>
 
           <Card className="rounded-2xl">
-            <CardContent className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-4">
+            <CardContent className="grid gap-5 p-6 sm:grid-cols-2 lg:grid-cols-4">
               <div className="min-w-0">
                 <div className="text-xs text-muted-foreground">Note Reference</div>
-                <div className="mt-1 truncate text-sm font-semibold">{data.note.noteReference}</div>
+                <div className="mt-1.5 truncate text-sm font-semibold">{data.note.noteReference}</div>
               </div>
               <div className="min-w-0">
                 <div className="text-xs text-muted-foreground">Review Status</div>
-                <div className="mt-1 text-sm font-semibold">
+                <div className="mt-1.5 text-sm font-semibold">
                   {formatProspectusReviewStatus(data.review.status, notePublished)}
                 </div>
               </div>
               <div className="min-w-0">
                 <div className="text-xs text-muted-foreground">Last Saved</div>
-                <div className="mt-1 text-sm font-semibold">
+                <div className="mt-1.5 text-sm font-semibold">
                   {new Date(data.review.updatedAt).toLocaleString()}
                 </div>
               </div>
               <div className="min-w-0">
                 <div className="text-xs text-muted-foreground">Last Updated By</div>
-                <div className="mt-1 truncate text-sm font-semibold" title={actorName}>
+                <div className="mt-1.5 truncate text-sm font-semibold" title={actorName}>
                   {actorName}
                 </div>
               </div>
@@ -741,7 +816,7 @@ function ProspectusReviewPageInner() {
                         catalogues={catalogues}
                         issuerProfileRows={issuerRows}
                         invoicePaymasterRows={invoicePaymasterRows}
-                        financialComparisonTable={pageTwoFinancialTable}
+                        financialComparisonTable={enhancedPageTwoFinancialTable}
                         financialComparisonOverrides={
                           draft.page2.financialComparison?.overrides
                         }
@@ -773,6 +848,14 @@ function ProspectusReviewPageInner() {
                         canManage={canManage}
                         updateManualField={updateManualFieldForYear}
                         updateDraft={updateDraft}
+                        onAddPlaceholderYear={
+                          canManage && !locked
+                            ? (calendarYear) => {
+                                setAddFinancialStatementYear(calendarYear);
+                                setAddFinancialStatementOpen(true);
+                              }
+                            : undefined
+                        }
                         completionLabel={pageCompletion}
                         completionOptions={completionOptions}
                         activeTab={pageThreeTab}
@@ -849,6 +932,23 @@ function ProspectusReviewPageInner() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AdminAddFinancialStatementDialog
+        open={addFinancialStatementOpen}
+        onOpenChange={(open) => {
+          setAddFinancialStatementOpen(open);
+          if (!open) setAddFinancialStatementYear(null);
+        }}
+        applicationId={applicationId}
+        calendarYear={addFinancialStatementYear}
+        disabled={locked || !canManage}
+        onSaved={() => {
+          void refetch();
+          setDirty(false);
+          setLivePreviewHtml(null);
+          setPreviewOpen(false);
+        }}
+      />
     </div>
   );
 }

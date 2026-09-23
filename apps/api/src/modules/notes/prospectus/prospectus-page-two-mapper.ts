@@ -64,6 +64,7 @@ function emptyFinancialComparisonSource(): ProspectusFinancialComparisonSource {
     tableUnitLabel: PROSPECTUS_FINANCIAL_COMPARISON_TABLE_UNIT_LABEL,
     sourceFooter: "Source: Financial Statements",
     years: [],
+    adminFallbackEligibleYears: [],
     missingSsmUnauditedYears: [],
     opsWarning: null,
     audit: PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_AUDIT,
@@ -89,6 +90,8 @@ export function buildFinancialComparisonSourceFromFrozen(
       financialYearEndIso,
       financialYearEndLabel: year.financial_year_end_label ?? PROSPECTUS_DATA_NOT_AVAILABLE,
       recordSource: year.record_source ?? "unaudited_management",
+      statementType:
+        year.record_source === "ctos_audited" ? "AUDITED" : "MANAGEMENT_ACCOUNTS",
       // Shared Page 2 + Page 3 freeze — include extended keys when present (null when absent).
       rawFinancials: {
         turnover: year.raw_financials.turnover,
@@ -121,6 +124,7 @@ export function buildFinancialComparisonSourceFromFrozen(
     // Ops warning is live-only; frozen publication HTML does not carry Admin alerts.
     missingSsmUnauditedYears: [],
     opsWarning: null,
+    adminFallbackEligibleYears: [],
     audit: PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_AUDIT,
   };
 }

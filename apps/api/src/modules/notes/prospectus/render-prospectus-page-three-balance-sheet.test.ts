@@ -114,25 +114,72 @@ describe("prospectus Page 3 balance sheet (DATA STAGE 3)", () => {
 
   it("fills officer money rows from full-MYR storage as MYR millions", () => {
     const data = buildProspectusPageThreeBalanceSheet({
-      financialSource: SAMPLE_PROSPECTUS_PAGE_THREE_BALANCE_SHEET_SOURCE,
+      financialSource: sourceFromYears({
+        "2022": {
+          bsfatot: 1_500_000,
+          othass: 1_000_000,
+          bscatot: 4_700_000,
+          bsclbank: 900_000,
+          curlib: 2_900_000,
+          bsslltd: 500_000,
+          bsclstd: 200_000,
+          bsqpuc: 2_000_000,
+          totass: 8_100_000,
+          totlib: 3_600_000,
+          networth: 4_500_000,
+          currat: 1.62,
+          cashAndBank: 900_000,
+          tradeReceivables: 2_800_000,
+        },
+        "2023": {
+          bsfatot: 1_600_000,
+          othass: 1_100_000,
+          bscatot: 5_200_000,
+          bsclbank: 950_000,
+          curlib: 3_100_000,
+          bsslltd: 550_000,
+          bsclstd: 250_000,
+          bsqpuc: 2_000_000,
+          totass: 8_850_000,
+          totlib: 3_900_000,
+          networth: 5_000_000,
+          currat: 1.68,
+          cashAndBank: 1_100_000,
+          tradeReceivables: 3_100_000,
+        },
+        "2024": {
+          bsfatot: 1_700_000,
+          othass: 1_200_000,
+          bscatot: 5_800_000,
+          bsclbank: 1_000_000,
+          curlib: 3_400_000,
+          bsslltd: 600_000,
+          bsclstd: 300_000,
+          bsqpuc: 2_000_000,
+          totass: 9_700_000,
+          totlib: 4_300_000,
+          networth: 5_600_000,
+          currat: 1.71,
+          cashAndBank: 1_400_000,
+          tradeReceivables: 3_200_000,
+        },
+      }),
       prospectusFinancialInputs: {
         years: {
           "2022": {
-            cashAndBank: 900_000,
-            tradeReceivables: 2_800_000,
-            totalEquity: 4_500_000,
+            // Officer inputs must not override Stage 4A raw issuer values.
+            cashAndBank: 123_000,
+            tradeReceivables: 456_000,
             quickRatio: 1.11,
           },
           "2023": {
-            cashAndBank: 1_100_000,
-            tradeReceivables: 3_100_000,
-            totalEquity: 5_000_000,
+            cashAndBank: 1,
+            tradeReceivables: 2,
             quickRatio: 1.18,
           },
           "2024": {
-            cashAndBank: 1_400_000,
-            tradeReceivables: 3_200_000,
-            totalEquity: 5_600_000,
+            cashAndBank: 1,
+            tradeReceivables: 2,
             quickRatio: 1.26,
           },
         },
@@ -141,7 +188,8 @@ describe("prospectus Page 3 balance sheet (DATA STAGE 3)", () => {
     expect(row(data, "cash_and_bank")?.values).toEqual(["0.9", "1.1", "1.4"]);
     expect(row(data, "trade_receivables")?.values).toEqual(["2.8", "3.1", "3.2"]);
     expect(row(data, "total_equity")?.values).toEqual(["4.5", "5", "5.6"]);
-    expect(row(data, "quick_ratio")?.values).toEqual(["1.11x", "1.18x", "1.26x"]);
+    // Quick Ratio is now system-derived from (Cash & Bank + Trade Receivables) / Current Liabilities.
+    expect(row(data, "quick_ratio")?.values).toEqual(["1.28x", "1.35x", "1.35x"]);
     expect(formatProspectusMyrMillions(900_000)).toBe("0.9");
     expect(PROSPECTUS_PAGE_THREE_BALANCE_SHEET_AUDIT.cashAndBank.storageUnit).toBe(
       "full_myr"

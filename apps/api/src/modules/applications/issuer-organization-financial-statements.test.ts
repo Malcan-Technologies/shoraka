@@ -116,6 +116,102 @@ describe("mergeIssuerOrgFinancialStatementsFromApplication", () => {
     expect(year.pl_minority).toBe(0.5);
   });
 
+  it("updates provided canonical raw facts for the 7 new issuer fields", () => {
+    const existing = {
+      questionnaire,
+      unaudited_by_year: {
+        "2024": {
+          turnover: 10,
+          plnpbt: 9,
+          grossProfit: 111,
+          ebitda: 222,
+          cashAndBank: 333,
+          tradeReceivables: 444,
+          tradePayables: 555,
+          operatingCashFlow: 666,
+          freeCashFlow: 777,
+        },
+      },
+    };
+
+    const incomingRaw = {
+      questionnaire,
+      unaudited_by_year: {
+        "2024": {
+          pldd: "2024-12-31",
+          turnover: 88,
+          plnpbt: 11,
+          grossProfit: 120,
+          ebitda: 130,
+          cashAndBank: 140,
+          tradeReceivables: 150,
+          tradePayables: 160,
+          operatingCashFlow: 170,
+          freeCashFlow: 180,
+        },
+      },
+    };
+
+    const merged = mergeIssuerOrgFinancialStatementsFromApplication({
+      existing,
+      incomingRaw,
+      incomingParsed: parseApplicationPayload(incomingRaw),
+    });
+
+    const year = (merged.unaudited_by_year as Record<string, Record<string, unknown>>)["2024"];
+    expect(year.grossProfit).toBe(120);
+    expect(year.ebitda).toBe(130);
+    expect(year.cashAndBank).toBe(140);
+    expect(year.tradeReceivables).toBe(150);
+    expect(year.tradePayables).toBe(160);
+    expect(year.operatingCashFlow).toBe(170);
+    expect(year.freeCashFlow).toBe(180);
+  });
+
+  it("preserves the 7 new canonical raw facts when the application omits those keys", () => {
+    const existing = {
+      questionnaire,
+      unaudited_by_year: {
+        "2024": {
+          grossProfit: 111,
+          ebitda: 222,
+          cashAndBank: 333,
+          tradeReceivables: 444,
+          tradePayables: 555,
+          operatingCashFlow: 666,
+          freeCashFlow: 777,
+          turnover: 10,
+        },
+      },
+    };
+
+    const incomingRaw = {
+      questionnaire,
+      unaudited_by_year: {
+        "2024": {
+          pldd: "2024-12-31",
+          turnover: 88,
+        },
+      },
+    };
+
+    const merged = mergeIssuerOrgFinancialStatementsFromApplication({
+      existing,
+      incomingRaw,
+      incomingParsed: parseApplicationPayload(incomingRaw),
+    });
+
+    const year = (merged.unaudited_by_year as Record<string, Record<string, unknown>>)["2024"];
+    expect(year.grossProfit).toBe(111);
+    expect(year.ebitda).toBe(222);
+    expect(year.cashAndBank).toBe(333);
+    expect(year.tradeReceivables).toBe(444);
+    expect(year.tradePayables).toBe(555);
+    expect(year.operatingCashFlow).toBe(666);
+    expect(year.freeCashFlow).toBe(777);
+    expect(year.turnover).toBe(88);
+  });
+
   it("updates an exact provided field and leaves unrelated years untouched", () => {
     const existing = {
       questionnaire: { financial_year_end: "2026-12-31" },

@@ -12,12 +12,16 @@ const ACCOUNT_KEYS = [
   "othass",
   "bscatot",
   "bsclbank",
+  "cashAndBank",
   "totass",
   "curlib",
+  "curlib_borrowing",
   "bsslltd",
   "bsclstd",
+  "tradePayables",
   "totlib",
   "bsqpuc",
+  "tradeReceivables",
   "turnover",
   "plnpbt",
   "plnpat",
@@ -30,6 +34,15 @@ const ACCOUNT_KEYS = [
   "currat",
   "workcap",
   "gear",
+  "grossProfit",
+  "ebitda",
+  "netOperatingIncome",
+  "operatingCashFlow",
+  "freeCashFlow",
+  "interest_cost",
+  "ncl_loan",
+  "costOfSales",
+  "annualDebtService",
 ] as const;
 
 function toAccount(raw: Record<string, unknown>): Record<string, number | null> {
@@ -48,7 +61,7 @@ function toAccount(raw: Record<string, unknown>): Record<string, number | null> 
 /** Build Prospectus financial comparison source from calendar-year field maps. */
 export function financialSourceFromYearBlocks(
   years: Record<string, Record<string, unknown>>,
-  options?: { financialYearEnd?: string; ref?: Date }
+  options?: { financialYearEnd?: string; ref?: Date; issuerOverlay?: boolean }
 ): ProspectusFinancialComparisonSource {
   const ctosFinancials = Object.entries(years)
     .filter(([key]) => /^\d{4}$/.test(key))
@@ -65,12 +78,18 @@ export function financialSourceFromYearBlocks(
       };
     });
 
+  const unaudited_by_year = options?.issuerOverlay
+    ? Object.fromEntries(
+        Object.entries(years).filter(([key]) => /^\d{4}$/.test(key))
+      )
+    : {};
+
   return buildProspectusFinancialComparisonSource({
     financialStatements: {
       questionnaire: {
         financial_year_end: options?.financialYearEnd ?? "2027-12-31",
       },
-      unaudited_by_year: {},
+      unaudited_by_year,
     },
     ctosFinancials,
     ref: options?.ref ?? new Date("2026-07-17T00:00:00.000Z"),

@@ -1,4 +1,14 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { parseCtosReportXml, parseYearFromPldd } from "../parser";
+
+const REAL_CTOS_OUTPUT_XML = readFileSync(
+  join(
+    __dirname,
+    "../../../ctos-test/output/2026-09-07T05-14-25-245Z_company_200501525124.xml"
+  ),
+  "utf8"
+);
 
 describe("parseYearFromPldd", () => {
   it("reads DD-MM-YYYY", () => {
@@ -89,6 +99,132 @@ describe("parseCtosReportXml", () => {
 
     const parsed = await parseCtosReportXml(xml);
     expect(parsed.financials_json[0].account.gear).toBe(4.4);
+  });
+
+  it("parses CTOS share premium / reserves (bsqres) into account.bsqres", async () => {
+    const xml = `<?xml version="1.0"?>
+<report version="5.11.0" xmlns="http://ws.cmctos.com.my/ctosnet/response">
+  <enq_report>
+    <summary></summary>
+    <enquiry>
+      <section_summary></section_summary>
+      <section_a data="true">
+        <record>
+          <accounts>
+            <account>
+              <pldd>31-12-2018</pldd>
+              <bsdd>2018-12-31</bsdd>
+              <turnover>200</turnover>
+              <plnpat>8</plnpat>
+              <bsqpuc>50</bsqpuc>
+              <bsqres>123.45</bsqres>
+            </account>
+          </accounts>
+        </record>
+      </section_a>
+      <section_ccris></section_ccris>
+    </enquiry>
+  </enq_report>
+</report>`;
+
+    const parsed = await parseCtosReportXml(REAL_CTOS_OUTPUT_XML);
+    const acc2024 = parsed.financials_json.find((r) => r.financial_year === 2024)?.account;
+    expect(acc2024?.bsqres).toBe(5922877);
+  });
+
+  it("parses CTOS accumulated profit / loss (bsqupro) into account.bsqupro", async () => {
+    const xml = `<?xml version="1.0"?>
+<report version="5.11.0" xmlns="http://ws.cmctos.com.my/ctosnet/response">
+  <enq_report>
+    <summary></summary>
+    <enquiry>
+      <section_summary></section_summary>
+      <section_a data="true">
+        <record>
+          <accounts>
+            <account>
+              <pldd>31-12-2018</pldd>
+              <bsdd>2018-12-31</bsdd>
+              <turnover>200</turnover>
+              <plnpat>8</plnpat>
+              <bsqpuc>50</bsqpuc>
+              <bsqupro>777.00</bsqupro>
+            </account>
+          </accounts>
+        </record>
+      </section_a>
+      <section_ccris></section_ccris>
+    </enquiry>
+  </enq_report>
+</report>`;
+
+    const parsed = await parseCtosReportXml(REAL_CTOS_OUTPUT_XML);
+    const acc2024 = parsed.financials_json.find((r) => r.financial_year === 2024)?.account;
+    expect(acc2024?.bsqupro).toBe(672930446);
+  });
+
+  it("parses CTOS equity minority interest (bsqmint) into account.bsqmint", async () => {
+    const xml = `<?xml version="1.0"?>
+<report version="5.11.0" xmlns="http://ws.cmctos.com.my/ctosnet/response">
+  <enq_report>
+    <summary></summary>
+    <enquiry>
+      <section_summary></section_summary>
+      <section_a data="true">
+        <record>
+          <accounts>
+            <account>
+              <pldd>31-12-2018</pldd>
+              <bsdd>2018-12-31</bsdd>
+              <turnover>200</turnover>
+              <plnpat>8</plnpat>
+              <bsqpuc>50</bsqpuc>
+              <networth>10</networth>
+              <bsqmint>5.00</bsqmint>
+            </account>
+          </accounts>
+        </record>
+      </section_a>
+      <section_ccris></section_ccris>
+    </enquiry>
+  </enq_report>
+</report>`;
+
+    const parsed = await parseCtosReportXml(REAL_CTOS_OUTPUT_XML);
+    const acc2024 = parsed.financials_json.find((r) => r.financial_year === 2024)?.account;
+    expect(acc2024?.bsqmint).toBe(153084525);
+  });
+
+  it("parses CTOS P&L minority interest (plminin) into account.plminin", async () => {
+    const xml = `<?xml version="1.0"?>
+<report version="5.11.0" xmlns="http://ws.cmctos.com.my/ctosnet/response">
+  <enq_report>
+    <summary></summary>
+    <enquiry>
+      <section_summary></section_summary>
+      <section_a data="true">
+        <record>
+          <accounts>
+            <account>
+              <pldd>31-12-2018</pldd>
+              <bsdd>2018-12-31</bsdd>
+              <turnover>200</turnover>
+              <plnpbt>10</plnpbt>
+              <plnpat>8</plnpat>
+              <plminin>3.30</plminin>
+              <plnetdiv>0</plnetdiv>
+            </account>
+          </accounts>
+        </record>
+      </section_a>
+      <section_ccris></section_ccris>
+    </enquiry>
+  </enq_report>
+</report>`;
+
+    const parsed = await parseCtosReportXml(REAL_CTOS_OUTPUT_XML);
+    const acc2024 = parsed.financials_json.find((r) => r.financial_year === 2024)?.account;
+    expect(acc2024?.plminin).toBe(-8975580);
   });
 
   it("individual ptype I: person_json set, company null, no financials even with accounts", async () => {

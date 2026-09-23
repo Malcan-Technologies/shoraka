@@ -4,10 +4,23 @@
  */
 
 import {
+  applyResolvedRawFields,
   buildNormalizedFinancialStatementYearSet,
+  getEligibleAdminInputYears,
   findMissingSsmExpectedUnauditedYears,
   formatFinancialYearEndDisplayLabel,
   formatMissingSsmUnauditedYearsOpsWarning,
+  computeColumnMetrics,
+  financialFormToBsPl,
+  computeEbit,
+  computeQuickRatio,
+  computeInterestCoverage,
+  computeReceivablesDays,
+  computePayablesDays,
+  computeNetDebtEquity,
+  computeDscr,
+  parseAdminFieldOverrides,
+  readFiniteFinancialNumber,
   resolveFinancialStatementSourceFooter,
   selectLatestNormalizedFinancialStatementYears,
 } from "@cashsouk/types";
@@ -70,14 +83,151 @@ export function buildProspectusFinancialComparisonSource(
     PROSPECTUS_FINANCIAL_COMPARISON_MAX_YEARS
   );
 
-  const years: ProspectusFinancialComparisonYear[] = selected.map((year) => ({
-    year: year.year,
-    yearLabel: formatProspectusFinancialYearLabel(year.year),
-    financialYearEndIso: year.financialYearEndIso,
-    financialYearEndLabel: formatProspectusFinancialYearEndLabel(year.financialYearEndIso),
-    recordSource: year.recordSource,
-    rawFinancials: { ...year.rawFinancials },
-  }));
+  const overlayKeys = [
+    "grossProfit",
+    "ebitda",
+    "cashAndBank",
+    "tradeReceivables",
+    "tradePayables",
+    "costOfSales",
+    "annualDebtService",
+    "netOperatingIncome",
+    "interest_cost",
+    "curlib_borrowing",
+    "ncl_loan",
+    "operatingCashFlow",
+    "freeCashFlow",
+  ] as const;
+
+  // For CTOS/audited year selection, Stage 4A normally prefers CTOS raw fields.
+  // For Prospectus-only missing raw facts, overlay issuer-submitted unaudited values (when present)
+  // so Prospectus can always read canonical issuer raw inputs.
+  const unauditedByYearMaybe =
+    input.financialStatements &&
+    typeof input.financialStatements === "object" &&
+    "unaudited_by_year" in input.financialStatements
+      ? (input.financialStatements as any)["unaudited_by_year"]
+      : undefined;
+
+  const unauditedByYear: Record<string, unknown> =
+    unauditedByYearMaybe &&
+    typeof unauditedByYearMaybe === "object" &&
+    !Array.isArray(unauditedByYearMaybe)
+      ? unauditedByYearMaybe
+      : ({} as Record<string, unknown>);
+
+  const overridesByYear = parseAdminFieldOverrides(input.financialStatements);
+
+  const resolveYearRaw = (
+    year: (typeof available)[number]
+  ): Record<string, unknown> => {
+    const rawFinancials: Record<string, unknown> = { ...year.rawFinancials };
+
+    // Overlay issuer submitted raw fields only when this FY is actually
+    // an unaudited issuer FY in the resolved recordSource set.
+    //
+    // NEVER overlay into CTOS-backed FYs, and NEVER overlay into Admin-input FYs.
+    // Admin supplements for a CTOS gap live in admin_field_overrides and are applied below.
+    if (year.recordSource === "unaudited_management") {
+      const fyKey = String(year.year);
+      const storedBlock = unauditedByYear[fyKey];
+      if (storedBlock && typeof storedBlock === "object" && !Array.isArray(storedBlock)) {
+        for (const k of overlayKeys) {
+          const v = (storedBlock as Record<string, unknown>)[k];
+          if (v != null && v !== "") rawFinancials[k] = v;
+        }
+      }
+    }
+
+    return applyResolvedRawFields({
+      recordSource: year.recordSource,
+      rawFinancials,
+      overridesForYear: overridesByYear[String(year.year)],
+    });
+  };
+
+  const resolvedRawByYear = new Map<number, Record<string, unknown>>();
+  for (const year of available) {
+    resolvedRawByYear.set(year.year, resolveYearRaw(year));
+  }
+
+  const years: ProspectusFinancialComparisonYear[] = [];
+  for (const year of selected) {
+    // Stage 4A rawFinancials feed both Page 2 and Page 3.
+    const rawFinancials: Record<string, unknown> = {
+      ...(resolvedRawByYear.get(year.year) ?? year.rawFinancials),
+    };
+
+    if (year.recordSource === "unaudited_management" || year.recordSource === "admin_input") {
+      const fsInput = rawFinancials as any;
+      const { bs, pl } = financialFormToBsPl(fsInput);
+      const metrics = computeColumnMetrics(bs, pl, null);
+
+      // Provide Prospectus-ready derived fields for unaudited management years.
+      // These are consumed by CTOS-style resolvers during Page 2/3 rendering.
+      rawFinancials.totass = metrics.totass;
+      rawFinancials.totlib = metrics.totlib;
+      rawFinancials.networth = metrics.networth;
+      rawFinancials.currat = metrics.currat;
+      // Prospectus expects return_on_equity in percent-points form.
+      rawFinancials.return_on_equity =
+        metrics.return_of_equity == null ? null : metrics.return_of_equity * 100;
+
+      // Debt / Equity prefers `gear` when present, but can fall back to totlib/networth.
+      rawFinancials.gear =
+        metrics.networth == null || metrics.networth === 0 || metrics.totlib == null
+          ? null
+          : metrics.totlib / metrics.networth;
+    }
+
+    // Derived issuer metrics for both CTOS-audited and unaudited management years.
+    // These feed Admin / Prospectus read-only display.
+    const fs = rawFinancials as any;
+    const ebit = computeEbit(fs.plnpbt, fs.interest_cost);
+    rawFinancials.ebit = ebit;
+    rawFinancials.quickRatio = computeQuickRatio(fs.cashAndBank, fs.tradeReceivables, fs.curlib);
+    rawFinancials.interestCoverage = computeInterestCoverage(ebit, fs.interest_cost);
+    // Receivables Days follows SoukScore: Average AR from consecutive FYs.
+    // Beginning AR may come from a prior FY that is outside the visible three-year window.
+    const priorYearRaw = resolvedRawByYear.get(year.year - 1) ?? null;
+    const beginningAr = priorYearRaw
+      ? readFiniteFinancialNumber(priorYearRaw.tradeReceivables)
+      : null;
+    rawFinancials.receivablesDays = computeReceivablesDays(
+      beginningAr,
+      fs.tradeReceivables,
+      fs.turnover
+    );
+    rawFinancials.payablesDays = computePayablesDays(fs.tradePayables, fs.costOfSales);
+    rawFinancials.netDebtEquity = computeNetDebtEquity({
+      curlib_borrowing: fs.curlib_borrowing,
+      ncl_loan: fs.ncl_loan,
+      cashAndBank: fs.cashAndBank,
+      networth: fs.networth,
+    });
+    // DSCR strictly follows the agreed mapping:
+    // Net Operating Income ÷ Annual Debt Service (no EBITDA fallback).
+    rawFinancials.dscr = computeDscr(
+      typeof fs.netOperatingIncome === "number" ? fs.netOperatingIncome : null,
+      fs.annualDebtService
+    );
+
+    years.push({
+      year: year.year,
+      yearLabel: formatProspectusFinancialYearLabel(year.year),
+      financialYearEndIso: year.financialYearEndIso,
+      financialYearEndLabel: formatProspectusFinancialYearEndLabel(year.financialYearEndIso),
+      recordSource: year.recordSource,
+      statementType: year.statementType,
+      rawFinancials,
+    });
+  }
+
+  const adminFallbackEligibleYears = getEligibleAdminInputYears({
+    financialStatements: input.financialStatements,
+    ctosFinancials: input.ctosFinancials,
+    ref: input.ref,
+  });
 
   const missingSsmUnauditedYears = findMissingSsmExpectedUnauditedYears({
     financialStatements: input.financialStatements,
@@ -90,6 +240,7 @@ export function buildProspectusFinancialComparisonSource(
     tableUnitLabel: PROSPECTUS_FINANCIAL_COMPARISON_TABLE_UNIT_LABEL,
     sourceFooter: resolveFinancialStatementSourceFooter(years),
     years,
+    adminFallbackEligibleYears,
     missingSsmUnauditedYears,
     opsWarning: formatMissingSsmUnauditedYearsOpsWarning(missingSsmUnauditedYears),
     audit: PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_AUDIT,

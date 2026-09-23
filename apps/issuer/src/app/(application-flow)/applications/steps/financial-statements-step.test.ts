@@ -44,7 +44,7 @@ describe("issuer application Financial Statements step", () => {
       expect(source).toContain(`"${key}"`);
     }
     expect(source).toContain("YEAR_MONEY_FIELDS");
-    expect(source).toContain("[...APPLICATION_CORE_MONEY_KEYS]");
+    expect(source).toContain("APPLICATION_CORE_MONEY_REQUIRED_KEYS");
   });
 
   it("adds ComRep-only fields in a separate Additional Financial Details section", () => {

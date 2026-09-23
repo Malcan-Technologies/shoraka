@@ -30,9 +30,10 @@ function row(
 
 function sourceFromYears(
   years: Record<string, Record<string, unknown>>,
-  financialYearEnd = "2024-12-31"
+  financialYearEnd = "2024-12-31",
+  options?: { issuerOverlay?: boolean }
 ) {
-  return financialSourceFromYearBlocks(years, { financialYearEnd });
+  return financialSourceFromYearBlocks(years, { financialYearEnd, issuerOverlay: options?.issuerOverlay });
 }
 
 describe("prospectus Page 3 income statement (DATA STAGE 2)", () => {
@@ -154,7 +155,7 @@ describe("prospectus Page 3 income statement (DATA STAGE 2)", () => {
       }),
     });
     expect(row(polluted, "gross_profit")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-    expect(row(polluted, "ebitda")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(row(polluted, "ebitda")?.values[0]).toBe(formatProspectusMyrMillions(888));
     expect(row(polluted, "ebit")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
     expect(PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_AUDIT.grossProfit.generatedCalculationAllowed).toBe(
       false
@@ -163,12 +164,42 @@ describe("prospectus Page 3 income statement (DATA STAGE 2)", () => {
 
   it("fills Gross Profit, EBITDA, and EBIT from full-MYR storage as MYR millions", () => {
     const data = buildProspectusPageThreeIncomeStatement({
-      financialSource: SAMPLE_PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_SOURCE,
+      financialSource: sourceFromYears(
+        {
+        "2022": {
+          turnover: 13_900_000,
+          plnpbt: 1_400_000,
+          plnpat: 1_200_000,
+          grossProfit: 2_100_000,
+          ebitda: 1_600_000,
+          interest_cost: 50_000,
+        },
+        "2023": {
+          turnover: 16_200_000,
+          plnpbt: 1_700_000,
+          plnpat: 1_500_000,
+          grossProfit: 2_400_000,
+          ebitda: 1_850_000,
+          interest_cost: 100_000,
+        },
+        "2024": {
+          turnover: 18_600_000,
+          plnpbt: 2_000_000,
+          plnpat: 1_800_000,
+          grossProfit: -50_000,
+          ebitda: 2_100_000,
+          interest_cost: 200_000,
+        },
+        },
+        undefined,
+        { issuerOverlay: true }
+      ),
       prospectusFinancialInputs: {
         years: {
-          "2022": { grossProfit: 2_100_000, ebitda: 1_600_000, ebit: 1_450_000 },
-          "2023": { grossProfit: 2_400_000, ebitda: 1_850_000, ebit: 0 },
-          "2024": { grossProfit: -50_000, ebitda: 2_100_000, ebit: 1_950_000 },
+          // These officer values must not override Stage 4A raw issuer values.
+          "2022": { grossProfit: 0, ebitda: 0 },
+          "2023": { grossProfit: 0, ebitda: 0 },
+          "2024": { grossProfit: 0, ebitda: 0 },
         },
       },
     });
@@ -180,7 +211,7 @@ describe("prospectus Page 3 income statement (DATA STAGE 2)", () => {
     expect(row(data, "ebitda")?.values[0]).toBe("1.6");
     expect(row(data, "ebit")?.values[0]).toBe(formatProspectusMyrMillions(1_450_000));
     expect(row(data, "ebit")?.values[0]).toBe("1.4");
-    expect(row(data, "ebit")?.values[1]).toBe("0");
+    expect(row(data, "ebit")?.values[1]).toBe("1.8");
     expect(PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_AUDIT.grossProfit.status).toBe(
       "officer_entered"
     );

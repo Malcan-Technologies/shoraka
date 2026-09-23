@@ -62,23 +62,11 @@ export type ProspectusCompletionOptions = {
   hasMarcAssessment?: boolean;
 };
 
-const PAGE_THREE_OFFICER_FINANCIAL_FIELDS = [
-  "grossProfit",
-  "ebitda",
-  "ebit",
-  "cashAndBank",
-  "tradeReceivables",
-  "totalEquity",
-  "quickRatio",
-  "payablesDays",
-] as const;
+// These metrics are now system-derived (Stage 4A → Admin read-only).
+const PAGE_THREE_OFFICER_FINANCIAL_FIELDS = [] as const;
 
-const PAGE_TWO_OVERRIDE_FIELDS = [
-  "netDebtEquity",
-  "interestCoverage",
-  "dscr",
-  "receivablesDays",
-] as const;
+// These metrics are now system-derived (Stage 4A → Admin read-only).
+const PAGE_TWO_OVERRIDE_FIELDS = [] as const;
 
 function pageThreeOfficerFieldsComplete(
   draft: import("@cashsouk/types").ProspectusReviewStoredContent,
@@ -345,12 +333,7 @@ export function buildProspectusMissingRequiredFields(
     receivablesDays: "Receivables Days",
   };
   const page3Labels: Record<(typeof PAGE_THREE_OFFICER_FINANCIAL_FIELDS)[number], string> = {
-    grossProfit: "Gross Profit",
-    ebitda: "EBITDA",
     ebit: "EBIT",
-    cashAndBank: "Cash & Bank",
-    tradeReceivables: "Trade Receivables",
-    totalEquity: "Total Equity",
     quickRatio: "Quick Ratio",
     payablesDays: "Payables Days",
   };
@@ -378,12 +361,9 @@ export function buildProspectusMissingRequiredFields(
       const value = manualRow[field];
       if (value == null || value === "") {
         const section =
-          field === "grossProfit" || field === "ebitda" || field === "ebit"
+          field === "ebit"
             ? "Income Statement"
-            : field === "cashAndBank" ||
-                field === "tradeReceivables" ||
-                field === "totalEquity" ||
-                field === "quickRatio"
+            : field === "quickRatio"
               ? "Balance Sheet"
               : "Coverage & Efficiency";
         const tabId =

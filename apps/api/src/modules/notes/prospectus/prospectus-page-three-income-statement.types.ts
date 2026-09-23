@@ -67,17 +67,17 @@ export interface ProspectusPageThreeIncomeStatementAudit {
   };
   grossProfit: {
     status: "officer_entered";
-    source: "page3.manualFinancialInputs.years.{year}.grossProfit";
+    source: "stage_4a.rawFinancials.grossProfit";
     rawKeyAvailable: false;
     generatedCalculationAllowed: false;
-    requiredForApproval: true;
+    requiredForApproval: false;
   };
   ebitda: {
     status: "officer_entered";
-    source: "page3.manualFinancialInputs.years.{year}.ebitda";
+    source: "stage_4a.rawFinancials.ebitda";
     rawKeyAvailable: false;
     generatedCalculationAllowed: false;
-    requiredForApproval: true;
+    requiredForApproval: false;
   };
   ebit: {
     status: "officer_entered";
@@ -125,17 +125,17 @@ export const PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_AUDIT: ProspectusPageThreeIn
     },
     grossProfit: {
       status: "officer_entered",
-      source: "page3.manualFinancialInputs.years.{year}.grossProfit",
+      source: "stage_4a.rawFinancials.grossProfit",
       rawKeyAvailable: false,
       generatedCalculationAllowed: false,
-      requiredForApproval: true,
+      requiredForApproval: false,
     },
     ebitda: {
       status: "officer_entered",
-      source: "page3.manualFinancialInputs.years.{year}.ebitda",
+      source: "stage_4a.rawFinancials.ebitda",
       rawKeyAvailable: false,
       generatedCalculationAllowed: false,
-      requiredForApproval: true,
+      requiredForApproval: false,
     },
     ebit: {
       status: "officer_entered",
@@ -236,7 +236,7 @@ export const PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_FIELD_SOURCES: Record<
   },
   gross_profit: {
     label: "Gross Profit",
-    canonicalSource: "page3.manualFinancialInputs.years.{year}.grossProfit",
+    canonicalSource: "rawFinancials.grossProfit",
     availability: "stored",
     surface: "canva",
     possibleAlternatives: "Application/CTOS keys — none confirmed",
@@ -244,7 +244,7 @@ export const PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_FIELD_SOURCES: Record<
   },
   ebitda: {
     label: "EBITDA",
-    canonicalSource: "page3.manualFinancialInputs.years.{year}.ebitda",
+    canonicalSource: "rawFinancials.ebitda",
     availability: "stored",
     surface: "canva",
     possibleAlternatives: "Approved EBITDA formula — none",
