@@ -706,7 +706,7 @@ function ProspectusReviewPageInner() {
         </Button>
       </div>
 <div className="flex-1 overflow-y-auto">
-        <div className="w-full space-y-6 px-4 py-10 md:px-6 md:py-12 lg:px-8">
+        <div className="w-full space-y-7 px-4 py-10 md:px-6 md:py-12 lg:px-8">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex min-w-0 items-start gap-3">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10">
@@ -728,26 +728,26 @@ function ProspectusReviewPageInner() {
           </div>
 
           <Card className="rounded-2xl">
-            <CardContent className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-4">
+            <CardContent className="grid gap-5 p-6 sm:grid-cols-2 lg:grid-cols-4">
               <div className="min-w-0">
                 <div className="text-xs text-muted-foreground">Note Reference</div>
-                <div className="mt-1 truncate text-sm font-semibold">{data.note.noteReference}</div>
+                <div className="mt-1.5 truncate text-sm font-semibold">{data.note.noteReference}</div>
               </div>
               <div className="min-w-0">
                 <div className="text-xs text-muted-foreground">Review Status</div>
-                <div className="mt-1 text-sm font-semibold">
+                <div className="mt-1.5 text-sm font-semibold">
                   {formatProspectusReviewStatus(data.review.status, notePublished)}
                 </div>
               </div>
               <div className="min-w-0">
                 <div className="text-xs text-muted-foreground">Last Saved</div>
-                <div className="mt-1 text-sm font-semibold">
+                <div className="mt-1.5 text-sm font-semibold">
                   {new Date(data.review.updatedAt).toLocaleString()}
                 </div>
               </div>
               <div className="min-w-0">
                 <div className="text-xs text-muted-foreground">Last Updated By</div>
-                <div className="mt-1 truncate text-sm font-semibold" title={actorName}>
+                <div className="mt-1.5 truncate text-sm font-semibold" title={actorName}>
                   {actorName}
                 </div>
               </div>

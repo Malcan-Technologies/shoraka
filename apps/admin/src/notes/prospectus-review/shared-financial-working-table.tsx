@@ -69,25 +69,25 @@ export function ProspectusSharedFinancialWorkingTable({
 
   return (
     <div className="min-w-0 max-w-full overflow-x-auto rounded-xl border">
-      <Table className="min-w-[36rem]">
+      <Table className="min-w-[48rem]">
         <TableHeader>
           <TableRow className="hover:bg-transparent">
-            <TableHead className="sticky left-0 z-10 min-w-[11rem] bg-background text-sm font-semibold text-foreground">
+            <TableHead className="sticky left-0 z-10 min-w-[13rem] bg-background py-3 text-sm font-semibold text-foreground">
               Financial Metric
             </TableHead>
             {headers.map((header) => (
               <TableHead
                 key={header.key}
-                className="min-w-[8rem] whitespace-nowrap text-sm font-semibold text-foreground"
+                className="min-w-[9rem] whitespace-nowrap bg-muted/10 py-3 text-left text-sm font-semibold text-foreground"
               >
-                <div className="flex items-start justify-between gap-2">
+                <div className="flex h-full min-w-0 flex-col items-start justify-center gap-1.5 px-1">
                   <div className="min-w-0">
-                    <div>{header.yearLabel}</div>
-                    <div className="mt-0.5 text-xs font-normal text-muted-foreground">
+                    <div className="leading-snug">{header.yearLabel}</div>
+                    <div className="text-xs font-normal leading-snug text-muted-foreground">
                       {header.fyeLabel}
                     </div>
                     {!header.isPlaceholder ? (
-                      <div className="mt-1 flex flex-wrap items-center gap-1">
+                      <div className="mt-1 flex flex-wrap items-center gap-1 pb-1">
                         {header.sourceType ? (
                           <StatusBadge
                             size="sm"
@@ -188,7 +188,10 @@ export function ProspectusSharedFinancialWorkingTable({
                     return (
                       <TableCell
                         key={`${row.metric}-${header.key}`}
-                        className="whitespace-nowrap bg-muted/30 text-sm tabular-nums text-foreground"
+                        className={cn(
+                          "whitespace-normal text-sm tabular-nums text-foreground",
+                          row.values[index] === "Cannot calculate" && "bg-muted/20"
+                        )}
                         title={
                           header.isPlaceholder
                             ? "No financial record for this year"
@@ -201,20 +204,32 @@ export function ProspectusSharedFinancialWorkingTable({
                           "—"
                         ) : (
                           <div className="flex flex-col items-end gap-0.5">
-                            <span
-                              className={
-                                row.values[index] === "Cannot calculate"
-                                  ? "text-amber-800 dark:text-amber-300"
-                                  : undefined
-                              }
-                            >
-                              {row.values[index] ?? "—"}
-                            </span>
-                            {row.values[index] === "Cannot calculate" && row.cellHints?.[index] ? (
-                              <span className="text-[11px] font-normal leading-snug text-amber-700 dark:text-amber-400">
-                                {row.cellHints[index]}
-                              </span>
-                            ) : null}
+                            {(() => {
+                              const cellText = row.values[index] ?? "—";
+                              const isCalculatedMissing = cellText === "Cannot calculate";
+                              const isRawMissing = cellText === "—";
+
+                              return (
+                                <>
+                                  <span
+                                    className={cn(
+                                      isCalculatedMissing
+                                        ? "text-amber-800 dark:text-amber-300"
+                                        : isRawMissing
+                                          ? "text-muted-foreground"
+                                          : undefined
+                                    )}
+                                  >
+                                    {cellText}
+                                  </span>
+                                  {cellText === "Cannot calculate" && row.cellHints?.[index] ? (
+                                    <span className="max-w-[9.5rem] break-words text-right text-[11px] font-normal leading-snug text-amber-700 dark:text-amber-400">
+                                      {row.cellHints[index]}
+                                    </span>
+                                  ) : null}
+                                </>
+                              );
+                            })()}
                           </div>
                         )}
                       </TableCell>

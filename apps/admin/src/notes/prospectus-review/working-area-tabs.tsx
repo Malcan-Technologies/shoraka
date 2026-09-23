@@ -26,7 +26,7 @@ export function ProspectusInternalTabs<T extends string>({
     <div
       role="tablist"
       aria-label={ariaLabel}
-      className="flex flex-wrap gap-2 border-b border-border pb-3"
+      className="flex flex-wrap gap-2.5 border-b border-border pb-4"
     >
       {tabs.map((tab) => {
         const selected = value === tab.id;
@@ -45,7 +45,7 @@ export function ProspectusInternalTabs<T extends string>({
             aria-selected={selected}
             size="sm"
             variant={selected ? "secondary" : "outline"}
-            className={cn("h-9 gap-2", selected && "font-semibold")}
+            className={cn("h-9 gap-2.5 px-3", selected && "font-semibold")}
             onClick={() => onChange(tab.id)}
           >
             <span>{tab.label}</span>

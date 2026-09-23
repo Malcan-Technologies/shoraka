@@ -286,7 +286,7 @@ export function buildPageTwoFinancialComparisonTable(
                   if (pat == null) return "Missing: Profit / Loss After Tax";
                   if (netWorth == null) return "Missing: Total Equity / Net Worth";
                   if (netWorth === 0) return "Invalid: Total Equity / Net Worth is zero";
-                  return "Missing required financial inputs";
+                  return "Missing financial inputs";
                 })();
               case "currentRatio":
                 return (() => {
@@ -295,7 +295,7 @@ export function buildPageTwoFinancialComparisonTable(
                   if (currentAssets == null) return "Missing: Current Assets";
                   if (currentLiabilities == null) return "Missing: Current Liabilities";
                   if (currentLiabilities === 0) return "Invalid: Current Liabilities is zero";
-                  return "Missing required financial inputs";
+                  return "Missing financial inputs";
                 })();
               case "netDebtEquity":
                 return (() => {
@@ -308,7 +308,7 @@ export function buildPageTwoFinancialComparisonTable(
                   if (cashAndBank == null) return "Missing: Cash & Bank";
                   if (networth == null) return "Missing: Total Equity / Net Worth";
                   if (networth === 0) return "Invalid: Total Equity / Net Worth is zero";
-                  return "Missing required financial inputs";
+                  return "Missing financial inputs";
                 })();
               case "interestCoverage":
                 return (() => {
@@ -317,7 +317,7 @@ export function buildPageTwoFinancialComparisonTable(
                   if (interestCosts == null) return "Missing: Interest Costs";
                   if (interestCosts === 0) return "Invalid: Interest Costs is zero";
                   if (pbt == null) return "Missing: Profit / Loss Before Tax";
-                  return "Missing required financial inputs";
+                  return "Missing financial inputs";
                 })();
               case "dscr":
                 return (() => {
@@ -326,7 +326,7 @@ export function buildPageTwoFinancialComparisonTable(
                   if (annualDebtService == null) return "Missing: Annual Debt Service";
                   if (annualDebtService === 0) return "Invalid: Annual Debt Service is zero";
                   if (netOperatingIncome == null) return "Missing: Net Operating Income";
-                  return "Missing required financial inputs";
+                  return "Missing financial inputs";
                 })();
               case "receivablesDays":
                 return (() => {
@@ -339,7 +339,7 @@ export function buildPageTwoFinancialComparisonTable(
                   if (endingTradeReceivables == null) return "Missing: Trade Receivables";
                   if (turnover == null) return "Missing: Revenue / Turnover";
                   if (turnover === 0) return "Invalid: Revenue / Turnover is zero";
-                  return "Missing required financial inputs";
+                  return "Missing financial inputs";
                 })();
               default:
                 return "Missing: Calculated metric";

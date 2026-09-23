@@ -52,10 +52,10 @@ describe("Prospectus Page 2 enhancer missing hints (frozen model paths)", () => 
     expect(hint("Interest Coverage (x)", frozen, 10_000)).toBe("Missing: Interest Costs");
   });
 
-  it("Interest Coverage: frozen cannot prove exact cause -> Missing required financial inputs", () => {
+  it("Interest Coverage: frozen cannot prove exact cause -> Missing financial inputs", () => {
     // ebit exists, but interest_cost is not present in frozen raw, so we must not invent.
     const frozen: ProspectusFrozenFinancialRaw = { ...baseFrozenRaw, ebit: 180_000 };
-    expect(hint("Interest Coverage (x)", frozen, 10_000)).toBe("Missing required financial inputs");
+    expect(hint("Interest Coverage (x)", frozen, 10_000)).toBe("Missing financial inputs");
   });
 
   it("DSCR: Annual Debt Service missing -> Missing: Annual Debt Service", () => {
@@ -71,7 +71,7 @@ describe("Prospectus Page 2 enhancer missing hints (frozen model paths)", () => 
   it("Net Debt / Equity: no granular borrowings in frozen raw -> does not invent a specific field", () => {
     const frozen: ProspectusFrozenFinancialRaw = { ...baseFrozenRaw, cashAndBank: 10_000, networth: 500_000 };
     expect(hint("Net Debt / Equity (x)", frozen, 10_000)).toBe(
-      "Missing required financial inputs"
+      "Missing financial inputs"
     );
   });
 

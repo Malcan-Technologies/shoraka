@@ -590,7 +590,7 @@ describe("page three coverage verification", () => {
     );
     const missingRoe = missingFlat.find((r) => r.label === "Return on Equity");
     expect(missingRoe?.value).toBe("Cannot calculate");
-    expect(missingRoe?.hint).toBe("Missing required financial inputs");
+    expect(missingRoe?.hint).toBe("Missing financial inputs");
   });
 
   it("uses direct CTOS currat only for Current Ratio (no CA÷CL fallback)", () => {
@@ -606,7 +606,7 @@ describe("page three coverage verification", () => {
     );
     const currentRatioMissing = missingCurrat.find((r) => r.label === "Current Ratio");
     expect(currentRatioMissing?.value).toBe("Cannot calculate");
-    expect(currentRatioMissing?.hint).toBe("Missing required financial inputs");
+    expect(currentRatioMissing?.hint).toBe("Missing financial inputs");
   });
 
   it("builds EBIT helper text from dependency presence (PBT + Interest Costs)", () => {
@@ -634,7 +634,7 @@ describe("page three coverage verification", () => {
       undefined
     );
     expect(missingBoth.find((r) => r.label === "EBIT")?.hint).toBe(
-      "Missing required financial inputs"
+      "Missing financial inputs"
     );
   });
 
