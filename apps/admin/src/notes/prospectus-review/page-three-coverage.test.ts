@@ -535,6 +535,32 @@ describe("page three coverage verification", () => {
     expect(dnaReceivablesMissingEndingTradeReceivables?.hint).toBe("Missing: Trade Receivables");
   });
 
+  it("Payables Days: dependency-aware missing hints (frozen raw)", () => {
+    const missingTradePayables = buildCoverageResolvedRows(
+      { ...yearRaw, tradePayables: null },
+      undefined,
+      undefined
+    ).find((r) => r.label === "Payables Days");
+    expect(missingTradePayables?.value).toBe("Cannot calculate");
+    expect(missingTradePayables?.hint).toBe("Missing: Trade Payables");
+
+    const missingCostOfSales = buildCoverageResolvedRows(
+      { ...yearRaw, costOfSales: null },
+      undefined,
+      undefined
+    ).find((r) => r.label === "Payables Days");
+    expect(missingCostOfSales?.value).toBe("Cannot calculate");
+    expect(missingCostOfSales?.hint).toBe("Missing: Cost of Sales");
+
+    const invalidZeroDenominator = buildCoverageResolvedRows(
+      { ...yearRaw, costOfSales: 0 },
+      undefined,
+      undefined
+    ).find((r) => r.label === "Payables Days");
+    expect(invalidZeroDenominator?.value).toBe("Cannot calculate");
+    expect(invalidZeroDenominator?.hint).toBe("Invalid: Cost of Sales is zero");
+  });
+
   it("keeps single-year resolved helpers for Total Liabilities parity", () => {
     const rows = buildBalanceSheetResolvedRows({ ...yearRaw }, { quickRatio: 1.25 });
     expect(rows.find((r) => r.label === "Total Liabilities")?.value).toContain("250,000");
