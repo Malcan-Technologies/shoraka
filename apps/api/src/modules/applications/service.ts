@@ -79,7 +79,10 @@ import {
 } from "./authorized-parties";
 import { buildApplicationRevisionSnapshot } from "./revision-snapshot";
 import { assertProductRulesForSubmit } from "./product-rules-on-submit";
-import { upsertLatestOrganizationFinancialStatementsFromApplication } from "./issuer-organization-financial-statements";
+import {
+  mergeApplicationAdminFinancialSupplementsIntoOrg,
+  upsertLatestOrganizationFinancialStatementsFromApplication,
+} from "./issuer-organization-financial-statements";
 import { deleteS3Object } from "../../lib/s3/client";
 import { logger } from "../../lib/logger";
 import {
@@ -140,6 +143,10 @@ import {
   getFinancialYearEndComputationDetails,
   getFinancialYearEndValidationError,
   getEligibleAdminInputYears,
+  decideAdminFinancialFieldEdit,
+  parseAdminFieldOverrides,
+  reconcileAdminFieldOverridesAfterIssuerSave,
+  resolveAdminFinancialReviewColumns,
   issuerUnauditedPlddForFyEndYear,
   getReviewSectionPrerequisites,
   getStepKeyFromStepId,
@@ -1617,13 +1624,26 @@ export class ApplicationService {
 
         // Preserve any Admin-only historical fallback blocks stored on the application.
         // Issuer saves overwrite only `questionnaire` + `unaudited_by_year`.
-        dataToStore = {
-          ...(application.financial_statements &&
-          typeof application.financial_statements === "object"
+        // A changed issuer value clears that field's User Input override. CTOS gap fills stay.
+        const existingFs =
+          application.financial_statements && typeof application.financial_statements === "object"
             ? (application.financial_statements as Record<string, unknown>)
-            : {}),
+            : {};
+        const previousUnaudited =
+          existingFs.unaudited_by_year &&
+          typeof existingFs.unaudited_by_year === "object" &&
+          !Array.isArray(existingFs.unaudited_by_year)
+            ? (existingFs.unaudited_by_year as Record<string, unknown>)
+            : null;
+        dataToStore = {
+          ...existingFs,
           questionnaire,
           unaudited_by_year: normalizedByYear,
+          admin_field_overrides: reconcileAdminFieldOverridesAfterIssuerSave({
+            existingFinancialStatements: existingFs,
+            previousUnauditedByYear: previousUnaudited,
+            nextUnauditedByYear: normalizedByYear as Record<string, Record<string, unknown>>,
+          }),
         } as Prisma.InputJsonValue;
       }
 
@@ -5554,6 +5574,40 @@ export class ApplicationService {
    * - FY must not already have CTOS actual data.
    * - FY must not already have issuer stored unaudited actual data.
    */
+  private async assertAdminFinancialEditsOpen(applicationId: string, status: string): Promise<void> {
+    const reviewable = new Set([
+      "SUBMITTED",
+      "UNDER_REVIEW",
+      "CONTRACT_PENDING",
+      "CONTRACT_SENT",
+      "CONTRACT_ACCEPTED",
+      "INVOICE_ACCEPTED",
+      "SIGNING_PENDING",
+      "INVOICE_PENDING",
+      "INVOICES_SENT",
+      "OFFER_EXPIRED",
+      "RESUBMITTED",
+      "AMENDMENT_REQUESTED",
+    ]);
+    if (!reviewable.has(status)) {
+      throw new AppError(400, "APPLICATION_NOT_REVIEWABLE", "Application is not in a reviewable state");
+    }
+    const review = await prisma.noteProspectusReview.findFirst({
+      where: {
+        note: { source_application_id: applicationId },
+        approved_at: { not: null },
+      },
+      select: { approved_snapshot: true },
+    });
+    if (review?.approved_snapshot != null) {
+      throw new AppError(
+        409,
+        "FINANCIAL_SNAPSHOT_LOCKED",
+        "Approved prospectus financials are locked for this application"
+      );
+    }
+  }
+
   async upsertAdminFinancialStatementFallbackYear(params: {
     applicationId: string;
     userId: string;
@@ -5563,17 +5617,26 @@ export class ApplicationService {
     rawFinancialInputs: Record<string, unknown>;
   }): Promise<{ updated: boolean; financialYear: number }> {
     const { applicationId, userId, financialYear, statementType, rawFinancialInputs } = params;
+    if (statementType === "MANAGEMENT_ACCOUNTS") {
+      throw new AppError(
+        400,
+        "VALIDATION_ERROR",
+        "Management accounts is no longer a statement type for new Admin financial statements"
+      );
+    }
 
     const application = await prisma.application.findUnique({
       where: { id: applicationId },
       select: {
         id: true,
+        status: true,
         issuer_organization_id: true,
         financial_statements: true,
       },
     });
 
     if (!application) throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    await this.assertAdminFinancialEditsOpen(applicationId, application.status);
     if (!application.issuer_organization_id) {
       throw new AppError(400, "INVALID_STATE", "Application has no issuer organization");
     }
@@ -5647,17 +5710,149 @@ export class ApplicationService {
       },
     };
 
-    await prisma.application.update({
-      where: { id: applicationId },
-      data: {
-        financial_statements: {
-          ...(existingFS as any),
-          admin_input_by_year: nextAdmin,
-        } as Prisma.InputJsonValue,
-      },
+    await prisma.$transaction(async (tx) => {
+      await tx.application.update({
+        where: { id: applicationId },
+        data: {
+          financial_statements: {
+            ...(existingFS as any),
+            admin_input_by_year: nextAdmin,
+          } as Prisma.InputJsonValue,
+        },
+      });
+      await logApplicationActivity(
+        {
+          userId,
+          applicationId,
+          eventType: ApplicationLogEventType.FINANCIAL_YEAR_ADDED,
+          portal: ActivityPortal.ADMIN,
+          metadata: {
+            applicationId,
+            financialYear,
+            fieldKey: null,
+            originalSource: null,
+            previousValue: null,
+            newValue: null,
+            action: "add_missing_fy",
+            statementType,
+          },
+        },
+        tx
+      );
     });
 
+    await mergeApplicationAdminFinancialSupplementsIntoOrg({ applicationId });
+
     return { updated: true, financialYear };
+  }
+
+  async upsertAdminFinancialField(params: {
+    applicationId: string;
+    userId: string;
+    financialYear: number;
+    fieldKey: string;
+    value: number;
+    remark?: string;
+  }): Promise<{ updated: boolean; financialYear: number; fieldKey: string }> {
+    const { applicationId, userId, financialYear, fieldKey, value, remark } = params;
+    const application = await prisma.application.findUnique({
+      where: { id: applicationId },
+      select: {
+        id: true,
+        status: true,
+        issuer_organization_id: true,
+        financial_statements: true,
+      },
+    });
+    if (!application) throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    if (!application.issuer_organization_id) {
+      throw new AppError(400, "INVALID_STATE", "Application has no issuer organization");
+    }
+    if (!application.financial_statements || typeof application.financial_statements !== "object") {
+      throw new AppError(400, "INVALID_STATE", "Application has no financial_statements");
+    }
+    await this.assertAdminFinancialEditsOpen(applicationId, application.status);
+
+    const now = new Date();
+    const ctosReport = await prisma.ctosReport.findFirst({
+      where: { issuer_organization_id: application.issuer_organization_id, subject_ref: null },
+      orderBy: { fetched_at: "desc" },
+      select: { financials_json: true },
+    });
+    const columns = resolveAdminFinancialReviewColumns({
+      financialStatements: application.financial_statements,
+      ctosFinancials: ctosReport?.financials_json ?? null,
+      ref: now,
+    });
+    const decision = decideAdminFinancialFieldEdit({ columns, financialYear, fieldKey });
+    if (!decision.ok) {
+      throw new AppError(400, decision.code, decision.message);
+    }
+    if (!Number.isFinite(value)) {
+      throw new AppError(400, "VALIDATION_ERROR", "Enter a numeric value");
+    }
+
+    const existingFS = application.financial_statements as Record<string, unknown>;
+    const yearKey = String(financialYear);
+    let nextFS: Record<string, unknown> = { ...existingFS };
+
+    if (decision.action === "edit_admin_input") {
+      const adminByYear =
+        existingFS.admin_input_by_year &&
+        typeof existingFS.admin_input_by_year === "object" &&
+        !Array.isArray(existingFS.admin_input_by_year)
+          ? { ...(existingFS.admin_input_by_year as Record<string, unknown>) }
+          : {};
+      const yearBlock =
+        adminByYear[yearKey] && typeof adminByYear[yearKey] === "object"
+          ? { ...(adminByYear[yearKey] as Record<string, unknown>) }
+          : {};
+      yearBlock[fieldKey] = value;
+      yearBlock.updated_by_user_id = userId;
+      yearBlock.updated_at = now.toISOString();
+      adminByYear[yearKey] = yearBlock;
+      nextFS = { ...existingFS, admin_input_by_year: adminByYear };
+    } else {
+      const overrides = parseAdminFieldOverrides(existingFS);
+      const yearOverrides = { ...(overrides[yearKey] ?? {}) };
+      yearOverrides[fieldKey] = {
+        value,
+        baseSource: decision.baseSource,
+        action: decision.action,
+        updated_by_user_id: userId,
+        updated_at: now.toISOString(),
+      };
+      nextFS = { ...existingFS, admin_field_overrides: { ...overrides, [yearKey]: yearOverrides } };
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.application.update({
+        where: { id: applicationId },
+        data: { financial_statements: nextFS as Prisma.InputJsonValue },
+      });
+      await logApplicationActivity(
+        {
+          userId,
+          applicationId,
+          eventType: ApplicationLogEventType.FINANCIAL_FIELD_UPDATED,
+          portal: ActivityPortal.ADMIN,
+          remark,
+          metadata: {
+            applicationId,
+            financialYear,
+            fieldKey,
+            originalSource: decision.originalSource,
+            previousValue: decision.previousValue,
+            newValue: value,
+            action: decision.action,
+          },
+        },
+        tx
+      );
+    });
+
+    await mergeApplicationAdminFinancialSupplementsIntoOrg({ applicationId });
+    return { updated: true, financialYear, fieldKey };
   }
 }
 

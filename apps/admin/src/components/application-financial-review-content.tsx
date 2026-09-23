@@ -37,6 +37,7 @@ import { formatCurrency, formatNumber } from "@cashsouk/config";
 import {
   FINANCIAL_FIELD_LABELS,
   computeColumnMetrics,
+  computeReceivablesDays,
   computeTurnoverGrowth,
   financialFormToBsPl,
   computeHasPendingDirectorShareholder,
@@ -47,7 +48,12 @@ import {
   resolveCtosTotalAssets,
   resolveCtosTotalLiabilities,
   resolveFinancialSummaryIssuerReturnOnEquityRatio,
+  financialFieldSourceBadge,
   getEligibleAdminInputYears,
+  isAdminEditableRawFinancialKey,
+  isCalculatedFinancialMetricKey,
+  receivablesDaysUnavailableReason,
+  resolveAdminFinancialReviewColumns,
   isCompleteIssuerMarcAssessment,
   isMarcSmeGrade,
   MARC_ASSESSMENT_REQUIRED_MESSAGE,
@@ -61,6 +67,7 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { applicationsKeys } from "@/applications/query-keys";
 import { AdminAddFinancialStatementDialog } from "@/notes/prospectus-review/admin-add-financial-statement-dialog";
+import { AdminEditFinancialFieldDialog } from "@/notes/prospectus-review/admin-edit-financial-field-dialog";
 import { format, isValid, parse, parseISO } from "date-fns";
 import { useCreateApplicationCtosSubjectReport } from "@/hooks/use-admin-issuer-organization-ctos-mutations";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -304,6 +311,12 @@ export function ApplicationFinancialReviewContent({
   const queryClient = useQueryClient();
   const [addFinancialStatementOpen, setAddFinancialStatementOpen] = React.useState(false);
   const [addFinancialStatementYear, setAddFinancialStatementYear] = React.useState<number | null>(null);
+  const [fieldEdit, setFieldEdit] = React.useState<{
+    year: number;
+    key: string;
+    label: string;
+    value: number | null;
+  } | null>(null);
 
   const onAddFinancialStatementSaved = React.useCallback(() => {
     if (!applicationId) return;
@@ -355,6 +368,15 @@ export function ApplicationFinancialReviewContent({
     [financialRows, unauditedByYear, adminInputByYear, eligibleAdminInputYears]
   );
 
+  const resolvedByYear = React.useMemo(() => {
+    const resolved = resolveAdminFinancialReviewColumns({
+      financialStatements: app.financial_statements,
+      ctosFinancials: financialRows,
+      eligibleAdminInputYears,
+    });
+    return new Map(resolved.map((column) => [column.year, column]));
+  }, [app.financial_statements, financialRows, eligibleAdminInputYears]);
+
   // For issuer-entered additional regulatory financial details, CTOS never provides values for these keys.
   // So render only the issuer (unaudited) columns to avoid a misleading CTOS-vs-issuer comparison layout.
   const issuerDetailColumnIndices = React.useMemo(() => {
@@ -373,6 +395,8 @@ export function ApplicationFinancialReviewContent({
         const row = byYear.get(spec.year);
         return { year: spec.year, turnover: row?.account.turnover ?? null };
       }
+      const resolvedTurnover = resolvedByYear.get(spec.year)?.fields.turnover?.value ?? null;
+      if (resolvedTurnover != null) return { year: spec.year, turnover: resolvedTurnover };
       const rawByYear =
         spec.kind === "admin_input" ? adminInputByYear : unauditedByYear;
       const fs = rawByYear[String(spec.year)];
@@ -383,7 +407,7 @@ export function ApplicationFinancialReviewContent({
           : null;
       return { year: spec.year, turnover: hasStoredFinancialData ? t : null };
     });
-  }, [columns, byYear, unauditedByYear, adminInputByYear, hasStoredFinancialData]);
+  }, [columns, byYear, unauditedByYear, adminInputByYear, hasStoredFinancialData, resolvedByYear]);
 
   /** Calendar-year turnover for growth (do not use the physical column to the left — gaps/null CTOS slots broke YoY). */
   const turnoverByYear = React.useMemo(() => {
@@ -413,13 +437,20 @@ export function ApplicationFinancialReviewContent({
 
       if (spec.year == null) return null;
       if (!hasStoredFinancialData) return null;
-      const fs =
+      const raw =
         spec.kind === "admin_input"
           ? adminInputByYear[String(spec.year)]
           : spec.kind === "unaudited"
             ? unauditedByYear[String(spec.year)]
             : undefined;
-      if (!fs) return null;
+      if (!raw) return null;
+      const resolved = resolvedByYear.get(spec.year);
+      const fs: Record<string, unknown> = { ...(raw as Record<string, unknown>) };
+      if (resolved) {
+        for (const [key, field] of Object.entries(resolved.fields)) {
+          if (field.value != null) fs[key] = field.value;
+        }
+      }
       const input = financialRecordToInput(fs as Record<string, unknown>);
       const { bs, pl } = financialFormToBsPl(input);
       const metrics = computeColumnMetrics(bs, pl, g);
@@ -432,27 +463,33 @@ export function ApplicationFinancialReviewContent({
         }),
       };
     });
-  }, [columns, turnoverByYear, hasStoredFinancialData, unauditedByYear, adminInputByYear]);
+  }, [columns, turnoverByYear, hasStoredFinancialData, unauditedByYear, adminInputByYear, resolvedByYear]);
 
   const getFsCol = React.useCallback(
     (idx: number): Record<string, unknown> | null => {
       const spec = columns[idx];
       if (!spec || spec.year == null) return null;
+      let base: Record<string, unknown> | null = null;
       if (spec.kind === "ctos") {
         const row = byYear.get(spec.year);
-        return row ? ctosFinToFs(row) : null;
-      }
-      if (spec.kind === "unaudited") {
+        base = row ? ctosFinToFs(row) : null;
+      } else if (spec.kind === "unaudited") {
         const fs = unauditedByYear[String(spec.year)];
-        return (fs && typeof fs === "object" ? fs : null) as Record<string, unknown> | null;
-      }
-      if (spec.kind === "admin_input") {
+        base = (fs && typeof fs === "object" ? fs : null) as Record<string, unknown> | null;
+      } else if (spec.kind === "admin_input") {
         const fs = adminInputByYear[String(spec.year)];
-        return (fs && typeof fs === "object" ? fs : null) as Record<string, unknown> | null;
+        base = (fs && typeof fs === "object" ? fs : null) as Record<string, unknown> | null;
       }
-      return null;
+      if (!base) return null;
+      const resolved = resolvedByYear.get(spec.year);
+      if (!resolved) return base;
+      const copy = { ...base };
+      for (const [key, field] of Object.entries(resolved.fields)) {
+        if (field.value != null) copy[key] = field.value;
+      }
+      return copy;
     },
-    [columns, byYear, unauditedByYear, adminInputByYear]
+    [columns, byYear, unauditedByYear, adminInputByYear, resolvedByYear]
   );
 
   const ctosColumnMissing = React.useCallback(
@@ -474,7 +511,7 @@ export function ApplicationFinancialReviewContent({
       return spec?.kind === "ctos" ? "Missing in CTOS extract" : "Not provided in issuer form";
     }
     if (valueMissing) {
-      return spec?.kind === "ctos" ? "Field empty in CTOS" : "Not provided in issuer form";
+      return spec?.kind === "ctos" ? "Not provided by CTOS" : "Not provided";
     }
     return fmt();
   };
@@ -531,6 +568,34 @@ export function ApplicationFinancialReviewContent({
       id: "workcap",
       label: COMPUTED_FIELD_LABELS.workcap,
       formulaHint: "Current Assets − Current Liabilities",
+    },
+    { id: "cashAndBank", label: FINANCIAL_FIELD_LABELS.cashAndBank },
+    { id: "tradeReceivables", label: FINANCIAL_FIELD_LABELS.tradeReceivables },
+    { id: "tradePayables", label: FINANCIAL_FIELD_LABELS.tradePayables },
+    { id: "grossProfit", label: FINANCIAL_FIELD_LABELS.grossProfit },
+    { id: "ebitda", label: FINANCIAL_FIELD_LABELS.ebitda },
+    { id: "costOfSales", label: FINANCIAL_FIELD_LABELS.costOfSales },
+    { id: "interest_cost", label: FINANCIAL_FIELD_LABELS.interest_cost },
+    { id: "operatingCashFlow", label: FINANCIAL_FIELD_LABELS.operatingCashFlow },
+    { id: "freeCashFlow", label: FINANCIAL_FIELD_LABELS.freeCashFlow },
+    { id: "annualDebtService", label: FINANCIAL_FIELD_LABELS.annualDebtService },
+    { id: "netOperatingIncome", label: FINANCIAL_FIELD_LABELS.netOperatingIncome },
+    { id: "curlib_borrowing", label: FINANCIAL_FIELD_LABELS.curlib_borrowing },
+    { id: "curlib_non_borrowing", label: FINANCIAL_FIELD_LABELS.curlib_non_borrowing },
+    { id: "ncl_loan", label: FINANCIAL_FIELD_LABELS.ncl_loan },
+    { id: "ncl_non_loan", label: FINANCIAL_FIELD_LABELS.ncl_non_loan },
+    { id: "equity_share_application", label: FINANCIAL_FIELD_LABELS.equity_share_application },
+    { id: "equity_share_premium", label: FINANCIAL_FIELD_LABELS.equity_share_premium },
+    { id: "equity_accumulated_profit", label: FINANCIAL_FIELD_LABELS.equity_accumulated_profit },
+    { id: "equity_minority", label: FINANCIAL_FIELD_LABELS.equity_minority },
+    { id: "operating_cost", label: FINANCIAL_FIELD_LABELS.operating_cost },
+    { id: "admin_cost", label: FINANCIAL_FIELD_LABELS.admin_cost },
+    { id: "other_cost", label: FINANCIAL_FIELD_LABELS.other_cost },
+    { id: "pl_minority", label: FINANCIAL_FIELD_LABELS.pl_minority },
+    {
+      id: "receivablesDays",
+      label: "Receivables Days",
+      formulaHint: "Average Trade Receivables ÷ Revenue × 365",
     },
   ];
 
@@ -705,8 +770,31 @@ export function ApplicationFinancialReviewContent({
         if (!computed) return "N/A";
         return formatCurrency(computed.workcap, { decimals: 0 });
       }
-      default:
-        return "—";
+      case "receivablesDays": {
+        if (specCol.year == null || specCol.kind === "admin_fallback_placeholder") return "—";
+        const ending = resolvedByYear.get(specCol.year)?.fields.tradeReceivables?.value ?? null;
+        const prior = resolvedByYear.get(specCol.year - 1)?.fields.tradeReceivables?.value ?? null;
+        const turnover = resolvedByYear.get(specCol.year)?.fields.turnover?.value ?? null;
+        const reason = receivablesDaysUnavailableReason({
+          year: specCol.year,
+          endingTradeReceivables: ending,
+          priorTradeReceivables: prior,
+          turnover,
+        });
+        if (reason) return reason;
+        const days = computeReceivablesDays(prior, ending, turnover);
+        return days == null ? "Unable to calculate" : formatNumber(days, 2);
+      }
+      default: {
+        if (!isAdminEditableRawFinancialKey(rowId) || specCol.year == null) return "—";
+        const field = resolvedByYear.get(specCol.year)?.fields[rowId];
+        if (!field || field.value == null) {
+          return field?.unavailableReason === "not_provided_by_ctos"
+            ? "Not provided by CTOS"
+            : "Not provided";
+        }
+        return formatCurrency(field.value, { decimals: 0 });
+      }
     }
   };
 
@@ -714,8 +802,11 @@ export function ApplicationFinancialReviewContent({
     text === "—" ||
     text === "N/A" ||
     text === "Missing in CTOS extract" ||
+    text === "Not provided by CTOS" ||
+    text === "Not provided" ||
     text === "Field empty in CTOS" ||
-    text === "Not provided in issuer form";
+    text === "Not provided in issuer form" ||
+    text.startsWith("Unable to calculate");
 
   return (
     <>
@@ -872,6 +963,24 @@ export function ApplicationFinancialReviewContent({
                     {columns.map((spec, ci) => {
                       const cellText = renderRowCell(row.id, ci);
                       const muted = isMutedFinancialCell(cellText);
+                      const resolvedField =
+                        spec.year != null && isAdminEditableRawFinancialKey(row.id)
+                          ? resolvedByYear.get(spec.year)?.fields[row.id]
+                          : undefined;
+                      const calculated = isCalculatedFinancialMetricKey(row.id);
+                      const canEditField =
+                        canManageFinancialCtos &&
+                        spec.kind !== "admin_fallback_placeholder" &&
+                        spec.kind !== "empty" &&
+                        resolvedField != null &&
+                        !resolvedField.readOnly;
+                      const sourceBadge = calculated
+                        ? cellText === "N/A" || cellText.startsWith("Unable to calculate")
+                          ? null
+                          : "Calculated"
+                        : resolvedField && resolvedField.value != null
+                          ? financialFieldSourceBadge(resolvedField)
+                          : null;
                       return (
                         <TableCell
                           key={`${spec.kind}-${spec.year ?? "x"}-${ci}`}
@@ -882,17 +991,40 @@ export function ApplicationFinancialReviewContent({
                             !muted && "text-foreground"
                           )}
                         >
-                          {muted ? (
-                            cellText === "—" || cellText === "N/A" ? (
-                              <span className="text-muted-foreground">{cellText}</span>
+                          <div className="flex flex-col items-end gap-1">
+                            {muted ? (
+                              cellText === "—" || cellText === "N/A" ? (
+                                <span className="text-muted-foreground">{cellText}</span>
+                              ) : (
+                                <span className="inline-block max-w-full rounded-md border border-dashed border-border/70 bg-muted/25 px-2 py-0.5 text-xs leading-snug text-muted-foreground">
+                                  {cellText}
+                                </span>
+                              )
                             ) : (
-                              <span className="inline-block max-w-full rounded-md border border-dashed border-border/70 bg-muted/25 px-2 py-0.5 text-xs leading-snug text-muted-foreground">
-                                {cellText}
+                              <span className="tabular-nums">{cellText}</span>
+                            )}
+                            {sourceBadge ? (
+                              <span className="text-[11px] font-normal leading-tight text-muted-foreground">
+                                {sourceBadge}
                               </span>
-                            )
-                          ) : (
-                            <span className="tabular-nums">{cellText}</span>
-                          )}
+                            ) : null}
+                            {canEditField && spec.year != null ? (
+                              <button
+                                type="button"
+                                className="text-meta text-primary hover:underline"
+                                onClick={() =>
+                                  setFieldEdit({
+                                    year: spec.year as number,
+                                    key: row.id,
+                                    label: row.label,
+                                    value: resolvedField?.value ?? null,
+                                  })
+                                }
+                              >
+                                {resolvedField?.value == null ? "+ Add" : "Edit"}
+                              </button>
+                            ) : null}
+                          </div>
                         </TableCell>
                       );
                     })}
@@ -904,153 +1036,6 @@ export function ApplicationFinancialReviewContent({
         </div>
       </ReviewFieldBlock>
 
-      <ReviewFieldBlock
-        title="Additional Financial Details"
-        titleTooltip="Regulatory reporting fields entered by the issuer. These are separate from the financing statement lines above and are not in CTOS extracts."
-      >
-        <div className={applicationTableWrapperClass}>
-          <div className="overflow-x-auto">
-            <Table className="table-fixed w-full min-w-[960px] text-[15px]">
-              <TableHeader className={cn(applicationTableHeaderBgClass, "[&_tr]:border-b-border")}>
-                <TableRow className="hover:bg-transparent border-b border-border">
-                  <TableHead
-                    className={cn(
-                      applicationTableHeaderClass,
-                      "w-[22%] min-w-[140px] border-r border-border bg-muted/30 align-middle"
-                    )}
-                  >
-                    Field
-                  </TableHead>
-                  {issuerDetailColumnIndices.map((colIdx, i) => {
-                    const spec = columns[colIdx];
-                    return (
-                    <TableHead
-                      key={`comrep-yr-${i}-${spec.kind}-${spec.year ?? "dash"}`}
-                      className={cn(
-                        applicationTableHeaderClass,
-                        "w-[15.5%] min-w-[8.5rem] align-middle text-right tabular-nums",
-                        i < columns.length - 1 ? "border-r border-border" : "",
-                        financialSummaryColumnShellClass(spec.kind, i, spec.year)
-                      )}
-                    >
-                      {spec.kind === "unaudited" && spec.year != null ? (
-                        <AdminUnauditedYearHeading
-                          year={spec.year}
-                          questionnaire={financialQuestionnaire}
-                        />
-                      ) : spec.kind === "ctos" ? (
-                        spec.year != null ? String(spec.year) : "No year"
-                      ) : (
-                        HEADER_PLACEHOLDER
-                      )}
-                    </TableHead>
-                    );
-                  })}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {(() => {
-                  const OPTIONAL_EQUITY_KEYS = new Set([
-                    "equity_share_application",
-                    "equity_share_premium",
-                    "equity_minority",
-                  ]);
-
-                  const groups = [
-                    {
-                      title: "Liability Breakdown",
-                      keys: ["curlib_borrowing", "curlib_non_borrowing", "ncl_loan", "ncl_non_loan"] as const,
-                    },
-                    {
-                      title: "Equity Breakdown",
-                      keys: [
-                        "equity_share_application",
-                        "equity_share_premium",
-                        "equity_accumulated_profit",
-                        "equity_minority",
-                      ] as const,
-                    },
-                    { title: "Profit & Loss", keys: ["pl_minority"] as const },
-                    {
-                      title: "Costs",
-                      keys: ["operating_cost", "admin_cost", "interest_cost", "other_cost"] as const,
-                    },
-                  ];
-
-                  const renderLabel = (key: string) => {
-                    const base = FINANCIAL_FIELD_LABELS[key] ?? key;
-                    if (!OPTIONAL_EQUITY_KEYS.has(key)) return base;
-                    return (
-                      <div className="flex items-center gap-2">
-                        <span>{base}</span>
-                        <span className="text-meta font-normal leading-snug text-muted-foreground">
-                          Optional
-                        </span>
-                      </div>
-                    );
-                  };
-
-                  const colSpan = 1 + issuerDetailColumnIndices.length;
-
-                  return groups.flatMap((group) => [
-                    <TableRow key={`group-${group.title}`} className={applicationTableRowClass}>
-                      <TableCell
-                        colSpan={colSpan}
-                        className={cn(applicationTableCellClass, "bg-muted/10 font-semibold text-foreground py-2")}
-                      >
-                        {group.title}
-                      </TableCell>
-                    </TableRow>,
-                    ...group.keys.map((key) => (
-                      <TableRow key={key} className={applicationTableRowClass}>
-                        <TableCell
-                          className={cn(
-                            applicationTableCellClass,
-                            "border-r border-border bg-muted/20 font-medium text-foreground"
-                          )}
-                        >
-                          {renderLabel(key)}
-                        </TableCell>
-                        {issuerDetailColumnIndices.map((colIdx, ci) => {
-                          const spec = columns[colIdx];
-                          const fs = getFsCol(colIdx);
-                          let cellText = "—";
-                          if (!fs || fs[key] == null || fs[key] === "") {
-                            cellText = "Not provided in issuer form";
-                          } else {
-                            cellText = formatCurrency(toNum(fs[key]), { decimals: 0 });
-                          }
-                          const muted =
-                            cellText === "—" ||
-                            cellText === "Not provided in issuer form" ||
-                            cellText === "Not in CTOS extract";
-                          return (
-                            <TableCell
-                              key={`comrep-${spec.kind}-${spec.year ?? "x"}-${ci}-${key}`}
-                              className={cn(
-                                applicationTableCellClass,
-                                "border-r border-border text-right tabular-nums last:border-r-0",
-                                financialSummaryColumnShellClass(spec.kind, ci, spec.year),
-                                !muted && "text-foreground"
-                              )}
-                            >
-                              {muted ? (
-                                <span className="text-muted-foreground">{cellText}</span>
-                              ) : (
-                                <span className="tabular-nums">{cellText}</span>
-                              )}
-                            </TableCell>
-                          );
-                        })}
-                      </TableRow>
-                    )),
-                  ]);
-                })()}
-              </TableBody>
-            </Table>
-          </div>
-        </div>
-      </ReviewFieldBlock>
 
       <ReviewFieldBlock
         title="Director and Shareholders"
@@ -1182,6 +1167,19 @@ export function ApplicationFinancialReviewContent({
         applicationId={applicationId}
         calendarYear={addFinancialStatementYear}
         disabled={!canManageFinancialCtos || addFinancialStatementYear == null}
+        onSaved={onAddFinancialStatementSaved}
+      />
+      <AdminEditFinancialFieldDialog
+        open={fieldEdit != null}
+        onOpenChange={(open) => {
+          if (!open) setFieldEdit(null);
+        }}
+        applicationId={applicationId}
+        calendarYear={fieldEdit?.year ?? null}
+        fieldKey={fieldEdit?.key ?? null}
+        fieldLabel={fieldEdit?.label ?? "Field"}
+        initialValue={fieldEdit?.value ?? null}
+        disabled={!canManageFinancialCtos}
         onSaved={onAddFinancialStatementSaved}
       />
 

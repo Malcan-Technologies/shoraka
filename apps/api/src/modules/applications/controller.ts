@@ -290,14 +290,48 @@ const updateStatusSchema = z.object({
 
 const adminFinancialStatementFallbackUpsertSchema = z.object({
   financialYear: z.number().int().min(1900).max(9999),
-  statementType: z.enum(["AUDITED", "NOT_AUDITED", "MANAGEMENT_ACCOUNTS"]),
+  statementType: z.enum(["AUDITED", "NOT_AUDITED"]),
   rawFinancialInputs: z.record(z.unknown()),
+});
+
+const adminFinancialFieldUpsertSchema = z.object({
+  financialYear: z.number().int().min(1900).max(9999),
+  fieldKey: z.string().min(1),
+  value: z.number().finite(),
+  remark: z.string().max(500).optional(),
 });
 
 /**
  * Admin fallback for missing historical FY financial statements.
  * PATCH /v1/applications/:id/admin-financial-statements/fallback
  */
+async function upsertAdminFinancialField(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = applicationIdParamSchema.parse(req.params);
+    const userId = getUserId(req);
+    const asAdmin = Boolean(req.user?.roles?.includes(UserRole.ADMIN));
+    if (!asAdmin) {
+      throw new AppError(403, "FORBIDDEN", "Admin privileges required");
+    }
+    const input = adminFinancialFieldUpsertSchema.parse(req.body);
+    const result = await applicationService.upsertAdminFinancialField({
+      applicationId: id,
+      userId,
+      financialYear: input.financialYear,
+      fieldKey: input.fieldKey,
+      value: input.value,
+      remark: input.remark,
+    });
+    res.json({
+      success: true,
+      data: result,
+      correlationId: res.locals.correlationId || "unknown",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 async function upsertAdminFinancialStatementFallback(req: Request, res: Response, next: NextFunction) {
   try {
     const { id } = applicationIdParamSchema.parse(req.params);
@@ -710,6 +744,11 @@ export function createApplicationRouter(): Router {
     "/:id/admin-financial-statements/fallback",
     requireAuth,
     upsertAdminFinancialStatementFallback
+  );
+  router.patch(
+    "/:id/admin-financial-statements/field",
+    requireAuth,
+    upsertAdminFinancialField
   );
   router.patch("/:id/status", requireAuth, updateApplicationStatus);
 router.get("/:id/amendment-context", requireAuth, async function getAmendmentContext(req, res, next) {

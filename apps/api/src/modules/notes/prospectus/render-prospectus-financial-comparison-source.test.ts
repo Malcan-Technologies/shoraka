@@ -73,6 +73,39 @@ describe("prospectus Page 2 Financial Comparison Source (DATA STAGE 4A)", () => 
     expect(data.years.find((y) => y.year === 2024)?.rawFinancials.turnover).toBe(9_999);
   });
 
+  it("fills a missing CTOS raw field from admin_field_overrides and ignores a CTOS overwrite", () => {
+    const data = buildProspectusFinancialComparisonSource({
+      financialStatements: {
+        questionnaire: { financial_year_end: "2024-12-31" },
+        unaudited_by_year: {},
+        admin_field_overrides: {
+          "2024": {
+            cashAndBank: {
+              value: 500000,
+              baseSource: "ctos",
+              action: "add_missing_ctos_field",
+              updated_by_user_id: "admin",
+              updated_at: "2026-01-01T00:00:00.000Z",
+            },
+            turnover: {
+              value: 1,
+              baseSource: "ctos",
+              action: "add_missing_ctos_field",
+              updated_by_user_id: "admin",
+              updated_at: "2026-01-01T00:00:00.000Z",
+            },
+          },
+        },
+      },
+      ctosFinancials: [ctosRow(2024, 9360000)],
+      ref: new Date("2025-03-01T00:00:00.000Z"),
+    });
+    const fy = data.years.find((year) => year.year === 2024);
+    expect(fy?.recordSource).toBe("ctos_audited");
+    expect(fy?.rawFinancials.turnover).toBe(9360000);
+    expect(fy?.rawFinancials.cashAndBank).toBe(500000);
+  });
+
   it("does not overlay issuer unaudited values into CTOS-backed FYs", () => {
     const ctosRowWithTradeReceivables = (
       year: number,

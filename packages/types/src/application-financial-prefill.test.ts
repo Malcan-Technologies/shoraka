@@ -1,4 +1,5 @@
 import {
+  indexResolvedApplicationFinancials,
   APPLICATION_FINANCIAL_PREFILL_KEYS,
   applicationComrepFieldError,
   buildApplicationFinancialPrefillByYear,
@@ -506,6 +507,39 @@ describe("application financial prefill", () => {
       ctosFinancials: [],
     });
     expect(resolved).toEqual({ year: 2025, source: "blank", fields: null });
+  });
+
+  it("prefills an Admin-supplied CTOS gap without labeling it as CTOS", () => {
+    const indexed = indexResolvedApplicationFinancials([
+      {
+        financialStatements: {
+          unaudited_by_year: { "2026": { turnover: 700, cashAndBank: 1 } },
+          admin_field_overrides: {
+            "2026": {
+              cashAndBank: {
+                value: 500000,
+                baseSource: "ctos",
+                action: "add_missing_ctos_field",
+                updated_by_user_id: "admin",
+                updated_at: "2026-01-01T00:00:00.000Z",
+              },
+            },
+          },
+        },
+      },
+    ]);
+    const resolved = resolveApplicationFinancialYearPrefill({
+      year: 2026,
+      inProgressYear: 2027,
+      ctosFinancials: [ctosRow(2026, { turnover: 850, curlib: 70 })],
+      submittedByYear: indexed.submittedByYear,
+      adminSupplementsByYear: indexed.adminSupplementsByYear,
+    });
+    expect(resolved.fields?.turnover).toBe(850);
+    expect(resolved.fields?.cashAndBank).toBe(500000);
+    expect(resolved.fieldSources?.turnover).toBe("ctos");
+    expect(resolved.fieldSources?.cashAndBank).toBe("previous_admin");
+    expect(resolved.fields?.cashAndBank).not.toBe(1);
   });
 });
 

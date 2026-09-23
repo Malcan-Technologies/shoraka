@@ -546,6 +546,10 @@ export function FinancialStatementsStep({
   const [prefillSubmittedByYear, setPrefillSubmittedByYear] = React.useState<
     Record<string, Record<string, unknown>>
   >({});
+  const [prefillAdminSupplementsByYear, setPrefillAdminSupplementsByYear] = React.useState<
+    Record<string, Record<string, unknown>>
+  >({});
+  const [prefillIncludesAdminValues, setPrefillIncludesAdminValues] = React.useState(false);
   const prevInProgressYearRef = React.useRef<number | null>(null);
 
   const appShape = application as
@@ -588,6 +592,8 @@ export function FinancialStatementsStep({
     setPrefillOrgFs(null);
     setPrefillCtos(null);
     setPrefillSubmittedByYear({});
+    setPrefillAdminSupplementsByYear({});
+    setPrefillIncludesAdminValues(false);
     prevInProgressYearRef.current = null;
     setFyeDateInput("");
     setFormsByYear({});
@@ -661,6 +667,7 @@ export function FinancialStatementsStep({
         setPrefillOrgFs(latest?.financial_statements ?? null);
         setPrefillCtos(latest?.ctos_financials ?? null);
         setPrefillSubmittedByYear(latest?.submitted_by_year ?? {});
+        setPrefillAdminSupplementsByYear(latest?.admin_supplements_by_year ?? {});
         setPrefillEnabled(true);
 
         const orgSaved =
@@ -768,6 +775,7 @@ export function FinancialStatementsStep({
           questionnaire: questionnaireDto,
           orgFinancialStatements: prefillOrgFs,
           submittedByYear: prefillSubmittedByYear,
+          adminSupplementsByYear: prefillAdminSupplementsByYear,
           ctosFinancials: prefillCtos,
         })
       : null;
@@ -816,6 +824,10 @@ export function FinancialStatementsStep({
       });
       if (filledHistorical) {
         setAutoPrefillApplied(true);
+        const hasAdmin = built.tabYears.some((year) =>
+          Object.values(built.years[String(year)]?.fieldSources ?? {}).includes("previous_admin")
+        );
+        setPrefillIncludesAdminValues(hasAdmin);
       }
     }
   }, [
@@ -829,6 +841,7 @@ export function FinancialStatementsStep({
     prefillOrgFs,
     prefillCtos,
     prefillSubmittedByYear,
+    prefillAdminSupplementsByYear,
   ]);
 
   React.useEffect(() => {
@@ -1428,6 +1441,9 @@ export function FinancialStatementsStep({
               <p className="text-xs text-muted-foreground">
                 Previous financial year auto-filled from company records or a previous financing. Please
                 review before continuing.
+                {prefillIncludesAdminValues
+                  ? " Some figures were prefilled from a previous Admin Input and are not CTOS values."
+                  : ""}
               </p>
             ) : null}
           {!readOnly && !questionnaireDto ? (

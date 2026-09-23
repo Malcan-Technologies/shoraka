@@ -30,7 +30,7 @@ import {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
-export type AdminFinancialStatementStatementType = "AUDITED" | "NOT_AUDITED" | "MANAGEMENT_ACCOUNTS";
+export type AdminFinancialStatementStatementType = "AUDITED" | "NOT_AUDITED";
 
 function parseNumberInput(s: string): number | null {
   const trimmed = s.trim();
@@ -149,7 +149,6 @@ export function AdminAddFinancialStatementDialog({
               <SelectContent>
                 <SelectItem value="AUDITED">Audited</SelectItem>
                 <SelectItem value="NOT_AUDITED">Not audited</SelectItem>
-                <SelectItem value="MANAGEMENT_ACCOUNTS">Management accounts</SelectItem>
               </SelectContent>
             </Select>
           </div>

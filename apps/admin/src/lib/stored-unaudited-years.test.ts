@@ -142,17 +142,14 @@ describe("adminFinancialSummaryColumns", () => {
   const adminStored = {};
   const eligible: number[] = [];
 
-  it("keeps three empty CTOS slots and both stored issuer years when nothing is fetched", () => {
+  it("shows stored issuer years chronologically without empty CTOS pads", () => {
     expect(adminFinancialSummaryColumns([], stored, adminStored, eligible)).toEqual([
-      { kind: "empty", year: null },
-      { kind: "empty", year: null },
-      { kind: "empty", year: null },
       { kind: "unaudited", year: 2026 },
       { kind: "unaudited", year: 2027 },
     ]);
   });
 
-  it("pads fewer than three CTOS years on the left and keeps non-overlapping issuer years", () => {
+  it("sorts CTOS and non-overlapping issuer years chronologically", () => {
     expect(
       adminFinancialSummaryColumns(
         [{ financial_year: 2024 }, { financial_year: 2025 }],
@@ -161,7 +158,6 @@ describe("adminFinancialSummaryColumns", () => {
         eligible
       )
     ).toEqual([
-      { kind: "empty", year: null },
       { kind: "ctos", year: 2024 },
       { kind: "ctos", year: 2025 },
       { kind: "unaudited", year: 2026 },
@@ -200,7 +196,7 @@ describe("adminFinancialSummaryColumns", () => {
     ]);
   });
 
-  it("replaces an empty CTOS slot with an eligible admin fallback placeholder", () => {
+  it("places a missing FY placeholder in chronological position", () => {
     const issuerOnly = { "2026": { turnover: 1 } };
     const eligibleMissing = [2025];
     expect(
@@ -211,14 +207,14 @@ describe("adminFinancialSummaryColumns", () => {
         eligibleMissing
       )
     ).toEqual([
-      { kind: "admin_fallback_placeholder", year: 2025 },
       { kind: "ctos", year: 2023 },
       { kind: "ctos", year: 2024 },
+      { kind: "admin_fallback_placeholder", year: 2025 },
       { kind: "unaudited", year: 2026 },
     ]);
   });
 
-  it("fills an empty CTOS slot with stored admin_input_by_year", () => {
+  it("places stored admin_input_by_year in chronological position", () => {
     const issuerOnly = { "2026": { turnover: 1 } };
     const adminInput = {
       "2025": { turnover: 999, statementType: "AUDITED" },
@@ -231,9 +227,9 @@ describe("adminFinancialSummaryColumns", () => {
         []
       )
     ).toEqual([
-      { kind: "admin_input", year: 2025, statementType: "AUDITED" },
       { kind: "ctos", year: 2023 },
       { kind: "ctos", year: 2024 },
+      { kind: "admin_input", year: 2025, statementType: "AUDITED" },
       { kind: "unaudited", year: 2026 },
     ]);
   });

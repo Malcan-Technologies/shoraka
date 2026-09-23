@@ -77,6 +77,8 @@ const APPLICATION_AUDIT_EVENT_LABELS: Record<string, string> = {
   PAYMASTER_VERIFIED: "Paymaster Identity Verified",
   PAYMASTER_IDENTITY_SYNCED: "Paymaster Identity Synced",
   PAYMASTER_IDENTITY_RESOLVED: "Paymaster Identity Resolved",
+  FINANCIAL_FIELD_UPDATED: "Financial Field Updated",
+  FINANCIAL_YEAR_ADDED: "Financial Year Added",
   GATEWAY_PAYMENT_COMPLETED: "Payment Received Successfully",
 };
 
