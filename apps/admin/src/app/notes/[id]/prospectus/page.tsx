@@ -77,7 +77,8 @@ import {
   buildPageThreeBalanceSheetTable,
   buildPageThreeCoverageTable,
   buildPageThreeIncomeStatementTable,
-  selectYearsFromPageTwoFinancialTable,
+    selectYearsFromPageTwoFinancialTable,
+    calendarYearFromFinancialHeaderKey,
 } from "@/notes/prospectus-review/page-three-coverage";
 import { AdminAddFinancialStatementDialog } from "@/notes/prospectus-review/admin-add-financial-statement-dialog";
 import { ProspectusPreviewSheet } from "@/notes/prospectus-review/preview-sheet";
@@ -308,6 +309,120 @@ function ProspectusReviewPageInner() {
     }
   };
 
+  // Memoized Page 2 table enrichment (FY source badges + calculated-missing hints).
+  // Must be declared before the loading/error early-returns so Hook order stays stable.
+  const pageTwoFinancialTable =
+    data?.financialComparison?.table != null
+      ? mergeOfficerOverridesIntoFinancialTable(
+          data.financialComparison.table,
+          draft?.page2.financialComparison?.overrides
+        )
+      : { yearHeaders: [], rows: [] };
+
+  const financialComparisonOpsWarning = data?.financialComparison?.opsWarning
+    ? {
+        title: "Missing expected financial year",
+        description: data.financialComparison.opsWarning,
+      }
+    : null;
+
+  /**
+   * Page 2 + Page 3 share the same frozen Stage 4A years from the review payload.
+   * Do not load live Application financial_statements for Prospectus working tables.
+   */
+  const frozenFinancialYears = data?.financialComparison?.years ?? [];
+
+  const frozenByCalendarYear = React.useMemo(() => {
+    const m = new Map<string, (typeof frozenFinancialYears)[number]>();
+    for (const y of frozenFinancialYears) {
+      m.set(String(y.calendarYear), y);
+    }
+    return m;
+  }, [frozenFinancialYears]);
+
+  const enhancedPageTwoFinancialTable = React.useMemo(() => {
+    // Page 2 table comes from API with display strings only.
+    // For UI consistency we enrich it with FY source badges and calculated-missing semantics.
+    const yearHeaders = pageTwoFinancialTable.yearHeaders.map((h) => {
+      const calendarYear = calendarYearFromFinancialHeaderKey(h.key);
+      const frozen = frozenByCalendarYear.get(calendarYear);
+      return {
+        ...h,
+        sourceType: frozen?.sourceType,
+        statementType: frozen?.statementType,
+      };
+    });
+
+    const metricToRawKey: Record<string, keyof (typeof frozenFinancialYears)[number]["raw"]> = {
+      "ROE (%)": "return_on_equity",
+      "Current Ratio (x)": "currat",
+      "Net Debt / Equity (x)": "netDebtEquity",
+      "Interest Coverage (x)": "interestCoverage",
+      "DSCR (x)": "dscr",
+      "Receivables Days": "receivablesDays",
+    };
+
+    const calculatedMetricNames = new Set(Object.keys(metricToRawKey));
+
+    const rows = pageTwoFinancialTable.rows.map((r) => {
+      const values = [...r.values];
+      const cellHints: Array<string | null> = new Array(yearHeaders.length).fill(null);
+
+      if (!calculatedMetricNames.has(r.metric)) {
+        return { ...r, values, cellHints };
+      }
+
+      const rawKey = metricToRawKey[r.metric]!;
+
+      for (let i = 0; i < yearHeaders.length; i++) {
+        const header = yearHeaders[i]!;
+        if (header.isPlaceholder) continue;
+        const calendarYear = calendarYearFromFinancialHeaderKey(header.key);
+        const frozen = frozenByCalendarYear.get(calendarYear);
+        if (!frozen) continue;
+
+        const rawValue = frozen.raw[rawKey] as number | null;
+        if (rawValue != null) continue; // present -> keep API-formatted value
+
+        // Calculated-metric missing helper text.
+        const hint = (() => {
+          switch (r.metric) {
+            case "ROE (%)":
+              return "Missing: Return on Equity";
+            case "Current Ratio (x)":
+              return "Missing: Current Ratio";
+            case "Net Debt / Equity (x)":
+              return "Missing: Net Debt / Equity";
+            case "Interest Coverage (x)":
+              return frozen.raw.ebit != null ? "Missing: Interest Costs" : "Missing: EBIT";
+            case "DSCR (x)":
+              return frozen.raw.annualDebtService == null
+                ? "Missing: Annual Debt Service"
+                : "Missing: DSCR";
+            case "Receivables Days": {
+              const prevCalendar = String(Number(calendarYear) - 1);
+              const prevFrozen = frozenByCalendarYear.get(prevCalendar);
+              return prevFrozen?.raw.tradeReceivables == null
+                ? "Missing: previous financial year Trade Receivables"
+                : frozen.raw.turnover == null
+                  ? "Missing: Revenue / Turnover"
+                  : "Missing: Receivables Days";
+            }
+            default:
+              return "Missing: Calculated metric";
+          }
+        })();
+
+        values[i] = "Cannot calculate";
+        cellHints[i] = hint;
+      }
+
+      return { ...r, values, cellHints };
+    });
+
+    return { ...pageTwoFinancialTable, yearHeaders, rows };
+  }, [pageTwoFinancialTable, frozenByCalendarYear, frozenFinancialYears]);
+
   if (isLoading || !data || !draft) {
     return (
       <div className="space-y-6 px-4 py-10 md:px-6 md:py-12">
@@ -352,23 +467,6 @@ function ProspectusReviewPageInner() {
     }
     return row;
   });
-  const pageTwoFinancialTable = data?.financialComparison?.table
-    ? mergeOfficerOverridesIntoFinancialTable(
-        data.financialComparison.table,
-        draft.page2.financialComparison?.overrides
-      )
-    : { yearHeaders: [], rows: [] };
-  const financialComparisonOpsWarning = data?.financialComparison?.opsWarning
-    ? {
-        title: "Missing expected financial year",
-        description: data.financialComparison.opsWarning,
-      }
-    : null;
-  /**
-   * Page 2 + Page 3 share the same frozen Stage 4A years from the review payload.
-   * Do not load live Application financial_statements for Prospectus working tables.
-   */
-  const frozenFinancialYears = data?.financialComparison?.years ?? [];
   // Officer/approval years exclude Prospectus display placeholders.
   const realFrozenFinancialYears = frozenFinancialYears.filter((year) => !year.isPlaceholder);
   const incomeStatementYearKeys =
@@ -745,7 +843,7 @@ function ProspectusReviewPageInner() {
                         catalogues={catalogues}
                         issuerProfileRows={issuerRows}
                         invoicePaymasterRows={invoicePaymasterRows}
-                        financialComparisonTable={pageTwoFinancialTable}
+                        financialComparisonTable={enhancedPageTwoFinancialTable}
                         financialComparisonOverrides={
                           draft.page2.financialComparison?.overrides
                         }

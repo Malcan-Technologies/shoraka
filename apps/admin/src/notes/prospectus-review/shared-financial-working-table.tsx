@@ -91,33 +91,19 @@ export function ProspectusSharedFinancialWorkingTable({
                         {header.sourceType ? (
                           <StatusBadge
                             size="sm"
-                            status={header.sourceType === "CTOS" ? "success" : "neutral"}
-                            label={
-                              header.sourceType === "CTOS"
-                                ? "CTOS"
-                                : header.sourceType === "ISSUER_INPUT"
-                                  ? "Issuer Input"
-                                  : "Admin Input"
-                            }
-                            showDot={false}
-                          />
-                        ) : null}
-                        {header.statementType ? (
-                          <StatusBadge
-                            size="sm"
                             status={
-                              header.statementType === "AUDITED"
+                              header.sourceType === "CTOS"
                                 ? "success"
-                                : header.statementType === "NOT_AUDITED"
+                                : header.sourceType === "ADMIN_INPUT"
                                   ? "action"
                                   : "neutral"
                             }
                             label={
-                              header.statementType === "AUDITED"
-                                ? "Audited"
-                                : header.statementType === "NOT_AUDITED"
-                                  ? "Not audited"
-                                  : "Management accounts"
+                              header.sourceType === "CTOS"
+                                ? "CTOS"
+                                : header.sourceType === "ISSUER_INPUT"
+                                  ? "User Input"
+                                  : "Admin Input"
                             }
                             showDot={false}
                           />
@@ -211,7 +197,26 @@ export function ProspectusSharedFinancialWorkingTable({
                               : undefined
                         }
                       >
-                        {header.isPlaceholder ? "—" : (row.values[index] ?? "—")}
+                        {header.isPlaceholder ? (
+                          "—"
+                        ) : (
+                          <div className="flex flex-col items-end gap-0.5">
+                            <span
+                              className={
+                                row.values[index] === "Cannot calculate"
+                                  ? "text-amber-800 dark:text-amber-300"
+                                  : undefined
+                              }
+                            >
+                              {row.values[index] ?? "—"}
+                            </span>
+                            {row.values[index] === "Cannot calculate" && row.cellHints?.[index] ? (
+                              <span className="text-[11px] font-normal leading-snug text-amber-700 dark:text-amber-400">
+                                {row.cellHints[index]}
+                              </span>
+                            ) : null}
+                          </div>
+                        )}
                       </TableCell>
                     );
                   })}

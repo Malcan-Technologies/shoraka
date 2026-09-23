@@ -83,18 +83,19 @@ describe("Admin Financial Summary table UI", () => {
     expect(ratiosSlice).not.toContain('"ebit"');
   });
 
-  it("calculated metrics display Not available and show helper text for turnover growth / receivables days", () => {
+  it("calculated metrics display Cannot calculate and show helper text for turnover growth / receivables days", () => {
     const source = readFileSync(tablePath, "utf8");
-    expect(source).toContain('return "Not available"');
+    expect(source).toContain("Cannot calculate");
     expect(source).toContain('case "turnover_growth"');
-    expect(source).toContain("Previous financial year Revenue unavailable");
+    expect(source).toContain("Missing: previous financial year Revenue / Turnover");
     expect(source).toContain("getCalculatedHelperText");
-    expect(source).toContain("receivablesDaysUnavailableReason");
+    expect(source).toContain("Missing: previous financial year Trade Receivables");
   });
 
-  it("standardizes receivables-days helper to use 'Previous financial year' wording", () => {
+  it("standardizes receivables-days helper to use 'Missing: ...' wording", () => {
     const source = readFileSync(tablePath, "utf8");
-    expect(source).toContain('replace(/^previous year /i, "Previous financial year ");');
+    expect(source).toContain("Missing: previous financial year Trade Receivables");
+    expect(source).toContain("Missing: Trade Receivables");
   });
 
   it("CTOS fallback computes Current Ratio / Working Capital / ROE from raw components when CTOS finished metric is missing", () => {
@@ -132,10 +133,10 @@ describe("Admin Financial Summary table UI", () => {
     expect(source).toContain("fields.bscatot");
     expect(source).toContain("fields.curlib");
     expect(source).toContain("computeCurrentRatio(currentAssets, currentLiabilities)");
-    expect(source).toContain('return ratio == null ? "Not available" : formatNumber(ratio, 2);');
+    expect(source).toContain('return ratio == null ? CANNOT_CALCULATE_LABEL : formatNumber(ratio, 2);');
 
     // Unavailable rules for fallback.
-    expect(source).toContain('ratio == null ? "Not available"');
+    expect(source).toContain("ratio == null ? CANNOT_CALCULATE_LABEL");
   });
 
   it("CTOS priority for Working Capital: use finished workcap when present, otherwise fallback to bscatot − curlib", () => {
@@ -147,12 +148,14 @@ describe("Admin Financial Summary table UI", () => {
 
     // Fallback formula when finished metric is absent.
     expect(source).toContain("computeWorkingCapital(currentAssets, currentLiabilities)");
-    expect(source).toContain('wc == null ? "Not available" : formatCurrency(wc, { decimals: 0 });');
+    expect(source).toContain(
+      'wc == null ? CANNOT_CALCULATE_LABEL : formatCurrency(wc, { decimals: 0 });'
+    );
     expect(source).toContain("fields.bscatot");
     expect(source).toContain("fields.curlib");
 
     // Unavailable rules for fallback.
-    expect(source).toContain('wc == null ? "Not available"');
+    expect(source).toContain("wc == null ? CANNOT_CALCULATE_LABEL");
   });
 
   it("CTOS priority for ROE: use finished return_on_equity when present, otherwise fallback to plnpat ÷ networth × 100", () => {
@@ -165,11 +168,11 @@ describe("Admin Financial Summary table UI", () => {
 
     // Fallback formula when finished metric is absent.
     expect(source).toContain("resolveFinancialSummaryIssuerReturnOnEquityRatio({");
-    expect(source).toContain("roeRatio == null ? \"Not available\" :");
+    expect(source).toContain('roeRatio == null ? CANNOT_CALCULATE_LABEL :');
     expect(source).toContain("roeRatio * 100");
 
     // Unavailable rules for fallback.
-    expect(source).toContain('roeRatio == null ? "Not available"');
+    expect(source).toContain("roeRatio == null ? CANNOT_CALCULATE_LABEL");
   });
 
   it("CTOS priority for Total Assets / Total Liabilities / Total Equity: fallback to component sums when CTOS finished fields are missing", () => {

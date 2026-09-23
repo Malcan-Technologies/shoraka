@@ -328,11 +328,11 @@ describe("page three coverage verification", () => {
       }),
     ];
     const table = buildPageThreeBalanceSheetTable(incomplete, undefined);
-    expect(table.rows.find((r) => r.metric === "Total Assets")?.values[0]).toBe("—");
+    expect(table.rows.find((r) => r.metric === "Total Assets")?.values[0]).toBe("Cannot calculate");
     expect(table.rows.find((r) => r.metric === "Current Assets")?.values[0]).toContain(
       "400,000"
     );
-    expect(table.rows.find((r) => r.metric === "Total Liabilities")?.values[0]).toBe("—");
+    expect(table.rows.find((r) => r.metric === "Total Liabilities")?.values[0]).toBe("Cannot calculate");
   });
 
   it("prefers flat totass / totlib when present; missing flat totals show —", () => {
@@ -360,8 +360,8 @@ describe("page three coverage verification", () => {
       }),
     ];
     const dna = buildPageThreeBalanceSheetTable(missingFlat, undefined);
-    expect(dna.rows.find((r) => r.metric === "Total Assets")?.values[0]).toBe("—");
-    expect(dna.rows.find((r) => r.metric === "Total Liabilities")?.values[0]).toBe("—");
+    expect(dna.rows.find((r) => r.metric === "Total Assets")?.values[0]).toBe("Cannot calculate");
+    expect(dna.rows.find((r) => r.metric === "Total Liabilities")?.values[0]).toBe("Cannot calculate");
   });
 
   it("builds Coverage table with Page 2 reuse, CTOS system rows, and DNA trend", () => {
@@ -459,11 +459,13 @@ describe("page three coverage verification", () => {
       },
       undefined
     );
-    expect(table.rows.find((r) => r.metric === "Interest Coverage")?.values[0]).toBe(
-      "—"
+    expect(table.rows.find((r) => r.metric === "Interest Coverage")?.values[0]).toBe("Cannot calculate");
+    expect(table.rows.find((r) => r.metric === "Receivables Days")?.values[0]).toBe("Cannot calculate");
+    expect(table.rows.find((r) => r.metric === "Interest Coverage")?.cellHints?.[0]).toBe(
+      "Missing: Interest Costs"
     );
-    expect(table.rows.find((r) => r.metric === "Receivables Days")?.values[0]).toBe(
-      "—"
+    expect(table.rows.find((r) => r.metric === "Receivables Days")?.cellHints?.[0]).toBe(
+      "Missing: previous financial year Trade Receivables"
     );
   });
 
@@ -471,12 +473,13 @@ describe("page three coverage verification", () => {
     const rows = buildBalanceSheetResolvedRows({ ...yearRaw }, { quickRatio: 1.25 });
     expect(rows.find((r) => r.label === "Total Liabilities")?.value).toContain("250,000");
     expect(buildIncomeStatementResolvedRows({ ...yearRaw }, undefined)).toHaveLength(8);
-    expect(buildCoverageResolvedRows({ ...yearRaw }, undefined)).toHaveLength(11);
+    expect(buildCoverageResolvedRows({ ...yearRaw }, undefined, undefined)).toHaveLength(11);
   });
 
   it("uses direct CTOS return_on_equity only for ROE (no PAT/networth fallback)", () => {
     const rows = buildCoverageResolvedRows(
       { ...yearRaw, return_on_equity: 15.2, plnpat: 1, bsqpuc: 100 },
+      undefined,
       undefined
     );
     expect(rows.find((r) => r.label === "Return on Equity")?.value).toBe("15.2%");
@@ -490,9 +493,12 @@ describe("page three coverage verification", () => {
         totass: 1_000_000,
         totlib: 250_000,
       },
+      undefined,
       undefined
     );
-    expect(missingFlat.find((r) => r.label === "Return on Equity")?.value).toBe("—");
+    const missingRoe = missingFlat.find((r) => r.label === "Return on Equity");
+    expect(missingRoe?.value).toBe("Cannot calculate");
+    expect(missingRoe?.hint).toBe("Missing: Return on Equity");
   });
 
   it("uses direct CTOS currat only for Current Ratio (no CA÷CL fallback)", () => {
@@ -506,7 +512,9 @@ describe("page three coverage verification", () => {
       { ...yearRaw, currat: null, bscatot: 400_000, curlib: 200_000 },
       undefined
     );
-    expect(missingCurrat.find((r) => r.label === "Current Ratio")?.value).toBe("—");
+    const currentRatioMissing = missingCurrat.find((r) => r.label === "Current Ratio");
+    expect(currentRatioMissing?.value).toBe("Cannot calculate");
+    expect(currentRatioMissing?.hint).toBe("Missing: Current Ratio");
   });
 
   it("uses frozen year order without independent Application selection", () => {

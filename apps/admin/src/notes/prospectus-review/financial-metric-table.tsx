@@ -26,6 +26,12 @@ export type FinancialYearHeader = {
 export type FinancialMetricTableRow = {
   metric: string;
   values: string[];
+  /**
+   * Per-cell hint for calculated-metric failures.
+   * Aligned 1:1 with `values` (same length as `yearHeaders`).
+   * Rendered only when the cell value is "Cannot calculate".
+   */
+  cellHints?: Array<string | null>;
   trend?: string;
 };
 

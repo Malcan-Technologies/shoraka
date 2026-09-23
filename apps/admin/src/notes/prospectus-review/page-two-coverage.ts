@@ -247,16 +247,70 @@ export function buildPageTwoFinancialComparisonTable(
     byYear[year] = asRecord(unaudited[year]) ?? {};
   }
 
+  const calculatedKeys = new Set<Parameters<typeof metricForYear>[0]>([
+    "roe",
+    "currentRatio",
+    "netDebtEquity",
+    "interestCoverage",
+    "dscr",
+    "receivablesDays",
+  ]);
+
   return {
     yearHeaders: years.map((year) => ({
       key: year,
       yearLabel: `FY${year}`,
       fyeLabel: formatFyeLabel(fyeIso, year),
     })),
-    rows: PAGE_TWO_METRICS.map(({ label, key }) => ({
-      metric: label,
-      values: years.map((year) => metricForYear(key, byYear[year] ?? {})),
-    })),
+    rows: PAGE_TWO_METRICS.map(({ label, key }) => {
+      const values: string[] = [];
+      const cellHints: Array<string | null> = [];
+
+      for (let i = 0; i < years.length; i++) {
+        const year = years[i]!;
+        const raw = byYear[year] ?? {};
+        const rawValue = metricForYear(key, raw);
+        const isCalculatedMissing = calculatedKeys.has(key) && rawValue === DATA_NOT_AVAILABLE;
+
+        if (isCalculatedMissing) {
+          values.push("Cannot calculate");
+          const prevYear = years[i - 1];
+          const prevRaw = prevYear ? byYear[prevYear] ?? {} : {};
+
+          const hint = (() => {
+            switch (key) {
+              case "roe":
+                return "Missing: Return on Equity";
+              case "currentRatio":
+                return "Missing: Current Ratio";
+              case "netDebtEquity":
+                return "Missing: Net Debt / Equity";
+              case "interestCoverage":
+                return "Missing: Interest Costs";
+              case "dscr":
+                return raw.annualDebtService == null
+                  ? "Missing: Annual Debt Service"
+                  : "Missing: DSCR";
+              case "receivablesDays":
+                return prevRaw.tradeReceivables == null
+                  ? "Missing: previous financial year Trade Receivables"
+                  : raw.turnover == null
+                    ? "Missing: Revenue / Turnover"
+                    : "Missing: Receivables Days";
+              default:
+                return "Missing: Calculated metric";
+            }
+          })();
+
+          cellHints.push(hint);
+        } else {
+          values.push(rawValue);
+          cellHints.push(null);
+        }
+      }
+
+      return { metric: label, values, cellHints };
+    }),
   };
 }
 

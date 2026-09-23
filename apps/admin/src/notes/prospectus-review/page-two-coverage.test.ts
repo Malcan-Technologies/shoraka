@@ -190,7 +190,7 @@ describe("page two coverage verification", () => {
     expect(
       table.rows
         .find((r) => r.metric === "Net Debt / Equity (x)")
-        ?.values.every((v) => v === "—")
+        ?.values.every((v) => v === "Cannot calculate")
     ).toBe(true);
     expect(table.rows.every((r) => r.trend == null)).toBe(true);
   });
