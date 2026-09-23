@@ -33,15 +33,15 @@ export const FINANCIAL_FIELD_LABELS: Record<string, string> = {
   ncl_non_loan: "Other Non-current Liabilities",
   equity_share_application: "Share Application Account",
   equity_share_premium: "Share Premium & Other Reserves",
-  equity_accumulated_profit: "Accumulated Profit / (Loss)",
-  equity_minority: "Minority Interest",
+  equity_accumulated_profit: "Accumulated Profit / Loss",
+  equity_minority: "Equity Minority Interest",
   operating_cost: "Operating Costs",
   admin_cost: "Administrative Costs",
   interest_cost: "Interest Costs",
   other_cost: "Other Costs",
   costOfSales: "Cost of Sales",
   annualDebtService: "Annual Debt Service",
-  pl_minority: "Minority Interest",
+  pl_minority: "P&L Minority Interest",
 };
 
 /** Profile editor keys. Internal names are legacy; labels above are the SC wording. */

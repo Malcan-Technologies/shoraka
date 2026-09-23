@@ -1295,7 +1295,7 @@ export function FinancialStatementsStep({
                       : key === "equity_share_premium"
                         ? "Share Premium & Other Reserves"
                         : key === "equity_minority"
-                          ? "Minority Interest"
+                          ? "Equity Minority Interest"
                           : getLabel(key)
                   }
                   value={form[key] ?? ""}

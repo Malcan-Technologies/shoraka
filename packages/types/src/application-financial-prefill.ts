@@ -96,6 +96,18 @@ export function pickSubmittedApplicationFinancialYearFields(
   return out;
 }
 
+/**
+ * CTOS provides these ComRep extras as raw numeric values.
+ * We preserve them for CTOS-backed years in the next-application prefill
+ * so these fields don't appear blank on issuer screens.
+ */
+const CTOS_PRESERVED_COMREP_KEYS = [
+  "equity_share_premium",
+  "equity_accumulated_profit",
+  "equity_minority",
+  "pl_minority",
+] as const;
+
 /** Same exact-year match as before: `financial_year === year` after CTOS row parse. */
 function findCtosExactYearRow(ctosFinancials: unknown, year: number) {
   const rows = parseCtosFinancialStatementRows(ctosFinancials);
@@ -105,7 +117,21 @@ function findCtosExactYearRow(ctosFinancials: unknown, year: number) {
 function mapCtosRowToCoreApplicationFields(
   row: NonNullable<ReturnType<typeof findCtosExactYearRow>>
 ): Record<string, unknown> | null {
-  const mapped = pickApplicationFinancialPrefillFields(ctosFinancialRowToFsFields(row));
+  const fsFields = ctosFinancialRowToFsFields(row);
+
+  const preservedComrep: Record<string, unknown> = {};
+  for (const key of CTOS_PRESERVED_COMREP_KEYS) {
+    const value = fsFields[key];
+    if (!isPresentFinancialValue(value)) continue;
+    if (typeof value === "number" && !Number.isFinite(value)) continue;
+    preservedComrep[key] = value;
+  }
+
+  const core = pickApplicationFinancialPrefillFields(fsFields);
+  const mapped = { ...core, ...preservedComrep };
+
+  // CTOS years may only have these ComRep extras without core line items,
+  // but we still must not treat unrelated CTOS totals as “prefillable”.
   if (!financialYearBlockHasActualData(mapped)) return null;
   return mapped;
 }

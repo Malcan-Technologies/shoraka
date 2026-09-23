@@ -66,8 +66,12 @@ const SUBMITTED_ADDITIONAL_DETAILS: Record<string, number> = {
   pl_minority: 23,
 };
 
-function expectAdditionalDetailsBlank(fields: Record<string, unknown> | null | undefined) {
+function expectAdditionalDetailsBlank(
+  fields: Record<string, unknown> | null | undefined,
+  exceptions: string[] = []
+) {
   for (const key of APPLICATION_COMREP_DETAIL_KEYS) {
+    if (exceptions.includes(key)) continue;
     expect(fields?.[key]).toBeUndefined();
   }
 }
@@ -136,7 +140,16 @@ describe("application financial prefill", () => {
           ...SUBMITTED_ADDITIONAL_DETAILS,
         },
       },
-      ctosFinancials: [ctosRow(2026, { turnover: 850, curlib: 70 })],
+      ctosFinancials: [
+        ctosRow(2026, {
+          turnover: 850,
+          curlib: 70,
+          bsqres: 111_000,
+          bsqupro: 222_000,
+          bsqmint: 333_000,
+          plminin: 444_000,
+        }),
+      ],
       ref: twoTabRefFy2027,
     });
     expect(result.tabYears).toEqual([2026, 2027]);
@@ -146,7 +159,16 @@ describe("application financial prefill", () => {
       expect.objectContaining({ turnover: 850, curlib: 70 })
     );
     expect(result.years["2026"]?.fields?.bsfatot).toBeUndefined();
-    expectAdditionalDetailsBlank(result.years["2026"]?.fields);
+    expect(result.years["2026"]?.fields?.equity_share_premium).toBe(111_000);
+    expect(result.years["2026"]?.fields?.equity_accumulated_profit).toBe(222_000);
+    expect(result.years["2026"]?.fields?.equity_minority).toBe(333_000);
+    expect(result.years["2026"]?.fields?.pl_minority).toBe(444_000);
+    expectAdditionalDetailsBlank(result.years["2026"]?.fields, [
+      "equity_share_premium",
+      "equity_accumulated_profit",
+      "equity_minority",
+      "pl_minority",
+    ]);
     expect(result.years["2027"]).toEqual({ year: 2027, source: "blank", fields: null });
   });
 
@@ -324,13 +346,31 @@ describe("application financial prefill", () => {
           ...SUBMITTED_ADDITIONAL_DETAILS,
         },
       },
-      ctosFinancials: [ctosRow(2026, { turnover: 180, curlib: 70 })],
+      ctosFinancials: [
+        ctosRow(2026, {
+          turnover: 180,
+          curlib: 70,
+          bsqres: 101_000,
+          bsqupro: 202_000,
+          bsqmint: 303_000,
+          plminin: 404_000,
+        }),
+      ],
     });
     expect(resolved.source).toBe("ctos");
     expect(resolved.fields?.turnover).toBe(180);
     expect(resolved.fields?.curlib).toBe(70);
     expect(resolved.fields?.bsfatot).toBeUndefined();
-    expectAdditionalDetailsBlank(resolved.fields);
+    expect(resolved.fields?.equity_share_premium).toBe(101_000);
+    expect(resolved.fields?.equity_accumulated_profit).toBe(202_000);
+    expect(resolved.fields?.equity_minority).toBe(303_000);
+    expect(resolved.fields?.pl_minority).toBe(404_000);
+    expectAdditionalDetailsBlank(resolved.fields, [
+      "equity_share_premium",
+      "equity_accumulated_profit",
+      "equity_minority",
+      "pl_minority",
+    ]);
   });
 
   it("CASE F — issuer may replace a CTOS-prefilled historical value", () => {
