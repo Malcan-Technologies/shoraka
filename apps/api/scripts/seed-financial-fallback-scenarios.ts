@@ -19,9 +19,12 @@
 import { PrismaClient, Prisma } from "@prisma/client";
 import {
   ApplicationStatus,
+  ContractStatus,
+  InvoiceStatus,
   NoteStatus,
   ProspectusReviewStatus,
   OrganizationType,
+  ProductStatus,
   UserRole,
 } from "@prisma/client";
 import { AdminRole } from "@cashsouk/types";
@@ -33,6 +36,7 @@ import {
   buildNormalizedFinancialStatementYearSet,
   getEligibleAdminInputYears,
   getFinancialYearPeriodEndIso,
+  getStepKeyFromStepId,
   isNoteProspectusPublished,
 } from "@cashsouk/types";
 
@@ -48,6 +52,52 @@ const ADMIN_SUB = "seed_demo_prospectus_admin_sub";
 const ISSUER_BASE_EMAIL = `${PREFIX}.issuer`;
 
 const DEFAULT_FYE_MONTH_DAY_ISO = "09-02";
+
+/**
+ * Dev-only product/workflow used by this seed so the applications behave like
+ * real financing apps (document upload steps + prospectus/admin flows).
+ */
+const QA_PRODUCT_ID = `${PREFIX}_product`;
+const QA_PRODUCT_CODE = "financial-fallback-qa";
+const QA_PRODUCT_NAME = "Financial Fallback QA Product";
+// Keep this version in a variable so app.product_version is not hardcoded.
+const QA_PRODUCT_VERSION = 1;
+
+const QA_FINANCING_TYPE_CATEGORY = "invoice_financing";
+const QA_FINANCING_TYPE_NAME = "Account Receivable Financing";
+
+const QA_CONTRACT_DETAILS = {
+  approved_facility: 2_000_000,
+  financing: 1_000_000,
+  value: 1_000_000,
+  description: "Seed contract for Financial Fallback QA",
+};
+
+const QA_CUSTOMER_DETAILS = {
+  name: "Seed Customer Co.",
+  country: "MY",
+  entity_type: "Private Limited Company (Sdn Bhd)",
+  ssm_number: "123456789012",
+  is_related_party: false,
+};
+
+const QA_INVOICE_DETAILS = {
+  value: 1_000_000,
+};
+
+const QA_OFFER_DETAILS = {
+  offered_profit_rate_percent: 10,
+  platform_fee_rate_percent: 1.5,
+  risk_rating: "C",
+};
+
+function isoDateOnly(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+function addDays(base: Date, days: number): Date {
+  return new Date(base.getTime() + days * 24 * 60 * 60 * 1000);
+}
 
 function money(value: number): Prisma.Decimal {
   return new Prisma.Decimal(value.toFixed(6));
@@ -585,10 +635,174 @@ async function upsertIssuerOrg(params: {
   });
 }
 
+async function upsertFinancialFallbackQaProduct(): Promise<{
+  productId: string;
+  productVersion: number;
+  workflow: unknown[];
+}> {
+  const product = await prisma.product.upsert({
+    where: { id: QA_PRODUCT_ID },
+    update: {
+      status: ProductStatus.ACTIVE,
+      product_code: QA_PRODUCT_CODE,
+      version: QA_PRODUCT_VERSION,
+      service_fee_rate_percent: money(15),
+      marketplace_listing_duration_days: 14,
+      workflow: [
+        {
+          id: "financing_type_1",
+          name: "Financing Type",
+          config: {
+            name: QA_FINANCING_TYPE_NAME,
+            category: QA_FINANCING_TYPE_CATEGORY,
+            product_name: QA_FINANCING_TYPE_NAME,
+          },
+        },
+        { id: "financing_structure_1", name: "Financing Structure", config: { name: "Financing Structure" } },
+        { id: "contract_details_1", name: "Facility Details", config: { name: "Facility Details" } },
+        { id: "invoice_details_1", name: "Invoice Details", config: { name: "Invoice Details" } },
+        { id: "financial_statements_1", name: "Financial Statements", config: { name: "Financial Statements" } },
+        {
+          id: "supporting_documents_1",
+          name: "Supporting Documents",
+          config: { name: "Supporting Documents" },
+        },
+        { id: "declarations_1", name: "Declarations", config: { name: "Declarations" } },
+        { id: "review_and_submit_1", name: "Review & Submit", config: { name: "Review & Submit" } },
+      ],
+    },
+    create: {
+      id: QA_PRODUCT_ID,
+      product_code: QA_PRODUCT_CODE,
+      base_id: null,
+      status: ProductStatus.ACTIVE,
+      version: QA_PRODUCT_VERSION,
+      service_fee_rate_percent: money(15),
+      marketplace_listing_duration_days: 14,
+      workflow: [
+        {
+          id: "financing_type_1",
+          name: "Financing Type",
+          config: {
+            name: QA_FINANCING_TYPE_NAME,
+            category: QA_FINANCING_TYPE_CATEGORY,
+            product_name: QA_FINANCING_TYPE_NAME,
+          },
+        },
+        { id: "financing_structure_1", name: "Financing Structure", config: { name: "Financing Structure" } },
+        { id: "contract_details_1", name: "Facility Details", config: { name: "Facility Details" } },
+        { id: "invoice_details_1", name: "Invoice Details", config: { name: "Invoice Details" } },
+        { id: "financial_statements_1", name: "Financial Statements", config: { name: "Financial Statements" } },
+        {
+          id: "supporting_documents_1",
+          name: "Supporting Documents",
+          config: { name: "Supporting Documents" },
+        },
+        { id: "declarations_1", name: "Declarations", config: { name: "Declarations" } },
+        { id: "review_and_submit_1", name: "Review & Submit", config: { name: "Review & Submit" } },
+      ],
+    },
+  });
+
+  return {
+    productId: product.id,
+    productVersion: product.version,
+    workflow: (product.workflow as unknown[]) ?? [],
+  };
+}
+
+async function upsertQaContractAndInvoice(params: {
+  contractId: string;
+  invoiceId: string;
+  issuerOrgId: string;
+  applicationId: string;
+  maturityIso: string;
+  now: Date;
+}): Promise<{
+  contractSnapshot: Prisma.InputJsonValue;
+  invoiceSnapshot: Prisma.InputJsonValue;
+}> {
+  const startIso = isoDateOnly(addDays(params.now, -90));
+  const endIso = isoDateOnly(addDays(params.now, 180));
+  const contractDetails = {
+    title: "Supply Agreement",
+    description: "Seed contract for Financial Fallback QA",
+    number: `CON-FFQA-${params.issuerOrgId.slice(-6)}`,
+    value: QA_CONTRACT_DETAILS.value,
+    start_date: startIso,
+    end_date: endIso,
+    approved_facility: QA_CONTRACT_DETAILS.approved_facility,
+    financing: QA_CONTRACT_DETAILS.financing,
+  };
+
+  await prisma.contract.upsert({
+    where: { id: params.contractId },
+    update: {
+      issuer_organization_id: params.issuerOrgId,
+      status: ContractStatus.APPROVED,
+      contract_details: contractDetails as Prisma.InputJsonValue,
+      customer_details: QA_CUSTOMER_DETAILS as Prisma.InputJsonValue,
+    },
+    create: {
+      id: params.contractId,
+      issuer_organization_id: params.issuerOrgId,
+      status: ContractStatus.APPROVED,
+      contract_details: contractDetails as Prisma.InputJsonValue,
+      customer_details: QA_CUSTOMER_DETAILS as Prisma.InputJsonValue,
+    },
+  });
+
+  const invoiceDetails = {
+    value: QA_INVOICE_DETAILS.value,
+    maturity_date: params.maturityIso,
+  };
+  const offerDetails = {
+    ...QA_OFFER_DETAILS,
+    offered_profit_rate_percent: QA_OFFER_DETAILS.offered_profit_rate_percent,
+  };
+
+  await prisma.invoice.upsert({
+    where: { id: params.invoiceId },
+    update: {
+      application_id: params.applicationId,
+      contract_id: params.contractId,
+      status: InvoiceStatus.APPROVED,
+      details: invoiceDetails as Prisma.InputJsonValue,
+      offer_details: offerDetails as Prisma.InputJsonValue,
+    },
+    create: {
+      id: params.invoiceId,
+      application_id: params.applicationId,
+      contract_id: params.contractId,
+      status: InvoiceStatus.APPROVED,
+      details: invoiceDetails as Prisma.InputJsonValue,
+      offer_details: offerDetails as Prisma.InputJsonValue,
+    },
+  });
+
+  return {
+    contractSnapshot: {
+      id: params.contractId,
+      status: ContractStatus.APPROVED,
+      contract_details: contractDetails,
+      customer_details: QA_CUSTOMER_DETAILS,
+    } as Prisma.InputJsonValue,
+    invoiceSnapshot: {
+      id: params.invoiceId,
+      status: InvoiceStatus.APPROVED,
+      details: invoiceDetails,
+      offer_details: offerDetails,
+    } as Prisma.InputJsonValue,
+  };
+}
+
 async function upsertApplicationWithFinancials(params: {
   applicationId: string;
   issuerOrgId: string;
   status: ApplicationStatus;
+  productId: string;
+  productVersion: number;
+  contractId: string;
   questionnaireFyeYear: number;
   ctosYears: number[];
   issuerYears: number[];
@@ -632,18 +846,35 @@ async function upsertApplicationWithFinancials(params: {
     update: {
       issuer_organization_id: params.issuerOrgId,
       status: params.status,
-      product_version: 1,
+      product_version: params.productVersion,
+      financing_type: { product_id: params.productId } as Prisma.InputJsonValue,
+      financing_structure: {
+        structure_type: "existing_contract",
+        existing_contract_id: params.contractId,
+      } as Prisma.InputJsonValue,
+      contract_id: params.contractId,
       financial_statements: financialStatements,
+      supporting_documents: { categories: [] } as Prisma.InputJsonValue,
+      declarations: { items: [] } as Prisma.InputJsonValue,
+      review_and_submit: {} as Prisma.InputJsonValue,
+      last_completed_step: params.status === ApplicationStatus.DRAFT ? 0 : 9,
     },
     create: {
       id: params.applicationId,
       issuer_organization_id: params.issuerOrgId,
-      product_version: 1,
+      product_version: params.productVersion,
       status: params.status,
-      last_completed_step: 0,
-      financing_type: null,
-      review_and_submit: {},
+      last_completed_step: params.status === ApplicationStatus.DRAFT ? 0 : 9,
+      financing_type: { product_id: params.productId } as Prisma.InputJsonValue,
+      financing_structure: {
+        structure_type: "existing_contract",
+        existing_contract_id: params.contractId,
+      } as Prisma.InputJsonValue,
+      contract_id: params.contractId,
+      review_and_submit: {} as Prisma.InputJsonValue,
       financial_statements: financialStatements,
+      supporting_documents: { categories: [] } as Prisma.InputJsonValue,
+      declarations: { items: [] } as Prisma.InputJsonValue,
       display_reference: `${PREFIX}-${params.applicationId}`,
     },
   });
@@ -713,11 +944,27 @@ async function upsertProspectusReviewNote(params: {
   applicationId: string;
   issuerOrgId: string;
   issuerOrgName: string;
+  productId: string;
+  productName: string;
+  productCategory: string;
+  contractId: string;
+  invoiceId: string;
+  contractSnapshot: Prisma.InputJsonValue;
+  invoiceSnapshot: Prisma.InputJsonValue;
   actorUserId: string;
   locked?: boolean;
   reviewStatusOverride?: ProspectusReviewStatus;
 }) {
   const noteTitle = `Prospectus Review - ${params.issuerOrgName}`;
+
+  const maturityDateOnly = (params.invoiceSnapshot as any)?.details?.maturity_date as
+    | string
+    | undefined
+    | null;
+  const maturityDate =
+    typeof maturityDateOnly === "string" && /^\d{4}-\d{2}-\d{2}$/.test(maturityDateOnly)
+      ? new Date(`${maturityDateOnly}T00:00:00.000Z`)
+      : null;
 
   const issuerSnapshot = buildNoteIssuerSnapshot({
     organization: {
@@ -743,7 +990,8 @@ async function upsertProspectusReviewNote(params: {
   const noteData: any = {
     id: params.noteId,
     source_application_id: params.applicationId,
-    source_contract_id: null,
+    source_contract_id: params.contractId,
+    source_invoice_id: params.invoiceId,
     issuer_organization_id: params.issuerOrgId,
     status: params.locked ? NoteStatus.PUBLISHED : NoteStatus.DRAFT,
     listing_status: "NOT_LISTED" as any,
@@ -759,15 +1007,26 @@ async function upsertProspectusReviewNote(params: {
     service_fee_rate_percent: money(15),
     arrears_threshold_days: 14,
     paymaster_id: null,
+    paymaster_snapshot: {
+      name: QA_CUSTOMER_DETAILS.name,
+      country: QA_CUSTOMER_DETAILS.country,
+      entity_type: QA_CUSTOMER_DETAILS.entity_type,
+    } as Prisma.InputJsonValue,
     issuer_snapshot: issuerSnapshot as unknown as Prisma.InputJsonValue,
     prospectus_snapshot: null,
     published_at: params.locked ? new Date() : null,
-    maturity_date: null,
-    contract_snapshot: null,
-    invoice_snapshot: null,
-    paymaster_snapshot: null,
-    product_snapshot: null,
-    purpose_snapshot: null,
+    maturity_date: maturityDate,
+    contract_snapshot: params.contractSnapshot,
+    invoice_snapshot: params.invoiceSnapshot,
+    product_snapshot: {
+      product_id: params.productId,
+      product_name: params.productName,
+      category: params.productCategory,
+      name: params.productName,
+    } as Prisma.InputJsonValue,
+    purpose_snapshot: {
+      financing_for: "Working capital financing",
+    } as Prisma.InputJsonValue,
   };
 
   await prisma.note.upsert({
@@ -842,6 +1101,15 @@ async function main() {
     throw new Error("seed:financial-fallback-scenarios is blocked in production");
   }
 
+  const qaProduct = await upsertFinancialFallbackQaProduct();
+  console.log(`\n=== SEED PRODUCT: ${QA_PRODUCT_NAME} ===`);
+  console.log(`Product ID: ${qaProduct.productId}`);
+  console.log(`Product version: ${qaProduct.productVersion}`);
+  const hasFinancialStatementsStep = qaProduct.workflow.some(
+    (s: any) => getStepKeyFromStepId(String(s?.id ?? "")) === "financial_statements"
+  );
+  console.log(`Financial Statements step in workflow: ${hasFinancialStatementsStep ? "YES" : "NO"}`);
+
   const scenarios = scenarioSpecs();
   const actorUserId = await (async () => {
     const adminUserId = await ensureUser({
@@ -881,6 +1149,9 @@ async function main() {
     const noteId = `${PREFIX}_note_${s.key}`;
     const noteReference = `${s.name.replace(/\s+/g, "-").toUpperCase().slice(0, 40)}-${s.key}`;
     const ctosReportId = `${PREFIX}_ctos_${s.key}`;
+    const contractId = `${PREFIX}_contract_${s.key}`;
+    const invoiceId = `${PREFIX}_invoice_${s.key}`;
+    const maturityIso = isoDateOnly(addDays(now, 120));
 
     await upsertIssuerOrg({
       orgId: issuerOrgId,
@@ -888,10 +1159,22 @@ async function main() {
       name: s.name,
     });
 
+    const { contractSnapshot, invoiceSnapshot } = await upsertQaContractAndInvoice({
+      contractId,
+      invoiceId,
+      issuerOrgId,
+      applicationId,
+      maturityIso,
+      now,
+    });
+
     await upsertApplicationWithFinancials({
       applicationId,
       issuerOrgId,
       status: s.applicationStatus,
+      productId: qaProduct.productId,
+      productVersion: qaProduct.productVersion,
+      contractId,
       questionnaireFyeYear: s.questionnaireFyeYear,
       ctosYears: s.ctosYears,
       issuerYears: s.issuerYears,
@@ -916,6 +1199,13 @@ async function main() {
       applicationId,
       issuerOrgId,
       issuerOrgName: s.name,
+      productId: qaProduct.productId,
+      productName: QA_PRODUCT_NAME,
+      productCategory: QA_FINANCING_TYPE_CATEGORY,
+      contractId,
+      invoiceId,
+      contractSnapshot,
+      invoiceSnapshot,
       actorUserId,
       locked: false,
       reviewStatusOverride: s.key === "09" ? ProspectusReviewStatus.APPROVED : undefined,
@@ -924,7 +1214,16 @@ async function main() {
     // QA summary: use the same resolver helpers production uses for Stage 4A year resolution + eligibility.
     const app = await prisma.application.findUnique({
       where: { id: applicationId },
-      select: { id: true, status: true, financial_statements: true, issuer_organization_id: true },
+      select: {
+        id: true,
+        status: true,
+        financial_statements: true,
+        issuer_organization_id: true,
+        product_version: true,
+        financing_type: true,
+        financing_structure: true,
+        contract_id: true,
+      },
     });
     const ctos = await prisma.ctosReport.findUnique({
       where: { id: ctosReportId },
@@ -996,6 +1295,14 @@ async function main() {
     console.log(`Application status: ${app.status}`);
     // eslint-disable-next-line no-console
     console.log(`financial_year_end: ${financialYearEndIso}`);
+    // eslint-disable-next-line no-console
+    console.log(
+      `financing_type: ${
+        (app.financing_type as any)?.product_id ?? "(null/unknown)"
+      }, product_version: ${app.product_version ?? "(null)"}`
+    );
+    // eslint-disable-next-line no-console
+    console.log(`contract_id: ${app.contract_id ?? "(null)"}`);
     // eslint-disable-next-line no-console
     console.log(`CTOS FYs persisted: ${ctosPersistedYears.join(", ") || "(none)"}`);
     // eslint-disable-next-line no-console
