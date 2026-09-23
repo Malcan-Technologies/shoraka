@@ -27,6 +27,9 @@ describe("Prospectus working area UX cleanup (presentation-only)", () => {
     expect(sharedSource).toContain("whitespace-normal text-sm tabular-nums");
     expect(sharedSource).toContain("max-w-[9.5rem]");
     expect(sharedSource).toContain("break-words");
+    // Prospectus presentation is left-aligned throughout FY columns.
+    expect(sharedSource).not.toContain("text-right");
+    expect(sharedSource).not.toContain("items-end");
   });
 
   it("renders source badges only for CTOS/User Input/Admin Input (no audited/management clutter)", () => {
