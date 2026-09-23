@@ -15,6 +15,12 @@ export type FinancialYearHeader = {
   fyeLabel: string;
   /** Display-only column — not officer-editable. */
   isPlaceholder?: boolean;
+  /** Placeholder-only: whether Admin can add an Admin-entered FY record here. */
+  adminFallbackEligible?: boolean;
+  /** Source badge for Admin financial-year provenance. */
+  sourceType?: "CTOS" | "ISSUER_INPUT" | "ADMIN_INPUT";
+  /** Statement type badge for Admin financial-year provenance. */
+  statementType?: "AUDITED" | "NOT_AUDITED" | "MANAGEMENT_ACCOUNTS";
 };
 
 export type FinancialMetricTableRow = {

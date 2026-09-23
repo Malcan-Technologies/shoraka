@@ -22,6 +22,7 @@ function ctosYear(
     dates: { pldd: `${year}-12-31`, bsdd: null },
     account: {
       turnover,
+      grossProfit: turnover / 97,
       plnpat: turnover / 10,
       bsqpuc: 2_000_000,
       bscatot: 1_000_000,

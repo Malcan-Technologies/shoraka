@@ -97,7 +97,7 @@ export interface ProspectusPage2FinancialYearSnapshot {
   /** Stable override key — FYE ISO. Optional on old freezes. */
   financial_year_end_iso?: string | null;
   /** CTOS/audited vs management/unaudited. Optional on old freezes. */
-  record_source?: "ctos_audited" | "unaudited_management" | null;
+  record_source?: "ctos_audited" | "unaudited_management" | "admin_input" | null;
   raw_financials: ProspectusPage2FinancialRawSnapshot;
 }
 

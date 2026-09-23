@@ -230,7 +230,12 @@ export interface ProspectusFinancialComparisonAdminTable {
  * Single frozen financial-year record for Admin Page 2 + Page 3 working tables.
  * Same Stage 4A year selection and raw fields used at approve/publish freeze.
  */
-export type ProspectusFrozenFinancialSourceType = "CTOS" | "UNAUDITED";
+export type ProspectusFrozenFinancialSourceType = "CTOS" | "ISSUER_INPUT" | "ADMIN_INPUT";
+
+export type ProspectusFrozenFinancialStatementType =
+  | "AUDITED"
+  | "NOT_AUDITED"
+  | "MANAGEMENT_ACCOUNTS";
 
 export interface ProspectusFrozenFinancialRaw {
   turnover: number | null;
@@ -287,9 +292,15 @@ export interface ProspectusFrozenFinancialYear {
   /** Financial year-end display (e.g. 31 Dec 2024). */
   fyeLabel: string;
   sourceType: ProspectusFrozenFinancialSourceType;
+  statementType: ProspectusFrozenFinancialStatementType;
   raw: ProspectusFrozenFinancialRaw;
   /** Display-only column with no real financial record — not officer-editable. */
   isPlaceholder?: boolean;
+  /**
+   * If this column is a placeholder and the app considers the missing FY eligible,
+   * Admin can add an `admin_input_by_year` fallback for it.
+   */
+  adminFallbackEligible?: boolean;
 }
 
 export interface ProspectusReviewGetResponse {

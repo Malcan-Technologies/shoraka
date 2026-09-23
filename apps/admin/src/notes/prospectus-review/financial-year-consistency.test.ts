@@ -67,7 +67,8 @@ function frozenYear(
     calendarYear,
     label: `FY${calendarYear}`,
     fyeLabel: isPlaceholder ? "—" : `31 Dec ${calendarYear}`,
-    sourceType: "UNAUDITED",
+    sourceType: "CTOS",
+    statementType: "NOT_AUDITED",
     raw,
     isPlaceholder,
   };

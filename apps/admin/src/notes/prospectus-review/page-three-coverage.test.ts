@@ -155,7 +155,8 @@ function frozenYear(
     calendarYear,
     label: `FY${calendarYear}`,
     fyeLabel: `31 Dec ${calendarYear}`,
-    sourceType: "UNAUDITED",
+    sourceType: "CTOS",
+    statementType: "NOT_AUDITED",
     raw: { ...raw },
   };
 }

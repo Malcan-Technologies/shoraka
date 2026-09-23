@@ -212,6 +212,11 @@ describe("prospectus financial comparison overrides", () => {
     // EBIT = plnpbt + interest_cost
     // With interest_cost=100_000 and target IC=12.1 => EBIT=1_210_000 => plnpbt=1_110_000
     const source = financialSourceFromYearBlocks({
+      "2023": {
+        // Needed to establish Beginning AR for FY2024 Receivables Days.
+        tradeReceivables: 2_027_397.26,
+        turnover: 10_000_000,
+      },
       "2024": {
         plnpbt: 1_110_000,
         interest_cost: 100_000,
@@ -236,9 +241,10 @@ describe("prospectus financial comparison overrides", () => {
       prospectusFinancialInputs: { years: {} } as any,
     });
 
-    expect(page3.rows.find((r) => r.key === "interest_coverage")?.values[0]).toBe("12.1x");
-    expect(page3.rows.find((r) => r.key === "dscr")?.values[0]).toBe("1.42x");
-    expect(page3.rows.find((r) => r.key === "receivables_days")?.values[0]).toBe("74");
+    // FY2024 is the second displayed year (FY2023 is first).
+    expect(page3.rows.find((r) => r.key === "interest_coverage")?.values[1]).toBe("12.1x");
+    expect(page3.rows.find((r) => r.key === "dscr")?.values[1]).toBe("1.42x");
+    expect(page3.rows.find((r) => r.key === "receivables_days")?.values[1]).toBe("74");
   });
 
   it("changing a reused override changes the draft fingerprint (invalidates Approved)", () => {

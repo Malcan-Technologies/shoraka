@@ -62,6 +62,7 @@ function emptyFinancialComparisonSource(): ProspectusFinancialComparisonSource {
     tableUnitLabel: PROSPECTUS_DATA_NOT_AVAILABLE,
     sourceFooter: "Source: Financial Statements",
     years: [],
+    adminFallbackEligibleYears: [],
     missingSsmUnauditedYears: [],
     opsWarning: null,
     audit: PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_AUDIT,

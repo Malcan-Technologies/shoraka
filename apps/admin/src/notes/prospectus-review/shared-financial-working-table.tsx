@@ -1,6 +1,7 @@
 "use client";
 
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -12,6 +13,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { FinancialMetricTableModel } from "./financial-metric-table";
 import { FINANCIAL_CELL_PLACEHOLDERS, FINANCIAL_PLACEHOLDERS } from "./working-area-placeholders";
+import { StatusBadge } from "@cashsouk/ui";
 
 export type FinancialInputKind = "money" | "ratio" | "percent" | "days";
 
@@ -35,6 +37,7 @@ type Props = {
   resolveRow: (metric: string) => FinancialRowMode;
   getEditableValue: (yearKey: string, field: string) => string | number | null | undefined;
   onChange: (yearKey: string, field: string, value: string) => void;
+  onAddPlaceholderYear?: (calendarYear: number) => void;
   disabled: boolean;
   emptyMessage?: string;
 };
@@ -57,6 +60,7 @@ export function ProspectusSharedFinancialWorkingTable({
   resolveRow,
   getEditableValue,
   onChange,
+  onAddPlaceholderYear,
   disabled,
   emptyMessage = "No financial years available",
 }: Props) {
@@ -76,9 +80,65 @@ export function ProspectusSharedFinancialWorkingTable({
                 key={header.key}
                 className="min-w-[8rem] whitespace-nowrap text-sm font-semibold text-foreground"
               >
-                <div>{header.yearLabel}</div>
-                <div className="mt-0.5 text-xs font-normal text-muted-foreground">
-                  {header.fyeLabel}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div>{header.yearLabel}</div>
+                    <div className="mt-0.5 text-xs font-normal text-muted-foreground">
+                      {header.fyeLabel}
+                    </div>
+                    {!header.isPlaceholder ? (
+                      <div className="mt-1 flex flex-wrap items-center gap-1">
+                        {header.sourceType ? (
+                          <StatusBadge
+                            size="sm"
+                            status={header.sourceType === "CTOS" ? "success" : "neutral"}
+                            label={
+                              header.sourceType === "CTOS"
+                                ? "CTOS"
+                                : header.sourceType === "ISSUER_INPUT"
+                                  ? "Issuer Input"
+                                  : "Admin Input"
+                            }
+                            showDot={false}
+                          />
+                        ) : null}
+                        {header.statementType ? (
+                          <StatusBadge
+                            size="sm"
+                            status={
+                              header.statementType === "AUDITED"
+                                ? "success"
+                                : header.statementType === "NOT_AUDITED"
+                                  ? "action"
+                                  : "neutral"
+                            }
+                            label={
+                              header.statementType === "AUDITED"
+                                ? "Audited"
+                                : header.statementType === "NOT_AUDITED"
+                                  ? "Not audited"
+                                  : "Management accounts"
+                            }
+                            showDot={false}
+                          />
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {header.isPlaceholder && header.adminFallbackEligible && !disabled && onAddPlaceholderYear ? (
+                    <Button
+                      type="button"
+                      className="h-8 shrink-0 px-2 text-meta font-normal"
+                      variant="outline"
+                      onClick={() => {
+                        const y = header.yearLabel.replace(/^FY/, "");
+                        if (/^\d{4}$/.test(y)) onAddPlaceholderYear(Number(y));
+                      }}
+                    >
+                      + Add
+                    </Button>
+                  ) : null}
                 </div>
               </TableHead>
             ))}

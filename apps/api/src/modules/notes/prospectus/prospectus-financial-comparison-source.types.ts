@@ -17,7 +17,13 @@ export const PROSPECTUS_FINANCIAL_COMPARISON_MAX_YEARS = 3;
 
 export type ProspectusFinancialComparisonRecordSource =
   | "ctos_audited"
-  | "unaudited_management";
+  | "unaudited_management"
+  | "admin_input";
+
+export type ProspectusFinancialComparisonStatementType =
+  | "AUDITED"
+  | "NOT_AUDITED"
+  | "MANAGEMENT_ACCOUNTS";
 
 export interface ProspectusFinancialComparisonYear {
   year: number;
@@ -26,6 +32,7 @@ export interface ProspectusFinancialComparisonYear {
   /** Stable override key — normalized financial-year-end ISO date. */
   financialYearEndIso: string;
   recordSource: ProspectusFinancialComparisonRecordSource;
+  statementType: ProspectusFinancialComparisonStatementType;
   /** Original source fields for Stage 4B — not Canva-facing alone. */
   rawFinancials: Record<string, unknown>;
   /**
@@ -33,6 +40,11 @@ export interface ProspectusFinancialComparisonYear {
    * Never stored, never approval-required, never used for trend numerics.
    */
   isPlaceholder?: boolean;
+  /**
+   * True for placeholder years that are eligible for Admin `admin_input_by_year`
+   * fallback inside the existing shared FY window.
+   */
+  adminFallbackEligible?: boolean;
 }
 
 export interface ProspectusFinancialComparisonSourceAudit {
@@ -110,6 +122,8 @@ export interface ProspectusFinancialComparisonSource {
   tableUnitLabel: string;
   sourceFooter: string;
   years: ProspectusFinancialComparisonYear[];
+  /** Eligibility for Admin to add an `admin_input_by_year` fallback inside the shared FY window. */
+  adminFallbackEligibleYears: number[];
   /**
    * SSM-expected unaudited years with no stored actual data (and no CTOS coverage).
    * Admin Ops only — never shown on investor HTML and never blocks approval.

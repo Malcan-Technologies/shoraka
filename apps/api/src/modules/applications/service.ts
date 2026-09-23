@@ -139,6 +139,7 @@ import {
   buildStoredApplicationFinancialYearBlock,
   getFinancialYearEndComputationDetails,
   getFinancialYearEndValidationError,
+  getEligibleAdminInputYears,
   issuerUnauditedPlddForFyEndYear,
   getReviewSectionPrerequisites,
   getStepKeyFromStepId,
@@ -1614,7 +1615,13 @@ export class ApplicationService {
           );
         }
 
+        // Preserve any Admin-only historical fallback blocks stored on the application.
+        // Issuer saves overwrite only `questionnaire` + `unaudited_by_year`.
         dataToStore = {
+          ...(application.financial_statements &&
+          typeof application.financial_statements === "object"
+            ? (application.financial_statements as Record<string, unknown>)
+            : {}),
           questionnaire,
           unaudited_by_year: normalizedByYear,
         } as Prisma.InputJsonValue;
@@ -5536,6 +5543,121 @@ export class ApplicationService {
     const html = buildApplicationSummaryHtml(model);
     const buffer = await renderApplicationSummaryHtmlToPdfBuffer(html);
     return { buffer, filename: model.filename };
+  }
+
+  /**
+   * Admin year-level fallback for missing historical financial statement FYs.
+   * Stored at `application.financial_statements.admin_input_by_year[fy]`.
+   *
+   * Eligibility and precedence are enforced via `getEligibleAdminInputYears`:
+   * - FY must be inside the existing issuer/Admin tab window (12-month + 6-month logic).
+   * - FY must not already have CTOS actual data.
+   * - FY must not already have issuer stored unaudited actual data.
+   */
+  async upsertAdminFinancialStatementFallbackYear(params: {
+    applicationId: string;
+    userId: string;
+    financialYear: number;
+    statementType: "AUDITED" | "NOT_AUDITED" | "MANAGEMENT_ACCOUNTS";
+    /** Raw canonical financial statement block fields (without `pldd`; it is computed server-side). */
+    rawFinancialInputs: Record<string, unknown>;
+  }): Promise<{ updated: boolean; financialYear: number }> {
+    const { applicationId, userId, financialYear, statementType, rawFinancialInputs } = params;
+
+    const application = await prisma.application.findUnique({
+      where: { id: applicationId },
+      select: {
+        id: true,
+        issuer_organization_id: true,
+        financial_statements: true,
+      },
+    });
+
+    if (!application) throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    if (!application.issuer_organization_id) {
+      throw new AppError(400, "INVALID_STATE", "Application has no issuer organization");
+    }
+    if (!application.financial_statements || typeof application.financial_statements !== "object") {
+      throw new AppError(
+        400,
+        "INVALID_STATE",
+        "Application has no financial_statements to attach Admin fallbacks"
+      );
+    }
+
+    const now = new Date();
+    const ctosReport = await prisma.ctosReport.findFirst({
+      where: { issuer_organization_id: application.issuer_organization_id, subject_ref: null },
+      orderBy: { fetched_at: "desc" },
+      select: { financials_json: true },
+    });
+
+    const eligibleYears = getEligibleAdminInputYears({
+      financialStatements: application.financial_statements,
+      ctosFinancials: ctosReport?.financials_json ?? null,
+      ref: now,
+    });
+
+    if (!eligibleYears.includes(financialYear)) {
+      throw new AppError(
+        400,
+        "ADMIN_FINANCIAL_STATEMENT_NOT_ELIGIBLE",
+        `FY${financialYear} is not eligible for Admin fallback`
+      );
+    }
+
+    const questionnaire = (application.financial_statements as any)?.questionnaire;
+    const financialYearEndIsoRaw = questionnaire?.financial_year_end;
+    if (typeof financialYearEndIsoRaw !== "string") {
+      throw new AppError(400, "INVALID_STATE", "Missing financial_statements.questionnaire");
+    }
+
+    const expectedPldd = issuerUnauditedPlddForFyEndYear(financialYear, {
+      financial_year_end: financialYearEndIsoRaw,
+    });
+
+    const block = { ...rawFinancialInputs, pldd: expectedPldd };
+    const parsed = financialStatementsInputSchema.safeParse(block);
+    if (!parsed.success) {
+      const message = parsed.error.errors.map((e) => e.message).join("; ");
+      throw new AppError(400, "VALIDATION_ERROR", `FY${financialYear}: ${message}`);
+    }
+
+    if (parsed.data.pldd !== expectedPldd) {
+      throw new AppError(
+        400,
+        "VALIDATION_ERROR",
+        `FY${financialYear}: pldd must equal FY end date for that column`
+      );
+    }
+
+    validateFinancialYearBlockOrThrow(parsed.data as any);
+    const normalized = normalizeFinancialYearBlock(parsed.data as Record<string, unknown>);
+
+    const key = String(financialYear);
+    const existingFS = application.financial_statements as Prisma.InputJsonValue;
+    const existingAdmin = (existingFS as any)?.admin_input_by_year;
+    const nextAdmin = {
+      ...(existingAdmin && typeof existingAdmin === "object" ? existingAdmin : {}),
+      [key]: {
+        ...(normalized as any),
+        statementType,
+        updated_by_user_id: userId,
+        updated_at: now.toISOString(),
+      },
+    };
+
+    await prisma.application.update({
+      where: { id: applicationId },
+      data: {
+        financial_statements: {
+          ...(existingFS as any),
+          admin_input_by_year: nextAdmin,
+        } as Prisma.InputJsonValue,
+      },
+    });
+
+    return { updated: true, financialYear };
   }
 }
 

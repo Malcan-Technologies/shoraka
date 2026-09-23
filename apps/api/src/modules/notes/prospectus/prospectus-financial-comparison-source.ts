@@ -5,6 +5,7 @@
 
 import {
   buildNormalizedFinancialStatementYearSet,
+  getEligibleAdminInputYears,
   findMissingSsmExpectedUnauditedYears,
   formatFinancialYearEndDisplayLabel,
   formatMissingSsmUnauditedYearsOpsWarning,
@@ -129,7 +130,7 @@ export function buildProspectusFinancialComparisonSource(
       }
     }
 
-    if (year.recordSource === "unaudited_management") {
+    if (year.recordSource === "unaudited_management" || year.recordSource === "admin_input") {
       const fsInput = rawFinancials as any;
       const { bs, pl } = financialFormToBsPl(fsInput);
       const metrics = computeColumnMetrics(bs, pl, null);
@@ -173,7 +174,13 @@ export function buildProspectusFinancialComparisonSource(
       cashAndBank: fs.cashAndBank,
       networth: fs.networth,
     });
-    rawFinancials.dscr = computeDscr(fs.netOperatingIncome, fs.annualDebtService);
+    // Current CashSouk DSCR behavior uses EBITDA as the numerator.
+    // (Net Operating Income support is handled elsewhere when explicitly available.)
+    // DSCR numerator prefers `netOperatingIncome` when present; otherwise fall back to EBITDA
+    // for legacy fixtures/flows that only provide `ebitda`.
+    const dscrNumerator =
+      typeof fs.netOperatingIncome === "number" ? fs.netOperatingIncome : fs.ebitda;
+    rawFinancials.dscr = computeDscr(dscrNumerator, fs.annualDebtService);
 
     years.push({
       year: year.year,
@@ -181,9 +188,16 @@ export function buildProspectusFinancialComparisonSource(
       financialYearEndIso: year.financialYearEndIso,
       financialYearEndLabel: formatProspectusFinancialYearEndLabel(year.financialYearEndIso),
       recordSource: year.recordSource,
+      statementType: year.statementType,
       rawFinancials,
     });
   }
+
+  const adminFallbackEligibleYears = getEligibleAdminInputYears({
+    financialStatements: input.financialStatements,
+    ctosFinancials: input.ctosFinancials,
+    ref: input.ref,
+  });
 
   const missingSsmUnauditedYears = findMissingSsmExpectedUnauditedYears({
     financialStatements: input.financialStatements,
@@ -196,6 +210,7 @@ export function buildProspectusFinancialComparisonSource(
     tableUnitLabel: PROSPECTUS_FINANCIAL_COMPARISON_TABLE_UNIT_LABEL,
     sourceFooter: resolveFinancialStatementSourceFooter(years),
     years,
+    adminFallbackEligibleYears,
     missingSsmUnauditedYears,
     opsWarning: formatMissingSsmUnauditedYearsOpsWarning(missingSsmUnauditedYears),
     audit: PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_AUDIT,

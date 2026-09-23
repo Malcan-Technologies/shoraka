@@ -343,8 +343,15 @@ export function toAdminFrozenFinancialYears(
     calendarYear: year.year,
     label: year.yearLabel,
     fyeLabel: year.financialYearEndLabel,
-    sourceType: year.recordSource === "ctos_audited" ? "CTOS" : "UNAUDITED",
+    sourceType:
+      year.recordSource === "ctos_audited"
+        ? "CTOS"
+        : year.recordSource === "unaudited_management"
+          ? "ISSUER_INPUT"
+          : "ADMIN_INPUT",
+    statementType: year.statementType,
     raw: toFrozenRaw(year.rawFinancials),
     isPlaceholder: year.isPlaceholder === true,
+    adminFallbackEligible: year.adminFallbackEligible === true,
   }));
 }

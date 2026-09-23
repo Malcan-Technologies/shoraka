@@ -605,7 +605,7 @@ export function validateApprovalContent(
         }
       }
       for (const field of PROSPECTUS_COVERAGE_OFFICER_FIELD_KEYS) {
-        if (field === ("payablesDays" as any)) continue;
+        if (!row) continue; // Only validate coverage fields for years where officer provided a manual row.
         if (!isPresentManualNumber(row?.[field])) {
           errors.push({
             path: `page3.manualFinancialInputs.years.${year}.${field}`,

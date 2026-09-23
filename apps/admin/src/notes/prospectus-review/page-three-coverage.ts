@@ -119,6 +119,9 @@ function yearHeadersFromFrozen(
     yearLabel: year.label,
     fyeLabel: year.fyeLabel,
     isPlaceholder: year.isPlaceholder === true,
+    adminFallbackEligible: year.adminFallbackEligible === true,
+    sourceType: year.sourceType,
+    statementType: year.statementType,
   }));
 }
 

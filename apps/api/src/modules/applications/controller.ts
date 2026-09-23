@@ -288,6 +288,44 @@ const updateStatusSchema = z.object({
   status: z.enum(["DRAFT", "SUBMITTED", "RESUBMITTED"]),
 });
 
+const adminFinancialStatementFallbackUpsertSchema = z.object({
+  financialYear: z.number().int().min(1900).max(9999),
+  statementType: z.enum(["AUDITED", "NOT_AUDITED", "MANAGEMENT_ACCOUNTS"]),
+  rawFinancialInputs: z.record(z.unknown()),
+});
+
+/**
+ * Admin fallback for missing historical FY financial statements.
+ * PATCH /v1/applications/:id/admin-financial-statements/fallback
+ */
+async function upsertAdminFinancialStatementFallback(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = applicationIdParamSchema.parse(req.params);
+    const userId = getUserId(req);
+    const asAdmin = Boolean(req.user?.roles?.includes(UserRole.ADMIN));
+    if (!asAdmin) {
+      throw new AppError(403, "FORBIDDEN", "Admin privileges required");
+    }
+
+    const input = adminFinancialStatementFallbackUpsertSchema.parse(req.body);
+    const result = await applicationService.upsertAdminFinancialStatementFallbackYear({
+      applicationId: id,
+      userId,
+      financialYear: input.financialYear,
+      statementType: input.statementType,
+      rawFinancialInputs: input.rawFinancialInputs,
+    });
+
+    res.json({
+      success: true,
+      data: result,
+      correlationId: res.locals.correlationId || "unknown",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 /**
  * Update application status
  * PATCH /v1/applications/:id/status
@@ -668,6 +706,11 @@ export function createApplicationRouter(): Router {
   router.get("/:id/summary-pdf", requireAuth, getApplicationSummaryPdf);
   router.delete("/:id/document", requireAuth, deleteDocument);
   router.patch("/:id/step", requireAuth, updateApplicationStep);
+  router.patch(
+    "/:id/admin-financial-statements/fallback",
+    requireAuth,
+    upsertAdminFinancialStatementFallback
+  );
   router.patch("/:id/status", requireAuth, updateApplicationStatus);
 router.get("/:id/amendment-context", requireAuth, async function getAmendmentContext(req, res, next) {
   try {
