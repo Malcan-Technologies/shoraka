@@ -430,6 +430,13 @@ function createService(repo: Partial<SigningRepository>, provider?: Partial<Sign
     {
       setEnvelopeSendState: jest.fn().mockResolvedValue(undefined),
       setAssignmentFrozenSnapshot: jest.fn().mockResolvedValue(undefined),
+      findApplicationContext: jest.fn().mockResolvedValue({
+        id: "app-1",
+        issuer_organization_id: "org-1",
+        issuer_organization: { name: null, owner_user_id: "issuer-1" },
+        contract: { id: "contract-1", display_reference: null, offer_details: null },
+        invoices: [],
+      }),
       ...repo,
     } as SigningRepository,
     (provider ?? {
@@ -1097,14 +1104,13 @@ describe("signing lifecycle", () => {
     expect(sendEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         to: "signer@example.com",
-        subject: "Reminder: Facility Agreement",
-        text: expect.stringContaining(
-          "https://issuer.example/signing/external/"
-        ),
+        subject: "[CashSouk] Reminder — Facility Agreement still needs your signature",
+        text: expect.stringContaining("https://issuer.example/signing/external/"),
       })
     );
     const text = (sendEmail as jest.Mock).mock.calls[0][0].text as string;
-    expect(text).toContain("Start with Facility Agreement.");
+    expect(text).toContain("Documents still to sign");
+    expect(text).toContain("- Facility Agreement");
     expect(text).toMatch(/signing\/external\/[^?\s]+\?document=fa/);
   });
 
@@ -1279,6 +1285,11 @@ describe("signing lifecycle", () => {
 
     expect(sendEmail).toHaveBeenCalledTimes(1);
     expect((sendEmail as jest.Mock).mock.calls[0][0].to).toBe("signer@example.com");
+    expect((sendEmail as jest.Mock).mock.calls[0][0].subject).toBe(
+      "[CashSouk] Signature requested — as Director"
+    );
+    expect((sendEmail as jest.Mock).mock.calls[0][0].html).toContain("class=\"button\"");
+    expect((sendEmail as jest.Mock).mock.calls[0][0].text).toContain("- Facility Agreement");
     expect(setRecipientEmailDeliveryStatus).toHaveBeenCalledTimes(1);
     expect(setRecipientEmailDeliveryStatus).toHaveBeenCalledWith("r1", "sent", null);
   });

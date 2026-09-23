@@ -111,6 +111,14 @@ import {
   type SigningRepository,
 } from "./repository";
 import { mapSigningEnvelopeToDto, mapSigningEnvelopeToDtoWithEkyc, type SigningEnvelopeWithGraph } from "./mapper";
+import {
+  buildSigningEmail,
+  documentNamesForSigningEmail,
+  recipientHasOtherSigningCapacity,
+  resolveSigningEmailOfferKind,
+  signingEmailDisplayReference,
+  signingEmailRoleLabel,
+} from "./signing-email";
 import { buildDocumentProviderSigners } from "./provider-signers";
 import { readEnvelopeSendState } from "./envelope-send-state";
 import {
@@ -223,15 +231,6 @@ function buildSigningCloudCallbackUrl(): string | null {
 
 function isClosedEnvelopeStatus(status: string): boolean {
   return (CLOSED_ENVELOPE_STATUSES as readonly string[]).includes(status);
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
 }
 
 function unwrapSupportingDocumentCategories(data: unknown): unknown[] {
@@ -1810,10 +1809,13 @@ export class SigningService {
       await this.repo.setRecipientAccessToken(recipient.id, accessToken, expiresAt);
       const delivered = await this.sendSigningEmail({
         envelope,
-        recipientEmail: recipient.email,
-        recipientName: recipient.name,
+        recipient,
         accessToken,
         isReminder: false,
+        application,
+        offerDetails: sendOfferDetails,
+        signingExpiresAtIso:
+          typeof signingExpiresAt === "string" && signingExpiresAt.trim() ? signingExpiresAt : null,
       });
       await this.repo.setRecipientEmailDeliveryStatus(
         recipient.id,
@@ -2835,6 +2837,7 @@ export class SigningService {
       throw new AppError(409, "SIGNING_ENVELOPE_CLOSED", "This signing package is closed.");
     }
     const expiresAt = new Date(Date.now() + EXTERNAL_ACCESS_TOKEN_TTL_MS);
+    const application = await this.repo.findApplicationContext(envelope.application_id);
     let allDelivered = true;
     for (const recipient of envelope.recipients) {
       if (recipient.delivery_mode === "INTERNAL" || recipient.execution_mode === "AUTOMATIC") {
@@ -2851,10 +2854,10 @@ export class SigningService {
       await this.repo.setRecipientAccessToken(recipient.id, accessToken, expiresAt);
       const delivered = await this.sendSigningEmail({
         envelope,
-        recipientEmail: recipient.email,
-        recipientName: recipient.name,
+        recipient,
         accessToken,
-        isReminder: true,
+        isReminder: false,
+        application,
       });
       await this.repo.setRecipientEmailDeliveryStatus(
         recipient.id,
@@ -2890,7 +2893,6 @@ export class SigningService {
       throw new AppError(409, "SIGNING_RECIPIENT_CLOSED", "This recipient has already finished signing.");
     }
     const preferredDocumentId = documentId?.trim() || undefined;
-    let documentName: string | null = null;
     if (preferredDocumentId) {
       const assignment = envelope.assignments.find(
         (item) =>
@@ -2905,7 +2907,6 @@ export class SigningService {
           "This recipient has no unsigned assignment on that document."
         );
       }
-      documentName = envelope.documents.find((document) => document.id === preferredDocumentId)?.name ?? null;
     }
     const accessToken = generateSigningAccessToken();
     await this.repo.setRecipientAccessToken(
@@ -2915,12 +2916,10 @@ export class SigningService {
     );
     const delivered = await this.sendSigningEmail({
       envelope,
-      recipientEmail: recipient.email,
-      recipientName: recipient.name,
+      recipient,
       accessToken,
       isReminder: true,
       documentId: preferredDocumentId,
-      documentName,
     });
     await this.repo.setRecipientEmailDeliveryStatus(
       recipient.id,
@@ -2951,49 +2950,74 @@ export class SigningService {
 
   private async sendSigningEmail(input: {
     envelope: SigningEnvelopeWithGraph;
-    recipientEmail: string;
-    recipientName: string;
+    recipient: SigningEnvelopeWithGraph["recipients"][number];
     accessToken: string;
     isReminder: boolean;
     documentId?: string | null;
-    documentName?: string | null;
+    application?: SigningApplicationContext | null;
+    offerDetails?: unknown;
+    signingExpiresAtIso?: string | null;
   }): Promise<boolean> {
     const signingUrl = buildExternalSigningUrl(input.accessToken, input.documentId);
     if (!signingUrl) {
       logger.warn(
-        { envelopeId: input.envelope.id, recipientEmail: input.recipientEmail },
+        { envelopeId: input.envelope.id, recipientEmail: input.recipient.email },
         "Skipping signing email because ISSUER_URL is not configured"
       );
       return false;
     }
 
+    const application =
+      input.application !== undefined
+        ? input.application
+        : await this.repo.findApplicationContext(input.envelope.application_id);
+    const offerDetails =
+      input.offerDetails !== undefined
+        ? input.offerDetails
+        : input.envelope.invoice_id
+          ? application?.invoices?.find((item) => item.id === input.envelope.invoice_id)?.offer_details
+          : application?.contract?.offer_details;
+    const snapshot = this.resolveAuthorizedPartiesSnapshot(offerDetails);
+    const signingExpiresAtIso =
+      input.signingExpiresAtIso ??
+      input.envelope.expires_at?.toISOString() ??
+      getOfferAcceptanceFromOfferDetails(offerDetails)?.signing_expires_at ??
+      null;
+    const template = buildSigningEmail({
+      recipientName: input.recipient.name,
+      recipientRoleLabel: signingEmailRoleLabel({
+        roleKey: input.recipient.role_key,
+        roleLabel: input.recipient.role_label,
+        email: input.recipient.email,
+        authorizedParties: snapshot,
+      }),
+      organizationName: application?.issuer_organization?.name?.trim() || null,
+      displayReference: signingEmailDisplayReference(input.envelope, application),
+      offerKind: resolveSigningEmailOfferKind(input.envelope),
+      documentNames: documentNamesForSigningEmail({
+        documents: input.envelope.documents,
+        assignments: input.envelope.assignments,
+        recipientId: input.recipient.id,
+        isReminder: input.isReminder,
+        preferredDocumentId: input.documentId,
+      }),
+      signingExpiresAtIso,
+      signingUrl,
+      isReminder: input.isReminder,
+      hasOtherCapacity: recipientHasOtherSigningCapacity(input.envelope.recipients, input.recipient),
+    });
+
     try {
-      const title = input.envelope.title || "CashSouk signing package";
-      const safeTitle = escapeHtml(title);
-      const safeName = escapeHtml(input.recipientName || "there");
-      const documentLine = input.documentName?.trim()
-        ? ` Start with ${input.documentName.trim()}.`
-        : "";
-      const safeDocumentLine = input.documentName?.trim()
-        ? ` Start with <strong>${escapeHtml(input.documentName.trim())}</strong>.`
-        : "";
       await sendEmail({
-        to: input.recipientEmail,
-        subject: input.isReminder
-          ? `Reminder: ${input.documentName?.trim() || title}`
-          : `Signature requested: ${title}`,
-        html: `
-          <p>Hi ${safeName},</p>
-          <p>You have been asked to sign <strong>${safeTitle}</strong>.${safeDocumentLine}</p>
-          <p><a href="${signingUrl}">Open secure signing link</a></p>
-          <p>This link is unique to you. You will be asked to confirm your IC number before signing.</p>
-        `,
-        text: `Hi ${input.recipientName || "there"},\n\nYou have been asked to sign ${title}.${documentLine}\n\nOpen your secure signing link: ${signingUrl}\n\nThis link is unique to you. You will be asked to confirm your IC number before signing.`,
+        to: input.recipient.email,
+        subject: template.subject,
+        html: template.html,
+        text: template.text,
       });
       return true;
     } catch (error) {
       logger.error(
-        { error, envelopeId: input.envelope.id, recipientEmail: input.recipientEmail },
+        { error, envelopeId: input.envelope.id, recipientEmail: input.recipient.email },
         "Failed to send signing email"
       );
       return false;
