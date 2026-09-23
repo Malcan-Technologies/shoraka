@@ -1,4 +1,8 @@
-import type { NoteDocumentCatalogItem, NoteDocumentOrigin } from "@cashsouk/types";
+import {
+  ADMIN_DOCUMENT_DESCRIPTIONS,
+  ADMIN_DOCUMENT_UNAVAILABLE_HINTS,
+  type AdminDocumentCatalogItem,
+} from "@cashsouk/types";
 import {
   signedDocumentIsAvailable,
   type NoteSigningDocumentLike,
@@ -10,50 +14,40 @@ import {
 } from "./certificate-order";
 
 export type Availability = Pick<
-  NoteDocumentCatalogItem,
-  "available" | "availabilityReason" | "origin" | "originLabel"
+  AdminDocumentCatalogItem,
+  "available" | "description" | "unavailableHint"
 >;
 
 function result(
   available: boolean,
-  origin: NoteDocumentOrigin,
-  originLabel: string,
-  availabilityReason: string
+  description: string,
+  unavailableHint: string | null
 ): Availability {
-  return { available, origin, originLabel, availabilityReason };
+  return { available, description, unavailableHint };
 }
 
 export function signingDocumentAvailability(input: {
   envelope: NoteSigningEnvelopeLike | null;
   document: NoteSigningDocumentLike | null;
+  description: string;
   includedLabel: string;
   missingFromPackageMessage: string;
 }): Availability {
+  const { description } = input;
   if (!input.envelope) {
-    return result(
-      false,
-      "canonical",
-      "Canonical",
-      "Available after the signing package for this note's offer is completed."
-    );
+    return result(false, description, ADMIN_DOCUMENT_UNAVAILABLE_HINTS.waitingSigningPackage);
   }
   if (!input.document) {
-    return result(false, "canonical", "Canonical", input.missingFromPackageMessage);
+    return result(false, description, input.missingFromPackageMessage);
   }
   if (!signedDocumentIsAvailable(input.document)) {
     return result(
       false,
-      "canonical",
-      "Canonical",
-      `The signed ${input.includedLabel} is not stored yet.`
+      description,
+      ADMIN_DOCUMENT_UNAVAILABLE_HINTS.signedNotStored(input.includedLabel)
     );
   }
-  return result(
-    true,
-    "canonical",
-    "Canonical",
-    `Signed original from the completed signing package.`
-  );
+  return result(true, description, null);
 }
 
 export function letterOfOfferAvailability(input: {
@@ -61,81 +55,50 @@ export function letterOfOfferAvailability(input: {
   offerSent: boolean;
   declaredOnProduct: boolean;
 }): Availability {
+  const description = ADMIN_DOCUMENT_DESCRIPTIONS.letterOfOffer;
   if (!input.hasContract || !input.offerSent) {
-    return result(
-      false,
-      "generated",
-      "Generated now",
-      "The Letter of Offer can be generated after the offer is sent."
-    );
+    return result(false, description, ADMIN_DOCUMENT_UNAVAILABLE_HINTS.waitingOfferSent);
   }
   if (!input.declaredOnProduct) {
-    return result(
-      false,
-      "generated",
-      "Generated now",
-      "This product version does not include a Letter of Offer."
-    );
+    return result(false, description, ADMIN_DOCUMENT_UNAVAILABLE_HINTS.letterOfOfferNotOnProduct);
   }
-  return result(
-    true,
-    "generated",
-    "Generated now",
-    "Generated now from the current Letter of Offer template and frozen offer data."
-  );
+  return result(true, description, null);
 }
 
 export function facilityAgreementPackageAvailability(input: {
   signedFaAvailable: boolean;
   letterOfOfferAvailable: boolean;
-  certificateCount: number;
 }): Availability {
+  const description = ADMIN_DOCUMENT_DESCRIPTIONS.facilityAgreementPackage;
   if (!input.signedFaAvailable) {
     return result(
       false,
-      "compiled",
-      "Compiled copy",
-      "Available after the Facility Agreement is signed."
+      description,
+      ADMIN_DOCUMENT_UNAVAILABLE_HINTS.waitingFacilityAgreementSigned
     );
   }
   if (!input.letterOfOfferAvailable) {
     return result(
       false,
-      "compiled",
-      "Compiled copy",
-      "The compiled package needs a current Letter of Offer."
+      description,
+      ADMIN_DOCUMENT_UNAVAILABLE_HINTS.compiledPackageNeedsLetterOfOffer
     );
   }
-  const certNote =
-    input.certificateCount === 0
-      ? "No Shoraka certificates are attached yet."
-      : input.certificateCount === 1
-        ? "Includes 1 Shoraka certificate."
-        : `Includes ${input.certificateCount} Shoraka certificates.`;
-  return result(
-    true,
-    "compiled",
-    "Compiled copy",
-    `Compiled copy of the signed Facility Agreement with the current Letter of Offer. Not the digitally signed original. ${certNote}`
-  );
+  return result(true, description, null);
 }
 
 export function prospectusAvailability(input: {
   approved: boolean;
   pdfReady: boolean;
 }): Availability {
+  const description = ADMIN_DOCUMENT_DESCRIPTIONS.prospectus;
   if (!input.approved) {
-    return result(false, "canonical", "Canonical", "Available after the Prospectus is approved.");
+    return result(false, description, ADMIN_DOCUMENT_UNAVAILABLE_HINTS.waitingProspectusApproval);
   }
   if (!input.pdfReady) {
-    return result(
-      false,
-      "canonical",
-      "Canonical",
-      "The approved Prospectus PDF is still being generated."
-    );
+    return result(false, description, ADMIN_DOCUMENT_UNAVAILABLE_HINTS.prospectusPdfPending);
   }
-  return result(true, "canonical", "Canonical", "Approved frozen Prospectus.");
+  return result(true, description, null);
 }
 
 export function investmentNoteCertificateAvailability(input: {
@@ -143,60 +106,43 @@ export function investmentNoteCertificateAvailability(input: {
   pending: boolean;
   failed: boolean;
 }): Availability {
+  const description = ADMIN_DOCUMENT_DESCRIPTIONS.investmentNoteCertificate;
   if (input.issuedReady) {
-    return result(
-      true,
-      "canonical",
-      "Canonical",
-      "Issued Islamic Investment Note Certificate for this note."
-    );
+    return result(true, description, null);
   }
   if (input.pending) {
-    return result(
-      false,
-      "canonical",
-      "Canonical",
-      "The Islamic Investment Note Certificate is still being generated."
-    );
+    return result(false, description, ADMIN_DOCUMENT_UNAVAILABLE_HINTS.investmentCertificatePending);
   }
   if (input.failed) {
-    return result(
-      false,
-      "canonical",
-      "Canonical",
-      "The Islamic Investment Note Certificate could not be generated."
-    );
+    return result(false, description, ADMIN_DOCUMENT_UNAVAILABLE_HINTS.investmentCertificateFailed);
   }
-  return result(
-    false,
-    "canonical",
-    "Canonical",
-    "Available after the Islamic Investment Note Certificate is issued."
-  );
+  return result(false, description, ADMIN_DOCUMENT_UNAVAILABLE_HINTS.waitingCertificateIssued);
 }
 
-export function shorakaGroupAvailability(rows: readonly ShorakaCertificateOrderInput[]): Availability {
+export function shorakaGroupAvailability(
+  rows: readonly ShorakaCertificateOrderInput[]
+): Availability {
+  const description = ADMIN_DOCUMENT_DESCRIPTIONS.shorakaCertificate;
   if (rows.length === 0) {
-    return result(
-      false,
-      "canonical",
-      "Canonical",
-      "Available after Tawarruq execution. Only issuer-disbursement Shoraka certificates exist today."
-    );
+    return result(false, description, ADMIN_DOCUMENT_UNAVAILABLE_HINTS.waitingTawarruqExecution);
   }
-  return result(false, "canonical", "Canonical", "The Shoraka / Tawarruq certificate has not been uploaded yet.");
+  return result(false, description, ADMIN_DOCUMENT_UNAVAILABLE_HINTS.shorakaNotUploaded);
 }
 
 export function shorakaCertificateRowAvailability(
   row: ShorakaCertificateOrderInput
 ): Availability {
+  const description = ADMIN_DOCUMENT_DESCRIPTIONS.shorakaCertificate;
   if (shorakaCertificateIsAvailable(row)) {
-    return result(true, "canonical", "Canonical", "Original Shoraka / Tawarruq certificate.");
+    return result(true, description, null);
   }
-  return result(
-    false,
-    "canonical",
-    "Canonical",
-    "The Shoraka / Tawarruq certificate has not been uploaded yet."
-  );
+  return result(false, description, ADMIN_DOCUMENT_UNAVAILABLE_HINTS.shorakaNotUploaded);
+}
+
+export function underlyingContractAvailability(hasUpload: boolean): Availability {
+  const description = ADMIN_DOCUMENT_DESCRIPTIONS.underlyingContract;
+  if (!hasUpload) {
+    return result(false, description, ADMIN_DOCUMENT_UNAVAILABLE_HINTS.waitingUnderlyingContract);
+  }
+  return result(true, description, null);
 }

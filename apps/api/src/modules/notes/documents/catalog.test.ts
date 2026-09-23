@@ -39,6 +39,8 @@ describe("note document catalog", () => {
     ]);
     expect(catalog.documents.every((row) => row.available === false)).toBe(true);
     expect(catalog.documents[0]?.id).toBe(NOTE_DOCUMENT_FIXED_IDS.jsg);
+    expect(catalog.documents[0]?.description).toMatch(/Signed guarantee/);
+    expect(catalog.documents[0]?.unavailableHint).toMatch(/Waiting for/);
     expect(JSON.stringify(catalog)).not.toMatch(/s3/i);
     expect(JSON.stringify(catalog)).not.toContain("signed_s3_key");
   });

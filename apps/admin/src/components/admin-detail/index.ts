@@ -28,3 +28,4 @@ export { AdminRelatedRecordsRail } from "./admin-related-records-rail";
 export type { AdminRelatedRecordsRailProps } from "./admin-related-records-rail";
 export { useAdminDetailTabState } from "./use-admin-detail-tab-state";
 export type { UseAdminDetailTabStateOptions } from "./use-admin-detail-tab-state";
+export { AdminDocumentCatalogPanel } from "./admin-document-catalog";

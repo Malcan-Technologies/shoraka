@@ -17,7 +17,12 @@ test.describe("Admin note documents", () => {
 
     await expect(page.getByRole("tab", { name: /Documents/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Documents", exact: true })).toBeVisible();
+    await expect(page.getByText("Legal documents for this note.")).toBeVisible();
+    await expect(page.getByText("Canonical")).toHaveCount(0);
+    await expect(page.getByText("Generated now")).toHaveCount(0);
+    await expect(page.getByText("Compiled copy")).toHaveCount(0);
     await expect(page.getByText("Joint and Several Guarantee")).toBeVisible();
+    await expect(page.getByText("Signed guarantee from the completed signing package.")).toBeVisible();
     await expect(page.getByText("Letter of Offer")).toBeVisible();
     await expect(page.getByText("Facility Agreement Package")).toBeVisible();
     await expect(page.getByText("Deed of Assignment")).toBeVisible();

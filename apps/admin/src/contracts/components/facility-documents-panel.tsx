@@ -1,17 +1,23 @@
 "use client";
 
 import { toast } from "sonner";
-import type { AdminDocumentCatalogItem, NoteDocumentCatalogItem } from "@cashsouk/types";
+import type { AdminDocumentCatalogItem, FacilityDocumentCatalogItem } from "@cashsouk/types";
 import { AdminDocumentCatalogPanel } from "@/components/admin-detail";
-import { useNoteDocuments } from "./use-note-documents";
+import { useFacilityDocuments } from "@/contracts/hooks/use-facility-documents";
 
-export function NoteDocumentsPanel({ noteId }: { noteId: string }) {
-  const { catalogQuery, viewMutation, downloadMutation } = useNoteDocuments(noteId);
+export function FacilityDocumentsPanel({
+  facilityId,
+  isStandaloneHolder,
+}: {
+  facilityId: string;
+  isStandaloneHolder: boolean;
+}) {
+  const { catalogQuery, viewMutation, downloadMutation } = useFacilityDocuments(facilityId);
   const documents = catalogQuery.data?.documents ?? [];
 
   const run = async (item: AdminDocumentCatalogItem, action: "view" | "download") => {
     try {
-      const row = item as NoteDocumentCatalogItem;
+      const row = item as FacilityDocumentCatalogItem;
       if (action === "view") await viewMutation.mutateAsync(row);
       else await downloadMutation.mutateAsync(row);
     } catch (error) {
@@ -21,7 +27,11 @@ export function NoteDocumentsPanel({ noteId }: { noteId: string }) {
 
   return (
     <AdminDocumentCatalogPanel
-      description="Legal documents for this note."
+      description={
+        isStandaloneHolder
+          ? "Legal documents for this customer."
+          : "Legal documents for this facility."
+      }
       items={documents}
       isLoading={catalogQuery.isLoading}
       error={

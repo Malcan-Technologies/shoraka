@@ -66,7 +66,7 @@ Product workflow: Financing type → Signing package → add **Facility Agreemen
 
 Admin note detail **Documents** compiles a derivative PDF on each view/download. The signed `SigningDocument` (`signed_s3_key`, hash, completed envelope) is never overwritten.
 
-`GET /v1/admin/notes/:id/documents` lists the package; `GET /v1/admin/notes/:id/documents/facility-agreement-package` returns `Facility-Agreement-Package-<note-reference>.pdf`. Treat it as a compiled copy, not the digitally signed original.
+`GET /v1/admin/notes/:id/documents` lists the package; `GET /v1/admin/notes/:id/documents/facility-agreement-package` returns `Facility-Agreement-Package-<note-reference>.pdf`. Treat it as a compiled copy, not the digitally signed original. The signed Facility Agreement original is listed on Admin facility detail Documents (`GET /v1/admin/contracts/:id/documents/facility-agreement`).
 
 Assembler v1 page order:
 

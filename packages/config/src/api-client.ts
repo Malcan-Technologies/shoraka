@@ -101,6 +101,7 @@ import type {
   NoteDetail,
   InvestmentNoteCertificatePdfPayload,
   NoteDocumentCatalog,
+  FacilityDocumentCatalog,
   SettlementHibahReceiptPdfPayload,
   InvestmentSettlementConfirmationPdfPayload,
   AdminInvestmentSettlementConfirmationsPayload,
@@ -1132,6 +1133,36 @@ export class ApiClient {
 
   async getAdminContractDetail(id: string): Promise<ApiResponse<AdminContractDetail> | ApiError> {
     return this.get<AdminContractDetail>(`/v1/admin/contracts/${id}`);
+  }
+
+  async getAdminFacilityDocuments(
+    id: string
+  ): Promise<ApiResponse<FacilityDocumentCatalog> | ApiError> {
+    return this.get<FacilityDocumentCatalog>(`/v1/admin/contracts/${id}/documents`);
+  }
+
+  async getAdminFacilityDocumentBlob(
+    facilityId: string,
+    documentId: string,
+    disposition: "inline" | "attachment" = "inline"
+  ): Promise<{ blob: Blob; filename: string }> {
+    const url = `${this.baseUrl}/v1/admin/contracts/${encodeURIComponent(
+      facilityId
+    )}/documents/${encodeURIComponent(documentId)}?disposition=${disposition}`;
+    const authToken = await this.getAuthToken();
+    const headers: HeadersInit = {};
+    if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+    const response = await fetch(url, { method: "GET", credentials: "include", headers });
+    if (!response.ok) {
+      const msg = await this.parseErrorResponse(response);
+      throw new Error(msg);
+    }
+    const header = response.headers.get("Content-Disposition");
+    const match = header?.match(/filename="([^"]+)"/);
+    return {
+      blob: await response.blob(),
+      filename: match?.[1] || `${documentId}.pdf`,
+    };
   }
 
   async waiveAdminContractFacilityFee(

@@ -12,8 +12,6 @@ import { useProduct } from "@/app/settings/products/hooks/use-products";
 import { productName } from "@/app/settings/products/product-utils";
 import { Skeleton, StatusBadge } from "@cashsouk/ui";
 import {
-  ArrowDownTrayIcon,
-  ArrowTopRightOnSquareIcon,
   BanknotesIcon,
   BuildingOffice2Icon,
   ClipboardDocumentListIcon,
@@ -21,7 +19,6 @@ import {
   DocumentTextIcon,
   InformationCircleIcon,
   PaperAirplaneIcon,
-  PaperClipIcon,
   QueueListIcon,
 } from "@heroicons/react/24/outline";
 import {
@@ -38,25 +35,23 @@ import {
   type AdminDetailTab,
 } from "@/components/admin-detail";
 import { ApplicationStatusBadge } from "@/components/application-review";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useContractDetail } from "@/contracts/hooks/use-contract-detail";
+import { useFacilityDocuments } from "@/contracts/hooks/use-facility-documents";
 import { resolveOfferRespondedByLabel } from "@/contracts/utils/offer-responded-by";
-import { useAdminS3DocumentViewDownload } from "@/hooks/use-admin-s3-document-view-download";
 import {
   CONTRACT_EMPTY_LABEL,
   ContractDetailRow,
   ContractDynamicRows,
   contractDynamicKeys,
-  contractFileLabel,
   formatContractFieldValue,
   hasContractOfferData,
-  type ContractFileDoc,
 } from "./contract-detail-fields";
 import { ContractActivityPanel } from "./contract-activity-panel";
 import { ContractApplicationsTable } from "./contract-applications-table";
 import { ContractNotesTable } from "./contract-notes-table";
 import { ContractFacilityFeePanel } from "./contract-facility-fee-panel";
+import { FacilityDocumentsPanel } from "./facility-documents-panel";
 import { ContractFacilitySummary } from "@/components/application-review/contract-facility-summary";
 import {
   formatContractFacilityNoteCount,
@@ -232,8 +227,7 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
     data?.applications.find((application) => application.productId)?.productId ??
     null;
   const { data: catalogProduct } = useProduct(catalogProductId);
-  const { viewDocumentPending, handleViewDocument, handleDownloadDocument } =
-    useAdminS3DocumentViewDownload();
+  const { catalogQuery: facilityDocumentsQuery } = useFacilityDocuments(contractId);
 
   const nextAction = React.useMemo(
     () =>
@@ -268,7 +262,11 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
     const applicationsToken = resolveContractApplicationsTabToken(data.applications);
     const notesToken = resolveContractNotesTabToken(data.notes);
     const document = data.contractDetails?.document as { s3_key?: string } | undefined;
-    const documentsToken = resolveContractDocumentsTabToken(Boolean(document?.s3_key));
+    const documentsToken = resolveContractDocumentsTabToken(
+      facilityDocumentsQuery.data
+        ? facilityDocumentsQuery.data.documents.some((row) => row.available)
+        : Boolean(document?.s3_key)
+    );
     const allTabs: AdminDetailTab<ContractDetailTabId>[] = [
       {
         id: "overview",
@@ -309,7 +307,7 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
     return data.isStandaloneHolder
       ? allTabs.filter((tab) => isVisibleContractDetailTabId(tab.id, { isStandaloneHolder: true }))
       : allTabs;
-  }, [data]);
+  }, [data, facilityDocumentsQuery.data]);
 
   if (isLoading) return <ContractDetailSkeleton />;
 
@@ -361,7 +359,6 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
   const hasExtraFields =
     customerExtraKeys.length > 0 || (!data.isStandaloneHolder && contractExtraKeys.length > 0);
 
-  const contractDocument = (contractDetails?.document ?? undefined) as ContractFileDoc | undefined;
   const offerAcceptance = data.offerDetails?.offer_acceptance as
     | { acceptance_expires_at?: string | null; signing_expires_at?: string | null }
     | undefined;
@@ -863,61 +860,10 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
         ) : null}
 
         <AdminDetailTabPanel value="documents">
-          <Card className="rounded-2xl">
-            <AdminDetailCardHeader
-              icon={PaperClipIcon}
-              title="Documents"
-              description={
-                data.isStandaloneHolder
-                  ? "Evidence uploaded with the standalone invoice customer submission."
-                  : "Evidence uploaded with the facility submission."
-              }
-            />
-            <CardContent className="pt-0">
-              {contractDocument?.s3_key ? (
-                <div className="flex flex-col gap-3 rounded-xl border bg-muted/20 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <p className="text-ui font-medium">Contract document</p>
-                    <p className="truncate text-meta text-muted-foreground">
-                      {contractFileLabel(contractDocument)}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 flex-wrap items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-1"
-                      onClick={() => void handleViewDocument(contractDocument.s3_key as string)}
-                      disabled={viewDocumentPending}
-                    >
-                      <ArrowTopRightOnSquareIcon className="h-4 w-4" />
-                      View
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-1"
-                      onClick={() =>
-                        void handleDownloadDocument(
-                          contractDocument.s3_key as string,
-                          contractDocument.file_name
-                        )
-                      }
-                      disabled={viewDocumentPending}
-                    >
-                      <ArrowDownTrayIcon className="h-4 w-4" />
-                      Download
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <ContractEmptyState
-                  title="No contract document"
-                  description="The signed contract document will appear here once it is uploaded with the submission."
-                />
-              )}
-            </CardContent>
-          </Card>
+          <FacilityDocumentsPanel
+            facilityId={data.id}
+            isStandaloneHolder={data.isStandaloneHolder}
+          />
         </AdminDetailTabPanel>
 
         <AdminDetailTabPanel value="activity">
