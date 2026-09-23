@@ -131,7 +131,7 @@ function computeTotals(params: {
   return { totass, totlib, networth };
 }
 
-function buildStoredFinancialBlock(input: {
+export function buildStoredFinancialBlock(input: {
   fyEndYear: number;
   statementType?: AdminStatementType;
   // Core
@@ -261,6 +261,65 @@ function buildCtosRow(fyEndYear: number, account: Record<string, unknown>) {
     dates: { pldd: plddForFyEndYear(fyEndYear), bsdd: null },
     account,
   };
+}
+
+export function buildScenario02CtosRowsFromFixture(args: { fixtureRows: unknown[]; fyYears: number[] }) {
+  const out: Array<{ financial_year: number | null; dates: { pldd: string | null; bsdd: string | null }; account: Record<string, unknown> }> = [];
+  for (const fy of args.fyYears) {
+    const row = args.fixtureRows.find((r: any) => r?.financial_year === fy);
+    if (!row) {
+      throw new Error(`seed scenario 02: missing fixture CTOS row for FY${fy}`);
+    }
+    // Preserve parsed `account` exactly; do not rebuild/sanitize.
+    out.push(row as any);
+  }
+  return out;
+}
+
+function assertIsSchemaValidCuid2(id: string) {
+  // CUID2: lowercase alpha prefix + alphanumeric body, no separators.
+  if (!/^[a-z][a-z0-9]{15,}$/i.test(id) || id.includes("-") || id.includes("_")) {
+    throw new Error(`seed: expected schema-valid CUID2-like id, got: ${id}`);
+  }
+}
+
+function assertCtosAccountHasRequiredFields(args: { fy: number; account: Record<string, unknown> }) {
+  const requiredKeys = [
+    "return_on_equity",
+    "gear",
+    "currat",
+    "workcap",
+    "totass",
+    "totlib",
+    "networth",
+    "turnover",
+    "plnpat",
+    // Preserved ComRep raw fields
+    "bsqres",
+    "bsqupro",
+    "bsqmint",
+    "plminin",
+  ] as const;
+
+  for (const key of requiredKeys) {
+    const v = (args.account as any)[key];
+    if (v == null || v === "") {
+      throw new Error(`seed scenario 02: missing CTOS account field ${String(key)} for FY${args.fy}`);
+    }
+    const n = typeof v === "number" ? v : Number(String(v));
+    if (!Number.isFinite(n)) {
+      throw new Error(
+        `seed scenario 02: non-finite CTOS account field ${String(key)} for FY${args.fy}: ${String(v)}`
+      );
+    }
+  }
+
+  // plminin may be negative; it must survive as a finite number.
+  const plminin = (args.account as any).plminin;
+  const plmininN = typeof plminin === "number" ? plminin : Number(String(plminin));
+  if (!Number.isFinite(plmininN)) {
+    throw new Error(`seed scenario 02: plminin must be a finite number for FY${args.fy}`);
+  }
 }
 
 type ScenarioKey =
@@ -442,7 +501,7 @@ function scenarioSpecs(): ScenarioSpec[] {
   ];
 }
 
-function valuesForYear(fy: number, variant: 1 | 2 | 3) {
+export function valuesForYear(fy: number, variant: 1 | 2 | 3) {
   // Keep values realistic and consistent across tables.
   const base = fy === 2023 ? 1 : fy === 2024 ? 1.2 : fy === 2025 ? 1.3 : fy === 2026 ? 1.38 : 0.9;
   const vMul = variant === 1 ? 1 : variant === 2 ? 1.08 : 1.18;
@@ -734,6 +793,96 @@ async function upsertFinancialFallbackQaProduct(): Promise<{
   };
 }
 
+async function upsertQaContractOnly(params: {
+  contractId: string;
+  issuerOrgId: string;
+  now: Date;
+}): Promise<{ contractSnapshot: Prisma.InputJsonValue }> {
+  const startIso = isoDateOnly(addDays(params.now, -90));
+  const endIso = isoDateOnly(addDays(params.now, 180));
+  const contractDetails = {
+    title: "Supply Agreement",
+    description: "Seed contract for Financial Fallback QA",
+    number: `CON-FFQA-${params.issuerOrgId.slice(-6)}`,
+    value: QA_CONTRACT_DETAILS.value,
+    start_date: startIso,
+    end_date: endIso,
+    approved_facility: QA_CONTRACT_DETAILS.approved_facility,
+    financing: QA_CONTRACT_DETAILS.financing,
+  };
+
+  await prisma.contract.upsert({
+    where: { id: params.contractId },
+    update: {
+      issuer_organization_id: params.issuerOrgId,
+      status: ContractStatus.APPROVED,
+      contract_details: contractDetails as Prisma.InputJsonValue,
+      customer_details: QA_CUSTOMER_DETAILS as Prisma.InputJsonValue,
+    },
+    create: {
+      id: params.contractId,
+      issuer_organization_id: params.issuerOrgId,
+      status: ContractStatus.APPROVED,
+      contract_details: contractDetails as Prisma.InputJsonValue,
+      customer_details: QA_CUSTOMER_DETAILS as Prisma.InputJsonValue,
+    },
+  });
+
+  return {
+    contractSnapshot: {
+      id: params.contractId,
+      status: ContractStatus.APPROVED,
+      contract_details: contractDetails as Prisma.InputJsonValue,
+      customer_details: QA_CUSTOMER_DETAILS,
+    } as Prisma.InputJsonValue,
+  };
+}
+
+async function upsertQaInvoiceOnly(params: {
+  invoiceId: string;
+  applicationId: string;
+  contractId: string;
+  maturityIso: string;
+  now: Date;
+}): Promise<{ invoiceSnapshot: Prisma.InputJsonValue }> {
+  const invoiceDetails = {
+    value: QA_INVOICE_DETAILS.value,
+    maturity_date: params.maturityIso,
+  };
+  const offerDetails = {
+    ...QA_OFFER_DETAILS,
+    offered_profit_rate_percent: QA_OFFER_DETAILS.offered_profit_rate_percent,
+  };
+
+  await prisma.invoice.upsert({
+    where: { id: params.invoiceId },
+    update: {
+      application_id: params.applicationId,
+      contract_id: params.contractId,
+      status: InvoiceStatus.APPROVED,
+      details: invoiceDetails as Prisma.InputJsonValue,
+      offer_details: offerDetails as Prisma.InputJsonValue,
+    },
+    create: {
+      id: params.invoiceId,
+      application_id: params.applicationId,
+      contract_id: params.contractId,
+      status: InvoiceStatus.APPROVED,
+      details: invoiceDetails as Prisma.InputJsonValue,
+      offer_details: offerDetails as Prisma.InputJsonValue,
+    },
+  });
+
+  return {
+    invoiceSnapshot: {
+      id: params.invoiceId,
+      status: InvoiceStatus.APPROVED,
+      details: invoiceDetails,
+      offer_details: offerDetails,
+    } as Prisma.InputJsonValue,
+  };
+}
+
 async function upsertQaContractAndInvoice(params: {
   contractId: string;
   invoiceId: string;
@@ -910,11 +1059,11 @@ async function upsertCtosReport(params: {
   actorNow: Date;
   valueVariant: 1 | 2 | 3;
   partialForFy?: number; // Simulate partial CTOS rows (omit some non-critical fields)
-  ctosFixtureRowsByFy?: Record<number, unknown>;
+  ctosFixtureRows?: unknown[];
 }) {
   const rows = params.fyYears.map((fy) => {
-    const fixtureRow = params.ctosFixtureRowsByFy?.[fy];
-    if (fixtureRow) return fixtureRow as any;
+    const fixtureRow = params.ctosFixtureRows?.find((r: any) => r?.financial_year === fy);
+    if (fixtureRow != null) return fixtureRow as any;
 
     const v = valuesForYear(fy, params.valueVariant);
     const base = { ...v } as any;
@@ -982,7 +1131,7 @@ async function upsertProspectusReviewNote(params: {
   actorUserId: string;
   locked?: boolean;
   reviewStatusOverride?: ProspectusReviewStatus;
-}) {
+}): Promise<string> {
   const noteTitle = `Prospectus Review - ${params.issuerOrgName}`;
 
   const maturityDateOnly = (params.invoiceSnapshot as any)?.details?.maturity_date as
@@ -1058,13 +1207,24 @@ async function upsertProspectusReviewNote(params: {
   };
 
   await prisma.note.upsert({
-    where: { id: params.noteId },
+    where: { note_reference: params.noteReference },
     update: noteData as any,
     create: noteData,
   });
 
+  const persisted = await prisma.note.findUnique({
+    where: { note_reference: params.noteReference },
+    select: { id: true },
+  });
+
+  if (!persisted) {
+    throw new Error(`seed: failed to resolve persisted note id for note_reference=${params.noteReference}`);
+  }
+
+  const actualNoteId = persisted.id;
+
   await prisma.noteProspectusReview.upsert({
-    where: { note_id: params.noteId },
+    where: { note_id: actualNoteId },
     update: {
       status:
         params.reviewStatusOverride ??
@@ -1074,7 +1234,7 @@ async function upsertProspectusReviewNote(params: {
       updated_by_user_id: params.actorUserId,
     },
     create: {
-      note_id: params.noteId,
+      note_id: actualNoteId,
       status:
         params.reviewStatusOverride ??
         (params.locked ? ProspectusReviewStatus.PUBLISHED : ProspectusReviewStatus.DRAFT),
@@ -1085,6 +1245,8 @@ async function upsertProspectusReviewNote(params: {
       updated_by_user_id: params.actorUserId,
     },
   });
+
+  return actualNoteId;
 }
 
 async function ensureAdminAndIssuerUsers(params: { issuerOrgNames: string[] }) {
@@ -1144,15 +1306,10 @@ async function main() {
   // (bsqres/bsqupro/bsqmint/plminin -> equity_share_premium/equity_accumulated_profit/equity_minority/pl_minority).
   const fixtureXmlPath = path.join(
     __dirname,
-    "../ctos-test/output/2026-09-07T05-14-25-245Z_company_200501525124.xml"
+    "../src/ctos-test/output/2026-09-07T05-14-25-245Z_company_200501525124.xml"
   );
   const fixtureXml = fs.readFileSync(fixtureXmlPath, "utf8");
   const fixtureParsed = await parseCtosReportXml(fixtureXml);
-  const fixtureRowsByFy: Record<number, unknown> = Object.fromEntries(
-    (fixtureParsed.financials_json ?? [])
-      .filter((r) => r?.financial_year != null && Number.isFinite(r.financial_year))
-      .map((r) => [r.financial_year as number, r])
-  );
   const fixtureCompany = fixtureParsed.company_json;
   const fixtureCompanyName = fixtureCompany?.name ?? null;
   const fixtureRegistrationNumber = fixtureCompany?.ic_lcno ?? fixtureCompany?.brn_ssm ?? null;
@@ -1238,12 +1395,9 @@ async function main() {
       registrationNumber: isFixtureScenario ? fixtureRegistrationNumber : undefined,
     });
 
-    const { contractSnapshot, invoiceSnapshot } = await upsertQaContractAndInvoice({
+    const { contractSnapshot } = await upsertQaContractOnly({
       contractId,
-      invoiceId,
       issuerOrgId,
-      applicationId,
-      maturityIso,
       now,
     });
 
@@ -1262,6 +1416,14 @@ async function main() {
       valueVariant: s.valueVariant,
     });
 
+    const { invoiceSnapshot } = await upsertQaInvoiceOnly({
+      invoiceId,
+      applicationId,
+      contractId,
+      maturityIso,
+      now,
+    });
+
     const partialForFy = s.key === "13" ? 2025 : undefined;
     await upsertCtosReport({
       ctosReportId,
@@ -1270,10 +1432,57 @@ async function main() {
       actorNow: now,
       valueVariant: s.valueVariant,
       partialForFy,
-      ctosFixtureRowsByFy: s.key === "02" ? fixtureRowsByFy : undefined,
+      ctosFixtureRows: s.key === "02" ? (fixtureParsed.financials_json ?? []) : undefined,
     });
 
-    await upsertProspectusReviewNote({
+    if (s.key === "02") {
+      assertIsSchemaValidCuid2(ctosReportId);
+      assertIsSchemaValidCuid2(applicationId);
+      assertIsSchemaValidCuid2(issuerOrgId);
+
+      const storedCtos = await prisma.ctosReport.findUnique({
+        where: { id: ctosReportId },
+        select: { financials_json: true },
+      });
+
+      const storedRows = (storedCtos?.financials_json ?? []) as any[];
+      for (const fy of [2023, 2024]) {
+        const storedRow = storedRows.find((r) => r?.financial_year === fy);
+        if (!storedRow?.account) {
+          throw new Error(`seed scenario 02: missing stored CTOS row for FY${fy}`);
+        }
+        assertCtosAccountHasRequiredFields({ fy, account: storedRow.account });
+      }
+
+      const storedApp = await prisma.application.findUnique({
+        where: { id: applicationId },
+        select: { financial_statements: true },
+      });
+      const fs = storedApp?.financial_statements as any;
+      const unaud = fs?.unaudited_by_year ?? {};
+      const admin = fs?.admin_input_by_year ?? {};
+
+      if (unaud["2025"] != null || admin["2025"] != null) {
+        throw new Error(`seed scenario 02: FY2025 must remain absent, but found in stored financial_statements`);
+      }
+
+      const unaud2026 = unaud["2026"];
+      if (!unaud2026) throw new Error(`seed scenario 02: missing stored unaudited_by_year[2026] block`);
+      const requiredUserKeys2026 = [
+        "equity_share_premium",
+        "equity_accumulated_profit",
+        "equity_minority",
+        "pl_minority",
+      ] as const;
+      for (const k of requiredUserKeys2026) {
+        const v = unaud2026?.[k];
+        if (v == null || v === "" || !Number.isFinite(Number(v))) {
+          throw new Error(`seed scenario 02: FY2026 missing/invalid user input key ${k}`);
+        }
+      }
+    }
+
+    const persistedNoteId = await upsertProspectusReviewNote({
       noteId,
       noteReference,
       applicationId,
@@ -1311,7 +1520,7 @@ async function main() {
       select: { financials_json: true },
     });
     const note = await prisma.note.findUnique({
-      where: { id: noteId },
+      where: { id: persistedNoteId },
       select: { id: true, status: true, published_at: true },
     });
 
@@ -1404,9 +1613,11 @@ async function main() {
   console.log(`Seed complete: ${scenarios.length} financial fallback scenarios created.`);
 }
 
-main().catch((e) => {
-  // eslint-disable-next-line no-console
-  console.error(e);
-  process.exit(1);
-});
+if (!process.env.JEST_WORKER_ID) {
+  main().catch((e) => {
+    // eslint-disable-next-line no-console
+    console.error(e);
+    process.exit(1);
+  });
+}
 
