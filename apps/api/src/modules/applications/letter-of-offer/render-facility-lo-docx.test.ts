@@ -12,6 +12,7 @@ import {
   LO_ATTENTION_WRAP_LEFT_TWIPS,
   paragraphPinsHangingValueWrap,
 } from "../../generated-documents/hanging-execution-label";
+import { MERGE_EMPTY_DISPLAY } from "../../generated-documents/merge-visibility";
 
 function renderedXml(data: ContractFacilityLoMergeData): string {
   const zip = new PizZip(renderFacilityLoDocx(data));
@@ -107,7 +108,7 @@ describe("renderFacilityLoDocx", () => {
     expect(linePara).toContain('<w:numId w:val="4"/>');
     expect(linePara).toContain('<w:ilvl w:val="0"/>');
     expect(linePara).not.toContain('<w:numId w:val="3"/>');
-    expect(linePara).toContain('w:val="yellow"');
+    expect(linePara).not.toContain("w:highlight");
     const repPara = paragraphContaining(xml, "{rep_line}");
     expect(repPara).toContain('<w:numId w:val="4"/>');
     expect(repPara).toContain('<w:ilvl w:val="1"/>');
@@ -117,10 +118,10 @@ describe("renderFacilityLoDocx", () => {
     expect(xml).toContain("<w:cantSplit/>");
     expect(paragraphContaining(xml, "{/signatory_rows}")).toContain("Designation :");
     expect(paragraphContaining(xml, "{/signatory_rows}")).toContain("{/show_right}");
-    expect(xml).toContain('w:val="yellow"');
-    expect(runContaining(xml, "{issuer_name}")).toContain('w:val="yellow"');
-    expect(runContaining(xml, "{left_nric}")).toContain('w:val="yellow"');
-    expect(runContaining(xml, "{nric}")).toContain('w:val="yellow"');
+    expect(xml).not.toContain("<w:highlight");
+    expect(runContaining(xml, "{issuer_name}")).not.toContain("w:highlight");
+    expect(runContaining(xml, "{left_nric}")).not.toContain("w:highlight");
+    expect(runContaining(xml, "{nric}")).not.toContain("w:highlight");
     expect(
       paragraphPinsHangingValueWrap(
         paragraphContaining(xml, "{attention_name}"),
@@ -146,9 +147,9 @@ describe("renderFacilityLoDocx", () => {
     expect(wordPlainText(xml)).not.toContain("Sub-Limit per Invoice");
     expect(xml).not.toContain("{sub_limit_per_invoice_rm}");
     expect(wordPlainText(xml)).not.toContain("applicable Sub-Limit");
-    expect(runContaining(xml, "RENDERED_ISSUER_NAME_XYZ")).toContain('w:val="yellow"');
-    expect(runContaining(xml, "Ali Bin Abu")).toContain('w:val="yellow"');
-    expect(runContaining(xml, "900101145678")).toContain('w:val="yellow"');
+    expect(runContaining(xml, "RENDERED_ISSUER_NAME_XYZ")).not.toContain("w:highlight");
+    expect(runContaining(xml, "Ali Bin Abu")).not.toContain("w:highlight");
+    expect(runContaining(xml, "900101145678")).not.toContain("w:highlight");
   });
 
   it("lists individuals and nested corporate representatives in Finance Documents order", () => {
@@ -343,7 +344,7 @@ describe("renderFacilityLoDocx", () => {
     expect(count(text, "fourteen (14) days")).toBeGreaterThanOrEqual(2);
   });
 
-  it("prints visible merge tags and yellow highlight when a field has no data", () => {
+  it("prints N/A when a field has no data", () => {
     const data = createFacilityLoFixture();
     data.grace_period_days = "";
     data.finance_documents_guarantors = [];
@@ -351,15 +352,15 @@ describe("renderFacilityLoDocx", () => {
     data.guarantors_corporate = [];
     const xml = renderedXml(data);
     const text = wordPlainText(xml);
-    expect(text).toContain("{grace_period_days}");
+    expect(text).toContain(MERGE_EMPTY_DISPLAY);
     expect(text).toContain("[INSERT NAME] (NRIC No. [INSERT])");
-    expect(runContaining(xml, "{grace_period_days}")).toContain('w:val="yellow"');
-    expect(runContaining(xml, "[INSERT NAME] (NRIC No. [INSERT])")).toContain('w:val="yellow"');
+    expect(runContaining(xml, MERGE_EMPTY_DISPLAY)).not.toContain("w:highlight");
+    expect(runContaining(xml, "[INSERT NAME] (NRIC No. [INSERT])")).not.toContain("w:highlight");
   });
 
   it("does not leave unresolved merge tags when fixture data is complete", () => {
     const xml = renderedXml(createFacilityLoFixture());
     expect(xml).not.toMatch(/\{[a-z][a-z0-9_]*\}/);
-    expect(xml).toContain('w:val="yellow"');
+    expect(xml).not.toContain("<w:highlight");
   });
 });

@@ -7,7 +7,7 @@ Checklist for a **new** catalog entry (not changing an existing type — bump `v
 - Add a tagged `.docx` under `apps/api/src/modules/applications/templates/` (or a per-type subfolder if the file is large).
 - Use docxtemplater tags: `{snake_case}` (see [add-a-placeholder.md](./add-a-placeholder.md)).
 - Leave signature lines as underscores in Word for wet ink — do not add merge tags for signees unless legal approves.
-- Value merge tags (`{snake_case}`) must be yellow-highlighted in the tagged file. Empty values print the tag or legal placeholder — never a blank slot.
+- Value merge tags (`{snake_case}`) live in their own runs with **no** yellow highlight. Empty optional scalars print `N/A`; composed identity lines use the legal placeholder — never a blank slot.
 
 ## 2. Merge types
 
@@ -24,7 +24,7 @@ Checklist for a **new** catalog entry (not changing an existing type — bump `v
 
 - `render*Docx(data)` — Docxtemplater + PizZip ([`render-facility-lo-docx.ts`](../../apps/api/src/modules/applications/letter-of-offer/render-facility-lo-docx.ts)).
 - PDF: `convertDocxToPdf` via Gotenberg ([`convert-docx-to-pdf.ts`](../../apps/api/src/modules/applications/letter-of-offer/convert-docx-to-pdf.ts)).
-- Tests: unset merge keys print `{tag}` while sources are still being wired; fixture render does not throw.
+- Tests: unset optional merge keys print `N/A`; fixture render does not throw.
 
 ## 5. Catalog row
 

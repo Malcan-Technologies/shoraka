@@ -611,7 +611,7 @@ Then run §7 through the **admin UI** (Download PDF) and issuer generated-docume
 
 ## 7. Acceptance tests
 
-Do not byte-compare PDFs (metadata changes). Check page count, extracted text, and yellow merge highlights. Gotenberg 8.30 changed bundled fonts — layout drift is a contract risk.
+Do not byte-compare PDFs (metadata changes). Check page count and extracted text. Gotenberg 8.30 changed bundled fonts — layout drift is a contract risk.
 
 | # | Test | Pass |
 |---|------|------|

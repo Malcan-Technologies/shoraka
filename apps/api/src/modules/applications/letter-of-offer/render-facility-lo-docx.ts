@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
+import { mergeNullGetter } from "../../generated-documents/merge-visibility";
 import type { ContractFacilityLoMergeData } from "./facility-lo-merge.types";
 import { buildFacilityLoRenderPayload } from "./facility-lo-guarantors";
 
@@ -32,12 +33,7 @@ export function renderFacilityLoDocx(data: ContractFacilityLoMergeData): Buffer 
   const doc = new Docxtemplater(zip, {
     paragraphLoop: true,
     linebreaks: true,
-    nullGetter: (part) => {
-      if (part.module === "rawxml") return "";
-      if (part.module === "loop") return [];
-      if (part.value) return `{${part.value}}`;
-      return "";
-    },
+    nullGetter: mergeNullGetter,
   });
   doc.render(buildFacilityLoRenderPayload(data) as Record<string, unknown>);
   return doc.getZip().generate({ type: "nodebuffer", compression: "DEFLATE" }) as Buffer;

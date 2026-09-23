@@ -5,6 +5,7 @@ import Docxtemplater from "docxtemplater";
 import type { FacilityAgreementMergeData } from "./fa-merge.types";
 import { buildFacilityAgreementRenderPayload } from "./build-fa-render-payload";
 import { splitFacilityAgreementXmlAtSchedule4 } from "./fa-document-xml";
+import { mergeNullGetter } from "../../generated-documents/merge-visibility";
 import { solidifySignatureLinesInXml } from "../../generated-documents/solid-signature-lines";
 
 const TEMPLATE_FILENAME = "arf-facility-agreement.docx";
@@ -33,12 +34,7 @@ export function renderFacilityAgreementDocx(data: FacilityAgreementMergeData): B
   const doc = new Docxtemplater(zip, {
     paragraphLoop: true,
     linebreaks: true,
-    nullGetter: (part) => {
-      if (part.module === "rawxml") return "";
-      if (part.module === "loop") return [];
-      if (part.value) return `{${part.value}}`;
-      return "";
-    },
+    nullGetter: mergeNullGetter,
   });
   doc.render(buildFacilityAgreementRenderPayload(data) as Record<string, unknown>);
   const zipAfter = doc.getZip();

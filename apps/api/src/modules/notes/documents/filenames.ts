@@ -3,8 +3,8 @@ export function safeNoteDocumentFilename(noteReference: string, prefix: string):
   return `${prefix}-${ref}.pdf`;
 }
 
-export function facilityAgreementPackageFilename(noteReference: string): string {
-  return safeNoteDocumentFilename(noteReference, "Facility-Agreement-Package");
+export function facilityAgreementPackageFilename(reference: string): string {
+  return safeNoteDocumentFilename(reference, "Facility-Agreement-Package");
 }
 
 export function shorakaCertificateFilename(noteReference: string, tradeOrderId: string): string {

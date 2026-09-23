@@ -22,6 +22,16 @@ import {
   type NoteSigningEnvelopeLike,
 } from "../../notes/documents/envelope";
 import {
+  sortShorakaCertificates,
+  type ShorakaCertificateOrderInput,
+} from "../../notes/documents/certificate-order";
+import {
+  assembleAndRecordFacilityAgreementPackage,
+  loadShorakaCertificatePdfs,
+  sha256Hex,
+} from "../../notes/documents/compile-facility-agreement-package";
+import { facilityAgreementPackageFilename } from "../../notes/documents/filenames";
+import {
   buildFacilityDocumentCatalog,
   type FacilityDocumentCatalogSnapshot,
   type FacilityUnderlyingContract,
@@ -130,10 +140,7 @@ export class FacilityDocumentsService {
       return this.generateLetterOfOffer(snapshot, actor);
     }
     if (documentId === FACILITY_DOCUMENT_FIXED_IDS.facilityAgreement) {
-      return this.signedEnvelopePdf(
-        snapshot.facilityAgreement,
-        item.filename ?? safeFacilityDocumentFilename(snapshot.facilityReference, "FA")
-      );
+      return this.composePackage(snapshot, actor);
     }
     if (documentId === FACILITY_DOCUMENT_FIXED_IDS.jsg) {
       return this.signedEnvelopePdf(
@@ -166,7 +173,7 @@ export class FacilityDocumentsService {
       throw new AppError(404, "NOT_FOUND", "Facility not found");
     }
 
-    const [envelopes, application] = await Promise.all([
+    const [envelopes, application, childNotes, latestPackage] = await Promise.all([
       this.db.signingEnvelope.findMany({
         where: { contract_id: contract.id, invoice_id: null, status: "COMPLETED" },
         select: {
@@ -194,7 +201,33 @@ export class FacilityDocumentsService {
             select: { financing_type: true, product_version: true },
           })
         : Promise.resolve(null),
+      this.db.note.findMany({
+        where: { source_contract_id: contract.id },
+        select: { id: true },
+      }),
+      this.db.facilityAgreementPackageEvidence.findFirst({
+        where: { contract_id: contract.id },
+        orderBy: { created_at: "desc" },
+        select: { created_at: true },
+      }),
     ]);
+
+    const noteIds = childNotes.map((note) => note.id);
+    const shorakaRows =
+      noteIds.length === 0
+        ? []
+        : await this.db.shorakaTradeOrder.findMany({
+            where: { note_id: { in: noteIds } },
+            select: {
+              id: true,
+              created_at: true,
+              certificate_s3_key: true,
+              certificate_file_sha256: true,
+              withdrawalInstruction: {
+                select: { withdrawal_type: true, created_at: true },
+              },
+            },
+          });
 
     const envelope = pickLatestMatchingCompletedEnvelope(
       envelopes as NoteSigningEnvelopeLike[],
@@ -207,12 +240,15 @@ export class FacilityDocumentsService {
     return {
       facilityId: contract.id,
       facilityReference: contract.display_reference?.trim() || contract.id,
+      originatingApplicationId: contract.originating_application_id,
       underlyingContract: parseUnderlyingContract(contract.contract_details),
       envelope,
       jsg: pickSignedDocumentByTemplateRef(envelope, JSG_SIGNING_DOCUMENT_KEY),
       facilityAgreement: pickSignedDocumentByTemplateRef(envelope, FA_SIGNING_DOCUMENT_KEY),
       doa: pickSignedDocumentByTemplateRef(envelope, DOA_SIGNING_DOCUMENT_KEY),
       letterOfOffer: await this.letterOfOfferGates(contract, application),
+      shoraka: sortShorakaCertificates(shorakaRows as ShorakaCertificateOrderInput[]),
+      faPackageGeneratedAt: latestPackage?.created_at.toISOString() ?? null,
     };
   }
 
@@ -286,12 +322,8 @@ export class FacilityDocumentsService {
   private async generateLetterOfOffer(
     snapshot: FacilityDocumentCatalogSnapshot,
     actor: FacilityDocumentsActor
-  ): Promise<FacilityDocumentContent> {
-    const contract = await this.db.contract.findUnique({
-      where: { id: snapshot.facilityId },
-      select: { originating_application_id: true },
-    });
-    if (!contract?.originating_application_id) {
+  ): Promise<FacilityDocumentContent & { templateSha256: string; outputSha256: string }> {
+    if (!snapshot.originatingApplicationId) {
       throw new AppError(
         404,
         "FACILITY_DOCUMENT_UNAVAILABLE",
@@ -299,7 +331,7 @@ export class FacilityDocumentsService {
       );
     }
     const generated = await generatedDocumentsService.generateDocument({
-      applicationId: contract.originating_application_id,
+      applicationId: snapshot.originatingApplicationId,
       typeKey: "arf_contract_facility_lo",
       format: "pdf",
       userId: actor.userId,
@@ -310,6 +342,59 @@ export class FacilityDocumentsService {
     return {
       buffer: generated.buffer,
       filename: safeFacilityDocumentFilename(snapshot.facilityReference, "LO"),
+      contentType: "application/pdf",
+      templateSha256: generated.templateSha256,
+      outputSha256: generated.outputSha256,
+    };
+  }
+
+  private async composePackage(
+    snapshot: FacilityDocumentCatalogSnapshot,
+    actor: FacilityDocumentsActor
+  ): Promise<FacilityDocumentContent> {
+    if (!snapshot.originatingApplicationId) {
+      throw new AppError(
+        404,
+        "FACILITY_DOCUMENT_UNAVAILABLE",
+        "Waiting for the offer to be sent."
+      );
+    }
+    const signedFa = snapshot.facilityAgreement;
+    if (!signedDocumentIsAvailable(signedFa) || !signedFa) {
+      throw new AppError(
+        404,
+        "FACILITY_DOCUMENT_UNAVAILABLE",
+        "Waiting for the Facility Agreement to be signed."
+      );
+    }
+    const signedFaPdf = await loadObjectFromKey(
+      signedFa.signed_s3_key,
+      "The signed Facility Agreement is not available."
+    );
+    const letter = await this.generateLetterOfOffer(snapshot, actor);
+    const certificates = await loadShorakaCertificatePdfs(snapshot.shoraka, (key) =>
+      loadObjectFromKey(key, "A Shoraka certificate could not be loaded.")
+    );
+    const composed = await assembleAndRecordFacilityAgreementPackage({
+      db: this.db,
+      signedFaPdf,
+      signedFaSha256: signedFa.signed_file_sha256?.trim() || sha256Hex(signedFaPdf),
+      letterOfOfferPdf: letter.buffer,
+      loTemplateSha256: letter.templateSha256,
+      loOutputSha256: letter.outputSha256,
+      certificates,
+      title: `Facility Agreement Package ${snapshot.facilityReference} (compiled copy)`,
+      evidence: {
+        noteId: null,
+        applicationId: snapshot.originatingApplicationId,
+        contractId: snapshot.facilityId,
+        invoiceId: null,
+        createdByUserId: actor.userId,
+      },
+    });
+    return {
+      buffer: composed.buffer,
+      filename: facilityAgreementPackageFilename(snapshot.facilityReference),
       contentType: "application/pdf",
     };
   }

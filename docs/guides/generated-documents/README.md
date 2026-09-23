@@ -27,8 +27,8 @@ An application keeps its frozen product version even if the live catalog product
 
 ## Merge tags (all generated Word types)
 
-- Empty / missing data prints the merge tag or legal placeholder — never a blank slot. Required commercial fields still fail generate (`GENERATED_DOCUMENT_DATA_INCOMPLETE`).
-- Every **value** merge (filled or not) is yellow-highlighted in Word. Loop/raw tags are not.
+- Empty / missing optional scalars print `N/A` — never a blank slot and never `{merge_key}`. Composed identity lines still use `[INSERT NAME]` / `[INSERT]`. Required commercial fields still fail generate (`GENERATED_DOCUMENT_DATA_INCOMPLETE`).
+- Value merges are **not** yellow-highlighted. Loop/raw tags are not highlighted either.
 - Execution Name/Designation lines in hanging-parenthesis / right-hand columns use hanging indent so wrapped values stay under the value, not under `Signed by`. Long-string inspect smoke (DOCX/PDF/page PNGs): from `apps/api`, `pnpm generated-docs:wrap-smoke` (needs `GOTENBERG_URL`). Writes `apps/api/tmp/generated-docs-wrap-smoke/`. SigningCloud boxes on those same long strings: `pnpm signingcloud:generated-docs-wrap-smoke` (writes `apps/api/tmp/signingcloud-wrap-smoke/`; FA/DoA include the company-seal field unless `SC_ENABLE_SEAL_FIELD=false`). After issuer CA signing, CashSouk auto-sign is `pnpm signingcloud:generated-docs-wrap-smoke-auto` (needs automatic emails on the wrap-smoke upload).
 - LO Finance Documents guarantor entities use lower-roman `i. ii. iii.`; company representatives nest as `a. b. c.` (not the parent `(a) (b) (c)` list).
 

@@ -5,11 +5,11 @@ Verification map for the tagged production template:
 - Untagged source: `apps/api/src/modules/applications/templates/01 LO (Clean Copy) 19 August 2026.docx`
 - Tagged merge file: `apps/api/src/modules/applications/templates/arf-contract-facility-lo.docx`
 - Rebuild script: `apps/api/scripts/retag-lo-template.ts` (`pnpm --filter @cashsouk/api retag-lo-template`)
-- Catalog: `arf_contract_facility_lo` **version 2**
+- Catalog: `arf_contract_facility_lo` **version 3**
 - Builder: `buildFacilityLoMergeData`
 - Demo + production both call `renderFacilityLoDocx` on that same tagged file
 - Required commercial / party data fails generation (`GENERATED_DOCUMENT_DATA_INCOMPLETE`) instead of issuing a letter with blank slots
-- Empty optional / unwired fields print the merge tag or legal placeholder, yellow-highlighted, so missing merges are obvious
+- Empty optional / unwired scalars print `N/A`. Composed identity lines still use `[INSERT NAME]` / `[INSERT]`. Merge runs are not yellow-highlighted.
 
 **Legend**
 

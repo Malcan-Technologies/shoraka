@@ -2512,7 +2512,7 @@ model GeneratedDocumentEvidence {
 /// The signed FA source is never overwritten; this records component hashes of the derivative.
 model FacilityAgreementPackageEvidence {
   id                 String   @id @default(cuid())
-  note_id            String
+  note_id            String?
   application_id     String
   contract_id        String?
   invoice_id         String?
@@ -2530,6 +2530,7 @@ model FacilityAgreementPackageEvidence {
 
   @@index([note_id])
   @@index([application_id])
+  @@index([contract_id])
   @@index([created_at])
   @@map("facility_agreement_package_evidence")
 }

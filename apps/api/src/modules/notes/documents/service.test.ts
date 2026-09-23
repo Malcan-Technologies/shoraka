@@ -81,6 +81,7 @@ describe("NoteDocumentsService content guards", () => {
           source_invoice_id: null,
         }),
       },
+      invoice: { findUnique: jest.fn() },
       signingDocument: { update },
       facilityAgreementPackageEvidence: { create },
     } as never);
@@ -121,6 +122,47 @@ describe("NoteDocumentsService content guards", () => {
           lo_output_sha256: "out",
           created_by_user_id: "A0001",
         }),
+      })
+    );
+  });
+
+  it("generates LO from the facility offer when the note invoice is facility-linked", async () => {
+    const service = new NoteDocumentsService({
+      note: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: "note-1",
+          note_reference: "NOTE-001",
+          source_application_id: "app-1",
+          source_contract_id: "c1",
+          source_invoice_id: "inv_1",
+        }),
+      },
+      invoice: {
+        findUnique: jest.fn().mockResolvedValue({ contract_id: "c1" }),
+      },
+    } as never);
+    mockGenerateDocument.mockResolvedValue({
+      buffer: Buffer.from("%PDF-lo"),
+      filename: "LO.pdf",
+      contentType: "application/pdf",
+      templateSha256: "tmpl",
+      outputSha256: "out",
+    });
+
+    await (
+      service as unknown as {
+        generateLetterOfOffer: (
+          snapshot: NoteDocumentCatalogSnapshot,
+          actor: { userId: string }
+        ) => Promise<unknown>;
+      }
+    ).generateLetterOfOffer(snapshotBase, { userId: "A0001" });
+
+    expect(mockGenerateDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        typeKey: "arf_contract_facility_lo",
+        contractId: "c1",
+        invoiceId: null,
       })
     );
   });

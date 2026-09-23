@@ -8,7 +8,7 @@ Add `{snake_case}` in the `.docx` under `apps/api/src/modules/applications/templ
 
 - Match existing naming in [`facility-lo-merge.types.ts`](../../apps/api/src/modules/applications/letter-of-offer/facility-lo-merge.types.ts).
 - **Repeating rows** (e.g. guarantors): use docxtemplater section loops — `{#guarantors_individual}{line}{/guarantors_individual}` — and bump catalog `version` when the Word structure changes.
-- Put each **value** tag in its own yellow-highlighted run. Empty values must render the tag or legal placeholder, not a blank.
+- Put each **value** tag in its own run (no yellow highlight). Empty optional scalars render `N/A`. Composed identity lines use the legal placeholder, not a blank.
 - Execution Name/Designation/NRIC lines (hanging-parenthesis columns **and** two-column execution tables) need hanging indent + a tab stop. Do not indent those values with tabs or `firstLine` only. Wrapped overflow starts at the first character of the value (after `: `), not at the colon. In a table column, every label shares one colon tab (the longest label in that column) so colons and wrapped values line up. Apply this in every catalog template that has those fields, not only Investor/Agent.
 - **SIGNEE** fields: do **not** add a merge tag; keep underscores in Word for wet ink.
 
@@ -26,12 +26,12 @@ In the relevant `build*MergeData` (LO: [`build-facility-lo-merge-data.ts`](../..
 | **EXISTS** | Read a known column or JSON path | `contract.offer_details.offered_facility` |
 | **DERIVE** | Compute from other fields | RM format, `numberToWords`, date phrases via [`lo-format.ts`](../../apps/api/src/modules/applications/letter-of-offer/lo-format.ts) |
 | **LEGAL_DEFAULT** | Fixed constant until product config exists | Availability 30 days from fixture |
-| **EMPTY** | Print the merge tag (`{field_name}`) or legal placeholder, yellow-highlighted. Do not leave the slot blank. Production generate still fails closed for **required** fields (`GENERATED_DOCUMENT_DATA_INCOMPLETE`) | Optional / unwired fields during review |
+| **EMPTY** | Print `N/A` (or the legal identity placeholder). Do not leave the slot blank and do not print `{field_name}`. Production generate still fails closed for **required** fields (`GENERATED_DOCUMENT_DATA_INCOMPLETE`) | Optional / unwired fields |
 | **SIGNEE** | No builder entry; blank in Word | Authorised signatory wet ink lines |
 
-Do **not** invent commercial data. If legal has not signed off, use **EMPTY** (visible `{tag}`, not `""`).
+Do **not** invent commercial data. If legal has not signed off, use **EMPTY** (`N/A`, not `""` and not `{tag}`).
 
-Yellow highlight every **value** merge run in the tagged Word file (`w:highlight val="yellow"`). Loop/raw tags (`{#…}`, `{/…}`, `{@…}`) are not highlighted. Filled and unfilled values both stay yellow so reviewers can see what was merged.
+Do not yellow-highlight merge runs. Loop/raw tags (`{#…}`, `{/…}`, `{@…}`) stay unhighlighted as well.
 
 Finance Documents guarantor **entities** use lower-roman `i. ii. iii.`. Company authorised representatives nest under the company as `a. b. c.` (indented), never continuing the parent `(a) (b) (c)` finance-document list.
 

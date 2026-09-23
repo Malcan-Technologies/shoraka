@@ -20,7 +20,7 @@ test.describe("Admin facility documents", () => {
     await expect(page.getByText("Legal documents for this facility.")).toBeVisible();
     await expect(page.getByText("Underlying contract")).toBeVisible();
     await expect(page.getByText("Letter of Offer")).toBeVisible();
-    await expect(page.getByText("Facility Agreement", { exact: true })).toBeVisible();
+    await expect(page.getByText("Facility Agreement Package")).toBeVisible();
     await expect(page.getByText("Joint and Several Guarantee")).toBeVisible();
     await expect(page.getByText("Deed of Assignment")).toBeVisible();
     await expect(page.getByText("Canonical")).toHaveCount(0);

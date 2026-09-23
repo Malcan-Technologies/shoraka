@@ -13,6 +13,9 @@ import {
   type AuthorizedPartyGuarantorLookup,
   type LoCorporateAuthorizedRepresentative,
 } from "@cashsouk/types";
+import { visibleMergeScalar } from "../../generated-documents/merge-visibility";
+
+export { visibleMergeScalar };
 
 type JsonRecord = Record<string, unknown>;
 
@@ -47,11 +50,6 @@ export function formatCorporateGuarantorLine(name: string, ssm: string): string 
   const displayName = name.trim() || LO_MERGE_PLACEHOLDER_NAME;
   const displaySsm = ssm.trim() || LO_MERGE_PLACEHOLDER_NRIC;
   return `${displayName} (Registration No. ${displaySsm})`;
-}
-
-/** Empty scalars print `{field_name}` so missing merges stay visible in the Word output. */
-export function visibleMergeScalar(key: string, value: string): string {
-  return value.trim() ? value : `{${key}}`;
 }
 
 function representativeLines(reps: Array<{ name: string; nric: string }>): Array<{ rep_line: string }> {
