@@ -87,11 +87,8 @@ describe("admin application financial review extra ComRep section", () => {
       path.join(__dirname, "../../application-financial-review-comparison.tsx"),
       "utf8"
     );
-    expect(content).toContain('title="Additional Financial Details"');
-    expect(content).toContain("Liability Breakdown");
-    expect(content).toContain("Equity Breakdown");
-    expect(content).toContain("Profit & Loss");
-    expect(content).toContain("Costs");
+    // Admin summary table is consolidated; detailed COMREP comparison keeps the legacy extra block.
+    expect(content).not.toContain('title="Additional Financial Details"');
     expect(comparison).toContain('title="Additional Financial Details"');
     expect(comparison).toContain("COMREP_ROW_LABELS");
   });

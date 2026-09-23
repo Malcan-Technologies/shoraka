@@ -69,6 +69,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { applicationsKeys } from "@/applications/query-keys";
 import { AdminAddFinancialStatementDialog } from "@/notes/prospectus-review/admin-add-financial-statement-dialog";
 import { AdminEditFinancialFieldDialog } from "@/notes/prospectus-review/admin-edit-financial-field-dialog";
+import { AdminEditFinancialStatementDialog } from "@/notes/prospectus-review/admin-edit-financial-statement-dialog";
 import { format, isValid, parse, parseISO } from "date-fns";
 import { useCreateApplicationCtosSubjectReport } from "@/hooks/use-admin-issuer-organization-ctos-mutations";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -312,6 +313,8 @@ export function ApplicationFinancialReviewContent({
   const queryClient = useQueryClient();
   const [addFinancialStatementOpen, setAddFinancialStatementOpen] = React.useState(false);
   const [addFinancialStatementYear, setAddFinancialStatementYear] = React.useState<number | null>(null);
+  const [editFinancialStatementOpen, setEditFinancialStatementOpen] = React.useState(false);
+  const [editFinancialStatementYear, setEditFinancialStatementYear] = React.useState<number | null>(null);
   const [fieldEdit, setFieldEdit] = React.useState<{
     year: number;
     key: string;
@@ -323,7 +326,14 @@ export function ApplicationFinancialReviewContent({
     if (!applicationId) return;
     queryClient.invalidateQueries({ queryKey: applicationsKeys.detail(applicationId) });
     setAddFinancialStatementOpen(false);
-  }, [applicationId, queryClient]);
+  }, [applicationId, queryClient, setAddFinancialStatementOpen]);
+
+  const onEditFinancialStatementSaved = React.useCallback(() => {
+    if (!applicationId) return;
+    queryClient.invalidateQueries({ queryKey: applicationsKeys.detail(applicationId) });
+    setEditFinancialStatementOpen(false);
+    setEditFinancialStatementYear(null);
+  }, [applicationId, queryClient, setEditFinancialStatementOpen, setEditFinancialStatementYear]);
 
   const { unauditedByYear, adminInputByYear, questionnaire: financialQuestionnaire } = React.useMemo(
     () => extractQuestionnaireUnauditedAndAdminInput(app.financial_statements),
@@ -597,45 +607,6 @@ export function ApplicationFinancialReviewContent({
       id: "receivablesDays",
       label: "Receivables Days",
       formulaHint: "Average Trade Receivables ÷ Revenue × 365",
-    },
-  ];
-
-  const rowById = new Map(rowLabels.map((r) => [r.id, r] as const));
-  const rowGroups: Array<{ title: string; ids: string[] }> = [
-    {
-      title: "Assets",
-      ids: ["bsfatot", "othass", "bscatot", "bsclbank", "cashAndBank", "tradeReceivables", "totass"],
-    },
-    {
-      title: "Liabilities",
-      ids: ["curlib", "bsslltd", "bsclstd", "curlib_borrowing", "curlib_non_borrowing", "ncl_loan", "ncl_non_loan", "tradePayables", "totlib"],
-    },
-    {
-      title: "Equity",
-      ids: [
-        "bsqpuc",
-        "equity_share_application",
-        "equity_share_premium",
-        "equity_accumulated_profit",
-        "equity_minority",
-        "networth",
-      ],
-    },
-    {
-      title: "Profit & Loss",
-      ids: ["turnover", "grossProfit", "ebitda", "plnpbt", "plnpat", "plnetdiv", "pl_minority", "plyear", "netOperatingIncome"],
-    },
-    {
-      title: "Costs",
-      ids: ["costOfSales", "operating_cost", "admin_cost", "interest_cost", "other_cost"],
-    },
-    {
-      title: "Cash Flow / Debt",
-      ids: ["operatingCashFlow", "freeCashFlow", "annualDebtService"],
-    },
-    {
-      title: "Calculated Metrics",
-      ids: ["turnover_growth", "profit_margin", "return_of_equity", "currat", "workcap", "receivablesDays"],
     },
   ];
 
@@ -921,45 +892,30 @@ export function ApplicationFinancialReviewContent({
                           ) : spec.kind === "admin_input" && spec.year != null ? (
                             <span>{`FY${spec.year}`}</span>
                           ) : spec.year != null ? (
-                            String(spec.year)
+                            <span>{`FY${spec.year}`}</span>
                           ) : spec.kind === "ctos" ? (
                             "No year"
                           ) : (
                             HEADER_PLACEHOLDER
                           )}
                         </span>
-                        {spec.kind === "ctos" && spec.year != null ? (
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "shrink-0 whitespace-nowrap font-normal text-[11px] leading-tight px-2.5 py-0.5 rounded-md shadow-none",
-                              "border-emerald-500/40 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100"
-                            )}
+                        {spec.kind !== "admin_fallback_placeholder" && spec.year != null ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-2"
+                            title="Edit financial statement"
+                            onClick={() => {
+                              setEditFinancialStatementYear(spec.year as number);
+                              setEditFinancialStatementOpen(true);
+                            }}
                           >
-                            CTOS
-                          </Badge>
-                        ) : null}
-                        {spec.kind === "unaudited" && spec.year != null ? (
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "shrink-0 whitespace-nowrap font-normal text-[11px] leading-tight px-2.5 py-0.5 rounded-md shadow-none",
-                              "border-border bg-muted/50 text-foreground"
-                            )}
-                          >
-                            User Input
-                          </Badge>
-                        ) : null}
-                        {spec.kind === "admin_input" && spec.year != null ? (
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "shrink-0 whitespace-nowrap font-normal text-[11px] leading-tight px-2.5 py-0.5 rounded-md shadow-none",
-                              "border-border bg-muted/50 text-foreground"
-                            )}
-                          >
-                            Admin Input
-                          </Badge>
+                            <span className="flex items-center gap-2">
+                              <PencilSquareIcon className="h-4 w-4" aria-hidden />
+                              <span className="hidden sm:inline">Edit</span>
+                            </span>
+                          </Button>
                         ) : null}
                       </div>
                     </TableHead>
@@ -1279,6 +1235,20 @@ export function ApplicationFinancialReviewContent({
         calendarYear={addFinancialStatementYear}
         disabled={!canManageFinancialCtos || addFinancialStatementYear == null}
         onSaved={onAddFinancialStatementSaved}
+      />
+      <AdminEditFinancialStatementDialog
+        open={editFinancialStatementOpen}
+        onOpenChange={(open) => {
+          if (!open) setEditFinancialStatementYear(null);
+          setEditFinancialStatementOpen(open);
+        }}
+        applicationId={applicationId}
+        calendarYear={editFinancialStatementYear}
+        resolvedColumn={
+          editFinancialStatementYear != null ? resolvedByYear.get(editFinancialStatementYear) ?? null : null
+        }
+        disabled={!canManageFinancialCtos}
+        onSaved={onEditFinancialStatementSaved}
       />
       <AdminEditFinancialFieldDialog
         open={fieldEdit != null}
