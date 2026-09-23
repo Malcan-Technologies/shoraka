@@ -119,6 +119,60 @@ describe("Admin Financial Summary table UI", () => {
     expect(source).not.toContain("typeof netOperatingIncome === \"number\" ? netOperatingIncome : ebitda");
   });
 
+  it("CTOS priority for Current Ratio: use finished currat when present, otherwise fallback to bscatot ÷ curlib", () => {
+    const source = readFileSync(tablePath, "utf8");
+
+    // Priority: CTOS finished metric resolves first.
+    const idxResolve = source.indexOf('resolveCtosCurrentRatio({');
+    const idxIfFinished = source.indexOf("if (n != null) return formatNumber(n, 2);", idxResolve);
+    expect(idxResolve).toBeGreaterThan(-1);
+    expect(idxIfFinished).toBeGreaterThan(idxResolve);
+
+    // Fallback formula when finished metric is absent.
+    expect(source).toContain("fields.bscatot");
+    expect(source).toContain("fields.curlib");
+    expect(source).toContain("return formatNumber(currentAssets / currentLiabilities, 2);");
+
+    // Unavailable rules for fallback.
+    expect(source).toContain("currentAssets == null ||");
+    expect(source).toContain("currentLiabilities === 0");
+  });
+
+  it("CTOS priority for Working Capital: use finished workcap when present, otherwise fallback to bscatot − curlib", () => {
+    const source = readFileSync(tablePath, "utf8");
+
+    const idxCheck = source.indexOf('ctosFlatNumericPresent(fs, "workcap")');
+    expect(idxCheck).toBeGreaterThan(-1);
+    expect(source).toContain('return formatCurrency(toNum(fs.workcap), { decimals: 0 });');
+
+    // Fallback formula when finished metric is absent.
+    expect(source).toContain("return formatCurrency(currentAssets - currentLiabilities, { decimals: 0 });");
+    expect(source).toContain("fields.bscatot");
+    expect(source).toContain("fields.curlib");
+
+    // Unavailable rules for fallback.
+    expect(source).toContain("if (currentAssets == null || currentLiabilities == null) return \"Not available\";");
+  });
+
+  it("CTOS priority for ROE: use finished return_on_equity when present, otherwise fallback to plnpat ÷ networth × 100", () => {
+    const source = readFileSync(tablePath, "utf8");
+
+    const idxResolve = source.indexOf("resolveCtosReturnOnEquityPercent({");
+    const idxIfFinished = source.indexOf("if (percent != null) return", idxResolve);
+    expect(idxResolve).toBeGreaterThan(-1);
+    expect(idxIfFinished).toBeGreaterThan(idxResolve);
+
+    // Fallback formula when finished metric is absent.
+    expect(source).toContain("const pat = resolvedByYear.get(specCol.year)?.fields.plnpat?.value ?? null;");
+    expect(source).toContain("const netWorthVal = resolvedByYear.get(specCol.year)?.fields.networth?.value ?? null;");
+    expect(source).toContain("return `${formatNumber((pat / netWorthVal) * 100, 2)}%`;");
+
+    // Unavailable rules for fallback.
+    expect(source).toContain(
+      "if (pat == null || netWorthVal == null || netWorthVal === 0) return \"Not available\";"
+    );
+  });
+
   it("suppresses source badges and cell-level edit for calculated rows", () => {
     const source = readFileSync(tablePath, "utf8");
     expect(source).toContain('const uiCalculated = isCalculatedFinancialMetricKey(item.rowId) || item.rowId === "debtEquityPercent"');
