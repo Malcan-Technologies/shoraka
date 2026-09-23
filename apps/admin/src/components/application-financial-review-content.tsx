@@ -47,6 +47,7 @@ import {
   resolveCtosTotalAssets,
   resolveCtosTotalLiabilities,
   resolveFinancialSummaryIssuerReturnOnEquityRatio,
+  getEligibleAdminInputYears,
   isCompleteIssuerMarcAssessment,
   isMarcSmeGrade,
   MARC_ASSESSMENT_REQUIRED_MESSAGE,
@@ -57,6 +58,9 @@ import {
   type MarcAssessmentSnapshot,
 } from "@cashsouk/types";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { applicationsKeys } from "@/applications/query-keys";
+import { AdminAddFinancialStatementDialog } from "@/notes/prospectus-review/admin-add-financial-statement-dialog";
 import { format, isValid, parse, parseISO } from "date-fns";
 import { useCreateApplicationCtosSubjectReport } from "@/hooks/use-admin-issuer-organization-ctos-mutations";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -65,7 +69,7 @@ import {
   adminFinancialSummaryColumns,
   adminFyPeriodLines,
   adminUnauditedYearPresentation,
-  extractQuestionnaireAndUnaudited,
+  extractQuestionnaireUnauditedAndAdminInput,
 } from "@/lib/stored-unaudited-years";
 
 export { extractQuestionnaireAndUnaudited } from "@/lib/stored-unaudited-years";
@@ -135,17 +139,17 @@ function formatFinancialDateDisplay(raw: string | null | undefined): string {
 }
 
 function financialSummaryColumnShellClass(
-  kind: "ctos" | "unaudited",
+  kind: "ctos" | "unaudited" | "admin_input" | "admin_fallback_placeholder" | "empty",
   colIndex: number,
   year: number | null,
   extra?: string
 ) {
   const isFirstUnaudited = kind === "unaudited" && colIndex === 3;
-  const emptyCtosSlot = kind === "ctos" && year == null;
+  const emptySlot = kind === "empty" && year == null;
   return cn(
     kind === "ctos" ? "bg-muted/25" : "bg-background/80",
     isFirstUnaudited && "border-l-2 border-l-border",
-    emptyCtosSlot && "bg-muted/30 opacity-70",
+    emptySlot && "bg-muted/30 opacity-70",
     extra
   );
 }
@@ -192,7 +196,7 @@ export function parseFinancialStatements(raw: unknown): Record<string, unknown> 
 }
 
 export function firstUnauditedYearFinancialBlock(raw: unknown): Record<string, unknown> {
-  const { unauditedByYear } = extractQuestionnaireAndUnaudited(raw);
+  const { unauditedByYear } = extractQuestionnaireUnauditedAndAdminInput(raw);
   const years = Object.keys(unauditedByYear).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
   if (years.length === 0) return {};
   const block = unauditedByYear[years[0]];
@@ -297,13 +301,23 @@ export function ApplicationFinancialReviewContent({
   const createSubjectReport = useCreateApplicationCtosSubjectReport(applicationId || undefined);
   const [subjectCtosFetchKey, setSubjectCtosFetchKey] = React.useState<string | null>(null);
 
-  const { unauditedByYear, questionnaire: financialQuestionnaire } = React.useMemo(
-    () => extractQuestionnaireAndUnaudited(app.financial_statements),
+  const queryClient = useQueryClient();
+  const [addFinancialStatementOpen, setAddFinancialStatementOpen] = React.useState(false);
+  const [addFinancialStatementYear, setAddFinancialStatementYear] = React.useState<number | null>(null);
+
+  const onAddFinancialStatementSaved = React.useCallback(() => {
+    if (!applicationId) return;
+    queryClient.invalidateQueries({ queryKey: applicationsKeys.detail(applicationId) });
+    setAddFinancialStatementOpen(false);
+  }, [applicationId, queryClient]);
+
+  const { unauditedByYear, adminInputByYear, questionnaire: financialQuestionnaire } = React.useMemo(
+    () => extractQuestionnaireUnauditedAndAdminInput(app.financial_statements),
     [app.financial_statements]
   );
 
   const hasPendingDirectorShareholder = computeHasPendingDirectorShareholder(app.people);
-  const hasIssuerFinancialData = Object.keys(unauditedByYear).length > 0;
+  const hasStoredFinancialData = Object.keys(unauditedByYear).length > 0 || Object.keys(adminInputByYear).length > 0;
 
   const financialRows: CtosFinRow[] = React.useMemo(() => {
     const raw = app.issuer_organization?.latest_organization_ctos_financials_json;
@@ -325,9 +339,20 @@ export function ApplicationFinancialReviewContent({
     return m;
   }, [financialRows]);
 
+  const eligibleAdminInputYears = React.useMemo(
+    () =>
+      getEligibleAdminInputYears({
+        financialStatements: app.financial_statements,
+        ctosFinancials: financialRows,
+        ref: new Date(),
+      }),
+    [app.financial_statements, financialRows]
+  );
+
   const columns = React.useMemo(
-    () => adminFinancialSummaryColumns(financialRows, unauditedByYear),
-    [financialRows, unauditedByYear]
+    () =>
+      adminFinancialSummaryColumns(financialRows, unauditedByYear, adminInputByYear, eligibleAdminInputYears),
+    [financialRows, unauditedByYear, adminInputByYear, eligibleAdminInputYears]
   );
 
   // For issuer-entered additional regulatory financial details, CTOS never provides values for these keys.
@@ -348,15 +373,17 @@ export function ApplicationFinancialReviewContent({
         const row = byYear.get(spec.year);
         return { year: spec.year, turnover: row?.account.turnover ?? null };
       }
-      const fs = unauditedByYear[String(spec.year)];
+      const rawByYear =
+        spec.kind === "admin_input" ? adminInputByYear : unauditedByYear;
+      const fs = rawByYear[String(spec.year)];
       const rawT = fs?.turnover;
       const t =
         rawT != null && rawT !== "" && String(rawT).trim() !== ""
           ? toNum(rawT)
           : null;
-      return { year: spec.year, turnover: hasIssuerFinancialData ? t : null };
+      return { year: spec.year, turnover: hasStoredFinancialData ? t : null };
     });
-  }, [columns, byYear, unauditedByYear, hasIssuerFinancialData]);
+  }, [columns, byYear, unauditedByYear, adminInputByYear, hasStoredFinancialData]);
 
   /** Calendar-year turnover for growth (do not use the physical column to the left — gaps/null CTOS slots broke YoY). */
   const turnoverByYear = React.useMemo(() => {
@@ -385,8 +412,13 @@ export function ApplicationFinancialReviewContent({
       if (spec.kind === "ctos") return null;
 
       if (spec.year == null) return null;
-      if (!hasIssuerFinancialData) return null;
-      const fs = unauditedByYear[String(spec.year)];
+      if (!hasStoredFinancialData) return null;
+      const fs =
+        spec.kind === "admin_input"
+          ? adminInputByYear[String(spec.year)]
+          : spec.kind === "unaudited"
+            ? unauditedByYear[String(spec.year)]
+            : undefined;
       if (!fs) return null;
       const input = financialRecordToInput(fs as Record<string, unknown>);
       const { bs, pl } = financialFormToBsPl(input);
@@ -400,7 +432,7 @@ export function ApplicationFinancialReviewContent({
         }),
       };
     });
-  }, [columns, turnoverByYear, hasIssuerFinancialData, unauditedByYear]);
+  }, [columns, turnoverByYear, hasStoredFinancialData, unauditedByYear, adminInputByYear]);
 
   const getFsCol = React.useCallback(
     (idx: number): Record<string, unknown> | null => {
@@ -410,10 +442,17 @@ export function ApplicationFinancialReviewContent({
         const row = byYear.get(spec.year);
         return row ? ctosFinToFs(row) : null;
       }
-      const fs = unauditedByYear[String(spec.year)];
-      return (fs && typeof fs === "object" ? fs : null) as Record<string, unknown> | null;
+      if (spec.kind === "unaudited") {
+        const fs = unauditedByYear[String(spec.year)];
+        return (fs && typeof fs === "object" ? fs : null) as Record<string, unknown> | null;
+      }
+      if (spec.kind === "admin_input") {
+        const fs = adminInputByYear[String(spec.year)];
+        return (fs && typeof fs === "object" ? fs : null) as Record<string, unknown> | null;
+      }
+      return null;
     },
-    [columns, byYear, unauditedByYear]
+    [columns, byYear, unauditedByYear, adminInputByYear]
   );
 
   const ctosColumnMissing = React.useCallback(
@@ -708,11 +747,27 @@ export function ApplicationFinancialReviewContent({
                       )}
                     >
                       <span className={spec.year != null ? "text-foreground" : "text-muted-foreground"}>
-                        {spec.kind === "unaudited" && spec.year != null ? (
+                        {spec.kind === "admin_fallback_placeholder" && spec.year != null ? (
+                          <button
+                            type="button"
+                            className="inline-flex flex-col items-end gap-0.5 text-right hover:underline cursor-pointer"
+                            onClick={() => {
+                              setAddFinancialStatementYear(spec.year);
+                              setAddFinancialStatementOpen(true);
+                            }}
+                          >
+                            <span>{`FY${spec.year}`}</span>
+                            <span className="text-meta font-normal leading-snug text-primary">
+                              + Add Financial Statement
+                            </span>
+                          </button>
+                        ) : spec.kind === "unaudited" && spec.year != null ? (
                           <AdminUnauditedYearHeading
                             year={spec.year}
                             questionnaire={financialQuestionnaire}
                           />
+                        ) : spec.kind === "admin_input" && spec.year != null ? (
+                          <span>{`FY${spec.year}`}</span>
                         ) : spec.year != null ? (
                           String(spec.year)
                         ) : spec.kind === "ctos" ? (
@@ -742,19 +797,55 @@ export function ApplicationFinancialReviewContent({
                       )}
                     >
                       <div className="flex justify-end">
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            "shrink-0 whitespace-nowrap font-normal text-[11px] leading-tight px-2.5 py-0.5 rounded-md shadow-none",
-                            spec.kind === "ctos" && spec.year != null
-                              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100"
-                              : spec.kind === "ctos"
-                                ? "border-border bg-muted/40 text-muted-foreground"
-                                : "border-border bg-muted/50 text-foreground"
-                          )}
-                        >
-                          {spec.kind === "ctos" ? "CTOS" : "User Input"}
-                        </Badge>
+                        {spec.kind === "ctos" && spec.year != null ? (
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "shrink-0 whitespace-nowrap font-normal text-[11px] leading-tight px-2.5 py-0.5 rounded-md shadow-none",
+                              "border-emerald-500/40 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100"
+                            )}
+                          >
+                            CTOS
+                          </Badge>
+                        ) : spec.kind === "unaudited" && spec.year != null ? (
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "shrink-0 whitespace-nowrap font-normal text-[11px] leading-tight px-2.5 py-0.5 rounded-md shadow-none",
+                              "border-border bg-muted/50 text-foreground"
+                            )}
+                          >
+                            User Input
+                          </Badge>
+                        ) : spec.kind === "admin_input" && spec.year != null ? (
+                          <div className="flex items-center gap-2">
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "shrink-0 whitespace-nowrap font-normal text-[11px] leading-tight px-2.5 py-0.5 rounded-md shadow-none",
+                                "border-border bg-muted/50 text-foreground"
+                              )}
+                            >
+                              Admin Input
+                            </Badge>
+                            {spec.statementType ? (
+                              <Badge
+                                variant="secondary"
+                                className={cn(
+                                  "shrink-0 whitespace-nowrap font-normal text-[11px] leading-tight px-2.5 py-0.5 rounded-md shadow-none bg-muted/70"
+                                )}
+                              >
+                                {spec.statementType === "AUDITED"
+                                  ? "Audited"
+                                  : spec.statementType === "NOT_AUDITED"
+                                    ? "Not audited"
+                                    : spec.statementType === "MANAGEMENT_ACCOUNTS"
+                                      ? "Management accounts"
+                                      : spec.statementType}
+                              </Badge>
+                            ) : null}
+                          </div>
+                        ) : null}
                       </div>
                     </TableHead>
                   ))}
@@ -1084,6 +1175,15 @@ export function ApplicationFinancialReviewContent({
           );
         })()}
       </ReviewFieldBlock>
+
+      <AdminAddFinancialStatementDialog
+        open={addFinancialStatementOpen}
+        onOpenChange={setAddFinancialStatementOpen}
+        applicationId={applicationId}
+        calendarYear={addFinancialStatementYear}
+        disabled={!canManageFinancialCtos || addFinancialStatementYear == null}
+        onSaved={onAddFinancialStatementSaved}
+      />
 
     </>
   );
