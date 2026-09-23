@@ -94,6 +94,11 @@ import {
   extractQuestionnaireUnauditedAndAdminInput,
 } from "@/lib/stored-unaudited-years";
 
+import {
+  getReturnOfEquityMissingReason,
+  resolveNetWorthFromComponentsForRoe,
+} from "./application-financial-review-roe-fallback";
+
 export { extractQuestionnaireAndUnaudited } from "@/lib/stored-unaudited-years";
 
 /** Year row placeholder when no year (em dash). */
@@ -992,7 +997,19 @@ export function ApplicationFinancialReviewContent({
 
           // Fallback to the agreed issuer formula when CTOS finished metric is missing.
           const pat = resolvedByYear.get(specCol.year)?.fields.plnpat?.value ?? null;
-          const netWorthVal = resolvedByYear.get(specCol.year)?.fields.networth?.value ?? null;
+          const yearFields = resolvedByYear.get(specCol.year)?.fields;
+          const netWorthValFromFields = yearFields?.networth?.value ?? null;
+          const netWorthVal =
+            netWorthValFromFields ??
+            resolveNetWorthFromComponentsForRoe({
+              fixedAssets: yearFields?.bsfatot?.value ?? null,
+              otherAssets: yearFields?.othass?.value ?? null,
+              currentAssets: yearFields?.bscatot?.value ?? null,
+              nonCurrentAssets: yearFields?.bsclbank?.value ?? null,
+              currentLiabilities: yearFields?.curlib?.value ?? null,
+              longTermLiabilities: yearFields?.bsslltd?.value ?? null,
+              nonCurrentLiabilities: yearFields?.bsclstd?.value ?? null,
+            });
           const roeRatio = resolveFinancialSummaryIssuerReturnOnEquityRatio({
             plnpat: pat,
             netWorth: netWorthVal,
@@ -1251,10 +1268,20 @@ export function ApplicationFinancialReviewContent({
       }
       case "return_of_equity": {
         const pat = resolvedByYear.get(year)?.fields.plnpat?.value ?? null;
-        const netWorthVal = resolvedByYear.get(year)?.fields.networth?.value ?? null;
-        if (pat == null) return "Missing: Profit / Loss After Tax";
-        if (netWorthVal == null) return "Missing: Total Equity / Net Worth";
-        return "Missing: Return on Equity";
+        const yearFields = resolvedByYear.get(year)?.fields;
+        const netWorthValFromFields = yearFields?.networth?.value ?? null;
+        const netWorthVal =
+          netWorthValFromFields ??
+          resolveNetWorthFromComponentsForRoe({
+            fixedAssets: yearFields?.bsfatot?.value ?? null,
+            otherAssets: yearFields?.othass?.value ?? null,
+            currentAssets: yearFields?.bscatot?.value ?? null,
+            nonCurrentAssets: yearFields?.bsclbank?.value ?? null,
+            currentLiabilities: yearFields?.curlib?.value ?? null,
+            longTermLiabilities: yearFields?.bsslltd?.value ?? null,
+            nonCurrentLiabilities: yearFields?.bsclstd?.value ?? null,
+          });
+        return getReturnOfEquityMissingReason({ pat, netWorth: netWorthVal });
       }
       default:
         return null;
