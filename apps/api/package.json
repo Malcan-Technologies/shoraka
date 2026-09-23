@@ -33,6 +33,7 @@
     "seed:prospectus-demo": "tsx scripts/seed-prospectus-demo.ts",
     "seed:admin-people-demo": "tsx scripts/seed-admin-people-demo.ts",
     "seed:prospectus-lifecycle": "tsx scripts/seed-prospectus-lifecycle.ts",
+    "seed:financial-fallback-scenarios": "tsx scripts/seed-financial-fallback-scenarios.ts",
     "seed:paymaster-assignment": "tsx scripts/seed-paymaster-assignment-scenarios.ts",
     "seed-paymaster-assignment": "tsx scripts/seed-paymaster-assignment-scenarios.ts",
     "prospectus-review:product-e2e": "tsx scripts/prospectus-review-product-e2e.ts",
