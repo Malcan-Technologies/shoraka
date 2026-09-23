@@ -48,7 +48,7 @@ export const MARC_SME_BANDS = [
     label: "Low Risk",
     groupedExplanation: "Strong credit strength; low repayment risk.",
     // SME Low Risk green: subtle darkening for slightly stronger differentiation.
-    color: "#4FAE33",
+    color: "#58B83F",
   },
   {
     key: "c",
@@ -61,7 +61,7 @@ export const MARC_SME_BANDS = [
     // Kept yellow-leaning to preserve the overall visual style with white text.
     // Keep it stronger than original, but closer to a clean yellow (less muddy/gold).
     // SME Moderate Risk yellow (traffic-light style; clean yellow).
-    color: "#F5C400",
+    color: "#F0C419",
   },
   {
     key: "d",
@@ -70,7 +70,7 @@ export const MARC_SME_BANDS = [
     compactRangeLabel: "SME-7–8",
     label: "High Risk",
     groupedExplanation: "Weak credit strength; elevated default risk.",
-    color: "#f5964f",
+    color: "#E98324",
   },
   {
     key: "e",
