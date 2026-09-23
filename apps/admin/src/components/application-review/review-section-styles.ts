@@ -21,9 +21,9 @@ export const reviewCardTitleClass = "text-base font-semibold text-foreground";
 export const reviewEmptyStateClass = "text-sm text-muted-foreground";
 export const reviewLabelClass = "text-sm font-medium text-foreground leading-6";
 export const reviewValueClass =
-  "min-h-[36px] w-full rounded-lg border border-input bg-muted/50 px-3 py-2 text-sm text-muted-foreground flex items-center";
+  "min-h-[36px] min-w-0 w-full overflow-hidden rounded-lg border border-input bg-muted/50 px-3 py-2 text-sm text-muted-foreground flex items-center break-words";
 export const reviewValueClassTextArea =
-  "min-h-[60px] w-full rounded-lg border border-input bg-muted/50 px-3 py-2 text-sm text-muted-foreground flex items-start";
+  "min-h-[60px] min-w-0 w-full overflow-hidden rounded-lg border border-input bg-muted/50 px-3 py-2 text-sm text-muted-foreground flex items-start break-words";
 
 /**
  * Resubmit comparison field shell (border/background only).
@@ -64,7 +64,7 @@ export const comparisonSplitAfterColClass = "min-w-0 py-3 md:py-0 md:pl-6";
 
 /** Row grid: items-center so label vertically aligns with input center (h-11). Matches application flow gap-x-6 gap-y-4. */
 const ROW_GRID_BASE =
-  "grid grid-cols-1 sm:grid-cols-[220px_1fr] gap-x-6 gap-y-4 mt-4 w-full items-center";
+  "grid min-w-0 w-full grid-cols-1 sm:grid-cols-[220px_1fr] gap-x-6 gap-y-4 mt-4 items-center [&>*]:min-w-0";
 
 /** Indented row grid for content under section headers. */
 export const reviewRowGridClass = `pl-3 ${ROW_GRID_BASE}`;

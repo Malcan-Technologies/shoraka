@@ -110,7 +110,7 @@ export function ReviewSectionCard({
   }
 
   return (
-    <Card className="rounded-2xl">
+    <Card className="min-w-0 rounded-2xl">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
