@@ -157,6 +157,37 @@ describe("resolveAdminFinancialReviewColumns", () => {
     });
   });
 
+  it("marks CTOS ComRep extras as read-only for zero and negative values", () => {
+    const columns = resolveAdminFinancialReviewColumns({
+      financialStatements: {},
+      ctosFinancials: [
+        {
+          financial_year: 2024,
+          account: {
+            bsqres: 0,
+            bsqupro: 0,
+            bsqmint: 0,
+            plminin: -8_975_580,
+          },
+        },
+      ],
+    });
+
+    const year = columns[0]!;
+    expect(year.primarySource).toBe("ctos");
+    expect(year.fields.equity_share_premium).toMatchObject({ value: 0, source: "ctos", readOnly: true });
+    expect(year.fields.equity_accumulated_profit).toMatchObject({ value: 0, source: "ctos", readOnly: true });
+    expect(year.fields.equity_minority).toMatchObject({ value: 0, source: "ctos", readOnly: true });
+    expect(year.fields.pl_minority).toMatchObject({ value: -8_975_580, source: "ctos", readOnly: true });
+
+    expect(decideAdminFinancialFieldEdit({ columns, financialYear: 2024, fieldKey: "equity_share_premium" })).toMatchObject(
+      { ok: false, code: "CTOS_FIELD_READONLY" }
+    );
+    expect(decideAdminFinancialFieldEdit({ columns, financialYear: 2024, fieldKey: "pl_minority" })).toMatchObject(
+      { ok: false, code: "CTOS_FIELD_READONLY" }
+    );
+  });
+
   it("explains missing prior Trade Receivables for Receivables Days", () => {
     expect(
       receivablesDaysUnavailableReason({

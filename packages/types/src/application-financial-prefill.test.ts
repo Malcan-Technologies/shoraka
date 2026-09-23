@@ -172,6 +172,54 @@ describe("application financial prefill", () => {
     expect(result.years["2027"]).toEqual({ year: 2027, source: "blank", fields: null });
   });
 
+  it("previous FY + CTOS exists → preserves zero and negative ComRep extras", () => {
+    const result = buildApplicationFinancialPrefillByYear({
+      questionnaire: { financial_year_end: fye2027 },
+      orgFinancialStatements: orgStatements(
+        { "2026": { turnover: 900, bsfatot: 50, ...SUBMITTED_ADDITIONAL_DETAILS } },
+        fye2027
+      ),
+      submittedByYear: {
+        "2026": {
+          turnover: 700,
+          bsfatot: 99,
+          curlib: 80,
+          ...SUBMITTED_ADDITIONAL_DETAILS,
+        },
+      },
+      ctosFinancials: [
+        ctosRow(2026, {
+          turnover: 850,
+          curlib: 70,
+          // 0 is a real CTOS value and must not be treated as missing.
+          bsqres: 0,
+          bsqupro: 0,
+          bsqmint: 0,
+          // Negative CTOS P&L minority interest must survive prefill.
+          plminin: -8975580,
+        }),
+      ],
+      ref: twoTabRefFy2027,
+    });
+
+    expect(result.tabYears).toEqual([2026, 2027]);
+    expect(result.inProgressYear).toBe(2027);
+    expect(result.years["2026"]?.source).toBe("ctos");
+
+    const fields = result.years["2026"]?.fields;
+    expect(fields?.equity_share_premium).toBe(0);
+    expect(fields?.equity_accumulated_profit).toBe(0);
+    expect(fields?.equity_minority).toBe(0);
+    expect(fields?.pl_minority).toBe(-8975580);
+
+    expectAdditionalDetailsBlank(fields, [
+      "equity_share_premium",
+      "equity_accumulated_profit",
+      "equity_minority",
+      "pl_minority",
+    ]);
+  });
+
   it("previous FY + no CTOS + same-FY submitted revision → core and Additional Financial Details prefill", () => {
     const result = buildApplicationFinancialPrefillByYear({
       questionnaire: { financial_year_end: fye2027 },

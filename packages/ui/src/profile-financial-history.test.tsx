@@ -41,7 +41,8 @@ const fy2027Block: Record<string, unknown> = {
   admin_cost: 11,
   interest_cost: 2,
   other_cost: 1,
-  pl_minority: 0.5,
+  // Fixture includes a negative P&L minority interest; ensure formatting survives.
+  pl_minority: -8975580,
   costOfSales: 140,
   annualDebtService: 220,
 };
