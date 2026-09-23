@@ -120,13 +120,19 @@ export function buildProspectusFinancialComparisonSource(
     // CTOS audited years already have totals/ratios; unaudited management years only have core lines.
     const rawFinancials: Record<string, unknown> = { ...year.rawFinancials };
 
-    // Overlay issuer submitted raw fields (if available) for the selected FY.
-    const fyKey = String(year.year);
-    const storedBlock = unauditedByYear[fyKey];
-    if (storedBlock && typeof storedBlock === "object" && !Array.isArray(storedBlock)) {
-      for (const k of overlayKeys) {
-        const v = (storedBlock as Record<string, unknown>)[k];
-        if (v != null && v !== "") rawFinancials[k] = v;
+    // Overlay issuer submitted raw fields only when this FY is actually
+    // an unaudited issuer FY in the resolved recordSource set.
+    //
+    // NEVER overlay into CTOS-backed FYs (one FY = one active source),
+    // and NEVER overlay into Admin-input FYs.
+    if (year.recordSource === "unaudited_management") {
+      const fyKey = String(year.year);
+      const storedBlock = unauditedByYear[fyKey];
+      if (storedBlock && typeof storedBlock === "object" && !Array.isArray(storedBlock)) {
+        for (const k of overlayKeys) {
+          const v = (storedBlock as Record<string, unknown>)[k];
+          if (v != null && v !== "") rawFinancials[k] = v;
+        }
       }
     }
 

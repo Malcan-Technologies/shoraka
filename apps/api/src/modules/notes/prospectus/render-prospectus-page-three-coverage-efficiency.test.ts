@@ -165,7 +165,8 @@ describe("prospectus Page 3 coverage/efficiency", () => {
             plnpbt: 1_200_000,
             plnpat: 1_200_000,
             interest_cost: 108_108.10810810811, // => interest coverage ~ 12.1x
-            netOperatingIncome: 1_420_000, // => DSCR 1.42x (NOI/annualDebtService)
+            ebitda: 1_420_000, // => DSCR 1.42x (fallback when CTOS lacks NOI)
+            netOperatingIncome: 1_420_000,
             annualDebtService: 1_000_000,
             turnover: 10_000_000,
             tradeReceivables: 2_027_397.26, // Beginning AR for FY2024
@@ -174,7 +175,8 @@ describe("prospectus Page 3 coverage/efficiency", () => {
             plnpbt: 1_200_000,
             plnpat: 1_200_000,
             interest_cost: 108_108.10810810811, // => interest coverage ~ 12.1x
-            netOperatingIncome: 1_420_000, // => DSCR 1.42x (NOI/annualDebtService)
+            ebitda: 1_420_000, // => DSCR 1.42x (fallback when CTOS lacks NOI)
+            netOperatingIncome: 1_420_000,
             annualDebtService: 1_000_000,
             turnover: 10_000_000,
             tradeReceivables: 2_027_397.26, // Ending AR for FY2024

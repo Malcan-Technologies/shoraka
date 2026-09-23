@@ -114,15 +114,18 @@ export function selectPageThreeYears(frozenYears: ProspectusFrozenFinancialYear[
 function yearHeadersFromFrozen(
   frozenYears: ProspectusFrozenFinancialYear[]
 ): FinancialMetricTableModel["yearHeaders"] {
-  return frozenYears.map((year) => ({
+  return frozenYears.map((year) => {
+    const isPlaceholder = year.isPlaceholder === true;
+    return {
     key: year.financialYearEndIso,
     yearLabel: year.label,
     fyeLabel: year.fyeLabel,
-    isPlaceholder: year.isPlaceholder === true,
+    isPlaceholder,
     adminFallbackEligible: year.adminFallbackEligible === true,
-    sourceType: year.sourceType,
-    statementType: year.statementType,
-  }));
+    sourceType: isPlaceholder ? undefined : year.sourceType,
+    statementType: isPlaceholder ? undefined : year.statementType,
+  };
+  });
 }
 
 function rawAsRecord(raw: ProspectusFrozenFinancialRaw): Record<string, unknown> {

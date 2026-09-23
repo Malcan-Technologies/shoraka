@@ -73,6 +73,73 @@ describe("prospectus Page 2 Financial Comparison Source (DATA STAGE 4A)", () => 
     expect(data.years.find((y) => y.year === 2024)?.rawFinancials.turnover).toBe(9_999);
   });
 
+  it("does not overlay issuer unaudited values into CTOS-backed FYs", () => {
+    const ctosRowWithTradeReceivables = (
+      year: number,
+      turnover: number,
+      tradeReceivables: number
+    ) => ({
+      financial_year: year,
+      dates: { pldd: `${year}-12-31`, bsdd: null },
+      account: {
+        turnover,
+        plnpat: 1,
+        bsqpuc: 1,
+        bscatot: 1,
+        curlib: 1,
+        tradeReceivables,
+      },
+    });
+
+    const data = buildProspectusFinancialComparisonSource({
+      financialStatements: {
+        questionnaire: { financial_year_end: "2027-12-31" },
+        unaudited_by_year: {
+          "2025": {
+            pldd: "2025-12-31",
+            tradeReceivables: 999,
+          },
+        },
+      },
+      ctosFinancials: [
+        ctosRowWithTradeReceivables(2023, 2023 * 100_000, 1_111),
+        ctosRowWithTradeReceivables(2024, 2024 * 100_000, 2_222),
+        // FY2025 is CTOS-backed and must not be overwritten by issuer overlay.
+        ctosRowWithTradeReceivables(2025, 2025 * 100_000, 10),
+      ],
+      ref: new Date("2026-03-01T00:00:00.000Z"),
+    });
+
+    const fy2025 = data.years.find((y) => y.year === 2025);
+    expect(fy2025?.recordSource).toBe("ctos_audited");
+    expect(fy2025?.rawFinancials.tradeReceivables).toBe(10);
+  });
+
+  it("does not overlay issuer unaudited values into Admin-input-backed FYs", () => {
+    const data = buildProspectusFinancialComparisonSource({
+      financialStatements: {
+        questionnaire: { financial_year_end: "2026-12-31" },
+        unaudited_by_year: {
+          // Intentionally non-finite so the FY remains Admin-owned by resolution rules.
+          // (Ownership uses `financialYearBlockHasActualData`, where `NaN` is not treated as actual data.)
+          "2025": { tradeReceivables: Number.NaN, pldd: "2025-12-31" },
+        },
+        // Admin fallback is the only actual-data source for FY2025.
+        admin_input_by_year: {
+          "2025": { tradeReceivables: 500_000, statementType: "AUDITED", pldd: "2025-12-31" },
+        },
+      },
+      ctosFinancials: [],
+      ref: new Date("2026-03-01T00:00:00.000Z"),
+    });
+
+    expect(data.years.map((y) => y.year)).toEqual([2025]);
+
+    const fy2025 = data.years.find((y) => y.year === 2025)!;
+    expect(fy2025.recordSource).toBe("admin_input");
+    expect(fy2025.rawFinancials.tradeReceivables).toBe(500_000);
+  });
+
   it("preserves six-month SSM deadline behaviour for unaudited tab years", () => {
     const beforeDeadline = buildNormalizedFinancialStatementYearSet({
       financialStatements: {
