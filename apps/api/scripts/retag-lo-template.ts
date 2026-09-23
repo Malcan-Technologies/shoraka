@@ -273,12 +273,12 @@ function applyPlaceholderText(text: string): string {
     ],
     ["[insert – up to RM5,000,000]", "{financing_limit_rm}"],
     [
-      "Up to [insert – up to RM1,000,000] per invoice, and not exceeding",
-      "Up to {sub_limit_per_invoice_rm} per invoice, and not exceeding",
-    ],
-    [
       "Up to [insert – up to RM1,000,000] per invoice, being up to",
       "Up to {part_b_financing_amount_rm} per invoice, being up to",
+    ],
+    [
+      "subject to the approved Financing Limit and applicable Sub-Limit.",
+      "subject to the approved Financing Limit.",
     ],
     ["[insert – up to 180]", "{max_invoice_tenure_days}"],
     ["Up to [insert] days", "Up to {tenure_days} days"],
@@ -320,6 +320,17 @@ function applyPlaceholderText(text: string): string {
     if (next.includes(from)) next = next.split(from).join(to);
   }
   return next;
+}
+
+function tableRowPlainText(rowXml: string): string {
+  return paragraphPlainText(`<w:p>${rowXml}</w:p>`);
+}
+
+/** Drop Schedule A Part A “Sub-Limit per Invoice” (idempotent if already gone). */
+function removeInvoiceSubLimitRow(xml: string): string {
+  return xml.replace(/<w:tr\b[\s\S]*?<\/w:tr>/g, (rowXml) =>
+    tableRowPlainText(rowXml).includes("Sub-Limit per Invoice") ? "" : rowXml
+  );
 }
 
 function flattenAndReplace(xml: string): string {
@@ -561,7 +572,6 @@ function requiredTagsPresent(xml: string): string[] {
     "{offer_validity_phrase}",
     "{part_a_checkbox}",
     "{part_b_checkbox}",
-    "{sub_limit_per_invoice_rm}",
     "{max_invoice_tenure_days}",
     "{part_b_financing_amount_rm}",
     "{assigned_contract_date}",
@@ -610,9 +620,18 @@ function pinAttentionWrapOnTaggedFile(): void {
   const zip = new PizZip(fs.readFileSync(TAGGED_CURRENT));
   let documentXml = zip.file("word/document.xml")?.asText();
   if (!documentXml) throw new Error("Tagged LO is missing word/document.xml");
+  documentXml = removeInvoiceSubLimitRow(documentXml);
+  documentXml = flattenAndReplace(documentXml);
   documentXml = pinAttentionWrap(documentXml);
   documentXml = ensureYellowOnValueTagRuns(documentXml);
   assertAttentionWrap(documentXml);
+  if (
+    documentXml.includes("{sub_limit_per_invoice_rm}") ||
+    documentXml.includes("Sub-Limit per Invoice") ||
+    documentXml.includes("applicable Sub-Limit")
+  ) {
+    throw new Error("Invoice sub-limit row or merge tag is still in the Letter of Offer");
+  }
   zip.file("word/document.xml", documentXml);
   const bytes = zip.generate({ type: "nodebuffer", compression: "DEFLATE" }) as Buffer;
   fs.writeFileSync(OUTPUT, bytes);
@@ -641,6 +660,7 @@ function main(): void {
   documentXml = stripYellowHighlights(documentXml);
   documentXml = tagCheckboxes(documentXml);
   documentXml = rebuildFinanceDocumentsList(documentXml);
+  documentXml = removeInvoiceSubLimitRow(documentXml);
   documentXml = flattenAndReplace(documentXml);
   documentXml = pinAttentionWrap(documentXml);
   documentXml = rebuildAcknowledgements(documentXml);
@@ -656,6 +676,13 @@ function main(): void {
   }
   if (documentXml.includes("{moa_authorised_signatory_names}")) {
     throw new Error("MoA still contains a signatory merge tag");
+  }
+  if (
+    documentXml.includes("{sub_limit_per_invoice_rm}") ||
+    documentXml.includes("Sub-Limit per Invoice") ||
+    documentXml.includes("applicable Sub-Limit")
+  ) {
+    throw new Error("Invoice sub-limit row or merge tag is still in the Letter of Offer");
   }
   if (!documentXml.includes('w:val="yellow"')) {
     throw new Error("Tagged document has no yellow highlighting on merge tags");

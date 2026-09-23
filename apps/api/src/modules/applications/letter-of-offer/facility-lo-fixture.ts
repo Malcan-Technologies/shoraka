@@ -15,7 +15,6 @@ export function createFacilityLoFixture(): ContractFacilityLoMergeData {
     financing_limit_rm: "RM 1,000,000.00",
     tenure_days: "120",
     max_invoice_tenure_days: "180",
-    sub_limit_per_invoice_rm: "RM 1,000,000.00",
     part_b_financing_amount_rm: "RM 1,000,000.00",
     part_a_checkbox: FACILITY_LO_CHECKBOX_TICKED,
     part_b_checkbox: FACILITY_LO_CHECKBOX_UNTICKED,

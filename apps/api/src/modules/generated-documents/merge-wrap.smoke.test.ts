@@ -90,6 +90,12 @@ describe("generated document merge wrap", () => {
     const jsgXml = xmlOf(renderJsgDocx(withLongJsgStrings(createJsgFixture())));
     const loXml = xmlOf(renderFacilityLoDocx(withLongFacilityLoStrings(createFacilityLoFixture())));
 
+    expect(loXml).not.toContain("Sub-Limit per Invoice");
+    expect(loXml).not.toContain("{sub_limit_per_invoice_rm}");
+    expect(loXml).not.toContain("applicable Sub-Limit");
+    expect(faXml).not.toContain("{sub_limit_per_invoice_rm}");
+    expect(faXml).not.toContain("With below Sub-Limits");
+
     expect(doaXml).toContain(LONG_SC_DESIGNATION);
     expect(doaXml).toContain(LONG_PERSON_NAME);
     expect(

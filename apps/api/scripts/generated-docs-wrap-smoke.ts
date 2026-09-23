@@ -274,6 +274,13 @@ function assertLoXml(xml: string): void {
   if (position.includes("w:firstLine=")) {
     throw new Error("Letter of Offer: Attention position still uses first-line indent");
   }
+  if (
+    xml.includes("Sub-Limit per Invoice") ||
+    xml.includes("{sub_limit_per_invoice_rm}") ||
+    xml.includes("applicable Sub-Limit")
+  ) {
+    throw new Error("Letter of Offer still contains invoice sub-limit copy");
+  }
 }
 
 function assertFaXml(xml: string): void {
@@ -290,6 +297,9 @@ function assertFaXml(xml: string): void {
   }
   if (!xmlHasTableHangingLabelWrap(xml, "NRIC", FA_ISSUER_WITNESS_COLON_TWIPS)) {
     throw new Error("Facility Agreement Issuer: witness NRIC does not share the Name of Witness colon");
+  }
+  if (xml.includes("{sub_limit_per_invoice_rm}") || xml.includes("With below Sub-Limits")) {
+    throw new Error("Facility Agreement still contains invoice sub-limit copy");
   }
 }
 

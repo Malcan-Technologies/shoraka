@@ -29,7 +29,6 @@ import {
   documentCanonicalReference,
   getLoAuthorizedPartiesFromAcceptance,
   getOfferAcceptanceFromOfferDetails,
-  readInvoiceSubLimitPerInvoiceRmFromWorkflow,
   resolveAcceptanceDeadlineFromWorkflow,
   resolveSigningDeadlineFromWorkflow,
   type FinancingStructureType,
@@ -157,7 +156,6 @@ export function buildFacilityLoMergeData(input: BuildFacilityLoMergeInput): Cont
   const emptyMissing: Partial<ContractFacilityLoMergeData> = {
     tenure_days: tenureDays,
     max_invoice_tenure_days: tenureDays,
-    sub_limit_per_invoice_rm: "",
     part_b_financing_amount_rm: "",
     payment_period_days: tenureDays,
     grace_period_days: "",
@@ -205,11 +203,10 @@ export function buildFacilityLoMergeData(input: BuildFacilityLoMergeInput): Cont
   const transactionDocsDays = String(signingDays);
   const transactionDocsWords = numberToWords(signingDays);
 
-  const subLimitRm = readInvoiceSubLimitPerInvoiceRmFromWorkflow(input.productWorkflow);
-  const subLimitFormatted = formatRmAmount(subLimitRm ?? undefined);
   const invoiceAmountFormatted = formatRmAmount(offeredAmount ?? undefined);
+  const facilityAmountFormatted = formatRmAmount(facilityAmount ?? undefined);
   const partBFormatted =
-    offerKind === "invoice" ? invoiceAmountFormatted || subLimitFormatted : subLimitFormatted;
+    offerKind === "invoice" ? invoiceAmountFormatted : facilityAmountFormatted;
 
   const authorizedParties = getLoAuthorizedPartiesFromAcceptance(acceptance);
   const liveGuarantors = input.application?.application_guarantors;
@@ -240,8 +237,7 @@ export function buildFacilityLoMergeData(input: BuildFacilityLoMergeInput): Cont
     issuer_address: resolveRegisteredAddress(input.issuerOrganization),
     attention_name: asString(contact?.name),
     attention_position: asString(contact?.position),
-    financing_limit_rm: formatRmAmount(facilityAmount ?? undefined),
-    sub_limit_per_invoice_rm: subLimitFormatted,
+    financing_limit_rm: facilityAmountFormatted,
     part_b_financing_amount_rm: partBFormatted,
     offer_validity_phrase: offerValidityPhrase,
     guarantors_individual: individuals,

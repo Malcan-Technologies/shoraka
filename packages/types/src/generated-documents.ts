@@ -43,7 +43,7 @@ export const GENERATED_DOCUMENT_TYPES: Record<
 > = {
   arf_contract_facility_lo: {
     key: "arf_contract_facility_lo",
-    version: 1,
+    version: 2,
     label: "ARF Letter of Offer (LO)",
     description:
       "Letter of Offer filled from the facility offer (Schedule A Part A) or standalone invoice offer (Part B).",
@@ -70,7 +70,7 @@ export const GENERATED_DOCUMENT_TYPES: Record<
   },
   arf_facility_agreement: {
     key: "arf_facility_agreement",
-    version: 1,
+    version: 2,
     label: "ARF Facility Agreement",
     description:
       "CA-signed facility agreement that replaces the signing-package Offer Letter.",

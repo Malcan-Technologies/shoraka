@@ -6,60 +6,54 @@ const workflow = [
   {
     id: "invoice_details",
     config: {
-      sub_limit_per_invoice_rm: 5_000,
+      max_invoice_value: 5_000,
       min_financing_ratio_percent: 60,
       max_financing_ratio_percent: 80,
     },
   },
 ];
 
-const overSubLimit = {
+const overMax = {
   status: "DRAFT",
   contract_id: null,
   details: { value: 10_000, applied_financing: 7_000, financing_ratio_percent: 70 },
 };
 
-function expectSubLimitViolation(run: () => void) {
+function expectMaxFinancingViolation(run: () => void) {
   try {
     run();
     throw new Error("expected PRODUCT_LIMIT_VIOLATION");
   } catch (error) {
     expect(error).toBeInstanceOf(AppError);
     expect((error as AppError).code).toBe(PRODUCT_LIMIT_VIOLATION_CODE);
-    expect((error as AppError).details).toMatchObject({ rule: "FINANCING_ABOVE_SUB_LIMIT" });
+    expect((error as AppError).details).toMatchObject({ rule: "FINANCING_ABOVE_MAX" });
   }
 }
 
 describe("assertProductRulesForSubmit facility detection", () => {
-  it("applies the sub-limit when only the application is linked to a contract", () => {
-    expectSubLimitViolation(() =>
+  it("applies max financing whether or not the invoice sits on a facility", () => {
+    expectMaxFinancingViolation(() =>
       assertProductRulesForSubmit(workflow, {
-        invoices: [overSubLimit],
+        invoices: [overMax],
         applicationContractId: "contract-1",
         structureType: "existing_contract",
       })
     );
-  });
-
-  it("applies the sub-limit when only the invoice row is linked to a contract", () => {
-    expectSubLimitViolation(() =>
+    expectMaxFinancingViolation(() =>
       assertProductRulesForSubmit(workflow, {
-        invoices: [{ ...overSubLimit, contract_id: "contract-1" }],
+        invoices: [{ ...overMax, contract_id: "contract-1" }],
         applicationContractId: null,
         structureType: "new_contract",
         contract: { status: "APPROVED" },
       })
     );
-  });
-
-  it("ignores the sub-limit for standalone invoices even if a contract id is present", () => {
-    expect(() =>
+    expectMaxFinancingViolation(() =>
       assertProductRulesForSubmit(workflow, {
-        invoices: [{ ...overSubLimit, contract_id: "contract-1" }],
+        invoices: [{ ...overMax, contract_id: "contract-1" }],
         applicationContractId: "contract-1",
         structureType: "invoice_only",
       })
-    ).not.toThrow();
+    );
   });
 
   it("re-checks contract dates only when the facility section is open", () => {
@@ -86,7 +80,7 @@ describe("assertProductRulesForSubmit facility detection", () => {
   it("skips locked invoices regardless of facility linkage", () => {
     expect(() =>
       assertProductRulesForSubmit(workflow, {
-        invoices: [{ ...overSubLimit, status: "OFFER_SENT" }],
+        invoices: [{ ...overMax, status: "OFFER_SENT" }],
         applicationContractId: "contract-1",
         structureType: "existing_contract",
       })

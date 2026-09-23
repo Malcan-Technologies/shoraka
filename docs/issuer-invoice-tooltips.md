@@ -13,7 +13,6 @@ This file documents existing copy only — no changes to UI behavior.
 - `productConfig.max_invoice_value` — per-invoice **max financing amount** (RM, optional)
 - `productConfig.min_invoice_face_value` — per-invoice **min invoice face value** (RM, optional)
 - `productConfig.max_invoice_face_value` — per-invoice **max invoice face value** (RM, optional)
-- `productConfig.sub_limit_per_invoice_rm` — facility **sub-limit per invoice** (RM, optional; financing cap, facility invoices only)
 
 > Financing keys (`min_invoice_value` / `max_invoice_value`) still enforce the **financing amount** (`invoice value × ratio`). Face-value keys (`min_invoice_face_value` / `max_invoice_face_value`) enforce the raw invoice value. Admin product config labels them “Minimum / Maximum financing amount (RM)” and “Minimum / Maximum invoice value (RM)”.
 
@@ -31,7 +30,7 @@ This file documents existing copy only — no changes to UI behavior.
 | Field | When it appears | Copy |
 |---|---|---|
 | Invoice value | When a face-value limit is set | `Min RM …` / `Max RM …` / `Allowed: RM … – RM …` (`buildInvoiceValueHint`) |
-| Financing amount | When a financing min/max or (facility) sub-limit is set | `Min RM … · Max RM … · Facility sub-limit RM …` (`buildFinancingAmountHint`; sub-limit omitted for `invoice_only`) |
+| Financing amount | When a financing min/max is set | `Min RM … · Max RM …` (`buildFinancingAmountHint`) |
 | Financing amount | Always | “Based on `{ratioNum}%` ratio” |
 
 ## No tooltip found

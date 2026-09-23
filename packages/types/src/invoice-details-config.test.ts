@@ -1,8 +1,4 @@
-import {
-  findInvoiceDetailsConfig,
-  parsePositiveRmAmount,
-  readInvoiceSubLimitPerInvoiceRmFromWorkflow,
-} from "./invoice-details-config";
+import { findInvoiceDetailsConfig, parsePositiveRmAmount } from "./invoice-details-config";
 
 describe("invoice-details-config", () => {
   it("parses a positive RM amount from number or string", () => {
@@ -13,13 +9,12 @@ describe("invoice-details-config", () => {
     expect(parsePositiveRmAmount("")).toBeNull();
   });
 
-  it("reads sub_limit_per_invoice_rm from the invoice_details step", () => {
+  it("finds invoice_details config from the workflow", () => {
     const workflow = [
       { id: "financing_type", config: {} },
-      { id: "invoice_details", config: { sub_limit_per_invoice_rm: 750000 } },
+      { id: "invoice_details", config: { max_invoice_value: 750000 } },
     ];
-    expect(findInvoiceDetailsConfig(workflow)?.sub_limit_per_invoice_rm).toBe(750000);
-    expect(readInvoiceSubLimitPerInvoiceRmFromWorkflow(workflow)).toBe(750000);
-    expect(readInvoiceSubLimitPerInvoiceRmFromWorkflow([])).toBeNull();
+    expect(findInvoiceDetailsConfig(workflow)?.max_invoice_value).toBe(750000);
+    expect(findInvoiceDetailsConfig([])).toBeNull();
   });
 });

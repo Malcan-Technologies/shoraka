@@ -37,7 +37,6 @@ describe("assertFacilityLoMergeReady", () => {
 
   it("fails with a specific error when required commercial data is missing", () => {
     const mergeData = createFacilityLoFixture();
-    mergeData.sub_limit_per_invoice_rm = "";
     mergeData.part_b_financing_amount_rm = "";
     try {
       assertFacilityLoMergeReady({
@@ -53,7 +52,7 @@ describe("assertFacilityLoMergeReady", () => {
         statusCode: 400,
         code: FACILITY_LO_DATA_INCOMPLETE,
       });
-      expect((err as AppError).message).toContain("invoice sub-limit");
+      expect((err as AppError).message).toContain("Part B financing amount");
     }
   });
 

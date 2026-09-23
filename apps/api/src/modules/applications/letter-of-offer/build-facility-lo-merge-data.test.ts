@@ -403,8 +403,7 @@ describe("buildFacilityLoMergeData", () => {
     expect(data.payment_period_days).toBe(String(FINANCING_TENURE_MAX_DAYS));
     expect(data.transaction_docs_days).toBe("14");
     expect(data.transaction_docs_days_words).toBe("fourteen");
-    expect(data.sub_limit_per_invoice_rm).toBe("");
-    expect(data.part_b_financing_amount_rm).toBe("");
+    expect(data.part_b_financing_amount_rm).toBe("RM 500,000.00");
     expect(data.finance_documents_guarantors).toEqual([
       { line: "Ali (NRIC No. 900101145678)", representatives: [] },
       { line: "HoldCo (Registration No. 999999-X)", representatives: [] },
@@ -586,7 +585,7 @@ describe("buildFacilityLoMergeData", () => {
     expect(alias.issuer_registration_number).toBe("555555555555");
   });
 
-  it("reads signing_deadline.days and invoice sub-limit from the frozen product workflow", () => {
+  it("reads signing_deadline.days from the frozen product workflow", () => {
     const sentAt = "2026-07-30T02:00:00.000Z";
     const data = buildFacilityLoMergeData({
       contract: {
@@ -612,16 +611,11 @@ describe("buildFacilityLoMergeData", () => {
             signing_deadline: { days: 14, reminders: [] },
           },
         },
-        {
-          id: "invoice_details",
-          config: { sub_limit_per_invoice_rm: 250000 },
-        },
       ],
     });
     expect(data.transaction_docs_days).toBe("14");
     expect(data.transaction_docs_days_words).toBe("fourteen");
-    expect(data.sub_limit_per_invoice_rm).toBe("RM 250,000.00");
-    expect(data.part_b_financing_amount_rm).toBe("RM 250,000.00");
+    expect(data.part_b_financing_amount_rm).toBe("RM 500,000.00");
     expect(data.offer_validity_phrase).toBe("seven (7) days");
   });
 
@@ -674,16 +668,12 @@ describe("buildFacilityLoMergeData", () => {
         },
       },
       issuerOrganization: { id: "org_1", name: "Issuer Co", registration_number: "123456-A" },
-      productWorkflow: [
-        { id: "invoice_details", config: { sub_limit_per_invoice_rm: 250000 } },
-      ],
     });
 
     expect(data.our_reference).toBe("INV-ARF-202608-0N5");
     expect(data.letter_date).toBe("20 August 2026");
     expect(data.financing_limit_rm).toBe("RM 36,000.00");
     expect(data.part_b_financing_amount_rm).toBe("RM 36,000.00");
-    expect(data.sub_limit_per_invoice_rm).toBe("RM 250,000.00");
     expect(data.part_a_checkbox).toBe(FACILITY_LO_CHECKBOX_UNTICKED);
     expect(data.part_b_checkbox).toBe(FACILITY_LO_CHECKBOX_TICKED);
     expect(data.assigned_contract_counterparty).toBe("Buyer Co");

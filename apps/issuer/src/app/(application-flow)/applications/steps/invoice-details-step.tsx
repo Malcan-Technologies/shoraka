@@ -1311,9 +1311,6 @@ export default function InvoiceDetailsStep({
     if (productRules?.maxFinancingAmount != null) {
       limits.push(`Max RM ${formatMoney(productRules.maxFinancingAmount)}`);
     }
-    if (hasFacility && productRules?.subLimitPerInvoiceRm != null) {
-      limits.push(`Facility sub-limit RM ${formatMoney(productRules.subLimitPerInvoiceRm)} per invoice`);
-    }
     if (limits.length > 0) {
       lines.push(`Per invoice financing limit:\n${limits.join("\n")}`);
     }
@@ -1321,7 +1318,7 @@ export default function InvoiceDetailsStep({
   })();
   const invoiceValueTooltip = buildInvoiceValueTooltip(productRules);
   const invoiceValueHint = buildInvoiceValueHint(productRules);
-  const financingAmountHint = buildFinancingAmountHint(productRules, hasFacility);
+  const financingAmountHint = buildFinancingAmountHint(productRules);
 
   function isThisInvoiceEditable(inv: LocalInvoice, invIndex: number): boolean {
     const isInvFlagged = invoicesWithRemarks.has(invIndex);

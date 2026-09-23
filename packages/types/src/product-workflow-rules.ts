@@ -16,7 +16,6 @@ export type ProductRuleCode =
   | "INVOICE_FACE_ABOVE_MAX"
   | "FINANCING_BELOW_MIN"
   | "FINANCING_ABOVE_MAX"
-  | "FINANCING_ABOVE_SUB_LIMIT"
   | "RATIO_BELOW_MIN"
   | "RATIO_ABOVE_MAX"
   | "CONTRACT_DURATION_TOO_SHORT";
@@ -40,7 +39,6 @@ export interface InvoiceProductRules {
   maxInvoiceFaceValue: number | null;
   minFinancingAmount: number | null;
   maxFinancingAmount: number | null;
-  subLimitPerInvoiceRm: number | null;
   ratio: { min: number; max: number };
   minMonthsApplicationToMaturity: number | null;
   minMonthsReviewToMaturity: number | null;
@@ -92,7 +90,6 @@ function emptyInvoiceProductRules(): InvoiceProductRules {
     maxInvoiceFaceValue: null,
     minFinancingAmount: null,
     maxFinancingAmount: null,
-    subLimitPerInvoiceRm: null,
     ratio: resolveInvoiceFinancingRatioBounds(null, null),
     minMonthsApplicationToMaturity: null,
     minMonthsReviewToMaturity: null,
@@ -107,7 +104,6 @@ export function readInvoiceProductRules(workflow: unknown): InvoiceProductRules 
     maxInvoiceFaceValue: parsePositiveRmAmount(config.max_invoice_face_value),
     minFinancingAmount: parsePositiveRmAmount(config.min_invoice_value),
     maxFinancingAmount: parsePositiveRmAmount(config.max_invoice_value),
-    subLimitPerInvoiceRm: parsePositiveRmAmount(config.sub_limit_per_invoice_rm),
     ratio: resolveInvoiceFinancingRatioBounds(
       parseOptionalRatio(config.min_financing_ratio_percent),
       parseOptionalRatio(config.max_financing_ratio_percent)
@@ -150,23 +146,21 @@ function collectFaceViolations(
 
 function financingAmountMessages(
   mode: ProductRuleMode,
-  kind: "below_min" | "above_max" | "above_sub_limit",
+  kind: "below_min" | "above_max",
   formatted: string
 ): string {
   if (mode === "admin_offer") {
     if (kind === "below_min") return `Offered financing must be at least ${formatted}.`;
-    if (kind === "above_max") return `Offered financing cannot exceed ${formatted}.`;
-    return `Offered financing cannot exceed the facility sub-limit of ${formatted} per invoice.`;
+    return `Offered financing cannot exceed ${formatted}.`;
   }
   if (kind === "below_min") return `Financing amount must be at least ${formatted}.`;
-  if (kind === "above_max") return `Financing amount cannot exceed ${formatted}.`;
-  return `Financing amount cannot exceed the facility sub-limit of ${formatted} per invoice.`;
+  return `Financing amount cannot exceed ${formatted}.`;
 }
 
 function collectFinancingViolations(
   rules: InvoiceProductRules,
   financingAmount: number,
-  options: { mode: ProductRuleMode; hasFacility: boolean }
+  mode: ProductRuleMode
 ): ProductRuleViolation[] {
   if (!isPositiveFiniteAmount(financingAmount)) return [];
   const out: ProductRuleViolation[] = [];
@@ -177,7 +171,7 @@ function collectFinancingViolations(
       limit: rules.minFinancingAmount,
       actual: financingAmount,
       message: financingAmountMessages(
-        options.mode,
+        mode,
         "below_min",
         formatProductRuleAmount(rules.minFinancingAmount)
       ),
@@ -190,26 +184,9 @@ function collectFinancingViolations(
       limit: rules.maxFinancingAmount,
       actual: financingAmount,
       message: financingAmountMessages(
-        options.mode,
+        mode,
         "above_max",
         formatProductRuleAmount(rules.maxFinancingAmount)
-      ),
-    });
-  }
-  if (
-    options.hasFacility &&
-    rules.subLimitPerInvoiceRm != null &&
-    moneyAmountExceeds(financingAmount, rules.subLimitPerInvoiceRm)
-  ) {
-    out.push({
-      code: "FINANCING_ABOVE_SUB_LIMIT",
-      field: "financing_amount",
-      limit: rules.subLimitPerInvoiceRm,
-      actual: financingAmount,
-      message: financingAmountMessages(
-        options.mode,
-        "above_sub_limit",
-        formatProductRuleAmount(rules.subLimitPerInvoiceRm)
       ),
     });
   }
@@ -252,7 +229,7 @@ export function validateInvoiceAgainstProductRules(
 ): ProductRuleViolation[] {
   return [
     ...collectFaceViolations(rules, input.invoiceFace),
-    ...collectFinancingViolations(rules, input.financingAmount, options),
+    ...collectFinancingViolations(rules, input.financingAmount, options.mode),
     ...collectRatioViolations(rules, input.ratioPercent, options.mode),
   ];
 }

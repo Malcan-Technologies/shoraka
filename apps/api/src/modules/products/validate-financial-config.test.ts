@@ -145,7 +145,7 @@ describe("validateFinancialConfig mandatory workflow step set (Financing Structu
       },
       { id: "financing_structure", config: {} },
       { id: "contract_details", config: {} },
-      { id: "invoice_details", config: { sub_limit_per_invoice_rm: 1000000 } },
+      { id: "invoice_details", config: {} },
     ];
     expect(() => validateFinancialConfig({ workflow })).not.toThrow();
   });
@@ -188,41 +188,6 @@ describe("validateFinancialConfig mandatory workflow step set (Financing Structu
   });
 });
 
-describe("validateFinancialConfig invoice sub-limit", () => {
-  function loWorkflow(invoiceConfig: Record<string, unknown>) {
-    return [
-      {
-        id: "financing_type",
-        config: {
-          acceptance_documents: [
-            { name: "Letter of Offer", generated_document_type: "arf_contract_facility_lo" },
-          ],
-          acceptance_deadline: { days: 7, reminders: [{ days_before_expiry: 1 }] },
-          signing_deadline: { days: 14, reminders: [{ days_before_expiry: 3 }] },
-        },
-      },
-      { id: "financing_structure", config: {} },
-      { id: "contract_details", config: {} },
-      { id: "invoice_details", config: invoiceConfig },
-    ];
-  }
-
-  it("requires a positive sub-limit when the workflow declares the ARF facility LO", () => {
-    expect(() => validateFinancialConfig({ workflow: loWorkflow({}) })).toThrow(
-      /sub-limit per invoice/
-    );
-    expect(() =>
-      validateFinancialConfig({ workflow: loWorkflow({ sub_limit_per_invoice_rm: 1000000 }) })
-    ).not.toThrow();
-  });
-
-  it("rejects a non-positive sub-limit even without an LO row", () => {
-    expect(() =>
-      validateWorkflowFinancialConfig(invoiceWorkflow({ sub_limit_per_invoice_rm: 0 }))
-    ).toThrow(/sub-limit/);
-  });
-});
-
 describe("validateWorkflowFinancialConfig invoice and financing limits", () => {
   it("accepts positive face-value and financing pairs", () => {
     expect(() =>
@@ -232,7 +197,6 @@ describe("validateWorkflowFinancialConfig invoice and financing limits", () => {
           max_invoice_face_value: "250,000",
           min_invoice_value: 800,
           max_invoice_value: 200000,
-          sub_limit_per_invoice_rm: 200000,
         })
       )
     ).not.toThrow();
@@ -276,17 +240,12 @@ describe("validateWorkflowFinancialConfig invoice and financing limits", () => {
     ).toThrow(/Financing amount limits must be positive RM amounts/);
   });
 
-  it("rejects min financing above max and max financing above sub-limit", () => {
+  it("rejects min financing above max", () => {
     expect(() =>
       validateWorkflowFinancialConfig(
         invoiceWorkflow({ min_invoice_value: 5000, max_invoice_value: 1000 })
       )
     ).toThrow(/Minimum financing amount cannot exceed maximum financing amount/);
-    expect(() =>
-      validateWorkflowFinancialConfig(
-        invoiceWorkflow({ max_invoice_value: 20000, sub_limit_per_invoice_rm: 10000 })
-      )
-    ).toThrow(/Maximum financing amount cannot exceed the sub-limit per invoice/);
   });
 });
 

@@ -18,7 +18,6 @@ The step is a stacked form (same shell as Facility Details), not a spreadsheet. 
 | 6   | Contract date window         | new_contract, existing_contract                                    | Maturity date ≥ contract start date.                                                                                                                               | As today (facility invoices) |
 | 7a  | Min/max invoice value        | All                                                                | Invoice face value within `min_invoice_face_value` / `max_invoice_face_value`.                                                                                     | Create/update, submit, amendment resubmit |
 | 7b  | Min/max financing amount     | All                                                                | Financing amount (`value × ratio`) within `min_invoice_value` / `max_invoice_value`.                                                                               | Create/update, submit, amendment resubmit |
-| 7c  | Facility sub-limit           | Facility invoices only                                             | Financing amount ≤ `sub_limit_per_invoice_rm`. Skipped for `invoice_only`.                                                                                         | Create/update, submit, amendment resubmit |
 | 8   | At least one valid invoice   | invoice_only, existing_contract                                    | Exactly one complete valid invoice required (max one per application).                                                                                             | Submit          |
 | 9   | Financing ratio              | All                                                                | Financing ratio must be within the product band (default 60–80%).                                                                                                  | Create/update, submit, amendment resubmit |
 | 10  | Dual facility limits         | existing_contract (split); legacy new_contract + existing_contract | Draft overage is a saveable warning. Submit and reserved amendment edits are hard-blocked on remaining credit (financing) and remaining allocation (invoice face). | As today        |
@@ -35,7 +34,7 @@ Contract duration (`min_contract_months`) is enforced on facility save and submi
 - No contract, no facility, no other-invoice tabs.
 - Validations: 1–5, 7a–7b, 8–9, 11.
 - **Exactly one invoice** on this application.
-- Skipped: 6 (contract window), 7c (facility sub-limit), 10 (facility limit).
+- Skipped: 6 (contract window), 10 (facility limit).
 
 ### new_contract
 
@@ -106,17 +105,9 @@ Per-invoice financing amount = `value × (financing_ratio_percent / 100)`.
 - If `min_invoice_value` is configured: financing amount ≥ min.
 - If `max_invoice_value` is configured: financing amount ≤ max.
 
-### 7c. Facility sub-limit per invoice
-
-**Applies to:** Facility invoices (`new_contract`, `existing_contract`). **Skipped for:** `invoice_only`.
-
-If `sub_limit_per_invoice_rm` is configured, financing amount cannot exceed that cap.
-
-Config comes from the frozen product workflow invoice step.
-
 ### Admin offers
 
-Offered amount and ratio are bound by product min/max financing, the facility sub-limit (facility invoices only), and the ratio band. A submitted invoice that is already outside those limits shows a warning; admin can still size the offer down within limits. Send-offer is blocked when the offer itself violates the rules. The API returns `PRODUCT_LIMIT_VIOLATION` from send-invoice-offer and send-contract-offer.
+Offered amount and ratio are bound by product min/max financing and the ratio band. A submitted invoice that is already outside those limits shows a warning; admin can still size the offer down within limits. Send-offer is blocked when the offer itself violates the rules. The API returns `PRODUCT_LIMIT_VIOLATION` from send-invoice-offer and send-contract-offer.
 
 ### 8. At least one valid invoice
 

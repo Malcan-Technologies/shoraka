@@ -24,7 +24,6 @@ function rules(overrides: Partial<InvoiceProductRules> = {}): InvoiceProductRule
     maxInvoiceFaceValue: null,
     minFinancingAmount: null,
     maxFinancingAmount: null,
-    subLimitPerInvoiceRm: null,
     ratio: resolveInvoiceFinancingRatioBounds(null, null),
     minMonthsApplicationToMaturity: null,
     minMonthsReviewToMaturity: null,
@@ -45,27 +44,12 @@ describe("product-rule-hints", () => {
     ).toBe("Allowed: RM 5,000.00 – RM 500,000.00");
   });
 
-  it("builds financing hints from min, max, and facility sub-limit", () => {
-    expect(buildFinancingAmountHint(null, true)).toBeUndefined();
+  it("builds financing hints from min and max", () => {
+    expect(buildFinancingAmountHint(null)).toBeUndefined();
     expect(
-      buildFinancingAmountHint(
-        rules({ minFinancingAmount: 5000, maxFinancingAmount: 400000 }),
-        false
-      )
+      buildFinancingAmountHint(rules({ minFinancingAmount: 5000, maxFinancingAmount: 400000 }))
     ).toBe("Min RM 5,000.00 · Max RM 400,000.00");
-    expect(
-      buildFinancingAmountHint(
-        rules({
-          minFinancingAmount: 5000,
-          maxFinancingAmount: 400000,
-          subLimitPerInvoiceRm: 250000,
-        }),
-        true
-      )
-    ).toBe("Min RM 5,000.00 · Max RM 400,000.00 · Facility sub-limit RM 250,000.00");
-    expect(
-      buildFinancingAmountHint(rules({ subLimitPerInvoiceRm: 250000 }), false)
-    ).toBeUndefined();
+    expect(buildFinancingAmountHint(rules())).toBeUndefined();
   });
 
   it("adds allowed invoice value lines to the tooltip when configured", () => {

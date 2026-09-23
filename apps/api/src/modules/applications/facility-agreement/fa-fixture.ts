@@ -13,7 +13,6 @@ export function createFacilityAgreementFixture(): FacilityAgreementMergeData {
     facility_description:
       "Account Receivable Financing-i Facility of RM 1,000,000.00 as described in the Letter of Offer dated 19 August 2026",
     financing_limit_rm: "RM 1,000,000.00",
-    sub_limit_per_invoice_rm: "RM 250,000.00",
     facility_fee_rate_percent: "1%",
     drawdown_fee: FA_DRAWDOWN_FEE_AS_PRESCRIBED,
     trustee_disclosure_email: "trustee@example.com",

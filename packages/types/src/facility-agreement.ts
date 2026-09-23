@@ -29,7 +29,6 @@ export type FacilityAgreementMergeData = {
   issuer_email: string;
   facility_description: string;
   financing_limit_rm: string;
-  sub_limit_per_invoice_rm: string;
   facility_fee_rate_percent: string;
   drawdown_fee: string;
   trustee_disclosure_email: string;
@@ -61,7 +60,6 @@ export const FACILITY_AGREEMENT_MERGE_KEYS = [
   "issuer_email",
   "facility_description",
   "financing_limit_rm",
-  "sub_limit_per_invoice_rm",
   "facility_fee_rate_percent",
   "drawdown_fee",
   "trustee_disclosure_email",

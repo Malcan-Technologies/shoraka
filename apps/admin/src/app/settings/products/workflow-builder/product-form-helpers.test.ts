@@ -41,8 +41,8 @@ describe("product form financing ratio cap", () => {
     expect(helpers).not.toContain("cannot exceed 100");
     expect(configUi).toContain("max={MAX_INVOICE_FINANCING_RATIO_PERCENT}");
     expect(configUi).toContain("Maximum {MAX_INVOICE_FINANCING_RATIO_PERCENT}%");
-    expect(helpers).toContain("sub_limit_per_invoice_rm");
-    expect(configUi).toContain("Sub-limit per invoice (RM)");
+    expect(helpers).not.toContain("sub-limit per invoice is required");
+    expect(configUi).not.toContain("Sub-limit per invoice (RM)");
   });
 
   it("includes invoice face-value keys and the new validation messages", () => {
@@ -52,7 +52,6 @@ describe("product form financing ratio cap", () => {
     expect(helpers).toContain("maximum invoice value cannot be negative");
     expect(helpers).toContain("minimum invoice value cannot exceed maximum invoice value");
     expect(helpers).toContain("minimum financing amount cannot exceed maximum financing amount");
-    expect(helpers).toContain("maximum financing amount cannot exceed the sub-limit per invoice");
     expect(helpers).not.toContain("minimum cannot exceed maximum");
     expect(configUi).toContain("Minimum invoice value (RM)");
     expect(configUi).toContain("Maximum invoice value (RM)");
@@ -67,21 +66,25 @@ describe("invoice face-value payload and validation", () => {
         max_invoice_face_value: "250,000",
         min_invoice_value: "800",
         max_invoice_value: "200,000",
+        sub_limit_per_invoice_rm: 1000,
       })
     );
     const invoice = payload.find((s) => s.id === "invoice_details")?.config;
     expect(invoice?.min_invoice_face_value).toBe(1000);
     expect(invoice?.max_invoice_face_value).toBe(250000);
+    expect(invoice).not.toHaveProperty("sub_limit_per_invoice_rm");
 
     const normalized = normalizeWorkflow(
       invoiceProductSteps({
         min_invoice_face_value: "2,500",
         max_invoice_face_value: "",
+        sub_limit_per_invoice_rm: 1000,
       })
     );
     const normalizedInvoice = normalized.find((s) => s.id === "invoice_details")?.config;
     expect(normalizedInvoice?.min_invoice_face_value).toBe(2500);
     expect(normalizedInvoice?.max_invoice_face_value).toBeNull();
+    expect(normalizedInvoice).not.toHaveProperty("sub_limit_per_invoice_rm");
   });
 
   it("rejects negative and inverted invoice face-value limits", () => {
@@ -102,19 +105,11 @@ describe("invoice face-value payload and validation", () => {
     ).toBe(true);
   });
 
-  it("rejects financing min above max and financing max above sub-limit", () => {
+  it("rejects financing min above max", () => {
     expect(
       getRequiredStepErrors(
         invoiceProductSteps({ min_invoice_value: 5000, max_invoice_value: 1000 })
       ).some((e) => e.includes("minimum financing amount cannot exceed maximum financing amount"))
-    ).toBe(true);
-    expect(
-      getRequiredStepErrors(
-        invoiceProductSteps({
-          max_invoice_value: 20000,
-          sub_limit_per_invoice_rm: 10000,
-        })
-      ).some((e) => e.includes("maximum financing amount cannot exceed the sub-limit per invoice"))
     ).toBe(true);
   });
 });

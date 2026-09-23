@@ -1,6 +1,6 @@
 # ARF Facility Agreement — data sources
 
-What [`buildFacilityAgreementMergeData`](../../apps/api/src/modules/applications/facility-agreement/build-fa-merge-data.ts) does for production generate (`arf_facility_agreement` **v1**).
+What [`buildFacilityAgreementMergeData`](../../apps/api/src/modules/applications/facility-agreement/build-fa-merge-data.ts) does for production generate (`arf_facility_agreement` **v2**).
 
 Requires `offer_sent` (contract facility offer **or** standalone invoice offer). Generated when admin previews or sends the signing package if the frozen product includes **Facility Agreement**. Replaces the e-sign Offer Letter; the Step 1 `arf_contract_facility_lo` download/upload is unchanged.
 
@@ -21,7 +21,6 @@ SigningCloud must enable `signdate` and `seal` on the CashSouk tenant before pro
 | `issuer_email` | `application.company_details.contact_person.email` |
 | `financing_limit_rm` | Contract: `offer_details.offered_facility` / `contract_details.approved_facility`. Invoice: `invoice.offer_details.offered_amount` |
 | `facility_description` | Derived from financing limit + letter date (generate-ready check; not printed in Word after v2) |
-| `sub_limit_per_invoice_rm` | Product workflow invoice-details sub-limit; invoice offers fall back to offered amount |
 | `facility_fee_rate_percent` | Contract offer / contract details only |
 | `drawdown_fee` | Always `As prescribed in the Letter of Offer`. The rate stays on the LO / utilisation offer, not the FA. |
 | `trustee_disclosure_email` | `PlatformFinanceSetting.trustee_letter_config.trusteeEmail` |

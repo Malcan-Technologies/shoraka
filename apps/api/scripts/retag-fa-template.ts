@@ -385,11 +385,12 @@ function transformParagraph(pXml: string, state: WalkState): string {
         )
       );
     }
-    if (compact.includes("shall not exceed [●]")) {
-      return rewriteParagraphText(
-        pXml,
-        text.replace("shall not exceed [●]", "shall not exceed {sub_limit_per_invoice_rm}")
-      );
+    if (
+      compact.includes("With below Sub-Limits") ||
+      compact.includes("shall not exceed [●]") ||
+      compact.includes("Sub-Limits for each facility")
+    ) {
+      return "";
     }
     if (compact === "Drawdown Fee") {
       state.pendingBullet = "{drawdown_fee}";
@@ -675,7 +676,6 @@ function requiredTagsPresent(xml: string): string[] {
     "{issuer_address}",
     "{issuer_email}",
     "{financing_limit_rm}",
-    "{sub_limit_per_invoice_rm}",
     "{facility_fee_rate_percent}",
     "{drawdown_fee}",
     "{trustee_disclosure_email}",
@@ -873,6 +873,13 @@ function main(): void {
   const missing = requiredTagsPresent(taggedHead);
   if (missing.length > 0) {
     throw new Error(`Tagged document.xml is missing: ${missing.join(", ")}`);
+  }
+  if (
+    taggedHead.includes("{sub_limit_per_invoice_rm}") ||
+    taggedHead.includes("With below Sub-Limits") ||
+    taggedHead.includes("Sub-Limits for each facility")
+  ) {
+    throw new Error("Invoice sub-limit sentence or merge tag is still in the Facility Agreement");
   }
   if (!taggedHead.includes('w:val="yellow"')) {
     throw new Error("Tagged document has no yellow highlighting on merge tags");

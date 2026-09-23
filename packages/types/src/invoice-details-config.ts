@@ -30,10 +30,3 @@ export function parsePositiveRmAmount(value: unknown): number | null {
   }
   return null;
 }
-
-/** Frozen-product invoice sub-limit. Null when unset or not a positive amount. */
-export function readInvoiceSubLimitPerInvoiceRmFromWorkflow(workflow: unknown): number | null {
-  const config = findInvoiceDetailsConfig(workflow);
-  if (!config) return null;
-  return parsePositiveRmAmount(config.sub_limit_per_invoice_rm);
-}

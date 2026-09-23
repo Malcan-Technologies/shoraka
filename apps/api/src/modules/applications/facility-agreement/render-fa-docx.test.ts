@@ -97,6 +97,8 @@ describe("renderFacilityAgreementDocx", () => {
     expect(accountNumberRow).not.toContain("Account Name");
     expect(plain).toContain("{issuer_name}");
     expect(plain).toContain("{financing_limit_rm}");
+    expect(plain).not.toContain("{sub_limit_per_invoice_rm}");
+    expect(plain).not.toContain("With below Sub-Limits");
     expect(plain).toContain("{#guarantors_individual}");
     expect(plain).toContain("{#guarantors_corporate}");
     expect(plain).toContain("{#issuer_signatory_pages}");

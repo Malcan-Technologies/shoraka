@@ -109,19 +109,13 @@ function toNumber(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function formatInvoiceOfferLimitsHelper(
-  rules: InvoiceProductRules,
-  hasFacility: boolean
-): string | null {
+function formatInvoiceOfferLimitsHelper(rules: InvoiceProductRules): string | null {
   const parts: string[] = [];
   if (rules.minFinancingAmount != null) {
     parts.push(`Min RM ${formatMoney(rules.minFinancingAmount)}`);
   }
   if (rules.maxFinancingAmount != null) {
     parts.push(`Max RM ${formatMoney(rules.maxFinancingAmount)}`);
-  }
-  if (hasFacility && rules.subLimitPerInvoiceRm != null) {
-    parts.push(`Facility sub-limit RM ${formatMoney(rules.subLimitPerInvoiceRm)}`);
   }
   if (parts.length === 0) return null;
   return `Product limits: ${parts.join(" · ")}`;
@@ -162,7 +156,7 @@ export interface InvoiceOfferPanelProps {
   /**
    * Application-level facility resolved by the caller: a contract id when the
    * invoice sits on a facility, `null` for standalone invoices (whose holder
-   * contract must not trigger the sub-limit). Mirrors the API's occupancy rule.
+   * contract must not trigger facility occupancy). Mirrors the API's occupancy rule.
    * When omitted, falls back to the invoice row's own contract link.
    */
   facilityContractId?: string | null;
@@ -235,7 +229,7 @@ export function InvoiceOfferPanel({
   const invoiceRatioLimits = invoiceProductRules.ratio;
   const hasFacility =
     facilityContractId === undefined ? Boolean(invoice.contract_id) : facilityContractId != null;
-  const limitsHelper = formatInvoiceOfferLimitsHelper(invoiceProductRules, hasFacility);
+  const limitsHelper = formatInvoiceOfferLimitsHelper(invoiceProductRules);
 
   const initialOffered = React.useMemo(() => {
     const offer = invoice.offer_details as

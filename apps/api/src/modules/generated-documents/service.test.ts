@@ -624,10 +624,9 @@ describe("GeneratedDocumentsService.generateDocument", () => {
     });
   });
 
-  it("rejects when the frozen product has no invoice sub-limit", async () => {
+  it("rejects when Part B financing amount is missing", async () => {
     jest.spyOn(buildMerge, "buildFacilityLoMergeData").mockReturnValue({
       ...createFacilityLoFixture(),
-      sub_limit_per_invoice_rm: "",
       part_b_financing_amount_rm: "",
     });
 

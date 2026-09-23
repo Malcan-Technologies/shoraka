@@ -17,7 +17,6 @@ import {
   getOfferAcceptanceFromOfferDetails,
   malaysianBankSwift,
   signingDesignationFromCapacity,
-  readInvoiceSubLimitPerInvoiceRmFromWorkflow,
 } from "@cashsouk/types";
 
 type JsonRecord = Record<string, unknown>;
@@ -159,7 +158,6 @@ export function buildFacilityAgreementMergeData(
     issuer_email: "",
     facility_description: "",
     financing_limit_rm: "",
-    sub_limit_per_invoice_rm: "",
     facility_fee_rate_percent: "",
     trustee_disclosure_email: "",
     issuer_bank_name: "",
@@ -196,11 +194,6 @@ export function buildFacilityAgreementMergeData(
     input.offerKind === "invoice" ? offeredAmount : (offeredFacility ?? approvedFacility);
   const amountRm = formatRmAmount(facilityAmount ?? undefined);
 
-  const subLimitRm = readInvoiceSubLimitPerInvoiceRmFromWorkflow(input.productWorkflow);
-  const subLimitFormatted =
-    formatRmAmount(subLimitRm ?? undefined) ||
-    (input.offerKind === "invoice" ? amountRm : "");
-
   const facilityFeeRate =
     input.offerKind === "contract"
       ? asNumber(offer?.facility_fee_rate_percent) ?? asNumber(contractDetails?.facility_fee_rate_percent)
@@ -233,7 +226,6 @@ export function buildFacilityAgreementMergeData(
     issuer_email: asString(contact?.email),
     facility_description: formatFaFacilityDescription(amountRm, letterDate),
     financing_limit_rm: amountRm,
-    sub_limit_per_invoice_rm: subLimitFormatted,
     facility_fee_rate_percent: formatPercent(facilityFeeRate),
     drawdown_fee: FA_DRAWDOWN_FEE_AS_PRESCRIBED,
     trustee_disclosure_email: asString(input.trusteeDisclosureEmail),
