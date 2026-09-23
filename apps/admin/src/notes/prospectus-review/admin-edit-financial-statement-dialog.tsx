@@ -227,19 +227,17 @@ export function AdminEditFinancialStatementDialog({
         </DialogHeader>
 
         {fieldState ? (
-          <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
-            {MODAL_GROUPS.map((g) => {
-              const keys = g.keys.filter((k) => fieldState.byKey[k] != null);
-              if (keys.length === 0) return null;
-
-              return (
-                <div key={g.title} className="space-y-2">
-                  <div className="text-meta font-normal text-muted-foreground">{g.title}</div>
-                  <div className="grid gap-2">
-                    {keys.map((key) => {
+          <div className="space-y-4">
+            <div className="max-h-[55vh] overflow-y-auto rounded-xl border p-3">
+              <div className="grid gap-3 sm:grid-cols-2">
+                {MODAL_GROUPS.flatMap((g) => {
+                  return g.keys
+                    .filter((k) => fieldState.byKey[k] != null)
+                    .map((key) => {
                       const meta = fieldState.byKey[key]!;
                       const showExceptionBadge =
-                        meta.editedByAdmin || (yearPrimarySource != null && meta.source !== yearPrimarySource);
+                        meta.editedByAdmin ||
+                        (yearPrimarySource != null && meta.source !== yearPrimarySource);
 
                       const helperText =
                         meta.unavailableReason === "not_provided_by_ctos"
@@ -247,50 +245,52 @@ export function AdminEditFinancialStatementDialog({
                           : undefined;
 
                       const inputDisabled = disabled || meta.readOnly || saving;
+
                       return (
-                        <div key={key} className="flex items-start justify-between gap-3">
-                          <div className="flex flex-col min-w-0">
-                            <div className="flex items-center gap-2">
-                              <Label className="text-ui font-normal leading-snug">{meta.label}</Label>
-                              {showExceptionBadge ? (
-                                <span className="text-[11px] font-normal text-muted-foreground whitespace-nowrap">
-                                  {fieldProvenanceLabel({ source: meta.source, editedByAdmin: meta.editedByAdmin })}
-                                </span>
-                              ) : null}
-                            </div>
-
-                            {helperText ? <div className="text-[11px] text-muted-foreground">{helperText}</div> : null}
-
-                            {meta.readOnly ? (
-                              <div className="pt-1 text-right font-medium tabular-nums">
-                                {meta.initialValue == null ? "—" : formatRawFieldValue(meta.initialValue)}
-                              </div>
-                            ) : (
-                              <div className="pt-1">
-                                <Input
-                                  inputMode="decimal"
-                                  type="number"
-                                  step="any"
-                                  value={fieldState.inputs[key] ?? ""}
-                                  disabled={inputDisabled}
-                                  onChange={(e) => {
-                                    const next = e.target.value;
-                                    setFieldState((prev) => {
-                                      if (!prev) return prev;
-                                      return { ...prev, inputs: { ...prev.inputs, [key]: next } };
-                                    });
-                                  }}
-                                />
-                              </div>
-                            )}
+                        <div key={key} className="space-y-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <Label className="text-meta font-normal leading-snug">{meta.label}</Label>
+                            {showExceptionBadge ? (
+                              <span className="text-[11px] font-normal text-muted-foreground whitespace-nowrap mt-0.5">
+                                {fieldProvenanceLabel({
+                                  source: meta.source,
+                                  editedByAdmin: meta.editedByAdmin,
+                                })}
+                              </span>
+                            ) : null}
                           </div>
+
+                          {helperText ? <div className="text-[11px] text-muted-foreground">{helperText}</div> : null}
+
+                          {meta.readOnly ? (
+                            <div className="pt-1 text-right font-medium tabular-nums">
+                              {meta.initialValue == null ? "—" : formatRawFieldValue(meta.initialValue)}
+                            </div>
+                          ) : (
+                            <div className="pt-1">
+                              <Input
+                                inputMode="decimal"
+                                type="number"
+                                step="any"
+                                placeholder="—"
+                                value={fieldState.inputs[key] ?? ""}
+                                disabled={inputDisabled}
+                                onChange={(e) => {
+                                  const next = e.target.value;
+                                  setFieldState((prev) => {
+                                    if (!prev) return prev;
+                                    return { ...prev, inputs: { ...prev.inputs, [key]: next } };
+                                  });
+                                }}
+                              />
+                            </div>
+                          )}
                         </div>
                       );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
+                    });
+                })}
+              </div>
+            </div>
           </div>
         ) : (
           <div className="text-muted-foreground">No financial statement data available.</div>

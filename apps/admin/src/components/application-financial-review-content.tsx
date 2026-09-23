@@ -34,18 +34,27 @@ import {
 import { cn } from "@/lib/utils";
 import { DirectorShareholderTable } from "@/components/admin/director-shareholder-table";
 import { formatCurrency, formatNumber } from "@cashsouk/config";
-import { PencilSquareIcon } from "@heroicons/react/24/outline";
+import { ChevronDownIcon, ChevronRightIcon, PencilSquareIcon } from "@heroicons/react/24/outline";
 import {
-  FINANCIAL_FIELD_LABELS,
   computeColumnMetrics,
+  computeEbit,
+  computeInterestCoverage,
+  computeNetDebtEquity,
+  computePayablesDays,
+  computeQuickRatio,
   computeReceivablesDays,
+  computeDscr,
   computeTurnoverGrowth,
   financialFormToBsPl,
   computeHasPendingDirectorShareholder,
   normalizeDirectorShareholderIdKey,
+  resolveCtosDebtToEquityPercent,
   resolveCtosCurrentRatio,
+  resolveCtosGearingRatio,
+  resolveCtosReturnOnAssetsPercent,
   resolveCtosPatMarginPercent,
   resolveCtosReturnOnEquityPercent,
+  resolveCtosTotalAssetTurnover,
   resolveCtosTotalAssets,
   resolveCtosTotalLiabilities,
   resolveFinancialSummaryIssuerReturnOnEquityRatio,
@@ -95,7 +104,7 @@ function AdminUnauditedYearHeading({
 }) {
   const lines = adminFyPeriodLines(adminUnauditedYearPresentation(questionnaire, year).periodLine);
   return (
-    <span className="flex flex-col items-end gap-0.5 text-right">
+    <span className="flex flex-col items-center gap-0.5 text-center">
       <span>{`FY${year}`}</span>
       {lines.length > 0 ? (
         <span className="text-meta font-normal leading-snug text-muted-foreground">
@@ -156,23 +165,18 @@ function financialSummaryColumnShellClass(
   const isFirstUnaudited = kind === "unaudited" && colIndex === 3;
   const emptySlot = kind === "empty" && year == null;
   return cn(
-    kind === "ctos" ? "bg-muted/25" : "bg-background/80",
+    kind === "admin_fallback_placeholder"
+      ? "bg-muted/30 opacity-70"
+      : kind === "unaudited"
+        ? "bg-amber-50/20 dark:bg-amber-950/15"
+        : kind === "ctos"
+          ? "bg-muted/10"
+          : "bg-background/80",
     isFirstUnaudited && "border-l-2 border-l-border",
     emptySlot && "bg-muted/30 opacity-70",
     extra
   );
 }
-
-const COMPUTED_FIELD_LABELS: Record<string, string> = {
-  totass: "Total Assets",
-  totlib: "Total Liability",
-  networth: "Net Worth",
-  turnover_growth: "Turnover Growth",
-  profit_margin: "Profit Margin",
-  return_of_equity: "Return of Equity",
-  currat: "Current Ratio",
-  workcap: "Working Capital",
-};
 
 /** One year row from CTOS `financials_json` (parser matches ctos.new.ts harness). */
 interface CtosFinRow {
@@ -517,98 +521,256 @@ export function ApplicationFinancialReviewContent({
     valueMissing: boolean,
     fmt: () => string
   ): string => {
-    const spec = columns[colIdx];
-    if (ctosColumnMissing(colIdx)) {
-      return spec?.kind === "ctos" ? "Missing in CTOS extract" : "Not provided in issuer form";
-    }
-    if (valueMissing) {
-      return spec?.kind === "ctos" ? "Not provided by CTOS" : "Not provided";
-    }
+    if (ctosColumnMissing(colIdx)) return "—";
+    if (valueMissing) return "—";
     return fmt();
   };
 
   /** Short hint under label for computed rows (admin scan speed). */
-  const rowLabels: { id: string; label: string; formulaHint?: string }[] = [
-    { id: "pldd", label: "Financial Year End" },
-    { id: "bsfatot", label: FINANCIAL_FIELD_LABELS.bsfatot },
-    { id: "othass", label: FINANCIAL_FIELD_LABELS.othass },
-    { id: "bscatot", label: FINANCIAL_FIELD_LABELS.bscatot },
-    { id: "bsclbank", label: FINANCIAL_FIELD_LABELS.bsclbank },
+  type FinancialCategoryId =
+    | "assets"
+    | "liabilities"
+    | "equity"
+    | "profitLoss"
+    | "costs"
+    | "cashFlowDebt"
+    | "calculatedMetrics";
+
+  const FINANCIAL_CATEGORY_ORDER: Array<{
+    id: FinancialCategoryId;
+    title: string;
+    rowIds: string[];
+  }> = [
     {
-      id: "totass",
-      label: COMPUTED_FIELD_LABELS.totass,
+      id: "assets",
+      title: "Assets",
+      rowIds: [
+        "bsfatot",
+        "othass",
+        "bscatot",
+        "bsclbank",
+        "cashAndBank",
+        "tradeReceivables",
+        "totass",
+      ],
+    },
+    {
+      id: "liabilities",
+      title: "Liabilities",
+      rowIds: [
+        "curlib",
+        "bsslltd",
+        "bsclstd",
+        "curlib_borrowing",
+        "curlib_non_borrowing",
+        "ncl_loan",
+        "ncl_non_loan",
+        "tradePayables",
+        "totlib",
+      ],
+    },
+    {
+      id: "equity",
+      title: "Equity",
+      rowIds: [
+        "bsqpuc",
+        "equity_share_application",
+        "equity_share_premium",
+        "equity_accumulated_profit",
+        "equity_minority",
+        "networth",
+      ],
+    },
+    {
+      id: "profitLoss",
+      title: "Profit & Loss",
+      rowIds: [
+        "turnover",
+        "grossProfit",
+        "ebitda",
+        "plnpbt",
+        "plnpat",
+        "plnetdiv",
+        "pl_minority",
+        "plyear",
+        "netOperatingIncome",
+      ],
+    },
+    {
+      id: "costs",
+      title: "Costs",
+      rowIds: ["costOfSales", "operating_cost", "admin_cost", "interest_cost", "other_cost"],
+    },
+    {
+      id: "cashFlowDebt",
+      title: "Cash Flow / Debt",
+      rowIds: ["operatingCashFlow", "freeCashFlow", "annualDebtService"],
+    },
+    {
+      id: "calculatedMetrics",
+      title: "Calculated Metrics",
+      rowIds: [
+        "ebit",
+        "turnover_growth",
+        "profit_margin",
+        "currat",
+        "quickRatio",
+        "workcap",
+        "return_of_equity",
+        "roa",
+        "assetTurnover",
+        "gear",
+        "debtEquityPercent",
+        "netDebtEquity",
+        "interestCoverage",
+        "receivablesDays",
+        "payablesDays",
+        "dscr",
+      ],
+    },
+  ];
+
+  const FINANCIAL_ROW_META: Record<
+    string,
+    { label: string; formulaHint?: string; isTotal?: boolean }
+  > = {
+    pldd: { label: "Financial Year End" },
+    bsfatot: { label: "Fixed Assets" },
+    othass: { label: "Other Assets" },
+    bscatot: { label: "Current Assets" },
+    bsclbank: { label: "Non-current Assets" },
+    cashAndBank: { label: "Cash & Bank" },
+    tradeReceivables: { label: "Trade Receivables" },
+    totass: {
+      label: "Total Assets",
       formulaHint: "Calculated as Total Assets from issuer financial information when a total isn't provided.",
+      isTotal: true,
     },
-    { id: "curlib", label: FINANCIAL_FIELD_LABELS.curlib },
-    { id: "bsslltd", label: FINANCIAL_FIELD_LABELS.bsslltd },
-    { id: "bsclstd", label: FINANCIAL_FIELD_LABELS.bsclstd },
-    {
-      id: "totlib",
-      label: COMPUTED_FIELD_LABELS.totlib,
-      formulaHint:
-        "Calculated as Total Liabilities from issuer financial information when a total isn't provided.",
+    curlib: { label: "Current Liabilities" },
+    bsslltd: { label: "Long-term Liabilities" },
+    bsclstd: { label: "Non-current Liabilities" },
+    curlib_borrowing: { label: "Current Borrowings" },
+    curlib_non_borrowing: { label: "Other Current Liabilities" },
+    ncl_loan: { label: "Non-current Loans" },
+    ncl_non_loan: { label: "Other Non-current Liabilities" },
+    tradePayables: { label: "Trade Payables" },
+    totlib: {
+      label: "Total Liabilities",
+      formulaHint: "Calculated as Total Liabilities from issuer financial information when a total isn't provided.",
+      isTotal: true,
     },
-    { id: "networth", label: COMPUTED_FIELD_LABELS.networth, formulaHint: "Total Assets − Total Liabilities" },
-    { id: "bsqpuc", label: "Paid-up Share Capital" },
-    { id: "turnover", label: "Revenue (Turnover)" },
-    { id: "plnpbt", label: FINANCIAL_FIELD_LABELS.plnpbt },
-    { id: "plnpat", label: FINANCIAL_FIELD_LABELS.plnpat },
-    { id: "plnetdiv", label: FINANCIAL_FIELD_LABELS.plnetdiv },
-    { id: "plyear", label: FINANCIAL_FIELD_LABELS.plyear },
-    {
-      id: "turnover_growth",
-      label: COMPUTED_FIELD_LABELS.turnover_growth,
-      formulaHint: "Change in revenue compared with the previous financial year",
+    bsqpuc: { label: "Paid-up Share Capital" },
+    equity_share_application: { label: "Share Application Account" },
+    equity_share_premium: { label: "Share Premium & Other Reserves" },
+    equity_accumulated_profit: { label: "Accumulated Profit / Loss" },
+    equity_minority: { label: "Equity Minority Interest" },
+    networth: {
+      label: "Total Equity / Net Worth",
+      formulaHint: "Total Assets − Total Liabilities",
+      isTotal: true,
     },
-    {
-      id: "profit_margin",
-      label: COMPUTED_FIELD_LABELS.profit_margin,
+    turnover: { label: "Revenue / Turnover" },
+    grossProfit: { label: "Gross Profit" },
+    ebitda: { label: "EBITDA" },
+    plnpbt: { label: "Profit / Loss Before Tax" },
+    plnpat: { label: "Profit / Loss After Tax" },
+    plnetdiv: { label: "Net Dividend" },
+    pl_minority: { label: "P&L Minority Interest" },
+    plyear: { label: "Profit / Loss of Year" },
+    netOperatingIncome: { label: "Net Operating Income" },
+    costOfSales: { label: "Cost of Sales" },
+    operating_cost: { label: "Operating Costs" },
+    admin_cost: { label: "Administrative Costs" },
+    interest_cost: { label: "Interest Costs" },
+    other_cost: { label: "Other Costs" },
+    operatingCashFlow: { label: "Operating Cash Flow" },
+    freeCashFlow: { label: "Free Cash Flow" },
+    annualDebtService: { label: "Annual Debt Service" },
+    ebit: { label: "EBIT", formulaHint: "Profit / (Loss) Before Tax + Interest Costs" },
+    turnover_growth: {
+      label: "Turnover Growth",
+      formulaHint: "Change in revenue compared with the previous FY",
+    },
+    profit_margin: {
+      label: "Net Profit Margin / PAT Margin",
       formulaHint: "Profit After Tax ÷ Revenue",
     },
-    {
-      id: "return_of_equity",
-      label: COMPUTED_FIELD_LABELS.return_of_equity,
-      formulaHint: "Profit After Tax ÷ Net Worth",
+    currat: { label: "Current Ratio", formulaHint: "Current Assets ÷ Current Liabilities" },
+    quickRatio: {
+      label: "Quick Ratio",
+      formulaHint: "(Cash & Bank + Trade Receivables) ÷ Current Liabilities",
     },
-    {
-      id: "currat",
-      label: COMPUTED_FIELD_LABELS.currat,
-      formulaHint: "Current Assets ÷ Current Liabilities",
-    },
-    {
-      id: "workcap",
-      label: COMPUTED_FIELD_LABELS.workcap,
+    workcap: {
+      label: "Working Capital",
       formulaHint: "Current Assets − Current Liabilities",
     },
-    { id: "cashAndBank", label: FINANCIAL_FIELD_LABELS.cashAndBank },
-    { id: "tradeReceivables", label: FINANCIAL_FIELD_LABELS.tradeReceivables },
-    { id: "tradePayables", label: FINANCIAL_FIELD_LABELS.tradePayables },
-    { id: "grossProfit", label: FINANCIAL_FIELD_LABELS.grossProfit },
-    { id: "ebitda", label: FINANCIAL_FIELD_LABELS.ebitda },
-    { id: "costOfSales", label: FINANCIAL_FIELD_LABELS.costOfSales },
-    { id: "interest_cost", label: FINANCIAL_FIELD_LABELS.interest_cost },
-    { id: "operatingCashFlow", label: FINANCIAL_FIELD_LABELS.operatingCashFlow },
-    { id: "freeCashFlow", label: FINANCIAL_FIELD_LABELS.freeCashFlow },
-    { id: "annualDebtService", label: FINANCIAL_FIELD_LABELS.annualDebtService },
-    { id: "netOperatingIncome", label: FINANCIAL_FIELD_LABELS.netOperatingIncome },
-    { id: "curlib_borrowing", label: FINANCIAL_FIELD_LABELS.curlib_borrowing },
-    { id: "curlib_non_borrowing", label: FINANCIAL_FIELD_LABELS.curlib_non_borrowing },
-    { id: "ncl_loan", label: FINANCIAL_FIELD_LABELS.ncl_loan },
-    { id: "ncl_non_loan", label: FINANCIAL_FIELD_LABELS.ncl_non_loan },
-    { id: "equity_share_application", label: FINANCIAL_FIELD_LABELS.equity_share_application },
-    { id: "equity_share_premium", label: FINANCIAL_FIELD_LABELS.equity_share_premium },
-    { id: "equity_accumulated_profit", label: FINANCIAL_FIELD_LABELS.equity_accumulated_profit },
-    { id: "equity_minority", label: FINANCIAL_FIELD_LABELS.equity_minority },
-    { id: "operating_cost", label: FINANCIAL_FIELD_LABELS.operating_cost },
-    { id: "admin_cost", label: FINANCIAL_FIELD_LABELS.admin_cost },
-    { id: "other_cost", label: FINANCIAL_FIELD_LABELS.other_cost },
-    { id: "pl_minority", label: FINANCIAL_FIELD_LABELS.pl_minority },
-    {
-      id: "receivablesDays",
+    return_of_equity: {
+      label: "Return on Equity (ROE)",
+      formulaHint: "Profit After Tax ÷ Net Worth",
+    },
+    roa: {
+      label: "Return on Assets (ROA)",
+      formulaHint: "Profit After Tax ÷ Total Assets",
+    },
+    assetTurnover: {
+      label: "Asset Turnover",
+      formulaHint: "Revenue ÷ Total Assets",
+    },
+    gear: {
+      label: "Debt / Equity",
+      formulaHint: "Gearing Ratio (Debt ÷ Equity) as a multiple (x)",
+    },
+    debtEquityPercent: {
+      label: "Gearing",
+      formulaHint: "Debt-to-Equity as a percentage",
+    },
+    netDebtEquity: {
+      label: "Net Debt / Equity",
+      formulaHint: "(Borrowings − Cash) ÷ Total Equity",
+    },
+    interestCoverage: {
+      label: "Interest Coverage",
+      formulaHint: "EBIT ÷ Interest Costs",
+    },
+    receivablesDays: {
       label: "Receivables Days",
       formulaHint: "Average Trade Receivables ÷ Revenue × 365",
     },
-  ];
+    payablesDays: {
+      label: "Payables Days",
+      formulaHint: "Trade Payables ÷ Cost of Sales × 365",
+    },
+    dscr: {
+      label: "DSCR",
+      formulaHint: "Net Operating Income ÷ Annual Debt Service",
+    },
+  };
+
+  const [openCategories, setOpenCategories] = React.useState<Record<FinancialCategoryId, boolean>>({
+    assets: true,
+    liabilities: true,
+    equity: false,
+    profitLoss: true,
+    costs: false,
+    cashFlowDebt: false,
+    calculatedMetrics: true,
+  });
+
+  type TableRowItem =
+    | { kind: "category"; categoryId: FinancialCategoryId; title: string }
+    | { kind: "row"; rowId: string };
+
+  const flattenedRows: TableRowItem[] = React.useMemo(() => {
+    const out: TableRowItem[] = [];
+    for (const cat of FINANCIAL_CATEGORY_ORDER) {
+      out.push({ kind: "category", categoryId: cat.id, title: cat.title });
+      if (!openCategories[cat.id]) continue;
+      for (const rowId of cat.rowIds) out.push({ kind: "row", rowId });
+    }
+    return out;
+  }, [openCategories]);
+
+  const getRowMeta = (rowId: string) => FINANCIAL_ROW_META[rowId] ?? { label: rowId };
 
   const renderRowCell = (rowId: string, colIdx: number): string => {
     const specCol = columns[colIdx];
@@ -616,6 +778,7 @@ export function ApplicationFinancialReviewContent({
     if (specCol.kind === "ctos") {
       if (ctosFetchState === "not_pulled" || ctosFetchState === "no_records") return "—";
     }
+    if (specCol.kind === "admin_fallback_placeholder") return "—";
     if (specCol.year == null) {
       return "—";
     }
@@ -649,15 +812,15 @@ export function ApplicationFinancialReviewContent({
           formatCurrency(toNum(fs!.bsclbank), { decimals: 0 })
         );
       case "totass": {
-        if (ctosColumnMissing(colIdx)) return "Missing in CTOS extract";
+        if (ctosColumnMissing(colIdx)) return "Not available";
         if (specCol.kind === "ctos") {
           const n = resolveCtosTotalAssets({
             totass: fs && ctosFlatNumericPresent(fs, "totass") ? toNum(fs.totass) : null,
           });
-          if (n == null) return "N/A";
+          if (n == null) return "Not available";
           return n === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(n, { decimals: 0 });
         }
-        if (!computed) return "N/A";
+        if (!computed) return "Not available";
         const n = computed.totass;
         return n === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(n, { decimals: 0 });
       }
@@ -674,26 +837,26 @@ export function ApplicationFinancialReviewContent({
           formatCurrency(toNum(fs!.bsclstd), { decimals: 0 })
         );
       case "totlib": {
-        if (ctosColumnMissing(colIdx)) return "Missing in CTOS extract";
+        if (ctosColumnMissing(colIdx)) return "Not available";
         if (specCol.kind === "ctos") {
           const n = resolveCtosTotalLiabilities({
             totlib: fs && ctosFlatNumericPresent(fs, "totlib") ? toNum(fs.totlib) : null,
           });
-          if (n == null) return "N/A";
+          if (n == null) return "Not available";
           return n === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(n, { decimals: 0 });
         }
-        if (!computed) return "N/A";
+        if (!computed) return "Not available";
         const n = computed.totlib;
         return n === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(n, { decimals: 0 });
       }
       case "networth": {
-        if (ctosColumnMissing(colIdx)) return "Missing in CTOS extract";
+        if (ctosColumnMissing(colIdx)) return "Not available";
         if (specCol.kind === "ctos") {
-          if (!fs || !ctosFlatNumericPresent(fs, "networth")) return "N/A";
+          if (!fs || !ctosFlatNumericPresent(fs, "networth")) return "Not available";
           const raw = toNum(fs.networth);
           return raw === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(raw, { decimals: 0 });
         }
-        if (!computed) return "N/A";
+        if (!computed) return "Not available";
         const n = computed.networth;
         return n === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(n, { decimals: 0 });
       }
@@ -722,7 +885,7 @@ export function ApplicationFinancialReviewContent({
           formatCurrency(toNum(fs!.plyear), { decimals: 0 })
         );
       case "turnover_growth": {
-        if (ctosColumnMissing(colIdx)) return "Missing in CTOS extract";
+        if (ctosColumnMissing(colIdx)) return "Not available";
         if (specCol.kind === "ctos") {
           if (fs && ctosFlatNumericPresent(fs, "turnover_growth")) {
             return formatNumber(toNum(fs.turnover_growth), 2) + "%";
@@ -731,29 +894,29 @@ export function ApplicationFinancialReviewContent({
           const targetTurnover = specCol.year != null ? turnoverByYear.get(specCol.year) ?? null : null;
           const priorTurnover =
             specCol.year != null ? turnoverByYear.get(specCol.year - 1) ?? null : null;
-          if (targetTurnover == null) return "Unable to calculate — Revenue unavailable";
-          if (priorTurnover == null) return "Unable to calculate — previous FY revenue unavailable";
+          if (targetTurnover == null) return "Not available";
+          if (priorTurnover == null) return "Not available";
           const g = computeTurnoverGrowth({
             targetYear: specCol.year,
             targetTurnover,
             priorYear: specCol.year - 1,
             priorTurnover,
           });
-          if (g == null) return "Unable to calculate";
+          if (g == null) return "Not available";
           return formatNumber(g * 100, 2) + "%";
         }
         if (!computed || computed.turnover_growth == null) {
           const targetTurnover = specCol.year != null ? turnoverByYear.get(specCol.year) ?? null : null;
           const priorTurnover =
             specCol.year != null ? turnoverByYear.get(specCol.year - 1) ?? null : null;
-          if (priorTurnover == null) return "Unable to calculate — previous FY revenue unavailable";
-          if (targetTurnover == null) return "Unable to calculate — Revenue unavailable";
-          return "Unable to calculate";
+          if (priorTurnover == null) return "Not available";
+          if (targetTurnover == null) return "Not available";
+          return "Not available";
         }
         return formatNumber(computed.turnover_growth * 100, 2) + "%";
       }
       case "profit_margin": {
-        if (ctosColumnMissing(colIdx)) return "Missing in CTOS extract";
+        if (ctosColumnMissing(colIdx)) return "Not available";
         // CTOS: official PAT Margin XSL. Never CTOS profit_margin (PBT Margin).
         if (specCol.kind === "ctos") {
           const row = byYear.get(specCol.year);
@@ -761,14 +924,14 @@ export function ApplicationFinancialReviewContent({
             plnpat: row?.account.plnpat ?? null,
             turnover: row?.account.turnover ?? null,
           });
-          if (percent == null) return "N/A";
+          if (percent == null) return "Not available";
           return formatNumber(percent, 2) + "%";
         }
-        if (!computed || computed.profit_margin == null) return "N/A";
+        if (!computed || computed.profit_margin == null) return "Not available";
         return formatNumber(computed.profit_margin * 100, 2) + "%";
       }
       case "return_of_equity": {
-        if (ctosColumnMissing(colIdx)) return "Missing in CTOS extract";
+        if (ctosColumnMissing(colIdx)) return "Not available";
         if (specCol.kind === "ctos") {
           const percent = resolveCtosReturnOnEquityPercent({
             return_on_equity:
@@ -776,35 +939,35 @@ export function ApplicationFinancialReviewContent({
                 ? toNum(fs.return_on_equity)
                 : null,
           });
-          if (percent == null) return "N/A";
+          if (percent == null) return "Not available";
           return formatNumber(percent, 2) + "%";
         }
-        if (!computed || computed.return_of_equity == null) return "N/A";
+        if (!computed || computed.return_of_equity == null) return "Not available";
         return formatNumber(computed.return_of_equity * 100, 2) + "%";
       }
       case "currat": {
-        if (ctosColumnMissing(colIdx)) return "Missing in CTOS extract";
+        if (ctosColumnMissing(colIdx)) return "Not available";
         if (specCol.kind === "ctos") {
           const n = resolveCtosCurrentRatio({
             currat: fs && ctosFlatNumericPresent(fs, "currat") ? toNum(fs.currat) : null,
           });
-          if (n == null) return "N/A";
+          if (n == null) return "Not available";
           return formatNumber(n, 2);
         }
-        if (!computed || computed.currat == null) return "N/A";
+        if (!computed || computed.currat == null) return "Not available";
         return formatNumber(computed.currat, 2);
       }
       case "workcap": {
-        if (ctosColumnMissing(colIdx)) return "Missing in CTOS extract";
+        if (ctosColumnMissing(colIdx)) return "Not available";
         if (specCol.kind === "ctos") {
-          if (!fs || !ctosFlatNumericPresent(fs, "workcap")) return "N/A";
+          if (!fs || !ctosFlatNumericPresent(fs, "workcap")) return "Not available";
           return formatCurrency(toNum(fs.workcap), { decimals: 0 });
         }
-        if (!computed) return "N/A";
+        if (!computed) return "Not available";
         return formatCurrency(computed.workcap, { decimals: 0 });
       }
       case "receivablesDays": {
-        if (specCol.year == null || specCol.kind === "admin_fallback_placeholder") return "—";
+        if (specCol.year == null) return "—";
         const ending = resolvedByYear.get(specCol.year)?.fields.tradeReceivables?.value ?? null;
         const prior = resolvedByYear.get(specCol.year - 1)?.fields.tradeReceivables?.value ?? null;
         const turnover = resolvedByYear.get(specCol.year)?.fields.turnover?.value ?? null;
@@ -814,9 +977,118 @@ export function ApplicationFinancialReviewContent({
           priorTradeReceivables: prior,
           turnover,
         });
-        if (reason) return reason;
+        if (reason) return "Not available";
         const days = computeReceivablesDays(prior, ending, turnover);
-        return days == null ? "Unable to calculate" : formatNumber(days, 2);
+        return days == null ? "Not available" : formatNumber(days, 2);
+      }
+      case "ebit": {
+        const plnpbt = resolvedByYear.get(specCol.year)?.fields.plnpbt?.value ?? null;
+        const interestCost = resolvedByYear.get(specCol.year)?.fields.interest_cost?.value ?? null;
+        const ebit = computeEbit(plnpbt, interestCost);
+        return ebit == null ? "Not available" : formatCurrency(ebit, { decimals: 0 });
+      }
+      case "quickRatio": {
+        const cashAndBank = resolvedByYear.get(specCol.year)?.fields.cashAndBank?.value ?? null;
+        const tradeReceivables = resolvedByYear.get(specCol.year)?.fields.tradeReceivables?.value ?? null;
+        const curlib = resolvedByYear.get(specCol.year)?.fields.curlib?.value ?? null;
+        const q = computeQuickRatio(cashAndBank, tradeReceivables, curlib);
+        return q == null ? "Not available" : formatNumber(q, 2);
+      }
+      case "roa": {
+        if (specCol.kind === "ctos") {
+          const row = byYear.get(specCol.year);
+          const roaPercent = resolveCtosReturnOnAssetsPercent({
+            plnpat: row?.account.plnpat ?? null,
+            totass: row?.account.totass ?? null,
+          });
+          return roaPercent == null ? "Not available" : `${formatNumber(roaPercent, 2)}%`;
+        }
+        if (!computed) return "Not available";
+        const pat = resolvedByYear.get(specCol.year)?.fields.plnpat?.value ?? null;
+        const totassVal = computed.totass ?? null;
+        if (pat == null || totassVal == null || totassVal === 0) return "Not available";
+        const roaPercent = (pat / totassVal) * 100;
+        return `${formatNumber(roaPercent, 2)}%`;
+      }
+      case "assetTurnover": {
+        if (specCol.kind === "ctos") {
+          const row = byYear.get(specCol.year);
+          const v = resolveCtosTotalAssetTurnover({
+            turnover: row?.account.turnover ?? null,
+            totass: row?.account.totass ?? null,
+          });
+          return v == null ? "Not available" : `${formatNumber(v, 2)}x`;
+        }
+        if (!computed) return "Not available";
+        const turnover = resolvedByYear.get(specCol.year)?.fields.turnover?.value ?? null;
+        const totassVal = computed.totass;
+        if (turnover == null || totassVal === 0) return "Not available";
+        const v = turnover / totassVal;
+        return `${formatNumber(v, 2)}x`;
+      }
+      case "gear": {
+        if (specCol.kind === "ctos") {
+          const row = byYear.get(specCol.year);
+          const v = resolveCtosGearingRatio({
+            gear: row?.account.gear ?? null,
+            totlib: row?.account.totlib ?? null,
+            networth: row?.account.networth ?? null,
+          });
+          return v == null ? "Not available" : `${formatNumber(v, 2)}x`;
+        }
+        if (!computed) return "Not available";
+        if (computed.networth === 0) return "Not available";
+        const v = computed.totlib / computed.networth;
+        return `${formatNumber(v, 2)}x`;
+      }
+      case "debtEquityPercent": {
+        if (specCol.kind === "ctos") {
+          const row = byYear.get(specCol.year);
+          const v = resolveCtosDebtToEquityPercent({
+            totlib: row?.account.totlib ?? null,
+            networth: row?.account.networth ?? null,
+          });
+          return v == null ? "Not available" : `${formatNumber(v, 2)}%`;
+        }
+        if (!computed) return "Not available";
+        if (computed.networth === 0) return "Not available";
+        const v = (computed.totlib / computed.networth) * 100;
+        return `${formatNumber(v, 2)}%`;
+      }
+      case "netDebtEquity": {
+        const curlibBorrowing =
+          resolvedByYear.get(specCol.year)?.fields.curlib_borrowing?.value ?? null;
+        const nclLoan = resolvedByYear.get(specCol.year)?.fields.ncl_loan?.value ?? null;
+        const cashAndBank = resolvedByYear.get(specCol.year)?.fields.cashAndBank?.value ?? null;
+        const networthVal = specCol.kind === "ctos" ? toNum(fs?.networth) : computed?.networth ?? null;
+        const v = computeNetDebtEquity({
+          curlib_borrowing: curlibBorrowing,
+          ncl_loan: nclLoan,
+          cashAndBank,
+          networth: networthVal,
+        });
+        return v == null ? "Not available" : `${formatNumber(v, 2)}x`;
+      }
+      case "interestCoverage": {
+        const plnpbt = resolvedByYear.get(specCol.year)?.fields.plnpbt?.value ?? null;
+        const interestCost = resolvedByYear.get(specCol.year)?.fields.interest_cost?.value ?? null;
+        const ebit = computeEbit(plnpbt, interestCost);
+        const v = computeInterestCoverage(ebit, interestCost);
+        return v == null ? "Not available" : `${formatNumber(v, 2)}x`;
+      }
+      case "payablesDays": {
+        const tradePayables = resolvedByYear.get(specCol.year)?.fields.tradePayables?.value ?? null;
+        const costOfSales = resolvedByYear.get(specCol.year)?.fields.costOfSales?.value ?? null;
+        const v = computePayablesDays(tradePayables, costOfSales);
+        return v == null ? "Not available" : formatNumber(v, 2);
+      }
+      case "dscr": {
+        const netOperatingIncome = resolvedByYear.get(specCol.year)?.fields.netOperatingIncome?.value ?? null;
+        const ebitda = resolvedByYear.get(specCol.year)?.fields.ebitda?.value ?? null;
+        const annualDebtService = resolvedByYear.get(specCol.year)?.fields.annualDebtService?.value ?? null;
+        const numerator = typeof netOperatingIncome === "number" ? netOperatingIncome : ebitda;
+        const v = computeDscr(numerator, annualDebtService);
+        return v == null ? "Not available" : `${formatNumber(v, 2)}x`;
       }
       default: {
         if (!isAdminEditableRawFinancialKey(rowId) || specCol.year == null) return "—";
@@ -829,14 +1101,46 @@ export function ApplicationFinancialReviewContent({
     }
   };
 
+  const getCalculatedHelperText = (rowId: string, colIdx: number): string | null => {
+    const specCol = columns[colIdx];
+    if (!specCol || specCol.year == null) return null;
+    if (specCol.kind === "admin_fallback_placeholder") return null;
+
+    const year = specCol.year;
+    const fs = specCol.kind === "ctos" ? getFsCol(colIdx) : null;
+
+    switch (rowId) {
+      case "turnover_growth": {
+        if (specCol.kind === "ctos" && fs && ctosFlatNumericPresent(fs, "turnover_growth")) return null;
+        const targetTurnover = turnoverByYear.get(year) ?? null;
+        const priorTurnover = turnoverByYear.get(year - 1) ?? null;
+        if (targetTurnover == null) return "Revenue unavailable";
+        if (priorTurnover == null) return "Previous FY revenue unavailable";
+        return "Unable to calculate";
+      }
+      case "receivablesDays": {
+        const ending = resolvedByYear.get(year)?.fields.tradeReceivables?.value ?? null;
+        const prior = resolvedByYear.get(year - 1)?.fields.tradeReceivables?.value ?? null;
+        const turnover = resolvedByYear.get(year)?.fields.turnover?.value ?? null;
+        const reason = receivablesDaysUnavailableReason({
+          year,
+          endingTradeReceivables: ending,
+          priorTradeReceivables: prior,
+          turnover,
+        });
+        if (!reason) return null;
+        return reason.replace(/^Unable to calculate\s*—\s*/, "");
+      }
+      default:
+        return null;
+    }
+  };
+
   const isMutedFinancialCell = (text: string) =>
     text === "—" ||
-    text === "N/A" ||
+    text === "Not available" ||
     text === "Missing in CTOS extract" ||
-    text === "Not provided by CTOS" ||
-    text === "Not provided" ||
     text === "Field empty in CTOS" ||
-    text === "Not provided in issuer form" ||
     text.startsWith("Unable to calculate");
 
   return (
@@ -863,17 +1167,17 @@ export function ApplicationFinancialReviewContent({
                       key={`yr-${i}-${spec.kind}-${spec.year ?? "dash"}`}
                       className={cn(
                         applicationTableHeaderClass,
-                        "w-[15.5%] min-w-[8.5rem] align-middle text-right tabular-nums",
+                        "w-[15.5%] min-w-[8.5rem] align-middle text-center tabular-nums",
                         i < issuerDetailColumnIndices.length - 1 ? "border-r border-border" : "",
                         financialSummaryColumnShellClass(spec.kind, i, spec.year)
                       )}
                     >
-                      <div className="flex flex-col items-end gap-0.5">
+                      <div className="flex flex-col items-center gap-0.5">
                         <span className={spec.year != null ? "text-foreground" : "text-muted-foreground"}>
                           {spec.kind === "admin_fallback_placeholder" && spec.year != null ? (
                             <button
                               type="button"
-                              className="inline-flex flex-col items-end gap-0.5 text-right hover:underline cursor-pointer"
+                              className="inline-flex flex-col items-center gap-0.5 text-center hover:underline cursor-pointer"
                               onClick={() => {
                                 setAddFinancialStatementYear(spec.year);
                                 setAddFinancialStatementOpen(true);
@@ -913,7 +1217,7 @@ export function ApplicationFinancialReviewContent({
                           >
                             <span className="flex items-center gap-2">
                               <PencilSquareIcon className="h-4 w-4" aria-hidden />
-                              <span className="hidden sm:inline">Edit</span>
+                              <span className="hidden sm:inline">Edit Financial Statement</span>
                             </span>
                           </Button>
                         ) : null}
@@ -994,109 +1298,170 @@ export function ApplicationFinancialReviewContent({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rowLabels.map((row) => (
-                  <TableRow key={row.id} className={applicationTableRowClass}>
-                    <TableCell
-                      className={cn(
-                        applicationTableCellClass,
-                        "border-r border-border bg-muted/20 font-medium text-foreground"
-                      )}
-                    >
-                      <div className="flex min-w-0 flex-col items-start gap-0.5 text-left">
-                        <span>{row.label}</span>
-                        {row.formulaHint ? (
-                          <span className="max-w-[min(18rem,100%)] text-[11px] font-normal leading-snug text-muted-foreground">
-                            {row.formulaHint}
-                          </span>
-                        ) : null}
-                      </div>
-                    </TableCell>
-                    {columns.map((spec, ci) => {
-                      const cellText = renderRowCell(row.id, ci);
-                      const muted = isMutedFinancialCell(cellText);
-                      const resolvedField =
-                        spec.year != null && isAdminEditableRawFinancialKey(row.id)
-                          ? resolvedByYear.get(spec.year)?.fields[row.id]
-                          : undefined;
-                      const calculated = isCalculatedFinancialMetricKey(row.id);
-                      const canEditField =
-                        canManageFinancialCtos &&
-                        spec.kind !== "admin_fallback_placeholder" &&
-                        spec.kind !== "empty" &&
-                        resolvedField != null &&
-                        !resolvedField.readOnly;
-                      const yearPrimarySource = spec.year != null ? resolvedByYear.get(spec.year)?.primarySource : undefined;
-                      const sourceBadge =
-                        calculated
-                          ? null
-                          : resolvedField && resolvedField.value != null && yearPrimarySource
-                            ? // Only show a badge when the field source is an exception to the column’s primary source.
-                              resolvedField.editedByAdmin ||
-                                resolvedField.source !== yearPrimarySource
-                              ? financialFieldSourceBadge(resolvedField)
-                              : null
-                            : null;
-                      return (
+                {flattenedRows.map((item) => {
+                  if (item.kind === "category") {
+                    return (
+                      <TableRow key={`cat-${item.categoryId}`} className={applicationTableRowClass}>
                         <TableCell
-                          key={`${spec.kind}-${spec.year ?? "x"}-${ci}`}
+                          colSpan={1 + columns.length}
                           className={cn(
-                            applicationTableCellClass,
-                            "border-r border-border text-right tabular-nums last:border-r-0",
-                            financialSummaryColumnShellClass(spec.kind, ci, spec.year),
-                            !muted && "text-foreground"
+                            "border-r-0 bg-muted/25 text-foreground py-2",
+                            "border-t border-border border-b border-border/70"
                           )}
                         >
-                          <div className="flex flex-col items-end gap-1">
-                            {muted ? (
-                              cellText === "—" || cellText === "N/A" ? (
-                                <span className="text-muted-foreground">{cellText}</span>
+                          <div className="flex items-center gap-3 pl-4">
+                            <button
+                              type="button"
+                              className="inline-flex items-center gap-2 font-semibold text-foreground"
+                              aria-expanded={openCategories[item.categoryId]}
+                              onClick={() =>
+                                setOpenCategories((prev) => ({
+                                  ...prev,
+                                  [item.categoryId]: !prev[item.categoryId],
+                                }))
+                              }
+                            >
+                              {openCategories[item.categoryId] ? (
+                                <ChevronDownIcon className="h-4 w-4" aria-hidden />
                               ) : (
-                                <span className="inline-block max-w-full rounded-md border border-dashed border-border/70 bg-muted/25 px-2 py-0.5 text-xs leading-snug text-muted-foreground">
-                                  {cellText}
-                                </span>
-                              )
-                            ) : (
-                              <span className="tabular-nums">{cellText}</span>
-                            )}
-                            {sourceBadge ? (
-                              <span className="text-[11px] font-normal leading-tight text-muted-foreground">
-                                {sourceBadge}
-                              </span>
-                            ) : null}
-                            {resolvedField?.unavailableReason === "not_provided_by_ctos" &&
-                            resolvedField.value == null ? (
-                              <span className="text-[11px] font-normal leading-tight text-muted-foreground">
-                                Not provided by CTOS
-                              </span>
-                            ) : null}
-                            {canEditField && spec.year != null ? (
-                              <button
-                                type="button"
-                                className="text-meta text-primary hover:underline"
-                                onClick={() =>
-                                  setFieldEdit({
-                                    year: spec.year as number,
-                                    key: row.id,
-                                    label: row.label,
-                                    value: resolvedField?.value ?? null,
-                                  })
-                                }
-                                title={resolvedField?.value == null ? "Add financial value" : "Edit financial value"}
-                                aria-label={resolvedField?.value == null ? "Add financial value" : "Edit financial value"}
-                              >
-                                {resolvedField?.value == null ? (
-                                  "+ Add"
-                                ) : (
-                                  <PencilSquareIcon className="h-4 w-4" aria-hidden />
-                                )}
-                              </button>
-                            ) : null}
+                                <ChevronRightIcon className="h-4 w-4" aria-hidden />
+                              )}
+                              <span className="text-sm">{item.title}</span>
+                            </button>
                           </div>
                         </TableCell>
-                      );
-                    })}
-                  </TableRow>
-                ))}
+                      </TableRow>
+                    );
+                  }
+
+                  const rowMeta = getRowMeta(item.rowId);
+                  const rowLabel = rowMeta.label;
+                  const rowFormulaHint = rowMeta.formulaHint;
+
+                  return (
+                    <TableRow key={item.rowId} className={applicationTableRowClass}>
+                      <TableCell
+                        className={cn(
+                          applicationTableCellClass,
+                          "border-r border-border bg-muted/20 font-semibold text-foreground"
+                        )}
+                      >
+                        <div className="flex min-w-0 flex-col items-start gap-0.5 text-left">
+                          <span>{rowLabel}</span>
+                          {rowFormulaHint ? (
+                            <span className="max-w-[min(18rem,100%)] text-[11px] font-normal leading-snug text-muted-foreground">
+                              {rowFormulaHint}
+                            </span>
+                          ) : null}
+                        </div>
+                      </TableCell>
+                      {columns.map((spec, ci) => {
+                        const cellText = renderRowCell(item.rowId, ci);
+                        const muted = isMutedFinancialCell(cellText);
+                        const resolvedField =
+                          spec.year != null && isAdminEditableRawFinancialKey(item.rowId)
+                            ? resolvedByYear.get(spec.year)?.fields[item.rowId]
+                            : undefined;
+
+                        const uiCalculated = isCalculatedFinancialMetricKey(item.rowId) || item.rowId === "debtEquityPercent";
+                        const canEditField =
+                          canManageFinancialCtos &&
+                          spec.kind !== "admin_fallback_placeholder" &&
+                          spec.kind !== "empty" &&
+                          resolvedField != null &&
+                          !resolvedField.readOnly &&
+                          !uiCalculated;
+
+                        const yearPrimarySource =
+                          spec.year != null ? resolvedByYear.get(spec.year)?.primarySource : undefined;
+
+                        const sourceBadge =
+                          uiCalculated
+                            ? null
+                            : resolvedField && resolvedField.value != null && yearPrimarySource
+                              ? // Only show a badge when the field source is an exception to the column’s primary source.
+                                resolvedField.editedByAdmin ||
+                                  resolvedField.source !== yearPrimarySource
+                                ? financialFieldSourceBadge(resolvedField)
+                                : null
+                              : null;
+
+                        const ctosMissingTooltip =
+                          resolvedField?.unavailableReason === "not_provided_by_ctos" && resolvedField.value == null
+                            ? "Not provided by CTOS"
+                            : undefined;
+
+                        const calculatedHelperText = !uiCalculated
+                          ? null
+                          : getCalculatedHelperText(item.rowId, ci);
+
+                        return (
+                          <TableCell
+                            key={`${spec.kind}-${spec.year ?? "x"}-${ci}`}
+                            className={cn(
+                              applicationTableCellClass,
+                              "group border-r border-border text-right tabular-nums last:border-r-0",
+                              financialSummaryColumnShellClass(spec.kind, ci, spec.year),
+                              !muted && "text-foreground"
+                            )}
+                          >
+                            <div className="flex flex-col items-end gap-1">
+                              {muted ? (
+                                cellText === "—" || cellText === "Not available" ? (
+                                  <span className="text-muted-foreground" title={ctosMissingTooltip}>
+                                    {cellText}
+                                  </span>
+                                ) : (
+                                  <span
+                                    className="inline-block max-w-full rounded-md border border-dashed border-border/70 bg-muted/25 px-2 py-0.5 text-xs leading-snug text-muted-foreground"
+                                    title={ctosMissingTooltip}
+                                  >
+                                    {cellText}
+                                  </span>
+                                )
+                              ) : (
+                                <span className="tabular-nums" title={ctosMissingTooltip}>
+                                  {cellText}
+                                </span>
+                              )}
+
+                              {sourceBadge ? (
+                                <span className="text-[11px] font-normal leading-tight text-muted-foreground">
+                                  {sourceBadge}
+                                </span>
+                              ) : null}
+
+                              {cellText === "Not available" && calculatedHelperText ? (
+                                <span className="text-[11px] font-normal leading-snug text-muted-foreground">
+                                  {calculatedHelperText}
+                                </span>
+                              ) : null}
+
+                              {canEditField && spec.year != null ? (
+                                <button
+                                  type="button"
+                                  className="opacity-0 group-hover:opacity-100 text-meta text-primary hover:underline"
+                                  onClick={() =>
+                                    setFieldEdit({
+                                      year: spec.year as number,
+                                      key: item.rowId,
+                                      label: rowLabel,
+                                      value: resolvedField?.value ?? null,
+                                    })
+                                  }
+                                  title={resolvedField?.value == null ? "Add financial value" : "Edit financial value"}
+                                  aria-label={resolvedField?.value == null ? "Add financial value" : "Edit financial value"}
+                                >
+                                  <PencilSquareIcon className="h-4 w-4" aria-hidden />
+                                </button>
+                              ) : null}
+                            </div>
+                          </TableCell>
+                        );
+                      })}
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
