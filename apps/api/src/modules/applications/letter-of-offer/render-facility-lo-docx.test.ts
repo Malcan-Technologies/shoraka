@@ -7,6 +7,11 @@ import {
   resolveFacilityLoTemplatePath,
 } from "./render-facility-lo-docx";
 import type { ContractFacilityLoMergeData } from "./facility-lo-merge.types";
+import {
+  LO_ATTENTION_POSITION_LEFT_TWIPS,
+  LO_ATTENTION_WRAP_LEFT_TWIPS,
+  paragraphPinsHangingValueWrap,
+} from "../../generated-documents/hanging-execution-label";
 
 function renderedXml(data: ContractFacilityLoMergeData): string {
   const zip = new PizZip(renderFacilityLoDocx(data));
@@ -95,6 +100,9 @@ describe("renderFacilityLoDocx", () => {
     expect(xml).not.toContain("{right}");
     expect(xml).not.toContain("RM{financing_limit_rm}");
     expect(xml).not.toContain("{moa_authorised_signatory_names}");
+    expect(plain).not.toContain("Sub-Limit per Invoice");
+    expect(plain).not.toContain("{sub_limit_per_invoice_rm}");
+    expect(plain).not.toContain("applicable Sub-Limit");
     const linePara = paragraphContaining(xml, "{line}");
     expect(linePara).toContain('<w:numId w:val="4"/>');
     expect(linePara).toContain('<w:ilvl w:val="0"/>');
@@ -113,6 +121,16 @@ describe("renderFacilityLoDocx", () => {
     expect(runContaining(xml, "{issuer_name}")).toContain('w:val="yellow"');
     expect(runContaining(xml, "{left_nric}")).toContain('w:val="yellow"');
     expect(runContaining(xml, "{nric}")).toContain('w:val="yellow"');
+    expect(
+      paragraphPinsHangingValueWrap(
+        paragraphContaining(xml, "{attention_name}"),
+        LO_ATTENTION_WRAP_LEFT_TWIPS,
+        LO_ATTENTION_WRAP_LEFT_TWIPS
+      )
+    ).toBe(true);
+    const attentionPosition = paragraphContaining(xml, "{attention_position}");
+    expect(attentionPosition).toContain(`w:left="${LO_ATTENTION_POSITION_LEFT_TWIPS}"`);
+    expect(attentionPosition).not.toContain("w:firstLine=");
   });
 
   it("renders a non-empty docx zip with substituted values and a Part A tick", () => {
@@ -125,6 +143,9 @@ describe("renderFacilityLoDocx", () => {
     expect(xml).not.toContain("{issuer_name}");
     expect(xml).not.toContain("RMRM");
     expect(xml).toContain("RM 1,000,000.00");
+    expect(wordPlainText(xml)).not.toContain("Sub-Limit per Invoice");
+    expect(xml).not.toContain("{sub_limit_per_invoice_rm}");
+    expect(wordPlainText(xml)).not.toContain("applicable Sub-Limit");
     expect(runContaining(xml, "RENDERED_ISSUER_NAME_XYZ")).toContain('w:val="yellow"');
     expect(runContaining(xml, "Ali Bin Abu")).toContain('w:val="yellow"');
     expect(runContaining(xml, "900101145678")).toContain('w:val="yellow"');

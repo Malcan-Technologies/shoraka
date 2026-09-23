@@ -14,13 +14,28 @@ export type LegalChecklistDocStatus = "not_opened" | "opened" | "accepted";
 export type LegalChecklistDocRow = {
   id: string;
   title: string;
-  checkboxWording: string;
+  checkboxWording: string | readonly string[];
   status: LegalChecklistDocStatus;
-  checked: boolean;
+  checked: boolean | readonly boolean[];
   opening: boolean;
   canCheck: boolean;
   showCheckbox: boolean;
 };
+
+function checkboxItems(
+  row: LegalChecklistDocRow
+): { wording: string; checked: boolean }[] {
+  const wordings = Array.isArray(row.checkboxWording)
+    ? row.checkboxWording
+    : [row.checkboxWording];
+  const checks = Array.isArray(row.checked)
+    ? row.checked
+    : wordings.map(() => row.checked === true);
+  return wordings.map((wording, index) => ({
+    wording,
+    checked: Boolean(checks[index]),
+  }));
+}
 
 /** Short status under each acceptance checkbox. */
 export function legalChecklistStatusLabel(
@@ -143,14 +158,14 @@ export function LegalDocumentChecklistRows({
   rows: LegalChecklistDocRow[];
   disabled?: boolean;
   onOpen: (id: string) => void;
-  onCheckedChange: (id: string, checked: boolean) => void;
+  onCheckedChange: (id: string, checked: boolean, index?: number) => void;
   /** Stack title + review button; skip shell padding. For narrow cards (e.g. signing). */
   compact?: boolean;
 }) {
   return (
     <ul className={compact ? undefined : "divide-y divide-border"}>
       {rows.map((row) => {
-        const checkboxId = `legal-checklist-${row.id}`;
+        const items = checkboxItems(row);
         const helper = legalChecklistStatusLabel(row.status);
         return (
           <li key={row.id} className={compact ? undefined : "px-6 py-5 md:px-8"}>
@@ -178,24 +193,37 @@ export function LegalDocumentChecklistRows({
 
             {row.showCheckbox ? (
               <>
-                <div className="mt-4 flex items-start gap-3">
-                  <Checkbox
-                    id={checkboxId}
-                    checked={row.checked}
-                    disabled={!row.canCheck || row.status === "accepted" || disabled}
-                    onCheckedChange={(checked) => onCheckedChange(row.id, checked === true)}
-                  />
-                  <Label
-                    htmlFor={checkboxId}
-                    className={cn(
-                      "text-sm leading-relaxed",
-                      row.canCheck && row.status !== "accepted"
-                        ? "cursor-pointer"
-                        : "cursor-not-allowed text-muted-foreground"
-                    )}
-                  >
-                    {row.checkboxWording}
-                  </Label>
+                <div className={cn("mt-4 flex flex-col", items.length > 1 && "gap-3")}>
+                  {items.map((item, index) => {
+                    const checkboxId =
+                      items.length > 1
+                        ? `legal-checklist-${row.id}-${index}`
+                        : `legal-checklist-${row.id}`;
+                    return (
+                      <div key={checkboxId} className="flex items-start gap-3">
+                        <Checkbox
+                          id={checkboxId}
+                          className="mt-0.5"
+                          checked={item.checked}
+                          disabled={!row.canCheck || row.status === "accepted" || disabled}
+                          onCheckedChange={(checked) =>
+                            onCheckedChange(row.id, checked === true, index)
+                          }
+                        />
+                        <Label
+                          htmlFor={checkboxId}
+                          className={cn(
+                            "text-sm leading-relaxed",
+                            row.canCheck && row.status !== "accepted"
+                              ? "cursor-pointer"
+                              : "cursor-not-allowed text-muted-foreground"
+                          )}
+                        >
+                          {item.wording}
+                        </Label>
+                      </div>
+                    );
+                  })}
                 </div>
 
                 <p

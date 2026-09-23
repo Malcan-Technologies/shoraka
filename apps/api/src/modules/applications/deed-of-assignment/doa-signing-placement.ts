@@ -17,6 +17,11 @@ import {
   isAutomaticSigningKeywordLine,
   isSignatureStrokeLine,
   isCompanyStampLabel,
+  isSignerDateLabel,
+  isSignerDesignationLabel,
+  isSignerNameLabel,
+  isSignerNricLabel,
+  joinWrappedSignerName,
   type LayoutDetectedSigner,
 } from "../../signing/signature-field-geometry";
 
@@ -107,27 +112,25 @@ function lineBelow(line: JsgPdfLine, lines: JsgPdfLine[]): JsgPdfLine | undefine
     .sort((a, b) => a.yTop - b.yTop)[0];
 }
 
+function isAssignorNameContinuationStop(text: string): boolean {
+  const value = compactLineText(text);
+  if (!value) return true;
+  if (isSignatureStrokeLine(text)) return true;
+  if (/^\[witness\]/i.test(value) || /^\[assignor\]/i.test(value)) return true;
+  if (/^signed by/i.test(value)) return true;
+  if (isSignerNameLabel(text)) return true;
+  if (isSignerDesignationLabel(text) || isSignerDateLabel(text) || isSignerNricLabel(text)) {
+    return true;
+  }
+  if (isCompanyStampLabel(text)) return true;
+  return value.toLowerCase() === "schedule 1";
+}
+
 function nameFromAssignorLabel(label: JsgPdfLine, lines: JsgPdfLine[]): string {
-  const sameLine = compactLineText(label.text).match(/^Name\s*:\s*(.*)$/i)?.[1]?.trim();
-  if (sameLine) return sameLine;
-  const named = lines
-    .filter(
-      (candidate) =>
-        candidate.pageindex === label.pageindex &&
-        sameColumn(candidate, label) &&
-        candidate.yTop > label.yTop &&
-        candidate.yTop - label.yTop <= LINE_SEARCH_BELOW * 1.4
-    )
-    .sort((a, b) => a.yTop - b.yTop)
-    .map((candidate) => compactLineText(candidate.text))
-    .find(
-      (text) =>
-        text.length > 0 &&
-        !/^nric/i.test(text) &&
-        !/^designation/i.test(text) &&
-        !/^\[witness\]/i.test(text)
-    );
-  return named ?? "";
+  return joinWrappedSignerName(label, lines, {
+    maxBelow: LINE_SEARCH_BELOW * 1.4,
+    isStop: isAssignorNameContinuationStop,
+  });
 }
 
 function fieldFromSignatureLine(line: JsgPdfLine): Pick<
@@ -151,6 +154,21 @@ function isAssignorNameLabel(text: string): boolean {
   return /^name\s*:/i.test(value);
 }
 
+/** Same-page line under the stroke, or the Name label at the top of the next page. */
+function assignorNameLineBelow(line: JsgPdfLine, lines: JsgPdfLine[]): JsgPdfLine | undefined {
+  const samePage = lineBelow(line, lines);
+  if (samePage) return samePage;
+  return lines
+    .filter(
+      (candidate) =>
+        candidate.pageindex === line.pageindex + 1 &&
+        sameColumn(candidate, line) &&
+        candidate.yTop <= 140 &&
+        isAssignorNameLabel(candidate.text)
+    )
+    .sort((a, b) => a.yTop - b.yTop)[0];
+}
+
 /** CA slots on ASSIGNOR signature lines only — never SSP, witness, stamp, or schedules. */
 export function collectDoaAssignorSignatureSlots(
   items: JsgPdfTextItem[],
@@ -165,7 +183,7 @@ export function collectDoaAssignorSignatureSlots(
 
   for (const line of executionLines) {
     if (!isAssignorStroke(line.text)) continue;
-    const below = lineBelow(line, executionLines);
+    const below = assignorNameLineBelow(line, executionLines);
     if (!below) continue;
     if (/^\[witness\]/i.test(compactLineText(below.text))) continue;
     if (!isAssignorNameLabel(below.text)) continue;

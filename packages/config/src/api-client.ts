@@ -101,6 +101,7 @@ import type {
   NoteDetail,
   InvestmentNoteCertificatePdfPayload,
   NoteDocumentCatalog,
+  FacilityDocumentCatalog,
   SettlementHibahReceiptPdfPayload,
   InvestmentSettlementConfirmationPdfPayload,
   AdminInvestmentSettlementConfirmationsPayload,
@@ -181,7 +182,6 @@ import type {
   OperatorDocumentExecutionBindingInput,
   SigningPackageReadinessDto,
   OperatorSignatureConfirmDto,
-  IssuerCompanySealDto,
   PartyMismatchResolveInput,
 } from "@cashsouk/types";
 import { parseContentDispositionFilename } from "./content-disposition-filename";
@@ -701,38 +701,6 @@ export class ApiClient {
     );
   }
 
-  async getIssuerCompanySeal(
-    organizationId: string
-  ): Promise<ApiResponse<{ seal: IssuerCompanySealDto | null }> | ApiError> {
-    return this.get(`/v1/organizations/issuer/${organizationId}/company-seal`);
-  }
-
-  async requestIssuerCompanySealUploadUrl(
-    organizationId: string,
-    data: { fileName: string; contentType: string; fileSize: number }
-  ): Promise<ApiResponse<{ uploadUrl: string; s3Key: string; expiresIn: number }> | ApiError> {
-    return this.post(`/v1/organizations/issuer/${organizationId}/company-seal/upload-url`, data);
-  }
-
-  async confirmIssuerCompanySeal(
-    organizationId: string,
-    data: { s3Key: string; fileName: string }
-  ): Promise<ApiResponse<{ seal: IssuerCompanySealDto }> | ApiError> {
-    return this.post(`/v1/organizations/issuer/${organizationId}/company-seal/confirm`, data);
-  }
-
-  async deleteIssuerCompanySeal(
-    organizationId: string
-  ): Promise<ApiResponse<{ seal: null }> | ApiError> {
-    return this.delete(`/v1/organizations/issuer/${organizationId}/company-seal`);
-  }
-
-  async getIssuerCompanySealPreview(
-    organizationId: string
-  ): Promise<ApiResponse<{ viewUrl: string | null; expiresIn: number | null }> | ApiError> {
-    return this.get(`/v1/organizations/issuer/${organizationId}/company-seal/preview`);
-  }
-
   async reactivatePartyProfile(
     portal: "investor" | "issuer",
     organizationId: string,
@@ -1165,6 +1133,36 @@ export class ApiClient {
 
   async getAdminContractDetail(id: string): Promise<ApiResponse<AdminContractDetail> | ApiError> {
     return this.get<AdminContractDetail>(`/v1/admin/contracts/${id}`);
+  }
+
+  async getAdminFacilityDocuments(
+    id: string
+  ): Promise<ApiResponse<FacilityDocumentCatalog> | ApiError> {
+    return this.get<FacilityDocumentCatalog>(`/v1/admin/contracts/${id}/documents`);
+  }
+
+  async getAdminFacilityDocumentBlob(
+    facilityId: string,
+    documentId: string,
+    disposition: "inline" | "attachment" = "inline"
+  ): Promise<{ blob: Blob; filename: string }> {
+    const url = `${this.baseUrl}/v1/admin/contracts/${encodeURIComponent(
+      facilityId
+    )}/documents/${encodeURIComponent(documentId)}?disposition=${disposition}`;
+    const authToken = await this.getAuthToken();
+    const headers: HeadersInit = {};
+    if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+    const response = await fetch(url, { method: "GET", credentials: "include", headers });
+    if (!response.ok) {
+      const msg = await this.parseErrorResponse(response);
+      throw new Error(msg);
+    }
+    const header = response.headers.get("Content-Disposition");
+    const match = header?.match(/filename="([^"]+)"/);
+    return {
+      blob: await response.blob(),
+      filename: match?.[1] || `${documentId}.pdf`,
+    };
   }
 
   async waiveAdminContractFacilityFee(

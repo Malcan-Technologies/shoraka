@@ -1,4 +1,5 @@
 import {
+  ADMIN_DOCUMENT_DESCRIPTIONS,
   NOTE_DOCUMENT_FIXED_IDS,
   shorakaCertificateDocumentId,
   type NoteDocumentCatalog,
@@ -15,10 +16,7 @@ import {
   signingDocumentAvailability,
   type Availability,
 } from "./availability";
-import {
-  shorakaCertificateIsAvailable,
-  type ShorakaCertificateOrderInput,
-} from "./certificate-order";
+import { type ShorakaCertificateOrderInput } from "./certificate-order";
 import {
   type NoteSigningDocumentLike,
   type NoteSigningEnvelopeLike,
@@ -65,6 +63,7 @@ export function buildNoteDocumentCatalog(
   const jsg = signingDocumentAvailability({
     envelope: snapshot.envelope,
     document: snapshot.jsg,
+    description: ADMIN_DOCUMENT_DESCRIPTIONS.jsg,
     includedLabel: "Joint and Several Guarantee",
     missingFromPackageMessage:
       "This note's completed signing package does not include a Joint and Several Guarantee.",
@@ -73,19 +72,19 @@ export function buildNoteDocumentCatalog(
   const signedFa = signingDocumentAvailability({
     envelope: snapshot.envelope,
     document: snapshot.facilityAgreement,
+    description: ADMIN_DOCUMENT_DESCRIPTIONS.facilityAgreement,
     includedLabel: "Facility Agreement",
     missingFromPackageMessage:
       "This note's completed signing package does not include a Facility Agreement.",
   });
-  const certificateCount = snapshot.shoraka.filter(shorakaCertificateIsAvailable).length;
   const faPackage = facilityAgreementPackageAvailability({
     signedFaAvailable: signedFa.available,
     letterOfOfferAvailable: lo.available,
-    certificateCount,
   });
   const doa = signingDocumentAvailability({
     envelope: snapshot.envelope,
     document: snapshot.doa,
+    description: ADMIN_DOCUMENT_DESCRIPTIONS.doa,
     includedLabel: "Deed of Assignment",
     missingFromPackageMessage:
       "This note's completed signing package does not include a Deed of Assignment.",
@@ -113,7 +112,6 @@ export function buildNoteDocumentCatalog(
       group: "facility-agreement-package",
       title: "Facility Agreement Package",
       filename: faPackage.available ? facilityAgreementPackageFilename(ref) : null,
-      certificateCount,
       generatedAt: snapshot.faPackageGeneratedAt,
       ...faPackage,
     }),
@@ -158,7 +156,6 @@ function buildShorakaCatalogItems(
         group: "shoraka-certificate",
         title: "Shoraka / Tawarruq certificates",
         filename: null,
-        certificateCount: 0,
         ...shorakaGroupAvailability(snapshot.shoraka),
       }),
     ];
@@ -176,7 +173,6 @@ function buildShorakaCatalogItems(
       filename: availability.available
         ? shorakaCertificateFilename(snapshot.noteReference, entry.id)
         : null,
-      certificateCount: 1,
       ...availability,
     });
   });

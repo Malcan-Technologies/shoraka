@@ -7,7 +7,6 @@ import {
   isGuarantorAuthorizedParty,
   isValidSigningIcNumber,
   issuerSealApplierIssue,
-  ISSUER_COMPANY_SEAL_REQUIRED_MESSAGE,
   normalizeSigningEmail,
   normalizeSigningIcNumber,
   resolveSigningTemplateFromWorkflow,
@@ -21,7 +20,6 @@ import {
   type AuthorizedRepresentative,
 } from "@cashsouk/types";
 
-export { ISSUER_COMPANY_SEAL_REQUIRED_MESSAGE };
 import { AppError } from "../../lib/http/error-handler";
 import { isSigningCloudSealFieldEnabled } from "../signingcloud/signingcloud-api";
 import { prisma } from "../../lib/prisma";
@@ -392,7 +390,7 @@ export function assertAuthorizedPartiesValid(
 }
 
 export async function assertIssuerSealReadyForPackage(
-  organizationId: string,
+  _organizationId: string,
   parties: AuthorizedParty[],
   documentKeys: readonly string[]
 ): Promise<void> {
@@ -402,13 +400,6 @@ export async function assertIssuerSealReadyForPackage(
   const issue = issuerSealApplierIssue(parties, true);
   if (issue) {
     throw new AppError(400, "AUTHORIZED_PARTIES_INVALID", issue);
-  }
-  const active = await prisma.issuerOrganizationCompanySeal.findFirst({
-    where: { issuer_organization_id: organizationId, superseded_at: null },
-    select: { id: true },
-  });
-  if (!active) {
-    throw new AppError(400, "ISSUER_COMPANY_SEAL_REQUIRED", ISSUER_COMPANY_SEAL_REQUIRED_MESSAGE);
   }
 }
 

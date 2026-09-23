@@ -7,6 +7,7 @@ import {
   GUARANTOR_REQUIRED_LEGAL_TYPES,
   LEGAL_DOCUMENT_CHECKBOX_WORDING,
   LEGAL_DOCUMENT_TYPE_LABELS,
+  legalDocumentCheckboxItems,
   type ExternalSigningWarningDto,
   type ExternalSigningWarningStatus,
   type LegalDocumentType,
@@ -109,7 +110,7 @@ export class LegalExternalAcceptanceService {
   ): Promise<ExternalSigningWarningDto | null> {
     if (recipient.role_key !== "guarantor") return null;
 
-    const wording = LEGAL_DOCUMENT_CHECKBOX_WORDING[GUARANTOR_WARNING_TYPE];
+    const wordings = legalDocumentCheckboxItems(GUARANTOR_WARNING_TYPE);
     const published = await this.getPublishedGuarantorWarning();
     if (!published) {
       return {
@@ -117,7 +118,7 @@ export class LegalExternalAcceptanceService {
         status: "not_opened",
         legal_document_version_id: null,
         title: LEGAL_DOCUMENT_TYPE_LABELS[GUARANTOR_WARNING_TYPE],
-        checkbox_wording: wording,
+        checkbox_wordings: wordings,
       };
     }
 
@@ -131,7 +132,7 @@ export class LegalExternalAcceptanceService {
       status: warningStatus(row?.status),
       legal_document_version_id: published.id,
       title: published.legal_document.title || LEGAL_DOCUMENT_TYPE_LABELS[GUARANTOR_WARNING_TYPE],
-      checkbox_wording: wording,
+      checkbox_wordings: wordings,
     };
   }
 

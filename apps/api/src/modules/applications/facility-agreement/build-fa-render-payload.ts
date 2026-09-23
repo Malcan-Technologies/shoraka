@@ -15,6 +15,25 @@ const PLACEHOLDER_SIGNATORY = {
   witness_nric: visibleMergeScalar("witness_nric", ""),
 };
 
+/** Two issuer/witness pairs per ISSUER execution page. */
+export const FA_ISSUER_SIGNATORIES_PER_PAGE = 2;
+
+export const FA_PAGE_BREAK_XML = '<w:br w:type="page"/>';
+
+export function chunkFaIssuerSignatoryPages<T>(signatories: T[]): Array<{
+  issuer_signatories: T[];
+  page_break: string;
+}> {
+  const pages: Array<{ issuer_signatories: T[]; page_break: string }> = [];
+  for (let i = 0; i < signatories.length; i += FA_ISSUER_SIGNATORIES_PER_PAGE) {
+    pages.push({
+      issuer_signatories: signatories.slice(i, i + FA_ISSUER_SIGNATORIES_PER_PAGE),
+      page_break: i + FA_ISSUER_SIGNATORIES_PER_PAGE < signatories.length ? FA_PAGE_BREAK_XML : "",
+    });
+  }
+  return pages;
+}
+
 const PLACEHOLDER_INDIVIDUAL = {
   name: "",
   nric: "",
@@ -72,5 +91,6 @@ export function buildFacilityAgreementRenderPayload(
     })),
     guarantors_corporate: corporates,
     issuer_signatories: signatories,
+    issuer_signatory_pages: chunkFaIssuerSignatoryPages(signatories),
   };
 }

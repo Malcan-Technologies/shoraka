@@ -1,6 +1,6 @@
 # ARF contract facility LO — data sources (working index)
 
-What [`buildFacilityLoMergeData`](../../apps/api/src/modules/applications/letter-of-offer/build-facility-lo-merge-data.ts) does for production generate (`arf_contract_facility_lo` **v14**, per-guarantor acknowledgement pages). Facility offers fill Part A; standalone invoice offers fill Part B.
+What [`buildFacilityLoMergeData`](../../apps/api/src/modules/applications/letter-of-offer/build-facility-lo-merge-data.ts) does for production generate (`arf_contract_facility_lo` **v2**, per-guarantor acknowledgement pages). Facility offers fill Part A; standalone invoice offers fill Part B.
 
 **Full verification table:** [lo-19-aug-2026-field-map.md](./lo-19-aug-2026-field-map.md)
 
@@ -18,8 +18,7 @@ Older editable discussion table: [arf-letter-of-offer-placeholder-map.md](../app
 | Guarantors | Ordered live `application_guarantors` | Individuals and companies. Finance Documents uses `{#finance_documents_guarantors}` with nested `{rep_line}` for corporate authorised representatives (`a. b. c.` under roman `i. ii. iii.`). Missing identity parts print `[INSERT NAME]` / `[INSERT]`. An empty list prints one placeholder line. |
 | Corporate signatories | `offer_acceptance.authorized_parties` or `authorized_parties_draft` | Name, NRIC, and capacity. While Step 1 is editable the saved draft is used; after submit the canonical snapshot is. Draft must be saved before LO download |
 | Tenure / payment / max invoice tenure | `FINANCING_TENURE_MAX_DAYS` (180) | Same value in all three merge fields |
-| Invoice sub-limit | Frozen product `invoice_details.sub_limit_per_invoice_rm` | Schedule A Part A. Generation fails if unset. Also enforced as a per-invoice financing cap on facility drawdowns and admin offers. |
-| Part B financing amount | Facility: same as sub-limit. Invoice: `invoice.offer_details.offered_amount` | Schedule A Part B (“up to … per invoice”) |
+| Part B financing amount | Facility: same as financing limit. Invoice: `invoice.offer_details.offered_amount` | Schedule A Part B (“up to … per invoice”) |
 | Facility Type checkboxes | `financing_structure.structure_type` | Part A for `new_contract`; Part B for `invoice_only` / `existing_contract` |
 | Assigned contract | `contract_details` + `customer_details` | Date, counterparty, description/number. Uses this application's current `customer_details` (official identity after verification auto-sync, when that application was still editable). Historical generated documents are not rewritten. |
 | Offer validity phrase | Frozen product `acceptance_deadline.days` (default 7) | Used in **both** acceptance/lapse clauses. Not `acceptance_expires_at − sent_at`. |
@@ -55,9 +54,3 @@ Signature blocks print the signatory name and NRIC (yellow). Missing NRIC prints
 | `POST /v1/admin/demos/contract-lo/generate` | Engineering demo with editable body |
 
 **Same template file and `renderFacilityLoDocx`.** Prefill uses the same builder as production. See [lo-19-aug-2026-field-map.md](./lo-19-aug-2026-field-map.md#demo--production-sync).
-
-## Legacy product backfill
-
-`pnpm --filter @cashsouk/api backfill-invoice-sub-limit -- --base-id <id> --version <n> --amount <rm> --apply`
-
-Dry-run by default. Does not infer from `max_invoice_value`.

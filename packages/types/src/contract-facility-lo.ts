@@ -47,8 +47,6 @@ export type ContractFacilityLoMergeData = {
   tenure_days: string;
   /** Schedule A Part A + Part B max invoice tenure (“up to N”). */
   max_invoice_tenure_days: string;
-  /** Schedule A Part A sub-limit per invoice. */
-  sub_limit_per_invoice_rm: string;
   /** Schedule A Part B financing amount per invoice. */
   part_b_financing_amount_rm: string;
   /** Individual guarantors — repeated in Word via docxtemplater loops. */
@@ -84,7 +82,6 @@ export const CONTRACT_FACILITY_LO_MERGE_KEYS = [
   "financing_limit_rm",
   "tenure_days",
   "max_invoice_tenure_days",
-  "sub_limit_per_invoice_rm",
   "part_b_financing_amount_rm",
   "part_a_checkbox",
   "part_b_checkbox",

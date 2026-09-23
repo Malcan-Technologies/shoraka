@@ -124,17 +124,27 @@ Disposable FA/JSG/DOA sandbox smoke (one verified sandbox email reused for every
 
 `SIGNINGCLOUD_SMOKE_SIGNER_EMAIL=… pnpm --filter @cashsouk/api signingcloud:generated-docs-smoke`
 
+Same smoke with wrap-test long names/addresses/designations (session files under `apps/api/tmp/signingcloud-wrap-smoke/`):
+
+`SIGNINGCLOUD_SMOKE_SIGNER_EMAIL=… SIGNINGCLOUD_SMOKE_AUTO_EMAIL=… SIGNINGCLOUD_SMOKE_AUTO_EMAIL_2=… pnpm --filter @cashsouk/api signingcloud:generated-docs-wrap-smoke`
+
+After the issuer signs those hosted CA fields:
+
+`pnpm --filter @cashsouk/api signingcloud:generated-docs-wrap-smoke-auto`
+
+Wrap-smoke auto-sign needs the upload run to have stamped CashSouk keywords (the two `SIGNINGCLOUD_SMOKE_AUTO_EMAIL*` vars). CA-only wrap-smoke contracts cannot be auto-signed — re-upload first. FA/DoA include one company-seal field unless `SC_ENABLE_SEAL_FIELD=false`; DoA also embeds the SSP stamp. Same CONTINUE flag works on wrap-smoke: `SIGNINGCLOUD_SMOKE_CONTINUE=1 pnpm --filter @cashsouk/api signingcloud:generated-docs-wrap-smoke`.
+
 Mixed fields / keyword proof (Gotenberg; live upload optional):
 
 `pnpm --filter @cashsouk/api signingcloud:mixed-signing-smoke`
 
-Full sequence (issuer signs, optional company seal, then CashSouk auto-sign):
+Full sequence (issuer signs CA fields, then CashSouk auto-sign):
 
 `SIGNINGCLOUD_SMOKE_SIGNER_EMAIL=… SIGNINGCLOUD_SMOKE_AUTO_EMAIL=… SIGNINGCLOUD_SMOKE_AUTO_EMAIL_2=… pnpm --filter @cashsouk/api signingcloud:full-flow-smoke`
 
 The mixed smoke stamps one hidden signature keyword (and a date keyword when the role has a Date line) per automatic signer. Sibling markers are `CASHSOUK_<DOC>_<PERSON>_SIGN` and `CASHSOUK_<DOC>_<PERSON>_DATE` so neither is a substring of the other. Shared FA Investor/Agent pairs reuse the same keyword pair across both lines. Already-uploaded sandbox contracts still using unsuffixed sign keywords must be regenerated before `/signature/auto`. Optional live upload registers each automatic email once. Optional `SIGNINGCLOUD_SMOKE_AUTO=1` then calls `/signature/auto` once per signer with `signkeyword` and `datekeyword` (`dd/MM/yyyy`). The automatic signature image is a transparent visual fixture with handwritten-style test text, not the production operator signature.
 
-The full-flow smoke uses the production order on FA, JSG, and DoA with a reduced fixture so two automatic sandbox emails are enough: one issuer/guarantor/assignor signs the CA fields, one witness line, and both CashSouk representative pairs. FA/DoA also register a company-seal field and upload a stamp before the hosted session unless `SC_ENABLE_SEAL_FIELD=false`. After manuals are SIGNED, each CashSouk email is auto-signed once. Automatic dates use `datekeyword`, not coordinate `signdate` fields. JSG Operator attorneys and the operator witness have signature keywords only (no Date line). Lines are round-robin’d across `SIGNINGCLOUD_SMOKE_AUTO_EMAIL` and `SIGNINGCLOUD_SMOKE_AUTO_EMAIL_2` (or `SIGNINGCLOUD_SMOKE_AUTO_EMAILS`). Session URLs are written to `apps/api/tmp/signingcloud-smoke/full-flow-sessions.txt`. After `SIGNINGCLOUD_SMOKE_SKIP_SIGN=1`, sign those URLs and resume with `SIGNINGCLOUD_SMOKE_CONTINUE=1`. A CONTINUE run cannot fix a contract that already stacked too many keywords on one signer — re-upload first. Keyword changes (`_SIGN` / `_DATE` siblings) also require a fresh contract. The automatic signature image is a transparent visual fixture. Restrict documents with `SIGNINGCLOUD_SMOKE_DOCS=fa`.
+The full-flow smoke uses the production order on FA, JSG, and DoA with a reduced fixture so two automatic sandbox emails are enough: one issuer/guarantor/assignor signs the CA fields, one witness line, and both CashSouk representative pairs. FA/DoA also register a company-seal field unless `SC_ENABLE_SEAL_FIELD=false`; smoke accounts plant a stamp via `/user/stampimg` before the hosted session. After manuals are SIGNED, each CashSouk email is auto-signed once. Automatic dates use `datekeyword`, not coordinate `signdate` fields. JSG Operator attorneys and the operator witness have signature keywords only (no Date line). Lines are round-robin’d across `SIGNINGCLOUD_SMOKE_AUTO_EMAIL` and `SIGNINGCLOUD_SMOKE_AUTO_EMAIL_2` (or `SIGNINGCLOUD_SMOKE_AUTO_EMAILS`). Session URLs are written to `apps/api/tmp/signingcloud-smoke/full-flow-sessions.txt`. After `SIGNINGCLOUD_SMOKE_SKIP_SIGN=1`, sign those URLs and resume with `SIGNINGCLOUD_SMOKE_CONTINUE=1`. A CONTINUE run cannot fix a contract that already stacked too many keywords on one signer — re-upload first. Keyword changes (`_SIGN` / `_DATE` siblings) also require a fresh contract. The automatic signature image is a transparent visual fixture. Restrict documents with `SIGNINGCLOUD_SMOKE_DOCS=fa`.
 
 | Variable                                                      | Description                                                                        |
 | ------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
@@ -149,7 +159,7 @@ The full-flow smoke uses the production order on FA, JSG, and DoA with a reduced
 | `SIGNINGCLOUD_SMOKE_AUTO_EMAILS`                              | Optional comma-separated automatic pool (alternative to numbered vars)             |
 | `SIGNINGCLOUD_SMOKE_WITNESS_EMAIL`                            | Extra automatic email appended to the pool if not already listed                   |
 | `SIGNINGCLOUD_SMOKE_AUTO=1`                                   | After mixed-smoke upload, run `/signature/auto` once per automatic signer          |
-| `SIGNINGCLOUD_SMOKE_CONTINUE=1`                               | Resume full-flow smoke: wait for manuals, auto-sign, download signed PDFs          |
+| `SIGNINGCLOUD_SMOKE_CONTINUE=1`                               | Resume wrap-smoke or full-flow: auto-sign after manuals, download signed PDFs      |
 | `SIGNINGCLOUD_SMOKE_DOCS`                                     | Full-flow documents to run (`fa,jsg,doa` by default)                               |
 
 Do not commit session URLs, access codes, or overlay captures.

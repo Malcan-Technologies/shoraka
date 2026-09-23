@@ -153,7 +153,6 @@ describe("AdminService sendInvoiceOffer product rules", () => {
         config: {
           min_invoice_value: 50_000,
           max_financing_ratio_percent: 70,
-          sub_limit_per_invoice_rm: 60_000,
         },
       },
     ];
@@ -242,7 +241,17 @@ describe("AdminService sendInvoiceOffer product rules", () => {
     });
   });
 
-  it("rejects offered financing above the facility sub-limit", async () => {
+  it("rejects offered financing above the product maximum", async () => {
+    workflow = [
+      {
+        id: "invoice_details",
+        config: {
+          min_invoice_value: 50_000,
+          max_invoice_value: 60_000,
+          max_financing_ratio_percent: 70,
+        },
+      },
+    ];
     lockedContractId = "contract-1";
     (prisma.invoice.findUnique as jest.Mock).mockResolvedValue({
       status: "SUBMITTED",
@@ -254,71 +263,8 @@ describe("AdminService sendInvoiceOffer product rules", () => {
     await expect(send(65_000, 65)).rejects.toMatchObject({
       statusCode: 400,
       code: PRODUCT_LIMIT_VIOLATION_CODE,
-      message: "Offered financing cannot exceed the facility sub-limit of RM 60,000.00 per invoice.",
+      message: "Offered financing cannot exceed RM 60,000.00.",
     });
-  });
-
-  it("ignores the sub-limit when the invoice has no facility", async () => {
-    await expect(send(65_000, 65)).resolves.toBeDefined();
-  });
-
-  it("applies the sub-limit when only the application is linked to a facility", async () => {
-    (service as unknown as { prepareForReviewAction: jest.Mock }).prepareForReviewAction = jest
-      .fn()
-      .mockResolvedValue({
-        repository: { getApplicationById: jest.fn().mockResolvedValue({ id: "app-1" }) },
-        application: {
-          id: "app-1",
-          status: ApplicationStatus.INVOICE_PENDING,
-          contract_id: "contract-1",
-          financing_structure: { structure_type: "existing_contract" },
-          contract: { status: "APPROVED" },
-          invoices: [{ id: "inv-1", details }],
-          application_review_items: [
-            { item_type: "invoice", item_id: "invoice_details:0:INV-1", status: "APPROVED" },
-          ],
-          application_reviews: [
-            { section: "financial", status: "APPROVED" },
-            { section: "company_details", status: "APPROVED" },
-            { section: "business_details", status: "APPROVED" },
-            { section: "supporting_documents", status: "APPROVED" },
-            { section: "contract_details", status: "APPROVED" },
-          ],
-        },
-      });
-    mockApply.mockImplementation(async (_id, _db, mutate: (tx: unknown) => unknown) => ({
-      result: await mutate(createTx()),
-    }));
-    await expect(send(65_000, 65)).rejects.toMatchObject({
-      code: PRODUCT_LIMIT_VIOLATION_CODE,
-      message: "Offered financing cannot exceed the facility sub-limit of RM 60,000.00 per invoice.",
-    });
-  });
-
-  it("ignores the sub-limit for standalone invoices even when a contract id is present", async () => {
-    (service as unknown as { prepareForReviewAction: jest.Mock }).prepareForReviewAction = jest
-      .fn()
-      .mockResolvedValue({
-        repository: { getApplicationById: jest.fn().mockResolvedValue({ id: "app-1" }) },
-        application: {
-          id: "app-1",
-          status: ApplicationStatus.INVOICE_PENDING,
-          contract_id: "contract-1",
-          financing_structure: { structure_type: "invoice_only" },
-          invoices: [{ id: "inv-1", details }],
-          application_review_items: [
-            { item_type: "invoice", item_id: "invoice_details:0:INV-1", status: "APPROVED" },
-          ],
-          application_reviews: [
-            { section: "financial", status: "APPROVED" },
-            { section: "company_details", status: "APPROVED" },
-            { section: "business_details", status: "APPROVED" },
-            { section: "supporting_documents", status: "APPROVED" },
-            { section: "contract_details", status: "APPROVED" },
-          ],
-        },
-      });
-    await expect(send(65_000, 65)).resolves.toBeDefined();
   });
 
   it("accepts an offer within product limits", async () => {

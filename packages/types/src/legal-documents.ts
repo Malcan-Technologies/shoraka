@@ -102,6 +102,17 @@ export function legalDocumentTypeLabel(type: string | null | undefined): string 
     : type;
 }
 
+/** Tick-boxes shown on the guarantor signing warning step (not in the PDF). */
+export const GUARANTOR_WARNING_STATEMENT_CHECKBOXES = [
+  "By proceeding to act as guarantor, I confirm that I have read, understood and accepted this Warning Statement and the associated risks, and that my decision to give the guarantee is made solely at my own risk, freely and voluntarily, and not in reliance on any general statements, marketing materials or communications not expressly set out in the final Finance Documents.",
+  "I acknowledge and understand that, as a joint and several guarantor, I may be required to pay the amounts owing by the Issuer, up to the full guaranteed amount, and that I risk losing my own money and assets. CashSouk does not guarantee the repayment of any amount owing by the Issuer. To the fullest extent permitted by law, CashSouk shall not be liable for any losses incurred.",
+] as const;
+
+function joinCheckboxWording(items: readonly string[]): string {
+  if (items.length === 1) return items[0] ?? "";
+  return items.map((text, index) => `${index + 1}. ${text}`).join("\n\n");
+}
+
 export const LEGAL_DOCUMENT_CHECKBOX_WORDING: Record<LegalDocumentType, string> = {
   PDPA_NOTICE_AND_CONSENT:
     "I have read the privacy notice and consent to the handling of my personal data as described.",
@@ -112,8 +123,16 @@ export const LEGAL_DOCUMENT_CHECKBOX_WORDING: Record<LegalDocumentType, string> 
   INVESTOR_WARNING_STATEMENT: "I have read and understood this warning statement.",
   ISSUER_AGREEMENT: "I have read and agree to this agreement.",
   INVESTOR_AGREEMENT: "I have read and agree to this agreement.",
-  GUARANTOR_WARNING_STATEMENT: "I have read and understood this warning statement.",
+  GUARANTOR_WARNING_STATEMENT: joinCheckboxWording(GUARANTOR_WARNING_STATEMENT_CHECKBOXES),
 };
+
+/** UI checkboxes for a document type. Most types have one; guarantor warning has two. */
+export function legalDocumentCheckboxItems(type: LegalDocumentType): string[] {
+  if (type === "GUARANTOR_WARNING_STATEMENT") {
+    return [...GUARANTOR_WARNING_STATEMENT_CHECKBOXES];
+  }
+  return [LEGAL_DOCUMENT_CHECKBOX_WORDING[type]];
+}
 
 /** Default audience when admin creates a legal document definition. */
 export const LEGAL_DOCUMENT_DEFAULT_AUDIENCE: Record<LegalDocumentType, LegalDocumentAudience> = {

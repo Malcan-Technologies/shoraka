@@ -11,7 +11,15 @@ import {
   findSignerDesignationLabel,
   fitDateFieldBetweenSignatures,
   fitSignFieldAbovePrintedLine,
+  isCompanyStampLabel,
+  isSignerDateLabel,
+  isSignerDesignationLabel,
+  isSignerNameLabel,
+  isSignerNricLabel,
+  joinWrappedSignerName,
+  LAYOUT_DETECTED_DATE_FIELD,
   matchSignersToNamedSlots,
+  sealFieldFromLabel,
   signatureFieldFromLine,
   textFieldFromLine,
   attachPrimarySealField,
@@ -41,7 +49,7 @@ export type FaSignatureSlot = {
 
 const SAME_COLUMN_X = 50;
 const LINE_SEARCH_BELOW = 55;
-const DATE_SEARCH_BELOW = 130;
+const DATE_SEARCH_BELOW = LAYOUT_DETECTED_DATE_FIELD.maxBelow;
 
 function compactLineText(text: string): string {
   return text.replace(/\s+/g, " ").trim();
@@ -98,21 +106,25 @@ function lineBelow(line: JsgPdfLine, lines: JsgPdfLine[]): JsgPdfLine | undefine
     .sort((a, b) => a.yTop - b.yTop)[0];
 }
 
+function isIssuerNameContinuationStop(text: string): boolean {
+  const value = compactLineText(text);
+  if (!value) return true;
+  if (isUnderscoreLine(text)) return true;
+  if (/^name of witness/i.test(value)) return true;
+  if (isSignerNameLabel(text)) return true;
+  if (isSignerDesignationLabel(text) || isSignerDateLabel(text) || isSignerNricLabel(text)) {
+    return true;
+  }
+  if (isCompanyStampLabel(text) || /company stamp/i.test(value)) return true;
+  const lower = value.toLowerCase();
+  return lower === "schedule 1" || lower === "issuer";
+}
+
 function nameFromIssuerLabel(label: JsgPdfLine, lines: JsgPdfLine[]): string {
-  const sameLine = compactLineText(label.text).match(/^Name\s*:\s*(.*)$/i)?.[1]?.trim();
-  if (sameLine) return sameLine;
-  const named = lines
-    .filter(
-      (candidate) =>
-        candidate.pageindex === label.pageindex &&
-        sameColumn(candidate, label) &&
-        candidate.yTop > label.yTop &&
-        candidate.yTop - label.yTop <= LINE_SEARCH_BELOW * 1.4
-    )
-    .sort((a, b) => a.yTop - b.yTop)
-    .map((candidate) => compactLineText(candidate.text))
-    .find((text) => text.length > 0 && !/^designation/i.test(text) && !/^date/i.test(text));
-  return named ?? "";
+  return joinWrappedSignerName(label, lines, {
+    maxBelow: LINE_SEARCH_BELOW * 1.4,
+    isStop: isIssuerNameContinuationStop,
+  });
 }
 
 function fieldFromSignatureLine(line: JsgPdfLine): Pick<
@@ -261,6 +273,26 @@ export function matchFaSignersToSlots(
   );
 }
 
+export function findFaIssuerCompanyStampLine(
+  items: readonly JsgPdfTextItem[]
+): JsgPdfLine | undefined {
+  const labels = issuerExecutionLines(linesFromJsgPdfItems([...items])).filter((line) =>
+    isCompanyStampLabel(line.text)
+  );
+  return labels[labels.length - 1];
+}
+
+function faSealOriginsForAppliers(
+  items: readonly JsgPdfTextItem[],
+  signers: readonly LayoutDetectedSigner[]
+): Array<{ left: number; top: number; pageindex?: number }> {
+  if (!signers.some((signer) => signer.appliesCompanySeal)) return [];
+  const stamp = findFaIssuerCompanyStampLine(items);
+  if (!stamp) return [];
+  const field = sealFieldFromLabel(stamp);
+  return [{ left: field.left, top: field.top, pageindex: field.pageindex }];
+}
+
 export async function buildFaSigningCloudSignsetsFromPdf(
   pdfBuffer: Buffer,
   signers: string[] | LayoutDetectedSigner[],
@@ -278,11 +310,13 @@ export async function buildFaSigningCloudSignsetsFromPdf(
     const page = items[0]
       ? { pageWidth: items[0].pageWidth, pageHeight: items[0].pageHeight }
       : {};
+    const preferredOrigins = faSealOriginsForAppliers(items, asLayoutDetectedSigners(signers));
     return attachPrimarySealField(
       signsets,
       asLayoutDetectedSigners(signers),
       page,
-      (message) => new FaSigningLayoutError(message)
+      (message) => new FaSigningLayoutError(message),
+      preferredOrigins
     );
   } catch (err) {
     if (err instanceof FaSigningLayoutError) throw err;

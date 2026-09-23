@@ -11,7 +11,6 @@ const mockRestartOnboarding = jest.fn();
 
 const mockFindInvestorOrganizationById = jest.fn();
 const mockFindIssuerOrganizationById = jest.fn();
-const mockFindIssuerCompanySeal = jest.fn();
 
 const mockUserFindUnique = jest.fn();
 const mockOnboardingLogCreate = jest.fn().mockResolvedValue(undefined);
@@ -69,9 +68,6 @@ jest.mock("../../lib/prisma", () => ({
     gatewayPayment: {
       findFirst: jest.fn().mockResolvedValue(null),
     },
-    issuerOrganizationCompanySeal: {
-      findFirst: (...args: unknown[]) => mockFindIssuerCompanySeal(...args),
-    },
     $transaction: (...args: unknown[]) => mockPrismaTransaction(...args),
   },
 }));
@@ -127,7 +123,6 @@ describe("RegTankService.startCorporateOnboarding company auto-regeneration", ()
 
     mockFindByOrganizationId.mockResolvedValue(null);
     mockCreateOnboarding.mockResolvedValue({});
-    mockFindIssuerCompanySeal.mockResolvedValue({ id: "seal_active_1" });
 
     mockUserFindUnique.mockResolvedValue({
       user_id: "USR01",
@@ -703,7 +698,7 @@ describe("RegTankService.startCorporateOnboarding company auto-regeneration", ()
     expect(mockTxCreate).not.toHaveBeenCalled();
   });
 
-  it("allows issuer corporate onboarding when issuer company seal is missing", async () => {
+  it("allows issuer corporate onboarding for a company organisation", async () => {
     mockFindInvestorOrganizationById.mockResolvedValue(null);
     mockFindIssuerOrganizationById.mockResolvedValue({
       ...makeCompanyOrg(),
@@ -725,7 +720,7 @@ describe("RegTankService.startCorporateOnboarding company auto-regeneration", ()
     expect(mockCreateCorporateOnboarding).toHaveBeenCalledTimes(1);
   });
 
-  it("allows issuer corporate onboarding regardless of issuer company seal presence", async () => {
+  it("creates a new issuer corporate onboarding request when none exists", async () => {
     mockFindInvestorOrganizationById.mockResolvedValue(null);
     mockFindIssuerOrganizationById.mockResolvedValue({
       ...makeCompanyOrg(),

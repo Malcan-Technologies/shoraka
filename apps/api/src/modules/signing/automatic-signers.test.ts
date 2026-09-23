@@ -14,7 +14,7 @@ jest.mock("../../lib/legal-images", () => ({
 }));
 
 import { buildEnvelopePlanFromTemplate, type EnvelopePlan } from "@cashsouk/types";
-import { injectAutomaticExecutionRoles, freezeIssuerSealForDocument } from "./automatic-signers";
+import { injectAutomaticExecutionRoles } from "./automatic-signers";
 import type { OperatorExecutionBindingRecord } from "./repository";
 
 const FA_TEMPLATE = {
@@ -193,72 +193,5 @@ describe("injectAutomaticExecutionRoles", () => {
     ).rejects.toMatchObject({
       code: "DOCUMENT_EXECUTION_EMAIL_COLLISION",
     });
-  });
-});
-
-describe("freezeIssuerSealForDocument", () => {
-  const prev = process.env.SC_ENABLE_SEAL_FIELD;
-
-  afterEach(() => {
-    if (prev === undefined) delete process.env.SC_ENABLE_SEAL_FIELD;
-    else process.env.SC_ENABLE_SEAL_FIELD = prev;
-  });
-
-  it("skips seal lookup when SC_ENABLE_SEAL_FIELD=false", async () => {
-    process.env.SC_ENABLE_SEAL_FIELD = "false";
-    const findActiveIssuerCompanySeal = jest.fn();
-    const setAssignmentFrozenCompanySeal = jest.fn();
-    await freezeIssuerSealForDocument({
-      document: { template_ref: "facility_agreement" } as never,
-      assignments: [],
-      authorizedParties: null,
-      issuerOrganizationId: "org-1",
-      repo: { findActiveIssuerCompanySeal, setAssignmentFrozenCompanySeal },
-    });
-    expect(findActiveIssuerCompanySeal).not.toHaveBeenCalled();
-    expect(setAssignmentFrozenCompanySeal).not.toHaveBeenCalled();
-  });
-
-  it("freezes issuer company seal using the active seal record (same seal id)", async () => {
-    const findActiveIssuerCompanySeal = jest.fn().mockResolvedValue({
-      id: "seal_1",
-      s3_key: "issuer-organizations/org-1/company-seals/a.png",
-      sha256: HASH,
-    });
-    const setAssignmentFrozenCompanySeal = jest.fn().mockResolvedValue(undefined);
-
-    await freezeIssuerSealForDocument({
-      document: { template_ref: "facility_agreement" } as never,
-      assignments: [
-        {
-          assignment: { id: "assign_1" } as never,
-          recipient: { execution_mode: "MANUAL", email: "ali@co.my" } as never,
-        },
-      ],
-      authorizedParties: {
-        submitted_by_user_id: "user_1",
-        submitted_at: "2026-09-01T00:00:00.000Z",
-        parties: [
-          {
-            key: "issuer",
-            entity_kind: "ISSUER",
-            representatives: [
-              {
-                name: "Ali Bin Abu",
-                email: "ali@co.my",
-                ic_number: "820508105871",
-                capacity: "director",
-                applies_company_seal: true,
-              },
-            ],
-          },
-        ],
-      } as never,
-      issuerOrganizationId: "org-1",
-      repo: { findActiveIssuerCompanySeal, setAssignmentFrozenCompanySeal },
-    });
-
-    expect(findActiveIssuerCompanySeal).toHaveBeenCalledWith("org-1");
-    expect(setAssignmentFrozenCompanySeal).toHaveBeenCalledWith("assign_1", "seal_1");
   });
 });

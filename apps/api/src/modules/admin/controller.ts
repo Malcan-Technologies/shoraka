@@ -2718,6 +2718,52 @@ router.get(
   }
 );
 
+router.get(
+  "/contracts/:id/documents",
+  requirePermission("contracts.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const { facilityDocumentsService } = await import("../contracts/documents/service");
+      const result = await facilityDocumentsService.getCatalog(id);
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.get(
+  "/contracts/:id/documents/:documentId",
+  requirePermission("contracts.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user?.user_id) {
+        throw new AppError(401, "UNAUTHORIZED", "Authentication required");
+      }
+      const { facilityDocumentParamsSchema, facilityDocumentQuerySchema } = await import(
+        "../contracts/schemas"
+      );
+      const { id, documentId } = facilityDocumentParamsSchema.parse(req.params);
+      const { disposition } = facilityDocumentQuerySchema.parse(req.query);
+      const { facilityDocumentsService } = await import("../contracts/documents/service");
+      const content = await facilityDocumentsService.getContent(id, documentId, {
+        userId: req.user.user_id,
+      });
+      const safeFilename = content.filename.replace(/"/g, "");
+      res.setHeader("Content-Type", content.contentType);
+      res.setHeader("Content-Disposition", `${disposition}; filename="${safeFilename}"`);
+      res.send(content.buffer);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 router.post(
   "/contracts/:id/facility-fee/waive",
   requirePermission("contracts.manage"),

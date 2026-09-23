@@ -72,7 +72,6 @@ describe("issuer company completeness [02000]", () => {
       name: "Acme Sdn Bhd",
       registrationNumber: "1234567A",
       organizationId: "org_1",
-      hasActiveCompanySeal: true,
       dateOfIncorporation: "2020-01-01",
       dateOfCommencement: "2020-02-01",
       countryOfIncorporation: "Malaysia",
@@ -89,7 +88,6 @@ describe("issuer company completeness [02000]", () => {
     const missing = computeIssuerCompanyCompleteness({
       name: "Acme Sdn Bhd",
       registrationNumber: "1234567A",
-      hasActiveCompanySeal: true,
       organizationId: null,
       dateOfIncorporation: "2020-01-01",
       dateOfCommencement: "2020-02-01",
@@ -113,7 +111,6 @@ describe("issuer company completeness [02000]", () => {
       name: "Acme Sdn Bhd",
       registrationNumber: "1234567A",
       organizationId: "org_1",
-      hasActiveCompanySeal: true,
       dateOfIncorporation: "2020-01-01",
       dateOfCommencement: "2020-02-01",
       countryOfIncorporation: "Malaysia",
@@ -130,7 +127,6 @@ describe("issuer company completeness [02000]", () => {
       name: "Acme Sdn Bhd",
       registrationNumber: "1234567A",
       organizationId: "org_1",
-      hasActiveCompanySeal: true,
       dateOfIncorporation: "2020-01-01",
       dateOfCommencement: "2020-02-01",
       countryOfIncorporation: "Malaysia",
@@ -147,7 +143,6 @@ describe("issuer company completeness [02000]", () => {
       name: "Acme Sdn Bhd",
       registrationNumber: "1234567A",
       organizationId: "org_1",
-      hasActiveCompanySeal: true,
       dateOfIncorporation: "2020-01-01",
       dateOfCommencement: "2020-02-01",
       countryOfIncorporation: "Malaysia",
@@ -186,7 +181,6 @@ describe("issuer company completeness [02000]", () => {
       name: "Acme Sdn Bhd",
       registrationNumber: "1234567A",
       organizationId: "org_1",
-      hasActiveCompanySeal: true,
       dateOfIncorporation: "2020-01-01",
       dateOfCommencement: "2020-02-01",
       countryOfIncorporation: "Malaysia",
@@ -204,7 +198,6 @@ describe("issuer company completeness [02000]", () => {
       name: "Acme Sdn Bhd",
       registrationNumber: "1234567A",
       organizationId: "org_1",
-      hasActiveCompanySeal: true,
       dateOfIncorporation: "2020-01-01",
       dateOfCommencement: "2020-02-01",
       countryOfIncorporation: "Malaysia",
@@ -219,7 +212,6 @@ describe("issuer company completeness [02000]", () => {
       name: "Acme Sdn Bhd",
       registrationNumber: "1234567A",
       organizationId: "org_1",
-      hasActiveCompanySeal: true,
       dateOfIncorporation: "2020-01-01",
       dateOfCommencement: "2020-02-01",
       countryOfIncorporation: "Malaysia",
@@ -237,7 +229,6 @@ describe("issuer company completeness [02000]", () => {
       name: "Acme Sdn Bhd",
       registrationNumber: "1234567A",
       organizationId: "org_1",
-      hasActiveCompanySeal: true,
       dateOfIncorporation: "2020-01-01",
       dateOfCommencement: "2020-02-01",
       countryOfIncorporation: "Malaysia",
@@ -248,45 +239,6 @@ describe("issuer company completeness [02000]", () => {
       ...FILLED_ABOUT,
     });
     expect(missing.map((m) => m.field)).not.toContain("contactPersonPhone");
-  });
-
-  it("adds companySeal to issuer company completeness when no active seal exists", () => {
-    const missing = computeIssuerCompanyCompleteness({
-      name: "Acme Sdn Bhd",
-      registrationNumber: "1234567A",
-      organizationId: "org_1",
-      hasActiveCompanySeal: false,
-      dateOfIncorporation: "2020-01-01",
-      dateOfCommencement: "2020-02-01",
-      countryOfIncorporation: "Malaysia",
-      scCompanyType: "PRIVATE_LIMITED",
-      registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
-      businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
-      ...FILLED_CONTACT,
-      ...FILLED_ABOUT,
-    });
-
-    // All company master fields are complete; only the active seal is missing.
-    expect(missing.map((m) => m.field)).toEqual(["companySeal"]);
-  });
-
-  it("does not add companySeal when an active seal exists", () => {
-    const missing = computeIssuerCompanyCompleteness({
-      name: "Acme Sdn Bhd",
-      registrationNumber: "1234567A",
-      organizationId: "org_1",
-      hasActiveCompanySeal: true,
-      dateOfIncorporation: "2020-01-01",
-      dateOfCommencement: "2020-02-01",
-      countryOfIncorporation: "Malaysia",
-      scCompanyType: "PRIVATE_LIMITED",
-      registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
-      businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
-      ...FILLED_CONTACT,
-      ...FILLED_ABOUT,
-    });
-
-    expect(missing).toHaveLength(0);
   });
 
   it("uses Contact Person email/phone for ComRep and falls back to PIC only when empty", () => {
@@ -303,7 +255,6 @@ describe("issuer company completeness [02000]", () => {
       name: "Acme Sdn Bhd",
       registrationNumber: "1234567A",
       organizationId: "org_1",
-      hasActiveCompanySeal: true,
       dateOfIncorporation: "2020-01-01",
       dateOfCommencement: "2020-02-01",
       countryOfIncorporation: "Malaysia",
@@ -324,7 +275,6 @@ describe("issuer company completeness [02000]", () => {
       name: "Acme Sdn Bhd",
       registrationNumber: "1234567A",
       organizationId: "org_1",
-      hasActiveCompanySeal: true,
       dateOfIncorporation: "2020-01-01",
       dateOfCommencement: "2020-02-01",
       countryOfIncorporation: "Malaysia",
@@ -350,7 +300,6 @@ describe("issuer company completeness [02000]", () => {
       registrationNumber: "1234567A",
       organizationId: "org_1",
       dateOfIncorporation: "2020-01-01",
-      hasActiveCompanySeal: true,
       dateOfCommencement: "2020-02-01",
       countryOfIncorporation: "Malaysia",
       scCompanyType: "PRIVATE_LIMITED",
@@ -377,7 +326,6 @@ describe("issuer company completeness [02000]", () => {
       registrationNumber: "1234567A",
       organizationId: "org_1",
       dateOfIncorporation: "2020-01-01",
-      hasActiveCompanySeal: true,
       dateOfCommencement: "2020-02-01",
       countryOfIncorporation: "SINGAPORE",
       scCompanyType: "FOREIGN",
@@ -399,7 +347,6 @@ describe("issuer profile completeness", () => {
         name: "Acme Sdn Bhd",
         registrationNumber: "1234567A",
         organizationId: "org_1",
-        hasActiveCompanySeal: true,
         dateOfIncorporation: "2020-01-01",
         dateOfCommencement: "2020-02-01",
         countryOfIncorporation: "Malaysia",
@@ -425,7 +372,6 @@ describe("issuer profile completeness", () => {
         name: "Master Name",
         registrationNumber: "1234567A",
         organizationId: "org_1",
-        hasActiveCompanySeal: true,
         dateOfIncorporation: "2020-01-01",
         dateOfCommencement: "2020-02-01",
         countryOfIncorporation: "Malaysia",
@@ -1501,7 +1447,6 @@ describe("issuer profile financial editor keys", () => {
         name: "Acme Sdn Bhd",
         registrationNumber: "1234567A",
         organizationId: "org_1",
-        hasActiveCompanySeal: true,
         dateOfIncorporation: "2020-01-01",
         dateOfCommencement: "2020-02-01",
         countryOfIncorporation: "Malaysia",
@@ -1645,7 +1590,6 @@ describe("people completeness by actual role", () => {
         name: "Acme Sdn Bhd",
         registrationNumber: "1234567A",
         organizationId: "org_1",
-        hasActiveCompanySeal: true,
         dateOfIncorporation: "2020-01-01",
         dateOfCommencement: "2020-02-01",
         countryOfIncorporation: "Malaysia",

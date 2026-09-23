@@ -23,10 +23,12 @@ import {
   dateFieldFromLine,
   findSignerDateLabel,
   isAutomaticSigningKeywordLine,
+  isIssuerWitnessNameLabel,
   isSignatureStrokeLine,
   LAYOUT_DETECTED_DATE_FIELD,
   LAYOUT_DETECTED_SIGN_FIELD,
   signatureFieldFromLine,
+  witnessColumnOriginFromNameLine,
   type SigningCloudSignField,
 } from "./signature-field-geometry";
 
@@ -340,7 +342,7 @@ function strokeKey(line: JsgPdfLine): string {
 
 function isWitnessMarker(roleKey: OperatorDocumentExecutionRole, text: string): boolean {
   const value = compact(text);
-  if (roleKey === "FA_ISSUER_WITNESS") return /^name of witness/i.test(value);
+  if (roleKey === "FA_ISSUER_WITNESS") return isIssuerWitnessNameLabel(value);
   if (roleKey === "JSG_GUARANTOR_WITNESS" || roleKey === "JSG_OPERATOR_WITNESS") {
     return value.toLowerCase() === "signature of witness";
   }
@@ -423,7 +425,13 @@ function witnessStrokes(
     )
     .sort((a, b) => a.pageindex - b.pageindex || a.yTop - b.yTop || a.x - b.x);
   return markers
-    .map((marker) => strokeAbove(marker, lines))
+    .map((marker) => {
+      const origin =
+        roleKey === "FA_ISSUER_WITNESS"
+          ? (witnessColumnOriginFromNameLine(marker) ?? marker)
+          : marker;
+      return strokeAbove(origin, lines);
+    })
     .filter((line): line is JsgPdfLine => Boolean(line));
 }
 
@@ -444,7 +452,7 @@ function sameRowColon(
 function dateSearchOptions(stroke: JsgPdfLine, nextStroke?: JsgPdfLine) {
   return {
     sameColumnDelta: SAME_COLUMN_X,
-    maxBelow: LINE_SEARCH_BELOW + 50,
+    maxBelow: LAYOUT_DETECTED_DATE_FIELD.maxBelow,
     beforeYTop:
       nextStroke && nextStroke.pageindex === stroke.pageindex ? nextStroke.yTop : undefined,
   };

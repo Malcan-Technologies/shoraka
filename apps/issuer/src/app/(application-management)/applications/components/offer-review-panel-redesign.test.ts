@@ -29,7 +29,6 @@ describe("issuer Offer tab redesign contracts", () => {
     expect(panelSource).toContain("AcceptanceDocumentChangesRequestedBanner");
     expect(panelSource).toContain("IssuerAuthorizedRepresentativesCard");
     expect(panelSource).toContain("issuerOfferRepsBlocker");
-    expect(panelSource).toContain("sealStatus={issuerSealStatus}");
     expect(panelSource).not.toContain("disabled={isSubmittingAcceptance || isSavingPartyDraft || !issuerRepsReady}");
     expect(panelSource).toContain("saveContractAuthorizedPartiesDraft");
     expect(panelSource).toContain("saveInvoiceAuthorizedPartiesDraft");
@@ -42,6 +41,8 @@ describe("issuer Offer tab redesign contracts", () => {
     expect(panelSource).toContain("Back to applications");
     expect(panelSource).toContain("ApplicationSummaryDownloadButton");
     expect(panelSource).toContain('modalMode.ui === "accept_decline"');
+    expect(panelSource).toContain("rateHint");
+    expect(panelSource).not.toContain("No signing package is required");
     expect(panelSource).not.toContain("OfferAcceptanceSubmittedSuccessView");
     expect(panelSource).not.toContain("SigningProgressStepper");
     expect(panelSource).not.toContain('mode === "inline"');

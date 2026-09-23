@@ -6,6 +6,11 @@ import {
   renderJsgDocx,
   resolveJsgTemplatePath,
 } from "./render-jsg-docx";
+import {
+  JSG_OPERATOR_WRAP_LEFT_TWIPS,
+  paragraphPinsJsgOperatorValueWrap,
+  paragraphPinsTableHangingLabelWrap,
+} from "../../generated-documents/hanging-execution-label";
 
 function renderedXml(data: JsgMergeData): string {
   const zip = new PizZip(renderJsgDocx(data));
@@ -77,7 +82,8 @@ describe("renderJsgDocx", () => {
     expect(plain).toContain("{operator_1_name}");
     expect(plain).toContain("{operator_2_designation}");
     expect(plain).toContain("OPERATOR");
-    expect(xml).not.toContain("{@page_break}");
+    expect(xml).toContain("{@page_break}");
+    expect(xml).toContain("{@individuals_page_break}");
     expect(xml).toContain("<w:cantSplit/>");
     expect(numbering).toContain('w:numId="20"');
 
@@ -92,15 +98,18 @@ describe("renderJsgDocx", () => {
     const operatorName2 = paragraphContaining(operatorXmlSlice, "{operator_2_name}");
     const operatorDesignation1 = paragraphContaining(operatorXmlSlice, "{operator_1_designation}");
     const operatorDesignation2 = paragraphContaining(operatorXmlSlice, "{operator_2_designation}");
-    expect(operatorName1).toContain('w:left="3600"');
-    expect(operatorName2).toContain('w:left="3600"');
+    expect(operatorName1).toContain(`w:left="${JSG_OPERATOR_WRAP_LEFT_TWIPS}"`);
+    expect(operatorName2).toContain(`w:left="${JSG_OPERATOR_WRAP_LEFT_TWIPS}"`);
+    expect(paragraphPinsJsgOperatorValueWrap(operatorName1)).toBe(true);
+    expect(paragraphPinsJsgOperatorValueWrap(operatorDesignation1)).toBe(true);
+    expect(paragraphPinsJsgOperatorValueWrap(operatorDesignation2)).toBe(true);
+    expect(operatorName1).not.toContain("w:firstLine=");
     expect(operatorName1).toContain('w:line="276"');
-    expect(operatorName2).toContain('w:line="276"');
-    expect(operatorDesignation1).toContain('w:line="276"');
-    expect(operatorDesignation2).toContain('w:line="276"');
     expect(operatorName1).not.toContain("<w:b/>");
     expect(operatorName2).not.toContain("<w:b/>");
     expect(operatorDesignation2).not.toContain("MS Mincho");
+    expect(paragraphPinsTableHangingLabelWrap(paragraphContaining(xml, "{nric}"), "NRIC No.")).toBe(true);
+    expect(paragraphPinsTableHangingLabelWrap(paragraphContaining(xml, "{witness_name}"), "Full Name")).toBe(true);
 
     const linePara = paragraphContaining(xml, "{line}");
     expect(linePara).toContain('<w:numId w:val="20"/>');
@@ -141,13 +150,20 @@ describe("renderJsgDocx", () => {
     expect(plain).not.toContain("{#guarantors_individual}");
     expect(plain).not.toContain("[Issuer");
 
-    const execXml = xml.slice(xml.indexOf("EXECUTION PAGE"));
-    expect((execXml.match(/<w:br w:type="page"\/>/g) ?? []).length).toBe(2);
+    const execXml = xml.slice(xml.indexOf("EXECUTION PAGE"), xml.indexOf("OPERATOR"));
+    const execPlain = wordPlainText(execXml);
+    expect((execPlain.match(/The Guarantor\(s\)/g) ?? []).length).toBe(2);
     const firstAli = execXml.indexOf("Ali Bin Abu");
     const firstSiti = execXml.indexOf("Siti Binti Ahmad");
+    const holdco = execXml.indexOf("HOLDCO ONE");
     expect(firstAli).toBeGreaterThanOrEqual(0);
     expect(firstSiti).toBeGreaterThan(firstAli);
+    expect(holdco).toBeGreaterThan(firstSiti);
     expect(execXml.slice(firstAli, firstSiti)).not.toContain('<w:br w:type="page"/>');
+    expect(execXml.slice(firstSiti, holdco)).toContain('<w:br w:type="page"/>');
+    expect(xml.slice(xml.indexOf("EXECUTION PAGE")).match(/<w:br w:type="page"\/>/g)?.length).toBeGreaterThanOrEqual(
+      3
+    );
   });
 
   it("connects standalone underscore strokes and leaves dotted and Date lines untouched", () => {
@@ -189,5 +205,29 @@ describe("renderJsgDocx", () => {
     expect(plain).toContain("Ali Bin Abu");
     expect(plain).not.toContain("For and on behalf of");
     expect(xml).not.toContain("{#has_corporate_guarantor}");
+    const execXml = xml.slice(xml.indexOf("EXECUTION PAGE"), xml.indexOf("OPERATOR"));
+    expect((wordPlainText(execXml).match(/The Guarantor\(s\)/g) ?? []).length).toBe(1);
+    expect(
+      execXml.slice(execXml.indexOf("Ali Bin Abu"), execXml.indexOf("Siti Binti Ahmad"))
+    ).not.toContain('<w:br w:type="page"/>');
+  });
+
+  it("starts each corporate guarantor on a new page", () => {
+    const data = createJsgFixture();
+    data.guarantors_corporate = [
+      ...data.guarantors_corporate,
+      {
+        name: "HOLDCO TWO SDN. BHD.",
+        ssm: "654321-B",
+        signatories: [{ name: "Aini Rahman", nric: "660101015555", capacity: "director" }],
+      },
+    ];
+    const xml = renderedXml(data);
+    const execXml = xml.slice(xml.indexOf("EXECUTION PAGE"), xml.indexOf("OPERATOR"));
+    expect((wordPlainText(execXml).match(/The Guarantor\(s\)/g) ?? []).length).toBe(3);
+    const holdcoOne = execXml.indexOf("HOLDCO ONE");
+    const holdcoTwo = execXml.indexOf("HOLDCO TWO");
+    expect(holdcoTwo).toBeGreaterThan(holdcoOne);
+    expect(execXml.slice(holdcoOne, holdcoTwo)).toContain('<w:br w:type="page"/>');
   });
 });

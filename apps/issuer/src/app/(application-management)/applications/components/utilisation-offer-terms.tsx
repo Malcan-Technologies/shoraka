@@ -9,7 +9,6 @@ import {
   UTILISATION_FULL_AUTHORISATION_CONFIRMED_LABEL,
   UTILISATION_FULL_AUTHORISATION_READ_AGAIN,
   UTILISATION_FULL_AUTHORISATION_READ_LINK,
-  UTILISATION_FULL_AUTHORISATION_REQUIRED_HINT,
   UTILISATION_FULL_AUTHORISATION_TITLE,
   UTILISATION_OFFER_BINDING_FOOTER,
   UTILISATION_OFFER_CONSENTS,
@@ -96,31 +95,12 @@ export function UtilisationOfferTerms({
                   {consent.hasFullAuthorisationLink ? (
                     <div
                       className={cn(
-                        "ml-7 space-y-2 rounded-xl border px-3 py-3",
+                        "ml-7 flex flex-wrap items-center gap-2 rounded-xl border px-3 py-3",
                         fullAuthorisationConfirmed
                           ? "border-border bg-muted/30"
                           : "border-status-action-text/30 bg-status-action-bg"
                       )}
                     >
-                      <div className="flex flex-wrap items-center gap-2">
-                        <StatusBadge
-                          label={fullAuthorisationConfirmed ? "Confirmed" : "Required"}
-                          status={fullAuthorisationConfirmed ? "success" : "action"}
-                          showDot={false}
-                        />
-                        <p
-                          className={cn(
-                            "text-ui",
-                            fullAuthorisationConfirmed
-                              ? "text-foreground"
-                              : "font-medium text-status-action-text"
-                          )}
-                        >
-                          {fullAuthorisationConfirmed
-                            ? UTILISATION_FULL_AUTHORISATION_CONFIRMED_LABEL
-                            : UTILISATION_FULL_AUTHORISATION_REQUIRED_HINT}
-                        </p>
-                      </div>
                       <Button
                         type="button"
                         size="sm"
@@ -133,6 +113,16 @@ export function UtilisationOfferTerms({
                           ? UTILISATION_FULL_AUTHORISATION_READ_AGAIN
                           : UTILISATION_FULL_AUTHORISATION_READ_LINK}
                       </Button>
+                      <StatusBadge
+                        label={fullAuthorisationConfirmed ? "Confirmed" : "Required"}
+                        status={fullAuthorisationConfirmed ? "success" : "action"}
+                        showDot={false}
+                      />
+                      {fullAuthorisationConfirmed ? (
+                        <p className="text-ui text-foreground">
+                          {UTILISATION_FULL_AUTHORISATION_CONFIRMED_LABEL}
+                        </p>
+                      ) : null}
                     </div>
                   ) : null}
                 </div>

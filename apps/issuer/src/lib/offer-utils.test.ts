@@ -237,16 +237,13 @@ describe("getIssuerOfferActionCta", () => {
     expect(cta.isAcceptanceChangesRequested).toBe(true);
   });
 
-  it("uses Review Facility Offer for PENDING_ISSUER contract scope", () => {
-    const cta = getIssuerOfferActionCta("PENDING_ISSUER", { scope: "contract" });
-    expect(cta.label).toBe("Review Facility Offer");
-    expect(cta.hint).toBeNull();
-    expect(cta.buttonVariant).toBe("reviewOffer");
-  });
-
-  it("uses Review Invoice Offer for PENDING_ISSUER invoice scope", () => {
-    const cta = getIssuerOfferActionCta("PENDING_ISSUER", { scope: "invoice" });
-    expect(cta.label).toBe("Review Invoice Offer");
+  it("uses Review offer for PENDING_ISSUER regardless of scope", () => {
+    const contract = getIssuerOfferActionCta("PENDING_ISSUER", { scope: "contract" });
+    const invoice = getIssuerOfferActionCta("PENDING_ISSUER", { scope: "invoice" });
+    expect(contract.label).toBe("Review offer");
+    expect(invoice.label).toBe("Review offer");
+    expect(contract.hint).toBeNull();
+    expect(contract.buttonVariant).toBe("reviewOffer");
   });
 
   it("reads phase from offer_details", () => {

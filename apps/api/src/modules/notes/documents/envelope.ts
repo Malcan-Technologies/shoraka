@@ -1,4 +1,7 @@
-import { FACILITY_AGREEMENT_SIGNING_DOCUMENT_KEY } from "@cashsouk/types";
+import {
+  FACILITY_AGREEMENT_SIGNING_DOCUMENT_KEY,
+  resolveCompletedSigningEnvelopeWhere,
+} from "@cashsouk/types";
 
 export const JSG_SIGNING_DOCUMENT_KEY = "guarantor_agreement";
 export const DOA_SIGNING_DOCUMENT_KEY = "deed_of_assignment";
@@ -24,9 +27,9 @@ export type NoteSigningEnvelopeLike = {
 };
 
 export type NoteSigningTarget = {
-  applicationId: string;
   contractId: string | null;
   invoiceId: string | null;
+  invoiceContractId?: string | null;
 };
 
 function completedAtMs(value: Date | string | null): number {
@@ -39,17 +42,25 @@ function hasSignedPdf(document: NoteSigningDocumentLike): boolean {
   return Boolean(document.signed_s3_key?.trim());
 }
 
-/** Exact offer target: invoice notes match the invoice envelope; facility notes match the contract envelope. */
+/**
+ * Invoice-only notes match the invoice envelope. Contract-linked invoices reuse
+ * the facility package (invoice_id null), even when the envelope lives on the
+ * originating facility application.
+ */
 export function envelopeMatchesNoteTarget(
   envelope: NoteSigningEnvelopeLike,
   target: NoteSigningTarget
 ): boolean {
-  if (envelope.application_id !== target.applicationId) return false;
-  if (target.invoiceId) return envelope.invoice_id === target.invoiceId;
-  if (target.contractId) {
-    return envelope.contract_id === target.contractId && envelope.invoice_id == null;
+  const envelopeWhere = resolveCompletedSigningEnvelopeWhere({
+    sourceInvoiceId: target.invoiceId,
+    sourceContractId: target.contractId,
+    invoiceContractId: target.invoiceContractId,
+  });
+  if (!envelopeWhere) return false;
+  if ("invoice_id" in envelopeWhere) {
+    return envelope.invoice_id === envelopeWhere.invoice_id;
   }
-  return false;
+  return envelope.contract_id === envelopeWhere.contract_id && envelope.invoice_id == null;
 }
 
 export function pickLatestMatchingCompletedEnvelope(

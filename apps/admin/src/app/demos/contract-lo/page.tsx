@@ -38,7 +38,6 @@ const FIELD_LABELS: Partial<Record<ContractFacilityLoScalarKey, string>> = {
   financing_limit_rm: "Financing limit (RM …)",
   tenure_days: "Tenure days (main schedule)",
   max_invoice_tenure_days: "Max invoice tenure days (Schedule A)",
-  sub_limit_per_invoice_rm: "Sub-limit per invoice (Part A)",
   part_b_financing_amount_rm: "Financing amount per invoice (Part B)",
   part_a_checkbox: "Part A checkbox (☒ / ☐)",
   part_b_checkbox: "Part B checkbox (☒ / ☐)",
@@ -74,7 +73,6 @@ const SECTIONS: Array<{ title: string; keys: ContractFacilityLoScalarKey[] }> = 
       "financing_limit_rm",
       "tenure_days",
       "max_invoice_tenure_days",
-      "sub_limit_per_invoice_rm",
       "part_b_financing_amount_rm",
       "part_a_checkbox",
       "part_b_checkbox",
@@ -323,7 +321,7 @@ export default function ContractLoDemoPage() {
           <CardTitle>Contract Letter of Offer (LO) demo</CardTitle>
           <CardDescription>
             Same Word template and merge/render path as production generate (
-            <code>arf_contract_facility_lo</code> v14 — facility Part A or invoice Part B). Prefill uses{" "}
+            <code>arf_contract_facility_lo</code> v1 — facility Part A or invoice Part B). Prefill uses{" "}
             <code>buildFacilityLoMergeData</code>; edits here only affect this download. PDF needs{" "}
             <code>GOTENBERG_URL</code>. Wet-ink only — not wired to Send Offer or SigningCloud.
           </CardDescription>

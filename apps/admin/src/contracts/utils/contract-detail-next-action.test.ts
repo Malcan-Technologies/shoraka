@@ -248,6 +248,7 @@ describe("contract detail default tab", () => {
     expect(viewSource).toContain("resolveContractFacilityOfferTabToken");
     expect(viewSource).toContain("resolveContractNotesTabToken");
     expect(viewSource).toContain("resolveContractDocumentsTabToken");
+    expect(viewSource).toContain("FacilityDocumentsPanel");
     expect(viewSource).toContain("CONTRACT_REFERENCE_TAB_TOKEN");
     expect(viewSource).toContain('id: "activity"');
     expect(viewSource).toContain("AdminDetailCardHeader");

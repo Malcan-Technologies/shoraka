@@ -49,7 +49,7 @@ const BASE_ORG = {
 };
 
 const PRODUCT_WORKFLOW = [
-  { id: "invoice_details", config: { sub_limit_per_invoice_rm: 250000 } },
+  { id: "invoice_details", config: { max_invoice_value: 250000 } },
 ];
 
 describe("buildFacilityAgreementMergeData", () => {
@@ -94,7 +94,6 @@ describe("buildFacilityAgreementMergeData", () => {
     expect(data.issuer_name).toBe("Issuer Co");
     expect(data.issuer_registration_number).toBe("123456-A");
     expect(data.financing_limit_rm).toBe("RM 1,000,000.00");
-    expect(data.sub_limit_per_invoice_rm).toBe("RM 250,000.00");
     expect(data.facility_fee_rate_percent).toBe("1%");
     expect(data.drawdown_fee).toBe("As prescribed in the Letter of Offer");
     expect(data.facility_agreement_date).toBe("4 September 2026");
@@ -145,7 +144,6 @@ describe("buildFacilityAgreementMergeData", () => {
     expect(data.our_reference).toBe("INV-ARF-202608-0N5");
     expect(data.letter_date).toBe("20 August 2026");
     expect(data.financing_limit_rm).toBe("RM 180,000.00");
-    expect(data.sub_limit_per_invoice_rm).toBe("RM 180,000.00");
     expect(data.drawdown_fee).toBe("As prescribed in the Letter of Offer");
     expect(data.facility_fee_rate_percent).toBe("");
     expect(data.facility_agreement_date).toBe("4 September 2026");

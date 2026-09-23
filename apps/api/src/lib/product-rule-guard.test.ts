@@ -152,15 +152,15 @@ describe("assertInvoiceMeetsProductRules", () => {
     ).toThrow(/Offered financing ratio cannot exceed 70%/);
   });
 
-  it("enforces sub-limit only when hasFacility is true", () => {
-    const workflow = invoiceWorkflow({ sub_limit_per_invoice_rm: 4000 });
+  it("enforces max financing amount regardless of hasFacility", () => {
+    const workflow = invoiceWorkflow({ max_invoice_value: 4000 });
     const details = { value: 10_000, applied_financing: 6000, financing_ratio_percent: 60 };
     expect(() =>
       assertInvoiceMeetsProductRules(workflow, details, { mode: "issuer_request", hasFacility: false })
-    ).not.toThrow();
+    ).toThrow(/Financing amount cannot exceed/);
     expect(() =>
       assertInvoiceMeetsProductRules(workflow, details, { mode: "issuer_request", hasFacility: true })
-    ).toThrow(/sub-limit/);
+    ).toThrow(/Financing amount cannot exceed/);
   });
 });
 

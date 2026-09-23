@@ -5,7 +5,10 @@
  * execution (first stroke on the company-name line), page-break before
  * ASSIGNOR, and replace ASSIGNOR execution with one signatory/witness table
  * per authorised representative. Signature strokes stay as the clean-copy
- * underscore runs (one line per signatory / witness).
+ * underscore runs (one line per signatory / witness). ASSIGNOR Name/NRIC/
+ * Designation share one colon tab per table column so wrapped values line up.
+ * SSP Name/Designation use hanging indent so wrapped values stay under the
+ * value, not Signed by.
  *
  * Schedule 2 stays the prescribed form (original placeholders, no merge tags).
  * Schedule 3 keeps its heading/table and records Nil at execution.
@@ -17,6 +20,15 @@
 import fs from "fs";
 import path from "path";
 import PizZip from "pizzip";
+import {
+  DOA_ASSIGNOR_COLON_TWIPS,
+  DOA_ASSIGNOR_WITNESS_COLON_TWIPS,
+  DOA_SSP_COLON_TWIPS,
+  DOA_SSP_LABEL_LEFT_TWIPS,
+  hangingValueIndentXml,
+  paragraphContaining,
+  paragraphPinsDoaSspValueWrap,
+} from "../src/modules/generated-documents/hanging-execution-label";
 
 const TEMPLATES_DIR = path.resolve(__dirname, "../src/modules/applications/templates");
 const CLEAN_COPY = path.join(TEMPLATES_DIR, "Deed of Assignment - Cashsouk.docx");
@@ -219,10 +231,67 @@ function signatureStrokeRow(): [string, string] {
 
 const SSP_SIGNATURE_STROKE = "______________________________________";
 
+/** Clean-copy SSP stamp box: indented under the hanging signature column. */
+const SSP_STAMP_TABLE_INDENT_TWIPS = 4135;
+const SSP_STAMP_TABLE_WIDTH_TWIPS = 5215;
+const SSP_STAMP_TABLE_HEIGHT_TWIPS = 1592;
+
+function sspExecutionLabelParagraph(label: "Name" | "Designation", tag: string): string {
+  const rPr = bodyRpr();
+  const runs = [
+    textRun(label, rPr),
+    `<w:r>${rPr}<w:tab/></w:r>`,
+    textRun(":", rPr),
+    textRun(" ", rPr),
+    textRun(`{${tag}}`, rprWithYellow(rPr)),
+  ];
+  return `<w:p><w:pPr><w:spacing w:after="0"/>${hangingValueIndentXml(DOA_SSP_COLON_TWIPS, DOA_SSP_LABEL_LEFT_TWIPS)}${rPr}</w:pPr>${runs.join("")}</w:p>`;
+}
+
+function tableHangingLabelParagraph(
+  label: string,
+  tag: string,
+  colonPosTwips: number
+): string {
+  const rPr = bodyRpr();
+  const runs = [
+    textRun(label, rPr),
+    `<w:r>${rPr}<w:tab/></w:r>`,
+    textRun(":", rPr),
+    textRun(" ", rPr),
+    textRun(`{${tag}}`, rprWithYellow(rPr)),
+  ];
+  return `<w:p><w:pPr><w:spacing w:after="0" w:line="360" w:lineRule="auto"/>${hangingValueIndentXml(colonPosTwips, 0)}${rPr}</w:pPr>${runs.join("")}</w:p>`;
+}
+
 function sspSignatoryLabels(nameTag: string, designationTag: string): string {
   return [
-    hangingPara(`\t\t\t\t\t\tName: {${nameTag}}`),
-    hangingPara(`\t\t\t\t\t\tDesignation: {${designationTag}}`),
+    sspExecutionLabelParagraph("Name", nameTag),
+    sspExecutionLabelParagraph("Designation", designationTag),
+  ].join("");
+}
+
+function sspCompanyHangingPara(): string {
+  const rPr = bodyRpr();
+  const bold = bodyRpr({ bold: true });
+  const runs = [
+    textRun("SHORAKA SUYULA PLATFORM ", bold),
+    `<w:r>${bold}<w:tab/></w:r>`,
+    textRun(")", bold),
+    `<w:r>${rPr}<w:tab/></w:r>`,
+    textRun(SSP_SIGNATURE_STROKE, rPr),
+  ];
+  return `<w:p><w:pPr><w:spacing w:after="0"/><w:jc w:val="both"/>${rPr}</w:pPr>${runs.join("")}</w:p>`;
+}
+
+function sspCompanyStampTable(): string {
+  const cell = [makePara("[SSP]"), makePara("Company Stamp: §SSP_COMPANY_STAMP_IMAGE§")].join("");
+  return [
+    `<w:tbl>`,
+    `<w:tblPr><w:tblStyle w:val="TableGrid"/><w:tblW w:w="0" w:type="auto"/><w:tblInd w:w="${SSP_STAMP_TABLE_INDENT_TWIPS}" w:type="dxa"/><w:tblLook w:val="04A0" w:firstRow="1" w:lastRow="0" w:firstColumn="1" w:lastColumn="0" w:noHBand="0" w:noVBand="1"/></w:tblPr>`,
+    `<w:tblGrid><w:gridCol w:w="${SSP_STAMP_TABLE_WIDTH_TWIPS}"/></w:tblGrid>`,
+    `<w:tr><w:trPr><w:trHeight w:val="${SSP_STAMP_TABLE_HEIGHT_TWIPS}"/></w:trPr><w:tc><w:tcPr><w:tcW w:w="${SSP_STAMP_TABLE_WIDTH_TWIPS}" w:type="dxa"/></w:tcPr>${cell}</w:tc></w:tr>`,
+    `</w:tbl>`,
   ].join("");
 }
 
@@ -231,14 +300,13 @@ function sspExecutionXml(): string {
     hangingEmptyParas(1),
     hangingPara("Signed by\t\t\t\t)"),
     hangingPara("for and on behalf of \t\t\t)"),
-    hangingPara(`SHORAKA SUYULA PLATFORM \t)\t${SSP_SIGNATURE_STROKE}`),
+    sspCompanyHangingPara(),
     sspSignatoryLabels("ssp_1_name", "ssp_1_designation"),
     hangingEmptyParas(5),
     hangingPara(`\t\t\t\t\t\t${SSP_SIGNATURE_STROKE}`),
     sspSignatoryLabels("ssp_2_name", "ssp_2_designation"),
     hangingEmptyParas(1),
-    makePara("[SSP]"),
-    makePara("Company Stamp: §SSP_COMPANY_STAMP_IMAGE§"),
+    sspCompanyStampTable(),
   ].join("");
 }
 
@@ -266,15 +334,25 @@ function countSspSignatureStrokes(xml: string): number {
 
 function assignorSignatoryTable(): string {
   return twoColTable([
-    [makePara("Signed by )"), makePara("In the presence of:")],
-    [makePara("For and on behalf of )"), makePara("")],
-    [makePara("{assignor_company_name} )"), makePara("")],
+    [makePara("Signed by"), makePara("In the presence of:")],
+    [makePara("For and on behalf of"), makePara("")],
+    [makePara("{assignor_company_name}"), makePara("")],
     [emptyParas(2), emptyParas(2)],
     signatureStrokeRow(),
     [makePara(""), makePara("[Witness]")],
-    [makePara("Name: {name}"), makePara("Name: {witness_name}")],
-    [makePara("NRIC / Passport No: {identity_number}"), makePara("Designation: {witness_designation}")],
-    [makePara("Designation: {designation}"), makePara("")],
+    // One cell per column so NRIC does not insert a blank witness row, and a
+    // wrapping witness designation does not stretch a gap under assignor NRIC.
+    [
+      [
+        tableHangingLabelParagraph("Name", "name", DOA_ASSIGNOR_COLON_TWIPS),
+        tableHangingLabelParagraph("NRIC / Passport No", "identity_number", DOA_ASSIGNOR_COLON_TWIPS),
+        tableHangingLabelParagraph("Designation", "designation", DOA_ASSIGNOR_COLON_TWIPS),
+      ].join(""),
+      [
+        tableHangingLabelParagraph("Name", "witness_name", DOA_ASSIGNOR_WITNESS_COLON_TWIPS),
+        tableHangingLabelParagraph("Designation", "witness_designation", DOA_ASSIGNOR_WITNESS_COLON_TWIPS),
+      ].join(""),
+    ],
   ]);
 }
 
@@ -642,6 +720,21 @@ function main(): void {
   }
   if (countSspSignatureStrokes(documentXml) !== 2) {
     throw new Error("SSP execution must have two standalone signature lines");
+  }
+  for (const tag of ["{ssp_1_name}", "{ssp_1_designation}", "{ssp_2_name}", "{ssp_2_designation}"]) {
+    if (!paragraphPinsDoaSspValueWrap(paragraphContaining(documentXml, tag))) {
+      throw new Error(`SSP ${tag} must hang-wrap under the value column`);
+    }
+  }
+  const hangingCompany = paragraphContaining(documentXml, `${SSP_SIGNATURE_STROKE}`);
+  if (!hangingCompany.includes("<w:b/>") || !hangingCompany.includes("SHORAKA SUYULA PLATFORM")) {
+    throw new Error("SSP hanging company name must be bold");
+  }
+  if (
+    !documentXml.includes(`w:tblInd w:w="${SSP_STAMP_TABLE_INDENT_TWIPS}"`) ||
+    !documentXml.includes("[SSP]")
+  ) {
+    throw new Error("SSP company stamp must sit in the indented right-hand table");
   }
   const assignorSlice = documentXml.slice(
     paragraphStartContaining(documentXml, "MINIMUM OF TWO"),

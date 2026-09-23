@@ -670,23 +670,6 @@ export class SigningRepository {
     };
   }
 
-  async findActiveIssuerCompanySeal(organizationId: string) {
-    return prisma.issuerOrganizationCompanySeal.findFirst({
-      where: { issuer_organization_id: organizationId, superseded_at: null },
-    });
-  }
-
-  async findIssuerCompanySealById(id: string) {
-    return prisma.issuerOrganizationCompanySeal.findUnique({ where: { id } });
-  }
-
-  async setAssignmentFrozenCompanySeal(assignmentId: string, sealId: string): Promise<void> {
-    await prisma.signingAssignment.update({
-      where: { id: assignmentId },
-      data: { frozen_company_seal_id: sealId },
-    });
-  }
-
   async recordAutoSignAttempt(
     assignmentId: string,
     input: { error: string | null; increment: boolean }

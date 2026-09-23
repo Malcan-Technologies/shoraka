@@ -26,7 +26,7 @@ export function getInvoiceAttentionAction(row: IssuerDashboardInvoice): InvoiceA
           ? "Update requested changes"
           : "Review this offer",
       href: financingOfferHref(row.applicationId, row.id),
-      label: cta.buttonVariant === "makeAmendments" ? cta.label : "Review offer",
+      label: cta.label,
       hint: cta.hint ?? OFFER_REVIEW_ON_APPLICATION_HINT,
       buttonVariant: cta.buttonVariant === "makeAmendments" ? "outline" : "default",
     };

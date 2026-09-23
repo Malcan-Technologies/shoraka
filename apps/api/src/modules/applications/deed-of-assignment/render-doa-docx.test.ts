@@ -8,6 +8,13 @@ import {
   renderDeedOfAssignmentDocx,
   resolveDeedOfAssignmentTemplatePath,
 } from "./render-doa-docx";
+import {
+  DOA_ASSIGNOR_COLON_TWIPS,
+  DOA_ASSIGNOR_WITNESS_COLON_TWIPS,
+  paragraphContaining,
+  paragraphPinsDoaSspValueWrap,
+  paragraphPinsTableHangingLabelWrap,
+} from "../../generated-documents/hanging-execution-label";
 
 const SCHEDULE3_NIL_NOTE =
   "Nil as at the date of execution; to be supplemented from time to time in accordance with Clause 4.4.";
@@ -84,6 +91,8 @@ describe("renderDeedOfAssignmentDocx", () => {
     expect(plain).toContain("Designation: {witness_designation}");
     expect(plain).toContain("{ssp_1_name}");
     expect(plain).toContain("{ssp_2_designation}");
+    expect(paragraphPinsDoaSspValueWrap(paragraphContaining(xml, "{ssp_1_designation}"))).toBe(true);
+    expect(paragraphPinsDoaSspValueWrap(paragraphContaining(xml, "{ssp_2_name}"))).toBe(true);
     expect(xml).toContain("§SSP_COMPANY_STAMP_IMAGE§");
     expect(plain).toContain("In the presence of:");
     expect(plain).toContain("[Witness]");
@@ -103,14 +112,49 @@ describe("renderDeedOfAssignmentDocx", () => {
       plain.slice(0, plain.indexOf("[SSP]")).split("______________________________________").length - 1
     ).toBe(2);
     expect(plain).toMatch(/SHORAKA SUYULA PLATFORM\s*\)\s*_{10,}/);
+    const hangingCompanyPara = [...xml.matchAll(/<w:p\b[\s\S]*?<\/w:p>/g)]
+      .map((match) => match[0])
+      .find(
+        (pXml) =>
+          wordPlainText(pXml).includes("SHORAKA SUYULA PLATFORM") && /_{10,}/.test(wordPlainText(pXml))
+      );
+    expect(runContaining(hangingCompanyPara ?? "", "SHORAKA SUYULA PLATFORM")).toContain("<w:b/>");
     const sspEnd = xml.indexOf("MINIMUM OF TWO");
     expect(sspEnd).toBeGreaterThan(-1);
     expect(xml.slice(0, sspEnd)).toContain('<w:br w:type="page"/>');
+    expect(xml.slice(0, sspEnd)).toContain('w:tblInd w:w="4135"');
+    expect(xml.slice(0, sspEnd)).toMatch(
+      /<w:tbl\b[\s\S]*?\[SSP\][\s\S]*?Company Stamp:[\s\S]*?<\/w:tbl>/
+    );
     const assignorXml = xml.slice(xml.indexOf("{#assignor_signatories}"), xml.indexOf("{/assignor_signatories}"));
     expect(assignorXml).toContain("______________________________________");
     expect(assignorXml).toContain("_______________________________");
     expect(assignorXml).not.toContain("Date: ________________");
     expect(assignorXml).not.toContain("...........................................................................");
+    expect(assignorXml).toContain("Signed by");
+    expect(assignorXml).not.toContain("Signed by )");
+    expect(assignorXml).not.toContain("For and on behalf of )");
+    expect(assignorXml).not.toContain("{assignor_company_name} )");
+    const assignorRows = [...assignorXml.matchAll(/<w:tr\b[\s\S]*?<\/w:tr>/g)].map((match) => match[0]);
+    const identityRow = assignorRows.find((row) => row.includes("{identity_number}"));
+    expect(identityRow).toBeDefined();
+    const identityCells = [...(identityRow ?? "").matchAll(/<w:tc\b[\s\S]*?<\/w:tc>/g)].map((match) => match[0]);
+    expect(identityCells).toHaveLength(2);
+    const leftParas = [...identityCells[0]!.matchAll(/<w:p\b[\s\S]*?<\/w:p>/g)].map((match) => wordPlainText(match[0]));
+    const rightParas = [...identityCells[1]!.matchAll(/<w:p\b[\s\S]*?<\/w:p>/g)].map((match) => wordPlainText(match[0]));
+    expect(leftParas).toEqual(["Name: {name}", "NRIC / Passport No: {identity_number}", "Designation: {designation}"]);
+    expect(rightParas).toEqual(["Name: {witness_name}", "Designation: {witness_designation}"]);
+    const leftXmlParas = [...identityCells[0]!.matchAll(/<w:p\b[\s\S]*?<\/w:p>/g)].map((match) => match[0]);
+    const rightXmlParas = [...identityCells[1]!.matchAll(/<w:p\b[\s\S]*?<\/w:p>/g)].map((match) => match[0]);
+    expect(paragraphPinsTableHangingLabelWrap(leftXmlParas[0]!, "Name", DOA_ASSIGNOR_COLON_TWIPS)).toBe(true);
+    expect(
+      paragraphPinsTableHangingLabelWrap(leftXmlParas[1]!, "NRIC / Passport No", DOA_ASSIGNOR_COLON_TWIPS)
+    ).toBe(true);
+    expect(paragraphPinsTableHangingLabelWrap(leftXmlParas[2]!, "Designation", DOA_ASSIGNOR_COLON_TWIPS)).toBe(true);
+    expect(paragraphPinsTableHangingLabelWrap(rightXmlParas[0]!, "Name", DOA_ASSIGNOR_WITNESS_COLON_TWIPS)).toBe(true);
+    expect(
+      paragraphPinsTableHangingLabelWrap(rightXmlParas[1]!, "Designation", DOA_ASSIGNOR_WITNESS_COLON_TWIPS)
+    ).toBe(true);
 
     expect(runContaining(xml, "{assignment_date}")).toContain('w:val="yellow"');
     expect(runContaining(xml, "{assignor_company_name}")).toContain('w:val="yellow"');

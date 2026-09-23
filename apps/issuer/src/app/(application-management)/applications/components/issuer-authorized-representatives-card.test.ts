@@ -12,11 +12,8 @@ describe("IssuerAuthorizedRepresentativesCard", () => {
     expect(source).toContain("onSealApplierChange");
     expect(source).toContain("RadioGroup");
     expect(source).toContain("Applies company seal");
-    expect(source).toContain("PROFILE_COMPANY_SEAL_HREF");
     expect(source).toContain("PROFILE_PEOPLE_HREF");
     expect(source).toContain("ISSUER_DIRECTOR_PERSON_EMAIL_FIELD_HINT");
-    expect(source).toContain("ISSUER_COMPANY_SEAL_OWNER_ADMIN_REQUIRED_MESSAGE");
-    expect(source).toContain("sealStatus");
     expect(source).not.toContain("lucide-react");
   });
 });

@@ -103,9 +103,6 @@ export const UTILISATION_FULL_AUTHORISATION_INTRO =
 
 export const UTILISATION_FULL_AUTHORISATION_READ_LINK = "Read full authorisation";
 
-export const UTILISATION_FULL_AUTHORISATION_REQUIRED_HINT =
-  "Open this, then tap Confirm and continue. Accept stays locked until you do.";
-
 export const UTILISATION_FULL_AUTHORISATION_CONFIRMED_LABEL = "Full authorisation confirmed";
 
 export const UTILISATION_FULL_AUTHORISATION_READ_AGAIN = "Read again";

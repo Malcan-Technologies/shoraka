@@ -61,3 +61,16 @@ export const requestContractUploadUrlSchema = z.object({
   type: z.enum(["contract", "consent"]),
   existingS3Key: z.string().optional(),
 });
+
+export const facilityDocumentParamsSchema = z.object({
+  id: z.string().min(1),
+  documentId: z
+    .string()
+    .min(1)
+    .max(120)
+    .regex(/^[a-z0-9-]+$/, "Document id is invalid."),
+});
+
+export const facilityDocumentQuerySchema = z.object({
+  disposition: z.enum(["inline", "attachment"]).default("inline"),
+});

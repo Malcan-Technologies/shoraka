@@ -1,10 +1,10 @@
 # ARF Facility Agreement — data sources
 
-What [`buildFacilityAgreementMergeData`](../../apps/api/src/modules/applications/facility-agreement/build-fa-merge-data.ts) does for production generate (`arf_facility_agreement` **v8**).
+What [`buildFacilityAgreementMergeData`](../../apps/api/src/modules/applications/facility-agreement/build-fa-merge-data.ts) does for production generate (`arf_facility_agreement` **v2**).
 
 Requires `offer_sent` (contract facility offer **or** standalone invoice offer). Generated when admin previews or sends the signing package if the frozen product includes **Facility Agreement**. Replaces the e-sign Offer Letter; the Step 1 `arf_contract_facility_lo` download/upload is unchanged.
 
-SigningCloud **issuer** recipients are the configured authorised signatories only. CashSouk **Investor** and **Agent** keep the clean-copy hanging execution layout (SIGNED BY, company lines, tabbed signature strokes). Each has two authorised representatives assigned independently on Shoraka Profile (the same pair may be reused); name and designation merge after the existing colons. One CashSouk **issuer witness** is repeated across every ISSUER signatory row. Date lines use SigningCloud `signdate` so they show the actual automatic-sign date, not generate time. Each ISSUER signatory is paired with the CashSouk witness in a two-column table (signatory left, witness right). CA boxes sit on the left-column underscores; a `signdate` box sits on that signatory’s blank `Date :` line and on each witness date line. ISSUER execution starts on its own page, before Schedule 1.
+SigningCloud **issuer** recipients are the configured authorised signatories only. CashSouk **Investor** and **Agent** keep the clean-copy hanging execution layout (SIGNED BY, company lines, tabbed signature strokes). Each has two authorised representatives assigned independently on Shoraka Profile (the same pair may be reused); name and designation merge after the existing colons. One CashSouk **issuer witness** is repeated across every ISSUER signatory row. Date lines use SigningCloud `signdate` so they show the actual automatic-sign date, not generate time. Each ISSUER signatory is paired with the CashSouk witness in a two-column table (signatory left, witness right). At most **two** signatory/witness pairs share a page; extra vertical space above the stroke leaves room to sign. One “Issuer's company stamp:” line sits after the last ISSUER signatory (not on each pair). CA boxes sit on the left-column underscores; a `signdate` box sits on that signatory’s blank `Date :` line and on each witness date line. ISSUER execution starts on its own page, before Schedule 1.
 
 SigningCloud must enable `signdate` and `seal` on the CashSouk tenant before production send. Same SigningCloud email on one document consolidates to one participant.
 
@@ -21,7 +21,6 @@ SigningCloud must enable `signdate` and `seal` on the CashSouk tenant before pro
 | `issuer_email` | `application.company_details.contact_person.email` |
 | `financing_limit_rm` | Contract: `offer_details.offered_facility` / `contract_details.approved_facility`. Invoice: `invoice.offer_details.offered_amount` |
 | `facility_description` | Derived from financing limit + letter date (generate-ready check; not printed in Word after v2) |
-| `sub_limit_per_invoice_rm` | Product workflow invoice-details sub-limit; invoice offers fall back to offered amount |
 | `facility_fee_rate_percent` | Contract offer / contract details only |
 | `drawdown_fee` | Always `As prescribed in the Letter of Offer`. The rate stays on the LO / utilisation offer, not the FA. |
 | `trustee_disclosure_email` | `PlatformFinanceSetting.trustee_letter_config.trusteeEmail` |
@@ -66,7 +65,7 @@ Product workflow: Financing type → Signing package → add **Facility Agreemen
 
 Admin note detail **Documents** compiles a derivative PDF on each view/download. The signed `SigningDocument` (`signed_s3_key`, hash, completed envelope) is never overwritten.
 
-`GET /v1/admin/notes/:id/documents` lists the package; `GET /v1/admin/notes/:id/documents/facility-agreement-package` returns `Facility-Agreement-Package-<note-reference>.pdf`. Treat it as a compiled copy, not the digitally signed original.
+`GET /v1/admin/notes/:id/documents` lists the package; `GET /v1/admin/notes/:id/documents/facility-agreement-package` returns `Facility-Agreement-Package-<note-reference>.pdf`. Treat it as a compiled copy, not the digitally signed original. The signed Facility Agreement original is listed on Admin facility detail Documents (`GET /v1/admin/contracts/:id/documents/facility-agreement`).
 
 Assembler v1 page order:
 

@@ -90,7 +90,7 @@ export default function ExternalSigningPage() {
   const [ekycCaptureUrl, setEkycCaptureUrl] = React.useState<string | null>(null);
   const [ekycStatus, setEkycStatus] = React.useState<string>("pending");
   const [selectedDocumentId, setSelectedDocumentId] = React.useState<string | null>(null);
-  const [warningChecked, setWarningChecked] = React.useState(false);
+  const [warningChecks, setWarningChecks] = React.useState<boolean[]>([]);
   const [warningOpening, setWarningOpening] = React.useState(false);
   const returnHandledRef = React.useRef(false);
   const ekycStartAttemptedRef = React.useRef(false);
@@ -121,7 +121,9 @@ export default function ExternalSigningPage() {
       }
 
       if (data.warning?.required && data.warning.status !== "accepted") {
-        if (data.warning.status === "not_opened") setWarningChecked(false);
+        if (data.warning.status === "not_opened") {
+          setWarningChecks(data.warning.checkbox_wordings.map(() => false));
+        }
         setSelectedDocumentId(null);
         setStep("warning");
         return;
@@ -363,8 +365,13 @@ export default function ExternalSigningPage() {
     }
   };
 
+  const warningAllChecked =
+    warning != null &&
+    warning.checkbox_wordings.length > 0 &&
+    warning.checkbox_wordings.every((_, index) => warningChecks[index] === true);
+
   const acceptWarning = async () => {
-    if (!warningChecked) return;
+    if (!warningAllChecked) return;
     setIsSubmitting(true);
     setError(null);
     try {
@@ -482,7 +489,13 @@ export default function ExternalSigningPage() {
 
   return (
     <main className="flex min-h-screen items-start justify-center bg-background px-4 py-10 sm:items-center">
-      <Card className="mx-auto w-full max-w-md rounded-2xl shadow-sm">
+      <Card
+        className={
+          step === "warning"
+            ? "mx-auto w-full max-w-lg rounded-2xl shadow-sm"
+            : "mx-auto w-full max-w-md rounded-2xl shadow-sm"
+        }
+      >
         <CardHeader>
           <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
             CashSouk signing
@@ -641,14 +654,19 @@ export default function ExternalSigningPage() {
                         {
                           id: warning.legal_document_version_id ?? "warning",
                           title: warning.title,
-                          checkboxWording: warning.checkbox_wording,
+                          checkboxWording: warning.checkbox_wordings,
                           status:
                             warning.status === "accepted"
                               ? "accepted"
                               : warningOpened
                                 ? "opened"
                                 : "not_opened",
-                          checked: warningChecked || warning.status === "accepted",
+                          checked:
+                            warning.status === "accepted"
+                              ? warning.checkbox_wordings.map(() => true)
+                              : warning.checkbox_wordings.map(
+                                  (_, index) => warningChecks[index] === true
+                                ),
                           opening: warningOpening,
                           canCheck: warningOpened,
                           showCheckbox: true,
@@ -658,12 +676,18 @@ export default function ExternalSigningPage() {
                       onOpen={() => {
                         openWarning().catch(() => undefined);
                       }}
-                      onCheckedChange={(_id, checked) => setWarningChecked(checked)}
+                      onCheckedChange={(_id, checked, index = 0) => {
+                        setWarningChecks((prev) =>
+                          warning.checkbox_wordings.map((_, i) =>
+                            i === index ? checked : prev[i] === true
+                          )
+                        );
+                      }}
                     />
                     <Button
                       type="button"
                       className="h-11 w-full rounded-xl"
-                      disabled={isSubmitting || !warningChecked || !warningOpened}
+                      disabled={isSubmitting || !warningAllChecked || !warningOpened}
                       onClick={() => {
                         acceptWarning().catch(() => undefined);
                       }}

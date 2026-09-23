@@ -1,10 +1,15 @@
 import {
+  ADMIN_DOCUMENT_DESCRIPTIONS,
+  ADMIN_DOCUMENT_UNAVAILABLE_HINTS,
+} from "@cashsouk/types";
+import {
   facilityAgreementPackageAvailability,
   investmentNoteCertificateAvailability,
   letterOfOfferAvailability,
   prospectusAvailability,
   shorakaGroupAvailability,
   signingDocumentAvailability,
+  underlyingContractAvailability,
 } from "./availability";
 
 describe("note document availability", () => {
@@ -13,10 +18,15 @@ describe("note document availability", () => {
       signingDocumentAvailability({
         envelope: null,
         document: null,
+        description: ADMIN_DOCUMENT_DESCRIPTIONS.jsg,
         includedLabel: "Joint and Several Guarantee",
         missingFromPackageMessage: "missing jsg",
-      }).availabilityReason
-    ).toMatch(/signing package/i);
+      })
+    ).toEqual({
+      available: false,
+      description: ADMIN_DOCUMENT_DESCRIPTIONS.jsg,
+      unavailableHint: ADMIN_DOCUMENT_UNAVAILABLE_HINTS.waitingSigningPackage,
+    });
     expect(
       signingDocumentAvailability({
         envelope: {
@@ -29,9 +39,10 @@ describe("note document availability", () => {
           documents: [],
         },
         document: null,
+        description: ADMIN_DOCUMENT_DESCRIPTIONS.jsg,
         includedLabel: "Joint and Several Guarantee",
         missingFromPackageMessage: "missing jsg",
-      }).availabilityReason
+      }).unavailableHint
     ).toBe("missing jsg");
   });
 
@@ -42,42 +53,45 @@ describe("note document availability", () => {
     ).toBe(false);
     expect(
       letterOfOfferAvailability({ hasContract: true, offerSent: true, declaredOnProduct: false })
-        .availabilityReason
-    ).toMatch(/does not include a Letter of Offer/);
+        .unavailableHint
+    ).toBe(ADMIN_DOCUMENT_UNAVAILABLE_HINTS.letterOfOfferNotOnProduct);
     expect(
       letterOfOfferAvailability({ hasContract: true, offerSent: true, declaredOnProduct: true })
-        .originLabel
-    ).toBe("Generated now");
+    ).toEqual({
+      available: true,
+      description: ADMIN_DOCUMENT_DESCRIPTIONS.letterOfOffer,
+      unavailableHint: null,
+    });
   });
 
   it("allows a compiled FA package with zero certificates when FA and LO are ready", () => {
     const ready = facilityAgreementPackageAvailability({
       signedFaAvailable: true,
       letterOfOfferAvailable: true,
-      certificateCount: 0,
     });
     expect(ready.available).toBe(true);
-    expect(ready.origin).toBe("compiled");
-    expect(ready.availabilityReason).toMatch(/No Shoraka certificates/);
+    expect(ready.description).toBe(ADMIN_DOCUMENT_DESCRIPTIONS.facilityAgreementPackage);
+    expect(ready.unavailableHint).toBeNull();
     expect(
       facilityAgreementPackageAvailability({
         signedFaAvailable: true,
         letterOfOfferAvailable: false,
-        certificateCount: 1,
-      }).available
-    ).toBe(false);
+      }).unavailableHint
+    ).toBe(ADMIN_DOCUMENT_UNAVAILABLE_HINTS.compiledPackageNeedsLetterOfOffer);
   });
 
   it("exposes only approved frozen prospectus and issued certificates", () => {
-    expect(prospectusAvailability({ approved: false, pdfReady: false }).available).toBe(false);
+    expect(prospectusAvailability({ approved: false, pdfReady: false }).unavailableHint).toBe(
+      ADMIN_DOCUMENT_UNAVAILABLE_HINTS.waitingProspectusApproval
+    );
     expect(prospectusAvailability({ approved: true, pdfReady: true }).available).toBe(true);
     expect(
       investmentNoteCertificateAvailability({
         issuedReady: false,
         pending: false,
         failed: false,
-      }).availabilityReason
-    ).toMatch(/issued/);
+      }).unavailableHint
+    ).toBe(ADMIN_DOCUMENT_UNAVAILABLE_HINTS.waitingCertificateIssued);
     expect(
       investmentNoteCertificateAvailability({
         issuedReady: true,
@@ -87,7 +101,16 @@ describe("note document availability", () => {
     ).toBe(true);
   });
 
-  it("explains that only issuer-disbursement Shoraka certificates exist today", () => {
-    expect(shorakaGroupAvailability([]).availabilityReason).toMatch(/issuer-disbursement/i);
+  it("waits for Tawarruq execution when no trade orders exist", () => {
+    expect(shorakaGroupAvailability([]).unavailableHint).toBe(
+      ADMIN_DOCUMENT_UNAVAILABLE_HINTS.waitingTawarruqExecution
+    );
+  });
+
+  it("gates the underlying contract on an uploaded file", () => {
+    expect(underlyingContractAvailability(false).unavailableHint).toBe(
+      ADMIN_DOCUMENT_UNAVAILABLE_HINTS.waitingUnderlyingContract
+    );
+    expect(underlyingContractAvailability(true).available).toBe(true);
   });
 });

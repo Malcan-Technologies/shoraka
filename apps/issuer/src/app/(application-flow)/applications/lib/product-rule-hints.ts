@@ -16,16 +16,12 @@ export function buildInvoiceValueHint(rules: InvoiceProductRules | null): string
 }
 
 export function buildFinancingAmountHint(
-  rules: InvoiceProductRules | null,
-  hasFacility: boolean
+  rules: InvoiceProductRules | null
 ): string | undefined {
   if (!rules) return undefined;
   const parts: string[] = [];
   if (rules.minFinancingAmount != null) parts.push(`Min ${formatRm(rules.minFinancingAmount)}`);
   if (rules.maxFinancingAmount != null) parts.push(`Max ${formatRm(rules.maxFinancingAmount)}`);
-  if (hasFacility && rules.subLimitPerInvoiceRm != null) {
-    parts.push(`Facility sub-limit ${formatRm(rules.subLimitPerInvoiceRm)}`);
-  }
   return parts.length > 0 ? parts.join(" · ") : undefined;
 }
 

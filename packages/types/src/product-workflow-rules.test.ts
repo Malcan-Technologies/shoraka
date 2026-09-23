@@ -26,7 +26,6 @@ function defaultRules(overrides: Partial<InvoiceProductRules> = {}): InvoiceProd
     maxInvoiceFaceValue: null,
     minFinancingAmount: null,
     maxFinancingAmount: null,
-    subLimitPerInvoiceRm: null,
     ratio: {
       min: DEFAULT_MIN_INVOICE_FINANCING_RATIO_PERCENT,
       max: DEFAULT_MAX_INVOICE_FINANCING_RATIO_PERCENT,
@@ -45,7 +44,6 @@ describe("readInvoiceProductRules", () => {
         max_invoice_face_value: 200000,
         min_invoice_value: 3000,
         max_invoice_value: 160000,
-        sub_limit_per_invoice_rm: 75000,
         min_financing_ratio_percent: 50,
         max_financing_ratio_percent: 70,
         min_months_application_to_maturity: 2,
@@ -57,7 +55,6 @@ describe("readInvoiceProductRules", () => {
       maxInvoiceFaceValue: 200000,
       minFinancingAmount: 3000,
       maxFinancingAmount: 160000,
-      subLimitPerInvoiceRm: 75000,
       ratio: { min: 50, max: 70 },
       minMonthsApplicationToMaturity: 2,
       minMonthsReviewToMaturity: 3,
@@ -71,7 +68,6 @@ describe("readInvoiceProductRules", () => {
         max_invoice_face_value: "250,000.00",
         min_invoice_value: "800",
         max_invoice_value: "200,000",
-        sub_limit_per_invoice_rm: "100,000",
         min_months_application_to_maturity: "4",
         min_months_review_to_maturity: "6",
       })
@@ -80,7 +76,6 @@ describe("readInvoiceProductRules", () => {
     expect(rules.maxInvoiceFaceValue).toBe(250000);
     expect(rules.minFinancingAmount).toBe(800);
     expect(rules.maxFinancingAmount).toBe(200000);
-    expect(rules.subLimitPerInvoiceRm).toBe(100000);
     expect(rules.minMonthsApplicationToMaturity).toBe(4);
     expect(rules.minMonthsReviewToMaturity).toBe(6);
   });
@@ -142,7 +137,6 @@ describe("validateInvoiceAgainstProductRules", () => {
       maxInvoiceFaceValue: 20000,
       minFinancingAmount: 4000,
       maxFinancingAmount: 15000,
-      subLimitPerInvoiceRm: 8000,
       ratio: { min: 60, max: 80 },
     });
     const input = { invoiceFace: 1000, financingAmount: 20000, ratioPercent: 50 };
@@ -154,15 +148,11 @@ describe("validateInvoiceAgainstProductRules", () => {
     expect(issuer.map((v) => v.code)).toEqual([
       "INVOICE_FACE_BELOW_MIN",
       "FINANCING_ABOVE_MAX",
-      "FINANCING_ABOVE_SUB_LIMIT",
       "RATIO_BELOW_MIN",
     ]);
     expect(issuer[0].message).toBe("Invoice value must be at least RM 5,000.00.");
     expect(issuer[1].message).toBe("Financing amount cannot exceed RM 15,000.00.");
-    expect(issuer[2].message).toBe(
-      "Financing amount cannot exceed the facility sub-limit of RM 8,000.00 per invoice."
-    );
-    expect(issuer[3].message).toBe("Financing ratio must be at least 60%.");
+    expect(issuer[2].message).toBe("Financing ratio must be at least 60%.");
 
     const admin = validateInvoiceAgainstProductRules(rules, input, {
       mode: "admin_offer",
@@ -171,10 +161,7 @@ describe("validateInvoiceAgainstProductRules", () => {
     expect(admin.map((v) => v.code)).toEqual(issuer.map((v) => v.code));
     expect(admin[0].message).toBe("Invoice value must be at least RM 5,000.00.");
     expect(admin[1].message).toBe("Offered financing cannot exceed RM 15,000.00.");
-    expect(admin[2].message).toBe(
-      "Offered financing cannot exceed the facility sub-limit of RM 8,000.00 per invoice."
-    );
-    expect(admin[3].message).toBe("Offered financing ratio must be at least 60%.");
+    expect(admin[2].message).toBe("Offered financing ratio must be at least 60%.");
   });
 
   it("emits face-above-max, financing-below-min, and ratio-above-max in both modes", () => {
@@ -207,14 +194,18 @@ describe("validateInvoiceAgainstProductRules", () => {
     expect(admin[2].message).toBe("Offered financing ratio cannot exceed 70%.");
   });
 
-  it("skips the sub-limit when hasFacility is false", () => {
-    const rules = defaultRules({ subLimitPerInvoiceRm: 1000 });
-    const violations = validateInvoiceAgainstProductRules(
-      rules,
-      { invoiceFace: 10000, financingAmount: 5000, ratioPercent: 70 },
-      { mode: "issuer_request", hasFacility: false }
+  it("ignores leftover invoice_details.sub_limit_per_invoice_rm", () => {
+    const rules = readInvoiceProductRules(
+      invoiceWorkflow({ sub_limit_per_invoice_rm: 1000, max_invoice_value: 8000 })
     );
-    expect(violations).toEqual([]);
+    expect(rules.maxFinancingAmount).toBe(8000);
+    expect(
+      validateInvoiceAgainstProductRules(
+        rules,
+        { invoiceFace: 10000, financingAmount: 5000, ratioPercent: 70 },
+        { mode: "issuer_request", hasFacility: true }
+      )
+    ).toEqual([]);
   });
 
   it("does not trip sen rounding on financing vs max", () => {

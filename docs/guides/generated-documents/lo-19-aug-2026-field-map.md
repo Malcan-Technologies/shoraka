@@ -5,7 +5,7 @@ Verification map for the tagged production template:
 - Untagged source: `apps/api/src/modules/applications/templates/01 LO (Clean Copy) 19 August 2026.docx`
 - Tagged merge file: `apps/api/src/modules/applications/templates/arf-contract-facility-lo.docx`
 - Rebuild script: `apps/api/scripts/retag-lo-template.ts` (`pnpm --filter @cashsouk/api retag-lo-template`)
-- Catalog: `arf_contract_facility_lo` **version 14**
+- Catalog: `arf_contract_facility_lo` **version 2**
 - Builder: `buildFacilityLoMergeData`
 - Demo + production both call `renderFacilityLoDocx` on that same tagged file
 - Required commercial / party data fails generation (`GENERATED_DOCUMENT_DATA_INCOMPLETE`) instead of issuing a letter with blank slots
@@ -52,8 +52,7 @@ Already shared (no separate “demo template”):
 | `financing_limit_rm` | Main FINANCING LIMIT; Schedule A Part A; MoA | `EXISTS` | Facility: `offered_facility` else `approved_facility`. Invoice: `offered_amount` | `formatRmAmount` already prefixes `RM` |
 | `tenure_days` | Main TENURE “Up to N days” | `LEGAL_DEFAULT` | `FINANCING_TENURE_MAX_DAYS` (180) | |
 | `max_invoice_tenure_days` | Schedule A Part A + Part B “up to N” | `LEGAL_DEFAULT` | same 180 | |
-| `sub_limit_per_invoice_rm` | Schedule A Part A Sub-Limit per Invoice | `EXISTS` | Frozen product `invoice_details.sub_limit_per_invoice_rm` | Required when the product declares this LO. Legacy versions must be backfilled. |
-| `part_b_financing_amount_rm` | Schedule A Part B Financing Amount | `EXISTS` | Facility: same as sub-limit. Invoice: `offered_amount` | Part B is ticked for `invoice_only` |
+| `part_b_financing_amount_rm` | Schedule A Part B Financing Amount | `EXISTS` | Facility: same as `financing_limit_rm`. Invoice: `offered_amount` | Part B is ticked for `invoice_only` |
 | `part_a_checkbox` / `part_b_checkbox` | Schedule A Facility Type | `DERIVE` | `readFinancingStructureType` | `new_contract` → Part A `☒`; `invoice_only` / `existing_contract` → Part B `☒` |
 | `finance_documents_guarantors[]` | Finance Documents list | `EXISTS` | Ordered `application_guarantors` | Individual `{line}`; corporate company/registration `{line}` plus nested `{rep_line}` (name + NRIC). Entities `i. ii. iii.`; reps under a company `a. b. c.`. Empty list → `[INSERT NAME] (NRIC No. [INSERT])` |
 | `guarantors_individual[]` | One acknowledgement page each | `EXISTS` | Live individual rows | `{@page_break}` after every page except the last (and after the last when a corporate block follows) |
@@ -112,7 +111,7 @@ Already shared (no separate “demo template”):
 | Corporate-only, 2 signatories | 1 corporate page, 2 boxes, signature line above names, SSM under “For and on behalf of” |
 | Corporate-only, 5 signatories (odd) | 2 pages; heading only on first; last row has empty right cell (no leftover tags) |
 | Mixed individuals + corporate | Individual pages, then corporate pages, then Annexure break |
-| Missing `sent_at`, registration, draft, or sub-limit | HTTP 400 `GENERATED_DOCUMENT_DATA_INCOMPLETE` — required fields do not download as blanks |
+| Missing `sent_at`, registration, or draft | HTTP 400 `GENERATED_DOCUMENT_DATA_INCOMPLETE` — required fields do not download as blanks |
 
 1. `docker compose -f docker-compose.gotenberg.yml up -d` and set `GOTENBERG_URL` if testing PDF.
 2. Save authorised representatives (Continue) so the **selected** offer stores `authorized_parties_draft` (facility or invoice).

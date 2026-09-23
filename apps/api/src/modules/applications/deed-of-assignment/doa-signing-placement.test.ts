@@ -20,6 +20,10 @@ import {
   DocxToPdfError,
   resolveGotenbergUrl,
 } from "../letter-of-offer/convert-docx-to-pdf";
+import {
+  LONG_PERSON_NAME,
+  withLongDeedOfAssignmentStrings,
+} from "../../generated-documents/long-merge-strings";
 
 function item(
   pageindex: number,
@@ -42,12 +46,12 @@ function item(
 
 function assignorExecutionItems(signerCount: 1 | 2): JsgPdfTextItem[] {
   const items: JsgPdfTextItem[] = [
-    item(6, 80, 72, "Signed by )"),
+    item(6, 80, 72, "Signed by"),
     item(6, 96, 72, "SHORAKA SUYULA PLATFORM SDN. BHD."),
     item(7, 80, 72, "ASSIGNOR – [MINIMUM OF TWO (2) AUTHORISED SIGNATORIES’ SIGNATURES]"),
-    item(7, 120, 72, "Signed by )"),
-    item(7, 136, 72, "For and on behalf of )"),
-    item(7, 152, 72, "DEMO ISSUER SDN. BHD. )"),
+    item(7, 120, 72, "Signed by"),
+    item(7, 136, 72, "For and on behalf of"),
+    item(7, 152, 72, "DEMO ISSUER SDN. BHD."),
     item(7, 200, 72, "______________________________________", 140),
     item(7, 216, 72, "Name: Ali Bin Abu"),
     item(7, 200, 360, "_______________________________", 140),
@@ -93,6 +97,77 @@ describe("collectDoaAssignorSignatureSlots", () => {
     );
     const slots = collectDoaAssignorSignatureSlots(items);
     expect(slots.map((slot) => slot.name)).toEqual(["Ali Bin Abu", "Siti Binti Ahmad"]);
+  });
+
+  it("joins a wrapped assignor Name that pdfjs glued to the witness Name column", () => {
+    const items: JsgPdfTextItem[] = [
+      item(10, 80, 72, "ASSIGNOR – [MINIMUM OF TWO (2) AUTHORISED SIGNATORIES’ SIGNATURES]"),
+      item(10, 248, 77.5, "______________________________________", 150),
+      item(10, 248, 303.2, "_______________________________", 123),
+      item(10, 266, 303.2, "[Witness]"),
+      item(10, 284.8, 77.5, "Name : Tunku Puan Sri Datin Seri Wan Name : Tunku Puan Sri Datin Seri Wan", 423),
+      item(10, 302, 137, "Nur Aisyah binti Tengku Abdul", 132),
+      item(10, 302, 362.7, "Nur Aisyah binti Tengku Abdul", 132),
+      item(10, 319.3, 137, "Rahman", 38),
+      item(10, 319.3, 362.7, "Rahman", 38),
+      item(10, 336.5, 77.5, "NRIC / Passport No : 900101-14-5678 /", 174),
+      item(10, 336.5, 303.2, "Designation: Deputy Chairman – Non-", 170),
+      item(11, 80, 72, "SCHEDULE 1"),
+    ];
+    const slots = collectDoaAssignorSignatureSlots(items);
+    expect(slots.map((slot) => slot.name)).toEqual([LONG_PERSON_NAME]);
+  });
+
+  it("joins a hanging Name split from its colon after the shared assignor tab", () => {
+    const items: JsgPdfTextItem[] = [
+      item(10, 81.4, 72.1, "ASSIGNOR –", 62.4),
+      item(10, 81.4, 138.2, "[MINIMUM OF TWO (2) AUTHORISED SIGNATORIES’ SIGNATURES ARE REQUIRED", 400.4),
+      item(10, 248, 77.5, "______________________________________", 150.3),
+      item(10, 248, 303.1, "_______________________________", 122.9),
+      item(10, 266.4, 303.1, "[Witness]", 41.1),
+      item(10, 284.8, 77.5, "Name", 26.7),
+      item(10, 284.8, 167.5, ":", 2.8),
+      item(10, 284.8, 172.8, "Tunku Puan Sri Datin Seri", 115.1),
+      item(10, 302, 173, "Wan Nur Aisyah binti", 92.4),
+      item(10, 319.3, 173, "Tengku Abdul Rahman", 100.6),
+      item(10, 284.8, 303.1, "Name", 26.7),
+      item(10, 284.8, 357.1, ":", 2.8),
+      item(10, 284.8, 362.5, "Tunku Puan Sri Datin Seri Wan", 138.1),
+      item(10, 336.5, 77.5, "NRIC / Passport No", 87.7),
+      item(10, 336.5, 167.5, ":", 2.8),
+      item(10, 336.5, 173.1, "900101-14-5678 /", 78.9),
+      item(10, 590.4, 77.5, "______________________________________", 150.3),
+      item(10, 590.4, 303.1, "_______________________________", 122.9),
+      item(10, 608.8, 303.1, "[Witness]", 41.1),
+      item(11, 81.4, 77.5, "Name", 26.7),
+      item(11, 81.4, 167.5, ":", 2.8),
+      item(11, 81.4, 172.8, "Tunku Puan Sri Datin Seri", 115.1),
+      item(11, 98.6, 173, "Wan Nur Aisyah binti", 92.4),
+      item(11, 115.9, 173, "Tengku Abdul Rahman", 100.6),
+      item(12, 81.4, 274.4, "SCHEDULE 1", 63.3),
+    ];
+    const slots = collectDoaAssignorSignatureSlots(items);
+    expect(slots.map((slot) => slot.name)).toEqual([LONG_PERSON_NAME, LONG_PERSON_NAME]);
+    expect(slots[0]?.pageindex).toBe(10);
+    expect(slots[1]?.pageindex).toBe(10);
+  });
+
+  it("reads an assignor Name that wrapped onto the next page", () => {
+    const items: JsgPdfTextItem[] = [
+      item(10, 80, 72, "ASSIGNOR – [MINIMUM OF TWO (2) AUTHORISED SIGNATORIES’ SIGNATURES]"),
+      item(10, 248, 77.5, "______________________________________", 150),
+      item(10, 266, 77.5, "Name: Ali Bin Abu"),
+      item(10, 573, 77.5, "______________________________________", 150),
+      item(10, 573, 303.2, "_______________________________", 123),
+      item(10, 591, 303.2, "[Witness]"),
+      item(11, 81.4, 77.5, "Name : Tunku Puan Sri Datin Seri Wan Name : Tunku Puan Sri Datin Seri Wan", 423),
+      item(11, 98.6, 137, "Nur Aisyah binti Tengku Abdul", 132),
+      item(11, 115.9, 137, "Rahman", 38),
+      item(11, 133.1, 77.5, "NRIC / Passport No : 900101-14-5678 /", 174),
+      item(12, 80, 72, "SCHEDULE 1"),
+    ];
+    const slots = collectDoaAssignorSignatureSlots(items);
+    expect(slots.map((slot) => slot.name)).toEqual(["Ali Bin Abu", LONG_PERSON_NAME]);
   });
 
   it("still finds a single assignor line when a CashSouk keyword joined the signature stroke", () => {
@@ -252,5 +327,21 @@ describe("buildDoaSigningCloudSignsetsFromPdf", () => {
     expect((oneSignsets[0]?.[0]?.left ?? 0) + (oneSignsets[0]?.[0]?.width ?? 0)).toBeLessThanOrEqual(595);
     expect(twoSignsets[0]?.[0]?.left).toBe(twoSignsets[1]?.[0]?.left);
     expect(twoSignsets[0]?.[0]?.top).not.toBe(twoSignsets[1]?.[0]?.top);
+  }, 120_000);
+
+  it("places assignor CA fields when Gotenberg wraps a long assignor Name", async () => {
+    if (!resolveGotenbergUrl()) return;
+    const data = withLongDeedOfAssignmentStrings(createDeedOfAssignmentFixture());
+    let pdf: Buffer;
+    try {
+      pdf = await convertDocxToPdf(renderDeedOfAssignmentDocx(data));
+    } catch (err) {
+      if (err instanceof DocxToPdfError && err.code === "GOTENBERG_UNAVAILABLE") return;
+      throw err;
+    }
+    const names = data.assignor_signatories.map((row) => row.name);
+    const signsets = await buildDoaSigningCloudSignsetsFromPdf(pdf, names);
+    expect(signsets).toHaveLength(2);
+    expect(names.every((name) => name === LONG_PERSON_NAME)).toBe(true);
   }, 120_000);
 });

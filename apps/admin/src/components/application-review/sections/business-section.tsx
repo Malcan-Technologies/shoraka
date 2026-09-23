@@ -193,9 +193,6 @@ function ComparisonDeclarationCell({
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
-/** Em dash placeholder (matches financial CTOS tables). */
-const CTOS_HEADER_PLACEHOLDER = "\u2014";
-
 /** RegTank client portal origin (no trailing slash), e.g. https://your-company.regtank.com */
 const REGTANK_PORTAL_BASE_URL =
   typeof process !== "undefined" ? (process.env.NEXT_PUBLIC_REGTANK_PORTAL_BASE_URL ?? "").trim() : "";
@@ -414,16 +411,12 @@ function formatCtosFetchedAtShort(iso: string | null | undefined): string | null
   }
 }
 
-function guarantorCtosLastFetchLabel(g: GuarantorReviewRow, snap?: { fetched_at: string }): React.ReactNode {
-  const refKey = ctosSubjectReportLookupKeyFromGuarantor(g);
-  if (!refKey) {
-    return <span className="text-muted-foreground">{CTOS_HEADER_PLACEHOLDER}</span>;
-  }
-  const formatted = snap?.fetched_at ? formatCtosFetchedAtShort(snap.fetched_at) : null;
-  if (formatted) {
-    return <span className="tabular-nums text-muted-foreground text-xs">{formatted}</span>;
-  }
-  return <span className="text-muted-foreground">{CTOS_HEADER_PLACEHOLDER}</span>;
+function guarantorCtosLastFetchDisplay(
+  g: GuarantorReviewRow | undefined,
+  snap?: { fetched_at: string }
+): string | null {
+  if (!g || !ctosSubjectReportLookupKeyFromGuarantor(g) || !snap?.fetched_at) return null;
+  return formatCtosFetchedAtShort(snap.fetched_at) ?? snap.fetched_at;
 }
 
 type GuarantorAmlStatus = "Unresolved" | "Approved" | "Rejected" | "Pending";
@@ -1178,41 +1171,42 @@ function GuarantorCtosToolbar({
       ? CTOS_UI.fetchShort
       : getLabelBase;
 
-  const lastFetchForTitle = guarantor
-    ? snap?.fetched_at
-      ? `Last CTOS fetch: ${formatCtosFetchedAtShort(snap.fetched_at) ?? snap.fetched_at}`
-      : "Last CTOS fetch: none yet"
-    : (missingGuarantorReason ?? "No guarantor");
+  const lastFetchDisplay = guarantorCtosLastFetchDisplay(guarantor, snap);
+  const lastFetchForTitle = lastFetchDisplay
+    ? `Last CTOS fetch: ${lastFetchDisplay}`
+    : guarantor
+      ? "Last CTOS fetch: none yet"
+      : (missingGuarantorReason ?? "No guarantor");
 
   const viewButtonTitle = viewDisabled
     ? viewTitle
     : compactLabels
       ? `${viewLabelLong}. ${lastFetchForTitle}`
-      : viewTitle;
+      : lastFetchDisplay
+        ? lastFetchForTitle
+        : viewTitle;
   const getButtonTitle = getDisabled
     ? getTitle
     : compactLabels
       ? `${getLabelBase}. ${lastFetchForTitle}`
-      : getTitle;
+      : lastFetchDisplay
+        ? lastFetchForTitle
+        : getTitle;
 
   const justify = align === "start" ? "justify-start" : "justify-end";
   const textAlign = align === "start" ? "text-start" : "text-end";
 
   return (
-    <div className={cn("flex min-w-0 flex-nowrap items-center gap-x-2 gap-y-0", justify)}>
-      {showLastFetch ? (
+    <div className={cn("flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1", justify)}>
+      {showLastFetch && lastFetchDisplay ? (
         <span
           className={cn(
-            "max-w-[11rem] shrink truncate text-xs text-muted-foreground",
+            "max-w-[11rem] min-w-0 truncate text-xs tabular-nums text-muted-foreground",
             textAlign
           )}
-          title="Last CTOS fetch"
+          title={lastFetchForTitle}
         >
-          {guarantor ? (
-            guarantorCtosLastFetchLabel(guarantor, snap)
-          ) : (
-            <span>{CTOS_HEADER_PLACEHOLDER}</span>
-          )}
+          {lastFetchDisplay}
         </span>
       ) : null}
       <Button
@@ -1248,6 +1242,14 @@ function GuarantorCtosToolbar({
     </div>
   );
 }
+
+const guarantorCardClass = "group min-w-0 rounded-xl border border-border bg-background";
+const guarantorHeaderRowClass =
+  "flex w-full min-w-0 flex-wrap items-center gap-x-3 gap-y-2";
+const guarantorHeaderTitleClass =
+  "flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-left";
+const guarantorHeaderActionsClass =
+  "ml-auto flex min-w-0 max-w-full flex-wrap items-center justify-end gap-2";
 
 function AdminGuarantorSingleList({
   guarantors,
@@ -1296,7 +1298,7 @@ function AdminGuarantorSingleList({
   }, [count]);
 
   return (
-    <div className="flex flex-col gap-6 sm:gap-8 px-1 sm:px-2">
+    <div className="flex min-w-0 flex-col gap-6 px-1 sm:gap-8 sm:px-2">
       {guarantors.map((g, idx) => {
         const open = panelOpen[idx] !== undefined ? panelOpen[idx]! : true;
         const subtitle = guarantorReviewSubtitle(g);
@@ -1304,7 +1306,7 @@ function AdminGuarantorSingleList({
         return (
           <details
             key={idx}
-            className="group rounded-xl border border-border bg-background"
+            className={guarantorCardClass}
             open={open}
             onToggle={(e) => {
               const d = e.currentTarget;
@@ -1313,8 +1315,8 @@ function AdminGuarantorSingleList({
           >
             <summary className="list-none [&::-webkit-details-marker]:hidden cursor-pointer rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
               <div className="border-b border-border px-4 py-3">
-                <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-left">
+                <div className={guarantorHeaderRowClass}>
+                  <div className={guarantorHeaderTitleClass}>
                     <span className="shrink-0 text-sm font-semibold text-foreground leading-6">
                       Guarantor {idx + 1}
                     </span>
@@ -1329,7 +1331,7 @@ function AdminGuarantorSingleList({
                     ) : null}
                   </div>
                   <div
-                    className="flex min-w-0 shrink-0 items-center gap-3 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                    className={guarantorHeaderActionsClass}
                     onClick={(e) => e.stopPropagation()}
                     onPointerDown={(e) => e.stopPropagation()}
                   >
@@ -1339,7 +1341,7 @@ function AdminGuarantorSingleList({
                       amlByKey={amlByKey}
                       onTriggerGuarantorAml={onTriggerGuarantorAml}
                     />
-                    <span className="h-4 w-px shrink-0 bg-border" aria-hidden />
+                    <span className="hidden h-4 w-px shrink-0 bg-border sm:block" aria-hidden />
                     <GuarantorCtosToolbar
                       applicationId={applicationId}
                       guarantor={g}
@@ -1354,7 +1356,7 @@ function AdminGuarantorSingleList({
                 </div>
               </div>
             </summary>
-            <div className="px-4 pb-4 pt-3 space-y-4">
+            <div className="min-w-0 space-y-4 px-4 pb-4 pt-3">
               {aml?.amlScreening ? (
                 <GuarantorAmlScreeningCard screening={aml.amlScreening} />
               ) : null}
@@ -1393,14 +1395,17 @@ function AdminGuarantorSingleList({
                   </>
                 )}
                 <Label className={reviewLabelClass}>Guarantor agreement</Label>
-                <div className="min-h-0 flex flex-col gap-2 items-start justify-center">
+                <div className="flex min-h-0 min-w-0 w-full flex-col items-start justify-center gap-2">
                   {g.guarantorAgreements.length > 0 ? (
                     g.guarantorAgreements.map((file) => (
-                      <div key={file.s3Key} className="flex items-center gap-2 shrink-0">
+                      <div
+                        key={file.s3Key}
+                        className="flex min-w-0 w-full max-w-full flex-wrap items-center gap-2"
+                      >
                         <Button
                           variant="outline"
                           size="sm"
-                          className="rounded-lg h-9 gap-1"
+                          className="rounded-lg h-9 gap-1 shrink-0"
                           onClick={() => onViewDocument(file.s3Key)}
                           disabled={viewDocumentPending}
                         >
@@ -1410,14 +1415,17 @@ function AdminGuarantorSingleList({
                         <Button
                           variant="outline"
                           size="sm"
-                          className="rounded-lg h-9 gap-1"
+                          className="rounded-lg h-9 gap-1 shrink-0"
                           onClick={() => onDownloadDocument(file.s3Key, file.fileName)}
                           disabled={viewDocumentPending}
                         >
                           <ArrowDownTrayIcon className="h-4 w-4" />
                           Download
                         </Button>
-                        <span className="text-xs text-muted-foreground truncate max-w-[12rem]">
+                        <span
+                          className="min-w-0 flex-1 truncate text-xs text-muted-foreground"
+                          title={file.fileName}
+                        >
                           {file.fileName}
                         </span>
                       </div>
@@ -1484,7 +1492,7 @@ function AdminGuarantorComparisonList({
   }, [count]);
 
   return (
-    <div className="flex flex-col gap-6 sm:gap-8 px-1 sm:px-2">
+    <div className="flex min-w-0 flex-col gap-6 px-1 sm:gap-8 sm:px-2">
       {Array.from({ length: count }).map((_, idx) => {
         const gB = b.guarantors[idx];
         const gA = a.guarantors[idx];
@@ -1501,7 +1509,7 @@ function AdminGuarantorComparisonList({
         return (
           <details
             key={idx}
-            className="group rounded-xl border border-border bg-background"
+            className={guarantorCardClass}
             open={open}
             onToggle={(e) => {
               const d = e.currentTarget;
@@ -1510,8 +1518,8 @@ function AdminGuarantorComparisonList({
           >
             <summary className="list-none [&::-webkit-details-marker]:hidden cursor-pointer rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
               <div className="border-b border-border px-4 py-3">
-                <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-left">
+                <div className={guarantorHeaderRowClass}>
+                  <div className={guarantorHeaderTitleClass}>
                     <span className="shrink-0 text-sm font-semibold text-foreground leading-6">
                       Guarantor {idx + 1}
                     </span>
@@ -1526,7 +1534,7 @@ function AdminGuarantorComparisonList({
                     ) : null}
                   </div>
                   <div
-                    className="flex min-w-0 shrink-0 items-center gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-3"
+                    className={guarantorHeaderActionsClass}
                     onClick={(e) => e.stopPropagation()}
                     onPointerDown={(e) => e.stopPropagation()}
                   >
@@ -1555,7 +1563,7 @@ function AdminGuarantorComparisonList({
                       compactLabels
                       canManageGuarantorCtos={canManageGuarantorCtos}
                     />
-                    <span className="h-4 w-px shrink-0 bg-border" aria-hidden />
+                    <span className="hidden h-4 w-px shrink-0 bg-border sm:block" aria-hidden />
                     <span className="shrink-0 text-xs text-muted-foreground">After</span>
                     <GuarantorCtosToolbar
                       applicationId={applicationId}
@@ -1576,7 +1584,7 @@ function AdminGuarantorComparisonList({
                 </div>
               </div>
             </summary>
-            <div className="space-y-2 px-4 pb-4 pt-3">
+            <div className="min-w-0 space-y-2 px-4 pb-4 pt-3">
               <ComparisonFieldRow
                 label="Guarantor type"
                 before={sideGuarantorTypeLabel(gB)}

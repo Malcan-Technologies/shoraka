@@ -9,6 +9,7 @@ Add `{snake_case}` in the `.docx` under `apps/api/src/modules/applications/templ
 - Match existing naming in [`facility-lo-merge.types.ts`](../../apps/api/src/modules/applications/letter-of-offer/facility-lo-merge.types.ts).
 - **Repeating rows** (e.g. guarantors): use docxtemplater section loops — `{#guarantors_individual}{line}{/guarantors_individual}` — and bump catalog `version` when the Word structure changes.
 - Put each **value** tag in its own yellow-highlighted run. Empty values must render the tag or legal placeholder, not a blank.
+- Execution Name/Designation/NRIC lines (hanging-parenthesis columns **and** two-column execution tables) need hanging indent + a tab stop. Do not indent those values with tabs or `firstLine` only. Wrapped overflow starts at the first character of the value (after `: `), not at the colon. In a table column, every label shares one colon tab (the longest label in that column) so colons and wrapped values line up. Apply this in every catalog template that has those fields, not only Investor/Agent.
 - **SIGNEE** fields: do **not** add a merge tag; keep underscores in Word for wet ink.
 
 ## 2. TypeScript merge map

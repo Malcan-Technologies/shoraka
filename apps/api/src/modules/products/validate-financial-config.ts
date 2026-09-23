@@ -19,10 +19,8 @@ import {
   parsePositiveRmAmount,
   parseSigningPackagesConfig,
   readInvoiceProductRules,
-  readInvoiceSubLimitPerInvoiceRmFromWorkflow,
   FACILITY_LOCKED_CATEGORIES_KEY,
   SUPPORTING_DOC_CATEGORY_SETTINGS_KEY,
-  workflowAcceptanceDocumentsIncludeGeneratedType,
   workflowUsesOfferAcceptanceFlow,
 } from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
@@ -172,7 +170,7 @@ export function validateWorkflowFinancialConfig(workflow: unknown[]): void {
     throw new AppError(400, "VALIDATION_ERROR", "Invalid financing ratio configuration");
   }
 
-  const { max: maxFinancing } = assertPositiveRmLimitPair(
+  assertPositiveRmLimitPair(
     config.min_invoice_value,
     config.max_invoice_value,
     "Financing amount limits must be positive RM amounts",
@@ -184,22 +182,6 @@ export function validateWorkflowFinancialConfig(workflow: unknown[]): void {
     "Invoice value limits must be positive RM amounts",
     "Minimum invoice value cannot exceed maximum invoice value"
   );
-
-  const subLimit = parsePositiveRmAmount(config.sub_limit_per_invoice_rm);
-  if (
-    config.sub_limit_per_invoice_rm != null &&
-    config.sub_limit_per_invoice_rm !== "" &&
-    subLimit == null
-  ) {
-    throw new AppError(400, "VALIDATION_ERROR", "Invoice sub-limit must be a positive RM amount");
-  }
-  if (maxFinancing != null && subLimit != null && maxFinancing > subLimit) {
-    throw new AppError(
-      400,
-      "VALIDATION_ERROR",
-      "Maximum financing amount cannot exceed the sub-limit per invoice"
-    );
-  }
 
   const parseMonth = (v: unknown): number | null => {
     if (v == null || v === "") return null;
@@ -400,24 +382,10 @@ export function validateFinancialConfig(params: {
   if (Array.isArray(params.workflow)) {
     validateMandatoryWorkflowStepSet(params.workflow);
     validateWorkflowFinancialConfig(params.workflow);
-    validateInvoiceSubLimitForGeneratedLo(params.workflow);
     validateSupportingDocumentsConfig(params.workflow);
     validateAcceptanceDocumentsConfig(params.workflow);
     validatePhaseDeadlineConfigs(params.workflow);
     validateBusinessDetailsGuarantorAgreement(params.workflow);
-  }
-}
-
-function validateInvoiceSubLimitForGeneratedLo(workflow: unknown[]): void {
-  if (!workflowAcceptanceDocumentsIncludeGeneratedType(workflow, "arf_contract_facility_lo")) {
-    return;
-  }
-  if (readInvoiceSubLimitPerInvoiceRmFromWorkflow(workflow) == null) {
-    throw new AppError(
-      400,
-      "VALIDATION_ERROR",
-      "Invoice sub-limit per invoice is required when this product generates a Letter of Offer."
-    );
   }
 }
 

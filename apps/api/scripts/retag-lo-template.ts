@@ -2,6 +2,7 @@
 /**
  * Rebuild `arf-contract-facility-lo.docx` from the 19 August 2026 clean copy:
  * rewrite placeholders to docxtemplater tags and graft branded headers/footers.
+ * Attention name uses hanging indent so a long contact name wraps under the value.
  *
  * Usage: pnpm --filter @cashsouk/api retag-lo-template
  */
@@ -9,6 +10,12 @@
 import fs from "fs";
 import path from "path";
 import PizZip from "pizzip";
+import {
+  LO_ATTENTION_POSITION_LEFT_TWIPS,
+  LO_ATTENTION_WRAP_LEFT_TWIPS,
+  paragraphContaining,
+  paragraphPinsHangingValueWrap,
+} from "../src/modules/generated-documents/hanging-execution-label";
 
 const TEMPLATES_DIR = path.resolve(__dirname, "../src/modules/applications/templates");
 const CLEAN_COPY = path.join(TEMPLATES_DIR, "01 LO (Clean Copy) 19 August 2026.docx");
@@ -266,12 +273,12 @@ function applyPlaceholderText(text: string): string {
     ],
     ["[insert – up to RM5,000,000]", "{financing_limit_rm}"],
     [
-      "Up to [insert – up to RM1,000,000] per invoice, and not exceeding",
-      "Up to {sub_limit_per_invoice_rm} per invoice, and not exceeding",
-    ],
-    [
       "Up to [insert – up to RM1,000,000] per invoice, being up to",
       "Up to {part_b_financing_amount_rm} per invoice, being up to",
+    ],
+    [
+      "subject to the approved Financing Limit and applicable Sub-Limit.",
+      "subject to the approved Financing Limit.",
     ],
     ["[insert – up to 180]", "{max_invoice_tenure_days}"],
     ["Up to [insert] days", "Up to {tenure_days} days"],
@@ -315,6 +322,17 @@ function applyPlaceholderText(text: string): string {
   return next;
 }
 
+function tableRowPlainText(rowXml: string): string {
+  return paragraphPlainText(`<w:p>${rowXml}</w:p>`);
+}
+
+/** Drop Schedule A Part A “Sub-Limit per Invoice” (idempotent if already gone). */
+function removeInvoiceSubLimitRow(xml: string): string {
+  return xml.replace(/<w:tr\b[\s\S]*?<\/w:tr>/g, (rowXml) =>
+    tableRowPlainText(rowXml).includes("Sub-Limit per Invoice") ? "" : rowXml
+  );
+}
+
 function flattenAndReplace(xml: string): string {
   return xml.replace(/<w:p\b[\s\S]*?<\/w:p>/g, (pXml) => {
     const text = paragraphPlainText(pXml);
@@ -323,6 +341,45 @@ function flattenAndReplace(xml: string): string {
     if (next === text) return pXml;
     return rewriteParagraphText(pXml, next);
   });
+}
+
+function pinAttentionWrap(xml: string): string {
+  return xml.replace(/<w:p\b[\s\S]*?<\/w:p>/g, (pXml) => {
+    const text = paragraphPlainText(pXml);
+    if (text.includes("{attention_name}")) {
+      return hangingAttentionNameParagraph(pXml);
+    }
+    if (text.includes("{attention_position}") && !text.includes("{attention_name}")) {
+      return indentAttentionPositionParagraph(pXml);
+    }
+    return pXml;
+  });
+}
+
+function hangingAttentionNameParagraph(pXml: string): string {
+  const open = pXml.match(/^<w:p\b[^>]*>/)?.[0] ?? "<w:p>";
+  const rPr = firstRunRpr(pXml);
+  const pPr = `<w:pPr><w:tabs><w:tab w:val="left" w:pos="${LO_ATTENTION_WRAP_LEFT_TWIPS}"/></w:tabs><w:ind w:left="${LO_ATTENTION_WRAP_LEFT_TWIPS}" w:hanging="${LO_ATTENTION_WRAP_LEFT_TWIPS}"/><w:jc w:val="left"/>${rPr}</w:pPr>`;
+  const runs = [
+    textRun("Attention :", rPr),
+    `<w:r>${rPr}<w:tab/></w:r>`,
+    textRun("{attention_name}", rprWithYellow(rPr)),
+  ];
+  return `${open}${pPr}${runs.join("")}</w:p>`;
+}
+
+function indentAttentionPositionParagraph(pXml: string): string {
+  const open = pXml.match(/^<w:p\b[^>]*>/)?.[0] ?? "<w:p>";
+  const existing = pXml.match(/<w:pPr\b[\s\S]*?<\/w:pPr>/)?.[0] ?? "<w:pPr></w:pPr>";
+  let pPr = existing
+    .replace(/<w:ind\b[^/]*\/>/g, "")
+    .replace(/<w:jc\b[^/]*\/>/g, "");
+  pPr = pPr.replace(
+    "<w:pPr>",
+    `<w:pPr><w:ind w:left="${LO_ATTENTION_POSITION_LEFT_TWIPS}"/><w:jc w:val="left"/>`
+  );
+  const rPr = firstRunRpr(pXml);
+  return `${open}${pPr}${runsFromTemplatedText("{attention_position}", rPr)}</w:p>`;
 }
 
 function paragraphStartContaining(xml: string, needle: string): number {
@@ -515,7 +572,6 @@ function requiredTagsPresent(xml: string): string[] {
     "{offer_validity_phrase}",
     "{part_a_checkbox}",
     "{part_b_checkbox}",
-    "{sub_limit_per_invoice_rm}",
     "{max_invoice_tenure_days}",
     "{part_b_financing_amount_rm}",
     "{assigned_contract_date}",
@@ -541,6 +597,47 @@ function requiredTagsPresent(xml: string): string[] {
   return required.filter((tag) => !xml.includes(tag));
 }
 
+function assertAttentionWrap(documentXml: string): void {
+  if (
+    !paragraphPinsHangingValueWrap(
+      paragraphContaining(documentXml, "{attention_name}"),
+      LO_ATTENTION_WRAP_LEFT_TWIPS,
+      LO_ATTENTION_WRAP_LEFT_TWIPS
+    )
+  ) {
+    throw new Error("Attention name must hang-wrap under the value column");
+  }
+  const attentionPosition = paragraphContaining(documentXml, "{attention_position}");
+  if (!attentionPosition.includes(`w:left="${LO_ATTENTION_POSITION_LEFT_TWIPS}"`)) {
+    throw new Error("Attention position must indent wrapped lines with the first line");
+  }
+  if (attentionPosition.includes("w:firstLine=")) {
+    throw new Error("Attention position must not use first-line indent");
+  }
+}
+
+function pinAttentionWrapOnTaggedFile(): void {
+  const zip = new PizZip(fs.readFileSync(TAGGED_CURRENT));
+  let documentXml = zip.file("word/document.xml")?.asText();
+  if (!documentXml) throw new Error("Tagged LO is missing word/document.xml");
+  documentXml = removeInvoiceSubLimitRow(documentXml);
+  documentXml = flattenAndReplace(documentXml);
+  documentXml = pinAttentionWrap(documentXml);
+  documentXml = ensureYellowOnValueTagRuns(documentXml);
+  assertAttentionWrap(documentXml);
+  if (
+    documentXml.includes("{sub_limit_per_invoice_rm}") ||
+    documentXml.includes("Sub-Limit per Invoice") ||
+    documentXml.includes("applicable Sub-Limit")
+  ) {
+    throw new Error("Invoice sub-limit row or merge tag is still in the Letter of Offer");
+  }
+  zip.file("word/document.xml", documentXml);
+  const bytes = zip.generate({ type: "nodebuffer", compression: "DEFLATE" }) as Buffer;
+  fs.writeFileSync(OUTPUT, bytes);
+  console.log(`Pinned attention wrap on ${OUTPUT} bytes=${bytes.length}`);
+}
+
 function main(): void {
   if (!fs.existsSync(CLEAN_COPY)) {
     throw new Error(`Clean copy not found: ${CLEAN_COPY}`);
@@ -549,8 +646,13 @@ function main(): void {
     throw new Error(`Current tagged file not found: ${TAGGED_CURRENT}`);
   }
 
-  const cleanZip = new PizZip(fs.readFileSync(CLEAN_COPY));
   const taggedZip = new PizZip(fs.readFileSync(TAGGED_CURRENT));
+  if (!taggedZip.file("word/header2.xml")) {
+    pinAttentionWrapOnTaggedFile();
+    return;
+  }
+
+  const cleanZip = new PizZip(fs.readFileSync(CLEAN_COPY));
 
   let documentXml = cleanZip.file("word/document.xml")?.asText();
   if (!documentXml) throw new Error("Clean copy is missing word/document.xml");
@@ -558,7 +660,9 @@ function main(): void {
   documentXml = stripYellowHighlights(documentXml);
   documentXml = tagCheckboxes(documentXml);
   documentXml = rebuildFinanceDocumentsList(documentXml);
+  documentXml = removeInvoiceSubLimitRow(documentXml);
   documentXml = flattenAndReplace(documentXml);
+  documentXml = pinAttentionWrap(documentXml);
   documentXml = rebuildAcknowledgements(documentXml);
   documentXml = ensureYellowOnValueTagRuns(documentXml);
   documentXml = graftSectPr(documentXml);
@@ -573,6 +677,13 @@ function main(): void {
   if (documentXml.includes("{moa_authorised_signatory_names}")) {
     throw new Error("MoA still contains a signatory merge tag");
   }
+  if (
+    documentXml.includes("{sub_limit_per_invoice_rm}") ||
+    documentXml.includes("Sub-Limit per Invoice") ||
+    documentXml.includes("applicable Sub-Limit")
+  ) {
+    throw new Error("Invoice sub-limit row or merge tag is still in the Letter of Offer");
+  }
   if (!documentXml.includes('w:val="yellow"')) {
     throw new Error("Tagged document has no yellow highlighting on merge tags");
   }
@@ -584,6 +695,7 @@ function main(): void {
   if (leftovers.length > 0) {
     throw new Error(`Leftover placeholders in document.xml: ${leftovers.join(", ")}`);
   }
+  assertAttentionWrap(documentXml);
 
   const rels = cleanZip.file("word/_rels/document.xml.rels")?.asText();
   if (!rels) throw new Error("Clean copy is missing word/_rels/document.xml.rels");

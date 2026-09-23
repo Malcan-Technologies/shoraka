@@ -265,8 +265,8 @@ Offer tab mounts only if `hasOffer` (review CTA, facility offer, invoice `OFFER_
 
 Typical: invoice on a facility whose contract envelope is already complete (`resolveReviewOfferModalMode`).
 
-- **Offer terms card** — `InvoiceOfferTerms`: number, value, due date, tenure from disbursement, profit rate, risk, financing margin, indicative profit/payable (tooltips), money table via `buildInvoiceOfferMoneyRows` (requested, approved, drawdown fee, facility fee if linked, extra fees, net disbursement), Accept by footer — Review terms.
-- **`UtilisationOfferTerms`** — Read terms dialog; if `canAccept`: two consents + full-authorisation dialog (Required/Confirmed); locked while OTP open — Confirm & accept.
+- **Offer terms card** — `InvoiceOfferTerms`: number, value, approved financing, due date, tenure from disbursement with “Invoice matures {date}”, profit rate, risk, financing margin, indicative profit/payable (tooltips), money table via `buildInvoiceOfferMoneyRows` (requested, approved, drawdown fee, facility fee if linked, extra fees, net disbursement), Accept by footer — Review terms.
+- **`UtilisationOfferTerms`** — heading Confirm and accept with no extra intro; Read terms dialog; if `canAccept`: two consents + full-authorisation dialog (Required/Confirmed); locked while OTP open — Confirm & accept.
 - **Blocked copy** — `modalMode.blockedMessage` or “Finish facility signing first…”; Accept disabled; toast “Cannot accept yet” — Confirm & accept.
 - **Download offer letter / Download application summary** — `ApplicationSummaryDownloadButton` → `getApplicationSummaryPdfBlob` — Review terms. Summary button is **only** on this direct-accept card, not the signing-flow sidebar.
 - **Reject Offer** — enters decline form — Confirm & accept.
@@ -286,7 +286,7 @@ Typical: invoice on a facility whose contract envelope is already complete (`res
 - **Issuer directors card** — select director (name/email/IC read-only from profile); Add director / Remove; empty “No directors…”; loading “Loading directors…”; highlighted + remark when flagged; read-only if package sent, not Step-1-editable, or changes requested and this list not flagged. Blank Person Email shows a field hint and **Open People & Access** (`/profile?tab=people`) — `saveContractAuthorizedPartiesDraft` / `saveInvoiceAuthorizedPartiesDraft` on Continue — Representatives.
 - **Corporate guarantors** — name, email, IC; Add/Remove representative — Representatives.
 - **Individual guarantors** — name, IC, email from application (display; no edit handler) — Representatives.
-- **Continue** — has post-docs and not people-only resubmit; clickable unless a draft save is in flight or company-seal status is still loading. `goToDocumentsStep` toasts the first blocker (no director selected, missing Person Email, missing IC, guarantors, seal applier, missing seal file / Owner-Admin). Missing Person Email / IC links to `/profile?tab=people`. Missing seal links to `/profile?focus=seal`. Disabled clicks are not used for those validations. — Documents.
+- **Continue** — has post-docs and not people-only resubmit; clickable unless a draft save is in flight. `goToDocumentsStep` toasts the first blocker (no director selected, missing Person Email, missing IC, guarantors, seal applier). Missing Person Email / IC links to `/profile?tab=people`. Disabled clicks are not used for those validations. — Documents.
 - **Submit for review** — no post-docs **or** people-only resubmit (flagged parties, zero flagged docs) — `submitContractOfferAcceptance` / `submitInvoiceOfferAcceptance`; same visible blockers as Continue. — CashSouk review.
 - **Incomplete helper** — destructive copy for the first blocker, including Person Email / IC with People & Access deep-link and seal-on-file / Owner-Admin with Organisation deep-link — Representatives.
 

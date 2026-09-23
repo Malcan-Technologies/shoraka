@@ -20,7 +20,9 @@ export function ReviewValue({ value, multiline, className }: ReviewValueProps) {
   const baseClass = multiline ? reviewValueClassTextArea : reviewValueClass;
   return (
     <div className={`${baseClass} ${className ?? ""}`}>
-      <span className={isEmpty ? "text-muted-foreground" : ""}>{value}</span>
+      <span className={`min-w-0 flex-1 break-words ${isEmpty ? "text-muted-foreground" : ""}`}>
+        {value}
+      </span>
     </div>
   );
 }

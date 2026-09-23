@@ -28,7 +28,7 @@ export function ReviewFieldBlock({
   titleEnd,
 }: ReviewFieldBlockProps) {
   return (
-    <section className="space-y-3">
+    <section className="min-w-0 space-y-3">
       <div>
         <div className="flex min-w-0 items-center gap-2">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">

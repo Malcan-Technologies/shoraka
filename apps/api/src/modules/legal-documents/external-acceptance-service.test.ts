@@ -190,7 +190,7 @@ describe("LegalExternalAcceptanceService", () => {
       expect.objectContaining({
         data: expect.objectContaining({
           status: "ACCEPTED",
-          acknowledgement_text: "I have read and understood this warning statement.",
+          acknowledgement_text: expect.stringContaining("By proceeding to act as guarantor"),
         }),
       })
     );
@@ -219,7 +219,12 @@ describe("LegalExternalAcceptanceService", () => {
       required: true,
       status: "not_opened",
       legal_document_version_id: "ver-1",
+      checkbox_wordings: expect.arrayContaining([
+        expect.stringContaining("By proceeding to act as guarantor"),
+        expect.stringContaining("joint and several guarantor"),
+      ]),
     });
+    expect(warning?.checkbox_wordings).toHaveLength(2);
   });
 
   it("maps accepted timestamps per signing recipient", async () => {

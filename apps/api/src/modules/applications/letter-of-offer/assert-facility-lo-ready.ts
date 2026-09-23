@@ -28,9 +28,6 @@ export function assertFacilityLoMergeReady(input: {
   if (!data.tenure_days.trim()) missing.push("tenure days");
   if (!data.max_invoice_tenure_days.trim()) missing.push("maximum invoice tenure");
   if (!data.payment_period_days.trim()) missing.push("payment period");
-  if (!data.sub_limit_per_invoice_rm.trim()) {
-    missing.push("invoice sub-limit (configure sub_limit_per_invoice_rm on this product version)");
-  }
   if (!data.part_b_financing_amount_rm.trim()) missing.push("Part B financing amount");
   if (!data.transaction_docs_days.trim()) missing.push("transaction documents deadline");
   if (!data.offer_validity_phrase.trim()) missing.push("offer validity period");

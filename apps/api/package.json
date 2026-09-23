@@ -93,7 +93,10 @@
     "retag-jsg-template": "tsx scripts/retag-jsg-template.ts",
     "retag-doa-template": "tsx scripts/retag-doa-template.ts",
     "retag-fa-template": "tsx scripts/retag-fa-template.ts",
+    "generated-docs:wrap-smoke": "tsx scripts/generated-docs-wrap-smoke.ts",
     "signingcloud:generated-docs-smoke": "tsx scripts/signingcloud-generated-docs-smoke.ts",
+    "signingcloud:generated-docs-wrap-smoke": "tsx scripts/signingcloud-generated-docs-wrap-smoke.ts",
+    "signingcloud:generated-docs-wrap-smoke-auto": "tsx scripts/signingcloud-generated-docs-wrap-smoke-auto.ts",
     "signingcloud:mixed-signing-smoke": "tsx scripts/signingcloud-mixed-signing-smoke.ts",
     "signingcloud:full-flow-smoke": "tsx scripts/signingcloud-full-flow-smoke.ts",
     "signingcloud:seal-repro": "tsx _sandbox/seal-field-repro.ts",
@@ -103,7 +106,6 @@
     "tag-settlement-hibah-receipt-template": "tsx scripts/tag-settlement-hibah-receipt-template.ts",
     "preview:settlement-hibah-receipt": "tsx scripts/preview-settlement-hibah-receipt.ts",
     "preview:investment-settlement-confirmation": "tsx scripts/preview-investment-settlement-confirmation.ts",
-    "backfill-invoice-sub-limit": "tsx scripts/backfill-invoice-sub-limit.ts",
     "clean": "rm -rf dist"
   },
   "prisma": {

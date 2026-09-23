@@ -3,6 +3,10 @@ import { createJsgFixture } from "./jsg-fixture";
 import { renderJsgDocx } from "./render-jsg-docx";
 import { convertDocxToPdf, DocxToPdfError, resolveGotenbergUrl } from "../letter-of-offer/convert-docx-to-pdf";
 import {
+  LONG_PERSON_NAME,
+  withLongJsgStrings,
+} from "../../generated-documents/long-merge-strings";
+import {
   buildJsgSigningCloudSignsetsFromPdf,
   collectJsgSignatureSlots,
   matchJsgSignersToSlots,
@@ -165,18 +169,57 @@ describe("collectJsgSignatureSlots", () => {
       item(1, 80, 200, "EXECUTION PAGE"),
       item(1, 120, 99, "....................", 120),
       item(1, 136, 99, "Signature of Guarantor"),
-      item(1, 152, 99, `Full Name: ${firstLine}`, 220),
+      item(1, 152, 99, `Full Name : ${firstLine}`, 220),
       item(1, 164, 99, "<h1>1</h1> <a hreft=#>", 140),
       item(1, 176, 99, "NRIC No.: 123456789012", 160),
       item(1, 188, 99, "Date: ________________", 160),
       item(1, 220, 99, "....................", 120),
       item(1, 236, 99, "Signature of Guarantor"),
-      item(1, 252, 99, "Full Name: Kau Khai Kit 2", 140),
+      item(1, 252, 99, "Full Name : Kau Khai Kit 2", 140),
       item(1, 268, 99, "Date: ________________", 160),
       item(2, 80, 200, "OPERATOR"),
     ];
     const slots = collectJsgSignatureSlots(items);
     expect(slots.map((slot) => slot.name)).toEqual([wrapped, "Kau Khai Kit 2"]);
+  });
+
+  it("joins a hanging-indent Full Name wrap and ignores the witness column", () => {
+    const items = [
+      item(1, 80, 200, "EXECUTION PAGE"),
+      item(1, 189, 99, "....................", 120),
+      item(1, 189, 325, "....................", 120),
+      item(1, 205, 99, "Signature of Guarantor"),
+      item(1, 205, 325, "Signature of Witness"),
+      item(1, 221, 99, "Full Name : Tunku Puan Sri Datin Seri Wan Nur", 203),
+      item(1, 221, 325, "Full Name : Tunku Puan Sri Datin Seri Wan Nur", 203),
+      item(1, 237, 159, "Aisyah binti Tengku Abdul Rahman", 141),
+      item(1, 237, 384, "Aisyah binti Tengku Abdul Rahman", 141),
+      item(1, 253, 99, "NRIC No.: 123456789012", 160),
+      item(1, 269, 99, "Date: ________________", 160),
+      item(2, 80, 200, "OPERATOR"),
+    ];
+    const slots = collectJsgSignatureSlots(items);
+    expect(slots.map((slot) => slot.name)).toEqual([
+      "Tunku Puan Sri Datin Seri Wan Nur Aisyah binti Tengku Abdul Rahman",
+    ]);
+  });
+
+  it("reads Full Name values when a hanging-indent tab inserts a space before the colon", () => {
+    const items = [
+      item(1, 80, 200, "EXECUTION PAGE"),
+      item(1, 120, 99, "....................", 120),
+      item(1, 120, 325, "....................", 120),
+      item(1, 136, 99, "Signature of Guarantor"),
+      item(1, 136, 325, "Signature of Witness"),
+      item(1, 152, 99, "Full Name : Ali Bin Abu", 140),
+      item(1, 152, 325, "Full Name : Chloe Lim", 140),
+      item(1, 168, 99, "Date: ________________", 160),
+      item(1, 168, 325, "Date: ________________", 160),
+      item(2, 80, 200, "OPERATOR"),
+    ];
+    const slots = collectJsgSignatureSlots(items);
+    expect(slots.map((slot) => slot.name)).toEqual(["Ali Bin Abu"]);
+    expect(() => matchJsgSignersToSlots(["Ali Bin Abu"], slots)).not.toThrow();
   });
 
   it("does not treat the next guarantor heading as part of a wrapped name", () => {
@@ -323,7 +366,26 @@ describe("buildJsgSigningCloudSignsetsFromPdf", () => {
       expect((field?.left ?? 0) + (field?.width ?? 0)).toBeLessThanOrEqual(595);
       expect((field?.top ?? 0) + (field?.height ?? 0)).toBeLessThanOrEqual(842);
     }
-    const tops = signsets.map((fields) => fields[0]?.top ?? 0);
-    expect(new Set(tops).size).toBe(4);
+    const slotKeys = signsets.map((fields) => `${fields[0]?.pageindex}:${fields[0]?.top}`);
+    expect(new Set(slotKeys).size).toBe(4);
+  }, 120_000);
+
+  it("places fields when Gotenberg wraps a long guarantor Full Name", async () => {
+    if (!resolveGotenbergUrl()) return;
+    const data = withLongJsgStrings(createJsgFixture());
+    let pdf: Buffer;
+    try {
+      pdf = await convertDocxToPdf(renderJsgDocx(data));
+    } catch (err) {
+      if (err instanceof DocxToPdfError && err.code === "GOTENBERG_UNAVAILABLE") return;
+      throw err;
+    }
+    const names = [
+      ...data.guarantors_individual.map((row) => row.name),
+      ...data.guarantors_corporate.flatMap((row) => row.signatories.map((signatory) => signatory.name)),
+    ];
+    const signsets = await buildJsgSigningCloudSignsetsFromPdf(pdf, names);
+    expect(signsets).toHaveLength(4);
+    expect(names.every((name) => name === LONG_PERSON_NAME)).toBe(true);
   }, 120_000);
 });

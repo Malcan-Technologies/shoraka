@@ -2,6 +2,8 @@
  * Admin note-detail document catalog. Clients pass these ids, never storage keys.
  */
 
+import type { AdminDocumentCatalogItem } from "./admin-document-catalog";
+
 export const NOTE_DOCUMENT_GROUPS = [
   "jsg",
   "letter-of-offer",
@@ -13,10 +15,6 @@ export const NOTE_DOCUMENT_GROUPS = [
 ] as const;
 
 export type NoteDocumentGroup = (typeof NOTE_DOCUMENT_GROUPS)[number];
-
-export const NOTE_DOCUMENT_ORIGINS = ["canonical", "compiled", "generated"] as const;
-
-export type NoteDocumentOrigin = (typeof NOTE_DOCUMENT_ORIGINS)[number];
 
 export const NOTE_DOCUMENT_FIXED_IDS = {
   jsg: "jsg",
@@ -48,17 +46,8 @@ export function isNoteDocumentFixedId(value: string): value is NoteDocumentFixed
   return (Object.values(NOTE_DOCUMENT_FIXED_IDS) as string[]).includes(value);
 }
 
-export type NoteDocumentCatalogItem = {
-  id: string;
+export type NoteDocumentCatalogItem = AdminDocumentCatalogItem & {
   group: NoteDocumentGroup;
-  title: string;
-  origin: NoteDocumentOrigin;
-  originLabel: string;
-  available: boolean;
-  availabilityReason: string;
-  filename: string | null;
-  certificateCount?: number;
-  generatedAt?: string | null;
 };
 
 export type NoteDocumentCatalog = {

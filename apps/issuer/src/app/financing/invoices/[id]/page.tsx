@@ -337,7 +337,7 @@ export default function InvoiceDetailPage() {
               <div className="rounded-xl bg-status-action-bg p-0.5">
                 <Button className="rounded-xl" asChild>
                   <Link href={financingOfferHref(applicationId, invoiceId)}>
-                    {offerActionCta?.label ?? "Review Invoice Offer"}
+                    {offerActionCta?.label ?? "Review offer"}
                   </Link>
                 </Button>
               </div>

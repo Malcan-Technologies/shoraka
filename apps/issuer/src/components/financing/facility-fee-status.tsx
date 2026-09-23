@@ -34,13 +34,13 @@ export function FacilityDisabledBanner({ reason }: { reason: string | null }) {
 export function FacilityFeeBalanceSummary({
   balance,
   compact = false,
-  stacked = false,
+  rateHint = false,
   owedLabelExtra,
 }: {
   balance: FacilityFeeBalance | null;
   compact?: boolean;
-  /** Vertical rows for narrow sidebars (offer review). */
-  stacked?: boolean;
+  /** Cap progress as a subtitle under the facility fee rate. */
+  rateHint?: boolean;
   owedLabelExtra?: ReactNode;
 }) {
   if (!balance) return null;
@@ -51,22 +51,15 @@ export function FacilityFeeBalanceSummary({
     : EM_DASH;
   const remaining = formatMoneyDisplay(balance.remaining, EM_DASH);
 
-  if (stacked) {
+  if (rateHint) {
     return (
-      <div className="space-y-1">
-        <dt className="inline-flex items-center gap-1 text-muted-foreground">
-          Facility fee collected
-          {owedLabelExtra}
-        </dt>
-        <dd className="font-medium tabular-nums">
+      <span className="mt-0.5 inline-flex flex-col items-end gap-0.5 text-meta font-normal text-muted-foreground">
+        <span className="inline-flex items-center justify-end gap-1">
           {charged} / {owed} cap
-          {balance.waived ? (
-            <span className="mt-0.5 block text-meta font-normal text-muted-foreground">
-              Waived {waived}
-            </span>
-          ) : null}
-        </dd>
-      </div>
+          {owedLabelExtra}
+        </span>
+        {balance.waived ? <span>Waived {waived}</span> : null}
+      </span>
     );
   }
 

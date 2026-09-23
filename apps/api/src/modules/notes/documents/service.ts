@@ -7,6 +7,7 @@ import {
 import {
   NOTE_DOCUMENT_FIXED_IDS,
   parseShorakaCertificateDocumentId,
+  resolveCompletedSigningEnvelopeWhere,
   type NoteDocumentCatalog,
 } from "@cashsouk/types";
 import { AppError } from "../../../lib/http/error-handler";
@@ -108,7 +109,11 @@ export class NoteDocumentsService {
       throw new AppError(404, "NOTE_DOCUMENT_NOT_FOUND", "Document not found on this note.");
     }
     if (!item.available) {
-      throw new AppError(404, "NOTE_DOCUMENT_UNAVAILABLE", item.availabilityReason);
+      throw new AppError(
+        404,
+        "NOTE_DOCUMENT_UNAVAILABLE",
+        item.unavailableHint ?? item.description
+      );
     }
 
     if (documentId === NOTE_DOCUMENT_FIXED_IDS.jsg) {
@@ -158,6 +163,23 @@ export class NoteDocumentsService {
     });
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
 
+    const invoice = note.source_invoice_id
+      ? await this.db.invoice.findUnique({
+          where: { id: note.source_invoice_id },
+          select: { contract_id: true },
+        })
+      : null;
+    const envelopeWhere = resolveCompletedSigningEnvelopeWhere({
+      sourceInvoiceId: note.source_invoice_id,
+      sourceContractId: note.source_contract_id,
+      invoiceContractId: invoice?.contract_id,
+    });
+    const envelopeQuery = envelopeWhere
+      ? "contract_id" in envelopeWhere
+        ? { status: "COMPLETED" as const, contract_id: envelopeWhere.contract_id, invoice_id: null }
+        : { status: "COMPLETED" as const, invoice_id: envelopeWhere.invoice_id }
+      : { id: "__no-signing-envelope-target__", status: "COMPLETED" as const };
+
     const [
       envelopes,
       application,
@@ -167,7 +189,7 @@ export class NoteDocumentsService {
       latestPackage,
     ] = await Promise.all([
       this.db.signingEnvelope.findMany({
-        where: { application_id: note.source_application_id, status: "COMPLETED" },
+        where: envelopeQuery,
         select: {
           id: true,
           status: true,
@@ -241,9 +263,9 @@ export class NoteDocumentsService {
     const envelope = pickLatestMatchingCompletedEnvelope(
       envelopes as NoteSigningEnvelopeLike[],
       {
-        applicationId: note.source_application_id,
         contractId: note.source_contract_id,
         invoiceId: note.source_invoice_id,
+        invoiceContractId: invoice?.contract_id,
       }
     );
     const letterOfOffer = await this.letterOfOfferGates(application);
@@ -386,7 +408,7 @@ export class NoteDocumentsService {
       throw new AppError(
         404,
         "NOTE_DOCUMENT_UNAVAILABLE",
-        "Available after the Facility Agreement is signed."
+        "Waiting for the Facility Agreement to be signed."
       );
     }
 
@@ -457,7 +479,7 @@ export class NoteDocumentsService {
       })
     )?.prospectus_review?.approved_publication_id;
     if (!publicationId) {
-      throw new AppError(404, "NOTE_DOCUMENT_UNAVAILABLE", "Available after the Prospectus is approved.");
+      throw new AppError(404, "NOTE_DOCUMENT_UNAVAILABLE", "Waiting for prospectus approval.");
     }
     const publication = await this.db.noteProspectusPublication.findUnique({
       where: { id: publicationId },
@@ -498,7 +520,7 @@ export class NoteDocumentsService {
     });
     const buffer = await loadPdfFromKey(
       row?.pdf_s3_key,
-      "Available after the Islamic Investment Note Certificate is issued."
+      "Waiting for the certificate to be issued."
     );
     return {
       buffer,

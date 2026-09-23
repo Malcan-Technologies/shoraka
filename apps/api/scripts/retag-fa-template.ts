@@ -10,8 +10,12 @@
  * right column so wrapped values cannot jump to the left margin.
  * The original ISSUER heading, SIGNED BY line, and “for and on behalf of”
  * lines are kept (the execution brace drawing is removed). Each issuer signatory
- * sits beside one wet-ink witness (JSG two-column table), with page breaks so
- * ISSUER execution is not shared with Schedule 1.
+ * sits beside one wet-ink witness (JSG two-column table). At most two
+ * signatory/witness pairs share a page, with extra vertical space for signatures.
+ * Each issuer table column shares one colon tab (longest label in that column)
+ * so wrapped values line up. One “Issuer's company stamp:” line follows the last
+ * signatory (after the signatory-pages loop). A page break then keeps ISSUER
+ * execution off Schedule 1.
  * Schedules 4 to 8 stay unchanged. Schedule 9 Appendix 1 fills the Facility
  * Agreement date and issuer particulars; remaining schedule placeholders stay.
  *
@@ -21,6 +25,15 @@
 import fs from "fs";
 import path from "path";
 import PizZip from "pizzip";
+import {
+  FA_EXECUTION_COLON_TWIPS,
+  FA_EXECUTION_LABEL_LEFT_TWIPS,
+  FA_EXECUTION_STROKE_FIRST_LINE_TWIPS,
+  FA_EXECUTION_STROKE_LEFT_TWIPS,
+  FA_ISSUER_SIGNATORY_COLON_TWIPS,
+  FA_ISSUER_WITNESS_COLON_TWIPS,
+  hangingValueIndentXml,
+} from "../src/modules/generated-documents/hanging-execution-label";
 
 const TEMPLATES_DIR = path.resolve(__dirname, "../src/modules/applications/templates");
 const CLEAN_COPY = path.join(TEMPLATES_DIR, "02 FA (Clean Copy) 19 August 2026.docx");
@@ -201,15 +214,22 @@ function twoColTable(rows: Array<[string, string]>): string {
   ].join("");
 }
 
-/** One CA signatory on the left, one wet-ink witness on the right. Blank rows leave room for the stamp. */
+/** One CA signatory on the left, one wet-ink witness on the right. */
 function issuerSignatoryTable(): string {
   return twoColTable([
-    [emptyParas(2), emptyParas(2)],
+    [emptyParas(3), emptyParas(3)],
     [signatureStrokePara(ISSUER_SIGNATURE_STROKE), signatureStrokePara(WITNESS_SIGNATURE_STROKE)],
-    [makePara("Name : {name}"), makePara("Name of Witness: {witness_name}")],
-    [makePara("Designation : {designation}"), makePara("NRIC: {witness_nric}")],
-    [makePara("Date :"), makePara("Date :")],
+    [tableHangingLabelParagraph("Name", "name", FA_ISSUER_SIGNATORY_COLON_TWIPS), tableHangingLabelParagraph("Name of Witness", "witness_name", FA_ISSUER_WITNESS_COLON_TWIPS)],
+    [tableHangingLabelParagraph("Designation", "designation", FA_ISSUER_SIGNATORY_COLON_TWIPS), tableHangingLabelParagraph("NRIC", "witness_nric", FA_ISSUER_WITNESS_COLON_TWIPS)],
+    [tableHangingLabelParagraph("Date", undefined, FA_ISSUER_SIGNATORY_COLON_TWIPS), tableHangingLabelParagraph("Date", undefined, FA_ISSUER_WITNESS_COLON_TWIPS)],
+    [emptyParas(2), emptyParas(2)],
+  ]);
+}
+
+function issuerCompanyStampBlock(): string {
+  return twoColTable([
     [makePara("Issuer's company stamp:"), makePara("")],
+    [emptyParas(4), emptyParas(4)],
   ]);
 }
 
@@ -217,10 +237,14 @@ function issuerSignatoriesXml(): string {
   return [
     makePara("{issuer_name}"),
     makePara("In the presence of:"),
+    makePara("{#issuer_signatory_pages}"),
     makePara("{#issuer_signatories}"),
     issuerSignatoryTable(),
-    emptyParas(1),
+    emptyParas(3),
     makePara("{/issuer_signatories}"),
+    makePara("{@page_break}"),
+    makePara("{/issuer_signatory_pages}"),
+    issuerCompanyStampBlock(),
     pageBreakPara(),
   ].join("");
 }
@@ -361,11 +385,12 @@ function transformParagraph(pXml: string, state: WalkState): string {
         )
       );
     }
-    if (compact.includes("shall not exceed [●]")) {
-      return rewriteParagraphText(
-        pXml,
-        text.replace("shall not exceed [●]", "shall not exceed {sub_limit_per_invoice_rm}")
-      );
+    if (
+      compact.includes("With below Sub-Limits") ||
+      compact.includes("shall not exceed [●]") ||
+      compact.includes("Sub-Limits for each facility")
+    ) {
+      return "";
     }
     if (compact === "Drawdown Fee") {
       state.pendingBullet = "{drawdown_fee}";
@@ -426,29 +451,62 @@ function insertAccountNumberBankRow(xml: string): string {
   return next;
 }
 
-/** Matches the clean-copy first-line indent (Investor 4320+720, Agent 5040+720). */
-const EXECUTION_INVESTOR_LABEL_LEFT_TWIPS = 5040;
-const EXECUTION_AGENT_LABEL_LEFT_TWIPS = 5760;
-/** Tab from "Name"/"Designation" to the value so wrapped lines stay under the value. */
-const EXECUTION_LABEL_VALUE_HANGING_TWIPS = 1080;
-
-function executionLabelParagraph(label: "Name" | "Designation" | "Date", leftTwips: number, tag?: string): string {
-  const wrapLeft = leftTwips + EXECUTION_LABEL_VALUE_HANGING_TWIPS;
+function hangingLabelParagraph(
+  label: string,
+  tag?: string,
+  colonPosTwips: number = FA_EXECUTION_COLON_TWIPS,
+  labelLeftTwips: number = FA_EXECUTION_LABEL_LEFT_TWIPS
+): string {
   const rPr = bodyRpr();
   const runs = [textRun(label, rPr), `<w:r>${rPr}<w:tab/></w:r>`, textRun(":", rPr)];
   if (tag) {
     runs.push(textRun(" ", rPr));
     runs.push(textRun(`{${tag}}`, rprWithYellow(rPr)));
   }
-  return `<w:p><w:pPr><w:tabs><w:tab w:val="left" w:pos="${wrapLeft}"/></w:tabs><w:spacing w:after="0" w:line="276" w:lineRule="auto"/><w:ind w:left="${wrapLeft}" w:hanging="${EXECUTION_LABEL_VALUE_HANGING_TWIPS}"/><w:jc w:val="left"/>${rPr}</w:pPr>${runs.join("")}</w:p>`;
+  return `<w:p><w:pPr><w:spacing w:after="0" w:line="276" w:lineRule="auto"/>${hangingValueIndentXml(colonPosTwips, labelLeftTwips)}${rPr}</w:pPr>${runs.join("")}</w:p>`;
 }
 
-function polishInvestorAgentParagraph(pXml: string, labelLeftTwips: number): string {
+function tableHangingLabelParagraph(
+  label: string,
+  tag?: string,
+  colonPosTwips: number = FA_ISSUER_SIGNATORY_COLON_TWIPS
+): string {
+  return hangingLabelParagraph(label, tag, colonPosTwips, 0);
+}
+
+function executionLabelParagraph(label: "Name" | "Designation" | "Date", tag?: string): string {
+  return hangingLabelParagraph(label, tag);
+}
+
+function isUnderscoreStrokeParagraph(pXml: string): boolean {
+  return /^_{8,}$/.test(compactParagraphText(paragraphPlainText(pXml)).replace(/\s/g, ""));
+}
+
+function pinExecutionStrokeIndent(pXml: string): string {
+  const indent = `<w:ind w:left="${FA_EXECUTION_STROKE_LEFT_TWIPS}" w:firstLine="${FA_EXECUTION_STROKE_FIRST_LINE_TWIPS}"/>`;
+  if (/<w:ind\b[^/]*\/>/.test(pXml)) return pXml.replace(/<w:ind\b[^/]*\/>/, indent);
+  if (pXml.includes("<w:pPr>")) return pXml.replace("<w:pPr>", `<w:pPr>${indent}`);
+  return pXml.replace(/^<w:p([^>]*)>/, `<w:p$1><w:pPr>${indent}</w:pPr>`);
+}
+
+/** Same brace origin and width as Investor so Agent fields sit the same distance from `{`. */
+function alignAgentBraceToInvestor(pXml: string): string {
+  return pXml
+    .replace(/relativeFrom="column"/g, 'relativeFrom="margin"')
+    .replace(/<wp:posOffset>3019425<\/wp:posOffset>/g, "<wp:posOffset>2895600</wp:posOffset>")
+    .replace(/cx="457200"/g, 'cx="304800"')
+    .replace(/margin-left:237\.75pt/g, "margin-left:228pt")
+    .replace(/width:36pt/g, "width:24pt")
+    .replace(/mso-position-horizontal-relative:text/g, "mso-position-horizontal-relative:margin");
+}
+
+function polishInvestorAgentParagraph(pXml: string): string {
   const compact = compactParagraphText(paragraphPlainText(pXml));
   if (/^name:?$/i.test(compact) || /^designation:?$/i.test(compact) || /^date:?$/i.test(compact)) {
     const label = /^name/i.test(compact) ? "Name" : /^designation/i.test(compact) ? "Designation" : "Date";
-    return executionLabelParagraph(label, labelLeftTwips);
+    return executionLabelParagraph(label);
   }
+  if (isUnderscoreStrokeParagraph(pXml)) return pinExecutionStrokeIndent(pXml);
   return pXml;
 }
 
@@ -481,7 +539,7 @@ function tagInvestorAgentExecution(xml: string): string {
       state.phase = "agent";
       state.nameIndex = 0;
       state.designationIndex = 0;
-      return pXml;
+      return alignAgentBraceToInvestor(pXml);
     }
     if (compact === "ISSUER" && (state.phase === "agent" || state.phase === "investor")) {
       if (state.phase === "agent") {
@@ -493,14 +551,12 @@ function tagInvestorAgentExecution(xml: string): string {
     }
     if (state.phase !== "investor" && state.phase !== "agent") return pXml;
     const prefix = state.phase === "investor" ? "investor" : "agent";
-    const labelLeftTwips =
-      prefix === "investor" ? EXECUTION_INVESTOR_LABEL_LEFT_TWIPS : EXECUTION_AGENT_LABEL_LEFT_TWIPS;
     if (/^name:?$/i.test(compact)) {
       state.nameIndex += 1;
       if (state.nameIndex > 2) {
         throw new Error(`${prefix} execution has more than 2 Name lines`);
       }
-      return executionLabelParagraph("Name", labelLeftTwips, `${prefix}_${state.nameIndex}_name`);
+      return executionLabelParagraph("Name", `${prefix}_${state.nameIndex}_name`);
     }
     if (/^designation:?$/i.test(compact)) {
       state.designationIndex += 1;
@@ -509,11 +565,10 @@ function tagInvestorAgentExecution(xml: string): string {
       }
       return executionLabelParagraph(
         "Designation",
-        labelLeftTwips,
         `${prefix}_${state.designationIndex}_designation`
       );
     }
-    return polishInvestorAgentParagraph(pXml, labelLeftTwips);
+    return polishInvestorAgentParagraph(pXml);
   });
   if (state.phase !== "done") {
     throw new Error("Could not find Investor/Agent execution headings before ISSUER");
@@ -621,7 +676,6 @@ function requiredTagsPresent(xml: string): string[] {
     "{issuer_address}",
     "{issuer_email}",
     "{financing_limit_rm}",
-    "{sub_limit_per_invoice_rm}",
     "{facility_fee_rate_percent}",
     "{drawdown_fee}",
     "{trustee_disclosure_email}",
@@ -635,12 +689,15 @@ function requiredTagsPresent(xml: string): string[] {
     "{#guarantors_corporate}",
     "{company_line}",
     "{/guarantors_corporate}",
+    "{#issuer_signatory_pages}",
     "{#issuer_signatories}",
     "{name}",
     "{designation}",
     "{witness_name}",
     "{witness_nric}",
     "{/issuer_signatories}",
+    "{@page_break}",
+    "{/issuer_signatory_pages}",
     "{investor_1_name}",
     "{investor_1_designation}",
     "{investor_2_name}",
@@ -817,6 +874,13 @@ function main(): void {
   if (missing.length > 0) {
     throw new Error(`Tagged document.xml is missing: ${missing.join(", ")}`);
   }
+  if (
+    taggedHead.includes("{sub_limit_per_invoice_rm}") ||
+    taggedHead.includes("With below Sub-Limits") ||
+    taggedHead.includes("Sub-Limits for each facility")
+  ) {
+    throw new Error("Invoice sub-limit sentence or merge tag is still in the Facility Agreement");
+  }
   if (!taggedHead.includes('w:val="yellow"')) {
     throw new Error("Tagged document has no yellow highlighting on merge tags");
   }
@@ -848,6 +912,15 @@ function main(): void {
   }
   if (!taggedHead.includes("Investor Agreement signed with")) {
     throw new Error("Investor hanging execution text was removed");
+  }
+  const stampMatches = taggedHead.match(/Issuer's company stamp:/g) ?? [];
+  if (stampMatches.length !== 1) {
+    throw new Error(`Expected one Issuer's company stamp line, found ${stampMatches.length}`);
+  }
+  const stampAt = taggedHead.indexOf("Issuer's company stamp:");
+  const pagesLoopEnd = taggedHead.indexOf("{/issuer_signatory_pages}");
+  if (pagesLoopEnd < 0 || stampAt < pagesLoopEnd) {
+    throw new Error("Issuer's company stamp must sit after the last signatory page");
   }
 
   const documentXml = taggedHead + fromSchedule4;

@@ -939,7 +939,7 @@ export interface ExternalSigningWarningDto {
   status: ExternalSigningWarningStatus;
   legal_document_version_id: string | null;
   title: string;
-  checkbox_wording: string;
+  checkbox_wordings: string[];
 }
 
 export interface ExternalSigningSessionDto {

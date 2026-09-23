@@ -35,18 +35,21 @@ function doc(template_ref: string, signed = true) {
 }
 
 describe("note signing envelope scoping", () => {
-  const invoiceTarget = {
-    applicationId: "app-1",
-    contractId: "contract-1",
+  const invoiceOnlyTarget = {
+    contractId: null,
     invoiceId: "invoice-1",
   };
   const contractTarget = {
-    applicationId: "app-1",
     contractId: "contract-1",
     invoiceId: null,
   };
+  const facilityLinkedInvoiceTarget = {
+    contractId: "contract-1",
+    invoiceId: "invoice-1",
+    invoiceContractId: "contract-1",
+  };
 
-  it("matches invoice notes to the invoice envelope only", () => {
+  it("matches invoice-only notes to the invoice envelope only", () => {
     const invoiceEnvelope = envelope({
       id: "env-invoice",
       invoice_id: "invoice-1",
@@ -57,11 +60,32 @@ describe("note signing envelope scoping", () => {
       invoice_id: null,
       completed_at: "2026-09-03T00:00:00.000Z",
     });
-    expect(envelopeMatchesNoteTarget(invoiceEnvelope, invoiceTarget)).toBe(true);
-    expect(envelopeMatchesNoteTarget(contractEnvelope, invoiceTarget)).toBe(false);
-    expect(pickLatestMatchingCompletedEnvelope([contractEnvelope, invoiceEnvelope], invoiceTarget)?.id).toBe(
-      "env-invoice"
-    );
+    expect(envelopeMatchesNoteTarget(invoiceEnvelope, invoiceOnlyTarget)).toBe(true);
+    expect(envelopeMatchesNoteTarget(contractEnvelope, invoiceOnlyTarget)).toBe(false);
+    expect(
+      pickLatestMatchingCompletedEnvelope([contractEnvelope, invoiceEnvelope], invoiceOnlyTarget)?.id
+    ).toBe("env-invoice");
+  });
+
+  it("matches facility-linked invoice notes to the contract envelope", () => {
+    const invoiceEnvelope = envelope({
+      id: "env-invoice",
+      application_id: "invoice-app",
+      invoice_id: "invoice-1",
+    });
+    const contractEnvelope = envelope({
+      id: "env-contract",
+      application_id: "facility-app",
+      invoice_id: null,
+    });
+    expect(envelopeMatchesNoteTarget(invoiceEnvelope, facilityLinkedInvoiceTarget)).toBe(false);
+    expect(envelopeMatchesNoteTarget(contractEnvelope, facilityLinkedInvoiceTarget)).toBe(true);
+    expect(
+      pickLatestMatchingCompletedEnvelope(
+        [invoiceEnvelope, contractEnvelope],
+        facilityLinkedInvoiceTarget
+      )?.id
+    ).toBe("env-contract");
   });
 
   it("matches facility notes to contract envelopes without an invoice", () => {
@@ -88,7 +112,9 @@ describe("note signing envelope scoping", () => {
       invoice_id: "invoice-1",
       completed_at: "2026-09-10T00:00:00.000Z",
     });
-    expect(pickLatestMatchingCompletedEnvelope([older, draft, newer], invoiceTarget)?.id).toBe("env-new");
+    expect(pickLatestMatchingCompletedEnvelope([older, draft, newer], invoiceOnlyTarget)?.id).toBe(
+      "env-new"
+    );
   });
 
   it("selects signed JSG, FA, and DOA from the envelope and ignores unsigned rows", () => {
