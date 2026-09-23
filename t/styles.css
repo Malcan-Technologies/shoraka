@@ -91,9 +91,9 @@ footer{margin-top:auto;display:flex;align-items:center;gap:8px;padding-top:14px;
 }
 .grade.marc.a{background:#15B512}
 .grade.marc.b{background:#4FAE33}
-.grade.marc.c{background:#f2c94c}
+.grade.marc.c{background:#F5C400}
 .grade.marc.d{background:#f5964f}
-.grade.marc.e{background:#ce201d}
+.grade.marc.e{background:#B51215}
 
 /* Date labels inside table headers. */
 table th small{

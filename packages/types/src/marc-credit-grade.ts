@@ -61,7 +61,7 @@ export const MARC_SME_BANDS = [
     // Kept yellow-leaning to preserve the overall visual style with white text.
     // Keep it stronger than original, but closer to a clean yellow (less muddy/gold).
     // SME Moderate Risk yellow (traffic-light style; clean yellow).
-    color: "#f2c94c",
+    color: "#F5C400",
   },
   {
     key: "d",
@@ -80,7 +80,7 @@ export const MARC_SME_BANDS = [
     label: "Very High Risk",
     groupedExplanation: "Very weak credit strength; high default risk.",
     // Stronger/darker red than the previous Very High Risk.
-    color: "#ce201d",
+    color: "#B51215",
   },
 ] as const;
 
