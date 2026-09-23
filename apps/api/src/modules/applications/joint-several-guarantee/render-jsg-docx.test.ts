@@ -11,6 +11,7 @@ import {
   paragraphPinsJsgOperatorValueWrap,
   paragraphPinsTableHangingLabelWrap,
 } from "../../generated-documents/hanging-execution-label";
+import { MERGE_EMPTY_DISPLAY } from "../../generated-documents/merge-visibility";
 
 function renderedXml(data: JsgMergeData): string {
   const zip = new PizZip(renderJsgDocx(data));
@@ -56,7 +57,7 @@ describe("renderJsgDocx", () => {
     expect(resolveJsgTemplatePath()).toMatch(/arf-joint-several-guarantee\.docx$/);
   });
 
-  it("keeps yellow value tags, guarantor loops, and wet-ink operator lines", () => {
+  it("keeps value tags, guarantor loops, and wet-ink operator lines without highlight", () => {
     const zip = new PizZip(readJsgTemplateBytes());
     const xml = zip.file("word/document.xml")?.asText() ?? "";
     const numbering = zip.file("word/numbering.xml")?.asText() ?? "";
@@ -114,16 +115,16 @@ describe("renderJsgDocx", () => {
     const linePara = paragraphContaining(xml, "{line}");
     expect(linePara).toContain('<w:numId w:val="20"/>');
     expect(linePara).toContain('<w:ilvl w:val="0"/>');
-    expect(linePara).toContain('w:val="yellow"');
+    expect(linePara).not.toContain("w:highlight");
     const repPara = paragraphContaining(xml, "{rep_line}");
     expect(repPara).toContain('<w:numId w:val="20"/>');
     expect(repPara).toContain('<w:ilvl w:val="1"/>');
 
-    expect(runContaining(xml, "{guarantee_date}")).toContain('w:val="yellow"');
-    expect(runContaining(xml, "{issuer_name}")).toContain('w:val="yellow"');
-    expect(runContaining(xml, "{nric}")).toContain('w:val="yellow"');
-    expect(runContaining(xml, "{company_name}")).toContain('w:val="yellow"');
-    expect(runContaining(xml, "{facility_description}")).toContain('w:val="yellow"');
+    expect(runContaining(xml, "{guarantee_date}")).not.toContain("w:highlight");
+    expect(runContaining(xml, "{issuer_name}")).not.toContain("w:highlight");
+    expect(runContaining(xml, "{nric}")).not.toContain("w:highlight");
+    expect(runContaining(xml, "{company_name}")).not.toContain("w:highlight");
+    expect(runContaining(xml, "{facility_description}")).not.toContain("w:highlight");
   });
 
   it("renders fixture values into the preamble, execution pages, and Schedule 1", () => {
@@ -187,14 +188,15 @@ describe("renderJsgDocx", () => {
     ).toBe(true);
   });
 
-  it("prints merge tags when scalars are empty", () => {
+  it("prints N/A when scalars are empty", () => {
     const data = createJsgFixture();
     data.issuer_name = "";
     data.facility_description = "";
     const xml = renderedXml(data);
     const plain = wordPlainText(xml);
-    expect(plain).toContain("{issuer_name}");
-    expect(plain).toContain("{facility_description}");
+    expect(plain).toContain(MERGE_EMPTY_DISPLAY);
+    expect(plain).not.toContain("{issuer_name}");
+    expect(plain).not.toContain("{facility_description}");
   });
 
   it("omits the corporate execution block when there are no company guarantors", () => {

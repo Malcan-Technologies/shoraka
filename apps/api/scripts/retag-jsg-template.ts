@@ -25,6 +25,11 @@ import {
   JSG_OPERATOR_LABEL_LEFT_TWIPS,
   paragraphPinsJsgOperatorValueWrap,
 } from "../src/modules/generated-documents/hanging-execution-label";
+import {
+  assertNoDocxHighlights,
+  stripHighlightsFromDocx,
+  stripHighlightsFromDocxXml,
+} from "../src/modules/generated-documents/docx-highlights";
 
 const TEMPLATES_DIR = path.resolve(__dirname, "../src/modules/applications/templates");
 const CLEAN_COPY = path.join(TEMPLATES_DIR, "Clean - JSG (16 July 2026).docx");
@@ -67,18 +72,6 @@ function stripHighlightFromRpr(rPr: string): string {
     .replace(/<w:highlight\b[\s\S]*?<\/w:highlight>/g, "");
 }
 
-function rprWithYellow(rPr: string): string {
-  const base = stripHighlightFromRpr(rPr) || "<w:rPr></w:rPr>";
-  if (base.includes("</w:rPr>")) {
-    return base.replace("</w:rPr>", '<w:highlight w:val="yellow"/></w:rPr>');
-  }
-  return `<w:rPr><w:highlight w:val="yellow"/></w:rPr>`;
-}
-
-function isValueMergeTagText(text: string): boolean {
-  return /^\{[A-Za-z][A-Za-z0-9_]*\}$/.test(text.trim());
-}
-
 function bodyRpr(opts?: { bold?: boolean; underline?: boolean }): string {
   const extra = [
     opts?.bold ? "<w:b/><w:bCs/>" : "",
@@ -95,7 +88,6 @@ function textRun(text: string, rPr: string): string {
 
 function runsFromTemplatedText(text: string, baseRpr: string): string {
   const plain = stripHighlightFromRpr(baseRpr);
-  const yellow = rprWithYellow(baseRpr);
   const re = /\{[A-Za-z][A-Za-z0-9_]*\}/g;
   const runs: string[] = [];
   let last = 0;
@@ -104,7 +96,7 @@ function runsFromTemplatedText(text: string, baseRpr: string): string {
     if (match.index > last) {
       runs.push(textRun(text.slice(last, match.index), plain));
     }
-    runs.push(textRun(match[0], yellow));
+    runs.push(textRun(match[0], plain));
     last = match.index + match[0].length;
   }
   if (last < text.length) {
@@ -152,7 +144,7 @@ function tableHangingLabelParagraph(label: string, tag: string): string {
     `<w:r>${rPr}<w:tab/></w:r>`,
     textRun(":", rPr),
     textRun(" ", rPr),
-    textRun(`{${tag}}`, rprWithYellow(rPr)),
+    textRun(`{${tag}}`, rPr),
   ];
   return `<w:p><w:pPr><w:spacing w:after="0" w:line="360" w:lineRule="auto"/>${hangingValueIndentXml(colonTabTwipsForLabel(label), 0)}${rPr}</w:pPr>${runs.join("")}</w:p>`;
 }
@@ -337,7 +329,7 @@ function operatorHangingLabelParagraph(pXml: string, label: string, tag: string)
     `<w:r>${rPr}<w:tab/></w:r>`,
     textRun(":", rPr),
     textRun(" ", rPr),
-    textRun(`{${tag}}`, rprWithYellow(rPr)),
+    textRun(`{${tag}}`, rPr),
   ];
   return `${open}${pPr}${runs.join("")}</w:p>`;
 }
@@ -484,47 +476,6 @@ function rebuildExecutionAndSchedule(xml: string): string {
   );
 }
 
-function stripYellowHighlights(xml: string): string {
-  return xml
-    .replace(/<w:highlight\b[^/]*\/>/g, "")
-    .replace(/<w:highlight\b[\s\S]*?<\/w:highlight>/g, "");
-}
-
-function runPlainText(runXml: string): string {
-  let text = "";
-  const tRe = /<w:t\b[^>]*>([\s\S]*?)<\/w:t>/g;
-  let match: RegExpExecArray | null;
-  while ((match = tRe.exec(runXml))) {
-    text += decodeXml(match[1] ?? "");
-  }
-  return text;
-}
-
-function ensureYellowOnValueTagRuns(xml: string): string {
-  return xml.replace(/<w:r\b[\s\S]*?<\/w:r>/g, (run) => {
-    if (!isValueMergeTagText(runPlainText(run))) return run;
-    if (run.includes('w:val="yellow"')) return run;
-    if (run.includes("<w:rPr>")) {
-      return run.replace(/<\/w:rPr>/, '<w:highlight w:val="yellow"/></w:rPr>');
-    }
-    return run.replace(/(<w:r\b[^>]*>)/, `$1<w:rPr><w:highlight w:val="yellow"/></w:rPr>`);
-  });
-}
-
-function valueTagsMissingHighlight(xml: string): string[] {
-  const missing: string[] = [];
-  const runRe = /<w:r\b[\s\S]*?<\/w:r>/g;
-  let match: RegExpExecArray | null;
-  while ((match = runRe.exec(xml))) {
-    const run = match[0];
-    const text = runPlainText(run).trim();
-    if (isValueMergeTagText(text) && !run.includes('w:val="yellow"')) {
-      missing.push(text);
-    }
-  }
-  return missing;
-}
-
 function leftoverPlaceholders(xml: string): string[] {
   const text = xml.replace(/<[^>]+>/g, "");
   const found: string[] = [];
@@ -610,23 +561,17 @@ function main(): void {
   let documentXml = cleanZip.file("word/document.xml")?.asText();
   if (!documentXml) throw new Error("Clean copy is missing word/document.xml");
 
-  documentXml = stripYellowHighlights(documentXml);
+  documentXml = stripHighlightsFromDocxXml(documentXml);
   documentXml = rewriteParagraphContaining(documentXml, "Appendix 1", applyOpeningText);
   documentXml = rewriteParagraphContaining(documentXml, "Pursuant to the letter", applyRecitalText);
   documentXml = rebuildExecutionAndSchedule(documentXml);
-  documentXml = ensureYellowOnValueTagRuns(documentXml);
+  documentXml = stripHighlightsFromDocxXml(documentXml);
 
   const missing = requiredTagsPresent(documentXml);
   if (missing.length > 0) {
     throw new Error(`Tagged document.xml is missing: ${missing.join(", ")}`);
   }
-  if (!documentXml.includes('w:val="yellow"')) {
-    throw new Error("Tagged document has no yellow highlighting on merge tags");
-  }
-  const unhighlighted = valueTagsMissingHighlight(documentXml);
-  if (unhighlighted.length > 0) {
-    throw new Error(`Value merge tags missing yellow highlight: ${unhighlighted.join(", ")}`);
-  }
+  assertNoDocxHighlights(documentXml);
   const leftovers = leftoverPlaceholders(documentXml);
   if (leftovers.length > 0) {
     throw new Error(`Leftover placeholders in document.xml: ${leftovers.join(", ")}`);
@@ -644,7 +589,9 @@ function main(): void {
   out.file("word/document.xml", documentXml);
   out.file("word/numbering.xml", nextNumbering);
 
-  const bytes = out.generate({ type: "nodebuffer", compression: "DEFLATE" }) as Buffer;
+  const bytes = stripHighlightsFromDocx(
+    out.generate({ type: "nodebuffer", compression: "DEFLATE" }) as Buffer
+  );
   fs.writeFileSync(OUTPUT, bytes);
 
   const tblCount = (documentXml.match(/<w:tbl\b/g) ?? []).length;

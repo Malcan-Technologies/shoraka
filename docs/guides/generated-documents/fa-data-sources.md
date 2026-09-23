@@ -1,6 +1,6 @@
 # ARF Facility Agreement — data sources
 
-What [`buildFacilityAgreementMergeData`](../../apps/api/src/modules/applications/facility-agreement/build-fa-merge-data.ts) does for production generate (`arf_facility_agreement` **v2**).
+What [`buildFacilityAgreementMergeData`](../../apps/api/src/modules/applications/facility-agreement/build-fa-merge-data.ts) does for production generate (`arf_facility_agreement` **v3**).
 
 Requires `offer_sent` (contract facility offer **or** standalone invoice offer). Generated when admin previews or sends the signing package if the frozen product includes **Facility Agreement**. Replaces the e-sign Offer Letter; the Step 1 `arf_contract_facility_lo` download/upload is unchanged.
 
@@ -28,11 +28,11 @@ SigningCloud must enable `signdate` and `seal` on the CashSouk tenant before pro
 | `issuer_bank_swift` | Stored SWIFT on the org, else exact picklist value or short label from [`MALAYSIAN_BANKS`](../../packages/types/src/malaysian-banks.ts) |
 | `guarantors_individual` / `guarantors_corporate` | Live application guarantors + authorised-parties snapshot |
 | `issuer_signatories` | Issuer authorised representatives (`Director` / `Authorised Signatory`). Each row also receives the frozen CashSouk issuer-witness name and NRIC. |
-| `investor_1_name` / `investor_1_designation` / `investor_2_*` / `agent_*` | Frozen Shoraka authorised representatives for those execution roles. Empty tags stay visible until envelope freeze fills them. |
+| `investor_1_name` / `investor_1_designation` / `investor_2_*` / `agent_*` | Frozen Shoraka authorised representatives for those execution roles. Empty values print `N/A` until envelope freeze fills them. |
 
-## Visible tags (not collected yet)
+## Optional fields (not collected yet)
 
-These print as `{tag}` until a later data source exists. Generate does **not** fail closed on them:
+These print as `N/A` until a later data source exists. Generate does **not** fail closed on them:
 
 invoice `facility_fee_rate_percent` and any optional email/bank field with no source.
 

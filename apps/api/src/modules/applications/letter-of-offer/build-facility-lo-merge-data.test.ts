@@ -14,6 +14,7 @@ import {
   parseCorporateGuarantorsFromMergeInput,
   parseGuarantorsFromMergeInput,
 } from "./facility-lo-guarantors";
+import { MERGE_EMPTY_DISPLAY } from "../../generated-documents/merge-visibility";
 import { numberToWords, formatRmAmount, daysPhrase } from "./lo-format";
 import {
   FACILITY_LO_CHECKBOX_TICKED,
@@ -143,13 +144,13 @@ describe("facility-lo guarantors", () => {
     ]);
   });
 
-  it("prints {tag} for empty scalar merge fields", () => {
+  it("prints N/A for empty scalar merge fields", () => {
     const fixture = createFacilityLoFixture();
     fixture.grace_period_days = "";
     fixture.attention_name = "";
     const payload = buildFacilityLoRenderPayload(fixture);
-    expect(payload.grace_period_days).toBe("{grace_period_days}");
-    expect(payload.attention_name).toBe("{attention_name}");
+    expect(payload.grace_period_days).toBe(MERGE_EMPTY_DISPLAY);
+    expect(payload.attention_name).toBe(MERGE_EMPTY_DISPLAY);
     expect(payload.issuer_name).toBe(fixture.issuer_name);
   });
 });

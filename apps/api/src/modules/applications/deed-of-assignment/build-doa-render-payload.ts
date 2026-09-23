@@ -20,7 +20,7 @@ function visibleSignatory(row: DeedOfAssignmentSignatory): DeedOfAssignmentSigna
   return visible;
 }
 
-/** Docxtemplater payload: yellow value tags stay visible when empty. */
+/** Docxtemplater payload: empty optional scalars print N/A. */
 export function buildDeedOfAssignmentRenderPayload(
   data: DeedOfAssignmentMergeData
 ): DeedOfAssignmentRenderPayload {

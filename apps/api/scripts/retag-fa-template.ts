@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 /**
  * Rebuild `arf-facility-agreement.docx` from the 19 August 2026 clean Facility
- * Agreement: rewrite merge slots to yellow-highlighted docxtemplater tags and
+ * Agreement: rewrite merge slots to docxtemplater tags and
  * replace the two hardcoded ISSUER signature blocks with a signer loop. Investor
  * and Agent keep the clean-copy hanging layout (SIGNED BY, company lines, tabbed
  * signature strokes); only Name/Designation merge tags are inserted after the
@@ -34,6 +34,11 @@ import {
   FA_ISSUER_WITNESS_COLON_TWIPS,
   hangingValueIndentXml,
 } from "../src/modules/generated-documents/hanging-execution-label";
+import {
+  assertNoDocxHighlights,
+  stripHighlightsFromDocx,
+  stripHighlightsFromDocxXml,
+} from "../src/modules/generated-documents/docx-highlights";
 
 const TEMPLATES_DIR = path.resolve(__dirname, "../src/modules/applications/templates");
 const CLEAN_COPY = path.join(TEMPLATES_DIR, "02 FA (Clean Copy) 19 August 2026.docx");
@@ -76,18 +81,6 @@ function stripHighlightFromRpr(rPr: string): string {
     .replace(/<w:highlight\b[\s\S]*?<\/w:highlight>/g, "");
 }
 
-function rprWithYellow(rPr: string): string {
-  const base = stripHighlightFromRpr(rPr) || "<w:rPr></w:rPr>";
-  if (base.includes("</w:rPr>")) {
-    return base.replace("</w:rPr>", '<w:highlight w:val="yellow"/></w:rPr>');
-  }
-  return `<w:rPr><w:highlight w:val="yellow"/></w:rPr>`;
-}
-
-function isValueMergeTagText(text: string): boolean {
-  return /^\{[A-Za-z][A-Za-z0-9_]*\}$/.test(text.trim());
-}
-
 function bodyRpr(opts?: { bold?: boolean; underline?: boolean }): string {
   const extra = [
     opts?.bold ? "<w:b/><w:bCs/>" : "",
@@ -104,7 +97,6 @@ function textRun(text: string, rPr: string): string {
 
 function runsFromTemplatedText(text: string, baseRpr: string): string {
   const plain = stripHighlightFromRpr(baseRpr);
-  const yellow = rprWithYellow(baseRpr);
   const re = /\{[A-Za-z][A-Za-z0-9_]*\}/g;
   const runs: string[] = [];
   let last = 0;
@@ -113,7 +105,7 @@ function runsFromTemplatedText(text: string, baseRpr: string): string {
     if (match.index > last) {
       runs.push(textRun(text.slice(last, match.index), plain));
     }
-    runs.push(textRun(match[0], yellow));
+    runs.push(textRun(match[0], plain));
     last = match.index + match[0].length;
   }
   if (last < text.length) {
@@ -461,7 +453,7 @@ function hangingLabelParagraph(
   const runs = [textRun(label, rPr), `<w:r>${rPr}<w:tab/></w:r>`, textRun(":", rPr)];
   if (tag) {
     runs.push(textRun(" ", rPr));
-    runs.push(textRun(`{${tag}}`, rprWithYellow(rPr)));
+    runs.push(textRun(`{${tag}}`, rPr));
   }
   return `<w:p><w:pPr><w:spacing w:after="0" w:line="276" w:lineRule="auto"/>${hangingValueIndentXml(colonPosTwips, labelLeftTwips)}${rPr}</w:pPr>${runs.join("")}</w:p>`;
 }
@@ -625,47 +617,6 @@ function rebuildIssuerExecution(xml: string): string {
     withPageBreakBefore(xml.slice(issuerMatch.index, headingEnd))
   );
   return xml.slice(0, issuerMatch.index) + headingXml + issuerSignatoriesXml() + xml.slice(scheduleMatch.index);
-}
-
-function stripYellowHighlights(xml: string): string {
-  return xml
-    .replace(/<w:highlight\b[^/]*\/>/g, "")
-    .replace(/<w:highlight\b[\s\S]*?<\/w:highlight>/g, "");
-}
-
-function runPlainText(runXml: string): string {
-  let text = "";
-  const tRe = /<w:t\b[^>]*>([\s\S]*?)<\/w:t>/g;
-  let match: RegExpExecArray | null;
-  while ((match = tRe.exec(runXml))) {
-    text += decodeXml(match[1] ?? "");
-  }
-  return text;
-}
-
-function ensureYellowOnValueTagRuns(xml: string): string {
-  return xml.replace(/<w:r\b[\s\S]*?<\/w:r>/g, (run) => {
-    if (!isValueMergeTagText(runPlainText(run))) return run;
-    if (run.includes('w:val="yellow"')) return run;
-    if (run.includes("<w:rPr>")) {
-      return run.replace(/<\/w:rPr>/, '<w:highlight w:val="yellow"/></w:rPr>');
-    }
-    return run.replace(/(<w:r\b[^>]*>)/, `$1<w:rPr><w:highlight w:val="yellow"/></w:rPr>`);
-  });
-}
-
-function valueTagsMissingHighlight(xml: string): string[] {
-  const missing: string[] = [];
-  const runRe = /<w:r\b[\s\S]*?<\/w:r>/g;
-  let match: RegExpExecArray | null;
-  while ((match = runRe.exec(xml))) {
-    const run = match[0];
-    const text = runPlainText(run).trim();
-    if (isValueMergeTagText(text) && !run.includes('w:val="yellow"')) {
-      missing.push(text);
-    }
-  }
-  return missing;
 }
 
 function requiredTagsPresent(xml: string): string[] {
@@ -861,14 +812,14 @@ function main(): void {
   }
 
   let fromSchedule4 = tagAppendix1Particulars(scheduleSlice);
-  fromSchedule4 = ensureYellowOnValueTagRuns(fromSchedule4);
+  fromSchedule4 = stripHighlightsFromDocxXml(fromSchedule4);
 
-  let taggedHead = stripYellowHighlights(before);
+  let taggedHead = stripHighlightsFromDocxXml(before);
   taggedHead = rewriteBodyParagraphs(taggedHead);
   taggedHead = insertAccountNumberBankRow(taggedHead);
   taggedHead = tagInvestorAgentExecution(taggedHead);
   taggedHead = rebuildIssuerExecution(taggedHead);
-  taggedHead = ensureYellowOnValueTagRuns(taggedHead);
+  taggedHead = stripHighlightsFromDocxXml(taggedHead);
 
   const missing = requiredTagsPresent(taggedHead);
   if (missing.length > 0) {
@@ -881,13 +832,7 @@ function main(): void {
   ) {
     throw new Error("Invoice sub-limit sentence or merge tag is still in the Facility Agreement");
   }
-  if (!taggedHead.includes('w:val="yellow"')) {
-    throw new Error("Tagged document has no yellow highlighting on merge tags");
-  }
-  const unhighlighted = valueTagsMissingHighlight(taggedHead + fromSchedule4);
-  if (unhighlighted.length > 0) {
-    throw new Error(`Value merge tags missing yellow highlight: ${unhighlighted.join(", ")}`);
-  }
+  assertNoDocxHighlights(taggedHead + fromSchedule4);
   const leftovers = leftoverPlaceholders(taggedHead);
   if (leftovers.length > 0) {
     throw new Error(`Leftover placeholders before SCHEDULE 4: ${leftovers.join(", ")}`);
@@ -929,7 +874,9 @@ function main(): void {
   const out = new PizZip(fs.readFileSync(CLEAN_COPY));
   out.file("word/document.xml", documentXml);
 
-  const bytes = out.generate({ type: "nodebuffer", compression: "DEFLATE" }) as Buffer;
+  const bytes = stripHighlightsFromDocx(
+    out.generate({ type: "nodebuffer", compression: "DEFLATE" }) as Buffer
+  );
   fs.writeFileSync(OUTPUT, bytes);
 
   const tblCount = (documentXml.match(/<w:tbl\b/g) ?? []).length;

@@ -14,6 +14,7 @@ import {
   paragraphPinsFaExecutionValueWrap,
   paragraphPinsTableHangingLabelWrap,
 } from "../../generated-documents/hanging-execution-label";
+import { MERGE_EMPTY_DISPLAY } from "../../generated-documents/merge-visibility";
 
 function renderedXml(data: FacilityAgreementMergeData): string {
   const zip = new PizZip(renderFacilityAgreementDocx(data));
@@ -80,7 +81,7 @@ describe("renderFacilityAgreementDocx", () => {
     expect(() => assertWordXmlWellFormed(renderedXml(createFacilityAgreementFixture()))).not.toThrow();
   });
 
-  it("keeps yellow value tags and issuer/guarantor loops", () => {
+  it("keeps value tags and issuer/guarantor loops without highlight", () => {
     const zip = new PizZip(readFacilityAgreementTemplateBytes());
     const xml = zip.file("word/document.xml")?.asText() ?? "";
     const plain = wordPlainText(xml);
@@ -159,9 +160,9 @@ describe("renderFacilityAgreementDocx", () => {
     expect(afterPages).toContain("Issuer's company stamp:");
     expect((afterPages.match(/Issuer's company stamp:/g) ?? []).length).toBe(1);
     expect(xml).toContain('<w:br w:type="page"/>');
-    expect(runContaining(xml, "{facility_agreement_date}")).toContain('w:val="yellow"');
-    expect(runContaining(xml, "{issuer_name}")).toContain('w:val="yellow"');
-    expect(runContaining(xml, "{financing_limit_rm}")).toContain('w:val="yellow"');
+    expect(runContaining(xml, "{facility_agreement_date}")).not.toContain("w:highlight");
+    expect(runContaining(xml, "{issuer_name}")).not.toContain("w:highlight");
+    expect(runContaining(xml, "{financing_limit_rm}")).not.toContain("w:highlight");
     expect(runContaining(xml, "{investor_1_name}")).toMatch(/<w:t>\{investor_1_name\}<\/w:t>/);
     expect(runContaining(xml, "{agent_1_designation}")).toMatch(/<w:t>\{agent_1_designation\}<\/w:t>/);
     expect(runContaining(xml, "{investor_1_name}")).not.toMatch(/<w:t xml:space="preserve"> \{/);
@@ -273,14 +274,15 @@ describe("renderFacilityAgreementDocx", () => {
     expect(underscoreRuns.some((run) => run.includes("<w:u "))).toBe(false);
   });
 
-  it("prints merge tags when scalars are empty", () => {
+  it("prints N/A when scalars are empty", () => {
     const data = createFacilityAgreementFixture();
     data.issuer_name = "";
     data.financing_limit_rm = "";
     const xml = renderedXml(data);
     const plain = wordPlainText(xml);
-    expect(plain).toContain("{issuer_name}");
-    expect(plain).toContain("{financing_limit_rm}");
+    expect(plain).toContain(MERGE_EMPTY_DISPLAY);
+    expect(plain).not.toContain("{issuer_name}");
+    expect(plain).not.toContain("{financing_limit_rm}");
   });
 
   it("fills Schedule 9 Appendix 1 date and issuer particulars, leaving other utilisation forms untagged", () => {
@@ -309,7 +311,7 @@ describe("renderFacilityAgreementDocx", () => {
     expect(schedules).toContain("Facility: [●]");
     expect(schedules).toContain("[ISSUER]");
 
-    expect(runContaining(xml, "{facility_agreement_date}")).toContain('w:val="yellow"');
+    expect(runContaining(xml, "{facility_agreement_date}")).not.toContain("w:highlight");
 
     const data = createFacilityAgreementFixture();
     const rendered = wordPlainText(renderedXml(data));

@@ -15,6 +15,7 @@ import {
   paragraphPinsDoaSspValueWrap,
   paragraphPinsTableHangingLabelWrap,
 } from "../../generated-documents/hanging-execution-label";
+import { MERGE_EMPTY_DISPLAY } from "../../generated-documents/merge-visibility";
 
 const SCHEDULE3_NIL_NOTE =
   "Nil as at the date of execution; to be supplemented from time to time in accordance with Clause 4.4.";
@@ -76,7 +77,7 @@ describe("renderDeedOfAssignmentDocx", () => {
     expect(resolveDeedOfAssignmentTemplatePath()).toMatch(/arf-deed-of-assignment\.docx$/);
   });
 
-  it("keeps yellow value tags, wet-ink execution, and unmerged schedules", () => {
+  it("keeps value tags, wet-ink execution, and unmerged schedules without highlight", () => {
     const zip = new PizZip(readDeedOfAssignmentTemplateBytes());
     const xml = zip.file("word/document.xml")?.asText() ?? "";
     const plain = wordPlainText(xml);
@@ -156,9 +157,9 @@ describe("renderDeedOfAssignmentDocx", () => {
       paragraphPinsTableHangingLabelWrap(rightXmlParas[1]!, "Designation", DOA_ASSIGNOR_WITNESS_COLON_TWIPS)
     ).toBe(true);
 
-    expect(runContaining(xml, "{assignment_date}")).toContain('w:val="yellow"');
-    expect(runContaining(xml, "{assignor_company_name}")).toContain('w:val="yellow"');
-    expect(runContaining(xml, "{name}")).toContain('w:val="yellow"');
+    expect(runContaining(xml, "{assignment_date}")).not.toContain("w:highlight");
+    expect(runContaining(xml, "{assignor_company_name}")).not.toContain("w:highlight");
+    expect(runContaining(xml, "{name}")).not.toContain("w:highlight");
   });
 
   it("renders fixture values into particulars without filling Schedule 2 or 3", () => {
@@ -205,18 +206,19 @@ describe("renderDeedOfAssignmentDocx", () => {
     expect(one.split("In the presence of:").length - 1).toBe(1);
   });
 
-  it("prints merge tags when scalars are empty", () => {
+  it("prints N/A when scalars are empty", () => {
     const data = createDeedOfAssignmentFixture();
     data.assignor_company_name = "";
     data.trust_swift_code = "";
     data.assignor_signatories = [];
     const xml = renderedXml(data);
     const plain = wordPlainText(xml);
-    expect(plain).toContain("{assignor_company_name}");
-    expect(plain).toContain("{trust_swift_code}");
-    expect(plain).toContain("{name}");
-    expect(plain).toContain("{identity_number}");
-    expect(plain).toContain("{designation}");
+    expect(plain).toContain(MERGE_EMPTY_DISPLAY);
+    expect(plain).not.toContain("{assignor_company_name}");
+    expect(plain).not.toContain("{trust_swift_code}");
+    expect(plain).not.toContain("{name}");
+    expect(plain).not.toContain("{identity_number}");
+    expect(plain).not.toContain("{designation}");
     expect(plain).toContain(SCHEDULE3_NIL_NOTE);
   });
 });

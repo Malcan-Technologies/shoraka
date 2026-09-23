@@ -40,7 +40,7 @@ const PLACEHOLDER_INDIVIDUAL = {
   line: LO_MERGE_PLACEHOLDER_INDIVIDUAL_LINE,
 };
 
-/** Docxtemplater payload: yellow value tags stay visible when empty. */
+/** Docxtemplater payload: empty optional scalars print N/A. */
 export function buildFacilityAgreementRenderPayload(
   data: FacilityAgreementMergeData
 ): FacilityAgreementRenderPayload {

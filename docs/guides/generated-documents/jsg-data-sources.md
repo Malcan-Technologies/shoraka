@@ -1,6 +1,6 @@
 # ARF Joint and Several Guarantee — data sources
 
-What [`buildJsgMergeData`](../../apps/api/src/modules/applications/joint-several-guarantee/build-jsg-merge-data.ts) does for production generate (`arf_joint_several_guarantee` **v1**).
+What [`buildJsgMergeData`](../../apps/api/src/modules/applications/joint-several-guarantee/build-jsg-merge-data.ts) does for production generate (`arf_joint_several_guarantee` **v2**).
 
 Requires `contract_offer_sent`. Recital A needs the Letter of Offer date and contract reference.
 
@@ -13,7 +13,7 @@ Requires `contract_offer_sent`. Recital A needs the Letter of Offer date and con
 | `issuer_name` | `issuer_organization.name` |
 | `issuer_registration_number` | Org `registration_number`, then COD `basicInfo` SSM aliases |
 | `issuer_address` | COD `addresses.registered`, else `org.address` |
-| `issuer_business_address` | COD `addresses.business` only — empty prints `{issuer_business_address}` |
+| `issuer_business_address` | COD `addresses.business` only — empty prints `N/A` |
 | `facility_description` | `offered_facility` or `approved_facility` plus “as described in the Letter of Offer dated {letter_date}” |
 | Individual / corporate guarantors | Ordered live `application_guarantors`; drawdowns inherit via originating facility |
 | Corporate signatories | `offer_acceptance` authorised-parties snapshot, matched by `client_guarantor_id` / `application_guarantor_id` |

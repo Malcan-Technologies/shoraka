@@ -1,6 +1,6 @@
 # ARF contract facility LO — data sources (working index)
 
-What [`buildFacilityLoMergeData`](../../apps/api/src/modules/applications/letter-of-offer/build-facility-lo-merge-data.ts) does for production generate (`arf_contract_facility_lo` **v2**, per-guarantor acknowledgement pages). Facility offers fill Part A; standalone invoice offers fill Part B.
+What [`buildFacilityLoMergeData`](../../apps/api/src/modules/applications/letter-of-offer/build-facility-lo-merge-data.ts) does for production generate (`arf_contract_facility_lo` **v3**, per-guarantor acknowledgement pages). Facility offers fill Part A; standalone invoice offers fill Part B.
 
 **Full verification table:** [lo-19-aug-2026-field-map.md](./lo-19-aug-2026-field-map.md)
 
@@ -44,7 +44,7 @@ Left blank for wet-ink / issuer completion. Not merge data.
 
 ## Wet ink (SIGNEE)
 
-Signature blocks print the signatory name and NRIC (yellow). Missing NRIC prints `[INSERT]`. Corporate boxes: signature line first, then name, then NRIC. `Designation :` stays blank for wet ink.
+Signature blocks print the signatory name and NRIC. Missing NRIC prints `[INSERT]`. Corporate boxes: signature line first, then name, then NRIC. `Designation :` stays blank for wet ink.
 
 ## Production vs demo
 

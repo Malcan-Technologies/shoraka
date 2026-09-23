@@ -58,7 +58,7 @@ function buildJsgCorporateBlocks(
     });
 }
 
-/** Docxtemplater payload: yellow value tags stay visible when empty. */
+/** Docxtemplater payload: empty optional scalars print N/A. */
 export function buildJsgRenderPayload(data: JsgMergeData): JsgRenderPayload {
   const companies = buildJsgCorporateBlocks(
     data.guarantors_corporate,

@@ -6,6 +6,7 @@ import type { DeedOfAssignmentMergeData } from "./doa-merge.types";
 import { buildDeedOfAssignmentRenderPayload } from "./build-doa-render-payload";
 
 import { applySspStampToDocx } from "../../notes/document-authorisation/docx-stamp-image";
+import { mergeNullGetter } from "../../generated-documents/merge-visibility";
 import { solidifySignatureLinesInDocx } from "../../generated-documents/solid-signature-lines";
 
 const TEMPLATE_FILENAME = "arf-deed-of-assignment.docx";
@@ -37,12 +38,7 @@ export function renderDeedOfAssignmentDocx(
   const doc = new Docxtemplater(zip, {
     paragraphLoop: true,
     linebreaks: true,
-    nullGetter: (part) => {
-      if (part.module === "rawxml") return "";
-      if (part.module === "loop") return [];
-      if (part.value) return `{${part.value}}`;
-      return "";
-    },
+    nullGetter: mergeNullGetter,
   });
   doc.render(buildDeedOfAssignmentRenderPayload(data) as Record<string, unknown>);
   const rendered = doc.getZip().generate({ type: "nodebuffer", compression: "DEFLATE" }) as Buffer;
