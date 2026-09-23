@@ -28,10 +28,14 @@ import {
   UserRole,
 } from "@prisma/client";
 import { AdminRole } from "@cashsouk/types";
+import { createId } from "@paralleldrive/cuid2";
+import fs from "fs";
+import path from "path";
 import { catalogueVersion, emptyProspectusReviewContent } from "../src/modules/notes/prospectus-review/prospectus-review-content";
 import { buildNoteIssuerSnapshot } from "../src/modules/notes/note-issuer-snapshot";
 import { ensureAdminRoleCatalog } from "../src/lib/auth/rbac";
 import { generateUniqueUserId } from "../src/lib/user-id-generator";
+import { parseCtosReportXml } from "../src/modules/ctos/parser";
 import {
   buildNormalizedFinancialStatementYearSet,
   getEligibleAdminInputYears,
@@ -139,6 +143,10 @@ function buildStoredFinancialBlock(input: {
   bsslltd: number;
   bsclstd: number;
   bsqpuc: number;
+  // ComRep equity lines (cashsouk raw keys; CTOS provides the corresponding ENQWS fields).
+  equity_share_premium: number;
+  equity_accumulated_profit: number;
+  equity_minority: number;
   cashAndBank: number;
   tradeReceivables: number;
   tradePayables: number;
@@ -189,6 +197,9 @@ function buildStoredFinancialBlock(input: {
     bsslltd: input.bsslltd,
     bsclstd: input.bsclstd,
     bsqpuc: input.bsqpuc,
+    equity_share_premium: input.equity_share_premium,
+    equity_accumulated_profit: input.equity_accumulated_profit,
+    equity_minority: input.equity_minority,
 
     // Core derived totals used by some UI formulas and preview deltas
     totass,
@@ -478,6 +489,12 @@ function valuesForYear(fy: number, variant: 1 | 2 | 3) {
   const interest_cost_safe = Math.max(1, interest_cost);
   const pl_minority = Math.max(0, Math.round(50_000 * base * vMul));
 
+  // ComRep equity lines shown/editable in issuer “Additional Financial Details”.
+  // These do not drive the CTOS calculated metrics; they are used for raw display/provenance.
+  const equity_share_premium = Math.round(900_000 * base * vMul);
+  const equity_accumulated_profit = Math.round(1_300_000 * base * vMul);
+  const equity_minority = Math.round(250_000 * base * vMul);
+
   const p: Parameters<typeof buildStoredFinancialBlock>[0] = {
     fyEndYear: fy,
     bsfatot,
@@ -488,6 +505,9 @@ function valuesForYear(fy: number, variant: 1 | 2 | 3) {
     bsslltd,
     bsclstd,
     bsqpuc,
+    equity_share_premium,
+    equity_accumulated_profit,
+    equity_minority,
     cashAndBank,
     tradeReceivables,
     tradePayables,
@@ -588,6 +608,7 @@ async function upsertIssuerOrg(params: {
   orgId: string;
   ownerUserId: string;
   name: string;
+  registrationNumber?: string;
 }) {
   await prisma.issuerOrganization.upsert({
     where: { id: params.orgId },
@@ -595,7 +616,8 @@ async function upsertIssuerOrg(params: {
       owner_user_id: params.ownerUserId,
       name: params.name,
       type: OrganizationType.COMPANY,
-      registration_number: `2026${params.orgId.slice(-8).padStart(8, "0")}`,
+      registration_number:
+        params.registrationNumber ?? `2026${params.orgId.slice(-8).padStart(8, "0")}`,
       country: "Malaysia",
       onboarding_status: "COMPLETED" as any,
       onboarding_approved: true,
@@ -616,7 +638,8 @@ async function upsertIssuerOrg(params: {
       owner_user_id: params.ownerUserId,
       type: OrganizationType.COMPANY,
       name: params.name,
-      registration_number: `2026${params.orgId.slice(-8).padStart(8, "0")}`,
+      registration_number:
+        params.registrationNumber ?? `2026${params.orgId.slice(-8).padStart(8, "0")}`,
       country: "Malaysia",
       onboarding_status: "COMPLETED" as any,
       onboarding_approved: true,
@@ -887,8 +910,12 @@ async function upsertCtosReport(params: {
   actorNow: Date;
   valueVariant: 1 | 2 | 3;
   partialForFy?: number; // Simulate partial CTOS rows (omit some non-critical fields)
+  ctosFixtureRowsByFy?: Record<number, unknown>;
 }) {
   const rows = params.fyYears.map((fy) => {
+    const fixtureRow = params.ctosFixtureRowsByFy?.[fy];
+    if (fixtureRow) return fixtureRow as any;
+
     const v = valuesForYear(fy, params.valueVariant);
     const base = { ...v } as any;
     if (params.partialForFy === fy) {
@@ -944,6 +971,7 @@ async function upsertProspectusReviewNote(params: {
   applicationId: string;
   issuerOrgId: string;
   issuerOrgName: string;
+  issuerRegistrationNumber: string;
   productId: string;
   productName: string;
   productCategory: string;
@@ -971,7 +999,7 @@ async function upsertProspectusReviewNote(params: {
       id: params.issuerOrgId,
       name: params.issuerOrgName,
       type: OrganizationType.COMPANY,
-      registration_number: `2026-${params.issuerOrgId.slice(-6)}`,
+      registration_number: params.issuerRegistrationNumber,
       country: "Malaysia",
       country_of_incorporation: "Malaysia",
       corporate_onboarding_data: {
@@ -1046,7 +1074,6 @@ async function upsertProspectusReviewNote(params: {
       updated_by_user_id: params.actorUserId,
     },
     create: {
-      id: `${PREFIX}_review_${params.noteId}`,
       note_id: params.noteId,
       status:
         params.reviewStatusOverride ??
@@ -1111,6 +1138,28 @@ async function main() {
   console.log(`Financial Statements step in workflow: ${hasFinancialStatementsStep ? "YES" : "NO"}`);
 
   const scenarios = scenarioSpecs();
+
+  // Use the real CTOS fixture XML so CTOS-backed years are shaped exactly like the live parser expects.
+  // This is critical for finished metric fields like `return_on_equity` and the ComRep raw mappings
+  // (bsqres/bsqupro/bsqmint/plminin -> equity_share_premium/equity_accumulated_profit/equity_minority/pl_minority).
+  const fixtureXmlPath = path.join(
+    __dirname,
+    "../ctos-test/output/2026-09-07T05-14-25-245Z_company_200501525124.xml"
+  );
+  const fixtureXml = fs.readFileSync(fixtureXmlPath, "utf8");
+  const fixtureParsed = await parseCtosReportXml(fixtureXml);
+  const fixtureRowsByFy: Record<number, unknown> = Object.fromEntries(
+    (fixtureParsed.financials_json ?? [])
+      .filter((r) => r?.financial_year != null && Number.isFinite(r.financial_year))
+      .map((r) => [r.financial_year as number, r])
+  );
+  const fixtureCompany = fixtureParsed.company_json;
+  const fixtureCompanyName = fixtureCompany?.name ?? null;
+  const fixtureRegistrationNumber = fixtureCompany?.ic_lcno ?? fixtureCompany?.brn_ssm ?? null;
+  if (!fixtureCompanyName || !fixtureRegistrationNumber) {
+    throw new Error("CTOS fixture company identity is missing (name and/or registration number)");
+  }
+
   const actorUserId = await (async () => {
     const adminUserId = await ensureUser({
       email: ADMIN_EMAIL,
@@ -1133,7 +1182,29 @@ async function main() {
     issuerOrgIds: [],
   });
 
-  const issuerOrgIds = scenarios.map((s) => `${PREFIX}_issuer_org_${s.key}`);
+  const scenarioIds = new Map<
+    string,
+    {
+      issuerOrgId: string;
+      applicationId: string;
+      noteId: string;
+      ctosReportId: string;
+      contractId: string;
+      invoiceId: string;
+    }
+  >();
+  for (const s of scenarios) {
+    scenarioIds.set(s.key, {
+      issuerOrgId: createId(),
+      applicationId: createId(),
+      noteId: createId(),
+      ctosReportId: createId(),
+      contractId: createId(),
+      invoiceId: createId(),
+    });
+  }
+
+  const issuerOrgIds = scenarios.map((s) => scenarioIds.get(s.key)!.issuerOrgId);
   await prisma.user.update({
     where: { user_id: issuerUserId },
     data: {
@@ -1144,19 +1215,27 @@ async function main() {
   const now = new Date();
 
   for (const s of scenarios) {
-    const issuerOrgId = `${PREFIX}_issuer_org_${s.key}`;
-    const applicationId = `${PREFIX}_app_${s.key}`;
-    const noteId = `${PREFIX}_note_${s.key}`;
+    const ids = scenarioIds.get(s.key)!;
+    const issuerOrgId = ids.issuerOrgId;
+    const applicationId = ids.applicationId;
+    const noteId = ids.noteId;
     const noteReference = `${s.name.replace(/\s+/g, "-").toUpperCase().slice(0, 40)}-${s.key}`;
-    const ctosReportId = `${PREFIX}_ctos_${s.key}`;
-    const contractId = `${PREFIX}_contract_${s.key}`;
-    const invoiceId = `${PREFIX}_invoice_${s.key}`;
+    const ctosReportId = ids.ctosReportId;
+    const contractId = ids.contractId;
+    const invoiceId = ids.invoiceId;
     const maturityIso = isoDateOnly(addDays(now, 120));
+
+    const isFixtureScenario = s.key === "02";
+    const issuerOrgName = isFixtureScenario ? fixtureCompanyName : s.name;
+    const issuerRegistrationNumber = isFixtureScenario
+      ? fixtureRegistrationNumber
+      : `2026-${issuerOrgId.slice(-6)}`;
 
     await upsertIssuerOrg({
       orgId: issuerOrgId,
       ownerUserId: issuerUserId,
-      name: s.name,
+      name: issuerOrgName,
+      registrationNumber: isFixtureScenario ? fixtureRegistrationNumber : undefined,
     });
 
     const { contractSnapshot, invoiceSnapshot } = await upsertQaContractAndInvoice({
@@ -1191,6 +1270,7 @@ async function main() {
       actorNow: now,
       valueVariant: s.valueVariant,
       partialForFy,
+      ctosFixtureRowsByFy: s.key === "02" ? fixtureRowsByFy : undefined,
     });
 
     await upsertProspectusReviewNote({
@@ -1198,7 +1278,8 @@ async function main() {
       noteReference,
       applicationId,
       issuerOrgId,
-      issuerOrgName: s.name,
+      issuerOrgName,
+      issuerRegistrationNumber,
       productId: qaProduct.productId,
       productName: QA_PRODUCT_NAME,
       productCategory: QA_FINANCING_TYPE_CATEGORY,
