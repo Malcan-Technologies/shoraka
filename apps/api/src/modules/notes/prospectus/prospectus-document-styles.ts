@@ -328,8 +328,8 @@ table{width:100%;border-collapse:collapse;font-size:8px}th{background:var(--pros
   overflow:visible;
   text-overflow:clip;
 }
-.grade.marc.a{background:#22b83f}
-.grade.marc.b{background:#89d450}
+.grade.marc.a{background:#15B512}
+.grade.marc.b{background:#4FAE33}
 .grade.marc.c{background:#f2c94c}
 .grade.marc.d{background:#f5964f}
 .grade.marc.e{background:#ce201d}

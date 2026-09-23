@@ -38,7 +38,7 @@ export const MARC_SME_BANDS = [
     label: "Very Low Risk",
     groupedExplanation: "Very strong credit strength; minimal repayment risk.",
     // SME Very Low Risk uses PAS green for stronger distinction.
-    color: "#22b83f",
+    color: "#15B512",
   },
   {
     key: "b",
@@ -48,7 +48,7 @@ export const MARC_SME_BANDS = [
     label: "Low Risk",
     groupedExplanation: "Strong credit strength; low repayment risk.",
     // SME Low Risk green: subtle darkening for slightly stronger differentiation.
-    color: "#89d450",
+    color: "#4FAE33",
   },
   {
     key: "c",
@@ -212,7 +212,7 @@ export function marcBandForGrade(grade: string | null | undefined) {
 }
 
 export function marcGradeColor(grade: string | null | undefined): string {
-  return marcBandForGrade(grade)?.color ?? "#22b83f";
+  return marcBandForGrade(grade)?.color ?? "#15B512";
 }
 
 export function marcGradeLabel(grade: string | null | undefined): string {
