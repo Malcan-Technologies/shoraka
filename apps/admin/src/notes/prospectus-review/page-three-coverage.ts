@@ -230,16 +230,19 @@ export function buildIncomeStatementResolvedRows(
   const revenue = parseNumber(yearRaw.turnover);
   const pat = parseNumber(yearRaw.plnpat);
   const pbt = parseNumber(yearRaw.plnpbt);
+  const interestCosts = parseNumber(yearRaw.interest_cost);
   const ebit = parseNumber(yearRaw.ebit);
 
   const ebitValue = formatMoney(ebit);
   const ebitHint =
     ebitValue === DATA_NOT_AVAILABLE
       ? pbt != null
-        ? "Missing: Interest Costs"
-        : pat != null
-          ? "Missing: Profit / Loss Before Tax"
+        ? interestCosts == null
+          ? "Missing: Interest Costs"
           : "Missing required financial inputs"
+        : interestCosts == null
+          ? "Missing required financial inputs"
+          : "Missing: Profit / Loss Before Tax"
       : null;
 
   const netProfitMarginPoints = resolveCtosPatMarginPercent({ plnpat: pat, turnover: revenue });
@@ -250,7 +253,9 @@ export function buildIncomeStatementResolvedRows(
         ? "Missing: Profit / Loss After Tax"
         : revenue == null
           ? "Missing: Revenue / Turnover"
-          : "Missing: Net Profit Margin"
+          : revenue === 0
+            ? "Invalid: Revenue / Turnover is zero"
+            : "Missing required financial inputs"
       : null;
 
   return [
@@ -310,7 +315,9 @@ export function buildBalanceSheetResolvedRows(
         ? "Missing: Current Assets"
         : currentLiabilities == null
           ? "Missing: Current Liabilities"
-          : "Missing required financial inputs"
+          : currentLiabilities === 0
+            ? "Invalid: Current Liabilities is zero"
+            : "Missing required financial inputs"
       : null;
 
   const quickRatioValue = formatMultiple(rawQuickRatio);
@@ -322,6 +329,8 @@ export function buildBalanceSheetResolvedRows(
           ? "Missing: Trade Receivables"
           : currentLiabilities == null
             ? "Missing: Current Liabilities"
+          : currentLiabilities === 0
+            ? "Invalid: Current Liabilities is zero"
             : "Missing required financial inputs"
       : null;
 
@@ -371,6 +380,7 @@ export function buildCoverageResolvedRows(
   // System-derived metrics from Stage 4A raw fields (do not use officer overrides).
   const plnpbt = parseNumber(yearRaw.plnpbt);
   const plnpat = parseNumber(yearRaw.plnpat);
+  const interestCosts = parseNumber(yearRaw.interest_cost);
   const interestCoverage = parseNumber(yearRaw.interestCoverage);
   const dscr = parseNumber(yearRaw.dscr);
   const receivablesDays = parseNumber(yearRaw.receivablesDays);
@@ -378,11 +388,13 @@ export function buildCoverageResolvedRows(
   const interestCoverageValue = formatMultiple(interestCoverage);
   const interestCoverageHint =
     interestCoverageValue === DATA_NOT_AVAILABLE
-      ? plnpbt == null
-        ? plnpat == null
-          ? "Missing required financial inputs"
-          : "Missing: Profit / Loss Before Tax"
-        : "Missing: Interest Costs"
+      ? interestCosts == null
+        ? "Missing: Interest Costs"
+        : interestCosts === 0
+          ? "Invalid: Interest Costs is zero"
+          : plnpbt == null
+            ? "Missing: Profit / Loss Before Tax"
+            : "Missing required financial inputs"
       : null;
 
   const annualDebtService = parseNumber(yearRaw.annualDebtService);
@@ -391,7 +403,11 @@ export function buildCoverageResolvedRows(
     dscrValue === DATA_NOT_AVAILABLE
       ? annualDebtService == null
         ? "Missing: Annual Debt Service"
-        : "Missing: DSCR"
+        : annualDebtService === 0
+          ? "Invalid: Annual Debt Service is zero"
+          : parseNumber(yearRaw.netOperatingIncome) == null
+            ? "Missing: Net Operating Income"
+            : "Missing required financial inputs"
       : null;
 
   const totlib = parseNumber(yearRaw.totlib);
@@ -405,7 +421,9 @@ export function buildCoverageResolvedRows(
         ? "Missing: Total Equity / Net Worth"
         : totlib == null
           ? "Missing: Total Liabilities"
-          : "Missing: Debt / Equity"
+          : networth === 0
+            ? "Invalid: Total Equity / Net Worth is zero"
+            : "Missing required financial inputs"
       : null;
 
   const roePoints = resolveCtosReturnOnEquityPercent({
@@ -435,7 +453,9 @@ export function buildCoverageResolvedRows(
         ? "Missing: Profit / Loss After Tax"
         : parseNumber(yearRaw.totass) == null
           ? "Missing: Total Assets"
-          : "Missing: Return on Assets"
+          : parseNumber(yearRaw.totass) === 0
+            ? "Invalid: Total Assets is zero"
+            : "Missing required financial inputs"
       : null;
 
   const turnover = parseNumber(yearRaw.turnover);
@@ -452,7 +472,9 @@ export function buildCoverageResolvedRows(
         ? "Missing: Revenue / Turnover"
         : totass == null
           ? "Missing: Total Assets"
-          : "Missing: Asset Turnover"
+          : totass === 0
+            ? "Invalid: Total Assets is zero"
+            : "Missing required financial inputs"
       : null;
 
   const receivablesDaysValue =
@@ -462,9 +484,13 @@ export function buildCoverageResolvedRows(
     receivablesDaysValue === DATA_NOT_AVAILABLE
       ? prevTradeReceivables == null
         ? "Missing: previous financial year Trade Receivables"
-        : turnover == null
-          ? "Missing: Revenue / Turnover"
-          : "Missing: Receivables Days"
+        : parseNumber(yearRaw.tradeReceivables) == null
+          ? "Missing: Trade Receivables"
+          : turnover == null
+            ? "Missing: Revenue / Turnover"
+            : turnover === 0
+              ? "Invalid: Revenue / Turnover is zero"
+              : "Missing required financial inputs"
       : null;
 
   const payablesDaysValue = formatDays(parseNumber(yearRaw.payablesDays));
@@ -476,7 +502,9 @@ export function buildCoverageResolvedRows(
         ? "Missing: Trade Payables"
         : costOfSales == null
           ? "Missing: Cost of Sales"
-          : "Missing: Payables Days"
+          : costOfSales === 0
+            ? "Invalid: Cost of Sales is zero"
+            : "Missing required financial inputs"
       : null;
 
   return [

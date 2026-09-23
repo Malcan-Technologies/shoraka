@@ -393,6 +393,7 @@ function ProspectusReviewPageInner() {
                 const netWorth = frozen.raw.networth;
                 if (pat == null) return "Missing: Profit / Loss After Tax";
                 if (netWorth == null) return "Missing: Total Equity / Net Worth";
+                  if (netWorth === 0) return "Invalid: Total Equity / Net Worth is zero";
                 return "Missing required financial inputs";
               })();
             case "Current Ratio (x)":
@@ -401,34 +402,51 @@ function ProspectusReviewPageInner() {
                 const currentLiabilities = frozen.raw.curlib;
                 if (currentAssets == null) return "Missing: Current Assets";
                 if (currentLiabilities == null) return "Missing: Current Liabilities";
+                  if (currentLiabilities === 0) return "Invalid: Current Liabilities is zero";
                 return "Missing required financial inputs";
               })();
             case "Net Debt / Equity (x)":
-              return "Missing: Net Debt / Equity";
+                return (() => {
+                  const cashAndBank = frozen.raw.cashAndBank;
+                  const netWorth = frozen.raw.networth;
+                  if (cashAndBank == null) return "Missing: Cash & Bank";
+                  if (netWorth == null) return "Missing: Total Equity / Net Worth";
+                  if (netWorth === 0) return "Invalid: Total Equity / Net Worth is zero";
+                  return "Missing required financial inputs";
+                })();
             case "Interest Coverage (x)":
               return (() => {
-                // Interest Coverage = EBIT ÷ Interest Costs, and EBIT = PBT + Interest Costs.
-                // When system values are missing, infer which dependency is absent.
-                const pbt = frozen.raw.plnpbt;
-                const pat = frozen.raw.plnpat;
-                if (pbt == null) {
-                  if (pat == null) return "Missing required financial inputs";
-                  return "Missing: Profit / Loss Before Tax";
-                }
-                return "Missing: Interest Costs";
-              })();
+                  // Interest Coverage = EBIT ÷ Interest Costs.
+                  // We only have EBIT and PBT in frozen raw, so we infer interest-cost missing when EBIT is absent but PBT exists.
+                  const ebit = frozen.raw.ebit;
+                  const pbt = frozen.raw.plnpbt;
+                  if (ebit == null) {
+                    if (pbt == null) return "Missing: Profit / Loss Before Tax";
+                    return "Missing: Interest Costs";
+                  }
+                  return "Missing required financial inputs";
+                })();
             case "DSCR (x)":
-              return frozen.raw.annualDebtService == null
-                ? "Missing: Annual Debt Service"
-                : "Missing: DSCR";
+                return (() => {
+                  const annualDebtService = frozen.raw.annualDebtService;
+                  const netOperatingIncome = frozen.raw.netOperatingIncome;
+                  if (annualDebtService == null) return "Missing: Annual Debt Service";
+                  if (annualDebtService === 0) return "Invalid: Annual Debt Service is zero";
+                  if (netOperatingIncome == null) return "Missing: Net Operating Income";
+                  return "Missing required financial inputs";
+                })();
             case "Receivables Days": {
               const prevCalendar = String(Number(calendarYear) - 1);
               const prevFrozen = frozenByCalendarYear.get(prevCalendar);
-              return prevFrozen?.raw.tradeReceivables == null
-                ? "Missing: previous financial year Trade Receivables"
-                : frozen.raw.turnover == null
-                  ? "Missing: Revenue / Turnover"
-                  : "Missing: Receivables Days";
+                const prevTradeReceivables = prevFrozen?.raw.tradeReceivables;
+                const endingTradeReceivables = frozen.raw.tradeReceivables;
+                const turnover = frozen.raw.turnover;
+                if (prevTradeReceivables == null)
+                  return "Missing: previous financial year Trade Receivables";
+                if (endingTradeReceivables == null) return "Missing: Trade Receivables";
+                if (turnover == null) return "Missing: Revenue / Turnover";
+                if (turnover === 0) return "Invalid: Revenue / Turnover is zero";
+                return "Missing required financial inputs";
             }
             default:
               return "Missing: Calculated metric";

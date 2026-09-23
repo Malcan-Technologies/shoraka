@@ -192,6 +192,8 @@ describe("page two coverage verification", () => {
         .find((r) => r.metric === "Net Debt / Equity (x)")
         ?.values.every((v) => v === "Cannot calculate")
     ).toBe(true);
+    const netDebtRow = table.rows.find((r) => r.metric === "Net Debt / Equity (x)");
+    expect(netDebtRow?.cellHints?.every((h) => h === "Missing: Current Borrowings")).toBe(true);
     expect(table.rows.every((r) => r.trend == null)).toBe(true);
   });
 });

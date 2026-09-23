@@ -285,6 +285,7 @@ export function buildPageTwoFinancialComparisonTable(
                   const netWorth = raw.networth;
                   if (pat == null) return "Missing: Profit / Loss After Tax";
                   if (netWorth == null) return "Missing: Total Equity / Net Worth";
+                  if (netWorth === 0) return "Invalid: Total Equity / Net Worth is zero";
                   return "Missing required financial inputs";
                 })();
               case "currentRatio":
@@ -293,22 +294,53 @@ export function buildPageTwoFinancialComparisonTable(
                   const currentLiabilities = raw.curlib;
                   if (currentAssets == null) return "Missing: Current Assets";
                   if (currentLiabilities == null) return "Missing: Current Liabilities";
+                  if (currentLiabilities === 0) return "Invalid: Current Liabilities is zero";
                   return "Missing required financial inputs";
                 })();
               case "netDebtEquity":
-                return "Missing: Net Debt / Equity";
+                return (() => {
+                  const curlibBorrowing = raw.curlib_borrowing;
+                  const nclLoan = raw.ncl_loan;
+                  const cashAndBank = raw.cashAndBank;
+                  const networth = raw.networth;
+                  if (curlibBorrowing == null) return "Missing: Current Borrowings";
+                  if (nclLoan == null) return "Missing: Non-current Loans";
+                  if (cashAndBank == null) return "Missing: Cash & Bank";
+                  if (networth == null) return "Missing: Total Equity / Net Worth";
+                  if (networth === 0) return "Invalid: Total Equity / Net Worth is zero";
+                  return "Missing required financial inputs";
+                })();
               case "interestCoverage":
-                return "Missing: Interest Costs";
+                return (() => {
+                  const interestCosts = raw.interest_cost;
+                  const pbt = raw.plnpbt;
+                  if (interestCosts == null) return "Missing: Interest Costs";
+                  if (interestCosts === 0) return "Invalid: Interest Costs is zero";
+                  if (pbt == null) return "Missing: Profit / Loss Before Tax";
+                  return "Missing required financial inputs";
+                })();
               case "dscr":
-                return raw.annualDebtService == null
-                  ? "Missing: Annual Debt Service"
-                  : "Missing: DSCR";
+                return (() => {
+                  const annualDebtService = raw.annualDebtService;
+                  const netOperatingIncome = raw.netOperatingIncome;
+                  if (annualDebtService == null) return "Missing: Annual Debt Service";
+                  if (annualDebtService === 0) return "Invalid: Annual Debt Service is zero";
+                  if (netOperatingIncome == null) return "Missing: Net Operating Income";
+                  return "Missing required financial inputs";
+                })();
               case "receivablesDays":
-                return prevRaw.tradeReceivables == null
-                  ? "Missing: previous financial year Trade Receivables"
-                  : raw.turnover == null
-                    ? "Missing: Revenue / Turnover"
-                    : "Missing: Receivables Days";
+                return (() => {
+                  const priorTradeReceivables = prevRaw.tradeReceivables;
+                  const endingTradeReceivables = raw.tradeReceivables;
+                  const turnover = raw.turnover;
+                  if (priorTradeReceivables == null) {
+                    return "Missing: previous financial year Trade Receivables";
+                  }
+                  if (endingTradeReceivables == null) return "Missing: Trade Receivables";
+                  if (turnover == null) return "Missing: Revenue / Turnover";
+                  if (turnover === 0) return "Invalid: Revenue / Turnover is zero";
+                  return "Missing required financial inputs";
+                })();
               default:
                 return "Missing: Calculated metric";
             }

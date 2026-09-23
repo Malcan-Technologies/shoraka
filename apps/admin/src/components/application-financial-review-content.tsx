@@ -1220,6 +1220,7 @@ export function ApplicationFinancialReviewContent({
 
     const year = specCol.year;
     const fs = specCol.kind === "ctos" ? getFsCol(colIdx) : null;
+    const yearFields = resolvedByYear.get(year)?.fields;
 
     switch (rowId) {
       case "ebit": {
@@ -1261,33 +1262,139 @@ export function ApplicationFinancialReviewContent({
         return "Missing: Receivables Days";
       }
       case "interestCoverage": {
-        const interestCosts = resolvedByYear.get(year)?.fields.interest_cost?.value ?? null;
-        const plnpbt = resolvedByYear.get(year)?.fields.plnpbt?.value ?? null;
+        const interestCosts = yearFields?.interest_cost?.value ?? null;
+        const pbt = yearFields?.plnpbt?.value ?? null;
         if (interestCosts == null) return "Missing: Interest Costs";
-        if (plnpbt == null) return "Missing: Profit / Loss Before Tax";
-        return "Missing: Interest Costs";
+        if (interestCosts === 0) return "Invalid: Interest Costs is zero";
+        if (pbt == null) return "Missing: Profit / Loss Before Tax";
+        return "Missing required financial inputs";
       }
       case "dscr": {
-        const netOperatingIncome = resolvedByYear.get(year)?.fields.netOperatingIncome?.value ?? null;
-        const annualDebtService = resolvedByYear.get(year)?.fields.annualDebtService?.value ?? null;
+        const netOperatingIncome = yearFields?.netOperatingIncome?.value ?? null;
+        const annualDebtService = yearFields?.annualDebtService?.value ?? null;
         if (annualDebtService == null) return "Missing: Annual Debt Service";
+        if (annualDebtService === 0) return "Invalid: Annual Debt Service is zero";
         if (netOperatingIncome == null) return "Missing: Net Operating Income";
-        return "Missing: DSCR";
+        return "Missing required financial inputs";
       }
       case "quickRatio": {
-        const cashAndBank = resolvedByYear.get(year)?.fields.cashAndBank?.value ?? null;
-        const tradeReceivables = resolvedByYear.get(year)?.fields.tradeReceivables?.value ?? null;
-        const curlib = resolvedByYear.get(year)?.fields.curlib?.value ?? null;
+        const cashAndBank = yearFields?.cashAndBank?.value ?? null;
+        const tradeReceivables = yearFields?.tradeReceivables?.value ?? null;
+        const currentLiabilities = yearFields?.curlib?.value ?? null;
         if (cashAndBank == null) return "Missing: Cash & Bank";
         if (tradeReceivables == null) return "Missing: Trade Receivables";
-        if (curlib == null) return "Missing: Current Liabilities";
+        if (currentLiabilities == null) return "Missing: Current Liabilities";
+        if (currentLiabilities === 0) return "Invalid: Current Liabilities is zero";
         return "Missing required financial inputs";
       }
       case "currat": {
-        const currentAssets = resolvedByYear.get(year)?.fields.bscatot?.value ?? null;
-        const currentLiabilities = resolvedByYear.get(year)?.fields.curlib?.value ?? null;
+        const currentAssets = yearFields?.bscatot?.value ?? null;
+        const currentLiabilities = yearFields?.curlib?.value ?? null;
         if (currentAssets == null) return "Missing: Current Assets";
         if (currentLiabilities == null) return "Missing: Current Liabilities";
+        if (currentLiabilities === 0) return "Invalid: Current Liabilities is zero";
+        return "Missing required financial inputs";
+      }
+      case "profit_margin": {
+        const pat = yearFields?.plnpat?.value ?? null;
+        const revenue = yearFields?.turnover?.value ?? null;
+        if (pat == null) return "Missing: Profit / Loss After Tax";
+        if (revenue == null) return "Missing: Revenue / Turnover";
+        if (revenue === 0) return "Invalid: Revenue / Turnover is zero";
+        return "Missing required financial inputs";
+      }
+      case "workcap": {
+        const currentAssets = yearFields?.bscatot?.value ?? null;
+        const currentLiabilities = yearFields?.curlib?.value ?? null;
+        if (currentAssets == null) return "Missing: Current Assets";
+        if (currentLiabilities == null) return "Missing: Current Liabilities";
+        return "Missing required financial inputs";
+      }
+      case "roa": {
+        const pat = yearFields?.plnpat?.value ?? null;
+        if (pat == null) return "Missing: Profit / Loss After Tax";
+
+        const computedTotalAssets = computeTotalAssets({
+          total_assets: yearFields?.totass?.value ?? null,
+          fixed_assets: yearFields?.bsfatot?.value ?? null,
+          other_assets: yearFields?.othass?.value ?? null,
+          current_assets: yearFields?.bscatot?.value ?? null,
+          non_current_assets: yearFields?.bsclbank?.value ?? null,
+        });
+        if (computedTotalAssets == null) return "Missing: Total Assets";
+        if (computedTotalAssets === 0) return "Invalid: Total Assets is zero";
+        return "Missing required financial inputs";
+      }
+      case "assetTurnover": {
+        const revenue = yearFields?.turnover?.value ?? null;
+        if (revenue == null) return "Missing: Revenue / Turnover";
+
+        const computedTotalAssets = computeTotalAssets({
+          total_assets: yearFields?.totass?.value ?? null,
+          fixed_assets: yearFields?.bsfatot?.value ?? null,
+          other_assets: yearFields?.othass?.value ?? null,
+          current_assets: yearFields?.bscatot?.value ?? null,
+          non_current_assets: yearFields?.bsclbank?.value ?? null,
+        });
+        if (computedTotalAssets == null) return "Missing: Total Assets";
+        if (computedTotalAssets === 0) return "Invalid: Total Assets is zero";
+        return "Missing required financial inputs";
+      }
+      case "gear":
+      case "debtEquityPercent": {
+        const computedTotalLiabilities = computeTotalLiabilities({
+          total_liabilities: yearFields?.totlib?.value ?? null,
+          current_liabilities: yearFields?.curlib?.value ?? null,
+          long_term_liabilities: yearFields?.bsslltd?.value ?? null,
+          non_current_liabilities: yearFields?.bsclstd?.value ?? null,
+        });
+        if (computedTotalLiabilities == null) return "Missing: Total Liabilities";
+
+        const computedNetWorth =
+          yearFields?.networth?.value ??
+          resolveNetWorthFromComponentsForRoe({
+            fixedAssets: yearFields?.bsfatot?.value ?? null,
+            otherAssets: yearFields?.othass?.value ?? null,
+            currentAssets: yearFields?.bscatot?.value ?? null,
+            nonCurrentAssets: yearFields?.bsclbank?.value ?? null,
+            currentLiabilities: yearFields?.curlib?.value ?? null,
+            longTermLiabilities: yearFields?.bsslltd?.value ?? null,
+            nonCurrentLiabilities: yearFields?.bsclstd?.value ?? null,
+          });
+        if (computedNetWorth == null) return "Missing: Total Equity / Net Worth";
+        if (computedNetWorth === 0) return "Invalid: Total Equity / Net Worth is zero";
+
+        return "Missing required financial inputs";
+      }
+      case "netDebtEquity": {
+        const curlibBorrowing = yearFields?.curlib_borrowing?.value ?? null;
+        const nclLoan = yearFields?.ncl_loan?.value ?? null;
+        const cashAndBank = yearFields?.cashAndBank?.value ?? null;
+        const netWorthComputed =
+          yearFields?.networth?.value ??
+          resolveNetWorthFromComponentsForRoe({
+            fixedAssets: yearFields?.bsfatot?.value ?? null,
+            otherAssets: yearFields?.othass?.value ?? null,
+            currentAssets: yearFields?.bscatot?.value ?? null,
+            nonCurrentAssets: yearFields?.bsclbank?.value ?? null,
+            currentLiabilities: yearFields?.curlib?.value ?? null,
+            longTermLiabilities: yearFields?.bsslltd?.value ?? null,
+            nonCurrentLiabilities: yearFields?.bsclstd?.value ?? null,
+          });
+
+        if (curlibBorrowing == null) return "Missing: Current Borrowings";
+        if (nclLoan == null) return "Missing: Non-current Loans";
+        if (cashAndBank == null) return "Missing: Cash & Bank";
+        if (netWorthComputed == null) return "Missing: Total Equity / Net Worth";
+        if (netWorthComputed === 0) return "Invalid: Total Equity / Net Worth is zero";
+        return "Missing required financial inputs";
+      }
+      case "payablesDays": {
+        const tradePayables = yearFields?.tradePayables?.value ?? null;
+        const costOfSales = yearFields?.costOfSales?.value ?? null;
+        if (tradePayables == null) return "Missing: Trade Payables";
+        if (costOfSales == null) return "Missing: Cost of Sales";
+        if (costOfSales === 0) return "Invalid: Cost of Sales is zero";
         return "Missing required financial inputs";
       }
       case "return_of_equity": {

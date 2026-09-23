@@ -65,7 +65,7 @@ describe("Admin Financial Summary ROE fallback (PAT ÷ Total Equity / Net Worth)
       "Missing: Total Equity / Net Worth"
     );
     expect(getReturnOfEquityMissingReason({ pat: 453_600, netWorth: 0 })).toBe(
-      "Missing: Total Equity / Net Worth"
+      "Invalid: Total Equity / Net Worth is zero"
     );
   });
 });

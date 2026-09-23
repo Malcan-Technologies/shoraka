@@ -469,6 +469,72 @@ describe("page three coverage verification", () => {
     );
   });
 
+  it("adds dependency-aware hints for calculated DNA metrics on Page 3", () => {
+    const dnaRoa = buildCoverageResolvedRows(
+      { ...yearRaw, plnpat: null },
+      undefined,
+      undefined
+    ).find((r) => r.label === "Return on Assets");
+    expect(dnaRoa?.value).toBe("Cannot calculate");
+    expect(dnaRoa?.hint).toBe("Missing: Profit / Loss After Tax");
+
+    const dnaRoaTotAssets = buildCoverageResolvedRows(
+      { ...yearRaw, totass: null },
+      undefined,
+      undefined
+    ).find((r) => r.label === "Return on Assets");
+    expect(dnaRoaTotAssets?.value).toBe("Cannot calculate");
+    expect(dnaRoaTotAssets?.hint).toBe("Missing: Total Assets");
+
+    const dnaAssetTurnoverMissingRevenue = buildCoverageResolvedRows(
+      { ...yearRaw, turnover: null },
+      undefined,
+      undefined
+    ).find((r) => r.label === "Asset Turnover");
+    expect(dnaAssetTurnoverMissingRevenue?.value).toBe("Cannot calculate");
+    expect(dnaAssetTurnoverMissingRevenue?.hint).toBe("Missing: Revenue / Turnover");
+
+    const dnaAssetTurnoverMissingAssets = buildCoverageResolvedRows(
+      { ...yearRaw, totass: null },
+      undefined,
+      undefined
+    ).find((r) => r.label === "Asset Turnover");
+    expect(dnaAssetTurnoverMissingAssets?.value).toBe("Cannot calculate");
+    expect(dnaAssetTurnoverMissingAssets?.hint).toBe("Missing: Total Assets");
+
+    const dnaDebtEqMissingLiabilities = buildCoverageResolvedRows(
+      { ...yearRaw, totlib: null },
+      undefined,
+      undefined
+    ).find((r) => r.label === "Debt / Equity");
+    expect(dnaDebtEqMissingLiabilities?.value).toBe("Cannot calculate");
+    expect(dnaDebtEqMissingLiabilities?.hint).toBe("Missing: Total Liabilities");
+
+    const dnaPayablesMissingCost = buildCoverageResolvedRows(
+      { ...yearRaw, costOfSales: null },
+      undefined,
+      undefined
+    ).find((r) => r.label === "Payables Days");
+    expect(dnaPayablesMissingCost?.value).toBe("Cannot calculate");
+    expect(dnaPayablesMissingCost?.hint).toBe("Missing: Cost of Sales");
+
+    const dnaDscrMissingNoi = buildCoverageResolvedRows(
+      { ...yearRaw, netOperatingIncome: null, dscr: null },
+      undefined,
+      undefined
+    ).find((r) => r.label === "DSCR");
+    expect(dnaDscrMissingNoi?.value).toBe("Cannot calculate");
+    expect(dnaDscrMissingNoi?.hint).toBe("Missing: Net Operating Income");
+
+    const dnaReceivablesMissingEndingTradeReceivables = buildCoverageResolvedRows(
+      { ...yearRaw, tradeReceivables: null, receivablesDays: null },
+      undefined,
+      { tradeReceivables: 14_000 } as Record<string, unknown>
+    ).find((r) => r.label === "Receivables Days");
+    expect(dnaReceivablesMissingEndingTradeReceivables?.value).toBe("Cannot calculate");
+    expect(dnaReceivablesMissingEndingTradeReceivables?.hint).toBe("Missing: Trade Receivables");
+  });
+
   it("keeps single-year resolved helpers for Total Liabilities parity", () => {
     const rows = buildBalanceSheetResolvedRows({ ...yearRaw }, { quickRatio: 1.25 });
     expect(rows.find((r) => r.label === "Total Liabilities")?.value).toContain("250,000");
@@ -529,7 +595,7 @@ describe("page three coverage verification", () => {
 
     // Interest Costs exists -> missing PBT (PBT missing but PAT still exists).
     const missingPbt = buildIncomeStatementResolvedRows(
-      { ...yearRaw, ebit: null, plnpbt: null, plnpat: 100_000 },
+      { ...yearRaw, ebit: null, plnpbt: null, interest_cost: 25_000, plnpat: 100_000 },
       undefined
     );
     expect(missingPbt.find((r) => r.label === "EBIT")?.hint).toBe(
