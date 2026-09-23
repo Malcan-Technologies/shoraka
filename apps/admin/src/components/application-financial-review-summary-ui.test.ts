@@ -3,6 +3,10 @@ import { join } from "node:path";
 
 describe("Admin Financial Summary table UI", () => {
   const tablePath = join(__dirname, "application-financial-review-content.tsx");
+  const addModalPath = join(
+    __dirname,
+    "../notes/prospectus-review/admin-add-financial-statement-dialog.tsx"
+  );
   const modalPath = join(__dirname, "../notes/prospectus-review/admin-edit-financial-statement-dialog.tsx");
 
   it("uses a single financial summary Table in the review section", () => {
@@ -18,7 +22,15 @@ describe("Admin Financial Summary table UI", () => {
 
   it("renders category sections in the requested order", () => {
     const source = readFileSync(tablePath, "utf8");
-    const expectedTitles = ["Assets", "Liabilities", "Equity", "Profit & Loss", "Costs", "Cash Flow / Debt", "Calculated Metrics"];
+    const expectedTitles = [
+      "Assets",
+      "Liabilities",
+      "Equity",
+      "Profit & Loss",
+      "Costs",
+      "Cash Flow / Debt",
+      "Financial Ratios & Metrics",
+    ];
 
     let lastIndex = -1;
     for (const title of expectedTitles) {
@@ -54,6 +66,23 @@ describe("Admin Financial Summary table UI", () => {
     expect(source).toContain("flattenedRows.map");
   });
 
+  it("places EBIT under Profit & Loss (not under Financial Ratios & Metrics)", () => {
+    const source = readFileSync(tablePath, "utf8");
+    const profitStart = source.indexOf('id: "profitLoss"');
+    expect(profitStart).toBeGreaterThan(-1);
+    const profitRowIdsStart = source.indexOf("rowIds:", profitStart);
+    expect(profitRowIdsStart).toBeGreaterThan(-1);
+    const profitSlice = source.slice(profitRowIdsStart, profitRowIdsStart + 800);
+    expect(profitSlice).toContain('"ebit"');
+
+    const ratiosStart = source.indexOf('id: "calculatedMetrics"');
+    expect(ratiosStart).toBeGreaterThan(-1);
+    const ratiosRowIdsStart = source.indexOf("rowIds:", ratiosStart);
+    expect(ratiosRowIdsStart).toBeGreaterThan(-1);
+    const ratiosSlice = source.slice(ratiosRowIdsStart, ratiosRowIdsStart + 900);
+    expect(ratiosSlice).not.toContain('"ebit"');
+  });
+
   it("calculated metrics display Not available and show helper text for turnover growth / receivables days", () => {
     const source = readFileSync(tablePath, "utf8");
     expect(source).toContain('return "Not available"');
@@ -78,6 +107,93 @@ describe("Admin Financial Summary table UI", () => {
     expect(source).not.toContain("turnover_growth");
     expect(source).not.toContain("receivablesDays");
     expect(source).not.toContain("profit_margin");
+  });
+
+  it("Add Financial Statement modal renders category sections in order", () => {
+    const source = readFileSync(addModalPath, "utf8");
+    const expectedTitles = [
+      "Assets",
+      "Liabilities",
+      "Equity",
+      "Profit & Loss",
+      "Costs",
+      "Cash Flow / Debt",
+    ];
+
+    let lastIndex = -1;
+    for (const title of expectedTitles) {
+      const idx = source.indexOf(`title: "${title}"`);
+      expect(idx).toBeGreaterThan(lastIndex);
+      lastIndex = idx;
+    }
+  });
+
+  it("Edit Financial Statement modal renders category sections in order", () => {
+    const source = readFileSync(modalPath, "utf8");
+    const expectedTitles = [
+      "Assets",
+      "Liabilities",
+      "Equity",
+      "Profit & Loss",
+      "Costs",
+      "Cash Flow / Debt",
+    ];
+
+    let lastIndex = -1;
+    for (const title of expectedTitles) {
+      const idx = source.indexOf(`title: "${title}"`);
+      expect(idx).toBeGreaterThan(lastIndex);
+      lastIndex = idx;
+    }
+  });
+
+  it("Edit modal CTOS fields render disabled inputs with 'From CTOS' helper", () => {
+    const source = readFileSync(modalPath, "utf8");
+    expect(source).toContain(`meta.source === "ctos" && meta.readOnly`);
+    expect(source).toContain(`"From CTOS"`);
+    expect(source).toContain("disabled={inputDisabled}");
+    expect(source).toContain("if (meta.readOnly) return;");
+  });
+
+  it("Edit modal CTOS-missing fields render editable inputs with 'Not provided by CTOS' helper", () => {
+    const source = readFileSync(modalPath, "utf8");
+    expect(source).toContain(`meta.source === "ctos" && !meta.readOnly`);
+    expect(source).toContain(`"Not provided by CTOS"`);
+  });
+
+  it("Edit modal shows admin provenance helpers per field", () => {
+    const source = readFileSync(modalPath, "utf8");
+    expect(source).toContain(`meta.editedByAdmin && meta.source === "admin_input"`);
+    expect(source).toContain(`"Admin Input"`);
+    expect(source).toContain(`meta.source === "user_input" && meta.editedByAdmin`);
+    expect(source).toContain(`"Edited by Admin"`);
+  });
+
+  it("Add Financial Statement modal only allows Audited / Not audited statement type", () => {
+    const source = readFileSync(addModalPath, "utf8");
+    expect(source).toContain(`SelectItem value="AUDITED">Audited`);
+    expect(source).toContain(`SelectItem value="NOT_AUDITED">Not audited`);
+  });
+
+  it("Labels are standardized consistently in both modals", () => {
+    const addSource = readFileSync(addModalPath, "utf8");
+    const editSource = readFileSync(modalPath, "utf8");
+
+    const labels = [
+      "Fixed Assets",
+      "Trade Receivables",
+      "Current Liabilities",
+      "Paid-up Share Capital",
+      "Revenue / Turnover",
+      "Gross Profit",
+      "Cost of Sales",
+      "Operating Cash Flow",
+    ];
+
+    for (const l of labels) {
+      expect(addSource).toContain(l);
+      expect(editSource).toContain(l);
+    }
   });
 });
 

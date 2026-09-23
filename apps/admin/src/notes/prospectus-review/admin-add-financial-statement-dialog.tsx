@@ -32,6 +32,78 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 export type AdminFinancialStatementStatementType = "AUDITED" | "NOT_AUDITED";
 
+const UI_FIELD_LABELS: Record<string, string> = {
+  // Assets
+  bsfatot: "Fixed Assets",
+  othass: "Other Assets",
+  bscatot: "Current Assets",
+  bsclbank: "Non-current Assets",
+  cashAndBank: "Cash & Bank",
+  tradeReceivables: "Trade Receivables",
+  // Liabilities
+  curlib: "Current Liabilities",
+  bsslltd: "Long-term Liabilities",
+  bsclstd: "Non-current Liabilities",
+  curlib_borrowing: "Current Borrowings",
+  curlib_non_borrowing: "Other Current Liabilities",
+  ncl_loan: "Non-current Loans",
+  ncl_non_loan: "Other Non-current Liabilities",
+  tradePayables: "Trade Payables",
+  // Equity
+  bsqpuc: "Paid-up Share Capital",
+  equity_share_application: "Share Application Account",
+  equity_share_premium: "Share Premium & Other Reserves",
+  equity_accumulated_profit: "Accumulated Profit / Loss",
+  equity_minority: "Equity Minority Interest",
+  // Profit & Loss
+  turnover: "Revenue / Turnover",
+  grossProfit: "Gross Profit",
+  ebitda: "EBITDA",
+  plnpbt: "Profit / Loss Before Tax",
+  plnpat: "Profit / Loss After Tax",
+  plnetdiv: "Net Dividend",
+  pl_minority: "P&L Minority Interest",
+  plyear: "Profit / Loss of Year",
+  netOperatingIncome: "Net Operating Income",
+  // Costs
+  costOfSales: "Cost of Sales",
+  operating_cost: "Operating Costs",
+  admin_cost: "Administrative Costs",
+  interest_cost: "Interest Costs",
+  other_cost: "Other Costs",
+  // Cash Flow / Debt
+  operatingCashFlow: "Operating Cash Flow",
+  freeCashFlow: "Free Cash Flow",
+  annualDebtService: "Annual Debt Service",
+};
+
+const ADD_MODAL_CATEGORIES: Array<{ title: string; keys: readonly string[] }> = [
+  { title: "Assets", keys: ["bsfatot", "othass", "bscatot", "bsclbank", "cashAndBank", "tradeReceivables"] },
+  {
+    title: "Liabilities",
+    keys: [
+      "curlib",
+      "bsslltd",
+      "bsclstd",
+      "curlib_borrowing",
+      "curlib_non_borrowing",
+      "ncl_loan",
+      "ncl_non_loan",
+      "tradePayables",
+    ],
+  },
+  {
+    title: "Equity",
+    keys: ["bsqpuc", "equity_share_application", "equity_share_premium", "equity_accumulated_profit", "equity_minority"],
+  },
+  {
+    title: "Profit & Loss",
+    keys: ["turnover", "grossProfit", "ebitda", "plnpbt", "plnpat", "plnetdiv", "pl_minority", "plyear", "netOperatingIncome"],
+  },
+  { title: "Costs", keys: ["costOfSales", "operating_cost", "admin_cost", "interest_cost", "other_cost"] },
+  { title: "Cash Flow / Debt", keys: ["operatingCashFlow", "freeCashFlow", "annualDebtService"] },
+];
+
 function parseNumberInput(s: string): number | null {
   const trimmed = s.trim();
   if (!trimmed) return null;
@@ -135,14 +207,22 @@ export function AdminAddFinancialStatementDialog({
         <DialogHeader>
           <DialogTitle>+ Add Financial Statement</DialogTitle>
           <DialogDescription>
-            Add a missing historical year ({yearLabel}) using Admin fallback. CTOS / issuer data will remain authoritative.
+            <div className="space-y-1">
+              <div className="text-muted-foreground">Source: Admin Input</div>
+              <div className="text-muted-foreground">
+                Calculated fields are read-only and update automatically from raw financial inputs.
+              </div>
+            </div>
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-2">
             <Label>Statement type</Label>
-            <Select value={statementType} onValueChange={(v) => setStatementType(v as any)}>
+            <Select
+              value={statementType}
+              onValueChange={(v) => setStatementType(v as AdminFinancialStatementStatementType)}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -154,26 +234,41 @@ export function AdminAddFinancialStatementDialog({
           </div>
 
           <div className="max-h-[55vh] overflow-y-auto rounded-xl border p-3">
-            <div className="grid gap-3 sm:grid-cols-2">
-              {FORM_KEYS.map((key) => (
-                <div key={key} className="space-y-1">
-                  <Label htmlFor={`admin-fs-${key}`} className="text-meta">
-                    {FINANCIAL_FIELD_LABELS[key] ?? key}
-                  </Label>
-                  <Input
-                    id={`admin-fs-${key}`}
-                    inputMode="decimal"
-                    type="number"
-                    step="any"
-                    placeholder="—"
-                    value={values[key] ?? ""}
-                    disabled={disabled || saving}
-                    onChange={(e) =>
-                      setValues((prev) => ({ ...prev, [key]: e.target.value }))
-                    }
-                  />
-                </div>
-              ))}
+            <div className="space-y-5">
+              {ADD_MODAL_CATEGORIES.map((cat) => {
+                const keys = cat.keys.filter((k) =>
+                  FORM_KEYS.includes(k as (typeof FORM_KEYS)[number])
+                );
+                if (keys.length === 0) return null;
+
+                return (
+                  <div key={cat.title} className="space-y-3">
+                    <div className="text-sm font-semibold text-foreground">{cat.title}</div>
+                    <div className="h-px bg-border/60" />
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {keys.map((key) => (
+                        <div key={key} className="space-y-1">
+                          <Label htmlFor={`admin-fs-${key}`} className="text-meta">
+                            {UI_FIELD_LABELS[key] ?? (FINANCIAL_FIELD_LABELS as Record<string, string>)[key] ?? key}
+                          </Label>
+                          <Input
+                            id={`admin-fs-${key}`}
+                            inputMode="decimal"
+                            type="number"
+                            step="any"
+                            placeholder="—"
+                            value={values[key] ?? ""}
+                            disabled={disabled || saving}
+                            onChange={(e) =>
+                              setValues((prev) => ({ ...prev, [key]: e.target.value }))
+                            }
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>

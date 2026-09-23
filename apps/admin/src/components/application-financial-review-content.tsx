@@ -588,6 +588,7 @@ export function ApplicationFinancialReviewContent({
         "turnover",
         "grossProfit",
         "ebitda",
+        "ebit",
         "plnpbt",
         "plnpat",
         "plnetdiv",
@@ -608,9 +609,8 @@ export function ApplicationFinancialReviewContent({
     },
     {
       id: "calculatedMetrics",
-      title: "Calculated Metrics",
+      title: "Financial Ratios & Metrics",
       rowIds: [
-        "ebit",
         "turnover_growth",
         "profit_margin",
         "currat",

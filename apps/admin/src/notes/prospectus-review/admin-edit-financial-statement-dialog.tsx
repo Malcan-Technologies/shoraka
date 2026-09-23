@@ -14,7 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { FINANCIAL_FIELD_LABELS, type AdminFinancialReviewColumn, isAdminEditableRawFinancialKey } from "@cashsouk/types";
+import { type AdminFinancialReviewColumn, isAdminEditableRawFinancialKey } from "@cashsouk/types";
 import { ADMIN_EDITABLE_RAW_FINANCIAL_KEYS } from "@cashsouk/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -29,26 +29,11 @@ type RawFieldState = {
   editedByAdmin: boolean;
 };
 
-function formatRawFieldValue(n: number): string {
-  // Raw financial fields are stored as numbers; show as integers for consistent UX with the table.
-  return String(n);
-}
-
 function parseOptionalNumericInput(raw: string): number | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;
   const n = Number(trimmed.replace(/,/g, ""));
   return Number.isFinite(n) ? n : null;
-}
-
-function fieldProvenanceLabel(meta: {
-  source: "ctos" | "user_input" | "admin_input";
-  editedByAdmin: boolean;
-}): string {
-  if (meta.editedByAdmin && meta.source === "user_input") return "User Input · Edited by Admin";
-  if (meta.source === "ctos") return "CTOS";
-  if (meta.source === "user_input") return "User Input";
-  return "Admin Input";
 }
 
 const MODAL_GROUPS: Array<{ title: string; keys: string[] }> = [
@@ -93,6 +78,51 @@ const MODAL_GROUPS: Array<{ title: string; keys: string[] }> = [
   },
 ];
 
+const UI_FIELD_LABELS: Record<string, string> = {
+  // Assets
+  bsfatot: "Fixed Assets",
+  othass: "Other Assets",
+  bscatot: "Current Assets",
+  bsclbank: "Non-current Assets",
+  cashAndBank: "Cash & Bank",
+  tradeReceivables: "Trade Receivables",
+  // Liabilities
+  curlib: "Current Liabilities",
+  bsslltd: "Long-term Liabilities",
+  bsclstd: "Non-current Liabilities",
+  curlib_borrowing: "Current Borrowings",
+  curlib_non_borrowing: "Other Current Liabilities",
+  ncl_loan: "Non-current Loans",
+  ncl_non_loan: "Other Non-current Liabilities",
+  tradePayables: "Trade Payables",
+  // Equity
+  bsqpuc: "Paid-up Share Capital",
+  equity_share_application: "Share Application Account",
+  equity_share_premium: "Share Premium & Other Reserves",
+  equity_accumulated_profit: "Accumulated Profit / Loss",
+  equity_minority: "Equity Minority Interest",
+  // Profit & Loss
+  turnover: "Revenue / Turnover",
+  grossProfit: "Gross Profit",
+  ebitda: "EBITDA",
+  plnpbt: "Profit / Loss Before Tax",
+  plnpat: "Profit / Loss After Tax",
+  plnetdiv: "Net Dividend",
+  pl_minority: "P&L Minority Interest",
+  plyear: "Profit / Loss of Year",
+  netOperatingIncome: "Net Operating Income",
+  // Costs
+  costOfSales: "Cost of Sales",
+  operating_cost: "Operating Costs",
+  admin_cost: "Administrative Costs",
+  interest_cost: "Interest Costs",
+  other_cost: "Other Costs",
+  // Cash Flow / Debt
+  operatingCashFlow: "Operating Cash Flow",
+  freeCashFlow: "Free Cash Flow",
+  annualDebtService: "Annual Debt Service",
+};
+
 export function AdminEditFinancialStatementDialog({
   open,
   onOpenChange,
@@ -135,7 +165,7 @@ export function AdminEditFinancialStatementDialog({
       if (!field) continue;
       byKey[key] = {
         key,
-        label: FINANCIAL_FIELD_LABELS[key] ?? key,
+        label: UI_FIELD_LABELS[key] ?? key,
         readOnly: field.readOnly,
         initialValue: field.value,
         unavailableReason: field.unavailableReason,
@@ -208,8 +238,6 @@ export function AdminEditFinancialStatementDialog({
     return "";
   })();
 
-  const yearPrimarySource = resolvedColumn?.primarySource ?? null;
-
   return (
     <Dialog
       open={open}
@@ -221,54 +249,55 @@ export function AdminEditFinancialStatementDialog({
         <DialogHeader>
           <DialogTitle>{calendarYear != null ? `FY${calendarYear}` : "Financial Statement"}</DialogTitle>
           <DialogDescription>
-            {calendarYear != null ? `Source: ${modalSourceLabel}. ` : ""}
-            Calculated metrics stay read-only and update automatically from raw fields.
+            <div className="space-y-1">
+              {calendarYear != null ? (
+                <div className="text-muted-foreground">Source: {modalSourceLabel}</div>
+              ) : null}
+              <div className="text-muted-foreground">
+                Calculated fields are read-only and update automatically from raw financial inputs.
+              </div>
+            </div>
           </DialogDescription>
         </DialogHeader>
 
         {fieldState ? (
           <div className="space-y-4">
             <div className="max-h-[55vh] overflow-y-auto rounded-xl border p-3">
-              <div className="grid gap-3 sm:grid-cols-2">
-                {MODAL_GROUPS.flatMap((g) => {
-                  return g.keys
-                    .filter((k) => fieldState.byKey[k] != null)
-                    .map((key) => {
-                      const meta = fieldState.byKey[key]!;
-                      const showExceptionBadge =
-                        meta.editedByAdmin ||
-                        (yearPrimarySource != null && meta.source !== yearPrimarySource);
+              <div className="space-y-5">
+                {MODAL_GROUPS.map((g) => {
+                  const keys = g.keys.filter((k) => fieldState.byKey[k] != null);
+                  if (keys.length === 0) return null;
 
-                      const helperText =
-                        meta.unavailableReason === "not_provided_by_ctos"
-                          ? "Not provided by CTOS"
-                          : undefined;
+                  return (
+                    <div key={g.title} className="space-y-3">
+                      <div className="text-sm font-semibold text-foreground">{g.title}</div>
+                      <div className="h-px bg-border/60" />
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {keys.map((key) => {
+                          const meta = fieldState.byKey[key]!;
+                          const inputDisabled = disabled || meta.readOnly || saving;
 
-                      const inputDisabled = disabled || meta.readOnly || saving;
+                          const helperText =
+                            meta.source === "ctos" && meta.readOnly
+                              ? "From CTOS"
+                              : meta.source === "ctos" && !meta.readOnly
+                                ? "Not provided by CTOS"
+                                : meta.editedByAdmin && meta.source === "admin_input"
+                                  ? "Admin Input"
+                                  : meta.source === "user_input" && meta.editedByAdmin
+                                    ? "Edited by Admin"
+                                    : undefined;
 
-                      return (
-                        <div key={key} className="space-y-1">
-                          <div className="flex items-start justify-between gap-2">
-                            <Label className="text-meta font-normal leading-snug">{meta.label}</Label>
-                            {showExceptionBadge ? (
-                              <span className="text-[11px] font-normal text-muted-foreground whitespace-nowrap mt-0.5">
-                                {fieldProvenanceLabel({
-                                  source: meta.source,
-                                  editedByAdmin: meta.editedByAdmin,
-                                })}
-                              </span>
-                            ) : null}
-                          </div>
-
-                          {helperText ? <div className="text-[11px] text-muted-foreground">{helperText}</div> : null}
-
-                          {meta.readOnly ? (
-                            <div className="pt-1 text-right font-medium tabular-nums">
-                              {meta.initialValue == null ? "—" : formatRawFieldValue(meta.initialValue)}
-                            </div>
-                          ) : (
-                            <div className="pt-1">
+                          return (
+                            <div key={key} className="space-y-1">
+                              <Label htmlFor={`edit-fs-${key}`} className="text-meta font-normal leading-snug">
+                                {meta.label}
+                              </Label>
+                              {helperText ? (
+                                <div className="text-[11px] text-muted-foreground">{helperText}</div>
+                              ) : null}
                               <Input
+                                id={`edit-fs-${key}`}
                                 inputMode="decimal"
                                 type="number"
                                 step="any"
@@ -276,6 +305,7 @@ export function AdminEditFinancialStatementDialog({
                                 value={fieldState.inputs[key] ?? ""}
                                 disabled={inputDisabled}
                                 onChange={(e) => {
+                                  if (meta.readOnly) return;
                                   const next = e.target.value;
                                   setFieldState((prev) => {
                                     if (!prev) return prev;
@@ -284,10 +314,11 @@ export function AdminEditFinancialStatementDialog({
                                 }}
                               />
                             </div>
-                          )}
-                        </div>
-                      );
-                    });
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
                 })}
               </div>
             </div>
