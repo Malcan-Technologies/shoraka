@@ -168,10 +168,11 @@ function officerMetricValue(
   }
 }
 
+void officerMetricValue;
+
 function metricValueForYear(
   key: ProspectusFinancialComparisonMetricKey,
-  raw: Record<string, unknown>,
-  override: ProspectusFinancialComparisonYearOfficerOverride | null
+  raw: Record<string, unknown>
 ): string {
   switch (key) {
     case "revenue": {
@@ -211,8 +212,23 @@ function metricValueForYear(
     case "interestCoverage":
     case "dscr":
     case "receivablesDays": {
-      const officer = officerMetricValue(key, override);
-      return officer ?? PROSPECTUS_DATA_NOT_AVAILABLE;
+      switch (key) {
+        case "netDebtEquity":
+          return formatProspectusFinancialMultiple(fieldFromRaw(raw, "netDebtEquity"));
+        case "interestCoverage":
+          return formatProspectusFinancialMultiple(
+            fieldFromRaw(raw, "interestCoverage")
+          );
+        case "dscr":
+          return formatProspectusFinancialMultiple(fieldFromRaw(raw, "dscr"));
+        case "receivablesDays": {
+          return formatReceivablesDays(fieldFromRaw(raw, "receivablesDays"));
+        }
+        default: {
+          const _exhaustive: never = key;
+          return _exhaustive;
+        }
+      }
     }
     default: {
       const _exhaustive: never = key;
@@ -237,8 +253,7 @@ export function buildProspectusFinancialComparisonMetrics(
           ? PROSPECTUS_DATA_NOT_AVAILABLE
           : metricValueForYear(
               key,
-              year.rawFinancials,
-              resolveYearOverride(year, input.officerOverrides)
+              year.rawFinancials
             )
       ),
     }));
