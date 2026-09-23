@@ -29,6 +29,12 @@ import { catalogueVersion, emptyProspectusReviewContent } from "../src/modules/n
 import { buildNoteIssuerSnapshot } from "../src/modules/notes/note-issuer-snapshot";
 import { ensureAdminRoleCatalog } from "../src/lib/auth/rbac";
 import { generateUniqueUserId } from "../src/lib/user-id-generator";
+import {
+  buildNormalizedFinancialStatementYearSet,
+  getEligibleAdminInputYears,
+  getFinancialYearPeriodEndIso,
+  isNoteProspectusPublished,
+} from "@cashsouk/types";
 
 const prisma = new PrismaClient();
 
@@ -246,8 +252,8 @@ function scenarioSpecs(): ScenarioSpec[] {
       name: "SEED FS 02 - Missing FY2025",
       applicationStatus: ApplicationStatus.COMPLETED,
       questionnaireFyeYear: 2025,
-      // Include a later real year so the resolver can display the missing FY2025 column.
-      ctosYears: [2023, 2024, 2026],
+      // Missing historical FY2025 for Admin fallback.
+      ctosYears: [2023, 2024],
       issuerYears: [2026],
       valueVariant: 1,
     },
@@ -256,8 +262,8 @@ function scenarioSpecs(): ScenarioSpec[] {
       name: "SEED FS 03 - Historical Gap",
       applicationStatus: ApplicationStatus.COMPLETED,
       questionnaireFyeYear: 2024,
-      // Include FY2026 as a later real year so placeholder FY2024 is anchored in the 3-year table.
-      ctosYears: [2023, 2025, 2026],
+      // Missing historical FY2024 for Admin fallback.
+      ctosYears: [2023, 2025],
       issuerYears: [2026],
       valueVariant: 1,
     },
@@ -311,7 +317,7 @@ function scenarioSpecs(): ScenarioSpec[] {
       name: "SEED FS 09 - Locked Review",
       applicationStatus: ApplicationStatus.COMPLETED,
       questionnaireFyeYear: 2025,
-      ctosYears: [2023, 2024, 2026],
+      ctosYears: [2023, 2024],
       issuerYears: [2026],
       valueVariant: 2,
     },
@@ -320,7 +326,7 @@ function scenarioSpecs(): ScenarioSpec[] {
       name: "SEED FS 10 - Existing Admin Input",
       applicationStatus: ApplicationStatus.COMPLETED,
       questionnaireFyeYear: 2025,
-      ctosYears: [2023, 2024, 2026],
+      ctosYears: [2023, 2024],
       issuerYears: [2026],
       adminInput: [{ year: 2025, statementType: "AUDITED" }],
       valueVariant: 3,
@@ -330,7 +336,7 @@ function scenarioSpecs(): ScenarioSpec[] {
       name: "SEED FS 11 - CTOS Supersedes Admin",
       applicationStatus: ApplicationStatus.COMPLETED,
       questionnaireFyeYear: 2025,
-      ctosYears: [2023, 2024, 2025, 2026],
+      ctosYears: [2023, 2024, 2025],
       issuerYears: [2026],
       adminInput: [{ year: 2025, statementType: "AUDITED" }],
       valueVariant: 3,
@@ -340,7 +346,7 @@ function scenarioSpecs(): ScenarioSpec[] {
       name: "SEED FS 12 - Issuer Supersedes Admin",
       applicationStatus: ApplicationStatus.COMPLETED,
       questionnaireFyeYear: 2025,
-      ctosYears: [2023, 2024, 2026],
+      ctosYears: [2023, 2024],
       issuerYears: [2025, 2026],
       adminInput: [{ year: 2025, statementType: "AUDITED" }],
       valueVariant: 3,
@@ -350,7 +356,7 @@ function scenarioSpecs(): ScenarioSpec[] {
       name: "SEED FS 13 - CTOS Partial Fields",
       applicationStatus: ApplicationStatus.COMPLETED,
       questionnaireFyeYear: 2025,
-      ctosYears: [2023, 2024, 2025, 2026],
+      ctosYears: [2023, 2024, 2025],
       issuerYears: [2026],
       valueVariant: 1,
     },
@@ -914,6 +920,96 @@ async function main() {
       locked: false,
       reviewStatusOverride: s.key === "09" ? ProspectusReviewStatus.APPROVED : undefined,
     });
+
+    // QA summary: use the same resolver helpers production uses for Stage 4A year resolution + eligibility.
+    const app = await prisma.application.findUnique({
+      where: { id: applicationId },
+      select: { id: true, status: true, financial_statements: true, issuer_organization_id: true },
+    });
+    const ctos = await prisma.ctosReport.findUnique({
+      where: { id: ctosReportId },
+      select: { financials_json: true },
+    });
+    const note = await prisma.note.findUnique({
+      where: { id: noteId },
+      select: { id: true, status: true, published_at: true },
+    });
+
+    if (!app || !ctos || !note) throw new Error(`QA summary: missing DB rows for seed ${s.key}`);
+
+    const questionnaire = ((app.financial_statements as any)?.questionnaire ?? null) as any;
+    const financialYearEndIso = questionnaire?.financial_year_end ?? null;
+
+    // Audit CTOS FY realism (period end should not be in the future unless intentionally malformed).
+    if (Array.isArray(ctos.financials_json)) {
+      for (const row of ctos.financials_json as any[]) {
+        const fy = row?.financial_year;
+        if (!Number.isFinite(fy)) continue;
+        const periodEndIso = getFinancialYearPeriodEndIso(questionnaire, fy);
+        if (typeof periodEndIso !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(periodEndIso)) continue;
+        const nowIso = now.toISOString().slice(0, 10);
+        if (periodEndIso > nowIso) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            `[seed QA warning] ${s.name}: CTOS FY${fy} periodEnd=${periodEndIso} is after runtime today=${nowIso} (check scenario intent).`
+          );
+        }
+      }
+    }
+
+    const resolved = buildNormalizedFinancialStatementYearSet({
+      financialStatements: app.financial_statements,
+      ctosFinancials: ctos.financials_json,
+      ref: now,
+    });
+    const eligibleAdmin = getEligibleAdminInputYears({
+      financialStatements: app.financial_statements,
+      ctosFinancials: ctos.financials_json,
+      ref: now,
+    });
+
+    const issuerFYs = Object.keys(((app.financial_statements as any)?.unaudited_by_year ?? {}) as any);
+    const adminFYs = Object.keys(((app.financial_statements as any)?.admin_input_by_year ?? {}) as any);
+    const ctosPersistedYears = Array.isArray(ctos.financials_json)
+      ? Array.from(
+          new Set((ctos.financials_json as any[]).map((r) => r?.financial_year).filter((y) => Number.isFinite(y)))
+        ).sort((a, b) => a - b)
+      : [];
+
+    const resolvedSummary = resolved
+      .map((r) => `${r.year} -> ${r.recordSource}${r.statementType ? ` (${r.statementType})` : ""}`)
+      .join(", ");
+
+    const eligibleSorted = [...eligibleAdmin].sort((a, b) => a - b);
+    const locked = isNoteProspectusPublished({
+      status: note.status,
+      publishedAt: note.published_at,
+    });
+
+    // eslint-disable-next-line no-console
+    console.log(`\n=== SEED QA: ${s.name} ===`);
+    // eslint-disable-next-line no-console
+    console.log(`Application: ${app.id}`);
+    // eslint-disable-next-line no-console
+    console.log(`Company/Issuer: ${s.name}`);
+    // eslint-disable-next-line no-console
+    console.log(`Application status: ${app.status}`);
+    // eslint-disable-next-line no-console
+    console.log(`financial_year_end: ${financialYearEndIso}`);
+    // eslint-disable-next-line no-console
+    console.log(`CTOS FYs persisted: ${ctosPersistedYears.join(", ") || "(none)"}`);
+    // eslint-disable-next-line no-console
+    console.log(`Issuer FYs persisted: ${issuerFYs.sort().join(", ") || "(none)"}`);
+    // eslint-disable-next-line no-console
+    console.log(`Admin FYs persisted: ${adminFYs.sort().join(", ") || "(none)"}`);
+    // eslint-disable-next-line no-console
+    console.log(`Resolved FYs + recordSource: ${resolvedSummary || "(none)"}`);
+    // eslint-disable-next-line no-console
+    console.log(`Eligible Admin fallback FYs (getEligibleAdminInputYears): ${eligibleSorted.join(", ") || "(none)"}`);
+    // eslint-disable-next-line no-console
+    console.log(`Expected UI '+ Add Financial Statement' FYs: ${eligibleSorted.join(", ") || "(none)"}`);
+    // eslint-disable-next-line no-console
+    console.log(`Prospectus review editable: ${locked ? "NO (locked/published)" : "YES (unpublished)"}`);
   }
 
   // eslint-disable-next-line no-console
