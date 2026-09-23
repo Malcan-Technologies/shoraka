@@ -34,6 +34,7 @@ import {
 import { cn } from "@/lib/utils";
 import { DirectorShareholderTable } from "@/components/admin/director-shareholder-table";
 import { formatCurrency, formatNumber } from "@cashsouk/config";
+import { PencilSquareIcon } from "@heroicons/react/24/outline";
 import {
   FINANCIAL_FIELD_LABELS,
   computeColumnMetrics,
@@ -599,6 +600,45 @@ export function ApplicationFinancialReviewContent({
     },
   ];
 
+  const rowById = new Map(rowLabels.map((r) => [r.id, r] as const));
+  const rowGroups: Array<{ title: string; ids: string[] }> = [
+    {
+      title: "Assets",
+      ids: ["bsfatot", "othass", "bscatot", "bsclbank", "cashAndBank", "tradeReceivables", "totass"],
+    },
+    {
+      title: "Liabilities",
+      ids: ["curlib", "bsslltd", "bsclstd", "curlib_borrowing", "curlib_non_borrowing", "ncl_loan", "ncl_non_loan", "tradePayables", "totlib"],
+    },
+    {
+      title: "Equity",
+      ids: [
+        "bsqpuc",
+        "equity_share_application",
+        "equity_share_premium",
+        "equity_accumulated_profit",
+        "equity_minority",
+        "networth",
+      ],
+    },
+    {
+      title: "Profit & Loss",
+      ids: ["turnover", "grossProfit", "ebitda", "plnpbt", "plnpat", "plnetdiv", "pl_minority", "plyear", "netOperatingIncome"],
+    },
+    {
+      title: "Costs",
+      ids: ["costOfSales", "operating_cost", "admin_cost", "interest_cost", "other_cost"],
+    },
+    {
+      title: "Cash Flow / Debt",
+      ids: ["operatingCashFlow", "freeCashFlow", "annualDebtService"],
+    },
+    {
+      title: "Calculated Metrics",
+      ids: ["turnover_growth", "profit_margin", "return_of_equity", "currat", "workcap", "receivablesDays"],
+    },
+  ];
+
   const renderRowCell = (rowId: string, colIdx: number): string => {
     const specCol = columns[colIdx];
     if (!specCol) return "—";
@@ -713,10 +753,32 @@ export function ApplicationFinancialReviewContent({
       case "turnover_growth": {
         if (ctosColumnMissing(colIdx)) return "Missing in CTOS extract";
         if (specCol.kind === "ctos") {
-          if (!fs || !ctosFlatNumericPresent(fs, "turnover_growth")) return "N/A";
-          return formatNumber(toNum(fs.turnover_growth), 2) + "%";
+          if (fs && ctosFlatNumericPresent(fs, "turnover_growth")) {
+            return formatNumber(toNum(fs.turnover_growth), 2) + "%";
+          }
+
+          const targetTurnover = specCol.year != null ? turnoverByYear.get(specCol.year) ?? null : null;
+          const priorTurnover =
+            specCol.year != null ? turnoverByYear.get(specCol.year - 1) ?? null : null;
+          if (targetTurnover == null) return "Unable to calculate — Revenue unavailable";
+          if (priorTurnover == null) return "Unable to calculate — previous FY revenue unavailable";
+          const g = computeTurnoverGrowth({
+            targetYear: specCol.year,
+            targetTurnover,
+            priorYear: specCol.year - 1,
+            priorTurnover,
+          });
+          if (g == null) return "Unable to calculate";
+          return formatNumber(g * 100, 2) + "%";
         }
-        if (!computed || computed.turnover_growth == null) return "N/A";
+        if (!computed || computed.turnover_growth == null) {
+          const targetTurnover = specCol.year != null ? turnoverByYear.get(specCol.year) ?? null : null;
+          const priorTurnover =
+            specCol.year != null ? turnoverByYear.get(specCol.year - 1) ?? null : null;
+          if (priorTurnover == null) return "Unable to calculate — previous FY revenue unavailable";
+          if (targetTurnover == null) return "Unable to calculate — Revenue unavailable";
+          return "Unable to calculate";
+        }
         return formatNumber(computed.turnover_growth * 100, 2) + "%";
       }
       case "profit_margin": {
@@ -789,9 +851,7 @@ export function ApplicationFinancialReviewContent({
         if (!isAdminEditableRawFinancialKey(rowId) || specCol.year == null) return "—";
         const field = resolvedByYear.get(specCol.year)?.fields[rowId];
         if (!field || field.value == null) {
-          return field?.unavailableReason === "not_provided_by_ctos"
-            ? "Not provided by CTOS"
-            : "Not provided";
+          return "—";
         }
         return formatCurrency(field.value, { decimals: 0 });
       }
@@ -837,36 +897,71 @@ export function ApplicationFinancialReviewContent({
                         financialSummaryColumnShellClass(spec.kind, i, spec.year)
                       )}
                     >
-                      <span className={spec.year != null ? "text-foreground" : "text-muted-foreground"}>
-                        {spec.kind === "admin_fallback_placeholder" && spec.year != null ? (
-                          <button
-                            type="button"
-                            className="inline-flex flex-col items-end gap-0.5 text-right hover:underline cursor-pointer"
-                            onClick={() => {
-                              setAddFinancialStatementYear(spec.year);
-                              setAddFinancialStatementOpen(true);
-                            }}
-                          >
+                      <div className="flex flex-col items-end gap-0.5">
+                        <span className={spec.year != null ? "text-foreground" : "text-muted-foreground"}>
+                          {spec.kind === "admin_fallback_placeholder" && spec.year != null ? (
+                            <button
+                              type="button"
+                              className="inline-flex flex-col items-end gap-0.5 text-right hover:underline cursor-pointer"
+                              onClick={() => {
+                                setAddFinancialStatementYear(spec.year);
+                                setAddFinancialStatementOpen(true);
+                              }}
+                            >
+                              <span>{`FY${spec.year}`}</span>
+                              <span className="text-meta font-normal leading-snug text-primary">
+                                + Add Financial Statement
+                              </span>
+                            </button>
+                          ) : spec.kind === "unaudited" && spec.year != null ? (
+                            <AdminUnauditedYearHeading
+                              year={spec.year}
+                              questionnaire={financialQuestionnaire}
+                            />
+                          ) : spec.kind === "admin_input" && spec.year != null ? (
                             <span>{`FY${spec.year}`}</span>
-                            <span className="text-meta font-normal leading-snug text-primary">
-                              + Add Financial Statement
-                            </span>
-                          </button>
-                        ) : spec.kind === "unaudited" && spec.year != null ? (
-                          <AdminUnauditedYearHeading
-                            year={spec.year}
-                            questionnaire={financialQuestionnaire}
-                          />
-                        ) : spec.kind === "admin_input" && spec.year != null ? (
-                          <span>{`FY${spec.year}`}</span>
-                        ) : spec.year != null ? (
-                          String(spec.year)
-                        ) : spec.kind === "ctos" ? (
-                          "No year"
-                        ) : (
-                          HEADER_PLACEHOLDER
-                        )}
-                      </span>
+                          ) : spec.year != null ? (
+                            String(spec.year)
+                          ) : spec.kind === "ctos" ? (
+                            "No year"
+                          ) : (
+                            HEADER_PLACEHOLDER
+                          )}
+                        </span>
+                        {spec.kind === "ctos" && spec.year != null ? (
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "shrink-0 whitespace-nowrap font-normal text-[11px] leading-tight px-2.5 py-0.5 rounded-md shadow-none",
+                              "border-emerald-500/40 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100"
+                            )}
+                          >
+                            CTOS
+                          </Badge>
+                        ) : null}
+                        {spec.kind === "unaudited" && spec.year != null ? (
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "shrink-0 whitespace-nowrap font-normal text-[11px] leading-tight px-2.5 py-0.5 rounded-md shadow-none",
+                              "border-border bg-muted/50 text-foreground"
+                            )}
+                          >
+                            User Input
+                          </Badge>
+                        ) : null}
+                        {spec.kind === "admin_input" && spec.year != null ? (
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "shrink-0 whitespace-nowrap font-normal text-[11px] leading-tight px-2.5 py-0.5 rounded-md shadow-none",
+                              "border-border bg-muted/50 text-foreground"
+                            )}
+                          >
+                            Admin Input
+                          </Badge>
+                        ) : null}
+                      </div>
                     </TableHead>
                   ))}
                 </TableRow>
@@ -974,13 +1069,17 @@ export function ApplicationFinancialReviewContent({
                         spec.kind !== "empty" &&
                         resolvedField != null &&
                         !resolvedField.readOnly;
-                      const sourceBadge = calculated
-                        ? cellText === "N/A" || cellText.startsWith("Unable to calculate")
+                      const yearPrimarySource = spec.year != null ? resolvedByYear.get(spec.year)?.primarySource : undefined;
+                      const sourceBadge =
+                        calculated
                           ? null
-                          : "Calculated"
-                        : resolvedField && resolvedField.value != null
-                          ? financialFieldSourceBadge(resolvedField)
-                          : null;
+                          : resolvedField && resolvedField.value != null && yearPrimarySource
+                            ? // Only show a badge when the field source is an exception to the column’s primary source.
+                              resolvedField.editedByAdmin ||
+                                resolvedField.source !== yearPrimarySource
+                              ? financialFieldSourceBadge(resolvedField)
+                              : null
+                            : null;
                       return (
                         <TableCell
                           key={`${spec.kind}-${spec.year ?? "x"}-${ci}`}
@@ -1008,6 +1107,12 @@ export function ApplicationFinancialReviewContent({
                                 {sourceBadge}
                               </span>
                             ) : null}
+                            {resolvedField?.unavailableReason === "not_provided_by_ctos" &&
+                            resolvedField.value == null ? (
+                              <span className="text-[11px] font-normal leading-tight text-muted-foreground">
+                                Not provided by CTOS
+                              </span>
+                            ) : null}
                             {canEditField && spec.year != null ? (
                               <button
                                 type="button"
@@ -1020,8 +1125,14 @@ export function ApplicationFinancialReviewContent({
                                     value: resolvedField?.value ?? null,
                                   })
                                 }
+                                title={resolvedField?.value == null ? "Add financial value" : "Edit financial value"}
+                                aria-label={resolvedField?.value == null ? "Add financial value" : "Edit financial value"}
                               >
-                                {resolvedField?.value == null ? "+ Add" : "Edit"}
+                                {resolvedField?.value == null ? (
+                                  "+ Add"
+                                ) : (
+                                  <PencilSquareIcon className="h-4 w-4" aria-hidden />
+                                )}
                               </button>
                             ) : null}
                           </div>
