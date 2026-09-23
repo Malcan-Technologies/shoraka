@@ -38,6 +38,27 @@ describe("application financial review Turnover Growth rendering", () => {
     expect(source).toContain("AdminEditFinancialStatementDialog");
   });
 
+  it("uses consistent FY header label styling and short action labels without overflow copying", () => {
+    const source = readFileSync(
+      join(__dirname, "application-financial-review-content.tsx"),
+      "utf8"
+    );
+
+    // FY label styling is now consistent across year columns.
+    expect(source).toContain('className="text-foreground text-[14px] font-normal leading-snug"');
+    expect(source).not.toContain('spec.year != null ? "text-foreground" : "text-muted-foreground"');
+
+    // Short, consistent action labels.
+    expect(source).toContain("Edit statement");
+    expect(source).toContain("Add statement");
+    expect(source).not.toContain("Edit Financial Statement");
+    expect(source).not.toContain("+ Add Financial Statement");
+
+    // Date range still derived for unaudited FY columns.
+    expect(source).toContain("adminFyPeriodLines");
+    expect(source).toContain("periodLine");
+  });
+
   it("suppresses repeated source badges when a field matches the column primary source", () => {
     const source = readFileSync(
       join(__dirname, "application-financial-review-content.tsx"),

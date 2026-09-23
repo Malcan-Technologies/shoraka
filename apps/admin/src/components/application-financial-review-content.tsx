@@ -34,7 +34,7 @@ import {
 import { cn } from "@/lib/utils";
 import { DirectorShareholderTable } from "@/components/admin/director-shareholder-table";
 import { formatCurrency, formatNumber } from "@cashsouk/config";
-import { ChevronDownIcon, ChevronRightIcon, PencilSquareIcon } from "@heroicons/react/24/outline";
+import { ChevronDownIcon, ChevronRightIcon, PencilSquareIcon, PlusIcon } from "@heroicons/react/24/outline";
 import {
   computeColumnMetrics,
   computeEbit,
@@ -103,18 +103,15 @@ function AdminUnauditedYearHeading({
   questionnaire: Parameters<typeof adminUnauditedYearPresentation>[0];
 }) {
   const lines = adminFyPeriodLines(adminUnauditedYearPresentation(questionnaire, year).periodLine);
+  if (lines.length === 0) return null;
+
   return (
-    <span className="flex flex-col items-center gap-0.5 text-center">
-      <span>{`FY${year}`}</span>
-      {lines.length > 0 ? (
-        <span className="text-meta font-normal leading-snug text-muted-foreground">
-          {lines.map((line) => (
-            <span key={line} className="block whitespace-nowrap">
-              {line}
-            </span>
-          ))}
+    <span className="text-meta font-normal leading-snug text-muted-foreground">
+      {lines.map((line) => (
+        <span key={line} className="block break-words">
+          {line}
         </span>
-      ) : null}
+      ))}
     </span>
   );
 }
@@ -1172,52 +1169,46 @@ export function ApplicationFinancialReviewContent({
                         financialSummaryColumnShellClass(spec.kind, i, spec.year)
                       )}
                     >
-                      <div className="flex flex-col items-center gap-0.5">
-                        <span className={spec.year != null ? "text-foreground" : "text-muted-foreground"}>
-                          {spec.kind === "admin_fallback_placeholder" && spec.year != null ? (
-                            <button
-                              type="button"
-                              className="inline-flex flex-col items-center gap-0.5 text-center hover:underline cursor-pointer"
-                              onClick={() => {
-                                setAddFinancialStatementYear(spec.year);
-                                setAddFinancialStatementOpen(true);
-                              }}
-                            >
-                              <span>{`FY${spec.year}`}</span>
-                              <span className="text-meta font-normal leading-snug text-primary">
-                                + Add Financial Statement
-                              </span>
-                            </button>
-                          ) : spec.kind === "unaudited" && spec.year != null ? (
-                            <AdminUnauditedYearHeading
-                              year={spec.year}
-                              questionnaire={financialQuestionnaire}
-                            />
-                          ) : spec.kind === "admin_input" && spec.year != null ? (
-                            <span>{`FY${spec.year}`}</span>
-                          ) : spec.year != null ? (
-                            <span>{`FY${spec.year}`}</span>
-                          ) : spec.kind === "ctos" ? (
-                            "No year"
-                          ) : (
-                            HEADER_PLACEHOLDER
-                          )}
+                      <div className="flex flex-col items-center justify-center gap-0.5 min-h-[3.25rem]">
+                        <span className="text-foreground text-[14px] font-normal leading-snug">
+                          {spec.year != null
+                            ? `FY${spec.year}`
+                            : spec.kind === "ctos"
+                              ? "No year"
+                              : HEADER_PLACEHOLDER}
                         </span>
-                        {spec.kind !== "admin_fallback_placeholder" && spec.year != null ? (
+
+                        {spec.kind === "unaudited" && spec.year != null ? (
+                          <AdminUnauditedYearHeading year={spec.year} questionnaire={financialQuestionnaire} />
+                        ) : null}
+
+                        {spec.kind === "admin_fallback_placeholder" && spec.year != null ? (
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 whitespace-nowrap text-primary hover:underline cursor-pointer"
+                            onClick={() => {
+                              setAddFinancialStatementYear(spec.year);
+                              setAddFinancialStatementOpen(true);
+                            }}
+                          >
+                            <PlusIcon className="h-4 w-4" aria-hidden />
+                            <span className="text-[13px] font-normal">Add statement</span>
+                          </button>
+                        ) : spec.kind !== "admin_fallback_placeholder" && spec.year != null ? (
                           <Button
                             type="button"
                             variant="ghost"
                             size="sm"
-                            className="h-8 px-2"
+                            className="h-7 px-1.5 py-0 whitespace-nowrap"
                             title="Edit financial statement"
                             onClick={() => {
                               setEditFinancialStatementYear(spec.year as number);
                               setEditFinancialStatementOpen(true);
                             }}
                           >
-                            <span className="flex items-center gap-2">
+                            <span className="flex items-center gap-1">
                               <PencilSquareIcon className="h-4 w-4" aria-hidden />
-                              <span className="hidden sm:inline">Edit Financial Statement</span>
+                              <span className="whitespace-nowrap text-[13px] font-normal">Edit statement</span>
                             </span>
                           </Button>
                         ) : null}
