@@ -1155,7 +1155,23 @@ export function ApplicationFinancialReviewContent({
           resolvedByYear.get(specCol.year)?.fields.curlib_borrowing?.value ?? null;
         const nclLoan = resolvedByYear.get(specCol.year)?.fields.ncl_loan?.value ?? null;
         const cashAndBank = resolvedByYear.get(specCol.year)?.fields.cashAndBank?.value ?? null;
-        const networthVal = specCol.kind === "ctos" ? toNum(fs?.networth) : computed?.networth ?? null;
+        const yearFields = resolvedByYear.get(specCol.year)?.fields;
+        let networthVal =
+          specCol.kind === "ctos" ? toNum(fs?.networth) : computed?.networth ?? null;
+
+        // CTOS omission-risk: if CTOS finished Net Worth is missing, derive it from components
+        // using the exact same helper path as the "Total Equity / Net Worth" row.
+        if (specCol.kind === "ctos" && networthVal == null) {
+          networthVal = resolveNetWorthFromComponentsForRoe({
+            fixedAssets: yearFields?.bsfatot?.value ?? null,
+            otherAssets: yearFields?.othass?.value ?? null,
+            currentAssets: yearFields?.bscatot?.value ?? null,
+            nonCurrentAssets: yearFields?.bsclbank?.value ?? null,
+            currentLiabilities: yearFields?.curlib?.value ?? null,
+            longTermLiabilities: yearFields?.bsslltd?.value ?? null,
+            nonCurrentLiabilities: yearFields?.bsclstd?.value ?? null,
+          });
+        }
         const v = computeNetDebtEquity({
           curlib_borrowing: curlibBorrowing,
           ncl_loan: nclLoan,
