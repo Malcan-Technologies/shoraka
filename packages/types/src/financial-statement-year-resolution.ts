@@ -87,6 +87,24 @@ const ACCOUNT_KEYS = [
   "interest_cost",
 ] as const;
 
+/**
+ * CTOS provides ComRep extras (ENQWS numeric tags) but the normalized year record
+ * must use the CashSouk raw keys that Admin/Prospectus already expect.
+ */
+const CTOS_COMREP_EXTRA_RAW_KEY_MAP: Record<string, string> = {
+  bsqres: "equity_share_premium",
+  bsqupro: "equity_accumulated_profit",
+  bsqmint: "equity_minority",
+  plminin: "pl_minority",
+};
+
+const CTOS_COMREP_EXTRA_CASHSOUK_KEYS = [
+  "equity_share_premium",
+  "equity_accumulated_profit",
+  "equity_minority",
+  "pl_minority",
+] as const;
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -109,6 +127,11 @@ export function ctosFinancialRowToFsFields(row: CtosFinancialStatementRow): Reco
   for (const key of ACCOUNT_KEYS) {
     const v = account[key];
     out[key] = v != null ? v : "";
+  }
+  // Preserve CTOS ComRep extras that are not part of the core ACCOUNT_KEYS list.
+  for (const [ctosKey, cashSoukKey] of Object.entries(CTOS_COMREP_EXTRA_RAW_KEY_MAP)) {
+    const v = account[ctosKey];
+    out[cashSoukKey] = v != null ? v : "";
   }
   return out;
 }
@@ -215,6 +238,17 @@ function resolveFinancialYearEndIso(input: {
 /** True when a year block has at least one finite numeric line item (0 counts). */
 export function financialYearBlockHasActualData(raw: Record<string, unknown>): boolean {
   for (const key of ACCOUNT_KEYS) {
+    const v = raw[key];
+    if (typeof v === "number" && Number.isFinite(v)) return true;
+    if (typeof v === "string") {
+      const trimmed = v.trim();
+      if (!trimmed) continue;
+      const n = Number(trimmed.replace(/,/g, ""));
+      if (Number.isFinite(n)) return true;
+    }
+  }
+  // Also consider CTOS ComRep extras so years aren't dropped when only those are present.
+  for (const key of CTOS_COMREP_EXTRA_CASHSOUK_KEYS) {
     const v = raw[key];
     if (typeof v === "number" && Number.isFinite(v)) return true;
     if (typeof v === "string") {

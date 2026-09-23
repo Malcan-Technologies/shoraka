@@ -115,6 +115,48 @@ describe("resolveAdminFinancialReviewColumns", () => {
     ).toMatchObject({ ok: true, action: "add_missing_ctos_field" });
   });
 
+  it("preserves CTOS ComRep extras (bsqres/bsqupro/bsqmint/plminin) into admin raw keys", () => {
+    const columns = resolveAdminFinancialReviewColumns({
+      financialStatements: {},
+      ctosFinancials: [
+        {
+          financial_year: 2024,
+          account: {
+            bsqres: 100_000,
+            bsqupro: 200_000,
+            bsqmint: 300_000,
+            plminin: 400_000,
+          },
+        },
+      ],
+    });
+
+    expect(columns).toHaveLength(1);
+    const year = columns[0]!;
+    expect(year.primarySource).toBe("ctos");
+
+    expect(year.fields.equity_share_premium).toMatchObject({
+      value: 100_000,
+      source: "ctos",
+      readOnly: true,
+    });
+    expect(year.fields.equity_accumulated_profit).toMatchObject({
+      value: 200_000,
+      source: "ctos",
+      readOnly: true,
+    });
+    expect(year.fields.equity_minority).toMatchObject({
+      value: 300_000,
+      source: "ctos",
+      readOnly: true,
+    });
+    expect(year.fields.pl_minority).toMatchObject({
+      value: 400_000,
+      source: "ctos",
+      readOnly: true,
+    });
+  });
+
   it("explains missing prior Trade Receivables for Receivables Days", () => {
     expect(
       receivablesDaysUnavailableReason({
