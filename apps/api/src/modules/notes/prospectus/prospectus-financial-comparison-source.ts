@@ -175,7 +175,9 @@ export function buildProspectusFinancialComparisonSource(
 
       // Debt / Equity prefers `gear` when present, but can fall back to totlib/networth.
       rawFinancials.gear =
-        metrics.networth === 0 ? null : metrics.totlib / metrics.networth;
+        metrics.networth == null || metrics.networth === 0 || metrics.totlib == null
+          ? null
+          : metrics.totlib / metrics.networth;
     }
 
     // Derived issuer metrics for both CTOS-audited and unaudited management years.
@@ -203,13 +205,12 @@ export function buildProspectusFinancialComparisonSource(
       cashAndBank: fs.cashAndBank,
       networth: fs.networth,
     });
-    // Current CashSouk DSCR behavior uses EBITDA as the numerator.
-    // (Net Operating Income support is handled elsewhere when explicitly available.)
-    // DSCR numerator prefers `netOperatingIncome` when present; otherwise fall back to EBITDA
-    // for legacy fixtures/flows that only provide `ebitda`.
-    const dscrNumerator =
-      typeof fs.netOperatingIncome === "number" ? fs.netOperatingIncome : fs.ebitda;
-    rawFinancials.dscr = computeDscr(dscrNumerator, fs.annualDebtService);
+    // DSCR strictly follows the agreed mapping:
+    // Net Operating Income ÷ Annual Debt Service (no EBITDA fallback).
+    rawFinancials.dscr = computeDscr(
+      typeof fs.netOperatingIncome === "number" ? fs.netOperatingIncome : null,
+      fs.annualDebtService
+    );
 
     years.push({
       year: year.year,

@@ -39,6 +39,8 @@ import {
   computeColumnMetrics,
   computeEbit,
   computeInterestCoverage,
+  computeTotalAssets,
+  computeTotalLiabilities,
   computeNetDebtEquity,
   computePayablesDays,
   computeQuickRatio,
@@ -811,13 +813,26 @@ export function ApplicationFinancialReviewContent({
       case "totass": {
         if (ctosColumnMissing(colIdx)) return "Not available";
         if (specCol.kind === "ctos") {
-          const n = resolveCtosTotalAssets({
+          let n = resolveCtosTotalAssets({
             totass: fs && ctosFlatNumericPresent(fs, "totass") ? toNum(fs.totass) : null,
           });
+          // CTOS finished metric priority: when CTOS `totass` is missing,
+          // follow the agreed Excel mapping formula (sum of asset components).
+          if (n == null && specCol.year != null) {
+            const yearFields = resolvedByYear.get(specCol.year)?.fields;
+            n = computeTotalAssets({
+              total_assets: null,
+              fixed_assets: yearFields?.bsfatot?.value ?? null,
+              other_assets: yearFields?.othass?.value ?? null,
+              current_assets: yearFields?.bscatot?.value ?? null,
+              non_current_assets: yearFields?.bsclbank?.value ?? null,
+            });
+          }
           if (n == null) return "Not available";
           return n === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(n, { decimals: 0 });
         }
         if (!computed) return "Not available";
+        if (computed.totass == null) return "Not available";
         const n = computed.totass;
         return n === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(n, { decimals: 0 });
       }
@@ -836,24 +851,58 @@ export function ApplicationFinancialReviewContent({
       case "totlib": {
         if (ctosColumnMissing(colIdx)) return "Not available";
         if (specCol.kind === "ctos") {
-          const n = resolveCtosTotalLiabilities({
+          let n = resolveCtosTotalLiabilities({
             totlib: fs && ctosFlatNumericPresent(fs, "totlib") ? toNum(fs.totlib) : null,
           });
+          // CTOS finished metric priority: when CTOS `totlib` is missing,
+          // follow the agreed Excel mapping formula (sum of liability components).
+          if (n == null && specCol.year != null) {
+            const yearFields = resolvedByYear.get(specCol.year)?.fields;
+            n = computeTotalLiabilities({
+              total_liabilities: null,
+              current_liabilities: yearFields?.curlib?.value ?? null,
+              long_term_liabilities: yearFields?.bsslltd?.value ?? null,
+              non_current_liabilities: yearFields?.bsclstd?.value ?? null,
+            });
+          }
           if (n == null) return "Not available";
           return n === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(n, { decimals: 0 });
         }
         if (!computed) return "Not available";
+        if (computed.totlib == null) return "Not available";
         const n = computed.totlib;
         return n === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(n, { decimals: 0 });
       }
       case "networth": {
         if (ctosColumnMissing(colIdx)) return "Not available";
         if (specCol.kind === "ctos") {
-          if (!fs || !ctosFlatNumericPresent(fs, "networth")) return "Not available";
-          const raw = toNum(fs.networth);
-          return raw === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(raw, { decimals: 0 });
+          if (fs && ctosFlatNumericPresent(fs, "networth")) {
+            const raw = toNum(fs.networth);
+            return raw === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(raw, { decimals: 0 });
+          }
+
+          // CTOS finished metric priority: when CTOS `networth` is missing,
+          // follow the agreed Excel mapping formula (Total Assets − Total Liabilities).
+          const yearFields = specCol.year != null ? resolvedByYear.get(specCol.year)?.fields : undefined;
+          const totass = computeTotalAssets({
+            total_assets: null,
+            fixed_assets: yearFields?.bsfatot?.value ?? null,
+            other_assets: yearFields?.othass?.value ?? null,
+            current_assets: yearFields?.bscatot?.value ?? null,
+            non_current_assets: yearFields?.bsclbank?.value ?? null,
+          });
+          const totlib = computeTotalLiabilities({
+            total_liabilities: null,
+            current_liabilities: yearFields?.curlib?.value ?? null,
+            long_term_liabilities: yearFields?.bsslltd?.value ?? null,
+            non_current_liabilities: yearFields?.bsclstd?.value ?? null,
+          });
+          if (totass == null || totlib == null) return "Not available";
+          const n = totass - totlib;
+          return n === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(n, { decimals: 0 });
         }
         if (!computed) return "Not available";
+        if (computed.networth == null) return "Not available";
         const n = computed.networth;
         return n === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(n, { decimals: 0 });
       }
@@ -984,6 +1033,7 @@ export function ApplicationFinancialReviewContent({
           return formatCurrency(currentAssets - currentLiabilities, { decimals: 0 });
         }
         if (!computed) return "Not available";
+        if (computed.workcap == null) return "Not available";
         return formatCurrency(computed.workcap, { decimals: 0 });
       }
       case "receivablesDays": {
@@ -1041,8 +1091,8 @@ export function ApplicationFinancialReviewContent({
         }
         if (!computed) return "Not available";
         const turnover = resolvedByYear.get(specCol.year)?.fields.turnover?.value ?? null;
-        const totassVal = computed.totass;
-        if (turnover == null || totassVal === 0) return "Not available";
+        const totassVal = computed.totass ?? null;
+        if (turnover == null || totassVal == null || totassVal === 0) return "Not available";
         const v = turnover / totassVal;
         return `${formatNumber(v, 2)}x`;
       }
@@ -1057,6 +1107,7 @@ export function ApplicationFinancialReviewContent({
           return v == null ? "Not available" : `${formatNumber(v, 2)}x`;
         }
         if (!computed) return "Not available";
+        if (computed.networth == null || computed.totlib == null) return "Not available";
         if (computed.networth === 0) return "Not available";
         const v = computed.totlib / computed.networth;
         return `${formatNumber(v, 2)}x`;
@@ -1071,6 +1122,7 @@ export function ApplicationFinancialReviewContent({
           return v == null ? "Not available" : `${formatNumber(v, 2)}%`;
         }
         if (!computed) return "Not available";
+        if (computed.networth == null || computed.totlib == null) return "Not available";
         if (computed.networth === 0) return "Not available";
         const v = (computed.totlib / computed.networth) * 100;
         return `${formatNumber(v, 2)}%`;

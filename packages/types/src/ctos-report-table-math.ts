@@ -32,33 +32,39 @@ function isFiniteNumber(value: number | null | undefined): value is number {
 
 /**
  * Issuer Total assets: use reported total if present; otherwise sum the four asset lines.
- * Missing components default to 0. Not for CTOS columns.
+ * Missing components -> null (Not available). Not for CTOS columns.
  */
-export function computeTotalAssets(input: TotalAssetsInput): number {
+export function computeTotalAssets(input: TotalAssetsInput): number | null {
   if (isFiniteNumber(input.total_assets)) {
     return input.total_assets;
   }
-  return (
-    (input.fixed_assets ?? 0) +
-    (input.other_assets ?? 0) +
-    (input.current_assets ?? 0) +
-    (input.non_current_assets ?? 0)
-  );
+  if (
+    !isFiniteNumber(input.fixed_assets) ||
+    !isFiniteNumber(input.other_assets) ||
+    !isFiniteNumber(input.current_assets) ||
+    !isFiniteNumber(input.non_current_assets)
+  ) {
+    return null;
+  }
+  return input.fixed_assets + input.other_assets + input.current_assets + input.non_current_assets;
 }
 
 /**
  * Issuer Total liabilities: use reported total if present; else sum liability lines.
- * Missing components default to 0. Not for CTOS columns.
+ * Missing components -> null (Not available). Not for CTOS columns.
  */
-export function computeTotalLiabilities(input: TotalLiabilitiesInput): number {
+export function computeTotalLiabilities(input: TotalLiabilitiesInput): number | null {
   if (isFiniteNumber(input.total_liabilities)) {
     return input.total_liabilities;
   }
-  return (
-    (input.current_liabilities ?? 0) +
-    (input.long_term_liabilities ?? 0) +
-    (input.non_current_liabilities ?? 0)
-  );
+  if (
+    !isFiniteNumber(input.current_liabilities) ||
+    !isFiniteNumber(input.long_term_liabilities) ||
+    !isFiniteNumber(input.non_current_liabilities)
+  ) {
+    return null;
+  }
+  return input.current_liabilities + input.long_term_liabilities + input.non_current_liabilities;
 }
 
 /**
@@ -102,10 +108,16 @@ export function computeCurrentRatio(currentAssets: number | null, currentLiabili
 }
 
 /**
- * Working capital: current assets minus current liabilities (uses zero when a side is missing).
+ * Working capital: current assets minus current liabilities.
+ * Missing inputs -> null (Not available).
  */
-export function computeWorkingCapital(currentAssets: number | null, currentLiabilities: number | null): number {
-  return (currentAssets ?? 0) - (currentLiabilities ?? 0);
+export function computeWorkingCapital(
+  currentAssets: number | null,
+  currentLiabilities: number | null
+): number | null {
+  if (currentAssets == null || currentLiabilities == null) return null;
+  if (!isFiniteNumber(currentAssets) || !isFiniteNumber(currentLiabilities)) return null;
+  return currentAssets - currentLiabilities;
 }
 
 /**
@@ -136,13 +148,13 @@ export function computeTurnoverGrowth(i: TurnoverGrowthInput): number | null {
 }
 
 export interface ColumnComputedMetrics {
-  totass: number;
-  totlib: number;
-  networth: number;
+  totass: number | null;
+  totlib: number | null;
+  networth: number | null;
   profit_margin: number | null;
   return_of_equity: number | null;
   currat: number | null;
-  workcap: number;
+  workcap: number | null;
   turnover_growth: number | null;
 }
 
@@ -168,7 +180,7 @@ export function computeColumnMetrics(
 ): ColumnComputedMetrics {
   const totass = computeTotalAssets(bs);
   const totlib = computeTotalLiabilities(bs);
-  const networth = computeNetWorth(totass, totlib);
+  const networth = totass == null || totlib == null ? null : computeNetWorth(totass, totlib);
   // ROE denominator: prefer explicit Net Worth on `equity`; else totass − totlib. Never Paid-Up Capital.
   const roeEquity =
     bs.equity != null && Number.isFinite(bs.equity) ? bs.equity : networth;

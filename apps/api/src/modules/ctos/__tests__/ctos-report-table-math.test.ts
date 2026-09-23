@@ -4,6 +4,7 @@ import {
   computeProfitMargin,
   computeTotalAssets,
   computeTotalLiabilities,
+  computeWorkingCapital,
   computeCurrentRatio,
   resolveFinancialSummaryIssuerReturnOnEquityRatio,
   computeColumnMetrics,
@@ -157,6 +158,26 @@ describe("computeTotalAssets / computeTotalLiabilities (issuer only)", () => {
       })
     ).toBe(35);
   });
+
+  it("returns null when any required component missing", () => {
+    expect(
+      computeTotalAssets({
+        total_assets: null,
+        fixed_assets: 10,
+        other_assets: null,
+        current_assets: 30,
+        non_current_assets: 40,
+      })
+    ).toBeNull();
+    expect(
+      computeTotalLiabilities({
+        total_liabilities: null,
+        current_liabilities: 10,
+        long_term_liabilities: null,
+        non_current_liabilities: 5,
+      })
+    ).toBeNull();
+  });
 });
 
 describe("computeNetWorth / computeCurrentRatio (issuer only)", () => {
@@ -168,6 +189,17 @@ describe("computeNetWorth / computeCurrentRatio (issuer only)", () => {
   it("divides current assets by current liabilities", () => {
     expect(computeCurrentRatio(200, 100)).toBe(2);
     expect(computeCurrentRatio(200, 0)).toBeNull();
+  });
+});
+
+describe("computeWorkingCapital (issuer only)", () => {
+  it("returns current assets − current liabilities when both present", () => {
+    expect(computeWorkingCapital(200, 50)).toBe(150);
+  });
+
+  it("returns null when either side missing", () => {
+    expect(computeWorkingCapital(null, 50)).toBeNull();
+    expect(computeWorkingCapital(200, null)).toBeNull();
   });
 });
 

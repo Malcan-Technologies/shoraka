@@ -173,6 +173,26 @@ describe("Admin Financial Summary table UI", () => {
     );
   });
 
+  it("CTOS priority for Total Assets / Total Liabilities / Total Equity: fallback to component sums when CTOS finished fields are missing", () => {
+    const source = readFileSync(tablePath, "utf8");
+
+    // Total Assets fallback path uses agreed sum of asset components.
+    expect(source).toContain("computeTotalAssets({");
+    expect(source).toContain("fixed_assets: yearFields?.bsfatot?.value");
+    expect(source).toContain("other_assets: yearFields?.othass?.value");
+    expect(source).toContain("current_assets: yearFields?.bscatot?.value");
+    expect(source).toContain("non_current_assets: yearFields?.bsclbank?.value");
+
+    // Total Liabilities fallback path uses agreed sum of liability components.
+    expect(source).toContain("computeTotalLiabilities({");
+    expect(source).toContain("current_liabilities: yearFields?.curlib?.value");
+    expect(source).toContain("long_term_liabilities: yearFields?.bsslltd?.value");
+    expect(source).toContain("non_current_liabilities: yearFields?.bsclstd?.value");
+
+    // Total Equity fallback is Total Assets − Total Liabilities.
+    expect(source).toContain("const n = totass - totlib;");
+  });
+
   it("suppresses source badges and cell-level edit for calculated rows", () => {
     const source = readFileSync(tablePath, "utf8");
     expect(source).toContain('const uiCalculated = isCalculatedFinancialMetricKey(item.rowId) || item.rowId === "debtEquityPercent"');

@@ -81,6 +81,7 @@ const ACCOUNT_KEYS = [
   "gear",
   "operatingCashFlow",
   "freeCashFlow",
+  "netOperatingIncome",
   "costOfSales",
   "annualDebtService",
   "interest_cost",

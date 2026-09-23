@@ -377,6 +377,61 @@ describe("prospectus Page 2 Financial Comparison Metrics (DATA STAGE 4B)", () =>
     );
   });
 
+  it("DSCR uses Net Operating Income only (no EBITDA fallback)", () => {
+    const source = financialSourceFromYearBlocks({
+      "2022": {
+        plnpbt: 1_200_000,
+        interest_cost: 100_000,
+        turnover: 10_000_000,
+        ebitda: 1_420_000,
+        // netOperatingIncome intentionally missing (null)
+        netOperatingIncome: null,
+        annualDebtService: 1_000_000,
+        tradeReceivables: 2_000_000,
+        curlib_borrowing: 300_000,
+        ncl_loan: 400_000,
+        cashAndBank: 100_000,
+        networth: 500_000,
+      },
+      "2023": {
+        plnpbt: 1_200_000,
+        interest_cost: 100_000,
+        turnover: 10_000_000,
+        ebitda: 1_420_000,
+        netOperatingIncome: null,
+        annualDebtService: 1_000_000,
+        tradeReceivables: 2_000_000,
+        curlib_borrowing: 300_000,
+        ncl_loan: 400_000,
+        cashAndBank: 100_000,
+        networth: 500_000,
+      },
+      "2024": {
+        plnpbt: 1_200_000,
+        interest_cost: 100_000,
+        turnover: 10_000_000,
+        ebitda: 1_420_000,
+        netOperatingIncome: null,
+        annualDebtService: 1_000_000,
+        tradeReceivables: 2_000_000,
+        curlib_borrowing: 300_000,
+        ncl_loan: 400_000,
+        cashAndBank: 100_000,
+        networth: 500_000,
+      },
+    });
+
+    const idx2024 = source.years.findIndex((y) => y.year === 2024);
+    expect(idx2024).toBeGreaterThanOrEqual(0);
+    const y2024 = source.years[idx2024]!;
+    // CTOS flattening represents missing values as "" (not null).
+    expect(typeof y2024.rawFinancials.netOperatingIncome).not.toBe("number");
+    expect(y2024.rawFinancials.dscr).toBeNull();
+
+    const metrics = buildProspectusFinancialComparisonMetrics({ source });
+    expect(row(metrics, "dscr")?.values[idx2024]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+  });
+
   it("Admin frozen years expose the same Stage 4A raw records for Page 3", () => {
     const frozen = toAdminFrozenFinancialYears(
       SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_METRICS_SOURCE.years
