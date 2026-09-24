@@ -6,7 +6,10 @@
 import {
   applyResolvedRawFields,
   buildNormalizedFinancialStatementYearSet,
+  ctosFinancialRowToFsFields,
   getEligibleAdminInputYears,
+  getFinancialYearPeriodEndIso,
+  getLatestThreeCtosYears,
   financialYearBlockHasActualData,
   findMissingSsmExpectedUnauditedYears,
   formatFinancialYearEndDisplayLabel,
@@ -21,9 +24,13 @@ import {
   computeNetDebtEquity,
   computeDscr,
   parseAdminFieldOverrides,
+  parseCtosFinancialStatementRows,
+  parseFinancialStatementsQuestionnaireShape,
   readFiniteFinancialNumber,
   resolveFinancialStatementSourceFooter,
   selectLatestNormalizedFinancialStatementYears,
+  type FinancialStatementStatementType,
+  type NormalizedFinancialStatementYear,
 } from "@cashsouk/types";
 import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
@@ -71,6 +78,46 @@ export function isProspectusFinancialYearKey(key: string): boolean {
   return Number.isInteger(year) && year >= 1000 && year <= 9999;
 }
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+function asYearBlock(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function blockWithActualData(value: unknown): Record<string, unknown> | null {
+  const block = asYearBlock(value);
+  if (!block || !financialYearBlockHasActualData(block)) return null;
+  return block;
+}
+
+function statementTypeOfBlock(block: Record<string, unknown>): FinancialStatementStatementType {
+  const statementType = block.statementType;
+  if (
+    statementType === "AUDITED" ||
+    statementType === "NOT_AUDITED" ||
+    statementType === "MANAGEMENT_ACCOUNTS"
+  ) {
+    return statementType;
+  }
+  return "NOT_AUDITED";
+}
+
+function financialYearEndIsoFor(
+  year: number,
+  rawFinancials: Record<string, unknown>,
+  questionnaire: ReturnType<typeof parseFinancialStatementsQuestionnaireShape>
+): string {
+  const pldd = rawFinancials.pldd;
+  if (typeof pldd === "string" && ISO_DATE.test(pldd.trim())) return pldd.trim();
+  if (questionnaire) {
+    const fromQuestionnaire = getFinancialYearPeriodEndIso(questionnaire, year);
+    if (fromQuestionnaire && ISO_DATE.test(fromQuestionnaire)) return fromQuestionnaire;
+  }
+  return `${year}-12-31`;
+}
+
 export function buildProspectusFinancialComparisonSource(
   input: ProspectusFinancialComparisonSourceInput
 ): ProspectusFinancialComparisonSource {
@@ -79,10 +126,21 @@ export function buildProspectusFinancialComparisonSource(
     ctosFinancials: input.ctosFinancials,
     ref: input.ref,
   });
-  const selected = selectLatestNormalizedFinancialStatementYears(
-    available,
-    PROSPECTUS_FINANCIAL_COMPARISON_MAX_YEARS
-  );
+  const questionnaireRoot =
+    input.financialStatements &&
+    typeof input.financialStatements === "object" &&
+    !Array.isArray(input.financialStatements)
+      ? (input.financialStatements as Record<string, unknown>).questionnaire
+      : undefined;
+  const questionnaire = parseFinancialStatementsQuestionnaireShape(questionnaireRoot);
+  const ctosRows = parseCtosFinancialStatementRows(input.ctosFinancials);
+  // CTOS ownership is the financial_year key, including rows whose amounts are all null.
+  const ctosByYear = new Map<number, (typeof ctosRows)[number]>();
+  for (const row of ctosRows) {
+    if (row.financial_year == null || !Number.isFinite(row.financial_year)) continue;
+    ctosByYear.set(row.financial_year, row);
+  }
+  const ctosOwnedYears = new Set(ctosByYear.keys());
 
   const overlayKeys = [
     "grossProfit",
@@ -100,9 +158,7 @@ export function buildProspectusFinancialComparisonSource(
     "freeCashFlow",
   ] as const;
 
-  // For CTOS/audited year selection, Stage 4A normally prefers CTOS raw fields.
-  // For Prospectus-only missing raw facts, overlay issuer-submitted unaudited values (when present)
-  // so Prospectus can always read canonical issuer raw inputs.
+  // Issuer-only raw keys are copied onto a reviewed User Input year. They are not a CTOS fallback.
   const unauditedByYearMaybe =
     input.financialStatements &&
     typeof input.financialStatements === "object" &&
@@ -133,6 +189,56 @@ export function buildProspectusFinancialComparisonSource(
 
   const overridesByYear = parseAdminFieldOverrides(input.financialStatements);
 
+  // The shared SSM year set omits Admin Input that sits outside the issuer filing window.
+  // Prospectus still needs those active Admin Input years, and a null-amount CTOS row
+  // still owns its FY so the stored Admin Input statement stays superseded.
+  const presentYears = new Set(available.map((year) => year.year));
+  for (const year of getLatestThreeCtosYears(ctosRows)) {
+    if (presentYears.has(year)) continue;
+    const row = ctosByYear.get(year);
+    if (!row) continue;
+    const rawFinancials = ctosFinancialRowToFsFields(row);
+    available.push({
+      year,
+      financialYearEndIso: financialYearEndIsoFor(year, rawFinancials, questionnaire),
+      recordSource: "ctos_audited",
+      statementType: "AUDITED",
+      rawFinancials,
+    });
+    presentYears.add(year);
+  }
+  for (const [fyKey, storedAdmin] of Object.entries(adminInputByYear)) {
+    if (!isProspectusFinancialYearKey(fyKey)) continue;
+    const year = Number(fyKey);
+    if (presentYears.has(year) || ctosOwnedYears.has(year)) continue;
+    const adminBlock = blockWithActualData(storedAdmin);
+    if (!adminBlock) continue;
+    const userBlock = blockWithActualData(unauditedByYear[fyKey]);
+    const rawFinancials = { ...(userBlock ?? adminBlock) };
+    const supplemented: NormalizedFinancialStatementYear = userBlock
+      ? {
+          year,
+          financialYearEndIso: financialYearEndIsoFor(year, rawFinancials, questionnaire),
+          recordSource: "unaudited_management",
+          statementType: "MANAGEMENT_ACCOUNTS",
+          rawFinancials,
+        }
+      : {
+          year,
+          financialYearEndIso: financialYearEndIsoFor(year, rawFinancials, questionnaire),
+          recordSource: "admin_input",
+          statementType: statementTypeOfBlock(adminBlock),
+          rawFinancials,
+        };
+    available.push(supplemented);
+    presentYears.add(year);
+  }
+
+  const selected = selectLatestNormalizedFinancialStatementYears(
+    available,
+    PROSPECTUS_FINANCIAL_COMPARISON_MAX_YEARS
+  );
+
   const resolveYearRaw = (
     year: (typeof available)[number]
   ): {
@@ -145,35 +251,24 @@ export function buildProspectusFinancialComparisonSource(
     let effectiveStatementType = year.statementType;
     let effectiveRawFinancials: Record<string, unknown> = { ...year.rawFinancials };
 
-    // Prospectus business rule:
-    // - CTOS is reference-only for final output.
-    // - If reviewed User/Admin input exists for the same FY, resolve that FY from the reviewed side.
-    if (year.recordSource === "ctos_audited") {
-      const storedAdmin = adminInputByYear[fyKey];
-      if (storedAdmin && typeof storedAdmin === "object" && !Array.isArray(storedAdmin)) {
-        const storedBlock = storedAdmin as Record<string, unknown>;
-        if (financialYearBlockHasActualData(storedBlock)) {
-          effectiveRecordSource = "admin_input";
-          effectiveRawFinancials = { ...storedBlock };
-
-          const st = (storedBlock as any).statementType;
-          if (st === "AUDITED" || st === "NOT_AUDITED" || st === "MANAGEMENT_ACCOUNTS") {
-            effectiveStatementType = st;
-          }
-        }
-      }
-
-      if (effectiveRecordSource === "ctos_audited") {
-        const storedIssuer = unauditedByYear[fyKey];
-        if (storedIssuer && typeof storedIssuer === "object" && !Array.isArray(storedIssuer)) {
-          const storedBlock = storedIssuer as Record<string, unknown>;
-          if (financialYearBlockHasActualData(storedBlock)) {
-            effectiveRecordSource = "unaudited_management";
-            effectiveRawFinancials = { ...storedBlock };
-            effectiveStatementType = "MANAGEMENT_ACCOUNTS";
-          }
-        }
-      }
+    // Prospectus source for one FY: reviewed User Input, else CTOS, else active Admin Input.
+    // A CTOS financial_year owns that FY even when every amount is null, so stored Admin Input
+    // is not applied. Explicit CTOS gap-fills are applied later, only on a CTOS year.
+    const userBlock = blockWithActualData(unauditedByYear[fyKey]);
+    const ctosRow = ctosByYear.get(year.year);
+    const adminBlock = blockWithActualData(adminInputByYear[fyKey]);
+    if (userBlock) {
+      effectiveRecordSource = "unaudited_management";
+      effectiveRawFinancials = { ...userBlock };
+      effectiveStatementType = "MANAGEMENT_ACCOUNTS";
+    } else if (ctosRow) {
+      effectiveRecordSource = "ctos_audited";
+      effectiveRawFinancials = ctosFinancialRowToFsFields(ctosRow);
+      effectiveStatementType = "AUDITED";
+    } else if (adminBlock) {
+      effectiveRecordSource = "admin_input";
+      effectiveRawFinancials = { ...adminBlock };
+      effectiveStatementType = statementTypeOfBlock(adminBlock);
     }
 
     // Overlay issuer submitted raw fields only when this FY resolves to an unaudited issuer FY.
@@ -193,9 +288,9 @@ export function buildProspectusFinancialComparisonSource(
       overridesForYear: overridesByYear[fyKey],
     });
 
-    // Preserve CTOS gap-fill admin supplements for missing fields.
+    // Explicit CTOS gap-fills only. They must not supplement User Input or Admin Input years.
     const overridesForYear = overridesByYear[fyKey];
-    if (overridesForYear) {
+    if (effectiveRecordSource === "ctos_audited" && overridesForYear) {
       for (const [fieldKey, override] of Object.entries(overridesForYear)) {
         if (override?.action !== "add_missing_ctos_field") continue;
         if (override?.baseSource !== "ctos") continue;

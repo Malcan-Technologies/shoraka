@@ -43,7 +43,9 @@ describe("prospectus Page 2 Financial Comparison Source (DATA STAGE 4A)", () => 
     );
     expect(data.audit.source.selectedSource).toBe("admin_financial_statements_normalized");
     expect(data.audit.source.ctosUsed).toBe(true);
-    expect(data.audit.source.precedence).toBe("ctos_audited_over_unaudited_same_year");
+    expect(data.audit.source.precedence).toBe(
+      "reviewed_user_input_then_ctos_then_active_admin_input"
+    );
     // CTOS 2020–2024 → latest three ascending
     expect(data.years.map((y) => y.year)).toEqual([2022, 2023, 2024]);
     expect(data.years.map((y) => y.recordSource)).toEqual([

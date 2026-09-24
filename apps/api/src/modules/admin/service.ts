@@ -23,6 +23,7 @@ import { Request } from "express";
 import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { AppError } from "../../lib/http/error-handler";
 import { prisma } from "../../lib/prisma";
+import { loadApplicationOwnedCtosFinancialReport } from "../applications/application-owned-ctos";
 import { sendEmail } from "../../lib/email/ses-client";
 import { adminInvitationTemplate } from "../../lib/email/templates";
 import { randomBytes } from "crypto";
@@ -7245,12 +7246,27 @@ export class AdminService {
     if (issuerOrgId && issuerOrg) {
       const orgService = new OrganizationService();
       const extras = await orgService.getIssuerPartyListExtras(issuerOrgId);
+      const ownedCtos = application.submitted_at
+        ? await loadApplicationOwnedCtosFinancialReport({
+            issuerOrganizationId: issuerOrgId,
+            submittedAt: application.submitted_at,
+          })
+        : null;
+      const applicationCtosFinancials = application.submitted_at
+        ? (ownedCtos?.financialsJson ?? null)
+        : extras.latestOrganizationCtosFinancialsJson;
+      const applicationCtosReportId = application.submitted_at
+        ? (ownedCtos?.id ?? null)
+        : extras.latestOrganizationCtosReportId;
+      const applicationCtosFetchedAt = application.submitted_at
+        ? (ownedCtos?.fetchedAt.toISOString() ?? null)
+        : extras.latestOrganizationCtosFetchedAt;
       issuerOrganizationPayload = {
         ...issuerOrg,
         latest_organization_ctos_company_json: extras.latestOrganizationCtosCompanyJson,
-        latest_organization_ctos_financials_json: extras.latestOrganizationCtosFinancialsJson,
-        latest_organization_ctos_report_id: extras.latestOrganizationCtosReportId,
-        latest_organization_ctos_fetched_at: extras.latestOrganizationCtosFetchedAt,
+        latest_organization_ctos_financials_json: applicationCtosFinancials,
+        latest_organization_ctos_report_id: applicationCtosReportId,
+        latest_organization_ctos_fetched_at: applicationCtosFetchedAt,
         latest_organization_ctos_has_report_html: extras.latestOrganizationCtosHasReportHtml,
         latest_organization_ctos_subject_reports: extras.latestOrganizationCtosSubjectReports.map(
           (r) => ({
