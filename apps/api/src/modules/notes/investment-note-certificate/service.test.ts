@@ -133,6 +133,17 @@ const mockPrisma: any = {
   },
   investorOrganization: {
     findFirst: jest.fn(async ({ where }: any) => ({ id: where.id })),
+    findMany: jest.fn(async ({ where }: any) => {
+      const ids: string[] = where?.id?.in ?? [];
+      return ids.map((id) => {
+        const isPersonal = id === "org-a";
+        return {
+          id,
+          type: isPersonal ? "PERSONAL" : "COMPANY",
+          display_reference: isPersonal ? "IVT-A" : "IVT-B",
+        };
+      });
+    }),
   },
 };
 

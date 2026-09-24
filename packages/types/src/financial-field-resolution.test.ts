@@ -25,6 +25,7 @@ describe("resolveAdminFinancialReviewColumns", () => {
       eligibleAdminInputYears: [2025],
     });
     expect(columns.map((column) => [column.year, column.kind])).toEqual([
+      [2022, "ctos"],
       [2023, "ctos"],
       [2024, "ctos"],
       [2025, "admin_fallback_placeholder"],
@@ -32,7 +33,7 @@ describe("resolveAdminFinancialReviewColumns", () => {
     ]);
   });
 
-  it("keeps a stable 3-FY layout by padding missing CTOS FYs when CTOS has no data", () => {
+  it("does not fabricate CTOS FY columns when CTOS has no rows", () => {
     const columns = resolveAdminFinancialReviewColumns({
       financialStatements: { unaudited_by_year: {} },
       ctosFinancials: [],
@@ -40,17 +41,26 @@ describe("resolveAdminFinancialReviewColumns", () => {
     });
 
     expect(columns.map((column) => [column.year, column.kind])).toEqual([
-      [2024, "ctos"],
       [2025, "admin_fallback_placeholder"],
       [2026, "admin_fallback_placeholder"],
     ]);
   });
 
-  it("allows Admin to add missing CTOS raw fields for padded CTOS FYs", () => {
+  it("allows Admin to add missing CTOS raw fields for an actual CTOS FY", () => {
     const columns = resolveAdminFinancialReviewColumns({
       financialStatements: { unaudited_by_year: {} },
-      ctosFinancials: [],
-      eligibleAdminInputYears: [2026],
+      ctosFinancials: [
+        {
+          financial_year: 2024,
+          dates: { pldd: "2024-12-31", bsdd: null },
+          account: {
+            // turnover exists so the CTOS FY is a real year
+            turnover: 1,
+            // cashAndBank intentionally missing to simulate a CTOS gap
+          },
+        },
+      ],
+      eligibleAdminInputYears: [],
     });
 
     const padded = columns.find((c) => c.year === 2024);
@@ -65,17 +75,28 @@ describe("resolveAdminFinancialReviewColumns", () => {
     ).toMatchObject({ ok: true, action: "add_missing_ctos_field" });
   });
 
-  it("keeps one CTOS column when User Input overlaps that FY", () => {
+  it("shows both CTOS and User Input columns when User Input overlaps that FY", () => {
     const columns = resolveAdminFinancialReviewColumns({
       financialStatements: {
         unaudited_by_year: { "2024": { turnover: 1, cashAndBank: 50 } },
       },
       ctosFinancials: [ctos2024],
     });
-    expect(columns).toHaveLength(1);
-    expect(columns[0]?.primarySource).toBe("ctos");
-    expect(columns[0]?.fields.turnover).toMatchObject({ value: 9360000, source: "ctos", readOnly: true });
-    expect(columns[0]?.fields.cashAndBank.value).toBeNull();
+    expect(columns.map((c) => [c.year, c.kind])).toEqual([
+      [2022, "ctos"],
+      [2023, "ctos"],
+      [2024, "ctos"],
+      [2024, "unaudited"],
+    ]);
+
+    const ctos2024Col = columns.find((c) => c.year === 2024 && c.kind === "ctos")!;
+    const unaudited2024Col = columns.find((c) => c.year === 2024 && c.kind === "unaudited")!;
+
+    expect(ctos2024Col.fields.turnover).toMatchObject({ value: 9360000, source: "ctos", readOnly: true });
+    expect(ctos2024Col.fields.cashAndBank.value).toBeNull();
+
+    expect(unaudited2024Col.fields.turnover.value).toBe(1);
+    expect(unaudited2024Col.fields.cashAndBank.value).toBe(50);
   });
 
   it("lets Admin fill a missing CTOS raw field without changing the year source", () => {
@@ -102,7 +123,7 @@ describe("resolveAdminFinancialReviewColumns", () => {
       },
       ctosFinancials: [ctos2024],
     });
-    const year = columns[0]!;
+    const year = columns.find((c) => c.year === 2024 && c.kind === "ctos")!;
     expect(year.primarySource).toBe("ctos");
     expect(year.fields.cashAndBank).toMatchObject({ value: 500000, source: "admin_input" });
     expect(financialFieldSourceBadge(year.fields.cashAndBank)).toBe("Admin Input");
@@ -165,8 +186,7 @@ describe("resolveAdminFinancialReviewColumns", () => {
       ],
     });
 
-    expect(columns).toHaveLength(1);
-    const year = columns[0]!;
+    const year = columns.find((c) => c.year === 2024 && c.kind === "ctos")!;
     expect(year.primarySource).toBe("ctos");
 
     expect(year.fields.equity_share_premium).toMatchObject({
@@ -207,7 +227,7 @@ describe("resolveAdminFinancialReviewColumns", () => {
       ],
     });
 
-    const year = columns[0]!;
+    const year = columns.find((c) => c.year === 2024 && c.kind === "ctos")!;
     expect(year.primarySource).toBe("ctos");
     expect(year.fields.equity_share_premium).toMatchObject({ value: 0, source: "ctos", readOnly: true });
     expect(year.fields.equity_accumulated_profit).toMatchObject({ value: 0, source: "ctos", readOnly: true });

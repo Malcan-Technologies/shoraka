@@ -248,7 +248,8 @@ describe("buildInvestmentSettlementConfirmationSnapshot identifiers", () => {
     });
     expect(snapshot.noteReference).toBe("NOTE-ARF-202609-5O3");
     expect(snapshot.issuerReference).toBe("ISS-202608-DK3");
-    expect(snapshot.investorReference).toBe(personalUserId);
+    expect(snapshot.investorReference).toBe("IVT-202609-A12");
+    expect(snapshot.investorReference).not.toBe(personalUserId);
     expect(snapshot.noteId).toBe(noteCuid);
     expect(snapshot.settlementId).toBe(settlementCuid);
     expect(snapshot.investorOrganizationId).toBe(investorCuid);
@@ -277,7 +278,8 @@ describe("buildInvestmentSettlementConfirmationSnapshot identifiers", () => {
     });
     expect(snapshot.issuerReference).toBe("—");
     expect(snapshot.issuerReference).not.toBe(issuerCuid);
-    expect(snapshot.investorReference).toBe(personalUserId);
+    expect(snapshot.investorReference).toBe("—");
+    expect(snapshot.investorReference).not.toBe(personalUserId);
     expect(snapshot.investorReference).not.toBe(investorCuid);
     expect(snapshot.noteReference).toBe("NOTE-ARF-202609-5O3");
     expect(snapshot.totalCreditedToWallet).toBe(10850);

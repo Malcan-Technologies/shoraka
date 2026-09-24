@@ -7,6 +7,7 @@ import {
   applyResolvedRawFields,
   buildNormalizedFinancialStatementYearSet,
   getEligibleAdminInputYears,
+  financialYearBlockHasActualData,
   findMissingSsmExpectedUnauditedYears,
   formatFinancialYearEndDisplayLabel,
   formatMissingSsmUnauditedYearsOpsWarning,
@@ -116,39 +117,118 @@ export function buildProspectusFinancialComparisonSource(
       ? unauditedByYearMaybe
       : ({} as Record<string, unknown>);
 
+  const adminInputByYearMaybe =
+    input.financialStatements &&
+    typeof input.financialStatements === "object" &&
+    "admin_input_by_year" in input.financialStatements
+      ? (input.financialStatements as any)["admin_input_by_year"]
+      : undefined;
+
+  const adminInputByYear: Record<string, unknown> =
+    adminInputByYearMaybe &&
+    typeof adminInputByYearMaybe === "object" &&
+    !Array.isArray(adminInputByYearMaybe)
+      ? (adminInputByYearMaybe as Record<string, unknown>)
+      : ({} as Record<string, unknown>);
+
   const overridesByYear = parseAdminFieldOverrides(input.financialStatements);
 
   const resolveYearRaw = (
     year: (typeof available)[number]
-  ): Record<string, unknown> => {
-    const rawFinancials: Record<string, unknown> = { ...year.rawFinancials };
+  ): {
+    rawFinancials: Record<string, unknown>;
+    recordSource: typeof year.recordSource;
+    statementType: typeof year.statementType;
+  } => {
+    const fyKey = String(year.year);
+    let effectiveRecordSource = year.recordSource;
+    let effectiveStatementType = year.statementType;
+    let effectiveRawFinancials: Record<string, unknown> = { ...year.rawFinancials };
 
-    // Overlay issuer submitted raw fields only when this FY is actually
-    // an unaudited issuer FY in the resolved recordSource set.
-    //
-    // NEVER overlay into CTOS-backed FYs, and NEVER overlay into Admin-input FYs.
-    // Admin supplements for a CTOS gap live in admin_field_overrides and are applied below.
-    if (year.recordSource === "unaudited_management") {
-      const fyKey = String(year.year);
-      const storedBlock = unauditedByYear[fyKey];
-      if (storedBlock && typeof storedBlock === "object" && !Array.isArray(storedBlock)) {
-        for (const k of overlayKeys) {
-          const v = (storedBlock as Record<string, unknown>)[k];
-          if (v != null && v !== "") rawFinancials[k] = v;
+    // Prospectus business rule:
+    // - CTOS is reference-only for final output.
+    // - If reviewed User/Admin input exists for the same FY, resolve that FY from the reviewed side.
+    if (year.recordSource === "ctos_audited") {
+      const storedAdmin = adminInputByYear[fyKey];
+      if (storedAdmin && typeof storedAdmin === "object" && !Array.isArray(storedAdmin)) {
+        const storedBlock = storedAdmin as Record<string, unknown>;
+        if (financialYearBlockHasActualData(storedBlock)) {
+          effectiveRecordSource = "admin_input";
+          effectiveRawFinancials = { ...storedBlock };
+
+          const st = (storedBlock as any).statementType;
+          if (st === "AUDITED" || st === "NOT_AUDITED" || st === "MANAGEMENT_ACCOUNTS") {
+            effectiveStatementType = st;
+          }
+        }
+      }
+
+      if (effectiveRecordSource === "ctos_audited") {
+        const storedIssuer = unauditedByYear[fyKey];
+        if (storedIssuer && typeof storedIssuer === "object" && !Array.isArray(storedIssuer)) {
+          const storedBlock = storedIssuer as Record<string, unknown>;
+          if (financialYearBlockHasActualData(storedBlock)) {
+            effectiveRecordSource = "unaudited_management";
+            effectiveRawFinancials = { ...storedBlock };
+            effectiveStatementType = "MANAGEMENT_ACCOUNTS";
+          }
         }
       }
     }
 
-    return applyResolvedRawFields({
-      recordSource: year.recordSource,
-      rawFinancials,
-      overridesForYear: overridesByYear[String(year.year)],
+    // Overlay issuer submitted raw fields only when this FY resolves to an unaudited issuer FY.
+    if (effectiveRecordSource === "unaudited_management") {
+      const storedBlock = unauditedByYear[fyKey];
+      if (storedBlock && typeof storedBlock === "object" && !Array.isArray(storedBlock)) {
+        for (const k of overlayKeys) {
+          const v = (storedBlock as Record<string, unknown>)[k];
+          if (v != null && v !== "") effectiveRawFinancials[k] = v;
+        }
+      }
+    }
+
+    const resolvedRaw = applyResolvedRawFields({
+      recordSource: effectiveRecordSource,
+      rawFinancials: effectiveRawFinancials,
+      overridesForYear: overridesByYear[fyKey],
     });
+
+    // Preserve CTOS gap-fill admin supplements for missing fields.
+    const overridesForYear = overridesByYear[fyKey];
+    if (overridesForYear) {
+      for (const [fieldKey, override] of Object.entries(overridesForYear)) {
+        if (override?.action !== "add_missing_ctos_field") continue;
+        if (override?.baseSource !== "ctos") continue;
+        if (override?.value == null) continue;
+
+        const current = resolvedRaw[fieldKey];
+        const isMissing =
+          current == null || current === "" || (typeof current === "number" && Number.isNaN(current));
+        if (isMissing) {
+          resolvedRaw[fieldKey] = override.value as any;
+        }
+      }
+    }
+
+    return {
+      rawFinancials: resolvedRaw,
+      recordSource: effectiveRecordSource,
+      statementType: effectiveStatementType,
+    };
   };
 
   const resolvedRawByYear = new Map<number, Record<string, unknown>>();
+  const resolvedMetaByYear = new Map<
+    number,
+    { recordSource: (typeof available)[number]["recordSource"]; statementType: (typeof available)[number]["statementType"] }
+  >();
   for (const year of available) {
-    resolvedRawByYear.set(year.year, resolveYearRaw(year));
+    const resolved = resolveYearRaw(year);
+    resolvedRawByYear.set(year.year, resolved.rawFinancials);
+    resolvedMetaByYear.set(year.year, {
+      recordSource: resolved.recordSource,
+      statementType: resolved.statementType,
+    });
   }
 
   const years: ProspectusFinancialComparisonYear[] = [];
@@ -158,7 +238,9 @@ export function buildProspectusFinancialComparisonSource(
       ...(resolvedRawByYear.get(year.year) ?? year.rawFinancials),
     };
 
-    if (year.recordSource === "unaudited_management" || year.recordSource === "admin_input") {
+    const effectiveRecordSource =
+      resolvedMetaByYear.get(year.year)?.recordSource ?? year.recordSource;
+    if (effectiveRecordSource === "unaudited_management" || effectiveRecordSource === "admin_input") {
       const fsInput = rawFinancials as any;
       const { bs, pl } = financialFormToBsPl(fsInput);
       const metrics = computeColumnMetrics(bs, pl, null);
@@ -217,8 +299,10 @@ export function buildProspectusFinancialComparisonSource(
       yearLabel: formatProspectusFinancialYearLabel(year.year),
       financialYearEndIso: year.financialYearEndIso,
       financialYearEndLabel: formatProspectusFinancialYearEndLabel(year.financialYearEndIso),
-      recordSource: year.recordSource,
-      statementType: year.statementType,
+      recordSource:
+        resolvedMetaByYear.get(year.year)?.recordSource ?? year.recordSource,
+      statementType:
+        resolvedMetaByYear.get(year.year)?.statementType ?? year.statementType,
       rawFinancials,
     });
   }

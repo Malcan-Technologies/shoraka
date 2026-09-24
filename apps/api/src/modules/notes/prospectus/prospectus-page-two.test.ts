@@ -534,6 +534,131 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
     });
   });
 
+  describe("prospectus source resolution precedence for same FY", () => {
+    it("uses reviewed User Input FY value when the same FY exists in CTOS", () => {
+      const page2 = buildProspectusPage2Snapshot({
+        financialStatements: {
+          questionnaire: { financial_year_end: "2025-12-31" },
+          unaudited_by_year: {
+            "2025": { turnover: 1_200_000 },
+          },
+        },
+        ctosFinancials: [
+          {
+            financial_year: 2025,
+            dates: { pldd: "2025-12-31", bsdd: null },
+            account: { turnover: 1_000_000 },
+          },
+        ],
+        now: new Date("2025-06-01T00:00:00.000Z"),
+      });
+
+      const fy2025 = page2.financial_comparison.selected_years.find((y) => y.year === 2025);
+      expect(fy2025?.raw_financials.turnover).toBe(1_200_000);
+    });
+
+    it("uses edit_user_input override over reviewed User Input even when CTOS FY exists", () => {
+      const page2 = buildProspectusPage2Snapshot({
+        financialStatements: {
+          questionnaire: { financial_year_end: "2025-12-31" },
+          unaudited_by_year: {
+            "2025": { turnover: 1_200_000 },
+          },
+          admin_field_overrides: {
+            "2025": {
+              turnover: {
+                value: 1_100_000,
+                baseSource: "user_input",
+                action: "edit_user_input",
+                updated_by_user_id: "admin",
+                updated_at: "2026-01-01T00:00:00.000Z",
+              },
+            },
+          },
+        },
+        ctosFinancials: [
+          {
+            financial_year: 2025,
+            dates: { pldd: "2025-12-31", bsdd: null },
+            account: { turnover: 1_000_000 },
+          },
+        ],
+        now: new Date("2025-06-01T00:00:00.000Z"),
+      });
+
+      const fy2025 = page2.financial_comparison.selected_years.find((y) => y.year === 2025);
+      expect(fy2025?.raw_financials.turnover).toBe(1_100_000);
+    });
+
+    it("resolves latest 3 distinct FYs and does not let CTOS overwrite reviewed User Input for a shared FY", () => {
+      const page2 = buildProspectusPage2Snapshot({
+        financialStatements: {
+          questionnaire: { financial_year_end: "2026-12-31" },
+          unaudited_by_year: {
+            "2025": { turnover: 1_200_000 },
+            "2026": { turnover: 2_400_000 },
+          },
+        },
+        ctosFinancials: [
+          {
+            financial_year: 2023,
+            dates: { pldd: "2023-12-31", bsdd: null },
+            account: { turnover: 10_000_000 },
+          },
+          {
+            financial_year: 2024,
+            dates: { pldd: "2024-12-31", bsdd: null },
+            account: { turnover: 20_000_000 },
+          },
+          {
+            financial_year: 2025,
+            dates: { pldd: "2025-12-31", bsdd: null },
+            account: { turnover: 30_000_000 },
+          },
+        ],
+        now: new Date("2026-03-01T00:00:00.000Z"),
+      });
+
+      expect(page2.financial_comparison.selected_years.map((y) => y.year)).toEqual([
+        2024, 2025, 2026,
+      ]);
+      const fy2024 = page2.financial_comparison.selected_years.find((y) => y.year === 2024);
+      const fy2025 = page2.financial_comparison.selected_years.find((y) => y.year === 2025);
+      const fy2026 = page2.financial_comparison.selected_years.find((y) => y.year === 2026);
+      expect(fy2024?.raw_financials.turnover).toBe(20_000_000);
+      expect(fy2025?.raw_financials.turnover).toBe(1_200_000);
+      expect(fy2026?.raw_financials.turnover).toBe(2_400_000);
+    });
+
+    it("uses Admin Input FY value when there is no reviewed User Input/CTOS for that FY", () => {
+      const page2 = buildProspectusPage2Snapshot({
+        financialStatements: {
+          questionnaire: { financial_year_end: "2025-12-31" },
+          unaudited_by_year: {},
+          admin_input_by_year: {
+            "2025": { turnover: 3_300_000, statementType: "MANAGEMENT_ACCOUNTS" },
+          },
+        },
+        ctosFinancials: [
+          {
+            financial_year: 2023,
+            dates: { pldd: "2023-12-31", bsdd: null },
+            account: { turnover: 10_000_000 },
+          },
+          {
+            financial_year: 2024,
+            dates: { pldd: "2024-12-31", bsdd: null },
+            account: { turnover: 20_000_000 },
+          },
+        ],
+        now: new Date("2025-06-01T00:00:00.000Z"),
+      });
+
+      const fy2025 = page2.financial_comparison.selected_years.find((y) => y.year === 2025);
+      expect(fy2025?.raw_financials.turnover).toBe(3_300_000);
+    });
+  });
+
   describe("published vs unpublished Stage 4", () => {
     it("uses frozen Stage 4 for published Notes and ignores live Application data", () => {
       const frozen = buildProspectusPage2Snapshot({
@@ -579,6 +704,62 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       const revenue = page.financialComparisonMetrics.rows.find((r) => r.key === "revenue");
       expect(revenue?.values[2]).toBe("15");
       expect(revenue?.values[2]).not.toBe("0.000999");
+    });
+
+    it("keeps frozen same-FY precedence (CTOS vs reviewed User Input) even if live data changes later", () => {
+      const frozen = buildProspectusPage2Snapshot({
+        financialStatements: {
+          questionnaire: { financial_year_end: "2027-12-31" },
+          unaudited_by_year: {
+            "2024": {
+              turnover: 1_200_000,
+              plnpat: 1_000,
+              bsqpuc: 1,
+              bscatot: 1,
+              curlib: 1,
+            },
+          },
+        },
+        ctosFinancials: [
+          { financial_year: 2022, dates: { pldd: "2022-12-31", bsdd: null }, account: { turnover: 12_000_000, plnpat: 900_000, bsqpuc: 5_000_000, bscatot: 4_000_000, curlib: 2_000_000 } },
+          { financial_year: 2023, dates: { pldd: "2023-12-31", bsdd: null }, account: { turnover: 13_900_000, plnpat: 1_100_000, bsqpuc: 5_500_000, bscatot: 4_200_000, curlib: 2_100_000 } },
+          { financial_year: 2024, dates: { pldd: "2024-12-31", bsdd: null }, account: { turnover: 15_000_000, plnpat: 1_200_000, bsqpuc: 6_000_000, bscatot: 4_500_000, curlib: 2_200_000 } },
+        ],
+        now: new Date("2026-07-19T12:00:00.000Z"),
+      }).financial_comparison;
+
+      const frozenFy2024 = frozen.selected_years.find((y) => y.year === 2024);
+      expect(frozenFy2024?.raw_financials.turnover).toBe(1_200_000);
+
+      const changedLive = {
+        ...liveFinancialStatements,
+        unaudited_by_year: {
+          ...liveFinancialStatements.unaudited_by_year,
+          "2024": {
+            ...liveFinancialStatements.unaudited_by_year["2024"],
+            turnover: 9_999_999,
+          },
+        },
+      };
+
+      const data: ProspectusPageTwoLoadedData = {
+        note: baseNote({
+          status: NoteStatus.PUBLISHED,
+          published_at: new Date("2026-07-01T00:00:00.000Z"),
+          prospectus_snapshot: {
+            page_1: frozenPage1,
+            page_2: { financial_comparison: frozen },
+          },
+        }),
+        liveFinancialStatements: changedLive,
+        liveCtosFinancials,
+      };
+
+      const input = mapProspectusPageTwoDataToInput(data);
+      const page = buildProspectusPageTwo(input);
+
+      const publishedFy2024 = page.financialComparisonSource.years.find((y) => y.year === 2024);
+      expect(publishedFy2024?.rawFinancials.turnover).toBe(1_200_000);
     });
 
     it("does not live-fallback when published page_2 is missing or malformed", () => {

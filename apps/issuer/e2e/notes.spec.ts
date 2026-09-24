@@ -16,7 +16,7 @@ async function expectFinancingInvoicesSurface(page: import("@playwright/test").P
   await expect(authShell.or(financingHeading).first()).toBeVisible({ timeout: 20000 });
 
   if (await financingHeading.isVisible().catch(() => false)) {
-    await expect(page.getByRole("tab", { name: /Invoices/i })).toBeVisible();
+    await expect(page.getByRole("tab", { name: /Invoice(s)?/i })).toBeVisible();
     await expect(
       page.getByText(/See your facilities|No invoices yet|No matching invoices/i)
     ).toBeVisible();

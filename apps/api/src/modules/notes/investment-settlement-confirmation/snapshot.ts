@@ -2,7 +2,6 @@ import { createHash } from "crypto";
 import {
   InvestorBalanceTransactionSource,
   NoteInvestmentStatus,
-  OrganizationType,
   type Prisma,
 } from "@prisma/client";
 import {
@@ -375,7 +374,7 @@ export async function buildInvestmentSettlementConfirmationSnapshot(input: {
     }),
     prisma.investorOrganization.findUnique({
       where: { id: input.investorOrganizationId },
-      select: { display_reference: true, owner_user_id: true, type: true },
+      select: { display_reference: true },
     }),
   ]);
 
@@ -390,10 +389,10 @@ export async function buildInvestmentSettlementConfirmationSnapshot(input: {
     issuerOrg?.display_reference,
     settlement.note.issuer_organization_id
   );
-  const investorReference =
-    investorOrg?.type === OrganizationType.PERSONAL
-      ? nonEmpty(investorOrg.owner_user_id) ?? "—"
-      : certificatePartyDisplayReference(investorOrg?.display_reference, input.investorOrganizationId);
+  const investorReference = certificatePartyDisplayReference(
+    investorOrg?.display_reference,
+    input.investorOrganizationId
+  );
   const settlementReference = nonEmpty(settlement.display_reference) ?? "—";
   const dates = resolveConfirmationSettlementDate({
     actualSettlementDate: settlement.actual_settlement_date,
