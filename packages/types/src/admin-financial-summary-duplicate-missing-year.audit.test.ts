@@ -57,8 +57,9 @@ describe("Admin Financial Summary duplicate & missing-year audit", () => {
 
     const columns = resolveAdminFinancialReviewColumns({ financialStatements, ctosFinancials, ref });
 
-    const fy2025 = columns.find((c) => c.year === 2025);
-    expect(fy2025?.kind).toBe("unaudited");
+    const fy2025Kinds = columns.filter((c) => c.year === 2025).map((c) => c.kind).sort();
+    // Historical CTOS slot (FY2025) still renders as a read-only CTOS column, while user input renders separately.
+    expect(fy2025Kinds).toEqual(["ctos", "unaudited"]);
     expect(columns.some((c) => c.year === 2025 && c.kind === "admin_fallback_placeholder")).toBe(false);
   });
 
@@ -93,8 +94,9 @@ describe("Admin Financial Summary duplicate & missing-year audit", () => {
 
     const columns = resolveAdminFinancialReviewColumns({ financialStatements, ctosFinancials, ref });
 
-    const fy2025 = columns.find((c) => c.year === 2025);
-    expect(fy2025?.kind).toBe("admin_input");
+    const fy2025Kinds = columns.filter((c) => c.year === 2025).map((c) => c.kind).sort();
+    // Historical CTOS slot (FY2025) still renders as a read-only CTOS column, while Admin Input renders separately.
+    expect(fy2025Kinds).toEqual(["admin_input", "ctos"]);
     expect(columns.some((c) => c.year === 2025 && c.kind === "admin_fallback_placeholder")).toBe(false);
   });
 });

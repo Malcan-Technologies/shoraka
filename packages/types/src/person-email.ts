@@ -83,7 +83,12 @@ export function isPersonEmailPostCompletionWrite(params: {
 
 export type PersonEmailWritePlan =
   | { action: "noop"; email: string | null }
-  | { action: "reject"; code: "DIRECTOR_SHAREHOLDER_NOT_EDITABLE"; message: string }
+  | {
+      action: "reject";
+      code: "DIRECTOR_SHAREHOLDER_NOT_EDITABLE";
+      message: string;
+    }
+  | { action: "reject"; code: "KYC_ALREADY_APPROVED"; message: string }
   | {
       action: "write";
       email: string | null;
@@ -142,6 +147,37 @@ export function planPersonEmailWrite(params: {
   }
 
   const pipeline = hasPersonOnboardingPipeline(params.supplementRoot);
+  const kycGroup = getKycGroup(personOnboardingStatus({ supplementRoot: params.supplementRoot, onboardingStatus: params.onboardingStatus }));
+  const amlGroup = getAmlGroup(
+    personScreeningStatus({ supplementRoot: params.supplementRoot, screeningStatus: params.screeningStatus })
+  );
+
+  // If legacy KYC is already approved while an onboarding pipeline is still present
+  // but the supplement snapshot has no email, treat this as a terminal/locked state.
+  // (When the snapshot has an email, we still allow local edits & pipeline resets.)
+  if (params.legacyKycApproved && pipeline && snapshotEmail === null) {
+    return {
+      action: "reject",
+      code: "KYC_ALREADY_APPROVED",
+      message: "KYC was already approved for this person.",
+    };
+  }
+
+  // When AML reaches a terminal state but KYC has not approved yet,
+  // treat the director/shareholder as not editable.
+  if (
+    amlGroup === "REJECTED" &&
+    kycGroup !== "APPROVED" &&
+    kycGroup !== "REJECTED" &&
+    kycGroup !== "EXPIRED"
+  ) {
+    return {
+      action: "reject",
+      code: "DIRECTOR_SHAREHOLDER_NOT_EDITABLE",
+      message: "Director/shareholder is not editable after AML terminal state.",
+    };
+  }
+
   const persistWithoutReset = isPersonEmailPostCompletionWrite({
     supplementRoot: params.supplementRoot,
     legacyKycApproved: params.legacyKycApproved,

@@ -157,6 +157,7 @@ import {
   getEligibleAdminInputYears,
   decideAdminFinancialFieldEdit,
   parseAdminFieldOverrides,
+  FINANCIAL_FIELD_LABELS,
   reconcileAdminFieldOverridesAfterIssuerSave,
   resolveAdminFinancialReviewColumns,
   issuerUnauditedPlddForFyEndYear,
@@ -5842,6 +5843,18 @@ export class ApplicationService {
     const key = String(financialYear);
     const existingFS = application.financial_statements as Prisma.InputJsonValue;
     const existingAdmin = (existingFS as any)?.admin_input_by_year;
+    const previousBlock =
+      existingAdmin && typeof existingAdmin === "object" && !Array.isArray(existingAdmin)
+        ? (existingAdmin as any)[key]
+        : undefined;
+    const previousValues: Record<string, unknown> = {};
+    if (previousBlock && typeof previousBlock === "object" && !Array.isArray(previousBlock)) {
+      for (const [rawKey, v] of Object.entries(previousBlock as Record<string, unknown>)) {
+        const label = FINANCIAL_FIELD_LABELS[rawKey];
+        if (label) previousValues[label] = v;
+      }
+    }
+
     const nextAdmin = {
       ...(existingAdmin && typeof existingAdmin === "object" ? existingAdmin : {}),
       [key]: {
@@ -5851,6 +5864,11 @@ export class ApplicationService {
         updated_at: now.toISOString(),
       },
     };
+    const nextValues: Record<string, unknown> = {};
+    for (const [rawKey, v] of Object.entries(normalized as Record<string, unknown>)) {
+      const label = FINANCIAL_FIELD_LABELS[rawKey];
+      if (label) nextValues[label] = v;
+    }
 
     await prisma.$transaction(async (tx) => {
       await tx.application.update({
@@ -5877,6 +5895,9 @@ export class ApplicationService {
             newValue: null,
             action: "add_missing_fy",
             statementType,
+            // Used by admin audit diff UI.
+            previousValues,
+            nextValues,
           },
         },
         tx
@@ -5921,10 +5942,21 @@ export class ApplicationService {
       orderBy: { fetched_at: "desc" },
       select: { financials_json: true },
     });
+
+    const rawCtosFinancials = ctosReport?.financials_json as unknown;
+    const ctosFetchState: "not_pulled" | "no_records" | "has_data" = !ctosReport
+      ? "not_pulled"
+      : Array.isArray(rawCtosFinancials)
+        ? rawCtosFinancials.length === 0
+          ? "no_records"
+          : "has_data"
+        : "has_data";
+
     const columns = resolveAdminFinancialReviewColumns({
       financialStatements: application.financial_statements,
       ctosFinancials: ctosReport?.financials_json ?? null,
       ref: now,
+      ctosFetchState,
     });
     const decision = decideAdminFinancialFieldEdit({ columns, financialYear, fieldKey });
     if (!decision.ok) {
@@ -5983,10 +6015,18 @@ export class ApplicationService {
             applicationId,
             financialYear,
             fieldKey,
+            fieldLabel: FINANCIAL_FIELD_LABELS[fieldKey] ?? fieldKey,
             originalSource: decision.originalSource,
+            action: decision.action,
             previousValue: decision.previousValue,
             newValue: value,
-            action: decision.action,
+            // These are used by the admin timeline diff UI.
+            previousValues: {
+              [FINANCIAL_FIELD_LABELS[fieldKey] ?? fieldKey]: decision.previousValue,
+            },
+            nextValues: {
+              [FINANCIAL_FIELD_LABELS[fieldKey] ?? fieldKey]: value,
+            },
           },
         },
         tx

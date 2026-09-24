@@ -17,6 +17,11 @@ import {
   type FinancialStatementStatementType,
 } from "./financial-statement-year-resolution";
 
+import {
+  getAdminFinancialSummaryUserColumnYears,
+  parseFinancialStatementsQuestionnaireShape,
+} from "./financial-unaudited-ctos-validation";
+
 export const ADMIN_EDITABLE_RAW_FINANCIAL_KEYS = [
   ...APPLICATION_CORE_MONEY_KEYS,
   ...APPLICATION_EXTRA_ISSUER_RAW_MONEY_KEYS,
@@ -254,6 +259,16 @@ export function resolveAdminFinancialReviewColumns(input: {
   ctosFinancials?: unknown;
   ref?: Date;
   eligibleAdminInputYears?: number[];
+  /**
+   * CTOS fetch provenance for historical-year UI decisions.
+   * - "not_pulled": no CTOS report has been fetched yet
+   * - "no_records": CTOS report fetched successfully but contains zero financial statement years
+   * - "has_data": CTOS fetched and contains financial statement years
+   *
+   * Important: field-level locking must still depend on actual CTOS-provided values,
+   * not on this flag. This flag only controls historical "Add Financial Statement" placeholders.
+   */
+  ctosFetchState?: "not_pulled" | "no_records" | "has_data";
 }): AdminFinancialReviewColumn[] {
   const root = asRecord(input.financialStatements);
   const unauditedByYear = asRecord(root?.unaudited_by_year) ?? {};
@@ -297,15 +312,72 @@ export function resolveAdminFinancialReviewColumns(input: {
   const adminYearSetAny = new Set<number>(adminYearsAny);
 
   // Preserve existing rule: if issuer (user) already has actual data for a FY, we do not show a second admin_input column for the same FY.
-  const adminYears = adminYearsAny.filter((y) => !issuerYearSet.has(y));
+  let adminYears = adminYearsAny.filter((y) => !issuerYearSet.has(y));
 
-  // CTOS history window: always 3 consecutive FY slots ending at the latest CTOS FY present in the data.
-  const ctosYearsPresent = [...ctosByYear.keys()].filter((y) => Number.isFinite(y)).sort((a, b) => a - b);
-  const latestCtosYear = ctosYearsPresent.length > 0 ? ctosYearsPresent[ctosYearsPresent.length - 1] : null;
-  const ctosWindowYears = latestCtosYear != null ? [latestCtosYear - 2, latestCtosYear - 1, latestCtosYear] : [];
+  // Historical window: always 3 consecutive FY slots derived from the latest/current application User Input reporting year.
+  // We first prefer stored user/admin blocks (when present); if they are empty, fall back to the questionnaire+ref tab years.
+  let latestUserInputYear: number | null =
+    issuerYears.length > 0
+      ? issuerYears[issuerYears.length - 1]!
+      : adminYearsAny.length > 0
+        ? adminYearsAny[adminYearsAny.length - 1]!
+        : null;
+
+  if (latestUserInputYear == null) {
+    const questionnaire = parseFinancialStatementsQuestionnaireShape((root as Record<string, unknown> | null)?.questionnaire);
+    if (questionnaire) {
+      const tabYears = getAdminFinancialSummaryUserColumnYears(questionnaire, input.ref ?? new Date());
+      latestUserInputYear = tabYears.length > 0 ? tabYears[tabYears.length - 1]! : null;
+    }
+  }
+
+  const historicalWindowYears =
+    latestUserInputYear != null ? [latestUserInputYear - 3, latestUserInputYear - 2, latestUserInputYear - 1] : [];
+
+  // CTOS arrives later rule:
+  // If CTOS provides a historical FY that previously existed as stored Admin Input (admin_input_by_year),
+  // the CTOS FY becomes the active historical source and the Admin Input FY must stop being shown as an active column.
+  // We still preserve admin_input_by_year for audit/history; we just hide it from the active review table.
+  if (historicalWindowYears.length > 0) {
+    adminYears = adminYears.filter((year) => !(historicalWindowYears.includes(year) && ctosByYear.has(year)));
+  }
 
   const columns: AdminFinancialReviewColumn[] = [];
-  const placeholderRenderedYears = new Set<number>();
+
+  // Has CTOS financial context:
+  // - true when at least one CTOS financial_year row contains actual numeric line items
+  // - false for empty/fetched CTOS shells (no financial_year data with actual fields)
+  const hasCtosHistory = [...ctosByYear.entries()].some(([, rawFsFields]) =>
+    financialYearBlockHasActualData(rawFsFields)
+  );
+
+  // Backwards compatibility:
+  // If no explicit fetch state is provided, preserve the previous behavior where
+  // "Add Financial Statement" only appears when CTOS actually provides data.
+  const ctosFetched =
+    input.ctosFetchState == null
+      ? hasCtosHistory
+      : input.ctosFetchState === "has_data" || input.ctosFetchState === "no_records";
+
+  const addReadOnlyMissingCtosColumn = (year: number) => {
+    const fields: Record<string, ResolvedRawFinancialField> = {};
+    for (const key of ADMIN_EDITABLE_RAW_FINANCIAL_KEYS) {
+      fields[key] = {
+        value: null,
+        source: "ctos",
+        editedByAdmin: false,
+        readOnly: true,
+        unavailableReason: "not_provided_by_ctos",
+      };
+    }
+    columns.push({
+      kind: "ctos",
+      year,
+      primarySource: "ctos",
+      recordSource: "ctos_audited",
+      fields,
+    });
+  };
 
   const addCtosColumn = (year: number, ctosRaw: Record<string, unknown> | null) => {
     columns.push({
@@ -331,25 +403,30 @@ export function resolveAdminFinancialReviewColumns(input: {
       recordSource: null,
       fields: {},
     });
-    placeholderRenderedYears.add(year);
   };
 
-  // CTOS-side 3 chronological slots (with missing CTOS years optionally turning into Add Financial Statement placeholders).
-  for (const year of ctosWindowYears) {
+  // Historical 3 slots:
+  // - CTOS wins a duplicate year
+  // - Missing CTOS years can turn into an "Add Financial Statement" placeholder ONLY when CTOS history exists
+  // - When CTOS history does not exist, all historical CTOS gaps render as missing/read-only (no Add action)
+  for (const year of historicalWindowYears) {
     if (ctosByYear.has(year)) {
       addCtosColumn(year, ctosByYear.get(year) ?? null);
       continue;
     }
 
-    const canAddMissingCtosWindowYear =
-      eligibleSet.has(year) && !issuerYearSet.has(year) && !adminYearSetAny.has(year);
+    const canAddMissingHistoricalCtosYear =
+      ctosFetched &&
+      eligibleSet.has(year) &&
+      !issuerYearSet.has(year) &&
+      !adminYearSetAny.has(year);
 
     // If eligible, show the Add Financial Statement action in the CTOS-history window.
-    if (canAddMissingCtosWindowYear) {
+    if (canAddMissingHistoricalCtosYear) {
       addPlaceholderColumn(year);
     } else {
-      // Otherwise keep the missing CTOS slot as a CTOS column with no CTOS values.
-      addCtosColumn(year, null);
+      // Otherwise keep the missing CTOS slot as a CTOS column with missing values (read-only).
+      addReadOnlyMissingCtosColumn(year);
     }
   }
 
@@ -385,20 +462,6 @@ export function resolveAdminFinancialReviewColumns(input: {
         adminRaw,
         overrides: overrides[String(year)],
       }),
-    });
-  }
-
-  // Remaining eligible missing years: render as Add Financial Statement placeholders (but do not duplicate placeholders already rendered inside the CTOS window).
-  for (const year of eligible) {
-    if (placeholderRenderedYears.has(year)) continue;
-    if (issuerYearSet.has(year)) continue;
-    if (adminYearSetAny.has(year)) continue;
-    columns.push({
-      kind: "admin_fallback_placeholder",
-      year,
-      primarySource: "add_year",
-      recordSource: null,
-      fields: {},
     });
   }
 
