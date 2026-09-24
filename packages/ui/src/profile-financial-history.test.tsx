@@ -20,15 +20,21 @@ const fy2027Block: Record<string, unknown> = {
   othass: 20,
   bscatot: 50,
   bsclbank: 30,
+  cashAndBank: 10,
+  tradeReceivables: 5,
   curlib: 40,
   bsslltd: 10,
   bsclstd: 5,
   bsqpuc: 80,
   turnover: 200,
+  grossProfit: 30,
+  ebitda: 25,
   plnpbt: 15,
   plnpat: 12,
   plnetdiv: 1,
+  netOperatingIncome: 18,
   plyear: 12,
+  tradePayables: 7,
   curlib_borrowing: 25,
   curlib_non_borrowing: 15,
   ncl_loan: 8,
@@ -44,6 +50,8 @@ const fy2027Block: Record<string, unknown> = {
   // Fixture includes a negative P&L minority interest; ensure formatting survives.
   pl_minority: -8975580,
   costOfSales: 140,
+  operatingCashFlow: 160,
+  freeCashFlow: 170,
   annualDebtService: 220,
 };
 
@@ -96,19 +104,52 @@ describe("ProfileFinancialHistory", () => {
 describe("ProfileFinancialYearDetails", () => {
   it("preserves every core financial field and ComRep additional field", () => {
     const html = renderToStaticMarkup(<ProfileFinancialYearDetails block={fy2027Block} />);
-    expect(html).toContain("Financial statements");
-    expect(html).toContain("Additional financial details");
-    expect(html).toContain("For regulatory reporting");
-    for (const key of APPLICATION_CORE_MONEY_KEYS) {
-      expect(htmlHasText(html, FINANCIAL_FIELD_LABELS[key] ?? key)).toBe(true);
+
+    // Category headers (new hierarchy)
+    expect(html).toContain("Assets");
+    expect(html).toContain("Liabilities");
+    expect(html).toContain("Equity");
+    expect(htmlHasText(html, "Profit & Loss")).toBe(true);
+    expect(html).toContain("Costs");
+    expect(html).toContain("Cash Flow / Debt");
+
+    // Optional markers: only these 3 equity raw fields.
+    expect(html).toContain("Share Application Account (if applicable)");
+    expect(htmlHasText(html, "Share Premium & Other Reserves (if applicable)")).toBe(true);
+    expect(html).toContain("Equity Minority Interest (if applicable)");
+    expect(html).not.toContain("Cash & Bank (if applicable)");
+    expect(html).not.toContain("Trade Receivables (if applicable)");
+
+    // Label overrides must align with the Admin Financial Review wording.
+    expect(html).toContain("Paid-up Share Capital");
+    expect(html).toContain("Revenue / Turnover");
+    expect(html).toContain("Profit / Loss Before Tax");
+    expect(html).toContain("Profit / Loss After Tax");
+    expect(html).toContain("Profit / Loss of Year");
+
+    // Still preserves every stored raw field value + its label.
+    for (const key of [...APPLICATION_CORE_MONEY_KEYS, ...APPLICATION_EXTRA_ISSUER_RAW_MONEY_KEYS]) {
+      const label = key === "bsqpuc"
+        ? "Paid-up Share Capital"
+        : key === "turnover"
+          ? "Revenue / Turnover"
+          : key === "plnpbt"
+            ? "Profit / Loss Before Tax"
+            : key === "plnpat"
+              ? "Profit / Loss After Tax"
+              : key === "plyear"
+                ? "Profit / Loss of Year"
+                : FINANCIAL_FIELD_LABELS[key] ?? key;
+      expect(htmlHasText(html, label)).toBe(true);
       expect(html).toContain(formatProfileRmAmount(fy2027Block[key]));
     }
-    for (const key of APPLICATION_EXTRA_ISSUER_RAW_MONEY_KEYS) {
-      expect(htmlHasText(html, FINANCIAL_FIELD_LABELS[key] ?? key)).toBe(true);
-      expect(html).toContain(formatProfileRmAmount(fy2027Block[key]));
-    }
+
     for (const key of APPLICATION_COMREP_DETAIL_KEYS) {
-      expect(htmlHasText(html, FINANCIAL_FIELD_LABELS[key] ?? key)).toBe(true);
+      const labelBase = FINANCIAL_FIELD_LABELS[key] ?? key;
+      const label = ["equity_share_application", "equity_share_premium", "equity_minority"].includes(key)
+        ? `${labelBase} (if applicable)`
+        : labelBase;
+      expect(htmlHasText(html, label)).toBe(true);
       expect(html).toContain(formatProfileRmAmount(fy2027Block[key]));
     }
   });

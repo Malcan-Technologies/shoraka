@@ -204,7 +204,9 @@ export function DirectorShareholderTable({
                 >
                   <TableCell className="align-top min-w-[11.5rem] w-[13rem] max-w-[14rem]">
                     <div className="font-medium">{p.name ?? "—"}</div>
-                    <div className="mt-0.5 whitespace-nowrap font-mono text-meta text-muted-foreground">{p.matchKey}</div>
+                    <div className="mt-0.5 whitespace-nowrap font-mono text-meta text-muted-foreground">
+                      {p.identityNumber ?? "—"}
+                    </div>
                     <div className="mt-0.5 text-meta text-muted-foreground">
                       {relatedPartyVerificationCaption(p.entityType)}
                     </div>

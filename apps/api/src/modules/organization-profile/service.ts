@@ -236,13 +236,27 @@ function assertMayWriteRegTankLockedField(params: {
 }): void {
   if (!params.locked.has(params.field)) return;
   if (params.sources[params.field]?.source !== "REGTANK") return;
-  if (isMasterFieldEmpty(params.current)) return;
+  if (isRegTankLockedFieldMeaningfullyEmpty(params.field, params.current)) return;
   if (valuesEqualForMismatch(params.current, params.incoming)) return;
   throw new AppError(
     403,
     "FIELD_NOT_EDITABLE",
     "This field is locked because it was verified during onboarding."
   );
+}
+
+function isRegTankLockedFieldMeaningfullyEmpty(field: string, value: unknown): boolean {
+  // Some onboarding/KYC flows persist placeholder values even when the field is effectively "missing".
+  // If the current value is a placeholder, treat it as empty so the user can fill the real value.
+  // This prevents false-positive lock errors for partially populated verified profiles.
+  if (field === "gender" || field === "nationality") {
+    if (typeof value === "string" && value.trim().toUpperCase() === "UNSPECIFIED") return true;
+  }
+  // date_of_birth is a DateTime column, but keep this defensive to avoid legacy/partial records.
+  if (field === "dateOfBirth" && typeof value === "string" && value.trim()) {
+    return parseDateInput(value) == null;
+  }
+  return isMasterFieldEmpty(value);
 }
 
 async function loadLatestCtosCompanyJson(

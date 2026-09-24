@@ -461,6 +461,44 @@ describe("NoteService markWithdrawalCompleted issuer disbursement notifications"
     expect(scheduleInvestmentNoteCertificateGeneration).not.toHaveBeenCalled();
   });
 
+  it("case F: activates the note even when Paymaster acknowledgement is missing", async () => {
+    // Simulate an open/unacknowledged Paymaster notice.
+    mockPrisma.paymasterAssignmentNotice.findFirst.mockResolvedValue({ status: "SENT" });
+
+    const withdrawal = issuerDisbursement();
+    mockPrisma.withdrawalInstruction.findUnique.mockResolvedValue(withdrawal);
+    mockPrisma.note.findUnique.mockResolvedValue({
+      id: "note_1",
+      source_contract_id: null,
+      source_invoice_id: "inv_1",
+      source_application_id: "app_1",
+      tenure_days: null,
+      title: "Note 1",
+      note_reference: "NOTE-001",
+      issuer_organization_id: "iss-1",
+    });
+
+    const tx = completedTx(withdrawal);
+    mockPrisma.$transaction.mockImplementation(async (cb: (client: typeof tx) => unknown) => cb(tx));
+
+    const service = new NoteService();
+    jest.spyOn(service as any, "getLedgerAccountId").mockResolvedValue("acct_issuer_payable");
+    jest.spyOn(service as any, "logEvent").mockResolvedValue(undefined);
+    jest.spyOn(service as any, "mapWithdrawal").mockImplementation((row: { id: string }) => ({ id: row.id }));
+
+    await service.markWithdrawalCompleted("w_1", actor);
+
+    expect(tx.note.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ status: NoteStatus.FUNDING }),
+        data: expect.objectContaining({
+          status: NoteStatus.ACTIVE,
+          servicing_status: NoteServicingStatus.CURRENT,
+        }),
+      })
+    );
+  });
+
   it("does not notify investors for residual or admin withdrawals", async () => {
     const residual = {
       id: "w_residual",

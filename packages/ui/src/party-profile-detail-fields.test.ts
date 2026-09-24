@@ -224,4 +224,29 @@ describe("buildPartyProfileDetailItems", () => {
     expect(absent.map((item) => item.label).join(" ")).not.toMatch(/CTOS/i);
     expect(mismatch.map((item) => item.label).join(" ")).not.toMatch(/CTOS/i);
   });
+
+  it("normalizes Malaysia variants in individual nationality display", () => {
+    const items = buildPartyProfileDetailItems({
+      party: party({ entityType: "INDIVIDUAL", nationality: "MY" }),
+    });
+    const nationality = items.find((item) => item.value === "Malaysia");
+    expect(nationality).toBeDefined();
+    expect(nationality?.value).toBe("Malaysia");
+  });
+
+  it("normalizes Malaysia variants in corporate country of incorporation display", () => {
+    const items = buildPartyProfileDetailItems({
+      party: party({ entityType: "CORPORATE", countryOfIncorporation: "MYS" }),
+    });
+    const country = items.find((item) => item.value === "Malaysia");
+    expect(country).toBeDefined();
+    expect(country?.value).toBe("Malaysia");
+  });
+
+  it("does not map unrelated countries to Malaysia", () => {
+    const items = buildPartyProfileDetailItems({
+      party: party({ entityType: "INDIVIDUAL", nationality: "SINGAPORE" }),
+    });
+    expect(items.some((item) => item.value === "Malaysia")).toBe(false);
+  });
 });

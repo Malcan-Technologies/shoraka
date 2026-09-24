@@ -851,6 +851,14 @@ export async function reissueAdminInvestmentSettlementConfirmation(
     version: nextVersion,
     source: "ADMIN_REISSUE",
   });
+  // Fix investor ID mapping for personal investors on regenerated "frozen" documents.
+  const investorOrg = await db.investorOrganization.findUnique({
+    where: { id: investorOrganizationId },
+    select: { type: true, owner_user_id: true },
+  });
+  if (investorOrg?.type === "PERSONAL" && investorOrg.owner_user_id) {
+    nextSnapshot.investorReference = investorOrg.owner_user_id;
+  }
   try {
     const row = await ensureConfirmationRow({ db, snapshot: nextSnapshot });
     await generatePdfForRow({ db, row, snapshot: nextSnapshot });

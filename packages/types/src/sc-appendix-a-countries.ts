@@ -157,10 +157,62 @@ export function isScAppendixACountry(value: unknown): value is ScAppendixACountr
   return typeof value === "string" && (SC_APPENDIX_A_COUNTRIES as readonly string[]).includes(value);
 }
 
+/**
+ * Malaysia-only normalization for display.
+ *
+ * Important: this does not modify stored/raw RegTank values. Callers should use the
+ * result only for display/mapping, not for persistence.
+ */
+export function normalizeMalaysiaCountryValue(value: string | null | undefined): string | null | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) return value;
+  const upper = trimmed.toUpperCase();
+  if (upper === "MY" || upper === "MYS" || upper === "MALAYSIA") return "Malaysia";
+  return value;
+}
+
+/**
+ * Malaysia-only canonical selectable value.
+ *
+ * UI select option values must be stable and deduped across RegTank variants,
+ * but we must not mutate stored/raw RegTank evidence.
+ *
+ * Returns the Appendix A canonical spelling (`"MALAYSIA"`) when the input is
+ * a Malaysia variant, otherwise returns the original value unchanged.
+ */
+export function toMalaysiaCanonicalSelectableValue(
+  value: string | null | undefined
+): string | null | undefined {
+  const normalized = normalizeMalaysiaCountryValue(value);
+  if (normalized === "Malaysia") return "MALAYSIA";
+  return value;
+}
+
 /** Keep a stored value visible even if it is not in the printed Appendix A page set. */
 export function scAppendixASelectValues(current?: string | null): string[] {
   const list: string[] = [...SC_APPENDIX_A_COUNTRIES];
   const trimmed = current?.trim() ?? "";
   if (trimmed && !list.includes(trimmed)) list.unshift(trimmed);
   return list;
+}
+
+/**
+ * Appendix A select values with Malaysia variants canonicalized and deduped.
+ *
+ * This is used by select dropdowns so that RegTank values like `MY`, `MYS`,
+ * and `MALAYSIA` do not create duplicate "Malaysia" options.
+ */
+export function scAppendixASelectValuesMalaysiaCanonicalized(current?: string | null): string[] {
+  const values = scAppendixASelectValues(current);
+  const seen = new Set<string>();
+  const out: string[] = [];
+
+  for (const value of values) {
+    const canonical = String(toMalaysiaCanonicalSelectableValue(value) ?? value);
+    if (seen.has(canonical)) continue;
+    seen.add(canonical);
+    out.push(canonical);
+  }
+
+  return out;
 }

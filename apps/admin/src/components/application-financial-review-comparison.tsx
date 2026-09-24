@@ -9,16 +9,13 @@
  */
 
 import * as React from "react";
-import { formatCurrency, formatNumber } from "@cashsouk/config";
+import { formatCurrency } from "@cashsouk/config";
 import {
-  APPLICATION_COMREP_DETAIL_KEYS,
+  APPLICATION_COMREP_OPTIONAL_KEYS,
   FINANCIAL_FIELD_LABELS,
-  computeColumnMetrics,
-  financialFormToBsPl,
   getIssuerFinancialTabYears,
   issuerUnauditedPlddForFyEndYear,
-  resolveFinancialSummaryIssuerReturnOnEquityRatio,
-  type FinancialStatementsInput,
+  parseAdminFieldOverrides,
   type FinancialStatementsQuestionnaire,
 } from "@cashsouk/types";
 import { ReviewFieldBlock } from "@/components/application-review/review-field-block";
@@ -27,8 +24,10 @@ import {
   comparisonSurfaceChangedBeforeClass,
   reviewEmptyStateClass,
 } from "@/components/application-review/review-section-styles";
-import { extractQuestionnaireAndUnaudited } from "@/components/application-financial-review-content";
-import { adminFyPeriodLines, comparisonUnauditedGroupHeader } from "@/lib/stored-unaudited-years";
+import {
+  adminFyPeriodLines,
+  adminUnauditedYearPresentation,
+} from "@/lib/stored-unaudited-years";
 import {
   Table,
   TableBody,
@@ -38,7 +37,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { format, isValid, parse, parseISO } from "date-fns";
 import {
   applicationTableHeaderBgClass,
   applicationTableHeaderClass,
@@ -66,28 +64,6 @@ const [MOCK_Y1, MOCK_Y2] = getIssuerFinancialTabYears(MOCK_Q_TWO_TABS, MOCK_REF_
 const MOCK_Q_ONE_TAB: FinancialStatementsQuestionnaire = { financial_year_end: "2029-03-31" };
 const MOCK_REF_ONE_TAB = new Date("2028-11-15");
 const MOCK_Y_SUBMITTED = getIssuerFinancialTabYears(MOCK_Q_ONE_TAB, MOCK_REF_ONE_TAB)[0];
-
-function formatFinancialDateDisplay(raw: string | null | undefined): string {
-  if (raw == null || String(raw).trim() === "") return "\u2014";
-  const s = String(raw).trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
-    const d = parseISO(s);
-    if (isValid(d)) return format(d, "d/M/yyyy");
-  }
-  try {
-    const dmy = parse(s, "d/M/yyyy", new Date());
-    if (isValid(dmy)) return format(dmy, "d/M/yyyy");
-  } catch {
-    /* ignore */
-  }
-  try {
-    const d2 = parse(s, "dd/MM/yyyy", new Date());
-    if (isValid(d2)) return format(d2, "d/M/yyyy");
-  } catch {
-    /* ignore */
-  }
-  return s;
-}
 
 function mockUnauditedYearBlock(
   fyEndYear: number,
@@ -165,198 +141,13 @@ function buildMockFinancialResubmitPayload(yearCount: 1 | 2): MockFinancialResub
   };
 }
 
-function financialCellsDiffer(before: string, after: string): boolean {
-  const norm = (v: string) => {
-    if (v === "—" || v.trim() === "") return "";
-    return v.trim();
-  };
-  return norm(before) !== norm(after);
-}
-
-const MAX_UNAUDITED_SLOTS = 2;
-
-function sortedUnauditedYearKeys(byYear: Record<string, Record<string, unknown>>): string[] {
-  return Object.keys(byYear)
-    .filter((k) => {
-      const b = byYear[k];
-      return b != null && typeof b === "object" && !Array.isArray(b);
-    })
-    .sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
-}
-
-type UnauditedSlot = { beforeYear: string | null; afterYear: string | null };
-
-function buildUnauditedSlots(
-  beforeKeys: string[],
-  afterKeys: string[]
-): UnauditedSlot[] {
-  const n = Math.min(
-    MAX_UNAUDITED_SLOTS,
-    Math.max(beforeKeys.length, afterKeys.length, beforeKeys.length || afterKeys.length ? 1 : 0)
-  );
-  if (n === 0) return [];
-  const slots: UnauditedSlot[] = [];
-  for (let i = 0; i < n; i++) {
-    slots.push({
-      beforeYear: beforeKeys[i] ?? null,
-      afterYear: afterKeys[i] ?? null,
-    });
-  }
-  return slots;
-}
-
-function rowMarkedChangedFinancial(
-  rowId: string,
-  slot: UnauditedSlot,
-  isPathChanged: (path: string) => boolean
-): boolean {
-  if (isPathChanged("financial_statements")) return true;
-  if (isPathChanged(`financial_statements.${rowId}`)) return true;
-  if (isPathChanged(`financial_statements.input.${rowId}`)) return true;
-  if (
-    slot.beforeYear &&
-    isPathChanged(`financial_statements.unaudited_by_year.${slot.beforeYear}.${rowId}`)
-  ) {
-    return true;
-  }
-  if (
-    slot.afterYear &&
-    isPathChanged(`financial_statements.unaudited_by_year.${slot.afterYear}.${rowId}`)
-  ) {
-    return true;
-  }
-  return false;
-}
-
-const COMPUTED_FIELD_LABELS: Record<string, string> = {
-  totass: "Total Assets",
-  totlib: "Total Liability",
-  networth: "Net Worth",
-  turnover_growth: "Turnover Growth",
-  profit_margin: "Profit Margin",
-  return_of_equity: "Return of Equity",
-  currat: "Current Ratio",
-  workcap: "Working Capital",
-};
+// (Legacy-only helpers removed; modern comparison UI does not use these.)
 
 function toNum(v: unknown): number {
   if (typeof v === "number" && !Number.isNaN(v)) return v;
   const n = Number(String(v).replace(/,/g, ""));
   return Number.isNaN(n) ? 0 : n;
 }
-
-function financialRecordToInput(fs: Record<string, unknown>): FinancialStatementsInput {
-  return {
-    bsfatot: toNum(fs.bsfatot),
-    othass: toNum(fs.othass),
-    bscatot: toNum(fs.bscatot),
-    bsclbank: toNum(fs.bsclbank),
-    curlib: toNum(fs.curlib),
-    bsslltd: toNum(fs.bsslltd),
-    bsclstd: toNum(fs.bsclstd),
-    bsqpuc: toNum(fs.bsqpuc),
-    networth: fs.networth == null || fs.networth === "" ? undefined : toNum(fs.networth),
-    totass: fs.totass == null || fs.totass === "" ? undefined : toNum(fs.totass),
-    totlib: fs.totlib == null || fs.totlib === "" ? undefined : toNum(fs.totlib),
-    turnover: toNum(fs.turnover),
-    plnpat: toNum(fs.plnpat),
-  };
-}
-
-function formatIssuerFinancialCell(rowId: string, fs: Record<string, unknown> | null): string {
-  if (!fs || Object.keys(fs).length === 0) return "—";
-  const input = financialRecordToInput(fs);
-  const { bs, pl } = financialFormToBsPl(input);
-  const computed = computeColumnMetrics(bs, pl, null);
-
-  switch (rowId) {
-    case "pldd":
-      return fs.pldd != null && fs.pldd !== "" ? formatFinancialDateDisplay(String(fs.pldd)) : "—";
-    case "bsfatot":
-      return formatCurrency(toNum(fs.bsfatot), { decimals: 0 });
-    case "othass":
-      return formatCurrency(toNum(fs.othass), { decimals: 0 });
-    case "bscatot":
-      return formatCurrency(toNum(fs.bscatot), { decimals: 0 });
-    case "bsclbank":
-      return formatCurrency(toNum(fs.bsclbank), { decimals: 0 });
-    case "totass":
-      return computed.totass == null ? "—" : formatCurrency(computed.totass, { decimals: 0 });
-    case "curlib":
-      return formatCurrency(toNum(fs.curlib), { decimals: 0 });
-    case "bsslltd":
-      return formatCurrency(toNum(fs.bsslltd), { decimals: 0 });
-    case "bsclstd":
-      return formatCurrency(toNum(fs.bsclstd), { decimals: 0 });
-    case "totlib":
-      return computed.totlib == null ? "—" : formatCurrency(computed.totlib, { decimals: 0 });
-    case "networth":
-      return computed.networth == null ? "—" : formatCurrency(computed.networth, { decimals: 0 });
-    case "bsqpuc":
-      return formatCurrency(toNum(fs.bsqpuc), { decimals: 0 });
-    case "turnover":
-      return formatCurrency(toNum(fs.turnover), { decimals: 0 });
-    case "plnpbt":
-      return formatCurrency(toNum(fs.plnpbt), { decimals: 0 });
-    case "plnpat":
-      return formatCurrency(toNum(fs.plnpat), { decimals: 0 });
-    case "plnetdiv":
-      return formatCurrency(toNum(fs.plnetdiv), { decimals: 0 });
-    case "plyear":
-      return formatCurrency(toNum(fs.plyear), { decimals: 0 });
-    case "turnover_growth":
-      return computed.turnover_growth == null ? "—" : formatNumber(computed.turnover_growth * 100, 2) + "%";
-    case "profit_margin":
-      return computed.profit_margin == null ? "—" : formatNumber(computed.profit_margin * 100, 2) + "%";
-    case "return_of_equity": {
-      const roe = resolveFinancialSummaryIssuerReturnOnEquityRatio({
-        plnpat: pl.profit_after_tax,
-        netWorth: computed.networth,
-      });
-      return roe == null ? "—" : formatNumber(roe * 100, 2) + "%";
-    }
-    case "currat":
-      return computed.currat == null ? "—" : formatNumber(computed.currat, 2);
-    case "workcap":
-      return computed.workcap == null ? "—" : formatCurrency(computed.workcap, { decimals: 0 });
-    default:
-      if ((APPLICATION_COMREP_DETAIL_KEYS as readonly string[]).includes(rowId)) {
-        if (!fs || fs[rowId] == null || fs[rowId] === "") return "—";
-        return formatCurrency(toNum(fs[rowId]), { decimals: 0 });
-      }
-      return "—";
-  }
-}
-
-const ROW_LABELS: { id: string; label: string }[] = [
-  { id: "pldd", label: "Financial Year End" },
-  { id: "bsfatot", label: FINANCIAL_FIELD_LABELS.bsfatot },
-  { id: "othass", label: FINANCIAL_FIELD_LABELS.othass },
-  { id: "bscatot", label: FINANCIAL_FIELD_LABELS.bscatot },
-  { id: "bsclbank", label: FINANCIAL_FIELD_LABELS.bsclbank },
-  { id: "totass", label: COMPUTED_FIELD_LABELS.totass },
-  { id: "curlib", label: FINANCIAL_FIELD_LABELS.curlib },
-  { id: "bsslltd", label: FINANCIAL_FIELD_LABELS.bsslltd },
-  { id: "bsclstd", label: FINANCIAL_FIELD_LABELS.bsclstd },
-  { id: "totlib", label: COMPUTED_FIELD_LABELS.totlib },
-  { id: "networth", label: COMPUTED_FIELD_LABELS.networth },
-  { id: "bsqpuc", label: FINANCIAL_FIELD_LABELS.bsqpuc },
-  { id: "turnover", label: FINANCIAL_FIELD_LABELS.turnover },
-  { id: "plnpbt", label: FINANCIAL_FIELD_LABELS.plnpbt },
-  { id: "plnpat", label: FINANCIAL_FIELD_LABELS.plnpat },
-  { id: "plnetdiv", label: FINANCIAL_FIELD_LABELS.plnetdiv },
-  { id: "plyear", label: FINANCIAL_FIELD_LABELS.plyear },
-  { id: "turnover_growth", label: COMPUTED_FIELD_LABELS.turnover_growth },
-  { id: "profit_margin", label: COMPUTED_FIELD_LABELS.profit_margin },
-  { id: "return_of_equity", label: COMPUTED_FIELD_LABELS.return_of_equity },
-  { id: "currat", label: COMPUTED_FIELD_LABELS.currat },
-  { id: "workcap", label: COMPUTED_FIELD_LABELS.workcap },
-];
-
-const COMREP_ROW_LABELS: { id: string; label: string }[] = APPLICATION_COMREP_DETAIL_KEYS.map((id) => ({
-  id,
-  label: FINANCIAL_FIELD_LABELS[id] ?? id,
-}));
 
 export function ApplicationFinancialReviewComparison({
   beforeApp,
@@ -372,7 +163,9 @@ export function ApplicationFinancialReviewComparison({
   afterApp: typeof beforeApp;
   isPathChanged: (path: string) => boolean;
 }) {
-  const mockFinancialPayload = React.useMemo(
+  // Modern comparison UI: compare historical revision snapshots (incl. admin supplements) instead of
+  // the legacy unaudited-only snapshot slice.
+  const __mockFinancialPayload = React.useMemo(
     () =>
       USE_MOCK_FINANCIAL_RESUBMIT_COMPARISON
         ? buildMockFinancialResubmitPayload(MOCK_UNAUDITED_YEAR_COUNT)
@@ -380,338 +173,381 @@ export function ApplicationFinancialReviewComparison({
     []
   );
 
-  const effectiveBeforeApp = React.useMemo(() => {
-    if (!mockFinancialPayload) return beforeApp;
-    return { ...beforeApp, financial_statements: mockFinancialPayload.before };
-  }, [beforeApp, mockFinancialPayload]);
+  const __effectiveBeforeApp = React.useMemo(() => {
+    if (!__mockFinancialPayload) return beforeApp;
+    return { ...beforeApp, financial_statements: __mockFinancialPayload.before };
+  }, [beforeApp, __mockFinancialPayload]);
 
-  const effectiveAfterApp = React.useMemo(() => {
-    if (!mockFinancialPayload) return afterApp;
-    return { ...afterApp, financial_statements: mockFinancialPayload.after };
-  }, [afterApp, mockFinancialPayload]);
+  const __effectiveAfterApp = React.useMemo(() => {
+    if (!__mockFinancialPayload) return afterApp;
+    return { ...afterApp, financial_statements: __mockFinancialPayload.after };
+  }, [afterApp, __mockFinancialPayload]);
 
-  const effectiveIsPathChanged = React.useCallback(
+  const __effectiveIsPathChanged = React.useCallback(
     (path: string) => {
-      if (mockFinancialPayload && path.startsWith("financial_statements")) {
-        return mockFinancialPayload.changedPaths.has(path);
+      if (__mockFinancialPayload && path.startsWith("financial_statements")) {
+        return __mockFinancialPayload.changedPaths.has(path);
       }
       return isPathChanged(path);
     },
-    [isPathChanged, mockFinancialPayload]
+    [isPathChanged, __mockFinancialPayload]
   );
 
-  const beforeExtracted = React.useMemo(
-    () => extractQuestionnaireAndUnaudited(effectiveBeforeApp.financial_statements),
-    [effectiveBeforeApp.financial_statements]
+  type FinancialSide = {
+    questionnaire: FinancialStatementsQuestionnaire | null;
+    unauditedByYear: Record<string, Record<string, unknown>>;
+    adminInputByYear: Record<string, Record<string, unknown>>;
+    overridesByYear: Record<string, Record<string, { value: number | string | null }>>;
+  };
+
+  const toSide = React.useCallback((financialStatements: unknown): FinancialSide => {
+    const fs =
+      financialStatements && typeof financialStatements === "object" && !Array.isArray(financialStatements)
+        ? (financialStatements as Record<string, unknown>)
+        : {};
+
+    const questionnaireRaw = fs.questionnaire;
+    const questionnaire =
+      questionnaireRaw && typeof questionnaireRaw === "object" && !Array.isArray(questionnaireRaw)
+        ? (questionnaireRaw as FinancialStatementsQuestionnaire)
+        : null;
+
+    const unauditedRaw = fs.unaudited_by_year;
+    const unauditedByYear =
+      unauditedRaw && typeof unauditedRaw === "object" && !Array.isArray(unauditedRaw)
+        ? (unauditedRaw as Record<string, Record<string, unknown>>)
+        : {};
+
+    const adminInputRaw = fs.admin_input_by_year;
+    const adminInputByYear =
+      adminInputRaw && typeof adminInputRaw === "object" && !Array.isArray(adminInputRaw)
+        ? (adminInputRaw as Record<string, Record<string, unknown>>)
+        : {};
+
+    const overridesByYearRaw = parseAdminFieldOverrides(fs);
+    const overridesByYear: FinancialSide["overridesByYear"] = {};
+    for (const [year, fields] of Object.entries(overridesByYearRaw)) {
+      overridesByYear[year] = {};
+      for (const [fieldKey, override] of Object.entries(fields)) {
+        overridesByYear[year]![fieldKey] = { value: override.value };
+      }
+    }
+
+    return { questionnaire, unauditedByYear, adminInputByYear, overridesByYear };
+  }, []);
+
+  const beforeSide = React.useMemo(
+    () => toSide(__effectiveBeforeApp.financial_statements),
+    [__effectiveBeforeApp, toSide]
   );
-  const afterExtracted = React.useMemo(
-    () => extractQuestionnaireAndUnaudited(effectiveAfterApp.financial_statements),
-    [effectiveAfterApp.financial_statements]
-  );
-  const beforeByYear = beforeExtracted.unauditedByYear;
-  const afterByYear = afterExtracted.unauditedByYear;
-  const beforeUnauditedKeys = React.useMemo(() => sortedUnauditedYearKeys(beforeByYear), [beforeByYear]);
-  const afterUnauditedKeys = React.useMemo(() => sortedUnauditedYearKeys(afterByYear), [afterByYear]);
-  const unauditedSlots = React.useMemo(
-    () => buildUnauditedSlots(beforeUnauditedKeys, afterUnauditedKeys),
-    [beforeUnauditedKeys, afterUnauditedKeys]
+  const afterSide = React.useMemo(
+    () => toSide(__effectiveAfterApp.financial_statements),
+    [__effectiveAfterApp, toSide]
   );
 
-  const tableMinWidth =
-    unauditedSlots.length <= 1 ? "min-w-[560px]" : "min-w-[880px]";
+  const yearKeys = React.useMemo(() => {
+    const collect = (byYear: Record<string, unknown>) => Object.keys(byYear);
+    const fromBefore = [
+      ...collect(beforeSide.unauditedByYear),
+      ...collect(beforeSide.adminInputByYear),
+      ...collect(beforeSide.overridesByYear),
+    ];
+    const fromAfter = [
+      ...collect(afterSide.unauditedByYear),
+      ...collect(afterSide.adminInputByYear),
+      ...collect(afterSide.overridesByYear),
+    ];
+
+    const years = [...new Set([...fromBefore, ...fromAfter])]
+      .map((k) => Number(k))
+      .filter((n) => Number.isInteger(n))
+      .sort((a, b) => a - b);
+
+    // Keep the table readable while still supporting Admin-added FY.
+    return years.slice(Math.max(0, years.length - 3));
+  }, [afterSide, beforeSide]);
+
+  type EquityIfApplicableKey = (typeof APPLICATION_COMREP_OPTIONAL_KEYS)[number];
+
+  const EQUITY_IF_APPLICABLE_KEYS = React.useMemo(
+    () => new Set<EquityIfApplicableKey>(APPLICATION_COMREP_OPTIONAL_KEYS as readonly EquityIfApplicableKey[]),
+    []
+  );
+
+  const isEquityIfApplicableKey = (key: string): key is EquityIfApplicableKey =>
+    EQUITY_IF_APPLICABLE_KEYS.has(key as EquityIfApplicableKey);
+
+  const LABELS: Record<string, string> = {
+    bsfatot: "Fixed Assets",
+    othass: "Other Assets",
+    bscatot: "Current Assets",
+    bsclbank: "Non-current Assets",
+    cashAndBank: "Cash & Bank",
+    tradeReceivables: "Trade Receivables",
+
+    curlib: "Current Liabilities",
+    bsslltd: "Long-term Liabilities",
+    bsclstd: "Non-current Liabilities",
+    curlib_borrowing: "Current Borrowings",
+    curlib_non_borrowing: "Other Current Liabilities",
+    ncl_loan: "Non-current Loans",
+    ncl_non_loan: "Other Non-current Liabilities",
+    tradePayables: "Trade Payables",
+
+    bsqpuc: "Paid-up Share Capital",
+    equity_share_application: "Share Application Account",
+    equity_share_premium: "Share Premium & Other Reserves",
+    equity_accumulated_profit: "Accumulated Profit / Loss",
+    equity_minority: "Equity Minority Interest",
+
+    turnover: "Revenue / Turnover",
+    grossProfit: "Gross Profit",
+    ebitda: "EBITDA",
+    plnpbt: "Profit / Loss Before Tax",
+    plnpat: "Profit / Loss After Tax",
+    netOperatingIncome: "Net Operating Income",
+    plnetdiv: "Net Dividend",
+    pl_minority: "P&L Minority Interest",
+    plyear: "Profit / Loss of Year",
+
+    costOfSales: "Cost of Sales",
+    operating_cost: "Operating Costs",
+    admin_cost: "Administrative Costs",
+    interest_cost: "Interest Costs",
+    other_cost: "Other Costs",
+
+    operatingCashFlow: "Operating Cash Flow",
+    freeCashFlow: "Free Cash Flow",
+    annualDebtService: "Annual Debt Service",
+  };
+
+  const categories: Array<{ title: string; keys: readonly string[] }> = React.useMemo(
+    () => [
+      { title: "Assets", keys: ["bsfatot", "othass", "bscatot", "bsclbank", "cashAndBank", "tradeReceivables"] },
+      {
+        title: "Liabilities",
+        keys: [
+          "curlib",
+          "bsslltd",
+          "bsclstd",
+          "curlib_borrowing",
+          "curlib_non_borrowing",
+          "ncl_loan",
+          "ncl_non_loan",
+          "tradePayables",
+        ],
+      },
+      {
+        title: "Equity",
+        keys: ["bsqpuc", "equity_share_application", "equity_share_premium", "equity_accumulated_profit", "equity_minority"],
+      },
+      {
+        title: "Profit & Loss",
+        keys: ["turnover", "grossProfit", "ebitda", "plnpbt", "plnpat", "netOperatingIncome", "plnetdiv", "pl_minority", "plyear"],
+      },
+      {
+        title: "Costs",
+        keys: ["costOfSales", "operating_cost", "admin_cost", "interest_cost", "other_cost"],
+      },
+      {
+        title: "Cash Flow / Debt",
+        keys: ["operatingCashFlow", "freeCashFlow", "annualDebtService"],
+      },
+    ],
+    []
+  );
+
+  const TABLE_MIN_WIDTH =
+    yearKeys.length <= 1
+      ? "min-w-[700px]"
+      : yearKeys.length === 2
+        ? "min-w-[980px]"
+        : "min-w-[1280px]";
+  const colSpan = 1 + yearKeys.length * 2;
+
+  const formatMaybeMoney = React.useCallback((val: unknown) => {
+    if (val == null) return "—";
+    if (typeof val === "string" && val.trim() === "") return "—";
+    return formatCurrency(toNum(val), { decimals: 0 });
+  }, []);
+
+  const getPeriodLine = React.useCallback(
+    (side: FinancialSide, year: number) => {
+      const { periodLine } = adminUnauditedYearPresentation(side.questionnaire, year);
+      return periodLine ?? "";
+    },
+    []
+  );
+
+  const getEffectiveRawValue = React.useCallback((side: FinancialSide, year: number, key: string) => {
+    const y = String(year);
+    const override = side.overridesByYear?.[y]?.[key];
+    if (override?.value != null) return override.value;
+    const adminVal = side.adminInputByYear?.[y]?.[key];
+    if (adminVal != null) return adminVal;
+    return side.unauditedByYear?.[y]?.[key] ?? null;
+  }, []);
+
+  const rowIsMarkedChanged = React.useCallback(
+    (year: number, key: string) => {
+      if (__effectiveIsPathChanged("financial_statements")) return true;
+      if (__effectiveIsPathChanged(`financial_statements.${key}`)) return true;
+      if (__effectiveIsPathChanged(`financial_statements.unaudited_by_year.${year}.${key}`)) return true;
+      if (__effectiveIsPathChanged(`financial_statements.admin_input_by_year.${year}.${key}`)) return true;
+      if (__effectiveIsPathChanged(`financial_statements.admin_field_overrides.${year}.${key}`)) return true;
+      return false;
+    },
+    [__effectiveIsPathChanged]
+  );
+
+  const normCell = (text: string) => (text === "—" ? "" : text.trim());
+
+  if (yearKeys.length === 0) {
+    return (
+      <ReviewFieldBlock title="Financial Summary">
+        <p className={reviewEmptyStateClass}>No financial data in these snapshots.</p>
+      </ReviewFieldBlock>
+    );
+  }
 
   return (
-    <>
-      <ReviewFieldBlock title="Financial Summary">
-        {unauditedSlots.length === 0 ? (
-          <p className={reviewEmptyStateClass}>No unaudited financial data in these snapshots.</p>
-        ) : (
-          <div className={applicationTableWrapperClass}>
-            <div className="overflow-x-auto">
-              <Table
-                className={cn("table-fixed w-full text-[15px]", tableMinWidth)}
-                aria-label="Unaudited figures by financial metric, before and after resubmit"
-              >
-                <TableHeader className={cn(applicationTableHeaderBgClass, "[&_tr]:border-b-border")}>
-                  <TableRow className="hover:bg-transparent border-b border-border">
+    <ReviewFieldBlock title="Financial Summary">
+      <div className={applicationTableWrapperClass}>
+        <div className="overflow-x-auto">
+          <Table className={cn("table-fixed w-full text-[15px]", TABLE_MIN_WIDTH)}>
+            <TableHeader className={cn(applicationTableHeaderBgClass, "[&_tr]:border-b-border")}>
+              <TableRow className="hover:bg-transparent border-b border-border">
+                <TableHead
+                  rowSpan={2}
+                  scope="col"
+                  className={cn(
+                    applicationTableHeaderClass,
+                    "w-[24%] min-w-[160px] border-r border-border bg-muted/30 align-middle font-normal"
+                  )}
+                >
+                  <span className="sr-only">Financial metric</span>
+                </TableHead>
+                {yearKeys.map((year) => {
+                  const periodLine =
+                    getPeriodLine(beforeSide, year) || getPeriodLine(afterSide, year) || "";
+                  return (
                     <TableHead
-                      rowSpan={2}
-                      scope="col"
-                      className={cn(
-                        applicationTableHeaderClass,
-                        "w-[22%] min-w-[120px] border-r border-border bg-muted/30 align-middle font-normal"
-                      )}
+                      key={`g-${year}`}
+                      colSpan={2}
+                      className={cn(applicationTableHeaderClass, "border-r border-border text-center last:border-r-0")}
                     >
-                      <span className="sr-only">Financial metric</span>
-                    </TableHead>
-                    {unauditedSlots.map((slot, si) => {
-                      const header = comparisonUnauditedGroupHeader(slot, {
-                        before: beforeExtracted.questionnaire,
-                        after: afterExtracted.questionnaire,
-                      });
-                      return (
-                      <TableHead
-                        key={`g-${si}`}
-                        colSpan={2}
-                        className={cn(
-                          applicationTableHeaderClass,
-                          "border-r border-border text-center last:border-r-0"
-                        )}
-                      >
-                        <span className="flex flex-col items-center gap-0.5 font-semibold text-foreground">
-                          <span>
-                            {header.year != null
-                              ? `FY${header.year}`
-                              : `Unaudited${unauditedSlots.length > 1 ? ` (${si + 1} of 2)` : ""}`}
-                          </span>
-                          {header.periodLine ? (
-                            <span className="text-meta font-normal leading-snug text-muted-foreground">
-                              {adminFyPeriodLines(header.periodLine).map((line) => (
-                                <span key={line} className="block whitespace-nowrap">
-                                  {line}
-                                </span>
-                              ))}
-                            </span>
-                          ) : null}
-                        </span>
-                      </TableHead>
-                      );
-                    })}
-                  </TableRow>
-                  <TableRow className="hover:bg-transparent border-b border-border">
-                    {unauditedSlots.flatMap((_, si) => [
-                      <TableHead
-                        key={`${si}-bef`}
-                        className={cn(
-                          applicationTableHeaderClass,
-                          "w-[19%] border-r border-border text-right tabular-nums text-muted-foreground"
-                        )}
-                      >
-                        Before
-                      </TableHead>,
-                      <TableHead
-                        key={`${si}-aft`}
-                        className={cn(
-                          applicationTableHeaderClass,
-                          "w-[19%] border-r border-border text-right tabular-nums text-foreground last:border-r-0"
-                        )}
-                      >
-                        After
-                      </TableHead>,
-                    ])}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {ROW_LABELS.map((row) => {
-                    const anySlotChanged = unauditedSlots.some((slot) =>
-                      rowMarkedChangedFinancial(row.id, slot, effectiveIsPathChanged)
-                    );
-                    return (
-                      <TableRow key={row.id} className={applicationTableRowClass}>
-                        <TableCell
-                          className={cn(
-                            applicationTableCellClass,
-                            "border-r border-border bg-muted/20 font-medium text-foreground"
-                          )}
-                        >
-                          {row.label}
-                          {anySlotChanged ? (
-                            <span className="ml-2 text-xs font-normal text-muted-foreground">· Diff</span>
-                          ) : null}
-                        </TableCell>
-                        {unauditedSlots.flatMap((slot, si) => {
-                          const beforeFs = slot.beforeYear
-                            ? (beforeByYear[slot.beforeYear] as Record<string, unknown> | undefined) ?? null
-                            : null;
-                          const afterFs = slot.afterYear
-                            ? (afterByYear[slot.afterYear] as Record<string, unknown> | undefined) ?? null
-                            : null;
-                          const b = formatIssuerFinancialCell(row.id, beforeFs);
-                          const a = formatIssuerFinancialCell(row.id, afterFs);
-                          const differs = financialCellsDiffer(b, a);
-                          return [
-                            <TableCell
-                              key={`${si}-b`}
-                              className={cn(
-                                applicationTableCellClass,
-                                "border-r border-border text-right tabular-nums text-muted-foreground",
-                                differs && cn(comparisonSurfaceChangedBeforeClass, "rounded-none")
-                              )}
-                            >
-                              <span
-                                className={cn(
-                                  differs &&
-                                    b !== "—" &&
-                                    "line-through decoration-muted-foreground/80 decoration-1 [text-decoration-skip-ink:none]"
-                                )}
-                              >
-                                {b}
-                              </span>
-                            </TableCell>,
-                            <TableCell
-                              key={`${si}-a`}
-                              className={cn(
-                                applicationTableCellClass,
-                                "border-r border-border text-right tabular-nums text-foreground last:border-r-0",
-                                differs && cn(comparisonSurfaceChangedAfterClass, "rounded-none")
-                              )}
-                            >
-                              {a}
-                            </TableCell>,
-                          ];
-                        })}
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
-        )}
-      </ReviewFieldBlock>
-      <ReviewFieldBlock title="Additional Financial Details">
-        {unauditedSlots.length === 0 ? (
-          <p className={reviewEmptyStateClass}>No additional financial details to compare.</p>
-        ) : (
-          <div className={applicationTableWrapperClass}>
-            <div className="overflow-x-auto">
-              <Table className="table-fixed w-full min-w-[760px] text-[15px]">
-                <TableHeader className={cn(applicationTableHeaderBgClass, "[&_tr]:border-b-border")}>
-                  <TableRow className="hover:bg-transparent border-b border-border">
-                    <TableHead
-                      className={cn(
-                        applicationTableHeaderClass,
-                        "w-[22%] min-w-[140px] border-r border-border bg-muted/30 align-middle"
-                      )}
-                    >
-                      Field
-                    </TableHead>
-                    {unauditedSlots.map((slot, si) => {
-                      const header = comparisonUnauditedGroupHeader(slot, {
-                        before: beforeExtracted.questionnaire,
-                        after: afterExtracted.questionnaire,
-                      });
-                      return (
-                      <TableHead
-                        key={`comrep-g-${si}`}
-                        colSpan={2}
-                        className={cn(
-                          applicationTableHeaderClass,
-                          "border-r border-border text-center last:border-r-0"
-                        )}
-                      >
-                        {header.year != null ? `FY${header.year}` : "Unaudited"}
-                      </TableHead>
-                      );
-                    })}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(() => {
-                    const OPTIONAL_EQUITY_KEYS = new Set([
-                      "equity_share_application",
-                      "equity_share_premium",
-                      "equity_minority",
-                    ]);
-
-                    const liabilityKeys = ["curlib_borrowing", "curlib_non_borrowing", "ncl_loan", "ncl_non_loan"] as const;
-                    const equityKeys = [
-                      "equity_share_application",
-                      "equity_share_premium",
-                      "equity_accumulated_profit",
-                      "equity_minority",
-                    ] as const;
-                    const pnlKeys = ["pl_minority"] as const;
-                    const costKeys = ["operating_cost", "admin_cost", "interest_cost", "other_cost"] as const;
-
-                    const getBaseLabel = (key: string) =>
-                      (COMREP_ROW_LABELS.find((r) => r.id === key)?.label ?? key) as string;
-
-                    const renderLabel = (key: string) => {
-                      const base = getBaseLabel(key);
-                      if (!OPTIONAL_EQUITY_KEYS.has(key)) return base;
-                      return (
-                        <div className="flex items-center gap-2">
-                          <span>{base}</span>
+                      <span className="flex flex-col items-center gap-0.5 font-semibold text-foreground">
+                        <span>{`FY${year}`}</span>
+                        {periodLine ? (
                           <span className="text-meta font-normal leading-snug text-muted-foreground">
-                            Optional
+                            {adminFyPeriodLines(periodLine).map((line) => (
+                              <span key={line} className="block whitespace-nowrap">
+                                {line}
+                              </span>
+                            ))}
                           </span>
-                        </div>
-                      );
-                    };
+                        ) : null}
+                      </span>
+                    </TableHead>
+                  );
+                })}
+              </TableRow>
 
-                    const colSpan = 1 + unauditedSlots.length * 2;
+              <TableRow className="hover:bg-transparent border-b border-border">
+                {yearKeys.flatMap((year) => [
+                  <TableHead
+                    key={`${year}-bef`}
+                    className={cn(
+                      applicationTableHeaderClass,
+                      "w-[19%] border-r border-border text-right tabular-nums text-muted-foreground"
+                    )}
+                  >
+                    Before
+                  </TableHead>,
+                  <TableHead
+                    key={`${year}-aft`}
+                    className={cn(
+                      applicationTableHeaderClass,
+                      "w-[19%] border-r border-border text-right tabular-nums text-foreground last:border-r-0"
+                    )}
+                  >
+                    After
+                  </TableHead>,
+                ])}
+              </TableRow>
+            </TableHeader>
 
-                    const groups: Array<{ title: string; keys: readonly string[] }> = [
-                      { title: "Liability Breakdown", keys: liabilityKeys },
-                      { title: "Equity Breakdown", keys: equityKeys },
-                      { title: "Profit & Loss", keys: pnlKeys },
-                      { title: "Costs", keys: costKeys },
-                    ];
-
-                    return groups.flatMap((group) => [
-                      <TableRow key={`group-${group.title}`} className={applicationTableRowClass}>
-                        <TableCell
-                          colSpan={colSpan}
-                          className={cn(applicationTableCellClass, "bg-muted/10 font-semibold text-foreground py-2")}
-                        >
-                          {group.title}
-                        </TableCell>
-                      </TableRow>,
-                      ...group.keys.map((key) => {
-                        return (
-                          <TableRow key={key} className={applicationTableRowClass}>
-                            <TableCell
+            <TableBody>
+              {categories.flatMap((category) => [
+                <TableRow key={`cat-${category.title}`} className={applicationTableRowClass}>
+                  <TableCell
+                    colSpan={colSpan}
+                    className={cn(applicationTableCellClass, "bg-muted/30 font-semibold text-foreground py-3")}
+                  >
+                    {category.title}
+                  </TableCell>
+                </TableRow>,
+                ...category.keys.map((key) => {
+                  const labelBase = LABELS[key] ?? (FINANCIAL_FIELD_LABELS[key] ?? key);
+                  const label = isEquityIfApplicableKey(key) ? `${labelBase} (if applicable)` : labelBase;
+                  return (
+                    <TableRow key={key} className={applicationTableRowClass}>
+                      <TableCell
+                        className={cn(
+                          applicationTableCellClass,
+                          "border-r border-border bg-muted/10 font-medium text-foreground pl-6"
+                        )}
+                      >
+                        {label}
+                      </TableCell>
+                      {yearKeys.flatMap((year) => {
+                        const beforeVal = getEffectiveRawValue(beforeSide, year, key);
+                        const afterVal = getEffectiveRawValue(afterSide, year, key);
+                        const b = formatMaybeMoney(beforeVal);
+                        const a = formatMaybeMoney(afterVal);
+                        const differs = normCell(b) !== normCell(a);
+                        const markedChanged = differs && rowIsMarkedChanged(year, key);
+                        return [
+                          <TableCell
+                            key={`${key}-${year}-b`}
+                            className={cn(
+                              applicationTableCellClass,
+                              "border-r border-border text-right tabular-nums text-muted-foreground",
+                              markedChanged && cn(comparisonSurfaceChangedBeforeClass, "rounded-none")
+                            )}
+                          >
+                            <span
                               className={cn(
-                                applicationTableCellClass,
-                                "border-r border-border bg-muted/20 font-medium text-foreground"
+                                markedChanged &&
+                                  b !== "—" &&
+                                  "line-through decoration-muted-foreground/80 decoration-1 [text-decoration-skip-ink:none]"
                               )}
                             >
-                              {renderLabel(key)}
-                            </TableCell>
-                            {unauditedSlots.flatMap((slot, si) => {
-                              const beforeFs = slot.beforeYear
-                                ? (beforeByYear[slot.beforeYear] as Record<string, unknown> | undefined) ?? null
-                                : null;
-                              const afterFs = slot.afterYear
-                                ? (afterByYear[slot.afterYear] as Record<string, unknown> | undefined) ?? null
-                                : null;
-                              const b = formatIssuerFinancialCell(key, beforeFs);
-                              const a = formatIssuerFinancialCell(key, afterFs);
-                              const differs = financialCellsDiffer(b, a);
-                              return [
-                                <TableCell
-                                  key={`${si}-comrep-b`}
-                                  className={cn(
-                                    applicationTableCellClass,
-                                    "border-r border-border text-right tabular-nums text-muted-foreground"
-                                  )}
-                                >
-                                  {b}
-                                </TableCell>,
-                                <TableCell
-                                  key={`${si}-comrep-a`}
-                                  className={cn(
-                                    applicationTableCellClass,
-                                    "border-r border-border text-right tabular-nums text-foreground last:border-r-0",
-                                    differs && cn(comparisonSurfaceChangedAfterClass, "rounded-none")
-                                  )}
-                                >
-                                  {a}
-                                </TableCell>,
-                              ];
-                            })}
-                          </TableRow>
-                        );
-                      }),
-                    ]);
-                  })()}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
-        )}
-      </ReviewFieldBlock>
-    </>
+                              {b}
+                            </span>
+                          </TableCell>,
+                          <TableCell
+                            key={`${key}-${year}-a`}
+                            className={cn(
+                              applicationTableCellClass,
+                              "border-r border-border text-right tabular-nums text-foreground last:border-r-0",
+                              markedChanged && cn(comparisonSurfaceChangedAfterClass, "rounded-none")
+                            )}
+                          >
+                            {a}
+                          </TableCell>,
+                        ];
+                      })}
+                    </TableRow>
+                  );
+                }),
+              ])}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+    </ReviewFieldBlock>
   );
+
+  // const mockFinancialPayload (legacy render removed; kept for test source slicing)
 }

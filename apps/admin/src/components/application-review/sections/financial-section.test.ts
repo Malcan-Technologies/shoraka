@@ -87,10 +87,15 @@ describe("admin application financial review extra ComRep section", () => {
       path.join(__dirname, "../../application-financial-review-comparison.tsx"),
       "utf8"
     );
-    // Admin summary table is consolidated; detailed COMREP comparison keeps the legacy extra block.
+    // Comparison should now match the current Financial Review categories.
     expect(content).not.toContain('title="Additional Financial Details"');
-    expect(comparison).toContain('title="Additional Financial Details"');
-    expect(comparison).toContain("COMREP_ROW_LABELS");
+    expect(comparison).toContain('title="Financial Summary"');
+    expect(comparison).toContain("Assets");
+    expect(comparison).toContain("Liabilities");
+    expect(comparison).toContain("Equity");
+    expect(comparison).toContain("Profit & Loss");
+    expect(comparison).toContain("Costs");
+    expect(comparison).toContain("Cash Flow / Debt");
   });
 
   it("links incomplete related-party verification to the issuer Pending people filter", () => {

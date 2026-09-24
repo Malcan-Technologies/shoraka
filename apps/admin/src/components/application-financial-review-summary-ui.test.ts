@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 describe("Admin Financial Summary table UI", () => {
   const tablePath = join(__dirname, "application-financial-review-content.tsx");
+  const comparisonPath = join(__dirname, "application-financial-review-comparison.tsx");
   const addModalPath = join(
     __dirname,
     "../notes/prospectus-review/admin-add-financial-statement-dialog.tsx"
@@ -64,6 +65,14 @@ describe("Admin Financial Summary table UI", () => {
     expect(source).toContain("ChevronDownIcon");
     expect(source).toContain("ChevronRightIcon");
     expect(source).toContain("flattenedRows.map");
+  });
+
+  it("nests child rows under categories with clearer hierarchy styling", () => {
+    const source = readFileSync(tablePath, "utf8");
+    // Stronger category tint
+    expect(source).toContain("bg-muted/35");
+    // Child/label rows indentation in the first (label) column
+    expect(source).toContain('pl-6');
   });
 
   it("places EBIT under Profit & Loss (not under Financial Ratios & Metrics)", () => {
@@ -347,6 +356,106 @@ describe("Admin Financial Summary table UI", () => {
     expect(source).not.toContain("turnover_growth");
     expect(source).not.toContain("receivablesDays");
     expect(source).not.toContain("profit_margin");
+  });
+
+  it("shows '(if applicable)' marker only for the 3 optional equity fields (modals)", () => {
+    const addSource = readFileSync(addModalPath, "utf8");
+    const editSource = readFileSync(modalPath, "utf8");
+
+    for (const src of [addSource, editSource]) {
+      const count = src.match(/\(if applicable\)/g)?.length ?? 0;
+      expect(count).toBe(3);
+
+      expect(src).toContain("Share Application Account (if applicable)");
+      expect(src).toContain("Share Premium & Other Reserves (if applicable)");
+      expect(src).toContain("Equity Minority Interest (if applicable)");
+      expect(src).not.toContain("Cash & Bank (if applicable)");
+      expect(src).not.toContain("Trade Receivables (if applicable)");
+    }
+  });
+
+  it("shows '(if applicable)' marker only for the 3 optional equity fields (review table)", () => {
+    const contentSource = readFileSync(tablePath, "utf8");
+    const count = contentSource.match(/\(if applicable\)/g)?.length ?? 0;
+    expect(count).toBe(3);
+    expect(contentSource).toContain("Share Application Account (if applicable)");
+    expect(contentSource).toContain("Share Premium & Other Reserves (if applicable)");
+    expect(contentSource).toContain("Equity Minority Interest (if applicable)");
+  });
+
+  it("shows '(if applicable)' marker only for the 3 optional equity fields (resubmit comparison)", () => {
+    const comparisonSourceFull = readFileSync(comparisonPath, "utf8");
+    const start = comparisonSourceFull.indexOf("// Modern comparison UI: compare historical revision snapshots");
+    const end = comparisonSourceFull.indexOf("const mockFinancialPayload");
+
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+
+    const comparisonSource = comparisonSourceFull.slice(start, end);
+
+    // Ensure optional logic is applied only to the 3 equity fields.
+    expect(comparisonSource).toContain('"equity_share_application"');
+    expect(comparisonSource).toContain('"equity_share_premium"');
+    expect(comparisonSource).toContain('"equity_minority"');
+    expect(comparisonSource).toContain("(if applicable)");
+
+    // Ensure we didn't leave the old "Optional" badge wording behind.
+    expect(comparisonSource).not.toContain("Optional");
+
+    // Hierarchy styling: category headers + indented child label column.
+    expect(comparisonSource).toContain("bg-muted/30");
+    expect(comparisonSource).toContain("pl-6");
+  });
+
+  it("resubmit comparison renders the latest raw financial field coverage", () => {
+    const comparisonSourceFull = readFileSync(comparisonPath, "utf8");
+    const start = comparisonSourceFull.indexOf("// Modern comparison UI: compare historical revision snapshots");
+    const end = comparisonSourceFull.indexOf("const mockFinancialPayload");
+
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+
+    const comparisonSource = comparisonSourceFull.slice(start, end);
+
+    const expected = [
+      "cashAndBank",
+      "tradeReceivables",
+      "tradePayables",
+      "grossProfit",
+      "ebitda",
+      "netOperatingIncome",
+      "costOfSales",
+      "operatingCashFlow",
+      "freeCashFlow",
+      "annualDebtService",
+    ];
+
+    for (const k of expected) {
+      expect(comparisonSource).toContain(k);
+    }
+
+    // Category headers must match the current Financial Review sections.
+    expect(comparisonSource).toContain("Assets");
+    expect(comparisonSource).toContain("Liabilities");
+    expect(comparisonSource).toContain("Equity");
+    expect(comparisonSource).toContain("Profit & Loss");
+    expect(comparisonSource).toContain("Costs");
+    expect(comparisonSource).toContain("Cash Flow / Debt");
+  });
+
+  it("renders Source as — for missing CTOS values and for admin add-year placeholders", () => {
+    const contentSource = readFileSync(tablePath, "utf8");
+
+    // CTOS badge is conditional on CTOS being pulled and the specific year existing in CTOS data.
+    expect(contentSource).toContain('ctosFetchState === "not_pulled"');
+    expect(contentSource).toContain("ctosFetchState === \"no_records\"");
+    expect(contentSource).toContain("ctosColumnMissing(i)");
+
+    // Add-year placeholder FYs should not be labeled as Admin Input source.
+    expect(contentSource).toContain(
+      'spec.kind === "admin_fallback_placeholder" && spec.year != null ? ('
+    );
+    expect(contentSource).toContain('<span className="text-muted-foreground">—</span>');
   });
 });
 

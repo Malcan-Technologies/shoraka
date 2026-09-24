@@ -32,6 +32,7 @@ import { isPersonKycApproved, personIdentityDisplay } from "./person-onboarding-
 import { PROFILE_ADDRESS_FIELD_LABELS, PROFILE_LABEL, formatProfileRmAmount } from "./profile-field-copy";
 import { adminOnboardingStageLabel } from "./admin-people-access-detail";
 import { formatCalendarDate } from "./calendar-date";
+import { normalizeMalaysiaCountryValue } from "./sc-appendix-a-countries";
 
 export const CUSTOMER_PERSON_LABEL = {
   fullName: PROFILE_LABEL.fullName,
@@ -77,6 +78,8 @@ export function formatCustomerProfileDate(value: string | null | undefined): str
 export function formatCustomerCountryName(value: string | null | undefined): string {
   const raw = String(value ?? "").trim();
   if (!raw) return "";
+  const malaysia = normalizeMalaysiaCountryValue(raw);
+  if (malaysia === "Malaysia") return "Malaysia";
   return raw
     .toLowerCase()
     .split(/[\s_]+/)

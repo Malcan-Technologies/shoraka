@@ -57,6 +57,7 @@ import {
 } from "@/app/(application-management)/applications/use-applications-data";
 import type { NormalizedInvoice } from "@/app/(application-management)/applications/status";
 import { ScrollableInvoiceTable } from "@/app/(application-management)/applications/components/scrollable-invoice-table";
+import { InvoiceSingleDetail } from "@/app/(application-management)/applications/components/invoice-single-detail";
 import { OfferReviewPanel } from "@/app/(application-management)/applications/components/OfferReviewPanel";
 import { collectApplicationDocuments } from "@/app/(application-management)/applications/components/collect-application-documents";
 import { buildApplicationTimeline } from "@/app/(application-management)/applications/components/application-timeline";
@@ -980,6 +981,21 @@ function ApplicationDetailPageBody() {
               title="No invoices"
               message="Invoices linked to this application will appear here."
             />
+          ) : application.invoices.length === 1 ? (
+            <Card className="min-w-0 overflow-hidden rounded-2xl">
+              <CardContent className="p-0 pt-0">
+                <InvoiceSingleDetail
+                  application={application}
+                  invoice={application.invoices[0]!}
+                  onDocumentDownload={handleDocumentDownload}
+                  onViewSignedInvoiceOffer={handleViewSignedInvoiceOffer}
+                  onWithdrawInvoice={(invoiceId, appId, organizationId) => {
+                    setWithdrawInvoicePayload({ invoiceId, applicationId: appId, organizationId });
+                  }}
+                  isWithdrawInvoicePending={withdrawInvoice.isPending}
+                />
+              </CardContent>
+            </Card>
           ) : (
             <Card className="min-w-0 overflow-hidden rounded-2xl">
               <CardContent className="p-0 pt-0">

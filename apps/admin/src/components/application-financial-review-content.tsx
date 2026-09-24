@@ -667,10 +667,10 @@ export function ApplicationFinancialReviewContent({
       isTotal: true,
     },
     bsqpuc: { label: "Paid-up Share Capital" },
-    equity_share_application: { label: "Share Application Account" },
-    equity_share_premium: { label: "Share Premium & Other Reserves" },
+    equity_share_application: { label: "Share Application Account (if applicable)" },
+    equity_share_premium: { label: "Share Premium & Other Reserves (if applicable)" },
     equity_accumulated_profit: { label: "Accumulated Profit / Loss" },
-    equity_minority: { label: "Equity Minority Interest" },
+    equity_minority: { label: "Equity Minority Interest (if applicable)" },
     networth: {
       label: "Total Equity / Net Worth",
       formulaHint: "Total Assets − Total Liabilities",
@@ -1526,15 +1526,19 @@ export function ApplicationFinancialReviewContent({
                     >
                       <div className="flex justify-end">
                         {spec.kind === "ctos" && spec.year != null ? (
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "shrink-0 whitespace-nowrap font-normal text-[11px] leading-tight px-2.5 py-0.5 rounded-md shadow-none",
-                              "border-emerald-500/40 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100"
-                            )}
-                          >
-                            CTOS
-                          </Badge>
+                          ctosFetchState === "not_pulled" || ctosFetchState === "no_records" || ctosColumnMissing(i) ? (
+                            <span className="text-muted-foreground">—</span>
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "shrink-0 whitespace-nowrap font-normal text-[11px] leading-tight px-2.5 py-0.5 rounded-md shadow-none",
+                                "border-emerald-500/40 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100"
+                              )}
+                            >
+                              CTOS
+                            </Badge>
+                          )
                         ) : spec.kind === "unaudited" && spec.year != null ? (
                           <Badge
                             variant="outline"
@@ -1545,6 +1549,8 @@ export function ApplicationFinancialReviewContent({
                           >
                             User Input
                           </Badge>
+                        ) : spec.kind === "admin_fallback_placeholder" && spec.year != null ? (
+                          <span className="text-muted-foreground">—</span>
                         ) : spec.kind === "admin_input" && spec.year != null ? (
                           <div className="flex items-center gap-2">
                             <Badge
@@ -1557,7 +1563,9 @@ export function ApplicationFinancialReviewContent({
                               Admin Input
                             </Badge>
                           </div>
-                        ) : null}
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
                       </div>
                     </TableHead>
                   ))}
@@ -1571,7 +1579,7 @@ export function ApplicationFinancialReviewContent({
                         <TableCell
                           colSpan={1 + columns.length}
                           className={cn(
-                            "border-r-0 bg-muted/25 text-foreground py-2",
+                            "border-r-0 bg-muted/35 text-foreground py-3",
                             "border-t border-border border-b border-border/70"
                           )}
                         >
@@ -1609,7 +1617,7 @@ export function ApplicationFinancialReviewContent({
                       <TableCell
                         className={cn(
                           applicationTableCellClass,
-                          "border-r border-border bg-muted/20 font-semibold text-foreground"
+                          "border-r border-border bg-muted/10 font-medium text-foreground pl-6"
                         )}
                       >
                         <div className="flex min-w-0 flex-col items-start gap-0.5 text-left">

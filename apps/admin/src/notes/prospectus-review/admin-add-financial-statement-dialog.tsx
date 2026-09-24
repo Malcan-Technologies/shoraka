@@ -52,10 +52,10 @@ const UI_FIELD_LABELS: Record<string, string> = {
   tradePayables: "Trade Payables",
   // Equity
   bsqpuc: "Paid-up Share Capital",
-  equity_share_application: "Share Application Account",
-  equity_share_premium: "Share Premium & Other Reserves",
+  equity_share_application: "Share Application Account (if applicable)",
+  equity_share_premium: "Share Premium & Other Reserves (if applicable)",
   equity_accumulated_profit: "Accumulated Profit / Loss",
-  equity_minority: "Equity Minority Interest",
+  equity_minority: "Equity Minority Interest (if applicable)",
   // Profit & Loss
   turnover: "Revenue / Turnover",
   grossProfit: "Gross Profit",

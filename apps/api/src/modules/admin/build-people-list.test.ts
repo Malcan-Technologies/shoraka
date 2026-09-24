@@ -756,6 +756,9 @@ describe("buildUnifiedPeople", () => {
     expect(result.listSource).toBe("ONBOARDING");
     expect(result.ctosDirectorShareholderWarning).toBeNull();
     expect(result.people.some((r) => r.matchKey === "050616101789")).toBe(true);
+
+    const person = result.people.find((p) => p.matchKey === "050616101789");
+    expect(person?.identityNumber ?? null).toBe("050616101789");
   });
 
   it("uses CTOS people when company_json has directors", () => {

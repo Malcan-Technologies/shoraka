@@ -205,7 +205,10 @@ import { getIssuerRecipientUserIdsForApplication } from "../notification/applica
 import { sendTypedToUsersSafe } from "../notification/send-typed-safe";
 import { parseGuarantorsFromBusinessDetails } from "../guarantors/utils";
 import { assertIssuerOrgDirectorShareholderOnboardingReady } from "./director-shareholder-onboarding-guard";
-import { assertFinancialStatementsReadyForInitialSubmitIfActive } from "./financial-statements-submit-guard";
+import {
+  assertFinancialStatementsReadyForInitialSubmitIfActive,
+  assertRequiredFinancialFieldsForInitialSubmit,
+} from "./financial-statements-submit-guard";
 import { assertIssuerProfileCompleteForSubmit } from "../organization-profile/service";
 import { buildAdminPeopleList } from "../admin/build-people-list";
 import {
@@ -3104,6 +3107,22 @@ export class ApplicationService {
           issuer_organization: true,
           application_guarantors: { orderBy: { position: "asc" } },
         },
+      });
+
+      // Enforce required financial inputs at submit-time using resolved values
+      // (CTOS + issuer inputs + Admin overrides).
+      const latestCtosReport = await prisma.ctosReport.findFirst({
+        where: {
+          issuer_organization_id: application.issuer_organization_id,
+          subject_ref: null,
+        },
+        orderBy: { fetched_at: "desc" },
+        select: { financials_json: true },
+      });
+      assertRequiredFinancialFieldsForInitialSubmit({
+        financialStatements: appFull?.financial_statements ?? application.financial_statements,
+        ctosFinancials: latestCtosReport?.financials_json ?? null,
+        now: new Date(),
       });
       if (appFull?.contract_id) {
         downstreamIntegration = "PAYMASTER_LINK";
