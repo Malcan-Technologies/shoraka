@@ -63,6 +63,7 @@ import {
   resolveCtosTotalLiabilities,
   resolveFinancialSummaryIssuerReturnOnEquityRatio,
   financialFieldSourceBadge,
+  resolvePreviousYearSourceValue,
   getEligibleAdminInputYears,
   isAdminEditableRawFinancialKey,
   isCalculatedFinancialMetricKey,
@@ -409,6 +410,45 @@ export function ApplicationFinancialReviewContent({
     return new Map(resolved.map((column) => [`${column.year}:${column.kind}`, column]));
   }, [app.financial_statements, financialRows, eligibleAdminInputYears, ctosFetchState]);
 
+  const resolvePreviousYearTurnover = React.useCallback(
+    (currentKind: "unaudited" | "ctos" | "admin_input", previousYear: number) => {
+      const priorUserInputValue =
+        resolvedByKey.get(`${previousYear}:unaudited`)?.fields.turnover?.value ?? null;
+      const priorCtosValue = resolvedByKey.get(`${previousYear}:ctos`)?.fields.turnover?.value ?? null;
+      const priorActiveAdminInputValue =
+        resolvedByKey.get(`${previousYear}:admin_input`)?.fields.turnover?.value ?? null;
+
+      const currentSource = currentKind === "unaudited" ? "user_input" : currentKind;
+      return resolvePreviousYearSourceValue({
+        currentSource,
+        previousUserInputValue: priorUserInputValue,
+        previousCtosValue: priorCtosValue,
+        previousActiveAdminInputValue: priorActiveAdminInputValue,
+      });
+    },
+    [resolvedByKey]
+  );
+
+  const resolvePreviousYearTradeReceivables = React.useCallback(
+    (currentKind: "unaudited" | "ctos" | "admin_input", previousYear: number) => {
+      const priorUserInputValue =
+        resolvedByKey.get(`${previousYear}:unaudited`)?.fields.tradeReceivables?.value ?? null;
+      const priorCtosValue =
+        resolvedByKey.get(`${previousYear}:ctos`)?.fields.tradeReceivables?.value ?? null;
+      const priorActiveAdminInputValue =
+        resolvedByKey.get(`${previousYear}:admin_input`)?.fields.tradeReceivables?.value ?? null;
+
+      const currentSource = currentKind === "unaudited" ? "user_input" : currentKind;
+      return resolvePreviousYearSourceValue({
+        currentSource,
+        previousUserInputValue: priorUserInputValue,
+        previousCtosValue: priorCtosValue,
+        previousActiveAdminInputValue: priorActiveAdminInputValue,
+      });
+    },
+    [resolvedByKey]
+  );
+
   // For issuer-entered additional regulatory financial details, CTOS never provides values for these keys.
   // So render only the issuer (unaudited) columns to avoid a misleading CTOS-vs-issuer comparison layout.
   const issuerDetailColumnIndices = React.useMemo(() => {
@@ -458,12 +498,14 @@ export function ApplicationFinancialReviewContent({
       const g =
         y == null
           ? null
-          : computeTurnoverGrowth({
-              targetYear: y,
-              targetTurnover: turnoverByYear.get(y) ?? null,
-              priorYear: y - 1,
-              priorTurnover: turnoverByYear.get(y - 1) ?? null,
-            });
+          : spec.kind === "unaudited" || spec.kind === "ctos" || spec.kind === "admin_input"
+            ? computeTurnoverGrowth({
+                targetYear: y,
+                targetTurnover: turnoverByYear.get(y) ?? null,
+                priorYear: y - 1,
+                priorTurnover: resolvePreviousYearTurnover(spec.kind, y - 1),
+              })
+            : null;
 
       // CTOS columns: never derive via component sums / PAT÷equity — official direct/XSL only in renderRowCell.
       if (spec.kind === "ctos") return null;
@@ -960,7 +1002,7 @@ export function ApplicationFinancialReviewContent({
 
           const targetTurnover = specCol.year != null ? turnoverByYear.get(specCol.year) ?? null : null;
           const priorTurnover =
-            specCol.year != null ? turnoverByYear.get(specCol.year - 1) ?? null : null;
+            specCol.year != null ? resolvePreviousYearTurnover(specCol.kind, specCol.year - 1) : null;
           if (targetTurnover == null) return CANNOT_CALCULATE_LABEL;
           if (priorTurnover == null) return CANNOT_CALCULATE_LABEL;
           const g = computeTurnoverGrowth({
@@ -975,7 +1017,9 @@ export function ApplicationFinancialReviewContent({
         if (!computed || computed.turnover_growth == null) {
           const targetTurnover = specCol.year != null ? turnoverByYear.get(specCol.year) ?? null : null;
           const priorTurnover =
-            specCol.year != null ? turnoverByYear.get(specCol.year - 1) ?? null : null;
+            specCol.year != null && (specCol.kind === "unaudited" || specCol.kind === "admin_input")
+              ? resolvePreviousYearTurnover(specCol.kind, specCol.year - 1)
+              : null;
           if (priorTurnover == null) return CANNOT_CALCULATE_LABEL;
           if (targetTurnover == null) return CANNOT_CALCULATE_LABEL;
           return CANNOT_CALCULATE_LABEL;
@@ -1071,7 +1115,9 @@ export function ApplicationFinancialReviewContent({
         const ending =
           resolvedByKey.get(`${specCol.year}:${specCol.kind}`)?.fields.tradeReceivables?.value ?? null;
         const prior =
-          resolvedByKey.get(`${specCol.year - 1}:${specCol.kind}`)?.fields.tradeReceivables?.value ?? null;
+          specCol.kind === "unaudited" || specCol.kind === "ctos" || specCol.kind === "admin_input"
+            ? resolvePreviousYearTradeReceivables(specCol.kind, specCol.year - 1)
+            : null;
         const turnover =
           resolvedByKey.get(`${specCol.year}:${specCol.kind}`)?.fields.turnover?.value ?? null;
         const reason = receivablesDaysUnavailableReason({
@@ -1257,7 +1303,10 @@ export function ApplicationFinancialReviewContent({
       case "turnover_growth": {
         if (specCol.kind === "ctos" && fs && ctosFlatNumericPresent(fs, "turnover_growth")) return null;
         const targetTurnover = turnoverByYear.get(year) ?? null;
-        const priorTurnover = turnoverByYear.get(year - 1) ?? null;
+        const priorTurnover =
+          specCol.kind === "unaudited" || specCol.kind === "ctos" || specCol.kind === "admin_input"
+            ? resolvePreviousYearTurnover(specCol.kind, year - 1)
+            : null;
         if (targetTurnover == null) return "Missing: Revenue / Turnover";
         if (priorTurnover == null) return "Missing: previous financial year Revenue / Turnover";
         return "Missing: Revenue / Turnover";
@@ -1265,7 +1314,10 @@ export function ApplicationFinancialReviewContent({
       case "receivablesDays": {
         const ending =
           resolvedByKey.get(`${year}:${specCol.kind}`)?.fields.tradeReceivables?.value ?? null;
-        const prior = resolvedByKey.get(`${year - 1}:${specCol.kind}`)?.fields.tradeReceivables?.value ?? null;
+        const prior =
+          specCol.kind === "unaudited" || specCol.kind === "ctos" || specCol.kind === "admin_input"
+            ? resolvePreviousYearTradeReceivables(specCol.kind, year - 1)
+            : null;
         const turnover = resolvedByKey.get(`${year}:${specCol.kind}`)?.fields.turnover?.value ?? null;
         const reason = receivablesDaysUnavailableReason({
           year,
