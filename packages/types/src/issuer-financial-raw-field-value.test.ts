@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { APPLICATION_COMREP_NEGATIVE_ALLOWED_KEYS } from "./financial-field-labels";
+import { ADMIN_EDITABLE_RAW_FINANCIAL_KEYS } from "./financial-field-resolution";
 import {
   ISSUER_FINANCIAL_NEGATIVE_ALLOWED_KEYS,
   issuerFinancialFieldAllowsNegative,
@@ -114,5 +115,100 @@ describe("issuer form still owns the same negative and decimal rules", () => {
   it("keeps MoneyInput at 2 decimal places and 15 integer digits", () => {
     expect(moneyInput).toContain("\\d{0,2}");
     expect(moneyInput).toContain("maxIntDigits = 15");
+  });
+});
+
+function issuerNegativeAllowedFromForm(step: string): Set<string> {
+  const allowed = new Set<string>();
+  for (const match of step.matchAll(/id=\{`\$\{yearKey\}-([A-Za-z0-9_]+)`\}([\s\S]*?)\/>/g)) {
+    if (match[2]?.includes("allowNegative")) allowed.add(match[1] ?? "");
+  }
+  for (const key of APPLICATION_COMREP_NEGATIVE_ALLOWED_KEYS) allowed.add(key);
+  return allowed;
+}
+
+/** Issuer form commit rule: MoneyInput keystroke filter, then blur drops incomplete tokens. */
+function issuerFormAcceptsCommittedValue(raw: string, allowNegative: boolean): boolean {
+  if (raw.trim() === "") return true;
+  const trimmed = raw.trim();
+  const charPattern = allowNegative ? /^-?[\d,]*\.?\d{0,2}$/ : /^[\d,]*\.?\d{0,2}$/;
+  if (!charPattern.test(trimmed)) return false;
+  if ((trimmed.match(/\./g) ?? []).length > 1) return false;
+  const numeric = trimmed.replace(/,/g, "");
+  if (numeric === "-" || numeric === "." || numeric === "-.") return false;
+  const intDigits = numeric.replace(/^-/, "").split(".")[0] ?? "";
+  if (intDigits.length > 15) return false;
+  const n = Number(numeric);
+  if (!Number.isFinite(n)) return false;
+  if (n < 0 && !allowNegative) return false;
+  return true;
+}
+
+const PARITY_SAMPLES = [
+  "",
+  "0",
+  "1",
+  "-1",
+  "1.2",
+  "1.23",
+  "1.234",
+  "999999999999999",
+  "9999999999999999",
+  "1,234.56",
+  "1e5",
+  ".",
+  "-",
+  "1..2",
+  "abc",
+] as const;
+
+describe("admin validator matches the issuer form for every raw field", () => {
+  const step = readFileSync(
+    join(
+      repoRoot,
+      "apps/issuer/src/app/(application-flow)/applications/steps/financial-statements-step.tsx"
+    ),
+    "utf8"
+  );
+  const allowNegative = issuerNegativeAllowedFromForm(step);
+
+  it("uses the issuer form negative-allowed set with no extras and no omissions", () => {
+    expect([...allowNegative].sort()).toEqual([...ISSUER_FINANCIAL_NEGATIVE_ALLOWED_KEYS].sort());
+  });
+
+  it.each([
+    ["bsfatot", "normal non-negative"],
+    ["turnover", "turnover"],
+    ["curlib_borrowing", "ComRep non-negative"],
+    ["plnpat", "negative-allowed P&L"],
+    ["equity_accumulated_profit", "negative-allowed equity"],
+    ["operatingCashFlow", "negative-allowed cash flow"],
+    ["equity_share_application", "optional equity"],
+  ] as const)("matches the issuer form for %s (%s)", (fieldKey) => {
+    const negative = allowNegative.has(fieldKey);
+    expect(issuerFinancialFieldAllowsNegative(fieldKey)).toBe(negative);
+    for (const sample of PARITY_SAMPLES) {
+      const issuerAccepts = issuerFormAcceptsCommittedValue(sample, negative);
+      const adminAccepts = issuerFinancialRawFieldValueError(fieldKey, sample) == null;
+      expect(adminAccepts).toBe(issuerAccepts);
+    }
+  });
+
+  it("matches the issuer form for every admin-editable raw field and sample", () => {
+    expect(ADMIN_EDITABLE_RAW_FINANCIAL_KEYS.length).toBeGreaterThan(0);
+    for (const fieldKey of ADMIN_EDITABLE_RAW_FINANCIAL_KEYS) {
+      const negative = allowNegative.has(fieldKey);
+      expect(issuerFinancialFieldAllowsNegative(fieldKey)).toBe(negative);
+      for (const sample of PARITY_SAMPLES) {
+        const issuerAccepts = issuerFormAcceptsCommittedValue(sample, negative);
+        const adminAccepts = issuerFinancialRawFieldValueError(fieldKey, sample) == null;
+        expect({ fieldKey, sample, adminAccepts }).toEqual({ fieldKey, sample, adminAccepts: issuerAccepts });
+      }
+      for (const sample of [0, 1, -1, 1.2, 1.23, 1.234]) {
+        const issuerAccepts = issuerFormAcceptsCommittedValue(String(sample), negative);
+        const adminAccepts = issuerFinancialRawFieldValueError(fieldKey, sample) == null;
+        expect({ fieldKey, sample, adminAccepts }).toEqual({ fieldKey, sample, adminAccepts: issuerAccepts });
+      }
+    }
   });
 });

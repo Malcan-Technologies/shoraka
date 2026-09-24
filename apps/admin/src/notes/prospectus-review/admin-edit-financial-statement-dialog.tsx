@@ -72,7 +72,17 @@ const MODAL_GROUPS: Array<{ title: string; keys: string[] }> = [
   },
   {
     title: "Profit & Loss",
-    keys: ["turnover", "plnpbt", "plnpat", "plnetdiv", "pl_minority", "plyear", "netOperatingIncome"],
+    keys: [
+      "turnover",
+      "grossProfit",
+      "ebitda",
+      "plnpbt",
+      "plnpat",
+      "plnetdiv",
+      "pl_minority",
+      "plyear",
+      "netOperatingIncome",
+    ],
   },
   {
     title: "Costs",
