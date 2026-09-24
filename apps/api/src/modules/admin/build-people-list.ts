@@ -779,6 +779,7 @@ function buildPeopleFromUserDeclaredData(params: {
       entityType,
       roles,
       sharePercentage: sharePct,
+      identityNumber: (r.idNumber ?? r.registrationNumber ?? null) || null,
       status: enriched.status,
       action: null,
       screening: enriched.screening,
