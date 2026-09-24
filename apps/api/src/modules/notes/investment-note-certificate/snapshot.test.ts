@@ -141,7 +141,8 @@ describe("buildInvestmentNoteCertificateSnapshot", () => {
     expect(snapshot.note.fundedAmount).toBe(80_000);
     expect(snapshot.note.issuerLegalName).toBe("Helios");
     expect(snapshot.note.issuerReference).toBe("ISS-1");
-    expect(snapshot.investors[0]?.investorReference).toBe(personalUserId);
+    expect(snapshot.investors[0]?.investorReference).toBe("IVT-A");
+    expect(snapshot.investors[0]?.investorReference).not.toBe(personalUserId);
     expect(snapshot.note.companyRegistrationNumber).toBe("123");
     expect(snapshot.note.campaignReference).toBe("NOTE-1");
     expect(snapshot.certificate.certificateNumber).toBe("IINC-NOTE-1");
@@ -244,7 +245,8 @@ describe("buildInvestmentNoteCertificateSnapshot", () => {
     const snapshot = await buildInvestmentNoteCertificateSnapshot("note-1");
     expect(snapshot.note.issuerReference).toBe("ISS-202608-DK3");
     expect(snapshot.note.issuerReference).not.toBe(issuerCuid);
-    expect(snapshot.investors[0]?.investorReference).toBe(personalUserId);
+    expect(snapshot.investors[0]?.investorReference).toBe("IVT-202609-A12");
+    expect(snapshot.investors[0]?.investorReference).not.toBe(personalUserId);
     expect(snapshot.investors[0]?.investorReference).not.toBe(investorCuid);
     expect(snapshot.investors[0]?.investorOrganizationId).toBe(investorCuid);
     expect(snapshot.note.noteId).toBe("cmtjz7ez50002ks59pu7j2xml");
@@ -305,7 +307,8 @@ describe("buildInvestmentNoteCertificateSnapshot", () => {
     const snapshot = await buildInvestmentNoteCertificateSnapshot("note-1");
     expect(snapshot.note.issuerReference).toBe("—");
     expect(snapshot.note.issuerReference).not.toBe(issuerCuid);
-    expect(snapshot.investors[0]?.investorReference).toBe(personalUserId);
+    expect(snapshot.investors[0]?.investorReference).toBe("—");
+    expect(snapshot.investors[0]?.investorReference).not.toBe(personalUserId);
     expect(snapshot.investors[0]?.investorReference).not.toBe(investorCuid);
     expect(snapshot.note.companyRegistrationNumber).toBe("—");
   });

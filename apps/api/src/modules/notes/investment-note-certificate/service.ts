@@ -31,6 +31,7 @@ import { resolveNoteEventTarget } from "../audit-fields";
 import { convertDocxToPdf } from "../../../lib/gotenberg/convert-docx-to-pdf";
 import { renderInvestmentNoteCertificateDocx } from "./render-certificate-docx";
 import { buildInvestmentNoteCertificateSnapshot, parseCertificateSnapshot, reissueCertificateSnapshotFromReady } from "./snapshot";
+import { certificatePartyDisplayReference } from "./certificate-identity";
 import {
   buildCertificatePdfObjectKey,
   certificatePdfFileName,
@@ -919,13 +920,18 @@ export async function reissueAdminInvestmentNoteCertificate(
   const investorOrgs = investorOrganizationIds.length
     ? await db.investorOrganization.findMany({
         where: { id: { in: investorOrganizationIds } },
-        select: { id: true, type: true, owner_user_id: true },
+        select: { id: true, type: true, display_reference: true },
       })
     : [];
   const investorOrgById = new Map(investorOrgs.map((org) => [org.id, org]));
   nextSnapshot.investors = nextSnapshot.investors.map((inv) => {
     const org = investorOrgById.get(inv.investorOrganizationId);
-    return org?.type === "PERSONAL" && org.owner_user_id ? { ...inv, investorReference: org.owner_user_id } : inv;
+    return org?.type === "PERSONAL"
+      ? {
+          ...inv,
+          investorReference: certificatePartyDisplayReference(org.display_reference, org.id),
+        }
+      : inv;
   });
 
   await generateVersionPdfs({

@@ -62,8 +62,8 @@ export function sampleInvestmentNoteCertificateSnapshot(
     investors: investors ?? [
       {
         investorOrganizationId: "org-a",
-        // Personal investors: platform User.user_id (5-char identifier)
-        investorReference: "ABCDE",
+        // Personal investors: canonical IVT-... display reference
+        investorReference: "IVT-202609-A12",
         investorName: "Alice Tan",
         principal: 50_000,
         sharePercent: 62.5,
@@ -72,7 +72,7 @@ export function sampleInvestmentNoteCertificateSnapshot(
       },
       {
         investorOrganizationId: "org-b",
-        investorReference: "FGHIJ",
+        investorReference: "IVT-202609-B34",
         investorName: "Bob Lee",
         principal: 30_000,
         sharePercent: 37.5,
@@ -100,7 +100,7 @@ export function manyCertificateInvestors(count: number): CertificateSnapshotInve
     const expectedGrossProfit = last ? leftoverProfit : profitEach;
     return {
       investorOrganizationId: `org-${index + 1}`,
-      investorReference: `U${String(index + 1).padStart(4, "0")}`,
+      investorReference: `IVT-202609-${String(index + 1).padStart(3, "0")}`,
       investorName: `Investor ${index + 1}`,
       principal,
       sharePercent: last ? leftoverShare : shareEach,

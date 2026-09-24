@@ -292,7 +292,6 @@ export async function buildInvestmentNoteCertificateSnapshot(
       select: {
         id: true,
         type: true,
-        owner_user_id: true,
         name: true,
         legal_name_on_id: true,
         first_name: true,
@@ -321,13 +320,10 @@ export async function buildInvestmentNoteCertificateSnapshot(
       const org = investorOrgById.get(row.investor_organization_id);
       return {
         investorOrganizationId: row.investor_organization_id,
-        investorReference:
-          org?.type === OrganizationType.PERSONAL
-            ? nonEmpty(org.owner_user_id) ?? "—"
-            : certificatePartyDisplayReference(
-                org?.display_reference,
-                row.investor_organization_id
-              ),
+        investorReference: certificatePartyDisplayReference(
+          org?.display_reference,
+          row.investor_organization_id
+        ),
         investorName: org ? freezeInvestorName(org) : "—",
         amount: toNumber(row.amount),
       };
