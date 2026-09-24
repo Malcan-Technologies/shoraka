@@ -122,5 +122,63 @@ describe("Admin Financial Summary year-column layout scenarios", () => {
 
     expect(decide).toMatchObject({ ok: true, action: "add_missing_ctos_field" });
   });
+
+  it("Scenario F: does not render a future FY Add statement when stored User Input already ends earlier", () => {
+    // Repro: questionnaire suggests [2026, 2027], but stored unaudited actual years end at FY2026.
+    // Admin should not offer FY2027 as an add-year placeholder yet.
+    const futureQuestionnaire = "2027-03-31";
+    const refSep = new Date("2026-09-24T00:00:00.000Z");
+
+    const financialStatements = mkFinancialStatements({
+      financialYearEnd: futureQuestionnaire,
+      unauditedByYear: {
+        "2025": { turnover: 5 },
+        "2026": { turnover: 10 },
+      },
+    });
+
+    const ctosFinancials = [
+      ctosRow(2023, { turnover: 1 }),
+      ctosRow(2024, { turnover: 2 }),
+      ctosRow(2025, { turnover: 3 }),
+    ];
+
+    const columns = resolveAdminFinancialReviewColumns({
+      financialStatements,
+      ctosFinancials,
+      ref: refSep,
+    });
+
+    expect(columns.some((c) => c.year === 2027 && c.kind === "admin_fallback_placeholder")).toBe(false);
+    expect(columns.some((c) => c.year === 2027)).toBe(false);
+  });
+
+  it("Scenario G: future FY beyond stored User Input max year is fully suppressed", () => {
+    const farFutureQuestionnaire = "2028-03-31";
+    const refSep = new Date("2026-09-24T00:00:00.000Z");
+
+    const financialStatements = mkFinancialStatements({
+      financialYearEnd: farFutureQuestionnaire,
+      unauditedByYear: {
+        "2025": { turnover: 5 },
+        "2026": { turnover: 10 },
+      },
+    });
+
+    const ctosFinancials = [
+      ctosRow(2023, { turnover: 1 }),
+      ctosRow(2024, { turnover: 2 }),
+      ctosRow(2025, { turnover: 3 }),
+    ];
+
+    const columns = resolveAdminFinancialReviewColumns({
+      financialStatements,
+      ctosFinancials,
+      ref: refSep,
+    });
+
+    expect(columns.some((c) => c.year === 2027)).toBe(false);
+    expect(columns.some((c) => c.year === 2028)).toBe(false);
+  });
 });
 
