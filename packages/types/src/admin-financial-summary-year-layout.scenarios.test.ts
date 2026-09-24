@@ -71,8 +71,15 @@ describe("Admin Financial Summary year-column layout scenarios", () => {
 
     const columns = resolveAdminFinancialReviewColumns({ financialStatements, ctosFinancials, ref });
 
-    expect(columns.map((c) => c.year)).toEqual([2022, 2023, 2025, 2026]);
-    expect(columns.map((c) => c.kind)).toEqual(["ctos", "ctos", "admin_fallback_placeholder", "unaudited"]);
+    // CTOS history window is always the latest CTOS FY (2023) → [2021, 2022, 2023]
+    expect(columns.map((c) => c.year)).toEqual([2021, 2022, 2023, 2025, 2026]);
+    expect(columns.map((c) => c.kind)).toEqual([
+      "ctos",
+      "ctos",
+      "ctos",
+      "admin_fallback_placeholder",
+      "unaudited",
+    ]);
   });
 
   it("Scenario D: Admin adds FY2025 => FY2025 Source is Admin Input", () => {

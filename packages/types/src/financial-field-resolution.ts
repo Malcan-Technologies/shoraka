@@ -16,9 +16,6 @@ import {
   type FinancialStatementRecordSource,
   type FinancialStatementStatementType,
 } from "./financial-statement-year-resolution";
-import {
-  getLatestThreeCtosYears,
-} from "./financial-unaudited-ctos-validation";
 
 export const ADMIN_EDITABLE_RAW_FINANCIAL_KEYS = [
   ...APPLICATION_CORE_MONEY_KEYS,

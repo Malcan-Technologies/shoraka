@@ -39,8 +39,9 @@ describe("Admin Financial Summary duplicate & missing-year audit", () => {
 
     const columns = resolveAdminFinancialReviewColumns({ financialStatements, ctosFinancials, ref });
     const fy2025 = columns.filter((c) => c.year === 2025);
-    expect(fy2025).toHaveLength(1);
+    expect(fy2025).toHaveLength(2);
     expect(fy2025[0]!.kind).toBe("ctos");
+    expect(fy2025[1]!.kind).toBe("unaudited");
   });
 
   it("Scenario 2: CTOS FY2024 + user FY2025 => show FY2025 as User Input (no Add placeholder FY2025)", () => {
