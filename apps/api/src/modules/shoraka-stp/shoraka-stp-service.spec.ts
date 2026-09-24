@@ -199,6 +199,8 @@ describe("shoraka-stp cutoff window (submit-order)", () => {
     (prisma.shorakaTradeOrder.findUnique as jest.Mock).mockResolvedValue(null);
     (prisma.note.findUnique as jest.Mock).mockResolvedValue({
       note_reference: "NOTE-ARF-202609-5O3",
+      reserved_investor_schedule_reference: "IS-RESERVED-TEST-1",
+      reserved_investor_schedule_reference_version: "V01",
       invoice_snapshot: { details: { value: 12500 } },
       requested_amount: 12500,
     });
@@ -240,7 +242,7 @@ describe("shoraka-stp cutoff window (submit-order)", () => {
     expect((submitOrder as jest.Mock).mock.calls[0][0]).toEqual(
       expect.objectContaining({
         values: expect.objectContaining({
-          ownership: "IS-NOTE-ARF-202609-5O3-V01",
+          ownership: "IS-RESERVED-TEST-1",
           order_amount: "1000.00",
           murabaha_amount: "12500.00",
         }),

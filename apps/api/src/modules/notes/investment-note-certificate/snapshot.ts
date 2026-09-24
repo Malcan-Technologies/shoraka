@@ -230,6 +230,8 @@ export async function buildInvestmentNoteCertificateSnapshot(
       disbursement_value_date: true,
       maturity_date: true,
       funding_closed_at: true,
+      reserved_investor_schedule_reference: true,
+      reserved_investor_schedule_reference_version: true,
     },
   });
   if (!note) {
@@ -398,10 +400,11 @@ export async function buildInvestmentNoteCertificateSnapshot(
       securitySupport: CERTIFICATE_SECURITY_SUPPORT,
     },
     investorSchedule: {
-      scheduleReference: investorScheduleReferenceFor(
-        note.note_reference,
-        CERTIFICATE_FIRST_VERSION
-      ),
+      scheduleReference:
+        note.reserved_investor_schedule_reference &&
+        note.reserved_investor_schedule_reference_version === CERTIFICATE_FIRST_VERSION
+          ? note.reserved_investor_schedule_reference
+          : investorScheduleReferenceFor(note.note_reference, CERTIFICATE_FIRST_VERSION),
       version: CERTIFICATE_FIRST_VERSION,
       status: CERTIFICATE_SCHEDULE_STATUS,
       issueDate: disbursementIso,

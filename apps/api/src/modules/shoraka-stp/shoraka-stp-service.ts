@@ -510,6 +510,8 @@ export class ShorakaStpService {
       where: { id: withdrawal.note_id },
       select: {
         note_reference: true,
+        reserved_investor_schedule_reference: true,
+        reserved_investor_schedule_reference_version: true,
         invoice_snapshot: true,
         requested_amount: true,
       },
@@ -519,7 +521,11 @@ export class ShorakaStpService {
       throw new Error("Missing note_reference for shoraka submitorder ownership");
     }
 
-    const ownership = resolveOwnershipForIssuerDisbursement(note.note_reference);
+    const ownership =
+      note.reserved_investor_schedule_reference &&
+      note.reserved_investor_schedule_reference_version === CERTIFICATE_FIRST_VERSION
+        ? note.reserved_investor_schedule_reference
+        : resolveOwnershipForIssuerDisbursement(note.note_reference);
     const invoiceFaceValue = resolveInvoiceFaceValue({
       invoice_snapshot: note.invoice_snapshot,
       requested_amount: note.requested_amount,
