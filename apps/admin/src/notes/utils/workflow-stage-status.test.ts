@@ -46,11 +46,12 @@ function settledNote(overrides: Partial<NoteDetail> = {}): NoteDetail {
 }
 
 describe("settled note workflow chips", () => {
-  it("keeps disbursement green after settlement even if paymaster or certificate still look open", () => {
+  it("case A: keeps disbursement green after settlement when paymaster notice is not generated", () => {
     const note = settledNote({
-      assignmentNotice: { status: "SENT" },
+      assignmentNotice: null,
       paymasterAcknowledgementSatisfied: false,
     } as Partial<NoteDetail>);
+
     expect(
       resolveDisbursementStageStatusToken({
         note,
@@ -62,6 +63,52 @@ describe("settled note workflow chips", () => {
         },
       })
     ).toBe("success");
+  });
+
+  it("case B: keeps disbursement green after settlement when paymaster acknowledgement is missing", () => {
+    const note = settledNote({
+      assignmentNotice: { status: "SENT" },
+      paymasterAcknowledgementSatisfied: false,
+    } as Partial<NoteDetail>);
+
+    expect(
+      resolveDisbursementStageStatusToken({
+        note,
+        disbursementWithdrawal: note.withdrawals[0],
+        investmentNoteCertificate: {
+          status: "NONE",
+          canGenerate: true,
+          reviewVersion: null,
+        },
+      })
+    ).toBe("success");
+  });
+
+  it("case C: shows action when disbursement payout or certificate is still incomplete (ignores paymaster)", () => {
+    const note = settledNote({
+      settlements: [],
+      withdrawals: [
+        {
+          id: "wd-1",
+          withdrawalType: "ISSUER_DISBURSEMENT",
+          status: "DRAFT",
+        } as NoteDetail["withdrawals"][number],
+      ],
+      assignmentNotice: { status: "FAILED" } as any,
+      paymasterAcknowledgementSatisfied: false,
+    });
+
+    expect(
+      resolveDisbursementStageStatusToken({
+        note,
+        disbursementWithdrawal: note.withdrawals[0],
+        investmentNoteCertificate: {
+          status: "NONE",
+          canGenerate: false,
+          reviewVersion: null,
+        },
+      })
+    ).toBe("action");
   });
 
   it("keeps disbursement red when the certificate failed after settlement", () => {
@@ -77,6 +124,52 @@ describe("settled note workflow chips", () => {
         },
       })
     ).toBe("rejected");
+  });
+
+  it("case D: shows success when remaining non-paymaster disbursement requirements are complete", () => {
+    const note = settledNote({
+      settlements: [],
+      withdrawals: [
+        {
+          id: "wd-1",
+          withdrawalType: "ISSUER_DISBURSEMENT",
+          status: "COMPLETED",
+        } as NoteDetail["withdrawals"][number],
+      ],
+    });
+
+    expect(
+      resolveDisbursementStageStatusToken({
+        note,
+        disbursementWithdrawal: note.withdrawals[0],
+        investmentNoteCertificate: {
+          status: "READY",
+          canGenerate: false,
+          reviewVersion: null,
+        },
+      })
+    ).toBe("success");
+  });
+
+  it("case G: tolerates historical Paymaster assignment data on Disbursement stage status calculation", () => {
+    const note = settledNote({
+      paymasterAcknowledgementSatisfied: true,
+      assignmentNotice: {
+        status: "ACKNOWLEDGED",
+      } as any,
+    } as Partial<NoteDetail>);
+
+    expect(
+      resolveDisbursementStageStatusToken({
+        note,
+        disbursementWithdrawal: note.withdrawals[0],
+        investmentNoteCertificate: {
+          status: "NONE",
+          canGenerate: true,
+          reviewVersion: null,
+        },
+      })
+    ).toBe("success");
   });
 
   it("keeps servicing green after settlement even if Hibah receipt can still generate", () => {

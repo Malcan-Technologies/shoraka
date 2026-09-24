@@ -1,6 +1,5 @@
 import type {
   NoteDetail,
-  PaymasterAssignmentNoticeStatus,
   WithdrawalInstruction,
   AdminInvestmentSettlementConfirmationsPayload,
   SettlementHibahReceiptPdfPayload,
@@ -11,7 +10,6 @@ import {
   workflowToneToStatusToken,
   withdrawalWorkflowTone,
 } from "@/notes/utils/workflow-status-tokens";
-import type { WorkflowStatusTone } from "@/notes/utils/workflow-status-tokens";
 import {
   hasUnpaidIssuerResidual,
   isNoteSettlementLifecycleFinished,
@@ -50,20 +48,6 @@ function pickHighestSeverityStatusToken(
   }
 
   return best;
-}
-
-function paymasterAssignmentToneToStatusToken(input: {
-  status: PaymasterAssignmentNoticeStatus | null;
-  acknowledged: boolean;
-}): StatusToken {
-  const tone: WorkflowStatusTone = (() => {
-    if (input.acknowledged || input.status === "ACKNOWLEDGED") return "success";
-    if (input.status === "FAILED") return "danger";
-    if (input.status === "SENT") return "warning";
-    return "active";
-  })();
-
-  return workflowToneToStatusToken(tone);
 }
 
 function investmentSettlementConfirmationsPayloadToStatusToken(
@@ -123,14 +107,6 @@ export function resolveDisbursementStageStatusToken(input: {
   }
 
   const tokens: StatusToken[] = [];
-
-  // Paymaster assignment is always visible within the Disbursement tab.
-  tokens.push(
-    paymasterAssignmentToneToStatusToken({
-      status: note.assignmentNotice?.status ?? null,
-      acknowledged: note.paymasterAcknowledgementSatisfied === true,
-    })
-  );
 
   // Issuer payout / trustee instruction (drives the main disbursement lifecycle).
   tokens.push(workflowToneToStatusToken(withdrawalWorkflowTone(disbursementWithdrawal.status)));

@@ -177,6 +177,13 @@ function isIdentityFieldMeaningfullyMissing(
   return false;
 }
 
+function toMalaysiaCanonicalSelectableValue(value: string): string {
+  const upper = value.trim().toUpperCase();
+  // Canonical selectable value matches Appendix A spelling.
+  if (upper === "MY" || upper === "MYS" || upper === "MALAYSIA") return "MALAYSIA";
+  return value;
+}
+
 // Helper to extract field value from RegTank bank account details
 function getBankField(
   bankDetails: BankAccountDetails | null | undefined,
@@ -1173,7 +1180,11 @@ export default function ProfilePage() {
                             required
                           />
                           <Select
-                            value={nationality || undefined}
+                            value={
+                              nationality
+                                ? toMalaysiaCanonicalSelectableValue(nationality) || undefined
+                                : undefined
+                            }
                             onValueChange={setNationality}
                             disabled={isRegTankLockedNationality}
                           >
@@ -1181,7 +1192,13 @@ export default function ProfilePage() {
                               <SelectValue placeholder="Select" />
                             </SelectTrigger>
                             <SelectContent className="max-h-72">
-                              {scAppendixASelectValues(nationality).map((country) => (
+                              {Array.from(
+                                new Set(
+                                  scAppendixASelectValues(nationality).map((country) =>
+                                    toMalaysiaCanonicalSelectableValue(country)
+                                  )
+                                )
+                              ).map((country) => (
                                 <SelectItem key={country} value={country}>
                                   {normalizeMalaysiaCountryValue(country)}
                                 </SelectItem>

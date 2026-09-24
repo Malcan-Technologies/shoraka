@@ -28,10 +28,7 @@ import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
 import { loadUserDisplayNameMap } from "../../lib/user-display-name";
 import { buildPaymasterSnapshot } from "../paymaster/snapshot";
-import {
-  assertPaymasterAcknowledgementForDisbursement,
-  isExecutionPackCompleteForNote,
-} from "../paymaster/service";
+import { isExecutionPackCompleteForNote } from "../paymaster/service";
 import {
   assertInvoiceFeeScheduleChargeable,
   settleCloseFundingFacilityFees,
@@ -7937,9 +7934,6 @@ export class NoteService {
 
     // Issuer disbursement trustee letter must only be generated after Tawarruq Certificate is fetched/stored.
     if (withdrawal.withdrawal_type === WithdrawalType.ISSUER_DISBURSEMENT) {
-      if (withdrawal.note_id) {
-        await assertPaymasterAcknowledgementForDisbursement(withdrawal.note_id);
-      }
       const shorakaTradeOrder = await prisma.shorakaTradeOrder.findUnique({
         where: { withdrawal_instruction_id: id },
         select: { certificate_s3_key: true },
@@ -8031,9 +8025,6 @@ export class NoteService {
         "WITHDRAWAL_LETTER_REQUIRED",
         "Withdrawal can be submitted to trustee only after its instruction letter is generated"
       );
-    }
-    if (existing.withdrawal_type === WithdrawalType.ISSUER_DISBURSEMENT && existing.note_id) {
-      await assertPaymasterAcknowledgementForDisbursement(existing.note_id);
     }
     if (!existing.letter_s3_key) {
       throw new AppError(
@@ -8213,9 +8204,6 @@ export class NoteService {
         await lockContractRow(tx, noteForCapacity.source_contract_id);
       }
       if (existing.withdrawal_type === WithdrawalType.ISSUER_DISBURSEMENT) {
-        if (existing.note_id) {
-          await assertPaymasterAcknowledgementForDisbursement(existing.note_id);
-        }
         const shorakaTradeOrder = await tx.shorakaTradeOrder.findUnique({
           where: { withdrawal_instruction_id: id },
           select: { certificate_s3_key: true },

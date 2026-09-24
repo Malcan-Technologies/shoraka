@@ -359,6 +359,17 @@ describe("resolveNoteDetailNextAction priority", () => {
     expect(action.tabId).toBe("campaign");
   });
 
+  it("case E: ignores Paymaster assignment for next action when disbursement is already complete", () => {
+    const note = settledNote({
+      assignmentNotice: { status: "SENT" } as any,
+      paymasterAcknowledgementSatisfied: false,
+    });
+    const action = resolveNoteDetailNextAction(note);
+    expect(action.tone).toBe("neutral");
+    expect(action.title).toBe("No admin action required");
+    expect(action.description).not.toContain("Paymaster");
+  });
+
   it("never auto-opens the Documents reference tab", () => {
     const source = fs.readFileSync(path.join(__dirname, "note-detail-next-action.ts"), "utf8");
     expect(source).not.toContain('tabId: "documents"');
@@ -697,7 +708,8 @@ describe("standalone vs contract-linked notes", () => {
     expect(pageSource).not.toContain("Invoice amount");
     expect(pageSource).not.toContain("Risk Rating");
     expect(pageSource).not.toContain("Workflow Status");
-    expect(pageSource).toContain("PaymasterAssignmentCard");
+    expect(pageSource).not.toContain("PaymasterAssignmentCard");
+    expect(pageSource).not.toContain("Manage Paymaster assignment");
     expect(pageSource).toContain("NOTE_REFERENCE_TAB_TOKEN");
     expect(pageSource).toContain('id: "campaign"');
     expect(pageSource).toContain('id: "activity"');

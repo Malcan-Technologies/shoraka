@@ -285,5 +285,115 @@ test.describe("Personal Investor profile provenance (UI)", () => {
     // Ensure DOB is now populated.
     await expect(personalCard.getByText(/1990/)).toBeVisible({ timeout: 10000 });
   });
+
+  test("Malaysia nationality dropdown is de-duplicated and saves canonical MALAYSIA only when selected", async ({
+    page,
+  }) => {
+    const userId = await getCurrentUserId(page);
+
+    const storedValues = ["MY", "MYS", "MALAYSIA", "Malaysia"];
+
+    for (const storedNationality of storedValues) {
+      const orgId = `e2e-malaysia-dd-${storedNationality}-${Date.now()}`;
+      const displayReference = `e2e-malaysia-dd-${storedNationality}-${Date.now()}`;
+
+      await seedPersonalInvestorOrg({
+        userId,
+        orgId,
+        displayReference,
+        dateOfBirth: "1990-01-01",
+        gender: "MALE",
+        nationality: storedNationality,
+        identityPrefixSource: "REGTANK",
+        identityNumberSource: "REGTANK",
+        identityNumber: "800101011234",
+        dateOfBirthSource: "USER",
+        genderSource: "USER",
+        nationalitySource: "USER",
+      });
+
+      await page.goto("/");
+      await selectOrganizationByDisplayReference(page, displayReference);
+      await page.goto("/profile");
+
+      const personalCard = page.locator("#profile-personal");
+      await personalCard.getByRole("button", { name: /edit/i }).click();
+
+      const comboboxes = personalCard.locator('[role="combobox"]');
+      const nationalityCombobox = comboboxes.nth(1);
+      await expect(nationalityCombobox).not.toBeDisabled();
+
+      // Change DOB only (do NOT touch nationality). Saving must not rewrite stored nationality.
+      const dobInput = personalCard.locator('input[type="date"]').first();
+      await dobInput.fill("1991-01-01");
+      await personalCard.getByRole("button", { name: /save changes/i }).click();
+
+      await page.waitForTimeout(500);
+      const afterDobSave = await prisma.investorOrganization.findUnique({ where: { id: orgId } });
+      expect(afterDobSave?.nationality).toBe(storedNationality);
+
+      // Now explicitly select Malaysia in the nationality dropdown and save.
+      await page.reload();
+      await page.locator("#profile-personal").getByRole("button", { name: /edit/i }).click();
+
+      const comboboxes2 = personalCard.locator('[role="combobox"]');
+      const nationalityCombobox2 = comboboxes2.nth(1);
+      await nationalityCombobox2.click();
+
+      const malaysiaOptions = page.getByRole("option", { name: "Malaysia" });
+      await expect(malaysiaOptions).toHaveCount(1);
+      await malaysiaOptions.first().click();
+
+      await personalCard.getByRole("button", { name: /save changes/i }).click();
+      await page.waitForTimeout(500);
+
+      const afterSelectSave = await prisma.investorOrganization.findUnique({ where: { id: orgId } });
+      expect(afterSelectSave?.nationality).toBe("MALAYSIA");
+    }
+  });
+
+  test("UNSPECIFIED nationality remains editable; selecting Malaysia saves MALAYSIA", async ({
+    page,
+  }) => {
+    const userId = await getCurrentUserId(page);
+
+    const orgId = `e2e-malaysia-dd-unspecified-${Date.now()}`;
+    const displayReference = `e2e-malaysia-dd-unspecified-${Date.now()}`;
+
+    await seedPersonalInvestorOrg({
+      userId,
+      orgId,
+      displayReference,
+      dateOfBirth: "1990-01-01",
+      gender: "MALE",
+      nationality: "UNSPECIFIED",
+      identityPrefixSource: "REGTANK",
+      identityNumberSource: "REGTANK",
+      identityNumber: "800101011234",
+      dateOfBirthSource: "USER",
+      genderSource: "USER",
+      nationalitySource: "REGTANK",
+    });
+
+    await page.goto("/");
+    await selectOrganizationByDisplayReference(page, displayReference);
+    await page.goto("/profile");
+
+    const personalCard = page.locator("#profile-personal");
+    await personalCard.getByRole("button", { name: /edit/i }).click();
+
+    const comboboxes = personalCard.locator('[role="combobox"]');
+    const nationalityCombobox = comboboxes.nth(1);
+    await expect(nationalityCombobox).not.toBeDisabled();
+
+    await nationalityCombobox.click();
+    await page.getByRole("option", { name: "Malaysia" }).first().click();
+
+    await personalCard.getByRole("button", { name: /save changes/i }).click();
+    await page.waitForTimeout(500);
+
+    const after = await prisma.investorOrganization.findUnique({ where: { id: orgId } });
+    expect(after?.nationality).toBe("MALAYSIA");
+  });
 });
 

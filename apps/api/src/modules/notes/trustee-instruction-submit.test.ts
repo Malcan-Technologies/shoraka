@@ -205,6 +205,16 @@ describe("trustee instruction submit email wiring", () => {
       );
     });
 
+    it("case F: does not require Paymaster acknowledgement to submit issuer disbursement to trustee", async () => {
+      (prisma.paymasterAssignmentNotice.findFirst as jest.Mock).mockResolvedValue({ status: "SENT" });
+      (prisma.withdrawalInstruction.findUnique as jest.Mock).mockResolvedValue(withdrawalRow);
+
+      await expect(service.markWithdrawalSubmitted("wd-1", actor)).resolves.toMatchObject({
+        id: "wd-1",
+        status: WithdrawalStatus.SUBMITTED_TO_TRUSTEE,
+      });
+    });
+
     it("still marks submitted when the withdrawal notification helper throws", async () => {
       (prisma.withdrawalInstruction.findUnique as jest.Mock).mockResolvedValue(withdrawalRow);
       (notifyWithdrawalSubmittedToTrustee as jest.Mock).mockRejectedValueOnce(
