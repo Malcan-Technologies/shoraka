@@ -14,7 +14,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { type AdminFinancialReviewColumn, isAdminEditableRawFinancialKey } from "@cashsouk/types";
+import {
+  type AdminFinancialReviewColumn,
+  isAdminEditableRawFinancialKey,
+  issuerFinancialMoneyInputAccepted,
+  issuerFinancialRawFieldValueError,
+} from "@cashsouk/types";
 import { ADMIN_EDITABLE_RAW_FINANCIAL_KEYS } from "@cashsouk/types";
 import { ChevronDownIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 
@@ -124,6 +129,22 @@ const UI_FIELD_LABELS: Record<string, string> = {
   annualDebtService: "Annual Debt Service",
 };
 
+const OPTIONAL_IF_APPLICABLE_SUFFIX = " (if" + " applicable)";
+function renderLabelWithOptionalSuffix(label: string) {
+  if (!label.endsWith(OPTIONAL_IF_APPLICABLE_SUFFIX)) return label;
+  const main = label.slice(0, -OPTIONAL_IF_APPLICABLE_SUFFIX.length);
+  return (
+    <>
+      {main}
+      <span className="text-muted-foreground text-[11px] font-normal">
+        {" "}
+        (if{" "}
+        applicable)
+      </span>
+    </>
+  );
+}
+
 export function AdminEditFinancialStatementDialog({
   open,
   onOpenChange,
@@ -200,6 +221,20 @@ export function AdminEditFinancialStatementDialog({
   const onSave = React.useCallback(async () => {
     if (!applicationId || calendarYear == null || !resolvedColumn || !fieldState) return;
     if (disabled || readOnly) return;
+
+    const invalid: string[] = [];
+    for (const key of Object.keys(fieldState.byKey)) {
+      const meta = fieldState.byKey[key]!;
+      if (meta.readOnly) continue;
+      const rawInput = fieldState.inputs[key] ?? "";
+      if (!rawInput.trim()) continue;
+      const message = issuerFinancialRawFieldValueError(key, rawInput);
+      if (message) invalid.push(`${meta.label}: ${message}`);
+    }
+    if (invalid.length > 0) {
+      toast.error(invalid.length === 1 ? invalid[0] : `${invalid.length} values are invalid.`);
+      return;
+    }
 
     setSaving(true);
     try {
@@ -328,13 +363,17 @@ export function AdminEditFinancialStatementDialog({
                                       ? "Edited by Admin"
                                       : undefined;
 
+                            const valueError = meta.readOnly
+                              ? null
+                              : issuerFinancialRawFieldValueError(key, fieldState.inputs[key] ?? "");
+
                             return (
                               <div key={key} className="space-y-1">
                                 <Label
                                   htmlFor={`edit-fs-${key}`}
                                   className="text-meta font-normal leading-snug"
                                 >
-                                  {meta.label}
+                                  {renderLabelWithOptionalSuffix(meta.label)}
                                 </Label>
                                 {helperText ? (
                                   <div className="text-[11px] text-muted-foreground">
@@ -344,14 +383,16 @@ export function AdminEditFinancialStatementDialog({
                                 <Input
                                   id={`edit-fs-${key}`}
                                   inputMode="decimal"
-                                  type="number"
-                                  step="any"
+                                  type="text"
                                   placeholder="—"
                                   value={fieldState.inputs[key] ?? ""}
                                   disabled={inputDisabled}
+                                  aria-invalid={Boolean(valueError)}
+                                  className={valueError ? "border-destructive" : undefined}
                                   onChange={(e) => {
                                     if (meta.readOnly) return;
                                     const next = e.target.value;
+                                    if (!issuerFinancialMoneyInputAccepted(key, next)) return;
                                     setFieldState((prev) => {
                                       if (!prev) return prev;
                                       return {
@@ -360,8 +401,11 @@ export function AdminEditFinancialStatementDialog({
                                       };
                                     });
                                   }}
-                                />
-                              </div>
+                                  />
+                                  {valueError ? (
+                                    <p className="text-meta text-destructive">{valueError}</p>
+                                  ) : null}
+                                </div>
                             );
                           })}
                       </div>

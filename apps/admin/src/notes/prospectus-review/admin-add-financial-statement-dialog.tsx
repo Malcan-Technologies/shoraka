@@ -9,6 +9,8 @@ import {
   APPLICATION_EXTRA_ISSUER_RAW_MONEY_KEYS,
   FINANCIAL_FIELD_LABELS,
   isWholeYearAdminFinancialFieldRequired,
+  issuerFinancialMoneyInputAccepted,
+  issuerFinancialRawFieldValueError,
   wholeYearAdminFinancialFieldProgress,
 } from "@cashsouk/types";
 import { Button } from "@/components/ui/button";
@@ -79,6 +81,22 @@ const UI_FIELD_LABELS: Record<string, string> = {
   freeCashFlow: "Free Cash Flow",
   annualDebtService: "Annual Debt Service",
 };
+
+const OPTIONAL_IF_APPLICABLE_SUFFIX = " (if" + " applicable)";
+function renderLabelWithOptionalSuffix(label: string) {
+  if (!label.endsWith(OPTIONAL_IF_APPLICABLE_SUFFIX)) return label;
+  const main = label.slice(0, -OPTIONAL_IF_APPLICABLE_SUFFIX.length);
+  return (
+    <>
+      {main}
+      <span className="text-muted-foreground text-[11px] font-normal">
+        {" "}
+        (if{" "}
+        applicable)
+      </span>
+    </>
+  );
+}
 
 const ADD_MODAL_CATEGORIES: Array<{ title: string; keys: readonly string[] }> = [
   { title: "Assets", keys: ["bsfatot", "othass", "bscatot", "bsclbank", "cashAndBank", "tradeReceivables"] },
@@ -189,10 +207,24 @@ export function AdminAddFinancialStatementDialog({
     () => new Map(progress.sections.map((section) => [section.id, section.remaining])),
     [progress.sections]
   );
+  const valueErrors = React.useMemo(() => {
+    const errors: Record<string, string> = {};
+    for (const key of FORM_KEYS) {
+      const message = issuerFinancialRawFieldValueError(key, values[key] ?? "");
+      if (message) errors[key] = message;
+    }
+    return errors;
+  }, [FORM_KEYS, values]);
 
   const onSave = async () => {
     if (!applicationId || calendarYear == null) return;
     if (disabled || readOnly) return;
+    const valueErrorList = Object.values(valueErrors);
+    if (valueErrorList.length > 0) {
+      setShowMissing(true);
+      toast.error(valueErrorList.length === 1 ? valueErrorList[0] : `${valueErrorList.length} values are invalid.`);
+      return;
+    }
     if (progress.remaining > 0) {
       setShowMissing(true);
       toast.error(
@@ -323,34 +355,41 @@ export function AdminAddFinancialStatementDialog({
                         {keys.map((key) => (
                           <div key={key} className="space-y-1">
                             <Label htmlFor={`admin-fs-${key}`} className="text-meta">
-                              {UI_FIELD_LABELS[key] ??
-                                (FINANCIAL_FIELD_LABELS as Record<string, string>)[key] ??
-                                key}
+                              {renderLabelWithOptionalSuffix(
+                                UI_FIELD_LABELS[key] ??
+                                  (FINANCIAL_FIELD_LABELS as Record<string, string>)[key] ??
+                                  key
+                              )}
                             </Label>
                             <Input
                               id={`admin-fs-${key}`}
                               inputMode="decimal"
-                              type="number"
-                              step="any"
+                              type="text"
                               placeholder="—"
                               value={values[key] ?? ""}
                               disabled={disabled || readOnly || saving}
-                              aria-invalid={
+                              aria-invalid={Boolean(valueErrors[key]) || (
                                 showMissing &&
                                 isWholeYearAdminFinancialFieldRequired(key) &&
                                 parsedValues[key] == null
-                              }
+                              )}
                               className={
-                                showMissing &&
-                                isWholeYearAdminFinancialFieldRequired(key) &&
-                                parsedValues[key] == null
+                                valueErrors[key] ||
+                                (showMissing &&
+                                  isWholeYearAdminFinancialFieldRequired(key) &&
+                                  parsedValues[key] == null)
                                   ? "border-destructive"
                                   : undefined
                               }
-                              onChange={(e) =>
-                                setValues((prev) => ({ ...prev, [key]: e.target.value }))
-                              }
+                              onChange={(e) => {
+                                const next = e.target.value;
+                                if (!issuerFinancialMoneyInputAccepted(key, next)) return;
+                                setValues((prev) => ({ ...prev, [key]: next }));
+                              }}
                             />
+                            {valueErrors[key] ? (
+                              <p className="text-meta text-destructive">{valueErrors[key]}</p>
+                            ) : null}
                           </div>
                         ))}
                       </div>

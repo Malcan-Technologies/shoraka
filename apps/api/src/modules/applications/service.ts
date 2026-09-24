@@ -151,6 +151,7 @@ import {
   canWithdrawApplication,
   APPLICATION_COMREP_DETAIL_KEYS,
   applicationComrepFieldError,
+  issuerFinancialRawFieldValueError,
   buildStoredApplicationFinancialYearBlock,
   getFinancialYearEndComputationDetails,
   getFinancialYearEndValidationError,
@@ -5835,6 +5836,13 @@ export class ApplicationService {
       );
     }
 
+    for (const [fieldKey, fieldValue] of Object.entries(rawFinancialInputs)) {
+      const message = issuerFinancialRawFieldValueError(fieldKey, fieldValue);
+      if (message) {
+        throw new AppError(400, "VALIDATION_ERROR", `FY${financialYear}: ${message}`);
+      }
+    }
+
     validateFinancialYearBlockOrThrow(parsed.data as any);
     const normalized = normalizeFinancialYearBlock(parsed.data as Record<string, unknown>);
 
@@ -5961,8 +5969,9 @@ export class ApplicationService {
     if (!decision.ok) {
       throw new AppError(400, decision.code, decision.message);
     }
-    if (!Number.isFinite(value)) {
-      throw new AppError(400, "VALIDATION_ERROR", "Enter a numeric value");
+    const valueMessage = issuerFinancialRawFieldValueError(fieldKey, value);
+    if (valueMessage) {
+      throw new AppError(400, "VALIDATION_ERROR", valueMessage);
     }
 
     const existingFS = application.financial_statements as Record<string, unknown>;

@@ -3,6 +3,10 @@
 import * as React from "react";
 import { toast } from "sonner";
 import { useAuthToken } from "@cashsouk/config";
+import {
+  issuerFinancialMoneyInputAccepted,
+  issuerFinancialRawFieldValueError,
+} from "@cashsouk/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -52,12 +56,19 @@ export function AdminEditFinancialFieldDialog({
     setRaw(initialValue == null ? "" : String(initialValue));
   }, [open, initialValue, fieldKey, calendarYear]);
 
+  const valueError = fieldKey ? issuerFinancialRawFieldValueError(fieldKey, raw) : null;
+  const empty = raw.trim() === "";
+
   const onSave = async () => {
     if (!applicationId || calendarYear == null || !fieldKey) return;
     if (disabled || readOnly) return;
+    if (empty || valueError) {
+      toast.error(valueError ?? "Enter a valid amount");
+      return;
+    }
     const value = Number(raw.trim().replace(/,/g, ""));
     if (!Number.isFinite(value)) {
-      toast.error("Enter a numeric value");
+      toast.error("Enter a valid amount");
       return;
     }
     setSaving(true);
@@ -103,19 +114,25 @@ export function AdminEditFinancialFieldDialog({
           <Input
             id="admin-financial-field-value"
             inputMode="decimal"
-            type="number"
-            step="any"
+            type="text"
             value={raw}
             disabled={disabled || readOnly || saving}
-            onChange={(event) => setRaw(event.target.value)}
+            aria-invalid={Boolean(valueError)}
+            className={valueError ? "border-destructive" : undefined}
+            onChange={(event) => {
+              const next = event.target.value;
+              if (!fieldKey || !issuerFinancialMoneyInputAccepted(fieldKey, next)) return;
+              setRaw(next);
+            }}
           />
+          {valueError ? <p className="text-meta text-destructive">{valueError}</p> : null}
         </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancel
           </Button>
           {readOnly ? null : (
-            <Button type="button" onClick={onSave} disabled={disabled || saving}>
+            <Button type="button" onClick={onSave} disabled={disabled || saving || empty || Boolean(valueError)}>
               Save
             </Button>
           )}
