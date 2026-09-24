@@ -417,7 +417,11 @@ export function resolveAdminFinancialReviewColumns(input: {
 
     const canAddMissingHistoricalCtosYear =
       ctosFetched &&
-      eligibleSet.has(year) &&
+      // When CTOS fetch succeeded but returned zero financial years, allow the admin
+      // to add placeholders for the whole 3-year historical display window.
+      // This is required so "Add statement" stays available even when the current
+      // UI tab window is narrower than the 3-year history window.
+      (input.ctosFetchState === "no_records" || eligibleSet.has(year)) &&
       !issuerYearSet.has(year) &&
       !adminYearSetAny.has(year);
 
