@@ -550,8 +550,14 @@ export function FinancialStatementsStep({
   const [prefillSubmittedByYear, setPrefillSubmittedByYear] = React.useState<
     Record<string, Record<string, unknown>>
   >({});
-  const [prefillAdminSupplementsByYear, setPrefillAdminSupplementsByYear] = React.useState<
+  const [prefillAdminInputByYear, setPrefillAdminInputByYear] = React.useState<
     Record<string, Record<string, unknown>>
+  >({});
+  const [prefillCtosGapFillsByYear, setPrefillCtosGapFillsByYear] = React.useState<
+    Record<string, Record<string, unknown>>
+  >({});
+  const [prefillUserEditedKeysByYear, setPrefillUserEditedKeysByYear] = React.useState<
+    Record<string, string[]>
   >({});
   const [prefillIncludesAdminValues, setPrefillIncludesAdminValues] = React.useState(false);
   const prevInProgressYearRef = React.useRef<number | null>(null);
@@ -596,7 +602,9 @@ export function FinancialStatementsStep({
     setPrefillOrgFs(null);
     setPrefillCtos(null);
     setPrefillSubmittedByYear({});
-    setPrefillAdminSupplementsByYear({});
+    setPrefillAdminInputByYear({});
+    setPrefillCtosGapFillsByYear({});
+    setPrefillUserEditedKeysByYear({});
     setPrefillIncludesAdminValues(false);
     prevInProgressYearRef.current = null;
     setFyeDateInput("");
@@ -671,7 +679,11 @@ export function FinancialStatementsStep({
         setPrefillOrgFs(latest?.financial_statements ?? null);
         setPrefillCtos(latest?.ctos_financials ?? null);
         setPrefillSubmittedByYear(latest?.submitted_by_year ?? {});
-        setPrefillAdminSupplementsByYear(latest?.admin_supplements_by_year ?? {});
+        setPrefillAdminInputByYear(latest?.admin_input_by_year ?? {});
+        setPrefillCtosGapFillsByYear(
+          latest?.ctos_gap_fills_by_year ?? latest?.admin_supplements_by_year ?? {}
+        );
+        setPrefillUserEditedKeysByYear(latest?.user_edited_keys_by_year ?? {});
         setPrefillEnabled(true);
 
         const orgSaved =
@@ -779,7 +791,9 @@ export function FinancialStatementsStep({
           questionnaire: questionnaireDto,
           orgFinancialStatements: prefillOrgFs,
           submittedByYear: prefillSubmittedByYear,
-          adminSupplementsByYear: prefillAdminSupplementsByYear,
+          adminInputByYear: prefillAdminInputByYear,
+          ctosGapFillsByYear: prefillCtosGapFillsByYear,
+          userEditedKeysByYear: prefillUserEditedKeysByYear,
           ctosFinancials: prefillCtos,
         })
       : null;
@@ -845,7 +859,9 @@ export function FinancialStatementsStep({
     prefillOrgFs,
     prefillCtos,
     prefillSubmittedByYear,
-    prefillAdminSupplementsByYear,
+    prefillAdminInputByYear,
+    prefillCtosGapFillsByYear,
+    prefillUserEditedKeysByYear,
   ]);
 
   React.useEffect(() => {

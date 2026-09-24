@@ -1,3 +1,4 @@
+import { loadLatestSubmittedFinancialsByYear } from "../applications/submitted-financials-by-year";
 import {
   OrganizationPartyEntityType,
   OrganizationPartyMembershipStatus,
@@ -10,9 +11,8 @@ import {
   buildIssuerProfileCompleteness,
   filterVisiblePeopleRows,
   issuerFinancialsFromYearBlock,
+  effectiveFinancialHistoryEntries,
   latestUnauditedYearBlock,
-  latestUnauditedYearKey,
-  unauditedYearEntries,
   isMasterFieldEmpty,
   normalizeDirectorShareholderIdKey,
   issuerShareholdingMeetsMinimum,
@@ -2999,19 +2999,28 @@ export async function reactivateMasterParty(params: {
 export async function getIssuerFinancialSummary(
   organizationId: string
 ): Promise<IssuerOrgFinancialSummary> {
-  const existing = await prisma.issuerOrganizationFinancialStatement.findUnique({
-    where: { issuer_organization_id: organizationId },
+  const [ctos, indexed] = await Promise.all([
+    prisma.ctosReport.findFirst({
+      where: { issuer_organization_id: organizationId, subject_ref: null },
+      orderBy: { fetched_at: "desc" },
+      select: { financials_json: true },
+    }),
+    loadLatestSubmittedFinancialsByYear(organizationId),
+  ]);
+  const years = effectiveFinancialHistoryEntries({
+    ctosFinancials: ctos?.financials_json ?? null,
+    userByYear: indexed.submittedByYear,
+    adminInputByYear: indexed.adminInputByYear,
+    ctosGapFillsByYear: indexed.ctosGapFillsByYear,
+    userEditedKeysByYear: indexed.userEditedKeysByYear,
   });
-  const statements = existing?.financial_statements ?? null;
-  const latestYear = latestUnauditedYearKey(statements);
-  const yearBlock = latestUnauditedYearBlock(statements);
-  const years = unauditedYearEntries(statements);
+  const latest = years[0] ?? null;
   return {
-    latestYear,
+    latestYear: latest?.year ?? null,
     complete: true,
     missingCount: 0,
     missing: [],
-    fields: yearBlock,
+    fields: latest?.block ?? null,
     years,
   };
 }
