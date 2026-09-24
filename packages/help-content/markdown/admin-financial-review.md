@@ -149,6 +149,44 @@ Each previous year uses:
 
 That copy happens once, when the new application is prepared. Later changes to CTOS, Admin Input, or the issuer profile do not silently rewrite an application that already exists.
 
+## Prospectus financial source
+
+The Prospectus uses a different source order from the issuer profile and from new-application historical prefill.
+
+For each financial year, the Prospectus uses:
+
+1. Reviewed User Input
+2. Otherwise, CTOS
+3. Otherwise, Admin Input
+
+In short: User Input, then CTOS, then Admin Input.
+
+**User Input**
+
+Use the reviewed User Input for that year, including Admin edits to those issuer figures. If you changed an issuer value, the Prospectus uses the reviewed value.
+
+Example: the issuer submitted FY2025 Trade Receivables as RM10, and you changed it to RM12. If User Input is selected for FY2025, the Prospectus uses RM12.
+
+**CTOS**
+
+If there is no User Input for that year, use CTOS.
+
+Use the CTOS values, plus Admin CTOS gap-fills for fields CTOS left blank. Do not use an old whole-year Admin Input statement to overwrite CTOS.
+
+**Admin Input**
+
+If there is no User Input and no CTOS for that year, use the active Admin Input statement.
+
+**Why this is different**
+
+The issuer profile and a new application’s historical prefill prefer CTOS plus CTOS gap-fills, then Admin Input, then reviewed User Input.
+
+The Prospectus prefers reviewed User Input, then CTOS, then Admin Input. It should reflect the reviewed application figures first. Profile and future historical prefill keep the historical-source order.
+
+**After approval**
+
+Once the Prospectus is approved or published, its financial snapshot is frozen. Later changes to User Input, Admin Input, or CTOS do not rewrite that snapshot.
+
 ## Admin changes to issuer figures
 
 If the issuer submitted Trade Receivables as RM10, and you change it to RM12:
