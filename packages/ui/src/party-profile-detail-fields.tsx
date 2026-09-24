@@ -12,6 +12,7 @@ import {
   SC_SHARE_TYPE_LABELS,
   displayedPersonEmail,
   formatPartyRoleLine,
+  formatCustomerCountryName,
   getFinalStatusLabel,
   getRelatedPartyStatusToken,
   type RelatedPartyStatusViewer,
@@ -150,7 +151,11 @@ export function buildPartyProfileDetailItems(params: {
       items.push({ label: copy.gender.label, value: gender, help: copy.gender.help });
     }
     if (isPresent(nationalityValue)) {
-      items.push({ label: copy.nationality.label, value: nationalityValue ?? "", help: copy.nationality.help });
+      items.push({
+        label: copy.nationality.label,
+        value: formatCustomerCountryName(nationalityValue),
+        help: copy.nationality.help,
+      });
     }
     if (isPresent(dateValue)) {
       items.push({ label: copy.dateOfBirth.label, value: dateValue, help: copy.dateOfBirth.help });
