@@ -34,7 +34,8 @@ describe("application financial review Turnover Growth rendering", () => {
     );
 
     expect(source).toContain("`FY${spec.year}`");
-    expect(source).toContain('title="Edit financial statement"');
+    expect(source).toContain("financialEditsLocked ? \"Locked\" : \"Edit statement\"");
+    expect(source).toContain("Edit financial statement");
     expect(source).toContain("AdminEditFinancialStatementDialog");
   });
 
@@ -107,7 +108,7 @@ describe("application financial review Turnover Growth rendering", () => {
 
     // When locked, inputs and Save should be disabled.
     expect(modal).toContain("disabled={inputDisabled}");
-    expect(modal).toContain("disabled={disabled || saving}");
+    expect(modal).toContain("readOnly ? null");
   });
 
   it("computes FY2024 Turnover Growth from FY2023 revenue (20%)", () => {

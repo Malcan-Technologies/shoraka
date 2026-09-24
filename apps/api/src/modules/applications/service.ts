@@ -151,12 +151,15 @@ import {
   canWithdrawApplication,
   APPLICATION_COMREP_DETAIL_KEYS,
   applicationComrepFieldError,
+  issuerFinancialRawFieldValueError,
   buildStoredApplicationFinancialYearBlock,
-  financialYearBlockHasActualData,
   getFinancialYearEndComputationDetails,
   getFinancialYearEndValidationError,
   getEligibleAdminInputYears,
   decideAdminFinancialFieldEdit,
+  adminHistoricalFinancialYearWindow,
+  isAdminFinancialReviewEditLocked,
+  parseCtosFinancialStatementRows,
   parseAdminFieldOverrides,
   FINANCIAL_FIELD_LABELS,
   reconcileAdminFieldOverridesAfterIssuerSave,
@@ -5710,46 +5713,22 @@ export class ApplicationService {
   }
 
   /**
-   * Admin year-level fallback for missing historical financial statement FYs.
+   * Admin year-level fallback for a missing historical financial statement FY.
    * Stored at `application.financial_statements.admin_input_by_year[fy]`.
-   *
-   * Eligibility and precedence are enforced via `getEligibleAdminInputYears`:
-   * - FY must be inside the existing issuer/Admin tab window (12-month + 6-month logic).
-   * - FY must not already have CTOS actual data.
-   * - FY must not already have issuer stored unaudited actual data.
+   * Allowed when CTOS has been pulled and does not own that historical FY.
    */
-  private async assertAdminFinancialEditsOpen(applicationId: string, status: string): Promise<void> {
-    const reviewable = new Set([
-      "SUBMITTED",
-      "UNDER_REVIEW",
-      "CONTRACT_PENDING",
-      "CONTRACT_SENT",
-      "CONTRACT_ACCEPTED",
-      "INVOICE_ACCEPTED",
-      "SIGNING_PENDING",
-      "INVOICE_PENDING",
-      "INVOICES_SENT",
-      "OFFER_EXPIRED",
-      "RESUBMITTED",
-      "AMENDMENT_REQUESTED",
-    ]);
-    if (!reviewable.has(status)) {
-      throw new AppError(400, "APPLICATION_NOT_REVIEWABLE", "Application is not in a reviewable state");
-    }
-    const review = await prisma.noteProspectusReview.findFirst({
+  private async assertAdminFinancialEditsOpen(applicationId: string): Promise<void> {
+    const review = await prisma.applicationReview.findUnique({
       where: {
-        note: { source_application_id: applicationId },
-        approved_at: { not: null },
+        application_id_section: { application_id: applicationId, section: "financial" },
       },
-      select: { approved_at: true },
+      select: { status: true },
     });
-    // Lock whenever any underlying Prospectus review is still approved.
-    // Approval evidence must come from approved_at (not from a UI-visible status label).
-    if (review?.approved_at != null) {
+    if (isAdminFinancialReviewEditLocked(review?.status)) {
       throw new AppError(
         409,
-        "FINANCIAL_SNAPSHOT_LOCKED",
-        "Approved prospectus financials are locked for this application"
+        "FINANCIAL_REVIEW_LOCKED",
+        "Financial review is approved. Financials are read-only until that section is reopened."
       );
     }
   }
@@ -5782,7 +5761,7 @@ export class ApplicationService {
     });
 
     if (!application) throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
-    await this.assertAdminFinancialEditsOpen(applicationId, application.status);
+    await this.assertAdminFinancialEditsOpen(applicationId);
     if (!application.issuer_organization_id) {
       throw new AppError(400, "INVALID_STATE", "Application has no issuer organization");
     }
@@ -5801,38 +5780,26 @@ export class ApplicationService {
       select: { financials_json: true },
     });
 
+    const ctosOwnedYears = new Set(
+      parseCtosFinancialStatementRows(ctosReport?.financials_json ?? null)
+        .map((row) => row.financial_year)
+        .filter((year): year is number => year != null && Number.isFinite(year))
+    );
     let eligibleYears = getEligibleAdminInputYears({
       financialStatements: application.financial_statements,
       ctosFinancials: ctosReport?.financials_json ?? null,
       ref: now,
-    });
+    }).filter((year) => !ctosOwnedYears.has(year));
 
-    // When CTOS was fetched successfully but returned zero financial-year records,
-    // allow adding Admin Input fallbacks for the whole 3-year historical window
-    // anchored to the latest stored issuer/Admin actual year.
-    if (ctosReport && Array.isArray(ctosReport.financials_json) && ctosReport.financials_json.length === 0) {
-      const fsRoot = application.financial_statements as any;
-      const unauditedByYear = fsRoot?.unaudited_by_year;
-      let maxStoredIssuerYearWithActualData: number | null = null;
-      if (unauditedByYear && typeof unauditedByYear === "object" && !Array.isArray(unauditedByYear)) {
-        for (const [key, storedIssuer] of Object.entries(unauditedByYear as Record<string, unknown>)) {
-          const y = Number(key);
-          if (!Number.isInteger(y)) continue;
-          if (!storedIssuer || typeof storedIssuer !== "object" || Array.isArray(storedIssuer)) continue;
-          if (!financialYearBlockHasActualData(storedIssuer as Record<string, unknown>)) continue;
-          if (maxStoredIssuerYearWithActualData == null || y > maxStoredIssuerYearWithActualData) {
-            maxStoredIssuerYearWithActualData = y;
-          }
-        }
-      }
-
-      if (maxStoredIssuerYearWithActualData != null) {
-        eligibleYears = [maxStoredIssuerYearWithActualData - 3, maxStoredIssuerYearWithActualData - 2, maxStoredIssuerYearWithActualData - 1]
-          .filter((y) => Number.isInteger(y))
-          .filter((y) => {
-            const storedIssuer = unauditedByYear?.[String(y)];
-            return !(storedIssuer && financialYearBlockHasActualData(storedIssuer as Record<string, unknown>));
-          });
+    // CTOS pulled: every historical slot CTOS does not own can be a whole-year Admin Input,
+    // including years outside the narrower issuer tab window and years that also have User Input.
+    if (ctosReport) {
+      for (const year of adminHistoricalFinancialYearWindow({
+        financialStatements: application.financial_statements,
+        ref: now,
+      })) {
+        if (ctosOwnedYears.has(year) || eligibleYears.includes(year)) continue;
+        eligibleYears.push(year);
       }
     }
 
@@ -5867,6 +5834,13 @@ export class ApplicationService {
         "VALIDATION_ERROR",
         `FY${financialYear}: pldd must equal FY end date for that column`
       );
+    }
+
+    for (const [fieldKey, fieldValue] of Object.entries(rawFinancialInputs)) {
+      const message = issuerFinancialRawFieldValueError(fieldKey, fieldValue);
+      if (message) {
+        throw new AppError(400, "VALIDATION_ERROR", `FY${financialYear}: ${message}`);
+      }
     }
 
     validateFinancialYearBlockOrThrow(parsed.data as any);
@@ -5946,10 +5920,11 @@ export class ApplicationService {
     userId: string;
     financialYear: number;
     fieldKey: string;
+    columnKind?: "ctos" | "unaudited" | "admin_input" | "admin_fallback_placeholder";
     value: number;
     remark?: string;
   }): Promise<{ updated: boolean; financialYear: number; fieldKey: string }> {
-    const { applicationId, userId, financialYear, fieldKey, value, remark } = params;
+    const { applicationId, userId, financialYear, fieldKey, columnKind, value, remark } = params;
     const application = await prisma.application.findUnique({
       where: { id: applicationId },
       select: {
@@ -5966,7 +5941,7 @@ export class ApplicationService {
     if (!application.financial_statements || typeof application.financial_statements !== "object") {
       throw new AppError(400, "INVALID_STATE", "Application has no financial_statements");
     }
-    await this.assertAdminFinancialEditsOpen(applicationId, application.status);
+    await this.assertAdminFinancialEditsOpen(applicationId);
 
     const now = new Date();
     const ctosReport = await prisma.ctosReport.findFirst({
@@ -5990,12 +5965,13 @@ export class ApplicationService {
       ref: now,
       ctosFetchState,
     });
-    const decision = decideAdminFinancialFieldEdit({ columns, financialYear, fieldKey });
+    const decision = decideAdminFinancialFieldEdit({ columns, financialYear, fieldKey, columnKind });
     if (!decision.ok) {
       throw new AppError(400, decision.code, decision.message);
     }
-    if (!Number.isFinite(value)) {
-      throw new AppError(400, "VALIDATION_ERROR", "Enter a numeric value");
+    const valueMessage = issuerFinancialRawFieldValueError(fieldKey, value);
+    if (valueMessage) {
+      throw new AppError(400, "VALIDATION_ERROR", valueMessage);
     }
 
     const existingFS = application.financial_statements as Record<string, unknown>;

@@ -3,6 +3,7 @@
  * Formulas stay in ctos-report-table-math.ts. This module only resolves values and edit rights.
  */
 
+import { isIssuerFinancialFieldRequired } from "./comrep-requiredness";
 import {
   APPLICATION_COMREP_DETAIL_KEYS,
   APPLICATION_CORE_MONEY_KEYS,
@@ -11,7 +12,6 @@ import {
 import {
   ctosFinancialRowToFsFields,
   financialYearBlockHasActualData,
-  getEligibleAdminInputYears,
   parseCtosFinancialStatementRows,
   type FinancialStatementRecordSource,
   type FinancialStatementStatementType,
@@ -97,6 +97,59 @@ export function isAdminEditableRawFinancialKey(key: string): boolean {
 
 export function isCalculatedFinancialMetricKey(key: string): boolean {
   return CALCULATED_KEY_SET.has(key);
+}
+
+/** Whole-year Admin Input uses the issuer raw-field requiredness rule. Calculated metrics are excluded. */
+export function isWholeYearAdminFinancialFieldRequired(key: string): boolean {
+  return isAdminEditableRawFinancialKey(key) && isIssuerFinancialFieldRequired(key);
+}
+
+export const WHOLE_YEAR_ADMIN_REQUIRED_FINANCIAL_KEYS = ADMIN_EDITABLE_RAW_FINANCIAL_KEYS.filter((key) =>
+  isWholeYearAdminFinancialFieldRequired(key)
+);
+
+export const WHOLE_YEAR_ADMIN_OPTIONAL_FINANCIAL_KEYS = ADMIN_EDITABLE_RAW_FINANCIAL_KEYS.filter(
+  (key) => !isWholeYearAdminFinancialFieldRequired(key)
+);
+
+function wholeYearAdminFieldValueComplete(value: unknown): boolean {
+  return readFiniteFinancialNumber(value) != null;
+}
+
+export function wholeYearAdminFinancialFieldProgress(
+  values: Record<string, unknown>,
+  sections: ReadonlyArray<{ id: string; keys: readonly string[] }> = []
+): {
+  requiredTotal: number;
+  completed: number;
+  remaining: number;
+  missingKeys: string[];
+  sections: Array<{ id: string; requiredTotal: number; remaining: number }>;
+} {
+  const missingKeys = WHOLE_YEAR_ADMIN_REQUIRED_FINANCIAL_KEYS.filter(
+    (key) => !wholeYearAdminFieldValueComplete(values[key])
+  );
+  const requiredTotal = WHOLE_YEAR_ADMIN_REQUIRED_FINANCIAL_KEYS.length;
+  const sectionProgress = sections.map((section) => {
+    const requiredKeys = section.keys.filter((key) => isWholeYearAdminFinancialFieldRequired(key));
+    const remaining = requiredKeys.filter((key) => !wholeYearAdminFieldValueComplete(values[key])).length;
+    return { id: section.id, requiredTotal: requiredKeys.length, remaining };
+  });
+  return {
+    requiredTotal,
+    completed: requiredTotal - missingKeys.length,
+    remaining: missingKeys.length,
+    missingKeys: [...missingKeys],
+    sections: sectionProgress,
+  };
+}
+
+/**
+ * Financial section approval is the only Admin application-financial edit lock.
+ * A missing row is treated as not approved (PENDING / reopened after resubmit deletes the amendment row).
+ */
+export function isAdminFinancialReviewEditLocked(sectionStatus: string | null | undefined): boolean {
+  return String(sectionStatus ?? "").trim().toUpperCase() === "APPROVED";
 }
 
 export function readFiniteFinancialNumber(value: unknown): number | null {
@@ -244,6 +297,43 @@ function yearFields(params: {
   return fields;
 }
 
+/** Three historical FY slots: latest User Input reporting year minus 3, 2, and 1. */
+export function adminHistoricalFinancialYearWindow(input: {
+  financialStatements?: unknown;
+  ref?: Date;
+}): number[] {
+  const root = asRecord(input.financialStatements);
+  const unauditedByYear = asRecord(root?.unaudited_by_year) ?? {};
+  const adminInputByYear = asRecord(root?.admin_input_by_year) ?? {};
+  const yearsWithData = (byYear: Record<string, unknown>) =>
+    Object.keys(byYear)
+      .map((key) => Number(key))
+      .filter((year) => Number.isInteger(year))
+      .filter((year) => {
+        const block = asRecord(byYear[String(year)]);
+        return block != null && financialYearBlockHasActualData(block);
+      })
+      .sort((a, b) => a - b);
+
+  const issuerYears = yearsWithData(unauditedByYear);
+  const adminYears = yearsWithData(adminInputByYear);
+  let latestUserInputYear: number | null =
+    issuerYears.length > 0
+      ? issuerYears[issuerYears.length - 1]!
+      : adminYears.length > 0
+        ? adminYears[adminYears.length - 1]!
+        : null;
+  if (latestUserInputYear == null) {
+    const questionnaire = parseFinancialStatementsQuestionnaireShape(root?.questionnaire);
+    if (questionnaire) {
+      const tabYears = getAdminFinancialSummaryUserColumnYears(questionnaire, input.ref ?? new Date());
+      latestUserInputYear = tabYears.length > 0 ? tabYears[tabYears.length - 1]! : null;
+    }
+  }
+  if (latestUserInputYear == null) return [];
+  return [latestUserInputYear - 3, latestUserInputYear - 2, latestUserInputYear - 1];
+}
+
 function statementTypeOf(raw: Record<string, unknown> | null): FinancialStatementStatementType | undefined {
   const value = raw?.statementType;
   if (value === "AUDITED" || value === "NOT_AUDITED" || value === "MANAGEMENT_ACCOUNTS") return value;
@@ -251,8 +341,9 @@ function statementTypeOf(raw: Record<string, unknown> | null): FinancialStatemen
 }
 
 /**
- * Chronological Admin review columns. One column per FY. CTOS wins a duplicate year.
- * Missing window years stay in calendar position as add-year placeholders.
+ * Chronological Admin review columns.
+ * Historical slots are latest User Input FY − 3/−2/−1. User Input is a separate lane.
+ * Each historical FY has one source: CTOS, else active Admin Input, else a gap.
  */
 export function resolveAdminFinancialReviewColumns(input: {
   financialStatements?: unknown;
@@ -281,15 +372,6 @@ export function resolveAdminFinancialReviewColumns(input: {
     ctosByYear.set(row.financial_year, ctosFinancialRowToFsFields(row));
   }
 
-  const eligible =
-    input.eligibleAdminInputYears ??
-    getEligibleAdminInputYears({
-      financialStatements: input.financialStatements,
-      ctosFinancials: input.ctosFinancials,
-      ref: input.ref,
-    });
-  const eligibleSet = new Set<number>(eligible);
-
   const issuerYears = Object.keys(unauditedByYear)
     .map((key) => Number(key))
     .filter((year) => Number.isInteger(year))
@@ -311,36 +393,21 @@ export function resolveAdminFinancialReviewColumns(input: {
     .sort((a, b) => a - b);
   const adminYearSetAny = new Set<number>(adminYearsAny);
 
-  // Preserve existing rule: if issuer (user) already has actual data for a FY, we do not show a second admin_input column for the same FY.
-  let adminYears = adminYearsAny.filter((y) => !issuerYearSet.has(y));
+  const historicalWindowYears = adminHistoricalFinancialYearWindow({
+    financialStatements: input.financialStatements,
+    ref: input.ref,
+  });
 
-  // Historical window: always 3 consecutive FY slots derived from the latest/current application User Input reporting year.
-  // We first prefer stored user/admin blocks (when present); if they are empty, fall back to the questionnaire+ref tab years.
-  let latestUserInputYear: number | null =
-    issuerYears.length > 0
-      ? issuerYears[issuerYears.length - 1]!
-      : adminYearsAny.length > 0
-        ? adminYearsAny[adminYearsAny.length - 1]!
-        : null;
-
-  if (latestUserInputYear == null) {
-    const questionnaire = parseFinancialStatementsQuestionnaireShape((root as Record<string, unknown> | null)?.questionnaire);
-    if (questionnaire) {
-      const tabYears = getAdminFinancialSummaryUserColumnYears(questionnaire, input.ref ?? new Date());
-      latestUserInputYear = tabYears.length > 0 ? tabYears[tabYears.length - 1]! : null;
-    }
-  }
-
-  const historicalWindowYears =
-    latestUserInputYear != null ? [latestUserInputYear - 3, latestUserInputYear - 2, latestUserInputYear - 1] : [];
-
-  // CTOS arrives later rule:
-  // If CTOS provides a historical FY that previously existed as stored Admin Input (admin_input_by_year),
-  // the CTOS FY becomes the active historical source and the Admin Input FY must stop being shown as an active column.
-  // We still preserve admin_input_by_year for audit/history; we just hide it from the active review table.
-  if (historicalWindowYears.length > 0) {
-    adminYears = adminYears.filter((year) => !(historicalWindowYears.includes(year) && ctosByYear.has(year)));
-  }
+  // Active Admin Input columns:
+  // - A historical FY with no CTOS row is satisfied by Admin Input (one column, not a gap plus Admin Input).
+  // - User Input for the same FY stays a separate lane.
+  // - CTOS ownership (financial_year present, even when amounts are null) hides that Admin Input column.
+  //   The stored admin_input_by_year block is kept for audit and is not deleted here.
+  // - Outside the historical window, keep the previous rule that issuer data suppresses a second Admin column.
+  const adminYears = adminYearsAny.filter((year) => {
+    if (historicalWindowYears.includes(year)) return !ctosByYear.has(year);
+    return !issuerYearSet.has(year);
+  });
 
   const columns: AdminFinancialReviewColumn[] = [];
 
@@ -405,33 +472,19 @@ export function resolveAdminFinancialReviewColumns(input: {
     });
   };
 
-  // Historical 3 slots:
-  // - CTOS wins a duplicate year
-  // - Missing CTOS years can turn into an "Add Financial Statement" placeholder ONLY when CTOS history exists
-  // - When CTOS history does not exist, all historical CTOS gaps render as missing/read-only (no Add action)
+  // Historical 3 slots. Each year resolves on its own:
+  // CTOS row (financial_year present) → CTOS
+  // else active whole-year Admin Input → that Admin column is the slot (emitted below)
+  // else CTOS was pulled → editable Admin placeholder
+  // else CTOS was not pulled → read-only gap (not an editable CTOS statement)
   for (const year of historicalWindowYears) {
     if (ctosByYear.has(year)) {
       addCtosColumn(year, ctosByYear.get(year) ?? null);
       continue;
     }
-
-    const canAddMissingHistoricalCtosYear =
-      ctosFetched &&
-      // When CTOS fetch succeeded but returned zero financial years, allow the admin
-      // to add placeholders for the whole 3-year historical display window.
-      // This is required so "Add statement" stays available even when the current
-      // UI tab window is narrower than the 3-year history window.
-      (input.ctosFetchState === "no_records" || eligibleSet.has(year)) &&
-      !issuerYearSet.has(year) &&
-      !adminYearSetAny.has(year);
-
-    // If eligible, show the Add Financial Statement action in the CTOS-history window.
-    if (canAddMissingHistoricalCtosYear) {
-      addPlaceholderColumn(year);
-    } else {
-      // Otherwise keep the missing CTOS slot as a CTOS column with missing values (read-only).
-      addReadOnlyMissingCtosColumn(year);
-    }
+    if (adminYearSetAny.has(year)) continue;
+    if (ctosFetched) addPlaceholderColumn(year);
+    else addReadOnlyMissingCtosColumn(year);
   }
 
   // User/Admin submitted financial years (do not suppress CTOS years; same FY may appear twice intentionally).
@@ -472,8 +525,8 @@ export function resolveAdminFinancialReviewColumns(input: {
   const kindPriority: Record<AdminFinancialReviewColumn["kind"], number> = {
     ctos: 0,
     admin_fallback_placeholder: 1,
-    unaudited: 2,
-    admin_input: 3,
+    admin_input: 2,
+    unaudited: 3,
   };
 
   return columns.sort((a, b) => {
@@ -496,6 +549,8 @@ export function decideAdminFinancialFieldEdit(params: {
   columns: AdminFinancialReviewColumn[];
   financialYear: number;
   fieldKey: string;
+  /** Year alone is not unique. Same FY can be CTOS and User Input. */
+  columnKind?: AdminFinancialReviewColumn["kind"];
 }): AdminFieldEditDecision {
   if (isCalculatedFinancialMetricKey(params.fieldKey)) {
     return {
@@ -507,8 +562,22 @@ export function decideAdminFinancialFieldEdit(params: {
   if (!isAdminEditableRawFinancialKey(params.fieldKey)) {
     return { ok: false, code: "FIELD_NOT_EDITABLE", message: "This field cannot be edited" };
   }
-  const column = params.columns.find((item) => item.year === params.financialYear);
-  if (!column || column.primarySource === "add_year") {
+  const candidates = params.columns.filter(
+    (item) => item.year === params.financialYear && item.primarySource !== "add_year"
+  );
+  const column = params.columnKind
+    ? candidates.find((item) => item.kind === params.columnKind)
+    : candidates.length === 1
+      ? candidates[0]
+      : undefined;
+  if (!column) {
+    if (!params.columnKind && candidates.length > 1) {
+      return {
+        ok: false,
+        code: "ADMIN_FINANCIAL_COLUMN_AMBIGUOUS",
+        message: `FY${params.financialYear} has more than one financial column. Choose the column to edit.`,
+      };
+    }
     return {
       ok: false,
       code: "ADMIN_FINANCIAL_YEAR_NOT_EDITABLE",

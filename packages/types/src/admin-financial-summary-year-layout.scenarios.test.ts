@@ -225,7 +225,12 @@ describe("Admin Financial Summary year-column layout scenarios", () => {
 
     // Historical window is always FY2023–FY2025 when latest user input is FY2026.
     expect(columns.map((c) => c.year)).toEqual([2023, 2024, 2025, 2026]);
-    expect(columns.map((c) => c.kind)).toEqual(["ctos", "ctos", "ctos", "unaudited"]);
+    expect(columns.map((c) => c.kind)).toEqual([
+      "admin_fallback_placeholder",
+      "admin_fallback_placeholder",
+      "ctos",
+      "unaudited",
+    ]);
 
     // Admin Input FY2025 must stop being shown as an active column once CTOS provides that FY.
     expect(columns.some((c) => c.year === 2025 && c.kind === "admin_input")).toBe(false);

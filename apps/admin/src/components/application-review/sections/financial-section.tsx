@@ -309,6 +309,7 @@ export function FinancialSection({
       <ApplicationFinancialReviewContent
         applicationId={applicationId}
         issuerOrganizationId={issuerOrganizationId ?? app.issuer_organization?.id ?? null}
+        financialSectionStatus={sectionStatus}
         app={app}
       />
       {!hideSectionComments ? (

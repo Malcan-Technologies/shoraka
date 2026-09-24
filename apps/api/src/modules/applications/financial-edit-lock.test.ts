@@ -1,11 +1,14 @@
 import { ApplicationService } from "./service";
 
-const mockFindFirst = jest.fn();
+const mockFindUnique = jest.fn();
 
 jest.mock("../../lib/prisma", () => ({
   prisma: {
+    applicationReview: {
+      findUnique: (...args: unknown[]) => mockFindUnique(...args),
+    },
     noteProspectusReview: {
-      findFirst: (...args: unknown[]) => mockFindFirst(...args),
+      findFirst: jest.fn(),
     },
   },
 }));
@@ -30,43 +33,43 @@ jest.mock("../notification/service", () => ({
   NotificationService: jest.fn().mockImplementation(() => ({})),
 }));
 
-describe("Prospectus approval lock: Admin financial edits", () => {
+describe("Financial review section lock", () => {
   const service = new ApplicationService();
+  const { prisma } = jest.requireMock("../../lib/prisma") as {
+    prisma: { noteProspectusReview: { findFirst: jest.Mock } };
+  };
 
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  it("allows financial edits when there is no approved Prospectus review (Draft state)", async () => {
-    mockFindFirst.mockResolvedValue(null);
-
-    await expect(
-      (service as any).assertAdminFinancialEditsOpen("app-1", "SUBMITTED")
-    ).resolves.toBeUndefined();
+  it("allows edits when the Financial section is open", async () => {
+    mockFindUnique.mockResolvedValue({ status: "PENDING" });
+    await expect((service as any).assertAdminFinancialEditsOpen("app-1")).resolves.toBeUndefined();
+    expect(prisma.noteProspectusReview.findFirst).not.toHaveBeenCalled();
   });
 
-  it("blocks financial edits when any Prospectus review is APPROVED (approved_at evidence)", async () => {
-    mockFindFirst.mockResolvedValue({ approved_at: new Date("2026-07-19T00:00:00.000Z") });
-
-    await expect((service as any).assertAdminFinancialEditsOpen("app-1", "SUBMITTED")).rejects.toMatchObject(
-      { code: "FINANCIAL_SNAPSHOT_LOCKED", statusCode: 409 }
-    );
+  it("allows edits when no Financial review row exists", async () => {
+    mockFindUnique.mockResolvedValue(null);
+    await expect((service as any).assertAdminFinancialEditsOpen("app-1")).resolves.toBeUndefined();
   });
 
-  it("unlocks when the approved Prospectus is returned to Draft (approved_at cleared)", async () => {
-    mockFindFirst.mockResolvedValue(null);
-
-    await expect(
-      (service as any).assertAdminFinancialEditsOpen("app-1", "SUBMITTED")
-    ).resolves.toBeUndefined();
+  it("locks edits when the Financial section is approved", async () => {
+    mockFindUnique.mockResolvedValue({ status: "APPROVED" });
+    await expect((service as any).assertAdminFinancialEditsOpen("app-1")).rejects.toMatchObject({
+      code: "FINANCIAL_REVIEW_LOCKED",
+      statusCode: 409,
+    });
   });
 
-  it("keeps financial edits locked when at least one Prospectus under the application is still approved (multi-Prospectus)", async () => {
-    mockFindFirst.mockResolvedValue({ approved_at: new Date("2026-07-19T00:00:00.000Z") });
+  it("unlocks when a financial amendment reopens the section", async () => {
+    mockFindUnique.mockResolvedValue({ status: "AMENDMENT_REQUESTED" });
+    await expect((service as any).assertAdminFinancialEditsOpen("app-1")).resolves.toBeUndefined();
+  });
 
-    await expect((service as any).assertAdminFinancialEditsOpen("app-1", "SUBMITTED")).rejects.toMatchObject(
-      { code: "FINANCIAL_SNAPSHOT_LOCKED", statusCode: 409 }
-    );
+  it("does not consult Prospectus approval", async () => {
+    mockFindUnique.mockResolvedValue({ status: "PENDING" });
+    await (service as any).assertAdminFinancialEditsOpen("app-1");
+    expect(prisma.noteProspectusReview.findFirst).not.toHaveBeenCalled();
   });
 });
-
