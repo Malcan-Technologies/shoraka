@@ -1579,7 +1579,7 @@ export function ApplicationFinancialReviewContent({
                         <TableCell
                           colSpan={1 + columns.length}
                           className={cn(
-                            "border-r-0 bg-muted/25 text-foreground py-2",
+                            "border-r-0 bg-muted/35 text-foreground py-3",
                             "border-t border-border border-b border-border/70"
                           )}
                         >
@@ -1617,7 +1617,7 @@ export function ApplicationFinancialReviewContent({
                       <TableCell
                         className={cn(
                           applicationTableCellClass,
-                          "border-r border-border bg-muted/20 font-semibold text-foreground"
+                          "border-r border-border bg-muted/10 font-medium text-foreground pl-6"
                         )}
                       >
                         <div className="flex min-w-0 flex-col items-start gap-0.5 text-left">

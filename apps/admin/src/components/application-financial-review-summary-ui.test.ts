@@ -67,6 +67,14 @@ describe("Admin Financial Summary table UI", () => {
     expect(source).toContain("flattenedRows.map");
   });
 
+  it("nests child rows under categories with clearer hierarchy styling", () => {
+    const source = readFileSync(tablePath, "utf8");
+    // Stronger category tint
+    expect(source).toContain("bg-muted/35");
+    // Child/label rows indentation in the first (label) column
+    expect(source).toContain('pl-6');
+  });
+
   it("places EBIT under Profit & Loss (not under Financial Ratios & Metrics)", () => {
     const source = readFileSync(tablePath, "utf8");
     const profitStart = source.indexOf('id: "profitLoss"');
@@ -393,6 +401,10 @@ describe("Admin Financial Summary table UI", () => {
 
     // Ensure we didn't leave the old "Optional" badge wording behind.
     expect(comparisonSource).not.toContain("Optional");
+
+    // Hierarchy styling: category headers + indented child label column.
+    expect(comparisonSource).toContain("bg-muted/30");
+    expect(comparisonSource).toContain("pl-6");
   });
 
   it("resubmit comparison renders the latest raw financial field coverage", () => {

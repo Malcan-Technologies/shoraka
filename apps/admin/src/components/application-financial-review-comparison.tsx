@@ -482,7 +482,7 @@ export function ApplicationFinancialReviewComparison({
                 <TableRow key={`cat-${category.title}`} className={applicationTableRowClass}>
                   <TableCell
                     colSpan={colSpan}
-                    className={cn(applicationTableCellClass, "bg-muted/10 font-semibold text-foreground py-2")}
+                    className={cn(applicationTableCellClass, "bg-muted/30 font-semibold text-foreground py-3")}
                   >
                     {category.title}
                   </TableCell>
@@ -492,7 +492,12 @@ export function ApplicationFinancialReviewComparison({
                   const label = isEquityIfApplicableKey(key) ? `${labelBase} (if applicable)` : labelBase;
                   return (
                     <TableRow key={key} className={applicationTableRowClass}>
-                      <TableCell className={cn(applicationTableCellClass, "border-r border-border bg-muted/20 font-medium text-foreground")}>
+                      <TableCell
+                        className={cn(
+                          applicationTableCellClass,
+                          "border-r border-border bg-muted/10 font-medium text-foreground pl-6"
+                        )}
+                      >
                         {label}
                       </TableCell>
                       {yearKeys.flatMap((year) => {
