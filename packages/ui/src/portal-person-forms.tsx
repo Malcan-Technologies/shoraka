@@ -32,7 +32,9 @@ import {
   SC_MONTHLY_PERSON_KIND_LABELS,
   SC_SHARE_TYPE_LABELS,
   SC_SHARE_TYPES,
-  scAppendixASelectValues,
+  scAppendixASelectValuesMalaysiaCanonicalized,
+  toMalaysiaCanonicalSelectableValue,
+  normalizeMalaysiaCountryValue,
   validateIssuerPersonForm,
   validatePartyPatch,
   addCompanyPersonUsesOnboardingFlow,
@@ -1338,12 +1340,18 @@ function CountryField({
   required?: boolean;
   error?: string;
 }) {
+  const selectValue = value
+    ? String(toMalaysiaCanonicalSelectableValue(value) ?? value)
+    : value;
   return (
     <SelectField
       label={label}
-      value={value}
+      value={selectValue}
       onChange={onChange}
-      options={scAppendixASelectValues(value).map((country) => ({ value: country, label: country }))}
+      options={scAppendixASelectValuesMalaysiaCanonicalized(value).map((country) => ({
+        value: country,
+        label: normalizeMalaysiaCountryValue(country) ?? country,
+      }))}
       help={help}
       required={required}
       error={error}

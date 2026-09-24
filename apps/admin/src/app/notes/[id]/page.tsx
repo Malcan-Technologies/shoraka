@@ -63,7 +63,6 @@ import { SourceApplicationPanel } from "@/notes/components/source-application-pa
 import { IssuerPayoutCard } from "@/notes/components/issuer-payout-card";
 import { InvestmentNoteCertificateCard } from "@/notes/components/investment-note-certificate-card";
 import { useAdminInvestmentNoteCertificate } from "@/notes/hooks/use-investment-note-certificate";
-import { PaymasterAssignmentCard } from "@/notes/components/paymaster-assignment-card";
 import { NoteWorkflowTabHeader } from "@/notes/components/note-workflow-tab-header";
 import { useAdminInvestmentSettlementConfirmations } from "@/notes/hooks/use-investment-settlement-confirmation";
 import { useAdminSettlementHibahReceipt } from "@/notes/hooks/use-settlement-hibah-receipt";
@@ -622,13 +621,9 @@ export default function NoteDetailPage() {
                           <NoteWorkflowTabHeader
                             icon={BanknotesIcon}
                             title="Disbursement"
-                            description="Manage Paymaster assignment, Tawarruq execution, trustee submission, and issuer payout before servicing begins."
+                            description="Manage Tawarruq execution, trustee submission, and issuer payout before servicing begins."
                           />
                           <CardContent className="space-y-6 pt-0">
-                            <PaymasterAssignmentCard
-                              note={note}
-                              canManage={canDisbursement}
-                            />
                             {disbursementWithdrawal &&
                             disbursementWithdrawal.status !== "CANCELLED" ? (
                               <IssuerPayoutCard

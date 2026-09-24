@@ -28,7 +28,9 @@ import {
   PROFILE_LABEL,
   SC_SHARE_TYPE_LABELS,
   SC_SHARE_TYPES,
-  scAppendixASelectValues,
+  normalizeMalaysiaCountryValue,
+  scAppendixASelectValuesMalaysiaCanonicalized,
+  toMalaysiaCanonicalSelectableValue,
   validateIssuerPersonForm,
   validateOnboardingPersonCreate,
 } from "@cashsouk/types";
@@ -425,7 +427,11 @@ export function OrganizationPersonEditorDialog({
               <div className="space-y-1.5">
                 <ComRepFieldLabel label={copy.nationality.label} help={copy.nationality.help} required />
                 <Select
-                  value={values.countryOfIncorporation}
+                  value={
+                    values.countryOfIncorporation
+                      ? (toMalaysiaCanonicalSelectableValue(values.countryOfIncorporation) ?? values.countryOfIncorporation)
+                      : ""
+                  }
                   onValueChange={(countryOfIncorporation) => set("countryOfIncorporation", countryOfIncorporation)}
                 >
                 <SelectTrigger
@@ -435,9 +441,9 @@ export function OrganizationPersonEditorDialog({
                     <SelectValue placeholder="Select" />
                   </SelectTrigger>
                   <SelectContent className="max-h-72">
-                    {scAppendixASelectValues(values.countryOfIncorporation).map((country) => (
+                    {scAppendixASelectValuesMalaysiaCanonicalized(values.countryOfIncorporation).map((country) => (
                       <SelectItem key={country} value={country}>
-                        {country}
+                        {normalizeMalaysiaCountryValue(country)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -473,16 +479,18 @@ export function OrganizationPersonEditorDialog({
               <div className="space-y-1.5">
                 <ComRepFieldLabel label={copy.nationality.label} help={copy.nationality.help} required />
                 <Select
-                  value={values.nationality}
+                  value={
+                    values.nationality ? (toMalaysiaCanonicalSelectableValue(values.nationality) ?? values.nationality) : ""
+                  }
                   onValueChange={(nationality) => set("nationality", nationality)}
                 >
                   <SelectTrigger className="h-10 text-ui" disabled={lockFlags.nationalityLocked}>
                     <SelectValue placeholder="Select" />
                   </SelectTrigger>
                   <SelectContent className="max-h-72">
-                    {scAppendixASelectValues(values.nationality).map((country) => (
+                    {scAppendixASelectValuesMalaysiaCanonicalized(values.nationality).map((country) => (
                       <SelectItem key={country} value={country}>
-                        {country}
+                        {normalizeMalaysiaCountryValue(country)}
                       </SelectItem>
                     ))}
                   </SelectContent>

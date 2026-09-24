@@ -22,6 +22,7 @@ import {
   formatCalendarDate,
   firstIssueMessage,
   humanizeApiValidationMessage,
+  normalizeMalaysiaCountryValue,
   isProfileValidationError,
   issuesByField,
   restrictScPostcodeInput,
@@ -331,9 +332,13 @@ export function OrganizationProfilePanel({
   const isRegTankLockedDateOfBirth =
     org.profileFieldSources?.dateOfBirth?.source === "REGTANK" && Boolean(org.dateOfBirth);
   const isRegTankLockedGender =
-    org.profileFieldSources?.gender?.source === "REGTANK" && Boolean(org.gender);
+    org.profileFieldSources?.gender?.source === "REGTANK" &&
+    Boolean(org.gender) &&
+    String(org.gender).trim().toUpperCase() !== "UNSPECIFIED";
   const isRegTankLockedNationality =
-    org.profileFieldSources?.nationality?.source === "REGTANK" && Boolean(org.nationality);
+    org.profileFieldSources?.nationality?.source === "REGTANK" &&
+    Boolean(org.nationality) &&
+    String(org.nationality).trim().toUpperCase() !== "UNSPECIFIED";
   const aboutActivitiesRequired = isAboutYourBusinessFieldRequired("whatDoesCompanyDo");
   const aboutCustomersRequired = isAboutYourBusinessFieldRequired("mainCustomers");
   const companyTypeLabel = displayScCompanyTypeLabel(org.scCompanyType, basic?.entityType);
@@ -626,7 +631,11 @@ export function OrganizationProfilePanel({
                   ) : null}
                   <ReadField
                     label={countryIncorpLabel}
-                    value={org.countryOfIncorporation}
+                    value={
+                      org.countryOfIncorporation
+                        ? normalizeMalaysiaCountryValue(org.countryOfIncorporation)
+                        : null
+                    }
                     missing={requiredFieldKeys.has("countryOfIncorporation")}
                     required
                   />
@@ -987,7 +996,10 @@ export function OrganizationProfilePanel({
                     disabled={isRegTankLockedNationality}
                     required
                   />
-                  <ReadField label="Country" value={org.country} />
+                  <ReadField
+                    label="Country"
+                    value={org.country ? normalizeMalaysiaCountryValue(org.country) : null}
+                  />
                 </>
               ) : (
                 <>
@@ -1021,10 +1033,13 @@ export function OrganizationProfilePanel({
                   />
                   <ReadField
                     label={PROFILE_LABEL.nationality}
-                    value={org.nationality}
+                    value={normalizeMalaysiaCountryValue(org.nationality)}
                     missing={requiredFieldKeys.has("nationality")}
                   />
-                  <ReadField label="Country" value={org.country} />
+                  <ReadField
+                    label="Country"
+                    value={org.country ? normalizeMalaysiaCountryValue(org.country) : null}
+                  />
                 </>
               )}
             </div>

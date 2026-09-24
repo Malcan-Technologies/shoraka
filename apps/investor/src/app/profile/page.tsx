@@ -25,7 +25,7 @@ import {
   MALAYSIAN_BANKS,
 } from "@cashsouk/config";
 import type { ApplicationPersonRow } from "@cashsouk/types";
-import { filterVisiblePeopleRows, SC_GENDER_LABELS, SC_INDIVIDUAL_GENDERS, SC_MALAYSIAN_STATES, PROFILE_ADDRESS_FIELD_LABELS, PROFILE_ADDRESS_HELP, PROFILE_HELP, PROFILE_LABEL, formatCalendarDate, humanizeApiValidationMessage, isScPostcodeRequired, personalInvestorIdentityFormatKind, restrictScPostcodeInput, scAppendixASelectValues, storedProfilePhone, toCalendarDateInput, userFacingCompleteness, type ProfileFieldSources, type ScGender } from "@cashsouk/types";
+import { filterVisiblePeopleRows, SC_GENDER_LABELS, SC_INDIVIDUAL_GENDERS, SC_MALAYSIAN_STATES, PROFILE_ADDRESS_FIELD_LABELS, PROFILE_ADDRESS_HELP, PROFILE_HELP, PROFILE_LABEL, formatCalendarDate, humanizeApiValidationMessage, isScPostcodeRequired, normalizeMalaysiaCountryValue, personalInvestorIdentityFormatKind, restrictScPostcodeInput, scAppendixASelectValues, storedProfilePhone, toCalendarDateInput, userFacingCompleteness, type ProfileFieldSources, type ScGender } from "@cashsouk/types";
 import { useAuth } from "../../lib/auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccountDocuments } from "../../hooks/use-account-documents";
@@ -154,6 +154,33 @@ function formatGender(value: string | null | undefined): string {
   if (!value) return "—";
   const key = value.trim().toUpperCase();
   if (key in SC_GENDER_LABELS) return SC_GENDER_LABELS[key as ScGender];
+  return value;
+}
+
+function isIdentityFieldMeaningfullyMissing(
+  field: "dateOfBirth" | "gender" | "nationality",
+  value: string | null | undefined
+): boolean {
+  const trimmed = value?.trim();
+  if (!trimmed) return true;
+  const upper = trimmed.toUpperCase();
+
+  // RegTank can persist placeholder values even after onboarding completion.
+  // Treat those as missing so users can fill the real value.
+  if ((field === "gender" || field === "nationality") && upper === "UNSPECIFIED") return true;
+
+  if (field === "dateOfBirth") {
+    // Only treat ISO date strings that parse to a calendar date as "present".
+    return toCalendarDateInput(trimmed) === "";
+  }
+
+  return false;
+}
+
+function toMalaysiaCanonicalSelectableValue(value: string): string {
+  const upper = value.trim().toUpperCase();
+  // Canonical selectable value matches Appendix A spelling.
+  if (upper === "MY" || upper === "MYS" || upper === "MALAYSIA") return "MALAYSIA";
   return value;
 }
 
@@ -515,11 +542,14 @@ export default function ProfilePage() {
 
   const profileFieldSources = orgData?.profileFieldSources ?? ({} as ProfileFieldSources);
   const isRegTankLockedDateOfBirth =
-    profileFieldSources.dateOfBirth?.source === "REGTANK" && Boolean(orgData?.dateOfBirth);
+    profileFieldSources.dateOfBirth?.source === "REGTANK" &&
+    !isIdentityFieldMeaningfullyMissing("dateOfBirth", orgData?.dateOfBirth);
   const isRegTankLockedGender =
-    profileFieldSources.gender?.source === "REGTANK" && Boolean(orgData?.gender);
+    profileFieldSources.gender?.source === "REGTANK" &&
+    !isIdentityFieldMeaningfullyMissing("gender", orgData?.gender);
   const isRegTankLockedNationality =
-    profileFieldSources.nationality?.source === "REGTANK" && Boolean(orgData?.nationality);
+    profileFieldSources.nationality?.source === "REGTANK" &&
+    !isIdentityFieldMeaningfullyMissing("nationality", orgData?.nationality);
   const isRegTankLockedIdentityNumber =
     profileFieldSources.identityNumber?.source === "REGTANK" && Boolean(orgData?.documentNumber?.trim());
   const isRegTankLockedIdentityPrefix =
@@ -1150,7 +1180,11 @@ export default function ProfilePage() {
                             required
                           />
                           <Select
-                            value={nationality || undefined}
+                            value={
+                              nationality
+                                ? toMalaysiaCanonicalSelectableValue(nationality) || undefined
+                                : undefined
+                            }
                             onValueChange={setNationality}
                             disabled={isRegTankLockedNationality}
                           >
@@ -1158,9 +1192,15 @@ export default function ProfilePage() {
                               <SelectValue placeholder="Select" />
                             </SelectTrigger>
                             <SelectContent className="max-h-72">
-                              {scAppendixASelectValues(nationality).map((country) => (
+                              {Array.from(
+                                new Set(
+                                  scAppendixASelectValues(nationality).map((country) =>
+                                    toMalaysiaCanonicalSelectableValue(country)
+                                  )
+                                )
+                              ).map((country) => (
                                 <SelectItem key={country} value={country}>
-                                  {country}
+                                  {normalizeMalaysiaCountryValue(country)}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -1169,7 +1209,7 @@ export default function ProfilePage() {
                       ) : (
                         <ProfileReadField
                           label={PROFILE_LABEL.nationality}
-                          value={orgData?.nationality}
+                          value={normalizeMalaysiaCountryValue(orgData?.nationality)}
                           missing={missingFieldKeys.has("nationality")}
                           locked={isRegTankLockedNationality}
                           required

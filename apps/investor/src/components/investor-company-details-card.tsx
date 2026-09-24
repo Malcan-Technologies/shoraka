@@ -4,7 +4,7 @@ import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import { firstIssueMessage, formatCalendarDate, humanizeApiValidationMessage, isProfileValidationError, issuesByField, profileValidationErrorFromApi, PROFILE_LABEL, scAppendixASelectValues, toCalendarDateInput, validateInvestorCorporateForm } from "@cashsouk/types";
+import { firstIssueMessage, formatCalendarDate, humanizeApiValidationMessage, isProfileValidationError, issuesByField, normalizeMalaysiaCountryValue, profileValidationErrorFromApi, PROFILE_LABEL, scAppendixASelectValuesMalaysiaCanonicalized, toCalendarDateInput, toMalaysiaCanonicalSelectableValue, validateInvestorCorporateForm } from "@cashsouk/types";
 import { ComRepFieldLabel, ProfileFieldGrid, ProfileReadField } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -166,7 +166,7 @@ export function InvestorCompanyDetailsCard({
                 required
               />
               <Select
-                value={country || undefined}
+                value={country ? toMalaysiaCanonicalSelectableValue(country) ?? undefined : undefined}
                 onValueChange={(value) => {
                   setCountry(value);
                   setFieldErrors((current) => ({ ...current, countryOfIncorporation: "" }));
@@ -176,9 +176,9 @@ export function InvestorCompanyDetailsCard({
                   <SelectValue placeholder="Select" />
                 </SelectTrigger>
                 <SelectContent className="max-h-72">
-                  {scAppendixASelectValues(country).map((name) => (
+                  {scAppendixASelectValuesMalaysiaCanonicalized(country).map((name) => (
                     <SelectItem key={name} value={name}>
-                      {name}
+                      {normalizeMalaysiaCountryValue(name)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -190,7 +190,7 @@ export function InvestorCompanyDetailsCard({
           ) : (
             <ProfileReadField
               label={PROFILE_LABEL.countryOfIncorporation}
-              value={countryOfIncorporation || "—"}
+              value={countryOfIncorporation ? normalizeMalaysiaCountryValue(countryOfIncorporation) : "—"}
               locked={Boolean(countryOfIncorporation)}
               required
               missing={missing.has("countryOfIncorporation")}

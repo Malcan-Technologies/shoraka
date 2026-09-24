@@ -1,4 +1,4 @@
-import { getIssuerFinancialTabYears } from "@cashsouk/types";
+import { buildStoredApplicationFinancialYearBlock, getIssuerFinancialTabYears } from "@cashsouk/types";
 import {
   financialStatementsV2Schema,
   financialStatementsV2StoredSchema,
@@ -60,9 +60,27 @@ export function parseFinancialStatementsForStepSave(params: {
   if (!parsed.success) {
     return { ok: false, message: parsed.error.errors.map((e) => e.message).join("; ") };
   }
+
   const storedYears = storedUnauditedYearNumbers(params.storedFinancialStatements);
   const expectedYears = preserve && storedYears.length > 0
     ? storedYears
     : getIssuerFinancialTabYears(parsed.data.questionnaire, now);
-  return { ok: true, data: parsed.data, expectedYears };
+
+  // Return stored-normalized blocks (canonical keys present; missing numerics become 0 via
+  // buildStoredApplicationFinancialYearBlock) so callers/tests can reliably render diffs.
+  const normalizedUnauditedByYear: Record<string, unknown> = {};
+  for (const [year, block] of Object.entries(parsed.data.unaudited_by_year)) {
+    normalizedUnauditedByYear[year] = buildStoredApplicationFinancialYearBlock(
+      block as Record<string, unknown>
+    );
+  }
+
+  return {
+    ok: true,
+    data: {
+      ...parsed.data,
+      unaudited_by_year: normalizedUnauditedByYear as FinancialStatementsV2Stored["unaudited_by_year"],
+    },
+    expectedYears,
+  };
 }
