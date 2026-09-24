@@ -32,7 +32,6 @@ import {
   SC_MONTHLY_PERSON_KIND_LABELS,
   SC_SHARE_TYPE_LABELS,
   SC_SHARE_TYPES,
-  scAppendixASelectValues,
   scAppendixASelectValuesMalaysiaCanonicalized,
   toMalaysiaCanonicalSelectableValue,
   normalizeMalaysiaCountryValue,

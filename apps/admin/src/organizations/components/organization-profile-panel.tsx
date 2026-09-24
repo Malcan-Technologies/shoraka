@@ -631,7 +631,11 @@ export function OrganizationProfilePanel({
                   ) : null}
                   <ReadField
                     label={countryIncorpLabel}
-                    value={org.countryOfIncorporation}
+                    value={
+                      org.countryOfIncorporation
+                        ? normalizeMalaysiaCountryValue(org.countryOfIncorporation)
+                        : null
+                    }
                     missing={requiredFieldKeys.has("countryOfIncorporation")}
                     required
                   />
@@ -992,7 +996,10 @@ export function OrganizationProfilePanel({
                     disabled={isRegTankLockedNationality}
                     required
                   />
-                  <ReadField label="Country" value={org.country} />
+                  <ReadField
+                    label="Country"
+                    value={org.country ? normalizeMalaysiaCountryValue(org.country) : null}
+                  />
                 </>
               ) : (
                 <>
@@ -1029,7 +1036,10 @@ export function OrganizationProfilePanel({
                     value={normalizeMalaysiaCountryValue(org.nationality)}
                     missing={requiredFieldKeys.has("nationality")}
                   />
-                  <ReadField label="Country" value={org.country} />
+                  <ReadField
+                    label="Country"
+                    value={org.country ? normalizeMalaysiaCountryValue(org.country) : null}
+                  />
                 </>
               )}
             </div>

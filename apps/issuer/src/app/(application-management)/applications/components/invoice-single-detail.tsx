@@ -10,10 +10,12 @@ import {
   formatCurrency,
   badgeKeyToStatusToken,
   getStatusPresentationByBadgeKey,
+} from "@cashsouk/config";
+import {
   getIssuerOfferActionCtaFromOfferDetails,
   shouldShowIssuerReviewOfferCta,
   getOfferPhaseDeadlineDisplay,
-} from "@cashsouk/config";
+} from "@/lib/offer-utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -292,22 +294,29 @@ export function InvoiceSingleDetail({
               ) : null}
 
               {showReviewOffer && canReview ? (
-                <Button
-                  size="sm"
-                  variant={
-                    invoiceOfferActionCta.buttonVariant === "makeAmendments" ? "outline" : "default"
-                  }
-                  className={
-                    invoiceOfferActionCta.buttonVariant === "makeAmendments"
-                      ? "min-w-0 border-status-action-text/30 bg-status-action-bg px-2 text-status-action-text hover:bg-status-action-bg"
-                      : "min-w-0"
-                  }
-                  asChild
-                >
-                  <Link href={`/applications/${application.id}?tab=offer&invoiceId=${invoice.id}`}>
-                    {invoiceOfferActionCta.label}
-                  </Link>
-                </Button>
+                <div className="flex flex-col items-center gap-0.5">
+                  <Button
+                    size="sm"
+                    variant={
+                      invoiceOfferActionCta.buttonVariant === "makeAmendments" ? "outline" : "default"
+                    }
+                    className={
+                      invoiceOfferActionCta.buttonVariant === "makeAmendments"
+                        ? "min-w-0 border-status-action-text/30 bg-status-action-bg px-2 text-status-action-text hover:bg-status-action-bg"
+                        : "min-w-0"
+                    }
+                    asChild
+                  >
+                    <Link href={`/applications/${application.id}?tab=offer&invoiceId=${invoice.id}`}>
+                      {invoiceOfferActionCta.label}
+                    </Link>
+                  </Button>
+                  {offerDeadline && !offerDeadline.isPast ? (
+                    <p className="text-meta leading-4 text-center text-muted-foreground">
+                      {offerDeadline.summary}
+                    </p>
+                  ) : null}
+                </div>
               ) : showReviewOffer ? (
                 <Button size="sm" variant="outline" className="w-auto" disabled>
                   {invoiceOfferActionCta.label}

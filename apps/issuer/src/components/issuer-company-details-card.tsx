@@ -15,8 +15,10 @@ import {
   issuesByField,
   PROFILE_HELP,
   PROFILE_LABEL,
+  normalizeMalaysiaCountryValue,
   profileValidationErrorFromApi,
-  scAppendixASelectValues,
+  scAppendixASelectValuesMalaysiaCanonicalized,
+  toMalaysiaCanonicalSelectableValue,
   storedProfilePhone,
   toCalendarDateInput,
   validateIssuerCompanyForm,
@@ -303,7 +305,9 @@ export function IssuerCompanyDetailsCard({
           ) : (
             <ProfileReadField
               label={PROFILE_LABEL.countryOfIncorporation}
-              value={displayProfileValue(org.countryOfIncorporation)}
+              value={displayProfileValue(
+                org.countryOfIncorporation ? normalizeMalaysiaCountryValue(org.countryOfIncorporation) : null
+              )}
               locked={Boolean(org.countryOfIncorporation)}
               required
               missing={missing.has("countryOfIncorporation")}
@@ -451,14 +455,17 @@ function CountrySelectRow({
   return (
     <div className="space-y-2">
       <ComRepFieldLabel label={label} required={required} optional={!required} help={help} />
-      <Select value={value || undefined} onValueChange={onChange}>
+      <Select
+        value={value ? (toMalaysiaCanonicalSelectableValue(value) ?? undefined) : undefined}
+        onValueChange={onChange}
+      >
         <SelectTrigger id="field-countryOfIncorporation" className="h-11 text-ui">
           <SelectValue placeholder="Select" />
         </SelectTrigger>
         <SelectContent className="max-h-72">
-          {scAppendixASelectValues(value).map((country) => (
+          {scAppendixASelectValuesMalaysiaCanonicalized(value).map((country) => (
             <SelectItem key={country} value={country}>
-              {country}
+              {normalizeMalaysiaCountryValue(country)}
             </SelectItem>
           ))}
         </SelectContent>
