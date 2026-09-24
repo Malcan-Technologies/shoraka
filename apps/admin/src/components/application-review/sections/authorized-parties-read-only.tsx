@@ -60,7 +60,6 @@ function PartyItemActions({
   onRequestAmendmentItem?: (itemId: string, itemType?: ReviewItemType) => void;
   onResetItemToPending?: (itemId: string, itemType?: ReviewItemType) => void;
 }) {
-  const identityLockedToBusiness = block.entity_kind === "INDIVIDUAL_GUARANTOR";
   return (
     <div className="ml-auto flex shrink-0 items-center gap-2">
       {status !== "PENDING" ? (
@@ -79,12 +78,6 @@ function PartyItemActions({
           actionLockTooltip={actionLockTooltip}
           showReject={false}
           showRequestAmendment={status === "PENDING" || status === "APPROVED"}
-          requestAmendmentDisabled={identityLockedToBusiness}
-          requestAmendmentDisabledReason={
-            identityLockedToBusiness
-              ? "To change this person, request an amendment on Business & Guarantor Details."
-              : undefined
-          }
           requestAmendmentLabel="Request change"
           onApprove={(itemId) => onApproveItem(itemId, "authorized_representatives")}
           onRequestAmendment={(itemId) =>

@@ -77,6 +77,12 @@ import {
   loadIssuerDirectorPool,
   type ApplicationGuarantorForParties,
 } from "./authorized-parties";
+import {
+  flaggedIndividualGuarantorParties,
+  identityFromIndividualGuarantorParty,
+  buildIndividualGuarantorIdentityPatch,
+  prismaDataForIndividualGuarantorIdentityPatch,
+} from "./individual-guarantor-identity";
 import { buildApplicationRevisionSnapshot } from "./revision-snapshot";
 import { assertProductRulesForSubmit } from "./product-rules-on-submit";
 import {
@@ -660,6 +666,23 @@ export class ApplicationService {
         "Post-application documents are locked after the signing package is sent. Void the package to make changes."
       );
     }
+  }
+
+  private collectMutableIndividualGuarantorItemIds(application: Application): Set<string> {
+    if (this.resolveOfferAcceptancePhase(application) !== "CHANGES_REQUESTED") {
+      return new Set();
+    }
+    return collectFlaggedAuthorizedRepresentativeItemIds(
+      (
+        application as {
+          application_review_items?: {
+            item_type: string;
+            item_id: string;
+            status: string;
+          }[];
+        }
+      ).application_review_items
+    );
   }
 
   private resolveOfferAcceptancePhase(application: Application | null): string | null | undefined {
@@ -3653,6 +3676,38 @@ export class ApplicationService {
     );
   }
 
+  private async patchFlaggedIndividualGuarantorIdentityInTx(
+    tx: Prisma.TransactionClient,
+    applicationId: string,
+    parties: AuthorizedPartiesSnapshot["parties"],
+    flaggedItemIds: ReadonlySet<string>
+  ): Promise<void> {
+    for (const party of flaggedIndividualGuarantorParties(parties, flaggedItemIds)) {
+      const identity = identityFromIndividualGuarantorParty(party);
+      if (!identity) continue;
+      const row = await tx.applicationGuarantor.findFirst({
+        where: party.client_guarantor_id
+          ? { application_id: applicationId, client_guarantor_id: party.client_guarantor_id }
+          : { application_id: applicationId, id: party.application_guarantor_id },
+      });
+      if (!row || row.guarantor_type !== "individual") continue;
+      const patch = buildIndividualGuarantorIdentityPatch({
+        current: {
+          name: row.name,
+          email: row.email,
+          ic_number: row.ic_number,
+          source_data: row.source_data,
+          metadata: row.metadata,
+        },
+        next: identity,
+      });
+      await tx.applicationGuarantor.update({
+        where: { id: row.id },
+        data: prismaDataForIndividualGuarantorIdentityPatch(patch),
+      });
+    }
+  }
+
   private async persistAuthorizedRepresentativesOnAcceptanceSubmitInTx(
     tx: Prisma.TransactionClient,
     applicationId: string,
@@ -3678,11 +3733,18 @@ export class ApplicationService {
           })
         : [];
     if (previousStatus === "CHANGES_REQUESTED") {
+      const flaggedItemIds = collectFlaggedAuthorizedRepresentativeItemIds(partyReviewItems);
       assertUnflaggedAuthorizedPartiesUnchanged(
         previousAcceptance?.authorized_parties,
         authorizedParties.parties,
-        collectFlaggedAuthorizedRepresentativeItemIds(partyReviewItems),
+        flaggedItemIds,
         guarantors
+      );
+      await this.patchFlaggedIndividualGuarantorIdentityInTx(
+        tx,
+        applicationId,
+        authorizedParties.parties,
+        flaggedItemIds
       );
     }
     await this.resetAuthorizedRepresentativesReviewInTx(
@@ -3735,7 +3797,12 @@ export class ApplicationService {
       authorizedPartiesPayload.parties,
       directorPool,
       guarantors,
-      { issuerOrganizationId: application.issuer_organization_id, workflow }
+      {
+        issuerOrganizationId: application.issuer_organization_id,
+        workflow,
+        mutableIndividualGuarantorItemIds:
+          this.collectMutableIndividualGuarantorItemIds(application),
+      }
     );
     return {
       draft: stampAuthorizedPartiesSnapshot({
@@ -3941,7 +4008,12 @@ export class ApplicationService {
       authorizedPartiesPayload.parties,
       directorPool,
       guarantors,
-      { issuerOrganizationId: application.issuer_organization_id, workflow }
+      {
+        issuerOrganizationId: application.issuer_organization_id,
+        workflow,
+        mutableIndividualGuarantorItemIds:
+          this.collectMutableIndividualGuarantorItemIds(application),
+      }
     );
 
     const now = new Date().toISOString();
@@ -4126,7 +4198,12 @@ export class ApplicationService {
       authorizedPartiesPayload.parties,
       directorPool,
       guarantors,
-      { issuerOrganizationId: application.issuer_organization_id, workflow }
+      {
+        issuerOrganizationId: application.issuer_organization_id,
+        workflow,
+        mutableIndividualGuarantorItemIds:
+          this.collectMutableIndividualGuarantorItemIds(application),
+      }
     );
 
     const now = new Date().toISOString();

@@ -467,6 +467,32 @@ describe("assertGuarantorAuthorizedPartiesValid", () => {
     });
   });
 
+  it("keeps submitted individual identity when that guarantor list is flagged for change", () => {
+    const parties = [individualParty({ name: "Ali Edited", ic_number: "901212101234" })];
+    expect(() =>
+      assertGuarantorAuthorizedPartiesValid(parties, [INDIVIDUAL], new Set([
+        "authorized_representatives:guarantor:g_ind",
+      ]))
+    ).not.toThrow();
+    expect(parties[0]?.representatives[0]).toMatchObject({
+      name: "Ali Edited",
+      email: "ali.personal@co.my",
+      ic_number: "901212101234",
+    });
+  });
+
+  it("rejects a flagged individual identity without a 12-digit IC", () => {
+    expectAuthorizedPartiesInvalid(
+      () =>
+        assertGuarantorAuthorizedPartiesValid(
+          [individualParty({ name: "Ali Edited", ic_number: "12" })],
+          [INDIVIDUAL],
+          new Set(["authorized_representatives:guarantor:g_ind"])
+        ),
+      /12-digit IC/
+    );
+  });
+
   it("rejects a missing company representative list", () => {
     expectAuthorizedPartiesInvalid(
       () =>

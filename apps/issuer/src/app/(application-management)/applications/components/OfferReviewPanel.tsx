@@ -1762,7 +1762,7 @@ export function OfferReviewPanel({
                 {guarantorRows.some((guarantor) => guarantor.guarantor_type !== "company") ? (
                   <AuthorizedPartyTypeGroup
                     title="Individual guarantors"
-                    description="These people sign personally. Name, IC number, and email come from the application."
+                    description="These people sign personally. Everyone named here must sign."
                   >
                     {guarantorRows
                       .filter((guarantor) => guarantor.guarantor_type !== "company")
@@ -1772,16 +1772,28 @@ export function OfferReviewPanel({
                           guarantor,
                           guarantorRows
                         );
+                        const draft = guarantorDrafts.individualById[guarantor.id];
+                        const individualReadOnly =
+                          isStep1PartyCardReadOnly(partyItemId) ||
+                          !flaggedPartyItemIds.has(partyItemId);
                         return (
                           <IndividualGuarantorRepresentativesCard
                             key={guarantor.id}
                             entityId={guarantor.id}
-                            personName={guarantor.name?.trim() || ""}
-                            icNumber={guarantor.ic_number ?? ""}
-                            email={
-                              guarantorDrafts.individualEmailsById[guarantor.id] ??
-                              guarantor.email
-                            }
+                            personName={draft?.name ?? guarantor.name?.trim() ?? ""}
+                            icNumber={draft?.ic_number ?? guarantor.ic_number ?? ""}
+                            email={draft?.email ?? guarantor.email}
+                            readOnly={individualReadOnly}
+                            onChange={(next) => {
+                              guarantorPartiesDirtyRef.current = true;
+                              setGuarantorDrafts((prev) => ({
+                                ...prev,
+                                individualById: {
+                                  ...prev.individualById,
+                                  [guarantor.id]: next,
+                                },
+                              }));
+                            }}
                             highlighted={flaggedPartyItemIds.has(partyItemId)}
                             remark={partyRemarkByItemId.get(partyItemId) ?? null}
                             embedded

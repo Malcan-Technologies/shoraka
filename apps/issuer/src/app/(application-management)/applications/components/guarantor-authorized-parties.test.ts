@@ -38,8 +38,14 @@ const nora = {
   capacity: "authorised_signatory" as const,
 };
 
+const aliDraft = {
+  name: "Ali Bin Abu",
+  email: "ali@home.my",
+  ic_number: "820508105871",
+};
+
 describe("nextGuarantorPartyDrafts", () => {
-  it("defaults corporate to one empty row and individual to the application email", () => {
+  it("defaults corporate to one empty row and individual to the application identity", () => {
     expect(
       nextGuarantorPartyDrafts({
         snapshot: null,
@@ -49,7 +55,7 @@ describe("nextGuarantorPartyDrafts", () => {
       })
     ).toEqual({
       corporateRepsById: { g_co: [{ ...EMPTY_CORPORATE_REP }] },
-      individualEmailsById: { g_ind: "ali@home.my" },
+      individualById: { g_ind: aliDraft },
     });
   });
 
@@ -84,7 +90,7 @@ describe("nextGuarantorPartyDrafts", () => {
         guarantors: [company, individual],
         current: {
           corporateRepsById: { g_co: [{ ...EMPTY_CORPORATE_REP }] },
-          individualEmailsById: { g_ind: "ali@home.my" },
+          individualById: { g_ind: aliDraft },
         },
         dirty: false,
       })
@@ -92,7 +98,9 @@ describe("nextGuarantorPartyDrafts", () => {
       corporateRepsById: {
         g_co: [{ name: "Nora", email: "nora@holdco.my", ic_number: "880101015555" }],
       },
-      individualEmailsById: { g_ind: "ali.personal@co.my" },
+      individualById: {
+        g_ind: { name: "Ali Bin Abu", email: "ali.personal@co.my", ic_number: "820508105871" },
+      },
     });
   });
 
@@ -120,7 +128,7 @@ describe("nextGuarantorPartyDrafts", () => {
         guarantors: [liveCompany],
         current: {
           corporateRepsById: { new_co: [{ ...EMPTY_CORPORATE_REP }] },
-          individualEmailsById: {},
+          individualById: {},
         },
         dirty: false,
       })
@@ -151,7 +159,7 @@ describe("nextGuarantorPartyDrafts", () => {
           corporateRepsById: {
             g_co: [{ name: "Edited", email: "e@x.my", ic_number: "770202025555" }],
           },
-          individualEmailsById: {},
+          individualById: {},
         },
         dirty: true,
       })
@@ -160,13 +168,13 @@ describe("nextGuarantorPartyDrafts", () => {
 });
 
 describe("areGuarantorPartiesReady", () => {
-  it("requires a complete corporate name, email, and IC, and a valid individual email plus IC", () => {
+  it("requires a complete corporate name, email, and IC, and a valid individual identity", () => {
     expect(
       areGuarantorPartiesReady([company, individual], {
         corporateRepsById: {
           g_co: [{ name: "Nora", email: "nora@holdco.my", ic_number: "880101015555" }],
         },
-        individualEmailsById: { g_ind: "ali@home.my" },
+        individualById: { g_ind: aliDraft },
       })
     ).toBe(true);
     expect(
@@ -174,13 +182,19 @@ describe("areGuarantorPartiesReady", () => {
         corporateRepsById: {
           g_co: [{ name: "Nora", email: "nora@holdco.my", ic_number: "" }],
         },
-        individualEmailsById: {},
+        individualById: {},
       })
     ).toBe(false);
     expect(
       areGuarantorPartiesReady([company], {
         corporateRepsById: { g_co: [{ ...EMPTY_CORPORATE_REP }] },
-        individualEmailsById: {},
+        individualById: {},
+      })
+    ).toBe(false);
+    expect(
+      areGuarantorPartiesReady([individual], {
+        corporateRepsById: {},
+        individualById: { g_ind: { ...aliDraft, name: "" } },
       })
     ).toBe(false);
   });
@@ -194,7 +208,9 @@ describe("buildAuthorizedPartiesSubmitPayload", () => {
       guarantors: [company, individual],
       drafts: {
         corporateRepsById: { g_co: [nora] },
-        individualEmailsById: { g_ind: "ali.personal@co.my" },
+        individualById: {
+          g_ind: { name: "Ali Edited", email: "ali.personal@co.my", ic_number: "901212101234" },
+        },
       },
       sealApplierMatchKey: "820508105871",
     });
@@ -214,9 +230,9 @@ describe("buildAuthorizedPartiesSubmitPayload", () => {
       application_guarantor_id: "g_ind",
       representatives: [
         {
-          name: "Ali Bin Abu",
+          name: "Ali Edited",
           email: "ali.personal@co.my",
-          ic_number: "820508105871",
+          ic_number: "901212101234",
           capacity: "authorised_signatory",
         },
       ],
@@ -230,7 +246,7 @@ describe("buildAuthorizedPartiesSubmitPayload", () => {
       guarantors: [company],
       drafts: {
         corporateRepsById: { g_co: [nora] },
-        individualEmailsById: {},
+        individualById: {},
       },
       sealApplierMatchKey: "820508105871",
     });

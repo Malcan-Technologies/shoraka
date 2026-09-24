@@ -22,9 +22,15 @@ export type CorporateRepDraft = {
   ic_number: string;
 };
 
+export type IndividualGuarantorDraft = {
+  name: string;
+  email: string;
+  ic_number: string;
+};
+
 export type GuarantorPartyDrafts = {
   corporateRepsById: Record<string, CorporateRepDraft[]>;
-  individualEmailsById: Record<string, string>;
+  individualById: Record<string, IndividualGuarantorDraft>;
 };
 
 export const EMPTY_CORPORATE_REP: CorporateRepDraft = {
@@ -34,7 +40,7 @@ export const EMPTY_CORPORATE_REP: CorporateRepDraft = {
 };
 
 export function emptyGuarantorPartyDrafts(): GuarantorPartyDrafts {
-  return { corporateRepsById: {}, individualEmailsById: {} };
+  return { corporateRepsById: {}, individualById: {} };
 }
 
 export function isBlankCorporateRep(rep: CorporateRepDraft): boolean {
@@ -82,6 +88,18 @@ function repsFromParty(party: AuthorizedParty | null): CorporateRepDraft[] | nul
   }));
 }
 
+function individualDraftFromSources(
+  guarantor: ApplicationGuarantorRow,
+  party: AuthorizedParty | null
+): IndividualGuarantorDraft {
+  const rep = party?.entity_kind === "INDIVIDUAL_GUARANTOR" ? party.representatives[0] : undefined;
+  return {
+    name: String(rep?.name ?? guarantor.name ?? "").trim(),
+    email: normalizeSigningEmail(rep?.email || guarantor.email),
+    ic_number: normalizeSigningIcNumber(String(rep?.ic_number ?? guarantor.ic_number ?? "")),
+  };
+}
+
 function sameCorporateReps(left: CorporateRepDraft[], right: CorporateRepDraft[]): boolean {
   return (
     left.length === right.length &&
@@ -91,6 +109,14 @@ function sameCorporateReps(left: CorporateRepDraft[], right: CorporateRepDraft[]
         row.email === right[index]?.email &&
         row.ic_number === right[index]?.ic_number
     )
+  );
+}
+
+function sameIndividualDraft(left: IndividualGuarantorDraft | undefined, right: IndividualGuarantorDraft): boolean {
+  return (
+    (left?.name ?? "") === right.name &&
+    (left?.email ?? "") === right.email &&
+    (left?.ic_number ?? "") === right.ic_number
   );
 }
 
@@ -109,10 +135,7 @@ function sameDrafts(
       ) {
         return false;
       }
-    } else if (
-      (current.individualEmailsById[guarantor.id] ?? "") !==
-      (next.individualEmailsById[guarantor.id] ?? "")
-    ) {
+    } else if (!sameIndividualDraft(current.individualById[guarantor.id], next.individualById[guarantor.id]!)) {
       return false;
     }
   }
@@ -128,7 +151,7 @@ export function nextGuarantorPartyDrafts(input: {
 }): GuarantorPartyDrafts | null {
   if (input.dirty) return null;
   const corporateRepsById: Record<string, CorporateRepDraft[]> = {};
-  const individualEmailsById: Record<string, string> = {};
+  const individualById: Record<string, IndividualGuarantorDraft> = {};
   for (const guarantor of input.guarantors) {
     const party = partyForGuarantor(input.snapshot, guarantor, input.guarantors);
     if (guarantor.guarantor_type === "company") {
@@ -137,13 +160,10 @@ export function nextGuarantorPartyDrafts(input: {
         input.current.corporateRepsById[guarantor.id] ??
         [{ ...EMPTY_CORPORATE_REP }];
     } else {
-      individualEmailsById[guarantor.id] =
-        party?.representatives[0]?.email ||
-        input.current.individualEmailsById[guarantor.id] ||
-        guarantor.email;
+      individualById[guarantor.id] = individualDraftFromSources(guarantor, party);
     }
   }
-  const next = { corporateRepsById, individualEmailsById };
+  const next = { corporateRepsById, individualById };
   return sameDrafts(input.current, next, input.guarantors) ? null : next;
 }
 
@@ -158,10 +178,11 @@ export function areGuarantorPartiesReady(
       );
       if (filled.length === 0 || !filled.every(isCompleteCorporateRep)) return false;
     } else {
-      const email = drafts.individualEmailsById[guarantor.id] ?? guarantor.email;
-      if (!isValidPartyEmail(email)) return false;
-      if (!String(guarantor.name ?? "").trim()) return false;
-      if (!isValidSigningIcNumber(guarantor.ic_number)) return false;
+      const draft = drafts.individualById[guarantor.id];
+      const name = (draft?.name ?? guarantor.name ?? "").trim();
+      const email = draft?.email ?? guarantor.email;
+      const ic = draft?.ic_number ?? guarantor.ic_number;
+      if (!name || !isValidPartyEmail(email) || !isValidSigningIcNumber(ic)) return false;
     }
   }
   return true;
@@ -201,6 +222,7 @@ export function buildAuthorizedPartiesSubmitPayload(input: {
       });
       continue;
     }
+    const draft = input.drafts.individualById[guarantor.id];
     guarantorParties.push({
       key: guarantor.client_guarantor_id || guarantor.id,
       entity_kind: "INDIVIDUAL_GUARANTOR",
@@ -210,11 +232,11 @@ export function buildAuthorizedPartiesSubmitPayload(input: {
         : {}),
       representatives: [
         {
-          name: String(guarantor.name ?? "").trim(),
-          email: normalizeSigningEmail(
-            input.drafts.individualEmailsById[guarantor.id] ?? guarantor.email
+          name: String(draft?.name ?? guarantor.name ?? "").trim(),
+          email: normalizeSigningEmail(draft?.email ?? guarantor.email),
+          ic_number: normalizeSigningIcNumber(
+            String(draft?.ic_number ?? guarantor.ic_number ?? "")
           ),
-          ic_number: normalizeSigningIcNumber(String(guarantor.ic_number ?? "")),
           capacity: "authorised_signatory",
         },
       ],

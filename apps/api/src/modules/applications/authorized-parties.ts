@@ -4,6 +4,7 @@
  */
 
 import {
+  authorizedRepresentativeReviewItemId,
   isGuarantorAuthorizedParty,
   isValidSigningIcNumber,
   issuerSealApplierIssue,
@@ -173,6 +174,8 @@ function requireMatchingIssuerDirector(
 
 export type AuthorizedPartiesValidationOptions = {
   requireSealApplier?: boolean;
+  /** Flagged `authorized_representatives:guarantor:…` items may submit a new name/IC/email. */
+  mutableIndividualGuarantorItemIds?: ReadonlySet<string>;
 };
 
 export function assertIssuerAuthorizedPartiesValid(
@@ -296,19 +299,26 @@ function assertCorporateGuarantorPartyValid(party: AuthorizedPartyCorporateGuara
 
 function assertIndividualGuarantorPartyValid(
   party: AuthorizedPartyIndividualGuarantor,
-  row: ApplicationGuarantorForParties
+  row: ApplicationGuarantorForParties,
+  identityMutable: boolean
 ): void {
   if (party.representatives.length !== 1) {
     throwAuthorizedPartiesInvalid("Each individual guarantor must sign as themselves.");
   }
-  const name = String(row.name ?? "").trim();
-  const ic = normalizeSigningIcNumber(String(row.ic_number ?? ""));
+  const representative = party.representatives[0]!;
+  const name = identityMutable
+    ? representative.name.trim()
+    : String(row.name ?? "").trim();
+  const ic = identityMutable
+    ? normalizeSigningIcNumber(representative.ic_number)
+    : normalizeSigningIcNumber(String(row.ic_number ?? ""));
   if (!name || !isValidSigningIcNumber(ic)) {
     throwAuthorizedPartiesInvalid(
-      "Each individual guarantor must have a name and 12-digit IC on the application."
+      identityMutable
+        ? "Each individual guarantor must have a name and 12-digit IC number."
+        : "Each individual guarantor must have a name and 12-digit IC on the application."
     );
   }
-  const representative = party.representatives[0]!;
   const email = normalizeSigningEmail(representative.email);
   if (!email) {
     throwAuthorizedPartiesInvalid("Each individual guarantor needs a valid email.");
@@ -321,7 +331,8 @@ function assertIndividualGuarantorPartyValid(
 
 export function assertGuarantorAuthorizedPartiesValid(
   parties: AuthorizedParty[],
-  guarantors: ApplicationGuarantorForParties[]
+  guarantors: ApplicationGuarantorForParties[],
+  mutableIndividualGuarantorItemIds?: ReadonlySet<string>
 ): void {
   const guarantorParties = parties.filter(isGuarantorAuthorizedParty);
   const resolvedRows: ApplicationGuarantorForParties[] = [];
@@ -374,7 +385,13 @@ export function assertGuarantorAuthorizedPartiesValid(
       if (party.entity_kind !== "INDIVIDUAL_GUARANTOR") {
         throwAuthorizedPartiesInvalid("Individual guarantors must sign as themselves.");
       }
-      assertIndividualGuarantorPartyValid(party, row);
+      assertIndividualGuarantorPartyValid(
+        party,
+        row,
+        Boolean(
+          mutableIndividualGuarantorItemIds?.has(authorizedRepresentativeReviewItemId(party))
+        )
+      );
     }
   }
 }
@@ -386,7 +403,11 @@ export function assertAuthorizedPartiesValid(
   options?: AuthorizedPartiesValidationOptions
 ): void {
   assertIssuerAuthorizedPartiesValid(parties, pool, options);
-  assertGuarantorAuthorizedPartiesValid(parties, guarantors);
+  assertGuarantorAuthorizedPartiesValid(
+    parties,
+    guarantors,
+    options?.mutableIndividualGuarantorItemIds
+  );
 }
 
 export async function assertIssuerSealReadyForPackage(
@@ -419,9 +440,15 @@ export async function assertAuthorizedPartiesForOffer(
   parties: AuthorizedParty[],
   pool: IssuerDirectorPoolEntry[],
   guarantors: ApplicationGuarantorForParties[],
-  context: { issuerOrganizationId: string; workflow: unknown }
+  context: {
+    issuerOrganizationId: string;
+    workflow: unknown;
+    mutableIndividualGuarantorItemIds?: ReadonlySet<string>;
+  }
 ): Promise<void> {
-  assertAuthorizedPartiesValid(parties, pool, guarantors);
+  assertAuthorizedPartiesValid(parties, pool, guarantors, {
+    mutableIndividualGuarantorItemIds: context.mutableIndividualGuarantorItemIds,
+  });
   await assertIssuerSealRequirements(parties, context.issuerOrganizationId, context.workflow);
 }
 

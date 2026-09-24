@@ -183,7 +183,7 @@ Shown when `isOfferAcceptanceDocumentsVisibleToAdmin` (not draft `PENDING_ISSUER
 
 - **Grouped blocks** — issuer / corporate guarantor / individual guarantor — name, capacity (issuer), email, IC — Issuer response.
 - **Status badge** — not `PENDING`; amendment label “Changes Requested” — Issuer response.
-- **Item Action** — reviewable + handlers; **Reject hidden**; Request change only if `PENDING` or `APPROVED`; label “Request change”; individual guarantor **Request change disabled** (“To change this person, request an amendment on Business & Guarantor Details.”); Approve / Set to Pending — item type `authorized_representatives` via `acceptanceHubItemType`; amendment uses `useRequestAmendmentReviewItem` (not pending-list) when id starts `authorized_representatives:` — Issuer response.
+- **Item Action** — reviewable + handlers; **Reject hidden**; Request change only if `PENDING` or `APPROVED`; label “Request change”; individual guarantor Request change uses the same path as issuer / corporate lists (issuer then edits name, IC, email; resubmit writes `application_guarantors`); Approve / Set to Pending — item type `authorized_representatives` via `acceptanceHubItemType`; amendment uses `useRequestAmendmentReviewItem` (not pending-list) when id starts `authorized_representatives:` — Issuer response.
 - **Empty** — no blocks → component returns null — Issuer response.
 
 ### Acceptance documents (`DocumentsSection` embedded)
