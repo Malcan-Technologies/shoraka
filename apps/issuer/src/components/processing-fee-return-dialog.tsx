@@ -25,7 +25,6 @@ import {
   OnboardingFeeFailureView,
   OnboardingFeeUnderReviewView,
 } from "@/components/onboarding-fee-return-views";
-import { FeeReceiptActions } from "@/components/fee-receipt-actions";
 
 const SUCCESS_REDIRECT_DELAY_MS = 2_500;
 
@@ -172,10 +171,6 @@ export function ProcessingFeeReturnDialog({
               onContinue={() => {
                 router.replace("/applications");
               }}
-            />
-            <FeeReceiptActions
-              endpoint={`/v1/applications/${applicationId}/processing-fee/${feeId}/receipt/pdf`}
-              receiptActionLabel="application fee receipt"
             />
           </>
         ) : null}

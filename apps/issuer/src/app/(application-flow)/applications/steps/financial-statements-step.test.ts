@@ -134,4 +134,12 @@ describe("issuer application Financial Statements step", () => {
     expect(source).toContain("financialStatementsContinueHint");
     expect(source).toContain("saveHint: continueHint");
   });
+
+  it("fails Save/Continue when any required money field is blank", () => {
+    expect(source).toContain("const YEAR_MONEY_FIELDS");
+    expect(source).toContain("for (const k of YEAR_MONEY_FIELDS");
+    expect(source).toContain("if (!hasValue(form[k])) return false;");
+    expect(source).toContain("for (const k of COMREP_REQUIRED_DETAIL_KEYS");
+    expect(source).toContain("if (!hasValue(form[k])) return false;");
+  });
 });

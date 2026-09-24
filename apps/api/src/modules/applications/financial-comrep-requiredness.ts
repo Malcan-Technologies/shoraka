@@ -1,9 +1,9 @@
 import {
   APPLICATION_COMREP_DETAIL_KEYS,
   FINANCIAL_FIELD_LABELS,
-  APPLICATION_COMREP_OPTIONAL_KEYS,
+  APPLICATION_CORE_MONEY_KEYS,
+  APPLICATION_EXTRA_ISSUER_RAW_MONEY_KEYS,
   isIssuerFinancialFieldRequired,
-  type ApplicationComrepDetailKey,
 } from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
 
@@ -17,7 +17,13 @@ function isBlankOrNonFinite(value: unknown): boolean {
 export function assertRequiredFinancialComrepFieldsPresentOrThrow(block: Record<string, unknown>): void {
   // Enforce "must be provided" for SC-required columns.
   // The SC manual explicitly marks a subset as "(if applicable)" — those remain optional.
-  for (const key of APPLICATION_COMREP_DETAIL_KEYS as readonly ApplicationComrepDetailKey[]) {
+  const keysToValidate = [
+    ...APPLICATION_CORE_MONEY_KEYS,
+    ...APPLICATION_EXTRA_ISSUER_RAW_MONEY_KEYS,
+    ...APPLICATION_COMREP_DETAIL_KEYS,
+  ] as const;
+
+  for (const key of keysToValidate) {
     // Prefer the canonical helper to determine SC required-vs-(if applicable).
     if (!isIssuerFinancialFieldRequired(key)) continue;
 
@@ -28,7 +34,5 @@ export function assertRequiredFinancialComrepFieldsPresentOrThrow(block: Record<
     }
   }
 
-  // Keep lint happy (these constants are used indirectly via helper predicates).
-  void APPLICATION_COMREP_OPTIONAL_KEYS;
 }
 

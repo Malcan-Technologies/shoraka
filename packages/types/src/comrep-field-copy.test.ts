@@ -6,6 +6,7 @@ import {
   SC_MONTHLY_BOARD,
   SC_MONTHLY_INVESTOR,
   SC_MONTHLY_SHAREHOLDER,
+  SC_MONTHLY_ISSUER_FINANCIAL_LABELS,
 } from "./comrep-field-copy";
 
 describe("SC ComRep field copy", () => {
@@ -45,5 +46,16 @@ describe("SC ComRep field copy", () => {
     const copy = monthlyIssuerPersonCopy({ shareholder: false, officer: true });
     expect(copy.identity.label).toBe("Identity Number");
     expect(copy.includeRocPrefix).toBe(false);
+  });
+
+  it("uses '(if applicable)' labels only for the 3 equity optional fields", () => {
+    const optionalKeys = Object.entries(SC_MONTHLY_ISSUER_FINANCIAL_LABELS)
+      .filter(([, label]) => label.includes("(if applicable)"))
+      .map(([key]) => key)
+      .sort();
+
+    expect(optionalKeys).toEqual(
+      ["equity_share_application", "equity_share_premium", "equity_minority"].sort()
+    );
   });
 });

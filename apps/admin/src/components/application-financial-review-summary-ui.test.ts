@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 describe("Admin Financial Summary table UI", () => {
   const tablePath = join(__dirname, "application-financial-review-content.tsx");
+  const comparisonPath = join(__dirname, "application-financial-review-comparison.tsx");
   const addModalPath = join(
     __dirname,
     "../notes/prospectus-review/admin-add-financial-statement-dialog.tsx"
@@ -347,6 +348,44 @@ describe("Admin Financial Summary table UI", () => {
     expect(source).not.toContain("turnover_growth");
     expect(source).not.toContain("receivablesDays");
     expect(source).not.toContain("profit_margin");
+  });
+
+  it("shows '(if applicable)' marker only for the 3 optional equity fields (modals)", () => {
+    const addSource = readFileSync(addModalPath, "utf8");
+    const editSource = readFileSync(modalPath, "utf8");
+
+    for (const src of [addSource, editSource]) {
+      const count = src.match(/\(if applicable\)/g)?.length ?? 0;
+      expect(count).toBe(3);
+
+      expect(src).toContain("Share Application Account (if applicable)");
+      expect(src).toContain("Share Premium & Other Reserves (if applicable)");
+      expect(src).toContain("Equity Minority Interest (if applicable)");
+      expect(src).not.toContain("Cash & Bank (if applicable)");
+      expect(src).not.toContain("Trade Receivables (if applicable)");
+    }
+  });
+
+  it("shows '(if applicable)' marker only for the 3 optional equity fields (review table)", () => {
+    const contentSource = readFileSync(tablePath, "utf8");
+    const count = contentSource.match(/\(if applicable\)/g)?.length ?? 0;
+    expect(count).toBe(3);
+    expect(contentSource).toContain("Share Application Account (if applicable)");
+    expect(contentSource).toContain("Share Premium & Other Reserves (if applicable)");
+    expect(contentSource).toContain("Equity Minority Interest (if applicable)");
+  });
+
+  it("shows '(if applicable)' marker only for the 3 optional equity fields (resubmit comparison)", () => {
+    const comparisonSource = readFileSync(comparisonPath, "utf8");
+    const count = comparisonSource.match(/\(if applicable\)/g)?.length ?? 0;
+    expect(count).toBeGreaterThan(0);
+    // Ensure optional logic is applied only to the 3 equity fields.
+    expect(comparisonSource).toContain('"equity_share_application"');
+    expect(comparisonSource).toContain('"equity_share_premium"');
+    expect(comparisonSource).toContain('"equity_minority"');
+    expect(comparisonSource).toContain('return `${base} (if applicable)`;');
+    // Ensure we didn't leave the old "Optional" badge wording behind.
+    expect(comparisonSource).not.toContain("Optional");
   });
 });
 

@@ -667,10 +667,10 @@ export function ApplicationFinancialReviewContent({
       isTotal: true,
     },
     bsqpuc: { label: "Paid-up Share Capital" },
-    equity_share_application: { label: "Share Application Account" },
-    equity_share_premium: { label: "Share Premium & Other Reserves" },
+    equity_share_application: { label: "Share Application Account (if applicable)" },
+    equity_share_premium: { label: "Share Premium & Other Reserves (if applicable)" },
     equity_accumulated_profit: { label: "Accumulated Profit / Loss" },
-    equity_minority: { label: "Equity Minority Interest" },
+    equity_minority: { label: "Equity Minority Interest (if applicable)" },
     networth: {
       label: "Total Equity / Net Worth",
       formulaHint: "Total Assets − Total Liabilities",

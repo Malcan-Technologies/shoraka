@@ -106,19 +106,32 @@ export const APPLICATION_CORE_MONEY_KEYS = [
  * This list preserves the original required set from origin/main.
  */
 export const APPLICATION_CORE_MONEY_REQUIRED_KEYS = [
+  // Financial year-money raw inputs that must be present for Save/Continue.
+  // Blank should be rejected by the frontend + backend; `0` remains valid.
   "bsfatot",
   "othass",
   "bscatot",
   "bsclbank",
+  "cashAndBank",
+  "tradeReceivables",
   "curlib",
   "bsslltd",
   "bsclstd",
   "bsqpuc",
+  "tradePayables",
   "turnover",
+  "grossProfit",
+  "ebitda",
   "plnpbt",
   "plnpat",
   "plnetdiv",
   "plyear",
+  "operatingCashFlow",
+  "freeCashFlow",
+  // Additional issuer raw inputs used by calculated metrics.
+  "costOfSales",
+  "netOperatingIncome",
+  "annualDebtService",
 ] as const;
 
 /**
