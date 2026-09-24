@@ -56,7 +56,7 @@ describe("prospectus Page 2 Financial Comparison Source (DATA STAGE 4A)", () => 
     );
   });
 
-  it("gives CTOS precedence when the same FY appears in unaudited", () => {
+  it("uses reviewed User Input precedence when the same FY appears in unaudited", () => {
     const data = buildProspectusFinancialComparisonSource({
       financialStatements: {
         questionnaire: { financial_year_end: "2025-12-31" },
@@ -69,8 +69,8 @@ describe("prospectus Page 2 Financial Comparison Source (DATA STAGE 4A)", () => 
       ref: new Date("2025-03-01T00:00:00.000Z"),
     });
     expect(data.years.map((y) => y.year)).toEqual([2023, 2024, 2025]);
-    expect(data.years.every((y) => y.recordSource === "ctos_audited")).toBe(true);
-    expect(data.years.find((y) => y.year === 2024)?.rawFinancials.turnover).toBe(9_999);
+    expect(data.years.find((y) => y.year === 2024)?.recordSource).toBe("unaudited_management");
+    expect(data.years.find((y) => y.year === 2024)?.rawFinancials.turnover).toBe(100);
   });
 
   it("fills a missing CTOS raw field from admin_field_overrides and ignores a CTOS overwrite", () => {
@@ -106,7 +106,7 @@ describe("prospectus Page 2 Financial Comparison Source (DATA STAGE 4A)", () => 
     expect(fy?.rawFinancials.cashAndBank).toBe(500000);
   });
 
-  it("does not overlay issuer unaudited values into CTOS-backed FYs", () => {
+  it("does not overlay issuer unaudited values into CTOS-backed FYs for fields not overridden by User Input", () => {
     const ctosRowWithTradeReceivables = (
       year: number,
       turnover: number,
@@ -137,15 +137,15 @@ describe("prospectus Page 2 Financial Comparison Source (DATA STAGE 4A)", () => 
       ctosFinancials: [
         ctosRowWithTradeReceivables(2023, 2023 * 100_000, 1_111),
         ctosRowWithTradeReceivables(2024, 2024 * 100_000, 2_222),
-        // FY2025 is CTOS-backed and must not be overwritten by issuer overlay.
+        // FY2025 has issuer unaudited values; it should resolve from reviewed User Input.
         ctosRowWithTradeReceivables(2025, 2025 * 100_000, 10),
       ],
       ref: new Date("2026-03-01T00:00:00.000Z"),
     });
 
     const fy2025 = data.years.find((y) => y.year === 2025);
-    expect(fy2025?.recordSource).toBe("ctos_audited");
-    expect(fy2025?.rawFinancials.tradeReceivables).toBe(10);
+    expect(fy2025?.recordSource).toBe("unaudited_management");
+    expect(fy2025?.rawFinancials.tradeReceivables).toBe(999);
   });
 
   it("does not overlay issuer unaudited values into Admin-input-backed FYs", () => {

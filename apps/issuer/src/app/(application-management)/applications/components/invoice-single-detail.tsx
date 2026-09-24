@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { EllipsisVerticalIcon, ArrowDownTrayIcon } from "@heroicons/react/24/outline";
-import { StatusBadge } from "@cashsouk/ui";
+import { KeyValueGrid, StatusBadge } from "@cashsouk/ui";
 import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
 import { formatCalendarDate, type WithdrawReason } from "@cashsouk/types";
 import {
@@ -263,7 +263,7 @@ export function InvoiceSingleDetail({
 
   return (
     <>
-      <div className="rounded-2xl border border-border bg-card px-4 py-4">
+      <div className="px-6 py-5">
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-1">
@@ -416,37 +416,41 @@ export function InvoiceSingleDetail({
           ) : null}
 
           <div className="space-y-4">
-            <div className="grid grid-cols-1 gap-x-10 gap-y-4 sm:grid-cols-2">
-              <div className="space-y-3">
-                <div className="space-y-1">
-                  <p className="text-meta text-muted-foreground">Invoice Value</p>
-                  <IssuerInvoiceCurrencyCell amount={invoice.value} />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-meta text-muted-foreground">Financing Offered</p>
-                  <IssuerInvoiceCurrencyCellFromFormatted
-                    formatted={invoice.financingOffered}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="space-y-1">
-                  <p className="text-meta text-muted-foreground">Applied Financing</p>
-                  <IssuerInvoiceCurrencyCell amount={invoice.appliedFinancing} />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-meta text-muted-foreground">
-                    Profit rate{" "}
-                    <InfoTooltip
-                      content={PROFIT_RATE_HEADER_TOOLTIP}
-                      iconClassName="h-3.5 w-3.5 shrink-0"
+            <KeyValueGrid
+              columns={2}
+              items={[
+                {
+                  label: "Invoice Value",
+                  value: <IssuerInvoiceCurrencyCell amount={invoice.value} />,
+                },
+                {
+                  label: "Financing Offered",
+                  value: (
+                    <IssuerInvoiceCurrencyCellFromFormatted
+                      formatted={invoice.financingOffered}
                     />
-                  </p>
-                  <p className="text-ui tabular-nums">{invoice.profitRate}</p>
-                </div>
-              </div>
-            </div>
+                  ),
+                },
+                {
+                  label: "Applied Financing",
+                  value: (
+                    <IssuerInvoiceCurrencyCell amount={invoice.appliedFinancing} />
+                  ),
+                },
+                {
+                  label: (
+                    <span className="inline-flex items-center gap-1.5">
+                      Profit rate{" "}
+                      <InfoTooltip
+                        content={PROFIT_RATE_HEADER_TOOLTIP}
+                        iconClassName="h-3.5 w-3.5 shrink-0"
+                      />
+                    </span>
+                  ),
+                  value: <span className="text-ui tabular-nums">{invoice.profitRate}</span>,
+                },
+              ]}
+            />
 
             <div className="space-y-3">
               <div className="space-y-1">
