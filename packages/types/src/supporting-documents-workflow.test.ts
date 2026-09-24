@@ -12,6 +12,7 @@ import {
   serializeFacilityLockedCategorySettings,
   stripFacilityLockedSupportingDocuments,
   supportingDocCategoryKeyFromLabel,
+  supportingDocScopeKeyMatchesRow,
   supportingDocumentCategoryEntries,
 } from "./supporting-documents-workflow";
 
@@ -130,6 +131,49 @@ describe("facility-locked supporting document config", () => {
     expect(
       isFacilityLockedSupportingDocumentItem("supporting_documents:legal_docs:0:Deed_of_Assignment", ["legal_docs"])
     ).toBe(true);
+  });
+
+  it("matches supporting-document item keys with and without :doc: and slug suffix drift", () => {
+    expect(
+      supportingDocScopeKeyMatchesRow(
+        "supporting_documents:financial_docs:0:Latest_Management_Account",
+        "financial_docs",
+        0,
+        "Latest_Management_Account"
+      )
+    ).toBe(true);
+    expect(
+      supportingDocScopeKeyMatchesRow(
+        "supporting_documents:doc:financial_docs:0:Latest_Management_Account",
+        "financial_docs",
+        0,
+        "Latest_Management_Account"
+      )
+    ).toBe(true);
+    expect(
+      supportingDocScopeKeyMatchesRow(
+        "supporting_documents:financial_docs:0:Latest_Mgmt_Acct",
+        "financial_docs",
+        0,
+        "Latest_Management_Account"
+      )
+    ).toBe(true);
+    expect(
+      supportingDocScopeKeyMatchesRow(
+        "supporting_documents:financial_docs:1:Latest_Management_Account",
+        "financial_docs",
+        0,
+        "Latest_Management_Account"
+      )
+    ).toBe(false);
+    expect(
+      supportingDocScopeKeyMatchesRow(
+        "supporting_documents:legal_docs:0:Deed_of_Assignment",
+        "financial_docs",
+        0,
+        "Latest_Management_Account"
+      )
+    ).toBe(false);
   });
 });
 

@@ -65,6 +65,12 @@ import {
   resolveAcceptanceDocumentReviewKeysToResetOnSubmit,
 } from "./acceptance-document-issuer-lock";
 import {
+  assertSupportingDocumentSlotEditable,
+  findChangedSupportingDocumentSlots,
+  findSupportingDocumentSlotForS3Key,
+  hasSupportingDocumentItemLocks,
+} from "./supporting-document-issuer-lock";
+import {
   AUTHORIZED_REPRESENTATIVES_ITEM_TYPE,
   assertUnflaggedAuthorizedPartiesUnchanged,
   authorizedRepresentativeReviewItemIdRemap,
@@ -1524,8 +1530,10 @@ export class ApplicationService {
       }
 
       /** Enforce amendment boundaries: only flagged sections/items can be updated. */
+      let amendmentAllowedItemKeys: Set<string> | null = null;
       if ((application as any).status === "AMENDMENT_REQUESTED") {
-        const { allowedSections } = await getAmendmentAllowedSections(id);
+        const { allowedSections, allowedItemKeys } = await getAmendmentAllowedSections(id);
+        amendmentAllowedItemKeys = allowedItemKeys;
         if (!allowedSections.has(fieldName)) {
           throw new AppError(
             403,
@@ -1853,6 +1861,22 @@ export class ApplicationService {
       }
 
       if (fieldName === "supporting_documents") {
+        if (
+          (application as { status?: string }).status === "AMENDMENT_REQUESTED" &&
+          amendmentAllowedItemKeys
+        ) {
+          const changedSlots = findChangedSupportingDocumentSlots(
+            application.supporting_documents,
+            input.data
+          );
+          for (const slot of changedSlots) {
+            assertSupportingDocumentSlotEditable(
+              slot.categoryKey,
+              slot.documentIndex,
+              amendmentAllowedItemKeys
+            );
+          }
+        }
         const existingKeys = this.extractS3KeysFromSupportingDocuments(
           application.supporting_documents
         );
@@ -2456,7 +2480,7 @@ export class ApplicationService {
     }
 
     if ((application as any).status === "AMENDMENT_REQUESTED") {
-      const { allowedSections } = await getAmendmentAllowedSections(params.applicationId);
+      const { allowedSections, allowedItemKeys } = await getAmendmentAllowedSections(params.applicationId);
       if (isAcceptanceDocUpload) {
         // Acceptance docs are post-offer; amendment locks do not apply.
       } else if (isSupportingDocsWorkflowUpload) {
@@ -2467,6 +2491,11 @@ export class ApplicationService {
             "This section is locked during amendment review"
           );
         }
+        assertSupportingDocumentSlotEditable(
+          params.supportingDocCategoryKey!,
+          params.supportingDocIndex!,
+          allowedItemKeys
+        );
       } else if (isGuarantorAgreementUpload) {
         if (!allowedSections.has("business_details")) {
           throw new AppError(
@@ -2476,9 +2505,11 @@ export class ApplicationService {
           );
         }
       } else {
-        /** Generic uploads use this path without category keys. */
+        /** Generic uploads must not be unlocked by supporting-document item remarks. */
         const canGenericUpload =
-          allowedSections.has("business_details") || allowedSections.has("supporting_documents");
+          allowedSections.has("business_details") ||
+          (allowedSections.has("supporting_documents") &&
+            !hasSupportingDocumentItemLocks(allowedItemKeys));
         if (!canGenericUpload) {
           throw new AppError(
             403,
@@ -2706,10 +2737,25 @@ export class ApplicationService {
     const status = (application as { status?: string }).status;
     if (status === ApplicationStatus.DRAFT || status === ApplicationStatus.AMENDMENT_REQUESTED) {
       if (status === ApplicationStatus.AMENDMENT_REQUESTED) {
-        const { allowedSections } = await getAmendmentAllowedSections(applicationId);
-        const canRemoveAppUploadedFile =
-          allowedSections.has("supporting_documents") || allowedSections.has("business_details");
-        if (!canRemoveAppUploadedFile) {
+        const { allowedSections, allowedItemKeys } = await getAmendmentAllowedSections(applicationId);
+        const supportingSlot = findSupportingDocumentSlotForS3Key(
+          application.supporting_documents,
+          s3Key
+        );
+        if (supportingSlot) {
+          if (!allowedSections.has("supporting_documents")) {
+            throw new AppError(
+              403,
+              "AMENDMENT_LOCKED",
+              "This section is locked during amendment review"
+            );
+          }
+          assertSupportingDocumentSlotEditable(
+            supportingSlot.categoryKey,
+            supportingSlot.documentIndex,
+            allowedItemKeys
+          );
+        } else if (!allowedSections.has("business_details")) {
           throw new AppError(
             403,
             "AMENDMENT_LOCKED",
