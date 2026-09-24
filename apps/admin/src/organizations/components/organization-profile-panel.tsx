@@ -331,9 +331,13 @@ export function OrganizationProfilePanel({
   const isRegTankLockedDateOfBirth =
     org.profileFieldSources?.dateOfBirth?.source === "REGTANK" && Boolean(org.dateOfBirth);
   const isRegTankLockedGender =
-    org.profileFieldSources?.gender?.source === "REGTANK" && Boolean(org.gender);
+    org.profileFieldSources?.gender?.source === "REGTANK" &&
+    Boolean(org.gender) &&
+    String(org.gender).trim().toUpperCase() !== "UNSPECIFIED";
   const isRegTankLockedNationality =
-    org.profileFieldSources?.nationality?.source === "REGTANK" && Boolean(org.nationality);
+    org.profileFieldSources?.nationality?.source === "REGTANK" &&
+    Boolean(org.nationality) &&
+    String(org.nationality).trim().toUpperCase() !== "UNSPECIFIED";
   const aboutActivitiesRequired = isAboutYourBusinessFieldRequired("whatDoesCompanyDo");
   const aboutCustomersRequired = isAboutYourBusinessFieldRequired("mainCustomers");
   const companyTypeLabel = displayScCompanyTypeLabel(org.scCompanyType, basic?.entityType);

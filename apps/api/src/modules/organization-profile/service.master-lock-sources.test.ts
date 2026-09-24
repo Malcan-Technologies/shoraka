@@ -621,6 +621,39 @@ describe("master-profile lock decisions by profile_field_sources.source", () => 
   );
 
   it.each(portals)(
+    "allows USER gender edits when RegTank source but gender is placeholder UNSPECIFIED (%s portal)",
+    async (portal) => {
+      const row = personalOrg({
+        portal,
+        dateOfBirth: new Date("1990-01-01T00:00:00.000Z"),
+        gender: "UNSPECIFIED",
+        nationality: "MALAYSIA",
+        documentNumber: null,
+        profileFieldSources: {
+          gender: { source: "REGTANK", updatedAt: "2026-01-01T00:00:00.000Z" },
+        },
+      });
+
+      if (portal === "issuer") mockIssuerFindUnique.mockResolvedValue(row);
+      else mockInvestorFindUnique.mockResolvedValue(row);
+
+      await patchOrgMasterProfile({
+        portal,
+        organizationId: "org-1",
+        actorUserId: "user-1",
+        source: "USER",
+        fillEmptyOnly: true,
+        patch: { gender: "FEMALE" } as any,
+      });
+
+      const updateCall =
+        portal === "issuer" ? mockIssuerUpdate.mock.calls[0]?.[0] : mockInvestorUpdate.mock.calls[0]?.[0];
+      expect(updateCall?.data?.gender).toEqual("FEMALE");
+      expect((updateCall?.data?.profile_field_sources as any)?.gender?.source).toBe("USER");
+    }
+  );
+
+  it.each(portals)(
     "allows USER nationality edits when RegTank source but nationality is missing (%s portal)",
     async (portal) => {
       const row = personalOrg({

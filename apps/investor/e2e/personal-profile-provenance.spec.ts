@@ -50,18 +50,21 @@ async function seedPersonalInvestorOrg(args: {
   userId: string;
   orgId: string;
   displayReference: string;
-  dateOfBirth: string; // YYYY-MM-DD
-  gender: string; // MALE/FEMALE
+  dateOfBirth: string | null; // YYYY-MM-DD
+  gender: string; // MALE/FEMALE/UNSPECIFIED
   nationality: string;
   identityPrefixSource: "REGTANK" | "USER" | "ADMIN";
   identityNumberSource: "REGTANK" | "USER" | "ADMIN";
   identityNumber: string | null;
+  dateOfBirthSource?: "REGTANK" | "USER" | "ADMIN";
+  genderSource?: "REGTANK" | "USER" | "ADMIN";
+  nationalitySource?: "REGTANK" | "USER" | "ADMIN";
 }) {
   const fixedNow = new Date("2026-09-17T00:00:00.000Z");
   const profileFieldSources: Prisma.InputJsonValue = {
-    dateOfBirth: { source: "USER", updatedAt: fixedNow.toISOString() },
-    gender: { source: "USER", updatedAt: fixedNow.toISOString() },
-    nationality: { source: "USER", updatedAt: fixedNow.toISOString() },
+    dateOfBirth: { source: args.dateOfBirthSource ?? "USER", updatedAt: fixedNow.toISOString() },
+    gender: { source: args.genderSource ?? "USER", updatedAt: fixedNow.toISOString() },
+    nationality: { source: args.nationalitySource ?? "USER", updatedAt: fixedNow.toISOString() },
     identityPrefix: { source: args.identityPrefixSource, updatedAt: fixedNow.toISOString() },
     identityNumber: { source: args.identityNumberSource, updatedAt: fixedNow.toISOString() },
   };
@@ -84,7 +87,7 @@ async function seedPersonalInvestorOrg(args: {
 
       gender: args.gender,
       nationality: args.nationality,
-      date_of_birth: new Date(`${args.dateOfBirth}T00:00:00.000Z`),
+      date_of_birth: args.dateOfBirth ? new Date(`${args.dateOfBirth}T00:00:00.000Z`) : null,
 
       // Identity/document master fields.
       document_type: "DRIVING_LICENSE",
@@ -111,7 +114,7 @@ async function seedPersonalInvestorOrg(args: {
 
       gender: args.gender,
       nationality: args.nationality,
-      date_of_birth: new Date(`${args.dateOfBirth}T00:00:00.000Z`),
+      date_of_birth: args.dateOfBirth ? new Date(`${args.dateOfBirth}T00:00:00.000Z`) : null,
 
       document_type: "DRIVING_LICENSE",
       document_number: args.identityNumber,
@@ -237,6 +240,50 @@ test.describe("Personal Investor profile provenance (UI)", () => {
     await page.reload();
     await expect(personalCard.getByText("800101011999")).toBeVisible({ timeout: 10000 });
     await expect(personalCard.getByText(LOCK_MESSAGE)).toHaveCount(2);
+  });
+
+  test("DOB missing + gender placeholder UNSPECIFIED is editable (RegTank-sourced placeholders)", async ({
+    page,
+  }) => {
+    const userId = await getCurrentUserId(page);
+
+    const orgId = `e2e-prov-case3-${Date.now()}`;
+    const displayReference = `e2e-prov-case3-${Date.now()}`;
+
+    await seedPersonalInvestorOrg({
+      userId,
+      orgId,
+      displayReference,
+      dateOfBirth: null,
+      gender: "UNSPECIFIED",
+      nationality: "MALAYSIA",
+      identityPrefixSource: "REGTANK",
+      identityNumberSource: "REGTANK",
+      identityNumber: "800101011234",
+      dateOfBirthSource: "REGTANK",
+      genderSource: "REGTANK",
+      nationalitySource: "USER",
+    });
+
+    await page.goto("/");
+    await selectOrganizationByDisplayReference(page, displayReference);
+    await page.goto("/profile");
+
+    const personalCard = page.locator("#profile-personal");
+    await personalCard.getByRole("button", { name: /edit/i }).click();
+
+    const dobInput = personalCard.locator('input[type="date"]').first();
+    await expect(dobInput).not.toBeDisabled();
+
+    // Save by filling DOB only. This must not trigger the RegTank verified-lock error.
+    await dobInput.fill("1990-01-01");
+    await personalCard.getByRole("button", { name: /save changes/i }).click();
+
+    // If the bug is present, the toast lock message shows up and the save fails.
+    await expect(personalCard.getByText(LOCK_MESSAGE)).toHaveCount(0, { timeout: 5000 });
+
+    // Ensure DOB is now populated.
+    await expect(personalCard.getByText(/1990/)).toBeVisible({ timeout: 10000 });
   });
 });
 

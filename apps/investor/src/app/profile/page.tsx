@@ -157,6 +157,26 @@ function formatGender(value: string | null | undefined): string {
   return value;
 }
 
+function isIdentityFieldMeaningfullyMissing(
+  field: "dateOfBirth" | "gender" | "nationality",
+  value: string | null | undefined
+): boolean {
+  const trimmed = value?.trim();
+  if (!trimmed) return true;
+  const upper = trimmed.toUpperCase();
+
+  // RegTank can persist placeholder values even after onboarding completion.
+  // Treat those as missing so users can fill the real value.
+  if ((field === "gender" || field === "nationality") && upper === "UNSPECIFIED") return true;
+
+  if (field === "dateOfBirth") {
+    // Only treat ISO date strings that parse to a calendar date as "present".
+    return toCalendarDateInput(trimmed) === "";
+  }
+
+  return false;
+}
+
 // Helper to extract field value from RegTank bank account details
 function getBankField(
   bankDetails: BankAccountDetails | null | undefined,
@@ -515,11 +535,14 @@ export default function ProfilePage() {
 
   const profileFieldSources = orgData?.profileFieldSources ?? ({} as ProfileFieldSources);
   const isRegTankLockedDateOfBirth =
-    profileFieldSources.dateOfBirth?.source === "REGTANK" && Boolean(orgData?.dateOfBirth);
+    profileFieldSources.dateOfBirth?.source === "REGTANK" &&
+    !isIdentityFieldMeaningfullyMissing("dateOfBirth", orgData?.dateOfBirth);
   const isRegTankLockedGender =
-    profileFieldSources.gender?.source === "REGTANK" && Boolean(orgData?.gender);
+    profileFieldSources.gender?.source === "REGTANK" &&
+    !isIdentityFieldMeaningfullyMissing("gender", orgData?.gender);
   const isRegTankLockedNationality =
-    profileFieldSources.nationality?.source === "REGTANK" && Boolean(orgData?.nationality);
+    profileFieldSources.nationality?.source === "REGTANK" &&
+    !isIdentityFieldMeaningfullyMissing("nationality", orgData?.nationality);
   const isRegTankLockedIdentityNumber =
     profileFieldSources.identityNumber?.source === "REGTANK" && Boolean(orgData?.documentNumber?.trim());
   const isRegTankLockedIdentityPrefix =
