@@ -126,6 +126,52 @@ describe("Admin Financial Summary year-column layout scenarios", () => {
     ]);
   });
 
+  it("Scenario I — CTOS fetched but returned zero financial years: allow full historical window even when eligible list auto-computes empty", () => {
+    const afterDeadlineRef = new Date("2026-09-24T00:00:00.000Z"); // getAdminFinancialSummaryUserColumnYears => [2026]
+    const financialStatements = mkFinancialStatements({
+      financialYearEnd: questionnaire,
+      unauditedByYear: { "2026": { turnover: 10 } },
+    });
+
+    const columns = resolveAdminFinancialReviewColumns({
+      financialStatements,
+      ctosFinancials: [],
+      ref: afterDeadlineRef,
+      ctosFetchState: "no_records",
+    });
+
+    // EligibleAdminInputYears can be empty in this ref window, but CTOS "no_records"
+    // must still allow Admin to add the whole historical window.
+    expect(columns.map((c) => [c.year, c.kind])).toEqual([
+      [2023, "admin_fallback_placeholder"],
+      [2024, "admin_fallback_placeholder"],
+      [2025, "admin_fallback_placeholder"],
+      [2026, "unaudited"],
+    ]);
+  });
+
+  it("Scenario J — Real CTOS FY: CTOS-provided fields stay locked, missing raw keys stay editable", () => {
+    const financialStatements = mkFinancialStatements({
+      financialYearEnd: questionnaire,
+      unauditedByYear: { "2026": { turnover: 10 } },
+    });
+
+    const ctosFinancials = [ctosRow(2025, { turnover: 1_000_000, cashAndBank: null })];
+
+    const columns = resolveAdminFinancialReviewColumns({
+      financialStatements,
+      ctosFinancials,
+      ref,
+      ctosFetchState: "has_data",
+    });
+
+    const fy2025Ctos = columns.find((c) => c.year === 2025 && c.kind === "ctos");
+    expect(fy2025Ctos).toBeDefined();
+    expect(fy2025Ctos!.fields.turnover).toMatchObject({ source: "ctos", readOnly: true, value: 1_000_000 });
+    // cashAndBank was not provided by CTOS (null/absent) => editable gap fill.
+    expect(fy2025Ctos!.fields.cashAndBank).toMatchObject({ source: "ctos", readOnly: false, value: null });
+  });
+
   it("Scenario C — Full CTOS history: no Add Financial Statement when the 3 historical CTOS FY slots are complete", () => {
     const financialStatements = mkFinancialStatements({
       financialYearEnd: questionnaire,

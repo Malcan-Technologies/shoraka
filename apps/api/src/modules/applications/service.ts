@@ -152,6 +152,7 @@ import {
   APPLICATION_COMREP_DETAIL_KEYS,
   applicationComrepFieldError,
   buildStoredApplicationFinancialYearBlock,
+  financialYearBlockHasActualData,
   getFinancialYearEndComputationDetails,
   getFinancialYearEndValidationError,
   getEligibleAdminInputYears,
@@ -5740,9 +5741,11 @@ export class ApplicationService {
         note: { source_application_id: applicationId },
         approved_at: { not: null },
       },
-      select: { approved_snapshot: true },
+      select: { approved_at: true },
     });
-    if (review?.approved_snapshot != null) {
+    // Lock whenever any underlying Prospectus review is still approved.
+    // Approval evidence must come from approved_at (not from a UI-visible status label).
+    if (review?.approved_at != null) {
       throw new AppError(
         409,
         "FINANCIAL_SNAPSHOT_LOCKED",
@@ -5798,11 +5801,40 @@ export class ApplicationService {
       select: { financials_json: true },
     });
 
-    const eligibleYears = getEligibleAdminInputYears({
+    let eligibleYears = getEligibleAdminInputYears({
       financialStatements: application.financial_statements,
       ctosFinancials: ctosReport?.financials_json ?? null,
       ref: now,
     });
+
+    // When CTOS was fetched successfully but returned zero financial-year records,
+    // allow adding Admin Input fallbacks for the whole 3-year historical window
+    // anchored to the latest stored issuer/Admin actual year.
+    if (ctosReport && Array.isArray(ctosReport.financials_json) && ctosReport.financials_json.length === 0) {
+      const fsRoot = application.financial_statements as any;
+      const unauditedByYear = fsRoot?.unaudited_by_year;
+      let maxStoredIssuerYearWithActualData: number | null = null;
+      if (unauditedByYear && typeof unauditedByYear === "object" && !Array.isArray(unauditedByYear)) {
+        for (const [key, storedIssuer] of Object.entries(unauditedByYear as Record<string, unknown>)) {
+          const y = Number(key);
+          if (!Number.isInteger(y)) continue;
+          if (!storedIssuer || typeof storedIssuer !== "object" || Array.isArray(storedIssuer)) continue;
+          if (!financialYearBlockHasActualData(storedIssuer as Record<string, unknown>)) continue;
+          if (maxStoredIssuerYearWithActualData == null || y > maxStoredIssuerYearWithActualData) {
+            maxStoredIssuerYearWithActualData = y;
+          }
+        }
+      }
+
+      if (maxStoredIssuerYearWithActualData != null) {
+        eligibleYears = [maxStoredIssuerYearWithActualData - 3, maxStoredIssuerYearWithActualData - 2, maxStoredIssuerYearWithActualData - 1]
+          .filter((y) => Number.isInteger(y))
+          .filter((y) => {
+            const storedIssuer = unauditedByYear?.[String(y)];
+            return !(storedIssuer && financialYearBlockHasActualData(storedIssuer as Record<string, unknown>));
+          });
+      }
+    }
 
     if (!eligibleYears.includes(financialYear)) {
       throw new AppError(
