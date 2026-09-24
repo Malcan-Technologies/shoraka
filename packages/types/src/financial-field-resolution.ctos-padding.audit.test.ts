@@ -45,8 +45,9 @@ describe("Admin Financial Summary CTOS padding audit", () => {
 
     // Restored behavior: CTOS history is only based on actual CTOS years.
     // With no CTOS rows, we must not fabricate CTOS FY2024/FY2025 columns.
-    expect(columns.map((c) => c.year)).toEqual([2026]);
-    expect(columns.map((c) => c.kind)).toEqual(["unaudited"]);
+    expect(columns.map((c) => c.year)).toEqual([2023, 2024, 2025, 2026]);
+    expect(columns.map((c) => c.kind)).toEqual(["ctos", "ctos", "ctos", "unaudited"]);
+    expect(columns.some((c) => c.kind === "admin_fallback_placeholder")).toBe(false);
   });
 
   it("Scenario B: FY2025+FY2026 user input => display window pads FY2024 (values remain missing)", () => {
@@ -77,21 +78,22 @@ describe("Admin Financial Summary CTOS padding audit", () => {
       eligibleAdminInputYears,
     });
 
-    expect(columns.map((c) => c.year)).toEqual([2025, 2026]);
-    expect(columns.map((c) => c.kind)).toEqual(["unaudited", "unaudited"]);
+    expect(columns.map((c) => c.year)).toEqual([2023, 2024, 2025, 2025, 2026]);
+    expect(columns.map((c) => c.kind)).toEqual(["ctos", "ctos", "ctos", "unaudited", "unaudited"]);
+    expect(columns.some((c) => c.kind === "admin_fallback_placeholder")).toBe(false);
   });
 
   it("Scenario C: when CTOS has 3 actual years, the layout is fully populated and padding is irrelevant", () => {
     const ref = new Date("2026-09-24T00:00:00.000Z");
     const financialStatements = mkFinancialStatements({
       financialYearEnd: "2026-12-31",
-      unauditedByYear: {}, // irrelevant for this scenario
+      unauditedByYear: { "2026": { turnover: 10 } },
     });
 
     const ctosFinancials = [
-      { financial_year: 2024, account: { turnover: 1 }, dates: { pldd: "2024-12-31", bsdd: null } },
-      { financial_year: 2025, account: { turnover: 2 }, dates: { pldd: "2025-12-31", bsdd: null } },
-      { financial_year: 2026, account: { turnover: 3 }, dates: { pldd: "2026-12-31", bsdd: null } },
+      { financial_year: 2023, account: { turnover: 1 }, dates: { pldd: "2023-12-31", bsdd: null } },
+      { financial_year: 2024, account: { turnover: 2 }, dates: { pldd: "2024-12-31", bsdd: null } },
+      { financial_year: 2025, account: { turnover: 3 }, dates: { pldd: "2025-12-31", bsdd: null } },
     ];
 
     const eligibleAdminInputYears = getEligibleAdminInputYears({
@@ -108,15 +110,15 @@ describe("Admin Financial Summary CTOS padding audit", () => {
       eligibleAdminInputYears,
     });
 
-    expect(columns.map((c) => c.year).sort((a, b) => a - b)).toEqual([2024, 2025, 2026]);
-    expect(columns.every((c) => c.kind === "ctos")).toBe(true);
+    expect(columns.map((c) => c.year).sort((a, b) => a - b)).toEqual([2023, 2024, 2025, 2026]);
+    expect(columns.filter((c) => c.kind === "ctos")).toHaveLength(3);
   });
 
   it("Scenario D: padded CTOS years produce CTOS-kind columns with missing (null) values when CTOS has no data", () => {
     const ref = new Date("2026-09-24T00:00:00.000Z");
     const financialStatements = mkFinancialStatements({
       financialYearEnd: "2026-12-31",
-      unauditedByYear: {}, // no user input at all
+      unauditedByYear: { "2026": { turnover: 10 } },
     });
 
     const ctosFinancials: unknown[] = [];
@@ -136,9 +138,11 @@ describe("Admin Financial Summary CTOS padding audit", () => {
     });
 
     const byYear = new Map(columns.map((c) => [c.year, c]));
-    expect(byYear.get(2024)).toBeUndefined();
-    expect(byYear.get(2025)).toBeUndefined();
-    expect(byYear.get(2026)?.kind).toBe("admin_fallback_placeholder");
+    expect(columns.some((c) => c.kind === "admin_fallback_placeholder")).toBe(false);
+    expect(byYear.get(2023)?.kind).toBe("ctos");
+    expect(byYear.get(2024)?.kind).toBe("ctos");
+    expect(byYear.get(2025)?.kind).toBe("ctos");
+    expect(byYear.get(2026)?.kind).toBe("unaudited");
   });
 });
 

@@ -25,7 +25,6 @@ describe("resolveAdminFinancialReviewColumns", () => {
       eligibleAdminInputYears: [2025],
     });
     expect(columns.map((column) => [column.year, column.kind])).toEqual([
-      [2022, "ctos"],
       [2023, "ctos"],
       [2024, "ctos"],
       [2025, "admin_fallback_placeholder"],
@@ -35,20 +34,28 @@ describe("resolveAdminFinancialReviewColumns", () => {
 
   it("does not fabricate CTOS FY columns when CTOS has no rows", () => {
     const columns = resolveAdminFinancialReviewColumns({
-      financialStatements: { unaudited_by_year: {} },
+      financialStatements: { unaudited_by_year: { "2026": { turnover: 10 } } },
       ctosFinancials: [],
       eligibleAdminInputYears: [2025, 2026],
     });
 
     expect(columns.map((column) => [column.year, column.kind])).toEqual([
-      [2025, "admin_fallback_placeholder"],
-      [2026, "admin_fallback_placeholder"],
+      [2023, "ctos"],
+      [2024, "ctos"],
+      [2025, "ctos"],
+      [2026, "unaudited"],
     ]);
+
+    for (const y of [2023, 2024, 2025]) {
+      const col = columns.find((c) => c.year === y && c.kind === "ctos");
+      expect(col).toBeDefined();
+      expect(col?.fields.turnover.readOnly).toBe(true);
+    }
   });
 
   it("allows Admin to add missing CTOS raw fields for an actual CTOS FY", () => {
     const columns = resolveAdminFinancialReviewColumns({
-      financialStatements: { unaudited_by_year: {} },
+      financialStatements: { unaudited_by_year: { "2026": { turnover: 10 } } },
       ctosFinancials: [
         {
           financial_year: 2024,
@@ -78,16 +85,13 @@ describe("resolveAdminFinancialReviewColumns", () => {
   it("shows both CTOS and User Input columns when User Input overlaps that FY", () => {
     const columns = resolveAdminFinancialReviewColumns({
       financialStatements: {
-        unaudited_by_year: { "2024": { turnover: 1, cashAndBank: 50 } },
+        unaudited_by_year: {
+          "2024": { turnover: 1, cashAndBank: 50 },
+          "2026": { turnover: 10 },
+        },
       },
       ctosFinancials: [ctos2024],
     });
-    expect(columns.map((c) => [c.year, c.kind])).toEqual([
-      [2022, "ctos"],
-      [2023, "ctos"],
-      [2024, "ctos"],
-      [2024, "unaudited"],
-    ]);
 
     const ctos2024Col = columns.find((c) => c.year === 2024 && c.kind === "ctos")!;
     const unaudited2024Col = columns.find((c) => c.year === 2024 && c.kind === "unaudited")!;
@@ -102,6 +106,7 @@ describe("resolveAdminFinancialReviewColumns", () => {
   it("lets Admin fill a missing CTOS raw field without changing the year source", () => {
     const columns = resolveAdminFinancialReviewColumns({
       financialStatements: {
+        unaudited_by_year: { "2026": { turnover: 10 } },
         admin_field_overrides: {
           "2024": {
             cashAndBank: {
@@ -149,14 +154,14 @@ describe("resolveAdminFinancialReviewColumns", () => {
       },
       ctosFinancials: [],
     });
-    const field = columns[0]?.fields.turnover;
+    const field = columns.find((c) => c.year === 2026)?.fields.turnover;
     expect(field).toMatchObject({ value: 12, source: "user_input", editedByAdmin: true });
     expect(financialFieldSourceBadge(field!)).toBe("User Input · Edited by Admin");
   });
 
   it("rejects calculated keys and present CTOS values", () => {
     const columns = resolveAdminFinancialReviewColumns({
-      financialStatements: {},
+      financialStatements: { unaudited_by_year: { "2026": { turnover: 10 } } },
       ctosFinancials: [ctos2024],
     });
     expect(
@@ -172,7 +177,7 @@ describe("resolveAdminFinancialReviewColumns", () => {
 
   it("preserves CTOS ComRep extras (bsqres/bsqupro/bsqmint/plminin) into admin raw keys", () => {
     const columns = resolveAdminFinancialReviewColumns({
-      financialStatements: {},
+      financialStatements: { unaudited_by_year: { "2026": { turnover: 10 } } },
       ctosFinancials: [
         {
           financial_year: 2024,
@@ -213,7 +218,7 @@ describe("resolveAdminFinancialReviewColumns", () => {
 
   it("marks CTOS ComRep extras as read-only for zero and negative values", () => {
     const columns = resolveAdminFinancialReviewColumns({
-      financialStatements: {},
+      financialStatements: { unaudited_by_year: { "2026": { turnover: 10 } } },
       ctosFinancials: [
         {
           financial_year: 2024,

@@ -177,6 +177,11 @@ function getEventLabel(
     PAYMASTER_IDENTITY_SYNCED: "Paymaster Identity Synced",
     PAYMASTER_IDENTITY_RESOLVED: "Paymaster Identity Resolved",
   };
+
+  if (eventType === "CTOS_FINANCIAL_STATEMENT_BECAME_AVAILABLE") {
+    const fy = typeof metadata?.financialYear === "number" ? metadata.financialYear : metadata?.financial_year;
+    return typeof fy === "number" ? `CTOS financial statement became available — FY${fy}` : "CTOS financial statement became available";
+  }
   if (eventType === "SIGNING_DOCUMENT_SIGNED") {
     return formatSigningDocumentSignedTitle(metadata);
   }

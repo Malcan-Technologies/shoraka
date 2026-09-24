@@ -41,7 +41,7 @@ import {
 import { buildAdminPeopleList } from "../admin/build-people-list";
 import { filterVisiblePeopleRows, normalizeRawStatus, type ApplicationPersonRow } from "@cashsouk/types";
 import { logApplicationActivity } from "../applications/logs/service";
-import { ApplicationLogEventType } from "../applications/logs/types";
+import { ActivityPortal, ApplicationLogEventType } from "../applications/logs/types";
 import { observeExternalCtosParties } from "../organization-profile/service";
 import { AUDIT_SOURCE, internalAuditContext } from "../../lib/audit/context";
 
@@ -545,6 +545,32 @@ export async function fetchAndInsertCtosReportForAdminOrg(
 
   const fetchedAt = new Date();
 
+  const extractFinancialYearsFromCtosFinancials = (raw: unknown): Set<number> => {
+    if (!Array.isArray(raw)) return new Set<number>();
+    const years = new Set<number>();
+    for (const row of raw) {
+      if (!row || typeof row !== "object") continue;
+      const y = (row as any).financial_year;
+      const n = typeof y === "number" ? y : Number(y);
+      if (Number.isFinite(n)) years.add(n);
+    }
+    return years;
+  };
+
+  // Used for audit events when CTOS refresh introduces a FY that previously existed only as Admin Input.
+  const previousCtosFinancialYears =
+    portal === "issuer"
+      ? extractFinancialYearsFromCtosFinancials(
+          (
+            await prisma.ctosReport.findFirst({
+              where: { issuer_organization_id: organizationId, subject_ref: null },
+              orderBy: { fetched_at: "desc" },
+              select: { financials_json: true },
+            })
+          )?.financials_json
+        )
+      : new Set<number>();
+
   let beforeExtras:
     | Awaited<ReturnType<OrganizationService["getIssuerPartyListExtras"]>>
     | Awaited<ReturnType<OrganizationService["getInvestorPartyListExtras"]>>
@@ -602,6 +628,54 @@ export async function fetchAndInsertCtosReportForAdminOrg(
       financials_json: parsed.financials_json as unknown as Prisma.InputJsonValue,
     },
   });
+
+  // Activity Timeline event: CTOS financial statement became available and superseded historical Admin Input.
+  // Best-effort, non-blocking (mirrors existing notification hooks).
+  try {
+    if (portal === "issuer") {
+      const currentYears = extractFinancialYearsFromCtosFinancials(parsed.financials_json);
+      const newlyAvailableYears = [...currentYears].filter((y) => !previousCtosFinancialYears.has(y));
+
+      if (newlyAvailableYears.length > 0) {
+        const applications = await prisma.application.findMany({
+          where: { issuer_organization_id: organizationId },
+          select: { id: true, financial_statements: true },
+        });
+
+        for (const application of applications) {
+          const fs = application.financial_statements as any;
+          const adminByYear = fs?.admin_input_by_year;
+          if (!adminByYear || typeof adminByYear !== "object" || Array.isArray(adminByYear)) continue;
+
+          for (const year of newlyAvailableYears) {
+            if (!(String(year) in adminByYear)) continue;
+
+            await logApplicationActivity({
+              userId: null,
+              applicationId: application.id,
+              eventType: ApplicationLogEventType.CTOS_FINANCIAL_STATEMENT_BECAME_AVAILABLE,
+              portal: ActivityPortal.ADMIN,
+              remark: `CTOS financial statement became available — FY${year}`,
+              metadata: {
+                applicationId: application.id,
+                financialYear: year,
+                previousActiveSource: "admin_input",
+                newActiveSource: "ctos",
+                ctosReportId: row.id,
+              },
+              context: internalAuditContext(),
+              source: AUDIT_SOURCE.INTERNAL,
+            });
+          }
+        }
+      }
+    }
+  } catch (e) {
+    logger.warn(
+      { issuerOrganizationId: organizationId, err: e instanceof Error ? e.message : String(e) },
+      "Best-effort financial source replacement CTOS audit logging failed (non-blocking)"
+    );
+  }
 
   try {
     await observeExternalCtosParties(portal, organizationId, row.company_json);
