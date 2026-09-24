@@ -5741,9 +5741,11 @@ export class ApplicationService {
         note: { source_application_id: applicationId },
         approved_at: { not: null },
       },
-      select: { approved_snapshot: true },
+      select: { approved_at: true },
     });
-    if (review?.approved_snapshot != null) {
+    // Lock whenever any underlying Prospectus review is still approved.
+    // Approval evidence must come from approved_at (not from a UI-visible status label).
+    if (review?.approved_at != null) {
       throw new AppError(
         409,
         "FINANCIAL_SNAPSHOT_LOCKED",
