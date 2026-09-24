@@ -38,6 +38,10 @@ import {
   refreshContractFacilityForNote,
 } from "../../lib/refresh-contract-facility";
 import { resolveInvoiceOccupancyContractId } from "../../lib/standalone-holder-contract";
+import {
+  CERTIFICATE_FIRST_VERSION,
+  investorScheduleReferenceFor,
+} from "./investment-note-certificate/types";
 import { assertFacilityIsEnabled } from "../applications/split-origination-guards";
 import { legalDocumentAcceptanceService } from "../legal-documents/acceptance-service";
 import { computeOrgProfileCompleteness } from "../organization-profile/service";
@@ -3968,6 +3972,11 @@ export class NoteService {
           funding_status: NoteFundingStatus.FUNDED,
           listing_status: NoteListingStatus.CLOSED,
           funding_closed_at: now,
+          reserved_investor_schedule_reference: investorScheduleReferenceFor(
+            note.note_reference,
+            CERTIFICATE_FIRST_VERSION
+          ),
+          reserved_investor_schedule_reference_version: CERTIFICATE_FIRST_VERSION,
         },
       });
       if (stateUpdate.count !== 1) {

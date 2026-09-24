@@ -1253,6 +1253,10 @@ model Note {
   servicing_status                NoteServicingStatus         @default(NOT_STARTED)
   title                           String
   note_reference                  String                      @unique
+  /// Reserved canonical Investor Schedule reference for the first investment-note-certificate version (V01).
+  /// Set when funding successfully closes so downstream Tawarruq/STP can use it even before certificates are generated.
+  reserved_investor_schedule_reference       String?
+  reserved_investor_schedule_reference_version String?
   product_snapshot                Json?
   purpose_snapshot                Json?
   prospectus_snapshot             Json?

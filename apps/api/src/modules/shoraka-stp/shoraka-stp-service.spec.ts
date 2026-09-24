@@ -14,6 +14,9 @@ jest.mock("../../lib/prisma", () => ({
       update: jest.fn(),
       create: jest.fn(),
     },
+    note: {
+      findUnique: jest.fn(),
+    },
     issuerOrganization: {
       findUnique: jest.fn(),
     },
@@ -194,6 +197,13 @@ describe("shoraka-stp cutoff window (submit-order)", () => {
 
     (prisma.withdrawalInstruction.findUnique as jest.Mock).mockResolvedValue(baseWithdrawalFixture());
     (prisma.shorakaTradeOrder.findUnique as jest.Mock).mockResolvedValue(null);
+    (prisma.note.findUnique as jest.Mock).mockResolvedValue({
+      note_reference: "NOTE-ARF-202609-5O3",
+      reserved_investor_schedule_reference: "IS-RESERVED-TEST-1",
+      reserved_investor_schedule_reference_version: "V01",
+      invoice_snapshot: { details: { value: 12500 } },
+      requested_amount: 12500,
+    });
 
     (submitOrder as jest.Mock).mockResolvedValue({
       response: { orderId: "provider-order-1", status: "Active" },
@@ -229,6 +239,15 @@ describe("shoraka-stp cutoff window (submit-order)", () => {
     });
 
     expect(submitOrder).toHaveBeenCalledTimes(1);
+    expect((submitOrder as jest.Mock).mock.calls[0][0]).toEqual(
+      expect.objectContaining({
+        values: expect.objectContaining({
+          ownership: "IS-RESERVED-TEST-1",
+          order_amount: "1000.00",
+          murabaha_amount: "12500.00",
+        }),
+      })
+    );
     expect(prisma.noteEvent.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -283,6 +302,11 @@ describe("shoraka-stp cutoff window (submit-order)", () => {
 
     (prisma.withdrawalInstruction.findUnique as jest.Mock).mockResolvedValue(baseWithdrawalFixture());
     (prisma.shorakaTradeOrder.findUnique as jest.Mock).mockResolvedValue(null);
+    (prisma.note.findUnique as jest.Mock).mockResolvedValue({
+      note_reference: "NOTE-ARF-202609-5O3",
+      invoice_snapshot: { details: { value: 12500 } },
+      requested_amount: 12500,
+    });
 
     (submitOrder as jest.Mock).mockResolvedValue({
       response: { orderId: "provider-order-3", status: "Active" },
@@ -316,6 +340,17 @@ describe("shoraka-stp cutoff window (submit-order)", () => {
         status: "Active",
       }),
     });
+
+    expect(submitOrder).toHaveBeenCalledTimes(1);
+    expect((submitOrder as jest.Mock).mock.calls[0][0]).toEqual(
+      expect.objectContaining({
+        values: expect.objectContaining({
+          ownership: "IS-NOTE-ARF-202609-5O3-V01",
+          order_amount: "1000.00",
+          murabaha_amount: "12500.00",
+        }),
+      })
+    );
   });
 
   it("does not block query-status during unsafe window", async () => {
