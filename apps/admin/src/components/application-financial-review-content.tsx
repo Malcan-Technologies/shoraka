@@ -1526,15 +1526,19 @@ export function ApplicationFinancialReviewContent({
                     >
                       <div className="flex justify-end">
                         {spec.kind === "ctos" && spec.year != null ? (
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "shrink-0 whitespace-nowrap font-normal text-[11px] leading-tight px-2.5 py-0.5 rounded-md shadow-none",
-                              "border-emerald-500/40 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100"
-                            )}
-                          >
-                            CTOS
-                          </Badge>
+                          ctosFetchState === "not_pulled" || ctosFetchState === "no_records" || ctosColumnMissing(i) ? (
+                            <span className="text-muted-foreground">—</span>
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "shrink-0 whitespace-nowrap font-normal text-[11px] leading-tight px-2.5 py-0.5 rounded-md shadow-none",
+                                "border-emerald-500/40 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100"
+                              )}
+                            >
+                              CTOS
+                            </Badge>
+                          )
                         ) : spec.kind === "unaudited" && spec.year != null ? (
                           <Badge
                             variant="outline"
@@ -1545,6 +1549,8 @@ export function ApplicationFinancialReviewContent({
                           >
                             User Input
                           </Badge>
+                        ) : spec.kind === "admin_fallback_placeholder" && spec.year != null ? (
+                          <span className="text-muted-foreground">—</span>
                         ) : spec.kind === "admin_input" && spec.year != null ? (
                           <div className="flex items-center gap-2">
                             <Badge
@@ -1557,7 +1563,9 @@ export function ApplicationFinancialReviewContent({
                               Admin Input
                             </Badge>
                           </div>
-                        ) : null}
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
                       </div>
                     </TableHead>
                   ))}

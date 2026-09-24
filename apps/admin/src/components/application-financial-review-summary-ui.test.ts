@@ -387,5 +387,20 @@ describe("Admin Financial Summary table UI", () => {
     // Ensure we didn't leave the old "Optional" badge wording behind.
     expect(comparisonSource).not.toContain("Optional");
   });
+
+  it("renders Source as — for missing CTOS values and for admin add-year placeholders", () => {
+    const contentSource = readFileSync(tablePath, "utf8");
+
+    // CTOS badge is conditional on CTOS being pulled and the specific year existing in CTOS data.
+    expect(contentSource).toContain('ctosFetchState === "not_pulled"');
+    expect(contentSource).toContain("ctosFetchState === \"no_records\"");
+    expect(contentSource).toContain("ctosColumnMissing(i)");
+
+    // Add-year placeholder FYs should not be labeled as Admin Input source.
+    expect(contentSource).toContain(
+      'spec.kind === "admin_fallback_placeholder" && spec.year != null ? ('
+    );
+    expect(contentSource).toContain('<span className="text-muted-foreground">—</span>');
+  });
 });
 

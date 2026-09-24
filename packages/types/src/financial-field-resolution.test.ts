@@ -31,6 +31,39 @@ describe("resolveAdminFinancialReviewColumns", () => {
     ]);
   });
 
+  it("keeps a stable 3-FY layout by padding missing CTOS FYs when CTOS has no data", () => {
+    const columns = resolveAdminFinancialReviewColumns({
+      financialStatements: { unaudited_by_year: {} },
+      ctosFinancials: [],
+      eligibleAdminInputYears: [2025, 2026],
+    });
+
+    expect(columns.map((column) => [column.year, column.kind])).toEqual([
+      [2024, "ctos"],
+      [2025, "admin_fallback_placeholder"],
+      [2026, "admin_fallback_placeholder"],
+    ]);
+  });
+
+  it("allows Admin to add missing CTOS raw fields for padded CTOS FYs", () => {
+    const columns = resolveAdminFinancialReviewColumns({
+      financialStatements: { unaudited_by_year: {} },
+      ctosFinancials: [],
+      eligibleAdminInputYears: [2026],
+    });
+
+    const padded = columns.find((c) => c.year === 2024);
+    expect(padded?.primarySource).toBe("ctos");
+
+    expect(
+      decideAdminFinancialFieldEdit({
+        columns,
+        financialYear: 2024,
+        fieldKey: "cashAndBank",
+      })
+    ).toMatchObject({ ok: true, action: "add_missing_ctos_field" });
+  });
+
   it("keeps one CTOS column when User Input overlaps that FY", () => {
     const columns = resolveAdminFinancialReviewColumns({
       financialStatements: {
