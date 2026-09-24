@@ -668,7 +668,7 @@ function ApplicationDetailPageBody() {
             </TabsTrigger>
           ) : null}
           <TabsTrigger value="invoices" className="gap-1.5 rounded-lg">
-            Invoices
+            {application.invoices.length <= 1 ? "Invoice" : "Invoices"}
             {invoicesNeedingAction > 0 ? (
               <Badge className="h-5 min-w-5 rounded-full bg-primary px-1.5 text-meta text-primary-foreground">
                 {invoicesNeedingAction}

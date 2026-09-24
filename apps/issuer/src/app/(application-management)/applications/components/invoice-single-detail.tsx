@@ -274,11 +274,90 @@ export function InvoiceSingleDetail({
                 {invoice.maturityDate ? formatCalendarDate(invoice.maturityDate) : "—"}
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-start gap-2">
               <InvoiceStatusBadge
                 badgeKey={resolveNormalizedInvoiceBadgeKey(invoice, application)}
                 withdrawReason={invoice.withdrawReason}
               />
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                    <EllipsisVerticalIcon className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="rounded-xl">
+                  {(() => {
+                    return (
+                      <>
+                        {showViewSignedInvoice ? (
+                          <>
+                            <DropdownMenuItem
+                              className="cursor-pointer"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void onViewSignedInvoiceOffer!(invoice.id);
+                              }}
+                            >
+                              View Signed Offer
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                          </>
+                        ) : null}
+
+                        {showViewReasonRemarks ? (
+                          <>
+                            <DropdownMenuItem
+                              className="cursor-pointer"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setReasonRemarksBody(
+                                  invoice.reasonOrRemarks?.trim() ||
+                                    "No reason were recorded for this invoice."
+                                );
+                                setReasonRemarksOpen(true);
+                              }}
+                            >
+                              View reason
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                          </>
+                        ) : null}
+
+                        <DropdownMenuItem
+                          className="cursor-pointer"
+                          disabled={withdrawInvoiceDisabled}
+                          onClick={() => {
+                            if (
+                              canWithdrawInvoice &&
+                              !isWithdrawInvoicePending &&
+                              !showViewSignedInvoice &&
+                              onWithdrawInvoice
+                            ) {
+                              onWithdrawInvoice(
+                                invoice.id,
+                                application.id,
+                                application.issuerOrganizationId
+                              );
+                            }
+                          }}
+                          title={
+                            showViewSignedInvoice
+                              ? "Withdraw is not available while a signed offer letter is on file"
+                              : !canWithdrawInvoice
+                                ? "Cannot withdraw: invoice is already approved, rejected, or withdrawn"
+                                : isWithdrawInvoicePending
+                                  ? "Withdrawal in progress"
+                                  : undefined
+                          }
+                        >
+                          {isWithdrawInvoicePending ? "Withdrawing..." : "Withdraw Invoice"}
+                        </DropdownMenuItem>
+                      </>
+                    );
+                  })()}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
 
@@ -336,25 +415,36 @@ export function InvoiceSingleDetail({
             </div>
           ) : null}
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-3">
-              <div className="space-y-1">
-                <p className="text-meta text-muted-foreground">Invoice Value</p>
-                <IssuerInvoiceCurrencyCell amount={invoice.value} />
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-x-10 gap-y-4 sm:grid-cols-2">
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <p className="text-meta text-muted-foreground">Invoice Value</p>
+                  <IssuerInvoiceCurrencyCell amount={invoice.value} />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-meta text-muted-foreground">Financing Offered</p>
+                  <IssuerInvoiceCurrencyCellFromFormatted
+                    formatted={invoice.financingOffered}
+                  />
+                </div>
               </div>
-              <div className="space-y-1">
-                <p className="text-meta text-muted-foreground">Applied Financing</p>
-                <IssuerInvoiceCurrencyCell amount={invoice.appliedFinancing} />
-              </div>
-              <div className="space-y-1">
-                <p className="text-meta text-muted-foreground">Financing Offered</p>
-                <IssuerInvoiceCurrencyCellFromFormatted formatted={invoice.financingOffered} />
-              </div>
-              <div className="space-y-1">
-                <p className="text-meta text-muted-foreground">
-                  Profit rate <InfoTooltip content={PROFIT_RATE_HEADER_TOOLTIP} iconClassName="h-3.5 w-3.5 shrink-0" />
-                </p>
-                <p className="text-ui tabular-nums">{invoice.profitRate}</p>
+
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <p className="text-meta text-muted-foreground">Applied Financing</p>
+                  <IssuerInvoiceCurrencyCell amount={invoice.appliedFinancing} />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-meta text-muted-foreground">
+                    Profit rate{" "}
+                    <InfoTooltip
+                      content={PROFIT_RATE_HEADER_TOOLTIP}
+                      iconClassName="h-3.5 w-3.5 shrink-0"
+                    />
+                  </p>
+                  <p className="text-ui tabular-nums">{invoice.profitRate}</p>
+                </div>
               </div>
             </div>
 
@@ -367,89 +457,16 @@ export function InvoiceSingleDetail({
                   onDownload={onDocumentDownload}
                 />
               </div>
+
               <div className="space-y-1">
                 <p className="text-meta text-muted-foreground">
                   Fees{" "}
-                  <InfoTooltip content={FEES_HEADER_TOOLTIP} iconClassName="h-3.5 w-3.5 shrink-0" />
+                  <InfoTooltip
+                    content={FEES_HEADER_TOOLTIP}
+                    iconClassName="h-3.5 w-3.5 shrink-0"
+                  />
                 </p>
                 <InvoiceFeesCell application={application} invoice={invoice} />
-              </div>
-              <div className="pt-1">
-                <div className="flex items-center justify-end">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-                        <EllipsisVerticalIcon className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="rounded-xl">
-                      {(() => {
-                        return (
-                          <>
-                            {showViewSignedInvoice ? (
-                              <>
-                                <DropdownMenuItem
-                                  className="cursor-pointer"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    void onViewSignedInvoiceOffer!(invoice.id);
-                                  }}
-                                >
-                                  View Signed Offer
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                              </>
-                            ) : null}
-
-                            {showViewReasonRemarks ? (
-                              <>
-                                <DropdownMenuItem
-                                  className="cursor-pointer"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setReasonRemarksBody(
-                                      invoice.reasonOrRemarks?.trim() ||
-                                        "No reason were recorded for this invoice."
-                                    );
-                                    setReasonRemarksOpen(true);
-                                  }}
-                                >
-                                  View reason
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                              </>
-                            ) : null}
-
-                            <DropdownMenuItem
-                              className="cursor-pointer"
-                              disabled={withdrawInvoiceDisabled}
-                              onClick={() => {
-                                if (canWithdrawInvoice && !isWithdrawInvoicePending && !showViewSignedInvoice && onWithdrawInvoice) {
-                                  onWithdrawInvoice(
-                                    invoice.id,
-                                    application.id,
-                                    application.issuerOrganizationId
-                                  );
-                                }
-                              }}
-                              title={
-                                showViewSignedInvoice
-                                  ? "Withdraw is not available while a signed offer letter is on file"
-                                  : !canWithdrawInvoice
-                                    ? "Cannot withdraw: invoice is already approved, rejected, or withdrawn"
-                                    : isWithdrawInvoicePending
-                                      ? "Withdrawal in progress"
-                                      : undefined
-                              }
-                            >
-                              {isWithdrawInvoicePending ? "Withdrawing..." : "Withdraw Invoice"}
-                            </DropdownMenuItem>
-                          </>
-                        );
-                      })()}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
               </div>
             </div>
           </div>

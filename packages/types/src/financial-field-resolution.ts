@@ -269,10 +269,48 @@ export function resolveAdminFinancialReviewColumns(input: {
     ctosByYear.set(row.financial_year, ctosFinancialRowToFsFields(row));
   }
 
-  const ctosYears = getLatestThreeCtosYears(ctosRows);
-  const columns: AdminFinancialReviewColumn[] = [];
+  const eligible =
+    input.eligibleAdminInputYears ??
+    getEligibleAdminInputYears({
+      financialStatements: input.financialStatements,
+      ctosFinancials: input.ctosFinancials,
+      ref: input.ref,
+    });
+  const eligibleSet = new Set<number>(eligible);
 
-  for (const year of ctosYears) {
+  const issuerYears = Object.keys(unauditedByYear)
+    .map((key) => Number(key))
+    .filter((year) => Number.isInteger(year))
+    .filter((year) => {
+      const block = asRecord(unauditedByYear[String(year)]);
+      return block != null && financialYearBlockHasActualData(block);
+    })
+    .sort((a, b) => a - b);
+
+  const issuerYearSet = new Set<number>(issuerYears);
+
+  const adminYearsAny = Object.keys(adminInputByYear)
+    .map((key) => Number(key))
+    .filter((year) => Number.isInteger(year))
+    .filter((year) => {
+      const block = asRecord(adminInputByYear[String(year)]);
+      return block != null && financialYearBlockHasActualData(block);
+    })
+    .sort((a, b) => a - b);
+  const adminYearSetAny = new Set<number>(adminYearsAny);
+
+  // Preserve existing rule: if issuer (user) already has actual data for a FY, we do not show a second admin_input column for the same FY.
+  const adminYears = adminYearsAny.filter((y) => !issuerYearSet.has(y));
+
+  // CTOS history window: always 3 consecutive FY slots ending at the latest CTOS FY present in the data.
+  const ctosYearsPresent = [...ctosByYear.keys()].filter((y) => Number.isFinite(y)).sort((a, b) => a - b);
+  const latestCtosYear = ctosYearsPresent.length > 0 ? ctosYearsPresent[ctosYearsPresent.length - 1] : null;
+  const ctosWindowYears = latestCtosYear != null ? [latestCtosYear - 2, latestCtosYear - 1, latestCtosYear] : [];
+
+  const columns: AdminFinancialReviewColumn[] = [];
+  const placeholderRenderedYears = new Set<number>();
+
+  const addCtosColumn = (year: number, ctosRaw: Record<string, unknown> | null) => {
     columns.push({
       kind: "ctos",
       year,
@@ -280,23 +318,45 @@ export function resolveAdminFinancialReviewColumns(input: {
       recordSource: "ctos_audited",
       fields: yearFields({
         primary: "ctos",
-        ctosRaw: ctosByYear.get(year) ?? null,
+        ctosRaw,
         issuerRaw: asRecord(unauditedByYear[String(year)]),
         adminRaw: null,
         overrides: overrides[String(year)],
       }),
     });
+  };
+
+  const addPlaceholderColumn = (year: number) => {
+    columns.push({
+      kind: "admin_fallback_placeholder",
+      year,
+      primarySource: "add_year",
+      recordSource: null,
+      fields: {},
+    });
+    placeholderRenderedYears.add(year);
+  };
+
+  // CTOS-side 3 chronological slots (with missing CTOS years optionally turning into Add Financial Statement placeholders).
+  for (const year of ctosWindowYears) {
+    if (ctosByYear.has(year)) {
+      addCtosColumn(year, ctosByYear.get(year) ?? null);
+      continue;
+    }
+
+    const canAddMissingCtosWindowYear =
+      eligibleSet.has(year) && !issuerYearSet.has(year) && !adminYearSetAny.has(year);
+
+    // If eligible, show the Add Financial Statement action in the CTOS-history window.
+    if (canAddMissingCtosWindowYear) {
+      addPlaceholderColumn(year);
+    } else {
+      // Otherwise keep the missing CTOS slot as a CTOS column with no CTOS values.
+      addCtosColumn(year, null);
+    }
   }
 
-  const ctosYearSet = new Set(ctosYears);
-  const issuerYears = Object.keys(unauditedByYear)
-    .map((key) => Number(key))
-    .filter((year) => Number.isInteger(year) && !ctosYearSet.has(year))
-    .filter((year) => {
-      const block = asRecord(unauditedByYear[String(year)]);
-      return block != null && financialYearBlockHasActualData(block);
-    });
-
+  // User/Admin submitted financial years (do not suppress CTOS years; same FY may appear twice intentionally).
   for (const year of issuerYears) {
     columns.push({
       kind: "unaudited",
@@ -312,15 +372,6 @@ export function resolveAdminFinancialReviewColumns(input: {
       }),
     });
   }
-
-  const taken = new Set<number>([...ctosYears, ...issuerYears]);
-  const adminYears = Object.keys(adminInputByYear)
-    .map((key) => Number(key))
-    .filter((year) => Number.isInteger(year) && !taken.has(year))
-    .filter((year) => {
-      const block = asRecord(adminInputByYear[String(year)]);
-      return block != null && financialYearBlockHasActualData(block);
-    });
 
   for (const year of adminYears) {
     const adminRaw = asRecord(adminInputByYear[String(year)]);
@@ -340,18 +391,11 @@ export function resolveAdminFinancialReviewColumns(input: {
     });
   }
 
-  for (const year of adminYears) taken.add(year);
-
-  const eligible =
-    input.eligibleAdminInputYears ??
-    getEligibleAdminInputYears({
-      financialStatements: input.financialStatements,
-      ctosFinancials: input.ctosFinancials,
-      ref: input.ref,
-    });
-
+  // Remaining eligible missing years: render as Add Financial Statement placeholders (but do not duplicate placeholders already rendered inside the CTOS window).
   for (const year of eligible) {
-    if (taken.has(year)) continue;
+    if (placeholderRenderedYears.has(year)) continue;
+    if (issuerYearSet.has(year)) continue;
+    if (adminYearSetAny.has(year)) continue;
     columns.push({
       kind: "admin_fallback_placeholder",
       year,
@@ -361,7 +405,17 @@ export function resolveAdminFinancialReviewColumns(input: {
     });
   }
 
-  return columns.sort((a, b) => a.year - b.year);
+  const kindPriority: Record<AdminFinancialReviewColumn["kind"], number> = {
+    ctos: 0,
+    admin_fallback_placeholder: 1,
+    unaudited: 2,
+    admin_input: 3,
+  };
+
+  return columns.sort((a, b) => {
+    if (a.year !== b.year) return a.year - b.year;
+    return kindPriority[a.kind] - kindPriority[b.kind];
+  });
 }
 
 export type AdminFieldEditDecision =
