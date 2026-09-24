@@ -131,6 +131,7 @@ export function AdminEditFinancialStatementDialog({
   calendarYear,
   resolvedColumn,
   disabled,
+  readOnly = false,
   onSaved,
 }: {
   open: boolean;
@@ -139,6 +140,7 @@ export function AdminEditFinancialStatementDialog({
   calendarYear: number | null;
   resolvedColumn: AdminFinancialReviewColumn | null;
   disabled: boolean;
+  readOnly?: boolean;
   onSaved: () => void;
 }) {
   const { getAccessToken } = useAuthToken();
@@ -197,7 +199,7 @@ export function AdminEditFinancialStatementDialog({
 
   const onSave = React.useCallback(async () => {
     if (!applicationId || calendarYear == null || !resolvedColumn || !fieldState) return;
-    if (disabled) return;
+    if (disabled || readOnly) return;
 
     setSaving(true);
     try {
@@ -227,7 +229,12 @@ export function AdminEditFinancialStatementDialog({
               "Content-Type": "application/json",
               Authorization: `Bearer ${accessToken}`,
             },
-            body: JSON.stringify({ financialYear: calendarYear, fieldKey: key, value: nextValue }),
+            body: JSON.stringify({
+              financialYear: calendarYear,
+              fieldKey: key,
+              columnKind: resolvedColumn.kind,
+              value: nextValue,
+            }),
           }
         );
 
@@ -245,7 +252,7 @@ export function AdminEditFinancialStatementDialog({
     } finally {
       setSaving(false);
     }
-  }, [applicationId, calendarYear, disabled, fieldState, getAccessToken, onOpenChange, onSaved, resolvedColumn]);
+  }, [applicationId, calendarYear, disabled, fieldState, getAccessToken, onOpenChange, onSaved, readOnly, resolvedColumn]);
 
   const modalSourceLabel = (() => {
     if (!resolvedColumn) return "";
@@ -308,7 +315,7 @@ export function AdminEditFinancialStatementDialog({
                         <div className="grid gap-3 sm:grid-cols-2">
                           {keys.map((key) => {
                             const meta = fieldState.byKey[key]!;
-                            const inputDisabled = disabled || meta.readOnly || saving;
+                            const inputDisabled = disabled || readOnly || meta.readOnly || saving;
 
                             const helperText =
                               meta.source === "ctos" && meta.readOnly
@@ -373,9 +380,11 @@ export function AdminEditFinancialStatementDialog({
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancel
           </Button>
-          <Button type="button" onClick={() => void onSave()} disabled={disabled || saving}>
-            Save
-          </Button>
+          {readOnly ? null : (
+            <Button type="button" onClick={() => void onSave()} disabled={disabled || saving}>
+              Save
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

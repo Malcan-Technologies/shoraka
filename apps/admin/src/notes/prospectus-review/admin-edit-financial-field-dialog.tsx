@@ -25,7 +25,9 @@ export function AdminEditFinancialFieldDialog({
   fieldKey,
   fieldLabel,
   initialValue,
+  columnKind,
   disabled,
+  readOnly = false,
   onSaved,
 }: {
   open: boolean;
@@ -33,9 +35,11 @@ export function AdminEditFinancialFieldDialog({
   applicationId: string | null | undefined;
   calendarYear: number | null;
   fieldKey: string | null;
+  columnKind?: "ctos" | "unaudited" | "admin_input" | "admin_fallback_placeholder";
   fieldLabel: string;
   initialValue: number | null;
   disabled: boolean;
+  readOnly?: boolean;
   onSaved: () => void;
 }) {
   const { getAccessToken } = useAuthToken();
@@ -50,7 +54,7 @@ export function AdminEditFinancialFieldDialog({
 
   const onSave = async () => {
     if (!applicationId || calendarYear == null || !fieldKey) return;
-    if (disabled) return;
+    if (disabled || readOnly) return;
     const value = Number(raw.trim().replace(/,/g, ""));
     if (!Number.isFinite(value)) {
       toast.error("Enter a numeric value");
@@ -67,7 +71,7 @@ export function AdminEditFinancialFieldDialog({
             "Content-Type": "application/json",
             Authorization: `Bearer ${accessToken}`,
           },
-          body: JSON.stringify({ financialYear: calendarYear, fieldKey, value }),
+          body: JSON.stringify({ financialYear: calendarYear, fieldKey, columnKind, value }),
         }
       );
       const json = await res.json().catch(() => null);
@@ -102,7 +106,7 @@ export function AdminEditFinancialFieldDialog({
             type="number"
             step="any"
             value={raw}
-            disabled={disabled || saving}
+            disabled={disabled || readOnly || saving}
             onChange={(event) => setRaw(event.target.value)}
           />
         </div>
@@ -110,9 +114,11 @@ export function AdminEditFinancialFieldDialog({
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancel
           </Button>
-          <Button type="button" onClick={onSave} disabled={disabled || saving}>
-            Save
-          </Button>
+          {readOnly ? null : (
+            <Button type="button" onClick={onSave} disabled={disabled || saving}>
+              Save
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

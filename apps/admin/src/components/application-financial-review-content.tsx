@@ -66,6 +66,7 @@ import {
   resolvePreviousYearSourceValue,
   getEligibleAdminInputYears,
   isAdminEditableRawFinancialKey,
+  isAdminFinancialReviewEditLocked,
   isCalculatedFinancialMetricKey,
   receivablesDaysUnavailableReason,
   resolveAdminFinancialReviewColumns,
@@ -288,6 +289,8 @@ function financialRecordToInput(fs: Record<string, unknown>): FinancialStatement
 interface ApplicationFinancialReviewContentProps {
   applicationId: string;
   issuerOrganizationId: string | null;
+  /** Financial review section status. APPROVED locks Admin financial edits. */
+  financialSectionStatus?: string | null;
   app: {
     people?: ApplicationPersonRow[];
     directorShareholderListSource?: import("@cashsouk/types").DirectorShareholderListSource;
@@ -314,11 +317,13 @@ interface ApplicationFinancialReviewContentProps {
 export function ApplicationFinancialReviewContent({
   applicationId,
   issuerOrganizationId,
+  financialSectionStatus,
   app,
 }: ApplicationFinancialReviewContentProps) {
   const issuerOrgId = issuerOrganizationId?.trim() ?? "";
   const { can } = usePermissions();
   const canManageFinancialCtos = can("applications.financial.manage");
+  const financialEditsLocked = isAdminFinancialReviewEditLocked(financialSectionStatus);
   const canViewOrganizations = can("organizations.view");
   const createSubjectReport = useCreateApplicationCtosSubjectReport(applicationId || undefined);
   const [subjectCtosFetchKey, setSubjectCtosFetchKey] = React.useState<string | null>(null);
@@ -332,6 +337,7 @@ export function ApplicationFinancialReviewContent({
   >(null);
   const [fieldEdit, setFieldEdit] = React.useState<{
     year: number;
+    kind: AdminFinancialReviewColumn["kind"];
     key: string;
     label: string;
     value: number | null;
@@ -1545,6 +1551,9 @@ export function ApplicationFinancialReviewContent({
                         ) : null}
 
                         {spec.kind === "admin_fallback_placeholder" && spec.year != null ? (
+                          financialEditsLocked ? (
+                            <span className="text-meta font-normal text-muted-foreground">Locked</span>
+                          ) : (
                           <Button
                             type="button"
                             variant="ghost"
@@ -1561,24 +1570,27 @@ export function ApplicationFinancialReviewContent({
                               <span className="whitespace-nowrap text-[13px] font-normal">Add statement</span>
                             </span>
                           </Button>
+                          )
+                        ) : spec.kind === "ctos" && spec.year != null && !byYear.has(spec.year) ? (
+                          <span className="text-meta font-normal text-muted-foreground">Read only</span>
                         ) : spec.kind !== "admin_fallback_placeholder" && spec.year != null ? (
                           <Button
                             type="button"
                             variant="ghost"
                             size="sm"
                             className="h-7 px-1.5 py-0 whitespace-nowrap hover:underline"
-                            title="Edit financial statement"
+                            title={financialEditsLocked ? "Financial review is approved" : "Edit financial statement"}
                             onClick={() => {
-                              // The year header also includes an "empty" kind for layout stability;
-                              // that must never be used as an edit target for the edit dialog.
                               if (spec.kind === "empty") return;
                               setEditFinancialStatementTarget({ year: spec.year as number, kind: spec.kind });
                               setEditFinancialStatementOpen(true);
                             }}
                           >
                             <span className="flex items-center gap-1">
-                              <PencilSquareIcon className="h-4 w-4" aria-hidden />
-                              <span className="whitespace-nowrap text-[13px] font-normal">Edit statement</span>
+                              {financialEditsLocked ? null : <PencilSquareIcon className="h-4 w-4" aria-hidden />}
+                              <span className="whitespace-nowrap text-[13px] font-normal">
+                                {financialEditsLocked ? "Locked" : "Edit statement"}
+                              </span>
                             </span>
                           </Button>
                         ) : null}
@@ -1719,8 +1731,10 @@ export function ApplicationFinancialReviewContent({
                         const uiCalculated = isCalculatedFinancialMetricKey(item.rowId) || item.rowId === "debtEquityPercent";
                         const canEditField =
                           canManageFinancialCtos &&
+                          !financialEditsLocked &&
                           spec.kind !== "admin_fallback_placeholder" &&
                           spec.kind !== "empty" &&
+                          !(spec.kind === "ctos" && spec.year != null && !byYear.has(spec.year)) &&
                           resolvedField != null &&
                           !resolvedField.readOnly &&
                           !uiCalculated;
@@ -1803,14 +1817,16 @@ export function ApplicationFinancialReviewContent({
                                 <button
                                   type="button"
                                   className="opacity-0 group-hover:opacity-100 text-meta text-primary hover:underline"
-                                  onClick={() =>
+                                  onClick={() => {
+                                    if (spec.kind === "empty" || spec.year == null) return;
                                     setFieldEdit({
-                                      year: spec.year as number,
+                                      year: spec.year,
+                                      kind: spec.kind,
                                       key: item.rowId,
                                       label: rowLabel,
                                       value: resolvedField?.value ?? null,
-                                    })
-                                  }
+                                    });
+                                  }}
                                   title={resolvedField?.value == null ? "Add financial value" : "Edit financial value"}
                                   aria-label={resolvedField?.value == null ? "Add financial value" : "Edit financial value"}
                                 >
@@ -1960,7 +1976,8 @@ export function ApplicationFinancialReviewContent({
         onOpenChange={setAddFinancialStatementOpen}
         applicationId={applicationId}
         calendarYear={addFinancialStatementYear}
-        disabled={!canManageFinancialCtos || addFinancialStatementYear == null}
+        disabled={!canManageFinancialCtos || addFinancialStatementYear == null || financialEditsLocked}
+        readOnly={financialEditsLocked}
         onSaved={onAddFinancialStatementSaved}
       />
       <AdminEditFinancialStatementDialog
@@ -1979,6 +1996,7 @@ export function ApplicationFinancialReviewContent({
             : null
         }
         disabled={!canManageFinancialCtos}
+        readOnly={financialEditsLocked}
         onSaved={onEditFinancialStatementSaved}
       />
       <AdminEditFinancialFieldDialog
@@ -1989,9 +2007,11 @@ export function ApplicationFinancialReviewContent({
         applicationId={applicationId}
         calendarYear={fieldEdit?.year ?? null}
         fieldKey={fieldEdit?.key ?? null}
+        columnKind={fieldEdit?.kind}
         fieldLabel={fieldEdit?.label ?? "Field"}
         initialValue={fieldEdit?.value ?? null}
-        disabled={!canManageFinancialCtos}
+        disabled={!canManageFinancialCtos || financialEditsLocked}
+        readOnly={financialEditsLocked}
         onSaved={onAddFinancialStatementSaved}
       />
 

@@ -8,6 +8,8 @@ import {
   APPLICATION_CORE_MONEY_KEYS,
   APPLICATION_EXTRA_ISSUER_RAW_MONEY_KEYS,
   FINANCIAL_FIELD_LABELS,
+  isWholeYearAdminFinancialFieldRequired,
+  wholeYearAdminFinancialFieldProgress,
 } from "@cashsouk/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -118,6 +120,7 @@ export function AdminAddFinancialStatementDialog({
   applicationId,
   calendarYear,
   disabled,
+  readOnly = false,
   onSaved,
 }: {
   open: boolean;
@@ -125,6 +128,7 @@ export function AdminAddFinancialStatementDialog({
   applicationId: string | null | undefined;
   calendarYear: number | null;
   disabled: boolean;
+  readOnly?: boolean;
   onSaved: () => void;
 }) {
   const { getAccessToken } = useAuthToken();
@@ -132,6 +136,7 @@ export function AdminAddFinancialStatementDialog({
   const [statementType, setStatementType] =
     React.useState<AdminFinancialStatementStatementType>("AUDITED");
   const [values, setValues] = React.useState<Record<string, string>>({});
+  const [showMissing, setShowMissing] = React.useState(false);
   const [openSections, setOpenSections] = React.useState<Record<string, boolean>>({
     Assets: true,
     Liabilities: true,
@@ -155,6 +160,7 @@ export function AdminAddFinancialStatementDialog({
     setSaving(false);
     setStatementType("AUDITED");
     setValues({});
+    setShowMissing(false);
     setOpenSections({
       Assets: true,
       Liabilities: true,
@@ -166,10 +172,36 @@ export function AdminAddFinancialStatementDialog({
   }, [open, calendarYear]);
 
   const yearLabel = calendarYear != null ? `FY${calendarYear}` : "FY";
+  const parsedValues = React.useMemo(() => {
+    const parsed: Record<string, number | null> = {};
+    for (const key of FORM_KEYS) parsed[key] = parseNumberInput(values[key] ?? "");
+    return parsed;
+  }, [FORM_KEYS, values]);
+  const progress = React.useMemo(
+    () =>
+      wholeYearAdminFinancialFieldProgress(
+        parsedValues,
+        ADD_MODAL_CATEGORIES.map((category) => ({ id: category.title, keys: category.keys }))
+      ),
+    [parsedValues]
+  );
+  const sectionRemaining = React.useMemo(
+    () => new Map(progress.sections.map((section) => [section.id, section.remaining])),
+    [progress.sections]
+  );
 
   const onSave = async () => {
     if (!applicationId || calendarYear == null) return;
-    if (disabled) return;
+    if (disabled || readOnly) return;
+    if (progress.remaining > 0) {
+      setShowMissing(true);
+      toast.error(
+        progress.remaining === 1
+          ? "1 required field is still missing."
+          : `${progress.remaining} required fields are still missing.`
+      );
+      return;
+    }
     setSaving(true);
     try {
       const rawFinancialInputs: Record<string, unknown> = {};
@@ -229,6 +261,10 @@ export function AdminAddFinancialStatementDialog({
               <div className="text-muted-foreground">
                 Calculated fields are read-only and update automatically from raw financial inputs.
               </div>
+              <p className="text-ui text-foreground" aria-live="polite">
+                {progress.completed} of {progress.requiredTotal} required fields completed
+                {progress.remaining > 0 ? ` · ${progress.remaining} remaining` : ""}
+              </p>
             </div>
           </DialogDescription>
         </DialogHeader>
@@ -275,6 +311,11 @@ export function AdminAddFinancialStatementDialog({
                         <ChevronRightIcon className="h-4 w-4" aria-hidden />
                       )}
                       <span className="text-sm font-semibold text-foreground">{cat.title}</span>
+                      <span className="ml-auto text-meta font-normal text-muted-foreground">
+                        {(sectionRemaining.get(cat.title) ?? 0) === 0
+                          ? "Complete"
+                          : `${sectionRemaining.get(cat.title)} remaining`}
+                      </span>
                     </button>
 
                     {isOpen ? (
@@ -293,7 +334,19 @@ export function AdminAddFinancialStatementDialog({
                               step="any"
                               placeholder="—"
                               value={values[key] ?? ""}
-                              disabled={disabled || saving}
+                              disabled={disabled || readOnly || saving}
+                              aria-invalid={
+                                showMissing &&
+                                isWholeYearAdminFinancialFieldRequired(key) &&
+                                parsedValues[key] == null
+                              }
+                              className={
+                                showMissing &&
+                                isWholeYearAdminFinancialFieldRequired(key) &&
+                                parsedValues[key] == null
+                                  ? "border-destructive"
+                                  : undefined
+                              }
                               onChange={(e) =>
                                 setValues((prev) => ({ ...prev, [key]: e.target.value }))
                               }
@@ -313,9 +366,11 @@ export function AdminAddFinancialStatementDialog({
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancel
           </Button>
-          <Button type="button" onClick={onSave} disabled={disabled || saving || applicationId == null || calendarYear == null}>
-            {saving ? "Saving..." : "Save financial statement"}
-          </Button>
+          {readOnly ? null : (
+            <Button type="button" onClick={onSave} disabled={disabled || saving || applicationId == null || calendarYear == null}>
+              {saving ? "Saving..." : "Save financial statement"}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

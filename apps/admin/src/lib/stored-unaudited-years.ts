@@ -13,7 +13,7 @@ export type AdminFinancialSummaryColumn = {
   statementType?: string;
 };
 
-/** Chronological FY columns. One column per year. CTOS wins a duplicate FY. No empty pad slots. */
+/** Chronological FY columns. Historical slots and User Input are separate lanes. */
 export function adminFinancialSummaryColumns(
   ctosRows: CtosFinancialYearRowInput[] | null | undefined,
   unauditedByYear: Record<string, unknown> | null | undefined,
