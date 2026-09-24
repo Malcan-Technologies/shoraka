@@ -1446,7 +1446,7 @@ export function FinancialStatementsStep({
                 Previous financial year auto-filled from company records or a previous financing. Please
                 review before continuing.
                 {prefillIncludesAdminValues
-                  ? " Some figures were prefilled from a previous Admin Input and are not CTOS values."
+                  ? " Some figures were prefilled from a previous Admin Input and are not provider-supplied values."
                   : ""}
               </p>
             ) : null}

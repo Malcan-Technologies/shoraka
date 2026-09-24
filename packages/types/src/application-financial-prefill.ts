@@ -385,8 +385,9 @@ export function buildStoredApplicationFinancialYearBlock(
   for (const key of APPLICATION_CORE_MONEY_KEYS) {
     out[key] = toStoredFinancialNumber(raw[key]);
   }
+  // Canonical extra issuer raw keys are persisted with 0 when missing so downstream
+  // comparisons and stored-history rendering can rely on the presence of keys.
   for (const key of APPLICATION_EXTRA_ISSUER_RAW_MONEY_KEYS) {
-    if (!isPresentFinancialValue(raw[key])) continue;
     out[key] = toStoredFinancialNumber(raw[key]);
   }
   for (const key of APPLICATION_COMREP_DETAIL_KEYS) {

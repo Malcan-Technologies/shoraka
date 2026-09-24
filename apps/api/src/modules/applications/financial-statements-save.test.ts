@@ -146,5 +146,8 @@ describe("parseFinancialStatementsForStepSave", () => {
     expect(block.tradePayables).toBe(5);
     expect(block.operatingCashFlow).toBe(6);
     expect(block.freeCashFlow).toBe(7);
+    expect(block.costOfSales).toBe(0);
+    expect(block.netOperatingIncome).toBe(0);
+    expect(block.annualDebtService).toBe(0);
   });
 });

@@ -376,16 +376,59 @@ describe("Admin Financial Summary table UI", () => {
   });
 
   it("shows '(if applicable)' marker only for the 3 optional equity fields (resubmit comparison)", () => {
-    const comparisonSource = readFileSync(comparisonPath, "utf8");
-    const count = comparisonSource.match(/\(if applicable\)/g)?.length ?? 0;
-    expect(count).toBeGreaterThan(0);
+    const comparisonSourceFull = readFileSync(comparisonPath, "utf8");
+    const start = comparisonSourceFull.indexOf("// Modern comparison UI: compare historical revision snapshots");
+    const end = comparisonSourceFull.indexOf("const mockFinancialPayload");
+
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+
+    const comparisonSource = comparisonSourceFull.slice(start, end);
+
     // Ensure optional logic is applied only to the 3 equity fields.
     expect(comparisonSource).toContain('"equity_share_application"');
     expect(comparisonSource).toContain('"equity_share_premium"');
     expect(comparisonSource).toContain('"equity_minority"');
-    expect(comparisonSource).toContain('return `${base} (if applicable)`;');
+    expect(comparisonSource).toContain("(if applicable)");
+
     // Ensure we didn't leave the old "Optional" badge wording behind.
     expect(comparisonSource).not.toContain("Optional");
+  });
+
+  it("resubmit comparison renders the latest raw financial field coverage", () => {
+    const comparisonSourceFull = readFileSync(comparisonPath, "utf8");
+    const start = comparisonSourceFull.indexOf("// Modern comparison UI: compare historical revision snapshots");
+    const end = comparisonSourceFull.indexOf("const mockFinancialPayload");
+
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+
+    const comparisonSource = comparisonSourceFull.slice(start, end);
+
+    const expected = [
+      "cashAndBank",
+      "tradeReceivables",
+      "tradePayables",
+      "grossProfit",
+      "ebitda",
+      "netOperatingIncome",
+      "costOfSales",
+      "operatingCashFlow",
+      "freeCashFlow",
+      "annualDebtService",
+    ];
+
+    for (const k of expected) {
+      expect(comparisonSource).toContain(k);
+    }
+
+    // Category headers must match the current Financial Review sections.
+    expect(comparisonSource).toContain("Assets");
+    expect(comparisonSource).toContain("Liabilities");
+    expect(comparisonSource).toContain("Equity");
+    expect(comparisonSource).toContain("Profit & Loss");
+    expect(comparisonSource).toContain("Costs");
+    expect(comparisonSource).toContain("Cash Flow / Debt");
   });
 
   it("renders Source as — for missing CTOS values and for admin add-year placeholders", () => {

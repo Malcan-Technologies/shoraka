@@ -1,6 +1,7 @@
 import {
   decideAdminFinancialFieldEdit,
   financialFieldSourceBadge,
+  reconcileAdminFieldOverridesAfterIssuerSave,
   receivablesDaysUnavailableReason,
   resolveAdminFinancialReviewColumns,
 } from "./financial-field-resolution";
@@ -230,5 +231,58 @@ describe("resolveAdminFinancialReviewColumns", () => {
         turnover: 100,
       })
     ).toBe("Unable to calculate — previous year Trade Receivables unavailable");
+  });
+
+  it("preserves add_missing_ctos_field overrides when issuer edits a different user-input field", () => {
+    const existingFinancialStatements = {
+      admin_field_overrides: {
+        "2025": {
+          // This one should be removed when issuer changes the underlying user-input value.
+          turnover: {
+            value: 12,
+            baseSource: "user_input",
+            action: "edit_user_input",
+            updated_by_user_id: "admin",
+            updated_at: "2026-01-01T00:00:00.000Z",
+          },
+          // This one must stay because it's an Admin-supplied CTOS gap fill.
+          cashAndBank: {
+            value: 500000,
+            baseSource: "ctos",
+            action: "add_missing_ctos_field",
+            updated_by_user_id: "admin",
+            updated_at: "2026-01-01T00:00:00.000Z",
+          },
+        },
+      },
+    };
+
+    const previousUnauditedByYear = {
+      "2025": {
+        turnover: 12,
+      },
+    };
+
+    const nextUnauditedByYear = {
+      "2025": {
+        // issuer edited turnover → override should not be kept
+        turnover: 13,
+      },
+    };
+
+    const reconciled = reconcileAdminFieldOverridesAfterIssuerSave({
+      existingFinancialStatements,
+      previousUnauditedByYear: previousUnauditedByYear,
+      nextUnauditedByYear,
+    });
+
+    expect(reconciled).toEqual({
+      "2025": {
+        cashAndBank: expect.objectContaining({
+          value: 500000,
+          action: "add_missing_ctos_field",
+        }),
+      },
+    });
   });
 });
