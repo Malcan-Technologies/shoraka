@@ -1517,6 +1517,9 @@ export function ApplicationFinancialReviewContent({
                             className="h-7 px-1.5 py-0 whitespace-nowrap hover:underline"
                             title="Edit financial statement"
                             onClick={() => {
+                              // The year header also includes an "empty" kind for layout stability;
+                              // that must never be used as an edit target for the edit dialog.
+                              if (spec.kind === "empty") return;
                               setEditFinancialStatementTarget({ year: spec.year as number, kind: spec.kind });
                               setEditFinancialStatementOpen(true);
                             }}
