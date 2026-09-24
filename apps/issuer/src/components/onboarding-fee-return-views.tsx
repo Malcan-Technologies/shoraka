@@ -139,7 +139,6 @@ export function OfferAcceptanceSubmittedSuccessView({
 
 export function OnboardingFeeSuccessView({
   amount,
-  feeId,
 }: {
   amount: number;
   feeId: string;

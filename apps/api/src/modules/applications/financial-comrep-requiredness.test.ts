@@ -12,6 +12,31 @@ function validRequiredBlock(): Record<string, unknown> {
     admin_cost: 1,
     interest_cost: 1,
     other_cost: 1,
+    // Core money inputs (required)
+    bsfatot: 1,
+    othass: 1,
+    bscatot: 1,
+    bsclbank: 1,
+    cashAndBank: 1,
+    tradeReceivables: 1,
+    curlib: 1,
+    bsslltd: 1,
+    bsclstd: 1,
+    bsqpuc: 1,
+    tradePayables: 1,
+    turnover: 1,
+    grossProfit: 1,
+    ebitda: 1,
+    plnpbt: 1,
+    plnpat: 1,
+    plnetdiv: 1,
+    plyear: 1,
+    operatingCashFlow: 1,
+    freeCashFlow: 1,
+    // Extra issuer raw money inputs (required)
+    costOfSales: 1,
+    netOperatingIncome: 1,
+    annualDebtService: 1,
     pl_minority: 1,
   };
 }
@@ -104,8 +129,48 @@ describe("Financial Statements — ComRep requiredness enforcement", () => {
     ).toThrow("P&L Minority Interest is required.");
   });
 
-  it("Share Application Account / Share Premium / Balance Sheet Minority Interest remain optional (blank allowed)", () => {
-    expect(() => assertRequiredFinancialComrepFieldsPresentOrThrow(validRequiredBlock())).not.toThrow();
+  it("Share Application Account / Share Premium / Equity Minority Interest remain optional (blank allowed)", () => {
+    expect(() =>
+      assertRequiredFinancialComrepFieldsPresentOrThrow({
+        ...validRequiredBlock(),
+        equity_share_application: "",
+        equity_share_premium: "",
+        equity_minority: "",
+      })
+    ).not.toThrow();
+  });
+
+  it("rejects blank for newly-required core/extra raw money fields", () => {
+    expect(() =>
+      assertRequiredFinancialComrepFieldsPresentOrThrow({
+        ...validRequiredBlock(),
+        cashAndBank: "",
+      })
+    ).toThrow("Cash & Bank is required.");
+
+    expect(() =>
+      assertRequiredFinancialComrepFieldsPresentOrThrow({
+        ...validRequiredBlock(),
+        annualDebtService: "",
+      })
+    ).toThrow("Annual Debt Service is required.");
+  });
+
+  it("accepts 0 for newly-required numeric fields", () => {
+    expect(() =>
+      assertRequiredFinancialComrepFieldsPresentOrThrow({
+        ...validRequiredBlock(),
+        cashAndBank: 0,
+        tradeReceivables: 0,
+        costOfSales: 0,
+        annualDebtService: 0,
+      })
+    ).not.toThrow();
+  });
+
+  it("rejects missing required fields (undefined)", () => {
+    const { cashAndBank: _cashAndBank, ...rest } = validRequiredBlock();
+    expect(() => assertRequiredFinancialComrepFieldsPresentOrThrow(rest)).toThrow("Cash & Bank is required.");
   });
 
   it("valid completed year block → allowed", () => {

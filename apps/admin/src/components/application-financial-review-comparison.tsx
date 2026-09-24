@@ -630,14 +630,7 @@ export function ApplicationFinancialReviewComparison({
                     const renderLabel = (key: string) => {
                       const base = getBaseLabel(key);
                       if (!OPTIONAL_EQUITY_KEYS.has(key)) return base;
-                      return (
-                        <div className="flex items-center gap-2">
-                          <span>{base}</span>
-                          <span className="text-meta font-normal leading-snug text-muted-foreground">
-                            Optional
-                          </span>
-                        </div>
-                      );
+                      return `${base} (if applicable)`;
                     };
 
                     const colSpan = 1 + unauditedSlots.length * 2;

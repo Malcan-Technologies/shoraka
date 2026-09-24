@@ -220,7 +220,9 @@ export const businessDetailsInheritedGuarantorsDataSchema = businessDetailsObjec
 const isoDateOnly = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Validates stored input fields for financial_statements step. Per-year block; no bsdd. */
-const numSchema = z.union([z.string(), z.number()]).optional().default(0);
+// Do not default missing numeric fields to 0.
+// Backend requiredness should decide whether missing/blank is allowed vs rejected.
+const numSchema = z.union([z.string(), z.number()]).optional();
 const optionalNumSchema = z.union([z.string(), z.number()]).optional();
 export const financialStatementsInputSchema = z.object({
   pldd: z.union([z.literal(""), z.string().regex(isoDateOnly, "Must be YYYY-MM-DD")]),

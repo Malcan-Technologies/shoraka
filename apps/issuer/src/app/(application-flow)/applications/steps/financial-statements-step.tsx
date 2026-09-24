@@ -256,8 +256,12 @@ function toApiPayload(form: FinancialStatementsPayload): Record<string, unknown>
   for (const k of APPLICATION_CORE_MONEY_KEYS) {
     const raw = form[k] ?? "";
     const s = String(raw).trim();
-    // Optional money fields must remain absent when blank so stage 4A can return DNA/blank.
-    if (!s && !requiredCore.has(k)) continue;
+    // Required money fields must not be converted from blank → 0.
+    // Backend requiredness treats `undefined` as missing/blank.
+    if (!s) {
+      if (!requiredCore.has(k)) continue;
+      continue;
+    }
     out[k] = parseMoney(raw);
   }
   for (const k of APPLICATION_EXTRA_ISSUER_RAW_MONEY_KEYS) {
