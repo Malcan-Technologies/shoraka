@@ -520,6 +520,7 @@ export * from "./ctos-financial-highlights";
 export * from "./financial-unaudited-ctos-validation";
 export * from "./financial-statement-year-resolution";
 export * from "./financial-field-resolution";
+export * from "./financial-previous-year-source";
 export * from "./application-financial-prefill";
 export * from "./review-scope";
 export * from "./contract-originating-application";

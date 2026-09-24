@@ -12,7 +12,7 @@ describe("application financial review Turnover Growth rendering", () => {
     // CTOS fallback should compute from resolved turnover, not rely on CTOS XSL finished metric.
     expect(source).toContain('case "turnover_growth"');
     expect(source).toContain("computeTurnoverGrowth({");
-    expect(source).toContain("turnoverByYear.get(specCol.year - 1)");
+    expect(source).toContain("resolvePreviousYearTurnover(specCol.kind, specCol.year - 1)");
     expect(source).toContain("Missing: previous financial year Revenue / Turnover");
   });
 
