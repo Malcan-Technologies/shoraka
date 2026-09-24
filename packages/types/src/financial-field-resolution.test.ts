@@ -32,7 +32,7 @@ describe("resolveAdminFinancialReviewColumns", () => {
     ]);
   });
 
-  it("keeps a stable 3-FY layout by padding missing CTOS FYs when CTOS has no data", () => {
+  it("does not fabricate CTOS FY columns when CTOS has no rows", () => {
     const columns = resolveAdminFinancialReviewColumns({
       financialStatements: { unaudited_by_year: {} },
       ctosFinancials: [],
@@ -40,17 +40,26 @@ describe("resolveAdminFinancialReviewColumns", () => {
     });
 
     expect(columns.map((column) => [column.year, column.kind])).toEqual([
-      [2024, "ctos"],
       [2025, "admin_fallback_placeholder"],
       [2026, "admin_fallback_placeholder"],
     ]);
   });
 
-  it("allows Admin to add missing CTOS raw fields for padded CTOS FYs", () => {
+  it("allows Admin to add missing CTOS raw fields for an actual CTOS FY", () => {
     const columns = resolveAdminFinancialReviewColumns({
       financialStatements: { unaudited_by_year: {} },
-      ctosFinancials: [],
-      eligibleAdminInputYears: [2026],
+      ctosFinancials: [
+        {
+          financial_year: 2024,
+          dates: { pldd: "2024-12-31", bsdd: null },
+          account: {
+            // turnover exists so the CTOS FY is a real year
+            turnover: 1,
+            // cashAndBank intentionally missing to simulate a CTOS gap
+          },
+        },
+      ],
+      eligibleAdminInputYears: [],
     });
 
     const padded = columns.find((c) => c.year === 2024);

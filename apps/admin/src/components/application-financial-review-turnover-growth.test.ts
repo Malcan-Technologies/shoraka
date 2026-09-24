@@ -13,7 +13,7 @@ describe("application financial review Turnover Growth rendering", () => {
     expect(source).toContain('case "turnover_growth"');
     expect(source).toContain("computeTurnoverGrowth({");
     expect(source).toContain("turnoverByYear.get(specCol.year - 1)");
-    expect(source).toContain("Previous financial year Revenue unavailable");
+    expect(source).toContain("Missing: previous financial year Revenue / Turnover");
   });
 
   it("removes CTOS/User Input/Admin Input source badges from the Year header", () => {

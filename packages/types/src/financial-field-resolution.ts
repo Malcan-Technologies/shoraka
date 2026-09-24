@@ -16,7 +16,9 @@ import {
   type FinancialStatementRecordSource,
   type FinancialStatementStatementType,
 } from "./financial-statement-year-resolution";
-import { getLatestThreeCtosYears } from "./financial-unaudited-ctos-validation";
+import {
+  getLatestThreeCtosYears,
+} from "./financial-unaudited-ctos-validation";
 
 export const ADMIN_EDITABLE_RAW_FINANCIAL_KEYS = [
   ...APPLICATION_CORE_MONEY_KEYS,
@@ -347,42 +349,6 @@ export function resolveAdminFinancialReviewColumns(input: {
       ctosFinancials: input.ctosFinancials,
       ref: input.ref,
     });
-
-  /**
-   * Presentation/layout stability:
-   * Keep the admin financial summary stable with an expected 3 FY columns.
-   *
-   * When CTOS data is empty/incomplete, `getLatestThreeCtosYears()` returns fewer years,
-   * which can remove CTOS-backed FY columns entirely.
-   *
-   * We pad CTOS-backed slots using the eligible FY window so the table always renders
-   * the expected 3-year structure. CTOS fields remain missing (value=null) and are
-   * still editable via the existing "add_missing_ctos_field" flow when CTOS is missing.
-   */
-  const ctosPaddingYears: number[] = (() => {
-    if (eligible.length === 2) return [eligible[0] - 1];
-    if (eligible.length === 1) return [eligible[0] - 2, eligible[0] - 1];
-    return [];
-  })();
-
-  // Add padded CTOS year columns before placeholders so the "add-year" logic stays intact.
-  for (const year of ctosPaddingYears) {
-    if (taken.has(year)) continue;
-    columns.push({
-      kind: "ctos",
-      year,
-      primarySource: "ctos",
-      recordSource: "ctos_audited",
-      fields: yearFields({
-        primary: "ctos",
-        ctosRaw: null,
-        issuerRaw: asRecord(unauditedByYear[String(year)]),
-        adminRaw: null,
-        overrides: overrides[String(year)],
-      }),
-    });
-    taken.add(year);
-  }
 
   for (const year of eligible) {
     if (taken.has(year)) continue;
