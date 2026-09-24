@@ -9,6 +9,10 @@ import { AUDIT_SOURCE, createNoteEventRow } from "../../lib/audit";
 import { resolveNoteEventTarget } from "../notes/audit-fields";
 
 import type { Prisma } from "@prisma/client";
+import {
+  CERTIFICATE_FIRST_VERSION,
+  investorScheduleReferenceFor,
+} from "../notes/investment-note-certificate/types";
 
 export const SHORAKA_PROVIDER_STATUSES = {
   ACTIVE: "Active",
@@ -56,6 +60,23 @@ function numberFromJson(value: unknown): number | null {
 function formatMoney2(n: number): string {
   // Provider expects fixed 2 decimals.
   return n.toFixed(2);
+}
+
+function toNumberForMoney(value: unknown): number | null {
+  if (value == null) return null;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const cleaned = value.replace(/,/g, "").trim();
+    if (!cleaned) return null;
+    const n = Number(cleaned);
+    return Number.isFinite(n) ? n : null;
+  }
+  if (typeof value === "object" && value && "toNumber" in value) {
+    const maybeToNumber = value as { toNumber: () => number };
+    const n = maybeToNumber.toNumber();
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
 }
 
 function valueDateDDMMYYYY(d: Date): string {
@@ -109,22 +130,32 @@ export function getMalaysiaCutoffWarning(now: Date): string | null {
   return "Tawarruq trading is unavailable from 11:30 PM to 12:30 AM. Please try again after 12:30 AM.";
 }
 
-async function resolveOwnershipForIssuerDisbursement(args: {
-  withdrawalMetadata: Record<string, unknown> | null;
-  issuerOrganizationId: string | null | undefined;
-}): Promise<string> {
-  const fromMeta = args.withdrawalMetadata?.issuerOrganizationName;
-  if (typeof fromMeta === "string" && fromMeta.trim()) return fromMeta.trim();
+function resolveOwnershipForIssuerDisbursement(noteReference: string): string {
+  // Tawarruq provider expects the canonical investor schedule / ARF reference for this Note.
+  // Example: IS-NOTE-ARF-202609-5O3-V01
+  return investorScheduleReferenceFor(noteReference, CERTIFICATE_FIRST_VERSION);
+}
 
-  if (args.issuerOrganizationId) {
-    const issuer = await prisma.issuerOrganization.findUnique({
-      where: { id: args.issuerOrganizationId },
-      select: { name: true },
-    });
-    if (issuer?.name && issuer.name.trim()) return issuer.name.trim();
+function resolveInvoiceFaceValue(note: {
+  invoice_snapshot?: Prisma.JsonValue | null;
+  requested_amount?: unknown;
+}): number {
+  const invoice = asRecord(note.invoice_snapshot);
+  const details = asRecord(invoice?.details);
+  const offerDetails = asRecord(invoice?.offer_details);
+
+  const faceValue =
+    toNumberForMoney(details?.value) ??
+    toNumberForMoney(details?.invoice_value) ??
+    toNumberForMoney(details?.invoiceAmount) ??
+    toNumberForMoney(offerDetails?.invoice_value) ??
+    toNumberForMoney(note.requested_amount);
+
+  if (faceValue == null) {
+    throw new Error("Missing invoice value for shoraka submitorder murabaha_amount");
   }
 
-  return "Unknown Issuer";
+  return faceValue;
 }
 
 export function deriveOperationalStatus(args: {
@@ -473,9 +504,25 @@ export class ShorakaStpService {
 
     // Safe window: capture warning (should be null) and continue.
     // Note: `getMalaysiaCutoffWarning` only returns a value inside the unsafe window.
-    const ownership = await resolveOwnershipForIssuerDisbursement({
-      withdrawalMetadata,
-      issuerOrganizationId: withdrawal.issuer_organization_id,
+    if (!withdrawal.note_id) throw new Error("Missing note_id for shoraka submitorder");
+
+    const note = await prisma.note.findUnique({
+      where: { id: withdrawal.note_id },
+      select: {
+        note_reference: true,
+        invoice_snapshot: true,
+        requested_amount: true,
+      },
+    });
+
+    if (!note?.note_reference) {
+      throw new Error("Missing note_reference for shoraka submitorder ownership");
+    }
+
+    const ownership = resolveOwnershipForIssuerDisbursement(note.note_reference);
+    const invoiceFaceValue = resolveInvoiceFaceValue({
+      invoice_snapshot: note.invoice_snapshot,
+      requested_amount: note.requested_amount,
     });
 
     const values: ShorakaSubmitOrderValues = {
@@ -485,7 +532,7 @@ export class ShorakaStpService {
       value_date: valueDateDDMMYYYY(now),
       order_currency: "MYR",
       order_amount: formatMoney2(grossFundedAmount),
-      murabaha_amount: formatMoney2(grossFundedAmount),
+      murabaha_amount: formatMoney2(invoiceFaceValue),
       tenor: "O/N",
       tenor_other: "",
       tenor_other_unit: "",

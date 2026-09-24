@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { EllipsisVerticalIcon, ArrowDownTrayIcon } from "@heroicons/react/24/outline";
-import { KeyValueGrid, StatusBadge } from "@cashsouk/ui";
+import { StatusBadge } from "@cashsouk/ui";
 import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
 import { formatCalendarDate, type WithdrawReason } from "@cashsouk/types";
 import {
@@ -34,6 +34,7 @@ import { FileDisplayBadge } from "@/app/(application-flow)/applications/componen
 import { ScrollableInvoiceTableProps } from "./scrollable-invoice-table";
 import { issuerInvoiceCanViewReasonRemarks, resolveNormalizedInvoiceBadgeKey } from "../status";
 import { buildInvoiceFeeDisplay, money } from "@/lib/facility-fee-display";
+import { FinancingKpiTile } from "@/components/financing/financing-kpi-strip";
 
 type Props = {
   application: ScrollableInvoiceTableProps["application"];
@@ -66,36 +67,6 @@ function InvoiceStatusBadge({
       status={badgeKeyToStatusToken(badgeKey)}
       className="whitespace-nowrap"
     />
-  );
-}
-
-function IssuerInvoiceCurrencyCell({ amount }: { amount: number | null | undefined }) {
-  if (amount == null || !Number.isFinite(amount)) {
-    return <span className="tabular-nums">—</span>;
-  }
-  return (
-    <div className="flex w-full min-w-0 items-baseline justify-between gap-2 text-ui">
-      <span className="shrink-0 text-left">RM</span>
-      <span className="min-w-0 flex-1 text-right tabular-nums">
-        {formatCurrency(amount, { includeSymbol: false })}
-      </span>
-    </div>
-  );
-}
-
-function IssuerInvoiceCurrencyCellFromFormatted({ formatted }: { formatted: string }) {
-  if (formatted === "—" || !formatted.trim()) {
-    return <span className="tabular-nums">—</span>;
-  }
-  const match = /^RM\s+(.+)$/.exec(formatted.trim());
-  if (!match) {
-    return <span>{formatted}</span>;
-  }
-  return (
-    <div className="flex w-full min-w-0 items-baseline justify-between gap-2 text-ui">
-      <span className="shrink-0 text-left">RM</span>
-      <span className="min-w-0 flex-1 text-right tabular-nums">{match[1]}</span>
-    </div>
   );
 }
 
@@ -416,41 +387,38 @@ export function InvoiceSingleDetail({
           ) : null}
 
           <div className="space-y-4">
-            <KeyValueGrid
-              columns={2}
-              items={[
-                {
-                  label: "Invoice Value",
-                  value: <IssuerInvoiceCurrencyCell amount={invoice.value} />,
-                },
-                {
-                  label: "Financing Offered",
-                  value: (
-                    <IssuerInvoiceCurrencyCellFromFormatted
-                      formatted={invoice.financingOffered}
-                    />
-                  ),
-                },
-                {
-                  label: "Applied Financing",
-                  value: (
-                    <IssuerInvoiceCurrencyCell amount={invoice.appliedFinancing} />
-                  ),
-                },
-                {
-                  label: (
-                    <span className="inline-flex items-center gap-1.5">
-                      Profit rate{" "}
-                      <InfoTooltip
-                        content={PROFIT_RATE_HEADER_TOOLTIP}
-                        iconClassName="h-3.5 w-3.5 shrink-0"
-                      />
-                    </span>
-                  ),
-                  value: <span className="text-ui tabular-nums">{invoice.profitRate}</span>,
-                },
-              ]}
-            />
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <FinancingKpiTile
+                label="Invoice Value"
+                value={
+                  invoice.value != null && Number.isFinite(invoice.value)
+                    ? formatCurrency(invoice.value)
+                    : "—"
+                }
+              />
+              <FinancingKpiTile
+                label="Applied Financing"
+                value={
+                  invoice.appliedFinancing != null && Number.isFinite(invoice.appliedFinancing)
+                    ? formatCurrency(invoice.appliedFinancing)
+                    : "—"
+                }
+              />
+              <FinancingKpiTile
+                label="Financing Offered"
+                value={invoice.financingOffered?.trim() ? invoice.financingOffered : "—"}
+              />
+              <FinancingKpiTile
+                label="Profit rate"
+                value={invoice.profitRate ?? "—"}
+                labelExtra={
+                  <InfoTooltip
+                    content={PROFIT_RATE_HEADER_TOOLTIP}
+                    iconClassName="h-3.5 w-3.5 shrink-0"
+                  />
+                }
+              />
+            </div>
 
             <div className="space-y-3">
               <div className="space-y-1">
