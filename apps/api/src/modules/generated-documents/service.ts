@@ -460,12 +460,16 @@ export class GeneratedDocumentsService {
     const issuerOrganization = this.requireIssuerOrganization(application);
 
     let gracePeriodDaysDefault: number | null = null;
+    let applicationProcessingFeeAmount: unknown = null;
     try {
       const settings = await prisma.platformFinanceSetting.findFirst({
         orderBy: { updated_at: "desc" },
       });
       if (settings && typeof settings.grace_period_days === "number") {
         gracePeriodDaysDefault = settings.grace_period_days;
+      }
+      if (settings) {
+        applicationProcessingFeeAmount = settings.application_processing_fee_amount;
       }
     } catch {
       // Platform finance settings may be unavailable in some envs.
@@ -528,6 +532,7 @@ export class GeneratedDocumentsService {
       },
       financingStructureType,
       gracePeriodDaysDefault,
+      applicationProcessingFeeAmount,
       productWorkflow,
     });
 

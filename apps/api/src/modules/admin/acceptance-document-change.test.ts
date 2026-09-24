@@ -121,23 +121,19 @@ describe("acceptance-document-change helpers", () => {
       ],
     };
 
-    it("allows issuer lists, blocks individual guarantors, and fails closed when the party is missing", () => {
+    it("allows issuer and individual guarantor lists, and fails closed when the party is missing", () => {
       expect(() =>
         assertAuthorizedRepresentativeChangeRequestAllowed(
           snapshot,
           "authorized_representatives:issuer"
         )
       ).not.toThrow();
-      try {
+      expect(() =>
         assertAuthorizedRepresentativeChangeRequestAllowed(
           snapshot,
           "authorized_representatives:guarantor:g_ind"
-        );
-        fail("expected throw");
-      } catch (error) {
-        expect(error).toBeInstanceOf(AppError);
-        expect((error as AppError).code).toBe("INVALID_ACTION");
-      }
+        )
+      ).not.toThrow();
       expect(() =>
         assertAuthorizedRepresentativeChangeRequestAllowed(
           snapshot,

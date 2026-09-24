@@ -138,6 +138,30 @@ export function parseSupportingDocumentItemCategoryKey(itemId: string): Supporti
   return key && isSupportingDocCategoryKey(key) ? key : null;
 }
 
+/**
+ * Matches API scope_key to a document row when slug suffixes differ between admin UI and issuer config.
+ * Accepts exact keys and prefix forms: supporting_documents:doc:{group}:{index}:… or supporting_documents:{group}:{index}:…
+ */
+export function supportingDocScopeKeyMatchesRow(
+  scopeKey: string,
+  groupKey: string,
+  documentIndex: number,
+  slug: string
+): boolean {
+  const sk = scopeKey.trim().toLowerCase();
+  const g = groupKey.trim().toLowerCase();
+  const exact = [
+    `supporting_documents:${groupKey}:${documentIndex}:${slug}`,
+    `supporting_documents:doc:${groupKey}:${documentIndex}:${slug}`,
+  ];
+  if (exact.some((e) => e.toLowerCase() === sk)) return true;
+  const prefixes = [
+    `supporting_documents:doc:${g}:${documentIndex}:`,
+    `supporting_documents:${g}:${documentIndex}:`,
+  ];
+  return prefixes.some((p) => sk.startsWith(p));
+}
+
 export function isFacilityLockedSupportingDocumentItem(
   itemId: string,
   lockedKeys: readonly string[]

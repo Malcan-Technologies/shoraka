@@ -65,6 +65,12 @@ import {
   resolveAcceptanceDocumentReviewKeysToResetOnSubmit,
 } from "./acceptance-document-issuer-lock";
 import {
+  assertSupportingDocumentSlotEditable,
+  findChangedSupportingDocumentSlots,
+  findSupportingDocumentSlotForS3Key,
+  hasSupportingDocumentItemLocks,
+} from "./supporting-document-issuer-lock";
+import {
   AUTHORIZED_REPRESENTATIVES_ITEM_TYPE,
   assertUnflaggedAuthorizedPartiesUnchanged,
   authorizedRepresentativeReviewItemIdRemap,
@@ -77,6 +83,12 @@ import {
   loadIssuerDirectorPool,
   type ApplicationGuarantorForParties,
 } from "./authorized-parties";
+import {
+  flaggedIndividualGuarantorParties,
+  identityFromIndividualGuarantorParty,
+  buildIndividualGuarantorIdentityPatch,
+  prismaDataForIndividualGuarantorIdentityPatch,
+} from "./individual-guarantor-identity";
 import { buildApplicationRevisionSnapshot } from "./revision-snapshot";
 import { assertProductRulesForSubmit } from "./product-rules-on-submit";
 import {
@@ -663,6 +675,23 @@ export class ApplicationService {
         "Post-application documents are locked after the signing package is sent. Void the package to make changes."
       );
     }
+  }
+
+  private collectMutableIndividualGuarantorItemIds(application: Application): Set<string> {
+    if (this.resolveOfferAcceptancePhase(application) !== "CHANGES_REQUESTED") {
+      return new Set();
+    }
+    return collectFlaggedAuthorizedRepresentativeItemIds(
+      (
+        application as {
+          application_review_items?: {
+            item_type: string;
+            item_id: string;
+            status: string;
+          }[];
+        }
+      ).application_review_items
+    );
   }
 
   private resolveOfferAcceptancePhase(application: Application | null): string | null | undefined {
@@ -1504,8 +1533,10 @@ export class ApplicationService {
       }
 
       /** Enforce amendment boundaries: only flagged sections/items can be updated. */
+      let amendmentAllowedItemKeys: Set<string> | null = null;
       if ((application as any).status === "AMENDMENT_REQUESTED") {
-        const { allowedSections } = await getAmendmentAllowedSections(id);
+        const { allowedSections, allowedItemKeys } = await getAmendmentAllowedSections(id);
+        amendmentAllowedItemKeys = allowedItemKeys;
         if (!allowedSections.has(fieldName)) {
           throw new AppError(
             403,
@@ -1833,6 +1864,22 @@ export class ApplicationService {
       }
 
       if (fieldName === "supporting_documents") {
+        if (
+          (application as { status?: string }).status === "AMENDMENT_REQUESTED" &&
+          amendmentAllowedItemKeys
+        ) {
+          const changedSlots = findChangedSupportingDocumentSlots(
+            application.supporting_documents,
+            input.data
+          );
+          for (const slot of changedSlots) {
+            assertSupportingDocumentSlotEditable(
+              slot.categoryKey,
+              slot.documentIndex,
+              amendmentAllowedItemKeys
+            );
+          }
+        }
         const existingKeys = this.extractS3KeysFromSupportingDocuments(
           application.supporting_documents
         );
@@ -2436,7 +2483,7 @@ export class ApplicationService {
     }
 
     if ((application as any).status === "AMENDMENT_REQUESTED") {
-      const { allowedSections } = await getAmendmentAllowedSections(params.applicationId);
+      const { allowedSections, allowedItemKeys } = await getAmendmentAllowedSections(params.applicationId);
       if (isAcceptanceDocUpload) {
         // Acceptance docs are post-offer; amendment locks do not apply.
       } else if (isSupportingDocsWorkflowUpload) {
@@ -2447,6 +2494,11 @@ export class ApplicationService {
             "This section is locked during amendment review"
           );
         }
+        assertSupportingDocumentSlotEditable(
+          params.supportingDocCategoryKey!,
+          params.supportingDocIndex!,
+          allowedItemKeys
+        );
       } else if (isGuarantorAgreementUpload) {
         if (!allowedSections.has("business_details")) {
           throw new AppError(
@@ -2456,9 +2508,11 @@ export class ApplicationService {
           );
         }
       } else {
-        /** Generic uploads use this path without category keys. */
+        /** Generic uploads must not be unlocked by supporting-document item remarks. */
         const canGenericUpload =
-          allowedSections.has("business_details") || allowedSections.has("supporting_documents");
+          allowedSections.has("business_details") ||
+          (allowedSections.has("supporting_documents") &&
+            !hasSupportingDocumentItemLocks(allowedItemKeys));
         if (!canGenericUpload) {
           throw new AppError(
             403,
@@ -2686,10 +2740,25 @@ export class ApplicationService {
     const status = (application as { status?: string }).status;
     if (status === ApplicationStatus.DRAFT || status === ApplicationStatus.AMENDMENT_REQUESTED) {
       if (status === ApplicationStatus.AMENDMENT_REQUESTED) {
-        const { allowedSections } = await getAmendmentAllowedSections(applicationId);
-        const canRemoveAppUploadedFile =
-          allowedSections.has("supporting_documents") || allowedSections.has("business_details");
-        if (!canRemoveAppUploadedFile) {
+        const { allowedSections, allowedItemKeys } = await getAmendmentAllowedSections(applicationId);
+        const supportingSlot = findSupportingDocumentSlotForS3Key(
+          application.supporting_documents,
+          s3Key
+        );
+        if (supportingSlot) {
+          if (!allowedSections.has("supporting_documents")) {
+            throw new AppError(
+              403,
+              "AMENDMENT_LOCKED",
+              "This section is locked during amendment review"
+            );
+          }
+          assertSupportingDocumentSlotEditable(
+            supportingSlot.categoryKey,
+            supportingSlot.documentIndex,
+            allowedItemKeys
+          );
+        } else if (!allowedSections.has("business_details")) {
           throw new AppError(
             403,
             "AMENDMENT_LOCKED",
@@ -3672,6 +3741,38 @@ export class ApplicationService {
     );
   }
 
+  private async patchFlaggedIndividualGuarantorIdentityInTx(
+    tx: Prisma.TransactionClient,
+    applicationId: string,
+    parties: AuthorizedPartiesSnapshot["parties"],
+    flaggedItemIds: ReadonlySet<string>
+  ): Promise<void> {
+    for (const party of flaggedIndividualGuarantorParties(parties, flaggedItemIds)) {
+      const identity = identityFromIndividualGuarantorParty(party);
+      if (!identity) continue;
+      const row = await tx.applicationGuarantor.findFirst({
+        where: party.client_guarantor_id
+          ? { application_id: applicationId, client_guarantor_id: party.client_guarantor_id }
+          : { application_id: applicationId, id: party.application_guarantor_id },
+      });
+      if (!row || row.guarantor_type !== "individual") continue;
+      const patch = buildIndividualGuarantorIdentityPatch({
+        current: {
+          name: row.name,
+          email: row.email,
+          ic_number: row.ic_number,
+          source_data: row.source_data,
+          metadata: row.metadata,
+        },
+        next: identity,
+      });
+      await tx.applicationGuarantor.update({
+        where: { id: row.id },
+        data: prismaDataForIndividualGuarantorIdentityPatch(patch),
+      });
+    }
+  }
+
   private async persistAuthorizedRepresentativesOnAcceptanceSubmitInTx(
     tx: Prisma.TransactionClient,
     applicationId: string,
@@ -3697,11 +3798,18 @@ export class ApplicationService {
           })
         : [];
     if (previousStatus === "CHANGES_REQUESTED") {
+      const flaggedItemIds = collectFlaggedAuthorizedRepresentativeItemIds(partyReviewItems);
       assertUnflaggedAuthorizedPartiesUnchanged(
         previousAcceptance?.authorized_parties,
         authorizedParties.parties,
-        collectFlaggedAuthorizedRepresentativeItemIds(partyReviewItems),
+        flaggedItemIds,
         guarantors
+      );
+      await this.patchFlaggedIndividualGuarantorIdentityInTx(
+        tx,
+        applicationId,
+        authorizedParties.parties,
+        flaggedItemIds
       );
     }
     await this.resetAuthorizedRepresentativesReviewInTx(
@@ -3754,7 +3862,12 @@ export class ApplicationService {
       authorizedPartiesPayload.parties,
       directorPool,
       guarantors,
-      { issuerOrganizationId: application.issuer_organization_id, workflow }
+      {
+        issuerOrganizationId: application.issuer_organization_id,
+        workflow,
+        mutableIndividualGuarantorItemIds:
+          this.collectMutableIndividualGuarantorItemIds(application),
+      }
     );
     return {
       draft: stampAuthorizedPartiesSnapshot({
@@ -3960,7 +4073,12 @@ export class ApplicationService {
       authorizedPartiesPayload.parties,
       directorPool,
       guarantors,
-      { issuerOrganizationId: application.issuer_organization_id, workflow }
+      {
+        issuerOrganizationId: application.issuer_organization_id,
+        workflow,
+        mutableIndividualGuarantorItemIds:
+          this.collectMutableIndividualGuarantorItemIds(application),
+      }
     );
 
     const now = new Date().toISOString();
@@ -4145,7 +4263,12 @@ export class ApplicationService {
       authorizedPartiesPayload.parties,
       directorPool,
       guarantors,
-      { issuerOrganizationId: application.issuer_organization_id, workflow }
+      {
+        issuerOrganizationId: application.issuer_organization_id,
+        workflow,
+        mutableIndividualGuarantorItemIds:
+          this.collectMutableIndividualGuarantorItemIds(application),
+      }
     );
 
     const now = new Date().toISOString();

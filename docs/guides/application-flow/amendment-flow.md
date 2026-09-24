@@ -114,9 +114,9 @@ Example: `scope_key: "invoice_details:0:Invoice"` adds `"invoice_details:0:Invoi
 
 ### Item-Level Unlocking
 
-**File:** `apps/issuer/src/app/(application-flow)/applications/steps/invoice-details-step.tsx`, `supporting-documents-step.tsx`, `contract-details-step.tsx`.
+**File:** `apps/issuer/src/app/(application-flow)/applications/steps/invoice-details-step.tsx`, `supporting-documents-step.tsx`, `contract-details-step.tsx`. API: `apps/api/src/modules/applications/supporting-document-issuer-lock.ts`.
 
-For invoice details, the step uses `flaggedItems.get("invoice_details")` to know which invoice rows are editable. For supporting documents, it uses `flaggedItems.get("supporting_documents")` and builds full `scope_key` values to match documents. Contract details use section-level flags only; there is no item-level unlocking for that step.
+For invoice details, the step uses `flaggedItems.get("invoice_details")` to know which invoice rows are editable. For supporting documents, item remarks unlock the step and **only flagged document rows** (upload / replace / add / remove). Unflagged documents stay view/download only. The API enforces the same slot lock on PATCH, upload, and delete (`AMENDMENT_LOCKED`). Shared matching lives in `supportingDocScopeKeyMatchesRow` (`packages/types`). Contract details use section-level flags only; there is no item-level unlocking for that step.
 
 ### Resubmit Button
 
@@ -139,6 +139,7 @@ The Resubmit button is enabled when `allAmendmentStepsAcknowledged` is true. Tha
 | Amendment remark card | `apps/issuer/src/app/(application-flow)/applications/components/amendments/amendment-remark-card.tsx` |
 | Invoice step | `apps/issuer/src/app/(application-flow)/applications/steps/invoice-details-step.tsx` |
 | Supporting documents step | `apps/issuer/src/app/(application-flow)/applications/steps/supporting-documents-step.tsx` |
+| Supporting document slot lock | `apps/api/src/modules/applications/supporting-document-issuer-lock.ts` |
 | Contract step | `apps/issuer/src/app/(application-flow)/applications/steps/contract-details-step.tsx` |
 
 ---
@@ -150,6 +151,7 @@ The Resubmit button is enabled when `allAmendmentStepsAcknowledged` is true. Tha
 | Red step not showing | `amendmentFlaggedStepKeys` in edit page |
 | Step shows red but should not | `flaggedSections` / `flaggedItems` logic |
 | Item not unlocking | Step file (invoice-details, supporting-documents) scope_key matching |
+| Unflagged supporting document still editable | Issuer `isSupportingDocumentRowEditable`; API `assertSupportingDocumentSlotEditable` |
 | Remarks not loading | Fetch effect in edit page or `getAmendmentContext` in service |
 | Resubmit fails | `resubmitApplication` in amendments service |
 | Resubmit says "missing acknowledgements" | `requiredSectionKeys` vs `acknowledgedWorkflowIds` in amendments service |

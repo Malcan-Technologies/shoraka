@@ -31,6 +31,7 @@ import {
   isSupportingDocCategoryKey,
   slugForAcceptanceDocName,
   SUPPORTING_DOC_CATEGORY_LABELS,
+  supportingDocScopeKeyMatchesRow,
   supportingDocumentCategoryEntries,
   type GeneratedDocumentTypeKey,
 } from "@cashsouk/types";
@@ -150,28 +151,33 @@ function sortUploadRecordsNewestFirst(list: UploadRecord[]): UploadRecord[] {
   });
 }
 
-/**
- * Matches API scope_key to a document row when slug suffixes differ between admin UI and issuer config.
- * Accepts exact keys and prefix forms: supporting_documents:doc:{group}:{index}:… or supporting_documents:{group}:{index}:…
- */
-function supportingDocScopeKeyMatchesRow(
-  scopeKey: string,
-  groupKey: string,
-  documentIndex: number,
-  slug: string
-): boolean {
-  const sk = scopeKey.trim().toLowerCase();
-  const g = groupKey.trim().toLowerCase();
-  const exact = [
-    `supporting_documents:${groupKey}:${documentIndex}:${slug}`,
-    `supporting_documents:doc:${groupKey}:${documentIndex}:${slug}`,
-  ];
-  if (exact.some((e) => e.toLowerCase() === sk)) return true;
-  const prefixes = [
-    `supporting_documents:doc:${g}:${documentIndex}:`,
-    `supporting_documents:${g}:${documentIndex}:`,
-  ];
-  return prefixes.some((p) => sk.startsWith(p));
+function supportingDocumentRowSlug(
+  documentStorage: "supporting_documents" | "acceptance_documents",
+  title: unknown
+): string {
+  if (documentStorage === "acceptance_documents") {
+    return slugForAcceptanceDocName(String(title ?? "doc"));
+  }
+  return String(title ?? "doc").replace(/[^a-z0-9]/gi, "_").slice(0, 32) || "doc";
+}
+
+function isSupportingDocumentRowEditable(opts: {
+  readOnly: boolean;
+  facilityLocked: boolean;
+  isAcceptanceDoc: boolean;
+  isAcceptanceChangeMode: boolean;
+  isAmendmentMode: boolean;
+  hasItemLevelSupportingRemarks: boolean;
+  isItemFlagged: boolean;
+}): boolean {
+  if (opts.readOnly || opts.facilityLocked) return false;
+  if (opts.isAcceptanceDoc) {
+    return !opts.isAcceptanceChangeMode || opts.isItemFlagged;
+  }
+  if (opts.isAmendmentMode && opts.hasItemLevelSupportingRemarks) {
+    return opts.isItemFlagged;
+  }
+  return true;
 }
 
 function collectS3KeysBySlot(files: Record<string, UploadRecord[]>): Map<string, Set<string>> {
@@ -338,6 +344,7 @@ export function SupportingDocumentsStep({
   documentStorage = "supporting_documents",
   amendmentRemarks = [],
   flaggedItems,
+  isAmendmentMode = false,
   isAcceptanceChangeMode = false,
   /** sideBySide = application flow page; stacked = narrow hosts (e.g. Review Offer modal). */
   documentRowLayout = "sideBySide",
@@ -527,6 +534,54 @@ export function SupportingDocumentsStep({
       return mode ? "multiple" : "single";
     },
     [categories]
+  );
+
+  const hasItemLevelSupportingRemarks = supportingDocItemSet.size > 0;
+  const isAcceptanceDocStorage = documentStorage === "acceptance_documents";
+
+  const isSlotEditable = React.useCallback(
+    (categoryIndex: number, documentIndex: number): boolean => {
+      const category = categories[categoryIndex];
+      const document = category?.documents[documentIndex];
+      if (!category || !document) return false;
+      const groupKey =
+        category.groupKey ?? Object.keys(stepConfig?.config || {})[categoryIndex] ?? "";
+      const slug = supportingDocumentRowSlug(documentStorage, document.title);
+      const workflowDocumentIndex = document.workflowDocumentIndex;
+      const isItemFlagged = isAcceptanceDocStorage
+        ? [...acceptanceDocItemSet].some((scopeKey) =>
+            acceptanceDocScopeKeyMatchesRow(scopeKey, workflowDocumentIndex, slug)
+          )
+        : [...supportingDocItemSet].some((key) =>
+            supportingDocScopeKeyMatchesRow(
+              key,
+              groupKey,
+              workflowDocumentIndex,
+              slug
+            )
+          );
+      return isSupportingDocumentRowEditable({
+        readOnly,
+        facilityLocked: Boolean(category.facilityLocked),
+        isAcceptanceDoc: isAcceptanceDocStorage,
+        isAcceptanceChangeMode,
+        isAmendmentMode,
+        hasItemLevelSupportingRemarks,
+        isItemFlagged,
+      });
+    },
+    [
+      acceptanceDocItemSet,
+      categories,
+      documentStorage,
+      hasItemLevelSupportingRemarks,
+      isAcceptanceChangeMode,
+      isAcceptanceDocStorage,
+      isAmendmentMode,
+      readOnly,
+      stepConfig,
+      supportingDocItemSet,
+    ]
   );
 
   const handleDownloadTemplate = React.useCallback(
@@ -809,6 +864,7 @@ export function SupportingDocumentsStep({
   }, [application, categories, documentStorage, isAcceptanceChangeMode]);
 
   const handleFileChange = (categoryIndex: number, documentIndex: number, event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!isSlotEditable(categoryIndex, documentIndex)) return;
     const key = `${categoryIndex}-${documentIndex}`;
     const mode = getUploadMode(categoryIndex, documentIndex);
     const selected = Array.from(event.target.files ?? []);
@@ -893,6 +949,9 @@ export function SupportingDocumentsStep({
         const slotDocument = slotCategory.documents[slot.documentIndex];
         if (!slotDocument) {
           throw new Error("Invalid document for upload");
+        }
+        if (!isSlotEditable(slot.categoryIndex, slot.documentIndex)) {
+          continue;
         }
 
         for (const pending of pendingUploads) {
@@ -983,11 +1042,20 @@ export function SupportingDocumentsStep({
 
     const lockedSlotKeys = new Set<string>();
     categories.forEach((category, categoryIndex) => {
-      if (!category.facilityLocked) return;
       category.documents.forEach((_, documentIndex) => {
-        lockedSlotKeys.add(`${categoryIndex}-${documentIndex}`);
+        if (!isSlotEditable(categoryIndex, documentIndex)) {
+          lockedSlotKeys.add(`${categoryIndex}-${documentIndex}`);
+        }
       });
     });
+    for (const slot of lockedSlotKeys) {
+      const initial = initialUploadedFiles[slot];
+      if (initial && initial.length > 0) {
+        updatedFiles[slot] = initial;
+      } else {
+        delete updatedFiles[slot];
+      }
+    }
     const lockedS3Keys = new Set<string>();
     for (const slot of lockedSlotKeys) {
       for (const file of initialUploadedFiles[slot] ?? []) {
@@ -1042,6 +1110,7 @@ export function SupportingDocumentsStep({
     buildDataToSave,
     categories,
     documentStorage,
+    isSlotEditable,
   ]);
 
   const uploadFilesRef = React.useRef(uploadFilesToS3);
@@ -1101,6 +1170,7 @@ export function SupportingDocumentsStep({
   ]);
 
   const handleRemoveFile = (categoryIndex: number, documentIndex: number, fileIndex: number) => {
+    if (!isSlotEditable(categoryIndex, documentIndex)) return;
     const key = `${categoryIndex}-${documentIndex}`;
 
     setUploadedFiles((prev: Record<string, UploadRecord[]>) => {
@@ -1225,12 +1295,7 @@ export function SupportingDocumentsStep({
                         category.groupKey ??
                         Object.keys(stepConfig?.config || {})[categoryIndex] ??
                         "";
-                      const slug =
-                        documentStorage === "acceptance_documents"
-                          ? slugForAcceptanceDocName(String(document.title ?? "doc"))
-                          : String(document.title ?? "doc")
-                              .replace(/[^a-z0-9]/gi, "_")
-                              .slice(0, 32) || "doc";
+                      const slug = supportingDocumentRowSlug(documentStorage, document.title);
                       const acceptAttr = buildAcceptAttr(document.allowedTypes ?? ["pdf"]);
                       const workflowDocumentIndex = document.workflowDocumentIndex;
                       const rawKey = `supporting_documents:${groupKey}:${workflowDocumentIndex}:${slug}`;
@@ -1268,10 +1333,15 @@ export function SupportingDocumentsStep({
                           )?.[1] ??
                           flaggedDocRemarks.get(rawKey) ??
                           flaggedDocRemarks.get(rawKeyWithDoc);
-                      const isEditable =
-                        !readOnly &&
-                        !category.facilityLocked &&
-                        (!isAcceptanceDoc || !isAcceptanceChangeMode || isItemFlagged);
+                      const isEditable = isSupportingDocumentRowEditable({
+                        readOnly,
+                        facilityLocked: Boolean(category.facilityLocked),
+                        isAcceptanceDoc,
+                        isAcceptanceChangeMode,
+                        isAmendmentMode,
+                        hasItemLevelSupportingRemarks,
+                        isItemFlagged,
+                      });
                       const flaggedUpdateState =
                         isAcceptanceDoc && isAcceptanceChangeMode && isItemFlagged
                           ? getAcceptanceFlaggedSlotUpdateState(
@@ -1573,14 +1643,7 @@ export function SupportingDocumentsStep({
                                       className="hidden"
                                     />
                                   </label>
-                                ) : category.facilityLocked ? null : (
-                                  <span
-                                    className={cn(docActionLinkClass, supportingDocActionOff)}
-                                  >
-                                    <CloudArrowUpIcon className="h-3.5 w-3.5 shrink-0" />
-                                    {mode === "multiple" ? "Upload files" : "Upload file"}
-                                  </span>
-                                )
+                                ) : null
                               ) : null}
 
                               {mode === "single" && hasFiles ? (
@@ -1643,14 +1706,7 @@ export function SupportingDocumentsStep({
                                       className="hidden"
                                     />
                                   </label>
-                                ) : (
-                                  <span
-                                    className={cn(docActionLinkClass, supportingDocActionOff)}
-                                  >
-                                    <CloudArrowUpIcon className="h-3.5 w-3.5 shrink-0" />
-                                    Add files
-                                  </span>
-                                )
+                                ) : null
                               ) : null}
                             </div>
                           </div>
