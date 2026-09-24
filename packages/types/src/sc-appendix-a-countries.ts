@@ -157,6 +157,20 @@ export function isScAppendixACountry(value: unknown): value is ScAppendixACountr
   return typeof value === "string" && (SC_APPENDIX_A_COUNTRIES as readonly string[]).includes(value);
 }
 
+/**
+ * Malaysia-only normalization for display.
+ *
+ * Important: this does not modify stored/raw RegTank values. Callers should use the
+ * result only for display/mapping, not for persistence.
+ */
+export function normalizeMalaysiaCountryValue(value: string | null | undefined): string | null | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) return value;
+  const upper = trimmed.toUpperCase();
+  if (upper === "MY" || upper === "MYS" || upper === "MALAYSIA") return "Malaysia";
+  return value;
+}
+
 /** Keep a stored value visible even if it is not in the printed Appendix A page set. */
 export function scAppendixASelectValues(current?: string | null): string[] {
   const list: string[] = [...SC_APPENDIX_A_COUNTRIES];

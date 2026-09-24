@@ -25,7 +25,7 @@ import {
   MALAYSIAN_BANKS,
 } from "@cashsouk/config";
 import type { ApplicationPersonRow } from "@cashsouk/types";
-import { filterVisiblePeopleRows, SC_GENDER_LABELS, SC_INDIVIDUAL_GENDERS, SC_MALAYSIAN_STATES, PROFILE_ADDRESS_FIELD_LABELS, PROFILE_ADDRESS_HELP, PROFILE_HELP, PROFILE_LABEL, formatCalendarDate, humanizeApiValidationMessage, isScPostcodeRequired, personalInvestorIdentityFormatKind, restrictScPostcodeInput, scAppendixASelectValues, storedProfilePhone, toCalendarDateInput, userFacingCompleteness, type ProfileFieldSources, type ScGender } from "@cashsouk/types";
+import { filterVisiblePeopleRows, SC_GENDER_LABELS, SC_INDIVIDUAL_GENDERS, SC_MALAYSIAN_STATES, PROFILE_ADDRESS_FIELD_LABELS, PROFILE_ADDRESS_HELP, PROFILE_HELP, PROFILE_LABEL, formatCalendarDate, humanizeApiValidationMessage, isScPostcodeRequired, normalizeMalaysiaCountryValue, personalInvestorIdentityFormatKind, restrictScPostcodeInput, scAppendixASelectValues, storedProfilePhone, toCalendarDateInput, userFacingCompleteness, type ProfileFieldSources, type ScGender } from "@cashsouk/types";
 import { useAuth } from "../../lib/auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccountDocuments } from "../../hooks/use-account-documents";
@@ -1183,7 +1183,7 @@ export default function ProfilePage() {
                             <SelectContent className="max-h-72">
                               {scAppendixASelectValues(nationality).map((country) => (
                                 <SelectItem key={country} value={country}>
-                                  {country}
+                                  {normalizeMalaysiaCountryValue(country)}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -1192,7 +1192,7 @@ export default function ProfilePage() {
                       ) : (
                         <ProfileReadField
                           label={PROFILE_LABEL.nationality}
-                          value={orgData?.nationality}
+                          value={normalizeMalaysiaCountryValue(orgData?.nationality)}
                           missing={missingFieldKeys.has("nationality")}
                           locked={isRegTankLockedNationality}
                           required

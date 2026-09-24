@@ -686,6 +686,67 @@ describe("master-profile lock decisions by profile_field_sources.source", () => 
   );
 
   it.each(portals)(
+    "allows USER nationality edits when RegTank source but nationality is placeholder UNSPECIFIED (%s portal)",
+    async (portal) => {
+      const row = personalOrg({
+        portal,
+        dateOfBirth: new Date("1990-01-01T00:00:00.000Z"),
+        nationality: "UNSPECIFIED",
+        documentNumber: null,
+        profileFieldSources: {
+          nationality: { source: "REGTANK", updatedAt: "2026-01-01T00:00:00.000Z" },
+        },
+      });
+
+      if (portal === "issuer") mockIssuerFindUnique.mockResolvedValue(row);
+      else mockInvestorFindUnique.mockResolvedValue(row);
+
+      await patchOrgMasterProfile({
+        portal,
+        organizationId: "org-1",
+        actorUserId: "user-1",
+        source: "USER",
+        fillEmptyOnly: true,
+        patch: { nationality: "SINGAPORE" } as any,
+      });
+
+      const updateCall =
+        portal === "issuer" ? mockIssuerUpdate.mock.calls[0]?.[0] : mockInvestorUpdate.mock.calls[0]?.[0];
+      expect(updateCall?.data?.nationality).toEqual("SINGAPORE");
+      expect((updateCall?.data?.profile_field_sources as any)?.nationality?.source).toBe("USER");
+    }
+  );
+
+  it.each(portals)(
+    "rejects USER nationality edits when RegTank source and nationality is MY remains locked (%s portal)",
+    async (portal) => {
+      const row = personalOrg({
+        portal,
+        dateOfBirth: new Date("1990-01-01T00:00:00.000Z"),
+        nationality: "MY",
+        documentNumber: null,
+        profileFieldSources: {
+          nationality: { source: "REGTANK", updatedAt: "2026-01-01T00:00:00.000Z" },
+        },
+      });
+
+      if (portal === "issuer") mockIssuerFindUnique.mockResolvedValue(row);
+      else mockInvestorFindUnique.mockResolvedValue(row);
+
+      await expect(
+        patchOrgMasterProfile({
+          portal,
+          organizationId: "org-1",
+          actorUserId: "user-1",
+          source: "USER",
+          fillEmptyOnly: true,
+          patch: { nationality: "SINGAPORE" } as any,
+        })
+      ).rejects.toMatchObject({ statusCode: 403, code: "FIELD_NOT_EDITABLE" });
+    }
+  );
+
+  it.each(portals)(
     "allows ADMIN dateOfBirth edits when field source is ADMIN (%s portal)",
     async (portal) => {
       const row = personalOrg({

@@ -22,6 +22,7 @@ import {
   formatCalendarDate,
   firstIssueMessage,
   humanizeApiValidationMessage,
+  normalizeMalaysiaCountryValue,
   isProfileValidationError,
   issuesByField,
   restrictScPostcodeInput,
@@ -1025,7 +1026,7 @@ export function OrganizationProfilePanel({
                   />
                   <ReadField
                     label={PROFILE_LABEL.nationality}
-                    value={org.nationality}
+                    value={normalizeMalaysiaCountryValue(org.nationality)}
                     missing={requiredFieldKeys.has("nationality")}
                   />
                   <ReadField label="Country" value={org.country} />
