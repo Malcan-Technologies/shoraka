@@ -92,6 +92,9 @@ describe("renderFacilityLoDocx", () => {
     const plain = wordPlainText(xml);
     expect((xml.match(/<w:tbl\b/g) ?? []).length).toBe(5);
     expect(plain).toContain("{part_a_checkbox}");
+    expect(plain).toContain("{application_fee_rm}");
+    expect(count(plain, "{application_fee_rm}")).toBe(2);
+    expect(plain).not.toContain("RM150");
     expect(plain).toContain("{#corporate_guarantor_pages}");
     expect(plain).toContain("{#finance_documents_guarantors}");
     expect(plain).toContain("{left_name}");
@@ -144,6 +147,8 @@ describe("renderFacilityLoDocx", () => {
     expect(xml).not.toContain("{issuer_name}");
     expect(xml).not.toContain("RMRM");
     expect(xml).toContain("RM 1,000,000.00");
+    expect(count(wordPlainText(xml), "RM 50.00, payable on application.")).toBe(2);
+    expect(wordPlainText(xml)).not.toContain("RM150");
     expect(wordPlainText(xml)).not.toContain("Sub-Limit per Invoice");
     expect(xml).not.toContain("{sub_limit_per_invoice_rm}");
     expect(wordPlainText(xml)).not.toContain("applicable Sub-Limit");

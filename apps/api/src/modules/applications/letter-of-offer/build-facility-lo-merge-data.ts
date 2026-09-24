@@ -50,6 +50,17 @@ function asNumber(value: unknown): number | null {
   return null;
 }
 
+/** Prisma Decimal, number, or numeric string → positive finite amount. */
+function asPositiveMoney(value: unknown): number | null {
+  if (value == null) return null;
+  if (typeof value === "object" && typeof (value as { toNumber?: () => number }).toNumber === "function") {
+    const n = (value as { toNumber: () => number }).toNumber();
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+  const n = asNumber(value) ?? Number(value);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 function formatCodAddress(block: JsonRecord | null): string {
   if (!block) return "";
   return formatAddressBlock({
@@ -146,6 +157,8 @@ export type BuildFacilityLoMergeInput = {
   financingStructureType?: FinancingStructureType | null;
   /** Default grace days from platform finance settings when available. */
   gracePeriodDaysDefault?: number | null;
+  /** Platform application processing fee (`PlatformFinanceSetting.application_processing_fee_amount`). */
+  applicationProcessingFeeAmount?: unknown;
   /** Frozen product workflow for the application's product_version. */
   productWorkflow?: unknown;
 };
@@ -157,6 +170,7 @@ export function buildFacilityLoMergeData(input: BuildFacilityLoMergeInput): Cont
     tenure_days: tenureDays,
     max_invoice_tenure_days: tenureDays,
     part_b_financing_amount_rm: "",
+    application_fee_rm: "",
     payment_period_days: tenureDays,
     grace_period_days: "",
     grace_period_days_words: "",
@@ -191,6 +205,7 @@ export function buildFacilityLoMergeData(input: BuildFacilityLoMergeInput): Cont
     input.gracePeriodDaysDefault != null && Number.isFinite(input.gracePeriodDaysDefault)
       ? Math.floor(input.gracePeriodDaysDefault)
       : null;
+  const applicationFee = asPositiveMoney(input.applicationProcessingFeeAmount);
 
   const acceptance = getOfferAcceptanceFromOfferDetails(offerDetails);
   const acceptanceDays =
@@ -239,6 +254,7 @@ export function buildFacilityLoMergeData(input: BuildFacilityLoMergeInput): Cont
     attention_position: asString(contact?.position),
     financing_limit_rm: facilityAmountFormatted,
     part_b_financing_amount_rm: partBFormatted,
+    application_fee_rm: formatRmAmount(applicationFee),
     offer_validity_phrase: offerValidityPhrase,
     guarantors_individual: individuals,
     guarantors_corporate: corporates,

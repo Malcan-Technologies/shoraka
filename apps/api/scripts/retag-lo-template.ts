@@ -273,6 +273,7 @@ function applyPlaceholderText(text: string): string {
     ],
     ["[insert – up to 180]", "{max_invoice_tenure_days}"],
     ["Up to [insert] days", "Up to {tenure_days} days"],
+    ["RM150, payable on application.", "{application_fee_rm}, payable on application."],
     [
       "This offer shall lapse automatically after seven (7) days from the date of this Facility Offer",
       "This offer shall lapse automatically after {offer_validity_phrase} from the date of this Facility Offer",
@@ -523,6 +524,7 @@ function requiredTagsPresent(xml: string): string[] {
     "{part_b_checkbox}",
     "{max_invoice_tenure_days}",
     "{part_b_financing_amount_rm}",
+    "{application_fee_rm}",
     "{assigned_contract_date}",
     "{assigned_contract_counterparty}",
     "{assigned_contract_description}",
@@ -575,6 +577,13 @@ function pinAttentionWrapOnTaggedFile(): void {
   documentXml = stripHighlightsFromDocxXml(documentXml);
   assertNoDocxHighlights(documentXml);
   assertAttentionWrap(documentXml);
+  if (documentXml.includes("RM150")) {
+    throw new Error("Application fee is still hardcoded RM150; expected {application_fee_rm}");
+  }
+  const missingFee = requiredTagsPresent(documentXml).filter((tag) => tag === "{application_fee_rm}");
+  if (missingFee.length > 0) {
+    throw new Error("Tagged document.xml is missing {application_fee_rm}");
+  }
   if (
     documentXml.includes("{sub_limit_per_invoice_rm}") ||
     documentXml.includes("Sub-Limit per Invoice") ||
@@ -625,6 +634,9 @@ function main(): void {
   }
   if (documentXml.includes("RM{financing_limit_rm}")) {
     throw new Error("MoA still prefixes financing_limit_rm with a literal RM");
+  }
+  if (documentXml.includes("RM150")) {
+    throw new Error("Application fee is still hardcoded RM150; expected {application_fee_rm}");
   }
   if (documentXml.includes("{moa_authorised_signatory_names}")) {
     throw new Error("MoA still contains a signatory merge tag");

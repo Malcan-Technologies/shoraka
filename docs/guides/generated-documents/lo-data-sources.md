@@ -1,6 +1,6 @@
 # ARF contract facility LO — data sources (working index)
 
-What [`buildFacilityLoMergeData`](../../apps/api/src/modules/applications/letter-of-offer/build-facility-lo-merge-data.ts) does for production generate (`arf_contract_facility_lo` **v3**, per-guarantor acknowledgement pages). Facility offers fill Part A; standalone invoice offers fill Part B.
+What [`buildFacilityLoMergeData`](../../apps/api/src/modules/applications/letter-of-offer/build-facility-lo-merge-data.ts) does for production generate (`arf_contract_facility_lo` **v4**, per-guarantor acknowledgement pages). Facility offers fill Part A; standalone invoice offers fill Part B.
 
 **Full verification table:** [lo-19-aug-2026-field-map.md](./lo-19-aug-2026-field-map.md)
 
@@ -24,6 +24,7 @@ Older editable discussion table: [arf-letter-of-offer-placeholder-map.md](../app
 | Offer validity phrase | Frozen product `acceptance_deadline.days` (default 7) | Used in **both** acceptance/lapse clauses. Not `acceptance_expires_at − sent_at`. |
 | Transaction docs days | Frozen product `signing_deadline.days` (default 14) | Not timestamp subtraction |
 | Grace period | `PlatformFinanceSetting.grace_period_days` | When settings row exists |
+| Application Fee | `PlatformFinanceSetting.application_processing_fee_amount` | `formatRmAmount` — Schedule A Part A and Part B |
 
 ## Hardcoded in Word (19 Aug legal text)
 
@@ -35,7 +36,6 @@ Not merge tags:
 | Profit rate | 8%–18% p.a., set per Utilization Offer |
 | Part A availability | thirty (30) days from acceptance |
 | Withdrawal notice | twenty-one (21) days’ prior written notice |
-| Application Fee | RM150, payable on application |
 | Electronic execution | Platform records equal written form; Utilisation Offer acceptance = Purchase Requisition and Wa'd |
 
 ## MoA authorised signatory

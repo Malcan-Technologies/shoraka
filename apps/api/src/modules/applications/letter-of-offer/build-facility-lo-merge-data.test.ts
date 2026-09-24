@@ -377,6 +377,7 @@ describe("buildFacilityLoMergeData", () => {
       },
       financingStructureType: "new_contract",
       gracePeriodDaysDefault: 7,
+      applicationProcessingFeeAmount: 50,
     });
 
     expect(data.issuer_id).toBe("ISS-202608-DK3");
@@ -405,6 +406,7 @@ describe("buildFacilityLoMergeData", () => {
     expect(data.transaction_docs_days).toBe("14");
     expect(data.transaction_docs_days_words).toBe("fourteen");
     expect(data.part_b_financing_amount_rm).toBe("RM 500,000.00");
+    expect(data.application_fee_rm).toBe("RM 50.00");
     expect(data.finance_documents_guarantors).toEqual([
       { line: "Ali (NRIC No. 900101145678)", representatives: [] },
       { line: "HoldCo (Registration No. 999999-X)", representatives: [] },
@@ -425,6 +427,46 @@ describe("buildFacilityLoMergeData", () => {
     });
     expect(data.issuer_id).toBe("");
     expect(data.our_reference).toBe("");
+  });
+
+  it("formats the platform application processing fee for Schedule A", () => {
+    const withFee = buildFacilityLoMergeData({
+      contract: {
+        id: "ctr_abc",
+        issuer_organization_id: "org_1",
+        offer_details: { offered_facility: 1, sent_at: "2026-07-16T02:00:00.000Z" },
+        contract_details: {},
+        customer_details: {},
+      },
+      issuerOrganization: { id: "org_1", name: "Issuer Co", registration_number: "123456-A" },
+      applicationProcessingFeeAmount: 75,
+    });
+    expect(withFee.application_fee_rm).toBe("RM 75.00");
+
+    const withDecimal = buildFacilityLoMergeData({
+      contract: {
+        id: "ctr_abc",
+        issuer_organization_id: "org_1",
+        offer_details: { offered_facility: 1, sent_at: "2026-07-16T02:00:00.000Z" },
+        contract_details: {},
+        customer_details: {},
+      },
+      issuerOrganization: { id: "org_1", name: "Issuer Co", registration_number: "123456-A" },
+      applicationProcessingFeeAmount: { toNumber: () => 50 },
+    });
+    expect(withDecimal.application_fee_rm).toBe("RM 50.00");
+
+    const missing = buildFacilityLoMergeData({
+      contract: {
+        id: "ctr_abc",
+        issuer_organization_id: "org_1",
+        offer_details: { offered_facility: 1, sent_at: "2026-07-16T02:00:00.000Z" },
+        contract_details: {},
+        customer_details: {},
+      },
+      issuerOrganization: { id: "org_1", name: "Issuer Co", registration_number: "123456-A" },
+    });
+    expect(missing.application_fee_rm).toBe("");
   });
 
   it("fills authorised signatory names from every declared person on the snapshot", () => {

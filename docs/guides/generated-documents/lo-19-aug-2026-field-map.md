@@ -5,7 +5,7 @@ Verification map for the tagged production template:
 - Untagged source: `apps/api/src/modules/applications/templates/01 LO (Clean Copy) 19 August 2026.docx`
 - Tagged merge file: `apps/api/src/modules/applications/templates/arf-contract-facility-lo.docx`
 - Rebuild script: `apps/api/scripts/retag-lo-template.ts` (`pnpm --filter @cashsouk/api retag-lo-template`)
-- Catalog: `arf_contract_facility_lo` **version 3**
+- Catalog: `arf_contract_facility_lo` **version 4**
 - Builder: `buildFacilityLoMergeData`
 - Demo + production both call `renderFacilityLoDocx` on that same tagged file
 - Required commercial / party data fails generation (`GENERATED_DOCUMENT_DATA_INCOMPLETE`) instead of issuing a letter with blank slots
@@ -53,6 +53,7 @@ Already shared (no separate “demo template”):
 | `tenure_days` | Main TENURE “Up to N days” | `LEGAL_DEFAULT` | `FINANCING_TENURE_MAX_DAYS` (180) | |
 | `max_invoice_tenure_days` | Schedule A Part A + Part B “up to N” | `LEGAL_DEFAULT` | same 180 | |
 | `part_b_financing_amount_rm` | Schedule A Part B Financing Amount | `EXISTS` | Facility: same as `financing_limit_rm`. Invoice: `offered_amount` | Part B is ticked for `invoice_only` |
+| `application_fee_rm` | Schedule A Part A + Part B Application Fee | `EXISTS` | `PlatformFinanceSetting.application_processing_fee_amount` | `formatRmAmount` already prefixes `RM`. Template keeps “, payable on application.” |
 | `part_a_checkbox` / `part_b_checkbox` | Schedule A Facility Type | `DERIVE` | `readFinancingStructureType` | `new_contract` → Part A `☒`; `invoice_only` / `existing_contract` → Part B `☒` |
 | `finance_documents_guarantors[]` | Finance Documents list | `EXISTS` | Ordered `application_guarantors` | Individual `{line}`; corporate company/registration `{line}` plus nested `{rep_line}` (name + NRIC). Entities `i. ii. iii.`; reps under a company `a. b. c.`. Empty list → `[INSERT NAME] (NRIC No. [INSERT])` |
 | `guarantors_individual[]` | One acknowledgement page each | `EXISTS` | Live individual rows | `{@page_break}` after every page except the last (and after the last when a corporate block follows) |
@@ -87,7 +88,6 @@ Already shared (no separate “demo template”):
 | Profit rate | 8%–18% p.a., set per Utilization Offer |
 | Part A availability | thirty (30) days from acceptance |
 | Withdrawal notice | twenty-one (21) days’ prior written notice |
-| Application Fee | **RM150**, payable on application (Schedule A Part A and Part B) |
 | Electronic execution | OPERATION OF THE FACILITY — Platform-created records equal written form; acceptance of a Utilisation Offer constitutes the Purchase Requisition and Wa'd |
 
 ---
@@ -116,4 +116,4 @@ Already shared (no separate “demo template”):
 1. `docker compose -f docker-compose.gotenberg.yml up -d` and set `GOTENBERG_URL` if testing PDF.
 2. Save authorised representatives (Continue) so the **selected** offer stores `authorized_parties_draft` (facility or invoice).
 3. Issuer/admin download `.docx` / `.pdf`, or Admin → `/demos/contract-lo`.
-4. Spot-check letterhead, Part A tick (facility) or Part B tick (invoice-only), MoA amount (single `RM`), blank MoA signatory line, RM150 fees, both validity clauses, Finance Documents nesting, and guarantor pagination.
+4. Spot-check letterhead, Part A tick (facility) or Part B tick (invoice-only), MoA amount (single `RM`), blank MoA signatory line, application fee from platform settings, both validity clauses, Finance Documents nesting, and guarantor pagination.

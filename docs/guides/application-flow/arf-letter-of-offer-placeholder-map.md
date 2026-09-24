@@ -43,7 +43,7 @@ file /tmp/lo.pdf   # should say PDF
 
 Merge tags use `{field_name}` (docxtemplater). Map keys live in `@cashsouk/types` `ContractFacilityLoMergeData`.
 
-> **Note:** Tables below were written against the July LO wording. Prefer [lo-19-aug-2026-field-map.md](../generated-documents/lo-19-aug-2026-field-map.md) for what the code does after the 19 Aug revision (facility-type ticks, per-guarantor acknowledgement pages, RM150 fee, e-execution paragraph).
+> **Note:** Tables below were written against the July LO wording. Prefer [lo-19-aug-2026-field-map.md](../generated-documents/lo-19-aug-2026-field-map.md) for what the code does after the 19 Aug revision (facility-type ticks, per-guarantor acknowledgement pages, application fee merge tag, e-execution paragraph).
 
 ---
 

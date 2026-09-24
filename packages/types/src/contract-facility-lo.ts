@@ -49,6 +49,8 @@ export type ContractFacilityLoMergeData = {
   max_invoice_tenure_days: string;
   /** Schedule A Part B financing amount per invoice. */
   part_b_financing_amount_rm: string;
+  /** Schedule A Application Fee — platform application processing fee. */
+  application_fee_rm: string;
   /** Individual guarantors — repeated in Word via docxtemplater loops. */
   guarantors_individual: ContractFacilityLoIndividualGuarantor[];
   /** Corporate guarantors — one company per entry, all declared signatories. */
@@ -83,6 +85,7 @@ export const CONTRACT_FACILITY_LO_MERGE_KEYS = [
   "tenure_days",
   "max_invoice_tenure_days",
   "part_b_financing_amount_rm",
+  "application_fee_rm",
   "part_a_checkbox",
   "part_b_checkbox",
   "payment_period_days",

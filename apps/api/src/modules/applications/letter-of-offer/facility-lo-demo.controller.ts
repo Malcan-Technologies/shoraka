@@ -88,6 +88,7 @@ router.get("/prefill", async (req: Request, res: Response, next: NextFunction) =
     }
 
     let gracePeriodDaysDefault: number | null = null;
+    let applicationProcessingFeeAmount: unknown = null;
     try {
       const settings = await prisma.platformFinanceSetting.findFirst({
         orderBy: { updated_at: "desc" },
@@ -95,6 +96,7 @@ router.get("/prefill", async (req: Request, res: Response, next: NextFunction) =
       if (settings && typeof settings.grace_period_days === "number") {
         gracePeriodDaysDefault = settings.grace_period_days;
       }
+      applicationProcessingFeeAmount = settings?.application_processing_fee_amount ?? null;
     } catch {
       // Platform finance settings table may be unavailable in some envs — ignore for demo
     }
@@ -130,6 +132,7 @@ router.get("/prefill", async (req: Request, res: Response, next: NextFunction) =
         ? readFinancingStructureType(application.financing_structure)
         : null,
       gracePeriodDaysDefault,
+      applicationProcessingFeeAmount,
       productWorkflow,
     });
 

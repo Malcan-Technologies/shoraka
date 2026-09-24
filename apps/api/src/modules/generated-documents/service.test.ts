@@ -378,6 +378,27 @@ describe("GeneratedDocumentsService.generateDocument", () => {
     );
   });
 
+  it("passes the platform application processing fee into the LO merge", async () => {
+    (prisma.platformFinanceSetting.findFirst as jest.Mock).mockResolvedValueOnce({
+      grace_period_days: 9,
+      application_processing_fee_amount: 50,
+    });
+
+    await service.generateDocument({
+      applicationId,
+      typeKey: "arf_contract_facility_lo",
+      format: "pdf",
+      userId,
+    });
+
+    expect(buildMerge.buildFacilityLoMergeData).toHaveBeenCalledWith(
+      expect.objectContaining({
+        gracePeriodDaysDefault: 9,
+        applicationProcessingFeeAmount: 50,
+      })
+    );
+  });
+
   it("rejects when product does not configure the generated type", async () => {
     productRepository.findByBaseAndVersion.mockResolvedValue({
       workflow: [{ id: "financing_type", config: { acceptance_documents: [] } }],
