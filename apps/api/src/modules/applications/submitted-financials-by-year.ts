@@ -39,6 +39,9 @@ export async function loadLatestSubmittedFinancialsByYear(
   const fromRevisions = indexLatestSubmittedFinancialsByYear(revisions);
   return {
     submittedByYear: { ...fromRevisions, ...fromApplications.submittedByYear },
-    adminSupplementsByYear: fromApplications.adminSupplementsByYear,
+    userEditedKeysByYear: fromApplications.userEditedKeysByYear,
+    adminInputByYear: fromApplications.adminInputByYear,
+    ctosGapFillsByYear: fromApplications.ctosGapFillsByYear,
+    adminSupplementsByYear: fromApplications.ctosGapFillsByYear,
   };
 }
