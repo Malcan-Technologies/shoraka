@@ -153,35 +153,50 @@ That copy happens once, when the new application is prepared. Later changes to C
 
 The Prospectus uses a different source order from the issuer profile and from new-application historical prefill.
 
-For each financial year, the Prospectus uses:
+For each Prospectus financial year:
 
-1. Reviewed User Input
-2. Otherwise, CTOS
-3. Otherwise, Admin Input
+1. Reviewed User Input, including Admin edits to those issuer figures
+2. Otherwise, CTOS, plus explicit Admin CTOS gap-fills for fields CTOS left blank
+3. Otherwise, the active Admin Input statement for that year
+4. Otherwise, blank
 
-In short: User Input, then CTOS, then Admin Input.
+In short: reviewed User Input, then CTOS plus CTOS gap-fills, then active Admin Input, then blank.
 
 **User Input**
 
-Use the reviewed User Input for that year, including Admin edits to those issuer figures. If you changed an issuer value, the Prospectus uses the reviewed value.
+If User Input exists for that year, the Prospectus uses it first. That includes Admin edits to the issuer figures. CTOS and Admin Input are not used for that year.
 
-Example: the issuer submitted FY2025 Trade Receivables as RM10, and you changed it to RM12. If User Input is selected for FY2025, the Prospectus uses RM12.
+Example: the issuer submitted FY2025 Trade Receivables as RM10, and you changed it to RM12. The Prospectus uses RM12 for FY2025, even when CTOS and Admin Input also exist for FY2025.
 
 **CTOS**
 
-If there is no User Input for that year, use CTOS.
+If there is no User Input for that year, but CTOS has that exact financial year, the Prospectus uses CTOS.
 
-Use the CTOS values, plus Admin CTOS gap-fills for fields CTOS left blank. Do not use an old whole-year Admin Input statement to overwrite CTOS.
+Use the CTOS values, plus explicit Admin CTOS gap-fills where CTOS left a field blank. Do not use a whole-year Admin Input statement to overwrite CTOS or to fill those gaps. Do not use User Input from another year.
+
+A CTOS row owns its financial year even when its amounts are blank. If Admin Input for that year was added earlier and CTOS later returns the same year, the Prospectus uses CTOS. The old Admin Input stays stored for audit and is not used.
 
 **Admin Input**
 
-If there is no User Input and no CTOS for that year, use the active Admin Input statement.
+If the Prospectus has no User Input and no CTOS for that financial year, it uses the active Admin Input statement for that year.
+
+Example:
+
+FY2025:
+
+- no User Input
+- no CTOS
+- Admin Input exists
+
+Result: the Prospectus uses FY2025 Admin Input. It does not leave that year blank.
+
+Only an active Admin Input statement is used. A superseded Admin Input statement is not a Prospectus source.
 
 **Why this is different**
 
 The issuer profile and a new application’s historical prefill prefer CTOS plus CTOS gap-fills, then Admin Input, then reviewed User Input.
 
-The Prospectus prefers reviewed User Input, then CTOS, then Admin Input. It should reflect the reviewed application figures first. Profile and future historical prefill keep the historical-source order.
+The Prospectus prefers reviewed User Input, then CTOS plus CTOS gap-fills, then active Admin Input, then blank. It should reflect the reviewed application figures first. Profile and future historical prefill keep the historical-source order.
 
 **After approval**
 

@@ -5,6 +5,7 @@
 
 import { NoteStatus, type PrismaClient } from "@prisma/client";
 import { AppError } from "../../../lib/http/error-handler";
+import { loadApplicationOwnedCtosFinancialReport } from "../../applications/application-owned-ctos";
 import { isProspectusNotePublished } from "./prospectus-page-one-prisma";
 import { resolveMarcSnapshotForProspectus } from "./prospectus-marc-snapshot";
 
@@ -66,8 +67,8 @@ export type ProspectusPageTwoLoadedData = {
    */
   liveFinancialStatements: unknown | null;
   /**
-   * Live organization CTOS financials_json for unpublished Stage 4 preview only.
-   * Same source as Admin Financial Statements tab.
+   * CTOS financials for unpublished Stage 4 preview only.
+   * Submitted applications use the report that existed at first submission.
    */
   liveCtosFinancials: unknown | null;
   marcSnapshot?: import("@cashsouk/types").MarcAssessmentSnapshot | null;
@@ -109,25 +110,20 @@ export async function loadProspectusPageTwoData(
     return { note, liveFinancialStatements: null, liveCtosFinancials: null, marcSnapshot };
   }
 
-  const [application, ctosReport] = await Promise.all([
-    db.application.findUnique({
-      where: { id: note.source_application_id },
-      select: { financial_statements: true },
-    }),
-    db.ctosReport.findFirst({
-      where: {
-        issuer_organization_id: note.issuer_organization_id,
-        subject_ref: null,
-      },
-      orderBy: { fetched_at: "desc" },
-      select: { financials_json: true },
-    }),
-  ]);
+  const application = await db.application.findUnique({
+    where: { id: note.source_application_id },
+    select: { financial_statements: true, submitted_at: true },
+  });
+  const ctosReport = await loadApplicationOwnedCtosFinancialReport({
+    db,
+    issuerOrganizationId: note.issuer_organization_id,
+    submittedAt: application?.submitted_at ?? null,
+  });
 
   return {
     note,
     liveFinancialStatements: application?.financial_statements ?? null,
-    liveCtosFinancials: ctosReport?.financials_json ?? null,
+    liveCtosFinancials: ctosReport?.financialsJson ?? null,
     marcSnapshot,
   };
 }

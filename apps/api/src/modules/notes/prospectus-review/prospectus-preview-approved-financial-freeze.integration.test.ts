@@ -442,13 +442,12 @@ describe("approved Preview financial freeze (Page 2/3)", () => {
     expect(page2).toContain("<td>12</td>");
     expect(page2).toContain("<td>2</td>");
 
-    // Page 3 current assets + total liabilities in MYR millions.
+    // Page 3 current assets come from the live application year.
+    // That year is reviewed User Input, so CTOS-only total liabilities are not mixed in.
     expect(page3).toContain("<td>6</td>");
-    expect(page3).toContain("<td>4</td>");
+    expect(page3).toContain("Source: Management Accounts");
 
-    expect(page3).toContain("25%");
     expect(page3).not.toContain("20%");
-    expect(page3).toContain("1.8x");
     expect(page3).not.toContain("1.5x");
 
     // Ensure frozen values are not rendered.

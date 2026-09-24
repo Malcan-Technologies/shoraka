@@ -16,6 +16,7 @@ import {
   financialStatementsInputSchema,
 } from "./schemas";
 import { parseFinancialStatementsForStepSave } from "./financial-statements-save";
+import { loadApplicationOwnedCtosFinancialReport } from "./application-owned-ctos";
 import { AppError } from "../../lib/http/error-handler";
 import { preserveLegacyAboutYourBusinessFields } from "./preserve-about-your-business";
 import {
@@ -5755,6 +5756,7 @@ export class ApplicationService {
       select: {
         id: true,
         status: true,
+        submitted_at: true,
         issuer_organization_id: true,
         financial_statements: true,
       },
@@ -5774,20 +5776,19 @@ export class ApplicationService {
     }
 
     const now = new Date();
-    const ctosReport = await prisma.ctosReport.findFirst({
-      where: { issuer_organization_id: application.issuer_organization_id, subject_ref: null },
-      orderBy: { fetched_at: "desc" },
-      select: { financials_json: true },
+    const ctosReport = await loadApplicationOwnedCtosFinancialReport({
+      issuerOrganizationId: application.issuer_organization_id,
+      submittedAt: application.submitted_at,
     });
 
     const ctosOwnedYears = new Set(
-      parseCtosFinancialStatementRows(ctosReport?.financials_json ?? null)
+      parseCtosFinancialStatementRows(ctosReport?.financialsJson ?? null)
         .map((row) => row.financial_year)
         .filter((year): year is number => year != null && Number.isFinite(year))
     );
     let eligibleYears = getEligibleAdminInputYears({
       financialStatements: application.financial_statements,
-      ctosFinancials: ctosReport?.financials_json ?? null,
+      ctosFinancials: ctosReport?.financialsJson ?? null,
       ref: now,
     }).filter((year) => !ctosOwnedYears.has(year));
 
@@ -5930,6 +5931,7 @@ export class ApplicationService {
       select: {
         id: true,
         status: true,
+        submitted_at: true,
         issuer_organization_id: true,
         financial_statements: true,
       },
@@ -5944,13 +5946,12 @@ export class ApplicationService {
     await this.assertAdminFinancialEditsOpen(applicationId);
 
     const now = new Date();
-    const ctosReport = await prisma.ctosReport.findFirst({
-      where: { issuer_organization_id: application.issuer_organization_id, subject_ref: null },
-      orderBy: { fetched_at: "desc" },
-      select: { financials_json: true },
+    const ctosReport = await loadApplicationOwnedCtosFinancialReport({
+      issuerOrganizationId: application.issuer_organization_id,
+      submittedAt: application.submitted_at,
     });
 
-    const rawCtosFinancials = ctosReport?.financials_json as unknown;
+    const rawCtosFinancials = ctosReport?.financialsJson as unknown;
     const ctosFetchState: "not_pulled" | "no_records" | "has_data" = !ctosReport
       ? "not_pulled"
       : Array.isArray(rawCtosFinancials)
@@ -5961,7 +5962,7 @@ export class ApplicationService {
 
     const columns = resolveAdminFinancialReviewColumns({
       financialStatements: application.financial_statements,
-      ctosFinancials: ctosReport?.financials_json ?? null,
+      ctosFinancials: ctosReport?.financialsJson ?? null,
       ref: now,
       ctosFetchState,
     });
