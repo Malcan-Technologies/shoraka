@@ -912,6 +912,21 @@ export async function reissueAdminInvestmentNoteCertificate(
     version: nextVersion,
     authorisation,
   });
+  // Fix investor ID mapping for personal investors on regenerated "frozen" documents.
+  const investorOrganizationIds = Array.from(
+    new Set(nextSnapshot.investors.map((inv) => inv.investorOrganizationId))
+  );
+  const investorOrgs = investorOrganizationIds.length
+    ? await db.investorOrganization.findMany({
+        where: { id: { in: investorOrganizationIds } },
+        select: { id: true, type: true, owner_user_id: true },
+      })
+    : [];
+  const investorOrgById = new Map(investorOrgs.map((org) => [org.id, org]));
+  nextSnapshot.investors = nextSnapshot.investors.map((inv) => {
+    const org = investorOrgById.get(inv.investorOrganizationId);
+    return org?.type === "PERSONAL" && org.owner_user_id ? { ...inv, investorReference: org.owner_user_id } : inv;
+  });
 
   await generateVersionPdfs({
     db,

@@ -2,6 +2,7 @@ import {
   InvestorBalanceTransactionSource,
   NoteInvestmentStatus,
   NoteSettlementStatus,
+  OrganizationType,
 } from "@prisma/client";
 import { ConfirmationGenerationError } from "./types";
 import { buildInvestmentSettlementConfirmationHtml } from "./confirmation-html";
@@ -175,6 +176,7 @@ describe("resolveConfirmationSettlementDate", () => {
 describe("buildInvestmentSettlementConfirmationSnapshot identifiers", () => {
   const issuerCuid = "cmknlimvf0003grp0hsbmc1dp";
   const investorCuid = "cmkm0fc2r00059v8jzc71b39c";
+  const personalUserId = "ABCDE";
   const noteCuid = "cmtjz7ez50002ks59pu7j2xml";
   const settlementCuid = "cmtjz7ez5settlement00001";
   const investmentCuid = "cmtjz7ez5investment00001";
@@ -233,6 +235,8 @@ describe("buildInvestmentSettlementConfirmationSnapshot identifiers", () => {
     });
     mockPrisma.investorOrganization.findUnique.mockResolvedValue({
       display_reference: "IVT-202609-A12",
+      owner_user_id: personalUserId,
+      type: OrganizationType.PERSONAL,
     });
   });
 
@@ -244,7 +248,7 @@ describe("buildInvestmentSettlementConfirmationSnapshot identifiers", () => {
     });
     expect(snapshot.noteReference).toBe("NOTE-ARF-202609-5O3");
     expect(snapshot.issuerReference).toBe("ISS-202608-DK3");
-    expect(snapshot.investorReference).toBe("IVT-202609-A12");
+    expect(snapshot.investorReference).toBe(personalUserId);
     expect(snapshot.noteId).toBe(noteCuid);
     expect(snapshot.settlementId).toBe(settlementCuid);
     expect(snapshot.investorOrganizationId).toBe(investorCuid);
@@ -261,7 +265,11 @@ describe("buildInvestmentSettlementConfirmationSnapshot identifiers", () => {
 
   it("does not fall back to issuer or investor CUID when display_reference is missing", async () => {
     mockPrisma.issuerOrganization.findUnique.mockResolvedValue({ display_reference: null });
-    mockPrisma.investorOrganization.findUnique.mockResolvedValue({ display_reference: "  " });
+    mockPrisma.investorOrganization.findUnique.mockResolvedValue({
+      display_reference: "  ",
+      owner_user_id: personalUserId,
+      type: OrganizationType.PERSONAL,
+    });
     const snapshot = await buildInvestmentSettlementConfirmationSnapshot({
       settlementId: settlementCuid,
       investorOrganizationId: investorCuid,
@@ -269,7 +277,7 @@ describe("buildInvestmentSettlementConfirmationSnapshot identifiers", () => {
     });
     expect(snapshot.issuerReference).toBe("—");
     expect(snapshot.issuerReference).not.toBe(issuerCuid);
-    expect(snapshot.investorReference).toBe("—");
+    expect(snapshot.investorReference).toBe(personalUserId);
     expect(snapshot.investorReference).not.toBe(investorCuid);
     expect(snapshot.noteReference).toBe("NOTE-ARF-202609-5O3");
     expect(snapshot.totalCreditedToWallet).toBe(10850);

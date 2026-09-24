@@ -131,8 +131,8 @@ describe("renderInvestmentNoteCertificateDocx", () => {
     expect(plain).toContain("1234567-A");
     expect(plain).toContain("Alice Tan");
     expect(plain).toContain("Bob Lee");
-    expect(plain).toContain("IVT-A");
-    expect(plain).toContain("IVT-B");
+    expect(plain).toContain("ABCDE");
+    expect(plain).toContain("FGHIJ");
     expect(plain).toContain(PROSPECTUS_FIXED_SHARIAH_PRINCIPLE);
     expect(plain).toContain("Investor / Noteholder");
     expect(identifierRows(xml)).toEqual([
@@ -162,8 +162,8 @@ describe("renderInvestmentNoteCertificateDocx", () => {
     const plain = wordPlainText(xml);
     expect(plain).toContain("Helios Manufacturing Sdn Bhd");
     expect(plain).toContain("1234567-A");
-    expect(plain).toContain("IVT-A");
-    expect(plain).toContain("IVT-B");
+    expect(plain).toContain("ABCDE");
+    expect(plain).toContain("FGHIJ");
     expect(plain).not.toContain("Alice Tan");
     expect(plain).not.toContain("Bob Lee");
     expect(plain).not.toContain("Investor / Noteholder");
@@ -195,12 +195,12 @@ describe("renderInvestmentNoteCertificateDocx", () => {
     const xml = renderedXml(snapshot, { audience: "INVESTOR", investorOrganizationId: "org-a" });
     const plain = wordPlainText(xml);
     expect(plain).toContain("Alice Tan");
-    expect(plain).toContain("IVT-A");
+    expect(plain).toContain("ABCDE");
     expect(plain).toContain("ISS-001");
     expect(plain).toContain("Manufacturing");
     expect(plain).toContain("Investor / Noteholder");
     expect(plain).not.toContain("Bob Lee");
-    expect(plain).not.toContain("IVT-B");
+    expect(plain).not.toContain("FGHIJ");
     expect(plain).not.toContain("Helios Manufacturing Sdn Bhd");
     expect(plain).not.toContain("1234567-A");
     expect(plain).not.toContain("Company no.");
@@ -216,7 +216,7 @@ describe("renderInvestmentNoteCertificateDocx", () => {
     expect(rows).toHaveLength(3);
     expect(rows[0]?.[1]).toBe("Investor ID");
     expect(rows[0]?.[2]).toBe("Investor / Noteholder");
-    expect(rows[1]).toEqual(["1", "IVT-A", "Alice Tan", "50,000.00", "62.50%", "1,250.00", "51,250.00"]);
+    expect(rows[1]).toEqual(["1", "ABCDE", "Alice Tan", "50,000.00", "62.50%", "1,250.00", "51,250.00"]);
     expect(rows.at(-1)).toEqual(["", "", "TOTAL", "50,000.00", "62.50%", "1,250.00", "51,250.00"]);
   });
 
@@ -225,7 +225,7 @@ describe("renderInvestmentNoteCertificateDocx", () => {
       renderedXml(snapshot, { audience: "INVESTOR", investorOrganizationId: "org-a" })
     );
     expect(plain).not.toContain("org-b");
-    expect(plain).not.toContain("IVT-B");
+    expect(plain).not.toContain("FGHIJ");
   });
 
   it("grows investor rows dynamically beyond the template's 10 example lines", () => {
@@ -233,14 +233,14 @@ describe("renderInvestmentNoteCertificateDocx", () => {
     const adminXml = renderedXml(large, { audience: "ADMIN" });
     expect(allocationRowCount(adminXml)).toBe(14);
     const plain = wordPlainText(adminXml);
-    expect(plain).toContain("IVT-1");
-    expect(plain).toContain("IVT-12");
+    expect(plain).toContain("U0001");
+    expect(plain).toContain("U0012");
     expect(plain).toContain("Investor 12");
     const issuerXml = renderedXml(large, { audience: "ISSUER" });
     expect(allocationRowCount(issuerXml)).toBe(14);
     expect(allocationRows(issuerXml)[0]).toHaveLength(6);
     expect(wordPlainText(issuerXml)).not.toContain("Investor 12");
-    expect(wordPlainText(issuerXml)).toContain("IVT-12");
+    expect(wordPlainText(issuerXml)).toContain("U0012");
   });
 
   it("renders a single investor row plus TOTAL", () => {
@@ -293,7 +293,7 @@ describe("renderInvestmentNoteCertificateDocx", () => {
     expect(data.companyRegistration).toBe("—");
     expect(data.issuerReference).toBe("ISS-001");
     expect(data.businessSector).toBe("Manufacturing");
-    expect(data.investors[0]?.investorId).toBe("IVT-A");
+    expect(data.investors[0]?.investorId).toBe("ABCDE");
     expect(data.sumPrincipal).toBe("50,000.00");
     expect(data.sumSharePercent).toBe("62.50%");
     expect(data.sumExpectedProfit).toBe("1,250.00");
@@ -308,7 +308,7 @@ describe("renderInvestmentNoteCertificateDocx", () => {
     const withIds = sampleInvestmentNoteCertificateSnapshot([
       {
         investorOrganizationId: investorCuid,
-        investorReference: "IVT-202609-A12",
+        investorReference: "ABCDE",
         investorName: "Alice Tan",
         principal: 80_000,
         sharePercent: 100,
@@ -331,7 +331,7 @@ describe("renderInvestmentNoteCertificateDocx", () => {
 
     for (const plain of [admin, issuer, investor]) {
       expect(plain).toContain("ISS-202608-DK3");
-      expect(plain).toContain("IVT-202609-A12");
+      expect(plain).toContain("ABCDE");
       expect(plain).toContain("IINC-NOTE-ARF-202609-5O3");
       expect(plain).toContain("NOTE-ARF-202609-5O3");
       expect(plain).toContain("IS-NOTE-ARF-202609-5O3-V01");
