@@ -720,6 +720,58 @@ describe("certificate regenerate / reissue", () => {
     );
   });
 
+  it("reissue restores canonical Investor ID even if investor org type is misclassified", async () => {
+    // Simulate a previously generated frozen snapshot where the personal investor row was saved as '—'.
+    mockBuildSnapshot.mockResolvedValue(
+      sampleSnapshot({
+        investors: [
+          {
+            investorOrganizationId: "org-a",
+            investorReference: "—",
+            investorName: "Alice",
+            principal: 50,
+            sharePercent: 62.5,
+            expectedGrossProfit: 1.25,
+            totalPayable: 51.25,
+          },
+          {
+            investorOrganizationId: "org-b",
+            investorReference: "IVT-B",
+            investorName: "Bob",
+            principal: 30,
+            sharePercent: 37.5,
+            expectedGrossProfit: 0.75,
+            totalPayable: 30.75,
+          },
+        ] as any,
+      })
+    );
+
+    // Simulate investor org type mismatch for org-a to ensure reissue doesn't depend on type.
+    mockPrisma.investorOrganization.findMany.mockImplementation(async ({ where }: any) => {
+      const ids: string[] = where?.id?.in ?? [];
+      return ids.map((id) => ({
+        id,
+        type: id === "org-a" ? "COMPANY" : "COMPANY",
+        display_reference: id === "org-a" ? "IVT-A" : `IVT-${id}`,
+      }));
+    });
+
+    await generateInvestmentNoteCertificates({
+      noteId: "note-1",
+      source: "DISBURSEMENT_COMPLETED",
+    });
+
+    await reissueAdminInvestmentNoteCertificate("note-1", { userId: "admin-1", role: "ADMIN" }, SIGNING);
+
+    const v02 = certificateStore.rows.filter((row) => row.version === "V02");
+    expect(v02).toHaveLength(4);
+
+    // Verify that the snapshot used for regeneration now contains canonical investorReference.
+    const adminRow = v02.find((row) => row.audience === "ADMIN");
+    expect(adminRow?.snapshot.investors.find((i: any) => i.investorOrganizationId === "org-a")?.investorReference).toBe("IVT-A");
+  });
+
   it("creates V03 on the next regenerate without publishing it to the issuer", async () => {
     await generateInvestmentNoteCertificates({
       noteId: "note-1",

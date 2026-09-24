@@ -926,7 +926,9 @@ export async function reissueAdminInvestmentNoteCertificate(
   const investorOrgById = new Map(investorOrgs.map((org) => [org.id, org]));
   nextSnapshot.investors = nextSnapshot.investors.map((inv) => {
     const org = investorOrgById.get(inv.investorOrganizationId);
-    return org?.type === "PERSONAL"
+    // Always prefer canonical ISS-/IVT- display_reference when reissuing,
+    // regardless of investor org classification.
+    return org
       ? {
           ...inv,
           investorReference: certificatePartyDisplayReference(org.display_reference, org.id),

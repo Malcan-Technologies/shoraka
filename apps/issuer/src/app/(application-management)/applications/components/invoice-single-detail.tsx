@@ -30,11 +30,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { FileDisplayBadge } from "@/app/(application-flow)/applications/components/file-display-badge";
 import { ScrollableInvoiceTableProps } from "./scrollable-invoice-table";
 import { issuerInvoiceCanViewReasonRemarks, resolveNormalizedInvoiceBadgeKey } from "../status";
 import { buildInvoiceFeeDisplay, money } from "@/lib/facility-fee-display";
-import { FinancingKpiTile } from "@/components/financing/financing-kpi-strip";
 
 type Props = {
   application: ScrollableInvoiceTableProps["application"];
@@ -97,52 +95,47 @@ function InvoiceFeesCell({
   if (display.phase === "none") return <span className="tabular-nums">—</span>;
   if (display.phase === "pending") return <span className="tabular-nums">—</span>;
 
-  const platformLine =
-    display.platformFeeAmount != null ? `Drawdown ${money(display.platformFeeAmount)}` : null;
+  const feeLines: Array<{ label: string; value: string }> = [];
 
-  if (
-    platformLine == null &&
-    display.facilityFeeAmount == null &&
-    display.additionalFeeCharges.length === 0
-  ) {
+  if (display.platformFeeAmount != null) {
+    feeLines.push({ label: "Drawdown", value: money(display.platformFeeAmount) });
+  }
+
+  if (display.facilityFeeAmount != null) {
+    if (display.facilityFeeCollectionWaived) {
+      feeLines.push({ label: "Facility", value: "Waived" });
+    } else {
+      const capReached = display.facilityFeeFullyCollected && display.facilityFeeAmount === 0;
+      feeLines.push({
+        label: "Facility",
+        value: capReached
+          ? `${money(display.facilityFeeAmount)} (cap reached)`
+          : display.phase === "charged"
+            ? `${money(display.facilityFeeAmount)} charged`
+            : `${money(display.facilityFeeAmount)} est.`,
+      });
+    }
+  }
+
+  for (const line of display.additionalFeeCharges) {
+    feeLines.push({ label: line.name, value: money(line.chargedAmount) });
+  }
+
+  if (feeLines.length === 0) {
     return <span className="tabular-nums">—</span>;
   }
 
-  const facilityLine = (() => {
-    if (display.facilityFeeAmount == null) return null;
-    if (display.facilityFeeCollectionWaived) {
-      return "Facility waived";
-    }
-    const capReached = display.facilityFeeFullyCollected && display.facilityFeeAmount === 0;
-    if (capReached) return "cap_reached";
-    return display.phase === "charged"
-      ? `Facility ${money(display.facilityFeeAmount)} charged`
-      : `Facility ${money(display.facilityFeeAmount)} est.`;
-  })();
-
   return (
-    <div className="min-w-0 w-full">
-      <div className="text-ui leading-5 tabular-nums whitespace-normal break-words">
-        {platformLine ?? "—"}
-      </div>
-      {facilityLine ? (
-        <div className="text-ui leading-5 whitespace-normal break-words tabular-nums">
-          {facilityLine === "cap_reached" ? (
-            <>
-              Facility {money(display.facilityFeeAmount)}
-              <span className="ml-1 text-xs leading-4 text-muted-foreground">(cap reached)</span>
-            </>
-          ) : (
-            facilityLine
-          )}
-        </div>
-      ) : null}
-      {display.additionalFeeCharges.map((line, index) => (
+    <div className="space-y-1.5">
+      {feeLines.map((l) => (
         <div
-          key={`${line.name}-${index}`}
-          className="text-ui leading-5 whitespace-normal break-words tabular-nums"
+          key={l.label + l.value}
+          className="flex items-start justify-between gap-3"
         >
-          {line.name} {money(line.chargedAmount)}
+          <span className="min-w-0 text-ui leading-6 text-foreground">{l.label}</span>
+          <span className="shrink-0 text-ui leading-6 text-foreground tabular-nums text-right">
+            {l.value}
+          </span>
         </div>
       ))}
     </div>
@@ -164,33 +157,35 @@ function InvoiceDocumentCell({
     return <span className="text-ui text-muted-foreground">—</span>;
   }
   return (
-    <FileDisplayBadge
-      fileName={documentName}
-      size="sm"
-      truncate
-      className="min-w-0 max-w-full bg-background"
-      trailing={
-        documentS3Key ? (
-          <button
-            type="button"
-            onClick={async (e) => {
-              e.preventDefault();
-              setLoading(true);
-              try {
-                await onDownload(documentS3Key);
-              } finally {
-                setLoading(false);
-              }
-            }}
-            disabled={loading}
-            className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50"
-            aria-label={`Download ${documentName}`}
-          >
-            <ArrowDownTrayIcon className="h-3 w-3" />
-          </button>
-        ) : undefined
-      }
-    />
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="min-w-0">
+        <p className="truncate text-ui font-medium text-foreground">{documentName}</p>
+        <p className="text-ui text-muted-foreground">Invoice</p>
+      </div>
+      {documentS3Key ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="rounded-xl"
+          onClick={async () => {
+            if (loading) return;
+            setLoading(true);
+            try {
+              await onDownload(documentS3Key);
+            } finally {
+              setLoading(false);
+            }
+          }}
+          disabled={loading}
+        >
+          <ArrowDownTrayIcon className="mr-2 h-4 w-4" />
+          Download
+        </Button>
+      ) : (
+        <span className="text-ui text-muted-foreground">—</span>
+      )}
+    </div>
   );
 }
 
@@ -234,14 +229,16 @@ export function InvoiceSingleDetail({
 
   return (
     <>
-      <div className="px-6 py-5">
+      <div>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-1">
+              <p className="text-meta text-foreground">Invoice number</p>
               <p className="text-ui font-medium text-foreground">
-                Invoice <span className="tabular-nums">{invoice.number}</span>
+                <span className="tabular-nums">{invoice.number}</span>
               </p>
-              <p className="text-meta text-muted-foreground">
+              <p className="text-meta text-foreground">Maturity date</p>
+              <p className="text-ui text-muted-foreground">
                 {invoice.maturityDate ? formatCalendarDate(invoice.maturityDate) : "—"}
               </p>
             </div>
@@ -386,60 +383,65 @@ export function InvoiceSingleDetail({
             </div>
           ) : null}
 
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <FinancingKpiTile
-                label="Invoice Value"
-                value={
-                  invoice.value != null && Number.isFinite(invoice.value)
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
+              <div className="space-y-1">
+                <p className="text-meta text-foreground">Invoice Value</p>
+                <p className="text-ui font-medium tabular-nums text-foreground">
+                  {invoice.value != null && Number.isFinite(invoice.value)
                     ? formatCurrency(invoice.value)
-                    : "—"
-                }
-              />
-              <FinancingKpiTile
-                label="Applied Financing"
-                value={
-                  invoice.appliedFinancing != null && Number.isFinite(invoice.appliedFinancing)
+                    : "—"}
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <p className="text-meta text-foreground">Applied Financing</p>
+                <p className="text-ui font-medium tabular-nums text-foreground">
+                  {invoice.appliedFinancing != null && Number.isFinite(invoice.appliedFinancing)
                     ? formatCurrency(invoice.appliedFinancing)
-                    : "—"
-                }
-              />
-              <FinancingKpiTile
-                label="Financing Offered"
-                value={invoice.financingOffered?.trim() ? invoice.financingOffered : "—"}
-              />
-              <FinancingKpiTile
-                label="Profit rate"
-                value={invoice.profitRate ?? "—"}
-                labelExtra={
+                    : "—"}
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <p className="text-meta text-foreground">Financing Offered</p>
+                <p className="text-ui font-medium tabular-nums text-foreground">
+                  {invoice.financingOffered?.trim() ? invoice.financingOffered : "—"}
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <p className="text-meta text-foreground inline-flex items-center gap-1.5">
+                  Profit rate{" "}
                   <InfoTooltip
                     content={PROFIT_RATE_HEADER_TOOLTIP}
                     iconClassName="h-3.5 w-3.5 shrink-0"
                   />
-                }
+                </p>
+                <p className="text-ui font-medium tabular-nums text-foreground">
+                  {invoice.profitRate ?? "—"}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2 border-t border-border pt-4">
+              <p className="text-meta text-foreground">Documents</p>
+              <InvoiceDocumentCell
+                documentName={invoice.document}
+                documentS3Key={invoice.documentS3Key}
+                onDownload={onDocumentDownload}
               />
             </div>
 
-            <div className="space-y-3">
-              <div className="space-y-1">
-                <p className="text-meta text-muted-foreground">Documents</p>
-                <InvoiceDocumentCell
-                  documentName={invoice.document}
-                  documentS3Key={invoice.documentS3Key}
-                  onDownload={onDocumentDownload}
+            <div className="space-y-2 border-t border-border pt-4">
+              <p className="text-meta text-foreground">
+                Fees{" "}
+                <InfoTooltip
+                  content={FEES_HEADER_TOOLTIP}
+                  iconClassName="h-3.5 w-3.5 shrink-0"
                 />
-              </div>
-
-              <div className="space-y-1">
-                <p className="text-meta text-muted-foreground">
-                  Fees{" "}
-                  <InfoTooltip
-                    content={FEES_HEADER_TOOLTIP}
-                    iconClassName="h-3.5 w-3.5 shrink-0"
-                  />
-                </p>
-                <InvoiceFeesCell application={application} invoice={invoice} />
-              </div>
+              </p>
+              <InvoiceFeesCell application={application} invoice={invoice} />
             </div>
           </div>
         </div>

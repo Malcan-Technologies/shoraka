@@ -983,7 +983,10 @@ function ApplicationDetailPageBody() {
             />
           ) : application.invoices.length === 1 ? (
             <Card className="min-w-0 overflow-hidden rounded-2xl">
-              <CardContent className="p-0 pt-0">
+              <CardHeader>
+                <CardTitle className="text-xl sm:text-2xl">Invoice</CardTitle>
+              </CardHeader>
+              <CardContent>
                 <InvoiceSingleDetail
                   application={application}
                   invoice={application.invoices[0]!}
