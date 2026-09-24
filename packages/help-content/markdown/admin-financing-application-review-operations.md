@@ -119,7 +119,7 @@ Prefer amendment for recoverable defects. Prefer rejection when the application 
 
 ## Financial tab: Organization CTOS, Financial Summary, and people
 
-On the **Financial** tab, use **Organization CTOS** (fetch report / view report), **Financial Summary** (issuer columns next to CTOS columns where loaded), **Company Credit Score**, **Cashsouk Intelligence**, and **Director and Shareholders** as labeled in the UI.
+On the **Financial** tab, use **Organization CTOS** (fetch report / view report), **Financial Summary** (issuer columns next to CTOS columns where loaded), **Company Credit Score**, **Cashsouk Intelligence**, and **Director and Shareholders** as labeled in the UI. Year columns, source labels, adding a missing statement, and how reviewed figures are reused are in **Financial Review**.
 
 - Run a fresh organization CTOS report when the snapshot is missing or stale. In the UI, use **Fetch CTOS report** and check **Last organization CTOS fetch** for recency.
 - Run subject-level CTOS for a person or entity when an individual director or corporate party needs their own enquiry. The confirm dialog describes a **CTOS enquiry** for that party.
