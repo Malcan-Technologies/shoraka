@@ -386,8 +386,14 @@ export function ApplicationFinancialReviewContent({
 
   const columns = React.useMemo(
     () =>
-      adminFinancialSummaryColumns(financialRows, unauditedByYear, adminInputByYear, eligibleAdminInputYears),
-    [financialRows, unauditedByYear, adminInputByYear, eligibleAdminInputYears]
+      adminFinancialSummaryColumns(
+        financialRows,
+        unauditedByYear,
+        adminInputByYear,
+        eligibleAdminInputYears,
+        ctosFetchState
+      ),
+    [financialRows, unauditedByYear, adminInputByYear, eligibleAdminInputYears, ctosFetchState]
   );
 
   const resolvedByYear = React.useMemo(() => {
@@ -395,9 +401,10 @@ export function ApplicationFinancialReviewContent({
       financialStatements: app.financial_statements,
       ctosFinancials: financialRows,
       eligibleAdminInputYears,
+      ctosFetchState,
     });
     return new Map(resolved.map((column) => [column.year, column]));
-  }, [app.financial_statements, financialRows, eligibleAdminInputYears]);
+  }, [app.financial_statements, financialRows, eligibleAdminInputYears, ctosFetchState]);
 
   // For issuer-entered additional regulatory financial details, CTOS never provides values for these keys.
   // So render only the issuer (unaudited) columns to avoid a misleading CTOS-vs-issuer comparison layout.

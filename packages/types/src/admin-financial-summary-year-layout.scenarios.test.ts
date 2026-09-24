@@ -42,7 +42,12 @@ describe("Admin Financial Summary year-column layout scenarios", () => {
       unauditedByYear: { "2026": { turnover: 10 } },
     });
 
-    const columns = resolveAdminFinancialReviewColumns({ financialStatements, ctosFinancials: [], ref });
+    const columns = resolveAdminFinancialReviewColumns({
+      financialStatements,
+      ctosFinancials: [],
+      ref,
+      ctosFetchState: "not_pulled",
+    });
 
     expect(columns.map((c) => c.year)).toEqual([2023, 2024, 2025, 2026]);
     expect(columns.map((c) => c.kind)).toEqual(["ctos", "ctos", "ctos", "unaudited"]);
@@ -63,10 +68,62 @@ describe("Admin Financial Summary year-column layout scenarios", () => {
 
     const ctosFinancials = [ctosRow(2024, { turnover: 2 }), ctosRow(2025, { turnover: 3 })];
 
-    const columns = resolveAdminFinancialReviewColumns({ financialStatements, ctosFinancials, ref: refForEligibility });
+    const columns = resolveAdminFinancialReviewColumns({
+      financialStatements,
+      ctosFinancials,
+      ref: refForEligibility,
+      ctosFetchState: "has_data",
+    });
 
     expect(columns.map((c) => c.year)).toEqual([2023, 2024, 2025, 2026]);
     expect(columns.map((c) => c.kind)).toEqual(["admin_fallback_placeholder", "ctos", "ctos", "unaudited"]);
+  });
+
+  it("Scenario B — Partial CTOS history (FY2024 only): allow Add for missing FY2023 and FY2025", () => {
+    const financialStatements = mkFinancialStatements({
+      financialYearEnd: "2024-12-31",
+      unauditedByYear: { "2026": { turnover: 10 } },
+    });
+    const refForEligibility = new Date("2024-03-01T00:00:00.000Z");
+
+    const ctosFinancials = [ctosRow(2024, { turnover: 2 })];
+
+    const columns = resolveAdminFinancialReviewColumns({
+      financialStatements,
+      ctosFinancials,
+      ref: refForEligibility,
+      ctosFetchState: "has_data",
+      eligibleAdminInputYears: [2023, 2024, 2025, 2027],
+    });
+
+    expect(columns.map((c) => [c.year, c.kind])).toEqual([
+      [2023, "admin_fallback_placeholder"],
+      [2024, "ctos"],
+      [2025, "admin_fallback_placeholder"],
+      [2026, "unaudited"],
+    ]);
+  });
+
+  it("Scenario B — CTOS fetched but returned zero financial years: allow Add for historical FYs", () => {
+    const financialStatements = mkFinancialStatements({
+      financialYearEnd: questionnaire,
+      unauditedByYear: { "2026": { turnover: 10 } },
+    });
+
+    const columns = resolveAdminFinancialReviewColumns({
+      financialStatements,
+      ctosFinancials: [],
+      ref,
+      ctosFetchState: "no_records",
+      eligibleAdminInputYears: [2023, 2024, 2025, 2027],
+    });
+
+    expect(columns.map((c) => [c.year, c.kind])).toEqual([
+      [2023, "admin_fallback_placeholder"],
+      [2024, "admin_fallback_placeholder"],
+      [2025, "admin_fallback_placeholder"],
+      [2026, "unaudited"],
+    ]);
   });
 
   it("Scenario C — Full CTOS history: no Add Financial Statement when the 3 historical CTOS FY slots are complete", () => {
@@ -77,7 +134,7 @@ describe("Admin Financial Summary year-column layout scenarios", () => {
 
     const ctosFinancials = [ctosRow(2023, { turnover: 1 }), ctosRow(2024, { turnover: 2 }), ctosRow(2025, { turnover: 3 })];
 
-    const columns = resolveAdminFinancialReviewColumns({ financialStatements, ctosFinancials, ref });
+    const columns = resolveAdminFinancialReviewColumns({ financialStatements, ctosFinancials, ref, ctosFetchState: "has_data" });
 
     expect(columns.map((c) => c.year)).toEqual([2023, 2024, 2025, 2026]);
     expect(columns.map((c) => c.kind)).toEqual(["ctos", "ctos", "ctos", "unaudited"]);
@@ -95,7 +152,7 @@ describe("Admin Financial Summary year-column layout scenarios", () => {
 
     const ctosFinancials = [ctosRow(2023, { turnover: 1 }), ctosRow(2024, { turnover: 2 }), ctosRow(2025, { turnover: 3 })];
 
-    const columns = resolveAdminFinancialReviewColumns({ financialStatements, ctosFinancials, ref });
+    const columns = resolveAdminFinancialReviewColumns({ financialStatements, ctosFinancials, ref, ctosFetchState: "has_data" });
 
     // FY2025 must have both:
     // - CTOS column (kind=ctos)
@@ -118,7 +175,7 @@ describe("Admin Financial Summary year-column layout scenarios", () => {
 
     const ctosFinancials = [ctosRow(2025, { turnover: 3 })];
 
-    const columns = resolveAdminFinancialReviewColumns({ financialStatements, ctosFinancials, ref });
+    const columns = resolveAdminFinancialReviewColumns({ financialStatements, ctosFinancials, ref, ctosFetchState: "has_data" });
 
     // Historical window is always FY2023–FY2025 when latest user input is FY2026.
     expect(columns.map((c) => c.year)).toEqual([2023, 2024, 2025, 2026]);
@@ -143,6 +200,7 @@ describe("Admin Financial Summary year-column layout scenarios", () => {
       financialStatements,
       ctosFinancials,
       ref,
+      ctosFetchState: "has_data",
     });
 
     const decide = decideAdminFinancialFieldEdit({
@@ -152,6 +210,35 @@ describe("Admin Financial Summary year-column layout scenarios", () => {
     });
 
     expect(decide).toMatchObject({ ok: true, action: "add_missing_ctos_field" });
+
+    const turnoverDecision = decideAdminFinancialFieldEdit({
+      columns,
+      financialYear: 2024,
+      fieldKey: "turnover",
+    });
+    expect(turnoverDecision).toMatchObject({ ok: false, code: "CTOS_FIELD_READONLY" });
+  });
+
+  it("Scenario F — CTOS value 0 is treated as a real CTOS value (read-only)", () => {
+    const financialStatements = mkFinancialStatements({
+      financialYearEnd: questionnaire,
+      unauditedByYear: { "2026": { turnover: 10 } },
+    });
+
+    const columns = resolveAdminFinancialReviewColumns({
+      financialStatements,
+      ctosFinancials: [ctosRow(2024, { bsqres: 0 })],
+      ref,
+      ctosFetchState: "has_data",
+    });
+
+    const decision = decideAdminFinancialFieldEdit({
+      columns,
+      financialYear: 2024,
+      fieldKey: "equity_share_premium",
+    });
+
+    expect(decision).toMatchObject({ ok: false, code: "CTOS_FIELD_READONLY" });
   });
 
   it("Scenario E — No future add-year: do not render FY2027 Add Financial Statement", () => {
@@ -169,6 +256,8 @@ describe("Admin Financial Summary year-column layout scenarios", () => {
       financialStatements,
       ctosFinancials: [],
       ref: refSep,
+      ctosFetchState: "no_records",
+      eligibleAdminInputYears: [2023, 2024, 2025, 2027],
     });
 
     expect(columns.some((c) => c.year === 2027 && c.kind === "admin_fallback_placeholder")).toBe(false);

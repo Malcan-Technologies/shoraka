@@ -5942,10 +5942,21 @@ export class ApplicationService {
       orderBy: { fetched_at: "desc" },
       select: { financials_json: true },
     });
+
+    const rawCtosFinancials = ctosReport?.financials_json as unknown;
+    const ctosFetchState: "not_pulled" | "no_records" | "has_data" = !ctosReport
+      ? "not_pulled"
+      : Array.isArray(rawCtosFinancials)
+        ? rawCtosFinancials.length === 0
+          ? "no_records"
+          : "has_data"
+        : "has_data";
+
     const columns = resolveAdminFinancialReviewColumns({
       financialStatements: application.financial_statements,
       ctosFinancials: ctosReport?.financials_json ?? null,
       ref: now,
+      ctosFetchState,
     });
     const decision = decideAdminFinancialFieldEdit({ columns, financialYear, fieldKey });
     if (!decision.ok) {

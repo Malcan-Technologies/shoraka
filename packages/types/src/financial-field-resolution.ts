@@ -259,6 +259,16 @@ export function resolveAdminFinancialReviewColumns(input: {
   ctosFinancials?: unknown;
   ref?: Date;
   eligibleAdminInputYears?: number[];
+  /**
+   * CTOS fetch provenance for historical-year UI decisions.
+   * - "not_pulled": no CTOS report has been fetched yet
+   * - "no_records": CTOS report fetched successfully but contains zero financial statement years
+   * - "has_data": CTOS fetched and contains financial statement years
+   *
+   * Important: field-level locking must still depend on actual CTOS-provided values,
+   * not on this flag. This flag only controls historical "Add Financial Statement" placeholders.
+   */
+  ctosFetchState?: "not_pulled" | "no_records" | "has_data";
 }): AdminFinancialReviewColumn[] {
   const root = asRecord(input.financialStatements);
   const unauditedByYear = asRecord(root?.unaudited_by_year) ?? {};
@@ -341,6 +351,14 @@ export function resolveAdminFinancialReviewColumns(input: {
     financialYearBlockHasActualData(rawFsFields)
   );
 
+  // Backwards compatibility:
+  // If no explicit fetch state is provided, preserve the previous behavior where
+  // "Add Financial Statement" only appears when CTOS actually provides data.
+  const ctosFetched =
+    input.ctosFetchState == null
+      ? hasCtosHistory
+      : input.ctosFetchState === "has_data" || input.ctosFetchState === "no_records";
+
   const addReadOnlyMissingCtosColumn = (year: number) => {
     const fields: Record<string, ResolvedRawFinancialField> = {};
     for (const key of ADMIN_EDITABLE_RAW_FINANCIAL_KEYS) {
@@ -398,7 +416,10 @@ export function resolveAdminFinancialReviewColumns(input: {
     }
 
     const canAddMissingHistoricalCtosYear =
-      hasCtosHistory && eligibleSet.has(year) && !issuerYearSet.has(year) && !adminYearSetAny.has(year);
+      ctosFetched &&
+      eligibleSet.has(year) &&
+      !issuerYearSet.has(year) &&
+      !adminYearSetAny.has(year);
 
     // If eligible, show the Add Financial Statement action in the CTOS-history window.
     if (canAddMissingHistoricalCtosYear) {
