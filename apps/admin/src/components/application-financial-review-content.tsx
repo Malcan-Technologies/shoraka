@@ -1620,72 +1620,26 @@ export function ApplicationFinancialReviewContent({
                           ctosFetchState === "not_pulled" || ctosFetchState === "no_records" || ctosColumnMissing(i) ? (
                             <span className="text-muted-foreground">—</span>
                           ) : (
-                            <div className="flex items-center gap-2">
-                              <Badge
-                                variant="outline"
-                                className={cn(
-                                  "shrink-0 whitespace-nowrap font-normal text-[11px] leading-tight px-2.5 py-0.5 rounded-md shadow-none",
-                                  "border-emerald-500/40 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100"
-                                )}
-                              >
-                                CTOS
-                              </Badge>
-                              {spec.statementType === "AUDITED" ? (
-                                <Badge
-                                  variant="outline"
-                                  className={cn(
-                                    "shrink-0 whitespace-nowrap font-normal text-[11px] leading-tight px-2.5 py-0.5 rounded-md shadow-none",
-                                    "border-border bg-muted/40 text-meta"
-                                  )}
-                                >
-                                  Audited
-                                </Badge>
-                              ) : spec.statementType === "NOT_AUDITED" ? (
-                                <Badge
-                                  variant="outline"
-                                  className={cn(
-                                    "shrink-0 whitespace-nowrap font-normal text-[11px] leading-tight px-2.5 py-0.5 rounded-md shadow-none",
-                                    "border-border bg-muted/40 text-meta"
-                                  )}
-                                >
-                                  Not audited
-                                </Badge>
-                              ) : null}
-                            </div>
-                          )
-                        ) : spec.kind === "unaudited" && spec.year != null ? (
-                          <div className="flex items-center gap-2">
                             <Badge
                               variant="outline"
                               className={cn(
                                 "shrink-0 whitespace-nowrap font-normal text-[11px] leading-tight px-2.5 py-0.5 rounded-md shadow-none",
-                                "border-border bg-muted/50 text-foreground"
+                                "border-emerald-500/40 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100"
                               )}
                             >
-                              User Input
+                              CTOS
                             </Badge>
-                            {spec.statementType === "AUDITED" ? (
-                              <Badge
-                                variant="outline"
-                                className={cn(
-                                  "shrink-0 whitespace-nowrap font-normal text-[11px] leading-tight px-2.5 py-0.5 rounded-md shadow-none",
-                                  "border-border bg-muted/40 text-meta"
-                                )}
-                              >
-                                Audited
-                              </Badge>
-                            ) : spec.statementType === "NOT_AUDITED" ? (
-                              <Badge
-                                variant="outline"
-                                className={cn(
-                                  "shrink-0 whitespace-nowrap font-normal text-[11px] leading-tight px-2.5 py-0.5 rounded-md shadow-none",
-                                  "border-border bg-muted/40 text-meta"
-                                )}
-                              >
-                                Not audited
-                              </Badge>
-                            ) : null}
-                          </div>
+                          )
+                        ) : spec.kind === "unaudited" && spec.year != null ? (
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "shrink-0 whitespace-nowrap font-normal text-[11px] leading-tight px-2.5 py-0.5 rounded-md shadow-none",
+                              "border-border bg-muted/50 text-foreground"
+                            )}
+                          >
+                            User Input
+                          </Badge>
                         ) : spec.kind === "admin_fallback_placeholder" && spec.year != null ? (
                           <span className="text-muted-foreground">—</span>
                         ) : spec.kind === "admin_input" && spec.year != null ? (

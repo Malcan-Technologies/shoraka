@@ -491,17 +491,15 @@ export function resolveAdminFinancialReviewColumns(input: {
 
   // User/Admin submitted financial years (do not suppress CTOS years; same FY may appear twice intentionally).
   for (const year of issuerYears) {
-    const issuerRaw = asRecord(unauditedByYear[String(year)]);
     columns.push({
       kind: "unaudited",
       year,
       primarySource: "user_input",
       recordSource: "unaudited_management",
-      statementType: statementTypeOf(issuerRaw),
       fields: yearFields({
         primary: "user_input",
         ctosRaw: null,
-        issuerRaw,
+        issuerRaw: asRecord(unauditedByYear[String(year)]),
         adminRaw: null,
         overrides: overrides[String(year)],
       }),

@@ -33,12 +33,14 @@ describe("Prospectus working area UX cleanup (presentation-only)", () => {
     expect(sharedSource).not.toContain("items-end");
   });
 
-  it("renders source badges for CTOS/User Input/Admin Input (audited badges allowed; management accounts filtered)", () => {
+  it("renders source badges only for CTOS/User Input/Admin Input (no audited/management clutter)", () => {
     const sharedSource = readFileSync(sharedTablePath, "utf8");
     expect(sharedSource).toContain('header.sourceType === "CTOS"');
     expect(sharedSource).toContain('header.sourceType === "ADMIN_INPUT"');
     expect(sharedSource).toContain('header.sourceType === "ISSUER_INPUT"');
+    expect(sharedSource).not.toContain("AUDITED");
     expect(sharedSource).not.toContain("MANAGEMENT_ACCOUNTS");
+    expect(sharedSource).not.toContain("Not Audited");
   });
 
   it("Page 2 / Page 3 financial working tables reuse the shared table component", () => {

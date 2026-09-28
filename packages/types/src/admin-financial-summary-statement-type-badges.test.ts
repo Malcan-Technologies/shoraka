@@ -20,12 +20,12 @@ function ctosRow(financial_year: number, account: Record<string, unknown> = { tu
   };
 }
 
-describe("Admin Financial Summary statementType badge resolution", () => {
+describe("Admin Financial Summary statementType badge resolution (Admin Input only)", () => {
   // tab window years = [2025, 2026] when financial_year_end=2026-12-31 with this ref.
   const questionnaire = "2026-12-31";
   const ref = new Date("2026-03-01T00:00:00.000Z");
 
-  it("Scenario A — Admin Input FY2025 renders NOT_AUDITED badge", () => {
+  it("Scenario A — Admin Input FY2025 statementType=NOT_AUDITED", () => {
     const columns = resolveAdminFinancialReviewColumns({
       financialStatements: mkFinancialStatements({
         financialYearEnd: questionnaire,
@@ -42,50 +42,30 @@ describe("Admin Financial Summary statementType badge resolution", () => {
     expect(admin2025?.statementType).toBe("NOT_AUDITED");
   });
 
-  it("Scenario B — User Input FY2026 renders AUDITED badge", () => {
+  it("Scenario B — Admin Input FY2025 statementType=AUDITED", () => {
     const columns = resolveAdminFinancialReviewColumns({
       financialStatements: mkFinancialStatements({
         financialYearEnd: questionnaire,
-        unauditedByYear: { "2026": { turnover: 10, statementType: "AUDITED" } },
+        unauditedByYear: { "2026": { turnover: 10 } },
+        adminInputByYear: { "2025": { turnover: 100, statementType: "AUDITED" } },
       }),
       ctosFinancials: [],
       ctosFetchState: "no_records",
       ref,
     });
 
-    const user2026 = columns.find((c) => c.kind === "unaudited" && c.year === 2026);
-    expect(user2026).toBeDefined();
-    expect(user2026?.statementType).toBe("AUDITED");
+    const admin2025 = columns.find((c) => c.kind === "admin_input" && c.year === 2025);
+    expect(admin2025).toBeDefined();
+    expect(admin2025?.statementType).toBe("AUDITED");
   });
 
-  it("Scenario C — Same FY has CTOS + User Input: each column keeps its own identity", () => {
+  it("Scenario C — User Input FY2026 statementType=AUDITED does NOT create a badge", () => {
     const columns = resolveAdminFinancialReviewColumns({
       financialStatements: mkFinancialStatements({
         financialYearEnd: questionnaire,
         unauditedByYear: {
-          "2025": { turnover: 5, statementType: "AUDITED" },
-          "2026": { turnover: 10 },
+          "2026": { turnover: 10, statementType: "AUDITED" },
         },
-      }),
-      ctosFinancials: [ctosRow(2025, { turnover: 1 })],
-      ctosFetchState: "has_data",
-      ref,
-    });
-
-    const ctos2025 = columns.find((c) => c.kind === "ctos" && c.year === 2025);
-    expect(ctos2025).toBeDefined();
-    expect(ctos2025?.statementType).toBeUndefined();
-
-    const user2025 = columns.find((c) => c.kind === "unaudited" && c.year === 2025);
-    expect(user2025).toBeDefined();
-    expect(user2025?.statementType).toBe("AUDITED");
-  });
-
-  it("Scenario D — statementType missing: keep only the source badge", () => {
-    const columns = resolveAdminFinancialReviewColumns({
-      financialStatements: mkFinancialStatements({
-        financialYearEnd: questionnaire,
-        unauditedByYear: { "2026": { turnover: 10 } }, // no statementType
       }),
       ctosFinancials: [],
       ctosFetchState: "no_records",
@@ -97,7 +77,56 @@ describe("Admin Financial Summary statementType badge resolution", () => {
     expect(user2026?.statementType).toBeUndefined();
   });
 
-  it("Scenario E — Management accounts: statementType treated as unavailable (no badge)", () => {
+  it("Scenario D — User Input FY2026 statementType=NOT_AUDITED does NOT create a badge", () => {
+    const columns = resolveAdminFinancialReviewColumns({
+      financialStatements: mkFinancialStatements({
+        financialYearEnd: questionnaire,
+        unauditedByYear: { "2026": { turnover: 10, statementType: "NOT_AUDITED" } },
+      }),
+      ctosFinancials: [],
+      ctosFetchState: "no_records",
+      ref,
+    });
+
+    const user2026 = columns.find((c) => c.kind === "unaudited" && c.year === 2026);
+    expect(user2026).toBeDefined();
+    expect(user2026?.statementType).toBeUndefined();
+  });
+
+  it("Scenario E — CTOS FY2025: shows CTOS source only (no statementType)", () => {
+    const columns = resolveAdminFinancialReviewColumns({
+      financialStatements: mkFinancialStatements({
+        financialYearEnd: questionnaire,
+        unauditedByYear: { "2026": { turnover: 10, statementType: "AUDITED" } },
+      }),
+      ctosFinancials: [ctosRow(2025, { turnover: 1 })],
+      ctosFetchState: "has_data",
+      ref,
+    });
+
+    const ctos2025 = columns.find((c) => c.kind === "ctos" && c.year === 2025);
+    expect(ctos2025).toBeDefined();
+    expect(ctos2025?.statementType).toBeUndefined();
+  });
+
+  it("Scenario F — Admin Input statementType missing => keep source badge only", () => {
+    const columns = resolveAdminFinancialReviewColumns({
+      financialStatements: mkFinancialStatements({
+        financialYearEnd: questionnaire,
+        unauditedByYear: { "2026": { turnover: 10 } },
+        adminInputByYear: { "2025": { turnover: 100 } }, // no statementType
+      }),
+      ctosFinancials: [],
+      ctosFetchState: "no_records",
+      ref,
+    });
+
+    const admin2025 = columns.find((c) => c.kind === "admin_input" && c.year === 2025);
+    expect(admin2025).toBeDefined();
+    expect(admin2025?.statementType).toBeUndefined();
+  });
+
+  it("Scenario G — Management accounts: statementType treated as unavailable (no badge)", () => {
     const columns = resolveAdminFinancialReviewColumns({
       financialStatements: mkFinancialStatements({
         financialYearEnd: questionnaire,
