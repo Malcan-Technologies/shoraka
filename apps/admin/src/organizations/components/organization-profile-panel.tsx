@@ -427,34 +427,44 @@ export function OrganizationProfilePanel({
           <AdminDetailCardHeader
             icon={IdentificationIcon}
             title="Investor Classification"
-            description={`Type of Investor is required. ${PROFILE_HELP.typeOfInvestorAdmin}`}
+            description="Investor type is used for regulatory reporting and determines the investor’s investment limit. It does not change which investment notes they can view."
             actions={sectionActions("classification")}
           />
           <CardContent>
-            <div className="space-y-2">
-              {editingSection === "classification" ? (
-                <EditableSelect
-                  label={PROFILE_LABEL.typeOfInvestor}
-                  value={draft.scInvestorCategory}
-                  onChange={(scInvestorCategory) => setDraft((current) => ({ ...current, scInvestorCategory }))}
-                  options={investorCategoryOptions.map((value) => ({
-                    value,
-                    label: SC_INVESTOR_CATEGORY_LABELS[value],
-                    title: SC_INVESTOR_CATEGORY_DEFINITIONS[value],
-                  }))}
-                  help={investorCategoryHelp || undefined}
-                  required
-                />
-              ) : (
-                <ReadField
-                  label={PROFILE_LABEL.typeOfInvestor}
-                  value={org.type === "COMPANY" ? SC_INVESTOR_CATEGORY_LABELS[requiredCompanyCategory] : investorCategoryLabel}
-                  missing={requiredFieldKeys.has("scInvestorCategory")}
-                  help={investorCategoryHelp}
-                  required
-                />
-              )}
-            </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {editingSection === "classification" ? (
+                  <div className="space-y-2 sm:col-span-2">
+                    <EditableSelect
+                      label={PROFILE_LABEL.typeOfInvestor}
+                      value={draft.scInvestorCategory}
+                      onChange={(scInvestorCategory) =>
+                        setDraft((current) => ({ ...current, scInvestorCategory }))
+                      }
+                      options={investorCategoryOptions.map((value) => ({
+                        value,
+                        label: SC_INVESTOR_CATEGORY_LABELS[value],
+                        title: SC_INVESTOR_CATEGORY_DEFINITIONS[value],
+                      }))}
+                      help={investorCategoryHelp || undefined}
+                      required
+                    />
+                  </div>
+                ) : (
+                  <div className="sm:col-span-2">
+                    <ReadField
+                      label={PROFILE_LABEL.typeOfInvestor}
+                      value={
+                        org.type === "COMPANY"
+                          ? SC_INVESTOR_CATEGORY_LABELS[requiredCompanyCategory]
+                          : investorCategoryLabel
+                      }
+                      missing={requiredFieldKeys.has("scInvestorCategory")}
+                      help={investorCategoryHelp}
+                      required
+                    />
+                  </div>
+                )}
+              </div>
           </CardContent>
         </Card>
   ) : null;

@@ -7,7 +7,6 @@ import { createApiClient, useAuthToken } from "@cashsouk/config";
 import {
   allowedScInvestorCategories,
   isAllowedScInvestorCategory,
-  PROFILE_HELP,
   PROFILE_LABEL,
   SC_INVESTOR_CATEGORY_DEFINITIONS,
   SC_INVESTOR_CATEGORY_LABELS,
@@ -32,16 +31,23 @@ export function InvestorClassificationCard({
   organizationType,
   isSophisticatedInvestor: _isSophisticatedInvestor,
   scInvestorCategory,
+  isEditing,
+  onEdit,
+  onCancel,
+  onSaveSuccess,
 }: {
   organizationId: string;
   organizationType: "PERSONAL" | "COMPANY";
   isSophisticatedInvestor: boolean | null;
   scInvestorCategory?: string | null;
+  isEditing: boolean;
+  onEdit: () => void;
+  onCancel: () => void;
+  onSaveSuccess: () => void;
 }) {
   const { getAccessToken } = useAuthToken();
   const api = React.useMemo(() => createApiClient(API_URL, getAccessToken), [getAccessToken]);
   const queryClient = useQueryClient();
-  const [isEditing, setIsEditing] = React.useState(false);
   const options = allowedScInvestorCategories({ organizationType });
 
   const requiredCompanyCategory: ScInvestorCategory = "SOPHISTICATED_HIGH_NET_WORTH_ENTITY";
@@ -76,7 +82,7 @@ export function InvestorClassificationCard({
     onSuccess: async () => {
       await invalidate();
       toast.success("Investor classification updated");
-      setIsEditing(false);
+      onSaveSuccess();
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -94,7 +100,8 @@ export function InvestorClassificationCard({
         <div>
           <h2 className="text-lg font-semibold">Investor Classification</h2>
           <p className="mt-1 text-ui text-muted-foreground">
-            {PROFILE_HELP.typeOfInvestor}
+            Your investor type is used for regulatory reporting and determines your investment limit.
+            It does not change which investment notes you can view.
           </p>
         </div>
         {!isEditing ? (
@@ -107,7 +114,7 @@ export function InvestorClassificationCard({
               setValue(
                 organizationType === "COMPANY" ? requiredCompanyCategory : (current as string)
               );
-              setIsEditing(true);
+              onEdit();
             }}
             disabled={!canEditCompany || save.isPending}
           >
@@ -121,7 +128,7 @@ export function InvestorClassificationCard({
             className="gap-2 rounded-xl"
             onClick={() => {
               setValue(current);
-              setIsEditing(false);
+              onCancel();
             }}
             disabled={save.isPending}
           >
@@ -132,31 +139,41 @@ export function InvestorClassificationCard({
       </div>
       <div className="p-6">
         {isEditing ? (
-          <div className="space-y-2">
-            <ComRepFieldLabel
-              label={PROFILE_LABEL.typeOfInvestor}
-              required
-              help={options.length > 0 ? scInvestorCategoryHelp(options) : undefined}
-            />
-            <Select
-              value={value || undefined}
-              onValueChange={(next) => setValue(next)}
-              disabled={save.isPending}
-            >
-              <SelectTrigger className="h-10 text-ui" aria-label={PROFILE_LABEL.typeOfInvestor}>
-                <SelectValue placeholder="Select" />
-              </SelectTrigger>
-              <SelectContent>
-                {options.map((option) => (
-                  <SelectItem key={option} value={option} title={SC_INVESTOR_CATEGORY_DEFINITIONS[option]}>
-                    {SC_INVESTOR_CATEGORY_LABELS[option]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="grid gap-6 sm:grid-cols-2">
+            <div className="space-y-2 sm:col-span-2">
+              <ComRepFieldLabel
+                label={PROFILE_LABEL.typeOfInvestor}
+                required
+                help={options.length > 0 ? scInvestorCategoryHelp(options) : undefined}
+              />
+              <Select
+                value={value || undefined}
+                onValueChange={(next) => setValue(next)}
+                disabled={save.isPending}
+              >
+                <SelectTrigger className="h-10 text-ui" aria-label={PROFILE_LABEL.typeOfInvestor}>
+                  <SelectValue placeholder="Select" />
+                </SelectTrigger>
+                <SelectContent>
+                  {options.map((option) => (
+                    <SelectItem
+                      key={option}
+                      value={option}
+                      title={SC_INVESTOR_CATEGORY_DEFINITIONS[option]}
+                    >
+                      {SC_INVESTOR_CATEGORY_LABELS[option]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-            <div className="sm:flex justify-end mt-4">
-              <Button className="h-10 rounded-xl" onClick={() => save.mutate()} disabled={save.isPending}>
+            <div className="sm:col-span-2 flex justify-end">
+              <Button
+                className="h-10 rounded-xl"
+                onClick={() => save.mutate()}
+                disabled={save.isPending}
+              >
                 {save.isPending ? "Saving..." : "Save changes"}
               </Button>
             </div>
