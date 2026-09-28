@@ -121,21 +121,7 @@ export function InvestorClassificationCard({
             <PencilIcon className="h-4 w-4" />
             Edit
           </Button>
-        ) : (
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-2 rounded-xl"
-            onClick={() => {
-              setValue(current);
-              onCancel();
-            }}
-            disabled={save.isPending}
-          >
-            <XMarkIcon className="h-4 w-4" />
-            Cancel
-          </Button>
-        )}
+        ) : null}
       </div>
       <div className="p-6">
         {isEditing ? (
@@ -168,9 +154,21 @@ export function InvestorClassificationCard({
               </Select>
             </div>
 
-            <div className="sm:col-span-2 flex justify-end">
+            <div className="sm:col-span-2 flex justify-end gap-2 pt-4">
               <Button
-                className="h-10 rounded-xl"
+                variant="outline"
+                onClick={() => {
+                  setValue(current);
+                  onCancel();
+                }}
+                disabled={save.isPending}
+                className="gap-2 rounded-xl"
+              >
+                <XMarkIcon className="h-4 w-4" />
+                Cancel
+              </Button>
+              <Button
+                className="gap-2 rounded-xl"
                 onClick={() => save.mutate()}
                 disabled={save.isPending}
               >
