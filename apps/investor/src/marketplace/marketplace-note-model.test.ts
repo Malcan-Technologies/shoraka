@@ -20,6 +20,7 @@ import {
   marketplaceMinimumThresholdPercent,
   marketplaceNoteMatchesFilters,
   marketplaceReturnRateLabel,
+  applyInvestorLimitToNote,
   sortFeaturedMarketplaceNotes,
   toMarketplaceNote,
   type MarketplaceNote,
@@ -402,5 +403,24 @@ describe("marketplace copy helpers", () => {
         listing: "all",
       })
     ).toBe(true);
+  });
+});
+
+describe("applyInvestorLimitToNote", () => {
+  it("caps maxInvestment at remaining headroom and keeps the note investable when the min still fits", () => {
+    const mapped = applyInvestorLimitToNote(toMarketplaceNote(note()), 30_000);
+    expect(mapped.maxInvestment).toBe(30_000);
+    expect(mapped.investable).toBe(true);
+  });
+
+  it("marks the note not investable when remaining headroom is below the note minimum", () => {
+    const mapped = applyInvestorLimitToNote(toMarketplaceNote(note()), 0);
+    expect(mapped.maxInvestment).toBe(0);
+    expect(mapped.investable).toBe(false);
+  });
+
+  it("leaves the note unchanged when there is no investor cap", () => {
+    const original = toMarketplaceNote(note());
+    expect(applyInvestorLimitToNote(original, null)).toEqual(original);
   });
 });

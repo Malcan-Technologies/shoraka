@@ -1,12 +1,13 @@
 # Supporting documents review: states and rules
 
-This guide describes how **per-document** review items and the **`supporting_documents`** **section** status relate to each other, including API behavior, activity logging, and admin UI locking.
+This guide describes how **per-document** review items and the **`supporting_documents`** **section** status relate to each other, including API behavior, activity logging, admin UI locking, and issuer amendment slot locks.
 
 Implementation reference:
 
 - Section derivation: `apps/api/src/modules/admin/supporting-documents-section-status.ts`
 - Service (sync, peer-reject cleanup, blocked section actions): `apps/api/src/modules/admin/service.ts`
 - Admin UI: `apps/admin/src/components/application-review/sections/documents-section.tsx`, `document-list.tsx`, `item-action-dropdown.tsx`, `section-action-dropdown.tsx`
+- Issuer amendment slot lock: `apps/api/src/modules/applications/supporting-document-issuer-lock.ts`, `apps/issuer/src/app/(application-flow)/applications/steps/supporting-documents-step.tsx`
 
 ---
 
@@ -101,6 +102,19 @@ Then the **section** status is synced from the full matrix (typically **REJECTED
 
 ---
 
+## Issuer amendment: only flagged documents editable
+
+When the application is `AMENDMENT_REQUESTED` and at least one **submitted** item remark targets `supporting_documents:…`:
+
+- The supporting-documents **step** is unlocked (same as other item-flagged steps).
+- **Only flagged document rows** can be uploaded, replaced, added to, or removed. Unflagged rows stay **view/download**.
+- The API enforces the same slot lock on PATCH, upload URL, and delete (`403 AMENDMENT_LOCKED`). Item remarks do not unlock generic (no-category) uploads.
+- Matching accepts both `supporting_documents:{category}:{index}:{slug}` and `supporting_documents:doc:{category}:{index}:{slug}`.
+
+Implementation: `apps/api/src/modules/applications/supporting-document-issuer-lock.ts`, issuer `supporting-documents-step.tsx`, matcher `supportingDocScopeKeyMatchesRow` in `@cashsouk/types`. Tests: `supporting-document-issuer-lock.test.ts`, `supporting-documents-workflow.test.ts`.
+
+---
+
 ## API: blocked and allowed operations
 
 | Operation | `supporting_documents` section | Document item |
@@ -143,5 +157,6 @@ Then the **section** status is synced from the full matrix (typically **REJECTED
 
 - **Section status** = pure function of **all** document item statuses, with **rejection** and **pending** taking precedence, then **all approved**, then **amendment requested** among decided items.
 - **No** section-level approve/reject/amendment for documents in the API.
+- **Issuer amendment:** only documents with a submitted item remark are editable; unflagged slots return `AMENDMENT_LOCKED`.
 - **Rejecting one document** clears **sibling amendment drafts** and **resets sibling `AMENDMENT_REQUESTED`** items to **pending**, then re-syncs the section.
 - **UI** hides bulk section actions and **locks** primary row actions while **any** document remains **rejected**, until reviewers clear state via **Set to Pending** (item or section).

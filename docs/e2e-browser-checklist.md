@@ -98,8 +98,8 @@
   - Approve/Reject/Request amendment per invoice
   - Reset to pending per item
 - [ ] **Document items**
-  - Same actions per document
-  - `scope_key` format matches backend expectations (e.g. `supporting_documents:doc:financial_docs:0:Latest_Management_Account`)
+  - Same actions per document (section-level Request amendment is blocked; flag individual documents)
+  - `scope_key` format matches backend expectations (e.g. `supporting_documents:doc:financial_docs:0:Latest_Management_Account` or `supporting_documents:financial_docs:0:Latest_Management_Account`)
 
 ### 2.5 Contract & Invoice Offers
 
@@ -157,8 +157,10 @@
   - Only flagged invoice rows editable
   - Non-flagged invoices read-only
 - [ ] **Supporting documents step**
-  - Only flagged documents editable
-  - `scope_key` matching works for documents
+  - Item remarks unlock the step; only flagged document rows are editable (upload / replace / add / remove)
+  - Unflagged documents are view/download only
+  - `scope_key` matching works with and without `:doc:`
+  - PATCH / upload / delete of an unflagged slot returns `AMENDMENT_LOCKED`
 
 ### 3.4 Amendment Remark Display
 

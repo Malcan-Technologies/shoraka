@@ -17,6 +17,10 @@ import { AppError } from "../../lib/http/error-handler";
 import type { AuditRequestContext } from "../../lib/audit";
 import { prisma as defaultPrisma } from "../../lib/prisma";
 import { creditInvestorBalance } from "../notes/investor-balance";
+import {
+  assertDepositWithinLimit,
+  lockInvestorInvestmentLimit,
+} from "../notes/investment-limit";
 import { postLedgerEntry } from "../notes/ledger";
 import { CreateInvestorDepositInput } from "./deposit-schemas";
 import { createGatewayOrder, mapGatewayPaymentResponse } from "./gateway-order-service";
@@ -147,6 +151,7 @@ export async function createInvestorDeposit(
       WHERE id = ${input.investorOrganizationId}
       FOR UPDATE
     `;
+    await lockInvestorInvestmentLimit(tx, input.investorOrganizationId);
 
     const intentKey = buildDepositIntentKey(input.depositIntentId);
     const existingIntent = await tx.gatewayPayment.findFirst({
@@ -201,6 +206,12 @@ export async function createInvestorDeposit(
         );
       }
     }
+
+    await assertDepositWithinLimit(tx, {
+      investorOrganizationId: input.investorOrganizationId,
+      amount: input.amount,
+      excludeIntentKey: intentKey,
+    });
 
     return createGatewayOrder(
       actor,

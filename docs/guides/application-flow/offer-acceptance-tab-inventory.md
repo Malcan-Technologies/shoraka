@@ -253,9 +253,9 @@ Offer tab mounts only if `hasOffer` (review CTA, facility offer, invoice `OFFER_
 - **Deadline Alert** — urgency soon (action) or past (destructive) — Review terms / Confirm & accept.
 - **Loading offer…** — contract fetch when contract needed — Review terms.
 - **Vertical `SigningProgressStepper`** — signing flow: representatives → documents (if workflow) / awaiting_review / signing → complete / rejected / declined; direct: single “Respond to offer” — maps to horizontal stepper later; clickable only on signing flow (`handleSigningStepSelect`, persist uploads unless Step 1 defer) — corresponding stages.
-- **Offer details sidebar (signing)** — facility dl or `InvoiceOfferTerms` + **Download offer letter** (`getContractOfferLetterBlob` / `getInvoiceOfferLetterBlob`, `offerLetterDownloadFileName`) — Review terms.
+- **Offer details sidebar (signing)** — facility dl or `InvoiceOfferTerms` — Review terms.
 - **Contract details sidebar (direct accept)** — linked facility name/value/approved/period/fee rate/`FacilityFeeBalanceSummary` — Review terms (invoice-under-facility).
-- **Expired card** — `phaseDeadline.isPast` or entity `OFFER_EXPIRED` — “Offer Expired”; download still in details panel; reject/accept closed — Issuer response analogue / Confirm & accept (blocked).
+- **Expired card** — `phaseDeadline.isPast` or entity `OFFER_EXPIRED` — “Offer Expired”; reject/accept closed — Issuer response analogue / Confirm & accept (blocked).
 - **Footer Decline offer / Cancel decline** — not expired, not complete; hidden on rejected/declined display step unless already in reject mode — Confirm & accept / Representatives (escape hatch).
 - **Close** — `requestClose`; if pending acceptance uploads, **Unsaved changes** ConfirmDialog Discard/Stay — Offer tab chrome (plan: Back to applications).
 - **`OfferAcceptOtpDialog`** — direct accept only — Confirm & accept.
@@ -268,7 +268,7 @@ Typical: invoice on a facility whose contract envelope is already complete (`res
 - **Offer terms card** — `InvoiceOfferTerms`: number, value, approved financing, due date, tenure from disbursement with “Invoice matures {date}”, profit rate, risk, financing margin, indicative profit/payable (tooltips), money table via `buildInvoiceOfferMoneyRows` (requested, approved, drawdown fee, facility fee if linked, extra fees, net disbursement), Accept by footer — Review terms.
 - **`UtilisationOfferTerms`** — heading Confirm and accept with no extra intro; Read terms dialog; if `canAccept`: two consents + full-authorisation dialog (Required/Confirmed); locked while OTP open — Confirm & accept.
 - **Blocked copy** — `modalMode.blockedMessage` or “Finish facility signing first…”; Accept disabled; toast “Cannot accept yet” — Confirm & accept.
-- **Download offer letter / Download application summary** — `ApplicationSummaryDownloadButton` → `getApplicationSummaryPdfBlob` — Review terms. Summary button is **only** on this direct-accept card, not the signing-flow sidebar.
+- **Download application summary** — `ApplicationSummaryDownloadButton` → `getApplicationSummaryPdfBlob` — Review terms. Summary button is **only** on this direct-accept card, not the signing-flow sidebar.
 - **Reject Offer** — enters decline form — Confirm & accept.
 - **Accept Offer & Authorize Listing** — `prepareAccept`: expiry, `canAccept`, both consents; opens OTP — Confirm & accept.
 - **OTP step 1** — load signatories (facility envelope vs directors fallback copy); radio (masked email + source); Cancel / Send verification code; dismiss blocked while busy — Confirm & accept.
@@ -352,6 +352,6 @@ Implementers tick these; review and browser verification use the same list. Noth
 - [x] Signing: draft preview/download; send-links confirm; extend deadline after clock past; matrix + View/Download signed PDFs; Remind / Send reminders; Void; Re-sync; history; locked-until-approved copy; invoice_only invoice id on send/extend.
 - [x] Locks/permissions: section permission map; tab prerequisites (Acceptance: send Facility or Invoice / Approve Customer); withdrawn; existing_contract facility + inherited acceptance; paymaster freeze; issuer-finalized facility; `canManageSigning`.
 - [x] Comparison modal still has Facility/Customer/Invoice/Acceptance read-only before/after (including contract offer fee rows and invoice SC fields).
-- [x] Issuer switcher + stale/signed/empty Offer tab states; deadline banners; offer letter download; application summary download on **direct** accept; utilisation consents + OTP dialog (not inlined); decline reasons; reps + documents + changes banner + View Remarks; awaiting-review success; signing refresh/remind; discard-unsaved-uploads; expired read-only; blocked accept until facility signing where `canAccept === false`. Direct OTP: source/model/unit tested; no live direct-OTP fixture was available.
+- [x] Issuer switcher + stale/signed/empty Offer tab states; deadline banners; application summary download on **direct** accept; utilisation consents + OTP dialog (not inlined); decline reasons; reps + documents + changes banner + View Remarks; awaiting-review success; signing refresh/remind; discard-unsaved-uploads; expired read-only; blocked accept until facility signing where `canAccept === false`. Direct OTP: source/model/unit tested; no live direct-OTP fixture was available.
 - [x] Post-send navigation: facility send → Acceptance tab when present; invoice send → Acceptance tab only when invoice_only.
 - [x] Merged notes keep every existing thread; composer posts to `acceptance_documents` when that section exists, else stage 1/2 review section.

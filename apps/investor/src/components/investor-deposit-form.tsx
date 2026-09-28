@@ -15,6 +15,7 @@ import {
   isDepositIntentTerminalError,
   useCreateInvestorDepositMutation,
   useInvestorDepositLimitsQuery,
+  useInvestorInvestmentLimitQuery,
 } from "@/hooks/use-investor-deposit";
 import {
   buildDepositCallbackUrl,
@@ -22,6 +23,7 @@ import {
 } from "@/lib/curlec-checkout";
 import { parseMoneyAmount } from "@/app/transactions/components/transaction-utils";
 import {
+  depositHeadroomBlockedHint,
   depositLimitsHint,
   depositMinimumError,
   depositTypedAmountError,
@@ -55,10 +57,19 @@ export function InvestorDepositForm({
   const { activeOrganization } = useOrganization();
   const createDeposit = useCreateInvestorDepositMutation();
   const depositLimitsQuery = useInvestorDepositLimitsQuery();
+  const investmentLimitQuery = useInvestorInvestmentLimitQuery(investorOrganizationId);
   const [isOpeningCheckout, setIsOpeningCheckout] = React.useState(false);
 
   const minAmount = depositLimitsQuery.data?.minAmount;
-  const maxAmount = depositLimitsQuery.data?.maxAmount;
+  const platformMaxAmount = depositLimitsQuery.data?.maxAmount;
+  const investmentLimit = investmentLimitQuery.data;
+  const maxAmount =
+    investmentLimit?.depositMaxAmount ?? platformMaxAmount;
+  const depositBlockedByLimit =
+    minAmount != null &&
+    maxAmount != null &&
+    investmentLimit?.limit != null &&
+    maxAmount < minAmount;
 
   async function openCheckout(
     created: {
@@ -89,6 +100,16 @@ export function InvestorDepositForm({
     const parsed = parseMoneyAmount(amount);
     if (minAmount == null || maxAmount == null) {
       toast.error("We're still loading deposit limits. Try again in a moment.");
+      return;
+    }
+    if (depositBlockedByLimit && investmentLimit?.limit != null) {
+      onValidationErrorChange(
+        depositHeadroomBlockedHint(maxAmount, minAmount, {
+          tier: investmentLimit.tier,
+          limit: investmentLimit.limit,
+          pendingDeposits: investmentLimit.pendingDeposits,
+        })
+      );
       return;
     }
 
@@ -156,15 +177,35 @@ export function InvestorDepositForm({
     }
   }
 
+  React.useEffect(() => {
+    if (!depositBlockedByLimit) return;
+    if (amount.trim() === "") return;
+    onAmountChange("");
+    if (validationError) onValidationErrorChange(null);
+  }, [
+    amount,
+    depositBlockedByLimit,
+    onAmountChange,
+    onValidationErrorChange,
+    validationError,
+  ]);
+
   const isBusy = createDeposit.isPending || isOpeningCheckout;
-  const limitsReady = minAmount != null && maxAmount != null;
+  const limitsReady = minAmount != null && maxAmount != null && !investmentLimitQuery.isLoading;
   const parsedAmount = parseMoneyAmount(amount);
   const liveError = limitsReady
-    ? depositTypedAmountError(parsedAmount, minAmount, maxAmount)
+    ? depositBlockedByLimit && investmentLimit?.limit != null
+      ? depositHeadroomBlockedHint(maxAmount, minAmount, {
+          tier: investmentLimit.tier,
+          limit: investmentLimit.limit,
+          pendingDeposits: investmentLimit.pendingDeposits,
+        })
+      : depositTypedAmountError(parsedAmount, minAmount, maxAmount)
     : null;
   const fieldError = liveError ?? validationError;
   const amountHintId = fieldError ? "deposit-amount-error" : "deposit-amount-hint";
-  const amountInRange = limitsReady && parsedAmount > 0 && !liveError;
+  const amountInRange =
+    limitsReady && parsedAmount > 0 && !liveError && !depositBlockedByLimit;
 
   return (
     <div className="space-y-5">
@@ -181,19 +222,29 @@ export function InvestorDepositForm({
           invalid={Boolean(fieldError)}
           describedBy={amountHintId}
           inputClassName="h-11 rounded-xl"
-          disabled={disabled || isBusy || !limitsReady}
+          disabled={disabled || isBusy || !limitsReady || depositBlockedByLimit}
         />
         {fieldError ? (
           <p id="deposit-amount-error" className="text-ui text-destructive">
             {fieldError}
           </p>
-        ) : depositLimitsQuery.isLoading ? (
+        ) : depositLimitsQuery.isLoading || investmentLimitQuery.isLoading ? (
           <p id="deposit-amount-hint" className="text-meta text-muted-foreground">
             Loading how much you can add…
           </p>
         ) : limitsReady ? (
           <p id="deposit-amount-hint" className="text-meta text-muted-foreground">
-            {depositLimitsHint(minAmount, maxAmount)}
+            {depositLimitsHint(
+              minAmount,
+              maxAmount,
+              investmentLimit
+                ? {
+                    tier: investmentLimit.tier,
+                    limit: investmentLimit.limit,
+                    depositHeadroom: investmentLimit.depositHeadroom,
+                  }
+                : null
+            )}
           </p>
         ) : (
           <p id="deposit-amount-hint" className="text-ui text-destructive">

@@ -1,4 +1,6 @@
 import {
+  dashboardParticipationHint,
+  depositHeadroomBlockedHint,
   depositLimitsHint,
   depositMaximumError,
   depositMinimumError,
@@ -15,8 +17,39 @@ jest.mock("@cashsouk/config", () => ({
 }));
 
 describe("investor money copy", () => {
+  it("writes the dashboard participation hint from the type cap", () => {
+    expect(dashboardParticipationHint()).toBe("Limit depends on investor type");
+    expect(dashboardParticipationHint(null)).toBe("Limit depends on investor type");
+    expect(dashboardParticipationHint({ tier: "SOPHISTICATED", limit: null })).toBe(
+      "No cap on outstanding principal"
+    );
+    expect(dashboardParticipationHint({ tier: "RETAIL", limit: 400000 })).toBe(
+      "Retail cap RM 400000 outstanding"
+    );
+  });
+
   it("writes deposit and withdrawal limits for investors", () => {
     expect(depositLimitsHint(100, 50000)).toBe("You can add from RM 100 to RM 50000.");
+    expect(depositLimitsHint(100, 10000, { tier: "RETAIL", limit: 50000 })).toBe(
+      "You can add from RM 100 to RM 10000. Remaining under your Retail limit of RM 50000."
+    );
+    expect(
+      depositLimitsHint(100, 30000, { tier: "RETAIL", limit: 400000, depositHeadroom: 129000 })
+    ).toBe(
+      "You can add from RM 100 to RM 30000. You can deposit up to RM 129000 more under your Retail limit of RM 400000."
+    );
+    expect(depositHeadroomBlockedHint(50, 100, { tier: "RETAIL", limit: 50000 })).toBe(
+      "You can deposit up to RM 50 more under your Retail limit of RM 50000. The minimum deposit is RM 100."
+    );
+    expect(
+      depositHeadroomBlockedHint(0, 100, {
+        tier: "RETAIL",
+        limit: 245000,
+        pendingDeposits: 31000,
+      })
+    ).toBe(
+      "You can deposit up to RM 0 more under your Retail limit of RM 245000, including RM 31000 still clearing. The minimum deposit is RM 100."
+    );
     expect(depositMinimumError(100)).toBe("The minimum you can add is RM 100.");
     expect(depositMaximumError(50000)).toBe("The most you can add at once is RM 50000.");
     expect(depositTypedAmountError(0, 100, 50000)).toBeNull();

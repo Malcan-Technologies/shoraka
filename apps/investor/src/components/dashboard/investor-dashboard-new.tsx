@@ -4,7 +4,9 @@ import Link from "next/link";
 import { PlusIcon } from "@heroicons/react/24/outline";
 import { Card, CardContent, StatusBadge } from "@cashsouk/ui";
 import { formatCurrency } from "@cashsouk/config";
+import type { InvestmentLimitTier } from "@cashsouk/types";
 import { Button } from "@/components/ui/button";
+import { dashboardParticipationHint } from "@/components/investor-money-copy";
 
 export function InvestorDashboardNew({
   availableBalance,
@@ -12,6 +14,7 @@ export function InvestorDashboardNew({
   seekingFunding,
   tenorLabel,
   minCommitMyr,
+  investmentLimit,
   onDeposit,
 }: {
   availableBalance: number | null;
@@ -19,6 +22,7 @@ export function InvestorDashboardNew({
   seekingFunding: number | null;
   tenorLabel: string;
   minCommitMyr: number;
+  investmentLimit?: { tier: InvestmentLimitTier; limit: number | null } | null;
   onDeposit: () => void;
 }) {
   const cards = [
@@ -51,7 +55,7 @@ export function InvestorDashboardNew({
       key: "min",
       label: "Minimum per note",
       value: formatCurrency(minCommitMyr),
-      hint: "No cap on participation",
+      hint: dashboardParticipationHint(investmentLimit),
     },
   ].filter((card): card is NonNullable<typeof card> => card != null);
 

@@ -11,6 +11,19 @@ jest.mock("../../lib/prisma", () => ({
   },
 }));
 
+jest.mock("./investment-limit", () => ({
+  lockInvestorInvestmentLimit: jest.fn().mockResolvedValue(undefined),
+  assertInvestmentWithinLimit: jest.fn().mockResolvedValue(undefined),
+}));
+
+jest.mock("../organization-profile/service", () => ({
+  computeOrgProfileCompleteness: jest.fn().mockResolvedValue({
+    complete: true,
+    percent: 100,
+    missing: [],
+  }),
+}));
+
 jest.mock("./investor-balance", () => {
   const actual = jest.requireActual("./investor-balance") as Record<string, unknown>;
   return {

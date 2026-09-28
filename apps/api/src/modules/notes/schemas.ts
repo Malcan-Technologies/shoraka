@@ -67,6 +67,10 @@ export const investorOrganizationScopeSchema = z.object({
   investorOrganizationId: z.string().min(1).optional(),
 });
 
+export const investorInvestmentLimitQuerySchema = z.object({
+  investorOrganizationId: z.string().min(1),
+});
+
 export const investorPortfolioQuerySchema = investorOrganizationScopeSchema;
 
 export const investorInvestmentsQuerySchema = investorOrganizationScopeSchema;
@@ -345,6 +349,30 @@ export const updatePlatformFinanceSettingsSchema = z.object({
   applicationProcessingFeeAmount: z.number().positive().optional(),
   investorMinDepositAmount: z.number().positive().optional(),
   investorMaxDepositAmount: z.number().positive().optional(),
+  retailInvestmentLimitAmount: z
+    .number()
+    .min(0)
+    .refine((v) => isNoteMoneyAmount(v), {
+      message: "Retail investment limit can have up to 2 decimal places",
+    })
+    .nullable()
+    .optional(),
+  angelInvestmentLimitAmount: z
+    .number()
+    .min(0)
+    .refine((v) => isNoteMoneyAmount(v), {
+      message: "Angel investment limit can have up to 2 decimal places",
+    })
+    .nullable()
+    .optional(),
+  sophisticatedInvestmentLimitAmount: z
+    .number()
+    .min(0)
+    .refine((v) => isNoteMoneyAmount(v), {
+      message: "Sophisticated investment limit can have up to 2 decimal places",
+    })
+    .nullable()
+    .optional(),
   facilityFeeGatewayTxnMaxAmount: z
     .number()
     .positive()

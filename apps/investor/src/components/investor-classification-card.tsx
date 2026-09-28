@@ -8,6 +8,7 @@ import {
   allowedScInvestorCategories,
   isAllowedScInvestorCategory,
   isSophisticatedInvestorSelected,
+  PROFILE_HELP,
   PROFILE_LABEL,
   SC_INVESTOR_CATEGORY_DEFINITIONS,
   SC_INVESTOR_CATEGORY_LABELS,
@@ -120,8 +121,7 @@ export function InvestorClassificationCard({
         <div>
           <h2 className="text-lg font-semibold">Investor Classification</h2>
           <p className="mt-1 text-ui text-muted-foreground">
-            Type of Investor is used for regulatory reporting. It does not change the investor’s
-            product eligibility.
+            {PROFILE_HELP.typeOfInvestor}
           </p>
         </div>
         {!isEditing ? (

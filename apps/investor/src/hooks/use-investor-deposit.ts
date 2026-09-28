@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { isDepositWalletSettled } from "./investor-deposit-status";
 
@@ -24,6 +24,8 @@ export const investorDepositKeys = {
   all: ["investor-deposit"] as const,
   detail: (depositId?: string) => [...investorDepositKeys.all, depositId] as const,
   limits: () => [...investorDepositKeys.all, "limits"] as const,
+  investmentLimit: (investorOrganizationId?: string) =>
+    [...investorDepositKeys.all, "investment-limit", investorOrganizationId] as const,
 };
 
 function useInvestorDepositApiClient() {
@@ -102,6 +104,7 @@ export function isDepositIntentTerminalError(error: unknown): error is InvestorD
 
 export function useCreateInvestorDepositMutation() {
   const apiClient = useInvestorDepositApiClient();
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (input: {
       investorOrganizationId: string;
@@ -114,6 +117,11 @@ export function useCreateInvestorDepositMutation() {
         throw new InvestorDepositCreateError(payload.code, payload.message, payload.details);
       }
       return response.data;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: investorDepositKeys.investmentLimit(variables.investorOrganizationId),
+      });
     },
   });
 }
@@ -128,6 +136,21 @@ export function useInvestorDepositLimitsQuery() {
       return response.data;
     },
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useInvestorInvestmentLimitQuery(investorOrganizationId?: string) {
+  const apiClient = useInvestorDepositApiClient();
+  return useQuery({
+    queryKey: investorDepositKeys.investmentLimit(investorOrganizationId),
+    enabled: Boolean(investorOrganizationId),
+    queryFn: async () => {
+      if (!investorOrganizationId) throw new Error("Investor organization is required");
+      const response = await apiClient.getInvestorInvestmentLimit(investorOrganizationId);
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+    staleTime: 30 * 1000,
   });
 }
 

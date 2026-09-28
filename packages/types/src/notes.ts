@@ -2,7 +2,11 @@ import type { MarcSmeGrade } from "./marc-credit-grade";
 import type { FacilityFeeCollectionWaiver, InvoiceFeeSchedule } from "./fee-schedule";
 import type { ProfitWindowClassification } from "./tenure-profit";
 import type { ExcessLateChargesDto } from "./excess-late-charges";
-import { SC_FUND_RAISING_PURPOSE_LABELS, formatScPurposeOfFundRaisingDisplay } from "./comrep-profile";
+import {
+  SC_FUND_RAISING_PURPOSE_LABELS,
+  formatScPurposeOfFundRaisingDisplay,
+  type InvestmentLimitTier,
+} from "./comrep-profile";
 
 /** Display label for a stored note reference (e.g. NOTE-20260512-ABC → Note 20260512-ABC). */
 export function formatNoteReferenceDisplay(reference: string | null | undefined): string {
@@ -885,6 +889,10 @@ export interface PlatformFinanceSetting {
   applicationProcessingFeeAmount: number;
   investorMinDepositAmount: number;
   investorMaxDepositAmount: number;
+  /** Null means no outstanding-principal cap for this investor type. */
+  retailInvestmentLimitAmount: number | null;
+  angelInvestmentLimitAmount: number | null;
+  sophisticatedInvestmentLimitAmount: number | null;
   facilityFeeGatewayTxnMaxAmount: number;
   excessLateChargeGatewayTxnMaxAmount: number;
   /** Whole hour 0–23 MYT when offer phase deadline reminders are sent. */
@@ -1365,6 +1373,22 @@ export type NameCheckResult = "PASS" | "REVIEW" | "FAIL" | "NAME_UNAVAILABLE";
 export interface InvestorDepositLimits {
   minAmount: number;
   maxAmount: number;
+}
+
+export interface InvestorInvestmentLimit {
+  tier: InvestmentLimitTier;
+  /** Null means this investor type has no outstanding-principal cap. */
+  limit: number | null;
+  outstandingPrincipal: number;
+  walletBalance: number;
+  pendingDeposits: number;
+  /** Null means unlimited. */
+  investHeadroom: number | null;
+  /** Null means unlimited aside from the per-transaction deposit max. */
+  depositHeadroom: number | null;
+  /** Smaller of the platform per-transaction max and deposit headroom. */
+  depositMaxAmount: number;
+  minDepositAmount: number;
 }
 
 export interface CreateInvestorDepositInput {

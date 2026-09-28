@@ -8,14 +8,14 @@ tags:
   - trustee
   - withdrawals
 order: 24
-updated: 2026-09-10
+updated: 2026-09-28
 ---
 
 ## Platform Finance Settings
 
 Open **Settings → Platform Finance** to manage platform-wide finance and trustee letter settings.
 
-The page has tabs for late payment, gateway fees, offer deadlines, trustee letters, and money-flow accounts. Edit the fields you need, then click the save button for that tab.
+The page has tabs for late payment, gateway fees, investment limits, offer deadlines, trustee letters, and money-flow accounts. Edit the fields you need, then click the save button for that tab.
 
 ### Late Payment
 
@@ -44,6 +44,20 @@ Use this tab to set payment-gateway amounts:
 - **Facility fee payment gateway transaction limit** — this caps each FPX facility-fee transaction, not the overall upfront amount on a facility offer
 
 When you finish editing, click **Save Gateway Fees**.
+
+### Investment Limits
+
+Use this tab to set outstanding-principal caps by investor type:
+
+- **Retail** (default RM 50,000)
+- **Angel** (default RM 500,000)
+- **Sophisticated** (default no limit)
+
+The cap applies to each investor account’s principal that is currently committed or confirmed and not yet repaid. Headroom frees when a note is settled, when funding fails and the commitment is released, or when the note is marked defaulted. Cash already in the wallet and deposits still being processed also reduce how much the investor can deposit.
+
+Leave a type blank for no limit. Changing a limit applies to new investments and deposits only; existing positions are left as they are.
+
+When you finish editing, click **Save Investment Limits**.
 
 ### Trustee Letter
 

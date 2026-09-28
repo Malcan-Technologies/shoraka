@@ -249,6 +249,19 @@ export function marketplaceInvestAnyAmountLabel(note: MarketplaceNote): string {
   return `Invest any amount from ${formatCurrency(note.minInvestment)} to ${formatCurrency(note.maxInvestment)}`;
 }
 
+export function applyInvestorLimitToNote(
+  note: MarketplaceNote,
+  investHeadroom: number | null | undefined
+): MarketplaceNote {
+  if (investHeadroom == null) return note;
+  const maxInvestment = Math.min(note.maxInvestment, Math.max(0, investHeadroom));
+  return {
+    ...note,
+    maxInvestment,
+    investable: note.investable && maxInvestment + 1e-9 >= note.minInvestment && maxInvestment > 0,
+  };
+}
+
 export function marketplaceFailedFundingHelp(minimumPercent: number): string {
   return `If this note does not reach ${minimumPercent}% of its target by the listing deadline, funding is unsuccessful and your commitment is released back to your available cash. You are not charged.`;
 }

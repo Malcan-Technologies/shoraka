@@ -35,6 +35,11 @@ import {
   validateTrusteeLetterEmailSettings,
 } from "@/lib/trustee-letter-settings";
 import { notesKeys } from "@/notes/query-keys";
+import {
+  INVESTMENT_LIMITS_TAB_HELP,
+  investmentLimitParseError,
+  parseInvestmentLimitAmount,
+} from "@/lib/investment-limit-amount";
 import { TrusteeLetterEmailFields } from "./trustee-letter-email-fields";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -69,6 +74,26 @@ const DEFAULT_TRUSTEE_LETTER: TrusteeLetterConfig = {
 
 const ALLOWED_SIGNATURE_CONTENT_TYPES: readonly string[] = COMPANY_STAMP_ALLOWED_CONTENT_TYPES;
 const MAX_SIGNATURE_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+
+const DEFAULT_INVESTMENT_LIMITS = {
+  retail: "50000",
+  angel: "500000",
+  sophisticated: "",
+};
+
+function limitFromSettings(value: number | null | undefined): string {
+  if (value == null) return "";
+  return String(value);
+}
+
+function parsedInvestmentLimitOrToast(amount: string, label: string): number | null | undefined {
+  const parsed = parseInvestmentLimitAmount(amount);
+  if (!parsed.ok) {
+    toast.error(investmentLimitParseError(label, parsed.reason));
+    return undefined;
+  }
+  return parsed.value;
+}
 
 const REMINDER_DELIVERY_HOUR_OPTIONS = Array.from({ length: 24 }, (_, hour) => hour);
 
@@ -185,6 +210,7 @@ export default function PlatformFinanceSettingsPage() {
     facilityFeeGatewayTxnMaxAmount: "30000",
     excessLateChargeGatewayTxnMaxAmount: "30000",
   });
+  const [investmentLimits, setInvestmentLimits] = React.useState(DEFAULT_INVESTMENT_LIMITS);
   const [offerDeadlineReminderHour, setOfferDeadlineReminderHour] = React.useState("9");
   const [trusteeLetter, setTrusteeLetter] = React.useState<TrusteeLetterConfig>(DEFAULT_TRUSTEE_LETTER);
   const [trusteeCcDraft, setTrusteeCcDraft] = React.useState("");
@@ -343,6 +369,11 @@ export default function PlatformFinanceSettingsPage() {
         data.excessLateChargeGatewayTxnMaxAmount ?? 30000
       ),
     });
+    setInvestmentLimits({
+      retail: limitFromSettings(data.retailInvestmentLimitAmount),
+      angel: limitFromSettings(data.angelInvestmentLimitAmount),
+      sophisticated: limitFromSettings(data.sophisticatedInvestmentLimitAmount),
+    });
     setOfferDeadlineReminderHour(String(data.offerDeadlineReminderHour ?? 9));
     setTrusteeLetter({
       ...DEFAULT_TRUSTEE_LETTER,
@@ -436,12 +467,13 @@ export default function PlatformFinanceSettingsPage() {
         <div className="w-full space-y-6 px-4 py-10 md:px-6 md:py-12 lg:px-8">
           <AdminPageHeader
             title="Platform Finance"
-            description="Configure late-payment rules, gateway fees, trustee letters, and money-flow accounts."
+            description="Configure late-payment rules, gateway fees, investment limits, trustee letters, and money-flow accounts."
           />
           <Tabs defaultValue="late-payment" className="space-y-6">
-            <TabsList className="grid h-auto w-full max-w-[960px] grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
+            <TabsList className="grid h-auto w-full max-w-[1100px] grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
               <TabsTrigger value="late-payment">Late Payment</TabsTrigger>
               <TabsTrigger value="gateway-fees">Gateway Fees</TabsTrigger>
+              <TabsTrigger value="investment-limits">Investment Limits</TabsTrigger>
               <TabsTrigger value="offer-deadlines">Offer Deadlines</TabsTrigger>
               <TabsTrigger value="trustee-letter">Trustee Letter</TabsTrigger>
               <TabsTrigger value="money-flow-accounts">Money Flow Accounts</TabsTrigger>
@@ -562,6 +594,92 @@ export default function PlatformFinanceSettingsPage() {
                       }}
                     >
                       Save Gateway Fees
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="investment-limits">
+              <Card className="rounded-2xl p-6 shadow-sm md:p-8">
+                <CardHeader className="px-0 pt-0">
+                  <CardTitle>Investment limits</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-6 px-0">
+                  <p className="text-sm text-muted-foreground">{INVESTMENT_LIMITS_TAB_HELP}</p>
+                  {(
+                    [
+                      {
+                        key: "retail" as const,
+                        label: "Retail (MYR)",
+                      },
+                      {
+                        key: "angel" as const,
+                        label: "Angel (MYR)",
+                      },
+                      {
+                        key: "sophisticated" as const,
+                        label: "Sophisticated (MYR)",
+                      },
+                    ] as const
+                  ).map(({ key, label }) => {
+                    const inputId = `investment-limit-${key}`;
+                    return (
+                      <div key={key} className="space-y-2">
+                        <label className="text-sm font-medium" htmlFor={inputId}>
+                          {label}
+                        </label>
+                        <Input
+                          id={inputId}
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={investmentLimits[key]}
+                          disabled={disabled}
+                          placeholder="No limit"
+                          className="h-11 rounded-xl px-4 focus-visible:ring-2 focus-visible:ring-primary"
+                          onChange={(event) =>
+                            setInvestmentLimits((prev) => ({
+                              ...prev,
+                              [key]: event.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+                    );
+                  })}
+                  <div className="flex justify-end">
+                    <Button
+                      disabled={disabled || saveMutation.isPending}
+                      className="bg-primary text-primary-foreground shadow-brand hover:opacity-95"
+                      onClick={() => {
+                        const retailInvestmentLimitAmount = parsedInvestmentLimitOrToast(
+                          investmentLimits.retail,
+                          "Retail investment limit"
+                        );
+                        const angelInvestmentLimitAmount = parsedInvestmentLimitOrToast(
+                          investmentLimits.angel,
+                          "Angel investment limit"
+                        );
+                        const sophisticatedInvestmentLimitAmount = parsedInvestmentLimitOrToast(
+                          investmentLimits.sophisticated,
+                          "Sophisticated investment limit"
+                        );
+                        if (
+                          retailInvestmentLimitAmount === undefined ||
+                          angelInvestmentLimitAmount === undefined ||
+                          sophisticatedInvestmentLimitAmount === undefined
+                        ) {
+                          return;
+                        }
+                        saveMutation.mutate({
+                          retailInvestmentLimitAmount,
+                          angelInvestmentLimitAmount,
+                          sophisticatedInvestmentLimitAmount,
+                        });
+                      }}
+                    >
+                      Save Investment Limits
                     </Button>
                   </div>
                 </CardContent>

@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * Offer review UI for reviewing contract or invoice offers. Issuer can download offer
- * letter, accept, decline, or track the SigningCloud signing package after CashSouk sends it.
+ * Offer review UI for reviewing contract or invoice offers. Issuer can accept, decline,
+ * or track the SigningCloud signing package after CashSouk sends it.
  * CashSouk brand styling per BRANDING.md. Contract end date uses contract_details.end_date.
  *
  * Inline on the application detail Offer tab. OTP stays in OfferAcceptOtpDialog.
@@ -35,7 +35,6 @@ import { SupportingDocumentsSkeleton } from "@/app/(application-flow)/applicatio
 import { AcceptanceDocumentChangesRequestedBanner } from "@/app/(application-flow)/applications/components/amendments/acceptance-document-change-callout";
 import { formatCurrency } from "@cashsouk/config";
 import {
-  ArrowDownTrayIcon,
   ArrowPathIcon,
   CheckCircleIcon,
   ClockIcon,
@@ -112,7 +111,6 @@ import {
 import { cn } from "@/lib/utils";
 import { InvoiceOfferTerms } from "./invoice-offer-terms";
 import { OfferTermsDlColumn, OfferTermsDlRow, OfferTermsKpiGrid } from "./offer-terms-layout";
-import { offerLetterDownloadFileName } from "./offer-letter-filename";
 import { buildInvoiceFeeDisplay } from "@/lib/facility-fee-display";
 import { IssuerAuthorizedRepresentativesCard } from "./issuer-authorized-representatives-card";
 import { CorporateGuarantorRepresentativesCard } from "./corporate-guarantor-representatives-card";
@@ -157,8 +155,6 @@ export type OfferReviewPanelProps = {
   issuerOrganizationId?: string;
   productId?: string | null;
   contractId?: string;
-  /** Persisted CON-… for download filenames. Loaded contract is the fallback. */
-  contractDisplayReference?: string | null;
   invoice?: NormalizedInvoice | null;
   /** Kept for host compatibility; the signing/accept-decline split is derived from the
    * frozen product workflow (resolveReviewOfferModalMode), not this flag. */
@@ -279,7 +275,6 @@ export function OfferReviewPanel({
   issuerOrganizationId: issuerOrganizationIdProp,
   productId: _unusedProductId,
   contractId,
-  contractDisplayReference,
   invoice,
   requiresInvoiceSigning: _unusedRequiresInvoiceSigning,
   onClose,
@@ -554,7 +549,6 @@ export function OfferReviewPanel({
 
   const isLoading = shouldLoadContract ? isLoadingContract : false;
 
-  const [downloading, setDownloading] = React.useState(false);
   const [downloadingSigned, setDownloadingSigned] = React.useState(false);
   const [rejectionReason, setRejectionReason] = React.useState("");
   const [selectedDeclineReason, setSelectedDeclineReason] = React.useState("");
@@ -867,46 +861,6 @@ export function OfferReviewPanel({
     contractDetails,
     invoiceSnapshot: invoice?.invoiceSnapshot ?? invoice?.details ?? null,
   });
-
-
-  const handleDownload = async () => {
-    if (type === "invoice" && !invoice?.id) {
-      toast.error("Cannot download", {
-        description: "Invoice ID is missing. Please refresh and try again.",
-      });
-      return;
-    }
-    setDownloading(true);
-    try {
-      const blob =
-        type === "contract"
-          ? await apiClient.getContractOfferLetterBlob(applicationId)
-          : await apiClient.getInvoiceOfferLetterBlob(applicationId, invoice!.id);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      const loadedContractRef =
-        (contractRecord as { displayReference?: string | null; display_reference?: string | null } | null | undefined)
-          ?.displayReference ??
-        (contractRecord as { display_reference?: string | null } | null | undefined)?.display_reference ??
-        null;
-      a.download =
-        type === "contract"
-          ? offerLetterDownloadFileName(
-              "contract",
-              contractDisplayReference ?? loadedContractRef
-            )
-          : offerLetterDownloadFileName("invoice", invoice?.displayReference);
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      toast.error("Failed to download offer letter", {
-        description: e instanceof Error ? e.message : "Unknown error",
-      });
-    } finally {
-      setDownloading(false);
-    }
-  };
 
   const signedOfferLetterAvailable =
     type === "contract"
@@ -1342,8 +1296,6 @@ export function OfferReviewPanel({
     !selectedDeclineReason ||
     (isOtherDeclineReason && rejectionReason.trim() === "");
 
-  const canDownload =
-    type === "contract" || (type === "invoice" && !!invoice?.id);
   const isPostDocsConfigLoading = isLoadingFrozenProductWorkflow;
   // After admin approval, uploads are already done in Step 1 — do not gate tracking on the upload UI.
   const signingPhaseSkipsUploadGate =
@@ -2521,8 +2473,7 @@ export function OfferReviewPanel({
             {phaseDeadline.urgency === "past" ? (
               <>
                 <span className="font-semibold">Expired {phaseDeadline.absolute}.</span> Accepting
-                is no longer available. You can still download the offer letter below. If CashSouk
-                resends an offer, it appears here.
+                is no longer available. If CashSouk resends an offer, it appears here.
               </>
             ) : (
               <>
@@ -2555,32 +2506,24 @@ export function OfferReviewPanel({
             </div>
             <p className="mt-1.5 text-ui text-muted-foreground">{headingDescriptionText}</p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              className="gap-2 rounded-xl"
-              onClick={handleDownload}
-              disabled={!canDownload || downloading}
-            >
-              <ArrowDownTrayIcon className="h-4 w-4" aria-hidden />
-              {downloading ? "Downloading…" : "Offer letter"}
-            </Button>
-            {modalMode.ui === "accept_decline" ? (
-              <ApplicationSummaryDownloadButton applicationId={applicationId} size="default" />
-            ) : null}
-            {signedOfferLetterAvailable ? (
-              <Button
-                type="button"
-                variant="outline"
-                className="gap-2 rounded-xl"
-                onClick={() => void handleDownloadSignedOffer()}
-                disabled={downloadingSigned}
-              >
-                {downloadingSigned ? "Opening…" : "Signed offer"}
-              </Button>
-            ) : null}
-          </div>
+          {modalMode.ui === "accept_decline" || signedOfferLetterAvailable ? (
+            <div className="flex flex-wrap gap-2">
+              {modalMode.ui === "accept_decline" ? (
+                <ApplicationSummaryDownloadButton applicationId={applicationId} size="default" />
+              ) : null}
+              {signedOfferLetterAvailable ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="gap-2 rounded-xl"
+                  onClick={() => void handleDownloadSignedOffer()}
+                  disabled={downloadingSigned}
+                >
+                  {downloadingSigned ? "Opening…" : "Signed offer"}
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
 
         <div className="border-b border-border bg-muted/30 px-6 py-5">

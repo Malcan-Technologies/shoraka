@@ -5,6 +5,7 @@ import {
 } from "./financial-field-labels";
 import {
   PROFILE_ADDRESS_FIELD_LABELS,
+  PROFILE_HELP,
   PROFILE_LABEL,
   PROFILE_REQUIRED_EMPTY_LABEL,
   formatProfileRmAmount,
@@ -62,5 +63,7 @@ describe("Profile field copy", () => {
     expect(PROFILE_ADDRESS_FIELD_LABELS.state).toBe("State");
     expect(PROFILE_ADDRESS_FIELD_LABELS.postcode).toBe("Postcode");
     expect(PROFILE_REQUIRED_EMPTY_LABEL).toBe("Please fill up");
+    expect(PROFILE_HELP.typeOfInvestor).toContain("outstanding-principal cap");
+    expect(PROFILE_HELP.typeOfInvestor).toContain("Retail, Angel, or Sophisticated");
   });
 });

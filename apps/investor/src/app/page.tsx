@@ -30,6 +30,7 @@ import {
 } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { InvestNowButton } from "../components/invest-now-button";
+import { useInvestorInvestmentLimitQuery } from "../hooks/use-investor-deposit";
 import {
   useInvestorInvestments,
   useInvestorPortfolio,
@@ -140,6 +141,7 @@ function InvestorDashboardContent() {
     ? getOnboardingStep(activeOrganization, "investor")
     : null;
   const completedOrgId = flowStep === "completed" ? orgId : undefined;
+  const investmentLimitQuery = useInvestorInvestmentLimitQuery(orgId);
   const portfolioQuery = useInvestorPortfolio(orgId);
   const historyQuery = useInvestorPortfolioHistory("ALL", completedOrgId);
   const marketplaceQuery = useMarketplaceNotes({ pageSize: 50 });
@@ -305,6 +307,11 @@ function InvestorDashboardContent() {
                   seekingFunding={openTotals.seekingFunding}
                   tenorLabel={TENOR_RANGE_LABEL}
                   minCommitMyr={MARKETPLACE_MIN_COMMIT_MYR}
+                  investmentLimit={
+                    investmentLimitQuery.isFetched
+                      ? investmentLimitQuery.data ?? null
+                      : undefined
+                  }
                   onDeposit={() => setDepositOpen(true)}
                 />
               ) : null}

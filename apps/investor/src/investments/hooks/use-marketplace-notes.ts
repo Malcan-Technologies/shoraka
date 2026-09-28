@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import type { InvestorPortfolioHistoryRange } from "@cashsouk/types";
 import { remainingPaginationPages } from "./pagination-pages";
+import { investorDepositKeys } from "@/hooks/use-investor-deposit";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -283,6 +284,7 @@ export function useCommitInvestment() {
       queryClient.invalidateQueries({ queryKey: marketplaceKeys.portfolioHistoryRoot });
       queryClient.invalidateQueries({ queryKey: marketplaceKeys.investorBalanceActivityRoot });
       queryClient.invalidateQueries({ queryKey: marketplaceKeys.investorInvestmentsRoot });
+      queryClient.invalidateQueries({ queryKey: investorDepositKeys.all });
     },
   });
 }
