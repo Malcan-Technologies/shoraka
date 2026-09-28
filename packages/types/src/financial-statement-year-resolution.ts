@@ -20,6 +20,8 @@ export type CtosFinancialStatementRow = CtosFinancialYearRowInput & {
   financial_year?: number | null;
   dates?: { pldd?: string | null; bsdd?: string | null };
   account?: Record<string, number | null | undefined>;
+  /** Optional statementType coming from CTOS financial evidence. */
+  statementType?: FinancialStatementStatementType;
 };
 
 export type FinancialStatementRecordSource =

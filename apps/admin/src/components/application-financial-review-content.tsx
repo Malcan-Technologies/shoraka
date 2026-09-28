@@ -1653,6 +1653,27 @@ export function ApplicationFinancialReviewContent({
                             >
                               Admin Input
                             </Badge>
+                            {spec.statementType === "AUDITED" ? (
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  "shrink-0 whitespace-nowrap font-normal text-[11px] leading-tight px-2.5 py-0.5 rounded-md shadow-none",
+                                  "border-border bg-muted/40 text-meta"
+                                )}
+                              >
+                                Audited
+                              </Badge>
+                            ) : spec.statementType === "NOT_AUDITED" ? (
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  "shrink-0 whitespace-nowrap font-normal text-[11px] leading-tight px-2.5 py-0.5 rounded-md shadow-none",
+                                  "border-border bg-muted/40 text-meta"
+                                )}
+                              >
+                                Not audited
+                              </Badge>
+                            ) : null}
                           </div>
                         ) : (
                           <span className="text-muted-foreground">—</span>

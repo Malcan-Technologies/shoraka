@@ -336,7 +336,9 @@ export function adminHistoricalFinancialYearWindow(input: {
 
 function statementTypeOf(raw: Record<string, unknown> | null): FinancialStatementStatementType | undefined {
   const value = raw?.statementType;
-  if (value === "AUDITED" || value === "NOT_AUDITED" || value === "MANAGEMENT_ACCOUNTS") return value;
+  // Admin Financial Summary badges only need audited / not-audited.
+  // Treat management accounts as "statement type unavailable" for this UI.
+  if (value === "AUDITED" || value === "NOT_AUDITED") return value;
   return undefined;
 }
 
