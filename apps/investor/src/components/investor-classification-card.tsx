@@ -32,16 +32,23 @@ export function InvestorClassificationCard({
   organizationType,
   isSophisticatedInvestor: _isSophisticatedInvestor,
   scInvestorCategory,
+  isEditing,
+  onEdit,
+  onCancel,
+  onSaveSuccess,
 }: {
   organizationId: string;
   organizationType: "PERSONAL" | "COMPANY";
   isSophisticatedInvestor: boolean | null;
   scInvestorCategory?: string | null;
+  isEditing: boolean;
+  onEdit: () => void;
+  onCancel: () => void;
+  onSaveSuccess: () => void;
 }) {
   const { getAccessToken } = useAuthToken();
   const api = React.useMemo(() => createApiClient(API_URL, getAccessToken), [getAccessToken]);
   const queryClient = useQueryClient();
-  const [isEditing, setIsEditing] = React.useState(false);
   const options = allowedScInvestorCategories({ organizationType });
 
   const requiredCompanyCategory: ScInvestorCategory = "SOPHISTICATED_HIGH_NET_WORTH_ENTITY";
@@ -76,7 +83,7 @@ export function InvestorClassificationCard({
     onSuccess: async () => {
       await invalidate();
       toast.success("Investor classification updated");
-      setIsEditing(false);
+      onSaveSuccess();
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -107,28 +114,14 @@ export function InvestorClassificationCard({
               setValue(
                 organizationType === "COMPANY" ? requiredCompanyCategory : (current as string)
               );
-              setIsEditing(true);
+              onEdit();
             }}
             disabled={!canEditCompany || save.isPending}
           >
             <PencilIcon className="h-4 w-4" />
             Edit
           </Button>
-        ) : (
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-2 rounded-xl"
-            onClick={() => {
-              setValue(current);
-              setIsEditing(false);
-            }}
-            disabled={save.isPending}
-          >
-            <XMarkIcon className="h-4 w-4" />
-            Cancel
-          </Button>
-        )}
+        ) : null}
       </div>
       <div className="p-6">
         {isEditing ? (
@@ -155,8 +148,24 @@ export function InvestorClassificationCard({
               </SelectContent>
             </Select>
 
-            <div className="sm:flex justify-end mt-4">
-              <Button className="h-10 rounded-xl" onClick={() => save.mutate()} disabled={save.isPending}>
+            <div className="flex justify-end gap-2 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setValue(current);
+                  onCancel();
+                }}
+                disabled={save.isPending}
+                className="gap-2 rounded-xl"
+              >
+                <XMarkIcon className="h-4 w-4" />
+                Cancel
+              </Button>
+              <Button
+                onClick={() => save.mutate()}
+                disabled={save.isPending}
+                className="gap-2 rounded-xl"
+              >
                 {save.isPending ? "Saving..." : "Save changes"}
               </Button>
             </div>

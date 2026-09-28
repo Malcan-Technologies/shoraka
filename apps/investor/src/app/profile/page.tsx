@@ -365,6 +365,7 @@ export default function ProfilePage() {
   const [isEditingContactDetails, setIsEditingContactDetails] = React.useState(false);
   const [isEditingBanking, setIsEditingBanking] = React.useState(false);
   const [isEditingAddresses, setIsEditingAddresses] = React.useState(false);
+  const [isEditingClassification, setIsEditingClassification] = React.useState(false);
   const [isSavingMasterProfile, setIsSavingMasterProfile] = React.useState(false);
 
   // Fetch current user ID
@@ -666,6 +667,7 @@ export default function ProfilePage() {
       setIsEditingPersonalDetails(false);
       setIsEditingResidentialAddress(false);
       setIsEditingContactDetails(false);
+      setIsEditingClassification(false);
       setIsEditingBanking(false);
     },
     onError: (error: Error) => {
@@ -757,6 +759,7 @@ export default function ProfilePage() {
         setIsEditingPersonalDetails(false);
         setIsEditingResidentialAddress(false);
         setIsEditingContactDetails(false);
+        setIsEditingClassification(false);
         return;
       }
 
@@ -844,6 +847,7 @@ export default function ProfilePage() {
     setIsEditingPersonalDetails(false);
     setIsEditingResidentialAddress(false);
     setIsEditingContactDetails(false);
+    setIsEditingClassification(false);
   };
 
   const handleCancelBankingEdit = () => {
@@ -852,6 +856,7 @@ export default function ProfilePage() {
     setAccountNumber(getBankField(orgData?.bankAccountDetails, "Bank account number"));
     setAccountType(getBankField(orgData?.bankAccountDetails, "Account type") || "Savings");
     setIsEditingBanking(false);
+    setIsEditingClassification(false);
   };
 
   // Address update mutation
@@ -888,6 +893,7 @@ export default function ProfilePage() {
       queryClient.invalidateQueries({ queryKey: ["organization-detail", activeOrganization?.id] });
       toast.success("Addresses updated successfully");
       setIsEditingAddresses(false);
+      setIsEditingClassification(false);
     },
     onError: (error: Error) => {
       toast.error("Failed to update addresses", {
@@ -942,6 +948,20 @@ export default function ProfilePage() {
       setSameAsBusinessAddress(false);
     }
     setIsEditingAddresses(false);
+    setIsEditingClassification(false);
+  };
+
+  const startEditingClassification = () => {
+    setIsEditingClassification(true);
+    setIsEditingPersonalDetails(false);
+    setIsEditingResidentialAddress(false);
+    setIsEditingContactDetails(false);
+    setIsEditingBanking(false);
+    setIsEditingAddresses(false);
+  };
+
+  const cancelEditingClassification = () => {
+    setIsEditingClassification(false);
   };
 
   // Show loading state
@@ -1055,6 +1075,9 @@ export default function ProfilePage() {
                             setIsEditingPersonalDetails(true);
                             setIsEditingResidentialAddress(false);
                             setIsEditingContactDetails(false);
+                            setIsEditingClassification(false);
+                            setIsEditingBanking(false);
+                            setIsEditingAddresses(false);
                           }}
                           className="gap-2 rounded-xl"
                         >
@@ -1275,6 +1298,9 @@ export default function ProfilePage() {
                           setIsEditingResidentialAddress(true);
                           setIsEditingPersonalDetails(false);
                           setIsEditingContactDetails(false);
+                          setIsEditingClassification(false);
+                          setIsEditingBanking(false);
+                          setIsEditingAddresses(false);
                         }}
                         className="gap-2 rounded-xl"
                       >
@@ -1387,6 +1413,10 @@ export default function ProfilePage() {
                     organizationType="PERSONAL"
                     isSophisticatedInvestor={orgData?.isSophisticatedInvestor ?? null}
                     scInvestorCategory={orgData?.scInvestorCategory}
+                    isEditing={isEditingClassification}
+                    onEdit={startEditingClassification}
+                    onCancel={cancelEditingClassification}
+                    onSaveSuccess={cancelEditingClassification}
                   />
 
                   <div className="rounded-xl border bg-card">
@@ -1439,6 +1469,9 @@ export default function ProfilePage() {
                             setIsEditingContactDetails(true);
                             setIsEditingPersonalDetails(false);
                             setIsEditingResidentialAddress(false);
+                            setIsEditingClassification(false);
+                            setIsEditingBanking(false);
+                            setIsEditingAddresses(false);
                           }}
                           className="gap-2 rounded-xl"
                         >
@@ -1522,7 +1555,14 @@ export default function ProfilePage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setIsEditingAddresses(true)}
+                        onClick={() => {
+                          setIsEditingAddresses(true);
+                          setIsEditingContactDetails(false);
+                          setIsEditingClassification(false);
+                          setIsEditingBanking(false);
+                          setIsEditingPersonalDetails(false);
+                          setIsEditingResidentialAddress(false);
+                        }}
                         className="gap-2 rounded-xl"
                       >
                         <PencilIcon className="h-4 w-4" />
@@ -1736,6 +1776,10 @@ export default function ProfilePage() {
                     organizationType="COMPANY"
                     isSophisticatedInvestor={orgData?.isSophisticatedInvestor ?? null}
                     scInvestorCategory={orgData?.scInvestorCategory}
+                    isEditing={isEditingClassification}
+                    onEdit={startEditingClassification}
+                    onCancel={cancelEditingClassification}
+                    onSaveSuccess={cancelEditingClassification}
                   />
                   <div className="rounded-xl border bg-card">
                     <div className="border-b p-6">
@@ -1790,6 +1834,9 @@ export default function ProfilePage() {
                           setIsEditingContactDetails(true);
                           setIsEditingPersonalDetails(false);
                           setIsEditingResidentialAddress(false);
+                          setIsEditingClassification(false);
+                          setIsEditingBanking(false);
+                          setIsEditingAddresses(false);
                         }}
                         className="gap-2 rounded-xl"
                       >
@@ -1932,7 +1979,14 @@ export default function ProfilePage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setIsEditingBanking(true)}
+                      onClick={() => {
+                        setIsEditingBanking(true);
+                        setIsEditingAddresses(false);
+                        setIsEditingContactDetails(false);
+                        setIsEditingClassification(false);
+                        setIsEditingPersonalDetails(false);
+                        setIsEditingResidentialAddress(false);
+                      }}
                       className="gap-2 rounded-xl"
                     >
                       <PencilIcon className="h-4 w-4" />
