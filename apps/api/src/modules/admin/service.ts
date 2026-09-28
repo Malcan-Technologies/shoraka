@@ -157,7 +157,6 @@ import {
   FACILITY_LOCKED_SUPPORTING_DOCUMENTS_MESSAGE,
   getFacilityLockedCategoriesFromWorkflow,
   isFacilityLockedSupportingDocumentItem,
-  scInvestorCategoryAfterSophisticatedChange,
 } from "@cashsouk/types";
 import { OrganizationService } from "../organization/service";
 import {
@@ -3670,21 +3669,12 @@ export class AdminService {
       throw new AppError(404, "NOT_FOUND", "Investor organization not found");
     }
 
-    const organizationType = org.type === "COMPANY" ? "COMPANY" : "PERSONAL";
-    const nextCategory = scInvestorCategoryAfterSophisticatedChange(org.sc_investor_category, {
-      organizationType,
-      isSophisticatedInvestor,
-    });
-
     await persistOrganizationUpdateAndOnboardingLogs({
       portalType: "investor",
       organizationId,
       data: {
         is_sophisticated_investor: isSophisticatedInvestor,
         sophisticated_investor_reason: reason,
-        ...(nextCategory !== org.sc_investor_category
-          ? { sc_investor_category: nextCategory }
-          : {}),
       },
       logs: [
         {

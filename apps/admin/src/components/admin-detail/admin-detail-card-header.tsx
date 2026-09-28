@@ -22,7 +22,7 @@ export function AdminDetailCardHeader({
 }: AdminDetailCardHeaderProps) {
   return (
     <CardHeader className={className}>
-      <div className="flex flex-row flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-row items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
             <Icon className="h-4 w-4 text-primary" />
@@ -34,7 +34,7 @@ export function AdminDetailCardHeader({
             ) : null}
           </div>
         </div>
-        {actions}
+        {actions ? <div className="shrink-0 self-start">{actions}</div> : null}
       </div>
     </CardHeader>
   );

@@ -100,7 +100,9 @@ export const PROFILE_HELP = {
   nonCurrentLoans: "Non-current liabilities that are loans.",
   otherNonCurrentLiabilities: "Non-current liabilities other than loans.",
   typeOfInvestor:
-    "Type of Investor is used for regulatory reporting and selects this account’s outstanding-principal cap. It does not change which notes the investor can see.",
+    "Your investor type is used for regulatory reporting and determines your investment limit. It does not change which investment notes you can view.",
+  typeOfInvestorAdmin:
+    "Investor type is used for regulatory reporting and determines the investor’s investment limit. It does not change which investment notes they can view.",
 } as const;
 
 /** Completeness-list labels keep a section prefix so missing State/Postcode is unambiguous. */

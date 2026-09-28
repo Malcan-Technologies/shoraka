@@ -7,14 +7,11 @@ import { createApiClient, useAuthToken } from "@cashsouk/config";
 import {
   allowedScInvestorCategories,
   isAllowedScInvestorCategory,
-  isSophisticatedInvestorSelected,
   PROFILE_HELP,
   PROFILE_LABEL,
   SC_INVESTOR_CATEGORY_DEFINITIONS,
   SC_INVESTOR_CATEGORY_LABELS,
-  scInvestorCategoryAfterSophisticatedChange,
   scInvestorCategoryHelp,
-  SELECT_SOPHISTICATED_INVESTOR_FIRST_MESSAGE,
   type ScInvestorCategory,
 } from "@cashsouk/types";
 import { ComRepFieldLabel, ProfileFieldGrid, ProfileReadField } from "@cashsouk/ui";
@@ -33,7 +30,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 export function InvestorClassificationCard({
   organizationId,
   organizationType,
-  isSophisticatedInvestor,
+  isSophisticatedInvestor: _isSophisticatedInvestor,
   scInvestorCategory,
 }: {
   organizationId: string;
@@ -45,23 +42,13 @@ export function InvestorClassificationCard({
   const api = React.useMemo(() => createApiClient(API_URL, getAccessToken), [getAccessToken]);
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = React.useState(false);
-  const [sophisticated, setSophisticated] = React.useState<boolean | null>(
-    isSophisticatedInvestorSelected(isSophisticatedInvestor) ? isSophisticatedInvestor : null
-  );
-  const categoryScope = { organizationType, isSophisticatedInvestor: sophisticated };
-  const options = allowedScInvestorCategories(categoryScope);
-  const current = isAllowedScInvestorCategory(scInvestorCategory, categoryScope)
-    ? scInvestorCategory
-    : "";
-  const [value, setValue] = React.useState(current);
-  const sophisticatedChosen = isSophisticatedInvestorSelected(sophisticated);
+  const options = allowedScInvestorCategories({ organizationType });
 
-  React.useEffect(() => {
-    if (isEditing) return;
-    setSophisticated(
-      isSophisticatedInvestorSelected(isSophisticatedInvestor) ? isSophisticatedInvestor : null
-    );
-  }, [isEditing, isSophisticatedInvestor]);
+  const requiredCompanyCategory: ScInvestorCategory = "SOPHISTICATED_HIGH_NET_WORTH_ENTITY";
+  const currentValid = isAllowedScInvestorCategory(scInvestorCategory, { organizationType });
+  const current = currentValid ? (scInvestorCategory as ScInvestorCategory) : "";
+
+  const [value, setValue] = React.useState<string>(current);
 
   React.useEffect(() => {
     if (isEditing) return;
@@ -77,31 +64,16 @@ export function InvestorClassificationCard({
 
   const save = useMutation({
     mutationFn: async () => {
-      const nextSophisticated = sophisticated;
-      const kept = scInvestorCategoryAfterSophisticatedChange(value || scInvestorCategory, {
-        organizationType,
-        isSophisticatedInvestor: nextSophisticated,
+      if (!isAllowedScInvestorCategory(value, { organizationType })) {
+        throw new Error("Please select a valid Type of Investor.");
+      }
+      const res = await api.patchMasterProfile("investor", organizationId, {
+        scInvestorCategory: value as ScInvestorCategory,
       });
-      const payload: {
-        isSophisticatedInvestor?: boolean;
-        scInvestorCategory?: ScInvestorCategory;
-      } = {};
-      if (isSophisticatedInvestorSelected(nextSophisticated)) {
-        payload.isSophisticatedInvestor = nextSophisticated;
-      }
-      const nextCategory = kept ?? value;
-      if (isAllowedScInvestorCategory(nextCategory, {
-        organizationType,
-        isSophisticatedInvestor: nextSophisticated,
-      })) {
-        payload.scInvestorCategory = nextCategory;
-      }
-      const res = await api.patchMasterProfile("investor", organizationId, payload);
       if (!res.success) throw new Error(res.error.message);
-      return kept;
+      return value;
     },
-    onSuccess: async (kept) => {
-      setValue(kept ?? value);
+    onSuccess: async () => {
       await invalidate();
       toast.success("Investor classification updated");
       setIsEditing(false);
@@ -109,11 +81,12 @@ export function InvestorClassificationCard({
     onError: (err: Error) => toast.error(err.message),
   });
 
-  const sophisticatedLabel = sophisticated === true ? "Yes" : sophisticated === false ? "No" : "—";
   const categoryLabel =
-    value && value in SC_INVESTOR_CATEGORY_LABELS
+    (value && value in SC_INVESTOR_CATEGORY_LABELS
       ? SC_INVESTOR_CATEGORY_LABELS[value as ScInvestorCategory]
-      : "—";
+      : null) ?? "—";
+
+  const canEditCompany = organizationType === "PERSONAL" ? true : !currentValid;
 
   return (
     <div id="profile-classification" className="scroll-mt-24 rounded-xl border bg-card">
@@ -125,7 +98,19 @@ export function InvestorClassificationCard({
           </p>
         </div>
         {!isEditing ? (
-          <Button variant="outline" size="sm" className="gap-2 rounded-xl" onClick={() => setIsEditing(true)}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2 rounded-xl"
+            onClick={() => {
+              if (!canEditCompany) return;
+              setValue(
+                organizationType === "COMPANY" ? requiredCompanyCategory : (current as string)
+              );
+              setIsEditing(true);
+            }}
+            disabled={!canEditCompany || save.isPending}
+          >
             <PencilIcon className="h-4 w-4" />
             Edit
           </Button>
@@ -135,9 +120,6 @@ export function InvestorClassificationCard({
             size="sm"
             className="gap-2 rounded-xl"
             onClick={() => {
-              setSophisticated(
-                isSophisticatedInvestorSelected(isSophisticatedInvestor) ? isSophisticatedInvestor : null
-              );
               setValue(current);
               setIsEditing(false);
             }}
@@ -150,73 +132,30 @@ export function InvestorClassificationCard({
       </div>
       <div className="p-6">
         {isEditing ? (
-          <div className="grid gap-6 sm:grid-cols-2">
-            <div className="space-y-2">
-              <ComRepFieldLabel label={PROFILE_LABEL.sophisticatedInvestor} required />
-              <div className="flex min-h-10 items-center gap-6">
-                {(
-                  [
-                    [true, "Yes"],
-                    [false, "No"],
-                  ] as const
-                ).map(([optionValue, optionLabel]) => (
-                  <label key={optionLabel} className="flex cursor-pointer items-center gap-2">
-                    <input
-                      type="radio"
-                      name={`sophisticated-investor-${organizationId}`}
-                      checked={sophisticated === optionValue}
-                      onChange={() => {
-                        setSophisticated(optionValue);
-                        const kept = scInvestorCategoryAfterSophisticatedChange(value, {
-                          organizationType,
-                          isSophisticatedInvestor: optionValue,
-                        });
-                        setValue(kept ?? "");
-                      }}
-                      disabled={save.isPending}
-                      className="h-4 w-4 border-border text-primary focus-visible:ring-ring"
-                    />
-                    <span className="text-ui">{optionLabel}</span>
-                  </label>
+          <div className="space-y-2">
+            <ComRepFieldLabel
+              label={PROFILE_LABEL.typeOfInvestor}
+              required
+              help={options.length > 0 ? scInvestorCategoryHelp(options) : undefined}
+            />
+            <Select
+              value={value || undefined}
+              onValueChange={(next) => setValue(next)}
+              disabled={save.isPending}
+            >
+              <SelectTrigger className="h-10 text-ui" aria-label={PROFILE_LABEL.typeOfInvestor}>
+                <SelectValue placeholder="Select" />
+              </SelectTrigger>
+              <SelectContent>
+                {options.map((option) => (
+                  <SelectItem key={option} value={option} title={SC_INVESTOR_CATEGORY_DEFINITIONS[option]}>
+                    {SC_INVESTOR_CATEGORY_LABELS[option]}
+                  </SelectItem>
                 ))}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <ComRepFieldLabel
-                label={PROFILE_LABEL.typeOfInvestor}
-                required
-                help={options.length > 0 ? scInvestorCategoryHelp(options) : undefined}
-              />
-              <Select
-                value={value || undefined}
-                onValueChange={(next) => {
-                  if (!isAllowedScInvestorCategory(next, categoryScope)) return;
-                  setValue(next);
-                }}
-                disabled={!sophisticatedChosen || save.isPending}
-              >
-                <SelectTrigger className="h-10 text-ui" aria-label={PROFILE_LABEL.typeOfInvestor}>
-                  <SelectValue placeholder="Select" />
-                </SelectTrigger>
-                <SelectContent>
-                  {options.map((option) => (
-                    <SelectItem
-                      key={option}
-                      value={option}
-                      title={SC_INVESTOR_CATEGORY_DEFINITIONS[option]}
-                    >
-                      {SC_INVESTOR_CATEGORY_LABELS[option]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {!sophisticatedChosen ? (
-                <p className="text-meta text-muted-foreground">
-                  {SELECT_SOPHISTICATED_INVESTOR_FIRST_MESSAGE}
-                </p>
-              ) : null}
-            </div>
-            <div className="sm:col-span-2 flex justify-end">
+              </SelectContent>
+            </Select>
+
+            <div className="sm:flex justify-end mt-4">
               <Button className="h-10 rounded-xl" onClick={() => save.mutate()} disabled={save.isPending}>
                 {save.isPending ? "Saving..." : "Save changes"}
               </Button>
@@ -224,8 +163,16 @@ export function InvestorClassificationCard({
           </div>
         ) : (
           <ProfileFieldGrid>
-            <ProfileReadField label={PROFILE_LABEL.sophisticatedInvestor} value={sophisticatedLabel} required />
-            <ProfileReadField label={PROFILE_LABEL.typeOfInvestor} value={categoryLabel} required />
+            <ProfileReadField
+              label={PROFILE_LABEL.typeOfInvestor}
+              value={
+                organizationType === "COMPANY" && !currentValid
+                  ? SC_INVESTOR_CATEGORY_LABELS[requiredCompanyCategory]
+                  : categoryLabel
+              }
+              required
+              missing={organizationType === "COMPANY" ? !currentValid : !currentValid}
+            />
           </ProfileFieldGrid>
         )}
       </div>

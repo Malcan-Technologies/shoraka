@@ -4,25 +4,17 @@ import * as React from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { format } from "date-fns";
-import { toast } from "sonner";
 import { BuildingOffice2Icon, UserIcon, ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
 import { PortalBadge, Skeleton, StatusBadge } from "@cashsouk/ui";
 import { formatCurrency } from "@cashsouk/config";
-import { formatOrganizationReference, getRegtankCorporateOnboardingUrl, type PortalType } from "@cashsouk/types";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+  formatOrganizationReference,
+  getRegtankCorporateOnboardingUrl,
+  isAllowedScInvestorCategory,
+  SC_INVESTOR_CATEGORY_LABELS,
+  type PortalType,
+} from "@cashsouk/types";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 import {
   AdminDetailTabPanel,
   AdminDetailTabs,
@@ -38,7 +30,6 @@ import { OrganizationTypeBadge } from "@/components/organization-type-badge";
 import { RequirePermission } from "@/components/require-permission";
 import {
   useOrganizationDetail,
-  useUpdateSophisticatedStatus,
 } from "@/hooks/use-organization-detail";
 import { usePermissions } from "@/hooks/use-permissions";
 import { accountHref, orgListHref } from "@/lib/admin-directory-hrefs";
@@ -100,7 +91,6 @@ function PageSkeleton() {
 
 export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
   const { can } = usePermissions();
-  const canManage = can("organizations.manage");
   const canView = can("organizations.view");
   const canViewAcceptances = can("document_management.view");
   const canViewAccounts = can("users.view");
@@ -110,13 +100,7 @@ export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
   const { data: org, isLoading, error } = useOrganizationDetail(portal, organizationId, {
     enabled: canView,
   });
-  const updateSophisticatedMutation = useUpdateSophisticatedStatus();
   const peopleUrl = usePeopleAccessUrlState();
-  const [showSophisticatedDialog, setShowSophisticatedDialog] = React.useState(false);
-  const [pendingSophisticatedStatus, setPendingSophisticatedStatus] = React.useState<boolean | null>(
-    null
-  );
-  const [sophisticatedReason, setSophisticatedReason] = React.useState("");
 
   const canShowPeopleTab = isOrgPeopleTabAvailable(org?.type);
 
@@ -138,47 +122,6 @@ export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
       setActiveTab("organization");
     }
   }, [activeTab, org, setActiveTab]);
-
-  const handleSophisticatedToggle = (checked: boolean) => {
-    if (!organizationId) return;
-    setPendingSophisticatedStatus(checked);
-    setSophisticatedReason("");
-    setShowSophisticatedDialog(true);
-  };
-
-  const handleConfirmSophisticatedChange = () => {
-    if (!organizationId || pendingSophisticatedStatus === null || !sophisticatedReason.trim()) {
-      return;
-    }
-    updateSophisticatedMutation.mutate(
-      {
-        organizationId,
-        isSophisticatedInvestor: pendingSophisticatedStatus,
-        reason: sophisticatedReason.trim(),
-      },
-      {
-        onSuccess: () => {
-          toast.success(
-            pendingSophisticatedStatus
-              ? "Marked as sophisticated investor"
-              : "Removed sophisticated investor status"
-          );
-          setShowSophisticatedDialog(false);
-          setPendingSophisticatedStatus(null);
-          setSophisticatedReason("");
-        },
-        onError: (err) => {
-          toast.error(`Failed to update status: ${err.message}`);
-        },
-      }
-    );
-  };
-
-  const handleCancelSophisticatedChange = () => {
-    setShowSophisticatedDialog(false);
-    setPendingSophisticatedStatus(null);
-    setSophisticatedReason("");
-  };
 
   const displayName = React.useMemo(() => {
     if (!org) return "";
@@ -361,33 +304,36 @@ export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
                       <>
                         {portal === "investor" ? (
                           <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-2">
-                              <div className="whitespace-nowrap text-meta text-muted-foreground">
-                                Sophisticated Investor
-                              </div>
-                              <Switch
-                                checked={org.isSophisticatedInvestor === true}
-                                onCheckedChange={handleSophisticatedToggle}
-                                disabled={updateSophisticatedMutation.isPending || !canManage}
-                                title={
-                                  !canManage
-                                    ? "You do not have permission to perform this action."
-                                    : undefined
-                                }
-                              />
-                              {org.isSophisticatedInvestor === true ? (
-                                <StatusBadge label="Yes" status="success" />
-                              ) : org.isSophisticatedInvestor === false ? (
-                                <StatusBadge label="No" status="neutral" />
-                              ) : (
-                                <StatusBadge label="Not set" status="action" />
-                              )}
-                            </div>
-                            {org.sophisticatedInvestorReason ? (
-                              <p className="max-w-xs text-meta text-muted-foreground">
-                                {org.sophisticatedInvestorReason}
-                              </p>
-                            ) : null}
+                            {(() => {
+                              const categoryOrganizationType =
+                                org.type === "COMPANY" ? "COMPANY" : "PERSONAL";
+                              const valid = isAllowedScInvestorCategory(org.scInvestorCategory, {
+                                organizationType: categoryOrganizationType,
+                              });
+
+                              const label =
+                                org.type === "COMPANY"
+                                  ? SC_INVESTOR_CATEGORY_LABELS[
+                                      "SOPHISTICATED_HIGH_NET_WORTH_ENTITY"
+                                    ]
+                                  : valid && org.scInvestorCategory
+                                    ? SC_INVESTOR_CATEGORY_LABELS[
+                                        org.scInvestorCategory as keyof typeof SC_INVESTOR_CATEGORY_LABELS
+                                      ]
+                                    : "Not set";
+
+                              return (
+                                <div className="flex items-center gap-2">
+                                  <div className="whitespace-nowrap text-meta text-muted-foreground">
+                                    Type of Investor
+                                  </div>
+                                  <StatusBadge
+                                    label={label}
+                                    status={valid ? "success" : "action"}
+                                  />
+                                </div>
+                              );
+                            })()}
                           </div>
                         ) : null}
                         {headerRegtankUrl ? (
@@ -525,51 +471,8 @@ export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
           </div>
         </div>
 
-        <AlertDialog open={showSophisticatedDialog} onOpenChange={setShowSophisticatedDialog}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>
-                {pendingSophisticatedStatus
-                  ? "Mark as Sophisticated Investor"
-                  : "Remove Sophisticated Investor Status"}
-              </AlertDialogTitle>
-              <AlertDialogDescription>
-                {pendingSophisticatedStatus
-                  ? "Please provide a reason for granting sophisticated investor status to this organization."
-                  : "Please provide a reason for removing sophisticated investor status from this organization."}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <div className="py-4">
-              <Label htmlFor="sophisticated-reason" className="text-ui font-medium">
-                Reason <span className="text-destructive">*</span>
-              </Label>
-              <Textarea
-                id="sophisticated-reason"
-                placeholder={
-                  pendingSophisticatedStatus
-                    ? "e.g., Manual verification of net assets exceeding RM3,000,000"
-                    : "e.g., Re-evaluation of investor classification"
-                }
-                value={sophisticatedReason}
-                onChange={(event) => setSophisticatedReason(event.target.value)}
-                className="mt-2"
-                rows={3}
-              />
-              {sophisticatedReason.trim() === "" ? (
-                <p className="mt-1 text-meta text-muted-foreground">Reason is required to proceed.</p>
-              ) : null}
-            </div>
-            <AlertDialogFooter>
-              <AlertDialogCancel onClick={handleCancelSophisticatedChange}>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleConfirmSophisticatedChange}
-                disabled={!sophisticatedReason.trim() || updateSophisticatedMutation.isPending}
-              >
-                {updateSophisticatedMutation.isPending ? "Updating..." : "Confirm"}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        {/* Legacy Sophisticated Yes/No UI removed.
+            Admin uses the detailed Type of Investor on the profile panel instead. */}
       </>
     </RequirePermission>
   );
