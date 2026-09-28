@@ -427,13 +427,13 @@ export function OrganizationProfilePanel({
           <AdminDetailCardHeader
             icon={IdentificationIcon}
             title="Investor Classification"
-            description={`Type of Investor is required. ${PROFILE_HELP.typeOfInvestorAdmin}`}
+            description="Investor type is used for regulatory reporting and determines the investor’s investment limit. It does not change which investment notes they can view."
             actions={sectionActions("classification")}
           />
           <CardContent>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="sm:col-span-2 space-y-2">
-                  {editingSection === "classification" ? (
+                {editingSection === "classification" ? (
+                  <div className="space-y-2 sm:col-span-2">
                     <EditableSelect
                       label={PROFILE_LABEL.typeOfInvestor}
                       value={draft.scInvestorCategory}
@@ -448,7 +448,9 @@ export function OrganizationProfilePanel({
                       help={investorCategoryHelp || undefined}
                       required
                     />
-                  ) : (
+                  </div>
+                ) : (
+                  <div className="sm:col-span-2">
                     <ReadField
                       label={PROFILE_LABEL.typeOfInvestor}
                       value={
@@ -460,8 +462,8 @@ export function OrganizationProfilePanel({
                       help={investorCategoryHelp}
                       required
                     />
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
           </CardContent>
         </Card>

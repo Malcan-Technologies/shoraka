@@ -7,7 +7,6 @@ import { createApiClient, useAuthToken } from "@cashsouk/config";
 import {
   allowedScInvestorCategories,
   isAllowedScInvestorCategory,
-  PROFILE_HELP,
   PROFILE_LABEL,
   SC_INVESTOR_CATEGORY_DEFINITIONS,
   SC_INVESTOR_CATEGORY_LABELS,
@@ -101,7 +100,8 @@ export function InvestorClassificationCard({
         <div>
           <h2 className="text-lg font-semibold">Investor Classification</h2>
           <p className="mt-1 text-ui text-muted-foreground">
-            {PROFILE_HELP.typeOfInvestor}
+            Your investor type is used for regulatory reporting and determines your investment limit.
+            It does not change which investment notes you can view.
           </p>
         </div>
         {!isEditing ? (
@@ -121,50 +121,58 @@ export function InvestorClassificationCard({
             <PencilIcon className="h-4 w-4" />
             Edit
           </Button>
-        ) : null}
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2 rounded-xl"
+            onClick={() => {
+              setValue(current);
+              onCancel();
+            }}
+            disabled={save.isPending}
+          >
+            <XMarkIcon className="h-4 w-4" />
+            Cancel
+          </Button>
+        )}
       </div>
       <div className="p-6">
         {isEditing ? (
-          <div className="space-y-2">
-            <ComRepFieldLabel
-              label={PROFILE_LABEL.typeOfInvestor}
-              required
-              help={options.length > 0 ? scInvestorCategoryHelp(options) : undefined}
-            />
-            <Select
-              value={value || undefined}
-              onValueChange={(next) => setValue(next)}
-              disabled={save.isPending}
-            >
-              <SelectTrigger className="h-10 text-ui" aria-label={PROFILE_LABEL.typeOfInvestor}>
-                <SelectValue placeholder="Select" />
-              </SelectTrigger>
-              <SelectContent>
-                {options.map((option) => (
-                  <SelectItem key={option} value={option} title={SC_INVESTOR_CATEGORY_DEFINITIONS[option]}>
-                    {SC_INVESTOR_CATEGORY_LABELS[option]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <div className="flex justify-end gap-2 pt-4">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setValue(current);
-                  onCancel();
-                }}
+          <div className="grid gap-6 sm:grid-cols-2">
+            <div className="space-y-2 sm:col-span-2">
+              <ComRepFieldLabel
+                label={PROFILE_LABEL.typeOfInvestor}
+                required
+                help={options.length > 0 ? scInvestorCategoryHelp(options) : undefined}
+              />
+              <Select
+                value={value || undefined}
+                onValueChange={(next) => setValue(next)}
                 disabled={save.isPending}
-                className="gap-2 rounded-xl"
               >
-                <XMarkIcon className="h-4 w-4" />
-                Cancel
-              </Button>
+                <SelectTrigger className="h-10 text-ui" aria-label={PROFILE_LABEL.typeOfInvestor}>
+                  <SelectValue placeholder="Select" />
+                </SelectTrigger>
+                <SelectContent>
+                  {options.map((option) => (
+                    <SelectItem
+                      key={option}
+                      value={option}
+                      title={SC_INVESTOR_CATEGORY_DEFINITIONS[option]}
+                    >
+                      {SC_INVESTOR_CATEGORY_LABELS[option]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="sm:col-span-2 flex justify-end">
               <Button
+                className="h-10 rounded-xl"
                 onClick={() => save.mutate()}
                 disabled={save.isPending}
-                className="gap-2 rounded-xl"
               >
                 {save.isPending ? "Saving..." : "Save changes"}
               </Button>
