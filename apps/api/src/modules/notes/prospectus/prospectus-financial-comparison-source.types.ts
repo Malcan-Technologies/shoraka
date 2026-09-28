@@ -53,10 +53,10 @@ export interface ProspectusFinancialComparisonSourceAudit {
     path: "ctos.financials_json + applications.financial_statements (SSM window)";
     ctosUsed: true;
     sourceMixingAllowed: true;
-    precedence: "ctos_audited_over_unaudited_same_year";
+    precedence: "reviewed_user_input_then_ctos_then_active_admin_input";
   };
   years: {
-    selectionRule: "normalized_admin_set_then_latest_three_with_actual_data";
+    selectionRule: "latest_three_distinct_fy_user_then_ctos_then_admin";
     sortForSelection: "descending";
     displayOrder: "ascending";
     invalidYearKeysIgnored: true;
@@ -88,10 +88,10 @@ export const PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_AUDIT: ProspectusFinancialCo
       path: "ctos.financials_json + applications.financial_statements (SSM window)",
       ctosUsed: true,
       sourceMixingAllowed: true,
-      precedence: "ctos_audited_over_unaudited_same_year",
+      precedence: "reviewed_user_input_then_ctos_then_active_admin_input",
     },
     years: {
-      selectionRule: "normalized_admin_set_then_latest_three_with_actual_data",
+      selectionRule: "latest_three_distinct_fy_user_then_ctos_then_admin",
       sortForSelection: "descending",
       displayOrder: "ascending",
       invalidYearKeysIgnored: true,
@@ -184,7 +184,7 @@ export const PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_FIELD_SOURCES: Record<
     surface: "canva",
     possibleAlternatives: "none",
     notes:
-      "CTOS latest 3 with actual rows + SSM unaudited with stored actual data; CTOS precedence; omit empty SSM years; latest 3; ascending; FYE ISO keys. Missing SSM years → Admin ops warning only.",
+      "Latest three distinct FYs. Each FY: reviewed User Input (including Admin edits), else CTOS plus explicit CTOS gap-fills, else active Admin Input, else blank. Superseded Admin Input is not a source. Missing SSM years → Admin ops warning only.",
   },
   sourceFooter: {
     label: "Source footer",

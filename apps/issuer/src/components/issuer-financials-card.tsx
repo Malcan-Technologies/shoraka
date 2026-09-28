@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import { unauditedYearEntries } from "@cashsouk/types";
+import { effectiveFinancialHistoryEntries } from "@cashsouk/types";
 import { ProfileFinancialHistory } from "@cashsouk/ui";
 import { ProfileCard } from "./profile-card";
 
@@ -21,7 +21,14 @@ export function IssuerFinancialsCard({ organizationId }: { organizationId: strin
     },
   });
 
-  const years = unauditedYearEntries(query.data?.financial_statements);
+  const years = effectiveFinancialHistoryEntries({
+    ctosFinancials: query.data?.ctos_financials,
+    userByYear: query.data?.submitted_by_year,
+    adminInputByYear: query.data?.admin_input_by_year,
+    ctosGapFillsByYear: query.data?.ctos_gap_fills_by_year,
+    userEditedKeysByYear: query.data?.user_edited_keys_by_year,
+    orgFinancialStatements: query.data?.financial_statements,
+  });
 
   return (
     <ProfileCard

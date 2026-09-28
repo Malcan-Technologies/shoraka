@@ -3,6 +3,10 @@
 import * as React from "react";
 import { toast } from "sonner";
 import { useAuthToken } from "@cashsouk/config";
+import {
+  issuerFinancialMoneyInputAccepted,
+  issuerFinancialRawFieldValueError,
+} from "@cashsouk/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,7 +29,9 @@ export function AdminEditFinancialFieldDialog({
   fieldKey,
   fieldLabel,
   initialValue,
+  columnKind,
   disabled,
+  readOnly = false,
   onSaved,
 }: {
   open: boolean;
@@ -33,9 +39,11 @@ export function AdminEditFinancialFieldDialog({
   applicationId: string | null | undefined;
   calendarYear: number | null;
   fieldKey: string | null;
+  columnKind?: "ctos" | "unaudited" | "admin_input" | "admin_fallback_placeholder";
   fieldLabel: string;
   initialValue: number | null;
   disabled: boolean;
+  readOnly?: boolean;
   onSaved: () => void;
 }) {
   const { getAccessToken } = useAuthToken();
@@ -48,12 +56,19 @@ export function AdminEditFinancialFieldDialog({
     setRaw(initialValue == null ? "" : String(initialValue));
   }, [open, initialValue, fieldKey, calendarYear]);
 
+  const valueError = fieldKey ? issuerFinancialRawFieldValueError(fieldKey, raw) : null;
+  const empty = raw.trim() === "";
+
   const onSave = async () => {
     if (!applicationId || calendarYear == null || !fieldKey) return;
-    if (disabled) return;
+    if (disabled || readOnly) return;
+    if (empty || valueError) {
+      toast.error(valueError ?? "Enter a valid amount");
+      return;
+    }
     const value = Number(raw.trim().replace(/,/g, ""));
     if (!Number.isFinite(value)) {
-      toast.error("Enter a numeric value");
+      toast.error("Enter a valid amount");
       return;
     }
     setSaving(true);
@@ -67,7 +82,7 @@ export function AdminEditFinancialFieldDialog({
             "Content-Type": "application/json",
             Authorization: `Bearer ${accessToken}`,
           },
-          body: JSON.stringify({ financialYear: calendarYear, fieldKey, value }),
+          body: JSON.stringify({ financialYear: calendarYear, fieldKey, columnKind, value }),
         }
       );
       const json = await res.json().catch(() => null);
@@ -99,20 +114,28 @@ export function AdminEditFinancialFieldDialog({
           <Input
             id="admin-financial-field-value"
             inputMode="decimal"
-            type="number"
-            step="any"
+            type="text"
             value={raw}
-            disabled={disabled || saving}
-            onChange={(event) => setRaw(event.target.value)}
+            disabled={disabled || readOnly || saving}
+            aria-invalid={Boolean(valueError)}
+            className={valueError ? "border-destructive" : undefined}
+            onChange={(event) => {
+              const next = event.target.value;
+              if (!fieldKey || !issuerFinancialMoneyInputAccepted(fieldKey, next)) return;
+              setRaw(next);
+            }}
           />
+          {valueError ? <p className="text-meta text-destructive">{valueError}</p> : null}
         </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancel
           </Button>
-          <Button type="button" onClick={onSave} disabled={disabled || saving}>
-            Save
-          </Button>
+          {readOnly ? null : (
+            <Button type="button" onClick={onSave} disabled={disabled || saving || empty || Boolean(valueError)}>
+              Save
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

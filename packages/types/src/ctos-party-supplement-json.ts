@@ -176,7 +176,16 @@ function mergeOnboardingFields(
   if (nextRequestId && base.requestId && base.requestId !== nextRequestId) {
     base.verifyLink = undefined;
     base.verifyLinkExpiresAt = undefined;
-    base.referenceId = undefined;
+    // Preserve referenceId only for the restart-style transition where onboarding remains IN_PROGRESS.
+    // For other requestId transitions (e.g. WAIT_FOR_APPROVAL → APPROVED) referenceId represents old verify metadata.
+    const nextStatusRaw =
+      typeof patch.status === "string" ? patch.status.trim() : "";
+    const nextStatus = nextStatusRaw
+      ? (normalizeRawStatus(nextStatusRaw) || nextStatusRaw)
+      : "";
+    const preserveReferenceId = base.status === "IN_PROGRESS" && nextStatus === "IN_PROGRESS";
+    if (!preserveReferenceId) base.referenceId = undefined;
+
     base.sentAt = undefined;
     base.lastSentAt = undefined;
     base.sendTimestamps = undefined;

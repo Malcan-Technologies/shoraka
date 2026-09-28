@@ -1,7 +1,7 @@
 # Issuer org financial statements: latest copy and CTOS prefill
 
 ## Why this exists
-Financial statements for a financing live on the **application**. CTOS is the first prefill source for completed years. If CTOS has no matching year, the newest **submitted/resubmitted** application revision that contains that **same FY** is used. The organisation JSON is submitted-application **history** (and a future ComRep source), not a second editable master and not an application year-amount prefill fallback.
+Financial statements for a financing live on the **application**. For a new application, the current FY starts blank. Each previous FY is copied once from CTOS plus explicit CTOS gap fills, otherwise Admin Input, otherwise reviewed User Input. The organisation JSON is not a year-amount source.
 
 The **in-progress** year always starts blank.
 
@@ -34,14 +34,16 @@ In-progress year = calendar year of the selected **next** financial year end (`g
 
 | Year | Effective starting value |
 |------|--------------------------|
-| Completed / previous tab | If CTOS has that exact FY: core application fields from CTOS; Additional Financial Details stay blank. Else the newest submitted revision that contains that **same** FY (core + Additional Financial Details from that block). Else blank. One whole source — never CTOS+history field merge. |
-| In-progress / current tab | Always blank (not org, not CTOS, not submitted history) |
+| Completed / previous tab | CTOS for that exact FY, plus explicit Admin CTOS gap fills for fields CTOS left empty. Else that FY's Admin Input. Else that FY's User Input plus Admin edits of that User Input. Else blank. One source per FY. A blank field on the selected source stays blank. |
+| In-progress / current tab | Always blank (not org, not CTOS, not Admin Input, not User Input) |
 
 - Do not copy year blocks before FYE is known (stale FYE must not leave figures on the current tab).
 - Do not copy FY N into FY N+1.
 - CTOS maps only the existing issuer application money keys (`bsfatot` … `plyear`). ComRep-only splits are not in CTOS and are not derived from related totals.
-- When CTOS has that FY, submitted history is not used to fill missing CTOS core fields or Additional Financial Details.
-- Submitted same-FY fallback copies that year’s stored block (core keys plus any ComRep extras already saved on that revision).
+- When CTOS has that FY, Admin Input and User Input are not used. Only explicit `add_missing_ctos_field` values fill CTOS gaps.
+- If CTOS does not have that FY, Admin Input wins over User Input.
+- User Input fallback includes Admin `edit_user_input` values. The original issuer snapshot stays on the revision.
+- Organisation JSON is not read for year amounts. A blank optional field is not filled from an older same-FY block.
 - All prefilled fields stay editable. Save/submit store the issuer’s values on the application.
 
 ## Update rules (draft vs submit/resubmit)

@@ -73,15 +73,16 @@ function buildPayerIdentity(org: OrgForReceiptPayer | null | undefined): {
   }
   if (org.type === OrganizationType.COMPANY) {
     return {
-      payerUniqueId: null,
+      // For COMPANY investors, show the canonical IVT-/ISS- display reference as the Investor ID.
+      payerUniqueId: trimOrNull(org.display_reference ?? null),
       payerRegistrationNumber: trimOrNull(org.registration_number),
       payerCompanyName: buildCompanyName(org),
     };
   }
-  // For PERSONAL investors, receipts should show the platform's short user id
-  // (the 5-character identifier shown in "My account"), not the IVT-/ISS- display reference.
+  // For PERSONAL investors, receipts should show the canonical IVT-/ISS- display reference,
+  // not the platform's short User.user_id.
   return {
-    payerUniqueId: trimOrNull(org.owner?.user_id ?? null),
+    payerUniqueId: trimOrNull(org.display_reference ?? null),
     payerRegistrationNumber: null,
     payerCompanyName: null,
   };

@@ -13,12 +13,13 @@ export type AdminFinancialSummaryColumn = {
   statementType?: string;
 };
 
-/** Chronological FY columns. One column per year. CTOS wins a duplicate FY. No empty pad slots. */
+/** Chronological FY columns. Historical slots and User Input are separate lanes. */
 export function adminFinancialSummaryColumns(
   ctosRows: CtosFinancialYearRowInput[] | null | undefined,
   unauditedByYear: Record<string, unknown> | null | undefined,
   adminInputByYear: Record<string, unknown> | null | undefined,
-  eligibleAdminInputYears: number[]
+  eligibleAdminInputYears: number[],
+  ctosFetchState: "not_pulled" | "no_records" | "has_data" = "not_pulled"
 ): AdminFinancialSummaryColumn[] {
   return resolveAdminFinancialReviewColumns({
     financialStatements: {
@@ -27,6 +28,7 @@ export function adminFinancialSummaryColumns(
     },
     ctosFinancials: ctosRows ?? [],
     eligibleAdminInputYears,
+    ctosFetchState,
   }).map((column) => ({
     kind: column.kind,
     year: column.year,

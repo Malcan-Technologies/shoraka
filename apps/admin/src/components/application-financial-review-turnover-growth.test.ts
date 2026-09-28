@@ -12,8 +12,8 @@ describe("application financial review Turnover Growth rendering", () => {
     // CTOS fallback should compute from resolved turnover, not rely on CTOS XSL finished metric.
     expect(source).toContain('case "turnover_growth"');
     expect(source).toContain("computeTurnoverGrowth({");
-    expect(source).toContain("turnoverByYear.get(specCol.year - 1)");
-    expect(source).toContain("Previous financial year Revenue unavailable");
+    expect(source).toContain("resolvePreviousYearTurnover(specCol.kind, specCol.year - 1)");
+    expect(source).toContain("Missing: previous financial year Revenue / Turnover");
   });
 
   it("removes CTOS/User Input/Admin Input source badges from the Year header", () => {
@@ -34,7 +34,8 @@ describe("application financial review Turnover Growth rendering", () => {
     );
 
     expect(source).toContain("`FY${spec.year}`");
-    expect(source).toContain('title="Edit financial statement"');
+    expect(source).toContain("financialEditsLocked ? \"Locked\" : \"Edit statement\"");
+    expect(source).toContain("Edit financial statement");
     expect(source).toContain("AdminEditFinancialStatementDialog");
   });
 
@@ -107,7 +108,7 @@ describe("application financial review Turnover Growth rendering", () => {
 
     // When locked, inputs and Save should be disabled.
     expect(modal).toContain("disabled={inputDisabled}");
-    expect(modal).toContain("disabled={disabled || saving}");
+    expect(modal).toContain("readOnly ? null");
   });
 
   it("computes FY2024 Turnover Growth from FY2023 revenue (20%)", () => {

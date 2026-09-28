@@ -457,5 +457,19 @@ describe("Admin Financial Summary table UI", () => {
     );
     expect(contentSource).toContain('<span className="text-muted-foreground">—</span>');
   });
+
+  it("locks financial edits from the Financial review section and shares column identity", () => {
+    const contentSource = readFileSync(tablePath, "utf8");
+    const addSource = readFileSync(addModalPath, "utf8");
+    const editSource = readFileSync(modalPath, "utf8");
+    expect(contentSource).toContain("isAdminFinancialReviewEditLocked");
+    expect(contentSource).toContain("financialEditsLocked ? \"Locked\" : \"Edit statement\"");
+    expect(contentSource).toContain(">Read only</span>");
+    expect(contentSource).toContain("setEditFinancialStatementTarget({ year: spec.year as number, kind: spec.kind })");
+    expect(contentSource).toContain("columnKind={fieldEdit?.kind}");
+    expect(addSource).toContain("wholeYearAdminFinancialFieldProgress");
+    expect(addSource).toContain("required fields are still missing.");
+    expect(editSource).not.toContain("wholeYearAdminFinancialFieldProgress");
+  });
 });
 

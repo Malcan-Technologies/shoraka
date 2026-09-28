@@ -484,7 +484,7 @@ describe("generateGatewayPaymentReceipt", () => {
     expect(html).not.toContain("Org Name Fallback Sdn Bhd");
     expect(html).not.toContain("Registration No.");
     expect(html).not.toContain("Unique ID");
-    expect(html).not.toContain("IVT-202608-C01");
+    expect(html).toContain("IVT-202608-C01");
   });
 
   it("does not use org.name for receipt company when businessName is missing", async () => {
@@ -560,12 +560,52 @@ describe("generateGatewayPaymentReceipt", () => {
 
     await generateGatewayPaymentReceipt("pay_1", db as never);
     const html = (renderReceiptHtmlToPdfBuffer as jest.Mock).mock.calls[0][0] as string;
-    expect(html).toContain("ALI BIN ABU (ABCDE)");
+    expect(html).toContain("ALI BIN ABU (IVT-202608-A12)");
+    expect(html).not.toContain("ABCDE");
     expect(html).not.toContain("Display Name");
     expect(html).not.toContain(">Company<");
     expect(html).not.toContain("Unique ID");
     expect(html).not.toContain("inv_1");
     expect(html).not.toContain("Registration No.");
+  });
+
+  it("omits investor unique id when canonical display_reference is missing (no fallback to User.user_id)", async () => {
+    const db = createDbMock({
+      payment: {
+        id: "pay_1",
+        purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT,
+        status: GatewayPaymentStatus.COMPLETED,
+        amount: { toNumber: () => 100 },
+        currency: "MYR",
+        method: "fpx",
+        payer_name: "ALI BIN ABU",
+        curlec_payment_id: "pay_curlec_1",
+        curlec_order_id: "order_1",
+        updated_at: new Date("2026-08-03T02:00:00.000Z"),
+        metadata: null,
+        issuer_organization: null,
+        application: null,
+        investor_organization: {
+          id: "inv_1",
+          type: OrganizationType.PERSONAL,
+          name: "Display Name",
+          display_reference: null,
+          registration_number: null,
+          first_name: "Ali",
+          middle_name: null,
+          last_name: "Abu",
+          phone_number: "012",
+          legal_name_on_id: "Ali Bin Abu",
+          corporate_onboarding_data: null,
+          owner: { user_id: "ABCDE", email: "inv@example.com", phone: "012" },
+        },
+      },
+    });
+
+    await generateGatewayPaymentReceipt("pay_1", db as never);
+    const html = (renderReceiptHtmlToPdfBuffer as jest.Mock).mock.calls[0][0] as string;
+    expect(html).toContain("ALI BIN ABU");
+    expect(html).not.toContain("ABCDE");
   });
 
   it("allows first PDF generation for a refunded receipt that never got a PDF", async () => {

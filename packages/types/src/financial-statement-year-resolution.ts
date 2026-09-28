@@ -20,6 +20,8 @@ export type CtosFinancialStatementRow = CtosFinancialYearRowInput & {
   financial_year?: number | null;
   dates?: { pldd?: string | null; bsdd?: string | null };
   account?: Record<string, number | null | undefined>;
+  /** Optional statementType coming from CTOS financial evidence. */
+  statementType?: FinancialStatementStatementType;
 };
 
 export type FinancialStatementRecordSource =
@@ -428,8 +430,25 @@ export function getEligibleAdminInputYears(input: {
     }
   }
 
+  // Future-FY guard:
+  // Admin "Add Financial Statement" should only be offered for missing FYs within the
+  // already-started user/application reporting range, not purely for FYs that are
+  // mathematically derivable from the current date + questionnaire window.
+  //
+  // We anchor the upper bound to the newest stored unaudited actual year.
+  let maxStoredIssuerYearWithActualData: number | null = null;
+  for (const [key, storedIssuer] of Object.entries(unauditedByYear)) {
+    const y = Number(key);
+    if (!Number.isInteger(y)) continue;
+    if (!storedIssuer || !financialYearBlockHasActualData(storedIssuer)) continue;
+    if (maxStoredIssuerYearWithActualData == null || y > maxStoredIssuerYearWithActualData) {
+      maxStoredIssuerYearWithActualData = y;
+    }
+  }
+
   const eligible: number[] = [];
   for (const year of getAdminFinancialSummaryUserColumnYears(questionnaire, ref)) {
+    if (maxStoredIssuerYearWithActualData != null && year > maxStoredIssuerYearWithActualData) continue;
     if (ctosYearsWithData.has(year)) continue;
     const storedIssuer = unauditedByYear[String(year)];
     if (storedIssuer && financialYearBlockHasActualData(storedIssuer)) continue;

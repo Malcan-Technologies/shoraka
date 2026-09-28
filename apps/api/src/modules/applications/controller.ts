@@ -297,6 +297,7 @@ const adminFinancialStatementFallbackUpsertSchema = z.object({
 const adminFinancialFieldUpsertSchema = z.object({
   financialYear: z.number().int().min(1900).max(9999),
   fieldKey: z.string().min(1),
+  columnKind: z.enum(["ctos", "unaudited", "admin_input", "admin_fallback_placeholder"]).optional(),
   value: z.number().finite(),
   remark: z.string().max(500).optional(),
 });
@@ -319,6 +320,7 @@ async function upsertAdminFinancialField(req: Request, res: Response, next: Next
       userId,
       financialYear: input.financialYear,
       fieldKey: input.fieldKey,
+      columnKind: input.columnKind,
       value: input.value,
       remark: input.remark,
     });

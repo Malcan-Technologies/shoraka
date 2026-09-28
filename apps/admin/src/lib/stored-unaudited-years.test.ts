@@ -142,61 +142,71 @@ describe("adminFinancialSummaryColumns", () => {
   const adminStored = {};
   const eligible: number[] = [];
 
-  it("shows stored issuer years chronologically without empty CTOS pads", () => {
+  it("shows the 3 historical slots behind the latest user year when CTOS is not pulled", () => {
     expect(adminFinancialSummaryColumns([], stored, adminStored, eligible)).toEqual([
+      { kind: "ctos", year: 2024 },
+      { kind: "ctos", year: 2025 },
+      { kind: "ctos", year: 2026 },
       { kind: "unaudited", year: 2026 },
       { kind: "unaudited", year: 2027 },
     ]);
   });
 
-  it("sorts CTOS and non-overlapping issuer years chronologically", () => {
+  it("keeps User Input when CTOS covers an earlier historical year", () => {
     expect(
       adminFinancialSummaryColumns(
         [{ financial_year: 2024 }, { financial_year: 2025 }],
         stored,
         adminStored,
-        eligible
+        eligible,
+        "has_data"
       )
     ).toEqual([
       { kind: "ctos", year: 2024 },
       { kind: "ctos", year: 2025 },
+      { kind: "admin_fallback_placeholder", year: 2026 },
       { kind: "unaudited", year: 2026 },
       { kind: "unaudited", year: 2027 },
     ]);
   });
 
-  it("hides a stored issuer year that matches a CTOS financial_year", () => {
+  it("keeps User Input beside a CTOS year for the same FY", () => {
     expect(
       adminFinancialSummaryColumns(
         [{ financial_year: 2024 }, { financial_year: 2025 }, { financial_year: 2026 }],
         stored,
         adminStored,
-        eligible
+        eligible,
+        "has_data"
       )
     ).toEqual([
       { kind: "ctos", year: 2024 },
       { kind: "ctos", year: 2025 },
       { kind: "ctos", year: 2026 },
+      { kind: "unaudited", year: 2026 },
       { kind: "unaudited", year: 2027 },
     ]);
   });
 
-  it("hides both issuer years when CTOS already covers them", () => {
+  it("does not drop User Input when CTOS also returns that year", () => {
     expect(
       adminFinancialSummaryColumns(
         [{ financial_year: 2025 }, { financial_year: 2026 }, { financial_year: 2027 }],
         stored,
         adminStored,
-        eligible
+        eligible,
+        "has_data"
       )
     ).toEqual([
+      { kind: "admin_fallback_placeholder", year: 2024 },
       { kind: "ctos", year: 2025 },
       { kind: "ctos", year: 2026 },
-      { kind: "ctos", year: 2027 },
+      { kind: "unaudited", year: 2026 },
+      { kind: "unaudited", year: 2027 },
     ]);
   });
 
-  it("places a missing FY placeholder in chronological position", () => {
+  it("places a missing FY placeholder in chronological position when CTOS was pulled", () => {
     const issuerOnly = { "2026": { turnover: 1 } };
     const eligibleMissing = [2025];
     expect(
@@ -204,7 +214,8 @@ describe("adminFinancialSummaryColumns", () => {
         [{ financial_year: 2023 }, { financial_year: 2024 }],
         issuerOnly,
         {},
-        eligibleMissing
+        eligibleMissing,
+        "has_data"
       )
     ).toEqual([
       { kind: "ctos", year: 2023 },

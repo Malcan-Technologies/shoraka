@@ -14,7 +14,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { type AdminFinancialReviewColumn, isAdminEditableRawFinancialKey } from "@cashsouk/types";
+import {
+  type AdminFinancialReviewColumn,
+  isAdminEditableRawFinancialKey,
+  issuerFinancialMoneyInputAccepted,
+  issuerFinancialRawFieldValueError,
+} from "@cashsouk/types";
 import { ADMIN_EDITABLE_RAW_FINANCIAL_KEYS } from "@cashsouk/types";
 import { ChevronDownIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 
@@ -67,7 +72,17 @@ const MODAL_GROUPS: Array<{ title: string; keys: string[] }> = [
   },
   {
     title: "Profit & Loss",
-    keys: ["turnover", "plnpbt", "plnpat", "plnetdiv", "pl_minority", "plyear", "netOperatingIncome"],
+    keys: [
+      "turnover",
+      "grossProfit",
+      "ebitda",
+      "plnpbt",
+      "plnpat",
+      "plnetdiv",
+      "pl_minority",
+      "plyear",
+      "netOperatingIncome",
+    ],
   },
   {
     title: "Costs",
@@ -124,6 +139,22 @@ const UI_FIELD_LABELS: Record<string, string> = {
   annualDebtService: "Annual Debt Service",
 };
 
+const OPTIONAL_IF_APPLICABLE_SUFFIX = " (if" + " applicable)";
+function renderLabelWithOptionalSuffix(label: string) {
+  if (!label.endsWith(OPTIONAL_IF_APPLICABLE_SUFFIX)) return label;
+  const main = label.slice(0, -OPTIONAL_IF_APPLICABLE_SUFFIX.length);
+  return (
+    <>
+      {main}
+      <span className="text-muted-foreground text-[11px] font-normal">
+        {" "}
+        (if{" "}
+        applicable)
+      </span>
+    </>
+  );
+}
+
 export function AdminEditFinancialStatementDialog({
   open,
   onOpenChange,
@@ -131,6 +162,7 @@ export function AdminEditFinancialStatementDialog({
   calendarYear,
   resolvedColumn,
   disabled,
+  readOnly = false,
   onSaved,
 }: {
   open: boolean;
@@ -139,6 +171,7 @@ export function AdminEditFinancialStatementDialog({
   calendarYear: number | null;
   resolvedColumn: AdminFinancialReviewColumn | null;
   disabled: boolean;
+  readOnly?: boolean;
   onSaved: () => void;
 }) {
   const { getAccessToken } = useAuthToken();
@@ -197,7 +230,21 @@ export function AdminEditFinancialStatementDialog({
 
   const onSave = React.useCallback(async () => {
     if (!applicationId || calendarYear == null || !resolvedColumn || !fieldState) return;
-    if (disabled) return;
+    if (disabled || readOnly) return;
+
+    const invalid: string[] = [];
+    for (const key of Object.keys(fieldState.byKey)) {
+      const meta = fieldState.byKey[key]!;
+      if (meta.readOnly) continue;
+      const rawInput = fieldState.inputs[key] ?? "";
+      if (!rawInput.trim()) continue;
+      const message = issuerFinancialRawFieldValueError(key, rawInput);
+      if (message) invalid.push(`${meta.label}: ${message}`);
+    }
+    if (invalid.length > 0) {
+      toast.error(invalid.length === 1 ? invalid[0] : `${invalid.length} values are invalid.`);
+      return;
+    }
 
     setSaving(true);
     try {
@@ -227,7 +274,12 @@ export function AdminEditFinancialStatementDialog({
               "Content-Type": "application/json",
               Authorization: `Bearer ${accessToken}`,
             },
-            body: JSON.stringify({ financialYear: calendarYear, fieldKey: key, value: nextValue }),
+            body: JSON.stringify({
+              financialYear: calendarYear,
+              fieldKey: key,
+              columnKind: resolvedColumn.kind,
+              value: nextValue,
+            }),
           }
         );
 
@@ -245,7 +297,7 @@ export function AdminEditFinancialStatementDialog({
     } finally {
       setSaving(false);
     }
-  }, [applicationId, calendarYear, disabled, fieldState, getAccessToken, onOpenChange, onSaved, resolvedColumn]);
+  }, [applicationId, calendarYear, disabled, fieldState, getAccessToken, onOpenChange, onSaved, readOnly, resolvedColumn]);
 
   const modalSourceLabel = (() => {
     if (!resolvedColumn) return "";
@@ -308,7 +360,7 @@ export function AdminEditFinancialStatementDialog({
                         <div className="grid gap-3 sm:grid-cols-2">
                           {keys.map((key) => {
                             const meta = fieldState.byKey[key]!;
-                            const inputDisabled = disabled || meta.readOnly || saving;
+                            const inputDisabled = disabled || readOnly || meta.readOnly || saving;
 
                             const helperText =
                               meta.source === "ctos" && meta.readOnly
@@ -321,13 +373,17 @@ export function AdminEditFinancialStatementDialog({
                                       ? "Edited by Admin"
                                       : undefined;
 
+                            const valueError = meta.readOnly
+                              ? null
+                              : issuerFinancialRawFieldValueError(key, fieldState.inputs[key] ?? "");
+
                             return (
                               <div key={key} className="space-y-1">
                                 <Label
                                   htmlFor={`edit-fs-${key}`}
                                   className="text-meta font-normal leading-snug"
                                 >
-                                  {meta.label}
+                                  {renderLabelWithOptionalSuffix(meta.label)}
                                 </Label>
                                 {helperText ? (
                                   <div className="text-[11px] text-muted-foreground">
@@ -337,14 +393,16 @@ export function AdminEditFinancialStatementDialog({
                                 <Input
                                   id={`edit-fs-${key}`}
                                   inputMode="decimal"
-                                  type="number"
-                                  step="any"
+                                  type="text"
                                   placeholder="—"
                                   value={fieldState.inputs[key] ?? ""}
                                   disabled={inputDisabled}
+                                  aria-invalid={Boolean(valueError)}
+                                  className={valueError ? "border-destructive" : undefined}
                                   onChange={(e) => {
                                     if (meta.readOnly) return;
                                     const next = e.target.value;
+                                    if (!issuerFinancialMoneyInputAccepted(key, next)) return;
                                     setFieldState((prev) => {
                                       if (!prev) return prev;
                                       return {
@@ -353,8 +411,11 @@ export function AdminEditFinancialStatementDialog({
                                       };
                                     });
                                   }}
-                                />
-                              </div>
+                                  />
+                                  {valueError ? (
+                                    <p className="text-meta text-destructive">{valueError}</p>
+                                  ) : null}
+                                </div>
                             );
                           })}
                       </div>
@@ -373,9 +434,11 @@ export function AdminEditFinancialStatementDialog({
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancel
           </Button>
-          <Button type="button" onClick={() => void onSave()} disabled={disabled || saving}>
-            Save
-          </Button>
+          {readOnly ? null : (
+            <Button type="button" onClick={() => void onSave()} disabled={disabled || saving}>
+              Save
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

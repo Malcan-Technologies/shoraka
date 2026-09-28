@@ -138,6 +138,15 @@ const mockPrisma: any = {
       if (where.id === "org-a") return { id: "org-a" };
       return null;
     }),
+    findUnique: jest.fn(async ({ where }: { where: { id: string } }) => {
+      const id = where.id;
+      if (id !== "org-a" && id !== "org-b") return null;
+      return {
+        id,
+        type: id === "org-a" ? "PERSONAL" : "COMPANY",
+        display_reference: id === "org-a" ? "IVT-A" : `IVT-${id}`,
+      };
+    }),
     findMany: jest.fn(async ({ where }: any) => {
       const ids: string[] = where?.id?.in ?? [];
       return ids.map((id) => ({

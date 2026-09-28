@@ -3252,6 +3252,9 @@ export class OrganizationService {
     financial_statements: unknown | null;
     ctos_financials: unknown | null;
     submitted_by_year: Record<string, Record<string, unknown>>;
+    admin_input_by_year: Record<string, Record<string, unknown>>;
+    ctos_gap_fills_by_year: Record<string, Record<string, unknown>>;
+    user_edited_keys_by_year: Record<string, string[]>;
     admin_supplements_by_year: Record<string, Record<string, unknown>>;
     source_application_id: string | null;
     source_application_revision_id: string | null;
@@ -3299,7 +3302,10 @@ export class OrganizationService {
       financial_statements: latest?.financial_statements ?? null,
       ctos_financials: ctos?.financials_json ?? null,
       submitted_by_year: submittedByYear.submittedByYear,
-      admin_supplements_by_year: submittedByYear.adminSupplementsByYear,
+      admin_input_by_year: submittedByYear.adminInputByYear,
+      ctos_gap_fills_by_year: submittedByYear.ctosGapFillsByYear,
+      user_edited_keys_by_year: submittedByYear.userEditedKeysByYear,
+      admin_supplements_by_year: submittedByYear.ctosGapFillsByYear,
       source_application_id: latest?.source_application_id ?? null,
       source_application_revision_id: latest?.source_application_revision_id ?? null,
       updated_at: latest?.updated_at ?? null,

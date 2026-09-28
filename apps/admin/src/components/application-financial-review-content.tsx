@@ -63,8 +63,10 @@ import {
   resolveCtosTotalLiabilities,
   resolveFinancialSummaryIssuerReturnOnEquityRatio,
   financialFieldSourceBadge,
+  resolvePreviousYearSourceValue,
   getEligibleAdminInputYears,
   isAdminEditableRawFinancialKey,
+  isAdminFinancialReviewEditLocked,
   isCalculatedFinancialMetricKey,
   receivablesDaysUnavailableReason,
   resolveAdminFinancialReviewColumns,
@@ -72,6 +74,7 @@ import {
   isMarcSmeGrade,
   MARC_ASSESSMENT_REQUIRED_MESSAGE,
   marcOfficialRiskProfile,
+  type AdminFinancialReviewColumn,
   type ApplicationPersonRow,
   type ColumnComputedMetrics,
   type FinancialStatementsInput,
@@ -286,6 +289,8 @@ function financialRecordToInput(fs: Record<string, unknown>): FinancialStatement
 interface ApplicationFinancialReviewContentProps {
   applicationId: string;
   issuerOrganizationId: string | null;
+  /** Financial review section status. APPROVED locks Admin financial edits. */
+  financialSectionStatus?: string | null;
   app: {
     people?: ApplicationPersonRow[];
     directorShareholderListSource?: import("@cashsouk/types").DirectorShareholderListSource;
@@ -312,11 +317,13 @@ interface ApplicationFinancialReviewContentProps {
 export function ApplicationFinancialReviewContent({
   applicationId,
   issuerOrganizationId,
+  financialSectionStatus,
   app,
 }: ApplicationFinancialReviewContentProps) {
   const issuerOrgId = issuerOrganizationId?.trim() ?? "";
   const { can } = usePermissions();
   const canManageFinancialCtos = can("applications.financial.manage");
+  const financialEditsLocked = isAdminFinancialReviewEditLocked(financialSectionStatus);
   const canViewOrganizations = can("organizations.view");
   const createSubjectReport = useCreateApplicationCtosSubjectReport(applicationId || undefined);
   const [subjectCtosFetchKey, setSubjectCtosFetchKey] = React.useState<string | null>(null);
@@ -325,9 +332,12 @@ export function ApplicationFinancialReviewContent({
   const [addFinancialStatementOpen, setAddFinancialStatementOpen] = React.useState(false);
   const [addFinancialStatementYear, setAddFinancialStatementYear] = React.useState<number | null>(null);
   const [editFinancialStatementOpen, setEditFinancialStatementOpen] = React.useState(false);
-  const [editFinancialStatementYear, setEditFinancialStatementYear] = React.useState<number | null>(null);
+  const [editFinancialStatementTarget, setEditFinancialStatementTarget] = React.useState<
+    { year: number; kind: AdminFinancialReviewColumn["kind"] } | null
+  >(null);
   const [fieldEdit, setFieldEdit] = React.useState<{
     year: number;
+    kind: AdminFinancialReviewColumn["kind"];
     key: string;
     label: string;
     value: number | null;
@@ -343,8 +353,8 @@ export function ApplicationFinancialReviewContent({
     if (!applicationId) return;
     queryClient.invalidateQueries({ queryKey: applicationsKeys.detail(applicationId) });
     setEditFinancialStatementOpen(false);
-    setEditFinancialStatementYear(null);
-  }, [applicationId, queryClient, setEditFinancialStatementOpen, setEditFinancialStatementYear]);
+    setEditFinancialStatementTarget(null);
+  }, [applicationId, queryClient, setEditFinancialStatementOpen, setEditFinancialStatementTarget]);
 
   const { unauditedByYear, adminInputByYear, questionnaire: financialQuestionnaire } = React.useMemo(
     () => extractQuestionnaireUnauditedAndAdminInput(app.financial_statements),
@@ -386,18 +396,64 @@ export function ApplicationFinancialReviewContent({
 
   const columns = React.useMemo(
     () =>
-      adminFinancialSummaryColumns(financialRows, unauditedByYear, adminInputByYear, eligibleAdminInputYears),
-    [financialRows, unauditedByYear, adminInputByYear, eligibleAdminInputYears]
+      adminFinancialSummaryColumns(
+        financialRows,
+        unauditedByYear,
+        adminInputByYear,
+        eligibleAdminInputYears,
+        ctosFetchState
+      ),
+    [financialRows, unauditedByYear, adminInputByYear, eligibleAdminInputYears, ctosFetchState]
   );
 
-  const resolvedByYear = React.useMemo(() => {
+  const resolvedByKey = React.useMemo(() => {
     const resolved = resolveAdminFinancialReviewColumns({
       financialStatements: app.financial_statements,
       ctosFinancials: financialRows,
       eligibleAdminInputYears,
+      ctosFetchState,
     });
-    return new Map(resolved.map((column) => [column.year, column]));
-  }, [app.financial_statements, financialRows, eligibleAdminInputYears]);
+    return new Map(resolved.map((column) => [`${column.year}:${column.kind}`, column]));
+  }, [app.financial_statements, financialRows, eligibleAdminInputYears, ctosFetchState]);
+
+  const resolvePreviousYearTurnover = React.useCallback(
+    (currentKind: "unaudited" | "ctos" | "admin_input", previousYear: number) => {
+      const priorUserInputValue =
+        resolvedByKey.get(`${previousYear}:unaudited`)?.fields.turnover?.value ?? null;
+      const priorCtosValue = resolvedByKey.get(`${previousYear}:ctos`)?.fields.turnover?.value ?? null;
+      const priorActiveAdminInputValue =
+        resolvedByKey.get(`${previousYear}:admin_input`)?.fields.turnover?.value ?? null;
+
+      const currentSource = currentKind === "unaudited" ? "user_input" : currentKind;
+      return resolvePreviousYearSourceValue({
+        currentSource,
+        previousUserInputValue: priorUserInputValue,
+        previousCtosValue: priorCtosValue,
+        previousActiveAdminInputValue: priorActiveAdminInputValue,
+      });
+    },
+    [resolvedByKey]
+  );
+
+  const resolvePreviousYearTradeReceivables = React.useCallback(
+    (currentKind: "unaudited" | "ctos" | "admin_input", previousYear: number) => {
+      const priorUserInputValue =
+        resolvedByKey.get(`${previousYear}:unaudited`)?.fields.tradeReceivables?.value ?? null;
+      const priorCtosValue =
+        resolvedByKey.get(`${previousYear}:ctos`)?.fields.tradeReceivables?.value ?? null;
+      const priorActiveAdminInputValue =
+        resolvedByKey.get(`${previousYear}:admin_input`)?.fields.tradeReceivables?.value ?? null;
+
+      const currentSource = currentKind === "unaudited" ? "user_input" : currentKind;
+      return resolvePreviousYearSourceValue({
+        currentSource,
+        previousUserInputValue: priorUserInputValue,
+        previousCtosValue: priorCtosValue,
+        previousActiveAdminInputValue: priorActiveAdminInputValue,
+      });
+    },
+    [resolvedByKey]
+  );
 
   // For issuer-entered additional regulatory financial details, CTOS never provides values for these keys.
   // So render only the issuer (unaudited) columns to avoid a misleading CTOS-vs-issuer comparison layout.
@@ -417,7 +473,8 @@ export function ApplicationFinancialReviewContent({
         const row = byYear.get(spec.year);
         return { year: spec.year, turnover: row?.account.turnover ?? null };
       }
-      const resolvedTurnover = resolvedByYear.get(spec.year)?.fields.turnover?.value ?? null;
+      const resolvedTurnover =
+        resolvedByKey.get(`${spec.year}:${spec.kind}`)?.fields.turnover?.value ?? null;
       if (resolvedTurnover != null) return { year: spec.year, turnover: resolvedTurnover };
       const rawByYear =
         spec.kind === "admin_input" ? adminInputByYear : unauditedByYear;
@@ -429,7 +486,7 @@ export function ApplicationFinancialReviewContent({
           : null;
       return { year: spec.year, turnover: hasStoredFinancialData ? t : null };
     });
-  }, [columns, byYear, unauditedByYear, adminInputByYear, hasStoredFinancialData, resolvedByYear]);
+  }, [columns, byYear, unauditedByYear, adminInputByYear, hasStoredFinancialData, resolvedByKey]);
 
   /** Calendar-year turnover for growth (do not use the physical column to the left — gaps/null CTOS slots broke YoY). */
   const turnoverByYear = React.useMemo(() => {
@@ -447,12 +504,14 @@ export function ApplicationFinancialReviewContent({
       const g =
         y == null
           ? null
-          : computeTurnoverGrowth({
-              targetYear: y,
-              targetTurnover: turnoverByYear.get(y) ?? null,
-              priorYear: y - 1,
-              priorTurnover: turnoverByYear.get(y - 1) ?? null,
-            });
+          : spec.kind === "unaudited" || spec.kind === "ctos" || spec.kind === "admin_input"
+            ? computeTurnoverGrowth({
+                targetYear: y,
+                targetTurnover: turnoverByYear.get(y) ?? null,
+                priorYear: y - 1,
+                priorTurnover: resolvePreviousYearTurnover(spec.kind, y - 1),
+              })
+            : null;
 
       // CTOS columns: never derive via component sums / PAT÷equity — official direct/XSL only in renderRowCell.
       if (spec.kind === "ctos") return null;
@@ -466,7 +525,7 @@ export function ApplicationFinancialReviewContent({
             ? unauditedByYear[String(spec.year)]
             : undefined;
       if (!raw) return null;
-      const resolved = resolvedByYear.get(spec.year);
+      const resolved = resolvedByKey.get(`${spec.year}:${spec.kind}`);
       const fs: Record<string, unknown> = { ...(raw as Record<string, unknown>) };
       if (resolved) {
         for (const [key, field] of Object.entries(resolved.fields)) {
@@ -485,7 +544,7 @@ export function ApplicationFinancialReviewContent({
         }),
       };
     });
-  }, [columns, turnoverByYear, hasStoredFinancialData, unauditedByYear, adminInputByYear, resolvedByYear]);
+  }, [columns, turnoverByYear, hasStoredFinancialData, unauditedByYear, adminInputByYear, resolvedByKey]);
 
   const getFsCol = React.useCallback(
     (idx: number): Record<string, unknown> | null => {
@@ -503,7 +562,7 @@ export function ApplicationFinancialReviewContent({
         base = (fs && typeof fs === "object" ? fs : null) as Record<string, unknown> | null;
       }
       if (!base) return null;
-      const resolved = resolvedByYear.get(spec.year);
+      const resolved = resolvedByKey.get(`${spec.year}:${spec.kind}`);
       if (!resolved) return base;
       const copy = { ...base };
       for (const [key, field] of Object.entries(resolved.fields)) {
@@ -511,7 +570,7 @@ export function ApplicationFinancialReviewContent({
       }
       return copy;
     },
-    [columns, byYear, unauditedByYear, adminInputByYear, resolvedByYear]
+    [columns, byYear, unauditedByYear, adminInputByYear, resolvedByKey]
   );
 
   const ctosColumnMissing = React.useCallback(
@@ -827,7 +886,7 @@ export function ApplicationFinancialReviewContent({
           // CTOS finished metric priority: when CTOS `totass` is missing,
           // follow the agreed Excel mapping formula (sum of asset components).
           if (n == null && specCol.year != null) {
-            const yearFields = resolvedByYear.get(specCol.year)?.fields;
+            const yearFields = resolvedByKey.get(`${specCol.year}:${specCol.kind}`)?.fields;
             n = computeTotalAssets({
               total_assets: null,
               fixed_assets: yearFields?.bsfatot?.value ?? null,
@@ -865,7 +924,7 @@ export function ApplicationFinancialReviewContent({
           // CTOS finished metric priority: when CTOS `totlib` is missing,
           // follow the agreed Excel mapping formula (sum of liability components).
           if (n == null && specCol.year != null) {
-            const yearFields = resolvedByYear.get(specCol.year)?.fields;
+            const yearFields = resolvedByKey.get(`${specCol.year}:${specCol.kind}`)?.fields;
             n = computeTotalLiabilities({
               total_liabilities: null,
               current_liabilities: yearFields?.curlib?.value ?? null,
@@ -891,7 +950,9 @@ export function ApplicationFinancialReviewContent({
 
           // CTOS finished metric priority: when CTOS `networth` is missing,
           // follow the agreed Excel mapping formula (Total Assets − Total Liabilities).
-          const yearFields = specCol.year != null ? resolvedByYear.get(specCol.year)?.fields : undefined;
+          const yearFields = specCol.year != null
+            ? resolvedByKey.get(`${specCol.year}:${specCol.kind}`)?.fields
+            : undefined;
           const totass = computeTotalAssets({
             total_assets: null,
             fixed_assets: yearFields?.bsfatot?.value ?? null,
@@ -947,7 +1008,7 @@ export function ApplicationFinancialReviewContent({
 
           const targetTurnover = specCol.year != null ? turnoverByYear.get(specCol.year) ?? null : null;
           const priorTurnover =
-            specCol.year != null ? turnoverByYear.get(specCol.year - 1) ?? null : null;
+            specCol.year != null ? resolvePreviousYearTurnover(specCol.kind, specCol.year - 1) : null;
           if (targetTurnover == null) return CANNOT_CALCULATE_LABEL;
           if (priorTurnover == null) return CANNOT_CALCULATE_LABEL;
           const g = computeTurnoverGrowth({
@@ -962,7 +1023,9 @@ export function ApplicationFinancialReviewContent({
         if (!computed || computed.turnover_growth == null) {
           const targetTurnover = specCol.year != null ? turnoverByYear.get(specCol.year) ?? null : null;
           const priorTurnover =
-            specCol.year != null ? turnoverByYear.get(specCol.year - 1) ?? null : null;
+            specCol.year != null && (specCol.kind === "unaudited" || specCol.kind === "admin_input")
+              ? resolvePreviousYearTurnover(specCol.kind, specCol.year - 1)
+              : null;
           if (priorTurnover == null) return CANNOT_CALCULATE_LABEL;
           if (targetTurnover == null) return CANNOT_CALCULATE_LABEL;
           return CANNOT_CALCULATE_LABEL;
@@ -996,8 +1059,8 @@ export function ApplicationFinancialReviewContent({
           if (percent != null) return formatNumber(percent, 2) + "%";
 
           // Fallback to the agreed issuer formula when CTOS finished metric is missing.
-          const pat = resolvedByYear.get(specCol.year)?.fields.plnpat?.value ?? null;
-          const yearFields = resolvedByYear.get(specCol.year)?.fields;
+          const pat = resolvedByKey.get(`${specCol.year}:${specCol.kind}`)?.fields.plnpat?.value ?? null;
+          const yearFields = resolvedByKey.get(`${specCol.year}:${specCol.kind}`)?.fields;
           const netWorthValFromFields = yearFields?.networth?.value ?? null;
           const netWorthVal =
             netWorthValFromFields ??
@@ -1028,8 +1091,8 @@ export function ApplicationFinancialReviewContent({
           if (n != null) return formatNumber(n, 2);
 
           // Fallback to the agreed issuer formula when CTOS finished metric is missing.
-          const currentAssets = resolvedByYear.get(specCol.year)?.fields.bscatot?.value ?? null;
-          const currentLiabilities = resolvedByYear.get(specCol.year)?.fields.curlib?.value ?? null;
+          const currentAssets = resolvedByKey.get(`${specCol.year}:${specCol.kind}`)?.fields.bscatot?.value ?? null;
+          const currentLiabilities = resolvedByKey.get(`${specCol.year}:${specCol.kind}`)?.fields.curlib?.value ?? null;
           const ratio = computeCurrentRatio(currentAssets, currentLiabilities);
           return ratio == null ? CANNOT_CALCULATE_LABEL : formatNumber(ratio, 2);
         }
@@ -1044,8 +1107,8 @@ export function ApplicationFinancialReviewContent({
           }
 
           // Fallback to the agreed issuer formula when CTOS finished metric is missing.
-          const currentAssets = resolvedByYear.get(specCol.year)?.fields.bscatot?.value ?? null;
-          const currentLiabilities = resolvedByYear.get(specCol.year)?.fields.curlib?.value ?? null;
+          const currentAssets = resolvedByKey.get(`${specCol.year}:${specCol.kind}`)?.fields.bscatot?.value ?? null;
+          const currentLiabilities = resolvedByKey.get(`${specCol.year}:${specCol.kind}`)?.fields.curlib?.value ?? null;
           const wc = computeWorkingCapital(currentAssets, currentLiabilities);
           return wc == null ? CANNOT_CALCULATE_LABEL : formatCurrency(wc, { decimals: 0 });
         }
@@ -1055,9 +1118,14 @@ export function ApplicationFinancialReviewContent({
       }
       case "receivablesDays": {
         if (specCol.year == null) return "—";
-        const ending = resolvedByYear.get(specCol.year)?.fields.tradeReceivables?.value ?? null;
-        const prior = resolvedByYear.get(specCol.year - 1)?.fields.tradeReceivables?.value ?? null;
-        const turnover = resolvedByYear.get(specCol.year)?.fields.turnover?.value ?? null;
+        const ending =
+          resolvedByKey.get(`${specCol.year}:${specCol.kind}`)?.fields.tradeReceivables?.value ?? null;
+        const prior =
+          specCol.kind === "unaudited" || specCol.kind === "ctos" || specCol.kind === "admin_input"
+            ? resolvePreviousYearTradeReceivables(specCol.kind, specCol.year - 1)
+            : null;
+        const turnover =
+          resolvedByKey.get(`${specCol.year}:${specCol.kind}`)?.fields.turnover?.value ?? null;
         const reason = receivablesDaysUnavailableReason({
           year: specCol.year,
           endingTradeReceivables: ending,
@@ -1069,15 +1137,16 @@ export function ApplicationFinancialReviewContent({
         return days == null ? CANNOT_CALCULATE_LABEL : formatNumber(days, 2);
       }
       case "ebit": {
-        const plnpbt = resolvedByYear.get(specCol.year)?.fields.plnpbt?.value ?? null;
-        const interestCost = resolvedByYear.get(specCol.year)?.fields.interest_cost?.value ?? null;
+        const plnpbt = resolvedByKey.get(`${specCol.year}:${specCol.kind}`)?.fields.plnpbt?.value ?? null;
+        const interestCost = resolvedByKey.get(`${specCol.year}:${specCol.kind}`)?.fields.interest_cost?.value ?? null;
         const ebit = computeEbit(plnpbt, interestCost);
         return ebit == null ? CANNOT_CALCULATE_LABEL : formatCurrency(ebit, { decimals: 0 });
       }
       case "quickRatio": {
-        const cashAndBank = resolvedByYear.get(specCol.year)?.fields.cashAndBank?.value ?? null;
-        const tradeReceivables = resolvedByYear.get(specCol.year)?.fields.tradeReceivables?.value ?? null;
-        const curlib = resolvedByYear.get(specCol.year)?.fields.curlib?.value ?? null;
+        const cashAndBank = resolvedByKey.get(`${specCol.year}:${specCol.kind}`)?.fields.cashAndBank?.value ?? null;
+        const tradeReceivables =
+          resolvedByKey.get(`${specCol.year}:${specCol.kind}`)?.fields.tradeReceivables?.value ?? null;
+        const curlib = resolvedByKey.get(`${specCol.year}:${specCol.kind}`)?.fields.curlib?.value ?? null;
         const q = computeQuickRatio(cashAndBank, tradeReceivables, curlib);
         return q == null ? CANNOT_CALCULATE_LABEL : formatNumber(q, 2);
       }
@@ -1092,7 +1161,7 @@ export function ApplicationFinancialReviewContent({
           return roaPercent == null ? CANNOT_CALCULATE_LABEL : `${formatNumber(roaPercent, 2)}%`;
         }
         if (!computed) return CANNOT_CALCULATE_LABEL;
-        const pat = resolvedByYear.get(specCol.year)?.fields.plnpat?.value ?? null;
+        const pat = resolvedByKey.get(`${specCol.year}:${specCol.kind}`)?.fields.plnpat?.value ?? null;
         const totassVal = computed.totass ?? null;
         if (pat == null || totassVal == null || totassVal === 0) return CANNOT_CALCULATE_LABEL;
         const roaPercent = (pat / totassVal) * 100;
@@ -1109,7 +1178,7 @@ export function ApplicationFinancialReviewContent({
           return v == null ? CANNOT_CALCULATE_LABEL : `${formatNumber(v, 2)}x`;
         }
         if (!computed) return CANNOT_CALCULATE_LABEL;
-        const turnover = resolvedByYear.get(specCol.year)?.fields.turnover?.value ?? null;
+        const turnover = resolvedByKey.get(`${specCol.year}:${specCol.kind}`)?.fields.turnover?.value ?? null;
         const totassVal = computed.totass ?? null;
         if (turnover == null || totassVal == null || totassVal === 0) return CANNOT_CALCULATE_LABEL;
         const v = turnover / totassVal;
@@ -1152,10 +1221,10 @@ export function ApplicationFinancialReviewContent({
       case "netDebtEquity": {
         if (ctosColumnMissing(colIdx)) return "—";
         const curlibBorrowing =
-          resolvedByYear.get(specCol.year)?.fields.curlib_borrowing?.value ?? null;
-        const nclLoan = resolvedByYear.get(specCol.year)?.fields.ncl_loan?.value ?? null;
-        const cashAndBank = resolvedByYear.get(specCol.year)?.fields.cashAndBank?.value ?? null;
-        const yearFields = resolvedByYear.get(specCol.year)?.fields;
+          resolvedByKey.get(`${specCol.year}:${specCol.kind}`)?.fields.curlib_borrowing?.value ?? null;
+        const nclLoan = resolvedByKey.get(`${specCol.year}:${specCol.kind}`)?.fields.ncl_loan?.value ?? null;
+        const cashAndBank = resolvedByKey.get(`${specCol.year}:${specCol.kind}`)?.fields.cashAndBank?.value ?? null;
+        const yearFields = resolvedByKey.get(`${specCol.year}:${specCol.kind}`)?.fields;
         let networthVal =
           specCol.kind === "ctos" ? toNum(fs?.networth) : computed?.networth ?? null;
 
@@ -1182,29 +1251,34 @@ export function ApplicationFinancialReviewContent({
       }
       case "interestCoverage": {
         if (ctosColumnMissing(colIdx)) return "—";
-        const plnpbt = resolvedByYear.get(specCol.year)?.fields.plnpbt?.value ?? null;
-        const interestCost = resolvedByYear.get(specCol.year)?.fields.interest_cost?.value ?? null;
+        const plnpbt = resolvedByKey.get(`${specCol.year}:${specCol.kind}`)?.fields.plnpbt?.value ?? null;
+        const interestCost =
+          resolvedByKey.get(`${specCol.year}:${specCol.kind}`)?.fields.interest_cost?.value ?? null;
         const ebit = computeEbit(plnpbt, interestCost);
         const v = computeInterestCoverage(ebit, interestCost);
         return v == null ? CANNOT_CALCULATE_LABEL : `${formatNumber(v, 2)}x`;
       }
       case "payablesDays": {
         if (ctosColumnMissing(colIdx)) return "—";
-        const tradePayables = resolvedByYear.get(specCol.year)?.fields.tradePayables?.value ?? null;
-        const costOfSales = resolvedByYear.get(specCol.year)?.fields.costOfSales?.value ?? null;
+        const tradePayables =
+          resolvedByKey.get(`${specCol.year}:${specCol.kind}`)?.fields.tradePayables?.value ?? null;
+        const costOfSales =
+          resolvedByKey.get(`${specCol.year}:${specCol.kind}`)?.fields.costOfSales?.value ?? null;
         const v = computePayablesDays(tradePayables, costOfSales);
         return v == null ? CANNOT_CALCULATE_LABEL : formatNumber(v, 2);
       }
       case "dscr": {
         if (ctosColumnMissing(colIdx)) return "—";
-        const netOperatingIncome = resolvedByYear.get(specCol.year)?.fields.netOperatingIncome?.value ?? null;
-        const annualDebtService = resolvedByYear.get(specCol.year)?.fields.annualDebtService?.value ?? null;
+        const netOperatingIncome =
+          resolvedByKey.get(`${specCol.year}:${specCol.kind}`)?.fields.netOperatingIncome?.value ?? null;
+        const annualDebtService =
+          resolvedByKey.get(`${specCol.year}:${specCol.kind}`)?.fields.annualDebtService?.value ?? null;
         const v = computeDscr(netOperatingIncome, annualDebtService);
         return v == null ? CANNOT_CALCULATE_LABEL : `${formatNumber(v, 2)}x`;
       }
       default: {
         if (!isAdminEditableRawFinancialKey(rowId) || specCol.year == null) return "—";
-        const field = resolvedByYear.get(specCol.year)?.fields[rowId];
+        const field = resolvedByKey.get(`${specCol.year}:${specCol.kind}`)?.fields[rowId];
         if (!field || field.value == null) {
           return "—";
         }
@@ -1220,13 +1294,14 @@ export function ApplicationFinancialReviewContent({
 
     const year = specCol.year;
     const fs = specCol.kind === "ctos" ? getFsCol(colIdx) : null;
-    const yearFields = resolvedByYear.get(year)?.fields;
+    const yearFields = resolvedByKey.get(`${year}:${specCol.kind}`)?.fields;
 
     switch (rowId) {
       case "ebit": {
         // EBIT = PBT + Interest Costs. We never ask Admin to type EBIT directly.
-        const pbt = resolvedByYear.get(year)?.fields.plnpbt?.value ?? null;
-        const interestCosts = resolvedByYear.get(year)?.fields.interest_cost?.value ?? null;
+        const pbt = resolvedByKey.get(`${year}:${specCol.kind}`)?.fields.plnpbt?.value ?? null;
+        const interestCosts =
+          resolvedByKey.get(`${year}:${specCol.kind}`)?.fields.interest_cost?.value ?? null;
         if (pbt == null && interestCosts == null) return "Missing required financial inputs";
         if (pbt == null) return "Missing: Profit / Loss Before Tax";
         return "Missing: Interest Costs";
@@ -1234,15 +1309,22 @@ export function ApplicationFinancialReviewContent({
       case "turnover_growth": {
         if (specCol.kind === "ctos" && fs && ctosFlatNumericPresent(fs, "turnover_growth")) return null;
         const targetTurnover = turnoverByYear.get(year) ?? null;
-        const priorTurnover = turnoverByYear.get(year - 1) ?? null;
+        const priorTurnover =
+          specCol.kind === "unaudited" || specCol.kind === "ctos" || specCol.kind === "admin_input"
+            ? resolvePreviousYearTurnover(specCol.kind, year - 1)
+            : null;
         if (targetTurnover == null) return "Missing: Revenue / Turnover";
         if (priorTurnover == null) return "Missing: previous financial year Revenue / Turnover";
         return "Missing: Revenue / Turnover";
       }
       case "receivablesDays": {
-        const ending = resolvedByYear.get(year)?.fields.tradeReceivables?.value ?? null;
-        const prior = resolvedByYear.get(year - 1)?.fields.tradeReceivables?.value ?? null;
-        const turnover = resolvedByYear.get(year)?.fields.turnover?.value ?? null;
+        const ending =
+          resolvedByKey.get(`${year}:${specCol.kind}`)?.fields.tradeReceivables?.value ?? null;
+        const prior =
+          specCol.kind === "unaudited" || specCol.kind === "ctos" || specCol.kind === "admin_input"
+            ? resolvePreviousYearTradeReceivables(specCol.kind, year - 1)
+            : null;
+        const turnover = resolvedByKey.get(`${year}:${specCol.kind}`)?.fields.turnover?.value ?? null;
         const reason = receivablesDaysUnavailableReason({
           year,
           endingTradeReceivables: ending,
@@ -1398,8 +1480,8 @@ export function ApplicationFinancialReviewContent({
         return "Missing required financial inputs";
       }
       case "return_of_equity": {
-        const pat = resolvedByYear.get(year)?.fields.plnpat?.value ?? null;
-        const yearFields = resolvedByYear.get(year)?.fields;
+        const pat = resolvedByKey.get(`${year}:${specCol.kind}`)?.fields.plnpat?.value ?? null;
+        const yearFields = resolvedByKey.get(`${year}:${specCol.kind}`)?.fields;
         const netWorthValFromFields = yearFields?.networth?.value ?? null;
         const netWorthVal =
           netWorthValFromFields ??
@@ -1469,6 +1551,9 @@ export function ApplicationFinancialReviewContent({
                         ) : null}
 
                         {spec.kind === "admin_fallback_placeholder" && spec.year != null ? (
+                          financialEditsLocked ? (
+                            <span className="text-meta font-normal text-muted-foreground">Locked</span>
+                          ) : (
                           <Button
                             type="button"
                             variant="ghost"
@@ -1485,21 +1570,27 @@ export function ApplicationFinancialReviewContent({
                               <span className="whitespace-nowrap text-[13px] font-normal">Add statement</span>
                             </span>
                           </Button>
+                          )
+                        ) : spec.kind === "ctos" && spec.year != null && !byYear.has(spec.year) ? (
+                          <span className="text-meta font-normal text-muted-foreground">Read only</span>
                         ) : spec.kind !== "admin_fallback_placeholder" && spec.year != null ? (
                           <Button
                             type="button"
                             variant="ghost"
                             size="sm"
                             className="h-7 px-1.5 py-0 whitespace-nowrap hover:underline"
-                            title="Edit financial statement"
+                            title={financialEditsLocked ? "Financial review is approved" : "Edit financial statement"}
                             onClick={() => {
-                              setEditFinancialStatementYear(spec.year as number);
+                              if (spec.kind === "empty") return;
+                              setEditFinancialStatementTarget({ year: spec.year as number, kind: spec.kind });
                               setEditFinancialStatementOpen(true);
                             }}
                           >
                             <span className="flex items-center gap-1">
-                              <PencilSquareIcon className="h-4 w-4" aria-hidden />
-                              <span className="whitespace-nowrap text-[13px] font-normal">Edit statement</span>
+                              {financialEditsLocked ? null : <PencilSquareIcon className="h-4 w-4" aria-hidden />}
+                              <span className="whitespace-nowrap text-[13px] font-normal">
+                                {financialEditsLocked ? "Locked" : "Edit statement"}
+                              </span>
                             </span>
                           </Button>
                         ) : null}
@@ -1562,6 +1653,27 @@ export function ApplicationFinancialReviewContent({
                             >
                               Admin Input
                             </Badge>
+                            {spec.statementType === "AUDITED" ? (
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  "shrink-0 whitespace-nowrap font-normal text-[11px] leading-tight px-2.5 py-0.5 rounded-md shadow-none",
+                                  "border-border bg-muted/40 text-meta"
+                                )}
+                              >
+                                Audited
+                              </Badge>
+                            ) : spec.statementType === "NOT_AUDITED" ? (
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  "shrink-0 whitespace-nowrap font-normal text-[11px] leading-tight px-2.5 py-0.5 rounded-md shadow-none",
+                                  "border-border bg-muted/40 text-meta"
+                                )}
+                              >
+                                Not audited
+                              </Badge>
+                            ) : null}
                           </div>
                         ) : (
                           <span className="text-muted-foreground">—</span>
@@ -1634,20 +1746,24 @@ export function ApplicationFinancialReviewContent({
                         const muted = isMutedFinancialCell(cellText);
                         const resolvedField =
                           spec.year != null && isAdminEditableRawFinancialKey(item.rowId)
-                            ? resolvedByYear.get(spec.year)?.fields[item.rowId]
+                            ? resolvedByKey.get(`${spec.year}:${spec.kind}`)?.fields[item.rowId]
                             : undefined;
 
                         const uiCalculated = isCalculatedFinancialMetricKey(item.rowId) || item.rowId === "debtEquityPercent";
                         const canEditField =
                           canManageFinancialCtos &&
+                          !financialEditsLocked &&
                           spec.kind !== "admin_fallback_placeholder" &&
                           spec.kind !== "empty" &&
+                          !(spec.kind === "ctos" && spec.year != null && !byYear.has(spec.year)) &&
                           resolvedField != null &&
                           !resolvedField.readOnly &&
                           !uiCalculated;
 
                         const yearPrimarySource =
-                          spec.year != null ? resolvedByYear.get(spec.year)?.primarySource : undefined;
+                          spec.year != null
+                            ? resolvedByKey.get(`${spec.year}:${spec.kind}`)?.primarySource
+                            : undefined;
 
                         const sourceBadge =
                           uiCalculated
@@ -1722,14 +1838,16 @@ export function ApplicationFinancialReviewContent({
                                 <button
                                   type="button"
                                   className="opacity-0 group-hover:opacity-100 text-meta text-primary hover:underline"
-                                  onClick={() =>
+                                  onClick={() => {
+                                    if (spec.kind === "empty" || spec.year == null) return;
                                     setFieldEdit({
-                                      year: spec.year as number,
+                                      year: spec.year,
+                                      kind: spec.kind,
                                       key: item.rowId,
                                       label: rowLabel,
                                       value: resolvedField?.value ?? null,
-                                    })
-                                  }
+                                    });
+                                  }}
                                   title={resolvedField?.value == null ? "Add financial value" : "Edit financial value"}
                                   aria-label={resolvedField?.value == null ? "Add financial value" : "Edit financial value"}
                                 >
@@ -1879,21 +1997,27 @@ export function ApplicationFinancialReviewContent({
         onOpenChange={setAddFinancialStatementOpen}
         applicationId={applicationId}
         calendarYear={addFinancialStatementYear}
-        disabled={!canManageFinancialCtos || addFinancialStatementYear == null}
+        disabled={!canManageFinancialCtos || addFinancialStatementYear == null || financialEditsLocked}
+        readOnly={financialEditsLocked}
         onSaved={onAddFinancialStatementSaved}
       />
       <AdminEditFinancialStatementDialog
         open={editFinancialStatementOpen}
         onOpenChange={(open) => {
-          if (!open) setEditFinancialStatementYear(null);
+          if (!open) setEditFinancialStatementTarget(null);
           setEditFinancialStatementOpen(open);
         }}
         applicationId={applicationId}
-        calendarYear={editFinancialStatementYear}
+        calendarYear={editFinancialStatementTarget?.year ?? null}
         resolvedColumn={
-          editFinancialStatementYear != null ? resolvedByYear.get(editFinancialStatementYear) ?? null : null
+          editFinancialStatementTarget
+            ? resolvedByKey.get(
+                `${editFinancialStatementTarget.year}:${editFinancialStatementTarget.kind}`
+              ) ?? null
+            : null
         }
         disabled={!canManageFinancialCtos}
+        readOnly={financialEditsLocked}
         onSaved={onEditFinancialStatementSaved}
       />
       <AdminEditFinancialFieldDialog
@@ -1904,9 +2028,11 @@ export function ApplicationFinancialReviewContent({
         applicationId={applicationId}
         calendarYear={fieldEdit?.year ?? null}
         fieldKey={fieldEdit?.key ?? null}
+        columnKind={fieldEdit?.kind}
         fieldLabel={fieldEdit?.label ?? "Field"}
         initialValue={fieldEdit?.value ?? null}
-        disabled={!canManageFinancialCtos}
+        disabled={!canManageFinancialCtos || financialEditsLocked}
+        readOnly={financialEditsLocked}
         onSaved={onAddFinancialStatementSaved}
       />
 

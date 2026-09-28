@@ -141,7 +141,8 @@ describe("buildInvestmentNoteCertificateSnapshot", () => {
     expect(snapshot.note.fundedAmount).toBe(80_000);
     expect(snapshot.note.issuerLegalName).toBe("Helios");
     expect(snapshot.note.issuerReference).toBe("ISS-1");
-    expect(snapshot.investors[0]?.investorReference).toBe(personalUserId);
+    expect(snapshot.investors[0]?.investorReference).toBe("IVT-A");
+    expect(snapshot.investors[0]?.investorReference).not.toBe(personalUserId);
     expect(snapshot.note.companyRegistrationNumber).toBe("123");
     expect(snapshot.note.campaignReference).toBe("NOTE-1");
     expect(snapshot.certificate.certificateNumber).toBe("IINC-NOTE-1");
@@ -149,6 +150,51 @@ describe("buildInvestmentNoteCertificateSnapshot", () => {
     expect(snapshot.investors).toHaveLength(1);
     expect(mockPrisma.issuerOrganizationMarcAssessment.findFirst).not.toHaveBeenCalled();
     expect(mockPrisma.issuerOrganizationMarcAssessment.findMany).not.toHaveBeenCalled();
+  });
+
+  it("reuses reserved investor schedule reference when present", async () => {
+    mockPrisma.note.findUnique.mockResolvedValue({
+      id: "note-1",
+      note_reference: "NOTE-1",
+      funding_status: NoteFundingStatus.FUNDED,
+      issuer_organization_id: "iss-1",
+      issuer_snapshot: { name: "Helios", registration_number: "123", industry: "Mfg" },
+      paymaster_snapshot: { name: "PM" },
+      purpose_snapshot: { financing_for: "WC" },
+      invoice_snapshot: { details: { value: 100_000, number: "INV-1" }, offer_details: { risk_rating: "SME-4" } },
+      requested_amount: 100_000,
+      target_amount: 100_000,
+      funded_amount: 40_000,
+      profit_rate_percent: 10,
+      tenure_days: 60,
+      disbursement_value_date: new Date("2026-09-01T00:00:00.000Z"),
+      maturity_date: new Date("2026-10-31T00:00:00.000Z"),
+      funding_closed_at: new Date("2026-08-01T00:00:00.000Z"),
+      reserved_investor_schedule_reference: "IS-RESERVED-OVERRIDE",
+      reserved_investor_schedule_reference_version: "V01",
+    });
+    mockPrisma.noteInvestment.findMany.mockImplementation(async ({ where }: any) => {
+      expect(where.status.in).toEqual(["CONFIRMED", "SETTLED"]);
+      return [{ investor_organization_id: "org-a", amount: 40_000 }];
+    });
+    mockPrisma.issuerOrganization.findUnique.mockResolvedValue({ display_reference: "ISS-1" });
+    mockPrisma.investorOrganization.findMany.mockResolvedValue([
+      {
+        id: "org-a",
+        type: "PERSONAL",
+        owner_user_id: personalUserId,
+        name: "Alice",
+        legal_name_on_id: "Alice",
+        first_name: "Alice",
+        middle_name: null,
+        last_name: "Tan",
+        corporate_onboarding_data: null,
+        display_reference: "IVT-A",
+      },
+    ]);
+
+    const snapshot = await buildInvestmentNoteCertificateSnapshot("note-1");
+    expect(snapshot.investorSchedule.scheduleReference).toBe("IS-RESERVED-OVERRIDE");
   });
 
   it("excludes RELEASED and CANCELLED investments", async () => {
@@ -244,7 +290,8 @@ describe("buildInvestmentNoteCertificateSnapshot", () => {
     const snapshot = await buildInvestmentNoteCertificateSnapshot("note-1");
     expect(snapshot.note.issuerReference).toBe("ISS-202608-DK3");
     expect(snapshot.note.issuerReference).not.toBe(issuerCuid);
-    expect(snapshot.investors[0]?.investorReference).toBe(personalUserId);
+    expect(snapshot.investors[0]?.investorReference).toBe("IVT-202609-A12");
+    expect(snapshot.investors[0]?.investorReference).not.toBe(personalUserId);
     expect(snapshot.investors[0]?.investorReference).not.toBe(investorCuid);
     expect(snapshot.investors[0]?.investorOrganizationId).toBe(investorCuid);
     expect(snapshot.note.noteId).toBe("cmtjz7ez50002ks59pu7j2xml");
@@ -305,7 +352,8 @@ describe("buildInvestmentNoteCertificateSnapshot", () => {
     const snapshot = await buildInvestmentNoteCertificateSnapshot("note-1");
     expect(snapshot.note.issuerReference).toBe("—");
     expect(snapshot.note.issuerReference).not.toBe(issuerCuid);
-    expect(snapshot.investors[0]?.investorReference).toBe(personalUserId);
+    expect(snapshot.investors[0]?.investorReference).toBe("—");
+    expect(snapshot.investors[0]?.investorReference).not.toBe(personalUserId);
     expect(snapshot.investors[0]?.investorReference).not.toBe(investorCuid);
     expect(snapshot.note.companyRegistrationNumber).toBe("—");
   });
