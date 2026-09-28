@@ -336,7 +336,9 @@ export function adminHistoricalFinancialYearWindow(input: {
 
 function statementTypeOf(raw: Record<string, unknown> | null): FinancialStatementStatementType | undefined {
   const value = raw?.statementType;
-  if (value === "AUDITED" || value === "NOT_AUDITED" || value === "MANAGEMENT_ACCOUNTS") return value;
+  // Admin Financial Summary badges only need audited / not-audited.
+  // Treat management accounts as "statement type unavailable" for this UI.
+  if (value === "AUDITED" || value === "NOT_AUDITED") return value;
   return undefined;
 }
 
@@ -489,15 +491,17 @@ export function resolveAdminFinancialReviewColumns(input: {
 
   // User/Admin submitted financial years (do not suppress CTOS years; same FY may appear twice intentionally).
   for (const year of issuerYears) {
+    const issuerRaw = asRecord(unauditedByYear[String(year)]);
     columns.push({
       kind: "unaudited",
       year,
       primarySource: "user_input",
       recordSource: "unaudited_management",
+      statementType: statementTypeOf(issuerRaw),
       fields: yearFields({
         primary: "user_input",
         ctosRaw: null,
-        issuerRaw: asRecord(unauditedByYear[String(year)]),
+        issuerRaw,
         adminRaw: null,
         overrides: overrides[String(year)],
       }),
