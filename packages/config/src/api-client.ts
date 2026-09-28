@@ -3826,36 +3826,6 @@ export class ApiClient {
     );
   }
 
-  async getContractOfferLetterBlob(applicationId: string): Promise<Blob> {
-    const url = `${this.baseUrl}/v1/applications/${applicationId}/offers/contracts/letter`;
-    const authToken = await this.getAuthToken();
-    const headers: HeadersInit = {};
-    if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
-    const response = await fetch(url, { method: "GET", credentials: "include", headers });
-    if (!response.ok) {
-      const msg = await this.parseErrorResponse(response);
-      throw new Error(msg);
-    }
-    return response.blob();
-  }
-
-  async getInvoiceOfferLetterBlob(applicationId: string, invoiceId: string): Promise<Blob> {
-    const id = typeof invoiceId === "string" ? invoiceId.trim() : "";
-    if (!id) {
-      throw new Error("Invoice ID is required for invoice offer letter download");
-    }
-    const url = `${this.baseUrl}/v1/applications/${applicationId}/offers/invoices/${id}/letter`;
-    const authToken = await this.getAuthToken();
-    const headers: HeadersInit = {};
-    if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
-    const response = await fetch(url, { method: "GET", credentials: "include", headers });
-    if (!response.ok) {
-      const msg = await this.parseErrorResponse(response);
-      throw new Error(msg);
-    }
-    return response.blob();
-  }
-
   async getSignedContractOfferLetterBlob(applicationId: string): Promise<Blob> {
     const url = `${this.baseUrl}/v1/applications/${applicationId}/offers/contracts/signed-letter`;
     const authToken = await this.getAuthToken();

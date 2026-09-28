@@ -116,13 +116,6 @@ import {
 } from "./logs/types";
 import { assertApplicationProcessingFeePaid } from "../payment/processing-fee-service";
 import {
-  generateContractOfferLetterStream,
-  generateInvoiceOfferLetterStream,
-  invoiceOfferLetterKindForContract,
-  buildInvoiceOfferLetterDto,
-  type ContractOfferDetails,
-} from "./offer-letter-pdf";
-import {
   composeApplicationSummary,
   buildApplicationSummaryHtml,
   renderApplicationSummaryHtmlToPdfBuffer,
@@ -5418,118 +5411,6 @@ export class ApplicationService {
     const updated = await this.repository.findById(applicationId);
     if (!updated) throw new AppError(500, "INTERNAL_ERROR", "Failed to load updated application");
     return updated;
-  }
-
-  /**
-   * Get contract offer letter PDF stream. Requires OFFER_SENT and issuer access.
-   */
-  async getContractOfferLetter(
-    applicationId: string,
-    userId: string
-  ): Promise<{ stream: ReturnType<typeof generateContractOfferLetterStream>; filename: string }> {
-    await this.verifyApplicationAccess(applicationId, userId);
-
-    const application = await this.repository.findById(applicationId);
-    if (!application) {
-      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
-    }
-    this.assertFacilityOfferApplication(application);
-    if (!application.contract_id) {
-      throw new AppError(400, "INVALID_STATE", "Application has no facility");
-    }
-
-    const contract = await prisma.contract.findUnique({
-      where: { id: application.contract_id },
-      select: { status: true, offer_details: true, display_reference: true },
-    });
-    if (!contract) {
-      throw new AppError(404, "NOT_FOUND", "Facility not found");
-    }
-    const allowedStatuses = ["OFFER_SENT", "OFFER_EXPIRED", "APPROVED", "REJECTED"] as const;
-    if (!allowedStatuses.includes(contract.status as (typeof allowedStatuses)[number])) {
-      throw new AppError(400, "INVALID_STATE", "No facility offer to download");
-    }
-
-    const offer = contract.offer_details as Record<string, unknown> | null;
-    if (!offer || typeof offer !== "object") {
-      throw new AppError(400, "INVALID_STATE", "Facility has no offer details");
-    }
-
-    const acceptanceExpiresAt = getOfferAcceptanceFromOfferDetails(offer)?.acceptance_expires_at;
-    const offerDetails: ContractOfferDetails = {
-      requested_facility: parseFiniteNumber(offer.requested_facility),
-      offered_facility: parseFiniteNumber(offer.offered_facility),
-      facility_fee_rate_percent: parseFiniteNumber(offer.facility_fee_rate_percent) ?? 0,
-      expires_at: typeof acceptanceExpiresAt === "string" ? acceptanceExpiresAt : undefined,
-    };
-
-    const cashSoukReference = contract.display_reference ?? null;
-    const stream = generateContractOfferLetterStream(cashSoukReference, offerDetails);
-    const filename = `contract-offer-${canonicalDownloadFilenameToken(cashSoukReference)}.pdf`;
-    return { stream, filename };
-  }
-
-  /**
-   * Get invoice offer letter PDF stream. Requires OFFER_SENT and issuer access.
-   */
-  async getInvoiceOfferLetter(
-    applicationId: string,
-    invoiceId: string,
-    userId: string
-  ): Promise<{ stream: ReturnType<typeof generateInvoiceOfferLetterStream>; filename: string }> {
-    await this.verifyApplicationAccess(applicationId, userId);
-
-    const application = await this.repository.findById(applicationId);
-    if (!application) {
-      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
-    }
-
-    const invoices = (application as { invoices?: { id: string }[] }).invoices ?? [];
-    const invoice = invoices.find((inv) => inv.id === invoiceId);
-    if (!invoice) {
-      throw new AppError(404, "NOT_FOUND", "Invoice not found in this application");
-    }
-
-    const dbInvoice = await prisma.invoice.findFirst({
-      where: { id: invoiceId, application_id: applicationId },
-      select: { status: true, offer_details: true, contract_id: true, display_reference: true },
-    });
-    if (!dbInvoice) {
-      throw new AppError(404, "NOT_FOUND", "Invoice not found");
-    }
-    const allowedStatuses = ["OFFER_SENT", "OFFER_EXPIRED", "APPROVED", "REJECTED"] as const;
-    if (!allowedStatuses.includes(dbInvoice.status as (typeof allowedStatuses)[number])) {
-      throw new AppError(400, "INVALID_STATE", "No invoice offer to download");
-    }
-
-    const offer = dbInvoice.offer_details as Record<string, unknown> | null;
-    if (!offer || typeof offer !== "object") {
-      throw new AppError(400, "INVALID_STATE", "Invoice has no offer details");
-    }
-
-    const schedule = parseInvoiceFeeSchedule(offer);
-    let contractDetails: Record<string, unknown> | null = null;
-    if (!schedule && dbInvoice.contract_id) {
-      const contract = await prisma.contract.findUnique({
-        where: { id: dbInvoice.contract_id },
-        select: { contract_details: true },
-      });
-      contractDetails = (contract?.contract_details as Record<string, unknown> | null) ?? null;
-    }
-
-    const acceptanceExpiresAt = getOfferAcceptanceFromOfferDetails(offer)?.acceptance_expires_at;
-    const offerDetails = {
-      ...buildInvoiceOfferLetterDto(offer, contractDetails),
-      expires_at: typeof acceptanceExpiresAt === "string" ? acceptanceExpiresAt : undefined,
-    };
-
-    const stream = generateInvoiceOfferLetterStream(
-      dbInvoice.display_reference,
-      offerDetails,
-      invoiceOfferLetterKindForContract(dbInvoice.contract_id)
-    );
-    const filename = `invoice-offer-${canonicalDownloadFilenameToken(dbInvoice.display_reference)}.pdf`;
-    return { stream, filename };
   }
 
   private async resolveSignedOfferLetterS3KeyFromEnvelope(params: {

@@ -853,7 +853,6 @@ function ApplicationDetailPageBody() {
                       application,
                       invoice: offerInvoice,
                     })}
-                    contractDisplayReference={application.contractDisplayReference}
                     invoice={offerType === "invoice" ? offerInvoice : undefined}
                     requiresInvoiceSigning
                     onClose={() => {
