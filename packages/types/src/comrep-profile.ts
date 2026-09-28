@@ -708,6 +708,38 @@ export const SC_INVESTOR_CATEGORIES_CORPORATE = [
   ...SC_INVESTOR_CATEGORIES_CORPORATE_NON_SOPHISTICATED,
 ] as const satisfies readonly ScInvestorCategory[];
 
+export const INVESTMENT_LIMIT_TIERS = ["RETAIL", "ANGEL", "SOPHISTICATED"] as const;
+export type InvestmentLimitTier = (typeof INVESTMENT_LIMIT_TIERS)[number];
+
+export const INVESTMENT_LIMIT_TIER_LABELS: Record<InvestmentLimitTier, string> = {
+  RETAIL: "Retail",
+  ANGEL: "Angel",
+  SOPHISTICATED: "Sophisticated",
+};
+
+export const DEFAULT_RETAIL_INVESTMENT_LIMIT_AMOUNT = 50_000;
+export const DEFAULT_ANGEL_INVESTMENT_LIMIT_AMOUNT = 500_000;
+
+const SOPHISTICATED_INVESTMENT_LIMIT_CATEGORIES = new Set<ScInvestorCategory>([
+  "SOPHISTICATED_HIGH_NET_WORTH_INDIVIDUAL",
+  "SOPHISTICATED_ACCREDITED",
+  "SOPHISTICATED_HIGH_NET_WORTH_ENTITY",
+]);
+
+/**
+ * Maps SC investor category onto the three platform investment-limit tiers.
+ * Blank category and non-sophisticated entities use Retail (most conservative).
+ */
+export function investmentLimitTierFor(
+  category: ScInvestorCategory | null | undefined
+): InvestmentLimitTier {
+  if (category === "ANGEL") return "ANGEL";
+  if (category && SOPHISTICATED_INVESTMENT_LIMIT_CATEGORIES.has(category)) {
+    return "SOPHISTICATED";
+  }
+  return "RETAIL";
+}
+
 export const SELECT_SOPHISTICATED_INVESTOR_FIRST_MESSAGE =
   "Select Sophisticated Investor first.";
 

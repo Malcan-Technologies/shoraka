@@ -88,6 +88,28 @@ function mockPortfolioApis(page: Page) {
       }),
     });
   });
+
+  page.route("**/v1/investor/investment-limit**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          tier: "RETAIL",
+          limit: 50000,
+          outstandingPrincipal: 0,
+          walletBalance: 0,
+          pendingDeposits: 0,
+          investHeadroom: 50000,
+          depositHeadroom: 50000,
+          depositMaxAmount: 30000,
+          minDepositAmount: 100,
+        },
+        correlationId: "e2e",
+      }),
+    });
+  });
 }
 
 function mockDepositApis(page: Page, terminalStatus: "COMPLETED" | "REFUND_INITIATED") {
@@ -170,6 +192,12 @@ async function startDepositFromTransactions(page: Page) {
   await page.goto("/transactions");
   await page.getByRole("button", { name: "Deposit" }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(
+    page.getByText(/You can add from .* You can deposit up to .* more under your Retail limit/i)
+  ).toBeVisible();
+
+  await page.locator('input[inputmode="decimal"]').fill("50000");
+  await expect(page.getByText(/The most you can add at once is/i)).toBeVisible();
 
   await page.locator('input[inputmode="decimal"]').fill("250");
   await page.getByRole("button", { name: /FPX/i }).click();

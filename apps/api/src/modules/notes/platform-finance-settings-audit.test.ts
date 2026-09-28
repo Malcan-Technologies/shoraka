@@ -19,6 +19,9 @@ const sampleRow = {
   application_processing_fee_amount: 50,
   investor_min_deposit_amount: 100,
   investor_max_deposit_amount: 30000,
+  retail_investment_limit_amount: 50000,
+  angel_investment_limit_amount: 500000,
+  sophisticated_investment_limit_amount: null,
   facility_fee_gateway_txn_max_amount: 30000,
   excess_late_charge_gateway_txn_max_amount: 30000,
   offer_deadline_reminder_hour: 9,
@@ -57,6 +60,9 @@ describe("platform finance settings audit snapshot", () => {
 
     expect(redacted.gracePeriodDays).toBe(7);
     expect(redacted.offerDeadlineReminderHour).toBe(9);
+    expect(redacted.retailInvestmentLimitAmount).toBe(50000);
+    expect(redacted.angelInvestmentLimitAmount).toBe(500000);
+    expect(redacted.sophisticatedInvestmentLimitAmount).toBeNull();
     expect(redacted.documentAuthorisationConfig).toEqual({
       authorisedSignatoryName: "Ahmad",
       useSameCompanyStamp: true,

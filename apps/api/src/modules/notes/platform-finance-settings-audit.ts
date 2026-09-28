@@ -19,6 +19,11 @@ function toNumber(value: unknown): number {
   return Number(value);
 }
 
+function toNumberOrNull(value: unknown): number | null {
+  if (value == null) return null;
+  return toNumber(value);
+}
+
 export function snapshotPlatformFinanceSettings(
   row: {
     key: string;
@@ -36,6 +41,9 @@ export function snapshotPlatformFinanceSettings(
     application_processing_fee_amount: unknown;
     investor_min_deposit_amount: unknown;
     investor_max_deposit_amount: unknown;
+    retail_investment_limit_amount: unknown;
+    angel_investment_limit_amount: unknown;
+    sophisticated_investment_limit_amount: unknown;
     facility_fee_gateway_txn_max_amount: unknown;
     excess_late_charge_gateway_txn_max_amount: unknown;
     offer_deadline_reminder_hour: number;
@@ -62,6 +70,11 @@ export function snapshotPlatformFinanceSettings(
     applicationProcessingFeeAmount: toNumber(row.application_processing_fee_amount),
     investorMinDepositAmount: toNumber(row.investor_min_deposit_amount),
     investorMaxDepositAmount: toNumber(row.investor_max_deposit_amount),
+    retailInvestmentLimitAmount: toNumberOrNull(row.retail_investment_limit_amount),
+    angelInvestmentLimitAmount: toNumberOrNull(row.angel_investment_limit_amount),
+    sophisticatedInvestmentLimitAmount: toNumberOrNull(
+      row.sophisticated_investment_limit_amount
+    ),
     facilityFeeGatewayTxnMaxAmount: toNumber(row.facility_fee_gateway_txn_max_amount),
     excessLateChargeGatewayTxnMaxAmount: toNumber(row.excess_late_charge_gateway_txn_max_amount),
     offerDeadlineReminderHour: row.offer_deadline_reminder_hour,

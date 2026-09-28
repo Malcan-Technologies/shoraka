@@ -99,6 +99,8 @@ export const PROFILE_HELP = {
   otherCurrentLiabilities: "Current liabilities other than borrowings.",
   nonCurrentLoans: "Non-current liabilities that are loans.",
   otherNonCurrentLiabilities: "Non-current liabilities other than loans.",
+  typeOfInvestor:
+    "Type of Investor is used for regulatory reporting and selects this account’s outstanding-principal cap. It does not change which notes the investor can see.",
 } as const;
 
 /** Completeness-list labels keep a section prefix so missing State/Postcode is unambiguous. */

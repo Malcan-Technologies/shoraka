@@ -1,3 +1,5 @@
+import { readFileSync } from "fs";
+import { join } from "path";
 import { resolveNoteTimingDisplay } from "@cashsouk/types";
 import type { MarketplaceNote } from "./marketplace-note-model";
 import {
@@ -5,6 +7,7 @@ import {
   marketplaceConfirmLead,
   marketplaceConfirmReturnHint,
   marketplaceInvestLead,
+  marketplaceInvestLimitHint,
   marketplaceInvestMeta,
   marketplaceInvestRangeHint,
 } from "./marketplace-invest-copy";
@@ -65,8 +68,28 @@ describe("marketplace invest copy", () => {
       "Invest any amount from RM 1000 to RM 50000."
     );
     expect(marketplaceAvailableCashHint(12340)).toBe("Available cash RM 12340");
+    expect(marketplaceInvestLimitHint({
+      tier: "RETAIL",
+      limit: 50000,
+      outstandingPrincipal: 20000,
+      walletBalance: 0,
+      pendingDeposits: 0,
+      investHeadroom: 30000,
+      depositHeadroom: 30000,
+      depositMaxAmount: 30000,
+      minDepositAmount: 100,
+    })).toBe("You can invest up to RM 30000 more under your Retail limit of RM 50000.");
     expect(marketplaceConfirmReturnHint(note())).toBe(
       "45 days from disbursement. Advertised return is up to 14.5% p.a. before the service fee, for the days profit actually runs."
     );
+  });
+
+  it("keeps the type-limit hint under a note-range error", () => {
+    const source = readFileSync(join(__dirname, "marketplace-invest-dialogs.tsx"), "utf8");
+    const errorIdx = source.indexOf("{validationError ? (");
+    const hintIdx = source.lastIndexOf("{limitHint ? (");
+    expect(errorIdx).toBeGreaterThan(-1);
+    expect(hintIdx).toBeGreaterThan(errorIdx);
+    expect(source).toContain("{marketplaceAvailableCashHint(availableBalance)}");
   });
 });

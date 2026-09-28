@@ -196,7 +196,7 @@ SECTION 9 — AMENDMENT & RESUBMIT (END-TO-END)
 9.1 Issuer in amendment
 [ ] Only flagged sections/items editable; others show locked or error AMENDMENT_LOCKED on PATCH.
 [ ] Remarks visible in context: section, item, long text, attachments if any.
-[ ] Supporting docs: amendment allowed only when section flagged.
+[ ] Supporting docs: request amendment is per-document (section-level is blocked). After send, issuer can update only flagged document slots; unflagged stay view/download. Unflagged PATCH / upload / delete returns AMENDMENT_LOCKED.
 
 9.2 Acknowledgement
 [ ] Cannot resubmit until all required workflow acknowledgements completed; error MISSING_ACKNOWLEDGEMENTS or equivalent.

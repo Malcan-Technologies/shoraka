@@ -48,6 +48,7 @@ import {
   investorBalanceActivityQuerySchema,
   investorBalanceStatementQuerySchema,
   investorInvestmentsQuerySchema,
+  investorInvestmentLimitQuerySchema,
   investorPortfolioHistoryQuerySchema,
   investorPortfolioQuerySchema,
   testInvestorBalanceTopupSchema,
@@ -1292,6 +1293,19 @@ publicMarketplaceRouter.get("/notes/:id", async (req: Request, res: Response, ne
 });
 
 investorNotesRouter.use(requireRole(UserRole.INVESTOR));
+
+investorNotesRouter.get("/investment-limit", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const query = investorInvestmentLimitQuerySchema.parse(req.query);
+    const { getInvestorInvestmentLimit } = await import("./investment-limit");
+    send(
+      res,
+      await getInvestorInvestmentLimit(getActor(req, res, "INVESTOR"), query.investorOrganizationId)
+    );
+  } catch (error) {
+    next(error);
+  }
+});
 
 investorNotesRouter.get("/investments", async (req: Request, res: Response, next: NextFunction) => {
   try {

@@ -101,6 +101,10 @@ import {
   debitInvestorBalanceForCommit,
   debitInvestorBalanceForWithdrawal,
 } from "./investor-balance";
+import {
+  assertInvestmentWithinLimit,
+  lockInvestorInvestmentLimit,
+} from "./investment-limit";
 import { rejectNegativeDisbursementNet } from "./disbursement-net-guard";
 import { buildFailFundingWalletCredits } from "./fail-funding-refunds";
 import { postLedgerEntry } from "./ledger";
@@ -1463,6 +1467,19 @@ function assertNoApprovedOrPostedSettlement(note: {
 
 function money(value: number): Prisma.Decimal {
   return new Prisma.Decimal(value.toFixed(6));
+}
+
+function optionalNullableMoney(
+  value: number | null | undefined
+): Prisma.Decimal | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  return money(value);
+}
+
+function toNumberOrNull(value: unknown): number | null {
+  if (value == null) return null;
+  return toNumber(value);
 }
 
 function json(value: unknown): Prisma.InputJsonValue | undefined {
@@ -3726,6 +3743,12 @@ export class NoteService {
     );
 
     const { note: updated, investment } = await prisma.$transaction(async (tx) => {
+      await lockInvestorInvestmentLimit(tx, input.investorOrganizationId);
+      await assertInvestmentWithinLimit(tx, {
+        investorOrganizationId: input.investorOrganizationId,
+        amount: input.amount,
+      });
+
       const capacityUpdate = await tx.note.updateMany({
         where: {
           id: noteId,
@@ -7531,6 +7554,11 @@ export class NoteService {
       applicationProcessingFeeAmount: toNumber(settings.application_processing_fee_amount),
       investorMinDepositAmount: toNumber(settings.investor_min_deposit_amount),
       investorMaxDepositAmount: toNumber(settings.investor_max_deposit_amount),
+      retailInvestmentLimitAmount: toNumberOrNull(settings.retail_investment_limit_amount),
+      angelInvestmentLimitAmount: toNumberOrNull(settings.angel_investment_limit_amount),
+      sophisticatedInvestmentLimitAmount: toNumberOrNull(
+        settings.sophisticated_investment_limit_amount
+      ),
       facilityFeeGatewayTxnMaxAmount: toNumber(settings.facility_fee_gateway_txn_max_amount),
       excessLateChargeGatewayTxnMaxAmount: toNumber(
         settings.excess_late_charge_gateway_txn_max_amount
@@ -7597,6 +7625,11 @@ export class NoteService {
           input.investorMaxDepositAmount != null
             ? money(input.investorMaxDepositAmount)
             : undefined,
+        retail_investment_limit_amount: optionalNullableMoney(input.retailInvestmentLimitAmount),
+        angel_investment_limit_amount: optionalNullableMoney(input.angelInvestmentLimitAmount),
+        sophisticated_investment_limit_amount: optionalNullableMoney(
+          input.sophisticatedInvestmentLimitAmount
+        ),
         facility_fee_gateway_txn_max_amount:
           input.facilityFeeGatewayTxnMaxAmount != null
             ? money(input.facilityFeeGatewayTxnMaxAmount)
@@ -7662,6 +7695,11 @@ export class NoteService {
           input.investorMaxDepositAmount != null
             ? money(input.investorMaxDepositAmount)
             : undefined,
+        retail_investment_limit_amount: optionalNullableMoney(input.retailInvestmentLimitAmount),
+        angel_investment_limit_amount: optionalNullableMoney(input.angelInvestmentLimitAmount),
+        sophisticated_investment_limit_amount: optionalNullableMoney(
+          input.sophisticatedInvestmentLimitAmount
+        ),
         facility_fee_gateway_txn_max_amount:
           input.facilityFeeGatewayTxnMaxAmount != null
             ? money(input.facilityFeeGatewayTxnMaxAmount)

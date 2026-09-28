@@ -1,5 +1,9 @@
 import { formatCurrency } from "@cashsouk/config";
-import { formatInvestorReturnRatePercent } from "@cashsouk/types";
+import {
+  formatInvestorReturnRatePercent,
+  INVESTMENT_LIMIT_TIER_LABELS,
+  type InvestorInvestmentLimit,
+} from "@cashsouk/types";
 import {
   marketplaceInvestAnyAmountLabel,
   marketplaceNoteLabel,
@@ -29,6 +33,16 @@ export function marketplaceInvestRangeHint(note: MarketplaceNote | null): string
 
 export function marketplaceAvailableCashHint(availableBalance: number): string {
   return `Available cash ${formatCurrency(availableBalance)}`;
+}
+
+export function marketplaceInvestLimitHint(
+  investmentLimit: InvestorInvestmentLimit | null | undefined
+): string | null {
+  if (!investmentLimit || investmentLimit.limit == null || investmentLimit.investHeadroom == null) {
+    return null;
+  }
+  const tierLabel = INVESTMENT_LIMIT_TIER_LABELS[investmentLimit.tier];
+  return `You can invest up to ${formatCurrency(investmentLimit.investHeadroom)} more under your ${tierLabel} limit of ${formatCurrency(investmentLimit.limit)}.`;
 }
 
 export function marketplaceConfirmReturnHint(note: MarketplaceNote | null): string | null {

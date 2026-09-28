@@ -65,6 +65,17 @@ describe("documentAuthorisationConfig schema", () => {
     });
     expect(parsed.documentAuthorisationConfig?.authorisedSignatoryName).toBe("Ahmad");
   });
+
+  it("accepts null investment limits as no cap", () => {
+    const parsed = updatePlatformFinanceSettingsSchema.parse({
+      retailInvestmentLimitAmount: 50000,
+      angelInvestmentLimitAmount: 500000,
+      sophisticatedInvestmentLimitAmount: null,
+    });
+    expect(parsed.retailInvestmentLimitAmount).toBe(50000);
+    expect(parsed.angelInvestmentLimitAmount).toBe(500000);
+    expect(parsed.sophisticatedInvestmentLimitAmount).toBeNull();
+  });
 });
 
 describe("requestDocumentStampUploadUrlSchema", () => {

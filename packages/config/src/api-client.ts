@@ -88,6 +88,7 @@ import type {
   CreateNoteInvestmentInput,
   CreateInvestorDepositInput,
   InvestorDepositLimits,
+  InvestorInvestmentLimit,
   InvestorDepositResponse,
   CreateIssuerOnboardingFeeInput,
   IssuerOnboardingFeeResponse,
@@ -4324,6 +4325,16 @@ export class ApiClient {
 
   async getInvestorDepositLimits(): Promise<ApiResponse<InvestorDepositLimits> | ApiError> {
     return this.get<InvestorDepositLimits>("/v1/investor/deposits/limits");
+  }
+
+  async getInvestorInvestmentLimit(
+    investorOrganizationId: string
+  ): Promise<ApiResponse<InvestorInvestmentLimit> | ApiError> {
+    const queryParams = new URLSearchParams();
+    queryParams.append("investorOrganizationId", investorOrganizationId);
+    return this.get<InvestorInvestmentLimit>(
+      `/v1/investor/investment-limit?${queryParams.toString()}`
+    );
   }
 
   async getInvestorDeposit(id: string): Promise<ApiResponse<InvestorDepositResponse> | ApiError> {

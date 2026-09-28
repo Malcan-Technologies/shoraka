@@ -38,6 +38,7 @@ import {
   SC_INVESTOR_CATEGORIES,
   SC_INVESTOR_CATEGORY_DEFINITIONS,
   SC_INVESTOR_CATEGORY_LABELS,
+  investmentLimitTierFor,
   SC_SUSTAINABILITY_CATEGORIES,
   scInvestorCategoryHelp,
   scInvestorCategoryAfterSophisticatedChange,
@@ -1249,6 +1250,26 @@ describe("SC ComRep investor category", () => {
         expect(help).toContain(SC_INVESTOR_CATEGORY_DEFINITIONS[option]);
       }
     }
+  });
+});
+
+describe("investmentLimitTierFor", () => {
+  it("maps Angel, Retail, and Sophisticated SC types onto the three limit tiers", () => {
+    expect(investmentLimitTierFor("ANGEL")).toBe("ANGEL");
+    expect(investmentLimitTierFor("RETAIL")).toBe("RETAIL");
+    expect(investmentLimitTierFor("SOPHISTICATED_HIGH_NET_WORTH_INDIVIDUAL")).toBe(
+      "SOPHISTICATED"
+    );
+    expect(investmentLimitTierFor("SOPHISTICATED_ACCREDITED")).toBe("SOPHISTICATED");
+    expect(investmentLimitTierFor("SOPHISTICATED_HIGH_NET_WORTH_ENTITY")).toBe(
+      "SOPHISTICATED"
+    );
+  });
+
+  it("uses Retail for non-sophisticated entities and blank category", () => {
+    expect(investmentLimitTierFor("NON_SOPHISTICATED_ENTITY")).toBe("RETAIL");
+    expect(investmentLimitTierFor(null)).toBe("RETAIL");
+    expect(investmentLimitTierFor(undefined)).toBe("RETAIL");
   });
 });
 

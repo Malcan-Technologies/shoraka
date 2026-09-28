@@ -5,6 +5,7 @@ import {
   MARKETPLACE_RETURN_RATE_TOOLTIP,
   formatInvestorReturnRatePercent,
   isNoteMoneyAmount,
+  type InvestorInvestmentLimit,
 } from "@cashsouk/types";
 import { InfoTooltip, MoneyInput } from "@cashsouk/ui";
 import { BanknotesIcon } from "@heroicons/react/24/outline";
@@ -23,6 +24,7 @@ import {
   marketplaceConfirmLead,
   marketplaceConfirmReturnHint,
   marketplaceInvestLead,
+  marketplaceInvestLimitHint,
   marketplaceInvestRangeHint,
 } from "./marketplace-invest-copy";
 import {
@@ -58,6 +60,7 @@ export function MarketplaceInvestDialog({
   note,
   amount,
   availableBalance,
+  investmentLimit,
   agreedToTerms,
   validationError,
   isConfirming,
@@ -74,6 +77,7 @@ export function MarketplaceInvestDialog({
   note: MarketplaceNote | null;
   amount: string;
   availableBalance: number;
+  investmentLimit?: InvestorInvestmentLimit | null;
   agreedToTerms: boolean;
   validationError: string | null;
   isConfirming: boolean;
@@ -90,6 +94,7 @@ export function MarketplaceInvestDialog({
   const parsedAmount = Number(amount.replaceAll(",", "").replaceAll(" ", ""));
   const amountLabel = isNoteMoneyAmount(parsedAmount) ? formatCurrency(parsedAmount) : amount;
   const rangeHint = marketplaceInvestRangeHint(note);
+  const limitHint = marketplaceInvestLimitHint(investmentLimit);
 
   return (
     <InvestorActionDialog
@@ -208,13 +213,18 @@ export function MarketplaceInvestDialog({
               placeholder="0.00"
               inputClassName="h-11 rounded-xl border-input text-foreground focus-visible:ring-ring"
             />
-            {validationError ? (
-              <p className="text-ui text-destructive">{validationError}</p>
-            ) : (
-              <p className="text-meta text-muted-foreground">
-                {marketplaceAvailableCashHint(availableBalance)}
-              </p>
-            )}
+            <div className="space-y-1">
+              {validationError ? (
+                <p className="text-ui text-destructive">{validationError}</p>
+              ) : (
+                <p className="text-meta text-muted-foreground">
+                  {marketplaceAvailableCashHint(availableBalance)}
+                </p>
+              )}
+              {limitHint ? (
+                <p className="text-meta text-muted-foreground">{limitHint}</p>
+              ) : null}
+            </div>
           </div>
 
           <div className="flex items-start gap-3">

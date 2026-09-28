@@ -30,6 +30,9 @@ import { Button } from "@/components/ui/button";
 import { DepositDialog } from "@/app/transactions/components/deposit-dialog";
 import { InvestorProfileCompletenessBanner } from "@/components/profile-completeness-banner";
 import {
+  useInvestorInvestmentLimitQuery,
+} from "@/hooks/use-investor-deposit";
+import {
   useCommitInvestment,
   useInvestorPortfolio,
   useMarketplaceNotesAll,
@@ -54,6 +57,7 @@ import {
   sortFeaturedMarketplaceNotes,
   sortMarketplaceNotes,
   toMarketplaceNote,
+  applyInvestorLimitToNote,
   type MarketplaceNote,
   type MarketplaceNoteFilters,
   type MarketplaceSortId,
@@ -127,6 +131,8 @@ export function MarketplacePage() {
   const commitInvestment = useCommitInvestment();
   const openMarketplaceProspectus = useOpenMarketplaceProspectus();
   const availableBalance = Number(portfolio?.availableBalance ?? 0);
+  const investmentLimitQuery = useInvestorInvestmentLimitQuery(activeOrganization?.id);
+  const investmentLimit = investmentLimitQuery.data ?? null;
   const { getAccessToken } = useAuthToken();
 
   const profileCompletenessQuery = useQuery({
@@ -207,6 +213,13 @@ export function MarketplacePage() {
           .filter((note) => note.isFeatured)
       ),
     [featuredData?.notes]
+  );
+  const dialogNote = useMemo(
+    () =>
+      activeNote
+        ? applyInvestorLimitToNote(activeNote, investmentLimit?.investHeadroom)
+        : null,
+    [activeNote, investmentLimit?.investHeadroom]
   );
   const featuredIds = useMemo(() => new Set(featuredNotes.map((note) => note.id)), [featuredNotes]);
   const catalogNotes = useMemo(
@@ -331,9 +344,13 @@ export function MarketplacePage() {
   }
 
   function handleInvestAction() {
-    if (!activeNote) return;
-    if (!activeNote.investable) {
-      setValidationError("This note is fully allocated.");
+    if (!dialogNote) return;
+    if (!dialogNote.investable) {
+      setValidationError(
+        activeNote?.investable && investmentLimit?.limit != null
+          ? `You can invest up to ${formatCurrency(investmentLimit.investHeadroom ?? 0)} more under your limit.`
+          : "This note is fully allocated."
+      );
       return;
     }
 
@@ -350,9 +367,9 @@ export function MarketplacePage() {
       setValidationError("You don't have enough available cash for this amount.");
       return;
     }
-    if (parsedAmount < activeNote.minInvestment || parsedAmount > activeNote.maxInvestment) {
+    if (parsedAmount < dialogNote.minInvestment || parsedAmount > dialogNote.maxInvestment) {
       setValidationError(
-        `This note accepts from ${formatCurrency(activeNote.minInvestment)} to ${formatCurrency(activeNote.maxInvestment)}.`
+        `This note accepts from ${formatCurrency(dialogNote.minInvestment)} to ${formatCurrency(dialogNote.maxInvestment)}.`
       );
       return;
     }
@@ -362,8 +379,8 @@ export function MarketplacePage() {
   }
 
   async function handleConfirmInvestment() {
-    if (!activeNote) return;
-    if (!activeNote.investable) {
+    if (!dialogNote) return;
+    if (!dialogNote.investable) {
       toast.error("This note is fully allocated.");
       return;
     }
@@ -385,17 +402,17 @@ export function MarketplacePage() {
       return;
     }
     if (
-      parsedAmount + 1e-9 < activeNote.minInvestment ||
-      parsedAmount > activeNote.maxInvestment + 1e-9
+      parsedAmount + 1e-9 < dialogNote.minInvestment ||
+      parsedAmount > dialogNote.maxInvestment + 1e-9
     ) {
       toast.error(
-        `This note accepts from ${formatCurrency(activeNote.minInvestment)} to ${formatCurrency(activeNote.maxInvestment)}.`
+        `This note accepts from ${formatCurrency(dialogNote.minInvestment)} to ${formatCurrency(dialogNote.maxInvestment)}.`
       );
       return;
     }
     try {
       await commitInvestment.mutateAsync({
-        noteId: activeNote.id,
+        noteId: dialogNote.id,
         amount: parsedAmount,
         investorOrganizationId: activeOrganization.id,
       });
@@ -597,14 +614,15 @@ export function MarketplacePage() {
       </PageShell>
 
       <MarketplaceInvestDialog
-        note={activeNote}
+        note={dialogNote}
         amount={investmentAmount}
         availableBalance={availableBalance}
+        investmentLimit={investmentLimit}
         agreedToTerms={agreedToTerms}
         validationError={validationError}
         isConfirming={isConfirmDialogOpen}
         isPending={commitInvestment.isPending}
-        canConfirm={Boolean(activeOrganization?.id && activeNote?.investable)}
+        canConfirm={Boolean(activeOrganization?.id && dialogNote?.investable)}
         onAmountChange={(value) => {
           setInvestmentAmount(value);
           if (validationError) setValidationError(null);

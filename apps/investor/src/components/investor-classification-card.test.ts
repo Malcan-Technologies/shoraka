@@ -14,6 +14,7 @@ describe("investor classification card", () => {
   it("shows Sophisticated Investor Yes/No and Type of Investor as separate required fields", () => {
     expect(source).toContain("PROFILE_LABEL.sophisticatedInvestor");
     expect(source).toContain("PROFILE_LABEL.typeOfInvestor");
+    expect(source).toContain("PROFILE_HELP.typeOfInvestor");
     expect(source).toContain("payload.isSophisticatedInvestor");
     expect(source).not.toContain("SC ComRep Investor Type");
     expect(source).toContain('patchMasterProfile("investor"');

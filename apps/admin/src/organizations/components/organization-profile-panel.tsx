@@ -419,7 +419,7 @@ export function OrganizationProfilePanel({
           <AdminDetailCardHeader
             icon={IdentificationIcon}
             title="Investor Classification"
-            description="Sophisticated Investor and Type of Investor are required. Type of Investor is used for regulatory reporting and does not change product eligibility."
+            description={`Sophisticated Investor and Type of Investor are required. ${PROFILE_HELP.typeOfInvestor}`}
             actions={sectionActions("classification")}
           />
           <CardContent>
