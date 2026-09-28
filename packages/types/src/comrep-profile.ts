@@ -758,6 +758,27 @@ export function isSophisticatedInvestorSelected(
   return value === true || value === false;
 }
 
+/**
+ * Legacy RegTank-compatible Sophisticated Yes/No derivation.
+ *
+ * Important: the detailed `scInvestorCategory` is the source-of-truth.
+ * The legacy boolean must NOT be used to infer a missing detailed type.
+ */
+export function sophisticatedBooleanForScInvestorCategory(
+  category: ScInvestorCategory | null | undefined
+): boolean | null {
+  if (!category) return null;
+  if (category === "RETAIL" || category === "ANGEL") return false;
+  if (
+    category === "SOPHISTICATED_HIGH_NET_WORTH_INDIVIDUAL" ||
+    category === "SOPHISTICATED_ACCREDITED" ||
+    category === "SOPHISTICATED_HIGH_NET_WORTH_ENTITY"
+  ) {
+    return true;
+  }
+  return null;
+}
+
 /** RegTank answers set Sophisticated Yes/No for personal investors only. */
 export function appliesRegTankSophisticatedStatus(
   organizationType: "PERSONAL" | "COMPANY" | string
@@ -766,17 +787,17 @@ export function appliesRegTankSophisticatedStatus(
 }
 
 export function allowedScInvestorCategories(input: ScInvestorCategoryScope): ScInvestorCategory[] {
-  if (!isSophisticatedInvestorSelected(input.isSophisticatedInvestor)) {
-    return [];
-  }
+  // Active/user-facing classification is driven solely by `organizationType`
+  // and the detailed `scInvestorCategory` value (not by the legacy Yes/No boolean).
   if (input.organizationType === "COMPANY") {
-    return input.isSophisticatedInvestor
-      ? [...SC_INVESTOR_CATEGORIES_CORPORATE_SOPHISTICATED]
-      : [...SC_INVESTOR_CATEGORIES_CORPORATE_NON_SOPHISTICATED];
+    return ["SOPHISTICATED_HIGH_NET_WORTH_ENTITY"];
   }
-  return input.isSophisticatedInvestor
-    ? [...SC_INVESTOR_CATEGORIES_PERSONAL_SOPHISTICATED]
-    : [...SC_INVESTOR_CATEGORIES_PERSONAL_NON_SOPHISTICATED];
+  return [
+    "RETAIL",
+    "ANGEL",
+    "SOPHISTICATED_HIGH_NET_WORTH_INDIVIDUAL",
+    "SOPHISTICATED_ACCREDITED",
+  ];
 }
 
 export function isAllowedScInvestorCategory(
@@ -792,7 +813,8 @@ export function scInvestorCategoryAfterSophisticatedChange(
   current: unknown,
   input: ScInvestorCategoryScope
 ): ScInvestorCategory | null {
-  return isAllowedScInvestorCategory(current, input) ? current : null;
+  // Legacy boolean changes must never invalidate or rewrite a valid detailed type.
+  return isAllowedScInvestorCategory(current, input) ? (current as ScInvestorCategory) : null;
 }
 
 export function scInvestorCategoryHelp(
@@ -807,9 +829,6 @@ export function typeOfInvestorValidationMessage(
   category: unknown,
   input: ScInvestorCategoryScope
 ): string | null {
-  if (!isSophisticatedInvestorSelected(input.isSophisticatedInvestor)) {
-    return SELECT_SOPHISTICATED_INVESTOR_FIRST_MESSAGE;
-  }
   if (category == null || (typeof category === "string" && category.trim() === "")) {
     return "Type of Investor is required.";
   }
@@ -892,7 +911,7 @@ export type IssuerProfileStepId = (typeof ISSUER_PROFILE_STEP_IDS)[number];
 export const INVESTOR_PROFILE_STEP_IDS = ["identity", "review"] as const;
 export type InvestorProfileStepId = (typeof INVESTOR_PROFILE_STEP_IDS)[number];
 /** Identity required fields: all USER-editable on the normal Investor Profile, including `scInvestorCategory`. */
-export const INVESTOR_IDENTITY_REQUIRED_COUNT = 10;
+export const INVESTOR_IDENTITY_REQUIRED_COUNT = 9;
 export const INVESTOR_ADMIN_IDENTITY_REQUIRED_COUNT = 0;
 
 export type ComrepProfileStepId = IssuerProfileStepId | InvestorProfileStepId;
@@ -1048,7 +1067,7 @@ export function investorUiSectionForMissing(
 
   if (item.field === "state" || item.field === "postalCode") return "addresses";
   if (item.field === "businessState" || item.field === "businessPostalCode") return "addresses";
-  if (item.field === "scInvestorCategory" || item.field === "isSophisticatedInvestor") {
+  if (item.field === "scInvestorCategory") {
     return "classification";
   }
   if (
@@ -1401,15 +1420,6 @@ function pushMissingInvestorCategory(
   pushMissing(missing, step, "scInvestorCategory", "Type of Investor", undefined, "USER");
 }
 
-function pushMissingSophisticatedInvestor(
-  missing: ProfileMissingItem[],
-  step: ComrepProfileStepId,
-  existing: boolean | null | undefined
-): void {
-  if (isSophisticatedInvestorSelected(existing)) return;
-  pushMissing(missing, step, "isSophisticatedInvestor", "Sophisticated Investor", undefined, "USER");
-}
-
 function withUserFacingCompleteness(
   completeness: Omit<ComrepProfileCompleteness, "userComplete" | "userPercent" | "userMissing">
 ): ComrepProfileCompleteness {
@@ -1422,7 +1432,7 @@ function withUserFacingCompleteness(
       userMissing,
     };
   }
-  const identityRequired = completeness.steps.find((step) => step.id === "identity")?.requiredCount ?? 10;
+  const identityRequired = completeness.steps.find((step) => step.id === "identity")?.requiredCount ?? 9;
   const peopleRequired = completeness.steps
     .filter((step) => step.id === "shareholders" || step.id === "board")
     .reduce((sum, step) => sum + step.requiredCount, 0);
@@ -1956,13 +1966,11 @@ export function computeInvestorPersonalCompleteness(
     pushMissing(missing, step, "postalCode", PROFILE_ADDRESS_FIELD_LABELS.postcode);
   }
   if (!hasText(input.nationality)) pushMissing(missing, step, "nationality", PROFILE_LABEL.nationality);
-  pushMissingSophisticatedInvestor(missing, step, input.isSophisticatedInvestor);
   pushMissingInvestorCategory(
     missing,
     step,
     {
       organizationType: "PERSONAL",
-      isSophisticatedInvestor: input.isSophisticatedInvestor,
     },
     input.scInvestorCategory
   );
@@ -1996,13 +2004,11 @@ export function computeInvestorCorporateCompleteness(
   if (!hasRequiredPostcodeValue(input.businessPostalCode, input.businessState)) {
     pushMissing(missing, step, "businessPostalCode", PROFILE_ADDRESS_FIELD_LABELS.postcode);
   }
-  pushMissingSophisticatedInvestor(missing, step, input.isSophisticatedInvestor);
   pushMissingInvestorCategory(
     missing,
     step,
     {
       organizationType: "COMPANY",
-      isSophisticatedInvestor: input.isSophisticatedInvestor,
     },
     input.scInvestorCategory
   );

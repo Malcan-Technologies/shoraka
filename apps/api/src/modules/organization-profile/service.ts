@@ -38,7 +38,7 @@ import {
   type ScPersonKind,
   applyPartyComrepSemantics,
   isAllowedScInvestorCategory,
-  scInvestorCategoryAfterSophisticatedChange,
+  sophisticatedBooleanForScInvestorCategory,
   typeOfInvestorValidationMessage,
   issuerShareholdingThresholdIssue,
   isIssuerShareholderOnlyBelowMinimum,
@@ -1268,11 +1268,9 @@ export async function computeOrgProfileCompleteness(
   const name =
     [org.first_name, org.last_name].filter(Boolean).join(" ").trim() || org.name || null;
   const organizationType: "PERSONAL" | "COMPANY" = org.type === "COMPANY" ? "COMPANY" : "PERSONAL";
-  const categoryScope = {
-    organizationType,
-    isSophisticatedInvestor: org.is_sophisticated_investor,
-  };
-  const scInvestorCategory = isAllowedScInvestorCategory(org.sc_investor_category, categoryScope)
+  // Active user-facing classification must not depend on the legacy RegTank Sophisticated Yes/No boolean.
+  // Preserve a valid stored `sc_investor_category` even if `is_sophisticated_investor` later changes.
+  const scInvestorCategory = isAllowedScInvestorCategory(org.sc_investor_category, { organizationType })
     ? org.sc_investor_category
     : null;
   if (organizationType === "COMPANY") {
@@ -1404,7 +1402,6 @@ export async function computeOrgProfileCompleteness(
         { field: "businessState", label: PROFILE_ADDRESS_FIELD_LABELS.state },
         { field: "businessPostalCode", label: PROFILE_ADDRESS_FIELD_LABELS.postcode },
         { field: "scInvestorCategory", label: PROFILE_LABEL.typeOfInvestor },
-        { field: "isSophisticatedInvestor", label: PROFILE_LABEL.sophisticatedInvestor },
       ];
 
       const present = {
@@ -1420,8 +1417,6 @@ export async function computeOrgProfileCompleteness(
           business?.state
         ),
         scInvestorCategoryPresent: scInvestorCategory != null,
-        isSophisticatedInvestorPresent:
-          org.is_sophisticated_investor === true || org.is_sophisticated_investor === false,
       };
 
       const sections = summarizeProfileStepsForDebug(completeness.steps);
@@ -1502,7 +1497,6 @@ export async function computeOrgProfileCompleteness(
       { field: "postalCode", label: PROFILE_ADDRESS_FIELD_LABELS.postcode },
       { field: "nationality", label: PROFILE_LABEL.nationality },
       { field: "scInvestorCategory", label: PROFILE_LABEL.typeOfInvestor },
-      { field: "isSophisticatedInvestor", label: PROFILE_LABEL.sophisticatedInvestor },
     ];
 
     const mappedGender = mapStoredGender(org.gender);
@@ -1522,8 +1516,6 @@ export async function computeOrgProfileCompleteness(
         residential?.state
       ),
       scInvestorCategoryPresent: scInvestorCategory != null,
-      isSophisticatedInvestorPresent:
-        org.is_sophisticated_investor === true || org.is_sophisticated_investor === false,
     };
 
     const sections = summarizeProfileStepsForDebug(completeness.steps);
@@ -1769,46 +1761,41 @@ export async function patchOrgMasterProfile(params: {
   if (patch.isSophisticatedInvestor !== undefined || patch.scInvestorCategory !== undefined) {
     const organizationType: "PERSONAL" | "COMPANY" =
       investor.type === "COMPANY" ? "COMPANY" : "PERSONAL";
-    if (patch.isSophisticatedInvestor !== undefined) {
-      if (typeof patch.isSophisticatedInvestor !== "boolean") {
-        throw new AppError(400, "VALIDATION_ERROR", "Sophisticated Investor is required.");
-      }
-      data.is_sophisticated_investor = applyScalar(
-        "isSophisticatedInvestor",
-        investor.is_sophisticated_investor as boolean | null,
-        patch.isSophisticatedInvestor
-      );
-    }
-    const nextSophisticated =
-      patch.isSophisticatedInvestor !== undefined
-        ? patch.isSophisticatedInvestor
-        : (investor.is_sophisticated_investor as boolean | null);
-    const categoryScope = {
-      organizationType,
-      isSophisticatedInvestor: nextSophisticated,
-    };
+
     if (patch.scInvestorCategory !== undefined) {
-      const invalid = typeOfInvestorValidationMessage(patch.scInvestorCategory, categoryScope);
-      if (invalid) {
-        throw new AppError(400, "VALIDATION_ERROR", invalid);
-      }
+      const invalid = typeOfInvestorValidationMessage(patch.scInvestorCategory, { organizationType });
+      if (invalid) throw new AppError(400, "VALIDATION_ERROR", invalid);
+
       data.sc_investor_category = applyScalar(
         "scInvestorCategory",
         investor.sc_investor_category as ScInvestorCategory | null,
         patch.scInvestorCategory
       );
-    } else if (patch.isSophisticatedInvestor !== undefined) {
-      const kept = scInvestorCategoryAfterSophisticatedChange(
-        investor.sc_investor_category,
-        categoryScope
-      );
-      if (kept !== investor.sc_investor_category) {
-        data.sc_investor_category = applyScalar(
-          "scInvestorCategory",
-          investor.sc_investor_category as ScInvestorCategory | null,
-          kept
+
+      const derivedSophisticated = sophisticatedBooleanForScInvestorCategory(patch.scInvestorCategory);
+      if (derivedSophisticated === null) {
+        // Defensive: if detailed type is validated, we should always be able to derive the legacy boolean.
+        throw new AppError(
+          400,
+          "VALIDATION_ERROR",
+          "Sophisticated status cannot be derived from the selected investor type."
         );
       }
+      data.is_sophisticated_investor = applyScalar(
+        "isSophisticatedInvestor",
+        investor.is_sophisticated_investor as boolean | null,
+        derivedSophisticated
+      );
+    } else if (patch.isSophisticatedInvestor !== undefined) {
+      if (typeof patch.isSophisticatedInvestor !== "boolean") {
+        throw new AppError(400, "VALIDATION_ERROR", "Sophisticated Investor is required.");
+      }
+      // Legacy boolean updates must not rewrite `sc_investor_category`.
+      data.is_sophisticated_investor = applyScalar(
+        "isSophisticatedInvestor",
+        investor.is_sophisticated_investor as boolean | null,
+        patch.isSophisticatedInvestor
+      );
     }
   }
   if (patch.residentialAddress !== undefined) {

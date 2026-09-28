@@ -10,6 +10,7 @@ import {
 import {
   INVESTMENT_LIMIT_TIER_LABELS,
   investmentLimitTierFor,
+  isAllowedScInvestorCategory,
   moneyAmountExceeds,
   roundNoteMoney,
   type InvestmentLimitTier,
@@ -185,10 +186,35 @@ export async function computeInvestmentHeadroom(
   });
 }
 
+async function assertActiveInvestorClassificationForLimits(
+  tx: Prisma.TransactionClient | PrismaClient,
+  investorOrganizationId: string
+) {
+  const org = await tx.investorOrganization.findUnique({
+    where: { id: investorOrganizationId },
+    select: { type: true, sc_investor_category: true },
+  });
+
+  if (!org) {
+    throw new AppError(404, "INVESTOR_ORG_NOT_FOUND", "Investor organization not found");
+  }
+
+  const organizationType = org.type === "COMPANY" ? "COMPANY" : "PERSONAL";
+  const valid = isAllowedScInvestorCategory(org.sc_investor_category, { organizationType });
+  if (!valid) {
+    throw new AppError(
+      422,
+      "INVESTOR_CLASSIFICATION_INVALID",
+      "Investor type is required to determine investment limits."
+    );
+  }
+}
+
 export async function assertInvestmentWithinLimit(
   tx: Prisma.TransactionClient,
   input: { investorOrganizationId: string; amount: number }
 ) {
+  await assertActiveInvestorClassificationForLimits(tx, input.investorOrganizationId);
   const headroom = await computeInvestmentHeadroom(input.investorOrganizationId, tx);
   if (headroom.limit == null || headroom.investHeadroom == null) return;
   if (!moneyAmountExceeds(input.amount, headroom.investHeadroom)) return;
@@ -214,6 +240,7 @@ export async function assertDepositWithinLimit(
   tx: Prisma.TransactionClient,
   input: { investorOrganizationId: string; amount: number; excludeIntentKey?: string }
 ) {
+  await assertActiveInvestorClassificationForLimits(tx, input.investorOrganizationId);
   const headroom = await computeInvestmentHeadroom(input.investorOrganizationId, tx, {
     excludeIntentKey: input.excludeIntentKey,
   });

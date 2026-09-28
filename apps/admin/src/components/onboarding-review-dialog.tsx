@@ -20,7 +20,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { OrganizationTypeBadge } from "@/components/organization-type-badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -78,7 +77,6 @@ import {
   ExclamationTriangleIcon,
   ClockIcon,
   ArrowPathIcon,
-  StarIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 import {
@@ -902,27 +900,14 @@ export function OnboardingReviewDialog({
                 </div>
               </div>
 
-              {/* Sophisticated Investor Status (only for investor portal) */}
+              {/* Investor Type of Investor is shown on the investor profile.
+                  Legacy Sophisticated Yes/No badges are intentionally omitted to avoid competing representations. */}
               {application.portal === "investor" && (
                 <div className="rounded-lg bg-muted/50 p-4 space-y-2">
-                  <p className="text-sm font-medium">Investor Classification:</p>
-                  <div className="flex items-center gap-2">
-                    {application.isSophisticatedInvestor ? (
-                      <>
-                        <Badge className="bg-violet-500 text-white gap-1">
-                          <StarIcon className="h-3 w-3" />
-                          Sophisticated Investor
-                        </Badge>
-                      </>
-                    ) : (
-                      <Badge variant="secondary">Standard Investor</Badge>
-                    )}
-                  </div>
-                  {application.isSophisticatedInvestor && application.sophisticatedInvestorReason && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Reason: {application.sophisticatedInvestorReason}
-                    </p>
-                  )}
+                  <p className="text-sm font-medium">Type of Investor</p>
+                  <p className="text-xs text-muted-foreground">
+                    This value is set during profile completion and is used for regulatory reporting.
+                  </p>
                 </div>
               )}
 

@@ -8,16 +8,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,8 +15,6 @@ import { Separator } from "@/components/ui/separator";
 import { PortalBadge, Skeleton, StatusBadge } from "@cashsouk/ui";
 import { OrganizationTypeBadge } from "@/components/organization-type-badge";
 import { getOrganizationOnboardingPresentation } from "@/lib/organization-status";
-import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   kycAmlScreeningRiskToken,
@@ -34,9 +22,16 @@ import {
 } from "@/lib/kyc-aml-screening-badge-classes";
 import {
   useOrganizationDetail,
-  useUpdateSophisticatedStatus,
 } from "@/hooks/use-organization-detail";
-import { formatCalendarDate, formatOrganizationReference, getRegtankCorporateOnboardingUrl, toTitleCase, type PortalType } from "@cashsouk/types";
+import {
+  formatCalendarDate,
+  formatOrganizationReference,
+  getRegtankCorporateOnboardingUrl,
+  isAllowedScInvestorCategory,
+  SC_INVESTOR_CATEGORY_LABELS,
+  toTitleCase,
+  type PortalType,
+} from "@cashsouk/types";
 import { format } from "date-fns";
 import {
   UserIcon,
@@ -644,56 +639,6 @@ export function OrganizationDetailDialog({
   onOpenChange,
 }: OrganizationDetailDialogProps) {
   const { data: org, isLoading, error } = useOrganizationDetail(portal, organizationId);
-  const updateSophisticatedMutation = useUpdateSophisticatedStatus();
-
-  // State for sophisticated status change dialog
-  const [showSophisticatedDialog, setShowSophisticatedDialog] = React.useState(false);
-  const [pendingSophisticatedStatus, setPendingSophisticatedStatus] = React.useState<
-    boolean | null
-  >(null);
-  const [sophisticatedReason, setSophisticatedReason] = React.useState("");
-
-  const handleSophisticatedToggle = (checked: boolean) => {
-    if (!organizationId) return;
-    // Open dialog to collect reason
-    setPendingSophisticatedStatus(checked);
-    setSophisticatedReason("");
-    setShowSophisticatedDialog(true);
-  };
-
-  const handleConfirmSophisticatedChange = () => {
-    if (!organizationId || pendingSophisticatedStatus === null || !sophisticatedReason.trim())
-      return;
-
-    updateSophisticatedMutation.mutate(
-      {
-        organizationId,
-        isSophisticatedInvestor: pendingSophisticatedStatus,
-        reason: sophisticatedReason.trim(),
-      },
-      {
-        onSuccess: () => {
-          toast.success(
-            pendingSophisticatedStatus
-              ? "Marked as sophisticated investor"
-              : "Removed sophisticated investor status"
-          );
-          setShowSophisticatedDialog(false);
-          setPendingSophisticatedStatus(null);
-          setSophisticatedReason("");
-        },
-        onError: (error) => {
-          toast.error(`Failed to update status: ${error.message}`);
-        },
-      }
-    );
-  };
-
-  const handleCancelSophisticatedChange = () => {
-    setShowSophisticatedDialog(false);
-    setPendingSophisticatedStatus(null);
-    setSophisticatedReason("");
-  };
 
   const displayName = React.useMemo(() => {
     if (!org) return "";
@@ -787,34 +732,35 @@ export function OrganizationDetailDialog({
                         })()}
                       </div>
                     </div>
-                    {/* Sophisticated Investor Status - only for investor portal */}
+                    {/* Type of Investor - only for investor portal */}
                     {portal === "investor" && (
                       <div className="col-span-2">
                         <div className="text-xs text-muted-foreground mb-2">
-                          Sophisticated Investor
+                          Type of Investor
                         </div>
                         <div className="flex items-center gap-3">
-                          <Switch
-                            checked={org.isSophisticatedInvestor === true}
-                            onCheckedChange={handleSophisticatedToggle}
-                            disabled={updateSophisticatedMutation.isPending}
-                          />
-                          {org.isSophisticatedInvestor === true ? (
-                            <StatusBadge label="Yes" status="success" />
-                          ) : org.isSophisticatedInvestor === false ? (
-                            <StatusBadge label="No" status="neutral" />
-                          ) : (
-                            <StatusBadge label="Not set" status="action" />
-                          )}
+                          {(() => {
+                            const organizationType = org.type === "COMPANY" ? "COMPANY" : "PERSONAL";
+                            const valid = isAllowedScInvestorCategory(org.scInvestorCategory, {
+                              organizationType,
+                            });
+                            const label =
+                              org.type === "COMPANY"
+                                ? SC_INVESTOR_CATEGORY_LABELS["SOPHISTICATED_HIGH_NET_WORTH_ENTITY"]
+                                : valid && org.scInvestorCategory
+                                  ? SC_INVESTOR_CATEGORY_LABELS[
+                                      org.scInvestorCategory as keyof typeof SC_INVESTOR_CATEGORY_LABELS
+                                    ]
+                                  : "Not set";
+
+                            return (
+                              <StatusBadge
+                                label={label}
+                                status={valid ? "success" : "action"}
+                              />
+                            );
+                          })()}
                         </div>
-                        {org.sophisticatedInvestorReason && (
-                          <div className="mt-2 p-2 rounded-md bg-muted/50">
-                            <p className="text-xs text-muted-foreground">
-                              <span className="font-medium">Reason:</span>{" "}
-                              {org.sophisticatedInvestorReason}
-                            </p>
-                          </div>
-                        )}
                       </div>
                     )}
                     <DetailRow
@@ -1142,52 +1088,8 @@ export function OrganizationDetailDialog({
         </DialogContent>
       </Dialog>
 
-      {/* AlertDialog for sophisticated investor status change */}
-      <AlertDialog open={showSophisticatedDialog} onOpenChange={setShowSophisticatedDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {pendingSophisticatedStatus
-                ? "Mark as Sophisticated Investor"
-                : "Remove Sophisticated Investor Status"}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {pendingSophisticatedStatus
-                ? "Please provide a reason for granting sophisticated investor status to this organization."
-                : "Please provide a reason for removing sophisticated investor status from this organization."}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="py-4">
-            <Label htmlFor="sophisticated-reason" className="text-sm font-medium">
-              Reason <span className="text-destructive">*</span>
-            </Label>
-            <Textarea
-              id="sophisticated-reason"
-              placeholder={
-                pendingSophisticatedStatus
-                  ? "e.g., Manual verification of net assets exceeding RM3,000,000"
-                  : "e.g., Re-evaluation of investor classification"
-              }
-              value={sophisticatedReason}
-              onChange={(e) => setSophisticatedReason(e.target.value)}
-              className="mt-2"
-              rows={3}
-            />
-            {sophisticatedReason.trim() === "" && (
-              <p className="text-xs text-muted-foreground mt-1">Reason is required to proceed.</p>
-            )}
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={handleCancelSophisticatedChange}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleConfirmSophisticatedChange}
-              disabled={!sophisticatedReason.trim() || updateSophisticatedMutation.isPending}
-            >
-              {updateSophisticatedMutation.isPending ? "Updating..." : "Confirm"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Legacy Sophisticated Yes/No UI removed.
+          The detailed Type of Investor is shown above in read-only form. */}
     </>
   );
 }

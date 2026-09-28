@@ -12,10 +12,8 @@ import {
   allowedScInvestorCategories,
   SC_INVESTOR_CATEGORY_DEFINITIONS,
   SC_INVESTOR_CATEGORY_LABELS,
+  isAllowedScInvestorCategory,
   scInvestorCategoryHelp,
-  scInvestorCategoryAfterSophisticatedChange,
-  SELECT_SOPHISTICATED_INVESTOR_FIRST_MESSAGE,
-  isSophisticatedInvestorSelected,
   typeOfInvestorValidationMessage,
   SC_MALAYSIAN_STATES,
   displayScCompanyTypeLabel,
@@ -141,7 +139,17 @@ export function OrganizationProfilePanel({
   const handleStartEdit = (section: EditableSection) => {
     if (updateProfile.isPending || (editingSection && editingSection !== section)) return;
     const nextDraft = buildDraft(org);
-    setDraft(nextDraft);
+    if (section === "classification" && org.type === "COMPANY") {
+      const valid = isAllowedScInvestorCategory(org.scInvestorCategory, { organizationType: "COMPANY" });
+      if (!valid) {
+        // Explicit write flow: initialise required HNWE classification when editing.
+        setDraft({ ...nextDraft, scInvestorCategory: "SOPHISTICATED_HIGH_NET_WORTH_ENTITY" });
+      } else {
+        setDraft(nextDraft);
+      }
+    } else {
+      setDraft(nextDraft);
+    }
     setEditingSection(section);
     setFieldErrors({});
     if (section === "addresses") {
@@ -242,14 +250,8 @@ export function OrganizationProfilePanel({
       }
     }
     if (editingSection === "classification" && portal === "investor") {
-      if (!isSophisticatedInvestorSelected(draft.isSophisticatedInvestor)) {
-        setFieldErrors({ isSophisticatedInvestor: "Sophisticated Investor is required." });
-        toast.error("Sophisticated Investor is required.");
-        return;
-      }
       const message = typeOfInvestorValidationMessage(draft.scInvestorCategory, {
         organizationType: org.type === "COMPANY" ? "COMPANY" : "PERSONAL",
-        isSophisticatedInvestor: draft.isSophisticatedInvestor,
       });
       if (message) {
         setFieldErrors({ scInvestorCategory: message });
@@ -342,17 +344,18 @@ export function OrganizationProfilePanel({
   const aboutActivitiesRequired = isAboutYourBusinessFieldRequired("whatDoesCompanyDo");
   const aboutCustomersRequired = isAboutYourBusinessFieldRequired("mainCustomers");
   const companyTypeLabel = displayScCompanyTypeLabel(org.scCompanyType, basic?.entityType);
-  const investorCategoryScope = {
-    organizationType: (org.type === "COMPANY" ? "COMPANY" : "PERSONAL") as "PERSONAL" | "COMPANY",
-    isSophisticatedInvestor:
-      editingSection === "classification" ? draft.isSophisticatedInvestor : org.isSophisticatedInvestor,
-  };
-  const investorCategoryOptions = allowedScInvestorCategories(investorCategoryScope);
+  const investorCategoryOrganizationType = (org.type === "COMPANY" ? "COMPANY" : "PERSONAL") as
+    | "PERSONAL"
+    | "COMPANY";
+  const investorCategoryOptions = allowedScInvestorCategories({ organizationType: investorCategoryOrganizationType });
   const investorCategoryHelp = scInvestorCategoryHelp(investorCategoryOptions);
-  const investorCategoryLabel =
-    org.scInvestorCategory && org.scInvestorCategory in SC_INVESTOR_CATEGORY_LABELS
-      ? SC_INVESTOR_CATEGORY_LABELS[org.scInvestorCategory as ScInvestorCategory]
-      : null;
+  const investorCategoryValid = isAllowedScInvestorCategory(org.scInvestorCategory, {
+    organizationType: investorCategoryOrganizationType,
+  });
+  const requiredCompanyCategory: ScInvestorCategory = "SOPHISTICATED_HIGH_NET_WORTH_ENTITY";
+  const investorCategoryLabel = investorCategoryValid
+    ? SC_INVESTOR_CATEGORY_LABELS[org.scInvestorCategory as ScInvestorCategory]
+    : null;
   const genderLabel =
     draft.gender && draft.gender in SC_GENDER_LABELS
       ? SC_GENDER_LABELS[draft.gender as ScGender]
@@ -391,7 +394,12 @@ export function OrganizationProfilePanel({
 
   const sectionActions = (section: EditableSection) => (
     <OrganizationCardEditActions
-      canEdit={canManage && (editingSection === null || editingSection === section)}
+      canEdit={
+        canManage &&
+        (editingSection === null || editingSection === section) &&
+        // For COMPANY, the investor type is fixed to HNWE once valid.
+        (section !== "classification" || org.type !== "COMPANY" || !investorCategoryValid)
+      }
       isEditing={editingSection === section}
       canSave={editingSection === section && sectionHasChanges}
       isSaving={updateProfile.isPending}
@@ -419,75 +427,28 @@ export function OrganizationProfilePanel({
           <AdminDetailCardHeader
             icon={IdentificationIcon}
             title="Investor Classification"
-            description={`Sophisticated Investor and Type of Investor are required. ${PROFILE_HELP.typeOfInvestor}`}
+            description={`Type of Investor is required. ${PROFILE_HELP.typeOfInvestorAdmin}`}
             actions={sectionActions("classification")}
           />
           <CardContent>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
               {editingSection === "classification" ? (
-                <EditableYesNo
-                  label="Sophisticated Investor"
-                  name={`sophisticated-investor-${organizationId}`}
-                  value={draft.isSophisticatedInvestor}
-                  required
-                  onChange={(isSophisticatedInvestor) =>
-                    setDraft((current) => {
-                      const kept = scInvestorCategoryAfterSophisticatedChange(
-                        current.scInvestorCategory,
-                        {
-                          organizationType: org.type === "COMPANY" ? "COMPANY" : "PERSONAL",
-                          isSophisticatedInvestor,
-                        }
-                      );
-                      return {
-                        ...current,
-                        isSophisticatedInvestor,
-                        scInvestorCategory: kept ?? "",
-                      };
-                    })
-                  }
-                />
-              ) : (
-                <ReadField
-                  label="Sophisticated Investor"
-                  value={
-                    org.isSophisticatedInvestor === true
-                      ? "Yes"
-                      : org.isSophisticatedInvestor === false
-                        ? "No"
-                        : null
-                  }
-                  missing={requiredFieldKeys.has("isSophisticatedInvestor")}
+                <EditableSelect
+                  label={PROFILE_LABEL.typeOfInvestor}
+                  value={draft.scInvestorCategory}
+                  onChange={(scInvestorCategory) => setDraft((current) => ({ ...current, scInvestorCategory }))}
+                  options={investorCategoryOptions.map((value) => ({
+                    value,
+                    label: SC_INVESTOR_CATEGORY_LABELS[value],
+                    title: SC_INVESTOR_CATEGORY_DEFINITIONS[value],
+                  }))}
+                  help={investorCategoryHelp || undefined}
                   required
                 />
-              )}
-              {editingSection === "classification" ? (
-                <div className="space-y-2">
-                  <EditableSelect
-                    label={PROFILE_LABEL.typeOfInvestor}
-                    value={draft.scInvestorCategory}
-                    onChange={(scInvestorCategory) =>
-                      setDraft((current) => ({ ...current, scInvestorCategory }))
-                    }
-                    options={investorCategoryOptions.map((value) => ({
-                      value,
-                      label: SC_INVESTOR_CATEGORY_LABELS[value],
-                      title: SC_INVESTOR_CATEGORY_DEFINITIONS[value],
-                    }))}
-                    help={investorCategoryHelp || undefined}
-                    required
-                    disabled={!isSophisticatedInvestorSelected(draft.isSophisticatedInvestor)}
-                  />
-                  {!isSophisticatedInvestorSelected(draft.isSophisticatedInvestor) ? (
-                    <p className="text-meta text-muted-foreground">
-                      {SELECT_SOPHISTICATED_INVESTOR_FIRST_MESSAGE}
-                    </p>
-                  ) : null}
-                </div>
               ) : (
                 <ReadField
                   label={PROFILE_LABEL.typeOfInvestor}
-                  value={investorCategoryLabel}
+                  value={org.type === "COMPANY" ? SC_INVESTOR_CATEGORY_LABELS[requiredCompanyCategory] : investorCategoryLabel}
                   missing={requiredFieldKeys.has("scInvestorCategory")}
                   help={investorCategoryHelp}
                   required
