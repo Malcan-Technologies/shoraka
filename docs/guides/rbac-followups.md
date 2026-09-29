@@ -29,6 +29,8 @@ admin-only access for `operator-profile/signing-signatures/…`; every other pre
 
 - [ ] `GET /v1/applications/:id/logs` (admin path) has no permission guard; require `applications.view`.
 - [ ] `/test-errors` page and `/api/test-errors` proxy have no permission or environment gate.
+- [ ] `/v1/admin/demos/contract-lo/*` (`GET /fixture`, `GET /prefill`, `POST /generate`) is a demo route that checks the ADMIN role only, with no permission guard. Decide whether to remove it, gate it by environment, or put it on a permission.
+- [ ] `GET /v1/applications/:id/generated-documents/:type` (`apps/api/src/modules/generated-documents/controller.ts`) treats any ADMIN role as admin access, with no permission check. The admin-mounted routes under `/v1/admin/applications/:id/generated-documents` already require `applications.view`; require the same here for admin callers.
 
 ## Resolved
 

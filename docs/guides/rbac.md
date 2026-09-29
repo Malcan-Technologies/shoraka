@@ -61,6 +61,14 @@ const { data } = useNotes({ enabled: canViewNotes });
 
 If a user can open a page, they can view every read-only panel on it. A panel that reads another module's data uses a **record-scoped read route** on the owning page's view permission, with the record (and any fixed filter) forced from the URL. The other module's own routes, sidebar, pages and actions keep their permissions, and a link into that module's page is shown only with its view permission.
 
+Rules:
+
+1. **Page access grants the page's read-only panels.** Do not hide a read-only panel because the user lacks another module's `.view`.
+2. **A module permission controls that module's own sidebar item, page and actions.** It does not control read-only panels embedded in another page.
+3. **Actions and mutations always need the relevant manage permission.** Page ownership never grants an action.
+4. **The record comes from the URL.** The scoped route takes the record id from the path and sets any fixed filter (for example the payment purpose) on the server. It reads only paging from the query string, or overwrites the scoped field after parsing, so a query parameter cannot widen the result.
+5. **The frontend panel calls the scoped route**, not the module list route with a filter.
+
 | Page | Panel | Route | Permission |
 |---|---|---|---|
 | Organization detail | Activity tab (onboarding timeline + CSV) | `GET /v1/admin/organizations/:portal/:id/onboarding-logs` | `organizations.view` |
@@ -68,7 +76,14 @@ If a user can open a page, they can view every read-only panel on it. A panel th
 | Note detail | Excess late charge payments | `GET /v1/admin/notes/:id/excess-late-charge-payments` | `notes.view` |
 | Note detail / Issuer Payouts | Shoraka STP state | `GET /v1/admin/withdrawals/:id/shoraka` | `notes.view` or `disbursements.view` |
 
-Do not broaden the module routes (`/onboarding-logs`, `/investments`, `/gateway-payments`) for these panels.
+How each route is scoped:
+
+- Organization onboarding logs: `organizationId` is set from `:id` after the query is parsed. Other filters (`userId`, `role`, `eventTypes`, `dateRange`, `search`) only narrow the result.
+- Note investments: `noteId` is set from `:id`. Only `page` and `pageSize` are read from the query.
+- Note excess late charge payments: `noteId` is set from `:id` and `purpose` is fixed to `EXCESS_LATE_CHARGES`. Only `page` and `pageSize` are read from the query. The panel uses `useNoteExcessLateChargePayments`; its "View payment" link to the Gateway Payments page shows only with `gateway_payments.view`.
+- Shoraka STP state is read-only. Shoraka STP actions (`submit-order`, `query-status`, `fetch-certificate`) stay on `notes.disbursement.manage`.
+
+Do not broaden the module routes (`/onboarding-logs`, `/investments`, `/gateway-payments`) for these panels. They stay on `onboarding.view`, `investments.view` and `gateway_payments.view`.
 
 ### Read-only vs manage
 
@@ -255,6 +270,8 @@ Item actions (approve / reject / request amendment / reset): `invoice` and `auth
 Signing package (`/v1/admin/signing/*`): view envelope / readiness / signed document → `applications.view`; send links, remind, retry delivery, void, re-sync, auto-sign retry → `applications.offer_acceptance.manage`. Extend signing deadline uses `applications.offer_acceptance.manage` on both contract and invoice offer routes. There is no separate `signing.*` permission.
 
 Guarantor **Start AML** (`POST /v1/admin/applications/:id/guarantors/:gid/start-aml`) uses `applications.business_guarantor.manage`.
+
+Financial statement edit routes (`PATCH /v1/applications/:id/admin-financial-statements/field` and `/fallback`) allow `applications.financial.manage` **or** `notes.manage`. `notes.manage` is accepted because the Notes prospectus review dialogs edit the same fields. In Application Review, the Financial tab Add / Edit statement buttons follow `applications.financial.manage` only.
 
 Application comments (both view and add) use `applications.view` only. Do not gate comments behind section manage permissions.
 
@@ -448,6 +465,7 @@ These systems and permissions no longer exist:
 | Mutations | `products.manage` |
 | Backend | `apps/api/src/modules/products/controller.ts` |
 | Frontend page | `apps/admin/src/app/settings/products/page.tsx` |
+| Notes | `GET /v1/products` and `GET /v1/products/:id` allow `products.view` **or** `applications.view`, because the Applications sidebar and list need product names and groups. Product writes (create, update, delete, rollback-create, image and template upload URLs) require `products.manage`. `applications.view` alone does not show the Products sidebar item or open the Products page. |
 
 ### Platform Finance Settings
 
