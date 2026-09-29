@@ -117,6 +117,10 @@ function permissionLabel(permission: AdminPermission): string {
     "applications.documents.manage": "Applications - Documents - Manage",
     "applications.business_guarantor.manage": "Applications - Business Guarantor - Manage",
     "reports.view": "Reports - View",
+    "platform_settings.view": "Platform Finance Settings - View",
+    "platform_settings.manage": "Platform Finance Settings - Manage",
+    "operator_profile.view": "Operator Profile - View",
+    "operator_profile.manage": "Operator Profile - Manage",
   };
   if (overrides[permission]) {
     return overrides[permission]!;
@@ -146,6 +150,13 @@ const PERMISSION_DESCRIPTIONS: Partial<Record<AdminPermission, string>> = {
   "applications.business_guarantor.manage":
     "Business & Guarantor review, director/shareholder/guarantor CTOS, and guarantor AML actions.",
   "reports.view": "Access the Reports page and export Reports page data.",
+  "platform_settings.view":
+    "View Platform Finance settings: late payment, gateway fees, investment limits, offer deadlines, trustee letter settings, and money flow accounts.",
+  "platform_settings.manage":
+    "Save Platform Finance settings, including trustee signature and document stamp uploads.",
+  "operator_profile.view": "View the Shoraka / Company profile (Settings > Company).",
+  "operator_profile.manage":
+    "Edit company details, share capital, shareholders, officers, advisors, interests, financial statements, signing people and signatures, company stamp, and document execution bindings.",
 };
 
 function permissionDescription(permission: AdminPermission): string | null {

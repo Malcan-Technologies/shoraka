@@ -21,7 +21,7 @@ admin-only access for `operator-profile/signing-signatures/…`; every other pre
   - `withdrawal-letters/` → `investor_withdrawals.view` / `disbursements.view` (by withdrawal type)
   - `receipts/` → `gateway_payments.view`
   - `products/` → `products.view`
-  - `operator-profile/signing-signatures/` → `platform_settings.view`
+  - `operator-profile/signing-signatures/` → `operator_profile.view`
 - [ ] Decide non-admin behaviour (issuer / investor callers) per prefix before denying by default.
 - [ ] Add tests to `s3/controller.test.ts`.
 

@@ -335,6 +335,17 @@ Explicit permission coverage:
 - [ ] `platform_settings.view`
 - [ ] `platform_settings.manage`
 
+#### Operator Profile (Shoraka / Company)
+- [ ] `/shoraka/profile` (sidebar Settings > Company):
+  - [ ] `operator_profile.view` required; `platform_settings.view` alone does not show the Company item or open the page
+  - [ ] With `operator_profile.view` only: edit/save, signature and company stamp uploads disabled
+  - [ ] With `operator_profile.manage`: edit/save enabled
+- [ ] `/settings/platform-finance` is not opened by `operator_profile.view` alone
+
+Explicit permission coverage:
+- [ ] `operator_profile.view`
+- [ ] `operator_profile.manage`
+
 ## Direct URL testing (paste URLs)
 
 For each test role, paste these into the browser address bar. Confirm the expected outcome:

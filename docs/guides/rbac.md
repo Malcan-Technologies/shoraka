@@ -442,8 +442,19 @@ These systems and permissions no longer exist:
 |---|---|
 | View | `platform_settings.view` |
 | Mutations | `platform_settings.manage` |
-| Backend | `apps/api/src/modules/notes/controller.ts` (`platformFinanceSettingsRouter`) |
-| Frontend page | `apps/admin/src/app/settings/platform-finance/page.tsx` |
+| Tabs | Late Payment, Gateway Fees, Investment Limits, Offer Deadlines, Trustee Letter (incl. trustee signature and document stamp uploads), Money Flow Accounts |
+| Backend | `apps/api/src/modules/notes/controller.ts` (`platformFinanceSettingsRouter`: `GET` view; `PATCH`, trustee-signature and document-stamp upload URLs manage) |
+| Frontend page | `apps/admin/src/app/settings/platform-finance/page.tsx`; sidebar Settings > Platform Finance |
+| Notes | `platform_settings.*` is for Platform Finance only. The Shoraka / Company profile uses `operator_profile.*`. |
+
+### Operator Profile (Shoraka / Company)
+
+| | |
+|---|---|
+| View | `operator_profile.view` |
+| Mutations | `operator_profile.manage` |
+| Backend | `apps/api/src/modules/operator-profile/controller.ts`, mounted at `/v1/admin/operator-profile` (router-wide `operator_profile.view`; every write — company details, share capital, shareholders, officers, advisors, interests, financial statements, signing people and signatures, company stamp, document execution bindings — uses `operator_profile.manage`) |
+| Frontend page | `apps/admin/src/app/shoraka/profile/page.tsx` ("Shoraka Profile"); sidebar Settings > Company. `/settings/rmo-profile` redirects here |
 
 ---
 
@@ -498,7 +509,7 @@ Do not use `document_management.*` for Notes or Application Review attachments.
 
 ### Settings > General and Settings > Security
 
-`/settings/general` and `/settings/security` are sidebar links that do not yet have backing `page.tsx` files. They are gated behind `platform_settings.view` in the sidebar. When these pages are implemented, use `platform_settings.view` / `platform_settings.manage` unless the feature scope requires a separate permission key.
+`/settings/general` and `/settings/security` are not in the admin sidebar and have no backing `page.tsx`. If they are implemented, give them a permission that matches their scope rather than reusing `platform_settings.*` (Platform Finance only) or `operator_profile.*` (Shoraka / Company profile only).
 
 ### RegTank onboarding-settings route
 

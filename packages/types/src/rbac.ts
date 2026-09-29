@@ -79,8 +79,12 @@ export const ADMIN_PERMISSIONS = [
   // Settings
   "products.view",
   "products.manage",
+  // Platform Finance settings only (fees, investment limits, offer deadlines, trustee letter, money flow accounts)
   "platform_settings.view",
   "platform_settings.manage",
+  // Shoraka / Company (operator) profile
+  "operator_profile.view",
+  "operator_profile.manage",
 
   "reports.view",
 
@@ -173,19 +177,8 @@ export const SUPER_ADMIN_ROLE_TEMPLATE: SystemAdminRoleTemplate = {
   permissions: allPermissions,
 };
 
+// Ordered to match the admin sidebar: top items, Lifecycle, Finance, Directory, Settings.
 export const ADMIN_PERMISSION_GROUPS: AdminPermissionGroup[] = [
-  {
-    key: "roleAdministration",
-    label: "Roles",
-    description: "Manage the admin role catalog, permission matrices, and admin role assignments.",
-    permissions: pickPermissions("roles.view", "roles.manage"),
-  },
-  {
-    key: "notificationAdministration",
-    label: "Notifications",
-    description: "Manage notification types, groups, delivery settings, and logs.",
-    permissions: pickPermissions("notifications.view", "notifications.manage"),
-  },
   {
     key: "dashboard",
     label: "Dashboard",
@@ -200,24 +193,26 @@ export const ADMIN_PERMISSION_GROUPS: AdminPermissionGroup[] = [
     ),
   },
   {
-    key: "notes",
-    label: "Notes",
-    description: "View and manage notes, repayment flows, settlements, and default actions.",
-    permissions: pickPermissions(
-      "notes.view",
-      "notes.create",
-      "notes.manage",
-      "notes.disbursement.manage",
-      "notes.repayment.manage",
-      "notes.settlement.manage",
-      "notes.default.manage"
-    ),
-  },
-  {
     key: "reports",
     label: "Reports",
     description: "Access the Reports page and export Reports page data.",
     permissions: pickPermissions("reports.view"),
+  },
+  {
+    key: "audit",
+    label: "Audit Logs",
+    description: "Read-only access to audit logs.",
+    permissions: pickPermissions(
+      "audit.access.view",
+      "audit.security.view",
+      "audit.product.view"
+    ),
+  },
+  {
+    key: "onboarding",
+    label: "Onboarding",
+    description: "View and manage onboarding approval queue actions.",
+    permissions: pickPermissions("onboarding.view", "onboarding.manage"),
   },
   {
     key: "applications",
@@ -235,44 +230,24 @@ export const ADMIN_PERMISSION_GROUPS: AdminPermissionGroup[] = [
     ),
   },
   {
-    key: "onboarding",
-    label: "Onboarding",
-    description: "View and manage onboarding approval queue actions.",
-    permissions: pickPermissions("onboarding.view", "onboarding.manage"),
+    key: "contracts",
+    label: "Facilities",
+    description: "View and manage standalone facility records and facility actions.",
+    permissions: pickPermissions("contracts.view", "contracts.manage"),
   },
   {
-    key: "users",
-    label: "User Accounts",
-    description: "View and manage platform user accounts.",
-    permissions: pickPermissions("users.view", "users.manage"),
-  },
-  {
-    key: "organizations",
-    label: "Issuers & Investors",
-    description: "View and manage issuer and investor records and related statuses.",
-    permissions: pickPermissions("organizations.view", "organizations.manage"),
-  },
-  {
-    key: "paymasters",
-    label: "Paymasters",
-    description: "View and review reusable Paymaster (customer/obligor) records and verification status.",
-    permissions: pickPermissions("paymasters.view", "paymasters.manage"),
-  },
-  {
-    key: "audit",
-    label: "Audit Logs",
-    description: "Read-only access to audit logs.",
+    key: "notes",
+    label: "Notes",
+    description: "View and manage notes, repayment flows, settlements, and default actions.",
     permissions: pickPermissions(
-      "audit.access.view",
-      "audit.security.view",
-      "audit.product.view"
+      "notes.view",
+      "notes.create",
+      "notes.manage",
+      "notes.disbursement.manage",
+      "notes.repayment.manage",
+      "notes.settlement.manage",
+      "notes.default.manage"
     ),
-  },
-  {
-    key: "documentManagement",
-    label: "Legal Documents",
-    description: "Manage LegalDocument definitions/versions and view Legal Acceptances evidence.",
-    permissions: pickPermissions("document_management.view", "document_management.manage"),
   },
   {
     key: "finance",
@@ -293,20 +268,59 @@ export const ADMIN_PERMISSION_GROUPS: AdminPermissionGroup[] = [
     ),
   },
   {
-    key: "contracts",
-    label: "Facilities",
-    description: "View and manage standalone facility records and facility actions.",
-    permissions: pickPermissions("contracts.view", "contracts.manage"),
+    key: "users",
+    label: "User Accounts",
+    description: "View and manage platform user accounts.",
+    permissions: pickPermissions("users.view", "users.manage"),
   },
   {
-    key: "settings",
-    label: "Product & Platform Settings",
-    description: "View and manage products and platform finance settings.",
-    permissions: pickPermissions(
-      "products.view",
-      "products.manage",
-      "platform_settings.view",
-      "platform_settings.manage"
-    ),
+    key: "organizations",
+    label: "Issuers & Investors",
+    description: "View and manage issuer and investor records and related statuses.",
+    permissions: pickPermissions("organizations.view", "organizations.manage"),
+  },
+  {
+    key: "paymasters",
+    label: "Paymasters",
+    description: "View and review reusable Paymaster (customer/obligor) records and verification status.",
+    permissions: pickPermissions("paymasters.view", "paymasters.manage"),
+  },
+  {
+    key: "documentManagement",
+    label: "Legal Documents",
+    description: "Manage LegalDocument definitions/versions and view Legal Acceptances evidence.",
+    permissions: pickPermissions("document_management.view", "document_management.manage"),
+  },
+  {
+    key: "operatorProfile",
+    label: "Operator Profile",
+    description:
+      "Shoraka / Company profile under Settings > Company: company details, share capital, people, financial statements, signing people, company stamp, and document execution bindings.",
+    permissions: pickPermissions("operator_profile.view", "operator_profile.manage"),
+  },
+  {
+    key: "products",
+    label: "Products",
+    description: "View and manage product configuration and workflows.",
+    permissions: pickPermissions("products.view", "products.manage"),
+  },
+  {
+    key: "platformFinance",
+    label: "Platform Finance Settings",
+    description:
+      "Platform Finance settings: late payment, gateway fees, investment limits, offer deadlines, trustee letter settings, and money flow accounts.",
+    permissions: pickPermissions("platform_settings.view", "platform_settings.manage"),
+  },
+  {
+    key: "notificationAdministration",
+    label: "Notifications",
+    description: "Manage notification types, groups, delivery settings, and logs.",
+    permissions: pickPermissions("notifications.view", "notifications.manage"),
+  },
+  {
+    key: "roleAdministration",
+    label: "Roles",
+    description: "Manage the admin role catalog, permission matrices, and admin role assignments.",
+    permissions: pickPermissions("roles.view", "roles.manage"),
   },
 ];

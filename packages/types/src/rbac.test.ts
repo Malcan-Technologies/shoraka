@@ -10,6 +10,12 @@ describe("admin permission catalog", () => {
     expect(ADMIN_PERMISSIONS).toContain("applications.offer_acceptance.manage");
   });
 
+  it("gives Super Admin the operator profile permissions", () => {
+    expect(SUPER_ADMIN_ROLE_TEMPLATE.permissions).toEqual(
+      expect.arrayContaining(["operator_profile.view", "operator_profile.manage"])
+    );
+  });
+
   it("has no duplicate permission keys", () => {
     expect(new Set(ADMIN_PERMISSIONS).size).toBe(ADMIN_PERMISSIONS.length);
   });
@@ -30,6 +36,44 @@ describe("admin permission catalog", () => {
   it("does not describe reports.view as controlling dashboard PAR cards", () => {
     const reports = ADMIN_PERMISSION_GROUPS.find((group) => group.key === "reports");
     expect(reports?.description.toLowerCase()).not.toContain("dashboard");
+  });
+
+  it("separates Platform Finance settings from the operator (Shoraka / Company) profile", () => {
+    expect(ADMIN_PERMISSIONS).toContain("operator_profile.view");
+    expect(ADMIN_PERMISSIONS).toContain("operator_profile.manage");
+    const byKey = Object.fromEntries(ADMIN_PERMISSION_GROUPS.map((group) => [group.key, group]));
+    expect(byKey.platformFinance?.permissions).toEqual([
+      "platform_settings.view",
+      "platform_settings.manage",
+    ]);
+    expect(byKey.operatorProfile?.permissions).toEqual([
+      "operator_profile.view",
+      "operator_profile.manage",
+    ]);
+    expect(byKey.products?.permissions).toEqual(["products.view", "products.manage"]);
+    expect(byKey.platformFinance?.description.toLowerCase()).not.toContain("profile");
+  });
+
+  it("orders role-configuration groups like the admin sidebar", () => {
+    expect(ADMIN_PERMISSION_GROUPS.map((group) => group.key)).toEqual([
+      "dashboard",
+      "reports",
+      "audit",
+      "onboarding",
+      "applications",
+      "contracts",
+      "notes",
+      "finance",
+      "users",
+      "organizations",
+      "paymasters",
+      "documentManagement",
+      "operatorProfile",
+      "products",
+      "platformFinance",
+      "notificationAdministration",
+      "roleAdministration",
+    ]);
   });
 
   it("gives the Super Admin template every permission", () => {
