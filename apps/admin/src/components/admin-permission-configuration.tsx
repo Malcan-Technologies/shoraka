@@ -145,43 +145,6 @@ function permissionLabel(permission: AdminPermission): string {
     .join(" - ");
 }
 
-const PERMISSION_DESCRIPTIONS: Partial<Record<AdminPermission, string>> = {
-  "dashboard.view": "Access the Dashboard page.",
-  "dashboard.finance.view": "Finance cards such as ledger, book, and money on the platform.",
-  "dashboard.operations.view":
-    "Onboarding, application, facility, and note pipeline cards.",
-  "dashboard.platform.view": "Users, organizations, and signup trends.",
-  "dashboard.reports.view": "PAR / credit quality and other dashboard risk cards.",
-  "applications.offer_acceptance.manage":
-    "Manage facility offer, invoice offer, acceptance documents, issuer response, and signing package inside the Offer & Acceptance tab.",
-  "applications.documents.manage": "Supporting Documents tab only.",
-  "applications.business_guarantor.manage":
-    "Business & Guarantor review, director/shareholder/guarantor CTOS, and guarantor AML actions.",
-  "reports.view": "Access the Reports page and export Reports page data.",
-  "platform_settings.view":
-    "View Platform Finance settings: late payment, gateway fees, investment limits, offer deadlines, trustee letter settings, and money flow accounts.",
-  "platform_settings.manage":
-    "Save Platform Finance settings, including trustee signature and document stamp uploads.",
-  "operator_profile.view": "View the Shoraka / Company profile (Settings > Company).",
-  "operator_profile.manage":
-    "Edit company details, share capital, shareholders, officers, advisors, interests, financial statements, signing people and signatures, company stamp, and document execution bindings.",
-  "contracts.view": "View Facilities (standalone facility records).",
-  "contracts.manage": "Facility actions such as enable/disable facility and waive facility fee.",
-  "disbursements.view":
-    "View the Issuer Payouts queue. Payout actions are in Note detail (Notes - Disbursement - Manage).",
-  "document_management.view":
-    "View Legal Documents, and the Legal Documents / Legal Acceptances / External Acceptances audit tabs.",
-  "document_management.manage": "Create, edit, upload, publish, archive and restore Legal Documents.",
-  "gateway_reconciliation.view": "View gateway Reconciliation runs and exceptions.",
-  "gateway_reconciliation.manage": "Run reconciliation and resolve exceptions.",
-  "settlements.view":
-    "View the Settlements queue (settlement trustee letters). Settlement actions are in Note detail (Notes - Settlement - Manage).",
-};
-
-function permissionDescription(permission: AdminPermission): string | null {
-  return PERMISSION_DESCRIPTIONS[permission] ?? null;
-}
-
 function BadgeColorPicker({
   value,
   onChange,
@@ -690,11 +653,6 @@ export function AdminPermissionConfiguration() {
                                 <p className="text-sm font-medium">
                                   {permissionLabel(permission)}
                                 </p>
-                                {permissionDescription(permission) ? (
-                                  <p className="text-xs text-muted-foreground">
-                                    {permissionDescription(permission)}
-                                  </p>
-                                ) : null}
                                 <p className="text-xs text-muted-foreground break-all">
                                   {permission}
                                 </p>
