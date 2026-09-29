@@ -121,6 +121,18 @@ describe("pending amendment manage permissions", () => {
     ).toBe("applications.documents.manage");
   });
 
+  it("resolves item amendment create from itemId when scopeKey is not sent", () => {
+    // Admin "Request amendment" on an item sends { scope: "item", itemType, itemId } only.
+    expect(CONTROLLER).toContain("parsed.data.scopeKey ?? parsed.data.itemId");
+    expect(
+      getPendingAmendmentCreatePermission({
+        scope: "item",
+        itemType: "document",
+        scopeKey: "acceptance_documents:0:Board resolution",
+      })
+    ).toBe("applications.offer_acceptance.manage");
+  });
+
   it("gates queued amendment create/update/delete on section or item manage, not applications.manage", () => {
     expect(CONTROLLER).toContain("requirePendingAmendmentCreate");
     expect(CONTROLLER).toContain("requirePendingAmendmentRoute");
