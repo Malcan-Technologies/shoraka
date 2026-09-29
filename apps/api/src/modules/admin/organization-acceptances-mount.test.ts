@@ -40,14 +40,13 @@ describe("admin router mounts organization acceptances", () => {
     mockList.mockResolvedValue({ acceptances: [], pagination: {} });
   });
 
-  it("serves the list with organizations.view + document_management.view, scoped to the URL", async () => {
-    const res = await request(appWith(["organizations.view", "document_management.view"])).get(ROUTE);
+  it("serves the list with organizations.view alone, scoped to the URL", async () => {
+    const res = await request(appWith(["organizations.view"])).get(ROUTE);
     expect(res.status).toBe(200);
     expect(mockList.mock.calls[0][0]).toMatchObject({ organizationId: "org-1", audience: "ISSUER" });
   });
 
   it.each([
-    [["organizations.view"]],
     [["document_management.view"]],
     [["audit.legal_acceptances.view"]],
   ] as AdminPermission[][][])("denies %j", async (permissions) => {

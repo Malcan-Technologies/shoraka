@@ -92,7 +92,8 @@ function PageSkeleton() {
 export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
   const { can } = usePermissions();
   const canView = can("organizations.view");
-  const canViewAcceptances = can("document_management.view");
+  // Read-only panel inside this page, so it follows the page permission.
+  const canViewAcceptances = canView;
   const canViewAccounts = can("users.view");
   const params = useParams();
   const organizationId = params.id as string;
