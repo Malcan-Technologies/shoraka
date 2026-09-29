@@ -50,7 +50,7 @@ Assign these permissions to the test users. Use exactly what is listed below (no
 [ ] Assign:
   - `audit.access.view`
 [ ] Ensure:
-  - no `audit.security.view`, `audit.product.view`
+  - no other `audit.*.view` permission
 
 === 9) Finance Viewer (view permissions only) ===
 -
@@ -110,7 +110,7 @@ Applications Financial Reviewer | Applications + financial section manage | Appl
 Roles Viewer | Roles menu + configuration read-only | Roles pages readable | All role mutations disabled | 403 for mutations
 Roles Manager | Roles + config + mutations | Roles pages readable + mutations enabled | None (mutations should work) | Success for mutations
 Notifications Viewer | Notifications menu | Notifications tabs readable | Toggles/seed/send/group mutations disabled | 403 for mutations
-Audit Access Viewer | Only Access Logs | Access Logs page readable | Security/Document/Product audit disabled/not visible | 403 for disallowed
+Audit Access Viewer | Audit (Access tab only) | Access Logs readable | All other Audit tabs not visible | 403 for disallowed
 Finance Viewer | Finance widgets + finance-related menus | Finance pages readable | Finance mutations disabled | 403 for mutations
 Notes Operations User | Notes menu + note sub-actions as granted | Notes pages readable | Mutation buttons enabled only for granted note permissions | 403 for missing note mutations
 
@@ -255,9 +255,18 @@ Explicit permission coverage:
 [ ] Access Logs:
   [ ] Visible/readable with `audit.access.view`
   [ ] Missing permission => not visible or Access Denied
-[ ] Repeat spot checks for:
-  [ ] `audit.security.view`
-  [ ] `audit.product.view`
+[ ] Repeat for each tab with only that tab's permission:
+  [ ] Security: `audit.security.view`
+  [ ] Products: `audit.product.view`
+  [ ] Legal Documents: `audit.legal_documents.view`
+  [ ] Legal Acceptances: `audit.legal_acceptances.view`
+  [ ] External Acceptances: `audit.external_acceptances.view`
+  [ ] Notifications: `audit.notifications.view`
+[ ] Audit sidebar item shows with at least one `audit.*.view` permission
+[ ] With no `audit.*.view` permission: Audit sidebar item hidden and `/audit` shows Access Denied
+[ ] With only `document_management.view` or only `notifications.view`: Audit sidebar item hidden and `/audit` shows Access Denied
+[ ] Page opens the first allowed tab; `/audit?tab=<tab without permission>` opens the first allowed tab
+[ ] Export in each tab works with that tab's permission
 [ ] Confirm Document Logs / `audit.document.view` do not exist
 
 === Legal Documents ===
@@ -272,9 +281,12 @@ Explicit permission coverage:
 
 === Legal Acceptances ===
 [ ] `/legal-document-acceptances`:
-  [ ] `document_management.view` required to list/detail/export/download
+  [ ] `audit.legal_acceptances.view` required to see the tab and to list/detail/export/download
+  [ ] `document_management.view` alone does not show the tab
   [ ] No update/delete actions available
   [ ] Missing permission => not visible or Access Denied
+[ ] Organization detail > Acceptances tab:
+  [ ] Still loads with `document_management.view` (list, View details, download)
 
 === Finance ===
 [ ] Investments page:

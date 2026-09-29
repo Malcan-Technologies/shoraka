@@ -32,7 +32,7 @@ function auditActionLabel(action: string): string {
  */
 router.get(
   "/",
-  requirePermission("document_management.view"),
+  requirePermission("audit.legal_documents.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = listLegalDocumentAuditLogsQuerySchema.parse(req.query);
@@ -59,7 +59,7 @@ router.get(
  */
 router.get(
   "/export",
-  requirePermission("document_management.view"),
+  requirePermission("audit.legal_documents.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = exportLegalDocumentAuditLogsQuerySchema.parse(req.query);

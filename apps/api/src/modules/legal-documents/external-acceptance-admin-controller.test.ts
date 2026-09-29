@@ -24,7 +24,15 @@ describe("legal external acceptance Admin export route", () => {
     expect(controller).not.toMatch(/\.\.\.row\b/);
   });
 
-  it("requires document_management.view", () => {
-    expect(controller).toContain('requirePermission("document_management.view")');
+  it("requires audit.external_acceptances.view on every route", () => {
+    const guards = [...controller.matchAll(/router\.get\(\s*"[^"]+",\s*([^\n]+),\n/g)].map(
+      (match) => match[1]
+    );
+    expect(guards).toEqual([
+      'requirePermission("audit.external_acceptances.view")',
+      'requirePermission("audit.external_acceptances.view")',
+      'requirePermission("audit.external_acceptances.view")',
+    ]);
+    expect(controller).not.toContain("document_management.view");
   });
 });

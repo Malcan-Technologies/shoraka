@@ -22,7 +22,7 @@ The API is the real security boundary. Frontend gating is for navigation and UX 
 
 | Export | Purpose |
 |---|---|
-| `ADMIN_PERMISSIONS` | Readonly tuple of all 53 valid permission strings. Derive `AdminPermission` from this. |
+| `ADMIN_PERMISSIONS` | Readonly tuple of all 60 valid permission strings. Derive `AdminPermission` from this. |
 | `AdminPermission` | TypeScript union type of all permission strings. Used as the type for all permission arguments. |
 | `ADMIN_PERMISSION_GROUPS` | Groups permissions by module for the Permission Configuration UI. Every permission must appear in a group. |
 | `FULL_ACCESS_ADMIN_ROLE_KEYS` | Currently `[AdminRole.SUPER_ADMIN]`. Roles in this list bypass `requirePermission` checks entirely. |
@@ -33,7 +33,8 @@ The API is the real security boundary. Frontend gating is for navigation and UX 
 - Use dotted keys: `module.action` or `module.domain.action`
 - Use `settlements.view` for the settlement trustee queue page, not `service_fee.view`
 - Use `platform_settings` for admin platform finance settings, not `platform_settings.finance`
-- Use `document_management` for Legal Documents and Legal Acceptances admin pages
+- Use `document_management` for the Legal Documents admin page
+- Use `audit.<tab>.view` for Audit page tabs; every Audit tab has its own key
 - Use `disbursements` for issuer payouts / issuer money out
 - Use `withdrawals` only if a standalone investor withdrawal admin page exists
 - Use `settlements` only if a standalone settlement page exists
@@ -354,7 +355,7 @@ Do not require `roles.manage` to navigate to or view the Permission Configuratio
 | Mutations (Add Missing Types, toggles, Send Notification, Create/Manage Groups) | `notifications.manage` |
 | Backend | `apps/api/src/modules/notification/controller.ts` |
 | Frontend page | `apps/admin/src/app/settings/notifications/page.tsx` |
-| Delivery evidence | Audit → Notifications (`/audit?tab=notifications`), same `notifications.view` permission |
+| Delivery evidence | Audit → Notifications (`/audit?tab=notifications`) uses `audit.notifications.view`, not `notifications.view` |
 
 Do not block any notification tab behind `notifications.manage`.
 
@@ -365,13 +366,16 @@ Do not block any notification tab behind `notifications.manage`.
 | Access Logs | `audit.access.view` |
 | Security Logs | `audit.security.view` |
 | Product Logs | `audit.product.view` |
-| Legal Documents | `document_management.view` |
-| Legal Acceptances | `document_management.view` |
-| External Acceptances | `document_management.view` |
-| Notifications | `notifications.view` |
+| Legal Documents | `audit.legal_documents.view` |
+| Legal Acceptances | `audit.legal_acceptances.view` |
+| External Acceptances | `audit.external_acceptances.view` |
+| Notifications | `audit.notifications.view` |
+| Sidebar / page | Audit is shown with at least one `audit.*.view` permission. Without any, the sidebar item is hidden and `/audit` shows Access Denied. |
+| Tabs | A tab is shown only with its own permission. The page opens the first allowed tab; `?tab=` naming a tab the user cannot see falls back to the first allowed tab. |
 | Backend | `apps/api/src/modules/admin/controller.ts`, product log controller, legal-document controllers, notification controller |
 | Frontend page | `apps/admin/src/app/audit/page.tsx` (tabs: Access, Security, Products, Legal Documents, Legal Acceptances, External Acceptances, Notifications) |
-| Notes | Audit pages are read-only. Search/filter/export use the same view permission as the source feature. There is no Document Logs tab. Legal Acceptances, External Acceptances, and Notification Logs are evidence views, not configuration. There is no Ops Alerts tab. |
+| Shared routes | `GET /v1/admin/legal-document-acceptances` (list, `/:id`, `/:id/download`) also accepts `document_management.view`, because the Organization detail Acceptances tab uses it. `GET /v1/notifications/admin/types` and `/admin/groups` accept `notifications.view` or `audit.notifications.view`, because the Notifications tab filters use them. All other Audit routes, including every export, accept only the tab's own permission. |
+| Notes | Audit pages are read-only. Search/filter/export use the same permission as the tab. `document_management.view` and `notifications.view` do not show any Audit tab. There is no Document Logs tab. Legal Acceptances, External Acceptances, and Notification Logs are evidence views, not configuration. There is no Ops Alerts tab. |
 
 ### Legal Documents
 
@@ -388,7 +392,8 @@ Do not block any notification tab behind `notifications.manage`.
 
 | | |
 |---|---|
-| View (list, detail, export, exact-version download) | `document_management.view` |
+| View in Audit (list, detail, export, exact-version download) | `audit.legal_acceptances.view` |
+| View in Organization detail > Acceptances (list, detail, exact-version download; no export) | `document_management.view` |
 | Mutations | None — records are immutable (no update/delete API) |
 | Backend | `apps/api/src/modules/legal-documents/acceptance-admin-controller.ts` |
 | Frontend page | `apps/admin/src/app/audit/page.tsx` (`/audit?tab=legal-acceptances`); `/legal-document-acceptances` redirects here |
@@ -399,7 +404,7 @@ Do not block any notification tab behind `notifications.manage`.
 
 | | |
 |---|---|
-| View (list, detail, export) | `document_management.view` |
+| View (list, detail, export) | `audit.external_acceptances.view` |
 | Mutations | None — records are immutable (no update/delete API) |
 | Backend | `apps/api/src/modules/legal-documents/external-acceptance-admin-controller.ts` |
 | Frontend page | `apps/admin/src/app/audit/page.tsx` (`/audit?tab=external-acceptances`) |
@@ -534,16 +539,17 @@ Do not require any section manage permission for comments.
 ### Notifications page
 
 - The Notification Management page (Configuration, Custom & Groups) is visible with `notifications.view`
-- Notification delivery evidence is Audit → Notifications, also `notifications.view`
+- Notification delivery evidence is Audit → Notifications and needs `audit.notifications.view`
 - Only mutation controls require `notifications.manage`
 - Never block entire tabs behind `notifications.manage`
 
 ### Legal documents vs documents inside Notes or Applications
 
-Legal Documents and Legal Acceptances use `document_management.view` / `document_management.manage` at:
+Legal Documents uses `document_management.view` / `document_management.manage` at `/legal-documents`.
 
-- `/legal-documents`
-- `/audit?tab=legal-acceptances` (`/legal-document-acceptances` redirects here)
+The Organization detail Acceptances tab uses `document_management.view`.
+
+The Audit tabs for Legal Documents, Legal Acceptances and External Acceptances use their own `audit.*.view` permissions (`/legal-document-acceptances` redirects to `/audit?tab=legal-acceptances`).
 
 Documents inside a Note Detail page follow `notes.view` for read-only viewing, or the relevant `notes.<domain>.manage` if the document action is part of a note workflow.
 
@@ -593,7 +599,7 @@ These permissions have been removed from the catalog because they have no active
 | `applications.contract.manage` / `applications.invoice.manage` | Replaced by `applications.offer_acceptance.manage` (one permission for the merged Offer & Acceptance tab, including signing) |
 | `disbursements.manage` | All withdrawal mutations now use `notes.disbursement.manage`; this permission was redundant |
 
-**Existing roles are not migrated automatically.** Removed keys are dropped when role access is resolved, and there is no backfill or SQL migration for the Offer & Acceptance, operator profile, dashboard PAR, Start AML, settlement trustee and late charge waiver moves. Custom roles must be reconfigured by hand in Settings > Roles before go-live. See "Decisions recorded" in `docs/guides/rbac-followups.md` for the mapping.
+**Existing roles are not migrated automatically.** Removed keys are dropped when role access is resolved, and there is no backfill or SQL migration for the Offer & Acceptance, operator profile, dashboard PAR, Start AML, settlement trustee, late charge waiver and Audit tab moves. Roles that relied on `document_management.view` or `notifications.view` to see Audit tabs need `audit.legal_documents.view`, `audit.legal_acceptances.view`, `audit.external_acceptances.view` or `audit.notifications.view` added. Custom roles must be reconfigured by hand in Settings > Roles before go-live. See "Decisions recorded" in `docs/guides/rbac-followups.md` for the mapping.
 
 The following permissions are **not** in this list because they have active backend routes:
 
@@ -622,7 +628,8 @@ The following permissions are **not** in this list because they have active back
 - [ ] Note lifecycle action buttons and Featured toggle disabled
 - [ ] "Turn Into Note" button disabled
 - [ ] Legal Documents Upload/Edit/Publish/Archive controls disabled without `document_management.manage`
-- [ ] Legal Acceptances remains readable with `document_management.view` and has no edit/delete controls
+- [ ] Audit → Legal Acceptances is readable with `audit.legal_acceptances.view` and has no edit/delete controls
+- [ ] Organization detail → Acceptances is readable with `document_management.view`
 - [ ] Roles page and Permission Configuration visible and read-only
 - [ ] Notifications page visible; Add Missing Types / toggles / Send disabled
 
@@ -644,15 +651,30 @@ The following permissions are **not** in this list because they have active back
 ### Role with `notifications.view` only
 
 - [ ] Settings → Notifications accessible (Configuration, Custom & Groups only)
-- [ ] Audit → Notifications visible; other Audit tabs hidden
+- [ ] Audit sidebar item hidden; `/audit` shows Access Denied
 - [ ] Add Missing Types, toggles, Send Notification, Create Group disabled
 
 ### Role with `audit.access.view` only
 
 - [ ] Only Access Logs tab visible under Audit
 - [ ] Access Logs page loads correctly
-- [ ] Security, Products, Legal Documents, Legal Acceptances, and Notifications tabs hidden or Access Denied
+- [ ] Security, Products, Legal Documents, Legal Acceptances, External Acceptances, and Notifications tabs hidden
+- [ ] `/audit?tab=security` opens the Access tab
 - [ ] No Document Logs tab exists
+
+### Role with one Audit tab permission only
+
+Repeat for `audit.legal_documents.view`, `audit.legal_acceptances.view`, `audit.external_acceptances.view` and `audit.notifications.view`.
+
+- [ ] Audit sidebar item visible
+- [ ] Only that tab is visible and it loads with data, filters and export
+- [ ] Legal Documents and Notifications settings pages are not visible
+
+### Role with `document_management.view` only
+
+- [ ] Audit sidebar item hidden; `/audit` shows Access Denied
+- [ ] Legal Documents page loads
+- [ ] Organization detail → Acceptances tab loads, including View details and download
 
 ---
 

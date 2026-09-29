@@ -17,6 +17,9 @@ jest.mock("../../lib/auth/middleware", () => {
     requireAuth: (req: Request, _res: Response, next: NextFunction) => {
       const roles = String(req.headers["x-test-roles"] ?? "ADMIN").split(",").filter(Boolean);
       req.user = { user_id: "admin-1", roles } as unknown as User;
+      req.admin = roles.includes("ADMIN")
+        ? ({ user_id: "admin-1" } as unknown as Request["admin"])
+        : null;
       req.adminRoleKey = "TEST_ROLE";
       req.adminPermissions = String(req.headers["x-test-permissions"] ?? "")
         .split(",")

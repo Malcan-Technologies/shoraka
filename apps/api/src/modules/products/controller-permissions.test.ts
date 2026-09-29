@@ -26,6 +26,7 @@ function appWith(permissions: string[]) {
   app.use(express.json());
   app.use((req: Request, _res: Response, next: NextFunction) => {
     req.user = { user_id: "admin-1", roles: ["ADMIN"] } as unknown as Request["user"];
+    req.admin = { user_id: "admin-1" } as unknown as Request["admin"];
     req.adminRoleKey = "TEST_ROLE";
     req.adminPermissions = permissions as Request["adminPermissions"];
     next();

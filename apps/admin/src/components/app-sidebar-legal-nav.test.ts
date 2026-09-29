@@ -66,8 +66,13 @@ describe("admin platform sidebar navigation", () => {
 
   it("shows Audit just below Reports, then Help", () => {
     expect(source).toMatch(/tooltip="Reports"[\s\S]*?tooltip="Audit"[\s\S]*?tooltip="Help"/);
-    expect(source).toContain("canViewDocuments ||");
-    expect(source).toContain("canViewNotifications");
+  });
+
+  it("shows Audit only for audit.* permissions, never document_management or notifications", () => {
+    expect(source).toContain("const canViewAnyAudit = canAny(...AUDIT_PERMISSIONS);");
+    expect(source).toMatch(/\{canViewAnyAudit \? \([\s\S]*?tooltip="Audit"/);
+    expect(source).not.toContain("canViewDocuments ||");
+    expect(source).not.toMatch(/canViewAnyAudit[^;]*canViewNotifications/);
   });
 
   it("hides the obsolete placeholder Documents nav entry", () => {

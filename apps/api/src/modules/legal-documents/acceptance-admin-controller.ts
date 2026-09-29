@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from "express";
-import { requirePermission } from "../../lib/auth/middleware";
+import { requireAnyPermission, requirePermission } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
 import { legalDocumentAcceptanceAdminService } from "./acceptance-admin-service";
 import {
@@ -17,6 +17,13 @@ const ACCEPTANCE_STATUS_LABELS: Record<string, string> = {
   ACCEPTED: "Accepted",
 };
 
+// List, detail and download also power the Organization detail Acceptances tab,
+// which is gated by document_management.view. Export is Audit-only.
+const canReadAcceptances = requireAnyPermission(
+  "audit.legal_acceptances.view",
+  "document_management.view"
+);
+
 function acceptanceStatusLabel(status: string): string {
   return ACCEPTANCE_STATUS_LABELS[status] ?? status;
 }
@@ -27,7 +34,7 @@ function acceptanceStatusLabel(status: string): string {
  */
 router.get(
   "/",
-  requirePermission("document_management.view"),
+  canReadAcceptances,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = listLegalAcceptancesQuerySchema.parse(req.query);
@@ -55,7 +62,7 @@ router.get(
  */
 router.get(
   "/export",
-  requirePermission("document_management.view"),
+  requirePermission("audit.legal_acceptances.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = exportLegalAcceptancesQuerySchema.parse(req.query);
@@ -162,7 +169,7 @@ router.get(
  */
 router.get(
   "/:id",
-  requirePermission("document_management.view"),
+  canReadAcceptances,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const acceptance = await legalDocumentAcceptanceAdminService.getAcceptanceById(
@@ -185,7 +192,7 @@ router.get(
  */
 router.get(
   "/:id/download",
-  requirePermission("document_management.view"),
+  canReadAcceptances,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const result =

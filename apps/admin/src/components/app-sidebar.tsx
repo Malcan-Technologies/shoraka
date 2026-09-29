@@ -51,6 +51,7 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 import { ChevronRight } from "lucide-react";
+import { AUDIT_PERMISSIONS } from "@/lib/audit-tabs";
 import { usePendingApprovalCount } from "@/hooks/use-pending-approval-count";
 import { useGatewayPaymentsExceptionCount } from "@/hooks/use-gateway-payments";
 import { useGatewayReconPendingCount } from "@/hooks/use-gateway-recon";
@@ -376,7 +377,7 @@ function FinanceCollapsibleGroup({
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
-  const { can } = usePermissions();
+  const { can, canAny } = usePermissions();
   const canViewDashboard = can("dashboard.view");
   const canViewReports = can("reports.view");
   const canViewOnboarding = can("onboarding.view");
@@ -404,15 +405,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const canViewOperatorProfile = can("operator_profile.view");
   const canViewRoles = can("roles.view");
 
-  const canViewAuditAccess = can("audit.access.view");
-  const canViewAuditSecurity = can("audit.security.view");
-  const canViewAuditProduct = can("audit.product.view");
-  const canViewAnyAudit =
-    canViewAuditAccess ||
-    canViewAuditSecurity ||
-    canViewAuditProduct ||
-    canViewDocuments ||
-    canViewNotifications;
+  const canViewAnyAudit = canAny(...AUDIT_PERMISSIONS);
 
   const { data: pendingCountData } = usePendingApprovalCount({ enabled: canViewOnboarding });
   const { data: noteActionCountData } = useNoteActionRequiredCount({ enabled: canViewNotes });
