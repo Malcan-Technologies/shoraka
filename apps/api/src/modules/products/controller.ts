@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { z } from "zod";
 import { AppError } from "../../lib/http/error-handler";
-import { requirePermission } from "../../lib/auth/middleware";
+import { requireAnyPermission, requirePermission } from "../../lib/auth/middleware";
 import { deleteS3Object } from "../../lib/s3/client";
 import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
@@ -21,6 +21,9 @@ import {
 import { getLockedProductCodes } from "./product-family";
 
 const router = Router();
+// Product reads also serve application navigation (sidebar product groups, product names),
+// so applications.view may read them. Writes stay on products.manage.
+const canReadProducts = requireAnyPermission("products.view", "applications.view");
 const productRepository = new ProductRepository();
 
 function mapProductResponse(
@@ -58,7 +61,7 @@ function mapProductResponse(
  * GET /v1/products
  * List products with pagination and optional search (admin only).
  */
-router.get("/", requirePermission("products.view"), async (req: Request, res: Response, next: NextFunction) => {
+router.get("/", canReadProducts, async (req: Request, res: Response, next: NextFunction) => {
   try {
       const validated = getProductsListQuerySchema.parse(req.query);
       const { products, total } = await productRepository.findAll({
@@ -148,7 +151,7 @@ router.post("/", requirePermission("products.manage"), async (req: Request, res:
  * GET /v1/products/:id
  * Get a single product by id (admin only).
  */
-router.get("/:id", requirePermission("products.view"), async (req: Request, res: Response, next: NextFunction) => {
+router.get("/:id", canReadProducts, async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
       const product = await productRepository.findById(id);

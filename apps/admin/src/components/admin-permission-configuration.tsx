@@ -121,6 +121,14 @@ function permissionLabel(permission: AdminPermission): string {
     "platform_settings.manage": "Platform Finance Settings - Manage",
     "operator_profile.view": "Operator Profile - View",
     "operator_profile.manage": "Operator Profile - Manage",
+    "contracts.view": "Facilities - View",
+    "contracts.manage": "Facilities - Manage",
+    "disbursements.view": "Issuer Payouts - View",
+    "document_management.view": "Legal Documents - View",
+    "document_management.manage": "Legal Documents - Manage",
+    "gateway_reconciliation.view": "Reconciliation - View",
+    "gateway_reconciliation.manage": "Reconciliation - Manage",
+    "settlements.view": "Settlements - View",
   };
   if (overrides[permission]) {
     return overrides[permission]!;
@@ -157,6 +165,17 @@ const PERMISSION_DESCRIPTIONS: Partial<Record<AdminPermission, string>> = {
   "operator_profile.view": "View the Shoraka / Company profile (Settings > Company).",
   "operator_profile.manage":
     "Edit company details, share capital, shareholders, officers, advisors, interests, financial statements, signing people and signatures, company stamp, and document execution bindings.",
+  "contracts.view": "View Facilities (standalone facility records).",
+  "contracts.manage": "Facility actions such as enable/disable facility and waive facility fee.",
+  "disbursements.view":
+    "View the Issuer Payouts queue. Payout actions are in Note detail (Notes - Disbursement - Manage).",
+  "document_management.view":
+    "View Legal Documents, and the Legal Documents / Legal Acceptances / External Acceptances audit tabs.",
+  "document_management.manage": "Create, edit, upload, publish, archive and restore Legal Documents.",
+  "gateway_reconciliation.view": "View gateway Reconciliation runs and exceptions.",
+  "gateway_reconciliation.manage": "Run reconciliation and resolve exceptions.",
+  "settlements.view":
+    "View the Settlements queue (settlement trustee letters). Settlement actions are in Note detail (Notes - Settlement - Manage).",
 };
 
 function permissionDescription(permission: AdminPermission): string | null {
