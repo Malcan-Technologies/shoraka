@@ -49,14 +49,19 @@ export function getApplicationSectionManagePermission(section: string): AdminPer
   }
 }
 
+/**
+ * Item amendments are stored under `itemId`, so `itemId` is the only key checked for item scope.
+ * A client-sent `scopeKey` is ignored there so it cannot point the check at a different section.
+ */
 export function getPendingAmendmentCreatePermission(input: {
   scope: "section" | "item";
   scopeKey?: string;
+  itemId?: string;
   itemType?: ReviewItemType;
 }): AdminPermission | null {
   if (input.scope === "item") {
     if (!input.itemType) return null;
-    return getApplicationItemManagePermission(input.itemType, input.scopeKey);
+    return getApplicationItemManagePermission(input.itemType, input.itemId);
   }
   if (!input.scopeKey) return null;
   return getApplicationSectionManagePermission(input.scopeKey);

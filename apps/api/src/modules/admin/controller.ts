@@ -203,11 +203,9 @@ function requirePendingAmendmentCreate(req: Request, _res: Response, next: NextF
       parsed.data.itemType != null ? normalizeReviewItemType(parsed.data.itemType) : undefined;
     const requiredPermission = getPendingAmendmentCreatePermission({
       scope: parsed.data.scope,
-      // Item amendments send the item scope key as itemId (the handler stores it the same way).
-      scopeKey:
-        parsed.data.scope === "item"
-          ? (parsed.data.scopeKey ?? parsed.data.itemId)
-          : parsed.data.scopeKey,
+      scopeKey: parsed.data.scopeKey,
+      // Item amendments are stored under itemId (see the handler), so the check uses itemId only.
+      itemId: parsed.data.itemId,
       itemType,
     });
     if (!requireAssignedPermission(req, requiredPermission, next)) return;

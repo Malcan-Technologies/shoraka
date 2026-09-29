@@ -1562,8 +1562,14 @@ export function ApplicationFinancialReviewContent({
                             variant="ghost"
                             size="sm"
                             className="h-7 px-1.5 py-0 whitespace-nowrap hover:underline"
-                            title="Add financial statement"
+                            disabled={!canManageFinancialCtos}
+                            title={
+                              canManageFinancialCtos
+                                ? "Add financial statement"
+                                : "You do not have permission to perform this action."
+                            }
                             onClick={() => {
+                              if (!canManageFinancialCtos) return;
                               setAddFinancialStatementYear(spec.year);
                               setAddFinancialStatementOpen(true);
                             }}
@@ -1582,9 +1588,16 @@ export function ApplicationFinancialReviewContent({
                             variant="ghost"
                             size="sm"
                             className="h-7 px-1.5 py-0 whitespace-nowrap hover:underline"
-                            title={financialEditsLocked ? "Financial review is approved" : "Edit financial statement"}
+                            disabled={!canManageFinancialCtos}
+                            title={
+                              !canManageFinancialCtos
+                                ? "You do not have permission to perform this action."
+                                : financialEditsLocked
+                                  ? "Financial review is approved"
+                                  : "Edit financial statement"
+                            }
                             onClick={() => {
-                              if (spec.kind === "empty") return;
+                              if (!canManageFinancialCtos || spec.kind === "empty") return;
                               setEditFinancialStatementTarget({ year: spec.year as number, kind: spec.kind });
                               setEditFinancialStatementOpen(true);
                             }}

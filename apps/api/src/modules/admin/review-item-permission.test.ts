@@ -100,14 +100,14 @@ describe("pending amendment manage permissions", () => {
       getPendingAmendmentCreatePermission({
         scope: "item",
         itemType: "document",
-        scopeKey: "acceptance_documents:0:Board resolution",
+        itemId: "acceptance_documents:0:Board resolution",
       })
     ).toBe("applications.offer_acceptance.manage");
     expect(
       getPendingAmendmentCreatePermission({
         scope: "item",
         itemType: "document",
-        scopeKey: "supporting_documents:financial:0:Statement",
+        itemId: "supporting_documents:financial:0:Statement",
       })
     ).toBe("applications.documents.manage");
     expect(
@@ -121,16 +121,56 @@ describe("pending amendment manage permissions", () => {
     ).toBe("applications.documents.manage");
   });
 
-  it("resolves item amendment create from itemId when scopeKey is not sent", () => {
+  it("resolves item amendment create from itemId, the key the handler stores", () => {
     // Admin "Request amendment" on an item sends { scope: "item", itemType, itemId } only.
-    expect(CONTROLLER).toContain("parsed.data.scopeKey ?? parsed.data.itemId");
+    expect(CONTROLLER).toContain("itemId: parsed.data.itemId,");
+    expect(CONTROLLER).not.toContain("parsed.data.scopeKey ?? parsed.data.itemId");
     expect(
       getPendingAmendmentCreatePermission({
         scope: "item",
         itemType: "document",
-        scopeKey: "acceptance_documents:0:Board resolution",
+        itemId: "acceptance_documents:0:Board resolution",
       })
     ).toBe("applications.offer_acceptance.manage");
+  });
+
+  describe("item scopeKey cannot override itemId", () => {
+    // Body that claims a Supporting Documents scopeKey but targets an acceptance document itemId.
+    const spoofed = {
+      scope: "item" as const,
+      itemType: "document" as const,
+      scopeKey: "supporting_documents:financial:0:Statement",
+      itemId: "acceptance_documents:0:Board resolution",
+    };
+    const allowed = (granted: string[]) => {
+      const required = getPendingAmendmentCreatePermission(spoofed);
+      return required != null && granted.includes(required);
+    };
+
+    it("requires offer_acceptance.manage for the acceptance document itemId", () => {
+      expect(getPendingAmendmentCreatePermission(spoofed)).toBe(
+        "applications.offer_acceptance.manage"
+      );
+    });
+
+    it("denies a documents.manage-only admin", () => {
+      expect(allowed(["applications.view", "applications.documents.manage"])).toBe(false);
+    });
+
+    it("allows an offer_acceptance.manage admin", () => {
+      expect(allowed(["applications.view", "applications.offer_acceptance.manage"])).toBe(true);
+    });
+
+    it("keeps supporting_documents itemIds on documents.manage even with another scopeKey", () => {
+      expect(
+        getPendingAmendmentCreatePermission({
+          scope: "item",
+          itemType: "document",
+          scopeKey: "acceptance_documents:0:Board resolution",
+          itemId: "supporting_documents:financial:0:Statement",
+        })
+      ).toBe("applications.documents.manage");
+    });
   });
 
   it("gates queued amendment create/update/delete on section or item manage, not applications.manage", () => {

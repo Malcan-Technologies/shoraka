@@ -548,6 +548,8 @@ These permissions have been removed from the catalog because they have no active
 | `applications.contract.manage` / `applications.invoice.manage` | Replaced by `applications.offer_acceptance.manage` (one permission for the merged Offer & Acceptance tab, including signing) |
 | `disbursements.manage` | All withdrawal mutations now use `notes.disbursement.manage`; this permission was redundant |
 
+**Existing roles are not migrated automatically.** Removed keys are dropped when role access is resolved, and there is no backfill or SQL migration for the Offer & Acceptance, operator profile, dashboard PAR, Start AML, settlement trustee and late charge waiver moves. Custom roles must be reconfigured by hand in Settings > Roles before go-live. See "Decisions recorded" in `docs/guides/rbac-followups.md` for the mapping.
+
 The following permissions are **not** in this list because they have active backend routes:
 
 | Permission | Active usage |
