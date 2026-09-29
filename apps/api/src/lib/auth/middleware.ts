@@ -232,8 +232,12 @@ export function requireAllRoles(...roles: UserRole[]) {
   };
 }
 
+function hasAdminContext(req: Request): boolean {
+  return Boolean(req.user && req.user.roles.includes(UserRole.ADMIN) && req.admin);
+}
+
 function hasRequiredPermissions(req: Request, permissions: AdminPermission[]): boolean {
-  if (!req.user || !req.user.roles.includes(UserRole.ADMIN) || !req.admin) {
+  if (!hasAdminContext(req)) {
     return false;
   }
 
@@ -268,6 +272,11 @@ export function requireAnyPermission(...permissions: AdminPermission[]) {
       return;
     }
 
+    if (!hasAdminContext(req)) {
+      next(new AppError(403, "FORBIDDEN", "Insufficient permissions"));
+      return;
+    }
+
     if (req.adminRoleKey && FULL_ACCESS_ADMIN_ROLE_KEYS.includes(req.adminRoleKey)) {
       next();
       return;
@@ -286,6 +295,10 @@ export function requireAnyPermission(...permissions: AdminPermission[]) {
 }
 
 export function userHasPermission(req: Request, permission: AdminPermission): boolean {
+  if (!hasAdminContext(req)) {
+    return false;
+  }
+
   if (req.adminRoleKey && FULL_ACCESS_ADMIN_ROLE_KEYS.includes(req.adminRoleKey)) {
     return true;
   }

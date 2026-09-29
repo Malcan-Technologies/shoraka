@@ -98,9 +98,11 @@ import { renderCtosHtmlToPdfBuffer } from "../ctos/render-ctos-html-to-pdf";
 import { createAdminOrganizationProfileRouter } from "../organization-profile/controller";
 import { computeOrgProfileCompleteness, getIssuerFinancialSummary, listPartyProfiles } from "../organization-profile/service";
 import { createOperatorProfileRouter } from "../operator-profile/controller";
+import { organizationLegalAcceptanceRouter } from "../legal-documents/acceptance-admin-controller";
 
 const router = Router();
 router.use("/organizations", createAdminOrganizationProfileRouter());
+router.use("/organizations/:portal/:id/legal-acceptances", organizationLegalAcceptanceRouter);
 router.use("/operator-profile", createOperatorProfileRouter());
 const adminService = new AdminService();
 

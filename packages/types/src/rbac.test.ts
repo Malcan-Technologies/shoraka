@@ -76,6 +76,22 @@ describe("admin permission catalog", () => {
     ]);
   });
 
+  it("gives every Audit tab its own audit permission", () => {
+    const audit = ADMIN_PERMISSION_GROUPS.find((group) => group.key === "audit");
+    expect(audit?.permissions).toEqual([
+      "audit.access.view",
+      "audit.security.view",
+      "audit.product.view",
+      "audit.legal_documents.view",
+      "audit.legal_acceptances.view",
+      "audit.external_acceptances.view",
+      "audit.notifications.view",
+    ]);
+    expect(SUPER_ADMIN_ROLE_TEMPLATE.permissions).toEqual(
+      expect.arrayContaining([...(audit?.permissions ?? [])])
+    );
+  });
+
   it("gives the Super Admin template every permission", () => {
     expect([...SUPER_ADMIN_ROLE_TEMPLATE.permissions].sort()).toEqual(
       [...ADMIN_PERMISSIONS].sort()

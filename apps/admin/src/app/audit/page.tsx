@@ -4,7 +4,6 @@ import * as React from "react";
 import { Suspense } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Skeleton, Tabs, TabsContent, TabsList, TabsTrigger } from "@cashsouk/ui";
-import type { AdminPermission } from "@cashsouk/types";
 import { AccessLogsPanel } from "@/components/audit/access-logs-panel";
 import { LegalAcceptancesPanel } from "@/components/audit/legal-acceptances-panel";
 import { LegalExternalAcceptancesPanel } from "@/components/audit/legal-external-acceptances-panel";
@@ -15,28 +14,12 @@ import { SecurityLogsPanel } from "@/components/audit/security-logs-panel";
 import { AccessDeniedCard } from "@/components/require-permission";
 import { AdminPageHeader } from "@/components/admin-page-header";
 import { usePermissions } from "@/hooks/use-permissions";
-
-const AUDIT_TABS = [
-  { id: "access", label: "Access", permission: "audit.access.view" },
-  { id: "security", label: "Security", permission: "audit.security.view" },
-  { id: "products", label: "Products", permission: "audit.product.view" },
-  { id: "legal-documents", label: "Legal Documents", permission: "document_management.view" },
-  { id: "legal-acceptances", label: "Legal Acceptances", permission: "document_management.view" },
-  { id: "external-acceptances", label: "External Acceptances", permission: "document_management.view" },
-  { id: "notifications", label: "Notifications", permission: "notifications.view" },
-] as const satisfies ReadonlyArray<{
-  id: string;
-  label: string;
-  permission: AdminPermission;
-}>;
-
-type AuditTabId = (typeof AUDIT_TABS)[number]["id"];
-
-const AUDIT_PERMISSIONS: AdminPermission[] = AUDIT_TABS.map((tab) => tab.permission);
-
-function isAuditTabId(value: string | null): value is AuditTabId {
-  return AUDIT_TABS.some((tab) => tab.id === value);
-}
+import {
+  AUDIT_PERMISSIONS,
+  getVisibleAuditTabs,
+  isAuditTabId,
+  resolveActiveAuditTab,
+} from "@/lib/audit-tabs";
 
 function AuditPageFallback() {
   return (
@@ -55,12 +38,9 @@ function AuditPageContent() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const visibleTabs = AUDIT_TABS.filter((tab) => can(tab.permission));
+  const visibleTabs = getVisibleAuditTabs(can);
   const requestedTab = searchParams.get("tab");
-  const activeTab: AuditTabId | undefined =
-    (isAuditTabId(requestedTab) && visibleTabs.some((tab) => tab.id === requestedTab)
-      ? requestedTab
-      : undefined) ?? visibleTabs[0]?.id;
+  const activeTab = resolveActiveAuditTab(visibleTabs, requestedTab);
 
   React.useEffect(() => {
     if (isLoading || !activeTab) return;

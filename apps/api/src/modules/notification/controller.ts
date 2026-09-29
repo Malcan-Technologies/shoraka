@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { NotificationService } from "./service";
 import { AppError } from "../../lib/http/error-handler";
-import { requireAuth, requirePermission } from "../../lib/auth/middleware";
+import { requireAnyPermission, requireAuth, requirePermission } from "../../lib/auth/middleware";
 import {
   NotificationFiltersSchema,
   UpdatePreferenceSchema,
@@ -247,7 +247,8 @@ router.put(
 router.get(
   "/admin/types",
   requireAuth,
-  requirePermission("notifications.view"),
+  // Also feeds the Audit > Notifications tab filters.
+  requireAnyPermission("notifications.view", "audit.notifications.view"),
   async (_req: Request, res: Response, next: NextFunction) => {
     try {
       const result = await notificationService.getAllNotificationTypes();
@@ -393,7 +394,7 @@ router.post(
 router.get(
   "/admin/logs",
   requireAuth,
-  requirePermission("notifications.view"),
+  requirePermission("audit.notifications.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const filters = AdminNotificationLogsQuerySchema.parse(req.query);
@@ -412,7 +413,8 @@ router.get(
 router.get(
   "/admin/groups",
   requireAuth,
-  requirePermission("notifications.view"),
+  // Also feeds the Audit > Notifications tab filters.
+  requireAnyPermission("notifications.view", "audit.notifications.view"),
   async (_req: Request, res: Response, next: NextFunction) => {
     try {
       const groups = await notificationService.getAllNotificationGroups();

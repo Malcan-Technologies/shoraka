@@ -668,15 +668,16 @@ export const SC_INVESTOR_CATEGORY_LABELS: Record<ScInvestorCategory, string> = {
 
 export const SC_INVESTOR_CATEGORY_DEFINITIONS: Record<ScInvestorCategory, string> = {
   ANGEL:
-    "An individual who meets the SC angel investor requirements, including the relevant Malaysian tax residence and asset or income conditions.",
-  RETAIL: "An individual who is neither an Angel investor nor a Sophisticated Investor.",
+    "An individual who meets the required Malaysian tax residency and income or asset conditions for an Angel Investor.",
+  RETAIL: "An individual who is not an Angel or Sophisticated Investor.",
   SOPHISTICATED_HIGH_NET_WORTH_INDIVIDUAL:
-    "An individual who meets the SC high-net-worth investor requirements.",
-  SOPHISTICATED_ACCREDITED: "An investor who qualifies under the SC accredited-investor categories.",
+    "An individual who meets the high-net-worth requirements for a Sophisticated Investor.",
+  SOPHISTICATED_ACCREDITED:
+    "An investor who qualifies under the accredited investor category for Sophisticated Investors.",
   SOPHISTICATED_HIGH_NET_WORTH_ENTITY:
-    "A company or entity that meets the SC high-net-worth entity requirements.",
-  NON_SOPHISTICATED_ENTITY:
-    "A company or entity that does not meet the sophisticated-investor requirements.",
+    "A company or entity that meets the high-net-worth entity requirements for a Sophisticated Investor.",
+  // Legacy/historical only; never offered by allowedScInvestorCategories.
+  NON_SOPHISTICATED_ENTITY: "A company or entity that does not qualify as a Sophisticated Investor.",
 };
 
 export const SC_INVESTOR_CATEGORIES_PERSONAL_NON_SOPHISTICATED = [

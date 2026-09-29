@@ -348,7 +348,7 @@ export function OrganizationProfilePanel({
     | "PERSONAL"
     | "COMPANY";
   const investorCategoryOptions = allowedScInvestorCategories({ organizationType: investorCategoryOrganizationType });
-  const investorCategoryHelp = scInvestorCategoryHelp(investorCategoryOptions);
+  const investorCategoryHelp = `${PROFILE_HELP.typeOfInvestorFieldAdmin}\n\n${scInvestorCategoryHelp(investorCategoryOptions)}`;
   const investorCategoryValid = isAllowedScInvestorCategory(org.scInvestorCategory, {
     organizationType: investorCategoryOrganizationType,
   });
@@ -427,7 +427,7 @@ export function OrganizationProfilePanel({
           <AdminDetailCardHeader
             icon={IdentificationIcon}
             title="Investor Classification"
-            description="Investor type is used for regulatory reporting and determines the investor’s investment limit. It does not change which investment notes they can view."
+            description={PROFILE_HELP.typeOfInvestorAdmin}
             actions={sectionActions("classification")}
           />
           <CardContent>

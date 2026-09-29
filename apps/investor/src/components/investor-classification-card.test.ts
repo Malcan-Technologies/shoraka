@@ -31,6 +31,7 @@ describe("investor classification card", () => {
 
   it("includes tooltip definitions for all displayed Type of Investor options", () => {
     expect(source).toContain("scInvestorCategoryHelp(options)");
+    expect(source).toContain("PROFILE_HELP.typeOfInvestorField");
     expect(source).toContain("SC_INVESTOR_CATEGORY_DEFINITIONS");
 
     const personal = allowedScInvestorCategories({ organizationType: "PERSONAL" });

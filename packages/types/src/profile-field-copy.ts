@@ -103,6 +103,10 @@ export const PROFILE_HELP = {
     "Your investor type is used for regulatory reporting and determines your investment limit. It does not change which investment notes you can view.",
   typeOfInvestorAdmin:
     "Investor type is used for regulatory reporting and determines the investor’s investment limit. It does not change which investment notes they can view.",
+  typeOfInvestorField:
+    "Select the investor type that best describes you. This is used for regulatory reporting and to determine your investment limit.",
+  typeOfInvestorFieldAdmin:
+    "Select the investor type that best describes this investor. This is used for regulatory reporting and to determine the investor’s investment limit.",
 } as const;
 
 /** Completeness-list labels keep a section prefix so missing State/Postcode is unambiguous. */

@@ -28,7 +28,7 @@ function eventLabel(status: string): string {
 
 router.get(
   "/",
-  requirePermission("document_management.view"),
+  requirePermission("audit.external_acceptances.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const query = listLegalExternalAcceptancesQuerySchema.parse(req.query);
@@ -42,7 +42,7 @@ router.get(
 
 router.get(
   "/export",
-  requirePermission("document_management.view"),
+  requirePermission("audit.external_acceptances.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = exportLegalExternalAcceptancesQuerySchema.parse(req.query);
@@ -153,7 +153,7 @@ router.get(
 
 router.get(
   "/:id",
-  requirePermission("document_management.view"),
+  requirePermission("audit.external_acceptances.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const acceptance = await legalExternalAcceptanceAdminService.getAcceptanceById(req.params.id);

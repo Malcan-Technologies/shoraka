@@ -1231,6 +1231,25 @@ describe("SC ComRep investor category", () => {
       }
     }
   });
+
+  it("keeps Type of Investor help scoped to selectable options in plain language", () => {
+    for (const category of SC_INVESTOR_CATEGORIES) {
+      expect(SC_INVESTOR_CATEGORY_DEFINITIONS[category]).not.toMatch(/\bSC\b|Yes\/No|_/);
+    }
+
+    const personalHelp = scInvestorCategoryHelp(
+      allowedScInvestorCategories({ organizationType: "PERSONAL" })
+    );
+    expect(personalHelp).not.toContain(SC_INVESTOR_CATEGORY_LABELS.SOPHISTICATED_HIGH_NET_WORTH_ENTITY);
+    expect(personalHelp).not.toContain(SC_INVESTOR_CATEGORY_LABELS.NON_SOPHISTICATED_ENTITY);
+
+    const companyHelp = scInvestorCategoryHelp(
+      allowedScInvestorCategories({ organizationType: "COMPANY" })
+    );
+    expect(companyHelp).toBe(
+      `${SC_INVESTOR_CATEGORY_LABELS.SOPHISTICATED_HIGH_NET_WORTH_ENTITY}\n${SC_INVESTOR_CATEGORY_DEFINITIONS.SOPHISTICATED_HIGH_NET_WORTH_ENTITY}`
+    );
+  });
 });
 
 describe("investmentLimitTierFor", () => {
