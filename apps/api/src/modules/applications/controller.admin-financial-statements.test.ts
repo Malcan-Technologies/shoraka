@@ -49,11 +49,22 @@ describe("admin financial statement edit permissions", () => {
     });
   });
 
-  it.each(ROUTES)("denies %s for an admin without financial or notes manage", async (route) => {
+  it.each(ROUTES)("denies %s for an admin without financial manage", async (route) => {
     const res = await request(app)
       .patch(route)
       .set("x-test-permissions", "applications.view,applications.manage,notes.view")
       .send({});
+    expect(res.status).toBe(403);
+    expect(applicationService.upsertAdminFinancialField).not.toHaveBeenCalled();
+    expect(applicationService.upsertAdminFinancialStatementFallbackYear).not.toHaveBeenCalled();
+  });
+
+  // Prospectus review is read-only for financial statements, so notes.manage is not enough.
+  it.each(ROUTES)("denies %s for an admin with notes.manage only", async (route) => {
+    const res = await request(app)
+      .patch(route)
+      .set("x-test-permissions", "notes.view,notes.manage")
+      .send({ financialYear: 2024, fieldKey: "revenue", value: 100 });
     expect(res.status).toBe(403);
     expect(applicationService.upsertAdminFinancialField).not.toHaveBeenCalled();
     expect(applicationService.upsertAdminFinancialStatementFallbackYear).not.toHaveBeenCalled();
@@ -68,21 +79,19 @@ describe("admin financial statement edit permissions", () => {
     expect(res.status).toBe(403);
   });
 
-  it.each([["applications.financial.manage"], ["notes.manage"]])(
-    "allows %s to save admin financial statements",
-    async (permission) => {
-      const fallback = await request(app)
-        .patch(ROUTES[0])
-        .set("x-test-permissions", permission)
-        .send({ financialYear: 2024, statementType: "AUDITED", rawFinancialInputs: {} });
-      expect(fallback.status).toBe(200);
-      const field = await request(app)
-        .patch(ROUTES[1])
-        .set("x-test-permissions", permission)
-        .send({ financialYear: 2024, fieldKey: "revenue", value: 100 });
-      expect(field.status).toBe(200);
-      expect(applicationService.upsertAdminFinancialStatementFallbackYear).toHaveBeenCalledTimes(1);
-      expect(applicationService.upsertAdminFinancialField).toHaveBeenCalledTimes(1);
-    }
-  );
+  it("allows applications.financial.manage to save admin financial statements", async () => {
+    const permission = "applications.financial.manage";
+    const fallback = await request(app)
+      .patch(ROUTES[0])
+      .set("x-test-permissions", permission)
+      .send({ financialYear: 2024, statementType: "AUDITED", rawFinancialInputs: {} });
+    expect(fallback.status).toBe(200);
+    const field = await request(app)
+      .patch(ROUTES[1])
+      .set("x-test-permissions", permission)
+      .send({ financialYear: 2024, fieldKey: "revenue", value: 100 });
+    expect(field.status).toBe(200);
+    expect(applicationService.upsertAdminFinancialStatementFallbackYear).toHaveBeenCalledTimes(1);
+    expect(applicationService.upsertAdminFinancialField).toHaveBeenCalledTimes(1);
+  });
 });

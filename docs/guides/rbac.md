@@ -274,7 +274,7 @@ Signing package (`/v1/admin/signing/*`): view envelope / readiness / signed docu
 
 Guarantor **Start AML** (`POST /v1/admin/applications/:id/guarantors/:gid/start-aml`) uses `applications.business_guarantor.manage`.
 
-Financial statement edit routes (`PATCH /v1/applications/:id/admin-financial-statements/field` and `/fallback`) allow `applications.financial.manage` **or** `notes.manage`. `notes.manage` is accepted because the Notes prospectus review dialogs edit the same fields. In Application Review, the Financial tab Add / Edit statement buttons follow `applications.financial.manage` only.
+Financial statement edit routes (`PATCH /v1/applications/:id/admin-financial-statements/field` and `/fallback`) require `applications.financial.manage`. Financial statements are added or edited only from the Application Review Financial tab, whose Add / Edit statement buttons follow the same permission. The Notes prospectus review page is read-only for financial statements: it shows missing years and completeness warnings but has no add or edit action, and `notes.manage` alone cannot call these routes.
 
 Application comments (both view and add) use `applications.view` only. Do not gate comments behind section manage permissions.
 

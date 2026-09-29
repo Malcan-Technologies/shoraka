@@ -709,11 +709,9 @@ export function createApplicationRouter(): Router {
   router.get("/:id/summary-pdf", requireAuth, getApplicationSummaryPdf);
   router.delete("/:id/document", requireAuth, deleteDocument);
   router.patch("/:id/step", requireAuth, updateApplicationStep);
-  // Admin financial edits come from the Application Review Financial tab and the Notes prospectus page.
-  const canManageAdminFinancials = requireAnyPermission(
-    "applications.financial.manage",
-    "notes.manage"
-  );
+  // Admin financial edits come from the Application Review Financial tab only.
+  // The Notes prospectus page is read-only for financial statements.
+  const canManageAdminFinancials = requireAnyPermission("applications.financial.manage");
   router.patch(
     "/:id/admin-financial-statements/fallback",
     requireAuth,

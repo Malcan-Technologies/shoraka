@@ -34,7 +34,7 @@ admin-only access for `operator-profile/signing-signatures/…`; every other pre
 
 ## Resolved
 
-- [x] `PATCH /v1/applications/:id/admin-financial-statements/{field,fallback}` require `applications.financial.manage` or `notes.manage` (prospectus-review dialogs). The Financial tab Add / Edit statement buttons are disabled without `applications.financial.manage`.
+- [x] `PATCH /v1/applications/:id/admin-financial-statements/{field,fallback}` require `applications.financial.manage` only. The Financial tab Add / Edit statement buttons are disabled without it. The prospectus review page no longer has a "+ Add" action for missing years; it is read-only for financial statements.
 - [x] `apps/admin/src/app/settings/roles/page.tsx` passes the computed `can("roles.manage")` as `canManageRoles`; admin-user role edit, deactivate and reactivate are disabled without it.
 - [x] Applications list / sidebar: `GET /v1/products` and `GET /v1/products/:id` accept `products.view` or `applications.view`; product writes stay on `products.manage`.
 - [x] `POST /v1/admin/applications/:id/reviews/pending-amendments` (item scope) checks the permission against `itemId`, the key the handler stores. A client `scopeKey` can no longer point the check at a different section.
