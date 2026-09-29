@@ -66,7 +66,7 @@ Assign these permissions to the test users. Use exactly what is listed below (no
   - `dashboard.operations.view` (optional, only if you also want to see Operations section)
   - `dashboard.reports.view` (optional, only if you also want to see the PAR / Credit quality cards)
 [ ] Ensure:
-  - no `investments.manage`, `bucket_balances.manage`, `repayments.manage`, `contracts.manage`
+  - no `contracts.manage` (Investments, Bucket Balances, Repayments, Settlements and Issuer Payouts are read-only pages with no `.manage` key)
 
 === 10) Notes Operations User ===
 -
@@ -279,13 +279,13 @@ Explicit permission coverage:
 === Finance ===
 [ ] Investments page:
   [ ] `investments.view` required
-  [ ] `investments.manage` required for mutations (if any exist)
+  [ ] Read-only page; there is no `investments.manage` permission
 [ ] Bucket Balances:
   [ ] `bucket_balances.view` required
-  [ ] `bucket_balances.manage` required for adjustments/mutations
+  [ ] Read-only page; there is no `bucket_balances.manage` permission
 [ ] Repayments:
   [ ] `repayments.view` required
-  [ ] `repayments.manage` required for mutations
+  [ ] Read-only queue; repayment actions are in Note Detail and need `notes.repayment.manage` (there is no `repayments.manage`)
 [ ] Issuer Payouts / Disbursements:
   [ ] `disbursements.view` required to see page
   [ ] `notes.disbursement.manage` required for payout mutation actions (generate letter, mark submitted, mark completed, Tawarruq/Shoraka workflow, edit beneficiary)
@@ -294,7 +294,7 @@ Explicit permission coverage:
   [ ] `notes.settlement.manage` required for settlement trustee mutation actions inside Note Detail (issuer disbursement trustee letters stay on `notes.disbursement.manage`)
 [ ] Facilities:
   [ ] `contracts.view` required
-  [ ] `contracts.manage` required for “Resign Offer” mutations
+  [ ] `contracts.manage` required for facility actions (Facility enabled switch, Waive remaining facility fee)
 
 Explicit permission coverage:
 [ ] `investments.view`
@@ -304,9 +304,7 @@ Explicit permission coverage:
 [ ] `settlements.view`
 [ ] `contracts.view`
 [ ] `contracts.manage`
-[ ] Ensure “Resign Offer”:
-  [ ] In Contract Detail modal: disabled without `contracts.manage`
-  [ ] In Note Detail invoice resign: gated/disabled without `notes.manage`
+[ ] In Facility detail, the Facility enabled switch and Waive remaining facility fee are disabled without `contracts.manage`
 
 === Settings ===
 

@@ -386,7 +386,7 @@ These systems and permissions no longer exist:
 | | |
 |---|---|
 | View | `contracts.view` |
-| Mutations (resign offer) | `contracts.manage` |
+| Mutations (facility enabled switch, waive remaining facility fee) | `contracts.manage` |
 | Backend | `apps/api/src/modules/admin/controller.ts` |
 | Frontend pages | `apps/admin/src/app/contracts/page.tsx`, `apps/admin/src/app/contracts/[id]/page.tsx` |
 | Notes | The Offer & Acceptance tab inside Application Review uses `applications.offer_acceptance.manage`, not `contracts.manage` |
@@ -553,7 +553,7 @@ The following permissions are **not** in this list because they have active back
 | Permission | Active usage |
 |---|---|
 | `reports.view` | Report Center (`/reports`) and `GET /v1/admin/reports` (dashboard PAR uses `dashboard.reports.view`) |
-| `contracts.manage` | `POST /contracts/:id/offers/resign` in `admin/controller.ts` |
+| `contracts.manage` | `POST /contracts/:id/facility/enabled` and `POST /contracts/:id/facility-fee/waive` in `admin/controller.ts` |
 
 ---
 

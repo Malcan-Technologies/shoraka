@@ -14,7 +14,7 @@ import {
   requestInvoiceOfferAcceptOtpBodySchema,
   acceptInvoiceOfferBodySchema,
 } from "./schemas";
-import { requireAuth } from "../../lib/auth/middleware";
+import { requireAnyPermission, requireAuth } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
 import { otpRequestRateLimiter } from "../../lib/http/rate-limit";
 import { z } from "zod";
@@ -709,14 +709,21 @@ export function createApplicationRouter(): Router {
   router.get("/:id/summary-pdf", requireAuth, getApplicationSummaryPdf);
   router.delete("/:id/document", requireAuth, deleteDocument);
   router.patch("/:id/step", requireAuth, updateApplicationStep);
+  // Admin financial edits come from the Application Review Financial tab and the Notes prospectus page.
+  const canManageAdminFinancials = requireAnyPermission(
+    "applications.financial.manage",
+    "notes.manage"
+  );
   router.patch(
     "/:id/admin-financial-statements/fallback",
     requireAuth,
+    canManageAdminFinancials,
     upsertAdminFinancialStatementFallback
   );
   router.patch(
     "/:id/admin-financial-statements/field",
     requireAuth,
+    canManageAdminFinancials,
     upsertAdminFinancialField
   );
   router.patch("/:id/status", requireAuth, updateApplicationStatus);
