@@ -47,7 +47,8 @@ export function OnboardingQueueRow({ application }: OnboardingQueueRowProps) {
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const queryClient = useQueryClient();
   const { can } = usePermissions();
-  const canManageOnboarding = can("onboarding.manage");
+  // Review opens the read-only dialog; its actions check onboarding.manage inside.
+  const canViewOnboarding = can("onboarding.view");
 
   React.useEffect(() => {
     if (!dialogOpen) return;
@@ -145,13 +146,13 @@ export function OnboardingQueueRow({ application }: OnboardingQueueRowProps) {
               variant={needsAction ? "default" : "outline"}
               size="sm"
               onClick={() => {
-                if (!canManageOnboarding) return;
+                if (!canViewOnboarding) return;
                 setDialogOpen(true);
               }}
               className="gap-1.5"
-              disabled={!canManageOnboarding}
+              disabled={!canViewOnboarding}
               title={
-                !canManageOnboarding ? "You do not have permission to perform this action." : undefined
+                !canViewOnboarding ? "You do not have permission to perform this action." : undefined
               }
             >
               <EyeIcon className="h-4 w-4" />

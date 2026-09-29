@@ -27,14 +27,8 @@ admin-only access for `operator-profile/signing-signatures/…`; every other pre
 
 ## Other guard / mismatch items
 
-- [ ] `GET /admin/withdrawals/:id/shoraka` has no permission guard.
 - [ ] `GET /v1/applications/:id/logs` (admin path) has no permission guard; require `applications.view`.
 - [ ] `/test-errors` page and `/api/test-errors` proxy have no permission or environment gate.
-- [ ] Note detail Investors panel: FE `notes.view`, backend `investments.view`.
-- [ ] Note detail excess late charge panel: needs `gateway_payments.view`, not checked in the UI.
-- [ ] Onboarding Review button / RegTank links require `onboarding.manage` in the UI although the backend read routes need `onboarding.view`.
-- [ ] Organization detail Activity tab: FE `organizations.view`, backend `onboarding.view`.
-- [ ] Amendment modal "Remove": FE `applications.manage`, backend section / item permission.
 
 ## Resolved
 
@@ -42,6 +36,15 @@ admin-only access for `operator-profile/signing-signatures/…`; every other pre
 - [x] `apps/admin/src/app/settings/roles/page.tsx` passes the computed `can("roles.manage")` as `canManageRoles`; admin-user role edit, deactivate and reactivate are disabled without it.
 - [x] Applications list / sidebar: `GET /v1/products` and `GET /v1/products/:id` accept `products.view` or `applications.view`; product writes stay on `products.manage`.
 - [x] `POST /v1/admin/applications/:id/reviews/pending-amendments` (item scope) checks the permission against `itemId`, the key the handler stores. A client `scopeKey` can no longer point the check at a different section.
+
+- [x] Page-ownership reads (see `rbac.md` §3 "Page-ownership reads"):
+  - Organization detail Activity tab reads `GET /v1/admin/organizations/:portal/:id/onboarding-logs` (`organizations.view`, organization forced from the URL). `GET /v1/admin/onboarding-logs` stays on `onboarding.view`.
+  - Note detail Investors panel reads `GET /v1/admin/notes/:id/investments` (`notes.view`, note forced). `GET /v1/admin/investments` stays on `investments.view`.
+  - Note detail excess late charge history reads `GET /v1/admin/notes/:id/excess-late-charge-payments` (`notes.view`, note and `EXCESS_LATE_CHARGES` purpose forced). `GET /v1/admin/gateway-payments` stays on `gateway_payments.view`; the "View payment" link to the Gateway Payments page shows only with `gateway_payments.view`.
+- [x] `GET /v1/admin/withdrawals/:id/shoraka` requires `notes.view` or `disbursements.view`. Shoraka STP actions stay on `notes.disbursement.manage`.
+- [x] Onboarding Review button and RegTank view links use `onboarding.view`. Restart, approve, final approval and refresh stay on `onboarding.manage`.
+- [x] Signing readiness loads for every Application Review viewer (`applications.view`). Auto-sign Retry requires `applications.offer_acceptance.manage` and is disabled without it.
+- [x] Amendment modal "Remove" is enabled per row by that row's section / item manage permission (same key as `requirePendingAmendmentRoute`), not by `applications.manage`.
 
 ## Decisions recorded (no change planned)
 

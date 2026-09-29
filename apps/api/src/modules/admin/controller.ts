@@ -793,6 +793,45 @@ router.get(
   }
 );
 
+/**
+ * Organization detail Activity tab: onboarding logs for one organization.
+ * Page-scoped read on organizations.view; organizationId is forced from the URL.
+ * GET /onboarding-logs (onboarding.view) is unchanged.
+ */
+router.get(
+  "/organizations/:portal/:id/onboarding-logs",
+  requirePermission("organizations.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { portal, id } = req.params;
+      if (portal !== "investor" && portal !== "issuer") {
+        throw new AppError(400, "VALIDATION_ERROR", "Portal must be 'investor' or 'issuer'");
+      }
+      const validated = {
+        ...getOnboardingLogsQuerySchema.parse(req.query),
+        organizationId: id,
+      };
+      const result = await adminService.listOnboardingLogs(validated);
+
+      res.json({
+        success: true,
+        data: {
+          logs: result.logs,
+          pagination: {
+            page: validated.page,
+            pageSize: validated.pageSize,
+            totalCount: result.total,
+            totalPages: Math.ceil(result.total / validated.pageSize),
+          },
+        },
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 router.get(
   "/organizations/issuer/:id/marc",
   requirePermission("organizations.view"),

@@ -57,6 +57,19 @@ React Query hooks accept an `enabled` flag. Pass `canViewX` to prevent fetching 
 const { data } = useNotes({ enabled: canViewNotes });
 ```
 
+### Page-ownership reads
+
+If a user can open a page, they can view every read-only panel on it. A panel that reads another module's data uses a **record-scoped read route** on the owning page's view permission, with the record (and any fixed filter) forced from the URL. The other module's own routes, sidebar, pages and actions keep their permissions, and a link into that module's page is shown only with its view permission.
+
+| Page | Panel | Route | Permission |
+|---|---|---|---|
+| Organization detail | Activity tab (onboarding timeline + CSV) | `GET /v1/admin/organizations/:portal/:id/onboarding-logs` | `organizations.view` |
+| Note detail | Investors | `GET /v1/admin/notes/:id/investments` | `notes.view` |
+| Note detail | Excess late charge payments | `GET /v1/admin/notes/:id/excess-late-charge-payments` | `notes.view` |
+| Note detail / Issuer Payouts | Shoraka STP state | `GET /v1/admin/withdrawals/:id/shoraka` | `notes.view` or `disbursements.view` |
+
+Do not broaden the module routes (`/onboarding-logs`, `/investments`, `/gateway-payments`) for these panels.
+
 ### Read-only vs manage
 
 If the user has `.view` but not `.manage`, the page loads and shows data normally. Only mutation buttons are disabled.

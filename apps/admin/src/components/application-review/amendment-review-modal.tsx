@@ -14,10 +14,15 @@ import { TrashIcon } from "@heroicons/react/24/outline";
 import { formatRemarkAsBullets } from "@/lib/utils";
 import { getReviewTabLabel } from "./review-registry";
 import {
+  getSectionForPendingAmendment,
   getSectionForScopeKey,
   getSectionSortIndex,
   getItemDisplayNameFromScopeKey,
+  type AdminPermission,
 } from "@cashsouk/types";
+import { canManageReviewSection } from "./offer-acceptance/resolve-section-action-lock";
+
+const NO_PERMISSION_REASON = "You do not have permission to perform this action.";
 
 export interface PendingAmendmentItem {
   id: string;
@@ -34,6 +39,11 @@ export interface AmendmentReviewModalProps {
   onOpenChange: (open: boolean) => void;
   items: PendingAmendmentItem[];
   onRemove: (scope: string, scopeKey: string) => void | Promise<void>;
+  /**
+   * Permission check. Remove needs the row's section / item manage permission (the backend
+   * checks the same key), not applications.manage.
+   */
+  can: (permission: AdminPermission) => boolean;
   onSubmit: () => void | Promise<void>;
   isRemovePending?: boolean;
   isSubmitPending?: boolean;
@@ -44,10 +54,16 @@ export function AmendmentReviewModal({
   onOpenChange,
   items,
   onRemove,
+  can,
   onSubmit,
   isRemovePending,
   isSubmitPending,
 }: AmendmentReviewModalProps) {
+  const canRemove = React.useCallback(
+    (item: PendingAmendmentItem) =>
+      canManageReviewSection(getSectionForPendingAmendment(item.scope, item.scope_key), can),
+    [can]
+  );
   const pending = isRemovePending || isSubmitPending;
 
   const grouped = React.useMemo(() => {
@@ -105,6 +121,7 @@ export function AmendmentReviewModal({
                         item={sectionRemark}
                         getLabel={() => ""}
                         pending={!!pending}
+                        canRemove={canRemove(sectionRemark)}
                         onRemove={onRemove}
                       />
                     </div>
@@ -118,6 +135,7 @@ export function AmendmentReviewModal({
                           item={item}
                           getLabel={() => getItemDisplayNameFromScopeKey(item.scope_key)}
                           pending={!!pending}
+                          canRemove={canRemove(item)}
                           onRemove={onRemove}
                         />
                       ))}
@@ -160,11 +178,13 @@ function AmendmentRow({
   item,
   getLabel,
   pending,
+  canRemove,
   onRemove,
 }: {
   item: PendingAmendmentItem;
   getLabel: () => string;
   pending: boolean;
+  canRemove: boolean;
   onRemove: (scope: string, scopeKey: string) => void | Promise<void>;
 }) {
   const label = getLabel();
@@ -182,8 +202,12 @@ function AmendmentRow({
           variant="ghost"
           size="icon"
           className="h-7 w-7 shrink-0 text-destructive hover:text-destructive"
-          onClick={() => onRemove(item.scope, item.scope_key)}
-          disabled={pending}
+          onClick={() => {
+            if (!canRemove) return;
+            void onRemove(item.scope, item.scope_key);
+          }}
+          disabled={pending || !canRemove}
+          title={!canRemove ? NO_PERMISSION_REASON : undefined}
           aria-label="Remove amendment"
         >
           <TrashIcon className="h-4 w-4" />

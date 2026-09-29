@@ -18,7 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useAdminInvestments } from "@/investments/hooks/use-admin-investments";
+import { useAdminNoteInvestments } from "@/investments/hooks/use-admin-investments";
 import { clampListPage } from "@/shared/admin-list/clamp-list-page";
 import { TablePagination } from "@/shared/admin-list/components/table-pagination";
 import { getAdminStatusToken, adminActionRowClass } from "@/lib/admin-status-token";
@@ -53,8 +53,8 @@ interface NoteInvestorsPanelProps {
 
 export function NoteInvestorsPanel({ note }: NoteInvestorsPanelProps) {
   const [page, setPage] = React.useState(1);
-  const { data, isLoading, error } = useAdminInvestments({
-    noteId: note.id,
+  // Read-only panel on Note detail: uses the note-scoped route (notes.view).
+  const { data, isLoading, error } = useAdminNoteInvestments(note.id, {
     page,
     pageSize: PAGE_SIZE,
   });

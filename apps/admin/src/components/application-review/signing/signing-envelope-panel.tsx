@@ -161,7 +161,8 @@ export function SigningEnvelopePanel({
   onDownloadSignedDocument,
 }: SigningEnvelopePanelProps) {
   const { data: envelopes = [], isLoading } = useAdminSigningEnvelopes(applicationId);
-  const readinessQuery = useAdminSigningPackageReadiness(applicationId, canManage);
+  // Readiness is read-only status (GET needs applications.view), so every page viewer loads it.
+  const readinessQuery = useAdminSigningPackageReadiness(applicationId);
   const sendMutation = useSendAdminSigningPackage(applicationId);
   const syncMutation = useSyncAdminSigningEnvelope(applicationId);
   const voidMutation = useVoidSigningEnvelope(applicationId);
@@ -267,6 +268,7 @@ export function SigningEnvelopePanel({
   };
 
   const handleRetryAutoSign = async (envelopeId: string, assignmentId: string) => {
+    if (!canManage) return;
     try {
       await retryAutoSignMutation.mutateAsync({ envelopeId, assignmentId });
       toast.success("CashSouk countersign retried");
@@ -491,7 +493,10 @@ export function SigningEnvelopePanel({
           onVoid={() => handleVoid(primary.id)}
           onRemind={(recipientId, documentId) => handleRemind(primary.id, recipientId, documentId)}
           onRetryAutoSign={(assignmentId) => handleRetryAutoSign(primary.id, assignmentId)}
-          retryDisabled={retryAutoSignMutation.isPending}
+          retryDisabled={!canManage || retryAutoSignMutation.isPending}
+          retryDisabledReason={
+            !canManage ? "You do not have permission to perform this action." : undefined
+          }
           onRetryDelivery={
             canManage && (primary.send_error || primary.send_phase === "FAILED")
               ? () => {
@@ -645,6 +650,7 @@ function ActiveEnvelopeCard({
   onRemind,
   onRetryAutoSign,
   retryDisabled,
+  retryDisabledReason,
   onRetryDelivery,
   retryDeliveryPending,
   onResendReminders,
@@ -666,6 +672,7 @@ function ActiveEnvelopeCard({
   onRemind: (recipientId: string, documentId: string) => void;
   onRetryAutoSign?: (assignmentId: string) => void;
   retryDisabled?: boolean;
+  retryDisabledReason?: string;
   onRetryDelivery?: () => void;
   retryDeliveryPending?: boolean;
   onResendReminders?: () => void;
@@ -766,6 +773,7 @@ function ActiveEnvelopeCard({
         remindDisabled={remindDisabled}
         onRetryAutoSign={onRetryAutoSign}
         retryDisabled={retryDisabled}
+        retryDisabledReason={retryDisabledReason}
         viewDocumentPending={signedDocumentPending}
         onViewSignedDocument={onViewSignedDocument}
         onDownloadSignedDocument={onDownloadSignedDocument}

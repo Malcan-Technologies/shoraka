@@ -1432,6 +1432,7 @@ export default function DynamicApplicationDetailPage() {
         onRemove={async (scope, scopeKey) => {
           await removePendingAmendment.mutateAsync({ applicationId, scope, scopeKey });
         }}
+        can={can}
         onSubmit={async () => {
           await submitAmendmentRequest.mutateAsync({ applicationId });
           toast.success("Amendment request sent to issuer");
