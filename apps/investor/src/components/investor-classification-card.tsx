@@ -7,6 +7,7 @@ import { createApiClient, useAuthToken } from "@cashsouk/config";
 import {
   allowedScInvestorCategories,
   isAllowedScInvestorCategory,
+  PROFILE_HELP,
   PROFILE_LABEL,
   SC_INVESTOR_CATEGORY_DEFINITIONS,
   SC_INVESTOR_CATEGORY_LABELS,
@@ -99,10 +100,7 @@ export function InvestorClassificationCard({
       <div className="flex items-center justify-between border-b p-6">
         <div>
           <h2 className="text-lg font-semibold">Investor Classification</h2>
-          <p className="mt-1 text-ui text-muted-foreground">
-            Your investor type is used for regulatory reporting and determines your investment limit.
-            It does not change which investment notes you can view.
-          </p>
+          <p className="mt-1 text-ui text-muted-foreground">{PROFILE_HELP.typeOfInvestor}</p>
         </div>
         {!isEditing ? (
           <Button
@@ -130,7 +128,11 @@ export function InvestorClassificationCard({
               <ComRepFieldLabel
                 label={PROFILE_LABEL.typeOfInvestor}
                 required
-                help={options.length > 0 ? scInvestorCategoryHelp(options) : undefined}
+                help={
+                  options.length > 0
+                    ? `${PROFILE_HELP.typeOfInvestorField}\n\n${scInvestorCategoryHelp(options)}`
+                    : undefined
+                }
               />
               <Select
                 value={value || undefined}

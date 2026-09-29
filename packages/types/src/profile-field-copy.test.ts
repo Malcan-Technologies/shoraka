@@ -65,5 +65,14 @@ describe("Profile field copy", () => {
     expect(PROFILE_REQUIRED_EMPTY_LABEL).toBe("Please fill up");
     expect(PROFILE_HELP.typeOfInvestor).toContain("determines your investment limit");
     expect(PROFILE_HELP.typeOfInvestor).toContain("does not change which investment notes you can view");
+    expect(PROFILE_HELP.typeOfInvestorField).toBe(
+      "Select the investor type that best describes you. This is used for regulatory reporting and to determine your investment limit."
+    );
+    expect(PROFILE_HELP.typeOfInvestorFieldAdmin).toBe(
+      "Select the investor type that best describes this investor. This is used for regulatory reporting and to determine the investor’s investment limit."
+    );
+    for (const help of [PROFILE_HELP.typeOfInvestorField, PROFILE_HELP.typeOfInvestorFieldAdmin]) {
+      expect(help).not.toMatch(/\bSC\b|Yes\/No|scInvestorCategory/);
+    }
   });
 });
