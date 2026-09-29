@@ -35,6 +35,16 @@ describe("Note detail read-only panels", () => {
   });
 });
 
+describe("Note detail late/default fee inputs", () => {
+  it("Ta'widh investor share input is disabled without notes.default.manage", () => {
+    const panel = src("notes/components/settlement-panel.tsx");
+    expect(panel).toContain('const canDefault = can("notes.default.manage");');
+    expect(panel).toMatch(
+      /id="tawidh-investor-share-percent"[\s\S]*?disabled=\{\s*!servicingOpen \|\| \(Number\(tawidhAmount\) \|\| 0\) <= 0 \|\| !canDefault\s*\}/
+    );
+  });
+});
+
 describe("Onboarding Review and RegTank links", () => {
   it("Review opens with onboarding.view", () => {
     const row = src("components/onboarding-queue-row.tsx");

@@ -995,7 +995,13 @@ adminNotesRouter.post(
   try {
     const { id } = idParamSchema.parse(req.params);
     const input = settlementPreviewSchema.parse(req.body);
-    send(res, await noteService.previewSettlement(id, input, getActor(req, res, "ADMIN")));
+    // Late/default fee amounts belong to notes.default.manage; preview saves them.
+    send(
+      res,
+      await noteService.previewSettlement(id, input, getActor(req, res, "ADMIN"), {
+        canManageLateFees: userHasPermission(req, "notes.default.manage"),
+      })
+    );
   } catch (error) {
     next(error);
   }

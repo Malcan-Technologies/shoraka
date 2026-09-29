@@ -1541,7 +1541,8 @@ export class AdminService {
     req: Request,
     userId: string,
     data: UpdateUserRolesInput,
-    adminUserId: string
+    adminUserId: string,
+    canManageAdminAccess: boolean
   ): Promise<User> {
     const user = await this.repository.getUserById(userId);
     if (!user) {
@@ -1554,9 +1555,43 @@ export class AdminService {
     const adminRoleRemoved = hadAdminRole && !hasAdminRole;
     const adminRoleAdded = !hadAdminRole && hasAdminRole;
 
+    // users.manage covers Investor / Issuer portal access only. Admin access belongs to roles.manage.
+    if ((adminRoleAdded || adminRoleRemoved) && !canManageAdminAccess) {
+      throw new AppError(
+        403,
+        "FORBIDDEN",
+        "Changing admin access requires the roles.manage permission"
+      );
+    }
+
+    // This route never creates admin records; admin access is granted from Settings > Roles.
+    const existingAdmin =
+      adminRoleAdded || adminRoleRemoved ? await this.repository.getAdminByUserId(userId) : null;
+    if (adminRoleAdded && !existingAdmin) {
+      throw new AppError(
+        400,
+        "VALIDATION_ERROR",
+        "This user has no admin access yet. Grant admin access from Settings > Roles."
+      );
+    }
+    if (
+      adminRoleRemoved &&
+      existingAdmin?.status === "ACTIVE" &&
+      existingAdmin.role_description === AdminRole.SUPER_ADMIN
+    ) {
+      const activeSuperAdminCount = await this.repository.countActiveSuperAdmins();
+      if (activeSuperAdminCount <= 1) {
+        throw new AppError(
+          400,
+          "VALIDATION_ERROR",
+          "At least one active Super Admin must remain. Assign another Super Admin before removing admin access."
+        );
+      }
+    }
+
     // If ADMIN role is being removed, deactivate the admin record (if it exists)
     if (adminRoleRemoved) {
-      const admin = await this.repository.getAdminByUserId(userId);
+      const admin = existingAdmin;
       if (admin && admin.status === "ACTIVE") {
         logger.info(
           { userId, email: user.email, deactivatedBy: adminUserId },
@@ -1584,9 +1619,9 @@ export class AdminService {
       }
     }
 
-    // If ADMIN role is being added, activate the admin record (if it exists) or create a new one
+    // If ADMIN role is being added, activate the existing admin record
     if (adminRoleAdded) {
-      const admin = await this.repository.getAdminByUserId(userId);
+      const admin = existingAdmin;
 
       if (admin) {
         // Admin record exists - reactivate it (preserving existing role_description)
@@ -1621,13 +1656,6 @@ export class AdminService {
             },
           });
         }
-      } else {
-        // No admin record exists - create a new one with SUPER_ADMIN role
-        logger.info(
-          { userId, email: user.email, activatedBy: adminUserId },
-          "ADMIN role added - creating new admin record with SUPER_ADMIN role"
-        );
-        await this.repository.createAdmin(userId, AdminRole.SUPER_ADMIN);
       }
     }
 

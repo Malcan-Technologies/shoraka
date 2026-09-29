@@ -163,7 +163,8 @@ describe("NoteService tenure settlement", () => {
       service.previewSettlement(
         "note-tenure",
         { actualSettlementDate: "2026-04-09" },
-        adminActor
+        adminActor,
+        { canManageLateFees: true }
       )
     ).rejects.toMatchObject({ code: "SETTLEMENT_INVESTOR_SHORTFALL" });
   });
@@ -200,12 +201,96 @@ describe("NoteService tenure settlement", () => {
         tawidhAmount: 200,
         gharamahAmount: 300,
       },
-      adminActor
+      adminActor,
+      { canManageLateFees: true }
     );
     expect(result.profitClassification ?? result.classification).toBe("LATE");
     expect(result.investorObligationCovered).toBe(true);
     expect((result.excessLateChargeAmount ?? 0) > 0).toBe(true);
     expect(tx.noteSettlement.create).toHaveBeenCalled();
+  });
+
+  describe("late fee permission on preview", () => {
+    const lateReceipt = {
+      id: "pay-1",
+      status: "RECEIVED",
+      receipt_amount: new Prisma.Decimal("85000"),
+      receipt_date: new Date("2026-08-01T00:00:00.000Z"),
+    };
+    const savedPreview = {
+      id: "set-0",
+      status: "PREVIEW",
+      tawidh_amount: new Prisma.Decimal("200"),
+      tawidh_investor_share_percent: new Prisma.Decimal("0"),
+      gharamah_amount: new Prisma.Decimal("300"),
+    };
+
+    function mockPreviewTransaction() {
+      const tx = {
+        $queryRaw: jest.fn().mockResolvedValue([{ id: "note-tenure" }]),
+        noteSettlement: {
+          findFirst: jest.fn().mockResolvedValue(null),
+          updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+          create: jest.fn().mockResolvedValue({ id: "set-1" }),
+        },
+      };
+      (prisma.$transaction as jest.Mock).mockImplementation(
+        async (fn: (t: typeof tx) => unknown) => fn(tx)
+      );
+      return tx;
+    }
+
+    it("rejects setting late fees without notes.default.manage and writes nothing", async () => {
+      (noteRepository.findById as jest.Mock).mockResolvedValue(
+        tenureNote({ payments: [lateReceipt] })
+      );
+      const service = new NoteService();
+      await expect(
+        service.previewSettlement(
+          "note-tenure",
+          { actualSettlementDate: "2026-08-01", tawidhAmount: 200, gharamahAmount: 300 },
+          adminActor,
+          { canManageLateFees: false }
+        )
+      ).rejects.toMatchObject({ statusCode: 403, code: "FORBIDDEN" });
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it("rejects clearing saved late fees without notes.default.manage", async () => {
+      (noteRepository.findById as jest.Mock).mockResolvedValue(
+        tenureNote({ payments: [lateReceipt], settlements: [savedPreview] })
+      );
+      const service = new NoteService();
+      await expect(
+        service.previewSettlement(
+          "note-tenure",
+          { actualSettlementDate: "2026-08-01", tawidhAmount: 0, gharamahAmount: 0 },
+          adminActor,
+          { canManageLateFees: false }
+        )
+      ).rejects.toMatchObject({ statusCode: 403, code: "FORBIDDEN" });
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it("previews with the saved late fees unchanged on notes.settlement.manage alone", async () => {
+      (noteRepository.findById as jest.Mock).mockResolvedValue(
+        tenureNote({ payments: [lateReceipt], settlements: [savedPreview] })
+      );
+      const tx = mockPreviewTransaction();
+      const service = new NoteService();
+      await service.previewSettlement(
+        "note-tenure",
+        {
+          actualSettlementDate: "2026-08-01",
+          tawidhAmount: 200,
+          tawidhInvestorSharePercent: 0,
+          gharamahAmount: 300,
+        },
+        adminActor,
+        { canManageLateFees: false }
+      );
+      expect(tx.noteSettlement.create).toHaveBeenCalled();
+    });
   });
 
   it("uses tenure profit days for overdue headroom instead of the 365-day fallback", async () => {

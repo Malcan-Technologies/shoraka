@@ -41,6 +41,14 @@ describe("notes trustee letter and late charge waiver permissions", () => {
     expect(CONTROLLER).toContain('userHasPermission(req, "notes.disbursement.manage")');
   });
 
+  it("settlement preview stays on notes.settlement.manage and checks notes.default.manage for fee changes", () => {
+    expect(notesPostPermission("/:id/settlements/preview")).toBe("notes.settlement.manage");
+    const idx = CONTROLLER.indexOf('adminNotesRouter.post(\n  "/:id/settlements/preview",');
+    expect(idx).toBeGreaterThan(-1);
+    const block = CONTROLLER.slice(idx, CONTROLLER.indexOf("\nadminNotesRouter.", idx + 1));
+    expect(block).toContain('canManageLateFees: userHasPermission(req, "notes.default.manage")');
+  });
+
   it("keeps the other settlement documents on notes.settlement.manage", () => {
     expect(notesPostPermission("/:id/settlements/approve")).toBe("notes.settlement.manage");
     expect(notesPostPermission("/:id/settlements/post")).toBe("notes.settlement.manage");

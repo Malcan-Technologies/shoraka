@@ -236,8 +236,11 @@ adminNotesRouter.post("/", requirePermission("notes.create"), handler);
 | Settlement actions, including settlement-phase trustee letters (`/:id/settlements/:settlementId/settlement-trustee/*`) | `notes.settlement.manage` |
 | Disbursement / issuer payout actions, including issuer disbursement trustee letters (`/withdrawals/:id/*`) | `notes.disbursement.manage` |
 | Default actions, including the Ta'widh / Gharamah late charge waiver (Late Payment tab) | `notes.default.manage` |
+| Late/default fee amounts (Ta'widh, Gharamah, Ta'widh investor share) | `notes.default.manage` |
 | Backend | `apps/api/src/modules/notes/controller.ts` |
 | Frontend pages | `apps/admin/src/app/notes/page.tsx`, `apps/admin/src/app/notes/[id]/page.tsx` |
+
+Late/default fee amounts are saved through `POST /v1/admin/notes/:id/settlements/preview`. The route stays on `notes.settlement.manage`. A preview that sets, changes or clears `tawidhAmount`, `gharamahAmount` or `tawidhInvestorSharePercent` also needs `notes.default.manage` (403 otherwise). The comparison is against the saved `PREVIEW` settlement, or zero when there is none, and the investor share is ignored when Ta'widh is zero (`apps/api/src/modules/notes/settlement-preview-late-fee-change.ts`). A preview that leaves the fee values unchanged needs `notes.settlement.manage` only.
 
 ### Applications
 
@@ -291,9 +294,17 @@ Signed contract/invoice offer letter PDFs (`GET .../offers/.../signed-letter`) a
 | | |
 |---|---|
 | View | `users.view` |
-| Mutations | `users.manage` |
+| Mutations (account details, Investor / Issuer portal access) | `users.manage` |
+| Adding or removing the `ADMIN` role | `users.manage` and `roles.manage` |
 | Backend | `apps/api/src/modules/admin/controller.ts` |
 | Frontend pages | `apps/admin/src/app/accounts/page.tsx`, `apps/admin/src/app/accounts/[id]/page.tsx` |
+
+`users.manage` does not manage admin access. On `PATCH /v1/admin/users/:id/roles`:
+
+- Adding or removing `ADMIN` without `roles.manage` returns `403` before any write.
+- The route never creates an admin record. Adding `ADMIN` to a user with no admin record returns `400`; grant admin access from Settings > Roles instead.
+- Adding `ADMIN` with `roles.manage` reactivates an existing inactive admin record and keeps its role.
+- Removing `ADMIN` from the last active Super Admin returns `400`.
 
 ### Issuers & Investors
 
@@ -332,6 +343,8 @@ Do not call organization CTOS routes from onboarding or application review UIs.
 | Frontend page | `apps/admin/src/app/settings/roles/page.tsx` |
 
 Do not require `roles.manage` to navigate to or view the Permission Configuration page.
+
+`roles.manage` is a trusted permission. A holder can assign any admin role, including Super Admin, and can edit the permissions of any non-system role. There are no hierarchy rules for now (see `rbac-followups.md`, "Decisions recorded").
 
 ### Notifications
 
@@ -556,10 +569,11 @@ The system must always have at least one active Super Admin. The following prote
 | Edit Super Admin permissions | Backend returns `403` (`"System role permissions cannot be edited"`). Frontend sets `isEditable: false` for system roles. |
 | Deactivate last active Super Admin | Backend returns `400` (`"At least one active Super Admin must remain…"`). Frontend disables the Deactivate button with tooltip. |
 | Change last active Super Admin to another role | Backend returns `400` (`"At least one active Super Admin must remain…"`). Frontend blocks the edit with an error toast. |
+| Remove the `ADMIN` role from the last active Super Admin (`PATCH /users/:id/roles`) | Backend returns `400` (`"At least one active Super Admin must remain…"`). |
 
 **Count logic:** Active Super Admin count is determined by `Admin.role_description === "SUPER_ADMIN"` AND `Admin.status === "ACTIVE"`. Pending invitations do not count.
 
-**Developer rule:** Do not weaken or skip the lockout checks in `adminService.deactivateAdmin()` and `adminService.updateAdminRole()` in `apps/api/src/modules/admin/service.ts`.
+**Developer rule:** Do not weaken or skip the lockout checks in `adminService.deactivateAdmin()`, `adminService.updateAdminRole()` and `adminService.updateUserRoles()` in `apps/api/src/modules/admin/service.ts`.
 
 ---
 

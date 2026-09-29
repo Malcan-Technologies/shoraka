@@ -1881,7 +1881,9 @@ export function SettlementPanel({
                               formatPercentInput(tawidhInvestorSharePercent)
                             )
                           }
-                          disabled={!servicingOpen || (Number(tawidhAmount) || 0) <= 0}
+                          disabled={
+                            !servicingOpen || (Number(tawidhAmount) || 0) <= 0 || !canDefault
+                          }
                           inputMode="decimal"
                           placeholder="0.00"
                         />

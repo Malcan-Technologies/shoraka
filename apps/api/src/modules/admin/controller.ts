@@ -497,7 +497,14 @@ router.patch(
         throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
       }
 
-      const updatedUser = await adminService.updateUserRoles(req, id, validated, req.user.user_id);
+      // Adding or removing ADMIN changes admin access, which belongs to roles.manage.
+      const updatedUser = await adminService.updateUserRoles(
+        req,
+        id,
+        validated,
+        req.user.user_id,
+        userHasPermission(req, "roles.manage")
+      );
 
       res.json({
         success: true,

@@ -223,6 +223,7 @@ import {
   ytdChangePercent,
 } from "./investor-dashboard-metrics";
 import { canIssueDefaultNotice } from "./servicing-letters/eligibility";
+import { settlementPreviewChangesLateFees } from "./settlement-preview-late-fee-change";
 import {
   generateAndSendServicingLetter,
   resendServicingLetter as resendServicingLetterRecord,
@@ -5684,10 +5685,34 @@ export class NoteService {
   async previewSettlement(
     id: string,
     input: z.infer<typeof settlementPreviewSchema>,
-    _actor: ActorContext
+    _actor: ActorContext,
+    options: { canManageLateFees: boolean }
   ) {
     const note = await noteRepository.findById(id);
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+    if (!options.canManageLateFees) {
+      // note.settlements is newest first, so this is the preview the admin currently sees.
+      const savedPreview = note.settlements.find(
+        (settlement) => settlement.status === NoteSettlementStatus.PREVIEW
+      );
+      const changesLateFees = settlementPreviewChangesLateFees(
+        input,
+        savedPreview
+          ? {
+              tawidhAmount: toNumber(savedPreview.tawidh_amount),
+              tawidhInvestorSharePercent: toNumber(savedPreview.tawidh_investor_share_percent),
+              gharamahAmount: toNumber(savedPreview.gharamah_amount),
+            }
+          : null
+      );
+      if (changesLateFees) {
+        throw new AppError(
+          403,
+          "FORBIDDEN",
+          "Changing Ta'widh, Gharamah or the investor share requires the notes.default.manage permission"
+        );
+      }
+    }
     assertNoteReadyForServicing(note);
     assertNoPendingPaymentsForSettlement(note);
     const lockedSettlement = note.settlements.find(
