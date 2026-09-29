@@ -80,7 +80,6 @@ import {
     selectYearsFromPageTwoFinancialTable,
     calendarYearFromFinancialHeaderKey,
 } from "@/notes/prospectus-review/page-three-coverage";
-import { AdminAddFinancialStatementDialog } from "@/notes/prospectus-review/admin-add-financial-statement-dialog";
 import { ProspectusPreviewSheet } from "@/notes/prospectus-review/preview-sheet";
 import { ProspectusStatusBadge } from "@/notes/prospectus-review/status-badge";
 import { getProspectusActionVisibility } from "@/notes/prospectus-review/action-visibility";
@@ -103,7 +102,6 @@ function ProspectusReviewPageInner() {
   const { data, isLoading, error, refetch } = useProspectusReview(noteId);
   const { data: note } = useNoteDetail(noteId);
   const issuerOrganizationId = note?.issuerOrganizationId ?? null;
-  const applicationId = note?.sourceApplicationId ?? null;
   const {
     data: marcAssessment,
     isFetched: marcFetched,
@@ -135,8 +133,6 @@ function ProspectusReviewPageInner() {
   const [approvePhase, setApprovePhase] = React.useState<ProspectusApprovePhase>("idle");
   /** Snapshot dirty flag when the approve dialog opens so copy stays stable. */
   const [approveDialogDirty, setApproveDialogDirty] = React.useState(false);
-  const [addFinancialStatementOpen, setAddFinancialStatementOpen] = React.useState(false);
-  const [addFinancialStatementYear, setAddFinancialStatementYear] = React.useState<number | null>(null);
   const stepPanelRef = React.useRef<HTMLDivElement>(null);
   const approveInFlightRef = React.useRef(false);
   const livePreview = usePreviewProspectusReview(noteId);
@@ -848,14 +844,6 @@ function ProspectusReviewPageInner() {
                         canManage={canManage}
                         updateManualField={updateManualFieldForYear}
                         updateDraft={updateDraft}
-                        onAddPlaceholderYear={
-                          canManage && !locked
-                            ? (calendarYear) => {
-                                setAddFinancialStatementYear(calendarYear);
-                                setAddFinancialStatementOpen(true);
-                              }
-                            : undefined
-                        }
                         completionLabel={pageCompletion}
                         completionOptions={completionOptions}
                         activeTab={pageThreeTab}
@@ -932,23 +920,6 @@ function ProspectusReviewPageInner() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      <AdminAddFinancialStatementDialog
-        open={addFinancialStatementOpen}
-        onOpenChange={(open) => {
-          setAddFinancialStatementOpen(open);
-          if (!open) setAddFinancialStatementYear(null);
-        }}
-        applicationId={applicationId}
-        calendarYear={addFinancialStatementYear}
-        disabled={locked || !canManage}
-        onSaved={() => {
-          void refetch();
-          setDirty(false);
-          setLivePreviewHtml(null);
-          setPreviewOpen(false);
-        }}
-      />
     </div>
   );
 }

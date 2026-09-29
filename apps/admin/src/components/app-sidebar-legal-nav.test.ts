@@ -46,6 +46,15 @@ describe("admin platform sidebar navigation", () => {
     expect(source).not.toContain('tooltip="Profile"');
   });
 
+  it("gates Company (Shoraka profile) with operator_profile.view and Platform Finance with platform_settings.view", () => {
+    expect(source).toContain('const canViewOperatorProfile = can("operator_profile.view");');
+    expect(source).toContain('if (item.url === "/shoraka/profile") return canViewOperatorProfile;');
+    expect(source).toContain(
+      'if (item.url === "/settings/platform-finance") return canViewPlatformFinance;'
+    );
+    expect(source).toContain('const canViewPlatformFinance = can("platform_settings.view");');
+  });
+
   it("does not keep a Notifications Logs tab in Settings", () => {
     const notifications = readFileSync(
       join(__dirname, "../app/settings/notifications/page.tsx"),

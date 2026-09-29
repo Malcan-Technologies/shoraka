@@ -323,6 +323,9 @@ export function ApplicationFinancialReviewContent({
   const issuerOrgId = issuerOrganizationId?.trim() ?? "";
   const { can } = usePermissions();
   const canManageFinancialCtos = can("applications.financial.manage");
+  // Director / shareholder CTOS follows the Business & Guarantor permission (entity rule);
+  // the organization report and financial edits above stay on applications.financial.manage.
+  const canManageSubjectCtos = can("applications.business_guarantor.manage");
   const financialEditsLocked = isAdminFinancialReviewEditLocked(financialSectionStatus);
   const canViewOrganizations = can("organizations.view");
   const createSubjectReport = useCreateApplicationCtosSubjectReport(applicationId || undefined);
@@ -1559,8 +1562,14 @@ export function ApplicationFinancialReviewContent({
                             variant="ghost"
                             size="sm"
                             className="h-7 px-1.5 py-0 whitespace-nowrap hover:underline"
-                            title="Add financial statement"
+                            disabled={!canManageFinancialCtos}
+                            title={
+                              canManageFinancialCtos
+                                ? "Add financial statement"
+                                : "You do not have permission to perform this action."
+                            }
                             onClick={() => {
+                              if (!canManageFinancialCtos) return;
                               setAddFinancialStatementYear(spec.year);
                               setAddFinancialStatementOpen(true);
                             }}
@@ -1579,9 +1588,16 @@ export function ApplicationFinancialReviewContent({
                             variant="ghost"
                             size="sm"
                             className="h-7 px-1.5 py-0 whitespace-nowrap hover:underline"
-                            title={financialEditsLocked ? "Financial review is approved" : "Edit financial statement"}
+                            disabled={!canManageFinancialCtos}
+                            title={
+                              !canManageFinancialCtos
+                                ? "You do not have permission to perform this action."
+                                : financialEditsLocked
+                                  ? "Financial review is approved"
+                                  : "Edit financial statement"
+                            }
                             onClick={() => {
-                              if (spec.kind === "empty") return;
+                              if (!canManageFinancialCtos || spec.kind === "empty") return;
                               setEditFinancialStatementTarget({ year: spec.year as number, kind: spec.kind });
                               setEditFinancialStatementOpen(true);
                             }}
@@ -1898,7 +1914,7 @@ export function ApplicationFinancialReviewContent({
           subjectCtosReports={app.issuer_organization?.latest_organization_ctos_subject_reports ?? null}
           ctosFetchPending={createSubjectReport.isPending}
           ctosFetchPendingKey={subjectCtosFetchKey}
-          canManageCtos={canManageFinancialCtos}
+          canManageCtos={canManageSubjectCtos}
           ctosViewReportApplicationId={applicationId}
           onFetchSubjectCtos={(person) => {
             const idKey = normalizeDirectorShareholderIdKey(person.matchKey);

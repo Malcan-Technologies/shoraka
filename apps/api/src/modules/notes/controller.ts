@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction, Router } from "express";
-import { UserRole, WithdrawalType } from "@prisma/client";
+import { GatewayPaymentPurpose, UserRole, WithdrawalType } from "@prisma/client";
 import { z } from "zod";
 import {
   requirePermission,
@@ -19,6 +19,8 @@ import { prisma } from "../../lib/prisma";
 import { noteService } from "./service";
 import { shorakaStpService } from "../shoraka-stp/shoraka-stp-service";
 import { registerNoteAssignmentNoticeRoutes } from "../paymaster/controller";
+import { listGatewayPaymentsQuerySchema } from "../payment/admin-schemas";
+import { listGatewayPayments } from "../payment/admin-service";
 import {
   applicationIdParamSchema,
   bucketAccountParamSchema,
@@ -264,6 +266,48 @@ adminNotesRouter.get(
   try {
     const { id } = idParamSchema.parse(req.params);
     send(res, await noteService.getAdminNoteDetail(id));
+  } catch (error) {
+    next(error);
+  }
+  }
+);
+
+// Note detail read-only panels. Page-scoped reads on notes.view with the note forced from the URL;
+// the module routes (/admin/investments, /admin/gateway-payments) keep their own permissions.
+adminNotesRouter.get(
+  "/:id/investments",
+  requirePermission("notes.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = idParamSchema.parse(req.params);
+    const { page, pageSize } = getAdminInvestmentsQuerySchema
+      .pick({ page: true, pageSize: true })
+      .parse(req.query);
+    send(res, await noteService.listAdminInvestments({ page, pageSize, noteId: id }));
+  } catch (error) {
+    next(error);
+  }
+  }
+);
+
+adminNotesRouter.get(
+  "/:id/excess-late-charge-payments",
+  requirePermission("notes.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = idParamSchema.parse(req.params);
+    const { page, pageSize } = listGatewayPaymentsQuerySchema
+      .pick({ page: true, pageSize: true })
+      .parse(req.query);
+    send(
+      res,
+      await listGatewayPayments({
+        page,
+        pageSize,
+        purpose: GatewayPaymentPurpose.EXCESS_LATE_CHARGES,
+        noteId: id,
+      })
+    );
   } catch (error) {
     next(error);
   }
@@ -951,7 +995,13 @@ adminNotesRouter.post(
   try {
     const { id } = idParamSchema.parse(req.params);
     const input = settlementPreviewSchema.parse(req.body);
-    send(res, await noteService.previewSettlement(id, input, getActor(req, res, "ADMIN")));
+    // Late/default fee amounts belong to notes.default.manage; preview saves them.
+    send(
+      res,
+      await noteService.previewSettlement(id, input, getActor(req, res, "ADMIN"), {
+        canManageLateFees: userHasPermission(req, "notes.default.manage"),
+      })
+    );
   } catch (error) {
     next(error);
   }
@@ -988,7 +1038,7 @@ adminNotesRouter.post(
 
 adminNotesRouter.post(
   "/:id/settlements/:settlementId/settlement-trustee/generate-letter",
-  requirePermission("notes.disbursement.manage"),
+  requirePermission("notes.settlement.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id, settlementId } = noteSettlementParamsSchema.parse(req.params);
@@ -1004,7 +1054,7 @@ adminNotesRouter.post(
 
 adminNotesRouter.post(
   "/:id/settlements/:settlementId/settlement-trustee/mark-submitted-to-trustee",
-  requirePermission("notes.disbursement.manage"),
+  requirePermission("notes.settlement.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id, settlementId } = noteSettlementParamsSchema.parse(req.params);
@@ -1024,7 +1074,7 @@ adminNotesRouter.post(
 
 adminNotesRouter.post(
   "/:id/settlements/:settlementId/settlement-trustee/resend-trustee-email",
-  requirePermission("notes.disbursement.manage"),
+  requirePermission("notes.settlement.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id, settlementId } = noteSettlementParamsSchema.parse(req.params);
@@ -1040,7 +1090,7 @@ adminNotesRouter.post(
 
 adminNotesRouter.post(
   "/:id/settlements/:settlementId/settlement-trustee/mark-completed",
-  requirePermission("notes.disbursement.manage"),
+  requirePermission("notes.settlement.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id, settlementId } = noteSettlementParamsSchema.parse(req.params);
@@ -1087,7 +1137,7 @@ adminNotesRouter.post(
 
 adminNotesRouter.post(
   "/:id/late-charge/waive",
-  requirePermission("notes.settlement.manage"),
+  requirePermission("notes.default.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = idParamSchema.parse(req.params);
@@ -1791,7 +1841,9 @@ withdrawalsRouter.post("/:id/shoraka/fetch-certificate", requirePermission("note
   }
 });
 
-withdrawalsRouter.get("/:id/shoraka", async (req: Request, res: Response, next: NextFunction) => {
+// Read-only Shoraka STP state shown on Note detail (issuer payout card), so it follows notes.view.
+// The Issuer Payouts page does not call this route; disbursements.view controls that page only.
+withdrawalsRouter.get("/:id/shoraka", requirePermission("notes.view"), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
     send(res, await shorakaStpService.getStateForWithdrawal(id));

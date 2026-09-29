@@ -1,7 +1,6 @@
 "use client";
 
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -37,7 +36,6 @@ type Props = {
   resolveRow: (metric: string) => FinancialRowMode;
   getEditableValue: (yearKey: string, field: string) => string | number | null | undefined;
   onChange: (yearKey: string, field: string, value: string) => void;
-  onAddPlaceholderYear?: (calendarYear: number) => void;
   disabled: boolean;
   emptyMessage?: string;
 };
@@ -53,6 +51,8 @@ function fullPlaceholder(kind: FinancialInputKind): string {
 /**
  * Shared Admin financial working table for Page 2 and Page 3.
  * Inline edits only — no detached forms.
+ * Financial statement years are read-only here; they are added or edited from the
+ * Application Review Financial tab.
  */
 export function ProspectusSharedFinancialWorkingTable({
   table,
@@ -60,7 +60,6 @@ export function ProspectusSharedFinancialWorkingTable({
   resolveRow,
   getEditableValue,
   onChange,
-  onAddPlaceholderYear,
   disabled,
   emptyMessage = "No financial years available",
 }: Props) {
@@ -111,20 +110,6 @@ export function ProspectusSharedFinancialWorkingTable({
                       </div>
                     ) : null}
                   </div>
-
-                  {header.isPlaceholder && header.adminFallbackEligible && !disabled && onAddPlaceholderYear ? (
-                    <Button
-                      type="button"
-                      className="h-8 shrink-0 px-2 text-meta font-normal"
-                      variant="outline"
-                      onClick={() => {
-                        const y = header.yearLabel.replace(/^FY/, "");
-                        if (/^\d{4}$/.test(y)) onAddPlaceholderYear(Number(y));
-                      }}
-                    >
-                      + Add
-                    </Button>
-                  ) : null}
                 </div>
               </TableHead>
             ))}

@@ -21,7 +21,7 @@ import * as operatorProfile from "./service";
 
 export function createOperatorProfileRouter() {
   const router = Router();
-  router.use(requirePermission("platform_settings.view"));
+  router.use(requirePermission("operator_profile.view"));
 
   router.get("/", async (_req: Request, res: Response, next: NextFunction) => {
     try {
@@ -32,7 +32,7 @@ export function createOperatorProfileRouter() {
     }
   });
 
-  router.patch("/", requirePermission("platform_settings.manage"), async (req, res, next) => {
+  router.patch("/", requirePermission("operator_profile.manage"), async (req, res, next) => {
     try {
       const input = parseOperatorBody(operatorProfilePatchSchema, req.body);
       const data = await operatorProfile.patchOperatorProfile(input);
@@ -44,7 +44,7 @@ export function createOperatorProfileRouter() {
 
   router.patch(
     "/share-capital",
-    requirePermission("platform_settings.manage"),
+    requirePermission("operator_profile.manage"),
     async (req, res, next) => {
       try {
         const input = parseOperatorBody(operatorShareCapitalPatchSchema, req.body);
@@ -58,7 +58,7 @@ export function createOperatorProfileRouter() {
 
   router.post(
     "/shareholders",
-    requirePermission("platform_settings.manage"),
+    requirePermission("operator_profile.manage"),
     async (req, res, next) => {
       try {
         const input = parseOperatorBody(operatorShareholderSchema, req.body);
@@ -71,7 +71,7 @@ export function createOperatorProfileRouter() {
   );
   router.patch(
     "/shareholders/:id",
-    requirePermission("platform_settings.manage"),
+    requirePermission("operator_profile.manage"),
     async (req, res, next) => {
       try {
         const input = parseOperatorBody(operatorShareholderSchema, req.body);
@@ -84,7 +84,7 @@ export function createOperatorProfileRouter() {
   );
   router.delete(
     "/shareholders/:id",
-    requirePermission("platform_settings.manage"),
+    requirePermission("operator_profile.manage"),
     async (req, res, next) => {
       try {
         const data = await operatorProfile.deleteShareholder(req.params.id);
@@ -95,7 +95,7 @@ export function createOperatorProfileRouter() {
     }
   );
 
-  router.post("/officers", requirePermission("platform_settings.manage"), async (req, res, next) => {
+  router.post("/officers", requirePermission("operator_profile.manage"), async (req, res, next) => {
     try {
       const input = parseOperatorBody(operatorOfficerSchema, req.body);
       const data = await operatorProfile.createOfficer(input);
@@ -106,7 +106,7 @@ export function createOperatorProfileRouter() {
   });
   router.patch(
     "/officers/:id",
-    requirePermission("platform_settings.manage"),
+    requirePermission("operator_profile.manage"),
     async (req, res, next) => {
       try {
         const input = parseOperatorBody(operatorOfficerSchema, req.body);
@@ -119,7 +119,7 @@ export function createOperatorProfileRouter() {
   );
   router.delete(
     "/officers/:id",
-    requirePermission("platform_settings.manage"),
+    requirePermission("operator_profile.manage"),
     async (req, res, next) => {
       try {
       const data = await operatorProfile.deleteOfficer(req.params.id);
@@ -132,7 +132,7 @@ export function createOperatorProfileRouter() {
 
   router.post(
     "/signing-people/signature-upload-url",
-    requirePermission("platform_settings.manage"),
+    requirePermission("operator_profile.manage"),
     async (req, res, next) => {
       try {
         const input = requestOperatorSigningSignatureUploadUrlSchema.parse(req.body);
@@ -149,7 +149,7 @@ export function createOperatorProfileRouter() {
 
   router.post(
     "/signing-people/signature-confirm",
-    requirePermission("platform_settings.manage"),
+    requirePermission("operator_profile.manage"),
     async (req, res, next) => {
       try {
         const input = parseOperatorBody(confirmOperatorSigningSignatureSchema, req.body);
@@ -163,7 +163,7 @@ export function createOperatorProfileRouter() {
 
   router.post(
     "/company-stamp/upload-url",
-    requirePermission("platform_settings.manage"),
+    requirePermission("operator_profile.manage"),
     async (req, res, next) => {
       try {
         const input = requestOperatorSigningImageUploadUrlSchema.parse(req.body);
@@ -180,7 +180,7 @@ export function createOperatorProfileRouter() {
 
   router.patch(
     "/company-stamp",
-    requirePermission("platform_settings.manage"),
+    requirePermission("operator_profile.manage"),
     async (req, res, next) => {
       try {
         const input = parseOperatorBody(operatorCompanyStampPatchSchema, req.body);
@@ -194,7 +194,7 @@ export function createOperatorProfileRouter() {
 
   router.post(
     "/signing-people",
-    requirePermission("platform_settings.manage"),
+    requirePermission("operator_profile.manage"),
     async (req, res, next) => {
       try {
         const input = parseOperatorBody(operatorSigningPersonCreateSchema, req.body);
@@ -208,7 +208,7 @@ export function createOperatorProfileRouter() {
 
   router.patch(
     "/signing-people/:id",
-    requirePermission("platform_settings.manage"),
+    requirePermission("operator_profile.manage"),
     async (req, res, next) => {
       try {
         const input = parseOperatorBody(operatorSigningPersonUpdateSchema, req.body);
@@ -222,7 +222,7 @@ export function createOperatorProfileRouter() {
 
   router.post(
     "/signing-people/:id/signature-confirm",
-    requirePermission("platform_settings.manage"),
+    requirePermission("operator_profile.manage"),
     async (req, res, next) => {
       try {
         const input = parseOperatorBody(confirmOperatorSigningSignatureSchema, req.body);
@@ -251,7 +251,7 @@ export function createOperatorProfileRouter() {
 
   router.put(
     "/document-execution-bindings",
-    requirePermission("platform_settings.manage"),
+    requirePermission("operator_profile.manage"),
     async (req, res, next) => {
       try {
         const input = parseOperatorBody(operatorDocumentExecutionBindingsPutSchema, req.body);
@@ -263,7 +263,7 @@ export function createOperatorProfileRouter() {
     }
   );
 
-  router.post("/advisors", requirePermission("platform_settings.manage"), async (req, res, next) => {
+  router.post("/advisors", requirePermission("operator_profile.manage"), async (req, res, next) => {
     try {
       const input = parseOperatorBody(operatorAdvisorSchema, req.body);
       const data = await operatorProfile.createAdvisor(input);
@@ -274,7 +274,7 @@ export function createOperatorProfileRouter() {
   });
   router.patch(
     "/advisors/:id",
-    requirePermission("platform_settings.manage"),
+    requirePermission("operator_profile.manage"),
     async (req, res, next) => {
       try {
         const input = parseOperatorBody(operatorAdvisorSchema, req.body);
@@ -287,7 +287,7 @@ export function createOperatorProfileRouter() {
   );
   router.delete(
     "/advisors/:id",
-    requirePermission("platform_settings.manage"),
+    requirePermission("operator_profile.manage"),
     async (req, res, next) => {
       try {
         const data = await operatorProfile.deleteAdvisor(req.params.id);
@@ -298,7 +298,7 @@ export function createOperatorProfileRouter() {
     }
   );
 
-  router.post("/interests", requirePermission("platform_settings.manage"), async (req, res, next) => {
+  router.post("/interests", requirePermission("operator_profile.manage"), async (req, res, next) => {
     try {
       const input = parseOperatorBody(operatorInterestSchema, req.body);
       const data = await operatorProfile.createInterest(input);
@@ -309,7 +309,7 @@ export function createOperatorProfileRouter() {
   });
   router.patch(
     "/interests/:id",
-    requirePermission("platform_settings.manage"),
+    requirePermission("operator_profile.manage"),
     async (req, res, next) => {
       try {
         const input = parseOperatorBody(operatorInterestSchema, req.body);
@@ -322,7 +322,7 @@ export function createOperatorProfileRouter() {
   );
   router.delete(
     "/interests/:id",
-    requirePermission("platform_settings.manage"),
+    requirePermission("operator_profile.manage"),
     async (req, res, next) => {
       try {
         const data = await operatorProfile.deleteInterest(req.params.id);
@@ -335,7 +335,7 @@ export function createOperatorProfileRouter() {
 
   router.post(
     "/financial-statements",
-    requirePermission("platform_settings.manage"),
+    requirePermission("operator_profile.manage"),
     async (req, res, next) => {
       try {
         const input = parseOperatorBody(operatorFinancialStatementSchema, req.body);
@@ -348,7 +348,7 @@ export function createOperatorProfileRouter() {
   );
   router.patch(
     "/financial-statements/:id",
-    requirePermission("platform_settings.manage"),
+    requirePermission("operator_profile.manage"),
     async (req, res, next) => {
       try {
         const input = parseOperatorBody(operatorFinancialStatementSchema, req.body);
@@ -361,7 +361,7 @@ export function createOperatorProfileRouter() {
   );
   router.delete(
     "/financial-statements/:id",
-    requirePermission("platform_settings.manage"),
+    requirePermission("operator_profile.manage"),
     async (req, res, next) => {
       try {
         const data = await operatorProfile.deleteFinancialStatement(req.params.id);

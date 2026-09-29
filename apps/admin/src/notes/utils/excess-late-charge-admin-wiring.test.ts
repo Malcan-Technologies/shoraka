@@ -13,7 +13,10 @@ describe("admin excess late charge UI wiring", () => {
     );
     expect(panel).toContain("ExcessLateChargeAdminPanel");
     expect(adminPanel).toContain("ADMIN_WAITING_SURFACE_CLASS");
-    expect(adminPanel).toContain('purpose: "EXCESS_LATE_CHARGES"');
+    // History is a note-scoped read; the backend route forces purpose = EXCESS_LATE_CHARGES.
+    expect(adminPanel).toContain("useNoteExcessLateChargePayments(noteId");
+    expect(adminPanel).not.toContain("useGatewayPayments");
+    expect(adminPanel).not.toContain('purpose: "EXCESS_LATE_CHARGES"');
     expect(adminPanel).toContain("noteId");
     expect(adminPanel).not.toContain("createExcessLateCharge");
   });

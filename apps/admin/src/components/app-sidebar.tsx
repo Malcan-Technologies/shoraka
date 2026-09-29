@@ -401,6 +401,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const canViewNotifications = can("notifications.view");
   const canViewProducts = can("products.view");
   const canViewPlatformFinance = can("platform_settings.view");
+  const canViewOperatorProfile = can("operator_profile.view");
   const canViewRoles = can("roles.view");
 
   const canViewAuditAccess = can("audit.access.view");
@@ -511,7 +512,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     canViewUsers || canViewOrganizations || canViewPaymasters || canViewDocuments;
 
   const settingsItems = navSettings.filter((item) => {
-    if (item.url === "/shoraka/profile") return canViewPlatformFinance;
+    if (item.url === "/shoraka/profile") return canViewOperatorProfile;
     if (item.url === "/settings/roles") return canViewRoles;
     if (item.url === "/settings/notifications") return canViewNotifications;
     if (item.url === "/settings/products") return canViewProducts;

@@ -38,8 +38,9 @@ const GROUP_ITEM_FILLS: Record<LedgerBucketGroupId, string[]> = {
 
 export function MoneyOnPlatform() {
   const { can } = usePermissions();
+  // Bucket details link follows the Bucket Balances page permission; the cards follow dashboard.finance.view.
   const canViewDetails = can("bucket_balances.view");
-  const canLoadBuckets = can("dashboard.finance.view") || canViewDetails;
+  const canLoadBuckets = can("dashboard.finance.view");
   const { data, isLoading, error } = useNoteBucketBalances({ enabled: canLoadBuckets });
   const overview = buildLedgerBucketOverview(data?.buckets ?? []);
   const creditTotal = data?.totals.creditTotal;

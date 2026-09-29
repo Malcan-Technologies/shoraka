@@ -67,6 +67,28 @@ export function useGatewayPayments(params?: {
   });
 }
 
+/**
+ * Note detail excess late charge history: note-scoped route on notes.view
+ * (not /admin/gateway-payments, which needs gateway_payments.view).
+ */
+export function useNoteExcessLateChargePayments(
+  noteId: string,
+  params: { page: number; pageSize: number }
+) {
+  const apiClient = useGatewayPaymentsApiClient();
+  return useQuery({
+    queryKey: [...gatewayPaymentsRootKey, "note-excess-late-charges", noteId, params] as const,
+    queryFn: async () => {
+      const response = await apiClient.getAdminNoteExcessLateChargePayments(noteId, params);
+      if (!response.success) throw new Error(response.error.message);
+      return response.data as GatewayPaymentListResponse;
+    },
+    enabled: Boolean(noteId),
+    staleTime: 0,
+    refetchOnMount: true,
+  });
+}
+
 export function useGatewayPayment(id: string | null) {
   const apiClient = useGatewayPaymentsApiClient();
   return useQuery({

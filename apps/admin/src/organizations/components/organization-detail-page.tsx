@@ -441,6 +441,7 @@ export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
                             />
                             <OrganizationActivityTimeline
                               key={`${organizationId}-onboarding`}
+                              portal={portal}
                               organizationId={organizationId}
                               variant="panel"
                               title="Onboarding activity"
@@ -449,6 +450,7 @@ export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
                         ) : (
                           <OrganizationActivityTimeline
                             key={organizationId}
+                            portal={portal}
                             organizationId={organizationId}
                             variant="panel"
                           />

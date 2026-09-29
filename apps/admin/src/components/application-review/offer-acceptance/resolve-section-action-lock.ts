@@ -6,9 +6,10 @@ export const REVIEW_SECTION_PERMISSION_MAP: Record<string, AdminPermission> = {
   company_details: "applications.company.manage",
   business_details: "applications.business_guarantor.manage",
   supporting_documents: "applications.documents.manage",
-  acceptance_documents: "applications.documents.manage",
-  contract_details: "applications.contract.manage",
-  invoice_details: "applications.invoice.manage",
+  // The three merged Offer & acceptance sections share one permission.
+  acceptance_documents: "applications.offer_acceptance.manage",
+  contract_details: "applications.offer_acceptance.manage",
+  invoice_details: "applications.offer_acceptance.manage",
 };
 
 export type SectionActionLock = {

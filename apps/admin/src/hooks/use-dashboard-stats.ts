@@ -6,7 +6,7 @@ import {
   shouldRetryAdminApiQuery,
 } from "../lib/handle-api-auth-error";
 
-export function useDashboardStats() {
+export function useDashboardStats({ enabled = true }: { enabled?: boolean } = {}) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(undefined, getAccessToken);
 
@@ -19,6 +19,7 @@ export function useDashboardStats() {
       }
       return response.data;
     },
+    enabled,
     retry: shouldRetryAdminApiQuery,
     staleTime: 30000,
     refetchInterval: 60000,

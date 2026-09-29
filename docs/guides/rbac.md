@@ -57,6 +57,34 @@ React Query hooks accept an `enabled` flag. Pass `canViewX` to prevent fetching 
 const { data } = useNotes({ enabled: canViewNotes });
 ```
 
+### Page-ownership reads
+
+If a user can open a page, they can view every read-only panel on it. A panel that reads another module's data uses a **record-scoped read route** on the owning page's view permission, with the record (and any fixed filter) forced from the URL. The other module's own routes, sidebar, pages and actions keep their permissions, and a link into that module's page is shown only with its view permission.
+
+Rules:
+
+1. **Page access grants the page's read-only panels.** Do not hide a read-only panel because the user lacks another module's `.view`.
+2. **A module permission controls that module's own sidebar item, page and actions.** It does not control read-only panels embedded in another page.
+3. **Actions and mutations always need the relevant manage permission.** Page ownership never grants an action.
+4. **The record comes from the URL.** The scoped route takes the record id from the path and sets any fixed filter (for example the payment purpose) on the server. It reads only paging from the query string, or overwrites the scoped field after parsing, so a query parameter cannot widen the result.
+5. **The frontend panel calls the scoped route**, not the module list route with a filter.
+
+| Page | Panel | Route | Permission |
+|---|---|---|---|
+| Organization detail | Activity tab (onboarding timeline + CSV) | `GET /v1/admin/organizations/:portal/:id/onboarding-logs` | `organizations.view` |
+| Note detail | Investors | `GET /v1/admin/notes/:id/investments` | `notes.view` |
+| Note detail | Excess late charge payments | `GET /v1/admin/notes/:id/excess-late-charge-payments` | `notes.view` |
+| Note detail | Shoraka STP state | `GET /v1/admin/withdrawals/:id/shoraka` | `notes.view` |
+
+How each route is scoped:
+
+- Organization onboarding logs: `organizationId` is set from `:id` after the query is parsed. Other filters (`userId`, `role`, `eventTypes`, `dateRange`, `search`) only narrow the result.
+- Note investments: `noteId` is set from `:id`. Only `page` and `pageSize` are read from the query.
+- Note excess late charge payments: `noteId` is set from `:id` and `purpose` is fixed to `EXCESS_LATE_CHARGES`. Only `page` and `pageSize` are read from the query. The panel uses `useNoteExcessLateChargePayments`; its "View payment" link to the Gateway Payments page shows only with `gateway_payments.view`.
+- Shoraka STP state is read-only and is called only from Note detail. The Issuer Payouts page does not call it, so `disbursements.view` does not grant it. Shoraka STP actions (`submit-order`, `query-status`, `fetch-certificate`) stay on `notes.disbursement.manage`.
+
+Do not broaden the module routes (`/onboarding-logs`, `/investments`, `/gateway-payments`) for these panels. They stay on `onboarding.view`, `investments.view` and `gateway_payments.view`.
+
 ### Read-only vs manage
 
 If the user has `.view` but not `.manage`, the page loads and shows data normally. Only mutation buttons are disabled.
@@ -183,10 +211,10 @@ adminNotesRouter.post("/", requirePermission("notes.create"), handler);
 | | |
 |---|---|
 | View permission | `dashboard.view` |
-| Widget-level | `dashboard.finance.view`, `dashboard.operations.view`, `dashboard.platform.view`, `reports.view` |
-| Backend | `GET /v1/admin/dashboard/stats` → `dashboard.view`. Credit-quality PAR tiles use `GET /v1/admin/reports/ageing` → `reports.view` |
+| Summary cards | `dashboard.finance.view` (ledger, The book, Money on the platform, Distressed), `dashboard.operations.view` (Lifecycle pipeline), `dashboard.platform.view` (users, organizations, signup trends), `dashboard.reports.view` (PAR / Credit quality, PAR90 header) |
+| Backend | `GET /v1/admin/dashboard/stats` → `dashboard.view`, and the response only contains the sections the caller holds a `dashboard.*` permission for (`users`/`organizations`/`signupTrends` → platform, `onboardingOperations`/`applicationMetrics`/`contractMetrics`/`noteMetrics` → operations, `bookMetrics`/`bookMetricHistory` → finance, `portfolioAtRisk` → reports) |
 | Frontend page | `apps/admin/src/app/page.tsx` (root `page.tsx`, not `app/dashboard/`) |
-| Notes | Finance / operations / platform widgets are gated on the frontend from the shared stats payload. Portfolio-at-risk is not on that payload — it is fetched only when the admin has `reports.view`. |
+| Notes | Summary cards use `dashboard.*` permissions only, not sidebar/page permissions. Ledger / Money on the platform require `dashboard.finance.view` only; the "Bucket details" link additionally needs `bucket_balances.view`. Quick-action queues are unchanged and follow their target module permissions. Every section is optional in `DashboardStatsResponse`; the frontend renders only the sections it received. |
 
 ### Reports
 
@@ -194,8 +222,8 @@ adminNotesRouter.post("/", requirePermission("notes.create"), handler);
 |---|---|
 | View | `reports.view` |
 | Backend | `GET /v1/admin/reports`, `GET /v1/admin/reports/:key`, CSV/XLSX download |
-| Frontend | Report Center (`/reports`), ageing/NPL/late-fee/default reports, dashboard **Credit quality** PAR tiles |
-| Notes | One permission covers extracts and the PAR widget. Do not put PAR on `GET /v1/admin/dashboard/stats`. |
+| Frontend | Report Center (`/reports`), ageing/NPL/late-fee/default reports and their CSV/XLSX export |
+| Notes | `reports.view` controls the Reports sidebar/page and its exports only. Dashboard PAR / Credit quality cards use `dashboard.reports.view` (the dashboard stats endpoint returns `portfolioAtRisk` for it). |
 
 ### Notes
 
@@ -205,11 +233,14 @@ adminNotesRouter.post("/", requirePermission("notes.create"), handler);
 | Create note | `notes.create` |
 | Manage (featured toggle, lifecycle actions) | `notes.manage` |
 | Repayment actions | `notes.repayment.manage` |
-| Settlement actions | `notes.settlement.manage` |
-| Disbursement / issuer payout actions | `notes.disbursement.manage` |
-| Default actions | `notes.default.manage` |
+| Settlement actions, including settlement-phase trustee letters (`/:id/settlements/:settlementId/settlement-trustee/*`) | `notes.settlement.manage` |
+| Disbursement / issuer payout actions, including issuer disbursement trustee letters (`/withdrawals/:id/*`) | `notes.disbursement.manage` |
+| Default actions, including the Ta'widh / Gharamah late charge waiver (Late Payment tab) | `notes.default.manage` |
+| Late/default fee amounts (Ta'widh, Gharamah, Ta'widh investor share) | `notes.default.manage` |
 | Backend | `apps/api/src/modules/notes/controller.ts` |
 | Frontend pages | `apps/admin/src/app/notes/page.tsx`, `apps/admin/src/app/notes/[id]/page.tsx` |
+
+Late/default fee amounts are saved through `POST /v1/admin/notes/:id/settlements/preview`. The route stays on `notes.settlement.manage`. A preview that sets, changes or clears `tawidhAmount`, `gharamahAmount` or `tawidhInvestorSharePercent` also needs `notes.default.manage` (403 otherwise). The comparison is against the saved `PREVIEW` settlement, or zero when there is none, and the investor share is ignored when Ta'widh is zero (`apps/api/src/modules/notes/settlement-preview-late-fee-change.ts`). A preview that leaves the fee values unchanged needs `notes.settlement.manage` only.
 
 ### Applications
 
@@ -220,9 +251,8 @@ adminNotesRouter.post("/", requirePermission("notes.create"), handler);
 | Financial section | `applications.financial.manage` |
 | Company section | `applications.company.manage` |
 | Business & Guarantor section | `applications.business_guarantor.manage` |
-| Supporting Documents section | `applications.documents.manage` |
-| Contract section | `applications.contract.manage` |
-| Invoice section | `applications.invoice.manage` |
+| Supporting Documents tab only | `applications.documents.manage` |
+| Offer & Acceptance tab (facility review, customer review, invoice review, send offer, issuer response, acceptance documents, signing package) | `applications.offer_acceptance.manage` |
 | Backend | `apps/api/src/modules/admin/controller.ts` |
 | Frontend pages | `apps/admin/src/app/applications/`, `apps/admin/src/app/applications/[productKey]/[id]/page.tsx` |
 
@@ -233,13 +263,22 @@ financial             → applications.financial.manage
 company_details       → applications.company.manage
 business_details      → applications.business_guarantor.manage
 supporting_documents  → applications.documents.manage
-contract_details      → applications.contract.manage
-invoice_details       → applications.invoice.manage
+contract_details      → applications.offer_acceptance.manage
+invoice_details       → applications.offer_acceptance.manage
+acceptance_documents  → applications.offer_acceptance.manage
 ```
+
+Item actions (approve / reject / request amendment / reset): `invoice` and `authorized_representatives` items and `acceptance_documents:` document items use `applications.offer_acceptance.manage`; `supporting_documents:` document items use `applications.documents.manage`.
+
+Signing package (`/v1/admin/signing/*`): view envelope / readiness / signed document → `applications.view`; send links, remind, retry delivery, void, re-sync, auto-sign retry → `applications.offer_acceptance.manage`. Extend signing deadline uses `applications.offer_acceptance.manage` on both contract and invoice offer routes. There is no separate `signing.*` permission.
+
+Guarantor **Start AML** (`POST /v1/admin/applications/:id/guarantors/:gid/start-aml`) uses `applications.business_guarantor.manage`.
+
+Financial statement edit routes (`PATCH /v1/applications/:id/admin-financial-statements/field` and `/fallback`) require `applications.financial.manage`. Financial statements are added or edited only from the Application Review Financial tab, whose Add / Edit statement buttons follow the same permission. The Notes prospectus review page is read-only for financial statements: it shows missing years and completeness warnings but has no add or edit action, and `notes.manage` alone cannot call these routes.
 
 Application comments (both view and add) use `applications.view` only. Do not gate comments behind section manage permissions.
 
-Signed contract/invoice offer letter PDFs (`GET .../offers/.../signed-letter`) also use `applications.view` only. Section `.manage` permissions remain for offer mutations (send, extend deadline, etc.).
+Signed contract/invoice offer letter PDFs (`GET .../offers/.../signed-letter`) also use `applications.view` only. `applications.offer_acceptance.manage` remains required for offer mutations (send, extend deadline, etc.).
 
 ### Onboarding
 
@@ -255,9 +294,17 @@ Signed contract/invoice offer letter PDFs (`GET .../offers/.../signed-letter`) a
 | | |
 |---|---|
 | View | `users.view` |
-| Mutations | `users.manage` |
+| Mutations (account details, Investor / Issuer portal access) | `users.manage` |
+| Adding or removing the `ADMIN` role | `users.manage` and `roles.manage` |
 | Backend | `apps/api/src/modules/admin/controller.ts` |
 | Frontend pages | `apps/admin/src/app/accounts/page.tsx`, `apps/admin/src/app/accounts/[id]/page.tsx` |
+
+`users.manage` does not manage admin access. On `PATCH /v1/admin/users/:id/roles`:
+
+- Adding or removing `ADMIN` without `roles.manage` returns `403` before any write.
+- The route never creates an admin record. Adding `ADMIN` to a user with no admin record returns `400`; grant admin access from Settings > Roles instead.
+- Adding `ADMIN` with `roles.manage` reactivates an existing inactive admin record and keeps its role.
+- Removing `ADMIN` from the last active Super Admin returns `400`.
 
 ### Issuers & Investors
 
@@ -276,8 +323,12 @@ Shared CTOS services are reused internally, but admin API routes enforce permiss
 |---|---|---|
 | Onboarding SSM Verification | `onboarding.view` — `/v1/admin/onboarding-applications/:id/ctos-reports` | `onboarding.manage` |
 | Organization detail | `organizations.view` — `/v1/admin/organizations/:portal/:id/ctos-reports` | `organizations.manage` |
-| Application financial review | `applications.view` — `/v1/admin/applications/:id/ctos-reports` | `applications.financial.manage` |
-| Application guarantor CTOS | `applications.view` — `/v1/admin/applications/:id/ctos-subject-reports` | `applications.business_guarantor.manage` |
+| Application financial review (organization report) | `applications.view` — `/v1/admin/applications/:id/ctos-reports` | `applications.financial.manage` |
+| Application director / shareholder / guarantor CTOS (Financial tab Director-and-Shareholders table and Business & Guarantor tab) | `applications.view` — `/v1/admin/applications/:id/ctos-subject-reports` | `applications.business_guarantor.manage` |
+| Guarantor AML (Start AML) | — | `applications.business_guarantor.manage` |
+| Paymaster / customer verification | — | `paymasters.manage` |
+
+Rule: CTOS / AML permission follows the section or entity being reviewed — organization/company report in the Financial tab → `applications.financial.manage`; directors, shareholders and guarantors → `applications.business_guarantor.manage`; organization profile → `organizations.manage`; onboarding → `onboarding.manage`; paymaster → `paymasters.manage`. There is no generic `ctos.manage` / `aml.manage`.
 
 Do not call organization CTOS routes from onboarding or application review UIs.
 
@@ -292,6 +343,8 @@ Do not call organization CTOS routes from onboarding or application review UIs.
 | Frontend page | `apps/admin/src/app/settings/roles/page.tsx` |
 
 Do not require `roles.manage` to navigate to or view the Permission Configuration page.
+
+`roles.manage` is a trusted permission. A holder can assign any admin role, including Super Admin, and can edit the permissions of any non-system role. There are no hierarchy rules for now (see `rbac-followups.md`, "Decisions recorded").
 
 ### Notifications
 
@@ -376,10 +429,10 @@ These systems and permissions no longer exist:
 | | |
 |---|---|
 | View | `contracts.view` |
-| Mutations (resign offer) | `contracts.manage` |
+| Mutations (facility enabled switch, waive remaining facility fee) | `contracts.manage` |
 | Backend | `apps/api/src/modules/admin/controller.ts` |
 | Frontend pages | `apps/admin/src/app/contracts/page.tsx`, `apps/admin/src/app/contracts/[id]/page.tsx` |
-| Notes | Facility tab inside Application Review uses `applications.contract.manage`, not `contracts.manage` |
+| Notes | The Offer & Acceptance tab inside Application Review uses `applications.offer_acceptance.manage`, not `contracts.manage` |
 
 ### Bucket Balances
 
@@ -415,7 +468,7 @@ These systems and permissions no longer exist:
 | View | `settlements.view` |
 | Backend | `apps/api/src/modules/notes/controller.ts` |
 | Frontend page | `apps/admin/src/app/finance/pending-settlement-trustee-letters/page.tsx` |
-| Notes | Settlement trustee workflow actions inside Note Detail use `notes.settlement.manage` and `notes.disbursement.manage` |
+| Notes | Settlement-phase trustee letters inside Note Detail (Servicing & Settlement tab) use `notes.settlement.manage`; issuer disbursement trustee letters (Disbursement tab / Issuer Payouts) use `notes.disbursement.manage` |
 
 ### Product Settings
 
@@ -425,6 +478,7 @@ These systems and permissions no longer exist:
 | Mutations | `products.manage` |
 | Backend | `apps/api/src/modules/products/controller.ts` |
 | Frontend page | `apps/admin/src/app/settings/products/page.tsx` |
+| Notes | `GET /v1/products` and `GET /v1/products/:id` allow `products.view` **or** `applications.view`, because the Applications sidebar and list need product names and groups. Product writes (create, update, delete, rollback-create, image and template upload URLs) require `products.manage`. `applications.view` alone does not show the Products sidebar item or open the Products page. |
 
 ### Platform Finance Settings
 
@@ -432,8 +486,19 @@ These systems and permissions no longer exist:
 |---|---|
 | View | `platform_settings.view` |
 | Mutations | `platform_settings.manage` |
-| Backend | `apps/api/src/modules/notes/controller.ts` (`platformFinanceSettingsRouter`) |
-| Frontend page | `apps/admin/src/app/settings/platform-finance/page.tsx` |
+| Tabs | Late Payment, Gateway Fees, Investment Limits, Offer Deadlines, Trustee Letter (incl. trustee signature and document stamp uploads), Money Flow Accounts |
+| Backend | `apps/api/src/modules/notes/controller.ts` (`platformFinanceSettingsRouter`: `GET` view; `PATCH`, trustee-signature and document-stamp upload URLs manage) |
+| Frontend page | `apps/admin/src/app/settings/platform-finance/page.tsx`; sidebar Settings > Platform Finance |
+| Notes | `platform_settings.*` is for Platform Finance only. The Shoraka / Company profile uses `operator_profile.*`. |
+
+### Operator Profile (Shoraka / Company)
+
+| | |
+|---|---|
+| View | `operator_profile.view` |
+| Mutations | `operator_profile.manage` |
+| Backend | `apps/api/src/modules/operator-profile/controller.ts`, mounted at `/v1/admin/operator-profile` (router-wide `operator_profile.view`; every write — company details, share capital, shareholders, officers, advisors, interests, financial statements, signing people and signatures, company stamp, document execution bindings — uses `operator_profile.manage`) |
+| Frontend page | `apps/admin/src/app/shoraka/profile/page.tsx` ("Shoraka Profile"); sidebar Settings > Company. `/settings/rmo-profile` redirects here |
 
 ---
 
@@ -442,8 +507,8 @@ These systems and permissions no longer exist:
 ### Dashboard
 
 - Dashboard route is `apps/admin/src/app/page.tsx` — the root `page.tsx`, not `app/dashboard/page.tsx`
-- `GET /v1/admin/dashboard/stats` → guarded by `dashboard.view`
-- The stats endpoint is not split by widget. Frontend hides widgets using `dashboard.finance.view`, `dashboard.operations.view`, `dashboard.platform.view`
+- `GET /v1/admin/dashboard/stats` → guarded by `dashboard.view`; the payload is filtered by `dashboard.finance.view`, `dashboard.operations.view`, `dashboard.platform.view`, `dashboard.reports.view`
+- Frontend must tolerate missing sections
 - Dashboard quick action cards follow their target module's `.view` permission
 
 ### Applications — comments
@@ -488,7 +553,7 @@ Do not use `document_management.*` for Notes or Application Review attachments.
 
 ### Settings > General and Settings > Security
 
-`/settings/general` and `/settings/security` are sidebar links that do not yet have backing `page.tsx` files. They are gated behind `platform_settings.view` in the sidebar. When these pages are implemented, use `platform_settings.view` / `platform_settings.manage` unless the feature scope requires a separate permission key.
+`/settings/general` and `/settings/security` are not in the admin sidebar and have no backing `page.tsx`. If they are implemented, give them a permission that matches their scope rather than reusing `platform_settings.*` (Platform Finance only) or `operator_profile.*` (Shoraka / Company profile only).
 
 ### RegTank onboarding-settings route
 
@@ -504,10 +569,11 @@ The system must always have at least one active Super Admin. The following prote
 | Edit Super Admin permissions | Backend returns `403` (`"System role permissions cannot be edited"`). Frontend sets `isEditable: false` for system roles. |
 | Deactivate last active Super Admin | Backend returns `400` (`"At least one active Super Admin must remain…"`). Frontend disables the Deactivate button with tooltip. |
 | Change last active Super Admin to another role | Backend returns `400` (`"At least one active Super Admin must remain…"`). Frontend blocks the edit with an error toast. |
+| Remove the `ADMIN` role from the last active Super Admin (`PATCH /users/:id/roles`) | Backend returns `400` (`"At least one active Super Admin must remain…"`). |
 
 **Count logic:** Active Super Admin count is determined by `Admin.role_description === "SUPER_ADMIN"` AND `Admin.status === "ACTIVE"`. Pending invitations do not count.
 
-**Developer rule:** Do not weaken or skip the lockout checks in `adminService.deactivateAdmin()` and `adminService.updateAdminRole()` in `apps/api/src/modules/admin/service.ts`.
+**Developer rule:** Do not weaken or skip the lockout checks in `adminService.deactivateAdmin()`, `adminService.updateAdminRole()` and `adminService.updateUserRoles()` in `apps/api/src/modules/admin/service.ts`.
 
 ---
 
@@ -523,15 +589,18 @@ These permissions have been removed from the catalog because they have no active
 | `investments.manage` | Investment listing is read-only; no admin mutation routes |
 | `bucket_balances.manage` | View-only page; no correction/adjustment routes |
 | `repayments.manage` | Repayment actions inside Note Detail use `notes.repayment.manage` |
-| `service_fee.view` / `service_fee.manage` | Renamed/removed pre-production: queue access is `settlements.view`; trustee actions inside Note Detail use `notes.settlement.manage` / `notes.disbursement.manage` |
+| `service_fee.view` / `service_fee.manage` | Renamed/removed pre-production: queue access is `settlements.view`; settlement trustee actions inside Note Detail use `notes.settlement.manage`, issuer disbursement trustee actions use `notes.disbursement.manage` |
+| `applications.contract.manage` / `applications.invoice.manage` | Replaced by `applications.offer_acceptance.manage` (one permission for the merged Offer & Acceptance tab, including signing) |
 | `disbursements.manage` | All withdrawal mutations now use `notes.disbursement.manage`; this permission was redundant |
+
+**Existing roles are not migrated automatically.** Removed keys are dropped when role access is resolved, and there is no backfill or SQL migration for the Offer & Acceptance, operator profile, dashboard PAR, Start AML, settlement trustee and late charge waiver moves. Custom roles must be reconfigured by hand in Settings > Roles before go-live. See "Decisions recorded" in `docs/guides/rbac-followups.md` for the mapping.
 
 The following permissions are **not** in this list because they have active backend routes:
 
 | Permission | Active usage |
 |---|---|
-| `reports.view` | Report Center (`/reports`), dashboard Credit quality (PAR30/60/90), and `GET /v1/admin/reports` |
-| `contracts.manage` | `POST /contracts/:id/offers/resign` in `admin/controller.ts` |
+| `reports.view` | Report Center (`/reports`) and `GET /v1/admin/reports` (dashboard PAR uses `dashboard.reports.view`) |
+| `contracts.manage` | `POST /contracts/:id/facility/enabled` and `POST /contracts/:id/facility-fee/waive` in `admin/controller.ts` |
 
 ---
 

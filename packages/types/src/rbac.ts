@@ -8,6 +8,7 @@ export const ADMIN_PERMISSIONS = [
   "dashboard.finance.view",
   "dashboard.operations.view",
   "dashboard.platform.view",
+  "dashboard.reports.view",
 
   // Notes
   "notes.view",
@@ -25,8 +26,7 @@ export const ADMIN_PERMISSIONS = [
   "applications.company.manage",
   "applications.business_guarantor.manage",
   "applications.documents.manage",
-  "applications.contract.manage",
-  "applications.invoice.manage",
+  "applications.offer_acceptance.manage",
 
   // Onboarding
   "onboarding.view",
@@ -79,8 +79,12 @@ export const ADMIN_PERMISSIONS = [
   // Settings
   "products.view",
   "products.manage",
+  // Platform Finance settings only (fees, investment limits, offer deadlines, trustee letter, money flow accounts)
   "platform_settings.view",
   "platform_settings.manage",
+  // Shoraka / Company (operator) profile
+  "operator_profile.view",
+  "operator_profile.manage",
 
   "reports.view",
 
@@ -173,34 +177,66 @@ export const SUPER_ADMIN_ROLE_TEMPLATE: SystemAdminRoleTemplate = {
   permissions: allPermissions,
 };
 
+// Ordered to match the admin sidebar: top items, Lifecycle, Finance, Directory, Settings.
 export const ADMIN_PERMISSION_GROUPS: AdminPermissionGroup[] = [
-  {
-    key: "roleAdministration",
-    label: "Roles",
-    description: "Manage the admin role catalog, permission matrices, and admin role assignments.",
-    permissions: pickPermissions("roles.view", "roles.manage"),
-  },
-  {
-    key: "notificationAdministration",
-    label: "Notifications",
-    description: "Manage notification types, groups, delivery settings, and logs.",
-    permissions: pickPermissions("notifications.view", "notifications.manage"),
-  },
   {
     key: "dashboard",
     label: "Dashboard",
-    description: "Access dashboard page and widget sections.",
+    description: "View Dashboard summary cards and queues.",
     permissions: pickPermissions(
       "dashboard.view",
       "dashboard.finance.view",
       "dashboard.operations.view",
-      "dashboard.platform.view"
+      "dashboard.platform.view",
+      "dashboard.reports.view"
     ),
+  },
+  {
+    key: "reports",
+    label: "Reports",
+    description: "View and export report data.",
+    permissions: pickPermissions("reports.view"),
+  },
+  {
+    key: "audit",
+    label: "Audit Logs",
+    description: "View audit logs and audit evidence.",
+    permissions: pickPermissions(
+      "audit.access.view",
+      "audit.security.view",
+      "audit.product.view"
+    ),
+  },
+  {
+    key: "onboarding",
+    label: "Onboarding",
+    description: "View onboarding records and manage approval actions.",
+    permissions: pickPermissions("onboarding.view", "onboarding.manage"),
+  },
+  {
+    key: "applications",
+    label: "Applications",
+    description: "View applications and manage review actions.",
+    permissions: pickPermissions(
+      "applications.view",
+      "applications.manage",
+      "applications.financial.manage",
+      "applications.company.manage",
+      "applications.business_guarantor.manage",
+      "applications.documents.manage",
+      "applications.offer_acceptance.manage"
+    ),
+  },
+  {
+    key: "contracts",
+    label: "Facilities",
+    description: "View facilities and manage facility actions.",
+    permissions: pickPermissions("contracts.view", "contracts.manage"),
   },
   {
     key: "notes",
     label: "Notes",
-    description: "View and manage notes, repayment flows, settlements, and default actions.",
+    description: "View notes and manage note actions.",
     permissions: pickPermissions(
       "notes.view",
       "notes.create",
@@ -212,71 +248,9 @@ export const ADMIN_PERMISSION_GROUPS: AdminPermissionGroup[] = [
     ),
   },
   {
-    key: "reports",
-    label: "Reports",
-    description:
-      "View Report Center, export extracts, and see portfolio-at-risk (PAR30/60/90) on the dashboard.",
-    permissions: pickPermissions("reports.view"),
-  },
-  {
-    key: "applications",
-    label: "Applications",
-    description: "Review applications and manage section workflow actions.",
-    permissions: pickPermissions(
-      "applications.view",
-      "applications.manage",
-      "applications.financial.manage",
-      "applications.company.manage",
-      "applications.business_guarantor.manage",
-      "applications.documents.manage",
-      "applications.contract.manage",
-      "applications.invoice.manage"
-    ),
-  },
-  {
-    key: "onboarding",
-    label: "Onboarding",
-    description: "View and manage onboarding approval queue actions.",
-    permissions: pickPermissions("onboarding.view", "onboarding.manage"),
-  },
-  {
-    key: "users",
-    label: "User Accounts",
-    description: "View and manage platform user accounts.",
-    permissions: pickPermissions("users.view", "users.manage"),
-  },
-  {
-    key: "organizations",
-    label: "Issuers & Investors",
-    description: "View and manage issuer and investor records and related statuses.",
-    permissions: pickPermissions("organizations.view", "organizations.manage"),
-  },
-  {
-    key: "paymasters",
-    label: "Paymasters",
-    description: "View and review reusable Paymaster (customer/obligor) records and verification status.",
-    permissions: pickPermissions("paymasters.view", "paymasters.manage"),
-  },
-  {
-    key: "audit",
-    label: "Audit Logs",
-    description: "Read-only access to audit logs.",
-    permissions: pickPermissions(
-      "audit.access.view",
-      "audit.security.view",
-      "audit.product.view"
-    ),
-  },
-  {
-    key: "documentManagement",
-    label: "Legal Documents",
-    description: "Manage LegalDocument definitions/versions and view Legal Acceptances evidence.",
-    permissions: pickPermissions("document_management.view", "document_management.manage"),
-  },
-  {
     key: "finance",
     label: "Finance",
-    description: "View and manage operational finance panels.",
+    description: "View finance queues and manage finance actions.",
     permissions: pickPermissions(
       "investments.view",
       "bucket_balances.view",
@@ -292,20 +266,57 @@ export const ADMIN_PERMISSION_GROUPS: AdminPermissionGroup[] = [
     ),
   },
   {
-    key: "contracts",
-    label: "Facilities",
-    description: "View and manage standalone facility records and facility actions.",
-    permissions: pickPermissions("contracts.view", "contracts.manage"),
+    key: "users",
+    label: "User Accounts",
+    description: "View users and manage user access.",
+    permissions: pickPermissions("users.view", "users.manage"),
   },
   {
-    key: "settings",
-    label: "Product & Platform Settings",
-    description: "View and manage products and platform finance settings.",
-    permissions: pickPermissions(
-      "products.view",
-      "products.manage",
-      "platform_settings.view",
-      "platform_settings.manage"
-    ),
+    key: "organizations",
+    label: "Issuers & Investors",
+    description: "View organizations and manage organization actions.",
+    permissions: pickPermissions("organizations.view", "organizations.manage"),
+  },
+  {
+    key: "paymasters",
+    label: "Paymasters",
+    description: "View Paymasters and manage verification actions.",
+    permissions: pickPermissions("paymasters.view", "paymasters.manage"),
+  },
+  {
+    key: "documentManagement",
+    label: "Legal Documents",
+    description: "View legal documents and manage document versions.",
+    permissions: pickPermissions("document_management.view", "document_management.manage"),
+  },
+  {
+    key: "operatorProfile",
+    label: "Operator Profile",
+    description: "View and manage the Shoraka / Company profile.",
+    permissions: pickPermissions("operator_profile.view", "operator_profile.manage"),
+  },
+  {
+    key: "products",
+    label: "Products",
+    description: "View products and manage product workflows.",
+    permissions: pickPermissions("products.view", "products.manage"),
+  },
+  {
+    key: "platformFinance",
+    label: "Platform Finance Settings",
+    description: "View and manage Platform Finance settings.",
+    permissions: pickPermissions("platform_settings.view", "platform_settings.manage"),
+  },
+  {
+    key: "notificationAdministration",
+    label: "Notifications",
+    description: "View notifications and manage notification settings.",
+    permissions: pickPermissions("notifications.view", "notifications.manage"),
+  },
+  {
+    key: "roleAdministration",
+    label: "Roles",
+    description: "View roles and manage role access.",
+    permissions: pickPermissions("roles.view", "roles.manage"),
   },
 ];

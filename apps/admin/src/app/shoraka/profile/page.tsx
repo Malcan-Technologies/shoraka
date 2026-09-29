@@ -132,7 +132,7 @@ const COMPLETENESS_ROWS: Array<{
 
 export default function RmoProfilePage() {
   const { can } = usePermissions();
-  const canManage = can("platform_settings.manage");
+  const canManage = can("operator_profile.manage");
   const { getAccessToken } = useAuthToken();
   const api = React.useMemo(() => createApiClient(API_URL, getAccessToken), [getAccessToken]);
   const queryClient = useQueryClient();
@@ -201,7 +201,7 @@ export default function RmoProfilePage() {
 
   if (!draft || !completeness) {
     return (
-      <RequirePermission permission="platform_settings.view">
+      <RequirePermission permission="operator_profile.view">
         <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
           <div className="w-full space-y-6 px-2 py-8 md:px-4">
             <AdminPageHeader title="Shoraka Profile" />
@@ -256,7 +256,7 @@ export default function RmoProfilePage() {
   };
 
   return (
-    <RequirePermission permission="platform_settings.view">
+    <RequirePermission permission="operator_profile.view">
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
       <div className="w-full space-y-6 px-2 py-8 md:px-4">
         <AdminPageHeader

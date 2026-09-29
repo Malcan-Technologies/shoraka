@@ -48,7 +48,7 @@
     "packages/types/src/gateway-payments.ts": "25dc1c2fe972c02165dc25a4817d74c8f59c152c2eebfd4dee5fdf07920ba459",
     "packages/types/src/signing-envelopes.ts": "7708fc92ad37936a0dce4d0de1e5090a827aa7fcea1603893090e6e6c0ebef7e",
     "packages/types/src/index.ts": "0c425a2d539f1ce028c7ba5b8de35e870eeb6bcc4ac8025973f938430b141d3c",
-    "packages/types/src/rbac.ts": "5502bab25cc29157fee3c413ad44d2a2d3392582837393b2fe7483e0a8dcd6b5",
+    "packages/types/src/rbac.ts": "cef2149ca08b18b014fe797239bc7ef7cbcdc992860cdfd5f184bdf7a00994d7",
     "packages/config/src/api-client.ts": "9724a08d9e244d33aa27bc95b957a91e567706e077d4b95205e73950c47a49e7",
     "packages/ui/src/components/activity-feed.tsx": "db3bc9cf27a5680d30fabb9c3e5b661925807e3e059fdb226e23b6c0388ffafd",
     "packages/ui/src/components/activity-item.tsx": "b6df745842acaa59d8df91adc4cabbe744bf60b15847fe7c497972eecaecdcc6",

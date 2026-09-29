@@ -15,6 +15,8 @@ jest.mock("../../lib/auth/middleware", () => ({
     req.user = { user_id: "user-issuer-1" } as User;
     next();
   },
+  // Admin financial-statement routes use this guard; these tests do not exercise them.
+  requireAnyPermission: () => (_req: Request, _res: Response, next: NextFunction) => next(),
 }));
 
 const APP_ID = "clh8x7y6z5w4v3u2t1s0r9q";

@@ -58,6 +58,8 @@ type SigningProgressMatrixProps = {
   showRemindActions?: boolean;
   onRetryAutoSign?: (assignmentId: string) => void;
   retryDisabled?: boolean;
+  /** Shown as the Retry button title when it is disabled (e.g. missing Offer & Acceptance manage). */
+  retryDisabledReason?: string;
   /** Collapse fully-signed document groups by default. */
   collapseCompletedDocuments?: boolean;
   /** Tighter row padding for dense admin review. */
@@ -121,6 +123,7 @@ export function SigningProgressMatrix({
   showRemindActions = false,
   onRetryAutoSign,
   retryDisabled = false,
+  retryDisabledReason,
   collapseCompletedDocuments = false,
   compact = false,
   viewDocumentPending = false,
@@ -322,6 +325,7 @@ export function SigningProgressMatrix({
                             size="sm"
                             className="text-ui"
                             disabled={retryDisabled}
+                            title={retryDisabled ? retryDisabledReason : undefined}
                             onClick={() => onRetryAutoSign(assignment.id)}
                           >
                             <ArrowPathIcon className="h-4 w-4" />

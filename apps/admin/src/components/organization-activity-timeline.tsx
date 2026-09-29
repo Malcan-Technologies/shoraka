@@ -35,6 +35,7 @@ import {
 } from "@heroicons/react/24/outline";
 
 interface OrganizationActivityTimelineProps {
+  portal: "investor" | "issuer";
   organizationId: string | null;
   /** `panel` is the full-width activity tab; default `sidebar` keeps the compact rail layout. */
   variant?: "sidebar" | "panel";
@@ -260,6 +261,7 @@ function OrganizationActivityTimelineList({
 }
 
 export function OrganizationActivityTimeline({
+  portal,
   organizationId,
   variant = "sidebar",
   title = "Activity Timeline",
@@ -277,7 +279,7 @@ export function OrganizationActivityTimeline({
     hasNextPage,
     fetchNextPage,
     isFetchingNextPage,
-  } = useOrganizationLogs(organizationId);
+  } = useOrganizationLogs(portal, organizationId);
 
   const [selectedLog, setSelectedLog] = React.useState<OnboardingLogResponse | null>(null);
   const logs = React.useMemo(
@@ -295,10 +297,9 @@ export function OrganizationActivityTimeline({
     const all: OnboardingLogResponse[] = [];
     let page = 1;
     while (true) {
-      const response = await apiClient.getOnboardingLogs({
+      const response = await apiClient.getOrganizationOnboardingLogs(portal, organizationId, {
         page,
         pageSize: 100,
-        organizationId,
         eventTypes: ORGANIZATION_ACTIVITY_EVENT_TYPES,
       });
       if (!response.success) throw new Error(response.error.message);
@@ -307,7 +308,7 @@ export function OrganizationActivityTimeline({
       page += 1;
     }
     return all.map(organizationLogToActivityCsvRow);
-  }, [apiClient, logs, organizationId, totalCount]);
+  }, [apiClient, logs, organizationId, portal, totalCount]);
 
   return (
     <Card className={isPanel ? "rounded-2xl" : "flex h-full flex-col overflow-hidden rounded-2xl"}>

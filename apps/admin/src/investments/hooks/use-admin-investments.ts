@@ -14,6 +14,23 @@ export const adminInvestmentsKeys = {
   list: (params: GetAdminInvestmentsParams) => [...adminInvestmentsKeys.all, "list", params] as const,
 };
 
+/** Note detail Investors panel: note-scoped route on notes.view (not /admin/investments). */
+export function useAdminNoteInvestments(
+  noteId: string,
+  params: { page: number; pageSize: number }
+) {
+  const apiClient = useInvestmentsApiClient();
+  return useQuery({
+    queryKey: [...adminInvestmentsKeys.all, "note", noteId, params] as const,
+    queryFn: async () => {
+      const response = await apiClient.getAdminNoteInvestments(noteId, params);
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+    enabled: Boolean(noteId),
+  });
+}
+
 export function useAdminInvestments(params: GetAdminInvestmentsParams) {
   const apiClient = useInvestmentsApiClient();
   return useQuery({

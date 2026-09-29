@@ -1,4 +1,38 @@
-import { resolveSectionActionLock } from "./resolve-section-action-lock";
+import type { AdminPermission } from "@cashsouk/types";
+import {
+  canManageReviewSection,
+  REVIEW_SECTION_PERMISSION_MAP,
+  resolveSectionActionLock,
+} from "./resolve-section-action-lock";
+
+describe("REVIEW_SECTION_PERMISSION_MAP", () => {
+  it.each(["contract_details", "invoice_details", "acceptance_documents"])(
+    "maps merged Offer & acceptance section %s to offer_acceptance.manage",
+    (section) => {
+      expect(REVIEW_SECTION_PERMISSION_MAP[section]).toBe("applications.offer_acceptance.manage");
+    }
+  );
+
+  it("keeps Supporting Documents on documents.manage", () => {
+    expect(REVIEW_SECTION_PERMISSION_MAP.supporting_documents).toBe("applications.documents.manage");
+  });
+
+  it("requires offer_acceptance.manage, not documents.manage or applications.manage", () => {
+    const can = (granted: AdminPermission[]) => (permission: AdminPermission) =>
+      granted.includes(permission);
+    for (const section of ["contract_details", "invoice_details", "acceptance_documents"]) {
+      expect(
+        canManageReviewSection(
+          section,
+          can(["applications.documents.manage", "applications.manage"])
+        )
+      ).toBe(false);
+      expect(canManageReviewSection(section, can(["applications.offer_acceptance.manage"]))).toBe(
+        true
+      );
+    }
+  });
+});
 
 describe("resolveSectionActionLock", () => {
   const base = {

@@ -1797,6 +1797,34 @@ export class ApiClient {
     return this.get<GetAdminInvestmentsResponse>(`/v1/admin/investments${qs ? `?${qs}` : ""}`);
   }
 
+  /** Note detail Investors panel (notes.view); the note comes from the URL. */
+  async getAdminNoteInvestments(
+    noteId: string,
+    params: { page?: number; pageSize?: number } = {}
+  ): Promise<ApiResponse<GetAdminInvestmentsResponse> | ApiError> {
+    const search = new URLSearchParams();
+    if (params.page !== undefined) search.set("page", String(params.page));
+    if (params.pageSize !== undefined) search.set("pageSize", String(params.pageSize));
+    const qs = search.toString();
+    return this.get<GetAdminInvestmentsResponse>(
+      `/v1/admin/notes/${encodeURIComponent(noteId)}/investments${qs ? `?${qs}` : ""}`
+    );
+  }
+
+  /** Note detail excess late charge payment history (notes.view); note and purpose come from the URL. */
+  async getAdminNoteExcessLateChargePayments(
+    noteId: string,
+    params: { page?: number; pageSize?: number } = {}
+  ): Promise<ApiResponse<GatewayPaymentListResponse> | ApiError> {
+    const search = new URLSearchParams();
+    if (params.page !== undefined) search.set("page", String(params.page));
+    if (params.pageSize !== undefined) search.set("pageSize", String(params.pageSize));
+    const qs = search.toString();
+    return this.get<GatewayPaymentListResponse>(
+      `/v1/admin/notes/${encodeURIComponent(noteId)}/excess-late-charge-payments${qs ? `?${qs}` : ""}`
+    );
+  }
+
   async recordAdminNotePayment(
     id: string,
     data: RecordNotePaymentInput
@@ -3132,6 +3160,28 @@ export class ApiClient {
     if (params.organizationId) queryParams.append("organizationId", params.organizationId);
 
     return this.get<OnboardingLogsResponse>(`/v1/admin/onboarding-logs?${queryParams.toString()}`);
+  }
+
+  /** Organization detail Activity tab (organizations.view); the organization comes from the URL. */
+  async getOrganizationOnboardingLogs(
+    portal: "investor" | "issuer",
+    organizationId: string,
+    params: Omit<GetOnboardingLogsParams, "organizationId">
+  ): Promise<ApiResponse<OnboardingLogsResponse> | ApiError> {
+    const queryParams = new URLSearchParams();
+    queryParams.append("page", String(params.page));
+    queryParams.append("pageSize", String(params.pageSize));
+    if (params.search) queryParams.append("search", params.search);
+    if (params.eventType) queryParams.append("eventType", params.eventType);
+    if (params.eventTypes && params.eventTypes.length > 0)
+      queryParams.append("eventTypes", params.eventTypes.join(","));
+    if (params.role) queryParams.append("role", params.role);
+    if (params.dateRange) queryParams.append("dateRange", params.dateRange);
+    if (params.userId) queryParams.append("userId", params.userId);
+
+    return this.get<OnboardingLogsResponse>(
+      `/v1/admin/organizations/${portal}/${encodeURIComponent(organizationId)}/onboarding-logs?${queryParams.toString()}`
+    );
   }
 
   async getOnboardingLog(

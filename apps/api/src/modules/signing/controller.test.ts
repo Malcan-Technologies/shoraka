@@ -33,7 +33,19 @@ jest.mock("../../lib/auth/middleware", () => ({
     req.user = mockUser;
     next();
   },
-  requirePermission: () => (_req: Request, _res: Response, next: NextFunction) => next(),
+  // Tests opt in to permission enforcement with an x-test-permissions header (comma list);
+  // requests without the header keep the legacy pass-through behaviour.
+  requirePermission:
+    (...required: string[]) =>
+    (req: Request, _res: Response, next: NextFunction) => {
+      const header = req.headers["x-test-permissions"];
+      if (header === undefined) return next();
+      const granted = String(header).split(",").filter(Boolean);
+      if (required.every((permission) => granted.includes(permission))) return next();
+      const err = new Error("Insufficient permissions") as Error & { statusCode?: number };
+      err.statusCode = 403;
+      return next(err);
+    },
 }));
 
 describe("SigningController", () => {
@@ -325,5 +337,78 @@ describe("SigningController", () => {
       expect(res.body.data.ready).toBe(false);
       expect(signingService.getSigningPackageReadiness).toHaveBeenCalledWith("app-1");
     });
+  });
+});
+
+describe("SigningController admin permission guards", () => {
+  const MANAGE = "applications.offer_acceptance.manage";
+  let app: express.Application;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    app = express();
+    app.use(express.json());
+    app.use((req: Request, _res: Response, next: NextFunction) => {
+      req.user = { ...mockUser, roles: [UserRole.ADMIN] };
+      next();
+    });
+    app.use("/v1/admin/signing", createSigningAdminRouter());
+    app.use((err: Error & { statusCode?: number }, _req: Request, res: Response, _next: NextFunction) => {
+      res.status(err.statusCode || 500).json({ success: false, error: { message: err.message } });
+    });
+  });
+
+  const actionRoutes: Array<[string, string]> = [
+    ["POST", "/v1/admin/signing/applications/app-1/envelopes/send"],
+    ["POST", "/v1/admin/signing/envelopes/env-1/void"],
+    ["POST", "/v1/admin/signing/envelopes/env-1/retry-delivery"],
+    ["POST", "/v1/admin/signing/envelopes/env-1/sync-from-provider"],
+    ["POST", "/v1/admin/signing/envelopes/env-1/recipients/rec-1/remind"],
+    ["POST", "/v1/admin/signing/envelopes/env-1/assignments/asg-1/auto-sign-retry"],
+  ];
+
+  it.each(actionRoutes)("%s %s requires applications.offer_acceptance.manage", async (_method, path) => {
+    const viewOnly = await request(app)
+      .post(path)
+      .set("x-test-permissions", "applications.view,applications.manage,applications.documents.manage")
+      .send({});
+    expect(viewOnly.status).toBe(403);
+
+    const none = await request(app).post(path).set("x-test-permissions", "").send({});
+    expect(none.status).toBe(403);
+  });
+
+  it("allows signing actions for applications.offer_acceptance.manage", async () => {
+    (signingService.voidEnvelope as jest.Mock).mockResolvedValue({ id: "env-1", status: "VOIDED" });
+    const res = await request(app)
+      .post("/v1/admin/signing/envelopes/env-1/void")
+      .set("x-test-permissions", MANAGE)
+      .send({});
+    expect(res.status).toBe(200);
+  });
+
+  const readRoutes = [
+    "/v1/admin/signing/envelopes/env-1",
+    "/v1/admin/signing/applications/app-1/readiness",
+    "/v1/admin/signing/applications/app-1/envelopes",
+    "/v1/admin/signing/applications/app-1/documents/doc-1/signed",
+  ];
+
+  it.each(readRoutes)("GET %s requires applications.view", async (path) => {
+    const denied = await request(app).get(path).set("x-test-permissions", MANAGE);
+    expect(denied.status).toBe(403);
+  });
+
+  it("allows signing status reads for applications.view", async () => {
+    (signingService.getEnvelope as jest.Mock).mockResolvedValue({ id: "env-1" });
+    (signingService.listEnvelopesForApplication as jest.Mock).mockResolvedValue([]);
+    const envelope = await request(app)
+      .get("/v1/admin/signing/envelopes/env-1")
+      .set("x-test-permissions", "applications.view");
+    expect(envelope.status).toBe(200);
+    const list = await request(app)
+      .get("/v1/admin/signing/applications/app-1/envelopes")
+      .set("x-test-permissions", "applications.view");
+    expect(list.status).toBe(200);
   });
 });

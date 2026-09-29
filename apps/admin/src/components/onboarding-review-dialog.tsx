@@ -327,6 +327,9 @@ export function OnboardingReviewDialog({
 }: OnboardingReviewDialogProps) {
   const { can } = usePermissions();
   const canManage = can("onboarding.manage");
+  // Opening RegTank (external review/portal links) is read-only: onboarding.view.
+  // Restart, approve, final approval and refresh stay on onboarding.manage.
+  const canViewRegTank = can("onboarding.view");
   const queryClient = useQueryClient();
   const {
     data: application,
@@ -389,13 +392,13 @@ export function OnboardingReviewDialog({
     : hasOnboardingApproval && hasAmlApproval && hasTncAccepted;
 
   const handleOpenRegTank = () => {
-    if (!canManage) return;
+    if (!canViewRegTank) return;
     if (!application?.regtankPortalUrl) return;
     window.open(application.regtankPortalUrl, "_blank", "noopener,noreferrer");
   };
 
   const handleOpenKycReview = () => {
-    if (!canManage) return;
+    if (!canViewRegTank) return;
     if (!application) return;
     const url = isCompany && application.kybPortalUrl
       ? application.kybPortalUrl
@@ -532,8 +535,8 @@ export function OnboardingReviewDialog({
                 variant="outline"
                 onClick={handleOpenRegTank}
                 className="w-full gap-2"
-                disabled={!application.regtankPortalUrl || !canManage}
-                title={!canManage ? "You do not have permission to perform this action." : undefined}
+                disabled={!application.regtankPortalUrl || !canViewRegTank}
+                title={!canViewRegTank ? "You do not have permission to perform this action." : undefined}
               >
                 <ArrowTopRightOnSquareIcon className="h-4 w-4" />
                 View in RegTank Portal
@@ -620,8 +623,8 @@ export function OnboardingReviewDialog({
               <Button
                 onClick={handleOpenRegTank}
                 className="w-full gap-2"
-                disabled={!application.regtankPortalUrl || !canManage}
-                title={!canManage ? "You do not have permission to perform this action." : undefined}
+                disabled={!application.regtankPortalUrl || !canViewRegTank}
+                title={!canViewRegTank ? "You do not have permission to perform this action." : undefined}
               >
                 <ArrowTopRightOnSquareIcon className="h-4 w-4" />
                 Open Onboarding Review
@@ -731,8 +734,8 @@ export function OnboardingReviewDialog({
                 const amlPortalUrl = isCompany
                   ? application.kybPortalUrl
                   : application.kycPortalUrl || application.regtankPortalUrl;
-                const noPermission = !canManage;
-                const noReviewLink = canManage && !amlPortalUrl;
+                const noPermission = !canViewRegTank;
+                const noReviewLink = canViewRegTank && !amlPortalUrl;
                 const disabledReason = noPermission
                   ? "You do not have permission to perform this action."
                   : noReviewLink
@@ -818,8 +821,8 @@ export function OnboardingReviewDialog({
               <Button
                 onClick={handleOpenRegTank}
                 className="w-full gap-2"
-                disabled={!application.regtankPortalUrl || !canManage}
-                title={!canManage ? "You do not have permission to perform this action." : undefined}
+                disabled={!application.regtankPortalUrl || !canViewRegTank}
+                title={!canViewRegTank ? "You do not have permission to perform this action." : undefined}
               >
                 <ArrowTopRightOnSquareIcon className="h-4 w-4" />
                 Open RegTank Portal

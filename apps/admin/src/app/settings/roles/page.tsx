@@ -177,7 +177,7 @@ export default function RolesPage() {
               totalPages={totalPages}
               onPageChange={setCurrentPage}
               onUpdateUser={handleUpdateUser}
-              canManageRoles
+              canManageRoles={canManageRoles}
               activeSuperAdminCount={activeSuperAdminCount}
             />
           </div>

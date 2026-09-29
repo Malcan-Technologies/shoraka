@@ -163,6 +163,9 @@ function RelatedRecordLink({
 export default function DynamicApplicationDetailPage() {
   const { can } = usePermissions();
   const canAppManage = can("applications.manage");
+  // Offer & Acceptance tab actions, including the signing package.
+  const canManageOfferAcceptance = can("applications.offer_acceptance.manage");
+  const canManageGuarantorAml = can("applications.business_guarantor.manage");
   const params = useParams();
   const productKey = params.productKey as string;
   const applicationId = params.id as string;
@@ -768,7 +771,7 @@ export default function DynamicApplicationDetailPage() {
       hasAcceptanceDocumentsSection,
       hasSigningPackage,
       sourceApplicationDisplayReference: sourceRef,
-      canManageSigning: canAppManage && !isInheritedAcceptance,
+      canManageSigning: canManageOfferAcceptance && !isInheritedAcceptance,
     });
 
     const workflowStages = stageModel.stages.filter((s) => s.kind !== "reference");
@@ -802,7 +805,7 @@ export default function DynamicApplicationDetailPage() {
     return mergedStatus;
   }, [
     app,
-    canAppManage,
+    canManageOfferAcceptance,
     liveTabDescriptors,
     reviewProductWorkflow,
     sectionActionLocks,
@@ -1139,7 +1142,7 @@ export default function DynamicApplicationDetailPage() {
                             app={app}
                             liveApplicationId={applicationId}
                             productWorkflow={reviewProductWorkflow}
-                            canManageSigning={canAppManage}
+                            canManageSigning={canManageOfferAcceptance}
                             isReviewable={isReviewable}
                             approveSectionPending={approveSection.isPending}
                             approveItemPending={approveItem.isPending}
@@ -1306,7 +1309,7 @@ export default function DynamicApplicationDetailPage() {
                             minMonthsReviewToMaturityForOffer={minMonthsReviewToMaturityForOffer}
                             onViewSignedInvoiceOffer={handleViewSignedInvoiceOffer}
                             onViewSignedContractOffer={handleViewSignedContractOffer}
-                            onTriggerGuarantorAml={canAppManage ? async (guarantorId) => {
+                            onTriggerGuarantorAml={canManageGuarantorAml ? async (guarantorId) => {
                               try {
                                 await startGuarantorAml.mutateAsync({
                                   applicationId,
@@ -1429,6 +1432,7 @@ export default function DynamicApplicationDetailPage() {
         onRemove={async (scope, scopeKey) => {
           await removePendingAmendment.mutateAsync({ applicationId, scope, scopeKey });
         }}
+        can={can}
         onSubmit={async () => {
           await submitAmendmentRequest.mutateAsync({ applicationId });
           toast.success("Amendment request sent to issuer");

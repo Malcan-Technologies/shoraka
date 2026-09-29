@@ -531,7 +531,6 @@ export function SettlementPanel({
   const { can } = usePermissions();
   const canRepayment = can("notes.repayment.manage");
   const canSettlement = can("notes.settlement.manage");
-  const canDisbursement = can("notes.disbursement.manage");
   const canDefault = can("notes.default.manage");
   const [receiptAmount, setReceiptAmount] = React.useState("");
   const [reference, setReference] = React.useState("");
@@ -1812,7 +1811,7 @@ export function SettlementPanel({
               </div>
             ) : null}
             <NoteServicingStatusSummary note={note} timeline={latePaymentTimeline} />
-            <NoteLateChargeWaiverPanel note={note} canManage={canSettlement} />
+            <NoteLateChargeWaiverPanel note={note} canManage={canDefault} />
             {showOverdueFeesSection ? (
               <div className={cn("rounded-lg border p-4", lateFeesSectionSurfaceClass)}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1882,7 +1881,9 @@ export function SettlementPanel({
                               formatPercentInput(tawidhInvestorSharePercent)
                             )
                           }
-                          disabled={!servicingOpen || (Number(tawidhAmount) || 0) <= 0}
+                          disabled={
+                            !servicingOpen || (Number(tawidhAmount) || 0) <= 0 || !canDefault
+                          }
                           inputMode="decimal"
                           placeholder="0.00"
                         />
@@ -2872,10 +2873,10 @@ export function SettlementPanel({
                       disabled={
                         settlementTrusteeLetterLocked ||
                         settlementTrusteePendingAny ||
-                        !canDisbursement
+                        !canSettlement
                       }
                       title={
-                        !canDisbursement
+                        !canSettlement
                           ? "You do not have permission to perform this action."
                           : undefined
                       }
@@ -2890,9 +2891,9 @@ export function SettlementPanel({
                       variant="outline"
                       className="gap-1.5"
                       onClick={() => setSettlementTrusteeConfirm("regenerate")}
-                      disabled={settlementTrusteePendingAny || !canDisbursement}
+                      disabled={settlementTrusteePendingAny || !canSettlement}
                       title={
-                        !canDisbursement
+                        !canSettlement
                           ? "You do not have permission to perform this action."
                           : undefined
                       }
@@ -2908,9 +2909,9 @@ export function SettlementPanel({
                       variant="outline"
                       className="gap-1.5"
                       onClick={() => setSettlementTrusteeConfirm("resend")}
-                      disabled={settlementTrusteePendingAny || !canDisbursement}
+                      disabled={settlementTrusteePendingAny || !canSettlement}
                       title={
-                        !canDisbursement
+                        !canSettlement
                           ? "You do not have permission to perform this action."
                           : undefined
                       }
@@ -2924,9 +2925,9 @@ export function SettlementPanel({
                       type="button"
                       size="sm"
                       onClick={() => setSettlementTrusteeConfirm("submit")}
-                      disabled={settlementTrusteePendingAny || !canDisbursement}
+                      disabled={settlementTrusteePendingAny || !canSettlement}
                       title={
-                        !canDisbursement
+                        !canSettlement
                           ? "You do not have permission to perform this action."
                           : undefined
                       }
@@ -2939,9 +2940,9 @@ export function SettlementPanel({
                       type="button"
                       size="sm"
                       onClick={() => setSettlementTrusteeConfirm("complete")}
-                      disabled={settlementTrusteePendingAny || !canDisbursement}
+                      disabled={settlementTrusteePendingAny || !canSettlement}
                       title={
-                        !canDisbursement
+                        !canSettlement
                           ? "You do not have permission to perform this action."
                           : undefined
                       }

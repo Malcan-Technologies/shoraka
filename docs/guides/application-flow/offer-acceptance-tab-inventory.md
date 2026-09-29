@@ -12,7 +12,7 @@ Each item: **element** — *when* — *source* — *stage*.
 
 ## Admin Facility
 
-Tab: `contract_details` when structure is not `invoice_only`. Live: `ContractSection`. Wired in `section-content.tsx` `case "contract_details"`. Page lock: `applications.contract.manage`, tab prerequisites, withdrawn, `existing_contract` (“Facility was approved in a prior application”), `isPaymasterSwitchingFrozen` (“Paymaster cannot be changed after a commercial offer or signed facility”). After issuer accept (`sectionStatus === "APPROVED"`): extra lock “Facility offer finalized by issuer…”.
+Tab: `contract_details` when structure is not `invoice_only`. Live: `ContractSection`. Wired in `section-content.tsx` `case "contract_details"`. Page lock: `applications.offer_acceptance.manage`, tab prerequisites, withdrawn, `existing_contract` (“Facility was approved in a prior application”), `isPaymasterSwitchingFrozen` (“Paymaster cannot be changed after a commercial offer or signed facility”). After issuer accept (`sectionStatus === "APPROVED"`): extra lock “Facility offer finalized by issuer…”.
 
 ### Card chrome and section actions
 
@@ -87,7 +87,7 @@ Tab: `contract_details` when structure is not `invoice_only`. Live: `ContractSec
 
 ## Admin Customer
 
-Tab: same `contract_details` descriptor when `isInvoiceOnlyFinancingStructure`. Live: `CustomerSection`. Label override “Customer”. Permission still `applications.contract.manage`. **Approve is shown** (`showApprove={true}`). No Send Offer. Customer Consent evidence props exist but are unused.
+Tab: same `contract_details` descriptor when `isInvoiceOnlyFinancingStructure`. Live: `CustomerSection`. Label override “Customer”. Permission `applications.offer_acceptance.manage`. **Approve is shown** (`showApprove={true}`). No Send Offer. Customer Consent evidence props exist but are unused.
 
 ### Card chrome
 
@@ -112,7 +112,7 @@ Tab: same `contract_details` descriptor when `isInvoiceOnlyFinancingStructure`. 
 
 ## Admin Invoice
 
-Tab: `invoice_details`. `InvoiceSection` + `InvoiceOfferPanel`. Permission `applications.invoice.manage`. **Section Action hidden** (`hideSectionActions`). Item actions only. After send (invoice-only + Acceptance tab): toast “… continue on Acceptance” + `goToAcceptanceTab`. Facility-linked invoice send does **not** auto-switch tab.
+Tab: `invoice_details`. `InvoiceSection` + `InvoiceOfferPanel`. Permission `applications.offer_acceptance.manage`. **Section Action hidden** (`hideSectionActions`). Item actions only. After send (invoice-only + Acceptance tab): toast “… continue on Acceptance” + `goToAcceptanceTab`. Facility-linked invoice send does **not** auto-switch tab.
 
 ### Capacity and switcher
 
@@ -165,7 +165,7 @@ Tab: `invoice_details`. `InvoiceSection` + `InvoiceOfferPanel`. Permission `appl
 
 ## Admin Acceptance
 
-Tab: `acceptance_documents` when `shouldShowAcceptanceDocumentsReviewSection` (offer-acceptance workflow). Permission `applications.documents.manage`. `canManageSigning` = `applications.manage`. Inherited `existing_contract`: `app.inherited_acceptance`; `isReviewable` false; lock tooltip “Acceptance was completed when the linked facility was approved”; comments hidden; signing `canManage` false; envelopes loaded for **source** application id.
+Tab: `acceptance_documents` when `shouldShowAcceptanceDocumentsReviewSection` (offer-acceptance workflow). Permission `applications.offer_acceptance.manage` (acceptance documents, authorized parties and signing package; `applications.documents.manage` is Supporting Documents only). `canManageSigning` = `applications.offer_acceptance.manage`; signing routes `/v1/admin/signing/*` enforce the same permission (reads: `applications.view`). Inherited `existing_contract`: `app.inherited_acceptance`; `isReviewable` false; lock tooltip “Acceptance was completed when the linked facility was approved”; comments hidden; signing `canManage` false; envelopes loaded for **source** application id.
 
 ### Card chrome
 

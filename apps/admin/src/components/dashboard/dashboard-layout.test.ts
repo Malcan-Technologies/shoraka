@@ -32,9 +32,12 @@ describe("admin dashboard layout", () => {
     expect(pageSource).not.toContain("QuickActionsSection");
     expect(pageSource).not.toContain("Refresh dashboard");
     expect(pageSource).toContain("dashboard.finance.view");
-    expect(pageSource).toContain("useAdminReport(\"ageing\"");
+    // PAR / credit quality comes from the permission-filtered stats payload, not the Reports page API.
+    expect(pageSource).not.toContain("useAdminReport");
+    expect(pageSource).not.toContain(`can("reports.view")`);
+    expect(pageSource).toContain("dashboard.reports.view");
+    expect(pageSource).toContain("stats?.portfolioAtRisk");
     expect(pageSource).toContain("refetchInterval: 60_000");
-    expect(pageSource).toContain("reports.view");
     expect(pageSource).toContain("dashboard.operations.view");
     expect(pageSource).toContain("dashboard.platform.view");
     expect(bookSource).toContain("The book");
@@ -43,6 +46,20 @@ describe("admin dashboard layout", () => {
     expect(creditSource).toContain("Credit quality");
     expect(operationsSource).toContain("Lifecycle pipeline");
     expect(platformSource).toContain("Users and organisations, last 30 days");
+  });
+});
+
+describe("dashboard permissions", () => {
+  it("gates summary cards on dashboard.* only and keeps bucket details on bucket_balances.view", () => {
+    expect(pageSource).not.toContain("bucket_balances.view");
+    expect(moneySource).toContain('can("dashboard.finance.view")');
+    expect(moneySource).toContain('can("bucket_balances.view")');
+    expect(moneySource).not.toContain('can("dashboard.finance.view") || ');
+  });
+
+  it("only fetches dashboard stats when a dashboard section permission is held", () => {
+    expect(pageSource).toContain("hasStatsSection");
+    expect(pageSource).toContain("enabled: hasStatsSection");
   });
 });
 

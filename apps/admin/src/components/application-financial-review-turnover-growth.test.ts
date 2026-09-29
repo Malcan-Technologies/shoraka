@@ -56,7 +56,7 @@ describe("application financial review Turnover Growth rendering", () => {
     expect(source).not.toContain("+ Add Financial Statement");
 
     // Add statement uses the same neutral Button styling as edit (no default red/accent treatment).
-    expect(source).toContain('title="Add financial statement"');
+    expect(source).toContain('? "Add financial statement"');
     expect(source).not.toContain('text-primary hover:underline cursor-pointer');
 
     // Date range still derived for unaudited FY columns.

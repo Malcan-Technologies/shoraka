@@ -19,7 +19,6 @@ type Props = {
   manualYears: Record<string, Record<string, string | number | null | undefined> | undefined>;
   disabled: boolean;
   onChange: (year: string, field: string, value: string) => void;
-  onAddPlaceholderYear?: (calendarYear: number) => void;
 };
 
 /**
@@ -32,7 +31,6 @@ export function ProspectusCoverageWorkingTable({
   manualYears,
   disabled,
   onChange,
-  onAddPlaceholderYear,
 }: Props) {
   const resolveRow = (metric: string): FinancialRowMode => {
     if (REUSED.has(metric)) {
@@ -55,7 +53,6 @@ export function ProspectusCoverageWorkingTable({
       resolveRow={resolveRow}
       getEditableValue={(yearKey, field) => manualYears[yearKey]?.[field]}
       onChange={onChange}
-      onAddPlaceholderYear={onAddPlaceholderYear}
       disabled={disabled}
       emptyMessage="—"
     />

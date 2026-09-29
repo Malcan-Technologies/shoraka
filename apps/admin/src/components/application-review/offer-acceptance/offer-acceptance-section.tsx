@@ -111,7 +111,7 @@ export function OfferAcceptanceSection(
     viewSignedOfferLetterPending,
     hideSectionComments = false,
     productWorkflow,
-    canManageSigning = true,
+    canManageSigning = false,
   } = props;
 
   const structureType =

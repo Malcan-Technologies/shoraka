@@ -47,23 +47,29 @@ const PAGE_SIZE = 10;
 
 export const ORGANIZATION_ACTIVITY_EVENT_TYPES: OnboardingEventType[] = ONBOARDING_EVENT_TYPES;
 
-export function useOrganizationLogs(organizationId: string | null) {
+/**
+ * Organization detail Activity tab. Uses the organization-scoped route (organizations.view),
+ * not GET /admin/onboarding-logs (onboarding.view).
+ */
+export function useOrganizationLogs(
+  portal: "investor" | "issuer",
+  organizationId: string | null
+) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
 
   return useInfiniteQuery({
-    queryKey: ["admin", "organization-logs", organizationId],
+    queryKey: ["admin", "organization-logs", portal, organizationId],
     queryFn: async ({ pageParam = 1 }) => {
       if (!organizationId) throw new Error("Organization ID is required");
 
-      const params: GetOnboardingLogsParams = {
+      const params: Omit<GetOnboardingLogsParams, "organizationId"> = {
         page: pageParam,
         pageSize: PAGE_SIZE,
-        organizationId,
         eventTypes: ONBOARDING_EVENT_TYPES,
       };
 
-      const response = await apiClient.getOnboardingLogs(params);
+      const response = await apiClient.getOrganizationOnboardingLogs(portal, organizationId, params);
       if (!response.success) {
         throw new Error(response.error.message);
       }

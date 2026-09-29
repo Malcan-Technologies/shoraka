@@ -349,24 +349,40 @@ async function getAdminSigningPackageReadiness(req: Request, res: Response, next
 
 export function createSigningAdminRouter(): Router {
   const router = Router();
-  router.post("/applications/:applicationId/envelopes/send", sendAdminSigningPackage);
-  router.post("/envelopes/:id/void", voidEnvelope);
-  router.post("/envelopes/:id/retry-delivery", retryEnvelopeDelivery);
-  router.post("/envelopes/:id/sync-from-provider", syncEnvelopeFromProviderForAdmin);
-  router.post("/envelopes/:id/recipients/:recipientId/remind", remindRecipient);
+  // Signing package actions belong to the Offer & Acceptance tab; reads follow application view access.
+  const canManageSigning = requirePermission("applications.offer_acceptance.manage");
+  const canViewSigning = requirePermission("applications.view");
+  router.post(
+    "/applications/:applicationId/envelopes/send",
+    canManageSigning,
+    sendAdminSigningPackage
+  );
+  router.post("/envelopes/:id/void", canManageSigning, voidEnvelope);
+  router.post("/envelopes/:id/retry-delivery", canManageSigning, retryEnvelopeDelivery);
+  router.post(
+    "/envelopes/:id/sync-from-provider",
+    canManageSigning,
+    syncEnvelopeFromProviderForAdmin
+  );
+  router.post("/envelopes/:id/recipients/:recipientId/remind", canManageSigning, remindRecipient);
   router.post(
     "/envelopes/:id/assignments/:assignmentId/auto-sign-retry",
+    canManageSigning,
     retryAutomaticAssignment
   );
-  router.get("/envelopes/:id", async (req, res, next) => {
+  router.get("/envelopes/:id", canViewSigning, async (req, res, next) => {
     try {
       ok(res, await signingService.getEnvelope(req.params.id));
     } catch (e) {
       next(e);
     }
   });
-  router.get("/applications/:applicationId/readiness", getAdminSigningPackageReadiness);
-  router.get("/applications/:applicationId/envelopes", async (req, res, next) => {
+  router.get(
+    "/applications/:applicationId/readiness",
+    canViewSigning,
+    getAdminSigningPackageReadiness
+  );
+  router.get("/applications/:applicationId/envelopes", canViewSigning, async (req, res, next) => {
     try {
       ok(res, await signingService.listEnvelopesForApplication(req.params.applicationId));
     } catch (e) {
@@ -375,7 +391,7 @@ export function createSigningAdminRouter(): Router {
   });
   router.get(
     "/applications/:applicationId/documents/:documentId/signed",
-    requirePermission("applications.view"),
+    canViewSigning,
     getAdminSignedDocument
   );
   return router;

@@ -170,6 +170,7 @@ export function AdminUserTableRow({
   };
 
   const handleToggleStatus = async () => {
+    if (!canManageRoles) return;
     const currentStatus = user.admin?.status || "ACTIVE";
     const newStatus = currentStatus === "ACTIVE" ? "INACTIVE" : "ACTIVE";
 
@@ -308,11 +309,13 @@ export function AdminUserTableRow({
             variant="outline"
             size="sm"
             onClick={handleToggleStatus}
-            disabled={deactivateMutation.isPending || isLastSuperAdmin}
+            disabled={!canManageRoles || deactivateMutation.isPending || isLastSuperAdmin}
             title={
-              isLastSuperAdmin
-                ? "At least one active Super Admin must remain."
-                : undefined
+              !canManageRoles
+                ? "You do not have permission to manage admin users"
+                : isLastSuperAdmin
+                  ? "At least one active Super Admin must remain."
+                  : undefined
             }
             className="gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/20"
           >
@@ -324,7 +327,8 @@ export function AdminUserTableRow({
             variant="outline"
             size="sm"
             onClick={handleToggleStatus}
-            disabled={reactivateMutation.isPending}
+            disabled={!canManageRoles || reactivateMutation.isPending}
+            title={!canManageRoles ? "You do not have permission to manage admin users" : undefined}
             className="gap-1.5 text-green-600 hover:text-green-600 hover:bg-green-50 border-green-200"
           >
             <ShieldCheckIcon className="size-4" />

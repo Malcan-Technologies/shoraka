@@ -242,7 +242,7 @@ export function AcceptanceSection({
   applicationId,
   workflow,
   guarantors,
-  canManageSigning = true,
+  canManageSigning = false,
   contractOfferDetails,
   invoices = [],
   structureType,

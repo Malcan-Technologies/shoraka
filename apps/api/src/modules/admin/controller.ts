@@ -6,7 +6,8 @@ import {
 import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { AdminService } from "./service";
 import { AppError } from "../../lib/http/error-handler";
-import { requirePermission } from "../../lib/auth/middleware";
+import { requirePermission, userHasPermission } from "../../lib/auth/middleware";
+import { resolveDashboardStatsSections } from "./dashboard-sections";
 import {
   buildAuditCsv,
   formatRoleSwitchedLabel,
@@ -141,10 +142,10 @@ function requireApplicationItemManage(req: Request, _res: Response, next: NextFu
       return;
     }
 
-    const itemType = normalizeReviewItemType(
-      reviewItemTypeSchema.parse((req.body as { itemType?: unknown } | undefined)?.itemType)
-    );
-    const requiredPermission = getApplicationItemManagePermission(itemType);
+    const body = req.body as { itemType?: unknown; itemId?: unknown } | undefined;
+    const itemType = normalizeReviewItemType(reviewItemTypeSchema.parse(body?.itemType));
+    const itemId = typeof body?.itemId === "string" ? body.itemId : undefined;
+    const requiredPermission = getApplicationItemManagePermission(itemType, itemId);
 
     if (req.adminRoleKey && FULL_ACCESS_ADMIN_ROLE_KEYS.includes(req.adminRoleKey as AdminRoleKey)) {
       next();
@@ -203,6 +204,8 @@ function requirePendingAmendmentCreate(req: Request, _res: Response, next: NextF
     const requiredPermission = getPendingAmendmentCreatePermission({
       scope: parsed.data.scope,
       scopeKey: parsed.data.scopeKey,
+      // Item amendments are stored under itemId (see the handler), so the check uses itemId only.
+      itemId: parsed.data.itemId,
       itemType,
     });
     if (!requireAssignedPermission(req, requiredPermission, next)) return;
@@ -494,7 +497,14 @@ router.patch(
         throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
       }
 
-      const updatedUser = await adminService.updateUserRoles(req, id, validated, req.user.user_id);
+      // Adding or removing ADMIN changes admin access, which belongs to roles.manage.
+      const updatedUser = await adminService.updateUserRoles(
+        req,
+        id,
+        validated,
+        req.user.user_id,
+        userHasPermission(req, "roles.manage")
+      );
 
       res.json({
         success: true,
@@ -624,9 +634,12 @@ router.patch(
 router.get(
   "/dashboard/stats",
   requirePermission("dashboard.view"),
-  async (_req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const stats = await adminService.getDashboardStats();
+      // Only return the sections the caller holds a dashboard.* permission for.
+      const stats = await adminService.getDashboardStats(
+        resolveDashboardStatsSections((permission) => userHasPermission(req, permission))
+      );
 
       res.json({
         success: true,
@@ -783,6 +796,45 @@ router.get(
             ? new AppError(400, "VALIDATION_ERROR", error.message)
             : error
       );
+    }
+  }
+);
+
+/**
+ * Organization detail Activity tab: onboarding logs for one organization.
+ * Page-scoped read on organizations.view; organizationId is forced from the URL.
+ * GET /onboarding-logs (onboarding.view) is unchanged.
+ */
+router.get(
+  "/organizations/:portal/:id/onboarding-logs",
+  requirePermission("organizations.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { portal, id } = req.params;
+      if (portal !== "investor" && portal !== "issuer") {
+        throw new AppError(400, "VALIDATION_ERROR", "Portal must be 'investor' or 'issuer'");
+      }
+      const validated = {
+        ...getOnboardingLogsQuerySchema.parse(req.query),
+        organizationId: id,
+      };
+      const result = await adminService.listOnboardingLogs(validated);
+
+      res.json({
+        success: true,
+        data: {
+          logs: result.logs,
+          pagination: {
+            page: validated.page,
+            pageSize: validated.pageSize,
+            totalCount: result.total,
+            totalPages: Math.ceil(result.total / validated.pageSize),
+          },
+        },
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
     }
   }
 );
@@ -2872,7 +2924,7 @@ router.use(
  */
 router.post(
   "/applications/:applicationId/guarantors/:clientGuarantorId/start-aml",
-  requirePermission("applications.manage"),
+  requirePermission("applications.business_guarantor.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user?.user_id) {
@@ -3642,7 +3694,7 @@ router.post(
 
 router.patch(
   "/applications/:id/contract/customer-large-private",
-  requirePermission("applications.contract.manage"),
+  requirePermission("applications.offer_acceptance.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
@@ -3669,7 +3721,7 @@ router.patch(
 
 router.post(
   "/applications/:id/offers/contracts/send",
-  requirePermission("applications.contract.manage"),
+  requirePermission("applications.offer_acceptance.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
@@ -3698,7 +3750,7 @@ router.post(
 
 router.post(
   "/applications/:id/offers/contracts/extend-signing-deadline",
-  requirePermission("applications.contract.manage"),
+  requirePermission("applications.offer_acceptance.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
@@ -3723,7 +3775,7 @@ router.post(
 
 router.post(
   "/applications/:id/offers/invoices/:invoiceId/send",
-  requirePermission("applications.invoice.manage"),
+  requirePermission("applications.offer_acceptance.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
@@ -3766,7 +3818,7 @@ router.post(
 
 router.post(
   "/applications/:id/offers/invoices/:invoiceId/extend-signing-deadline",
-  requirePermission("applications.invoice.manage"),
+  requirePermission("applications.offer_acceptance.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");

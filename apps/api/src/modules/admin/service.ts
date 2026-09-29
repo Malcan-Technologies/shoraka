@@ -67,6 +67,7 @@ import { getIssuerRecipientUserIdsForApplication } from "../notification/applica
 import { sendTypedToUsersSafe } from "../notification/send-typed-safe";
 import { listOrganizationLinkedRecords, productIdFromFinancingType } from "./organization-linked-records";
 import { sumApprovedFacilityAmount } from "./organization-header-metrics";
+import { runReport } from "../reports/service";
 import { updateAdminOrganizationProfile } from "./organization-admin-profile";
 import { parseFieldSources } from "../organization-profile/serialize";
 import {
@@ -83,6 +84,8 @@ import {
   type AdminRoleConfigRecord,
   type AdminPermission,
   type AdminRoleKey,
+  type DashboardStatsResponse,
+  type DashboardStatsSections,
   type OnboardingApprovalStatus,
   type OnboardingApplicationResponse,
   type OnboardingStatusEnum,
@@ -1538,7 +1541,8 @@ export class AdminService {
     req: Request,
     userId: string,
     data: UpdateUserRolesInput,
-    adminUserId: string
+    adminUserId: string,
+    canManageAdminAccess: boolean
   ): Promise<User> {
     const user = await this.repository.getUserById(userId);
     if (!user) {
@@ -1551,9 +1555,43 @@ export class AdminService {
     const adminRoleRemoved = hadAdminRole && !hasAdminRole;
     const adminRoleAdded = !hadAdminRole && hasAdminRole;
 
+    // users.manage covers Investor / Issuer portal access only. Admin access belongs to roles.manage.
+    if ((adminRoleAdded || adminRoleRemoved) && !canManageAdminAccess) {
+      throw new AppError(
+        403,
+        "FORBIDDEN",
+        "Changing admin access requires the roles.manage permission"
+      );
+    }
+
+    // This route never creates admin records; admin access is granted from Settings > Roles.
+    const existingAdmin =
+      adminRoleAdded || adminRoleRemoved ? await this.repository.getAdminByUserId(userId) : null;
+    if (adminRoleAdded && !existingAdmin) {
+      throw new AppError(
+        400,
+        "VALIDATION_ERROR",
+        "This user has no admin access yet. Grant admin access from Settings > Roles."
+      );
+    }
+    if (
+      adminRoleRemoved &&
+      existingAdmin?.status === "ACTIVE" &&
+      existingAdmin.role_description === AdminRole.SUPER_ADMIN
+    ) {
+      const activeSuperAdminCount = await this.repository.countActiveSuperAdmins();
+      if (activeSuperAdminCount <= 1) {
+        throw new AppError(
+          400,
+          "VALIDATION_ERROR",
+          "At least one active Super Admin must remain. Assign another Super Admin before removing admin access."
+        );
+      }
+    }
+
     // If ADMIN role is being removed, deactivate the admin record (if it exists)
     if (adminRoleRemoved) {
-      const admin = await this.repository.getAdminByUserId(userId);
+      const admin = existingAdmin;
       if (admin && admin.status === "ACTIVE") {
         logger.info(
           { userId, email: user.email, deactivatedBy: adminUserId },
@@ -1581,9 +1619,9 @@ export class AdminService {
       }
     }
 
-    // If ADMIN role is being added, activate the admin record (if it exists) or create a new one
+    // If ADMIN role is being added, activate the existing admin record
     if (adminRoleAdded) {
-      const admin = await this.repository.getAdminByUserId(userId);
+      const admin = existingAdmin;
 
       if (admin) {
         // Admin record exists - reactivate it (preserving existing role_description)
@@ -1618,13 +1656,6 @@ export class AdminService {
             },
           });
         }
-      } else {
-        // No admin record exists - create a new one with SUPER_ADMIN role
-        logger.info(
-          { userId, email: user.email, activatedBy: adminUserId },
-          "ADMIN role added - creating new admin record with SUPER_ADMIN role"
-        );
-        await this.repository.createAdmin(userId, AdminRole.SUPER_ADMIN);
       }
     }
 
@@ -1922,132 +1953,64 @@ export class AdminService {
   /**
    * Get dashboard statistics including user counts, trends, and percentage changes
    */
-  async getDashboardStats(): Promise<{
-    users: {
-      total: { current: number; previous: number; percentageChange: number };
-      investorsOnboarded: { current: number; previous: number; percentageChange: number };
-      issuersOnboarded: { current: number; previous: number; percentageChange: number };
-    };
-    signupTrends: {
-      date: string;
-      totalSignups: number;
-      investorOrgsOnboarded: number;
-      issuerOrgsOnboarded: number;
-    }[];
-    organizations: {
-      investor: {
-        total: number;
-        percentageChange: number;
-        personal: { total: number; onboarded: number; pending: number };
-        company: { total: number; onboarded: number; pending: number };
-      };
-      issuer: {
-        total: number;
-        percentageChange: number;
-        personal: { total: number; onboarded: number; pending: number };
-        company: { total: number; onboarded: number; pending: number };
-      };
-    };
-    onboardingOperations: {
-      inProgress: number;
-      pending: number;
-      approved: number;
-      rejected: number;
-      expired: number;
-    };
-    applicationMetrics: {
-      total: number;
-      actionRequired: number;
-      draft: number;
-      contractOrAmendmentCycle: number;
-      approvedCompleted: number;
-      withdrawnRejectedOrArchived: number;
-    };
-    contractMetrics: {
-      total: number;
-      actionRequired: number;
-      draft: number;
-      offerSent: number;
-      approved: number;
-      rejectedOrWithdrawn: number;
-    };
-    noteMetrics: {
-      total: number;
-      draft: number;
-      live: number;
-      repaid: number;
-      distressed: number;
-      arrears: number;
-      defaulted: number;
-      cancelledOrFailedFunding: number;
-    };
-    bookMetrics: {
-      outstanding: { amount: number; count: number };
-      inFunding: { amount: number; count: number };
-      distressed: { amount: number; count: number };
-      arrears: { amount: number; count: number };
-      defaulted: { amount: number; count: number };
-      dueSoon: { amount: number; count: number };
-    };
-    bookMetricHistory: Array<{
-      date: string;
-      outstanding: { amount: number; count: number };
-      inFunding: { amount: number; count: number };
-      arrears: { amount: number; count: number };
-      defaulted: { amount: number; count: number };
-      dueSoon: { amount: number; count: number };
-    }>;
-  }> {
+  async getDashboardStats(sections: DashboardStatsSections): Promise<DashboardStatsResponse> {
     const TREND_PERIOD_DAYS = 30;
     const today = calendarDateInTimeZone(new Date());
     const historyWindow = bookMetricsHistoryQueryWindow(today);
 
-    // Get all stats in parallel
-    const [
-      totalStats,
-      currentPeriodStats,
-      previousPeriodStats,
-      signupTrends,
-      organizationStats,
-      organizationPeriodCounts,
-      onboardingOperations,
-      applicationMetrics,
-      contractMetrics,
-      noteMetrics,
-      liveBookMetrics,
-      bookMetricSnapshots,
-    ] = await Promise.all([
-      this.repository.getUserStats(),
-      this.repository.getCurrentPeriodStats(TREND_PERIOD_DAYS),
-      this.repository.getPreviousPeriodStats(TREND_PERIOD_DAYS),
-      this.repository.getSignupTrends(TREND_PERIOD_DAYS),
-      this.repository.getOrganizationStats(),
-      this.repository.getOrganizationPeriodCounts(TREND_PERIOD_DAYS),
-      this.repository.getOnboardingOperationsMetrics(),
-      this.repository.getApplicationDashboardMetrics(),
-      this.repository.getContractDashboardMetrics(),
-      this.repository.getNoteDashboardMetrics(),
-      this.repository.getBookMetrics(),
-      this.repository.listBookMetricsDailySnapshots(historyWindow.fromDate, historyWindow.toDate),
+    // Only run the queries for the sections the caller may receive.
+    const [platform, operations, finance, reports] = await Promise.all([
+      sections.platform
+        ? Promise.all([
+            this.repository.getUserStats(),
+            this.repository.getCurrentPeriodStats(TREND_PERIOD_DAYS),
+            this.repository.getPreviousPeriodStats(TREND_PERIOD_DAYS),
+            this.repository.getSignupTrends(TREND_PERIOD_DAYS),
+            this.repository.getOrganizationStats(),
+            this.repository.getOrganizationPeriodCounts(TREND_PERIOD_DAYS),
+          ])
+        : null,
+      sections.operations
+        ? Promise.all([
+            this.repository.getOnboardingOperationsMetrics(),
+            this.repository.getApplicationDashboardMetrics(),
+            this.repository.getContractDashboardMetrics(),
+            this.repository.getNoteDashboardMetrics(),
+          ])
+        : null,
+      sections.finance
+        ? Promise.all([
+            this.repository.getBookMetrics(),
+            this.repository.listBookMetricsDailySnapshots(
+              historyWindow.fromDate,
+              historyWindow.toDate
+            ),
+          ])
+        : null,
+      sections.reports ? runReport("ageing", {}) : null,
     ]);
 
-    const bookMetrics = roundBookMetrics(liveBookMetrics);
-    const bookMetricHistory = assembleBookMetricHistory({
-      snapshots: bookMetricSnapshots,
-      live: bookMetrics,
-      today,
-    });
+    const result: DashboardStatsResponse = {};
 
-    // Calculate percentage changes
-    const calculatePercentageChange = (current: number, previous: number): number => {
-      if (previous === 0) {
-        return current > 0 ? 100 : 0;
-      }
-      return Math.round(((current - previous) / previous) * 100);
-    };
+    if (platform) {
+      const [
+        totalStats,
+        currentPeriodStats,
+        previousPeriodStats,
+        signupTrends,
+        organizationStats,
+        organizationPeriodCounts,
+      ] = platform;
 
-    return {
-      users: {
+      // Calculate percentage changes
+      const calculatePercentageChange = (current: number, previous: number): number => {
+        if (previous === 0) {
+          return current > 0 ? 100 : 0;
+        }
+        return Math.round(((current - previous) / previous) * 100);
+      };
+
+      result.users = {
         total: {
           current: totalStats.totalUsers,
           previous:
@@ -2079,9 +2042,9 @@ export class AdminService {
             previousPeriodStats.issuersOnboarded
           ),
         },
-      },
-      signupTrends,
-      organizations: {
+      };
+      result.signupTrends = signupTrends;
+      result.organizations = {
         investor: {
           ...organizationStats.investor,
           percentageChange: calculatePercentageChange(
@@ -2096,14 +2059,33 @@ export class AdminService {
             organizationPeriodCounts.previous.issuer
           ),
         },
-      },
-      onboardingOperations,
-      applicationMetrics,
-      contractMetrics,
-      noteMetrics,
-      bookMetrics,
-      bookMetricHistory,
-    };
+      };
+    }
+
+    if (operations) {
+      const [onboardingOperations, applicationMetrics, contractMetrics, noteMetrics] = operations;
+      result.onboardingOperations = onboardingOperations;
+      result.applicationMetrics = applicationMetrics;
+      result.contractMetrics = contractMetrics;
+      result.noteMetrics = noteMetrics;
+    }
+
+    if (finance) {
+      const [liveBookMetrics, bookMetricSnapshots] = finance;
+      const bookMetrics = roundBookMetrics(liveBookMetrics);
+      result.bookMetrics = bookMetrics;
+      result.bookMetricHistory = assembleBookMetricHistory({
+        snapshots: bookMetricSnapshots,
+        live: bookMetrics,
+        today,
+      });
+    }
+
+    if (reports?.portfolioAtRisk) {
+      result.portfolioAtRisk = reports.portfolioAtRisk;
+    }
+
+    return result;
   }
 
   async getApplicationNavCounts() {

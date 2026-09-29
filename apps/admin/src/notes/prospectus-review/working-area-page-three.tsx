@@ -62,7 +62,6 @@ export type WorkingAreaPageThreeProps = {
   updateDraft: (
     updater: (prev: ProspectusReviewStoredContent) => ProspectusReviewStoredContent
   ) => void;
-  onAddPlaceholderYear?: (calendarYear: number) => void;
   completionLabel?: string;
   completionOptions?: ProspectusCompletionOptions;
   activeTab?: PageThreeTabId;
@@ -83,7 +82,6 @@ export function WorkingAreaPageThree({
   financialComparisonOpsWarning = null,
   updateManualField,
   updateDraft,
-  onAddPlaceholderYear,
   completionLabel,
   completionOptions,
   activeTab: controlledTab,
@@ -166,7 +164,6 @@ export function WorkingAreaPageThree({
               manualYears={manualYears ?? {}}
               disabled={disabled}
               onChange={updateManualField}
-              onAddPlaceholderYear={onAddPlaceholderYear}
             />
           </ProspectusSectionShell>
         </div>
@@ -181,7 +178,6 @@ export function WorkingAreaPageThree({
               manualYears={manualYears ?? {}}
               disabled={disabled}
               onChange={updateManualField}
-              onAddPlaceholderYear={onAddPlaceholderYear}
             />
           </ProspectusSectionShell>
         </div>
@@ -200,7 +196,6 @@ export function WorkingAreaPageThree({
               manualYears={manualYears ?? {}}
               disabled={disabled}
               onChange={updateManualField}
-              onAddPlaceholderYear={onAddPlaceholderYear}
             />
           </ProspectusSectionShell>
         </div>

@@ -6,7 +6,8 @@ import { StatusBadge } from "@cashsouk/ui";
 import { ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useGatewayPayments } from "@/hooks/use-gateway-payments";
+import { useNoteExcessLateChargePayments } from "@/hooks/use-gateway-payments";
+import { usePermissions } from "@/hooks/use-permissions";
 import {
   PURPOSE_LABEL,
   STATUS_LABEL,
@@ -33,13 +34,12 @@ export function ExcessLateChargeAdminPanel({
   owedAmount: number;
   paidAmount: number;
 }) {
+  const { can } = usePermissions();
+  // The Gateway Payments detail page belongs to the Gateway module; the history itself is a
+  // note-scoped read on notes.view.
+  const canOpenGatewayPayment = can("gateway_payments.view");
   const outstanding = excessLateChargeOutstanding(owedAmount, paidAmount);
-  const historyQuery = useGatewayPayments({
-    purpose: "EXCESS_LATE_CHARGES",
-    noteId,
-    page: 1,
-    pageSize: 20,
-  });
+  const historyQuery = useNoteExcessLateChargePayments(noteId, { page: 1, pageSize: 20 });
   const historyItems = historyQuery.data?.items ?? [];
   const historyState = resolveFacilityFeeHistoryState({
     isLoading: historyQuery.isLoading,
@@ -120,12 +120,14 @@ export function ExcessLateChargeAdminPanel({
                     {reference ? ` · ${reference}` : ""}
                   </p>
                 </div>
-                <Button asChild size="sm" variant="outline" className="shrink-0">
-                  <Link href={`/finance/gateway-payments/${item.id}`}>
-                    <ArrowTopRightOnSquareIcon className="mr-1 h-4 w-4" />
-                    View payment
-                  </Link>
-                </Button>
+                {canOpenGatewayPayment ? (
+                  <Button asChild size="sm" variant="outline" className="shrink-0">
+                    <Link href={`/finance/gateway-payments/${item.id}`}>
+                      <ArrowTopRightOnSquareIcon className="mr-1 h-4 w-4" />
+                      View payment
+                    </Link>
+                  </Button>
+                ) : null}
               </li>
             );
           })}
