@@ -6,7 +6,8 @@ import {
 import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { AdminService } from "./service";
 import { AppError } from "../../lib/http/error-handler";
-import { requirePermission } from "../../lib/auth/middleware";
+import { requirePermission, userHasPermission } from "../../lib/auth/middleware";
+import { resolveDashboardStatsSections } from "./dashboard-sections";
 import {
   buildAuditCsv,
   formatRoleSwitchedLabel,
@@ -141,10 +142,10 @@ function requireApplicationItemManage(req: Request, _res: Response, next: NextFu
       return;
     }
 
-    const itemType = normalizeReviewItemType(
-      reviewItemTypeSchema.parse((req.body as { itemType?: unknown } | undefined)?.itemType)
-    );
-    const requiredPermission = getApplicationItemManagePermission(itemType);
+    const body = req.body as { itemType?: unknown; itemId?: unknown } | undefined;
+    const itemType = normalizeReviewItemType(reviewItemTypeSchema.parse(body?.itemType));
+    const itemId = typeof body?.itemId === "string" ? body.itemId : undefined;
+    const requiredPermission = getApplicationItemManagePermission(itemType, itemId);
 
     if (req.adminRoleKey && FULL_ACCESS_ADMIN_ROLE_KEYS.includes(req.adminRoleKey as AdminRoleKey)) {
       next();
@@ -624,9 +625,12 @@ router.patch(
 router.get(
   "/dashboard/stats",
   requirePermission("dashboard.view"),
-  async (_req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const stats = await adminService.getDashboardStats();
+      // Only return the sections the caller holds a dashboard.* permission for.
+      const stats = await adminService.getDashboardStats(
+        resolveDashboardStatsSections((permission) => userHasPermission(req, permission))
+      );
 
       res.json({
         success: true,
@@ -2872,7 +2876,7 @@ router.use(
  */
 router.post(
   "/applications/:applicationId/guarantors/:clientGuarantorId/start-aml",
-  requirePermission("applications.manage"),
+  requirePermission("applications.business_guarantor.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user?.user_id) {
@@ -3642,7 +3646,7 @@ router.post(
 
 router.patch(
   "/applications/:id/contract/customer-large-private",
-  requirePermission("applications.contract.manage"),
+  requirePermission("applications.offer_acceptance.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
@@ -3669,7 +3673,7 @@ router.patch(
 
 router.post(
   "/applications/:id/offers/contracts/send",
-  requirePermission("applications.contract.manage"),
+  requirePermission("applications.offer_acceptance.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
@@ -3698,7 +3702,7 @@ router.post(
 
 router.post(
   "/applications/:id/offers/contracts/extend-signing-deadline",
-  requirePermission("applications.contract.manage"),
+  requirePermission("applications.offer_acceptance.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
@@ -3723,7 +3727,7 @@ router.post(
 
 router.post(
   "/applications/:id/offers/invoices/:invoiceId/send",
-  requirePermission("applications.invoice.manage"),
+  requirePermission("applications.offer_acceptance.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
@@ -3766,7 +3770,7 @@ router.post(
 
 router.post(
   "/applications/:id/offers/invoices/:invoiceId/extend-signing-deadline",
-  requirePermission("applications.invoice.manage"),
+  requirePermission("applications.offer_acceptance.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");

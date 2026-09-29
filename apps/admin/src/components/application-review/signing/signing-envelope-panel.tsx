@@ -149,7 +149,7 @@ export interface SigningEnvelopePanelProps {
 export function SigningEnvelopePanel({
   applicationId,
   workflow,
-  canManage = true,
+  canManage = false,
   offerDetails,
   invoices = [],
   selectedInvoiceId,

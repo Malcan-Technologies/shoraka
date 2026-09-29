@@ -23,7 +23,6 @@ import {
 export function LateDefaultPanel({ note }: { note: NoteDetail }) {
   const { can } = usePermissions();
   const canManage = can("notes.default.manage");
-  const canSettlement = can("notes.settlement.manage");
   const [reason, setReason] = React.useState("");
   const [markDefaultOpen, setMarkDefaultOpen] = React.useState(false);
   const arrearsLetter = useGenerateArrearsLetter();
@@ -107,7 +106,7 @@ export function LateDefaultPanel({ note }: { note: NoteDetail }) {
             </div>
           </div>
         </div>
-        <NoteLateChargeWaiverPanel note={note} canManage={canSettlement} />
+        <NoteLateChargeWaiverPanel note={note} canManage={canManage} />
         <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"

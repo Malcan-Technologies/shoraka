@@ -570,9 +570,15 @@ async function main() {
   }
 
   const admin = new AdminService();
-  const dashboardStats = await admin.getDashboardStats();
-  const history = dashboardStats.bookMetricHistory;
+  const dashboardStats = await admin.getDashboardStats({
+    platform: false,
+    operations: false,
+    finance: true,
+    reports: false,
+  });
+  const history = dashboardStats.bookMetricHistory ?? [];
   const liveBook = dashboardStats.bookMetrics;
+  if (!liveBook) throw new Error("Dashboard stats did not return finance book metrics");
   const lastHistory = history.at(-1);
   check(
     "Sparkline history has at least today's live point",

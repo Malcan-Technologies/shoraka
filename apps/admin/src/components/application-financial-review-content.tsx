@@ -323,6 +323,9 @@ export function ApplicationFinancialReviewContent({
   const issuerOrgId = issuerOrganizationId?.trim() ?? "";
   const { can } = usePermissions();
   const canManageFinancialCtos = can("applications.financial.manage");
+  // Director / shareholder CTOS follows the Business & Guarantor permission (entity rule);
+  // the organization report and financial edits above stay on applications.financial.manage.
+  const canManageSubjectCtos = can("applications.business_guarantor.manage");
   const financialEditsLocked = isAdminFinancialReviewEditLocked(financialSectionStatus);
   const canViewOrganizations = can("organizations.view");
   const createSubjectReport = useCreateApplicationCtosSubjectReport(applicationId || undefined);
@@ -1898,7 +1901,7 @@ export function ApplicationFinancialReviewContent({
           subjectCtosReports={app.issuer_organization?.latest_organization_ctos_subject_reports ?? null}
           ctosFetchPending={createSubjectReport.isPending}
           ctosFetchPendingKey={subjectCtosFetchKey}
-          canManageCtos={canManageFinancialCtos}
+          canManageCtos={canManageSubjectCtos}
           ctosViewReportApplicationId={applicationId}
           onFetchSubjectCtos={(person) => {
             const idKey = normalizeDirectorShareholderIdKey(person.matchKey);

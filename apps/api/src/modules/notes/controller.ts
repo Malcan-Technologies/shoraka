@@ -988,7 +988,7 @@ adminNotesRouter.post(
 
 adminNotesRouter.post(
   "/:id/settlements/:settlementId/settlement-trustee/generate-letter",
-  requirePermission("notes.disbursement.manage"),
+  requirePermission("notes.settlement.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id, settlementId } = noteSettlementParamsSchema.parse(req.params);
@@ -1004,7 +1004,7 @@ adminNotesRouter.post(
 
 adminNotesRouter.post(
   "/:id/settlements/:settlementId/settlement-trustee/mark-submitted-to-trustee",
-  requirePermission("notes.disbursement.manage"),
+  requirePermission("notes.settlement.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id, settlementId } = noteSettlementParamsSchema.parse(req.params);
@@ -1024,7 +1024,7 @@ adminNotesRouter.post(
 
 adminNotesRouter.post(
   "/:id/settlements/:settlementId/settlement-trustee/resend-trustee-email",
-  requirePermission("notes.disbursement.manage"),
+  requirePermission("notes.settlement.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id, settlementId } = noteSettlementParamsSchema.parse(req.params);
@@ -1040,7 +1040,7 @@ adminNotesRouter.post(
 
 adminNotesRouter.post(
   "/:id/settlements/:settlementId/settlement-trustee/mark-completed",
-  requirePermission("notes.disbursement.manage"),
+  requirePermission("notes.settlement.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id, settlementId } = noteSettlementParamsSchema.parse(req.params);
@@ -1087,7 +1087,7 @@ adminNotesRouter.post(
 
 adminNotesRouter.post(
   "/:id/late-charge/waive",
-  requirePermission("notes.settlement.manage"),
+  requirePermission("notes.default.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = idParamSchema.parse(req.params);

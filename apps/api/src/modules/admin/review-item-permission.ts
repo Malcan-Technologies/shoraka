@@ -1,13 +1,30 @@
 import {
   getSectionForPendingAmendment,
+  getSectionForScopeKey,
   type AdminPermission,
   type ReviewItemType,
   type ReviewSection,
 } from "@cashsouk/types";
 
-/** Item-action permission matching the section manage map used by review section routes. */
-export function getApplicationItemManagePermission(itemType: ReviewItemType): AdminPermission {
-  if (itemType === "invoice") return "applications.invoice.manage";
+const OFFER_ACCEPTANCE_MANAGE: AdminPermission = "applications.offer_acceptance.manage";
+
+/**
+ * Item-action permission matching the section manage map used by review section routes.
+ * Offer & Acceptance items (invoices, authorized representatives, acceptance documents)
+ * use applications.offer_acceptance.manage; Supporting Documents items keep
+ * applications.documents.manage. `itemId` is the item scope key
+ * ("acceptance_documents:<index>:<name>", "supporting_documents:...").
+ */
+export function getApplicationItemManagePermission(
+  itemType: ReviewItemType,
+  itemId?: string
+): AdminPermission {
+  if (itemType === "invoice" || itemType === "authorized_representatives") {
+    return OFFER_ACCEPTANCE_MANAGE;
+  }
+  if (itemId && getSectionForScopeKey(itemId) === "acceptance_documents") {
+    return OFFER_ACCEPTANCE_MANAGE;
+  }
   return "applications.documents.manage";
 }
 
@@ -20,12 +37,11 @@ export function getApplicationSectionManagePermission(section: string): AdminPer
     case "business_guarantor":
       return "applications.business_guarantor.manage";
     case "supporting_documents":
-    case "acceptance_documents":
       return "applications.documents.manage";
+    case "acceptance_documents":
     case "contract_details":
-      return "applications.contract.manage";
     case "invoice_details":
-      return "applications.invoice.manage";
+      return OFFER_ACCEPTANCE_MANAGE;
     case "company_details":
       return "applications.company.manage";
     default:
@@ -40,7 +56,7 @@ export function getPendingAmendmentCreatePermission(input: {
 }): AdminPermission | null {
   if (input.scope === "item") {
     if (!input.itemType) return null;
-    return getApplicationItemManagePermission(input.itemType);
+    return getApplicationItemManagePermission(input.itemType, input.scopeKey);
   }
   if (!input.scopeKey) return null;
   return getApplicationSectionManagePermission(input.scopeKey);

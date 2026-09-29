@@ -15,7 +15,6 @@ import { RequirePermission } from "../components/require-permission";
 import { AdminQueryGate } from "../components/admin-query-error-state";
 import { usePermissions } from "../hooks/use-permissions";
 import { useQuickActionQueues } from "../hooks/use-quick-action-queues";
-import { useAdminReport } from "../reports/hooks/use-reports";
 import { useNoteBucketBalances } from "../notes/hooks/use-notes";
 
 export default function AdminHomePage() {
@@ -23,14 +22,13 @@ export default function AdminHomePage() {
   const canFinance = can("dashboard.finance.view");
   const canOperations = can("dashboard.operations.view");
   const canPlatform = can("dashboard.platform.view");
-  const canReports = can("reports.view");
-  const canLedgerPulse = canFinance || can("bucket_balances.view");
-  const { data: stats, isLoading, error, dataUpdatedAt } = useDashboardStats();
-  const ageing = useAdminReport("ageing", {}, canReports, {
-    refetchInterval: 60_000,
-    staleTime: 30_000,
+  const canDashboardReports = can("dashboard.reports.view");
+  // Summary cards follow dashboard.* permissions only; the stats API returns just these sections.
+  const hasStatsSection = canFinance || canOperations || canPlatform || canDashboardReports;
+  const { data: stats, isLoading, error, dataUpdatedAt } = useDashboardStats({
+    enabled: hasStatsSection,
   });
-  const buckets = useNoteBucketBalances({ enabled: canLedgerPulse, refetchInterval: 60_000 });
+  const buckets = useNoteBucketBalances({ enabled: canFinance, refetchInterval: 60_000 });
   const { data: currentUser } = useCurrentUser();
   const { queues, needsAttention, ready, totalOpenItems, description } = useQuickActionQueues({
     loading: isLoading,
@@ -42,7 +40,7 @@ export default function AdminHomePage() {
     return [user.first_name, user.last_name].filter(Boolean).join(" ");
   }, [currentUser?.user]);
 
-  const par90Percent = ageing.data?.portfolioAtRisk?.par90.percent;
+  const par90Percent = stats?.portfolioAtRisk?.par90.percent;
 
   return (
     <RequirePermission permission="dashboard.view">
@@ -60,7 +58,7 @@ export default function AdminHomePage() {
                   : { status: "loading" }
               }
               ledger={
-                !canLedgerPulse
+                !canFinance
                   ? { status: "hidden" }
                   : buckets.isLoading
                     ? { status: "loading" }
@@ -69,9 +67,9 @@ export default function AdminHomePage() {
                       : { status: "hidden" }
               }
               par90={
-                !canReports
+                !canDashboardReports
                   ? { status: "hidden" }
-                  : ageing.isLoading
+                  : isLoading
                     ? { status: "loading" }
                     : par90Percent != null
                       ? { status: "ready", value: { percent: par90Percent } }
@@ -112,18 +110,8 @@ export default function AdminHomePage() {
               </>
             ) : null}
 
-            {canReports ? (
-              <DashboardCreditQuality
-                summary={ageing.data?.portfolioAtRisk}
-                loading={ageing.isLoading}
-                errorMessage={
-                  ageing.error
-                    ? ageing.error instanceof Error
-                      ? ageing.error.message
-                      : "Failed to load portfolio at risk"
-                    : null
-                }
-              />
+            {canDashboardReports ? (
+              <DashboardCreditQuality summary={stats?.portfolioAtRisk} loading={isLoading} />
             ) : null}
 
             {canOperations ? (

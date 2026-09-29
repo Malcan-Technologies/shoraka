@@ -183,10 +183,10 @@ adminNotesRouter.post("/", requirePermission("notes.create"), handler);
 | | |
 |---|---|
 | View permission | `dashboard.view` |
-| Widget-level | `dashboard.finance.view`, `dashboard.operations.view`, `dashboard.platform.view`, `reports.view` |
-| Backend | `GET /v1/admin/dashboard/stats` → `dashboard.view`. Credit-quality PAR tiles use `GET /v1/admin/reports/ageing` → `reports.view` |
+| Summary cards | `dashboard.finance.view` (ledger, The book, Money on the platform, Distressed), `dashboard.operations.view` (Lifecycle pipeline), `dashboard.platform.view` (users, organizations, signup trends), `dashboard.reports.view` (PAR / Credit quality, PAR90 header) |
+| Backend | `GET /v1/admin/dashboard/stats` → `dashboard.view`, and the response only contains the sections the caller holds a `dashboard.*` permission for (`users`/`organizations`/`signupTrends` → platform, `onboardingOperations`/`applicationMetrics`/`contractMetrics`/`noteMetrics` → operations, `bookMetrics`/`bookMetricHistory` → finance, `portfolioAtRisk` → reports) |
 | Frontend page | `apps/admin/src/app/page.tsx` (root `page.tsx`, not `app/dashboard/`) |
-| Notes | Finance / operations / platform widgets are gated on the frontend from the shared stats payload. Portfolio-at-risk is not on that payload — it is fetched only when the admin has `reports.view`. |
+| Notes | Summary cards use `dashboard.*` permissions only, not sidebar/page permissions. Ledger / Money on the platform require `dashboard.finance.view` only; the "Bucket details" link additionally needs `bucket_balances.view`. Quick-action queues are unchanged and follow their target module permissions. Every section is optional in `DashboardStatsResponse`; the frontend renders only the sections it received. |
 
 ### Reports
 
@@ -194,8 +194,8 @@ adminNotesRouter.post("/", requirePermission("notes.create"), handler);
 |---|---|
 | View | `reports.view` |
 | Backend | `GET /v1/admin/reports`, `GET /v1/admin/reports/:key`, CSV/XLSX download |
-| Frontend | Report Center (`/reports`), ageing/NPL/late-fee/default reports, dashboard **Credit quality** PAR tiles |
-| Notes | One permission covers extracts and the PAR widget. Do not put PAR on `GET /v1/admin/dashboard/stats`. |
+| Frontend | Report Center (`/reports`), ageing/NPL/late-fee/default reports and their CSV/XLSX export |
+| Notes | `reports.view` controls the Reports sidebar/page and its exports only. Dashboard PAR / Credit quality cards use `dashboard.reports.view` (the dashboard stats endpoint returns `portfolioAtRisk` for it). |
 
 ### Notes
 
@@ -205,9 +205,9 @@ adminNotesRouter.post("/", requirePermission("notes.create"), handler);
 | Create note | `notes.create` |
 | Manage (featured toggle, lifecycle actions) | `notes.manage` |
 | Repayment actions | `notes.repayment.manage` |
-| Settlement actions | `notes.settlement.manage` |
-| Disbursement / issuer payout actions | `notes.disbursement.manage` |
-| Default actions | `notes.default.manage` |
+| Settlement actions, including settlement-phase trustee letters (`/:id/settlements/:settlementId/settlement-trustee/*`) | `notes.settlement.manage` |
+| Disbursement / issuer payout actions, including issuer disbursement trustee letters (`/withdrawals/:id/*`) | `notes.disbursement.manage` |
+| Default actions, including the Ta'widh / Gharamah late charge waiver (Late Payment tab) | `notes.default.manage` |
 | Backend | `apps/api/src/modules/notes/controller.ts` |
 | Frontend pages | `apps/admin/src/app/notes/page.tsx`, `apps/admin/src/app/notes/[id]/page.tsx` |
 
@@ -220,9 +220,8 @@ adminNotesRouter.post("/", requirePermission("notes.create"), handler);
 | Financial section | `applications.financial.manage` |
 | Company section | `applications.company.manage` |
 | Business & Guarantor section | `applications.business_guarantor.manage` |
-| Supporting Documents section | `applications.documents.manage` |
-| Contract section | `applications.contract.manage` |
-| Invoice section | `applications.invoice.manage` |
+| Supporting Documents tab only | `applications.documents.manage` |
+| Offer & Acceptance tab (facility review, customer review, invoice review, send offer, issuer response, acceptance documents, signing package) | `applications.offer_acceptance.manage` |
 | Backend | `apps/api/src/modules/admin/controller.ts` |
 | Frontend pages | `apps/admin/src/app/applications/`, `apps/admin/src/app/applications/[productKey]/[id]/page.tsx` |
 
@@ -233,13 +232,20 @@ financial             → applications.financial.manage
 company_details       → applications.company.manage
 business_details      → applications.business_guarantor.manage
 supporting_documents  → applications.documents.manage
-contract_details      → applications.contract.manage
-invoice_details       → applications.invoice.manage
+contract_details      → applications.offer_acceptance.manage
+invoice_details       → applications.offer_acceptance.manage
+acceptance_documents  → applications.offer_acceptance.manage
 ```
+
+Item actions (approve / reject / request amendment / reset): `invoice` and `authorized_representatives` items and `acceptance_documents:` document items use `applications.offer_acceptance.manage`; `supporting_documents:` document items use `applications.documents.manage`.
+
+Signing package (`/v1/admin/signing/*`): view envelope / readiness / signed document → `applications.view`; send links, remind, retry delivery, void, re-sync, auto-sign retry → `applications.offer_acceptance.manage`. Extend signing deadline uses `applications.offer_acceptance.manage` on both contract and invoice offer routes. There is no separate `signing.*` permission.
+
+Guarantor **Start AML** (`POST /v1/admin/applications/:id/guarantors/:gid/start-aml`) uses `applications.business_guarantor.manage`.
 
 Application comments (both view and add) use `applications.view` only. Do not gate comments behind section manage permissions.
 
-Signed contract/invoice offer letter PDFs (`GET .../offers/.../signed-letter`) also use `applications.view` only. Section `.manage` permissions remain for offer mutations (send, extend deadline, etc.).
+Signed contract/invoice offer letter PDFs (`GET .../offers/.../signed-letter`) also use `applications.view` only. `applications.offer_acceptance.manage` remains required for offer mutations (send, extend deadline, etc.).
 
 ### Onboarding
 
@@ -276,8 +282,12 @@ Shared CTOS services are reused internally, but admin API routes enforce permiss
 |---|---|---|
 | Onboarding SSM Verification | `onboarding.view` — `/v1/admin/onboarding-applications/:id/ctos-reports` | `onboarding.manage` |
 | Organization detail | `organizations.view` — `/v1/admin/organizations/:portal/:id/ctos-reports` | `organizations.manage` |
-| Application financial review | `applications.view` — `/v1/admin/applications/:id/ctos-reports` | `applications.financial.manage` |
-| Application guarantor CTOS | `applications.view` — `/v1/admin/applications/:id/ctos-subject-reports` | `applications.business_guarantor.manage` |
+| Application financial review (organization report) | `applications.view` — `/v1/admin/applications/:id/ctos-reports` | `applications.financial.manage` |
+| Application director / shareholder / guarantor CTOS (Financial tab Director-and-Shareholders table and Business & Guarantor tab) | `applications.view` — `/v1/admin/applications/:id/ctos-subject-reports` | `applications.business_guarantor.manage` |
+| Guarantor AML (Start AML) | — | `applications.business_guarantor.manage` |
+| Paymaster / customer verification | — | `paymasters.manage` |
+
+Rule: CTOS / AML permission follows the section or entity being reviewed — organization/company report in the Financial tab → `applications.financial.manage`; directors, shareholders and guarantors → `applications.business_guarantor.manage`; organization profile → `organizations.manage`; onboarding → `onboarding.manage`; paymaster → `paymasters.manage`. There is no generic `ctos.manage` / `aml.manage`.
 
 Do not call organization CTOS routes from onboarding or application review UIs.
 
@@ -379,7 +389,7 @@ These systems and permissions no longer exist:
 | Mutations (resign offer) | `contracts.manage` |
 | Backend | `apps/api/src/modules/admin/controller.ts` |
 | Frontend pages | `apps/admin/src/app/contracts/page.tsx`, `apps/admin/src/app/contracts/[id]/page.tsx` |
-| Notes | Facility tab inside Application Review uses `applications.contract.manage`, not `contracts.manage` |
+| Notes | The Offer & Acceptance tab inside Application Review uses `applications.offer_acceptance.manage`, not `contracts.manage` |
 
 ### Bucket Balances
 
@@ -415,7 +425,7 @@ These systems and permissions no longer exist:
 | View | `settlements.view` |
 | Backend | `apps/api/src/modules/notes/controller.ts` |
 | Frontend page | `apps/admin/src/app/finance/pending-settlement-trustee-letters/page.tsx` |
-| Notes | Settlement trustee workflow actions inside Note Detail use `notes.settlement.manage` and `notes.disbursement.manage` |
+| Notes | Settlement-phase trustee letters inside Note Detail (Servicing & Settlement tab) use `notes.settlement.manage`; issuer disbursement trustee letters (Disbursement tab / Issuer Payouts) use `notes.disbursement.manage` |
 
 ### Product Settings
 
@@ -442,8 +452,8 @@ These systems and permissions no longer exist:
 ### Dashboard
 
 - Dashboard route is `apps/admin/src/app/page.tsx` — the root `page.tsx`, not `app/dashboard/page.tsx`
-- `GET /v1/admin/dashboard/stats` → guarded by `dashboard.view`
-- The stats endpoint is not split by widget. Frontend hides widgets using `dashboard.finance.view`, `dashboard.operations.view`, `dashboard.platform.view`
+- `GET /v1/admin/dashboard/stats` → guarded by `dashboard.view`; the payload is filtered by `dashboard.finance.view`, `dashboard.operations.view`, `dashboard.platform.view`, `dashboard.reports.view`
+- Frontend must tolerate missing sections
 - Dashboard quick action cards follow their target module's `.view` permission
 
 ### Applications — comments
@@ -523,14 +533,15 @@ These permissions have been removed from the catalog because they have no active
 | `investments.manage` | Investment listing is read-only; no admin mutation routes |
 | `bucket_balances.manage` | View-only page; no correction/adjustment routes |
 | `repayments.manage` | Repayment actions inside Note Detail use `notes.repayment.manage` |
-| `service_fee.view` / `service_fee.manage` | Renamed/removed pre-production: queue access is `settlements.view`; trustee actions inside Note Detail use `notes.settlement.manage` / `notes.disbursement.manage` |
+| `service_fee.view` / `service_fee.manage` | Renamed/removed pre-production: queue access is `settlements.view`; settlement trustee actions inside Note Detail use `notes.settlement.manage`, issuer disbursement trustee actions use `notes.disbursement.manage` |
+| `applications.contract.manage` / `applications.invoice.manage` | Replaced by `applications.offer_acceptance.manage` (one permission for the merged Offer & Acceptance tab, including signing) |
 | `disbursements.manage` | All withdrawal mutations now use `notes.disbursement.manage`; this permission was redundant |
 
 The following permissions are **not** in this list because they have active backend routes:
 
 | Permission | Active usage |
 |---|---|
-| `reports.view` | Report Center (`/reports`), dashboard Credit quality (PAR30/60/90), and `GET /v1/admin/reports` |
+| `reports.view` | Report Center (`/reports`) and `GET /v1/admin/reports` (dashboard PAR uses `dashboard.reports.view`) |
 | `contracts.manage` | `POST /contracts/:id/offers/resign` in `admin/controller.ts` |
 
 ---

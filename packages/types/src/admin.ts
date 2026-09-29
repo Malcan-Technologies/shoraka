@@ -1,5 +1,6 @@
 import type { UserRole } from "./index";
 import type { ReviewItemType } from "./review-scope";
+import type { PortfolioAtRiskSummary } from "./reports";
 
 export interface PaginationParams {
   page: number;
@@ -249,20 +250,37 @@ export interface BookMetricHistoryPoint {
   dueSoon: BookAmountMetric;
 }
 
+/**
+ * Sections of the dashboard stats payload. Each section is only returned when the
+ * caller holds the matching dashboard.* permission, so every section is optional.
+ */
 export interface DashboardStatsResponse {
-  users: {
+  /** dashboard.platform.view */
+  users?: {
     total: UserStatsWithTrend;
     investorsOnboarded: UserStatsWithTrend;
     issuersOnboarded: UserStatsWithTrend;
   };
-  signupTrends: SignupTrendItem[];
-  organizations: OrganizationStats;
+  signupTrends?: SignupTrendItem[];
+  organizations?: OrganizationStats;
+  /** dashboard.operations.view */
   onboardingOperations?: OnboardingOperationsMetrics;
   applicationMetrics?: ApplicationDashboardMetrics;
   contractMetrics?: ContractDashboardMetrics;
   noteMetrics?: NoteDashboardMetrics;
+  /** dashboard.finance.view */
   bookMetrics?: BookMetrics;
   bookMetricHistory?: BookMetricHistoryPoint[];
+  /** dashboard.reports.view */
+  portfolioAtRisk?: PortfolioAtRiskSummary;
+}
+
+/** Which dashboard sections the caller may receive from GET /admin/dashboard/stats. */
+export interface DashboardStatsSections {
+  platform: boolean;
+  operations: boolean;
+  finance: boolean;
+  reports: boolean;
 }
 
 // Admin Management Types

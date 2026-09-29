@@ -56,6 +56,7 @@ Assign these permissions to the test users. Use exactly what is listed below (no
   - `dashboard.finance.view`
   - `dashboard.platform.view` (optional, only if you also want to see Platform section)
   - `dashboard.operations.view` (optional, only if you also want to see Operations section)
+  - `dashboard.reports.view` (optional, only if you also want to see the PAR / Credit quality cards)
 - Ensure:
   - no `investments.manage`, `bucket_balances.manage`, `repayments.manage`, `contracts.manage`
 
@@ -120,8 +121,11 @@ Assign these permissions to the test users. Use exactly what is listed below (no
 - [ ] (No `dashboard.finance.view`) Confirm **Finance** section is hidden.
 - [ ] (No `dashboard.operations.view`) Confirm **Operations** section is hidden.
 - [ ] (No `dashboard.platform.view`) Confirm **Platform** section is hidden.
+- [ ] (No `dashboard.reports.view`) Confirm **Credit quality** (PAR) cards and the PAR90 header card are hidden, even with `reports.view`.
+- [ ] (`dashboard.finance.view` without `bucket_balances.view`) Confirm ledger / Money on the platform cards show and the "Bucket details" link is hidden.
+- [ ] Confirm quick-action queues still follow their module `.view` permissions (unchanged).
 - [ ] Confirm `/` page is blocked when `dashboard.view` is missing.
-- [ ] Confirm `/v1/admin/dashboard/stats` is still protected by `dashboard.view` (API spot-check below).
+- [ ] Confirm `/v1/admin/dashboard/stats` is still protected by `dashboard.view` and only returns the sections matching the caller's `dashboard.platform.view` / `dashboard.operations.view` / `dashboard.finance.view` / `dashboard.reports.view` (API spot-check below).
 
 ### Notes
 
@@ -137,8 +141,8 @@ Assign these permissions to the test users. Use exactly what is listed below (no
 - [ ] Settlement panel:
   - [ ] With `notes.view` only: repayment and settlement controls disabled
   - [ ] With `notes.repayment.manage`: Record receipt / Approve / Reject enabled where applicable
-  - [ ] With `notes.settlement.manage`: Preview/Approve/Post enabled where applicable
-  - [ ] With `notes.default.manage`: Generate Arrears/Default letters + Mark Default enabled where applicable
+  - [ ] With `notes.settlement.manage`: Preview/Approve/Post and settlement trustee letter actions (generate / submit / resend / mark completed) enabled where applicable
+  - [ ] With `notes.default.manage`: Generate Arrears/Default letters + Mark Default + Ta'widh / Gharamah late charge waiver (Late Payment tab) enabled where applicable
 
 Confirm each of these explicitly:
 - [ ] `notes.disbursement.manage`
@@ -160,6 +164,9 @@ Confirm each of these explicitly:
 - [ ] Section-level permissions verification:
   - [ ] With only `applications.financial.manage`: confirm financial section actions are enabled, other section actions disabled
   - [ ] With `applications.manage`: confirm all app-level actions are enabled (and section actions still depend on section manage where implemented)
+  - [ ] With only `applications.offer_acceptance.manage`: confirm facility/invoice review, send offer, acceptance documents and signing package actions (send links, remind, retry, void, re-sync, extend deadline) are enabled; Supporting Documents actions stay disabled
+  - [ ] With only `applications.view`: confirm signing package status and signed document are visible but signing actions are disabled
+  - [ ] With only `applications.business_guarantor.manage`: confirm guarantor Start AML and director / shareholder / guarantor CTOS fetch are enabled; organization CTOS (Financial tab) needs `applications.financial.manage`
 
 Explicit permission coverage:
 - [ ] `applications.manage`
@@ -167,8 +174,7 @@ Explicit permission coverage:
 - [ ] `applications.company.manage`
 - [ ] `applications.business_guarantor.manage`
 - [ ] `applications.documents.manage`
-- [ ] `applications.contract.manage`
-- [ ] `applications.invoice.manage`
+- [ ] `applications.offer_acceptance.manage` (Offer & Acceptance tab incl. send offer, acceptance documents, signing package; `applications.documents.manage` is Supporting Documents only)
 - [ ] Confirm application comments work with `applications.view`.
 
 ### Onboarding
@@ -290,7 +296,7 @@ Explicit permission coverage:
   - [ ] `notes.disbursement.manage` required for payout mutation actions (generate letter, mark submitted, mark completed, Tawarruq/Shoraka workflow, edit beneficiary)
 - [ ] Settlements:
   - [ ] `settlements.view` required
-  - [ ] `notes.settlement.manage` / `notes.disbursement.manage` required for settlement trustee mutation actions
+  - [ ] `notes.settlement.manage` required for settlement trustee mutation actions inside Note Detail (issuer disbursement trustee letters stay on `notes.disbursement.manage`)
 - [ ] Facilities:
   - [ ] `contracts.view` required
   - [ ] `contracts.manage` required for “Resign Offer” mutations

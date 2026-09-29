@@ -279,7 +279,7 @@ export function SectionContent({
   supportingDocumentsStepConfig = null,
   resubmitAmendmentRemarks,
   productWorkflow,
-  canManageSigning = true,
+  canManageSigning = false,
 }: SectionContentProps) {
   const signingApplicationId =
     (typeof liveApplicationId === "string" && liveApplicationId) ||

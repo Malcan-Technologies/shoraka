@@ -108,6 +108,15 @@ function permissionLabel(permission: AdminPermission): string {
     "users.manage": "User Accounts - Manage",
     "organizations.view": "Issuers & Investors - View",
     "organizations.manage": "Issuers & Investors - Manage",
+    "dashboard.view": "Dashboard - View",
+    "dashboard.finance.view": "Dashboard - Finance - View",
+    "dashboard.operations.view": "Dashboard - Operations - View",
+    "dashboard.platform.view": "Dashboard - Platform - View",
+    "dashboard.reports.view": "Dashboard - Reports - View",
+    "applications.offer_acceptance.manage": "Applications - Offer & Acceptance - Manage",
+    "applications.documents.manage": "Applications - Documents - Manage",
+    "applications.business_guarantor.manage": "Applications - Business Guarantor - Manage",
+    "reports.view": "Reports - View",
   };
   if (overrides[permission]) {
     return overrides[permission]!;
@@ -122,6 +131,25 @@ function permissionLabel(permission: AdminPermission): string {
         .join(" ")
     )
     .join(" - ");
+}
+
+const PERMISSION_DESCRIPTIONS: Partial<Record<AdminPermission, string>> = {
+  "dashboard.view": "Access the Dashboard page.",
+  "dashboard.finance.view": "Finance cards such as ledger, book, and money on the platform.",
+  "dashboard.operations.view":
+    "Onboarding, application, facility, and note pipeline cards.",
+  "dashboard.platform.view": "Users, organizations, and signup trends.",
+  "dashboard.reports.view": "PAR / credit quality and other dashboard risk cards.",
+  "applications.offer_acceptance.manage":
+    "Manage facility offer, invoice offer, acceptance documents, issuer response, and signing package inside the Offer & Acceptance tab.",
+  "applications.documents.manage": "Supporting Documents tab only.",
+  "applications.business_guarantor.manage":
+    "Business & Guarantor review, director/shareholder/guarantor CTOS, and guarantor AML actions.",
+  "reports.view": "Access the Reports page and export Reports page data.",
+};
+
+function permissionDescription(permission: AdminPermission): string | null {
+  return PERMISSION_DESCRIPTIONS[permission] ?? null;
 }
 
 function BadgeColorPicker({
@@ -632,6 +660,11 @@ export function AdminPermissionConfiguration() {
                                 <p className="text-sm font-medium">
                                   {permissionLabel(permission)}
                                 </p>
+                                {permissionDescription(permission) ? (
+                                  <p className="text-xs text-muted-foreground">
+                                    {permissionDescription(permission)}
+                                  </p>
+                                ) : null}
                                 <p className="text-xs text-muted-foreground break-all">
                                   {permission}
                                 </p>

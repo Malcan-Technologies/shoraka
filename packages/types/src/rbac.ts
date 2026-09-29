@@ -8,6 +8,7 @@ export const ADMIN_PERMISSIONS = [
   "dashboard.finance.view",
   "dashboard.operations.view",
   "dashboard.platform.view",
+  "dashboard.reports.view",
 
   // Notes
   "notes.view",
@@ -25,8 +26,7 @@ export const ADMIN_PERMISSIONS = [
   "applications.company.manage",
   "applications.business_guarantor.manage",
   "applications.documents.manage",
-  "applications.contract.manage",
-  "applications.invoice.manage",
+  "applications.offer_acceptance.manage",
 
   // Onboarding
   "onboarding.view",
@@ -189,12 +189,14 @@ export const ADMIN_PERMISSION_GROUPS: AdminPermissionGroup[] = [
   {
     key: "dashboard",
     label: "Dashboard",
-    description: "Access dashboard page and widget sections.",
+    description:
+      "Access the Dashboard page, plus finance, operations, platform and report/risk summary cards. Quick-action queues follow their target module permissions.",
     permissions: pickPermissions(
       "dashboard.view",
       "dashboard.finance.view",
       "dashboard.operations.view",
-      "dashboard.platform.view"
+      "dashboard.platform.view",
+      "dashboard.reports.view"
     ),
   },
   {
@@ -214,14 +216,14 @@ export const ADMIN_PERMISSION_GROUPS: AdminPermissionGroup[] = [
   {
     key: "reports",
     label: "Reports",
-    description:
-      "View Report Center, export extracts, and see portfolio-at-risk (PAR30/60/90) on the dashboard.",
+    description: "Access the Reports page and export Reports page data.",
     permissions: pickPermissions("reports.view"),
   },
   {
     key: "applications",
     label: "Applications",
-    description: "Review applications and manage section workflow actions.",
+    description:
+      "Review applications and manage section workflow actions, including the Offer & Acceptance tab.",
     permissions: pickPermissions(
       "applications.view",
       "applications.manage",
@@ -229,8 +231,7 @@ export const ADMIN_PERMISSION_GROUPS: AdminPermissionGroup[] = [
       "applications.company.manage",
       "applications.business_guarantor.manage",
       "applications.documents.manage",
-      "applications.contract.manage",
-      "applications.invoice.manage"
+      "applications.offer_acceptance.manage"
     ),
   },
   {
