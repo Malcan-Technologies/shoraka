@@ -74,14 +74,14 @@ Rules:
 | Organization detail | Activity tab (onboarding timeline + CSV) | `GET /v1/admin/organizations/:portal/:id/onboarding-logs` | `organizations.view` |
 | Note detail | Investors | `GET /v1/admin/notes/:id/investments` | `notes.view` |
 | Note detail | Excess late charge payments | `GET /v1/admin/notes/:id/excess-late-charge-payments` | `notes.view` |
-| Note detail / Issuer Payouts | Shoraka STP state | `GET /v1/admin/withdrawals/:id/shoraka` | `notes.view` or `disbursements.view` |
+| Note detail | Shoraka STP state | `GET /v1/admin/withdrawals/:id/shoraka` | `notes.view` |
 
 How each route is scoped:
 
 - Organization onboarding logs: `organizationId` is set from `:id` after the query is parsed. Other filters (`userId`, `role`, `eventTypes`, `dateRange`, `search`) only narrow the result.
 - Note investments: `noteId` is set from `:id`. Only `page` and `pageSize` are read from the query.
 - Note excess late charge payments: `noteId` is set from `:id` and `purpose` is fixed to `EXCESS_LATE_CHARGES`. Only `page` and `pageSize` are read from the query. The panel uses `useNoteExcessLateChargePayments`; its "View payment" link to the Gateway Payments page shows only with `gateway_payments.view`.
-- Shoraka STP state is read-only. Shoraka STP actions (`submit-order`, `query-status`, `fetch-certificate`) stay on `notes.disbursement.manage`.
+- Shoraka STP state is read-only and is called only from Note detail. The Issuer Payouts page does not call it, so `disbursements.view` does not grant it. Shoraka STP actions (`submit-order`, `query-status`, `fetch-certificate`) stay on `notes.disbursement.manage`.
 
 Do not broaden the module routes (`/onboarding-logs`, `/investments`, `/gateway-payments`) for these panels. They stay on `onboarding.view`, `investments.view` and `gateway_payments.view`.
 

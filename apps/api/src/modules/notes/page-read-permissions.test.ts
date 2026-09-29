@@ -104,12 +104,20 @@ describe("GET /admin/notes/:id/excess-late-charge-payments (Note detail excess l
 });
 
 describe("GET /admin/withdrawals/:id/shoraka (read-only Shoraka STP state)", () => {
-  it.each([["notes.view"], ["disbursements.view"]])("allows %s", async (permission) => {
-    await request(appWith([permission])).get("/v1/admin/withdrawals/wd-1/shoraka").expect(200);
+  it("allows notes.view", async () => {
+    await request(appWith(["notes.view"])).get("/v1/admin/withdrawals/wd-1/shoraka").expect(200);
     expect(mockGetShorakaState).toHaveBeenCalledWith("wd-1");
   });
 
-  it("denies an admin without notes.view or disbursements.view", async () => {
+  // Only Note detail calls this route; disbursements.view controls the Issuer Payouts page only.
+  it("denies an admin with disbursements.view only", async () => {
+    await request(appWith(["disbursements.view"]))
+      .get("/v1/admin/withdrawals/wd-1/shoraka")
+      .expect(403);
+    expect(mockGetShorakaState).not.toHaveBeenCalled();
+  });
+
+  it("denies an admin without notes.view", async () => {
     await request(appWith(["applications.view"]))
       .get("/v1/admin/withdrawals/wd-1/shoraka")
       .expect(403);

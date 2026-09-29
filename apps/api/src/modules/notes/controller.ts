@@ -1841,8 +1841,9 @@ withdrawalsRouter.post("/:id/shoraka/fetch-certificate", requirePermission("note
   }
 });
 
-// Read-only Shoraka STP state shown on Note detail (issuer payout card) and Issuer Payouts.
-withdrawalsRouter.get("/:id/shoraka", requireAnyPermission("notes.view", "disbursements.view"), async (req: Request, res: Response, next: NextFunction) => {
+// Read-only Shoraka STP state shown on Note detail (issuer payout card), so it follows notes.view.
+// The Issuer Payouts page does not call this route; disbursements.view controls that page only.
+withdrawalsRouter.get("/:id/shoraka", requirePermission("notes.view"), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
     send(res, await shorakaStpService.getStateForWithdrawal(id));
