@@ -1,7 +1,10 @@
 import { Router, Request, Response, NextFunction } from "express";
-import { requireAnyPermission, requirePermission } from "../../lib/auth/middleware";
+import { requirePermission } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
-import { legalDocumentAcceptanceAdminService } from "./acceptance-admin-service";
+import {
+  legalDocumentAcceptanceAdminService,
+  type AcceptanceOrganizationScope,
+} from "./acceptance-admin-service";
 import {
   exportLegalAcceptancesQuerySchema,
   listLegalAcceptancesQuerySchema,
@@ -17,13 +20,6 @@ const ACCEPTANCE_STATUS_LABELS: Record<string, string> = {
   ACCEPTED: "Accepted",
 };
 
-// List, detail and download also power the Organization detail Acceptances tab,
-// which is gated by document_management.view. Export is Audit-only.
-const canReadAcceptances = requireAnyPermission(
-  "audit.legal_acceptances.view",
-  "document_management.view"
-);
-
 function acceptanceStatusLabel(status: string): string {
   return ACCEPTANCE_STATUS_LABELS[status] ?? status;
 }
@@ -34,7 +30,7 @@ function acceptanceStatusLabel(status: string): string {
  */
 router.get(
   "/",
-  canReadAcceptances,
+  requirePermission("audit.legal_acceptances.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = listLegalAcceptancesQuerySchema.parse(req.query);
@@ -169,7 +165,7 @@ router.get(
  */
 router.get(
   "/:id",
-  canReadAcceptances,
+  requirePermission("audit.legal_acceptances.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const acceptance = await legalDocumentAcceptanceAdminService.getAcceptanceById(
@@ -192,7 +188,7 @@ router.get(
  */
 router.get(
   "/:id/download",
-  canReadAcceptances,
+  requirePermission("audit.legal_acceptances.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const result =
@@ -211,3 +207,93 @@ router.get(
 );
 
 export const legalDocumentAcceptanceAdminRouter = router;
+
+/**
+ * Organization detail Acceptances tab.
+ * Mounted at /v1/admin/organizations/:portal/:id/legal-acceptances.
+ * The organization and audience always come from the URL, never from the query.
+ */
+const organizationRouter = Router({ mergeParams: true });
+const canReadOrganizationAcceptances = requirePermission(
+  "organizations.view",
+  "document_management.view"
+);
+
+function organizationScopeFromParams(req: Request): AcceptanceOrganizationScope {
+  const { portal, id } = req.params;
+  if (portal !== "investor" && portal !== "issuer") {
+    throw new AppError(400, "VALIDATION_ERROR", "Portal must be 'investor' or 'issuer'");
+  }
+  return { organizationId: id, audience: portal === "issuer" ? "ISSUER" : "INVESTOR" };
+}
+
+organizationRouter.get(
+  "/",
+  canReadOrganizationAcceptances,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const scope = organizationScopeFromParams(req);
+      const validated = {
+        ...listLegalAcceptancesQuerySchema.parse(req.query),
+        organizationId: scope.organizationId,
+        audience: scope.audience,
+      };
+      const result = await legalDocumentAcceptanceAdminService.listAcceptances(validated);
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(
+        error instanceof AppError
+          ? error
+          : error instanceof Error
+            ? new AppError(400, "VALIDATION_ERROR", error.message)
+            : error
+      );
+    }
+  }
+);
+
+organizationRouter.get(
+  "/:acceptanceId",
+  canReadOrganizationAcceptances,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const acceptance = await legalDocumentAcceptanceAdminService.getAcceptanceById(
+        req.params.acceptanceId,
+        organizationScopeFromParams(req)
+      );
+      res.json({
+        success: true,
+        data: { acceptance },
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+organizationRouter.get(
+  "/:acceptanceId/download",
+  canReadOrganizationAcceptances,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await legalDocumentAcceptanceAdminService.getAcceptedVersionDownloadUrl(
+        req.params.acceptanceId,
+        organizationScopeFromParams(req)
+      );
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+export const organizationLegalAcceptanceRouter = organizationRouter;

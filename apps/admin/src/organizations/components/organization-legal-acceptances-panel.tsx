@@ -16,7 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useLegalDocumentAcceptances } from "@/hooks/use-legal-document-acceptances";
+import { useOrganizationLegalAcceptances } from "@/hooks/use-legal-document-acceptances";
 import {
   formatLegalAcceptanceDate,
   legalAcceptanceStatusLabel,
@@ -38,11 +38,13 @@ export function OrganizationLegalAcceptancesPanel({
   const [selectedAcceptanceId, setSelectedAcceptanceId] = React.useState<string | null>(null);
   const [detailOpen, setDetailOpen] = React.useState(false);
 
-  const { data, isLoading, error } = useLegalDocumentAcceptances({
+  const organizationScope = React.useMemo(
+    () => ({ portal, organizationId }),
+    [portal, organizationId]
+  );
+  const { data, isLoading, error } = useOrganizationLegalAcceptances(organizationScope, {
     page,
     pageSize: PAGE_SIZE,
-    organizationId,
-    audience: portal === "issuer" ? "ISSUER" : "INVESTOR",
     sortBy: "accepted_at",
     sortOrder: "desc",
   });
@@ -169,6 +171,7 @@ export function OrganizationLegalAcceptancesPanel({
         acceptanceId={selectedAcceptanceId}
         open={detailOpen}
         onOpenChange={setDetailOpen}
+        organizationScope={organizationScope}
       />
     </>
   );

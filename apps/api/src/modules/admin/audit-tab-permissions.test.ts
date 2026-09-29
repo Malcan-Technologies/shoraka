@@ -1,8 +1,8 @@
 /**
  * Permission guards for the Admin Audit page tabs.
  * Each tab's routes require that tab's own audit.* permission. The only shared
- * routes are Legal Acceptances list/detail/download (Organization detail
- * Acceptances tab) and notification types/groups (Notifications settings page).
+ * routes are notification types/groups (Notifications settings page).
+ * Organization detail Acceptances has its own organization-scoped routes.
  */
 import * as fs from "fs";
 import * as path from "path";
@@ -113,9 +113,14 @@ const STRICT_ROUTES: Array<{ tab: string; permission: AdminPermission; routes: s
     ],
   },
   {
-    tab: "Legal Acceptances (export)",
+    tab: "Legal Acceptances",
     permission: "audit.legal_acceptances.view",
-    routes: ["/v1/admin/legal-document-acceptances/export?format=json"],
+    routes: [
+      "/v1/admin/legal-document-acceptances",
+      "/v1/admin/legal-document-acceptances/export?format=json",
+      "/v1/admin/legal-document-acceptances/acc-1",
+      "/v1/admin/legal-document-acceptances/acc-1/download",
+    ],
   },
   {
     tab: "External Acceptances",
@@ -135,15 +140,6 @@ const STRICT_ROUTES: Array<{ tab: string; permission: AdminPermission; routes: s
 
 /** Routes shared with a non-Audit page, which accept either permission. */
 const SHARED_ROUTES: Array<{ name: string; permissions: AdminPermission[]; routes: string[] }> = [
-  {
-    name: "Legal Acceptances list/detail/download (Organization detail Acceptances)",
-    permissions: ["audit.legal_acceptances.view", "document_management.view"],
-    routes: [
-      "/v1/admin/legal-document-acceptances",
-      "/v1/admin/legal-document-acceptances/acc-1",
-      "/v1/admin/legal-document-acceptances/acc-1/download",
-    ],
-  },
   {
     name: "Notification types/groups (Notifications settings)",
     permissions: ["audit.notifications.view", "notifications.view"],
@@ -199,9 +195,18 @@ describe("Shared routes (compatibility)", () => {
     });
   });
 
-  it("does not let document_management.view export acceptances or reach other Audit tabs", async () => {
-    const caller = { permissions: ["document_management.view", "document_management.manage"] as AdminPermission[] };
+  it("does not let document_management.view reach any Audit legal route", async () => {
+    const caller = {
+      permissions: [
+        "organizations.view",
+        "document_management.view",
+        "document_management.manage",
+      ] as AdminPermission[],
+    };
+    expect(await statusOf(caller, "/v1/admin/legal-document-acceptances")).toBe(403);
     expect(await statusOf(caller, "/v1/admin/legal-document-acceptances/export?format=json")).toBe(403);
+    expect(await statusOf(caller, "/v1/admin/legal-document-acceptances/acc-1")).toBe(403);
+    expect(await statusOf(caller, "/v1/admin/legal-document-acceptances/acc-1/download")).toBe(403);
     expect(await statusOf(caller, "/v1/admin/legal-document-audit-logs")).toBe(403);
     expect(await statusOf(caller, "/v1/admin/legal-external-acceptances")).toBe(403);
   });
@@ -209,6 +214,17 @@ describe("Shared routes (compatibility)", () => {
   it("does not let notifications.view read notification audit logs", async () => {
     const caller = { permissions: ["notifications.view", "notifications.manage"] as AdminPermission[] };
     expect(await statusOf(caller, "/v1/notifications/admin/logs")).toBe(403);
+  });
+});
+
+describe("Audit Legal Acceptances routes accept one permission", () => {
+  const controller = fs.readFileSync(
+    path.join(__dirname, "../legal-documents/acceptance-admin-controller.ts"),
+    "utf8"
+  );
+
+  it("has no any-of guard", () => {
+    expect(controller).not.toContain("requireAnyPermission");
   });
 });
 

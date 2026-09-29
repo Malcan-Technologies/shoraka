@@ -14,7 +14,12 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useDownloadAcceptedVersion, useLegalDocumentAcceptanceDetail } from "@/hooks/use-legal-document-acceptances";
+import {
+  useDownloadAcceptedVersion,
+  useLegalDocumentAcceptanceDetail,
+  useOrganizationLegalAcceptanceDetail,
+  type OrganizationAcceptanceScope,
+} from "@/hooks/use-legal-document-acceptances";
 import { formatLegalFileSize } from "@/lib/legal-documents-admin";
 import {
   formatLegalAcceptanceDate,
@@ -36,22 +41,31 @@ export function LegalAcceptanceDetailSheet({
   acceptanceId,
   open,
   onOpenChange,
+  organizationScope,
 }: {
   acceptanceId: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Set on Organization detail so the sheet reads through the organization-scoped routes. */
+  organizationScope?: OrganizationAcceptanceScope;
 }) {
   const downloadAcceptedVersion = useDownloadAcceptedVersion();
-  const { data: acceptance, isLoading, error } = useLegalDocumentAcceptanceDetail(
-    open ? acceptanceId : null
+  const requestedId = open ? acceptanceId : null;
+  const auditDetail = useLegalDocumentAcceptanceDetail(organizationScope ? null : requestedId);
+  const organizationDetail = useOrganizationLegalAcceptanceDetail(
+    organizationScope,
+    organizationScope ? requestedId : null
   );
+  const { data: acceptance, isLoading, error } = organizationScope
+    ? organizationDetail
+    : auditDetail;
   const [downloading, setDownloading] = React.useState(false);
 
   const handleDownload = async () => {
     if (!acceptanceId) return;
     setDownloading(true);
     try {
-      await downloadAcceptedVersion(acceptanceId);
+      await downloadAcceptedVersion(acceptanceId, organizationScope);
     } catch (err) {
       toast.error("Download failed", {
         description: err instanceof Error ? err.message : "Could not download PDF",

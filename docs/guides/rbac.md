@@ -374,7 +374,7 @@ Do not block any notification tab behind `notifications.manage`.
 | Tabs | A tab is shown only with its own permission. The page opens the first allowed tab; `?tab=` naming a tab the user cannot see falls back to the first allowed tab. |
 | Backend | `apps/api/src/modules/admin/controller.ts`, product log controller, legal-document controllers, notification controller |
 | Frontend page | `apps/admin/src/app/audit/page.tsx` (tabs: Access, Security, Products, Legal Documents, Legal Acceptances, External Acceptances, Notifications) |
-| Shared routes | `GET /v1/admin/legal-document-acceptances` (list, `/:id`, `/:id/download`) also accepts `document_management.view`, because the Organization detail Acceptances tab uses it. `GET /v1/notifications/admin/types` and `/admin/groups` accept `notifications.view` or `audit.notifications.view`, because the Notifications tab filters use them. All other Audit routes, including every export, accept only the tab's own permission. |
+| Shared routes | `GET /v1/notifications/admin/types` and `/admin/groups` accept `notifications.view` or `audit.notifications.view`, because the Notifications tab filters use them. All other Audit routes, including every export, accept only the tab's own permission. Legal Acceptances is not shared: Organization detail has its own routes (see Legal Acceptances). |
 | Notes | Audit pages are read-only. Search/filter/export use the same permission as the tab. `document_management.view` and `notifications.view` do not show any Audit tab. There is no Document Logs tab. Legal Acceptances, External Acceptances, and Notification Logs are evidence views, not configuration. There is no Ops Alerts tab. |
 
 ### Legal Documents
@@ -393,10 +393,13 @@ Do not block any notification tab behind `notifications.manage`.
 | | |
 |---|---|
 | View in Audit (list, detail, export, exact-version download) | `audit.legal_acceptances.view` |
-| View in Organization detail > Acceptances (list, detail, exact-version download; no export) | `document_management.view` |
+| View in Organization detail > Acceptances (list, detail, exact-version download; no export) | `organizations.view` and `document_management.view` |
+| Audit routes | `GET /v1/admin/legal-document-acceptances`, `/export`, `/:id`, `/:id/download`. `document_management.view` alone returns 403. |
+| Organization routes | `GET /v1/admin/organizations/:portal/:id/legal-acceptances`, `/:acceptanceId`, `/:acceptanceId/download`. `audit.legal_acceptances.view` alone returns 403. |
+| Organization scope | Organization and portal come from the URL. `organizationId` and `audience` query params are overwritten. Detail and download return 404 when the acceptance belongs to another organization or portal. |
 | Mutations | None — records are immutable (no update/delete API) |
-| Backend | `apps/api/src/modules/legal-documents/acceptance-admin-controller.ts` |
-| Frontend page | `apps/admin/src/app/audit/page.tsx` (`/audit?tab=legal-acceptances`); `/legal-document-acceptances` redirects here |
+| Backend | `apps/api/src/modules/legal-documents/acceptance-admin-controller.ts` (both routers); organization router mounted in `apps/api/src/modules/admin/controller.ts` |
+| Frontend page | `apps/admin/src/app/audit/page.tsx` (`/audit?tab=legal-acceptances`); `/legal-document-acceptances` redirects here. Organization detail: `apps/admin/src/organizations/components/organization-legal-acceptances-panel.tsx` |
 | Shows | Accepted document type; exact version; file hash; organization; accepting user; timestamp; IP; user agent; acknowledgement wording; exact accepted PDF download |
 | Notes | Evidence comes from `LegalDocumentAcceptance` only. There is no DocumentLog / SiteDocument audit trail. |
 
@@ -547,7 +550,7 @@ Do not require any section manage permission for comments.
 
 Legal Documents uses `document_management.view` / `document_management.manage` at `/legal-documents`.
 
-The Organization detail Acceptances tab uses `document_management.view`.
+The Organization detail Acceptances tab uses `document_management.view` inside a page that needs `organizations.view`, and reads through its own organization-scoped routes.
 
 The Audit tabs for Legal Documents, Legal Acceptances and External Acceptances use their own `audit.*.view` permissions (`/legal-document-acceptances` redirects to `/audit?tab=legal-acceptances`).
 
@@ -629,7 +632,7 @@ The following permissions are **not** in this list because they have active back
 - [ ] "Turn Into Note" button disabled
 - [ ] Legal Documents Upload/Edit/Publish/Archive controls disabled without `document_management.manage`
 - [ ] Audit → Legal Acceptances is readable with `audit.legal_acceptances.view` and has no edit/delete controls
-- [ ] Organization detail → Acceptances is readable with `document_management.view`
+- [ ] Organization detail → Acceptances is readable with `organizations.view` and `document_management.view`
 - [ ] Roles page and Permission Configuration visible and read-only
 - [ ] Notifications page visible; Add Missing Types / toggles / Send disabled
 
@@ -674,7 +677,14 @@ Repeat for `audit.legal_documents.view`, `audit.legal_acceptances.view`, `audit.
 
 - [ ] Audit sidebar item hidden; `/audit` shows Access Denied
 - [ ] Legal Documents page loads
+- [ ] `GET /v1/admin/legal-document-acceptances` returns 403
+
+### Role with `organizations.view` and `document_management.view`
+
 - [ ] Organization detail → Acceptances tab loads, including View details and download
+- [ ] The tab calls `/v1/admin/organizations/:portal/:id/legal-acceptances`, not `/v1/admin/legal-document-acceptances`
+- [ ] Adding `?organizationId=<another organization>` to the list call still returns this organization's records
+- [ ] Detail and download for an acceptance of another organization return 404
 
 ---
 

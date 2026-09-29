@@ -6,6 +6,7 @@ import type {
   LegalDocumentAcceptanceDetail,
   LegalDocumentAcceptanceListItem,
   LegalDocumentType,
+  PortalType,
 } from "@cashsouk/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -22,6 +23,21 @@ export interface LegalDocumentAcceptancesParams {
   dateTo?: string;
   sortBy?: "accepted_at" | "created_at";
   sortOrder?: "asc" | "desc";
+}
+
+/** Organization detail Acceptances tab: the API takes the organization from the URL. */
+export interface OrganizationAcceptanceScope {
+  portal: PortalType;
+  organizationId: string;
+}
+
+export type OrganizationLegalAcceptancesParams = Pick<
+  LegalDocumentAcceptancesParams,
+  "page" | "pageSize" | "sortBy" | "sortOrder"
+>;
+
+function organizationAcceptancesPath(scope: OrganizationAcceptanceScope): string {
+  return `/v1/admin/organizations/${scope.portal}/${scope.organizationId}/legal-acceptances`;
 }
 
 type ListResponse = {
@@ -105,6 +121,62 @@ export function useLegalDocumentAcceptanceDetail(id: string | null) {
   });
 }
 
+export function useOrganizationLegalAcceptances(
+  scope: OrganizationAcceptanceScope,
+  params: OrganizationLegalAcceptancesParams
+) {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+
+  return useQuery({
+    queryKey: ["admin", "organization-legal-acceptances", scope.portal, scope.organizationId, params],
+    queryFn: async () => {
+      const query = buildQueryParams(params);
+      const result = await apiClient.get<ListResponse>(
+        `${organizationAcceptancesPath(scope)}?${query.toString()}`
+      );
+      if (!result.success) {
+        throw new Error(result.error?.message || "Failed to load legal acceptances");
+      }
+      return result.data;
+    },
+    staleTime: 0,
+    refetchOnMount: true,
+  });
+}
+
+export function useOrganizationLegalAcceptanceDetail(
+  scope: OrganizationAcceptanceScope | undefined,
+  id: string | null
+) {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+
+  return useQuery({
+    queryKey: [
+      "admin",
+      "organization-legal-acceptances",
+      scope?.portal,
+      scope?.organizationId,
+      "detail",
+      id,
+    ],
+    queryFn: async () => {
+      if (!scope || !id) {
+        throw new Error("Acceptance ID is required");
+      }
+      const result = await apiClient.get<{ acceptance: LegalDocumentAcceptanceDetail }>(
+        `${organizationAcceptancesPath(scope)}/${id}`
+      );
+      if (!result.success) {
+        throw new Error(result.error?.message || "Failed to load acceptance details");
+      }
+      return result.data.acceptance;
+    },
+    enabled: Boolean(scope && id),
+  });
+}
+
 export function useExportLegalDocumentAcceptances() {
   const { getAccessToken } = useAuthToken();
 
@@ -138,11 +210,15 @@ export function useDownloadAcceptedVersion() {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
 
-  return async (acceptanceId: string) => {
+  return async (acceptanceId: string, scope?: OrganizationAcceptanceScope) => {
     const result = await apiClient.get<{
       downloadUrl: string;
       fileName: string;
-    }>(`/v1/admin/legal-document-acceptances/${acceptanceId}/download`);
+    }>(
+      scope
+        ? `${organizationAcceptancesPath(scope)}/${acceptanceId}/download`
+        : `/v1/admin/legal-document-acceptances/${acceptanceId}/download`
+    );
 
     if (!result.success) {
       throw new Error(result.error?.message || "Download unavailable");

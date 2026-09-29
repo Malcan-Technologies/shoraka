@@ -254,6 +254,16 @@ const includeRelations = {
   },
 } as const;
 
+/** Limits a lookup to one organization, for the Organization detail Acceptances tab. */
+export type AcceptanceOrganizationScope = {
+  organizationId: string;
+  audience: LegalAcceptanceAudience;
+};
+
+function scopedWhere(id: string, scope: AcceptanceOrganizationScope) {
+  return { id, organization_id: scope.organizationId, audience_role: scope.audience };
+}
+
 export class LegalDocumentAcceptanceAdminService {
   async listAcceptances(query: ListLegalAcceptancesQuery) {
     const where = buildWhere(query);
@@ -289,11 +299,19 @@ export class LegalDocumentAcceptanceAdminService {
     };
   }
 
-  async getAcceptanceById(id: string): Promise<LegalDocumentAcceptanceDetail> {
-    const row = (await prisma.legalDocumentAcceptance.findUnique({
-      where: { id },
-      include: includeRelations,
-    })) as unknown as AcceptanceWithRelations | null;
+  async getAcceptanceById(
+    id: string,
+    scope?: AcceptanceOrganizationScope
+  ): Promise<LegalDocumentAcceptanceDetail> {
+    const row = (await (scope
+      ? prisma.legalDocumentAcceptance.findFirst({
+          where: scopedWhere(id, scope),
+          include: includeRelations,
+        })
+      : prisma.legalDocumentAcceptance.findUnique({
+          where: { id },
+          include: includeRelations,
+        }))) as unknown as AcceptanceWithRelations | null;
 
     if (!row) {
       throw new AppError(404, "NOT_FOUND", "Legal document acceptance not found");
@@ -323,22 +341,28 @@ export class LegalDocumentAcceptanceAdminService {
   }
 
   /** Signed URL for the exact accepted version PDF (including archived). */
-  async getAcceptedVersionDownloadUrl(acceptanceId: string) {
-    const row = await prisma.legalDocumentAcceptance.findUnique({
-      where: { id: acceptanceId },
-      include: {
-        version: {
-          select: {
-            id: true,
-            s3_key: true,
-            file_name: true,
-            content_type: true,
-            file_size: true,
-            file_hash: true,
-          },
+  async getAcceptedVersionDownloadUrl(acceptanceId: string, scope?: AcceptanceOrganizationScope) {
+    const include = {
+      version: {
+        select: {
+          id: true,
+          s3_key: true,
+          file_name: true,
+          content_type: true,
+          file_size: true,
+          file_hash: true,
         },
       },
-    });
+    } as const;
+    const row = scope
+      ? await prisma.legalDocumentAcceptance.findFirst({
+          where: scopedWhere(acceptanceId, scope),
+          include,
+        })
+      : await prisma.legalDocumentAcceptance.findUnique({
+          where: { id: acceptanceId },
+          include,
+        });
 
     if (!row) {
       throw new AppError(404, "NOT_FOUND", "Legal document acceptance not found");
