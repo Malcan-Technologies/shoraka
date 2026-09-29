@@ -286,14 +286,15 @@ Explicit permission coverage:
   [ ] No update/delete actions available
   [ ] Missing permission => not visible or Access Denied
 [ ] Organization detail > Acceptances tab (separate backend routes from Audit):
-  [ ] Loads with `organizations.view` and `document_management.view` (list, View details, download)
-  [ ] Tab hidden without `document_management.view`
+  [ ] Visible and loads with `organizations.view` only (list, View details, download)
+  [ ] Does not need `document_management.view`
   [ ] Calls `/v1/admin/organizations/:portal/:id/legal-acceptances`, not `/v1/admin/legal-document-acceptances`
   [ ] `?organizationId=<another organization>` on the list call still returns this organization's records
   [ ] Detail/download for an acceptance of another organization => 404
 [ ] API spot-check:
   [ ] `GET /v1/admin/legal-document-acceptances` with only `document_management.view` => 403
   [ ] `GET /v1/admin/organizations/:portal/:id/legal-acceptances` with only `audit.legal_acceptances.view` => 403
+  [ ] `GET /v1/admin/organizations/:portal/:id/legal-acceptances` with only `document_management.view` => 403
 
 === Finance ===
 [ ] Investments page:

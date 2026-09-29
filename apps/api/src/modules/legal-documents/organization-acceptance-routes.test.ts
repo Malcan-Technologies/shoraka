@@ -5,7 +5,7 @@
  */
 import request from "supertest";
 import express, { NextFunction, Request, Response } from "express";
-import { AdminRole, type AdminPermission } from "@cashsouk/types";
+import { ADMIN_PERMISSIONS, AdminRole, type AdminPermission } from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
 
 const mockList = jest.fn();
@@ -31,7 +31,7 @@ type Caller = {
   admin?: boolean;
 };
 
-const ORG_PERMISSIONS: AdminPermission[] = ["organizations.view", "document_management.view"];
+const ORG_PERMISSIONS: AdminPermission[] = ["organizations.view"];
 const BASE = "/v1/admin/organizations/investor/org-1/legal-acceptances";
 const ROUTES = [BASE, `${BASE}/acc-1`, `${BASE}/acc-1/download`];
 
@@ -63,7 +63,7 @@ beforeEach(() => {
 });
 
 describe("Organization acceptances permissions", () => {
-  it.each(ROUTES)("allows organizations.view + document_management.view on %s", async (route) => {
+  it.each(ROUTES)("allows organizations.view alone on %s", async (route) => {
     expect(await statusOf({ permissions: ORG_PERMISSIONS }, route)).toBe(200);
   });
 
@@ -71,17 +71,26 @@ describe("Organization acceptances permissions", () => {
     expect(await statusOf({ roleKey: AdminRole.SUPER_ADMIN }, route)).toBe(200);
   });
 
-  it.each(ROUTES)("denies %s when either permission is missing", async (route) => {
-    expect(await statusOf({ permissions: ["organizations.view"] }, route)).toBe(403);
+  it.each(ROUTES)("denies document_management.view alone on %s", async (route) => {
     expect(await statusOf({ permissions: ["document_management.view"] }, route)).toBe(403);
-    expect(await statusOf({ permissions: [] }, route)).toBe(403);
+    expect(
+      await statusOf(
+        { permissions: ["document_management.view", "document_management.manage"] },
+        route
+      )
+    ).toBe(403);
   });
 
-  it.each(ROUTES)("denies audit.legal_acceptances.view on %s", async (route) => {
+  it.each(ROUTES)("denies audit.legal_acceptances.view alone on %s", async (route) => {
     expect(await statusOf({ permissions: ["audit.legal_acceptances.view"] }, route)).toBe(403);
-    expect(
-      await statusOf({ permissions: ["organizations.view", "audit.legal_acceptances.view"] }, route)
-    ).toBe(403);
+  });
+
+  it.each(ROUTES)("denies every permission except organizations.view on %s", async (route) => {
+    const everythingElse = ADMIN_PERMISSIONS.filter(
+      (permission) => permission !== "organizations.view"
+    );
+    expect(await statusOf({ permissions: everythingElse }, route)).toBe(403);
+    expect(await statusOf({ permissions: [] }, route)).toBe(403);
   });
 
   it.each(ROUTES)("denies non-admin callers on %s", async (route) => {

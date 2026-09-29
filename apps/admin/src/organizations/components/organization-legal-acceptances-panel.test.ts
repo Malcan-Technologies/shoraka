@@ -52,6 +52,16 @@ describe("Organization detail Acceptances uses the organization-scoped routes", 
   });
 });
 
+describe("Organization detail Acceptances follows the page permission", () => {
+  const detailPage = read("organizations/components/organization-detail-page.tsx");
+
+  it("shows the tab with organizations.view, without document_management.view", () => {
+    expect(detailPage).toContain('const canView = can("organizations.view");');
+    expect(detailPage).toContain("const canViewAcceptances = canView;");
+    expect(detailPage).not.toContain("document_management");
+  });
+});
+
 describe("Audit Legal Acceptances keeps the Audit routes", () => {
   it("lists and exports through the Audit hooks", () => {
     expect(auditPanel).toMatch(/\buseLegalDocumentAcceptances\b/);

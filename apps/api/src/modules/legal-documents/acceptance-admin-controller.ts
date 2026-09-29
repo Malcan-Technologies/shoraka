@@ -211,13 +211,11 @@ export const legalDocumentAcceptanceAdminRouter = router;
 /**
  * Organization detail Acceptances tab.
  * Mounted at /v1/admin/organizations/:portal/:id/legal-acceptances.
+ * Page-scoped read on organizations.view, like the other Organization detail panels.
  * The organization and audience always come from the URL, never from the query.
  */
 const organizationRouter = Router({ mergeParams: true });
-const canReadOrganizationAcceptances = requirePermission(
-  "organizations.view",
-  "document_management.view"
-);
+const canReadOrganizationAcceptances = requirePermission("organizations.view");
 
 function organizationScopeFromParams(req: Request): AcceptanceOrganizationScope {
   const { portal, id } = req.params;
