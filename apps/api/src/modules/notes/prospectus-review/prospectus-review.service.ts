@@ -663,7 +663,7 @@ export class ProspectusReviewService {
         throw new AppError(
           409,
           "CONFLICT",
-          "Prospectus review was updated by another user. Reload and try again."
+          "Prospectus review has changed since it was last loaded. Reload and try again."
         );
       }
     }
@@ -784,7 +784,7 @@ export class ProspectusReviewService {
         throw new AppError(
           409,
           "CONFLICT",
-          "Prospectus review was updated by another user. Reload and try again."
+          "Prospectus review has changed since it was last loaded. Reload and try again."
         );
       }
     }
@@ -818,7 +818,7 @@ export class ProspectusReviewService {
           throw new AppError(
             409,
             "CONFLICT",
-            "Prospectus review was updated by another user. Reload and try again."
+            "Prospectus review has changed since it was last loaded. Reload and try again."
           );
         }
       }
