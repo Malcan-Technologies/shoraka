@@ -37,7 +37,7 @@ export function useProspectusReview(noteId?: string) {
     queryFn: async () => {
       if (!noteId) throw new Error("Note ID is required");
       const res = await apiClient.getAdminProspectusReview(noteId);
-      if (!res.success) throw new Error(res.error.message);
+      if (!res.success) throw new Error(prospectusReviewErrorMessage(res.error as ApiErrorShape));
       return res.data;
     },
   });
