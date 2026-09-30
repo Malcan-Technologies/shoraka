@@ -2,7 +2,11 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import { prospectusReviewErrorMessage } from "./prospectus-review-error-utils";
+import {
+  ProspectusReviewLoadError,
+  isNoteFinancialSnapshotMissingError,
+  prospectusReviewErrorMessage,
+} from "./prospectus-review-error-utils";
 import type {
   ProspectusReviewDetail,
   ProspectusReviewGetResponse,
@@ -37,9 +41,18 @@ export function useProspectusReview(noteId?: string) {
     queryFn: async () => {
       if (!noteId) throw new Error("Note ID is required");
       const res = await apiClient.getAdminProspectusReview(noteId);
-      if (!res.success) throw new Error(prospectusReviewErrorMessage(res.error as ApiErrorShape));
+      if (!res.success) {
+        const apiError = res.error as ApiErrorShape;
+        throw new ProspectusReviewLoadError(
+          prospectusReviewErrorMessage(apiError),
+          typeof apiError.code === "string" ? apiError.code : null
+        );
+      }
       return res.data;
     },
+    // A missing financial snapshot is a fixed state of the Note, not a transient failure.
+    retry: (failureCount, error) =>
+      !isNoteFinancialSnapshotMissingError(error) && failureCount < 3,
   });
 }
 

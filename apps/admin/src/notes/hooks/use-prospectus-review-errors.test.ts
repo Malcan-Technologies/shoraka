@@ -44,8 +44,10 @@ describe("prospectusReviewErrorMessage", () => {
     });
     expect(msg).toBe(NOTE_FINANCIAL_SNAPSHOT_MISSING_MESSAGE);
     expect(msg).toBe(
-      "Financial snapshot is missing for this Note. Please recreate the Note after Financial Review approval."
+      "This Note was created before the required financial snapshot was available. Prospectus review cannot continue for this Note."
     );
+    // Operations cannot create another Note for the same invoice, so the copy must not ask for one.
+    expect(msg.toLowerCase()).not.toContain("recreate");
   });
 
   it("does not map other error codes", () => {
@@ -72,11 +74,28 @@ describe("Prospectus Review flows use prospectusReviewErrorMessage", () => {
     expect(source).toContain("prospectusReviewErrorMessage(res.error");
   });
 
-  it("covers the review load (GET) error path, so a missing financial snapshot shows the user-facing copy", () => {
+  it("covers the review load (GET) error path, keeping the API error code and not retrying a missing snapshot", () => {
     expect(source).toContain("function useProspectusReview(");
     const loadFn = source.slice(source.indexOf("function useProspectusReview("), source.indexOf("function useSaveProspectusReviewDraft"));
-    expect(loadFn).toContain("prospectusReviewErrorMessage(res.error");
+    expect(loadFn).toContain("prospectusReviewErrorMessage(apiError)");
+    expect(loadFn).toContain("new ProspectusReviewLoadError(");
+    expect(loadFn).toContain("!isNoteFinancialSnapshotMissingError(error) && failureCount < 3");
     expect(loadFn).not.toContain("throw new Error(res.error.message)");
+  });
+
+  it("the Prospectus page renders the snapshot-missing state before the loading skeleton", () => {
+    const page = fs.readFileSync(
+      path.join(__dirname, "../../app/notes/[id]/prospectus/page.tsx"),
+      "utf8"
+    );
+    const missingState = page.indexOf("isNoteFinancialSnapshotMissingError(error)");
+    const genericError = page.indexOf('"Failed to load review"');
+    const skeleton = page.indexOf("if (isLoading || !data || !draft)");
+    expect(missingState).toBeGreaterThan(-1);
+    expect(missingState).toBeLessThan(genericError);
+    expect(genericError).toBeLessThan(skeleton);
+    expect(page).toContain("NOTE_FINANCIAL_SNAPSHOT_MISSING_TITLE");
+    expect(page).toContain("NOTE_FINANCIAL_SNAPSHOT_MISSING_MESSAGE");
   });
 
   it("covers Preview error path (GET + POST)", () => {

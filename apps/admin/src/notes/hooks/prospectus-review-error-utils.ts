@@ -4,10 +4,14 @@ type ApiErrorShape = {
   details?: unknown;
 };
 
-/** A Note created before financial snapshots existed cannot be reviewed; the API returns 409 with this code. */
+/**
+ * A Note created before financial snapshots existed cannot be reviewed; the API returns 409 with
+ * this code. The copy does not ask for a new Note: the same invoice cannot create another one.
+ */
 export const NOTE_FINANCIAL_SNAPSHOT_MISSING_CODE = "NOTE_FINANCIAL_SNAPSHOT_MISSING";
+export const NOTE_FINANCIAL_SNAPSHOT_MISSING_TITLE = "Prospectus unavailable";
 export const NOTE_FINANCIAL_SNAPSHOT_MISSING_MESSAGE =
-  "Financial snapshot is missing for this Note. Please recreate the Note after Financial Review approval.";
+  "This Note was created before the required financial snapshot was available. Prospectus review cannot continue for this Note.";
 
 /**
  * Prospectus Review validation errors return:
@@ -42,3 +46,20 @@ export function prospectusReviewErrorMessage(
   return firstDetailMessage ?? error?.message ?? "Request failed";
 }
 
+/** Review load failure that keeps the API error code, so the page can render a known state. */
+export class ProspectusReviewLoadError extends Error {
+  constructor(
+    message: string,
+    public readonly code: string | null
+  ) {
+    super(message);
+    this.name = "ProspectusReviewLoadError";
+  }
+}
+
+export function isNoteFinancialSnapshotMissingError(error: unknown): boolean {
+  return (
+    error instanceof ProspectusReviewLoadError &&
+    error.code === NOTE_FINANCIAL_SNAPSHOT_MISSING_CODE
+  );
+}
