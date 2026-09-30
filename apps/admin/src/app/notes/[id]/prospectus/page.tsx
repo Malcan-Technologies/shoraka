@@ -47,6 +47,11 @@ import {
   useSaveProspectusReviewDraft,
   useOpenAdminProspectusPdf,
 } from "@/notes/hooks/use-prospectus-review";
+import {
+  NOTE_FINANCIAL_SNAPSHOT_MISSING_MESSAGE,
+  NOTE_FINANCIAL_SNAPSHOT_MISSING_TITLE,
+  isNoteFinancialSnapshotMissingError,
+} from "@/notes/hooks/prospectus-review-error-utils";
 import type { ProspectusPreviewPages } from "@/notes/prospectus-review/preview-sheet-utils";
 import {
   getProspectusApproveConfirmCopy,
@@ -393,12 +398,48 @@ function ProspectusReviewPageInner() {
     return { ...pageTwoFinancialTable, yearHeaders, rows };
   }, [pageTwoFinancialTable, frozenByCalendarYear, frozenFinancialYears]);
 
-  if (isLoading || !data || !draft) {
+  // The error branch must come before the skeleton: on a failed load `data` never arrives.
+  if (error && isNoteFinancialSnapshotMissingError(error)) {
+    // Fixed state of an old Note: the review cannot load, so no review actions are offered.
     return (
-      <div className="space-y-6 px-4 py-10 md:px-6 md:py-12">
-        <Skeleton className="h-10 w-64" />
-        <Skeleton className="h-32 w-full rounded-2xl" />
-        <Skeleton className="h-56 w-full rounded-2xl" />
+      <div className="flex h-full flex-col">
+        <div className="flex items-center gap-2 px-4 pt-4 md:px-6">
+          <Button variant="ghost" size="sm" onClick={() => router.push(`/notes/${noteId}`)} className="gap-1.5">
+            <ArrowLeftIcon className="h-4 w-4" />
+            Note
+          </Button>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          <div className="w-full space-y-7 px-4 py-10 md:px-6 md:py-12 lg:px-8">
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                <DocumentTextIcon className="h-5 w-5 text-primary" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs uppercase tracking-wider text-muted-foreground">
+                  Prospectus Review
+                </div>
+                <h2 className="truncate text-2xl font-bold">{note?.noteReference ?? noteId}</h2>
+                {note?.title ? (
+                  <p className="mt-1 truncate text-sm text-muted-foreground">{note.title}</p>
+                ) : null}
+              </div>
+            </div>
+            <Card className="rounded-2xl border-destructive/40" role="alert">
+              <CardHeader>
+                <CardTitle className="text-base text-destructive">
+                  {NOTE_FINANCIAL_SNAPSHOT_MISSING_TITLE}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground">{NOTE_FINANCIAL_SNAPSHOT_MISSING_MESSAGE}</p>
+                <Button variant="ghost" onClick={() => router.push(`/notes/${noteId}`)}>
+                  Back to Note
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
     );
   }
@@ -407,6 +448,16 @@ function ProspectusReviewPageInner() {
     return (
       <div className="px-4 py-10 text-sm text-destructive md:px-6">
         {error instanceof Error ? error.message : "Failed to load review"}
+      </div>
+    );
+  }
+
+  if (isLoading || !data || !draft) {
+    return (
+      <div className="space-y-6 px-4 py-10 md:px-6 md:py-12">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-32 w-full rounded-2xl" />
+        <Skeleton className="h-56 w-full rounded-2xl" />
       </div>
     );
   }
