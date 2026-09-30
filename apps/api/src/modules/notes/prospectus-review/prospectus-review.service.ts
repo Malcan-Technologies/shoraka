@@ -65,6 +65,7 @@ import {
   buildCompleteApprovedProspectusSnapshot,
   computeCurrentRenderFingerprint,
   hashDraftContent,
+  hashProspectusFingerprint,
   parseApprovedSnapshot,
   withApprovedSnapshotHtml,
   type ProspectusApprovedSnapshot,
@@ -85,6 +86,19 @@ import {
   validateDraftContent,
   type SaveProspectusReviewDraftInput,
 } from "./prospectus-review.schemas";
+// TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+import {
+  approvedSnapshotDiag,
+  diagChangedKeys,
+  diagSafeHash,
+  diffFingerprintDiagSummaries,
+  getFingerprintDiagSummary,
+  prospectusDiag,
+  prospectusDiagRethrow,
+  reviewRowDiag,
+  setProspectusDiagStash,
+  withProspectusDiagError,
+} from "./prospectus-diagnostics";
 
 type ActorContext = {
   userId: string;
@@ -193,6 +207,26 @@ function mapReview(row: NoteProspectusReview) {
   };
 }
 
+// TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+function diagHash(value: unknown): string {
+  return diagSafeHash(hashProspectusFingerprint, value);
+}
+
+// TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+function rowDiag(row: NoteProspectusReview | null | undefined) {
+  return reviewRowDiag(row, diagHash);
+}
+
+// TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+type ProspectusInvalidateDiag = {
+  reason: "SOURCE" | "EDIT" | "UNPUBLISH" | "OTHER";
+  caller: string;
+  auditAction?: string;
+  before?: NoteProspectusReview | null;
+  storedFingerprint?: string | null;
+  currentFingerprint?: string | null;
+};
+
 function asJson(value: unknown): Prisma.InputJsonValue {
   return value as Prisma.InputJsonValue;
 }
@@ -250,9 +284,37 @@ async function clearApprovalEligibility(
   tx: Prisma.TransactionClient,
   noteId: string,
   actorUserId: string,
-  draftContent: ProspectusReviewStoredContent
+  draftContent: ProspectusReviewStoredContent,
+  // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+  diag?: ProspectusInvalidateDiag
 ) {
-  return tx.noteProspectusReview.update({
+  // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+  prospectusDiag("prospectus.invalidate.start", () => ({
+    noteId,
+    reason: diag?.reason ?? "OTHER",
+    caller: diag?.caller ?? "unknown",
+    actorUserId,
+    auditAction: diag?.auditAction ?? null,
+    storedFingerprint: diag?.storedFingerprint ?? diag?.before?.render_fingerprint ?? null,
+    currentFingerprint: diag?.currentFingerprint ?? null,
+    review: rowDiag(diag?.before),
+  }));
+  prospectusDiag("prospectus.invalidate.before_write", () => ({
+    noteId,
+    reason: diag?.reason ?? "OTHER",
+    caller: diag?.caller ?? "unknown",
+    auditAction: diag?.auditAction ?? null,
+    beforeStatus: diag?.before?.status ?? null,
+    targetStatus: ProspectusReviewStatus.DRAFT,
+    beforeUpdatedAt: diag?.before?.updated_at?.toISOString?.() ?? null,
+    beforeContentVersion: diag?.before?.content_version ?? null,
+    incomingDraftHash: hashDraftContent(draftContent),
+    draftContentChanges: diag?.before
+      ? hashDraftContent(asStoredContent(diag.before.draft_content)) !==
+        hashDraftContent(draftContent)
+      : null,
+  }));
+  const row = await tx.noteProspectusReview.update({
     where: { note_id: noteId },
     data: {
       status: ProspectusReviewStatus.DRAFT,
@@ -268,6 +330,24 @@ async function clearApprovalEligibility(
       option_catalogue_version: catalogueVersion(),
     },
   });
+  // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+  prospectusDiag("prospectus.invalidate.after_write", () => ({
+    noteId,
+    reason: diag?.reason ?? "OTHER",
+    caller: diag?.caller ?? "unknown",
+    auditAction: diag?.auditAction ?? null,
+    beforeStatus: diag?.before?.status ?? null,
+    afterStatus: row.status,
+    beforeUpdatedAt: diag?.before?.updated_at?.toISOString?.() ?? null,
+    afterUpdatedAt: row.updated_at?.toISOString?.() ?? null,
+    beforeContentVersion: diag?.before?.content_version ?? null,
+    afterContentVersion: row.content_version,
+    changedFields: diag?.before
+      ? diagChangedKeys(rowDiag(diag.before), rowDiag(row), diagHash)
+      : null,
+    review: rowDiag(row),
+  }));
+  return row;
 }
 
 /**
@@ -278,9 +358,27 @@ async function clearApprovalEligibility(
 async function reopenProspectusDraftAfterUnpublish(
   tx: Prisma.TransactionClient,
   noteId: string,
-  actor: ActorContext
+  actor: ActorContext,
+  // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+  diag?: ProspectusInvalidateDiag
 ) {
   const review = await tx.noteProspectusReview.findUnique({ where: { note_id: noteId } });
+  // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+  prospectusDiag("prospectus.invalidate.start", () => ({
+    noteId,
+    reason: diag?.reason ?? "OTHER",
+    caller: diag?.caller ?? "unknown",
+    actorUserId: actor.userId,
+    auditAction: "PROSPECTUS_APPROVAL_INVALIDATED_UNPUBLISH",
+    storedFingerprint: review?.render_fingerprint ?? null,
+    currentFingerprint: null,
+    willWrite:
+      review != null &&
+      (review.status === ProspectusReviewStatus.APPROVED ||
+        review.status === ProspectusReviewStatus.READY_FOR_PUBLISH ||
+        review.status === ProspectusReviewStatus.PUBLISHED),
+    review: rowDiag(review),
+  }));
   if (!review) return null;
   if (
     review.status !== ProspectusReviewStatus.APPROVED &&
@@ -296,6 +394,22 @@ async function reopenProspectusDraftAfterUnpublish(
       ? asStoredContent(review.approved_content)
       : null;
   const before = mapReview(review);
+  // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+  prospectusDiag("prospectus.invalidate.before_write", () => ({
+    noteId,
+    reason: diag?.reason ?? "OTHER",
+    caller: diag?.caller ?? "unknown",
+    auditAction: "PROSPECTUS_APPROVAL_INVALIDATED_UNPUBLISH",
+    beforeStatus: review.status,
+    targetStatus: ProspectusReviewStatus.DRAFT,
+    beforeUpdatedAt: review.updated_at?.toISOString?.() ?? null,
+    beforeContentVersion: review.content_version,
+    draftContentSource: review.draft_content
+      ? "draft_content"
+      : review.approved_content
+        ? "approved_content"
+        : "none",
+  }));
   const row = await tx.noteProspectusReview.update({
     where: { note_id: noteId },
     data: {
@@ -312,6 +426,21 @@ async function reopenProspectusDraftAfterUnpublish(
       updated_by_user_id: actor.userId,
     },
   });
+  // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+  prospectusDiag("prospectus.invalidate.after_write", () => ({
+    noteId,
+    reason: diag?.reason ?? "OTHER",
+    caller: diag?.caller ?? "unknown",
+    auditAction: "PROSPECTUS_APPROVAL_INVALIDATED_UNPUBLISH",
+    beforeStatus: review.status,
+    afterStatus: row.status,
+    beforeUpdatedAt: review.updated_at?.toISOString?.() ?? null,
+    afterUpdatedAt: row.updated_at?.toISOString?.() ?? null,
+    beforeContentVersion: review.content_version,
+    afterContentVersion: row.content_version,
+    changedFields: diagChangedKeys(rowDiag(review), rowDiag(row), diagHash),
+    review: rowDiag(row),
+  }));
   await tx.noteProspectusPublication.updateMany({
     where: { note_id: noteId, published_at: { not: null } },
     data: { published_at: null },
@@ -365,13 +494,37 @@ export class ProspectusReviewService {
       (review.status !== ProspectusReviewStatus.APPROVED &&
         review.status !== ProspectusReviewStatus.READY_FOR_PUBLISH)
     ) {
+      // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+      prospectusDiag("prospectus.publish_gate.result", () => ({
+        noteId,
+        outcome: "blocked",
+        reason: review ? "review status is not APPROVED/READY_FOR_PUBLISH" : "no review row",
+        review: rowDiag(review),
+      }));
       throw new AppError(409, "PROSPECTUS_REVIEW_REQUIRED", PUBLISH_BLOCKED);
     }
     const snapshot = parseApprovedSnapshot(review.approved_snapshot);
     if (!snapshot || !review.approved_content || !review.approved_publication_id) {
+      // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+      prospectusDiag("prospectus.publish_gate.result", () => ({
+        noteId,
+        outcome: "blocked",
+        reason: "approved snapshot, approved content or publication id missing",
+        snapshotParsed: snapshot != null,
+        review: rowDiag(review),
+      }));
       throw new AppError(409, "PROSPECTUS_REVIEW_REQUIRED", PUBLISH_BLOCKED);
     }
     if (review.render_fingerprint !== snapshot.render_fingerprint) {
+      // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+      prospectusDiag("prospectus.publish_gate.result", () => ({
+        noteId,
+        outcome: "blocked",
+        reason: "review.render_fingerprint differs from approved_snapshot.render_fingerprint",
+        storedFingerprint: review.render_fingerprint,
+        snapshotFingerprint: snapshot.render_fingerprint,
+        review: rowDiag(review),
+      }));
       throw new AppError(409, "PROSPECTUS_REVIEW_REQUIRED", PUBLISH_BLOCKED);
     }
 
@@ -380,6 +533,20 @@ export class ProspectusReviewService {
       approvedContent: asStoredContent(review.approved_content),
       approvedSnapshot: snapshot,
     });
+    // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+    prospectusDiag("prospectus.publish_gate.result", () => ({
+      noteId,
+      outcome: currentFp !== review.render_fingerprint ? "blocked" : "allowed",
+      reason: currentFp !== review.render_fingerprint ? "fingerprint mismatch" : null,
+      storedFingerprint: review.render_fingerprint,
+      recomputedFingerprint: currentFp,
+      match: currentFp === review.render_fingerprint,
+      changedComponents: diffFingerprintDiagSummaries(
+        getFingerprintDiagSummary(review.render_fingerprint),
+        getFingerprintDiagSummary(currentFp)
+      ),
+      review: rowDiag(review),
+    }));
     if (currentFp !== review.render_fingerprint) {
       throw new AppError(409, "PROSPECTUS_REVIEW_REQUIRED", PUBLISH_BLOCKED);
     }
@@ -423,10 +590,22 @@ export class ProspectusReviewService {
     noteId: string,
     actor: ActorContext
   ) {
-    await reopenProspectusDraftAfterUnpublish(tx, noteId, actor);
+    await reopenProspectusDraftAfterUnpublish(
+      tx,
+      noteId,
+      actor,
+      // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+      { reason: "UNPUBLISH", caller: "notes.unpublish" }
+    );
   }
 
   async getOrCreateReview(noteId: string, actor: ActorContext) {
+    // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+    prospectusDiag("prospectus.get.start", () => ({
+      noteId,
+      actorUserId: actor.userId,
+      correlationId: actor.correlationId ?? null,
+    }));
     const note = await prisma.note.findUnique({
       where: { id: noteId },
       select: {
@@ -474,11 +653,69 @@ export class ProspectusReviewService {
           asJson(mapReview(review!))
         );
       });
+      // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+      prospectusDiag("prospectus.get.created", () => ({
+        noteId,
+        noteReference: note.note_reference,
+        auditAction: "PROSPECTUS_REVIEW_CREATE",
+        review: rowDiag(review),
+      }));
     }
+
+    // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+    setProspectusDiagStash("reviewStatus", review.status);
+    prospectusDiag("prospectus.get.loaded", () => ({
+      noteId,
+      noteReference: note.note_reference,
+      noteStatus: note.status,
+      notePublishedAt: note.published_at?.toISOString?.() ?? null,
+      noteListed: isNoteListed(note),
+      review: rowDiag(review),
+    }));
+    prospectusDiag(
+      "prospectus.get.sources_loaded",
+      () => ({
+        noteId,
+        noteReference: note.note_reference,
+        note: {
+          id: note.id,
+          status: note.status,
+          publishedAt: note.published_at?.toISOString?.() ?? null,
+          title: note.title,
+          profitRatePercent: note.profit_rate_percent?.toString?.() ?? null,
+          maturityDate: note.maturity_date?.toISOString?.() ?? null,
+          listingOpensAt: note.listing?.opens_at?.toISOString?.() ?? null,
+        },
+        paymasterHash: diagHash(note.paymaster_snapshot),
+        invoiceHash: diagHash(note.invoice_snapshot),
+        purposeHash: diagHash(note.purpose_snapshot),
+        contractHash: diagHash(note.contract_snapshot),
+        recommendationInputHash: diagHash(recommendationInput),
+        aboutInvoiceInputHash: diagHash(aboutInvoiceInput),
+        highlightRecommendationsHash: diagHash(highlightRecommendations),
+        // Financial statements / CTOS / MARC are loaded only by the fingerprint recompute
+        // (prospectus.fingerprint.components) and by the page builders (render_sources_loaded).
+      }),
+      () => ({
+        paymasterSnapshot: note.paymaster_snapshot,
+        invoiceSnapshot: note.invoice_snapshot,
+        purposeSnapshot: note.purpose_snapshot,
+        contractSnapshot: note.contract_snapshot,
+        recommendationInput,
+        aboutInvoiceInput,
+        highlightRecommendations,
+      })
+    );
 
     if (!isNoteListed(note) && review.status === ProspectusReviewStatus.PUBLISHED) {
       const healed = await prisma.$transaction(async (tx) =>
-        reopenProspectusDraftAfterUnpublish(tx, noteId, actor)
+        reopenProspectusDraftAfterUnpublish(
+          tx,
+          noteId,
+          actor,
+          // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+          { reason: "OTHER", caller: "get.heal_published_on_unlisted_note" }
+        )
       );
       if (healed) review = healed;
     }
@@ -498,12 +735,55 @@ export class ProspectusReviewService {
           recommendationInput,
           aboutInvoiceInput
         );
+        // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+        const diagReviewBeforeNormalization = review;
+        prospectusDiag(
+          "prospectus.get.normalized",
+          () => {
+            const storedDraftHash = hashDraftContent(asStoredContent(review!.draft_content));
+            const normalizedHash = hashDraftContent(cloneReviewContent(normalized));
+            return {
+              noteId,
+              skipped: false,
+              rawStatus: review!.status,
+              storedDraftHash,
+              normalizedHash,
+              semanticallyEqual: storedDraftHash === normalizedHash,
+              jsonStringifyEqual:
+                JSON.stringify(review!.draft_content) === JSON.stringify(normalized),
+              normalizationWriteRequired: storedDraftHash !== normalizedHash,
+              changedFields: diagChangedKeys(
+                review!.draft_content,
+                cloneReviewContent(normalized),
+                diagHash
+              ),
+            };
+          },
+          () => ({ storedDraftContent: review!.draft_content, normalizedContent: normalized })
+        );
         // Key-order independent: jsonb reorders keys, and an unneeded write here bumps
         // updated_at, which is the optimistic-lock token for save and approve.
         if (
           hashDraftContent(asStoredContent(review.draft_content)) !==
           hashDraftContent(cloneReviewContent(normalized))
         ) {
+          // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+          prospectusDiag(
+            "prospectus.get.normalization.before",
+            () => ({
+              noteId,
+              updatedAtBefore: diagReviewBeforeNormalization.updated_at?.toISOString?.() ?? null,
+              storedDraftHash: hashDraftContent(
+                asStoredContent(diagReviewBeforeNormalization.draft_content)
+              ),
+              normalizedHash: hashDraftContent(cloneReviewContent(normalized)),
+              review: rowDiag(diagReviewBeforeNormalization),
+            }),
+            () => ({
+              contentBefore: diagReviewBeforeNormalization.draft_content,
+              normalizedContent: normalized,
+            })
+          );
           review = await prisma.noteProspectusReview.update({
             where: { note_id: noteId },
             data: {
@@ -511,8 +791,35 @@ export class ProspectusReviewService {
               option_catalogue_version: catalogueVersion(),
             },
           });
+          // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+          prospectusDiag("prospectus.get.normalization.after", () => ({
+            noteId,
+            updatedAtBefore: diagReviewBeforeNormalization.updated_at?.toISOString?.() ?? null,
+            updatedAtAfter: review!.updated_at?.toISOString?.() ?? null,
+            // No audit row and no updated_by_user_id change on this write.
+            auditAction: null,
+            review: rowDiag(review),
+          }));
         }
+      } else {
+        // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+        prospectusDiag("prospectus.get.normalized", () => ({
+          noteId,
+          skipped: true,
+          reason: "stored draft_content failed schema parse",
+          rawStatus: review!.status,
+          issues: parsed.error.issues,
+        }));
       }
+    } else {
+      // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+      prospectusDiag("prospectus.get.normalized", () => ({
+        noteId,
+        skipped: true,
+        reason: "approved content is never rewritten by a GET",
+        rawStatus: review!.status,
+        normalizationWriteRequired: false,
+      }));
     }
 
     // Source drift while APPROVED → invalidate to Draft.
@@ -526,19 +833,71 @@ export class ProspectusReviewService {
     ) {
       const snapshot = parseApprovedSnapshot(review.approved_snapshot);
       if (snapshot) {
-        const currentFp = await computeCurrentRenderFingerprint({
+        // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+        const diagApprovedReview = review;
+        const currentFp = await withProspectusDiagError("get.fingerprint_recompute", () =>
+          computeCurrentRenderFingerprint({
+            noteId,
+            approvedContent: asStoredContent(diagApprovedReview.approved_content),
+            approvedSnapshot: snapshot,
+          })
+        );
+        // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+        prospectusDiag("prospectus.get.fingerprint", () => ({
           noteId,
-          approvedContent: asStoredContent(review.approved_content),
-          approvedSnapshot: snapshot,
-        });
+          checked: true,
+          rawStatus: diagApprovedReview.status,
+          storedFingerprint: diagApprovedReview.render_fingerprint,
+          snapshotFingerprint: snapshot.render_fingerprint,
+          recomputedFingerprint: currentFp,
+          match: currentFp === diagApprovedReview.render_fingerprint,
+          sourceDriftDetected: currentFp !== diagApprovedReview.render_fingerprint,
+          approvedContentHash: hashDraftContent(
+            asStoredContent(diagApprovedReview.approved_content)
+          ),
+          // Full hashed input: prospectus.fingerprint.components (phase "recompute").
+          fingerprintInput: getFingerprintDiagSummary(currentFp),
+        }));
         if (currentFp !== review.render_fingerprint) {
+          // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+          prospectusDiag("prospectus.get.fingerprint_mismatch", () => {
+            const approveInput = getFingerprintDiagSummary(diagApprovedReview.render_fingerprint);
+            const currentInput = getFingerprintDiagSummary(currentFp);
+            return {
+              noteId,
+              storedFingerprint: diagApprovedReview.render_fingerprint,
+              newFingerprint: currentFp,
+              // Present only when Approve ran in this same API process.
+              approveInputAvailable: approveInput != null,
+              changedComponents: diffFingerprintDiagSummaries(approveInput, currentInput),
+              approveInput,
+              currentInput,
+            };
+          });
+          prospectusDiag("prospectus.get.invalidate_source.before", () => ({
+            noteId,
+            invalidationReason: "SOURCE",
+            auditAction: "PROSPECTUS_APPROVAL_INVALIDATED_SOURCE",
+            storedFingerprint: diagApprovedReview.render_fingerprint,
+            recomputedFingerprint: currentFp,
+            review: rowDiag(diagApprovedReview),
+          }));
           review = await prisma.$transaction(async (tx) => {
             const before = mapReview(review!);
             const row = await clearApprovalEligibility(
               tx,
               noteId,
               actor.userId,
-              asStoredContent(review!.draft_content)
+              asStoredContent(review!.draft_content),
+              // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+              {
+                reason: "SOURCE",
+                caller: "getOrCreateReview",
+                auditAction: "PROSPECTUS_APPROVAL_INVALIDATED_SOURCE",
+                before: review,
+                storedFingerprint: review!.render_fingerprint,
+                currentFingerprint: currentFp,
+              }
             );
             await logProspectusAction(
               tx,
@@ -550,8 +909,40 @@ export class ProspectusReviewService {
             );
             return row;
           });
+          // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+          prospectusDiag("prospectus.get.invalidate_source.after", () => ({
+            noteId,
+            approvalInvalidated: true,
+            invalidationReason: "SOURCE",
+            auditAction: "PROSPECTUS_APPROVAL_INVALIDATED_SOURCE",
+            resultingStatus: review!.status,
+            updatedAt: review!.updated_at?.toISOString?.() ?? null,
+            contentVersion: review!.content_version,
+            review: rowDiag(review),
+          }));
         }
+      } else {
+        // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+        prospectusDiag("prospectus.get.fingerprint", () => ({
+          noteId,
+          checked: false,
+          reason: "approved_snapshot failed parseApprovedSnapshot",
+          rawStatus: review!.status,
+          storedFingerprint: review!.render_fingerprint,
+        }));
       }
+    } else {
+      // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+      prospectusDiag("prospectus.get.fingerprint", () => ({
+        noteId,
+        checked: false,
+        reason: "drift check preconditions not met",
+        rawStatus: review!.status,
+        noteListed: isNoteListed(note),
+        hasApprovedContent: review!.approved_content != null,
+        hasApprovedSnapshot: review!.approved_snapshot != null,
+        storedFingerprint: review!.render_fingerprint,
+      }));
     }
 
     const mapped = mapReview(review);
@@ -581,7 +972,35 @@ export class ProspectusReviewService {
     const publishBlocked =
       !isNoteListed(note) && workflow !== "APPROVED" ? PUBLISH_BLOCKED : null;
 
-    return {
+    // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+    prospectusDiag(
+      "prospectus.get.render_sources_loaded",
+      () => ({
+        noteId,
+        page1NoteHash: diagHash(page1Note),
+        page1InputHash: diagHash(page1Input),
+        page2DataHash: diagHash(page2Data),
+        page2InputHash: diagHash(page2Input),
+        page2IsPublished: page2Input.isPublished,
+      }),
+      () => ({ page1Note, page2Data })
+    );
+    prospectusDiag("prospectus.status_mapping", () => ({
+      site: "api.getOrCreateReview",
+      noteId,
+      rawStatus: review!.status,
+      normalizedStatus: workflow,
+      dtoStatus: mapped.status,
+      noteStatus: note.status,
+      noteListed: isNoteListed(note),
+      publishBlockedReason: publishBlocked,
+      readyForPublishPreserved:
+        review!.status !== ProspectusReviewStatus.READY_FOR_PUBLISH ||
+        mapped.status === ProspectusReviewStatus.READY_FOR_PUBLISH,
+    }));
+
+    // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+    const response = {
       note: {
         id: note.id,
         noteReference: note.note_reference,
@@ -616,12 +1035,53 @@ export class ProspectusReviewService {
       catalogueNotice:
         "Issuer Financial Strength recommendations use placeholder SoukScore wording pending product/legal approval.",
     };
+    // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+    prospectusDiag(
+      "prospectus.get.response",
+      () => ({
+        noteId,
+        noteReference: note.note_reference,
+        finalResponseStatus: mapped.status,
+        rawStatus: review!.status,
+        updatedAt: mapped.updatedAt,
+        contentVersion: mapped.contentVersion,
+        approvedPublicationId: mapped.approvedPublicationId,
+        publishBlockedReason: publishBlocked,
+        responseDraftContentHash: hashDraftContent(mapped.draftContent),
+        review: rowDiag(review),
+      }),
+      () => ({ response })
+    );
+    return response;
   }
 
   async saveDraft(noteId: string, rawInput: unknown, actor: ActorContext) {
+    // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+    prospectusDiag(
+      "prospectus.save.start",
+      () => {
+        const body = (rawInput ?? {}) as { expectedUpdatedAt?: unknown; draftContent?: unknown };
+        return {
+          noteId,
+          actorUserId: actor.userId,
+          correlationId: actor.correlationId ?? null,
+          expectedUpdatedAt: body.expectedUpdatedAt ?? null,
+          hasDraftContent: body.draftContent != null,
+          incomingDraftHash:
+            body.draftContent != null ? diagHash(body.draftContent) : null,
+        };
+      },
+      () => ({ requestBody: rawInput })
+    );
     const input: SaveProspectusReviewDraftInput = saveProspectusReviewDraftSchema.parse(rawInput);
     const draftErrors = validateDraftContent(input.draftContent);
     if (draftErrors.length > 0) {
+      // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+      prospectusDiag("prospectus.save.validation_failed", () => ({
+        noteId,
+        errorCode: "PROSPECTUS_REVIEW_INVALID",
+        errors: draftErrors,
+      }));
       throw new AppError(422, "PROSPECTUS_REVIEW_INVALID", "Draft content is invalid", {
         details: draftErrors,
       });
@@ -650,13 +1110,41 @@ export class ProspectusReviewService {
 
     if (current.status === ProspectusReviewStatus.PUBLISHED) {
       await prisma.$transaction(async (tx) => {
-        await reopenProspectusDraftAfterUnpublish(tx, noteId, actor);
+        await reopenProspectusDraftAfterUnpublish(
+          tx,
+          noteId,
+          actor,
+          // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+          { reason: "OTHER", caller: "saveDraft.reopen_published_review" }
+        );
       });
       current = await prisma.noteProspectusReview.findUniqueOrThrow({
         where: { note_id: noteId },
       });
     }
 
+    // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+    const diagSaveCurrent = current;
+    setProspectusDiagStash("reviewStatus", current.status);
+    prospectusDiag("prospectus.save.loaded", () => ({
+      noteId,
+      noteStatus: note.status,
+      noteListed: isNoteListed(note),
+      review: rowDiag(diagSaveCurrent),
+    }));
+    prospectusDiag("prospectus.save.lock_check", () => ({
+      noteId,
+      checked: Boolean(input.expectedUpdatedAt),
+      expectedUpdatedAt: input.expectedUpdatedAt ?? null,
+      expectedUpdatedAtMs: input.expectedUpdatedAt
+        ? new Date(input.expectedUpdatedAt).getTime()
+        : null,
+      actualUpdatedAt: diagSaveCurrent.updated_at?.toISOString?.() ?? null,
+      actualUpdatedAtMs: diagSaveCurrent.updated_at?.getTime?.() ?? null,
+      match: input.expectedUpdatedAt
+        ? diagSaveCurrent.updated_at.getTime() === new Date(input.expectedUpdatedAt).getTime()
+        : null,
+    }));
     if (input.expectedUpdatedAt) {
       const expected = new Date(input.expectedUpdatedAt);
       if (current.updated_at.getTime() !== expected.getTime()) {
@@ -694,22 +1182,85 @@ export class ProspectusReviewService {
 
     const before = mapReview(current);
 
+    // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+    const diagSaveWasApproved =
+      current.status === ProspectusReviewStatus.APPROVED ||
+      current.status === ProspectusReviewStatus.READY_FOR_PUBLISH;
+    const diagSaveAuditAction =
+      diagSaveWasApproved && contentChanged
+        ? "PROSPECTUS_APPROVAL_INVALIDATED_EDIT"
+        : "PROSPECTUS_REVIEW_DRAFT_UPDATE";
+    prospectusDiag(
+      "prospectus.save.input",
+      () => {
+        const incomingHash = diagHash(input.draftContent);
+        const normalizedHash = hashDraftContent(draftToStore);
+        return {
+          noteId,
+          incomingHash,
+          existingHash: hashDraftContent(previousDraft),
+          normalizedHash,
+          normalizationChangedIncoming: incomingHash !== normalizedHash,
+          contentChanged,
+          changedFields: diagChangedKeys(previousDraft, draftToStore, diagHash),
+        };
+      },
+      () => ({
+        incomingDraftContent: input.draftContent,
+        existingDraftContent: previousDraft,
+        normalizedContent: draftToStore,
+      })
+    );
+
     // APPROVED/READY_FOR_PUBLISH + identical content → keep (no version bump needed for noop).
     if (
       (current.status === ProspectusReviewStatus.APPROVED ||
         current.status === ProspectusReviewStatus.READY_FOR_PUBLISH) &&
       !contentChanged
     ) {
+      // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+      prospectusDiag("prospectus.save.noop_approved_unchanged", () => ({
+        noteId,
+        contentChanged,
+        approvalInvalidated: false,
+        review: rowDiag(diagSaveCurrent),
+      }));
       return mapReview(current);
     }
 
+    // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+    prospectusDiag("prospectus.save.before_write", () => ({
+      noteId,
+      auditAction: diagSaveAuditAction,
+      approvalInvalidated: diagSaveWasApproved && contentChanged,
+      invalidationReason: diagSaveWasApproved && contentChanged ? "EDIT" : null,
+      beforeStatus: diagSaveCurrent.status,
+      targetStatus: ProspectusReviewStatus.DRAFT,
+      contentVersionBefore: diagSaveCurrent.content_version,
+      nextContentVersion: diagSaveCurrent.content_version + 1,
+      lockedOnUpdatedAt: !(diagSaveWasApproved && contentChanged),
+      review: rowDiag(diagSaveCurrent),
+    }));
     const updated = await prisma.$transaction(async (tx) => {
       if (
         (current!.status === ProspectusReviewStatus.APPROVED ||
           current!.status === ProspectusReviewStatus.READY_FOR_PUBLISH) &&
         contentChanged
       ) {
-        const row = await clearApprovalEligibility(tx, noteId, actor.userId, draftToStore);
+        const row = await clearApprovalEligibility(
+          tx,
+          noteId,
+          actor.userId,
+          draftToStore,
+          // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+          {
+            reason: "EDIT",
+            caller: "saveDraft",
+            auditAction: "PROSPECTUS_APPROVAL_INVALIDATED_EDIT",
+            before: current,
+            storedFingerprint: current!.render_fingerprint,
+          }
+        );
         await logProspectusAction(
           tx,
           noteId,
@@ -743,7 +1294,33 @@ export class ProspectusReviewService {
         asJson(mapReview(row))
       );
       return row;
-    });
+      // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation (.catch only logs and rethrows)
+    }).catch(prospectusDiagRethrow("save.transaction_write"));
+
+    // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+    prospectusDiag("prospectus.save.after_write", () => ({
+      noteId,
+      status: updated.status,
+      updatedAt: updated.updated_at?.toISOString?.() ?? null,
+      updatedAtBefore: diagSaveCurrent.updated_at?.toISOString?.() ?? null,
+      contentVersion: updated.content_version,
+      contentVersionBefore: diagSaveCurrent.content_version,
+      review: rowDiag(updated),
+    }));
+    prospectusDiag(
+      "prospectus.save.audit",
+      () => ({
+        noteId,
+        auditAction: diagSaveAuditAction,
+        changedFields: changedFieldsOf(
+          before as unknown as Record<string, unknown>,
+          mapReview(updated) as unknown as Record<string, unknown>
+        ),
+        beforeStatus: before.status,
+        afterStatus: mapReview(updated).status,
+      }),
+      () => ({ beforeState: before, afterState: mapReview(updated) })
+    );
 
     return mapReview(updated);
   }
@@ -754,6 +1331,19 @@ export class ProspectusReviewService {
     rawDraft?: unknown,
     expectedUpdatedAt?: string
   ) {
+    // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+    prospectusDiag(
+      "prospectus.approve.start",
+      () => ({
+        noteId,
+        actorUserId: actor.userId,
+        actorRole: actor.role ?? null,
+        correlationId: actor.correlationId ?? null,
+        expectedUpdatedAt: expectedUpdatedAt ?? null,
+        hasDraftPayload: rawDraft != null,
+      }),
+      () => ({ requestBody: { expectedUpdatedAt: expectedUpdatedAt ?? null, draftPayload: rawDraft ?? null } })
+    );
     const note = await prisma.note.findUnique({
       where: { id: noteId },
       select: {
@@ -776,6 +1366,30 @@ export class ProspectusReviewService {
     let current = await prisma.noteProspectusReview.findUnique({ where: { note_id: noteId } });
     if (!current) throw new AppError(404, "PROSPECTUS_REVIEW_NOT_FOUND", "Prospectus review not found");
 
+    // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+    const diagApproveLoaded = current;
+    setProspectusDiagStash("reviewStatus", current.status);
+    prospectusDiag("prospectus.approve.loaded", () => ({
+      noteId,
+      noteStatus: note.status,
+      notePublishedAt: note.published_at?.toISOString?.() ?? null,
+      noteListed: isNoteListed(note),
+      issuerOrganizationId: note.issuer_organization_id,
+      sourceApplicationId: note.source_application_id,
+      review: rowDiag(diagApproveLoaded),
+    }));
+    prospectusDiag("prospectus.approve.lock_check", () => ({
+      noteId,
+      phase: "initial",
+      checked: Boolean(expectedUpdatedAt),
+      expectedUpdatedAt: expectedUpdatedAt ?? null,
+      expectedUpdatedAtMs: expectedUpdatedAt ? new Date(expectedUpdatedAt).getTime() : null,
+      actualUpdatedAt: diagApproveLoaded.updated_at?.toISOString?.() ?? null,
+      actualUpdatedAtMs: diagApproveLoaded.updated_at?.getTime?.() ?? null,
+      match: expectedUpdatedAt
+        ? diagApproveLoaded.updated_at.getTime() === new Date(expectedUpdatedAt).getTime()
+        : null,
+    }));
     // Optimistic concurrency: clean-approve and dirty-approve must only succeed
     // when approving the same review version the Admin has loaded.
     if (expectedUpdatedAt) {
@@ -791,7 +1405,13 @@ export class ProspectusReviewService {
 
     if (current.status === ProspectusReviewStatus.PUBLISHED) {
       await prisma.$transaction(async (tx) => {
-        await reopenProspectusDraftAfterUnpublish(tx, noteId, actor);
+        await reopenProspectusDraftAfterUnpublish(
+          tx,
+          noteId,
+          actor,
+          // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+          { reason: "OTHER", caller: "approve.reopen_published_review" }
+        );
       });
       current = await prisma.noteProspectusReview.findUniqueOrThrow({
         where: { note_id: noteId },
@@ -811,6 +1431,18 @@ export class ProspectusReviewService {
       current = await prisma.noteProspectusReview.findUniqueOrThrow({
         where: { note_id: noteId },
       });
+      // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+      const diagAfterInternalSave = current;
+      prospectusDiag("prospectus.approve.lock_check", () => ({
+        noteId,
+        phase: "after_internal_save",
+        checked: Boolean(expectedUpdatedAt),
+        expectedUpdatedAt: expectedUpdatedAt ?? null,
+        actualUpdatedAt: diagAfterInternalSave.updated_at?.toISOString?.() ?? null,
+        match: expectedUpdatedAt
+          ? diagAfterInternalSave.updated_at.getTime() === new Date(expectedUpdatedAt).getTime()
+          : null,
+      }));
       // If caller provided expectedUpdatedAt, it must still match after the internal save.
       if (expectedUpdatedAt) {
         const expected = new Date(expectedUpdatedAt);
@@ -835,6 +1467,29 @@ export class ProspectusReviewService {
         recBundles.aboutInvoice
       )
     );
+    // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+    const diagApproveCurrent = current;
+    prospectusDiag(
+      "prospectus.approve.normalized_content",
+      () => {
+        const draftHash = diagHash(diagApproveCurrent.draft_content);
+        const normalizedHash = hashDraftContent(approvedClone);
+        return {
+          noteId,
+          draftHash,
+          normalizedHash,
+          contentChanged: draftHash !== normalizedHash,
+          changedFields: diagChangedKeys(
+            diagApproveCurrent.draft_content,
+            approvedClone,
+            diagHash
+          ),
+          // What JSONB will hand back on the next read of approved_content.
+          normalizedHashAfterJsonRoundTrip: hashDraftContent(cloneReviewContent(approvedClone)),
+        };
+      },
+      () => ({ draftContent: diagApproveCurrent.draft_content, normalizedContent: approvedClone })
+    );
     // Resolve Page 2/3 years before approve so Income Statement officer rows are validated.
     const publication = toProspectusPublicationContent(approvedClone);
     const page3Data = await loadProspectusPageThreeData(prisma, noteId);
@@ -855,7 +1510,13 @@ export class ProspectusReviewService {
         issuer_organization_id: note.issuer_organization_id,
       });
       hasMarcAssessment = isCompleteIssuerMarcAssessment(marcSnapshot ?? null);
-    } catch {
+    } catch (diagMarcError) {
+      // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+      prospectusDiag("prospectus.approve.marc_resolve_error", () => ({
+        noteId,
+        message: diagMarcError instanceof Error ? diagMarcError.message : String(diagMarcError),
+        stack: diagMarcError instanceof Error ? diagMarcError.stack : null,
+      }));
       // Mirror frontend semantics: undefined = not evaluated yet (do not enforce).
       hasMarcAssessment = undefined;
     }
@@ -865,6 +1526,14 @@ export class ProspectusReviewService {
       hasMarcAssessment,
     });
     if (errors.length > 0) {
+      // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+      prospectusDiag("prospectus.approve.validation_failed", () => ({
+        noteId,
+        errorCode: "PROSPECTUS_REVIEW_INVALID",
+        incomeStatementYears,
+        hasMarcAssessment: hasMarcAssessment ?? null,
+        errors,
+      }));
       throw new AppError(422, "PROSPECTUS_REVIEW_INVALID", "Approval validation failed", {
         details: errors,
       });
@@ -873,15 +1542,34 @@ export class ProspectusReviewService {
     const now = new Date();
     const nextVersion = current.content_version + 1;
     const publicationId = `pub_${randomBytes(16).toString("hex")}`;
-    let approvedSnapshot = await buildCompleteApprovedProspectusSnapshot({
-      noteId,
-      publicationId,
-      contentVersion: nextVersion,
-      approvedContent: approvedClone,
-      approvedAt: now,
-      approvedByUserId: actor.userId,
-      optionCatalogueVersion: catalogueVersion(),
-    });
+    // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+    prospectusDiag(
+      "prospectus.approve.snapshot_input",
+      () => ({
+        noteId,
+        publicationId,
+        contentVersion: nextVersion,
+        contentVersionBefore: diagApproveCurrent.content_version,
+        approvedAt: now.toISOString(),
+        approvedByUserId: actor.userId,
+        optionCatalogueVersion: catalogueVersion(),
+        approvedContentHash: hashDraftContent(approvedClone),
+        incomeStatementYears,
+        hasMarcAssessment: hasMarcAssessment ?? null,
+      }),
+      () => ({ approvedContent: approvedClone })
+    );
+    let approvedSnapshot = await withProspectusDiagError("approve.snapshot_build", () =>
+      buildCompleteApprovedProspectusSnapshot({
+        noteId,
+        publicationId,
+        contentVersion: nextVersion,
+        approvedContent: approvedClone,
+        approvedAt: now,
+        approvedByUserId: actor.userId,
+        optionCatalogueVersion: catalogueVersion(),
+      })
+    );
 
     // Freeze rendered HTML at approve so publish/investor never rebuild.
     const page1Note = await loadProspectusPageOneNote(prisma, noteId);
@@ -904,6 +1592,50 @@ export class ProspectusReviewService {
       page5: buildProspectusPageFiveHtml(),
     });
 
+    // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+    const diagApprovedSnapshot = approvedSnapshot;
+    prospectusDiag(
+      "prospectus.approve.snapshot_built",
+      () => ({
+        noteId,
+        publicationId: diagApprovedSnapshot.publication_id,
+        contentVersion: diagApprovedSnapshot.content_version,
+        renderFingerprint: diagApprovedSnapshot.render_fingerprint,
+        calculatedAt: diagApprovedSnapshot.calculated_at,
+        snapshotHash: diagHash(diagApprovedSnapshot),
+        page1Hash: diagHash(diagApprovedSnapshot.page_1),
+        page2Hash: diagHash(diagApprovedSnapshot.page_2),
+        noteIdentityHash: diagHash(diagApprovedSnapshot.note_identity),
+        publicationContentHash: diagHash(
+          diagApprovedSnapshot.publication_content
+        ),
+        htmlChars: Object.fromEntries(
+          Object.entries(diagApprovedSnapshot.html).map(([page, body]) => [
+            page,
+            typeof body === "string" ? body.length : null,
+          ])
+        ),
+      }),
+      () => ({ approvedSnapshot: approvedSnapshotDiag(diagApprovedSnapshot) })
+    );
+    prospectusDiag("prospectus.approve.before_write", () => ({
+      noteId,
+      auditAction: "PROSPECTUS_REVIEW_APPROVE",
+      beforeStatus: diagApproveCurrent.status,
+      targetStatus: ProspectusReviewStatus.READY_FOR_PUBLISH,
+      contentVersionBefore: diagApproveCurrent.content_version,
+      contentVersionAfter: nextVersion,
+      updatedAtBefore: diagApproveCurrent.updated_at?.toISOString?.() ?? null,
+      renderFingerprint: diagApprovedSnapshot.render_fingerprint,
+      publicationId,
+      approvedAt: now.toISOString(),
+      approvedByUserId: actor.userId,
+      approvedContentHash: hashDraftContent(approvedClone),
+      approvedSnapshotHash: diagHash(diagApprovedSnapshot),
+      // approved_content and approved_snapshot bodies: see the snapshot_input and
+      // snapshot_built payload events.
+      review: rowDiag(diagApproveCurrent),
+    }));
     const before = mapReview(current);
     const updated = await prisma.$transaction(async (tx) => {
       await tx.noteProspectusPublication.create({
@@ -937,6 +1669,26 @@ export class ProspectusReviewService {
           content_version: nextVersion,
         },
       });
+      // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+      prospectusDiag(
+        "prospectus.approve.after_write",
+        () => ({
+          noteId,
+          committed: false,
+          status: row.status,
+          updatedAt: row.updated_at?.toISOString?.() ?? null,
+          contentVersion: row.content_version,
+          renderFingerprint: row.render_fingerprint,
+          // Persisted copy vs the in-memory object that was hashed at approve.
+          persistedApprovedContentHash:
+            row.approved_content != null ? diagHash(row.approved_content) : null,
+          inMemoryApprovedContentHash: hashDraftContent(approvedClone),
+          review: rowDiag(row),
+        }),
+        () => ({
+          persistedReview: { ...row, approved_snapshot: approvedSnapshotDiag(row.approved_snapshot) },
+        })
+      );
       await logProspectusAction(
         tx,
         noteId,
@@ -953,12 +1705,58 @@ export class ProspectusReviewService {
           contentVersion: nextVersion,
         })
       );
+      // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+      prospectusDiag(
+        "prospectus.approve.audit_written",
+        () => ({
+          noteId,
+          auditAction: "PROSPECTUS_REVIEW_APPROVE",
+          targetType: AUDIT_TARGET_TYPE.NOTE_PROSPECTUS,
+          actorUserId: actor.userId,
+          correlationId: actor.correlationId ?? null,
+          beforeStatus: before.status,
+          afterStatus: mapReview(row).status,
+          previousPublicationId: before.approvedPublicationId,
+          publicationId,
+          previousContentVersion: before.contentVersion,
+          contentVersion: nextVersion,
+          changedFields: changedFieldsOf(
+            before as unknown as Record<string, unknown>,
+            mapReview(row) as unknown as Record<string, unknown>
+          ),
+        }),
+        () => ({ beforeState: before, afterState: mapReview(row) })
+      );
       return row;
-    });
+      // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation (.catch only logs and rethrows)
+    }).catch(prospectusDiagRethrow("approve.transaction_write"));
+    // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+    prospectusDiag("prospectus.approve.transaction_committed", () => ({
+      noteId,
+      committed: true,
+      status: updated.status,
+      updatedAt: updated.updated_at?.toISOString?.() ?? null,
+      contentVersion: updated.content_version,
+      renderFingerprint: updated.render_fingerprint,
+      publicationId: updated.approved_publication_id,
+      review: rowDiag(updated),
+    }));
     if (note.source_application_id) {
-      await mergeApplicationAdminFinancialSupplementsIntoOrg({
-        applicationId: note.source_application_id,
-      });
+      // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+      const diagSourceApplicationId = note.source_application_id;
+      await withProspectusDiagError("approve.post_merge", () =>
+        mergeApplicationAdminFinancialSupplementsIntoOrg({
+          applicationId: diagSourceApplicationId,
+          diagSource: { noteId },
+        })
+      );
+    } else {
+      // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+      prospectusDiag("prospectus.approve.post_merge.end", () => ({
+        noteId,
+        skipped: true,
+        reason: "note has no source application",
+      }));
     }
     return mapReview(updated);
   }
