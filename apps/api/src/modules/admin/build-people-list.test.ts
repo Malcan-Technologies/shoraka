@@ -2559,7 +2559,7 @@ describe("initial onboarding membership (company KYB/AML requirement)", () => {
 
   it.each([
     ["during initial onboarding", { initialCorporateOnboarding: true }],
-    ["when classification is off (investor / default callers)", { classifyCompanyOnboardingMembership: false }],
+    ["when classification is off (callers that do not opt in)", { classifyCompanyOnboardingMembership: false }],
   ])("leaves membership unknown %s", (_label, overrides) => {
     const { people } = build({
       ctos: { directors: [], shareholders: [ctosCompany(LATER_SSM)] },
@@ -2572,33 +2572,21 @@ describe("initial onboarding membership (company KYB/AML requirement)", () => {
     expect(computeHasPendingDirectorShareholder(people)).toBe(true);
   });
 
-  it("matches the snapshot on the row match key when the identity number differs", () => {
+  it("classifies by the SSM party key only (no company-name matching)", () => {
     const [row] = stampInitialOnboardingMembership(
       [
         {
-          matchKey: ONBOARDED_SSM,
-          identityNumber: LATER_SSM,
-          name: "Renamed Co",
+          matchKey: "1234567X",
+          name: "Company 202001234567",
           entityType: "CORPORATE",
           roles: ["SHAREHOLDER"],
           sharePercentage: 40,
           status: "",
         },
       ],
-      snapshot([snapshotCompany(ONBOARDED_SSM, "COD1", "IN_PROGRESS")]),
+      snapshot([snapshotCompany(LATER_SSM, "COD1", "IN_PROGRESS")]),
       null
     );
-    expect(row?.inInitialOnboarding).toBe(true);
-  });
-
-  it("keeps a company required when only its name matches the snapshot (SSM format drift)", () => {
-    const { people } = build({
-      ctos: { directors: [], shareholders: [ctosCompany("1234567X", "Company 202001234567")] },
-      issuerDirectorKycStatus: null,
-      issuerDirectorAmlStatus: null,
-      corporateEntities: snapshot([snapshotCompany(LATER_SSM, "COD1", "IN_PROGRESS")]),
-    });
-    expect(companyRow(people, "1234567X").inInitialOnboarding).toBe(true);
-    expect(computeHasPendingDirectorShareholder(people)).toBe(true);
+    expect(row?.inInitialOnboarding).toBe(false);
   });
 });

@@ -2,7 +2,7 @@
  * People & Access party-level RegTank refresh (later-added company people).
  * Display + ID collection only — does not change CTOS structure or company roles.
  */
-import type { ApplicationPersonRow } from "./application-people-display";
+import { requiresRelatedPartyCompliance, type ApplicationPersonRow } from "./application-people-display";
 import { getFinalStatusLabel } from "./director-shareholder-final-status";
 import { isGeneratedUserPartyKey } from "./organization-party-key";
 import { isIndividualKycReference } from "./regtank-individual-kyc-reference";
@@ -132,6 +132,7 @@ export function shouldShowPartyKycRefresh(params: {
   if (params.kind && params.kind !== "company_person") return false;
   if (!isLaterAddedCompanyPerson({ origin: params.origin, partyKey: params.partyKey })) return false;
   if (!params.person) return false;
+  if (!requiresRelatedPartyCompliance(params.person)) return false;
   const ids = collectPartyRegTankRefreshIds(params.person);
   if (partyKycRefreshIds(ids).length === 0) return false;
   return !isPartyRegTankProcessTerminal(params.person.onboarding?.status);
@@ -146,6 +147,7 @@ export function shouldShowPartyAmlRefresh(params: {
   if (params.kind && params.kind !== "company_person") return false;
   if (!isLaterAddedCompanyPerson({ origin: params.origin, partyKey: params.partyKey })) return false;
   if (!params.person) return false;
+  if (!requiresRelatedPartyCompliance(params.person)) return false;
   const ids = collectPartyRegTankRefreshIds(params.person);
   if (partyAmlRefreshIds(ids).length === 0) return false;
   return !isPartyRegTankProcessTerminal(params.person.screening?.status);

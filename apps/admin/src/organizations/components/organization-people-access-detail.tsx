@@ -14,8 +14,6 @@ import {
   IDENTITY_CONFLICT_OBSERVED_BODY,
   adminAmlWaitingCopy,
   adminOnboardingStageLabel,
-  adminPeopleAccessAmlChipPresentation,
-  adminPeopleAccessKycChipPresentation,
   adminPeopleAccessRowAllowsRegTankSync,
   adminPeopleAccessRowComplianceNotRequired,
   adminPartyRecordSourceLabel,
@@ -39,6 +37,9 @@ import {
   CUSTOMER_PERSON_LABEL,
   PROFILE_LABEL,
   observedPartyBlockedByIdentityConflict,
+  peopleAccessAmlChipPresentation,
+  peopleAccessChipOptionsFromRow,
+  peopleAccessKycChipPresentation,
   peopleAccessPlatformBadgeStatus,
   partyNeedsCtosAbsenceReview,
   personRegTankKycId,
@@ -228,8 +229,8 @@ export function OrganizationPeopleAccessDetail({
   const platformLabel = row.corporate ? "Not applicable" : row.platformAccess === "—" ? "No access" : row.platformAccess;
   const profileStatus = overviewItems.find((item) => item.label === "Profile Status")?.value ?? "Active profile";
 
-  const kycPresentation = adminPeopleAccessKycChipPresentation(row);
-  const amlPresentation = adminPeopleAccessAmlChipPresentation(row);
+  const kycPresentation = peopleAccessKycChipPresentation(person, peopleAccessChipOptionsFromRow(row));
+  const amlPresentation = peopleAccessAmlChipPresentation(person, peopleAccessChipOptionsFromRow(row));
 
   const defaultSection =
     showCtos && (row.observed || row.ctos === "Differs" || row.ctos === "Not found" || row.identityConflict)

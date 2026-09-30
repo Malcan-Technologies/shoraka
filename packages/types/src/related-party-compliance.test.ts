@@ -8,14 +8,18 @@ import {
   type ApplicationPersonRow,
 } from "./application-people-display";
 import {
-  adminPeopleAccessAmlChipPresentation,
-  adminPeopleAccessKycChipPresentation,
   adminPeopleAccessRowAllowsRegTankSync,
   adminPeopleAccessRowNeedsAttention,
   buildAdminPeopleAccessRows,
   filterAdminPeopleAccessRows,
 } from "./admin-people-access-rows";
-import { peopleAccessAmlChipPresentation, peopleAccessKycChipPresentation } from "./people-access-rows";
+import {
+  buildPeopleAccessRows,
+  peopleAccessAmlChipPresentation,
+  peopleAccessChipOptionsFromRow,
+  peopleAccessKycChipPresentation,
+} from "./people-access-rows";
+import { shouldShowPartyAmlRefresh, shouldShowPartyKycRefresh } from "./people-access-refresh";
 import { getFinalStatusLabel } from "./director-shareholder-final-status";
 
 const SSM = "202001012345";
@@ -176,8 +180,9 @@ describe("admin People & Access compliance", () => {
     expect(adminPeopleAccessRowNeedsAttention(row)).toBe(false);
     expect(filterAdminPeopleAccessRows([row], "pending", "")).toHaveLength(0);
     expect(adminPeopleAccessRowAllowsRegTankSync(row)).toBe(false);
-    expect(adminPeopleAccessKycChipPresentation(row)?.label).toBe(RELATED_PARTY_COMPLIANCE_NOT_REQUIRED_LABEL);
-    expect(adminPeopleAccessAmlChipPresentation(row)?.label).toBe(RELATED_PARTY_COMPLIANCE_NOT_REQUIRED_LABEL);
+    const options = peopleAccessChipOptionsFromRow(row);
+    expect(peopleAccessKycChipPresentation(row.person, options)?.label).toBe(RELATED_PARTY_COMPLIANCE_NOT_REQUIRED_LABEL);
+    expect(peopleAccessAmlChipPresentation(row.person, options)?.label).toBe(RELATED_PARTY_COMPLIANCE_NOT_REQUIRED_LABEL);
   });
 
   it("keeps attention, Sync RegTank and normal chips for onboarding and unknown companies", () => {
@@ -185,23 +190,59 @@ describe("admin People & Access compliance", () => {
       const row = peopleAccessRowFor(p);
       expect(adminPeopleAccessRowNeedsAttention(row)).toBe(true);
       expect(adminPeopleAccessRowAllowsRegTankSync(row)).toBe(true);
-      expect(adminPeopleAccessKycChipPresentation(row)).toEqual(
-        peopleAccessKycChipPresentation(row.person, { entityType: "CORPORATE" })
-      );
-      expect(adminPeopleAccessAmlChipPresentation(row)).toEqual(
-        peopleAccessAmlChipPresentation(row.person, { entityType: "CORPORATE" })
-      );
+      const label = peopleAccessKycChipPresentation(row.person, peopleAccessChipOptionsFromRow(row))?.label;
+      expect(label).not.toBe(RELATED_PARTY_COMPLIANCE_NOT_REQUIRED_LABEL);
     }
   });
 
   it("treats a company row without a matched person as unknown (existing behaviour)", () => {
     const row = { ...peopleAccessRowFor(exempt), person: null };
     expect(adminPeopleAccessRowAllowsRegTankSync(row)).toBe(true);
-    expect(adminPeopleAccessKycChipPresentation(row)).toBeNull();
+  });
+});
+
+describe("customer People & Access (issuer and investor profile)", () => {
+  const laterAddedRefreshable = (p: ApplicationPersonRow) => ({
+    person: {
+      ...p,
+      partyCorporateRequestId: "COD77",
+      onboarding: { status: "IN_PROGRESS", id: "COD77" },
+      screening: { status: "PENDING", id: "KYB77" },
+    },
+    origin: "USER_ADDED",
+    partyKey: SSM,
+    kind: "company_person",
   });
 
-  it("does not change the shared issuer-facing chips", () => {
-    expect(peopleAccessKycChipPresentation(exempt)).toEqual(peopleAccessKycChipPresentation(unknownCompany));
-    expect(peopleAccessAmlChipPresentation(exempt)).toEqual(peopleAccessAmlChipPresentation(unknownCompany));
+  it("shows Not required for an exempt company in the shared profile chips", () => {
+    const { active } = buildPeopleAccessRows({
+      parties: [companyParty()],
+      people: [exempt],
+      members: [],
+      invitations: [],
+      ownerUserId: null,
+    });
+    const row = active.find((r) => r.partyId === "party-co");
+    expect(row).toBeDefined();
+    const options = peopleAccessChipOptionsFromRow(row!);
+    expect(peopleAccessKycChipPresentation(row!.person, options)?.label).toBe(RELATED_PARTY_COMPLIANCE_NOT_REQUIRED_LABEL);
+    expect(peopleAccessAmlChipPresentation(row!.person, options)?.label).toBe(RELATED_PARTY_COMPLIANCE_NOT_REQUIRED_LABEL);
+  });
+
+  it("hides the RegTank status refresh for an exempt company, keeps it otherwise", () => {
+    expect(shouldShowPartyKycRefresh(laterAddedRefreshable(exempt))).toBe(false);
+    expect(shouldShowPartyAmlRefresh(laterAddedRefreshable(exempt))).toBe(false);
+    expect(shouldShowPartyKycRefresh(laterAddedRefreshable(unknownCompany))).toBe(true);
+    expect(shouldShowPartyAmlRefresh(laterAddedRefreshable(unknownCompany))).toBe(true);
+  });
+
+  it("keeps individual and unknown-company chips unchanged", () => {
+    expect(peopleAccessKycChipPresentation(unknownCompany)?.label).not.toBe(RELATED_PARTY_COMPLIANCE_NOT_REQUIRED_LABEL);
+    expect(peopleAccessKycChipPresentation(incompleteIndividual)?.label).not.toBe(
+      RELATED_PARTY_COMPLIANCE_NOT_REQUIRED_LABEL
+    );
+    expect(peopleAccessKycChipPresentation({ ...incompleteIndividual, inInitialOnboarding: false })).toEqual(
+      peopleAccessKycChipPresentation(incompleteIndividual)
+    );
   });
 });

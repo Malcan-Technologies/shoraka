@@ -8,10 +8,8 @@ import type { ApplicationPersonRow } from "./application-people-display";
 import {
   filterVisiblePeopleRows,
   isMissingGovernmentIdPerson,
-  relatedPartyComplianceNotRequiredPresentation,
   requiresRelatedPartyCompliance,
 } from "./application-people-display";
-import type { DirectorShareholderFinalStatusPresentation } from "./director-shareholder-final-status";
 import { resolvePartyCtosComparison } from "./party-ctos-comparison";
 import {
   isBlockedPersonIdentityConflict,
@@ -23,13 +21,10 @@ import type { OrganizationPartyProfileDto } from "./organization-party-profile";
 import {
   formatPeopleAccessCompanyRoleLine,
   matchPersonToParty,
-  peopleAccessAmlChipPresentation,
   peopleAccessAmlLabelForEntity,
-  peopleAccessChipOptionsFromRow,
   peopleAccessCompanyRolesFromParty,
   peopleAccessCompanyRolesFromPerson,
   peopleAccessCorporateKybLabel,
-  peopleAccessKycChipPresentation,
   peopleAccessKycLabel,
   peopleAccessPlatformLabel,
   type PeopleAccessAmlLabel,
@@ -432,22 +427,6 @@ export function adminPeopleAccessRowAllowsRegTankSync(
   row: Pick<AdminPeopleAccessRow, "corporate" | "person">
 ): boolean {
   return !adminPeopleAccessRowComplianceNotRequired(row);
-}
-
-type AdminPeopleAccessChipRow = Pick<AdminPeopleAccessRow, "corporate" | "person" | "party">;
-
-export function adminPeopleAccessKycChipPresentation(
-  row: AdminPeopleAccessChipRow
-): DirectorShareholderFinalStatusPresentation | null {
-  if (adminPeopleAccessRowComplianceNotRequired(row)) return relatedPartyComplianceNotRequiredPresentation();
-  return peopleAccessKycChipPresentation(row.person, peopleAccessChipOptionsFromRow(row));
-}
-
-export function adminPeopleAccessAmlChipPresentation(
-  row: AdminPeopleAccessChipRow
-): DirectorShareholderFinalStatusPresentation | null {
-  if (adminPeopleAccessRowComplianceNotRequired(row)) return relatedPartyComplianceNotRequiredPresentation();
-  return peopleAccessAmlChipPresentation(row.person, peopleAccessChipOptionsFromRow(row));
 }
 
 function needsRelatedPartyVerification(row: AdminPeopleAccessRow): boolean {

@@ -217,8 +217,8 @@ describe("Admin organisation tabs", () => {
   it("uses the shared company compliance rule for Sync RegTank, KYB/AML chips, and review status", () => {
     for (const source of [panel, detail]) {
       expect(source).toContain("adminPeopleAccessRowAllowsRegTankSync(row)");
-      expect(source).toContain("adminPeopleAccessKycChipPresentation(row)");
-      expect(source).toContain("adminPeopleAccessAmlChipPresentation(row)");
+      expect(source).toContain("peopleAccessKycChipPresentation(");
+      expect(source).toContain("peopleAccessAmlChipPresentation(");
     }
     expect(directorShareholderTable).toContain("getRelatedPartyFinalStatusLabel(p)");
     expect(directorShareholderTable).toContain("requiresRelatedPartyCompliance(p)");

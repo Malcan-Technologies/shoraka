@@ -101,6 +101,6 @@ export async function buildDirectorShareholderPeopleListWithMaster(
     masterParties,
     parentCorporateRequestId,
     initialCorporateOnboarding: isInitialCorporateOnboardingStatus(onboardingStatus),
-    classifyCompanyOnboardingMembership: portal === "issuer",
+    classifyCompanyOnboardingMembership: true,
   });
 }

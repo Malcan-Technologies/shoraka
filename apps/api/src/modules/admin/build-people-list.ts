@@ -3,7 +3,6 @@ import {
   normalizeRawStatus,
   parseCtosPartySupplement,
   extractBusinessNumber,
-  extractBusinessNameFromRegTankForm,
   extractGovernmentId,
   filterVisiblePeopleRows,
   CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING,
@@ -84,8 +83,6 @@ function stampParentCorporateRequestId(
 
 type InitialOnboardingSnapshot = {
   ssmKeys: Set<string>;
-  /** Loose company names; a name match only ever marks a company as required (guards SSM format drift). */
-  names: Set<string>;
   /** False when membership cannot be proven absent (missing, malformed, or unkeyed snapshot rows). */
   trusted: boolean;
 };
@@ -100,7 +97,6 @@ function readInitialOnboardingSnapshot(
   issuerDirectorAmlStatus: unknown
 ): InitialOnboardingSnapshot {
   const ssmKeys = new Set<string>();
-  const names = new Set<string>();
   const cods = new Set<string>();
   const corporateShareholders =
     isPlainRecord(corporateEntities) && Array.isArray(corporateEntities.corporateShareholders)
@@ -113,12 +109,6 @@ function readInitialOnboardingSnapshot(
       trusted = false;
       continue;
     }
-    const name = looseCompanyNameKey(
-      extractBusinessNameFromRegTankForm(corp.formContent) ||
-        strField(corp, "businessName") ||
-        strField(corp, "companyName")
-    );
-    if (name) names.add(name);
     const key = corporateShareholderSsmKey(corp);
     if (!key) {
       trusted = false;
@@ -136,10 +126,6 @@ function readInitialOnboardingSnapshot(
         trusted = false;
         continue;
       }
-      const name = looseCompanyNameKey(
-        strField(row, "businessName") || strField(row, "companyName") || strField(row, "name")
-      );
-      if (name) names.add(name);
       const key = businessShareholderBrnKey(row);
       if (key) {
         ssmKeys.add(key);
@@ -150,29 +136,19 @@ function readInitialOnboardingSnapshot(
     }
   }
 
-  return { ssmKeys, names, trusted };
+  return { ssmKeys, trusted };
 }
 
-function looseCompanyNameKey(raw: string | null | undefined): string | null {
-  const key = String(raw ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-  return key || null;
-}
-
-/** Every SSM key the row carries (identity and match key can differ after a master merge). */
-function rowCorporateSsmKeys(row: ApplicationPersonRow): string[] {
-  if (isMissingGovernmentIdPerson(row)) return [];
-  if (isGeneratedUserPartyKey(String(row.matchKey ?? "").trim())) return [];
-  const keys = [
-    normalizeDirectorShareholderIdKey(row.identityNumber),
-    normalizeDirectorShareholderIdKey(row.matchKey),
-  ].filter((key): key is string => Boolean(key));
-  return [...new Set(keys)];
+/** The row's SSM party key (same key as `organization_party_profiles.party_key`); none for unresolved rows. */
+function rowCorporateSsmKey(row: ApplicationPersonRow): string | null {
+  if (isMissingGovernmentIdPerson(row)) return null;
+  if (isGeneratedUserPartyKey(String(row.matchKey ?? "").trim())) return null;
+  return canonicalPartyIdentityKey(row.matchKey);
 }
 
 /**
- * Stamp `inInitialOnboarding` on CORPORATE rows: true when any row SSM (or the company name) is in the
- * initial onboarding snapshot, false only when the snapshot is trusted and nothing matches.
- * Unknown stays unset (KYB/AML still required).
+ * Stamp `inInitialOnboarding` on CORPORATE rows: true when the SSM party key is in the initial onboarding
+ * snapshot, false only when the snapshot is trusted and the key is absent. Unknown stays unset (KYB/AML required).
  */
 export function stampInitialOnboardingMembership(
   people: ApplicationPersonRow[],
@@ -182,12 +158,10 @@ export function stampInitialOnboardingMembership(
   const snapshot = readInitialOnboardingSnapshot(corporateEntities, issuerDirectorAmlStatus);
   return people.map((row) => {
     if (row.entityType !== "CORPORATE") return row;
-    const keys = rowCorporateSsmKeys(row);
-    const name = looseCompanyNameKey(row.name);
-    if (keys.some((key) => snapshot.ssmKeys.has(key)) || (name && snapshot.names.has(name))) {
-      return { ...row, inInitialOnboarding: true };
-    }
-    if (keys.length > 0 && snapshot.trusted) return { ...row, inInitialOnboarding: false };
+    const key = rowCorporateSsmKey(row);
+    if (!key) return row;
+    if (snapshot.ssmKeys.has(key)) return { ...row, inInitialOnboarding: true };
+    if (snapshot.trusted) return { ...row, inInitialOnboarding: false };
     return row;
   });
 }
@@ -1182,8 +1156,8 @@ export type BuildDirectorShareholderPeopleParams = {
    */
   initialCorporateOnboarding?: boolean;
   /**
-   * Issuer only, after initial onboarding completed: stamp `inInitialOnboarding` on company rows.
-   * Off by default so other portals and callers keep existing KYB/AML behaviour.
+   * After initial onboarding completed: stamp `inInitialOnboarding` on company rows (issuer and investor).
+   * Off by default so callers that do not opt in keep existing KYB/AML behaviour.
    */
   classifyCompanyOnboardingMembership?: boolean;
 };

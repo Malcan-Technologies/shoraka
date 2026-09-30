@@ -11,9 +11,7 @@ import type { OrganizationDetailResponse, PortalType } from "@cashsouk/types";
 import {
   ADMIN_PEOPLE_ACCESS_FILTERS,
   ctosExtractFingerprint,
-  adminPeopleAccessAmlChipPresentation,
   adminPeopleAccessCtosBadgeStatus,
-  adminPeopleAccessKycChipPresentation,
   adminPeopleAccessRowAllowsRegTankSync,
   adminPeopleAccessRowNeedsAttention,
   buildAdminPeopleAccessRows,
@@ -22,7 +20,9 @@ import {
   isAdminPeopleAccessFilter,
   isIssuerShareholderOnlyBelowMinimum,
   observedPartyBlockedByIdentityConflict,
+  peopleAccessAmlChipPresentation,
   peopleAccessChipOptionsFromRow,
+  peopleAccessKycChipPresentation,
   peopleAccessPlatformBadgeStatus,
   issuerPersonCompletenessInputFromParty,
   issuerPersonCompletenessSummary,
@@ -398,8 +398,8 @@ function PeopleAccessTableRow({
   isSyncingRegTank: boolean;
   onEditMember: () => void;
 }) {
-  const kycPresentation = adminPeopleAccessKycChipPresentation(row);
-  const amlPresentation = adminPeopleAccessAmlChipPresentation(row);
+  const kycPresentation = peopleAccessKycChipPresentation(row.person, peopleAccessChipOptionsFromRow(row));
+  const amlPresentation = peopleAccessAmlChipPresentation(row.person, peopleAccessChipOptionsFromRow(row));
   const accessStatus = row.platformAccess === "—" ? null : peopleAccessPlatformBadgeStatus(row.platformAccess);
   const ctosStatus = adminPeopleAccessCtosBadgeStatus(row.ctos);
   const needsAction = adminPeopleAccessRowNeedsAttention(row);

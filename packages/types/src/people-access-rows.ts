@@ -3,7 +3,13 @@
  * Merge keys are party id / user id / invitation id — never email.
  */
 import type { ApplicationPersonRow } from "./application-people-display";
-import { filterVisiblePeopleRows, isMissingGovernmentIdPerson, requiresOnboardingEmail } from "./application-people-display";
+import {
+  filterVisiblePeopleRows,
+  isMissingGovernmentIdPerson,
+  relatedPartyComplianceNotRequiredPresentation,
+  requiresOnboardingEmail,
+  requiresRelatedPartyCompliance,
+} from "./application-people-display";
 import {
   getFinalStatusLabel,
   type DirectorShareholderFinalStatusPresentation,
@@ -272,6 +278,9 @@ export function peopleAccessKycChipPresentation(
   if (!person) return null;
   const entityType = peopleAccessStatusEntityType({ entityType: options?.entityType, person });
   if (peopleAccessIsCorporateEntity(entityType)) {
+    if (!requiresRelatedPartyCompliance({ ...person, entityType: "CORPORATE" })) {
+      return relatedPartyComplianceNotRequiredPresentation();
+    }
     if (!peopleAccessShowsCorporateKycChip(person, entityType)) return null;
     return getFinalStatusLabel(person, { displayMode: "kyc_only" });
   }
@@ -286,6 +295,9 @@ export function peopleAccessAmlChipPresentation(
   if (!person) return null;
   const entityType = peopleAccessStatusEntityType({ entityType: options?.entityType, person });
   if (peopleAccessIsCorporateEntity(entityType)) {
+    if (!requiresRelatedPartyCompliance({ ...person, entityType: "CORPORATE" })) {
+      return relatedPartyComplianceNotRequiredPresentation();
+    }
     if (!peopleAccessShowsCorporateAmlChip(person, entityType)) return null;
     return getFinalStatusLabel({ screening: person.screening });
   }
