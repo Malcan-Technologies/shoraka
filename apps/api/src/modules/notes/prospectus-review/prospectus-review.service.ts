@@ -483,8 +483,10 @@ export class ProspectusReviewService {
       if (healed) review = healed;
     }
 
+    // Approved content (READY_FOR_PUBLISH / APPROVED / PUBLISHED) is never rewritten by a GET.
     if (
       review.status !== ProspectusReviewStatus.APPROVED &&
+      review.status !== ProspectusReviewStatus.READY_FOR_PUBLISH &&
       review.status !== ProspectusReviewStatus.PUBLISHED
     ) {
       const parsed = saveProspectusReviewDraftSchema.shape.draftContent.safeParse(
@@ -496,7 +498,12 @@ export class ProspectusReviewService {
           recommendationInput,
           aboutInvoiceInput
         );
-        if (JSON.stringify(review.draft_content) !== JSON.stringify(normalized)) {
+        // Key-order independent: jsonb reorders keys, and an unneeded write here bumps
+        // updated_at, which is the optimistic-lock token for save and approve.
+        if (
+          hashDraftContent(asStoredContent(review.draft_content)) !==
+          hashDraftContent(cloneReviewContent(normalized))
+        ) {
           review = await prisma.noteProspectusReview.update({
             where: { note_id: noteId },
             data: {
