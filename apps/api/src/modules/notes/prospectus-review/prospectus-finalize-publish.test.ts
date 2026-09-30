@@ -110,7 +110,8 @@ describe("prospectus finalization for publish", () => {
       publication_id: "pub",
       content_version: 1,
       calculated_at: "2026-07-19T00:00:00.000Z",
-      html: { page1: "", page2: "", page3: "" },
+      // Approve always stores Page 2 / 3 HTML; publish keeps it unchanged.
+      html: { page1: "", page2: "<p>approved p2</p>", page3: "<p>approved p3</p>" },
       // Remaining fields are not needed for this unit test.
     } as unknown as ProspectusApprovedSnapshot;
 
@@ -152,7 +153,8 @@ describe("prospectus finalization for publish", () => {
       publication_id: "pub",
       content_version: 1,
       calculated_at: "2026-07-19T00:00:00.000Z",
-      html: { page1: "", page2: "", page3: "" },
+      // Approve always stores Page 2 / 3 HTML; publish keeps it unchanged.
+      html: { page1: "", page2: "<p>approved p2</p>", page3: "<p>approved p3</p>" },
     } as unknown as ProspectusApprovedSnapshot;
 
     const opensAt = new Date("2026-08-01T00:00:00.000Z");
@@ -203,7 +205,8 @@ describe("prospectus finalization for publish", () => {
       publication_id: "pub",
       content_version: 1,
       calculated_at: new Date("2026-07-19T00:00:00.000Z").toISOString(),
-      html: { page1: "", page2: "", page3: "" },
+      // Approve always stores Page 2 / 3 HTML; publish keeps it unchanged.
+      html: { page1: "", page2: "<p>approved p2</p>", page3: "<p>approved p3</p>" },
     } as unknown as ProspectusApprovedSnapshot;
 
     (await import("../../../lib/prisma")).prisma.note.findUnique = jest

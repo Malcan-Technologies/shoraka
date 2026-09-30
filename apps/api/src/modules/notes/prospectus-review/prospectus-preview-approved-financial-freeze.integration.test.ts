@@ -289,6 +289,8 @@ describe("approved Preview financial freeze (Page 2/3)", () => {
         service_fee_rate_percent: 1,
         platform_fee_rate_percent: 1,
         maturity_date: null,
+        financial_snapshot: null,
+        created_at: new Date(),
         listing: { opens_at: new Date(), closes_at: new Date() },
       };
     });

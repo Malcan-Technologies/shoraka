@@ -70,6 +70,7 @@ function baseNote(
       entity_type: "GOVERNMENT_LINKED",
     },
     prospectus_snapshot: null,
+    financial_snapshot: null,
     created_at: new Date("2026-01-01T00:00:00.000Z"),
     updated_at: new Date("2026-01-02T00:00:00.000Z"),
     listing: {
@@ -192,6 +193,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
   describe("publication snapshot freeze", () => {
     it("freezes Stage 4 years and raw values without formatted money", () => {
       const page2 = buildProspectusPage2Snapshot({
+        referenceDate: new Date("2026-07-19T12:00:00.000Z"),
         financialStatements: {
           questionnaire: { financial_year_end: "2027-12-31" },
           unaudited_by_year: {},
@@ -238,6 +240,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
 
     it("extends shared freeze with Page 3 raw keys and preserves zeros", () => {
       const page2 = buildProspectusPage2Snapshot({
+        referenceDate: new Date("2026-07-19T12:00:00.000Z"),
         financialStatements: {
           questionnaire: { financial_year_end: "2027-12-31" },
           unaudited_by_year: {},
@@ -324,6 +327,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
 
     it("freezes corrected NPM/ROE inputs; published HTML ignores later CTOS changes", () => {
       const frozen = buildProspectusPage2Snapshot({
+        referenceDate: new Date("2026-07-19T12:00:00.000Z"),
         financialStatements: {
           questionnaire: { financial_year_end: "2027-12-31" },
           unaudited_by_year: {},
@@ -365,6 +369,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
 
       const published = buildProspectusPageTwo(
         mapProspectusPageTwoDataToInput({
+          financialReferenceDate: null,
           note: baseNote({
             status: NoteStatus.PUBLISHED,
             published_at: new Date("2026-07-01T00:00:00.000Z"),
@@ -424,6 +429,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
 
     it("freezes totass/totlib raw fields; ROE stays DNA without return_on_equity; published HTML ignores later CTOS changes", () => {
       const frozen = buildProspectusPage2Snapshot({
+        referenceDate: new Date("2026-07-19T12:00:00.000Z"),
         financialStatements: {
           questionnaire: { financial_year_end: "2027-12-31" },
           unaudited_by_year: {},
@@ -464,6 +470,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
 
       const published = buildProspectusPageTwo(
         mapProspectusPageTwoDataToInput({
+          financialReferenceDate: null,
           note: baseNote({
             status: NoteStatus.PUBLISHED,
             published_at: new Date("2026-07-01T00:00:00.000Z"),
@@ -515,13 +522,19 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
     });
 
     it("creates a valid empty Page 2 snapshot when financials are missing", () => {
-      const page2 = buildProspectusPage2Snapshot({ financialStatements: null });
+      const page2 = buildProspectusPage2Snapshot({
+        financialStatements: null,
+        referenceDate: new Date(),
+      });
       expect(page2.financial_comparison.selected_years).toEqual([]);
       expect(page2.financial_comparison.calculated_at).toBeTruthy();
     });
 
     it("merges page_2 without overwriting page_1 or unknown branches", () => {
-      const page2 = buildProspectusPage2Snapshot({ financialStatements: null });
+      const page2 = buildProspectusPage2Snapshot({
+        financialStatements: null,
+        referenceDate: new Date(),
+      });
       const merged = wrapProspectusSnapshotWithPageTwo(frozenPage1, page2, {
         page_1: { should_be_replaced: true },
         page_2: { old: true },
@@ -537,6 +550,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
   describe("prospectus source resolution precedence for same FY", () => {
     it("uses reviewed User Input FY value when the same FY exists in CTOS", () => {
       const page2 = buildProspectusPage2Snapshot({
+        referenceDate: new Date("2025-06-01T00:00:00.000Z"),
         financialStatements: {
           questionnaire: { financial_year_end: "2025-12-31" },
           unaudited_by_year: {
@@ -559,6 +573,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
 
     it("uses edit_user_input override over reviewed User Input even when CTOS FY exists", () => {
       const page2 = buildProspectusPage2Snapshot({
+        referenceDate: new Date("2025-06-01T00:00:00.000Z"),
         financialStatements: {
           questionnaire: { financial_year_end: "2025-12-31" },
           unaudited_by_year: {
@@ -592,6 +607,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
 
     it("resolves latest 3 distinct FYs and does not let CTOS overwrite reviewed User Input for a shared FY", () => {
       const page2 = buildProspectusPage2Snapshot({
+        referenceDate: new Date("2026-03-01T00:00:00.000Z"),
         financialStatements: {
           questionnaire: { financial_year_end: "2026-12-31" },
           unaudited_by_year: {
@@ -632,6 +648,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
 
     it("uses Admin Input FY value when there is no reviewed User Input/CTOS for that FY", () => {
       const page2 = buildProspectusPage2Snapshot({
+        referenceDate: new Date("2025-06-01T00:00:00.000Z"),
         financialStatements: {
           questionnaire: { financial_year_end: "2025-12-31" },
           unaudited_by_year: {},
@@ -662,6 +679,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
   describe("published vs unpublished Stage 4", () => {
     it("uses frozen Stage 4 for published Notes and ignores live Application data", () => {
       const frozen = buildProspectusPage2Snapshot({
+        referenceDate: new Date(),
         financialStatements: {
           questionnaire: { financial_year_end: "2027-12-31" },
           unaudited_by_year: {},
@@ -681,6 +699,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       };
 
       const data: ProspectusPageTwoLoadedData = {
+        financialReferenceDate: null,
         note: baseNote({
           status: NoteStatus.PUBLISHED,
           published_at: new Date("2026-07-01T00:00:00.000Z"),
@@ -708,6 +727,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
 
     it("keeps frozen same-FY precedence (CTOS vs reviewed User Input) even if live data changes later", () => {
       const frozen = buildProspectusPage2Snapshot({
+        referenceDate: new Date("2026-07-19T12:00:00.000Z"),
         financialStatements: {
           questionnaire: { financial_year_end: "2027-12-31" },
           unaudited_by_year: {
@@ -743,6 +763,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       };
 
       const data: ProspectusPageTwoLoadedData = {
+        financialReferenceDate: null,
         note: baseNote({
           status: NoteStatus.PUBLISHED,
           published_at: new Date("2026-07-01T00:00:00.000Z"),
@@ -769,6 +790,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
         { page_1: frozenPage1, page_2: null },
       ]) {
         const input = mapProspectusPageTwoDataToInput({
+          financialReferenceDate: null,
           note: baseNote({
             status: NoteStatus.PUBLISHED,
             published_at: new Date(),
@@ -786,6 +808,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
 
     it("uses live Application financials for unpublished preview", () => {
       const input = mapProspectusPageTwoDataToInput({
+        financialReferenceDate: new Date(),
         note: baseNote({ status: NoteStatus.DRAFT, published_at: null }),
         liveFinancialStatements,
         liveCtosFinancials,
@@ -803,6 +826,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
     it("yields empty Stage 4 when unpublished Application financials are missing", () => {
       const page = buildProspectusPageTwo(
         mapProspectusPageTwoDataToInput({
+          financialReferenceDate: new Date(),
           note: baseNote(),
           liveFinancialStatements: null,
           liveCtosFinancials: null,
@@ -818,6 +842,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
     it("maps Stage 1–8 from snapshots and DNA builders", () => {
       const page = buildProspectusPageTwo(
         mapProspectusPageTwoDataToInput({
+          financialReferenceDate: new Date(),
           note: baseNote(),
           liveFinancialStatements,
           liveCtosFinancials,
@@ -836,6 +861,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
 
       const withOfficerSize = buildProspectusPageTwo({
         ...mapProspectusPageTwoDataToInput({
+          financialReferenceDate: new Date(),
           note: baseNote(),
           liveFinancialStatements,
           liveCtosFinancials,
@@ -860,6 +886,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
 
       const withOfficerInvoice = buildProspectusPageTwo({
         ...mapProspectusPageTwoDataToInput({
+          financialReferenceDate: new Date(),
           note: baseNote(),
           liveFinancialStatements,
           liveCtosFinancials,
@@ -893,6 +920,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
 
       const withOfficerTrack = buildProspectusPageTwo({
         ...mapProspectusPageTwoDataToInput({
+          financialReferenceDate: new Date(),
           note: baseNote(),
           liveFinancialStatements,
           liveCtosFinancials,
@@ -929,6 +957,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
 
       const withFinOverrides = buildProspectusPageTwo({
         ...mapProspectusPageTwoDataToInput({
+          financialReferenceDate: new Date(),
           note: baseNote(),
           liveFinancialStatements,
           liveCtosFinancials,
@@ -986,6 +1015,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       for (const rating of ["A-", "AAA", "AA", "BBB", "AA+", "90%"]) {
         const page = buildProspectusPageTwo(
           mapProspectusPageTwoDataToInput({
+            financialReferenceDate: new Date(),
             note: baseNote({
               invoice_snapshot: {
                 details: { value: 100 },
@@ -1011,6 +1041,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       });
       const page = buildProspectusPageTwo(
         mapProspectusPageTwoDataToInput({
+          financialReferenceDate: new Date(),
           note: frozenNote,
           liveFinancialStatements,
           liveCtosFinancials,
@@ -1052,6 +1083,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
     it("keeps Company Size DNA when old issuer snapshot keys are missing", () => {
       const page = buildProspectusPageTwo(
         mapProspectusPageTwoDataToInput({
+          financialReferenceDate: new Date(),
           note: baseNote({
             issuer_snapshot: { name: "Old Issuer" },
           }),
@@ -1072,6 +1104,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
     it("keeps the same static CTA regardless of funded amount or remaining capacity", () => {
       const open = buildProspectusPageTwo(
         mapProspectusPageTwoDataToInput({
+          financialReferenceDate: new Date(),
           note: baseNote({ target_amount: 500_000, funded_amount: 0 }),
           liveFinancialStatements,
           liveCtosFinancials,
@@ -1079,6 +1112,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       );
       const closed = buildProspectusPageTwo(
         mapProspectusPageTwoDataToInput({
+          financialReferenceDate: new Date(),
           note: baseNote({ target_amount: 500_000, funded_amount: 500_000 }),
           liveFinancialStatements,
           liveCtosFinancials,
@@ -1206,6 +1240,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
 
     it("reconstructs frozen Stage 4A without live year reselection", () => {
       const frozen = buildProspectusPage2Snapshot({
+        referenceDate: new Date(),
         financialStatements: {
           questionnaire: { financial_year_end: "2027-12-31" },
           unaudited_by_year: {},

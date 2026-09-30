@@ -86,9 +86,11 @@ jest.mock("../prospectus/prospectus-page-one.html", () => ({
 }));
 jest.mock("../prospectus/prospectus-page-two-prisma", () => ({
   loadProspectusPageTwoData: jest.fn(async () => ({})),
+  loadProspectusPageTwoNote: jest.fn(async () => ({})),
 }));
 jest.mock("../prospectus/prospectus-page-two-mapper", () => ({
   mapProspectusPageTwoDataToInput: jest.fn(() => ({})),
+  mapProspectusPageTwoApprovedInput: jest.fn(() => ({})),
   buildProspectusPageTwo: jest.fn(() => ({
     issuerProfile: { industry: "Construction" },
     invoicePaymaster: {},
@@ -130,6 +132,7 @@ jest.mock("../prospectus/prospectus-page-three-prisma", () => ({
 }));
 jest.mock("../prospectus/prospectus-page-three-mapper", () => ({
   mapProspectusPageThreeDataToInput: jest.fn(() => ({})),
+  mapProspectusPageThreeApprovedInput: jest.fn(() => ({})),
   // Approve validates Page 3 officer rows against resolved income-statement years.
   buildProspectusPageThree: jest.fn(() => ({
     incomeStatement: {

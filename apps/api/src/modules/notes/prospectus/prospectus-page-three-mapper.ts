@@ -3,6 +3,7 @@
  * WHY: Prefer frozen page_2 financial_comparison when published; never live-fallback
  */
 
+import { AppError } from "../../../lib/http/error-handler";
 import { publicationContentFromFrozenSnapshot } from "../prospectus-review/prospectus-frozen-publication";
 import { buildProspectusFinancialComparisonSource } from "./prospectus-financial-comparison-source";
 import {
@@ -26,7 +27,10 @@ import { buildProspectusPageThreeIncomeStatement } from "./prospectus-page-three
 import { buildProspectusPageThreeInvestorTakeaways } from "./prospectus-page-three-investor-takeaways";
 import { buildProspectusPageThreeMetadata } from "./prospectus-page-three-metadata";
 import { buildProspectusPageThreeTrends } from "./prospectus-page-three-trends";
-import type { ProspectusPageThreeLoadedData } from "./prospectus-page-three-prisma";
+import type {
+  ProspectusPageThreeLoadedData,
+  ProspectusPageThreeNoteRecord,
+} from "./prospectus-page-three-prisma";
 import { isProspectusNotePublished } from "./prospectus-page-three-prisma";
 import type {
   ProspectusPageThree,
@@ -46,6 +50,8 @@ export type ProspectusPageThreeBuilderInput = {
   liveFinancialStatements: unknown | null;
   /** Live organization CTOS financials_json — only for unpublished preview. */
   liveCtosFinancials: unknown | null;
+  /** Financial-year selection reference date — required for unpublished preview, else null. */
+  financialReferenceDate: Date | null;
   /** Parsed frozen page_2 Stage 4 — only when published + valid. */
   frozenFinancialComparison: ProspectusPage2FinancialComparisonSnapshot | null;
   /**
@@ -83,9 +89,17 @@ function resolveFinancialComparisonSource(
     return emptyFinancialComparisonSource();
   }
 
+  if (!input.financialReferenceDate) {
+    throw new AppError(
+      500,
+      "PROSPECTUS_FINANCIAL_REFERENCE_DATE_MISSING",
+      "Prospectus preview has no financial reference date"
+    );
+  }
   return buildProspectusFinancialComparisonSource({
     financialStatements: input.liveFinancialStatements,
     ctosFinancials: input.liveCtosFinancials,
+    ref: input.financialReferenceDate,
   });
 }
 
@@ -100,6 +114,7 @@ export function mapProspectusPageThreeDataToInput(
   let frozenFinancialComparison: ProspectusPage2FinancialComparisonSnapshot | null = null;
   let liveFinancialStatements: unknown | null = null;
   let liveCtosFinancials: unknown | null = null;
+  let financialReferenceDate: Date | null = null;
 
   if (isPublished) {
     if (parsedPage2) {
@@ -112,6 +127,7 @@ export function mapProspectusPageThreeDataToInput(
     financialMode = "live_unpublished_preview";
     liveFinancialStatements = data.liveFinancialStatements;
     liveCtosFinancials = data.liveCtosFinancials;
+    financialReferenceDate = data.financialReferenceDate;
   }
 
   return {
@@ -123,11 +139,40 @@ export function mapProspectusPageThreeDataToInput(
     paymasterSnapshot: note.paymaster_snapshot,
     liveFinancialStatements,
     liveCtosFinancials,
+    financialReferenceDate,
     frozenFinancialComparison,
     publicationContent: isPublished
       ? publicationContentFromFrozenSnapshot(note.prospectus_snapshot)
       : undefined,
     marcSnapshot: data.marcSnapshot ?? null,
+  };
+}
+
+/**
+ * Page 3 input for an approved Prospectus: the shared Stage 4 approval freeze whatever the
+ * Note's publish state. Never receives or reads Application / CTOS financials.
+ */
+export function mapProspectusPageThreeApprovedInput(input: {
+  note: ProspectusPageThreeNoteRecord;
+  marcSnapshot: import("@cashsouk/types").MarcAssessmentSnapshot | null;
+  frozenFinancialComparison: ProspectusPage2FinancialComparisonSnapshot;
+  publicationContent: import("./prospectus-placeholder-publication-content").ProspectusPublicationContent;
+}): ProspectusPageThreeBuilderInput {
+  const base = mapProspectusPageThreeDataToInput({
+    note: input.note,
+    liveFinancialStatements: null,
+    liveCtosFinancials: null,
+    financialReferenceDate: null,
+    marcSnapshot: input.marcSnapshot,
+  });
+  return {
+    ...base,
+    financialMode: "frozen_publication_snapshot",
+    liveFinancialStatements: null,
+    liveCtosFinancials: null,
+    financialReferenceDate: null,
+    frozenFinancialComparison: input.frozenFinancialComparison,
+    publicationContent: input.publicationContent,
   };
 }
 

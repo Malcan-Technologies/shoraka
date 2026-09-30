@@ -153,6 +153,7 @@ import {
   decideAdminFinancialFieldEdit,
   adminHistoricalFinancialYearWindow,
   isAdminFinancialReviewEditLocked,
+  isApplicationReviewableStatus,
   parseCtosFinancialStatementRows,
   parseAdminFieldOverrides,
   FINANCIAL_FIELD_LABELS,
@@ -5599,7 +5600,19 @@ export class ApplicationService {
    * Stored at `application.financial_statements.admin_input_by_year[fy]`.
    * Allowed when CTOS has been pulled and does not own that historical FY.
    */
-  private async assertAdminFinancialEditsOpen(applicationId: string): Promise<void> {
+  private async assertAdminFinancialEditsOpen(
+    applicationId: string,
+    applicationStatus: string | null | undefined
+  ): Promise<void> {
+    // Same application boundary as every other review action; checked first so a closed
+    // application reports this reason even when Financial is also approved.
+    if (!isApplicationReviewableStatus(applicationStatus)) {
+      throw new AppError(
+        409,
+        "FINANCIAL_REVIEW_LOCKED",
+        "Financials are read-only because this application is no longer under review."
+      );
+    }
     const review = await prisma.applicationReview.findUnique({
       where: {
         application_id_section: { application_id: applicationId, section: "financial" },
@@ -5644,7 +5657,7 @@ export class ApplicationService {
     });
 
     if (!application) throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
-    await this.assertAdminFinancialEditsOpen(applicationId);
+    await this.assertAdminFinancialEditsOpen(applicationId, application.status);
     if (!application.issuer_organization_id) {
       throw new AppError(400, "INVALID_STATE", "Application has no issuer organization");
     }
@@ -5667,7 +5680,7 @@ export class ApplicationService {
         .map((row) => row.financial_year)
         .filter((year): year is number => year != null && Number.isFinite(year))
     );
-    let eligibleYears = getEligibleAdminInputYears({
+    const eligibleYears = getEligibleAdminInputYears({
       financialStatements: application.financial_statements,
       ctosFinancials: ctosReport?.financialsJson ?? null,
       ref: now,
@@ -5824,7 +5837,7 @@ export class ApplicationService {
     if (!application.financial_statements || typeof application.financial_statements !== "object") {
       throw new AppError(400, "INVALID_STATE", "Application has no financial_statements");
     }
-    await this.assertAdminFinancialEditsOpen(applicationId);
+    await this.assertAdminFinancialEditsOpen(applicationId, application.status);
 
     const now = new Date();
     const ctosReport = await loadApplicationOwnedCtosFinancialReport({

@@ -1,6 +1,6 @@
 /**
  * SECTION: Build / wrap Page 2 publication freeze (Stage 4 financial comparison)
- * WHY: Application financials are live; freeze selected years + raw fields at publish
+ * WHY: Application financials are live; freeze the resolved years (every raw key) at approval
  */
 
 import { decimalToSerializableString } from "../../issuer-dashboard/track-record-aggregates";
@@ -8,15 +8,16 @@ import { asJsonRecord } from "./prospectus-json-guards";
 import { buildProspectusFinancialComparisonSource } from "./prospectus-financial-comparison-source";
 import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types";
 import { PROSPECTUS_SOUKSCORE_SCALE_VERSION } from "./prospectus-soukscore-rating-scale.types";
-import type {
-  ProspectusPage1Snapshot,
-  ProspectusPage2FinancialComparisonSnapshot,
-  ProspectusPage2FinancialRawSnapshot,
-  ProspectusPage2Snapshot,
-  ProspectusSnapshot,
+import {
+  PROSPECTUS_PAGE2_FINANCIAL_FREEZE_VERSION,
+  type ProspectusPage1Snapshot,
+  type ProspectusPage2FinancialComparisonSnapshot,
+  type ProspectusPage2FinancialRawSnapshot,
+  type ProspectusPage2Snapshot,
+  type ProspectusSnapshot,
 } from "./prospectus-snapshot.types";
 
-/** Shared freeze keys for Page 2 Stage 4B + Page 3 Stages 2–4. */
+/** Legacy freeze keys (pre version 2); always present in a freeze, null when absent. */
 const RAW_KEYS = [
   "turnover",
   "plnpat",
@@ -48,47 +49,46 @@ function serializeRawField(value: unknown): string | number | null {
   return decimalToSerializableString(value);
 }
 
-function pickRawFinancials(raw: Record<string, unknown>): ProspectusPage2FinancialRawSnapshot {
-  return {
-    turnover: serializeRawField(raw.turnover),
-    plnpat: serializeRawField(raw.plnpat),
-    bsqpuc: serializeRawField(raw.bsqpuc),
-    bscatot: serializeRawField(raw.bscatot),
-    curlib: serializeRawField(raw.curlib),
-    plnpbt: serializeRawField(raw.plnpbt),
-    bsfatot: serializeRawField(raw.bsfatot),
-    othass: serializeRawField(raw.othass),
-    bsclbank: serializeRawField(raw.bsclbank),
-    bsslltd: serializeRawField(raw.bsslltd),
-    bsclstd: serializeRawField(raw.bsclstd),
-    totass: serializeRawField(raw.totass),
-    totlib: serializeRawField(raw.totlib),
-    networth: serializeRawField(raw.networth),
-    profit_margin: serializeRawField(raw.profit_margin),
-    return_on_equity: serializeRawField(raw.return_on_equity),
-    currat: serializeRawField(raw.currat),
-    gear: serializeRawField(raw.gear),
-  };
+const LEGACY_RAW_KEY_SET: ReadonlySet<string> = new Set(RAW_KEYS);
+
+/**
+ * Freeze every key of one resolved year: the 18 legacy keys first (null when absent, so old
+ * readers keep working), then every other key the resolver produced.
+ * WHY: Page 2 / Page 3 read derived keys (ebit, dscr, cashAndBank, …); a hand-picked list drops
+ * them and the frozen render shows "Data not available".
+ */
+function freezeRawFinancials(raw: Record<string, unknown>): ProspectusPage2FinancialRawSnapshot {
+  const keys = [...RAW_KEYS, ...Object.keys(raw).filter((key) => !LEGACY_RAW_KEY_SET.has(key))];
+  // fromEntries defines own data properties, so no key can reach the object prototype.
+  return Object.fromEntries(
+    keys.map((key) => [key, serializeRawField(raw[key])])
+  ) as ProspectusPage2FinancialRawSnapshot;
 }
 
 /**
- * Freeze Stage 4 year selection + raw canonical fields from normalized financials.
+ * Freeze Stage 4 (version 2): the resolved years with every raw key, statement type, source
+ * footer and missing-year state — everything Page 2 / Page 3 need to render without live data.
  * Missing financials → valid empty selected_years (publication still succeeds).
+ * `now` stamps calculated_at; `referenceDate` drives year selection (the Note's financial
+ * reference date, not the freeze time).
  */
 export function buildProspectusPage2FinancialComparisonSnapshot(input: {
   financialStatements: unknown;
   ctosFinancials?: unknown;
+  referenceDate: Date;
   now?: Date;
 }): ProspectusPage2FinancialComparisonSnapshot {
   const now = input.now ?? new Date();
   const source = buildProspectusFinancialComparisonSource({
     financialStatements: input.financialStatements,
     ctosFinancials: input.ctosFinancials,
-    ref: now,
+    ref: input.referenceDate,
   });
 
   return {
     source: "admin_financial_statements_normalized",
+    freeze_version: PROSPECTUS_PAGE2_FINANCIAL_FREEZE_VERSION,
+    reference_date: input.referenceDate.toISOString(),
     selected_years: source.years.map((year) => ({
       year: year.year,
       year_label: year.yearLabel,
@@ -98,16 +98,20 @@ export function buildProspectusPage2FinancialComparisonSnapshot(input: {
           : year.financialYearEndLabel,
       financial_year_end_iso: year.financialYearEndIso,
       record_source: year.recordSource,
-      raw_financials: pickRawFinancials(year.rawFinancials),
+      statement_type: year.statementType,
+      raw_financials: freezeRawFinancials(year.rawFinancials),
     })),
     source_footer: source.sourceFooter,
     calculated_at: now.toISOString(),
+    missing_ssm_unaudited_years: [...source.missingSsmUnauditedYears],
+    ops_warning: source.opsWarning,
   };
 }
 
 export function buildProspectusPage2Snapshot(input: {
   financialStatements: unknown;
   ctosFinancials?: unknown;
+  referenceDate: Date;
   now?: Date;
 }): ProspectusPage2Snapshot {
   return {

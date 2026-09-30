@@ -43,6 +43,18 @@ jest.mock("./prospectus-approved-snapshot", () => {
   };
 });
 
+// Approve builds Page 2 / 3 from the frozen page_2; page rendering itself is not under test.
+jest.mock("./prospectus-approved-render", () => {
+  const actual = jest.requireActual("./prospectus-approved-render");
+  return {
+    ...actual,
+    buildApprovedFinancialPages: jest.fn(async () => ({
+      page2: {},
+      page3: { incomeStatement: { years: [{ year: 2022 }, { year: 2023 }, { year: 2024 }] } },
+    })),
+  };
+});
+
 jest.mock("../prospectus/prospectus-page-one-prisma", () => ({
   loadProspectusPageOneNote: jest.fn(async () => ({ id: "note-1" })),
 }));
@@ -236,7 +248,19 @@ describe("prospectus workflow transitions", () => {
       render_fingerprint: "fp-1",
       calculated_at: "2026-07-19T10:00:00.000Z",
       page_1: { issuer_track_record: {}, historical_notes: [] },
-      page_2: {},
+      // Approve renders Page 2 / 3 from this freeze, so it must parse (version 2, no years).
+      page_2: {
+        financial_comparison: {
+          source: "admin_financial_statements_normalized",
+          freeze_version: 2,
+          reference_date: "2026-07-19T10:00:00.000Z",
+          selected_years: [],
+          source_footer: "Source: Financial Statements",
+          calculated_at: "2026-07-19T10:00:00.000Z",
+          missing_ssm_unaudited_years: [],
+          ops_warning: null,
+        },
+      },
       publication_content: {},
       note_identity: {},
       html: { page1: "<p>p1</p>", page2: "<p>p2</p>", page3: "<p>p3</p>" },

@@ -5,9 +5,9 @@
 
 import { NoteStatus, type PrismaClient } from "@prisma/client";
 import { AppError } from "../../../lib/http/error-handler";
-import { loadApplicationOwnedCtosFinancialReport } from "../../applications/application-owned-ctos";
 import { isProspectusNotePublished } from "./prospectus-page-one-prisma";
 import { resolveMarcSnapshotForProspectus } from "./prospectus-marc-snapshot";
+import { loadProspectusNoteFinancialInputs } from "./prospectus-note-financial-inputs";
 
 export { isProspectusNotePublished };
 
@@ -21,6 +21,8 @@ export const PROSPECTUS_PAGE_THREE_NOTE_SELECT = {
   invoice_snapshot: true,
   paymaster_snapshot: true,
   prospectus_snapshot: true,
+  financial_snapshot: true,
+  created_at: true,
 } as const;
 
 export type ProspectusPageThreeNoteRecord = {
@@ -33,20 +35,25 @@ export type ProspectusPageThreeNoteRecord = {
   invoice_snapshot: unknown;
   paymaster_snapshot: unknown;
   prospectus_snapshot: unknown;
+  financial_snapshot: unknown;
+  created_at: Date;
 };
 
 export type ProspectusPageThreeLoadedData = {
   note: ProspectusPageThreeNoteRecord;
   /**
-   * Live Application financial_statements for unpublished preview only.
+   * Application financial_statements for unpublished preview only: the Note financial snapshot
+   * when present, else the live Application (legacy Note).
    * Null when published (must not be used) or when Application is missing.
    */
   liveFinancialStatements: unknown | null;
   /**
-   * Live organization CTOS financials_json for unpublished preview only.
-   * Same source as Admin Financial Statements / Page 2 Stage 4.
+   * Application-owned CTOS financials_json for unpublished preview only: the Note financial
+   * snapshot when present, else live (legacy Note). Same source as Page 2 Stage 4.
    */
   liveCtosFinancials: unknown | null;
+  /** Financial-year selection reference date; null only when published (frozen years are used). */
+  financialReferenceDate: Date | null;
   marcSnapshot?: import("@cashsouk/types").MarcAssessmentSnapshot | null;
 };
 
@@ -67,8 +74,8 @@ export async function loadProspectusPageThreeNote(
 }
 
 /**
- * Load Note + optional live Application financials + CTOS for unpublished preview.
- * Published Notes never receive live financial statements from this loader.
+ * Load Note + financial inputs (Note financial snapshot, else live Application + owned CTOS)
+ * for unpublished preview. Published Notes never receive financial inputs from this loader.
  */
 export async function loadProspectusPageThreeData(
   db: PrismaClient,
@@ -79,27 +86,22 @@ export async function loadProspectusPageThreeData(
   const marcSnapshot = await resolveMarcSnapshotForProspectus(note);
 
   if (published) {
-    return { note, liveFinancialStatements: null, liveCtosFinancials: null, marcSnapshot };
+    return {
+      note,
+      liveFinancialStatements: null,
+      liveCtosFinancials: null,
+      financialReferenceDate: null,
+      marcSnapshot,
+    };
   }
 
-  if (!note.source_application_id) {
-    return { note, liveFinancialStatements: null, liveCtosFinancials: null, marcSnapshot };
-  }
-
-  const application = await db.application.findUnique({
-    where: { id: note.source_application_id },
-    select: { financial_statements: true, submitted_at: true },
-  });
-  const ctosReport = await loadApplicationOwnedCtosFinancialReport({
-    db,
-    issuerOrganizationId: note.issuer_organization_id,
-    submittedAt: application?.submitted_at ?? null,
-  });
+  const financialInputs = await loadProspectusNoteFinancialInputs({ db, note });
 
   return {
     note,
-    liveFinancialStatements: application?.financial_statements ?? null,
-    liveCtosFinancials: ctosReport?.financialsJson ?? null,
+    liveFinancialStatements: financialInputs.financialStatements,
+    liveCtosFinancials: financialInputs.ctosFinancials,
+    financialReferenceDate: financialInputs.referenceDate,
     marcSnapshot,
   };
 }

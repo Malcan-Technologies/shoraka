@@ -123,6 +123,7 @@ export const SAMPLE_PROSPECTUS_PAGE_TWO_INPUT: ProspectusPageTwoBuilderInput = {
   maturityDate: new Date("2026-12-31T00:00:00.000Z"),
   liveFinancialStatements: null,
   liveCtosFinancials: null,
+  financialReferenceDate: null,
   frozenFinancialComparison: SAMPLE_FROZEN_FINANCIALS,
   publicationContent: PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT,
 };

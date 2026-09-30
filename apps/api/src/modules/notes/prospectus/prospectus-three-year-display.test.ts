@@ -134,6 +134,7 @@ describe("Prospectus page builders + freeze", () => {
 
   it("Page 2 and Page 3 share the same three display years for one real year", () => {
     const page2 = buildProspectusPageTwo({
+      financialReferenceDate: new Date(),
       noteId: "n1",
       noteReference: "N-1",
       isPublished: false,
@@ -147,6 +148,7 @@ describe("Prospectus page builders + freeze", () => {
       frozenFinancialComparison: null,
     });
     const page3 = buildProspectusPageThree({
+      financialReferenceDate: new Date(),
       noteId: "n1",
       isPublished: false,
       financialMode: "live_unpublished_preview",
@@ -234,6 +236,7 @@ describe("Prospectus page builders + freeze", () => {
     };
 
     const page2 = buildProspectusPageTwo({
+      financialReferenceDate: null,
       noteId: "n-gap",
       noteReference: "N-GAP",
       isPublished: true,
@@ -247,6 +250,7 @@ describe("Prospectus page builders + freeze", () => {
       frozenFinancialComparison: frozenGap,
     });
     const page3 = buildProspectusPageThree({
+      financialReferenceDate: null,
       noteId: "n-gap",
       isPublished: true,
       financialMode: "frozen_publication_snapshot",
@@ -287,6 +291,7 @@ describe("Prospectus page builders + freeze", () => {
 
   it("freeze snapshot stores only real years, not display placeholders", () => {
     const snap = buildProspectusPage2FinancialComparisonSnapshot({
+      referenceDate: new Date("2026-07-01T00:00:00.000Z"),
       financialStatements: liveFs,
       ctosFinancials: null,
       now: new Date("2026-07-01T00:00:00.000Z"),

@@ -393,7 +393,8 @@ describe("prospectus approved preview uses frozen Page 1 snapshot", () => {
       publication_id: "pub-1",
       content_version: 1,
       calculated_at: new Date().toISOString(),
-      html: { page1: "", page2: "", page3: "" },
+      // Approve always stores Page 2 / 3 HTML; publish keeps it unchanged.
+      html: { page1: "", page2: "<p>approved p2</p>", page3: "<p>approved p3</p>" },
     };
 
     const result = await service.generateFinalProspectusPdfForPublish({

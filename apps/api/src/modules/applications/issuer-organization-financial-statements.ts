@@ -2,8 +2,6 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { logger } from "../../lib/logger";
 import { financialStatementsV2StoredSchema, type FinancialStatementsV2Stored } from "./schemas";
-// TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-import { prospectusDiag } from "../notes/prospectus-review/prospectus-diagnostics";
 
 type FinancialStatementClient = typeof prisma | Prisma.TransactionClient;
 
@@ -129,37 +127,15 @@ export async function upsertLatestOrganizationFinancialStatementsFromApplication
 export async function mergeApplicationAdminFinancialSupplementsIntoOrg(params: {
   applicationId: string;
   db?: FinancialStatementClient;
-  // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-  /** Set only by Prospectus approve; other callers stay silent. */
-  diagSource?: { noteId: string };
 }): Promise<void> {
   const { applicationId, db = prisma } = params;
-  // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-  const diagNoteId = params.diagSource?.noteId ?? null;
-  const diag: typeof prospectusDiag = (event, build, raw) => {
-    if (params.diagSource) prospectusDiag(event, build, raw);
-  };
   const application = await db.application.findUnique({
     where: { id: applicationId },
     select: { issuer_organization_id: true, financial_statements: true },
   });
   const issuerOrganizationId = application?.issuer_organization_id;
   const financialStatements = application?.financial_statements;
-  if (!issuerOrganizationId || !isPlainObject(financialStatements)) {
-    // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-    diag("prospectus.approve.post_merge.end", () => ({
-      noteId: diagNoteId,
-      applicationId,
-      skipped: true,
-      wrote: false,
-      reason: !application
-        ? "application not found"
-        : !issuerOrganizationId
-          ? "application has no issuer organization"
-          : "application.financial_statements is not an object",
-    }));
-    return;
-  }
+  if (!issuerOrganizationId || !isPlainObject(financialStatements)) return;
 
   const adminInput = isPlainObject(financialStatements.admin_input_by_year)
     ? financialStatements.admin_input_by_year
@@ -167,46 +143,13 @@ export async function mergeApplicationAdminFinancialSupplementsIntoOrg(params: {
   const fieldOverrides = isPlainObject(financialStatements.admin_field_overrides)
     ? financialStatements.admin_field_overrides
     : null;
-  if (!adminInput && !fieldOverrides) {
-    // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-    diag("prospectus.approve.post_merge.end", () => ({
-      noteId: diagNoteId,
-      applicationId,
-      issuerOrganizationId,
-      skipped: true,
-      wrote: false,
-      reason: "application has no admin_input_by_year or admin_field_overrides",
-      applicationFinancialStatementKeys: Object.keys(financialStatements).sort(),
-    }));
-    return;
-  }
+  if (!adminInput && !fieldOverrides) return;
 
   const existing = await db.issuerOrganizationFinancialStatement.findUnique({
     where: { issuer_organization_id: issuerOrganizationId },
     select: { financial_statements: true },
   });
   const current = isPlainObject(existing?.financial_statements) ? existing.financial_statements : {};
-  // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-  diag(
-    "prospectus.approve.post_merge.start",
-    () => ({
-      noteId: diagNoteId,
-      applicationId,
-      issuerOrganizationId,
-      orgRowExists: existing != null,
-      hasAdminInputByYear: adminInput != null,
-      hasAdminFieldOverrides: fieldOverrides != null,
-      adminInputYears: adminInput ? Object.keys(adminInput).sort() : [],
-      adminFieldOverrideKeys: fieldOverrides ? Object.keys(fieldOverrides).sort() : [],
-      // This table is not a fingerprint input (the fingerprint reads application.financial_statements).
-      writesTable: "issuer_organization_financial_statements",
-    }),
-    () => ({
-      sourceAdminInputByYear: adminInput,
-      sourceAdminFieldOverrides: fieldOverrides,
-      currentOrgFinancialStatements: existing?.financial_statements ?? null,
-    })
-  );
   const merged: Record<string, unknown> = { ...current };
   if (adminInput) {
     const currentAdmin = isPlainObject(current.admin_input_by_year) ? current.admin_input_by_year : {};
@@ -219,37 +162,6 @@ export async function mergeApplicationAdminFinancialSupplementsIntoOrg(params: {
     merged.admin_field_overrides = { ...currentOverrides, ...fieldOverrides };
   }
 
-  // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-  diag(
-    "prospectus.approve.post_merge.changes",
-    () => {
-      const describe = (section: "admin_input_by_year" | "admin_field_overrides") => {
-        const before = isPlainObject(current[section]) ? current[section] : {};
-        const after = isPlainObject(merged[section]) ? merged[section] : {};
-        const inserted: string[] = [];
-        const updated: string[] = [];
-        for (const key of Object.keys(after)) {
-          if (!(key in before)) inserted.push(key);
-          else if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) updated.push(key);
-        }
-        return { inserted: inserted.sort(), updated: updated.sort() };
-      };
-      return {
-        noteId: diagNoteId,
-        applicationId,
-        issuerOrganizationId,
-        operation: existing != null ? "update" : "insert",
-        adminInputByYear: describe("admin_input_by_year"),
-        adminFieldOverrides: describe("admin_field_overrides"),
-      };
-    },
-    () => ({
-      beforeAdminInputByYear: current.admin_input_by_year ?? null,
-      afterAdminInputByYear: merged.admin_input_by_year ?? null,
-      beforeAdminFieldOverrides: current.admin_field_overrides ?? null,
-      afterAdminFieldOverrides: merged.admin_field_overrides ?? null,
-    })
-  );
   await db.issuerOrganizationFinancialStatement.upsert({
     where: { issuer_organization_id: issuerOrganizationId },
     create: {
@@ -262,13 +174,4 @@ export async function mergeApplicationAdminFinancialSupplementsIntoOrg(params: {
       source_application_id: applicationId,
     },
   });
-  // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-  diag("prospectus.approve.post_merge.end", () => ({
-    noteId: diagNoteId,
-    applicationId,
-    issuerOrganizationId,
-    skipped: false,
-    wrote: true,
-    orgRowExisted: existing != null,
-  }));
 }

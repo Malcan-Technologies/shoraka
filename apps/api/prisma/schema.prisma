@@ -1265,6 +1265,7 @@ model Note {
   paymaster_snapshot              Json?
   contract_snapshot               Json?
   invoice_snapshot                Json?
+  financial_snapshot              Json?
   requested_amount                Decimal                     @db.Decimal(18, 6)
   target_amount                   Decimal                     @db.Decimal(18, 6)
   funded_amount                   Decimal                     @default(0) @db.Decimal(18, 6)

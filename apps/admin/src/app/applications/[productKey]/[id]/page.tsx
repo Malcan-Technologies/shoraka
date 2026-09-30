@@ -83,9 +83,11 @@ import {
   getOfferAcceptanceFromOfferDetails,
   buildOriginationPhaseInput,
   canRejectApplication,
+  isApplicationReviewableStatus,
   isCompletedWithNoApprovedInvoices,
   isPaymasterSwitchingFrozen,
   resolveOriginationPhase,
+  resolveEffectiveReviewSectionStatus,
   readInvoiceProductRules,
   readContractProductRules,
   readProductLimitViolationMessage,
@@ -211,21 +213,7 @@ export default function DynamicApplicationDetailPage() {
   const addPendingAmendment = useAddPendingAmendment();
   const approveItem = useApproveReviewItem();
   const rejectItem = useRejectReviewItem();
-  const REVIEWABLE_STATUSES = [
-    "SUBMITTED",
-    "UNDER_REVIEW",
-    "CONTRACT_PENDING",
-    "CONTRACT_SENT",
-    "CONTRACT_ACCEPTED",
-    "INVOICE_ACCEPTED",
-    "SIGNING_PENDING",
-    "INVOICE_PENDING",
-    "INVOICES_SENT",
-    "RESUBMITTED",
-    "AMENDMENT_REQUESTED",
-    "OFFER_EXPIRED",
-  ];
-  const isReviewable = !!app && REVIEWABLE_STATUSES.includes(app.status);
+  const isReviewable = !!app && isApplicationReviewableStatus(app.status);
   const requestAmendmentReviewItem = useRequestAmendmentReviewItem();
   const addSectionComment = useAddSectionComment();
   const { data: pendingAmendments = [] } = useListPendingAmendments(applicationId, {
@@ -530,16 +518,14 @@ export default function DynamicApplicationDetailPage() {
         orderedSections.push(review.section);
       }
     }
-    const baseSections = orderedSections.map((section) => {
-      let status = reviewSectionStatusMap.get(section) ?? "PENDING";
-      if (section === "contract_details" && isExistingContract) {
-        status = "APPROVED";
-      }
-      if (section === "acceptance_documents" && isExistingContract) {
-        status = "APPROVED";
-      }
-      return { section, status };
-    });
+    const baseSections = orderedSections.map((section) => ({
+      section,
+      status: resolveEffectiveReviewSectionStatus({
+        section,
+        structureType: isExistingContract ? "existing_contract" : null,
+        reviewStatus: reviewSectionStatusMap.get(section),
+      }),
+    }));
 
     const sectionWithAmendmentFromItems = new Set<string>();
     for (const item of reviewItems) {

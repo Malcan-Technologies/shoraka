@@ -49,6 +49,8 @@ function baseNote(
       name: "Kementerian Kerja Raya",
     },
     prospectus_snapshot: null,
+    financial_snapshot: null,
+    created_at: new Date("2026-01-01T00:00:00.000Z"),
     ...overrides,
   };
 }
@@ -130,6 +132,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
   describe("shared snapshot extension", () => {
     it("freezes original and extended raw keys without formatted or narrative content", () => {
       const page2 = buildProspectusPage2Snapshot({
+        referenceDate: new Date(),
         financialStatements: liveFinancialStatements,
         ctosFinancials: liveCtosFinancials,
       });
@@ -173,6 +176,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
 
     it("merges page_2 without creating page_3 financial_comparison or dropping unknown branches", () => {
       const page2 = buildProspectusPage2Snapshot({
+        referenceDate: new Date(),
         financialStatements: liveFinancialStatements,
         ctosFinancials: liveCtosFinancials,
       });
@@ -203,6 +207,8 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
         invoice_snapshot: true,
         paymaster_snapshot: true,
         prospectus_snapshot: true,
+        financial_snapshot: true,
+        created_at: true,
       });
       expect(JSON.stringify(PROSPECTUS_PAGE_THREE_NOTE_SELECT)).not.toContain("ctos");
       expect(PROSPECTUS_PAGE_THREE_NOTE_SELECT).not.toHaveProperty("issuer_organization");
@@ -230,6 +236,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
   describe("published vs unpublished mapping", () => {
     it("uses frozen page_2 financials for published Notes and ignores live Application data", () => {
       const frozen = buildProspectusPage2Snapshot({
+        referenceDate: new Date(),
         financialStatements: liveFinancialStatements,
         ctosFinancials: liveCtosFinancials,
       }).financial_comparison;
@@ -240,6 +247,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
         },
       };
       const data: ProspectusPageThreeLoadedData = {
+        financialReferenceDate: null,
         note: baseNote({
           status: NoteStatus.PUBLISHED,
           published_at: new Date("2026-07-01T00:00:00.000Z"),
@@ -265,6 +273,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
     it("does not live-fallback when published snapshot is missing or malformed", () => {
       const missing = buildProspectusPageThree(
         mapProspectusPageThreeDataToInput({
+          financialReferenceDate: null,
           note: baseNote({
             status: NoteStatus.PUBLISHED,
             published_at: new Date(),
@@ -281,6 +290,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
 
       const malformed = buildProspectusPageThree(
         mapProspectusPageThreeDataToInput({
+          financialReferenceDate: null,
           note: baseNote({
             status: NoteStatus.PUBLISHED,
             published_at: new Date(),
@@ -299,6 +309,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
     it("uses live Application Stage 4A source for unpublished Notes", () => {
       const page = buildProspectusPageThree(
         mapProspectusPageThreeDataToInput({
+          financialReferenceDate: new Date(),
           note: baseNote(),
           liveFinancialStatements,
           liveCtosFinancials,
@@ -332,6 +343,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(parsed).not.toBeNull();
 
       const page = buildProspectusPageThree({
+        financialReferenceDate: null,
         noteId: "old",
         isPublished: true,
         financialMode: "frozen_publication_snapshot",
@@ -395,6 +407,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
 
       const invalid = buildProspectusPageThree({
         ...mapProspectusPageThreeDataToInput({
+          financialReferenceDate: new Date(),
           note: baseNote({
             invoice_snapshot: { offer_details: { risk_rating: "AAA" } },
           }),
@@ -452,6 +465,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
 
       const prismaPath = buildProspectusPageThree(
         mapProspectusPageThreeDataToInput({
+          financialReferenceDate: new Date(),
           note: baseNote(),
           liveFinancialStatements,
           liveCtosFinancials,

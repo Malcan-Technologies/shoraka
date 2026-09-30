@@ -180,6 +180,7 @@ describe("buildProspectusIncomeTrendInsight", () => {
 describe("Page 3 income trend insight HTML", () => {
   it("always renders the card below the Income Statement table with one message", () => {
     const page = buildProspectusPageThree({
+      financialReferenceDate: new Date(),
       noteId: "insight-render-1",
       isPublished: false,
       financialMode: "live_unpublished_preview",
@@ -249,6 +250,7 @@ describe("Page 3 income trend insight HTML", () => {
   it("renders negative tone class for both-down and neutral for insufficient data", () => {
     const decline = buildProspectusPageThreeHtml(
       buildProspectusPageThree({
+        financialReferenceDate: new Date(),
         noteId: "insight-tone-down",
         isPublished: false,
         financialMode: "live_unpublished_preview",
@@ -293,6 +295,7 @@ describe("Page 3 income trend insight HTML", () => {
 
     const insufficient = buildProspectusPageThreeHtml(
       buildProspectusPageThree({
+        financialReferenceDate: new Date(),
         noteId: "insight-tone-missing",
         isPublished: false,
         financialMode: "live_unpublished_preview",
@@ -328,6 +331,7 @@ describe("Page 3 income trend insight HTML", () => {
 
   it("freezes the insight message and tone class in published HTML and ignores later live financial changes", () => {
     const frozen = buildProspectusPage2Snapshot({
+      referenceDate: new Date("2026-08-02T00:00:00.000Z"),
       financialStatements: {
         questionnaire: { financial_year_end: "2027-12-31" },
         unaudited_by_year: {},
@@ -353,6 +357,7 @@ describe("Page 3 income trend insight HTML", () => {
     }).financial_comparison;
 
     const published = buildProspectusPageThree({
+      financialReferenceDate: null,
       noteId: "insight-freeze-1",
       isPublished: true,
       financialMode: "frozen_publication_snapshot",

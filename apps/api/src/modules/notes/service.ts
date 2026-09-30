@@ -26,14 +26,6 @@ import { randomBytes } from "node:crypto";
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
-// TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-import {
-  getProspectusDisplayStatus,
-  isNoteProspectusPublished,
-  normalizeProspectusWorkflowStatus,
-} from "@cashsouk/types";
-// TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-import { prospectusDiag } from "./prospectus-review/prospectus-diagnostics";
 import { loadUserDisplayNameMap } from "../../lib/user-display-name";
 import { buildPaymasterSnapshot } from "../paymaster/snapshot";
 import { isExecutionPackCompleteForNote } from "../paymaster/service";
@@ -177,6 +169,8 @@ import {
   resolveIssuerIndustryFromCorporateData,
 } from "./note-issuer-snapshot";
 import { noteInclude, noteRepository } from "./repository";
+import { buildNoteFinancialSnapshot } from "./note-financial-snapshot";
+import { loadApplicationReviewApproval } from "../admin/review-section-approval";
 import {
   AUDIT_PORTAL,
   AUDIT_SOURCE,
@@ -1836,61 +1830,6 @@ export class NoteService {
     ]);
     const mapped = await mapNoteDetail(note, { withdrawals });
 
-    // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-    prospectusDiag("prospectus.note_detail.raw", () => ({
-      noteId: id,
-      noteReference: note.note_reference,
-      noteStatus: note.status,
-      notePublishedAt: note.published_at?.toISOString?.() ?? null,
-      hasReviewRow: note.prospectus_review != null,
-      rawReviewStatus: note.prospectus_review?.status ?? null,
-      reviewUpdatedAt: note.prospectus_review?.updated_at?.toISOString?.() ?? null,
-      reviewContentVersion: note.prospectus_review?.content_version ?? null,
-      reviewApprovedAt: note.prospectus_review?.approved_at?.toISOString?.() ?? null,
-      approvedPublicationId: note.prospectus_review?.approved_publication_id ?? null,
-    }));
-    const diagProspectusMapping = () => {
-      const rawStatus = note.prospectus_review?.status ?? null;
-      const notePublished = isNoteProspectusPublished({
-        status: note.status,
-        publishedAt: note.published_at,
-      });
-      const normalizedWorkflowStatus = normalizeProspectusWorkflowStatus(rawStatus ?? "DRAFT");
-      const displayStatus = getProspectusDisplayStatus({
-        reviewStatus: rawStatus ?? "DRAFT",
-        notePublished,
-      });
-      const dtoStatus = mapped.prospectus?.status ?? null;
-      return {
-        noteId: id,
-        rawStatus,
-        notePublished,
-        normalizedWorkflowStatus,
-        displayStatus,
-        dtoStatus,
-        dtoDisplayStatus: mapped.prospectus?.displayStatus ?? null,
-        recomputedMappingAgreesWithDto: displayStatus === (mapped.prospectus?.displayStatus ?? null),
-        readyForPublishPreserved: rawStatus !== "READY_FOR_PUBLISH" || dtoStatus !== "DRAFT",
-        // Note detail returns no publishBlockedReason or action visibility. The admin client
-        // treats DTO status APPROVED / READY_FOR_PUBLISH as publishable (note-lifecycle-actions.ts).
-        publishBlockedReason: null,
-        publishEligibleByProspectusStatus:
-          dtoStatus === "APPROVED" || dtoStatus === "READY_FOR_PUBLISH",
-      };
-    };
-    prospectusDiag("prospectus.note_detail.mapping", diagProspectusMapping);
-    prospectusDiag("prospectus.status_mapping", () => ({
-      site: "api.getAdminNoteDetail",
-      ...diagProspectusMapping(),
-    }));
-    prospectusDiag("prospectus.note_detail.response_summary", () => ({
-      noteId: id,
-      noteStatus: mapped.status,
-      publishedAt: mapped.publishedAt ?? null,
-      prospectus: mapped.prospectus ?? null,
-      hasProspectusSnapshot: mapped.prospectusSnapshot != null,
-    }));
-
     return {
       ...mapped,
       trusteeAutoSendEmailEnabled,
@@ -2679,6 +2618,27 @@ export class NoteService {
     const existing = await noteRepository.findBySource(application.id, invoice.id);
     if (existing) return await mapNoteDetail(existing);
 
+    // Both creation paths land here. Review state is frozen once the application is COMPLETED.
+    const reviewApproval = await loadApplicationReviewApproval(prisma, application.id);
+    if (!reviewApproval) {
+      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    }
+    if (reviewApproval.status !== ApplicationStatus.COMPLETED) {
+      throw new AppError(
+        409,
+        "APPLICATION_NOT_COMPLETED",
+        "Only completed applications can become notes"
+      );
+    }
+    if (reviewApproval.unapprovedRequiredSections.length > 0) {
+      throw new AppError(
+        409,
+        "REVIEW_SECTIONS_NOT_APPROVED",
+        "All required review sections must be approved before creating a note.",
+        { sections: reviewApproval.unapprovedRequiredSections }
+      );
+    }
+
     const invoiceDetails = asRecord(invoice.details) ?? {};
     const invoiceOffer = asRecord(invoice.offer_details) ?? {};
     const tenureDays = resolveFinancingTenureDays(invoice.offer_details, invoice.details);
@@ -2779,11 +2739,19 @@ export class NoteService {
       application,
     });
 
+    // The application is COMPLETED (checked above), so its financials are frozen: build the
+    // snapshot outside the transaction and only write it there with the Note.
+    const noteCreatedAt = new Date();
+    const financialSnapshot = await buildNoteFinancialSnapshot({
+      db: prisma,
+      applicationId: application.id,
+      capturedAt: noteCreatedAt,
+    });
+
     const note = await prisma
       .$transaction(async (tx) => {
         await assertSourceFacilityEnabled(tx, sourceFacilityId);
         const noteId = generateNoteEntityId();
-        const noteCreatedAt = new Date();
         const canonicalReference = await allocateDisplayReference(
           {
             moduleCode: "NOTE",
@@ -2821,6 +2789,7 @@ export class NoteService {
               product_code: productCode,
             }),
             purpose_snapshot: purposeSnapshot ? json(purposeSnapshot) : undefined,
+            financial_snapshot: json(financialSnapshot),
             contract_snapshot: json(
               sourceContract
                 ? {
@@ -3187,17 +3156,6 @@ export class NoteService {
         },
         data: { status: ProspectusReviewStatus.PUBLISHED },
       });
-      // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-      prospectusDiag("prospectus.publish.review_written", () => ({
-        noteId: id,
-        reviewId,
-        publicationId,
-        requiredStatus: ProspectusReviewStatus.READY_FOR_PUBLISH,
-        targetStatus: ProspectusReviewStatus.PUBLISHED,
-        rowsUpdated: reviewUpdate.count,
-        actorUserId: actor.userId,
-        correlationId: actor.correlationId ?? null,
-      }));
       if (reviewUpdate.count !== 1) {
         throw new AppError(
           409,
@@ -3669,18 +3627,6 @@ export class NoteService {
           render_fingerprint: finalization.updatedSnapshot.render_fingerprint,
         },
       });
-      // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-      prospectusDiag("prospectus.extend_listing.review_written", () => ({
-        noteId: id,
-        reviewId: review.id,
-        statusUnchanged: review.status,
-        previousPublicationId: review.approved_publication_id,
-        publicationId: newPublicationId,
-        previousContentVersion: review.content_version,
-        contentVersion: nextContentVersion,
-        previousFingerprint: review.render_fingerprint,
-        renderFingerprint: finalization.updatedSnapshot.render_fingerprint,
-      }));
 
       const result = await tx.note.findUniqueOrThrow({ where: { id }, include: noteInclude });
       await this.logAdminAction(

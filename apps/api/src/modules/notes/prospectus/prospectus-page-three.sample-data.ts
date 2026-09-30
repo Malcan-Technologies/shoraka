@@ -76,6 +76,7 @@ export const SAMPLE_PROSPECTUS_PAGE_THREE_INPUT: ProspectusPageThreeBuilderInput
       return_on_equity: year.year === 2022 ? 60 : year.year === 2023 ? 68.18 : 75,
     },
   })),
+  financialReferenceDate: new Date("2026-07-17T00:00:00.000Z"),
   frozenFinancialComparison: null,
   publicationContent: PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT,
 };

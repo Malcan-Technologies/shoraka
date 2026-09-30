@@ -21,12 +21,6 @@ import { shorakaStpService } from "../shoraka-stp/shoraka-stp-service";
 import { registerNoteAssignmentNoticeRoutes } from "../paymaster/controller";
 import { listGatewayPaymentsQuerySchema } from "../payment/admin-schemas";
 import { listGatewayPayments } from "../payment/admin-service";
-// TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-import {
-  prospectusDiag,
-  prospectusDiagError,
-  runProspectusDiag,
-} from "./prospectus-review/prospectus-diagnostics";
 import {
   applicationIdParamSchema,
   bucketAccountParamSchema,
@@ -73,19 +67,6 @@ import {
   extendNoteListingSchema,
   disbursementValueDateBodySchema,
 } from "./schemas";
-
-// TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-function prospectusDiagContext(req: Request, res: Response, noteId: string, operation: string) {
-  return {
-    correlationId: res.locals.correlationId as string | undefined,
-    requestId: (req as Request & { id?: unknown }).id,
-    actorUserId: req.user?.user_id,
-    method: req.method,
-    route: `${req.baseUrl}${req.route?.path ?? ""}`,
-    noteId,
-    operation,
-  };
-}
 
 function getActor(req: Request, res: Response, portal: string) {
   if (!req.user?.user_id) {
@@ -284,13 +265,7 @@ adminNotesRouter.get(
   async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
-    // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-    send(
-      res,
-      await runProspectusDiag(prospectusDiagContext(req, res, id, "note_detail"), () =>
-        noteService.getAdminNoteDetail(id)
-      )
-    );
+    send(res, await noteService.getAdminNoteDetail(id));
   } catch (error) {
     next(error);
   }
@@ -360,16 +335,8 @@ adminNotesRouter.get(
     try {
       const { id } = idParamSchema.parse(req.params);
       const { prospectusReviewService } = await import("./prospectus-review/prospectus-review.service");
-      // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-      send(
-        res,
-        await runProspectusDiag(prospectusDiagContext(req, res, id, "get"), () =>
-          prospectusReviewService.getOrCreateReview(id, getActor(req, res, "ADMIN"))
-        )
-      );
+      send(res, await prospectusReviewService.getOrCreateReview(id, getActor(req, res, "ADMIN")));
     } catch (error) {
-      // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-      prospectusDiagError("get", error, () => prospectusDiagContext(req, res, req.params.id, "get"));
       next(error);
     }
   }
@@ -382,27 +349,8 @@ adminNotesRouter.put(
     try {
       const { id } = idParamSchema.parse(req.params);
       const { prospectusReviewService } = await import("./prospectus-review/prospectus-review.service");
-      // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-      const diagContext = prospectusDiagContext(req, res, id, "save");
-      const saved = await runProspectusDiag(diagContext, () =>
-        prospectusReviewService.saveDraft(id, req.body, getActor(req, res, "ADMIN"))
-      );
-      prospectusDiag(
-        "prospectus.save.response",
-        () => ({
-          ...diagContext,
-          finalResponseStatus: saved.status,
-          updatedAt: saved.updatedAt,
-          contentVersion: saved.contentVersion,
-          approvedPublicationId: saved.approvedPublicationId,
-          httpStatus: 200,
-        }),
-        () => ({ response: saved })
-      );
-      send(res, saved);
+      send(res, await prospectusReviewService.saveDraft(id, req.body, getActor(req, res, "ADMIN")));
     } catch (error) {
-      // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-      prospectusDiagError("save", error, () => prospectusDiagContext(req, res, req.params.id, "save"));
       next(error);
     }
   }
@@ -424,38 +372,16 @@ adminNotesRouter.post(
         req.body?.draftContent != null
           ? { draftContent: req.body.draftContent, expectedUpdatedAt: req.body.expectedUpdatedAt }
           : undefined;
-      // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-      const diagContext = prospectusDiagContext(req, res, id, "approve");
-      const approved = await runProspectusDiag(diagContext, () =>
-        prospectusReviewService.approve(
+      send(
+        res,
+        await prospectusReviewService.approve(
           id,
           getActor(req, res, "ADMIN"),
           draftPayload,
           expectedUpdatedAt
         )
       );
-      prospectusDiag(
-        "prospectus.approve.response",
-        () => ({
-          ...diagContext,
-          finalResponseStatus: approved.status,
-          updatedAt: approved.updatedAt,
-          contentVersion: approved.contentVersion,
-          approvedPublicationId: approved.approvedPublicationId,
-          approvedAt: approved.approvedAt,
-          approvedByUserId: approved.approvedByUserId,
-          // The review DTO has no fingerprint field; it is on the row logged by
-          // prospectus.approve.transaction_committed under the same correlationId.
-          httpStatus: 200,
-        }),
-        () => ({ response: approved })
-      );
-      send(res, approved);
     } catch (error) {
-      // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-      prospectusDiagError("approve", error, () =>
-        prospectusDiagContext(req, res, req.params.id, "approve")
-      );
       next(error);
     }
   }

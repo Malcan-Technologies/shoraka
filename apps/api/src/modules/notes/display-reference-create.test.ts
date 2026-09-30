@@ -40,6 +40,17 @@ jest.mock("./repository", () => ({
   noteInclude: {},
 }));
 
+jest.mock("../admin/review-section-approval", () => ({
+  loadApplicationReviewApproval: jest.fn(async () => ({
+    status: "COMPLETED",
+    unapprovedRequiredSections: [],
+  })),
+}));
+
+jest.mock("./note-financial-snapshot", () => ({
+  buildNoteFinancialSnapshot: jest.fn(async () => ({ version: 1 })),
+}));
+
 jest.mock("./mapper", () => ({
   mapLedgerEntry: jest.fn(),
   mapMarketplaceNoteDetail: jest.fn(),

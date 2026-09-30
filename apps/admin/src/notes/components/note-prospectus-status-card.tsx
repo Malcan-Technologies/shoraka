@@ -17,8 +17,6 @@ import {
   resolveProspectusStatusCard,
   resolveProspectusStatusCardBadgeToken,
 } from "./note-prospectus-status-card.model";
-// TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-import { prospectusUiDiagOnChange } from "../prospectus-review/prospectus-ui-diagnostics";
 
 export {
   resolveProspectusStatusCard,
@@ -45,23 +43,6 @@ export function NoteProspectusStatusCard({
   viewPending = false,
 }: NoteProspectusStatusCardProps) {
   const model = resolveProspectusStatusCard(note);
-  // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-  prospectusUiDiagOnChange("prospectus.status_mapping", `status-card:${note.id}`, {
-    site: "admin.note_detail.status_card",
-    noteId: note.id,
-    inputProspectusStatus: note.prospectus?.status ?? null,
-    inputProspectusDisplayStatus: note.prospectus?.displayStatus ?? null,
-    inputProspectusContentVersion: note.prospectus?.contentVersion ?? null,
-    inputProspectusLastSavedAt: note.prospectus?.lastSavedAt ?? null,
-    noteStatus: note.status,
-    fundingStatus: note.fundingStatus,
-    publishedAt: note.publishedAt ?? null,
-    phase: model.phase,
-    badgeLabel: model.badgeLabel,
-    heading: model.heading,
-    viewAvailable: model.viewAvailable,
-    emphasize: model.emphasize,
-  });
   const WorkspaceIcon = model.phase === "approved" ? PencilSquareIcon : DocumentTextIcon;
 
   return (

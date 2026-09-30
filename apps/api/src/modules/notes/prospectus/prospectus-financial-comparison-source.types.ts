@@ -144,8 +144,11 @@ export interface ProspectusFinancialComparisonSourceInput {
   financialStatements?: unknown;
   /** Organization CTOS financials_json (array) — same as Admin Financial Statements. */
   ctosFinancials?: unknown;
-  /** Reference date for SSM six-month deadline (tests). */
-  ref?: Date;
+  /**
+   * Year-selection reference date (SSM six-month filing deadline). Required so no caller
+   * silently selects years against "today"; Notes pass their Prospectus financial reference date.
+   */
+  ref: Date;
 }
 
 export interface ProspectusFinancialComparisonSourceFieldSource {

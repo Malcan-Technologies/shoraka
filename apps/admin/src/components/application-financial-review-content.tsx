@@ -66,7 +66,8 @@ import {
   resolvePreviousYearSourceValue,
   getEligibleAdminInputYears,
   isAdminEditableRawFinancialKey,
-  isAdminFinancialReviewEditLocked,
+  isAdminFinancialEditOpen,
+  isApplicationReviewableStatus,
   isCalculatedFinancialMetricKey,
   receivablesDaysUnavailableReason,
   resolveAdminFinancialReviewColumns,
@@ -291,6 +292,8 @@ interface ApplicationFinancialReviewContentProps {
   issuerOrganizationId: string | null;
   /** Financial review section status. APPROVED locks Admin financial edits. */
   financialSectionStatus?: string | null;
+  /** Application status. Admin financial edits also need a reviewable application. */
+  applicationStatus: string | null | undefined;
   app: {
     people?: ApplicationPersonRow[];
     directorShareholderListSource?: import("@cashsouk/types").DirectorShareholderListSource;
@@ -318,6 +321,7 @@ export function ApplicationFinancialReviewContent({
   applicationId,
   issuerOrganizationId,
   financialSectionStatus,
+  applicationStatus,
   app,
 }: ApplicationFinancialReviewContentProps) {
   const issuerOrgId = issuerOrganizationId?.trim() ?? "";
@@ -326,7 +330,8 @@ export function ApplicationFinancialReviewContent({
   // Director / shareholder CTOS follows the Business & Guarantor permission (entity rule);
   // the organization report and financial edits above stay on applications.financial.manage.
   const canManageSubjectCtos = can("applications.business_guarantor.manage");
-  const financialEditsLocked = isAdminFinancialReviewEditLocked(financialSectionStatus);
+  const applicationReviewable = isApplicationReviewableStatus(applicationStatus);
+  const financialEditsLocked = !isAdminFinancialEditOpen({ financialSectionStatus, applicationStatus });
   const canViewOrganizations = can("organizations.view");
   const createSubjectReport = useCreateApplicationCtosSubjectReport(applicationId || undefined);
   const [subjectCtosFetchKey, setSubjectCtosFetchKey] = React.useState<string | null>(null);
@@ -1592,9 +1597,11 @@ export function ApplicationFinancialReviewContent({
                             title={
                               !canManageFinancialCtos
                                 ? "You do not have permission to perform this action."
-                                : financialEditsLocked
-                                  ? "Financial review is approved"
-                                  : "Edit financial statement"
+                                : !applicationReviewable
+                                  ? "Application is no longer under review"
+                                  : financialEditsLocked
+                                    ? "Financial review is approved"
+                                    : "Edit financial statement"
                             }
                             onClick={() => {
                               if (!canManageFinancialCtos || spec.kind === "empty") return;

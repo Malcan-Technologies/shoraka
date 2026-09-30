@@ -322,6 +322,7 @@ export function SectionContent({
           isActionLocked={isActionLocked}
           actionLockTooltip={actionLockTooltip}
           sectionStatus={sectionStatus}
+          applicationStatus={app.status}
           onResetSectionToPending={onResetSectionToPending}
           onApprove={onApproveSection}
           onReject={onRejectSection}

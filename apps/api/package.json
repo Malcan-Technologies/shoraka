@@ -38,6 +38,7 @@
     "seed-paymaster-assignment": "tsx scripts/seed-paymaster-assignment-scenarios.ts",
     "prospectus-review:product-e2e": "tsx scripts/prospectus-review-product-e2e.ts",
     "prospectus-review:http-smoke": "tsx scripts/prospectus-review-http-smoke.ts",
+    "notes:classify-financial-snapshots": "tsx scripts/classify-note-financial-snapshots.ts",
     "seed-late-payment": "tsx scripts/seed-late-payment.ts",
     "run-acceptance-signing-expiry": "tsx scripts/run-acceptance-signing-expiry.ts",
     "backfill-offer-application-statuses": "tsx scripts/backfill-offer-application-statuses.ts",

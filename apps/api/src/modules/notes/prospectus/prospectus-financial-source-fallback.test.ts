@@ -187,6 +187,7 @@ describe("prospectus financial source fallback", () => {
       paymasterSnapshot: {},
       liveFinancialStatements: financialStatements,
       liveCtosFinancials: [],
+      financialReferenceDate: new Date(),
       frozenFinancialComparison: null,
     };
     const page2 = buildProspectusPageTwo({
@@ -232,6 +233,7 @@ describe("prospectus financial source fallback", () => {
     ]);
 
     const frozen = buildProspectusPage2FinancialComparisonSnapshot({
+      referenceDate: AFTER_DEADLINE,
       financialStatements,
       ctosFinancials: [],
       now: AFTER_DEADLINE,

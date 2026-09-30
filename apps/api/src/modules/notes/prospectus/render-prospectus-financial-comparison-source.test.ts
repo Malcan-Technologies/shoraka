@@ -277,6 +277,7 @@ describe("prospectus Page 2 Financial Comparison Source (DATA STAGE 4A)", () => 
 
   it("builds accurate source footers", () => {
     const audited = buildProspectusFinancialComparisonSource({
+      ref: new Date(),
       financialStatements: {
         questionnaire: { financial_year_end: "2027-12-31" },
         unaudited_by_year: {},
@@ -311,6 +312,7 @@ describe("prospectus Page 2 Financial Comparison Source (DATA STAGE 4A)", () => 
     expect(mixed.sourceFooter).toBe(FINANCIAL_STATEMENT_SOURCE_FOOTER.mixed);
 
     const empty = buildProspectusFinancialComparisonSource({
+      ref: new Date(),
       financialStatements: {
         questionnaire: { financial_year_end: "2027-12-31" },
         unaudited_by_year: {},

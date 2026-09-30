@@ -3,6 +3,7 @@
  * WHY: Prefer frozen Stage 4 snapshot when published; never live-fallback published
  */
 
+import { AppError } from "../../../lib/http/error-handler";
 import { buildProspectusCreditInsights } from "./prospectus-credit-insights";
 import { buildProspectusFinancialComparisonMetrics } from "./prospectus-financial-comparison-metrics";
 import { buildProspectusFinancialComparisonSource } from "./prospectus-financial-comparison-source";
@@ -25,13 +26,20 @@ import {
   parseProspectusPageTwoSnapshot,
 } from "./prospectus-json-guards";
 import { isProspectusNotePublished } from "./prospectus-page-one-prisma";
-import type { ProspectusPageTwoLoadedData } from "./prospectus-page-two-prisma";
+import type {
+  ProspectusPageTwoLoadedData,
+  ProspectusPageTwoNoteRecord,
+} from "./prospectus-page-two-prisma";
 import type {
   ProspectusPageTwo,
   ProspectusPageTwoFinancialMode,
 } from "./prospectus-page-two.types";
 import { buildProspectusPaymasterTrackRecord } from "./prospectus-paymaster-track-record";
-import type { ProspectusPage2FinancialComparisonSnapshot } from "./prospectus-snapshot.types";
+import {
+  PROSPECTUS_PAGE2_FINANCIAL_FREEZE_VERSION,
+  type ProspectusPage2FinancialComparisonSnapshot,
+  type ProspectusPage2FinancialYearSnapshot,
+} from "./prospectus-snapshot.types";
 import { buildProspectusSoukscoreRatingScale } from "./prospectus-soukscore-rating-scale";
 import { publicationContentFromFrozenSnapshot } from "../prospectus-review/prospectus-frozen-publication";
 
@@ -48,6 +56,8 @@ export type ProspectusPageTwoBuilderInput = {
   liveFinancialStatements: unknown | null;
   /** Live organization CTOS financials_json — only for unpublished preview. */
   liveCtosFinancials: unknown | null;
+  /** Financial-year selection reference date — required for unpublished preview, else null. */
+  financialReferenceDate: Date | null;
   /** Parsed frozen Stage 4 — only when published + valid. */
   frozenFinancialComparison: ProspectusPage2FinancialComparisonSnapshot | null;
   marcSnapshot?: import("@cashsouk/types").MarcAssessmentSnapshot | null;
@@ -71,59 +81,80 @@ function emptyFinancialComparisonSource(): ProspectusFinancialComparisonSource {
   };
 }
 
+/** Pre-version-2 freezes carried 18 raw keys; keep reading exactly those. */
+function legacyFrozenRawFinancials(
+  raw: ProspectusPage2FinancialYearSnapshot["raw_financials"]
+): Record<string, unknown> {
+  return {
+    turnover: raw.turnover,
+    plnpat: raw.plnpat,
+    bsqpuc: raw.bsqpuc,
+    bscatot: raw.bscatot,
+    curlib: raw.curlib,
+    plnpbt: raw.plnpbt,
+    bsfatot: raw.bsfatot,
+    othass: raw.othass,
+    bsclbank: raw.bsclbank,
+    bsslltd: raw.bsslltd,
+    bsclstd: raw.bsclstd,
+    totass: raw.totass,
+    totlib: raw.totlib,
+    networth: raw.networth,
+    profit_margin: raw.profit_margin,
+    return_on_equity: raw.return_on_equity,
+    currat: raw.currat,
+    gear: raw.gear ?? null,
+  };
+}
+
+function frozenYearToSourceYear(
+  year: ProspectusPage2FinancialYearSnapshot,
+  complete: boolean
+): ProspectusFinancialComparisonYear {
+  const financialYearEndIso =
+    year.financial_year_end_iso ??
+    (year.financial_year_end_label && /^\d{4}-\d{2}-\d{2}$/.test(year.financial_year_end_label)
+      ? year.financial_year_end_label
+      : `${year.year}-12-31`);
+  // Old freezes did not store the statement type; they derive it from the record source.
+  const derivedStatementType =
+    year.record_source === "ctos_audited" ? "AUDITED" : "MANAGEMENT_ACCOUNTS";
+  return {
+    year: year.year,
+    yearLabel: year.year_label,
+    financialYearEndIso,
+    financialYearEndLabel: year.financial_year_end_label ?? PROSPECTUS_DATA_NOT_AVAILABLE,
+    recordSource: year.record_source ?? "unaudited_management",
+    statementType: complete
+      ? (year.statement_type ?? derivedStatementType)
+      : derivedStatementType,
+    rawFinancials: complete
+      ? { ...year.raw_financials }
+      : legacyFrozenRawFinancials(year.raw_financials),
+  };
+}
+
 /**
  * Reconstruct Stage 4A view-model from frozen publication snapshot.
  * Does not re-run live year selection.
+ * Version 2: every frozen raw key, the stored statement type and missing-year state, so the
+ * render equals the live render it was frozen from. Older freezes render as they always have.
  */
 export function buildFinancialComparisonSourceFromFrozen(
   frozen: ProspectusPage2FinancialComparisonSnapshot
 ): ProspectusFinancialComparisonSource {
-  const years: ProspectusFinancialComparisonYear[] = frozen.selected_years.map((year) => {
-    const financialYearEndIso =
-      year.financial_year_end_iso ??
-      (year.financial_year_end_label && /^\d{4}-\d{2}-\d{2}$/.test(year.financial_year_end_label)
-        ? year.financial_year_end_label
-        : `${year.year}-12-31`);
-    return {
-      year: year.year,
-      yearLabel: year.year_label,
-      financialYearEndIso,
-      financialYearEndLabel: year.financial_year_end_label ?? PROSPECTUS_DATA_NOT_AVAILABLE,
-      recordSource: year.record_source ?? "unaudited_management",
-      statementType:
-        year.record_source === "ctos_audited" ? "AUDITED" : "MANAGEMENT_ACCOUNTS",
-      // Shared Page 2 + Page 3 freeze — include extended keys when present (null when absent).
-      rawFinancials: {
-        turnover: year.raw_financials.turnover,
-        plnpat: year.raw_financials.plnpat,
-        bsqpuc: year.raw_financials.bsqpuc,
-        bscatot: year.raw_financials.bscatot,
-        curlib: year.raw_financials.curlib,
-        plnpbt: year.raw_financials.plnpbt,
-        bsfatot: year.raw_financials.bsfatot,
-        othass: year.raw_financials.othass,
-        bsclbank: year.raw_financials.bsclbank,
-        bsslltd: year.raw_financials.bsslltd,
-        bsclstd: year.raw_financials.bsclstd,
-        totass: year.raw_financials.totass,
-        totlib: year.raw_financials.totlib,
-        networth: year.raw_financials.networth,
-        profit_margin: year.raw_financials.profit_margin,
-        return_on_equity: year.raw_financials.return_on_equity,
-        currat: year.raw_financials.currat,
-        gear: year.raw_financials.gear ?? null,
-      },
-    };
-  });
+  const complete = frozen.freeze_version === PROSPECTUS_PAGE2_FINANCIAL_FREEZE_VERSION;
+  const missingSsmUnauditedYears = complete ? [...(frozen.missing_ssm_unaudited_years ?? [])] : [];
 
   return {
     sectionHeading: PROSPECTUS_FINANCIAL_COMPARISON_SECTION_HEADING,
     tableUnitLabel: PROSPECTUS_FINANCIAL_COMPARISON_TABLE_UNIT_LABEL,
     sourceFooter: frozen.source_footer ?? "Source: Financial Statements",
-    years,
-    // Ops warning is live-only; frozen publication HTML does not carry Admin alerts.
-    missingSsmUnauditedYears: [],
-    opsWarning: null,
+    years: frozen.selected_years.map((year) => frozenYearToSourceYear(year, complete)),
+    // Old freezes did not carry the ops state; the warning never reaches investor HTML.
+    missingSsmUnauditedYears,
+    opsWarning: complete ? (frozen.ops_warning ?? null) : null,
+    // Admin Input eligibility is a live editing affordance, not part of the approved result.
     adminFallbackEligibleYears: [],
     audit: PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_AUDIT,
   };
@@ -143,9 +174,17 @@ function resolveFinancialComparisonSource(
     return emptyFinancialComparisonSource();
   }
 
+  if (!input.financialReferenceDate) {
+    throw new AppError(
+      500,
+      "PROSPECTUS_FINANCIAL_REFERENCE_DATE_MISSING",
+      "Prospectus preview has no financial reference date"
+    );
+  }
   return buildProspectusFinancialComparisonSource({
     financialStatements: input.liveFinancialStatements,
     ctosFinancials: input.liveCtosFinancials,
+    ref: input.financialReferenceDate,
   });
 }
 
@@ -160,6 +199,7 @@ export function mapProspectusPageTwoDataToInput(
   let frozenFinancialComparison: ProspectusPage2FinancialComparisonSnapshot | null = null;
   let liveFinancialStatements: unknown | null = null;
   let liveCtosFinancials: unknown | null = null;
+  let financialReferenceDate: Date | null = null;
 
   if (isPublished) {
     if (parsedPage2) {
@@ -172,6 +212,7 @@ export function mapProspectusPageTwoDataToInput(
     financialMode = "live_unpublished_preview";
     liveFinancialStatements = data.liveFinancialStatements;
     liveCtosFinancials = data.liveCtosFinancials;
+    financialReferenceDate = data.financialReferenceDate;
   }
 
   return {
@@ -185,12 +226,41 @@ export function mapProspectusPageTwoDataToInput(
     maturityDate: note.maturity_date,
     liveFinancialStatements,
     liveCtosFinancials,
+    financialReferenceDate,
     frozenFinancialComparison,
     marcSnapshot: data.marcSnapshot ?? null,
     /** Published Notes: frozen officer content only — never mutable draft / placeholders. */
     publicationContent: isPublished
       ? publicationContentFromFrozenSnapshot(note.prospectus_snapshot)
       : undefined,
+  };
+}
+
+/**
+ * Page 2 input for an approved Prospectus: Stage 4 from the approval freeze whatever the Note's
+ * publish state. Never receives or reads Application / CTOS financials.
+ */
+export function mapProspectusPageTwoApprovedInput(input: {
+  note: ProspectusPageTwoNoteRecord;
+  marcSnapshot: import("@cashsouk/types").MarcAssessmentSnapshot | null;
+  frozenFinancialComparison: ProspectusPage2FinancialComparisonSnapshot;
+  publicationContent: import("./prospectus-placeholder-publication-content").ProspectusPublicationContent;
+}): ProspectusPageTwoBuilderInput {
+  const base = mapProspectusPageTwoDataToInput({
+    note: input.note,
+    liveFinancialStatements: null,
+    liveCtosFinancials: null,
+    financialReferenceDate: null,
+    marcSnapshot: input.marcSnapshot,
+  });
+  return {
+    ...base,
+    financialMode: "frozen_publication_snapshot",
+    liveFinancialStatements: null,
+    liveCtosFinancials: null,
+    financialReferenceDate: null,
+    frozenFinancialComparison: input.frozenFinancialComparison,
+    publicationContent: input.publicationContent,
   };
 }
 

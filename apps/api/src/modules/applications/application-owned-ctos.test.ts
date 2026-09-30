@@ -256,7 +256,17 @@ describe("application review and prospectus read boundaries", () => {
     expect(pageTwo).toContain("if (published)");
     expect(pageTwo).toContain("liveCtosFinancials: null");
     expect(pageThree).toContain("liveCtosFinancials: null");
-    expect(pageTwo).toContain("loadApplicationOwnedCtosFinancialReport");
-    expect(pageThree).toContain("loadApplicationOwnedCtosFinancialReport");
+    // Unpublished Notes read financial inputs through one helper: the Note's financial snapshot,
+    // or for a Note without one, the application and its owned CTOS report.
+    const financialInputs = readFileSync(
+      join(__dirname, "../notes/prospectus/prospectus-note-financial-inputs.ts"),
+      "utf8"
+    );
+    expect(pageTwo).toContain("loadProspectusNoteFinancialInputs");
+    expect(pageThree).toContain("loadProspectusNoteFinancialInputs");
+    expect(financialInputs).toContain("loadApplicationOwnedCtosFinancialReport");
+    for (const source of [pageTwo, pageThree, financialInputs]) {
+      expect(source).not.toContain("ctosReport.find");
+    }
   });
 });

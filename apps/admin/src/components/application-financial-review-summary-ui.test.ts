@@ -462,7 +462,7 @@ describe("Admin Financial Summary table UI", () => {
     const contentSource = readFileSync(tablePath, "utf8");
     const addSource = readFileSync(addModalPath, "utf8");
     const editSource = readFileSync(modalPath, "utf8");
-    expect(contentSource).toContain("isAdminFinancialReviewEditLocked");
+    expect(contentSource).toContain("isAdminFinancialEditOpen");
     expect(contentSource).toContain("financialEditsLocked ? \"Locked\" : \"Edit statement\"");
     expect(contentSource).toContain(">Read only</span>");
     expect(contentSource).toContain("setEditFinancialStatementTarget({ year: spec.year as number, kind: spec.kind })");
