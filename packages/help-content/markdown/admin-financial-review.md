@@ -7,7 +7,7 @@ tags:
   - financial
   - application review
 order: 12
-updated: 2026-09-25
+updated: 2026-10-01
 ---
 
 ## Purpose
@@ -68,6 +68,8 @@ On a real CTOS year, values that CTOS provided are read-only.
 
 You may fill only fields that CTOS did not provide. These are Admin CTOS gap-fills. They sit on the CTOS year. They are not the same as adding a whole **Admin Input** statement.
 
+A gap-fill counts as a reviewed figure. Calculated rows on that year, such as Net Profit Margin, use the gap-filled value.
+
 ## User Input stays separate
 
 User Input is shown separately from the historical source for the same year. Both can appear together.
@@ -108,9 +110,9 @@ Numeric 0 counts as a completed value. Calculated fields are read-only and are n
 
 ## When editing is locked
 
-The Financial section itself controls whether you can edit.
+Two things control whether you can edit: the Financial section status, and whether the application is still under review.
 
-When Financial is open, or has been reopened, **Add statement** and **Edit statement** are available.
+When the application is under review and Financial is open, or has been reopened, **Add statement** and **Edit statement** are available.
 
 When Financial is **Approved**:
 
@@ -119,7 +121,9 @@ When Financial is **Approved**:
 - Edit actions show **Locked** or **Read only**.
 - You can still view the figures.
 
-If Financial is reopened through an amendment on the Financial section, editing is available again.
+When the application is no longer under review (for example, it is completed, rejected, or withdrawn), Financial data is read-only whatever the Financial section status. Edit actions show **Application is no longer under review**.
+
+If Financial is reopened through an amendment on the Financial section while the application is still under review, editing is available again. Reopening does not delete anything: the existing User Input, Admin Input, CTOS data, gap-fills, and Admin edits are all still there. You edit the working figures again and approve a new reviewed result.
 
 An amendment on another section does not unlock Financial while the Financial section remains approved.
 
@@ -149,36 +153,42 @@ Each previous year uses:
 
 That copy happens once, when the new application is prepared. Later changes to CTOS, Admin Input, or the issuer profile do not silently rewrite an application that already exists.
 
-## Prospectus financial source
+## Reviewed figures for the Note and Prospectus
 
-The Prospectus uses a different source order from the issuer profile and from new-application historical prefill.
+Financial Review determines the final reviewed figures for each financial year. Once Financial is approved, those reviewed figures are what the Note and its Prospectus use. The Prospectus does not choose its own sources.
 
-For each Prospectus financial year:
+For each financial year, the reviewed figures use:
 
-1. Reviewed User Input, including Admin edits to those issuer figures
-2. Otherwise, CTOS, plus explicit Admin CTOS gap-fills for fields CTOS left blank
+1. Reviewed User Input, including your edits to those issuer figures
+2. Otherwise, CTOS, plus your Admin CTOS gap-fills for fields CTOS left blank
 3. Otherwise, the active Admin Input statement for that year
 4. Otherwise, blank
 
-In short: reviewed User Input, then CTOS plus CTOS gap-fills, then active Admin Input, then blank.
+This is decided separately for each year, so different years can come from different sources.
+
+Example:
+
+- FY2024 uses CTOS
+- FY2025 uses User Input
+- FY2026 uses Admin Input
 
 **User Input**
 
-If User Input exists for that year, the Prospectus uses it first. That includes Admin edits to the issuer figures. CTOS and Admin Input are not used for that year.
+If User Input exists for a year, it is used first. That includes your edits to the issuer figures. CTOS and Admin Input are not used for that year.
 
-Example: the issuer submitted FY2025 Trade Receivables as RM10, and you changed it to RM12. The Prospectus uses RM12 for FY2025, even when CTOS and Admin Input also exist for FY2025.
+Example: the issuer submitted FY2025 Trade Receivables as RM10, and you changed it to RM12. The reviewed figure for FY2025 is RM12, even when CTOS and Admin Input also exist for FY2025.
 
 **CTOS**
 
-If there is no User Input for that year, but CTOS has that exact financial year, the Prospectus uses CTOS.
+If there is no User Input for a year, but CTOS has that exact financial year, CTOS is used.
 
-Use the CTOS values, plus explicit Admin CTOS gap-fills where CTOS left a field blank. Do not use a whole-year Admin Input statement to overwrite CTOS or to fill those gaps. Do not use User Input from another year.
+The reviewed figures are the CTOS values plus your gap-fills where CTOS left a field blank. A whole-year Admin Input statement is not used to overwrite CTOS or to fill those gaps, and User Input from another year is not used.
 
-A CTOS row owns its financial year even when its amounts are blank. If Admin Input for that year was added earlier and CTOS later returns the same year, the Prospectus uses CTOS. The old Admin Input stays stored for audit and is not used.
+A CTOS year owns its financial year even when its amounts are blank. If Admin Input for that year was added earlier and CTOS later returns the same year, CTOS is used. The old Admin Input stays stored for audit and is not used.
 
 **Admin Input**
 
-If the Prospectus has no User Input and no CTOS for that financial year, it uses the active Admin Input statement for that year.
+If a year has no User Input and no CTOS, the active Admin Input statement for that year is used.
 
 Example:
 
@@ -188,19 +198,22 @@ FY2025:
 - no CTOS
 - Admin Input exists
 
-Result: the Prospectus uses FY2025 Admin Input. It does not leave that year blank.
+Result: FY2025 uses Admin Input. The year is not left blank.
 
-Only an active Admin Input statement is used. A superseded Admin Input statement is not a Prospectus source.
+Only an active Admin Input statement is used. A superseded Admin Input statement is never a source.
 
-**Why this is different**
+**Why the issuer profile looks different**
 
-The issuer profile and a new application’s historical prefill prefer CTOS plus CTOS gap-fills, then Admin Input, then reviewed User Input.
+The issuer profile and a new application’s historical prefill prefer CTOS plus CTOS gap-fills, then Admin Input, then reviewed User Input. They keep the historical-source order.
 
-The Prospectus prefers reviewed User Input, then CTOS plus CTOS gap-fills, then active Admin Input, then blank. It should reflect the reviewed application figures first. Profile and future historical prefill keep the historical-source order.
+The reviewed figures for the Note and Prospectus put reviewed User Input first, so they reflect the reviewed application figures.
 
-**After approval**
+**After Financial is approved**
 
-Once the Prospectus is approved or published, its financial snapshot is frozen. Later changes to User Input, Admin Input, or CTOS do not rewrite that snapshot.
+- When a Note is created, it takes the reviewed figures as approved at that time.
+- Later changes to CTOS, User Input, or Admin Input do not automatically change a Note that already exists, or a Prospectus that is already approved.
+- If Financial is reopened while the application is still under review, you can edit the working figures again and approve a new reviewed result. Reopening does not delete the existing User Input, Admin Input, CTOS data, or your edits.
+- A Note created after that new approval uses the new reviewed figures.
 
 ## Admin changes to issuer figures
 
@@ -208,6 +221,7 @@ If the issuer submitted Trade Receivables as RM10, and you change it to RM12:
 
 - The Admin Financial Summary uses RM12 as the reviewed value.
 - The issuer profile shows RM12.
+- A Note created after Financial is approved uses RM12 for that year.
 - A later application uses RM12 for that year when User Input is the selected source.
 
 The original RM10 stays in the application, revision, and audit history.
@@ -223,6 +237,8 @@ Some calculations need the previous financial year. The previous year is taken f
 - For an Admin Input year: previous CTOS, then active Admin Input.
 
 If the previous year value is missing, the calculation stays unavailable. Zero is a real value and is used.
+
+A missing figure is never treated as zero. If a raw figure a calculation needs is blank, the calculated row shows **Cannot calculate** rather than a number built on zero.
 
 ## Examples
 
