@@ -198,6 +198,7 @@ export class RegTankAPIClient {
     const url = `${this.config.apiBaseUrl}${endpoint}`;
     const payload: RegTankIndividualOnboardingRequest = {
       ...request,
+      skipFormPage: false, // Always false so user completes full form; caller value is ignored
       ...(request.formId === undefined || request.formId === null
         ? {}
         : { formId: parseStrictRegTankFormId(request.formId) }),
@@ -310,7 +311,7 @@ export class RegTankAPIClient {
       requestId,
       language: options?.language || "EN",
       idType: options?.idType,
-      skipFormPage: options?.skipFormPage ?? false, // Default false so user completes full form
+      skipFormPage: false, // Always false so user completes full form; caller value is ignored
     };
 
     // Include email if provided (required for corporate onboarding)

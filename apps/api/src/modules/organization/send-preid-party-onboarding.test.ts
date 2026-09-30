@@ -159,6 +159,7 @@ describe("sendDirectorCtosPartyOnboarding pre-ID party_key", () => {
     expect(request.forename).toBe("Ahmad");
     expect(request.surname).toBe(".");
     expect(request.referenceId.includes(":")).toBe(false);
+    expect(request.skipFormPage).toBe(false);
     expect(mockSupplementCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ party_key: generatedKey }),
@@ -196,6 +197,7 @@ describe("sendDirectorCtosPartyOnboarding pre-ID party_key", () => {
     expect(request.governmentIdNumber).toBe(nricKey);
     expect(request.forename).toBe("Sarah");
     expect(request.surname).toBe("Tan");
+    expect(request.skipFormPage).toBe(false);
   });
 
   it("rejects Send when the Person name is empty", async () => {

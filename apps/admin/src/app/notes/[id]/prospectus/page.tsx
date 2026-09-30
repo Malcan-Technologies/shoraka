@@ -287,7 +287,7 @@ function ProspectusReviewPageInner() {
       } catch (e) {
         if (e instanceof ProspectusReviewConflictError) {
           toast.error(
-            "This Prospectus was updated by another user. Please review the latest version before approving."
+            "This Prospectus has changed since you last loaded it. Please review the latest version before approving."
           );
           void refetch();
           setDirty(false);
