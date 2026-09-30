@@ -155,7 +155,7 @@ import {
   isAdminFinancialReviewEditLocked,
   isApplicationReviewableStatus,
   parseCtosFinancialStatementRows,
-  parseAdminFieldOverrides,
+  setAdminFieldOverride,
   FINANCIAL_FIELD_LABELS,
   reconcileAdminFieldOverridesAfterIssuerSave,
   resolveAdminFinancialReviewColumns,
@@ -5911,16 +5911,20 @@ export class ApplicationService {
       adminByYear[yearKey] = yearBlock;
       nextFS = { ...existingFS, admin_input_by_year: adminByYear };
     } else {
-      const overrides = parseAdminFieldOverrides(existingFS);
-      const yearOverrides = { ...(overrides[yearKey] ?? {}) };
-      yearOverrides[fieldKey] = {
-        value,
-        baseSource: decision.baseSource,
-        action: decision.action,
-        updated_by_user_id: userId,
-        updated_at: now.toISOString(),
+      nextFS = {
+        ...existingFS,
+        admin_field_overrides: setAdminFieldOverride(existingFS, {
+          year: yearKey,
+          fieldKey,
+          override: {
+            value,
+            baseSource: decision.baseSource,
+            action: decision.action,
+            updated_by_user_id: userId,
+            updated_at: now.toISOString(),
+          },
+        }),
       };
-      nextFS = { ...existingFS, admin_field_overrides: { ...overrides, [yearKey]: yearOverrides } };
     }
 
     await prisma.$transaction(async (tx) => {

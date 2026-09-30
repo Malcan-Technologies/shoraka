@@ -228,7 +228,10 @@ export function ApplicationFinancialReviewComparison({
     const overridesByYear: FinancialSide["overridesByYear"] = {};
     for (const [year, fields] of Object.entries(overridesByYearRaw)) {
       overridesByYear[year] = {};
-      for (const [fieldKey, override] of Object.entries(fields)) {
+      for (const [fieldKey, slot] of Object.entries(fields)) {
+        const override =
+          slot.edit_user_input ?? slot.add_missing_ctos_field ?? slot.edit_admin_input ?? slot.add_missing_fy;
+        if (!override) continue;
         overridesByYear[year]![fieldKey] = { value: override.value };
       }
     }

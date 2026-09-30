@@ -10,8 +10,10 @@ import {
   pickApplicationFinancialPrefillFields,
   pickSubmittedApplicationFinancialYearFields,
   resolveApplicationFinancialYearPrefill,
+  resolveHistoricalFinancialYearFields,
   resolveLatestSubmittedFinancialsForYear,
 } from "./application-financial-prefill";
+import { ADMIN_EDITABLE_RAW_FINANCIAL_KEYS } from "./financial-field-resolution";
 import {
   APPLICATION_COMREP_DETAIL_KEYS,
   APPLICATION_CORE_MONEY_KEYS,
@@ -1003,5 +1005,200 @@ describe("historical prefill source order", () => {
         },
       });
     }
+  });
+});
+
+describe("prefill with both override actions on one FY field", () => {
+  const at = "2026-09-01T00:00:00.000Z";
+  const gapFill = {
+    value: 100,
+    baseSource: "ctos",
+    action: "add_missing_ctos_field",
+    updated_by_user_id: "admin",
+    updated_at: at,
+  };
+  const userEdit = {
+    value: 120,
+    baseSource: "user_input",
+    action: "edit_user_input",
+    updated_by_user_id: "admin",
+    updated_at: at,
+  };
+  const unaudited = { "2026": { turnover: 700, tradeReceivables: 50 } };
+  const newShape = {
+    unaudited_by_year: unaudited,
+    admin_field_overrides: {
+      "2026": { tradeReceivables: { add_missing_ctos_field: gapFill, edit_user_input: userEdit } },
+    },
+  };
+
+  function resolveFor(financialStatements: unknown, ctosFinancials: unknown) {
+    const indexed = indexResolvedApplicationFinancials([{ financialStatements }]);
+    return resolveApplicationFinancialYearPrefill({
+      year: 2026,
+      inProgressYear: 2027,
+      ctosFinancials,
+      submittedByYear: indexed.submittedByYear,
+      adminInputByYear: indexed.adminInputByYear,
+      ctosGapFillsByYear: indexed.ctosGapFillsByYear,
+      userEditedKeysByYear: indexed.userEditedKeysByYear,
+    });
+  }
+
+  it("CTOS row for the FY → CTOS source with the gap-fill (100)", () => {
+    const resolved = resolveFor(newShape, [ctosRow(2026, { turnover: 850 })]);
+    expect(resolved.source).toBe("ctos");
+    expect(resolved.fields?.turnover).toBe(850);
+    expect(resolved.fields?.tradeReceivables).toBe(100);
+    expect(resolved.fieldSources?.tradeReceivables).toBe("previous_admin");
+  });
+
+  it("no CTOS row → reviewed User Input (120)", () => {
+    const resolved = resolveFor(newShape, []);
+    expect(resolved.source).toBe("submitted");
+    expect(resolved.fields?.tradeReceivables).toBe(120);
+    expect(resolved.fieldSources?.tradeReceivables).toBe("previous_admin");
+    const indexed = indexResolvedApplicationFinancials([{ financialStatements: newShape }]);
+    expect(indexed.userEditedKeysByYear["2026"]).toEqual(["tradeReceivables"]);
+    expect(indexed.ctosGapFillsByYear["2026"]).toEqual({ tradeReceivables: 100 });
+  });
+
+  it("legacy single entries still work for each lane", () => {
+    const legacyGap = {
+      unaudited_by_year: unaudited,
+      admin_field_overrides: { "2026": { tradeReceivables: gapFill } },
+    };
+    const legacyUser = {
+      unaudited_by_year: unaudited,
+      admin_field_overrides: { "2026": { tradeReceivables: userEdit } },
+    };
+    expect(resolveFor(legacyGap, [ctosRow(2026, { turnover: 850 })]).fields?.tradeReceivables).toBe(100);
+    // A legacy gap-fill is not applied onto User Input.
+    expect(resolveFor(legacyGap, []).fields?.tradeReceivables).toBe(50);
+    expect(resolveFor(legacyUser, []).fields?.tradeReceivables).toBe(120);
+    // A legacy User Input edit is not a CTOS gap-fill.
+    expect(resolveFor(legacyUser, [ctosRow(2026, { turnover: 850 })]).fields?.tradeReceivables).toBeUndefined();
+  });
+});
+
+describe("prefill keeps every canonical raw key (P1)", () => {
+  const EXTRA_KEYS = ["costOfSales", "netOperatingIncome", "annualDebtService"] as const;
+
+  /** Distinct value per key; includes a 0 and a negative on a negative-allowed key. */
+  function fullBlock(): Record<string, number> {
+    const block: Record<string, number> = {};
+    ADMIN_EDITABLE_RAW_FINANCIAL_KEYS.forEach((key, index) => {
+      block[key] = 1000 + index;
+    });
+    block.bsfatot = 0;
+    block.equity_accumulated_profit = -250;
+    return block;
+  }
+
+  function userEdit(value: number) {
+    return {
+      value,
+      baseSource: "user_input",
+      action: "edit_user_input",
+      updated_by_user_id: "admin",
+      updated_at: "2026-09-01T00:00:00.000Z",
+    };
+  }
+
+  function resolveNoCtos(financialStatements: unknown, ctosFinancials: unknown = []) {
+    const indexed = indexResolvedApplicationFinancials([{ financialStatements }]);
+    return resolveHistoricalFinancialYearFields({
+      year: 2026,
+      ctosFinancials,
+      userByYear: indexed.submittedByYear,
+      adminInputByYear: indexed.adminInputByYear,
+      ctosGapFillsByYear: indexed.ctosGapFillsByYear,
+      userEditedKeysByYear: indexed.userEditedKeysByYear,
+    });
+  }
+
+  it("canonical list is 36 unique keys", () => {
+    expect(ADMIN_EDITABLE_RAW_FINANCIAL_KEYS).toHaveLength(36);
+    expect(new Set(ADMIN_EDITABLE_RAW_FINANCIAL_KEYS).size).toBe(36);
+  });
+
+  it("(a) Admin Input year keeps every canonical key", () => {
+    const block = fullBlock();
+    const resolved = resolveNoCtos({ admin_input_by_year: { "2026": { ...block, statementType: "AUDITED" } } });
+    expect(resolved?.source).toBe("admin_input");
+    for (const key of ADMIN_EDITABLE_RAW_FINANCIAL_KEYS) {
+      expect([key, resolved?.fields[key]]).toEqual([key, block[key]]);
+    }
+    for (const key of EXTRA_KEYS) expect(resolved?.fields[key]).toBe(block[key]);
+  });
+
+  it("(b) User Input year keeps every canonical key", () => {
+    const block = fullBlock();
+    const resolved = resolveNoCtos({ unaudited_by_year: { "2026": { ...block, pldd: "2026-12-31" } } });
+    expect(resolved?.source).toBe("user_input");
+    for (const key of ADMIN_EDITABLE_RAW_FINANCIAL_KEYS) {
+      expect([key, resolved?.fields[key]]).toEqual([key, block[key]]);
+    }
+    for (const key of EXTRA_KEYS) expect(resolved?.fields[key]).toBe(block[key]);
+  });
+
+  it("(c) reviewed values of the three extra keys win on User Input", () => {
+    const block = fullBlock();
+    const reviewed: Record<string, number> = {
+      costOfSales: 7001,
+      netOperatingIncome: 7002,
+      annualDebtService: 0,
+    };
+    const resolved = resolveNoCtos({
+      unaudited_by_year: { "2026": block },
+      admin_field_overrides: {
+        "2026": {
+          costOfSales: { edit_user_input: userEdit(reviewed.costOfSales) },
+          netOperatingIncome: userEdit(reviewed.netOperatingIncome),
+          annualDebtService: { edit_user_input: userEdit(reviewed.annualDebtService) },
+        },
+      },
+    });
+    for (const key of ADMIN_EDITABLE_RAW_FINANCIAL_KEYS) {
+      expect([key, resolved?.fields[key]]).toEqual([key, reviewed[key] ?? block[key]]);
+    }
+    for (const key of EXTRA_KEYS) {
+      expect(resolved?.fields[key]).toBe(reviewed[key]);
+      expect(resolved?.fieldSources[key]).toBe("previous_admin");
+    }
+  });
+
+  it("CTOS branch is unchanged: only CTOS keys plus explicit gap-fills", () => {
+    const block = fullBlock();
+    const ctos = [ctosRow(2026, { turnover: 850, curlib: 70 })];
+    const resolved = resolveNoCtos(
+      { unaudited_by_year: { "2026": block }, admin_input_by_year: { "2026": block } },
+      ctos
+    );
+    expect(resolved?.source).toBe("ctos");
+    expect(resolved?.fields).toEqual({ turnover: 850, curlib: 70 });
+    for (const key of EXTRA_KEYS) expect(resolved?.fields[key]).toBeUndefined();
+
+    const withGap = resolveNoCtos(
+      {
+        unaudited_by_year: { "2026": block },
+        admin_field_overrides: {
+          "2026": {
+            costOfSales: {
+              add_missing_ctos_field: {
+                value: 55,
+                baseSource: "ctos",
+                action: "add_missing_ctos_field",
+                updated_by_user_id: "admin",
+                updated_at: "2026-09-01T00:00:00.000Z",
+              },
+            },
+          },
+        },
+      },
+      ctos
+    );
+    expect(withGap?.fields).toEqual({ turnover: 850, curlib: 70, costOfSales: 55 });
+    expect(withGap?.fieldSources.costOfSales).toBe("previous_admin");
   });
 });

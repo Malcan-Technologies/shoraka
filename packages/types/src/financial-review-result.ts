@@ -38,7 +38,7 @@ import {
   readFiniteFinancialNumber,
   resolveAdminFinancialReviewColumns,
   yearFields,
-  type AdminFieldOverride,
+  type AdminFieldOverrideSlot,
   type ResolvedRawFinancialField,
 } from "./financial-field-resolution";
 import { resolvePreviousYearSourceValue } from "./financial-previous-year-source";
@@ -265,7 +265,7 @@ type ReviewContext = {
   unauditedByYear: Record<string, unknown>;
   adminInputByYear: Record<string, unknown>;
   /** Parsed overrides (drive resolution). */
-  overridesByYear: Record<string, Record<string, AdminFieldOverride>>;
+  overridesByYear: Record<string, Record<string, AdminFieldOverrideSlot>>;
   /** Stored overrides as saved (source trace only). */
   storedOverridesByYear: Record<string, unknown>;
   ctosRows: CtosFinancialStatementRow[];
@@ -521,8 +521,9 @@ function resolveReviewedRaw(
   });
 
   if (kind === "ctos" && overridesForYear) {
-    for (const [fieldKey, override] of Object.entries(overridesForYear)) {
-      if (override.action !== "add_missing_ctos_field") continue;
+    for (const [fieldKey, slot] of Object.entries(overridesForYear)) {
+      const override = slot.add_missing_ctos_field;
+      if (!override) continue;
       if (override.baseSource !== "ctos") continue;
       if (override.value == null) continue;
       const current = resolved[fieldKey];

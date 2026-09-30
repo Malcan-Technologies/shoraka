@@ -17,6 +17,7 @@ import {
   type ApplicationComrepDetailKey,
 } from "./financial-field-labels";
 import {
+  ADMIN_EDITABLE_RAW_FINANCIAL_KEYS,
   parseAdminFieldOverrides,
   readFiniteFinancialNumber,
 } from "./financial-field-resolution";
@@ -82,13 +83,13 @@ export function pickApplicationFinancialPrefillFields(
   return out;
 }
 
-/** Same-year submitted block: core application keys plus any present ComRep extras. */
+/** Same-year submitted block: every present canonical raw key (core, extra issuer raw, ComRep). */
 export function pickSubmittedApplicationFinancialYearFields(
   raw: Record<string, unknown> | null | undefined
 ): Record<string, unknown> {
-  const out = pickApplicationFinancialPrefillFields(raw);
+  const out: Record<string, unknown> = {};
   if (!raw) return out;
-  for (const key of APPLICATION_COMREP_DETAIL_KEYS) {
+  for (const key of ADMIN_EDITABLE_RAW_FINANCIAL_KEYS) {
     const value = raw[key];
     if (!isPresentFinancialValue(value)) continue;
     if (typeof value === "number" && !Number.isFinite(value)) continue;
@@ -209,8 +210,9 @@ export function indexResolvedApplicationFinancials(
         const edited: string[] = [];
         const yearOverrides = overrides[yearKey];
         if (yearOverrides) {
-          for (const [key, override] of Object.entries(yearOverrides)) {
-            if (override.action !== "edit_user_input") continue;
+          for (const [key, slot] of Object.entries(yearOverrides)) {
+            const override = slot.edit_user_input;
+            if (!override) continue;
             const value = readFiniteFinancialNumber(override.value);
             if (value == null) continue;
             mapped[key] = value;
@@ -229,8 +231,9 @@ export function indexResolvedApplicationFinancials(
         const mapped = pickSubmittedApplicationFinancialYearFields(asRecord(blockUnknown));
         const yearOverrides = overrides[yearKey];
         if (yearOverrides) {
-          for (const [key, override] of Object.entries(yearOverrides)) {
-            if (override.action !== "edit_admin_input") continue;
+          for (const [key, slot] of Object.entries(yearOverrides)) {
+            const override = slot.edit_admin_input;
+            if (!override) continue;
             const value = readFiniteFinancialNumber(override.value);
             if (value == null) continue;
             mapped[key] = value;
@@ -245,8 +248,9 @@ export function indexResolvedApplicationFinancials(
       if (!YEAR_KEY_RE.test(yearKey)) continue;
       const gap = ctosGapFillsByYear[yearKey] ? { ...ctosGapFillsByYear[yearKey] } : {};
       let added = false;
-      for (const [key, override] of Object.entries(fields)) {
-        if (override.action !== "add_missing_ctos_field") continue;
+      for (const [key, slot] of Object.entries(fields)) {
+        const override = slot.add_missing_ctos_field;
+        if (!override) continue;
         if (gap[key] != null) continue;
         const value = readFiniteFinancialNumber(override.value);
         if (value == null) continue;

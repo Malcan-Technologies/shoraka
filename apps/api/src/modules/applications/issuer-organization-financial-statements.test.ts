@@ -1,5 +1,8 @@
 import { financialStatementsV2StoredSchema } from "./schemas";
-import { mergeIssuerOrgFinancialStatementsFromApplication } from "./issuer-organization-financial-statements";
+import {
+  mergeApplicationAdminFinancialSupplementsIntoOrg,
+  mergeIssuerOrgFinancialStatementsFromApplication,
+} from "./issuer-organization-financial-statements";
 
 const questionnaire = { financial_year_end: "2027-12-31" };
 
@@ -361,5 +364,86 @@ describe("mergeIssuerOrgFinancialStatementsFromApplication", () => {
     });
     expect(merged.questionnaire).toEqual(pastQuestionnaire);
     expect((merged.unaudited_by_year as Record<string, Record<string, unknown>>)["2020"].turnover).toBe(9);
+  });
+});
+
+describe("mergeApplicationAdminFinancialSupplementsIntoOrg", () => {
+  const AT = "2026-09-01T00:00:00.000Z";
+  const gapFill = {
+    value: 100,
+    baseSource: "ctos",
+    action: "add_missing_ctos_field",
+    updated_by_user_id: "admin-1",
+    updated_at: AT,
+  };
+  const userEdit = {
+    value: 120,
+    baseSource: "user_input",
+    action: "edit_user_input",
+    updated_by_user_id: "admin-1",
+    updated_at: AT,
+  };
+  const legacyOrgEntry = {
+    value: 7,
+    baseSource: "ctos",
+    action: "add_missing_ctos_field",
+    updated_by_user_id: "admin-0",
+    updated_at: "2025-01-01T00:00:00.000Z",
+  };
+
+  function mockDb(existingOrgFinancials: unknown) {
+    const upsert = jest.fn().mockResolvedValue({});
+    const db = {
+      application: {
+        findUnique: jest.fn().mockResolvedValue({
+          issuer_organization_id: "org-1",
+          financial_statements: {
+            admin_field_overrides: {
+              "2026": { tradeReceivables: { add_missing_ctos_field: gapFill, edit_user_input: userEdit } },
+            },
+          },
+        }),
+      },
+      issuerOrganizationFinancialStatement: {
+        findUnique: jest.fn().mockResolvedValue({ financial_statements: existingOrgFinancials }),
+        upsert,
+      },
+    };
+    return { db, upsert };
+  }
+
+  function upsertedFinancials(upsert: jest.Mock) {
+    expect(upsert).toHaveBeenCalledTimes(1);
+    const arg = upsert.mock.calls[0]![0] as {
+      create: { financial_statements: Record<string, unknown> };
+      update: { financial_statements: Record<string, unknown> };
+    };
+    expect(arg.create.financial_statements).toEqual(arg.update.financial_statements);
+    return arg.update.financial_statements;
+  }
+
+  it("mirrors both actions on one FY field and keeps an existing legacy org entry for another year", async () => {
+    const { db, upsert } = mockDb({
+      admin_field_overrides: { "2024": { cashAndBank: legacyOrgEntry } },
+    });
+    await mergeApplicationAdminFinancialSupplementsIntoOrg({
+      applicationId: "app-1",
+      db: db as unknown as Parameters<typeof mergeApplicationAdminFinancialSupplementsIntoOrg>[0]["db"],
+    });
+    expect(upsertedFinancials(upsert).admin_field_overrides).toEqual({
+      "2024": { cashAndBank: legacyOrgEntry },
+      "2026": { tradeReceivables: { add_missing_ctos_field: gapFill, edit_user_input: userEdit } },
+    });
+  });
+
+  it("creates the org mirror with both actions when no org row exists", async () => {
+    const { db, upsert } = mockDb(null);
+    await mergeApplicationAdminFinancialSupplementsIntoOrg({
+      applicationId: "app-1",
+      db: db as unknown as Parameters<typeof mergeApplicationAdminFinancialSupplementsIntoOrg>[0]["db"],
+    });
+    expect(upsertedFinancials(upsert).admin_field_overrides).toEqual({
+      "2026": { tradeReceivables: { add_missing_ctos_field: gapFill, edit_user_input: userEdit } },
+    });
   });
 });

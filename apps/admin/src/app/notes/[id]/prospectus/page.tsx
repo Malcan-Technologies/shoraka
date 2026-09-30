@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeftIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
+import { ArrowLeftIcon, DocumentTextIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import { Skeleton, StatusBadge } from "@cashsouk/ui";
 import {
   isCompleteIssuerMarcAssessment,
@@ -425,19 +425,33 @@ function ProspectusReviewPageInner() {
                 ) : null}
               </div>
             </div>
-            <Card className="rounded-2xl border-destructive/40" role="alert">
-              <CardHeader>
-                <CardTitle className="text-base text-destructive">
-                  {NOTE_FINANCIAL_SNAPSHOT_MISSING_TITLE}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-sm text-muted-foreground">{NOTE_FINANCIAL_SNAPSHOT_MISSING_MESSAGE}</p>
-                <Button variant="ghost" onClick={() => router.push(`/notes/${noteId}`)}>
+            <div
+              className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-4 dark:border-amber-900 dark:bg-amber-950/40"
+              role="alert"
+            >
+              <ExclamationTriangleIcon
+                className="mt-0.5 h-5 w-5 shrink-0 text-amber-700 dark:text-amber-400"
+                aria-hidden
+              />
+              <div className="min-w-0 space-y-3">
+                <div className="space-y-0.5 text-sm">
+                  <p className="font-medium text-amber-900 dark:text-amber-100">
+                    {NOTE_FINANCIAL_SNAPSHOT_MISSING_TITLE}
+                  </p>
+                  <p className="text-amber-800 dark:text-amber-200">
+                    {NOTE_FINANCIAL_SNAPSHOT_MISSING_MESSAGE}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => router.push(`/notes/${noteId}`)}
+                >
                   Back to Note
                 </Button>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
         </div>
       </div>
