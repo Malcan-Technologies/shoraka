@@ -1,8 +1,9 @@
 /**
  * SECTION: Prospectus Page 2 — 3-Year Financial Comparison Source (DATA STAGE 4A)
- * WHY: Same normalized year set as Admin Financial Statements; max 3; oldest→newest
+ * WHY: The selected years of the approved Financial Review result; max 3; oldest→newest
  */
 
+import type { FinancialReviewCalculatedValues } from "@cashsouk/types";
 import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types";
 
 export { PROSPECTUS_DATA_NOT_AVAILABLE };
@@ -33,8 +34,10 @@ export interface ProspectusFinancialComparisonYear {
   financialYearEndIso: string;
   recordSource: ProspectusFinancialComparisonRecordSource;
   statementType: ProspectusFinancialComparisonStatementType;
-  /** Original source fields for Stage 4B — not Canva-facing alone. */
+  /** Reviewed raw values of the year (after Admin edits / gap-fills) — raw rows only. */
   rawFinancials: Record<string, unknown>;
+  /** Calculated metrics stored with the Financial Review result; displayed, never recalculated. */
+  calculatedValues: FinancialReviewCalculatedValues;
   /**
    * Prospectus display-only column with no real normalized financial record.
    * Never stored, never approval-required, never used for trend numerics.
@@ -50,7 +53,7 @@ export interface ProspectusFinancialComparisonYear {
 export interface ProspectusFinancialComparisonSourceAudit {
   source: {
     selectedSource: "admin_financial_statements_normalized";
-    path: "ctos.financials_json + applications.financial_statements (SSM window)";
+    path: "notes.financial_snapshot.approved_financial_result (selected years)";
     ctosUsed: true;
     sourceMixingAllowed: true;
     precedence: "reviewed_user_input_then_ctos_then_active_admin_input";
@@ -75,7 +78,7 @@ export interface ProspectusFinancialComparisonSourceAudit {
     unitLabelDecision: "myr_mil_in_heading";
   };
   snapshot: {
-    sourceType: "live_normalized_financial_statements";
+    sourceType: "note_financial_snapshot";
     isFrozen: false;
     snapshotDecision: "freeze_at_approval";
   };
@@ -85,7 +88,7 @@ export const PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_AUDIT: ProspectusFinancialCo
   {
     source: {
       selectedSource: "admin_financial_statements_normalized",
-      path: "ctos.financials_json + applications.financial_statements (SSM window)",
+      path: "notes.financial_snapshot.approved_financial_result (selected years)",
       ctosUsed: true,
       sourceMixingAllowed: true,
       precedence: "reviewed_user_input_then_ctos_then_active_admin_input",
@@ -110,7 +113,7 @@ export const PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_AUDIT: ProspectusFinancialCo
       unitLabelDecision: "myr_mil_in_heading",
     },
     snapshot: {
-      sourceType: "live_normalized_financial_statements",
+      sourceType: "note_financial_snapshot",
       isFrozen: false,
       snapshotDecision: "freeze_at_approval",
     },
@@ -133,19 +136,6 @@ export interface ProspectusFinancialComparisonSource {
   opsWarning: string | null;
   /** Audit/debug only — omitted from Canva HTML. */
   audit: ProspectusFinancialComparisonSourceAudit;
-}
-
-/**
- * Application financial statements + organization CTOS financials_json.
- * Year set matches Admin Financial Statements tab (then capped at three).
- */
-export interface ProspectusFinancialComparisonSourceInput {
-  /** applications.financial_statements */
-  financialStatements?: unknown;
-  /** Organization CTOS financials_json (array) — same as Admin Financial Statements. */
-  ctosFinancials?: unknown;
-  /** Reference date for SSM six-month deadline (tests). */
-  ref?: Date;
 }
 
 export interface ProspectusFinancialComparisonSourceFieldSource {

@@ -8,8 +8,6 @@ import { Skeleton, StatusBadge } from "@cashsouk/ui";
 import {
   isCompleteIssuerMarcAssessment,
   isNoteProspectusPublished,
-  // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-  normalizeProspectusWorkflowStatus,
   normalizeProspectusCompanySize,
   normalizeProspectusDeedOfAssignment,
   type ProspectusReviewStoredContent,
@@ -85,14 +83,6 @@ import {
 import { ProspectusPreviewSheet } from "@/notes/prospectus-review/preview-sheet";
 import { ProspectusStatusBadge } from "@/notes/prospectus-review/status-badge";
 import { getProspectusActionVisibility } from "@/notes/prospectus-review/action-visibility";
-// TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-import { useProspectusDiagCacheLogger } from "@/notes/hooks/use-prospectus-review";
-// TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-import {
-  beginProspectusUiFlow,
-  prospectusUiDiag,
-  prospectusUiDiagOnChange,
-} from "@/notes/prospectus-review/prospectus-ui-diagnostics";
 import {
   PROSPECTUS_ACTIVE_COLUMN_CLASS,
   PROSPECTUS_STEPS_GRID_CLASS,
@@ -111,8 +101,6 @@ function ProspectusReviewPageInner() {
 
   const { data, isLoading, error, refetch } = useProspectusReview(noteId);
   const { data: note } = useNoteDetail(noteId);
-  // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-  const readProspectusDiagCache = useProspectusDiagCacheLogger(noteId);
   const issuerOrganizationId = note?.issuerOrganizationId ?? null;
   const {
     data: marcAssessment,
@@ -265,16 +253,6 @@ function ProspectusReviewPageInner() {
   const confirmApprove = async () => {
     if (approveInFlightRef.current || !draft || !data || !canManage || locked) return;
     approveInFlightRef.current = true;
-    // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-    beginProspectusUiFlow(noteId);
-    prospectusUiDiag("prospectus.ui.approve.confirmed", {
-      noteId,
-      dirtyAtDialogOpen: approveDialogDirty,
-      renderedStatus: data.review.status,
-      renderedUpdatedAt: data.review.updatedAt,
-      renderedContentVersion: data.review.contentVersion,
-      cache: readProspectusDiagCache(),
-    });
 
     try {
       let expectedUpdatedAtForApprove: string | undefined;
@@ -303,24 +281,8 @@ function ProspectusReviewPageInner() {
       setApprovePhase("approving");
       // Approve the saved review only — never pass unsaved draftContent here.
       try {
-        // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-        // (result is only captured for the toast log below)
-        const diagApproved = await approve.mutateAsync({ expectedUpdatedAt: expectedUpdatedAtForApprove } as any);
+        await approve.mutateAsync({ expectedUpdatedAt: expectedUpdatedAtForApprove } as any);
         setApproveDialogOpen(false);
-        // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-        const diagCacheAtToast = readProspectusDiagCache();
-        prospectusUiDiag("prospectus.ui.approve.toast", {
-          noteId,
-          mutationResponseStatus: diagApproved.status,
-          mutationResponseUpdatedAt: diagApproved.updatedAt,
-          mutationResponseContentVersion: diagApproved.contentVersion,
-          currentQueryStatus: diagCacheAtToast?.review?.status ?? null,
-          currentQueryFetchStatus: diagCacheAtToast?.review?.fetchStatus ?? null,
-          noteDetailProspectus: diagCacheAtToast?.noteDetail?.prospectus ?? null,
-          // Status captured by this handler's render, before approve ran.
-          renderedStatusBeforeApprove: data.review.status,
-          cache: diagCacheAtToast,
-        });
         toast.success("Prospectus approved — Note is eligible for publication");
       } catch (e) {
         if (e instanceof ProspectusReviewConflictError) {
@@ -387,7 +349,8 @@ function ProspectusReviewPageInner() {
       };
     });
 
-    const metricToRawKey: Record<string, keyof (typeof frozenFinancialYears)[number]["raw"]> = {
+    // Presence follows the stored calculated values the API formats these rows from.
+    const metricToCalculatedKey: Record<string, keyof (typeof frozenFinancialYears)[number]["calculated"]> = {
       "ROE (%)": "return_on_equity",
       "Current Ratio (x)": "currat",
       "Net Debt / Equity (x)": "netDebtEquity",
@@ -396,7 +359,7 @@ function ProspectusReviewPageInner() {
       "Receivables Days": "receivablesDays",
     };
 
-    const calculatedMetricNames = new Set(Object.keys(metricToRawKey));
+    const calculatedMetricNames = new Set(Object.keys(metricToCalculatedKey));
 
     const rows = pageTwoFinancialTable.rows.map((r) => {
       const values = [...r.values];
@@ -406,7 +369,7 @@ function ProspectusReviewPageInner() {
         return { ...r, values, cellHints };
       }
 
-      const rawKey = metricToRawKey[r.metric]!;
+      const calculatedKey = metricToCalculatedKey[r.metric]!;
 
       for (let i = 0; i < yearHeaders.length; i++) {
         const header = yearHeaders[i]!;
@@ -415,8 +378,8 @@ function ProspectusReviewPageInner() {
         const frozen = frozenByCalendarYear.get(calendarYear);
         if (!frozen) continue;
 
-        const rawValue = frozen.raw[rawKey] as number | null;
-        if (rawValue != null) continue; // present -> keep API-formatted value
+        const calculatedValue = frozen.calculated?.[calculatedKey] ?? null;
+        if (calculatedValue != null) continue; // present -> keep API-formatted value
 
         // Prospectus is presentation-only: if the resolved value is unavailable, show `—`.
         // Do not surface diagnostic missing-field helper text in Prospectus.
@@ -558,38 +521,6 @@ function ProspectusReviewPageInner() {
     status: status ?? "DRAFT",
     canManage,
     notePublished,
-  });
-  // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-  const diagFormattedStatus = formatProspectusReviewStatus(data.review.status, notePublished);
-  prospectusUiDiagOnChange("prospectus.status_mapping", `page-mapping:${noteId}`, {
-    site: "admin.prospectus_page",
-    noteId,
-    rawStatus: data.review.status,
-    normalizedStatus: normalizeProspectusWorkflowStatus(data.review.status),
-    displayStatus: diagFormattedStatus,
-    notePublished,
-    canManage,
-    step,
-    actions,
-    publishBlockedReason: data.publishBlockedReason ?? null,
-  });
-  prospectusUiDiagOnChange("prospectus.ui.render", `page-render:${noteId}`, {
-    noteId,
-    rawReviewStatus: data.review.status,
-    formattedReviewStatus: diagFormattedStatus,
-    approveButtonVisible: actions.approve,
-    publishBlockedReason: data.publishBlockedReason ?? null,
-    reviewUpdatedAt: data.review.updatedAt,
-    reviewContentVersion: data.review.contentVersion,
-    noteDetailLoaded: note != null,
-    noteDetailProspectusStatus: note?.prospectus?.status ?? null,
-    noteDetailProspectusDisplayStatus: note?.prospectus?.displayStatus ?? null,
-    noteStatus: note?.status ?? null,
-    notePublished,
-    noteDetailDisagreesWithReview:
-      note?.prospectus != null && note.prospectus.status !== data.review.status,
-    dirty,
-    approvePhase,
   });
   const pageCompletion = formatProspectusPageCompletionLabel(
     draft,

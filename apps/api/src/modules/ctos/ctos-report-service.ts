@@ -120,6 +120,7 @@ async function resetFinancialReviewAfterCtosUpdateIfNeeded(params: {
           status: ReviewStepStatus.PENDING,
           reviewer_user_id: null,
           reviewed_at: null,
+          approved_snapshot: Prisma.DbNull,
         },
       });
       await logApplicationActivity(

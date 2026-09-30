@@ -251,7 +251,7 @@ describe("prospectus Page 3 balance sheet (DATA STAGE 3)", () => {
     expect(row(invalid, "current_assets")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
   });
 
-  it("uses direct CTOS totass only for Total Assets", () => {
+  it("displays the stored Total Assets", () => {
     const data = buildProspectusPageThreeBalanceSheet(
       SAMPLE_PROSPECTUS_PAGE_THREE_BALANCE_SHEET_INPUT
     );
@@ -267,7 +267,8 @@ describe("prospectus Page 3 balance sheet (DATA STAGE 3)", () => {
       join(__dirname, "prospectus-page-three-balance-sheet.ts"),
       "utf8"
     );
-    expect(moduleSource).toMatch(/resolveCtosTotalAssets/);
+    expect(moduleSource).not.toMatch(/resolveCtosTotalAssets/);
+    expect(moduleSource).toMatch(/calculated\.totass/);
     expect(moduleSource).not.toMatch(/resolveApplicationFinancialTotalAssets/);
     expect(moduleSource).not.toMatch(/bsfatot\s*\+\s*othass/);
   });
@@ -326,7 +327,7 @@ describe("prospectus Page 3 balance sheet (DATA STAGE 3)", () => {
     );
   });
 
-  it("uses direct CTOS totlib only for Total Liabilities", () => {
+  it("displays the stored Total Liabilities", () => {
     const data = buildProspectusPageThreeBalanceSheet(
       SAMPLE_PROSPECTUS_PAGE_THREE_BALANCE_SHEET_INPUT
     );
@@ -350,12 +351,13 @@ describe("prospectus Page 3 balance sheet (DATA STAGE 3)", () => {
       join(__dirname, "prospectus-page-three-balance-sheet.ts"),
       "utf8"
     );
-    expect(moduleSource).toMatch(/resolveCtosTotalLiabilities/);
+    expect(moduleSource).not.toMatch(/resolveCtosTotalLiabilities/);
+    expect(moduleSource).toMatch(/calculated\.totlib/);
     expect(moduleSource).not.toMatch(/resolveApplicationFinancialTotalLiabilities/);
     expect(moduleSource).not.toMatch(/curlib\s*\+\s*bsslltd/);
   });
 
-  it("uses resolveCtosCurrentRatio (direct currat only) and matches Page 2", () => {
+  it("displays the stored Current Ratio (CTOS direct figure, else stored fallback) and matches Page 2", () => {
     const source = SAMPLE_PROSPECTUS_PAGE_THREE_BALANCE_SHEET_SOURCE;
     const page3 = buildProspectusPageThreeBalanceSheet({ financialSource: source });
     const page2 = buildProspectusFinancialComparisonMetrics({ source });
@@ -369,13 +371,15 @@ describe("prospectus Page 3 balance sheet (DATA STAGE 3)", () => {
     const missingCurrat = buildProspectusPageThreeBalanceSheet({
       financialSource: sourceFromYears({ "2024": { bscatot: 100, curlib: 50 } }),
     });
-    expect(row(missingCurrat, "current_ratio")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    // CTOS omitted currat → stored fallback Current Assets ÷ Current Liabilities (100 / 50).
+    expect(row(missingCurrat, "current_ratio")?.values[0]).toBe("2x");
 
     const moduleSource = readFileSync(
       join(__dirname, "prospectus-page-three-balance-sheet.ts"),
       "utf8"
     );
-    expect(moduleSource).toMatch(/resolveCtosCurrentRatio/);
+    expect(moduleSource).not.toMatch(/resolveCtosCurrentRatio/);
+    expect(moduleSource).toMatch(/calculated\.currat/);
     expect(moduleSource).not.toMatch(/resolveApplicationFinancialCurrentRatio/);
   });
 
@@ -418,7 +422,7 @@ describe("prospectus Page 3 balance sheet (DATA STAGE 3)", () => {
       "utf8"
     );
     expect(builder).toMatch(/formatProspectusMyrMillions/);
-    expect(builder).toMatch(/resolveCtosTotalAssets/);
+    expect(builder).toMatch(/calculated\.totass/);
     expect(builder).not.toMatch(/\/\s*1_?000_?000/);
     expect(builder).not.toMatch(/formatProspectusMoneyMyr/);
     expect(builder).not.toMatch(/IfComplete/);

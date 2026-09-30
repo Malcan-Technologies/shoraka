@@ -1,11 +1,10 @@
 /**
  * SECTION: Build Page 3 Stage 3 income statement rows
- * WHY: Reuse Page 2 years + MYR-millions display formatter; store full MYR
+ * WHY: Reuse Page 2 years + MYR-millions display formatter; EBIT and margin are stored
+ * Financial Review values (never recalculated here)
  */
 
-import {
-  resolveCtosPatMarginPercent,
-} from "@cashsouk/types";
+import type { FinancialReviewCalculatedValues } from "@cashsouk/types";
 import {
   formatProspectusFinancialPercentFromPoints,
   formatProspectusMyrMillions,
@@ -37,6 +36,7 @@ function moneyMillionsOrDna(value: number | string | null | undefined): string {
 function valueForRow(
   key: ProspectusPageThreeIncomeStatementRowKey,
   raw: Record<string, unknown>,
+  calculated: FinancialReviewCalculatedValues,
   _year: number,
   _input: ProspectusPageThreeIncomeStatementInput,
   isPlaceholder: boolean
@@ -51,20 +51,14 @@ function valueForRow(
     case "ebitda":
       return moneyMillionsOrDna(fieldFromRaw(raw, "ebitda"));
     case "ebit":
-      return moneyMillionsOrDna(fieldFromRaw(raw, "ebit"));
+      return moneyMillionsOrDna(calculated.ebit);
     case "profit_before_tax":
       return moneyMillionsOrDna(fieldFromRaw(raw, "plnpbt"));
     case "profit_after_tax":
       return moneyMillionsOrDna(fieldFromRaw(raw, "plnpat"));
-    case "net_profit_margin": {
-      // CTOS ENQWS v5.11.0 Financial Highlights XSL — PAT Margin (never profit_margin / PBT).
-      return formatProspectusFinancialPercentFromPoints(
-        resolveCtosPatMarginPercent({
-          plnpat: fieldFromRaw(raw, "plnpat"),
-          turnover: fieldFromRaw(raw, "turnover"),
-        })
-      );
-    }
+    case "net_profit_margin":
+      // Stored PAT Margin (percent points) — never profit_margin (CTOS raw PBT margin).
+      return formatProspectusFinancialPercentFromPoints(calculated.profit_margin);
     default: {
       const _exhaustive: never = key;
       return _exhaustive;
@@ -91,7 +85,14 @@ export function buildProspectusPageThreeIncomeStatement(
       key,
       label: PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_ROW_LABELS[key],
       values: years.map((year) =>
-        valueForRow(key, year.rawFinancials, year.year, input, year.isPlaceholder === true)
+        valueForRow(
+          key,
+          year.rawFinancials,
+          year.calculatedValues,
+          year.year,
+          input,
+          year.isPlaceholder === true
+        )
       ),
     })),
     audit: PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_AUDIT,

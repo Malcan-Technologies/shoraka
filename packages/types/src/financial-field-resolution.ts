@@ -21,6 +21,7 @@ import {
   getAdminFinancialSummaryUserColumnYears,
   parseFinancialStatementsQuestionnaireShape,
 } from "./financial-unaudited-ctos-validation";
+import { isApplicationReviewableStatus } from "./application-review-lifecycle";
 
 export const ADMIN_EDITABLE_RAW_FINANCIAL_KEYS = [
   ...APPLICATION_CORE_MONEY_KEYS,
@@ -145,11 +146,27 @@ export function wholeYearAdminFinancialFieldProgress(
 }
 
 /**
- * Financial section approval is the only Admin application-financial edit lock.
+ * Section-level Admin application-financial edit lock: Financial is APPROVED.
  * A missing row is treated as not approved (PENDING / reopened after resubmit deletes the amendment row).
+ * Use {@link isAdminFinancialEditOpen} to decide whether Admin may edit; it also applies the
+ * application review boundary.
  */
 export function isAdminFinancialReviewEditLocked(sectionStatus: string | null | undefined): boolean {
   return String(sectionStatus ?? "").trim().toUpperCase() === "APPROVED";
+}
+
+/**
+ * Admin may edit application financials only while the application is reviewable and the
+ * Financial section is not APPROVED. Same application boundary as every other review action.
+ */
+export function isAdminFinancialEditOpen(input: {
+  financialSectionStatus: string | null | undefined;
+  applicationStatus: string | null | undefined;
+}): boolean {
+  return (
+    isApplicationReviewableStatus(input.applicationStatus) &&
+    !isAdminFinancialReviewEditLocked(input.financialSectionStatus)
+  );
 }
 
 export function readFiniteFinancialNumber(value: unknown): number | null {
@@ -276,7 +293,7 @@ function resolveRawField(params: {
   };
 }
 
-function yearFields(params: {
+export function yearFields(params: {
   primary: Exclude<AdminFinancialReviewPrimarySource, "add_year">;
   ctosRaw: Record<string, unknown> | null;
   issuerRaw: Record<string, unknown> | null;

@@ -83,6 +83,7 @@ import {
   getOfferAcceptanceFromOfferDetails,
   buildOriginationPhaseInput,
   canRejectApplication,
+  isApplicationReviewableStatus,
   isCompletedWithNoApprovedInvoices,
   isPaymasterSwitchingFrozen,
   resolveOriginationPhase,
@@ -211,21 +212,7 @@ export default function DynamicApplicationDetailPage() {
   const addPendingAmendment = useAddPendingAmendment();
   const approveItem = useApproveReviewItem();
   const rejectItem = useRejectReviewItem();
-  const REVIEWABLE_STATUSES = [
-    "SUBMITTED",
-    "UNDER_REVIEW",
-    "CONTRACT_PENDING",
-    "CONTRACT_SENT",
-    "CONTRACT_ACCEPTED",
-    "INVOICE_ACCEPTED",
-    "SIGNING_PENDING",
-    "INVOICE_PENDING",
-    "INVOICES_SENT",
-    "RESUBMITTED",
-    "AMENDMENT_REQUESTED",
-    "OFFER_EXPIRED",
-  ];
-  const isReviewable = !!app && REVIEWABLE_STATUSES.includes(app.status);
+  const isReviewable = !!app && isApplicationReviewableStatus(app.status);
   const requestAmendmentReviewItem = useRequestAmendmentReviewItem();
   const addSectionComment = useAddSectionComment();
   const { data: pendingAmendments = [] } = useListPendingAmendments(applicationId, {

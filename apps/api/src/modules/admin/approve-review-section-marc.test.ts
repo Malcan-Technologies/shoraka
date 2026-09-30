@@ -35,11 +35,18 @@ jest.mock("../../lib/http/request-utils", () => ({
     deviceType: "desktop",
   }),
 }));
+const mockTx = { tx: true };
+const mockApproveFinancialReviewWithResult = jest.fn();
+jest.mock("./financial-approved-result", () => ({
+  approveFinancialReviewWithResult: (...args: unknown[]) =>
+    mockApproveFinancialReviewWithResult(...args),
+}));
 jest.mock("../../lib/prisma", () => ({
   prisma: {
     issuerOrganizationMarcAssessment: {
       findFirst: jest.fn(),
     },
+    $transaction: jest.fn((fn: (tx: unknown) => unknown) => fn(mockTx)),
   },
 }));
 
@@ -88,6 +95,7 @@ describe("AdminService approveReviewSection MARC", () => {
       message: MARC_ASSESSMENT_REQUIRED_MESSAGE,
     } satisfies Partial<AppError>);
     expect(repository.updateSectionReviewStatus).not.toHaveBeenCalled();
+    expect(mockApproveFinancialReviewWithResult).not.toHaveBeenCalled();
   });
 
   it("blocks financial approve when the issuer MARC assessment is incomplete", async () => {
@@ -109,6 +117,7 @@ describe("AdminService approveReviewSection MARC", () => {
       message: MARC_ASSESSMENT_REQUIRED_MESSAGE,
     } satisfies Partial<AppError>);
     expect(repository.updateSectionReviewStatus).not.toHaveBeenCalled();
+    expect(mockApproveFinancialReviewWithResult).not.toHaveBeenCalled();
   });
 
   it("allows financial approve when MARC is complete", async () => {
@@ -124,7 +133,12 @@ describe("AdminService approveReviewSection MARC", () => {
 
     await service.approveReviewSection("app-1", "financial", "admin-1");
 
-    expect(repository.updateSectionReviewStatus).toHaveBeenCalled();
+    // Financial approval writes status APPROVED and the approved result in one transaction.
+    expect(mockApproveFinancialReviewWithResult).toHaveBeenCalledWith(mockTx, {
+      applicationId: "app-1",
+      reviewerUserId: "admin-1",
+    });
+    expect(repository.updateSectionReviewStatus).not.toHaveBeenCalled();
   });
 
   it("does not require MARC when approving a non-financial section", async () => {
@@ -132,5 +146,6 @@ describe("AdminService approveReviewSection MARC", () => {
 
     expect(prisma.issuerOrganizationMarcAssessment.findFirst).not.toHaveBeenCalled();
     expect(repository.updateSectionReviewStatus).toHaveBeenCalled();
+    expect(mockApproveFinancialReviewWithResult).not.toHaveBeenCalled();
   });
 });

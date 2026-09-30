@@ -87,8 +87,10 @@ jest.mock("../prospectus/prospectus-page-two-mapper", () => ({
     isPublished: false,
     financialMode: "live_unpublished_preview",
     frozenFinancialComparison: null,
-    liveCtosFinancials: { turnover: liveTurnoverTag, bscatot: liveBscatotTag },
-    liveFinancialStatements: {},
+    // Draft preview input: the approved Financial Review result from the Note financial snapshot.
+    approvedFinancialResult: {
+      years: [{ effective_raw_values: { turnover: liveTurnoverTag, bscatot: liveBscatotTag } }],
+    },
     issuerSnapshot: {},
     invoiceSnapshot: {},
     paymasterSnapshot: {},
@@ -98,7 +100,7 @@ jest.mock("../prospectus/prospectus-page-two-mapper", () => ({
     const source =
       financialMode === "frozen_publication_snapshot"
         ? pageInput.frozenFinancialComparison?.selected_years?.[0]?.raw_financials
-        : pageInput.liveCtosFinancials;
+        : pageInput.approvedFinancialResult?.years?.[0]?.effective_raw_values;
     return {
       _financialMode: financialMode,
       _turnover: source?.turnover,
@@ -118,8 +120,10 @@ jest.mock("../prospectus/prospectus-page-three-mapper", () => ({
     isPublished: false,
     financialMode: "live_unpublished_preview",
     frozenFinancialComparison: null,
-    liveCtosFinancials: { turnover: liveTurnoverTag, bscatot: liveBscatotTag },
-    liveFinancialStatements: {},
+    // Draft preview input: the approved Financial Review result from the Note financial snapshot.
+    approvedFinancialResult: {
+      years: [{ effective_raw_values: { turnover: liveTurnoverTag, bscatot: liveBscatotTag } }],
+    },
     issuerSnapshot: {},
     invoiceSnapshot: {},
     paymasterSnapshot: {},
@@ -129,7 +133,7 @@ jest.mock("../prospectus/prospectus-page-three-mapper", () => ({
     const source =
       financialMode === "frozen_publication_snapshot"
         ? pageInput.frozenFinancialComparison?.selected_years?.[0]?.raw_financials
-        : pageInput.liveCtosFinancials;
+        : pageInput.approvedFinancialResult?.years?.[0]?.effective_raw_values;
     return {
       _financialMode: financialMode,
       _bscatot: source?.bscatot,
@@ -393,7 +397,8 @@ describe("prospectus approved preview uses frozen Page 1 snapshot", () => {
       publication_id: "pub-1",
       content_version: 1,
       calculated_at: new Date().toISOString(),
-      html: { page1: "", page2: "", page3: "" },
+      // Approve always stores Page 2 / 3 HTML; publish keeps it unchanged.
+      html: { page1: "", page2: "<p>approved p2</p>", page3: "<p>approved p3</p>" },
     };
 
     const result = await service.generateFinalProspectusPdfForPublish({

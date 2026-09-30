@@ -1,5 +1,9 @@
-import { buildProspectusFinancialComparisonSource } from "./prospectus-financial-comparison-source";
+import { emptyProspectusCalculatedValues } from "./prospectus-financial-comparison-source";
 import type { ProspectusFinancialComparisonYear } from "./prospectus-financial-comparison-source.types";
+import {
+  approvedFinancialResultFromInputs,
+  buildProspectusFinancialComparisonSourceFromInputs,
+} from "./prospectus-financial-comparison-test-helpers";
 import { buildProspectusPageThree } from "./prospectus-page-three-mapper";
 import { buildProspectusPageTwo } from "./prospectus-page-two-mapper";
 import { buildProspectusPage2FinancialComparisonSnapshot } from "./prospectus-page-two-snapshot";
@@ -20,7 +24,9 @@ function realYear(
     financialYearEndIso: fyeIso,
     financialYearEndLabel: `31 Dec ${year}`,
     recordSource: "unaudited_management",
+    statementType: "MANAGEMENT_ACCOUNTS",
     rawFinancials: { turnover: 1_000_000, plnpat: 100_000 },
+    calculatedValues: { ...emptyProspectusCalculatedValues(), profit_margin: 10 },
     isPlaceholder: false,
   };
 }
@@ -31,6 +37,9 @@ describe("buildProspectusThreeYearDisplaySet", () => {
     expect(display.map((y) => y.year)).toEqual([2024, 2025, 2026]);
     expect(display.map((y) => y.isPlaceholder)).toEqual([true, true, false]);
     expect(display[0]?.rawFinancials).toEqual({});
+    // Placeholders carry no stored metrics; real years keep theirs.
+    expect(display[0]?.calculatedValues).toEqual(emptyProspectusCalculatedValues());
+    expect(display[2]?.calculatedValues.profit_margin).toBe(10);
     expect(display[2]?.rawFinancials.turnover).toBe(1_000_000);
     expect(display[0]?.financialYearEndLabel).toBe("31 Dec 2024");
     expect(display[1]?.financialYearEndLabel).toBe("31 Dec 2025");
@@ -142,8 +151,11 @@ describe("Prospectus page builders + freeze", () => {
       invoiceSnapshot: {},
       paymasterSnapshot: {},
       maturityDate: null,
-      liveFinancialStatements: liveFs,
-      liveCtosFinancials: null,
+      approvedFinancialResult: approvedFinancialResultFromInputs({
+        financialStatements: liveFs,
+        ctosFinancials: null,
+        ref: new Date(),
+      }),
       frozenFinancialComparison: null,
     });
     const page3 = buildProspectusPageThree({
@@ -153,8 +165,11 @@ describe("Prospectus page builders + freeze", () => {
       issuerSnapshot: { name: "Co" },
       invoiceSnapshot: {},
       paymasterSnapshot: {},
-      liveFinancialStatements: liveFs,
-      liveCtosFinancials: null,
+      approvedFinancialResult: approvedFinancialResultFromInputs({
+        financialStatements: liveFs,
+        ctosFinancials: null,
+        ref: new Date(),
+      }),
       frozenFinancialComparison: null,
     });
 
@@ -242,8 +257,7 @@ describe("Prospectus page builders + freeze", () => {
       invoiceSnapshot: {},
       paymasterSnapshot: {},
       maturityDate: null,
-      liveFinancialStatements: null,
-      liveCtosFinancials: null,
+      approvedFinancialResult: null,
       frozenFinancialComparison: frozenGap,
     });
     const page3 = buildProspectusPageThree({
@@ -253,8 +267,7 @@ describe("Prospectus page builders + freeze", () => {
       issuerSnapshot: { name: "Co" },
       invoiceSnapshot: {},
       paymasterSnapshot: {},
-      liveFinancialStatements: null,
-      liveCtosFinancials: null,
+      approvedFinancialResult: null,
       frozenFinancialComparison: frozenGap,
     });
 
@@ -287,13 +300,16 @@ describe("Prospectus page builders + freeze", () => {
 
   it("freeze snapshot stores only real years, not display placeholders", () => {
     const snap = buildProspectusPage2FinancialComparisonSnapshot({
-      financialStatements: liveFs,
-      ctosFinancials: null,
+      approvedFinancialResult: approvedFinancialResultFromInputs({
+        financialStatements: liveFs,
+        ctosFinancials: null,
+        ref: new Date("2026-07-01T00:00:00.000Z"),
+      }),
       now: new Date("2026-07-01T00:00:00.000Z"),
     });
     expect(snap.selected_years.map((y) => y.year)).toEqual([2026]);
 
-    const source = buildProspectusFinancialComparisonSource({
+    const source = buildProspectusFinancialComparisonSourceFromInputs({
       financialStatements: liveFs,
       ref: new Date("2026-07-01T00:00:00.000Z"),
     });

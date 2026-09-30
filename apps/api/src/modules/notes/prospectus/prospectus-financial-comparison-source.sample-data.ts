@@ -3,11 +3,11 @@
  * WHY: CTOS latest-three years prove Admin-aligned selection and ascending display
  */
 
-import { buildProspectusFinancialComparisonSource } from "./prospectus-financial-comparison-source";
-import type {
-  ProspectusFinancialComparisonSource,
-  ProspectusFinancialComparisonSourceInput,
-} from "./prospectus-financial-comparison-source.types";
+import {
+  buildProspectusFinancialComparisonSourceFromInputs,
+  type ProspectusFinancialFixtureInputs,
+} from "./prospectus-financial-comparison-test-helpers";
+import type { ProspectusFinancialComparisonSource } from "./prospectus-financial-comparison-source.types";
 
 function ctosYear(
   year: number,
@@ -52,7 +52,7 @@ function ctosYear(
  * CTOS supplies 2020–2024; Admin keeps latest three (2022–2024). Unaudited SSM years
  * are empty here so the shared sample stays a clean three-year audited set.
  */
-export const SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_INPUT: ProspectusFinancialComparisonSourceInput =
+export const SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_INPUT: ProspectusFinancialFixtureInputs =
   {
     financialStatements: {
       questionnaire: {
@@ -75,6 +75,6 @@ export const SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_INPUT: ProspectusFina
   };
 
 export const SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_SOURCE: ProspectusFinancialComparisonSource =
-  buildProspectusFinancialComparisonSource(
+  buildProspectusFinancialComparisonSourceFromInputs(
     SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_INPUT
   );

@@ -1,15 +1,8 @@
 import { formatCurrency } from "@cashsouk/config";
 import {
-  resolveCtosGearingRatio,
-  resolveCtosCurrentRatio,
-  resolveCtosPatMarginPercent,
-  resolveCtosReturnOnAssetsPercent,
-  resolveCtosReturnOnEquityPercent,
-  resolveCtosTotalAssetTurnover,
-  resolveCtosTotalAssets,
-  resolveCtosTotalLiabilities,
   isMarcSmeGrade,
   normalizeProspectusCompanySize,
+  type FinancialReviewCalculatedKey,
   type NoteDetail,
   type ProspectusFrozenFinancialRaw,
   type ProspectusFrozenFinancialYear,
@@ -132,6 +125,15 @@ function rawAsRecord(raw: ProspectusFrozenFinancialRaw): Record<string, unknown>
   return { ...raw };
 }
 
+/** Raw figures plus the metrics stored with the approved Financial result for one frozen year. */
+export type PageThreeYearValues = Pick<ProspectusFrozenFinancialYear, "raw" | "calculated">;
+
+/** Stored calculated metric (never recalculated here); missing → null. */
+function calculatedValue(year: PageThreeYearValues, key: FinancialReviewCalculatedKey): number | null {
+  const value = year.calculated?.[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
 export function buildPageThreeOverviewRows(
   frozenYears: ProspectusFrozenFinancialYear[]
 ): CoreTermRow[] {
@@ -222,20 +224,19 @@ export function buildPageThreeAdminOverviewRows(
 export type PageThreeManualYear = Record<string, string | number | null | undefined>;
 export type PageThreeManualYears = Record<string, PageThreeManualYear | undefined>;
 
-/** Final resolved Income Statement values for one year (derived + officer-entered). */
+/** Final resolved Income Statement values for one year (raw figures + stored calculated metrics). */
 export function buildIncomeStatementResolvedRows(
-  yearRaw: Record<string, unknown>,
+  year: PageThreeYearValues,
   _manual: PageThreeManualYear | undefined
 ): Array<{ label: string; value: string; hint?: string | null }> {
+  const yearRaw = rawAsRecord(year.raw);
   const revenue = parseNumber(yearRaw.turnover);
   const pat = parseNumber(yearRaw.plnpat);
   const pbt = parseNumber(yearRaw.plnpbt);
-  const ebit = parseNumber(yearRaw.ebit);
 
-  const ebitValue = formatMoney(ebit);
+  const ebitValue = formatMoney(calculatedValue(year, "ebit"));
 
-  const netProfitMarginPoints = resolveCtosPatMarginPercent({ plnpat: pat, turnover: revenue });
-  const netProfitMarginValue = formatPercentFromPoints(netProfitMarginPoints);
+  const netProfitMarginValue = formatPercentFromPoints(calculatedValue(year, "profit_margin"));
 
   return [
     { label: "Revenue", value: formatMoney(revenue) },
@@ -247,7 +248,7 @@ export function buildIncomeStatementResolvedRows(
     { label: "Profit After Tax", value: formatMoney(pat) },
     {
       label: "Net Profit Margin",
-      // CTOS ENQWS v5.11.0 Financial Highlights XSL — PAT Margin (never profit_margin / PBT).
+      // Stored PAT Margin from the approved Financial result (never CTOS profit_margin / PBT).
       value: netProfitMarginValue,
       hint: null,
     },
@@ -256,34 +257,23 @@ export function buildIncomeStatementResolvedRows(
 
 /** Final resolved Balance Sheet & Liquidity values including Total Liabilities. */
 export function buildBalanceSheetResolvedRows(
-  yearRaw: Record<string, unknown>,
+  year: PageThreeYearValues,
   _manual: PageThreeManualYear | undefined
 ): Array<{ label: string; value: string; hint?: string | null }> {
+  const yearRaw = rawAsRecord(year.raw);
   const currentAssets = parseNumber(yearRaw.bscatot);
   const currentLiabilities = parseNumber(yearRaw.curlib);
-  const netWorth = parseNumber(yearRaw.networth);
-  // CTOS ENQWS v5.11.0 — direct totass / totlib / currat only (no component reconstruction).
-  const rawTotalAssets = parseNumber(yearRaw.totass);
-  const rawTotalLiabilities = parseNumber(yearRaw.totlib);
-  const rawCurrat = parseNumber(yearRaw.currat);
-  const rawQuickRatio = parseNumber(yearRaw.quickRatio);
 
-  const totalAssets = resolveCtosTotalAssets({ totass: rawTotalAssets });
-  const totalLiabilities = resolveCtosTotalLiabilities({ totlib: rawTotalLiabilities });
+  // Totals and ratios are the stored Financial result values (no reconstruction here).
+  const totalAssetsValue = formatMoney(calculatedValue(year, "totass"));
 
-  const totalAssetsValue = formatMoney(totalAssets);
+  const totalLiabilitiesValue = formatMoney(computePageThreeTotalLiabilities(year));
 
-  const totalLiabilitiesValue = formatMoney(totalLiabilities);
+  const netWorthValue = formatMoney(calculatedValue(year, "networth"));
 
-  const netWorthValue = formatMoney(netWorth);
+  const currRatioValue = formatMultiple(calculatedValue(year, "currat"));
 
-  const currRatioValue = formatMultiple(
-    resolveCtosCurrentRatio({
-      currat: rawCurrat,
-    })
-  );
-
-  const quickRatioValue = formatMultiple(rawQuickRatio);
+  const quickRatioValue = formatMultiple(calculatedValue(year, "quickRatio"));
 
   return [
     { label: "Cash & Bank", value: formatMoney(parseNumber(yearRaw.cashAndBank)) },
@@ -321,54 +311,34 @@ export function buildBalanceSheetResolvedRows(
 
 /** Final resolved Cash Flow, Coverage & Efficiency values. */
 export function buildCoverageResolvedRows(
-  yearRaw: Record<string, unknown>,
+  year: PageThreeYearValues,
   _manual: PageThreeManualYear | undefined,
-  _prevYearRaw: Record<string, unknown> | undefined,
+  _prevYear: PageThreeYearValues | undefined,
   _page2Override?: Partial<
     Record<(typeof PAGE_TWO_OFFICER_FINANCIAL_METRICS)[number]["key"], string | number | null>
   >
 ): Array<{ label: string; value: string; hint?: string | null }> {
-  // System-derived metrics from Stage 4A raw fields (do not use officer overrides).
-  const interestCoverage = parseNumber(yearRaw.interestCoverage);
-  const dscr = parseNumber(yearRaw.dscr);
-  const receivablesDays = parseNumber(yearRaw.receivablesDays);
+  const yearRaw = rawAsRecord(year.raw);
+  // Stored metrics from the approved Financial result (do not use officer overrides).
+  const receivablesDays = calculatedValue(year, "receivablesDays");
 
-  const interestCoverageValue = formatMultiple(interestCoverage);
+  const interestCoverageValue = formatMultiple(calculatedValue(year, "interestCoverage"));
 
   const annualDebtService = parseNumber(yearRaw.annualDebtService);
-  const dscrValue = formatMultiple(dscr);
+  const dscrValue = formatMultiple(calculatedValue(year, "dscr"));
 
-  const totlib = parseNumber(yearRaw.totlib);
-  const networth = parseNumber(yearRaw.networth);
-  const gear = parseNumber(yearRaw.gear);
-  const debtEqRatio = resolveCtosGearingRatio({ gear, totlib, networth });
-  const debtEqValue = formatMultiple(debtEqRatio);
+  const debtEqValue = formatMultiple(calculatedValue(year, "gear"));
 
-  const roePoints = resolveCtosReturnOnEquityPercent({
-    return_on_equity: parseNumber(yearRaw.return_on_equity),
-  });
-  const roeValue = formatPercentFromPoints(roePoints);
+  const roeValue = formatPercentFromPoints(calculatedValue(year, "return_on_equity"));
 
-  const roaValue = formatPercentFromPoints(
-    resolveCtosReturnOnAssetsPercent({
-      plnpat: parseNumber(yearRaw.plnpat),
-      totass: parseNumber(yearRaw.totass),
-    })
-  );
+  const roaValue = formatPercentFromPoints(calculatedValue(year, "roa"));
 
-  const turnover = parseNumber(yearRaw.turnover);
-  const totass = parseNumber(yearRaw.totass);
-  const assetTurnoverValue = formatMultiple(
-    resolveCtosTotalAssetTurnover({
-      turnover,
-      totass,
-    })
-  );
+  const assetTurnoverValue = formatMultiple(calculatedValue(year, "assetTurnover"));
 
   const receivablesDaysValue =
     receivablesDays != null ? formatDays(receivablesDays) : DATA_NOT_AVAILABLE;
 
-  const payablesDaysValue = formatDays(parseNumber(yearRaw.payablesDays));
+  const payablesDaysValue = formatDays(calculatedValue(year, "payablesDays"));
 
   return [
     { label: "Operating Cash Flow", value: formatMoney(parseNumber(yearRaw.operatingCashFlow)) },
@@ -391,13 +361,11 @@ export function buildCoverageResolvedRows(
     },
     {
       label: "Return on Equity",
-      // CTOS ENQWS v5.11.0 Financial Highlights XSL — direct r:return_on_equity only.
       value: roeValue,
       hint: null,
     },
     {
       label: "Return on Assets",
-      // CTOS ENQWS v5.11.0 Financial Highlights XSL — plnpat/totass*100
       value: roaValue,
       hint: null,
     },
@@ -413,7 +381,6 @@ export function buildCoverageResolvedRows(
     },
     {
       label: "Asset Turnover",
-      // CTOS ENQWS v5.11.0 Financial Highlights XSL — turnover/totass
       value: assetTurnoverValue,
       hint: null,
     },
@@ -424,10 +391,10 @@ function pivotYearRows(
   frozenYears: ProspectusFrozenFinancialYear[],
   manualYears: PageThreeManualYears | undefined,
   buildRows: (
-    yearRaw: Record<string, unknown>,
+    year: PageThreeYearValues,
     manual: PageThreeManualYear | undefined,
-    year: string,
-    prevYearRaw?: Record<string, unknown>
+    calendarYear: string,
+    prevYear?: PageThreeYearValues
   ) => Array<{ label: string; value: string; hint?: string | null }>,
   withTrend = false
 ): FinancialMetricTableModel {
@@ -436,7 +403,7 @@ function pivotYearRows(
     const calendarYear = String(year.calendarYear);
     if (year.isPlaceholder) {
       // Display-only column — never resolve metrics or officer manuals.
-      return buildRows({}, undefined, calendarYear, undefined).map((row) => ({
+      return buildRows(year, undefined, calendarYear, undefined).map((row) => ({
         ...row,
         value: DATA_NOT_AVAILABLE,
         hint: null,
@@ -446,8 +413,8 @@ function pivotYearRows(
       manualYears?.[calendarYear] ??
       manualYears?.[year.financialYearEndIso] ??
       undefined;
-    const prevYearRaw = idx > 0 ? rawAsRecord(frozenYears[idx - 1]?.raw) ?? undefined : undefined;
-    return buildRows(rawAsRecord(year.raw), manual, calendarYear, prevYearRaw);
+    const prevYear = idx > 0 ? frozenYears[idx - 1] : undefined;
+    return buildRows(year, manual, calendarYear, prevYear);
   });
   const metrics = perYear[0]?.map((row) => row.label) ?? [];
 
@@ -471,8 +438,8 @@ export function buildPageThreeIncomeStatementTable(
   frozenYears: ProspectusFrozenFinancialYear[],
   manualYears: PageThreeManualYears | undefined
 ): FinancialMetricTableModel {
-  return pivotYearRows(frozenYears, manualYears, (yearRaw, manual) =>
-    buildIncomeStatementResolvedRows(yearRaw, manual)
+  return pivotYearRows(frozenYears, manualYears, (year, manual) =>
+    buildIncomeStatementResolvedRows(year, manual)
   );
 }
 
@@ -480,8 +447,8 @@ export function buildPageThreeBalanceSheetTable(
   frozenYears: ProspectusFrozenFinancialYear[],
   manualYears: PageThreeManualYears | undefined
 ): FinancialMetricTableModel {
-  return pivotYearRows(frozenYears, manualYears, (yearRaw, manual) =>
-    buildBalanceSheetResolvedRows(yearRaw, manual)
+  return pivotYearRows(frozenYears, manualYears, (year, manual) =>
+    buildBalanceSheetResolvedRows(year, manual)
   );
 }
 
@@ -494,8 +461,8 @@ export function buildPageThreeCoverageTable(
   const table = pivotYearRows(
     frozenYears,
     manualYears,
-    (yearRaw, manual, year, prevYearRaw) =>
-      buildCoverageResolvedRows(yearRaw, manual, prevYearRaw, page2OverrideForYear(page2Overrides, year)),
+    (year, manual, calendarYear, prevYear) =>
+      buildCoverageResolvedRows(year, manual, prevYear, page2OverrideForYear(page2Overrides, calendarYear)),
     false
   );
   return table;
@@ -506,9 +473,7 @@ export function pageThreeHidesIssuerIdentity(rows: CoreTermRow[]): boolean {
   return !/issuer|registration|ssm|company name/i.test(joined);
 }
 
-/** Expose Total Liabilities helper usage for tests (same inputs as Page 3 builder). */
-export function computePageThreeTotalLiabilities(yearRaw: Record<string, unknown>): number | null {
-  return resolveCtosTotalLiabilities({
-    totlib: parseNumber(yearRaw.totlib),
-  });
+/** Total Liabilities shown on Page 3: the stored Financial result value for the year. */
+export function computePageThreeTotalLiabilities(year: PageThreeYearValues): number | null {
+  return calculatedValue(year, "totlib");
 }

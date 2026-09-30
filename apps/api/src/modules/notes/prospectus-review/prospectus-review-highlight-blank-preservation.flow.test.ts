@@ -10,6 +10,10 @@ import {
   PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT,
   buildProspectusHighlightRecommendations,
 } from "@cashsouk/types";
+import {
+  approvedFinancialResultFromInputs,
+  noteFinancialSnapshotOf,
+} from "../prospectus/prospectus-financial-comparison-test-helpers";
 import { emptyProspectusReviewContent } from "./prospectus-review-content";
 import { normalizeProspectusReviewSelections } from "./prospectus-review-content";
 import type { ProspectusReviewStoredContent } from "./prospectus-review-content";
@@ -162,6 +166,10 @@ const actor = {
 };
 
 const noteId = "note-1";
+/** GET requires the Note financial snapshot; its figures are not under test here. */
+const noteFinancialSnapshot = noteFinancialSnapshotOf(
+  approvedFinancialResultFromInputs({ ref: new Date("2026-07-19T00:00:00.000Z") })
+);
 const savedUpdatedAt = new Date("2026-07-19T10:00:00.000Z");
 
 function highlightFromKey(draft: ProspectusReviewStoredContent, key: string) {
@@ -195,7 +203,7 @@ describe("Prospectus Review — highlight blank preservation flow", () => {
       const where = query?.where ?? {};
       // `saveDraft`: prisma.note.findUnique(select status/published_at)
       if (where.id === noteId && query?.select?.status !== undefined) {
-        return { status: NoteStatus.DRAFT, published_at: null };
+        return { status: NoteStatus.DRAFT, published_at: null, financial_snapshot: noteFinancialSnapshot };
       }
 
       // `saveDraft` + `getOrCreateReview`: prisma.note.findUnique(select note + snapshots)
@@ -216,6 +224,7 @@ describe("Prospectus Review — highlight blank preservation flow", () => {
           profit_rate_percent: recommendationInput.profitRatePercent,
           maturity_date: new Date(recommendationInput.maturityDate),
           listing: { opens_at: new Date(recommendationInput.listingOpensAt) },
+          financial_snapshot: noteFinancialSnapshot,
         };
       }
 

@@ -1,10 +1,13 @@
 /**
  * SECTION: Map Page 3 Prisma data → Stages 1–6 → assembled Page 3
- * WHY: Prefer frozen page_2 financial_comparison when published; never live-fallback
+ * WHY: Unpublished preview displays the Note financial snapshot; published renders the frozen
+ * page_2 financial_comparison and never falls back
  */
 
+import type { ApprovedFinancialResult } from "@cashsouk/types";
+import { AppError } from "../../../lib/http/error-handler";
 import { publicationContentFromFrozenSnapshot } from "../prospectus-review/prospectus-frozen-publication";
-import { buildProspectusFinancialComparisonSource } from "./prospectus-financial-comparison-source";
+import { buildProspectusFinancialComparisonSourceFromResult } from "./prospectus-financial-comparison-source";
 import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
   PROSPECTUS_FINANCIAL_COMPARISON_SECTION_HEADING,
@@ -26,7 +29,10 @@ import { buildProspectusPageThreeIncomeStatement } from "./prospectus-page-three
 import { buildProspectusPageThreeInvestorTakeaways } from "./prospectus-page-three-investor-takeaways";
 import { buildProspectusPageThreeMetadata } from "./prospectus-page-three-metadata";
 import { buildProspectusPageThreeTrends } from "./prospectus-page-three-trends";
-import type { ProspectusPageThreeLoadedData } from "./prospectus-page-three-prisma";
+import type {
+  ProspectusPageThreeLoadedData,
+  ProspectusPageThreeNoteRecord,
+} from "./prospectus-page-three-prisma";
 import { isProspectusNotePublished } from "./prospectus-page-three-prisma";
 import type {
   ProspectusPageThree,
@@ -42,10 +48,8 @@ export type ProspectusPageThreeBuilderInput = {
   issuerSnapshot: unknown;
   invoiceSnapshot: unknown;
   paymasterSnapshot: unknown;
-  /** Live Application financials — only for unpublished preview. */
-  liveFinancialStatements: unknown | null;
-  /** Live organization CTOS financials_json — only for unpublished preview. */
-  liveCtosFinancials: unknown | null;
+  /** Approved Financial Review result from the Note financial snapshot — unpublished preview only. */
+  approvedFinancialResult: ApprovedFinancialResult | null;
   /** Parsed frozen page_2 Stage 4 — only when published + valid. */
   frozenFinancialComparison: ProspectusPage2FinancialComparisonSnapshot | null;
   /**
@@ -83,10 +87,11 @@ function resolveFinancialComparisonSource(
     return emptyFinancialComparisonSource();
   }
 
-  return buildProspectusFinancialComparisonSource({
-    financialStatements: input.liveFinancialStatements,
-    ctosFinancials: input.liveCtosFinancials,
-  });
+  // Unpublished preview: the Note financial snapshot (the loader throws when it is missing).
+  if (!input.approvedFinancialResult) {
+    throw new AppError(500, "NOTE_FINANCIAL_SNAPSHOT_INVALID", "Note financial snapshot is invalid");
+  }
+  return buildProspectusFinancialComparisonSourceFromResult(input.approvedFinancialResult);
 }
 
 export function mapProspectusPageThreeDataToInput(
@@ -98,8 +103,7 @@ export function mapProspectusPageThreeDataToInput(
 
   let financialMode: ProspectusPageThreeFinancialMode;
   let frozenFinancialComparison: ProspectusPage2FinancialComparisonSnapshot | null = null;
-  let liveFinancialStatements: unknown | null = null;
-  let liveCtosFinancials: unknown | null = null;
+  let approvedFinancialResult: ApprovedFinancialResult | null = null;
 
   if (isPublished) {
     if (parsedPage2) {
@@ -109,9 +113,9 @@ export function mapProspectusPageThreeDataToInput(
       financialMode = "published_unavailable";
     }
   } else {
+    // Unpublished preview reads the Note financial snapshot (mode name kept for callers).
     financialMode = "live_unpublished_preview";
-    liveFinancialStatements = data.liveFinancialStatements;
-    liveCtosFinancials = data.liveCtosFinancials;
+    approvedFinancialResult = data.approvedFinancialResult;
   }
 
   return {
@@ -121,13 +125,36 @@ export function mapProspectusPageThreeDataToInput(
     issuerSnapshot: note.issuer_snapshot,
     invoiceSnapshot: note.invoice_snapshot,
     paymasterSnapshot: note.paymaster_snapshot,
-    liveFinancialStatements,
-    liveCtosFinancials,
+    approvedFinancialResult,
     frozenFinancialComparison,
     publicationContent: isPublished
       ? publicationContentFromFrozenSnapshot(note.prospectus_snapshot)
       : undefined,
     marcSnapshot: data.marcSnapshot ?? null,
+  };
+}
+
+/**
+ * Page 3 input for an approved Prospectus: the shared Stage 4 approval freeze whatever the
+ * Note's publish state. Never receives the Note financial snapshot or Application / CTOS financials.
+ */
+export function mapProspectusPageThreeApprovedInput(input: {
+  note: ProspectusPageThreeNoteRecord;
+  marcSnapshot: import("@cashsouk/types").MarcAssessmentSnapshot | null;
+  frozenFinancialComparison: ProspectusPage2FinancialComparisonSnapshot;
+  publicationContent: import("./prospectus-placeholder-publication-content").ProspectusPublicationContent;
+}): ProspectusPageThreeBuilderInput {
+  const base = mapProspectusPageThreeDataToInput({
+    note: input.note,
+    approvedFinancialResult: null,
+    marcSnapshot: input.marcSnapshot,
+  });
+  return {
+    ...base,
+    financialMode: "frozen_publication_snapshot",
+    approvedFinancialResult: null,
+    frozenFinancialComparison: input.frozenFinancialComparison,
+    publicationContent: input.publicationContent,
   };
 }
 

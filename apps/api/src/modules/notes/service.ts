@@ -26,14 +26,6 @@ import { randomBytes } from "node:crypto";
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
-// TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-import {
-  getProspectusDisplayStatus,
-  isNoteProspectusPublished,
-  normalizeProspectusWorkflowStatus,
-} from "@cashsouk/types";
-// TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-import { prospectusDiag } from "./prospectus-review/prospectus-diagnostics";
 import { loadUserDisplayNameMap } from "../../lib/user-display-name";
 import { buildPaymasterSnapshot } from "../paymaster/snapshot";
 import { isExecutionPackCompleteForNote } from "../paymaster/service";
@@ -177,6 +169,8 @@ import {
   resolveIssuerIndustryFromCorporateData,
 } from "./note-issuer-snapshot";
 import { noteInclude, noteRepository } from "./repository";
+import { buildNoteFinancialSnapshot } from "./note-financial-snapshot.types";
+import { loadCurrentApprovedFinancialResult } from "../admin/financial-approved-result";
 import {
   AUDIT_PORTAL,
   AUDIT_SOURCE,
@@ -1836,61 +1830,6 @@ export class NoteService {
     ]);
     const mapped = await mapNoteDetail(note, { withdrawals });
 
-    // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-    prospectusDiag("prospectus.note_detail.raw", () => ({
-      noteId: id,
-      noteReference: note.note_reference,
-      noteStatus: note.status,
-      notePublishedAt: note.published_at?.toISOString?.() ?? null,
-      hasReviewRow: note.prospectus_review != null,
-      rawReviewStatus: note.prospectus_review?.status ?? null,
-      reviewUpdatedAt: note.prospectus_review?.updated_at?.toISOString?.() ?? null,
-      reviewContentVersion: note.prospectus_review?.content_version ?? null,
-      reviewApprovedAt: note.prospectus_review?.approved_at?.toISOString?.() ?? null,
-      approvedPublicationId: note.prospectus_review?.approved_publication_id ?? null,
-    }));
-    const diagProspectusMapping = () => {
-      const rawStatus = note.prospectus_review?.status ?? null;
-      const notePublished = isNoteProspectusPublished({
-        status: note.status,
-        publishedAt: note.published_at,
-      });
-      const normalizedWorkflowStatus = normalizeProspectusWorkflowStatus(rawStatus ?? "DRAFT");
-      const displayStatus = getProspectusDisplayStatus({
-        reviewStatus: rawStatus ?? "DRAFT",
-        notePublished,
-      });
-      const dtoStatus = mapped.prospectus?.status ?? null;
-      return {
-        noteId: id,
-        rawStatus,
-        notePublished,
-        normalizedWorkflowStatus,
-        displayStatus,
-        dtoStatus,
-        dtoDisplayStatus: mapped.prospectus?.displayStatus ?? null,
-        recomputedMappingAgreesWithDto: displayStatus === (mapped.prospectus?.displayStatus ?? null),
-        readyForPublishPreserved: rawStatus !== "READY_FOR_PUBLISH" || dtoStatus !== "DRAFT",
-        // Note detail returns no publishBlockedReason or action visibility. The admin client
-        // treats DTO status APPROVED / READY_FOR_PUBLISH as publishable (note-lifecycle-actions.ts).
-        publishBlockedReason: null,
-        publishEligibleByProspectusStatus:
-          dtoStatus === "APPROVED" || dtoStatus === "READY_FOR_PUBLISH",
-      };
-    };
-    prospectusDiag("prospectus.note_detail.mapping", diagProspectusMapping);
-    prospectusDiag("prospectus.status_mapping", () => ({
-      site: "api.getAdminNoteDetail",
-      ...diagProspectusMapping(),
-    }));
-    prospectusDiag("prospectus.note_detail.response_summary", () => ({
-      noteId: id,
-      noteStatus: mapped.status,
-      publishedAt: mapped.publishedAt ?? null,
-      prospectus: mapped.prospectus ?? null,
-      hasProspectusSnapshot: mapped.prospectusSnapshot != null,
-    }));
-
     return {
       ...mapped,
       trusteeAutoSendEmailEnabled,
@@ -2781,7 +2720,25 @@ export class NoteService {
 
     const note = await prisma
       .$transaction(async (tx) => {
+        // Lock the Financial review row: every path that moves it out of APPROVED writes this row,
+        // so the result read below cannot be reopened before the Note row is written.
+        await tx.$queryRaw`
+          SELECT id FROM application_reviews
+          WHERE application_id = ${application.id} AND section = 'financial'
+          FOR UPDATE
+        `;
         await assertSourceFacilityEnabled(tx, sourceFacilityId);
+        const approvedFinancialResult = await loadCurrentApprovedFinancialResult(
+          tx,
+          application.id
+        );
+        if (!approvedFinancialResult) {
+          throw new AppError(
+            409,
+            "FINANCIAL_APPROVED_RESULT_REQUIRED",
+            "The application's Financial review must be approved before a note can be created."
+          );
+        }
         const noteId = generateNoteEntityId();
         const noteCreatedAt = new Date();
         const canonicalReference = await allocateDisplayReference(
@@ -2821,6 +2778,9 @@ export class NoteService {
               product_code: productCode,
             }),
             purpose_snapshot: purposeSnapshot ? json(purposeSnapshot) : undefined,
+            financial_snapshot: json(
+              buildNoteFinancialSnapshot(approvedFinancialResult, noteCreatedAt)
+            ),
             contract_snapshot: json(
               sourceContract
                 ? {
@@ -3187,17 +3147,6 @@ export class NoteService {
         },
         data: { status: ProspectusReviewStatus.PUBLISHED },
       });
-      // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-      prospectusDiag("prospectus.publish.review_written", () => ({
-        noteId: id,
-        reviewId,
-        publicationId,
-        requiredStatus: ProspectusReviewStatus.READY_FOR_PUBLISH,
-        targetStatus: ProspectusReviewStatus.PUBLISHED,
-        rowsUpdated: reviewUpdate.count,
-        actorUserId: actor.userId,
-        correlationId: actor.correlationId ?? null,
-      }));
       if (reviewUpdate.count !== 1) {
         throw new AppError(
           409,
@@ -3669,18 +3618,6 @@ export class NoteService {
           render_fingerprint: finalization.updatedSnapshot.render_fingerprint,
         },
       });
-      // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-      prospectusDiag("prospectus.extend_listing.review_written", () => ({
-        noteId: id,
-        reviewId: review.id,
-        statusUnchanged: review.status,
-        previousPublicationId: review.approved_publication_id,
-        publicationId: newPublicationId,
-        previousContentVersion: review.content_version,
-        contentVersion: nextContentVersion,
-        previousFingerprint: review.render_fingerprint,
-        renderFingerprint: finalization.updatedSnapshot.render_fingerprint,
-      }));
 
       const result = await tx.note.findUniqueOrThrow({ where: { id }, include: noteInclude });
       await this.logAdminAction(

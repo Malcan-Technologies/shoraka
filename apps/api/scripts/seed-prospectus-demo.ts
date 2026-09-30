@@ -8,6 +8,7 @@
  * - Issuer org + application/contract/invoice
  * - Unpublished Note DEMO-PROSPECTUS-001 (Prospectus DRAFT)
  * - One REPAID + one ACTIVE historical Note (track record)
+ * - Approved Financial review with a stored result, copied onto every Note (financial_snapshot)
  *
  * Usage:
  *   pnpm --filter @cashsouk/api seed:prospectus-demo
@@ -42,6 +43,10 @@ import {
   buildProspectusDemoFinancialStatements,
   upsertProspectusDemoCtosReport,
 } from "./seed-prospectus-review-note";
+import {
+  seedApprovedFinancialReviewForApplication,
+  seedNoteFinancialSnapshot,
+} from "./lib/seed-note-financial-snapshot";
 
 const prisma = new PrismaClient();
 
@@ -524,6 +529,7 @@ async function upsertHistoricalNotes(issuerSnapshot: Record<string, unknown>) {
       repaid_at: addDays(now, -35),
     },
   });
+  await seedNoteFinancialSnapshot(prisma, { noteId: HIST_REPAID_ID, applicationId: APP_ID });
 
   await prisma.note.upsert({
     where: { id: HIST_ACTIVE_ID },
@@ -552,6 +558,7 @@ async function upsertHistoricalNotes(issuerSnapshot: Record<string, unknown>) {
       activated_at: addDays(now, -30),
     },
   });
+  await seedNoteFinancialSnapshot(prisma, { noteId: HIST_ACTIVE_ID, applicationId: APP_ID });
 
   for (const histId of [HIST_REPAID_ID, HIST_ACTIVE_ID]) {
     const opensAt = addDays(now, histId === HIST_REPAID_ID ? -150 : -40);
@@ -670,6 +677,11 @@ async function upsertDraftNote(
     where: { id: NOTE_ID },
     update: { ...noteData, updated_at: now },
     create: noteData,
+  });
+  await seedNoteFinancialSnapshot(prisma, {
+    noteId: NOTE_ID,
+    applicationId: APP_ID,
+    reviewerUserId: actorUserId,
   });
 
   await prisma.noteListing.upsert({
@@ -865,6 +877,11 @@ export async function seedProspectusDemo() {
   await ensureIssuerAndProduct(issuerUserId);
 
   const appInvoice = await ensureApplicationAndInvoice();
+  // Approve after the seed rewrites financial_statements / CTOS so every Note copies this run's result.
+  await seedApprovedFinancialReviewForApplication(prisma, {
+    applicationId: APP_ID,
+    reviewerUserId: adminUserId,
+  });
   await resetDemoNotes();
   await upsertDraftNote(adminUserId, appInvoice);
 

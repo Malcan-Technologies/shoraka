@@ -30,6 +30,12 @@ export const PROSPECTUS_PAGE_THREE_VISIBLE_CONTENT_STAGES = [
   "investor_takeaways",
 ] as const;
 
+/**
+ * - frozen_publication_snapshot: Stage 4 from the Prospectus approval / publication freeze.
+ * - live_unpublished_preview: unpublished preview from the Note financial snapshot (the approved
+ *   Financial Review result); the name is kept for existing callers, nothing is read live.
+ * - published_unavailable: published Note whose freeze is missing or malformed (no fallback).
+ */
 export type ProspectusPageThreeFinancialMode =
   | "frozen_publication_snapshot"
   | "live_unpublished_preview"

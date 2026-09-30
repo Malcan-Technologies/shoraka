@@ -3,16 +3,16 @@ import { join } from "node:path";
 import { computeTurnoverGrowth } from "@cashsouk/types";
 
 describe("application financial review Turnover Growth rendering", () => {
-  it("falls back to computeTurnoverGrowth when CTOS turnover_growth is missing", () => {
+  it("reads Turnover Growth from the shared result and explains a missing prior-year revenue", () => {
     const source = readFileSync(
       join(__dirname, "application-financial-review-content.tsx"),
       "utf8"
     );
 
-    // CTOS fallback should compute from resolved turnover, not rely on CTOS XSL finished metric.
+    // The shared result owns the CTOS figure → formula fallback; the screen only explains nulls.
     expect(source).toContain('case "turnover_growth"');
-    expect(source).toContain("computeTurnoverGrowth({");
-    expect(source).toContain("resolvePreviousYearTurnover(specCol.kind, specCol.year - 1)");
+    expect(source).not.toContain("computeTurnoverGrowth(");
+    expect(source).toContain("resolvePreviousYearTurnover(specCol.kind, year - 1)");
     expect(source).toContain("Missing: previous financial year Revenue / Turnover");
   });
 
@@ -119,7 +119,7 @@ describe("application financial review Turnover Growth rendering", () => {
       priorTurnover: 7_800_000,
     });
 
-    // Component displays g*100 as a percent.
+    // The shared result stores g × 100 (percent points); the screen does not multiply again.
     expect(g).toBeCloseTo(0.2, 8);
   });
 

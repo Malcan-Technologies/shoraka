@@ -1,5 +1,7 @@
 /** Admin prospectus review DTOs — option catalogues remain versioned in API code. */
 
+import type { FinancialReviewCalculatedValues } from "./financial-review-result";
+
 export type ProspectusReviewStatus =
   | "DRAFT"
   | "READY_FOR_REVIEW"
@@ -294,6 +296,8 @@ export interface ProspectusFrozenFinancialYear {
   sourceType: ProspectusFrozenFinancialSourceType;
   statementType: ProspectusFrozenFinancialStatementType;
   raw: ProspectusFrozenFinancialRaw;
+  /** Calculated metrics stored with the approved Financial result. Never recalculated here. */
+  calculated: FinancialReviewCalculatedValues;
   /** Display-only column with no real financial record — not officer-editable. */
   isPlaceholder?: boolean;
   /**

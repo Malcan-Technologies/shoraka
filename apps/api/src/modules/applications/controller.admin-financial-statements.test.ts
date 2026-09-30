@@ -7,6 +7,7 @@ import express, { NextFunction, Request, Response } from "express";
 import { User, UserRole } from "@prisma/client";
 import { createApplicationRouter } from "./controller";
 import { applicationService } from "./service";
+import { AppError } from "../../lib/http/error-handler";
 
 jest.mock("./service");
 jest.mock("../../lib/auth/middleware", () => {
@@ -47,9 +48,18 @@ describe("admin financial statement edit permissions", () => {
     app = express();
     app.use(express.json());
     app.use("/v1/applications", createApplicationRouter());
-    app.use((err: Error & { statusCode?: number }, _req: Request, res: Response, _next: NextFunction) => {
-      res.status(err.statusCode || 500).json({ success: false, error: { message: err.message } });
-    });
+    app.use(
+      (
+        err: Error & { statusCode?: number; code?: string },
+        _req: Request,
+        res: Response,
+        _next: NextFunction
+      ) => {
+        res
+          .status(err.statusCode || 500)
+          .json({ success: false, error: { code: err.code, message: err.message } });
+      }
+    );
   });
 
   it.each(ROUTES)("denies %s for an admin without financial manage", async (route) => {
@@ -96,5 +106,31 @@ describe("admin financial statement edit permissions", () => {
     expect(field.status).toBe(200);
     expect(applicationService.upsertAdminFinancialStatementFallbackYear).toHaveBeenCalledTimes(1);
     expect(applicationService.upsertAdminFinancialField).toHaveBeenCalledTimes(1);
+  });
+
+  const LOCK_CASES = [
+    "Financial review is approved. Financials are read-only until that section is reopened.",
+    "Financials are read-only because this application is no longer under review.",
+  ];
+
+  it.each(LOCK_CASES)("returns 409 FINANCIAL_REVIEW_LOCKED from both routes: %s", async (message) => {
+    const locked = new AppError(409, "FINANCIAL_REVIEW_LOCKED", message);
+    (applicationService.upsertAdminFinancialStatementFallbackYear as jest.Mock).mockRejectedValue(
+      locked
+    );
+    (applicationService.upsertAdminFinancialField as jest.Mock).mockRejectedValue(locked);
+    const permission = "applications.financial.manage";
+    const fallback = await request(app)
+      .patch(ROUTES[0])
+      .set("x-test-permissions", permission)
+      .send({ financialYear: 2024, statementType: "AUDITED", rawFinancialInputs: {} });
+    const field = await request(app)
+      .patch(ROUTES[1])
+      .set("x-test-permissions", permission)
+      .send({ financialYear: 2024, fieldKey: "revenue", value: 100 });
+    for (const res of [fallback, field]) {
+      expect(res.status).toBe(409);
+      expect(res.body.error).toEqual({ code: "FINANCIAL_REVIEW_LOCKED", message });
+    }
   });
 });

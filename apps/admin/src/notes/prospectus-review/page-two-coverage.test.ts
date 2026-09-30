@@ -6,7 +6,13 @@ jest.mock("@cashsouk/config", () => ({
     })}`,
 }));
 
-import type { NoteDetail } from "@cashsouk/types";
+import {
+  FINANCIAL_REVIEW_CALCULATED_KEYS,
+  type FinancialReviewCalculatedValues,
+  type NoteDetail,
+  type ProspectusFrozenFinancialRaw,
+  type ProspectusFrozenFinancialYear,
+} from "@cashsouk/types";
 import {
   buildInvoicePaymasterVerificationRows,
   buildPageTwoFinancialComparisonTable,
@@ -97,6 +103,27 @@ function sampleNote(overrides: Partial<NoteDetail> = {}): NoteDetail {
   } as NoteDetail;
 }
 
+function frozenYear(
+  calendarYear: number,
+  raw: Partial<ProspectusFrozenFinancialRaw>,
+  calculated: Partial<FinancialReviewCalculatedValues>,
+  isPlaceholder = false
+): ProspectusFrozenFinancialYear {
+  const storedCalculated = {} as FinancialReviewCalculatedValues;
+  for (const key of FINANCIAL_REVIEW_CALCULATED_KEYS) storedCalculated[key] = calculated[key] ?? null;
+  return {
+    financialYearEndIso: `${calendarYear}-12-31`,
+    calendarYear,
+    label: `FY${calendarYear}`,
+    fyeLabel: `31 Dec ${calendarYear}`,
+    sourceType: "ISSUER_INPUT",
+    statementType: "MANAGEMENT_ACCOUNTS",
+    raw: raw as ProspectusFrozenFinancialRaw,
+    calculated: storedCalculated,
+    isPlaceholder,
+  };
+}
+
 describe("page two coverage verification", () => {
   it("legacy helper mirrors API Invoice & Paymaster labels (Admin uses invoicePaymaster.rows)", () => {
     const rows = buildInvoicePaymasterVerificationRows(sampleNote());
@@ -153,27 +180,10 @@ describe("page two coverage verification", () => {
   });
 
   it("builds 3-Year Financial Comparison as a nine-metric table", () => {
-    const table = buildPageTwoFinancialComparisonTable({
-      questionnaire: { financial_year_end: "2024-12-31" },
-      unaudited_by_year: {
-        "2023": {
-          turnover: 1000,
-          plnpat: 100,
-          bsqpuc: 500,
-          networth: 500,
-          bscatot: 200,
-          curlib: 100,
-        },
-        "2024": {
-          turnover: 2000,
-          plnpat: 200,
-          bsqpuc: 800,
-          networth: 800,
-          bscatot: 400,
-          curlib: 200,
-        },
-      },
-    });
+    const table = buildPageTwoFinancialComparisonTable([
+      frozenYear(2023, { turnover: 1000, plnpat: 100 }, { profit_margin: 10, return_on_equity: 20, currat: 2 }),
+      frozenYear(2024, { turnover: 2000, plnpat: 200 }, { profit_margin: 10, return_on_equity: 25, currat: 2 }),
+    ]);
     expect(table.yearHeaders.map((h) => h.yearLabel)).toEqual(["FY2023", "FY2024"]);
     expect(table.rows.map((r) => r.metric)).toEqual([
       "Revenue",
@@ -213,5 +223,50 @@ describe("page two coverage verification", () => {
     ] as const;
     const serialized = JSON.stringify(table);
     for (const s of forbidden) expect(serialized).not.toContain(s);
+  });
+
+  it("calculated rows read the stored values (percent points, never × 100); raw metric fields are ignored", () => {
+    const table = buildPageTwoFinancialComparisonTable([
+      frozenYear(
+        2024,
+        {
+          turnover: 2000,
+          plnpat: 200,
+          return_on_equity: 99,
+          currat: 9,
+          netDebtEquity: 9,
+          interestCoverage: 9,
+          dscr: 9,
+          receivablesDays: 999,
+        },
+        {
+          profit_margin: 12.5,
+          return_on_equity: 8.6,
+          currat: 1.32,
+          netDebtEquity: 0.4,
+          interestCoverage: 7.5,
+          dscr: 2,
+          receivablesDays: 45.9,
+        }
+      ),
+    ]);
+    const value = (metric: string) => table.rows.find((r) => r.metric === metric)?.values[0];
+    expect(value("Net Profit Margin (%)")).toBe("12.5%");
+    expect(value("ROE (%)")).toBe("8.6%");
+    expect(value("Current Ratio (x)")).toBe("1.32x");
+    expect(value("Net Debt / Equity (x)")).toBe("0.4x");
+    expect(value("Interest Coverage (x)")).toBe("7.5x");
+    expect(value("DSCR (x)")).toBe("2x");
+    expect(value("Receivables Days")).toBe("45");
+    expect(table.yearHeaders[0]).toEqual({ key: "2024", yearLabel: "FY2024", fyeLabel: "31 Dec 2024" });
+  });
+
+  it("placeholder years show — on every row", () => {
+    const table = buildPageTwoFinancialComparisonTable([
+      frozenYear(2023, { turnover: 1000 }, { profit_margin: 10 }, true),
+      frozenYear(2024, { turnover: 2000 }, { profit_margin: 10 }),
+    ]);
+    for (const row of table.rows) expect(row.values[0]).toBe("—");
+    expect(table.rows.find((r) => r.metric === "Net Profit Margin (%)")?.values[1]).toBe("10%");
   });
 });

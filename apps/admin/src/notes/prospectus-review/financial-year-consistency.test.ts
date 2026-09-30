@@ -8,7 +8,7 @@ jest.mock("@cashsouk/config", () => ({
 
 import fs from "node:fs";
 import path from "node:path";
-import type { ProspectusFrozenFinancialYear } from "@cashsouk/types";
+import { FINANCIAL_REVIEW_CALCULATED_KEYS, type ProspectusFrozenFinancialYear } from "@cashsouk/types";
 import {
   buildPageThreeBalanceSheetTable,
   buildPageThreeCoverageTable,
@@ -55,6 +55,12 @@ function emptyRaw(): ProspectusFrozenFinancialYear["raw"] {
   };
 }
 
+function emptyCalculated(): ProspectusFrozenFinancialYear["calculated"] {
+  const out = {} as ProspectusFrozenFinancialYear["calculated"];
+  for (const key of FINANCIAL_REVIEW_CALCULATED_KEYS) out[key] = null;
+  return out;
+}
+
 function frozenYear(
   calendarYear: number,
   raw: ProspectusFrozenFinancialYear["raw"],
@@ -70,6 +76,7 @@ function frozenYear(
     sourceType: "CTOS",
     statementType: "NOT_AUDITED",
     raw,
+    calculated: emptyCalculated(),
     isPlaceholder,
   };
 }

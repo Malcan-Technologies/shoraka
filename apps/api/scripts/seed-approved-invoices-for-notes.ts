@@ -12,6 +12,8 @@
  * Eligibility (matches NoteService.createFromInvoice / listSourceInvoicesForNotes):
  * - Invoice.status = APPROVED
  * - Application.status = COMPLETED
+ * - A current approved Financial result (Financial review APPROVED with a stored result); the seed
+ *   approves it through the real approval function (modules/admin/financial-approved-result)
  * - No existing note.source_invoice_id for the invoice
  * - Positive offered/applied financing in details + offer_details
  */
@@ -31,6 +33,7 @@ import {
   resolveRequestedInvoiceAmount,
 } from "../src/lib/invoice-offer";
 import { buildAboutYourBusinessCod } from "./seed-application-helpers";
+import { seedApprovedFinancialReviewForApplication } from "./lib/seed-note-financial-snapshot";
 
 const prisma = new PrismaClient();
 
@@ -364,6 +367,7 @@ async function ensureFixedContractAndApplications() {
         review_and_submit: Prisma.JsonNull,
       },
     });
+    await seedApprovedFinancialReviewForApplication(prisma, { applicationId: id });
   };
 
   await upsertCompletedApp(SEED_APP_INVOICE_ONLY_ID, "invoice_only", null);
@@ -544,7 +548,7 @@ async function createFreshApplication(runId: string) {
     category: "invoice_financing",
   } satisfies Record<string, unknown>;
 
-  return prisma.application.create({
+  const application = await prisma.application.create({
     data: {
       issuer_organization_id: SEED_ISSUER_ORG_ID,
       product_version: 1,
@@ -567,6 +571,8 @@ async function createFreshApplication(runId: string) {
     },
     select: { id: true },
   });
+  await seedApprovedFinancialReviewForApplication(prisma, { applicationId: application.id });
+  return application;
 }
 
 async function verifyInvoices(invoiceIds: string[]): Promise<CreatedInvoiceRow[]> {

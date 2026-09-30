@@ -524,6 +524,8 @@ export * from "./financial-previous-year-source";
 export * from "./application-financial-prefill";
 export * from "./issuer-financial-raw-field-value";
 export * from "./review-scope";
+export * from "./application-review-lifecycle";
+export * from "./financial-review-result";
 export * from "./contract-originating-application";
 export * from "./resubmit-path-utils";
 export * from "./resubmit-meaningful-field-path";

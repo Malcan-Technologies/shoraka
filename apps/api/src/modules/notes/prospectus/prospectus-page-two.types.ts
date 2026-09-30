@@ -18,6 +18,12 @@ import type { ProspectusSoukscoreRatingScale } from "./prospectus-soukscore-rati
 export const PROSPECTUS_PAGE_TWO_WIDTH_MM = 210;
 export const PROSPECTUS_PAGE_TWO_HEIGHT_MM = 297;
 
+/**
+ * - frozen_publication_snapshot: Stage 4 from the Prospectus approval / publication freeze.
+ * - live_unpublished_preview: unpublished preview from the Note financial snapshot (the approved
+ *   Financial Review result); the name is kept for existing callers, nothing is read live.
+ * - published_unavailable: published Note whose freeze is missing or malformed (no fallback).
+ */
 export type ProspectusPageTwoFinancialMode =
   | "frozen_publication_snapshot"
   | "live_unpublished_preview"

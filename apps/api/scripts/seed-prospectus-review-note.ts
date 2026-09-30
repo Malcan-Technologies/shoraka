@@ -8,6 +8,8 @@
  *
  * Stable reference: PROSPECTUS-DEMO-001
  * Does not create an approved review (lazy draft on GET /prospectus-review).
+ * Approves the application's Financial review with a stored result and copies it onto the Note
+ * (financial_snapshot), as Note creation does.
  * Safe to re-run: resets the Note to DRAFT and removes any prior review / publish state.
  *
  * Never run against production.
@@ -35,6 +37,10 @@ import {
 import { generateUniqueUserId } from "../src/lib/user-id-generator";
 import { buildNoteIssuerSnapshot } from "../src/modules/notes/note-issuer-snapshot";
 import { PROSPECTUS_REVIEW_REQUIRED_FROM } from "../src/modules/notes/prospectus-review/prospectus-review.service";
+import {
+  seedApprovedFinancialReviewForApplication,
+  seedNoteFinancialSnapshot,
+} from "./lib/seed-note-financial-snapshot";
 
 const prisma = new PrismaClient();
 
@@ -708,6 +714,11 @@ async function upsertDraftNote(
     },
     create: noteData,
   });
+  await seedNoteFinancialSnapshot(prisma, {
+    noteId: PROSPECTUS_DEMO_NOTE_ID,
+    applicationId: PROSPECTUS_DEMO_APP_ID,
+    reviewerUserId: actorUserId,
+  });
 
   // If a note already existed under the same reference with a different id, keep reference unique.
   await prisma.note.updateMany({
@@ -773,6 +784,11 @@ export async function seedProspectusReviewNote() {
   const ownerUserId = await ensureOwnerUser();
   await ensureInfrastructure(ownerUserId);
   const appInvoice = await ensureApplicationAndInvoice();
+  // Approve after the seed rewrites financial_statements / CTOS so the Note copies this run's result.
+  await seedApprovedFinancialReviewForApplication(prisma, {
+    applicationId: PROSPECTUS_DEMO_APP_ID,
+    reviewerUserId: actorUserId,
+  });
   await resetNoteGraphIfNeeded();
   await upsertDraftNote(actorUserId, appInvoice);
 

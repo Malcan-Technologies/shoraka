@@ -135,6 +135,7 @@ import {
   canResetReviewToPending,
   resolveOriginationPhase,
   isPaymasterSwitchingFrozen,
+  isApplicationReviewableStatus,
   buildInvoiceFeeScheduleOfferPatch,
   computeFacilityFeeTotalOwed,
   NOTE_DEFAULT_MINIMUM_FUNDING_PERCENT,
@@ -272,6 +273,7 @@ type OfferAcceptancePhaseSyncApplication = {
   }>;
 };
 import { ProductRepository } from "../products/repository";
+import { approveFinancialReviewWithResult } from "./financial-approved-result";
 import {
   resolveContractValue,
   resolveRequestedFacility,
@@ -7751,23 +7753,8 @@ export class AdminService {
     return updatedApplication;
   }
 
-  private static readonly REVIEWABLE_STATUSES: ApplicationStatus[] = [
-    ApplicationStatus.SUBMITTED,
-    ApplicationStatus.UNDER_REVIEW,
-    ApplicationStatus.CONTRACT_PENDING,
-    ApplicationStatus.CONTRACT_SENT,
-    ApplicationStatus.CONTRACT_ACCEPTED,
-    ApplicationStatus.INVOICE_ACCEPTED,
-    ApplicationStatus.SIGNING_PENDING,
-    ApplicationStatus.INVOICE_PENDING,
-    ApplicationStatus.INVOICES_SENT,
-    ApplicationStatus.OFFER_EXPIRED,
-    ApplicationStatus.RESUBMITTED,
-    ApplicationStatus.AMENDMENT_REQUESTED,
-  ];
-
   private isReviewable(status: ApplicationStatus): boolean {
-    return AdminService.REVIEWABLE_STATUSES.includes(status);
+    return isApplicationReviewableStatus(status);
   }
 
   private getCorrectionFlowGuidance(): string {
@@ -10377,12 +10364,19 @@ export class AdminService {
     );
     const oldStatus = existing?.status ?? "PENDING";
 
-    await repository.updateSectionReviewStatus(
-      applicationId,
-      section,
-      ReviewStepStatus.APPROVED,
-      reviewerUserId
-    );
+    if (section === "financial") {
+      // Status APPROVED and the approved Financial Review result are written together.
+      await prisma.$transaction((tx) =>
+        approveFinancialReviewWithResult(tx, { applicationId, reviewerUserId })
+      );
+    } else {
+      await repository.updateSectionReviewStatus(
+        applicationId,
+        section,
+        ReviewStepStatus.APPROVED,
+        reviewerUserId
+      );
+    }
     const remarkValue = remark?.trim() || null;
     if (remarkValue) {
       await repository.upsertReviewRemark(

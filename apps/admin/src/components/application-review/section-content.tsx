@@ -71,6 +71,7 @@ export type ReviewApplicationView = {
   directorShareholderListSource?: import("@cashsouk/types").DirectorShareholderListSource;
   ctosDirectorShareholderWarning?: string | null;
   created_at?: string;
+  submitted_at?: string | null;
   /** When present (e.g. live admin detail), used with workflow to filter review tabs. */
   visible_review_sections?: unknown;
   business_details?: unknown;
@@ -322,6 +323,8 @@ export function SectionContent({
           isActionLocked={isActionLocked}
           actionLockTooltip={actionLockTooltip}
           sectionStatus={sectionStatus}
+          applicationStatus={app.status}
+          applicationSubmittedAt={app.submitted_at}
           onResetSectionToPending={onResetSectionToPending}
           onApprove={onApproveSection}
           onReject={onRejectSection}

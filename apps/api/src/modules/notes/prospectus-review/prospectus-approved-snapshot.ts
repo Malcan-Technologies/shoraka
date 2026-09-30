@@ -5,9 +5,11 @@
 
 import { createHash } from "node:crypto";
 import type { Prisma } from "@prisma/client";
+import type { ApprovedFinancialResult } from "@cashsouk/types";
+import { canonicalizeJsonNumbers } from "../../../lib/canonical-json-numbers";
 import { prisma } from "../../../lib/prisma";
-import { loadApplicationOwnedCtosFinancialReport } from "../../applications/application-owned-ctos";
 import { getCurrentMarcAssessment } from "../../paymaster/service";
+import { readProspectusNoteFinancialSnapshot } from "../prospectus/prospectus-note-financial-inputs";
 import { buildProspectusPage1TrackRecordSnapshot } from "../prospectus/prospectus-track-record-query";
 import {
   buildProspectusPage2Snapshot,
@@ -19,12 +21,6 @@ import {
   type ProspectusFrozenPublicationContent,
   type ProspectusReviewStoredContent,
 } from "./prospectus-review-content";
-// TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-import {
-  logFingerprintComponents,
-  prospectusDiag,
-  rememberFingerprintSourceMeta,
-} from "./prospectus-diagnostics";
 
 export type ProspectusApprovedSnapshot = {
   publication_id: string;
@@ -59,6 +55,8 @@ function stableStringify(value: unknown): string {
   return `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify(obj[k])}`).join(",")}}`;
 }
 
+export { canonicalizeJsonNumbers };
+
 export function hashProspectusFingerprint(parts: unknown): string {
   return createHash("sha256").update(stableStringify(parts)).digest("hex");
 }
@@ -71,13 +69,14 @@ export function hashDraftContent(content: ProspectusReviewStoredContent): string
 /**
  * Load Note identity fields that affect prospectus rendering.
  * Frozen into approved_snapshot so published render needs no live Note queries.
+ * The financial input is the Note financial snapshot only (the approved Financial Review result);
+ * the application and CTOS are never read. A Note without a snapshot throws 409.
  */
 export async function loadProspectusNoteIdentityFreeze(noteId: string): Promise<{
   noteIdentity: Record<string, unknown>;
   fingerprintSource: Record<string, unknown>;
   issuerOrganizationId: string;
-  financialStatements: unknown;
-  ctosFinancials: unknown;
+  approvedFinancialResult: ApprovedFinancialResult;
 }> {
   const note = await prisma.note.findUnique({
     where: { id: noteId },
@@ -99,6 +98,8 @@ export async function loadProspectusNoteIdentityFreeze(noteId: string): Promise<
       platform_fee_rate_percent: true,
       maturity_date: true,
       source_application_id: true,
+      financial_snapshot: true,
+      created_at: true,
       listing: { select: { opens_at: true, closes_at: true } },
     },
   });
@@ -106,19 +107,9 @@ export async function loadProspectusNoteIdentityFreeze(noteId: string): Promise<
     throw new Error(`Note ${noteId} not found for prospectus freeze`);
   }
 
-  const [application, marcSnapshot] = await Promise.all([
-    note.source_application_id
-      ? prisma.application.findUnique({
-          where: { id: note.source_application_id },
-          select: { financial_statements: true, submitted_at: true },
-        })
-      : Promise.resolve(null),
-    getCurrentMarcAssessment(note.issuer_organization_id),
-  ]);
-  const ctosReport = await loadApplicationOwnedCtosFinancialReport({
-    issuerOrganizationId: note.issuer_organization_id,
-    submittedAt: application?.submitted_at ?? null,
-  });
+  // Throws before the MARC read so a Note without a snapshot fails fast with 409.
+  const financialSnapshot = readProspectusNoteFinancialSnapshot(note);
+  const marcSnapshot = await getCurrentMarcAssessment(note.issuer_organization_id);
 
   const noteIdentity: Record<string, unknown> = {
     note_id: note.id,
@@ -151,44 +142,17 @@ export async function loadProspectusNoteIdentityFreeze(noteId: string): Promise<
     listing_closes_at: null,
   };
 
+  // The Note snapshot is written once at Note creation, so it only changes if the Note is rebuilt.
   const fingerprintSource = {
     note_identity: fingerprintNoteIdentity,
-    financial_statements: application?.financial_statements ?? null,
-    ctos_financials: ctosReport?.financialsJson ?? null,
+    financial_snapshot: financialSnapshot,
   };
-
-  // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-  const diagSourceMeta = {
-    application: note.source_application_id
-      ? {
-          id: note.source_application_id,
-          found: application != null,
-          submittedAt: application?.submitted_at?.toISOString?.() ?? null,
-        }
-      : null,
-    ctosReport: ctosReport
-      ? { id: ctosReport.id, fetchedAt: ctosReport.fetchedAt?.toISOString?.() ?? null }
-      : null,
-    hasMarcSnapshot: marcSnapshot != null,
-    listingOpensAt: noteIdentity.listing_opens_at,
-    listingClosesAt: noteIdentity.listing_closes_at,
-  };
-  rememberFingerprintSourceMeta(fingerprintSource, diagSourceMeta);
-  prospectusDiag("prospectus.fingerprint.sources_loaded", () => ({
-    noteId,
-    noteReference: note.note_reference,
-    issuerOrganizationId: note.issuer_organization_id,
-    ...diagSourceMeta,
-    hasFinancialStatements: application?.financial_statements != null,
-    hasCtosFinancials: ctosReport?.financialsJson != null,
-  }));
 
   return {
     noteIdentity,
     fingerprintSource,
     issuerOrganizationId: note.issuer_organization_id,
-    financialStatements: application?.financial_statements ?? null,
-    ctosFinancials: ctosReport?.financialsJson ?? null,
+    approvedFinancialResult: financialSnapshot.approved_financial_result,
   };
 }
 
@@ -205,19 +169,21 @@ export async function buildCompleteApprovedProspectusSnapshot(input: {
   optionCatalogueVersion: string;
 }): Promise<ProspectusApprovedSnapshot> {
   const now = input.approvedAt;
-  const { noteIdentity, fingerprintSource, issuerOrganizationId, financialStatements, ctosFinancials } =
+  const { noteIdentity, fingerprintSource, issuerOrganizationId, approvedFinancialResult } =
     await loadProspectusNoteIdentityFreeze(input.noteId);
 
-  const page1 = await buildProspectusPage1TrackRecordSnapshot({
-    issuerOrganizationId,
-    currentNoteId: input.noteId,
-    now,
-  });
-  const page2 = buildProspectusPage2Snapshot({
-    financialStatements,
-    ctosFinancials,
-    now,
-  });
+  // Canonical once: the same page objects are hashed below and persisted in approved_snapshot.
+  const page1 = canonicalizeJsonNumbers(
+    await buildProspectusPage1TrackRecordSnapshot({
+      issuerOrganizationId,
+      currentNoteId: input.noteId,
+      now,
+    })
+  );
+  const page2 = canonicalizeJsonNumbers(
+    // calculated_at is the approval time; years and values are the approved Financial Review result.
+    buildProspectusPage2Snapshot({ approvedFinancialResult, now })
+  );
 
   const publicationContent: ProspectusFrozenPublicationContent = {
     version: `content.${input.contentVersion}`,
@@ -234,43 +200,12 @@ export async function buildCompleteApprovedProspectusSnapshot(input: {
   >;
 
   const draftHash = hashDraftContent(input.approvedContent);
-  // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-  // Same object as before, hoisted so the exact hashed input can be logged.
-  const fingerprintParts = {
+  const renderFingerprint = hashProspectusFingerprint({
     draft: draftHash,
     sources: fingerprintSource,
     page_1: page1,
     page_2: page2,
-  };
-  prospectusDiag(
-    "prospectus.approve.fingerprint_input",
-    () => ({
-      noteId: input.noteId,
-      publicationId: input.publicationId,
-      contentVersion: input.contentVersion,
-      draftHash,
-      sourcesHash: hashProspectusFingerprint(fingerprintSource),
-      page1Hash: hashProspectusFingerprint(page1),
-      page2Hash: hashProspectusFingerprint(page2),
-    }),
-    () => ({ fingerprintInput: fingerprintParts })
-  );
-  const renderFingerprint = hashProspectusFingerprint(fingerprintParts);
-  // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-  logFingerprintComponents({
-    phase: "approve",
-    noteId: input.noteId,
-    parts: fingerprintParts,
-    fingerprint: renderFingerprint,
-    hash: hashProspectusFingerprint,
   });
-  prospectusDiag("prospectus.approve.fingerprint_built", () => ({
-    noteId: input.noteId,
-    publicationId: input.publicationId,
-    contentVersion: input.contentVersion,
-    renderFingerprint,
-    draftHash,
-  }));
 
   return {
     publication_id: input.publicationId,
@@ -296,7 +231,7 @@ export function withApprovedSnapshotHtml(
   return { ...snapshot, html };
 }
 
-/** Recompute fingerprint from current live sources + stored approved officer content. */
+/** Recompute fingerprint from the current Note sources + stored approved officer content. */
 export async function computeCurrentRenderFingerprint(input: {
   noteId: string;
   approvedContent: ProspectusReviewStoredContent;
@@ -304,26 +239,12 @@ export async function computeCurrentRenderFingerprint(input: {
 }): Promise<string> {
   const { fingerprintSource } = await loadProspectusNoteIdentityFreeze(input.noteId);
   const draftHash = hashDraftContent(input.approvedContent);
-  // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-  // Same object as before, hoisted so the exact hashed input can be logged.
-  const fingerprintParts = {
+  return hashProspectusFingerprint({
     draft: draftHash,
     sources: fingerprintSource,
     page_1: input.approvedSnapshot.page_1,
     page_2: input.approvedSnapshot.page_2,
-  };
-  const currentFingerprint = hashProspectusFingerprint(fingerprintParts);
-  // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
-  logFingerprintComponents({
-    phase: "recompute",
-    noteId: input.noteId,
-    parts: fingerprintParts,
-    fingerprint: currentFingerprint,
-    hash: hashProspectusFingerprint,
-    storedNoteIdentity: input.approvedSnapshot.note_identity,
-    storedFingerprint: input.approvedSnapshot.render_fingerprint,
   });
-  return currentFingerprint;
 }
 
 export function parseApprovedSnapshot(value: unknown): ProspectusApprovedSnapshot | null {

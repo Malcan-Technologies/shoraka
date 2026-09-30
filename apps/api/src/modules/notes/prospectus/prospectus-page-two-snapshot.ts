@@ -1,22 +1,29 @@
 /**
  * SECTION: Build / wrap Page 2 publication freeze (Stage 4 financial comparison)
- * WHY: Application financials are live; freeze selected years + raw fields at publish
+ * WHY: Freeze exactly what the preview displayed from the approved Financial Review result
+ * (raw and calculated values) so the approved document never changes
  */
 
+import {
+  FINANCIAL_REVIEW_CALCULATED_KEYS,
+  type ApprovedFinancialResult,
+  type FinancialReviewCalculatedValues,
+} from "@cashsouk/types";
 import { decimalToSerializableString } from "../../issuer-dashboard/track-record-aggregates";
 import { asJsonRecord } from "./prospectus-json-guards";
-import { buildProspectusFinancialComparisonSource } from "./prospectus-financial-comparison-source";
+import { buildProspectusFinancialComparisonSourceFromResult } from "./prospectus-financial-comparison-source";
 import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types";
 import { PROSPECTUS_SOUKSCORE_SCALE_VERSION } from "./prospectus-soukscore-rating-scale.types";
-import type {
-  ProspectusPage1Snapshot,
-  ProspectusPage2FinancialComparisonSnapshot,
-  ProspectusPage2FinancialRawSnapshot,
-  ProspectusPage2Snapshot,
-  ProspectusSnapshot,
+import {
+  PROSPECTUS_PAGE2_FINANCIAL_FREEZE_VERSION,
+  type ProspectusPage1Snapshot,
+  type ProspectusPage2FinancialComparisonSnapshot,
+  type ProspectusPage2FinancialRawSnapshot,
+  type ProspectusPage2Snapshot,
+  type ProspectusSnapshot,
 } from "./prospectus-snapshot.types";
 
-/** Shared freeze keys for Page 2 Stage 4B + Page 3 Stages 2–4. */
+/** Legacy freeze keys (pre version 2); always present in a freeze, null when absent. */
 const RAW_KEYS = [
   "turnover",
   "plnpat",
@@ -48,47 +55,48 @@ function serializeRawField(value: unknown): string | number | null {
   return decimalToSerializableString(value);
 }
 
-function pickRawFinancials(raw: Record<string, unknown>): ProspectusPage2FinancialRawSnapshot {
-  return {
-    turnover: serializeRawField(raw.turnover),
-    plnpat: serializeRawField(raw.plnpat),
-    bsqpuc: serializeRawField(raw.bsqpuc),
-    bscatot: serializeRawField(raw.bscatot),
-    curlib: serializeRawField(raw.curlib),
-    plnpbt: serializeRawField(raw.plnpbt),
-    bsfatot: serializeRawField(raw.bsfatot),
-    othass: serializeRawField(raw.othass),
-    bsclbank: serializeRawField(raw.bsclbank),
-    bsslltd: serializeRawField(raw.bsslltd),
-    bsclstd: serializeRawField(raw.bsclstd),
-    totass: serializeRawField(raw.totass),
-    totlib: serializeRawField(raw.totlib),
-    networth: serializeRawField(raw.networth),
-    profit_margin: serializeRawField(raw.profit_margin),
-    return_on_equity: serializeRawField(raw.return_on_equity),
-    currat: serializeRawField(raw.currat),
-    gear: serializeRawField(raw.gear),
-  };
+const LEGACY_RAW_KEY_SET: ReadonlySet<string> = new Set(RAW_KEYS);
+
+/**
+ * Freeze every effective raw value of one selected year: the 18 legacy keys first (null when
+ * absent, so old readers keep working), then every other key the Financial Review stored.
+ * WHY: Page 2 / Page 3 raw rows read issuer keys (cashAndBank, grossProfit, …); a hand-picked
+ * list drops them and the frozen render shows "Data not available".
+ */
+function freezeRawFinancials(raw: Record<string, unknown>): ProspectusPage2FinancialRawSnapshot {
+  const keys = [...RAW_KEYS, ...Object.keys(raw).filter((key) => !LEGACY_RAW_KEY_SET.has(key))];
+  // fromEntries defines own data properties, so no key can reach the object prototype.
+  return Object.fromEntries(
+    keys.map((key) => [key, serializeRawField(raw[key])])
+  ) as ProspectusPage2FinancialRawSnapshot;
+}
+
+/** All 18 stored metrics, in the Financial Review key order. */
+function freezeCalculatedValues(
+  calculated: FinancialReviewCalculatedValues
+): FinancialReviewCalculatedValues {
+  const out = {} as FinancialReviewCalculatedValues;
+  for (const key of FINANCIAL_REVIEW_CALCULATED_KEYS) out[key] = calculated[key];
+  return out;
 }
 
 /**
- * Freeze Stage 4 year selection + raw canonical fields from normalized financials.
- * Missing financials → valid empty selected_years (publication still succeeds).
+ * Freeze Stage 4 (version 2) from the same source adapter the preview uses: the selected years
+ * with their effective raw values, stored calculated values, statement type, source footer and
+ * missing-year state. No selected years → valid empty selected_years (publication still succeeds).
+ * `now` stamps calculated_at; reference_date is the Financial Review result's.
  */
 export function buildProspectusPage2FinancialComparisonSnapshot(input: {
-  financialStatements: unknown;
-  ctosFinancials?: unknown;
+  approvedFinancialResult: ApprovedFinancialResult;
   now?: Date;
 }): ProspectusPage2FinancialComparisonSnapshot {
   const now = input.now ?? new Date();
-  const source = buildProspectusFinancialComparisonSource({
-    financialStatements: input.financialStatements,
-    ctosFinancials: input.ctosFinancials,
-    ref: now,
-  });
+  const source = buildProspectusFinancialComparisonSourceFromResult(input.approvedFinancialResult);
 
   return {
     source: "admin_financial_statements_normalized",
+    freeze_version: PROSPECTUS_PAGE2_FINANCIAL_FREEZE_VERSION,
+    reference_date: input.approvedFinancialResult.reference_date,
     selected_years: source.years.map((year) => ({
       year: year.year,
       year_label: year.yearLabel,
@@ -98,16 +106,19 @@ export function buildProspectusPage2FinancialComparisonSnapshot(input: {
           : year.financialYearEndLabel,
       financial_year_end_iso: year.financialYearEndIso,
       record_source: year.recordSource,
-      raw_financials: pickRawFinancials(year.rawFinancials),
+      statement_type: year.statementType,
+      raw_financials: freezeRawFinancials(year.rawFinancials),
+      calculated_values: freezeCalculatedValues(year.calculatedValues),
     })),
     source_footer: source.sourceFooter,
     calculated_at: now.toISOString(),
+    missing_ssm_unaudited_years: [...source.missingSsmUnauditedYears],
+    ops_warning: source.opsWarning,
   };
 }
 
 export function buildProspectusPage2Snapshot(input: {
-  financialStatements: unknown;
-  ctosFinancials?: unknown;
+  approvedFinancialResult: ApprovedFinancialResult;
   now?: Date;
 }): ProspectusPage2Snapshot {
   return {

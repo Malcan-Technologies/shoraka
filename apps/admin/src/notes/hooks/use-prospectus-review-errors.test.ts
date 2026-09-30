@@ -1,6 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
-import { prospectusReviewErrorMessage } from "./prospectus-review-error-utils";
+import {
+  NOTE_FINANCIAL_SNAPSHOT_MISSING_CODE,
+  NOTE_FINANCIAL_SNAPSHOT_MISSING_MESSAGE,
+  prospectusReviewErrorMessage,
+} from "./prospectus-review-error-utils";
 
 describe("prospectusReviewErrorMessage", () => {
   it("uses first detail.message when details has one actionable validation error", () => {
@@ -31,6 +35,24 @@ describe("prospectusReviewErrorMessage", () => {
     const msg = prospectusReviewErrorMessage({ message: "Network error", details: { not: "an array" } });
     expect(msg).toBe("Network error");
   });
+
+  it("maps NOTE_FINANCIAL_SNAPSHOT_MISSING to the user-facing copy regardless of message/details", () => {
+    const msg = prospectusReviewErrorMessage({
+      code: NOTE_FINANCIAL_SNAPSHOT_MISSING_CODE,
+      message: "This note has no financial snapshot. Recreate the note from an application with an approved Financial review.",
+      details: [{ path: "x", message: "ignored" }],
+    });
+    expect(msg).toBe(NOTE_FINANCIAL_SNAPSHOT_MISSING_MESSAGE);
+    expect(msg).toBe(
+      "Financial snapshot is missing for this Note. Please recreate the Note after Financial Review approval."
+    );
+  });
+
+  it("does not map other error codes", () => {
+    expect(prospectusReviewErrorMessage({ code: "NOTE_NOT_FOUND", message: "Note not found" })).toBe(
+      "Note not found"
+    );
+  });
 });
 
 describe("Prospectus Review flows use prospectusReviewErrorMessage", () => {
@@ -48,6 +70,13 @@ describe("Prospectus Review flows use prospectusReviewErrorMessage", () => {
   it("covers Approve error path", () => {
     expect(source).toContain("function useApproveProspectusReview");
     expect(source).toContain("prospectusReviewErrorMessage(res.error");
+  });
+
+  it("covers the review load (GET) error path, so a missing financial snapshot shows the user-facing copy", () => {
+    expect(source).toContain("function useProspectusReview(");
+    const loadFn = source.slice(source.indexOf("function useProspectusReview("), source.indexOf("function useSaveProspectusReviewDraft"));
+    expect(loadFn).toContain("prospectusReviewErrorMessage(res.error");
+    expect(loadFn).not.toContain("throw new Error(res.error.message)");
   });
 
   it("covers Preview error path (GET + POST)", () => {

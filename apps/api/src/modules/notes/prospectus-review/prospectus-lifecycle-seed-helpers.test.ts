@@ -1,4 +1,4 @@
-import { buildProspectusFinancialComparisonSource } from "../prospectus/prospectus-financial-comparison-source";
+import { buildProspectusFinancialComparisonSourceFromInputs } from "../prospectus/prospectus-financial-comparison-test-helpers";
 import {
   buildProspectusThreeYearDisplaySet,
   withProspectusThreeYearDisplay,
@@ -139,7 +139,7 @@ describe("prospectus lifecycle seed helpers", () => {
 
   it("gapped display columns are FY2024 | FY2025 | FY2026 with FY2025 as —", () => {
     const gapped = buildLifecycleFinancialBundle("gapped_years", ref);
-    const source = buildProspectusFinancialComparisonSource({
+    const source = buildProspectusFinancialComparisonSourceFromInputs({
       financialStatements: gapped.financialStatements,
       ctosFinancials: gapped.ctosFinancials,
       ref,
@@ -161,7 +161,7 @@ describe("prospectus lifecycle seed helpers", () => {
     expect(source.opsWarning).toBeNull();
 
     const earlyRef = new Date("2026-01-15T00:00:00.000Z");
-    const early = buildProspectusFinancialComparisonSource({
+    const early = buildProspectusFinancialComparisonSourceFromInputs({
       financialStatements: gapped.financialStatements,
       ctosFinancials: gapped.ctosFinancials,
       ref: earlyRef,

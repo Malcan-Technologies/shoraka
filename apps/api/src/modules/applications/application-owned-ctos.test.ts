@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { resolveAdminFinancialReviewColumns } from "@cashsouk/types";
 import { buildApplicationRevisionSnapshot } from "./revision-snapshot";
@@ -250,13 +250,18 @@ describe("application review and prospectus read boundaries", () => {
     expect(review).not.toContain("effectiveFinancialHistoryEntries");
   });
 
-  it("published Prospectus loaders do not read live CTOS", () => {
-    const pageTwo = readFileSync(join(__dirname, "../notes/prospectus/prospectus-page-two-prisma.ts"), "utf8");
-    const pageThree = readFileSync(join(__dirname, "../notes/prospectus/prospectus-page-three-prisma.ts"), "utf8");
-    expect(pageTwo).toContain("if (published)");
-    expect(pageTwo).toContain("liveCtosFinancials: null");
-    expect(pageThree).toContain("liveCtosFinancials: null");
-    expect(pageTwo).toContain("loadApplicationOwnedCtosFinancialReport");
-    expect(pageThree).toContain("loadApplicationOwnedCtosFinancialReport");
+  it("no Prospectus file reads the application-owned CTOS report or live CTOS", () => {
+    // The Prospectus displays the Note financial snapshot; it never loads CTOS itself.
+    // Test files are excluded: they name ctosReport.find* to assert it is never called.
+    const prospectusDir = join(__dirname, "../notes/prospectus");
+    const files = readdirSync(prospectusDir).filter(
+      (name) => name.endsWith(".ts") && !name.endsWith(".test.ts")
+    );
+    expect(files.length).toBeGreaterThan(0);
+    for (const name of files) {
+      const source = readFileSync(join(prospectusDir, name), "utf8");
+      expect([name, source.includes("loadApplicationOwnedCtosFinancialReport")]).toEqual([name, false]);
+      expect([name, source.includes("ctosReport.find")]).toEqual([name, false]);
+    }
   });
 });

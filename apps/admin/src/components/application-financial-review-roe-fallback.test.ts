@@ -1,60 +1,43 @@
+jest.mock("@cashsouk/config", () => jest.requireActual("../../../../packages/config/src/currency"));
+
+import { resolveFinancialReviewResult } from "@cashsouk/types";
 import {
-  resolveCtosReturnOnEquityPercent,
-  resolveFinancialSummaryIssuerReturnOnEquityRatio,
-} from "@cashsouk/types";
-import {
-  getReturnOfEquityMissingReason,
-  resolveNetWorthFromComponentsForRoe,
-} from "./application-financial-review-roe-fallback";
+  findFinancialReviewResultYear,
+  formatFinancialReviewCalculatedCell,
+} from "./application-financial-review-calculated-cell";
+import { getReturnOfEquityMissingReason } from "./application-financial-review-roe-fallback";
+
+/** ROE cell text for one CTOS year, read from the shared Financial Review result. */
+function ctosRoeCell(account: Record<string, number | null>): string {
+  const result = resolveFinancialReviewResult({
+    financialStatements: { questionnaire: { financial_year_end: "2026-12-31" } },
+    ctosFinancials: [{ financial_year: 2024, dates: { pldd: "2024-12-31", bsdd: null }, account }],
+    referenceDate: new Date("2026-09-25T00:00:00.000Z"),
+    ctosFetchState: "has_data",
+  });
+  const year = findFinancialReviewResultYear(result, 2024, "ctos");
+  return formatFinancialReviewCalculatedCell("return_of_equity", year?.calculated_values);
+}
+
+const COMPONENTS_WITH_NET_WORTH_2_7M = {
+  bsfatot: 2_700_000,
+  othass: 0,
+  bscatot: 0,
+  bsclbank: 0,
+  curlib: 0,
+  bsslltd: 0,
+  bsclstd: 0,
+};
 
 describe("Admin Financial Summary ROE fallback (PAT ÷ Total Equity / Net Worth)", () => {
   it("fallback calculates ROE = 453,600 ÷ 2,700,000 × 100 = 16.80% when CTOS return_on_equity is absent", () => {
-    const netWorth = resolveNetWorthFromComponentsForRoe({
-      fixedAssets: 2_700_000,
-      otherAssets: 0,
-      currentAssets: 0,
-      nonCurrentAssets: 0,
-      currentLiabilities: 0,
-      longTermLiabilities: 0,
-      nonCurrentLiabilities: 0,
-    });
-    expect(netWorth).toBe(2_700_000);
-
-    const roeRatio = resolveFinancialSummaryIssuerReturnOnEquityRatio({
-      plnpat: 453_600,
-      netWorth,
-    });
-    expect(roeRatio).not.toBeNull();
-
-    // Component renders: `${formatNumber(roeRatio * 100, 2)}%`
-    expect((roeRatio! * 100).toFixed(2)).toBe("16.80");
+    expect(ctosRoeCell({ ...COMPONENTS_WITH_NET_WORTH_2_7M, plnpat: 453_600 })).toBe("16.80%");
   });
 
   it("CTOS finished return_on_equity wins over fallback even when PAT/net worth differ", () => {
-    const ctosPercent = resolveCtosReturnOnEquityPercent({
-      return_on_equity: 12.34,
-    });
-    expect(ctosPercent).not.toBeNull();
-    expect(ctosPercent!).toBeCloseTo(12.34, 6);
-
-    const netWorth = resolveNetWorthFromComponentsForRoe({
-      fixedAssets: 2_700_000,
-      otherAssets: 0,
-      currentAssets: 0,
-      nonCurrentAssets: 0,
-      currentLiabilities: 0,
-      longTermLiabilities: 0,
-      nonCurrentLiabilities: 0,
-    });
-
-    const roeRatio = resolveFinancialSummaryIssuerReturnOnEquityRatio({
-      plnpat: 453_600,
-      netWorth,
-    });
-    expect(roeRatio).not.toBeNull();
-
-    // CTOS percent should not equal fallback percent for this mismatch case.
-    expect((roeRatio! * 100).toFixed(2)).not.toBe(ctosPercent!.toFixed(2));
+    expect(
+      ctosRoeCell({ ...COMPONENTS_WITH_NET_WORTH_2_7M, plnpat: 453_600, return_on_equity: 12.34 })
+    ).toBe("12.34%");
   });
 
   it("failure cases: ROE shows accurate helper reasons when PAT or Net Worth is unavailable", () => {
@@ -69,4 +52,3 @@ describe("Admin Financial Summary ROE fallback (PAT ÷ Total Equity / Net Worth)
     );
   });
 });
-

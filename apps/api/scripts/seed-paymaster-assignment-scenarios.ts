@@ -9,6 +9,8 @@
  * Does not call CTOS, RegTank, SigningCloud, MARC APIs, email, payments, or S3 uploads.
  * Prospectus PDF status stays PENDING (frozen HTML only — no fake S3 PDF keys).
  * Notice / acknowledgement binaries are omitted so Download buttons stay hidden.
+ * Each Note copies its application's approved Financial Review result (financial_snapshot),
+ * approved through the real approval function.
  *
  * Never run against production.
  */
@@ -76,6 +78,10 @@ import {
   buildProspectusDemoFinancialStatements,
   upsertProspectusDemoCtosReport,
 } from "./seed-prospectus-review-note";
+import {
+  seedApprovedFinancialReviewForApplication,
+  seedNoteFinancialSnapshot,
+} from "./lib/seed-note-financial-snapshot";
 
 const prisma = new PrismaClient();
 
@@ -676,6 +682,11 @@ async function upsertFinancing(
       financial_statements: financialStatements as Prisma.InputJsonValue,
     },
   });
+  // Approve after the seed rewrites financial_statements / CTOS so the Note copies this run's result.
+  await seedApprovedFinancialReviewForApplication(prisma, {
+    applicationId: spec.appId,
+    reviewerUserId: input.adminUserId,
+  });
 
   const invoiceDetails = {
     number: spec.invoiceNumber,
@@ -806,6 +817,11 @@ async function upsertFinancing(
       funding_closed_at: fundingClosedAt,
       created_at: input.now,
     },
+  });
+  await seedNoteFinancialSnapshot(prisma, {
+    noteId: spec.noteId,
+    applicationId: spec.appId,
+    reviewerUserId: input.adminUserId,
   });
 
   await prisma.noteListing.create({

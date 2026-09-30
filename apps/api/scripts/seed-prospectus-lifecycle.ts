@@ -10,7 +10,8 @@
  *
  * Prefer real ProspectusReviewService / NoteService for approve, publish, invest.
  * Base Application/Invoice/Note rows use stable Prisma upserts (same pattern as
- * seed-prospectus-demo) so references stay deterministic.
+ * seed-prospectus-demo) so references stay deterministic. Each Note copies its application's
+ * approved Financial Review result (financial_snapshot), approved through the real function.
  *
  * Blocked in production. Never invents pdf_generation_status=READY without a real PDF.
  */
@@ -46,6 +47,10 @@ import {
   ctosJson,
   type LifecycleFinancialVariant,
 } from "./lib/prospectus-lifecycle-financials";
+import {
+  seedApprovedFinancialReviewForApplication,
+  seedNoteFinancialSnapshot,
+} from "./lib/seed-note-financial-snapshot";
 
 const prisma = new PrismaClient();
 const prospectusReviewService = new ProspectusReviewService();
@@ -373,6 +378,7 @@ async function wipeNoteProspectusState(noteId: string) {
 
 async function upsertBaseNote(input: {
   key: ScenarioKey;
+  adminUserId: string;
   issuerUserId: string;
   financial: LifecycleFinancialVariant;
 }): Promise<{ noteId: string; realYears: number[] }> {
@@ -589,6 +595,12 @@ async function upsertBaseNote(input: {
     },
   });
 
+  // Approve after the seed rewrites financial_statements / CTOS so the Note copies this run's result.
+  await seedApprovedFinancialReviewForApplication(prisma, {
+    applicationId: appId,
+    reviewerUserId: input.adminUserId,
+  });
+
   await wipeNoteProspectusState(noteId);
 
   const org = await prisma.issuerOrganization.findUniqueOrThrow({
@@ -669,6 +681,11 @@ async function upsertBaseNote(input: {
     where: { id: noteId },
     update: noteData,
     create: { id: noteId, ...noteData },
+  });
+  await seedNoteFinancialSnapshot(prisma, {
+    noteId,
+    applicationId: appId,
+    reviewerUserId: input.adminUserId,
   });
 
   await prisma.notePaymentSchedule.deleteMany({ where: { note_id: noteId } });
@@ -834,6 +851,7 @@ async function runScenario(
   const meta = SCENARIOS[key];
   const { noteId, realYears } = await upsertBaseNote({
     key,
+    adminUserId,
     issuerUserId,
     financial: meta.financial,
   });

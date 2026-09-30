@@ -4,6 +4,10 @@
 
 import { NoteStatus, ProspectusReviewStatus } from "@prisma/client";
 import { AppError } from "../../../lib/http/error-handler";
+import {
+  approvedFinancialResultFromInputs,
+  noteFinancialSnapshotOf,
+} from "../prospectus/prospectus-financial-comparison-test-helpers";
 import { buildCompleteProspectusReviewDraft } from "./prospectus-review.demo-fixtures";
 import { ProspectusReviewService } from "./prospectus-review.service";
 
@@ -40,6 +44,18 @@ jest.mock("./prospectus-approved-snapshot", () => {
   return {
     ...actual,
     buildCompleteApprovedProspectusSnapshot: (...args: unknown[]) => mockBuildSnapshot(...args),
+  };
+});
+
+// Approve builds Page 2 / 3 from the frozen page_2; page rendering itself is not under test.
+jest.mock("./prospectus-approved-render", () => {
+  const actual = jest.requireActual("./prospectus-approved-render");
+  return {
+    ...actual,
+    buildApprovedFinancialPages: jest.fn(async () => ({
+      page2: {},
+      page3: { incomeStatement: { years: [{ year: 2022 }, { year: 2023 }, { year: 2024 }] } },
+    })),
   };
 });
 
@@ -187,6 +203,11 @@ const actor = {
   correlationId: "corr-1",
 };
 
+/** Approve requires the Note financial snapshot; the frozen page_2 itself is mocked above. */
+const noteFinancialSnapshot = noteFinancialSnapshotOf(
+  approvedFinancialResultFromInputs({ ref: new Date("2026-07-19T00:00:00.000Z") })
+);
+
 function completeDraft() {
   return buildCompleteProspectusReviewDraft();
 }
@@ -236,7 +257,19 @@ describe("prospectus workflow transitions", () => {
       render_fingerprint: "fp-1",
       calculated_at: "2026-07-19T10:00:00.000Z",
       page_1: { issuer_track_record: {}, historical_notes: [] },
-      page_2: {},
+      // Approve renders Page 2 / 3 from this freeze, so it must parse (version 2, no years).
+      page_2: {
+        financial_comparison: {
+          source: "admin_financial_statements_normalized",
+          freeze_version: 2,
+          reference_date: "2026-07-19T10:00:00.000Z",
+          selected_years: [],
+          source_footer: "Source: Financial Statements",
+          calculated_at: "2026-07-19T10:00:00.000Z",
+          missing_ssm_unaudited_years: [],
+          ops_warning: null,
+        },
+      },
       publication_content: {},
       note_identity: {},
       html: { page1: "<p>p1</p>", page2: "<p>p2</p>", page3: "<p>p3</p>" },
@@ -249,6 +282,7 @@ describe("prospectus workflow transitions", () => {
       profit_rate_percent: 12,
       maturity_date: new Date(),
       listing: { opens_at: new Date() },
+      financial_snapshot: noteFinancialSnapshot,
     });
   });
 
@@ -409,6 +443,30 @@ describe("prospectus workflow transitions", () => {
       prospectus_review: { id: "rev-1", status: ProspectusReviewStatus.PUBLISHED },
     });
     await expect(service.assertPublishAllowed("note-1")).rejects.toBeInstanceOf(AppError);
+  });
+
+  it("C15: approve on a Note without a financial snapshot fails with 409 and writes nothing", async () => {
+    mockNoteFindUnique.mockResolvedValue({
+      status: NoteStatus.DRAFT,
+      published_at: null,
+      paymaster_snapshot: {},
+      invoice_snapshot: {},
+      profit_rate_percent: 12,
+      maturity_date: new Date(),
+      listing: { opens_at: new Date() },
+      financial_snapshot: null,
+    });
+    mockFindUnique.mockResolvedValue(baseRow());
+
+    await expect(
+      service.approve("note-1", actor, { draftContent: completeDraft() })
+    ).rejects.toMatchObject({ code: "NOTE_FINANCIAL_SNAPSHOT_MISSING", statusCode: 409 });
+
+    // Fails before the optional draft save and before the freeze is built.
+    expect(mockBuildSnapshot).not.toHaveBeenCalled();
+    expect(mockUpdate).not.toHaveBeenCalled();
+    expect(mockTransaction).not.toHaveBeenCalled();
+    expect(mockPublicationCreate).not.toHaveBeenCalled();
   });
 
   it("does not expose submit or reopen methods", () => {

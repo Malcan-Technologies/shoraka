@@ -3,6 +3,8 @@
  * WHY: Published prospectuses must not drift with live statuses/payments/window
  */
 
+import type { FinancialReviewCalculatedValues } from "@cashsouk/types";
+
 export type ProspectusHistoricalNoteStatus =
   | "ACTIVE"
   | "REPAID"
@@ -38,12 +40,15 @@ export interface ProspectusPage1Snapshot {
 }
 
 /**
- * Shared Page 2 + Page 3 frozen Application unaudited fields — not formatted display strings.
+ * Shared Page 2 + Page 3 frozen raw financial fields — not formatted display strings.
  * Original five keys remain; extended keys support Page 3 PBT / totals / liabilities.
- * Flat totass/totlib preserve Application CTOS total preference after approval freeze.
- * Old published snapshots may omit extended keys (parser fills null).
+ * Old published snapshots may omit extended keys (parser fills null); their flat totals and
+ * ratios are what they displayed (see prospectus-legacy-frozen-financials).
+ * A version-2 freeze carries every effective raw value of the selected year (issuer overlay
+ * fields included); its metrics come from `calculated_values`, never from these keys.
  */
 export interface ProspectusPage2FinancialRawSnapshot {
+  [key: string]: string | number | null;
   turnover: string | number | null;
   plnpat: string | number | null;
   bsqpuc: string | number | null;
@@ -90,6 +95,14 @@ export interface ProspectusPage2FinancialRawSnapshot {
   gear: string | number | null;
 }
 
+/** Marks a complete freeze: every raw key, stored calculated values, statement type and missing-year state. */
+export const PROSPECTUS_PAGE2_FINANCIAL_FREEZE_VERSION = 2 as const;
+
+export type ProspectusPage2FinancialStatementType =
+  | "AUDITED"
+  | "NOT_AUDITED"
+  | "MANAGEMENT_ACCOUNTS";
+
 export interface ProspectusPage2FinancialYearSnapshot {
   year: number;
   year_label: string;
@@ -98,15 +111,30 @@ export interface ProspectusPage2FinancialYearSnapshot {
   financial_year_end_iso?: string | null;
   /** CTOS/audited vs management/unaudited. Optional on old freezes. */
   record_source?: "ctos_audited" | "unaudited_management" | "admin_input" | null;
+  /** Resolved statement type. Version-2 freezes only; old freezes derive it from record_source. */
+  statement_type?: ProspectusPage2FinancialStatementType | null;
   raw_financials: ProspectusPage2FinancialRawSnapshot;
+  /**
+   * Calculated metrics stored with the approved Financial Review result (all 18 keys).
+   * Required on version-2 freezes; absent on older freezes.
+   */
+  calculated_values?: FinancialReviewCalculatedValues;
 }
 
 export interface ProspectusPage2FinancialComparisonSnapshot {
   source: "application_financial_statements" | "admin_financial_statements_normalized";
+  /** Absent on freezes made before the complete freeze (18 raw keys, derived statement type). */
+  freeze_version?: typeof PROSPECTUS_PAGE2_FINANCIAL_FREEZE_VERSION;
+  /** ISO reference date used for year selection. Version-2 freezes only. */
+  reference_date?: string | null;
   selected_years: ProspectusPage2FinancialYearSnapshot[];
   /** Narrowest accurate source footer from selected years. Optional on old freezes. */
   source_footer?: string | null;
   calculated_at: string;
+  /** SSM-expected years with no data, as the resolver produced them. Version-2 freezes only. */
+  missing_ssm_unaudited_years?: number[];
+  /** Admin ops warning for the missing years. Version-2 freezes only. */
+  ops_warning?: string | null;
 }
 
 export interface ProspectusPage2ConfigVersionsSnapshot {
